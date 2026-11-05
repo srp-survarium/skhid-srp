@@ -130,11 +130,33 @@ pub struct SmokeTuning {
     /// +4.1 % z +2.8, no guard worse; rays +1.9 %); the old point is wrong by the game (a ground cloud under a raised
     /// shooter's line hides nothing), so it is in `KEPT_RIGHT` and `all_off.json` does not name it.
     pub aim_point: Option<AimPoint>,
+    /// [A291] The objective smoke (`SmokeUse::ObjectiveActor`, `ObjectiveSmoke`): a mate near our carrier smokes the first
+    /// held lane on his way home (a carrier cannot throw), and a bot whose route ends in a held lane (its goal, a battery
+    /// or a container, where it stops in the shooter's sight) smokes that lane though the stretch after its crossing is
+    /// short (the lane smoke refuses a gap shorter than `lane_open_m`, which a goal at the route's end always is). None:
+    /// nothing calls the use (A288: 0 of 168 bot smokes).
+    pub objective: Option<ObjectiveSmoke>,
     /// [A291 `ShooterSpot`] When no landing covers the shooter's line, a smoke on his own spot if a throw comes to rest
     /// there: he is in the cloud, so he must leave it or fire blind (the owner, 2026-11-04: "bot can throw at the enemy place
     /// in that case so enemy would need to leave it"). None: no smoke for that crossing. ON by default as a choice (the
     /// owner's ask; by-side bench in its PR); `all_off.json` names it null.
     pub shooter_spot: Option<ShooterSpot>,
+}
+
+/// [A291] `SmokeTuning::objective`.
+#[derive(Clone, Copy, Debug, PartialEq, Serialize, Deserialize)]
+#[serde(default, deny_unknown_fields)]
+pub struct ObjectiveSmoke {
+    /// A mate of our carrier this near him smokes his way, metres.
+    pub mate_m: Metres,
+    /// His way home is judged this far ahead of him, metres (1 m steps on the straight line to our container).
+    pub ahead_m: Metres,
+}
+
+impl Default for ObjectiveSmoke {
+    fn default() -> Self {
+        Self { mate_m: Metres::of(25.0), ahead_m: Metres::of(30.0) }
+    }
 }
 
 /// [A291] `SmokeTuning::shooter_spot`.
@@ -304,6 +326,7 @@ impl Default for SmokeTuning {
             throw_keeps_route: true,
             wait_for_cloud: Some(WaitForCloud { who: CloudWaiters::Crossers, ..WaitForCloud::default() }),
             aim_point: Some(AimPoint::BestCover(BestCover::default())),
+            objective: None,
             shooter_spot: Some(ShooterSpot::default()),
         }
     }

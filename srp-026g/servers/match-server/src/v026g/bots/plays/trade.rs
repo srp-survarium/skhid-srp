@@ -148,6 +148,11 @@ fn group(cx: &Ctx) -> Option<GroupUp> {
     cx.tuning.tdm.group.filter(|_| !cx.view.objective().has_homes())
 }
 
+/// The rules of a trade's cover spot: TDM's `tdm.group`, else [A302 #1] `threat.trade_cover` in any mode.
+fn cover_rules(cx: &Ctx) -> Option<GroupUp> {
+    group(cx).or(cx.tuning.threat.trade_cover)
+}
+
 /// [A297 `tdm.group`] The mate whose fight this bot answers, if one is due, and this bot is in no fight itself:
 /// - [`Answer::Partner`]: its partner, in a fight, alive within `answer_m`;
 /// - [`Answer::Nearest`], [`Answer::NearestMover`]: the fight the commander gave this bot (`TeamKnowledge::answers`: each fight
@@ -238,8 +243,12 @@ pub fn start(target: TargetRef, cx: &Ctx, rng: &mut Rng) -> State {
         cx.num(PlayKind::Trade, "trade_min_s"),
         cx.num(PlayKind::Trade, "trade_max_s"),
     );
-    let from = match (group(cx), cx.point_of(target)) {
-        (Some(rules), Some(body)) => killer_near(cx, body).and_then(|killer| cover_spot(cx, &rules, body, killer, rng)),
+    let from = match (cover_rules(cx), cx.point_of(target)) {
+        (Some(rules), Some(body)) => killer_near(cx, body).and_then(|killer| {
+            // [A302 #1] With the killer known and no spot that covers him, the bot holds where it is, its view on him: the
+            // body's spot is in his sight (TDM's rule as before: onto the body).
+            cover_spot(cx, &rules, body, killer, rng).or_else(|| cx.tuning.threat.trade_cover.map(|_| cx.me.feet))
+        }),
         _ => None,
     };
     State::Trade {
@@ -268,6 +277,13 @@ fn cover_spot(cx: &Ctx, rules: &GroupUp, mate: Vec3, enemy: Vec3, rng: &mut Rng)
     };
     let spots = cx.tactics.spots(&query, cx.now, query.samples, rng);
     let mut why = None;
+    let mut off_lines = 0;
+    // [v4] Walkable from the bot, and not much farther than the straight line (the v3 bench's "stood with a goal and no
+    // route" +10 % came with the covers).
+    let walkable = |at: Vec3| {
+        crate::v026g::bots::group::walk_m(cx.tactics, cx.me.feet, at)
+            .is_some_and(|walk| walk <= 2.0 * cx.me.feet.distance_xz(at) + 10.0)
+    };
     let best = spots
         .into_iter()
         .map(|s| s.at)
@@ -279,9 +295,12 @@ fn cover_spot(cx: &Ctx, rules: &GroupUp, mate: Vec3, enemy: Vec3, rng: &mut Rng)
                 false
             }
         })
+        .inspect(|_| off_lines += 1)
+        .filter(|at| rules.approach.is_none() || walkable(*at))
         .min_by(|a, b| a.distance_xz(cx.me.feet).total_cmp(&b.distance_xz(cx.me.feet)));
     if best.is_none() {
         count(match why {
+            _ if off_lines > 0 => Count::NoWalkableSpot,
             Some(NotCover::InFile) => Count::OnlyInFile,
             Some(NotCover::OnDeath | NotCover::InKilledLane) => Count::OnlyDeadLanes,
             None => Count::NoSightSpot,
@@ -356,7 +375,8 @@ pub fn step(state: &mut State, target: TargetRef, cx: &Ctx, _rng: &mut Rng) -> S
     let Some(body) = cx.point_of(target) else {
         return Step::Failed("no spot to trade on");
     };
-    // [A297 `tdm.group`] From the cover spot when one was found, else on the body's spot.
+    // [A297 `tdm.group`, A302 `threat.trade_cover`] From the cover spot when one was found (or where it stood), else on the body's
+    // spot.
     let spot = from.unwrap_or(body);
     // The killer: the known enemy nearest the body's spot.
     let killer = killer_near(cx, body);
@@ -515,6 +535,23 @@ mod tests {
         let ms = (steps.len() - 1) as f32 * 250.0;
         assert!((2_500.0..=3_750.0).contains(&ms), "{ms}");
         assert!(s.view.places[0].feet.distance_xz(SPOT) < 6.0);
+    }
+
+    /// [A302 #1] A battery match, the killer heard 10 m from the body: with `threat.trade_cover` the trade starts from a spot
+    /// that is not the body's (a cover spot, or where the bot stands); off, from the body; a killer not known leaves it on the body.
+    #[test]
+    fn with_trade_cover_a_trade_does_not_walk_onto_the_body() {
+        let from = |s: &Scenario| match start(TargetRef::Point(SPOT), &s.cx(0), &mut Rng::new(3)) {
+            State::Trade { from, .. } => from,
+            other => panic!("{other:?}"),
+        };
+        let mut s = widowed(1_000);
+        assert_eq!(from(&s), None, "off: on the body");
+        s.tuning.threat.trade_cover = Some(GroupUp::default());
+        let spot = from(&s).expect("a spot off the body");
+        assert!(spot.distance_xz(SPOT) > 1.0, "{spot:?}");
+        s.memory = Memory::default();
+        assert_eq!(from(&s), None, "no killer known: on the body");
     }
 
     /// [A297] TDM: bot 0 at (28, 0, 35), its partner 2 at (38, 0, 33) fighting enemy 1, whom bot 0 heard at (58, 0, 34).

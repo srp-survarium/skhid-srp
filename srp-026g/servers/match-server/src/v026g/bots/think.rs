@@ -908,10 +908,20 @@ fn smoke_uses(due: &Due, bot: &mut Bot, knowledge: &mut know::TeamKnowledge, not
         if smoke_there(held.at + eye_over, chest) {
             return None;
         }
-        if !open_from(&[held.at + eye_over], crossing_s) {
+        // [A291 `smoke.objective`] A route that ends in the lane (its goal: it stops there in his sight) is smoked though the
+        // stretch after the crossing is short: the objective smoke.
+        let for_use = if open_from(&[held.at + eye_over], crossing_s) {
+            SmokeUse::CrossLane
+        } else if t.objective.is_some()
+            && bot.route.as_ref().is_some_and(|(route, _)| {
+                bot.smoke_threat.exposed_at(grid, route.at(route.length(), bot.motor.heights()))
+            })
+        {
+            SmokeUse::ObjectiveActor
+        } else {
             return None;
-        }
-        plan_line(&[held.at + eye_over], crossing_s, crossing, SmokeUse::CrossLane).map(|(plan, stretch)| {
+        };
+        plan_line(&[held.at + eye_over], crossing_s, crossing, for_use).map(|(plan, stretch)| {
             let why = format!(
                 "the lane of player {} at ({:.1}, {:.1}, {:.1}), crossing at ({:.1}, {:.1}, {:.1})",
                 held.shooter, held.at.x, held.at.y, held.at.z, crossing.x, crossing.y, crossing.z
@@ -921,7 +931,57 @@ fn smoke_uses(due: &Due, bot: &mut Bot, knowledge: &mut know::TeamKnowledge, not
             (plan, why, held.at + eye_over, hold, Some(held.shooter), stretch)
         })
     };
-    let Some((plan, why, against, hold, threat, stretch)) = sniper.or_else(lane) else {
+    // [A291 `smoke.objective`] Our carrier near: the first held lane on his way home (a carrier cannot throw), its cloud
+    // between the shooter and his way. No hold: the thrower crosses nothing.
+    let carrier = || {
+        let rule = t.objective?;
+        if bot.smoke_threat.is_empty() || bot.lanes.is_empty() || sprinting || !view.objective().has_homes() {
+            return None;
+        }
+        let home = view.container_of(bot.team).map(|c| c.at)?;
+        let grid = &tactics.world.grid;
+        let him = view
+            .team(bot.team)
+            .filter(|p| p.place != me.place && view.objective().is_actor(p) && p.feet.distance_xz(me.feet) <= rule.mate_m.get())
+            .min_by(|a, b| a.feet.distance_xz(me.feet).total_cmp(&b.feet.distance_xz(me.feet)))?;
+        let left = him.feet.distance_xz(home);
+        if left < 1.0 || bot.smoke_threat.exposed_at(grid, him.feet) {
+            return None;
+        }
+        let way = |d: f32| {
+            let f = (d / left).min(1.0);
+            Vec3::new(him.feet.x + (home.x - him.feet.x) * f, him.feet.y, him.feet.z + (home.z - him.feet.z) * f)
+        };
+        let ahead = rule.ahead_m.get().min(left);
+        let crossing_d = (1..).map(|k| k as f32).take_while(|&d| d <= ahead).find(|&d| bot.smoke_threat.exposed_at(grid, way(d)))?;
+        let crossing = grid.locate(way(crossing_d), 1.5).map_or(way(crossing_d), |n| grid.position(n));
+        let chest = crossing + chest_over;
+        let now_there = |sensed: u32| view.clock.saturating_sub(sensed) <= t.lane_sensed_ms;
+        let held = bot
+            .lanes
+            .iter()
+            .filter(|l| l.sensed.is_some_and(now_there) && l.at.distance_xz(crossing) <= l.reach_m)
+            .filter(|l| tactics.sees(l.at + eye_over, chest))
+            .min_by(|a, b| a.at.distance_xz(crossing).total_cmp(&b.at.distance_xz(crossing)))?;
+        let eye = held.at + eye_over;
+        if smoke_there(eye, chest) {
+            return None;
+        }
+        let judged = t.aim_point.map_or(super::tuning::MidLine::default().stretch_m.get(), |r| r.stretch_m());
+        let stretch: Vec<Vec3> = (0..)
+            .map(|k| crossing_d + k as f32)
+            .take_while(|&d| d <= crossing_d + judged && d <= left)
+            .map(|d| way(d) + chest_over)
+            .filter(|&p| tactics.sees(eye, p))
+            .collect();
+        let plan = smoke::smoke_aimed(&reach, eye, crossing, &stretch, thin, SmokeUse::ObjectiveActor, t.aim_point)?;
+        let why = format!(
+            "our carrier player {} on his way home, the lane of player {} at ({:.1}, {:.1}, {:.1}), crossing at ({:.1}, {:.1}, {:.1})",
+            him.place, held.shooter, held.at.x, held.at.y, held.at.z, crossing.x, crossing.y, crossing.z
+        );
+        Some((plan, why, eye, None, Some(held.shooter), stretch))
+    };
+    let Some((plan, why, against, hold, threat, stretch)) = sniper.or_else(lane).or_else(carrier) else {
         return;
     };
     #[cfg(not(test))]
@@ -958,8 +1018,13 @@ fn smoke_uses(due: &Due, bot: &mut Bot, knowledge: &mut know::TeamKnowledge, not
             notes,
             now,
             format!(
-                "decides a smoke for {:?}: {why}; to land at ({:.1}, {:.1}, {:.1}), covering {:.1} m of the line",
-                plan.for_use, at.x, at.y, at.z, plan.covers_m
+                "decides a smoke for {:?}: {why}; placed by {}; to land at ({:.1}, {:.1}, {:.1}), covering {:.1} m of the line",
+                plan.for_use,
+                plan.placed_by.name(),
+                at.x,
+                at.y,
+                at.z,
+                plan.covers_m
             ),
         );
     }
@@ -1057,6 +1122,7 @@ pub(super) fn self_kill(due: &Due, bot: &mut Bot, state: &mut TeamState, notes: 
         now,
         hopeless: bot.stuck.hopeless(now, me.spawned),
         quiet_ms: sensed.map_or(u32::MAX, |at| now.saturating_sub(at)),
+        hit_quiet_ms: bot.hurt.last_hit_ms.filter(|&at| at >= me.spawned).map_or(u32::MAX, |at| now.saturating_sub(at)),
         life_ms: now.saturating_sub(me.spawned),
         match_ms: ((view.total_s - view.time_left_s).max(0.0) * 1_000.0) as u32,
         carrying: me.carrying.is_some(),

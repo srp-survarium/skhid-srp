@@ -556,11 +556,13 @@ fn drive_tick_inner(
     {
         bot.bench_legs_why = wished_legs.filter(|_| !using).map(|legs| legs.why);
     }
-    // The bench's stand-in camper and a script keep to their spots.
-    let held = bot.control.holds_legs();
+    // The bench's stand-in camper and a script keep to their spots; [A292 S4a] so does a placer just after its trap's press (the
+    // reflex's own legs, a side step or a peek, would walk it onto the trap: they took 11 of 158 traps' placers in a bench).
+    let held = bot.control.holds_legs() || trap.is_some_and(|trap| trap.hold);
     // [smoke] Standing to throw a smoke keeps the route it was planned for (`smoke.throw_keeps_route`).
     // [#24] The fight's stand gives way to the play's walk for the objective (a take's walk and use, a press, the way into their base).
-    let legs = over.legs.filter(|legs| !using && !held && !Gates::stand_yields(legs, &intent));
+    let play = bot.assignment.as_ref().map(|a| a.kind);
+    let legs = over.legs.filter(|legs| !using && !held && !Gates::stand_yields(legs, &intent, play));
     let keeps_route = Gates::keeps_route(legs, tuning.smoke.throw_keeps_route);
     if let Some(legs) = legs {
         intent.go = Go::To {
@@ -2533,11 +2535,18 @@ impl Gates {
     }
 
     /// Whether the reflex's fight stand ([`LegsWhy::Stand`], `stand_strafe`) gives way to the play's own walk: objective work, as
-    /// `goals::keep_apart` counts it (a use look, a straight step to a take's stand, a press, the way into their base). The bot
-    /// still aims and fires on its way.
-    pub(super) fn stand_yields(legs: &Legs, intent: &Intent) -> bool {
+    /// `goals::keep_apart` counts it (a use look, a straight step to a take's stand, a press, the way into their base), and the
+    /// whole walk of a play that goes to pick something up (`play`: a take, a raid of their pile, a resupply), whose walk in
+    /// looks along its path until the last step, and of an intercept, whose walk cuts a carrier or a thief off (standing, the
+    /// interceptor fought from where it was and the battery he dropped lay farther than another). The bot still aims and fires
+    /// on its way.
+    pub(super) fn stand_yields(legs: &Legs, intent: &Intent, play: Option<PlayKind>) -> bool {
         matches!(legs.why, LegsWhy::Stand)
-            && (intent.objective || intent.straight || intent.press != 0 || matches!(intent.look, Look::Use(_)))
+            && (intent.objective
+                || intent.straight
+                || intent.press != 0
+                || matches!(intent.look, Look::Use(_))
+                || matches!(play, Some(PlayKind::Collect | PlayKind::Raid | PlayKind::Resupply | PlayKind::Intercept)))
     }
 
     /// Whether the route stays while the legs stand with no goal: standing to throw a smoke, with
@@ -2713,11 +2722,15 @@ mod tests {
     fn the_fight_stand_gives_way_to_objective_work() {
         let legs = |why| Legs { at: Vec3::ZERO, within_m: 1.0, run: false, crouch: false, why };
         let walk = Intent::to(Vec3::new(8.0, 0.0, 0.0), Pace::Walk);
-        assert!(!Gates::stand_yields(&legs(LegsWhy::Stand), &walk), "a plain route: the stand holds");
-        assert!(Gates::stand_yields(&legs(LegsWhy::Stand), &walk.looking(Look::Use(Vec3::new(8.0, 0.5, 0.0)))));
-        assert!(Gates::stand_yields(&legs(LegsWhy::Stand), &walk.into_base()));
-        assert!(Gates::stand_yields(&legs(LegsWhy::Stand), &Intent { straight: true, ..walk }));
-        assert!(!Gates::stand_yields(&legs(LegsWhy::Range), &walk.looking(Look::Use(Vec3::ZERO))), "only the stand gives way");
+        let stand = legs(LegsWhy::Stand);
+        assert!(!Gates::stand_yields(&stand, &walk, None), "a plain route: the stand holds");
+        assert!(!Gates::stand_yields(&stand, &walk, Some(PlayKind::Flank)), "a fight play's route: the stand holds");
+        assert!(Gates::stand_yields(&stand, &walk, Some(PlayKind::Collect)), "a take's walk in, along its path");
+        assert!(Gates::stand_yields(&stand, &walk, Some(PlayKind::Intercept)), "the walk that cuts a thief off");
+        assert!(Gates::stand_yields(&stand, &walk.looking(Look::Use(Vec3::new(8.0, 0.5, 0.0))), None));
+        assert!(Gates::stand_yields(&stand, &walk.into_base(), None));
+        assert!(Gates::stand_yields(&stand, &Intent { straight: true, ..walk }, None));
+        assert!(!Gates::stand_yields(&legs(LegsWhy::Range), &walk, Some(PlayKind::Collect)), "only the stand gives way");
     }
 
     #[test]

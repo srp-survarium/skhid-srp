@@ -109,9 +109,12 @@
   },
   "pace": {
     "calm_sprint": false,
+    "goal_clause": false,
+    "leave_m": 34.0,
+    "old_rule_plays": ["collect"],
     "reserve": null,
-    "ring_death_spots": false,
-    "ring_radar": false
+    "ring_m": 30.0,
+    "track_age_ms": 20000
   },
   "spacing": {
     "apart": false,
@@ -205,6 +208,7 @@
     "home_no_way_ms": null,
     "progress_ms": null,
     "suicide_after_ms": null,
+    "suicide_loud": null,
     "unknown_meant_needs_keys": false
   },
   "plays": {

@@ -231,11 +231,35 @@ fn press_cap(kin: &Kinematics, keys: u32, moving: bool) -> f32 {
     if sprint { mapdata::grid::SPRINT_JUMP_LOW_M } else { super::motor::WALK_JUMP_TOP_M }
 }
 
+/// One reckoned tick kept to compare with a world: its time, the feet, and whether the walk grid held the body on it.
+#[derive(Clone, Copy, Debug)]
+struct Reckoned {
+    time: u32,
+    feet: Vec3,
+    /// The keys meant a move and the reckoning ended the tick standing: the slide stopped it short (a wall, an edge, a lip the
+    /// reckoning does not pass; a step that slides along a wall still moves). [`advance_held`].
+    held: bool,
+}
+
+/// The decided ticks from the world before to the last one of a life (A302: what the drift line reports of them).
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub struct Interval {
+    /// The decided ticks after the world before, up to the last world's tick.
+    pub ticks: u32,
+    /// Those with a walk key held ([`WALK_KEYS`]).
+    pub walk_ticks: u32,
+    /// Those the walk grid held ([`Reckoned::held`]).
+    pub held_ticks: u32,
+}
+
+/// The walk keys, for [`Interval::walk_ticks`].
+const WALK_KEYS: u32 = key::FORWARD | key::BACK | key::LEFT | key::RIGHT;
+
 #[derive(Clone, Debug, Default)]
 pub struct BodyTrack {
     ticks: VecDeque<Tick>,
     /// The reckoned feet at each decided tick, to compare with a world.
-    trail: VecDeque<(u32, Vec3)>,
+    trail: VecDeque<Reckoned>,
     fix: Option<Fix>,
     estimate: Option<Estimate>,
     /// The distance between the reckoned feet and a world's, at the
@@ -248,6 +272,8 @@ pub struct BodyTrack {
     /// Where the reckoning took the body from the world before to the last one: the net of [`Self::last_meant`]'s way (a way out
     /// and back nets nothing).
     last_meant_net: Option<Vec3>,
+    /// The decided ticks between the world before and the last one ([`Interval`]), with [`Self::last_meant`].
+    last_interval: Option<Interval>,
     /// The last accepted world's tick and the time since the world before it
     /// of the same life ([`Self::gap_of`]).
     last_gap: Option<(u32, u32)>,
@@ -280,12 +306,12 @@ impl BodyTrack {
     #[cfg(test)]
     pub fn seen_late(&self, estimate: Estimate, clock: u32, late: u32) -> Estimate {
         let known = clock.saturating_sub(late);
-        let Some(k) = self.trail.iter().rposition(|&(time, _)| time <= known) else {
+        let Some(k) = self.trail.iter().rposition(|r| r.time <= known) else {
             return estimate;
         };
-        let (time, feet) = self.trail[k];
+        let Reckoned { time, feet, .. } = self.trail[k];
         let velocity = match k.checked_sub(1).map(|k| self.trail[k]) {
-            Some((before, from)) if time > before => {
+            Some(Reckoned { time: before, feet: from, .. }) if time > before => {
                 let s = (time - before) as f32 / 1000.0;
                 [(feet.x - from.x) / s, (feet.z - from.z) / s]
             }
@@ -306,7 +332,12 @@ impl BodyTrack {
 
     /// The reckoned feet at the decided tick `time`, if the trail still has it (A285: the model's place for a world's tick).
     pub fn reckoned_at(&self, time: u32) -> Option<Vec3> {
-        self.trail.iter().find(|(at, _)| *at == time).map(|(_, feet)| *feet)
+        self.trail.iter().find(|r| r.time == time).map(|r| r.feet)
+    }
+
+    /// The decided ticks between the last two worlds of this life ([`Interval`]); none where [`Self::last_meant`] is none.
+    pub fn last_interval(&self) -> Option<Interval> {
+        self.last_interval
     }
 
     /// The speed level its profile gives, until a world shows the life's
@@ -403,12 +434,13 @@ impl BodyTrack {
         }
         let level = self.level();
         if let Some(estimate) = self.estimate.as_mut() {
-            *estimate = advance(*estimate, tick, kin, level, grid);
-            self.trail.push_back((time, estimate.feet));
+            let held;
+            (*estimate, held) = advance_held(*estimate, tick, kin, level, grid);
+            self.trail.push_back(Reckoned { time, feet: estimate.feet, held });
             while self
                 .trail
                 .front()
-                .is_some_and(|(at, _)| at + KEPT_MS < time)
+                .is_some_and(|r| r.time + KEPT_MS < time)
             {
                 self.trail.pop_front();
             }
@@ -437,8 +469,8 @@ impl BodyTrack {
                         .trail
                         .iter()
                         .rev()
-                        .find(|(at, _)| *at <= fix.time)
-                        .map(|(_, feet)| *feet)
+                        .find(|r| r.time <= fix.time)
+                        .map(|r| r.feet)
                         .or_else(|| self.fix.as_ref().and_then(|last| last.feet))
                         .unwrap_or(estimate.feet);
                     self.last_alive = Some((self.lives, feet));
@@ -464,8 +496,8 @@ impl BodyTrack {
             .then(|| {
                 self.trail
                     .iter()
-                    .find(|(at, _)| *at == fix.time)
-                    .map(|(_, reckoned)| *reckoned)
+                    .find(|r| r.time == fix.time)
+                    .map(|r| r.feet)
             })
             .flatten();
         self.last_error = reckoned.map(|reckoned| reckoned.distance_xz(feet));
@@ -479,13 +511,28 @@ impl BodyTrack {
         self.last_meant = reckoned.zip(before).map(|(_, from)| {
             let mut at = from;
             let mut way = 0.0;
-            for &(_, feet) in self.trail.iter().filter(|(time, _)| *time <= fix.time) {
-                way += at.distance_xz(feet);
-                at = feet;
+            for r in self.trail.iter().filter(|r| r.time <= fix.time) {
+                way += at.distance_xz(r.feet);
+                at = r.feet;
             }
             way
         });
         self.last_meant_net = reckoned.zip(before).map(|(reckoned, from)| reckoned - from);
+        // The same span's ticks: the trail since the world before (cleared there) up to this world's tick.
+        let since = self.fix.as_ref().map_or(0, |last| last.time);
+        self.last_interval = self.last_meant.map(|_| {
+            let mut interval = Interval::default();
+            for r in self.trail.iter().filter(|r| r.time <= fix.time) {
+                interval.ticks += 1;
+                interval.held_ticks += u32::from(r.held);
+            }
+            interval.walk_ticks = self
+                .ticks
+                .iter()
+                .filter(|tick| tick.time > since && tick.time <= fix.time && tick.keys & WALK_KEYS != 0)
+                .count() as u32;
+            interval
+        });
         let node = grid.and_then(|grid| {
             let nearest = || grid.locate(feet, LOCATE_M);
             let under = || grid.locate_within(feet, LOCATE_M, FIX_ABOVE_M).or_else(nearest);
@@ -547,8 +594,9 @@ impl BodyTrack {
         self.trail.clear();
         // The ticks after the world's, again from where the world has it.
         for tick in self.ticks.iter().filter(|tick| tick.time > fix.time) {
-            estimate = advance(estimate, *tick, kin, level, grid);
-            self.trail.push_back((tick.time, estimate.feet));
+            let held;
+            (estimate, held) = advance_held(estimate, *tick, kin, level, grid);
+            self.trail.push_back(Reckoned { time: tick.time, feet: estimate.feet, held });
         }
         // A world newer than every decided tick: the body is as it shows.
         self.estimate = Some(estimate);
@@ -578,6 +626,16 @@ impl BodyTrack {
             .filter(|&(until, _)| until > time)
             .unwrap_or((0, f32::INFINITY))
     }
+}
+
+/// [`advance`], and whether the walk grid held the body on that tick ([`Reckoned::held`]): the keys it moved by meant a move
+/// ([`Kinematics::target_local`]) and the reckoning ends the tick at rest, which only a slide stopped short does (a blend from rest
+/// toward a move is under way after its first tick).
+fn advance_held(at: Estimate, tick: Tick, kin: &Kinematics, level: f32, grid: Option<&WalkGrid>) -> (Estimate, bool) {
+    let meant = kin.target_local(at.keys, level);
+    let next = advance(at, tick, kin, level, grid);
+    let held = grid.is_some() && meant[0].hypot(meant[1]) > 1e-3 && next.velocity == [0.0, 0.0];
+    (next, held)
 }
 
 /// The body at the next decided tick: moved by the keys it held (a tick
@@ -1150,6 +1208,35 @@ pub(super) mod tests {
             keys: 0,
             speed: None,
         }
+    }
+
+    /// A302: between two worlds, the decided ticks with a walk key held and those the walk grid held the reckoning on (walked
+    /// head-on into a wall: the slide stops it there); a body that stands is held on none, whatever is in its way.
+    #[test]
+    fn the_span_counts_walk_keys_and_the_ticks_the_grid_held() {
+        let kin = Kinematics { blend_ticks: 1, ..Kinematics::default() };
+        let grid = walled();
+        let mut track = BodyTrack::default();
+        // Facing +x (forward is (-sin a, cos a)), 2 m short of the wall at x = 20.
+        let yaw = -std::f32::consts::FRAC_PI_2;
+        let start = Vec3::new(18.0, 0.0, 10.0);
+        track.fixed(fix(1_000, start, yaw), &kin, Some(&grid));
+        assert_eq!(track.last_interval(), None, "a life's first world");
+        for time in (1_050..=2_500).step_by(50) {
+            track.decided(time, key::FORWARD, (0.0, 0.0), 0.0, &kin, Some(&grid));
+        }
+        track.fixed(fix(2_500, Vec3::new(19.6, 0.0, 10.0), yaw), &kin, Some(&grid));
+        let walked = track.last_interval().unwrap();
+        assert_eq!((walked.ticks, walked.walk_ticks), (30, 30));
+        // About 2 m of walking reaches the wall well inside 1.5 s; the rest is held.
+        assert!(walked.held_ticks >= 10 && walked.held_ticks < 30, "{walked:?}");
+        for time in (2_550..=4_000).step_by(50) {
+            track.decided(time, 0, (0.0, 0.0), 0.0, &kin, Some(&grid));
+        }
+        track.fixed(fix(4_000, Vec3::new(19.6, 0.0, 10.0), yaw), &kin, Some(&grid));
+        let stood = track.last_interval().unwrap();
+        // The first tick after the world still moves by the keys the world showed (none): nothing held, no walk key.
+        assert_eq!((stood.ticks, stood.walk_ticks, stood.held_ticks), (30, 0, 0));
     }
 
     /// Between two worlds the keys meant a walk's length (the stuck

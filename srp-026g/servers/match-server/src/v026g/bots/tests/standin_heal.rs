@@ -9,14 +9,17 @@
 //!   a use takes one unit out of the slot at once, and a slot whose drug is
 //!   active ignores a second press (`medkit::action` 0x33D700);
 //! - nothing heals for the drug's delay; then for its active time each pool
-//!   it treats gains its rate a second, clamped to the pool's maximum
-//!   (`medkit::tick` 0x33D790): the medkit 2 s then 3 s at 1.0 a second on
-//!   the head (0.4), the body (1.0), the hands and legs (0.5), and since
-//!   revision 40 40 % of the pain over the 3 s ([`MEDKIT_PAIN_PER_S`]); the
-//!   bandages of revision 32 (`origin/main:srp-026g/scripts/content-edit/
-//!   bandages-1.json`) 1 s then 1 s at 1.0 on hands and legs, 0.35 on the
-//!   body, 0.14 on the head, 0.35 on the pain; the antitoxin 1 s then 10 s
-//!   at 0.5 on the infection, and a toxic hit is halved while it is active
+//!   it treats gains its configured amount spread evenly, the rate total /
+//!   active time (the constructor 0x33CAC0 stores amount / duration, the tick
+//!   0x33D790 adds rate x seconds, clamped to the pool's maximum; A305 1.1,
+//!   `origin/main:srp-026g/docs/notes/medicines.md`, PROVEN there): the
+//!   medkit 2 s then 3 s, 1.0 in all on the head (0.4), the body (1.0), the
+//!   hands and legs (0.5), a third a second, and since revision 40 0.4 of the
+//!   pain over the 3 s ([`MEDKIT_PAIN_TOTAL`]); the bandages of revision 32
+//!   (`origin/main:srp-026g/scripts/content-edit/bandages-1.json`) 1 s then
+//!   1 s, 1.0 on hands and legs, 0.35 on the body, 0.14 on the head, 0.35 on
+//!   the pain; the antitoxin 1 s then 10 s, 0.5 in all on the infection (0.05
+//!   a second), and a toxic hit is halved while it is active
 //!   (LIKELY: the hit path was not read);
 //! - a use is not cancelled by its player; a death ends it, and since
 //!   revision 40 so does a ranged hit that took health (patch 84,
@@ -207,9 +210,9 @@ impl Group {
     }
 }
 
-/// The Medikit's pain, a second, since revision 40: 40 % of the pool over its 3 s
+/// The Medikit's pain over its course, since revision 40: 40 % of the pool over its 3 s
 /// (`origin/main:srp-026g/scripts/medicines/medicines.tsv`, 32c661400, PROVEN).
-pub(crate) const MEDKIT_PAIN_PER_S: f32 = 0.4 / 3.0;
+pub(crate) const MEDKIT_PAIN_TOTAL: f32 = 0.4;
 
 /// What a drug does: the client's `.options` (PROVEN) and the revision 32
 /// bandages.
@@ -218,8 +221,9 @@ pub(crate) struct Model {
     pub(crate) drug: Drug,
     pub(crate) delay_s: f32,
     pub(crate) active_s: f32,
-    rates: &'static [(Group, f32)],
-    /// Rates since revision 40, with [`rev40`].
+    /// The amount each group gains over the active time (its course total).
+    totals: &'static [(Group, f32)],
+    /// Totals since revision 40, with [`rev40`].
     since_rev40: &'static [(Group, f32)],
     /// A toxic hit is this share of itself while the drug is active.
     toxic: f32,
@@ -230,20 +234,20 @@ pub(crate) const MODELS: [Model; 3] = [
         drug: Drug::Medkit,
         delay_s: 2.0,
         active_s: 3.0,
-        rates: &[
+        totals: &[
             (Group::Body, 1.0),
             (Group::Head, 1.0),
             (Group::Hands, 1.0),
             (Group::Legs, 1.0),
         ],
-        since_rev40: &[(Group::Pain, MEDKIT_PAIN_PER_S)],
+        since_rev40: &[(Group::Pain, MEDKIT_PAIN_TOTAL)],
         toxic: 1.0,
     },
     Model {
         drug: Drug::Bandages,
         delay_s: 1.0,
         active_s: 1.0,
-        rates: &[
+        totals: &[
             (Group::Hands, 1.0),
             (Group::Legs, 1.0),
             (Group::Body, 0.35),
@@ -257,23 +261,29 @@ pub(crate) const MODELS: [Model; 3] = [
         drug: Drug::Antitoxin,
         delay_s: 1.0,
         active_s: 10.0,
-        rates: &[(Group::Infection, 0.5)],
+        totals: &[(Group::Infection, 0.5)],
         since_rev40: &[],
         toxic: 0.5,
     },
 ];
 
 impl Model {
-    /// The rates in the game the run has: [`Self::rates`], and [`Self::since_rev40`] with [`rev40`].
-    fn rates_now(&self) -> impl Iterator<Item = &(Group, f32)> {
-        self.rates.iter().chain(if rev40() { self.since_rev40 } else { &[] })
+    /// The rates a second in the game the run has: each total ([`Self::totals`], and [`Self::since_rev40`] with [`rev40`])
+    /// over the active time.
+    fn rates_now(&self) -> impl Iterator<Item = (Group, f32)> + '_ {
+        self.totals
+            .iter()
+            .chain(if rev40() { self.since_rev40 } else { &[] })
+            .map(move |&(group, total)| (group, total / self.active_s))
     }
 
-    /// The rate a second the drug restores `pool` at.
-    pub(crate) fn rate(&self, pool: Pool) -> f32 {
-        self.rates_now()
+    /// The amount the drug restores `pool` by over its course.
+    pub(crate) fn total(&self, pool: Pool) -> f32 {
+        self.totals
+            .iter()
+            .chain(if rev40() { self.since_rev40 } else { &[] })
             .filter(|(group, _)| group.pools().contains(&pool))
-            .map(|&(_, rate)| rate)
+            .map(|&(_, total)| total)
             .sum()
     }
 }
@@ -287,7 +297,7 @@ pub(crate) fn model_of(drug: Drug) -> &'static Model {
 
 /// `model`'s rates over `dt_s` seconds on `target`.
 fn heal(target: &mut impl Restore, model: &Model, dt_s: f32) {
-    for &(group, rate) in model.rates_now() {
+    for (group, rate) in model.rates_now() {
         for &pool in group.pools() {
             target.restore(pool, rate * dt_s);
         }
@@ -735,19 +745,22 @@ mod tests {
         heal
     }
 
+    /// [A306] Its 1.0 on each pool spread over the 3 s: a third a second.
     #[test]
-    fn a_medkit_heals_nothing_for_two_seconds_then_one_a_second_for_three_clamped() {
+    fn a_medkit_heals_nothing_for_two_seconds_then_a_third_a_second_for_three_clamped() {
         let mut heal = spawned();
         let mut pools = hurt();
         assert_eq!(heal.press(0, 10_000), Pressed::Used(Drug::Medkit));
         run(&mut heal, &mut pools, 10_000, 2_000);
         assert_eq!(pools, hurt(), "the delay");
         run(&mut heal, &mut pools, 12_000, 500);
-        assert!((pools.body - 0.9).abs() < 1e-3, "{}", pools.body);
-        assert!((pools.head - 0.4).abs() < 1e-3, "head clamped at 0.4");
-        assert!((pools.legs[0] - 0.5).abs() < 1e-3 && (pools.hands[0] - 0.5).abs() < 1e-3);
+        let third = 0.5 / 3.0;
+        assert!((pools.body - (0.4 + third)).abs() < 1e-3, "{}", pools.body);
+        assert!((pools.head - (0.1 + third)).abs() < 1e-3, "{}", pools.head);
+        assert!((pools.legs[0] - third).abs() < 1e-3 && (pools.hands[0] - (0.2 + third)).abs() < 1e-3);
         run(&mut heal, &mut pools, 12_500, 3_000);
         assert_eq!(pools.body, 1.0);
+        assert!((pools.head - 0.4).abs() < 1e-3, "head clamped at 0.4");
         // 40 % of the pain since revision 40, no infection.
         assert!((pools.pain - 0.9).abs() < 1e-3, "{}", pools.pain);
         assert_eq!(pools.infection, 0.3);
@@ -815,11 +828,11 @@ mod tests {
         assert_eq!(heal2.toxic_factor(500), 1.0, "not yet");
         assert_eq!(heal2.toxic_factor(5_000), 0.5, "halved while active");
         assert_eq!(heal2.toxic_factor(11_500), 1.0, "over after 11 s");
+        // [A306] Its 0.5 spread over the 10 s: 0.05 a second; 3 s of it after the 1 s delay, then the whole course.
         run(&mut heal2, &mut pools, 0, 4_000);
-        assert!(
-            (pools.infection - 1.0).abs() < 1e-3,
-            "full in 2 s from 0.3 (1.5 s)"
-        );
+        assert!((pools.infection - 0.45).abs() < 1e-3, "{}", pools.infection);
+        run(&mut heal2, &mut pools, 4_000, 8_000);
+        assert!((pools.infection - 0.8).abs() < 1e-3, "{}", pools.infection);
         assert_eq!(pools.body, 0.4);
     }
 
@@ -927,6 +940,20 @@ mod tests {
         assert_eq!((drug.in_hand, drug.stored), (Some(0), 0));
     }
 
+    /// [A306] The game spreads a drug's amount over its active time: the medkit's body gains a third a second (a course a
+    /// hit stops 1 s in has healed a third), the antitoxin's infection 0.05 a second, the bandages' hands 1 in their 1 s.
+    #[test]
+    fn the_game_spreads_a_drugs_total_over_its_active_time() {
+        let rate = |drug: Drug, group: Group| {
+            model_of(drug).rates_now().filter(|&(g, _)| g == group).map(|(_, r)| r).sum::<f32>()
+        };
+        assert!((rate(Drug::Medkit, Group::Body) - 1.0 / 3.0).abs() < 1e-6);
+        assert!((rate(Drug::Antitoxin, Group::Infection) - 0.05).abs() < 1e-6);
+        assert!((rate(Drug::Bandages, Group::Hands) - 1.0).abs() < 1e-6);
+        let medkit = model_of(Drug::Medkit);
+        assert!((rate(Drug::Medkit, Group::Body) * medkit.active_s - medkit.total(Pool::Body)).abs() < 1e-6);
+    }
+
     /// The bot's table of what a drug treats is its own knowledge
     /// (`plays/heal.rs`); the stand-in is the game: a number changed on
     /// one side only shows here.
@@ -962,8 +989,8 @@ mod tests {
                     .iter()
                     .chain(item.also)
                     .find(|(pool, _)| *pool == mine)
-                    .map_or(0.0, |&(_, rate)| rate);
-                assert_eq!(rate, model.rate(theirs), "{:?} {mine:?}", item.drug);
+                    .map_or(0.0, |&(_, amount)| amount);
+                assert_eq!(rate, model.total(theirs), "{:?} {mine:?}", item.drug);
             }
         }
     }

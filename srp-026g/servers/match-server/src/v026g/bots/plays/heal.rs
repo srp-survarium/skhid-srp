@@ -71,7 +71,7 @@ use crate::v026g::bots::stock::{Drug, Held, Pantry, Press};
 #[cfg(test)]
 use survarium::v026g::loadouts::PocketStore;
 use crate::v026g::bots::tactics::SpotQuery;
-use crate::v026g::bots::tuning::{DrugStops, HealTuning, NeedWeights};
+use crate::v026g::bots::tuning::{DrugAmounts, DrugStops, HealTuning, NeedWeights};
 use crate::v026g::bots::view::still_eye;
 use crate::v026g::drive::key;
 
@@ -85,13 +85,14 @@ pub const NUMBERS: &[(&str, f32)] = &[
 
 /// What a consumable does, the client's (PROVEN, `fact-health-recovery.md`
 /// §2; the bandages of revision 32): nothing for `delay_s` after the press,
-/// then each pool it treats gains its rate a second for `active_s`, up to
-/// the pool's most.
+/// then each pool it treats gains its amount over `active_s`, evenly (the
+/// rate is amount / `active_s`, [`DrugAmounts::CourseTotal`], A306), up to
+/// the pool's most. The amounts are the configs' (`medicines.tsv` of main).
 pub struct Item {
     pub drug: Drug,
     pub delay_s: f32,
     pub active_s: f32,
-    /// The pools it is pressed for, and their rates.
+    /// The pools it is pressed for, and the amount each gains over the course.
     pub treats: &'static [(Pool, f32)],
     /// Pools it also restores but is never pressed for (they count in the reckoning, not in the need): the
     /// Medikit's pain, a pool that mends on its own and that the bandages are for.
@@ -111,7 +112,7 @@ pub const ITEMS: [Item; 3] = [
         ],
         // Since revision 40: 40 % of the pain over the 3 s (`origin/main:srp-026g/scripts/medicines/medicines.tsv`,
         // 32c661400, PROVEN).
-        also: &[(Pool::Pain, 0.4 / 3.0)],
+        also: &[(Pool::Pain, 0.4)],
     },
     Item {
         drug: Drug::Bandages,
@@ -148,9 +149,19 @@ impl Item {
         ((self.delay_s + self.active_s) * 1000.0) as u32
     }
 
-    /// Every pool it restores, and its rate: [`Self::treats`] and [`Self::also`].
-    fn restores(&self) -> impl Iterator<Item = &(Pool, f32)> {
-        self.treats.iter().chain(self.also)
+    /// Every pool it restores, and its rate a second read by `amounts`: [`Self::treats`] and [`Self::also`].
+    fn restores(&self, amounts: DrugAmounts) -> impl Iterator<Item = (Pool, f32)> + '_ {
+        self.treats.iter().chain(self.also).map(move |&(pool, amount)| (pool, self.rate(pool, amount, amounts)))
+    }
+
+    /// The rate a second of `amount` (of `pool`), read by `amounts`. The old reading took the treated pools' amounts as
+    /// rates and the Medikit's pain (written as 0.4 / 3 then) as the total over the course already.
+    fn rate(&self, pool: Pool, amount: f32, amounts: DrugAmounts) -> f32 {
+        match amounts {
+            DrugAmounts::CourseTotal => amount / self.active_s,
+            DrugAmounts::PerSecond if self.also.iter().any(|&(p, _)| p == pool) => amount / self.active_s,
+            DrugAmounts::PerSecond => amount,
+        }
     }
 
     /// When the effect of `press` ends, ms: its window's end, or the hit that stopped it before then when the bot
@@ -223,12 +234,13 @@ pub fn projected(cx: &Ctx) -> Pools {
         cx.view.world_time,
         cx.bot.pantry,
         cx.tuning.heal.drug_stops,
+        cx.tuning.heal.amounts,
     )
 }
 
 /// [`projected`] from the raw inputs (the reflex habit has no [`Ctx`]): a drug a hit stopped acts to the hit
 /// only, with `stops` known.
-pub fn projected_of(mut pools: Pools, seen: u32, pantry: &Pantry, stops: DrugStops) -> Pools {
+pub fn projected_of(mut pools: Pools, seen: u32, pantry: &Pantry, stops: DrugStops, amounts: DrugAmounts) -> Pools {
     for held in pantry.held() {
         let Some(press) = held.pressed else {
             continue;
@@ -238,7 +250,7 @@ pub fn projected_of(mut pools: Pools, seen: u32, pantry: &Pantry, stops: DrugSto
         let to = it.ends(press, stops);
         if to > from {
             let secs = (to - from) as f32 / 1000.0;
-            for &(pool, rate) in it.restores() {
+            for (pool, rate) in it.restores(amounts) {
                 pools.add(pool, rate * secs);
             }
         }
@@ -267,9 +279,9 @@ pub fn need(item: &Item, pools: &Pools, w: &NeedWeights) -> f32 {
 }
 
 /// The need that is left once `item` has done all it will.
-fn left_after(item: &Item, pools: &Pools, w: &NeedWeights) -> f32 {
+fn left_after(item: &Item, pools: &Pools, w: &NeedWeights, amounts: DrugAmounts) -> f32 {
     let mut after = *pools;
-    for &(pool, rate) in item.restores() {
+    for (pool, rate) in item.restores(amounts) {
         after.add(pool, rate * item.active_s);
     }
     ITEMS
@@ -303,7 +315,7 @@ pub fn choose_of<'a>(
         .filter(|held| held.hand > 0 && !busy(held, now, heal.drug_stops))
         .map(|held| (held, need(item(held.drug), pools, w)))
         .filter(|&(_, need)| need >= heal.start_need)
-        .map(|(held, need)| (held, need, left_after(item(held.drug), pools, w)))
+        .map(|(held, need)| (held, need, left_after(item(held.drug), pools, w, heal.amounts)))
         .min_by(|a, b| {
             if (a.2 - b.2).abs() < 0.05 {
                 total(a.0).total_cmp(&total(b.0))
@@ -358,6 +370,7 @@ pub fn wish(
         world_time,
         pantry,
         heal.drug_stops,
+        heal.amounts,
     );
     let (held, _) = choose_of(&pools, pantry, heal, now)?;
     let wait_until = heal
@@ -980,6 +993,49 @@ mod tests {
         );
     }
 
+    /// [A306] Each item's rates are its course totals over its active time (main's `medicines.tsv`): the Medikit 1/3 a second
+    /// on the body, head, hands and legs and 0.4/3 on the pain; the bandages their amounts (1 s active); the antitoxin 0.05 on
+    /// the infection. The old per-second reading: the medkit's 1 and the antitoxin's 0.5 a second, the pain as now.
+    #[test]
+    fn a_drugs_amounts_are_course_totals_over_its_active_time() {
+        let rates = |drug: Drug, amounts: DrugAmounts| item(drug).restores(amounts).collect::<Vec<_>>();
+        let close = |a: f32, b: f32| (a - b).abs() < 1e-6;
+        for (pool, rate) in rates(Drug::Medkit, DrugAmounts::CourseTotal) {
+            let want = if pool == Pool::Pain { 0.4 / 3.0 } else { 1.0 / 3.0 };
+            assert!(close(rate, want), "medkit {pool:?} {rate}");
+        }
+        for (pool, rate) in rates(Drug::Medkit, DrugAmounts::PerSecond) {
+            let want = if pool == Pool::Pain { 0.4 / 3.0 } else { 1.0 };
+            assert!(close(rate, want), "medkit per second {pool:?} {rate}");
+        }
+        assert_eq!(rates(Drug::Bandages, DrugAmounts::CourseTotal), rates(Drug::Bandages, DrugAmounts::PerSecond));
+        let antitoxin = rates(Drug::Antitoxin, DrugAmounts::CourseTotal);
+        assert!(antitoxin.len() == 1 && close(antitoxin[0].1, 0.05), "{antitoxin:?}");
+        assert!(close(rates(Drug::Antitoxin, DrugAmounts::PerSecond)[0].1, 0.5));
+        // Every course heals its total, whatever the reading of a full one with the pools room enough.
+        for it in &ITEMS {
+            for &(pool, amount) in it.treats.iter().chain(it.also) {
+                let rate = it.rate(pool, amount, DrugAmounts::CourseTotal);
+                assert!(close(rate * it.active_s, amount), "{:?} {pool:?}", it.drug);
+            }
+        }
+    }
+
+    /// [A306] A medkit a bullet stopped 1 s into its 3 s course (patch 84) healed a third of its total: the body from 0.3 to
+    /// 0.63, not to full as the per-second reading had it.
+    #[test]
+    fn a_medkit_stopped_one_second_in_healed_a_third() {
+        let mut pantry = Pantry::medkits();
+        pantry.new_life(0);
+        assert!(pantry.pressed(0, 10_000));
+        pantry.hit(13_000);
+        let hurt = Pools::of_body(0.3);
+        let total = projected_of(hurt, 12_000, &pantry, DrugStops::Known, DrugAmounts::CourseTotal).body;
+        assert!((total - (0.3 + 1.0 / 3.0)).abs() < 1e-4, "{total}");
+        let old = projected_of(hurt, 12_000, &pantry, DrugStops::Known, DrugAmounts::PerSecond).body;
+        assert_eq!(old, 1.0, "the old reading: full");
+    }
+
     /// [A217] Patch 84: a medkit a bullet stopped in its delay heals nothing in the reckoning and frees the key at
     /// once (`DrugStops::Known`); believed working (`Unknown`) it blocks the key for its whole 5 s. With `Wait` a
     /// hit within `quiet_ms` holds the press, which comes once it is quiet.
@@ -990,8 +1046,8 @@ mod tests {
         assert!(pantry.pressed(0, 10_000));
         pantry.hit(11_000);
         let hurt = Pools::of_body(0.5);
-        assert_eq!(projected_of(hurt, 11_500, &pantry, DrugStops::Known).body, 0.5, "stopped in its delay");
-        assert_eq!(projected_of(hurt, 11_500, &pantry, DrugStops::Unknown).body, 1.0, "believed working");
+        assert_eq!(projected_of(hurt, 11_500, &pantry, DrugStops::Known, DrugAmounts::CourseTotal).body, 0.5, "stopped in its delay");
+        assert_eq!(projected_of(hurt, 11_500, &pantry, DrugStops::Unknown, DrugAmounts::CourseTotal).body, 1.0, "believed working");
         let at = |stops: DrugStops, now: u32| {
             let heal = HealTuning { drug_stops: stops, ..on() };
             wish(None, 0.5, now, Some(11_000), false, &pantry, &heal, now)

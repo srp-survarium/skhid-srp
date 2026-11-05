@@ -243,9 +243,30 @@ pub(crate) fn a_world_confirms_the_promise_and_a_world_without_it_takes_it_away(
     assert!(bots.teams[0].features.traps.field.is_empty());
     assert_eq!(bots.own_trap_counts().fired, 1);
     assert_eq!(bots.own_trap_counts().own_team_caught, 0);
+    // [A302] The match log has it once, whose it was and when it was placed.
+    let went_off = bots.take_traps_went_off();
+    assert_eq!(went_off.len(), 1, "{went_off:?}");
+    assert_eq!((went_off[0].time, went_off[0].at, went_off[0].placed_ms, went_off[0].by), (45_000, exact, released + 200, Some((0, promised.by))));
+    assert!(bots.take_traps_went_off().is_empty());
     // A world without it: gone.
     bots.traps_from_world(&[0u8; 20], 60_000);
     assert!(bots.teams[0].knowledge.traps.all().is_empty());
+}
+
+/// [A302] A trap no team of bots knows (a human's) is logged when it goes off too, whatever the tuning: armed in one world,
+/// fired in the next; a trap first seen fired is not (it went off before the server saw it armed).
+#[test]
+fn a_trap_that_went_off_is_logged_whoever_put_it() {
+    let (_, mut bots) = run(None, Tuning::all_off(), 4);
+    let at = Vec3::new(25.0, 0.0, 10.0);
+    bots.traps_from_world(&objects_with(at, 2, 1_000), 5_000);
+    assert!(bots.take_traps_went_off().is_empty(), "first seen fired");
+    bots.traps_from_world(&objects_with(at, 1, 1_000), 5_500);
+    assert!(bots.take_traps_went_off().is_empty());
+    bots.traps_from_world(&objects_with(at, 2, 1_000), 6_000);
+    let went_off = bots.take_traps_went_off();
+    assert_eq!(went_off.len(), 1, "{went_off:?}");
+    assert_eq!((went_off[0].time, went_off[0].placed_ms, went_off[0].by), (6_000, 1_000, None));
 }
 
 /// A trap the stand-in human put down is in his team's list from that tick, and only his team's; the next world that shows

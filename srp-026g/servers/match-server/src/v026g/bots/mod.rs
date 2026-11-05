@@ -265,6 +265,9 @@ pub struct Bot {
     skill: f32,
     /// Its map side (the spawns' team it first came out of).
     side: Option<i32>,
+    /// Where its first life began: the side is read from it when the map comes after that spawn (a map built
+    /// cold, after the countdown's spawns: without a side its first life had no Cut, HoldExit or Crossfire).
+    first_feet: Option<Vec3>,
     running: Option<Running>,
     assignment: Option<Assignment>,
     last_ran: Vec<(PlayKind, u32)>,
@@ -512,6 +515,7 @@ impl Bot {
             personality,
             skill: tuning.skill.of_tier(BotTier::default()).start,
             side: None,
+            first_feet: None,
             running: None,
             assignment: None,
             last_ran: Vec::new(),
@@ -870,9 +874,19 @@ impl Bot {
         self.memory = Memory::default();
         self.skill = skill;
         self.features.new_life(&Life { kit: self.kit });
+        self.first_feet.get_or_insert(feet);
         if self.side.is_none() {
             self.side = tactics.and_then(|tactics| tactics.side_at(feet));
         }
+    }
+
+    /// The map came after its first spawn: its side from where that life began. Whether it was read now.
+    fn side_from_first_life(&mut self, tactics: &Tactics) -> bool {
+        if self.side.is_some() {
+            return false;
+        }
+        self.side = self.first_feet.and_then(|feet| tactics.side_at(feet));
+        self.side.is_some()
     }
 }
 
@@ -1222,6 +1236,12 @@ impl Bots {
             census.unknown,
             if census.armored == 0 && census.total > 0 { " [no materials: cover is solid, load format 5 files]" } else { "" }
         );
+        // Bots that spawned before the map (built cold) take their side now, from where their first life began.
+        let mut late = 0;
+        for bot in self.bots.iter_mut().flatten() {
+            late += usize::from(bot.side_from_first_life(&tactics));
+        }
+        let summary = if late > 0 { format!("{summary}; {late} bots spawned before the map, sides read now") } else { summary };
         self.tactics = Some(tactics);
         self.memo = Default::default();
         summary
@@ -1458,12 +1478,14 @@ impl Bots {
         let new_life = self
             .tracker
             .fixed(place, fix, health, &self.tunings.match_wide().kin, world.as_deref());
-        // A294: what the tracker knows of this world for the drift line (its gap, the way the keys meant, the nearest body).
+        // A294: what the tracker knows of this world for the drift line (its gap, the way the keys meant and the span's ticks
+        // (A302), the nearest body).
         let drift_view = feet.map(|feet| {
             let body = self.tracker.body(place);
             (
                 body.and_then(|b| b.gap_of(time)),
                 body.and_then(|b| b.last_meant()),
+                body.and_then(|b| b.last_interval()),
                 self.tracker.neighbour_of(place, feet).map(|beside| beside.distance_m),
             )
         });
@@ -1484,7 +1506,7 @@ impl Bots {
                 bot.drift.new_life();
             }
             // A294: the drift of the reckoning against this world, with its likely cause.
-            if let (false, Some(reckoned), Some((gap_ms, meant_m, body_m))) = (new_life, reckoned, drift_view) {
+            if let (false, Some(reckoned), Some((gap_ms, meant_m, ticks, body_m))) = (new_life, reckoned, drift_view) {
                 let facts = nav_drift::Facts {
                     world: feet,
                     reckoned,
@@ -1494,6 +1516,7 @@ impl Bots {
                     body_m,
                     meant_m,
                     moved_m: before.map(|(_, from)| from.distance_xz(feet)),
+                    ticks,
                     crouch: keys & key::CROUCH != 0,
                     sprint: keys & key::SPRINT != 0,
                     speed,
@@ -1924,10 +1947,12 @@ impl Bots {
         let react = self.tunings.match_wide().traps.react.on;
         let hear = self.tunings.match_wide().traps.react.hear;
         let own = self.teams.iter().any(|team| !team.knowledge.traps.all().is_empty());
+        let found = survarium::v026g::match_msgs::traps::find(objects, time);
+        // [A302] For the match log, whatever the tuning, before the teams drop what went off.
+        self.log_went_off(&found, time);
         if !own && !react && !hear {
             return 0;
         }
-        let found = survarium::v026g::match_msgs::traps::find(objects, time);
         if hear {
             self.hear_snaps(&found, time);
         }
@@ -1977,6 +2002,43 @@ impl Bots {
             .filter(|trap| trap.state == TrapState::Armed)
             .map(at)
             .collect();
+    }
+
+    /// [A302] A trap the last world showed armed that this one shows fired: kept for the match log with the body nearest it and,
+    /// if a team of bots knows it, whose it was. No bot reads it.
+    fn log_went_off(&mut self, found: &[PlacedTrap], time: u32) {
+        let at = |trap: &PlacedTrap| Vec3::new(trap.position[0], trap.position[1], trap.position[2]);
+        let mut went_off = Vec::new();
+        for fired in found.iter().filter(|trap| trap.state == TrapState::Fired) {
+            let spot = at(fired);
+            if !self.features.trap_log.armed.iter().any(|armed| armed.distance_xz(spot) < trap_know::MATCH_M) {
+                continue;
+            }
+            let by = self.teams.iter().enumerate().find_map(|(team, state)| {
+                state
+                    .knowledge
+                    .traps
+                    .all()
+                    .iter()
+                    .find(|known| known.at.distance_xz(spot) < trap_know::MATCH_M)
+                    .map(|known| (team as u8, known.by))
+            });
+            went_off.push(trap_know::WentOff {
+                time,
+                at: spot,
+                placed_ms: fired.placed_ms,
+                under: self.tracker.nearest_body(spot, 3.0),
+                by,
+            });
+        }
+        let log = &mut self.features.trap_log;
+        log.went_off.extend(went_off);
+        log.armed = found.iter().filter(|trap| trap.state == TrapState::Armed).map(at).collect();
+    }
+
+    /// [A302] The traps that went off since the last call, for the match log.
+    pub fn take_traps_went_off(&mut self) -> Vec<trap_know::WentOff> {
+        std::mem::take(&mut self.features.trap_log.went_off)
     }
 
     /// Snaps given to the bots' ears, for the bench.

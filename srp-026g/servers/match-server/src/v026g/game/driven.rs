@@ -639,6 +639,19 @@ impl Game {
         walkers
             .bots
             .traps_from_world(decoded.sections.objects, snapshot.time);
+        // [A302] Each trap that went off, with the body nearest it: the game's own log has no such event.
+        for off in walkers.bots.take_traps_went_off() {
+            let by = off.by.map_or_else(|| "no bot's team knows whose".to_string(), |(team, place)| format!("player {place}'s (team {team})"));
+            let under = off.under.map_or_else(|| "nobody seen within 3 m".to_string(), |place| format!("player {place}"));
+            log::info!(
+                "Match {id:#x}: a trap went off at {} ms at ({:.1}, {:.1}, {:.1}), placed at {} ms, {by}; under it: {under}",
+                off.time,
+                off.at.x,
+                off.at.y,
+                off.at.z,
+                off.placed_ms
+            );
+        }
         walkers
             .bots
             .grenades_from_world(decoded.sections.objects, snapshot.time);

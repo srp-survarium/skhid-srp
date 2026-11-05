@@ -130,6 +130,7 @@ pub use hazard::EscapeRule;
 pub use hazard::HazardTuning;
 pub use hazard::RouteCrossing;
 pub use hazard::ZonePools;
+pub use heal::DrugAmounts;
 pub use heal::DrugStops;
 pub use heal::HealTuning;
 pub use heal::NeedWeights;
@@ -152,6 +153,7 @@ pub use smoke::BestCover;
 pub use smoke::CloudWaiters;
 pub use smoke::MidLine;
 pub use smoke::NearShooter;
+pub use smoke::ObjectiveSmoke;
 pub use smoke::ShooterSpot;
 pub use smoke::SmokeTuning;
 pub use smoke::WaitForCloud;
@@ -168,9 +170,11 @@ pub use take::ZoneLook;
 pub use take::ZoneTake;
 pub use take::ZoneTakeBehind;
 pub use tdm::Answer;
+pub use tdm::Approach;
 pub use tdm::GroupUp;
 pub use tdm::TdmTuning;
 pub use team::AvoidTuning;
+pub use team::BehindOpen;
 pub use team::CommitTuning;
 pub use team::Concede;
 pub use team::GangRule;
@@ -184,6 +188,7 @@ pub use team::Personalities;
 pub use team::Personality;
 pub use team::PinFromCover;
 pub use team::PinRule;
+pub use team::RaidRegroup;
 pub use team::RefuseFights;
 pub use team::RoamAvoid;
 pub use team::SEARCH_FLOORS_PER_POLL;
@@ -201,6 +206,7 @@ pub use traps::DefeatedTuning;
 pub use traps::PassTuning;
 pub use traps::ReactTuning;
 pub use traps::SensedNear;
+pub use traps::Stayer;
 pub use traps::TrapLanes;
 pub use traps::TrapTuning;
 pub use unstick::DropShut;
@@ -321,6 +327,12 @@ impl Tuning {
         self.take.check()?;
         if let Some(plan) = self.mods.team_plan {
             plan.check()?;
+        }
+        if let Some(open) = self.mods.behind_open {
+            open.check()?;
+        }
+        if let Some(regroup) = self.mods.raid_regroup {
+            regroup.check()?;
         }
         self.tdm.check()?;
         self.think.check()?;
@@ -767,6 +779,7 @@ mod tests {
             "/hazard/leave_islands",
             "/hazard/zone_intensity",
             "/hazard/zone_pools",
+            "/heal/amounts",
             "/heal/drug_stops",
             "/kin/fix_floor",
             "/kin/jump_snap",
