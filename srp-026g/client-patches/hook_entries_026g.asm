@@ -1791,10 +1791,10 @@ ragdoll_on_step_replay:
     db 0x80, 0x7c, 0x24, 0x0f, 0x00
     jmp 0x1f7c41
 
-; 0x32d627 check_collision after the bullet's ray_test (movq of its result; EAX the result, EDI the bullet): lohook -> ragdoll_on_ray
-global ragdoll_on_ray
-extern hook_ragdoll_on_ray_chain
-ragdoll_on_ray:
+; 0x32d627 check_collision after the bullet's ray_test (movq of its result; EAX the result, EDI the bullet): lohook -> subtick_hits_on_ray
+global subtick_hits_on_ray
+extern hook_subtick_hits_on_ray_chain
+subtick_hits_on_ray:
     lea esp, [esp - 4]
     pushfd
     pushad
@@ -1811,22 +1811,22 @@ ragdoll_on_ray:
     mov eax, esp
     sub esp, 12
     push eax
-    call hook_ragdoll_on_ray_chain
-    mov edx, ragdoll_on_ray_replay
+    call hook_subtick_hits_on_ray_chain
+    mov edx, subtick_hits_on_ray_replay
     cmp eax, 0
-    je ragdoll_on_ray_go
+    je subtick_hits_on_ray_go
     mov edx, 0x32d631
     cmp eax, 1
-    je ragdoll_on_ray_go
+    je subtick_hits_on_ray_go
     ud2
-ragdoll_on_ray_go:
+subtick_hits_on_ray_go:
     mov [ebp + 36], edx
     fxrstor [edi]
     mov esp, ebp
     popad
     popfd
     ret
-ragdoll_on_ray_replay:
+subtick_hits_on_ray_replay:
     db 0xf3, 0x0f, 0x7e, 0x00, 0x66, 0x0f, 0xd6, 0x44, 0x24, 0x38
     jmp 0x32d631
 

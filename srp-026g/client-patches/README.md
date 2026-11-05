@@ -120,6 +120,7 @@ release's. The "Result" row is the build of the revision named in it.
 | `check_tab_self_026g.py` | Runs the original's and patch 43's end of game_world::on_activate, where the hud gets its player's name (the Tab list's own row gold), on a made-up world with the journal off, recording and played back (needs Unicorn) |
 | `check_weapon_show_026g.py` | Runs the original's and patch 91's weapon::on_show and the next weapon::draw's scope (add and remove of the aimed sight, the game's own) on made-up weapons, aimed and not, first person and not, no optic, a red dot and a full-screen scope, with the renderer's in-scene byte kept (needs Unicorn) |
 | `rust/patches/src/scaleform_capture.rs`, `src/scaleform_capture.toml`, `src/vostok/drawable_image.rs`, `check_scaleform_capture_026g.py` | Patch 93: the render thread's walk of a Scaleform DrawableImageContext's command queues (OnNextCapture 0x572660) never reaches a queue being destroyed (the rev-40 crash at a match's end): two lohooks; its check runs OnNextCapture and the queue's destructor on made-up contexts, the original beside (needs Unicorn) |
+| `rust/patches/src/subtick_hits.rs`, `src/subtick_hits.toml`, `src/vostok/ray_test.rs`, `check_subtick_hits_026g.py` | Patch 103: a bullet meets a player where he stood at the ms it crossed him, not where the 50 ms step left him (`../docs/notes/subtick_bullet_hits.md`); one lohook first in `bullet.ray_traced`'s chain; its check runs the game's own ray test (ray_test, rayTest, rayTestSingle) in both exes on made-up bodies (needs Unicorn) |
 | `rust/patches/src/input_check.rs`, `src/input_check.toml`, `src/vostok/input.rs`, `check_input_check_026g.py` | Patch 99: a world takes no player input whose rotation no client makes (a NaN, an infinity, 1024 radians or more), as 0.27d's change_input refuses one: a lohook at change_input<player_input>'s start (0x1FAB50); its check runs that start on made-up inputs, the original beside (needs Unicorn) |
 | `check_mouse_buttons_026g.py` | Patch 102 (`MOUSE_BUTTONS` in `patch_026g.py`): a side mouse button (mouse4..mouse8) is no left click in the lobby, login, options and match menus; its check runs the five handlers in both exes (needs Unicorn) |
 | `rust/patches/src/footsteps.rs`, `src/footsteps.toml`, `src/vostok/footstep.rs`, `check_footsteps_026g.py` | Patch 101: a footstep that only a re-simulation makes (another player's late input) is heard instead of dropped; one lohook in on_player_sound_event's time test; its check runs the handler in both exes (needs Unicorn) |
@@ -4398,3 +4399,31 @@ exes on made-up items: the rev47 world (0x818A bytes), 300 bullets with
 twenty players, a world over 0xF000, and a packed 0xE8 of a 0xA014-byte
 world through the whole handler with the game's own decoder. **Not run in a
 game.**
+
+## A bullet meets a player where he stood when it crossed him (patch 103, unreleased)
+
+Bullets are ticked on the 50 ms grid only (`bullet_manager::tick` 0x321D10): at a grid step a
+bullet's one ray spans its flight since the last step, and every player is tested where the step
+left him, up to 50 ms after the bullet passed (25 cm at a run). The patch (the Rust patch
+`subtick_hits`, one lohook at `bullet.ray_traced` 0x32D627, first of the chain the ragdoll and the
+lamps share) tests each player near the ray where he stood at the ms the bullet reached him: the
+game's own hit time of the ray's point nearest him, and back along his character controller's last
+step (`m_last_pos` to its position, world state) by the share of the step since then, at most the
+step's whole move. A ray whose closest hit the game gave is a hit model is traced again for the
+level alone (the game's ray_test, mask 8), then each body near the ray is tested by Bullet's
+rayTestSingle (0xA02D0) through the game's own closest-ray callback (0x75B40, its filter and its
+hit model delegate) at a copy of its transform: nothing of the physics world moves. With no player
+moving near the ray the game's result is left as it is. The rules: `../docs/notes/subtick_bullet_hits.md`;
+the evidence: `../docs/notes/client_patch.md` 3.67.
+
+It changes what a match computes: a row `next` in `../crates/session/src/v026g/simulation_changes.tsv`.
+
+Checked: `cargo test` (the crossing time, the share, the clamps, a split step, a bullet spawned in
+the step, a ray of no length, the clock's wrap); `check_subtick_hits_026g.py` (and under
+`align_probe_026g.py`): check_collision's ray test from 0x32D5E5 to 0x32D631 in both exes on
+made-up spheres, the game's own Bullet code end to end; a still target byte for byte the
+original's, also with players moving far from and near the ray; a target moving across the ray
+that the original misses is hit as the original hits him standing where he stood; walls in front
+and behind, the shooter's own body, a target spawned in the step or dead, a step in parts, a move
+along z; every byte of the made-up world the same after the run. `check_ragdoll_026g.py` and
+`check_lamps_026g.py` (the site's other hooks) pass. **Not run in a game.**

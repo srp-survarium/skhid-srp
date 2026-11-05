@@ -5474,3 +5474,32 @@ va	name	location	role	basis
 0x00059e70	vostok::sound::sound_world::create_sound_voice	entry ESP+12	the propagator's emitter (its +0Ch)	observed
 0x0005cb80	vostok::sound::new_sound_propagator::detach_voice	entry ESP+4	the propagator: its voice (+4) stopped (IXAudio2SourceVoice Stop then FlushSourceBuffers on the bridge +14h -> +10h), removed from the scene's active voices (0x58990), destroyed (0x5A470: the bridge's handler cleared) and back in the world's pool (+0A0h) at once; +4 = 0. Called by the HDR cull (0x5CAD4, then +48h = 2000), the proxy's tick at a propagator's end (0x5B54F) and delete_sound_propagator (0x5D50D)	observed
 0x00038990	vostok::sound::sound_propagator_emitter::get_options	ECX	the emitter (this): a single sound's propagator emitter (single_sound + 108h)	observed
+0x000a02d0	btCollisionWorld::rayTestSingle	entry ESP+4	rayFromTrans: the ray's start (a btTransform, Bullet frame)	observed
+0x000a02d0	btCollisionWorld::rayTestSingle	entry ESP+8	rayToTrans: the ray's end (a btTransform, Bullet frame)	observed
+0x000a02d0	btCollisionWorld::rayTestSingle	entry ESP+12	the collision object tested (btCollisionObject)	observed
+0x000a02d0	btCollisionWorld::rayTestSingle	entry ESP+16	its collision shape (the object's +0CCh, or a compound's child)	observed
+0x000a02d0	btCollisionWorld::rayTestSingle	entry ESP+20	the shape's world transform (btTransform; the object's +10h from process 0xA3310)	observed
+0x000a02d0	btCollisionWorld::rayTestSingle	entry ESP+24	the result callback (RayResultCallback: +4 m_closestHitFraction the cutoff)	observed
+0x000a3050	btSingleRayCallback::btSingleRayCallback	ESI	this	observed
+0x000a3050	btSingleRayCallback::btSingleRayCallback	ECX	the ray's from (float4*, Bullet frame)	observed
+0x000a3050	btSingleRayCallback::btSingleRayCallback	EAX	the ray's to (float4*, Bullet frame)	observed
+0x000a3050	btSingleRayCallback::btSingleRayCallback	entry ESP+4	the collision world	observed
+0x000a3050	btSingleRayCallback::btSingleRayCallback	entry ESP+8	the result callback	observed
+0x000a3310	btSingleRayCallback::process	ECX	this	observed
+0x000a3310	btSingleRayCallback::process	entry ESP+4	the broadphase proxy (+0 its object)	observed
+0x00075b40	vostok::physics::closest_ray_result_callback::closest_ray_result_callback	EAX	this: the callback (6Ch bytes)	observed
+0x00075b40	vostok::physics::closest_ray_result_callback::closest_ray_result_callback	ESI	the ray's from (float4*, Bullet frame, 16 bytes copied)	observed
+0x00075b40	vostok::physics::closest_ray_result_callback::closest_ray_result_callback	EDX	the ray's to (float4*, Bullet frame, 16 bytes copied)	observed
+0x00075b40	vostok::physics::closest_ray_result_callback::closest_ray_result_callback	entry ESP+4	the filter group (u16 to +0Ch)	observed
+0x00075b40	vostok::physics::closest_ray_result_callback::closest_ray_result_callback	entry ESP+8	the filter mask (u16 to +0Eh)	observed
+0x00075b40	vostok::physics::closest_ray_result_callback::closest_ray_result_callback	entry ESP+12	the requester (+64h): the argument of a hit model's delegate	observed
+0x00075bd0	vostok::physics::closest_ray_result_callback::needsCollision	ECX	this: the callback	observed
+0x00075bd0	vostok::physics::closest_ray_result_callback::needsCollision	entry ESP+4	the broadphase proxy (+0 its object, +4 group, +6 mask)	observed
+0x0007bda0	vostok::physics::bullet_character_controller::player_step	EAX	the controller	observed
+0x0032c180	survarium::bullet::tick	EAX	the time (the world's step's end, ms)	observed
+0x0032c180	survarium::bullet::tick	entry ESP+4	the bullet	observed
+0x0032d4e0	survarium::bullet::check_collision	entry ESP+4	the ray's origin x, then y (+8), z (+0Ch): the bullet's position at the start (by value)	observed
+0x0032d4e0	survarium::bullet::check_collision	entry ESP+16	the start's time (float*, s since the segment's origin)	observed
+0x0032d4e0	survarium::bullet::check_collision	entry ESP+20	the piece's end time (float*): the ray ends at the bullet's position then (0x32CCC0); a hit's time is start + (end - start) x distance / length	observed
+0x0032d4e0	survarium::bullet::check_collision	entry ESP+24	the step's end time (float*, s since the segment's origin: the world's time now)	observed
+0x0007bda0	vostok::physics::bullet_character_controller::player_step	entry ESP+4	dt (float32, s)	observed
