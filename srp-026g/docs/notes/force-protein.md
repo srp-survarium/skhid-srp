@@ -9,7 +9,7 @@
   (`throwables.tsv`: 17 m/s, the RGD-5 and the RDG-M). S27 is the thrower's kit sum: the Grenadier
   skill (203, +0.1 a rank, 2 ranks; its card says "Throwing distance: +10 %") and every carried
   item's entries.
-- **The effect:** built-in modification 1310 on the booster, `parameters/grenade_throw_power_modifier`
+- **The effect:** built-in modification 1320 on the booster, `parameters/grenade_throw_power_modifier`
   +0.15 (type 1), as its +5 kg is 1124: the booster adds each non-zero parameter to the kit's lists
   at every spawn while it is in a pocket (`survarium::booster` 0x33F690 / 0x33F990, data.md). The
   booster's config gets the key (0.0), as it has every key its modifications change. Type 34 (a
@@ -18,7 +18,7 @@
   "Throwing distance +10 %" is +0.1 of the same sum. Throw speed 17 -> 19.55 m/s (with Grenadier 2:
   20.4 -> 22.95 m/s; the sum adds, 1 + 0.2 + 0.15). A drag-free flight's range on flat ground grows
   with the speed squared, so the real range is about +32 % (x1.3225); a range of +15 % would be
-  +0.0724 (sqrt 1.15), one cell of `modifications.tsv` (1310's value) and the card's 0.15.
+  +0.0724 (sqrt 1.15), one cell of `modifications.tsv` (1320's value) and the card's 0.15.
 - **The card:** a built-in bonus, "Throwing distance: +15%" (property 174, a percentage made like
   movement speed's 105, its name `st_srp_throw_distance` in the ten languages; icon 12, the
   booster's own), shown as the +5 kg is. With Alt, a grenade's throw speed counts the pockets' boosters
