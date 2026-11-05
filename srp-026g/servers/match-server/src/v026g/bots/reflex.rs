@@ -935,8 +935,10 @@ pub struct CombatTuning {
     /// [A307] The mirror of the weapon's kick takes the kit's `recoil_modifier` (the skills' `recoil` and the worn items':
     /// `ren_gloves_1`, worn by our kits, -8 % since revision 38): the client multiplies every shot's kick ranges by
     /// `max(0, 1 + recoil_modifier)` (0x331C50, PROVEN in `recoil.rs`). Off: 0 assumed for the bots' kits, which the data
-    /// proves wrong since revision 38, so the pull took back up to 8 % more kick than the client gave. ON by default, kept right
-    /// (`KEPT_RIGHT`).
+    /// proves wrong since revision 38, so the pull took back up to 8 % more kick than the client gave. **Off by default** (A307,
+    /// coordinator 2026-11-05): on the bench's revision 34 data the gloves give -2 %, a kick gap of 0.001-0.03 degrees the
+    /// bench cannot resolve (two by-side benches, 256 pairs each, disagreed: attack deaths 241/241, then 297/216). Waits for:
+    /// a bench on revision 48 data (gloves -8 %), with `SRP_BENCH_CLIENT_KIT_RECOIL` on; the two flip together.
     pub kit_recoil: bool,
     /// [smoke review S1] A target with no part showing and no part seen (a new target held by the sight's grace,
     /// or one lost in smoke before any part was seen) is looked at where the memory has him (`track.at()`), not
@@ -1602,7 +1604,7 @@ impl Default for CombatTuning {
             lead_flight: false,
             lead_drop: false,
             mirror_gated: true,
-            kit_recoil: true,
+            kit_recoil: false,
             aim_last_known: true,
             lead_most_ms: 300,
             lead_own: true,

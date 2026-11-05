@@ -757,7 +757,6 @@ mod tests {
             "/aim/combat/empty_reload",
             "/aim/combat/grenade_kit_cap",
             "/aim/combat/hit_cover_reach",
-            "/aim/combat/kit_recoil",
             "/aim/combat/live_eye",
             "/aim/combat/mirror_gated",
             "/aim/friends/spread_source",
