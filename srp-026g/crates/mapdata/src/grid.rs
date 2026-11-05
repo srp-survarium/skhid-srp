@@ -209,6 +209,13 @@ pub struct Body {
     /// human ones, against 36 % of bot visits at the grid's ordinary drops (A293). A vault up onto a top is kept. A build input:
     /// in the key when set.
     pub gap_no_vaults: bool,
+    /// [A304] Whether each floor keeps the slope of the walker face under its centre when it is a ramp ([`RAMP_MIN_DEG`] or more,
+    /// [`WalkGrid::ramp_slope_deg`]): a ramp face laid over steps, which the client walks at its speed along the face, its ground
+    /// speed the cosine of the grade (Cologne's stairs at (46-49, 33-35, 23-24): 46 of 78 floors on a 40-50 deg `walk` face; the
+    /// client sprinting there at 3.6-3.75 m/s, A304), told from real stairs, whose treads are flat (Vostok Radar Station's
+    /// (4, 32-34), Chemical Plant's (8, 22): 0-20 deg). A mark only: the floors and links are as without it. A build input: in the key
+    /// when set.
+    pub ramp_faces: bool,
 }
 
 /// How the floors a body's radius from walls are taken away.
@@ -261,6 +268,7 @@ impl Body {
             steep_walk_base: false,
             pocket_exits_walled: false,
             gap_no_vaults: false,
+            ramp_faces: false,
         }
     }
 }
@@ -329,6 +337,7 @@ impl Default for Body {
             steep_walk_base: false,
             pocket_exits_walled: false,
             gap_no_vaults: false,
+            ramp_faces: false,
         }
     }
 }
@@ -540,6 +549,10 @@ pub const SPRINT_JUMP_PENALTY: f32 = 3.0;
 /// metres: a floor of the crouched height only ([`WalkGrid::can_stand`] false).
 const CROUCH_ONLY_M: f32 = 0.01;
 
+/// [A304] The flattest walker face a floor's ramp mark keeps ([`Body::ramp_faces`]), degrees: real stairs' treads read 0-20 deg
+/// (Vostok Radar Station's (4, 32-34), Chemical Plant's (8, 22)), Cologne's ramp over steps 40-50. GUESS.
+pub const RAMP_MIN_DEG: f32 = 20.0;
+
 /// [`WalkGrid`]'s `flags`: a walk from a spawn's floor gets here.
 const REACHED: u8 = 1;
 /// A walk from here gets back to a spawn's floor.
@@ -724,6 +737,10 @@ pub struct WalkGrid {
     /// Per node, 1 if the floor is a lip ([`Self::is_lip`]), made once the grid is built or read by the function that finds
     /// it from the links: [`Self::link_cost`] asks it for every link a search looks at. In neither the file nor the digest.
     lip: Vec<u8>,
+    /// [A304] Per node, the slope in whole degrees of the walker face under the floor's centre when it is a ramp
+    /// ([`Body::ramp_faces`], [`RAMP_MIN_DEG`] or more), else 0: in the file (after the off-mesh links) and the digest. Empty
+    /// without the switch.
+    ramp: Vec<u8>,
     /// Per node, its distance to the nearest wall the capsule meets, in [`clearance::CLEARANCE_STEP_M`] steps ([`Self::wall_clearance`]):
     /// made by [`Self::with_wall_clearance`] after the grid is built or read, from the map's triangles. In neither the file nor the
     /// digest. Empty without it.
@@ -799,6 +816,8 @@ pub struct BuildStats {
     /// Left after dropping the floors no body gets to (the same without
     /// seeds).
     pub floors_kept: usize,
+    /// [A304] The floors with a ramp mark ([`Body::ramp_faces`]).
+    pub ramp_floors: usize,
     /// The floors the exact pass took after the rounds ([`Erosion::Exact`]).
     pub exact_eroded: usize,
     /// The Drop links the honest drops took away ([`Body::drop_flight_mps`]): for a fall deeper than the harmless one
@@ -970,6 +989,7 @@ impl WalkGrid {
             off_in: Vec::new(),
             ik: Vec::new(),
             lip: Vec::new(),
+            ramp: Vec::new(),
             clearance: Vec::new(),
             open: Vec::new(),
         };
@@ -1014,6 +1034,11 @@ impl WalkGrid {
         grid.mark_near(&fall, NEAR_FALL);
         let lips: Vec<bool> = (0..grid.len() as NodeId).map(|a| grid.is_lip(a)).collect();
         grid.mark_near(&lips, NEAR_LIP);
+        // [A304] The ramp faces under the kept floors.
+        if body.ramp_faces {
+            grid.ramp = grid.ramp_slopes(triangles);
+            stats.ramp_floors = grid.ramp.iter().filter(|&&d| d > 0).count();
+        }
         stats.floors_kept = grid.len();
         grid.warm();
         (grid, stats)
@@ -1983,6 +2008,9 @@ impl WalkGrid {
             digest.f32(self.ceiling[node]);
             digest.u32(self.piece[node]);
             digest.u32(u32::from(self.flags[node]));
+            if !self.ramp.is_empty() {
+                digest.u32(u32::from(self.ramp[node]));
+            }
             digest.u32(self.pocket_of(node as NodeId).unwrap_or(NONE));
             let (i, k) = self.cell_xz(self.cell_of[node] as usize);
             for d in 0..8 {
@@ -2036,7 +2064,7 @@ impl WalkGrid {
             })?;
             // Only a grid with off-mesh links has their table: one without
             // writes as before there were any (read back as none).
-            if self.off.is_empty() {
+            if self.off.is_empty() && self.ramp.is_empty() {
                 return Ok(());
             }
             out.plain(&self.off, |l| {
@@ -2046,7 +2074,12 @@ impl WalkGrid {
                 bytes[8..10].copy_from_slice(&u16::from(l.kind as u8).to_le_bytes());
                 bytes[10..].copy_from_slice(&l.press.centimetres().to_le_bytes());
                 bytes
-            })
+            })?;
+            // [A304] The ramp slopes, when the grid has them.
+            if self.ramp.is_empty() {
+                return Ok(());
+            }
+            out.plain(&self.ramp, |&v| [v])
         })
     }
 
@@ -2109,6 +2142,7 @@ impl WalkGrid {
                     off_in: Vec::new(),
                     ik: Vec::new(),
                     lip: Vec::new(),
+                    ramp: if input.ends() { Vec::new() } else { input.plain(|[v]: [u8; 1]| v)? },
                     clearance: Vec::new(),
                     open: Vec::new(),
                 };
@@ -2136,6 +2170,9 @@ impl WalkGrid {
             })
             .ok_or("bad dimensions")?;
         let n = self.height.len();
+        if !self.ramp.is_empty() && self.ramp.len() != n {
+            return Err("ramp slopes of another length".into());
+        }
         if self.start.len() != cells + 1
             || self.start[0] != 0
             || self.start[cells] as usize != n
@@ -2983,6 +3020,28 @@ impl WalkGrid {
     /// floor near a fall ([`Self::near_fall`]).
     ///
     /// Infinite for a link no way is planned over ([`Self::plans`]).
+    /// [A304] The slope in degrees of the ramp face under floor `node` ([`Body::ramp_faces`]): `None` on a floor whose face is flatter
+    /// than [`RAMP_MIN_DEG`] (a tread, ground), with no face under it, or in a grid built without the switch.
+    pub fn ramp_slope_deg(&self, node: NodeId) -> Option<f32> {
+        self.ramp.get(node as usize).copied().filter(|&d| d > 0).map(f32::from)
+    }
+
+    /// [A304] Per floor, [`Self::ramp_slope_deg`]'s table: a ray down from 0.3 m over each floor's centre, within 0.3 m and a step,
+    /// onto the walker faces a body stands on (not `dont_walk`).
+    fn ramp_slopes(&self, triangles: &[Triangle]) -> Vec<u8> {
+        let tree = RayTree::from_corners(triangles.iter().filter(|t| t.walker != WalkerBehaviour::DontWalk).map(|t| t.v));
+        let down = Vec3::new(0.0, -1.0, 0.0);
+        (0..self.len() as NodeId)
+            .map(|n| {
+                let p = self.position(n);
+                tree.ray_hit(Vec3::new(p.x, p.y + 0.3, p.z), down, 0.3 + self.body.step)
+                    .map(|h| h.normal.y.abs().min(1.0).acos().to_degrees())
+                    .filter(|&deg| deg >= RAMP_MIN_DEG)
+                    .map_or(0, |deg| deg.round().clamp(1.0, 90.0) as u8)
+            })
+            .collect()
+    }
+
     pub fn link_cost(&self, from: NodeId, to: NodeId, kind: LinkKind) -> f32 {
         if !self.plans(from, to) {
             return f32::INFINITY;
