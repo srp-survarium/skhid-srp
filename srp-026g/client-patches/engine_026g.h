@@ -36,6 +36,7 @@ struct game_effect_slot;
 struct game_material_manager;
 struct game_project_resource;
 struct game_scene;
+struct game_world;
 struct game_world_ui;
 struct gfx_movie;
 struct gfx_object;
@@ -522,5 +523,8 @@ unsigned char engine_ray_needs_collision(struct closest_ray_result_callback *cal
 
 /* 0xa02d0 btCollisionWorld::rayTestSingle: from ESP+4, to ESP+8, object ESP+12, shape ESP+16, transform ESP+20, callback ESP+24; pops 0; cdecl, called directly */
 void __attribute__((cdecl)) engine_ray_test_single(struct bt_transform *from, struct bt_transform *to, struct bt_collision_object *object, struct bt_collision_shape *shape, struct bt_transform *transform, struct closest_ray_result_callback *callback);
+
+/* 0x1f8070 survarium::game_world::select_profile: world EDI, value ESP+4; pops 4 */
+void engine_select_profile(struct game_world *world, unsigned int value);
 
 #endif

@@ -681,3 +681,13 @@ vostok::physics::bullet_character_controller	last_position	0x50	f32	m_last_pos, 
 vostok::physics::bullet_character_controller	position	0xB0	f32	its position, a float3, game frame (the translation of its matrix +80h; player_step copies it to m_last_pos)
 vostok::physics::bt_broadphase_proxy	group	0x4	u16	m_collisionFilterGroup (needsCollision 0x75BD8; 40h a hit model)
 vostok::physics::bt_collision_shape	shape_type	0x4	u32	m_shapeType (8 a sphere, 31 a compound; rayTestSingle 0xA02EB)
+survarium::player	input_handler	0xF470	ptr<survarium::player_input_handler>	the input handler whose view the camera takes: the local player's; given to a player at 0x242C41 (0x242B90) and taken back at 0x242CE2 (0x242CC0): the network client's vtable+5Ch and +60h (base_network_client), so the spectated player's while spectating (spectate_next_player 0x242D50 gives the new player to +5Ch at 0x242EB2); update_camera (0x1F348D) returns without it; mt_draw calls update_camera for every player and only this one moves the view
+survarium::core_world	owner	0x18FDC	u8	m_owner_id: the local place, 14h none (a replay's world); snap_inputs 0x2D2E16 snaps its own inputs only
+survarium::core_world	kit_choices	0x89D8	ptr<survarium::kit_choices>	each place's kit choices (profile inputs, 0xDE/0xF3), a list of 480h bytes a place (apply_profile_input 0x321797: [core+89D8h] + place x 480h; late_join_026g.asm first_load_kit)
+survarium::kit_choices	newest	0x8	ptr<survarium::kit_choice>	its newest node (+4 the oldest), the nodes in time order (apply_profile_input 0x3217A3 walks from it to the first at or before its tick)
+survarium::kit_choices	size	0x480	size	a place's list (0x32179D: the place x 9 x 80h)
+survarium::kit_choice	older	0x4	ptr<survarium::kit_choice>	the next older node, 0 at the oldest (0x3217B5; +0 the next newer)
+survarium::kit_choice	value	0x8	u8	its byte: a kit 0..2 the place's next kit (0x3217C5), 3 or more left as it was (0x3217C8, the next kit put back at 0x3217D5); patch 105's declared age
+survarium::kit_choice	time	0x20	u32	its time, ms, a grid time once snapped (0x3217B0 compares the tick's time with it, unsigned)
+survarium::bullet	origin_time	0x5C	u32	its segment's origin, ms: the shot's (the constructor 0x32BAF5, its time argument), moved on by a pierce or a ricochet to its own (change_trajectory 0x32EE7E); bullet::tick flies from it (0x32C191)
+survarium::change_input_frame	core	0x4	ptr<survarium::core_world>	the world core taking the input (change_input's first argument, ESP+4 at its start)

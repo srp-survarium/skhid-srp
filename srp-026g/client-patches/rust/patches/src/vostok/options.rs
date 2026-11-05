@@ -66,3 +66,25 @@ impl<'t> OptionsRead<'t> {
         unsafe { *self.options.srp_blackout() = if blackout { mark } else { 0 } }
     }
 }
+
+/// srp's block after the options' squads: its magic, then `{u8 tag, u8 len,
+/// len bytes}` entries.
+const SRPX: [u8; 4] = *b"SRPX";
+
+/// The entries of srp's block in the bytes after the options
+/// ([`OptionsRead::rest`]), in order, each its tag and bytes: none without
+/// the magic; a cut entry ends them.
+pub fn srp_entries(mut rest: Reader<'_>) -> impl Iterator<Item = (u8, &[u8])> {
+    let mut open = rest.array::<4>() == Some(SRPX);
+    core::iter::from_fn(move || {
+        if !open {
+            return None;
+        }
+        let entry = (|| {
+            let (tag, len) = (rest.u8()?, rest.u8()?);
+            Some((tag, rest.take(usize::from(len))?))
+        })();
+        open = entry.is_some();
+        entry
+    })
+}

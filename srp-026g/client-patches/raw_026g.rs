@@ -215,6 +215,8 @@ unsafe extern "C" {
     pub fn engine_ray_callback(callback: Option<ClosestRayResultCallback>, from: *const f32, to: *const f32, group: u32, mask: u32, requester: Option<Bullet>);
     /// 0x75bd0 vostok::physics::closest_ray_result_callback::needsCollision: callback ECX, proxy ESP+4; pops 4; AL
     pub fn engine_ray_needs_collision(callback: Option<ClosestRayResultCallback>, proxy: Option<BtBroadphaseProxy>) -> u8;
+    /// 0x1f8070 survarium::game_world::select_profile: world EDI, value ESP+4; pops 4
+    pub fn engine_select_profile(world: Option<GameWorld>, value: u32);
 }
 
 #[allow(dead_code)]
@@ -984,6 +986,24 @@ impl Player {
     #[inline(always)]
     pub unsafe fn set_controller(self, value: Option<PlayerController>) {
         unsafe { self.0.byte_add(0x494).cast::<Option<PlayerController>>().write_volatile(value) }
+    }
+
+    /// +0xf470 (ptr<survarium::player_input_handler>): the input handler whose view the camera takes: the local player's; given to a player at 0x242C41 (0x242B90) and taken back at 0x242CE2 (0x242CC0): the network client's vtable+5Ch and +60h (base_network_client), so the spectated player's while spectating (spectate_next_player 0x242D50 gives the new player to +5Ch at 0x242EB2); update_camera (0x1F348D) returns without it; mt_draw calls update_camera for every player and only this one moves the view
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn input_handler(self) -> Option<PlayerInputHandler> {
+        unsafe { self.0.byte_add(0xf470).cast::<Option<PlayerInputHandler>>().read_volatile() }
+    }
+
+    /// +0xf470 (ptr<survarium::player_input_handler>): the input handler whose view the camera takes: the local player's; given to a player at 0x242C41 (0x242B90) and taken back at 0x242CE2 (0x242CC0): the network client's vtable+5Ch and +60h (base_network_client), so the spectated player's while spectating (spectate_next_player 0x242D50 gives the new player to +5Ch at 0x242EB2); update_camera (0x1F348D) returns without it; mt_draw calls update_camera for every player and only this one moves the view
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn set_input_handler(self, value: Option<PlayerInputHandler>) {
+        unsafe { self.0.byte_add(0xf470).cast::<Option<PlayerInputHandler>>().write_volatile(value) }
     }
 }
 
@@ -1932,6 +1952,15 @@ impl Bullet {
     #[inline(always)]
     pub unsafe fn now(self) -> *mut u32 {
         unsafe { self.0.byte_add(0x60).cast::<u32>().as_ptr() }
+    }
+
+    /// +0x5c (u32): its segment's origin, ms: the shot's (the constructor 0x32BAF5, its time argument), moved on by a pierce or a ricochet to its own (change_trajectory 0x32EE7E); bullet::tick flies from it (0x32C191)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn origin_time(self) -> *mut u32 {
+        unsafe { self.0.byte_add(0x5c).cast::<u32>().as_ptr() }
     }
 }
 
@@ -6332,6 +6361,33 @@ impl CoreWorld {
     #[inline(always)]
     pub unsafe fn maximum_time(self) -> *mut u32 {
         unsafe { self.0.byte_add(0x18fc4).cast::<u32>().as_ptr() }
+    }
+
+    /// +0x18fdc (u8): m_owner_id: the local place, 14h none (a replay's world); snap_inputs 0x2D2E16 snaps its own inputs only
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn owner(self) -> *mut u8 {
+        unsafe { self.0.byte_add(0x18fdc).cast::<u8>().as_ptr() }
+    }
+
+    /// +0x89d8 (ptr<survarium::kit_choices>): each place's kit choices (profile inputs, 0xDE/0xF3), a list of 480h bytes a place (apply_profile_input 0x321797: [core+89D8h] + place x 480h; late_join_026g.asm first_load_kit)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn kit_choices(self) -> Option<KitChoices> {
+        unsafe { self.0.byte_add(0x89d8).cast::<Option<KitChoices>>().read_volatile() }
+    }
+
+    /// +0x89d8 (ptr<survarium::kit_choices>): each place's kit choices (profile inputs, 0xDE/0xF3), a list of 480h bytes a place (apply_profile_input 0x321797: [core+89D8h] + place x 480h; late_join_026g.asm first_load_kit)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn set_kit_choices(self, value: Option<KitChoices>) {
+        unsafe { self.0.byte_add(0x89d8).cast::<Option<KitChoices>>().write_volatile(value) }
     }
 }
 
@@ -12258,6 +12314,24 @@ impl ChangeInputFrame {
     pub unsafe fn player(self) -> *mut u8 {
         unsafe { self.0.byte_add(0x14).cast::<u8>().as_ptr() }
     }
+
+    /// +0x4 (ptr<survarium::core_world>): the world core taking the input (change_input's first argument, ESP+4 at its start)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn core(self) -> Option<CoreWorld> {
+        unsafe { self.0.byte_add(0x4).cast::<Option<CoreWorld>>().read_volatile() }
+    }
+
+    /// +0x4 (ptr<survarium::core_world>): the world core taking the input (change_input's first argument, ESP+4 at its start)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn set_core(self, value: Option<CoreWorld>) {
+        unsafe { self.0.byte_add(0x4).cast::<Option<CoreWorld>>().write_volatile(value) }
+    }
 }
 
 /// A survarium::player_equipment_sound_effect (fields_026g.tsv): a pointer to one, never 0. Made only here: by a typed field,
@@ -13112,6 +13186,133 @@ impl BtCollisionShape {
     #[inline(always)]
     pub unsafe fn shape_type(self) -> *mut u32 {
         unsafe { self.0.byte_add(0x4).cast::<u32>().as_ptr() }
+    }
+}
+
+/// A survarium::kit_choices (fields_026g.tsv): a pointer to one, never 0. Made only here: by a typed field,
+/// a function's typed result or a site's typed register (sites_026g.tsv `holds`).
+#[repr(transparent)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct KitChoices(NonNull<c_void>);
+
+#[allow(dead_code)]
+impl KitChoices {
+    /// Its address as a value (an id, a compare): never read through.
+    #[inline(always)]
+    pub fn address(self) -> u32 {
+        self.0.as_ptr() as usize as u32
+    }
+
+    /// +0x8 (ptr<survarium::kit_choice>): its newest node (+4 the oldest), the nodes in time order (apply_profile_input 0x3217A3 walks from it to the first at or before its tick)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn newest(self) -> Option<KitChoice> {
+        unsafe { self.0.byte_add(0x8).cast::<Option<KitChoice>>().read_volatile() }
+    }
+
+    /// +0x8 (ptr<survarium::kit_choice>): its newest node (+4 the oldest), the nodes in time order (apply_profile_input 0x3217A3 walks from it to the first at or before its tick)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn set_newest(self, value: Option<KitChoice>) {
+        unsafe { self.0.byte_add(0x8).cast::<Option<KitChoice>>().write_volatile(value) }
+    }
+
+    /// 0x480 bytes: a place's list (0x32179D: the place x 9 x 80h)
+    pub const SIZE: usize = 0x480;
+
+    /// The `index`th of an array of them that starts at this one.
+    ///
+    /// # Safety
+    /// The array has more than `index`.
+    #[inline(always)]
+    pub unsafe fn at(self, index: usize) -> Self {
+        Self(unsafe { self.0.byte_add(index * Self::SIZE) })
+    }
+
+    /// Which of an array that starts at `first` this one is (None before `first`, or between two).
+    #[inline(always)]
+    pub fn index_from(self, first: Self) -> Option<usize> {
+        let offset = (self.0.as_ptr() as usize).checked_sub(first.0.as_ptr() as usize)?;
+        (offset % Self::SIZE == 0).then_some(offset / Self::SIZE)
+    }
+}
+
+/// Room of ours for survarium::kit_choicess (0x480 bytes, aligned to 4), zeroed: a local the game fills,
+/// or one we fill for it.
+#[repr(C, align(4))]
+pub struct KitChoicesStorage([u8; 0x480]);
+
+#[allow(dead_code)]
+impl KitChoicesStorage {
+    pub const fn zeroed() -> Self {
+        Self([0; 0x480])
+    }
+
+    /// The one this room holds (alive while the room is).
+    #[inline(always)]
+    pub fn handle(&mut self) -> KitChoices {
+        KitChoices(NonNull::from(self).cast())
+    }
+
+    /// The first of these rooms, an array of them (None when there is none).
+    #[inline(always)]
+    pub fn first(rooms: &mut [Self]) -> Option<KitChoices> {
+        (!rooms.is_empty()).then(|| KitChoices(NonNull::from(rooms).cast()))
+    }
+}
+
+/// A survarium::kit_choice (fields_026g.tsv): a pointer to one, never 0. Made only here: by a typed field,
+/// a function's typed result or a site's typed register (sites_026g.tsv `holds`).
+#[repr(transparent)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct KitChoice(NonNull<c_void>);
+
+#[allow(dead_code)]
+impl KitChoice {
+    /// Its address as a value (an id, a compare): never read through.
+    #[inline(always)]
+    pub fn address(self) -> u32 {
+        self.0.as_ptr() as usize as u32
+    }
+
+    /// +0x4 (ptr<survarium::kit_choice>): the next older node, 0 at the oldest (0x3217B5; +0 the next newer)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn older(self) -> Option<KitChoice> {
+        unsafe { self.0.byte_add(0x4).cast::<Option<KitChoice>>().read_volatile() }
+    }
+
+    /// +0x4 (ptr<survarium::kit_choice>): the next older node, 0 at the oldest (0x3217B5; +0 the next newer)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn set_older(self, value: Option<KitChoice>) {
+        unsafe { self.0.byte_add(0x4).cast::<Option<KitChoice>>().write_volatile(value) }
+    }
+
+    /// +0x8 (u8): its byte: a kit 0..2 the place's next kit (0x3217C5), 3 or more left as it was (0x3217C8, the next kit put back at 0x3217D5); patch 105's declared age
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn value(self) -> *mut u8 {
+        unsafe { self.0.byte_add(0x8).cast::<u8>().as_ptr() }
+    }
+
+    /// +0x20 (u32): its time, ms, a grid time once snapped (0x3217B0 compares the tick's time with it, unsigned)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn time(self) -> *mut u32 {
+        unsafe { self.0.byte_add(0x20).cast::<u32>().as_ptr() }
     }
 }
 
@@ -15715,6 +15916,45 @@ pub mod site {
         #[inline(always)]
         pub unsafe fn frame(machine: &impl Machine) -> Option<HdrFrame> {
             NonNull::new(machine.register(Register::Ebp) as usize as *mut c_void).map(HdrFrame)
+        }
+    }
+
+    /// name_tag.eye (0x1f2b98): player::render_name (0x1F2AD0, from st_draw) reading the eye transform its tag is placed from (lea ecx,[esi+44Ch]; 0xEE700 multiplies the tag's raise by it at 0x1F2BA0, point_to_screen 0x23DEC0 projects it): ESI the player
+    pub mod name_tag_eye {
+        #[allow(unused_imports)]
+        use super::*;
+
+        /// ESI: a survarium::player (None for 0).
+        ///
+        /// # Safety
+        /// `machine` is at this site.
+        #[inline(always)]
+        pub unsafe fn player(machine: &impl Machine) -> Option<Player> {
+            NonNull::new(machine.register(Register::Esi) as usize as *mut c_void).map(Player)
+        }
+    }
+
+    /// core.ticked (0x2d1e6d): game_world_core::atomic_tick after its seven delegate lists, before it writes the time (mov eax,[ecx+18FC4h]; the jz 0x2D1E4D lands here when the lists are none): ECX the world core, EDI the step's time (on the grid: time % 50 == 0, as the delegates were told), its players stepped and its bullets ticked to it; tick_events saves a grid point after it (serialize 0x2D230A)
+    pub mod core_ticked {
+        #[allow(unused_imports)]
+        use super::*;
+
+        /// ECX: a survarium::core_world (None for 0).
+        ///
+        /// # Safety
+        /// `machine` is at this site.
+        #[inline(always)]
+        pub unsafe fn core(machine: &impl Machine) -> Option<CoreWorld> {
+            NonNull::new(machine.register(Register::Ecx) as usize as *mut c_void).map(CoreWorld)
+        }
+
+        /// EDI: a u32 value.
+        ///
+        /// # Safety
+        /// `machine` is at this site.
+        #[inline(always)]
+        pub unsafe fn time(machine: &impl Machine) -> u32 {
+            machine.register(Register::Edi)
         }
     }
 }

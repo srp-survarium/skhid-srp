@@ -147,6 +147,7 @@ global engine_buffer_reallocate
 global engine_ray_callback
 global engine_ray_needs_collision
 global engine_ray_test_single
+global engine_select_profile
 engine_action_present equ 0x242460   ; 0x242460 survarium::player_input_handler::action_present: handler ESP+4, action ESP+8, state ESP+12; pops 12; AL; stdcall, called directly
 engine_create_file_a equ 0x870048   ; the IAT slot 0x870048 (an import, stdcall)
 engine_write_file equ 0x870108   ; the IAT slot 0x870108 (an import, stdcall)
@@ -1882,6 +1883,22 @@ engine_ray_needs_collision:
     mov ecx, [esp + 24]   ; callback
     call 0x75bd0
     movzx eax, al
+    pop edi
+    pop esi
+    pop ebx
+    pop ebp
+    ret
+
+    align 16, db 0xCC
+engine_select_profile:
+    ; 0x1f8070 survarium::game_world::select_profile: world EDI, value ESP+4; pops 4
+    push ebp
+    push ebx
+    push esi
+    push edi
+    push dword [esp + 24]   ; value -> 4
+    mov edi, [esp + 24]   ; world
+    call 0x1f8070
     pop edi
     pop esi
     pop ebx

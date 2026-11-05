@@ -99,6 +99,15 @@ impl Step {
     }
 }
 
+/// The shot a bullet is: its shooter's place (one in the world: the core's
+/// active mask) and when it was fired, the ms its segment began at (+5Ch:
+/// the shot's, or a pierce's or ricochet's on its way).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct Shot {
+    pub shooter: Place,
+    pub fired: GameTime,
+}
+
 /// What the bullet's ray hit, as its result says now.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Struck {
@@ -130,6 +139,26 @@ impl Body<'_> {
         // SAFETY: the object is in the physics world for the hook; its
         // transform's origin is four f32.
         from_bullet(unsafe { floats(self.object.transform().origin()) })
+    }
+
+    /// Its player's place in the match.
+    pub fn place(&self) -> Option<Place> {
+        // SAFETY: the player is alive for the hook.
+        Place::new(u32::from(unsafe { read(self.player.place()) }))
+    }
+
+    /// Its player's feet, game frame: his simulated transform's place
+    /// (+43Ch), which assign_physics_transform moved this body to.
+    pub fn feet(&self) -> [f32; 3] {
+        // SAFETY: the player is alive for the hook; 16 f32 from the field on.
+        let m: [f32; 16] = unsafe { floats(self.player.transform()) };
+        [m[12], m[13], m[14]]
+    }
+
+    /// When his life began (m_inserted_time_in_ms).
+    pub fn life(&self) -> GameTime {
+        // SAFETY: as place.
+        GameTime(unsafe { read(self.player.spawned()) })
     }
 
     /// How far the player moved in the step, game frame: its character
@@ -214,6 +243,25 @@ impl<'t> RayTest<'t> {
     fn core(&self) -> Option<raw::CoreWorld> {
         // SAFETY: the bullet's owner, its player's base: alive for the hook.
         unsafe { self.bullet.shooter()?.world_core() }
+    }
+
+    /// The shot, if its shooter is a place in the world.
+    pub fn shot(&self) -> Option<Shot> {
+        let core = self.core()?;
+        // SAFETY: the bullet, its owner and the core are alive for the hook.
+        unsafe {
+            let shooter = Place::new(u32::from(read(self.bullet.shooter()?.place())))?;
+            if read(core.active_places()) >> shooter.get() & 1 == 0 {
+                return None;
+            }
+            Some(Shot { shooter, fired: GameTime(read(self.bullet.origin_time())) })
+        }
+    }
+
+    /// The step's end: the time the bullet was ticked to.
+    pub fn now(&self) -> GameTime {
+        // SAFETY: the bullet is alive for the hook.
+        GameTime(unsafe { read(self.bullet.now()) })
     }
 
     /// The world's step the bullet is ticked in: from the core's time to the

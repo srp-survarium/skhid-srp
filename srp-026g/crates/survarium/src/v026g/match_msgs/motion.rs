@@ -15,12 +15,14 @@
 //! u32 n, n x {u32 time, f32 stopping speed}: m_recent_hits  0x2DB385..0x2DB42F
 //! bool m_respawn_disabled                                   0x2DB445
 //! the artefact carry's state, 32 bytes, version byte 2      client patch 78
+//! the place's past poses and declared age, 73 bytes          client patch 105
 //! ```
 //!
 //! PROVEN in the exe; read back on the worlds of real matches. Client
 //! patch 78 (`artefact_carry`, carry.save 0x2DB47E) appends the carry's
 //! snapshot (`artefact_carry::carry::Carry::snapshot`) after the native
-//! end; a state without a valid one is not read. The inventory before it
+//! end, and patch 105 (`past_poses`, the same site after it) the place's
+//! record (`rewind::Record`); a state without a valid pair is not read. The inventory before it
 //! is not walked, so the tail is read from the end (the recent hits'
 //! count is tried until one fits) and the damage model is found by an
 //! anchored search: its last tick time is the state's own.
@@ -31,6 +33,7 @@
 //! is the capsule's centre, set at the start of a physics step.
 
 use artefact_carry::carry::Carry;
+use rewind::Record;
 
 use super::players::{FIELDS_AT, PlayerState};
 
@@ -323,9 +326,11 @@ fn damage_model(s: &[u8], head: usize, inserted_at: usize, now: u32) -> Option<D
 }
 
 /// The state as the game wrote it, without client patch 78's carry
-/// snapshot at its end (None without a valid one).
+/// snapshot and patch 105's record at its end (None without valid ones).
 fn native_state(state: &[u8]) -> Option<&[u8]> {
-    let (native, carry) = state.split_at_checked(state.len().checked_sub(Carry::SNAPSHOT_SIZE)?)?;
+    let (patched, record) = state.split_at_checked(state.len().checked_sub(Record::SIZE)?)?;
+    Record::decode(record.try_into().ok()?)?;
+    let (native, carry) = patched.split_at_checked(patched.len().checked_sub(Carry::SNAPSHOT_SIZE)?)?;
     Carry::restore(carry.try_into().ok()?)?;
     Some(native)
 }
@@ -348,7 +353,8 @@ pub struct Tail {
 
 /// A whole player state for tests and tools: the head (its time set to the
 /// tail's), an opaque inventory, and the tail as the game writes it
-/// (20 body parts, no usable object), then a stowed carry (client patch 78).
+/// (20 body parts, no usable object), then a stowed carry (client patch 78)
+/// and an empty record (patch 105).
 pub fn state_bytes(head: &PlayerState, inventory: &[u8], tail: &Tail) -> Vec<u8> {
     let items = head.items.len();
     let mut out = super::players::state_bytes(head, inventory);
@@ -392,6 +398,7 @@ pub fn state_bytes(head: &PlayerState, inventory: &[u8], tail: &Tail) -> Vec<u8>
     }
     out.push(0); // respawn not disabled
     out.extend(Carry::NEW.snapshot());
+    out.extend(Record::EMPTY.encode());
     out
 }
 
@@ -479,26 +486,33 @@ mod tests {
     #[test]
     fn bytes_that_do_not_end_a_state_are_not_read() {
         let mut bytes = state(true, 5, 1.0, &[]);
-        let flag = bytes.len() - Carry::SNAPSHOT_SIZE - 1;
+        let flag = bytes.len() - Record::SIZE - Carry::SNAPSHOT_SIZE - 1;
         bytes[flag] = 1; // no bool
         assert_eq!(Motion::read(&bytes, 5), None);
         assert_eq!(Motion::read(&[0; 10], 5), None);
     }
 
-    /// Client patch 78 ends every state with the carry's snapshot: read
-    /// past it, never into it, and not without it.
+    /// Client patch 78 ends every state with the carry's snapshot and
+    /// patch 105 with its record after it: read past both, never into them,
+    /// and not without them.
     #[test]
-    fn the_carry_snapshot_at_the_end_is_skipped_and_required() {
+    fn the_carry_snapshot_and_the_record_at_the_end_are_skipped_and_required() {
         let hits = [(100_000, 0.3)];
         let bytes = state(true, 5, 0.5, &hits);
-        let native = &bytes[..bytes.len() - Carry::SNAPSHOT_SIZE];
+        let without_record = &bytes[..bytes.len() - Record::SIZE];
+        assert_eq!(Motion::read(without_record, 5), None);
+        let native = &bytes[..bytes.len() - Record::SIZE - Carry::SNAPSHOT_SIZE];
         assert_eq!(Motion::read(native, 5), None);
         let motion = Motion::read(&bytes, 5).unwrap();
         assert_eq!(motion.body.unwrap().position, [10.0, 1.9, 20.0]);
         assert_eq!(motion.recent_hits, hits.to_vec());
         let mut bad = bytes.clone();
-        let version = bad.len() - Carry::SNAPSHOT_SIZE;
+        let version = bad.len() - Record::SIZE - Carry::SNAPSHOT_SIZE;
         bad[version] = 1;
+        assert_eq!(Motion::read(&bad, 5), None);
+        let mut bad = bytes.clone();
+        let version = bad.len() - Record::SIZE;
+        bad[version] = 2;
         assert_eq!(Motion::read(&bad, 5), None);
     }
 }

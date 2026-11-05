@@ -1,0 +1,9 @@
+[package]
+name = "rewind"
+version.workspace = true
+edition.workspace = true
+
+[lints]
+workspace = true
+
+[dependencies]

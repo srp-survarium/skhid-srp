@@ -28,12 +28,20 @@
 //!   the lower place).
 //! - Nobody moved (or nobody near the ray did): the game's own result,
 //!   untouched.
+//! - Patch 105 (`past_poses`): a target is tested that much further back
+//!   again, the age his shooter declared for him when the shot was fired
+//!   (capped by the match): back from the step's start along his ring of
+//!   grid roots, held at its end and at his life's start. An age of 0 is
+//!   the test above, bit for bit.
 
 #![forbid(unsafe_code)]
 
+use rewind::{Age, Knot, Path, Ring, Time};
+
+use crate::past_poses;
 use crate::vostok::ray_test::{Body, Flight, RayTest, Step, Struck};
 use crate::vostok::types::Place;
-use crate::vostok::{Context, Flow, NoExit};
+use crate::vostok::{Context, Flow, NoExit, Thread};
 
 type Vec3 = [f32; 3];
 
@@ -71,11 +79,33 @@ pub fn age(flight: Flight, along: f32) -> f32 {
     if age > 0.0 { age } else { 0.0 }
 }
 
-/// The share of the step's move a body is put back by for a crossing `age`
-/// seconds before the step's end: the age over the step, at most the step.
-pub fn share(age: f32, step: Step) -> f32 {
-    let share = age * 1000.0 / step.ms() as f32;
+/// How many ms before the step's end a body is tested: the bullet's
+/// crossing, `age` seconds before it but never before the step's start (the
+/// step's move is all a crossing's time knows of), and the shooter's
+/// declared `rewind` more (patch 105).
+pub fn tested_ms(age: f32, step: Step, rewind: Age) -> f32 {
+    let crossed = age * 1000.0;
+    let step_ms = step.ms() as f32;
+    (if crossed < step_ms { crossed } else { step_ms }) + rewind.ms() as f32
+}
+
+/// The share of the step's move a body is put back by when tested `ms`
+/// before the step's end: the ms over the step, at most the step.
+pub fn share(ms: f32, step: Step) -> f32 {
+    let share = ms / step.ms() as f32;
     if share < 1.0 { share } else { 1.0 }
+}
+
+/// How far back a body is tested `ms` before the step's end, which moved
+/// `motion` in the step (its share of it), and before the step's start, from
+/// where it started the step back along `path` (patch 105's ring); none when
+/// that is where it is.
+pub fn tested_back(motion: Vec3, step: Step, ms: f32, path: impl FnOnce(Knot) -> Path) -> Option<Vec3> {
+    if ms <= step.ms() as f32 {
+        back(motion, share(ms, step))
+    } else {
+        back(path(Knot { ms: step.ms(), back: motion }).back_at(ms), 1.0)
+    }
 }
 
 /// How far back a body that moved `motion` in the step stood at `share`
@@ -103,22 +133,31 @@ struct Near<'t> {
 /// check_collision after the game's ray test (`bullet.ray_traced`, first
 /// of the site's chain: the ragdoll and the lamps read the hit it leaves).
 pub fn on_ray(ctx: &mut Context<'_>) -> Flow<NoExit> {
+    let thread = ctx.thread();
     if let Some(mut ray) = RayTest::at(ctx) {
-        test(&mut ray);
+        test(&mut ray, thread);
     }
     Flow::Continue
 }
 
-fn test(ray: &mut RayTest<'_>) {
+fn test(ray: &mut RayTest<'_>, thread: &Thread) {
     let (Some(flight), Some(step)) = (ray.flight(), ray.step()) else { return };
     let (origin, direction, length) = (ray.origin(), ray.direction(), ray.length());
+    let (shot, now) = (ray.shot(), Time(ray.now().0));
     let mut near_ray: [Option<Near<'_>>; Place::COUNT] = core::array::from_fn(|_| None);
     let mut count = 0;
     ray.bodies(|body| {
         let root = body.root();
         let middle = [root[0], root[1] + MIDDLE, root[2]];
-        let crossed = share(age(flight, along(origin, direction, length, middle)), step);
-        let back = body.motion(step).and_then(|motion| back(motion, crossed));
+        let crossed = age(flight, along(origin, direction, length, middle));
+        let back = body.motion(step).and_then(|motion| {
+            let rewind = body.place().map(|target| past_poses::rewind(thread, shot, target));
+            let ms = tested_ms(crossed, step, rewind.as_ref().map_or(Age::ZERO, |r| r.age));
+            tested_back(motion, step, ms, |first| {
+                let ring = rewind.map_or(Ring::EMPTY, |r| r.ring);
+                Path::new(&ring, now, body.feet(), first, Time(body.life().0))
+            })
+        });
         let stood = back.map_or(middle, |back| sub(middle, back));
         if count < near_ray.len() && near(origin, direction, length, stood) {
             near_ray[count] = Some(Near { body, back });
@@ -187,7 +226,7 @@ mod tests {
     #[test]
     fn put_back_along_the_steps_move() {
         // 25 cm in the step (5 m/s), crossed 40 ms before its end: 20 cm back
-        let share = share(0.04, step(100, 150));
+        let share = share(tested_ms(0.04, step(100, 150), Age::ZERO), step(100, 150));
         assert!((share - 0.8).abs() < 1e-6, "{share}");
         let back = back([0.25, 0.0, 0.0], share).unwrap();
         assert!((back[0] - 0.2).abs() < 1e-6 && back[1] == 0.0 && back[2] == 0.0, "{back:?}");
@@ -198,19 +237,20 @@ mod tests {
     }
 
     fn back_at(age: f32, step: Step) -> Option<Vec3> {
-        back([0.25, 0.0, 0.0], share(age, step))
+        back([0.25, 0.0, 0.0], share(tested_ms(age, step, Age::ZERO), step))
     }
 
     #[test]
     fn never_before_the_step() {
         // a split step (an off-grid input 20 ms before the grid): its move is
         // the last 20 ms'; a crossing 40 ms before puts him back by all of it
-        assert_eq!(share(0.04, step(130, 150)), 1.0);
-        assert_eq!(share(0.01, step(130, 150)), 0.5);
+        let at = |age: f32, step: Step| share(tested_ms(age, step, Age::ZERO), step);
+        assert_eq!(at(0.04, step(130, 150)), 1.0);
+        assert_eq!(at(0.01, step(130, 150)), 0.5);
         // a bullet older than the step (emitted late): no further than the step
-        assert_eq!(share(0.12, step(100, 150)), 1.0);
+        assert_eq!(at(0.12, step(100, 150)), 1.0);
         // and across the wrap of the game's clock
-        assert_eq!(share(0.01, step(u32::MAX - 9, 10)), 0.5);
+        assert_eq!(at(0.01, step(u32::MAX - 9, 10)), 0.5);
     }
 
     #[test]
@@ -227,10 +267,10 @@ mod tests {
         // fired 20 ms before the step's end: its flight is 0..0.02 s; crossed
         // halfway, 10 ms before the end, a fifth of a whole step's move
         let fired = Flight { start: 0.0, end: 0.02, step_end: 0.02 };
-        let share = share(age(fired, 0.5), step(100, 150));
+        let share = share(tested_ms(age(fired, 0.5), step(100, 150), Age::ZERO), step(100, 150));
         assert!((share - 0.2).abs() < 1e-6, "{share}");
         // its whole flight is in the step: never back by more than its age
-        assert!(super::share(age(fired, 0.0), step(100, 150)) <= 0.4 + 1e-6);
+        assert!(super::share(tested_ms(age(fired, 0.0), step(100, 150), Age::ZERO), step(100, 150)) <= 0.4 + 1e-6);
     }
 
     #[test]
@@ -240,6 +280,73 @@ mod tests {
         let ray = Flight { start: 0.01, end: 0.01, step_end: 0.05 };
         let a = age(ray, along([1.0; 3], [0.0, 0.0, 1.0], 0.0, [5.0; 3]));
         assert!((a - 0.04).abs() < 1e-7);
+    }
+
+    /// A runner along +x at 5 m/s: his ring's roots at 1000..=1150 (x 0,
+    /// 0.25, 0.5, 0.75), the step 1150 -> 1200 his move of 0.25 to x 1.0.
+    fn runner() -> Ring {
+        let mut ring = Ring::EMPTY;
+        for n in 0..4 {
+            ring.record(Time(1000 + 50 * n), [0.25 * n as f32, 0.0, 0.0]);
+        }
+        ring
+    }
+
+    fn ms(age: u32) -> Age {
+        Age::new(age).unwrap()
+    }
+
+    #[test]
+    fn rewound_by_the_declared_age_along_the_ring() {
+        let ring = runner();
+        let step = step(1150, 1200);
+        let path = |first| Path::new(&ring, Time(1200), [1.0, 0.0, 0.0], first, Time(0));
+        // crossed 10 ms before the step's end, 90 declared: 100 ms back, x 0.5
+        let at = tested_ms(0.01, step, ms(90));
+        assert!((at - 100.0).abs() < 1e-4, "{at}");
+        let back = tested_back([0.25, 0.0, 0.0], step, at, path).unwrap();
+        assert!((back[0] - 0.5).abs() < 1e-4 && back[1] == 0.0 && back[2] == 0.0, "{back:?}");
+        // still in the step (10 + 30): the step's move's share, as patch 103
+        let at = tested_ms(0.01, step, ms(30));
+        assert_eq!(tested_back([0.25, 0.0, 0.0], step, at, path), back_of(0.8));
+        // the most (150) and a crossing at the step's start: 200 back, the
+        // ring's oldest (x 0); further is held there
+        let at = tested_ms(0.05, step, Age::MAX);
+        assert_eq!(at, 200.0);
+        assert_eq!(tested_back([0.25, 0.0, 0.0], step, at, path), Some([1.0, 0.0, 0.0]));
+        // a target spawned at 1075: his roots of 1000 and 1050 are not his
+        let spawned = |first| Path::new(&ring, Time(1200), [1.0, 0.0, 0.0], first, Time(1075));
+        assert_eq!(tested_back([0.25, 0.0, 0.0], step, 200.0, spawned), Some([0.5, 0.0, 0.0]));
+        // a step in parts (1180 -> 1200, his move 0.1): crossed 30 ms before
+        // its end, held at its start (20) as patch 103, 60 more: 80 back,
+        // between 1150 (50 back, 0.25) and 1100 (100 back, 0.5)
+        let part = self::step(1180, 1200);
+        let at = tested_ms(0.03, part, ms(60));
+        assert_eq!(at, 80.0);
+        let back = tested_back([0.1, 0.0, 0.0], part, at, path).unwrap();
+        assert!((back[0] - 0.4).abs() < 1e-4, "{back:?}");
+    }
+
+    fn back_of(share: f32) -> Option<Vec3> {
+        back([0.25, 0.0, 0.0], share)
+    }
+
+    #[test]
+    fn an_age_of_0_is_patch_103s_test_bit_for_bit() {
+        // patch 103's own: the crossing's age over the step, at most the step
+        let piece_1 = |age: f32, step: Step| {
+            let share = age * 1000.0 / step.ms() as f32;
+            back([0.25, -0.0, 0.1], if share < 1.0 { share } else { 1.0 })
+        };
+        let ring = runner();
+        let path = |first| Path::new(&ring, Time(1200), [1.0, 0.0, 0.0], first, Time(0));
+        for step in [step(1150, 1200), step(1180, 1200), step(u32::MAX - 9, 10)] {
+            for age in [0.0, 0.0001, 0.013, 0.02, 0.0357, 0.05, 0.12, f32::NAN] {
+                let ours = tested_back([0.25, -0.0, 0.1], step, tested_ms(age, step, Age::ZERO), path);
+                assert_eq!(ours.map(|b| b.map(f32::to_bits)), piece_1(age, step).map(|b| b.map(f32::to_bits)),
+                           "{age} in {step:?}");
+            }
+        }
     }
 
     #[test]

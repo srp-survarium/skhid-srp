@@ -171,8 +171,9 @@ class Run(InventoryGame):
     def save(self, player):
         self.saved.clear()
         self.site(0x2DB47E, [0x2DB483], ebx=player, edi=self.snapshot, ebp=STACK)
-        assert len(self.saved) == 32
-        return bytes(self.saved)
+        # the site's chain: the carry's 32, then patch 105's record (73; check_subtick_hits_026g.py)
+        assert len(self.saved) == 32 + 73
+        return bytes(self.saved[:32])
 
     def load(self, player, snapshot):
         self.emu.mem_write(self.snapshot, snapshot)

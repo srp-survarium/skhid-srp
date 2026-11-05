@@ -10,3 +10,4 @@ patch = 99
 [[hook]]
 site = "change_input.player"
 handler = "on_change_input"
+order = 0
