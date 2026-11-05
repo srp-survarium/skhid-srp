@@ -65,6 +65,7 @@ struct m_voice {
     int started;
     ad_u32 queued;
     struct xa_buffer queue[MAX_QUEUE];
+    int flushed[MAX_QUEUE];                 /* ended on the next pass of a live engine */
     ad_u8 format[18];
 };
 struct m_engine {
@@ -209,10 +210,18 @@ static ad_hresult S mv_submit(void *self, const struct xa_buffer *b, const struc
     (void)w;
     struct m_voice *v = MV(self);
     if (v->queued == MAX_QUEUE) return AD_XAUDIO2_E_INVALID_CALL;
+    v->flushed[v->queued] = 0;
     v->queue[v->queued++] = *b;
     return 0;
 }
-static ad_hresult S mv_flush(void *self) { (void)self; return 0; }
+/* XAudio2's: every buffer of a stopped voice, all but the playing one of a
+ * started one; their ends on a later pass (play), never on a dead engine. */
+static ad_hresult S mv_flush(void *self)
+{
+    struct m_voice *v = MV(self);
+    for (ad_u32 i = v->started ? 1 : 0; i < v->queued; ++i) v->flushed[i] = 1;
+    return 0;
+}
 static ad_hresult S mv_nothing(void *self) { (void)self; return 0; }
 static ad_hresult S mv_exit_loop(void *self, ad_u32 o) { (void)self, (void)o; return 0; }
 static void S mv_get_state(void *self, struct xa_voice_state *s) { *s = (struct xa_voice_state){ 0, MV(self)->queued, 0 }; }
@@ -339,15 +348,27 @@ static const struct xa_engine_vtbl me_vtbl = {
     me_source, me_submix, me_master, me_start, me_stop, me_commit, me_performance, me_debug,
 };
 
-/* XAudio2's thread: the first buffer of every started source ends. */
+static void end_buffer(struct m_voice *v, ad_u32 at)
+{
+    void *context = v->queue[at].context;
+    --v->queued;
+    memmove(v->queue + at, v->queue + at + 1, (v->queued - at) * sizeof v->queue[0]);
+    memmove(v->flushed + at, v->flushed + at + 1, (v->queued - at) * sizeof v->flushed[0]);
+    (*(const struct xa_voice_callback_vtbl **)v->callback)->buffer_end(v->callback, context);
+}
+
+/* XAudio2's thread, a pass of a live engine: the flushed buffers end, then
+ * the first buffer of every started source. */
 static void play(struct m_engine *e)
 {
+    if (e->dead) return;
     for (ad_u32 i = 0; i < e->voices; ++i) {
         struct m_voice *v = e->voice[i];
-        if (v->kind != M_SOURCE || !v->started || !v->queued) continue;
-        void *context = v->queue[0].context;
-        memmove(v->queue, v->queue + 1, --v->queued * sizeof v->queue[0]);
-        (*(const struct xa_voice_callback_vtbl **)v->callback)->buffer_end(v->callback, context);
+        if (v->kind != M_SOURCE) continue;
+        for (ad_u32 b = 0; b < v->queued;)
+            if (v->flushed[b]) end_buffer(v, b);
+            else ++b;
+        if (v->started && v->queued) end_buffer(v, 0);
     }
 }
 
@@ -609,6 +630,55 @@ int main(void)
     check_graph(last_engine, 0, 1);
     for (int round = 0; round < 8; ++round) play(last_engine);
     for (int i = 0; i < SOURCES; ++i) assert(callbacks[i].ends == 4 && callbacks[i].last == &contexts[i][3]);
+
+    puts("a flushed buffer ends on a live engine's pass, once");
+    {
+        struct m_engine *e = last_engine;
+        struct xa_buffer b4 = { 0, 4, "abcd", 0, 0, 0, 0, 0, &contexts[3][4] };
+        struct xa_buffer b5 = { 0, 4, "abcd", 0, 0, 0, 0, 0, &contexts[3][5] };
+        assert(VOICE_CALL(source[3], submit_source_buffer, &b4, 0) == 0);
+        assert(VOICE_CALL(source[3], submit_source_buffer, &b5, 0) == 0);
+        assert(VOICE_CALL(source[3], stop, 0, 0) == 0);
+        assert(VOICE_CALL(source[3], flush_source_buffers) == 0);
+        assert(callbacks[3].ends == 4);
+        play(e);
+        assert(callbacks[3].ends == 6 && callbacks[3].last == &contexts[3][5]);
+    }
+
+    puts("flushed buffers on a dead engine: ended by the rebuild, never played again");
+    {
+        struct xa_buffer b[3];
+        for (int k = 0; k < 3; ++k) b[k] = (struct xa_buffer){ 0, 4, "abcd", 0, 0, 0, 0, 0, &contexts[0][4 + k] };
+        for (int k = 0; k < 3; ++k) assert(VOICE_CALL(source[0], submit_source_buffer, &b[k], 0) == 0);
+        lose_device(last_engine);                           /* dead: no pass ends anything now */
+        assert(VOICE_CALL(source[0], flush_source_buffers) == 0);   /* started: [0][4] stays */
+        struct xa_buffer c4 = { 0, 4, "abcd", 0, 0, 0, 0, 0, &contexts[2][4] };
+        assert(VOICE_CALL(source[2], submit_source_buffer, &c4, 0) == 0);
+        assert(VOICE_CALL(source[2], stop, 0, 0) == 0);    /* detach_voice: stop, flush */
+        assert(VOICE_CALL(source[2], flush_source_buffers) == 0);
+        for (int k = 5; k < 7; ++k) {                      /* the voice's next owner */
+            struct xa_buffer c = { 0, 4, "abcd", 0, 0, 0, 0, 0, &contexts[2][k] };
+            assert(VOICE_CALL(source[2], submit_source_buffer, &c, 0) == 0);
+        }
+        assert(VOICE_CALL(source[2], start, 0, 0) == 0);
+        set_devices(0, 0, "");
+        ad_tick();                                          /* no device: lost, the flushed kept */
+        assert(callbacks[0].ends == 4 && callbacks[2].ends == 4);
+        set_devices(1, 0, "F");
+        now += 3000;
+        ad_tick();
+        assert(!rule_broken && engines_alive == 1);
+        assert(callbacks[0].ends == 6 && callbacks[0].last == &contexts[0][6]);
+        assert(callbacks[2].ends == 5 && callbacks[2].last == &contexts[2][4]);
+        void *queued[8];
+        assert(pending_contexts(0, queued) == 1 && queued[0] == &contexts[0][4]);
+        assert(pending_contexts(2, queued) == 2 && queued[0] == &contexts[2][5] && queued[1] == &contexts[2][6]);
+        assert(pending_contexts(3, queued) == 0);
+        for (int round = 0; round < 4; ++round) play(last_engine);
+        assert(callbacks[0].ends == 7 && callbacks[0].last == &contexts[0][4]);
+        assert(callbacks[2].ends == 7 && callbacks[2].last == &contexts[2][6]);
+        assert(callbacks[3].ends == 6);
+    }
 
     puts("the game's end: everything given back");
     game_end();

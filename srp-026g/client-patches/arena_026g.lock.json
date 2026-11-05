@@ -2,7 +2,7 @@
   "generated": "by link_026g.py --write from patch_026g.py's ARENA and its sources: do not edit",
   "va": "0xa42d000",
   "size": 760004,
-  "sha256": "bbe632a34d75780df79c92c899ebb5c1cec6cddfea1454bb15f2e93b01037d8f",
+  "sha256": "ad871242df915194bc6703c340b7600b69299872f8a31ad2166819dfb13eb15e",
   "blocks": {
     "bullet_bounds.code": {
       "kind": "code",
@@ -77,12 +77,12 @@
     "audio_device.code": {
       "kind": "code",
       "va": "0xa458000",
-      "size": 11684
+      "size": 12068
     },
     "audio_device.state": {
       "kind": "state",
-      "va": "0xa45adb0",
-      "size": 5824
+      "va": "0xa45af30",
+      "size": 6336
     },
     "patches.code": {
       "kind": "code",
@@ -103,7 +103,7 @@
   "symbols": {
     "SRP_DIAGNOSTICS": "0xa49705c",
     "_RNvNtNtCsgEaDafe65MU_7patches6vostok8gun_cook12cooked_entry": "0xa45d000",
-    "__rodata_audio_device_code": "0xa45a70a",
+    "__rodata_audio_device_code": "0xa45a892",
     "__rodata_bake_cache_code": "0xa43e0e9",
     "__rodata_hide_ui_code": "0xa4391e2",
     "__rodata_kill_feed_code": "0xa43c178",
@@ -111,14 +111,14 @@
     "__rodata_patches_code": "0xa496730",
     "__rodata_research_code": "0xa432f45",
     "__rodata_weight_ui_code": "0xa42e592",
-    "ad_alloc": "0xa45a4d8",
-    "ad_free": "0xa45a504",
-    "ad_frequency": "0xa45a5b8",
-    "ad_log": "0xa45a5e9",
-    "ad_mm_enumerator": "0xa45a558",
-    "ad_now": "0xa45a587",
-    "ad_tick": "0xa45a3c3",
-    "ad_xaudio2_create": "0xa45a535",
+    "ad_alloc": "0xa45a660",
+    "ad_free": "0xa45a68c",
+    "ad_frequency": "0xa45a740",
+    "ad_log": "0xa45a771",
+    "ad_mm_enumerator": "0xa45a6e0",
+    "ad_now": "0xa45a70f",
+    "ad_tick": "0xa45a54b",
+    "ad_xaudio2_create": "0xa45a6bd",
     "artefact_carry_on_client_death": "0xa4944b2",
     "artefact_carry_on_construct": "0xa493f0f",
     "artefact_carry_on_damage_bones": "0xa494220",
@@ -149,8 +149,8 @@
     "artefacts_popup": "0xa435023",
     "artefacts_stagger": "0xa435019",
     "artefacts_unlink": "0xa43500a",
-    "audio_device_create": "0xa45a26e",
-    "audio_device_orders": "0xa45a6dc",
+    "audio_device_create": "0xa45a3f6",
+    "audio_device_orders": "0xa45a864",
     "bake_cache_adopt": "0xa43d02a",
     "bake_cache_baked": "0xa43d09f",
     "bake_cache_crc32": "0xa43d1d6",

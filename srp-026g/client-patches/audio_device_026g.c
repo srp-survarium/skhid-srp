@@ -133,7 +133,15 @@ struct ad_chain {
 struct ad_matrix { struct ad_voice *to; ad_u32 source_channels, destination_channels; float m[AD_MATRIX]; };
 struct ad_output_filter { struct ad_voice *to; struct xa_filter filter; };
 
-struct ad_pending_entry { struct xa_buffer buffer; enum { AD_PCM, AD_WMA } kind; struct xa_buffer_wma wma; };
+/* A buffer given and not ended: queued, or flushed (FlushSourceBuffers took
+ * it; XAudio2 ends it on a later pass, which a stopped or dead engine never
+ * runs: a rebuild ends it itself, never queues it again). */
+struct ad_pending_entry {
+    struct xa_buffer buffer;
+    enum { AD_PCM, AD_WMA } kind;
+    struct xa_buffer_wma wma;
+    enum { AD_QUEUED, AD_FLUSHED } state;
+};
 
 struct ad_pending {
     struct ad_spin spin;
@@ -348,6 +356,7 @@ static int ad_pending_push(struct ad_pending *p, const struct xa_buffer *buffer,
         ad_u32 at = (p->first + p->count++) % AD_PENDING;
         p->entry[at].buffer = *buffer;
         p->entry[at].kind = wma ? AD_WMA : AD_PCM;
+        p->entry[at].state = AD_QUEUED;
         if (wma) p->entry[at].wma = *wma;
     }
     ad_unlock(&p->spin);
@@ -674,10 +683,21 @@ static ad_hresult AD_STDCALL v_submit_source_buffer(void *self, const struct xa_
     return hr;
 }
 
+/* XAudio2 flushes every buffer of a stopped voice, all but the one playing
+ * of a started one (the game stops first: detach_voice 0x5CB8E..0x5CBB5);
+ * their ends come as callbacks on a later pass. Kept, marked flushed, so a
+ * late end still finds its entry and a rebuild never plays them again. */
 static ad_hresult AD_STDCALL v_flush_source_buffers(void *self)
 {
     REAL_OR(self, AD_XAUDIO2_E_INVALID_CALL);
-    return REAL(self)->flush_source_buffers(VOICE(self)->real);     /* their ends come as callbacks */
+    ad_hresult hr = REAL(self)->flush_source_buffers(VOICE(self)->real);
+    if (AD_FAILED(hr)) return hr;
+    struct ad_pending *p = VOICE(self)->as.source.pending;
+    ad_lock(&p->spin);
+    for (ad_u32 i = VOICE(self)->as.source.play == AD_STOPPED ? 0 : 1; i < p->count; ++i)
+        p->entry[(p->first + i) % AD_PENDING].state = AD_FLUSHED;
+    ad_unlock(&p->spin);
+    return hr;
 }
 
 static ad_hresult AD_STDCALL v_discontinuity(void *self)
@@ -1162,6 +1182,28 @@ static void ad_replay(struct ad_voice *voice)
 
 /* A source voice's buffers again, in order (their copy taken under the
  * lock, the submissions outside it: the voice is not started yet). */
+/* The flushed buffers of a source voice whose engine is gone: off the
+ * queue, and their OnBufferEnd given to the game's callback here, as XAudio2
+ * would have (0x5DDE0's order lets the decoded chunk go). The rebuild calls
+ * it with the old engine gone and no source voice on the new one, so no
+ * XAudio2 thread calls the game's callbacks meanwhile. */
+static void ad_end_flushed(struct ad_voice *voice)
+{
+    static void *ended[AD_PENDING];                 /* the sound thread's alone */
+    struct ad_pending *p = voice->as.source.pending;
+    ad_u32 n = 0, kept = 0;
+    ad_lock(&p->spin);
+    for (ad_u32 i = 0; i < p->count; ++i) {
+        const struct ad_pending_entry *e = &p->entry[(p->first + i) % AD_PENDING];
+        if (e->state == AD_FLUSHED) ended[n++] = e->buffer.context;
+        else p->entry[(p->first + kept++) % AD_PENDING] = *e;
+    }
+    p->count = kept;
+    ad_unlock(&p->spin);
+    void *game = voice->as.source.game_callback;
+    for (ad_u32 i = 0; game && i < n; ++i) GAME_CALLBACK_METHODS(game)->buffer_end(game, ended[i]);
+}
+
 static void ad_resubmit(struct ad_voice *voice)
 {
     static struct ad_pending copy;                  /* the sound thread's alone */
@@ -1173,6 +1215,7 @@ static void ad_resubmit(struct ad_voice *voice)
     ad_unlock(&pending->spin);
     for (ad_u32 i = 0; i < copy.count; ++i) {
         const struct ad_pending_entry *e = &copy.entry[(copy.first + i) % AD_PENDING];
+        if (e->state == AD_FLUSHED) continue;      /* ended by ad_end_flushed */
         if (AD_FAILED(voice_methods(voice->real)->submit_source_buffer(voice->real, &e->buffer,
                                                                        e->kind == AD_WMA ? &e->wma : 0)))
             ad_log("a pending buffer not queued again", i);
@@ -1300,6 +1343,8 @@ static int ad_rebuild(struct ad_engine *engine, int loud)
     engine_methods(old)->unregister_for_callbacks(old, &ad_engine_callbacks[ad_current_callback]);
     engine_methods(old)->release(old);
     __atomic_store_n(&ad_current_callback, next_callback, __ATOMIC_RELEASE);
+    for (struct ad_voice *v = ad_voices; v; v = v->next)      /* `order` keeps the submixes */
+        if (v->kind == AD_SOURCE) ad_end_flushed(v);
 
     /* the new graph */
     engine->real = fresh;

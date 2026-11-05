@@ -4166,7 +4166,9 @@ makes every voice again; this patch does the same for 0.26g.
   default device's id is another), a rebuild: a new engine and a mastering voice on the device the
   game's rule picks first (on failure nothing changes, tried again 2 s later, quietly); then the
   old voices, master and engine go, and every voice is made again from what was kept, the pending
-  buffers queued again in order, the game's pointers unchanged.
+  buffers queued again in order (a flushed one, which the game makes at every detach_voice and a
+  dead or stopped engine never ends, is ended by the rebuild itself and never played again), the
+  game's pointers unchanged.
 
 New engine-function rows: `engine_xaudio2_create` (0x5A640, cdecl), `engine_process_sound_orders`
 (0x59DD0, stdcall), the imports `engine_co_create_instance` (the delay-loaded slot 0xAF0064),

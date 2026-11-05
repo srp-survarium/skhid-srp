@@ -16,6 +16,11 @@ unplugged), the game has no sound until it is restarted. Survarium 0.59g1's chan
 - What plays goes on: every voice is made again as it was (sends, effects and their
   parameters, volumes, matrices, frequency ratio, started or not), and a source voice's buffers
   that had not ended are queued again in their order. Each buffer still ends once.
+- A flushed buffer is never played again. The game flushes at every detach_voice (Stop, then
+  FlushSourceBuffers, 0x5CB8E..0x5CBB5: a sound's end, an HDR cull, #1247's hand-on), and XAudio2
+  ends the flushed buffers on a later pass, which a dead or stopped engine never runs: the rebuild
+  gives their OnBufferEnd to the game itself (so 0x5DDE0's order lets the decoded chunk go), with
+  the old engine gone and no source voice on the new one yet.
 - The device is picked by the game's own rule (`initialize_xaudio`): the last device of the
   DefaultMultimediaDevice role, else device 0; the mastering voice gets the game's own
   arguments (default channels, 44100 Hz).
@@ -82,6 +87,9 @@ let it go.
 
 One owner: the engine proxy's binding (no master / bound to a device id / lost with a retry
 time) is changed only by the sound thread's step; the other threads only raise the event bits.
+A successful FlushSourceBuffers marks the queue's entries flushed (all of a stopped voice, all
+but the playing one of a started one), kept so a late OnBufferEnd still finds its entry by
+context; a rebuild ends the flushed ones (`ad_end_flushed`) and queues only the others again.
 The pending queue of a source voice is a ring under a spin lock that is never held across an
 XAudio2 or game call (XAudio2's thread takes a buffer off it in OnBufferEnd). Two engine
 callback objects alternate, so a late critical error of the engine a rebuild replaced is not
@@ -101,7 +109,10 @@ bytes); a voice whose remaking fails (it stays silent; its pending buffers do no
   buffers each, two started): a default change to the same device (nothing), a lost device (the
   same graph on the new default, the pending buffers in order, each ending once), a late critical
   error of the old engine (ignored), no device (kept, retried 2 s later), a new default (moved),
-  a communications default (ignored), a failed engine creation (kept, retried), the game's end
+  a communications default (ignored), a failed engine creation (kept, retried), a flush on a live
+  engine (ended once, by its pass), flushes on a dead engine while lost (the stopped voice's and
+  a started voice's but its playing one: ended by the rebuild, the new owner's buffers alone
+  queued again; this case fails on the code before the fix), the game's end
   (every voice, engine, effect reference and the device client given back).
 - The exe built; the three sites disassembled (calls to the two entries; `audio_device_orders`
   realigns its stack and returns `ret 4`); `engine_026g.py`, `hooks_026g.py`, `link_026g.py
