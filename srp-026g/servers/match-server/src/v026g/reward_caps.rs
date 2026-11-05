@@ -1,6 +1,6 @@
 //! Own the payment-only copy and the order of the anti-farming rules.
 
-use survarium::v026g::{maps::mode, match_msgs::snapshot::Statistics};
+use survarium::v026g::{maps::RuleMode, match_msgs::snapshot::Statistics};
 
 use super::{kill_cap, research_cap};
 
@@ -14,7 +14,7 @@ impl Payment {
     /// The original statistics remain available for score and quests. PvE
     /// skips these event caps (settlement caps its reward tier). Unpaid feeding kills cannot buy
     /// extra objective allowance: both steps live here, in a fixed order.
-    pub fn of(played: &Statistics, pairs: &kill_cap::Pairs, mode: u8, vs_bots: bool) -> Self {
+    pub fn of(played: &Statistics, pairs: &kill_cap::Pairs, mode: RuleMode, vs_bots: bool) -> Self {
         let mut payment = Self {
             statistics: played.clone(),
             kills: Vec::new(),
@@ -22,7 +22,7 @@ impl Payment {
         };
         if !vs_bots {
             payment.kills = kill_cap::cap(&mut payment.statistics, pairs);
-            if mode == mode::RESEARCH {
+            if mode == RuleMode::Research {
                 payment.objectives = research_cap::cap(&mut payment.statistics);
             }
         }

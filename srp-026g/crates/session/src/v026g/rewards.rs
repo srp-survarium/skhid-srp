@@ -154,7 +154,7 @@ use survarium::v026g::lobby::{
     self, AccountBody, BonusColumn, FULL_CONDITION, FullResult, ItemDescr, ResultRow,
     ServerMessage, TitleHolder, WireError, limits,
 };
-use survarium::v026g::maps::mode;
+use survarium::v026g::maps::GameMode;
 use survarium::v026g::match_msgs::snapshot::{EVENTS, HUNDREDTHS, KITS, PlayerStatistics, event};
 use survarium::v026g::match_msgs::static_info::{self, SCORE_WEIGHTS};
 use survarium::v026g::quests::MatchStats as QuestStats;
@@ -268,8 +268,10 @@ pub struct PlayerResult {
 pub struct MatchResult {
     pub match_id: u32,
     pub map_id: u8,
-    /// `survarium::v026g::maps::mode`.
-    pub game_mode: u8,
+    /// Its mode; in Blackout (`docs/notes/blackout.md`) every point a
+    /// player earns counts twice, in its score and in what the score pays
+    /// ([`BLACKOUT_FACTOR`]); the counts (kills, batteries) are as played.
+    pub mode: GameMode,
     pub match_level: u16,
     pub end: MatchEnd,
     /// 0 or 1, [`DRAW`], or `None` when no trusted snapshot gave a standing.
@@ -296,10 +298,6 @@ pub struct MatchResult {
     /// joiners too, and its screen takes no drop card (the owner's of
     /// 2026-10-20; `docs/notes/rooms.md`).
     pub private: bool,
-    /// A Blackout match (`docs/notes/blackout.md`): every point a player
-    /// earns in it counts twice, in its score and in what the score pays
-    /// ([`BLACKOUT_FACTOR`]); the counts (kills, batteries) are as played.
-    pub blackout: bool,
 }
 
 /// What a Blackout match's score and pay are worth: the owner's of
@@ -1470,7 +1468,7 @@ struct Shared<'a> {
 impl<'a> Shared<'a> {
     fn of(result: &'a MatchResult, terms: &'a Terms) -> Self {
         let trusted = result.played_ms.is_some() && result.trusted_by > 0;
-        let batteries = mode::WITH_BATTERIES.contains(&result.game_mode);
+        let batteries = result.mode.rules().has_batteries();
         let mut stole = [false; 2];
         if trusted && batteries {
             for player in &result.players {
@@ -1501,7 +1499,7 @@ impl<'a> Shared<'a> {
             winner: result.winner.filter(|&winner| trusted && winner <= DRAW),
             batteries,
             stole,
-            weights: static_info::weights_of(result.game_mode, terms.score_weights),
+            weights: static_info::weights_of(result.mode.rules(), terms.score_weights),
             reward_level,
             multipliers,
             drop_level,
@@ -1605,7 +1603,7 @@ impl<'a> Shared<'a> {
 
     /// What a point is worth: twice in a Blackout match.
     fn points_factor(&self) -> f64 {
-        if self.result.blackout {
+        if self.result.mode == GameMode::Blackout {
             BLACKOUT_FACTOR
         } else {
             1.0
@@ -2231,7 +2229,7 @@ impl<'a> Shared<'a> {
             // 0, as the top of a bar whose value is the team's rows [GUESS:
             // the players a team had].
             team_params: [team_size(0), team_size(1)],
-            game_mode: result.game_mode,
+            game_mode: result.mode.rules().number(),
             best_player: holder(player),
             best_player_score: clamp_u16(player.map_or(0, |line| line.score)),
             best_shooter: holder(shooter),
