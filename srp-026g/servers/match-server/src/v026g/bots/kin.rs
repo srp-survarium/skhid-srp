@@ -76,6 +76,9 @@ pub struct Kinematics {
     pub pitch_scale: PitchScale,
     /// [A304] How a ground step over a slope is reckoned ([`SlopeSpeed`]).
     pub slope_speed: SlopeSpeed,
+    /// [A304] The flattest ramp face (degrees, the grid's ramp mark) [`SlopeSpeed`]'s ramp modes slow on: a floor whose mark is
+    /// flatter counts as unmarked. 20: every mark (`mapdata::grid::RAMP_MIN_DEG`).
+    pub ramp_min_deg: f32,
 }
 
 /// [A304] How the reckoned body's ground step goes over a slope of the walk grid.
@@ -262,6 +265,7 @@ impl Default for Kinematics {
             fix_floor: FixFloor::UnderInJump,
             pitch_scale: PitchScale::Client,
             slope_speed: SlopeSpeed::Planar,
+            ramp_min_deg: 20.0,
         }
     }
 }

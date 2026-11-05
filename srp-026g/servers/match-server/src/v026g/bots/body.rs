@@ -665,7 +665,10 @@ fn advance(
                 let (mut node, mut feet, mut stopped) = slide_edge(kin, grid, node, at.feet, to, offs);
                 // [A304] On the ground, a step over a slope covers its grade's cosine of the run ([`SlopeSpeed`]).
                 let in_air = at.time + step * TICK_MS <= at.air_until;
-                let ramp_deg = grid.ramp_slope_deg(node).or_else(|| at.node.and_then(|start| grid.ramp_slope_deg(start)));
+                let ramp_deg = grid
+                    .ramp_slope_deg(node)
+                    .or_else(|| at.node.and_then(|start| grid.ramp_slope_deg(start)))
+                    .filter(|&deg| deg >= kin.ramp_min_deg);
                 let share =
                     if in_air { 1.0 } else { kin.slope_speed.share_on(at.feet.distance_xz(feet), feet.y - at.feet.y, ramp_deg) };
                 if share < 1.0 {
