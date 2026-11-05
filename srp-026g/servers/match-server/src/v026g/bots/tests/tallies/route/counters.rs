@@ -786,7 +786,7 @@ pub(super) fn self_kills() -> Box<dyn RouteTopic> {
 /// (`traps::keep_off_counts`): a way found, none, past the poll's floors.
 pub(super) fn keep_off() -> Box<dyn RouteTopic> {
     Delta::of(
-        || super::super::traps::keep_off_counts::counts().to_vec(),
+        || crate::v026g::bots::traps::keep_off_counts::counts().to_vec(),
         |d, line| {
             line.ends.push(format!(
                 "keep_off_searches {} keep_off_narrow_found {} keep_off_narrow_none {} keep_off_narrow_left {}",
