@@ -298,3 +298,28 @@ simulation. The global localization audit has the same pre-existing medical
 catalog/manifest findings on released source and this branch; all ten language
 catalogs still have zero missing, extra, empty, placeholder, markup or UTF-8
 errors. The complete content manifest build is checked separately.
+
+## Validation of the 2026-11-05 retune
+
+Implemented and tested locally; not played, not released.
+
+- `check_medical_skills_026g.py` (Unicorn, built exe): Potent Painkiller 0..3 and
+  Fast Bandaging 0..2 at start/tick/restore, use time and protection, ranks past
+  the levels refused (no skill at all); Adrenalin at 0.3/0.29/0.19 health; Numb
+  Legs, Take Cover and Unflinching for every modifier-45 rank combination 0..2
+  plus rank 3 refused, painkiller active/inactive (an active bandage is no
+  painkiller), effective crouch against the crouch key alone, and Spring
+  active/inactive through the real stagger 0x2DBCD0; two kits, identical
+  outcomes; the Medic checks unchanged. PASS.
+- `check_artefacts_026g.py`: 85 stock and 84 patched checks as expected, the
+  stagger cases among them.
+- Patch-crate Rust tests (121) and i686 Clippy, no warnings.
+- `survarium` skills tests (`SkillsTree::settle`), session account (with the
+  refund test), rules, persist and simulation-list tests; session/survarium
+  Clippy, no warnings.
+- `release/build-content 49` (a local build; no number reserved): all 18823
+  files the manifest makes are as it makes them; the built tree passes
+  `survarium/tests/medical_skills.rs` (positions, thresholds, ranks, 30-point
+  build, exclusions, modifiers 43/45/57).
+- Ruffle harness on the built lobby movie: `MEDICALSKILLS RESULT pass`.
+- `engine_026g.py`, `hooks_026g.py` and `link_026g.py` checks current.
