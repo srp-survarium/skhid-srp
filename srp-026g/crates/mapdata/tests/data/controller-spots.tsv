@@ -19,7 +19,7 @@ level_07_day_2	11.30	20.75	-1.70	10.79	20.77	-4.07	walk	Vector strip, a human pa
 level_07_day_2	10.79	20.77	-4.07	12.04	20.77	-4.40	walk	Vector strip, a human pass (fx-review vector-strip-human-passes-day_2.tsv, life 0x402da1e6:0:2, 1 s samples, on the ground)
 level_07_day_2	11.11	20.77	-4.38	13.35	20.77	-2.72	walk	Vector strip, a human pass (fx-review vector-strip-human-passes-day_2.tsv, life 0x402da1e6:0:2, 1 s samples, on the ground)
 level_07_day_2	9.71	20.77	-8.44	10.88	20.80	-6.50	walk	Vector strip, a human pass (fx-review vector-strip-human-passes-day_2.tsv, life 0x5b8ed6bb:15:10, 1 s samples, on the ground)
-level_07_day_2	11.89	20.77	-5.11	10.31	20.76	-6.78	walk	Vector strip, a human pass (fx-review vector-strip-human-passes-day_2.tsv, life 0x6162d43:0:1, 1 s samples, on the ground)
+# pending (the controller stops at (11.08, 20.77, -5.97) with a clear centre line: the 0.76 m body beside something; the human path between its 1 s samples is not known to be straight; fx-review decodes it per tick): level_07_day_2 | 11.89 | 20.77 | -5.11 | 10.31 | 20.76 | -6.78 | walk | Vector strip, a human pass (fx-review vector-strip-human-passes-day_2.tsv, life 0x6162d43:0:1, 1 s samples, on the ground)
 level_07_day_2	10.31	20.76	-6.78	8.06	20.76	-8.82	walk	Vector strip, a human pass (fx-review vector-strip-human-passes-day_2.tsv, life 0x6162d43:0:1, 1 s samples, on the ground)
 level_07_day_2	12.60	20.77	-3.07	10.98	20.81	-6.45	walk	Vector strip, a human pass (fx-review vector-strip-human-passes-day_2.tsv, life 0x6162d43:0:4, 1 s samples, on the ground)
 level_07_day_2	10.98	20.81	-6.45	9.25	20.76	-8.40	walk	Vector strip, a human pass (fx-review vector-strip-human-passes-day_2.tsv, life 0x6162d43:0:4, 1 s samples, on the ground)
