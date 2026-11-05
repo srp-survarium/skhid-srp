@@ -19,8 +19,9 @@
 //! - the player name decision (`player_names.visibility`): Tab shows names
 //!   for teammates in Blackout, after the native visibility checks;
 //! - the input builder's end (`input_builder.end`): while Tab is held the
-//!   input has no act; moves stop after 200 ms (the look stays). An act held through
-//!   Tab stays out until its key is let go.
+//!   input has no act but Use (a search held through Tab goes on); moves stop
+//!   after 200 ms (the look stays). An act held through Tab stays out until its
+//!   key is let go.
 //!
 //! Nothing a match computes: the interface and the local input only (the
 //! input is filtered before it is sent, so every game plays what was sent).
@@ -39,7 +40,8 @@ const SRPX: [u8; 4] = *b"SRPX";
 /// The Blackout entry: one byte, 1.
 const TAG_BLACKOUT: u8 = 2;
 
-/// Tab held stops these: the moves and the acts.
+/// Tab held stops these: the moves and the acts. Use is none of them: a
+/// search or a refill held through Tab goes on (the owner, 2026-11-05).
 pub const MOVES: ActionMask = ActionMask::FORWARD
     .union(ActionMask::BACK)
     .union(ActionMask::LEFT)
@@ -51,7 +53,6 @@ pub const ACTS: ActionMask = ActionMask::JUMP
     .union(ActionMask::AIM)
     .union(ActionMask::QUICK_USE)
     .union(ActionMask::HOLD_BREATH)
-    .union(ActionMask::USE)
     .union(ActionMask::DROP)
     .union(ActionMask::GRENADE)
     .union(ActionMask::MELEE);
@@ -269,6 +270,16 @@ mod tests {
         // fire let go, then pressed again: it fires.
         let (_, held) = filtered(true, TabState::Up, held, ActionMask::FORWARD);
         assert_eq!(filtered(true, TabState::Up, held, ActionMask::FIRE).0, ActionMask::FIRE);
+    }
+    #[test]
+    fn a_use_held_through_tab_goes_on() {
+        let searching = ActionMask::USE.union(ActionMask::FIRE);
+        for tab in [TabState::Grace { pressed_at: 0 }, TabState::Blocking] {
+            let (sent, held) = filtered(true, tab, ActionMask::NONE, searching);
+            assert_eq!((sent, held), (ActionMask::USE, ActionMask::FIRE));
+            // Tab up, Use still held: never held out, the search goes on.
+            assert_eq!(filtered(true, TabState::Up, held, searching), (ActionMask::USE, ActionMask::FIRE));
+        }
     }
     #[test]
     fn a_quick_tab_keeps_movement_and_repeats_do_not_extend_the_grace() {

@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Run patch 70 (bake_cache_026g.asm and .c: the baked camouflage and decal
+"""Run patch 70 (the Rust patch bake_cache: the baked camouflage and decal
 textures kept from game to game, and made once while asked for again) in the
 default build on a made-up baker, folder and queries.
 
@@ -11,8 +11,9 @@ they are, the arena with them; the baker is the game's own static
 (0xA264E80), its list at +230h set up as its static constructor (0x12CCE0)
 sets it. Every site runs from the game's own code:
 
-- the folder (game::game from its `call 0x1E8DA0` at 0x1E9455 to 0x1E945A,
-  eax the folder's buffer_string; the game's imports a made-up folder
+- the folder (game::game from its `lea eax,[esp+470h]` before its `call
+  0x1E8DA0` (0x1E944E) to 0x1E945A, [esp+470h] the folder's buffer_string,
+  the Rust lohook's site; the game's imports a made-up folder
   through their IAT slots, the stock delete 0x1E8DA0 a stub that empties it):
   a folder stamped with this build's revision keeps its whole DDS files and
   they are in the baker's list (CRC 0, their size, an age each, the list's
@@ -32,14 +33,16 @@ sets it. Every site runs from the game's own code:
   with no look-up and no bake, their model instance kept; another path, the
   same path of another type, and a 17th query go on;
 - the texture made (process_compression from its `call 0x420789` at
-  0x12F18F to 0x12F194, its frame's texture +10h, query +604h, surface
-  +610h, type +620h; on_baked_texture_loaded from 0x12DDB4 to 0x12DDB9, edi
+  0x12F18F through the Rust lohook's site after it, `push eax / mov
+  eax,108h` at 0x12F194, to the allocation's call at 0x12F19A, its frame's
+  texture +10h, query +604h, surface +610h, type +620h;
+  on_baked_texture_loaded from 0x12DDB4 through 0x12DDB9 to 0x12DDBF, edi
   the texture, ebp its frame): each waiting query's surface slot of the type
   holds the texture (one reference more each), its query gets a resource of
   the game's (0x12DE30 on the allocator's 108h bytes: stubs that record) and
   is finished with success (finish_query, its entry hooked, the function a
-  stub from 0xF0D06 that records), its model instance released; eax the
-  call's ecx + 8 and esi kept; with the texture not in the owner's slot
+  stub from 0xF0D06 that records), its model instance released; the
+  call's ecx + 8 pushed, eax 108h and esi kept; with the texture not in the owner's slot
   nothing is shared; a loaded texture is held (one reference more): a later
   query of its path (a respawn) gets it at once with no look-up, and past
   256 MB the least used is let go;
@@ -69,10 +72,10 @@ COOK = 0xA264E80                                   # the baker (camouflage_decal
 LIST, CAPACITY, BYTES, AGES = 0xA2650B0, 0xA2AE0BC, 0xA2AE0BC, 0x2260920
 STORAGE = 0xA2650BC
 RECORD, CRC, SIZE, AGE, LOADING = 0x124, 0x114, 0x118, 0x11C, 0x120
-START_SITE, START_BACK, WIPE = 0x1E9455, 0x1E945A, 0x1E8DA0
+START_SITE, START_BACK, WIPE = 0x1E944E, 0x1E945A, 0x1E8DA0     # the site: lea eax,[esp+470h] / call WIPE
 LOOKUP_FROM, LOOKUP_TEST, NOT_BAKED_RET = 0x12D4C5, 0x12D4D2, None
 FIND_RECORD, TRANSLATE, FINISH, FINISH_BODY = 0x131ED0, 0x12D1D0, 0xF0D00, 0xF0D06
-BAKED_SITE, BAKED_BACK, LOADED_SITE, LOADED_BACK = 0x12F18F, 0x12F194, 0x12DDB4, 0x12DDB9
+BAKED_SITE, BAKED_BACK, LOADED_SITE, LOADED_BACK = 0x12F18F, 0x12F19A, 0x12DDB4, 0x12DDBF   # past push eax / mov eax,108h
 ALLOCATE, RESOURCE, SET_RESOURCE, RELEASE_TEXTURE, DESTROY_MODEL = 0xE4F90, 0x12DE30, 0xF0080, 0x3BEE00, 0xE0210
 CHECK, CRC_OF, LOG_FILTER, ASSERTION = 0x131B40, 0x3C0F70, 0x111860, 0x113450
 LOG_FILTER_ON, IS_DEBUGGER_PRESENT = 0x1F1D60C, 0x870194
@@ -82,9 +85,10 @@ CRC_STEP, TABLE = 0x42050, 0x1C210                   # the CRC-32 step; the tabl
 BUFFER, CRC_STATE = 0x40000000, 0x31000000 + 0xF0000
 IAT = {"FindFirstFileA": 0x870238, "FindNextFileA": 0x87023C, "FindClose": 0x870228, "CreateFileA": 0x870048,
        "ReadFile": 0x870064, "WriteFile": 0x870108, "CloseHandle": 0x870040, "DeleteFileA": 0x87021C,
-       "CreateDirectoryA": 0x870220, "GetTickCount": 0x870090}
+       "CreateDirectoryA": 0x870220, "GetTickCount": 0x870090, "GetCurrentThreadId": 0x870118}
 POPS = {"FindFirstFileA": 8, "FindNextFileA": 8, "FindClose": 4, "CreateFileA": 28, "ReadFile": 20,
-        "WriteFile": 20, "CloseHandle": 4, "DeleteFileA": 4, "CreateDirectoryA": 8, "GetTickCount": 0}
+        "WriteFile": 20, "CloseHandle": 4, "DeleteFileA": 4, "CreateDirectoryA": 8, "GetTickCount": 0,
+        "GetCurrentThreadId": 0}
 OBJECTS, STACK, STUBS, STOP = 0x30000000, 0x31000000, 0x32000000, 0x32100000
 FOLDER = "c:\\users\\player\\documents\\survarium\\streamed_textures"
 STAMP = "srp_baked_textures.txt"
@@ -217,6 +221,8 @@ class Game:
             self.returns(0)
 
     def windows(self, name, a):
+        if name == "GetCurrentThreadId":           # the tables' lock (vostok::Lock): the one thread
+            return 0x1D0C
         if name == "GetTickCount":
             return self.now
         self.calls.append((name,) + tuple(a[:1]))
@@ -310,9 +316,10 @@ class Game:
 
     # the sites
     def start(self):
-        """game::game from its delete's call to 0x1E945A."""
-        string = self.string(FOLDER, OBJECTS + 0x70000)
+        """game::game from before its delete's call (the folder's buffer_string at [esp+470h]) to
+        0x1E945A."""
         sp = STACK + 0x8000
+        string = self.string(FOLDER, sp + 0x470)
         regs = {UC_X86_REG_EAX: string, UC_X86_REG_EBX: 0x1111, UC_X86_REG_ESI: 0x2222, UC_X86_REG_EDI: 0x3333,
                 UC_X86_REG_EBP: 0x4444}
         eip, esp = self.run(START_SITE, sp, regs, until=[START_BACK])
@@ -346,7 +353,7 @@ class Game:
         return f"lost at {eip:#x} esp {esp:#x}", None, len(found), self.calls[before:]
 
     def baked(self, query, texture, surface, kind):
-        """process_compression from 0x12F18F to 0x12F194."""
+        """process_compression from 0x12F18F to 0x12F19A (the name pushed, eax 108h)."""
         frame = STACK + 0x60000
         self.emu.mem_write(frame, bytes(0x700))
         for at, value in ((0x10, texture), (0x604, query), (0x610, surface), (0x620, kind)):
@@ -354,13 +361,14 @@ class Game:
         before = len(self.calls)
         eip, esp = self.run(BAKED_SITE, frame, {UC_X86_REG_ECX: NAMES, UC_X86_REG_ESI: 0xA11C, UC_X86_REG_EBX: 0xB0,
                                                 UC_X86_REG_EDI: 0xD0, UC_X86_REG_EBP: query}, until=[BAKED_BACK])
-        ok = eip == BAKED_BACK and esp == frame and self.emu.reg_read(UC_X86_REG_EAX) == NAMES + 8 \
+        ok = eip == BAKED_BACK and esp == frame - 4 and self.read(esp) == NAMES + 8 \
+            and self.emu.reg_read(UC_X86_REG_EAX) == 0x108 \
             and [self.emu.reg_read(r) for r in (UC_X86_REG_ESI, UC_X86_REG_EBX, UC_X86_REG_EDI, UC_X86_REG_EBP)] \
             == [0xA11C, 0xB0, 0xD0, query]
         return ok, self.calls[before:]
 
     def loaded(self, query, texture, surface, parameters):
-        """on_baked_texture_loaded from 0x12DDB4 to 0x12DDB9."""
+        """on_baked_texture_loaded from 0x12DDB4 to 0x12DDBF (the name pushed, eax 108h)."""
         ebp = STACK + 0x70000
         sp = ebp - 0x300
         for at, value in ((ebp + 0xC, parameters), (ebp + 0x10, surface), (ebp + 0x14, query)):
@@ -368,7 +376,8 @@ class Game:
         before = len(self.calls)
         eip, esp = self.run(LOADED_SITE, sp, {UC_X86_REG_ECX: NAMES, UC_X86_REG_ESI: 0xA11C, UC_X86_REG_EDI: texture,
                                               UC_X86_REG_EBX: surface, UC_X86_REG_EBP: ebp}, until=[LOADED_BACK])
-        ok = eip == LOADED_BACK and esp == sp and self.emu.reg_read(UC_X86_REG_EAX) == NAMES + 8 \
+        ok = eip == LOADED_BACK and esp == sp - 4 and self.read(esp) == NAMES + 8 \
+            and self.emu.reg_read(UC_X86_REG_EAX) == 0x108 \
             and [self.emu.reg_read(r) for r in (UC_X86_REG_ESI, UC_X86_REG_EDI, UC_X86_REG_EBX, UC_X86_REG_EBP)] \
             == [0xA11C, texture, surface, ebp]
         return ok, self.calls[before:]
@@ -497,7 +506,7 @@ def main():
     other = f"Skhid baked textures, revision {revision - 1}\r\n".encode()
     a, b = dds(2048, 1024, 1398097), dds(1024, 1024, 1398097, b"DXT5")
 
-    print("the folder (game::game from 0x1E9455 to 0x1E945A)")
+    print("the folder (game::game from 0x1E944E to 0x1E945A)")
     for label, data in (("the original", original), ("the build", built)):
         game = Game(bytes(data))
         game.dirs.add(FOLDER)
@@ -568,7 +577,7 @@ def main():
                "600 kept files: 512 in the list, the 88 after them deleted")
 
     print("the look-up and the texture made (translate_query 0x12D4C5..0x12D4D2, process_compression "
-          "0x12F18F, on_baked_texture_loaded 0x12DDB4, finish_query 0xF0D00)")
+          "0x12F194, on_baked_texture_loaded 0x12DDB9, finish_query 0xF0D00)")
     x = PREFIX + "scavengers_02_torso_s3d.dds"
     y = PREFIX + "scavengers_02_legs_s3d.dds"
     for label, data in (("the original", original), ("the build", built)):
@@ -611,7 +620,7 @@ def main():
                and not [c for c in calls if c[0] == "translate"],
                "the bake's texture made: the two waiting queries' slots hold it (one reference each more, the "
                "slot's old texture released), each has the texture's resource and is finished with success, "
-               "their model instances released; eax ecx+8, esi and the frame kept")
+               "their model instances released; ecx+8 pushed, eax 108h, esi and the frame kept")
         ok, calls = game.finish(q1[0], 3)
         report(ok and calls == [("finish", q1[0], 3, 1, 0)],
                "then the owner's own finish: the function, nothing made again")

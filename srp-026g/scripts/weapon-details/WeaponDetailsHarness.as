@@ -459,6 +459,74 @@ package {
    require(throwableLines(cards[0],d).join()==released.rgd5,"no floats: the grenade's own numbers");
    Scene.isAlt=false;
   }
+  // Held Alt over a weapon whose own movement line is a penalty, with Bear Arms (kit float 62 above 0):
+  // the line reads "-5% -> 0%" (weapon_core::initialize 0x2E2C5C..0x2E2C9C leaves a penalty out); a
+  // bonus, Bear Arms off and an exe that sends no floats leave it as released.
+  private function movingWeapon(pkp:Boolean,movement:String):Object {
+   var d:Object=item(pkp);d.properties.push({prop_id:105,prop_value:movement});
+   domain.getDefinition("survarium.item.WeaponMovement").expose(d);
+   var amount:Number=Number(movement)*100;
+   for each(var m:Object in d.modifiers)m.textValue="Movement speed: <"+(amount<0?"red":"green")+">"+(amount>0?"+":"")+amount+"%</"+(amount<0?"red":"green")+">\n";
+   return d;
+  }
+  // The built-in lines of a card: [the rendered text of each, the label each was given].
+  private function defaultLines(card:Object):Array {
+   var list:Object=card.defaultModifiersList,shown:Array=[],labels:Array=[];
+   for(var i:int=0;i<list.container.numChildren;i++)shown.push(list.container.getChildAt(i).textFieldLabel.text.replace(/\s+$/,""));
+   for(i=0;i<list.dataProvider.length;i++)labels.push(list.dataProvider[i].label);
+   return [shown.join("|"),labels.join("|")];
+  }
+  // A built-in line's colour at its last character.
+  private function lastColour(card:Object,index:int):uint {
+   var field:TextField=card.defaultModifiersList.container.getChildAt(index).textFieldLabel,t:String=field.text.replace(/\s+$/,"");
+   return uint(field.getTextFormat(t.length-1,t.length).color)&0xFFFFFF;
+  }
+  private function firstValueColour(card:Object,index:int):uint {
+   var field:TextField=card.defaultModifiersList.container.getChildAt(index).textFieldLabel,at:int=field.text.indexOf(": ")+2;
+   return uint(field.getTextFormat(at,at+1).color)&0xFFFFFF;
+  }
+  private var heavy:Object;
+  private function bearArmsChecks():void {
+   // The kit's armour (altChecks') has no Bear Arms: float 62 alone says it.
+   Scene.isShift=false;Scene.isCtrl=false;
+   heavy=movingWeapon(true,"-0.05");
+   var light:Object=movingWeapon(false,"0.03");
+   // Another built-in line beside the movement (a golden weapon's silver): never changed.
+   var silver:Object={state:0,isDefault:true,icon:33,textValue:"Silver: <green>+10%</green>\n",props:[{prop_id:31,prop_value:"0.1"}]};
+   var both:Object=movingWeapon(true,"-0.05");both.modifiersDefault.push(silver);both.modifiers=both.modifiersDefault;
+   var off:Object=kitFloats({}),on:Object=kitFloats({62:1});
+   profile.setKitModifiers(on);
+   Scene.isAlt=false;shows(heavy,light);
+   var released:Array=defaultLines(cards[0]),releasedHeight:Number=cards[0].defaultModifiersList.container.height;
+   require(released[0]=="Movement speed: -5%","released, Bear Arms on: the weapon's own line ("+released[0]+")");
+   require(defaultLines(cards[1])[0]=="Movement speed: +3%","released bonus: "+defaultLines(cards[1])[0]);
+   Scene.isAlt=true;shows(heavy,light);
+   var held:Array=defaultLines(cards[0]);
+   require(held[0]=="Movement speed: -5% -> 0%","Alt, Bear Arms on, a penalty: "+held[0]);
+   require(held[1]=="Movement speed: -5% -> <green>0%</green>\n","the current part green, the original and the arrow neutral: "+held[1]);
+   require(lastColour(cards[0],0)==GREEN && firstValueColour(cards[0],0)!=GREEN && firstValueColour(cards[0],0)!=RED,"rendered: 0% green, -5% neutral ("+lastColour(cards[0],0)+", "+firstValueColour(cards[0],0)+")");
+   require(Math.abs(cards[0].defaultModifiersList.container.height-releasedHeight)<.5,"the line keeps its height");
+   require(defaultLines(cards[1])[0]=="Movement speed: +3%" && defaultLines(cards[1])[1]==light.modifiers[0].textValue,"Alt, Bear Arms on, a bonus: unchanged ("+defaultLines(cards[1])[0]+")");
+   Scene.isCtrl=true;shows(heavy,light);
+   require(defaultLines(cards[0])[1]=="Movement speed: -5% -> 0%\n","Ctrl: the change neutral ("+defaultLines(cards[0])[1]+")");
+   Scene.isCtrl=false;
+   shows(both,light);
+   require(defaultLines(cards[0])[0]=="Movement speed: -5% -> 0%|Silver: +10%" && defaultLines(cards[0])[1].split("|")[1]==silver.textValue,"another built-in line unchanged: "+defaultLines(cards[0])[0]);
+   // Bear Arms off, or no floats: a penalty stays.
+   profile.setKitModifiers(off);shows(heavy,light);
+   require(defaultLines(cards[0])[1]==heavy.modifiers[0].textValue && defaultLines(cards[1])[1]==light.modifiers[0].textValue,"Alt, Bear Arms off: both lines as released ("+defaultLines(cards[0])[0]+")");
+   profile.setKitModifiers(null);shows(heavy,light);
+   require(defaultLines(cards[0])[1]==heavy.modifiers[0].textValue,"no floats: the penalty as released");
+   // A weapon without a movement line: nothing to change.
+   profile.setKitModifiers(on);
+   var plain:Object=item(false);shows(plain,heavy);
+   require(defaultLines(cards[0])[0]=="","a weapon without a movement line has no built-in line");
+   Scene.isAlt=false;shows(heavy,light);
+   require(defaultLines(cards[0])[1]==heavy.modifiers[0].textValue,"Alt released: the weapon's own line");
+   // altChecks' skills again, for the open-card checks that follow.
+   profile.setKitModifiers(kitFloats({49:-.1,13:.12,21:.12,22:.15,56:-.1}));
+   Scene.isShift=true;shows(item(false),items[0]);
+  }
   private function loaded(e:Event):void {
    try {
     domain=loader.contentLoaderInfo.applicationDomain;Scene=domain.getDefinition("MainScene");Scene.stage=this;Scene.scaleFactor=1;
@@ -478,6 +546,8 @@ package {
     list.push({prop_id:166,prop_name:"Pocket slots",comparable:false});
     // The rolls' own properties, multiplied (modifier_type 1) as the exe tells the movie (mod_type 2).
     for each(id in [102,115,119])list.push({prop_id:id,comparable:false,modifier_type:1});
+    // A weapon's own movement line (weapon-movement-ui-1), higher is better.
+    list.push({prop_id:105,prop_name:"Movement speed",direction:1,comparable:false,modifier_type:1});
     props.setPropertiesDictionary(list);domain.getDefinition("survarium.controls.ItemCompare").setPropsDescriptor(props);
     var Container:Class=domain.getDefinition("survarium.data.IconContainer") as Class;
     var Atlas:Class=domain.getDefinition("LobbyMenu_ModifierIcons") as Class;
@@ -692,6 +762,7 @@ package {
      altChecks();
      throwableChecks();
      medicineChecks();
+     bearArmsChecks();
     }
     if(frame==140){Scene.isAlt=true;}
     if(frame==150){require(line(cards[0],"Reload")=="Reload: 3 -> 2.46s" && nativeText(cards[0],"Aim time")=="0.25 -> 0.21s","Alt pressed over an open card");Scene.isAlt=false;}
@@ -701,7 +772,10 @@ package {
     if(frame==190){require(nativeText(cards[0],"Pain protection")=="10%" && nativeText(cards[0],"Duration")=="10s","Alt let go over an open medicine card");profile.setKitModifiers(kitFloats({27:.2}));shows(throwable("rgd5"),throwable("smoke"));}
     if(frame==200){require(nativeText(cards[0],"Throw speed")=="17m/s","an open grenade card, Alt up");Scene.isAlt=true;}
     if(frame==210){require(nativeText(cards[0],"Throw speed")=="17 -> 20.4m/s","Alt pressed over an open grenade card");Scene.isAlt=false;}
-    if(frame==220){require(nativeText(cards[0],"Throw speed")=="17m/s","Alt let go over an open grenade card");shows(items[0],items[1]);finish(null);}
+    if(frame==220){require(nativeText(cards[0],"Throw speed")=="17m/s","Alt let go over an open grenade card");profile.setKitModifiers(kitFloats({62:1}));shows(heavy,items[1]);}
+    if(frame==230){require(defaultLines(cards[0])[0]=="Movement speed: -5%","an open card with Bear Arms, Alt up");Scene.isAlt=true;}
+    if(frame==240){require(defaultLines(cards[0])[0]=="Movement speed: -5% -> 0%" && lastColour(cards[0],0)==GREEN,"Alt pressed over an open card with Bear Arms: "+defaultLines(cards[0])[0]);Scene.isAlt=false;}
+    if(frame==250){require(defaultLines(cards[0])[0]=="Movement speed: -5%","Alt let go over an open card with Bear Arms");shows(items[0],items[1]);finish(null);}
    }catch(err:Error){finish("frame "+frame+": "+err+" "+err.getStackTrace());}
   }
   private function finish(error:String):void {removeEventListener(Event.ENTER_FRAME,tick);if(!error){Scene.isCtrl=loaderInfo.parameters.neutral=="1";if(loaderInfo.parameters.compact=="1")Scene.isShift=false;Scene.isAlt=loaderInfo.parameters.alt=="1";
