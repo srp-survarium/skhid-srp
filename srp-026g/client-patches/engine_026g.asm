@@ -170,6 +170,7 @@ global engine_zone_tick
 global engine_geometry_load
 global engine_geometry_destroy
 global engine_config_variant_type
+global engine_recompute_damage_collision_bones
 engine_action_present equ 0x242460   ; 0x242460 survarium::player_input_handler::action_present: handler ESP+4, action ESP+8, state ESP+12; pops 12; AL; stdcall, called directly
 engine_create_file_a equ 0x870048   ; the IAT slot 0x870048 (an import, stdcall)
 engine_write_file equ 0x870108   ; the IAT slot 0x870108 (an import, stdcall)
@@ -2413,6 +2414,22 @@ engine_config_variant_type:
     push esi
     push edi
     call 0x125790
+    pop edi
+    pop esi
+    pop ebx
+    pop ebp
+    ret
+
+    align 16, db 0xCC
+engine_recompute_damage_collision_bones:
+    ; 0x2da5b0 survarium::base_player::recompute_damage_collision_bones: player ECX, object ESP+4; pops 4; EAX
+    push ebp
+    push ebx
+    push esi
+    push edi
+    push dword [esp + 24]   ; object -> 4
+    mov ecx, [esp + 24]   ; player
+    call 0x2da5b0
     pop edi
     pop esi
     pop ebx

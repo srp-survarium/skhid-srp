@@ -2467,7 +2467,14 @@ INSTALLS = {
                       "`ret 0Ch`): sponge_query, a sponge's query, any other back in the function", None, None),
     0x2E40C6: (JUMP, "can_start_throw_grenade 0x2E4090, the grenade slot's item's vt+64h and 0x30A090: "
                      "sponge_predicate", None, None),
-    0x33A677: (JUMP, "the throw state's is_ready 0x33A650, its grenade's exploded flag: sponge_ready", None, None),
+    0x33A66D: (JUMP, "the throw state's is_ready 0x33A650, its grenade's index and exploded flag: sponge_ready "
+                     "(a sponge's zone on; no grenade held: ready, or not for the index FFh)", None, None),
+    0x33A490: (ENTRY, "the throw state's finalize (thiscall, `ret`): sponge_let_go, a held sponge's sp_let_go "
+                      "before the state lets it go (+17Ch), then the function", None, None),
+    0x33A51B: (JUMP, "the throw state's serialize 0x33A4E0, its grenade's slot ([+17Ch]+254h): sponge_save, 17h for "
+                     "no grenade held", None, None),
+    0x33A5AB: (JUMP, "the throw state's deserialize 0x33A570, the inventory's slot read back: sponge_load, no item "
+                     "for a slot past the slots (17h and up)", None, None),
     0x33A7BB: (JUMP, "the throw state's throw 0x33A770, `call 0x30A250` and its pushes: sponge_throw", None, None),
     0x3103C9: (JUMP, "the pull substate's initialize 0x3103A0, `call 0x30A120` and its pushes: sponge_pull",
                None, None),
@@ -2595,13 +2602,13 @@ CALLBACKS = (
      "is 0x27AA20 (thiscall, the queries_result; `ret 4`); the marker is the `mov dword [ebp-78h]` storing "
      "the function in the buffer (sp_loaded's VA follows `C7 45 88`)",
      (SPONGE_CHECK, "driven: sp_loaded(results) through the game's boost invoker 0x202300")),
-    ("the Sponge's contacts: sp_contact", "sponge.code", bytes.fromhex("c787ac060000"), 0x3041B0,
-     "launch subscribes the sponge's contact_fn (+6A4h) on its body with the physics world's vt+70h "
+    ("the Sponge's contacts: sp_contact", "sponge.code", bytes.fromhex("c787b0060000"), 0x3041B0,
+     "launch subscribes the sponge's contact_fn (+6A8h) on its body with the physics world's vt+70h "
      "(0x78310), a boost::function of vtable 0xA13FAC|1, grenade_core's own for its contacts (0x304220, "
      "made in its throw_grenade 0x303C10): the invoker 0x202300 calls [buffer] with ecx = the sponge and "
      "the contact point pushed, as grenade_core's thunk 0x2DD730 reaches its on_contact 0x3041B0 "
-     "(thiscall, the contact point; `ret 4`); the marker is sp_construct's `mov dword [edi+6ACh]` storing "
-     "the function in the buffer (sp_contact's VA follows `C7 87 AC 06 00 00`)",
+     "(thiscall, the contact point; `ret 4`); the marker is sp_construct's `mov dword [edi+6B0h]` storing "
+     "the function in the buffer (sp_contact's VA follows `C7 87 B0 06 00 00`)",
      (SPONGE_CHECK, "a contact reported through the game's invoker (0x202300: ecx the sponge, its argument "
                     "popped by sp_contact)")),
 )
@@ -2839,7 +2846,7 @@ RESEARCH_HOOKS = (
 # - the throw-grenade state, where it takes the item in the grenade slot for
 #   a grenade set: its way in 0x2E4090 at 0x2E40C6 (vtable +64h and
 #   0x30A090: a null dereference for any other item), its is_ready at
-#   0x33A677 (the grenade's exploded flag), its throw at 0x33A7BB (`call
+#   0x33A66D (the grenade's index and exploded flag), its throw at 0x33A7BB (`call
 #   0x30A250`), the pull substate's pin at 0x3103C9 (`call 0x30A120`): a
 #   sponge's own, else the original;
 # - the damage zone's hit loop 0x319AF0 at 0x319C8B (the receiver's vt+20h
@@ -2862,7 +2869,7 @@ SPONGE_HOOKS = (
     (0x25E79A, bytes.fromhex("83f8057733"), "sponge_size", 0xE9),                       # size's type switch
     (0x25E800, bytes.fromhex("558bec83e4f8"), "sponge_query", 0xE9),                    # the query's entry
     (0x2E40C6, bytes.fromhex("8b018b5064ffd2e8be5f0200"), "sponge_predicate", 0xE9),    # the throw state's way in
-    (0x33A677, bytes.fromhex("8b8e7c0100008b9168020000"), "sponge_ready", 0xE9),        # is_ready's grenade
+    (0x33A66D, bytes.fromhex("8a86800100003cff741b"), "sponge_ready", 0xE9),            # is_ready's grenade
     (0x33A7BB, bytes.fromhex("8b8e7c01000081c74c040000578d442414508a868001000051e877fafcff"), "sponge_throw",
      0xE9),                                                                             # the throw
     (0x3103C9, bytes.fromhex("8bb6380100008b8e7c0100005051e8449dffff"), "sponge_pull", 0xE9),  # the pin
@@ -2871,6 +2878,9 @@ SPONGE_HOOKS = (
     (0x2E9D53, bytes.fromhex("e8b8cde0ff"), "sponge_artefacts", 0xE8),                  # an anomaly's kinds
     (0x31B800, bytes.fromhex(
         "33db894de88945ec85f676308b97b00100008b049a83b88002000000750f8945f48d45f4508d75e8e8230a0000433b9fb401000072d68b45ec8b4de82bc1c1f8028bd085d2767b8b87b801000069c005840808408987b8010000f7e28b1491"), "sponge_spawn", 0xE9),                                                     # an anomaly's spawn
+    (0x33A490, bytes.fromhex("568bf18b8e50010000"), "sponge_let_go", 0xE9),              # finalize's entry
+    (0x33A51B, bytes.fromhex("8b8b7c0100008a9154020000"), "sponge_save", 0xE9),        # serialize's slot
+    (0x33A5AB, bytes.fromhex("8b83200100008b50080fb6c18b8a0c0100008b84810c010000"), "sponge_load", 0xE9),  # its load
 )
 # generic_anomaly_core's link resolver's resolve_links 0x33C440 (the vtable
 # 0xA16A10 of the core's +4, its slot 0): sponge_links (patch_section_value;

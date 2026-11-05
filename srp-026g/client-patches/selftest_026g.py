@@ -2505,7 +2505,11 @@ def test_sponge_a(original, image, before):
         0x25E68A: ["cmp eax,0x5", "ja near 0x25e737"], 0x25E79A: ["cmp eax,0x5", "ja 0x25e7d2"],
         0x25E800: ["push ebp", "mov ebp,esp", "and esp,-0x8"],
         0x2E40C6: ["mov eax,[ecx]", "mov edx,[eax+0x64]", "call edx", "call 0x30a090"],
-        0x33A677: ["mov ecx,[esi+0x17c]", "mov edx,[ecx+0x268]"],
+        0x33A66D: ["mov al,[esi+0x180]", "cmp al,0xff", "jz 0x33a692"],
+        0x33A490: ["push esi", "mov esi,ecx", "mov ecx,[esi+0x150]"],
+        0x33A51B: ["mov ecx,[ebx+0x17c]", "mov dl,[ecx+0x254]"],
+        0x33A5AB: ["mov eax,[ebx+0x120]", "mov edx,[eax+0x8]", "movzx eax,cl", "mov ecx,[edx+0x10c]",
+                   "mov eax,[ecx+eax*4+0x10c]"],
         0x33A7BB: ["mov ecx,[esi+0x17c]", "add edi,0x44c", "push edi", "lea eax,[esp+0x14]", "push eax",
                    "mov al,[esi+0x180]", "push ecx", "call 0x30a250"],
         0x3103C9: ["mov esi,[esi+0x138]", "mov ecx,[esi+0x17c]", "push eax", "push ecx", "call 0x30a120"],
@@ -2531,7 +2535,7 @@ def test_sponge_a(original, image, before):
               and [loose(text) for _, _, text in rows] == originals[va]
               and hooked[0][2].startswith("call" if opcode == 0xE8 else "jmp")
               and branch_target(hooked[0][2]) == entry
-              and block.va <= entry < block.va + 5 * len(P.SPONGE_HOOKS)
+              and block.va <= entry < block.va + 5 * (len(P.SPONGE_HOOKS) + 1)
               and all(text == "nop" for _, _, text in hooked[1:]),
               f"{va:#x}: `{'; '.join(originals[va])}` becomes {hooked[0][2]} ({symbol}) + {len(hooked) - 1} nop; "
               "the build without the late join keeps it" + ("" if [loose(t) for _, _, t in rows] == originals[va]
@@ -2549,10 +2553,14 @@ def test_sponge_a(original, image, before):
           f"{va:#x}: generic_anomaly_core's resolve_links slot, 0x33C440 in the original and the build without the "
           f"late join, {symbol} ({entry:#x}) here; its base relocation kept (the exe is never rebased)")
     entries.append(entry)
-    check(entries == [block.va + 5 * i for i in range(11)]
-          and [t.split()[0] for _, _, t in ndisasm(image.read(block.va, 0x37), block.va)] == ["jmp"] * 11,
-          "the block starts with its eleven entries, `jmp near` each: construct, size, query, predicate, ready, "
-          "throw, pull, zone_hit, artefacts, spawn, links")
+    order = ["sponge_construct", "sponge_size", "sponge_query", "sponge_predicate", "sponge_ready", "sponge_throw",
+             "sponge_pull", "sponge_zone_hit", "sponge_artefacts", "sponge_spawn", "sponge_links", "sponge_let_go",
+             "sponge_save", "sponge_load"]
+    check(sorted(entries) == [block.va + 5 * i for i in range(14)]
+          and [linked.symbols[name] for name in order] == [block.va + 5 * i for i in range(14)]
+          and [t.split()[0] for _, _, t in ndisasm(image.read(block.va, 5 * 14), block.va)] == ["jmp"] * 14,
+          "the block starts with its fourteen entries, `jmp near` each: construct, size, query, predicate, ready, "
+          "throw, pull, zone_hit, artefacts, spawn, links, let_go, save, load")
     # the stubs: from the entries to the first C function (the asm's .text comes first in the block)
     c_start = min(va for name, va in linked.symbols.items() if name.startswith("sp_") and block.va <= va < block.va
                   + len(code))
@@ -2560,9 +2568,9 @@ def test_sponge_a(original, image, before):
     texts = [plain(t) for _, _, t in ndisasm(code[:c_start - block.va], block.va)]
     targets = {int(t.split()[-1], 16) for t in texts if t.startswith(("call ", "j")) and t.split()[-1].startswith("0x")}
     outside = {c for c in targets if not block.va <= c < block.va + len(code)}
-    check(outside == {0x25E737, 0x25E693, 0x25E7D2, 0x25E79F, 0x25E806, 0x30A090, 0x2E40D2, 0x33A683, 0x33A696,
+    check(outside == {0x25E737, 0x25E693, 0x25E7D2, 0x25E79F, 0x25E806, 0x30A090, 0x2E40D2, 0x33A677, 0x33A696,
                       0x33A692, 0x30A250, 0x33A7D9, 0x30A120, 0x3103DC, 0x319CAC, 0xF6B10, 0x31B85F, 0x31B8C2,
-                      0x33C440},
+                      0x33C440, 0x33A499, 0x33A527, 0x33A5C4},
           "the stubs leave to the switches' defaults and tables, the query's way on, each throw-state site's way "
           "on and the call each replaces, the zone hit's way on, the kinds' look-up it replaces (operator[] "
           "0xF6B10), spawn_artefact's two ways on (an artefact, none) and the slot's own resolve_links "

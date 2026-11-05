@@ -162,11 +162,17 @@ typedef struct { float m[16]; } matrix;
  *   (+280h 6); its contacts' callback registered there when it explodes on
  *   contact.
  * - SP_CLOUD: exploded, its damage zone on (+280h 7).
+ * - SP_SPENT: its cloud over while a throw state still holds it (+280h 7):
+ *   it leaves its slot when the state lets it go.
  * The first contact (retail's rule, sp_transition) is waiting from the pull,
  * seen by a contact before the tick that rules on it, or spent; the thrower
- * is a place of the match, or nobody (armed with no holder). */
-enum sp_tag { SP_HELD, SP_IN_HAND, SP_IN_AIR, SP_CLOUD };
+ * is a place of the match, or nobody (armed with no holder). From the pull
+ * on, a throw state holds it (its +17Ch) until the state's finalize lets it
+ * go: while one does, it stays in its slot (a world saved then names it by
+ * its slot, 0x33A51B, and its load reads the slot back, 0x33A5BD). */
+enum sp_tag { SP_HELD, SP_IN_HAND, SP_IN_AIR, SP_CLOUD, SP_SPENT };
 enum sp_contact { CONTACT_WAITING, CONTACT_SEEN, CONTACT_SPENT };
+enum sp_hold { HOLD_NONE, HOLD_THROW_STATE };
 enum sp_thrower_kind { THROWER_NOBODY, THROWER_PLACE };
 struct sp_thrower {
     enum sp_thrower_kind kind;
@@ -177,6 +183,7 @@ struct sp_armed {
     u32 explode_at;                /* the fuse's end, on the tick grid */
     struct sp_thrower thrower;
     enum sp_contact contact;
+    enum sp_hold hold;
 };
 struct sp_air {
     struct sp_armed armed;
@@ -185,6 +192,7 @@ struct sp_air {
 struct sp_cloud {
     u32 exploded_at;               /* its zone on from then for duration_ms */
     struct sp_thrower thrower;     /* whom the zone's hits name */
+    enum sp_hold hold;
 };
 struct sp_state {
     enum sp_tag tag;
@@ -192,9 +200,10 @@ struct sp_state {
         struct sp_armed hand;      /* SP_IN_HAND */
         struct sp_air air;         /* SP_IN_AIR */
         struct sp_cloud cloud;     /* SP_CLOUD */
+        /* SP_SPENT: a throw state holds it (nothing else to keep) */
     } as;
 };
-_Static_assert(sizeof(struct sp_state) == 24, "the state's 24 bytes");
+_Static_assert(sizeof(struct sp_state) == 28, "the state's 28 bytes");
 
 /* A boost::function in place, trivially copied (vtable | 1): {the
  * function, adj 0, the object} in its buffer; the game's invoker 0x202300
@@ -259,32 +268,32 @@ struct sponge {
     struct splash splash;          /* +3B0h the template */
     struct node node;              /* +3F0h the passive's */
     u8 *linked;                    /* the regeneration list the node is in, 0 when out */
-    struct sp_state state;         /* +41Ch what it is */
+    struct sp_state state;         /* +41Ch what it is (28 bytes) */
     void *body;                    /* the rigid body (made at set_world) */
     u8 *made_geometry;             /* the zone's collision geometry this sponge made (and frees) */
-    matrix transform;              /* +43Ch m_transform */
+    matrix transform;              /* +440h m_transform */
     u8 *zone;                      /* the damage zone (data/active/damage_zone), a resource we hold */
     u32 sounds, effects;           /* zones moved with the explosion */
     matrix sound_local[MAX_ZONES];
     matrix effect_local[MAX_ZONES];
-    struct inflictor inflictor;    /* +688h */
-    struct function contact_fn;    /* +6A4h its contacts' callback (sp_contact), the physics world's while in the air */
+    struct inflictor inflictor;    /* +68Ch */
+    struct function contact_fn;    /* +6A8h its contacts' callback (sp_contact), the physics world's while in the air */
     u32 safe_time_ms;              /* data/safe_time: a first contact with less of the fuse left explodes it */
     u8 explode_on_contact;         /* data/explode_on_contact */
     u8 pad2;
     u16 material;                  /* data/mtl_idx: its body's game material (45 "grenade", as the RGD-5's) */
 };
-_Static_assert(__builtin_offsetof(struct sponge, inflictor) == 0x688, "inflictor");
-_Static_assert(__builtin_offsetof(struct sponge, contact_fn) == 0x6A4, "contact_fn");
-_Static_assert(__builtin_offsetof(struct sponge, safe_time_ms) == 0x6BC, "safe_time_ms");
+_Static_assert(__builtin_offsetof(struct sponge, inflictor) == 0x68C, "inflictor");
+_Static_assert(__builtin_offsetof(struct sponge, contact_fn) == 0x6A8, "contact_fn");
+_Static_assert(__builtin_offsetof(struct sponge, safe_time_ms) == 0x6C0, "safe_time_ms");
 _Static_assert(__builtin_offsetof(struct sponge, passive) == 0x370, "passive");
 _Static_assert(__builtin_offsetof(struct sponge, splash) == 0x3B0, "splash");
 _Static_assert(__builtin_offsetof(struct sponge, node) == 0x3F0, "node");
 _Static_assert(__builtin_offsetof(struct sponge, state) == 0x41C, "state");
-_Static_assert(__builtin_offsetof(struct sponge, body) == 0x434, "body");
-_Static_assert(__builtin_offsetof(struct sponge, transform) == 0x43C, "transform");
-_Static_assert(__builtin_offsetof(struct sponge, zone) == 0x47C, "zone");
-_Static_assert(sizeof(struct sponge) == 0x6C4, "sponge");
+_Static_assert(__builtin_offsetof(struct sponge, body) == 0x438, "body");
+_Static_assert(__builtin_offsetof(struct sponge, transform) == 0x440, "transform");
+_Static_assert(__builtin_offsetof(struct sponge, zone) == 0x480, "zone");
+_Static_assert(sizeof(struct sponge) == 0x6C8, "sponge");
 _Static_assert(sizeof(struct splash) == 0x40 && sizeof(struct node) == 0x28, "splash, node");
 
 /* the zone's hit hook (sponge_a_026g.asm sponge_zone_hit) reads these: the
@@ -477,6 +486,7 @@ static void contact_off(struct sponge *s, void *physics) {
 static void *launch(struct sponge *s, const matrix *transform, const float linear[3]) {
     static const float zero[3] = {0, 0, 0};
     void *physics = AT(AT(s, I_WORLD, u8 *), W_PHYSICS, void *);
+    if (&s->transform != transform) s->transform = *transform;   /* where its way starts (the sensor's sweep) */
     ((THISCALL void (*)(void *, const matrix *))vt(s->body, BV_SET_TRANSFORM))(s->body, transform);
     place(s, transform);
     ((THISCALL void (*)(void *, void *, u32, u32))vt(physics, PW_ADD))(physics, s->body, 0x818, 8);
@@ -556,7 +566,7 @@ static struct sp_thrower thrower_of(const struct sp_state *st) {
     case SP_IN_HAND: return st->as.hand.thrower;
     case SP_IN_AIR: return st->as.air.armed.thrower;
     case SP_CLOUD: return st->as.cloud.thrower;
-    case SP_HELD: break;
+    case SP_HELD: case SP_SPENT: break;
     }
     return nobody;
 }
@@ -631,10 +641,11 @@ THISCALL void sp_disable_passive(struct sponge *s) {
 
 /* ---- the state machine ------------------------------------------------ */
 
-/* What happens to a sponge: the pin's pull (the thrower its holder then),
- * the throw (the physics world its body went into), a drop from the hand
- * (the same), a contact of its body or the sensor's sweep, a tick. */
-enum sp_event_kind { EV_PULL, EV_THROW, EV_DROP, EV_CONTACT, EV_TICK };
+/* What happens to a sponge: the pin's pull (the thrower its holder then; the
+ * throw state pulling it holds it), the throw (the physics world its body
+ * went into), a drop from the hand (the same), a contact of its body or the
+ * sensor's sweep, a tick, the throw state letting it go (its finalize). */
+enum sp_event_kind { EV_PULL, EV_THROW, EV_DROP, EV_CONTACT, EV_TICK, EV_LET_GO };
 struct sp_event {
     enum sp_event_kind kind;
     u32 time;                      /* EV_PULL, EV_TICK */
@@ -645,7 +656,7 @@ struct sp_event {
 enum sp_action {
     ACT_ARM = 1,                   /* +280h 6 */
     ACT_EXPLODE = 2,               /* the splash and the zone where it is, out of the physics world, +280h 7 */
-    ACT_CONSUME = 4,               /* out of its slot if a throw state has not let it go */
+    ACT_CONSUME = 4,               /* out of its slot (no throw state holds it now) */
     ACT_CLOUD_OFF = 8,             /* its zone off, +280h 0 */
 };
 struct sp_step {
@@ -678,9 +689,12 @@ static struct sp_step armed_tick(const struct sp_rules *rules, struct sp_armed a
         if ((i32)(armed.explode_at - time) <= (i32)(rules->ttl_ms - rules->safe_time_ms)) armed.explode_at = time;
     }
     if (time == armed.explode_at) {
-        struct sp_step step = {.state = {.tag = SP_CLOUD}, .actions = ACT_EXPLODE};
+        /* consumed now unless a throw state holds it: then when it lets it go */
+        struct sp_step step = {.state = {.tag = SP_CLOUD},
+                               .actions = ACT_EXPLODE | (armed.hold == HOLD_NONE ? ACT_CONSUME : 0)};
         step.state.as.cloud.exploded_at = time;
         step.state.as.cloud.thrower = armed.thrower;
+        step.state.as.cloud.hold = armed.hold;
         return step;
     }
     if (now.tag == SP_IN_AIR) now.as.air.armed = armed;
@@ -706,9 +720,10 @@ static struct sp_step sp_transition(const struct sp_rules *rules, struct sp_stat
             step.state.as.hand.explode_at = fuse_end(rules, ev.time);
             step.state.as.hand.thrower = ev.thrower;
             step.state.as.hand.contact = rules->explode_on_contact ? CONTACT_WAITING : CONTACT_SPENT;
+            step.state.as.hand.hold = HOLD_THROW_STATE;       /* the pull is its throw state's */
             return step;
         }
-        case EV_THROW: case EV_DROP: case EV_CONTACT: case EV_TICK:
+        case EV_THROW: case EV_DROP: case EV_CONTACT: case EV_TICK: case EV_LET_GO:
             return same;
         }
         break;
@@ -722,6 +737,9 @@ static struct sp_step sp_transition(const struct sp_rules *rules, struct sp_stat
         }
         case EV_TICK:
             return armed_tick(rules, st.as.hand, st, ev.time);
+        case EV_LET_GO:
+            st.as.hand.hold = HOLD_NONE;
+            return (struct sp_step){st, 0};
         case EV_PULL: case EV_CONTACT:
             return same;            /* armed once; in the hand its body is in no physics world */
         }
@@ -733,23 +751,39 @@ static struct sp_step sp_transition(const struct sp_rules *rules, struct sp_stat
             return (struct sp_step){st, 0};
         case EV_TICK:
             return armed_tick(rules, st.as.air.armed, st, ev.time);
+        case EV_LET_GO:
+            st.as.air.armed.hold = HOLD_NONE;
+            return (struct sp_step){st, 0};
         case EV_PULL: case EV_THROW: case EV_DROP:
             return same;
         }
         break;
     case SP_CLOUD:
         switch (ev.kind) {
-        case EV_TICK: {
-            /* the tick after the explosion: out of its slot if no throw state
-             * let it go (sp_released); duration_ms after it, the cloud ends */
-            u32 actions = ev.time == st.as.cloud.exploded_at + TICK ? ACT_CONSUME : 0;
+        case EV_TICK:
+            /* duration_ms after the explosion the cloud ends: spent until a
+             * throw state still holding it lets it go, else an artefact again */
             if (ev.time == st.as.cloud.exploded_at + rules->duration_ms) {
-                struct sp_step step = {.state = {.tag = SP_HELD}, .actions = actions | ACT_CLOUD_OFF};
+                struct sp_step step = {.state = {.tag = st.as.cloud.hold == HOLD_NONE ? SP_HELD : SP_SPENT},
+                                       .actions = ACT_CLOUD_OFF};
                 return step;
             }
-            return (struct sp_step){st, actions};
-        }
+            return same;
+        case EV_LET_GO:
+            if (st.as.cloud.hold == HOLD_NONE) return same;
+            st.as.cloud.hold = HOLD_NONE;
+            return (struct sp_step){st, ACT_CONSUME};
         case EV_PULL: case EV_THROW: case EV_DROP: case EV_CONTACT:
+            return same;
+        }
+        break;
+    case SP_SPENT:
+        switch (ev.kind) {
+        case EV_LET_GO: {
+            struct sp_step step = {.state = {.tag = SP_HELD}, .actions = ACT_CONSUME};
+            return step;
+        }
+        case EV_PULL: case EV_THROW: case EV_DROP: case EV_CONTACT: case EV_TICK:
             return same;
         }
         break;
@@ -850,7 +884,7 @@ THISCALL void sp_removed(struct sponge *s) {
             step_to(s, drop);
         }
         return;
-    case SP_IN_AIR: case SP_CLOUD:
+    case SP_IN_AIR: case SP_CLOUD: case SP_SPENT:
         return;
     case SP_HELD:
         if (AT(s, A_STATE, u32) == ST_ACTIVE) ((THISCALL void (*)(void *))vt(s, V_DISABLE_ACTIVE))(s);
@@ -898,8 +932,8 @@ static void consume(struct sponge *s) {
  * state 6). Still in its slot: the throw state holding it (+17Ch) lets it go
  * at its next is_ready (sp_released), and a world saved before that names it
  * by that slot (0x33A51B; its load 0x33A5BD reads the slot back). Players
- * tick before the anomaly, so that is the next tick; with no throw state
- * holding it, the tick after this one (ACT_CONSUME). */
+ * tick before the anomaly; it leaves its slot when the state's finalize lets
+ * it go (sp_let_go), or now when no throw state holds it (ACT_CONSUME). */
 static void explode(struct sponge *s, const matrix *at, void *physics, u32 time) {
     struct splash hit;
     matrix transform = *at;
@@ -920,8 +954,9 @@ static void explode(struct sponge *s, const matrix *at, void *physics, u32 time)
 }
 
 /* 0.69d0's thrown_with_sensor state (its tick 0x2003EBF10, collide_with_player
- * true): a player other than the thrower in the sponge's way since the last
- * tick is a contact. Its way, from `from` to `to`, is swept with spheres of
+ * true): a living player other than the thrower in the sponge's way since
+ * the last tick (from m_transform, serialized in the air and set at the
+ * launch, to the body's) is a contact. Its way, from `from` to `to`, is swept with spheres of
  * SENSOR_RADIUS (the body's) at most that far apart, each the hit manager's
  * collision query the splash makes (its world+18F58h's +98h, vt+60h: centre,
  * radius, 10h, 40h, the found objects; 0x339650..0x339679): a found object
@@ -930,11 +965,29 @@ static void explode(struct sponge *s, const matrix *at, void *physics, u32 time)
 #define SENSOR_RADIUS 0.1f
 #define SENSOR_STEPS 16
 #define QUERY_ALLOCATOR 0xA8001C   /* the found objects' allocator as the splash gives it (0x339667) */
+
+/* Every living player's damage collision bones as of now (0x2DA5B0, as the
+ * splash calls it for each player it finds, 0x33975E; 2 for a dead one), so
+ * the sweep finds them where every game has them this tick. */
+static void fresh_bones(u8 *world) {
+    u8 *places = AT(world, W_PLACES, u8 *), *end = AT(world, W_PLACES_END, u8 *);
+    if (!places || end <= places) return;
+    u32 count = (u32)(end - places) / PLACE_SIZE;
+    for (u32 at = 0; at < count && at < MAX_PLACES; ++at) {
+        if (!(AT(world, W_ACTIVE_PLACES, u32) >> at & 1)) continue;
+        u8 *place = places + PLACE_SIZE * at;
+        if (place[PLACE_KIT] >= KITS) continue;
+        u8 *player = AT(place, 4 * place[PLACE_KIT], u8 *);
+        if (player && player[P_ALIVE]) engine_recompute_damage_collision_bones(player, 0);
+    }
+}
+
 static int in_the_way(struct sponge *s, const float from[3], const float to[3], struct sp_thrower thrower) {
     u8 *world = AT(s, I_WORLD, u8 *);
     u8 *hits = world ? AT(world, W_HITS, u8 *) : 0;
     u8 *collision = hits ? AT(hits, 0x98, u8 *) : 0;
     if (!collision) return 0;
+    fresh_bones(world);
     float d[3] = {to[0] - from[0], to[1] - from[1], to[2] - from[2]};
     float length2 = d[0] * d[0] + d[1] * d[1] + d[2] * d[2];
     u32 steps = 1;
@@ -949,7 +1002,8 @@ static int in_the_way(struct sponge *s, const float from[3], const float to[3], 
         for (void **at = found.begin; at && at < found.end && !found_one; ++at) {
             u8 *owner = *at ? AT(*at, 0xC, u8 *) : 0;
             u8 *player = owner ? ((THISCALL u8 * (*)(void *)) vt(owner, 8))(owner) : 0;
-            if (player && !(thrower.kind == THROWER_PLACE && player[P_GAME_OBJECT + GO_ID] == thrower.place))
+            if (player && player[P_ALIVE]          /* a corpse is no contact */
+                && !(thrower.kind == THROWER_PLACE && player[P_GAME_OBJECT + GO_ID] == thrower.place))
                 found_one = 1;
         }
         if (found.begin)                                 /* as the splash frees them (0x3398CE) */
@@ -997,7 +1051,8 @@ THISCALL void sp_tick(struct sponge *s, u32 dt, u32 time) {
     if (step.actions & ACT_CLOUD_OFF) {
         zone_off(s, 0);
         s->state = step.state;
-        if (AT(s, A_STATE, u32) == ST_ZONE) AT(s, A_STATE, u32) = ST_NONE;   /* the game's own state left alone */
+        /* an artefact again (the game's own state left alone); spent, still 7 */
+        if (step.state.tag == SP_HELD && AT(s, A_STATE, u32) == ST_ZONE) AT(s, A_STATE, u32) = ST_NONE;
     }
 }
 
@@ -1017,12 +1072,17 @@ u32 sp_pull_pin(struct sponge *s, u32 time) {
 /* [4] 0x515140: done (the zone on). */
 u32 sp_exploded(struct sponge *s) { return (u32)zone_active(s); }
 
-/* The throw state's is_ready with it exploded: the state lets it go now
- * (its +17Ch), so it leaves its slot now (consume). */
-u32 sp_released(struct sponge *s) {
-    if (!sp_exploded(s)) return 0;
-    consume(s);
-    return 1;
+/* The throw state's finalize (0x33A490, sponge_let_go) about to let it go
+ * (+17Ch): no throw state holds it now; spent, it leaves its slot now. */
+void sp_let_go(struct sponge *s) {
+    struct sp_rules rules = rules_of(s);
+    struct sp_event let_go = {EV_LET_GO, 0, {THROWER_NOBODY, 0, {0}}, 0};
+    struct sp_step step = sp_transition(&rules, s->state, let_go);
+    s->state = step.state;
+    if (step.actions & ACT_CONSUME) {
+        if (step.state.tag == SP_HELD && AT(s, A_STATE, u32) == ST_ZONE) AT(s, A_STATE, u32) = ST_NONE;
+        consume(s);
+    }
 }
 
 /* [2] 0x514620: thrown along the aim's z axis at throw_power x the holder's
@@ -1065,6 +1125,17 @@ static enum sp_contact parse_contact(u8 wire) {
     return wire & 2 ? CONTACT_SEEN : wire & 1 ? CONTACT_WAITING : CONTACT_SPENT;
 }
 
+static enum sp_hold hold_of(const struct sp_state *st) {
+    switch (st->tag) {
+    case SP_IN_HAND: return st->as.hand.hold;
+    case SP_IN_AIR: return st->as.air.armed.hold;
+    case SP_CLOUD: return st->as.cloud.hold;
+    case SP_SPENT: return HOLD_THROW_STATE;
+    case SP_HELD: break;
+    }
+    return HOLD_NONE;
+}
+
 static struct sp_thrower parse_thrower(u8 wire) {
     struct sp_thrower thrower = {wire < MAX_PLACES ? THROWER_PLACE : THROWER_NOBODY, wire < MAX_PLACES ? wire : 0, {0}};
     return thrower;
@@ -1077,6 +1148,7 @@ THISCALL void sp_serialize(struct sponge *s, u8 *writer, void *dumper) {
     u8 pin = armed != 0, thrown = s->state.tag == SP_IN_AIR;
     u8 contact = armed ? wire_contact(armed->contact) : WIRE_CONTACT_SPENT;
     u8 owner = thrower.kind == THROWER_PLACE ? thrower.place : WIRE_NOBODY;
+    u8 held = hold_of(&s->state) == HOLD_THROW_STATE;
     engine_artefact_serialize(s, writer, dumper);
     field(writer, engine_write_u32, &explode, 0x3B, "m_explode_time_ms");
     field(writer, engine_write_u8, &pin, 0x3C, "m_is_pin_pulled");
@@ -1092,6 +1164,7 @@ THISCALL void sp_serialize(struct sponge *s, u8 *writer, void *dumper) {
     /* ours: the first contact's state, the thrower's place */
     field(writer, engine_write_u8, &contact, 0x48, "m_contact");
     field(writer, engine_write_u8, &owner, 0x49, "m_zone_owner");
+    field(writer, engine_write_u8, &held, 0x4A, "m_throw_state_holds");
     if (s->state.tag == SP_CLOUD && s->zone) {
         u8 *serial = s->zone + Z_SERIAL;
         ((THISCALL void (*)(void *, void *, void *))vt(serial, 0))(serial, writer, dumper);
@@ -1136,8 +1209,9 @@ THISCALL void sp_deserialize(struct sponge *s, u8 *reader, void *a, void *b) {
     }
     enum sp_contact contact = parse_contact(read8(reader));
     struct sp_thrower thrower = parse_thrower(read8(reader));
+    enum sp_hold hold = read8(reader) ? HOLD_THROW_STATE : HOLD_NONE;
     struct sp_state was = s->state, now = {.tag = SP_HELD};
-    struct sp_armed armed = {explode, thrower, contact};
+    struct sp_armed armed = {explode, thrower, contact, hold};
     if (game == ST_ARMED && thrown) {
         now.tag = SP_IN_AIR;
         now.as.air.armed = armed;
@@ -1155,10 +1229,13 @@ THISCALL void sp_deserialize(struct sponge *s, u8 *reader, void *a, void *b) {
         if (game == ST_ARMED) {
             now.tag = SP_IN_HAND;
             now.as.hand = armed;
+        } else if (game == ST_ZONE && explode == WIRE_NOT_ARMED) {
+            now.tag = hold == HOLD_THROW_STATE ? SP_SPENT : SP_HELD;
         } else if (game == ST_ZONE) {
             now.tag = SP_CLOUD;
             now.as.cloud.exploded_at = explode;
             now.as.cloud.thrower = thrower;
+            now.as.cloud.hold = hold;
         }
     }
     s->state = now;

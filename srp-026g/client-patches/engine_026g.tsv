@@ -165,3 +165,4 @@ engine_zone_tick	0x319a70	ECX:zone ESP+4:dt ESP+8:time ESP+12:bool	void engine_z
 engine_geometry_load	0x2f8c30	ESP+4:geometry ESP+8:config	void engine_geometry_load(void *geometry, const void *config)	thunk	
 engine_geometry_destroy	0x2f8be0	ECX:geometry	void engine_geometry_destroy(void *geometry)	thunk	
 engine_config_variant_type	0x125790	-	unsigned int engine_config_variant_type(void)	thunk	
+engine_recompute_damage_collision_bones	0x2da5b0	ECX:player ESP+4:object	unsigned int engine_recompute_damage_collision_bones(void *player, const void *object)	thunk	

@@ -536,3 +536,6 @@ extern engine_geometry_destroy
 ; unsigned int engine_config_variant_type(void)
 ; 0x125790 vostok::detail::type_to_int<vostok::configs::binary_config_value>::get: no arguments; pops 0; EAX
 extern engine_config_variant_type
+; unsigned int engine_recompute_damage_collision_bones(void *player, const void *object)
+; 0x2da5b0 survarium::base_player::recompute_damage_collision_bones: player ECX, object ESP+4; pops 4; EAX
+extern engine_recompute_damage_collision_bones

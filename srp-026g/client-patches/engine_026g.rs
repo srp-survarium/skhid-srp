@@ -271,6 +271,8 @@ unsafe extern "C" {
     pub fn engine_geometry_destroy(geometry: *mut c_void);
     /// 0x125790 vostok::detail::type_to_int<vostok::configs::binary_config_value>::get: no arguments; pops 0; EAX
     pub fn engine_config_variant_type() -> u32;
+    /// 0x2da5b0 survarium::base_player::recompute_damage_collision_bones: player ECX, object ESP+4; pops 4; EAX
+    pub fn engine_recompute_damage_collision_bones(player: *mut c_void, object: *const c_void) -> u32;
 }
 
 #[allow(dead_code)]

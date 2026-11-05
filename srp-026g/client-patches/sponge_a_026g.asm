@@ -11,8 +11,9 @@
 ;   sponge_predicate  the throw state's way in 0x2E4090 at 0x2E40C6 (the
 ;                     item's vtable +64h, `call 0x30A090`: a null deref for any
 ;                     item that is not a grenade set): a sponge not in the air
-;   sponge_ready      the throw state's is_ready 0x33A650 at 0x33A677 (its
-;                     grenade's exploded flag): a sponge's zone on
+;   sponge_ready      the throw state's is_ready 0x33A650 at 0x33A66D (its
+;                     grenade's index, then its exploded flag): a sponge's
+;                     zone on; no grenade held, ready (or not, the index FFh)
 ;   sponge_throw      the throw 0x33A770 at 0x33A7BB (`call 0x30A250`): ours
 ;   sponge_pull       the pull substate's pin 0x3103A0 at 0x3103C9 (`call
 ;                     0x30A120`): ours
@@ -29,14 +30,21 @@
 ;   sponge_links      the core's resolve_links 0x33C440 (its vtable slot
 ;                     0xA16A10, thiscall, `ret 1Ch`): the original, then the
 ;                     kinds of its picked containers kept (sp_links)
+;   sponge_let_go     the throw state's finalize 0x33A490 (its entry, `push
+;                     esi / mov esi,ecx / mov ecx,[esi+150h]`): before it lets
+;                     its grenade go (+17Ch), a sponge's sp_let_go
+;   sponge_save       the throw state's serialize 0x33A4E0 at 0x33A51B (its
+;                     grenade's slot, [+17Ch]+254h): 17h for no grenade held
+;   sponge_load       its deserialize 0x33A570 at 0x33A5AB (the inventory's
+;                     slot read back): no item for a slot past the slots (17h)
 ;
 ; The C functions and data it uses are symbols of the link: sp_vtable (+4 is
 ; the vtable as objects hold it, past its RTTI locator), sp_g (the state the
 ; zone's hit reads) and the functions below.
 bits 32
 global sponge_construct, sponge_size, sponge_query, sponge_predicate, sponge_ready, sponge_throw, sponge_pull
-global sponge_zone_hit, sponge_artefacts, sponge_spawn, sponge_links
-extern sp_construct, sp_size, sp_cook_query, sp_can_throw, sp_released, sp_throw, sp_pull_pin, sp_vtable, sp_g
+global sponge_zone_hit, sponge_artefacts, sponge_spawn, sponge_links, sponge_let_go, sponge_save, sponge_load
+extern sp_construct, sp_size, sp_cook_query, sp_can_throw, sp_exploded, sp_let_go, sp_throw, sp_pull_pin, sp_vtable, sp_g
 extern sp_artefacts, sp_spawn_pick, sp_links
 section .text
 
@@ -47,7 +55,11 @@ section .text
 %define QUERY_ON          0x25E806 ; after the prologue
 %define PREDICATE_ON      0x2E40D2 ; test al,al
 %define AS_SET_HAS        0x30A090 ; eax = a grenade set: al, a grenade ready
-%define READY_ON          0x33A683 ; movzx eax,al
+%define READY_STOCK       0x33A677 ; mov ecx,[esi+17Ch] / mov edx,[ecx+268h] (al the index)
+%define LET_GO_ON         0x33A499 ; finalize after its first three
+%define SAVE_ON           0x33A527 ; dl the slot written
+%define LOAD_ON           0x33A5C4 ; eax the item of the slot (0 none)
+%define NO_SLOT           0x17
 %define SPAWN_TAKE        1        ; sp_spawn_pick's enum spawn_choice
 %define SPAWN_DECLINED    2
 %define READY_YES         0x33A696
@@ -91,6 +103,12 @@ sponge_spawn:
     jmp near spawn
 sponge_links:
     jmp near links
+sponge_let_go:
+    jmp near let_go
+sponge_save:
+    jmp near save
+sponge_load:
+    jmp near load
 
 ; 0x25E68A, eax = data/type - 3; pushed ebx (= arg 2, &config), esi, edi;
 ; [esp+10h].. the memory, &config, &effect, the scene.
@@ -163,21 +181,28 @@ predicate:
     xor eax, eax
     jmp PREDICATE_ON
 
-; 0x33A677, esi = the throw state, al = its grenade's index (not FFh).
-; No grenade held (+17Ch 0: a load that found its slot empty, 0x33A5C8):
-; ready, the state leaves. A sponge exploded: ready, and the state lets it
-; go now, so it leaves its slot now (sp_released).
+; 0x33A66D, esi = the throw state (its substate's test done): the site's
+; `mov al,[esi+180h] / cmp al,0FFh / jz not ready`. A sponge held: ready when
+; its zone is on (whatever its index). No grenade held (+17Ch 0: a load that
+; found its slot empty): not ready for the index FFh (as the original), else
+; ready (the state leaves; the original read through 0).
 ready:
     mov ecx, [esi + 0x17C]
     test ecx, ecx
-    jz READY_YES
+    jz .none
     cmp dword [ecx], SP_VTABLE
     je .sponge
-    mov edx, [ecx + 0x268]
-    jmp READY_ON
+    mov al, [esi + 0x180]
+    cmp al, 0xFF
+    je READY_NO
+    jmp READY_STOCK
+.none:
+    cmp byte [esi + 0x180], 0xFF
+    je READY_NO
+    jmp READY_YES
 .sponge:
     push ecx
-    call sp_released
+    call sp_exploded
     add esp, 4
     test al, al
     jnz READY_YES
@@ -188,6 +213,8 @@ ready:
 throw:
     mov ecx, [esi + 0x17C]
     add edi, 0x44C                    ; the aim's matrix
+    test ecx, ecx
+    jz THROW_ON                       ; no grenade held: nothing thrown
     cmp dword [ecx], SP_VTABLE
     je .sponge
     push edi
@@ -210,6 +237,8 @@ throw:
 pull:
     mov esi, [esi + 0x138]
     mov ecx, [esi + 0x17C]
+    test ecx, ecx
+    jz .none
     cmp dword [ecx], SP_VTABLE
     je .sponge
     push eax
@@ -221,6 +250,9 @@ pull:
     push ecx
     call sp_pull_pin                  ; cdecl (sponge, time): al = the index, 0
     add esp, 8
+    jmp PULL_ON
+.none:                                ; no grenade held: no index (FFh)
+    mov al, 0xFF
     jmp PULL_ON
 
 ; 0x319C8B, edi = the zone, ebx = 0, eax = the receiver's vt+20h, ecx = the
@@ -300,3 +332,47 @@ links:
     call sp_links                     ; cdecl (core+4, &config)
     add esp, 8
     ret 0x1C
+
+; 0x33A490, the throw state's finalize (thiscall, ecx = it): the three
+; instructions replaced, after sp_let_go(the sponge) when it holds one.
+let_go:
+    mov eax, [ecx + 0x17C]
+    test eax, eax
+    jz .on
+    cmp dword [eax], SP_VTABLE
+    jne .on
+    push ecx
+    push eax
+    call sp_let_go                    ; cdecl (sponge)
+    add esp, 4
+    pop ecx
+.on:
+    push esi
+    mov esi, ecx
+    mov ecx, [esi + 0x150]
+    jmp LET_GO_ON
+
+; 0x33A51B, ebx = the throw state: dl = its grenade's slot, 17h for none.
+save:
+    mov ecx, [ebx + 0x17C]
+    mov dl, NO_SLOT
+    test ecx, ecx
+    jz SAVE_ON
+    mov dl, [ecx + 0x254]
+    jmp SAVE_ON
+
+; 0x33A5AB, ebx = the throw state, cl = the slot read: eax = the inventory's
+; item there, none for a slot past the slots (17h and up: its +168h and on
+; are not slots).
+load:
+    movzx eax, cl
+    cmp eax, NO_SLOT
+    jae .none
+    mov edx, [ebx + 0x120]
+    mov edx, [edx + 8]
+    mov ecx, [edx + 0x10C]
+    mov eax, [ecx + eax * 4 + 0x10C]
+    jmp LOAD_ON
+.none:
+    xor eax, eax
+    jmp LOAD_ON

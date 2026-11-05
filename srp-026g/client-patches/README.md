@@ -3455,7 +3455,7 @@ contact, numbers and hit types in 0.26g's keys and the owner's static toxin rule
 particles, materials and textures, texts in six languages); the hud movie draws its combat-log icon (`SpongeLogIcon`). The rules:
 `../docs/notes/sponge.md`.
 
-- **The object** (`sponge_a_026g.c`, 0x6C4 bytes): Rattle's `artefact<artefact_rattle_core>`
+- **The object** (`sponge_a_026g.c`, 0x6C8 bytes): Rattle's `artefact<artefact_rattle_core>`
   (artefact_base 0x312FD0 and the drawable at +340h, built by Rattle's constructor 0x25FA10), then
   the sponge's own fields from +360h: the cook and config it loads with, the passive's modifier (Lifebone's
   layout), `duration` and `ttl_ms` in ms, `throw_power`, the splash's parameters in the

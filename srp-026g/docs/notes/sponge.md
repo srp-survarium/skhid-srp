@@ -62,8 +62,9 @@ Read from `/mnt/hdd/survarium-offload/0.69d0/Survarium.zip`:
   - 0.26g's grenade_core has no states and no sensor: its RTTI names only `grenade_core`, its
     cook and its contact callback.
   - Ours: the sweep is in the Sponge's own tick (`in_the_way`). Each tick in the air, the way
-    from the last position to this one is swept with spheres of 0.1 m (its body's), at most
-    that far apart. Each sphere is the collision query the splash makes (the hit manager's
+    from the last position (m_transform: the hand's at the launch, serialized in the air) to this
+    one is swept with spheres of 0.1 m (its body's), at most that far apart, every living
+    player's bones made fresh first (0x2DA5B0, as the splash does); a corpse is no contact. Each sphere is the collision query the splash makes (the hit manager's
     collision world, vt+60h, flags 10h and 40h). A found object whose owner is a player not of
     the thrower's place is a contact, under the same rule.
   - Not retail's exactly: spheres along the path, where retail casts one ray.
@@ -125,10 +126,12 @@ Read from `/mnt/hdd/survarium-offload/0.69d0/Survarium.zip`:
 - A spent Sponge cannot be picked up while its zone runs.
 - Destroyed at a match's end, it frees only its own (its body, its geometry, its hold on the
   zone) and touches nothing the world owns.
-- Exploded, it stays in its slot until the throw state holding it lets it go (its next is_ready,
-  the next tick: players tick before the anomaly). A world saved in between names it by its slot,
-  and its load finds it there. With no throw state holding it, it leaves its slot the tick after
-  the explosion.
+- Exploded, it stays in its slot until the throw state holding it (from the pull) lets it go: that
+  state's finalize, however long it takes (a dead or still holder's state is not ticked). A world
+  saved in between names it by its slot, and its load finds it there. Its cloud over first, it is
+  spent (still 7) until then. With no throw state holding it, it leaves its slot at the explosion.
+  The throw state's own save and load are safe either way (no grenade held: slot 17h, loaded as
+  none).
 - Its key does nothing while another grenade (a stock one being cooked) holds the grenade slot.
 - Patch 78 (H + an artefact's key raises it in the hand) does not take the Sponge: the carry
   has no model for it, and its key throws it.
@@ -139,12 +142,13 @@ Read from `/mnt/hdd/survarium-offload/0.69d0/Survarium.zip`:
   contact is ruled at the next tick; the sensor's sweep is part of the tick.
 - Its state is one tagged union (sponge_a_026g.c `struct sp_state`, AGENTS.md types and states):
   - held, as artefact_base has it;
-  - in the hand (the fuse's end, the thrower, the first contact);
+  - in the hand (the fuse's end, the thrower, the first contact, whether a throw state holds it);
   - in the air (the same, and the physics world);
-  - the cloud (its start, the thrower).
+  - the cloud (its start, the thrower, the hold);
+  - spent (its cloud over while a throw state still holds it).
 
   One function, `sp_transition`, takes (state, event) to the new state and its actions. The
-  events are the pull, the throw, a drop, a contact and a tick. The stream's bytes are parsed
+  events are the pull, the throw, a drop, a contact, a tick and the throw state letting it go. The stream's bytes are parsed
   into the state at the load and written from it.
 - Serialized: the fuse, the pin, whether thrown, the body (transform, velocities), the first
   contact's state, the thrower's place, and while the zone is on its state and the explosion
