@@ -1338,6 +1338,7 @@ va	status	ref_021d	name
 0x00243770	inferred-medium	0x00184a1e	survarium::weapon::`scalar deleting destructor'
 0x00243790	inferred-medium	0x00184a3c	survarium::weapon::~weapon
 0x002443d0	inferred-medium	0x0018511b	survarium::weapon::play_weapon_fire_pfx
+0x00244d40	inferred-medium		survarium::weapon::calculate_aim_alignment
 0x00246380	inferred-medium	0x00184924	survarium::game_options::input_handler
 0x00246b80	inferred-medium	0x0018679f	survarium::victory_item::taken_from_container
 0x00246d80	inferred-medium	0x00186978	vostok::buffer_vector<vostok::math::float4x4>::resize
