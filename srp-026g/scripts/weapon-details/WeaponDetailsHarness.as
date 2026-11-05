@@ -376,7 +376,7 @@ package {
     var css:StyleSheet=new StyleSheet();css.setStyle("red",{color:"#CF4242"});css.setStyle("white",{color:"#D7DEDC"});css.setStyle("gray",{color:"#8A9490"});Scene.textStyleSheet=css;
     Loc=domain.getDefinition("survarium.data.LocalizationData");Loc.setData(texts("english"));
     Details=domain.getDefinition("survarium.item.WeaponDetails");
-    DetailsView=domain.getDefinition("survarium.item.WeaponDetailsView") as Class;
+    DetailsView=domain.getDefinition("survarium.item.ItemDetailsView") as Class;
     Caption=domain.getDefinition("survarium.item.WeaponDetailCaption") as Class;
     var Props:Class=domain.getDefinition("survarium.data.PropertiesDescriptor") as Class;
     var props:Object=new Props("properties"),list:Array=[];

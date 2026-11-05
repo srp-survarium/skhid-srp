@@ -125,6 +125,7 @@ edit	weapon-stats.tsv	-	the weapons' stats, and their cards
 edit	reload-timings-1.json	-	explicit tactical/empty reload durations: 0.69 values for the compared weapons, current AK-12 times; retime hands, item clips and events together
 edit	dead-keys-1.json	-	the dead duplicate keys out (parameters/ copies of what the game reads in dispersion/, data/ and hit_params/); the unused exo back piece follows the armour rule
 edit	scar-ammo-1.json	-	SCAR-H uses only dedicated AP in 20-round packs (2266), with shared AP ballistics; other weapons retain their ammo
+edit	ammo-cards-1.json	-	ammo cards: bullet speed (m/s) on every round, range (%) on the four rounds that change it, pellets on the three smallshot rounds (UI properties 163..165); before ammo.tsv, which writes their values
 edit	ammo.tsv	-	the ammo's stats, and their cards
 edit	throwables.tsv	-	the grenades' and the trap's stats
 edit	artefacts.tsv	-	the artefacts' stats (client patch 54 reads aim_time_mod and stopping_power_mod)

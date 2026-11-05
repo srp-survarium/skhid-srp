@@ -52,14 +52,15 @@ package survarium.player
          var sources:Array = _items.concat();
          if(_skills != 0) sources.push({name:SpeedParts.skillName(209),value:_skills});
          // Its own section, headed by the weight's own word (the weight label's key).
-         var result:Array = [{heading:LocalizationData.getName("equipment_weight")},{icon:12,label:LocalizationData.format("st_srp_weight_base",
-            Util.styledChar(LocalizationData.format("st_srp_unit_kg",(Math.round(_base * 100) / 100).toString()),"white"))}];
+         var result:Array = [{heading:LocalizationData.getName("equipment_weight")},{icon:12,label:LocalizationData.getName("st_srp_weight_base"),
+            value:Util.styledChar(LocalizationData.format("st_srp_unit_kg",(Math.round(_base * 100) / 100).toString()),"white")}];
+         sources.sortOn("value",Array.NUMERIC | Array.DESCENDING);
          result = result.concat(SourceRows.rows(sources,12,kg));
          if(_packrat < 0)
          {
             var magnitude:Number = Math.round(-_packrat * 1000) / 10;
-            result.push({icon:12,label:SpeedParts.skillName(202) + " " +
-               Util.styledChar(LocalizationData.format("st_srp_weight_penalty","-" + magnitude.toString()),"green")});
+            result.push({icon:12,label:SpeedParts.skillName(202),
+               value:Util.styledChar(LocalizationData.format("st_srp_weight_penalty","-" + magnitude.toString()),"green")});
          }
          return result;
       }
