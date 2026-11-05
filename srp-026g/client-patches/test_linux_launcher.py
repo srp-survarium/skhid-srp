@@ -79,6 +79,12 @@ elif name=='wine' and sys.argv[1]=='msiexec':
  if not os.environ.get('TEST_GECKO_INCOMPLETE'): install_gecko()
 elif name=='winetricks' and os.environ.get('TEST_DXVK_FAIL')=='1':
  sys.exit(1)
+elif name=='winetricks' and 'calibri' in sys.argv[1:]:
+ if os.environ.get('TEST_CALIBRI_FAIL')=='1':
+  sys.exit(1)
+ fonts=prefix/'drive_c/windows/Fonts'
+ fonts.mkdir(parents=True,exist_ok=True)
+ (fonts/'calibri.ttf').write_bytes(b'Calibri fixture')
 '''
         for name in ('wine', 'wineserver', 'winetricks', 'curl'):
             path = self.tools / name
@@ -432,7 +438,7 @@ elif name=='winetricks' and os.environ.get('TEST_DXVK_FAIL')=='1':
             self.assertFalse((self.bin / "wineprefix").exists())
             tool.with_suffix('.disabled').rename(tool)
 
-    def test_winetricks_is_only_required_to_install_dxvk(self):
+    def test_winetricks_is_only_required_to_install_dxvk_and_calibri(self):
         self.copy_exe()
         tool = self.tools / 'winetricks'
         disabled = tool.with_suffix('.disabled')
@@ -446,10 +452,16 @@ elif name=='winetricks' and os.environ.get('TEST_DXVK_FAIL')=='1':
         disabled.rename(tool)
         result = self.run_script()
         self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
-        tool.unlink()
+        tool.rename(disabled)
         result = self.run_script()
         self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
-        self.assertEqual(sum(c['name'] == 'winetricks' for c in self.recorded_calls()), 1)
+        self.assertEqual([c['args'] for c in self.recorded_calls() if c['name'] == 'winetricks'],
+            [['-q', 'dxvk'], ['-q', 'calibri']])
+        # A prefix that has DXVK but lost Calibri needs winetricks again.
+        (self.bin / 'wineprefix/drive_c/windows/Fonts/calibri.ttf').unlink()
+        result = self.run_script()
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn('Install winetricks first', result.stderr)
 
     def test_missing_exe(self):
         result = self.run_script()
@@ -619,17 +631,19 @@ HDMI-1 connected 1366x768+0+0
         self.assertEqual(self.exe.stat().st_mtime_ns, stamp)
         self.assertFalse(list(self.bin.glob('*.before-memory-patch*')))
         calls = self.recorded_calls()
-        self.assertEqual([c['name'] for c in calls], ['wine', 'wineserver', 'winetricks', 'wine'])
+        self.assertEqual([c['name'] for c in calls],
+            ['wine', 'wineserver', 'winetricks', 'winetricks', 'wine'])
         self.assertEqual(calls[2]['args'], ['-q', 'dxvk'])
-        self.assertEqual(calls[3]['cwd'], str(self.bin))
+        self.assertEqual(calls[3]['args'], ['-q', 'calibri'])
+        self.assertEqual(calls[4]['cwd'], str(self.bin))
         # No language set: none passed, the game keeps the one chosen in its Settings.
-        self.assertEqual(calls[3]['args'], ['survarium_skhid.exe',
+        self.assertEqual(calls[4]['args'], ['survarium_skhid.exe',
             '-mt_allocator=768', '-minimum_resources_memory_size=768'])
-        self.assertIn('qwave=', calls[3]['dll'])
-        self.assertEqual(calls[3]['prefix'], str(self.bin / 'wineprefix'))
+        self.assertIn('qwave=', calls[4]['dll'])
+        self.assertEqual(calls[4]['prefix'], str(self.bin / 'wineprefix'))
         result = self.run_script()
         self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
-        self.assertEqual(len(self.recorded_calls()), 5)
+        self.assertEqual(len(self.recorded_calls()), 6)
         self.assertEqual(self.exe.read_bytes(), before)
         self.assertEqual(self.exe.stat().st_mtime_ns, stamp)
 
@@ -646,6 +660,24 @@ HDMI-1 connected 1366x768+0+0
         self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
         calls = self.recorded_calls()
         self.assertEqual([c['name'] for c in calls[-2:]], ['winetricks', 'wine'])
+
+    def test_calibri_failure_warns_launches_and_retries(self):
+        self.copy_exe()
+        game = ['survarium_skhid.exe', '-mt_allocator=768', '-minimum_resources_memory_size=768']
+        self.env['TEST_CALIBRI_FAIL'] = '1'
+        result = self.run_script()
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        self.assertIn('Calibri could not be installed', result.stderr)
+        self.assertIn('item levels', result.stderr)
+        self.assertIn('The next start tries again', result.stderr)
+        self.assertFalse((self.bin / 'wineprefix/drive_c/windows/Fonts/calibri.ttf').exists())
+        self.assertEqual([c['args'] for c in self.recorded_calls()[-2:]], [['-q', 'calibri'], game])
+        del self.env['TEST_CALIBRI_FAIL']
+        result = self.run_script()
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        self.assertNotIn('Warning', result.stderr)
+        self.assertEqual([c['args'] for c in self.recorded_calls()[-2:]], [['-q', 'calibri'], game])
+        self.assertTrue((self.bin / 'wineprefix/drive_c/windows/Fonts/calibri.ttf').exists())
 
     def test_wine_setup_failures_retry_before_launching(self):
         self.copy_exe()
@@ -678,7 +710,7 @@ HDMI-1 connected 1366x768+0+0
         self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
         calls = self.recorded_calls()
         self.assertEqual([c['name'] for c in calls],
-            ['wine', 'wineserver', 'winetricks', 'wine', 'wine'])
+            ['wine', 'wineserver', 'winetricks', 'winetricks', 'wine', 'wine'])
 
     def test_full_crash_dumps_reach_the_game_and_its_crash_files_are_listed(self):
         self.copy_exe()
@@ -698,8 +730,9 @@ HDMI-1 connected 1366x768+0+0
         # started) before it lists the crash files.
         self.assertEqual(calls[-1]['name'], 'wineserver')
         self.assertEqual(calls[-1]['args'], ['-w'])
-        self.assertIn(str(self.bin / 'SRP-crash-test-0.dmp'), result.stdout)
-        self.assertIn(str(self.bin / 'SRP-crash-test-0.txt'), result.stdout)
+        # Each named with what it is for: the .dmp kept, not posted.
+        self.assertIn(str(self.bin / 'SRP-crash-test-0.dmp') + '  (the whole memory: keep it, do not post it', result.stdout)
+        self.assertIn(str(self.bin / 'SRP-crash-test-0.txt') + '  (the crash report: send this to a new post in #bugreports)', result.stdout)
         self.assertNotIn('SRP-crash-old-0', result.stdout)
 
     def test_crash_dump_default_and_unknown_values(self):

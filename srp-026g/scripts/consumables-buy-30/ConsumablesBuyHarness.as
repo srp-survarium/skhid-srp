@@ -17,7 +17,9 @@ package
    // - a medkit with money for 12: 12; with none: the slider at 0 and Buy off, as before;
    // - a medkit dropped on a pocket: 30 too (12 with money for 12): the pocket takes its size, the
    //   rest stays in the inventory (LobbyMenu.relocate_to_paperdoll; not checked here);
-   // - a booster (fills a whole pocket), ammo (one clip), a helmet (no slider): as before.
+   // - a booster (fills a whole pocket), ammo (one clip), a helmet (no slider): as before;
+   // - what a pocket of 0..5 units holds (PlayerInfo.pocketUnits, docs/notes/one-pocket-a-type.md):
+   //   its size of a medkit, one booster, half its size of RGD-5s (card property 166: 2), at least one.
    // Prints "BUY30 ..." lines, "BUY30 SHOT dialog-30" while the medkit's dialog at 30 is shown for
    // a screenshot, and ends with "BUY30 RESULT pass" or "BUY30 RESULT fail: ...".
    public class ConsumablesBuyHarness extends Sprite
@@ -108,7 +110,7 @@ package
             var descriptor:* = new (C("survarium.data.ItemDescriptor"))("consumables-buy-check");
             descriptor.setItemsDictionary([
                item(MEDKIT,"MEDKITS","Medikit",true,false),
-               item(GRENADE,"GRENADES","RGD-5",true,false),
+               item(GRENADE,"GRENADES","RGD-5",true,false,0,[{prop_id:166,prop_value:"2"}]),
                item(TRAP,"BOOBY_TRAPS","Trap",true,false),
                item(BOOSTER,"MEDKITS","Tornado Energy Drink",true,true),
                item(AMMO,"PISTOL_AMMO","9x18",true,false,AMMO_CLIP),
@@ -146,6 +148,8 @@ package
             Message.initStage(boxes);
             Message.registerMessage("ask",C("survarium.messages.MessageAsk"));
             domain.getDefinition("survarium.controls.PlayerInfo").pocketSize = POCKET_SIZE;
+            at = "the pockets";
+            pockets(descriptor);
             cases = this.allCases();
             addEventListener(Event.ENTER_FRAME,this.tick);
          }
@@ -155,9 +159,31 @@ package
          }
       }
 
-      private function item(dictId:int, category:String, name:String, stack:Boolean, wholePocket:Boolean, clip:int = 0) : Object
+      // What a pocket of each size holds of an item, by its own description.
+      private function pockets(descriptor:*) : void
       {
-         var value:Object = {dictId:dictId,category:constant("ItemCategory",category),name:name,level:1,icon_row:1,icon_column:1,is_stack:stack,fills_whole_pocket:wholePocket,weight:0.2,modifiers:[],item_properties:[]};
+         var PlayerInfo:Object = domain.getDefinition("survarium.controls.PlayerInfo");
+         var share:Function = domain.getDefinition("survarium.constants.QuickSlotSize").of;
+         var want:Array = [[MEDKIT,"0,1,2,3,4,5"],[BOOSTER,"1,1,1,1,1,1"],[GRENADE,"0,1,1,1,2,2"]];
+         for each(var row:Array in want)
+         {
+            var description:Object = descriptor.getItemDescription(row[0]);
+            var held:Array = [];
+            for(var size:int = 0; size <= POCKET_SIZE; size++)
+            {
+               held.push(PlayerInfo.pocketUnits(description.category,share(description),size));
+            }
+            trace("BUY30 pockets of 0.." + POCKET_SIZE + ", " + description.name + ": " + held);
+            if(held.join(",") != row[1])
+            {
+               failures.push("pockets of " + description.name + ": " + held + " (want " + row[1] + ")");
+            }
+         }
+      }
+
+      private function item(dictId:int, category:String, name:String, stack:Boolean, wholePocket:Boolean, clip:int = 0, properties:Array = null) : Object
+      {
+         var value:Object = {dictId:dictId,category:constant("ItemCategory",category),name:name,level:1,icon_row:1,icon_column:1,is_stack:stack,fills_whole_pocket:wholePocket,weight:0.2,modifiers:[],item_properties:properties || []};
          if(clip)
          {
             value.clip_size = clip;
@@ -217,7 +243,7 @@ package
          var PlayerInfo:Object = domain.getDefinition("survarium.controls.PlayerInfo");
          PlayerInfo.genericMoney = c.money;
          PlayerInfo.premiumMoney = 0;
-         lobby.try_buy_item(1,0,c.dictId,constant("ItemPlace","SHOP"),c.target,c.count,c.price,c.seller);
+         lobby.try_buy_item(1,0,c.dictId,constant("ItemPlace","SHOP"),c.target,c.count,c.price,domain.getDefinition("survarium.constants.BuyOrigin").SHOP,c.seller);
       }
 
       private function check(c:Object) : void

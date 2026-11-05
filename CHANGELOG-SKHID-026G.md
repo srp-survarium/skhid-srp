@@ -9,6 +9,102 @@ release that made it what it is now.
 
 ---
 
+## 5 Nov, 09:40 — TODO: the owner's words (update required)
+
+<!-- Revision 49 (026g-rev49), released 2026-11-05 09:40 UTC. To be worded for players; what it shipped: -->
+
+- TODO: #1240 Linux launcher: use Wine's Wayland driver under xwayland-satellite
+- TODO: #1243 Blackout: a mode of its own maps; type the configs' modes
+- TODO: #1238 Research: never read a departed place's player
+- TODO: #1242 Results screen: a NULL map name reads as ""
+- TODO: #1231 Lobby: hold Alt to see a medicine's numbers after the medical skills
+- TODO: #1245 Patch 95: log the animation pair the registry has no id for (rev47 crash at 0x1F18C8)
+- TODO: #1253 Patch 99: a world takes no player input whose rotation no client makes (0.27d's "input is invalid")
+- TODO: #1257 Patch 102: a side mouse button is no left click in the menus
+- TODO: #1255 Expect starter kit level 7 in the bot-match end-to-end test
+- TODO: #1270 srp-recording-to-sur: read the recording's dictionary; keep chosen key frames
+- TODO: #1256 Patch 101: a footstep first made by a re-simulation is heard (random step drop-outs)
+- TODO: #1258 Patch 100: the sound follows the audio output device (B43)
+- TODO: #1247 Patch 96: shots stay audible under heavy fire
+- TODO: #1265 Ported guns: other players' shots heard to 200-240 m (pack weapons-reverb-layers@1)
+- TODO: #1248 Hash worlds up to 0xF000 bytes; history item sections grow on the heap (patch 98)
+- TODO: #1254 Match server: skip a resync whose game already agrees; capture both worlds at a split's first tick
+- TODO: #1249 Crash dumps: full memory on SKHID_CRASH_DUMP=full, not a build feature
+- TODO: #1260 Crash report: the patch log's tail in crash.txt and the ZIP; the time in UTC
+- TODO: #1261 Crash report: the match and the last 1024 notable events (breadcrumbs in the arena's state)
+- TODO: #1264 Crash report: what the game was reading when a load crashed (player and stream offset)
+- TODO: #1267 Crash dialog: with SKHID_CRASH_DUMP=full, send the report and keep the .dmp; Copy fits one Discord message
+- TODO: #1266 Player log tools: the crash ZIPs' text in the collected logs; the crash files' labels on Linux
+- TODO: #1259 Server logs: one size-rotated file per server in the data volume
+- TODO: #1246 Weapon pickup: every client installs the recipe's gun (rev47 affects_count crash)
+- TODO: #1273 Weapon pickup: a player can take its own drop
+- TODO: #1275 Animation ids: the cause of the 0x1F18C8 / 0x3B336C crashes (docs)
+- TODO: #1286 Ammo cards: bullet speed, range and pellets, in the weapon card's rows
+- TODO: #1281 Linux: install the font Calibri into the Wine prefix
+- TODO: #1276 An RGD-5 takes two pocket units
+- TODO: #1289 Note the one-off RGD-5 pocket reset at release
+- TODO: #1290 Grenades: CCD sweeps a sphere inside the capsule, no more falling under the ground (patch 105)
+- TODO: #1288 Settings: Names on map (Tab map names without Alt)
+- TODO: #1296 Groza: less damage (0.34) and a harder upward kick
+- TODO: #1292 Groza: 0.31a2's own aim locator (weapons-031@13)
+- TODO: #1293 Collimators: the 9A-91's Cobra dot at the screen's centre
+- TODO: #1200 Publish the players' notes of revisions 46, 47 and 48
+- TODO: #1155 Preserve battery taker statistics across snapshot loads
+- TODO: #1299 Remove the two unlearnable physical skills; Packrat to column 4
+- TODO: #1301 Pre-release fixes for revision 49
+- TODO: #1295 Wiki: Skills, every skill tree as the lobby draws it
+- TODO: #1302 Chat text follows the keyboard layout under Wine (patch 107)
+
+## 4 Nov, 21:29 — Game update 48: no repeated camouflage (update required)
+
+<!-- Revision 48 (026g-rev48), released 2026-11-04 21:29 UTC. -->
+
+Update through the Skhid launcher before playing.
+
+- Match drops and stash maps never give a camouflage or decal you already have.
+
+## 4 Nov, 10:11 — Game update 47: match drops and Team Deathmatch (update required)
+
+<!-- Revision 47 (026g-rev47), released 2026-11-04 10:11 UTC. -->
+
+Update through the Skhid launcher before playing.
+
+- Every match ends with a drop, rolled like a stash map: a weapon, armour, or a camouflage or decal. Never gold, silver or a toolkit, and always in full condition.
+- Team Deathmatch: a kill scores three times as much.
+- The Blackout notice under the countdown shows its text properly in every language and stays for 10 seconds.
+
+Replays recorded before revision 47 are incompatible with the updated simulation.
+
+## 4 Nov, 08:49 — Game update 46: new-player kits, Vostok spawns and fixes (update required)
+
+<!-- Revision 46 (026g-rev46), released 2026-11-04 08:49 UTC. -->
+
+Update through the Skhid launcher before playing.
+
+**Players**
+
+- Every existing player received 10 stash maps, an AKM, an AKMSU and a Remington 700.
+- New accounts start with an AK-74N in the first kit and a Remington 700 in the second, and also own an AKM, an AKMSU and 10 stash maps.
+
+**Maps**
+
+- Vostok (v0.11) uses the v0.26 spawn points: 14 per team in Protective Device and Team Deathmatch.
+
+**Weapons**
+
+- VSS: 20-round magazine, damage at range no lower than 80%, reloads 2.7 s (tactical) and 3.7 s (empty).
+- FAMAS: reloads 3 s (tactical) and 4 s (empty).
+
+**Fixes**
+
+- Medic: Larkspur's shared effect now activates reliably for nearby teammates; one booster per pocket.
+- Hit markers stay visible when the crosshair is hidden.
+- Battery markers update correctly.
+- Weapon stats no longer show long decimal tails.
+- Fewer resyncs: bullets after a resync load, and repeated clock corrections.
+
+Replays recorded before revision 46 are incompatible with the updated simulation.
+
 ## 3 Nov, 20:12 — Game update 45: medical skills, reloads and fixes (update required)
 
 <!-- Revision 45 (026g-rev45), released 2026-11-03 20:12 UTC. -->

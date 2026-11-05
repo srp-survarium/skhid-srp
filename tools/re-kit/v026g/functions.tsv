@@ -2124,6 +2124,10 @@ va	status	ref_021d	name
 0x00313640	verified		survarium::artefact_base::active_effect_time_calculator::calculate
 0x00313300	verified		survarium::artefact_base::action
 0x00313350	verified		survarium::artefact_base::effect
+0x0007f1a0	reviewed	0x0021fcf1	vostok::physics::bullet_character_controller::setup_crouch_state
+0x0007bda0	reviewed	0x0021d4a9	vostok::physics::bullet_character_controller::player_step
+0x00337810	reviewed		survarium::player_logic_crouch_state::request_effective_crouch
+0x00337830	reviewed		survarium::player_logic_crouch_state::release_effective_crouch_if_clear
 0x00059080	observed		vostok::sound::sound_world::initialize_xaudio
 0x0005a640	reviewed		XAudio2Create
 0x00059e70	observed	0x00040974	vostok::sound::sound_world::create_sound_voice
@@ -2136,4 +2140,28 @@ va	status	ref_021d	name
 0x00075b40	reviewed		vostok::physics::closest_ray_result_callback::closest_ray_result_callback
 0x00075bd0	reviewed		vostok::physics::closest_ray_result_callback::needsCollision
 0x00075c40	reviewed		vostok::physics::closest_ray_result_callback::addSingleResult
-0x0007bda0	reviewed	0x0021d4a9	vostok::physics::bullet_character_controller::player_step
+0x002ff930	observed		survarium::weapon_controller_core::serialize
+0x002ff970	observed		survarium::weapon_controller_core::deserialize
+0x00330a20	observed		survarium::hit_animations_selector::hit_body_part::deserialize
+0x00057b80	reviewed	0x0003ee1e	vostok::sound::sound_scene::tick
+0x00057d70	reviewed	0x0003ef94	vostok::sound::sound_scene::calculate_3d_pan
+0x0005c1c0	reviewed	0x0004221f	vostok::sound::new_sound_propagator::amplitude
+0x0005c1f0	reviewed	0x00042245	vostok::sound::sound_instance_proxy_internal::get_position
+0x0005c280	reviewed	0x0004228a	vostok::sound::sound_scene::notify_listener2
+0x0005dc40	reviewed	0x00043523	vostok::sound::voice_bridge::set_output_matrix_impl
+0x000633f0	reviewed	0x00043646	vostok::sound::voice_bridge::set_volume_impl
+0x00064f80	reviewed	0x00048046	vostok::sound::sound_scene::new_point_sound_instance_proxy
+0x00065670	reviewed	0x000484b4	vostok::sound::sound_emitter::emit_point_sound
+0x000657c0	reviewed	0x00048534	vostok::sound::sound_emitter::emit_and_play_once
+0x0025b940	reviewed	0x0019356c	survarium::game_world::play_sound
+0x00297c50	reviewed	0x001b17f9	survarium::weapon_sound_effect::on_sound_event
+0x00303890	reviewed	0x001ec2a7	survarium::grenade_core::load
+0x00303c10	reviewed	0x001ec537	survarium::grenade_core::throw_grenade
+0x003576c0	reviewed	0x0021c3a7	vostok::physics::bt_dynamic_rigid_body::set_linear_velocity
+0x00357750	reviewed	0x0021c3fe	vostok::physics::bt_dynamic_rigid_body::set_angular_velocity
+0x00357100	reviewed	0x0021c095	vostok::physics::create_dynamic_rigid_body
+0x0007a390	verified	0x000591ca	vostok::physics::create_primitive_shape
+0x0007a1f0	verified	0x0005904e	vostok::physics::create_bt_primitive
+0x00075550	reviewed	0x00056439	vostok::physics::bullet_physics_world::tick
+0x003b92d0	verified	0x00265484	vostok::input::platform::keyboard::translate_text
+0x000181e0	verified	0x000152cc	message_processor

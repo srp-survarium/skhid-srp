@@ -1,25 +1,128 @@
 # Medical skill tree
 
 Source: `scripts/content-edit/medical-skills-1.json`, listed in `release/content.tsv`.
-The third skill tab has 38 points: seven skills with five ranks and three unlocks.
-Thresholds count points in earlier tiers of this branch. Tier 5 uses 25, within
-the existing menu's unlock limit. Implemented and tested locally; not released. The owner played the near-ally
-Larkspur crash correction. Final duration and restore corrections have automated
-coverage, without a completed live multiplayer synchronization check.
+The third skill tab has 32 points in a full build: thirteen skills, of which
+the two tier-5 unlocks exclude each other, and so do tier 4's Unflinching and
+Concentration. Thresholds count points in earlier tiers of this branch: 0, 3,
+10, 15 and 20. The 2026-11-05 retune and the 2026-11-06 changes below
+(Concentration among them) are implemented and tested locally; they have not
+been played or released.
 
 | Tier | Required points | ID | Skill | Per rank / unlock | Maximum |
 |---|---:|---:|---|---|---|
-| 1 | 0 | 301 | Potent Painkiller | Existing protection +5%; duration +1 s | +25%; +5 s |
-| 1 | 0 | 302 | Fast Bandaging | First-aid kit and bandage use time −2% | −10% |
-| 2 | 5 | 311 | Metabolism | Regeneration starts 0.5 s sooner | 2.5 s sooner |
-| 2 | 5 | 312 | Medical Training | First-aid kit and bandage healing +5% | +25% |
-| 3 | 10 | 321 | Adrenalin | Movement +3% below 20 body health | +15% |
-| 3 | 10 | 342 | Brothers in Arms | Incoming allied damage −10% | −50% |
-| 4 | 20 | 331 | Supply Pocket | Secondary weapon replaced with supply pocket | One rank |
-| 4 | 20 | 332 | Strong Bones | Arm and leg maximum health +10% | +50% |
-| 4 | 20 | 322 | Additional Medicine | One extra medicine per medicine pocket | One rank |
-| 5 | 25 | 341 | Medic | Larkspur active effect shared within 5 m | One rank |
+| 1 | 0 | 301 | Potent Painkiller | Pain protection +1 point; duration +1.5 s | +3 points; +4.5 s |
+| 1 | 0 | 302 | Fast Bandaging | First-aid kit and bandage use time -5% | -10% |
+| 2 | 3 | 311 | Metabolism | Regeneration starts 0.5 s sooner | 2.5 s sooner |
+| 2 | 3 | 313 | Take Cover | First-aid kit and bandage healing +10% while crouched | +20% |
+| 2 | 3 | 312 | Medical Training | First-aid kit and bandage healing +8% | +24% |
+| 3 | 10 | 342 | Brothers in Arms | Incoming allied damage -25% | -50% |
+| 3 | 10 | 303 | Numb Legs | Sprint stamina -20% while a painkiller is active | -40% |
+| 3 | 10 | 321 | Adrenalin | Movement +5% below 30 body health | +15% |
+| 4 | 15 | 332 | Strong Bones | Arm and leg maximum health +10% | +50% |
+| 4 | 15 | 323 | Unflinching | Bullets' slow -10% while a painkiller is active | -40% |
+| 4 | 15 | 333 | Concentration | While a painkiller is active: environment sounds -10%, opponents' sounds (not shots) +10% | -40% / +40% |
+| 5 | 20 | 331 | Supply Pocket | Secondary weapon replaced with supply pocket | One rank |
+| 5 | 20 | 322 | Additional Medicine | One extra medicine per medicine pocket | One rank |
 
+The four-column layout, from tier 1 down to tier 5 (`S` Supply Pocket and `M`
+Additional Medicine, one or the other):
+
+```text
+| - x x - |    Potent Painkiller, Fast Bandaging
+| x - x x |    Metabolism, Take Cover, Medical Training
+| x x - x |    Brothers in Arms, Numb Legs, Adrenalin
+| - x U C |    Strong Bones, Unflinching XOR Concentration
+| - S M - |    Supply Pocket XOR Additional Medicine
+```
+
+Points held: tier 1 = 5, tiers 1-2 = 15, tiers 1-3 = 22, tiers 1-4 = 31 (with
+Unflinching or Concentration); a full build 32.
+
+## Concentration (owner decision, 2026-11-06)
+
+- New skill 333, tier 4 column 4, 4 ranks; Strong Bones column 2, Unflinching
+  column 3. Unflinching and Concentration exclude each other (antiskills both
+  ways, as Supply Pocket and Additional Medicine).
+- For the local player only, while a painkiller is active (the same test as
+  Numb Legs and Unflinching): environment sounds 10% quieter a rank, opponents'
+  sounds except their shots 10% louder a rank (-40% / +40% at rank 4).
+  Teammates and the player's own sounds are unchanged.
+- Name and text from retail 0.69's orphan strings st_trained_ears_name /
+  description ("Concentration"; "Makes environment sounds more quiet, and
+  opponents' sounds (except firing) are louder by:"), adapted to the
+  painkiller condition, in every locale of the edit list.
+- Icon: retail 0.69d0 `skills/survival/15.png` (a brain), bytes unchanged,
+  MedicalSkill069333 (`icons-069.tsv`).
+- Purely what the local player hears: no simulation change, so no
+  `simulation_changes.tsv` row for it (the retune's `next` row stays).
+
+## 2026-11-06 changes (owner decisions)
+
+- Unflinching: 4 ranks of -10% (was 2 of -20%), the same -40% maximum; tier 4,
+  now column 3. Its modifier-45 field is 3 bits at bit 4 (16.0 a rank, 0..4).
+  Saved ranks above the old 2 cannot exist, so no new refund rule.
+- Numb Legs moves from tier 1 to tier 3 (column 2). Tier 1 then holds 5 points,
+  so tier 2 opens at 3 (was 5) and tier 1 still leaves a choice.
+- A row unlocks the branch points it asks, whole: the stock window (and srp's
+  walk after it) rounded the reached `branch_points` down to fives, which would
+  leave a threshold of 3 locked. The lobby source (`CharWindow.as`) and
+  `SkillsTree::unlocked_branch_points` take it whole; for the stock tree, whose
+  thresholds are fives, nothing changes.
+- The skills window's progress bar reaches a row's mark at that row's
+  `branch_points` from the tree and moves evenly between two rows
+  (`CharWindow.indicatorPoints`): the medical tab marks 3, 10, 15 and 20; a
+  stock tab (0/5/10/15/20) draws its points as before.
+- Tiers 3 and 4 shuffled: tier 3 Brothers in Arms column 1, Numb Legs 2,
+  Adrenalin 4; tier 4 Strong Bones column 2, Unflinching 3.
+- Saved skills: `SkillsTree::settle` refunds a saved Numb Legs only when rows 1
+  and 2 no longer hold its 10 points (ids unchanged); a full build saved before
+  stays as it is.
+- Potent Painkiller is additive: +1 percentage point of pain protection a rank
+  (the hit's coefficient minus 0.01 a rank, never below 0: 0.9 -> 0.89, 0.88,
+  0.87, so 10% -> 13%) and +1.5 s, replacing the relative +8% a rank. The
+  descriptions say it adds to the painkiller's protection; the lobby's Alt
+  medicine card uses the same rule.
+- Icons: Numb Legs shows Potent Painkiller's `survival/1.png` (the same
+  embedded bitmap, MedicalSkill069301; its own MedicalSkill069303 is gone). Take
+  Cover shows retail 0.69d0 `skills/physical/15.png` (234 "Mobility", a crouched
+  soldier; MedicalSkill069313, bytes unchanged), a try the owner judges in game;
+  Medic keeps `survival/14.png`.
+
+## 2026-11-05 retune (owner decisions)
+
+- Numb Legs (new, 2 ranks): while a painkiller is active, sprinting costs 20%
+  less stamina a rank. Sprint cost only; jumps and other costs are unchanged.
+- Take Cover (new, 2 ranks): first-aid kits and bandages heal +10% a rank while
+  the player is effectively crouched, checked at each heal tick. It multiplies
+  with Medical Training. Effective crouch is the controller's, which stays set
+  under a low ceiling, never the crouch key.
+- Unflinching (new; 4 ranks since 2026-11-06, 2 before): while a painkiller is
+  active, the movement slow of bullets (their stopping power) is 10% less a rank. It multiplies with Spring's
+  factor, whose active already removes the slow.
+- "A painkiller is active" is native set_active's flag on a painkiller in the
+  player's inventory: the whole time its pain protection is linked, from the use
+  (0x33D638) to its end (0x33DA3E).
+- Fewer ranks, the same or a near maximum: Potent Painkiller 3 x (+8%, +1.5 s; additive +1 point since 2026-11-06);
+  Fast Bandaging 2 x -5%; Medical Training 3 x +8%; Adrenalin 3 x +5% below
+  30 health (was 20); Brothers in Arms 2 x -25%. Metabolism and Strong Bones
+  keep five ranks.
+- Potent Painkiller shows both values per rank and in the final result.
+- Medic (341) leaves the tree; it returns later in an anomalous tree. Its native
+  code (activation sharing, the Larkspur 20-instance pool, the length clock) and
+  its transport bit 20 stay as they are: the bit is 0 because no skill sets it.
+  The sections below about Medic describe that retained code.
+- Supply Pocket and Additional Medicine move to tier 5 and exclude each other,
+  symmetrically; Supply Pocket keeps its exclusion of 111 and 113.
+- Saved skills are settled when an account loads (`Account::repair`,
+  `SkillsTree::settle`): ranks past a skill's levels, Medic, Additional Medicine
+  beside Supply Pocket (Supply Pocket stays: it shapes the saved loadout) and
+  skills whose row is no longer reached are taken back. Their points are free
+  again (points to spend are the level minus the points held), the kits are sent
+  again, and the five-items-a-pocket cap handles pockets that become overfilled.
+- Icons: unchanged 0.69d0 survival PNGs chosen by the owner: Numb Legs
+  `survival/9.png` (since 2026-11-06 `survival/1.png`, above), Take Cover `survival/14.png` (Medic's former icon; since 2026-11-06
+  `physical/15.png`),
+  Unflinching `survival/7.png` (`scripts/medical-skills/icons-069.tsv`).
 
 Current equipment limits (owner clarification): **six quick slots total**, shared
 between supply pockets and artifacts. Six supply pockets leave no artifact slot;
@@ -27,39 +130,22 @@ four supply pockets leave at most two artifact slots. Each supply pocket holds
 **at most five items after all bonuses**, including Additional Medicine. Storage
 stacks and ammunition quantities are not restricted to five.
 
-The four-column layout, from tier 1 down to tier 5:
+Painkiller protection adds percentage points (since 2026-11-06). The stock
+coefficient 0.9 means 10% protection: at rank 3 it becomes 0.87, or 13%
+protection, for 14.5 instead of 10 seconds.
+The English Medic description ended exactly: `"They glow, you shine"`; its texts
+leave the edit list with the skill.
 
-```text
-| - x x - |
-| x - - x |
-| - x x - |
-| - x x x |
-| - x - - |
-```
-
-Tier 2 places Metabolism in column 1 and Medical Training in column 4.
-Tier 3 has Adrenalin and Brothers in Arms; tier 4 has Supply Pocket, Strong
-Bones and Additional Medicine; tier 5 has Medic alone in column 2.
-
-Painkiller protection strengthens the existing effect relatively. The stock
-coefficient 0.9 means 10% protection: at rank 5 it becomes 0.875, or 12.5%
-protection, for 15 instead of 10 seconds. It does not add 25 percentage points.
-The English Medic description ends exactly: `"They glow, you shine"`, including the quotes. All ten supported languages
-and the original Russian table contain medical names, descriptions and a quoted
-translation of this ending.
-
-Supply Pocket excludes both Terminator (111) and the existing shooting Supply
-Pocket (113); the exclusions are symmetric. Medicine capacity uses category 10,
+Supply Pocket excludes Terminator (111), the existing shooting Supply Pocket (113)
+and Additional Medicine (322); the exclusions are symmetric. Medicine capacity uses category 10,
 the native medicine category, excluding whole-pocket items (the boosters).
 Whole-pocket items remain one; the server applies the same cap to moves, preset
 fills and account repair without deleting inventory stock. The menu uses committed skills, never an unsaved preview. Server reset
 validation obtains available branches from the loaded tree instead of assuming
 two tabs. The stock movie contains only two icon sets; `MedicalSkillIcon.as`
-now displays ten original 0.69d survival PNGs for branch 3 within the existing
+displays original 0.69d survival PNGs for branch 3 within the existing
 skill renderer. Their bytes are unchanged in `flash/lobby_menu/bitmaps/`;
 `scripts/medical-skills/icons-069.tsv` records the donor paths, mapping and SHA-256.
-The injector artwork represents Potent Painkiller; the original heal-ally
-artwork represents Medic. The remaining eight use their corresponding 0.69 skills.
 
 ## Native implementation
 
@@ -68,14 +154,59 @@ artwork represents Medic. The remaining eight use their corresponding 0.69 skill
 patch 94's hooks; this is a code patch ID, not a release revision. The generated
 engine library supplies every new call. Fields and sites are in their TSVs.
 
-The unchanged 68-float modifier block transports the ten ranks as an exact
-24-bit integer in unused `armored_trap` slot 43. Rank bit offsets, in table order,
-are 0, 3, 6, 9, 12, 15, 16, 17, 20 and 21. Five-rank fields use three bits;
-unlocks use one. The parser refuses fractional, nonfinite, out-of-range or
-rank-6/7 values. Only the base profile value is decoded. Do not repurpose this
-slot for gear or a trap feature. Healing uses native modifier 57; the supply
-pocket uses native modifiers 15 and 64. Fast Bandaging is filtered to healing
-medicines at the native use-time site, without altering global modifier 33.
+The unchanged 68-float modifier block transports the ranks as exact integers in
+two unused slots, parsed once together (`Skills::parse`); either one invalid
+leaves the player with no medical skill at all.
+
+- Slot 43 `armored_trap`, 24 bits, the layout it shipped with: bit offsets 0
+  (Potent Painkiller, 0..3), 3 (Fast Bandaging, 0..2), 6 (Metabolism, 0..5),
+  9 (Medical Training, 0..3), 12 (Adrenalin, 0..3), 15 (Additional Medicine),
+  16 (Supply Pocket), 17 (Strong Bones, 0..5), 20 (Medic, retained, 0 now) and
+  21 (Brothers in Arms, 0..2). Ranked fields keep three bits; unlocks use one.
+- Slot 45 `can_defuse_traps`, 10 bits: Numb Legs at 0 (2 bits, 1.0 a rank,
+  0..2), Take Cover at 2 (2 bits, 4.0, 0..2), Unflinching at 4 (3 bits, 16.0,
+  0..4; two bits and 0..2 before 2026-11-06), Concentration at 7 (3 bits,
+  128.0, 0..4). A full set is 74 with Unflinching, 522 with Concentration.
+- The parser refuses fractional, nonfinite, negative or too-large values, any
+  rank past its skill's levels, and Unflinching beside Concentration (the
+  tree's exclusive pair: `Focus` holds one or neither). The lobby's
+  `KitModifiers.as` parses the same. Only the base profile value is decoded.
+- Do not repurpose either slot for gear or a trap feature.
+- Slot 45 evidence (2026-11-05, the exact 0.26g exe): all 94 calls of the
+  modifier getter 0x2D5AE0 and its rounding wrapper 0x2D5B80 resolve to an index
+  and none is 45 (44 friendly_trap is read at 0x304D4C, 46 at 0x30500F, 48 at
+  0x247054); apply_kit_parameter 0x2F7660 is called with 5, 14, 15, 16 and 17
+  only; the name `can_defuse_traps_modifier` is referenced only by the two name
+  tables (0x9284FC, 0x9C9C9C), not by code (25 and 64, read by name, have code
+  references 0x224609 and 0x22462C); no kit-stride (704h) access reads its
+  offset; neither the stock resources.db nor server-game-data.db nor any edit
+  list contains `can_defuse_traps`. Only the weighted getter 0x2D5BC0 takes
+  indices from configs, which never name it. The same scan finds no read of 43.
+
+Healing uses native modifier 57; the supply pocket uses native modifiers 15 and
+64. Fast Bandaging is filtered to healing medicines at the native use-time site,
+without altering global modifier 33.
+
+The combo skills' sites (sites_026g.tsv; fields_026g.tsv rows):
+
+- Numb Legs: `medical.sprint`, 0x329AAD in player_stamina::sprint, XMM0 the sprint
+  cost a second after modifiers 19 and 67, before the elapsed-time multiply. The
+  stamina is embedded at base_player+6C0h (ctor 0x2D6E5C, tick 0x2D8FBC): field
+  `player_stamina.player` at -6C0h.
+- Take Cover: `medical.medicine_heal`, 0x33D948 in medkit::tick, XMM0 the amount of
+  this influence (drug_amount times the elapsed time, after the minimum's comiss;
+  the hook keeps the flags for the `ja`), EBP the holder. 0x33D93D was refused: a
+  base relocation lies under it.
+- Effective crouch: player+494h is the bt_character_controller wrapper (made at
+  0x2D6EF1 by 0x3569D0); its +0 the Bullet controller; its +201h byte the
+  effective crouch, set by the crouch states' request (0x337810) and cleared only
+  when it can stand (+202h; 0x337830) or by a jump (0x2D793E); serialized at
+  0x7FBA0; player_step 0x7BDA0 shapes the capsule from it (setup_crouch_state
+  0x7F1A0 writes +203h). It is 0.69d's controller +251h.
+- Unflinching: patch 54's stagger hook at 0x2DBD89 (artefacts_026g.asm) stays the
+  one owner of that site. After Spring's getter it calls patch 94's generated
+  entry `medical.stopping` (cdecl: the player, the sum in and out; every register
+  kept), which multiplies the sum by the painkiller factor. No second hook.
 
 Painkiller duration is adjusted at start, tick, deserialize comparison and HUD
 presentation. Native remaining-time fields remain the sole timer state. Limb
@@ -96,6 +227,50 @@ like patch 54, and adds a native effect instance with the recipient's calculator
 The source's normal activation and cooldown continue unchanged. Brothers in Arms
 uses the same core lookup and team rule, after spawn invulnerability and before
 native body-part damage processing. Environmental and self damage are unchanged.
+
+Concentration (`on_listener` .. `on_once_point` in medical_skills.rs; the
+sound sites' owner is `vostok/sound.rs`, the listener `vostok/medical.rs`):
+
+- What a sound is: a tag of ours in each sound proxy, `Source` (untagged,
+  environment, opponent), at proxy +8Ch, the tail padding of its 144-byte
+  pool record (the three constructors write up to +88h; the sound code
+  0x55000..0x67000 has no +8Ch access of a proxy). `sound_proxy.allocated`
+  (new_helper 0x65484, the one allocation of point, hud and spot proxies)
+  clears it, so a proxy no site tags is untagged.
+- Tagged where it is made, before it is played, on the game's thread:
+  - environment: a map object's looped spot or point sound
+    (`object_sound.play`, object_sound::insert 0x294A6F); a damage zone's
+    loop (`damage_zone.sound`, emit_sound 0x298CF8) and its three fx
+    one-shots (emit_and_play_once's return address 0x298DEE, 0x298F1E,
+    0x299269);
+  - opponent: a weapon's sounds that are not its shot (`weapon_sound.made`,
+    play_sound_callback 0x297F7E; a shot is an effect of the fire states'
+    handlers, whose +18h vtable lies 150h before the effect for
+    weapon_core_fire_state, 158h for the pistol's and the double barrel's,
+    both words inside every handler state) when its user's place is an
+    opponent's; a step or a landing (`player_sound.foot_step` ..
+    `foot_stepped` around on_foot_step's call of on_step 0x2A6572,
+    `player.landing_step` .. `landing_stepped` around on_landing's landing
+    step 0x23FBE0) of an opponent: the thread's id is marked before the call
+    and cleared after it (also on its early returns), and only that thread's
+    point one-shots in between (`sound_emitter.once_point`,
+    emit_and_play_once 0x6587F) are the step's: a bullet task's sound at the
+    same time is not.
+- Opponents: every other place of the match's options not on the local
+  player's team (vostok::medical `ally()`'s rule by place: teams 0 and 1
+  have allies, another team none).
+- Published once a frame at `game_world.after_move` (order 2, after ragdoll
+  and lamps): the local player's `Hearing` (`Plain`, or `Concentrated` with
+  its rank while its painkiller is active) for the sound thread and the
+  opponents' places for the tagging sites, two atomics; `lobby_menu.activate`
+  (order 1, after lobby_scene's) sets them back to plain and none.
+- The volume: `sound_voice.gain` (notify_listener2 0x5C73E, the sound thread)
+  multiplies XMM1 by the factor of the voice's proxy's tag; set_volume_impl
+  still clamps it to [0, 1], so an opponent's sound already at full volume is
+  not louder.
+- Later (left untagged in this version): stamina breathing, the game-effect
+  presenter's sounds, poisoning, the rustles of equipment; hud sounds;
+  bullet impacts and other one-shots (game_world::play_sound).
 
 ## Effect ownership, capacity and duration
 
@@ -124,7 +299,7 @@ This excludes nested renderer allocations, allocator overhead and playing nodes.
 
 ## Validation and review
 
-Automated checks cover all ten skills; not all ten have been played manually.
+Automated checks cover all thirteen skills; not all of them have been played manually.
 
 - `check_medical_skills_026g.py`: ranks 0–5; start/tick/restore durations;
   healing-only use time; native protection; limb health and repeated respawn;
@@ -143,7 +318,8 @@ Automated checks cover all ten skills; not all ten have been played manually.
   Server reset/equipment/repair/preset and bot-loadout tests, plus affected-crate
   Clippy, passed for the medical feature before the final native-only correction.
 - `survarium/tests/medical_skills.rs` parses the content-built tree, validating
-  progression, layout, 38-point total, exclusions and native modifier transport.
+  the thirteen skills' progression, layout, 32-point full build, exclusions and
+  native modifier transport.
 - CPU Ruffle exercises the built lobby: medicine and whole-pocket capacities,
   drag limits, unsaved previews, reset, combined slot bounds and the ten original
   0.69 bitmap dimensions/alpha/bounds. Embedded bitmap pixels match the sources.
@@ -226,3 +402,107 @@ simulation. The global localization audit has the same pre-existing medical
 catalog/manifest findings on released source and this branch; all ten language
 catalogs still have zero missing, extra, empty, placeholder, markup or UTF-8
 errors. The complete content manifest build is checked separately.
+
+## Validation of the 2026-11-05 retune
+
+Implemented and tested locally; not played, not released.
+
+- `check_medical_skills_026g.py` (Unicorn, built exe): Potent Painkiller 0..3 and
+  Fast Bandaging 0..2 at start/tick/restore, use time and protection, ranks past
+  the levels refused (no skill at all); Adrenalin at 0.3/0.29/0.19 health; Numb
+  Legs, Take Cover and Unflinching for every modifier-45 rank combination 0..2
+  plus rank 3 refused, painkiller active/inactive (an active bandage is no
+  painkiller), effective crouch against the crouch key alone, and Spring
+  active/inactive through the real stagger 0x2DBCD0; two kits, identical
+  outcomes; the Medic checks unchanged. PASS.
+- `check_artefacts_026g.py`: 85 stock and 84 patched checks as expected, the
+  stagger cases among them.
+- Patch-crate Rust tests (121) and i686 Clippy, no warnings.
+- `survarium` skills tests (`SkillsTree::settle`), session account (with the
+  refund test), rules, persist and simulation-list tests; session/survarium
+  Clippy, no warnings.
+- `release/build-content 49` (a local build; no number reserved): all 18823
+  files the manifest makes are as it makes them; the built tree passes
+  `survarium/tests/medical_skills.rs` (positions, thresholds, ranks, 30-point
+  build, exclusions, modifiers 43/45/57).
+- Ruffle harness on the built lobby movie: `MEDICALSKILLS RESULT pass`.
+- `engine_026g.py`, `hooks_026g.py` and `link_026g.py` checks current.
+
+## Validation of Concentration (2026-11-06)
+
+Implemented and tested locally; not played, not released.
+
+- `check_medical_skills_026g.py` (Unicorn, built exe), `check_concentration`:
+  the tag cleared at allocation (and nothing written when the pool is
+  empty); map objects', damage zones' loops and one-shots environment,
+  another one-shot untagged; weapon sounds of every place of three team
+  layouts (allies, self, places past the count untagged), the three fire
+  handlers' shots never, non-fire effects at +158h/+168h/+170h tagged; foot
+  steps and landings tagged only between their pair, only on their thread,
+  nothing after, and nothing after a call that played nothing (on_step's
+  early return); the volume through the real set_volume_impl for
+  Concentration 0..7 (5..7 refused), with Unflinching beside it (refused),
+  painkiller on/off (an active bandage is no painkiller), every tag, volumes
+  0..1.5 and below 0 clamped; the lobby's activate resets it. The publish
+  runs the real after_move chain (ragdoll and lamps first). PASS; the
+  earlier checks unchanged, PASS.
+- Patch-crate tests (4 medical: Concentration 0..4, 5..7 and beside
+  Unflinching refused, the volume per tag, the opponents' set) and i686
+  Clippy, no warnings.
+- `survarium` skills tests (layout with 333, both held refused and settled
+  to Concentration with 32 points), session account tests (a set holding
+  both refunds Unflinching and sends the kits again) and Clippy, no warnings.
+- `engine_026g.py`, `hooks_026g.py` current; `link_026g.py --write`, then
+  current. The after_move and lobby-activate chains' own checks
+  (`check_ragdoll`, `check_lamps`, `check_lobby_scene`, `check_weapon_pickup`)
+  run with Concentration's handlers in them.
+- `release/build-content 49` (a local build; no number reserved): all 18960
+  files the manifest makes are as it makes them; patch
+  `c099d3ea278492c75af392133779e914a54ae3731f8654fd5e1fe244801b5f87`, server
+  data `44f1c4414a8ea38cf8ace5087b15ce18212bf946b404d67e6090a7d2c1a97566`.
+  Its skills tree passes `survarium/tests/medical_skills.rs` (13 skills,
+  Concentration at tier 4 column 4, 32-point builds with either of the pair,
+  both refused, modifier 45 = 74 or 522).
+- Ruffle on that lobby movie: `MEDICALSKILLS RESULT pass` (layout with 333,
+  Concentration refused beside Unflinching and the other way, stops at 4,
+  survival/15 pixels) and `DETAILS RESULT pass` (Concentration 5, and
+  beside Unflinching, refused; its full set 522 valid).
+- Not played: whether the factors are audible as intended, and the sources
+  left untagged (above), need the owner's ears in a match.
+
+## Validation of the 2026-11-06 changes
+
+Implemented and tested locally; not played, not released.
+
+- Patch-crate `cargo test medical` (3 tests: Unflinching 0..4 and 5..7
+  refused, modifier 45 below 128, the additive painkiller 0.9/0.89/0.88/0.87)
+  and i686 Clippy, no warnings.
+- `check_medical_skills_026g.py` (Unicorn): Potent Painkiller's protection
+  0.5 x (0.9 - 0.01 x rank); every modifier-45 combination of Numb Legs 0..2,
+  Take Cover 0..2 and Unflinching 0..4 (-10% a rank) plus ranks 3/3/5..7
+  refused; the rest unchanged. PASS.
+- `survarium` skills tests (the whole-threshold walk, tier 2 at 3, settle:
+  a full build saved before the move stays, Numb Legs refunded when rows 1-2
+  no longer hold 10), session account tests (the saved row-1 Numb Legs build
+  unchanged, kits not sent again) and the simulation-list test; Clippy on
+  both crates, no warnings.
+- `engine_026g.py`, `hooks_026g.py` current; `link_026g.py --write` (new
+  lock), then current.
+- `release/build-content 49` (a local build; no number reserved): all 18960
+  files the manifest makes are as it makes them; patch
+  `fbf094cd39e8d61a959da3d4d43bbc51f8615a9c053928bcd6d38c341a0211cf`, server
+  data `ea4ca3e2f8b7d5e2fd2b95192fc4241a9b0ab15c77711c4f3fd563bdc3203fd9`.
+  Its skills tree passes `survarium/tests/medical_skills.rs` (positions,
+  thresholds 0/3/10/15/20, ranks, 32-point build, modifier 45 = 74).
+- Ruffle on that lobby movie: `MEDICALSKILLS RESULT pass` (layout, tier 2
+  refused at 2 and open at 3, tier 3 at 10, Unflinching stops at 4, the
+  +3% / +4.5 s texts, Numb Legs on the painkiller bitmap, Take Cover's
+  physical/15 pixels) and `DETAILS RESULT pass` (Alt card 10 -> 13%,
+  Unflinching 5 refused, full combo 74 valid).
+- The progress bar (lobby movie built from source, sha256
+  `f87241fecf1007c8510fb07d022648a8b20bfd23b6e6f8c249c4d06d793d850c`):
+  `MEDICALSKILLS RESULT pass` with the bar's value checked on the medical tab
+  (below the row-2 mark at 2, the marks at 3/10/15/20, full with tier 5 taken)
+  and on a stock 0/5/10/15/20 tab at every point 0..20 (min(points + 1, 21),
+  as before, then full); the old drawing fails the medical marks. `DETAILS
+  RESULT pass` on the same movie. Not seen in the game.

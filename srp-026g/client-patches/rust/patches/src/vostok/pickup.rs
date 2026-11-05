@@ -140,6 +140,10 @@ pub enum Refusal {
     RegistryTaken,
     /// The player's pending object is not the registered gun.
     NotPending,
+    /// The slot's gun is a cooked copy's, not the player's own (a pick
+    /// whose restore was refused left it there): parked in another copy it
+    /// would make that copy's gun this one.
+    NotOwnGun,
 }
 
 impl Refusal {
@@ -152,6 +156,7 @@ impl Refusal {
             Refusal::Changed => "the slots no longer hold what the install put there",
             Refusal::RegistryTaken => "the registry's reserved id is taken (the game's own ids reach it, or another gun holds it)",
             Refusal::NotPending => "the player's pending object is not the picked gun",
+            Refusal::NotOwnGun => "the slot's gun is a cooked copy's, not the player's own",
         }
     }
 }
@@ -325,6 +330,12 @@ pub fn write_record(ctx: &Context<'_>, bytes: &[u8; weapon_pickup::Record::BYTES
     }
 }
 
+/// The player state's stream offset at `pickup.load` (base_player::deserialize's start).
+pub fn load_offset(ctx: &Context<'_>) -> Option<u32> {
+    // SAFETY: base_player::deserialize's live reader (the site's ESI).
+    super::carry_runtime::offset_of(unsafe { raw::site::pickup_load::reader(ctx) }?)
+}
+
 /// Reads the record's bytes at `pickup.load` (None: the state is shorter).
 pub fn read_record(ctx: &Context<'_>) -> Option<[u8; weapon_pickup::Record::BYTES]> {
     // SAFETY: base_player::deserialize's live reader (the site's ESI).
@@ -435,6 +446,24 @@ unsafe fn cooked_gun(inventory: raw::Inventory, slot: WeaponSlot) -> Option<(raw
         let gun = item.active_object();
         (read(gun.vtable()) == raw::image::WEAPON_VTABLE).then_some((item, gun))
     }
+}
+
+/// The client weapons in a just made cooked inventory's weapon slots 7 and
+/// 10: each the copy's own gun for as long as the copy lives (an install
+/// parks the picker's own gun in its place only until its restore).
+///
+/// # Safety
+/// `inventory` is a live cooked inventory.
+pub(in crate::vostok) unsafe fn made_guns(inventory: raw::Inventory) -> [Option<ItemId>; 2] {
+    [WeaponSlot::First, WeaponSlot::Second].map(|slot| unsafe { cooked_gun(inventory, slot) }.map(|(_, gun)| ItemId::of(gun)))
+}
+
+/// Whether the made cook `cook`'s `slot` holds a gun other than the one it
+/// was made with (a picker's own gun parked there by an install whose
+/// restore was refused): such a copy is no gun of its recipe, never handed
+/// out again. False while it cooks or while it holds its own gun.
+pub fn stray(thread: &Thread, cook: CookId, slot: WeaponSlot) -> bool {
+    gun_cook::made_gun(thread, cook, slot).is_some_and(|made| gun_id(thread, cook, slot) != Some(made))
 }
 
 /// The cooked gun's handedness (+5E9h). None: it is missing.
@@ -675,6 +704,11 @@ fn place(player: &Player<'_>, own: WeaponSlot, cook: CookId, slot: WeaponSlot, i
         }
         if matches!(mode, Mode::Switch(..)) && held != Some(own_gun) {
             return Err(Refusal::NotInHands);
+        }
+        // Only the player's own gun is parked in the cooked inventory: a
+        // copy's gun there would be handed out later as this copy's.
+        if gun_cook::is_made_gun(player.thread, ItemId::of(own_gun)) {
+            return Err(Refusal::NotOwnGun);
         }
         let (gun_item, gun) = cooked_gun(cooked, slot).ok_or(Refusal::NoCookedGun)?;
         let (w, ow) = (gun.weapon(), own_gun.weapon());
@@ -1198,6 +1232,9 @@ fn checks(player: &Player<'_>, own: WeaponSlot, cook: CookId, slot: WeaponSlot, 
         let own_gun = own_item.active_object();
         if read(own_gun.vtable()) != raw::image::WEAPON_VTABLE || held != Some(own_gun) {
             return Err(Refusal::NotInHands);
+        }
+        if replacing.is_none() && gun_cook::is_made_gun(player.thread, ItemId::of(own_gun)) {
+            return Err(Refusal::NotOwnGun);
         }
         if let Some(old) = replacing {
             if old.own != own || old.gun != ItemId::of(own_gun) || old.id != ids.0 {

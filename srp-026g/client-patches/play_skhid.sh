@@ -154,6 +154,22 @@ install_dxvk() {
     export WINEDLLOVERRIDES="$WINEDLLOVERRIDES;d3d11,dxgi=n,b"
 }
 
+install_calibri() {
+    # The game's UI asks Windows for the font Calibri for some text (item
+    # levels); without it Wine draws boxes. Winetricks takes it, once, from
+    # Microsoft's PowerPoint Viewer (60 MB, kept in its download cache).
+    # The game is playable without it, so a failure warns and the game starts.
+    local font="$WINEPREFIX/drive_c/windows/Fonts/calibri.ttf"
+    if [[ ! -f "$font" ]]; then
+        require_command winetricks
+        echo 'Installing the font Calibri (60 MB download, first launch only)...'
+        winetricks -q calibri >>"$log" 2>&1 || true
+        [[ -f "$font" ]] || echo "Warning: the font Calibri could not be installed (see $log)." \
+            'Some UI text, such as the item levels on item cards, may show as boxes.' \
+            'The next start tries again.' >&2
+    fi
+}
+
 install_gecko() (
     local version=2.47.4 checksum=26cecc47706b091908f7f814bddb074c61beb8063318e9efc5a7f789857793d6
     local gecko="$WINEPREFIX/drive_c/windows/syswow64/gecko/$version/wine_gecko" temporary
@@ -204,7 +220,7 @@ Details: game/binaries/x86/updater_skhid.log"
 # beside the exe, or in Windows' temporary folder when that is not writable.
 # The launcher has closed by now; the game may still run, so wait for it.
 print_crashes() {
-    local started=$1 temp
+    local started=$1 temp file
     local -a found
     "$WINESERVER" -w || true
     temp="$WINEPREFIX/drive_c/users/$(id -un)/AppData/Local/Temp"
@@ -212,7 +228,14 @@ print_crashes() {
         ! -name '*.part' -newermt "@$started" 2>/dev/null | sort)
     if ((${#found[@]})); then
         echo 'Crash reports and full-memory dumps of this run:'
-        printf '    %s\n' "${found[@]}"
+        for file in "${found[@]}"; do
+            case $file in
+                *.zip) echo "    $file  (a crash ZIP: send this to a new post in #bugreports)" ;;
+                *.dmp) echo "    $file  (the whole memory: keep it, do not post it; give its path when asked)" ;;
+                *.txt) echo "    $file  (the crash report: send this to a new post in #bugreports)" ;;
+                *) echo "    $file" ;;
+            esac
+        done
     else
         echo 'No crash in this run.'
     fi
@@ -245,6 +268,7 @@ main() {
     prepare_prefix
     prepare_settings
     install_dxvk
+    install_calibri
     if [[ $mode == launcher ]]; then
         install_gecko
         echo "Starting the Skhid launcher. Log: $log"

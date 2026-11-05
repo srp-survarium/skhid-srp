@@ -22,6 +22,7 @@
 //!
 //! It grows with what the patches need, and no further.
 
+pub mod breadcrumbs;
 pub mod bullet;
 pub mod explosion;
 pub mod footstep;
@@ -39,11 +40,13 @@ mod hud_input;
 mod input;
 pub mod inventory;
 mod keyboard;
+pub mod keyboard_layout;
 pub mod language;
 pub mod lobby;
 pub mod lobby_camera;
 pub mod lobby_menu;
 pub mod log;
+pub mod melee;
 mod options;
 pub mod parse;
 pub mod resources;

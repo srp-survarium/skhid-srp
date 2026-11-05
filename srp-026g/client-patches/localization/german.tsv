@@ -1266,6 +1266,7 @@ st_inv_additional_ammo_bags	Patronen Beutel
 st_inv_ano_armor	Isolierung
 st_inv_armor	Rüstung
 st_inv_arp	Panzerschutzkraft
+st_inv_artefact_recharge	Aufladezeit der Artefakte
 st_inv_artefact_slots	Container für Artefakten
 st_inv_buckshot	Schrotkugeln
 st_inv_clip_size	Patronen in der Packung
@@ -1482,11 +1483,11 @@ st_microphone_sensitivity_option	Die Sensibilität des Mikrofons.
 st_military_medkit_description	Heilt Arme und Beine vollständig. Stellt 60% von Körper und Kopf und 50% von Schmerz wieder her.
 st_military_medkit_name	Armee-Kit
 st_minimap	Minikarte
-st_minimap_bottom	untere linke Winkel
+st_minimap_bottom	Minikarte unten links
 st_minimap_off	Versteckte Minikarte
 st_minimap_position	Position der Minikarte
 st_minimap_rotable_option	Minikarte fixieren
-st_minimap_top	Der obere linke Winkel.
+st_minimap_top	Minikarte oben links
 st_missile_weapon_action	Granate
 st_missions	Aufgaben
 st_mm_button_back	Zurück
@@ -1777,7 +1778,7 @@ st_ranking	Rating
 st_ranking_diff	Unterschied
 st_rattle_activation_hint	Der Klapper ist aktiviert! Ihre Schritte sind für den Gegner unhörbar!
 st_rattle_pickup_hint	Das Artefakt Klapper. Verringert die Laute der Schritte auf 50 %.
-st_rdgm_descr	Description is not ready!!!
+st_rdgm_descr	Rauchhandgranate. Legt einen dichten Sichtschutz, der Bewegungen verbirgt.
 st_rdgm_name	Rauchgranate RDG-M
 st_reach_level	<green>Stufe </green> erreicht
 st_ready	Bereit
@@ -1785,6 +1786,8 @@ st_refill_ammo_btn	Umbenennen
 st_refill_ammo_label	Ausrüstung
 st_regen_booster_description	Alte armee- Ration wurde Erfolgreich von den Armeen der GUS-Staaten in der Vorkrisenperiode verwendet. Erhöht den Metabolismus, dabei ziemlich lecker.
 st_regen_booster_name	Ration
+st_regen_delay_name	Regenerationsverzögerung
+st_regen_limit_name	Regenerationsgrenze
 st_registration_str	Konto registrieren
 st_regular_fix	Reparatur
 st_regular_money	Silber
@@ -2184,6 +2187,7 @@ st_srp_ammo069_23mm_r_desc	Eine 23-mm-Schrotpatrone für die KS-23M. Bringt hohe
 st_srp_ammo069_23mm_r_name	23x75R, Schrotkugel
 st_srp_ammo_scar_ap_desc	Panzerbrechende Patronen 7,62x51 für das FN SCAR-H. Jede Munitionstasche fasst 20 Patronen.
 st_srp_ammo_scar_ap_name	7,62x51 AP SCAR-H, 20 Schuss
+st_srp_ammo_stats	Munitionswerte
 st_srp_attachments	Anbauteile
 st_srp_crosshair_dynamic	Dynamisches Visier
 st_srp_crosshair_hidden	Verstecktes Visier
@@ -2443,7 +2447,16 @@ st_srp_hud_mute_not_sent	Nicht gesendet
 st_srp_hud_muted	Chat stummgeschaltet
 st_srp_hud_unmute	Chat freigeben
 st_srp_hud_unmuted	Chat freigegeben
+st_srp_inv_ammo_range	Reichweite
+st_srp_inv_bullet_speed	Geschossgeschwindigkeit
+st_srp_inv_defuse_time	Entschärfzeit
+st_srp_inv_fuse_time	Zündzeit
+st_srp_inv_pellets	Schrotkugeln
+st_srp_inv_pocket_units	Taschenplätze
+st_srp_inv_stamina_damage	Ausdauerschaden
+st_srp_inv_throw_speed	Wurfgeschwindigkeit
 st_srp_inventory_search	Suche
+st_srp_item_props_mps	m/s
 st_srp_language_option	Sprache:
 st_srp_language_restart	Gilt nach einem Neustart.
 st_srp_loadout_block_ammo	Zu wenig Munition für eine Waffe
@@ -2472,6 +2485,7 @@ st_srp_map_cologne	Köln
 st_srp_map_london	London
 st_srp_map_mamayev_kurgan	Mamaew kurgan
 st_srp_map_mamayev_kurgan_v021	Mamaew kurgan (v0.21)
+st_srp_map_names_option	Namen auf Karte
 st_srp_map_rudnya	Rudnya
 st_srp_map_rudnya_v069	Rudnya (v0.69)
 st_srp_map_school	Schule
@@ -2664,6 +2678,7 @@ st_srp_speed_title	Bewegungstempo: %1$s
 st_srp_static_minimap_option	Statische Minikarte
 st_srp_unit_kg	%1$s kg
 st_srp_unit_meters	%1$sm
+st_srp_unit_mps	%1$s m/s
 st_srp_unit_percent	%1$s%
 st_srp_unit_seconds	%1$ss
 st_srp_unit_times	%1$sx
@@ -2680,6 +2695,7 @@ st_srp_weapon069_mauser_m712_name	Mauser M.712
 st_srp_weapon069_ppsh_drum_desc	Schpagin-Maschinenpistole mit Trommelmagazin für 71 Patronen, Munition: 7,62x25. Einzel- und Dauerfeuer.
 st_srp_weapon069_ppsh_drum_name	PPSH-41 „Trommel“
 st_srp_weapon_aim_zoom	Basis-Zielzoom
+st_srp_weapon_bullet_speed_varies	Variabel
 st_srp_weapon_chamber	Repetierzeit
 st_srp_weapon_draw_time	Ziehzeit
 st_srp_weapon_full_damage	Voller Schaden bis
@@ -2712,12 +2728,12 @@ st_srp_weather_day	Tag
 st_srp_weather_evening	Abend
 st_srp_weather_night	Nacht
 st_srp_weather_rain	Regen
-st_srp_weight_base	Grundlimit: %1$s
+st_srp_weight_base	Grundlimit
 st_srp_weight_no_sprint_heavyweight	Kein Sprint: Fertigkeit „Schwergewichtler“.
 st_srp_weight_no_sprint_limit	Sprint nicht möglich: Traglast erreicht.
 st_srp_weight_penalty	%1$s% Gewichtsmalus
-st_srp_weight_speed	Bewegungsgeschwindigkeit: %1$s
-st_srp_weight_sprint_stamina	Energiekosten beim Sprinten: %1$s
+st_srp_weight_speed	Bewegungsgeschwindigkeit
+st_srp_weight_sprint_stamina	Energiekosten beim Sprinten
 st_srp_weight_title	Gewichtseffekte
 st_stamina_boost_name	Zweiter Atem
 st_stamina_boost_time_description	Wiederherstellung der Energie beim Mord des Gegners:

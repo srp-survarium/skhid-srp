@@ -760,29 +760,39 @@ def weapon_card(buf):
 
 def ammo_card(buf):
     """{prop_id: text} of an ammo card: 21 damage (every pellet) x100, 22 piercing x100, 16 rounds a clip,
-    15 a clip's weight."""
+    15 a clip's weight, 163 the muzzle speed, 164 the range x100, 165 the pellets a shot."""
     def number(path):
         return value_of(buf, find(buf, path))
     return {21: number_text(number('data/k_damage') * number('data/buck_shot') * 100),
             22: number_text(number('data/k_arp') * 100), 16: number_text(number('parameters/clip_size')),
-            15: weight_text(number('parameters/clip_weight'))}
+            15: weight_text(number('parameters/clip_weight')),
+            163: number_text(number('data/muzzle_speed')),
+            164: number_text(round(number('data/k_max_damage_distance') * 100, 4)),
+            165: number_text(number('data/buck_shot'))}
 
 
 def throwable_card(buf):
-    """{prop_id: text} of a grenade's or a trap's card: 1 damage x100 (a grenade's on every body it
-    hits, a trap's on its foot), 23 a grenade's radius, 15 the weight."""
+    """{prop_id: text} of a grenade's or a trap's card (throwable-cards-1): 1 the damage x100 on each
+    body it hits (a grenade's at the centre on each of its splash bodies, a trap's on the foot), 3 its
+    piercing x100, 15 the weight; a grenade's 132 stopping power x100, 167 stamina damage, 23 radius,
+    168 fuse (s) and 169 throw speed (m/s); a trap's 170 defuse time (s)."""
     def number(path):
         try:
             return value_of(buf, find(buf, path))
         except KeyError:
             return None
+
+    def text(path, times=1):
+        return number_text(round(number(path) * times, 4))
     out = {15: weight_text(number('parameters/weight'))}
     if number('data/splash_max_damage') is not None:
-        bodies = len(children(buf, find(buf, 'data/splash_affected_bodies')))
-        out.update({1: number_text(number('data/splash_max_damage') * 100 * bodies),
-                    23: number_text(number('data/splash_radius'))})
+        out.update({1: text('data/splash_max_damage', 100), 3: text('data/splash_pierce', 100),
+                    132: text('data/stopping_power', 100), 167: text('data/stamina_damage'),
+                    23: text('data/splash_radius'), 168: text('data/ttl_ms', 0.001),
+                    169: text('data/throw_power')})
     if number('data/damage_parameters[0]/amount') is not None:
-        out[1] = number_text(number('data/damage_parameters[0]/amount') * 100)
+        out.update({1: text('data/damage_parameters[0]/amount', 100),
+                    3: text('data/damage_parameters[0]/armor_piercing', 100), 170: text('data/defuse_time')})
     return out
 
 
@@ -1052,7 +1062,11 @@ STATS = {
             'deploy_m': 'data/max_deploy_distance', 'slope_deg': 'data/max_slope_angle',
             'weight': 'parameters/weight', 'level': 'parameters/item_level',
             'mm_level': 'parameters/match_making_level',
+            # srp's key: the units one takes of a pocket, 2 or none (srp-026g/docs/notes/one-pocket-a-type.md;
+            # pocket-units-1 carries it to the lobby as card property 166)
+            'pocket_units': 'parameters/pocket_units',
         },
+        'add': {'pocket_units'},
         'match': {'splash_damage', 'splash_min', 'splash_pierce', 'splash_radius', 'stopping', 'stamina_damage',
                   'throw_power', 'fuse_ms', 'roll_ms', 'safe_ms', 'contact', 'damage', 'pierce', 'defuse_s',
                   'armed_life_s', 'disarmed_life_s', 'fired_life_s', 'deploy_m', 'slope_deg', 'weight'},
@@ -1171,6 +1185,31 @@ STATS = {
         },
         'match': {'use_s', 'active_s', 'limbs', 'body', 'head', 'pain', 'infection', 'weight'},
         'cards': medicine_card,
+    },
+    # A booster works while in a pocket: survarium::booster (0x33F690) makes a player modifier of each
+    # of its 68 `parameters/*_modifier` that is not 0, its built-in modifications' sums included.
+    'boosters': {
+        'configs': 'gameplay/items/boosters/*.options',
+        'columns': {
+            'weight': 'parameters/weight',
+            # built-in bonuses, a column a kind: the modification's id
+            'health_regen': default_modification(109),
+            'stamina_regen': default_modification(110),
+            'movement': default_modification(111),
+            'max_weight': default_modification(112),
+            'artefact_search': default_modification(113),
+            'sway': default_modification(121),
+            'respawn': default_modification(122),
+            # player modifier 38: the artefact's end of active (0x313530) starts cooldown x (1 + it)
+            'artefact_cooldown': default_modification(131),
+            # srp's player modifiers 10 and 9, which the exe never read (regeneration-booster-1.json):
+            # body_part::regenerate (exe patch 94, 0x32A53F) adds them to a regenerating pool's delay
+            # after a hit (seconds) and to its limit (a fraction of the maximum, at most all of it)
+            'regen_delay': default_modification(129),
+            'regen_limit': default_modification(130),
+        },
+        'match': {'weight', 'artefact_cooldown', 'regen_delay', 'regen_limit', 'health_regen', 'stamina_regen', 'movement', 'max_weight',
+                  'artefact_search', 'sway', 'respawn'},
     },
     'character': {'configs': 'gameplay/players/default.player', 'match': {'player'}},
     'battery': {'configs': 'gameplay/victory_items/default.options', 'match': {'parameters', 'states'}},

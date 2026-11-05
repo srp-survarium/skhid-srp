@@ -136,6 +136,7 @@ impl GameData {
         let mut data =
             Self::from_archive(&mut archive, TEST_ORIGIN.into()).expect("the test archive reads");
         with_srp_tables(&mut data.files);
+        with_pocket_units(&mut data.files);
         with_blackout_maps(&mut data.files);
         data
     }
@@ -243,6 +244,10 @@ const SRP_TABLES: &[(&str, &str)] = &[
 /// `srp_start`.
 const ITEMS_TABLE: &str = include_str!("../../../../scripts/content-edit/items.tsv");
 
+/// The grenades' and the trap's stats; srp reads one of its columns, the
+/// `pocket_units` the content patch adds to their configs.
+const THROWABLES_TABLE: &str = include_str!("../../../../scripts/content-edit/throwables.tsv");
+
 /// srp's shop rules, which name items ([`super::prices::SHOP_PATH`]).
 const SHOP_TABLE: &str = include_str!("../../../../scripts/content-edit/shop.tsv");
 
@@ -330,6 +335,44 @@ fn with_blackout_maps(files: &mut BTreeMap<String, Vec<u8>>) {
         ]));
     }
     files.insert(path.to_owned(), dictionary.to_bytes().expect("a config"));
+}
+
+/// `files` with `parameters.pocket_units` where [`THROWABLES_TABLE`] has
+/// one: a float in the config of the row's name (`<name>.options` under
+/// `gameplay/items/`), as `content_edit.py` adds a key of an `add` column.
+fn with_pocket_units(files: &mut BTreeMap<String, Vec<u8>>) {
+    let mut lines = THROWABLES_TABLE
+        .lines()
+        .filter(|line| !line.trim().is_empty());
+    let head: Vec<&str> = lines.next().expect("a header").split('\t').collect();
+    let column = head
+        .iter()
+        .position(|c| *c == "pocket_units")
+        .expect("pocket_units");
+    for line in lines {
+        let cells: Vec<&str> = line.split('\t').collect();
+        let Some(units) = cells.get(column).filter(|cell| !cell.is_empty()) else {
+            continue;
+        };
+        let file = format!("/{}.options", cells[0]);
+        let path = files
+            .keys()
+            .find(|path| path.starts_with("gameplay/items/") && path.ends_with(&file))
+            .expect("the row's config")
+            .clone();
+        let mut config = ConfigValue::parse(&files[&path]).expect("the config parses");
+        let ConfigValue::Named(sections) = &mut config else {
+            panic!("{path} is a named table")
+        };
+        let Some((_, ConfigValue::Named(parameters))) =
+            sections.iter_mut().find(|(name, _)| name == "parameters")
+        else {
+            panic!("{path} has parameters")
+        };
+        let value = ConfigValue::Float(units.parse().expect("a number"));
+        parameters.push(("pocket_units".into(), value));
+        files.insert(path, config.to_bytes().expect("a config"));
+    }
 }
 
 /// `files` with srp's own configs ([`SRP_TABLES`], [`SHOP_TABLE`]) and the

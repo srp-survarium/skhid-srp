@@ -1106,7 +1106,7 @@ if [[ -e $TEST_DIR/build-site-fails ]]; then echo "build.py: the Maps tab's buil
 . "$SKHID_RELEASE_ENV"
 rows=$(grep -v '^#' "$SKHID_PATCH_LIST" | cut -f1,2)
 if [[ -n $with && ! -e $TEST_DIR/build-site-wrong ]]; then rows+=$'\n'"${with##*/}"$'\t'"$(sha256sum <"$with" | cut -c1-64)"; fi
-for dir in maps damage; do
+for dir in maps damage skills; do
     mkdir -p "$tree/srp-026g/servers/web-server/$dir"
     { echo "# The patches the $dir page was built from: name, sha256."; grep . <<<"$rows"; } >"$tree/srp-026g/servers/web-server/$dir/built-from.tsv"
     printf 'built from %s\n' "$(cut -f1 <<<"$rows" | tr '\n' ' ')" >"$tree/srp-026g/servers/web-server/$dir/page.js"
@@ -1367,7 +1367,7 @@ echo "item 13" >"$T/p13/gameplay/items/d.txt"
 "$bin" pack --dir "$T/p13" --out "$T/r13/resources.db.patch_13" >/dev/null
 # The site's pages on main, built from the list (patch_3, patch_12): the
 # release of new content rebuilds them (build-site's stand-in).
-for dir in maps damage; do
+for dir in maps damage skills; do
     mkdir -p "$src/servers/web-server/$dir"
     grep -v '^#' "$T/patches.tsv" | cut -f1,2 >"$src/servers/web-server/$dir/built-from.tsv"
     echo "built by hand" >"$src/servers/web-server/$dir/page.js"
@@ -1392,9 +1392,9 @@ check "release --resources: ... in the preflight, before the maintenance" bash -
 check "release --resources: ... the server's source carries them" bash -c \
     "grep -qx \$'resources.db.patch_13\t'\$(sha256sum <$T/r13/resources.db.patch_13 | cut -c1-64) $T/live/servers/web-server/maps/built-from.tsv && grep -qx 'built from resources.db.patch_3 resources.db.patch_12 resources.db.patch_13 ' $T/live/servers/web-server/damage/page.js"
 check "release --resources: ... the record commits them: main's pages built from main's list" bash -c \
-    "for d in maps damage; do cmp -s <(git -C $T/origin.git show main:srp-026g/servers/web-server/\$d/built-from.tsv | grep -v '^#') <(git -C $T/origin.git show main:release/patches.tsv | grep -v '^#' | cut -f1,2) || exit 1; done"
+    "for d in maps damage skills; do cmp -s <(git -C $T/origin.git show main:srp-026g/servers/web-server/\$d/built-from.tsv | grep -v '^#') <(git -C $T/origin.git show main:release/patches.tsv | grep -v '^#' | cut -f1,2) || exit 1; done"
 check "release --resources: ... the record's commit: the pages, the list and its own files, and says so" bash -c \
-    "test \"\$(git -C $T/origin.git diff --name-only $pages_commit 'main^2' | tr '\n' ' ')\" = 'CHANGELOG-SKHID-026G.md release/patches.tsv srp-026g/client-patches/README.md srp-026g/client-patches/patch_026g.py srp-026g/crates/session/src/v026g/simulation_changes.tsv srp-026g/docs/data/equipment.tsv srp-026g/servers/web-server/damage/built-from.tsv srp-026g/servers/web-server/damage/page.js srp-026g/servers/web-server/maps/built-from.tsv srp-026g/servers/web-server/maps/page.js srp-026g/servers/web-server/wiki/page.js ' && git -C $T/origin.git log -1 --format=%B 'main^2' | grep -q '^The Maps tab and the calculator (srp-026g/servers/web-server/maps/ and'"
+    "test \"\$(git -C $T/origin.git diff --name-only $pages_commit 'main^2' | tr '\n' ' ')\" = 'CHANGELOG-SKHID-026G.md release/patches.tsv srp-026g/client-patches/README.md srp-026g/client-patches/patch_026g.py srp-026g/crates/session/src/v026g/simulation_changes.tsv srp-026g/docs/data/equipment.tsv srp-026g/servers/web-server/damage/built-from.tsv srp-026g/servers/web-server/damage/page.js srp-026g/servers/web-server/maps/built-from.tsv srp-026g/servers/web-server/maps/page.js srp-026g/servers/web-server/skills/built-from.tsv srp-026g/servers/web-server/skills/page.js srp-026g/servers/web-server/wiki/page.js ' && git -C $T/origin.git log -1 --format=%B 'main^2' | grep -q '^The Maps tab and the calculator (srp-026g/servers/web-server/maps/ and'"
 check "release --resources: ... the changed item table in the record, its change said" bash -c \
     "git -C $T/origin.git show 'main:srp-026g/docs/data/equipment.tsv' | grep -qx \$'item_a\t2.5' && git -C $T/origin.git log -1 --format=%B 'main^2' | grep -q '^The item tables (srp-026g/docs/data/) of the server data it ships:' && git -C $T/origin.git log -1 --format=%B 'main^2' | grep -q 'item_a: weight_kg 3 -> 2.5'"
 check "release --resources: ... the message (the PR's body) shows the first lines of the changes, the rest counted" bash -c \
@@ -1658,8 +1658,8 @@ develop)
 esac
 STANDIN
 chmod +x "$T/sb/bin/nix"
-sb_repo() { # <dir> <main.rs>: a checkout whose commit has dbgrab's sources and the two builds
-    mkdir -p "$1/tools/re-kit/common/dbgrab/src" "$1/srp-026g/scripts/maps-tab" "$1/srp-026g/scripts/damage-calc"
+sb_repo() { # <dir> <main.rs>: a checkout whose commit has dbgrab's sources and the three builds
+    mkdir -p "$1/tools/re-kit/common/dbgrab/src" "$1/srp-026g/scripts/maps-tab" "$1/srp-026g/scripts/damage-calc" "$1/srp-026g/scripts/skills-tab"
     echo '[package]' >"$1/tools/re-kit/common/dbgrab/Cargo.toml"
     echo "$2" >"$1/tools/re-kit/common/dbgrab/src/main.rs"
     cat >"$1/srp-026g/scripts/maps-tab/build.py" <<'PY'
@@ -1672,12 +1672,13 @@ rows = [line.split("\t")[:2] for line in pathlib.Path(opts["--list"]).read_text(
 if "--with" in opts and not os.path.exists(os.environ["TEST_DIR"] + "/sb/drop-with"):
     rows.append([pathlib.Path(opts["--with"]).name, hashlib.sha256(pathlib.Path(opts["--with"]).read_bytes()).hexdigest()])
 rows.sort(key=lambda row: int(row[0].rsplit("_", 1)[1]))
-out = pathlib.Path("srp-026g/servers/web-server", "maps" if sys.argv[0].endswith("/build.py") else "damage")
+out = pathlib.Path("srp-026g/servers/web-server", {"maps-tab": "maps", "damage-calc": "damage", "skills-tab": "skills"}[pathlib.Path(sys.argv[0]).parent.name])
 out.mkdir(parents=True, exist_ok=True)
 (out / "built-from.tsv").write_text("# The patches it was built from: name, sha256.\n" + "".join(f"{n}\t{s}\n" for n, s in rows))
 (out / "dbgrab.txt").write_text(subprocess.run([opts["--dbgrab"]], capture_output=True, text=True, check=True).stdout)
 PY
     cp "$1/srp-026g/scripts/maps-tab/build.py" "$1/srp-026g/scripts/damage-calc/build_site.py"
+    cp "$1/srp-026g/scripts/maps-tab/build.py" "$1/srp-026g/scripts/skills-tab/build.py"
     git_t -C "$1" init -q && git_t -C "$1" add -A && git_t -C "$1" commit -q -m "$2"
 }
 sb_repo "$T/sb/root" "the operator's dbgrab"
@@ -1697,9 +1698,9 @@ sb_run() { # <args...>: build-site in $T, its output into $out
 sb_run --with r5/resources.db.patch_5 || fail "build-site: $out"
 sb_rows=$( { grep -v '^#' "$T/patches.tsv" | cut -f1,2; printf 'resources.db.patch_5\t%s\n' "$(sha256sum <"$T/r5/resources.db.patch_5" | cut -c1-64)"; } | sort -V)
 check "build-site: relative --with, SKHID_STOCK_DB and SKHID_PATCH_LIST: the builds (in the tree) find them" bash -c \
-    "for d in maps damage; do test \"\$(grep -v '^#' $T/sb/tree/srp-026g/servers/web-server/\$d/built-from.tsv | sort -V)\" = \"\$1\" || exit 1; done" _ "$sb_rows"
+    "for d in maps damage skills; do test \"\$(grep -v '^#' $T/sb/tree/srp-026g/servers/web-server/\$d/built-from.tsv | sort -V)\" = \"\$1\" || exit 1; done" _ "$sb_rows"
 check "build-site: a --with patch below the list's top, the pages naming it in another order: passes" has "$out" \
-    "^the Maps tab and the calculator: built in $T/sb/tree/srp-026g/servers/web-server/ from the stock resources.db and $(grep -c . <<<"$sb_rows") patch(es):"
+    "^the Maps tab, the calculator and the skills: built in $T/sb/tree/srp-026g/servers/web-server/ from the stock resources.db and $(grep -c . <<<"$sb_rows") patch(es):"
 check "build-site: dbgrab built from the tree's commit, not the checkout running it" grep -qx "the tree's dbgrab" "$T/sb/tree/srp-026g/servers/web-server/maps/dbgrab.txt"
 check "build-site: ... from a source folder made anew (an earlier one's file gone)" test "$(cat "$T/sb/dbgrab-src")" = "./Cargo.toml ./src/main.rs "
 check "build-site: ... its target kept" test -f "$T/sb/cache/skhid-release/dbgrab-target/kept"
@@ -2654,6 +2655,9 @@ check "--help is build-content's usage" has "$("$here/build-content" --help)" "u
 # where the previous version already mixed types at that path), a colour
 # ramp's new key of another type than its keys, an allowlist row lets a new
 # key through but never a changed one, and a config walk refuses is reported.
+# A list an edit list keys (append_entry's unique_key) is weighed entry by
+# key: entries taken out and the rest moved up pass, a real change of a
+# same-key entry is refused, and so are an entry without its key or two with one.
 python3 - "$here/content_type_check.py" "$here/../srp-026g/scripts/content-edit" "$T/tc.log" <<'EOF'
 import importlib.util, struct, sys, zlib
 ctc_path, ce_dir, logp = sys.argv[1:4]
@@ -2681,6 +2685,8 @@ def build(root, sort=True):  # ('named', [(name, node)]) | ('indexed', [node]) |
             while len(buf) % 8: buf.append(0)
             d = len(buf); buf.extend(struct.pack('<fff', *v)); REC.pack_into(buf, at, d, off, crc, 7, 3)
         elif kind == 'i': REC.pack_into(buf, at, v & 0xffffffff, off, crc, 1, 4)
+        elif kind == 's':
+            d = len(buf); buf.extend(v.encode() + b'\0'); REC.pack_into(buf, at, d, off, crc, 5, len(v) + 1)
         else: REC.pack_into(buf, at, struct.unpack('<I', struct.pack('<f', v))[0], off, crc, 2, 4)
     write(0, None, root)
     return bytes(buf)
@@ -2701,6 +2707,25 @@ both = ctc.corpus_with(walk, {'n1': num(1.5), 'n2': num(2)})
 cases += [('number_where_both', ctc.violations(walk, num(2), num(1.5), 'n', both, {})),
           ('number_where_float_only', ctc.violations(walk, num(2), num(1.5), 'n', ctc.corpus_with(walk, {'n1': num(1.5)}), {})),
           ('vector_to_float_where_both', ctc.violations(walk, lvl(vec), lvl(('f', 1.0)), 'a', ctc.corpus_with(walk, {'x': lvl(vec), 'y': lvl(('f', 2.0))}), {}))]
+# skills_tree as main's physical-skills (206, 210 taken out) and the medical skills (302 appended,
+# an int in a row where 211 has a text) leave it: the entry now at 211's old index is another skill.
+skill = lambda i, d: ('named', [('id', ('i', i)), ('ui', ('named', [('descriptions', ('indexed', [d]))]))])
+tree = lambda *es: build(('named', [('skills_tree', ('indexed', [skill(i, d) for i, d in es]))]))
+txt, zero = ('s', ' +5'), ('i', 0)
+keys = ctc.list_keys([{'append_entry': [{'file': 'skills', 'list': 'skills_tree', 'unique_key': 'id'}]}])['skills']
+skills_corp = ctc.corpus_with(walk, {'other': tree((1, txt), (2, zero))})
+was = tree((206, txt), (210, txt), (211, txt))
+cases += [('keyed_reordered_removed', ctc.violations(walk, was, tree((211, txt), (302, zero)), 'skills', skills_corp, {}, keys)),
+          ('unkeyed_reordered_removed', ctc.violations(walk, was, tree((211, txt), (302, zero)), 'skills', skills_corp, {})),
+          ('keyed_same_key_changed', ctc.violations(walk, was, tree((302, txt), (211, zero)), 'skills', skills_corp, {}, keys)),
+          ('keyed_shared_key', ctc.violations(walk, was, tree((211, txt), (211, txt)), 'skills', skills_corp, {}, keys)),
+          ('keyed_entry_without_key', ctc.violations(walk, was, build(('named', [('skills_tree', ('indexed', [skill(211, txt), ('named', [('ui', ('named', []))])]))])), 'skills', skills_corp, {}, keys))]
+try:
+    ctc.list_keys([{'append_entry': [{'file': 'f', 'list': 'l', 'unique_key': 'id'}]},
+                   {'append_entry': [{'file': 'f', 'list': 'l', 'unique_key': 'name'}]}])
+    two_keys = 'accepted'
+except ValueError as error:
+    two_keys = 'refused: ' + str(error)
 try:
     ctc.parse(walk, build(('named', [('a', vec), ('b', vec)]), sort=False))  # crc32 a > b
     unsorted = 'parsed'
@@ -2710,6 +2735,7 @@ with open(logp, 'w') as f:
     for name, v in cases:
         f.write('%s\t%d\t%s\n' % (name, len(v), ' | '.join(v)))
     f.write('unsorted\t%s\n' % unsorted)
+    f.write('two_keys\t%s\n' % two_keys)
 EOF
 tc() { grep -P "^$1\t" "$T/tc.log" | cut -f2-; }
 check "type check: a file unchanged has no violation" test "$(tc identity | cut -f1)" = 0
@@ -2731,6 +2757,18 @@ check "type check: ... but not where they have it only one way" test "$(tc numbe
 check "type check: ... and never a vector, even where the base mixes vectors and numbers" test "$(tc vector_to_float_where_both | cut -f1)" = 1
 check "type check: a config whose table is not sorted by CRC is refused, not skipped" \
     bash -c "grep -P '^unsorted\trefused: ' '$T/tc.log' | grep -q 'not sorted'"
+check "type check: a keyed list's entries taken out and moved up keep their types (known by id, not index)" \
+    test "$(tc keyed_reordered_removed | cut -f1)" = 0
+check "type check: ... where by index the entry now at 211's old place would be taken for it" \
+    bash -c "grep -P '^unkeyed_reordered_removed\t1\t' '$T/tc.log' | grep -q 'skills_tree\[1\]/ui/descriptions\[0\] was string, now int'"
+check "type check: ... but a same-id entry whose value changes type is refused, wherever it moved" \
+    bash -c "grep -P '^keyed_same_key_changed\t1\t' '$T/tc.log' | grep -q 'skills_tree\[id=211\]/ui/descriptions\[0\] was string, now int'"
+check "type check: two entries of a keyed list with one key are refused" \
+    bash -c "grep -P '^keyed_shared_key\t1\t' '$T/tc.log' | grep -q 'share id=211'"
+check "type check: an entry of a keyed list without its key is refused" \
+    bash -c "grep -P '^keyed_entry_without_key\t1\t' '$T/tc.log' | grep -q 'skills_tree\[1\] has no id'"
+check "type check: two edit lists keying one list by two keys are refused" \
+    bash -c "grep -P '^two_keys\trefused: ' '$T/tc.log' | grep -q 'keyed by id and by name'"
 
 echo
 if ((failures)); then

@@ -1915,7 +1915,8 @@ mod tests {
         );
         assert_eq!(account, before);
 
-        // Its own pocket takes more of it, and it may move to another one.
+        // Its own pocket takes more of it, up to two (an RGD-5 takes two
+        // units of a pocket), and it may move to another one.
         move_items(
             &mut account,
             1,
@@ -1923,14 +1924,14 @@ mod tests {
             NOW,
         )
         .unwrap();
-        assert_eq!(account.kits[0].slots[13].unwrap().count, 3);
+        assert_eq!(account.kits[0].slots[13].unwrap().count, 2);
         move_items(&mut account, 1, &[relocation(&grenade, 13, 15, 3)], NOW).unwrap();
         assert_eq!(account.kits[0].slots[13], None);
         assert_eq!(
             account.kits[0].slots[15],
             Some(KitSlot {
                 item_id: grenade_id,
-                count: 3
+                count: 2
             })
         );
         // Other types in the other pockets; another kit has its own.

@@ -45,6 +45,7 @@ package survarium.controls
    import survarium.item.ModificationRolls;
    import survarium.messages.MessageCraftItem;
    import survarium.upgrade.UpgradeWindow;
+   import survarium.constants.BuyOrigin;
    import survarium.constants.Faction;
    import survarium.constants.InventoryTab;
    import survarium.constants.KeyCode;
@@ -787,7 +788,7 @@ package survarium.controls
          item_data.upgradesAvailable = descrData.upgrades_available;
          item_data.weight = descrData.weight;
          item_data.clipSize = descrData.clip_size;
-         item_data.quickSlotItemSize = (descrData.fills_whole_pocket) ? QuickSlotSize.WHOLE : QuickSlotSize.HALF;
+         item_data.quickSlotItemSize = QuickSlotSize.of(descrData);
          item_data.clipsInBag = descrData.clips_in_bag;
          if(descrData.required_bags != undefined)
          {
@@ -2033,15 +2034,7 @@ package survarium.controls
          {
             this.setPrimaryItem(item);
          }
-         // an owned item's own menu: no "already purchased" question; a shop entry's: the card's Buy
-         if(item.descriptor <= ItemPlace.INVENTORY)
-         {
-            this._item_control.buyFromOwnMenu();
-         }
-         else
-         {
-            this._item_control.onBtnClick1();
-         }
+         this._item_control.onBtnClick1();
       }
 
       // An owned item (a row of the inventory, a kit's slot) as the inventory has it, as the card
@@ -3681,9 +3674,11 @@ package survarium.controls
          return null;
       }
       
-      // As the item card's Buy: by the dictionary id, at the shop's price;
-      // the shop names the seller. An item owned already is asked about
-      // first, as every buy (LobbyMenu.try_buy_item).
+      // As the item card's Buy: by the dictionary id, at the shop's price,
+      // no seller (the exe fills in the first price record's; Faction.ANY
+      // had GangShop.getItemSeller read ItemData.seller, which is no field:
+      // 0 in the game too). Started in the window: an item owned already is
+      // not asked about (LobbyMenu.try_buy_item).
       private function buyFromCraftMenu(item:Object) : void
       {
          var profile:* = parent != null ? parent["player_profile"] : null;
@@ -3692,7 +3687,7 @@ package survarium.controls
             return;
          }
          var price:int = item.category == ItemCategory.BUNDLE ? int(item.cost) : int(GangShop.getInstance().getItemPrice(item.dictId));
-         GangShop.buyFunction(profile.profileId,item.itemId,item.dictId,item.descriptor,ItemPlace.INVENTORY,1,price,Faction.ANY);
+         GangShop.buyFunction(profile.profileId,item.itemId,item.dictId,item.descriptor,ItemPlace.INVENTORY,1,price,BuyOrigin.UPGRADE,Faction.NONE);
       }
    }
 }

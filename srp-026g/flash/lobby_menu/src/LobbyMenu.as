@@ -59,6 +59,7 @@ package
    import survarium.chat.LobbyChat;
    import survarium.clan.ClanWindow;
    import survarium.clan.TournamentWindow;
+   import survarium.constants.BuyOrigin;
    import survarium.constants.ChatChannel;
    import survarium.constants.ClanState;
    import survarium.constants.ClanTeamRole;
@@ -1079,6 +1080,9 @@ package
          this.player_profile.profileItems.addEventListener(Events.OPEN_MODIFIERS,this.openModifierWindow);
          this.player_profile.profileItems.addEventListener(ListEvent.ITEM_ROLL_OVER,this.showPdItemHint);
          this.player_profile.profileItems.addEventListener(ListEvent.ITEM_ROLL_OUT,this.hideItemHint);
+         // The kit's ammo list: a round's card, the inventory's.
+         this.player_profile.addEventListener(AmmoShareElement.SHOW_CARD,this.showAmmoItemHint);
+         this.player_profile.addEventListener(AmmoShareElement.HIDE_CARD,this.hideItemHint);
          this.player_profile.profileItems.addEventListener(PaperDollBase.PAPERDOLL_UPDATED,this.updateHintItem);
          shop_list = new SrvGangShop();
          this.shop_list.name = "inventory_list";
@@ -1355,14 +1359,34 @@ package
          // the card is this slot's now: no list row's card or comparison left over
          this.hideItemHint(null);
          _hintSlot = e.itemRenderer as IPaperDollSlot;
+         this.showKitCard(e.itemData,this.player_profile.x + e.itemRenderer.x + e.itemRenderer.width + 3,this.player_profile.y + e.itemRenderer.y - 5);
+      }
+
+      // A round of the kit's ammo list: its card beside the list's row, as a kit slot's.
+      private function showAmmoItemHint(e:Event) : void
+      {
+         var element:AmmoShareElement = e.target as AmmoShareElement;
+         if(element == null || element.cardItem == null)
+         {
+            return;
+         }
+         this.hideItemHint(null);
+         var at:Point = this._cards.globalToLocal(element.localToGlobal(new Point(element.width + 3,-5)));
+         this.showKitCard(element.cardItem,at.x,at.y);
+      }
+
+      // The item card (the inventory's) of a kit's item at (x, y) of the cards' layer, uncompared,
+      // kept on the stage and faded in.
+      private function showKitCard(item:Object, x:Number, y:Number) : void
+      {
          this.itemHintRenderer.displayOrange(true);
          this.itemHintRenderer.displaylabel(false);
          this.itemHintRenderer.mouseEnabled = this.itemHintRenderer.mouseChildren = false;
          this.itemHintRendererSec.mouseEnabled = this.itemHintRendererSec.mouseChildren = false;
-         this.itemHintRenderer.x = this.player_profile.x + e.itemRenderer.x + e.itemRenderer.width + 3;
-         this.itemHintRenderer.y = this.player_profile.y + e.itemRenderer.y - 5;
+         this.itemHintRenderer.x = x;
+         this.itemHintRenderer.y = y;
          this._cards.addChild(this.itemHintRenderer);
-         this.itemHintRenderer.data = e.itemData;
+         this.itemHintRenderer.data = item;
          this.itemHintRenderer.itemCompare.setSecondaryWeapon(null);
          var maxPox:int = this.itemHintRenderer.y + this.itemHintRenderer.height;
          if(maxPox > MainScene.stageHeight - 2)
@@ -1769,7 +1793,7 @@ package
          var dict:uint = PlayerInfo.getVoucherDictId(VoucherType.DROP_CARD);
          var id:uint = PlayerInfo.getVoucherId(VoucherType.DROP_CARD);
          trace("onBuyMaps::",pp.profileId,id,dict);
-         this.try_buy_item(pp.profileId,id,dict,ItemPlace.SHOP,ItemPlace.INVENTORY,1,GangShop.getInstance().getItemPrice(dict),Faction.ANY);
+         this.try_buy_item(pp.profileId,id,dict,ItemPlace.SHOP,ItemPlace.INVENTORY,1,GangShop.getInstance().getItemPrice(dict),BuyOrigin.SHOP,Faction.ANY);
       }
       
       public function show_choose_faction_message() : void
@@ -3341,9 +3365,9 @@ package
          this.player_profile.checkbox_autobuy.selected = value == AUTO_BUY_AND_REPAIR || value == AUTO_BUY;
       }
       
-      public function try_buy_item(profile:uint, uid:uint, dict_uid:uint, sourceSlot:uint, targetSlot:uint, count:int, price:uint, seller:int = -1, onComplete:Function = null, ownItemMenu:Boolean = false) : Boolean
+      public function try_buy_item(profile:uint, uid:uint, dict_uid:uint, sourceSlot:uint, targetSlot:uint, count:int, price:uint, origin:BuyOrigin, seller:int = -1, onComplete:Function = null) : Boolean
       {
-         trace("Try_to_Buy_pr:" + profile + " uid:" + dict_uid + " src:" + sourceSlot + " tgt:" + targetSlot + " cnt:" + count + " price:" + price + " seller:" + seller);
+         trace("Try_to_Buy_pr:" + profile + " uid:" + dict_uid + " src:" + sourceSlot + " tgt:" + targetSlot + " cnt:" + count + " price:" + price + " origin:" + origin + " seller:" + seller);
          var _obj:Object = new Object();
          var _descr:Object = this._itemDescriptor.getItemDescription(dict_uid);
          if(sourceSlot == ItemPlace.BUNDLE)
@@ -3381,7 +3405,7 @@ package
          {
             _obj.clip_size = _descr.clip_size;
          }
-         _obj.quick_slot_item_size = (_descr.fills_whole_pocket) ? QuickSlotSize.WHOLE : QuickSlotSize.HALF;
+         _obj.quick_slot_item_size = QuickSlotSize.of(_descr);
          _obj.pocket_units = PlayerInfo.pocketUnits(_descr.category,_obj.quick_slot_item_size);
          _obj.currentCount = this.inventory_list.getItemCount(dict_uid);
          var category:int = ItemFactory.getCategory(_descr.category);
@@ -3444,12 +3468,11 @@ package
             _obj.onYes = onComplete;
          }
          trace("try_buy_info::",_descr.is_stack,_descr.name,this.inventory_list.hasItem(dict_uid),onComplete);
-         // Every buy comes here (GangShop.buyFunction, MainScene.buyFunction). An item owned already,
-         // not a stack, is asked first (the shop, the card's Buy, a drop, the craft and attachment
-         // windows), but for Buy from the right-click menu of an item the player owns (ownItemMenu:
-         // ItemCard.buyFromOwnMenu), a wish for another. A bundle's id is no item's
-         // (docs/notes/items.md §6).
-         if(!ownItemMenu && !_descr.is_stack && sourceSlot != ItemPlace.BUNDLE && this.inventory_list.hasItem(dict_uid))
+         // Every buy comes here (GangShop.buyFunction, MainScene.buyFunction), told where it was
+         // started. Only a buy started in the shop asks first about an item owned already, not a
+         // stack; one from the player's own items or the craft and attachment windows is a wish for
+         // another. A bundle's id is no item's (docs/notes/items.md §6).
+         if(origin == BuyOrigin.SHOP && !_descr.is_stack && sourceSlot != ItemPlace.BUNDLE && this.inventory_list.hasItem(dict_uid))
          {
             _obj.text = LocalizationData.getName("already_in_inventory");
             _obj.onYes = this.show_buy_message;

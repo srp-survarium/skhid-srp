@@ -12,8 +12,8 @@ Scaleform's Invoke 0x511600 a stub that records each call; translate_text
 0x1FF0F0 the key's English text; game::save_user_config 0x1E9030 counted):
 
 - on_configs_loaded's start (0x1EA210 to 0x1EA216, the chain: patch 79's
-  hook, then this one): the console variables `srp_hide_hit_markers` and
-  `srp_hide_scores` registered once, after patch 79's `localization`, with
+  hook, then this one): the console variables `srp_hide_hit_markers`,
+  `srp_hide_scores`, `srp_map_names` and `srp_hide_crosshair` registered once, after patch 79's `localization`, with
   the game's own cc_value<bool>::cc_value (a cc_bool, saved, kind 2: user.cfg's
   lines set them), off; the game's own cc_bool::execute sets each from a
   user.cfg line's value; registers and stack as the original's;
@@ -26,7 +26,7 @@ Scaleform's Invoke 0x511600 a stub that records each call; translate_text
 - each frame's player icons update (update_ui's `push edi / call 0x23AA10`
   at 0x23B206 to update_player_icons' prologue's end 0x23AA16, through patch
   65's hook): the hud movie told root.srp_hud_options(hide hit markers, hide
-  scores), after patch 65's root.force_interface_hidden, exactly at a change
+  scores, hide crosshair, map names), after patch 65's root.force_interface_hidden, exactly at a change
   of the hud movie or of a setting, and again at the next frame while the
   movie refuses it (Invoke answering 0), and again after a match's or a
   replay's options read (a new match's hud can be made at the last one's
@@ -48,13 +48,14 @@ import check_language_026g as language
 
 EXECUTE_BOOL, CC_BOOL_VTABLE = 0xECA30, 0x9E7C4C
 SETTINGS = {"srp_hide_hit_markers": "Hide hit markers", "srp_hide_scores": "Hide player scores",
-            "srp_hide_crosshair": "Hidden crosshair"}
+            "srp_map_names": "Names on map", "srp_hide_crosshair": "Hidden crosshair"}
 # the group's own texts, in root.srp_hud_texts' order
 TEXTS = {"st_srp_options_hud": "HUD:", "st_srp_hide_quests_option": "Hide quests", "st_srp_crosshair_dynamic": "Dynamic crosshair",
          "st_srp_crosshair_static": "Static crosshair", "st_srp_crosshair_hidden": "Hidden crosshair",
          "st_srp_static_minimap_option": "Static minimap"}
 language.ENGLISH.update({key: text.encode() for key, text in TEXTS.items()})
-language.ENGLISH.update({"st_srp_hide_hit_markers_option": b"Hide hit markers", "st_srp_hide_scores_option": b"Hide player scores"})
+language.ENGLISH.update({"st_srp_hide_hit_markers_option": b"Hide hit markers", "st_srp_hide_scores_option": b"Hide player scores",
+                         "st_srp_map_names_option": b"Names on map"})
 OTHER_HUD = 0x20076800                  # another hud movie (a new game world's)
 # a match's options and the message they are read from (check_blackout_026g.py's OPTIONS and WORK
 # lie in check_language_026g.py's DATA: these are their own)
@@ -156,9 +157,10 @@ def main():
     names = [ours.text(ours.read(node + 0x10)).decode() for node in nodes]
     variables = {name: console_bool(ours, node) for name, node in zip(names, nodes) if name in SETTINGS}
     expect(a_regs == b_regs and a_sp == b_sp and a_head == head_before
-           and names == ["s_music_volume", "srp_hide_crosshair", "srp_hide_scores", "srp_hide_hit_markers", "localization"]
+           and names == ["s_music_volume", "srp_hide_crosshair", "srp_map_names", "srp_hide_scores", "srp_hide_hit_markers",
+                     "localization"]
            and all((kind, saved) == (2, 1) and ours.read(value, 1) == b"\0" for _, kind, saved, value in variables.values()),
-           "configs.start: registers and stack as the original's; `srp_hide_hit_markers` and `srp_hide_scores`, "
+           "configs.start: registers and stack as the original's; the four settings, "
            "saved bools of kind 2, off, registered after patch 79's `localization` (the original registers nothing)")
     _, _, again = ours.start()
     again_nodes = [node for node in registered(ours, again, head_before) if ours.text(ours.read(node + 0x10)) != b"srp_lobby"]
@@ -209,7 +211,7 @@ def main():
         expect(invokes == [] and count == 0, f"{which}: another method returns, nothing invoked or saved")
 
     # each frame: the hud told the settings at a change
-    told = lambda movie, hits, scores, crosshair=0: [(movie, "root.srp_hud_options", (hits, scores, crosshair))]
+    told = lambda movie, hits, scores, crosshair=0, names=0: [(movie, "root.srp_hud_options", (hits, scores, crosshair, names))]
     frames = [
         # (what, the Settings' calls made first (None: a new match's options read, "replay" a replay's),
         # the hud movie (0 none), it refuses, the hud's Invokes wanted)
@@ -228,6 +230,8 @@ def main():
         ("Hidden crosshair chosen (another hud movie)", [("srp_hide_crosshair", "1")], OTHER_HUD, False,
          told(OTHER_HUD, 0, 0, 1)),
         ("Static crosshair chosen again", [("srp_hide_crosshair", "0")], OTHER_HUD, False, told(OTHER_HUD, 0, 0, 0)),
+        ("Names on map checked", [("srp_map_names", "1")], OTHER_HUD, False, told(OTHER_HUD, 0, 0, 0, 1)),
+        ("Names on map unchecked", [("srp_map_names", "0")], OTHER_HUD, False, told(OTHER_HUD, 0, 0, 0, 0)),
         ("the hud back, refusing (no root yet)", [], hide.HUD_MOVIE, True, told(hide.HUD_MOVIE, 0, 0)),
         ("the next frame, the movie taking it", [], hide.HUD_MOVIE, False, told(hide.HUD_MOVIE, 0, 0)),
         ("the frame after", [], hide.HUD_MOVIE, False, []),

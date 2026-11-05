@@ -188,6 +188,13 @@ Top-level sections (**PROVEN**):
 - `modifiers[levels]{<name>_modifier: value}`, using **modifier names, not ids**, and
   **fractions, not percents**;
 - `ui{position[col,row], name, description, icon, postfix, invert_sign, skill_descriptions}`.
+- **PROVEN** (exe `fill_skills_properties` 0x223a70): `branch` = id / 100 - 1; the
+  tooltip of rank r (0..levels) is `description` + d[r][0] + `postfix` + d[r][2],
+  and below the last rank + `st_current_value` + d[r][1] + `postfix` + d[r][3]
+  (no `postfix`: the description alone). `invert_sign` is read by nothing: the
+  strings carry their signs. The tabs' names: `st_{shooting,physical,survival,
+  engineering,anomaly}_skills_label` by branch (0x224828). The website's skills
+  page (`scripts/skills-tab/build.py`) shows them so.
 
 Two branches: 101–113 (weapon handling) and 201–214 (body/stamina).
 
@@ -211,14 +218,22 @@ Two branches: 101–113 (weapon handling) and 201–214 (body/stamina).
 | 203 | grenade_throw_power +0.1 | 2 | 5 | |
 | 204 | stamina_regeneration_speed +0.02 | 5 | 0 | |
 | 205 | stamina_boost_amount 0.1, interval 0, time 100 | 2 | 15 | |
-| 206 | meele_hit_ultimate 1 | 3 | 50 | |
+| ~~206~~ | meele_hit_ultimate 1 | 3 | 50 | removed by Skhid |
 | 207 | fall_damage −0.15 | 2 | 10 | |
 | 208 | movement_speed +0.01 | 5 | 10 | |
 | 209 | max_carried_weight +2 | 5 | 5 | |
-| 210 | meele_hit_range 1 | **0** | 50 | |
+| ~~210~~ | meele_hit_range 1 | **0** | 50 | removed by Skhid |
 | 211 | stamina_loss_on_hit −0.05 | 5 | 15 | |
 | 213 | can_sprint 1 | 1 | 20 | 214 |
 | 214 | max_carried_weight_ultimate 1 | 1 | 20 | 213 |
+
+The table is the stock 0.26g tree. Skhid removes 206 (Sledgehammer) and 210 (Jump with a knife)
+from the live tree (the owner, 2026-11-06; edit list `scripts/content-edit/physical-skills-1.json`),
+as the original developers did: both are in 0.31a2's `skills_tree`, neither is in 0.46c2's, and 0.69
+keeps only their strings (which stay here too). Nobody could learn them (`branch_points` 50, past the
+25 the window unlocks; their two modifiers are not among the exe's 68), so no account held a point
+in them. With column 4 of the physical tree empty, Packrat (202) moves from [3, 3] to [4, 3]
+(`ui.position` is [column, row]), its row and threshold unchanged.
 
 Consequences:
 - srp-021d `skills.rs` (booster id → modifier index, ÷100, 20 levels) **does not apply**.
@@ -566,7 +581,7 @@ Evidence: the 0.26g exe (VAs) and `flash_movies/lobby_menu.swf` decompiled with 
     `branch_points` is more than that sum; reached rows unlock
     `floor(branch_points / 5) * 5`, at most 25 (`getBranchUnlockedLevel`, `SKILL_LEVELS 25`,
     `POINTS_PER_LEVEL 5`). So a row needs its `branch_points` spent in the rows above it.
-  - Skills 206 and 210 (`branch_points` 50) can never be bought.
+  - Skills 206 and 210 (`branch_points` 50) can never be bought: Skhid removes them (§3).
   - `antiskills` lock each other while one has points (`handleAntiskills`).
   - Points available = level - Σ points (exe `fill_char_info` 0x224420, as lobby.md §2.12).
   - That the original server checked the same rules is LIKELY.

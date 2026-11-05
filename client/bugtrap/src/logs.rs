@@ -16,7 +16,7 @@ use windows_sys::Win32::{
 };
 
 pub const COUNT: usize = 32;
-pub const MAX_MEMBERS: usize = COUNT + 4; // whole sources, patch log, dump, crash.txt, summary
+pub const MAX_MEMBERS: usize = COUNT + 5; // whole sources, patch log, dump, crash.txt, breadcrumbs, summary
 /// The client patches' log beside the exe (vostok/log.rs): the game never
 /// cuts it, so the ZIP takes its last [`PATCH_LOG_BYTES`].
 pub const PATCH_LOG: &str = "srp_patches.log";

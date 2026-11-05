@@ -1266,6 +1266,7 @@ st_inv_additional_ammo_bags	Ammo bags
 st_inv_ano_armor	Isolation
 st_inv_armor	Armor
 st_inv_arp	Armor penetration
+st_inv_artefact_recharge	Artifact recharge time
 st_inv_artefact_slots	Artifact container
 st_inv_buckshot	Buckshot
 st_inv_clip_size	Bullets in pack
@@ -1482,11 +1483,11 @@ st_microphone_sensitivity_option	Microphone sensitivity
 st_military_medkit_description	Fully heals arms and legs. Restores 60% of body and head and 50% of pain.
 st_military_medkit_name	Military Medkit
 st_minimap	Minimap
-st_minimap_bottom	Lower left corner
+st_minimap_bottom	Minimap lower left
 st_minimap_off	Hidden minimap
 st_minimap_position	Minimap position
 st_minimap_rotable_option	Fix minimap
-st_minimap_top	Upper left corner
+st_minimap_top	Minimap upper left
 st_missile_weapon_action	Grenade
 st_missions	Missions
 st_mm_button_back	Back
@@ -1777,7 +1778,7 @@ st_ranking	Ranking
 st_ranking_diff	Difference
 st_rattle_activation_hint	Rattle is activated! Your footsteps cannot be heard by your enemy.
 st_rattle_pickup_hint	Rattle artifact. Hushes the sound of steps by 50%.
-st_rdgm_descr	ОПИСАНИЕ НЕ ГОТОВО!!!
+st_rdgm_descr	Hand smoke grenade. Lays a thick screen that hides movement.
 st_rdgm_name	Smoke grenade RDG-M
 st_reach_level	reached <green>Level</green>
 st_ready	Ready
@@ -1785,6 +1786,8 @@ st_refill_ammo_btn	Apply
 st_refill_ammo_label	Ammo
 st_regen_booster_description	Old army rations. Successfully used by the armies of the CIS countries in the pre-crisis period. Increases metabolism while still being quite tasty.
 st_regen_booster_name	Rations
+st_regen_delay_name	Regeneration delay
+st_regen_limit_name	Regeneration limit
 st_registration_str	Create account
 st_regular_fix	Repair
 st_regular_money	Silver
@@ -2184,6 +2187,7 @@ st_srp_ammo069_23mm_r_desc	A 23 mm round stuffed with smallshot, for the KS-23M.
 st_srp_ammo069_23mm_r_name	23x75R, smallshot
 st_srp_ammo_scar_ap_desc	Armour-piercing 7.62x51 cartridges for the FN SCAR-H. Each ammunition bag holds 20 rounds.
 st_srp_ammo_scar_ap_name	7.62x51 AP SCAR-H, 20-round pack
+st_srp_ammo_stats	Ammo stats
 st_srp_attachments	Attachments
 st_srp_crosshair_dynamic	Dynamic crosshair
 st_srp_crosshair_hidden	Hidden crosshair
@@ -2443,7 +2447,16 @@ st_srp_hud_mute_not_sent	Not sent
 st_srp_hud_muted	Chat muted
 st_srp_hud_unmute	Unmute chat
 st_srp_hud_unmuted	Chat unmuted
+st_srp_inv_ammo_range	Range
+st_srp_inv_bullet_speed	Bullet speed
+st_srp_inv_defuse_time	Defuse time
+st_srp_inv_fuse_time	Fuse time
+st_srp_inv_pellets	Pellets
+st_srp_inv_pocket_units	Pocket slots
+st_srp_inv_stamina_damage	Stamina damage
+st_srp_inv_throw_speed	Throw speed
 st_srp_inventory_search	Search
+st_srp_item_props_mps	m/s
 st_srp_language_option	Language:
 st_srp_language_restart	Applies after restart.
 st_srp_loadout_block_ammo	Too little ammo for a weapon
@@ -2472,6 +2485,7 @@ st_srp_map_cologne	Cologne
 st_srp_map_london	London
 st_srp_map_mamayev_kurgan	Mamayev Kurgan
 st_srp_map_mamayev_kurgan_v021	Mamayev Kurgan (v0.21)
+st_srp_map_names_option	Names on map
 st_srp_map_rudnya	Rudnya
 st_srp_map_rudnya_v069	Rudnya (v0.69)
 st_srp_map_school	School
@@ -2664,6 +2678,7 @@ st_srp_speed_title	Movement speed: %1$s
 st_srp_static_minimap_option	Static minimap
 st_srp_unit_kg	%1$s kg
 st_srp_unit_meters	%1$sm
+st_srp_unit_mps	%1$s m/s
 st_srp_unit_percent	%1$s%
 st_srp_unit_seconds	%1$ss
 st_srp_unit_times	%1$sx
@@ -2680,6 +2695,7 @@ st_srp_weapon069_mauser_m712_name	Mauser M.712
 st_srp_weapon069_ppsh_drum_desc	Shpagin submachine gun with a 71-round drum magazine, ammo: 7.62x25. Supports single shot and automatic fire modes.
 st_srp_weapon069_ppsh_drum_name	PPSH-41 "Drum"
 st_srp_weapon_aim_zoom	Base aim zoom
+st_srp_weapon_bullet_speed_varies	Varies
 st_srp_weapon_chamber	Chambering time
 st_srp_weapon_draw_time	Draw time
 st_srp_weapon_full_damage	Full damage up to
@@ -2712,12 +2728,12 @@ st_srp_weather_day	day
 st_srp_weather_evening	evening
 st_srp_weather_night	night
 st_srp_weather_rain	rain
-st_srp_weight_base	Base limit: %1$s
+st_srp_weight_base	Base limit
 st_srp_weight_no_sprint_heavyweight	Cannot sprint: Heavyweight skill.
 st_srp_weight_no_sprint_limit	Cannot sprint: carry limit reached.
 st_srp_weight_penalty	%1$s% weight penalty
-st_srp_weight_speed	Movement speed: %1$s
-st_srp_weight_sprint_stamina	Sprint stamina use: %1$s
+st_srp_weight_speed	Movement speed
+st_srp_weight_sprint_stamina	Sprint stamina use
 st_srp_weight_title	Weight effects
 st_stamina_boost_name	Second wind
 st_stamina_boost_time_description	Energy recovered by killing the enemy:
