@@ -1,5 +1,6 @@
   first shot (A302) bot vs the stand-in human: contacts 0; the bot hit first 0 (0.0 %), fired first 0 (0.0 %), he fired first 0 (0.0 %); the bot ready (view on him) 0 (0.0 %), of them fired first 0; in 5 s the bot died 0 (0.0 %), he died 0 (0.0 %); the bot fired first and died 0
   first shot (A302) fatal exchanges only (the live baseline's count): the bot died 0, he fired first 0 (0.0 %); he died 0, the bot fired first 0 (0.0 %)
+  check_spot (A302): team 0: checks 0 (ended fight 0 hit 0 crossed 0 cap 0), bot lives 10, a life 0.00; team 1: checks 0 (ended fight 0 hit 0 crossed 0 cap 0), bot lives 19, a life 0.00
   his kills of bots (A302): 0; the victim's team knew his spot 0 (0.0 %), the victim knew him 0 (0.0 %); walking at his first hit 0 (0.0 %), crossing his lane 0 (0.0 %, with the team knowing 0); in the last 5 s it looked at him 0 (0.0 %), fired aimed at him 0 (0.0 %), threw a grenade 0, a smoke 0, none of these 0 (0.0 %)
 {
   "bot_died": 0,
@@ -7,6 +8,32 @@
   "bot_first_and_died": 0,
   "bot_first_and_human_died": 0,
   "bot_hit_first": 0,
+  "check_spot": {
+    "checks": [
+      [
+        0,
+        0,
+        0,
+        0,
+        0
+      ],
+      [
+        0,
+        0,
+        0,
+        0,
+        0
+      ]
+    ],
+    "team_bots": [
+      3,
+      3
+    ],
+    "team_deaths": [
+      7,
+      16
+    ]
+  },
   "contacts": 0,
   "his_kills": {
     "crossing": 0,
