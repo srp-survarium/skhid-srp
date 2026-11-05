@@ -80,6 +80,11 @@ fn artefact_tree_progression_and_modifiers() {
     for (id, bits) in [(502, 1.0), (521, 8.0), (522, 16.0), (531, 32.0), (532, 64.0), (533, 128.0), (541, 256.0)] {
         assert_eq!(tree.modifiers(&[(id, 1)])[modifier_index("artefact_power").unwrap()], bits, "{id}");
     }
+    // Resonance Cascade is also the retained Medic (modifier 43 bit 20): a Larkspur's activation
+    // heals the teammates within 5 m. No other skill of the tree sets 43.
+    let armored = modifier_index("armored_trap").unwrap();
+    assert_eq!(tree.modifiers(&[(541, 1)])[armored], 1_048_576.0);
+    assert_eq!(at("armored_trap"), 1_048_576.0);
     let only_data = tree.modifiers(&[(501, 5), (511, 4), (512, 5), (534, 1)]);
     assert_eq!(only_data[modifier_index("artefact_power").unwrap()], 0.0);
     // A saved set past its levels or below its rows is settled (refunded), never more.

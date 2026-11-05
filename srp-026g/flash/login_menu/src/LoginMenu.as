@@ -137,6 +137,9 @@ package
          var back:Bitmap = new Bitmap(new LoginBackground());
          backContainer.addChild(back);
          exit_btn = new ButtonCloseWindow2();
+         // a click on it leaves the focus on the form: Enter signs in after its dialog is cancelled (Esc is its
+         // key; Enter on a focused close button would open the dialog again)
+         this.exit_btn.focusable = false;
          this.panelContainer.alpha = 0;
          addChild(this.panelContainer);
          addEventListener(Event.RENDER,this.configUI);

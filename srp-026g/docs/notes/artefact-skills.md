@@ -194,10 +194,11 @@ preferred-image VAs; `apply_modifier` is the kit-modifier getter 0x2D5AE0.
 ## Onyx II (532)
 
 - While one of the player's Onyx is active (state 4), fall damage is none.
-- Confirmed by the owner (2026-11-05). A node of list 30 (`fall_damage`, damage
-  x max(0, 1 + sum), 0x2D82C8 / 0x2D83EE) at -1 in each Onyx, linked and unlinked with its
-  active, as patch 54 links Spring's active nodes; only when the holder has Onyx II. Several
-  active Onyx: the sum is below -1, still none (the getter's max(0, ...)).
+- Confirmed by the owner (2026-11-05). Built as the landing itself (my pick, the same effect as
+  a list-30 node at -1 with no node to keep): base_player::on_physical_controller_landing
+  (0x2D8220) does only the fall damage (modifier 30), and it is skipped for a player with the
+  skill and one of its containers' Onyx in state 4 (its enable_active 0x3128C0). No timer: the
+  Onyx's end ends it.
 
 ## Larkspur II (533)
 
@@ -223,6 +224,35 @@ preferred-image VAs; `apply_modifier` is the kit-modifier getter 0x2D5AE0.
   with the glow, by Medic's retained code (medical-skills.md "Medic").
 - Glow: Larkspur's recipients glow (Medic's); Spring's and Onyx's shared actives show no glow
   on the recipient (my pick: a cosmetic gap).
+- The cap per phase (my pick): at most 4 copies' passives and 4 copies' actives of a kind,
+  each 4 less the recipient's own carried copies of the kind (in their passive or active).
+  Larkspur's active heal is Medic's, which has no cap: a full heal twice is one.
+
+### How it is built (patch 109)
+
+- One aura, `vostok::artefact_skills::shared`: the recipient's world's roster (core_active_player,
+  places 0..19), each other living player of its team (teams 0 and 1) whose skill reaches it
+  (Resonance its passives within 8 m, Cascade its actives within 5 m, between the feet +43Ch), its
+  containers' Springs, Lifebones and Onyx (the vtable's enable_active) in container order. A
+  copy gives its passive in state 3 or 4 (Onyx 3 only: its protect's passive branch), its
+  active in 4. Nothing is kept between two reads.
+- Spring: the getters' sites `artefact.shared_modifier` (0x2D5AE6, apply_modifier after it reads
+  the kit's own float) and `artefact.shared_modifiers` (0x2D5C18, apply_modifiers' loop) add, for
+  an index of Spring's lists (4, 49, 3, 19, 42, 13), the shared copies' node values of that
+  index (the passive's +340h, +350h, +3D8h; the active's +360h, +370h, +380h, +3B8h, +3C8h,
+  +3E8h) to the float, so the native's node sum and rule follow. The kit is a player's when it
+  is the current kit of one of the match's players: the match is the engine world's
+  (0x1F1D310) game's embedded game world (+18h)'s match (+4D4Ch), live or replay alike, none
+  in the lobby.
+- Onyx: `artefact.shared_protection` (hit_by_type 0x32A020, after apply_hit_modifiers, before
+  the part's protectors): each shared passive Onyx, then one shared active when none of the
+  recipient's own Onyx is active, as its protect (0x312BF0) with that Onyx's numbers, for a
+  hit of its type on a part of its config (+0C90h).
+- Larkspur: `medical.regenerate` (0x32A53F, order 1, patch 94's booster order 2): each shared
+  Lifebone's record for the part (+354h), as its regeneration callback (0x312590) does to the
+  rate, delay and limit.
+- Larkspur's active: skill 541's edit-list entry also sets modifier 43 (`armored_trap`) bit 20,
+  patch 94's retained Medic.
 
 ## Every game the same
 
@@ -236,4 +266,7 @@ preferred-image VAs; `apply_modifier` is the kit-modifier getter 0x2D5AE0.
 
 ## Status
 
-- Spec written 2026-11-05. Nothing played or released.
+- Spec written 2026-11-05. Built and checked in Unicorn, not played, not released: the tree and
+  the data skills (#1320), Resistance (#1321), Onyx II, Larkspur II, Spring II (patch 109 and patch
+  54's Spring nodes), Resonance and Cascade (patch 109's aura, Medic's bit for Larkspur's
+  active). Keeper: its own PR.

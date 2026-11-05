@@ -47,8 +47,7 @@ whatever else too".
   - breath vibration (gear 1210/1211) and breath holding (skill 105): where they meet the card's
     sway rows is not traced;
   - the dispersion bar (`base_dispersion`): no player modifier reaches it (its readers 0x331220,
-    0x2E2173 call no `apply_modifier`); LIKELY;
-  - movement speed (the weapon's built-in line, Bear Arms): a bonus line of the card, not a stat.
+    0x2E2173 call no `apply_modifier`); LIKELY.
 
 ## The formulas
 
@@ -70,6 +69,33 @@ The weapon's own reload rolls (2040.., `parameters/reload_time` type 2) stay as 
 shows them (time x (1 - sum)); the match's cook gives `reload_time` x (1 + sum), a longer reload
 (LIKELY: the cooked config is the one 0x30B33E reads). Not changed here: the owner gave it to its
 own fix (`fix/reload-rolls`).
+
+## Movement speed under Bear Arms
+
+The owner, 2026-11-05: "when pressing alt to see final numbers, if you have bear arms, you should see
+movements speed: -5% -> 0%", "on weapons that it fixes". Held Alt, the weapon's own movement line (a
+built-in bonus line: `WeaponMovement`, prop 105 from `parameters/movement_speed_modifier`) reads
+"Movement speed: -5% -> 0%" on exactly the weapons Bear Arms cancels it on, the current value green
+(the bonus lines' green; neutral with Ctrl, as the stats' changes). Every other bonus line, and a
+bonus movement line, keeps its text.
+
+- **The game's rule** (PROVEN, read in the exe): when a weapon is put in hand,
+  `weapon_core::initialize` 0x2E2A30 (from `weapon::initialize` 0x2449E0, the vtable+14h of
+  `survarium::weapon` 0xA04174, the only class whose activation reaches it: every firearm, either
+  weapon slot) adds the weapon's movement node (+610h, value at +61Ch) to the kit's container unless
+  `apply_modifier(62, 0, 1)` (Bear Arms, skill 112; additive, so 0 + S62) is above 0 **and** the
+  value is not above 0 (0x2E2C5C..0x2E2C9C). `weapon_core::deserialize` 0x2E3490 makes the same
+  test at 0x2E37A4. So Bear Arms cancels every firearm's penalty, whichever slot; a bonus always
+  counts; a weapon without a movement line has nothing to cancel.
+- **S62 in the lobby:** the kit's own float 62 (`root.set_kit_modifiers`, the floats the Alt view
+  already has) plus the armour's modifications of 62 (none in 0.26g). The weight callback's Bear
+  Arms flag is made from the same floats (`weight_ui_026g.c`: `apply_modifier(62, 0, 1)`), so the
+  card and the speed's tooltip (`SpeedParts`) agree; no new exe call.
+- **Where:** every card with the Alt view is an `ItemInfoRenderer` (shop, inventory, kit slots, the
+  craft window's two cards); it refills its bonus lines when Alt (or Ctrl) changes.
+- **Checked:** `WeaponDetailsHarness` `bearArmsChecks` (Ruffle): a -5 % weapon with Bear Arms on and
+  off, a +3 % weapon, Ctrl, another built-in line beside it, no floats, Alt pressed and let go over
+  an open card.
 
 ## Medicines
 
