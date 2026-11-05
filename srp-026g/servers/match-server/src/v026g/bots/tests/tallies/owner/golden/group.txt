@@ -1,4 +1,4 @@
-owner-test group (A297, by the dead's team): team 0: deaths 5 answered 4 (median 5700 ms), hit 1 s 0 3 s 1, traded 1 s 0 3 s 0, mates on killer 0/1/2+ [5, 0, 0], attackers 1/2/3+ [5, 0, 0], group-fed 0 (same killer 2 s 0), in file 0; team 1: deaths 6 answered 6 (median 3600 ms), hit 1 s 1 3 s 3, traded 1 s 0 3 s 0, mates on killer 0/1/2+ [6, 0, 0], attackers 1/2/3+ [6, 0, 0], group-fed 0 (same killer 2 s 0), in file 3; the stand-in human's kills: deaths 0 answered 0 (median - ms), hit 1 s 0 3 s 0, traded 1 s 0 3 s 0, mates on killer 0/1/2+ [0, 0, 0], attackers 1/2/3+ [0, 0, 0], group-fed 0 (same killer 2 s 0), in file 0; his deaths: deaths 0 answered 0 (median - ms), hit 1 s 0 3 s 0, traded 1 s 0 3 s 0, mates on killer 0/1/2+ [0, 0, 0], attackers 1/2/3+ [0, 0, 0], group-fed 0 (same killer 2 s 0), in file 0; switch [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]; by team: cover bot-ticks [0, 0], bot-ticks on the human [0, 0], the human killed by play {} / {}
+owner-test group (A297, by the dead's team): team 0: deaths 5 answered 4 (median 5700 ms), hit 1 s 0 3 s 1, traded 1 s 0 3 s 0, mates on killer 0/1/2+ [5, 0, 0], attackers 1/2/3+ [5, 0, 0], group-fed 0 (same killer 2 s 0), in file 0; team 1: deaths 6 answered 6 (median 3600 ms), hit 1 s 1 3 s 3, traded 1 s 0 3 s 0, mates on killer 0/1/2+ [6, 0, 0], attackers 1/2/3+ [6, 0, 0], group-fed 0 (same killer 2 s 0), in file 3; the stand-in human's kills: deaths 0 answered 0 (median - ms), hit 1 s 0 3 s 0, traded 1 s 0 3 s 0, mates on killer 0/1/2+ [0, 0, 0], attackers 1/2/3+ [0, 0, 0], group-fed 0 (same killer 2 s 0), in file 0; his deaths: deaths 0 answered 0 (median - ms), hit 1 s 0 3 s 0, traded 1 s 0 3 s 0, mates on killer 0/1/2+ [0, 0, 0], attackers 1/2/3+ [0, 0, 0], group-fed 0 (same killer 2 s 0), in file 0; switch [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]; by team: cover bot-ticks [0, 0], bot-ticks on the human [0, 0], the human killed by play {} / {}
 {
   "group": {
     "by_dead_team": [
@@ -109,6 +109,20 @@ owner-test group (A297, by the dead's team): team 0: deaths 5 answered 4 (median
       "traded_within_1s": 0,
       "traded_within_3s": 0
     },
+    "human_fights": [
+      {
+        "cover_within_2s": 0,
+        "fights": 0,
+        "human_died": 0,
+        "two_plus_within_2s": 0
+      },
+      {
+        "cover_within_2s": 0,
+        "fights": 0,
+        "human_died": 0,
+        "two_plus_within_2s": 0
+      }
+    ],
     "human_killed_by": [
       {},
       {}
@@ -162,7 +176,8 @@ owner-test group (A297, by the dead's team): team 0: deaths 5 answered 4 (median
       "NoSightSpot": 0,
       "NoWalkableSpot": 0,
       "OnlyDeadLanes": 0,
-      "OnlyInFile": 0
+      "OnlyInFile": 0,
+      "SquadReturn": 0
     }
   }
 }
