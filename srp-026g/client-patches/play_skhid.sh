@@ -204,7 +204,7 @@ Details: game/binaries/x86/updater_skhid.log"
 # beside the exe, or in Windows' temporary folder when that is not writable.
 # The launcher has closed by now; the game may still run, so wait for it.
 print_crashes() {
-    local started=$1 temp
+    local started=$1 temp file
     local -a found
     "$WINESERVER" -w || true
     temp="$WINEPREFIX/drive_c/users/$(id -un)/AppData/Local/Temp"
@@ -212,7 +212,14 @@ print_crashes() {
         ! -name '*.part' -newermt "@$started" 2>/dev/null | sort)
     if ((${#found[@]})); then
         echo 'Crash reports and full-memory dumps of this run:'
-        printf '    %s\n' "${found[@]}"
+        for file in "${found[@]}"; do
+            case $file in
+                *.zip) echo "    $file  (send this to #bugreports)" ;;
+                *.dmp) echo "    $file  (the whole memory: keep it, do not post it; give its path when asked)" ;;
+                *.txt) echo "    $file  (the crash report: the match and its last events)" ;;
+                *) echo "    $file" ;;
+            esac
+        done
     else
         echo 'No crash in this run.'
     fi
