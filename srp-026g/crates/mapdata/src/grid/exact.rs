@@ -296,7 +296,7 @@ impl WalkGrid {
     /// Whether a wall of `walls` stops a capsule of `height` metres standing on the floor centre (`x`, `z`) with its feet at `feet`:
     /// one in the cylinder's band within [`Self::capsule_reach`] of the axis, or one in a slab of the round top within the slab's
     /// reach. Walls under a step over the feet are stepped over.
-    fn capsule_meets(&self, walls: &Walls, x: f32, z: f32, feet: f32, height: f32) -> bool {
+    pub(super) fn capsule_meets(&self, walls: &Walls, x: f32, z: f32, feet: f32, height: f32) -> bool {
         let slab = self.body.radius / CAP_SLABS as f32;
         let cap_from = feet + height - self.body.radius;
         let step = feet + self.body.step;

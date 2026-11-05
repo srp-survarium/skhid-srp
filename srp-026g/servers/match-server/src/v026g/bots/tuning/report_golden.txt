@@ -23,7 +23,7 @@ switches OFF avoid: escape
 switches OFF cheats: batteries
 switches OFF commit: crossfire_arrival_tau_s
 switches OFF feel: fight_lift press_in_reach sprint_turns straight_jumps
-switches OFF grid: capsule_steps keep_last_resorts
+switches OFF grid: capsule_steps keep_last_resorts narrow_doors
 switches OFF mods: behind_open raid_regroup risk_alive.invert team_plan
 switches OFF pace: ring_death_spots ring_radar
 switches OFF smoke: objective
@@ -34,7 +34,7 @@ switches OFF think: door_centres
 switches OFF threat: answer_sniper breach job_out_of_all_lines job_spot_levels pair_target pin_from_cover replan sniper_lanes trade_cover walk_watch
 switches OFF traps: after_press at_cleared at_defeated forward fresh_ring press_moving
 switches OFF unstick: fix_gap_ms
-switch values aim: combat.fire.burst_pause={"floor_ms":100,"rifle":[{"from_m":20.0,"q":[100,200,462]},{"from_m":40.0,"q"... combat.hit_shooter=nearest combat.settle=wander_and_policy combat.settle_guns=scoped combat.worth.hurt_from=seen combat.zoom_error=all friends.spread_source=data skill_curve=geometric
+switch values aim: combat.fire.burst_pause={"floor_ms":100,"rifle":[{"from_m":20.0,"q":[100,200,462]},{"from_m":40.0,"q"... combat.gate_from_client={"jump_ms":1200,"sprint_out_ms":300} combat.hit_shooter=nearest combat.settle=wander_and_policy combat.settle_guns=scoped combat.worth.hurt_from=seen combat.zoom_error=all friends.spread_source=data skill_curve=geometric
 switch values calibration: source=PR #1089 (A243's skill-1 sweep and per-class ladders, weighed to the live shots, 2026-11-02; tiers pooled, the sweep made non-increasing) and A267(a) (fx-fights, 2026-11-02: per-type skill-1 points down to factor 0.40 and lines at skill 0 / 0.5 / 1, the same settings and estimator; MGs and pistols on forced kits)
 switch values cover: hold_exposure={"anchor_deg":45.0,"far_m":60.0,"near_m":20.0,"weight":2.0}
 switch values feel: drop_truth=links past_drop=landed

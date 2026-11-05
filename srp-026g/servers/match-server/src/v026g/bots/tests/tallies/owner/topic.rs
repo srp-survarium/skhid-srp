@@ -121,6 +121,7 @@ pub(super) fn topics(n: usize) -> Vec<Box<dyn Topic>> {
         Box::new(RangeLegCounts::new(n)),
         Box::new(SprintTables::default()),
         Box::new(LookCounts::new(n)),
+        Box::new(FirstShotCounts::new(n)),
         Box::new(CollectAtCounts::new(n)),
         Box::new(UnderFireCounts::new(n)),
         Box::new(StuckWatchCounts::new(n)),
