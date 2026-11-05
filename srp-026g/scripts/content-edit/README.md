@@ -472,3 +472,16 @@ players' files (the stock db and patches 12 to 47 of release/patches.tsv; revisi
 cut to this one entry. `content_edit.py --check` on them: 1 file edited, 0 unexpected differences.
 The other collimators the plan found off stay as they are, by the owner's choice (the note lists
 them). View only: no simulation change.
+
+## physical-skills-1.json (2026-11-06)
+
+| change | why |
+|---|---|
+| `gameplay/skills/skills_tree.options`: the entries of Sledgehammer (206, `meele_hit_ultimate_modifier`, 3 ranks) and Jump with a knife (210, `meele_hit_range_modifier`, 0 ranks) taken out (`remove_entry` by `id`); their localization strings stay | the owner (2026-11-06): both ask for `branch_points` 50, past the 25 the skills window unlocks, so nobody can learn them, and their two modifiers are not among the exe's 68. The original developers took them out by 0.46c2 (both in 0.31a2's tree, neither in 0.46c2's; 0.69 keeps only their strings) |
+| Packrat (202, `overweight_penalty`): `ui/position` [3, 3] -> [4, 3] (`set_entry` by `id`; the position is [column, row]) | with 206 ([4, 2]) and 210 ([4, 3]) gone, column 4 of the physical tree would be empty; Packrat takes Jump with a knife's place in its own row, its threshold (10), ranks and modifiers as before. Athlete (209) is unchanged |
+
+Applied to the live tree of patch 45 (`content_edit.py`): 1 file edited, `/skills_tree` 36 -> 34,
+`/skills_tree[14]/ui/position[0]` 3 -> 4 (202), 0 unexpected differences. No account can hold either skill
+(the server's `SkillsTree::validate` refused every point in them as `Locked`; now as `Unknown`), so
+none is repaired; the walk that unlocks a branch's rows skipped them, so no other skill's threshold
+moves. Presentation only: no simulation change.
