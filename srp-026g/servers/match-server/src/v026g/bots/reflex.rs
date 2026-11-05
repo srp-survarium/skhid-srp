@@ -3481,6 +3481,9 @@ pub struct Reflex {
     cloud_hold: Option<CloudHolding>,
     /// [A208] The crossing of the last hold that ended and when: a mate's cloud holds it there no second time.
     hold_ended: Option<(Vec3, u32)>,
+    /// [A302 camper calibration, bench only] Since when the stand-in camper holds his scope (`SRP_BENCH_CAMPER_SCOPED`).
+    #[cfg(test)]
+    bench_scoped_since: Option<u32>,
     /// [A208, the bench's] The last thrown smoke's crossing.
     #[cfg(test)]
     crossing_watch: Option<CrossingWatch>,
@@ -3957,6 +3960,30 @@ impl Reflex {
     }
 
     /// The weapon in hand (weapon 1 before the life's first use).
+    /// [A302 camper calibration, bench only] The hide a hit began is dropped (`SRP_BENCH_CAMPER_HOLD_FIRE`).
+    #[cfg(test)]
+    pub(crate) fn bench_open_cover(&mut self) {
+        if matches!(self.cover, Cover::Hiding { .. }) {
+            self.cover = Cover::Open;
+        }
+    }
+
+    /// [A302 camper calibration, bench only] Since when the stand-in camper holds his scope, or none
+    /// (`SRP_BENCH_CAMPER_SCOPED`): it counts toward his aim-in ([`Self::aim_start`]).
+    #[cfg(test)]
+    pub(crate) fn bench_scoped(&mut self, since: Option<u32>) {
+        self.bench_scoped_since = since;
+    }
+
+    /// The aim-in's start for an aim pressed at `since`: on the bench, a held scope's start when earlier.
+    fn aim_start(&self, since: u32) -> u32 {
+        #[cfg(test)]
+        if let Some(scoped) = self.bench_scoped_since {
+            return since.min(scoped);
+        }
+        since
+    }
+
     pub fn held_gun(&self) -> &'static Gun {
         match &self.hands {
             Some(hands) => hands.held().gun,
@@ -7520,7 +7547,7 @@ impl Reflex {
         // down over the sights' aim time.
         let zoom = c.zoom_error.factor(
             gun.optic,
-            aim_since.map_or(0.0, |since| now.saturating_sub(since) as f32 / gun.aim_ms.max(1) as f32),
+            aim_since.map_or(0.0, |since| now.saturating_sub(self.aim_start(since)) as f32 / gun.aim_ms.max(1) as f32),
         );
         let error = (
             (self.error.0 * fade + self.wander.0 + floor * (rng.unit() - 0.5)) * zoom,
@@ -7595,7 +7622,7 @@ impl Reflex {
         self.aim_since = ads.then(|| aim_since.unwrap_or(now));
         let aimed_in = self
             .aim_since
-            .is_some_and(|since| now >= since + gun.aim_ms + c.aim_in_margin_ms);
+            .is_some_and(|since| now >= self.aim_start(since) + gun.aim_ms + c.aim_in_margin_ms);
         let ceiling_m = if bolt {
             c.fire.bolt_range_m.max(aim.range_m)
         } else {
@@ -7876,7 +7903,7 @@ impl Reflex {
         }
         // The view is on the place and the sights as they were for fire already going.
         let off = off_by(me, at, (0.0, 0.0));
-        let aimed_in = self.aim_since.is_some_and(|since| now >= since + gun.aim_ms + c.aim_in_margin_ms);
+        let aimed_in = self.aim_since.is_some_and(|since| now >= self.aim_start(since) + gun.aim_ms + c.aim_in_margin_ms);
         if off > aim.fire_within_deg.to_radians() || !(aimed_in || hip_cone_fits(me, gun, self.strafe_fire, distance, c)) {
             return None;
         }
