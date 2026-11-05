@@ -268,6 +268,8 @@ st_artefact_booster_name	Artefaktimestari
 st_artefact_no_free_slots	Artefaktille ei ole vapaata paikkaa!
 st_artefact_search_failed	Artefaktia ei löytynyt
 st_artefact_search_success	Sait artefaktin! 
+st_artefact_sponge_description	Pitää myrkkytasosi täynnä niin kauan kuin kannat sitä. Heitä se: se puhkeaa osuessaan (tai 3 s kuluttua) myrkkypilveksi 15 s ajaksi.
+st_artefact_sponge_name	Sieni
 st_artefact_take_teammate	Ota artefakti ({USE})
 st_ash12_description	Kuvausta ei vielä ole.
 st_ash12_name	Ash-12
@@ -2166,6 +2168,8 @@ st_spas12_name	Franchi SPAS-12
 st_special_offer	Erikoistarjous
 st_speed_booster_description	Energiajuoma, jossa on kofeiinia ja tauriinia. Virkistää ja stimuloi keskushermostoa.
 st_speed_booster_name	Tornado-energiajuoma
+st_sponge_activation_hint	Heitto: puhkeaa osuessaan (tai 3 s kuluttua), myrkkypilvi 15 s.
+st_sponge_pickup_hint	Sieni-artefakti. Imee myrkkykaasuja ja radioaktiivista pölyä. Aktivoitaessa se räjähtää myrkyllisten itiöiden pilveksi.
 st_spot_action	Vihollinen havaittu
 st_spring_activation_hint	Jousi aktivoitu! Liike- ja tähtäysnopeus +10%. Energia palautuu nopeammin! Luodit eivät hidasta sinua!
 st_spring_pickup_hint	Jousi-artefakti. Lisää liike- ja tähtäysnopeutta 5%.

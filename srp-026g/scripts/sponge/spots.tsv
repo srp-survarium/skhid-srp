@@ -1,0 +1,21 @@
+# Where the Sponge (758) spawns: the owner's picks, 2026-11-05. One row a container of an anomaly core of a map (the project folder); `from` the core's own kinds, `pos` where the container is (x y z, as the Maps tab draws it). The file is replaced whole by the spawn editor's export (spots.py import); srp-026g/scripts/sponge/spots.py makes the edit list artefact-spots-<n>.json of it.
+map	core	index	container	kind	from	pos
+level_01	logic/swamp_anomaly/swamp_anomaly_lifebone	0	logic/swamp_anomaly/artefacts/lifebone/artefact_container(1)	758	54	-3.08 -20.8 13.32
+level_01	logic/swamp_anomaly/swamp_anomaly_lifebone	5	logic/swamp_anomaly/artefacts/lifebone/artefact_container(11)	758	54	-0.89 -18.98 13.29
+level_01	logic/swamp_anomaly/swamp_anomaly_lifebone	6	logic/swamp_anomaly/artefacts/lifebone/artefact_container(2)	758	54	1.71 -20.07 13.31
+level_04	logic/anomaly/toxic_moss_anomaly_onyx	5	logic/anomaly/artefacts/toxic_moss_art_cont_12	758	76	18.92 3.41 2.86
+level_04	logic/anomaly/toxic_moss_anomaly_onyx	6	logic/anomaly/artefacts/toxic_moss_art_cont_14	758	76	23.03 -0.5 2
+level_04	logic/anomaly/toxic_moss_anomaly_onyx	7	logic/anomaly/artefacts/toxic_moss_art_cont_16	758	76	32.18 -1.14 2.8
+level_04	logic/anomaly/toxic_moss_anomaly_onyx	8	logic/anomaly/artefacts/toxic_moss_art_cont_18	758	76	29.38 1.18 2.37
+level_04	logic/anomaly/toxic_moss_anomaly_onyx	9	logic/anomaly/artefacts/toxic_moss_art_cont_20	758	76	7.87 2.19 2.02
+level_04	logic/anomaly/toxic_moss_anomaly_onyx	11	logic/anomaly/artefacts/toxic_moss_art_cont_24	758	76	0.79 -2.17 2.45
+level_05	logic/anomaly/generic_anomaly_onyx	3	logic/anomaly/artefacts/artefact_container(8)	758	76	1.61 -18.1 6.51
+v011e_level_04	logic/anomaly/toxic_moss_anomaly_onyx	5	logic/anomaly/artefacts/toxic_moss_art_cont_12	758	76	18.92 3.41 2.86
+v011e_level_04	logic/anomaly/toxic_moss_anomaly_onyx	6	logic/anomaly/artefacts/toxic_moss_art_cont_14	758	76	23.03 -0.5 2
+v011e_level_04	logic/anomaly/toxic_moss_anomaly_onyx	7	logic/anomaly/artefacts/toxic_moss_art_cont_16	758	76	32.18 -1.14 2.8
+v011e_level_04	logic/anomaly/toxic_moss_anomaly_onyx	8	logic/anomaly/artefacts/toxic_moss_art_cont_18	758	76	29.38 1.18 2.37
+v011e_level_04	logic/anomaly/toxic_moss_anomaly_onyx	9	logic/anomaly/artefacts/toxic_moss_art_cont_20	758	76	7.87 2.19 2.02
+v011e_level_04	logic/anomaly/toxic_moss_anomaly_onyx	11	logic/anomaly/artefacts/toxic_moss_art_cont_24	758	76	0.79 -2.17 2.45
+v069d_level_01	logic/swamp_anomaly/swamp_anomaly_lifebone	0	logic/swamp_anomaly/artefacts/lifebone/artefact_container(1)	758	54	-3.08 -20.8 13.32
+v069d_level_01	logic/swamp_anomaly/swamp_anomaly_lifebone	5	logic/swamp_anomaly/artefacts/lifebone/artefact_container(11)	758	54	-0.89 -18.98 13.29
+v069d_level_01	logic/swamp_anomaly/swamp_anomaly_lifebone	6	logic/swamp_anomaly/artefacts/lifebone/artefact_container(2)	758	54	1.71 -20.07 13.31

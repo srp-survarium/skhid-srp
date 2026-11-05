@@ -268,6 +268,8 @@ st_artefact_booster_name	Artifact-master
 st_artefact_no_free_slots	No empty slots to pick up the artifact!
 st_artefact_search_failed	Artifact not found
 st_artefact_search_success	You got an artifact! 
+st_artefact_sponge_description	Keeps your toxin level full while you carry it. Throw it: it bursts on impact (or after 3 s) into a toxic cloud for 15 s.
+st_artefact_sponge_name	Sponge
 st_artefact_take_teammate	Take artifact ({USE})
 st_ash12_description	ОПИСАНИЕ НЕ ГОТОВО!!!
 st_ash12_name	Ash-12
@@ -2166,6 +2168,8 @@ st_spas12_name	Franchi SPAS-12
 st_special_offer	Special offer
 st_speed_booster_description	Energy drink with caffeine and taurine. Invigorates and stimulates the central nervous system.
 st_speed_booster_name	Tornado Energy Drink
+st_sponge_activation_hint	Throw: bursts on impact (or after 3 s), toxic cloud for 15 s.
+st_sponge_pickup_hint	Sponge artifact. Absorbs toxic gases and radioactive dust. When activated, explodes a cloud of poisonous spores.
 st_spot_action	Enemy spotted
 st_spring_activation_hint	Spring activated! Speed of movement and aiming +10%. Energy regeneration increased! Bullets do not slow you!
 st_spring_pickup_hint	Spring artifact. Increases movement speed and aiming speed by 5%.

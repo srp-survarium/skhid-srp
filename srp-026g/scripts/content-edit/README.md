@@ -449,3 +449,15 @@ before they can ship on top of this list.
 | change | why |
 |---|---|
 | The six configs of pack weapons-069 (the 0.69d0 guns, `../../docs/notes/weapons-069.md`): `parameters/camo_available` true, a `data` table with `camo_scale` 4.0, `parameters/decal_available` true and an empty `data/decals` | they wear a camouflage and a decal as the live weapons do (weapon-camo-1 and weapon-decals-1 for them); their `_aoac` masks are pack weapons-069-camo (`../weapons-069/camo.tsv`), so no shared list or pack changes |
+
+## artefact-spots-1.json (2026-11-05)
+
+| change | why |
+|---|---|
+| `mode/artefact_spots` (a new key: an indexed table, `add_value` with a list) in the mode configs of the 5 maps with spots (42 files: `gameplay/game_modes/<map>_<weather>_<mode>.options`, every `maps_dict` entry whose `mode/match_making_params/map_name` is in that map's folder, the Research maps' too): one row a spot, `{core, index, container, kind}` (the anomaly core's `full_name`, the container's place in its `artefact_containers`, its name, 758); 19 spots, the owner's picks of 2026-11-05 | the owner chose where the Sponge spawns in the spawn editor; his export replaces `../sponge/spots.tsv` whole. Exe patch 59 reads the match's map's table (the items dictionary keeps every map's mode config loaded): a core with spots gets a unit of the Sponge for each, a picked container spawns only the Sponge, the core's other containers its own kinds, an anomaly with no spot is 0.26g's (`../../docs/notes/sponge.md` "Spawns") |
+
+Made by `../sponge/spots.py edit-list` from `../sponge/spots.tsv` (the editor's files, `spots.py
+import`), which checks every row against every live project of its map (the core there once, spawning
+artefacts, that container at that index, its own kinds as the row says) and stops on any other
+answer; `spots.py check` says whether this file is still what they give. It changes what a match
+computes (where the Sponge spawns): it rides with exe patch 59 and its `simulation_changes.tsv` row.

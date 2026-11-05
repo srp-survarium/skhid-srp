@@ -268,6 +268,8 @@ st_artefact_booster_name	Mistr artefaktů
 st_artefact_no_free_slots	Na artefakt není volný slot!
 st_artefact_search_failed	Artefakt nenalezen
 st_artefact_search_success	Získal jsi artefakt! 
+st_artefact_sponge_description	Dokud ho nosíte, udržuje vaši hladinu toxinů plnou. Hoďte ho: při nárazu (nebo po 3 s) praskne v toxický oblak na 15 s.
+st_artefact_sponge_name	Houba
 st_artefact_take_teammate	Vzít artefakt ({USE})
 st_ash12_description	Popis zatím není k dispozici.
 st_ash12_name	Ash-12
@@ -2166,6 +2168,8 @@ st_spas12_name	Franchi SPAS-12
 st_special_offer	Speciální nabídka
 st_speed_booster_description	Energetický nápoj s kofeinem a taurinem. Povzbuzuje a stimuluje centrální nervový systém.
 st_speed_booster_name	Energetický nápoj Tornado
+st_sponge_activation_hint	Hod: praskne při nárazu (nebo po 3 s), toxický oblak na 15 s.
+st_sponge_pickup_hint	Artefakt Houba. Pohlcuje toxické plyny a radioaktivní prach. Při aktivaci vybuchne v oblak jedovatých spor.
 st_spot_action	Označit nepřítele
 st_spring_activation_hint	Pružina aktivována! Rychlost pohybu a míření +10%. Rychlejší obnova výdrže! Střely tě nezpomalí!
 st_spring_pickup_hint	Artefakt Pružina. Zvyšuje rychlost pohybu a míření o 5%.
