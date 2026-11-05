@@ -1,15 +1,15 @@
 #!/usr/bin/env python3
-"""Patch 108 (hand_kill): a gun-stock hit to a hand kills
+"""Patch 108 (hand_kill): a gun-stock hit kills, wherever it lands
 (docs/notes/hand-kill.md).
 
     python check_hand_kill_026g.py <original survarium.exe>
 
 The installed chain at hit_body_part's `medical.hit` (0x2E50C7: patch 108,
 then patch 94) run in the patched exe to the end of its replayed span
-(0x2E50CC), on made-up objects: a blunt hit on each of the four hand zones
-by another player deals 1000 (the frame's local, [esp+8]); nothing for any
-other zone, any other hit type, no attacker (0FFh) or the victim's own
-place; patch 94's rule left out (the hit has no owner, +20h 0); the
+(0x2E50CC), on made-up objects: a blunt hit on any zone (hit_params' every
+zone, and names it has not) by another player deals 1000 (the frame's local,
+[esp+8]); nothing for any other hit type, no attacker (0FFh) or the
+victim's own place (a fall's); patch 94's rule left out (the hit has no owner, +20h 0); the
 replayed `lea ecx,[esp+10h] / push ecx`, every other register and the
 objects' bytes unchanged.
 """
@@ -26,9 +26,9 @@ SITE, AFTER = 0x2E50C7, 0x2E50CC          # lea ecx,[esp+10h] / push ecx (5 byte
 THREAD_SLOT = 0x870118
 LETHAL = 1000.0
 BLUNT = 1
-HAND_ZONES = (b"right_arm", b"left_arm", b"right_forearm", b"left_forearm")
-OTHER_ZONES = (b"back", b"front", b"brain", b"face", b"right_hip", b"left_foot", b"pain", b"right_hand",
-               b"right_arms", b"right_ar")
+ZONES = (b"back", b"front", b"brain", b"face", b"right_hip", b"left_hip", b"right_foot", b"left_foot",
+         b"right_arm", b"left_arm", b"right_forearm", b"left_forearm", b"pain", b"right_hand", b"",
+         b"right_arms")
 
 DATA = 0x30000000
 VICTIM, MODEL, HIT, ZONE, THREAD = (DATA + 0x1000 * i for i in range(5))
@@ -107,16 +107,11 @@ def main():
 
     print("the chain (patched exe, medical.hit 0x2E50C7)")
     h = Hook(bytes(built))
-    for zone in HAND_ZONES:
+    for zone in ZONES:
         for attacker in (0, 1, 19):
             h.setup(zone=zone, attacker=attacker)
             assert h.hit() == LETHAL, (zone, attacker)
-    print("  ok a blunt hit by another player on right_arm, left_arm, right_forearm, left_forearm: 1000")
-
-    for zone in OTHER_ZONES:
-        h.setup(zone=zone)
-        assert h.hit() == AMOUNT, zone
-    print("  ok any other zone (the body's, the head's, a leg's, a pool's, near names): the hit's own")
+    print("  ok a blunt hit by another player on any zone (torso, head, hips, feet, arms, others): 1000")
 
     for kind in [0] + list(range(2, 9)):
         h.setup(kind=kind)
@@ -126,7 +121,7 @@ def main():
     for attacker in (0xFF, VICTIM_PLACE):
         h.setup(attacker=attacker)
         assert h.hit() == AMOUNT, attacker
-    print("  ok no attacker (a fall), the victim's own place: the hit's own")
+    print("  ok no attacker, the victim's own place (a fall): the hit's own")
 
 
 if __name__ == "__main__":

@@ -1,4 +1,4 @@
-# Patch 108: a gun-stock hit to a hand kills (docs/notes/hand-kill.md). The
+# Patch 108: a gun-stock hit kills, wherever it lands (docs/notes/hand-kill.md). The
 # site (hit_body_part once invulnerability is applied, before armour) is
 # sites_026g.tsv's, shared with patch 94; the logic is hand_kill.rs.
 name = "hand_kill"

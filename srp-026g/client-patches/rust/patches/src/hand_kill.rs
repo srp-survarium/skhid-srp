@@ -1,14 +1,15 @@
-//! Patch 108: a gun-stock hit to a hand kills (the owner, 2026-11-05;
-//! docs/notes/hand-kill.md).
+//! Patch 108: a gun-stock hit kills, wherever it lands (the owner,
+//! 2026-11-05; docs/notes/hand-kill.md).
 //!
 //! - A melee hit is blunt (a weapon's melee/data) and has an attacker other
-//!   than the victim (a fall is blunt too, and has none).
-//! - A hand is a zone whose blunt hits go to a hand's pool (hit_params:
-//!   the arms and the forearms, into right_hand or left_hand, and 5 % into
-//!   pain); stock, such a hit only breaks the hand at 0.
+//!   than the victim (a fall is blunt too, and its attacker is the victim).
+//! - Every zone sends a blunt hit on to pain (hit_params: the arms and the
+//!   hips 5 %, the feet 80 %, the torso and the head all of it, with body or
+//!   head); stock, a hit to an arm, a hip or a shin only takes a little pain.
 //! - Lethal: the hit deals [`LETHAL`] from here, through the zone's armour
-//!   and the victim's drugs as any hit; its 5 % reaches pain, whose empty
-//!   pool is the game's own death (affect 0), as a limb shot kills.
+//!   and the victim's drugs and artefacts as any hit; its share reaches pain,
+//!   whose empty pool is the game's own death (affect 0), as a limb shot
+//!   kills.
 
 #![forbid(unsafe_code)]
 
@@ -16,12 +17,10 @@ use crate::vostok::drug::HitType;
 use crate::vostok::melee::DealingHit;
 use crate::vostok::{Context, Flow, NoExit};
 
-/// The zones of a hand (hit_params' arm and forearm zones; the hand pools
-/// themselves take no hit, `can_be_assigned` 0).
-const HAND_ZONES: [&[u8]; 4] = [b"right_arm", b"left_arm", b"right_forearm", b"left_forearm"];
-
 /// Damage past every pool: each holds 1 at most, and pain takes 5 % of a
-/// blunt arm hit, so 1000 empties it through any armour short of full.
+/// blunt hit at the least (an arm, a hip), so 1000 empties it through any
+/// armour short of full (0.26g's has none for blunt) and an active Onyx's
+/// 75 %.
 pub const LETHAL: f32 = 1000.0;
 
 /// hit_body_part once invulnerability is applied (`medical.hit`), before
@@ -30,7 +29,6 @@ pub fn on_hit(ctx: &mut Context<'_>) -> Flow<NoExit> {
     if let Some(mut hit) = DealingHit::at(ctx)
         && hit.kind() == Some(HitType::Blunt)
         && hit.by_another()
-        && hit.zone().is_some_and(|zone| HAND_ZONES.contains(&zone.to_bytes()))
     {
         hit.set_damage(LETHAL);
     }
