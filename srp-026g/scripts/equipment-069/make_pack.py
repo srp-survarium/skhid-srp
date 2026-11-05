@@ -2,52 +2,118 @@
 """Build equipment-069 from the pinned inputs (prepare_inputs.py) and the reviewed items.tsv.
 
 The models, materials and textures are resource-porter's (`vostok-port build-armour-069d`,
-pinned as the `bundle` group); this script writes the items around them: a config from a
-native back piece of the same kind (`template_id`: parameters, defect and modification masks,
-repair, card layout, sounds), the dictionary rows, the catalog's texts and the 0.69d icons in
-free equipment-atlas cells. The output is a resource-porter content pack, not a hand-assembled
-patch; release/build-content composes it.
+pinned as the `bundle` group); this script writes the items around them: a config (`template`:
+a native back piece of the same kind, its parameters, defect and modification masks, repair,
+card layout and sounds; or an equipment-046 piece copied whole, its models the bundle's), the
+dictionary rows, the catalog's texts and the 0.69d icons in free equipment-atlas cells. The
+output is a resource-porter content pack, not a hand-assembled patch; release/build-content
+composes it.
 """
 import argparse
 import copy
 import json
+import math
 from pathlib import Path
 
-from common import (DICTIONARY, DONOR_ICONS, MODIFICATIONS, MOVIE, PACK, Inputs, bcw, equipment046, sha, specs,
-                    text_keys)
+from common import (DICTIONARY, DONOR_ICONS, E046_MANIFEST, MODIFICATIONS, MOVIE, PACK, Inputs, bcw, e046_entries,
+                    equipment046, model_parts, sha, specs, template, text_keys)
 
-VERSION = '1'
+VERSION = '2'
 DATA_TYPE = 4  # the native equipment data type
 
 
+def model_surfaces(inputs, model):
+    """A bundle model's LOD0 surfaces."""
+    return inputs.config('bundle', f'models/{model}.skinned_model/settings')['lod_hierrarchy']['LOD0']['surfaces']
+
+
 def model_surface(inputs, model):
-    """The one LOD0 surface of a bundle model (a back piece's part_name)."""
-    settings = inputs.config('bundle', f'models/{model}.skinned_model/settings')
-    surfaces = settings['lod_hierrarchy']['LOD0']['surfaces']
+    """The one LOD0 surface of a bundle model (a back piece's or a mask's part_name)."""
+    surfaces = model_surfaces(inputs, model)
     if len(surfaces) != 1:
-        raise ValueError(f'{model}: {len(surfaces)} LOD0 surfaces; a back piece draws one part')
+        raise ValueError(f'{model}: {len(surfaces)} LOD0 surfaces; a back piece or a mask draws one part')
     return surfaces[0]
 
 
-def config_path(spec, template_row):
-    folder = template_row['cfg_name'].rsplit('/', 1)[0]
-    return f"{folder}/eq069_{spec['id_069']}.options"
+def config_path(spec, cfg_name):
+    """Beside the config the piece starts from."""
+    return f"{cfg_name.rsplit('/', 1)[0]}/eq069_{spec['id_069']}.options"
+
+
+def built_ins(spec):
+    return [int(v) for v in spec['default_modifications'].split(',') if v]
+
+
+def protection(spec):
+    """items.tsv's armour and isolation (percent) as the config's fractions."""
+    return float(spec['armour']) / 100, float(spec['isolation']) / 100
 
 
 def convert(template, spec, part):
     """The template's config with this piece's model, level, faction, weight, drop weight,
-    built-in bonuses, card, icon and texts."""
+    built-in bonuses, protection (a mask's on every hit type of the template's regions; a back
+    piece has none), card, icon and texts."""
+    e046 = equipment046()
     result = copy.deepcopy(template)
     params = result['parameters']
-    if params['type'] != 'arm_back':
-        raise ValueError(f"{spec['id']}: template {spec['template_id']} is no back piece")
+    armour, isolation = protection(spec)
+    if params['type'] == 'arm_back':
+        if (armour, isolation) != (0, 0) or 'hit_params' in result:
+            raise ValueError(f"{spec['id']}: a back piece has no protection")
+    elif params['type'] == 'arm_mask':
+        params.update(armor=armour, ano_armor=isolation)
+        result['hit_params'] = {
+            region: {'hit_types': {kind: {'armor': armour if kind in e046.PHYSICAL else isolation}
+                                   for kind in e046.HIT_TYPES}}
+            for region in template['hit_params']}
+    else:
+        raise ValueError(f"{spec['id']}: template {spec['template']} is neither a back piece nor a mask")
     params.update(faction=int(spec['faction']), item_level=int(spec['level']),
                   match_making_level=int(spec['level']), base_rarity_level=0,
                   weight=float(spec['weight']), drop_weight=int(spec['drop_weight']))
-    result['default_modifications'] = [int(v) for v in spec['default_modifications'].split(',') if v]
+    result['default_modifications'] = built_ins(spec)
     result['data'] = {'part_name': part, 'base_model': spec['model'], 'type': DATA_TYPE}
-    # A back piece's card shows its weight.
-    result['ui_desc']['props_list'] = [{'prop_id': 15, 'prop_value': f"{params['weight']:.1f}"}]
+    result['ui_desc']['props_list'] = e046.card(params, params['type'])
+    result['ui_desc']['icon'] = [int(spec['icon_row']), int(spec['icon_col'])]
+    result['ui_desc']['text_descriptions'] = text_keys(spec)
+    return result
+
+
+def bundle_fits(inputs):
+    """The porter's fit record, by model."""
+    return {piece['model']: piece for piece in json.loads(inputs.read('bundle', '.records/fit-report.json'))}
+
+
+def copy_piece(source, spec, price, fits, inputs):
+    """An equipment-046 piece's config whole, drawn with the bundle's recolours of its models (the
+    porter's `same_as`), with the row's built-in bonuses (the Snow-20's winter isolation in
+    place of the Sniper's own). The row states the copied piece's other numbers; any other is
+    refused."""
+    result = copy.deepcopy(source)
+    params = result['parameters']
+    armour, isolation = protection(spec)
+    stated = {'faction': int(spec['faction']), 'item_level': int(spec['level']),
+              'drop_weight': int(spec['drop_weight']), 'weight': float(spec['weight']),
+              'armor': armour, 'ano_armor': isolation, 'price': int(spec['price'])}
+    # Floats are stored as f32.
+    copied = {key: stated[key] if isinstance(stated[key], float) and math.isclose(value, stated[key], abs_tol=1e-5)
+              else value
+              for key, value in (('faction', params['faction']), ('item_level', params['item_level']),
+                                 ('drop_weight', params['drop_weight']), ('weight', params['weight']),
+                                 ('armor', params['armor']), ('ano_armor', params['ano_armor']), ('price', price))}
+    if stated != copied:
+        raise ValueError(f"{spec['id']}: items.tsv {stated} is not the copied piece's {copied}")
+    recolours = {fit['fit']['model']: model for model, fit in fits.items() if fit['fit']['kind'] == 'same_as'}
+    parts = model_parts(result)
+    for part in parts:
+        if part['base_model'] not in recolours:
+            raise ValueError(f"{spec['id']}: the bundle does not recolour {part['base_model']}")
+        part['base_model'] = recolours[part['base_model']]
+        if part['part_name'] not in model_surfaces(inputs, part['base_model']):
+            raise ValueError(f"{spec['id']}: {part['base_model']} has no surface {part['part_name']}")
+    if spec['model'] not in {part['base_model'] for part in parts}:
+        raise ValueError(f"{spec['id']}: the config does not draw {spec['model']}")
+    result['default_modifications'] = built_ins(spec)
     result['ui_desc']['icon'] = [int(spec['icon_row']), int(spec['icon_col'])]
     result['ui_desc']['text_descriptions'] = text_keys(spec)
     return result
@@ -72,14 +138,22 @@ def write_pack(inputs, out):
             continue
         files['files/' + path] = inputs.read('bundle', path)
         operations.append({'op': 'add_file', 'path': path})
+    e046_rows = e046_entries(json.loads(inputs.read('equipment046', E046_MANIFEST)))
+    fits = bundle_fits(inputs)
     occupied = set()
     for spec in sorted(rows, key=lambda r: int(r['id'])):
         ident = int(spec['id'])
-        template_row = base_by_id[int(spec['template_id'])]
-        template = inputs.config('base', template_row['cfg_name'])
-        config = convert(template, spec, model_surface(inputs, spec['model']))
-        path = config_path(spec, template_row)
-        if any(r['cfg_name'] == path for r in base):
+        start = template(spec)
+        if start.copy:
+            template_row = e046_rows[start.ident]
+            source = inputs.config('equipment046', 'files/' + template_row['cfg_name'])
+            config = copy_piece(source, spec, template_row['base_cost'], fits, inputs)
+        else:
+            template_row = base_by_id[start.ident]
+            source = inputs.config('base', template_row['cfg_name'])
+            config = convert(source, spec, model_surface(inputs, spec['model']))
+        path = config_path(spec, template_row['cfg_name'])
+        if any(r['cfg_name'] == path for r in base + list(e046_rows.values())):
             raise ValueError(f'{path}: config path already taken')
         entries.append({'cfg_name': path, 'is_stack': False, 'name': f"eq069_{spec['id_069']}",
                         'item_category': template_row['item_category'], 'dict_id': ident,
@@ -104,8 +178,8 @@ def write_pack(inputs, out):
                        'faction': int(spec['faction']), 'weight': float(spec['weight']),
                        'price': int(spec['price']), 'drop_weight': int(spec['drop_weight']),
                        'default_modifications': config['default_modifications'],
-                       'template_id': int(spec['template_id']), 'donor_item': spec['id_069']})
-    if {r['name'] for r in base} & {e['name'] for e in entries}:
+                       'template': spec['template'], 'donor_item': spec['id_069']})
+    if {r['name'] for r in base + list(e046_rows.values())} & {e['name'] for e in entries}:
         raise ValueError('dictionary name collision')
     operations.append({'op': 'dictionary_add', 'table': 'items_dict', 'entries': entries})
     keys = sorted(k for spec in rows for k in text_keys(spec).values())
@@ -118,8 +192,8 @@ def write_pack(inputs, out):
     operations.append({'op': 'atlas_icons_add', 'icons': icons})
     manifest = {'format_version': 1, 'id': PACK, 'version': VERSION, 'target_build': '0.26g',
                 'operations': operations,
-                'notes': ['0.69d backpacks (models by resource-porter build-armour-069d), adapted to 0.26g by '
-                          'scripts/equipment-069/items.tsv.']}
+                'notes': ['0.69d armour (models by resource-porter build-armour-069d): two backpacks, the Snow-20 '
+                          'set and the Delta mask, adapted to 0.26g by scripts/equipment-069/items.tsv.']}
     files['pack.json'] = (json.dumps(manifest, ensure_ascii=False, indent=2) + '\n').encode()
     files['balance.json'] = (json.dumps(report, ensure_ascii=False, indent=2) + '\n').encode()
     out.mkdir(parents=True, exist_ok=False)

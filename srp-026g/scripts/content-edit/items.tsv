@@ -580,6 +580,12 @@ items	name	base_cost	gold	like	start
 1874	stk2_loner_026_legs	11550	false		
 1875	stk2_loner_026_boots	5780	false		
 1876	stk2_loner_026_hand	5230	false		
+1878	eq069_snow_20_torso_7	59500	false		
+1879	eq069_snow_20_legs_7	29750	false		
+1880	eq069_snow_20_gloves_7	14880	false		
+1881	eq069_snow_20_boots_7	15300	false		
+1882	eq069_league_shadow_mask	23630	false		
+1883	eq069_snow_20_helmet_7	35580	false		
 1901	fit_pso1_gip	0	false		
 1902	fit_pso1_rem	0	false		
 1903	fit_pso1_mosin	0	false		
