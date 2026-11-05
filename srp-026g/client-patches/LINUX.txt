@@ -36,3 +36,9 @@ Settings stored outside the prefix survive its recreation.
 For a memory error, check Wine and the prefix first; do not lower the memory
 budgets in the script. Report skhid-wine.log and, for update failures,
 updater_skhid.log from game/binaries/x86.
+
+For a crash a developer asked to investigate, start with full-memory dumps:
+
+    SKHID_CRASH_DUMP=full bash Skhid.sh launcher
+
+At the end it lists the crash files (a .dmp of 1-3 GB and its .txt report).
