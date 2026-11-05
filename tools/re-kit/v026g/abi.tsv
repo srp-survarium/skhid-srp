@@ -5,6 +5,8 @@ va	name	source	ret_cleanup	result
 0x00014710	vostok::render::one_way_render_channel::owner_finalize	manual	0	
 0x000147e0	on_mounted_resources	manual	0	
 0x000148b0	on_mounted_user_data	manual	0	
+0x0001c410	vostok::memory::mt_free	manual	0	
+0x0001c6a0	vostok::memory::mt_allocate	manual	0	EAX: the memory; 0 when [1F1D61Bh] is set or the MT allocator has none
 0x0001ef10	vostok::render::one_way_render_channel::one_way_render_channel	manual	0	EAX: receiver pointer
 0x0001f090	vostok::render::one_way_render_channel::~one_way_render_channel	manual	0	
 0x0001f2c0	vostok::render::one_way_render_channel::owner_push_back	manual	0	
@@ -227,6 +229,9 @@ va	name	source	ret_cleanup	result
 0x000f70e0	vostok::memory::writer::seek	manual	4	
 0x000f8480	vostok::resources::resources_manager::add_fs_task	manual	0	
 0x000fef60	vostok::render::renderer_cook::destroy_resource	manual		
+0x00109ed0	vostok::resources::make_save_descriptor	manual	0	EAX: the descriptor (allocate_save_descriptor), its data an MT copy of the bytes, +8 = 1
+0x00109f30	vostok::resources::allocate_save_descriptor	manual	0	EAX: the descriptor, 18h bytes and the two paths after them, MT; 0 when MT refuses
+0x0010a050	vostok::resources::save_descriptor::~save_descriptor	manual	0	
 0x0010bcc0	vostok::resources::hdd_manager_sorting_predicate::operator()	manual	4	AL: the first query before the second
 0x0010d4e0	vostok::tasks::thread_pool::wait_for_all_children	manual	4	returns once every task the calling thread spawned has run (it runs children itself meanwhile); a user thread's current task is reset to its tls+90h
 0x001104b0	vostok::network::network_world::set_on_dispatch_callbacks	manual	32	
@@ -1685,7 +1690,7 @@ va	name	source	ret_cleanup	result
 0x003d0b40	vostok::render::res_texture::width	manual	0	
 0x003d0b60	vostok::render::res_texture::height	manual	0	
 0x003d0d70	vostok::render::res_texture::set_hw_texture	manual	20	
-0x003d0f80	vostok::render::res_texture::map2D	manual	8	
+0x003d0f80	vostok::render::res_texture::map2D	manual	8	EAX: the mapped data; 0 when not mapped (no resource, not a staging, or still drawing with the no-wait byte)
 0x003d1000	vostok::render::res_texture::clone	manual	0	
 0x003d10f0	vostok::render::untyped_buffer::untyped_buffer	manual	24	EAX: receiver pointer
 0x003d16f0	vostok::render::res_geometry::~res_geometry	manual	0	

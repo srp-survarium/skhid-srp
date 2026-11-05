@@ -57,26 +57,50 @@ fixes them; the RE is in `client_patch.md` section 3.57.
   bake burst's stall (16:37:47, 0.4 s).
 - Textures only: nothing a match computes changes. Games with and without the patch play together.
 
+## Bakes off the GPU's clock (patch 111)
+
+A player's report (2026-11-05): with `streamed_textures` emptied, every player joining a room or a
+match makes a hitch while their items bake. A RAM disk does not help: the save was already
+asynchronous, the cost is the GPU work the game waited for.
+
+- **Stock, the game's thread waits for the GPU at every readback** (`client_patch.md` 3.57, "The
+  bake's GPU round trips"). A texture goes GPU -> CPU -> GPU -> CPU -> GPU: the 2048x2048 target is
+  read back (16 MB, blocking), uploaded again as the compressor's level 0, and each of its 10
+  compressed levels is read back, blocking each time. Diffuse bake ~15 ms against ~3 ms for the normal
+  and smoothness bakes of the same size, right after it: LIKELY the frames still queued, waited for.
+- A bake is issued in the frame it is asked for, and nothing waits:
+  - level 0 is a GPU copy of the target (the same R8G8B8A8_UNORM texels): no readback, no upload;
+  - the levels are drawn, compressed and copied to stagings, flushed, and none is mapped;
+  - process_compression ends with its query not finished; patch 70's waiting queries go on waiting.
+- Each resources dispatch on the bake's thread asks the oldest bake's last staging without waiting
+  (map2D's no-wait byte, as the occlusion manager polls). Once the GPU has done it, the levels are
+  copied into the DDS and the game's own tail finishes the bake: the texture, the slot, patch 70's
+  sharing, the save, the record, the query, the "camouflage/decal cook" line. The line's "bake" is
+  the ms the game's thread spent until the bake was issued (the draw's with it); its "compress" the
+  ms of the readback.
+- A bake the GPU has had 1 s is read back waiting, and a line goes to `srp_patches.log`.
+- At most 8 bakes are on the GPU, and 8 more wait their turn (each keeps its level 0, 16 MB of the
+  GPU's). Past those, the stock bake (it waits), with a line in `srp_patches.log`.
+- The model instance a bake is for is held until the bake ends: a player who leaves meanwhile only
+  delays its release.
+- The save takes the DDS the bake owns, MT memory, with no copy: the save's descriptor frees it once
+  written. The stock save copied the whole DDS into MT (a 5.6 MB copy ran MT out, 2026-10-28). With no
+  MT memory for the DDS, the bake fails, as a bake that fails does (patch 70 makes its waiters again).
+- A bake whose levels cannot be mapped (the device lost) fails its query the same way, and is logged.
+- At game::exit every pending bake is finished first, waiting.
+- Textures only: nothing a match computes changes. Games with and without the patch play together.
+
 ## Not done
 
-- A first load of a kept file, and every bake, is still on the main thread: a joiner's kit read from
-  the folder took ~40 ms for 12 textures (15:11:27). Spreading them over frames, or moving them behind
-  the loading screen, is a separate change; see the PR.
-- **Where a bake's time goes** (read from the code, 2026-11-05; `client_patch.md` 3.57, "The bake's
-  GPU round trips"). Each texture goes GPU -> CPU -> GPU -> CPU -> GPU, and the main thread waits at
-  every readback: 1 + one per block level (11 for 2048x2048) blocking Maps, each after a Flush. The
-  first readback also copies the 16 MB RGBA picture out, and the compressor uploads it again.
-  - The first bake of a burst waits for the GPU: diffuse bake ~15 ms against ~3 ms for the normal and
-    smoothness bakes of the same size, which come right after it. LIKELY the frames still queued plus
-    the bake's own draws.
-  - The rest is mostly CPU copies that a non-blocking Map alone would not remove: the 16 MB staging
-    and its memcpy, the 16 MB upload, ~30 render targets and stagings made and freed, the final
-    texture made from the DDS bytes, the CRC.
-  - The way out: the compressor's input is a GPU copy of the bake's target (the same R8G8B8A8_UNORM
-    texels: no readback, no upload). Then the 10 block levels are drawn and copied to stagings in one
-    go, and one non-blocking Map a frame says when they are done (map2D's byte, D3D11_MAP_FLAG_DO_NOT_WAIT,
-    as the occlusion manager polls at 0x1D7E60). Not built: finishing the query frames later needs
-    process_compression's tail to run outside its frame. Not measured in a game.
+- A first load of a kept file is still on the main thread: a joiner's kit read from the folder took
+  ~40 ms for 12 textures (15:11:27). Spreading them over frames, or moving them behind the loading
+  screen, is a separate change.
+- A burst's finished bakes are all completed in the dispatch that finds them done (the texture made
+  from each DDS, its CRC): the stock tail's CPU work, in one frame, with no per-frame limit.
+- The stock bake (past 16 pending, or a bake this does not take) still waits for the GPU, and its save
+  still copies the DDS.
+- Not measured in a game: the owner compares the "camouflage/decal cook" lines and the frame times
+  with `streamed_textures` emptied, players joining a room and a match, before and after.
 - "camouflage_decal_texture_type_baker_cook: gbuffer_render_stage not found!" (15:41:05, ×28): a bake
   asked for a surface whose material has no gbuffer stage yet (translate_query 0x12D5C5..0x12D64F: the
   material's stage 1 through 0x12C6A0). It fails at once, which costs nothing, and the model's bakes come

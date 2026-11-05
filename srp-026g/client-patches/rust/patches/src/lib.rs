@@ -42,6 +42,7 @@ pub mod ragdoll;
 pub mod blackout;
 mod artefact_carry;
 pub mod suicide_key;
+pub mod bake_async;
 
 pub mod text_input;
 

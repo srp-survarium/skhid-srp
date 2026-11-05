@@ -5166,6 +5166,66 @@ def test_bake_cache(original, image, before):
           "the old asm/C blocks bake_cache.code and .state are gone (the patch is patches.code's)")
 
 
+def test_bake_async(original, image, before):
+    """Check 111: the bake's GPU work not waited for (patch 111, the Rust
+    patch bake_async, seven lohooks). check_bake_async_026g.py runs them
+    from the game's code on made-up bakes and a made-up D3D11 context."""
+    import hooks_026g
+    stock = Image(original)
+    rows = lambda va, size: [text for _, _, text in ndisasm(stock.read(va, size), va)]
+    check(rows(0x12EEA1, 0x1F) == ["mov edx,[dword 0x226047c]", "mov esi,[esp+0x24]", "push byte +0x0",
+                                   "push byte +0x1", "push byte +0x3", "push byte +0x1c", "push byte +0x0",
+                                   "push edi", "push byte +0x0", "push edx", "mov eax,esi", "call 0x3bea70"]
+          and rows(0x12F561, 0x41)[-6:] == ["pop edi", "pop esi", "pop ebp", "pop ebx", "add esp,0x5ec", "ret 0x28"],
+          "bake.issue 0x12EEA7: process_compression's staging create (usage 3, format 1Ch); issued 0x12F561 "
+          "releases [esp+10h] and [esp+1Ch], then ret 28h")
+    check(rows(0x12EC40, 0x1D)[-3:] == ["mov edi,[dword 0x870158]", "mov esi,eax", "lea eax,[esp+0x40]"]
+          and rows(0x12F00B, 0xD) == ["call 0x106a00", "fstp dword [esp+0x48]", "test ebx,ebx", "jz 0x12f02d"],
+          "bake.resume 0x12EC57: past process_compression's prologue; tail 0x12F00B times the compress (ESI), then "
+          "frees the RGBA only for EBX")
+    check(rows(0x12F2D8, 0x14) == ["mov byte [esp+0x5f8],0x2f", "mov [esp+0x2c],ebx", "call 0x109ed0",
+                                   "add esp,byte +0x4"]
+          and rows(0x12F3F7, 0x2C)[:6] == ["mov ecx,[esp+0x188]", "add [esi+0x4923c],ecx", "push esi",
+                                          "call 0x131f90", "test ebx,ebx", "jz 0x12f423"],
+          "bake.save 0x12F2D8: before the bytes' data (EBX) and make_save_descriptor, cdecl; made 0x12F2E9; "
+          "bake.free 0x12F3F7: EBX the DDS until its free")
+    check(rows(0x11F754, 0x14) == ["push byte +0x0", "lea ecx,[esp+0x48]", "push ecx",
+                                   "mov dword [esp+0x4c],0x0", "call 0x3d0f80"]
+          and rows(0x11F871, 0x0E)[:2] == ["add dword [esi+0x4],byte -0x1", "jnz 0x11f885"],
+          "compress_mip.readback 0x11F754: before the level's map2D (blocking); kept 0x11F871 releases ESI's staging")
+    check(rows(0x1024FA, 9) == ["pop edi", "pop esi", "pop ebx", "mov esp,ebp", "pop ebp", "ret 0x4"]
+          and rows(0x1EC82B, 0xC) == ["lea eax,[esp+0x358]", "call 0x1e8da0"],
+          "resources.dispatched 0x1024FA: dispatch_callbacks' common end; game.exit_bakes 0x1EC82B: before game::exit's "
+          "(nopped) delete")
+    linked = P.arena()
+    block = linked.blocks["patches.code"]
+    want = {0x12EEA7: ("bake.issue", {"issued": 0x12F561}), 0x12EC57: ("bake.resume", {"tail": 0x12F00B}),
+            0x12F2D8: ("bake.save", {"made": 0x12F2E9}), 0x12F3F7: ("bake.free", {}),
+            0x11F754: ("compress_mip.readback", {"kept": 0x11F871}), 0x1024FA: ("resources.dispatched", {}),
+            0x1EC82B: ("game.exit_bakes", {})}
+    found = {}
+    for hook in hooks_026g.hooks(exe=hooks_026g.original_reader(original)):
+        owners = [member["patch"] for member in hook.get("chain", [hook])]
+        if "bake_async" not in owners:
+            continue
+        va, old = hook["site"], hook["original"]
+        found[va] = (hook["site_name"], dict(hook["exits"]))
+        target = linked.symbols[hook["entry"]]
+        expected = P.hook_bytes(target, va, old, 0, 0xE9)
+        check(hook["kind"] == "lohook" and owners == ["bake_async"]
+              and stock.read(va, len(old)) == old == before.read(va, len(old))
+              and image.read(va, len(old)) == expected and block.va <= target < block.va + block.size,
+              f"{va:#x} ({hook['site_name']}): {old.hex()} in the original and the build without the late join, "
+              f"`jmp {target:#x}` ({hook['entry']}, a generated lohook entry of patches.code) here")
+        hits = [h for h in aimed_inside(original, va, len(old), 0x82)
+                if not va <= h < va + len(old) and starts_instruction(stock, h)]
+        under = [v for kind, v in stock.relocations().values() if kind == 3 and va - 4 < v < va + len(old)]
+        check(not hits and not under,
+              f"{hook['site_name']}: no branch enters the displaced instructions and no base relocation is under "
+              "them" + "".join(f", {h:#x}" for h in hits + under))
+    check(found == want, f"bake_async's seven lohooks at their sites with their exits: {sorted(f'{va:#x}' for va in found)}")
+
+
 def test_lamps(original, image, before):
     """The lamp's generated detours and its shared frame/ray chains."""
     import hooks_026g
@@ -7082,6 +7142,7 @@ def test_late_join(original, without, server, source):
     test_fall_gravity(original, image, before)
     test_grenade_ccd(original, image, before)
     test_bake_cache(original, image, before)
+    test_bake_async(original, image, before)
     test_ragdoll(original, image, before)
     test_lamps(original, image, before)
     test_language(original, image, before)

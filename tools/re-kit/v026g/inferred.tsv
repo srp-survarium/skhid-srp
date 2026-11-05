@@ -35,7 +35,9 @@ va	status	ref_021d	name
 0x0001b9b0	inferred-medium	0x00017293	vostok::fs_new::asynchronous_device_interface::~asynchronous_device_interface
 0x0001bb00	inferred-medium	0x0001739d	boost::detail::function::void_function_obj_invoker0<boost::_bi::bind_t<void,boost::_mfi::mf2<void,vostok::engine::engine_world,enum vostok::apc::threads_enum,vostok::engine::device_ticker const &>,boost::_bi::list3<boost::_bi::value<vostok::engine::engine_world *>,boost::_bi::value<enum vostok::apc::threads_enum>,boost::_bi::value<vostok::engine::device_ticker> > >,void>::invoke
 0x0001be60	inferred-medium	0x0001745f	vostok::engine::engine_world::cooker_thread
+0x0001c410	inferred-medium		vostok::memory::mt_free
 0x0001c450	inferred-medium	0x0001772f	vostok::engine::scaleform_log_output
+0x0001c6a0	inferred-medium		vostok::memory::mt_allocate
 0x0001c6f0	inferred-medium	0x000178a4	vostok::engine::console::`scalar deleting destructor'
 0x0001c870	inferred-medium	0x00017fec	vostok::console_impl::on_activate
 0x0001c930	inferred-medium	0x000179c7	vostok::console_impl::console_impl
@@ -665,6 +667,11 @@ va	status	ref_021d	name
 0x00109a10	inferred-medium	0x000cb990	vostok::resources::query_result::finish_normal_query
 0x00109aa0	inferred-medium	0x000cb9eb	vostok::resources::query_result::set_deleter_object_if_needed
 0x00109bd0	inferred-medium	0x000cbaaa	vostok::resources::query_result::finish_translated_query
+0x00109de0	inferred-medium		vostok::strings::duplicate
+0x00109ed0	inferred-medium		vostok::resources::make_save_descriptor
+0x00109f30	inferred-medium		vostok::resources::allocate_save_descriptor
+0x00109fc0	inferred-medium		vostok::resources::save_descriptor::save_descriptor
+0x0010a050	inferred-medium		vostok::resources::save_descriptor::~save_descriptor
 0x0010a990	inferred-medium	0x000cc1e2	vostok::memory::doug_lea_mt_allocator::`scalar deleting destructor'
 0x0010b560	inferred-medium	0x000cca42	boost::detail::function::functor_manager<boost::_bi::bind_t<void,boost::_mfi::mf1<void,vostok::core::configs::binary_config_cook,vostok::resources::queries_result &>,boost::_bi::list2<boost::_bi::value<vostok::core::configs::binary_config_cook *>,boost::arg<1> > > >::manager
 0x0010b600	inferred-medium	0x000cfb5f	vostok::configs::binary_config::`scalar deleting destructor'

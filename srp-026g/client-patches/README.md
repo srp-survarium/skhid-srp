@@ -151,6 +151,7 @@ release's. The "Result" row is the build of the revision named in it.
 | `check_fall_gravity_026g.py` | Patch 72: free fall takes gravity for the step's dt (`FALL_GRAVITY`, two sites rewritten in place in step_down, 0x7E6E6 and 0x7E720): a tick the world steps in parts (each precise input) no longer gives a falling player a whole tick of speed at every part; its check runs step_down's free fall on a made-up controller: whole ticks bit for bit the original's, a tick in 2, 5 or 2 uneven parts one tick of gravity in all (needs Unicorn) |
 | `rust/patches/src/artefact_carry.rs`, `check_artefact_carry_026g.py` | Patch 78: H (the game's unused action `artefact`, default H, a controls row) + an artefact quick key lowers the weapon and raises the artefact above the right palm in both views; switching lowers the old item before raising the new one. Use takes an offered or death-dropped artefact into a free container, with the existing collection UI. Deterministic input/snapshots, native inventory ownership, model callbacks and matching damage poses. See [controls, architecture and validation](../docs/notes/held_artefact_transfer.md). |
 | `rust/patches/src/bake_cache.rs`, `src/bake_cache.toml`, `src/vostok/baker.rs`, `src/vostok/files.rs`, `src/vostok/crc32.rs`, `check_bake_cache_026g.py` | Patch 70: the baked camouflage and decal textures kept from game to game (the folder deleted only for another revision, its files back in the baker's list) and baked or loaded once while asked for again: seven `lohook`s (`sites_026g.tsv` bake.* and crc32.step); its check runs game::game's delete, the game's own check_loaded, translate_query's look-up, the texture made by a bake and a load, and finish_query on a made-up baker, folder and queries (needs Unicorn) |
+| `rust/patches/src/bake_async.rs`, `src/bake_async.toml`, `src/vostok/bake_gpu.rs`, `check_bake_async_026g.py` | Patch 111: the camouflage/decal bake does not wait for the GPU: level 0 a GPU copy of the target, the compressed levels copied to stagings, polled each dispatch with the no-wait map, then process_compression's own tail frames later; the save owns the MT DDS (no copy); seven `lohook`s (`sites_026g.tsv` bake.issue, bake.resume, bake.save, bake.free, compress_mip.readback, resources.dispatched, game.exit_bakes); its check runs them in Unicorn on a made-up D3D11 context |
 | `check_research_026g.py`, `../crates/research-rule/src/tests.rs` | Checks of patch 53: the first runs the built exe's hooks, the cook (with the game's own register_cook, rule constructor and config look-ups) and the rule's slots on made-up games, worlds and huds (needs Unicorn); the second the rules as Rust unit tests |
 | `check_weapon_camo_026g.py` | Runs the original's and patch 44's 0x24B0D2 of weapon_cook::on_weapon_subresources_ready on made-up weapon configs and models, with the game's parameters constructor, string assign, release and boost invoker, and each bake's callback (needs Unicorn) |
 | `check_kit_change_026g.py` | Runs the original and patch 31's respawn rule tick, with the places' tick and the game's own spawn, the view of a kit change, the hud's update of the local player, mouse moves and the mouse's buttons through the game world's input handler and the warmup mode's step on made-up objects (needs Unicorn) |
@@ -3713,6 +3714,46 @@ site from the game's code on the game's own static baker:
 - the CRC-32 step against the original on 24 buffers of 0 to 10 MB from unaligned starts with
   random CRCs: the CRC and every register the same; 3.25 instructions a byte against 11;
 - any other query's finish goes straight through.
+**Not run:** a game.
+
+### 111. The camouflage/decal bake does not wait for the GPU
+
+A player's report (2026-11-05): with `streamed_textures` emptied, every player joining a room or
+a match makes a hitch while their items bake. Stock, a bake reads its 2048x2048 target back
+(blocking), uploads those 16 MB again as the compressor's level 0, and reads each of its 10
+compressed levels back, blocking each time (`client_patch.md` 3.57, "The bake's GPU round
+trips"). The rules: `../docs/notes/baked-textures.md`, "Bakes off the GPU's clock".
+
+**The patch** (the Rust patch `bake_async`, `rust/patches/src/bake_async.rs` and `.toml`, over
+`vostok::bake_gpu`; seven lohooks of `sites_026g.tsv`):
+- `bake.issue` 0x12EEA7: level 0 a GPU copy of the target (copy2D into a DEFAULT texture),
+  the compressor's levels drawn and copied to stagings (`compress_mip.readback` 0x11F754 keeps
+  each staging, no map), the job's frame copied, process_compression left by its epilogue
+  0x12F561, its query not finished. 8 in flight, 8 more queued (their level 0 kept), past them
+  the stock bake.
+- `resources.dispatched` 0x1024FA, each dispatch on the bakes' thread: the oldest bakes whose
+  last staging maps with the no-wait byte are read back into an MT DDS, then process_compression
+  is called again and `bake.resume` 0x12EC57 jumps to its tail 0x12F00B: the texture made from
+  the DDS, its slot, patch 70's sharing, the resource, the save, the CRC, the record, finish
+  and the "camouflage/decal cook" line. `bake.save` 0x12F2D8 gives the save a descriptor of
+  the game's that owns that DDS (no copy); `bake.free` 0x12F3F7 keeps it from the render
+  allocator's free. A bake the GPU has had 1 s is read back waiting (logged); one whose levels
+  cannot be mapped fails its query (logged).
+- `game.exit_bakes` 0x1EC82B: every pending bake finished, waiting.
+- `engine_026g.py`'s call kind `com` calls ID3D11DeviceContext::Unmap (the exe only inlines it).
+
+Textures only; games with and without it play together. No base relocation under a site, no
+branch into one.
+
+**Checked:** `selftest_026g.py` check 111 (the sites' original code and the joins its exits
+reach, the generated lohooks, no relocation or branch inside). `check_bake_async_026g.py`
+(Unicorn) runs process_compression from its entry, the compressor's functions, map2D, the
+dispatch's end and the tail for real on a made-up D3D11 context: the original maps 1 + the
+levels, blocking; the build issues with no Map, polls busy with one no-wait Map, then reads the
+levels into the DDS, makes the texture from it (its bytes the stagings' rows), fills the slot and
+patch 70's waiter's, finishes both, the save descriptor owning that DDS with no copy, the record
+listed; late after 1 s; the device lost (an error finish, the waiter made again, the DDS freed);
+8 in flight, 8 queued, the 17th the stock bake; game::exit.
 **Not run:** a game.
 
 ## Not ported, not done

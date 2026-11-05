@@ -126,3 +126,4 @@ pub use statistics::{Band, Batteries, Battery, BatteryCarry, Cell, Delivery, Hel
 
 pub mod medical;
 pub mod animation_id;
+pub mod bake_gpu;
