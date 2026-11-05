@@ -12159,7 +12159,7 @@ impl BulletCharacterController {
         unsafe { self.0.byte_add(0x201).cast::<u8>().as_ptr() }
     }
 
-    /// +0x50 (f32): m_last_pos, a float3, game frame: the position its last step started from (player_step 0x7BE84; serialized 0x7F7F0)
+    /// +0x50 (f32): m_last_pos, a float3, Bullet frame (z the game's -z; the capsule's offset above the feet, along y, as +0B0h): the position its last step started from (player_step 0x7BE84; serialized 0x7F7F0)
     ///
     /// # Safety
     /// `self` is alive (its fields are its kind's: the type says so).
@@ -12168,7 +12168,7 @@ impl BulletCharacterController {
         unsafe { self.0.byte_add(0x50).cast::<f32>().as_ptr() }
     }
 
-    /// +0xb0 (f32): its position, a float3, game frame (the translation of its matrix +80h; player_step copies it to m_last_pos)
+    /// +0xb0 (f32): its position, a float3, Bullet frame (the translation of its matrix +80h: z the game's -z, set_transform 0x7F6D0 adds the capsule's offset along y (0xA7DC00), get_transform 0x7F5C0 takes it off for from_bullet 0x74620; player_step copies it to m_last_pos)
     ///
     /// # Safety
     /// `self` is alive (its fields are its kind's: the type says so).

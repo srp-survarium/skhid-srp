@@ -4436,13 +4436,14 @@ the evidence: `../docs/notes/client_patch.md` 3.67.
 It changes what a match computes: a row `next` in `../crates/session/src/v026g/simulation_changes.tsv`.
 
 Checked: `cargo test` (the crossing time, the share, the clamps, a split step, a bullet spawned in
-the step, a ray of no length, the clock's wrap); `check_subtick_hits_026g.py` (and under
+the step, a ray of no length, the clock's wrap, the controller's move in the game's frame); `check_subtick_hits_026g.py` (and under
 `align_probe_026g.py`): check_collision's ray test from 0x32D5E5 to 0x32D631 in both exes on
 made-up spheres, the game's own Bullet code end to end; a still target byte for byte the
 original's, also with players moving far from and near the ray; a target moving across the ray
 that the original misses is hit as the original hits him standing where he stood; walls in front
 and behind, the shooter's own body, a target spawned in the step or dead, a step in parts, a move
-along z; every byte of the made-up world the same after the run. `check_ragdoll_026g.py` and
+along the game's +z put back behind his step's end (the controller's positions are Bullet's, z
+negated) and a diagonal one; every byte of the made-up world the same after the run. `check_ragdoll_026g.py` and
 `check_lamps_026g.py` (the site's other hooks) pass. **Not run in a game.**
 
 ## A thrown grenade stays above the ground (patch 105, unreleased)

@@ -42,6 +42,9 @@ registers and frame, and every byte of the made-up world after the run:
 - a player spawned in the step, or dead: never put back (the original's);
 - a step the world took in parts (20 ms): put back by its part's whole
   move, no further;
+- a move along the game's +z (the controller's positions are Bullet's,
+  z negated): put back behind his step's end, not ahead of it; a diagonal
+  move (x and z): put back on both axes;
 - the world's bytes (bodies, transforms, proxies, shapes, players, the
   core) are the same after the run as before, in both exes: nothing is
   moved; the result is the patch's only write.
@@ -190,7 +193,8 @@ class World:
 
     def player(self, place, root, moved=(0, 0, 0), spawned=0, alive=True, own=False, radius=0.3):
         """A player at `place` whose hit model is a sphere around his root
-        (game frame), his controller's last step `moved` (to the root)."""
+        (game frame), his controller's last step `moved` (to the root, game
+        frame)."""
         p = PLAYERS + 0x1000 * self.players
         self.players += 1
         body = self.body(root, radius, 0x40, 0x11, BOOST_TABLE_SELF if own else BOOST_TABLE_POSED)
@@ -202,9 +206,12 @@ class World:
         holder, controller = p + 0x800, p + 0x900
         self.u32(p + CONTROLLER, holder)
         self.u32(holder, controller)
-        centre = [root[0], root[1] + 0.8, root[2]]              # the capsule's centre: any height
+        # the controller is Bullet's: its positions in Bullet's frame (z the
+        # game's -z, get_transform 0x7F5C0 and from_bullet 0x74620), the
+        # capsule's centre at any height (set_transform 0x7F6D0's offset)
+        centre = [root[0], root[1] + 0.8, -root[2]]
         self.floats(controller + 0xB0, centre)
-        self.floats(controller + 0x50, [c - m for c, m in zip(centre, moved)])
+        self.floats(controller + 0x50, [c - m for c, m in zip(centre, (moved[0], moved[1], -moved[2]))])
         self.u32(p + HIT_MODEL, body["model"])
         self.u32(PLACES + 0x30 * place, p)
         self.u32(CORE + 0x18FD8, self.u32(CORE + 0x18FD8) | 1 << place)
@@ -426,9 +433,12 @@ def main():
           f"the sphere at x = -0.05: {dz:.4f})")
 
     # -- along z (the frame's sign) --------------------------------------
-    # a ray along +x through z = 0.2: he moved 25 cm along +z, at its end
-    # at z = 0.55 (0.35 m off: missed), at the crossing (x = 0, 10 m in)
-    # back at z = 0.3714 (0.17 m: met)
+    # the controller's move is Bullet's (z the game's -z): a move along the
+    # game's +z is put back along its -z, behind where the step left him.
+    # A ray along +x through z = 0.2: he moved 25 cm along +z, at its end at
+    # z = 0.55 (0.35 m off: missed), at the crossing (x = 0, 10 m in) back
+    # at z = 0.3714 (0.17 m: met); put ahead instead, at z = 0.7286 (0.53 m),
+    # he is missed
     def along_z(w):
         return {"shooter": shooter(w), "target": w.player(0, (0.0, 1.2, 0.55), moved=(0.0, 0.0, 0.25))}
     (_, _, old), (_, parts, new) = both(original, built, along_z, (-10.0, 1.2, 0.2), (1.0, 0.0, 0.0), LENGTH, WHOLE)
@@ -437,7 +447,21 @@ def main():
     check(hit(old)["object"] == 0 and hit(new)["object"] == parts["target"]["game"]
           and abs(hit(new)["point"][0] + dx) < 2e-3 and abs(hit(new)["point"][2] - 0.2) < 1e-5
           and as_stood(hit(new), stood((0.0, 1.2, z), (-10.0, 1.2, 0.2), (1.0, 0.0, 0.0))),
-          f"a move along z: put back along z (Bullet's z is the game's -z): hit at "
+          f"a move along the game's +z: put back behind his step's end, at z = {z:.4f} (end - share x move): "
+          f"hit at {[round(v, 4) for v in hit(new)['point']]}")
+
+    # a diagonal move, 25 cm along +x and 25 cm along -z, the default ray
+    # (along -z through x = -0.2): at the step's end at (0.25, 0.25) (0.45 m
+    # off: missed); crossed at z = 0.25 (9.75 m in), back by the share of
+    # that crossing: on both axes end - share x move
+    def diagonal(w):
+        return {"shooter": shooter(w), "target": w.player(0, (0.25, 1.2, 0.25), moved=(0.25, 0.0, -0.25))}
+    (_, _, old), (_, parts, new) = both(original, built, diagonal, ORIGIN, DIRECTION, LENGTH, WHOLE)
+    crossed = (0.05 - 0.05 * f32(9.75 / 35.0)) * 1000 / 50
+    at = (0.25 - 0.25 * crossed, 1.2, 0.25 + 0.25 * crossed)
+    check(hit(old)["object"] == 0 and hit(new)["object"] == parts["target"]["game"]
+          and as_stood(hit(new), stood(at)),
+          f"a diagonal move (x and z): put back on both, at {[round(v, 4) for v in at]}: hit at "
           f"{[round(v, 4) for v in hit(new)['point']]}")
 
     if FAILED:

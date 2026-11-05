@@ -58,6 +58,16 @@ fn from_bullet(point: [f32; 4]) -> [f32; 3] {
     [bullet_float(point[0]), bullet_float(point[1]), bullet_float(-point[2])]
 }
 
+/// A character controller's move from `from` to `to`, its positions, in the
+/// game's frame. They are Bullet's: set_transform 0x7F6D0 writes its matrix
+/// +80h (whose origin is the position) from the game's by from_vostok
+/// 0x74470, get_transform 0x7F5C0 reads it back for from_bullet 0x74620.
+/// Both carry set_transform's offset of the capsule above the feet (along
+/// y, 0xA7DC00), which the difference cancels.
+fn controller_move(from: [f32; 3], to: [f32; 3]) -> [f32; 3] {
+    from_bullet([to[0] - from[0], to[1] - from[1], to[2] - from[2], 0.0])
+}
+
 /// Bullet's objects keep their vectors 16-byte aligned.
 #[repr(C, align(16))]
 struct Aligned<T>(T);
@@ -134,8 +144,9 @@ impl Body<'_> {
 
     /// How far the player moved in the step, game frame: its character
     /// controller's last step, from where it started (m_last_pos, which
-    /// player_step 0x7BDA0 sets at its start) to where it is. The physics
-    /// tick (the step's list 3) moved it this step, and
+    /// player_step 0x7BDA0 sets at its start) to where it is, both Bullet's
+    /// (controller_move). The physics tick (the step's list 3) moved it this
+    /// step, and
     /// assign_physics_transform (list 4) took the hit model with it, before
     /// the bullets' list 5; a controller that did not move (updateAction
     /// 0x7B730 skips a step only then) left both the same. None for a player
@@ -149,9 +160,7 @@ impl Body<'_> {
                 return None;
             }
             let controller = self.player.controller()?.controller()?;
-            let to: [f32; 3] = floats(controller.position());
-            let from: [f32; 3] = floats(controller.last_position());
-            Some([to[0] - from[0], to[1] - from[1], to[2] - from[2]])
+            Some(controller_move(floats(controller.last_position()), floats(controller.position())))
         }
     }
 }
@@ -359,6 +368,16 @@ mod tests {
         assert_eq!(to_bullet([0.0, 0.0, 0.0])[2].to_bits(), 0.0f32.to_bits(), "-0 is 0");
         assert_eq!(from_bullet([3.0, 4.0, -5.0, 9.0]), [3.0, 4.0, 5.0]);
         assert!(bullet_float(f32::NAN).is_nan());
+    }
+
+    #[test]
+    fn a_controller_moves_in_bullets_frame() {
+        // 0.25 m along the game's +x and +z: Bullet's z falls
+        assert_eq!(controller_move([1.0, 2.8, -3.0], [1.25, 2.8, -3.25]), [0.25, 0.0, 0.25]);
+        // along the game's -z, up 0.5 m (the capsule's offset the same at both)
+        assert_eq!(controller_move([0.0, 1.0, 2.0], [0.0, 1.5, 2.5]), [0.0, 0.5, -0.5]);
+        assert_eq!(controller_move([4.0, 5.0, 6.0], [4.0, 5.0, 6.0]).map(f32::to_bits), [0.0f32; 3].map(f32::to_bits),
+                   "no move is no move, not -0");
     }
 
     #[test]
