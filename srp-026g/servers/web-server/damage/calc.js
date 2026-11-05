@@ -1081,18 +1081,21 @@ function drawCompare(target) {
   }));
 }
 
-// The rules, step by step in the bullet's order, each one chip with the
-// numbers taken from the data where they live; beside it, the shot chosen
-// above as a running chain: what each step does and the D and P after it
-// (the same `b` and `sim` the trace shows: the first pellet of the first shot).
+// The rules, step by step in the bullet's order, each with the numbers taken
+// from the data where they live; beside it, the shot chosen above as a
+// running chain: what the step does, then the D and P after it, each in its
+// own column (the same `b` and `sim` the trace shows: the first pellet of the
+// first shot).
 function drawExplain(target, b, sim) {
   const onyx = DATA.artefacts && DATA.artefacts.onyx, pk = DATA.drugs && DATA.drugs.painkiller;
   const pkK = pk && pk.damage_protection[0].hit_coeff;
   const log = sim.firstLog;
   // D and P × one factor, or each its own.
   const by = (m, dm, pm) => dm === pm ? `${m} ${dm}` : `D ${m} ${dm}, P ${m} ${pm}`;
-  const DP = (D, P) => `→ D ${hp(D)} · P ${hp(P)}`;
   const none = T("none", "немає");
+  // A result cell: its name, then its value in bold, then what follows it.
+  const val = (name, v, rest) => [name ? `${name} ` : "", el("b", { text: v }), rest ? el("small", { text: ` ${rest}` }) : null];
+  const DP = (D, P) => ({ d: val("D", hp(D)), p: val("P", hp(P)) });
   const fired = b.wall || b;
   // A bullet the wall keeps reaches nothing: the steps after it show "—".
   const stopped = !!b.wall && !(b.wall.k > 0);
@@ -1105,37 +1108,43 @@ function drawExplain(target, b, sim) {
   const onyxAfter = onyxLog.length ? onyxLog[onyxLog.length - 1] : { D: b.D, P: b.P };
   const onyxMul = onyx && (state.fx && state.fx.onyxMode === "active" ? onyx.active : onyx.passive).damage_mul;
   const sup = n => n > 1 ? String(n).replace(/\d/g, c => "⁰¹²³⁴⁵⁶⁷⁸⁹"[c]) : "";
-  // [label, rule, this shot (null: does not apply now)]
+  const after = (cond, shot) => stopped ? { in: null } : cond ? shot() : { in: null };
+  // [label, rule, this shot: { in, d, p } or { in, dp }; in null: "—"]
   const steps = [
     [T("Bullet", "Куля"), T("D, P = weapon × ammo, falling with distance", "D, P = зброя × набій, спадають з дистанцією"),
-      `${state.dist} ${M} ${DP(fired.D, fired.P)}` + (b.pellets > 1 ? T(` · ${b.pellets} pellets`, ` · ${b.pellets} дробин`) : "")],
+      { in: `${state.dist} ${M}` + (b.pellets > 1 ? T(` · ${b.pellets} pellets`, ` · ${b.pellets} дробин`) : ""), ...DP(fired.D, fired.P) }],
     [T("Wall", "Стіна"), T("P ≤ A: the bullet stays in the wall · else D, P × (1 − (1 − (P − A) / A)²)",
       "P ≤ A: куля застрягає в стіні · інакше D, P × (1 − (1 − (P − A) / A)²)"),
-      !b.wall ? `${none} ${DP(b.D, b.P)}` : stopped ? T("stays in the wall", "застрягає в стіні")
-        : `${nm(wallOf()).toLowerCase()}, A ${hp(b.wall.A)}: × ${fx(b.wall.k, 2)} ${DP(b.D, b.P)}`],
+      !b.wall ? { in: none, none: true, ...DP(b.D, b.P) } : stopped ? { in: T("stays in the wall", "застрягає в стіні") }
+        : { in: `${nm(wallOf()).toLowerCase()}, A ${hp(b.wall.A)}: × ${fx(b.wall.k, 2)}`, ...DP(b.D, b.P) }],
     onyx && [nm(onyx),
       `D, P ${by("×", onyx.passive.damage_mul, onyx.passive.armor_piercing_mul)} ${T("each", "кожен")} · ${T("active", "активний")} ${by("×", onyx.active.damage_mul, onyx.active.armor_piercing_mul)}`,
-      !stopped && (onyxLog.length ? `× ${onyxMul}${sup(onyxLog.length)} ` : `${none} `) + DP(onyxAfter.D, onyxAfter.P)],
+      after(true, () => onyxLog.length ? { in: `× ${onyxMul}${sup(onyxLog.length)}`, ...DP(onyxAfter.D, onyxAfter.P) }
+        : { in: none, none: true, ...DP(onyxAfter.D, onyxAfter.P) })],
     [T("Armour", "Броня"), T("D × (1 − (armour − P) / 100)", "D × (1 − (броня − P) / 100)"),
-      !stopped && armour && T(`${PARTS[armour.part].toLowerCase()}, armour ${hp(armour.A)} − P ${hp(armour.P)} → hit ${hp(armour.D)}`,
-        `${PARTS[armour.part].toLowerCase()}, броня ${hp(armour.A)} − P ${hp(armour.P)} → влучання ${hp(armour.D)}`)],
+      after(armour, () => ({ in: T(`${PARTS[armour.part].toLowerCase()}, armour ${hp(armour.A)} − P ${hp(armour.P)}`,
+        `${PARTS[armour.part].toLowerCase()}, броня ${hp(armour.A)} − P ${hp(armour.P)}`), d: val(T("hit", "влучання"), hp(armour.D)) }))],
     [T("Pools", "Пули"), T("chest, back → body · head, face → head · leg, foot → leg · arm, hand → hand",
       "груди, спина → тіло · голова, обличчя → голова · нога, стопа → нога · рука, кисть → кисть"),
-      !stopped && pool && `→ ${POOLS[pool.part].toLowerCase()} −${hp(pool.D)} (${hp(pool.before)} → ${hp(pool.after)})`],
+      after(pool, () => ({ in: "", dp: val(POOLS[pool.part].toLowerCase(), `−${hp(pool.D)}`, `(${hp(pool.before)} → ${hp(pool.after)})`) }))],
     [T("Pain", "Біль"), T("× 1 chest, head, arms · 0.9 legs · 0.8 hands, feet", "× 1 груди, голова, руки · 0.9 ноги · 0.8 кисті, стопи")
       + (pk ? ` · × ${pkK} ${nm(pk)}` : ""),
-      !stopped && pain && `× ${painK}${drug ? ` × ${pkK} ${drug.name}` : ""} → ${POOLS.pain.toLowerCase()} −${hp(pain.D)}`],
+      after(pain, () => ({ in: `× ${painK}${drug ? ` × ${pkK} ${drug.name}` : ""}`, dp: val(POOLS.pain.toLowerCase(), `−${hp(pain.D)}`) }))],
     [T("Death", "Смерть"), T("body, head or pain at 0", "тіло, голова або біль на 0"),
-      !stopped && (sim.killer ? T(`${sim.shots} hits · ${POOLS[sim.killer].toLowerCase()} at 0`, `влучань: ${sim.shots} · ${POOLS[sim.killer].toLowerCase()} на 0`)
-        : T("does not kill", "не вбиває"))],
+      after(true, () => ({ in: "", dp: sim.killer ? [el("b", { text: T(`${sim.shots} hits`, `влучань: ${sim.shots}`) }),
+        el("small", { text: ` · ${POOLS[sim.killer].toLowerCase()} ${T("at 0", "на 0")}` })] : [el("b", { text: T("does not kill", "не вбиває") })] }))],
   ].filter(Boolean);
   const list = $("explain"); list.innerHTML = "";
   steps.forEach(([label, rule, ex], i) => list.append(el("li", {},
-    el("span", { class: "n", text: `${i + 1}.` }), el("b", { class: "name", text: label }), el("code", { text: rule }),
-    el("span", { class: ex ? "ex" : "ex none", text: ex || "—" }))));
-  $("explainlegend").textContent = T("D damage · P penetration · A wall armour", "D пошкодження · P бронебійність · A броня стіни");
-  $("explainnote").textContent = T("one bullet, several parts: each with its own armour; each pool takes the largest share (pain 40, 40, 35 → −40)",
-    "одна куля, кілька частин: кожна зі своєю бронею; кожен пул бере найбільшу частку (біль 40, 40, 35 → −40)");
+    el("span", { class: "n", text: `${i + 1}.` }), el("span", { class: "name", text: label }), el("span", { class: "rule", text: rule }),
+    el("span", { class: ex.in == null || ex.none ? "in none" : "in", text: ex.in ?? "—" }),
+    ...(ex.dp ? [el("span", { class: "dp" }, ...ex.dp)] : ex.d ? [el("span", { class: "d" }, ...ex.d), el("span", { class: "p" }, ...(ex.p || []))] : []))));
+  const legend = $("explainlegend"); legend.innerHTML = "";
+  [["D", T("damage", "пошкодження")], ["P", T("penetration", "бронебійність")], ["A", T("wall armour", "броня стіни")]]
+    .forEach(([k, v], i) => legend.append(i ? " · " : "", el("b", { text: k }), ` ${v}`));
+  // hitPart: a pool takes one bullet's largest contribution, not their sum.
+  $("explainnote").textContent = T("One bullet through several parts: each pool loses only its biggest hit, not the sum (hands 40 + 40, chest 35 → pain −40, not −115).",
+    "Одна куля крізь кілька частин: кожен пул втрачає лише найбільше влучання, а не суму (кисті 40 + 40, груди 35 → біль −40, а не −115).");
 }
 
 // How many Larkspurs the healing table counts (its own tiles), 1 to 4.

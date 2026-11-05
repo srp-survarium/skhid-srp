@@ -289,30 +289,36 @@ tr.click { cursor: pointer } tr.click:hover td { background: color-mix(in srgb, 
 .mapview text { font: 700 34px "Carlito", var(--font-display); fill: #fff; paint-order: stroke; stroke: #000; stroke-width: 6px; stroke-linejoin: round }
 .mapread { margin: 0; min-height: 3em }
 .mapread b { font-family: var(--font-data) }
-/* The rules: one grid for every row (number | label | rule | this shot), the
-   legend and the note in the rule's column; stacked on a phone. */
-.rules { display: grid; grid-template-columns: auto auto minmax(0, 1.4fr) minmax(0, 1fr); gap: 8px 16px }
+/* The rules: one grid for every row (number | label | rule | this shot: its
+   input, then D and P after the step), the legend and the note in the rule's
+   column. On a phone: label and rule over the row's input | D | P. */
+.rules { display: grid; grid-template-columns: auto auto minmax(0, 1fr) minmax(0, auto) auto auto; gap: 0 16px; background: var(--panel); border: 1px solid var(--rule);
+  font-variant-numeric: tabular-nums }
 .rules ol { grid-column: 1 / -1; display: grid; grid-template-columns: subgrid; row-gap: 0; margin: 0; padding: 0; list-style: none;
-  background: var(--panel); border: 1px solid var(--rule) }
+  border-top: 1px dotted var(--rule); border-bottom: 1px dotted var(--rule) }
 .rules li { grid-column: 1 / -1; display: grid; grid-template-columns: subgrid; align-items: baseline; padding: 9px 14px;
-  border-bottom: 1px dotted var(--rule) }
+  border-bottom: 1px dotted var(--rule); color: var(--ink); font-size: .92rem }
 .rules li:last-child { border-bottom: 0 }
-.rules .n { font: .9rem var(--font-data); color: var(--ink-3) }
-.rules .name { font: 700 .95rem var(--font-display); letter-spacing: .02em }
-.rules code { justify-self: start; max-width: 100%; font: .84rem/1.45 var(--font-data); background: var(--bg); padding: 1px 5px;
-  overflow-wrap: anywhere }
-.rules .ex { font: .86rem var(--font-data); color: var(--ink-2); overflow-wrap: anywhere }
-.rules .ex.none { color: var(--ink-3) }
-.ruleslegend, .rulesnote { grid-column: 3 / -1; margin: 0 }
-.ruleslegend code { background: var(--panel) }
-.rulesnote { color: var(--ink-2); font-size: .9rem }
+.rules .n { grid-column: 1; color: var(--ink-3) }
+.rules .name { grid-column: 2; font-weight: 700 }
+.rules .rule { grid-column: 3; overflow-wrap: anywhere }
+.rules .in { grid-column: 4; color: var(--ink-2); overflow-wrap: anywhere }
+.rules .d { grid-column: 5 } .rules .p { grid-column: 6 } .rules .dp { grid-column: 5 / -1 }
+.rules .d, .rules .p, .rules .dp { font-size: 1rem; white-space: nowrap }
+.rules .d b, .rules .p b, .rules .dp b { font-weight: 700 }
+.rules .dp small { font-size: .86rem; color: var(--ink-2) }
+.rules .none { color: var(--ink-3) }
+.ruleslegend, .rulesnote { grid-column: 3 / -1; margin: 0; padding: 9px 14px 9px 0; color: var(--ink); font-size: .92rem }
+.rulesnote { font-size: .9rem }
 @media (max-width: 600px) {
-  .rules, .rules ol { display: block }
-  .rules li { display: grid; grid-template-columns: 2rem minmax(0, 1fr); gap: 4px 0; padding: 9px 12px }
-  .rules li > :not(.n) { grid-column: 2 }
-  .ruleslegend, .rulesnote { padding-left: calc(2rem + 13px) }
-  .ruleslegend { margin-bottom: 8px } .rulesnote { margin-top: 8px }
+  .rules { grid-template-columns: auto auto auto minmax(0, 1fr); column-gap: 12px }
+  .rules li { padding: 9px 12px; row-gap: 3px }
+  .rules .name, .rules .rule, .rules .in { grid-column: 2 / -1 }
+  .rules .d { grid-column: 2 } .rules .p { grid-column: 3 } .rules .dp { grid-column: 2 / -1 }
+  .rules .dp { white-space: normal }
+  .ruleslegend, .rulesnote { grid-column: 2 / -1; padding-right: 12px }
 }
+@media (prefers-reduced-motion: reduce) { * { transition: none !important } }
 </style>
 
 <div class="wrap">
@@ -412,7 +418,7 @@ tr.click { cursor: pointer } tr.click:hover td { background: color-mix(in srgb, 
   <section style="display:grid;gap:12px">
     <h2 data-uk="Формула">Formula</h2>
     <div class="rules">
-      <p class="ruleslegend"><code id="explainlegend"></code></p>
+      <p class="ruleslegend" id="explainlegend"></p>
       <ol id="explain"></ol>
       <p class="rulesnote" id="explainnote"></p>
     </div>
