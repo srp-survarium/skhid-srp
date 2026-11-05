@@ -16,7 +16,10 @@ Scaleform's Invoke 0x511600 a stub that records each call; translate_text
   `srp_hide_scores`, `srp_map_names`, `srp_hide_crosshair` and `srp_dxvk` registered once, after patch 79's `localization`, with
   the game's own cc_value<bool>::cc_value (a cc_bool, saved, kind 2: user.cfg's
   lines set them), off; the game's own cc_bool::execute sets each from a
-  user.cfg line's value; registers and stack as the original's;
+  user.cfg line's value; registers and stack as the original's; once a
+  process, with a `d3d11.dll` beside the game (CreateFileA stubbed: it opens
+  or not), `dxvk.pending` made (CREATE_ALWAYS), without one nothing made, the
+  original opens nothing;
 - the Settings' call (game_options::scaleform_callback 0x1FF5D0 to its
   return, through patch 79's hook at its start): a setting's name with "1" or
   "0" sets that variable alone and writes user.cfg once, with another value
@@ -37,7 +40,7 @@ Scaleform's Invoke 0x511600 a stub that records each call; translate_text
 import struct
 import sys
 
-from unicorn import UC_PROT_ALL
+from unicorn import UC_HOOK_CODE, UC_PROT_ALL
 from unicorn.x86_const import UC_X86_REG_EAX, UC_X86_REG_ECX, UC_X86_REG_EBP, UC_X86_REG_EDI, UC_X86_REG_ESI, \
     UC_X86_REG_ESP
 
@@ -64,12 +67,28 @@ OTHER_HUD = 0x20076800                  # another hud movie (a new game world's)
 MATCH_OPTIONS, MATCH_WORK = 0x31000000, 0x31100000
 
 
+CREATE_FILE_SLOT = 0x870048           # CreateFileA: patch 83 looks for d3d11.dll, makes dxvk.pending
+
+
 class Run(language.Run):
-    def __init__(self, data):
+    def __init__(self, data, d3d11=False):
         super().__init__(data)
         self.refused = False
+        # CreateFileA (stdcall 7): (name, disposition) kept; d3d11.dll opens when `d3d11` is
+        self.d3d11, self.opened = d3d11, []
+        stub = hide.IMPORTS + 0x400
+        self.emu.mem_write(stub, b"\xC2\x1C\x00")
+        self.word(CREATE_FILE_SLOT, stub)
+        self.emu.hook_add(UC_HOOK_CODE, self.create_file, begin=stub, end=stub)
         self.emu.mem_map(MATCH_OPTIONS, 0x60000, UC_PROT_ALL)
         self.emu.mem_map(MATCH_WORK, 0x10000, UC_PROT_ALL)
+
+    def create_file(self, emu, *_):
+        sp = emu.reg_read(UC_X86_REG_ESP)
+        name, disposition = self.text(self.read(sp + 4)).decode(), self.read(sp + 20)
+        self.opened.append((name, disposition))
+        there = name == "dxvk.pending" or (name == "d3d11.dll" and self.d3d11)
+        emu.reg_write(UC_X86_REG_EAX, 7 if there or disposition == 2 else 0xFFFFFFFF)
 
     def new_match(self, replay):
         """A match's options read, as check_blackout_026g.py's static_info and replay run
@@ -167,6 +186,16 @@ def main():
     _, _, again = ours.start()
     again_nodes = [node for node in registered(ours, again, head_before) if ours.text(ours.read(node + 0x10)) != b"srp_lobby"]
     expect(again_nodes == nodes, "configs.start again: each registered once")
+    expect(ours.opened == [("d3d11.dll", 3)], f"configs.start without a d3d11.dll beside the game: looked for once, "
+           f"no marker made ({ours.opened})")
+    stock.start()
+    expect(stock.opened == [], "the original opens no file there")
+    with_dll = Run(patched, d3d11=True)
+    with_dll.start()
+    with_dll.start()
+    expect(with_dll.opened == [("d3d11.dll", 3), ("dxvk.pending", 2)],
+           f"configs.start with a d3d11.dll beside the game: dxvk.pending made (CREATE_ALWAYS), once a process "
+           f"({with_dll.opened})")
     value = {name: variables[name][3] for name in SETTINGS}
     for name, node in zip(names, nodes):
         if name not in SETTINGS:

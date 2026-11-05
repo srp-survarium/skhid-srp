@@ -24,11 +24,11 @@ site = "player_icons.update_start"
 handler = "on_update_icons"
 order = 2
 
-# the lobby shows (after patch 88's theme there): a start with DXVK got this
-# far, its marker goes (docs/notes/dxvk-option.md)
+# the login screen shows (after patch 88's theme there): the renderer works,
+# the DXVK marker written at configs.start goes (docs/notes/dxvk-option.md)
 [[hook]]
-site = "lobby_menu.activated"
-handler = "on_lobby"
+site = "login_menu.activated"
+handler = "on_login"
 order = 2
 
 [[hook]]

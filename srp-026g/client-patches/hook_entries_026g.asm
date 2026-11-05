@@ -1593,10 +1593,10 @@ language_on_options_call_replay:
     db 0x55, 0x56, 0x8b, 0x74, 0x24, 0x10
     jmp 0x1ff5d6
 
-; 0x21d31d lobby_menu::on_activate after base_game_scene::on_activate (mov ecx,[edi+9Ch]): the lobby is shown, at the start and back from a match: lohook -> music_on_lobby
-global music_on_lobby
-extern hook_music_on_lobby_chain
-music_on_lobby:
+; 0x21eac8 login_menu::on_activate after base_game_scene::on_activate (mov ecx,[esi+9Ch]; the jmp at 0x21EAC4 lands here): the login screen is shown: lohook -> music_on_login
+global music_on_login
+extern hook_music_on_login_chain
+music_on_login:
     lea esp, [esp - 4]
     pushfd
     pushad
@@ -1613,24 +1613,24 @@ music_on_lobby:
     mov eax, esp
     sub esp, 12
     push eax
-    call hook_music_on_lobby_chain
-    mov edx, music_on_lobby_replay
+    call hook_music_on_login_chain
+    mov edx, music_on_login_replay
     cmp eax, 0
-    je music_on_lobby_go
-    mov edx, 0x21d323
+    je music_on_login_go
+    mov edx, 0x21eace
     cmp eax, 1
-    je music_on_lobby_go
+    je music_on_login_go
     ud2
-music_on_lobby_go:
+music_on_login_go:
     mov [ebp + 36], edx
     fxrstor [edi]
     mov esp, ebp
     popad
     popfd
     ret
-music_on_lobby_replay:
-    db 0x8b, 0x8f, 0x9c, 0x00, 0x00, 0x00
-    jmp 0x21d323
+music_on_login_replay:
+    db 0x8b, 0x8e, 0x9c, 0x00, 0x00, 0x00
+    jmp 0x21eace
 
 ; 0x1fab50 game_world_core::change_input<client_update<player_input,220,235,221,236>>'s start (push ebp / mov ebp,esp / and esp,-8), every player input a world takes: a local one, a relayed one (0xEB, the batch 0x27C5C1), a moved one (0xEF) and a replay's; ESP+4 the core, +8 the input (half2 rotation, then the action mask), +10h its time, +14h the player; refused is its `ret 24h` (0x1FAC4E, the duplicate's; EAX the event action, 6 as both refusals return it): lohook -> input_check_on_change_input
 global input_check_on_change_input
@@ -3767,10 +3767,10 @@ music_on_frame_replay:
     db 0x8d, 0xb3, 0x08, 0x53, 0x00, 0x00
     jmp 0x1ec8f2
 
-; 0x21eac8 login_menu::on_activate after base_game_scene::on_activate (mov ecx,[esi+9Ch]; the jmp at 0x21EAC4 lands here): the login screen is shown: lohook -> music_on_login
-global music_on_login
-extern hook_music_on_login
-music_on_login:
+; 0x21d31d lobby_menu::on_activate after base_game_scene::on_activate (mov ecx,[edi+9Ch]): the lobby is shown, at the start and back from a match: lohook -> music_on_lobby
+global music_on_lobby
+extern hook_music_on_lobby
+music_on_lobby:
     lea esp, [esp - 4]
     pushfd
     pushad
@@ -3787,24 +3787,24 @@ music_on_login:
     mov eax, esp
     sub esp, 12
     push eax
-    call hook_music_on_login
-    mov edx, music_on_login_replay
+    call hook_music_on_lobby
+    mov edx, music_on_lobby_replay
     cmp eax, 0
-    je music_on_login_go
-    mov edx, 0x21eace
+    je music_on_lobby_go
+    mov edx, 0x21d323
     cmp eax, 1
-    je music_on_login_go
+    je music_on_lobby_go
     ud2
-music_on_login_go:
+music_on_lobby_go:
     mov [ebp + 36], edx
     fxrstor [edi]
     mov esp, ebp
     popad
     popfd
     ret
-music_on_login_replay:
-    db 0x8b, 0x8e, 0x9c, 0x00, 0x00, 0x00
-    jmp 0x21eace
+music_on_lobby_replay:
+    db 0x8b, 0x8f, 0x9c, 0x00, 0x00, 0x00
+    jmp 0x21d323
 
 ; 0x2204b3 lobby_menu::switch_to_level_loading with its mode's ui table (mov eax,esi / mov [esp+0Ch],esi, before loading_screen_id is read): ESI mode/ui: lohook -> music_on_loading
 global music_on_loading

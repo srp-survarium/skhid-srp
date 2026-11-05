@@ -18,16 +18,16 @@ order = 4
 site = "game.tick"
 handler = "on_frame"
 
-# the login screen: the main theme
+# the login screen: the main theme (before patch 83's DXVK marker, order 2)
 [[hook]]
 site = "login_menu.activated"
 handler = "on_login"
+order = 1
 
-# the lobby: the lobby theme (before patch 83's marker, order 2)
+# the lobby: the lobby theme
 [[hook]]
 site = "lobby_menu.activated"
 handler = "on_lobby"
-order = 1
 
 # a match's loading: its mode's loading_music
 [[hook]]

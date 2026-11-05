@@ -7,11 +7,12 @@
 //! with one of [`OURS`]'s hashes is ever replaced or removed there: a
 //! `d3d11.dll` of the player's own stays.
 //!
-//! With DXVK put beside the game the updater leaves [`MARKER`] there; the game
-//! deletes it once its lobby shows (exe patch 83). A marker still there at the
-//! next run, with ours beside the game, is a start with DXVK that never got
-//! there: the setting is turned off in user.cfg and plain DirectX is back
-//! ([`step`]).
+//! The game owns [`MARKER`] (exe patch 83): it writes it at its start when a
+//! `d3d11.dll` is beside it, before its renderer is made, and deletes it once
+//! its login screen shows. A marker the updater finds with ours beside the
+//! game is a start with DXVK that never showed a screen: the setting is turned
+//! off in user.cfg and plain DirectX is back ([`step`]). The updater deletes
+//! the marker at every run, and never writes it.
 
 use alloc::vec::Vec;
 
@@ -25,8 +26,8 @@ pub const FOLDER: &str = "dxvk";
 pub const DLLS: [&str; 2] = ["d3d11.dll", "dxgi.dll"];
 /// The user.cfg variable of the Settings' checkbox (exe patch 83).
 pub const SETTING: &[u8] = b"srp_dxvk";
-/// Beside the updater (and the game, whose working folder it is): DXVK was
-/// put in place for this start, which has not shown the lobby yet.
+/// Beside the game and the updater: written by the game at its start with a
+/// `d3d11.dll` beside it, deleted once its login screen shows.
 pub const MARKER: &str = "dxvk.pending";
 
 /// The SHA-256 of every DXVK release a Skhid ZIP has shipped, its two DLLs
@@ -213,11 +214,11 @@ pub enum State {
     Off,
     /// On; none of ours beside the game: not started with DXVK yet.
     NotStarted,
-    /// On; ours beside the game and no marker: the last start showed the
-    /// lobby with them.
+    /// On; ours beside the game and no marker: the game showed its login
+    /// screen with them, or has not started since they were put there.
     Confirmed,
-    /// On; ours beside the game and the marker still there: the last start
-    /// with them never showed the lobby.
+    /// On; ours beside the game and the game's marker there: the last start
+    /// with them never showed a screen.
     Failed,
 }
 
@@ -250,16 +251,16 @@ pub enum Unused {
     Foreign(usize),
 }
 
-/// What the run does. Every plan takes ours away but [`Plan::Use`], and
-/// deletes the marker but [`Plan::Use`], which leaves it.
+/// What the run does. Every plan takes ours away but [`Plan::Use`]; after any,
+/// the marker is deleted (the game writes its own at its next start).
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum Plan {
     /// DXVK for this start: these DLLs (indices of [`DLLS`]) copied from
-    /// [`FOLDER`] beside the game (the others are there), the marker left.
+    /// [`FOLDER`] beside the game (the others are there).
     Use { copy: Vec<usize> },
     /// Plain DirectX: these of ours removed from beside the game.
     Unused { remove: Vec<usize>, why: Unused },
-    /// The last start with DXVK never showed the lobby: user.cfg's setting
+    /// The last start with DXVK never showed a screen: user.cfg's setting
     /// turned off ([`turned_off`]), these of ours removed.
     TurnOff { remove: Vec<usize> },
 }
@@ -454,11 +455,11 @@ mod tests {
     }
 
     #[test]
-    fn on_and_not_started_copies_both_and_leaves_the_marker() {
+    fn on_and_not_started_copies_both() {
         let first = found(true, false, BOTH);
         assert_eq!(State::of(&first), State::NotStarted);
         assert_eq!(step(&first, good), Plan::Use { copy: vec![0, 1] });
-        // a marker of a start before that took ours away: not a failure
+        // a marker of a start without ours (a d3d11.dll of the player's own): not a failure
         assert_eq!(
             step(&found(true, true, BOTH), good),
             Plan::Use { copy: vec![0, 1] }
@@ -466,9 +467,11 @@ mod tests {
     }
 
     #[test]
-    fn on_and_confirmed_keeps_them_and_leaves_the_marker_again() {
+    fn on_and_confirmed_keeps_them() {
         let confirmed = found(true, false, [ours(0), ours(1)]);
         assert_eq!(State::of(&confirmed), State::Confirmed);
+        assert_eq!(step(&confirmed, good), Plan::Use { copy: vec![] });
+        // the launcher started again without PLAY: still confirmed (the updater writes no marker)
         assert_eq!(step(&confirmed, good), Plan::Use { copy: vec![] });
         // a release's copy of another hash is replaced
         assert_eq!(

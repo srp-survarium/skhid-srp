@@ -1,12 +1,11 @@
 //! The opt-in Vulkan renderer (`updater_logic::dxvk`,
 //! `srp-026g/docs/notes/dxvk-option.md`): after the overlay, at every
 //! update, what is found (user.cfg's `srp_dxvk`, the DLLs beside the game and
-//! in `dxvk\`, the marker `dxvk.pending`) gives the run's plan
+//! in `dxvk\`, the game's marker `dxvk.pending`) gives the run's plan
 //! (`updater_logic::dxvk::step`), carried out here: DXVK's `d3d11.dll` and
-//! `dxgi.dll` copied beside the game and the marker left (the game deletes
-//! it once its lobby shows); or ours removed and the marker deleted; or,
-//! after a start with DXVK that never showed the lobby, the setting turned
-//! off in user.cfg too. Best effort: what fails is logged, and the update
+//! `dxgi.dll` copied beside the game; or ours removed; or, after a start
+//! with DXVK that never showed a screen, the setting turned off in user.cfg
+//! too. The marker is the game's; the updater deletes one it finds. Best effort: what fails is logged, and the update
 //! goes on with plain DirectX.
 //!
 //! The Vulkan check runs in a second run of this program
@@ -52,27 +51,14 @@ pub fn run(session: &mut Session, layout: &Layout) {
     let plan = step(&found, || run_probe(session, layout));
     match plan {
         Plan::Use { copy: which } => {
-            // The marker first: no DXVK without the way back to DirectX.
-            let done = win::write_file(&marker, b"")
-                .map_err(|code| format!("{MARKER} not written: {}", win::error_text(code)))
-                .and_then(|()| {
-                    which.iter().try_for_each(|&i| {
-                        copy(layout, i, found.source[i])?;
-                        log!("dxvk: {} put beside the game", DLLS[i]);
-                        Ok(())
-                    })
-                });
-            match done {
-                Ok(()) => {
-                    log!("dxvk: in use; {MARKER} left for the game to take once its lobby shows")
-                }
-                Err(why) => {
+            for &i in &which {
+                if let Err(why) = copy(layout, i, found.source[i]) {
                     log!("dxvk: {why}; plain DirectX this time");
                     remove_ours(layout, &[0, 1]);
-                    let _ = win::delete(&marker);
+                    break;
                 }
+                log!("dxvk: {} put beside the game", DLLS[i]);
             }
-            return;
         }
         Plan::Unused { remove, why } => {
             match why {
@@ -93,7 +79,7 @@ pub fn run(session: &mut Session, layout: &Layout) {
         }
         Plan::TurnOff { remove } => {
             log!(
-                "dxvk: the last start with DXVK never showed the lobby: turned off, plain DirectX"
+                "dxvk: the last start with DXVK never showed a screen ({MARKER} left by the game): turned off, plain DirectX"
             );
             match user_cfg.and_then(|(path, text)| Some((path, turned_off(&text)?))) {
                 Some((path, text)) => {

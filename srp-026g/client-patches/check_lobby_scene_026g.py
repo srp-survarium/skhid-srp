@@ -162,7 +162,9 @@ class Run(language.Run):
         return language.named(self, language.registered(self, head, before), "srp_lobby")
 
     def log_open(self, emu, address, size, _):
-        self.logged += 1
+        # srp_patches.log's (patch 83's d3d11.dll look at configs.start is no line)
+        if self.text(self.read(emu.reg_read(UC_X86_REG_ESP) + 4)) == b"srp_patches.log":
+            self.logged += 1
 
     def players_range(self, emu, address, size, _):
         """lobby_client's 3B (EAX the client; ret 8): recorded, not sent."""

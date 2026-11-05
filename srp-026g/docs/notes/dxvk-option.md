@@ -32,13 +32,16 @@ The owner (2026-11-05): let Windows players try DXVK; off by default.
   (`OURS` in `client/updater/logic/src/dxvk.rs`). A `d3d11.dll` or `dxgi.dll` of the player's own is
   never replaced or removed; with one there, DXVK is not used.
 - Both or neither: a copy that fails removes ours again; the two in `dxvk\` must be one release's.
-- **Back to DirectX by itself** (the owner, 2026-11-05): with DXVK put beside the game the updater
-  leaves `dxvk.pending` beside it; the game deletes it once its lobby shows (exe patch 83, at
-  `lobby_menu.activated`). Still there at the next run, with ours beside the game: that start never
-  reached the lobby. The updater then sets `srp_dxvk off` in user.cfg (that line only, every other
-  byte kept), removes ours and the marker, and logs it; the checkbox shows off, and ticking it
-  again tries once more. One enum and one transition (`State`, `step` in `logic/src/dxvk.rs`): off;
-  on and not started; on and confirmed (the marker left again); on and failed (turned off).
+- **Back to DirectX by itself** (the owner, 2026-11-05): the game owns the marker (exe patch 83).
+  At `configs.start` (on_configs_loaded, before its renderer is made; d3d11 and dxgi are
+  delay-loaded, so nothing of theirs has run), once a process, with a `d3d11.dll` beside it the
+  game writes `dxvk.pending`; its login screen deletes it (`login_menu.activated`). The updater
+  never writes it: one it finds with ours beside the game is a start with DXVK that never showed a
+  screen. It then sets `srp_dxvk off` in user.cfg (that line only, every other byte kept), removes
+  ours, and logs it; the checkbox shows off, and ticking it again tries once more. It deletes a
+  marker it finds in any case. Never starting the game, opening the launcher again, closing at the
+  login screen or a server that is down keep DXVK on. One enum and one transition (`State`, `step`
+  in `logic/src/dxvk.rs`): off; on and not started; on and confirmed; on and failed (turned off).
 - The Vulkan check runs only for a player who asked, in a second run of the updater
   (`updater_skhid.exe vulkan`, 10 s at most), so a driver that crashes or hangs in it cannot stop
   the update.
@@ -48,8 +51,10 @@ The owner (2026-11-05): let Windows players try DXVK; off by default.
 ## Known limits
 
 - A start that fails with DXVK costs one more launcher start: that run turns it off. A start that
-  never reaches the lobby for another reason (closed at the login screen, the server down), or the
-  launcher opened twice without PLAY, turns it off too; ticking it again is the way back.
+  dies before its login screen for another reason (a crash of the game's own, the window closed
+  while loading) turns it off too; ticking it again is the way back.
+- "Before its renderer is made" is read from the engine's order (user.cfg runs at configs.start,
+  the renderer takes its settings from it), not traced in the code.
 - Antivirus: DXVK's 3.1.1 release notes say some antivirus programs flag its 32-bit builds. A
   false positive on `dxvk\` stops every Windows player's update ("Game files removed by
   antivirus", `Skhid-defender-setup.cmd`), as for any Skhid file. Check the two hashes on

@@ -725,10 +725,10 @@ are there. After the overlay and the restore, at every run (`exe/src/dxvk.rs`,
 - Otherwise: each of the two beside the game whose SHA-256 is one of `OURS` (every DXVK DLL a ZIP
   has shipped) is deleted. Any other `d3d11.dll` or `dxgi.dll` is the player's and stays; with one,
   DXVK is not used. A copy that fails deletes ours again: both or neither.
-- With DXVK in place, `dxvk.pending` is left beside the updater (written before the copies:
-  no DXVK without it); the game deletes it once its lobby shows. Found again with ours beside the
-  game, the last start never got there: user.cfg's `srp_dxvk` line becomes `srp_dxvk off` (only
-  that line), ours and the marker go: plain DirectX. The setting off takes the marker away too.
+- `dxvk.pending` is the game's: it writes it at its start with a `d3d11.dll` beside it and deletes
+  it at its login screen (exe patch 83). Found with ours beside the game, that start never showed a
+  screen: user.cfg's `srp_dxvk` line becomes `srp_dxvk off` (only that line) and ours go: plain
+  DirectX. The updater deletes a marker it finds at every run and never writes one.
 - Best effort: a `dxvk:` line in the log says what was done or why not; nothing here fails the
   update or keeps PLAY off.
 
@@ -737,10 +737,10 @@ says 1.4.351; with lavapipe alone 13, with no driver 12. `check quiet` with the 
 DLLs in the archive (a scratch script on `test_db_patches.py`'s harness, a prefix whose
 Documents is its own): no user.cfg, nothing beside the game and no `dxvk:` line; `on`, both
 copied, the next run nothing, `off` both removed; `on` with lavapipe alone, not used and ours
-removed; a d3d11.dll of the player's own kept, `on` and `off`; the marker: left at each run with
-DXVK, deleted (as the game does) and left again, still there at the next run turned user.cfg to
-`srp_dxvk off` byte for byte and removed ours, and the setting off took a marker away. Not run on
-Windows.
+removed; a d3d11.dll of the player's own kept, `on` and `off`; the marker: the updater writes
+none, a second run without the game keeps DXVK, a marker left (as the game leaves it when it
+never shows a screen) turned user.cfg to `srp_dxvk off` byte for byte and removed ours, and the
+setting off took a marker away. Not run on Windows.
 
 ## Build and test
 
