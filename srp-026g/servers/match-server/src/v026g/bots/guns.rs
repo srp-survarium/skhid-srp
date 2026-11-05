@@ -1407,9 +1407,9 @@ mod tests {
                     };
                     assert_eq!(on.reload_ms(0, w.magazine_capacity), time(&want), "{at}");
                     // The weight upgrade of the heavy roles changes no gun number
-                    // but the sights.
+                    // but the sights (and the kick by the kit's gloves, A307).
                     if !light {
-                        assert_eq!(Gun { aim_ms: base.aim_ms, ..*on }, *base, "{at}");
+                        assert_eq!(Gun { aim_ms: base.aim_ms, recoil_scale: base.recoil_scale, ..*on }, *base, "{at}");
                     }
                 }
             }

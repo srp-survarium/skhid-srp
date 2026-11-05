@@ -440,6 +440,7 @@
     "lead_flight": false,
     "lead_drop": false,
     "mirror_gated": true,
+    "kit_recoil": true,
     "aim_last_known": true,
     "lead_most_ms": 300,
     "lead_own": true,
