@@ -10,6 +10,12 @@
 //! The rows' names are ASCII fields with `;` between them, the first the
 //! version [`ROOMS_VERSION`] and the second the kind of the answer.
 
+use std::ops::RangeInclusive;
+use std::sync::OnceLock;
+use std::time::Duration;
+
+use binary_config_parser::tree::ConfigValue;
+
 use super::push::{Ranked, elo_rows};
 use super::{ServerMessage, WireError, at_most};
 
@@ -34,6 +40,18 @@ pub const ROOM_POOL_BASE: u32 = ROOMS_FIRST + 10;
 /// friend's right-click menu offers "Join room" by it (the owner's of
 /// 2026-10-20).
 pub const ROOM_FRIENDS: u32 = ROOMS_FIRST + 40;
+/// The owner of a private room (a PIN) starts its match now, with whoever
+/// is in (the owner's of 2026-10-26: no countdown in a private room).
+/// Nothing is done for anyone else, an open room, or a room playing its
+/// match. Answered with the state.
+pub const ROOM_START: u32 = ROOMS_FIRST + 41;
+/// `ROOM_MOVE_BASE + place + 20 × check` ([`move_start`]): the owner of a
+/// private room moves the member at that place of the state's list (itself
+/// too) to the other team (the owner's of 2026-10-26: "a button to move the
+/// player into any team"); `check` as a kick's. Nothing is done for anyone
+/// else, an open room, a room playing its match, or onto a team of 10.
+/// Answered with the state.
+pub const ROOM_MOVE_BASE: u32 = ROOMS_FIRST + 20_000;
 /// `ROOM_KICK_BASE + place + 20 × check` ([`kick_start`]): the owner takes
 /// the member at that place of the state's list out of the room; `check` is
 /// that state's serial modulo [`KICK_CHECKS`], so a kick made from an older
@@ -97,15 +115,6 @@ pub const ROOMS_VERSION: &str = "S1";
 pub const ROOM_KEY_MAX: u32 = 99_999;
 /// The largest PIN.
 pub const PIN_MAX: u16 = 9999;
-/// The team sizes, each side's players.
-pub const SIZES: std::ops::RangeInclusive<u8> = 6..=10;
-/// The highest max level.
-pub const LEVEL_MAX: u8 = 15;
-/// The waits before a match, in seconds: 15 to 60 by 5.
-pub const WAITS: [u8; 10] = [15, 20, 25, 30, 35, 40, 45, 50, 55, 60];
-/// The players a side a room needs before its vote begins: 1 v 1 to 3 v 3
-/// (the owner's of 2026-10-17).
-pub const MIN_SIDES: std::ops::RangeInclusive<u8> = 1..=3;
 /// The pool entries one bits request carries.
 pub const BITS_PER_CHUNK: u32 = 20;
 /// The most chunks: a pool of 160 entries at the most.
@@ -129,20 +138,159 @@ pub const FRIEND_ROWS: usize = u8::MAX as usize - 1;
 /// in the game (`limits::NAME` is the buffer's).
 const ROW_NAME: usize = 32;
 
+/// The rooms' settings in the game's files, made by
+/// `scripts/content-edit/rooms.tsv` (its header says each key); the lobby
+/// movie is told what it shows in srp's messages.
+pub const RULES_PATH: &str = "gameplay/srp/rooms.options";
+
+/// The rooms' and Player vs Bots' settings ([`RULES_PATH`]): [`rules`].
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct RoomRules {
+    /// Each side's players a room may have.
+    pub sizes: RangeInclusive<u8>,
+    /// The players a side a room may need before its vote begins: 1 v 1 up.
+    pub min_sides: RangeInclusive<u8>,
+    /// The highest max level a room may have: the highest equipment level.
+    pub level_most: u8,
+    /// The waits before a match a room may have, seconds, ascending.
+    pub waits: Vec<u8>,
+    /// The create window's settings before a player has made a room, and
+    /// the room Play makes.
+    pub default: RoomSpecDefault,
+    /// The vote's own time before each match, whatever the room's wait.
+    pub vote: Duration,
+    /// What the vote after a match has more: its players come back from
+    /// the results screen first.
+    pub after_match: Duration,
+    /// How long a member who comes while its room's match is played sees
+    /// the room before it is put into the match, unless it asks first.
+    pub late_join_wait: Duration,
+    /// This many ready Play users waiting in one equipment bracket open
+    /// another room.
+    pub scale_players: usize,
+    /// The most rooms at once.
+    pub rooms_most: usize,
+    /// With no countdown this long after a match's first entry (match ms),
+    /// it starts with who is in.
+    pub match_start_wait_ms: u32,
+    pub pvb: PvbRules,
+}
+
+/// What the create window starts with, and Play makes a room with.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct RoomSpecDefault {
+    pub size: u8,
+    pub min_side: u8,
+    /// 0: any.
+    pub max_level: u8,
+    pub wait: u8,
+}
+
+/// "Player vs Bots" in the lobby.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct PvbRules {
+    /// The team sizes offered, each side's players.
+    pub sizes: Vec<u8>,
+    /// The one the window shows first.
+    pub default_size: u8,
+    /// The highest equipment level let in (the bots wear the player's).
+    pub max_gear: u8,
+}
+
+impl RoomRules {
+    /// The settings of `config` ([`RULES_PATH`]); a key missing, or a value
+    /// out of what the rooms can take, is an error naming it.
+    pub fn parse(config: &[u8]) -> Result<Self, String> {
+        let root =
+            ConfigValue::parse(config).map_err(|cause| format!("{RULES_PATH}: {}", cause.0))?;
+        let at = |path: &str| -> Result<&ConfigValue, String> {
+            path.split('/').try_fold(&root, |table, key| {
+                table
+                    .get(key)
+                    .ok_or_else(|| format!("{RULES_PATH}: no `{path}`"))
+            })
+        };
+        let int = |path: &str| -> Result<i64, String> {
+            match at(path)? {
+                ConfigValue::Integer(n) => Ok(i64::from(*n)),
+                other => Err(format!(
+                    "{RULES_PATH}: `{path}` is {other:?}, not a whole number"
+                )),
+            }
+        };
+        fn fit<T: TryFrom<i64>>(path: &str, n: i64) -> Result<T, String> {
+            T::try_from(n).map_err(|_| format!("{RULES_PATH}: `{path}` is {n}, out of range"))
+        }
+        let byte = |path: &str| int(path).and_then(|n| fit::<u8>(path, n));
+        let bytes = |path: &str| -> Result<Vec<u8>, String> {
+            match at(path)? {
+                ConfigValue::Indexed(items) => items
+                    .iter()
+                    .map(|item| match item {
+                        ConfigValue::Integer(n) => fit(path, i64::from(*n)),
+                        other => Err(format!("{RULES_PATH}: `{path}` holds {other:?}")),
+                    })
+                    .collect(),
+                other => Err(format!("{RULES_PATH}: `{path}` is {other:?}, not a list")),
+            }
+        };
+        let seconds = |path: &str| {
+            int(path)
+                .and_then(|n| fit::<u64>(path, n))
+                .map(Duration::from_secs)
+        };
+        Ok(RoomRules {
+            sizes: byte("size_least")?..=byte("size_most")?,
+            min_sides: 1..=byte("min_side_most")?,
+            level_most: byte("level_most")?,
+            waits: bytes("waits")?,
+            default: RoomSpecDefault {
+                size: byte("default_size")?,
+                min_side: byte("default_min_side")?,
+                max_level: byte("default_max_level")?,
+                wait: byte("default_wait")?,
+            },
+            vote: seconds("vote_s")?,
+            after_match: seconds("after_match_s")?,
+            late_join_wait: seconds("late_join_wait_s")?,
+            scale_players: int("scale_players").and_then(|n| fit("scale_players", n))?,
+            rooms_most: int("rooms_most").and_then(|n| fit("rooms_most", n))?,
+            match_start_wait_ms: int("match_start_wait_ms")
+                .and_then(|n| fit("match_start_wait_ms", n))?,
+            pvb: PvbRules {
+                sizes: bytes("pvb/sizes")?,
+                default_size: byte("pvb/default_size")?,
+                max_gear: byte("pvb/max_gear")?,
+            },
+        })
+    }
+}
+
+/// The rooms' settings of the game's files ([`super::super::game_data::shared`]),
+/// read when first used; `srp` reads them at start (`tables::check`).
+pub fn rules() -> &'static RoomRules {
+    static RULES: OnceLock<RoomRules> = OnceLock::new();
+    RULES.get_or_init(|| {
+        RoomRules::parse(super::super::game_data::file(RULES_PATH))
+            .unwrap_or_else(|why| panic!("{why}"))
+    })
+}
+
 /// What a room is made with (the create window).
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct RoomSpec {
-    /// Each side's players, one of [`SIZES`].
+    /// Each side's players, one of [`RoomRules::sizes`].
     pub size: u8,
-    /// The highest equipment level let in, 1 to [`LEVEL_MAX`]; 0: any.
+    /// The highest equipment level let in, 1 to [`RoomRules::level_most`]; 0: any. A
+    /// private room has none: its window's is kept for the next open room.
     pub max_level: u8,
-    /// Seconds from the second player to the match, one of [`WAITS`].
+    /// Seconds from the second player to the match, one of [`RoomRules::waits`].
     pub wait: u8,
     /// Joining asks for a PIN: the one the creator gave with its PIN
     /// request just before ([`ROOM_PIN_BASE`]).
     pub pin: bool,
     /// The players a side it needs before its vote begins, one of
-    /// [`MIN_SIDES`].
+    /// [`RoomRules::min_sides`].
     pub min_side: u8,
 }
 
@@ -191,6 +339,13 @@ pub enum RoomRequest {
     Form,
     Chat,
     Friends,
+    /// [`ROOM_START`].
+    Start,
+    /// [`ROOM_MOVE_BASE`].
+    Move {
+        place: u8,
+        check: u32,
+    },
     Bits {
         chunk: u8,
         bits: u32,
@@ -198,18 +353,25 @@ pub enum RoomRequest {
     Create(RoomSpec),
 }
 
-/// The code of a create: `((((size − 6) × 16 + max level) × 10 + wait index)
-/// × 2 + PIN) × 3 + (min side − 1)`, PIN 1 when joining asks for one. A room has no level of its
-/// own to make: the server works it out from its players.
+/// The code of a create: `((((size − least size) × 16 + max level) × 10 + wait index)
+/// × 2 + PIN) × 3 + (min side − 1)`, PIN 1 when joining asks for one (the lobby movie sends one
+/// code, RoomsWire.CREATE_PIN: a private room has no size, level, wait or minimum of its own). A
+/// room has no level of its own to make: the server works it out from its players.
 pub fn create_start(spec: RoomSpec) -> u32 {
-    let wait = WAITS
+    let rules = rules();
+    let wait = rules
+        .waits
         .iter()
         .position(|&wait| wait == spec.wait)
         .unwrap_or(3) as u32;
-    let size = u32::from(spec.size.clamp(*SIZES.start(), *SIZES.end()) - SIZES.start());
-    let max_level = u32::from(spec.max_level.min(LEVEL_MAX));
-    let min_side =
-        u32::from(spec.min_side.clamp(*MIN_SIDES.start(), *MIN_SIDES.end()) - MIN_SIDES.start());
+    let size =
+        u32::from(spec.size.clamp(*rules.sizes.start(), *rules.sizes.end()) - rules.sizes.start());
+    let max_level = u32::from(spec.max_level.min(rules.level_most));
+    let min_side = u32::from(
+        spec.min_side
+            .clamp(*rules.min_sides.start(), *rules.min_sides.end())
+            - rules.min_sides.start(),
+    );
     let code = (((size * 16 + max_level) * 10 + wait) * 2 + u32::from(spec.pin)) * 3 + min_side;
     ROOM_CREATE_BASE + code
 }
@@ -217,6 +379,12 @@ pub fn create_start(spec: RoomSpec) -> u32 {
 /// The start of a kick of the member at `place` of a state of `serial`.
 pub fn kick_start(place: u8, serial: u32) -> u32 {
     ROOM_KICK_BASE + u32::from(place) + MEMBERS_MAX as u32 * (serial % KICK_CHECKS)
+}
+
+/// The start of a move of the member at `place` of a state of `serial` to
+/// the other team ([`ROOM_MOVE_BASE`]).
+pub fn move_start(place: u8, serial: u32) -> u32 {
+    ROOM_MOVE_BASE + u32::from(place) + MEMBERS_MAX as u32 * (serial % KICK_CHECKS)
 }
 
 /// The `match` of a `3D 00 <GEAR_IN_ROOM> <match>` for the member at `place`
@@ -253,6 +421,7 @@ pub fn room_request(start: u32, count: u8) -> Option<RoomRequest> {
         ROOM_FORM => R::Form,
         ROOM_CHAT => R::Chat,
         ROOM_FRIENDS => R::Friends,
+        ROOM_START => R::Start,
         _ if (ROOM_VOTE_BASE..ROOM_VOTE_BASE + CARDS as u32).contains(&start) => R::Vote {
             card: (start - ROOM_VOTE_BASE) as u8,
         },
@@ -265,6 +434,14 @@ pub fn room_request(start: u32, count: u8) -> Option<RoomRequest> {
             R::Kick {
                 place: ((start - ROOM_KICK_BASE) % MEMBERS_MAX as u32) as u8,
                 check: (start - ROOM_KICK_BASE) / MEMBERS_MAX as u32,
+            }
+        }
+        _ if (ROOM_MOVE_BASE..ROOM_MOVE_BASE + MEMBERS_MAX as u32 * KICK_CHECKS)
+            .contains(&start) =>
+        {
+            R::Move {
+                place: ((start - ROOM_MOVE_BASE) % MEMBERS_MAX as u32) as u8,
+                check: (start - ROOM_MOVE_BASE) / MEMBERS_MAX as u32,
             }
         }
         _ if (ROOM_PIN_BASE..=ROOM_PIN_BASE + u32::from(PIN_MAX)).contains(&start) => R::Pin {
@@ -301,19 +478,20 @@ pub fn room_request(start: u32, count: u8) -> Option<RoomRequest> {
             }
         }
         _ if start >= ROOM_CREATE_BASE => {
+            let rules = rules();
             let code = start - ROOM_CREATE_BASE;
-            let min_side = MIN_SIDES.start() + (code % 3) as u8;
+            let min_side = rules.min_sides.start() + (code % 3) as u8;
             let code = code / 3;
             let pin = code % 2 == 1;
             let rest = code / 2;
-            let wait = WAITS.get((rest % 10) as usize).copied()?;
+            let wait = rules.waits.get((rest % 10) as usize).copied()?;
             let max_level = rest / 10 % 16;
             let size = rest / 160;
-            if size > u32::from(SIZES.end() - SIZES.start()) {
+            if size > u32::from(rules.sizes.end() - rules.sizes.start()) {
                 return None;
             }
             R::Create(RoomSpec {
-                size: SIZES.start() + size as u8,
+                size: rules.sizes.start() + size as u8,
                 max_level: max_level as u8,
                 wait,
                 pin,
@@ -387,6 +565,12 @@ pub enum RoomCode {
     /// (`presets.md`, the owner's of 2026-10-23). The movie greys those by
     /// the same rule and says nothing of this code.
     KitCantPlay = 15,
+    /// Public rooms are created by Play as demand grows, never by a client.
+    PublicCreate = 16,
+    /// A squad member that is not its commander goes into no room on its
+    /// own: its commander's Play, Join or Queue takes it (the owner's of
+    /// 2026-10-31, `squads.md`). The movie greys those by the same rule.
+    SquadLeader = 17,
 }
 
 /// A room in [`room_list`].
@@ -396,6 +580,8 @@ pub struct RoomRow {
     /// Its level: worked out from its players (the level its match would
     /// have now).
     pub level: u8,
+    /// The highest equipment level let in; 0: any, and a private room (it
+    /// has none: the movie shows none).
     pub max_level: u8,
     pub size: u8,
     pub players: u8,
@@ -446,7 +632,26 @@ pub struct Member {
     /// Its game is gone for now (its link silent): it keeps its place for
     /// about 90 s, shown grey (the owner's of 2026-10-18).
     pub away: bool,
+    /// Its squad's mark in this room: the pairs whose two members are both
+    /// in it numbered 1, 2, ... in the list's order ([`SQUAD_MARKS`] at
+    /// most); `None` for one in no pair there (the owner's of 2026-10-31:
+    /// squads seen in the room). The wire says none as 0.
+    pub squad: Option<u8>,
     pub name: String,
+}
+
+/// The most squad marks a room shows: a room's 20 members are 10 pairs.
+pub const SQUAD_MARKS: u8 = (MEMBERS_MAX / 2) as u8;
+
+/// A squad mark as one character of the state's `S` row: `0` none, then
+/// `1`..`9`, `a` (base 36).
+fn squad_mark(squad: Option<u8>) -> char {
+    char::from_digit(u32::from(squad_number(squad)), 36).unwrap_or('0')
+}
+
+/// A squad mark as the wire's number: 0 none.
+fn squad_number(squad: Option<u8>) -> u8 {
+    squad.map_or(0, |mark| mark.clamp(1, SQUAD_MARKS))
 }
 
 /// A member's kit as its room's next match would take it. One that is not
@@ -470,7 +675,8 @@ pub struct RoomView {
     pub key: u32,
     /// Its level: worked out from its players.
     pub level: u8,
-    /// The highest equipment level let in; 0: any.
+    /// The highest equipment level let in; 0: any, and a private room (it
+    /// has none: the movie shows none).
     pub max_level: u8,
     pub size: u8,
     pub wait: u8,
@@ -491,7 +697,8 @@ pub struct RoomView {
     /// Always 0 since 2026-10-19 (no map is fixed before the start); kept
     /// so the lobby movies of revision 24 and before read the wire.
     pub next_map: u8,
-    /// The players it needs before its vote begins (2, 4 or 6).
+    /// The players it needs before its vote begins (2, 4 or 6; 1 in a
+    /// private room (a PIN): its owner starts its match with whoever is in).
     pub min_players: u8,
     /// A room with a lower max level the asker may join now, offered as a
     /// one-click switch.
@@ -503,6 +710,10 @@ pub struct RoomView {
     /// The asker waits in its room while the match is played and the match
     /// takes nobody now: why (none with [`Self::join_in`]).
     pub join_hold: Option<JoinHold>,
+    /// A private room's teams as its owner arranged them: each member's
+    /// side (0, 1), in the order of [`Self::members`]; none for an open
+    /// room (its sides are drawn at the start).
+    pub teams: Option<Vec<u8>>,
 }
 
 /// Why a member waiting in its room cannot go into the room's match being
@@ -525,6 +736,8 @@ pub enum JoinHold {
     Maintenance = 5,
     /// The match is ending (its mode's rule, or its result).
     Ending = 6,
+    /// All lifetime roster places were used; leaving cannot free one.
+    PlayerLimit = 7,
 }
 
 /// A room to switch to (`W` row of [`room_state`]).
@@ -546,13 +759,13 @@ pub struct RoomSwitch {
 pub struct RoomForm {
     /// The settings are the asker's own (false: the defaults).
     pub saved: bool,
-    /// One of [`SIZES`].
+    /// One of [`RoomRules::sizes`].
     pub size: u8,
-    /// One of [`MIN_SIDES`].
+    /// One of [`RoomRules::min_sides`].
     pub min_side: u8,
-    /// 0 (any) to [`LEVEL_MAX`].
+    /// 0 (any) to [`RoomRules::level_most`].
     pub max_level: u8,
-    /// One of [`WAITS`].
+    /// One of [`RoomRules::waits`].
     pub wait: u8,
     /// By the pool's entries ([`room_pool`]'s order): the entry's map and
     /// weather (its tile in the window) are in. An entry is in the pool made
@@ -658,7 +871,12 @@ pub fn room_list(
 ///   one), then a row a card, `C;<i>;<map_id>;
 ///   <votes>;<mine>`, a row a member, `P;<i>;<gear>;<owner>;<me>;
 ///   <in match>;<fit>;<away>;<name>` (`fit`: [`Fit`]; `away` 1: its game is
-///   gone for now), a row `W;<key>;<max level>;<players>;<size>;<name>` when
+///   gone for now), in a private room a row `A;<sides>`, a digit a member
+///   in the list's order, its team as the owner arranged it (0, 1;
+///   [`RoomView::teams`]), a row `S;<marks>` when two members of one squad are
+///   in it, a character a member in the list's order, its squad's mark
+///   ([`Member::squad`]: `0` none, `1`..`9`, `a`), a row
+///   `W;<key>;<max level>;<players>;<size>;<name>` when
 ///   a room of a lower max level would take the asker now ([`RoomSwitch`]),
 ///   a row `J;<seconds>` when the asker waits to go into its room's match
 ///   being played ([`RoomView::join_in`]), or `J;-1;<why>` when it waits
@@ -717,6 +935,21 @@ pub fn room_state(
             row_name(&member.name)
         )
     }));
+    if let Some(teams) = &room.teams {
+        let sides: String = teams
+            .iter()
+            .map(|&side| if side == 0 { '0' } else { '1' })
+            .collect();
+        names.push(format!("A;{sides}"));
+    }
+    if room.members.iter().any(|member| member.squad.is_some()) {
+        let marks: String = room
+            .members
+            .iter()
+            .map(|member| squad_mark(member.squad))
+            .collect();
+        names.push(format!("S;{marks}"));
+    }
     if let Some(secs) = room.join_in {
         names.push(format!("J;{secs}"));
     } else if let Some(why) = room.join_hold {
@@ -753,9 +986,10 @@ pub struct ListMember {
 /// ROOM_MEMBERS_BASE + i`, to anyone (the room chosen in the Rooms list; a
 /// room with a PIN too: names are no secret): `S1;G;<key>;<members>`, then
 /// two rows a member in the order of the room: `P;<i>;<gear>;<owner>;<me>;
-/// <in match>;<fit>;<away>;<side>;<account>` (the state's fields; `side` 1
-/// or 2, the team of its place in the room's match being played, 0 when it
-/// has none), and its whole name alone (up to the 63 bytes a row holds, `;`
+/// <in match>;<fit>;<away>;<side>;<account>;<squad>` (the state's fields;
+/// `side` 1 or 2, the team of its place in the room's match being played, 0
+/// when it has none; `squad` its squad's mark, [`Member::squad`], 0 none),
+/// and its whole name alone (up to the 63 bytes a row holds, `;`
 /// and all: a name is never cut here). A room gone: `S1;G;<key>;0`, no
 /// member.
 pub fn room_members(key: u32, members: &[ListMember]) -> Result<ServerMessage, WireError> {
@@ -768,7 +1002,7 @@ fn members_names(key: u32, members: &[ListMember]) -> Vec<String> {
     for (index, seen) in members.iter().enumerate() {
         let member = &seen.member;
         names.push(format!(
-            "P;{index};{};{};{};{};{};{};{};{}",
+            "P;{index};{};{};{};{};{};{};{};{};{}",
             member.gear,
             u8::from(member.owner),
             u8::from(member.me),
@@ -776,7 +1010,8 @@ fn members_names(key: u32, members: &[ListMember]) -> Vec<String> {
             member.fit as u8,
             u8::from(member.away),
             seen.side.map_or(0, |team| team.min(1) + 1),
-            seen.account_id
+            seen.account_id,
+            squad_number(member.squad)
         ));
         names.push(member.name.clone());
     }
@@ -904,30 +1139,57 @@ pub enum OfferKind {
     Unfit = 3,
 }
 
+/// What the room of an offer is to the request ([`RoomOffer::about`]).
+#[repr(u8)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum OfferRoom {
+    /// The room the join goes into (for Play, the one it takes): "Enter
+    /// anyway" or "Exit" beside "Switch and enter".
+    Entered = 0,
+    /// Play would queue in its own bracket; the room is of the other one,
+    /// with a place for the preset offered (the owner's of 2026-10-30):
+    /// "Queue" (Play as it is) beside "Switch and enter".
+    InsteadOfQueue = 1,
+}
+
+/// What [`room_offer`] says of a join (or Play).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct RoomOffer {
+    /// The room (for Play, the one it would take, or the other bracket's
+    /// offered instead of its queue); 0: none.
+    pub key: u32,
+    pub kind: OfferKind,
+    /// 1 to [`PRESET_COUNT`] and its gear level; 0 and 0 for none.
+    pub preset: u8,
+    pub level: u8,
+    /// The asker's gear now.
+    pub gear: u8,
+    /// The room's max level.
+    pub max_level: u8,
+    pub about: OfferRoom,
+}
+
 /// The answer to `3B 00 <ROOM_OFFER_BASE + asked>`, one row at that start:
-/// `S1;O;<key>;<kind>;<preset>;<level>;<gear>;<max level>`: `key` the room
-/// (for Play, the one it would take; 0: none), `kind` an [`OfferKind`],
-/// `preset` 1 to [`PRESET_COUNT`] and its gear `level` (0 and 0 for none),
-/// the asker's `gear` now and the room's `max level`.
-pub fn room_offer(
-    asked: u32,
-    key: u32,
-    kind: OfferKind,
-    preset: u8,
-    level: u8,
-    gear: u8,
-    max_level: u8,
-) -> Result<ServerMessage, WireError> {
+/// `S1;O;<key>;<kind>;<preset>;<level>;<gear>;<max level>;<about>` (the
+/// fields of [`RoomOffer`]; `about` since 2026-10-30, a movie before it
+/// reads only the first eight).
+pub fn room_offer(asked: u32, offer: &RoomOffer) -> Result<ServerMessage, WireError> {
     rows_at(
         ROOM_OFFER_BASE + asked.min(ROOM_KEY_MAX),
-        vec![offer_name(key, kind, preset, level, gear, max_level)],
+        vec![offer_name(offer)],
     )
 }
 
-fn offer_name(key: u32, kind: OfferKind, preset: u8, level: u8, gear: u8, max_level: u8) -> String {
+fn offer_name(offer: &RoomOffer) -> String {
     format!(
-        "{ROOMS_VERSION};O;{key};{};{preset};{level};{gear};{max_level}",
-        kind as u8
+        "{ROOMS_VERSION};O;{};{};{};{};{};{};{}",
+        offer.key,
+        offer.kind as u8,
+        offer.preset,
+        offer.level,
+        offer.gear,
+        offer.max_level,
+        offer.about as u8
     )
 }
 
@@ -980,7 +1242,26 @@ mod tests {
         const { assert!(ROOM_POOL_BASE + POOL_PAGES <= ROOM_FRIENDS && ROOM_FRIENDS < ROOM_KICK_BASE) };
         assert_eq!(room_request(ROOM_FRIENDS, 1), Some(RoomRequest::Friends));
         assert_eq!(room_request(ROOM_FRIENDS - 1, 1), None);
-        assert_eq!(room_request(ROOM_FRIENDS + 1, 1), None);
+        assert_eq!(ROOM_FRIENDS + 1, ROOM_START);
+        assert_eq!(room_request(ROOM_START, 1), Some(RoomRequest::Start));
+        assert_eq!(room_request(ROOM_START + 1, 1), None);
+        // The moves: after the PINs, before the joins.
+        const {
+            assert!(ROOM_PIN_BASE + (PIN_MAX as u32) < ROOM_MOVE_BASE);
+            assert!(ROOM_MOVE_BASE + MEMBERS_MAX as u32 * KICK_CHECKS <= ROOM_JOIN_BASE);
+        }
+        assert_eq!(
+            room_request(move_start(19, 1000), 1),
+            Some(RoomRequest::Move {
+                place: 19,
+                check: 1000 % KICK_CHECKS
+            })
+        );
+        assert_eq!(
+            room_request(move_start(0, 0), 1),
+            Some(RoomRequest::Move { place: 0, check: 0 })
+        );
+        assert_eq!(room_request(move_start(19, KICK_CHECKS - 1) + 1, 1), None);
         assert_eq!(
             room_request(kick_start(19, 1000), 1),
             Some(RoomRequest::Kick {
@@ -1030,11 +1311,12 @@ mod tests {
 
     #[test]
     fn a_create_code_carries_its_spec_and_back() {
-        for size in SIZES {
-            for max_level in [0, 5, LEVEL_MAX] {
-                for wait in WAITS {
+        let rules = rules();
+        for size in rules.sizes.clone() {
+            for max_level in [0, 5, rules.level_most] {
+                for wait in rules.waits.iter().copied() {
                     for pin in [false, true] {
-                        for min_side in MIN_SIDES {
+                        for min_side in rules.min_sides.clone() {
                             let spec = RoomSpec {
                                 size,
                                 max_level,
@@ -1050,6 +1332,32 @@ mod tests {
                 }
             }
         }
+        // The movie's one code (RoomsWire.CREATE_PIN): the defaults and a PIN.
+        let spec = RoomSpec {
+            size: 8,
+            max_level: 0,
+            wait: 30,
+            pin: true,
+            min_side: 1,
+        };
+        assert_eq!(
+            create_start(spec),
+            ROOM_CREATE_BASE + ((2 * 16 * 10 + 3) * 2 + 1) * 3
+        );
+    }
+
+    #[test]
+    fn the_rules_name_a_missing_key() {
+        let config = super::super::super::game_data::file(RULES_PATH);
+        let Ok(ConfigValue::Named(mut entries)) = ConfigValue::parse(config) else {
+            panic!("a table")
+        };
+        entries.retain(|(key, _)| key != "vote_s");
+        let config = ConfigValue::Named(entries).to_bytes().expect("a config");
+        assert_eq!(
+            RoomRules::parse(&config),
+            Err(format!("{RULES_PATH}: no `vote_s`"))
+        );
     }
 
     #[test]
@@ -1097,6 +1405,7 @@ mod tests {
             in_match: true,
             fit: Fit::Gear,
             away: true,
+            squad: Some(2),
             name: "a;b".into(),
         };
         let other = Member {
@@ -1104,6 +1413,7 @@ mod tests {
             in_match: false,
             fit: Fit::Yes,
             away: false,
+            squad: None,
             name: "Bob".into(),
             ..member.clone()
         };
@@ -1123,11 +1433,11 @@ mod tests {
             ),
             [
                 "S1;G;42;3",
-                "P;0;7;1;0;1;2;1;2;5",
+                "P;0;7;1;0;1;2;1;2;5;2",
                 "a;b",
-                "P;1;7;0;0;0;0;0;0;6",
+                "P;1;7;0;0;0;0;0;0;6;0",
                 "Bob",
-                "P;2;7;0;0;0;0;0;1;7",
+                "P;2;7;0;0;0;0;0;1;7;0",
                 "Bob"
             ]
         );
@@ -1153,6 +1463,7 @@ mod tests {
                     in_match: true,
                     fit: Fit::Gear,
                     away: true,
+                    squad: Some(SQUAD_MARKS),
                     name: names[i % names.len()].clone(),
                 },
                 side: Some(1),
@@ -1249,11 +1560,17 @@ mod tests {
         );
         // The pool's bits right after the fifth preset.
         assert_eq!(ROOM_PRESET_BASE + 5 * 100_000, ROOM_BITS_BASE);
-        assert_eq!(
-            offer_name(12, OfferKind::Fits, 3, 7, 11, 8),
-            "S1;O;12;2;3;7;11;8"
-        );
-        assert!(room_offer(12, 12, OfferKind::None, 0, 0, 4, 0).is_ok());
+        let offer = RoomOffer {
+            key: 12,
+            kind: OfferKind::Fits,
+            preset: 3,
+            level: 7,
+            gear: 11,
+            max_level: 8,
+            about: OfferRoom::InsteadOfQueue,
+        };
+        assert_eq!(offer_name(&offer), "S1;O;12;2;3;7;11;8;1");
+        assert!(room_offer(12, &offer).is_ok());
     }
 
     #[test]

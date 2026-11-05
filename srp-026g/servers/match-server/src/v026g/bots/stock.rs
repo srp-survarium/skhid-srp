@@ -537,6 +537,11 @@ pub(crate) mod live_kit {
                 other => panic!("the fixture has a line `{other}`"),
             }
         }
+        // Recorded 2026-10-26, before revision 38: no pickup record, no carry snapshot (A305: main's reader takes
+        // today's layout, `state_at_revision`).
+        let state = survarium::v026g::match_msgs::players::state_at_revision(&state, 37)
+            .expect("the fixture's state")
+            .into_owned();
         LiveKit {
             place,
             profile: MatchProfile {

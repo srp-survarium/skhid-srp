@@ -10,7 +10,7 @@ pub(crate) fn a_teams_commander_and_searches_are_counted_for_the_team() {
     let teams = [0u8, 0, 1, 1];
     let mut bots = Bots::new(
         0x7A6F,
-        survarium::v026g::maps::mode::BATTERIES,
+        survarium::v026g::maps::RuleMode::Batteries,
         0,
         &teams,
         &[true; 4],

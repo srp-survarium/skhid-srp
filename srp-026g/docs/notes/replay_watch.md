@@ -101,3 +101,23 @@ It holds what every player of the match was sent (`sur_convert`'s chunks): chunk
 - The nice 19 call was type-checked for Linux here, not run: the log says so at the thread's start if it fails.
 - One download of a token at a time: when a connection dies with no reset, the server's write waits up to 5 s (`IO_TIMEOUT`) before the slot is free; the updater tries again after 3 s, and a `503` then ends its try with "busy" (pressing "Download and watch" again works while the token lives).
 - Between the checks of `replay_file` and the open, the replay folder is the server's own (nothing else writes there); a link put there in that moment would be followed. The standard library has no "do not follow" open.
+
+## Solo matches against bots (2026-10-28)
+
+When recording is enabled, PvE keeps its recording after one human enters, even when
+`SRP_RECORD_MIN_PLAYERS` is higher. PvP still uses that configured threshold. No human entered:
+the recording is discarded as before. The actual threshold is written in each recording's header.
+A kept recording is considered before the replay service's missing-file/minimum-player fallback,
+so History can convert and serve it for its sole human participant.
+
+Lowering retention alone would lose the human's inputs: they are not relayed back to their owner,
+and server bots have no receiving client. `Game::relay_to_others` therefore records accepted human
+actions and kit choices in PvE after validation, duplicate suppression and late-input placement.
+The recorder writes full match times (not wrapping tick bytes), rotation/actions or the kit.
+`sur_convert` combines those with the bots' network relays and deduplicates any human relay copies
+in multi-human PvE. Raw inbound packets are not treated as accepted actions. Existing recording
+files remain readable. No recording starts a replay conversion until someone asks to watch it.
+
+Tests cover solo retention versus empty/PvP matches, accepted and rejected actions, kit choices,
+deduplication and conversion from a simulated solo PvE match. In-game playback of the new recording
+path still needs a playtest; no client was launched for these checks.

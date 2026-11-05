@@ -312,6 +312,17 @@ Each site is `68 02 00 00 80` (`push 80000002h`); change the `02` to `01`. No re
 Leave 0x12D55 (CPU info) alone. After this patch the same HKCU key holds both the install values and
 the user settings (`language`, `port_number`, `download_type`), which does not conflict (different names).
 
+The HKCU product key exists only once something made it: the original launcher does at every start
+(`settings::reload_language`, 10.2); the Skhid launcher, whose language is in user.cfg (revision 39 on),
+does not. Each of the sites stops when its `RegOpenKeyExW` fails (0x159A4: "Can't open survarium
+registry key", state 8, no updater), even though the Skhid hook answers every value they read. That
+was revision 39's launcher, which used this HKCU patch. The Skhid launcher after it leaves these pushes
+alone and opens no key in the four functions: each jumps from its `call get_product_registry_path`
+(0x15223, 0x15997, 0x162F4, 0x1709F) to its first `get_string` (0x15252, 0x159D1, 0x1631D, 0x170CE),
+and over each `push handle / call RegCloseKey` (0x153FE, 0x1541E, 0x15A4D, 0x16338 with 0x163A7,
+0x17123, 0x1714F). The handle's local is never set: only its address goes to `get_string`, whose hook ignores it
+(`client-patches/launcher/README.md` patch 4, `check_registry_026g.py`).
+
 ---
 
 ## 3. `start_updater` (0x15693)
@@ -923,6 +934,19 @@ If HKCU cannot be written the choice still applies for the running process but i
 (new strings, new page URLs with the new code), Play active iff launcher state == 6; when its page
 has loaded or failed (`on_new_form_ready` 0x167BF) the new window is shown at the old position and the
 old form is destroyed. No process restart, no `-language=` re-launch. The updater is not informed.
+
+### 10.4 The drop-down (PROVEN, `language_menu::language_menu` 0x1942F)
+
+The button's click is `expand_button_click` 0x19A08 (cdecl, the menu): it toggles `set_state`
+0x1998D (+150h, open or not), which resizes the menu's window (+4) to +140h/+144h (closed) or
++148h/+14Ch (open) and shows or hides the rows (0x19945). The five rows are made in a loop at
+0x196EC..0x19837 (`cmp [ebp+0Ch],5`): row i's two image buttons at +0DCh/+0E0h + 0Ch*i, its
+window at +0E4h + 0Ch*i, its click context {menu, i} at +118h + 8*i, 12h pixels apart; its label
+`[i*8+48280h]`. The destructor walks the same five (0x19896). `language_selected` 0x19A20 takes
+that context: `settings::set_language` with the menu's settings (+154h), then closes it. The
+button's label is `[index*8+48280h]` (0x19663). The menu is a member of the form (+0B48h), so its
+row arrays cannot grow; the Skhid launcher opens a Windows menu from the click instead
+(`client-patches/launcher/README.md`, patch 14).
 
 ---
 

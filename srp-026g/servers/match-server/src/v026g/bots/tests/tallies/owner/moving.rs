@@ -1282,7 +1282,7 @@ pub(crate) fn two_bots_stuck_in_a_pit_together_are_stuck_on_the_pocket() {
     assert!(!world.grid.in_pocket(field));
     let mut game = Game::new(world, &[0, 0, 0], 1, None, None);
     let mut tally = OwnerTally::new(3);
-    tally.set_scoreboard(String::new(), survarium::v026g::maps::mode::BATTERIES, None, None);
+    tally.set_scoreboard(String::new(), survarium::v026g::maps::RuleMode::Batteries, None, None);
     tally.run.is_bot = vec![true, true, true];
     play(&mut game, &mut tally, 300, |_, game| {
         // Bots 0 and 1 in the pit 0.6 m apart, bot 2 (near miss) as long on the open field with no mate near.
@@ -1308,7 +1308,7 @@ pub(crate) fn a_drop_off_a_walled_plateau_and_a_climb_onto_it_are_counted_a_kilo
     let world = super::super::soak_world_with(&plateau());
     let mut game = Game::new(world, &[0, 0], 1, None, None);
     let mut tally = OwnerTally::new(2);
-    tally.set_scoreboard(String::new(), survarium::v026g::maps::mode::BATTERIES, None, None);
+    tally.set_scoreboard(String::new(), survarium::v026g::maps::RuleMode::Batteries, None, None);
     tally.run.is_bot = vec![true, true];
     play(&mut game, &mut tally, 2 * VERT_SAMPLE_TICKS + 1, |k, game| {
         let second = k / VERT_SAMPLE_TICKS;
@@ -1388,7 +1388,7 @@ pub(crate) fn a_bot_reads_as_stood_only_with_a_goal_and_no_route() {
     use crate::v026g::bots::tuning::Tuning;
     let mut bots = Bots::new(
         0xBE7C,
-        survarium::v026g::maps::mode::BATTERIES,
+        survarium::v026g::maps::RuleMode::Batteries,
         6,
         &[0, 1],
         &[true, true],

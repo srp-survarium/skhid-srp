@@ -71,7 +71,7 @@ pub(crate) fn the_pockets_topic_sums_the_pantries_by_team_and_the_old_store_has_
     let teams = [0u8, 1];
     let mut bots = Bots::new(
         0x70C4,
-        survarium::v026g::maps::mode::TEAM_DEATHMATCH,
+        survarium::v026g::maps::RuleMode::TeamDeathmatch,
         0,
         &teams,
         &[true; 2],

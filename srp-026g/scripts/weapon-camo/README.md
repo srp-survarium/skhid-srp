@@ -39,6 +39,9 @@ players' files already have) and prints pack.json's sha256 for the row. Version 
 the players' files of revision 26, 0.28a2's for the donors): 112 `_aoac` textures, 224 files,
 pack.json `8e93b030…a132e2`.
 
+`--bare-masks` (the weapon packs, `../weapons-031/`): a texture with nothing painted still gets an
+`_aoac`, one that paints nothing, so every surface of a camouflaged weapon finds its mask.
+
 Which parts are painted: `parts.tsv` (beside guns.tsv) names them per texture, a UV point on each;
 a texture with no line gets the suggestion, the large parts its premium painted. To choose:
 

@@ -1,0 +1,10 @@
+# Patch 34: the commit_suicide key (K) kills one's own player. Only the
+# decisions: which site, and the handler. The site (its VA and kind), the
+# function it calls and the typed signature are the raw layer's
+# (sites_026g.tsv, engine_026g.tsv); the logic is suicide_key.rs.
+name = "suicide_key"
+patch = 34
+
+[[hook]]
+site = "input_builder.spot_query"
+handler = "on_spot"

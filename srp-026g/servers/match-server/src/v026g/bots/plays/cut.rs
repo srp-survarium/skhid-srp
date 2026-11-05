@@ -638,6 +638,7 @@ mod tests {
     #[ignore = "needs the private map files and route table"]
     fn the_real_enemy_ways_get_cuts_with_spots_on_the_real_maps() {
         use super::super::super::routes::RouteTable;
+        use survarium::v026g::maps::RuleMode;
         let (Some(dir), Some(table)) = (
             std::env::var_os("SRP_MAPDATA_DIR"),
             std::env::var_os("SRP_BOT_ROUTES"),
@@ -648,9 +649,9 @@ mod tests {
         let (mut sides, mut with_cuts, mut cuts_n, mut spots) = (0, 0, 0, 0);
         for level in 1..=8u8 {
             for (mode, view_mode) in [
-                (2u8, Mode::Batteries),
-                (3, Mode::TimedBatteries),
-                (4, Mode::TeamDeathmatch),
+                (RuleMode::Batteries, Mode::Batteries),
+                (RuleMode::TimedBatteries, Mode::TimedBatteries),
+                (RuleMode::TeamDeathmatch, Mode::TeamDeathmatch),
             ] {
                 let path =
                     std::path::Path::new(&dir).join(format!("level_{level:02}_day_{mode}.mapdata"));

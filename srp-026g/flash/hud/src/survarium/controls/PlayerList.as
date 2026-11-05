@@ -1,5 +1,6 @@
 package survarium.controls
 {
+   import flash.display.DisplayObject;
    import flash.display.MovieClip;
    import flash.events.Event;
    import flash.text.TextField;
@@ -24,6 +25,10 @@ package survarium.controls
       private var _playerName:String = "";
       
       private var _autoSizeLists:Boolean = false;
+      
+      // The Settings' "Hide player scores" (exe patch 83): each team's players by clan, then name (byClanAndName),
+      // their score, kills, deaths and rank not shown (PlayerListRenderer asks namesOnly).
+      private var _namesOnly:Boolean = false;
       
       public var team1:TextField;
       
@@ -57,6 +62,78 @@ package survarium.controls
       public function get autoSizeLists() : Boolean
       {
          return this._autoSizeLists;
+      }
+      
+      public function get namesOnly() : Boolean
+      {
+         return this._namesOnly;
+      }
+      
+      // A change lays the teams out again, in the other order, their rows drawn again.
+      public function set namesOnly(value:Boolean) : void
+      {
+         if(value == this._namesOnly)
+         {
+            return;
+         }
+         _namesOnly = value;
+         this.showHeaders(!value);
+         if(this._players)
+         {
+            this.splitTeams();
+            this.populateTeams();
+         }
+      }
+      
+      // A row's name is "[TAG] name" for a player in a clan (initialize_match makes it so), else the name.
+      // Its clan tag, "" for none.
+      public static function clanOf(name:String) : String
+      {
+         var end:int = name.indexOf("] ");
+         return name.charAt(0) == "[" && end > 1 ? name.substring(1,end) : "";
+      }
+      
+      // The names-only order: the clans' players by tag, then the players without a clan, then the
+      // bots (the server gives them the tag "BOT"); by name inside each, case-insensitive, then by id
+      // (one order for equal names: nothing of a player's rank shows).
+      public static function byClanAndName(a:Object, b:Object) : int
+      {
+         var order:int = compare(groupOf(a.name),groupOf(b.name));
+         if(order == 0)
+         {
+            order = compare(clanOf(a.name).toLowerCase(),clanOf(b.name).toLowerCase());
+         }
+         if(order == 0)
+         {
+            order = compare(String(a.name).toLowerCase(),String(b.name).toLowerCase());
+         }
+         return order != 0 ? order : compare(Number(a.id),Number(b.id));
+      }
+      
+      // 0 a clan's player, 1 without a clan, 2 a bot.
+      private static function groupOf(name:String) : int
+      {
+         var clan:String = clanOf(name);
+         return clan == "" ? 1 : (clan.toUpperCase() == "BOT" ? 2 : 0);
+      }
+      
+      private static function compare(a:*, b:*) : int
+      {
+         return a < b ? -1 : (a > b ? 1 : 0);
+      }
+      
+      // The columns' headers: the icons the timeline puts over each list, every child but the team
+      // names and the two lists.
+      private function showHeaders(shown:Boolean) : void
+      {
+         for(var i:int = 0; i < numChildren; i++)
+         {
+            var child:DisplayObject = getChildAt(i);
+            if(child != this.team1 && child != this.team2 && child != this.team1list && child != this.team2list)
+            {
+               child.visible = shown;
+            }
+         }
       }
       
       protected function onListIndexChange(e:Event) : void
@@ -231,7 +308,14 @@ package survarium.controls
             trace("team",i,team[i].name,team[i].score,team[i].rank,team[i].kills,team[i].deaths);
          }
          trace("HUD_PL::sort",team);
-         team.sortOn(["score","rank","kills","deaths"],Array.NUMERIC | Array.DESCENDING);
+         if(this._namesOnly)
+         {
+            team.sort(PlayerList.byClanAndName);
+         }
+         else
+         {
+            team.sortOn(["score","rank","kills","deaths"],Array.NUMERIC | Array.DESCENDING);
+         }
          for(i = 0; i < team.length; i++)
          {
             trace("team",i,team[i].name,team[i].score,team[i].rank,team[i].kills,team[i].deaths);

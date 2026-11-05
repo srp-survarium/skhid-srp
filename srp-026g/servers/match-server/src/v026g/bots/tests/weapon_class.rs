@@ -207,7 +207,7 @@ fn bots_with(fire_on: bool, roles: &[Option<&str>]) -> (Bots, Arc<Tuning>) {
     let driven = vec![true; roles.len()];
     let bots = Bots::new(
         0x5a5,
-        survarium::v026g::maps::mode::BATTERIES,
+        survarium::v026g::maps::RuleMode::Batteries,
         0,
         &teams,
         &driven,

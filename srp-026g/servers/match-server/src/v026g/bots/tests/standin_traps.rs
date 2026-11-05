@@ -870,7 +870,7 @@ mod tests {
         let teams = [0u8, 1];
         let mut bots = Bots::new(
             0x7A95,
-            survarium::v026g::maps::mode::TEAM_DEATHMATCH,
+            survarium::v026g::maps::RuleMode::TeamDeathmatch,
             0,
             &teams,
             &[true, false],

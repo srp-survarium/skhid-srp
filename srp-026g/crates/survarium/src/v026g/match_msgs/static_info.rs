@@ -14,6 +14,12 @@
 //! 20 × u8                 squad ids
 //! ```
 //!
+//! The client reads the fields above and nothing after them; srp's block
+//! after them ("SRPX", then tagged entries) is read by exe patches only:
+//! tag 2 is the Blackout flag (patch 65, `docs/notes/blackout.md`; its
+//! reader is at the two calls of `match_options::deserialize`, 0x27B928 and
+//! 0x1F096C); tag 1 is kept for team damage (#370).
+//!
 //! The client checks nothing of this: a string, a kit or an item too many
 //! writes over its memory, an item the dictionary lacks crashes it later.
 //! So [`StaticInfo::new`] refuses what the client cannot hold, and
@@ -53,6 +59,7 @@ pub const MAX_MESSAGE: usize = 255 * 483;
 /// The new-player protection value that protects nothing: the damage
 /// factor is `max(0, 1 − 0.1 × value)`.
 pub const NO_PROTECTION: u32 = 10;
+
 /// A kit the player may use in the match: the client loads a player
 /// resource only for these.
 pub const KIT_USABLE: u8 = 0;
@@ -89,14 +96,24 @@ pub const FULL_CONDITION: u32 = 1_000_000;
 ///
 /// The match pays by the score of the events that are no kill and no help
 /// (`session::v026g::pay`), with these same weights.
+///
+/// An anomaly's artefact scores [`ARTEFACT_SCORE`] taken into an empty
+/// artefact slot and [`ARTEFACT_SCORE_SLOTS_FULL`] with every slot full
+/// (the owner, 2026-10-29; `docs/notes/artefact-score.md`): the game counts
+/// event 5 for each, exe patch 80 counts event 16 too for the first.
+///
+/// A battery (the owner, 2026-11-01; `docs/notes/battery_credit.md`): found
+/// 5, put in 5, a delivery's share 5 (event 6, in hundredths), and 2 a 10 m
+/// it was brought nearer its container in its life (exe patch 92: event 6,
+/// paid at the delivery).
 pub const SCORE_WEIGHTS: [f32; SCORE_EVENTS] = [
     10.0, // kill (sourced)
     5.0,  // assist (sourced)
     0.0,  // death
     0.0,  // suicide
     0.0,  // team kill
-    2.0,  // artefact
-    10.0, // bring victory item (x0.01 by the client)
+    ARTEFACT_SCORE_SLOTS_FULL, // artefact (every one an anomaly gives)
+    5.0,  // bring victory item (x0.01 by the client): a delivery's share 5; patch 92: 2 a 10 m of progress, paid at the delivery
     2.5,  // teammate cure
     2.5,  // teammate rescue
     2.5,  // revenge
@@ -106,10 +123,10 @@ pub const SCORE_WEIGHTS: [f32; SCORE_EVENTS] = [
     2.5,  // melee kill
     2.5,  // silent kill
     2.5,  // headshot kill
-    0.0,  // winning team victory item bonus
+    ARTEFACT_SCORE - ARTEFACT_SCORE_SLOTS_FULL, // an artefact into an empty slot (patch 80)
     35.0, // steal victory item (x0.01) (sourced)
     10.0, // recover victory item (x0.01)
-    2.5,  // victory item found
+    5.0,  // victory item found (the owner, 2026-11-01)
     5.0,  // put victory item in container
     2.5,  // entrap enemy
     0.0,  // bullet fired
@@ -119,6 +136,14 @@ pub const SCORE_WEIGHTS: [f32; SCORE_EVENTS] = [
     0.0,  // stolen battery brought home
     0.0,  // a new player's match
 ];
+
+/// An anomaly's artefact taken into an empty artefact slot: event 5 and
+/// event 16 together (the owner, 2026-10-29).
+pub const ARTEFACT_SCORE: f32 = 15.0;
+/// An anomaly's artefact taken with every artefact slot full (it takes the
+/// first slot's place): event 5 alone. Less, so that a player hands one to
+/// a teammate first (the owner, 2026-10-29).
+pub const ARTEFACT_SCORE_SLOTS_FULL: f32 = 5.0;
 
 /// What Research (mode 5) weighs otherwise: its rule counts a unit's
 /// capture in event 6 and a neutralisation in event 18 (hundredths, a
@@ -132,21 +157,29 @@ pub const RESEARCH_WEIGHTS: [(usize, f32); 3] = [
     (event::KILL_INVADER, 10.0),
 ];
 
+/// A kill in Team Deathmatch scores this many times its weight: there a
+/// kill is the only way to earn (the owner, 2026-11-04).
+pub const TDM_KILL_FACTOR: f32 = 3.0;
+
 /// The weights of a match of `game_mode`: `weights`, with Research's own
-/// in mode 5. The other modes play with `weights` as they are.
-pub fn weights_of(game_mode: u8, weights: [f32; SCORE_EVENTS]) -> [f32; SCORE_EVENTS] {
+/// in mode 5 and a Team Deathmatch kill [`TDM_KILL_FACTOR`] times its
+/// weight in mode 4. The other modes play with `weights` as they are.
+pub fn weights_of(game_mode: maps::RuleMode, weights: [f32; SCORE_EVENTS]) -> [f32; SCORE_EVENTS] {
     let mut weights = weights;
-    if game_mode == maps::mode::RESEARCH {
+    if game_mode == maps::RuleMode::Research {
         for (event, weight) in RESEARCH_WEIGHTS {
             weights[event] = weight;
         }
+    }
+    if game_mode == maps::RuleMode::TeamDeathmatch {
+        weights[event::KILL] *= TDM_KILL_FACTOR;
     }
     weights
 }
 
 /// srp's weights for a match of `game_mode` ([`SCORE_WEIGHTS`],
 /// [`weights_of`]).
-pub fn score_weights(game_mode: u8) -> [f32; SCORE_EVENTS] {
+pub fn score_weights(game_mode: maps::RuleMode) -> [f32; SCORE_EVENTS] {
     weights_of(game_mode, SCORE_WEIGHTS)
 }
 
@@ -307,8 +340,10 @@ pub struct MatchOptions {
     /// The roster, by place: N is its length. The wire's other places are
     /// written empty.
     pub players: Vec<MatchProfile>,
-    /// A playable `maps_dict` id ([`maps`]).
-    pub map_id: u8,
+    /// The map, and with it the mode: a Blackout map's options carry srp's
+    /// Blackout entry (tag 2; exe patch 65, `docs/notes/blackout.md`: no
+    /// interface for anyone, the players' markers on Tab).
+    pub map: maps::MatchMap,
     /// What the client logs as `Match id`: the seed of the match's
     /// anomalies, victory items and player objects. It must not be the id
     /// the lobby's `82` gives (`lobby::client_rules::connects_to_match`).
@@ -316,6 +351,12 @@ pub struct MatchOptions {
     pub match_level: u16,
     pub score_weights: [f32; SCORE_EVENTS],
 }
+
+/// srp's block after the options: its magic, then tagged entries
+/// `{u8 tag, u8 len, len bytes}`.
+pub const SRPX_MAGIC: &[u8; 4] = b"SRPX";
+/// The entry of a Blackout map's options ([`maps::GameMode::Blackout`]): one byte, 1.
+pub const SRPX_BLACKOUT: u8 = 2;
 
 /// Why options cannot go to a client, or why bytes are no options.
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -358,6 +399,8 @@ pub enum StaticInfoError {
     Truncated,
     /// Reading: bytes are left over.
     Trailing(usize),
+    /// Reading: srp's block after the options is not one the patches read.
+    SrpBlock,
     /// Reading: the stream is not stored LZMA2 chunks.
     Lzma2,
     /// Reading: the local index is not below N.
@@ -394,6 +437,7 @@ impl std::fmt::Display for StaticInfoError {
             Self::TooLarge(len) => write!(f, "{len} bytes of options"),
             Self::Truncated => write!(f, "the options end early"),
             Self::Trailing(len) => write!(f, "{len} bytes after the options"),
+            Self::SrpBlock => write!(f, "srp's block after the options is not one the patches read"),
             Self::Lzma2 => write!(f, "not a stored LZMA2 stream"),
             Self::LocalIndex { index, roster } => {
                 write!(f, "local index {index} in a roster of {roster}")
@@ -584,9 +628,6 @@ pub fn options_bytes(
     if roster == 0 || roster > MAX_PLAYERS {
         return Err(StaticInfoError::Roster(roster));
     }
-    if !maps::map_mode(options.map_id).is_some_and(|map| map.is_playable()) {
-        return Err(StaticInfoError::Map(options.map_id));
-    }
     let mut out = Vec::new();
     for (player, profile) in options.players.iter().enumerate() {
         check_profile(player, profile, dictionary)?;
@@ -595,7 +636,7 @@ pub fn options_bytes(
     for _ in roster..MAX_PLAYERS {
         out.extend(EMPTY_PROFILE);
     }
-    out.push(options.map_id);
+    out.push(options.map.map().id);
     out.push(roster as u8);
     out.extend(options.match_id.to_le_bytes());
     out.extend(options.match_level.to_le_bytes());
@@ -607,6 +648,14 @@ pub fn options_bytes(
         *squad = profile.squad;
     }
     out.extend(squads);
+    let mut block = Vec::new();
+    if options.map.mode() == maps::GameMode::Blackout {
+        block.extend([SRPX_BLACKOUT, 1, 1]);
+    }
+    if !block.is_empty() {
+        out.extend(SRPX_MAGIC);
+        out.extend(block);
+    }
     if out.len() > OPTIONS_BUFFER {
         return Err(StaticInfoError::TooLarge(out.len()));
     }
@@ -839,15 +888,18 @@ pub fn parse_options(
         *weight = reader.f32()?;
     }
     let squads = reader.take(MAX_PLAYERS)?;
+    let blackout = read_srp_block(&mut reader)?;
     if !reader.bytes.is_empty() {
         return Err(StaticInfoError::Trailing(reader.bytes.len()));
     }
     if roster == 0 || roster > MAX_PLAYERS {
         return Err(StaticInfoError::Roster(roster));
     }
-    if !maps::map_mode(map_id).is_some_and(|map| map.is_playable()) {
-        return Err(StaticInfoError::Map(map_id));
-    }
+    // The Blackout entry on a map of another mode, or none on a Blackout
+    // map: no map and mode the client plays.
+    let map = maps::MatchMap::of(map_id)
+        .filter(|map| (map.mode() == maps::GameMode::Blackout) == blackout)
+        .ok_or(StaticInfoError::Map(map_id))?;
     players.truncate(roster);
     for (player, (profile, &squad)) in players.iter_mut().zip(squads).enumerate() {
         profile.squad = squad;
@@ -855,11 +907,37 @@ pub fn parse_options(
     }
     Ok(MatchOptions {
         players,
-        map_id,
+        map,
         match_id,
         match_level,
         score_weights,
     })
+}
+
+/// srp's block after the options, if any: as patch 65's reader reads it, but
+/// strict (an unknown tag or a short entry is refused, so a test sees it).
+fn read_srp_block(reader: &mut Reader) -> Result<bool, StaticInfoError> {
+    if reader.bytes.is_empty() {
+        return Ok(false);
+    }
+    if reader.take(4).map_err(|_| StaticInfoError::SrpBlock)? != SRPX_MAGIC {
+        return Err(StaticInfoError::SrpBlock);
+    }
+    let mut blackout = false;
+    while !reader.bytes.is_empty() {
+        let tag = reader.u8().map_err(|_| StaticInfoError::SrpBlock)?;
+        let len = reader.u8().map_err(|_| StaticInfoError::SrpBlock)?;
+        let mut entry = Reader {
+            bytes: reader
+                .take(usize::from(len))
+                .map_err(|_| StaticInfoError::SrpBlock)?,
+        };
+        match (tag, len) {
+            (SRPX_BLACKOUT, 1) if entry.u8()? == 1 => blackout = true,
+            _ => return Err(StaticInfoError::SrpBlock),
+        }
+    }
+    Ok(blackout)
 }
 
 /// Reads a 0xE4 payload as the client at its local index would: the
@@ -936,10 +1014,55 @@ mod tests {
     fn options(players: Vec<MatchProfile>) -> MatchOptions {
         MatchOptions {
             players,
-            map_id: 61,
+            map: maps::MatchMap::of(61).unwrap(),
             match_id: 0x1234_5678,
             match_level: 3,
             score_weights: SCORE_WEIGHTS,
+        }
+    }
+
+    /// A Blackout map of the test data.
+    fn blackout_map() -> maps::MatchMap {
+        maps::playable()
+            .find(|map| map.mode == maps::GameMode::Blackout)
+            .and_then(|map| maps::MatchMap::of(map.id))
+            .expect("a Blackout map")
+    }
+
+    #[test]
+    fn a_blackout_maps_options_end_with_its_entry_and_read_back() {
+        let plain = options(vec![alice()]);
+        let without = options_bytes(&plain, dictionary()).unwrap();
+        let with = MatchOptions {
+            map: blackout_map(),
+            ..plain
+        };
+        let bytes = options_bytes(&with, dictionary()).unwrap();
+        assert_eq!(bytes.len(), without.len() + 7);
+        assert_eq!(bytes[without.len()..], b"SRPX\x02\x01\x01"[..]);
+        assert_eq!(parse_options(&bytes, dictionary()), Ok(with.clone()));
+        // The entry on another mode's map, or a Blackout map without it:
+        // no map and mode the client plays.
+        let entry_on_plain = [&without[..], b"SRPX\x02\x01\x01"].concat();
+        assert_eq!(
+            parse_options(&entry_on_plain, dictionary()),
+            Err(StaticInfoError::Map(61))
+        );
+        assert_eq!(
+            parse_options(&bytes[..without.len()], dictionary()),
+            Err(StaticInfoError::Map(with.map.map().id))
+        );
+        // Another value or length, an unknown tag, another magic: refused.
+        for bad in [
+            &b"SRPX\x02\x01\x00"[..],
+            &b"SRPX\x02\x02\x01\x01"[..],
+            &b"SRPX\x09\x00"[..],
+            &b"SRPY\x02\x01\x01"[..],
+        ] {
+            assert_eq!(
+                parse_options(&[&without[..], bad].concat(), dictionary()),
+                Err(StaticInfoError::SrpBlock)
+            );
         }
     }
 
@@ -992,7 +1115,7 @@ mod tests {
         assert_eq!(SCORE_WEIGHTS[17], 35.0);
         // The events the client adds at the end, and the new ones, score
         // nothing.
-        for event in [2, 3, 4, 11, 12, 16, 22, 23, 24, 25, 26, 27] {
+        for event in [2, 3, 4, 11, 12, 22, 23, 24, 25, 26, 27] {
             assert_eq!(SCORE_WEIGHTS[event], 0.0, "{event}");
         }
         // On the wire: little-endian f32, 28 of them before the squads.
@@ -1006,9 +1129,30 @@ mod tests {
     }
 
     #[test]
+    fn an_artefact_scores_15_into_an_empty_slot_and_5_with_every_slot_full() {
+        use super::super::snapshot::{self, event};
+        // What the clients count for one artefact taken with kit 1.
+        let taken = |slot_free: bool| {
+            let mut player = snapshot::PlayerStatistics::default();
+            player.events[event::ARTEFACT][1] = 1;
+            if slot_free {
+                player.events[event::WINNING_TEAM_VI_BONUS][1] = 1;
+            }
+            snapshot::score(&player, &SCORE_WEIGHTS)
+        };
+        assert_eq!(taken(true), 15);
+        assert_eq!(taken(false), 5);
+        // Research weighs them the same.
+        assert_eq!(
+            score_weights(super::super::super::maps::RuleMode::Research)[event::WINNING_TEAM_VI_BONUS],
+            10.0
+        );
+    }
+
+    #[test]
     fn research_weighs_its_captures_and_kill_invader() {
-        use super::super::super::maps::mode;
-        let research = score_weights(mode::RESEARCH);
+        use super::super::super::maps::RuleMode;
+        let research = score_weights(RuleMode::Research);
         assert_eq!(
             (research[6], research[18], research[10]),
             (30.0, 30.0, 10.0)
@@ -1017,19 +1161,21 @@ mod tests {
         for event in (0..SCORE_EVENTS).filter(|event| ![6, 10, 18].contains(event)) {
             assert_eq!(research[event], SCORE_WEIGHTS[event], "{event}");
         }
-        // Modes 2 to 4 are unchanged.
-        for game_mode in [
-            mode::BATTERIES,
-            mode::TIMED_BATTERIES,
-            mode::TEAM_DEATHMATCH,
-        ] {
+        // Modes 2 and 3 are unchanged.
+        for game_mode in [RuleMode::Batteries, RuleMode::TimedBatteries] {
             assert_eq!(score_weights(game_mode), SCORE_WEIGHTS);
         }
+        // Team Deathmatch: a kill three times, 30; the rest as every mode's.
+        let tdm = score_weights(RuleMode::TeamDeathmatch);
+        assert_eq!(tdm[event::KILL], 30.0);
+        for event in (0..SCORE_EVENTS).filter(|&event| event != event::KILL) {
+            assert_eq!(tdm[event], SCORE_WEIGHTS[event], "{event}");
+        }
         // Over weights of another's (a test's, a tool's): the three only.
-        let mut zero = weights_of(mode::RESEARCH, [0.0; SCORE_EVENTS]);
+        let mut zero = weights_of(RuleMode::Research, [0.0; SCORE_EVENTS]);
         assert_eq!(zero.iter().filter(|weight| **weight != 0.0).count(), 3);
         zero[10] = 0.0;
-        assert_eq!(weights_of(mode::BATTERIES, zero), zero);
+        assert_eq!(weights_of(RuleMode::Batteries, zero), zero);
     }
 
     #[test]
@@ -1213,9 +1359,10 @@ mod tests {
         use StaticInfoError as E;
         assert_eq!(refused(&|o| o.players.clear()), E::Roster(0));
         assert_eq!(refused(&|o| o.players = vec![alice(); 21]), E::Roster(21));
-        // 107 is level_08 at night, which has no project; 0 is no map.
-        assert_eq!(refused(&|o| o.map_id = 107), E::Map(107));
-        assert_eq!(refused(&|o| o.map_id = 0), E::Map(0));
+        // 107 is level_08 at night, which has no project; 0 is no map: no
+        // options can name them.
+        assert_eq!(maps::MatchMap::of(107), None);
+        assert_eq!(maps::MatchMap::of(0), None);
         assert_eq!(
             refused(&|o| o.players[0].team = 2),
             E::Team { player: 0, team: 2 }
@@ -1346,7 +1493,7 @@ mod tests {
         long.push(0);
         assert_eq!(
             parse_options(&long, dictionary()),
-            Err(StaticInfoError::Trailing(1))
+            Err(StaticInfoError::SrpBlock)
         );
         // Four kits announced: the fourth would overwrite the item table.
         let mut bytes = good.clone();

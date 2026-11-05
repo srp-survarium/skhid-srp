@@ -96,7 +96,7 @@ fn reversals_are_split_by_role_and_counted_near_a_rushers() {
     let roles = [Some("rusher"), Some("flanker"), Some("flanker")];
     let bots = Bots::new(
         1,
-        survarium::v026g::maps::mode::BATTERIES,
+        survarium::v026g::maps::RuleMode::Batteries,
         6,
         &teams,
         &[true; 3],

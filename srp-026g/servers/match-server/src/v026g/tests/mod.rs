@@ -66,7 +66,7 @@ fn profile(name: &str, team: u8) -> MatchProfile {
 
 pub fn setup(players: usize, map_id: u8) -> MatchSetup {
     MatchSetup {
-        map_id,
+        map: survarium::v026g::maps::MatchMap::of(map_id).expect("a playable map"),
         match_level: 3,
         players: (0..players)
             .map(|place| MatchPlayer {
@@ -185,7 +185,7 @@ impl Bench {
         growing: bool,
     ) -> Self {
         log_to_stderr();
-        let (players, map_id) = (setup.players.len(), setup.map_id);
+        let (players, map_id) = (setup.players.len(), setup.map.map().id);
         let start = Instant::now();
         let registry = Arc::new(MatchRegistry::new("127.0.0.1", 1236));
         for place in bots {

@@ -25,7 +25,7 @@ fn school_walk(world: &Arc<World>, delay: u32, unclear_aim: bool, until: u32) ->
     let teams = [0u8, 1];
     let mut bots = Bots::new(
         0x6E07,
-        survarium::v026g::maps::mode::TEAM_DEATHMATCH,
+        survarium::v026g::maps::RuleMode::TeamDeathmatch,
         0,
         &teams,
         &[true, false],

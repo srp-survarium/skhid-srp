@@ -87,7 +87,7 @@ pub(crate) fn a_bot_standing_on_a_battery_steps_off_and_takes_it() {
     let teams = [0u8, 1];
     let mut bots = Bots::new(
         0x7A6E,
-        survarium::v026g::maps::mode::BATTERIES,
+        survarium::v026g::maps::RuleMode::Batteries,
         0,
         &teams,
         &[true, false],
@@ -191,7 +191,7 @@ pub(crate) fn a_bot_takes_a_battery_from_round_a_wall_its_use_cannot_pass() {
     let teams = [0u8, 1];
     let mut bots = Bots::new(
         0x7A6F,
-        survarium::v026g::maps::mode::BATTERIES,
+        survarium::v026g::maps::RuleMode::Batteries,
         0,
         &teams,
         &[true, false],
@@ -291,7 +291,7 @@ pub(crate) fn fight_by_a_battery(busy: Busy) -> (Option<u32>, bool, u32) {
     let teams = [0u8, 1, 0];
     let mut bots = Bots::new(
         0x7A70,
-        survarium::v026g::maps::mode::BATTERIES,
+        survarium::v026g::maps::RuleMode::Batteries,
         0,
         &teams,
         &[true, false, false],
@@ -423,7 +423,7 @@ pub(crate) fn a_raid_that_gets_there_steals() {
     let teams = [0u8, 1];
     let mut bots = Bots::new(
         0x2A1D,
-        survarium::v026g::maps::mode::BATTERIES,
+        survarium::v026g::maps::RuleMode::Batteries,
         0,
         &teams,
         &[true, false],
@@ -550,7 +550,7 @@ pub(crate) fn lost_battery_run(look_weight: Option<f32>, limit: u32, refresh: bo
     let teams = [0u8, 1];
     let mut bots = Bots::new(
         0x15AA,
-        survarium::v026g::maps::mode::BATTERIES,
+        survarium::v026g::maps::RuleMode::Batteries,
         0,
         &teams,
         &[true, false],
@@ -729,7 +729,7 @@ pub(crate) fn theft_drop_run(weight: Option<f32>, drop_at: Vec3, drop_ms: u32, l
     let teams = [0u8, 1];
     let mut bots = Bots::new(
         0xF2,
-        survarium::v026g::maps::mode::BATTERIES,
+        survarium::v026g::maps::RuleMode::Batteries,
         0,
         &teams,
         &[true, false],

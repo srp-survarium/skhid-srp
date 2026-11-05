@@ -1,0 +1,52 @@
+# What a new account is given at its first sign-in (docs/notes/no-tutorial.md), one config:
+# gameplay/srp/new_account.options. srp reads it from its game data at start: a key missing, or an
+# item, slot, modification or faction the data lacks, stops it, naming it. Only new accounts get it.
+# An item is its `items_dict` name; a slot a kit's (0..6 the armour, 7 weapon 1 and 8 its first
+# ammo, 13.. the pockets).
+#   silver, gold              its money
+#   premium_days              premium from its making
+#   rounds                    the rounds it owns of every ammo
+#   faction                   the faction it takes quests from (1: the Scavengers), at
+#   reputation_level          this level of reputation with it (5: their highest)
+#   own/<item>                what it owns besides the kits: units of a stack, else that many items
+#                             (a kit's pockets take theirs from these stacks)
+#   all_kits/<slot>           the item each of the three kits wears there: one item, worn by all
+#   kit_<n>/<slot>            what kit n wears more: its weapon, and its ammo (the slot filled to
+#                             the most its ammo bags take)
+#   pocket_units              the units of each pocket's item
+#   own_modifications/<item>  a modification of its own a worn item has (modifications.options)
+key	value
+silver	15000
+gold	150
+premium_days	30
+rounds	1000
+faction	1
+reputation_level	5
+own/tt_33	1
+own/mosin_nagant	1
+own/ppsh	1
+own/akmn	1
+own/akmsu	1
+own/drop_card	10
+own/medkit	50
+own/antitoxin	50
+own/bandages	20
+all_kits/0	novice_026_helmet
+all_kits/1	scav_resp_1
+all_kits/2	scav_torso_4
+all_kits/3	stk2_novice_026_back
+all_kits/4	scav_legs_2
+all_kits/5	scav_gloves_2
+all_kits/6	scav_boots_2
+all_kits/13	medkit
+all_kits/14	bandages
+all_kits/15	antitoxin
+kit_1/7	ak_74n
+kit_1/8	ammo_5.45x39_7n6m
+kit_2/7	rem_700
+kit_2/8	ammo_7.62x51
+kit_3/7	mp_153
+kit_3/8	ammo_12mm_buck
+pocket_units	3
+own_modifications/scav_resp_1	1183
+own_modifications/scav_gloves_2	1133

@@ -62,17 +62,6 @@ impl DeserializeError {
 
 #[inline]
 #[track_caller]
-pub fn advance_padding<const N: usize>(buffer: &mut &[u8]) -> Result<(), DeserializeError> {
-    let padding = advance_buffer::<[u8; N]>(buffer)?;
-    let empty = [0; N];
-    match padding == empty {
-        true => Ok(()),
-        false => Err(DeserializeError::incorrect_input()),
-    }
-}
-
-#[inline]
-#[track_caller]
 pub fn advance_buffer<T: bytemuck::CheckedBitPattern>(
     buffer: &mut &[u8],
 ) -> Result<T, DeserializeError> {

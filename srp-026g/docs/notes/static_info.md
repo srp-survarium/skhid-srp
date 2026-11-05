@@ -284,6 +284,10 @@ LZMA2 raw stream, to the end of the message, decoding to <= 0x578A0 bytes:
     u16  match_level            logged only
     28 x f32 score weights      events 0..27; k = 0.01 for 6, 17, 18
     20 x u8  squad_id           per roster place; 0 = no squad
+    [srp's block]               "SRPX", then {u8 tag, u8 len, len bytes}... (srp): the stock
+                                reader stops at the squads; exe patch 65 reads tag 2, one byte
+                                1: Blackout (blackout.md; battery maps only);
+                                tag 1 is kept for team damage (#370); sent only with an entry
 ```
 
 **Note on `is_stack`.** If `dict_id` is unknown to the client's `items_dict`, the reader treats the item as stack (`mode = 1` at 0x1F139F), so it does not read the two extra u32. The server must use the **same** `is_stack` as the client's `db_static_dictionaries` `items_dict`, or the stream desyncs.

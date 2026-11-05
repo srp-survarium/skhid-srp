@@ -72,7 +72,7 @@ pub(crate) fn the_thinks_due_are_counted_from_the_bots_that_have_entered_and_are
     let teams = [0u8, 0, 1, 1];
     let mut bots = Bots::new(
         0x51647,
-        survarium::v026g::maps::mode::TEAM_DEATHMATCH,
+        survarium::v026g::maps::RuleMode::TeamDeathmatch,
         0,
         &teams,
         &[true; 4],

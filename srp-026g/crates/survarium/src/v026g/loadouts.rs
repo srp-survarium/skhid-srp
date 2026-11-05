@@ -18,15 +18,17 @@
 //! [`Loadouts::usable`] gives the seven that fit. All ten stay readable in
 //! [`Loadouts::profiles`].
 //!
-//! **What a new account has.** "One of the starting weapons available to
+//! **What a 0.26 account had.** "One of the starting weapons available to
 //! all players when they first enter the world, along with the TT-33 and
 //! Mosin carbine" (the wiki's `PPSH-41` page of 2015-02-14, revision 9600,
 //! and `Mosin carbine` of 2015-02-24, revision 10011; 0.26i). PROVEN (wiki
 //! of the time). 0.26g's data agrees: the three weapons and their two
 //! kinds of ammo (7.62x25 for the TT-33 and the PPSh-41, 7.62x54R for the
 //! Mosin) are the only weapons and ammo with `base_cost` 0 and item
-//! level 0. [`STARTER`] is what of it the first kit wears and
-//! [`STARTER_STASH`] what lies in the inventory.
+//! level 0. [`STARTER`] is what of it the stock account's first kit wears
+//! and [`STARTER_STASH`] what lies in its inventory (`session`'s
+//! `Account::new`, the tests'; a player's new account is given what the
+//! game data's `gameplay/srp/new_account.options` says, those three too).
 //!
 //! [choice] Which of the three a new player wore is not known. srp's first
 //! kit wears what it always did, the TT-33 and a clip in weapon slot 1, and
@@ -47,12 +49,12 @@ use super::skills::modifier_index;
 /// Its path in the archive.
 pub const PATH: &str = "gameplay/test_player_profiles.options";
 
-/// What a new account's first kit wears, `(slot, item)`: the TT-33 in
+/// What the stock account's first kit wears, `(slot, item)`: the TT-33 in
 /// weapon slot 1 and a clip of its free ammo in that weapon's first ammo
 /// slot. See the module.
 pub const STARTER: [(u8, &str); 2] = [(7, "tt_33"), (8, "ammo_7.62x25")];
 
-/// What a new account owns besides what it wears ([`STARTER`]): the Mosin
+/// What the stock account owns besides what it wears ([`STARTER`]): the Mosin
 /// carbine with a clip of its free ammo, and the PPSh-41, which fires the
 /// TT-33's ammo.
 pub const STARTER_STASH: [&str; 3] = ["mosin_nagant", "ammo_7.62x54r_old", "ppsh"];
@@ -218,6 +220,30 @@ pub fn starter_stash() -> &'static [(u16, u32)] {
 /// categories 10, 11 and 24), and the six the client searches for a
 /// grenade (its table at 0x925FC0). PROVEN.
 pub const POCKET_SLOTS: [u8; 6] = [13, 14, 15, 16, 17, 18];
+
+/// Supply pockets and artefacts share six quick positions.
+pub const MAX_POCKETS: usize = POCKET_SLOTS.len();
+
+/// Final units in one supply pocket, including medicine bonuses.
+pub const MAX_POCKET_UNITS: u32 = 5;
+
+/// Cap equipped supply stacks without limiting stored items or ammunition:
+/// a pocket holds what the largest pocket ([`MAX_POCKET_UNITS`]) holds of
+/// the item ([`item_params::PocketShare::units_in`]; the server does not
+/// know the kit's pocket size, the exe sets it).
+pub fn equipped_units(slot: u8, dict_id: u16, units: u32) -> u32 {
+    if POCKET_SLOTS.contains(&slot) {
+        units.min(pocket_share(dict_id).units_in(MAX_POCKET_UNITS))
+    } else {
+        units
+    }
+}
+
+/// What one unit of the item takes of a pocket (its config's,
+/// [`item_params::PocketShare`]); one unit for an item with no config.
+pub fn pocket_share(dict_id: u16) -> item_params::PocketShare {
+    item_params::item_params(dict_id).map_or(item_params::PocketShare::Unit, |p| p.pocket_share)
+}
 
 /// The order in which the client counts the slots for the quick-use keys
 /// (its table at 0x925FD8, read by 0x2FE7F0): the pockets, the back, then
@@ -414,13 +440,16 @@ impl KitFrags {
         }
     }
 
-    /// The frags a bot of `role` carries with this choice, by the owner's kit.
+    /// The frags a bot of `role` carries with this choice, by the owner's kit, never more than its pocket holds
+    /// ([`frag_units_in_a_pocket`]: an RGD-5 takes two units of a pocket since 2026-11-05, the owner's rule, so the
+    /// support's "two" is one).
     pub fn units(self, role: BotRole) -> u32 {
-        match (self, role) {
+        let asked = match (self, role) {
             (Self::Off, BotRole::Support) | (Self::SupportAndCamper, BotRole::Camper) => 1,
             (Self::SupportTwo | Self::SupportAndCamper, BotRole::Support) => 2,
             _ => 0,
-        }
+        };
+        asked.min(frag_units_in_a_pocket())
     }
 
     /// `items` (a bot's pieces of the owner's kit, its pockets among them) of `role` with this choice's frags: the support's
@@ -448,6 +477,15 @@ impl KitFrags {
         }
         items
     }
+}
+
+/// The frags ([`BOT_GRENADE`]) one of the bots' pockets holds: the player's pocket size
+/// (`pocket_slot_size`, the bots' kits open no larger) by the frag's share of a pocket ([`pocket_share`]).
+pub fn frag_units_in_a_pocket() -> u32 {
+    let size = item_params::player().pocket_slot_size.min(MAX_POCKET_UNITS);
+    Dictionary::shared()
+        .item_named(BOT_GRENADE.name)
+        .map_or(BOT_GRENADE.count, |row| pocket_share(row.dict_id).units_in(size))
 }
 
 /// Where a kit's smoke went ([`KitSmoke::place`]), for the kit census.
@@ -587,12 +625,13 @@ pub const BOT_MEDKIT: BotKitItem = kit_item("medkit", 13, 2, Some(QUICK_USE_FIRS
 /// traced).
 pub const BOT_RADIO: BotKitItem = kit_item("respawn_booster", 14, 1, None);
 
-/// Two RGD-5 frag grenades (`rgd-5`, `grenade`, item level 3, 30 silver;
+/// One RGD-5 frag grenade (`rgd-5`, `grenade`, item level 3, 30 silver;
 /// the other grenade, `rdg-m`, is smoke at level 6) in the third pocket,
-/// thrown with [`GRENADE_BIT`]. After the medkit, so the medkit's
+/// thrown with [`GRENADE_BIT`]: it takes two units of a pocket, and the
+/// bots' pockets hold two. After the medkit, so the medkit's
 /// quick-use key does not depend on whether a grenade or the radio counts
 /// for quick use.
-pub const BOT_GRENADE: BotKitItem = kit_item("rgd-5", 15, 2, Some(GRENADE_BIT));
+pub const BOT_GRENADE: BotKitItem = kit_item("rgd-5", 15, 1, Some(GRENADE_BIT));
 
 /// Two bandages (`bandages`, `drugs`, item level 1, 0.1 kg; with the
 /// rev 32 patch of `resources.db` one gives pain +0.35, body +0.35, head
@@ -2226,7 +2265,7 @@ pub fn default_modifier(dict_id: u16, parameter: &str) -> f32 {
 /// The pockets a loadout opens and how many units each holds, with no
 /// skills: the player's `pocket_slots_count` and `pocket_slot_size` (1 and
 /// 1, `default.player`) plus what the worn items' default modifications
-/// add, at most the six [`POCKET_SLOTS`].
+/// add, at most [`MAX_POCKETS`].
 ///
 /// LIKELY the client's rule: the lobby opens the first `item_slots` of
 /// slots 13..=18 and empties and locks the others
@@ -2246,8 +2285,9 @@ pub fn pockets(loadout: &Loadout) -> (u32, u32) {
             .max(0.0) as u32
     };
     let count = (item_params::player().pocket_slots_count + added("pocket_slots_modifier"))
-        .min(POCKET_SLOTS.len() as u32);
-    let size = item_params::player().pocket_slot_size + added("pocket_slot_size_modifier");
+        .min(MAX_POCKETS as u32);
+    let size = (item_params::player().pocket_slot_size + added("pocket_slot_size_modifier"))
+        .min(MAX_POCKET_UNITS);
     (count, size)
 }
 
@@ -2376,15 +2416,15 @@ mod tests {
         )
         .unwrap();
         assert!(heaviest.fits_carry_limit());
-        // All are free and of level 0 in 0.26g's data, and they are all the
-        // weapons and ammo that are.
+        // All are of level 0; the ammo is free (the weapons have the owner's
+        // prices), and it is all the ammo of level 0 that is.
         let mut owned: Vec<u16> = starter.items.iter().map(|item| item.dict_id).collect();
         owned.extend(stash.iter().map(|&(dict_id, _)| dict_id));
         owned.sort_unstable();
         for &dict_id in &owned {
-            assert_eq!(dictionary.item(dict_id).unwrap().base_cost, 0);
             assert_eq!(item_params::item_params(dict_id).unwrap().item_level, 0);
         }
+        owned.retain(|&dict_id| dictionary.is_stack(dict_id));
         let free: Vec<u16> = dictionary
             .items
             .iter()
@@ -2799,12 +2839,12 @@ mod tests {
                 .filter(|item| POCKET_SLOTS.contains(&item.slot))
             {
                 assert!(open.contains(&item.slot), "{at}: slot {}", item.slot);
-                let most = if params(item.dict_id).fills_whole_pocket
-                    || params(item.dict_id).kind == "grenade"
-                {
+                // A grenade is one unit by the owner's rule; any other stack fills what its share lets in
+                // (main's `PocketShare`: a whole-pocket item 1, an RGD-5 half the pocket).
+                let most = if params(item.dict_id).kind == "grenade" {
                     1
                 } else {
-                    size
+                    params(item.dict_id).pocket_share.units_in(size)
                 };
                 assert_eq!(item.count, most, "{at}: slot {}", item.slot);
             }
@@ -3307,7 +3347,7 @@ mod tests {
             "ammo_9x21",
             150,
             Some("ren_helmet_2"),
-            19.6,
+            19.25,
         ),
         (
             BotTier::Mid,
@@ -3316,7 +3356,7 @@ mod tests {
             "ammo_45acp",
             150,
             Some("ren_helmet_2"),
-            21.5,
+            21.15,
         ),
         (
             BotTier::Mid,
@@ -3325,7 +3365,7 @@ mod tests {
             "ammo_12mm_slug",
             45,
             Some("ren_helmet_2"),
-            23.4,
+            23.05,
         ),
         (
             BotTier::Mid,
@@ -3334,7 +3374,7 @@ mod tests {
             "ammo_12mm_buck",
             45,
             Some("ren_helmet_2"),
-            23.1,
+            22.75,
         ),
         (
             BotTier::Mid,
@@ -3343,7 +3383,7 @@ mod tests {
             "ammo_12mm_buck",
             45,
             Some("edge_helmet_3"),
-            21.8,
+            21.45,
         ),
         (
             BotTier::High,
@@ -3352,7 +3392,7 @@ mod tests {
             "ammo_5.7x28",
             200,
             Some("edge_helmet_5"),
-            25.7,
+            25.35,
         ),
         (
             BotTier::High,
@@ -3361,7 +3401,7 @@ mod tests {
             "ammo_45acp",
             200,
             Some("edge_helmet_5"),
-            26.6,
+            26.25,
         ),
         (
             BotTier::High,
@@ -3370,7 +3410,7 @@ mod tests {
             "ammo_12mm_slug",
             60,
             Some("edge_helmet_5"),
-            28.3,
+            27.95,
         ),
         (
             BotTier::High,
@@ -3379,7 +3419,7 @@ mod tests {
             "ammo_12mm_buck",
             60,
             Some("edge_helmet_5"),
-            27.9,
+            27.55,
         ),
         (
             BotTier::High,
@@ -3388,7 +3428,7 @@ mod tests {
             "ammo_12mm_buck",
             60,
             None,
-            25.9,
+            25.55,
         ),
     ];
 
@@ -4122,10 +4162,11 @@ mod tests {
             }
         }
         // The shares: the roles' frags per 20 bots of a team (6 flankers, 6 rushers, 5 supports, 3 campers), against the live players'
-        // 0.645 units a life (37.5 % of lives, 1.72 units).
+        // 0.645 units a life (37.5 % of lives, 1.72 units; measured before an RGD-5 took two units of a pocket). Since that rule a
+        // pocket of two holds one frag, so the support's "two" is one: SupportTwo is the owner's kit, SupportAndCamper 0.40.
         let units = |frags: KitFrags| (0..20).map(|k| frags.units(BotRole::nth(k))).sum::<u32>() as f32 / 20.0;
-        assert_eq!((units(KitFrags::Off), units(KitFrags::SupportTwo)), (0.25, 0.5));
-        assert!((units(KitFrags::SupportAndCamper) - 0.65).abs() < 1e-6);
+        assert_eq!((units(KitFrags::Off), units(KitFrags::SupportTwo)), (0.25, 0.25));
+        assert!((units(KitFrags::SupportAndCamper) - 0.40).abs() < 1e-6);
         let carrying = |frags: KitFrags| (0..20).filter(|&k| frags.units(BotRole::nth(k)) > 0).count();
         assert_eq!((carrying(KitFrags::Off), carrying(KitFrags::SupportTwo), carrying(KitFrags::SupportAndCamper)), (5, 5, 8));
     }

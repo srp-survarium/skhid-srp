@@ -18,7 +18,7 @@ fn bots_on(fresh: bool, seed: u32) -> (Bots, Game, Arc<World>) {
         roam.numbers.insert("fresh_claims".into(), 1.0);
     }
     let teams = [0u8, 0, 0, 0, 0, 0, 1];
-    let mut bots = Bots::new(0xA111 + seed, survarium::v026g::maps::mode::TEAM_DEATHMATCH, 0, &teams, &[true; 7], &[None; 7], Arc::new(tuning), Trace::none(0));
+    let mut bots = Bots::new(0xA111 + seed, survarium::v026g::maps::RuleMode::TeamDeathmatch, 0, &teams, &[true; 7], &[None; 7], Arc::new(tuning), Trace::none(0));
     bots.map_ready(world.clone());
     let route = |reward: f32, points: &[(f32, f32)]| HumanRoute {
         team: 0,

@@ -131,7 +131,7 @@ impl RevisionGate {
 
 /// A ban with no reason the client has a text for: "Decision of the
 /// administration." (stock 0.26g said "Pretending to be administrator of the
-/// game"; content edit list ban-texts-1 makes it neutral).
+/// game"; its text in client-patches/localization/*.tsv is neutral).
 const BANNED: u8 = login_server_message_types_enum::ban_reason_administrator as u8;
 
 /// The client's ban reasons, each with the words an admin's reason

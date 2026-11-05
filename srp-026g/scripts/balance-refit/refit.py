@@ -31,7 +31,7 @@ one say little about how sides should be made, and are the easiest to play
 by agreement).
 
 Usage:
-  refit.py LOG [LOG ...]                       # files or directories of srp-*.log
+  refit.py LOG [LOG ...]                       # files or directories of lobby.log*, srp.log* (and old srp-*.log)
   refit.py logs/ --since 2026-10-13T21:31      # only matches made after that UTC time
   refit.py logs/ --weights 12,1,1.5,4 --weights 10,1,2,4
   refit.py logs/ --start-roster                # the sides as the lobby made them
@@ -52,9 +52,14 @@ import re
 import sys
 from pathlib import Path
 
-PARTS = r"\(gear (\d+), level (\d+), rating ([+-]\d+\.\d+) of (\d+) matches\)"
-LINE = re.compile(r"^(\d\d:\d\d:\d\d(?:\.\d+)?)Z ")
-SIDES = re.compile(r"Match (0x[0-9a-f]+) sides: team 0 counts -?[\d.]+: (.*) \| team 1 counts -?[\d.]+: (.*)$")
+# Since 2026-11-01 the parts go on with the K/D at the match's level.
+PARTS = r"\(gear (\d+), level (\d+), rating ([+-]\d+\.\d+) of (\d+) matches(?:, [^)]*)?\)"
+# The server files (lobby.log, srp.log) date each line; the day files of
+# before 2026-11-05 (srp-YYYY-MM-DD.log) have the date in their name.
+LINE = re.compile(r"^(?:(\d{4}-\d\d-\d\d)T)?(\d\d:\d\d:\d\d(?:\.\d+)?)Z ")
+# A server file and its rotated ones: lobby.log, lobby.log.1 (older), ...
+ROTATED = re.compile(r"(.+\.log)(?:\.(\d+))?")
+SIDES = re.compile(r"Match (0x[0-9a-f]+) sides(?: \(equipment level \d+\))?: team 0 counts -?[\d.]+: (.*) \| team 1 counts -?[\d.]+: (.*)$")
 PLAYER = re.compile(r"(?:^|, )(.*?) (-?\d+\.\d+) " + PARTS)
 LATE = re.compile(r"Match (0x[0-9a-f]+) late join: (.*); with them team 0 counts ")
 # The parts are in the line since 2026-10-14; a line from before has none.
@@ -89,6 +94,16 @@ def parse_joiners(text):
     return joiners
 
 
+def age(f):
+    """Oldest first, so a match's lines are read in order: the day files by
+    their date, then each server's files from the last rotated one to its
+    current one."""
+    m = ROTATED.fullmatch(f.name)
+    if m is None or re.search(r"\d{4}-\d\d-\d\d", f.name):
+        return (0, f.name, 0, str(f))
+    return (1, m.group(1), -int(m.group(2) or 0), str(f))
+
+
 def read_matches(paths, since, until):
     """Yield a dict for each match that has a "sides" and a "settled" line:
     id, sides=[[player..],[player..]], winner (0, 1, 2 for a draw, None),
@@ -98,15 +113,12 @@ def read_matches(paths, since, until):
     files = []
     for p in paths:
         p = Path(p)
-        files += sorted(p.glob("srp-*.log")) if p.is_dir() else [p]
-    # Each file once, the days in order: a match's lines are read in order.
-    files = sorted({f.resolve() for f in files}, key=lambda f: (f.name, str(f)))
+        files += [*p.glob("srp-*.log"), *p.glob("srp.log*"), *p.glob("lobby.log*")] if p.is_dir() else [p]
+    files = sorted({f.resolve() for f in files}, key=age)
     sides, settled, events = {}, {}, {}
     for f in files:
         day = re.search(r"(\d{4}-\d\d-\d\d)", f.name)
         day = day.group(1) if day else ""
-        if (since or until) and not day:
-            sys.exit(f"{f.name}: no date in the file name, so --since and --until cannot be applied to it")
         with f.open(encoding="utf-8", errors="replace") as lines:
             for line in lines:
                 line = line.rstrip("\n")
@@ -115,7 +127,9 @@ def read_matches(paths, since, until):
                 m = SIDES.search(line)
                 if m:
                     t = LINE.match(line)
-                    stamp = f"{day}T{t.group(1)}" if t else ""
+                    stamp = f"{t.group(1) or day}T{t.group(2)}" if t else ""
+                    if (since or until) and not stamp[:1].isdigit():
+                        sys.exit(f"{f.name}: a line without a date, so --since and --until cannot be applied to it")
                     if (since and stamp < since) or (until and stamp > until):
                         continue
                     if m.group(1) not in sides:

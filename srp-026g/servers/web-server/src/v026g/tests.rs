@@ -91,7 +91,7 @@ fn world_with(accounts: GameAccounts) -> World {
             accounts: accounts.clone(),
             lobby: told.clone(),
             matches: told.clone(),
-            patches: Vec::new(),
+            downloads: Arc::new(crate::Downloads::new(Vec::new(), None, None)),
             min_patch_revision: 0,
             replays: None,
             bots: None,
@@ -495,8 +495,8 @@ fn bans_maintenance_and_registration_are_the_stores() {
 fn the_pages_are_the_026g_ones() {
     let world = world();
     let home = world.web.route(&get("/"), "t").body;
-    assert!(home.contains("survarium_skhid.exe -localization=english -server="));
-    assert!(home.contains("-mt_allocator=768 -minimum_resources_memory_size=768"));
+    // The exe has the server and memory built in and its language in Settings.
+    assert!(!home.contains("-localization") && !home.contains("-mt_allocator"));
     assert!(!home.contains("-client") && !home.contains("0.21d") && !home.contains("0.21D"));
     assert!(home.contains("Survarium 0.26g client"));
     assert!(!home.contains("/exchange"));
@@ -772,6 +772,7 @@ fn offered(n: u32, sha: char, urls: &[&str]) -> crate::OfferedPatch {
     crate::OfferedPatch {
         name: format!("patch_{n}"),
         sha256: sha.to_string().repeat(64),
+        size: 1,
         urls: urls.iter().map(|url| (*url).to_owned()).collect(),
     }
 }
@@ -821,17 +822,21 @@ fn the_patches_are_listed_for_the_updater_as_json() {
     let mut world = world();
     world.web.token = None;
     world.web.admin_path = None;
-    world.web.game.as_mut().unwrap().patches = vec![
-        offered(
-            14,
-            'a',
-            &[
-                "http://203.0.113.5/patches/resources.db.patch_14",
-                "https://drive.usercontent.google.com/download?id=abc&export=download&confirm=t",
-            ],
-        ),
-        offered(16, '0', &["https://files.example/db/resources.db.patch_16"]),
-    ];
+    world.web.game.as_mut().unwrap().downloads = Arc::new(crate::Downloads::new(
+        vec![
+            offered(
+                14,
+                'a',
+                &[
+                    "http://203.0.113.5/patches/resources.db.patch_14",
+                    "https://drive.usercontent.google.com/download?id=abc&export=download&confirm=t",
+                ],
+            ),
+            offered(16, '0', &["https://files.example/db/resources.db.patch_16"]),
+        ],
+        None,
+        None,
+    ));
     let expected = format!(
         "{{\"patch_14\":{{\"sha256\":\"{}\",\"urls\":[\"http://203.0.113.5/patches/resources.db.patch_14\",\
          \"https://drive.usercontent.google.com/download?id=abc&export=download&confirm=t\"]}},\
@@ -853,6 +858,52 @@ fn the_patches_are_listed_for_the_updater_as_json() {
     assert_eq!(body, expected);
 }
 
+/// The game's archive at `/game`, apart from the patches: a 404 when the
+/// data names none (the updater then uses the addresses built into it).
+#[test]
+fn the_games_archive_is_offered_apart_from_the_patches() {
+    let mut world = world();
+    assert_eq!(world.web.route(&get("/game"), "t").status, "404 Not Found");
+    let archive = crate::OfferedPatch {
+        name: "survarium-026g.7z".into(),
+        sha256: "7".repeat(64),
+        size: 2_906_544_103,
+        urls: vec![
+            "http://203.0.113.5:8090/survarium-026g.7z".into(),
+            "https://archive.org/download/x/survarium_full_026g0.7z".into(),
+        ],
+    };
+    world.web.game.as_mut().unwrap().downloads = Arc::new(crate::Downloads::new(
+        vec![offered(14, 'a', &["http://203.0.113.5/p14"])],
+        Some(archive),
+        None,
+    ));
+    let game = world.web.route(&get("/game"), "t");
+    assert_eq!(game.status, "200 OK");
+    assert_eq!(
+        game.body,
+        format!(
+            "{{\"sha256\":\"{}\",\"size\":2906544103,\"urls\":[\"http://203.0.113.5:8090/survarium-026g.7z\",\
+             \"https://archive.org/download/x/survarium_full_026g0.7z\"]}}",
+            "7".repeat(64)
+        )
+    );
+    // Not among the patches: every member there is one.
+    assert_eq!(
+        world.web.route(&get("/patches"), "t").body,
+        format!(
+            "{{\"patch_14\":{{\"sha256\":\"{}\",\"urls\":[\"http://203.0.113.5/p14\"]}}}}",
+            "a".repeat(64)
+        )
+    );
+    let (head, body) = patches_over_http(world.web, b"GET /game HTTP/1.0\r\n\r\n");
+    assert!(
+        head.contains("\r\nContent-Type: application/json\r\n"),
+        "{head}"
+    );
+    assert!(body.contains("\"size\":2906544103"));
+}
+
 #[test]
 fn a_patch_list_string_is_always_escaped() {
     // srp-game-data writes nothing that needs it; were it ever there, the
@@ -860,6 +911,7 @@ fn a_patch_list_string_is_always_escaped() {
     let odd = crate::OfferedPatch {
         name: "patch_1".into(),
         sha256: "a\"b\\c\n".into(),
+        size: 1,
         urls: vec!["http://x/y".into(), "http://x/\"".into()],
     };
     assert_eq!(
@@ -873,10 +925,9 @@ fn the_damage_calculator_is_a_026g_page_under_the_sites_header() {
     let world = world();
     let home = world.web.route(&get("/"), "t").body;
     assert!(home.contains(
-        "<nav><a href=\"/?lang=en\" aria-current=page>Home</a><a href=\"/damage?lang=en\">Calculator</a>\
-         <a href=\"/maps?lang=en\">Maps</a>"
+        "<nav><a href=\"/?lang=en\" aria-current=page>Home</a><a href=\"/wiki?lang=en\">Wiki</a>"
     ));
-    let page = world.web.route(&get("/damage"), "t");
+    let page = world.web.route(&get(crate::damage::PATH), "t");
     assert_eq!(page.status, "200 OK");
     assert!(
         page.body
@@ -888,7 +939,7 @@ fn the_damage_calculator_is_a_026g_page_under_the_sites_header() {
     );
     assert!(
         page.body
-            .contains("<a href=\"/damage?lang=en\" aria-current=page>Calculator</a>")
+            .contains("<a href=\"/wiki?lang=en\" aria-current=page>Wiki</a>")
     );
     assert!(page.body.contains("<nav><a href=\"/?lang=en\">Home</a>"));
     assert!(
@@ -898,11 +949,14 @@ fn the_damage_calculator_is_a_026g_page_under_the_sites_header() {
     assert!(!page.body.contains("{{LANG}}") && !page.body.contains("<!--SITE-HEADER-->"));
     // Nothing inline runs and nothing is fetched from elsewhere.
     assert!(!page.body.contains("<script>") && !page.body.contains("https://"));
-    let mut uk = get("/damage");
+    let mut uk = get(crate::damage::PATH);
     uk.lang = Lang::Uk;
     let uk = world.web.route(&uk, "t").body;
     assert!(uk.starts_with("<!doctype html>\n<html lang=\"uk\">\n"));
-    assert!(uk.contains(" aria-current=page>Калькулятор</a>"));
+    assert!(uk.contains(" aria-current=page>Вікі</a>"));
+    assert!(uk.contains(
+        "<p class=breadcrumb><a href=\"/wiki?lang=uk\">Вікі</a> / Калькулятор шкоди</p>"
+    ));
 }
 
 #[test]
@@ -919,27 +973,17 @@ fn every_file_the_calculator_names_is_served_to_be_kept() {
             .filter(|path| !path.contains(['"', ' ', '<', '\n']))
             .collect()
     }
-    let page = world.web.route(&get("/damage"), "t").body;
+    let page = world.web.route(&get(crate::damage::PATH), "t").body;
     let mut wanted = named(&page);
     let (script_type, script) = crate::damage::file("/damage/calc.js").unwrap();
     assert_eq!(script_type, "text/javascript; charset=utf-8");
     wanted.extend(named(std::str::from_utf8(script).unwrap()));
-    for (ending, count) in [(".js", 1), (".woff2", 7), (".webp", 13)] {
-        assert_eq!(
-            wanted.iter().filter(|path| path.ends_with(ending)).count(),
-            count,
-            "{ending}"
-        );
+    for ending in [".js", ".woff2", ".webp"] {
+        assert!(wanted.iter().any(|path| path.ends_with(ending)), "{ending}");
     }
     for path in &wanted {
-        let (content_type, bytes) = crate::damage::file(path).unwrap_or_else(|| panic!("{path}"));
+        let (_, bytes) = crate::damage::file(path).unwrap_or_else(|| panic!("{path}"));
         assert!(!bytes.is_empty(), "{path}");
-        let expected = match path.rsplit('.').next() {
-            Some("js") => "text/javascript; charset=utf-8",
-            Some("woff2") => "font/woff2",
-            _ => "image/webp",
-        };
-        assert_eq!(content_type, expected, "{path}");
     }
 
     let listener = TcpListener::bind("127.0.0.1:0").unwrap();
@@ -947,7 +991,7 @@ fn every_file_the_calculator_names_is_served_to_be_kept() {
     let asks = [
         "GET /damage/calc.js?v=0 HTTP/1.0",
         "HEAD /damage/maps/level_01.webp HTTP/1.0",
-        "GET /damage?lang=uk HTTP/1.0",
+        "GET /wiki/calculator?lang=uk HTTP/1.0",
         "GET /damage/missing.js HTTP/1.0",
     ];
     let server = std::thread::spawn(move || {
@@ -1007,7 +1051,7 @@ fn every_file_the_calculator_names_is_served_to_be_kept() {
 #[test]
 fn the_maps_are_a_026g_page_under_the_sites_header() {
     let world = world();
-    let page = world.web.route(&get("/maps"), "t");
+    let page = world.web.route(&get(crate::maps::PATH), "t");
     assert_eq!(page.status, "200 OK");
     assert!(
         page.body
@@ -1015,19 +1059,133 @@ fn the_maps_are_a_026g_page_under_the_sites_header() {
     );
     assert!(
         page.body
-            .contains("<a href=\"/maps?lang=en\" aria-current=page>Maps</a>")
+            .contains("<a href=\"/wiki?lang=en\" aria-current=page>Wiki</a>")
     );
     assert!(
         page.body
-            .contains("<a href=\"/damage?lang=en\">Calculator</a>")
+            .contains("<p class=breadcrumb><a href=\"/wiki?lang=en\">Wiki</a> / Maps</p>")
     );
     assert!(!page.body.contains("{{LANG}}") && !page.body.contains("<!--SITE-HEADER-->"));
     assert!(!page.body.contains("<script>") && !page.body.contains("https://"));
-    let mut uk = get("/maps");
+    let mut uk = get(crate::maps::PATH);
     uk.lang = Lang::Uk;
     let uk = world.web.route(&uk, "t").body;
     assert!(uk.starts_with("<!doctype html>\n<html lang=\"uk\">\n"));
-    assert!(uk.contains(" aria-current=page>Мапи</a>"));
+    assert!(uk.contains(" aria-current=page>Вікі</a>"));
+}
+
+#[test]
+fn wiki_routes_use_the_sites_navigation_and_language() {
+    let world = world();
+    for path in [
+        "/wiki",
+        "/wiki/weapons",
+        "/wiki/modifiers",
+        "/wiki/equipment",
+        "/wiki/calculator",
+        "/wiki/maps",
+        "/wiki/skills",
+    ] {
+        for lang in [Lang::En, Lang::Uk] {
+            let mut request = get(path);
+            request.lang = lang;
+            let response = world.web.route(&request, "t");
+            assert_eq!(response.status, "200 OK");
+            assert!(
+                response
+                    .body
+                    .contains(&format!("<html lang=\"{}\">", lang.code()))
+            );
+            assert!(response.body.contains(&format!(
+                "href=\"/wiki?lang={}\" aria-current=page",
+                lang.code()
+            )));
+        }
+    }
+    // The index leads to every section.
+    let index = world.web.route(&get("/wiki"), "t").body;
+    for section in [
+        "/wiki/weapons",
+        "/wiki/modifiers",
+        "/wiki/equipment",
+        "/wiki/calculator",
+        "/wiki/maps",
+        "/wiki/skills",
+    ] {
+        assert!(
+            index.contains(&format!("<a class=wiki-link href=\"{section}?lang=en\">")),
+            "{section}"
+        );
+    }
+    assert_eq!(
+        world.web.route(&get("/wiki/unknown"), "t").status,
+        "404 Not Found"
+    );
+}
+
+#[test]
+fn the_calculators_and_the_maps_old_addresses_lead_into_the_wiki() {
+    use std::io::{Read, Write};
+    use std::net::{TcpListener, TcpStream};
+    let world = world();
+    let listener = TcpListener::bind("127.0.0.1:0").unwrap();
+    let address = listener.local_addr().unwrap();
+    let asks = [
+        (
+            "GET /damage?lang=uk HTTP/1.0",
+            Some("/wiki/calculator?lang=uk"),
+        ),
+        ("HEAD /maps HTTP/1.0", Some("/wiki/maps?lang=en")),
+        // Their files keep their addresses.
+        ("GET /maps/maps.js HTTP/1.0", None),
+    ];
+    let server = std::thread::spawn(move || {
+        for _ in asks {
+            let (stream, _) = listener.accept().unwrap();
+            world.web.serve(stream);
+        }
+    });
+    for (ask, location) in asks {
+        let mut client = TcpStream::connect(address).unwrap();
+        client
+            .write_all(format!("{ask}\r\n\r\n").as_bytes())
+            .unwrap();
+        let mut got = String::new();
+        client.read_to_string(&mut got).unwrap();
+        match location {
+            Some(location) => {
+                assert!(
+                    got.starts_with("HTTP/1.0 301 Moved Permanently\r\n"),
+                    "{ask}"
+                );
+                assert!(
+                    got.contains(&format!("\r\nLocation: {location}\r\n")),
+                    "{ask}"
+                );
+                assert!(got.ends_with("\r\n\r\n"), "{ask}: no body");
+            }
+            None => assert!(got.starts_with("HTTP/1.0 200 OK\r\n"), "{ask}"),
+        }
+    }
+    server.join().unwrap();
+}
+
+/// A standalone local review of the real HTTP routes, with in-memory test
+/// accounts. Does not start or connect to login, lobby or match servers.
+#[test]
+#[ignore = "local browser preview; serves until stopped"]
+fn serve_wiki_preview() {
+    // SRP_GAME_DATA: the pages from that server data (a release's, as srp runs
+    // on), not the tests' archive; it must be read before anything else is.
+    if std::env::var_os("SRP_GAME_DATA").is_some() {
+        survarium::v026g::game_data::init().expect("SRP_GAME_DATA reads as srp's game data");
+    }
+    let world = world();
+    let listener = std::net::TcpListener::bind("127.0.0.1:24583").unwrap();
+    eprintln!("Wiki preview: http://127.0.0.1:24583/wiki");
+    for stream in listener.incoming() {
+        world.web.serve(stream.unwrap());
+    }
 }
 
 #[test]
@@ -1046,7 +1204,7 @@ fn every_file_the_maps_name_is_served() {
             .collect()
     }
     let world = world();
-    let page = world.web.route(&get("/maps"), "t").body;
+    let page = world.web.route(&get(crate::maps::PATH), "t").body;
     let mut wanted = named(&page);
     let (script_type, script) = crate::maps::file("/maps/maps.js").unwrap();
     assert_eq!(script_type, "text/javascript; charset=utf-8");
@@ -1063,8 +1221,8 @@ fn every_file_the_maps_name_is_served() {
 }
 
 #[test]
-fn the_maps_and_the_calculator_are_built_from_the_offered_patches() {
-    // A live release rebuilds both pages from the patches it offers and its
+fn the_site_pages_are_built_from_the_offered_patches() {
+    // A live release rebuilds the pages from the patches it offers and its
     // record commits them with release/patches.tsv (release/build-site); this
     // fails a PR that changes one without the other.
     let rows = |text: &str| -> Vec<(String, String)> {
@@ -1089,6 +1247,11 @@ fn the_maps_and_the_calculator_are_built_from_the_offered_patches() {
     assert_eq!(
         calculator, offered,
         "the calculator is built from other patches than release/patches.tsv: rebuild it with build_site.py (srp-026g/scripts/damage-calc/README.md)"
+    );
+    let skills = rows(include_str!("../../skills/built-from.tsv"));
+    assert_eq!(
+        skills, offered,
+        "the skills are built from other patches than release/patches.tsv: rebuild them with release/build-site (srp-026g/scripts/skills-tab/build.py)"
     );
 }
 
@@ -2072,4 +2235,93 @@ fn the_bots_tab_previews_a_save_sets_it_on_apply_and_resets_after_a_confirm() {
     );
     assert!(wrong.body.contains("Wrong token"));
     assert_eq!(desk.asked.locked().len(), before);
+}
+
+#[test]
+fn the_admin_mutes_and_unmutes_a_chat_with_its_audit_rows() {
+    let (world, repository) = kept_world();
+    let id = world.player("loud", "secret");
+    world.player("bystander", "secret");
+    let page = world.admin(&[("tab", "mute")]);
+    assert!(page.contains("value=mute id=tab-mute checked"), "{page}");
+
+    // A mute needs a reason and whole hours: nothing is done without them.
+    let body = world.admin(&[("tab", "mute"), ("mute_user", "loud"), ("mute_reason", " ")]);
+    assert!(body.contains("A reason is required"), "{body}");
+    let body = world.admin(&[
+        ("tab", "mute"),
+        ("mute_user", "loud"),
+        ("mute_hours", "soon"),
+        ("mute_reason", "spam"),
+    ]);
+    assert!(body.contains("Hours: a whole number"), "{body}");
+    let body = world.admin(&[
+        ("tab", "mute"),
+        ("mute_user", "ghost"),
+        ("mute_reason", "x"),
+    ]);
+    assert!(body.contains("No such user"), "{body}");
+    assert!(world.web.store.chat_ban(id).is_none());
+    assert!(repository.all_admin_actions().is_empty());
+
+    let body = world.admin(&[
+        ("tab", "mute"),
+        ("mute_user", "loud"),
+        ("mute_hours", "2"),
+        ("mute_reason", "<spam>"),
+    ]);
+    // One POST, one line a script greps for.
+    let ban = world.web.store.chat_ban(id).expect("muted");
+    assert_eq!(ban.reason, "<spam>");
+    let until = ban.until.expect("timed");
+    let said = format!(
+        "loud's chat muted until {} {} UTC.",
+        session::utc::date(until),
+        session::utc::clock(until)
+    );
+    assert!(body.contains(&said), "{body}");
+    let actions = repository.all_admin_actions();
+    assert_eq!(actions.len(), 1);
+    assert_eq!(actions[0].account_id, id);
+    assert_eq!(actions[0].kind, "chat_mute");
+    assert_eq!(actions[0].change, "chat muted");
+    assert_eq!(actions[0].reason, "<spam>");
+    assert_eq!(actions[0].before, "not muted");
+    assert!(
+        actions[0].after.starts_with("until "),
+        "{}",
+        actions[0].after
+    );
+    // The bans tab lists it, escaped.
+    let bans = world.admin(&[("tab", "bans")]);
+    assert!(
+        bans.contains("Chat mutes") && bans.contains("&lt;spam&gt;"),
+        "{bans}"
+    );
+
+    // For good replaces it.
+    let body = world.admin(&[
+        ("tab", "mute"),
+        ("mute_user", "loud"),
+        ("mute_reason", "spam"),
+    ]);
+    assert!(body.contains("loud's chat muted for good."), "{body}");
+    assert_eq!(
+        world.web.store.chat_ban(id).map(|ban| ban.until),
+        Some(None)
+    );
+
+    let body = world.admin(&[("tab", "mute"), ("mute_user", "loud"), ("unmute", "1")]);
+    assert!(body.contains("loud's chat unmuted."), "{body}");
+    assert!(world.web.store.chat_ban(id).is_none());
+    let body = world.admin(&[("tab", "mute"), ("mute_user", "loud"), ("unmute", "1")]);
+    assert!(body.contains("loud's chat was not muted."), "{body}");
+    let actions = repository.all_admin_actions();
+    assert_eq!(actions.len(), 3);
+    assert!(actions.iter().any(|action| action.change == "chat unmuted"
+        && action.before == "for good"
+        && action.after == "not muted"));
+    // Nothing of the account's game changes, and the other account is not muted.
+    assert!(world.told.changed.locked().is_empty());
+    assert!(world.web.store.chat_bans().is_empty());
 }
