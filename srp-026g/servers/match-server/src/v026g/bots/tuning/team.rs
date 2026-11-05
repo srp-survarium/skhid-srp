@@ -1152,7 +1152,7 @@ impl Default for ThinkTuning {
             stranded_start: true,
             goal_off_floor_no_way: true,
             door_centres: false,
-            wall_clear_corners: false,
+            wall_clear_corners: true,
             stamina: true,
             stamina_rates: StaminaRates::Kit,
             fall_lock: true,
