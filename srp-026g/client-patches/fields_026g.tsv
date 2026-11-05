@@ -572,6 +572,7 @@ survarium::player_params_modifiers_container	medical_ranks	0xAC	f32	Medical hook
 survarium::medical_hit	name	0x0	ptr<u8>	hit body part name
 survarium::medical_hit	kind	0x1C	u32	hit type
 survarium::medical_hit	owner	0x20	ptr<survarium::medical_owner>	hit owner reference
+survarium::medical_hit	attacker	0x44	u8	the attacker's place, 0FFh none (hit_info::hit_info's stack+8, 0x32BA52; hit_impl passes it to generate_killed_event, 0x2D9F09)
 survarium::medical_owner	place	0x4	u32	owner place
 survarium::medical_damage	owner	0x3B0	ptr<survarium::player>	owning player
 survarium::medical_damage	pools	0x108	obj<survarium::medical_pools>	body part lookup list
@@ -679,3 +680,6 @@ survarium::image	zone_sound_once_a	0x298DEE	u8	a code address (u8: a return addr
 survarium::image	zone_sound_once_b	0x298F1E	u8	the same, emit_and_play_once at 0x298F19 (in 0x298EB0)
 survarium::image	zone_sound_once_c	0x299269	u8	the same, emit_and_play_once at 0x299264 (in 0x2991A0)
 vostok::engine::message_frame	lparam	0x1C	u32	message_processor's lParam (0x181E0; by the site's ESP inside it, EBX ESI EDI pushed: mov ecx,[esp+1Ch] 0x183AC, mov esi,[esp+1Ch] 0x183F0); an HKL for WM_INPUTLANGCHANGEREQUEST and WM_INPUTLANGCHANGE
+vostok::input::keyboard	events	0x408	obj<vostok::input::key_event>	the events GetDeviceData buffers (execute 0x3B8D41/0x3B9080: DIDEVICEOBJECTDATA, at most 40h, their count to +404h at 0x3B914B), read by execute's loop (0x3B915E) and process (0x3B9B0E)
+vostok::input::key_event	key	0x0	u32	DIDEVICEOBJECTDATA.dwOfs: the key's DirectInput code, the index of the keys' states (execute 0x3B916A, 0x3B91EE; process 0x3B9B20)
+vostok::input::key_event	size	0x14	size	a DIDEVICEOBJECTDATA (GetDeviceData's push 14h 0x3B9081; execute's add ecx,14h 0x3B91F2)

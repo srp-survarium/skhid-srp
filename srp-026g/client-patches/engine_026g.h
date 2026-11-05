@@ -40,6 +40,7 @@ struct inventory_recipe;
 struct item;
 struct item_entry;
 struct items_dictionary;
+struct keyboard;
 struct lobby_camera;
 struct lobby_character;
 struct lobby_client;
@@ -525,5 +526,14 @@ const struct sound_options *engine_sound_options(const struct sound_propagator_e
 
 /* 0x7ab70 vostok::network_core::mutable_buffer::reallocate: buffer ESI, capacity EDI; pops 0 */
 void engine_buffer_reallocate(void *buffer, unsigned int capacity);
+
+/* 0x3b9c00 vostok::input::platform::keyboard::get_dik_name: keyboard ECX, key ESP+4, name ESP+8, size ESP+12; pops 12; AL; thiscall, called directly */
+unsigned char __attribute__((thiscall)) engine_key_name(struct keyboard *keyboard, unsigned int key, char *name, unsigned int size);
+
+/* the IAT slot 0xaeff20 (an import, stdcall) */
+extern unsigned int (__attribute__((stdcall)) *const engine_activate_keyboard_layout)(unsigned int layout, unsigned int flags);
+
+/* the IAT slot 0x87003c (an import, stdcall) */
+extern void * (__attribute__((stdcall)) *const engine_get_module_handle_a)(const char * name);
 
 #endif

@@ -28,6 +28,7 @@ handler = "on_movement"
 [[hook]]
 site = "medical.hit"
 handler = "on_hit"
+order = 1
 
 [[hook]]
 site = "medical.heal"
