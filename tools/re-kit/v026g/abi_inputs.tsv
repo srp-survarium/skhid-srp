@@ -889,6 +889,29 @@ va	name	location	role	basis
 0x0011e820	vostok::render::system_renderer::draw_render_models_selection	entry ESP+8	model pointer vector	observed
 0x0011f010	vostok::render::system_renderer::draw_particle_system_instance_selections	EAX	owner	observed
 0x0011f010	vostok::render::system_renderer::draw_particle_system_instance_selections	entry ESP+4	particle system resource vector	observed
+0x0011f280	vostok::render::gpu_dxt_compressor::block_mip_count	EAX	blocks wide (width / 4)	observed
+0x0011f280	vostok::render::gpu_dxt_compressor::block_mip_count	ECX	blocks high (height / 4)	observed
+0x0011f3f0	vostok::render::gpu_dxt_compressor::compress	entry ESP+4	the system renderer ([2260480h]); its +64h the compression effect	observed
+0x0011f3f0	vostok::render::gpu_dxt_compressor::compress	entry ESP+8	the DDS output: header by write_dds_header, the blocks of every level from +80h, then one byte (ESP+32)	observed
+0x0011f3f0	vostok::render::gpu_dxt_compressor::compress	entry ESP+12	RGBA8 pixels, pitch width x 4: the initial data of the level-0 texture created at 0x11F46D (create_texture2d, format 1Ch, usage 0)	observed
+0x0011f3f0	vostok::render::gpu_dxt_compressor::compress	entry ESP+16	width	observed
+0x0011f3f0	vostok::render::gpu_dxt_compressor::compress	entry ESP+20	height	observed
+0x0011f3f0	vostok::render::gpu_dxt_compressor::compress	entry ESP+24	format: 46h BC1 (diffuse, fresnel, smoothness), 4Ch BC3 (normal)	observed
+0x0011f3f0	vostok::render::gpu_dxt_compressor::compress	entry ESP+28	normal flag (process_compression: type 1), forwarded to compress_mip	observed
+0x0011f3f0	vostok::render::gpu_dxt_compressor::compress	entry ESP+32 low byte	diffuse flag (type 0), stored after the last level at 0x11F53E	observed
+0x0011f590	vostok::render::gpu_dxt_compressor::compress_mip	entry ESP+4	the system renderer	observed
+0x0011f590	vostok::render::gpu_dxt_compressor::compress_mip	entry ESP+8	the levels array of res_texture pointers (level 0 the upload, then make_mips targets), sampled as t_base_pixels	observed
+0x0011f590	vostok::render::gpu_dxt_compressor::compress_mip	entry ESP+12	&the DDS cursor, advanced by the level bytes (0x11F863)	observed
+0x0011f590	vostok::render::gpu_dxt_compressor::compress_mip	entry ESP+16	blocks wide of this level	observed
+0x0011f590	vostok::render::gpu_dxt_compressor::compress_mip	entry ESP+20	blocks high of this level	observed
+0x0011f590	vostok::render::gpu_dxt_compressor::compress_mip	entry ESP+24	the level	observed
+0x0011f590	vostok::render::gpu_dxt_compressor::compress_mip	entry ESP+28	format 46h or 4Ch: the block target R16G16B16A16_UINT (0Ch) or R32G32B32A32_UINT (3), the staging the same (usage 3)	observed
+0x0011f590	vostok::render::gpu_dxt_compressor::compress_mip	entry ESP+32	normal flag: the pass constant +5620h is 2 with it on BC3, 1 for BC3, 0 for BC1	observed
+0x0011f8b0	vostok::render::gpu_dxt_compressor::make_mips	ECX	width	observed
+0x0011f8b0	vostok::render::gpu_dxt_compressor::make_mips	EDX	height	observed
+0x0011f8b0	vostok::render::gpu_dxt_compressor::make_mips	entry ESP+4	the system renderer	observed
+0x0011f8b0	vostok::render::gpu_dxt_compressor::make_mips	entry ESP+8	the levels array: each level a new render target (format 1Ch) drawn from the one before (pass 4), a Flush each (0x11F9C4)	observed
+0x0011f8b0	vostok::render::gpu_dxt_compressor::make_mips	entry ESP+12	the level count	observed
 0x00120bf0	vostok::render::texture_gpu_converter_cook::allocate_resource	stack+4	pointer/count result storage	inferred
 0x00120bf0	vostok::render::texture_gpu_converter_cook::allocate_resource	stack+8	query object used on allocation failure	inferred
 0x00120bf0	vostok::render::texture_gpu_converter_cook::allocate_resource	stack+16	requested byte count	inferred
@@ -959,6 +982,9 @@ va	name	location	role	basis
 0x00126af0	vostok::render::skeleton_model_instance_cook::on_all_subresources_ready	entry ESP+4	shared callback state	observed
 0x00127700	boost::function_invoker<bind(void(*)(A*,B*),a,b)>::invoke	entry ESP+4	function buffer {f, a, b}	observed
 0x00127700	boost::function_invoker<bind(void(*)(A*,B*),a,b)>::invoke	entry ESP+8	queries result	observed
+0x0012ec40	vostok::render::camouflage_decal_texture_type_baker_cook::process_compression	entry ESP+20	the render_surface_instance: slots +0, +4, +8, +0Ch by type	observed
+0x0012ec40	vostok::render::camouflage_decal_texture_type_baker_cook::process_compression	entry ESP+36	decal_texture_type: 0 diffuse, 1 normal, 2 fresnel, 3 smoothness	observed
+0x0012ec40	vostok::render::camouflage_decal_texture_type_baker_cook::process_compression	entry ESP+40	float ms of render_bake (CPU submit, timed in on_textures_loaded 0x12E98D..0x12E9D8), added to the logged bake time	observed
 0x00135900	vostok::render::material_effects_instance_cook::on_material_ready	ECX	cook owner	observed
 0x00135900	vostok::render::material_effects_instance_cook::on_material_ready	entry ESP+4	queries_result pointer	observed
 0x00135900	vostok::render::material_effects_instance_cook::on_material_ready	entry ESP+8	cook-data pointer	observed

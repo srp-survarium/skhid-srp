@@ -325,6 +325,12 @@ va	name	source	ret_cleanup	result
 0x0011e510	vostok::render::system_renderer::draw_ui_vertices	manual	20	
 0x0011e820	vostok::render::system_renderer::draw_render_models_selection	manual	8	
 0x0011f010	vostok::render::system_renderer::draw_particle_system_instance_selections	manual	4	
+0x0011f280	vostok::render::gpu_dxt_compressor::block_mip_count	manual	0	EAX: trunc(log(min(EAX,ECX)) / log 2) + 1, the block levels (10 for 512x512 blocks)
+0x0011f2f0	vostok::render::gpu_dxt_compressor::data_size	manual	0	EAX: bytes of ECX block levels from EDX x [esp+4] texels, 8 a block for format 46h else 16
+0x0011f350	vostok::render::gpu_dxt_compressor::write_dds_header	manual	0	[EAX] the 128-byte header: "DDS ", 7Ch, flags 0A100Fh, DXT1 or DXT5
+0x0011f3f0	vostok::render::gpu_dxt_compressor::compress	manual	32	
+0x0011f590	vostok::render::gpu_dxt_compressor::compress_mip	manual	32	
+0x0011f8b0	vostok::render::gpu_dxt_compressor::make_mips	manual	12	
 0x00120560	vostok::math::modf	manual	0	x87 ST0: the fractional part of the float in XMM0 (CRT modf 0x428910); the integer part as a float at [stack+4] (emulated: 1.75 -> 1, -2.25 -> -2, -0.8 -> -0)
 0x00120a50	vostok::render::texture_gpu_converter_cook::texture_gpu_converter_cook	manual	0	EAX: fixed global cook object address
 0x00120bf0	vostok::render::texture_gpu_converter_cook::allocate_resource	manual	20	EAX: address of caller-supplied pointer/count result storage on both locally returning paths
@@ -358,6 +364,9 @@ va	name	source	ret_cleanup	result
 0x00126750	vostok::render::skeleton_model_instance_cook::on_render_model_loaded	manual	8	
 0x00126af0	vostok::render::skeleton_model_instance_cook::on_all_subresources_ready	manual	4	
 0x00127700	boost::function_invoker<bind(void(*)(A*,B*),a,b)>::invoke	manual	0	
+0x0012e510	vostok::render::camouflage_decal_texture_type_baker_cook::on_textures_loaded	manual	24	
+0x0012ec40	vostok::render::camouflage_decal_texture_type_baker_cook::process_compression	manual	40	
+0x00131590	vostok::render::camouflage_decal_texture_type_baker_cook::render_bake	manual	24	
 0x00134020	vostok::render::camouflage_decal_baker_cook::translate_query	manual	4	class 6Ch; asks 4 class-6Bh (107) camouflage_decal_texture_type_baker_cook queries per P, one per type d, n, f, s (names 0x9EE7A4..0x9EE7B0, the class at 0x1342E8): a log's "cook of '' [quid n][class 107] failed" is one of them (once per baked surface, before its d, n, s lines: LIKELY f, fresnel)
 0x00135900	vostok::render::material_effects_instance_cook::on_material_ready	manual	8	
 0x00135af0	vostok::render::material_effects_instance_cook::translate_query	manual	4	
@@ -1573,6 +1582,7 @@ va	name	source	ret_cleanup	result
 0x003bccc0	vostok::render::resource_manager::register_constant_binding	manual	4	EAX: backend constant host pointer or null
 0x003bcd20	vostok::render::resource_manager::create_texture	manual	40	EAX: cached or loaded resource pointer, or null sentinel
 0x003bcdd0	vostok::render::fix_texture_name	manual	0	
+0x003bd030	vostok::render::resource_manager::create_texture_from_memory	manual	24	EAX: the named texture (process_compression 0x12F0BB takes a count at +4)
 0x003bd120	vostok::render::resource_manager::on_texture_loaded_res_impl	manual	40	EAX: texture pointer on normal completion;0 on explicit metadata/gate failure where present
 0x003bdce0	vostok::render::resource_manager::on_texture_loaded_res	manual	24	EAX: texture pointer on normal completion;0 on explicit metadata/gate failure where present
 0x003bdeb0	vostok::render::resource_manager::on_texture_loaded	manual	20	
