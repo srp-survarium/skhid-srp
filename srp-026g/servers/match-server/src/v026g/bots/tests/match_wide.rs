@@ -156,7 +156,7 @@ fn the_defaults_and_all_off_differ_in_these_match_wide_keys() {
 }
 
 /// The match-wide keys all_off.json sets apart from the defaults (pinned by the test above).
-const ALL_OFF_MATCH_WIDE: [&str; 18] = [
+const ALL_OFF_MATCH_WIDE: [&str; 20] = [
     "grid.crouch_floors",
     "grid.exact_erosion",
     "grid.floor_paths",
@@ -164,9 +164,11 @@ const ALL_OFF_MATCH_WIDE: [&str; 18] = [
     "grid.honest_drops",
     "grid.jump_cap_m",
     "grid.landing_carry",
+    "grid.ramp_faces",
     "grid.walk_off_lips",
     "kin.edge",
     "kin.margin_edge",
+    "kin.slope_speed",
     "hazard.artefact_know",
     "hazard.live_zones",
     "aim.combat.fire.weapon_class_by_data",
