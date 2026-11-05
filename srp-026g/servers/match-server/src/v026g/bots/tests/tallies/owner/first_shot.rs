@@ -96,6 +96,9 @@ pub(super) struct FirstShotCounts {
     human_died: u64,
     /// The bot fired first and died in the contact anyway.
     bot_first_and_died: u64,
+    /// [fatal exchanges] He fired first and the bot died; the bot fired first and he died.
+    human_first_and_bot_died: u64,
+    bot_first_and_human_died: u64,
     /// Each team's held lines at the last commander picture read (as `look.rs`).
     held: [Vec<crate::v026g::bots::threat::HeldLine>; 2],
     /// The enemies each bot's own or its team's senses placed within [`KNOWN_MS`], at its last read.
@@ -145,6 +148,8 @@ impl FirstShotCounts {
         self.bot_died += u64::from(bot_died);
         self.human_died += u64::from(human_died);
         self.bot_first_and_died += u64::from(bot_died && c.fired_first == Some(First::Bot));
+        self.human_first_and_bot_died += u64::from(bot_died && c.fired_first == Some(First::Human));
+        self.bot_first_and_human_died += u64::from(human_died && c.fired_first == Some(First::Bot));
     }
 
     /// One of his kills: what the victim's team and the victim knew, whether it crossed his lane, and what it did.
@@ -238,6 +243,23 @@ impl FirstShotCounts {
             self.human_died,
             pct(self.human_died),
             self.bot_first_and_died,
+        ) + &self.fatal_line()
+    }
+
+    /// [fatal exchanges] The same contacts counted as the live baseline counts them (`fx-fights-a302-firstshot-baseline.md`:
+    /// only exchanges that ended in a death within the window, by the killer): the share the killer fired first in. Every
+    /// contact (the line above) and fatal exchanges only (this line) are two ways of counting; they are not comparable.
+    fn fatal_line(&self) -> String {
+        let pct = |n: u64, of: u64| 100.0 * n as f64 / of.max(1) as f64;
+        format!(
+            "
+  first shot (A302) fatal exchanges only (the live baseline's count): the bot died {}, he fired first {} ({:.1} %); he died {}, the bot fired first {} ({:.1} %)",
+            self.bot_died,
+            self.human_first_and_bot_died,
+            pct(self.human_first_and_bot_died, self.bot_died),
+            self.human_died,
+            self.bot_first_and_human_died,
+            pct(self.bot_first_and_human_died, self.human_died),
         )
     }
 }
@@ -366,6 +388,8 @@ impl Topic for FirstShotCounts {
             "bot_died": self.bot_died,
             "human_died": self.human_died,
             "bot_first_and_died": self.bot_first_and_died,
+            "human_first_and_bot_died": self.human_first_and_bot_died,
+            "bot_first_and_human_died": self.bot_first_and_human_died,
             "his_kills": {
                 "kills": self.his_kills.kills, "team_knew": self.his_kills.team_knew, "victim_knew": self.his_kills.victim_knew,
                 "walking": self.his_kills.walking, "crossing": self.his_kills.crossing, "crossing_team_knew": self.his_kills.crossing_team_knew,
