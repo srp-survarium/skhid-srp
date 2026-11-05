@@ -331,3 +331,90 @@ fn a_spectator_before_the_start_holds_nothing_up_and_watches_from_the_first_worl
     );
     bench.assert_no_faults();
 }
+
+/// A spectator that watches, its client's index.
+fn watching(bench: &mut Bench) -> usize {
+    let at = spectate(bench, SPECTATOR);
+    assert!(bench.until(10_000, |b| b.game().spectator_watches(SPECTATOR)));
+    at
+}
+
+#[test]
+fn a_spectator_out_of_step_alone_starts_again_from_a_world() {
+    let mut bench = running();
+    let at = watching(&mut bench);
+    let syncs = [bench.clients[0].model.syncs, bench.clients[1].model.syncs];
+    let generation = bench.game().spectator_generation(SPECTATOR);
+    let worlds = bench.clients[at].snapshots().len();
+    // Its game reports other worlds than the players' from now on.
+    bench.clients[at].no_hashes = true;
+    for _ in 0..40 {
+        let clock = bench.clients[at].clock();
+        bench.clients[at].report(clock / 50 * 50, 0xdead_beef);
+        bench.run(50);
+    }
+    assert!(
+        bench.until(5_000, |b| b.game().spectator_generation(SPECTATOR)
+            != generation),
+        "the spectator was not started again"
+    );
+    assert!(bench.until(10_000, |b| b.game().spectator_watches(SPECTATOR)));
+    assert!(bench.clients[at].snapshots().len() > worlds);
+    // The players: nothing new.
+    assert_eq!(
+        [bench.clients[0].model.syncs, bench.clients[1].model.syncs],
+        syncs
+    );
+    assert_eq!(bench.game().resyncs(0), 0);
+    assert_eq!(bench.game().resyncs(1), 0);
+    assert_eq!(bench.stages(), "LL");
+    // And its next starts are as rare as a player's.
+    bench.run_long(3_000);
+    let restarted = bench.clients[at].snapshots().len();
+    for _ in 0..40 {
+        let clock = bench.clients[at].clock();
+        bench.clients[at].report(clock / 50 * 50, 0xdead_beef);
+        bench.run(50);
+    }
+    assert!(bench.clients[at].snapshots().len() <= restarted + 1);
+    bench.assert_no_faults();
+}
+
+#[test]
+fn a_spectator_in_step_is_left_alone() {
+    let mut bench = running();
+    let at = watching(&mut bench);
+    let worlds = bench.clients[at].snapshots().len();
+    let generation = bench.game().spectator_generation(SPECTATOR);
+    bench.run_long(10_000);
+    assert_eq!(bench.clients[at].snapshots().len(), worlds);
+    assert_eq!(bench.game().spectator_generation(SPECTATOR), generation);
+    bench.assert_no_faults();
+}
+
+#[test]
+fn a_spectators_reports_never_vouch_for_a_world() {
+    // One player reports, the other does not: the spectator's reports of
+    // the same ticks are no second voucher. The worlds the match trusts are
+    // those of the same match without it.
+    let trusted = |spectator: bool| {
+        let mut bench = running();
+        if spectator {
+            watching(&mut bench);
+        } else {
+            bench.run_long(1_000);
+        }
+        bench.clients[1].no_hashes = true;
+        let mut seen = Vec::new();
+        for _ in 0..40 {
+            bench.run_long(250);
+            seen.push((
+                bench.game().observed().map(|(time, _)| time),
+                bench.game().trusted_by(),
+            ));
+        }
+        assert_eq!(bench.game().resyncs(0), 0);
+        seen
+    };
+    assert_eq!(trusted(true), trusted(false));
+}
