@@ -16,6 +16,7 @@ use survarium::v026g::item_params;
 use survarium::v026g::loadouts::{self, Loadout, POCKET_SLOTS};
 use survarium::v026g::lobby::{FULL_CONDITION, KIT_PREMIUM, KIT_READY, limits};
 use survarium::v026g::quests::FACTIONS;
+use survarium::v026g::skills::SkillsTree;
 
 /// The kits an account has: the client's array holds three.
 pub const KITS: usize = limits::KITS;
@@ -659,6 +660,21 @@ impl Account {
         any
     }
 
+    /// The saved skills after a change of `tree` ([`SkillsTree::settle`]):
+    /// ranks past a skill's levels, a skill the tree dropped, the second of
+    /// an exclusive pair and rows no longer reached are taken back, so their
+    /// points are the account's to spend again. `true` if anything changed.
+    pub fn settle_skills(&mut self, tree: &SkillsTree) -> bool {
+        let settled = tree.settle(self.level(), &self.skills);
+        if settled == self.skills {
+            return false;
+        }
+        self.skills = settled;
+        // The kits carry the skills' modifiers.
+        self.bump_kits();
+        true
+    }
+
     /// Every kit gives other modifiers (the skills changed): new revisions.
     pub fn bump_kits(&mut self) {
         for kit in &mut self.kits {
@@ -671,9 +687,10 @@ impl Account {
     /// most three kits with distinct non-zero ids, an active kit that
     /// exists, no duplicate item id, item lists within the client's
     /// limits, no slot holding an item that is gone or does not fit, none
-    /// worn in a slot another worn item covers ([`Self::uncover_kits`]), and
-    /// no item type in two pockets ([`Self::merge_pockets`]). `true` if
-    /// anything changed.
+    /// worn in a slot another worn item covers ([`Self::uncover_kits`]),
+    /// no item type in two pockets ([`Self::merge_pockets`]), and skills
+    /// the tree still allows ([`Self::settle_skills`], before the kits, which
+    /// the skills shape). `true` if anything changed.
     ///
     /// It never deletes an item for a definition the game's data lacks:
     /// that is data made without a patch, and the load refuses it before
@@ -681,6 +698,7 @@ impl Account {
     pub fn repair(&mut self) -> bool {
         let dictionary = Dictionary::shared();
         let before = self.clone();
+        self.settle_skills(SkillsTree::shared());
 
         let mut seen = Vec::new();
         self.inventory.retain(|item| {
@@ -1117,5 +1135,164 @@ mod tests {
         assert!(account.doubled_pockets(&account.kits[0]).is_empty());
         assert_eq!(account.merge_pockets(), 0);
         assert!(!account.repair());
+    }
+
+    /// The medical branch of the changed tree (medical-skills.md).
+    fn medical_tree() -> SkillsTree {
+        use survarium::v026g::skills::Skill;
+        type Row = (u16, u8, u32, u8, u8, &'static [u16]);
+        #[rustfmt::skip]
+        let rows: [Row; 13] = [
+            (301, 3, 0, 2, 1, &[]), (302, 2, 0, 3, 1, &[]), (303, 2, 10, 2, 3, &[]),
+            (311, 5, 3, 1, 2, &[]), (312, 3, 3, 4, 2, &[]), (313, 2, 3, 3, 2, &[]),
+            (321, 3, 10, 4, 3, &[]), (322, 1, 20, 3, 5, &[331]), (323, 4, 15, 3, 4, &[333]),
+            (331, 1, 20, 2, 5, &[322]), (332, 5, 15, 2, 4, &[]), (333, 4, 15, 4, 4, &[323]),
+            (342, 2, 10, 1, 3, &[]),
+        ];
+        let skills = rows
+            .iter()
+            .map(
+                |&(id, levels_amount, branch_points, column, row, antiskills)| Skill {
+                    id,
+                    levels_amount,
+                    branch_points,
+                    antiskills: antiskills.to_vec(),
+                    column,
+                    row,
+                    levels: vec![Vec::new(); levels_amount.into()],
+                    unknown_modifiers: Vec::new(),
+                },
+            )
+            .collect();
+        SkillsTree { skills }
+    }
+
+    /// Saved medical skills of the old tree (five-rank Fast Bandaging and
+    /// Brothers in Arms, Medic, both tier-5 unlocks): the points taken back
+    /// are the account's to spend again, and its kits are sent again.
+    #[test]
+    fn a_changed_tree_refunds_saved_skills() {
+        let tree = medical_tree();
+        let mut account = Account::new("Alice");
+        account.add_experience(50_000_000);
+        let level = u32::from(account.level());
+        assert!(level >= 40, "{level}");
+        let spent = |account: &Account| {
+            account
+                .skills
+                .iter()
+                .map(|&(_, n)| u32::from(n))
+                .sum::<u32>()
+        };
+        account.skills = vec![
+            (301, 5),
+            (302, 5),
+            (311, 5),
+            (312, 5),
+            (321, 5),
+            (322, 1),
+            (331, 1),
+            (332, 5),
+            (341, 1),
+            (342, 5),
+        ];
+        let revisions: Vec<u32> = account.kits.iter().map(|kit| kit.revision).collect();
+        assert_eq!(spent(&account), 38);
+        assert!(account.settle_skills(&tree));
+        assert_eq!(
+            account.skills,
+            [
+                (301, 3),
+                (302, 2),
+                (311, 5),
+                (312, 3),
+                (321, 3),
+                (331, 1),
+                (332, 5),
+                (342, 2)
+            ]
+        );
+        assert_eq!(spent(&account), 24);
+        assert_eq!(tree.validate(account.level(), &account.skills), Ok(()));
+        assert!(
+            account
+                .kits
+                .iter()
+                .zip(&revisions)
+                .all(|(kit, &before)| kit.revision != before)
+        );
+        // Settled once, the set stays as it is.
+        assert!(!account.settle_skills(&tree));
+    }
+
+    /// Unflinching and Concentration exclude each other: a set holding both
+    /// (none was ever saved; the pair is new) gives Unflinching's four
+    /// points back, keeps Concentration, and sends the kits again.
+    #[test]
+    fn unflinching_beside_concentration_is_refunded() {
+        let tree = medical_tree();
+        let mut account = Account::new("Alice");
+        account.add_experience(50_000_000);
+        account.skills = vec![
+            (301, 3),
+            (302, 2),
+            (311, 5),
+            (312, 3),
+            (313, 2),
+            (303, 2),
+            (321, 3),
+            (342, 2),
+            (323, 4),
+            (333, 4),
+        ];
+        let revisions: Vec<u32> = account.kits.iter().map(|kit| kit.revision).collect();
+        assert!(account.settle_skills(&tree));
+        assert!(!account.skills.iter().any(|&(id, _)| id == 323));
+        assert!(account.skills.contains(&(333, 4)));
+        assert_eq!(account.skills.iter().map(|&(_, n)| u32::from(n)).sum::<u32>(), 26);
+        assert_eq!(tree.validate(account.level(), &account.skills), Ok(()));
+        assert!(
+            account
+                .kits
+                .iter()
+                .zip(&revisions)
+                .all(|(kit, &before)| kit.revision != before)
+        );
+        assert!(!account.settle_skills(&tree));
+    }
+
+    /// A full build saved before Numb Legs moved from row 1 to row 3 (and
+    /// Unflinching went from two ranks to four): the ids are the same and
+    /// rows 1 and 2 hold Numb Legs' ten points, so nothing is taken back and
+    /// the kits are not sent again.
+    #[test]
+    fn numb_legs_saved_in_row_one_stays_after_the_move() {
+        let tree = medical_tree();
+        let mut account = Account::new("Alice");
+        account.add_experience(50_000_000);
+        account.skills = vec![
+            (303, 2),
+            (301, 3),
+            (302, 2),
+            (311, 5),
+            (313, 2),
+            (312, 3),
+            (321, 3),
+            (342, 2),
+            (323, 2),
+            (332, 5),
+            (331, 1),
+        ];
+        let saved = account.skills.clone();
+        let revisions: Vec<u32> = account.kits.iter().map(|kit| kit.revision).collect();
+        assert!(!account.settle_skills(&tree));
+        assert_eq!(account.skills, saved);
+        assert!(
+            account
+                .kits
+                .iter()
+                .zip(&revisions)
+                .all(|(kit, &before)| kit.revision == before)
+        );
     }
 }

@@ -29,6 +29,7 @@
 BITS 32
 global artefacts_loader, artefacts_link, artefacts_unlink, artefacts_lifebone, artefacts_fire
 global artefacts_stagger, artefacts_onyx, artefacts_popup
+extern medical_skills_on_stopping  ; patch 94's generated entry (rust_patches.md, `entry`)
 section .text
 
 %define CONFIG_CHILD 0xF6B10       ; eax = a config value, edi = a key: eax = its child
@@ -211,7 +212,9 @@ unlink_active:
 ; ways there, the hits' loop or none): esi = the player, xmm0 and the local
 ; [esp+14h] = the sum of the recent hits' stopping power (the min after it
 ; reads the local), xmm1 0. The sum becomes M42(sum): times max(0, 1 + list
-; 42), so an active Spring's -1 takes the slow away.
+; 42), so an active Spring's -1 takes the slow away; then the medical
+; skills' Unflinching (patch 94's entry medical_skills_on_stopping, cdecl:
+; the player, the sum in and out; it keeps every register) times its own.
 stagger:
     push esi
     sub esp, 8
@@ -224,6 +227,13 @@ stagger:
     mov esi, STOPPING
     call GETTER
     pop esi
+    sub esp, 4
+    movss [esp], xmm0              ; the sum, Spring's factor applied
+    push esi                       ; the player
+    call medical_skills_on_stopping
+    add esp, 4
+    movss xmm0, [esp]              ; the sum, Unflinching's factor applied
+    add esp, 4
     movss [esp+0x14], xmm0
     xorps xmm1, xmm1
     movss xmm2, [esi+0x31C]

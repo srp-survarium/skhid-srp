@@ -979,6 +979,24 @@ impl Player {
     pub unsafe fn feet(self) -> *mut f32 {
         unsafe { self.0.byte_add(0x43c).cast::<f32>().as_ptr() }
     }
+
+    /// +0x494 (ptr<vostok::physics::bt_character_controller>): its character controller wrapper, made at 0x2D6EF1 by 0x3569D0 (8 bytes; jump 0x2D7925, tick_animations 0x2D8F09)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn character_controller(self) -> Option<BtCharacterController> {
+        unsafe { self.0.byte_add(0x494).cast::<Option<BtCharacterController>>().read_volatile() }
+    }
+
+    /// +0x494 (ptr<vostok::physics::bt_character_controller>): its character controller wrapper, made at 0x2D6EF1 by 0x3569D0 (8 bytes; jump 0x2D7925, tick_animations 0x2D8F09)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn set_character_controller(self, value: Option<BtCharacterController>) {
+        unsafe { self.0.byte_add(0x494).cast::<Option<BtCharacterController>>().write_volatile(value) }
+    }
 }
 
 /// A survarium::player_profile (fields_026g.tsv): a pointer to one, never 0. Made only here: by a typed field,
@@ -9215,6 +9233,15 @@ impl SoundInstanceProxy {
     pub unsafe fn set_scene(self, value: Option<SoundScene>) {
         unsafe { self.0.byte_add(0x68).cast::<Option<SoundScene>>().write_volatile(value) }
     }
+
+    /// +0x8c (u32): patch 94's tag of what it plays (vostok::sound::Source: 0 untagged, 1 the environment, 2 an opponent's): the tail padding of its 144-byte pool record (new_*_sound_instance_proxy: the count x 90h; the constructors 0x5A6B0, 0x5A840, 0x5A9C0 write up to +88h; the sound code 0x55000..0x67000 has no +8Ch access of a proxy, its one +8Ch is world_user::initialize's own 0x56089), cleared at each allocation (sound_proxy.allocated, 0x65484)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn source(self) -> *mut u32 {
+        unsafe { self.0.byte_add(0x8c).cast::<u32>().as_ptr() }
+    }
 }
 
 /// A vostok::sound::scene_params_variant (fields_026g.tsv): a pointer to one, never 0. Made only here: by a typed field,
@@ -11035,6 +11062,15 @@ impl PlayerParamsModifiersContainer {
     pub unsafe fn medical_ranks(self) -> *mut f32 {
         unsafe { self.0.byte_add(0xac).cast::<f32>().as_ptr() }
     }
+
+    /// +0xb4 (f32): modifier 45 can_defuse_traps (no getter call, no code name reference, no retail config): the medical combo skills' packed ranks; medical-skills.md
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn combo_ranks(self) -> *mut f32 {
+        unsafe { self.0.byte_add(0xb4).cast::<f32>().as_ptr() }
+    }
 }
 
 /// A survarium::medical_hit (fields_026g.tsv): a pointer to one, never 0. Made only here: by a typed field,
@@ -11337,6 +11373,39 @@ impl MedicalDamageFrame {
     #[inline(always)]
     pub unsafe fn amount(self) -> *mut f32 {
         unsafe { self.0.byte_add(0x8).cast::<f32>().as_ptr() }
+    }
+}
+
+/// A survarium::regeneration_frame (fields_026g.tsv): a pointer to one, never 0. Made only here: by a typed field,
+/// a function's typed result or a site's typed register (sites_026g.tsv `holds`).
+#[repr(transparent)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct RegenerationFrame(NonNull<c_void>);
+
+#[allow(dead_code)]
+impl RegenerationFrame {
+    /// Its address as a value (an id, a compare): never read through.
+    #[inline(always)]
+    pub fn address(self) -> u32 {
+        self.0.as_ptr() as usize as u32
+    }
+
+    /// +0x10 (f32): body_part::regenerate's rate after kit modifier 2 and the pool's own regeneration modifiers (the site's ESP+10h at 0x32A53F)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn rate(self) -> *mut f32 {
+        unsafe { self.0.byte_add(0x10).cast::<f32>().as_ptr() }
+    }
+
+    /// +0x18 (f32): its limit, the fraction of the maximum regeneration stops at (ESP+18h, read at 0x32A573)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn limit(self) -> *mut f32 {
+        unsafe { self.0.byte_add(0x18).cast::<f32>().as_ptr() }
     }
 }
 
@@ -11831,6 +11900,129 @@ impl MedicalClockResult {
     #[inline(always)]
     pub unsafe fn ended(self) -> *mut u8 {
         unsafe { self.0.byte_add(0x8).cast::<u8>().as_ptr() }
+    }
+}
+
+/// A survarium::player_stamina (fields_026g.tsv): a pointer to one, never 0. Made only here: by a typed field,
+/// a function's typed result or a site's typed register (sites_026g.tsv `holds`).
+#[repr(transparent)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct PlayerStamina(NonNull<c_void>);
+
+#[allow(dead_code)]
+impl PlayerStamina {
+    /// Its address as a value (an id, a compare): never read through.
+    #[inline(always)]
+    pub fn address(self) -> u32 {
+        self.0.as_ptr() as usize as u32
+    }
+
+    /// -0x6c0 (obj<survarium::player>): its player: base_player embeds player_stamina at +6C0h (ctor 0x2D6E5C, tick 0x2D8FBC lea eax,[edi+6C0h])
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn player(self) -> Player {
+        Player(unsafe { self.0.byte_sub(0x6c0) })
+    }
+}
+
+/// A vostok::physics::bt_character_controller (fields_026g.tsv): a pointer to one, never 0. Made only here: by a typed field,
+/// a function's typed result or a site's typed register (sites_026g.tsv `holds`).
+#[repr(transparent)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct BtCharacterController(NonNull<c_void>);
+
+#[allow(dead_code)]
+impl BtCharacterController {
+    /// Its address as a value (an id, a compare): never read through.
+    #[inline(always)]
+    pub fn address(self) -> u32 {
+        self.0.as_ptr() as usize as u32
+    }
+
+    /// +0x0 (ptr<vostok::physics::bullet_character_controller>): the Bullet controller (0x2C790 bytes, ctor 0x356A40)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn controller(self) -> Option<BulletCharacterController> {
+        unsafe { self.0.byte_add(0x0).cast::<Option<BulletCharacterController>>().read_volatile() }
+    }
+
+    /// +0x0 (ptr<vostok::physics::bullet_character_controller>): the Bullet controller (0x2C790 bytes, ctor 0x356A40)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn set_controller(self, value: Option<BulletCharacterController>) {
+        unsafe { self.0.byte_add(0x0).cast::<Option<BulletCharacterController>>().write_volatile(value) }
+    }
+}
+
+/// A vostok::physics::bullet_character_controller (fields_026g.tsv): a pointer to one, never 0. Made only here: by a typed field,
+/// a function's typed result or a site's typed register (sites_026g.tsv `holds`).
+#[repr(transparent)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct BulletCharacterController(NonNull<c_void>);
+
+#[allow(dead_code)]
+impl BulletCharacterController {
+    /// Its address as a value (an id, a compare): never read through.
+    #[inline(always)]
+    pub fn address(self) -> u32 {
+        self.0.as_ptr() as usize as u32
+    }
+
+    /// +0x201 (u8): effective crouch: set by the crouch states (0x337810), cleared only when it can stand (+202h, 0x337830) or on jump (0x2D793E); serialized (0x7FBA0); player_step 0x7BDAE shapes the capsule from it
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn effective_crouch(self) -> *mut u8 {
+        unsafe { self.0.byte_add(0x201).cast::<u8>().as_ptr() }
+    }
+}
+
+/// A survarium::medical_stopping_frame (fields_026g.tsv): a pointer to one, never 0. Made only here: by a typed field,
+/// a function's typed result or a site's typed register (sites_026g.tsv `holds`).
+#[repr(transparent)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct MedicalStoppingFrame(NonNull<c_void>);
+
+#[allow(dead_code)]
+impl MedicalStoppingFrame {
+    /// Its address as a value (an id, a compare): never read through.
+    #[inline(always)]
+    pub fn address(self) -> u32 {
+        self.0.as_ptr() as usize as u32
+    }
+
+    /// +0x4 (ptr<survarium::player>): medical.stopping's first argument (by the site ESP, the return address at +0): the staggered player
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn player(self) -> Option<Player> {
+        unsafe { self.0.byte_add(0x4).cast::<Option<Player>>().read_volatile() }
+    }
+
+    /// +0x4 (ptr<survarium::player>): medical.stopping's first argument (by the site ESP, the return address at +0): the staggered player
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn set_player(self, value: Option<Player>) {
+        unsafe { self.0.byte_add(0x4).cast::<Option<Player>>().write_volatile(value) }
+    }
+
+    /// +0x8 (f32): its second: the recent hits' stopping power after Spring's list 42, written back
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn sum(self) -> *mut f32 {
+        unsafe { self.0.byte_add(0x8).cast::<f32>().as_ptr() }
     }
 }
 
@@ -12594,6 +12786,204 @@ impl SoundOptions {
     }
 }
 
+/// A vostok::sound::proxy_slot (fields_026g.tsv): a pointer to one, never 0. Made only here: by a typed field,
+/// a function's typed result or a site's typed register (sites_026g.tsv `holds`).
+#[repr(transparent)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct ProxySlot(NonNull<c_void>);
+
+#[allow(dead_code)]
+impl ProxySlot {
+    /// Its address as a value (an id, a compare): never read through.
+    #[inline(always)]
+    pub fn address(self) -> u32 {
+        self.0.as_ptr() as usize as u32
+    }
+
+    /// +0x0 (ptr<vostok::sound::sound_instance_proxy>): an intrusive_ptr<sound_instance_proxy> an emit fills: the new proxy with one reference, or 0 (emit_point_sound 0x65670, new_hud_sound_instance_proxy 0x65100)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn proxy(self) -> Option<SoundInstanceProxy> {
+        unsafe { self.0.byte_add(0x0).cast::<Option<SoundInstanceProxy>>().read_volatile() }
+    }
+
+    /// +0x0 (ptr<vostok::sound::sound_instance_proxy>): an intrusive_ptr<sound_instance_proxy> an emit fills: the new proxy with one reference, or 0 (emit_point_sound 0x65670, new_hud_sound_instance_proxy 0x65100)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn set_proxy(self, value: Option<SoundInstanceProxy>) {
+        unsafe { self.0.byte_add(0x0).cast::<Option<SoundInstanceProxy>>().write_volatile(value) }
+    }
+}
+
+/// A vostok::sound::emit_once_frame (fields_026g.tsv): a pointer to one, never 0. Made only here: by a typed field,
+/// a function's typed result or a site's typed register (sites_026g.tsv `holds`).
+#[repr(transparent)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct EmitOnceFrame(NonNull<c_void>);
+
+#[allow(dead_code)]
+impl EmitOnceFrame {
+    /// Its address as a value (an id, a compare): never read through.
+    #[inline(always)]
+    pub fn address(self) -> u32 {
+        self.0.as_ptr() as usize as u32
+    }
+
+    /// +0x4 (u32): emit_and_play_once's return address (push ebp / mov ebp,esp at 0x657C0: [ebp+4]): the call it plays for
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn caller(self) -> *mut u32 {
+        unsafe { self.0.byte_add(0x4).cast::<u32>().as_ptr() }
+    }
+}
+
+/// A survarium::weapon_play_sound_frame (fields_026g.tsv): a pointer to one, never 0. Made only here: by a typed field,
+/// a function's typed result or a site's typed register (sites_026g.tsv `holds`).
+#[repr(transparent)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct WeaponPlaySoundFrame(NonNull<c_void>);
+
+#[allow(dead_code)]
+impl WeaponPlaySoundFrame {
+    /// Its address as a value (an id, a compare): never read through.
+    #[inline(always)]
+    pub fn address(self) -> u32 {
+        self.0.as_ptr() as usize as u32
+    }
+
+    /// +0x24 (ptr<survarium::weapon_sound_effect>): play_sound_callback's effect (its ECX, kept at [esp+24h] by 0x297E32; at 0x297F7E both paths' pushes are popped by their callees, the same ESP)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn effect(self) -> Option<WeaponSoundEffect> {
+        unsafe { self.0.byte_add(0x24).cast::<Option<WeaponSoundEffect>>().read_volatile() }
+    }
+
+    /// +0x24 (ptr<survarium::weapon_sound_effect>): play_sound_callback's effect (its ECX, kept at [esp+24h] by 0x297E32; at 0x297F7E both paths' pushes are popped by their callees, the same ESP)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn set_effect(self, value: Option<WeaponSoundEffect>) {
+        unsafe { self.0.byte_add(0x24).cast::<Option<WeaponSoundEffect>>().write_volatile(value) }
+    }
+}
+
+/// A survarium::weapon_sound_effect (fields_026g.tsv): a pointer to one, never 0. Made only here: by a typed field,
+/// a function's typed result or a site's typed register (sites_026g.tsv `holds`).
+#[repr(transparent)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct WeaponSoundEffect(NonNull<c_void>);
+
+#[allow(dead_code)]
+impl WeaponSoundEffect {
+    /// Its address as a value (an id, a compare): never read through.
+    #[inline(always)]
+    pub fn address(self) -> u32 {
+        self.0.as_ptr() as usize as u32
+    }
+
+    /// +0x30 (ptr<survarium::weapon_core>): its weapon (on_sound_event 0x297C60, play_sound_callback 0x297E47: +594h its user's place)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn weapon(self) -> Option<WeaponCore> {
+        unsafe { self.0.byte_add(0x30).cast::<Option<WeaponCore>>().read_volatile() }
+    }
+
+    /// +0x30 (ptr<survarium::weapon_core>): its weapon (on_sound_event 0x297C60, play_sound_callback 0x297E47: +594h its user's place)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn set_weapon(self, value: Option<WeaponCore>) {
+        unsafe { self.0.byte_add(0x30).cast::<Option<WeaponCore>>().write_volatile(value) }
+    }
+
+    /// -0x150 (u32): the word 150h before it: when the effect is weapon_sound_events_handler_state<weapon_core_fire_state>'s (its +168h, initialize 0x2517AE), that state's +18h vtable 0xA04F10 (its ctor 0x254FA7). Every effect is a handler state's member at +158h..+170h (initialize 0x25081E, 0x2513AE, 0x2537C3, 0x2522FE), so the word is inside its own state
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn core_fire_handler(self) -> *mut u32 {
+        unsafe { self.0.byte_sub(0x150).cast::<u32>().as_ptr() }
+    }
+
+    /// -0x158 (u32): the word 158h before it: for the pistol and double-barrelled fire states' effects (+170h, initialize 0x253423, 0x252A33), their state's +18h vtable 0xA05274 (ctor 0x255307) or 0xA0517C (0x255227); inside its own state, as above
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn sidearm_fire_handler(self) -> *mut u32 {
+        unsafe { self.0.byte_sub(0x158).cast::<u32>().as_ptr() }
+    }
+}
+
+/// A survarium::weapon_core (fields_026g.tsv): a pointer to one, never 0. Made only here: by a typed field,
+/// a function's typed result or a site's typed register (sites_026g.tsv `holds`).
+#[repr(transparent)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct WeaponCore(NonNull<c_void>);
+
+#[allow(dead_code)]
+impl WeaponCore {
+    /// Its address as a value (an id, a compare): never read through.
+    #[inline(always)]
+    pub fn address(self) -> u32 {
+        self.0.as_ptr() as usize as u32
+    }
+
+    /// +0x594 (ptr<survarium::weapon_user>): its user: the holder's player + 110h (instant_fire calls its slot +4, 0x2E258D; on_sound_event and play_sound_callback read its place, 0x297C69, 0x297E50); deactivate leaves it (0x2E2EA4)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn user(self) -> Option<WeaponUser> {
+        unsafe { self.0.byte_add(0x594).cast::<Option<WeaponUser>>().read_volatile() }
+    }
+
+    /// +0x594 (ptr<survarium::weapon_user>): its user: the holder's player + 110h (instant_fire calls its slot +4, 0x2E258D; on_sound_event and play_sound_callback read its place, 0x297C69, 0x297E50); deactivate leaves it (0x2E2EA4)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn set_user(self, value: Option<WeaponUser>) {
+        unsafe { self.0.byte_add(0x594).cast::<Option<WeaponUser>>().write_volatile(value) }
+    }
+}
+
+/// A survarium::weapon_user (fields_026g.tsv): a pointer to one, never 0. Made only here: by a typed field,
+/// a function's typed result or a site's typed register (sites_026g.tsv `holds`).
+#[repr(transparent)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct WeaponUser(NonNull<c_void>);
+
+#[allow(dead_code)]
+impl WeaponUser {
+    /// Its address as a value (an id, a compare): never read through.
+    #[inline(always)]
+    pub fn address(self) -> u32 {
+        self.0.as_ptr() as usize as u32
+    }
+
+    /// +0x4 (u8): its player's place (player + 114h)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn place(self) -> *mut u8 {
+        unsafe { self.0.byte_add(0x4).cast::<u8>().as_ptr() }
+    }
+}
+
 /// A vostok::engine::message_frame (fields_026g.tsv): a pointer to one, never 0. Made only here: by a typed field,
 /// a function's typed result or a site's typed register (sites_026g.tsv `holds`).
 #[repr(transparent)]
@@ -12984,6 +13374,24 @@ pub mod image {
 
     /// 0xa11398 (u32, survarium::image): default effect clock methods: 0x2E5D80 and two no-op codec methods
     pub const DEFAULT_EFFECT_CLOCK_VTABLE: u32 = 0xa11398;
+
+    /// 0xa04f10 (u32, survarium::image): weapon_sound_events_handler_state<weapon_core_fire_state>'s +18h vtable (RTTI TD 0xAD2478; its ctor writes it at 0x254FA7, the primary 0xA04EE4 at 0x254FA1)
+    pub const CORE_FIRE_SOUND_HANDLER: u32 = 0xa04f10;
+
+    /// 0xa05274 (u32, survarium::image): weapon_sound_events_handler_state<pistol_weapon_core_fire_state>'s +18h vtable (TD 0xAD1498; ctor 0x255307)
+    pub const PISTOL_FIRE_SOUND_HANDLER: u32 = 0xa05274;
+
+    /// 0xa0517c (u32, survarium::image): weapon_sound_events_handler_state<double_barreled_weapon_core_fire_state>'s +18h vtable (TD 0xAD1920; ctor 0x255227)
+    pub const DOUBLE_FIRE_SOUND_HANDLER: u32 = 0xa0517c;
+
+    /// 0x298dee (u8, survarium::image): a code address (u8: a return address has no alignment), the return address of a damage_zone fx's one-shot sound (emit_and_play_once at 0x298DE9, in 0x298D80; 0.21d's emit_sound_once, inlined)
+    pub const ZONE_SOUND_ONCE_A: u32 = 0x298dee;
+
+    /// 0x298f1e (u8, survarium::image): the same, emit_and_play_once at 0x298F19 (in 0x298EB0)
+    pub const ZONE_SOUND_ONCE_B: u32 = 0x298f1e;
+
+    /// 0x299269 (u8, survarium::image): the same, emit_and_play_once at 0x299264 (in 0x2991A0)
+    pub const ZONE_SOUND_ONCE_C: u32 = 0x299269;
 }
 
 /// A general-purpose register at a hook's site.
@@ -15116,6 +15524,84 @@ pub mod site {
         }
     }
 
+    /// medical.sprint (0x329aad): player_stamina::sprint after both spending modifiers (19, 67): XMM0 sprint stamina per second, before the elapsed-time multiply
+    pub mod medical_sprint {
+        #[allow(unused_imports)]
+        use super::*;
+
+        /// EDI: a survarium::player_stamina (None for 0).
+        ///
+        /// # Safety
+        /// `machine` is at this site.
+        #[inline(always)]
+        pub unsafe fn stamina(machine: &impl Machine) -> Option<PlayerStamina> {
+            NonNull::new(machine.register(Register::Edi) as usize as *mut c_void).map(PlayerStamina)
+        }
+    }
+
+    /// medical.medicine_heal (0x33d948): medkit::tick's heal amount (drug_amount 57 times the elapsed time, past its comiss with the minimum; flags kept for the ja): XMM0 the amount for this influence, stored for increase_health
+    pub mod medical_medicine_heal {
+        #[allow(unused_imports)]
+        use super::*;
+
+        /// EDI: a survarium::medkit (None for 0).
+        ///
+        /// # Safety
+        /// `machine` is at this site.
+        #[inline(always)]
+        pub unsafe fn item(machine: &impl Machine) -> Option<Medkit> {
+            NonNull::new(machine.register(Register::Edi) as usize as *mut c_void).map(Medkit)
+        }
+
+        /// EBP: a survarium::player (None for 0).
+        ///
+        /// # Safety
+        /// `machine` is at this site.
+        #[inline(always)]
+        pub unsafe fn player(machine: &impl Machine) -> Option<Player> {
+            NonNull::new(machine.register(Register::Ebp) as usize as *mut c_void).map(Player)
+        }
+    }
+
+    /// medical.stopping (our entry): patch 54's stagger (artefacts_026g.asm, 0x2DBD89) after Spring's getter: cdecl, the player, the sum (in/out); the caller keeps every register and pops the two
+    pub mod medical_stopping {
+        #[allow(unused_imports)]
+        use super::*;
+
+        /// the site's ESP: a survarium::medical_stopping_frame (None for 0).
+        ///
+        /// # Safety
+        /// `machine` is at this site.
+        #[inline(always)]
+        pub unsafe fn frame(machine: &impl Machine) -> Option<MedicalStoppingFrame> {
+            NonNull::new(machine.site_esp() as usize as *mut c_void).map(MedicalStoppingFrame)
+        }
+    }
+
+    /// medical.regenerate (0x32a53f): body_part::regenerate where both paths of its regeneration-modifier loop join (mov ebp,[esp+24h] / test eax,eax): EDI the pool, EAX the delay (ms) the rest reads (its local copy ESP+14h is not read again), frame ESP+10h rate, +18h limit
+    pub mod medical_regenerate {
+        #[allow(unused_imports)]
+        use super::*;
+
+        /// EDI: a survarium::medical_pool (None for 0).
+        ///
+        /// # Safety
+        /// `machine` is at this site.
+        #[inline(always)]
+        pub unsafe fn pool(machine: &impl Machine) -> Option<MedicalPool> {
+            NonNull::new(machine.register(Register::Edi) as usize as *mut c_void).map(MedicalPool)
+        }
+
+        /// the site's ESP: a survarium::regeneration_frame (None for 0).
+        ///
+        /// # Safety
+        /// `machine` is at this site.
+        #[inline(always)]
+        pub unsafe fn frame(machine: &impl Machine) -> Option<RegenerationFrame> {
+            NonNull::new(machine.site_esp() as usize as *mut c_void).map(RegenerationFrame)
+        }
+    }
+
     /// animations.id_missing (0x2d65ee): the animations registry's lookup (0x2D6590, called only by base_player::animation_id_resolver 0x2D7C26) found no entry for the pair and is about to return 0FFFFh (pop edi / pop esi / mov eax,0FFFFh; reached by the three misses at 0x2D65D3, 0x2D65DA, 0x2D65E2): EDI the pair asked for, ESP+10h the registry, EBP the resolver's frame
     pub mod animations_id_missing {
         #[allow(unused_imports)]
@@ -15218,6 +15704,144 @@ pub mod site {
         #[inline(always)]
         pub unsafe fn frame(machine: &impl Machine) -> Option<HdrFrame> {
             NonNull::new(machine.register(Register::Ebp) as usize as *mut c_void).map(HdrFrame)
+        }
+    }
+
+    /// sound_voice.gain (0x5c73e): notify_listener2 at a voice's volume (movss [esp],xmm1 after mulss xmm1,xmm0: the options' volume_k times amplitude 0x5C717 or the propagator's gain; the push before it is set_volume_impl's argument, its only caller 0x5C743, which clamps it to [0, 1]): the sound thread, EDI the propagator, XMM1 the volume
+    pub mod sound_voice_gain {
+        #[allow(unused_imports)]
+        use super::*;
+
+        /// EDI: a vostok::sound::new_sound_propagator (None for 0).
+        ///
+        /// # Safety
+        /// `machine` is at this site.
+        #[inline(always)]
+        pub unsafe fn propagator(machine: &impl Machine) -> Option<NewSoundPropagator> {
+            NonNull::new(machine.register(Register::Edi) as usize as *mut c_void).map(NewSoundPropagator)
+        }
+    }
+
+    /// sound_proxy.allocated (0x65484): new_helper<sound_instance_proxy_internal> after its free-list pop (0x654E0), before the count's lock xadd (mov edx,1): EAX the record for the new proxy, or 0 when every one is taken; the point, hud and spot proxies' one allocation (0x6509A, 0x65243, 0x653EA), before their constructors
+    pub mod sound_proxy_allocated {
+        #[allow(unused_imports)]
+        use super::*;
+
+        /// EAX: a vostok::sound::sound_instance_proxy (None for 0).
+        ///
+        /// # Safety
+        /// `machine` is at this site.
+        #[inline(always)]
+        pub unsafe fn proxy(machine: &impl Machine) -> Option<SoundInstanceProxy> {
+            NonNull::new(machine.register(Register::Eax) as usize as *mut c_void).map(SoundInstanceProxy)
+        }
+    }
+
+    /// sound_emitter.once_point (0x6587f): emit_and_play_once's point path with its new proxy (mov ebx,eax / inc dword [ebx+28h], after new_point 0x65874 and its test of 0): EAX the proxy, not yet played (vtable +0 at 0x658FD); EBP its frame
+    pub mod sound_emitter_once_point {
+        #[allow(unused_imports)]
+        use super::*;
+
+        /// EAX: a vostok::sound::sound_instance_proxy (None for 0).
+        ///
+        /// # Safety
+        /// `machine` is at this site.
+        #[inline(always)]
+        pub unsafe fn proxy(machine: &impl Machine) -> Option<SoundInstanceProxy> {
+            NonNull::new(machine.register(Register::Eax) as usize as *mut c_void).map(SoundInstanceProxy)
+        }
+
+        /// EBP: a vostok::sound::emit_once_frame (None for 0).
+        ///
+        /// # Safety
+        /// `machine` is at this site.
+        #[inline(always)]
+        pub unsafe fn frame(machine: &impl Machine) -> Option<EmitOnceFrame> {
+            NonNull::new(machine.register(Register::Ebp) as usize as *mut c_void).map(EmitOnceFrame)
+        }
+    }
+
+    /// player_sound.foot_step (0x2a6563): on_foot_step before step_manager::on_step (0x2A6572), its step manager found (mov edx,[esp+8] / mov eax,[esp+14h]): ESI the effect
+    pub mod player_sound_foot_step {
+        #[allow(unused_imports)]
+        use super::*;
+
+        /// ESI: a survarium::player_equipment_sound_effect (None for 0).
+        ///
+        /// # Safety
+        /// `machine` is at this site.
+        #[inline(always)]
+        pub unsafe fn effect(machine: &impl Machine) -> Option<PlayerEquipmentSoundEffect> {
+            NonNull::new(machine.register(Register::Esi) as usize as *mut c_void).map(PlayerEquipmentSoundEffect)
+        }
+    }
+
+    /// player.landing_step (0x1f3b97): player::on_landing before its landing step (0x23FBE0, which may call on_step at 0x23FC2C), its step manager found (mov edx,[edi+324h]): EDI the player
+    pub mod player_landing_step {
+        #[allow(unused_imports)]
+        use super::*;
+
+        /// EDI: a survarium::player (None for 0).
+        ///
+        /// # Safety
+        /// `machine` is at this site.
+        #[inline(always)]
+        pub unsafe fn player(machine: &impl Machine) -> Option<Player> {
+            NonNull::new(machine.register(Register::Edi) as usize as *mut c_void).map(Player)
+        }
+    }
+
+    /// object_sound.play (0x294a6f): object_sound::insert before it plays its looped proxy (mov edx,[esi] / mov eax,[edx] / push 0; vtable +0, mode 1): ESI the spot (emit_spot_sound 0x294981) or point (emit_point_sound 0x294A1A) proxy it keeps at +160h
+    pub mod object_sound_play {
+        #[allow(unused_imports)]
+        use super::*;
+
+        /// ESI: a vostok::sound::sound_instance_proxy (None for 0).
+        ///
+        /// # Safety
+        /// `machine` is at this site.
+        #[inline(always)]
+        pub unsafe fn proxy(machine: &impl Machine) -> Option<SoundInstanceProxy> {
+            NonNull::new(machine.register(Register::Esi) as usize as *mut c_void).map(SoundInstanceProxy)
+        }
+    }
+
+    /// damage_zone.sound (0x298cf8): damage_zone::emit_sound after emit_point_sound (0x298CF3; mov eax,[eax] / xor ecx,ecx / test eax,eax): EAX its out slot, the new proxy or 0
+    pub mod damage_zone_sound {
+        #[allow(unused_imports)]
+        use super::*;
+
+        /// EAX: a vostok::sound::proxy_slot (None for 0).
+        ///
+        /// # Safety
+        /// `machine` is at this site.
+        #[inline(always)]
+        pub unsafe fn slot(machine: &impl Machine) -> Option<ProxySlot> {
+            NonNull::new(machine.register(Register::Eax) as usize as *mut c_void).map(ProxySlot)
+        }
+    }
+
+    /// weapon_sound.made (0x297f7e): weapon_sound_effect::play_sound_callback with its new proxy (mov eax,[eax] / xor ebx,ebx / xor edi,edi), where the hud (0x297F5E) and point (0x297F79) paths join: EAX the out slot, the effect at [esp+24h]
+    pub mod weapon_sound_made {
+        #[allow(unused_imports)]
+        use super::*;
+
+        /// EAX: a vostok::sound::proxy_slot (None for 0).
+        ///
+        /// # Safety
+        /// `machine` is at this site.
+        #[inline(always)]
+        pub unsafe fn slot(machine: &impl Machine) -> Option<ProxySlot> {
+            NonNull::new(machine.register(Register::Eax) as usize as *mut c_void).map(ProxySlot)
+        }
+
+        /// the site's ESP: a survarium::weapon_play_sound_frame (None for 0).
+        ///
+        /// # Safety
+        /// `machine` is at this site.
+        #[inline(always)]
+        pub unsafe fn frame(machine: &impl Machine) -> Option<WeaponPlaySoundFrame> {
+            NonNull::new(machine.site_esp() as usize as *mut c_void).map(WeaponPlaySoundFrame)
         }
     }
 
