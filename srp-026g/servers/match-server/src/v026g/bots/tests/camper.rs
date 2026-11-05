@@ -96,6 +96,9 @@ pub(crate) struct CamperOptions {
     /// [A302 calibration] `SRP_BENCH_CAMPER_SCOPED=1`: the scope he holds on his lane (`Watch::Lane`) counts toward his aim-in
     /// (`Reflex::bench_scoped`), as the client counts a held scope; without it every far first shot waits the aim time again.
     pub(crate) scoped: bool,
+    /// [A302 calibration] `SRP_BENCH_CAMPER_HEAD=<share>`: that share of his targets aimed at the head first
+    /// (`aimpoint::Sight::head_first`), the owner's 26 % headshots (A287) at most; unset: the bots' order, chest first.
+    pub(crate) head_share: Option<f32>,
 }
 
 /// Where the standing camper (no [`MoveOptions`]) goes after a death (`SRP_BENCH_CAMPER_RETURN`).
@@ -133,6 +136,7 @@ impl CamperOptions {
         returns: ReturnRule::Always,
         hold_fire: false,
         scoped: false,
+        head_share: None,
     };
 
     /// The environment's ([`bench_settings`]); a value it does not know refuses the run.
@@ -179,9 +183,20 @@ impl CamperOptions {
             returns: ReturnRule::parse(get("SRP_BENCH_CAMPER_RETURN").as_deref())?,
             hold_fire: flag("SRP_BENCH_CAMPER_HOLD_FIRE")?,
             scoped: flag("SRP_BENCH_CAMPER_SCOPED")?,
+            head_share: match get("SRP_BENCH_CAMPER_HEAD").as_deref() {
+                None => None,
+                Some(v) => match v.parse::<f32>() {
+                    Ok(share) if (0.0..=OWNER_HEAD_SHARE).contains(&share) => Some(share),
+                    _ => return Err(format!("SRP_BENCH_CAMPER_HEAD={v:?}: a share from 0 to {OWNER_HEAD_SHARE} (the owner's)")),
+                },
+            },
         })
     }
 }
+
+/// [A302 calibration] The owner's share of headshots among his kills of bots (A287, 8 matches): the camper's head share's
+/// ceiling (never better than him).
+pub(crate) const OWNER_HEAD_SHARE: f32 = 0.26;
 
 /// The long gun among the kits of `tier` (the camper's first): a bolt rifle,
 /// else a marksman rifle ([`Gun::class`]).
@@ -422,7 +437,7 @@ pub(crate) fn the_options_off_are_the_old_spot_and_the_hidden_rule_finds_one() {
     let mut tactics = super::tactics::Tactics::new(super::tactics::tests::field(), 1.0);
     tactics.set_routes(camper_routes());
     assert_eq!(camper_spot_by(&tactics, 0, SpotRule::Most, false), camper_spot(&tactics, 0));
-    assert_eq!(CamperOptions::OFF, CamperOptions { rule: SpotRule::Most, crouch: false, long_gun: false, moving: None, at: CamperAt::Free, watch: Watch::Around, side: CamperSide::Given, start: CamperStart::Spawn, returns: ReturnRule::Always, hold_fire: false, scoped: false });
+    assert_eq!(CamperOptions::OFF, CamperOptions { rule: SpotRule::Most, crouch: false, long_gun: false, moving: None, at: CamperAt::Free, watch: Watch::Around, side: CamperSide::Given, start: CamperStart::Spawn, returns: ReturnRule::Always, hold_fire: false, scoped: false, head_share: None });
     for crouched in [false, true] {
         let hidden = camper_spot_by(&tactics, 0, SpotRule::Hidden, crouched).expect("a spot");
         assert!(hidden.1 > 0);

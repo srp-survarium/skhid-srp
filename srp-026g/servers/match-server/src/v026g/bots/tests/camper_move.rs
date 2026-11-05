@@ -1260,6 +1260,7 @@ impl BenchCamper {
         if self.options.hold_fire {
             bot.reflex.bench_open_cover();
         }
+        bot.reflex.bench_head_share(self.options.head_share);
         if let CamperState::Hunting(hunt) = &mut self.state {
             return hunt.drive(due, bot);
         }
