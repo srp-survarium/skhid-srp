@@ -38,8 +38,8 @@ number from the game data, the rules as the client's hit code applies them. Buil
 - The formula says how one bullet through several hit boxes counts (each pool its largest
   share). The calculator itself shows one box per shot.
 - Formula (owner 2026-11-05): numbered steps in the bullet's order (Bullet, Wall, Onyx, Armour,
-  Pools, Pain, Death), each a bold label, one plain sentence and its formula in a chip where it has
-  one; armour and penetration in the page's units (x100), no letter for two things. Beside each
+  Pools, Pain, Death), each a bold label and its rule in one chip, no sentences (the trace has the
+  details); armour and penetration in the page's units (x100), no letter for two things. Beside each
   step (under it on a phone) this shot's numbers, from the same result the trace shows, named as
   its lines are; "—" when the step does not apply.
 - Wall (owner 2026-11-05): the shooter picks the wall the bullet goes through just in front of the

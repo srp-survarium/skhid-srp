@@ -297,11 +297,11 @@ tr.click { cursor: pointer } tr.click:hover td { background: color-mix(in srgb, 
 .rules li::before { content: counter(step) "."; font: .9rem var(--font-data); color: var(--ink-3) }
 .rules .rule { min-width: 0 }
 .rules .rule b { font-family: var(--font-display); letter-spacing: .02em }
-.rules .rule code { display: inline-block; margin-top: 4px; font: .84rem var(--font-data); background: var(--bg); padding: 1px 5px; overflow-wrap: anywhere }
+.rules .rule code { display: inline-block; font: .84rem var(--font-data); background: var(--bg); padding: 1px 5px; overflow-wrap: anywhere }
 .rules .ex { font: .86rem var(--font-data); color: var(--ink-2); text-align: right; overflow-wrap: anywhere }
 .rules .ex.none { color: var(--ink-3) }
 @media (max-width: 600px) { .rules li { grid-template-columns: 2em minmax(0, 1fr) } .rules .ex { grid-column: 2; text-align: left } }
-.rulesnote { margin: 0; max-width: 75ch; color: var(--ink-2); font-size: .9rem }
+.rulesnote { margin: 0; color: var(--ink-2); font-size: .9rem }
 @media (prefers-reduced-motion: reduce) { * { transition: none !important } }
 </style>
 
