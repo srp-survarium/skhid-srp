@@ -237,7 +237,7 @@ pub struct Body {
     /// [A313] Whether a Drop link is kept only where the client's own walk tick (`controller::tick`, proven against the exe) takes
     /// a body walking off it down to the landing (`grid::drop_check`): steered at the landing, then on along the link as a bot
     /// walks on to its next node. Off: 18 % of the maps' Drop links leave the body on a ledge the grid does not have, or under the
-    /// landing (the drops census, A313). A link that is the only way back out of a floor is kept. A build input: in the key when
+    /// landing (the drops census, A313). A link that is the only way to a floor or back from it is kept. A build input: in the key when
     /// set.
     pub drop_check: bool,
 }
@@ -871,7 +871,7 @@ pub struct BuildStats {
     /// The walk-offs taken away for a wall in the way of the capsule ([`Body::drop_room`]).
     pub drops_blocked: usize,
     /// The Drop links taken away because the client's walk tick does not take a body down them ([`Body::drop_check`]), and those
-    /// kept because they are the only way back out of a floor.
+    /// kept because they are the only way to a floor or back from it.
     pub drops_unfollowed: usize,
     pub drops_unfollowed_kept: usize,
     /// The gap pass ([`gap`]).
