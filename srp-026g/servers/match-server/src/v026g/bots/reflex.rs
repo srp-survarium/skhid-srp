@@ -956,7 +956,8 @@ pub struct CombatTuning {
     /// come up ([`Reflex::aim_open`]), not from the AIM press: the client refuses the sights (`can_aim` 0x2E3AC0) and the
     /// shot (0x2E3CB0) while it sprints and until the sprint animation's end ([`ClientGate::sprint_out_ms`]), through a
     /// reload or a switch, and while a bolt or a pump chambers a round, so the bot counted its sights up too early after
-    /// each. OFF until its by-side bench against the hunter. Not yet: the landing after a jump (its clip not read).
+    /// each. ON (KEPT_RIGHT, coord 2026-11-05: the old aim-in is proven wrong against the exe): by side against the hunter
+    /// (rev-48, 160 pairs, the bench's sprint and jump gates on both arms) his kills -0.28 a match (z -1.37), no guard failed.
     pub gate_from_client: Option<ClientGate>,
     /// The lead's most, ms (a view older than that is not led on).
     pub lead_most_ms: u32,
@@ -1618,7 +1619,7 @@ impl Default for CombatTuning {
             kit_recoil: false,
             aim_last_known: true,
             pre_aim_heard: None,
-            gate_from_client: None,
+            gate_from_client: Some(ClientGate { sprint_out_ms: 300, jump_ms: 1_200 }),
             lead_most_ms: 300,
             lead_own: true,
             live_eye: true,
@@ -8213,9 +8214,10 @@ mod tests {
     #[test]
     fn the_aim_in_counts_from_the_clients_gate_with_the_switch() {
         use super::*;
-        let off = CombatTuning::default();
+        let off = CombatTuning { gate_from_client: None, ..CombatTuning::default() };
         let gate = ClientGate::default();
         let on = CombatTuning { gate_from_client: Some(gate), ..CombatTuning::default() };
+        assert_eq!(CombatTuning::default().gate_from_client, Some(gate), "on by default");
         let mut reflex = Reflex::default();
         assert_eq!(reflex.aim_from(1_050, &on), 1_050, "never sprinted");
         reflex.sent(1_000, key::FORWARD | key::SPRINT, 0.0);
