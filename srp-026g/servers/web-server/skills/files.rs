@@ -36,4 +36,7 @@ files! {
     "icons/332.webp" => "image/webp",
     "icons/341.webp" => "image/webp",
     "icons/342.webp" => "image/webp",
+    "icons/lock-red.webp" => "image/webp",
+    "icons/lock.webp" => "image/webp",
+    "icons/over.webp" => "image/webp",
 }

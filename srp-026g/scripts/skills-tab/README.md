@@ -3,14 +3,16 @@
 The website's `/wiki/skills`, a page of the wiki (`srp-026g/servers/web-server/src/skills.rs`):
 every branch of the skill tree as the lobby draws it.
 
-- One panel per branch the tree has, named as the game names its tab.
-- Each skill at its column and tier, with its lobby icon, tier numeral and one pip per rank.
+- One card per branch the tree has (the wiki's card look), named as the game names its tab.
+- Each skill at its column and tier, its icon drawn as the lobby's skill renderer draws it (plate,
+  branch tint, rim), with its tier numeral and one pip per rank.
 - Each tier's threshold (branch points) at its left.
-- Either/or skills marked "or"; hovering one rings what it excludes in red, as the lobby does.
-- A skill that needs more points than its branch can hold is dimmed.
+- Either/or skills marked "or"; hovering one shows the renderer's red lock on what it excludes,
+  as the lobby does; hovering any shows its hover rim.
+- A skill that needs more points than its branch can hold carries the renderer's lock.
 - Hover or tap: the name, the description, each rank's value in the game's green.
-- English and Ukrainian, like the rest of the wiki. The panels keep the game's dark look
-  inside the site's page.
+- English and Ukrainian, like the rest of the wiki; the site's colours and type around the
+  game's own pictures.
 
 ## Build: the release does it
 

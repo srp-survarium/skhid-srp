@@ -21,10 +21,15 @@ d[r][0]). `ui.invert_sign` is read by nothing in the exe: the strings carry
 their signs. The texts are the English and Ukrainian localization; a branch's
 name is the label the exe gives its tab (BRANCHES).
 
-The icons are the lobby's, from flash_movies/lobby_menu.swf: a skill that
-`survarium.char.MedicalSkillIcon` names (its `show` switch) has that bitmap;
-any other is frame `ui.icon` + 1 of the icon set PerkIconContainer places at
-frame branch + 1 (the movie's SkillListRenderer), through FFDec.
+The icons are the lobby's, from flash_movies/lobby_menu.swf through FFDec,
+drawn as its skill renderer (SrvSkillRendererCh) draws them: what lies under
+its iconContainer (a plate, and `background`'s child at frame branch + 1, the
+branch's tint), the icon in the container's mask, what lies over it (the
+rim); a skill that `survarium.char.MedicalSkillIcon` names (its `show` switch)
+has that bitmap, fitted to the icon sets' box; any other is frame `ui.icon` + 1
+of the icon set PerkIconContainer places at frame branch + 1 (the movie's
+SkillListRenderer). The renderer's overSprite, lockSprite and lockSpriteRed
+are the page's hover, locked and excluded states.
 
 Writes <out>/skills.<lang>.html (the wiki page's body, the server adds the
 site's header), <out>/icons/<id>.webp, <out>/files.rs (those files, for the
@@ -42,7 +47,9 @@ import subprocess
 import sys
 import tempfile
 from pathlib import Path
+from xml.etree import ElementTree
 
+import numpy
 from PIL import Image
 
 HERE = Path(__file__).resolve().parent
@@ -72,6 +79,12 @@ WORDS = {
     "excludes": ("Not with: {}", "Не разом з: {}"),
     "locked": ("Needs {} in the branch", "Потрібно {} у гілці"),
 }
+# The lobby's skill renderer, and its sprites for the states: hovered, locked (its tier not
+# reached), excluded (another skill excluding it is hovered).
+RENDERER = "SrvSkillRendererCh"
+OVERLAYS = {"over": "overSprite", "lock": "lockSprite", "lock-red": "lockSpriteRed"}
+SVG, FFDEC = "http://www.w3.org/2000/svg", "https://www.free-decompiler.com/flash"
+SHAPES = {2, 22, 32, 83}
 PLACE_OBJECT2, PLACE_OBJECT3, REMOVE_OBJECT, REMOVE_OBJECT2, SHOW_FRAME, DEFINE_SPRITE = 26, 70, 5, 28, 1, 39
 
 
@@ -118,8 +131,18 @@ def sprite_frames(tags, sprite):
     die(f"lobby_menu.swf: no sprite {sprite}")
 
 
+def renderer_layers(svg):
+    """SrvSkillRendererCh's children as FFDec draws it: [(character id, instance name or None)],
+    bottom to top."""
+    root = ElementTree.fromstring(svg)
+    frame = next(iter(root))
+    return [(int(use.get(f"{{{FFDEC}}}characterId")), use.get("id")) for use in frame.iter(f"{{{SVG}}}use")
+            if use.get(f"{{{FFDEC}}}characterId")]
+
+
 def icons(args, raw, work, tree, out):
-    """{skill id: the icon's address}: each skill's lobby icon as webp in <out>/icons/."""
+    """{skill id: the icon's address} and {overlay: its address}: each skill's lobby icon as
+    the skill renderer draws it, as webp in <out>/icons/, and the renderer's state overlays."""
     movie = raw / "flash_movies__lobby_menu.swf"
     ffdec = ["java", "-jar", args.ffdec]
     subprocess.run(ffdec + ["-selectclass", "survarium.char.MedicalSkillIcon", "-export", "script",
@@ -128,13 +151,31 @@ def icons(args, raw, work, tree, out):
     bitmaps = {int(i): cls for i, cls in re.findall(r"case (\d+):\s*\w+ = (\w+);", source)}
     _, tags = swf.split(movie.read_bytes())
     ids = {name: cid for cid, name in swf.symbol_classes(tags)}
-    if "PerkIconContainer" not in ids:
-        die("lobby_menu.swf: no PerkIconContainer")
-    sets = []
-    for frame in sprite_frames(tags, ids["PerkIconContainer"]):
-        if len(frame) != 1:
-            die(f"lobby_menu.swf: PerkIconContainer has {len(frame)} children on a frame, not its icon set")
-        sets.extend(frame)
+    for name in ("PerkIconContainer", RENDERER):
+        if name not in ids:
+            die(f"lobby_menu.swf: no {name}")
+
+    def only_child(sprite, frame=0):
+        shown = sprite_frames(tags, sprite)[frame]
+        if len(shown) != 1:
+            die(f"lobby_menu.swf: sprite {sprite} has {len(shown)} children on frame {frame + 1}, not one")
+        return next(iter(shown))
+
+    sets = [only_child(ids["PerkIconContainer"], f) for f in range(len(sprite_frames(tags, ids["PerkIconContainer"])))]
+    # The renderer: what lies under its iconContainer, over it, and the states' sprites.
+    subprocess.run(ffdec + ["-format", "sprite:svg", "-selectid", str(ids[RENDERER]), "-export", "sprite",
+                            str(work / "renderer"), str(movie)], check=True, capture_output=True)
+    layers = renderer_layers(next((work / "renderer").glob("*/1.svg")).read_text())
+    named = {name: cid for cid, name in layers if name}
+    for name in ("background", "iconContainer", *OVERLAYS.values()):
+        if name not in named:
+            die(f"lobby_menu.swf: {RENDERER} has no {name}")
+    at = [cid for cid, _ in layers].index(named["iconContainer"])
+    shapes = {struct.unpack_from("<H", swf.payload(r))[0] for k, r in tags if k in SHAPES}
+    under = [cid for cid, name in layers[:at] if name in (None, "background")]
+    over = [cid for cid, name in layers[at + 1:] if name is None and cid in shapes]
+    # The background's one child, its frame branch + 1 the branch's tint.
+    tint = only_child(named["background"])
     wanted = {}
     for s in tree:
         if s["id"] in bitmaps:
@@ -145,25 +186,64 @@ def icons(args, raw, work, tree, out):
             wanted[s["id"]] = ("sprite", sets[s["branch"]], s["icon"] + 1)
         else:
             die(f"skill {s['id']}: no icon (MedicalSkillIcon has none, PerkIconContainer no frame {s['branch'] + 1})")
-    chars = sorted({cid for _, cid, _ in wanted.values()})
-    subprocess.run(ffdec + ["-format", "sprite:png,image:png", "-zoom", "2", "-selectid", ",".join(map(str, chars)),
-                            "-export", "sprite,image", str(work / "art"), str(movie)], check=True, capture_output=True)
+    chars = {cid for _, cid, _ in wanted.values()} | set(under) | set(over) | {tint, named["iconContainer"]}
+    chars |= {named[n] for n in OVERLAYS.values()} | set(sets)
+    subprocess.run(ffdec + ["-format", "sprite:png,shape:png,image:png", "-zoom", "2",
+                            "-selectid", ",".join(map(str, sorted(chars))), "-export", "sprite,shape,image",
+                            str(work / "art"), str(movie)], check=True, capture_output=True)
+
+    def art(cid, frame=1):
+        if cid in shapes:
+            found = [work / "art" / "shapes" / f"{cid}.png"]
+        elif frame is None:
+            found = [f for f in (work / "art" / "images").iterdir() if f.name.startswith(f"{cid}_")]
+        else:
+            found = [d / f"{frame}.png" for d in (work / "art" / "sprites").iterdir()
+                     if re.fullmatch(rf"DefineSprite_{cid}(_.*)?", d.name)]
+        if not found or not found[0].is_file():
+            die(f"lobby_menu.swf: FFDec made no picture of {cid}" + (f" frame {frame}" if frame else ""))
+        return Image.open(found[0]).convert("RGBA")
+
+    # The layers are concentric discs: each is centred on one canvas.
+    under_art = {cid: art(cid) for cid in under if cid != named["background"]}
+    over_art = [art(cid) for cid in over]
+    side = max(im.width for im in [*under_art.values(), *over_art, art(tint)])
+
+    def centred(im, canvas=None):
+        canvas = canvas or Image.new("RGBA", (side, side))
+        box = im.getbbox() or (0, 0, im.width, im.height)
+        cx, cy = (box[0] + box[2]) / 2, (box[1] + box[3]) / 2
+        layer = Image.new("RGBA", canvas.size)
+        layer.paste(im, (round(side / 2 - cx), round(side / 2 - cy)))
+        return Image.alpha_composite(canvas, layer)
+
+    def save(im, name):
+        im = im.resize((ICON_SIZE, ICON_SIZE), Image.LANCZOS)
+        path = out / "icons" / f"{name}.webp"
+        im.save(path, "WEBP", quality=90, method=6)
+        return f"{SITE}/icons/{name}.webp?v={version(path.read_bytes())}"
+
+    mask = centred(art(named["iconContainer"])).getchannel("A")
+    frame_size = art(sets[0]).size
     (out / "icons").mkdir(parents=True)
     urls = {}
     for skill, (kind, cid, frame) in sorted(wanted.items()):
-        if kind == "sprite":
-            found = [d / f"{frame}.png" for d in (work / "art" / "sprites").iterdir()
-                     if re.fullmatch(rf"DefineSprite_{cid}(_.*)?", d.name)]
-        else:
-            found = [f for f in (work / "art" / "images").iterdir() if f.name.startswith(f"{cid}_")]
-        if not found or not found[0].is_file():
-            die(f"skill {skill}: FFDec made no {kind} {cid}" + (f" frame {frame}" if frame else ""))
-        im = Image.open(found[0]).convert("RGBA")
-        im.thumbnail((ICON_SIZE, ICON_SIZE), Image.LANCZOS)
-        path = out / "icons" / f"{skill}.webp"
-        im.save(path, "WEBP", quality=90, method=6)
-        urls[skill] = f"{SITE}/icons/{skill}.webp?v={version(path.read_bytes())}"
-    return urls
+        branch = skill // 100 - 1
+        canvas = Image.new("RGBA", (side, side))
+        for c in under:
+            canvas = centred(art(tint, branch + 1) if c == named["background"] else under_art[c], canvas)
+        icon = art(cid, frame)
+        if kind == "image":
+            # MedicalSkillIcon fits its bitmap to the icon set's box.
+            icon = icon.resize(frame_size, Image.LANCZOS)
+        icon = centred(icon)
+        icon.putalpha(Image.fromarray(numpy.minimum(numpy.asarray(icon.getchannel("A")), numpy.asarray(mask))))
+        canvas = Image.alpha_composite(canvas, icon)
+        for im in over_art:
+            canvas = centred(im, canvas)
+        urls[skill] = save(canvas, skill)
+    overlays = {key: save(centred(art(named[name])), key) for key, name in OVERLAYS.items()}
+    return urls, overlays
 
 
 def plain(text):
@@ -196,7 +276,7 @@ def skills_of(raw):
     return tree
 
 
-def page(lang, tree, texts, urls):
+def page(lang, tree, texts, urls, overlays):
     """The wiki page's body in `lang`."""
     i = 0 if lang == "en" else 1
 
@@ -213,11 +293,13 @@ def page(lang, tree, texts, urls):
     out = [f'<p class="breadcrumb"><a href="/wiki?lang={lang}">{word("wiki")}</a> / {word("title")}</p>',
            f'<div class="wiki-heading"><div><h1>{word("title")}</h1></div></div>',
            '<div class="skill-trees">']
-    # The exclusions: hovering a skill marks what it excludes, as the lobby does.
-    style = [f'.skill-trees:has([data-skill="{s["id"]}"]:is(:hover,:focus)) [data-skill="{x}"]'
+    # The exclusions: hovering a skill locks what it excludes in red, as the lobby does.
+    style = [f'.skill-trees:has([data-skill="{s["id"]}"]:is(:hover,:focus)) [data-skill="{x}"] .skill-lock-red'
              for s in tree for x in s["excludes"]]
     if style:
-        out.append(f'<style>{",".join(style)}{{--ring:var(--skill-red)}}</style>')
+        out.append(f'<style>{",".join(style)}{{display:block}}</style>')
+    excluded = {x for s in tree for x in s["excludes"]}
+    overlay = lambda key: f'<img class="skill-{key}" src="{overlays[key]}" alt="" width="64" height="64" loading="lazy">'
     for branch in sorted({s["branch"] for s in tree}):
         skills = sorted((s for s in tree if s["branch"] == branch), key=lambda s: (s["tier"], s["column"]))
         tiers = sorted({s["tier"] for s in skills})
@@ -248,6 +330,7 @@ def page(lang, tree, texts, urls):
                 f'<div class="skill{" locked" if locked else ""}{edge}" tabindex="0" data-skill="{s["id"]}" '
                 f'style="grid-area:{s["tier"]}/{s["column"] + 1}">'
                 f'<span class="skill-disc"><img src="{urls[s["id"]]}" alt="" width="64" height="64" loading="lazy">'
+                f'{overlay("over")}{overlay("lock") if locked else ""}{overlay("lock-red") if s["id"] in excluded else ""}'
                 f'<span class="skill-numeral">{NUMERALS[s["tier"] - 1]}</span>{badge}</span>'
                 f'<span class="skill-name">{esc(name)}</span>'
                 f'<span class="skill-pips">{"<i></i>" * s["ranks"]}</span>'
@@ -283,9 +366,9 @@ def main():
         texts = {lang: load(raw, f"localization/{name}/localization")["strings"] for lang, name in LANGS.items()}
         shutil.rmtree(out, ignore_errors=True)
         out.mkdir(parents=True)
-        urls = icons(args, raw, work, tree, out)
+        urls, overlays = icons(args, raw, work, tree, out)
     for lang in LANGS:
-        (out / f"skills.{lang}.html").write_text(page(lang, tree, texts, urls))
+        (out / f"skills.{lang}.html").write_text(page(lang, tree, texts, urls, overlays))
     (out / "files.rs").write_text(
         "// Built by srp-026g/scripts/skills-tab/build.py; do not edit. The files the skills page names.\n"
         "files! {\n" + "".join(f'    "icons/{f.name}" => "{TYPES["webp"]}",\n'
