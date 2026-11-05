@@ -46,7 +46,7 @@ package survarium.constants
          102:AIM_TIME,
          114:RELOAD_SPEED,
          115:RECOIL,
-         171:GRENADE_THROW_POWER
+         174:GRENADE_THROW_POWER
       };
 
       public function PlayerModifier()

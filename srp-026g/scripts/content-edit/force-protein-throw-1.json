@@ -1,12 +1,12 @@
 {
-  "_about": "The Anomalous Force Protein (weight_booster, 339) also throws grenades 15 % farther while in a pocket (the owner, 2026-11-05): a built-in modification 1290 of player modifier 27 (grenade_throw_power, the Grenadier skill's: throw speed x max(0, 1 + S27), 0x30A2DE), +0.15 as the booster's +5 kg (1124), docs/notes/force-protein.md. Its card line is property 171 (Throwing distance, a percentage like 105). The booster gets the key its modification changes, as every booster has those of its own. Before modifications.tsv, which writes the value.",
+  "_about": "The Anomalous Force Protein (weight_booster, 339) also throws grenades 15 % farther while in a pocket (the owner, 2026-11-05): a built-in modification 1310 of player modifier 27 (grenade_throw_power, the Grenadier skill's: throw speed x max(0, 1 + S27), 0x30A2DE), +0.15 as the booster's +5 kg (1124), docs/notes/force-protein.md. Its card line is property 174 (Throwing distance, a percentage like 105). The booster gets the key its modification changes, as every booster has those of its own. Before modifications.tsv, which writes the value.",
   "add_entry": [
     {
       "files": "gameplay/static_game_parameters.options",
       "list": "ui_properties",
       "after": {"prop_id": 131},
       "like": {"prop_id": 105},
-      "values": {"prop_id": 171, "prop_name": "st_srp_throw_distance"}
+      "values": {"prop_id": 174, "prop_name": "st_srp_throw_distance"}
     }
   ],
   "append_entry": [
@@ -18,10 +18,10 @@
       "value": {
         "drop_weight": 0,
         "lobby_info": {"grenade_throw_power_modifier": 0.15},
-        "ui_desc": {"name": "st_srp_throw_distance", "icon": 12, "props_list": [{"prop_value": "0.15", "prop_id": 171}]},
+        "ui_desc": {"name": "st_srp_throw_distance", "icon": 12, "props_list": [{"prop_value": "0.15", "prop_id": 174}]},
         "type_mask": "00000000000000000000000000000000001000000",
         "type_requirements_mask": "00000000000000000000000000000000001000000",
-        "id": 1290,
+        "id": 1310,
         "modifiers": [{"path": ["parameters", "grenade_throw_power_modifier"], "value": 0.15, "type": 1}]
       }
     }
@@ -30,6 +30,6 @@
     {"files": ["gameplay/items/boosters/weight_booster.options"], "table": "parameters", "key": "grenade_throw_power_modifier", "value": 0.0}
   ],
   "append_item": [
-    {"file": "gameplay/items/boosters/weight_booster.options", "path": "default_modifications", "value": 1290}
+    {"file": "gameplay/items/boosters/weight_booster.options", "path": "default_modifications", "value": 1310}
   ]
 }

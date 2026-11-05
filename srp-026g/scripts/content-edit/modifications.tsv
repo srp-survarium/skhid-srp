@@ -97,7 +97,7 @@ modifications	kind	value	op	drop_weight
 1260	parameters/reputation_bonus	0.05	1	0
 1270	parameters/reputation_bonus	0.05	1	0
 1280	parameters/reputation_bonus	0.05	1	0
-1290	parameters/grenade_throw_power_modifier	0.15	1	0
+1310	parameters/grenade_throw_power_modifier	0.15	1	0
 2000	parameters/bullet_damage	0.01	2	10
 2001	parameters/bullet_damage	0.02	2	8
 2002	parameters/bullet_damage	0.03	2	6.4
