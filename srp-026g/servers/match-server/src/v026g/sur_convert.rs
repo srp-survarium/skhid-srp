@@ -1239,11 +1239,10 @@ mod tests {
         let map = survarium::v026g::maps::playable().next().unwrap();
         let options = MatchOptions {
             players: vec![profile("a", 0), profile("b", 1)],
-            map_id: map.id,
+            map: survarium::v026g::maps::MatchMap::of(map.id).unwrap(),
             match_id: 1,
             match_level: 1,
             score_weights: [0.0; SCORE_EVENTS],
-            blackout: false,
         };
         let info = StaticInfo::new(&options, Dictionary::shared()).unwrap();
         let mut records = vec![
@@ -1251,7 +1250,7 @@ mod tests {
                 0,
                 &format!(
                     r#"{{"note":"header","map":"{}","map_id":{},"mode":{},"match_id":"0x1","places":[{{"place":0}},{{"place":1}}]}}"#,
-                    map.name, map.id, map.mode
+                    map.name, map.id, map.mode.rules()
                 ),
             ),
             note(1350, r#"{"note":"clock","match_ms":50}"#),
@@ -1648,11 +1647,10 @@ mod tests {
         let map = survarium::v026g::maps::playable().next().unwrap();
         let options = MatchOptions {
             players: vec![profile("a", 0), profile("b", 1), armed("c", 0)],
-            map_id: map.id,
+            map: survarium::v026g::maps::MatchMap::of(map.id).unwrap(),
             match_id: 1,
             match_level: 1,
             score_weights: [0.0; SCORE_EVENTS],
-            blackout: false,
         };
         let info = StaticInfo::new(&options, Dictionary::shared()).unwrap();
         for place in 0..3u8 {

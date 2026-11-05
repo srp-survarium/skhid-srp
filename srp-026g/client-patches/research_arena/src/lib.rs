@@ -58,6 +58,11 @@ const ALLOCATION_INFO: usize = 0xACCC60 + 8;
 // the world (game_world_core)
 /// -> places, 30h each: [3] players, +Ch the current kit.
 const CORE_PLACES: usize = 0x18458;
+/// -> the places' end.
+const CORE_PLACES_END: usize = 0x1845C;
+/// u32: the places in the world, a bit each; a departed place keeps its
+/// players' pointers (core_active_player 0x2D0AD4 refuses it).
+const CORE_ACTIVE_PLACES: usize = 0x18FD8;
 /// The second tick list: count, head, tail (timelimit's).
 const CORE_TICK_LIST: usize = 0x18850;
 /// -> the tick delegates' counter.
@@ -287,13 +292,21 @@ impl Rule {
 struct World(*mut u8);
 
 impl World {
+    /// A place of the world's places, bounded by their end like
+    /// core_active_player (0x2D0AB0).
     unsafe fn place(self, place: usize) -> Option<*mut u8> {
         let places: *mut u8 = unsafe { get(self.0, CORE_PLACES) };
-        (!places.is_null()).then(|| unsafe { places.add(place * PLACE_SIZE) })
+        let end: *mut u8 = unsafe { get(self.0, CORE_PLACES_END) };
+        let count = (end as usize).wrapping_sub(places as usize) / PLACE_SIZE;
+        (!places.is_null() && place < count).then(|| unsafe { places.add(place * PLACE_SIZE) })
     }
 
-    /// The player of a place, in the kit it plays.
+    /// The player of a place still in the world, in the kit it plays.
     unsafe fn player(self, place: usize) -> Option<*const u8> {
+        let active: u32 = unsafe { get(self.0, CORE_ACTIVE_PLACES) };
+        if place >= 32 || active & (1 << place) == 0 {
+            return None;
+        }
         let at = unsafe { self.place(place) }?;
         let kit: u8 = unsafe { get(at, PLACE_KIT) };
         if kit >= KITS {

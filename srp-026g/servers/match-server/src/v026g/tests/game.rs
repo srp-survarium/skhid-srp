@@ -75,7 +75,7 @@ fn a_solo_match_runs_from_the_connect_to_the_time_limit() {
         let options = client.model.options.as_ref().unwrap();
         assert_eq!(options.players.len(), 1);
         assert_eq!(options.players[0].name, "player0");
-        assert_eq!(options.map_id, MAP_BATTERIES);
+        assert_eq!(options.map.map().id, MAP_BATTERIES);
         assert_eq!(options.match_id, static_id(bench.match_id));
         assert_eq!(options.match_level, 3);
     }
@@ -122,7 +122,7 @@ fn a_solo_match_runs_from_the_connect_to_the_time_limit() {
     assert_eq!(result.match_id, bench.match_id);
     assert_eq!(result.end, MatchEnd::TimeLimit);
     assert_eq!(result.map_id, MAP_BATTERIES);
-    assert_eq!(result.game_mode, 2);
+    assert_eq!(result.mode, survarium::v026g::maps::GameMode::Batteries);
     assert_eq!(result.winner, Some(DRAW));
     assert_eq!(result.team_points, [0, 0]);
     // Its own word: there was nobody else.
@@ -1852,7 +1852,10 @@ fn a_match_nobody_comes_to_is_given_up() {
     bench.run_long(3_000);
     let result = bench.results.try_recv().expect("a result");
     assert_eq!(result.end, MatchEnd::NoShow);
-    assert_eq!(result.game_mode, 4);
+    assert_eq!(
+        result.mode,
+        survarium::v026g::maps::GameMode::TeamDeathmatch
+    );
     assert_eq!(result.winner, None);
     assert_eq!(result.trusted_by, 0);
     assert_eq!(result.players.len(), 2);
@@ -1950,7 +1953,10 @@ fn a_team_deathmatch_ends_when_a_team_has_no_tickets_and_nobody_alive() {
     }));
     let result = bench.results.try_recv().expect("a result");
     assert_eq!(result.end, MatchEnd::ModeRule);
-    assert_eq!(result.game_mode, 4);
+    assert_eq!(
+        result.mode,
+        survarium::v026g::maps::GameMode::TeamDeathmatch
+    );
     assert_eq!(result.winner, Some(0));
     assert_eq!(result.team_points, [37, 0]);
     bench.assert_no_faults();
