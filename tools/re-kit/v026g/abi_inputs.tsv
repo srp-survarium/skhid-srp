@@ -531,6 +531,11 @@ va	name	location	role	basis
 0x0007ab30	vostok::network_core::mutable_buffer::resize	stack+4	requested_used_size	observed
 0x0007ab70	vostok::network_core::mutable_buffer::reallocate	ESI	the mutable_buffer {allocator, begin, capacity, size}; a null allocator: the assert "mutable buffer overflow" (0x9E3398), then a read through the null allocator (0x7ABF1)	observed
 0x0007ab70	vostok::network_core::mutable_buffer::reallocate	EDI	the new capacity (resize: the size asked, or the capacity doubled past it)	observed
+0x000eb590	vostok::memory::mt_allocator::call_realloc	ECX	the allocator (the global multithreaded one, 0xA8001C, vtable 0x9E6000 slot +0x14; mutable_buffer::reallocate calls it)	observed
+0x000eb590	vostok::memory::mt_allocator::call_realloc	entry ESP+4	the block, or 0 for a new one	observed
+0x000eb590	vostok::memory::mt_allocator::call_realloc	entry ESP+8	the new size	observed
+0x000eb5b0	vostok::memory::mt_allocator::call_free	ECX	the allocator (vtable slot +0x18; the history item destructor 0x324910 calls it for a buffer with an allocator)	observed
+0x000eb5b0	vostok::memory::mt_allocator::call_free	entry ESP+4	the block (0: nothing)	observed
 0x0007ac10	vostok::network_core::buffer_writer::w	stack+4	buffer_writer	observed
 0x0007ac10	vostok::network_core::buffer_writer::w	stack+8	source_bytes	observed
 0x0007ac10	vostok::network_core::buffer_writer::w	EDI	byte_count	observed
@@ -2213,9 +2218,19 @@ va	name	location	role	basis
 0x001f97d0	survarium::game_world::on_resync	ECX	world receiver	inferred
 0x001f9800	survarium::game_world::demo_play	ECX	world receiver	inferred
 0x001f9800	survarium::game_world::demo_play	stack+4	track filename	inferred
+0x001fab50	survarium::game_world_core::change_input<struct survarium::client_update<struct survarium::player_input,220,235,221,236>>	entry ESP+4	game_world_core (the core; [ebp+8])	observed
+0x001fab50	survarium::game_world_core::change_input<struct survarium::client_update<struct survarium::player_input,220,235,221,236>>	entry ESP+8	the input: math::half2 rotation (+8 yaw half, +0Ah pitch half), as sent; 0.27d validates these two halves (0x1EA990)	observed
+0x001fab50	survarium::game_world_core::change_input<struct survarium::client_update<struct survarium::player_input,220,235,221,236>>	entry ESP+0Ch	the input's action mask	observed
+0x001fab50	survarium::game_world_core::change_input<struct survarium::client_update<struct survarium::player_input,220,235,221,236>>	entry ESP+10h	the input's time (ms)	observed
+0x001fab50	survarium::game_world_core::change_input<struct survarium::client_update<struct survarium::player_input,220,235,221,236>>	entry ESP+14h	the player (place, < 20)	observed
+0x001fab50	survarium::game_world_core::change_input<struct survarium::client_update<struct survarium::player_input,220,235,221,236>>	entry ESP+18h	from network (byte; 1 relayed/moved, 0 local and a replay's)	observed
+0x001fdd30	survarium::swf_input_translator::process_mouse_btn	EAX	the mouse key: 151h + the button (0..7, made at 0x3B9981); 151h/152h/153h give the movie 0/1/2 and any other key 0, a left click (patch 102 gives the movie nothing then); the same mapping inline in game_options 0x201754, game_world 0x25D08C, lobby_menu 0x26D044, login_menu 0x28DCDA	observed
 0x001feed0	survarium::text_translator::load_text_localization	stack+4	text translator	inferred
+0x001fef90	survarium::text_translator::expand_text	EAX	the text (C string; "{key}" is looked up and translated, "{{" a brace); "" writes only the terminator	observed
+0x001fef90	survarium::text_translator::expand_text	ECX	output buffer	observed
+0x001fef90	survarium::text_translator::expand_text	stack+4	text translator (ret 4)	observed
 0x001ff0f0	survarium::text_translator::translate_text	ECX	text translator	inferred
-0x001ff0f0	survarium::text_translator::translate_text	stack+4	input text or localization key	inferred
+0x001ff0f0	survarium::text_translator::translate_text	stack+4	key (C string; must not be NULL: value_exists 0xF6C00 strlens it at 0xF6C47; "" is safe and gives ""); native Unicorn check_match_stat_map_026g	observed
 0x001ff0f0	survarium::text_translator::translate_text	stack+8	output buffer	inferred
 0x001ff240	survarium::text_translator::on_texts_ready	ECX	text translator	inferred
 0x001ff240	survarium::text_translator::on_texts_ready	stack+4	resource query results	inferred
@@ -2224,6 +2239,7 @@ va	name	location	role	basis
 0x00206670	survarium::timelimit_rule_cook::create_resource	entry ESP+8	the size out (0x158 written)	observed
 0x002079d0	survarium::key_binder::id_to_action_name	EDX	action_id	inferred
 0x00207ad0	survarium::key_binder::action_name_to_ptr	stack+4	action_name	inferred
+0x00207bf0	survarium::key_binder::keycode_to_ptr	EDX	key code; returns EAX the key table entry (0xA74FA0, 88h each: +0 name, +4 code) or NULL; expand_text {USE}; native Unicorn check_match_stat_map_026g	observed
 0x00207c30	survarium::key_binder::keyname_to_ptr	EDI	keyboard_key_name	inferred
 0x002093a0	survarium::chat_handler::initialize_tabs	ECX	whole chat handler	inferred
 0x002093a0	survarium::chat_handler::initialize_tabs	stack+4	movie reference pointer	inferred
@@ -2643,6 +2659,7 @@ va	name	location	role	basis
 0x0029ab20	survarium::lobby_menu::fill_match_statistic	stack+16	selected player index	inferred
 0x002a6470	survarium::player_equipment_sound_effect::on_player_sound_event	ECX	player_equipment_sound_effect (+3Ch player, +44h toe positions set); subscribed to the clip event channel player_sound_events of the player's animation player (player+750h) at 0x29562D..0x295658	observed
 0x002a6470	survarium::player_equipment_sound_effect::on_player_sound_event	entry ESP+4	animation_callback_params& (+0 the animated object, must be the player; +10h time; byte +20h the channel domain value: 0 and 1 on_foot_step for one toe or the other, 2 0x2A6580 rustle by movement id, 3 0x2A6630, 4 0x2A66C0)	observed
+0x002a6470	survarium::player_equipment_sound_effect::on_player_sound_event	ECX+3Ch->+120h	the player's world core: an event whose +10h time is at or before its maximum_time (+18FC4h, the newest tick simulated once) is dropped (0x2A6485..0x2A6493), so a re-simulated tick plays no event; none when +120h is 0 (patch 101 relaxes it for steps)	observed
 0x002a6520	survarium::player_equipment_sound_effect::on_foot_step	ESI	player_equipment_sound_effect (+38h logic selector, +3Ch player, +40h world); foot material = player u16 [0F2C4h + 4*state+24h + 2*third_person], state+24h: 1 crouch walk, 2 stand run, 3 sprint, 4 jump (boots walk_/run_/sprint_/jump_{1st,3rd}_view_material_id, copied to player+0F2C8h)	observed
 0x002a6520	survarium::player_equipment_sound_effect::on_foot_step	entry ESP+4	foot position (float3*)	observed
 0x002a6520	survarium::player_equipment_sound_effect::on_foot_step	entry ESP+8	step direction (float3*)	observed
@@ -3149,6 +3166,11 @@ va	name	location	role	basis
 0x00323bf0	survarium::animation_analysis_result::animation_analysis_result	entry ESP+4	unsigned entry count multiplied by0x1C for leg-key-time buffer	observed
 0x00323f10	survarium::player_serialized_state::clear	ESI	player serialized state	inferred
 0x00324010	survarium::bullet_manager_history_item::clear	ESI	bullet manager history item	inferred
+0x00323f90	survarium::bullet_manager_history_item::serialize	EDI	the bullet item (game_state_history_item+0xB4690): its mutable_buffer at +0x2400 {+0 allocator, +4 data, +8 capacity, +0xC size}, the inline 0x2400 bytes at +0 (capacity set at 0x324537)	observed
+0x00323f90	survarium::bullet_manager_history_item::serialize	ESI	the buffer_writer (+0x14: its mutable_buffer); writes u16 size, then the bytes	observed
+0x00324090	survarium::statistics_history_item::serialize	EDI	the statistics item (game_state_history_item+0xB6AB8): data +0xC04, size +0xC0C, the inline capacity 0xC00 set at 0x32457E	observed
+0x00324090	survarium::statistics_history_item::serialize	ESI	the buffer_writer (+0x14: its mutable_buffer); writes u16 size, then the bytes	observed
+0x003247d0	survarium::player_history_item::construct	ECX	the player item (0x9054 bytes; 20 at game_state_history_item+0): two inline 0x1000-byte buffers, their mutable_buffers at +0x1000 and +0x2028+0x1000, +0x2050 the animation	observed
 0x00324390	survarium::statistics_history_item::clear	ESI	statistics history item or compatible shared layout	inferred
 0x00324510	survarium::game_state_history_item::construct	ESI	unconstructed C0BCC-byte record; also called after destroy at the same address	observed
 0x00324910	survarium::game_state_history_item::destroy	stack+4	constructed game history record; frees members but not record storage	observed
@@ -5433,4 +5455,23 @@ va	name	location	role	basis
 0x001f2ad0	survarium::player::render_name	at 0x1F2D7E: ESI, EDI	target player and game_world_ui: [player+10Ch]+178h non-null sets carried-battery modifier; compares HUD row +388h and ORs dirty bit 40h at +389h only on change (0x1F2D98..0x1F2DAB); row is player +114h index times 24 bytes	observed
 0x0023aa10	survarium::game_world_ui::update_player_icons	at 0x23B0B7: BL, ESI	dirty bit 40h emits row +10h as modifier_visible (string 0xA03A38, call 0x23B11C); row +11h dirty flags cleared at 0x23B12B before root.set_player_icons_props (0x23B1C4), including updates with visible false; Flash must consume modifier changes while hidden	observed
 0x001f2ad0	survarium::player::render_name	at 0x1F2B7C / 0x1F2BE8	life/visibility failure goes to 0x1F302C; projection failure hides/returns at 0x1F2C0C, before carry check 0x1F2D7E; successful projection first sets row visible at 0x1F2C25. Ordinary off-screen/drop/reveal does not prove a combined hidden+modifier update reaches Flash	observed
+0x002d6590	survarium::animations_registry::animation_id	EAX	the pair: two resource pointers {first, second}	observed
+0x002d6590	survarium::animations_registry::animation_id	stack+4	the registry (map at +E030h)	observed
+0x002ef130	survarium::animations_registry::register_animation	stack+4	the registry	observed
+0x002ef130	survarium::animations_registry::register_animation	stack+8	&first resource_ptr (the entry's +0)	observed
+0x002ef130	survarium::animations_registry::register_animation	stack+12	&second resource_ptr (the entry's +4)	observed
+0x002ef280	survarium::animations_registry::actualize	stack+4	the registry; numbers the ids once (+10050h)	observed
+0x001f18b0	survarium::game_world::animation_resolver	ECX	the registry	observed
+0x001f18b0	survarium::game_world::animation_resolver	stack+4	the out resource_ptr	observed
+0x001f18b0	survarium::game_world::animation_resolver	stack+8	the id (u16)	observed
+0x00059080	vostok::sound::sound_world::initialize_xaudio	entry ESP+4	the sound world: its engine at +0C0h (XAudio2Create 0x59187/0x591C8), its mastering voice at +0C4h (CreateMasteringVoice, IXAudio2 vtable +28h, 0x596C3: default channels, 44100 Hz, the last device of role DefaultMultimediaDevice else 0)	observed
+0x0005a640	XAudio2Create	entry ESP+4	the engine out pointer (IXAudio2**, written only on success)	observed
+0x0005a640	XAudio2Create	entry ESP+8	creation flags (bit 0, XAUDIO2_DEBUG_ENGINE: CoCreateInstance of the debug CLSID 0x9E0C78, else 0x9E0C88; IID 0x9E0C98; the CoCreateInstance slot 0xAF0064; Initialize vtable +14h with flags and processor -1)	observed
+0x00059dd0	vostok::sound::sound_world::process_orders	entry ESP+4	the sound world: its XAudio2 callback orders (+60h queue) run, then its logic world user's (+0B0h, 0x564A0); called by tick 0x59AAC and 0x59E68	observed
+0x00059e70	vostok::sound::sound_world::create_sound_voice	EAX	the sound world: 0 back when its audio device is gone (+48D9h) or its 64 sound voices (+68h; the pool +0A0h: +24h taken, +28h all, 28h bytes each) are all taken, silently past the log level; else a voice from the pool (0x5A3E0), built (0x63140) and added to the scene's active voices (+2B0h, 0x58940)	observed
+0x00059e70	vostok::sound::sound_world::create_sound_voice	entry ESP+4	the scene (the propagator's proxy +68h)	observed
+0x00059e70	vostok::sound::sound_world::create_sound_voice	entry ESP+8	the propagator the voice plays (calculate_hdr_audio_frame 0x5CAA9 stores the result at its +4)	observed
+0x00059e70	vostok::sound::sound_world::create_sound_voice	entry ESP+12	the propagator's emitter (its +0Ch)	observed
+0x0005cb80	vostok::sound::new_sound_propagator::detach_voice	entry ESP+4	the propagator: its voice (+4) stopped (IXAudio2SourceVoice Stop then FlushSourceBuffers on the bridge +14h -> +10h), removed from the scene's active voices (0x58990), destroyed (0x5A470: the bridge's handler cleared) and back in the world's pool (+0A0h) at once; +4 = 0. Called by the HDR cull (0x5CAD4, then +48h = 2000), the proxy's tick at a propagator's end (0x5B54F) and delete_sound_propagator (0x5D50D)	observed
+0x00038990	vostok::sound::sound_propagator_emitter::get_options	ECX	the emitter (this): a single sound's propagator emitter (single_sound + 108h)	observed
 0x001f0e70	survarium::match_options::deserialize	entry ESP+4	the options it fills, in wire order: 20 profiles (0x45FC bytes each), then u8 map (maps_dict id) +577B4h (0x1F0EAD), u8 places +577B5h, u32 seed/match id +577B0h (0x1F0ECD), u16 level +577B6h (0x1F0EDC), 28 f32 +577BCh, 20 u8 squads +5782Ch; the crash breadcrumbs (vostok/breadcrumbs.rs) read map, places, seed and level after it	observed

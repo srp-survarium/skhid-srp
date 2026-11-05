@@ -46,7 +46,7 @@ impl<'t> WorldLoad<'t> {
     pub fn at_unpacked(ctx: &'t Context<'_>) -> Option<WorldLoad<'t>> {
         use raw::site::world_load_unpacked as site;
         // SAFETY: the context is this site's: the network client and the
-        // handler's frame, whose buffer holds the unpacked world (the 0x8000
+        // handler's frame, whose buffer holds the unpacked world (the 0xF000
         // bytes of its stack), alive while it runs on the game's thread.
         let (client, buffer) = unsafe { (site::client(ctx)?, site::frame(ctx)?.unpacked()) };
         // SAFETY: the buffer is alive for the hook, `size` bytes from its

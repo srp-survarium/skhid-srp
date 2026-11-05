@@ -29,6 +29,10 @@ pub const HEADER: usize = 3;
 /// The client parses into a `fixed_vector<message_data, 252>`; one more is a
 /// fatal assert.
 pub const MAX_MESSAGES: usize = 252;
+/// The largest world a snapshot upload carries: the client hashes and
+/// uploads it from a buffer of 0xF000 bytes (patch 98; 0x8000 in the
+/// original exe), `survarium::v026g::match_msgs::upload::MAX_TOTAL`.
+pub const MAX_SNAPSHOT_TOTAL: usize = 0xF000;
 /// The id byte that starts a part of a split message.
 pub const MULTIPART: u8 = 0xFF;
 
@@ -312,7 +316,8 @@ fn parse_message(
 
 /// Length of a resource ACK or whole snapshot chunk. Snapshot header:
 /// `u32 item_time` (a tick), `u16 offset` (a
-/// multiple of 480), `u16 total` (over the offset, at most 0x8000), then
+/// multiple of 480), `u16 total` (over the offset, at most
+/// [`MAX_SNAPSHOT_TOTAL`]), then
 /// `min(480, total - offset)` bytes (client_patch.md §3.4).
 fn carrier_len(bytes: &[u8]) -> Option<usize> {
     let head = bytes.get(..8)?;
@@ -328,7 +333,7 @@ fn carrier_len(bytes: &[u8]) -> Option<usize> {
     (time.is_multiple_of(50)
         && offset.is_multiple_of(480)
         && offset < total
-        && total <= 0x8000
+        && total <= MAX_SNAPSHOT_TOTAL
         && bytes.len() >= len)
         .then_some(len)
 }
@@ -442,6 +447,25 @@ mod tests {
         // never sends such a thing.
         assert!(parse_match(Direction::ToServer, &[9, 3, 0x00, 0xDA, 1]).is_err());
         assert!(parse_match(Direction::ToClient, &[9, 3, 0x00, 0xE0, 1]).is_err());
+    }
+
+    #[test]
+    fn a_joined_chunk_of_the_largest_world_has_its_length() {
+        // The 128th chunk of a 0xF000-byte world: offset 0xEE20, 480 bytes,
+        // joined with the ready message; one byte more in the total is none.
+        let chunk = |total: u16| {
+            let mut datagram = vec![7, 3, 0x01, 0xE0, 0x32, 0, 0, 0];
+            datagram.extend(0xEE20u16.to_le_bytes());
+            datagram.extend(total.to_le_bytes());
+            datagram.extend([0xAB; 480]);
+            datagram.push(0xDA);
+            datagram
+        };
+        let largest = chunk(MAX_SNAPSHOT_TOTAL as u16);
+        let parsed = parse_match(Direction::ToServer, &largest).unwrap();
+        assert_eq!(parsed.messages.len(), 2);
+        assert_eq!(parsed.messages[0].payload.len(), 8 + 480);
+        assert!(parse_match(Direction::ToServer, &chunk(MAX_SNAPSHOT_TOTAL as u16 + 1)).is_err());
     }
 
     #[test]
