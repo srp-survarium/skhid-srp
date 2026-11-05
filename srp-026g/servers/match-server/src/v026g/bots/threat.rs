@@ -978,6 +978,8 @@ impl Default for SpotRules {
 struct Kill {
     from: Vec3,
     victim: Vec3,
+    /// [A317] When.
+    time: u32,
 }
 
 /// What a cast was made from: the eye's ground point, the bearings and the
@@ -1082,6 +1084,19 @@ impl Spot {
     /// A sensed sniper's spot ([`SpotSource::Sensed`]): the jobs and the plays that read the held lines do not see it.
     fn is_sensed(&self) -> bool {
         matches!(self.source, SpotSource::Sensed { .. })
+    }
+
+    /// [A317] The times of its latest kept kills, newest first (a sensed sniper's: none).
+    fn latest_kills(&self) -> [Option<u32>; 3] {
+        let mut out = [None; 3];
+        if let SpotSource::Kills { kills, .. } = &self.source {
+            let mut times: Vec<u32> = kills.iter().map(|k| k.time).collect();
+            times.sort_unstable_by(|a, b| b.cmp(a));
+            for (slot, t) in out.iter_mut().zip(times) {
+                *slot = Some(t);
+            }
+        }
+        out
     }
 
     /// The kills it counts (a sensed sniper's: none).
@@ -1403,7 +1418,7 @@ impl ThreatSpots {
     /// `shooter_at` at `sensed`, the victim at `victim_at`.
     pub fn died(&mut self, victim_at: Vec3, shooter: Place, shooter_at: Vec3, sensed: u32, now: u32, rules: SpotRules) {
         let reach = REACH_FLOOR_M.max(shooter_at.distance_xz(victim_at) + REACH_PLUS_M);
-        let kill = Kill { from: shooter_at, victim: victim_at };
+        let kill = Kill { from: shooter_at, victim: victim_at, time: now };
         let merge_m = rules.merge_m();
         let mut matching = self
             .spots
@@ -1807,6 +1822,8 @@ impl ThreatSpots {
                 reach_m: s.reach_m,
                 sensed: s.sensed(),
                 area_m: area_m(s.sensed().map(|t| now.saturating_sub(t))),
+                kills: s.kill_count(),
+                latest_kills: s.latest_kills(),
             })
             .collect()
     }
@@ -2483,6 +2500,9 @@ pub struct HeldLane {
     pub reach_m: f32,
     pub sensed: Option<u32>,
     pub area_m: f32,
+    /// [A317] The team's deaths it counts, and when the latest kept ones were, newest first (a sensed sniper's spot: none).
+    pub kills: usize,
+    pub latest_kills: [Option<u32>; 3],
 }
 
 impl ThreatSpots {
@@ -2500,6 +2520,8 @@ impl ThreatSpots {
                 reach_m: s.reach_m,
                 sensed: s.sensed(),
                 area_m: area_m(s.sensed().map(|t| now.saturating_sub(t))),
+                kills: s.kill_count(),
+                latest_kills: s.latest_kills(),
             })
             .collect()
     }
