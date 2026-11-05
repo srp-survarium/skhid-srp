@@ -158,6 +158,9 @@
     "zone_look": null,
     "zone_take": null
   },
+  "tdm": {
+    "behind_holds": null
+  },
   "threat": {
     "area": false,
     "concede": null,
