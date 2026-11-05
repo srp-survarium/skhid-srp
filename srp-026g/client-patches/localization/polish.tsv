@@ -2185,6 +2185,27 @@ st_srp_ammo069_23mm_r_name	23x75R, Śrutowa
 st_srp_ammo_scar_ap_desc	Przeciwpancerne naboje 7,62x51 do FN SCAR-H. Każda ładownica mieści 20 nabojów.
 st_srp_ammo_scar_ap_name	7,62x51 AP SCAR-H, 20 nabojów
 st_srp_ammo_stats	Statystyki amunicji
+st_srp_artefact_501_description	Czas zbierania artefaktu:
+st_srp_artefact_501_name	Koncentracja
+st_srp_artefact_502_description	Izolacja od anomalii:
+st_srp_artefact_502_name	Odporność
+st_srp_artefact_511_description	Obrażenia od pocisków i odłamków wewnątrz anomalii:
+st_srp_artefact_511_name	Ochrona Lasu
+st_srp_artefact_512_description	Czas działania aktywnego efektu artefaktów:
+st_srp_artefact_512_name	Wiedza o artefaktach
+st_srp_artefact_521_description	Mecz zaczyna się z losowym artefaktem w pojemniku; jeden rodzaj dla wszystkich w meczu.
+st_srp_artefact_521_name	Strażnik artefaktów
+st_srp_artefact_522_description	Pasywne efekty twoich artefaktów działają też na żywych sojuszników w promieniu 8 m, do 4 jednego rodzaju wraz z ich własnymi.
+st_srp_artefact_522_name	Rezonans
+st_srp_artefact_531_description	Każda Sprężyna przyspiesza też przeładowanie: +5% pasywnie, +15% gdy aktywna.
+st_srp_artefact_531_name	Sprężyna II
+st_srp_artefact_532_description	Brak obrażeń od upadku, gdy Onyks jest aktywny.
+st_srp_artefact_532_name	Onyks II
+st_srp_artefact_533_description	Aktywacja Żywokostu przywraca całą wytrzymałość.
+st_srp_artefact_533_name	Żywokost II
+st_srp_artefact_541_description	Aktywowane artefakty działają też na żywych sojuszników w promieniu 5 m. "Oni lśnią, ty błyszczysz"
+st_srp_artefact_541_name	Kaskada rezonansowa
+st_srp_artefact_points	 pkt
 st_srp_attachments	Dodatki
 st_srp_crosshair_dynamic	Celownik dynamiczny
 st_srp_crosshair_hidden	Celownik ukryty

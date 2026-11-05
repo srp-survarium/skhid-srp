@@ -2185,6 +2185,27 @@ st_srp_ammo069_23mm_r_name	23x75R, sačma
 st_srp_ammo_scar_ap_desc	Pancirni meci 7,62x51 za FN SCAR-H. Svaka torbica za municiju prima 20 metaka.
 st_srp_ammo_scar_ap_name	7,62x51 AP SCAR-H, 20 metaka
 st_srp_ammo_stats	Osobine municije
+st_srp_artefact_501_description	Vreme sakupljanja artefakta:
+st_srp_artefact_501_name	Koncentracija
+st_srp_artefact_502_description	Izolacija od anomalija:
+st_srp_artefact_502_name	Otpornost
+st_srp_artefact_511_description	Šteta od metaka i šrapnela unutar anomalije:
+st_srp_artefact_511_name	Zaštita Šume
+st_srp_artefact_512_description	Trajanje aktivnog efekta artefakata:
+st_srp_artefact_512_name	Poznavanje artefakata
+st_srp_artefact_521_description	Meč počinje sa nasumičnim artefaktom u kontejneru; jedna vrsta za sve u meču.
+st_srp_artefact_521_name	Čuvar artefakata
+st_srp_artefact_522_description	Pasivni efekti tvojih artefakata deluju i na žive saigrače u krugu od 8 m, do 4 iste vrste zajedno sa njihovim.
+st_srp_artefact_522_name	Rezonanca
+st_srp_artefact_531_description	Svaki Feder ubrzava i punjenje: +5% pasivno, +15% dok je aktivan.
+st_srp_artefact_531_name	Feder II
+st_srp_artefact_532_description	Nema štete od pada dok je Oniks aktivan.
+st_srp_artefact_532_name	Oniks II
+st_srp_artefact_533_description	Aktiviranje Živokosti vraća svu izdržljivost.
+st_srp_artefact_533_name	Živokost II
+st_srp_artefact_541_description	Aktivirani artefakti deluju i na žive saigrače u krugu od 5 m. "Oni sijaju, ti blistaš"
+st_srp_artefact_541_name	Rezonantna kaskada
+st_srp_artefact_points	 poena
 st_srp_attachments	Dodaci
 st_srp_crosshair_dynamic	Dinamični nišan
 st_srp_crosshair_hidden	Skriven nišan

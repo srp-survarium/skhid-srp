@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# check.sh <lobby_menu.swf> [work dir]: medical skills in isolated CPU Ruffle.
+# check.sh <lobby_menu.swf> [work dir]: our skill trees (medical, artefact) in isolated CPU Ruffle.
 set -euo pipefail
 here=$(dirname "$(readlink -f "$0")")
 lobby=$(readlink -f "$1")
@@ -22,9 +22,9 @@ flex=$(sed -n 's/.*"flex": *"\([^"]*\)".*/\1/p' "$tools")
     || { cat "$work/MedicalSkillsHarness.mxmlc.log"; exit 1; }
 "${PYTHON:-python3}" "$here/../medical-cards/ruffle_movie.py" "$lobby" "$work/lobby_menu.swf"
 # The tree as the edit list makes it, and the PNGs the movie embeds (pixel comparison).
-cp "$here/../content-edit/medical-skills-1.json" "$work/"
+cp "$here/../content-edit/medical-skills-1.json" "$here/../content-edit/artefact-skills-1.json" "$here/../../client-patches/localization/english.tsv" "$work/"
 mkdir -p "$work/bitmaps"
-cp "$here"/../../flash/lobby_menu/bitmaps/MedicalSkill069*.png "$work/bitmaps/"
+cp "$here"/../../flash/lobby_menu/bitmaps/{Medical,Artefact}Skill069*.png "$work/bitmaps/"
 
 paths=$(nix build nixpkgs#ruffle nixpkgs#mesa nixpkgs#xorg.xorgserver --no-link --print-out-paths)
 ruffle=$(grep -- '-ruffle-' <<<"$paths")

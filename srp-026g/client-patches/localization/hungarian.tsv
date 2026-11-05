@@ -2185,6 +2185,27 @@ st_srp_ammo069_23mm_r_name	23x75R, sörét
 st_srp_ammo_scar_ap_desc	Páncéltörő 7,62x51 lőszer az FN SCAR-H-hoz. Minden lőszerzseb 20 lőszert tartalmaz.
 st_srp_ammo_scar_ap_name	7,62x51 AP SCAR-H, 20 lőszer
 st_srp_ammo_stats	A lőszer statisztikái
+st_srp_artefact_501_description	Artefaktum begyűjtésének ideje:
+st_srp_artefact_501_name	Összpontosítás
+st_srp_artefact_502_description	Szigetelés az anomáliák ellen:
+st_srp_artefact_502_name	Ellenállás
+st_srp_artefact_511_description	Golyó- és repeszsebzés anomálián belül:
+st_srp_artefact_511_name	Az Erdő védelme
+st_srp_artefact_512_description	Az artefaktumok aktív hatásának időtartama:
+st_srp_artefact_512_name	Artefaktumismeret
+st_srp_artefact_521_description	A meccset egy véletlen artefaktummal kezded a tárolóban; egy fajta mindenkinek a meccsen.
+st_srp_artefact_521_name	Az artefaktumok őrzője
+st_srp_artefact_522_description	Artefaktumaid passzív hatása az élő csapattársakra is hat 8 m-en belül, fajtánként legfeljebb 4 a sajátjaikkal együtt.
+st_srp_artefact_522_name	Rezonancia
+st_srp_artefact_531_description	Minden Rugó gyorsítja az újratöltést is: +5% passzívan, +15% aktívan.
+st_srp_artefact_531_name	Rugó II
+st_srp_artefact_532_description	Nincs esési sebzés, amíg egy Ónix aktív.
+st_srp_artefact_532_name	Ónix II
+st_srp_artefact_533_description	A Szarkaláb aktiválása visszaadja az összes állóképességet.
+st_srp_artefact_533_name	Szarkaláb II
+st_srp_artefact_541_description	Az aktivált artefaktumok az élő csapattársakra is hatnak 5 m-en belül. "Ők ragyognak, te tündökölsz"
+st_srp_artefact_541_name	Rezonanciakaszkád
+st_srp_artefact_points	 pont
 st_srp_attachments	Szerelékek
 st_srp_crosshair_dynamic	Dinamikus célkereszt
 st_srp_crosshair_hidden	Rejtett célkereszt

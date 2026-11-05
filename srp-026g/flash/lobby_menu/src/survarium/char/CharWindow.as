@@ -30,9 +30,6 @@ package survarium.char
       
       protected const POINTS_PER_LEVEL:uint = 5;
       
-      // the branch points of a skill branch's last tier
-      private static const LAST_TIER_POINTS:int = 20;
-      
       protected var _data:Object;
       
       protected var _enterName:MovieClip;
@@ -408,6 +405,16 @@ package survarium.char
          var value:uint = 0;
          var points:uint = 0;
          var lastUnlocked:Boolean = false;
+         // the branch points of the branch's last tier: 20 in the stock and medical trees, 23 in the
+         // artefact tree (artefact-skills.md)
+         var lastTier:uint = 0;
+         for each(var tierData:Object in _currentSkills)
+         {
+            if(tierData && tierData.branch_points <= this.SKILL_LEVELS)
+            {
+               lastTier = Math.max(lastTier,tierData.branch_points);
+            }
+         }
          for(var i:uint = 0; i < l; i++)
          {
             var skillData:Object = _currentSkills[i];
@@ -419,7 +426,7 @@ package survarium.char
                   // the branch points this row asks, whole (the stock window rounded them down
                   // to fives; the medical tree's second row opens at 3: medical-skills.md)
                   points = skillData.branch_points;
-                  if(skillData.branch_points == LAST_TIER_POINTS && skillData.newValue > 0)
+                  if(skillData.branch_points == lastTier && skillData.newValue > 0)
                   {
                      lastUnlocked = true;
                   }

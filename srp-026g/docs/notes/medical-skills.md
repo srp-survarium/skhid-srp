@@ -142,7 +142,7 @@ the native medicine category, excluding whole-pocket items (the boosters).
 Whole-pocket items remain one; the server applies the same cap to moves, preset
 fills and account repair without deleting inventory stock. The menu uses committed skills, never an unsaved preview. Server reset
 validation obtains available branches from the loaded tree instead of assuming
-two tabs. The stock movie contains only two icon sets; `MedicalSkillIcon.as`
+two tabs. The stock movie contains only two icon sets; `SkillIcon069.as`
 displays original 0.69d survival PNGs for branch 3 within the existing
 skill renderer. Their bytes are unchanged in `flash/lobby_menu/bitmaps/`;
 `scripts/medical-skills/icons-069.tsv` records the donor paths, mapping and SHA-256.
