@@ -547,6 +547,7 @@ impl Controller {
     }
 
     /// `impassable_slope_down_slide` 0x7DA50. `n` in/out.
+    #[allow(clippy::too_many_arguments)]
     fn down_slide(&mut self, world: &Collision, w: Vec3, sb: Vec3, dist: f32, n: &mut Vec3, p1: Vec3, s: &Settings) -> bool {
         if !s.impassable_slope_down_slide {
             return false;
