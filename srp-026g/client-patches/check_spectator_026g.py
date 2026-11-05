@@ -48,7 +48,7 @@ if len(sys.argv) > 1:
 import patch_026g as base
 
 NC_VTABLE, REPLAY_VTABLE = 0x9FFB14, 0x9FF344
-GET_ACTIVE, FOLLOW, CAMERA, CLOSE = 0x27A9C0, 0x242B90, 0x1F8360, 0x27A790
+GET_ACTIVE, FOLLOW, CAMERA, CLOSE, DETACH = 0x27A9C0, 0x242B90, 0x1F8360, 0x27A790, 0x242CC0
 THREAD_SLOT = 0x870118
 NC, GAME, OBJECTS, STUBS, STACK = 0x40000000, 0x48000000, 0x50000000, 0x51000000, 0x52000000
 HOLDER, UI = OBJECTS + 0x0, OBJECTS + 0x60000
@@ -90,7 +90,7 @@ class Game:
         emu.mem_write(STUBS + 0x80, b"\xB8\x01\x00\x00\x00\xC3")
         self.calls = []
         for va, how in ((GET_ACTIVE, self.get_active), (FOLLOW, self.follow), (CAMERA, self.camera),
-                        (CLOSE, self.close)):
+                        (CLOSE, self.close), (DETACH, self.detach)):
             emu.hook_add(UC_HOOK_CODE, how, begin=va, end=va)
 
     def word(self, at, value, size=4):
@@ -119,8 +119,17 @@ class Game:
         sp = emu.reg_read(UC_X86_REG_ESP)
         player = self.read(sp + 4)
         self.word(player + 0xD0, self.read(player + 0xD0) - 1)     # it releases its argument
-        self.calls.append(("set_followed_player", emu.reg_read(UC_X86_REG_ECX), player))
+        nc = emu.reg_read(UC_X86_REG_ECX)
+        self.calls.append(("set_followed_player", nc, player))
+        self.word(nc + 4, player)               # the camera's player and the last followed (0x242BDA, 0x242C1A)
+        self.word(nc + 8, player)
         self.ret(4)
+
+    def detach(self, emu, *_):
+        nc = emu.reg_read(UC_X86_REG_ECX)
+        self.calls.append(("detach_from_player", nc))
+        self.word(nc + 4, 0)                    # +4 let go (+8 kept), then the free-fly camera
+        self.ret(0)
 
     def close(self, emu, *_):
         sp = emu.reg_read(UC_X86_REG_ESP)
@@ -236,7 +245,7 @@ def main():
     for vtable, local, name in ((NC_VTABLE, 2, "a player (local place 2)"),
                                 (REPLAY_VTABLE, 0xFF, "a replay's client")):
         for site in SITES:
-            values = {"key": (0x17, 0x18, 0x11), "left": (2, 0xFF, 1, 3)}.get(site, (0x17,))
+            values = {"key": (0x17, 0x18, 0x12, 0x11), "left": (2, 0xFF, 1, 3)}.get(site, (0x17,))
             for action in values:
                 case = {"key": f"{name}, action {action:#x}", "left": f"{name}, 0xEA of place {action:#x}"}
                 both(stock, ours, site, case.get(site, name),
@@ -365,6 +374,60 @@ def main():
     check(state[UC_X86_REG_EIP] == 0x23B7BF and state[UC_X86_REG_EAX] & 0xFF == 1
           and state[UC_X86_REG_EAX] >> 8 == STEADY[UC_X86_REG_EAX] >> 8 and not done,
           "hud, a spectator, the followed player dead: AL 1 (the rest of EAX kept), at 0x23B7BF")
+
+    # Detach (F2, cam_2): one spectator's game through a flight, the patch's
+    # camera state kept between the runs (its arena's).
+    def made(done):
+        return [c for c in done if c[0] != "get_active_player"]
+
+    ours.setup(vtable=NC_VTABLE, local=0xFF, followed=1, players=MATCH)
+    ours.word(NC + 8, PLAYERS[1])                      # the last one followed, set_followed_player's +8
+    state, _, done = ours.run("key", site_regs("key", 0x12))
+    check(state[UC_X86_REG_EIP] == 0x25CEAE and made(done) == [("detach_from_player", NC)]
+          and ours.read(NC + 4) == 0 and ours.read(NC + 0xC, 1) == 1,
+          "detach: F2 (12h) lets go (detach_from_player: +4 0, the game's free-fly camera), +0Ch 1, the key's return")
+    ours.calls = []
+    state, _, done = ours.run("world", site_regs("world"))
+    check(state[UC_X86_REG_EIP] == 0x27C1B9 and not made(done) and ours.read(NC + 4) == 0,
+          "detach: a world's load keeps the flight (nobody followed, nothing called), at 0x27C1B9")
+    ours.calls = []
+    state, _, done = ours.run("left", site_regs("left", 1))
+    check(state[UC_X86_REG_EIP] == 0x27C734 and not made(done),
+          "detach: an 0xEA of the last one followed (1): the original's je (nothing), still flying")
+    ours.calls = []
+    state, _, done = ours.run("key", site_regs("key", 0x17))
+    check(state[UC_X86_REG_EIP] == 0x25CEAE
+          and made(done) == [("set_followed_player", NC, PLAYERS[3]), ("switch_to_spectator_camera", world)],
+          "detach: F6 follows again, the next from the last one followed (1 -> 3)")
+    ours.word(NC + 4, 0)                               # flying again, from 3
+    ours.calls = []
+    ours.run("key", site_regs("key", 0x12))
+    ours.calls = []
+    state, _, done = ours.run("key", site_regs("key", 0x18))
+    check(made(done) == [("set_followed_player", NC, PLAYERS[1]), ("switch_to_spectator_camera", world)],
+          "detach: F5 after a flight from 3: the previous living one (1)")
+    # (A new match's options end a flight: `static_info.options_read`, the
+    # camera's step NewMatch, its unit test in spectator.rs; the site's chain
+    # of patches 65, 86 and 58 needs a real 0xE4's reader and is not run here.)
+
+    # The input while flying: game_world::tick (0x1F780C on, the original's
+    # code) builds and sends input only from 0x1F7868; with +4 0 it goes to
+    # 0x1F794A at 0x1F784D, and with a player followed and +0Ch 1 at 0x1F7862.
+    for followed, observer, to, case in ((None, 1, 0x1F794A, "flying (+4 0)"),
+                                         (1, 1, 0x1F794A, "following, +0Ch 1"),
+                                         (1, 0, 0x1F7868, "following, +0Ch 0 (a player's)")):
+        stock.setup(vtable=NC_VTABLE, local=0xFF, followed=followed, players=MATCH)
+        stock.word(NC + 0xC, observer, 1)
+        emu = stock.emu
+        for reg, value in STEADY.items():
+            emu.reg_write(reg, value)
+        emu.reg_write(UC_X86_REG_EBX, GAME + 0x18)    # the game world
+        emu.reg_write(UC_X86_REG_ESP, SP)
+        hook = emu.hook_add(UC_HOOK_CODE, lambda e, a, *_: e.emu_stop() if a in (0x1F794A, 0x1F7868) else None)
+        emu.emu_start(0x1F780C, 0, count=100000)
+        emu.hook_del(hook)
+        check(emu.reg_read(UC_X86_REG_EIP) == to,
+              f"game_world::tick, {case}: {'no input built' if to == 0x1F794A else 'the input built'} ({to:#x})")
     if failed:
         sys.exit(f"{failed} check(s) failed")
     print("all checks passed")

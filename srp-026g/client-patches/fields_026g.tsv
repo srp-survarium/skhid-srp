@@ -660,3 +660,4 @@ survarium::network_client	local_place	0x1F1C44	u8	the game's own place: 0xFF non
 survarium::game	world	0x18	obj<survarium::game_world>	the game world, inside the game (spectate_next_player 0x242EC6: [client+14h]+18h; its +9Ch the game again)
 survarium::image	network_client_vtable	0x9FFB14	u32	network_client's vtable (its constructor 0x2199C6): a live match's client, whose +1F1C44h is its local place
 survarium::add_message_frame	team_player	0x48	ptr<survarium::player>	chat_handler::add_message's local the local place's player goes into (get_player at 0x208D86, by the site's ESP at 0x208D77), released at 0x208E27 when not 0
+survarium::network_client	last_followed	0x8	ptr<survarium::player>	the last player the camera followed (set_followed_player 0x242C1A, with a reference), kept when detach_from_player 0x242CC0 lets +4 go: where a spectator's F6/F5 step from after a free flight (patch 103)

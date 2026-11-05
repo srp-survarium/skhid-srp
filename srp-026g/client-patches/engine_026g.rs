@@ -275,6 +275,8 @@ unsafe extern "thiscall" {
     pub fn engine_di_queue_release(queue: *mut c_void);
     /// 0x242b90 survarium::base_network_client::set_followed_player: client ECX, player ESP+4; pops 4; thiscall, called directly
     pub fn engine_follow_player(client: *mut c_void, player: *mut c_void);
+    /// 0x242cc0 survarium::base_network_client::detach_from_player: client ECX; pops 0; thiscall, called directly
+    pub fn engine_detach_player(client: *mut c_void);
 }
 
 #[allow(dead_code, non_upper_case_globals)]

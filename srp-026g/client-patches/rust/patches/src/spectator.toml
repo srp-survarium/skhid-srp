@@ -9,7 +9,7 @@ patch = 103
 site = "world_load.camera"
 handler = "on_world_camera"
 
-# F6 / F5 (next_player, prev_player) for a spectator.
+# F6 / F5 (next_player, prev_player) and F2 (cam_2, the free view) for a spectator.
 [[hook]]
 site = "keyboard.spectate"
 handler = "on_key"
@@ -28,3 +28,10 @@ handler = "on_followed_alive"
 [[hook]]
 site = "player_left.local"
 handler = "on_player_left"
+
+# A match's options read (after patches 65, 86 and 58): a new match, its camera
+# following nobody yet.
+[[hook]]
+site = "static_info.options_read"
+handler = "on_static_info"
+order = 3

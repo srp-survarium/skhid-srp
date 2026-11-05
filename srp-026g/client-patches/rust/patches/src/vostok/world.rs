@@ -178,7 +178,11 @@ impl<'t> NetworkClient<'t> {
         if self.take_role()? != Role::Spectator {
             return None;
         }
-        let current = self.local_player().map(|player| player.place());
+        // From the player followed, or after a free flight the last one
+        // (+8, which detach_from_player keeps; its reference keeps it alive).
+        // SAFETY: the client's +8, a player it holds a reference to.
+        let last = unsafe { self.this.last_followed() }.map(|this| Player { this, thread: self.thread });
+        let current = self.local_player().or(last).map(|player| player.place());
         let mut found = None;
         let mut any = None;
         for place in spectate_order(self.places(), current, step) {
@@ -225,6 +229,23 @@ impl NetworkClient<'_> {
         // thread from inside the 0xEA's dispatch, where the game's own end of
         // a local place calls it (0x27C774).
         unsafe { raw::engine_close_current_match(Some(self.this), WORLD_ENDED) }
+    }
+
+    /// A spectator's camera lets go of the player it follows and flies
+    /// freely: detach_from_player (0x242CC0, the replay's free view, F2):
+    /// the player's handler and hud unbound, +4 0 (+8 kept), then the game
+    /// world's own free-fly camera (switch_to_free_fly_camera 0x1F8270, the
+    /// handler unbound, so its mode is not written). No player is followed,
+    /// so game_world::tick builds no input (0x1F784D: +4 0). A player's game
+    /// is not touched.
+    pub fn fly_free(&self) {
+        if self.take_role() != Some(Role::Spectator) {
+            return;
+        }
+        // SAFETY: the client's own detach_from_player, on the game's thread
+        // from the game world's keys, as the replay client's free view calls
+        // it there (vtable+84h -> +60h, 0x26E000).
+        unsafe { raw::engine_detach_player(Some(self.this)) }
     }
 }
 
