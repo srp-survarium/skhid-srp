@@ -23,3 +23,8 @@ handler = "on_match_line"
 [[hook]]
 site = "hud.followed_alive"
 handler = "on_followed_alive"
+
+# An 0xEA: a spectator's own end (place 0xFF), or the leave of the player it follows.
+[[hook]]
+site = "player_left.local"
+handler = "on_player_left"

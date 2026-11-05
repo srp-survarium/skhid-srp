@@ -15332,4 +15332,28 @@ pub mod site {
             NonNull::new(machine.register(Register::Esi) as usize as *mut c_void).map(GameWorldUi)
         }
     }
+
+    /// player_left.local (0x27c72c): process_player_left_match (0xEA) after leave_match (0x27C720) and its count (0x27C727): mov al,[esi+1F1C44h] / cmp al,0FFh, then je 0x27C79F (no local place: nothing), the local place's own end (0x27C73A: `31 <order> FF` to the lobby, close_current_match(3), the results screen) or a followed player's leave (0x27C776); done is the handler's epilogue (0x27C79F, `ret 4`). ESI the network client, BL the place that left
+    pub mod player_left_local {
+        #[allow(unused_imports)]
+        use super::*;
+
+        /// ESI: a survarium::network_client (None for 0).
+        ///
+        /// # Safety
+        /// `machine` is at this site.
+        #[inline(always)]
+        pub unsafe fn client(machine: &impl Machine) -> Option<NetworkClient> {
+            NonNull::new(machine.register(Register::Esi) as usize as *mut c_void).map(NetworkClient)
+        }
+
+        /// EBX: a u32 value.
+        ///
+        /// # Safety
+        /// `machine` is at this site.
+        #[inline(always)]
+        pub unsafe fn place(machine: &impl Machine) -> u32 {
+            machine.register(Register::Ebx)
+        }
+    }
 }

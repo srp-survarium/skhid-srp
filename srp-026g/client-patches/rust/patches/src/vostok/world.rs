@@ -191,6 +191,27 @@ impl<'t> NetworkClient<'t> {
     }
 }
 
+impl NetworkClient<'_> {
+    /// A spectator's game leaves its match, back to the lobby with no
+    /// results screen: close_current_match(0), the world ended and nothing
+    /// sent (the end a game takes after its server went silent, match.md
+    /// section 34). A player's game is not touched: its own 0xEA is the
+    /// game's (`31 <order> FF`, close_current_match(3), the results).
+    pub fn stop_watching(&self) {
+        if self.role() != Some(Role::Spectator) {
+            return;
+        }
+        // SAFETY: the client's own close_current_match, on the game's
+        // thread from inside the 0xEA's dispatch, where the game's own end of
+        // a local place calls it (0x27C774).
+        unsafe { raw::engine_close_current_match(Some(self.this), WORLD_ENDED) }
+    }
+}
+
+/// close_current_match's reason 0: the world ended, nothing sent, no results
+/// (its jump table 0x27A958 -> 0x27A941).
+const WORLD_ENDED: u32 = 0;
+
 /// The places a spectator's camera tries, in order, for `step` from the
 /// place it follows (`current`), of `places`: a first camera every place
 /// from 0; the next or the previous one every other place from the one after

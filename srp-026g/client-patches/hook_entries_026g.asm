@@ -3834,6 +3834,48 @@ spectator_on_followed_alive_replay:
     db 0x8a, 0x85, 0x3c, 0x03, 0x00, 0x00
     jmp 0x23b7bf
 
+; 0x27c72c process_player_left_match (0xEA) after leave_match (0x27C720) and its count (0x27C727): mov al,[esi+1F1C44h] / cmp al,0FFh, then je 0x27C79F (no local place: nothing), the local place's own end (0x27C73A: `31 <order> FF` to the lobby, close_current_match(3), the results screen) or a followed player's leave (0x27C776); done is the handler's epilogue (0x27C79F, `ret 4`). ESI the network client, BL the place that left: lohook -> spectator_on_player_left
+global spectator_on_player_left
+extern hook_spectator_on_player_left
+spectator_on_player_left:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_spectator_on_player_left
+    mov edx, spectator_on_player_left_replay
+    cmp eax, 0
+    je spectator_on_player_left_go
+    mov edx, 0x27c734
+    cmp eax, 1
+    je spectator_on_player_left_go
+    mov edx, 0x27c79f
+    cmp eax, 2
+    je spectator_on_player_left_go
+    ud2
+spectator_on_player_left_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+spectator_on_player_left_replay:
+    db 0x8a, 0x86, 0x44, 0x1c, 0x1f, 0x00, 0x3c, 0xff
+    jmp 0x27c734
+
 ; 0x242196 the input builder's last action query (spot): call -> suicide_key_on_spot (wraps engine_action_present 0x242460)
 global suicide_key_on_spot
 suicide_key_on_spot:
