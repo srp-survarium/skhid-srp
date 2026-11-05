@@ -98,7 +98,7 @@ use survarium::v026g::lobby::{self, ClientState};
 use survarium::v026g::maps;
 
 use super::MAINTENANCE_WINDOW;
-use super::core::{Core, Who};
+use super::core::{Core, JoinAt, Who};
 use super::play::{MatchPlayer, Running, match_profile};
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -521,7 +521,7 @@ impl Core<'_> {
             }
             RoomRequest::JoinMatch => {
                 // The member does not wait: into its room's match now.
-                self.room_join_at.insert(who.account_id, now);
+                self.room_join_at.insert(who.account_id, JoinAt::At(now));
                 self.room_late_join(who.account_id, now);
                 self.send_room_state(who, RoomCode::None, now);
             }
@@ -1376,11 +1376,12 @@ impl Core<'_> {
             return Ok(None);
         };
         let left = || {
-            let at = self
-                .room_join_at
-                .get(&who.account_id)
-                .copied()
-                .unwrap_or(now + wire::rules().late_join_wait);
+            let at = match self.room_join_at.get(&who.account_id) {
+                Some(JoinAt::At(at)) => *at,
+                // Its game asked: it goes in at once (`room_shown`).
+                Some(JoinAt::Shown) => now,
+                None => now + wire::rules().late_join_wait,
+            };
             at.saturating_duration_since(now).as_millis().div_ceil(1000) as u32
         };
         // Its place in the match is kept (its game started anew, or came
@@ -1690,8 +1691,8 @@ impl Core<'_> {
     fn room_shown(&mut self, account_id: u32, now: Instant) {
         // A spectator given a place: its game is back in the lobby and goes
         // into the match at once, with no room shown first.
-        if self.room_promoted.remove(&account_id) {
-            self.room_join_at.insert(account_id, now);
+        if self.room_join_at.get(&account_id) == Some(&JoinAt::Shown) {
+            self.room_join_at.insert(account_id, JoinAt::At(now));
         }
         if self.room_unseen.remove(&account_id).is_some() {
             self.room_join_at.remove(&account_id);
@@ -1783,7 +1784,7 @@ impl Core<'_> {
                     matches!(room.stage, Stage::InMatch { match_id: id, .. } if id == match_id)
                 });
                 if placed {
-                    self.room_promoted.insert(watcher.account_id);
+                    self.room_join_at.insert(watcher.account_id, JoinAt::Shown);
                 }
                 log::info!(
                     "{}: watches match {match_id:#x} no more{}",
@@ -2089,8 +2090,8 @@ impl Core<'_> {
             let at = *self
                 .room_join_at
                 .entry(account_id)
-                .or_insert(now + wire::rules().late_join_wait);
-            if at <= now {
+                .or_insert(JoinAt::At(now + wire::rules().late_join_wait));
+            if matches!(at, JoinAt::At(at) if at <= now) {
                 self.room_late_join(account_id, now);
             }
         }
