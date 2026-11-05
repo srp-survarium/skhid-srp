@@ -60,8 +60,8 @@ preferred-image VAs; `apply_modifier` is the kit-modifier getter 0x2D5AE0.
   only by the two name tables (0x9284E8, 0x9C9C88); no config or edit list names it; no open
   PR uses it. 42 (`artefact_synergy`) is patch 54's stopping list, 43/45 the medical ranks.
 - Keeper's draw is not a skill rank: srp rolls it once per match and writes it into modifier
-  40 of every kit of every player with the skill (bits 9..11: the draw 1..6, 0 none; only with
-  bit 3), so every game reads the same draw from the static info. The client makes it a kind
+  40 of every kit of every player, bots too, with the skill or not (bits 9..11: the draw 1..6,
+  0 none), so every game knows it at the map's load, before any Keeper player exists. The client makes it a kind
   of those the map has: present[(draw - 1) % n], uniform for 1, 2 or 3 kinds (Keeper's PR).
 - Bit 12 and above: nothing (a payload with one is refused).
 
