@@ -158,7 +158,7 @@ pub fn stays_up(at: &Estimate, keys: u32, turn: f32, stop: &Stop) -> bool {
     for k in 0..kin.blend_ticks + hold + 2 {
         // The keys count a tick more than the model's one-tick lag (the game may take them at once).
         let (held, turn) = if k < hold { (keys, if k == 0 { turn } else { 0.0 }) } else { (keys & !MOVE_KEYS, 0.0) };
-        at = advance(at, Tick { time: at.time + TICK_MS, keys: held, turn: (turn, 0.0), kick: 0.0 }, kin, level, Some(grid));
+        at = advance(at, Tick { time: at.time + TICK_MS, keys: held, turn: (turn, 0.0), kick: 0.0, jump: JumpGate::Open }, kin, level, Some(grid));
         // A fall that lands where the route drops is the route's.
         let falls = |feet: Vec3| top - feet.y >= mapdata::grid::LIP_DROP_M && !planned.iter().any(|landing| landing.distance_xz(feet) <= PLANNED_LANDING_M);
         if falls(at.feet) {
@@ -199,6 +199,25 @@ struct Tick {
     keys: u32,
     turn: (f32, f32),
     kick: f32,
+    /// [A318] Whether a jump pressed in this tick goes ([`JumpGate`]).
+    jump: JumpGate,
+}
+
+/// [A318] The client's jump gate for a press, past what the reckoned body itself knows (standing, uncrouched, no jump under
+/// way): `player_logic_jump_state` starts only with the bar at the jump's cost and not low (`player_stamina`, 0x2FC230), no
+/// battery carried (`can_sprint`'s item test, LIKELY) and legs that may jump (`motor::Hurt::may_jump`). A bot's is its own
+/// reckoning's ([`super::stamina::Reckoning::may_jump`]); a human's is not known: open.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub enum JumpGate {
+    #[default]
+    Open,
+    Shut,
+}
+
+impl JumpGate {
+    pub fn of(may: bool) -> Self {
+        if may { Self::Open } else { Self::Shut }
+    }
 }
 
 /// Ticks kept to be played again from a world: worlds come at most a few
@@ -290,6 +309,8 @@ pub struct BodyTrack {
     /// [A313] The legs' term of the speed factor (`Kinematics::speed_terms`); none is 1. Kept out of the level: a world's level is
     /// read without it and the body moves by both.
     legs: Option<f32>,
+    /// [A318] Whether the next press goes ([`Self::set_may_jump`]).
+    jump_gate: JumpGate,
     /// The lives the worlds showed, the present one counted.
     lives: u32,
     /// Where the body was last reckoned alive, and which life that was:
@@ -359,6 +380,11 @@ impl BodyTrack {
         self.legs = factor.filter(|f| f.is_finite() && *f > 0.0 && *f != 1.0);
     }
 
+    /// [A318] Whether a jump the body presses next would go ([`JumpGate`]): a bot's own reckoning sets it before each tick.
+    pub fn set_may_jump(&mut self, may: bool) {
+        self.jump_gate = JumpGate::of(may);
+    }
+
     /// The speed level the body is moved at: this life's from a world, else
     /// its profile's, else the nominal 1; times the legs' term.
     pub fn level(&self) -> f32 {
@@ -399,6 +425,7 @@ impl BodyTrack {
             keys: estimate.keys,
             turn: (0.0, 0.0),
             kick: estimate.kick,
+            jump: JumpGate::Open,
         };
         Some(advance(estimate, tick, kin, self.level(), grid))
     }
@@ -436,6 +463,7 @@ impl BodyTrack {
             keys,
             turn,
             kick,
+            jump: self.jump_gate,
         };
         self.ticks.push_back(tick);
         while self
@@ -652,7 +680,7 @@ impl BodyTrack {
         let mut forward = 0u32;
         for tick in self.ticks.iter().take_while(|tick| tick.time <= time) {
             let jump = tick.keys & key::JUMP != 0;
-            if jump && !held && tick.keys & key::CROUCH == 0 {
+            if jump && !held && tick.keys & key::CROUCH == 0 && tick.jump == JumpGate::Open {
                 let speed = if forward >= MOVING_TICKS { WALK_CAP_MS } else { 0.0 };
                 pressed = Some((tick.time, tick.keys, speed));
             }
@@ -764,6 +792,7 @@ fn advance(
         if tick.keys & key::JUMP != 0
             && at.keys & key::JUMP == 0
             && tick.keys & key::CROUCH == 0
+            && tick.jump == JumpGate::Open
             && at.arc.is_none()
             && at.node.is_some()
         {
@@ -1717,6 +1746,34 @@ pub(super) mod tests {
         }
         let at = track.estimate().unwrap();
         assert!(at.feet.x < 19.8 && at.feet.z > 13.0, "{at:?}");
+    }
+
+    /// [A318] With `kin.jump_arc` a press in place starts the client's jump (the body rises, then stands where it was at the
+    /// clip's end) unless the gate is shut (a carrier, a low bar): then the press does nothing; with the switch off, no arc.
+    #[test]
+    fn a_jump_arc_starts_only_through_the_gate() {
+        let grid = walled();
+        let on = Kinematics { jump_arc: true, ..Kinematics::default() };
+        let run = |kin: &Kinematics, may: bool| {
+            let mut track = BodyTrack::default();
+            track.fixed(fix(0, Vec3::new(10.0, 0.0, 10.0), 0.0), kin, Some(&grid));
+            track.set_may_jump(may);
+            track.decided(50, key::JUMP, (0.0, 0.0), 0.0, kin, Some(&grid));
+            let mut top = 0.0f32;
+            for time in (100..=1_000).step_by(50) {
+                track.decided(time, 0, (0.0, 0.0), 0.0, kin, Some(&grid));
+                top = top.max(track.estimate().unwrap().feet.y);
+            }
+            (top, *track.estimate().unwrap())
+        };
+        let (top, at) = run(&on, true);
+        assert!(top > 0.9, "the clip's rise: {top}");
+        assert!(at.arc.is_none() && at.feet.y.abs() < 1e-3 && at.node.is_some(), "{at:?}");
+        assert!(at.feet.distance_xz(Vec3::new(10.0, 0.0, 10.0)) < 0.05, "no keys: no travel, {at:?}");
+        let (top, at) = run(&on, false);
+        assert!(top.abs() < 1e-3 && at.arc.is_none(), "shut gate: {top} {at:?}");
+        let (top, _) = run(&Kinematics::default(), true);
+        assert!(top.abs() < 1e-3, "switch off: {top}");
     }
 
     /// A body that walks off a ledge lands on the floor below, though the

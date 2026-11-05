@@ -742,6 +742,13 @@ impl Tracker {
         }
     }
 
+    /// [A318] Whether a jump `place`'s body presses next would go ([`BodyTrack::set_may_jump`]).
+    pub fn set_may_jump(&mut self, place: Place, may: bool) {
+        if let Some(state) = self.places.get_mut(place) {
+            state.body.set_may_jump(may);
+        }
+    }
+
     /// What each place's throw keys throw, by place (decided where the profiles are read).
     pub fn set_throws(&mut self, throws: Vec<Throws>) {
         for (state, throws) in self.places.iter_mut().zip(throws) {

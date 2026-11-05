@@ -18,7 +18,13 @@
 //! within the body's radius above the arc's feet by more than [`CATCH_M`] and under its head is a wall; the arc lands on the
 //! highest floor within the radius that its feet come down through, or, at the clip's end, on the highest one under its feet.
 //! LIKELY: the sprint jump's leg (the right leg's clip rises 1.350 m, the left's 1.282 m: the left's is taken), the short jump's
-//! time scale 1, and the 0.1 m catch (the capsule's lower sphere on a lip).
+//! time scale 1, and the 0.1 m catch (the capsule's lower sphere on a lip). Also LIKELY: the clip's root alone from the press;
+//! the jump's animation lexeme is blended in over 0.3 s (the builder at 0x343CCF), so the client's first ~6 ticks mix the clip's
+//! root with the walk it leaves, and the landing blends back.
+//!
+//! The root tables are generated, not hand-made: `srp-026g/scripts/jump-arc/make_jump_arc.py` evaluates the stock clips
+//! (`animations/single/weapons/ak/player/stand/3rd_view/jump/*.b-spline` of the stock `resources.db`; no row of
+//! `release/content.tsv` names those clips) as clamped cubic B-splines and writes this file; its README names how to get them.
 
 use mapdata::{NodeId, Vec3, WalkGrid};
 
@@ -250,7 +256,7 @@ impl JumpArc {
 }
 
 /// A clip's root per frame (0..=24): rise, ahead, to the right (m), from the stock clips (`animations/single/weapons/ak/player/
-/// stand/3rd_view/jump/`, evaluated as clamped cubic B-splines by `traces-20261028/fx-team-a318/scripts/make_jump_arc.py`).
+/// stand/3rd_view/jump/`, evaluated as clamped cubic B-splines by `srp-026g/scripts/jump-arc/make_jump_arc.py`).
 type Root = [[f32; 3]; 25];
 
 /// `on_site`.
