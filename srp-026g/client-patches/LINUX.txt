@@ -1,6 +1,7 @@
 SURVARIUM 0.26g - LINUX
 
-Install Bash, curl, Winetricks, and Wine 11.0+ with modern WoW64 support.
+Install Bash, curl, Winetricks (with cabextract), and Wine 11.0+ with modern
+WoW64 support.
 Tested: Wine 11.8 Staging WoW64. Use wine and wineserver from the same
 installation. A Vulkan-capable graphics driver is required for DXVK.
 
@@ -20,8 +21,9 @@ For an existing game, apply the complete archive over its folder.
 To play directly without checking for updates, run bash Skhid.sh, or run
 bash play_skhid.sh from game/binaries/x86.
 
-First launch creates a Wine prefix and installs DXVK and Wine Gecko silently.
-Later launches reuse them. Settings: ~/.config/skhid/user.cfg (or
+First launch creates a Wine prefix and installs DXVK, Wine Gecko and the font
+Calibri (a 60 MB download, which the game's text needs) silently. Later
+launches reuse them. Settings: ~/.config/skhid/user.cfg (or
 $XDG_CONFIG_HOME/skhid/user.cfg).
 Select an English keyboard layout before starting to avoid text-input issues.
 For VPN setup, see VPN.txt; split tunnelling must cover Wine.
