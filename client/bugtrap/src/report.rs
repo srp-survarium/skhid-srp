@@ -533,8 +533,9 @@ unsafe fn log_tail(w: &mut dyn Write) {
 /// `srp_patches.log` beside the exe (vostok/log.rs; the game's working
 /// folder is the exe's): what the client patches said last.
 unsafe fn patch_tail(w: &mut dyn Write) {
-    let folders = crate::logs::folders();
-    let exe = &folders[1];
+    // The exe's folder from GetModuleFileNameW alone (logs::folders would
+    // ask the shell for Documents too).
+    let exe = crate::dump::folder();
     let mut path = Wide::<1400>::new();
     if exe.len == 0
         || path.wide(&exe.buf[..exe.len]).is_err()
