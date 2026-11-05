@@ -133,8 +133,10 @@ use super::{LateInputs, Settings};
 mod driven;
 mod late_join;
 mod live;
+mod spectate;
 mod start;
 use late_join::{Admission, LoadingProfile};
+pub(crate) use spectate::SpectatorAt;
 
 /// A tick is final this long after it: the server's event horizon.
 const HORIZON_MS: u32 = 250;
@@ -1018,6 +1020,12 @@ pub(crate) struct Game {
     stand_ins: Vec<start::StandIn>,
     /// `SRP_RECORD_DIR`: every datagram of the match ([`super::record`]).
     recording: Option<Recording>,
+    /// Games that watch the match from a room's queue: no places
+    /// ([`spectate`]).
+    spectators: Vec<spectate::Spectator>,
+    /// The spectators whose games left by themselves, not yet told
+    /// ([`Game::take_spectators_left`]): their sessions.
+    spectators_left: Vec<u32>,
 }
 
 impl Game {
@@ -1074,6 +1082,8 @@ impl Game {
             given_up: vec![false; players],
             stand_ins: Vec::new(),
             recording: None,
+            spectators: Vec::new(),
+            spectators_left: Vec::new(),
             drives: Self::new_drives(&formed),
             walkers,
             formed,
@@ -2065,6 +2075,7 @@ impl Game {
                 track(peer, serial, Flight::Roster(message.clone()), at);
             }
         }
+        self.roster_to_spectators(index, entered, at, &message);
         self.events.push((at, index, entered));
         let bot = self.is_bot(index);
         if let Some(recording) = self.recording.as_mut() {
@@ -3821,6 +3832,7 @@ impl Game {
                 _ => {}
             }
         }
+        self.relay_to_spectators(index, &message, time, now);
     }
 
     /// A client's whole world came (its 0xE0 chunks).
@@ -5205,6 +5217,7 @@ impl Game {
                 peer.stage = Stage::Gone;
             }
         }
+        self.spectators_finish(now);
         self.finished_at = Some(now);
     }
 
@@ -5568,6 +5581,7 @@ impl Game {
                 *slot = None;
             }
         }
+        datagrams.extend(self.poll_spectators(now));
         let empty = self
             .peers
             .iter()
@@ -5777,7 +5791,15 @@ impl Game {
     pub fn is_over(&self, now: Instant) -> bool {
         self.finished_at
             .is_some_and(|at| now.saturating_duration_since(at) >= self.settings.timing.linger)
-            || (self.finished_at.is_none() && self.everyone_left(now))
+            // Its spectators, let go first (`spectate`), are not waited for
+            // past their farewell.
+            || (self.over_unfinished(now) && self.spectators.is_empty())
+    }
+
+    /// Everyone in it left, or nobody has been in it for a while: over
+    /// without an end of its own.
+    fn over_unfinished(&self, now: Instant) -> bool {
+        (self.finished_at.is_none() && self.everyone_left(now))
             || self
                 .empty_since
                 .is_some_and(|since| now.saturating_duration_since(since) >= ABANDONED)

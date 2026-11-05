@@ -15,6 +15,7 @@ mod late_join;
 mod late_join_edge_cases;
 mod resync_gate;
 mod sockets;
+mod spectate;
 mod start;
 mod units;
 
