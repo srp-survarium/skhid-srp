@@ -20,6 +20,11 @@ pub struct UnstickTuning {
     /// first route), and the match is this old, ms. GUESS.
     pub suicide_life_ms: u32,
     pub suicide_match_ms: u32,
+    /// [A302] The quiet rule ([`Self::suicide_quiet_ms`]) waived for a bot hopeless long enough that the noise around it, not a
+    /// fight, is what keeps it alive ([`SuicideLoud`]). None: the quiet rule always holds (as before). PROVEN case: the owner's
+    /// Cologne match 0x151faf3d, player 6 pinned 135 s at (38.4, 33.7, 28.2), its body within 0.49 m through 24 ladder steps;
+    /// the self-kill never came, as a heard or told enemy was in its tracks every few seconds (the map's middle).
+    pub suicide_loud: Option<SuicideLoud>,
     /// … at most once a bot in this long, ms, and this many a team in a
     /// minute. Owner: one a bot in 3 minutes, two a team a minute.
     pub suicide_bot_gap_ms: u32,
@@ -124,6 +129,22 @@ pub enum StuckWindow {
     Walked,
 }
 
+/// [`UnstickTuning::suicide_loud`]: a hopeless bot may kill itself with enemies sensed around it, once it has been hopeless
+/// [`UnstickTuning::suicide_after_ms`] plus `after_ms`, as long as no hit came to it for `hit_quiet_ms` (a bot being shot is in
+/// a fight: the enemy's kill). GUESS both: half the owner's delay again; a burst and its aim.
+#[derive(Clone, Copy, Debug, PartialEq, Serialize, Deserialize)]
+#[serde(default, deny_unknown_fields)]
+pub struct SuicideLoud {
+    pub after_ms: u32,
+    pub hit_quiet_ms: u32,
+}
+
+impl Default for SuicideLoud {
+    fn default() -> Self {
+        Self { after_ms: 30_000, hit_quiet_ms: 5_000 }
+    }
+}
+
 /// How a drop the body was held at the top of is shut ([`UnstickTuning::drop_shut`]).
 #[derive(Clone, Copy, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(default, deny_unknown_fields)]
@@ -149,6 +170,7 @@ impl Default for UnstickTuning {
             suicide_quiet_ms: 15_000,
             suicide_life_ms: 20_000,
             suicide_match_ms: 120_000,
+            suicide_loud: Some(SuicideLoud::default()),
             suicide_bot_gap_ms: 180_000,
             suicide_team_per_min: 2,
             suicide_min_tickets: 5,
@@ -178,7 +200,8 @@ impl Check for UnstickTuning {
         check(
             self.suicide_after_ms.is_none_or(|after| after >= self.suicide_quiet_ms),
             "unstick.suicide_after_ms",
-        )
+        )?;
+        check(self.suicide_loud.is_none_or(|loud| loud.hit_quiet_ms >= 1_000), "unstick.suicide_loud.hit_quiet_ms")
     }
 }
 

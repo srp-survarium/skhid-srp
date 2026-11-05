@@ -1044,6 +1044,8 @@ pub struct Facts {
     /// Since the bot last sensed an enemy or took a hit, ms (`u32::MAX`:
     /// not in this life).
     pub quiet_ms: u32,
+    /// Since it last took a hit, ms (`u32::MAX`: not in this life): [`UnstickTuning::suicide_loud`]'s fight test.
+    pub hit_quiet_ms: u32,
     /// The life's and the match's age, ms.
     pub life_ms: u32,
     pub match_ms: u32,
@@ -1071,11 +1073,16 @@ impl Facts {
     /// (a second try in the life) is not counted against the bot's and the
     /// team's caps a second time.
     fn allowed(&self, rule: &UnstickTuning, again: bool) -> bool {
-        rule.suicide_after_ms.is_some_and(|after| {
-            self.hopeless
-                .is_some_and(|h| self.now.saturating_sub(h.since) >= after)
-        })
-            && self.quiet_ms >= rule.suicide_quiet_ms
+        let Some(after) = rule.suicide_after_ms else {
+            return false;
+        };
+        let hopeless_ms = self.hopeless.map(|h| self.now.saturating_sub(h.since));
+        // The quiet rule, or [A302] its waiver for a bot hopeless that much longer that no hit has come to lately.
+        let loud = rule.suicide_loud.is_some_and(|loud| {
+            hopeless_ms.is_some_and(|ms| ms >= after.saturating_add(loud.after_ms)) && self.hit_quiet_ms >= loud.hit_quiet_ms
+        });
+        hopeless_ms.is_some_and(|ms| ms >= after)
+            && (self.quiet_ms >= rule.suicide_quiet_ms || loud)
             && !self.carrying
             && self.life_ms >= rule.suicide_life_ms
             && self.match_ms >= rule.suicide_match_ms
@@ -2070,6 +2077,7 @@ mod tests {
             now: 100_000,
             hopeless: Some(Hopeless { since: 30_000, why: HopelessWhy::Pocket }),
             quiet_ms: u32::MAX,
+            hit_quiet_ms: u32::MAX,
             life_ms: 90_000,
             match_ms: 200_000,
             carrying: false,
@@ -2126,6 +2134,27 @@ mod tests {
         // The setting at 0 is never.
         let off = UnstickTuning { suicide_after_ms: None, ..rule() };
         assert_eq!(self_kill_step(SelfKill::Ready, &ok, &off), (SelfKill::Ready, None));
+    }
+
+    /// [A302] Enemies sensed all round keep a hopeless bot alive only so long: hopeless 60 + 30 s, with no hit to it in 5 s, the
+    /// quiet rule is waived (Cologne 0x151faf3d, player 6: pinned 135 s, a heard or told enemy every few seconds). A hit
+    /// lately still stops it, and every other rule holds; off, the quiet rule always does.
+    #[test]
+    fn a_long_hopeless_bot_is_not_kept_alive_by_the_noise_around_it() {
+        // Sensed 2 s ago, hit never; hopeless since `since`, now 100 s.
+        let loud = |since, hit_quiet_ms| Facts {
+            hopeless: Some(Hopeless { since, why: HopelessWhy::Ladder(Vec3::new(38.4, 33.7, 28.2)) }),
+            quiet_ms: 2_000,
+            hit_quiet_ms,
+            ..facts()
+        };
+        assert!(!sends(SelfKill::Ready, &loud(10_001, u32::MAX)), "89.9 s hopeless: the quiet rule holds");
+        assert!(sends(SelfKill::Ready, &loud(10_000, u32::MAX)), "90 s hopeless, no hit: waived");
+        assert!(!sends(SelfKill::Ready, &loud(10_000, 4_999)), "a hit 4.9 s ago: a fight");
+        assert!(sends(SelfKill::Ready, &loud(10_000, 5_000)), "a hit 5 s ago");
+        assert!(!sends(SelfKill::Ready, &Facts { carrying: true, ..loud(10_000, u32::MAX) }), "the other rules hold");
+        let off = UnstickTuning { suicide_loud: None, ..rule() };
+        assert_eq!(self_kill_step(SelfKill::Ready, &loud(0, u32::MAX), &off), (SelfKill::Ready, None), "off: never while loud");
     }
 
     /// After the bit the world has 4 s to show the body dead; if it does not,
