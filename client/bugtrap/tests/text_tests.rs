@@ -280,6 +280,8 @@ fn a_wrapped_ring_lists_its_last_lines_and_counts_what_it_kept() {
     assert!(out.as_str().starts_with("Events:    1500 recorded, the last 1024 kept: player-gone 1024\r\n           the last 3, seconds before the crash:\r\n"), "{}", out.as_str());
     assert_eq!(out.as_str().lines().count(), 5);
     assert!(out.as_str().ends_with("  -0.000 s  player gone: place 0\r\n"));
+}
+
 #[test]
 fn full_dumps_are_asked_for_in_any_case_with_spaces() {
     for value in ["full", "FULL", "Full", "full ", " full\t"] {
