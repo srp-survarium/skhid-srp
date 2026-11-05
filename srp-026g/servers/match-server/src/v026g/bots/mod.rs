@@ -2071,6 +2071,68 @@ impl Bots {
                         .is_some_and(|p| p.feet.distance_xz(at) <= trap_know::CAUGHT_NEAR_M)
             });
             self.features.own_traps.own_team_caught += u32::from(caught);
+            // [A309] The bench's line per trap of the bots that went off: whose, who stood nearest it (the catch), how long after
+            // its press.
+            #[cfg(test)]
+            {
+                let by = self.teams[usize::from(team)].knowledge.traps.all().iter().find(|known| known.at.distance_xz(at) < 1.0).map(|known| known.by);
+                let pressed = by
+                    .and_then(|by| self.bots.iter().flatten().find(|b| b.place == by))
+                    .and_then(|b| b.features.traps.pressed)
+                    .filter(|(landed, _, _)| landed.distance_xz(at) < 1.0)
+                    .map(|(_, _, when)| time.saturating_sub(when) as f32 / 1000.0);
+                let under = self.tracker.nearest_body(at, trap_know::CAUGHT_NEAR_M);
+                let who = match (under, by) {
+                    (None, _) => "nobody".to_string(),
+                    (Some(p), Some(b)) if p == b => "placer".to_string(),
+                    (Some(p), _) => match self.bots.get(p).and_then(|b| b.as_ref()) {
+                        Some(b) if b.team == team => "mate".to_string(),
+                        Some(_) => "enemy".to_string(),
+                        None => format!("player {p} (not a bot)"),
+                    },
+                };
+                eprintln!(
+                    "  trap went off: team {team} at ({:.1}, {:.1}) t {time} placer {} under {who} {} after the press",
+                    at.x,
+                    at.z,
+                    by.map_or("unknown".to_string(), |b| b.to_string()),
+                    pressed.map_or("unknown".to_string(), |s| format!("{s:.1} s")),
+                );
+            }
+            // [A292] The bench's line per own-team catch: who, how long after the press, and the catcher's heading against the
+            // placer's at the press (0 deg: the same way on, 180: coming back).
+            #[cfg(test)]
+            for bot in self.bots.iter().flatten().filter(|bot| bot.team == team && bot.hurt.leg_broken) {
+                let Some(me) = view.place(bot.place).filter(|p| p.feet.distance_xz(at) <= trap_know::CAUGHT_NEAR_M) else {
+                    continue;
+                };
+                let by = self.teams[usize::from(team)].knowledge.traps.all().iter().find(|known| known.at.distance_xz(at) < 1.0).map(|known| known.by);
+                let press = by.and_then(|by| self.bots.iter().flatten().find(|b| b.place == by)).and_then(|b| b.features.traps.pressed).filter(|(landed, _, _)| landed.distance_xz(at) < 1.0);
+                let who = if by == Some(bot.place) { "placer" } else { "mate" };
+                let (after, heading) = match press {
+                    Some((_, v, when)) => {
+                        let (a, b) = (me.velocity, v);
+                        let n = (a[0].hypot(a[1]) * b[0].hypot(b[1])).max(1e-6);
+                        let deg = ((a[0] * b[0] + a[1] * b[1]) / n).clamp(-1.0, 1.0).acos().to_degrees();
+                        let moving = a[0].hypot(a[1]) > 0.5 && b[0].hypot(b[1]) > 0.5;
+                        (format!("{:.1} s", time.saturating_sub(when) as f32 / 1000.0), if moving { format!("{deg:.0} deg") } else { "none (standing)".into() })
+                    }
+                    None => ("unknown".into(), "unknown".into()),
+                };
+                // [A309] What moved it: its last order to the legs, whether it had a route, and its own fresh-trap guard.
+                let go = match bot.intent.go {
+                    plays::Go::Stay => "stay".to_string(),
+                    plays::Go::To { at: to, .. } => format!("to {:.1} m off (target {:.1} m from the trap)", to.distance_xz(me.feet), to.distance_xz(at)),
+                };
+                eprintln!(
+                    "  trap own catch: {who}, {after} after the press, heading {heading} off the placer's at the press, speed {:.1}, play {:?}, go {go}, route {}, fresh guard {} ({} floors shut)",
+                    me.speed(),
+                    bot.assignment.as_ref().map(|a| a.kind),
+                    bot.route.is_some(),
+                    bot.features.traps.fresh.is_some(),
+                    bot.features.traps.fresh_shut.len()
+                );
+            }
             #[cfg(test)]
             for bot in self.bots.iter().flatten().filter(|bot| bot.team == team && bot.hurt.leg_broken) {
                 if view
