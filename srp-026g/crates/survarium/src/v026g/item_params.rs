@@ -95,7 +95,7 @@ impl PocketShare {
     }
 
     /// `parameters.fills_whole_pocket` and `parameters.pocket_units` (1 or
-    /// 2, none 1; the lobby reads it from the card's property 163,
+    /// 2, none 1; the lobby reads it from the card's property 166,
     /// content-edit `pocket-units-1`): an item that fills a whole pocket
     /// has no units.
     fn from_config(parameters: Option<&ConfigValue>) -> Result<Self, ConfigError> {

@@ -82,7 +82,7 @@ The owner: "each one takes two pocket slots". A pocket holds at most 5 units (`M
   stops srp at start.
 - **The lobby:** the exe gives the movie a fixed set of an item's parameters
   (`fill_items_dictionary_impl` 0x286410: `fills_whole_pocket` yes, other keys no), but every card
-  line. `pocket-units-1` carries `pocket_units` to the item descriptors as card property 163, not
+  line. `pocket-units-1` carries `pocket_units` to the item descriptors as card property 166, not
   comparable (no row on the card). `QuickSlotSize.of` reads it (`PAIR`), `PlayerInfo.pocketUnits`
   halves the pocket: drops, the slider, the ammo window, the buy dialog's pocket count.
 - **The server** caps an RGD-5 pocket at 2 (`loadouts::equipped_units`: half of the largest pocket;

@@ -19,7 +19,7 @@ package
    //   rest stays in the inventory (LobbyMenu.relocate_to_paperdoll; not checked here);
    // - a booster (fills a whole pocket), ammo (one clip), a helmet (no slider): as before;
    // - what a pocket of 0..5 units holds (PlayerInfo.pocketUnits, docs/notes/one-pocket-a-type.md):
-   //   its size of a medkit, one booster, half its size of RGD-5s (card property 163: 2), at least one.
+   //   its size of a medkit, one booster, half its size of RGD-5s (card property 166: 2), at least one.
    // Prints "BUY30 ..." lines, "BUY30 SHOT dialog-30" while the medkit's dialog at 30 is shown for
    // a screenshot, and ends with "BUY30 RESULT pass" or "BUY30 RESULT fail: ...".
    public class ConsumablesBuyHarness extends Sprite
@@ -110,7 +110,7 @@ package
             var descriptor:* = new (C("survarium.data.ItemDescriptor"))("consumables-buy-check");
             descriptor.setItemsDictionary([
                item(MEDKIT,"MEDKITS","Medikit",true,false),
-               item(GRENADE,"GRENADES","RGD-5",true,false,0,[{prop_id:163,prop_value:"2"}]),
+               item(GRENADE,"GRENADES","RGD-5",true,false,0,[{prop_id:166,prop_value:"2"}]),
                item(TRAP,"BOOBY_TRAPS","Trap",true,false),
                item(BOOSTER,"MEDKITS","Tornado Energy Drink",true,true),
                item(AMMO,"PISTOL_AMMO","9x18",true,false,AMMO_CLIP),

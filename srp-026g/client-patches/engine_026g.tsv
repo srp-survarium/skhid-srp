@@ -138,3 +138,4 @@ engine_heap_free	0x870054	-	unsigned int engine_heap_free(void *heap, unsigned i
 engine_create_sound_voice	0x059e70	EAX:world ESP+4:scene ESP+8:propagator ESP+12:emitter	struct sound_voice *engine_create_sound_voice(struct sound_world *world, struct sound_scene *scene, struct new_sound_propagator *propagator, const void *emitter)	thunk	
 engine_detach_voice	0x05cb80	ESP+4:propagator	void engine_detach_voice(struct new_sound_propagator *propagator)	stdcall	
 engine_sound_options	vostok::sound::sound_propagator_emitter+0x8	ECX:emitter	const struct sound_options *engine_sound_options(const struct sound_propagator_emitter *emitter)	virtual	
+engine_buffer_reallocate	0x07ab70	ESI:mutable_buffer EDI:capacity	void engine_buffer_reallocate(void *buffer, unsigned int capacity)	thunk	

@@ -143,6 +143,7 @@ global engine_heap_free
 global engine_create_sound_voice
 global engine_detach_voice
 global engine_sound_options
+global engine_buffer_reallocate
 engine_action_present equ 0x242460   ; 0x242460 survarium::player_input_handler::action_present: handler ESP+4, action ESP+8, state ESP+12; pops 12; AL; stdcall, called directly
 engine_create_file_a equ 0x870048   ; the IAT slot 0x870048 (an import, stdcall)
 engine_write_file equ 0x870108   ; the IAT slot 0x870108 (an import, stdcall)
@@ -1824,6 +1825,22 @@ engine_sound_options:
     mov ecx, [esp + 20]   ; emitter
     mov eax, [ecx]                   ; this's vtable
     call [eax + 0x8]
+    pop edi
+    pop esi
+    pop ebx
+    pop ebp
+    ret
+
+    align 16, db 0xCC
+engine_buffer_reallocate:
+    ; 0x7ab70 vostok::network_core::mutable_buffer::reallocate: buffer ESI, capacity EDI; pops 0
+    push ebp
+    push ebx
+    push esi
+    push edi
+    mov esi, [esp + 20]   ; buffer
+    mov edi, [esp + 24]   ; capacity
+    call 0x7ab70
     pop edi
     pop esi
     pop ebx

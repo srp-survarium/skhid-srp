@@ -180,9 +180,7 @@ that rule is mended when the accounts load, and never plays.
 |---|---|---|
 | `SRP_DATA_DIR` | `./data` | `srp.db` (accounts, sessions, and the 0.26g `g26_*` tables; since 2026-10-12 also the finished matches' results screens not shown yet and each account's play period, `g26_results`; since 2026-10-20 the admin's audit trail, `g26_admin_actions`, and the matches each account used a drop card on, `g26_drop_cards`), `backups/` (a copy at every start) |
 | `SRP_DB` | on | `off`: everything in memory only |
-| `SRP_LOG_FILES` | on | `off`: no `logs/<server>.log`, stdout only |
-| `SRP_LOG_DIR` | unset | A folder: every line srp prints, in one file per UTC day (`srp-YYYY-MM-DD.log`), added to across restarts. The compose file sets `/srv/srp/data/logs` (the data volume): a container's own output is gone at every update |
-| `SRP_LOG_KEEP_DAYS` | 14 | Files of `SRP_LOG_DIR` older than this are deleted (at least 1) |
+| `SRP_LOG_DIR` | `logs` | Each server's lines in `<server>.log` (login, lobby, match, web, srp), dated, added to across restarts; rotated to `.1` (`.1` becomes `.2`, ...) at a size of its server's, about two days of each kept, the lobby about 12 (match 32 x 8 MB, lobby 16 x 4 MB, srp 4 x 4 MB, login 4 x 2 MB, web 2 x 2 MB: 348 MB). `off`: stdout only (the image's default). The compose file sets `/srv/srp/data/logs` (the data volume): a container's own output is gone at every update |
 | `RUST_LOG` | `info` | The log level |
 | `SRP_SNAPSHOT_DIR` | `logs/snapshots` | Where the match server keeps accepted worlds; `off`: nowhere |
 | `SRP_RECORD_DIR` | unset (off; the compose file sets `/srv/srp/data/recordings`) | Match recordings: every datagram of a match in and out (no addresses), one LZMA2-packed file per match (`servers/match-server/src/v026g/record.rs` has the format); read with `srp-recording` |

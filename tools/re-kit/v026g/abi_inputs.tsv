@@ -531,6 +531,11 @@ va	name	location	role	basis
 0x0007ab30	vostok::network_core::mutable_buffer::resize	stack+4	requested_used_size	observed
 0x0007ab70	vostok::network_core::mutable_buffer::reallocate	ESI	the mutable_buffer {allocator, begin, capacity, size}; a null allocator: the assert "mutable buffer overflow" (0x9E3398), then a read through the null allocator (0x7ABF1)	observed
 0x0007ab70	vostok::network_core::mutable_buffer::reallocate	EDI	the new capacity (resize: the size asked, or the capacity doubled past it)	observed
+0x000eb590	vostok::memory::mt_allocator::call_realloc	ECX	the allocator (the global multithreaded one, 0xA8001C, vtable 0x9E6000 slot +0x14; mutable_buffer::reallocate calls it)	observed
+0x000eb590	vostok::memory::mt_allocator::call_realloc	entry ESP+4	the block, or 0 for a new one	observed
+0x000eb590	vostok::memory::mt_allocator::call_realloc	entry ESP+8	the new size	observed
+0x000eb5b0	vostok::memory::mt_allocator::call_free	ECX	the allocator (vtable slot +0x18; the history item destructor 0x324910 calls it for a buffer with an allocator)	observed
+0x000eb5b0	vostok::memory::mt_allocator::call_free	entry ESP+4	the block (0: nothing)	observed
 0x0007ac10	vostok::network_core::buffer_writer::w	stack+4	buffer_writer	observed
 0x0007ac10	vostok::network_core::buffer_writer::w	stack+8	source_bytes	observed
 0x0007ac10	vostok::network_core::buffer_writer::w	EDI	byte_count	observed
@@ -3161,6 +3166,11 @@ va	name	location	role	basis
 0x00323bf0	survarium::animation_analysis_result::animation_analysis_result	entry ESP+4	unsigned entry count multiplied by0x1C for leg-key-time buffer	observed
 0x00323f10	survarium::player_serialized_state::clear	ESI	player serialized state	inferred
 0x00324010	survarium::bullet_manager_history_item::clear	ESI	bullet manager history item	inferred
+0x00323f90	survarium::bullet_manager_history_item::serialize	EDI	the bullet item (game_state_history_item+0xB4690): its mutable_buffer at +0x2400 {+0 allocator, +4 data, +8 capacity, +0xC size}, the inline 0x2400 bytes at +0 (capacity set at 0x324537)	observed
+0x00323f90	survarium::bullet_manager_history_item::serialize	ESI	the buffer_writer (+0x14: its mutable_buffer); writes u16 size, then the bytes	observed
+0x00324090	survarium::statistics_history_item::serialize	EDI	the statistics item (game_state_history_item+0xB6AB8): data +0xC04, size +0xC0C, the inline capacity 0xC00 set at 0x32457E	observed
+0x00324090	survarium::statistics_history_item::serialize	ESI	the buffer_writer (+0x14: its mutable_buffer); writes u16 size, then the bytes	observed
+0x003247d0	survarium::player_history_item::construct	ECX	the player item (0x9054 bytes; 20 at game_state_history_item+0): two inline 0x1000-byte buffers, their mutable_buffers at +0x1000 and +0x2028+0x1000, +0x2050 the animation	observed
 0x00324390	survarium::statistics_history_item::clear	ESI	statistics history item or compatible shared layout	inferred
 0x00324510	survarium::game_state_history_item::construct	ESI	unconstructed C0BCC-byte record; also called after destroy at the same address	observed
 0x00324910	survarium::game_state_history_item::destroy	stack+4	constructed game history record; frees members but not record storage	observed
@@ -5468,3 +5478,10 @@ va	name	location	role	basis
 0x002ffce0	survarium::stack_item::resupply_from_profile_slot	entry ESP+4	the kit slot record: +2 the allowance u16 (the kit's count)	observed
 0x002ffce0	survarium::stack_item::resupply_from_profile_slot	entry ESP+8	the stock record: +8 the units left to take (lowered by what is taken)	observed
 0x00288d60	survarium::lobby_menu::process_default_relocate_item	at 0x289A50..0x289BFB	after the moves, when the kit's pockets got fewer or smaller: each of the six pockets (table 0x9C52D8) past the count is moved to the inventory (dst 64h), each within it sent again with min(units, 1 if parameters/fills_whole_pocket else the pocket size)	observed
+0x001f0e70	survarium::match_options::deserialize	entry ESP+4	the options it fills, in wire order: 20 profiles (0x45FC bytes each), then u8 map (maps_dict id) +577B4h (0x1F0EAD), u8 places +577B5h, u32 seed/match id +577B0h (0x1F0ECD), u16 level +577B6h (0x1F0EDC), 28 f32 +577BCh, 20 u8 squads +5782Ch; the crash breadcrumbs (vostok/breadcrumbs.rs) read map, places, seed and level after it	observed
+0x002ff930	survarium::weapon_controller_core::serialize	ECX	controller	observed
+0x002ff930	survarium::weapon_controller_core::serialize	entry ESP+4	writer	observed
+0x002ff970	survarium::weapon_controller_core::deserialize	ECX	controller	observed
+0x002ff970	survarium::weapon_controller_core::deserialize	entry ESP+4	reader	observed
+0x00330a20	survarium::hit_animations_selector::hit_body_part::deserialize	ECX	hit body parts	observed
+0x00330a20	survarium::hit_animations_selector::hit_body_part::deserialize	EAX	reader	observed

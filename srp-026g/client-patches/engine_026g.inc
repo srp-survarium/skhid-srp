@@ -462,3 +462,6 @@ extern engine_detach_voice
 ; const struct sound_options *engine_sound_options(const struct sound_propagator_emitter *emitter)
 ; virtual vostok::sound::sound_propagator_emitter+0x8 (1 vtables of vtables.tsv: 0x38990): emitter ECX; pops 0; EAX
 extern engine_sound_options
+; void engine_buffer_reallocate(void *buffer, unsigned int capacity)
+; 0x7ab70 vostok::network_core::mutable_buffer::reallocate: buffer ESI, capacity EDI; pops 0
+extern engine_buffer_reallocate

@@ -183,6 +183,10 @@ bullet manager's) is a `vostok::Lock<T>` instead: a spin lock, its value
 `&mut` inside `with`, a lock taken again on its own thread a panic. A
 static that is not all zeros goes to `patches.data`, a zero one to
 `patches.state` (ARENA).
+The crash report's breadcrumbs are `vostok::breadcrumbs::record(thread,
+Crumb::...)`: a hook at a notable event (never a frame) records one into a
+ring of 1024 in `patches.state`, which the crash reporter reads after a
+crash (`client/bugtrap/src/breadcrumbs.rs`, README "Crash details").
 
 The declaration is names only; the facts are in the tables:
 

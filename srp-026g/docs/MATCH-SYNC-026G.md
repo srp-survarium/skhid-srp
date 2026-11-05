@@ -134,8 +134,9 @@ u16 len + game effect player   (new in 0.26g)
 
 - The player blocks have no length, so the sections are found **from the
   end**, by chaining the `u16` prefixes.
-- A world is at most 0x8000 bytes: the client's own `hash()` serializes into
-  a 0x8000-byte buffer. The server sends 0xE8 with `compressed` = 0.
+- A world is at most 0xF000 bytes: the client's own `hash()` serializes into
+  a buffer of that size (patch 98; 0x8000 in the original exe), and the
+  history item's six sections grow on the heap. The server sends 0xE8 with `compressed` = 0.
 - What the server reads for results is small: the **11-byte statistics
   tail** (two team points, the winner byte, the active mask) and the
   timelimit rule's 13 bytes, found by their signature (bytes 4..8 equal the
@@ -152,8 +153,8 @@ u16 len + game effect player   (new in 0.26g)
 |---|---|
 | Carrier | client → server **0xE0 with a payload**, always alone in its datagram. An empty 0xE0 is a real leave |
 | Chunk | `u32 item_time, u16 offset, u16 total, data[n]`, n = min(480, total − offset); datagram 492 bytes |
-| Burst | at most 69 chunks (0x8000 bytes); each resent every 500 ms until acked; any order |
-| Server checks | `offset % 480 == 0`, `offset < total ≤ 0x8000`, exact length; drop duplicates by (item time, offset); reassemble per item time |
+| Burst | at most 128 chunks (0xF000 bytes; 69 for the original's 0x8000); each resent every 500 ms until acked; any order |
+| Server checks | `offset % 480 == 0`, `offset < total ≤ 0xF000`, exact length; drop duplicates by (item time, offset); reassemble per item time |
 | First world | sent unasked in `on_match_ready`, before 0xDA: the initial item `[core+0x2FC0]` |
 | Later worlds | on request: server → client **0xF6 with one payload byte `00`** (an empty 0xF6 fails the length check and drops the whole datagram). The client uploads its **event-horizon item** |
 | Pool guard | the client's packets come from a pool of 256; an empty pool crashes it. The patch skips an upload unless `chunks + in use + 16 ≤ capacity` |
@@ -278,6 +279,19 @@ once.
 - A player back in the match (in the others' worlds since its entry) is put
   at the match clock by its first world, as a resynced client is, and its
   inputs are taken while that world is on its way.
+- **A game already back in step is not resynced** (`agrees_now`, since
+  2026-11-05): just before a resync the server looks at the game's newest
+  report, past its disagreement and not yet settled, whose tick more than
+  half of the games in the simulation reported alike. If the game's CRC
+  there is that one, the resync is skipped ("... but its hash at T ms
+  matches the majority's; resync skipped") and its older wrong reports
+  count no more. The hash is the CRC of the bytes a resync would load, so
+  such a resync loads what the game has. 0.69 does the same on the client
+  (`process_dynamic_match_info` 0x2001AF7B0, "ignoring resync request: hash
+  on time %d matches"). In 0.26g the client cannot: 0xE5 frees its whole
+  history before 0xE8 comes (match.md section 17), and 0xE5 carries no hash.
+  Live, 2026-11-04 (match 0x60ebe205): the world a game gave just ahead of
+  its resync (tick 200700) was the majority's byte for byte.
 - Who is wrong (`judge`): the majority's CRC is right. With no majority, a
   client known to be out of step is wrong; else the side with the better
   links is right, if it clearly outweighs the rest (`TRUST_MARGIN`); else
@@ -533,7 +547,9 @@ plain reliables (E3, F3..F5).
 
 - `SRP_PACKET_LOG`: the packet capture (Wireshark is not installed).
 - `SRP_SNAPSHOT_DIR`: saved worlds, with their kind (`unreadable` among
-  them; `wrong`: a game's own world as it was found out of step).
+  them; `wrong`: a game's own world as it was found out of step; `split`: a
+  game's world at its first report against the majority, with a majority
+  game's `checked` world asked for at the same moment).
 - `client-patches/check_world_roundtrip_026g.py <survarium.exe> [dumps]`:
   for each saved world, a late joiner and a resynced game load it and save it at
   once under Unicorn, through every patch hook inside the world's load and save.

@@ -1079,6 +1079,9 @@ package
          this.player_profile.profileItems.addEventListener(Events.OPEN_MODIFIERS,this.openModifierWindow);
          this.player_profile.profileItems.addEventListener(ListEvent.ITEM_ROLL_OVER,this.showPdItemHint);
          this.player_profile.profileItems.addEventListener(ListEvent.ITEM_ROLL_OUT,this.hideItemHint);
+         // The kit's ammo list: a round's card, the inventory's.
+         this.player_profile.addEventListener(AmmoShareElement.SHOW_CARD,this.showAmmoItemHint);
+         this.player_profile.addEventListener(AmmoShareElement.HIDE_CARD,this.hideItemHint);
          this.player_profile.profileItems.addEventListener(PaperDollBase.PAPERDOLL_UPDATED,this.updateHintItem);
          shop_list = new SrvGangShop();
          this.shop_list.name = "inventory_list";
@@ -1355,14 +1358,34 @@ package
          // the card is this slot's now: no list row's card or comparison left over
          this.hideItemHint(null);
          _hintSlot = e.itemRenderer as IPaperDollSlot;
+         this.showKitCard(e.itemData,this.player_profile.x + e.itemRenderer.x + e.itemRenderer.width + 3,this.player_profile.y + e.itemRenderer.y - 5);
+      }
+
+      // A round of the kit's ammo list: its card beside the list's row, as a kit slot's.
+      private function showAmmoItemHint(e:Event) : void
+      {
+         var element:AmmoShareElement = e.target as AmmoShareElement;
+         if(element == null || element.cardItem == null)
+         {
+            return;
+         }
+         this.hideItemHint(null);
+         var at:Point = this._cards.globalToLocal(element.localToGlobal(new Point(element.width + 3,-5)));
+         this.showKitCard(element.cardItem,at.x,at.y);
+      }
+
+      // The item card (the inventory's) of a kit's item at (x, y) of the cards' layer, uncompared,
+      // kept on the stage and faded in.
+      private function showKitCard(item:Object, x:Number, y:Number) : void
+      {
          this.itemHintRenderer.displayOrange(true);
          this.itemHintRenderer.displaylabel(false);
          this.itemHintRenderer.mouseEnabled = this.itemHintRenderer.mouseChildren = false;
          this.itemHintRendererSec.mouseEnabled = this.itemHintRendererSec.mouseChildren = false;
-         this.itemHintRenderer.x = this.player_profile.x + e.itemRenderer.x + e.itemRenderer.width + 3;
-         this.itemHintRenderer.y = this.player_profile.y + e.itemRenderer.y - 5;
+         this.itemHintRenderer.x = x;
+         this.itemHintRenderer.y = y;
          this._cards.addChild(this.itemHintRenderer);
-         this.itemHintRenderer.data = e.itemData;
+         this.itemHintRenderer.data = item;
          this.itemHintRenderer.itemCompare.setSecondaryWeapon(null);
          var maxPox:int = this.itemHintRenderer.y + this.itemHintRenderer.height;
          if(maxPox > MainScene.stageHeight - 2)

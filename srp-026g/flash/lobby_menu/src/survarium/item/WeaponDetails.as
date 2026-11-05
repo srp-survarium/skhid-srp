@@ -1,5 +1,6 @@
 package survarium.item
 {
+   import survarium.data.ItemDescriptor;
    import survarium.data.LocalizationData;
    import survarium.player.MatchEffects;
 
@@ -16,6 +17,10 @@ package survarium.item
       // In a match's view (Alt): the weapon's own base values, before its modifications, the kit
       // and the skills, for the rows that change ("base -> in a match"); null in the card's own.
       private var base:Object = null;
+      // Its rounds' muzzle speed (their card line 163, ammo-cards-1): {kind:"one", value} when every
+      // round it takes has the same, {kind:"varies"} when they differ, null without rounds.
+      private var speed:Object = null;
+      private static const SPEED:int = 163;
       public function WeaponDetails(data:Object) { values = data; }
       // The weapon's stats with its modifications; with effects (held Alt), as a match has them
       // with the kit and the skills too.
@@ -24,10 +29,28 @@ package survarium.item
          if(item == null || !item.isWeapon) return null;
          var details:WeaponDetails = fromProperties(item.properties);
          if(details == null) return null;
+         details.speed = roundsSpeed(item.dictId);
          if(effects != null) details.base = copy(details.values);
          details.applyWeaponModifiers(item.modifiers);
          if(effects != null) for(var id:String in details.values) details.values[id] = effects.stat(item,int(id),details.values[id]);
          return details;
+      }
+      private static function roundsSpeed(weapon:int) : Object
+      {
+         var items:ItemDescriptor = ItemDescriptor.getItemDescriptor("InventoryItems");
+         var found:Number = NaN;
+         for each(var id:int in ItemFactory.getList(weapon))
+         {
+            for each(var prop:Object in items.getItemDescription(id).item_properties)
+            {
+               if(prop.prop_id != SPEED) continue;
+               var n:Number = ModificationRolls.value(prop);
+               if(!isFinite(n)) continue;
+               if(isNaN(found)) found = n;
+               else if(n != found) return {kind:"varies"};
+            }
+         }
+         return isNaN(found) ? null : {kind:"one",value:found};
       }
       private static function copy(from:Object) : Object
       {
@@ -131,6 +154,24 @@ package survarium.item
          result.push({kind:"stat",id:CHAMBER,label:label,value:value,verdict:verdictOf(before,values[CHAMBER],"lower"),
             comparison:{kind:"lower",value:Number(modified)}});
       }
+      // The rounds' speed: one number, or "varies" (neutral) when its rounds differ; a dash beside a
+      // compared weapon that has a speed, so the rows stay aligned.
+      private function bulletSpeed(result:Array, other:WeaponDetails) : void
+      {
+         var label:String = LocalizationData.getName("st_srp_inv_bullet_speed");
+         if(speed == null)
+         {
+            if(other != null && other.speed != null) result.push({kind:"stat",id:SPEED,label:label,value:"\u2013",comparison:{kind:"neutral"}});
+            return;
+         }
+         if(speed.kind == "varies")
+         {
+            result.push({kind:"stat",id:SPEED,label:label,value:LocalizationData.getName("st_srp_weapon_bullet_speed_varies"),comparison:{kind:"neutral"}});
+            return;
+         }
+         result.push({kind:"stat",id:SPEED,label:label,value:LocalizationData.format("st_srp_unit_mps",MatchEffects.fixed(speed.value,0)),
+            comparison:{kind:"higher",value:speed.value}});
+      }
       private function tactical(result:Array, other:WeaponDetails) : void
       {
          if(has(TACTICAL)) scalar(result,TACTICAL,"st_srp_weapon_reload_tactical","lower","st_srp_unit_seconds");
@@ -201,6 +242,7 @@ package survarium.item
          scalar(result,139,"st_srp_weapon_full_damage","higher","st_srp_unit_meters");
          scalar(result,140,"st_srp_weapon_minimum_damage_from","higher","st_srp_unit_meters");
          scalar(result,141,"st_srp_weapon_minimum_damage","higher","st_srp_unit_percent",100);
+         bulletSpeed(result,other);
          if(!expanded) { result.push({kind:"hint",text:LocalizationData.getName("st_srp_weapon_shift_hint")}); return result; }
          scalar(result,142,"st_srp_weapon_draw_time","lower","st_srp_unit_seconds");
          scalar(result,143,"st_srp_weapon_holster_time","lower","st_srp_unit_seconds");

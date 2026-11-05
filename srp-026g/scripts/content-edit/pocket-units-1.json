@@ -1,19 +1,19 @@
 {
-  "_about": "The lobby learns what one unit of an item takes of a pocket: property 163 carries parameters/pocket_units (srp's key, set by throwables.tsv: the RGD-5's 2) to the lobby's item descriptors, which the exe fills from a fixed set of parameters (fill_items_dictionary_impl 0x286410: fills_whole_pocket, not pocket_units). Not comparable, so no card shows it as a stat. The server reads parameters/pocket_units itself (item_params::PocketShare). No simulation change: a match plays the kit's counts (srp-026g/docs/notes/one-pocket-a-type.md).",
+  "_about": "The lobby learns what one unit of an item takes of a pocket: property 166 carries parameters/pocket_units (srp's key, set by throwables.tsv: the RGD-5's 2) to the lobby's item descriptors, which the exe fills from a fixed set of parameters (fill_items_dictionary_impl 0x286410: fills_whole_pocket, not pocket_units). Not comparable, so no card shows it as a stat. The server reads parameters/pocket_units itself (item_params::PocketShare). No simulation change: a match plays the kit's counts (srp-026g/docs/notes/one-pocket-a-type.md).",
   "add_entry": [
     {
       "files": "gameplay/static_game_parameters.options",
       "list": "ui_properties",
-      "after": {"prop_id": 162},
+      "after": {"prop_id": 165},
       "like": {"prop_id": 133},
-      "values": {"prop_id": 163, "comparable": false}
+      "values": {"prop_id": 166, "comparable": false}
     },
     {
       "files": "gameplay/items/*.options",
       "list": "ui_desc/props_list",
       "after": {"prop_id": 15},
       "like": {"prop_id": 15},
-      "values": {"prop_id": 163, "prop_value": "{parameters/pocket_units}"},
+      "values": {"prop_id": 166, "prop_value": "{parameters/pocket_units}"},
       "only_if": "parameters/pocket_units"
     }
   ]

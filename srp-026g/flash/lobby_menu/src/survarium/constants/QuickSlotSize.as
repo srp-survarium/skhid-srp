@@ -15,7 +15,7 @@ package survarium.constants
 
       // The card property that carries parameters/pocket_units (content-edit pocket-units-1): the exe
       // gives the movie fills_whole_pocket but no other key of an item's parameters.
-      private static const POCKET_UNITS:int = 163;
+      private static const POCKET_UNITS:int = 166;
 
       public function QuickSlotSize()
       {
