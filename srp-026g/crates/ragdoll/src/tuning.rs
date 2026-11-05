@@ -50,8 +50,12 @@ pub const DEATH_VELOCITY_SHARE: f32 = 0.7;
 pub const DEATH_VELOCITY_MAX: f32 = 7.0;
 /// The hits just before the killing one push with this share of theirs.
 pub const EARLIER_HIT: f32 = 0.5;
-/// A killing hit this strong (N s) or more is a heavy one (a sniper's).
-pub const HEAVY_HIT: f32 = 40.0;
+/// A hit this strong (N s) or more is a heavy one, more than any bullet's
+/// push (`shot::impulse` makes at most 0.04 kg x 3000 m/s x 0.8, 96 N s): a
+/// Force Protein's gun-stock push (16 x 8). It throws the whole body: its
+/// share is not capped, and goes up at `HEAVY_LIFT` of its level speed.
+pub const HEAVY_HIT: f32 = 100.0;
+pub const HEAVY_LIFT: f32 = 0.5;
 /// The equipment a part carries, kg, at most.
 pub const MAX_LOAD: f32 = 40.0;
 

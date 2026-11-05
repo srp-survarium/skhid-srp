@@ -328,6 +328,7 @@ tr.click { cursor: pointer } tr.click:hover td { background: color-mix(in srgb, 
         <div class="scale" id="scale"></div>
         <div class="note" id="falloffnote"></div>
       </div>
+      <div class="field"><label for="wall" data-uk="Стіна перед ціллю">Wall in front of the target</label><select id="wall"></select><div class="note" id="wallnote"></div></div>
       <div class="more" id="wmods-box"><h3 class="sub" data-uk="Бонуси зброї">Weapon bonuses</h3><div class="mods" id="wmods"></div></div>
     </section>
 
@@ -394,7 +395,7 @@ tr.click { cursor: pointer } tr.click:hover td { background: color-mix(in srgb, 
       <h2 data-uk="Уся зброя проти цієї цілі">Every weapon against this target</h2>
       <div class="chips" id="cmpmode"></div>
     </div>
-    <p class="note" style="margin:0" data-uk="Та сама дистанція, частина тіла, броня й ефекти цілі. Кожна зброя бере свій найкращий набій для цієї цілі, якщо не вибрано «стандартний набій». Клікніть рядок, щоб узяти цю зброю.">Same distance, body part, armour and target effects. Each gun uses its best ammo for this target unless you pick "default ammo". Click a row to load that gun.</p>
+    <p class="note" style="margin:0" data-uk="Та сама дистанція, стіна, частина тіла, броня й ефекти цілі. Кожна зброя бере свій найкращий набій для цієї цілі, якщо не вибрано «стандартний набій». Клікніть рядок, щоб узяти цю зброю.">Same distance, wall, body part, armour and target effects. Each gun uses its best ammo for this target unless you pick "default ammo". Click a row to load that gun.</p>
     <div class="tablebox" style="max-height:560px"><table id="cmp"></table></div>
   </section>
 
@@ -410,4 +411,4 @@ tr.click { cursor: pointer } tr.click:hover td { background: color-mix(in srgb, 
     <div class="tablebox"><table id="fulltime"></table></div>
   </section>
 </div>
-<script src="/damage/calc.js?v=3c82f5dac0a8"></script>
+<script src="/damage/calc.js?v=aa4bf072e3d1"></script>
