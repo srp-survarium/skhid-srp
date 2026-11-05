@@ -263,7 +263,7 @@ st_army_026_mask_desc	Kukla s jedním širokým otvorem na oči ze zrušeného S
 st_army_026_mask_name	Vojenská kukla
 st_artcontainer_time_corr_perc_name	Čas sběru
 st_artefact_activated_message	Artefakt aktivován
-st_artefact_booster_description	Druhá verze podomácku vyrobeného přístroje na získávání artefaktů. Vestavěný tlumič jejich anomální aktivity urychluje sběr.\nArtefakty se dobíjejí o 20% rychleji.
+st_artefact_booster_description	Druhá verze podomácku vyrobeného přístroje na získávání artefaktů. Vestavěný tlumič jejich anomální aktivity urychluje sběr.
 st_artefact_booster_name	Mistr artefaktů
 st_artefact_no_free_slots	Na artefakt není volný slot!
 st_artefact_search_failed	Artefakt nenalezen
@@ -1266,6 +1266,7 @@ st_inv_additional_ammo_bags	Sumky na munici
 st_inv_ano_armor	Izolace
 st_inv_armor	Ochrana
 st_inv_arp	Průbojnost
+st_inv_artefact_recharge	Doba dobíjení artefaktů
 st_inv_artefact_slots	Kontejner na artefakty
 st_inv_buckshot	Broky
 st_inv_clip_size	Nábojů v balení
@@ -1777,7 +1778,7 @@ st_ranking	Žebříček
 st_ranking_diff	Rozdíl
 st_rattle_activation_hint	Chřestítko aktivováno! Nepřátelé neslyší tvoje kroky.
 st_rattle_pickup_hint	Artefakt Chřestítko. Ztišuje kroky o 50%.
-st_rdgm_descr	Popis zatím není k dispozici.
+st_rdgm_descr	Ruční kouřový granát. Vytvoří hustou clonu, která skryje pohyb.
 st_rdgm_name	Kouřový granát RDG-M
 st_reach_level	dosáhl <green>úrovně</green>
 st_ready	Připraven
@@ -2448,8 +2449,14 @@ st_srp_hud_unmute	Zapnout chat
 st_srp_hud_unmuted	Chat zapnut
 st_srp_inv_ammo_range	Dostřel
 st_srp_inv_bullet_speed	Rychlost střely
+st_srp_inv_defuse_time	Doba zneškodnění
+st_srp_inv_fuse_time	Doba zápalníku
 st_srp_inv_pellets	Broky
+st_srp_inv_pocket_units	Místa v kapse
+st_srp_inv_stamina_damage	Poškození výdrže
+st_srp_inv_throw_speed	Rychlost hodu
 st_srp_inventory_search	Hledat
+st_srp_item_props_mps	m/s
 st_srp_language_option	Jazyk:
 st_srp_language_restart	Projeví se po restartu.
 st_srp_loadout_block_ammo	Málo munice pro jednu ze zbraní

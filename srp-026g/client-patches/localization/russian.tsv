@@ -263,7 +263,7 @@ st_army_026_mask_desc	Балаклава с одной широкой проре
 st_army_026_mask_name	Армейская балаклава
 st_artcontainer_time_corr_perc_name	Время поиска
 st_artefact_activated_message	Артефакт активирован
-st_artefact_booster_description	Вторая версия прибора, изобретенного умельцами для извлечения артефактов. Благодаря встроенному погасителю аномальной активности артефакта позволяет ускорить процесс экстракции.\nАртефакты перезаряжаются на 20% быстрее.
+st_artefact_booster_description	Вторая версия прибора, изобретенного умельцами для извлечения артефактов. Благодаря встроенному погасителю аномальной активности артефакта позволяет ускорить процесс экстракции.
 st_artefact_booster_name	Артефакт-мастер
 st_artefact_no_free_slots	Нет свободных слотов, чтобы взять артефакт!
 st_artefact_search_failed	Артефакт не найден
@@ -1266,6 +1266,7 @@ st_inv_additional_ammo_bags	Подсумки для патронов
 st_inv_ano_armor	Изоляция
 st_inv_armor	Броня
 st_inv_arp	Бронебойность
+st_inv_artefact_recharge	Время перезарядки артефактов
 st_inv_artefact_slots	Контейнер артефактов
 st_inv_buckshot	Дробь
 st_inv_clip_size	Патронов в пачке
@@ -1777,7 +1778,7 @@ st_ranking	Рейтинг
 st_ranking_diff	Разница
 st_rattle_activation_hint	Погремушка активирована! Ваши шаги абсолютно не слышны для противника!
 st_rattle_pickup_hint	Артефакт Погремушка. Уменьшает звуки шагов на 50%.
-st_rdgm_descr	ОПИСАНИЕ НЕ ГОТОВО!!!
+st_rdgm_descr	Ручная дымовая граната. Ставит плотную завесу, скрывающую передвижение.
 st_rdgm_name	Дымовая граната РДГ-М
 st_reach_level	достиг <green>Уровня</green>
 st_ready	Готов
@@ -2448,8 +2449,14 @@ st_srp_hud_unmute	Включить чат
 st_srp_hud_unmuted	Чат включён
 st_srp_inv_ammo_range	Дальность
 st_srp_inv_bullet_speed	Скорость пули
+st_srp_inv_defuse_time	Время обезвреживания
+st_srp_inv_fuse_time	Время запала
 st_srp_inv_pellets	Дробин
+st_srp_inv_pocket_units	Место в кармане
+st_srp_inv_stamina_damage	Урон выносливости
+st_srp_inv_throw_speed	Скорость броска
 st_srp_inventory_search	Поиск
+st_srp_item_props_mps	м/с
 st_srp_language_option	Язык:
 st_srp_language_restart	Применится после перезапуска.
 st_srp_loadout_block_ammo	Мало патронов к оружию

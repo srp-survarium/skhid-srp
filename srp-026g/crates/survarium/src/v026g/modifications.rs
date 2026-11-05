@@ -37,8 +37,9 @@
 //! that data:
 //!
 //! - A modification's `type_mask` has one character set: its **type**
-//!   (1..=40), five strengths of a type sharing it with `drop_weight`
-//!   10, 8, 6.4, 5.12, 4.096. An item may get the types its
+//!   (1..=40 in the stock data; 41 srp's Artifact-master cooldown), five
+//!   strengths of a type sharing it with `drop_weight` 10, 8, 6.4, 5.12,
+//!   4.096. An item may get the types its
 //!   `available_modifications_mask` names; the item's mask is one character
 //!   shorter, its character `j` standing for type `j + 1` [PROVEN by the
 //!   data: only so do bolt-action rifles get "chamber a round" and automatic
@@ -154,7 +155,7 @@ pub struct Modifier {
 #[derive(Clone, Debug, PartialEq)]
 pub struct Modification {
     pub id: u32,
-    /// The character of `type_mask` that is set, 1..=40.
+    /// The character of `type_mask` that is set, 1..=41.
     pub kind: u8,
     pub drop_weight: f32,
     /// The localization key of its name (`ui_desc.name`).

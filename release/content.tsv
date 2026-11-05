@@ -105,6 +105,7 @@ edit	vegetation-runtime-1.json	-	runtime vegetation for the four supported early
 edit	weapon-movement-ui-1.json	-	Expose each weapon's own movement-speed parameter in its built-in bonuses, using the native speed icon; presentation only
 edit	weapon-details-ui-1.json	-	Weapon cards: base reload, chambering time and damage falloff, Shift for handling, recoil, spread and sway; presentation only
 edit	weapon-kill-icon-ui-1.json	-	The lobby tooltips show each weapon's kill feed icon: property 161 carries ui_desc/combat_log_icon to the item descriptors (not comparable); presentation only
+edit	artefact-cooldown-bonus-1.json	-	the Artifact-master's artefact cooldown bonus: modification 1310 (-20 % artefact_cooldown_modifier, type 41), its card property 173, the booster config's key at 0
 edit	regeneration-booster-1.json	-	the Regeneration booster's bonuses: built-in modifications 1290 (regeneration delay -2 s, kit modifier 10) and 1300 (regeneration limit +100 %, kit modifier 9) with their card lines (UI properties 171, 172), and those two parameters at 0 in its config; before modifications.tsv and boosters.tsv, which hold their values and who has them (exe patch 94 applies them; regeneration-booster.md)
 edit	modifications.tsv	-	the modifications: a row each, its kind (the keys its modifiers change), value, op and drop weight (weapon rolls on keys the weapons have: recoil, aim time)
 edit	defects.tsv	-	the defects: a row each, its kind, value, op, drop weight and fix price and time
@@ -128,6 +129,7 @@ edit	dead-keys-1.json	-	the dead duplicate keys out (parameters/ copies of what 
 edit	scar-ammo-1.json	-	SCAR-H uses only dedicated AP in 20-round packs (2266), with shared AP ballistics; other weapons retain their ammo
 edit	ammo-cards-1.json	-	ammo cards: bullet speed (m/s) on every round, range (%) on the four rounds that change it, pellets on the three smallshot rounds (UI properties 163..165); before ammo.tsv, which writes their values
 edit	ammo.tsv	-	the ammo's stats, and their cards
+edit	throwable-cards-1.json	-	grenade and trap cards: damage on one body hit (prop 1, the RGD-5 130 not 780), armour penetration, stopping power, stamina damage, fuse, throw speed (m/s) and the trap's defuse time (UI properties 167..170); before throwables.tsv
 edit	throwables.tsv	-	the grenades' and the trap's stats
 edit	artefacts.tsv	-	the artefacts' stats (client patch 54 reads aim_time_mod and stopping_power_mod)
 edit	character.tsv	-	the character's movement, stamina, fall, stealth, dispersion and breath numbers (gameplay/players/default.player)
@@ -137,7 +139,7 @@ edit	maps.tsv	-	the maps' rules, a row per level over its projects: spawn protec
 edit	rooms.tsv	-	the rooms' and Player vs Bots' settings (gameplay/srp/rooms.options): srp reads them from its game data; the lobby movie gets what it shows from srp's messages
 edit	armor.tsv	-	the armour: a row a piece (slot/name), its armour numbers (hit_params by the armour rule), weight, oxygen, levels, rollable kinds and built-in bonuses, and its card
 edit	medicines.tsv	-	the medicines: a row each, its delay and active seconds, the total health it gives each pool over its active time, weight and levels, and its card (the % it heals)
-edit	boosters.tsv	-	the boosters: a row each, its weight, its own artefact cooldown modifier (Artifact-master -20 %) and its built-in bonuses by kind
+edit	boosters.tsv	-	the boosters: a row each, its weight and its built-in bonuses by kind (the Artifact-master 1134 search time and 1310 artefact cooldown)
 edit	new-account.tsv	-	what a new account is given at its first sign-in (gameplay/srp/new_account.options): money, premium, rounds of every ammo, reputation, what it owns and what its three kits wear; srp reads it from its game data
 edit	items.tsv	-	the items: a row per dictionary entry, its name, price, gold flag, the plain item a golden or premium copy is (srp_like) and the modifications of its own a new one comes with (srp_start), which srp reads
 edit	shop.tsv	-	the shop's sellers and ranks beyond the item data's rule, and what no shop sells (gameplay/srp/shop.options): srp reads them from its game data

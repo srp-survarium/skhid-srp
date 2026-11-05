@@ -387,6 +387,78 @@ package {
    profile.setKitModifiers(kitFloats({49:-.1,13:.12,21:.12,22:.15,56:-.1}));
    Scene.isAlt=false;Scene.isShift=true;shows(item(false),items[0]);
   }
+  // Held Alt over a grenade or a trap (docs/notes/alt-weapon-stats.md, "Grenades and traps"): the
+  // live cards (throwable-cards-1, throwables.tsv), Grenadier (skill 203) in kit float 27, device
+  // damage (11) and splash radius (12) as the exe applies them, though nothing gives them yet.
+  private static const THROWABLES:Object={
+   rgd5:[24,[[1,"130"],[3,"15"],[132,"10"],[167,"10"],[23,"10"],[15,"0.3"],[166,"2"],[168,"4"],[169,"17"]]],
+   smoke:[24,[[15,"0.4"],[168,"4"],[169,"17"]]],
+   trap:[11,[[1,"60"],[3,"100"],[170,"5"],[15,"0.8"]]]
+  };
+  private static const THROWABLE_LABELS:Object={1:"Damage",3:"Armor penetration",132:"Stopping power",167:"Stamina damage",23:"Explosion radius",15:"Weight",168:"Fuse time",169:"Throw speed",170:"Defuse time"};
+  private static const THROWABLE_UNITS:Object={132:"%",23:"m",15:"kg",168:"s",169:"m/s",170:"s"};
+  private function throwable(name:String):Object {
+   var Data:Class=domain.getDefinition("survarium.data.ItemData") as Class;
+   var d:Object=new Data();d.name=name;d.category=THROWABLES[name][0];d.superCategory=domain.getDefinition("survarium.item.ItemFactory").getCategory(d.category);d.descriptor=100;d.modifiers=[];d.properties=[];
+   for each(var p:Array in THROWABLES[name][1])d.properties.push({prop_id:p[0],prop_value:p[1]});
+   return d;
+  }
+  // Each bar of a grenade's or a trap's card: "label=value", in the card's order (166, the pocket
+  // units, is no bar).
+  private function throwableLines(card:Object,d:Object):Array {
+   var out:Array=[];
+   for each(var p:Array in THROWABLES[d.name][1])if(THROWABLE_LABELS[p[0]])out.push(THROWABLE_LABELS[p[0]]+"="+nativeText(card,THROWABLE_LABELS[p[0]]));
+   return out;
+  }
+  private function throwableChecks():void {
+   Scene.isShift=false;
+   var names:Array=["rgd5","smoke","trap"],released:Object={},name:String,d:Object,other:Object=throwable("rgd5");
+   profile.setKitModifiers(kitFloats({}));
+   for each(name in names){
+    Scene.isAlt=false;d=throwable(name);shows(d,other);released[name]=throwableLines(cards[0],d).join();
+    var want:Array=[];
+    for each(var p:Array in THROWABLES[name][1])if(THROWABLE_LABELS[p[0]])want.push(THROWABLE_LABELS[p[0]]+"="+Number(p[1])+(THROWABLE_UNITS[p[0]]||""));
+    require(released[name]==want.join(),"released "+name+": "+released[name]);
+    for(var i:int=1;i<=9;i++){var row:Object=cards[0].itemCompare.getChildByName("diff_"+i);require(!row || !row.visible || row.indicator.label!="Pocket slots","no pocket units bar: "+name);}
+    Scene.isAlt=true;shows(d,other);
+    require(throwableLines(cards[0],d).join()==released[name],"Alt, no skills: "+name+" "+throwableLines(cards[0],d).join());
+   }
+   // The lines a rule changes, the others as released.
+   var expect:Function=function(name:String,changes:Object):String{
+    var lines:Array=released[name].split(",");
+    for(var i:int=0;i<lines.length;i++){var label:String=lines[i].split("=")[0];if(changes[label])lines[i]=label+"="+changes[label];}
+    return lines.join();
+   };
+   var cases:Array=[
+    // Grenadier, ranks 1 and 2: throw_power x (1 + 0.1 a rank) (0x30A2DE).
+    [{27:.1},{rgd5:{"Throw speed":"17 -> 18.7m/s"},smoke:{"Throw speed":"17 -> 18.7m/s"},trap:{}}],
+    [{27:.2},{rgd5:{"Throw speed":"17 -> 20.4m/s"},smoke:{"Throw speed":"17 -> 20.4m/s"},trap:{}}],
+    // Device damage and splash radius +10 %: the splash's damage, stopping power and stamina
+    // damage, the trap's hit (0x30A350, 0x304A40); the radius (0x30A350). Penetration stays.
+    [{11:.1,12:.1},{rgd5:{"Damage":"130 -> 143","Stopping power":"10 -> 11%","Stamina damage":"10 -> 11","Explosion radius":"10 -> 11m"},
+                    smoke:{},trap:{"Damage":"60 -> 66"}}],
+    // A sum below -1 stops at 0, as max(0, 1 + S).
+    [{27:-2},{rgd5:{"Throw speed":"17 -> 0m/s"},smoke:{"Throw speed":"17 -> 0m/s"},trap:{}}]
+   ];
+   for each(var c:Array in cases){
+    profile.setKitModifiers(kitFloats(c[0]));
+    for each(name in names){
+     d=throwable(name);Scene.isAlt=true;shows(d,other);
+     var got:String=throwableLines(cards[0],d).join();
+     require(got==expect(name,c[1][name]),"floats "+JSON.stringify(c[0])+" "+name+": "+got+" (want "+expect(name,c[1][name])+")");
+     Scene.isAlt=false;shows(d,other);
+     require(throwableLines(cards[0],d).join()==released[name],"released with floats: "+name);
+    }
+   }
+   // Faster and more is green.
+   profile.setKitModifiers(kitFloats({27:.2,11:.1}));Scene.isAlt=true;
+   d=throwable("rgd5");shows(d,other);
+   require(changeColours(nativeField(cards[0],"Throw speed")).join()==[NEUTRAL,NEUTRAL,GREEN].join() && changeColours(nativeField(cards[0],"Damage")).join()==[NEUTRAL,NEUTRAL,GREEN].join(),"rgd-5: faster and more is green");
+   // An exe that sends no floats: the card's own numbers.
+   profile.setKitModifiers(null);d=throwable("rgd5");shows(d,other);
+   require(throwableLines(cards[0],d).join()==released.rgd5,"no floats: the grenade's own numbers");
+   Scene.isAlt=false;
+  }
   private function loaded(e:Event):void {
    try {
     domain=loader.contentLoaderInfo.applicationDomain;Scene=domain.getDefinition("MainScene");Scene.stage=this;Scene.scaleFactor=1;
@@ -401,6 +473,9 @@ package {
     // A medicine card's lines, as static_game_parameters has them (13 has no unit there).
     for each(spec in [[13,"Intoxication",1,""],[17,"Pain protection",1,"%"],[18,"Duration",1,"s"],[19,"Activation",0,"s"],[135,"Healing: arms / legs",1,"%"],[136,"Healing: body / head",1,"%"],[137,"Pain relief",1,"%"]])list.push({prop_id:spec[0],prop_name:spec[1],direction:spec[2],postfix:spec[3],comparable:true,min_value:0,max_value:100});
     for(var id:int=138;id<=162;id++)list.push({prop_id:id,comparable:false});
+    // A grenade's and a trap's (throwable-cards-1); 166 the pocket units (pocket-units-1), no bar.
+    for each(spec in [[23,"Explosion radius",1,"m"],[167,"Stamina damage",1,""],[168,"Fuse time",0,"s"],[169,"Throw speed",1,"m/s"],[170,"Defuse time",1,"s"]])list.push({prop_id:spec[0],prop_name:spec[1],direction:spec[2],postfix:spec[3],comparable:true,min_value:0,max_value:100});
+    list.push({prop_id:166,prop_name:"Pocket slots",comparable:false});
     // The rolls' own properties, multiplied (modifier_type 1) as the exe tells the movie (mod_type 2).
     for each(id in [102,115,119])list.push({prop_id:id,comparable:false,modifier_type:1});
     props.setPropertiesDictionary(list);domain.getDefinition("survarium.controls.ItemCompare").setPropsDescriptor(props);
@@ -615,6 +690,7 @@ package {
      require(Math.abs(cards[0].topBlackContainer.height-headerHeight)<.1,"single card restores its natural header");
      cards[1].textFieldDescription.visible=false;cards[0].alignComparisonHeader(cards[1]);aligned();
      altChecks();
+     throwableChecks();
      medicineChecks();
     }
     if(frame==140){Scene.isAlt=true;}
@@ -622,7 +698,10 @@ package {
     if(frame==160){require(text(cards[0])==released && nativeText(cards[0],"Aim time")=="0.25s","Alt let go over an open card");profile.setKitModifiers(medicalKit(3,2,3));shows(medicine("painkiller"),medicine("medkit"));}
     if(frame==170){require(nativeText(cards[0],"Pain protection")=="10%","an open painkiller card, Alt up");Scene.isAlt=true;}
     if(frame==180){require(nativeText(cards[0],"Pain protection")=="10 -> 13%" && nativeText(cards[0],"Duration")=="10 -> 14.5s","Alt pressed over an open medicine card");Scene.isAlt=false;}
-    if(frame==190){require(nativeText(cards[0],"Pain protection")=="10%" && nativeText(cards[0],"Duration")=="10s","Alt let go over an open medicine card");shows(items[0],items[1]);finish(null);}
+    if(frame==190){require(nativeText(cards[0],"Pain protection")=="10%" && nativeText(cards[0],"Duration")=="10s","Alt let go over an open medicine card");profile.setKitModifiers(kitFloats({27:.2}));shows(throwable("rgd5"),throwable("smoke"));}
+    if(frame==200){require(nativeText(cards[0],"Throw speed")=="17m/s","an open grenade card, Alt up");Scene.isAlt=true;}
+    if(frame==210){require(nativeText(cards[0],"Throw speed")=="17 -> 20.4m/s","Alt pressed over an open grenade card");Scene.isAlt=false;}
+    if(frame==220){require(nativeText(cards[0],"Throw speed")=="17m/s","Alt let go over an open grenade card");shows(items[0],items[1]);finish(null);}
    }catch(err:Error){finish("frame "+frame+": "+err+" "+err.getStackTrace());}
   }
   private function finish(error:String):void {removeEventListener(Event.ENTER_FRAME,tick);if(!error){Scene.isCtrl=loaderInfo.parameters.neutral=="1";if(loaderInfo.parameters.compact=="1")Scene.isShift=false;Scene.isAlt=loaderInfo.parameters.alt=="1";

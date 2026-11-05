@@ -99,6 +99,7 @@ modifications	kind	value	op	drop_weight
 1280	parameters/reputation_bonus	0.05	1	0
 1290	parameters/engineer_success_chance_modifier	-2	1	0
 1300	parameters/engineer_use_time_modifier	1	1	0
+1310	parameters/artefact_cooldown_modifier	-0.2	1	0
 2000	parameters/bullet_damage	0.01	2	10
 2001	parameters/bullet_damage	0.02	2	8
 2002	parameters/bullet_damage	0.03	2	6.4

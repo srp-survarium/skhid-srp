@@ -263,7 +263,7 @@ st_army_026_mask_desc	Sturmhaube mit einem breiten Augenschlitz aus dem eingeste
 st_army_026_mask_name	Armee-Sturmhaube
 st_artcontainer_time_corr_perc_name	Zeit zum Sammeln der Artefakte
 st_artefact_activated_message	Artefakt ist aktiviert
-st_artefact_booster_description	Die zweite Version des Gerätes, das von Enthusiasten für die Extraktion der Artefakte erfunden wurde. Dank  dem eingebauten Löscher der  anomalen Aktivität des Artefaktes lässt sie, den Prozess der Extraktion beschleunigen.\nArtefakte laden sich 20 % schneller auf.
+st_artefact_booster_description	Die zweite Version des Gerätes, das von Enthusiasten für die Extraktion der Artefakte erfunden wurde. Dank  dem eingebauten Löscher der  anomalen Aktivität des Artefaktes lässt sie, den Prozess der Extraktion beschleunigen.
 st_artefact_booster_name	Artefakten-Master
 st_artefact_no_free_slots	Es gibt kein Platz für Artefakten!
 st_artefact_search_failed	Artefakt ist nicht gefunden
@@ -1266,6 +1266,7 @@ st_inv_additional_ammo_bags	Patronen Beutel
 st_inv_ano_armor	Isolierung
 st_inv_armor	Rüstung
 st_inv_arp	Panzerschutzkraft
+st_inv_artefact_recharge	Aufladezeit der Artefakte
 st_inv_artefact_slots	Container für Artefakten
 st_inv_buckshot	Schrotkugeln
 st_inv_clip_size	Patronen in der Packung
@@ -1777,7 +1778,7 @@ st_ranking	Rating
 st_ranking_diff	Unterschied
 st_rattle_activation_hint	Der Klapper ist aktiviert! Ihre Schritte sind für den Gegner unhörbar!
 st_rattle_pickup_hint	Das Artefakt Klapper. Verringert die Laute der Schritte auf 50 %.
-st_rdgm_descr	Description is not ready!!!
+st_rdgm_descr	Rauchhandgranate. Legt einen dichten Sichtschutz, der Bewegungen verbirgt.
 st_rdgm_name	Rauchgranate RDG-M
 st_reach_level	<green>Stufe </green> erreicht
 st_ready	Bereit
@@ -2448,8 +2449,14 @@ st_srp_hud_unmute	Chat freigeben
 st_srp_hud_unmuted	Chat freigegeben
 st_srp_inv_ammo_range	Reichweite
 st_srp_inv_bullet_speed	Geschossgeschwindigkeit
+st_srp_inv_defuse_time	Entschärfzeit
+st_srp_inv_fuse_time	Zündzeit
 st_srp_inv_pellets	Schrotkugeln
+st_srp_inv_pocket_units	Taschenplätze
+st_srp_inv_stamina_damage	Ausdauerschaden
+st_srp_inv_throw_speed	Wurfgeschwindigkeit
 st_srp_inventory_search	Suche
+st_srp_item_props_mps	m/s
 st_srp_language_option	Sprache:
 st_srp_language_restart	Gilt nach einem Neustart.
 st_srp_loadout_block_ammo	Zu wenig Munition für eine Waffe
