@@ -22,6 +22,8 @@ const CLOSE_M: f32 = 15.0;
 /// The snapshots of the bodies kept, one a second; the take's company "before" is the one this many seconds back.
 const SNAP_EVERY: u32 = 20;
 const BEFORE_S: usize = 10;
+/// [A296 item 2] The last part of a match whose steals are counted apart, s (the owner's "late steals"): the last 4 minutes.
+const LAST_S: f32 = 240.0;
 
 #[derive(Clone, Default)]
 struct Team {
@@ -39,6 +41,9 @@ struct Team {
     enemies_30: [u64; 4],
     enemies_known: [u64; 4],
     ages_s: Vec<f32>,
+    /// [A296 item 2] When each steal was made, s into the match: the first steal's time and the steals in the match's last
+    /// [`LAST_S`] (the comeback's) are read from them.
+    at_s: Vec<f32>,
     /// The ticks the opponents' container held a battery, and of those the ticks a body of the team ran a Raid or a Sneak.
     chance: u64,
     tried: u64,
@@ -134,6 +139,7 @@ impl Topic for StealCounts {
             let at = body.feet;
             let t = &mut self.teams[team];
             t.steals += 1;
+            t.at_s.push(tick.saturating_sub(run.first_tick) as f32 * TICK_S);
             t.by_thief[usize::from(!self.bot.get(thief).copied().unwrap_or(false))] += 1;
             let play = run
                 .recs
@@ -196,6 +202,8 @@ impl StealCounts {
         let pct = |a: u64, b: u64| if b == 0 { 0.0 } else { 100.0 * a as f64 / b as f64 };
         let mut by_team = serde_json::Map::new();
         let mut lines = Vec::new();
+        // The match's length (`SRP_BENCH_SECONDS`, the bench's default 240 s).
+        let match_s = crate::v026g::bots::tests::bench_settings().number::<u32>("SRP_BENCH_SECONDS").unwrap_or(240) as f32;
         for (team, t) in self.teams.iter().enumerate() {
             let mut ages = t.ages_s.clone();
             ages.sort_by(f32::total_cmp);
@@ -213,6 +221,8 @@ impl StealCounts {
                 "steal_age_median_s": at(0.5),
                 "steal_age_p25_s": at(0.25),
                 "steal_age_p75_s": at(0.75),
+                "first_steal_s": t.at_s.first().copied(),
+                "steals_last_240s": t.at_s.iter().filter(|&&s| s >= match_s - LAST_S).count(),
                 "chance_s": (10.0 * t.chance as f64 * f64::from(TICK_S)).round() / 10.0,
                 "chance_tried_s": (10.0 * t.tried as f64 * f64::from(TICK_S)).round() / 10.0,
             });
