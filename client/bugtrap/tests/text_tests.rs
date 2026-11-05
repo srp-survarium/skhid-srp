@@ -221,6 +221,10 @@ fn ring_bytes(at: u32, entries: &[(u32, u8, u8, u16, u64, [u32; 4])], next: u32)
     put(&mut b, 38, &5u16.to_le_bytes());
     put(&mut b, 40, &(1u32 << 31 | 1).to_le_bytes());
     put(&mut b, 44, &4u32.to_le_bytes());
+    // Reading place 3's player state from byte 420, at 9800.
+    put(&mut b, 48, &(2u32 | 3 << 8).to_le_bytes());
+    put(&mut b, 52, &420u32.to_le_bytes());
+    put(&mut b, 56, &9800u64.to_le_bytes());
     for &(seq, kind, a, x, counter, values) in entries {
         let o = 64 + 32 * ((seq as usize - 1) % 1024);
         put(&mut b, o, &seq.to_le_bytes());
@@ -255,10 +259,12 @@ fn breadcrumbs_are_the_match_and_the_last_events_before_the_crash() {
     let ring = breadcrumbs::Ring::parse(&bytes, at).unwrap();
     let mut out = details::Buffer::<4096>::new();
     breadcrumbs::write_context(&mut out, &ring).unwrap();
+    breadcrumbs::write_reading(&mut out, &ring, 10_000).unwrap();
     breadcrumbs::write_events(&mut out, &ring, 10_000, 200).unwrap();
     assert_eq!(
         out.as_str(),
         "Match:     0x4d, map 12, 8 places, level 5, Blackout; local place 3\r\n\
+         Reading:   place 3's player state, from byte 420 of its stream, 0.200 s before the crash\r\n\
          Events:    5 recorded, the last 4 kept: match 1 world 1 death 1 pickup 1\r\n\
          \x20          seconds before the crash:\r\n\
          \x20 -9.000 s  match: 0x4d, map 12, 8 places, level 5, Blackout\r\n\
@@ -290,4 +296,22 @@ fn full_dumps_are_asked_for_in_any_case_with_spaces() {
     for value in ["", "small", "fu ll", "1", "fullx"] {
         assert!(!details::asks_full_dump(value), "{value:?}");
     }
+}
+
+#[test]
+fn a_finished_read_is_no_reading_line() {
+    let at = 0x0A4D_D000;
+    let mut bytes = ring_bytes(at, &[], 0);
+    // Place 3's player state read to byte 600 (patch 78's carry.load).
+    bytes[48..52].copy_from_slice(&(3u32 | 3 << 8).to_le_bytes());
+    bytes[52..56].copy_from_slice(&600u32.to_le_bytes());
+    let ring = breadcrumbs::Ring::parse(&bytes, at).unwrap();
+    let mut out = details::Buffer::<256>::new();
+    breadcrumbs::write_reading(&mut out, &ring, 10_000).unwrap();
+    assert_eq!(out.as_str(), "");
+    // A world before its players is one.
+    bytes[48..52].copy_from_slice(&1u32.to_le_bytes());
+    let ring = breadcrumbs::Ring::parse(&bytes, at).unwrap();
+    breadcrumbs::write_reading(&mut out, &ring, 10_000).unwrap();
+    assert!(out.as_str().starts_with("Reading:   a world (0xE8), before its players, "), "{}", out.as_str());
 }

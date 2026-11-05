@@ -65,6 +65,7 @@ Game:      report_probe.exe, patch revision unknown, sha256 6ac354ea1c2e
 Reporter:  local build
 Windows:   10.0.19045 (Wine 11.8)
 Match:     0x1092, map 12, 8 places, level 5; local place 3
+Reading:   place 3's player state, from byte 420 of its stream, 0.290 s before the crash
 Dump:      saved
 Events:    1530 recorded, the last 1024 kept: match 2 world 61 started 1 death 140 pickup 820 ...
            the last 200, seconds before the crash:
@@ -114,6 +115,18 @@ srp: ...
   seconds before the capture began (its QueryPerformanceCounter). The map is
   the maps_dict id; the match as the server's logs name it (`Match
   0x...`). The ZIP's `breadcrumbs.txt` has all the kept entries.
+- Reading (same games): what the game read last, so that a crash inside a
+  load (a deserialize's assertion) names the player and the place in the
+  stream. The header's `reading` is stamped at a world's load
+  (`a world (0xE8), before its players`), at base_player::deserialize's
+  start (`place 3's player state, from byte 420 of its stream`, patch 85's
+  `pickup.load`) and after its last native field (patch 78's `carry.load`),
+  with its seconds before the crash. The line is there only while a read
+  is unfinished: after a player state's last native field (rollbacks load
+  history states all the time) there is none. Three
+  stores and a counter read a stamp; once a player a load, never a frame.
+  The world's sections have no hook of their own (game_world_core's
+  deserialize reads them in one function), so a section is not named.
 - Dump: saved, or why not, with the Windows error.
 - Game log: the last 20 lines of the newest `Survarium*.log` in
   Documents\Survarium (its last 8 KiB), from the first line that starts a

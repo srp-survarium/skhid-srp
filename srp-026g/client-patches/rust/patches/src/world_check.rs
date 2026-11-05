@@ -14,7 +14,7 @@
 
 use world_frame::{Frame, Part, Places, Refusal};
 
-use crate::vostok::breadcrumbs::{self, Crumb};
+use crate::vostok::breadcrumbs::{self, Crumb, Reading};
 use crate::vostok::log::{line, Piece};
 use crate::vostok::{Context, Flow, WorldCheckOnRawExit, WorldCheckOnUnpackedExit, WorldLoad};
 
@@ -58,6 +58,7 @@ fn check(load: Option<WorldLoad<'_>>) -> Verdict {
         local: load.network_client().local_profile(),
         loaded: parsed.is_ok(),
     });
+    breadcrumbs::reading(load.thread(), Reading::World);
     match parsed {
         Ok(frame) => {
             crate::weapon_pickup::before_world_load(&load, &frame);

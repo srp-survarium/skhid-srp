@@ -97,6 +97,8 @@ with tempfile.TemporaryDirectory(prefix="srp-report-test-") as temporary:
         # The probe's breadcrumbs (its .srpx section): the match in the part
         # Copy copies, the events after the dump's line, and all in the ZIP.
         assert "\r\nMatch:     0x1092, map 12, 8 places, level 5; local place 3\r\n" in text, text
+        reading = re.search(r"\r\nReading:   place 3's player state, from byte 420 of its stream, (\d+\.\d{3}) s before the crash\r\n", text)
+        assert reading and 0.25 <= float(reading[1]) < 1.25, text
         events = text.split("\r\nDump:      saved\r\n", 1)[1].split("\r\nGame log:", 1)[0]
         lines = events.split("\r\n")
         assert lines[0] == "Events:    3 recorded, the last 3 kept: match 1 world 1 death 1", events

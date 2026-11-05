@@ -141,6 +141,26 @@ fn pickup_name(event: u8) -> &'static str {
     }
 }
 
+/// What the game was reading last (the header's `reading`): stamped at a
+/// world load's start and at each player state's start and end.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Reading {
+    World,
+    Player { place: u8, offset: u32 },
+    PlayerRead { place: u8, offset: u32 },
+}
+impl Reading {
+    fn parse(what: u32, offset: u32) -> Option<Reading> {
+        let place = (what >> 8) as u8;
+        match what & 0xFF {
+            1 => Some(Reading::World),
+            2 => Some(Reading::Player { place, offset }),
+            3 => Some(Reading::PlayerRead { place, offset }),
+            _ => None,
+        }
+    }
+}
+
 /// The ring as copied: its header's values and its entries' bytes.
 pub struct Ring<'a> {
     /// Records made (the last [`CAPACITY`] are kept).
@@ -149,6 +169,8 @@ pub struct Ring<'a> {
     /// The last match's options, and the local place at the last world load.
     pub last_match: Option<Match>,
     pub local: Option<u8>,
+    /// What was being read last, and the counter then.
+    pub reading: Option<(Reading, u64)>,
     entries: &'a [u8],
 }
 impl<'a> Ring<'a> {
@@ -177,6 +199,8 @@ impl<'a> Ring<'a> {
                 replay: flags & 2 != 0,
             }),
             local: u32_at(bytes, 44).checked_sub(1).map(|p| p as u8),
+            reading: Reading::parse(u32_at(bytes, 48), u32_at(bytes, 52))
+                .map(|r| (r, u64_at(bytes, 56))),
             entries: &bytes[HEADER..BYTES],
         })
     }
@@ -227,6 +251,27 @@ pub fn write_context(w: &mut dyn Write, ring: &Ring) -> fmt::Result {
         write!(w, "; local place {place}")?;
     }
     w.write_str("\r\n")
+}
+
+/// `Reading:` a read the game began and had not finished, and how long
+/// before `now`: a world before its players, or a player state before its
+/// last native field. Nothing once the last player state read was finished
+/// (a rollback's history loads stamp them all the time; a crash after one
+/// is not inside it).
+pub fn write_reading(w: &mut dyn Write, ring: &Ring, now: u64) -> fmt::Result {
+    let Some((what, counter)) = ring.reading else {
+        return Ok(());
+    };
+    match what {
+        Reading::World => w.write_str("Reading:   a world (0xE8), before its players")?,
+        Reading::Player { place, offset } => write!(
+            w,
+            "Reading:   place {place}'s player state, from byte {offset} of its stream"
+        )?,
+        Reading::PlayerRead { .. } => return Ok(()),
+    }
+    let (s, ms) = ring.before(now, counter);
+    write!(w, ", {s}.{ms:03} s before the crash\r\n")
 }
 
 /// One event's line: seconds before the crash, its kind, what it says.
