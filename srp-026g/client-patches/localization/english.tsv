@@ -2527,7 +2527,7 @@ st_srp_options_hud	HUD:
 st_srp_pierce_brick	Brick, steel
 st_srp_pierce_car	Car
 st_srp_pierce_concrete	Concrete
-st_srp_pierce_glass	Glass, foliage
+st_srp_pierce_glass	Glass
 st_srp_pierce_plywood	Plywood
 st_srp_pierce_stone	Stone
 st_srp_pierce_tinplate	Tinplate

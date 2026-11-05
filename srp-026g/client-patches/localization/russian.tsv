@@ -2527,7 +2527,7 @@ st_srp_options_hud	Интерфейс боя:
 st_srp_pierce_brick	Кирпич, сталь
 st_srp_pierce_car	Автомобиль
 st_srp_pierce_concrete	Бетон
-st_srp_pierce_glass	Стекло, листва
+st_srp_pierce_glass	Стекло
 st_srp_pierce_plywood	Фанера
 st_srp_pierce_stone	Камень
 st_srp_pierce_tinplate	Жесть

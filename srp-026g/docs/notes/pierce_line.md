@@ -30,7 +30,7 @@ changes show the weapon's best round, and Shift lists each round.
 
 | tier: material (`armor`) | key | English | Ukrainian |
 |---|---|---|---|
-| `glass` (0: glass, foliage, cloth, water, paper, plastic) | `st_srp_pierce_glass` | Glass, foliage | Скло, листя |
+| `glass` (0: glass, foliage, cloth, water, paper, plastic) | `st_srp_pierce_glass` | Glass | Скло |
 | `metal_car` (0.08: car bodies, gas tanks) | `st_srp_pierce_car` | Car | Автомобіль |
 | `wood_thin` (0.10: thin wood, hard glass, rubber) | `st_srp_pierce_plywood` | Plywood | Фанера |
 | `metall_thin` (0.12: thin metal, slate) | `st_srp_pierce_tinplate` | Tinplate | Бляха |

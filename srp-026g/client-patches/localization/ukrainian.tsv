@@ -2527,7 +2527,7 @@ st_srp_options_hud	Інтерфейс бою:
 st_srp_pierce_brick	Цегла, сталь
 st_srp_pierce_car	Автомобіль
 st_srp_pierce_concrete	Бетон
-st_srp_pierce_glass	Скло, листя
+st_srp_pierce_glass	Скло
 st_srp_pierce_plywood	Фанера
 st_srp_pierce_stone	Камінь
 st_srp_pierce_tinplate	Бляха

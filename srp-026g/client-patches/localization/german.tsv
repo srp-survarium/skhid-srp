@@ -2527,7 +2527,7 @@ st_srp_options_hud	HUD:
 st_srp_pierce_brick	Ziegel, Stahl
 st_srp_pierce_car	Auto
 st_srp_pierce_concrete	Beton
-st_srp_pierce_glass	Glas, Laub
+st_srp_pierce_glass	Glas
 st_srp_pierce_plywood	Sperrholz
 st_srp_pierce_stone	Stein
 st_srp_pierce_tinplate	Blech

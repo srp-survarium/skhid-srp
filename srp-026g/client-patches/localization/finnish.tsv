@@ -2527,7 +2527,7 @@ st_srp_options_hud	HUD:
 st_srp_pierce_brick	Tiili, teräs
 st_srp_pierce_car	Auto
 st_srp_pierce_concrete	Betoni
-st_srp_pierce_glass	Lasi, lehvistö
+st_srp_pierce_glass	Lasi
 st_srp_pierce_plywood	Vaneri
 st_srp_pierce_stone	Kivi
 st_srp_pierce_tinplate	Pelti

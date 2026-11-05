@@ -2527,7 +2527,7 @@ st_srp_options_hud	HUD:
 st_srp_pierce_brick	Cegła, stal
 st_srp_pierce_car	Samochód
 st_srp_pierce_concrete	Beton
-st_srp_pierce_glass	Szkło, liście
+st_srp_pierce_glass	Szkło
 st_srp_pierce_plywood	Sklejka
 st_srp_pierce_stone	Kamień
 st_srp_pierce_tinplate	Blacha

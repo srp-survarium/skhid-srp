@@ -2527,7 +2527,7 @@ st_srp_options_hud	HUD:
 st_srp_pierce_brick	Cigla, čelik
 st_srp_pierce_car	Automobil
 st_srp_pierce_concrete	Beton
-st_srp_pierce_glass	Staklo, lišće
+st_srp_pierce_glass	Staklo
 st_srp_pierce_plywood	Šperploča
 st_srp_pierce_stone	Kamen
 st_srp_pierce_tinplate	Lim

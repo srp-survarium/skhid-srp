@@ -2527,7 +2527,7 @@ st_srp_options_hud	HUD:
 st_srp_pierce_brick	Tégla, acél
 st_srp_pierce_car	Autó
 st_srp_pierce_concrete	Beton
-st_srp_pierce_glass	Üveg, lomb
+st_srp_pierce_glass	Üveg
 st_srp_pierce_plywood	Rétegelt lemez
 st_srp_pierce_stone	Kő
 st_srp_pierce_tinplate	Bádog
