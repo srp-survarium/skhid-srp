@@ -41,6 +41,10 @@ pub struct TeamPlanRule {
     pub comeback_left_s: f32,
     pub bring_home_left_s: f32,
     pub attack_gain: f32,
+    /// What a Sneak weighs in a comeback: 1, as usual (#1222's bench: with `attack_gain` on it too the extra attack time was
+    /// crouched Sneak, Sneak calm walking +48 % z +4.4, Raid +18 %, attack takes -11.6 % z -3.9, no more steals). A comeback raid
+    /// walks its approach as any (running it was heard: `BehindOpen::run_in`).
+    pub sneak_gain: f32,
 }
 
 impl Default for TeamPlanRule {
@@ -52,6 +56,7 @@ impl Default for TeamPlanRule {
             comeback_left_s: 540.0,
             bring_home_left_s: 90.0,
             attack_gain: 1.6,
+            sneak_gain: 1.0,
         }
     }
 }
@@ -61,7 +66,8 @@ impl TeamPlanRule {
         let ok = self.level_band >= 0.0
             && self.comeback_left_s > 0.0
             && self.bring_home_left_s >= 0.0
-            && self.attack_gain >= 1.0;
+            && self.attack_gain >= 1.0
+            && self.sneak_gain > 0.0;
         if ok { Ok(()) } else { Err("mods.team_plan".into()) }
     }
 }
@@ -78,12 +84,20 @@ pub struct BehindOpen {
     pub raid_after_s: f32,
     pub share: f32,
     pub full_at: f32,
+    /// An early raid (before the play's own `after_s`) only while at most this many enemies are known within the play's
+    /// `guard_m` of their container: the first build's early raids walked into held containers (#1236: attack deaths +13 %,
+    /// steals 31 vs 38).
+    pub thin_guard: u32,
+    /// A team behind runs a raid's approach (`Pace::Run`) outside the play's `sneak_m`. Off by default: on, the 4+5 fix's
+    /// 112-pair gap bench had Raid sprinting +280 %, deaths after an audible sprint +126 % (z +8.8), sprint deaths to a killer
+    /// within 20 m +92 % (z +7.3) and attack deaths +14 % (z +3.3, a guard FAIL): a running raider is heard by the guards.
+    pub run_in: bool,
 }
 
 impl Default for BehindOpen {
     fn default() -> Self {
         // GUESS, by bench: one battery behind; a raid from 30 s; 0.6 of the time taken off at two behind.
-        Self { by: 1.0, raid_after_s: 30.0, share: 0.6, full_at: 2.0 }
+        Self { by: 1.0, raid_after_s: 30.0, share: 0.6, full_at: 2.0, thin_guard: 0, run_in: false }
     }
 }
 
@@ -109,7 +123,9 @@ impl BehindOpen {
 
 /// [A296 item 5] Regroup before a raid: a raider first within `stage_m` of their container, with a teammate alive within
 /// `call_m` of it and none within `mate_m`, stops there (crouched, looking at the container) up to `wait_s` for one to come
-/// within `mate_m`, then goes in. A lone raider, or one with a mate already by him, goes in at once.
+/// within `mate_m`, then goes in. A lone raider, or one with a mate already by him, goes in at once. With `call` a team behind
+/// (`behind_open.by`, else one point) offers the raid's second slot, so a mate is sent to the same container: the first build's
+/// stops rarely saw one come (#1236: 4-7 stops a log, almost none joined).
 #[derive(Clone, Copy, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(default, deny_unknown_fields)]
 pub struct RaidRegroup {
@@ -117,12 +133,13 @@ pub struct RaidRegroup {
     pub call_m: f32,
     pub mate_m: f32,
     pub wait_s: f32,
+    pub call: bool,
 }
 
 impl Default for RaidRegroup {
     fn default() -> Self {
         // GUESS, by bench: out of the container's 25 m guard ring with room; a mate in sight and in reach of a trade.
-        Self { stage_m: 40.0, call_m: 50.0, mate_m: 12.0, wait_s: 10.0 }
+        Self { stage_m: 40.0, call_m: 50.0, mate_m: 12.0, wait_s: 10.0, call: true }
     }
 }
 
@@ -159,9 +176,12 @@ impl Default for ModTuning {
             smoothing: 0.2,
             min: 0.1,
             max: 1.0,
-            team_plan: None,
-            behind_open: None,
-            raid_regroup: None,
+            // A296 items 2, 4 and 5 ON together (the owner: ship the intended design ON with a safety, then tune): their joint
+            // by-side bench from a 2-battery gap (112 pairs, 600 s) had the behind side's wins 22 vs 19, points +2.9 %, delivered
+            // +4.3 %, steals +25 %, the ahead side no worse (wins 80 vs 72), no guard FAIL.
+            team_plan: Some(TeamPlanRule::default()),
+            behind_open: Some(BehindOpen::default()),
+            raid_regroup: Some(RaidRegroup::default()),
         }
     }
 }
