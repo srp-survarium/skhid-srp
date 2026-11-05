@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Run patch 83 (rust/patches/src/hud_options.rs, its lohooks of
 hud_options.toml: the Settings' "Hide hit markers" and "Hide player scores", kept in
-user.cfg, and the Graphics tab's Renderer list, `srp_dxvk`, which only the updater reads) in the default build on made-up game objects, each from the game's
+user.cfg, and the Graphics tab's Renderer list, `srp_dxvk`, which the next start reads: DXVK loaded from dxvk\\) in the default build on made-up game objects, each from the game's
 own code before its site to past it, the original beside it.
 
     python check_hud_options_026g.py <original survarium.exe>
@@ -19,10 +19,20 @@ Scaleform's Invoke 0x511600 a stub that records each call; translate_text
   user.cfg line's value; registers and stack as the original's, no file
   opened;
 - the process's start (memory::platform::allocate_arenas 0xE9580 to past its
-  first instruction, `mov eax,11A8h`): with a `d3d11.dll` beside the game
-  (CreateFileA stubbed: it opens or not) `dxvk.pending` made (CREATE_ALWAYS),
-  without one nothing made; registers (EAX the probe's size) and stack as the
-  original's, which opens nothing;
+  first instruction, `mov eax,11A8h`), kernel32's and shell32's imports and
+  the four Vulkan functions stubbed (`Run.kernel`): user.cfg read from
+  SHGetFolderPathA(CSIDL_PERSONAL)\\survarium, the five dxvk\\ files looked
+  for by full path, the marker; Vulkan/DXVK picked with all five, no marker
+  and a 1.4 device: the marker written first, vulkan-1.dll loaded, an
+  instance made and destroyed, the DLL let go, then dxgi, d3d11, d3d10core,
+  d3d9, d3d8 loaded by full path (one that fails stops the loads, nothing let
+  go, the marker kept); a 1.3 device or no vulkan-1.dll, DirectX 11 picked,
+  no user.cfg, a file missing, a marker left: nothing loaded, the marker
+  deleted; never the engine's allocator; registers (EAX the probe's size) and
+  stack as the original's, which calls none of these;
+- the login screen (0x21EAC8, after patch 88's handler): after a failed DXVK
+  start (a marker left) `srp_dxvk` off and user.cfg saved once, the marker
+  deleted; after that, and after a start with DXVK, only the marker deleted;
 - the Settings' call (game_options::scaleform_callback 0x1FF5D0 to its
   return, through patch 79's hook at its start): a setting's name with "1" or
   "0" sets that variable alone and writes user.cfg once, with another value
@@ -71,41 +81,146 @@ OTHER_HUD = 0x20076800                  # another hud movie (a new game world's)
 MATCH_OPTIONS, MATCH_WORK = 0x31000000, 0x31100000
 
 
-CREATE_FILE_SLOT, CLOSE_SLOT = 0x870048, 0x870040   # CreateFileA, CloseHandle: d3d11.dll looked for, dxvk.pending made
 ARENAS, ARENAS_PAST = 0xE9580, 0xE9585                # allocate_arenas' start, past its `mov eax,11A8h`
+LOGIN, LOGIN_PAST = 0x21EAC8, 0x21EACE                # login_menu::on_activate's site, past `mov ecx,[esi+9Ch]`
+MALLOC = 0xE4F90                                      # the engine's allocator: never called at the process's start
+DOCUMENTS = b"C:\\Users\\p\\Documents"
+EXE_PATH = b"C:\\Game\\game\\binaries\\x86\\survarium_skhid.exe"
+USER_CFG = "C:\\Users\\p\\Documents\\survarium\\user.cfg"
+DXVK_DIR = "C:\\Game\\game\\binaries\\x86\\dxvk\\"
+DXVK = ("dxgi.dll", "d3d11.dll", "d3d10core.dll", "d3d9.dll", "d3d8.dll")   # the load order
+VULKAN, INSTANCE, DEVICES = 0x71000000, 0x73000000, 0x74000000
+# kernel32's and shell32's import slots patch 83 calls at the process's start and the login screen
+SLOTS = {"CreateFileA": (0x870048, 7), "ReadFile": (0x870064, 5), "WriteFile": (0x870108, 5), "CloseHandle": (0x870040, 1),
+         "DeleteFileA": (0x87021C, 1), "LoadLibraryA": (0x870080, 1), "GetProcAddress": (0x870084, 2),
+         "FreeLibrary": (0x870088, 1), "GetModuleFileNameA": (0x87014C, 3), "SHGetFolderPathA": (0xAEFE7C, 5)}
+VK = {"vkCreateInstance": 3, "vkDestroyInstance": 2, "vkEnumeratePhysicalDevices": 3, "vkGetPhysicalDeviceProperties": 2}
+
+
+def vk_version(major, minor, patch):
+    return (major << 22) | (minor << 12) | patch
 
 
 class Run(language.Run):
-    def __init__(self, data, d3d11=False):
+    def __init__(self, data):
         super().__init__(data)
         self.refused = False
-        # CreateFileA (stdcall 7): (name, disposition) kept; d3d11.dll opens when `d3d11` is
-        self.d3d11, self.opened = d3d11, []
-        stub = hide.IMPORTS + 0x400
-        self.emu.mem_write(stub, b"\xC2\x1C\x00")
-        self.word(CREATE_FILE_SLOT, stub)
-        self.emu.hook_add(UC_HOOK_CODE, self.create_file, begin=stub, end=stub)
-        # CloseHandle (stdcall 1)
-        self.emu.mem_write(stub + 0x40, b"\xB8\x01\x00\x00\x00\xC2\x04\x00")
-        self.word(CLOSE_SLOT, stub + 0x40)
+        self.windows_world()
         self.emu.mem_map(MATCH_OPTIONS, 0x60000, UC_PROT_ALL)
         self.emu.mem_map(MATCH_WORK, 0x10000, UC_PROT_ALL)
+        self.mallocs = 0
+        self.emu.hook_add(UC_HOOK_CODE, self.malloc, begin=MALLOC, end=MALLOC)
 
-    def process_start(self):
-        """allocate_arenas' start to past its first instruction: the registers, ESP, the files opened."""
-        self.opened = []
+    def malloc(self, *_):
+        self.mallocs += 1
+
+    def windows_world(self, user_cfg=None, present=DXVK, marker=False, vulkan=None, fails=None):
+        """What the stubs answer: user.cfg's text (None: no file), the dxvk\\ files there, a marker left,
+        the best device's (apiVersion, type) (None: no vulkan-1.dll), a DLL whose load fails."""
+        self.user_cfg, self.present, self.marker, self.vulkan, self.fails = user_cfg, set(present), marker, vulkan, fails
+        self.calls_made, self.logged, self.read_at = [], b"", 0
+        if getattr(self, "stubs", None):
+            return
+        self.stubs = {}
+        at = hide.IMPORTS + 0x600
+        for name, (slot, pops) in list(SLOTS.items()) + [(n, (None, p)) for n, p in VK.items()]:
+            self.emu.mem_write(at, b"\xC2" + struct.pack("<H", 4 * pops))
+            if slot is not None:
+                self.word(slot, at)
+            self.stubs[name] = at
+            self.emu.hook_add(UC_HOOK_CODE, self.kernel, begin=at, end=at, user_data=name)
+            at += 0x10
+
+    def kernel(self, emu, address, size, name):
+        sp = emu.reg_read(UC_X86_REG_ESP)
+        arg = lambda i: self.read(sp + 4 + 4 * i)
+        result = 1
+        if name == "CreateFileA":
+            path, disposition = self.text(arg(0)).decode(), arg(4)
+            self.calls_made.append((name, path, disposition))
+            if path == "srp_patches.log":
+                result = 0x60
+            elif path == USER_CFG:
+                result = 0x50 if self.user_cfg is not None else 0xFFFFFFFF
+            elif path == "dxvk.pending":
+                result = 0x61 if self.marker or disposition == 2 else 0xFFFFFFFF
+                self.marker |= disposition == 2
+            elif path.startswith(DXVK_DIR):
+                result = 0x62 if path[len(DXVK_DIR):] in self.present else 0xFFFFFFFF
+            else:
+                result = 0xFFFFFFFF
+        elif name == "ReadFile":
+            assert arg(0) == 0x50, hex(arg(0))
+            chunk = self.user_cfg[self.read_at:self.read_at + arg(2)]
+            self.read_at += len(chunk)
+            emu.mem_write(arg(1), chunk)
+            self.word(arg(3), len(chunk))
+        elif name == "WriteFile":
+            self.logged += bytes(emu.mem_read(arg(1), arg(2)))
+            self.word(arg(3), arg(2))
+        elif name == "DeleteFileA":
+            path = self.text(arg(0)).decode()
+            self.calls_made.append((name, path))
+            if path == "dxvk.pending":
+                self.marker = False
+        elif name == "LoadLibraryA":
+            path = self.text(arg(0)).decode()
+            self.calls_made.append((name, path))
+            if path == "vulkan-1.dll":
+                result = VULKAN if self.vulkan is not None else 0
+            else:
+                result = 0 if path == DXVK_DIR + str(self.fails) else 0x72000000 + 0x10000 * len(self.calls_made)
+        elif name == "GetProcAddress":
+            function = self.text(arg(1)).decode()
+            result = self.stubs[function] if arg(0) == VULKAN and function in VK else 0
+        elif name == "FreeLibrary":
+            self.calls_made.append((name, arg(0)))
+        elif name == "GetModuleFileNameA":
+            emu.mem_write(arg(1), EXE_PATH + b"\0")
+            result = len(EXE_PATH)
+        elif name == "SHGetFolderPathA":
+            assert arg(1) == 5, arg(1)                 # CSIDL_PERSONAL
+            emu.mem_write(arg(4), DOCUMENTS + b"\0")
+            result = 0
+        elif name == "vkCreateInstance":
+            self.calls_made.append((name,))
+            self.word(arg(2), INSTANCE)
+            result = 0
+        elif name == "vkEnumeratePhysicalDevices":
+            assert arg(0) == INSTANCE
+            self.word(arg(1), 2)
+            self.word(arg(2), DEVICES)
+            self.word(arg(2) + 4, DEVICES + 1)
+            result = 0
+        elif name == "vkGetPhysicalDeviceProperties":
+            # the CPU's lavapipe first (1.4.354, never counted), then the case's device
+            api, kind = (vk_version(1, 4, 354), 4) if arg(0) == DEVICES else self.vulkan
+            self.word(arg(1), api)
+            self.word(arg(1) + 16, kind)
+        elif name == "vkDestroyInstance":
+            self.calls_made.append((name, arg(0)))
+        emu.reg_write(UC_X86_REG_EAX, result)
+
+    def process_start(self, **world):
+        """allocate_arenas' start to past its first instruction in `world` (windows_world): whether the
+        registers and ESP are the original's, and the calls made."""
+        self.windows_world(**world)
         sp = hide.STACK + 0x9000
         after, esp = self.run(ARENAS, (ARENAS_PAST,), sp, hide.GAME)
-        assert self.stopped == ARENAS_PAST
+        assert self.stopped == ARENAS_PAST, self.stopped
         kept = esp == sp and after == {**hide.GAME, UC_X86_REG_EAX: 0x11A8}
-        return kept, list(self.opened)
+        return kept, list(self.calls_made)
 
-    def create_file(self, emu, *_):
-        sp = emu.reg_read(UC_X86_REG_ESP)
-        name, disposition = self.text(self.read(sp + 4)).decode(), self.read(sp + 20)
-        self.opened.append((name, disposition))
-        there = name == "dxvk.pending" or (name == "d3d11.dll" and self.d3d11)
-        emu.reg_write(UC_X86_REG_EAX, 7 if there or disposition == 2 else 0xFFFFFFFF)
+    def login(self):
+        """login_menu::on_activate's site to past its span (patch 88's handler, then this one): whether the
+        registers and ESP are the original's, and the calls made."""
+        self.calls_made = []
+        self.emu.mem_write(hide.WORLD, bytes(0x400))
+        sp = hide.STACK + 0x9000
+        regs = {**hide.GAME, UC_X86_REG_ESI: hide.WORLD}
+        after, esp = self.run(LOGIN, (LOGIN_PAST,), sp, regs)
+        assert self.stopped == LOGIN_PAST, self.stopped
+        return esp == sp and after == {**regs, UC_X86_REG_ECX: 0}, list(self.calls_made)
 
     def new_match(self, replay):
         """A match's options read, as check_blackout_026g.py's static_info and replay run
@@ -203,20 +318,8 @@ def main():
     _, _, again = ours.start()
     again_nodes = [node for node in registered(ours, again, head_before) if ours.text(ours.read(node + 0x10)) != b"srp_lobby"]
     expect(again_nodes == nodes, "configs.start again: each registered once")
-    expect(ours.opened == [], f"configs.start opens no file ({ours.opened})")
+    expect(ours.calls_made == [], f"configs.start opens no file ({ours.calls_made})")
 
-    # the process's start: the DXVK marker
-    for which, run in (("the original", Run(original, d3d11=True)), ("the build", ours)):
-        kept, opened = run.process_start()
-        expect(kept and (opened == [("d3d11.dll", 3)] if which == "the build" else opened == []),
-               f"{which} at the process's start without a d3d11.dll beside the game: "
-               f"{'looked for, ' if which == 'the build' else ''}no marker made ({opened}); registers and stack as the "
-               "original's (EAX 11A8h)")
-    with_dll = Run(patched, d3d11=True)
-    kept, opened = with_dll.process_start()
-    expect(kept and opened == [("d3d11.dll", 3), ("dxvk.pending", 2)],
-           f"the process's start with a d3d11.dll beside the game: dxvk.pending made (CREATE_ALWAYS) ({opened}); "
-           "registers and stack as the original's")
     value = {name: variables[name][3] for name in SETTINGS}
     for name, node in zip(names, nodes):
         if name not in SETTINGS:
@@ -312,7 +415,75 @@ def main():
                and (not mine or order.index("root.srp_hud_options") == len(order) - 1),
                f"{case}: " + (f"the hud told {want[0][2]}" if want else "nothing told")
                + ", after patch 65's Invokes; on into update_player_icons as the game's")
+    renderer(original, patched, expect)
     print("all cases passed")
+
+
+def renderer(original, patched, expect):
+    """The process's start and the login screen: the renderer (docs/notes/dxvk-option.md)."""
+    on, off = b"localization english\r\nsrp_dxvk on\r\nr_fullscreen on\r\n", b"srp_dxvk off\r\n"
+    good, old = (vk_version(1, 4, 303), 2), (vk_version(1, 3, 280), 2)
+    look = [("CreateFileA", "dxvk.pending", 2), ("LoadLibraryA", "vulkan-1.dll"), ("vkCreateInstance",),
+            ("vkDestroyInstance", INSTANCE), ("FreeLibrary", VULKAN)]
+    files = [("CreateFileA", DXVK_DIR + name, 3) for name in DXVK]
+    opened = [("CreateFileA", USER_CFG, 3)]
+    marker = [("CreateFileA", "dxvk.pending", 3)]
+    unmark = [("DeleteFileA", "dxvk.pending")]
+    loads = [("LoadLibraryA", DXVK_DIR + name) for name in DXVK]
+    log = [("CreateFileA", "srp_patches.log", 4)]
+    cases = [
+        # (what, the world, the calls wanted, the marker after, the log's words)
+        ("Vulkan picked, dxvk\\ whole, a Vulkan 1.4 device: the marker first, the look (all let go), DXVK's five "
+         "by their full paths in their order", dict(user_cfg=on, vulkan=good),
+         opened + files + marker + look + loads + log, True, b"DXVK loaded"),
+        ("Vulkan picked, the best device 1.3: no DLL loaded, the marker taken away", dict(user_cfg=on, vulkan=old),
+         opened + files + marker + look + log + unmark, False, b"no Vulkan 1.4 device"),
+        ("Vulkan picked, no vulkan-1.dll: the same", dict(user_cfg=on),
+         opened + files + marker + look[:2] + log + unmark, False, b"no Vulkan 1.4 device"),
+        ("DirectX 11 picked: no look, nothing loaded", dict(user_cfg=off, vulkan=good),
+         opened + files + marker + unmark, False, b""),
+        ("no user.cfg: DirectX 11", dict(vulkan=good), opened + files + marker + unmark, False, b""),
+        ("Vulkan picked, d3d10core.dll missing from dxvk\\: no look, nothing loaded",
+         dict(user_cfg=on, vulkan=good, present=[n for n in DXVK if n != "d3d10core.dll"]),
+         opened + files[:3] + marker + unmark, False, b""),
+        ("Vulkan picked, a marker left: no look, nothing loaded, the marker taken away",
+         dict(user_cfg=on, vulkan=good, marker=True), opened + files + marker + unmark, False, b""),
+        ("Vulkan picked, d3d10core.dll does not load: the loads stop there, nothing let go, the marker kept",
+         dict(user_cfg=on, vulkan=good, fails="d3d10core.dll"), opened + files + marker + look + loads[:3] + log, True,
+         b"stopped at DLL 2"),
+    ]
+    for what, world, wanted, marked, words in cases:
+        r = Run(patched)
+        kept, calls = r.process_start(**world)
+        expect(kept and calls == wanted and r.marker == marked and words in r.logged and r.mallocs == 0,
+               f"the process's start, {what} (no engine allocation, registers and stack as the original's)"
+               + ("" if calls == wanted else f": {calls}"))
+    stock = Run(original)
+    kept, calls = stock.process_start(user_cfg=on, vulkan=good)
+    expect(kept and calls == [], "the original's process start calls none of these")
+
+    # a failed DXVK start: the setting off at the login screen (user.cfg has run by then), saved once
+    r = Run(patched)
+    before = r.read(language.LIST_HEAD)
+    _, _, head = r.start()
+    node = language.named(r, registered(r, head, before), "srp_dxvk")
+    value = r.read(node + 0x40)
+    r.emu.mem_write(language.TEXT, b"on\0")
+    r.call_at(EXECUTE_BOOL, (language.TEXT,), {UC_X86_REG_ECX: node})
+    r.process_start(user_cfg=on, vulkan=good, marker=True)
+    saves = r.saves
+    kept, calls = r.login()
+    expect(kept and r.read(value, 1) == b"\0" and r.saves == saves + 1 and ("DeleteFileA", "dxvk.pending") in calls
+           and b"DirectX 11 again" in r.logged,
+           f"the login screen after a failed DXVK start: srp_dxvk off, user.cfg saved once, the marker deleted ({calls})")
+    saves = r.saves
+    kept, calls = r.login()
+    expect(kept and r.saves == saves and calls == unmark, "the next login screen: only the marker's delete")
+    r = Run(patched)
+    r.process_start(user_cfg=on, vulkan=good)
+    kept, calls = r.login()
+    expect(kept and calls == unmark and not r.marker and r.saves == 0,
+           "the login screen after a start with DXVK: the marker deleted, nothing saved")
 
 
 if __name__ == "__main__":

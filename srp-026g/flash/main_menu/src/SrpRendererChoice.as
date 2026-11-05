@@ -8,7 +8,7 @@ package
     // The Graphics tab's "Renderer" list (docs/notes/dxvk-option.md): DirectX 11
     // or Vulkan/DXVK, built as the tab's Monitor list (a list with its label
     // on its left). It is exe patch 83's `srp_dxvk`, kept in user.cfg, which the
-    // updater reads at the next start. Settings owns it: a pick is a pending
+    // game reads at its next start. Settings owns it: a pick is a pending
     // change of the tab (Apply saves it, Cancel or leaving without Apply puts
     // the saved one back). The exe answers ExternalInterface.call("srp_dxvk"[,
     // "1" or "0"]) with root.srp_check_option(name, label, saved), and the two

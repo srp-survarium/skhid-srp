@@ -8,7 +8,6 @@ extern crate alloc;
 pub mod args;
 pub mod checked;
 pub mod download;
-pub mod dxvk;
 pub mod file_error;
 pub mod game;
 pub mod inflate;

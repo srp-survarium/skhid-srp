@@ -133,6 +133,26 @@ extern engine_close_handle
 ; the IAT slot 0x87021c (an import, stdcall)
 ; `call [symbol]`: stdcall, it pops its arguments
 extern engine_delete_file_a
+; void *engine_load_library_a(const char *name)
+; the IAT slot 0x870080 (an import, stdcall)
+; `call [symbol]`: stdcall, it pops its arguments
+extern engine_load_library_a
+; void *engine_get_proc_address(void *module, const char *name)
+; the IAT slot 0x870084 (an import, stdcall)
+; `call [symbol]`: stdcall, it pops its arguments
+extern engine_get_proc_address
+; unsigned int engine_free_library(void *module)
+; the IAT slot 0x870088 (an import, stdcall)
+; `call [symbol]`: stdcall, it pops its arguments
+extern engine_free_library
+; unsigned int engine_get_module_file_name_a(void *module, char *name, unsigned int size)
+; the IAT slot 0x87014c (an import, stdcall)
+; `call [symbol]`: stdcall, it pops its arguments
+extern engine_get_module_file_name_a
+; unsigned int engine_sh_get_folder_path_a(void *window, unsigned int folder, void *token, unsigned int flags, char *path)
+; the IAT slot 0xaefe7c (an import, stdcall)
+; `call [symbol]`: stdcall, it pops its arguments
+extern engine_sh_get_folder_path_a
 ; void engine_ray_test(struct bullet_physics_world *world, struct ray_result *result, const float *origin, const float *direction, float length, unsigned int group, unsigned int mask, const void *delegate, unsigned int unflipped)
 ; 0x75e20 vostok::physics::bullet_physics_world::ray_test: world ECX, result ESP+4, origin ESP+8, direction ESP+12, length ESP+16, group ESP+20, mask ESP+24, delegate ESP+28, unflipped ESP+32; pops 32
 extern engine_ray_test

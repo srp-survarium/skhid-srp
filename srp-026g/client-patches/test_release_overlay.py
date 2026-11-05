@@ -333,19 +333,14 @@ class ReleaseTests(unittest.TestCase):
         self.assertIn('not the extractor the updater is built to run', str(refused.exception))
         self.assertFalse((self.root / 'refused').exists())
 
-    def test_dxvk_shipped_is_what_the_updater_takes_for_its_own(self):
-        # The updater replaces or removes a d3d11.dll or dxgi.dll beside the
-        # game only when its sha256 is one of OURS: the builder's pins must be
-        # among them, and the archive's dxvk folder the pinned DLLs.
-        rust = Path(overlay.HERE, '..', '..', 'client', 'updater', 'logic', 'src', 'dxvk.rs').read_text(encoding='utf-8')
-        # its rows: a release each, its DLLs in the order of DLLS
-        ours = re.search(r'pub const OURS: \[\[&str; N\]; \d+\] = \[(.*?)\];', rust, re.S).group(1)
-        rows = [re.findall(r'"([0-9a-f]{64})"', row) for row in re.findall(r"\[([^\]]*)\]", ours)]
-        self.assertIn(list(overlay.DXVK_DLLS.values()), rows)
-        # winetricks dxvk's set, in the updater's order
+    def test_dxvk_shipped_is_what_the_game_loads(self):
+        # The game (exe patch 83) loads DXVK's DLLs from dxvk\ by name, when
+        # all of them are there: the builder ships those names, winetricks
+        # dxvk's set, and the archive's dxvk folder holds the pinned DLLs.
+        rust = Path(overlay.HERE, 'rust', 'patches', 'src', 'hud_options.rs').read_text(encoding='utf-8')
+        loads = re.search(r'pub const DXVK_DLLS: \[&CStr; 5\] =\s*\[(.*?)\];', rust, re.S).group(1)
         names = ['d3d8.dll', 'd3d9.dll', 'd3d10core.dll', 'd3d11.dll', 'dxgi.dll']
-        self.assertEqual(re.findall(r'"([a-z0-9]+\.dll)"', re.search(r'pub const DLLS: \[&str; N\] = \[(.*?)\];', rust, re.S).group(1)),
-                         names)
+        self.assertEqual(sorted(re.findall(r'dxvk\\\\([a-z0-9]+\.dll)', loads)), sorted(names))
         self.assertEqual(list(overlay.DXVK_DLLS), names)
         archive = self.root / 'dxvk.zip'
         self.build(archive, '--pack-zip')

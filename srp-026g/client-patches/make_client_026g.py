@@ -89,8 +89,8 @@ WHAT IT WRITES (the overlay mirrors the game's layout)
     <output>/game/binaries/x86/updater_skhid.url
         the server it asks: --site.
     <output>/game/binaries/x86/dxvk/d3d8.dll, d3d9.dll, d3d10core.dll, d3d11.dll, dxgi.dll
-        DXVK's 32-bit DLLs, unchanged (DXVK_VERSION, pinned): the updater puts
-        them beside the game when the Settings' Renderer is Vulkan/DXVK
+        DXVK's 32-bit DLLs, unchanged (DXVK_VERSION, pinned): the game loads
+        them from there at its start when the Settings' Renderer is Vulkan/DXVK
         (../docs/notes/dxvk-option.md).
     <output>/game/binaries/x86/launcher_skhid/index-*.html
         what the launcher shows while and when the server's page does not
@@ -179,9 +179,8 @@ EXTRACTOR_SIZE = 602624
 EXTRACTOR_SHA256 = "256feca8e274e5da655e2a284fabafd9f554365eb164862089dacd4e8276d282"
 # DXVK (../docs/notes/dxvk-option.md): the release archive and its x32 DLLs,
 # the ones `winetricks dxvk` installs (d3d8, d3d9, d3d10core, d3d11, dxgi),
-# pinned. The DLLs' sha256 are the updater's too (OURS in
-# client/updater/logic/src/dxvk.rs, which only replaces or removes a DLL of
-# these; a test here compares). A new DXVK adds its row there.
+# pinned. The game loads them from dxvk\ when its Renderer is Vulkan/DXVK
+# (exe patch 83's DXVK_DLLS; a test here compares the names).
 DXVK_VERSION = "3.1.1"
 DXVK_URL = f"https://github.com/doitsujin/dxvk/releases/download/v{DXVK_VERSION}/dxvk-{DXVK_VERSION}.tar.gz"
 DXVK_SHA256 = "40565b4a724aadc4433fa4e010b4b23916d9b1f1baeee64e17186db94f54e608"

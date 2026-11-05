@@ -283,6 +283,16 @@ unsafe extern "C" {
     pub static engine_close_handle: unsafe extern "stdcall" fn(*mut c_void) -> u32;
     /// the IAT slot 0x87021c (an import, stdcall): unsigned int engine_delete_file_a(const char *name)
     pub static engine_delete_file_a: unsafe extern "stdcall" fn(*const u8) -> u32;
+    /// the IAT slot 0x870080 (an import, stdcall): void *engine_load_library_a(const char *name)
+    pub static engine_load_library_a: unsafe extern "stdcall" fn(*const u8) -> *mut c_void;
+    /// the IAT slot 0x870084 (an import, stdcall): void *engine_get_proc_address(void *module, const char *name)
+    pub static engine_get_proc_address: unsafe extern "stdcall" fn(*mut c_void, *const u8) -> *mut c_void;
+    /// the IAT slot 0x870088 (an import, stdcall): unsigned int engine_free_library(void *module)
+    pub static engine_free_library: unsafe extern "stdcall" fn(*mut c_void) -> u32;
+    /// the IAT slot 0x87014c (an import, stdcall): unsigned int engine_get_module_file_name_a(void *module, char *name, unsigned int size)
+    pub static engine_get_module_file_name_a: unsafe extern "stdcall" fn(*mut c_void, *mut u8, u32) -> u32;
+    /// the IAT slot 0xaefe7c (an import, stdcall): unsigned int engine_sh_get_folder_path_a(void *window, unsigned int folder, void *token, unsigned int flags, char *path)
+    pub static engine_sh_get_folder_path_a: unsafe extern "stdcall" fn(*mut c_void, u32, *mut c_void, u32, *mut u8) -> u32;
     /// the IAT slot 0x870158 (an import, stdcall): unsigned int engine_query_performance_counter(unsigned int *count)
     pub static engine_query_performance_counter: unsafe extern "stdcall" fn(*mut u32) -> u32;
     /// the IAT slot 0x870150 (an import, stdcall): unsigned int engine_query_performance_frequency(unsigned int *frequency)

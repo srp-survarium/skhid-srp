@@ -95,7 +95,7 @@ package survarium.menu
       // The HUD group's crosshair list (Dynamic, Static: the stock static crosshair; Hidden: patch 83).
       protected var _crosshair:SrpCrosshairChoice;
       
-      // The Graphics tab's Renderer list (patch 83's `srp_dxvk`, which the updater reads at the next
+      // The Graphics tab's Renderer list (patch 83's `srp_dxvk`, which the game reads at its next
       // start: docs/notes/dxvk-option.md), under Monitor (SrpVideoTab). A pick is a change of the tab.
       protected var _renderer:SrpRendererChoice;
       
