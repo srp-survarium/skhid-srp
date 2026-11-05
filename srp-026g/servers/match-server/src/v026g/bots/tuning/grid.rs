@@ -124,7 +124,7 @@ pub struct GridTuning {
     pub gap_no_vaults: bool,
     /// [A304] Whether the maps' walk grids keep, by floor, the slope of a ramp face under it (`mapdata::Body::ramp_faces`,
     /// `WalkGrid::ramp_slope_deg`): a walker ramp laid over steps, which the client walks at cos of its grade (Cologne's stairs),
-    /// told from real stairs with flat treads. A mark only, for the reckoning's slope rule to read. Off until that rule's lab. A
+    /// told from real stairs with flat treads. A mark only, read by the reckoning's slope rule (`kin.slope_speed`); on with it. A
     /// grid is the map's (see `gap_links`).
     pub ramp_faces: bool,
 }
@@ -149,7 +149,7 @@ impl Default for GridTuning {
             steep_walk_base: true,
             pocket_exits_walled: true,
             gap_no_vaults: true,
-            ramp_faces: false,
+            ramp_faces: true,
         }
     }
 }
