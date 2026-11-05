@@ -26,7 +26,7 @@ switches OFF feel: fight_lift press_in_reach sprint_turns straight_jumps
 switches OFF grid: capsule_steps keep_last_resorts
 switches OFF mods: behind_open raid_regroup risk_alive.invert
 switches OFF pace: ring_death_spots ring_radar
-switches OFF smoke: objective
+switches OFF smoke: camper objective
 switches OFF spacing: apart_ease apart_tie lane
 switches OFF take: cross_from_zone far_stands team_memory world_stand
 switches OFF tdm: group
