@@ -2923,7 +2923,7 @@ st_weapon_pick_up	Poimi %1$s ({USE})
 st_weapon_reload_action	Lataa
 st_weapon_switching	Odota aseen vaihtoa
 st_wear	Käytä
-st_weight_booster_description	Proteiinia, joka sisältää lihaskasvun ja voiman tarvitsemat ravintoaineet. Ilman fyysistä rasitusta se ei kuitenkaan tehoa.
+st_weight_booster_description	Proteiinia, joka sisältää lihaskasvun ja voiman tarvitsemat ravintoaineet. Ilman fyysistä rasitusta se ei kuitenkaan tehoa.\nPerälyönti käteen tappaa.
 st_weight_booster_name	Anomaalinen voima -proteiini
 st_winchester1894_description	Amerikkalaisen insinöörin vuonna 1894 suunnittelemaa kivääriä valmistettiin vuoteen 2006 asti. Yksi tunnetuimmista ja suosituimmista metsästyskivääreistä. Vipulukko ja 6 patruunan putkilipas.
 st_winchester1894_name	Winchester Model 1894

@@ -1,0 +1,11 @@
+# Patch 108: a gun-stock hit to a hand kills when the attacker carries the
+# Anomalous Force Protein (docs/notes/force-protein-hand-kill.md). The site
+# (hit_body_part once invulnerability is applied, before armour) is
+# sites_026g.tsv's, shared with patch 94; the logic is hand_kill.rs.
+name = "hand_kill"
+patch = 108
+
+[[hook]]
+site = "medical.hit"
+handler = "on_hit"
+order = 0

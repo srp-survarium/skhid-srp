@@ -10348,6 +10348,15 @@ impl CorePlace {
         unsafe { self.0.byte_add(0x8).cast::<Option<Player>>().write_volatile(value) }
     }
 
+    /// +0xc (u8): the place's current kit, which of kit0..kit2 is its player (core_active_player 0x2D0AF9)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn kit(self) -> *mut u8 {
+        unsafe { self.0.byte_add(0xc).cast::<u8>().as_ptr() }
+    }
+
     /// 0x30 bytes: a place's entry: 30h bytes (core_active_player 0x2D0AE7)
     pub const SIZE: usize = 0x30;
 
@@ -11094,6 +11103,15 @@ impl MedicalHit {
     #[inline(always)]
     pub unsafe fn set_owner(self, value: Option<MedicalOwner>) {
         unsafe { self.0.byte_add(0x20).cast::<Option<MedicalOwner>>().write_volatile(value) }
+    }
+
+    /// +0x44 (u8): the attacker's place, 0FFh none (hit_info::hit_info's stack+8, 0x32BA52; hit_impl passes it to generate_killed_event, 0x2D9F09)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn attacker(self) -> *mut u8 {
+        unsafe { self.0.byte_add(0x44).cast::<u8>().as_ptr() }
     }
 }
 

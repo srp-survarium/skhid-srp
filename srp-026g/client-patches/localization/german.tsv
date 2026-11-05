@@ -2923,7 +2923,7 @@ st_weapon_pick_up	%1$s aufheben ({USE})
 st_weapon_reload_action	Nachladen
 st_weapon_switching	Waffenwechsel abwarten
 st_wear	Anziehen
-st_weight_booster_description	Das Protein, das die notwendigen Stoffe für die Größe der Muskeln und die Erhöhungen der Kraft benötigen.  Ist jedoch ohne physische Belastung, sinnlos anzuwenden.
+st_weight_booster_description	Das Protein, das die notwendigen Stoffe für die Größe der Muskeln und die Erhöhungen der Kraft benötigen.  Ist jedoch ohne physische Belastung, sinnlos anzuwenden.\nKolbenschläge auf die Hand töten.
 st_weight_booster_name	 Anomalie Starke
 st_winchester1894_description	Entwickelt vom amerikanischen Konstrukteur im Jahre 1894, wurde das vorliegende Gewehr bis 2006 ausgegeben, was zugelassen hat, eines der bekanntesten und populären Jagdgewehre zu werden. Ist mit dem Rohrgeschäft auf 6 Patronen ausgestattet.
 st_winchester1894_name	Winchester 1894
