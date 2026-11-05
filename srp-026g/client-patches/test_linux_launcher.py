@@ -698,8 +698,9 @@ HDMI-1 connected 1366x768+0+0
         # started) before it lists the crash files.
         self.assertEqual(calls[-1]['name'], 'wineserver')
         self.assertEqual(calls[-1]['args'], ['-w'])
-        self.assertIn(str(self.bin / 'SRP-crash-test-0.dmp'), result.stdout)
-        self.assertIn(str(self.bin / 'SRP-crash-test-0.txt'), result.stdout)
+        # Each named with what it is for: the .dmp kept, not posted.
+        self.assertIn(str(self.bin / 'SRP-crash-test-0.dmp') + '  (the whole memory: keep it, do not post it', result.stdout)
+        self.assertIn(str(self.bin / 'SRP-crash-test-0.txt') + '  (the crash report: send this to a new post in #bugreports)', result.stdout)
         self.assertNotIn('SRP-crash-old-0', result.stdout)
 
     def test_crash_dump_default_and_unknown_values(self):
