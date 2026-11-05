@@ -13,8 +13,9 @@
 //!   IN_FLIGHT bakes are on the GPU; the next QUEUED keep their level 0 and
 //!   go when one ends; past those, the stock bake;
 //! - `on_dispatched`, each resources dispatch on the bake's thread: the
-//!   oldest bakes whose last staging maps without waiting are read back and
-//!   finished by process_compression's own tail (`on_resume`), the texture,
+//!   oldest bakes whose last staging maps without waiting (FINISHED_A_FRAME
+//!   of them a dispatch, the rest in the next frames, oldest first) are read
+//!   back and finished by process_compression's own tail (`on_resume`), the texture,
 //!   its sharing, its save (`on_save`, `on_free`: the DDS is MT memory the
 //!   save descriptor owns, no copy), its record and the "camouflage/decal
 //!   cook" line; one that waited LATE_MS is read back waiting, and logged;
@@ -37,6 +38,9 @@ const IN_FLIGHT: usize = 8;
 const QUEUED: usize = 8;
 /// A bake on the GPU this long is read back waiting.
 const LATE_MS: f32 = 1000.0;
+/// Done bakes a dispatch finishes (each makes its texture from its DDS and
+/// runs its CRC); the rest finish in the next frames, oldest first.
+const FINISHED_A_FRAME: u32 = 2;
 
 /// A pending bake.
 enum Bake {
@@ -60,8 +64,9 @@ enum Event {
     Room,
     /// None is.
     NoRoom,
-    /// Its last staging maps without waiting: the GPU has done it.
-    Done,
+    /// Its last staging maps without waiting: the GPU has done it; this
+    /// dispatch may finish `left` more bakes (FINISHED_A_FRAME at its start).
+    Done { left: u32 },
     /// The GPU has not done it after `waited_ms`.
     Busy { waited_ms: f32 },
     /// The game exits: every bake ends now.
@@ -84,8 +89,9 @@ enum Next {
 fn next(phase: Phase, event: Event) -> Next {
     match (phase, event) {
         (Phase::Queued, Event::Room | Event::Drain) => Next::Issue,
-        (Phase::Queued, Event::NoRoom | Event::Done | Event::Busy { .. }) => Next::Wait,
-        (Phase::InFlight, Event::Done) => Next::Complete,
+        (Phase::Queued, Event::NoRoom | Event::Done { .. } | Event::Busy { .. }) => Next::Wait,
+        (Phase::InFlight, Event::Done { left: 0 }) => Next::Wait,
+        (Phase::InFlight, Event::Done { .. }) => Next::Complete,
         (Phase::InFlight, Event::Busy { waited_ms }) if waited_ms >= LATE_MS => Next::CompleteLate,
         (Phase::InFlight, Event::Drain) => Next::CompleteLate,
         (Phase::InFlight, Event::Busy { .. } | Event::Room | Event::NoRoom) => Next::Wait,
@@ -264,21 +270,26 @@ fn issue_queued(thread: &Thread, job: Job, level0: HeldTexture) -> Option<Bake> 
 }
 
 /// One pass over the pending bakes for `event` (a dispatch's: what the GPU
-/// says; the exit's: Drain): the oldest in flight finished while done (or
-/// late), then the queued issued while there is room.
+/// says; the exit's: Drain): the oldest in flight finished while done (at
+/// most FINISHED_A_FRAME a dispatch) or late, then the queued issued while
+/// there is room.
 fn pass(thread: &Thread, drain: bool) {
+    let mut left = FINISHED_A_FRAME;
     loop {
         let Some((number, bake)) = TABLE.with(thread, |t| t.take_oldest(Some(Phase::InFlight))) else { break };
         let Bake::InFlight { job, gpu, since } = bake else { break };
         let event = if drain {
             Event::Drain
         } else if gpu.readback.ready() {
-            Event::Done
+            Event::Done { left }
         } else {
             Event::Busy { waited_ms: since.elapsed_ms(thread) }
         };
         match next(Phase::InFlight, event) {
-            Next::Complete => complete(thread, job, gpu),
+            Next::Complete => {
+                left = left.saturating_sub(1);
+                complete(thread, job, gpu);
+            }
             Next::CompleteLate => {
                 if !drain {
                     log_job(&job, ": the GPU had it 1 s; read back waiting, ms ", since.elapsed_ms(thread) as u32);
@@ -357,13 +368,15 @@ mod tests {
         assert_eq!(next(Phase::Queued, Event::Room), Next::Issue);
         assert_eq!(next(Phase::Queued, Event::Drain), Next::Issue);
         assert_eq!(next(Phase::Queued, Event::NoRoom), Next::Wait);
-        assert_eq!(next(Phase::Queued, Event::Done), Next::Wait);
+        assert_eq!(next(Phase::Queued, Event::Done { left: 2 }), Next::Wait);
         assert_eq!(next(Phase::Queued, Event::Busy { waited_ms: 5000.0 }), Next::Wait);
     }
 
     #[test]
     fn a_bake_in_flight_ends_when_done_late_or_at_exit() {
-        assert_eq!(next(Phase::InFlight, Event::Done), Next::Complete);
+        assert_eq!(next(Phase::InFlight, Event::Done { left: FINISHED_A_FRAME }), Next::Complete);
+        assert_eq!(next(Phase::InFlight, Event::Done { left: 1 }), Next::Complete);
+        assert_eq!(next(Phase::InFlight, Event::Done { left: 0 }), Next::Wait);
         assert_eq!(next(Phase::InFlight, Event::Busy { waited_ms: 16.0 }), Next::Wait);
         assert_eq!(next(Phase::InFlight, Event::Busy { waited_ms: 999.9 }), Next::Wait);
         assert_eq!(next(Phase::InFlight, Event::Busy { waited_ms: 1000.0 }), Next::CompleteLate);

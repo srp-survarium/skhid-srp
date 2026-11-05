@@ -78,6 +78,9 @@ asynchronous, the cost is the GPU work the game waited for.
   sharing, the save, the record, the query, the "camouflage/decal cook" line. The line's "bake" is
   the ms the game's thread spent until the bake was issued (the draw's with it); its "compress" the
   ms of the readback.
+- A dispatch finishes at most 2 done bakes (each makes its texture from its DDS and runs its CRC).
+  More done bakes wait in their places and finish in the next frames, oldest first; a done bake
+  behind one the GPU has not done waits for it.
 - A bake the GPU has had 1 s is read back waiting, and a line goes to `srp_patches.log`.
 - At most 8 bakes are on the GPU, and 8 more wait their turn (each keeps its level 0, 16 MB of the
   GPU's). Past those, the stock bake (it waits), with a line in `srp_patches.log`.
@@ -95,8 +98,6 @@ asynchronous, the cost is the GPU work the game waited for.
 - A first load of a kept file is still on the main thread: a joiner's kit read from the folder took
   ~40 ms for 12 textures (15:11:27). Spreading them over frames, or moving them behind the loading
   screen, is a separate change.
-- A burst's finished bakes are all completed in the dispatch that finds them done (the texture made
-  from each DDS, its CRC): the stock tail's CPU work, in one frame, with no per-frame limit.
 - The stock bake (past 16 pending, or a bake this does not take) still waits for the GPU, and its save
   still copies the DDS.
 - Not measured in a game: the owner compares the "camouflage/decal cook" lines and the frame times

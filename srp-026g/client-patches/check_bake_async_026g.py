@@ -39,8 +39,12 @@ the save descriptor (bake.save), the CRC, the record, bake.free, finish).
   0Bh), patch 70 makes its waiter again, the DDS freed (MT), the model let
   go, a log line;
 - the places: 8 bakes in flight, the next 8 queued (level 0 kept, nothing
-  compressed), the 17th the stock bake (its blocking Maps), a queued one
-  compressed once one in flight ends;
+  compressed), the 17th the stock bake (its blocking Maps); the 8 done
+  finished 2 a dispatch, oldest first, and 2 queued compressed in their
+  places each time;
+- at most 2 finished a dispatch: 5 done at once finish 2, 2, 1 over three
+  dispatches, oldest first; a done bake behind a busy one waits for it and
+  finishes after it;
 - game::exit: every pending bake finished, the queued ones too.
 """
 import struct
@@ -389,6 +393,11 @@ def names(calls, what):
     return [c for c in calls if c[0] == what]
 
 
+def finished_queries(calls):
+    """The queries finished with success, in order."""
+    return [c[1] for c in names(calls, "finish") if c[2:] == (3, 1, 0)]
+
+
 def main():
     if len(sys.argv) != 2:
         sys.exit(__doc__)
@@ -521,13 +530,45 @@ def main():
     for t, info in game.textures.items():
         if info["usage"] == 3:
             game.done.add(t)
-    ok, calls = dispatched(game)
-    report(ok and len(names(calls, "from memory")) == 8 and len(names(calls, "create target")) > 0,
-           "a dispatch, the GPU done: the 8 in flight finished, the queued ones drawn and compressed")
+    rounds = [dispatched(game) for _ in range(4)]
+    report(all(ok for ok, _ in rounds)
+           and [finished_queries(calls) for _, calls in rounds] == [[b.query for b in bakes[i:i + 2]] for i in (0, 2, 4, 6)]
+           and all(len(names(calls, "create target")) == 2 * (2 * bakes[0].levels - 1) for _, calls in rounds),
+           "four dispatches, the GPU done: 2 of the 8 in flight finished each, oldest first, and 2 queued drawn and "
+           "compressed in their places")
     ok, calls = exiting(game)
     finished = [c[1] for c in names(calls, "finish")]
     report(ok and all(b.query in finished for b in bakes[8:16]) and any("exit" in line for line in game.log),
            "game::exit: every pending bake finished (" + f"{len(finished)} queries), logged")
+
+    print("at most 2 finished a dispatch, oldest first")
+    game = Game(bytes(built))
+    bakes = [Bake(game, name=f"{NAME}_{i}") for i in range(5)]
+    staged = []
+    for b in bakes:
+        before = set(game.textures)
+        process(game, b)
+        staged.append([t for t in game.textures if t not in before and game.textures[t]["usage"] == 3])
+    for stagings in staged:
+        game.done.update(stagings)
+    rounds = [dispatched(game) for _ in range(4)]
+    report(all(ok for ok, _ in rounds)
+           and [finished_queries(calls) for _, calls in rounds]
+           == [[bakes[0].query, bakes[1].query], [bakes[2].query, bakes[3].query], [bakes[4].query], []],
+           "5 done at once: 2, 2, 1 over three dispatches (oldest first), none left for the fourth")
+    game = Game(bytes(built))
+    first, second = Bake(game, name=NAME + "_a"), Bake(game, name=NAME + "_b")
+    process(game, first)
+    before = set(game.textures)
+    process(game, second)
+    game.done.update(t for t in game.textures if t not in before and game.textures[t]["usage"] == 3)
+    ok_busy, busy = dispatched(game)
+    game.done.update(t for t, info in game.textures.items() if info["usage"] == 3)
+    ok_done, done = dispatched(game)
+    report(ok_busy and ok_done and finished_queries(busy) == [] and len(names(busy, "Map")) == 1
+           and finished_queries(done) == [first.query, second.query],
+           "a done bake behind a busy one: nothing finished while the older is busy (one no-wait Map), then both, "
+           "the older first")
     print("all cases passed" if not failed else f"{failed} case(s) failed")
     sys.exit(1 if failed else 0)
 

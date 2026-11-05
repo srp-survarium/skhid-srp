@@ -3737,8 +3737,9 @@ trips"). The rules: `../docs/notes/baked-textures.md`, "Bakes off the GPU's cloc
   the DDS, its slot, patch 70's sharing, the resource, the save, the CRC, the record, finish
   and the "camouflage/decal cook" line. `bake.save` 0x12F2D8 gives the save a descriptor of
   the game's that owns that DDS (no copy); `bake.free` 0x12F3F7 keeps it from the render
-  allocator's free. A bake the GPU has had 1 s is read back waiting (logged); one whose levels
-  cannot be mapped fails its query (logged).
+  allocator's free. At most 2 done bakes are finished a dispatch; more done ones keep their place
+  and finish in the next frames, oldest first. A bake the GPU has had 1 s is read back waiting
+  (logged); one whose levels cannot be mapped fails its query (logged).
 - `game.exit_bakes` 0x1EC82B: every pending bake finished, waiting.
 - `engine_026g.py`'s call kind `com` calls ID3D11DeviceContext::Unmap (the exe only inlines it).
 
@@ -3753,7 +3754,9 @@ levels, blocking; the build issues with no Map, polls busy with one no-wait Map,
 levels into the DDS, makes the texture from it (its bytes the stagings' rows), fills the slot and
 patch 70's waiter's, finishes both, the save descriptor owning that DDS with no copy, the record
 listed; late after 1 s; the device lost (an error finish, the waiter made again, the DDS freed);
-8 in flight, 8 queued, the 17th the stock bake; game::exit.
+8 in flight, 8 queued, the 17th the stock bake; 2 finished a dispatch (5 done at once: 2, 2, 1
+over three dispatches, oldest first; a done bake behind a busy one finishes after it);
+game::exit (every pending bake).
 **Not run:** a game.
 
 ## Not ported, not done
