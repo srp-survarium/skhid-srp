@@ -14,7 +14,7 @@
 //! feet come within [`REACH_M`] across and [`LAND_DY_M`] in height of the landing on the way, or end within [`LAND_DY_M`] in
 //! height of it.
 
-use super::{DIRS, LinkKind, NONE, Triangle, Vec3, WalkGrid, Wide};
+use super::{DIRS, LinkKind, NONE, SEED_M, SPAWN_M, Triangle, Vec3, WalkGrid, Wide};
 use crate::controller::Collision;
 use crate::controller::tick::{Controller, Settings};
 
@@ -34,23 +34,54 @@ const ON_TICKS: usize = 60;
 const SETTLE_TICKS: usize = 30;
 
 impl WalkGrid {
-    /// The Drop links of `wide` the client's walk tick does not take a body down, as (take-off, direction, rank 0).
-    pub(super) fn unfollowed_drops(&self, wide: &Wide, triangles: &[Triangle]) -> Vec<(u32, usize, f32)> {
-        let world = Collision::build(triangles);
-        let s = Settings::LIVE;
-        let mut failing = Vec::new();
-        for a in 0..self.height.len() {
-            for d in 0..DIRS.len() {
-                let b = wide.links[a][d];
-                if b == NONE || wide.kinds[a][d] != LinkKind::Drop {
-                    continue;
-                }
-                if !follows(&world, &s, self.position(a as u32), self.position(b)) {
-                    failing.push((a as u32, d, 0.0));
+    /// The Drop links of `wide` the client's walk tick does not take a body down, as (take-off, direction, rank 0). Only those
+    /// out of a floor a body gets to from the seeds or a spawn are walked: a link out of any other floor is never on a route.
+    /// The links are walked on the machine's threads; the result is in link order whatever the threads.
+    pub(super) fn unfollowed_drops(&self, wide: &Wide, triangles: &[Triangle], seeds: &[Vec3], spawns: &[Vec3]) -> Vec<(u32, usize, f32)> {
+        let n = self.height.len();
+        let mut reached = vec![false; n];
+        let mut queue: Vec<u32> = seeds
+            .iter()
+            .filter_map(|&p| self.locate(p, SEED_M))
+            .chain(spawns.iter().filter_map(|&p| self.locate(p, SPAWN_M)))
+            .collect();
+        for &a in &queue {
+            reached[a as usize] = true;
+        }
+        while let Some(a) = queue.pop() {
+            for b in wide.out(a as usize).chain(wide.slips_from(a)) {
+                if !reached[b as usize] {
+                    reached[b as usize] = true;
+                    queue.push(b);
                 }
             }
         }
-        failing
+        let links: Vec<(u32, usize, Vec3, Vec3)> = (0..n)
+            .filter(|&a| reached[a])
+            .flat_map(|a| {
+                (0..DIRS.len()).filter_map(move |d| {
+                    let b = wide.links[a][d];
+                    (b != NONE && wide.kinds[a][d] == LinkKind::Drop).then(|| (a as u32, d, self.position(a as u32), self.position(b)))
+                })
+            })
+            .collect();
+        if links.is_empty() {
+            return Vec::new();
+        }
+        let world = Collision::build(triangles);
+        let s = Settings::LIVE;
+        let threads = std::thread::available_parallelism().map_or(1, |t| t.get()).clamp(1, 8);
+        let chunk = links.len().div_ceil(threads);
+        std::thread::scope(|scope| {
+            let handles: Vec<_> = links
+                .chunks(chunk)
+                .map(|part| {
+                    let (world, s) = (&world, &s);
+                    scope.spawn(move || part.iter().filter(|l| !follows(world, s, l.2, l.3)).map(|l| (l.0, l.1, 0.0)).collect::<Vec<_>>())
+                })
+                .collect();
+            handles.into_iter().flat_map(|h| h.join().expect("a drop check thread")).collect()
+        })
     }
 }
 

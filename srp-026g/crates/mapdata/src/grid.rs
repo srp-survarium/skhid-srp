@@ -1058,7 +1058,7 @@ impl WalkGrid {
             (stats.overshot_cut, stats.overshot_kept) = grid.drop_overshot_landings(&mut wide, seeds, spawns);
         }
         if body.drop_check {
-            let failing = grid.unfollowed_drops(&wide, triangles);
+            let failing = grid.unfollowed_drops(&wide, triangles, seeds, spawns);
             (stats.drops_unfollowed, stats.drops_unfollowed_kept) = grid.cut_keeping_reach(&mut wide, failing, seeds, spawns);
         }
         stats.floors_after_erosion = grid.len();
