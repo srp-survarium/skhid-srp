@@ -61,6 +61,43 @@ pub struct Match {
     pub blackout: bool,
 }
 
+/// What a world load is reading, for a crash inside it (a deserialize's
+/// assertion): stamped at the load's start and at each player state's start
+/// and end, once each a load (never a frame).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Reading {
+    /// A world (0xE8) about to be loaded.
+    World,
+    /// A place's player state, from the world stream's `offset`
+    /// (base_player::deserialize's start).
+    Player { place: u8, offset: u32 },
+    /// A place's player state read to `offset` (its last native field).
+    PlayerRead { place: u8, offset: u32 },
+}
+
+/// Stamps what is being read now (the header's `reading`).
+pub fn reading(thread: &Thread, what: Reading) {
+    stamp(thread, clock::counter(thread), what);
+}
+
+/// [`reading`] at the counter `counter`.
+fn stamp(_: &Thread, counter: u64, what: Reading) {
+    let (kind, place, offset) = match what {
+        Reading::World => (1, 0, 0),
+        Reading::Player { place, offset } => (2, place, offset),
+        Reading::PlayerRead { place, offset } => (3, place, offset),
+    };
+    let header = RING.0.get();
+    // SAFETY: as record's: the game's thread alone writes the ring.
+    unsafe {
+        let header = &raw mut (*header).header;
+        (&raw mut (*header).reading).write_volatile(0);
+        (&raw mut (*header).reading_offset).write_volatile(offset);
+        (&raw mut (*header).reading_counter).write_volatile(counter);
+        (&raw mut (*header).reading).write_volatile(kind | u32::from(place) << 8);
+    }
+}
+
 /// A step of patch 85's pickup (weapon_pickup.rs's log lines).
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 #[repr(u8)]
@@ -119,7 +156,11 @@ struct Header {
     flags: u32,
     /// The local place at the last world load + 1 (0: none known).
     local: u32,
-    _reserved: [u32; 4],
+    /// What the game was reading last ([`Reading`]): its kind and place
+    /// (`kind | place << 8`), the stream's offset, and the counter then.
+    reading: u32,
+    reading_offset: u32,
+    reading_counter: u64,
 }
 
 const _: () = assert!(size_of::<Header>() == 64);
@@ -156,7 +197,9 @@ static RING: Cell = Cell(UnsafeCell::new(Ring {
         level: 0,
         flags: 0,
         local: 0,
-        _reserved: [0; 4],
+        reading: 0,
+        reading_offset: 0,
+        reading_counter: 0,
     },
     entries: [ZERO_ENTRY; CAPACITY],
 }));
@@ -269,5 +312,9 @@ mod tests {
         assert_eq!((last.seq as usize, last.kind, last.b), (n, 2, 7));
         // The match's entry is gone from the ring; the header still has it.
         assert!(ring.entries.iter().all(|e| e.kind != 1));
+        stamp(&thread, 77, Reading::Player { place: 3, offset: 420 });
+        // SAFETY: as above.
+        let h = unsafe { &(*RING.0.get()).header };
+        assert_eq!((h.reading, h.reading_offset, h.reading_counter), (2 | 3 << 8, 420, 77));
     }
 }

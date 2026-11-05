@@ -70,7 +70,7 @@ use weapon_pickup::{Drop as DropState, Handedness, Hands, Held, Lying, Ms, Pendi
 
 use crate::vostok::gun_cook::{self, CookId, Cooked, Gun, Refusal, TICKETS};
 use crate::vostok::log::Piece::{self, Dec, Hex, Text};
-use crate::vostok::breadcrumbs::{self, Crumb, Pickup};
+use crate::vostok::breadcrumbs::{self, Crumb, Pickup, Reading};
 use crate::vostok::pickup::{self as native, Failure, Fresh, GunBox, GunPose, Installed, Mode, NameKey, Registered,
                             RegistryId, Role, Select, Site};
 use crate::vostok::world::{GameWorld, ItemId, Player, PlayerId, WorldKey};
@@ -477,8 +477,12 @@ pub fn on_save(ctx: &mut Context<'_>) -> Flow<NoExit> {
 /// `pickup.load` (base_player::deserialize's start): the player's record,
 /// then its weapon slots made what the record says before the native readers run.
 pub fn on_load(ctx: &mut Context<'_>) -> Flow<NoExit> {
+    let offset = native::load_offset(ctx);
     let bytes = native::read_record(ctx);
     let Some(player) = native::player(ctx, Site::Load) else { return Flow::Continue };
+    if let Some(offset) = offset {
+        breadcrumbs::reading(ctx.thread(), Reading::Player { place: player.place(), offset });
+    }
     let record = match bytes.and_then(Record::decode) {
         Some(record) => record,
         None => {

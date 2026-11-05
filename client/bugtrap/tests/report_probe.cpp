@@ -83,6 +83,9 @@ static void Breadcrumbs()
     h[8] = 4242; h[9] = 12 | 8 << 8 | 5 << 16;    // match 4242, map 12, 8 places, level 5
     h[10] = 1u << 31;                             // flags: a match, live, not Blackout
     h[11] = 3 + 1;                                // local place 3
+    // Reading place 3's player state from byte 420, 0.25 s before the crash.
+    unsigned long long reading = counter - f / 4;
+    h[12] = 2 | 3 << 8; h[13] = 420; h[14] = (unsigned int)reading; h[15] = (unsigned int)(reading >> 32);
     struct { unsigned int kind_a_b; unsigned long long before; unsigned int v[4]; } e[3] = {
         {1 | 0 << 8 | 5 << 16, 3 * f, {4242, 12, 8, 0}},
         {2 | 3 << 8 | 4 << 16, 2 * f, {4500, 900, 0, 0}},

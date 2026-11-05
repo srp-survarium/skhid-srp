@@ -433,6 +433,7 @@ pub unsafe fn collect(
         .and_then(|(at, _)| breadcrumbs::Ring::parse(crumbs(), at))
     {
         let _ = breadcrumbs::write_context(w, &ring);
+        let _ = breadcrumbs::write_reading(w, &ring, counter);
     }
     // Non-ASCII folders (a Cyrillic user name): the paths themselves stay
     // on the player's PC.
@@ -728,6 +729,7 @@ pub unsafe fn crumbs_text(report: &Report) -> &'static [u8] {
         && let Some(ring) = breadcrumbs::Ring::parse(crumbs(), at)
     {
         let _ = breadcrumbs::write_context(text, &ring);
+        let _ = breadcrumbs::write_reading(text, &ring, now);
         let _ = breadcrumbs::write_events(text, &ring, now, breadcrumbs::CAPACITY);
     }
     &text.buf[..text.len]
