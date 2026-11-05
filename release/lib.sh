@@ -530,7 +530,7 @@ list_game_json() {
 }
 
 # Every patch of LIST (read_patch_list first) in ~/.cache/skhid-release/patches/
-# ($XDG_CACHE_HOME), each checked by its size and sha256 there, else
+# ($XDG_CACHE_HOME), each checked by its size and sha256 there (cached_sha256), else
 # downloaded there from the patches server (200, the row's size and
 # sha256), never from a mirror's quota. Sets PATCH_CACHE to that folder.
 PATCH_CACHE=''
@@ -541,7 +541,7 @@ cache_patches() {
     while read -r name sha size urls; do
         [[ -n $name ]] || continue
         file=$PATCH_CACHE/$name
-        if [[ -f $file && $(size_of "$file") == "$size" && $(sha256_of "$file") == "$sha" ]]; then
+        if [[ -f $file && $(size_of "$file") == "$size" && $(cached_sha256 "$file") == "$sha" ]]; then
             say "$name: in the cache"
             continue
         fi
@@ -581,12 +581,13 @@ check_file_urls() {
     ((URLS_GOOD)) || { URL_PROBLEM="none of its URLs gives it (the last: $last)"; return 1; }
 }
 
-# The sha256 of the stock db $1, hashed once and then cached by its size,
-# time and path (~/.cache/skhid-release/stock-db.sha256).
-stock_sha256() {
+# The sha256 of a big file $1 (the stock db, a patch of the cache), hashed once
+# and then cached by its size, time (to the nanosecond), inode and path
+# (~/.cache/skhid-release/file-sha256s): a write to it is hashed anew.
+cached_sha256() {
     local cache key stock
-    cache=${XDG_CACHE_HOME:-$HOME/.cache}/skhid-release/stock-db.sha256
-    key="$(stat -c '%s %Y' "$1") $(readlink -f "$1")"
+    cache=${XDG_CACHE_HOME:-$HOME/.cache}/skhid-release/file-sha256s
+    key="$(stat -c '%s %.9Y %i' "$1") $(readlink -f "$1")"
     stock=$(grep -F -- "$key " "$cache" 2>/dev/null | tail -n 1 || true)
     stock=${stock##* }
     if [[ -z $stock ]]; then
