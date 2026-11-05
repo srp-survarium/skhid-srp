@@ -499,7 +499,7 @@ impl Stack {
             let Some(map) = survarium::v026g::maps::map_mode(roster.map_id) else {
                 return roster.defaults;
             };
-            matches::bots::client_tests::bot_roles(map.level, map.mode, roster.per_team, roster.bot_teams, roster.defaults)
+            matches::bots::client_tests::bot_roles(map.level, map.mode.rules().number(), roster.per_team, roster.bot_teams, roster.defaults)
         })) {
             log::error!("CLIENT_TEST: the roles hook is not set: {error:?}");
         }
