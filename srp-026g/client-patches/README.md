@@ -120,6 +120,7 @@ release's. The "Result" row is the build of the revision named in it.
 | `check_tab_self_026g.py` | Runs the original's and patch 43's end of game_world::on_activate, where the hud gets its player's name (the Tab list's own row gold), on a made-up world with the journal off, recording and played back (needs Unicorn) |
 | `check_weapon_show_026g.py` | Runs the original's and patch 91's weapon::on_show and the next weapon::draw's scope (add and remove of the aimed sight, the game's own) on made-up weapons, aimed and not, first person and not, no optic, a red dot and a full-screen scope, with the renderer's in-scene byte kept (needs Unicorn) |
 | `rust/patches/src/scaleform_capture.rs`, `src/scaleform_capture.toml`, `src/vostok/drawable_image.rs`, `check_scaleform_capture_026g.py` | Patch 93: the render thread's walk of a Scaleform DrawableImageContext's command queues (OnNextCapture 0x572660) never reaches a queue being destroyed (the rev-40 crash at a match's end): two lohooks; its check runs OnNextCapture and the queue's destructor on made-up contexts, the original beside (needs Unicorn) |
+| `rust/patches/src/footsteps.rs`, `src/footsteps.toml`, `src/vostok/footstep.rs`, `check_footsteps_026g.py` | Patch 101: a footstep that only a re-simulation makes (another player's late input) is heard instead of dropped; one lohook in on_player_sound_event's time test; its check runs the handler in both exes (needs Unicorn) |
 | `check_stage_focus_026g.py` | Runs the original's and patch 52's Stage focus getter (Scaleform's `stage.focus`, 0x771FA0) on a made-up movie: focused objects of each kind, none, one without its ActionScript object (the lobby's crash of 2026-10-22) (needs Unicorn) |
 | `rust/patches/src/language.rs`, `src/language.toml`, `src/vostok/language.rs`, `languages_026g.rs`, `check_language_026g.py` | Patch 79: the game language is a setting kept in user.cfg (Settings, Gameplay, Language; `../docs/notes/language-option.md`): three lohooks (`sites_026g.tsv`); `languages_026g.rs` is generated from `localization_026g.py`'s registry; its check runs each hook from the game's code on made-up objects, the original beside (needs Unicorn); the movie's harness is `../scripts/language-option/check.sh` |
 | `rust/patches/src/tab_cursor.rs`, `src/tab_cursor.toml`, `src/vostok/hud_input.rs`, `src/vostok/keyboard.rs`, `src/vostok/lobby.rs`, `check_tab_cursor_026g.py` | Patch 86: Ctrl on the Tab list shows a cursor, and its rows' menu sends the lobby's friend request (`../docs/notes/tab-cursor-friends.md`): two lohooks (`sites_026g.tsv`); its check runs both from the game's code on made-up objects, the original beside (needs Unicorn); the menu's harness is `../scripts/tab-row-menu/check.sh` |
@@ -4138,3 +4139,19 @@ past its own removal, the game's Release and RemoveCaptureNotify, on made-up con
 none, a dying queue, a queue destroyed while the walk is at the one before (the original reaches
 the freed queue), and the walk's own reference the last; the lock never held across a call, every
 list read made with it, the references and registers as they were. **Not run in a game.**
+
+## A step first made by a re-simulation is heard (patch 101, unreleased)
+
+The players' "footsteps randomly drop out" (B20). `on_player_sound_event` (0x2A6470) plays a
+step only when its time is past the newest tick simulated once (`maximum_time`, core +18FC4h,
+compared at 0x2A6488). A game re-simulates another player's ticks when his input comes late, and
+a step that only the re-simulation has (he started, stopped or changed pace) falls at a played time
+and is never heard. 0.27d0 dropped the test (its effect plays each foot's newest step time at the
+next frame).
+
+**The patch** (the Rust patch `footsteps`, one lohook, `player_sound.step_guard` at 0x2A6485):
+a step past the played time plays as before; a re-simulated one plays when the same foot of the
+same player object played nothing in the 250 ms before it (a copy of a played step, moved by the
+correction, stays single). Rustles and the other tests are the game's. Nothing a match computes.
+The rules and the 0.27d0 code: `../docs/notes/footsteps.md`; the addresses: `client_patch.md` 3.62.
+Checked with `check_footsteps_026g.py`; not run in a game.
