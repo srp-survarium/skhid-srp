@@ -1,6 +1,6 @@
 //! Medical hooks over generated typed native handles. A borrowed player lives
 //! for the paused hook; a core lookup owns one reference until its guard drops.
-use super::{Context, Thread};
+use super::{Context, Thread, drug::DrugsInUse};
 use crate::{
     medical_skills::{Painkiller, Skills, Stance},
     raw,
@@ -15,14 +15,11 @@ use core::{
 #[derive(Clone, Copy)]
 struct Player<'t> {
     at: raw::Player,
-    _thread: PhantomData<&'t Thread>,
+    thread: &'t Thread,
 }
 impl<'t> Player<'t> {
-    fn new(_: &'t Thread, at: raw::Player) -> Self {
-        Self {
-            at,
-            _thread: PhantomData,
-        }
+    fn new(thread: &'t Thread, at: raw::Player) -> Self {
+        Self { at, thread }
     }
     fn modifiers(self) -> Option<raw::PlayerParamsModifiersContainer> {
         // SAFETY: a hook's player owns its profile and current kit.
@@ -42,23 +39,13 @@ impl<'t> Player<'t> {
             .and_then(|m| unsafe { Skills::parse(*m.medical_ranks(), *m.combo_ranks()) })
             .unwrap_or_default()
     }
-    /// Any painkiller of its inventory active (set_active's +2B0h, the time
+    /// Any painkiller of its inventory in use (set_active's +2B0h, the time
     /// its protection records are linked into the body parts, 0x33D638).
     fn painkiller(self) -> Painkiller {
-        // SAFETY: the player's inventory owns its 23 slots' array; a slot's
-        // item is the inventory's; a medkit is read only after its vtable.
+        // SAFETY: a hook's player is alive on its thread; a drug in use is
+        // its inventory's medkit, which owns its protection records.
         let active = unsafe {
-            self.at.inventory().is_some_and(|inventory| {
-                let first = inventory.slots();
-                let count = inventory.slots_end().index_from(first).unwrap_or(0);
-                (0..count).any(|slot| {
-                    first.at(slot).item().is_some_and(|item| {
-                        *item.vtable() == raw::image::MEDKIT_VTABLE
-                            && *item.medkit().active() != 0
-                            && painkiller(item.medkit())
-                    })
-                })
-            })
+            DrugsInUse::of(self.thread, self.at).any(|drug| painkiller(drug.medkit()))
         };
         if active { Painkiller::Active } else { Painkiller::Inactive }
     }

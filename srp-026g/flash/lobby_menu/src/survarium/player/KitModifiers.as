@@ -23,9 +23,11 @@ package survarium.player
          _values = values;
          // As the exe's medical_skills: float 43 an exact integer below 2^24 and float 45 one below
          // 2^6, each rank field at most its skill's ranks, otherwise no medical skill at all.
-         var bits:int = packed(values[PlayerModifier.MEDICAL_RANKS],24);
-         var combo:int = packed(values[PlayerModifier.COMBO_RANKS],6);
-         if(bits < 0 || combo < 0) return;
+         var medical:Object = packed(values[PlayerModifier.MEDICAL_RANKS],24);
+         var comboField:Object = packed(values[PlayerModifier.COMBO_RANKS],6);
+         if(medical == null || comboField == null) return;
+         var bits:int = int(medical);
+         var combo:int = int(comboField);
          // [first bit, width, most ranks]: Potent Painkiller, Fast Bandaging, Metabolism, Medical
          // Training, Adrenalin, Strong Bones, Brothers in Arms; then Numb Legs, Take Cover, Unflinching.
          for each(var field:Array in [[0,3,3],[3,3,2],[6,3,5],[9,3,3],[12,3,3],[17,3,5],[21,3,2]])
@@ -40,10 +42,10 @@ package survarium.player
          _bandagingRank = bits >> 3 & 7;
       }
 
-      // A packed float: an exact integer of `width` bits, else -1.
-      private static function packed(value:Number, width:int) : int
+      // A packed float: an exact integer of `width` bits, else null.
+      private static function packed(value:Number, width:int) : Object
       {
-         return value >= 0 && value < (1 << width) && value == Math.floor(value) ? int(value) : -1;
+         return value >= 0 && value < (1 << width) && value == Math.floor(value) ? int(value) : null;
       }
 
       // The floats as the exe gives them; null unless they are 68 finite numbers.

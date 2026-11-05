@@ -196,7 +196,7 @@ This excludes nested renderer allocations, allocator overhead and playing nodes.
 
 ## Validation and review
 
-Automated checks cover all ten skills; not all ten have been played manually.
+Automated checks cover all twelve skills; not all twelve have been played manually.
 
 - `check_medical_skills_026g.py`: ranks 0–5; start/tick/restore durations;
   healing-only use time; native protection; limb health and repeated respawn;
@@ -215,7 +215,8 @@ Automated checks cover all ten skills; not all ten have been played manually.
   Server reset/equipment/repair/preset and bot-loadout tests, plus affected-crate
   Clippy, passed for the medical feature before the final native-only correction.
 - `survarium/tests/medical_skills.rs` parses the content-built tree, validating
-  progression, layout, 38-point total, exclusions and native modifier transport.
+  the twelve skills' progression, layout, 30-point full build, exclusions and
+  native modifier transport.
 - CPU Ruffle exercises the built lobby: medicine and whole-pocket capacities,
   drag limits, unsaved previews, reset, combined slot bounds and the ten original
   0.69 bitmap dimensions/alpha/bounds. Embedded bitmap pixels match the sources.
