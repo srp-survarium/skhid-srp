@@ -676,8 +676,9 @@ pub struct Search<'a> {
     pub in_spawn: &'a dyn Fn(Vec3) -> bool,
     /// [A145] The spots of killed holders this bot's route passes.
     pub wish: Option<Wish<'a>>,
-    /// [A309] With `TrapTuning::forward`: its side's home and the enemy's (the spawns' centres, [`homes_of`]).
-    pub homes: Option<(Vec3, Vec3)>,
+    /// [A309] With `TrapTuning::forward`: its side's home and the enemy's (the spawns' centres, [`homes_of`]) and the least share
+    /// of the way between them a spot must lie past ([`forward_share`]).
+    pub homes: Option<(Vec3, Vec3, f32)>,
 }
 
 /// [A309] The centres of the spawns of `side` and of the other sides, on the ground: what every player knows of a map. None when
@@ -952,8 +953,8 @@ pub fn choose_counted(s: &Search, refused: &mut [u32; 9]) -> Option<Chosen> {
             continue;
         }
         // [A309] Only forward enough on the way to the enemy's home: nearer its own, enemies rarely come.
-        if let (Some(f), Some((own, enemy))) = (t.forward, s.homes)
-            && forward_share(own, enemy, spot) < f.min_share
+        if let Some((own, enemy, least)) = s.homes
+            && forward_share(own, enemy, spot) < least
         {
             refuse(Candidate::LowScore);
             continue;
@@ -1440,10 +1441,17 @@ pub(super) fn think(bot: &mut Bot, due: &Due, state: &mut TeamState, notes: &mut
         own: &own,
         in_spawn: &in_spawn,
         wish,
-        homes: t.forward.and(homes_of(&due.tactics.world.map, bot.side)),
+        homes: t.forward.zip(homes_of(&due.tactics.world.map, bot.side)).map(|(f, (own, enemy))| (own, enemy, f.min_share)),
     };
     let mut refused = [0; 9];
-    let chosen = choose_counted(&search, &mut refused);
+    let mut chosen = choose_counted(&search, &mut refused);
+    // [A309] No spot far enough forward: the next best past the lower share, rather than none.
+    if chosen.is_none()
+        && let (Some(f), Some((own, enemy, _))) = (t.forward, search.homes)
+        && f.fallback_share < f.min_share
+    {
+        chosen = choose_counted(&Search { homes: Some((own, enemy, f.fallback_share)), ..search }, &mut [0; 9]);
+    }
     bot.features.traps.tally.searched(&refused, chosen.is_some());
     // [A145] A spot of a killed holder ahead on the route that no candidate here is on yet: wait for the body to reach it.
     if let Some(wish) = wish {
@@ -3416,10 +3424,10 @@ mod tests {
         let feet = Vec3::new(30.0, 0.0, 10.0);
         let lanes = lanes_at(Vec3::new(33.0, 0.0, 10.0), 6, 100_000);
         let free = choose(&search(&s, &tuning, feet, &lanes, &not_spawn)).expect("a spot");
-        tuning.forward = Some(crate::v026g::bots::tuning::Forward { min_share: 0.5 });
+        tuning.forward = Some(crate::v026g::bots::tuning::Forward { min_share: 0.5, fallback_share: 0.5 });
         assert_eq!(choose(&search(&s, &tuning, feet, &lanes, &not_spawn)), Some(free), "no homes: as before");
         let short = choose(&Search {
-            homes: Some((Vec3::new(0.0, 0.0, 10.0), Vec3::new(100.0, 0.0, 10.0))),
+            homes: Some((Vec3::new(0.0, 0.0, 10.0), Vec3::new(100.0, 0.0, 10.0), 0.5)),
             ..search(&s, &tuning, feet, &lanes, &not_spawn)
         });
         assert!(short.is_none(), "{short:?}");
@@ -3427,7 +3435,7 @@ mod tests {
         let feet = Vec3::new(60.0, 0.0, 10.0);
         let lanes = lanes_at(Vec3::new(63.0, 0.0, 10.0), 6, 100_000);
         let past = choose(&Search {
-            homes: Some((Vec3::new(0.0, 0.0, 10.0), Vec3::new(100.0, 0.0, 10.0))),
+            homes: Some((Vec3::new(0.0, 0.0, 10.0), Vec3::new(100.0, 0.0, 10.0), 0.5)),
             ..search(&s, &tuning, feet, &lanes, &not_spawn)
         });
         assert!(past.is_some_and(|c| forward_share(Vec3::new(0.0, 0.0, 10.0), Vec3::new(100.0, 0.0, 10.0), c.spot) >= 0.5), "{past:?}");

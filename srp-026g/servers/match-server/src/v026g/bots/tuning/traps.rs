@@ -199,11 +199,17 @@ pub struct Forward {
     /// The least share of the way from home to the enemy's home, 0-1: 0.5 is the middle of the map. A GUESS from the A309
     /// bench's distances (80 m and more from home caught, 40-80 m did not); the bench decides.
     pub min_share: f32,
+    /// When no spot past `min_share` passes, the search is made again past this share (at most `min_share`): the owner wants
+    /// more traps, not fewer (the coordinator, 2026-11-05: the first fix cut them from 411 to 113 in the A309 bench).
+    pub fallback_share: f32,
 }
 
 impl Default for Forward {
     fn default() -> Self {
-        Self { min_share: 0.5 }
+        Self {
+            min_share: 0.5,
+            fallback_share: 0.3,
+        }
     }
 }
 
@@ -528,7 +534,10 @@ impl Check for TrapTuning {
                 .is_none_or(|a| a.hold_ms > 0 && a.hold_ms <= 5_000 && (0.0..=1.3).contains(&a.clear_m) && (0.0..=3.0).contains(&a.sweep_s)),
             "traps.after_press",
         )?;
-        check(self.forward.is_none_or(|f| (0.0..=1.0).contains(&f.min_share)), "traps.forward")?;
+        check(
+            self.forward.is_none_or(|f| (0.0..=1.0).contains(&f.min_share) && (0.0..=f.min_share).contains(&f.fallback_share)),
+            "traps.forward",
+        )?;
         check(self.fresh_ring.is_none_or(|f| f.for_ms <= 60_000), "traps.fresh_ring")?;
         let r = &self.react;
         check(
