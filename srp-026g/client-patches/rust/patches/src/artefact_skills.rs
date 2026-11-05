@@ -40,8 +40,9 @@ impl HitKind {
     }
 }
 
-/// Keeper of the Artifacts' draw, 1..=6, as srp rolls it once a match (modifier 40 bits 9..11);
-/// the kind is the draw over the kinds the map has.
+/// The match's Keeper of the Artifacts draw, 1..=6, as srp rolls it once a match and writes it
+/// into every kit of every player (modifier 40 bits 9..11), with the skill or not: every game
+/// knows the kind at the map's load.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct Draw(u8);
 
@@ -55,16 +56,6 @@ impl Draw {
     pub fn get(self) -> u8 {
         self.0
     }
-}
-
-/// Keeper of the Artifacts: not taken, taken (the lobby's kits), or taken with the match's
-/// draw (the static info's kits, srp writes it).
-#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
-pub enum Keeper {
-    #[default]
-    No,
-    Taken,
-    Drawn(Draw),
 }
 
 /// Resistance's rank, 0..=5.
@@ -81,7 +72,8 @@ impl Resistance {
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub struct Skills {
     resistance: Resistance,
-    keeper: Keeper,
+    keeper: bool,
+    draw: Option<Draw>,
     resonance: bool,
     spring: bool,
     onyx: bool,
@@ -91,9 +83,9 @@ pub struct Skills {
 
 impl Skills {
     /// Bits: 0..2 Resistance, 3 Keeper, 4 Resonance, 5 Spring II, 6 Onyx II, 7 Larkspur II,
-    /// 8 Resonance Cascade, 9..11 Keeper's draw 1..6 (only with bit 3). Anything else (a
-    /// fraction, a negative, a rank past 5, a draw of 7 or without the skill, a bit past 11) is
-    /// no skill at all.
+    /// 8 Resonance Cascade, 9..11 the match's Keeper draw 1..6 (0 none; with the skill or not).
+    /// Anything else (a fraction, a negative, a rank past 5, a draw of 7, a bit past 11) is no
+    /// skill at all.
     pub fn parse(value: f32) -> Option<Self> {
         if !(0.0..4096.0).contains(&value) || value != (value as u32) as f32 {
             return None;
@@ -104,15 +96,14 @@ impl Skills {
             return None;
         }
         let bit = |n: u32| bits & (1 << n) != 0;
-        let keeper = match (bit(3), ((bits >> 9) & 7) as u8) {
-            (false, 0) => Keeper::No,
-            (true, 0) => Keeper::Taken,
-            (true, draw) => Keeper::Drawn(Draw::parse(draw)?),
-            (false, _) => return None,
+        let draw = match ((bits >> 9) & 7) as u8 {
+            0 => None,
+            draw => Some(Draw::parse(draw)?),
         };
         Some(Self {
             resistance: Resistance(resistance),
-            keeper,
+            keeper: bit(3),
+            draw,
             resonance: bit(4),
             spring: bit(5),
             onyx: bit(6),
@@ -121,9 +112,14 @@ impl Skills {
         })
     }
 
-    /// Keeper of the Artifacts: not taken, taken, or taken with the match's draw.
-    pub fn keeper(self) -> Keeper {
+    /// Keeper of the Artifacts taken.
+    pub fn keeper(self) -> bool {
         self.keeper
+    }
+
+    /// The match's Keeper draw (srp writes it into every kit of the match), none in the lobby.
+    pub fn draw(self) -> Option<Draw> {
+        self.draw
     }
 
     /// Resistance: the part's armour `native` against a hit of `kind`, +0.05 a rank for the
@@ -149,17 +145,20 @@ mod tests {
 
     #[test]
     fn parses_the_packed_ranks_only_exactly() {
-        for bad in [-1.0, 0.5, 6.0, 7.0, 512.0, 1024.0, 8.0 + 7.0 * 512.0, 4096.0, f32::INFINITY, f32::NAN] {
+        for bad in [-1.0, 0.5, 6.0, 7.0, 7.0 * 512.0, 8.0 + 7.0 * 512.0, 4096.0, f32::INFINITY, f32::NAN] {
             assert_eq!(Skills::parse(bad), None, "{bad}");
         }
         assert_eq!(Skills::parse(0.0), Some(Skills::default()));
         let full = Skills::parse(509.0).unwrap();
         assert_eq!(full.resistance, Resistance(5));
-        assert_eq!(full.keeper, Keeper::Taken);
+        assert!(full.keeper && full.draw.is_none());
         assert!(full.resonance && full.spring && full.onyx && full.larkspur && full.cascade);
         for draw in 1..=6u8 {
             let skills = Skills::parse(8.0 + f32::from(draw) * 512.0).unwrap();
-            assert_eq!(skills.keeper, Keeper::Drawn(Draw(draw)));
+            assert!(skills.keeper && skills.draw == Draw::parse(draw));
+            // Every kit of the match has the draw, a player without the skill too.
+            let skills = Skills::parse(f32::from(draw) * 512.0).unwrap();
+            assert!(!skills.keeper && skills.draw.map(Draw::get) == Some(draw));
         }
         assert!(Skills::parse(509.0 + 6.0 * 512.0).is_some());
     }

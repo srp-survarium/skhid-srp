@@ -38,7 +38,7 @@ def hit(g, kind, armour, piercing, damage, pool):
 def check_resistance(data, kit):
     outcomes = []
     for payload, rank in [(0, 0), (1, 1), (2, 2), (3, 3), (4, 4), (5, 5), (5 + 8 + 256, 5),
-                          (6, 0), (7, 0), (2.5, 0), (-1, 0), (4096, 0), (512 + 1, 0), (8 + 7 * 512 + 5, 0), (8 + 6 * 512 + 5, 5)]:
+                          (6, 0), (7, 0), (2.5, 0), (-1, 0), (4096, 0), (512 + 1, 1), (7 * 512 + 1, 0), (8 + 7 * 512 + 5, 0), (8 + 6 * 512 + 5, 5)]:
         g = MedicalGame(data)
         g.emu.mem_write(PLAYER + 0x115, bytes([kit]))
         g.ranks(payload, RANKS)
@@ -52,7 +52,7 @@ def check_resistance(data, kit):
                     close(have, want)
                     outcomes.append((payload, name, kind, armour, piercing, round(have, 4)))
     print(f'Resistance kit {kit}: anomalous hits (4..7) A + 0.05 a rank 0..5 before piercing and the clamp, '
-          'other types and refused payloads (6, 7, 2.5, -1, 4096, a draw without Keeper or of 7) unchanged: PASS')
+          'other types and refused payloads (6, 7, 2.5, -1, 4096, a draw of 7) unchanged, a draw without Keeper accepted: PASS')
     return outcomes
 
 
