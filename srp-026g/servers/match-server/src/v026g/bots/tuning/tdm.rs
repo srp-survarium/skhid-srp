@@ -40,6 +40,30 @@ pub struct GroupUp {
     pub max_s: Positive,
     /// It runs to the spot until this near, then walks with the sights on the enemy's known place, m.
     pub walk_m: Metres,
+    /// [v4] A lone mover does not walk into a known enemy: it holds short until a mate covers it ([`Approach`]).
+    pub approach: Option<Approach>,
+}
+
+/// [A297 v4] The pre-contact pair. A moving bot (not holding an angle, not in a fight, not a carrier) whose own memory has an
+/// enemy within `near_m` that it sensed itself or was told of within `fresh_s`, and that it does not see now, is "approaching"
+/// him: the commander gives it an answerer as it gives a fight one (the nearest free mover, to a cover spot round it), and the
+/// bot holds short, its view on his place, until that answerer stands within the cover ring off its line to him, or `hold_s`
+/// passes; then both go. The v3 bench could not move the hunter (he kills inside the reaction window, A287: 65 % of his
+/// victims dead within ~1 s), so the second bot must be set before contact. Holders keep their angles.
+#[derive(Clone, Copy, Debug, PartialEq, Serialize, Deserialize)]
+#[serde(default, deny_unknown_fields)]
+pub struct Approach {
+    pub near_m: Metres,
+    pub fresh_s: Positive,
+    pub hold_s: Positive,
+}
+
+impl Default for Approach {
+    fn default() -> Self {
+        // near: his kills at p75 22 m and median 15.5 m (A287); fresh: the think notes' 5 s and a little; hold: a mate within
+        // `answer_m` (30 m) runs ~6 m/s, so 3 s brings most; longer is a lone bot standing (GUESS).
+        Self { near_m: Metres::of(30.0), fresh_s: Positive::of(8.0), hold_s: Positive::of(3.0) }
+    }
 }
 
 impl Default for GroupUp {
@@ -57,6 +81,7 @@ impl Default for GroupUp {
             linger_s: Positive::of(2.0),
             max_s: Positive::of(8.0),
             walk_m: Metres::of(10.0),
+            approach: Some(Approach::default()),
         }
     }
 }

@@ -130,6 +130,7 @@ pub use hazard::EscapeRule;
 pub use hazard::HazardTuning;
 pub use hazard::RouteCrossing;
 pub use hazard::ZonePools;
+pub use heal::DrugAmounts;
 pub use heal::DrugStops;
 pub use heal::HealTuning;
 pub use heal::NeedWeights;
@@ -169,6 +170,7 @@ pub use take::ZoneLook;
 pub use take::ZoneTake;
 pub use take::ZoneTakeBehind;
 pub use tdm::Answer;
+pub use tdm::Approach;
 pub use tdm::GroupUp;
 pub use tdm::TdmTuning;
 pub use team::AvoidTuning;
@@ -773,6 +775,7 @@ mod tests {
             "/hazard/leave_islands",
             "/hazard/zone_intensity",
             "/hazard/zone_pools",
+            "/heal/amounts",
             "/heal/drug_stops",
             "/kin/fix_floor",
             "/kin/jump_snap",
