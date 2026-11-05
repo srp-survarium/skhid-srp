@@ -1,14 +1,16 @@
-//! The Maps tab, `/maps` on the 0.26g site: every playable map with its
-//! respawn points, battery spawns, chargers, containers and artefact spawns,
-//! built by `srp-026g/scripts/maps-tab/build.py` into `../maps/` from the
-//! game data of the released patches (its README says how). Every file is
-//! part of the binary; `../maps/files.rs` lists them, written by the same
-//! build. The top-down renders are the calculator's (`/damage/maps/`).
+//! The maps, `/wiki/maps` on the 0.26g site (a section of the wiki,
+//! [`crate::wiki`]): every playable map with its respawn points, battery
+//! spawns, chargers, containers and artefact spawns, built by
+//! `srp-026g/scripts/maps-tab/build.py` into `../maps/` from the game data of
+//! the released patches (its README says how). Every file is part of the
+//! binary; `../maps/files.rs` lists them, written by the same build, at their
+//! `/maps/` addresses. The top-down renders are the calculator's
+//! (`/damage/maps/`).
 
 use crate::{ContentType, Lang, Response};
 
 /// The page's address.
-pub(crate) const PATH: &str = "/maps";
+pub(crate) const PATH: &str = "/wiki/maps";
 
 /// The page's Content-Security-Policy: the calculator's (its own script,
 /// images and fonts).

@@ -21,7 +21,7 @@
 
 use survarium::v026g::dictionary::Dictionary;
 use survarium::v026g::item_params::{covered_slots, item_params, shop_unit};
-use survarium::v026g::lobby::requests::{INVENTORY_SLOT, Relocation, RepairPayment};
+use survarium::v026g::lobby::requests::{INVENTORY_SLOT, Relocation, RepairPayment, SHOP_SLOT};
 use survarium::v026g::lobby::{
     Bought, CONDITION_UNIT, FULL_CONDITION, Repaired, ServicePrices, limits,
 };
@@ -203,6 +203,11 @@ pub fn move_items(
             }
             relocation.item_id =
                 owned_stack(&changed, &relocation).ok_or(ActionError::NoSuchItem)?;
+            // A stack dropped from the shop on a pocket: what was missing is
+            // bought above, and goes in from the inventory.
+            if relocation.source_slot == SHOP_SLOT {
+                relocation.source_slot = INVENTORY_SLOT;
+            }
         }
         resolved.push(relocation);
     }
@@ -314,7 +319,11 @@ fn relocate_covering(
                 if relocation.count == 0 {
                     continue;
                 }
-                relocation.count.min(owned.condition_or_stack)
+                survarium::v026g::loadouts::equipped_units(
+                    relocation.target_slot,
+                    owned.dict_id,
+                    relocation.count.min(owned.condition_or_stack),
+                )
             } else {
                 // One item is in one slot of a kit.
                 for slot in slots.iter_mut() {
@@ -737,7 +746,20 @@ pub mod reset_payment {
 /// [`REROLL_COST`] silver or [`REROLL_COST_PREMIUM`] gold. Returns the
 /// points freed.
 pub fn reset_skills(account: &mut Account, branch: u8, payment: u8) -> Result<u32, ActionError> {
-    if branch > 1 {
+    reset_skills_in_tree(account, branch, payment, SkillsTree::shared())
+}
+
+fn reset_skills_in_tree(
+    account: &mut Account,
+    branch: u8,
+    payment: u8,
+    tree: &SkillsTree,
+) -> Result<u32, ActionError> {
+    if !tree
+        .skills
+        .iter()
+        .any(|skill| skill.branch() == u16::from(branch) + 1)
+    {
         return Err(ActionError::BadReset);
     }
     let in_branch = |id: u16| id / 100 == u16::from(branch) + 1;
@@ -1556,6 +1578,105 @@ mod tests {
     /// The request the ammo dialog made on 2026-10-12 for a kit with ammo
     /// in slot 8 and a drug in pocket slot 13, refused then as `NotInSlot`.
     #[test]
+    fn pocket_capacity_is_five_without_limiting_storage_or_ammunition() {
+        let mut account = rich_and_known(10_000);
+        let drug = Dictionary::shared().item_named("medkit").unwrap().dict_id;
+        let id = account.add_item(drug, 20);
+        let item = account.item(id).unwrap().clone();
+        let ammo = account.kits[0].slots[8].unwrap();
+        assert!(ammo.count > 5);
+        let inventory = account.inventory.clone();
+        for requested in [4, 5, 6, 20] {
+            move_items(
+                &mut account,
+                1,
+                &[relocation(&item, INVENTORY_SLOT, 13, requested)],
+                NOW,
+            )
+            .unwrap();
+            assert_eq!(account.kits[0].slots[13].unwrap().count, requested.min(5));
+            assert_eq!(account.kits[0].slots[8], Some(ammo));
+            assert_eq!(account.inventory, inventory);
+        }
+        fill_kit(
+            &mut account,
+            0,
+            &[relocation(&item, INVENTORY_SLOT, 13, 20)],
+        )
+        .unwrap();
+        assert_eq!(account.kits[0].slots[13].unwrap().count, 5);
+        account.kits[0].slots[13].as_mut().unwrap().count = 6;
+        let revision = account.kits[0].revision;
+        assert!(account.sync_kits());
+        assert_eq!(account.kits[0].slots[13].unwrap().count, 5);
+        assert_eq!(account.kits[0].revision, revision.wrapping_add(1));
+        assert_eq!(account.inventory, inventory);
+        assert!(!account.sync_kits());
+        account.kits[0].slots[13].as_mut().unwrap().count = 20;
+        assert!(account.repair());
+        assert_eq!(account.kits[0].slots[13].unwrap().count, 5);
+        assert_eq!(account.item(id).unwrap().condition_or_stack, 20);
+    }
+
+    #[test]
+    fn boosters_stay_one_per_pocket_when_moved_filled_or_repaired() {
+        let mut account = rich_and_known(10_000);
+        let booster = dict("speed_booster");
+        let id = account.add_item(booster, 20);
+        let item = account.item(id).unwrap().clone();
+        for requested in [1, 2, 5, 20] {
+            move_items(
+                &mut account,
+                1,
+                &[relocation(&item, INVENTORY_SLOT, 13, requested)],
+                NOW,
+            )
+            .unwrap();
+            assert_eq!(account.kits[0].slots[13].unwrap().count, 1);
+            assert_eq!(account.item(id).unwrap().condition_or_stack, 20);
+        }
+        fill_kit(&mut account, 0, &[relocation(&item, INVENTORY_SLOT, 13, 2)]).unwrap();
+        assert_eq!(account.kits[0].slots[13].unwrap().count, 1);
+        account.kits[0].slots[13].as_mut().unwrap().count = 2;
+        assert!(account.repair());
+        assert_eq!(account.kits[0].slots[13].unwrap().count, 1);
+        assert_eq!(account.item(id).unwrap().condition_or_stack, 20);
+        assert!(!account.repair());
+    }
+
+    #[test]
+    fn sixth_supply_pocket_is_usable_but_ammo_slots_are_not_pockets() {
+        let mut account = rich_and_known(10_000);
+        let drug = Dictionary::shared().item_named("medkit").unwrap().dict_id;
+        let id = account.add_item(drug, 20);
+        let item = account.item(id).unwrap().clone();
+        move_items(
+            &mut account,
+            1,
+            &[relocation(&item, INVENTORY_SLOT, 17, 2)],
+            NOW,
+        )
+        .unwrap();
+        move_items(&mut account, 1, &[relocation(&item, 17, 18, 20)], NOW).unwrap();
+        assert!(account.kits[0].slots[17].is_none());
+        assert_eq!(
+            account.kits[0].slots[18],
+            Some(KitSlot {
+                item_id: id,
+                count: 5
+            })
+        );
+        let before = account.clone();
+        assert_eq!(
+            move_items(&mut account, 1, &[relocation(&item, 18, 19, 5)], NOW),
+            Err(ActionError::WrongSlot)
+        );
+        assert_eq!(account, before);
+        assert!(!account.repair());
+        assert_eq!(account.item(id).unwrap(), &item);
+    }
+
+    #[test]
     fn the_ammo_dialog_keeps_what_is_in_a_pocket_slot() {
         const POCKET: u8 = 13;
         let dictionary = Dictionary::shared();
@@ -1645,6 +1766,102 @@ mod tests {
         );
     }
 
+    /// A stack dropped from the shop's list on a pocket (an energy drink on
+    /// slot 14, 2026-10-29): the ammo dialog names it from `SHOP_SLOT`, item
+    /// 0, one wanted. It is bought and put in; it was refused as `WrongSlot`.
+    #[test]
+    fn a_stack_dropped_from_the_shop_on_a_pocket_is_bought_into_it() {
+        const POCKET: u8 = 14;
+        let dictionary = Dictionary::shared();
+        let mut account = rich_and_known(10_000);
+        let drink = dictionary
+            .items
+            .iter()
+            .find(|item| {
+                item.is_stack
+                    && dictionary.fits(item.dict_id, POCKET)
+                    && step_cost(&account, dictionary, item.dict_id).is_ok_and(|cost| cost > 0)
+            })
+            .expect("a pocket item sold for silver")
+            .dict_id;
+        let cost = step_cost(&account, dictionary, drink).unwrap();
+        let money = account.generic_money;
+        let dialog = [Relocation {
+            item_id: 0,
+            dict_id: drink,
+            source_slot: SHOP_SLOT,
+            target_slot: POCKET,
+            count: 1,
+            count_in_inventory: 1,
+        }];
+        move_items(&mut account, 1, &dialog, NOW).unwrap();
+        let bought = account
+            .inventory
+            .iter()
+            .find(|item| item.dict_id == drink)
+            .expect("bought");
+        assert_eq!(
+            account.kits[0].slots[usize::from(POCKET)].map(|slot| slot.item_id),
+            Some(bought.item_id)
+        );
+        assert_eq!(account.generic_money, money - cost);
+
+        // Dropped again on another pocket while one holds it: one pocket an
+        // item type, so nothing is bought or moved.
+        let before = account.clone();
+        let again = [Relocation {
+            target_slot: POCKET + 1,
+            ..dialog[0]
+        }];
+        assert_eq!(
+            move_items(&mut account, 1, &again, NOW),
+            Err(ActionError::PocketTaken)
+        );
+        assert_eq!(account, before);
+
+        // Not enough silver: nothing changes.
+        let mut poor = rich_and_known(0);
+        let before = poor.clone();
+        assert_eq!(
+            move_items(&mut poor, 1, &dialog, NOW),
+            Err(ActionError::NotEnoughMoney)
+        );
+        assert_eq!(poor, before);
+    }
+
+    /// A consumable bought onto a pocket at more than the pocket takes
+    /// (`docs/notes/items.md` §8): the lobby names the units wanted in all
+    /// (those owned and the 30 bought) and the pocket's. The 30 are bought,
+    /// the pocket holds its share, the rest stays in the inventory.
+    #[test]
+    fn a_buy_onto_a_pocket_beyond_its_size_keeps_the_rest_in_the_inventory() {
+        const POCKET: u8 = 14;
+        let dictionary = Dictionary::shared();
+        let mut account = rich_and_known(10_000);
+        let medkit = dict("medkit");
+        let owned = account.add_item(medkit, 4);
+        let cost = step_cost(&account, dictionary, medkit).unwrap();
+        let money = account.generic_money;
+        let dialog = [Relocation {
+            item_id: 0,
+            dict_id: medkit,
+            source_slot: SHOP_SLOT,
+            target_slot: POCKET,
+            count: 3,
+            count_in_inventory: 4 + 30,
+        }];
+        move_items(&mut account, 1, &dialog, NOW).unwrap();
+        assert_eq!(account.item(owned).unwrap().condition_or_stack, 34);
+        assert_eq!(
+            account.kits[0].slots[usize::from(POCKET)],
+            Some(KitSlot {
+                item_id: owned,
+                count: 3
+            })
+        );
+        assert_eq!(account.generic_money, money - 30 * cost);
+    }
+
     /// One pocket an item type (`docs/notes/one-pocket-a-type.md`).
     #[test]
     fn an_item_type_goes_into_one_pocket() {
@@ -1698,7 +1915,8 @@ mod tests {
         );
         assert_eq!(account, before);
 
-        // Its own pocket takes more of it, and it may move to another one.
+        // Its own pocket takes more of it, up to two (an RGD-5 takes two
+        // units of a pocket), and it may move to another one.
         move_items(
             &mut account,
             1,
@@ -1706,14 +1924,14 @@ mod tests {
             NOW,
         )
         .unwrap();
-        assert_eq!(account.kits[0].slots[13].unwrap().count, 3);
+        assert_eq!(account.kits[0].slots[13].unwrap().count, 2);
         move_items(&mut account, 1, &[relocation(&grenade, 13, 15, 3)], NOW).unwrap();
         assert_eq!(account.kits[0].slots[13], None);
         assert_eq!(
             account.kits[0].slots[15],
             Some(KitSlot {
                 item_id: grenade_id,
-                count: 3
+                count: 2
             })
         );
         // Other types in the other pockets; another kit has its own.
@@ -1809,6 +2027,7 @@ mod tests {
     #[test]
     fn the_starting_ammo_is_refilled_for_its_price_of_nothing() {
         let mut account = account();
+        account.generic_money = 2_000;
         let ammo = account.inventory[1].clone();
         // Listed for nothing by seller 0 (so the client lets it be added to).
         let record = prices::price(ammo.dict_id).unwrap();
@@ -2204,9 +2423,9 @@ mod tests {
         let pistol = account.inventory[0].clone();
         let ammo = account.inventory[1].clone();
         let revision = account.kits[0].revision;
-        // The pistol costs nothing, so it sells for nothing.
+        // The pistol (500) sells for a quarter.
         let sold = sell(&mut account, pistol.item_id, 1).unwrap();
-        assert_eq!((sold.amount, sold.money), (1, 0));
+        assert_eq!((sold.amount, sold.money), (1, 125));
         assert_eq!(account.kits[0].slots[7], None);
         assert_eq!(account.kits[0].revision, revision + 1);
         // Selling none of a stack is refused.
@@ -2379,11 +2598,33 @@ mod tests {
     }
 
     #[test]
+    fn a_reset_accepts_a_branch_added_by_game_data() {
+        let mut tree = SkillsTree::shared().clone();
+        let mut medical = tree.skill(101).unwrap().clone();
+        medical.id = 301;
+        tree.skills.push(medical);
+        let mut account = account();
+        account.skills = vec![(101, 2), (301, 3)];
+        account.generic_money = REROLL_COST;
+        assert_eq!(
+            reset_skills_in_tree(&mut account, 2, reset_payment::SILVER, &tree),
+            Ok(3)
+        );
+        assert_eq!(account.skills, [(101, 2)]);
+        assert_eq!(account.generic_money, 0);
+        assert_eq!(
+            reset_skills_in_tree(&mut account, 3, reset_payment::SILVER, &tree),
+            Err(ActionError::BadReset)
+        );
+    }
+
+    #[test]
     fn a_reset_frees_one_branch_for_its_price() {
         let mut account = account();
         account.add_experience(100_000);
-        // A new account has no gold.
+        // A new account has no money.
         account.premium_money = 10;
+        account.generic_money = 2_000;
         set_skills(&mut account, &[(101, 2), (102, 3), (201, 1)]).unwrap();
         let money = account.generic_money;
         // The second tab: skills 201 and on.

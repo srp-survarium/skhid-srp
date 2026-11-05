@@ -47,7 +47,7 @@ fn walk_with_no_worlds_after_3s(blind_stop_ms: Option<u32>, until: u32) -> (Vec3
     let mut tuning = Tuning::default();
     tuning.unstick.blind_stop_ms = blind_stop_ms;
     let teams = [0u8, 1];
-    let mut bots = Bots::new(0xB11D, survarium::v026g::maps::mode::TEAM_DEATHMATCH, 0, &teams, &[true, false], &[None, None], Arc::new(tuning), Trace::none(0));
+    let mut bots = Bots::new(0xB11D, survarium::v026g::maps::RuleMode::TeamDeathmatch, 0, &teams, &[true, false], &[None, None], Arc::new(tuning), Trace::none(0));
     bots.map_ready(world.clone());
     let mut game = Game::new(world.clone(), &teams, 3, None, None);
     game.bodies[0].node = world.grid.locate(start, 1.0);

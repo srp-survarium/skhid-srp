@@ -3,13 +3,13 @@ use super::*;
 /// A bot that left is forgotten by the others.
 #[test]
 pub(crate) fn a_bot_that_left_is_forgotten() {
-    use survarium::v026g::maps::mode;
+    use survarium::v026g::maps::RuleMode;
     // A human of team 0 at x = 0; team 1's bots at 5, 40 and 30 m.
     let teams = [0, 1, 1, 1];
     let driven = [false, true, true, true];
     let mut bots = Bots::new(
         0x6A7E,
-        mode::BATTERIES,
+        RuleMode::Batteries,
         0,
         &teams,
         &driven,
@@ -62,7 +62,7 @@ pub(crate) fn a_dropped_battery_put_back_after_a_fall_stays_on_its_teams_hud() {
     let teams = [0, 1];
     let mut bots = Bots::new(
         0xF1,
-        survarium::v026g::maps::mode::BATTERIES,
+        survarium::v026g::maps::RuleMode::Batteries,
         0,
         &teams,
         &[true, true],
@@ -114,7 +114,7 @@ pub(crate) fn a_partners_death_the_world_shows_without_feet_is_traded_by_both_te
     let teams = [0, 0, 0, 1, 1, 1];
     let mut bots = Bots::new(
         0x5402,
-        survarium::v026g::maps::mode::BATTERIES,
+        survarium::v026g::maps::RuleMode::Batteries,
         0,
         &teams,
         &[true; 6],

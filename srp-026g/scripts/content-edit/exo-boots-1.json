@@ -1,0 +1,6 @@
+{
+ "_about": "Exoskeleton boots under full-length trousers (the owner, 2026-10-30, on the rev 39 local test: with the exo boots on, the shins look removed, only a thin stick between the trousers and the boot; docs/notes/exo-gear.md). A boot's data/model_type picks the variant of the trousers worn with it: data_full their _s1 model (full width down to 6-13 cm), data_medium _s2 and data_long _s3, narrowed to 2-9 cm from about 13 to 30 cm (some _s3 end at 29 cm) so they fit inside a tall boot shaft. The Duty and Freedom exo boots (duty_exo_026, freedom_exo_026, one STK2 mesh) are 22 cm high, shaped as the stock low boots that take data_full (Scavenger boots 1, 18 cm), but were ported as data_long: every trousers' narrowed part showed above them. They take data_full: the trousers' hem goes over the boot's shaft, as STK2 wore them. Mesh, textures and stats stay.",
+ "replace_string": [
+  {"files": "gameplay/items/armour/boots/*_exo_026.options", "from": "data_long", "to": "data_full"}
+ ]
+}

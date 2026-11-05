@@ -10,7 +10,7 @@ use crate::v026g::bots::path::Waypoint;
 fn bot() -> Bots {
     Bots::new(
         0x417,
-        survarium::v026g::maps::mode::BATTERIES,
+        survarium::v026g::maps::RuleMode::Batteries,
         0,
         &[0, 1],
         &[true, true],

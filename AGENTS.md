@@ -36,7 +36,8 @@ base patches made outside this repo (maps, ported weapons and items), the Flash 
 - The release builds the patch: `release/build-content <revision>` builds everything the manifest
   lists, compares it with what players have (the stock db and every listed patch), and packs only the
   files that differ, printing each one and why; anything live that the manifest does not make stops
-  it. Then `release/release.sh --resources <that patch>`.
+  it, save what an earlier version of a listed pack added and its new version no longer makes (left
+  as it is, listed). Then `release/release.sh --resources <that patch>`.
 - Never assemble a patch folder by hand, and never build a patch from the server game data or from
   one release's files: a file left out, or taken from the wrong revision, reverts what players have.
 
@@ -81,7 +82,27 @@ TSV (one line per name, no bulk JSON). The client patches' own addresses and rea
 
 ## Rust changes
 
-- Before opening a PR, run `cargo clippy --workspace --all-targets` (in `srp-026g`, under `nix develop`)
-  and the tests of what you changed.
+- Design for a **pit of success**: the simplest supported use of an API should be correct by
+  construction. Use ownership, lifetimes, types and explicit state transitions to enforce its
+  invariants, rather than requiring callers to remember special ordering or cleanup rules.
+- Give each piece of state a clear owner and a deliberate mutation API. Avoid overlapping setters,
+  callbacks or wrappers that independently control the same value. When multiple mechanisms must
+  coexist, encapsulate their coordination and ordering. At engine/FFI boundaries, keep raw access
+  behind that owner instead of exposing competing ways to bypass it. Verify initialization,
+  transitions and teardown as well as the settled state; Rust's type safety alone cannot enforce
+  the lifecycle rules of an external engine.
+- For Rust changes, test and lint affected crates under `nix develop`; use workspace Clippy
+  only when shared APIs, configuration or dependencies affect multiple crates.
 - A PR adds no clippy or rustc warnings: fix the ones your change causes. A lint that is noise for this
   code is allowed once in `[workspace.lints.clippy]` (`srp-026g/Cargo.toml`) with a comment why.
+
+## Checks while iterating and before a PR
+
+- Run checks for changed behavior and its affected consumers, also before pushing or opening
+  a PR. Shell/docs/page-copy changes do not need game builds, Unicorn or unrelated server tests.
+- Use the patch's own self-tests and Unicorn check, affected crate tests/Clippy, or the movie's
+  Ruffle harness. World save/load changes also need `check_world_roundtrip_026g.py`; content
+  changes need `release/build-content`. Reserve full suites for shared infrastructure changes
+  that affect them or release validation.
+- Broaden checks only for a concrete dependency or failure; do not repeat passing checks without
+  relevant changes. Report validation limits and pre-existing failures without expanding the PR.

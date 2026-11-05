@@ -7,8 +7,8 @@
 use session::v026g::{matchmaking, quests};
 use survarium::v026g::lobby::presets::{PRESET_CHOOSE_BASE, PRESETS_FIRST};
 use survarium::v026g::lobby::rooms::{
-    ROOM_JOIN_BASE, ROOM_MEMBERS_BASE, ROOM_OFFER_BASE, ROOM_PIN_BASE, ROOM_PLAY, ROOM_PRESET_BASE,
-    ROOM_QUEUE_BASE, ROOM_STATE, ROOMS_LIST, RoomSpec,
+    ROOM_JOIN_BASE, ROOM_LEAVE, ROOM_MEMBERS_BASE, ROOM_OFFER_BASE, ROOM_PIN_BASE, ROOM_PLAY,
+    ROOM_PRESET_BASE, ROOM_QUEUE_BASE, ROOM_STATE, ROOMS_LIST, RoomSpec,
 };
 
 use super::pvb_tests::with_gear;
@@ -254,7 +254,7 @@ fn gear_over_the_max_level_offers_the_highest_preset_that_fits() {
     with_gear(&mut world, bob, 5);
     assert_eq!(
         rows(&mut world, bob, ROOM_OFFER_BASE + key, 1),
-        [format!("S1;O;{key};2;1;0;5;3")]
+        [format!("S1;O;{key};2;1;0;5;3;0")]
     );
     // "Exit": nothing asked; the join itself is refused as before.
     assert_eq!(
@@ -294,17 +294,57 @@ fn a_room_allowing_more_than_the_kits_offers_a_higher_preset() {
     assert_eq!(gear(&world, carol), 0);
     assert_eq!(
         rows(&mut world, carol, ROOM_OFFER_BASE + key, 1),
-        [format!("S1;O;{key};1;3;5;0;7")]
+        [format!("S1;O;{key};1;3;5;0;7;0")]
     );
     // A room of any max level offers nothing.
     assert_eq!(
         rows(&mut world, carol, ROOM_OFFER_BASE + open, 1),
-        [format!("S1;O;{open};0;0;0;0;0")]
+        [format!("S1;O;{open};0;0;0;0;0;0")]
     );
     // "Enter anyway": the plain join, the kits as they are.
     let state = rows(&mut world, carol, ROOM_JOIN_BASE + key, 1);
     assert!(state[0].starts_with(&format!("S1;R;{key};")), "{state:?}");
     assert_eq!(gear(&world, carol), 0);
+}
+
+/// A private room has no max level (the owner's of 2026-10-26): its join
+/// offers no preset for the gear, over its window's max level or under it,
+/// and goes in with the kits as they are.
+#[test]
+fn a_private_room_offers_no_preset_for_the_gear() {
+    let mut world = World::new();
+    let alice = world.connect("Alice");
+    let bob = world.connect("Bob");
+    let carol = world.connect("Carol");
+    let key = create(
+        &mut world,
+        alice,
+        RoomSpec {
+            max_level: 3,
+            ..spec(8)
+        },
+        Some(1234),
+    );
+    // Bob plays preset 2, level 5 (over the window's 3); preset 1 is his
+    // starter kit.
+    copied_into(&mut world, bob, 2);
+    with_gear(&mut world, bob, 5);
+    assert_eq!(
+        rows(&mut world, bob, ROOM_OFFER_BASE + key, 1),
+        [format!("S1;O;{key};0;0;0;5;0;0")]
+    );
+    // Carol made preset 3 of level 5 and plays her starter: nothing higher.
+    copied_into(&mut world, carol, 3);
+    with_gear(&mut world, carol, 5);
+    choose(&mut world, carol, 1);
+    assert_eq!(
+        rows(&mut world, carol, ROOM_OFFER_BASE + key, 1),
+        [format!("S1;O;{key};0;0;0;0;0;0")]
+    );
+    rows(&mut world, bob, ROOM_PIN_BASE + 1234, 1);
+    let state = rows(&mut world, bob, ROOM_JOIN_BASE + key, 1);
+    assert!(state[0].starts_with(&format!("S1;R;{key};")), "{state:?}");
+    assert_eq!(gear(&world, bob), 5);
 }
 
 #[test]
@@ -325,7 +365,7 @@ fn no_preset_that_fits_keeps_the_refusal() {
     with_gear(&mut world, dave, 5);
     assert_eq!(
         rows(&mut world, dave, ROOM_OFFER_BASE + key, 1),
-        [format!("S1;O;{key};0;0;0;5;3")]
+        [format!("S1;O;{key};0;0;0;5;3;0")]
     );
     assert_eq!(
         rows(&mut world, dave, ROOM_JOIN_BASE + key, 1),
@@ -353,7 +393,7 @@ fn play_offers_a_preset_for_the_room_it_would_take() {
         &mut world,
         alice,
         RoomSpec {
-            max_level: 7,
+            max_level: 10,
             ..spec(8)
         },
         None,
@@ -364,7 +404,7 @@ fn play_offers_a_preset_for_the_room_it_would_take() {
     choose(&mut world, erin, 1);
     assert_eq!(
         rows(&mut world, erin, ROOM_OFFER_BASE, 1),
-        [format!("S1;O;{key};1;2;5;0;7")]
+        [format!("S1;O;{key};1;2;5;0;10;0")]
     );
     // "Switch and enter": preset 2 active, then Play, which takes that room.
     let (lists, _) = asked(&mut world, erin, ROOM_PRESET_BASE + 100_000);
@@ -377,7 +417,7 @@ fn play_offers_a_preset_for_the_room_it_would_take() {
     // In a room: Play offers nothing.
     assert_eq!(
         rows(&mut world, erin, ROOM_OFFER_BASE, 1),
-        ["S1;O;0;0;0;0;5;0"]
+        ["S1;O;0;0;0;0;5;0;0"]
     );
 }
 
@@ -412,7 +452,7 @@ fn switch_and_enter_plays_a_kit_of_the_preset_that_can_play() {
     assert_eq!(world.account(bob).active_kit, 1);
     assert_eq!(
         rows(&mut world, bob, ROOM_OFFER_BASE + key, 1),
-        [format!("S1;O;{key};2;2;0;5;3")]
+        [format!("S1;O;{key};2;2;0;5;3;0")]
     );
     let (lists, _) = asked(&mut world, bob, ROOM_PRESET_BASE + 100_000 + key);
     assert_eq!(lists[0][0], "P2;L;1;2;2;0;-1");
@@ -491,7 +531,7 @@ fn kits_that_can_not_play_are_offered_a_loadout_that_can() {
     choose(&mut world, bob, 2);
     assert_eq!(
         rows(&mut world, bob, ROOM_OFFER_BASE + key, 1),
-        [format!("S1;O;{key};3;1;0;0;0")]
+        [format!("S1;O;{key};3;1;0;0;0;0")]
     );
     let (lists, _) = asked(&mut world, bob, ROOM_PRESET_BASE + key);
     assert_eq!(lists[0][0], "P2;L;1;1;1;0;-1");
@@ -508,7 +548,7 @@ fn kits_that_can_not_play_are_offered_a_loadout_that_can() {
     });
     assert_eq!(
         rows(&mut world, carol, ROOM_OFFER_BASE + key, 1),
-        [format!("S1;O;{key};0;0;0;0;0")]
+        [format!("S1;O;{key};0;0;0;0;0;0")]
     );
     assert_eq!(
         rows(&mut world, carol, ROOM_JOIN_BASE + key, 1),
@@ -541,4 +581,194 @@ fn the_maintenance_rule_is_a_reason_at_30_minutes_not_31() {
     // With kits that can not play: both reasons.
     choose(&mut world, alice, 2);
     assert_eq!(header(&mut world), "P2;L;0;0;2;48;30");
+}
+
+/// A public room of `gear`'s bracket made by Play and filled with 16: its
+/// key. The others join with their starter kits (any gear may join a
+/// room of a higher max level).
+fn full_room(world: &mut World, label: &str, gear: u8) -> u32 {
+    let first = world.connect(&format!("{label}0"));
+    with_gear(world, first, gear);
+    rows(world, first, ROOM_PLAY, 1);
+    let key = world.core.rooms.key_of(world.ids[first].0).unwrap();
+    for n in 1..16 {
+        let member = world.connect(&format!("{label}{n}"));
+        rows(world, member, ROOM_JOIN_BASE + key, 1);
+    }
+    assert!(world.core.rooms.get(key).unwrap().is_full());
+    key
+}
+
+/// A public room of `gear`'s bracket made by Play, one in it: its key.
+fn open_room(world: &mut World, label: &str, gear: u8) -> u32 {
+    let first = world.connect(label);
+    with_gear(world, first, gear);
+    rows(world, first, ROOM_PLAY, 1);
+    world.core.rooms.key_of(world.ids[first].0).unwrap()
+}
+
+/// Preset 2 of gear `saved`, preset 1 (active) of gear `active`.
+fn two_presets(world: &mut World, index: usize, active: u8, saved: u8) {
+    copied_into(world, index, 2);
+    with_gear(world, index, saved);
+    choose(world, index, 1);
+    with_gear(world, index, active);
+}
+
+/// The owner's of 2026-10-30: Play that would queue for a full level-15
+/// room offers, as a Join of it would, a level-10 room with a place and
+/// the saved loadout that fits it ("Queue" or "Switch and enter").
+#[test]
+fn play_into_a_full_bracket_offers_a_lower_rooms_place_as_join_does() {
+    let mut world = World::new();
+    let high = full_room(&mut world, "High", 15);
+    let low = open_room(&mut world, "Low", 5);
+    let pat = world.connect("Pat");
+    two_presets(&mut world, pat, 15, 10);
+    // The same offer as a Join of the low room, about Play's queue.
+    assert_eq!(
+        rows(&mut world, pat, ROOM_OFFER_BASE + low, 1),
+        [format!("S1;O;{low};2;2;10;15;10;0")]
+    );
+    assert_eq!(
+        rows(&mut world, pat, ROOM_OFFER_BASE, 1),
+        [format!("S1;O;{low};2;2;10;15;10;1")]
+    );
+    // "Queue": Play as before, into the high room's queue.
+    rows(&mut world, pat, ROOM_PLAY, 1);
+    assert_eq!(
+        world.core.rooms.queue_place(world.ids[pat].0),
+        Some((high, 1))
+    );
+    // "Switch and enter": preset 2 chosen, then Play takes the low room
+    // (out of the queue).
+    let (lists, _) = asked(&mut world, pat, ROOM_PRESET_BASE + 100_000);
+    assert_eq!(lists[0][0], "P2;L;1;2;2;0;-1");
+    assert!(
+        lists[1][0].starts_with(&format!("S1;R;{low};")),
+        "{lists:?}"
+    );
+    assert_eq!(gear(&world, pat), 10);
+    assert_eq!(world.core.rooms.queue_place(world.ids[pat].0), None);
+}
+
+/// The reverse: Play that would queue for a full level-10 room offers a
+/// level-15 room with a place and a saved loadout above 10 ("Queue" or
+/// "Switch and enter"), Join's "higher" offer.
+#[test]
+fn play_into_a_full_bracket_offers_a_higher_rooms_place_as_join_does() {
+    let mut world = World::new();
+    full_room(&mut world, "Low", 5);
+    let high = open_room(&mut world, "High", 15);
+    let quin = world.connect("Quin");
+    two_presets(&mut world, quin, 5, 14);
+    assert_eq!(
+        rows(&mut world, quin, ROOM_OFFER_BASE, 1),
+        [format!("S1;O;{high};1;2;14;5;15;1")]
+    );
+    let (lists, _) = asked(&mut world, quin, ROOM_PRESET_BASE + 100_000);
+    assert_eq!(lists[0][0], "P2;L;1;2;2;0;-1");
+    assert!(
+        lists[1][0].starts_with(&format!("S1;R;{high};")),
+        "{lists:?}"
+    );
+    assert_eq!(gear(&world, quin), 14);
+}
+
+/// Where a Join of the other bracket's room offers nothing, or only a
+/// loadout that keeps Play in its own bracket, Play offers nothing and
+/// queues as before: a gear-5 player with no loadout above 10 (a Join
+/// would let it into the level-15 room as it is; Play keeps to its
+/// bracket), and none when Play would make its bracket's first room.
+#[test]
+fn play_offers_no_other_bracket_where_join_would_not_take_it_there() {
+    let mut world = World::new();
+    let low = full_room(&mut world, "Low", 5);
+    let high = open_room(&mut world, "High", 15);
+    let rae = world.connect("Rae");
+    two_presets(&mut world, rae, 5, 9);
+    // A Join of the high room offers preset 2 (level 9): Play does not.
+    assert_eq!(
+        rows(&mut world, rae, ROOM_OFFER_BASE + high, 1),
+        [format!("S1;O;{high};1;2;9;5;15;0")]
+    );
+    assert_eq!(
+        rows(&mut world, rae, ROOM_OFFER_BASE, 1),
+        ["S1;O;0;0;0;0;5;0;0"]
+    );
+    rows(&mut world, rae, ROOM_PLAY, 1);
+    assert_eq!(
+        world.core.rooms.queue_place(world.ids[rae].0),
+        Some((low, 1))
+    );
+    // No room of its bracket at all: Play makes one, nothing offered.
+    let mut world = World::new();
+    open_room(&mut world, "Low", 5);
+    let sam = world.connect("Sam");
+    two_presets(&mut world, sam, 15, 10);
+    assert_eq!(
+        rows(&mut world, sam, ROOM_OFFER_BASE, 1),
+        ["S1;O;0;0;0;0;15;0;0"]
+    );
+}
+
+/// The owner's of 2026-11-01: a full room's Queue offers what a Join of
+/// that room would. A full level-15 room, a gear-10 player with a level-15
+/// loadout: Join's "higher" offer. "Queue" keeps the queue as it is;
+/// "Switch and enter" chooses the loadout, then queues (its place kept),
+/// and the player goes in with it when a place frees.
+#[test]
+fn a_full_rooms_queue_offers_a_preset_as_join_does() {
+    let mut world = World::new();
+    let high = full_room(&mut world, "High", 15);
+    let pat = world.connect("Pat");
+    two_presets(&mut world, pat, 10, 15);
+    assert_eq!(
+        rows(&mut world, pat, ROOM_OFFER_BASE + high, 1),
+        [format!("S1;O;{high};1;2;15;10;15;0")]
+    );
+    // "Queue": the queue, the kits as they are.
+    assert_eq!(
+        rows(&mut world, pat, ROOM_QUEUE_BASE + high, 1),
+        [format!("S1;N;0;{high};1")]
+    );
+    assert_eq!(gear(&world, pat), 10);
+    // "Switch and enter": preset 2 chosen, the same place in the queue.
+    let (lists, _) = asked(&mut world, pat, ROOM_PRESET_BASE + 100_000 + high);
+    assert_eq!(lists[0][0], "P2;L;1;2;2;0;-1");
+    assert_eq!(lists[1], [format!("S1;N;0;{high};1")]);
+    assert_eq!(gear(&world, pat), 15);
+    // Straight from the offer, not queued first: behind Pat.
+    let quin = world.connect("Quin");
+    two_presets(&mut world, quin, 10, 15);
+    let (lists, _) = asked(&mut world, quin, ROOM_PRESET_BASE + 100_000 + high);
+    assert_eq!(lists[0][0], "P2;L;1;2;2;0;-1");
+    assert_eq!(lists[1], [format!("S1;N;0;{high};2")]);
+    // A place frees: Pat goes in with the loadout chosen.
+    let first = world.core.rooms.get(high).unwrap().members[0];
+    let member = world.ids.iter().position(|id| id.0 == first).unwrap();
+    rows(&mut world, member, ROOM_LEAVE, 1);
+    world.advance(Duration::from_secs(1));
+    assert_eq!(world.core.rooms.key_of(world.ids[pat].0), Some(high));
+    assert_eq!(gear(&world, pat), 15);
+    assert_eq!(
+        world.core.rooms.queue_place(world.ids[quin].0),
+        Some((high, 1))
+    );
+}
+
+/// A full room's Queue offers nothing where a Join would offer nothing (no
+/// saved loadout above the gear): the queue as before.
+#[test]
+fn a_full_rooms_queue_offers_nothing_where_join_would_not() {
+    let mut world = World::new();
+    let high = full_room(&mut world, "High", 15);
+    let rae = world.connect("Rae");
+    two_presets(&mut world, rae, 10, 5);
+    let offer = rows(&mut world, rae, ROOM_OFFER_BASE + high, 1);
+    assert_eq!(offer[0].split(';').nth(3), Some("0"), "{offer:?}");
+    assert_eq!(
+        rows(&mut world, rae, ROOM_QUEUE_BASE + high, 1),
+        [format!("S1;N;0;{high};1")]
+    );
 }

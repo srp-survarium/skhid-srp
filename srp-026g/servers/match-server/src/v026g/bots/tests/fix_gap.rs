@@ -12,7 +12,7 @@ fn notes_of(fix_gap_ms: Option<u32>, times: &[u32], beside_m: Option<f32>) -> Ve
     let mut tuning = Tuning::default();
     tuning.unstick.fix_gap_ms = fix_gap_ms;
     let teams = [0u8, 1];
-    let mut bots = Bots::new(0xF1C9, survarium::v026g::maps::mode::TEAM_DEATHMATCH, 0, &teams, &[true, false], &[None, None], Arc::new(tuning), Trace::none(0));
+    let mut bots = Bots::new(0xF1C9, survarium::v026g::maps::RuleMode::TeamDeathmatch, 0, &teams, &[true, false], &[None, None], Arc::new(tuning), Trace::none(0));
     bots.map_ready(world.clone());
     bots.entered(0, true, 0);
     bots.entered(1, true, 0);

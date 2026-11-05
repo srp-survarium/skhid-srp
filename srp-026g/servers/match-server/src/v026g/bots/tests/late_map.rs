@@ -9,7 +9,7 @@ pub(crate) fn a_bot_spawned_before_the_map_takes_its_side_when_the_map_comes() {
     let teams = [0u8, 1];
     let mut bots = Bots::new(
         0x51DE,
-        survarium::v026g::maps::mode::BATTERIES,
+        survarium::v026g::maps::RuleMode::Batteries,
         0,
         &teams,
         &[true, true],
@@ -56,7 +56,7 @@ pub(crate) fn a_map_ready_before_the_spawns_reads_no_side_late() {
     let teams = [0u8, 1];
     let mut bots = Bots::new(
         0x51DE,
-        survarium::v026g::maps::mode::BATTERIES,
+        survarium::v026g::maps::RuleMode::Batteries,
         0,
         &teams,
         &[true, true],

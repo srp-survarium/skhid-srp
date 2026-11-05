@@ -17,6 +17,7 @@ package survarium.constants
       public static const MAINTENANCE:int = 5;
       
       public static const ENDING:int = 6;
+      public static const PLAYER_LIMIT:int = 7;
       
       public function JoinHold()
       {

@@ -22,7 +22,7 @@
 //!   (event 10); in Research `capture` (6) and `kill_invader` (10).
 //! - **kind:** `human` the stand-in human (`SRP_BENCH_HUMAN`), `camper` the stand-in camper, else `bot`.
 
-use survarium::v026g::maps::mode;
+use survarium::v026g::maps::RuleMode;
 use survarium::v026g::match_msgs::snapshot::{self, PlayerStatistics};
 use survarium::v026g::match_msgs::static_info;
 
@@ -67,7 +67,7 @@ pub(super) struct Scoreboard {
     human: Option<Place>,
     camper: Option<Place>,
     /// The match's mode id (`maps::mode`), given by the bench from the project it plays: the scoreboard has no guess of it.
-    mode: Option<u8>,
+    mode: Option<RuleMode>,
     /// The hits of the last [`ASSIST_MS`]: tick, shooter, victim.
     hits: Vec<(u32, Place, Place)>,
     kills_seen: usize,
@@ -82,7 +82,7 @@ pub(super) struct Scoreboard {
 }
 
 impl Scoreboard {
-    pub(super) fn set_context(&mut self, context: String, mode: u8, human: Option<Place>, camper: Option<Place>) {
+    pub(super) fn set_context(&mut self, context: String, mode: RuleMode, human: Option<Place>, camper: Option<Place>) {
         self.context = context;
         self.mode = Some(mode);
         self.human = human;
@@ -180,7 +180,6 @@ impl Topic for Scoreboard {
     fn parts(&mut self, _run: &Run, game: &Game, _scale: &Scale, _shared: &Shared) -> Vec<(&'static str, Part)> {
         self.grow(game.bodies.len());
         let game_mode = self.mode.expect("the scoreboard is given the match's mode (OwnerTally::set_scoreboard)");
-        assert!(mode::ALL.contains(&game_mode), "mode {game_mode} is not a mode of the game");
         let weights = static_info::score_weights(game_mode);
         let puts = |place: Place| game.put_in_log.iter().filter(|(p, _)| *p == place).count() as u32;
         let mut entries = Vec::new();
@@ -263,12 +262,12 @@ impl Topic for Scoreboard {
 
 /// What kind of objective points a score event is in a mode (none: not objective). In the batteries modes a bring or a put in is a
 /// delivery and the death of a carrier a carrier kill; in Research a capture is event 6 and the kill of an invader event 10.
-fn objective_kind(game_mode: u8, event: usize) -> Option<&'static str> {
+fn objective_kind(game_mode: RuleMode, event: usize) -> Option<&'static str> {
     match (game_mode, event) {
-        (mode::BATTERIES | mode::TIMED_BATTERIES, BROUGHT | PUT_IN) => Some("delivered"),
-        (mode::BATTERIES | mode::TIMED_BATTERIES, CARRIER_KILL) => Some("carrier_kill"),
-        (mode::RESEARCH, BROUGHT) => Some("capture"),
-        (mode::RESEARCH, CARRIER_KILL) => Some("kill_invader"),
+        (RuleMode::Batteries | RuleMode::TimedBatteries, BROUGHT | PUT_IN) => Some("delivered"),
+        (RuleMode::Batteries | RuleMode::TimedBatteries, CARRIER_KILL) => Some("carrier_kill"),
+        (RuleMode::Research, BROUGHT) => Some("capture"),
+        (RuleMode::Research, CARRIER_KILL) => Some("kill_invader"),
         _ => None,
     }
 }
@@ -353,9 +352,10 @@ pub(crate) fn a_players_line_is_the_games_own_score_of_what_he_did() {
     let (_, json) = tally.finish(&game);
     let board = json["scoreboard"].as_array().expect("a list");
     assert_eq!(board.len(), 3);
-    let weights = static_info::score_weights(mode::BATTERIES);
-    // Bot 0: 2 kills (10 each), a bring (10 x 1.00), a put in (5), a carrier kill (5): 20 + 10 + 5 + 5.
-    assert_eq!(board[0]["score"], 40);
+    let weights = static_info::score_weights(RuleMode::Batteries);
+    // Bot 0: 2 kills (10 each), a bring (5 x 1.00: main's delivery share since revision 48), a put in (5), a carrier
+    // kill (5): 20 + 5 + 5 + 5.
+    assert_eq!(board[0]["score"], 35);
     assert_eq!(board[0]["events"]["0"], 2);
     assert_eq!(board[0]["events"]["10"], 1);
     assert_eq!(board[0]["objective"]["delivered"], f64::from(weights[BROUGHT]) + f64::from(weights[PUT_IN]));

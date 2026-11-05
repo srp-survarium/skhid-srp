@@ -1,0 +1,8 @@
+{
+  "runtime_vegetation": [
+    {"files": "projects/v021d_level_03/vegetation/*.veg"},
+    {"files": "projects/v021d_level_06/vegetation/*.veg"},
+    {"files": "projects/v011e_level_03/vegetation/*.veg"},
+    {"files": "projects/v011e_level_04/vegetation/*.veg"}
+  ]
+}

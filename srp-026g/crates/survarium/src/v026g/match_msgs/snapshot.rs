@@ -29,7 +29,7 @@
 
 use std::collections::HashMap;
 
-use super::super::maps::mode;
+use super::super::maps::RuleMode;
 use super::{MAX_PLAYERS, players, rules};
 
 /// Score events (`match_stats_events_dict_enum` grew from 24 to 28).
@@ -455,6 +455,72 @@ pub struct VictoryItemStatus {
     pub nearest_positions: [f32; 2],
     pub owner_team: u8,
     pub first_finder: u8,
+    /// Native record +FD: who last took this battery from a container.
+    /// Older snapshots omit it. Preserve that distinction when re-encoding.
+    pub last_taker: BatteryTaker,
+    /// Exe patch 92's (battery_progress): how near each team's container
+    /// the battery has come in its life, in 10 m steps: 0 not carried yet in
+    /// the life, else the steps + 1. After `first_finder`.
+    pub progress: [u8; 2],
+    /// Exe patch 92's: the steps each carrier (place x 3 + kit) has earned
+    /// toward its own team's container in the battery's life, held until
+    /// the battery is delivered there (then paid, 40 hundredths of event 6
+    /// a step). After `progress`: a u8 count (bit 7 marks a following
+    /// last-taker byte), then each one's cell and steps in rising order.
+    pub held: Vec<HeldSteps>,
+}
+
+/// Whether the snapshot carries the native battery's last taker.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub enum BatteryTaker {
+    #[default]
+    NotRecorded,
+    Saved(Option<BatteryPlace>),
+}
+
+/// A battery's taker can be any of the twenty match places, including an
+/// absent player; the current world's active mask does not bound it.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct BatteryPlace(u8);
+
+impl BatteryPlace {
+    pub fn new(place: u8) -> Option<Self> {
+        (usize::from(place) < MAX_PLAYERS).then_some(Self(place))
+    }
+
+    pub fn index(self) -> u8 {
+        self.0
+    }
+}
+
+/// Steps one carrier holds on a battery (exe patch 92).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct HeldSteps {
+    /// Its place x 3 + its kit, under 60.
+    pub cell: u8,
+    /// At least 1.
+    pub steps: u8,
+}
+
+impl HeldSteps {
+    const CELLS: u8 = (MAX_PLAYERS * KITS) as u8;
+
+    /// A battery's held steps: at most one a cell, the cells in rising
+    /// order, each with steps.
+    fn read_all(reader: &mut Reader, count: u8) -> Option<Vec<HeldSteps>> {
+        if count > Self::CELLS {
+            return None;
+        }
+        let mut held: Vec<HeldSteps> = Vec::with_capacity(usize::from(count));
+        for _ in 0..count {
+            let one = HeldSteps { cell: reader.u8()?, steps: reader.u8()? };
+            if one.cell >= Self::CELLS || one.steps == 0 || held.last().is_some_and(|last| last.cell >= one.cell) {
+                return None;
+            }
+            held.push(one);
+        }
+        Some(held)
+    }
 }
 
 impl Default for VictoryItemStatus {
@@ -464,12 +530,35 @@ impl Default for VictoryItemStatus {
             nearest_positions: [0.0; 2],
             owner_team: 0,
             first_finder: 0,
+            last_taker: BatteryTaker::NotRecorded,
+            progress: [0; 2],
+            held: Vec::new(),
         }
     }
 }
 
+/// The client patch revision from which a battery's record carries exe patch 92's progress and held steps
+/// ([`VictoryItemStatus::progress`], [`VictoryItemStatus::held`]; revision 41, #1000 and #1023).
+pub const BATTERY_PROGRESS_REVISION: u16 = 41;
+
+/// How a battery's record in the statistics section is laid out: by the client patch revision that wrote it.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum BatteryRecord {
+    /// Before [`BATTERY_PROGRESS_REVISION`]: it ends at `first_finder`.
+    Plain,
+    /// Today's: `progress` and the held steps after `first_finder`.
+    WithProgress,
+}
+
+impl BatteryRecord {
+    /// The layout a client of patch revision `revision` wrote.
+    pub fn at_revision(revision: u16) -> Self {
+        if revision >= BATTERY_PROGRESS_REVISION { Self::WithProgress } else { Self::Plain }
+    }
+}
+
 impl VictoryItemStatus {
-    fn read(reader: &mut Reader, players: usize) -> Option<Self> {
+    fn read(reader: &mut Reader, players: usize, record: BatteryRecord) -> Option<Self> {
         let mut status = Self::default();
         for distances in &mut status.carried_distances {
             read_masked_f32(reader, players, distances)?;
@@ -477,6 +566,19 @@ impl VictoryItemStatus {
         status.nearest_positions = [reader.f32()?, reader.f32()?];
         status.owner_team = reader.u8()?;
         status.first_finder = reader.u8()?;
+        if record == BatteryRecord::WithProgress {
+            status.progress = [reader.u8()?, reader.u8()?];
+            let count = reader.u8()?;
+            status.last_taker = if count & 0x80 == 0 {
+                BatteryTaker::NotRecorded
+            } else {
+                BatteryTaker::Saved(match reader.u8()? {
+                    u8::MAX => None,
+                    place => Some(BatteryPlace::new(place)?),
+                })
+            };
+            status.held = HeldSteps::read_all(reader, count & 0x7F)?;
+        }
         Some(status)
     }
 
@@ -489,6 +591,17 @@ impl VictoryItemStatus {
         }
         out.push(self.owner_team);
         out.push(self.first_finder);
+        out.extend(self.progress);
+        match self.last_taker {
+            BatteryTaker::NotRecorded => out.push(self.held.len() as u8),
+            BatteryTaker::Saved(taker) => {
+                out.push(self.held.len() as u8 | 0x80);
+                out.push(taker.map_or(u8::MAX, BatteryPlace::index));
+            }
+        }
+        for one in &self.held {
+            out.extend([one.cell, one.steps]);
+        }
     }
 }
 
@@ -558,6 +671,17 @@ impl Statistics {
     /// Reads a section of a match with `players` roster places and
     /// `batteries` batteries. `None` unless it fills `bytes` exactly.
     pub fn decode(bytes: &[u8], players: usize, batteries: usize) -> Option<Self> {
+        Self::decode_as(bytes, players, batteries, BatteryRecord::WithProgress)
+    }
+
+    /// [`Self::decode`] of a section a client of patch revision `revision` wrote (recordings, saved worlds and fixtures
+    /// made before, as `players::state_at_revision` reads their player states): before
+    /// [`BATTERY_PROGRESS_REVISION`] a battery's record has no progress and no held steps, read as none.
+    pub fn decode_at_revision(bytes: &[u8], players: usize, batteries: usize, revision: u16) -> Option<Self> {
+        Self::decode_as(bytes, players, batteries, BatteryRecord::at_revision(revision))
+    }
+
+    fn decode_as(bytes: &[u8], players: usize, batteries: usize, record: BatteryRecord) -> Option<Self> {
         if players > MAX_PLAYERS {
             return None;
         }
@@ -567,7 +691,7 @@ impl Statistics {
                 .map(|_| PlayerStatistics::read(&mut reader))
                 .collect::<Option<_>>()?,
             victory_items: (0..batteries)
-                .map(|_| VictoryItemStatus::read(&mut reader, players))
+                .map(|_| VictoryItemStatus::read(&mut reader, players, record))
                 .collect::<Option<_>>()?,
             tail: StatisticsTail::read(&mut reader)?,
         };
@@ -1067,8 +1191,8 @@ impl Gather {
 
     /// Reads a gather rule that fills `bytes` exactly. `batteries` is how
     /// many the mask covers at most (the mode's count).
-    fn read(bytes: &[u8], game_mode: u8, batteries: usize) -> Option<Self> {
-        let timed = game_mode == mode::TIMED_BATTERIES;
+    fn read(bytes: &[u8], game_mode: RuleMode, batteries: usize) -> Option<Self> {
+        let timed = game_mode == RuleMode::TimedBatteries;
         let mut reader = Reader::new(bytes);
         let seed = reader.u32()?;
         let team_points = [reader.u8()?, reader.u8()?];
@@ -1205,7 +1329,7 @@ impl Rules {
         bytes: &[u8],
         time: u32,
         players: usize,
-        game_mode: u8,
+        game_mode: RuleMode,
         batteries: usize,
     ) -> Option<Self> {
         if players > MAX_PLAYERS || bytes.len() < Self::min_len(players) {
@@ -1238,7 +1362,7 @@ impl Rules {
                 && u64::from(rule.players_mask) >> players == 0
         })?;
         let middle = &bytes[Timelimit::LEN..kd_at];
-        let tdm = (game_mode == mode::TEAM_DEATHMATCH)
+        let tdm = (game_mode == RuleMode::TeamDeathmatch)
             .then(|| middle.len().checked_sub(Tdm::LEN))
             .flatten()
             .and_then(|at| {
@@ -1249,7 +1373,7 @@ impl Rules {
                     active_players_mask: reader.u32()?,
                 })
             });
-        let (research_at, research) = match (game_mode == mode::RESEARCH)
+        let (research_at, research) = match (game_mode == RuleMode::Research)
             .then(|| Research::read_back(middle))
             .flatten()
         {
@@ -1262,8 +1386,8 @@ impl Rules {
             let points = |bytes: &[u8]| -> Vec<[u8; 2]> { bytes.as_chunks::<2>().0.to_vec() };
             // Where a mode rule of a size known from the end starts.
             let fixed_at = match game_mode {
-                mode::TEAM_DEATHMATCH => Some(middle.len().checked_sub(Tdm::LEN)),
-                mode::RESEARCH => Some(research_at),
+                RuleMode::TeamDeathmatch => Some(middle.len().checked_sub(Tdm::LEN)),
+                RuleMode::Research => Some(research_at),
                 _ => None,
             };
             if let Some(end) = fixed_at {
@@ -1367,9 +1491,9 @@ impl Decoded<'_> {
     /// the gather rule's own, which are the same count. Mode 5 takes
     /// Research's shown points when its rule was read (the rule copies
     /// them into the statistics in play only), else the statistics'.
-    pub fn standing(&self, game_mode: u8, teams: &[u8]) -> Option<Standing> {
+    pub fn standing(&self, game_mode: RuleMode, teams: &[u8]) -> Option<Standing> {
         let tail = self.statistics.as_ref().map(|statistics| statistics.tail);
-        if game_mode == mode::RESEARCH {
+        if game_mode == RuleMode::Research {
             let research = self.rules.as_ref().and_then(|rules| rules.research.as_ref());
             if let Some(research) = research {
                 return Some(Standing {
@@ -1395,7 +1519,7 @@ impl Decoded<'_> {
                 winner,
             });
         }
-        if game_mode != mode::TEAM_DEATHMATCH {
+        if game_mode != RuleMode::TeamDeathmatch {
             let gather = self
                 .rules
                 .as_ref()
@@ -1440,8 +1564,8 @@ impl Decoded<'_> {
     /// Seen live on 2026-10-12: 4 of 4 players back in a Team Deathmatch
     /// had 100, 100 and a draw there, against 88, 78 and team 0.
     /// `false` when the rules or the statistics did not read: not known.
-    pub fn first_load_loses_the_standing(&self, game_mode: u8, tickets: u16) -> bool {
-        if game_mode != mode::TEAM_DEATHMATCH {
+    pub fn first_load_loses_the_standing(&self, game_mode: RuleMode, tickets: u16) -> bool {
+        if game_mode != RuleMode::TeamDeathmatch {
             return false;
         }
         let (Some(rules), Some(statistics)) = (&self.rules, &self.statistics) else {
@@ -1465,10 +1589,23 @@ pub fn decode(
     time: u32,
     body: &[u8],
     players: usize,
-    game_mode: u8,
+    game_mode: RuleMode,
     batteries: usize,
 ) -> Option<Decoded<'_>> {
-    let batteries = if mode::WITH_BATTERIES.contains(&game_mode) {
+    decode_at_revision(time, body, players, game_mode, batteries, u16::MAX)
+}
+
+/// [`decode`] of a world a client of patch revision `revision` wrote: its statistics section by
+/// [`Statistics::decode_at_revision`] (recordings made before revision 41; `u16::MAX`: today's).
+pub fn decode_at_revision(
+    time: u32,
+    body: &[u8],
+    players: usize,
+    game_mode: RuleMode,
+    batteries: usize,
+    revision: u16,
+) -> Option<Decoded<'_>> {
+    let batteries = if game_mode.has_batteries() {
         batteries
     } else {
         0
@@ -1481,8 +1618,8 @@ pub fn decode(
         } else {
             // With no gather rule object the client writes no battery
             // records at all.
-            let Some(statistics) = Statistics::decode(sections.statistics, players, batteries)
-                .or_else(|| Statistics::decode(sections.statistics, players, 0))
+            let Some(statistics) = Statistics::decode_at_revision(sections.statistics, players, batteries, revision)
+                .or_else(|| Statistics::decode_at_revision(sections.statistics, players, 0, revision))
             else {
                 continue;
             };
@@ -1720,12 +1857,45 @@ mod tests {
     }
 
     /// A battery's record (snapshot_rules.md §3.2): carried 2.0 by player
-    /// 1 with kit 0, nearest 1.0 and 3.0, team 1 owns it, player 0 found it.
+    /// 1 with kit 0, nearest 1.0 and 3.0, team 1 owns it, player 0 found it,
+    /// 3 steps from team 0's container and untouched for team 1's; player 1
+    /// with kit 0 (cell 3) holds 2 steps, player 3 with kit 1 (cell 10) 5.
     fn battery_bytes() -> Vec<u8> {
         let mut bytes = vec![0x02, 0, 0, 0, 0x00, 0x00, 0x00, 0x40];
         bytes.extend([0; 8]);
-        bytes.extend([0x00, 0x00, 0x80, 0x3F, 0x00, 0x00, 0x40, 0x40, 1, 0]);
+        bytes.extend([0x00, 0x00, 0x80, 0x3F, 0x00, 0x00, 0x40, 0x40, 1, 0, 4, 0, 2, 3, 2, 10, 5]);
         bytes
+    }
+
+    #[test]
+    fn a_section_before_revision_41_reads_its_batteries_without_progress() {
+        // Revision 40's record: today's without patch 92's progress and held steps (the last 7 bytes of the
+        // test battery); an untouched battery is 22 bytes, not 25.
+        let today = battery_bytes();
+        let old = today[..today.len() - 7].to_vec();
+        let mut bytes = EMPTY_PLAYER.to_vec();
+        bytes.extend(EMPTY_PLAYER);
+        bytes.extend(&old);
+        bytes.extend([0; 22]);
+        bytes.extend(TAIL);
+        assert_eq!(Statistics::decode(&bytes, 2, 2), None, "today's reader refuses it");
+        let statistics = Statistics::decode_at_revision(&bytes, 2, 2, 40).unwrap();
+        let first = &statistics.victory_items[0];
+        assert_eq!(first.carried_distances[0][1], 2.0);
+        assert_eq!(first.nearest_positions, [1.0, 3.0]);
+        assert_eq!((first.owner_team, first.first_finder), (1, 0));
+        assert_eq!((first.progress, first.held.len()), ([0, 0], 0), "no progress, no held steps");
+        assert_eq!(statistics.victory_items[1], VictoryItemStatus::default());
+        assert_eq!(statistics.tail, Statistics::decode_at_revision(&bytes, 2, 2, 34).unwrap().tail);
+        // From revision 41 it is today's reader.
+        assert_eq!(Statistics::decode_at_revision(&bytes, 2, 2, 41), None);
+        let mut now = EMPTY_PLAYER.to_vec();
+        now.extend(EMPTY_PLAYER);
+        now.extend(&today);
+        now.extend([0; 25]);
+        now.extend(TAIL);
+        assert_eq!(Statistics::decode_at_revision(&now, 2, 2, 41), Statistics::decode(&now, 2, 2));
+        assert!(Statistics::decode(&now, 2, 2).is_some());
     }
 
     #[test]
@@ -1733,22 +1903,63 @@ mod tests {
         let mut bytes = EMPTY_PLAYER.to_vec();
         bytes.extend(EMPTY_PLAYER);
         bytes.extend(battery_bytes());
-        // An untouched battery: three masks, two positions, two bytes.
-        bytes.extend([0; 22]);
+        // An untouched battery: three masks, two positions, five bytes.
+        bytes.extend([0; 25]);
         bytes.extend(TAIL);
         let statistics = Statistics::decode(&bytes, 2, 2).unwrap();
         let first = &statistics.victory_items[0];
         assert_eq!(first.carried_distances[0][1], 2.0);
         assert_eq!(first.nearest_positions, [1.0, 3.0]);
         assert_eq!((first.owner_team, first.first_finder), (1, 0));
+        assert_eq!(first.progress, [4, 0]);
+        assert_eq!(first.held, [HeldSteps { cell: 3, steps: 2 }, HeldSteps { cell: 10, steps: 5 }]);
         assert_eq!(statistics.victory_items[1], VictoryItemStatus::default());
         assert_eq!(statistics.encode(), bytes);
         // Read with another battery count it does not fit.
         assert_eq!(Statistics::decode(&bytes, 2, 1), None);
         assert_eq!(Statistics::decode(&bytes, 2, 3), None);
+        // Held steps out of order, twice for a cell, of no steps or no
+        // cell are no battery record.
+        let held = EMPTY_PLAYER.len() * 2 + 8 + 8 + 8 + 4;
+        assert_eq!(bytes[held..held + 5], [2, 3, 2, 10, 5]);
+        for broken in [[2, 10, 5, 3, 2], [2, 3, 2, 3, 5], [2, 3, 0, 10, 5], [2, 3, 2, 60, 5]] {
+            let mut bytes = bytes.clone();
+            bytes[held..held + 5].copy_from_slice(&broken);
+            assert_eq!(Statistics::decode(&bytes, 2, 2), None, "{broken:?}");
+        }
         // A carrier outside the roster is no battery record.
         bytes[80] = 0x04;
         assert_eq!(Statistics::decode(&bytes, 2, 2), None);
+    }
+
+    #[test]
+    fn battery_taker_roundtrips_without_changing_legacy_bytes() {
+        for taker in [BatteryTaker::NotRecorded, BatteryTaker::Saved(None),
+                      BatteryTaker::Saved(Some(BatteryPlace::new(19).unwrap()))] {
+            let mut bytes = battery_bytes();
+            if let BatteryTaker::Saved(place) = taker {
+                bytes[28] |= 0x80;
+                bytes.insert(29, place.map_or(255, BatteryPlace::index));
+            }
+            let mut reader = Reader::new(&bytes);
+            let record = VictoryItemStatus::read(&mut reader, 2, BatteryRecord::WithProgress).unwrap();
+            assert_eq!(record.last_taker, taker);
+            assert_eq!(reader.at, bytes.len());
+            let mut encoded = Vec::new();
+            record.write(&mut encoded);
+            assert_eq!(encoded, bytes);
+            // Every truncation must be refused, including a missing taker.
+            for end in 0..bytes.len() {
+                assert!(VictoryItemStatus::read(&mut Reader::new(&bytes[..end]), 2, BatteryRecord::WithProgress).is_none());
+            }
+        }
+        let mut bytes = battery_bytes();
+        bytes[28] |= 0x80;
+        bytes.insert(29, 20);
+        assert!(VictoryItemStatus::read(&mut Reader::new(&bytes), 2, BatteryRecord::WithProgress).is_none());
+        bytes[29] = 19;
+        bytes[28] = 0xC0; // Count 64, beyond the 60 cells.
+        assert!(VictoryItemStatus::read(&mut Reader::new(&bytes), 2, BatteryRecord::WithProgress).is_none());
     }
 
     #[test]
@@ -1787,7 +1998,7 @@ mod tests {
     #[test]
     fn the_rules_of_a_team_deathmatch() {
         let bytes = tdm_rules();
-        let rules = Rules::decode(&bytes, TIME, 2, mode::TEAM_DEATHMATCH, 0).unwrap();
+        let rules = Rules::decode(&bytes, TIME, 2, RuleMode::TeamDeathmatch, 0).unwrap();
         assert_eq!(
             rules.timelimit,
             Timelimit {
@@ -1836,7 +2047,7 @@ mod tests {
         assert_eq!(rules.to_bytes(), bytes);
         // The same bytes as a battery match: no tdm rule is looked for,
         // and 12 bytes are no gather rule.
-        let rules = Rules::decode(&bytes, TIME, 2, mode::BATTERIES, 10).unwrap();
+        let rules = Rules::decode(&bytes, TIME, 2, RuleMode::Batteries, 10).unwrap();
         assert_eq!((rules.tdm, rules.gather, rules.respawn), (None, None, None));
     }
 
@@ -1908,7 +2119,7 @@ mod tests {
         assert_eq!(b[20..24], [0x80, 0xB2, 0xE6, 0x0E]);
 
         let bytes = research_rules(&rule);
-        let rules = Rules::decode(&bytes, TIME, 2, mode::RESEARCH, 0).unwrap();
+        let rules = Rules::decode(&bytes, TIME, 2, RuleMode::Research, 0).unwrap();
         assert_eq!(rules.research.as_ref(), Some(&rule));
         assert_eq!((rules.tdm, rules.gather.as_ref()), (None, None));
         // The rest before it is the respawn rule's three points.
@@ -1916,7 +2127,7 @@ mod tests {
         assert_eq!(rules.kills_deaths[0].kills, 3);
         assert_eq!(rules.to_bytes(), bytes);
         // The same bytes as another mode's: no research rule.
-        for game_mode in [mode::BATTERIES, mode::TEAM_DEATHMATCH] {
+        for game_mode in [RuleMode::Batteries, RuleMode::TeamDeathmatch] {
             let rules = Rules::decode(&bytes, TIME, 2, game_mode, 10).unwrap();
             assert_eq!(rules.research, None, "{game_mode}");
         }
@@ -1927,7 +2138,7 @@ mod tests {
             end: Some(600_000),
             ..rule
         };
-        let rules = Rules::decode(&research_rules(&over), TIME, 2, mode::RESEARCH, 0).unwrap();
+        let rules = Rules::decode(&research_rules(&over), TIME, 2, RuleMode::Research, 0).unwrap();
         assert_eq!(rules.research.unwrap().end, Some(600_000));
     }
 
@@ -1955,7 +2166,7 @@ mod tests {
                 &KD_AND_FLAGS,
             ]
             .concat();
-            let rules = Rules::decode(&bytes, TIME, 2, mode::RESEARCH, 0).unwrap();
+            let rules = Rules::decode(&bytes, TIME, 2, RuleMode::Research, 0).unwrap();
             assert_eq!(rules.research.as_ref(), Some(each));
             assert_eq!(rules.respawn.as_ref(), Some(&respawn));
         }
@@ -1969,14 +2180,14 @@ mod tests {
             &KD_AND_FLAGS,
         ]
         .concat();
-        let rules = Rules::decode(&bytes, TIME, 2, mode::RESEARCH, 0).unwrap();
+        let rules = Rules::decode(&bytes, TIME, 2, RuleMode::Research, 0).unwrap();
         assert_eq!((rules.respawn, rules.research), (None, Some(rule)));
     }
 
     #[test]
     fn a_wrong_research_rule_is_refused() {
         let unread = |rule: &Research| {
-            Rules::decode(&research_rules(rule), TIME, 2, mode::RESEARCH, 0)
+            Rules::decode(&research_rules(rule), TIME, 2, RuleMode::Research, 0)
                 .unwrap()
                 .research
         };
@@ -2005,7 +2216,7 @@ mod tests {
         // A byte short (its unit count): no count where the length says.
         let mut bytes = research_rules(&good);
         bytes.remove(Timelimit::LEN + RESPAWN.len() + 20);
-        let rules = Rules::decode(&bytes, TIME, 2, mode::RESEARCH, 0).unwrap();
+        let rules = Rules::decode(&bytes, TIME, 2, RuleMode::Research, 0).unwrap();
         assert_eq!(rules.research, None);
     }
 
@@ -2019,12 +2230,12 @@ mod tests {
         let rules = research_rules(&research());
         let whole = body(&statistics, &rules);
         // A battery count is not used in mode 5.
-        let decoded = decode(TIME, &whole, 2, mode::RESEARCH, 10).unwrap();
+        let decoded = decode(TIME, &whole, 2, RuleMode::Research, 10).unwrap();
         let read = decoded.statistics.as_ref().unwrap();
         assert!(read.victory_items.is_empty());
         assert_eq!(decoded.rules.as_ref().unwrap().research, Some(research()));
         assert_eq!(
-            decoded.standing(mode::RESEARCH, &[0, 1]),
+            decoded.standing(RuleMode::Research, &[0, 1]),
             Some(Standing {
                 points: [64, 38],
                 winner: 0
@@ -2035,8 +2246,8 @@ mod tests {
         let at = early.len() - StatisticsTail::LEN;
         early[at..at + 4].fill(0);
         let early = body(&early, &rules);
-        let decoded = decode(TIME, &early, 2, mode::RESEARCH, 0).unwrap();
-        let standing = decoded.standing(mode::RESEARCH, &[0, 1]).unwrap();
+        let decoded = decode(TIME, &early, 2, RuleMode::Research, 0).unwrap();
+        let standing = decoded.standing(RuleMode::Research, &[0, 1]).unwrap();
         assert_eq!(standing.points, [64, 38]);
         // Without the rule, the statistics': equal points, the leader the
         // rule wrote a draw.
@@ -2044,10 +2255,10 @@ mod tests {
         even[at..at + 4].copy_from_slice(&[40, 0, 40, 0]);
         even[at + 6] = rules::DRAW;
         let even = body(&even, &[]);
-        let decoded = decode(TIME, &even, 2, mode::RESEARCH, 0).unwrap();
+        let decoded = decode(TIME, &even, 2, RuleMode::Research, 0).unwrap();
         assert_eq!(decoded.rules, None);
         assert_eq!(
-            decoded.standing(mode::RESEARCH, &[0, 1]),
+            decoded.standing(RuleMode::Research, &[0, 1]),
             Some(Standing {
                 points: [40, 40],
                 winner: rules::DRAW
@@ -2063,10 +2274,10 @@ mod tests {
         statistics.extend(EMPTY_PLAYER);
         statistics.extend([100, 0, 100, 0, 0, 0, 1, 3, 0, 0, 0]);
         let whole = body(&statistics, &[]);
-        let decoded = decode(TIME, &whole, 2, mode::RESEARCH, 0).unwrap();
+        let decoded = decode(TIME, &whole, 2, RuleMode::Research, 0).unwrap();
         assert_eq!(decoded.rules, None);
         assert_eq!(
-            decoded.standing(mode::RESEARCH, &[0, 1]),
+            decoded.standing(RuleMode::Research, &[0, 1]),
             Some(Standing {
                 points: [100, 100],
                 winner: 1
@@ -2076,9 +2287,9 @@ mod tests {
         let at = statistics.len() - StatisticsTail::LEN + 6;
         statistics[at] = 3;
         let whole = body(&statistics, &[]);
-        let decoded = decode(TIME, &whole, 2, mode::RESEARCH, 0).unwrap();
+        let decoded = decode(TIME, &whole, 2, RuleMode::Research, 0).unwrap();
         assert_eq!(
-            decoded.standing(mode::RESEARCH, &[0, 1]).map(|standing| standing.winner),
+            decoded.standing(RuleMode::Research, &[0, 1]).map(|standing| standing.winner),
             Some(rules::DRAW)
         );
     }
@@ -2094,10 +2305,10 @@ mod tests {
         statistics.extend(EMPTY_PLAYER);
         statistics.extend([100, 0, 100, 0, 0, 0, 1, 3, 0, 0, 0]);
         let whole = body(&statistics, &research_rules(&rule));
-        let decoded = decode(TIME, &whole, 2, mode::RESEARCH, 0).unwrap();
+        let decoded = decode(TIME, &whole, 2, RuleMode::Research, 0).unwrap();
         assert_eq!(decoded.rules.as_ref().unwrap().research, Some(rule.clone()));
         assert_eq!(
-            decoded.standing(mode::RESEARCH, &[0, 1]),
+            decoded.standing(RuleMode::Research, &[0, 1]),
             Some(Standing {
                 points: [100, 100],
                 winner: 1
@@ -2129,7 +2340,7 @@ mod tests {
             .map(|pair| u8::from_str_radix(std::str::from_utf8(pair).unwrap(), 16).unwrap())
             .collect();
         assert_eq!(bytes.len(), 368);
-        let rules = Rules::decode(&bytes, 914_900, 7, mode::BATTERIES, 10).expect("the rules");
+        let rules = Rules::decode(&bytes, 914_900, 7, RuleMode::Batteries, 10).expect("the rules");
         assert_eq!(rules.timelimit.start, Some(24_200));
         assert_eq!(rules.timelimit.state, rules::state::IN_PROCESS);
         assert_eq!(rules.team_respawn, [true, true]);
@@ -2152,7 +2363,7 @@ mod tests {
         );
         // The map's respawn points (`MapMode::respawn_points`): level_07's
         // in batteries.
-        let map = super::super::super::maps::playable_in(mode::BATTERIES)
+        let map = super::super::super::maps::playable_in(super::super::super::maps::GameMode::Batteries)
             .find(|map| map.level == 7)
             .unwrap();
         assert_eq!(
@@ -2179,7 +2390,7 @@ mod tests {
         // A byte that is no bool is still refused.
         let mut wrong = bytes.clone();
         *wrong.last_mut().unwrap() = 7;
-        assert_eq!(Rules::decode(&wrong, 914_900, 7, mode::BATTERIES, 10), None);
+        assert_eq!(Rules::decode(&wrong, 914_900, 7, RuleMode::Batteries, 10), None);
     }
 
     #[test]
@@ -2187,11 +2398,11 @@ mod tests {
         // 0.21d's order (the mode rule and the respawn rule first) is not
         // 0.26g's: not read.
         let bytes = [&[0xEE; 6][..], &RESPAWN, &TIMELIMIT, &KD_AND_FLAGS].concat();
-        assert_eq!(Rules::decode(&bytes, TIME, 2, mode::BATTERIES, 10), None);
+        assert_eq!(Rules::decode(&bytes, TIME, 2, RuleMode::Batteries, 10), None);
         // Read for another time the rules are not this snapshot's.
         let bytes = tdm_rules();
         assert_eq!(
-            Rules::decode(&bytes, TIME + 50, 2, mode::TEAM_DEATHMATCH, 0),
+            Rules::decode(&bytes, TIME + 50, 2, RuleMode::TeamDeathmatch, 0),
             None
         );
     }
@@ -2216,14 +2427,14 @@ mod tests {
             ]
         );
         let bytes = [&TIMELIMIT[..], &respawn_bytes, &TDM, &KD_AND_FLAGS].concat();
-        let rules = Rules::decode(&bytes, TIME, 2, mode::TEAM_DEATHMATCH, 0).unwrap();
+        let rules = Rules::decode(&bytes, TIME, 2, RuleMode::TeamDeathmatch, 0).unwrap();
         assert_eq!(rules.respawn, Some(respawn));
         assert_eq!(rules.tdm.unwrap().tickets, [97, 100]);
         assert_eq!(rules.to_bytes(), bytes);
         // An odd number of bytes for the points: no respawn rule read, the
         // tdm rule still is.
         let bytes = [&TIMELIMIT[..], &respawn_bytes, &[9], &TDM, &KD_AND_FLAGS].concat();
-        let rules = Rules::decode(&bytes, TIME, 2, mode::TEAM_DEATHMATCH, 0).unwrap();
+        let rules = Rules::decode(&bytes, TIME, 2, RuleMode::TeamDeathmatch, 0).unwrap();
         assert_eq!(rules.respawn, None);
         assert_eq!(rules.tdm.unwrap().tickets, [97, 100]);
     }
@@ -2280,21 +2491,21 @@ mod tests {
             bytes[181..],
             [0, 0, 0, 0, 0xFF, 0, 1, 0, 1, 0, 0, 0, 3, 0, 1, 0, 0, 0, 0]
         );
-        assert_eq!(Gather::read(&bytes, mode::BATTERIES, 4), Some(gather()));
+        assert_eq!(Gather::read(&bytes, RuleMode::Batteries, 4), Some(gather()));
         // More batteries than the mask's four were written for; a byte
         // short; a byte over.
-        assert_eq!(Gather::read(&bytes, mode::BATTERIES, 3), None);
+        assert_eq!(Gather::read(&bytes, RuleMode::Batteries, 3), None);
         assert_eq!(
-            Gather::read(&bytes[..bytes.len() - 1], mode::BATTERIES, 4),
+            Gather::read(&bytes[..bytes.len() - 1], RuleMode::Batteries, 4),
             None
         );
         let mut longer = bytes.clone();
         longer.push(0);
-        assert_eq!(Gather::read(&longer, mode::BATTERIES, 4), None);
+        assert_eq!(Gather::read(&longer, RuleMode::Batteries, 4), None);
         // Team points that are not what the containers hold.
         let mut wrong = bytes.clone();
         wrong[4] = 2;
-        assert_eq!(Gather::read(&wrong, mode::BATTERIES, 4), None);
+        assert_eq!(Gather::read(&wrong, RuleMode::Batteries, 4), None);
 
         // Mode 3: the count of batteries placed before the mask, five
         // fields after the containers.
@@ -2317,7 +2528,7 @@ mod tests {
             21_000u32.to_le_bytes()
         );
         assert_eq!(bytes[bytes.len() - 1], 1);
-        assert_eq!(Gather::read(&bytes, mode::TIMED_BATTERIES, 10), Some(timed));
+        assert_eq!(Gather::read(&bytes, RuleMode::TimedBatteries, 10), Some(timed));
     }
 
     #[test]
@@ -2341,7 +2552,7 @@ mod tests {
         let bytes = rules.to_bytes();
         assert_eq!(bytes.len(), 13 + 8 + 60 + 200 + 10 + 2);
         assert_eq!(
-            Rules::decode(&bytes, TIME, 2, mode::BATTERIES, 4),
+            Rules::decode(&bytes, TIME, 2, RuleMode::Batteries, 4),
             Some(rules)
         );
     }
@@ -2359,7 +2570,7 @@ mod tests {
         assert_eq!(bytes[..4], [0xFF; 4]);
         bytes.extend(RESPAWN);
         bytes.extend(KD_AND_FLAGS);
-        let rules = Rules::decode(&bytes, 50, 2, mode::BATTERIES, 10).unwrap();
+        let rules = Rules::decode(&bytes, 50, 2, RuleMode::Batteries, 10).unwrap();
         assert_eq!(rules.timelimit.start, None);
         assert_eq!(rules.timelimit.time_limit_at(900_000), None);
     }
@@ -2371,23 +2582,23 @@ mod tests {
         let mut bytes = good.clone();
         bytes[last] = 2; // a flag that is no bool
         assert_eq!(
-            Rules::decode(&bytes, TIME, 2, mode::TEAM_DEATHMATCH, 0),
+            Rules::decode(&bytes, TIME, 2, RuleMode::TeamDeathmatch, 0),
             None
         );
         let mut bytes = good.clone();
         bytes[last - 2] = 7; // `online` that is no bool
         assert_eq!(
-            Rules::decode(&bytes, TIME, 2, mode::TEAM_DEATHMATCH, 0),
+            Rules::decode(&bytes, TIME, 2, RuleMode::TeamDeathmatch, 0),
             None
         );
         let mut bytes = good.clone();
         bytes[8] = 0x07; // a player outside the roster in the mask
         assert_eq!(
-            Rules::decode(&bytes, TIME, 2, mode::TEAM_DEATHMATCH, 0),
+            Rules::decode(&bytes, TIME, 2, RuleMode::TeamDeathmatch, 0),
             None
         );
         assert_eq!(
-            Rules::decode(&good[..20], TIME, 2, mode::TEAM_DEATHMATCH, 0),
+            Rules::decode(&good[..20], TIME, 2, RuleMode::TeamDeathmatch, 0),
             None
         );
     }
@@ -2449,7 +2660,7 @@ mod tests {
         let statistics = tdm_statistics();
         let rules = tdm_rules();
         let body = body(&statistics, &rules);
-        let decoded = decode(TIME, &body, 2, mode::TEAM_DEATHMATCH, 10).unwrap();
+        let decoded = decode(TIME, &body, 2, RuleMode::TeamDeathmatch, 10).unwrap();
         assert_eq!(decoded.sections.statistics, statistics);
         assert_eq!(decoded.sections.rules, rules);
         assert_eq!(decoded.sections.bullets, [1, 2, 3]);
@@ -2459,7 +2670,7 @@ mod tests {
         assert_eq!(read.tail.team_points, [97, 100]);
         assert_eq!(decoded.rules.as_ref().unwrap().timelimit.state, 3);
         assert_eq!(
-            decoded.standing(mode::TEAM_DEATHMATCH, &[0, 1]),
+            decoded.standing(RuleMode::TeamDeathmatch, &[0, 1]),
             Some(Standing {
                 points: [97, 100],
                 winner: 1
@@ -2478,17 +2689,17 @@ mod tests {
         statistics.extend(TAIL);
         let rules = [&TIMELIMIT[..], &RESPAWN, &[0xEE; 30], &KD_AND_FLAGS].concat();
         let body = body(&statistics, &rules);
-        let decoded = decode(TIME, &body, 2, mode::BATTERIES, 1).unwrap();
+        let decoded = decode(TIME, &body, 2, RuleMode::Batteries, 1).unwrap();
         assert_eq!(decoded.statistics.as_ref().unwrap().victory_items.len(), 1);
         assert_eq!(
-            decoded.standing(mode::BATTERIES, &[0, 1]),
+            decoded.standing(RuleMode::Batteries, &[0, 1]),
             Some(Standing {
                 points: [4, 7],
                 winner: 1
             })
         );
         // The wrong battery count: nothing reads.
-        assert_eq!(decode(TIME, &body, 2, mode::BATTERIES, 2), None);
+        assert_eq!(decode(TIME, &body, 2, RuleMode::Batteries, 2), None);
     }
 
     #[test]
@@ -2506,9 +2717,9 @@ mod tests {
         ]
         .concat();
         let body = body(&statistics, &rules);
-        let decoded = decode(TIME, &body, 2, mode::TEAM_DEATHMATCH, 0).unwrap();
+        let decoded = decode(TIME, &body, 2, RuleMode::TeamDeathmatch, 0).unwrap();
         assert_eq!(
-            decoded.standing(mode::TEAM_DEATHMATCH, &[0, 1]),
+            decoded.standing(RuleMode::TeamDeathmatch, &[0, 1]),
             Some(Standing {
                 points: [100, 100],
                 winner: rules::DRAW
@@ -2520,20 +2731,20 @@ mod tests {
     fn empty_statistics_leave_the_rules() {
         let rules = tdm_rules();
         let body = body(&[], &rules);
-        let decoded = decode(TIME, &body, 2, mode::TEAM_DEATHMATCH, 0).unwrap();
+        let decoded = decode(TIME, &body, 2, RuleMode::TeamDeathmatch, 0).unwrap();
         assert_eq!(decoded.statistics, None);
         assert_eq!(decoded.rules.as_ref().unwrap().kills_deaths[0].kills, 3);
         assert_eq!(
             decoded
-                .standing(mode::TEAM_DEATHMATCH, &[0, 1])
+                .standing(RuleMode::TeamDeathmatch, &[0, 1])
                 .unwrap()
                 .points,
             [97, 100]
         );
         // A battery match whose gather rule did not read says nothing of
         // its points without statistics.
-        let decoded = decode(TIME, &body, 2, mode::BATTERIES, 10).unwrap();
-        assert_eq!(decoded.standing(mode::BATTERIES, &[0, 1]), None);
+        let decoded = decode(TIME, &body, 2, RuleMode::Batteries, 10).unwrap();
+        assert_eq!(decoded.standing(RuleMode::Batteries, &[0, 1]), None);
     }
 
     #[test]
@@ -2554,10 +2765,10 @@ mod tests {
         }
         .to_bytes();
         let body = body(&[], &rules);
-        let decoded = decode(TIME, &body, 2, mode::BATTERIES, 4).unwrap();
+        let decoded = decode(TIME, &body, 2, RuleMode::Batteries, 4).unwrap();
         assert_eq!(decoded.statistics, None);
         assert_eq!(
-            decoded.standing(mode::BATTERIES, &[0, 1]),
+            decoded.standing(RuleMode::Batteries, &[0, 1]),
             Some(Standing {
                 points: [0, 2],
                 winner: 1
@@ -2590,7 +2801,7 @@ mod tests {
         let walked = players::blocks(&body).unwrap();
         assert_eq!(walked.len(), 2);
         assert_eq!((walked[1].place, walked[1].state.len()), (1, 33));
-        let decoded = decode(TIME, &body, 2, mode::TEAM_DEATHMATCH, 0).unwrap();
+        let decoded = decode(TIME, &body, 2, RuleMode::TeamDeathmatch, 0).unwrap();
         assert_eq!(decoded.sections, sections);
         // The fake blocks of the other tests do not walk: found from the
         // end as before.
@@ -2603,10 +2814,10 @@ mod tests {
     fn statistics_that_read_are_kept_when_the_rules_do_not() {
         let statistics = tdm_statistics();
         let body = body(&statistics, &[0xEE; 40]);
-        let decoded = decode(TIME, &body, 2, mode::TEAM_DEATHMATCH, 0).unwrap();
+        let decoded = decode(TIME, &body, 2, RuleMode::TeamDeathmatch, 0).unwrap();
         assert_eq!(decoded.rules, None);
         assert_eq!(
-            decoded.standing(mode::TEAM_DEATHMATCH, &[0, 1]),
+            decoded.standing(RuleMode::TeamDeathmatch, &[0, 1]),
             Some(Standing {
                 points: [97, 100],
                 winner: 1
@@ -2616,15 +2827,15 @@ mod tests {
 
     #[test]
     fn garbage_is_not_a_snapshot() {
-        assert_eq!(decode(50, &[], 2, mode::BATTERIES, 10), None);
-        assert_eq!(decode(50, &[0; 3], 2, mode::BATTERIES, 10), None);
-        assert_eq!(decode(50, &[0; 40], 2, mode::BATTERIES, 10), None);
+        assert_eq!(decode(50, &[], 2, RuleMode::Batteries, 10), None);
+        assert_eq!(decode(50, &[0; 3], 2, RuleMode::Batteries, 10), None);
+        assert_eq!(decode(50, &[0; 40], 2, RuleMode::Batteries, 10), None);
         let body = body(&tdm_statistics(), &tdm_rules());
         assert_eq!(
-            decode(TIME, &body[..body.len() - 1], 2, mode::TEAM_DEATHMATCH, 0),
+            decode(TIME, &body[..body.len() - 1], 2, RuleMode::TeamDeathmatch, 0),
             None
         );
         // Another roster size: neither the statistics nor the rules read.
-        assert_eq!(decode(TIME, &body, 3, mode::TEAM_DEATHMATCH, 0), None);
+        assert_eq!(decode(TIME, &body, 3, RuleMode::TeamDeathmatch, 0), None);
     }
 }

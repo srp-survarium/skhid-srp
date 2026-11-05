@@ -1,0 +1,11 @@
+{
+ "_about": "The classic lobby's weapon spot as data (2026-10-29, the lobby selection; docs/notes/lobby-scenes.md): client patch 45 reads where a weapon's upgrade window shows the weapon from the lobby project's srp_lobby: weapon, the point its middle floats at (above the workbench, between its drill press and its vice, 0.39 m over its top), and weapon_view, the yaw the camera looks at it from (-pi/2: along +x, at the wall the bench stands at). These are the values patch 45 had in its code until then. Every other lobby scene's project carries its own srp_lobby.",
+ "add_value": [
+  {
+   "files": ["projects/lobby_scene/day/client_project"],
+   "table": "",
+   "key": "srp_lobby",
+   "value": {"weapon": [4.25, 1.30, 3.05], "weapon_view": -1.5707964}
+  }
+ ]
+}

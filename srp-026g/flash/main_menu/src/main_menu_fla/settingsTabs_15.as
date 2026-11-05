@@ -483,7 +483,8 @@ package main_menu_fla
             this._setter_static_use_seed.focusable = true;
             this._setter_static_use_seed.label = "defaultLabelIsSuperLongOrEvenBigger";
             this._setter_static_use_seed.selected = false;
-            this._setter_static_use_seed.visible = true;
+            // Not supported (see frame1): hidden.
+            this._setter_static_use_seed.visible = false;
             try
             {
                this._setter_static_use_seed["componentInspectorSetting"] = false;
@@ -513,7 +514,8 @@ package main_menu_fla
             this._setter_static_allow_statistics.focusable = true;
             this._setter_static_allow_statistics.label = "defaultLabelIsSuperLongOrEvenBigger";
             this._setter_static_allow_statistics.selected = false;
-            this._setter_static_allow_statistics.visible = true;
+            // Not supported (see frame1): hidden.
+            this._setter_static_allow_statistics.visible = false;
             try
             {
                this._setter_static_allow_statistics["componentInspectorSetting"] = false;
@@ -833,6 +835,13 @@ package main_menu_fla
          this.__setProp__only_friends_settingsTabs_Layer2_0();
          this.__setProp__setter_message_settingsTabs_Layer2_0();
          this.__setProp__setter_invite_settingsTabs_Layer2_0();
+         // "Enable seeding", "Limit upload speed" and "Enable statistics
+         // collection" are not supported: seeding was the old launcher's
+         // torrent, and nothing in the 0.26g exe reads the statistics option.
+         // Hidden, not removed: the exe binds the gameplay options by their
+         // index in Settings' _element_map. The Language choice (SrpLanguage)
+         // takes their place in the bottom panel.
+         this._upload_speed.visible = false;
          stop();
          _ignore = false;
          _cross = new Array();
@@ -871,13 +880,11 @@ package main_menu_fla
          this._game_volume.slider.enabled = false;
          this._game_volume.mouseEnabled = false;
          this._game_volume.alpha = 0.5;
-         this._sound_volume.slider.enabled = false;
-         this._sound_volume.mouseEnabled = false;
-         this._sound_volume.alpha = 0.5;
          this._sound_сhat.slider.enabled = false;
          this._sound_сhat.mouseEnabled = false;
          this._sound_сhat.alpha = 0.5;
-         this._sound_сhat.mouseChildren = this._sound_volume.mouseChildren = this._game_volume.mouseChildren = false;
+         // the Music slider (_sound_volume) is enabled: exe patch 88 registers its s_music_volume
+         this._sound_сhat.mouseChildren = this._game_volume.mouseChildren = false;
          this._mic_sens.slider.enabled = false;
          this._mic_sens.mouseEnabled = false;
          this._mic_sens.alpha = 0.5;

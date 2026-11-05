@@ -60,6 +60,12 @@ PATCHED = {
     'v011e_level_04': dict(size=140, posX=23.302, posY=43.049, bitmap='984_minimap_zv11e.png', area='line', origin='0.11e port, patch 22',
                            name='Chemical Plant (v0.11)', name_key='st_level_12_name', modes=(2, 4),
                            map_ids={206: 2, 207: 4}),
+    # 0.69d's Rudnya (pack rudnya-069d, patch 40): project_name level_01, so the HUD
+    # draws native Rudnya's minimap in its frame; the layout is the same.
+    'v069d_level_01': dict(size=130, posX=12.558, posY=-25.774, bitmap='967_minimap_rudnya_minimap_rudnya.png',
+                           origin='0.69d port, pack rudnya-069d@3 (patch 40)', name='Rudnya (v0.69)',
+                           name_key='st_level_14_name', project_name='level_01', modes=(2, 3, 4),
+                           map_ids={216: 2, 217: 3, 204: 4}),
 }
 
 

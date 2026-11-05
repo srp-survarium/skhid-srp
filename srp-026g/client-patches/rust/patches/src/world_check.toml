@@ -1,0 +1,13 @@
+# Patch 87: a game parses every world it is sent (0xE8) before it loads it,
+# with the match server's own check (crate world-frame); a refused one is
+# never loaded and the game leaves the match (world_frame_check.md).
+name = "world_check"
+patch = 87
+
+[[hook]]
+site = "world_load.unpacked"
+handler = "on_unpacked"
+
+[[hook]]
+site = "world_load.raw"
+handler = "on_raw"

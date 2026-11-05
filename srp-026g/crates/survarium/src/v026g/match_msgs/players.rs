@@ -18,7 +18,8 @@
 //! lands on the sections of every snapshot kept (1222 of them).
 //!
 //! Of the state, the head is fixed (PROVEN): which of the player's objects
-//! it is, one u32 for every item of the profile (what is left in store of
+//! it is, client patch 85's pickup record ([`FIELDS_AT`]), one u32 for
+//! every item of the profile (what is left in store of
 //! a stack item, the condition of another), whether the player is alive.
 //! The inventory further on has variable parts that were not all traced
 //! (effects, weapons), so its items are found by their header's three id
@@ -167,6 +168,8 @@ pub struct PlayerState {
     /// owner's kit index too].
     pub current_index: u8,
     pub target_index: u8,
+    /// Client patch 85's record: the player's drop and its picked guns.
+    pub pickup: weapon_pickup::Record,
     /// One for each item of the profile, in the static info's order:
     /// `amount_in_storage` of a stack item (what was not handed out to a
     /// slot), the `condition` of any other.
@@ -183,19 +186,27 @@ pub struct PlayerState {
     pub effects: u32,
 }
 
+/// Where the native fields start: after the two kit indices, client patch
+/// 85 (`weapon_pickup`, written at base_player::serialize's start 0x2DAF70,
+/// read at 0x2DB4CF) puts the player's pickup record
+/// (`weapon_pickup::Record`: its drop and its picked guns).
+pub const FIELDS_AT: usize = 2 + weapon_pickup::Record::BYTES;
+
 impl PlayerState {
     /// The head's length for a profile of `items` items.
     pub fn head_len(items: usize) -> usize {
-        4 * items + 29
+        FIELDS_AT + 4 * items + 27
     }
 
     /// Reads the head of the state of a player whose profile has `items`
-    /// items. `None`: the state is shorter, or a bool is no bool.
+    /// items. `None`: the state is shorter, a bool is no bool, or the
+    /// pickup record is none.
     pub fn read(state: &[u8], items: usize) -> Option<Self> {
         let head = state.get(..Self::head_len(items))?;
+        let pickup = weapon_pickup::Record::decode(head[2..FIELDS_AT].try_into().ok()?)?;
         let u32_at =
             |at: usize| u32::from_le_bytes([head[at], head[at + 1], head[at + 2], head[at + 3]]);
-        let fixed = 2 + 4 * items;
+        let fixed = FIELDS_AT + 4 * items;
         // The bool writer (0x80FA0) writes 0x00 or 0xFF.
         let flag = |at: usize| match head[at] {
             0 => Some(false),
@@ -205,7 +216,8 @@ impl PlayerState {
         Some(Self {
             current_index: head[0],
             target_index: head[1],
-            items: (0..items).map(|item| u32_at(2 + 4 * item)).collect(),
+            pickup,
+            items: (0..items).map(|item| u32_at(FIELDS_AT + 4 * item)).collect(),
             alive: flag(fixed)?,
             has_to_die: flag(fixed + 1)?,
             look_pitch: f32::from_bits(u32_at(fixed + 3)),
@@ -257,7 +269,9 @@ pub struct Supplies {
     pub kit: u8,
     /// Whether the kit's items were found in the inventory: with `false`
     /// every `in_hand`, `condition` and `magazine` is `None` and says
-    /// nothing (a dead player's inventory, or a layout read wrong).
+    /// nothing (a dead player's inventory, or a layout read wrong). For a
+    /// player holding a picked gun (client patch 85), the own stacks the
+    /// pick set aside are out of the inventory: read as the kit gives them.
     pub inventory_read: bool,
     /// By profile item, in the static info's order.
     pub items: Vec<ItemLeft>,
@@ -288,7 +302,8 @@ impl Supplies {
             })
             .collect();
         let mut inventory_read = false;
-        if let Some(kit) = profile.kits.get(usize::from(head.current_index)) {
+        let kit = profile.kits.get(usize::from(head.current_index));
+        if let Some(kit) = kit {
             let state = block.state;
             let mut at = PlayerState::head_len(items.len());
             // Items come by ascending slot (0x2FE50A..0x2FE53B), each with
@@ -339,6 +354,21 @@ impl Supplies {
                             .get(start + MAGAZINE_AT)
                             .copied()
                             .filter(|rounds| *rounds <= MAGAZINE_MAX);
+                    }
+                }
+            }
+            // A pick (patch 85) sets own stacks aside, out of the inventory
+            // (its read misses them; a borrowed item's header names its
+            // donor's place, so none is read as the own): they are neither
+            // charged nor refunded (the owner, 2026-11-02), so a stack of
+            // the kit not found is taken as the kit gives it.
+            if head.pickup.picks.iter().any(Option::is_some) {
+                for (slot, held) in kit.slots.iter().enumerate() {
+                    let Some((index, count)) = *held else { continue };
+                    if let Some(item) = items.get_mut(usize::from(index)).filter(|item| item.stack && item.in_hand.is_none()) {
+                        item.slot = Some(slot as u8);
+                        item.in_hand = Some(count);
+                        inventory_read = true;
                     }
                 }
             }
@@ -447,6 +477,7 @@ pub fn animation_bytes(tree: &[bool], times: &[u32], floats: &[f32]) -> Vec<u8> 
 pub fn state_bytes(head: &PlayerState, inventory: &[u8]) -> Vec<u8> {
     let flag = |set: bool| if set { 0xFF } else { 0 };
     let mut out = vec![head.current_index, head.target_index];
+    out.extend(head.pickup.encode());
     for item in &head.items {
         out.extend(item.to_le_bytes());
     }
@@ -598,6 +629,7 @@ mod tests {
         PlayerState {
             current_index: 0,
             target_index: 0,
+            pickup: weapon_pickup::Record::EMPTY,
             // The condition, 180 rounds and 4 grenades in store.
             items: vec![990_000, 180, 4],
             alive,
@@ -636,6 +668,9 @@ mod tests {
             state,
             [
                 0, 0, // current and target index
+                8, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, // patch 85's record (version 8), empty
+                0, 0, 0, 0, 0, 0, 0, 0, // no pick, no own wear
+                0, // no drop's recipe
                 0x30, 0x1B, 0x0F, 0x00, // the weapon's condition, 990 000
                 180, 0, 0, 0, // rounds in store
                 4, 0, 0, 0, // grenades in store
@@ -652,7 +687,11 @@ mod tests {
         // Too short for the profile's items, or a bool that is none.
         assert_eq!(PlayerState::read(&state, 4), None);
         let mut wrong = state.clone();
-        wrong[14] = 1;
+        wrong[FIELDS_AT + 12] = 1;
+        assert_eq!(PlayerState::read(&wrong, 3), None);
+        // A pickup record that does not decode.
+        let mut wrong = state.clone();
+        wrong[2] = 0;
         assert_eq!(PlayerState::read(&wrong, 3), None);
     }
 
@@ -723,6 +762,27 @@ mod tests {
         let supplies = Supplies::read(&block, &profile(), dictionary).unwrap();
         assert!(!supplies.inventory_read);
         assert!(supplies.items.iter().all(|item| item.in_hand.is_none()));
+        // Holding a borrowed gun (patch 85): the kit's items found are read
+        // as found (here none set aside); a stack set aside is not (below,
+        // `a_borrowing_players_set_aside_ammunition_is_not_charged`).
+        let recipe = weapon_pickup::Recipe {
+            place: weapon_pickup::Place::new(2).unwrap(),
+            kit: weapon_pickup::Kit::new(1).unwrap(),
+            slot: weapon_pickup::WeaponSlot::Second,
+        };
+        let pick = weapon_pickup::Pick { taken: weapon_pickup::Ms(5_000), recipe };
+        let held = weapon_pickup::Held { pick, own: weapon_pickup::Wear::of(0.9) };
+        let pickup = weapon_pickup::Record { picks: [Some(held), None], ..weapon_pickup::Record::EMPTY };
+        let state = state_bytes(&PlayerState { pickup, ..head(true) }, &inventory());
+        let block = PlayerBlock {
+            place: 4,
+            state: &state,
+            animation: None,
+        };
+        let supplies = Supplies::read(&block, &profile(), dictionary).unwrap();
+        assert!(supplies.alive && supplies.inventory_read);
+        let own = |dict_id: u16| supplies.items.iter().find(|item| item.dict_id == dict_id).unwrap().in_hand;
+        assert_eq!((own(7), own(5)), (Some(95), Some(1)));
         // A state too short for the profile is not read at all.
         let block = PlayerBlock {
             place: 4,
@@ -730,6 +790,52 @@ mod tests {
             animation: None,
         };
         assert_eq!(Supplies::read(&block, &profile(), dictionary), None);
+    }
+
+    /// The owner's case (2026-11-01): the AK kit of place 4 took a PKP
+    /// (patch 85), fired 300 rounds with it, and the match ends with it in
+    /// hand. Its inventory holds the borrowed PKP and its ammunition, whose
+    /// headers name their donor's place (2); its own AK and its 5.45 are set
+    /// aside, neither charged nor refunded (2026-11-02): the 5.45 is taken as
+    /// the kit gives it (120), nothing of the 300 rounds is its.
+    #[test]
+    fn a_borrowing_players_set_aside_ammunition_is_not_charged() {
+        let dictionary = Dictionary::shared();
+        let mut inventory = vec![0xA5; 40];
+        // The borrowed PKP: f32 condition, donor 2, kit 1, slot 7, then 5 in its magazine.
+        inventory.extend(0.8f32.to_le_bytes());
+        inventory.extend([2, 1, 7]);
+        inventory.extend([0x11; 8]);
+        inventory.push(0);
+        inventory.push(5);
+        inventory.extend([0x22; 30]);
+        // Its 7N13 in slot 8 (its donor's header), the own grenade in slot 19.
+        inventory.extend([100, 0, 2, 1, 8]);
+        inventory.extend([1, 0, 4, 0, 19]);
+        inventory.extend([0x33; 12]);
+        let recipe = weapon_pickup::Recipe {
+            place: weapon_pickup::Place::new(2).unwrap(),
+            kit: weapon_pickup::Kit::new(1).unwrap(),
+            slot: weapon_pickup::WeaponSlot::First,
+        };
+        let pick = weapon_pickup::Pick { taken: weapon_pickup::Ms(5_000), recipe };
+        let pickup = weapon_pickup::Record {
+            picks: [Some(weapon_pickup::Held { pick, own: weapon_pickup::Wear::of(0.9) }), None],
+            ..weapon_pickup::Record::EMPTY
+        };
+        let state = state_bytes(&PlayerState { pickup, ..head(true) }, &inventory);
+        let block = PlayerBlock {
+            place: 4,
+            state: &state,
+            animation: None,
+        };
+        let supplies = Supplies::read(&block, &profile(), dictionary).unwrap();
+        assert!(supplies.alive && supplies.inventory_read);
+        let own = |dict_id: u16| *supplies.items.iter().find(|item| item.dict_id == dict_id).unwrap();
+        assert_eq!((own(7).slot, own(7).in_hand), (Some(8), Some(120)), "the set-aside 5.45 as the kit gives it");
+        assert_eq!(own(5).in_hand, Some(1));
+        // 180 in store + the kit's 120; 4 + 1 grenades.
+        assert_eq!(supplies.left(), BTreeMap::from([(7, 300), (5, 5)]));
     }
 
     #[test]
@@ -748,5 +854,148 @@ mod tests {
         let supplies = Supplies::read(&block, &profile(), dictionary).unwrap();
         assert_eq!(supplies.items[1].in_hand, Some(60));
         assert_eq!(supplies.items[0].magazine, None);
+    }
+}
+
+/// The client patch revision from which a state ends with client patch 78's
+/// carry snapshot (`motion`'s `native_state`).
+pub const CARRY_REVISION: u16 = 38;
+/// The client patch revision from which a state has client patch 85's pickup
+/// record after the two kit indices: version 4 (48 bytes) in revision 41.
+pub const PICKUP_REVISION: u16 = 41;
+/// The client patch revision from which the pickup record is today's
+/// (`weapon_pickup::Record`, version 8, 29 bytes).
+pub const PICKUP_V8_REVISION: u16 = 42;
+/// The bytes of revision 41's pickup record (version 4: 20 bytes and two
+/// parked kits of 2 + 3 x 4).
+const PICKUP_V4_BYTES: usize = 48;
+
+/// A state that a client of patch revision `revision` wrote, in the layout
+/// this server reads ([`PlayerState::read`], `Motion::read`): for recordings,
+/// saved worlds and fixtures made before (A218, the owner's of 2026-11-01:
+/// read them too).
+/// - Before revision 41 the state has no pickup record: the empty one goes
+///   after the two kit indices.
+/// - Revision 41's record (version 4) is replaced by the empty one: its
+///   picks are not read.
+/// - Before revision 38 there is no carry snapshot either: a new carry's
+///   goes at the end.
+///
+/// From revision 42 on the state is as it is. `None`: a state too short for
+/// its kit indices, or for revision 41's record.
+pub fn state_at_revision(state: &[u8], revision: u16) -> Option<std::borrow::Cow<'_, [u8]>> {
+    use artefact_carry::carry::Carry;
+    use std::borrow::Cow;
+    if revision >= PICKUP_V8_REVISION {
+        return Some(Cow::Borrowed(state));
+    }
+    let skip = if revision >= PICKUP_REVISION { PICKUP_V4_BYTES } else { 0 };
+    let rest = state.get(2 + skip..)?;
+    let mut out = Vec::with_capacity(state.len() + weapon_pickup::Record::BYTES + Carry::SNAPSHOT_SIZE);
+    out.extend_from_slice(&state[..2]);
+    out.extend(weapon_pickup::Record::EMPTY.encode());
+    out.extend_from_slice(rest);
+    if revision < CARRY_REVISION {
+        out.extend(Carry::NEW.snapshot());
+    }
+    Some(Cow::Owned(out))
+}
+
+#[cfg(test)]
+mod revision_tests {
+    use super::super::motion::Motion;
+    use super::*;
+
+    fn today() -> Vec<u8> {
+        let head = PlayerState {
+            current_index: 1,
+            target_index: 1,
+            pickup: weapon_pickup::Record::EMPTY,
+            items: vec![990_000, 180, 4],
+            alive: true,
+            has_to_die: false,
+            look_pitch: 0.25,
+            rotation_y: -2.0,
+            actions_mask: 0xa,
+            effects: 0,
+        };
+        state_bytes(&head, &[0xA5; 40])
+    }
+
+    #[test]
+    fn a_state_of_revision_42_or_later_is_read_as_it_is() {
+        let state = today();
+        for revision in [42, 48, 60] {
+            assert_eq!(state_at_revision(&state, revision).unwrap().as_ref(), &state[..]);
+        }
+    }
+
+    #[test]
+    fn a_state_before_revision_41_gets_the_empty_pickup_record() {
+        let state = today();
+        let mut old = state[..2].to_vec();
+        old.extend_from_slice(&state[FIELDS_AT..]);
+        for revision in [38, 40] {
+            let now = state_at_revision(&old, revision).unwrap();
+            assert_eq!(now.as_ref(), &state[..], "{revision}");
+            assert_eq!(PlayerState::read(&now, 3).unwrap().items, vec![990_000, 180, 4]);
+        }
+        assert_eq!(PlayerState::read(&old, 3), None, "main's reader refuses it as it is");
+    }
+
+    #[test]
+    fn revision_41s_record_is_replaced_by_the_empty_one() {
+        let state = today();
+        let mut old = state[..2].to_vec();
+        let mut v4 = [0u8; PICKUP_V4_BYTES];
+        v4[0] = 4;
+        old.extend_from_slice(&v4);
+        old.extend_from_slice(&state[FIELDS_AT..]);
+        assert_eq!(state_at_revision(&old, 41).unwrap().as_ref(), &state[..]);
+        assert_eq!(state_at_revision(&[1, 1, 4], 41), None, "too short for its record");
+    }
+
+    #[test]
+    fn a_state_before_revision_38_gets_a_carry_snapshot_too() {
+        use artefact_carry::carry::Carry;
+        let state = today();
+        let mut old = state[..2].to_vec();
+        old.extend_from_slice(&state[FIELDS_AT..]);
+        let now = state_at_revision(&old, 34).unwrap();
+        assert_eq!(&now[..state.len()], &state[..]);
+        assert_eq!(&now[state.len()..], &Carry::NEW.snapshot()[..]);
+    }
+
+    /// A world a live client uploaded with client patch 78 (rev 38): School,
+    /// day 4, match 4758f64b at 203,850 ms, 20 places, 1 human and 19 server
+    /// bots, all alive (A154, e28746ead). Read through [`state_at_revision`],
+    /// every body of it reads under today's layout, as it did then.
+    #[test]
+    fn every_body_of_a_live_rev_38_world_reads_at_its_revision() {
+        const WORLD: &[u8] =
+            include_bytes!("../../../../../resources/worlds-026g/school_rev38_4758f64b_203850.bin");
+        const TIME_MS: u32 = 203_850;
+        let (blocks, _) = walk(WORLD).expect("the world's player blocks");
+        assert_eq!(blocks.len(), 20);
+        let bodies: Vec<(u8, Motion)> = blocks
+            .iter()
+            .filter_map(|block| {
+                let state = state_at_revision(block.state, 38)?;
+                Motion::find(&state, TIME_MS).map(|(_, motion)| (block.place, motion))
+            })
+            .filter(|(_, motion)| motion.body.is_some())
+            .collect();
+        assert!(bodies.len() * 100 >= blocks.len() * 99, "{} of {} blocks read with a body", bodies.len(), blocks.len());
+        // Without it, today's reader finds none.
+        assert!(blocks.iter().all(|block| Motion::find(block.state, TIME_MS).is_none()));
+        // Place 1, as the recording and the snapshot table read it: feet
+        // (48.022, 15.606, 117.538), yaw -2.1051, keys 0xa.
+        let (_, one) = bodies.iter().find(|(place, _)| *place == 1).expect("place 1");
+        let feet = one.body.as_ref().unwrap().feet();
+        assert!(
+            (feet[0] - 48.022).abs() < 0.01 && (feet[1] - 15.606).abs() < 0.01 && (feet[2] - 117.538).abs() < 0.01,
+            "{feet:?}"
+        );
+        assert!((one.rotation_y + 2.1051).abs() < 1e-3 && one.actions_mask == 0xa && one.alive);
     }
 }

@@ -32,7 +32,7 @@ pub(super) fn run_on(
     let teams = [0u8, 1];
     let mut bots = Bots::new(
         0x7A95,
-        survarium::v026g::maps::mode::TEAM_DEATHMATCH,
+        survarium::v026g::maps::RuleMode::TeamDeathmatch,
         0,
         &teams,
         &[true, false],
@@ -350,7 +350,7 @@ pub(crate) fn a_bots_habit_is_armed_from_the_traps_in_its_kit() {
     let equipment = BotEquipment::of(BotTier::Mid, RusherKits::default());
     let bots = Bots::new(
         0x41C,
-        survarium::v026g::maps::mode::BATTERIES,
+        survarium::v026g::maps::RuleMode::Batteries,
         0,
         &[0, 0, 1, 1],
         &[true; 4],

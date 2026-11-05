@@ -40,6 +40,7 @@ use std::fmt;
 
 pub mod client_model;
 pub mod client_rules;
+pub mod lobby_pick;
 pub mod presets;
 pub mod push;
 pub mod requests;
@@ -55,6 +56,7 @@ pub use push::*;
 pub use requests::{ClientMessage, ParseError, parse};
 pub use results::*;
 pub use social::*;
+pub use lobby_pick::LobbyPick;
 
 /// The first and last id the client's lobby table takes from the server
 /// (`transport.md` §4.1: getter+4/+5 of the table object at 0xA07FA8).

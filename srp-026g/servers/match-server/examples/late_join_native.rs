@@ -60,7 +60,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let socket = UdpSocket::bind(("127.0.0.1", port))?;
     let registry = Arc::new(MatchRegistry::new("127.0.0.1", port));
     let ticket = registry.create_growing(MatchSetup {
-        map_id,
+        map: survarium::v026g::maps::MatchMap::of(map_id).expect("a playable map"),
         match_level: 3,
         players: (0..initial)
             .map(|place| player(place, loadouts::starter()))

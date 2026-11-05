@@ -798,24 +798,24 @@ pub(crate) fn real_bot_cost() {
     // Another match of the same map and size (0: the digests' runs).
     let seed: u32 = bench_settings().number("SRP_BENCH_SEED")
         .unwrap_or(0);
-    use survarium::v026g::maps::mode;
-    let maps: Vec<(u8, u8)> = bench_settings().var("SRP_BENCH_MAPS")
+    use survarium::v026g::maps::RuleMode;
+    let maps: Vec<(u8, RuleMode)> = bench_settings().var("SRP_BENCH_MAPS")
         .ok()
         .map(|s| {
             s.split(',')
                 .filter_map(|m| {
                     let (level, mode) = m.split_once('/')?;
-                    Some((level.parse().ok()?, mode.parse().ok()?))
+                    Some((level.parse().ok()?, RuleMode::of_config(mode.parse().ok()?)?))
                 })
                 .collect()
         })
         .unwrap_or(vec![
-            (6, mode::BATTERIES),
-            (1, mode::TEAM_DEATHMATCH),
-            (3, mode::TIMED_BATTERIES),
+            (6, RuleMode::Batteries),
+            (1, RuleMode::TeamDeathmatch),
+            (3, RuleMode::TimedBatteries),
         ]);
     for (level, mode) in maps {
-        let project = format!("level_{level:02}/day_{mode}");
+        let project = format!("level_{level:02}/day_{}", mode.number());
         let started = Instant::now();
         let file = dir.join(mapdata::format::file_name(&project));
         let version = mapdata::format::file_version(&file).unwrap_or_else(|e| panic!("{e}"));
@@ -926,7 +926,7 @@ pub(crate) fn real_bot_cost() {
             let roles = &roster.roles;
             let mut bots = Bots::new_with(
                 0xBE7C + per_team as u32 + seed * 1000,
-                crate::v026g::bots::objective::Mode::parse(mode).unwrap(),
+                crate::v026g::bots::objective::Mode::of_rules(mode).unwrap(),
                 level,
                 &teams,
                 &driven,
@@ -1043,8 +1043,8 @@ pub(crate) fn real_bot_cost() {
             let ready_mb = memory_mb().map(|(now, _)| now);
             reset_peak_memory();
             let (tickets, timed) = match mode {
-                mode::TEAM_DEATHMATCH => (Some(60), None),
-                mode::TIMED_BATTERIES => (None, Some(20_000)),
+                RuleMode::TeamDeathmatch => (Some(60), None),
+                RuleMode::TimedBatteries => (None, Some(20_000)),
                 _ => (None, None),
             };
             let mut game = Game::new(
@@ -1088,7 +1088,7 @@ pub(crate) fn real_bot_cost() {
             // count is 10), not one at every spawner.
             if let Some(count) = bench_settings().number::<usize>("SRP_BENCH_BATTERIES")
                 && timed.is_none()
-                && mode != mode::TEAM_DEATHMATCH
+                && mode != RuleMode::TeamDeathmatch
             {
                 let mut items: Vec<Vec3> =
                     world.map.battery_spawners.iter().map(|s| s.item).collect();
@@ -1109,7 +1109,7 @@ pub(crate) fn real_bot_cost() {
                     let (a, b) = s.split_once(',')?;
                     Some([a.trim().parse().ok()?, b.trim().parse().ok()?])
                 })
-                .filter(|_| mode != mode::TEAM_DEATHMATCH)
+                .filter(|_| mode != RuleMode::TeamDeathmatch)
                 .unwrap_or([0, 0]);
             let mut lying = 0..game.batteries.len();
             for team in 0..2u8 {
@@ -1229,15 +1229,15 @@ pub(crate) fn real_bot_cost() {
             let threat_checks_before = threat::checks();
             let threat_spent_before = threat::spents();
             let mut raids = RaidTally::default();
-            let mut events = BenchEvents::open(level, mode, per_team);
+            let mut events = BenchEvents::open(level, mode.number(), per_team);
             events.containers(&game);
             let mut carry = CarryTally::new(format!("{project}-{per_team}v{per_team}"));
             let mut routes = RouteTally::start(game.bodies.len());
             let mut push = PushTally::start(&world, game.bodies.len());
             let perch_before = super::plays::goals::perch_counts();
             let mut human = HumanTally::start();
-            let mut smoke_habit = human.as_ref().and_then(|h| standin_smoke::SmokeHabit::start(h.place, seed, level, mode, per_team));
-            let mut trap_habit = human.as_ref().and_then(|h| standin_trap_habit::TrapHabit::start(h.place, seed, level, mode, per_team));
+            let mut smoke_habit = human.as_ref().and_then(|h| standin_smoke::SmokeHabit::start(h.place, seed, level, mode.number(), per_team));
+            let mut trap_habit = human.as_ref().and_then(|h| standin_trap_habit::TrapHabit::start(h.place, seed, level, mode.number(), per_team));
             bots.bench_human = human.as_ref().map(|h| h.place);
             bots.bench_human_dial = bench_settings().var("SRP_BENCH_HUMAN_DIAL").as_deref() == Ok("on");
             bots.bench_enemy_lanes = EnemyLanes::from_env();
@@ -2686,7 +2686,7 @@ pub(crate) fn the_bench_bots_are_the_lobbys_by_role_and_tier() {
             let roster = bench_roster(&teams, equipment, &super::tuning::TeamTunings::new(Arc::new(Tuning::default())));
             let mut bots = Bots::new(
                 0xBE7C,
-                survarium::v026g::maps::mode::BATTERIES,
+                survarium::v026g::maps::RuleMode::Batteries,
                 6,
                 &teams,
                 &vec![true; teams.len()],

@@ -28,6 +28,7 @@ use survarium::dictionary::Dictionary;
 use survarium::v021d;
 
 pub mod bans;
+pub mod chat_mutes;
 pub mod limits;
 mod matchmaking;
 pub mod matchmaking_policy;
@@ -35,17 +36,37 @@ pub mod password;
 pub mod persist;
 mod reports;
 mod squads;
+pub mod utc;
 // The 0.26g account model, beside the 0.21d one (`resources/notes/v026g/`).
 pub mod v026g;
 pub use bans::{Ban, IpBan, Net};
 pub use matchmaking::{
     DEFAULT_GATHER_WINDOW, FormedMatch, Level, MAX_PLAYERS_PER_MATCH, Matchmaking, Player,
-    QueuePool, QueueState, STRENGTH_SCALE, Seat, fill_from_env, gather_window_from_env,
-    quiet_from_env,
+    QueuePool, QueueState, Seat, Strength, fill_from_env, gather_window_from_env, quiet_from_env,
 };
 use persist::{AccountRecord, AccountRepository, PersistError, StoredSession};
 pub use reports::{MatchReport, Reports};
 pub use squads::{MAX_SQUAD_MEMBERS, Squad, SquadError, Squads};
+
+/// The `on`/`off` setting `name` of the environment ([`switch_value`]).
+pub fn switch(name: &str, default: bool) -> bool {
+    switch_value(name, std::env::var(name).ok().as_deref(), default)
+}
+
+/// An `on`/`off` setting (`1`/`0`, `yes`/`no`, `true`/`false`, any case):
+/// unset or empty is `default`, anything else an error in the log and `default`.
+pub fn switch_value(name: &str, value: Option<&str>, default: bool) -> bool {
+    let value = value.map(|value| value.trim().to_ascii_lowercase());
+    match value.as_deref() {
+        None | Some("") => default,
+        Some("on" | "1" | "true" | "yes") => true,
+        Some("off" | "0" | "false" | "no") => false,
+        Some(other) => {
+            log::error!("{name} is `{other}`; it must be `on` or `off`. Using {default}");
+            default
+        }
+    }
+}
 
 /// Locking that survives a panic. The servers share this state across
 /// threads, and a thread that panics while holding a lock poisons it; with
@@ -134,8 +155,8 @@ pub struct Account {
 
     /// The accounts on its friend list, in the order they were added.
     pub friends: Vec<u32>,
-    /// The accounts whose chat lines its client hides.
-    pub ignored: Vec<u32>,
+    /// Per-account chat mute policies (hide completely or replace the body).
+    pub ignored: chat_mutes::ChatMutes,
     /// The profile the client last chose (`29 04`); squad mates see it.
     pub active_profile: Option<u32>,
     /// Its Play, while it waits: a squad queues once every member has one.
@@ -145,6 +166,9 @@ pub struct Account {
     pub notices: Vec<(u8, String)>,
     /// Whether, and how long, it may not sign in.
     pub ban: Option<Ban>,
+    /// Whether, and how long, the admin muted its chat: nobody gets its
+    /// lines (`docs/notes/admin-chat-mute.md`).
+    pub chat_ban: Option<Ban>,
     /// Where it last signed in from: what banning its address bans.
     pub last_ip: Option<IpAddr>,
     /// When it last signed in (Unix seconds), since srp started: not kept,
@@ -220,11 +244,12 @@ impl Account {
             game: v021d::account::Account::new(&name, Dictionary::shared()),
             name,
             friends: Vec::new(),
-            ignored: Vec::new(),
+            ignored: chat_mutes::ChatMutes::default(),
             active_profile: None,
             play: None,
             notices: Vec::new(),
             ban: None,
+            chat_ban: None,
             last_ip: None,
             last_sign_in: None,
             password_epoch: 0,
@@ -234,6 +259,11 @@ impl Account {
     /// Its ban, if it holds at `now` (Unix seconds).
     pub fn ban_at(&self, now: u64) -> Option<&Ban> {
         self.ban.as_ref().filter(|ban| ban.holds(now))
+    }
+
+    /// Its chat ban, if it holds at `now` (Unix seconds).
+    pub fn chat_ban_at(&self, now: u64) -> Option<&Ban> {
+        self.chat_ban.as_ref().filter(|ban| ban.holds(now))
     }
 }
 
@@ -1581,6 +1611,55 @@ impl SessionStore {
         had
     }
 
+    /// Mute an account's chat (`docs/notes/admin-chat-mute.md`), replacing
+    /// a mute it had: its next line reaches nobody. `false` for an unknown
+    /// account.
+    pub fn mute_chat(&self, account_id: u32, ban: Ban) -> bool {
+        let Some(account) = self.account(account_id) else {
+            return false;
+        };
+        account.locked().chat_ban = Some(ban);
+        self.mark_dirty(account_id);
+        self.flush();
+        true
+    }
+
+    /// Lift an account's chat mute. `false` if none held.
+    pub fn unmute_chat(&self, account_id: u32) -> bool {
+        let Some(account) = self.account(account_id) else {
+            return false;
+        };
+        let Some(ban) = account.locked().chat_ban.take() else {
+            return false;
+        };
+        self.mark_dirty(account_id);
+        self.flush();
+        ban.holds(unix_now())
+    }
+
+    /// The chat mute of an account, if one holds now: its lines reach
+    /// nobody, and it is told [`Ban::chat_notice`].
+    pub fn chat_ban(&self, account_id: u32) -> Option<Ban> {
+        let account = self.account(account_id)?;
+        account.locked().chat_ban_at(unix_now()).cloned()
+    }
+
+    /// The chat mutes in force: (id, user name, shown name, mute), by id.
+    pub fn chat_bans(&self) -> Vec<(u32, String, String, Ban)> {
+        let now = unix_now();
+        let accounts: Vec<_> = self.accounts.locked().values().cloned().collect();
+        let mut muted: Vec<_> = accounts
+            .iter()
+            .filter_map(|account| {
+                let account = account.locked();
+                let ban = account.chat_ban_at(now)?.clone();
+                Some((account.id, account.login.clone(), account.name.clone(), ban))
+            })
+            .collect();
+        muted.sort_by_key(|row| row.0);
+        muted
+    }
+
     /// Ban an address or a range: nobody signs in or registers from it, and
     /// the sessions of the accounts last signed in from it end now. Returns
     /// how many sessions ended.
@@ -1838,6 +1917,13 @@ mod tests {
 
     fn ip(a: u8, b: u8, c: u8, d: u8) -> IpAddr {
         IpAddr::V4(Ipv4Addr::new(a, b, c, d))
+    }
+
+    #[test]
+    fn a_switch_takes_on_and_off_and_keeps_its_default_otherwise() {
+        assert!(switch_value("X", None, true) && switch_value("X", Some(" ON "), false));
+        assert!(!switch_value("X", Some("off"), true) && switch_value("X", Some("maybe"), true));
+        assert!(!switch_value("X", Some(""), false));
     }
 
     #[test]
@@ -2672,11 +2758,7 @@ mod tests {
     fn a_game_gone_without_a_word_leaves_its_squad_and_the_queue() {
         let store = SessionStore::new();
         let ((a, sa), (b, sb)) = squad_of_two(&store);
-        let c = store.get_or_create_account(ip(127, 0, 0, 1), "charlie");
-        let sc = store.create_session(c);
-        store.squads().invite_accepted(a, c);
-        store.squads().add(a, c).unwrap();
-        let players: Vec<Player> = [(sa, a), (sb, b), (sc, c)]
+        let players: Vec<Player> = [(sa, a), (sb, b)]
             .into_iter()
             .map(|(session_id, account_id)| Player {
                 session_id,
@@ -2685,15 +2767,14 @@ mod tests {
             })
             .collect();
         store.matchmaking().queue(&players, true, Instant::now());
-        // Bravo and Charlie play on; Alpha's game is closed.
+        // Bravo plays on; Alpha's game is closed.
         let _b = store.hold(sb).unwrap();
-        let _c = store.hold(sc).unwrap();
         let soon = Instant::now() + GONE_AFTER / 2;
         assert!(store.drop_gone_players(soon).is_empty());
         let later = Instant::now() + GONE_AFTER + Duration::from_secs(1);
         assert_eq!(store.drop_gone_players(later), [sa]);
-        assert_eq!(store.squads().of(b).unwrap().members, [b, c]);
-        assert_eq!(store.squads().of(b).unwrap().commander(), b);
+        // A squad of one is none.
+        assert_eq!(store.squads().of(b), None);
         // The squad is out of the queue with it.
         assert_eq!(store.matchmaking().poll(sb, later), None);
         // Once.

@@ -1,0 +1,20 @@
+{
+  "_about": "The lobby's tooltips show a weapon's kill feed icon (docs/notes/kill-feed-icons.md, \"In the lobby\"): property 161 carries each weapon's ui_desc/combat_log_icon (after kill-feed-weapons-1 set the ported weapons' own) to the lobby's item descriptors; not comparable, so no card shows it as a stat. Presentation only.",
+  "add_entry": [
+    {
+      "files": "gameplay/static_game_parameters.options",
+      "list": "ui_properties",
+      "after": {"prop_id": 160},
+      "like": {"prop_id": 133},
+      "values": {"prop_id": 161, "comparable": false}
+    },
+    {
+      "files": "gameplay/items/weapons/wpn_*.options",
+      "list": "ui_desc/props_list",
+      "after": {"prop_id": 15},
+      "like": {"prop_id": 15},
+      "values": {"prop_id": 161, "prop_value": "{ui_desc/combat_log_icon}"},
+      "only_if": "ui_desc/combat_log_icon"
+    }
+  ]
+}

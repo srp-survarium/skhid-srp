@@ -11,7 +11,7 @@ pub(crate) fn a_bot_spent_of_its_first_kit_picks_its_second_for_the_next_life() 
     use survarium::v026g::loadouts::BOT_AMMO_LIVES;
     let mut bots = Bots::new(
         0x417,
-        survarium::v026g::maps::mode::BATTERIES,
+        survarium::v026g::maps::RuleMode::Batteries,
         0,
         &[0, 1],
         &[true, true],
@@ -77,7 +77,7 @@ pub(crate) fn a_bot_with_its_first_kit_empty_picks_the_fullest() {
     let _kit = survarium::v026g::loadouts::KitSwitches::OFF.scope();
     let mut bots = Bots::new(
         0x418,
-        survarium::v026g::maps::mode::BATTERIES,
+        survarium::v026g::maps::RuleMode::Batteries,
         0,
         &[0],
         &[true],
@@ -111,7 +111,7 @@ pub(crate) fn every_kit_low_the_bot_picks_the_fullest_once() {
     let _kit = survarium::v026g::loadouts::KitSwitches::OFF.scope();
     let mut bots = Bots::new(
         0x419,
-        survarium::v026g::maps::mode::BATTERIES,
+        survarium::v026g::maps::RuleMode::Batteries,
         0,
         &[0],
         &[true],
@@ -155,7 +155,7 @@ pub(crate) fn a_bot_of_a_higher_tier_carries_that_tiers_kits() {
     let equipment = |tier| BotEquipment::of(tier, RusherKits::default());
     let bots = Bots::new(
         0x41A,
-        survarium::v026g::maps::mode::BATTERIES,
+        survarium::v026g::maps::RuleMode::Batteries,
         0,
         &[0, 1, 1],
         &[true, true, true],
@@ -203,7 +203,7 @@ pub(crate) fn a_rusher_carries_the_kit_its_equipment_says() {
             let equipment = BotEquipment { tier, rusher, mask: BotMask::Table };
             let bots = Bots::new(
                 0x41B,
-                survarium::v026g::maps::mode::BATTERIES,
+                survarium::v026g::maps::RuleMode::Batteries,
                 0,
                 &[0, 0, 1, 1],
                 &[true; 4],
@@ -289,7 +289,7 @@ pub(crate) fn a_top_up_moves_the_kits_storage_into_the_stack_and_nowhere_else() 
     let _kit = survarium::v026g::loadouts::KitSwitches::OFF.scope();
     let mut bots = Bots::new(
         0x418,
-        survarium::v026g::maps::mode::BATTERIES,
+        survarium::v026g::maps::RuleMode::Batteries,
         0,
         &[0],
         &[true],

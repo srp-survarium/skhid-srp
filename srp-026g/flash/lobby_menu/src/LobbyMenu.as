@@ -21,6 +21,7 @@ package
    import flash.text.StyleSheet;
    import flash.text.TextField;
    import flash.text.TextFieldType;
+   import flash.text.TextFormat;
    import flash.ui.Keyboard;
    import flash.utils.Timer;
    import flash.utils.clearTimeout;
@@ -29,7 +30,6 @@ package
    import flash.utils.setTimeout;
    import scaleform.clik.constants.InputValue;
    import scaleform.clik.controls.Button;
-   import scaleform.clik.controls.DropdownMenu;
    import scaleform.clik.controls.ScrollingList;
    import scaleform.clik.controls.TextInput;
    import scaleform.clik.controls.TileList;
@@ -59,6 +59,7 @@ package
    import survarium.chat.LobbyChat;
    import survarium.clan.ClanWindow;
    import survarium.clan.TournamentWindow;
+   import survarium.constants.BuyOrigin;
    import survarium.constants.ChatChannel;
    import survarium.constants.ClanState;
    import survarium.constants.ClanTeamRole;
@@ -87,11 +88,11 @@ package
    import survarium.constants.Reward;
    import survarium.constants.SuperCategory;
    import survarium.constants.TeamSide;
-   import survarium.constants.TutorialHint;
    import survarium.constants.UiSound;
    import survarium.constants.VoucherType;
    import survarium.controls.BottomPanel;
    import survarium.controls.DragRegion;
+   import survarium.controls.Transient;
    import survarium.controls.GangShop;
    import survarium.controls.InventoryList;
    import survarium.controls.ItemCompare;
@@ -102,6 +103,7 @@ package
    import survarium.controls.NotificationListScrollContent;
    import survarium.controls.PlayerInfo;
    import survarium.controls.PlayerRanking;
+   import survarium.lobbypick.LobbyWindow;
    import survarium.controls.QuestWindow;
    import survarium.controls.SrvContextMenu;
    import survarium.controls.StatusPanel;
@@ -114,6 +116,7 @@ package
    import survarium.data.LocalizationData;
    import survarium.data.PropertiesDescriptor;
    import survarium.friends.FriendsMenu;
+   import survarium.friends.ChatMute;
    import survarium.friends.SquadInviteList;
    import survarium.friends.SquadList;
    import survarium.gsearch.LobbyGameLoad;
@@ -141,10 +144,11 @@ package
    import survarium.messages.MessageQuestInfo;
    import survarium.paperdoll.PaperDollBase;
    import survarium.player.LocalPlayerProfile;
+   import survarium.player.WeightEffects;
+   import survarium.player.KitModifiers;
    import survarium.player.ProfileSelector;
    import survarium.quest.QuestList;
    import survarium.rooms.RoomsWindow;
-   import survarium.tutorial.TextSlide;
    import survarium.upgrade.UpgradeWindow;
    
    public class LobbyMenu extends MovieClip
@@ -194,11 +198,6 @@ package
       // The server answers at once or never (no such place or member): an
       // ask with no answer by then is taken as unanswered.
       private static const PLAYER_INFO_WAIT_MS:int = 3000;
-
-      // show_survival_notes's index: which notes window opens.
-      private static const SURVIVAL_NOTES_BATTLE:int = 0;
-
-      private static const SURVIVAL_NOTES_ITEMS:int = 1;
 
       // set_admin_message's type: by the code, 0 shows the text as a warning (set_warning_text), any other
       // as an admin text; the exe never calls it.
@@ -352,9 +351,7 @@ package
       
       protected var _superWidth:uint = 1920;
       
-      protected var _load_images:Array = [Level1_day,Level2_day,Level3_day,Level3_evn,Level3_rain,Level4_day,Level1_rain,Level1_evn,Level2_rain,Level2_evn,Level4_rain,Level4_evn,Level5_day,Level5_rain,Level5_evn,Level6_day,Level6_rain,Level6_evn,Level7_day,Level7_rain,Level7_evn,Level8_day,Level8_rain,Level8_evn,Level8_night,Level8_prerain,Level9_day,Level9_evn,Level9_rain,Level_v011e];
-      
-      private var survivalVisible:Boolean = false;
+      protected var _load_images:Array = [Level1_day,Level2_day,Level3_day,Level3_evn,Level3_rain,Level4_day,Level1_rain,Level1_evn,Level2_rain,Level2_evn,Level4_rain,Level4_evn,Level5_day,Level5_rain,Level5_evn,Level6_day,Level6_rain,Level6_evn,Level7_day,Level7_rain,Level7_evn,Level8_day,Level8_rain,Level8_evn,Level8_night,Level8_prerain,Level9_day,Level9_evn,Level9_rain,Level_v011e,Level_v069d_rudnya];
       
       private var spriteHighlightContainer:MovieClip = new MovieClip();
       
@@ -364,27 +361,14 @@ package
       
       private var _inventoryHighlight:Boolean = false;
       
-      private var _tutorTextSlide:TextSlide;
-      
-      private var _tutorRewardsD:Object = new Object();
-      
-      private var _tutorRewards:Array;
-      
-      private var _tutorRewardsNicname:Array;
-      
-      private var _tutorRewardsItem:Array;
-      
-      private var _tutorRewardsBattle:Array;
-      
-      public var tutorSlide1:MovieClip;
-      
-      public var tutorBack:MovieClip = new BackBlack();
-      
-      private var _tutorialSliders:TutorialSliders;
-      
-      private var _tutorialIndex:int = TutorialHint.NOT_SHOWN;
-      
+      // The item card's owner: the list row it shows (_pdTarget, followed as the list scrolls) or
+      // the kit slot (_hintSlot), at most one of them; neither for a craft slot's card. A change of
+      // the kit shows the slot's item as it is then (updateHintItem), never the slot an item's
+      // slotId names: only the kit's own items carry their slot, an inventory item and the copy a
+      // drop puts in a slot until the server answers carry 0, the helmet's.
       private var _pdTarget:MovieClip;
+      
+      private var _hintSlot:IPaperDollSlot;
       
       private var _wheelBack:MovieClip = new FadeBackground();
       
@@ -443,6 +427,17 @@ package
       protected var _isWheeled:Boolean = false;
       
       private var fadeBack:MovieClip = new FadeBackground();
+
+      // The black over the lobby's 3D scene while the exe puts another lobby in (srp_scene_fade),
+      // and the loading spinner on it.
+      private var _sceneFade:Sprite;
+
+      private var _sceneSpinner:MovieClip;
+
+      // The lobby window (the lobby button's) and what the exe last told it, [pick, shown].
+      private var _lobbyWindow:LobbyWindow;
+
+      private var _lobbyState:Array;
       
       protected var _tempIndex:uint = 0;
       
@@ -460,14 +455,17 @@ package
       // bars, windows and chat are the root's children, and what the game first put on the stage is
       // in _stageLayer, the root's last child, drawn at the stage's scale: _layers (every layer put
       // above the lobby: the front, top and top2 containers with messages, the wheels, the loading
-      // screen, the fades, the right-click menu, CLIK's popups) and over it _overlay, above every
-      // modal: _corner (the exit and settings buttons while the exe wants them above all, drawn as
+      // screen, the fades, the right-click menu), over them _transients (the transient windows
+      // while open, docs/notes/transient-windows.md, and CLIK's popups) and over it _overlay, above
+      // every modal: _corner (the exit and settings buttons while the exe wants them above all, drawn as
       // the status panel is), _cards (the item cards, drawn as the root is), CLIK's drag canvas and
       // the tooltips. toggle_interface hides the root, so all of it, in one step; nothing of the
       // interface is on the stage beside it.
       private var _stageLayer:Sprite;
 
       private var _layers:Sprite;
+
+      private var _transients:Sprite;
 
       private var _overlay:Sprite;
 
@@ -512,21 +510,27 @@ package
       }
 
       // The layers the game first put on the stage, in the root (see _stageLayer): made before
-      // anything is added; CLIK's popup canvas and the right-click menu are told where theirs go.
+      // anything is added; CLIK's popup canvas, the right-click menu and the transient windows are
+      // told where theirs go.
       private function makeStageLayer() : void
       {
          _stageLayer = new Sprite();
          this._stageLayer.name = "stageLayer";
          _layers = new Sprite();
+         _transients = new Sprite();
          _overlay = new Sprite();
          _corner = new Sprite();
          _cards = new Sprite();
+         itemHintRenderer.addEventListener(Event.RESIZE,onWeaponDetailsResize);
+         itemHintRendererSec.addEventListener(Event.RESIZE,onWeaponDetailsResize);
          this._stageLayer.addChild(this._layers);
+         this._stageLayer.addChild(this._transients);
          this._stageLayer.addChild(this._overlay);
          this._overlay.addChild(this._corner);
          this._overlay.addChild(this._cards);
          super.addChild(this._stageLayer);
-         PopUpManager.layer = this._layers;
+         PopUpManager.layer = this._transients;
+         Transient.layer = this._transients;
       }
 
       // _stageLayer stays the root's last child, whatever is added or moved to the top later.
@@ -590,71 +594,9 @@ package
          return id;
       }
       
-      public function show_exit_tutorial_message() : void
-      {
-         var _obj:Object = new Object();
-         _obj.text = LocalizationData.getName("tutorial_exit_warning");
-         _obj.onYes = this.onSkipTutor;
-         Message.showMessage("apply",_obj,true);
-      }
-      
-      private function onSkipTutor(e:* = null) : void
-      {
-         trace("skip_tutorial");
-         ExternalInterface.call("skip_tutorial");
-      }
-      
+      // The tutorial's notes link: the exe hides it at each match's loading (0x220400).
       public function show_notes_tutorial_link(bool:Boolean, index:uint) : void
       {
-         trace("show_notes_tutorial_link",bool);
-         this.statusPanel.showNotesTutorial(bool,index);
-      }
-      
-      public function show_survival_notes(index:uint, showRewards:Boolean = true) : void
-      {
-         if(index == SURVIVAL_NOTES_BATTLE)
-         {
-            this.show_survival_notes_message(SURVIVAL_NOTES_BATTLE,"prepare_to_battle_notes","notes_battle",showRewards);
-         }
-         else if(index == SURVIVAL_NOTES_ITEMS)
-         {
-            this.show_survival_notes_message(SURVIVAL_NOTES_ITEMS,"items_notes","notes_items",showRewards);
-         }
-      }
-      
-      public function show_survival_items_notes() : void
-      {
-         this.show_survival_notes_message(SURVIVAL_NOTES_ITEMS,"items_notes","notes_items");
-      }
-      
-      public function show_survival_battle_notes() : void
-      {
-         this.show_survival_notes_message(SURVIVAL_NOTES_BATTLE,"prepare_to_battle_notes","notes_battle");
-      }
-      
-      private function show_survival_notes_message(index:uint, label:String, message:String, showRewards:Boolean = true) : void
-      {
-         if(this.survivalVisible)
-         {
-            return;
-         }
-         var rewards:Array = index == SURVIVAL_NOTES_BATTLE ? this._tutorRewardsBattle : this._tutorRewardsItem;
-         var messData:Object = {
-            index:index,
-            label:label,
-            rewards:rewards,
-            showRewards:showRewards
-         };
-         survivalVisible = true;
-         var mess:* = Message.showMessage(message,messData);
-         mess.addEventListener(Event.REMOVED_FROM_STAGE,this.onMessRemoved);
-      }
-      
-      private function onMessRemoved(e:Event) : void
-      {
-         trace("onMessRemoved");
-         removeEventListener(Event.REMOVED_FROM_STAGE,this.onMessRemoved);
-         survivalVisible = false;
       }
       
       public function setTDMEnabled(value:Boolean) : void
@@ -878,151 +820,15 @@ package
          InteractiveObjectEx.setTopmostLevel(target,value);
       }
       
+      // The exe's default state (0x2A4240) calls it at each sign-in: no slide is open, the sound stays.
       public function close_slide() : void
       {
          ExternalInterface.call("sound_play",UiSound.TUTORIAL_SUCCESS);
-         this.onSlideClose(null);
       }
       
-      public function show_slide(text1:String, text2:String = "", closable:Boolean = true) : void
-      {
-         var rendererClass:Class;
-         if(this._tutorTextSlide == null)
-         {
-            rendererClass = getDefinitionByName("TutorialSlide") as Class;
-            _tutorTextSlide = new rendererClass();
-         }
-         this.tutorBack.alpha = 0.3;
-         this.tutorBack.width = MainScene.stageWidth;
-         this.tutorBack.height = MainScene.stageHeight;
-         addChild(this.tutorBack);
-         this._tutorTextSlide.closeBtn.visible = true;
-         this._tutorTextSlide.setText(text1,text2);
-         this._tutorTextSlide.x = (MainScene.stageWidth - this._tutorTextSlide.width) / 2;
-         this._tutorTextSlide.y = MainScene.stageHeight - this._tutorTextSlide.height - 80;
-         addChild(this._tutorTextSlide);
-         addChild(this.spriteHighlightContainer);
-         this.spriteHighlightContainer.mouseChildren = false;
-         this.spriteHighlightContainer.mouseEnabled = false;
-         this.spriteHighlightContainer.enabled = false;
-         this._tutorTextSlide.addEventListener(Event.CLOSE,this.onSlideClose);
-         FocusManager.setModalClip(this.spriteHighlightContainer);
-      }
-      
-      private function onSlideClose(e:Event) : void
-      {
-         if((this._tutorTextSlide))
-         {
-            this._tutorTextSlide.removeEventListener(Event.CLOSE,this.onSlideClose);
-            removeChild(this.tutorBack);
-            removeChild(this._tutorTextSlide);
-            _tutorTextSlide = null;
-            this.clean_highlight();
-         }
-      }
-      
+      // The exe gives the tutorial's awards at each 9D (0x283190); nothing shows them.
       public function set_tutorial_rewards(value:Array) : void
       {
-         trace("set_tutorial_rewards",value);
-         for(var i:uint = 0; i < value.length; i++)
-         {
-            var rewards:Array;
-            var rewardname:String;
-            trace("iterate::",i,value[i].name,value[i].reward);
-            if(value[i].reward == undefined)
-            {
-               _tutorRewards = value;
-               _tutorRewardsItem = value;
-               _tutorRewardsBattle = value;
-               this._itemFactory.fillRewardItems(this._tutorRewards);
-               this._tutorRewardsD["tutorial_completed"] = this._tutorRewards;
-               this._tutorRewardsD["survival_item_notes_completed"] = this._tutorRewards;
-               this._tutorRewardsD["survival_prepare_to_battle_notes_completed"] = this._tutorRewards;
-               return;
-            }
-            rewards = value[i].reward;
-            rewardname = value[i].name;
-            trace("rewardIS::",rewardname,rewards);
-            this._tutorRewardsD[rewardname] = rewards;
-            this._itemFactory.fillRewardItems(rewards);
-            if(rewardname == "tutorial_completed")
-            {
-               trace("_tutorRewardsUpdated",rewards);
-               _tutorRewards = rewards;
-               _tutorRewardsNicname = rewards.concat();
-               this._itemFactory.fillRewardItems(this._tutorRewardsNicname);
-            }
-            else if(rewardname == "survival_item_notes_completed")
-            {
-               trace("_tutorRewardsItemUpdated",rewards);
-               _tutorRewardsItem = rewards;
-            }
-            else if(rewardname == "survival_prepare_to_battle_notes_completed")
-            {
-               trace("_tutorRewardsBattleUpdated",rewards);
-               _tutorRewardsBattle = rewards;
-            }
-         }
-      }
-      
-      public function show_tutorial_complete_message() : void
-      {
-         trace("show_tutorial_complete_message");
-         var messageData:Object = {
-            label:LocalizationData.getName("tutorial_complete_label"),
-            reward_1:((this._tutorRewards) && (this._tutorRewards[0]) ? this._tutorRewards[0].data : null),
-            reward_2:((this._tutorRewards) && (this._tutorRewards[1]) ? this._tutorRewards[1].data : null),
-            reward_3:((this._tutorRewards) && (this._tutorRewards[2]) ? this._tutorRewards[2].data : null)
-         };
-         Message.showMessage("tutorial_complete",messageData,true);
-      }
-      
-      public function show_tutorial_complete_message2() : void
-      {
-         var messageData:Object = {
-            label:LocalizationData.getName("tutorial_complete_label2"),
-            reward_1:((this._tutorRewardsBattle) && (this._tutorRewardsBattle[0]) ? this._tutorRewardsBattle[0].data : null),
-            reward_2:((this._tutorRewardsBattle) && (this._tutorRewardsBattle[1]) ? this._tutorRewardsBattle[1].data : null),
-            reward_3:((this._tutorRewardsBattle) && (this._tutorRewardsBattle[2]) ? this._tutorRewardsBattle[2].data : null)
-         };
-         Message.showMessage("tutorial_complete",messageData);
-      }
-      
-      public function show_tutorial_choose_name_message(textName:String = null) : void
-      {
-         var rendererClass:Class;
-         trace("show_tutorial_choose_name_message",textName);
-         if(this.tutorSlide1 == null)
-         {
-            rendererClass = getDefinitionByName("TutorSlide1") as Class;
-            tutorSlide1 = new rendererClass();
-         }
-         trace("show_tutorial_choose_name_message_rewards::",this._tutorRewards);
-         this.tutorSlide1.data = {
-            nickname:PlayerInfo.nickname,
-            reward_1:((this._tutorRewardsNicname) && (this._tutorRewardsNicname[0]) ? this._tutorRewardsNicname[0].data : null),
-            reward_2:((this._tutorRewardsNicname) && (this._tutorRewardsNicname[1]) ? this._tutorRewardsNicname[1].data : null),
-            reward_3:((this._tutorRewardsNicname) && (this._tutorRewardsNicname[2]) ? this._tutorRewardsNicname[2].data : null)
-         };
-         this.tutorSlide1.x = (MainScene.stageWidth - this.tutorSlide1.width) / 2;
-         this.tutorSlide1.y = (MainScene.stageHeight - this.tutorSlide1.height) / 2;
-         this.tutorBack.alpha = 1;
-         this.tutorBack.width = MainScene.stageWidth;
-         this.tutorBack.height = MainScene.stageHeight;
-         addChild(this.tutorBack);
-         addChild(this.tutorSlide1);
-         this.tutorSlide1.addEventListener(Event.CLOSE,this.onTutotNameClose);
-      }
-      
-      private function onTutotNameClose(e:Event) : void
-      {
-         if((this.tutorSlide1))
-         {
-            this.tutorSlide1.removeEventListener(Event.CLOSE,this.onTutotNameClose);
-            removeChild(this.tutorBack);
-            removeChild(this.tutorSlide1);
-            tutorSlide1 = null;
-         }
       }
       
       public function show_video_tutorial_link(bool:Boolean) : void
@@ -1188,6 +994,7 @@ package
          styleObject = new Object();
          styleObject.color = "#e9b838";
          style.setStyle("gold",styleObject);
+         style.setStyle(WeightEffects.WARNING_STYLE,{color:WeightEffects.WARNING_COLOR,display:"inline"});
          styleObject = new Object();
          styleObject.color = "#FEE2B2";
          style.setStyle("beige_bright",styleObject);
@@ -1239,6 +1046,7 @@ package
          this.profileSelector.y = 42;
          modifierWindow = new SrvModifiersControlReskin();
          notificationList = new SrvNotificationListSC();
+         this.notificationList.lobby = this;
          notificationListTemp = new SrvNotificationList();
          this.notificationList.registerRenderer(NotificationType.PLAIN,NotificationRendererSkinned);
          this.notificationList.registerRenderer(NotificationType.QUEST,NotificationQuestRendererSkinned);
@@ -1272,6 +1080,9 @@ package
          this.player_profile.profileItems.addEventListener(Events.OPEN_MODIFIERS,this.openModifierWindow);
          this.player_profile.profileItems.addEventListener(ListEvent.ITEM_ROLL_OVER,this.showPdItemHint);
          this.player_profile.profileItems.addEventListener(ListEvent.ITEM_ROLL_OUT,this.hideItemHint);
+         // The kit's ammo list: a round's card, the inventory's.
+         this.player_profile.addEventListener(AmmoShareElement.SHOW_CARD,this.showAmmoItemHint);
+         this.player_profile.addEventListener(AmmoShareElement.HIDE_CARD,this.hideItemHint);
          this.player_profile.profileItems.addEventListener(PaperDollBase.PAPERDOLL_UPDATED,this.updateHintItem);
          shop_list = new SrvGangShop();
          this.shop_list.name = "inventory_list";
@@ -1342,9 +1153,6 @@ package
          Message.registerMessage("exchange",SrvMessageExchangeSkinned);
          Message.registerMessage("craft",SrvMessageCraftItemSkinned);
          Message.registerMessage("rename",SrvMessageEnterName);
-         Message.registerMessage("tutorial_complete",MessageTutorialComplete);
-         Message.registerMessage("notes_items",SrvTutorialNotesItems);
-         Message.registerMessage("notes_battle",SrvTutorialNotesBattle);
          Message.registerBackground(BackBlack);
          Message.registerMessage("debug",MessageBox);
          Message.registerMessage("noclose",MessageNoClose);
@@ -1389,6 +1197,7 @@ package
          stage.addEventListener(KeyboardEvent.KEY_UP,this.onHiddenKeyUp,false,100);
          stage.addEventListener(KeyboardEvent.KEY_DOWN,this.onKeyDownStage);
          stage.addEventListener(KeyboardEvent.KEY_UP,this.onKeyUpStage);
+         stage.addEventListener(Event.DEACTIVATE,this.clearDetailKeys);
          stage.addEventListener(InputEvent.INPUT,this.handleInput,false,0,true);
          stage.addEventListener(MouseCursorEvent.CURSOR_CHANGE,this.onChangeCursor);
          this.parseSpriteSheets();
@@ -1411,6 +1220,7 @@ package
          this.statusPanel.addEventListener(StatusPanel.SHOW_DAILY_MESSAGE,this.show_daily_reward_window_on_event);
          this.statusPanel.addEventListener(StatusPanel.MATCH_SETTINGS,this.onMatchSettigsToggle);
          this.statusPanel.addEventListener(StatusPanel.LAID_OUT,this.onStatusPanelLaidOut);
+         this.statusPanel.addEventListener(StatusPanel.LOBBY_WINDOW,this.onLobbyWindow);
          this.statusPanel.matchSettings.addEventListener(MatchMakingSettings.TOURNAMENT_SELECTED,this.openTournamentWindow2);
          this.statusPanel.matchSettings.addEventListener(MatchMakingSettings.TOURNAMENT_DESELECTED,this.openTournamentWindow2);
          this.statusPanel.matchSettings.addEventListener(Event.CONNECT,this.onRequestPlayers);
@@ -1530,138 +1340,6 @@ package
          Message.showMessage("player_info",value,true);
       }
       
-      private function show_tutorial(value:uint) : void
-      {
-         var posOfLine:int;
-         var posOfLineY:int;
-         var profileLock:Sprite;
-         var lock:Sprite;
-         var openTabButton:Button;
-         var emmoBtnY:int;
-         if((this._tutorialSliders) && (this._tutorialSliders.parent))
-         {
-            removeChild(this._tutorialSliders);
-         }
-         Modals.leave(this._tutorialSliders);
-         _tutorialSliders = new TutorialSliders();
-         if(value == TutorialHint.NONE)
-         {
-            if((this._tutorialSliders.parent))
-            {
-               removeChild(this._tutorialSliders);
-            }
-            lock = getChildByName("tutorialProfileLock") as Sprite;
-            if((lock))
-            {
-               removeChild(lock);
-            }
-            lock = getChildByName("tutorialInventoryLock") as Sprite;
-            if((lock))
-            {
-               removeChild(lock);
-            }
-            if(this._tutorialIndex == TutorialHint.EQUIP_ITEM)
-            {
-               this.inventory_list.focusCategory(SuperCategory.NO_FOCUS);
-               this.inventory_list.lockControls(false);
-            }
-            _tutorialIndex = TutorialHint.NOT_SHOWN;
-            return;
-         }
-         _tutorialIndex = value;
-         addChild(this._tutorialSliders);
-         var sliders:TutorialSliders = this._tutorialSliders;
-         Modals.open(sliders,Modals.LOBBY,function():void
-         {
-            show_tutorial(TutorialHint.NONE);
-         },function():Boolean
-         {
-            return sliders.parent != null;
-         });
-         this._tutorialSliders.background.width = MainScene.stageWidth;
-         this._tutorialSliders.background.height = MainScene.stageHeight;
-         this._tutorialSliders.textContainer.label.text = LocalizationData.getName("tutorial_slide_" + String(this._tutorialIndex) + "_label");
-         this._tutorialSliders.textContainer.textField.text = LocalizationData.getName("tutorial_slide_" + String(this._tutorialIndex) + "_text");
-         this._tutorialSliders.textContainer.x = (MainScene.stageWidth - 440) / 2;
-         this._tutorialSliders.textContainer.y = 162;
-         this._tutorialSliders.textContainer.gotoAndStop(value);
-         if(value == TutorialHint.OPEN_INVENTORY)
-         {
-            openTabButton = new SvButtonChrome();
-            this._tutorialSliders.textContainer.addChild(openTabButton);
-            openTabButton.x = (440 - openTabButton.width) / 2;
-            openTabButton.y = this._tutorialSliders.textContainer.textField.y + this._tutorialSliders.textContainer.textField.textHeight + 40;
-            openTabButton.label = LocalizationData.getName("tutorial_slide_1_button_label");
-            openTabButton.addEventListener(ButtonEvent.CLICK,this.tutorOpenInventory);
-         }
-         else if(value == TutorialHint.EQUIP_ITEM)
-         {
-            posOfLine = this._tutorialSliders.textContainer.x - this._tutorialSliders.textContainer.line.x;
-            this._tutorialSliders.textContainer.line.width = posOfLine - (this.player_profile.x + this.player_profile.width) - 20;
-            this.handleFrontInventory();
-            addChild(this.player_profile);
-            this.inventory_list.focusCategory(SuperCategory.WEAPONS);
-            this.inventory_list.lockControls(true);
-            profileLock = new ProfielLickMC();
-            profileLock.name = "tutorialProfileLock";
-            profileLock.x = this.player_profile.x;
-            profileLock.y = this.player_profile.y;
-            addChild(profileLock);
-            profileLock = new InventoryLickMC();
-            profileLock.name = "tutorialInventoryLock";
-            profileLock.x = this.inventory_list.x;
-            profileLock.y = this.inventory_list.y;
-            addChild(profileLock);
-            this.player_profile.profileItems.addEventListener(PaperDollBase.PAPERDOLL_UPDATED,this.onTutorilaPDItemDrop);
-         }
-         else if(value == TutorialHint.SHOW_AMMO)
-         {
-            posOfLine = this._tutorialSliders.textContainer.x - this._tutorialSliders.textContainer.line.x;
-            this._tutorialSliders.textContainer.line.width = posOfLine - (this.player_profile.x + this.player_profile.width) - 20;
-            posOfLineY = this._tutorialSliders.textContainer.y + this._tutorialSliders.textContainer.line2.y;
-            emmoBtnY = this.player_profile.y + this.player_profile.btnShowAmmo.y;
-            trace("tutor3::",posOfLineY,emmoBtnY);
-            this._tutorialSliders.textContainer.line2.height = emmoBtnY - posOfLineY;
-            this._tutorialSliders.textContainer.line.y = this._tutorialSliders.textContainer.line2.y + this._tutorialSliders.textContainer.line2.height;
-            addChild(this.player_profile);
-            this.player_profile.btnShowAmmo.addEventListener("CLICK",this.onTutorialShowAmmo);
-            profileLock = new ProfielLickMC2();
-            profileLock.name = "tutorialProfileLock";
-            profileLock.x = this.player_profile.x;
-            profileLock.y = this.player_profile.y;
-            addChild(profileLock);
-         }
-      }
-      
-      private function onTutorialShowAmmo(e:Event) : void
-      {
-         trace("onTutorilaPDItemDrop");
-         this.show_tutorial(TutorialHint.NONE);
-         this.player_profile.btnShowAmmo.addEventListener("CLICK",this.onTutorialShowAmmo);
-      }
-      
-      private function onTutorilaPDItemDrop(e:Event) : void
-      {
-         trace("onTutorilaPDItemDrop");
-         this.show_tutorial(TutorialHint.SHOW_AMMO);
-         this.player_profile.profileItems.removeEventListener(PaperDollBase.PAPERDOLL_UPDATED,this.onTutorilaPDItemDrop);
-      }
-      
-      private function tutorOpenInventory(e:ButtonEvent) : void
-      {
-         ExternalInterface.call("totrile_slider_complete",this._tutorialIndex);
-         if(!this.inventory_list.visible)
-         {
-            this.inventory_list.mainTabBar.selectedIndex = InventoryTab.INVENTORY;
-            this.topMenu.selectActiveWindow(this.topMenu.INV_INDEX);
-            this.show_tutorial(TutorialHint.EQUIP_ITEM);
-         }
-         else
-         {
-            this.show_tutorial(TutorialHint.EQUIP_ITEM);
-         }
-      }
-      
       public function exit_decal_edit() : void
       {
          this.modifierWindow.exitDecalEdit();
@@ -1678,14 +1356,37 @@ package
          {
             return;
          }
+         // the card is this slot's now: no list row's card or comparison left over
+         this.hideItemHint(null);
+         _hintSlot = e.itemRenderer as IPaperDollSlot;
+         this.showKitCard(e.itemData,this.player_profile.x + e.itemRenderer.x + e.itemRenderer.width + 3,this.player_profile.y + e.itemRenderer.y - 5);
+      }
+
+      // A round of the kit's ammo list: its card beside the list's row, as a kit slot's.
+      private function showAmmoItemHint(e:Event) : void
+      {
+         var element:AmmoShareElement = e.target as AmmoShareElement;
+         if(element == null || element.cardItem == null)
+         {
+            return;
+         }
+         this.hideItemHint(null);
+         var at:Point = this._cards.globalToLocal(element.localToGlobal(new Point(element.width + 3,-5)));
+         this.showKitCard(element.cardItem,at.x,at.y);
+      }
+
+      // The item card (the inventory's) of a kit's item at (x, y) of the cards' layer, uncompared,
+      // kept on the stage and faded in.
+      private function showKitCard(item:Object, x:Number, y:Number) : void
+      {
          this.itemHintRenderer.displayOrange(true);
          this.itemHintRenderer.displaylabel(false);
          this.itemHintRenderer.mouseEnabled = this.itemHintRenderer.mouseChildren = false;
          this.itemHintRendererSec.mouseEnabled = this.itemHintRendererSec.mouseChildren = false;
-         this.itemHintRenderer.x = this.player_profile.x + e.itemRenderer.x + e.itemRenderer.width + 3;
-         this.itemHintRenderer.y = this.player_profile.y + e.itemRenderer.y - 5;
+         this.itemHintRenderer.x = x;
+         this.itemHintRenderer.y = y;
          this._cards.addChild(this.itemHintRenderer);
-         this.itemHintRenderer.data = e.itemData;
+         this.itemHintRenderer.data = item;
          this.itemHintRenderer.itemCompare.setSecondaryWeapon(null);
          var maxPox:int = this.itemHintRenderer.y + this.itemHintRenderer.height;
          if(maxPox > MainScene.stageHeight - 2)
@@ -1704,44 +1405,42 @@ package
          }
       }
       
+      // The kit changed: a kit slot's card shows the slot's item now (none: the card goes); a list
+      // row's card compared with the kit's item of its kind (showItemHint) is compared with that
+      // item as the kit has it now. The craft window's comparison is its own.
       private function updateHintItem(e:Event) : void
       {
-         trace("updateHintItem",this.itemHintRendererSec.data);
-         var hintTarget:ItemInfoRenderer = (this.itemHintRendererSec.parent) ? this.itemHintRendererSec : this.itemHintRenderer;
-         var oldData:ItemData;
-         var curerrentSlot:IPaperDollSlot;
-         var newData:ItemData;
-         if(hintTarget == this.itemHintRendererSec && this.craftOpen())
+         if(this.itemHintRenderer.parent == null)
          {
-            // The craft window's item, not an equipped one: the paper doll does not change it.
             return;
          }
-         if((hintTarget.parent) && (hintTarget.data))
+         if(this._hintSlot != null)
          {
-            oldData = hintTarget.data as ItemData;
-            curerrentSlot = this.player_profile.profileItems.getSlotAt(oldData.slotId);
-            newData = curerrentSlot.data as ItemData;
-            trace("newData",newData);
-            if(!newData)
+            var held:ItemData = this._hintSlot.data as ItemData;
+            if(held == null)
             {
-               hintTarget.data = null;
-               if(hintTarget == this.itemHintRendererSec)
-               {
-                  this.itemHintRenderer.itemCompare.setSecondaryWeapon(null);
-               }
-               removeChild(hintTarget);
+               this.hideItemHint(null);
                return;
             }
-            trace("CompareData::",oldData.name,newData.name,newData.slotId,oldData.slotId,newData.descriptor,oldData.descriptor,newData.tipText);
-            if(oldData.slotId == newData.slotId)
-            {
-               hintTarget.data = newData;
-               if(hintTarget == this.itemHintRendererSec)
-               {
-                  this.itemHintRenderer.itemCompare.setSecondaryWeapon(newData);
-               }
-            }
+            this.itemHintRenderer.data = held;
+            return;
          }
+         if(this.itemHintRendererSec.parent == null || this.craftOpen())
+         {
+            return;
+         }
+         var equipped:Object = this.player_profile.getRelativeData(this.itemHintRenderer.data);
+         if(equipped == null)
+         {
+            this._cards.removeChild(this.itemHintRendererSec);
+            this.itemHintRenderer.displaylabel(false);
+            this.itemHintRenderer.itemCompare.setSecondaryWeapon(null);
+            this.itemHintRenderer.alignComparisonHeader(null);
+            return;
+         }
+         this.itemHintRendererSec.data = equipped;
+         this.itemHintRendererSec.itemCompare.setSecondaryWeapon(this.itemHintRenderer.data);
+         this.itemHintRenderer.itemCompare.setSecondaryWeapon(equipped);
       }
       
       // Whether the craft (Upgrade) window is open.
@@ -1767,6 +1466,7 @@ package
             _pdTarget = null;
          }
          _pdTarget = e.itemRenderer as MovieClip;
+         _hintSlot = null;
          this._pdTarget.addEventListener(Event.RENDER,this.onHintTargetRender);
          this._cards.addChild(this.itemHintRenderer);
          if(e.target is ScrollingList)
@@ -1812,6 +1512,7 @@ package
             }
          }
          this.itemHintRenderer.data = e.itemData;
+         this.itemHintRenderer.alignComparisonHeader(secondData != null ? this.itemHintRendererSec : null);
          var delay:Number = 0.3;
          var length:Number = 0.2;
          this.itemHintRenderer.alpha = 0;
@@ -1859,6 +1560,7 @@ package
             this._cards.addChild(this.itemHintRendererSec);
             this.itemHintRendererSec.y = this.itemHintRenderer.y;
             var hoveredMain:Boolean = e.itemRenderer == this.craftWindow.dragItemSlot1;
+            this.itemHintRenderer.alignComparisonHeader(this.itemHintRendererSec);
             var left:ItemInfoRenderer = hoveredMain ? this.itemHintRenderer : this.itemHintRendererSec;
             var right:ItemInfoRenderer = hoveredMain ? this.itemHintRendererSec : this.itemHintRenderer;
             right.x = this.craftWindow.x - right.width - 3;
@@ -1874,6 +1576,7 @@ package
 
       private function onHintTargetRender(e:Event) : void
       {
+         this.itemHintRenderer.alignComparisonHeader(this.itemHintRendererSec.parent != null ? this.itemHintRendererSec : null);
          if((this._pdTarget) && (this._pdTarget.data) && this._pdTarget.data.descriptor == ItemPlace.NONE)
          {
             this.itemHintRenderer.y = this.inventory_list.y + this._pdTarget.y + this.inventory_list.bundleList.y + 55;
@@ -1904,6 +1607,21 @@ package
             this.itemHintRendererSec.x = this.itemHintRenderer.x - this.itemHintRenderer.width - 1;
          }
       }
+
+      private function onWeaponDetailsResize(e:Event) : void
+      {
+         if(itemHintRenderer.parent == null) return;
+         itemHintRenderer.alignComparisonHeader(itemHintRendererSec.parent != null ? itemHintRendererSec : null);
+         if(_pdTarget != null && !craftOpen())
+         {
+            onHintTargetRender(null);
+            return;
+         }
+         var h:Number = itemHintRenderer.height;
+         if(itemHintRendererSec.parent != null) h = Math.max(h,itemHintRendererSec.height);
+         itemHintRenderer.y = Math.max(0,Math.min(itemHintRenderer.y,MainScene.stageHeight - h - 2));
+         if(itemHintRendererSec.parent != null) itemHintRendererSec.y = itemHintRenderer.y;
+      }
       
       private function hideItemHint(e:Event) : void
       {
@@ -1912,6 +1630,7 @@ package
             this._pdTarget.removeEventListener(Event.RENDER,this.onHintTargetRender);
             _pdTarget = null;
          }
+         _hintSlot = null;
          trace("hideItemHint");
          if(this._cards.contains(this.itemHintRenderer))
          {
@@ -2074,7 +1793,7 @@ package
          var dict:uint = PlayerInfo.getVoucherDictId(VoucherType.DROP_CARD);
          var id:uint = PlayerInfo.getVoucherId(VoucherType.DROP_CARD);
          trace("onBuyMaps::",pp.profileId,id,dict);
-         this.try_buy_item(pp.profileId,id,dict,ItemPlace.SHOP,ItemPlace.INVENTORY,1,GangShop.getInstance().getItemPrice(dict),Faction.ANY);
+         this.try_buy_item(pp.profileId,id,dict,ItemPlace.SHOP,ItemPlace.INVENTORY,1,GangShop.getInstance().getItemPrice(dict),BuyOrigin.SHOP,Faction.ANY);
       }
       
       public function show_choose_faction_message() : void
@@ -2105,14 +1824,7 @@ package
       public function handle_nickname_validation(result:Boolean, name:String = null, message:String = null) : void
       {
          trace("handle_nickname_validation",result,name,"message",message);
-         if((this.tutorSlide1))
-         {
-            this.tutorSlide1.handleNicknameValidation(result,name,message);
-         }
-         else
-         {
-            this.statusPanel.handleNicknameValidation(result,name,message);
-         }
+         this.statusPanel.handleNicknameValidation(result,name,message);
       }
       
       public function handle_daily_message_validation(result:Boolean, name:String = null, message:String = null) : void
@@ -2882,11 +2594,9 @@ package
       {
          PlayerInfo.premiumState = state;
          PlayerInfo.premiumLeft = label;
-         this.statusPanel.btn_premium.stateIndex = state;
-         this.statusPanel.btn_premium.label = label;
-         if(state != PremiumState.NONE && (this.statusPanel.btn_premium.discount))
+         if(state != PremiumState.NONE && (this.statusPanel.premiumDiscount))
          {
-            this.statusPanel.btn_premium.discount = 0;
+            this.statusPanel.premiumDiscount = 0;
             this.updatePremiumDiscountTime();
          }
          if(state != PremiumState.NONE && this.player_profile.buyPremium.visible == true)
@@ -3655,9 +3365,9 @@ package
          this.player_profile.checkbox_autobuy.selected = value == AUTO_BUY_AND_REPAIR || value == AUTO_BUY;
       }
       
-      public function try_buy_item(profile:uint, uid:uint, dict_uid:uint, sourceSlot:uint, targetSlot:uint, count:int, price:uint, seller:int = -1, onComplete:Function = null) : Boolean
+      public function try_buy_item(profile:uint, uid:uint, dict_uid:uint, sourceSlot:uint, targetSlot:uint, count:int, price:uint, origin:BuyOrigin, seller:int = -1, onComplete:Function = null) : Boolean
       {
-         trace("Try_to_Buy_pr:" + profile + " uid:" + dict_uid + " src:" + sourceSlot + " tgt:" + targetSlot + " cnt:" + count + " price:" + price + " seller:" + seller);
+         trace("Try_to_Buy_pr:" + profile + " uid:" + dict_uid + " src:" + sourceSlot + " tgt:" + targetSlot + " cnt:" + count + " price:" + price + " origin:" + origin + " seller:" + seller);
          var _obj:Object = new Object();
          var _descr:Object = this._itemDescriptor.getItemDescription(dict_uid);
          if(sourceSlot == ItemPlace.BUNDLE)
@@ -3685,7 +3395,8 @@ package
          _obj.seller = seller != Faction.ANY ? seller : this.shop_list.getItemSeller(dict_uid);
          _obj.faction = _obj.seller;
          _obj.sellers = _descr.sellers;
-         _obj.category = _descr.sellers;
+         // the buy dialog's starting count reads it (MessageAsk.startCount); a bundle has none
+         _obj.category = _descr.category;
          _obj.uid = dict_uid;
          _obj.name = _descr.name;
          _obj.is_stack = _descr.is_stack;
@@ -3694,7 +3405,8 @@ package
          {
             _obj.clip_size = _descr.clip_size;
          }
-         _obj.quick_slot_item_size = (_descr.fills_whole_pocket) ? QuickSlotSize.WHOLE : QuickSlotSize.HALF;
+         _obj.quick_slot_item_size = QuickSlotSize.of(_descr);
+         _obj.pocket_units = PlayerInfo.pocketUnits(_descr.category,_obj.quick_slot_item_size);
          _obj.currentCount = this.inventory_list.getItemCount(dict_uid);
          var category:int = ItemFactory.getCategory(_descr.category);
          if(sourceSlot == ItemPlace.BUNDLE)
@@ -3756,7 +3468,11 @@ package
             _obj.onYes = onComplete;
          }
          trace("try_buy_info::",_descr.is_stack,_descr.name,this.inventory_list.hasItem(dict_uid),onComplete);
-         if(!_descr.is_stack && _descr.category != ItemCategory.CAMOUFLAGES && (sourceSlot == ItemPlace.SHOP && this.inventory_list.hasItem(dict_uid)))
+         // Every buy comes here (GangShop.buyFunction, MainScene.buyFunction), told where it was
+         // started. Only a buy started in the shop asks first about an item owned already, not a
+         // stack; one from the player's own items or the craft and attachment windows is a wish for
+         // another. A bundle's id is no item's (docs/notes/items.md §6).
+         if(origin == BuyOrigin.SHOP && !_descr.is_stack && sourceSlot != ItemPlace.BUNDLE && this.inventory_list.hasItem(dict_uid))
          {
             _obj.text = LocalizationData.getName("already_in_inventory");
             _obj.onYes = this.show_buy_message;
@@ -3785,6 +3501,7 @@ package
          relocate_object.faction_id = faction_id;
          var new_data:ItemData;
          var _relocateArray:Array;
+         var relocate:Function;
          if((value.is_stack))
          {
             relocate_object.condition_or_stack = this.inventory_list.getItemCount(dict_id);
@@ -3792,8 +3509,20 @@ package
             if(!id)
             {
                new_data = this.inventory_list.createItem(dict_id);
-               new_data.value = count;
-               new_data.count = count;
+               if(ProfileSlot.isPocket(targetSlot))
+               {
+                  // A buy dropped on a pocket: the stack holds what is owned and what is bought (the
+                  // ammo window's units wanted in all: the server buys what is beyond the stack,
+                  // move_items), the pocket as many of them as it takes; the rest stays in the
+                  // inventory (docs/notes/items.md §8).
+                  new_data.count = uint(relocate_object.condition_or_stack) + count;
+                  new_data.value = int(Math.min(new_data.count,PlayerInfo.pocketUnits(new_data.category,value.quick_slot_item_size)));
+               }
+               else
+               {
+                  new_data.value = count;
+                  new_data.count = count;
+               }
                new_data.slotId = targetSlot;
                trace("createNewData::",dict_id,"inv::",count,"|",new_data.count);
             }
@@ -3802,7 +3531,10 @@ package
          else
          {
             _relocateArray = [relocate_object];
-            this.player_profile._relocateFunction(_relocateArray);
+            // Read first, then called: Scaleform throws "is not a function" when the
+            // class's getter is called in place (as DragRegion does it).
+            relocate = this.player_profile._relocateFunction;
+            relocate(_relocateArray);
          }
       }
       
@@ -3842,7 +3574,7 @@ package
             return false;
          }
          var topMost:* = Extensions.getTopMostEntity(mouseX * scaleX,mouseY * scaleY,true);
-         if((topMost) && (!(topMost is DragRegion)) && !(topMost is Stage))
+         if((topMost) && (!(topMost is DragRegion)) && !(topMost is Stage) && topMost != this._sceneFade)
          {
             return true;
          }
@@ -3918,12 +3650,20 @@ package
          this.player_profile.updateSlots(artifactSlots,itemSlots);
       }
       
-      public function update_player_items_weight(cur:Number, max:Number) : void
+      public function update_player_items_weight(cur:Number, max:Number, movement:Number = NaN, spending:Number = NaN, sprint:Number = NaN, skills:Number = NaN, bearArms:Number = NaN,
+         base:Number = NaN, limitSkills:Number = NaN, packrat:Number = NaN, spending19:Number = NaN, spending67:Number = NaN) : void
       {
          trace("load_weigth:",cur,max);
          PlayerInfo.maxWeight = max;
          PlayerInfo.curWeight = cur;
-         this.player_profile.updateWeight(cur,max);
+         this.player_profile.updateWeight(cur,max,WeightEffects.parse(movement,spending,sprint,skills,bearArms,base,limitSkills,packrat,spending19,spending67));
+      }
+      
+      // The selected kit's own player modifiers (the skills' sums), sent before each weight
+      // callback (client-patches/weight_ui_026g.c); a weapon card's Alt view adds them.
+      public function set_kit_modifiers(... values) : void
+      {
+         this.player_profile.setKitModifiers(KitModifiers.parse(values));
       }
       
       public function set_minimum_ammo(value1:uint, value2:uint) : void
@@ -3938,7 +3678,7 @@ package
       
       public function set_quick_slot_size(value:uint) : void
       {
-         PlayerInfo.pocketSize = value;
+         PlayerInfo.pocketSize = Math.min(PlayerInfo.MAX_POCKET_UNITS,value);
          this.player_profile.updatePocketSize(value);
       }
       
@@ -3946,7 +3686,8 @@ package
       {
          trace("fill_auto_buy_items::",value);
          this.player_profile.fillAutoBuyItems(value);
-         this.player_profile.checkbox_autobuy.selected = value.length != 0;
+         // The account setting comes from set_autobuy. An empty refill
+         // list must not untick it after the player enables autobuy again.
       }
       
       public function set_account_name(value:String) : void
@@ -4060,6 +3801,8 @@ package
          {
             return;
          }
+         // it covers the lobby: the transient windows (over the layers) close
+         Transient.closeAll();
          var _back_back:MovieClip = new BackBlack();
          this._top_container.addChild(_back_back);
          _back_back.width = stage.stageWidth;
@@ -4110,7 +3853,7 @@ package
       
       public function has_active_message() : Boolean
       {
-         return Message.isAnyMessage() != -1 || MainScene.activePop != null || (this._tutorialSliders) && (this._tutorialSliders.parent);
+         return Message.isAnyMessage() != -1 || MainScene.activePop != null;
       }
       
       // The exe asks this on every key (0x26CB80) and, on Esc, calls close_active_window when it
@@ -4123,20 +3866,15 @@ package
          {
             return true;
          }
-         // a dropdown's open list takes Esc itself; a closed dropdown still holding the focus does
-         // not, so Esc never opens the game's menu over a modal
-         if(stage.focus is DropdownMenu && DropdownMenu(stage.focus).selected)
-         {
-            trace("has_active_window::DropdownMenu");
-            return false;
-         }
-         var isAnyWindow:Boolean = !this._escapeHandled && (Modals.any() || stage.focus is TextField);
+         // a transient window (History, a dropdown's list) is over the modals: Esc closes it first
+         var isAnyWindow:Boolean = !this._escapeHandled && (Transient.any() || Modals.any() || stage.focus is TextField);
          _escapeHandled = false;
          return isAnyWindow;
       }
 
       // The one Esc handler (docs/notes/esc.md), from the exe and from handleInput, the same press
       // handled once (_escapeHandled: handleInput takes the press's own key events). Esc first
+      // closes the top transient window (History, the match settings, a dropdown's list), then
       // takes the keys from a text box (unless the right-click menu is open), then closes the
       // topmost modal only: every modal (windows, popups, the Upgrade window, the rooms window,
       // messages, the right-click menu...) enters Modals as it opens and leaves it as it closes.
@@ -4147,6 +3885,10 @@ package
          if(this.showInterface())
          {
             _hiddenKeyUp = Keyboard.ESCAPE;
+            return;
+         }
+         if(Transient.escape())
+         {
             return;
          }
          if(!SrvContextMenu.visisble && this.leaveTextBox())
@@ -5100,7 +4842,9 @@ package
       public function fill_skills(value:Array) : void
       {
          trace("root.fill_skills");
+         PlayerInfo.medicalSkills(value);
          this.charWindow.fillSkills(value);
+         this.player_profile.updatePocketSize(PlayerInfo.pocketSize);
       }
       
       public function set_achievements(value:Array) : void
@@ -5366,8 +5110,9 @@ package
          stage.focus = null;
          var image:Class = this._load_images[level];
          this.lobbyGameLoad.backgroundImage(image);
-         // the match loads: the message up goes (closed, not answered as Esc would), else the top
-         // modal closes
+         // the match loads: the transient windows close (the loading screen is under their layer),
+         // the message up goes (closed, not answered as Esc would), else the top modal closes
+         Transient.closeAll();
          if(Message.isAnyMessage() != -1)
          {
             Message.close(Message.isAnyMessage());
@@ -5824,8 +5569,8 @@ package
       {
          this.topMenu.tabPage.removeEventListener(IndexEvent.INDEX_CHANGE,this.closeVS);
          this.victory_screen.removeEventListener(Event.REMOVED_FROM_STAGE,this.onVsRemoved);
-         // A room left under the results (by Play, with its match's end):
-         // its window goes with them (after closeVS is off: its tab changes).
+         // The rooms window's tab, kept as it was under the results, follows it now (after closeVS
+         // is off: its tab changes).
          if(RoomsWindow.me != null)
          {
             RoomsWindow.me.resultsClosed();
@@ -5833,23 +5578,7 @@ package
          removeChild(this._back_back);
          FocusManager.setModalClip(null);
          MainScene.activeWindow = null;
-         trace("onVsRemoved::_top_container::stage",this._tutorTextSlide);
          this.notificationListTemp.startTimer();
-         if(!this._tutorTextSlide || !this._tutorTextSlide.parent)
-         {
-            Message.showMessages();
-         }
-         else
-         {
-            trace("addCompleteListener");
-            stage.addEventListener(Events.TUTORIAL_COMPLETE,this.onTutorComplete);
-         }
-      }
-      
-      private function onTutorComplete(e:Event) : void
-      {
-         trace("onTutorComplete");
-         stage.removeEventListener(Events.TUTORIAL_COMPLETE,this.onTutorComplete);
          Message.showMessages();
       }
       
@@ -5901,6 +5630,123 @@ package
          }
       }
       
+      // The lobby's scene changing (exe patch 81, docs/notes/lobby-scenes.md): a black over the 3D
+      // scene, under every panel (the root's first child), while the exe puts another lobby in;
+      // perMille of black (0 gone), the exe stepping it a frame each; `loading`: the game's loading
+      // spinner on it. The interface stays; no click lands on the black (get_mouse_over leaves it
+      // out), and it is off the display list while there is none.
+      public function srp_scene_fade(perMille:uint, loading:uint) : void
+      {
+         if(this._sceneFade == null)
+         {
+            this._sceneFade = new Sprite();
+            this._sceneFade.graphics.beginFill(0,1);
+            this._sceneFade.graphics.drawRect(-4096,-4096,12288,12288);
+            this._sceneFade.graphics.endFill();
+            this._sceneFade.mouseEnabled = false;
+            this._sceneFade.mouseChildren = false;
+            this._sceneSpinner = new LoadingIndicator();
+            this._sceneSpinner.mouseEnabled = false;
+            this._sceneSpinner.scaleX = this._sceneSpinner.scaleY = 0.7;
+            this._sceneFade.addChild(this._sceneSpinner);
+         }
+         var fade:Sprite = this._sceneFade;
+         if(perMille == 0)
+         {
+            if(fade.parent != null)
+            {
+               fade.parent.removeChild(fade);
+            }
+            this._sceneSpinner.stop();
+            return;
+         }
+         fade.alpha = Math.min(perMille,1000) / 1000;
+         if(fade.parent != this)
+         {
+            addChildAt(fade,0);
+         }
+         // the middle of the screen in the root's units (the root is scaled to the screen)
+         if(stage != null)
+         {
+            this._sceneSpinner.x = stage.stageWidth / scaleX / 2;
+            this._sceneSpinner.y = stage.stageHeight / scaleY / 2;
+         }
+         var spin:Boolean = loading != 0;
+         if(spin != this._sceneSpinner.visible)
+         {
+            this._sceneSpinner.visible = spin;
+            if(spin)
+            {
+               this._sceneSpinner.gotoAndPlay(1);
+            }
+            else
+            {
+               this._sceneSpinner.stop();
+            }
+         }
+      }
+
+      // What the lobby window shows (exe patch 81): the player's pick and the lobby shown, told by
+      // the exe when one changes.
+      public function srp_lobby_state(pick:uint, shown:uint) : void
+      {
+         this._lobbyState = [pick,shown];
+         if(this._lobbyWindow != null)
+         {
+            this._lobbyWindow.state(pick,shown);
+         }
+      }
+
+      // The lobby button (StatusPanel.LOBBY_WINDOW): the lobby window opened, or closed again; the
+      // exe's diagnostics build opens it so too (srp_lobby_window).
+      public function srp_lobby_window() : void
+      {
+         this.onLobbyWindow(null);
+      }
+
+      private function onLobbyWindow(e:Event) : void
+      {
+         if(this._lobbyWindow != null && this._lobbyWindow.parent != null)
+         {
+            this.closeLobbyWindow();
+            return;
+         }
+         if(this._lobbyWindow == null)
+         {
+            // the font of the bottom bar's tabs (the game's own), as the rooms window's
+            var tabClass:Class = getDefinitionByName("ButtonChatTabBottom") as Class;
+            var sample:* = new tabClass();
+            var tabText:TextField = sample["textField"] as TextField;
+            var format:TextFormat = tabText != null ? tabText.getTextFormat() : new TextFormat();
+            this._lobbyWindow = new LobbyWindow(format.font,format.bold);
+            this._lobbyWindow.onClose = this.closeLobbyWindow;
+            if(this._lobbyState != null)
+            {
+               this._lobbyWindow.state(this._lobbyState[0],this._lobbyState[1]);
+            }
+         }
+         var window:LobbyWindow = this._lobbyWindow;
+         if(stage != null)
+         {
+            window.x = int((stage.stageWidth / scaleX - window.width) / 2);
+            window.y = int((stage.stageHeight / scaleY - window.height) / 2);
+         }
+         addChild(window);
+         Modals.open(window,Modals.LOBBY,this.closeLobbyWindow,function():Boolean
+         {
+            return window.parent != null;
+         });
+      }
+
+      private function closeLobbyWindow() : void
+      {
+         if(this._lobbyWindow != null && this._lobbyWindow.parent != null)
+         {
+            this._lobbyWindow.parent.removeChild(this._lobbyWindow);
+         }
+         Modals.leave(this._lobbyWindow);
+      }
+
       private function test_clan_mamngment() : void
       {
          var createPermission:Function = function(value:String = null):Object
@@ -5954,12 +5800,25 @@ package
       
       private function toggleReports(e:Event) : void
       {
-         this.notificationList.visible = !this.notificationList.visible;
-         setChildIndex(this.notificationList,numChildren - 1);
-         if(this.notificationList.visible)
+         this.showHistory(!this.notificationList.visible);
+      }
+
+      // History (the bottom bar's button) is a transient window (Transient): open over the
+      // windows; any other window opening, a press outside it or Esc closes it as its button does.
+      public function showHistory(value:Boolean) : void
+      {
+         this.notificationList.visible = value;
+         this.bottom_panel.btnShowLogList.selected = value;
+         if(!value)
          {
-            this.notificationListTemp.clear(true);
+            Transient.closed(this.notificationList);
+            return;
          }
+         this.notificationListTemp.clear(true);
+         Transient.open(this.notificationList,this.bottom_panel.btnShowLogList,function():void
+         {
+            showHistory(false);
+         });
       }
       
       private function updateButtonsLocal(value:String) : void
@@ -6045,6 +5904,10 @@ package
          if(e.keyCode == KeyCode.LEFT_CONTROL || e.keyCode == KeyCode.RIGHT_CONTROL)
          {
             MainScene.isCtrl = true;
+         }
+         if(e.keyCode == KeyCode.LEFT_ALT || e.keyCode == KeyCode.RIGHT_ALT)
+         {
+            MainScene.isAlt = true;
          }
          if(e.keyCode == Keyboard.R || e.keyCode == Keyboard.ENTER)
          {
@@ -6208,7 +6071,7 @@ package
             this._discountTimer.addEventListener(TimerEvent.TIMER,this.updatePremiumDiscountTime);
          }
          this.statusPanel.postRewardData = this._postRewardData;
-         this.statusPanel.btn_premium.discount = timeLeft;
+         this.statusPanel.premiumDiscount = timeLeft;
          this.add_notification(notif);
       }
       
@@ -6216,7 +6079,7 @@ package
       {
          var curTime:int;
          var delta:int;
-         if(this.statusPanel.btn_premium.discount > 0)
+         if(this.statusPanel.premiumDiscount > 0)
          {
             curTime = getTimer();
             delta = Math.round((curTime - this._postRewardData.startTime) / 1000);
@@ -6224,10 +6087,10 @@ package
             if(delta > 0)
             {
                this._postRewardData.startTime = curTime;
-               this.statusPanel.btn_premium.discount -= delta;
+               this.statusPanel.premiumDiscount = Math.max(this.statusPanel.premiumDiscount - delta,0);
             }
          }
-         if(this.statusPanel.btn_premium.discount <= 0)
+         if(this.statusPanel.premiumDiscount <= 0)
          {
             if((this._discountTimer))
             {
@@ -6238,10 +6101,15 @@ package
       
       private function onKeyUpStage(e:KeyboardEvent) : void
       {
+         if(e.keyCode == KeyCode.LEFT_SHIFT) MainScene.isShift = false;
          trace("KEY_DOWN_CODE_STAGE:",name,e.keyCode,e.target,e.currentTarget,e.isDefaultPrevented(),MainScene.isShift,"stage::",stage.focus);
          if(e.keyCode == KeyCode.LEFT_CONTROL || e.keyCode == KeyCode.RIGHT_CONTROL)
          {
             MainScene.isCtrl = false;
+         }
+         if(e.keyCode == KeyCode.LEFT_ALT || e.keyCode == KeyCode.RIGHT_ALT)
+         {
+            MainScene.isAlt = false;
          }
          if(e.keyCode == this._lobbyKeyDown)
          {
@@ -6270,6 +6138,13 @@ package
       {
          trace("root.enable_second_weapon",boolean);
          this.player_profile.enableSecondWeapon(boolean);
+      }
+
+      private function clearDetailKeys(e:Event) : void
+      {
+         MainScene.isShift = false;
+         MainScene.isCtrl = false;
+         MainScene.isAlt = false;
       }
       
       public function allow_use_two_double_handed_weapons(boolean:Boolean) : void
@@ -6322,21 +6197,57 @@ package
          _escapeHandled = false;
       }
       
-      // The game's right-click menu with the one item, at the mouse: a
-      // player of the Rankings window or of a room.
+      // Shared player actions for the Rankings window and both room lists.
       public static function showPlayerInfoMenu(nickname:String, player:uint, how:uint, owner:DisplayObject = null) : void
       {
          if(nickname == null || nickname == "")
          {
             return;
          }
-         SrvContextMenu.show([{
+         var options:Array = [{
             name:LocalizationData.getName("show_player_info_button_hint"),
             click_function:function(e:* = null):void
             {
                askPlayerInfo(nickname,player,how);
             }
-         }],0,0,owner);
+         }];
+         if(nickname != PlayerInfo.nickname)
+         {
+            var friend:Object = FriendsMenu.getFriend(nickname);
+            options.push({
+               name:LocalizationData.getName(friend != null ? "remove_from_friends" : "add_to_friends"),
+               click_function:function():void
+               {
+                  if(friend != null)
+                  {
+                     ExternalInterface.call("remove_friend",uint(friend.id));
+                  }
+                  else
+                  {
+                     ExternalInterface.call("add_friend_name",nickname);
+                  }
+               }
+            });
+            options = options.concat(ChatMute.options(nickname));
+            options.push({
+               name:LocalizationData.getName("send_message"),
+               click_function:function():void
+               {
+                  ExternalInterface.call("start_friend_message",nickname);
+               }
+            });
+            if(PlayerInfo.commander && !PlayerInfo.isSquadFull && !SquadList.isInSquad(nickname))
+            {
+               options.push({
+                  name:LocalizationData.getName("invite_to_squad"),
+                  click_function:function():void
+                  {
+                     ExternalInterface.call("invite_to_squad",nickname);
+                  }
+               });
+            }
+         }
+         SrvContextMenu.show(options,0,0,owner);
       }
       
       private static function askPlayerInfo(nickname:String, player:uint, how:uint) : void
@@ -6448,13 +6359,16 @@ package
       // the chat stays over it (the owner's of 2026-10-19).
       public function layerRoomsWindow(window:DisplayObject) : void
       {
+         survarium.rooms.RoomLayers.belowResults(window,this.victory_screen,this._back_back);
          var panels:Array = [this.squadList,this.questList];
          for(var i:int = 0; i < panels.length; i++)
          {
             var panel:DisplayObject = panels[i] as DisplayObject;
             if(panel != null && panel.parent == this && getChildIndex(panel) > getChildIndex(window))
             {
-               setChildIndex(window,getChildIndex(panel));
+               // Move the persistent side panel back, not the room forward:
+               // a window opened more recently (History, for example) stays above.
+               setChildIndex(panel,getChildIndex(window));
             }
          }
          if(this.chat != null && this.chat.parent == this && getChildIndex(this.chat) < getChildIndex(window))
@@ -6466,7 +6380,7 @@ package
       // A match's results: a player in a room gets the room's window opened
       // first, so the results go over it and closing them shows the room
       // (the owner's of 2026-10-20). Out of a room: nothing. The window is
-      // told the match is over (its chat, where we are now).
+      // told the match is over (its chat).
       private function showRoomUnderResults() : void
       {
          try

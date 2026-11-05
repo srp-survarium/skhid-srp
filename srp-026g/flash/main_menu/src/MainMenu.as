@@ -108,6 +108,25 @@ package
          this.action_select.setData(value,promo);
       }
       
+      // The exe's answer to the Language choice (patch 79, Settings.setLanguage).
+      public function srp_language(... values) : void
+      {
+         this.settings_window.setLanguage(values);
+      }
+      
+      // The exe's answer to a checkbox it keeps in user.cfg (patch 83,
+      // Settings.setCheckOption): its name, label and saved state.
+      public function srp_check_option(... values) : void
+      {
+         this.settings_window.setCheckOption(values);
+      }
+      
+      // The exe's answer with the Settings' HUD group's texts (patch 83, Settings.setHudTexts).
+      public function srp_hud_texts(... values) : void
+      {
+         this.settings_window.setHudTexts(values);
+      }
+      
       public function handle_promo_key_validation(value:Boolean, text:String) : void
       {
          this.action_select.handlePromoKeyValidation(value,text);
