@@ -788,6 +788,29 @@ fn a_game_back_in_step_before_its_disagreement_is_judged_is_not_resynced() {
     bench.assert_no_faults();
 }
 
+/// The worlds of a split are asked for at its first tick, not seconds
+/// later at the resync: the wrong game's and a majority game's, and the
+/// wrong one is saved as "split".
+#[test]
+fn a_games_world_is_asked_for_at_its_first_report_against_the_majority() {
+    let mut bench = Bench::new(3, MAP_BATTERIES, Settings::default());
+    bench.join_all();
+    settle(&mut bench);
+    bench.run(3_000);
+    let right_asked = bench.clients[0].upload_requests + bench.clients[1].upload_requests;
+    let from = bench.clients[2].clock();
+    bench.clients[2].sim.salt_from = Some((from, 7));
+    // Its first wrong report comes a horizon (500 ms) and a way later.
+    assert!(bench.until(1_500, |bench| bench.game().split_world(2).0));
+    assert_eq!(bench.game().resyncs(2), 0);
+    assert!(bench.until(1_000, |bench| !bench.game().split_world(2).1));
+    assert!(bench.clients[0].upload_requests + bench.clients[1].upload_requests > right_asked);
+    // Once a player, however long it is wrong; it is resynced as before.
+    assert!(bench.until(10_000, |bench| bench.game().resyncs(2) == 1));
+    assert_eq!(bench.game().split_world(0), (false, false));
+    assert_eq!(bench.game().split_world(1), (false, false));
+}
+
 /// A game wrong from its first reports after the world it was resynced
 /// with is resynced again at once, not after the 15 s between resyncs; a
 /// third such world in a row waits them out (no world helps that game).
