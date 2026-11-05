@@ -3650,6 +3650,45 @@ medical_skills_on_landing_stepped_replay:
     db 0x5f, 0x5e, 0x5d, 0x5b, 0x83, 0xc4, 0x08
     jmp 0x1f3bc2
 
+; 0x32a53f body_part::regenerate where both paths of its regeneration-modifier loop join (mov ebp,[esp+24h] / test eax,eax): EDI the pool, EAX the delay (ms) the rest reads (its local copy ESP+14h is not read again), frame ESP+10h rate, +18h limit: lohook -> medical_skills_on_regenerate
+global medical_skills_on_regenerate
+extern hook_medical_skills_on_regenerate
+medical_skills_on_regenerate:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_medical_skills_on_regenerate
+    mov edx, medical_skills_on_regenerate_replay
+    cmp eax, 0
+    je medical_skills_on_regenerate_go
+    mov edx, 0x32a545
+    cmp eax, 1
+    je medical_skills_on_regenerate_go
+    ud2
+medical_skills_on_regenerate_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+medical_skills_on_regenerate_replay:
+    db 0x8b, 0x6c, 0x24, 0x24, 0x85, 0xc0
+    jmp 0x32a545
+
 ; 0x1ec8ec game::tick after its pending call is cleared (lea esi,[ebx+5308h]): every frame, on the game's thread, EBX the game: lohook -> music_on_frame
 global music_on_frame
 extern hook_music_on_frame

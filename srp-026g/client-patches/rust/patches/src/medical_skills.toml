@@ -118,3 +118,7 @@ handler = "on_landing_step"
 [[hook]]
 site = "player.landing_stepped"
 handler = "on_landing_stepped"
+
+[[hook]]
+site = "medical.regenerate"
+handler = "on_regenerate"

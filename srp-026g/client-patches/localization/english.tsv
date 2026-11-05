@@ -1266,6 +1266,7 @@ st_inv_additional_ammo_bags	Ammo bags
 st_inv_ano_armor	Isolation
 st_inv_armor	Armor
 st_inv_arp	Armor penetration
+st_inv_artefact_recharge	Artifact recharge time
 st_inv_artefact_slots	Artifact container
 st_inv_buckshot	Buckshot
 st_inv_clip_size	Bullets in pack
@@ -1777,7 +1778,7 @@ st_ranking	Ranking
 st_ranking_diff	Difference
 st_rattle_activation_hint	Rattle is activated! Your footsteps cannot be heard by your enemy.
 st_rattle_pickup_hint	Rattle artifact. Hushes the sound of steps by 50%.
-st_rdgm_descr	ОПИСАНИЕ НЕ ГОТОВО!!!
+st_rdgm_descr	Hand smoke grenade. Lays a thick screen that hides movement.
 st_rdgm_name	Smoke grenade RDG-M
 st_reach_level	reached <green>Level</green>
 st_ready	Ready
@@ -1785,6 +1786,8 @@ st_refill_ammo_btn	Apply
 st_refill_ammo_label	Ammo
 st_regen_booster_description	Old army rations. Successfully used by the armies of the CIS countries in the pre-crisis period. Increases metabolism while still being quite tasty.
 st_regen_booster_name	Rations
+st_regen_delay_name	Regeneration delay
+st_regen_limit_name	Regeneration limit
 st_registration_str	Create account
 st_regular_fix	Repair
 st_regular_money	Silver
@@ -2469,8 +2472,14 @@ st_srp_hud_unmute	Unmute chat
 st_srp_hud_unmuted	Chat unmuted
 st_srp_inv_ammo_range	Range
 st_srp_inv_bullet_speed	Bullet speed
+st_srp_inv_defuse_time	Defuse time
+st_srp_inv_fuse_time	Fuse time
 st_srp_inv_pellets	Pellets
+st_srp_inv_pocket_units	Pocket slots
+st_srp_inv_stamina_damage	Stamina damage
+st_srp_inv_throw_speed	Throw speed
 st_srp_inventory_search	Search
+st_srp_item_props_mps	m/s
 st_srp_language_option	Language:
 st_srp_language_restart	Applies after restart.
 st_srp_loadout_block_ammo	Too little ammo for a weapon

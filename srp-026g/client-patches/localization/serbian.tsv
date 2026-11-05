@@ -1266,6 +1266,7 @@ st_inv_additional_ammo_bags	Torbice za municiju
 st_inv_ano_armor	Izolacija
 st_inv_armor	Oklop
 st_inv_arp	Probojnost oklopa
+st_inv_artefact_recharge	Vreme punjenja artefakata
 st_inv_artefact_slots	Kontejner za artefakte
 st_inv_buckshot	Sačma
 st_inv_clip_size	Metaka u paketu
@@ -1777,7 +1778,7 @@ st_ranking	Rang-lista
 st_ranking_diff	Razlika
 st_rattle_activation_hint	Zvečka je aktivirana! Neprijatelj ne može da čuje vaše korake.
 st_rattle_pickup_hint	Artefakt Zvečka. Utišava korake za 50%.
-st_rdgm_descr	Opis još nije dostupan.
+st_rdgm_descr	Ručna dimna granata. Postavlja gustu zavesu koja skriva kretanje.
 st_rdgm_name	Dimna granata RDG-M
 st_reach_level	je dostigao <green>nivo</green>
 st_ready	Spreman
@@ -1785,6 +1786,8 @@ st_refill_ammo_btn	Primeni
 st_refill_ammo_label	Municija
 st_regen_booster_description	Stari vojni obroci, korišćeni u zemljama ZND-a pre krize. Ubrzavaju metabolizam i još uvek su ukusni.
 st_regen_booster_name	Vojni obrok
+st_regen_delay_name	Kašnjenje regeneracije
+st_regen_limit_name	Granica regeneracije
 st_registration_str	Napravi nalog
 st_regular_fix	Popravka
 st_regular_money	Srebro
@@ -2469,8 +2472,14 @@ st_srp_hud_unmute	Uključi čet
 st_srp_hud_unmuted	Čet uključen
 st_srp_inv_ammo_range	Domet
 st_srp_inv_bullet_speed	Brzina metka
+st_srp_inv_defuse_time	Vreme deaktiviranja
+st_srp_inv_fuse_time	Vreme upaljača
 st_srp_inv_pellets	Sačme
+st_srp_inv_pocket_units	Mesta u džepu
+st_srp_inv_stamina_damage	Šteta izdržljivosti
+st_srp_inv_throw_speed	Brzina bacanja
 st_srp_inventory_search	Pretraga
+st_srp_item_props_mps	m/s
 st_srp_language_option	Jezik:
 st_srp_language_restart	Primenjuje se posle ponovnog pokretanja.
 st_srp_loadout_block_ammo	Premalo municije za oružje
