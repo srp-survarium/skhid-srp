@@ -327,7 +327,7 @@ for table in (weapons, armour):
 # that share one `armor`, in its order; named as retail names materials where
 # they fit. The armour is the game's; a group whose materials differ stops the build.
 WALL_GROUPS = (
-    ("Glass, foliage", "Скло, листя", ("glass", "glass_car", "foliage_deciduous", "foliage_coniferous", "cloth", "plastic", "paper")),
+    ("Glass", "Скло", ("glass", "glass_car", "foliage_deciduous", "foliage_coniferous", "cloth", "plastic", "paper")),
     ("Car", "Автомобіль", ("metal_car", "metal_gas_tank")),
     ("Plywood", "Фанера", ("wood_thin", "glass_hard", "rubber")),
     ("Tinplate", "Бляха", ("metall_thin", "schiefer")),
