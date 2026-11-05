@@ -1300,8 +1300,8 @@ pub(super) mod tests {
         assert!(stalled.y < 0.05, "Leap: held at the face, at {stalled:?}");
         let (node, over) = walk(Bridges::Walked);
         assert!((grid.position(node).y - 0.75).abs() < 0.05 && over.x > 5.25, "Walked: on the top, at {over:?}");
-        assert_eq!(Bridges::of(&Kinematics::default()), Bridges::Leap, "OFF by default");
-        assert_eq!(Bridges::of(&Kinematics { walk_bridges: true, ..Kinematics::default() }), Bridges::Walked);
+        assert_eq!(Bridges::of(&Kinematics::default()), Bridges::Walked, "ON by default");
+        assert_eq!(Bridges::of(&Kinematics { walk_bridges: false, ..Kinematics::default() }), Bridges::Leap);
     }
 
     /// [A313] A 1.0 m riser is over the client's step (0.80): the pass makes no walk-off bridge up it, so a body walked into it with
