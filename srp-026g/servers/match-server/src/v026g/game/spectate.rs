@@ -151,9 +151,9 @@ impl Game {
         addr: SocketAddr,
         session_id: u32,
         mut transport: Transport,
-    ) -> Result<(), Transport> {
+    ) -> Result<(), Box<Transport>> {
         if self.finished_at.is_some() || !self.growing_roster() {
-            return Err(transport);
+            return Err(Box::new(transport));
         }
         // One game a session, one session an address.
         self.spectators

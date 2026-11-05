@@ -475,14 +475,15 @@ impl Server {
         let growing = survarium::v026g::match_msgs::late_join::has_connect_capability(debug);
         let watched = match self.games.get_mut(&ticket) {
             Some(game) if growing => game.watch(addr, session_id, transport),
-            _ => Err(transport),
+            _ => Err(Box::new(transport)),
         };
         match watched {
             Ok(()) => {
                 self.spectator_routes.insert(addr, ticket);
                 self.store.seen_in_match(session_id);
             }
-            Err(mut transport) => {
+            Err(transport) => {
+                let mut transport = *transport;
                 log::info!(
                     "{addr} connected to watch match {ticket:#x} (session {session_id:#x}), \
                      which is not played here in its dialect, or is over; turned away"
