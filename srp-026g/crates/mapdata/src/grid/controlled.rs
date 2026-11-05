@@ -32,6 +32,7 @@ const AT_HEIGHT_M: f32 = 0.2;
 pub struct ControlledStats {
     pub bridges_tried: usize,
     pub bridges_walked: usize,
+    pub bridges_added: usize,
     pub checks: usize,
     pub checks_dropped: usize,
 }
@@ -122,6 +123,38 @@ impl WalkGrid {
                 stats.bridges_walked += 1;
             }
         }
+        // Bridges with no link yet: two cells on, a floor within a step, the cell between with no floor near that height (a
+        // crack no face covers, a cell holding only a riser), walked by the controller: a walked off-mesh link.
+        wide.off.sort_by_key(|l| (l.from, l.to));
+        let mut new: Vec<(u32, u32)> = Vec::new();
+        for a in 0..self.height.len() {
+            let (i, k) = self.cell_xz(self.cell_of[a] as usize);
+            let ha = self.height[a];
+            for (d, &(di, dk)) in DIRS.iter().enumerate() {
+                if wide.links[a][d] != NONE {
+                    continue;
+                }
+                let (Some(c2), Some(c3)) = (self.cell_index(i + di, k + dk), self.cell_index(i + 2 * di, k + 2 * dk)) else { continue };
+                if (self.start[c2]..self.start[c2 + 1]).any(|m| (self.height[m as usize] - ha).abs() <= body.step) {
+                    continue;
+                }
+                for b in self.start[c3]..self.start[c3 + 1] {
+                    if (self.height[b as usize] - ha).abs() <= body.step && wide.off.binary_search_by_key(&(a as u32, b), |l| (l.from, l.to)).is_err() {
+                        new.push((a as u32, b));
+                    }
+                }
+            }
+        }
+        stats.bridges_tried += new.len();
+        let walked = parallel(&new, |&(a, b)| walk_share(&world, self.position(a), self.position(b)).1);
+        for (&(a, b), ok) in new.iter().zip(walked) {
+            if ok {
+                wide.off.push(OffLink { from: a, to: b, kind: LinkKind::GapJump, press: Takeoff::WalkOff });
+                stats.bridges_walked += 1;
+                stats.bridges_added += 1;
+            }
+        }
+        wide.off.sort_by_key(|l| (l.from, l.to));
         // Checks: the floors with a face no body walks on near their capsule.
         let n = self.height.len();
         let floors: Vec<usize> = (0..n).collect();
