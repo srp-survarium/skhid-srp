@@ -544,11 +544,12 @@ Patches:
   sweeps a sphere of 0.04 m (GRENADE_CCD, 0x303A13), not 0.01 m, inside the
   grenade's 0.05 m capsule, so the capsule stops at the surface it hits
   instead of 4 cm into it. A simulation change;
-- the mouse look's pitch is a 4:3 window's at every window (patch 110, with
-  the late join; docs/notes/mouse-pitch.md): on_mouse_move's height over
-  width (MOUSE_PITCH, 0x2402E9) is the 0.75 of .rdata, so the pitch's step
-  to the yaw's is the same at 16:9 and 21:9 as at 4:3; the death camera's
-  (patch 46) too. The input carries the turn: nothing a match computes;
+- the mouse look's pitch is a 4:3 window's at every window, with an
+  option "Separate vertical sensitivity" (patch 110, the Rust patch
+  mouse_pitch; docs/notes/mouse-pitch.md): on_mouse_move's height over
+  width (0x2402E9) is the 0.75 of .rdata, and its sensitivity the vertical
+  slider's when the option is on; the death camera's (patch 46) too. The
+  input carries the turn: nothing a match computes;
 - the baked camouflage and decal textures are kept from game to game, and
   a texture asked for again while its bake or load is under way is made
   once (patch 70, with the late join; docs/notes/baked-textures.md).
@@ -1171,6 +1172,13 @@ DEATH_CAMERA_EXITS = (WARMUP_LOOK_VA, WARMUP_LIMITS_VA + WARMUP_DRAG_END_OFFSET,
 DEATH_CAMERA_EXITS_EXPECTED = sorted([(0xE9, WARMUP_LOOK_VA), (0xE9, WARMUP_LOOK_VA),
                                       (0xE8, WARMUP_LIMITS_VA + WARMUP_DRAG_END_OFFSET),
                                       (0xE9, DEATH_UPDATE_VA), (0xE9, DEATH_THIRD_VA)])
+# The drag's pitch sensitivity (patch 110): a dword of the code (zeros in the
+# file) the build writes with patch 110's entry mouse.death_pitch, which
+# `.turn` calls with XMM1 the option sensitivity and which gives the pitch's
+# (the option's, or "Vertical sensitivity"); without the arena the call is
+# skipped, the option's kept.
+DEATH_CAMERA_PITCH = 0x178
+DEATH_PITCH_ENTRY = "mouse_pitch_on_death_pitch"   # the generated entry of mouse.death_pitch
 
 # The order of the archive reads (patch 33, README; client_patch.md section
 # 3.31). vostok::resources::hdd_manager_sorting_predicate::operator()
@@ -1506,23 +1514,13 @@ MOUSE_BUTTONS = (
     (0x28DCEE, bytes.fromhex("750e"), bytes.fromhex("7520")),   # -> 0x28DD10 mov al,1 / pop ecx
 )
 
-# The mouse look's pitch at every window (patch 110, client_patch.md section
-# 3.69, ../docs/notes/mouse-pitch.md). player_input_handler::on_mouse_move
-# (0x240200) turns the yaw by x * pi/180 * s radians (s = the handler's
-# +94h x the option sensitivity 0xA74AEC x 0.1) and the look pitch by
-# y * pi/180 * s * h/w * 3/pi (0xA2DAC4) units, h/w the render window's
-# height over its width (0x2402B0..0x2402ED: vtable+1Ch of game+5348h, as
-# floats); a unit is 60 degrees of view up and 67.5 down (the look clip,
-# abi.tsv 0x2FBF90). So the pitch turned 0.75 of the yaw (up) at 4:3,
-# 0.5625 at 16:9, 0.42 at 21:9. `movss xmm1,[edi]` / `divss xmm1,[eax]`
-# (h, then / w) becomes `movss xmm1,[0A2D728h]`, the 0.75 of .rdata
-# (read-only, twelve readers): every window turns as a 4:3 one did, bit for
-# bit. The two size calls stay (getters; their result is not read). Neither
-# replaced instruction held an address; the new one's has no base
-# relocation (the exe is never rebased: no DYNAMICBASE). The warmup's look
-# (patch 31) goes through the same lines. Nothing a match computes: the
-# input carries the turn, not the mouse's counts.
-MOUSE_PITCH = (0x2402E9, bytes.fromhex("f30f100f" "f30f5e08"), bytes.fromhex("f30f100d28d7a200"))
+# The mouse look's pitch (patch 110, client_patch.md section 3.69,
+# ../docs/notes/mouse-pitch.md): the Rust patch mouse_pitch
+# (rust/patches/src/mouse_pitch.rs), a lohook at on_mouse_move's pitch step
+# (mouse.pitch_step, 0x2402E9) that makes the window's h / w a 4:3 window's
+# 0.75 and takes "Separate vertical sensitivity", and an entry patch 46's
+# drag calls through its DEATH_CAMERA_PITCH dword. The 0.75 is .rdata's
+# (read-only, twelve readers), which the death camera loads too.
 MOUSE_PITCH_ASPECT = 0xA2D728                 # the 0.75 of .rdata: a 4:3 window's height over its width
 
 # "Watch replay" (patch revision 14, client_patch.md section 3.27). The
@@ -3503,8 +3501,6 @@ def build_image(original, mode, code=None, server=None, late_join=None, revision
         for site in MOUSE_BUTTONS:
             patch(data, *site)
             sites.append((site[0], site[0] + len(site[1])))
-        patch(data, *MOUSE_PITCH)
-        sites.append((MOUSE_PITCH[0], MOUSE_PITCH[0] + len(MOUSE_PITCH[1])))
         for site in ARTEFACTS_SIZES:
             patch(data, *site)
             sites.append((site[0], site[0] + len(site[1])))
@@ -3898,7 +3894,8 @@ def build_image(original, mode, code=None, server=None, late_join=None, revision
         data = add_section(data, cave)
         if late_join is not None:
             add_state_section(data, late_join_state_va(late_join))
-            data = add_code_section(data, DEATH_CAMERA_NAME, death_camera_va(late_join), death_camera,
+            data = add_code_section(data, DEATH_CAMERA_NAME, death_camera_va(late_join),
+                                    with_death_pitch(death_camera, linked),
                                     DEATH_CAMERA_CHARACTERISTICS)
             data = add_code_section(data, WEAPON_CAMO_NAME, weapon_camo_va(late_join), weapon_camo,
                                     WEAPON_CAMO_CHARACTERISTICS)
@@ -4158,6 +4155,18 @@ def weapon_decals_bin():
 
 def upgrade_preview_bin():
     return os.path.join(os.path.dirname(os.path.abspath(__file__)), "upgrade_preview_026g.section.bin")
+
+
+def with_death_pitch(code, linked):
+    """death_camera_026g.section.bin (`code`) with its pitch_entry dword
+    (DEATH_CAMERA_PITCH, zeros in the file) holding patch 110's entry of the
+    arena `linked`; as it is without one."""
+    if code[DEATH_CAMERA_PITCH:DEATH_CAMERA_PITCH + 4] != bytes(4):
+        sys.exit("death_camera_026g.section.bin: its pitch_entry dword is not the zeros the build fills")
+    if linked is None or DEATH_PITCH_ENTRY not in linked.symbols:
+        return code
+    target = struct.pack("<I", arena_target(linked, DEATH_PITCH_ENTRY))
+    return code[:DEATH_CAMERA_PITCH] + target + code[DEATH_CAMERA_PITCH + 4:]
 
 
 def with_kit_apply(code, linked):

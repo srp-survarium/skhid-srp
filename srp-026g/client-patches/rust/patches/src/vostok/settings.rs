@@ -160,6 +160,13 @@ impl ConsoleFloat {
         // SAFETY: on the game's thread, the value's only user while it runs.
         unsafe { (*self.storage.get()).value }
     }
+
+    /// A value within the range (the caller's type keeps it there), as the
+    /// console's setter would store it.
+    pub fn set(&self, _: &Thread, value: f32) {
+        // SAFETY: as get.
+        unsafe { (*self.storage.get()).value = value }
+    }
 }
 
 /// The Settings' call to the exe at `options.callback`: the movie's

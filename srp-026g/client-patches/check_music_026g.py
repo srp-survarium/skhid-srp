@@ -343,14 +343,16 @@ def main():
     name = game.put_text("s_music_volume")
     node = game.call(FIND, {UC_X86_REG_ESI: name})[UC_X86_REG_EAX]
     music_value = game.read(node + 0x40) if node else 0
-    check(node and game.read(LIST_HEAD) == node and game.read(node) == CC_FLOAT_VTABLE
+    registered = game.read(LIST_HEAD)                 # the chain's newest (patch 110's registers after this one)
+    check(node and game.read(node) == CC_FLOAT_VTABLE
           and game.text(game.read(node + 0x10)) == "s_music_volume" and game.read(node + 0x14) == 2
           and game.read(node + 0x1C, 2)[1] == 1 and (game.float(node + 0x44), game.float(node + 0x48)) == (0.0, 100.0)
           and game.float(music_value) == 100.0 and head != node,
-          "configs.start: s_music_volume registered last of the chain, found by the console's lookup (0xEB7C0, the "
+          "configs.start: s_music_volume registered in the chain, found by the console's lookup (0xEB7C0, the "
           "Settings' Music option's): a cc_float, saved (user.cfg), kind 2, 0 to 100, 100 at first")
     run("configs")
-    check(game.read(LIST_HEAD) == node, "configs.start again: registered once")
+    check(game.read(LIST_HEAD) == registered and game.call(FIND, {UC_X86_REG_ESI: name})[UC_X86_REG_EAX] == node,
+          "configs.start again: registered once")
 
     def slider(text):
         game.call(SET_FLOAT, {UC_X86_REG_ECX: node}, (game.put_text(text),))

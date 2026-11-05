@@ -53,6 +53,7 @@ GAME, CLIENT, LOCAL = kc.CLIENTS + 0x100000, kc.CLIENTS + 0x200000, kc.CLIENTS +
 RENDER, RVT = kc.CLIENTS + 0x380000, kc.CLIENTS + 0x381000
 WINDOW_SIZE = kc.STUB + 0x200
 SENSITIVITY, INVERT = 0xA74AEC, 0x1F1D9D3
+CONFIGS_START, CONFIGS_END, LIST_HEAD = 0x1EA210, 0x1EA216, 0x1F1D66C   # on_configs_loaded's start; the console's list
 W, H = 1920.0, 1080.0
 # The limits of the turn, relative to the head: 70 degrees to either side,
 # 60 up, 40 down (death_camera_026g.asm).
@@ -83,8 +84,10 @@ def map_state(emu, state):
 class Look(kc.Look):
     """kc.Look with a game, its network client and local player."""
 
-    def __init__(self, data, kits=1, mode=0, cursor=1, alive=0, local=True, invert=0, sensitivity=1.0):
+    def __init__(self, data, kits=1, mode=0, cursor=1, alive=0, local=True, invert=0, sensitivity=1.0, vertical=None):
         super().__init__(data, kits, mode, cursor)
+        if vertical is not None:
+            self.split(vertical)
         self.state = state_va(data)
         map_state(self.emu, self.state)
         self.word(kc.LOOK_WORLD + 0x9C, GAME)
@@ -108,15 +111,34 @@ class Look(kc.Look):
         else:
             super().stub(emu, address, size, user)
 
+    def split(self, vertical):
+        """Patch 110's "Separate vertical sensitivity" on at `vertical`: its two
+        console variables registered (on_configs_loaded's start, 0x1EA210 to
+        0x1EA216) and set where the console keeps them."""
+        emu = self.emu
+        emu.reg_write(UC_X86_REG_ESP, kc.STACK - 0x2000)
+        emu.emu_start(CONFIGS_START, CONFIGS_END, count=200000)
+        assert emu.reg_read(UC_X86_REG_EIP) == CONFIGS_END
+        node, found = self.read(LIST_HEAD), {}
+        while node:
+            name = bytes(emu.mem_read(self.read(node + 0x10), 32)).split(b"\0")[0]
+            found[name] = self.read(node + 0x40)
+            node = self.read(node + 0x0C)
+        if b"srp_mouse_split" in found:            # the original has neither
+            self.byte(found[b"srp_mouse_split"], 1)
+            emu.mem_write(found[b"srp_mouse_vertical"], struct.pack("<f", vertical))
+
     def turn(self):
         return struct.unpack("<ff", self.emu.mem_read(self.state, 8))
 
 
-def expected_turn(turn, x, y, invert=0, sensitivity=1.0):
-    """The build's step, as float32 at each operation."""
+def expected_turn(turn, x, y, invert=0, sensitivity=1.0, vertical=None):
+    """The build's step, as float32 at each operation: the pitch's
+    sensitivity the option's, or patch 110's vertical one when it is on."""
     yaw, pitch = turn
     k = f32(f32(sensitivity) * f32(math.pi / 180 * 0.1))
-    v = f32(f32(0.75) * k)                    # a 4:3 window's height over its width (patch 110)
+    kp = k if vertical is None else f32(f32(vertical) * f32(math.pi / 180 * 0.1))
+    v = f32(kp * f32(0.75))                   # a 4:3 window's height over its width (patch 110)
     v = f32(v * f32(0.95492965))
     if invert:
         v = -v
@@ -171,6 +193,11 @@ def look_cases():
     yield "the death screen: an inverted mouse", dict(dead, invert=1), [
         (RIGHT, 7, -9, 0, cursor(307, 191), away, True),
         (RIGHT, -2, 30, 0, cursor(305, 221), [], True)]
+    yield "the death screen: a separate vertical sensitivity (patch 110)", dict(dead, sensitivity=0.5, vertical=2.35), [
+        (RIGHT, 12, 6, 0, cursor(312, 206), away, True),
+        (RIGHT, -3, -40, 0, cursor(309, 166), [], True)]
+    yield "the death screen: a separate vertical sensitivity at the option's", dict(dead, sensitivity=0.5, vertical=0.5), [
+        (RIGHT, 12, 6, 0, cursor(312, 206), away, True)]
     yield "the death screen: a slow mouse", dict(dead, sensitivity=0.25), [
         (RIGHT, 12, 6, 0, cursor(312, 206), away, True)]
     yield "the death screen: the pitch's limit", dead, [
@@ -210,7 +237,8 @@ def check_look(data, patched):
             calls = look.move(buttons, x, y, z)
             assert calls == (build if patched else original), (patched, name, i, calls)
             if patched and turns:
-                turn = expected_turn(turn, x, y, keywords.get("invert", 0), keywords.get("sensitivity", 1.0))
+                turn = expected_turn(turn, x, y, keywords.get("invert", 0), keywords.get("sensitivity", 1.0),
+                                     keywords.get("vertical"))
             got = look.turn()
             assert [bits(v) for v in got] == [bits(v) for v in turn], (patched, name, i, got, turn)
             checks += 1

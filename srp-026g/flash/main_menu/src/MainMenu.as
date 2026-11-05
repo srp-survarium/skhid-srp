@@ -121,6 +121,13 @@ package
          this.settings_window.setCheckOption(values);
       }
       
+      // The exe's answer to a slider it keeps in user.cfg (patch 110, Settings.setSliderOption):
+      // its name, label and saved hundredths.
+      public function srp_slider_option(... values) : void
+      {
+         this.settings_window.setSliderOption(values);
+      }
+      
       // The exe's answer with the Settings' HUD group's texts (patch 83, Settings.setHudTexts).
       public function srp_hud_texts(... values) : void
       {

@@ -337,6 +337,15 @@ impl PlayerInputHandler {
     pub unsafe fn actions(self) -> *mut u32 {
         unsafe { self.0.byte_add(0x33c).cast::<u32>().as_ptr() }
     }
+
+    /// +0x94 (f32): the look's factor of the aimed weapon's zoom, on both axes (on_mouse_move 0x24025A, 0x24026C: x the option sensitivity x 0.1 is the yaw's step s)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn fov_factor(self) -> *mut f32 {
+        unsafe { self.0.byte_add(0x94).cast::<f32>().as_ptr() }
+    }
 }
 
 /// A survarium::game_world (fields_026g.tsv): a pointer to one, never 0. Made only here: by a typed field,
@@ -13008,6 +13017,48 @@ impl MessageFrame {
     }
 }
 
+/// A survarium::mouse_move_frame (fields_026g.tsv): a pointer to one, never 0. Made only here: by a typed field,
+/// a function's typed result or a site's typed register (sites_026g.tsv `holds`).
+#[repr(transparent)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct MouseMoveFrame(NonNull<c_void>);
+
+#[allow(dead_code)]
+impl MouseMoveFrame {
+    /// Its address as a value (an id, a compare): never read through.
+    #[inline(always)]
+    pub fn address(self) -> u32 {
+        self.0.as_ptr() as usize as u32
+    }
+
+    /// +0x18 (ptr<survarium::player_input_handler>): on_mouse_move's local [esp+18h] (0x24021C): the handler (by the site's ESP at mouse.pitch_step, the window-size calls popped)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn handler(self) -> Option<PlayerInputHandler> {
+        unsafe { self.0.byte_add(0x18).cast::<Option<PlayerInputHandler>>().read_volatile() }
+    }
+
+    /// +0x18 (ptr<survarium::player_input_handler>): on_mouse_move's local [esp+18h] (0x24021C): the handler (by the site's ESP at mouse.pitch_step, the window-size calls popped)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn set_handler(self, value: Option<PlayerInputHandler>) {
+        unsafe { self.0.byte_add(0x18).cast::<Option<PlayerInputHandler>>().write_volatile(value) }
+    }
+
+    /// +0x28 (f32): its local [esp+28h] (0x240289): the yaw's step s, the handler's +94h x the option sensitivity 0xA74AEC x 0.1
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn horizontal(self) -> *mut f32 {
+        unsafe { self.0.byte_add(0x28).cast::<f32>().as_ptr() }
+    }
+}
+
 /// A vostok::physics::bullet_physics_world (fields_026g.tsv): a pointer to one, never 0. Made only here: by a typed field,
 /// a function's typed result or a site's typed register (sites_026g.tsv `holds`).
 #[repr(transparent)]
@@ -15872,6 +15923,21 @@ pub mod site {
         #[inline(always)]
         pub unsafe fn frame(machine: &impl Machine) -> Option<MessageFrame> {
             NonNull::new(machine.site_esp() as usize as *mut c_void).map(MessageFrame)
+        }
+    }
+
+    /// mouse.pitch_step (0x2402e9): on_mouse_move's pitch step (patch 110), after the window's two size calls: movss xmm1,[edi] / divss xmm1,[eax] (h / w) / movss xmm2,[esp+28h] (the yaw's step s) / mulss xmm1,xmm2; 0x2402FB multiplies xmm1 by the invert and 3/pi, 0x240309 the journal's path joins; XMM1 the pitch's step before them, XMM2 s for the yaw (0x240349)
+    pub mod mouse_pitch_step {
+        #[allow(unused_imports)]
+        use super::*;
+
+        /// the site's ESP: a survarium::mouse_move_frame (None for 0).
+        ///
+        /// # Safety
+        /// `machine` is at this site.
+        #[inline(always)]
+        pub unsafe fn frame(machine: &impl Machine) -> Option<MouseMoveFrame> {
+            NonNull::new(machine.site_esp() as usize as *mut c_void).map(MouseMoveFrame)
         }
     }
 }

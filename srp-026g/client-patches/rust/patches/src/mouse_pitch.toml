@@ -1,0 +1,25 @@
+# Patch 110: the mouse look's pitch (docs/notes/mouse-pitch.md): a 4:3
+# window's h / w at every window, and "Separate vertical sensitivity" kept in
+# user.cfg. Only the decisions: which sites, and the handlers; the logic is
+# mouse_pitch.rs. configs.start after patches 79, 83, 81 and 88 (orders 1 to
+# 4), options.callback after patches 79 and 83 (1, 2).
+name = "mouse_pitch"
+patch = 110
+
+[[hook]]
+site = "configs.start"
+handler = "on_configs"
+order = 5
+
+[[hook]]
+site = "options.callback"
+handler = "on_options_call"
+order = 3
+
+[[hook]]
+site = "mouse.pitch_step"
+handler = "on_pitch_step"
+
+[[hook]]
+site = "mouse.death_pitch"
+handler = "on_death_pitch"

@@ -147,10 +147,15 @@ death_look:
     mov eax, [ecx]
     call [eax+0x30]                 ; the hud's pointer off the screen
 .turn:
-    movss xmm1, [FOUR_THREE]        ; a 4:3 window's height over its width, as the look's (patch 110)
     movss xmm0, [SENSITIVITY]       ; a unit's turn, as the player's look (0x24026C..0x240353)
     mulss xmm0, [step]
-    mulss xmm1, xmm0
+    movss xmm1, [SENSITIVITY]       ; the pitch's sensitivity: patch 110's (its entry, when the build
+    cmp dword [pitch_entry], 0      ; wrote it: the option's or "Vertical sensitivity")
+    je .pitched
+    call [pitch_entry]
+.pitched:
+    mulss xmm1, [step]
+    mulss xmm1, [FOUR_THREE]        ; a 4:3 window's height over its width, as the look's (patch 110)
     mulss xmm1, [aspect]
     cmp byte [INVERT], 0
     je .upright
@@ -168,7 +173,7 @@ death_look:
     mov eax, [edi+8]
     test eax, eax
     jz .taken
-    cvtsi2ss xmm2, eax              ; pitch -= y * step * 0.75 * 0.955 (inverted: +)
+    cvtsi2ss xmm2, eax              ; pitch -= y * the pitch's step * 0.75 * 0.955 (inverted: +)
     mulss xmm2, xmm1
     movss xmm3, [STATE+S_PITCH]
     subss xmm3, xmm2
@@ -191,6 +196,7 @@ death_look:
     jmp LOOK                        ; on to warmup_look and the original: the cursor's
 
 align 4, db 0xcc
+pitch_entry: dd 0                   ; patch 110's mouse_pitch_on_death_pitch (DEATH_CAMERA_PITCH: the build writes it)
 step:   dd 0.0017453292             ; pi / 180 * 0.1 (0x2402F1: 1/180, pi, 0.1)
 aspect: dd 0.95492965               ; 0xA2DAC4
 yaw_max:    dd 1.2217305            ; 70 degrees to either side of the face

@@ -112,6 +112,34 @@ package
                     settings.settings_content._setter_static_minimap_position.open();
                 }
                 if (frames == 230) trace("SETTINGS SHOT minimap");
+                if (frames == 240)
+                {
+                    settings.settings_content._setter_static_minimap_position.close();
+                    click(settings.btn_cancel);              // the screenshot's toggle dropped
+                    var domain:ApplicationDomain = loader.contentLoaderInfo.applicationDomain;
+                    var texts:Array = JSON.parse(loaderInfo.parameters.texts) as Array;
+                    // the controls tab, after the gameplay tab's screenshots (its stock stepper takes a
+                    // value of its own at a later visit, which a test player's tab bar cannot avoid)
+                    try
+                    {
+                        checkControls(Object(loader.content), settings, texts, domain);
+                        trace("SETTINGS controls pass");
+                    }
+                    catch (error:Error)
+                    {
+                        trace("SETTINGS RESULT fail: " + error.message);
+                    }
+                    controls(Object(loader.content), settings, domain, 1.25);
+                    Object(loader.content).srp_check_option("srp_mouse_split", texts[0][14], "0");
+                    Object(loader.content).srp_slider_option("srp_mouse_vertical", texts[0][15], "100");
+                }
+                if (frames == 270) trace("SETTINGS SHOT controls-off");
+                if (frames == 280)
+                {
+                    settings.settings_content.getChildByName("_srp_mouse_split").selected = true;
+                    settings.settings_content.getChildByName("_srp_mouse_vertical").slider.value = 2.35;
+                }
+                if (frames == 310) trace("SETTINGS SHOT controls-on");
             });
         }
 
@@ -125,6 +153,12 @@ package
                 return [item.y, item.y + Math.max(item.textField.y + item.textField.textHeight + 4, 26)];
             var bounds:Rectangle = item.getBounds(item.parent);
             return [bounds.top, bounds.bottom];
+        }
+
+        // Equal slider values (a slider keeps n x its snap, not the decimal).
+        private static function close(a:Number, b:Number):Boolean
+        {
+            return Math.abs(a - b) < 1e-6;
         }
 
         // Equal places (x and y are kept in twips, 1/20 px).
@@ -532,6 +566,7 @@ package
             checkLayout(content, boxes, texts, stockOf(content), "after a tab change");
             trace("SETTINGS tabs pass");
 
+
             var fontName:String = boxes[0].textField.getTextFormat().font;
             var font:Font = null;
             for each (var fontClass:String in ["CalibriBold", "FontTB", "Calibri", "FontT"])
@@ -559,6 +594,166 @@ package
             }
             require(missing == "", fontName + " lacks " + missing);
             trace("SETTINGS " + fontName + " has the glyphs of every dictionary's texts");
+        }
+
+        // The controls tab as the exe gives it: Invert mouse, Mouse sensitivity (its range), the
+        // default button and the three key lists (their rows as applyKeys sizes them).
+        private function controls(root:*, settings:*, domain:ApplicationDomain, sensitivity:Number):void
+        {
+            var c:* = settings.settings_content;
+            var given:Array = [];
+            frame2(settings);
+            root.set_settings(1, [{label: "Invert mouse", setter: setterOf(0, given)},
+                {label: "Mouse sensitivity", setter: setterOf(1, given), dataProvider: {minimum: 0.01, maximum: 10, snapInterval: 0.01}},
+                {label: "Default settings", setter: setterOf(2, given)}, {label: ""}, {label: ""}, {label: ""}]);
+            root.set_values(1, [{id: 0, value: 0}, {id: 1, value: sensitivity}]);
+            keys(settings, domain);
+        }
+
+        // The controls frame (the tab bar's change calls the exe first, which a test player lacks).
+        private function frame2(settings:*):void
+        {
+            try
+            {
+                settings.tabs.selectedIndex = 1;
+            }
+            catch (error:Error)
+            {
+            }
+            if (settings.settings_content.currentFrame != 2) settings.settings_content.gotoAndStop(2);
+        }
+
+        // The key lists filled after the tab's bind, as applyKeys fills them: 5 lobby keys, 3 chat keys,
+        // 34 game keys (the game's counts).
+        private function keys(settings:*, domain:ApplicationDomain):void
+        {
+            var c:* = settings.settings_content;
+            var DP:Class = domain.getDefinition("scaleform.clik.data.DataProvider") as Class;
+            var rows:Function = function(n:int, group:int):Array {
+                var out:Array = [];
+                for (var i:int = 0; i < n; ++i) out.push({action_id: 100 * group + i, group_id: group, type: 1, label: "Action " + i, key: ""});
+                return out;
+            };
+            c.keysLobby.dataProvider = new DP(rows(5, 0));
+            c.keysChat.dataProvider = new DP(rows(3, 1));
+            c.keysGame.dataProvider = new DP(rows(34, 2));
+            c.keysLobby.height = 5 * c.keysLobby.rowHeight;
+            c.keysChat.height = 3 * c.keysChat.rowHeight;
+        }
+
+        // "Separate vertical sensitivity" and "Vertical sensitivity" (exe patch 110,
+        // docs/notes/mouse-pitch.md) on the controls tab: waiting for the exe's answers; off, the
+        // vertical slider greyed and following the main one as it is dragged; on, its own, the main
+        // one staying when it is dragged; pending until Apply, Cancel putting the saved state back;
+        // the exe's answers; the tab's left column (main slider, the box, the vertical slider, Invert
+        // mouse, the lobby's keys) and right column (the game's keys, the chat's over the default
+        // button) spaced as the tab's own, every dictionary's labels inside the left column.
+        private function checkControls(root:*, settings:*, texts:Array, domain:ApplicationDomain):void
+        {
+            var c:* = settings.settings_content;
+            controls(root, settings, domain, 1.25);
+            var box:* = c.getChildByName("_srp_mouse_split");
+            var vertical:* = c.getChildByName("_srp_mouse_vertical");
+            var main:* = c._slider_mouse_sens;
+            require(box != null && vertical != null && !box.visible && !vertical.visible,
+                "controls: the box and the vertical slider wait for the exe's answers");
+            root.srp_check_option("srp_mouse_split", texts[0][14], "0");
+            require(box.visible && !vertical.visible, "controls: the box shown at its answer, the slider waits for its own");
+            root.srp_slider_option("srp_mouse_vertical", texts[0][15], "100");
+            require(vertical.visible && vertical.alpha < 1 && !vertical.slider.enabled && !box.selected
+                && box.label == texts[0][14] && vertical.textField.text == texts[0][15],
+                "controls: both shown, labelled the exe's; off: the vertical slider greyed and inactive");
+            require(close(vertical.selectedIndex, 1.25) && close(main.selectedIndex, 1.25) && !settings.btn_accept.enabled,
+                "controls: off, the vertical slider shows the main one's value (1.25), nothing pending: " + vertical.selectedIndex);
+            require(vertical.slider.minimum == main.slider.minimum && vertical.slider.maximum == main.slider.maximum
+                && vertical.slider.snapInterval == main.slider.snapInterval, "controls: the main slider's range");
+            // drag the main one: the vertical follows
+            main.slider.value = 2.5;
+            require(close(main.selectedIndex, 2.5) && close(vertical.selectedIndex, 2.5), "controls: off, dragging the main slider moves "
+                + "the vertical one with it: " + vertical.selectedIndex);
+            main.slider.value = 0.7;
+            require(close(vertical.selectedIndex, 0.7), "controls: and again (0.7): " + vertical.selectedIndex);
+            // tick it: on continues from that value; drag the vertical one: the main stays
+            box.selected = true;
+            require(vertical.alpha == 1 && vertical.slider.enabled && close(vertical.selectedIndex, 0.7) && settings.btn_accept.enabled,
+                "controls: ticked, the vertical slider active at the value it showed (0.7), Apply enabled");
+            vertical.slider.value = 3.1;
+            require(close(vertical.selectedIndex, 3.1) && close(main.selectedIndex, 0.7), "controls: on, dragging the vertical slider leaves the "
+                + "main one: " + main.selectedIndex);
+            main.slider.value = 1.5;
+            require(close(vertical.selectedIndex, 3.1) && close(main.selectedIndex, 1.5), "controls: on, dragging the main slider leaves the "
+                + "vertical one: " + vertical.selectedIndex);
+            click(settings.btn_cancel);
+            require(!box.selected && vertical.alpha < 1 && close(vertical.selectedIndex, main.selectedIndex) && !settings.btn_accept.enabled,
+                "controls: Cancel: off again, following the main one");
+            box.selected = true;
+            vertical.slider.value = 3.1;
+            click(settings.btn_accept);
+            require(box.selected && close(vertical.selectedIndex, 3.1) && !settings.btn_accept.enabled, "controls: Apply keeps on at 3.1");
+            root.srp_check_option("srp_mouse_split", texts[0][14], "1");
+            root.srp_slider_option("srp_mouse_vertical", texts[0][15], "310");
+            require(box.selected && close(vertical.selectedIndex, 3.1) && vertical.slider.enabled && !settings.btn_accept.enabled,
+                "controls: the exe's answers (on, 310) keep it, nothing pending");
+            vertical.slider.value = 4;
+            require(settings.btn_accept.enabled, "controls: on, a vertical move is pending");
+            vertical.slider.value = 3.1;
+            require(!settings.btn_accept.enabled, "controls: and back at the saved value, nothing pending");
+            box.selected = false;
+            require(vertical.alpha < 1 && !vertical.slider.enabled && close(vertical.selectedIndex, main.selectedIndex) && settings.btn_accept.enabled,
+                "controls: unticked, the vertical slider snaps back to the main one's value, greyed, pending");
+            click(settings.btn_cancel);
+            require(box.selected && close(vertical.selectedIndex, 3.1) && vertical.slider.enabled && !settings.btn_accept.enabled,
+                "controls: Cancel: on at the saved 3.1 again");
+            box.selected = false;
+            click(settings.btn_accept);
+            root.srp_check_option("srp_mouse_split", texts[0][14], "0");
+            require(!box.selected && close(vertical.selectedIndex, main.selectedIndex) && !settings.btn_accept.enabled,
+                "controls: Apply off: following the main slider, nothing pending");
+            trace("SETTINGS controls: off follows the main slider, on is its own, pending until Apply, Cancel reverts");
+            require(!settings.btn_accept.enabled, "controls: nothing pending after the toggles");
+
+            // the layout: a new visit of the frame as the game makes it
+            c.gotoAndStop(1);
+            controls(root, settings, domain, 1.25);
+            root.srp_check_option("srp_mouse_split", texts[0][14], "0");
+            root.srp_slider_option("srp_mouse_vertical", texts[0][15], "100");
+            require(!settings.btn_accept.enabled, "controls: nothing pending at a new visit of the frame");
+            var left:Array = [main, box, vertical, c._setter_inverse_mouse, c.s_lobby, c.keysLobby];
+            var right:Array = [c.keysGame, c.s_chat_keys, c.keysChat, c.button_default_controls];
+            var bottom:Number = Math.max(c.button_default_controls.y + c.button_default_controls.height, c.keysLobby.y + c.keysLobby.height);
+            for each (var column:Array in [left, right])
+            {
+                for (var i:int = 0; i < column.length; ++i)
+                {
+                    require(column[i].visible, "controls: " + column[i].name + " shown");
+                    if (i + 1 < column.length)
+                    {
+                        // the game's list as sized (it redraws at its next frame)
+                        var here:Array = column[i] == c.keysGame ? [c.keysGame.y, c.keysGame.y + c.keysGame.height] : span(column[i]);
+                        var next:Array = span(column[i + 1]);
+                        require(here[1] <= next[0] + 1, "controls: " + column[i].name + " (" + here + ") over " + column[i + 1].name + " (" + next + ")");
+                    }
+                }
+            }
+            require(span(c.keysLobby)[1] <= 400 && span(c.keysChat)[1] <= c.button_default_controls.y,
+                "controls: the lobby's keys in the window, the chat's above the default button: " + span(c.keysLobby) + ", " + span(c.keysChat));
+            require(near(box.x, c._setter_inverse_mouse.x) && near(vertical.x, main.x) && near(c.keysChat.x, c.keysGame.x),
+                "controls: the box at Invert mouse's x, the vertical slider at the main one's, the chat's keys at the game's");
+            var edge:Number = 297;                       // the column divider
+            for each (var row:Array in texts)
+            {
+                box.label = row[14];
+                box.validateNow();
+                require(box.x + box.textField.x + box.textField.textWidth < edge, "controls: " + row[14] + " ends in the left column");
+                vertical.label = row[15];
+                require(vertical.x + vertical.textField.x + vertical.textField.textWidth < edge, "controls: " + row[15] + " ends in the left column");
+            }
+            box.label = texts[0][14];
+            box.validateNow();
+            vertical.label = texts[0][15];
+            trace("SETTINGS controls layout: slider " + main.y + ", box " + box.y + ", vertical " + vertical.y + ", invert "
+                + c._setter_inverse_mouse.y + ", lobby " + c.s_lobby.y + " to " + span(c.keysLobby)[1] + "; game to " + (c.keysGame.y + c.keysGame.height)
+                + ", chat " + c.s_chat_keys.y + " to " + span(c.keysChat)[1] + ", button " + c.button_default_controls.y);
         }
 
         // The exe's setter of option `i`: records [i, value] and gives the value back.
