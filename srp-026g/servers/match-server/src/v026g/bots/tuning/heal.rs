@@ -63,6 +63,26 @@ pub struct HealTuning {
     /// [A217] What the bot makes of a bullet that hits it while a drug works ([`DrugStops`]; patch 84, live since
     /// revision 40).
     pub drug_stops: DrugStops,
+    /// [A306] How the bot reads a drug's amounts ([`DrugAmounts`]). `CourseTotal`, the game's, is the default and the
+    /// all-off arm keeps it (`KEPT_RIGHT`).
+    pub amounts: DrugAmounts,
+}
+
+/// [A306, A305 1.1] A drug's configured amount is the TOTAL it restores over its active time, not a rate: the medkit's
+/// constructor (0x33CAC0) stores `amount / activity duration` (0x33CD15..0x33CDB9) and the tick applies that rate x the
+/// elapsed seconds (`origin/main:srp-026g/docs/notes/medicines.md`, a5ee0a176: the native constructor and tick run in
+/// Unicorn on the shipped revision-44 configs; PROVEN there). The bots read it per second: a medkit's body and limbs 3x
+/// too fast (1.0 a second for 3 s, the game's 1/3), the antitoxin 10x (0.5 a second for 10 s, the game's 0.05); the
+/// Medikit's pain (0.4 over its 3 s) and the bandages (1 s) were right. A course a hit stopped (patch 84) was counted
+/// about 3x more healed than it is.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum DrugAmounts {
+    /// The old reading, each amount a second: wrong by the game (above); kept to copy the old bots.
+    PerSecond,
+    /// Each amount the course's total; the rate is total / active time. The game's.
+    #[default]
+    CourseTotal,
 }
 
 /// [A217] Patch 84 (live since revision 40; `origin/main:srp-026g/docs/notes/drug-interrupt.md`, PROVEN in the
@@ -157,6 +177,7 @@ impl Default for HealTuning {
             cover_m: 4.0,
             cover_step_ms: 1_500,
             drug_stops: DrugStops::Known,
+            amounts: DrugAmounts::CourseTotal,
         }
     }
 }
