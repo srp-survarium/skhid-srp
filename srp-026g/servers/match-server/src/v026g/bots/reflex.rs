@@ -3994,6 +3994,13 @@ impl Reflex {
         }
     }
 
+    /// [A302 camper calibration, bench only] The share of targets the stand-in camper aims at the head first
+    /// (`SRP_BENCH_CAMPER_HEAD`).
+    #[cfg(test)]
+    pub(crate) fn bench_head_share(&mut self, share: Option<f32>) {
+        self.sight.set_head_share(share);
+    }
+
     /// [A302 camper calibration, bench only] The hide a hit began is dropped (`SRP_BENCH_CAMPER_HOLD_FIRE`).
     #[cfg(test)]
     pub(crate) fn bench_open_cover(&mut self) {

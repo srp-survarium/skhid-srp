@@ -178,6 +178,7 @@ pub(crate) const SETTINGS: &[Setting] = &[
     s("SRP_BENCH_CAMPER_WATCH", "around", "**model** `lane`: the camper holds its view on the lane it watches (the stretch of the other side's route points its spot sees where most lie, 30 degree window), scoped, while at rest in its cover hold, as a live sniper does (A182, `tests/standin_watch.rs`); the live snipers already scoped and looking shoot at 44 % of the crossings, the first shot 1.65 s after the enemy shows; `known` [A302 calibration]: as `lane`, but with a bot he knows of near (seen, heard, told) the view goes where it was last placed; `around`: it stands about, unscoped"),
     s("SRP_BENCH_CAMPER_HOLD_FIRE", "unset", "**model** [A302 calibration] `1`: a hit does not send the stand-in camper to hide; he answers from his spot, as the owner does (`fx-fights-a302-camper-calibration.md`)"),
     s("SRP_BENCH_CAMPER_SCOPED", "unset", "**model** [A302 calibration] `1`: the scope the camper holds on his lane (`SRP_BENCH_CAMPER_WATCH=lane`) counts toward his aim-in, as the client counts a held scope"),
+    s("SRP_BENCH_CAMPER_HEAD", "unset", "**model** [A302 calibration] `<share>`: that share of the stand-in camper's targets is aimed at the head first (at most the owner's 0.26, A287); unset: chest first, as the bots"),
     s("SRP_BENCH_CAMPER_GUN", "unset", "**model** `long`: the camper carries the long gun (bolt, else marksman rifle) of the bench tier's kits"),
     // The game model (the stand-in's rules).
     s("SRP_BENCH_USE_LINE", "off", "**model** a use needs a clear line to the battery"),
