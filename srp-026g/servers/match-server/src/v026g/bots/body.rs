@@ -661,7 +661,7 @@ fn advance(
     let steps = (tick.time.saturating_sub(at.time) / TICK_MS).max(1);
     let target = kin.target_local(at.keys, level);
     for step in 1..=steps {
-        let local = at.blend.tick(target, kin.blend_ticks);
+        let local = at.blend.tick_mixed(target, kin.blend_ticks, kin.mixer);
         at.velocity = to_world(local, at.yaw);
         let to = Vec3::new(
             at.feet.x + at.velocity[0] * TICK_S,

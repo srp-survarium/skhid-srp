@@ -54,6 +54,8 @@ pub struct Kinematics {
     pub sprint: f32,
     /// Ticks of the blend to a new velocity.
     pub blend_ticks: u32,
+    /// [A318] How a blend that a further key change interrupts goes on ([`Mixer`]).
+    pub mixer: Mixer,
     /// Which jump links the reckoned body (`body.rs`) takes up after a jump press ([`JumpSnap`]).
     pub jump_snap: JumpSnap,
     /// Where the reckoned body falls off a ledge ([`Edge`]).
@@ -266,6 +268,7 @@ impl Default for Kinematics {
             crouch_aim: [2.0, 1.5, 1.5],
             sprint: 5.0,
             blend_ticks: 6,
+            mixer: Mixer::Layers,
             jump_snap: JumpSnap::ByKeys,
             edge: Edge::Client,
             open_edge_cost: 0.0,
@@ -310,49 +313,101 @@ pub fn to_world(local: Local, yaw: f32) -> [f32; 2] {
     [local[0] * fx + local[1] * lx, local[0] * fz + local[1] * lz]
 }
 
-/// The blend to a new velocity, in the body's frame.
+/// [A318] How a blend goes on when the keys change again before it is over.
+///
+/// The client moves by its animations' root motion: each change of the movement keys brings in a new movement lexeme whose
+/// weight a `linear_interpolator` takes from 0 to 1 over 0.3 s (KINEMATICS-CODE.md row 3, PROVEN for one change: the speed
+/// k ticks after a single change of keys is the linear blend's at every k, 15 client-test recordings).
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum Mixer {
+    /// A change starts one new blend from the velocity of that tick, the blend in progress frozen there (as it was).
+    Frozen,
+    /// The client's lexeme stack: a change lays a new layer over the others with its own 0.3 s ramp; the layers under it keep
+    /// their own ramps, each weighted by what the ramps above it leave; a layer at full weight hides all under it. ON and
+    /// KEPT_RIGHT: against the client's speed at the worlds of 15 client-test recordings (bots' walk and aim keys), with 2, 3
+    /// and 4+ changes in the last 0.3 s the share off by more than 0.5 m/s falls 31.7 / 34.7 / 41.9 % -> 8.4 / 9.8 / 12.3 %
+    /// (median 0.27 -> 0.06 m/s); with none it is the same (6.4 %). Bots change their walk keys every ~7 ticks, so the
+    /// blends are interrupted all the time (`scripts/kin_mixer_fit.py`, fx-zones).
+    #[default]
+    Layers,
+}
+
+/// The most layers a blend holds: a change a tick at most, and a layer at full weight after the blend's ticks hides all under
+/// it, so a 6-tick blend holds 7 at most.
+const LAYERS: usize = 8;
+
+/// One layer of a [`Blend`]: its velocity and the ticks since it was laid on.
 #[derive(Clone, Copy, Debug, Default, PartialEq)]
+struct Layer {
+    local: Local,
+    step: u32,
+}
+
+/// The blend to a new velocity, in the body's frame: the layers, the first at full weight under the others (see [`Mixer`]).
+#[derive(Clone, Copy, Debug, PartialEq)]
 pub struct Blend {
-    pub from: Local,
-    pub to: Local,
-    /// Ticks into the blend.
-    pub step: u32,
+    layers: [Layer; LAYERS],
+    len: usize,
+}
+
+impl Default for Blend {
+    fn default() -> Self {
+        Self::at([0.0, 0.0])
+    }
 }
 
 impl Blend {
+    /// The velocity now: each layer from the top takes its ramp's share of what the layers above leave.
     pub fn now(&self, ticks: u32) -> Local {
-        let t = if ticks == 0 {
-            1.0
-        } else {
-            (self.step as f32 / ticks as f32).min(1.0)
-        };
-        [
-            self.from[0] + (self.to[0] - self.from[0]) * t,
-            self.from[1] + (self.to[1] - self.from[1]) * t,
-        ]
+        let mut v = [0.0f32; 2];
+        let mut rest = 1.0f32;
+        for (i, layer) in self.layers[..self.len].iter().enumerate().rev() {
+            let ramp = if i == 0 || ticks == 0 { 1.0 } else { (layer.step as f32 / ticks as f32).min(1.0) };
+            let w = rest * ramp;
+            v[0] += w * layer.local[0];
+            v[1] += w * layer.local[1];
+            rest -= w;
+            if rest <= 0.0 {
+                break;
+            }
+        }
+        v
     }
 
-    /// One tick on toward `target`: a new target starts a new blend from
-    /// where it is.
+    /// One tick on toward `target` with the [`Mixer::Frozen`] rule.
     pub fn tick(&mut self, target: Local, ticks: u32) -> Local {
-        if target != self.to {
-            *self = Self {
-                from: self.now(ticks),
-                to: target,
-                step: 0,
-            };
+        self.tick_mixed(target, ticks, Mixer::Frozen)
+    }
+
+    /// One tick on toward `target`: a new target lays a new layer on, by `mixer`'s rule.
+    pub fn tick_mixed(&mut self, target: Local, ticks: u32, mixer: Mixer) -> Local {
+        if target != self.layers[self.len - 1].local {
+            match mixer {
+                Mixer::Frozen => *self = Self::at(self.now(ticks)),
+                Mixer::Layers if self.len == LAYERS => *self = Self::at(self.now(ticks)),
+                Mixer::Layers => {}
+            }
+            self.layers[self.len] = Layer { local: target, step: 0 };
+            self.len += 1;
         }
-        self.step = self.step.saturating_add(1).min(ticks.max(1));
+        for layer in &mut self.layers[..self.len] {
+            layer.step = layer.step.saturating_add(1);
+        }
+        // A layer at full weight hides all the layers under it.
+        if let Some(top) = (0..self.len).rev().find(|&i| ticks == 0 || self.layers[i].step >= ticks) {
+            self.layers.copy_within(top..self.len, 0);
+            self.len -= top;
+            self.layers[self.len..].fill(Layer::default());
+        }
         self.now(ticks)
     }
 
     /// Already at `local`, no blend going.
     pub fn at(local: Local) -> Self {
-        Self {
-            from: local,
-            to: local,
-            step: u32::MAX,
-        }
+        let mut layers = [Layer::default(); LAYERS];
+        layers[0] = Layer { local, step: u32::MAX };
+        Self { layers, len: 1 }
     }
 }
 
@@ -510,5 +565,37 @@ mod tests {
         assert!(close(next, mid + (5.0 - mid) / 6.0));
         assert!((k.level_of(key::FORWARD, 3.675).unwrap() - 1.05).abs() < 1e-4);
         assert_eq!(k.level_of(key::FORWARD, 1.0), None);
+    }
+
+    /// [A318] From rest, forward for two ticks, then left: with [`Mixer::Layers`] the forward layer keeps its own ramp under the
+    /// left one (the client's lexeme stack), with [`Mixer::Frozen`] it is frozen at the change; both reach the left velocity
+    /// when its ramp is full, and a single change is the same blend either way.
+    #[test]
+    fn an_interrupted_blend_keeps_the_layers_under_it_ramping() {
+        let close = |a: Local, b: Local| (a[0] - b[0]).abs() < 1e-4 && (a[1] - b[1]).abs() < 1e-4;
+        let (fwd, left) = ([3.5, 0.0], [0.0, 2.5]);
+        let run = |mixer: Mixer| {
+            let mut blend = Blend::default();
+            let mut out = Vec::new();
+            for target in [fwd, fwd, left, left, left, left, left, left, left] {
+                out.push(blend.tick_mixed(target, 6, mixer));
+            }
+            out
+        };
+        let layers = run(Mixer::Layers);
+        let frozen = run(Mixer::Frozen);
+        assert!(close(layers[1], [3.5 * 2.0 / 6.0, 0.0]) && close(frozen[1], layers[1]));
+        assert!(close(layers[2], [3.5 * 5.0 / 12.0, 2.5 / 6.0]), "{:?}", layers[2]);
+        assert!(close(layers[3], [3.5 * 16.0 / 36.0, 2.5 * 2.0 / 6.0]), "{:?}", layers[3]);
+        assert!(close(frozen[2], [3.5 * 2.0 / 6.0 * 5.0 / 6.0, 2.5 / 6.0]), "{:?}", frozen[2]);
+        assert!(close(layers[7], left) && close(frozen[7], left));
+        assert!(close(layers[8], left));
+        // `tick` is the frozen rule.
+        let mut a = Blend::default();
+        let mut b = Blend::default();
+        for target in [fwd, fwd, left, left] {
+            assert!(close(a.tick(target, 6), b.tick_mixed(target, 6, Mixer::Frozen)));
+        }
+        assert_eq!(Kinematics::default().mixer, Mixer::Layers);
     }
 }
