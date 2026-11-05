@@ -1144,6 +1144,10 @@ impl Game {
                     let _kit = super::team_kit::scope(body.team);
                     body.gun = gun;
                     body.recoil = Recoil::new(kick_of(gun.item));
+                    // [A307] The client's kick takes the kit's recoil modifier (`SRP_BENCH_CLIENT_KIT_RECOIL`, live default on).
+                    if bench_settings().is_on("SRP_BENCH_CLIENT_KIT_RECOIL") {
+                        body.recoil.scaled(gun.recoil_scale);
+                    }
                     body.recoil.update(tick);
                     body.cadence = Cadence::default();
                     body.spread.reset();
