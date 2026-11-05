@@ -10,6 +10,7 @@ use core::sync::atomic::{AtomicU32, Ordering};
 
 use crate::vostok::sound::{self, OnceCaller, OncePoint, Source, VoiceVolume, WeaponSound, WeaponSoundKind};
 use crate::vostok::types::Place;
+use crate::vostok::effect::{self, Clock};
 use crate::vostok::{Context, Flow, NoExit, medical};
 
 /// What the kit's items add to passive regeneration (the Regeneration
@@ -378,13 +379,16 @@ pub fn on_pocket_count(ctx: &mut Context<'_>) -> Flow<NoExit> {
     Flow::Continue
 }
 
+/// Larkspur's effect: one activation reaches at most the 20 places of the
+/// roster, the source among them, each with an effect of its own.
 pub fn on_effect_capacity(ctx: &mut Context<'_>) -> Flow<NoExit> {
-    medical::effect_capacity(ctx);
+    effect::effect_capacity(ctx, c"artefact_lifebone", 20);
     Flow::Continue
 }
 
+/// Medic's shared actives end at their activation's length.
 pub fn on_effect_clock(ctx: &mut Context<'_>) -> Flow<crate::vostok::MedicalSkillsOnEffectClockExit> {
-    if medical::effect_clock(ctx) {
+    if effect::effect_clock(ctx, Clock::Timed) {
         Flow::Exit(crate::vostok::MedicalSkillsOnEffectClockExit::Returned)
     } else {
         Flow::Continue

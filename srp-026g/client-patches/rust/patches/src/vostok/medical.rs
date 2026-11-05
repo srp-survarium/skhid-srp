@@ -5,10 +5,9 @@ use crate::{
     medical_skills::{Opponents, Painkiller, Regeneration, Skills, Stance},
     raw,
 };
+use super::effect::{Clock, OwnedEffect};
 use core::{
-    cell::UnsafeCell,
     ffi::CStr,
-    marker::PhantomData,
     sync::atomic::{AtomicU32, Ordering},
 };
 
@@ -461,61 +460,6 @@ pub fn protect(ctx: &mut Context<'_>) {
         }
     }
 }
-/// One emitted effect, owned until the receiving effect player retains it.
-/// Instances contain mutable tracks and cannot be shared between players:
-/// native rollback restores each player's tracks independently.
-struct OwnedEffect<'t> {
-    slot: raw::GameEffectSlotStorage,
-    _thread: PhantomData<&'t Thread>,
-}
-impl<'t> OwnedEffect<'t> {
-    fn emit(_: &'t Thread, resource: raw::MedicalEffectResource, duration_ms: u32) -> Self {
-        let mut slot = raw::GameEffectSlotStorage::zeroed();
-        // SAFETY: the live artefact owns this loaded resource; native emit
-        // initializes an independent effect with one reference in our slot.
-        unsafe {
-            raw::engine_effect_resource_emit(Some(resource), Some(slot.handle()));
-            if let Some(effect) = slot.handle().effect() {
-                *effect.length() = duration_ms as f32 / 1000.0;
-            }
-        }
-        Self {
-            slot,
-            _thread: PhantomData,
-        }
-    }
-    fn play_on(&mut self, thread: &Thread, target: Player<'t>, time: u32) {
-        // SAFETY: the target and resource live for this hook. Native add takes
-        // its own reference; Drop releases only our temporary emit reference.
-        unsafe {
-            if self.slot.handle().effect().is_some() {
-                raw::engine_effect_play(
-                    Some(target.at.effects()),
-                    Some(self.slot.handle()),
-                    time,
-                    0,
-                    2,
-                    Some(MEDIC_CLOCK.listener(thread)),
-                );
-            }
-        }
-    }
-}
-impl Drop for OwnedEffect<'_> {
-    fn drop(&mut self) {
-        // SAFETY: this guard owns exactly one native effect reference. The
-        // engine uses a non-atomic count on this simulation thread.
-        unsafe {
-            if let Some(effect) = self.slot.handle().effect() {
-                *effect.count() -= 1;
-                if *effect.count() == 0 {
-                    raw::engine_emitter_destroy(effect.emitter(), Some(effect));
-                }
-            }
-        }
-    }
-}
-
 pub fn share_larkspur(ctx: &mut Context<'_>) {
     use raw::site::medical_artefact as site;
     // SAFETY: the actual activation owns this item and its inventory holder.
@@ -566,74 +510,9 @@ pub fn share_larkspur(ctx: &mut Context<'_>) {
                 }
             }
             if let Some(resource) = item.active_resource() {
-                OwnedEffect::emit(ctx.thread(), resource, *item.active_remaining())
-                    .play_on(ctx.thread(), target.0, time);
+                OwnedEffect::emit(ctx.thread(), resource, Some(*item.active_remaining()))
+                    .play_on(ctx.thread(), target.0.at, time, Clock::Timed);
             }
         }
-    }
-}
-
-/// Reserve particles before the resource's asynchronous cook fans out. An
-/// emitted effect has independent tracks but still borrows this finite pool.
-/// At most 20 roster places can receive one activation, including the source.
-pub fn effect_capacity(ctx: &mut Context<'_>) {
-    // SAFETY: paused named-resource cook owns the query and both C strings.
-    unsafe {
-        let Some(query) = raw::site::medical_effect_capacity::query(ctx) else {
-            return;
-        };
-        let resolved = query.resolved();
-        let name = if resolved.is_null() {
-            query.requested()
-        } else {
-            resolved
-        };
-        if !name.is_null()
-            && b"artefact_lifebone\0"
-                .iter()
-                .enumerate()
-                .all(|(i, byte)| *name.add(i) == *byte)
-        {
-            ctx.set_reg(super::Reg::Esi, ctx.reg(super::Reg::Esi).max(20));
-        }
-    }
-}
-
-/// A process-lifetime, stateless native calculator. Only each effect's existing
-/// serialized start/length carry timing. No source-player pointer survives the
-/// activation. Kind-2 effects use the engine's local visual/rollback stream;
-/// its native unregistered-calculator codec keeps this permanent pointer.
-struct MedicClock(UnsafeCell<raw::MedicalTimedClockStorage>);
-// SAFETY: access is confined to the simulation thread; no borrowed reference
-// survives a native call, and this static is never moved or destroyed.
-unsafe impl Sync for MedicClock {}
-static MEDIC_CLOCK: MedicClock = MedicClock(UnsafeCell::new(raw::MedicalTimedClockStorage::zeroed()));
-impl MedicClock {
-    fn listener(&self, _: &Thread) -> raw::GameEffectListener {
-        // SAFETY: the static owns this exact native layout for the process.
-        unsafe {
-            let clock = (*self.0.get()).handle();
-            *clock.vtable() = raw::image::DEFAULT_EFFECT_CLOCK_VTABLE;
-            *clock.registry_index() = u32::MAX;
-            clock.listener()
-        }
-    }
-}
-pub fn effect_clock(ctx: &mut Context<'_>) -> bool {
-    use raw::site::medical_effect_clock as site;
-    // SAFETY: this callback receives a live effect node and output record.
-    unsafe {
-        if site::calculator(ctx) != Some(MEDIC_CLOCK.listener(ctx.thread())) {
-            return false;
-        }
-        let Some(frame) = site::frame(ctx) else { return false };
-        let (Some(out), Some(node)) = (frame.result(), frame.node()) else { return false };
-        let Some(effect) = node.effect() else { return false };
-        let elapsed = frame.now().read().wrapping_sub(*node.start());
-        *out.interval() = 0;
-        *out.time() = 0.0;
-        *out.ended() = u8::from(elapsed as f32 / 1000.0 >= *effect.length());
-        ctx.set_reg(super::Reg::Eax, out.address());
-        true
     }
 }

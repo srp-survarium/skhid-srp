@@ -211,6 +211,8 @@ unsafe extern "C" {
     pub fn engine_sound_options(emitter: Option<SoundPropagatorEmitter>) -> Option<SoundOptions>;
     /// 0x7ab70 vostok::network_core::mutable_buffer::reallocate: buffer ESI, capacity EDI; pops 0
     pub fn engine_buffer_reallocate(buffer: *mut c_void, capacity: u32);
+    /// 0x2de350 survarium::game_effect_player::remove: player EAX, effect ECX; pops 0
+    pub fn engine_effect_remove(player: Option<GameEffectPlayer>, effect: Option<GameEffect>);
 }
 
 #[allow(dead_code)]
@@ -996,6 +998,15 @@ impl Player {
     #[inline(always)]
     pub unsafe fn set_character_controller(self, value: Option<BtCharacterController>) {
         unsafe { self.0.byte_add(0x494).cast::<Option<BtCharacterController>>().write_volatile(value) }
+    }
+
+    /// +0x2e4 (u8): the damage zones it is inside: damage_zone_core's enter adds one (inc 0x319967), its leave takes one (dec 0x31980B); a hit with an owner reads it (0x332833) before incoming_weapon_damage_in_anomaly (modifier 41) multiplies the damage
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn damage_zones(self) -> *mut u8 {
+        unsafe { self.0.byte_add(0x2e4).cast::<u8>().as_ptr() }
     }
 }
 
@@ -4446,6 +4457,24 @@ impl GameEffectPlayer {
     pub unsafe fn effects(self) -> GameEffectList {
         GameEffectList(unsafe { self.0.byte_add(0x8) })
     }
+
+    /// +0x2c (ptr<survarium::medical_effect_node>): the first of the effects it plays (add 0x2DE090 links a new one after +30h's, remove 0x2DE350 walks them from here)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn first(self) -> Option<MedicalEffectNode> {
+        unsafe { self.0.byte_add(0x2c).cast::<Option<MedicalEffectNode>>().read_volatile() }
+    }
+
+    /// +0x2c (ptr<survarium::medical_effect_node>): the first of the effects it plays (add 0x2DE090 links a new one after +30h's, remove 0x2DE350 walks them from here)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn set_first(self, value: Option<MedicalEffectNode>) {
+        unsafe { self.0.byte_add(0x2c).cast::<Option<MedicalEffectNode>>().write_volatile(value) }
+    }
 }
 
 /// A survarium::game_effect (fields_026g.tsv): a pointer to one, never 0. Made only here: by a typed field,
@@ -4496,6 +4525,24 @@ impl GameEffect {
     #[inline(always)]
     pub unsafe fn length(self) -> *mut f32 {
         unsafe { self.0.byte_add(0x24).cast::<f32>().as_ptr() }
+    }
+
+    /// +0x10 (ptr<survarium::medical_effect_resource>): the game effect resource that emitted it (game_effect_resource::emit 0x329072)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn resource(self) -> Option<MedicalEffectResource> {
+        unsafe { self.0.byte_add(0x10).cast::<Option<MedicalEffectResource>>().read_volatile() }
+    }
+
+    /// +0x10 (ptr<survarium::medical_effect_resource>): the game effect resource that emitted it (game_effect_resource::emit 0x329072)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn set_resource(self, value: Option<MedicalEffectResource>) {
+        unsafe { self.0.byte_add(0x10).cast::<Option<MedicalEffectResource>>().write_volatile(value) }
     }
 }
 
@@ -9490,6 +9537,24 @@ impl QueriesResult {
     pub unsafe fn results(self) -> QueryResult {
         QueryResult(unsafe { self.0.byte_add(0x12c) })
     }
+
+    /// +0x12c (ptr<survarium::medical_effect_resource>): the first query's resource, a game effect resource for a class 109 request (damage_zone_core_cook::process_resources 0x311396 reads its own result there)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn effect(self) -> Option<MedicalEffectResource> {
+        unsafe { self.0.byte_add(0x12c).cast::<Option<MedicalEffectResource>>().read_volatile() }
+    }
+
+    /// +0x12c (ptr<survarium::medical_effect_resource>): the first query's resource, a game effect resource for a class 109 request (damage_zone_core_cook::process_resources 0x311396 reads its own result there)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn set_effect(self, value: Option<MedicalEffectResource>) {
+        unsafe { self.0.byte_add(0x12c).cast::<Option<MedicalEffectResource>>().write_volatile(value) }
+    }
 }
 
 /// A survarium::allocator_slot (fields_026g.tsv): a pointer to one, never 0. Made only here: by a typed field,
@@ -11859,6 +11924,42 @@ impl MedicalEffectNode {
     pub unsafe fn start(self) -> *mut u32 {
         unsafe { self.0.byte_add(0x18).cast::<u32>().as_ptr() }
     }
+
+    /// +0x4c (ptr<survarium::medical_effect_node>): the next effect of its player (0 the last; add 0x2DE32E, remove 0x2DE364)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn next(self) -> Option<MedicalEffectNode> {
+        unsafe { self.0.byte_add(0x4c).cast::<Option<MedicalEffectNode>>().read_volatile() }
+    }
+
+    /// +0x4c (ptr<survarium::medical_effect_node>): the next effect of its player (0 the last; add 0x2DE32E, remove 0x2DE364)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn set_next(self, value: Option<MedicalEffectNode>) {
+        unsafe { self.0.byte_add(0x4c).cast::<Option<MedicalEffectNode>>().write_volatile(value) }
+    }
+
+    /// +0x30 (ptr<survarium::game_effect_listener>): the time calculator it was added with (add's last argument, the node's constructor 0x2DD7C3)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn calculator(self) -> Option<GameEffectListener> {
+        unsafe { self.0.byte_add(0x30).cast::<Option<GameEffectListener>>().read_volatile() }
+    }
+
+    /// +0x30 (ptr<survarium::game_effect_listener>): the time calculator it was added with (add's last argument, the node's constructor 0x2DD7C3)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn set_calculator(self, value: Option<GameEffectListener>) {
+        unsafe { self.0.byte_add(0x30).cast::<Option<GameEffectListener>>().write_volatile(value) }
+    }
 }
 
 /// A survarium::medical_clock_result (fields_026g.tsv): a pointer to one, never 0. Made only here: by a typed field,
@@ -13008,6 +13109,30 @@ impl MessageFrame {
     }
 }
 
+/// A survarium::medical_effect_resource (fields_026g.tsv): a pointer to one, never 0. Made only here: by a typed field,
+/// a function's typed result or a site's typed register (sites_026g.tsv `holds`).
+#[repr(transparent)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct MedicalEffectResource(NonNull<c_void>);
+
+#[allow(dead_code)]
+impl MedicalEffectResource {
+    /// Its address as a value (an id, a compare): never read through.
+    #[inline(always)]
+    pub fn address(self) -> u32 {
+        self.0.as_ptr() as usize as u32
+    }
+
+    /// +0xd0 (u32): its reference count (locked; damage_zone_core_cook::process_resources takes one, 0x3113BF, and gives it back through 0x0E0210 at 0, 0x311438)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn references(self) -> *mut u32 {
+        unsafe { self.0.byte_add(0xd0).cast::<u32>().as_ptr() }
+    }
+}
+
 /// A vostok::physics::bullet_physics_world (fields_026g.tsv): a pointer to one, never 0. Made only here: by a typed field,
 /// a function's typed result or a site's typed register (sites_026g.tsv `holds`).
 #[repr(transparent)]
@@ -13241,21 +13366,6 @@ pub struct CriticalSection(NonNull<c_void>);
 
 #[allow(dead_code)]
 impl CriticalSection {
-    /// Its address as a value (an id, a compare): never read through.
-    #[inline(always)]
-    pub fn address(self) -> u32 {
-        self.0.as_ptr() as usize as u32
-    }
-}
-
-/// A survarium::medical_effect_resource (fields_026g.tsv): a pointer to one, never 0. Made only here: by a typed field,
-/// a function's typed result or a site's typed register (sites_026g.tsv `holds`).
-#[repr(transparent)]
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub struct MedicalEffectResource(NonNull<c_void>);
-
-#[allow(dead_code)]
-impl MedicalEffectResource {
     /// Its address as a value (an id, a compare): never read through.
     #[inline(always)]
     pub fn address(self) -> u32 {

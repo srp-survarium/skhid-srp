@@ -1512,6 +1512,129 @@ footsteps_on_step_guard_replay:
     db 0x8b, 0x7e, 0x10, 0x3b, 0xb9, 0xc4, 0x8f, 0x01, 0x00, 0x0f, 0x96, 0xc1, 0x84, 0xc9
     jmp 0x2a6493
 
+; 0x1f7c3c game_world::tick's join after the simulation's move (cmp byte [esp+0Fh],0; EBX the game world): lohook -> ragdoll_on_step
+global ragdoll_on_step
+extern hook_ragdoll_on_step_chain
+ragdoll_on_step:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_ragdoll_on_step_chain
+    mov edx, ragdoll_on_step_replay
+    cmp eax, 0
+    je ragdoll_on_step_go
+    mov edx, 0x1f7c41
+    cmp eax, 1
+    je ragdoll_on_step_go
+    ud2
+ragdoll_on_step_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+ragdoll_on_step_replay:
+    db 0x80, 0x7c, 0x24, 0x0f, 0x00
+    jmp 0x1f7c41
+
+; 0x14730 the cdecl f(queries_result&, value) a boost function made by 0x176D0 calls when a query ends, on the thread that asked (on_mounted_resources 0x1482A binds 0x14730 itself): its convention, for a callback the patch hands a query: callback -> forest_glow_on_loaded (wraps engine_store_first_resource 0x14730)
+    RUST_CDECL forest_glow_on_loaded, hook_forest_glow_on_loaded, 2
+
+; 0x2ec81e game effect resource cook: ESI concurrent instances, EBX named query; after count read, before callback copies it: lohook -> medical_skills_on_effect_capacity
+global medical_skills_on_effect_capacity
+extern hook_medical_skills_on_effect_capacity_chain
+medical_skills_on_effect_capacity:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_medical_skills_on_effect_capacity_chain
+    mov edx, medical_skills_on_effect_capacity_replay
+    cmp eax, 0
+    je medical_skills_on_effect_capacity_go
+    mov edx, 0x2ec823
+    cmp eax, 1
+    je medical_skills_on_effect_capacity_go
+    ud2
+medical_skills_on_effect_capacity_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+medical_skills_on_effect_capacity_replay:
+    db 0x8d, 0x4c, 0x24, 0x0c, 0x51
+    jmp 0x2ec823
+
+; 0x2e5d80 default clock: only the static Medic calculator is handled; all native objects continue unchanged: lohook -> medical_skills_on_effect_clock
+global medical_skills_on_effect_clock
+extern hook_medical_skills_on_effect_clock_chain
+medical_skills_on_effect_clock:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_medical_skills_on_effect_clock_chain
+    mov edx, medical_skills_on_effect_clock_replay
+    cmp eax, 0
+    je medical_skills_on_effect_clock_go
+    mov edx, 0x2e5d88
+    cmp eax, 1
+    je medical_skills_on_effect_clock_go
+    mov edx, 0x2e5e04
+    cmp eax, 2
+    je medical_skills_on_effect_clock_go
+    ud2
+medical_skills_on_effect_clock_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+medical_skills_on_effect_clock_replay:
+    db 0x8b, 0x54, 0x24, 0x10, 0x2b, 0x54, 0x24, 0x0c
+    jmp 0x2e5d88
+
 ; 0x1ea210 game::on_configs_loaded's start (push ebp / mov ebp,esp / and esp,-8), before it runs startup.cfg and user.cfg (load_cc_script 0x1EA2C2, 0x1EA301): lohook -> language_on_configs_start
 global language_on_configs_start
 extern hook_language_on_configs_start_chain
@@ -1868,45 +1991,6 @@ lamps_on_destroy_go:
 lamps_on_destroy_replay:
     db 0x56, 0x8b, 0xf1, 0x83, 0xbe, 0xe8, 0x01, 0x00, 0x00, 0x00
     jmp 0x28533a
-
-; 0x1f7c3c game_world::tick's join after the simulation's move (cmp byte [esp+0Fh],0; EBX the game world): lohook -> ragdoll_on_step
-global ragdoll_on_step
-extern hook_ragdoll_on_step_chain
-ragdoll_on_step:
-    lea esp, [esp - 4]
-    pushfd
-    pushad
-    cld
-    mov ebp, esp
-    sub esp, 512
-    and esp, -16
-    fxsave [esp]
-    mov edi, esp
-    sub esp, 8
-    and esp, -16
-    mov [esp], ebp
-    mov [esp+4], edi
-    mov eax, esp
-    sub esp, 12
-    push eax
-    call hook_ragdoll_on_step_chain
-    mov edx, ragdoll_on_step_replay
-    cmp eax, 0
-    je ragdoll_on_step_go
-    mov edx, 0x1f7c41
-    cmp eax, 1
-    je ragdoll_on_step_go
-    ud2
-ragdoll_on_step_go:
-    mov [ebp + 36], edx
-    fxrstor [edi]
-    mov esp, ebp
-    popad
-    popfd
-    ret
-ragdoll_on_step_replay:
-    db 0x80, 0x7c, 0x24, 0x0f, 0x00
-    jmp 0x1f7c41
 
 ; 0x32d627 check_collision after the bullet's ray_test (movq of its result; EAX the result, EDI the bullet): lohook -> ragdoll_on_ray
 global ragdoll_on_ray
@@ -3068,87 +3152,6 @@ medical_skills_on_pocket_count_go:
 medical_skills_on_pocket_count_replay:
     db 0x5f, 0x5e, 0x5d, 0x5b, 0xc3
     jmp 0x2f76ed
-
-; 0x2ec81e game effect resource cook: ESI concurrent instances, EBX named query; after count read, before callback copies it: lohook -> medical_skills_on_effect_capacity
-global medical_skills_on_effect_capacity
-extern hook_medical_skills_on_effect_capacity
-medical_skills_on_effect_capacity:
-    lea esp, [esp - 4]
-    pushfd
-    pushad
-    cld
-    mov ebp, esp
-    sub esp, 512
-    and esp, -16
-    fxsave [esp]
-    mov edi, esp
-    sub esp, 8
-    and esp, -16
-    mov [esp], ebp
-    mov [esp+4], edi
-    mov eax, esp
-    sub esp, 12
-    push eax
-    call hook_medical_skills_on_effect_capacity
-    mov edx, medical_skills_on_effect_capacity_replay
-    cmp eax, 0
-    je medical_skills_on_effect_capacity_go
-    mov edx, 0x2ec823
-    cmp eax, 1
-    je medical_skills_on_effect_capacity_go
-    ud2
-medical_skills_on_effect_capacity_go:
-    mov [ebp + 36], edx
-    fxrstor [edi]
-    mov esp, ebp
-    popad
-    popfd
-    ret
-medical_skills_on_effect_capacity_replay:
-    db 0x8d, 0x4c, 0x24, 0x0c, 0x51
-    jmp 0x2ec823
-
-; 0x2e5d80 default clock: only the static Medic calculator is handled; all native objects continue unchanged: lohook -> medical_skills_on_effect_clock
-global medical_skills_on_effect_clock
-extern hook_medical_skills_on_effect_clock
-medical_skills_on_effect_clock:
-    lea esp, [esp - 4]
-    pushfd
-    pushad
-    cld
-    mov ebp, esp
-    sub esp, 512
-    and esp, -16
-    fxsave [esp]
-    mov edi, esp
-    sub esp, 8
-    and esp, -16
-    mov [esp], ebp
-    mov [esp+4], edi
-    mov eax, esp
-    sub esp, 12
-    push eax
-    call hook_medical_skills_on_effect_clock
-    mov edx, medical_skills_on_effect_clock_replay
-    cmp eax, 0
-    je medical_skills_on_effect_clock_go
-    mov edx, 0x2e5d88
-    cmp eax, 1
-    je medical_skills_on_effect_clock_go
-    mov edx, 0x2e5e04
-    cmp eax, 2
-    je medical_skills_on_effect_clock_go
-    ud2
-medical_skills_on_effect_clock_go:
-    mov [ebp + 36], edx
-    fxrstor [edi]
-    mov esp, ebp
-    popad
-    popfd
-    ret
-medical_skills_on_effect_clock_replay:
-    db 0x8b, 0x54, 0x24, 0x10, 0x2b, 0x54, 0x24, 0x0c
-    jmp 0x2e5d88
 
 ; 0x329aad player_stamina::sprint after both spending modifiers (19, 67): XMM0 sprint stamina per second, before the elapsed-time multiply: lohook -> medical_skills_on_sprint
 global medical_skills_on_sprint

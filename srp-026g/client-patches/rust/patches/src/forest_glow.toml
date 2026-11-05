@@ -1,0 +1,30 @@
+# Patch 110: Forest Protection's glow (docs/notes/artefact-skills.md, "Forest
+# Protection"). Only the decisions: which sites, and the handlers. The sites
+# are sites_026g.tsv's; the logic is forest_glow.rs.
+name = "forest_glow"
+patch = 110
+
+# every simulated frame, after the move (after the ragdolls, the lamps and
+# Concentration's hearing): each player's glow on or off; the effect asked
+# for at the first one
+[[hook]]
+site = "game_world.after_move"
+handler = "on_frame"
+order = 3
+
+# the effect's query: the resource kept
+[[hook]]
+site = "resources.query_done"
+handler = "on_loaded"
+
+# the effect's cook: an instance for each of the 20 places (after Larkspur's)
+[[hook]]
+site = "medical.effect_capacity"
+handler = "on_capacity"
+order = 2
+
+# the default clock: the glow's held clock never ends (after Medic's)
+[[hook]]
+site = "medical.effect_clock"
+handler = "on_clock"
+order = 2

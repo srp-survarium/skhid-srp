@@ -731,6 +731,157 @@ pub extern "C" fn hook_footsteps_on_step_guard(frame: &mut Frame) -> u32 {
     }
 }
 
+// ---- ragdoll (patch 76) ----
+
+/// The entry `ragdoll_on_step` (0x1f7c3c, game_world::tick's join after the simulation's move (cmp byte [esp+0Fh],0; EBX the game world)) calls this with the saved machine.
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_ragdoll_on_step(frame: &mut Frame) -> u32 {
+    // SAFETY: only the entry `ragdoll_on_step` calls this, from the game's jump at 0x1f7c3c,
+    // on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::new(frame) };
+    match crate::ragdoll::on_step(&mut ctx) {
+        Flow::Continue => 0,
+        Flow::Skip => 1,
+        Flow::Exit(e) => match e {},
+    }
+}
+
+// ---- lamps (patch 81) ----
+
+/// The entry `lamps_on_present` (0x1f7c3c, game_world::tick's join after the simulation's move (cmp byte [esp+0Fh],0; EBX the game world)) calls this with the saved machine.
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_lamps_on_present(frame: &mut Frame) -> u32 {
+    // SAFETY: only the entry `lamps_on_present` calls this, from the game's jump at 0x1f7c3c,
+    // on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::new(frame) };
+    match crate::lamps::on_present(&mut ctx) {
+        Flow::Continue => 0,
+        Flow::Skip => 1,
+        Flow::Exit(e) => match e {},
+    }
+}
+
+// ---- medical_skills (patch 94) ----
+
+/// The entry `medical_skills_on_listener` (0x1f7c3c, game_world::tick's join after the simulation's move (cmp byte [esp+0Fh],0; EBX the game world)) calls this with the saved machine.
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_medical_skills_on_listener(frame: &mut Frame) -> u32 {
+    // SAFETY: only the entry `medical_skills_on_listener` calls this, from the game's jump at 0x1f7c3c,
+    // on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::new(frame) };
+    match crate::medical_skills::on_listener(&mut ctx) {
+        Flow::Continue => 0,
+        Flow::Skip => 1,
+        Flow::Exit(e) => match e {},
+    }
+}
+
+// ---- forest_glow (patch 110) ----
+
+/// The entry `forest_glow_on_frame` (0x1f7c3c, game_world::tick's join after the simulation's move (cmp byte [esp+0Fh],0; EBX the game world)) calls this with the saved machine.
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_forest_glow_on_frame(frame: &mut Frame) -> u32 {
+    // SAFETY: only the entry `forest_glow_on_frame` calls this, from the game's jump at 0x1f7c3c,
+    // on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::new(frame) };
+    match crate::forest_glow::on_frame(&mut ctx) {
+        Flow::Continue => 0,
+        Flow::Skip => 1,
+        Flow::Exit(e) => match e {},
+    }
+}
+
+// ---- forest_glow (patch 110) ----
+
+/// The convention of engine_store_first_resource (0x14730), a callback's: a marker for
+/// the callback entries made in it (no function of the game is called through it).
+pub struct OrigStoreFirstResource;
+
+/// The entry `forest_glow_on_loaded` (a callback in engine_store_first_resource's convention, the cdecl f(queries_result&, value) a boost function made by 0x176D0 calls when a query ends, on the thread that asked (on_mounted_resources 0x1482A binds 0x14730 itself): its convention, for a callback the patch hands a query)
+/// calls this with its 2 arguments, typed by the row (the `raw` layer's).
+///
+/// # Safety
+/// Called only by the entry `forest_glow_on_loaded`.
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn hook_forest_glow_on_loaded(a0: Option<raw::QueriesResult>, a1: *mut c_void) -> u32 {
+    // SAFETY: only the entry `forest_glow_on_loaded` calls this, when the game calls the callback
+    // a patch handed it, on the thread that asked; a0.. are the callback's arguments.
+    let thread = unsafe { Thread::new() };
+    let result = unsafe { QueryResults::from_raw(&thread, a0) };
+    let tag = QueryTag::from_raw(a1 as usize as u32);
+    { crate::forest_glow::on_loaded(result, tag); 0 }
+}
+
+// ---- medical_skills (patch 94) ----
+
+/// The entry `medical_skills_on_effect_capacity` (0x2ec81e, game effect resource cook: ESI concurrent instances, EBX named query; after count read, before callback copies it) calls this with the saved machine.
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_medical_skills_on_effect_capacity(frame: &mut Frame) -> u32 {
+    // SAFETY: only the entry `medical_skills_on_effect_capacity` calls this, from the game's jump at 0x2ec81e,
+    // on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::new(frame) };
+    match crate::medical_skills::on_effect_capacity(&mut ctx) {
+        Flow::Continue => 0,
+        Flow::Skip => 1,
+        Flow::Exit(e) => match e {},
+    }
+}
+
+// ---- forest_glow (patch 110) ----
+
+/// The entry `forest_glow_on_capacity` (0x2ec81e, game effect resource cook: ESI concurrent instances, EBX named query; after count read, before callback copies it) calls this with the saved machine.
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_forest_glow_on_capacity(frame: &mut Frame) -> u32 {
+    // SAFETY: only the entry `forest_glow_on_capacity` calls this, from the game's jump at 0x2ec81e,
+    // on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::new(frame) };
+    match crate::forest_glow::on_capacity(&mut ctx) {
+        Flow::Continue => 0,
+        Flow::Skip => 1,
+        Flow::Exit(e) => match e {},
+    }
+}
+
+// ---- medical_skills (patch 94) ----
+
+/// The named exits of medical_skills::on_effect_clock (the order the shim's Flow code
+/// follows, 2 upward).
+#[repr(u32)]
+#[allow(dead_code)]
+pub enum MedicalSkillsOnEffectClockExit { Returned }
+/// The entry `medical_skills_on_effect_clock` (0x2e5d80, default clock: only the static Medic calculator is handled; all native objects continue unchanged) calls this with the saved machine.
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_medical_skills_on_effect_clock(frame: &mut Frame) -> u32 {
+    // SAFETY: only the entry `medical_skills_on_effect_clock` calls this, from the game's jump at 0x2e5d80,
+    // on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::new(frame) };
+    match crate::medical_skills::on_effect_clock(&mut ctx) {
+        Flow::Continue => 0,
+        Flow::Skip => 1,
+        Flow::Exit(e) => 2 + e as u32,
+    }
+}
+
+// ---- forest_glow (patch 110) ----
+
+/// The named exits of forest_glow::on_clock (the order the shim's Flow code
+/// follows, 2 upward).
+#[repr(u32)]
+#[allow(dead_code)]
+pub enum ForestGlowOnClockExit { Returned }
+/// The entry `forest_glow_on_clock` (0x2e5d80, default clock: only the static Medic calculator is handled; all native objects continue unchanged) calls this with the saved machine.
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_forest_glow_on_clock(frame: &mut Frame) -> u32 {
+    // SAFETY: only the entry `forest_glow_on_clock` calls this, from the game's jump at 0x2e5d80,
+    // on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::new(frame) };
+    match crate::forest_glow::on_clock(&mut ctx) {
+        Flow::Continue => 0,
+        Flow::Skip => 1,
+        Flow::Exit(e) => 2 + e as u32,
+    }
+}
+
 // ---- language (patch 79) ----
 
 /// The entry `language_on_configs_start` (0x1ea210, game::on_configs_loaded's start (push ebp / mov ebp,esp / and esp,-8), before it runs startup.cfg and user.cfg (load_cc_script 0x1EA2C2, 0x1EA301)) calls this with the saved machine.
@@ -935,51 +1086,6 @@ pub extern "C" fn hook_lamps_on_destroy(frame: &mut Frame) -> u32 {
     // on the game's thread; `frame` is its saved registers and fxsave area.
     let mut ctx = unsafe { Context::new(frame) };
     match crate::lamps::on_destroy(&mut ctx) {
-        Flow::Continue => 0,
-        Flow::Skip => 1,
-        Flow::Exit(e) => match e {},
-    }
-}
-
-// ---- ragdoll (patch 76) ----
-
-/// The entry `ragdoll_on_step` (0x1f7c3c, game_world::tick's join after the simulation's move (cmp byte [esp+0Fh],0; EBX the game world)) calls this with the saved machine.
-#[unsafe(no_mangle)]
-pub extern "C" fn hook_ragdoll_on_step(frame: &mut Frame) -> u32 {
-    // SAFETY: only the entry `ragdoll_on_step` calls this, from the game's jump at 0x1f7c3c,
-    // on the game's thread; `frame` is its saved registers and fxsave area.
-    let mut ctx = unsafe { Context::new(frame) };
-    match crate::ragdoll::on_step(&mut ctx) {
-        Flow::Continue => 0,
-        Flow::Skip => 1,
-        Flow::Exit(e) => match e {},
-    }
-}
-
-// ---- lamps (patch 81) ----
-
-/// The entry `lamps_on_present` (0x1f7c3c, game_world::tick's join after the simulation's move (cmp byte [esp+0Fh],0; EBX the game world)) calls this with the saved machine.
-#[unsafe(no_mangle)]
-pub extern "C" fn hook_lamps_on_present(frame: &mut Frame) -> u32 {
-    // SAFETY: only the entry `lamps_on_present` calls this, from the game's jump at 0x1f7c3c,
-    // on the game's thread; `frame` is its saved registers and fxsave area.
-    let mut ctx = unsafe { Context::new(frame) };
-    match crate::lamps::on_present(&mut ctx) {
-        Flow::Continue => 0,
-        Flow::Skip => 1,
-        Flow::Exit(e) => match e {},
-    }
-}
-
-// ---- medical_skills (patch 94) ----
-
-/// The entry `medical_skills_on_listener` (0x1f7c3c, game_world::tick's join after the simulation's move (cmp byte [esp+0Fh],0; EBX the game world)) calls this with the saved machine.
-#[unsafe(no_mangle)]
-pub extern "C" fn hook_medical_skills_on_listener(frame: &mut Frame) -> u32 {
-    // SAFETY: only the entry `medical_skills_on_listener` calls this, from the game's jump at 0x1f7c3c,
-    // on the game's thread; `frame` is its saved registers and fxsave area.
-    let mut ctx = unsafe { Context::new(frame) };
-    match crate::medical_skills::on_listener(&mut ctx) {
         Flow::Continue => 0,
         Flow::Skip => 1,
         Flow::Exit(e) => match e {},
@@ -1634,41 +1740,6 @@ pub extern "C" fn hook_medical_skills_on_pocket_count(frame: &mut Frame) -> u32 
 
 // ---- medical_skills (patch 94) ----
 
-/// The entry `medical_skills_on_effect_capacity` (0x2ec81e, game effect resource cook: ESI concurrent instances, EBX named query; after count read, before callback copies it) calls this with the saved machine.
-#[unsafe(no_mangle)]
-pub extern "C" fn hook_medical_skills_on_effect_capacity(frame: &mut Frame) -> u32 {
-    // SAFETY: only the entry `medical_skills_on_effect_capacity` calls this, from the game's jump at 0x2ec81e,
-    // on the game's thread; `frame` is its saved registers and fxsave area.
-    let mut ctx = unsafe { Context::new(frame) };
-    match crate::medical_skills::on_effect_capacity(&mut ctx) {
-        Flow::Continue => 0,
-        Flow::Skip => 1,
-        Flow::Exit(e) => match e {},
-    }
-}
-
-// ---- medical_skills (patch 94) ----
-
-/// The named exits of medical_skills::on_effect_clock (the order the shim's Flow code
-/// follows, 2 upward).
-#[repr(u32)]
-#[allow(dead_code)]
-pub enum MedicalSkillsOnEffectClockExit { Returned }
-/// The entry `medical_skills_on_effect_clock` (0x2e5d80, default clock: only the static Medic calculator is handled; all native objects continue unchanged) calls this with the saved machine.
-#[unsafe(no_mangle)]
-pub extern "C" fn hook_medical_skills_on_effect_clock(frame: &mut Frame) -> u32 {
-    // SAFETY: only the entry `medical_skills_on_effect_clock` calls this, from the game's jump at 0x2e5d80,
-    // on the game's thread; `frame` is its saved registers and fxsave area.
-    let mut ctx = unsafe { Context::new(frame) };
-    match crate::medical_skills::on_effect_clock(&mut ctx) {
-        Flow::Continue => 0,
-        Flow::Skip => 1,
-        Flow::Exit(e) => 2 + e as u32,
-    }
-}
-
-// ---- medical_skills (patch 94) ----
-
 /// The entry `medical_skills_on_sprint` (0x329aad, player_stamina::sprint after both spending modifiers (19, 67): XMM0 sprint stamina per second, before the elapsed-time multiply) calls this with the saved machine.
 #[unsafe(no_mangle)]
 pub extern "C" fn hook_medical_skills_on_sprint(frame: &mut Frame) -> u32 {
@@ -1968,10 +2039,6 @@ pub extern "C" fn hook_music_on_sound_tick(frame: &mut Frame) -> u32 {
 }
 
 // ---- music (patch 88) ----
-
-/// The convention of engine_store_first_resource (0x14730), a callback's: a marker for
-/// the callback entries made in it (no function of the game is called through it).
-pub struct OrigStoreFirstResource;
 
 /// The entry `music_on_query_done` (a callback in engine_store_first_resource's convention, the cdecl f(queries_result&, value) a boost function made by 0x176D0 calls when a query ends, on the thread that asked (on_mounted_resources 0x1482A binds 0x14730 itself): its convention, for a callback the patch hands a query)
 /// calls this with its 2 arguments, typed by the row (the `raw` layer's).
@@ -2627,6 +2694,37 @@ pub extern "C" fn hook_weapon_flight_on_view_chain(frame: &mut Frame) -> u32 {
 }
 
 #[unsafe(no_mangle)]
+pub extern "C" fn hook_ragdoll_on_step_chain(frame: &mut Frame) -> u32 {
+    let flow = hook_ragdoll_on_step(frame);
+    if flow != 0 { return flow; }
+    let flow = hook_lamps_on_present(frame);
+    if flow != 0 { return flow; }
+    let flow = hook_medical_skills_on_listener(frame);
+    if flow != 0 { return flow; }
+    let flow = hook_forest_glow_on_frame(frame);
+    if flow != 0 { return flow; }
+    0
+}
+
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_medical_skills_on_effect_capacity_chain(frame: &mut Frame) -> u32 {
+    let flow = hook_medical_skills_on_effect_capacity(frame);
+    if flow != 0 { return flow; }
+    let flow = hook_forest_glow_on_capacity(frame);
+    if flow != 0 { return flow; }
+    0
+}
+
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_medical_skills_on_effect_clock_chain(frame: &mut Frame) -> u32 {
+    let flow = hook_medical_skills_on_effect_clock(frame);
+    if flow != 0 { return flow; }
+    let flow = hook_forest_glow_on_clock(frame);
+    if flow != 0 { return flow; }
+    0
+}
+
+#[unsafe(no_mangle)]
 pub extern "C" fn hook_language_on_configs_start_chain(frame: &mut Frame) -> u32 {
     let flow = hook_language_on_configs_start(frame);
     if flow != 0 { return flow; }
@@ -2644,17 +2742,6 @@ pub extern "C" fn hook_language_on_options_call_chain(frame: &mut Frame) -> u32 
     let flow = hook_language_on_options_call(frame);
     if flow != 0 { return flow; }
     let flow = hook_hud_options_on_options_call(frame);
-    if flow != 0 { return flow; }
-    0
-}
-
-#[unsafe(no_mangle)]
-pub extern "C" fn hook_ragdoll_on_step_chain(frame: &mut Frame) -> u32 {
-    let flow = hook_ragdoll_on_step(frame);
-    if flow != 0 { return flow; }
-    let flow = hook_lamps_on_present(frame);
-    if flow != 0 { return flow; }
-    let flow = hook_medical_skills_on_listener(frame);
     if flow != 0 { return flow; }
     0
 }
@@ -2684,6 +2771,15 @@ pub extern "C" fn hook_music_on_unload_chain(frame: &mut Frame) -> u32 {
     let flow = hook_lobby_scene_on_game_closing(frame);
     if flow != 0 { return flow; }
     0
+}
+
+unsafe extern "C" { fn forest_glow_on_loaded(); }
+/// The entry `forest_glow_on_loaded`, in engine_store_first_resource's convention (the cdecl f(queries_result&, value) a boost function made by 0x176D0 calls when a query ends, on the thread that asked (on_mounted_resources 0x1482A binds 0x14730 itself): its convention, for a callback the patch hands a query): a
+/// callback the patch hands the game (no site is rewritten).
+pub fn forest_glow_on_loaded_entry() -> super::hook::CallbackEntry<OrigStoreFirstResource> {
+    // SAFETY: the generated entry lives for the executable's lifetime and takes the
+    // arguments of engine_store_first_resource, whose `Original` names the entry's type.
+    unsafe { super::hook::CallbackEntry::from_entry(forest_glow_on_loaded as *const () as *const c_void) }
 }
 
 unsafe extern "C" { fn music_on_query_done(); }

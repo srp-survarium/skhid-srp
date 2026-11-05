@@ -5065,6 +5065,8 @@ va	name	location	role	basis
 0x002de090	survarium::game_effect_player::play	entry ESP+0Ch	third argument (1 at the lobby, 0x220E70)	observed
 0x002de090	survarium::game_effect_player::play	entry ESP+10h	fourth argument (0 at the lobby, 0x220E6E)	observed
 0x002de090	survarium::game_effect_player::play	entry ESP+14h	the listener (lobby menu+684h, 0x220E6D)	observed
+0x002de350	survarium::game_effect_player::remove	EAX	the game effect player (player+358h, 0x31A24F)	observed
+0x002de350	survarium::game_effect_player::remove	ECX	the effect to stop: one it plays (a node whose +0 is it must exist: none is dereferenced at 0)	observed
 0x00285fa0	survarium::render_visual::insert	ECX	visual	observed
 0x00285fa0	survarium::render_visual::insert	entry ESP+4	scene	observed
 0x00285fe0	survarium::render_visual::remove	ECX	visual	observed

@@ -49,13 +49,17 @@ handler = "on_protection"
 site = "medical.pocket_count"
 handler = "on_pocket_count"
 
+# The game effect cook's instances and the default clock: Larkspur's (order
+# 1), then Forest Protection's glow (patch 110, order 2).
 [[hook]]
 site = "medical.effect_capacity"
 handler = "on_effect_capacity"
+order = 1
 
 [[hook]]
 site = "medical.effect_clock"
 handler = "on_effect_clock"
+order = 1
 
 [[hook]]
 site = "medical.sprint"

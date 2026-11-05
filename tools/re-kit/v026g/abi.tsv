@@ -2161,6 +2161,7 @@ va	name	source	ret_cleanup	result
 0x002f8970	survarium::static_collision::remove	manual	4	void; vtable+4: its body (+4Ch) out of the physics world, freed, +4Ch 0
 0x002de7f0	survarium::game_effect_player::stop	manual	0	EAX the first effect it stopped or 0; every effect of the list (+24h, each +4Ch the next) stopped, +28h 0
 0x002de090	survarium::game_effect_player::play	manual	20	void; plays the effect (0x2DE100 with EDI and the five arguments)
+0x002de350	survarium::game_effect_player::remove	manual	0	void; the node playing the effect (walked from +2Ch, each +4Ch the next) set to state 2 (+44h), its stop sent (0x2DE3A0), the list swept (0x2DE750); damage_zone_core 0x31A255 stops its inside effect so
 0x00285fa0	survarium::render_visual::insert	manual	4	none
 0x00285fe0	survarium::render_visual::remove	manual	4	none
 0x00291720	survarium::object_light::load	manual	12	none

@@ -205,6 +205,8 @@ unsafe extern "C" {
     pub fn engine_sound_options(emitter: *const c_void) -> *const c_void;
     /// 0x7ab70 vostok::network_core::mutable_buffer::reallocate: buffer ESI, capacity EDI; pops 0
     pub fn engine_buffer_reallocate(buffer: *mut c_void, capacity: u32);
+    /// 0x2de350 survarium::game_effect_player::remove: player EAX, effect ECX; pops 0
+    pub fn engine_effect_remove(player: *mut c_void, effect: *mut c_void);
 }
 
 #[allow(dead_code)]

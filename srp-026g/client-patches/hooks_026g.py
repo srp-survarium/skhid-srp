@@ -499,9 +499,13 @@ def hooks(tomls=None, functions=None, sites=None, exe=None):
     # Sharing an exact lohook site is explicit and ordered. Partial overlaps,
     # mixed kinds and implicit order remain errors. One machine save/replay
     # wraps the chain; the first non-Continue result ends it.
+    # A callback rewrites nothing (the patch hands its own entry to the
+    # game), so the handlers of one callback site are never a chain.
     grouped = {}
     for h in out:
-        grouped.setdefault(h["site_name"] if h["site"] is None else h["site"], []).append(h)
+        key = (h["entry"] if h["kind"] == "callback"
+               else h["site_name"] if h["site"] is None else h["site"])
+        grouped.setdefault(key, []).append(h)
     out = []
     for group in grouped.values():
         if len(group) == 1:
@@ -521,7 +525,8 @@ def hooks(tomls=None, functions=None, sites=None, exe=None):
     # The overlap audit for the Rust hooks (the whole arena's, across the asm
     # and C installs too, is selftest_026g.py's span check): no two sites'
     # replaced spans overlap. Each hook names its owning patch.
-    spans = sorted((h["site"], h["site"] + len(h["original"]), h["patch"]) for h in out if h["site"] is not None)
+    spans = sorted((h["site"], h["site"] + len(h["original"]), h["patch"]) for h in out
+                   if h["site"] is not None and h["kind"] != "callback")
     for (lo, hi, a), (lo2, _, b) in zip(spans, spans[1:]):
         if lo2 < hi:
             raise Bad(f"the hooks of {a} and {b} overlap at {lo2:#x} (the bytes {lo:#x}..{hi:#x})")
