@@ -31,11 +31,13 @@
 //!   shouldn't even be based on player score"; [`pay::silver_of`]): the
 //!   player's time in the match at [`pay::SILVER_PER_MINUTE`], all of it
 //!   for one who stayed to the end of a match its team won and
-//!   [`pay::NOT_WON_PERCENT`] for every other (a loss, a draw, no known
-//!   result, or a match it left), and [`pay::TOP_PERCENT`] of that for the
-//!   match's top: the best quarter by score of those who stayed to the end
-//!   ([`pay::TOP_ONE_IN`]; bots not counted; none without a trusted
-//!   snapshot). It is the same in every mode. Times the match level's
+//!   [`pay::NOT_WON_PERMILLE`] for every other (a loss, a draw, no known
+//!   result, or a match it left), and a rank bonus on top, 0 to
+//!   [`pay::BEST_RANK_BONUS_PERMILLE`] ([`pay::RankBonus`]): the whole for
+//!   the best by score of those who stayed to the end, falling in a straight
+//!   line to none at the middle of them (bots not counted; none for one who
+//!   left or without a trusted snapshot). So a minute pays 59.5 to 91. It is
+//!   the same in every mode. Times the match level's
 //!   `money_k` and the rate, rounded down, it is the main kit's cell of the
 //!   activity row; the other cells carry no silver.
 //! - **The experience and the reputation are by the screen's three
@@ -87,8 +89,8 @@
 //!   [`MatchResult::vs_bots`]; the owner's of 2026-10-16): it pays
 //!   [`Terms::pvb_pay`] (`SRP_PVB_PAY`, default half) of its silver and of
 //!   its rows' experience, and so do the premium half and the items' bonus
-//!   counted from them; its one player is no top (a quarter of one is
-//!   none); reputation, the drop and the pay of a level reached are as
+//!   counted from them; its one player has no rank bonus (one finisher
+//!   has none); reputation, the drop and the pay of a level reached are as
 //!   in any match, but at most at match level 7
 //!   ([`super::pvb::MAX_REWARD_LEVEL`] for the pay,
 //!   [`super::pvb::MAX_DROP_LEVEL`] for the drop). It counts for no quest
@@ -130,11 +132,11 @@
 //! | the player | gets |
 //! |---|---|
 //! | stayed to the end | everything above |
-//! | left early | the silver of its minutes as a match not won and never of the top, the experience and reputation its counters earned (kills, help, other score), a loss in the rating whatever its team did, wear, quests; nothing of the activity row's fixed part, no daily bonus and no drop |
+//! | left early | the silver of its minutes as a match not won and no rank bonus, the experience and reputation its counters earned (kills, help, other score), a loss in the rating whatever its team did, wear, quests; nothing of the activity row's fixed part, no daily bonus and no drop |
 //! | never got into the match | nothing; its rating stays (0.21d) |
 //! | left by its own word and came into the match again (a new place) | its latest place's as above; the place it left counts for nothing ([`MatchResult::latest_places`]) |
 //! | any, when play never began (`played_ms` is `None`) | nothing |
-//! | any, when no snapshot was trusted (`trusted_by` 0) | no counters and no winner: the silver of its minutes as a match not won (no top), the fixed part of a match not won, wear, a drop; the rating stays (0.21d's unknown result) |
+//! | any, when no snapshot was trusted (`trusted_by` 0) | no counters and no winner: the silver of its minutes as a match not won (no rank bonus), the fixed part of a match not won, wear, a drop; the rating stays (0.21d's unknown result) |
 //! | any, when one client alone vouched (`trusted_by` 1) | in full, as 0.21d paid a match one client was alone in (its numbers passed the match server's checks) |
 //!
 //! A match no client ever reached ([`MatchEnd::NoShow`]) has no report, nor
@@ -1057,7 +1059,7 @@ impl Results {
         // them) and the match server's own (in every match against bots):
         // a match with one in it moves no rating, a bot is paid no daily
         // bonus (nor is the player of a match against bots,
-        // `settle_player`) and is none of the match's top. Nor does a room
+        // `settle_player`) and is not ranked for the rank bonus. Nor does a room
         // with a PIN's match move any.
         let bots: Vec<bool> = result
             .players
@@ -1065,7 +1067,7 @@ impl Results {
             .map(|player| player.driven || accounts.is_bot(player.account_id))
             .collect();
         shared.unrated = bots.contains(&true) || result.private;
-        shared.top = shared.top_places(&bots);
+        shared.bonuses = shared.rank_bonuses(&bots);
 
         // What the screen's rows and the rating need of every account.
         let held: Vec<Option<(u16, u8, String)>> = result
@@ -1474,8 +1476,9 @@ struct Shared<'a> {
     /// A test bot was in the match, or it is a room with a PIN's
     /// ([`MatchResult::private`]): nobody's rating moves.
     unrated: bool,
-    /// The roster places of the match's top ([`Shared::top_places`]).
-    top: Vec<u8>,
+    /// The rank bonus of each roster place that has one
+    /// ([`Shared::rank_bonuses`]).
+    bonuses: Vec<(u8, pay::RankBonus)>,
 }
 
 impl<'a> Shared<'a> {
@@ -1517,7 +1520,7 @@ impl<'a> Shared<'a> {
             multipliers,
             drop_level,
             unrated: false,
-            top: Vec::new(),
+            bonuses: Vec::new(),
         }
     }
 
@@ -1534,46 +1537,53 @@ impl<'a> Shared<'a> {
             * pvb_pay
     }
 
-    /// The match's top: the best [`pay::TOP_ONE_IN`] of those who stayed
-    /// to the end, bots not counted, by the score of the counters that pay
-    /// (after the farming limits, `PlayerResult::pay_statistics`; of equal
-    /// scores, the earlier place), rounded down; none when no snapshot was
-    /// trusted, as nobody's score is known. Their roster places.
-    fn top_places(&self, bots: &[bool]) -> Vec<u8> {
+    /// The rank bonus ([`pay::RankBonus::of`]) of each who stayed to the
+    /// end, bots not counted, ranked among them by the score of the counters
+    /// that pay (after the farming limits, `PlayerResult::pay_statistics`).
+    /// None when no snapshot was trusted, as nobody's score is known.
+    fn rank_bonuses(&self, bots: &[bool]) -> Vec<(u8, pay::RankBonus)> {
         if !self.trusted {
             return Vec::new();
         }
-        let mut finished: Vec<&PlayerResult> = self
-            .result
-            .players
-            .iter()
-            .zip(bots)
-            .filter(|(player, bot)| !**bot && self.standing(player) == Standing::Finished)
-            .map(|(player, _)| player)
-            .collect();
         let paid_score = |player: &PlayerResult| {
             player.pay_statistics.as_ref().map_or(player.score, |paid| {
                 survarium::v026g::match_msgs::snapshot::score(paid, &self.weights)
             })
         };
-        // A stable sort: the roster's order stays among equal scores.
-        finished.sort_by_key(|player| std::cmp::Reverse(paid_score(player)));
-        let top = finished.len() / pay::TOP_ONE_IN;
-        finished[..top].iter().map(|player| player.place).collect()
+        let scores: Vec<(u8, u32)> = self
+            .result
+            .players
+            .iter()
+            .zip(bots)
+            .filter(|(player, bot)| !**bot && self.standing(player) == Standing::Finished)
+            .map(|(player, _)| (player.place, paid_score(player)))
+            .collect();
+        scores
+            .iter()
+            .map(|&(place, score)| {
+                let below = scores.iter().filter(|&&(_, other)| other < score).count();
+                let above = scores.iter().filter(|&&(_, other)| other > score).count();
+                (place, pay::RankBonus::of(below, above, scores.len()))
+            })
+            .collect()
     }
 
     /// The silver of a player's time in the match ([`pay::silver_of`]):
-    /// in full for one who stayed to the end of a match its team won,
-    /// [`pay::TOP_PERCENT`] of it for the top; times the match's `money_k`,
-    /// rounded down. Before premium and the items' bonus.
+    /// in full for one who stayed to the end of a match its team won, and
+    /// its rank bonus on top; times the match's `money_k`, rounded down.
+    /// Before premium and the items' bonus.
     fn silver(&self, player: &PlayerResult) -> u32 {
         let standing = self.standing(player);
         if !matches!(standing, Standing::Finished | Standing::Left) {
             return 0;
         }
         let won = standing == Standing::Finished && self.won(player);
-        let top = self.top.contains(&player.place);
-        let plain = pay::silver_of(player.time_in_match_ms, won, top);
+        let bonus = self
+            .bonuses
+            .iter()
+            .find(|&&(place, _)| place == player.place)
+            .map_or(pay::RankBonus::NONE, |&(_, bonus)| bonus);
+        let plain = pay::silver_of(player.time_in_match_ms, won, bonus);
         pay::cell(plain, self.money_k()).min(f64::from(u32::MAX)) as u32
     }
 

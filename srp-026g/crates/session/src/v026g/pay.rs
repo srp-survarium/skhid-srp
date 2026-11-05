@@ -100,39 +100,72 @@ pub const ACTIVITY_NOT_WON: f64 = 0.5;
 // The match's silver (the owner's of 2026-11-05, `results.md` §14):
 // "silver shouldn't even be based on player score". A player is paid for
 // its time in the match, the same in every mode, by its team's result and
-// whether it is of the match's top; the score only says who the top is.
-// These are before the match level's multiplier and the rate, as a row's
-// cell is.
+// by its rank among those who stayed to the end ("it should be
+// progressive"); the score only ranks. These are before the match level's
+// multiplier and the rate, as a row's cell is.
+//
+// The bounds ("just with proper bounds"): a minute pays at least
+// SILVER_PER_MINUTE × NOT_WON_PERMILLE (59.5: not won, no rank bonus) and at
+// most SILVER_PER_MINUTE × (1000 + BEST_RANK_BONUS_PERMILLE) (91: won, the
+// best), per mille.
 // ---------------------------------------------------------------------
 /// The silver of a minute in the match: the owner's "high players
-/// shouldn't lose, weak players should gain" set it so the top of a won
-/// match ([`TOP_PERCENT`] of it, 91) is paid a minute what the winning top
-/// quarter's median was paid by the score (91 on live: 285 matches of
-/// 2026-10-29 to 11-05; batteries 91, Research 133, deathmatch 59).
+/// shouldn't lose, weak players should gain" set it so the best of a won
+/// match (91 a minute) is paid what the winning top quarter's median was
+/// paid by the score (91 on live: 285 matches of 2026-10-29 to 11-05;
+/// batteries 91, Research 133, deathmatch 59).
 pub const SILVER_PER_MINUTE: u32 = 70;
-/// The percent of it a player is paid that did not stay to the end of a
+/// The per mille of it a player is paid that did not stay to the end of a
 /// match its team won: a loss, a draw, a match with no known result, or one
-/// it left (the owner's "losing team 10-20% less").
-pub const NOT_WON_PERCENT: u32 = 85;
-/// The percent the match's top players are paid of their team's (the
-/// owner's "top players get +30%").
-pub const TOP_PERCENT: u32 = 130;
-/// The top of a match: one in this many of those who stayed to the end
-/// (bots not counted), the best by score, rounded down (four of 16, none of
-/// three).
-pub const TOP_ONE_IN: usize = 4;
+/// it left (the owner's "losing team 10-20% less"). The least a minute pays.
+pub const NOT_WON_PERMILLE: u32 = 850;
+/// The rank bonus of the match's best, per mille on top of its team's (the
+/// owner's "top players get +30%"): the most a [`RankBonus`] is.
+pub const BEST_RANK_BONUS_PERMILLE: u32 = 300;
+
+/// What a player's rank among those who stayed to the end of a match adds
+/// to its silver: 0 to [`BEST_RANK_BONUS_PERMILLE`] per mille, by
+/// construction.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub struct RankBonus(u32);
+
+impl RankBonus {
+    pub const NONE: Self = Self(0);
+
+    /// The bonus of one who stayed to the end that scored more than
+    /// `below` of the match's `finishers` and less than `above` of them:
+    /// [`BEST_RANK_BONUS_PERMILLE`] × (`below` − `above`) / (`finishers` −
+    /// 1), rounded down, and none at or under the middle. With no ties
+    /// that falls in a straight line from the best, the whole bonus, to the
+    /// median, none; equal scores share a bonus, and a match whose finishers
+    /// all scored alike, or that has one finisher, gives none.
+    pub fn of(below: usize, above: usize, finishers: usize) -> Self {
+        let Some(others) = finishers.checked_sub(1).filter(|&others| others > 0) else {
+            return Self::NONE;
+        };
+        // `below` is at most `others`: so is the lead.
+        let lead = below.saturating_sub(above).min(others);
+        let permille = u64::from(BEST_RANK_BONUS_PERMILLE) * lead as u64 / others as u64;
+        Self(permille as u32)
+    }
+
+    pub fn permille(self) -> u32 {
+        self.0
+    }
+}
 
 /// The silver of `played_ms` in a match, before the match level's
 /// multiplier and the rate: [`SILVER_PER_MINUTE`] a minute, times the
-/// team's percent ([`NOT_WON_PERCENT`] unless `won`) and, for the top,
-/// [`TOP_PERCENT`].
-pub fn silver_of(played_ms: u32, won: bool, top: bool) -> f64 {
-    let team = if won { 100 } else { NOT_WON_PERCENT };
-    let top = if top { TOP_PERCENT } else { 100 };
-    // At most 2^32 ms × 70 × 100 × 130: under 2^52, whole in an f64.
+/// team's per mille (1000 if `won`, else [`NOT_WON_PERMILLE`]) and 1000 +
+/// the rank bonus per mille.
+pub fn silver_of(played_ms: u32, won: bool, bonus: RankBonus) -> f64 {
+    let team = if won { 1000 } else { NOT_WON_PERMILLE };
+    let rank = 1000 + bonus.permille();
+    // Under 2^64 for any u32; whole in an f64 under 2^53, a match of less
+    // than 27 hours.
     let scaled =
-        u64::from(played_ms) * u64::from(SILVER_PER_MINUTE) * u64::from(team) * u64::from(top);
-    scaled as f64 / (60_000.0 * 100.0 * 100.0)
+        u64::from(played_ms) * u64::from(SILVER_PER_MINUTE) * u64::from(team) * u64::from(rank);
+    scaled as f64 / (60_000.0 * 1000.0 * 1000.0)
 }
 
 /// A multiplier of `match_levels_dict` as the decimal the data means: the
@@ -325,25 +358,68 @@ mod tests {
     }
 
     #[test]
-    fn a_minute_pays_its_silver_by_the_team_and_the_top() {
+    fn a_minute_pays_its_silver_by_the_team_and_the_rank() {
         let minute = 60_000;
-        assert_eq!(silver_of(minute, true, false), 70.0);
-        assert_eq!(silver_of(minute, false, false), 59.5);
-        assert_eq!(silver_of(minute, true, true), 91.0);
-        assert_eq!(silver_of(minute, false, true), 77.35);
+        let best = RankBonus::of(15, 0, 16);
+        assert_eq!(best.permille(), BEST_RANK_BONUS_PERMILLE);
+        assert_eq!(silver_of(minute, true, RankBonus::NONE), 70.0);
+        assert_eq!(silver_of(minute, false, RankBonus::NONE), 59.5);
+        assert_eq!(silver_of(minute, true, best), 91.0);
+        assert_eq!(silver_of(minute, false, best), 77.35);
         // A whole match of 15 minutes, and a second of it.
-        assert_eq!(silver_of(15 * minute, true, false), 1050.0);
-        assert_eq!(silver_of(1000, true, false), 70.0 / 60.0);
-        assert_eq!(silver_of(0, true, true), 0.0);
-        // The most a u32 of milliseconds can be stays exact.
-        assert_eq!(
-            silver_of(u32::MAX, true, true),
-            f64::from(u32::MAX) * 91.0 / 60_000.0
-        );
+        assert_eq!(silver_of(15 * minute, true, RankBonus::NONE), 1050.0);
+        assert_eq!(silver_of(1000, true, RankBonus::NONE), 70.0 / 60.0);
+        assert_eq!(silver_of(0, true, best), 0.0);
         // At a match level's multiplier and rate, rounded down as a cell:
-        // the top of a won match of 15 minutes at level 15 (220 %).
+        // the best of a won match of 15 minutes at level 15 (220 %).
         let k = multiplier(10.17) * 2.2;
-        assert_eq!(cell(silver_of(15 * minute, true, true), k), 30_540.0);
+        assert_eq!(cell(silver_of(15 * minute, true, best), k), 30_540.0);
+    }
+
+    /// The bounds: a minute pays from 59.5 (not won, no bonus) to 91 (won,
+    /// the best), whatever the ranks given.
+    #[test]
+    fn a_minute_pays_between_its_bounds() {
+        let minute = 60_000;
+        let least = f64::from(SILVER_PER_MINUTE * NOT_WON_PERMILLE) / 1000.0;
+        let most = f64::from(SILVER_PER_MINUTE * (1000 + BEST_RANK_BONUS_PERMILLE)) / 1000.0;
+        assert_eq!((least, most), (59.5, 91.0));
+        for finishers in 0..=20 {
+            for below in 0..=finishers + 2 {
+                for above in 0..=finishers + 2 {
+                    let bonus = RankBonus::of(below, above, finishers);
+                    assert!(bonus.permille() <= BEST_RANK_BONUS_PERMILLE);
+                    for won in [false, true] {
+                        let paid = silver_of(minute, won, bonus);
+                        assert!((least..=most).contains(&paid), "{paid}");
+                    }
+                }
+            }
+        }
+    }
+
+    #[test]
+    fn the_rank_bonus_falls_from_the_best_to_the_middle() {
+        // 16 finishers, no ties: rank r scored more than 15 - r and less
+        // than r.
+        let of_rank = |rank: usize| RankBonus::of(15 - rank, rank, 16).permille();
+        assert_eq!(
+            (0..16).map(of_rank).collect::<Vec<_>>(),
+            [300, 260, 220, 180, 140, 100, 60, 20, 0, 0, 0, 0, 0, 0, 0, 0]
+        );
+        // Five: the median, rank 2, gets none.
+        let of_rank = |rank: usize| RankBonus::of(4 - rank, rank, 5).permille();
+        assert_eq!((0..5).map(of_rank).collect::<Vec<_>>(), [300, 150, 0, 0, 0]);
+        // One finisher: no bonus; two: the better the whole, the other none.
+        assert_eq!(RankBonus::of(0, 0, 1), RankBonus::NONE);
+        assert_eq!(RankBonus::of(0, 0, 0), RankBonus::NONE);
+        assert_eq!(RankBonus::of(1, 0, 2).permille(), 300);
+        assert_eq!(RankBonus::of(0, 1, 2), RankBonus::NONE);
+        // Two of four tied for the first: each beat two of three, 200.
+        assert_eq!(RankBonus::of(2, 0, 4).permille(), 200);
+        // Everyone alike, two or sixteen: nobody.
+        assert_eq!(RankBonus::of(0, 0, 2), RankBonus::NONE);
+        assert_eq!(RankBonus::of(0, 0, 16), RankBonus::NONE);
     }
 
     #[test]

@@ -184,8 +184,8 @@ fn the_winner_and_the_loser_are_paid_by_the_minute() {
 
     // Alice: 10 minutes of a match won at 70 silver, all in the activity
     // cell; the experience of 3 kills at 3, an assist at 1, and the fixed
-    // part of a match won (122.69): no other score. Of two players none is
-    // the top.
+    // part of a match won (122.69): no other score. The better of two, she
+    // has the whole rank bonus: 30 % more, 910.
     let alice = &report.players[0];
     assert_eq!(alice.player_id, 1);
     assert_eq!(alice.reward.standing, Standing::Finished);
@@ -207,13 +207,13 @@ fn the_winner_and_the_loser_are_paid_by_the_minute() {
         "st_statistics_score_game_events"
     );
     assert!(!alice.full.components[2].show_amount);
-    assert_eq!(columns(&alice.full, 2), (2.0, 700, 122, 0));
+    assert_eq!(columns(&alice.full, 2), (2.0, 910, 122, 0));
     // The other kits were not used: nothing in their columns.
     for component in &alice.full.components {
         assert_eq!(component.columns[1], (0.0, 0, 0, 0));
         assert_eq!(component.columns[2], (0.0, 0, 0, 0));
     }
-    assert_eq!((alice.reward.experience, alice.reward.money), (132, 700));
+    assert_eq!((alice.reward.experience, alice.reward.money), (132, 910));
     // No quest faction: no reputation.
     assert_eq!(
         (alice.reward.reputation_faction, alice.reward.reputation),
@@ -222,8 +222,8 @@ fn the_winner_and_the_loser_are_paid_by_the_minute() {
     assert_eq!(alice.full.faction, 0);
     assert!(!alice.reward.premium);
     // What premium would add, on the screen and not in the account.
-    assert_eq!(alice.reward.premium_bonus, (350, 66, 0));
-    assert_eq!(alice.full.premium.columns[0].money, 350);
+    assert_eq!(alice.reward.premium_bonus, (455, 66, 0));
+    assert_eq!(alice.full.premium.columns[0].money, 455);
     assert_eq!(alice.full.premium.columns[0].experience, 66);
     assert_eq!(alice.full.play_seconds, [600, 0, 0]);
     assert_eq!(
@@ -235,13 +235,13 @@ fn the_winner_and_the_loser_are_paid_by_the_minute() {
     let after = account(&store, 10);
     let (silver, gold) = dropped_money(&alice.reward);
     assert_eq!(after.exp_total, before.exp_total + 132);
-    assert_eq!(after.generic_money, before.generic_money + 700 + silver);
+    assert_eq!(after.generic_money, before.generic_money + 910 + silver);
     assert_eq!(after.premium_money, before.premium_money + gold);
     assert_eq!((after.rating, after.rating_before), (102, 100));
 
-    // Bob: 10 minutes of a match lost, 85 % of them; the experience of a
-    // kill and of half the fixed part for a match lost and played to its
-    // end (61.35).
+    // Bob, the worse of two: 10 minutes of a match lost, 85 % of them; the
+    // experience of a kill and of half the fixed part for a match lost and
+    // played to its end (61.35).
     let bob = &report.players[1];
     assert!(!bob.reward.won);
     assert_eq!(columns(&bob.full, 0), (1.0, 0, 3, 0));
@@ -289,31 +289,38 @@ fn a_draw_pays_no_win_and_moves_no_rating() {
         .settle(&result, &store, &terms(), &mut Rng::new(1))
         .unwrap();
     assert_eq!(report.stats.winner_team, DRAW);
-    for player in &report.players {
+    // The silver and the fixed part of a match not won; Alice, the better
+    // of two, has the rank bonus on it (595 × 1.3).
+    for (player, silver) in report.players.iter().zip([773, 595]) {
         assert!(!player.reward.won);
         assert_eq!(player.reward.rating_after, 100);
-        // The silver and the fixed part of a match not won.
-        assert_eq!(columns(&player.full, 2), (1.0, 595, 61, 0));
+        assert_eq!(columns(&player.full, 2), (1.0, silver, 61, 0));
     }
     assert_eq!(report.players[0].reward.experience, 9 + 1 + 61);
 }
 
-/// The top quarter of those who stayed to the end, by score, is paid 130 %
-/// of its team's silver (the owner's of 2026-11-05); the score pays no
-/// silver of its own.
+fn kills_of(place: u8, team: u8, kills: u16) -> PlayerResult {
+    player(
+        place,
+        team,
+        &format!("P{place}"),
+        counters_of(0, &[(event::KILL, kills)]),
+    )
+}
+
+/// The rank bonus (the owner's of 2026-11-05, "it should be progressive"):
+/// the best of those who stayed to the end is paid 30 % more, falling in a
+/// straight line to none at the middle of them; the score pays no silver
+/// of its own.
 #[test]
-fn the_top_quarter_is_paid_thirty_percent_more_and_the_score_nothing_else() {
-    let kills = |place: u8, team: u8, kills: u16| {
-        player(
-            place,
-            team,
-            &format!("P{place}"),
-            counters_of(0, &[(event::KILL, kills)]),
-        )
-    };
-    // Eight who stayed: a top of two. Place 5 has the score of place 0 and
-    // place 7 one kill fewer; place 8 left with the most kills of all, and
-    // place 9 is a test bot with as many.
+fn the_rank_bonus_falls_from_the_best_to_the_middle_and_the_score_pays_nothing_else() {
+    let kills = kills_of;
+    // Eight ranked: places 0 and 5 tie for the first (each scored more than
+    // six of the seven others: 6/7 of 30 %, 257 per mille), place 7 is next
+    // (more than five, less than two: 3/7, 128), place 1 then (1/7, 42), and
+    // the rest are at the middle or under it. Place 8 left with the most
+    // kills of all, and place 9 is a test bot with as many: neither is
+    // ranked.
     let mut players = vec![
         kills(0, 0, 12),
         kills(1, 0, 10),
@@ -334,24 +341,58 @@ fn the_top_quarter_is_paid_thirty_percent_more_and_the_score_nothing_else() {
     let report = Results::new()
         .settle(&result(players), &store, &terms(), &mut Rng::new(1))
         .unwrap();
-    let money = |place: usize| report.players[place].reward.money;
-    // 10 minutes: won 700, lost 595; the top 130 % of them, 910 and 773.
-    assert_eq!(money(0), 910);
-    assert_eq!(money(5), 773);
-    for place in [1, 2, 6] {
-        assert_eq!(money(place), 700, "{place}");
-    }
-    for place in [3, 4, 7, 9] {
-        assert_eq!(money(place), 595, "{place}");
-    }
-    // Five minutes of a match it left: as not won, and never the top.
-    assert_eq!(money(8), 297);
+    let money: Vec<u32> = report.players.iter().map(|p| p.reward.money).collect();
+    // 10 minutes: won 700, lost 595, each times 1 + its bonus: 879 (won,
+    // 257), 747 (lost, 257), 671 (lost, 128), 729 (won, 42). Five minutes
+    // of a match it left: as not won, no bonus, 297.
+    assert_eq!(money, [879, 729, 700, 595, 595, 747, 700, 671, 297, 595]);
     assert_eq!(columns(&report.players[8].full, 2), (1.0, 297, 0, 0));
     // All of it in the activity cell, and premium's half counted from it.
-    let top = &report.players[0];
-    assert_eq!(columns(&top.full, 0), (12.0, 0, 36, 0));
-    assert_eq!(columns(&top.full, 2), (2.0, 910, 122, 0));
-    assert_eq!(top.full.premium.columns[0].money, 455);
+    let best = &report.players[0];
+    assert_eq!(columns(&best.full, 0), (12.0, 0, 36, 0));
+    assert_eq!(columns(&best.full, 2), (2.0, 879, 122, 0));
+    assert_eq!(best.full.premium.columns[0].money, 439);
+}
+
+/// The bounds: a minute pays from 59.5 (not won, no bonus) to 91 (won, the
+/// whole bonus). One finisher has no bonus; of two, the better has it all;
+/// equal scores share their bonus, and when all scored alike nobody has
+/// one.
+#[test]
+fn the_rank_bonus_keeps_its_bounds_and_shares_ties() {
+    let paid = |players: Vec<PlayerResult>| -> Vec<u32> {
+        let store = accounts(&players);
+        Results::new()
+            .settle(&result(players), &store, &terms(), &mut Rng::new(1))
+            .unwrap()
+            .players
+            .iter()
+            .map(|p| p.reward.money)
+            .collect()
+    };
+    // The ends: the best of a won match and the last of a lost one.
+    assert_eq!(paid(vec![kills_of(0, 0, 9), kills_of(1, 1, 0)]), [910, 595]);
+    assert_eq!(paid(vec![kills_of(0, 1, 9), kills_of(1, 0, 0)]), [773, 700]);
+    // Alone: no bonus.
+    assert_eq!(paid(vec![kills_of(0, 0, 9)]), [700]);
+    // Two tied for the first of four: each beat two of three, 20 %.
+    assert_eq!(
+        paid(vec![
+            kills_of(0, 0, 5),
+            kills_of(1, 0, 5),
+            kills_of(2, 1, 1),
+            kills_of(3, 1, 1),
+        ]),
+        [840, 840, 595, 595]
+    );
+    // Everyone alike: nobody.
+    let alike = |count: u8| {
+        (0..count)
+            .map(|place| kills_of(place, place % 2, 3))
+            .collect()
+    };
+    assert_eq!(paid(alike(2)), [700, 595]);
+    assert_eq!(paid(alike(16)), [700, 595].repeat(8));
 }
 
 #[test]
@@ -365,10 +406,10 @@ fn the_match_level_multiplies_the_rewards() {
         .settle(&result, &store, &terms(), &mut Rng::new(1))
         .unwrap();
     // Each cell is multiplied and then rounded down: 9 experience becomes
-    // 9.45, 122.69 experience 128.8; 700 silver 1400.
+    // 9.45, 122.69 experience 128.8; Alice's 910 silver 1820.
     assert_eq!(columns(&report.players[0].full, 0), (3.0, 0, 9, 0));
     assert_eq!(columns(&report.players[0].full, 1), (1.0, 0, 1, 0));
-    assert_eq!(columns(&report.players[0].full, 2), (2.0, 1400, 128, 0));
+    assert_eq!(columns(&report.players[0].full, 2), (2.0, 1820, 128, 0));
     // Bob's 595 silver of a match lost: 1190.
     assert_eq!(columns(&report.players[1].full, 2), (1.0, 1190, 64, 0));
 }
@@ -431,13 +472,13 @@ fn the_second_screen_comes_out() {
     assert_eq!(alice.reward.score, 289);
     assert_eq!(columns(&alice.full, 0), (19.0, 0, 96, 32));
     assert_eq!(columns(&alice.full, 1), (8.0, 0, 13, 13));
-    // 10 minutes of a match won: 700 × 10.17.
+    // 10 minutes of a match won, the better of two (30 %): 910 × 10.17.
     let (_, money, experience, reputation) = columns(&alice.full, 2);
-    assert_eq!((money, experience, reputation), (7119, 270, 11));
+    assert_eq!((money, experience, reputation), (9254, 270, 11));
     assert_eq!(
         alice.full.premium.columns[0],
         BonusColumn {
-            money: 3559,
+            money: 4627,
             reputation: 28,
             experience: 189,
             ..BonusColumn::default()
@@ -454,7 +495,7 @@ fn the_second_screen_comes_out() {
             alice.reward.experience,
             alice.reward.reputation
         ),
-        (7119 + 3559, 568, 84)
+        (9254 + 4627, 568, 84)
     );
 }
 
@@ -479,12 +520,12 @@ fn the_first_screen_comes_out_but_for_its_kills() {
         .unwrap();
     let alice = &report.players[0];
     assert_eq!(columns(&alice.full, 1), (4.0, 0, 4, 4));
-    // 10 minutes of a match won: 700 × 1.47.
+    // 10 minutes of a match won, the better of two (30 %): 910 × 1.47.
     let (_, money, experience, reputation) = columns(&alice.full, 2);
-    assert_eq!((money, experience, reputation), (1029, 143, 5));
+    assert_eq!((money, experience, reputation), (1337, 143, 5));
     // 17 kills of the full kind: 51, 17 (the screen: 41, 17).
     assert_eq!(columns(&alice.full, 0), (17.0, 0, 51, 17));
-    let base = (1029, 51 + 4 + 143, 17 + 4 + 5);
+    let base = (1337, 51 + 4 + 143, 17 + 4 + 5);
     // The reputation is the screen's: 26, +26 daily, +13 premium, 65.
     assert_eq!(base.2, 26);
     assert!(alice.reward.daily_bonus);
@@ -503,7 +544,7 @@ fn the_first_screen_comes_out_but_for_its_kills() {
     assert_eq!(
         alice.full.premium.columns[0],
         BonusColumn {
-            money: 514,
+            money: 668,
             experience: 99,
             reputation: 13,
             ..BonusColumn::default()
@@ -515,7 +556,7 @@ fn the_first_screen_comes_out_but_for_its_kills() {
             alice.reward.experience,
             alice.reward.reputation
         ),
-        (base.0 + 514, base.1 + 198 + 99, 65)
+        (base.0 + 668, base.1 + 198 + 99, 65)
     );
 }
 
@@ -533,13 +574,13 @@ fn the_money_rate_scales_the_silver_and_premiums_half_of_it() {
         .settle(&result(players), &store, &terms, &mut Rng::new(1))
         .unwrap();
     let alice = &report.players[0];
-    // 80 % of 700 silver; twice 9, 1 and 122.69 experience; the
+    // 80 % of 910 silver (the better of two); twice 9, 1 and 122.69 experience; the
     // reputation (3, 1 and 2.46) has its own rate.
     assert_eq!(columns(&alice.full, 0), (3.0, 0, 18, 3));
     assert_eq!(columns(&alice.full, 1), (1.0, 0, 2, 1));
-    assert_eq!(columns(&alice.full, 2), (2.0, 560, 245, 2));
-    assert_eq!(alice.reward.premium_bonus, (280, 132, 3));
-    assert_eq!(alice.reward.money, 560);
+    assert_eq!(columns(&alice.full, 2), (2.0, 728, 245, 2));
+    assert_eq!(alice.reward.premium_bonus, (364, 132, 3));
+    assert_eq!(alice.reward.money, 728);
     // srp's own terms: the owner's silver by match level, twice the
     // experience and 120 % of the reputation, no wear.
     let own = Terms::at(NOW);
@@ -587,12 +628,12 @@ fn the_owners_rates_raise_silver_by_match_level_experience_and_reputation() {
         reputation_rate: 120,
         ..terms()
     };
-    // Level 0 (every multiplier 1): 150 % of 700 silver; twice 9, 1 and
+    // Level 0 (every multiplier 1): 150 % of 910 silver; twice 9, 1 and
     // 122.69 experience; 120 % of 3, 1 and 2.46 reputation.
     let alice = settle(0, &own);
     assert_eq!(columns(&alice.full, 0), (3.0, 0, 18, 3));
     assert_eq!(columns(&alice.full, 1), (1.0, 0, 2, 1));
-    assert_eq!(columns(&alice.full, 2), (2.0, 1050, 245, 2));
+    assert_eq!(columns(&alice.full, 2), (2.0, 1365, 245, 2));
     // Level 8 (`money_k` 5.59, the others 1.35): 180 % of the silver, and
     // twice 12.15, 1.35 and 165.63 experience.
     let plain = settle(8, &terms());
@@ -613,7 +654,7 @@ fn the_owners_rates_raise_silver_by_match_level_experience_and_reputation() {
     }
     assert_eq!(
         columns(&alice.full, 2).1,
-        (700.0 * 5.59 * 1.8_f64).floor() as u32
+        (910.0 * 5.59 * 1.8_f64).floor() as u32
     );
     // 3 × 1.35 × 1.2 = 4.86, 1.62 and 3.98.
     assert_eq!(
@@ -627,7 +668,7 @@ fn the_owners_rates_raise_silver_by_match_level_experience_and_reputation() {
         let k = pay::multiplier(Dictionary::shared().match_level(level).unwrap().money_k);
         assert_eq!(
             columns(&settle(level as u16, &own).full, 2).1,
-            pay::cell(700.0, k * 2.2) as u32
+            pay::cell(910.0, k * 2.2) as u32
         );
     }
     // The quest's silver is the match level's alone (50 × 5.59); its
@@ -830,7 +871,7 @@ fn a_solo_match_pays_in_full_and_moves_no_rating() {
     assert!(alice.reward.won);
     // The two artefacts are 15 + 5 points of other score (12.3
     // experience) on the fixed part of a match won; its 10 minutes pay 700
-    // silver, and one player is no top.
+    // silver, and one finisher has no rank bonus.
     assert_eq!(alice.reward.score, 20);
     assert_eq!(columns(&alice.full, 2), (5.0, 700, 135, 0));
     assert_eq!(alice.reward.experience, 135);
@@ -859,7 +900,7 @@ fn experience_reaches_levels_and_they_pay() {
     assert_eq!(after.free_skill_points(), 1);
     let (silver, gold) = dropped_money(reward);
     assert_eq!(after.premium_money, before.premium_money + 100 + gold);
-    assert_eq!(after.generic_money, before.generic_money + 700 + silver);
+    assert_eq!(after.generic_money, before.generic_money + 910 + silver);
     // Bob reached none.
     assert!(report.players[1].reward.levels.is_empty());
     // Level 2 pays silver.
@@ -907,7 +948,7 @@ fn a_quest_the_match_meets_is_paid_and_reputation_goes_to_the_quest_faction() {
     assert_eq!(alice.reward.reputation, 6);
     assert_eq!(columns(&alice.full, 0), (3.0, 0, 9, 3));
     assert_eq!(columns(&alice.full, 1), (1.0, 0, 1, 1));
-    assert_eq!(columns(&alice.full, 2), (2.0, 700, 122, 2));
+    assert_eq!(columns(&alice.full, 2), (2.0, 910, 122, 2));
     assert_eq!(alice.full.faction, 1);
     // The quest.
     assert!(alice.reward.quest_money >= quest.money);
@@ -938,7 +979,7 @@ fn a_quest_the_match_meets_is_paid_and_reputation_goes_to_the_quest_faction() {
     let (silver, _) = dropped_money(&alice.reward);
     assert_eq!(
         after.generic_money,
-        before.generic_money + 700 + alice.reward.quest_money + silver
+        before.generic_money + 910 + alice.reward.quest_money + silver
     );
     assert!(after.quests.iter().all(|held| held.quest_id != 10101));
     // Bob lost: his quests, had he any, are not met; he has no faction.
@@ -1358,18 +1399,18 @@ fn premium_adds_half_and_can_be_claimed_from_the_screen() {
     let report = results
         .settle(&result(players), &store, &terms(), &mut Rng::new(2))
         .unwrap();
-    // Alice has premium: half again of her rows' 700 silver, 132
+    // Alice has premium: half again of her rows' 910 silver (the better of two), 132
     // experience and 6 reputation.
     let alice = &report.players[0];
     assert!(alice.reward.premium);
-    assert_eq!(alice.reward.premium_bonus, (350, 66, 3));
+    assert_eq!(alice.reward.premium_bonus, (455, 66, 3));
     assert_eq!(
         (
             alice.reward.money,
             alice.reward.experience,
             alice.reward.reputation
         ),
-        (700 + 350, 132 + 66, 6 + 3)
+        (910 + 455, 132 + 66, 6 + 3)
     );
     // The lines hold the plain values, the premium block the half: the
     // client adds them up.
@@ -1377,7 +1418,7 @@ fn premium_adds_half_and_can_be_claimed_from_the_screen() {
     assert_eq!(
         alice.full.premium.columns[0],
         BonusColumn {
-            money: 350,
+            money: 455,
             reputation: 3,
             experience: 66,
             ..BonusColumn::default()
@@ -2828,9 +2869,12 @@ fn a_match_with_a_test_bot_moves_no_rating_and_pays_the_bot_no_daily_bonus() {
     }
     assert_eq!(account(&store, 10).rating, pay::START_RATING);
     assert_eq!(account(&store, 11).rating, pay::START_RATING);
-    // Alice, a real player, is paid what she was without the setting.
+    // Alice, a real player, is paid the experience she was without the
+    // setting; a bot is not ranked, so she, the one finisher ranked, has
+    // no rank bonus (she had the better of two's, 30 %).
     assert_eq!(alice.reward.experience, plain.players[0].reward.experience);
-    assert_eq!(alice.reward.money, plain.players[0].reward.money);
+    assert_eq!(plain.players[0].reward.money, 773);
+    assert_eq!(alice.reward.money, 595);
     // The results screen of each still comes out.
     for id in [10, 11] {
         assert!(report.screen_for(id).is_some());
@@ -3594,10 +3638,10 @@ fn a_blackout_match_pays_its_points_twice() {
     assert_eq!(columns(&twice.full, 0), (3.0, 0, 18, 0));
     assert_eq!(columns(&once.full, 1), (1.0, 0, 1, 0));
     assert_eq!(columns(&twice.full, 1), (1.0, 0, 2, 0));
-    assert_eq!(columns(&once.full, 2), (2.0, 700, 122, 0));
-    assert_eq!(columns(&twice.full, 2), (2.0, 700, 245, 0));
-    assert_eq!((once.reward.experience, once.reward.money), (132, 700));
-    assert_eq!((twice.reward.experience, twice.reward.money), (265, 700));
+    assert_eq!(columns(&once.full, 2), (2.0, 910, 122, 0));
+    assert_eq!(columns(&twice.full, 2), (2.0, 910, 245, 0));
+    assert_eq!((once.reward.experience, once.reward.money), (132, 910));
+    assert_eq!((twice.reward.experience, twice.reward.money), (265, 910));
 }
 
 #[test]
@@ -3634,10 +3678,11 @@ fn farming_limits_change_payment_without_changing_score_or_quests() {
     assert_eq!(shared.lines(&untrusted.players[0], 0)[0][0].0, 0.0);
 }
 
-/// The top is ranked by the counters that pay: kills the farming limits
-/// take off do not make a player the top.
+/// The rank bonus is by the counters that pay: kills the farming limits
+/// take off do not make a player the best (P0 is second by what pays: 1/3
+/// of 30 %, 770).
 #[test]
-fn the_top_is_ranked_by_the_score_that_pays() {
+fn the_rank_is_by_the_score_that_pays() {
     let kills = |place: u8, kills: u16| {
         player(
             place,
@@ -3653,7 +3698,7 @@ fn the_top_is_ranked_by_the_score_that_pays() {
         .settle(&result(players), &store, &terms(), &mut Rng::new(1))
         .unwrap();
     let money: Vec<u32> = report.players.iter().map(|p| p.reward.money).collect();
-    assert_eq!(money, [700, 910, 700, 700]);
+    assert_eq!(money, [770, 910, 700, 700]);
     // The scoreboard is the match's as played.
     assert_eq!(report.stats.best_player.name, "P0");
 }
