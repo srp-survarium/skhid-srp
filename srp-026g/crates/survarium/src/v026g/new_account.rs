@@ -12,7 +12,6 @@ use binary_config_parser::tree::ConfigValue;
 
 use super::dictionary::Dictionary;
 use super::game_data;
-use super::item_params;
 use super::loadouts::{self, Loadout, POCKET_SLOTS};
 use super::lobby::limits::{KIT_SLOTS, KITS};
 use super::modifications::{self, Modifications};
@@ -211,9 +210,7 @@ impl NewAccount {
                     .item(item.dict_id)
                     .map_or("?", |item| item.name.as_str());
                 let open = POCKET_SLOTS[..count as usize].contains(&item.slot);
-                let whole = item_params::item_params(item.dict_id)
-                    .is_some_and(|params| params.fills_whole_pocket);
-                let takes = if whole { 1 } else { size };
+                let takes = loadouts::pocket_share(item.dict_id).units_in(size);
                 if !open || self.pocket_units > takes {
                     wrong.push(format!(
                         "kit {}: slot {}: the gear opens {count} pockets of {size} units, \

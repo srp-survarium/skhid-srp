@@ -59,7 +59,11 @@ package survarium.controls
          if(size == QuickSlotSize.WHOLE)
             return 1;
          var units:int = base < 0 ? pocketSize : base;
-         return Math.max(0,Math.min(MAX_POCKET_UNITS,units + (additionalMedicine && category == ItemCategory.MEDKITS ? 1 : 0)));
+         var total:int = Math.max(0,Math.min(MAX_POCKET_UNITS,units + (additionalMedicine && category == ItemCategory.MEDKITS ? 1 : 0)));
+         // An item of two units (the RGD-5): half the pocket, at least one (the server's PocketShare).
+         if(size == QuickSlotSize.PAIR)
+            return Math.min(total,Math.max(1,int(total / 2)));
+         return total;
       }
       
       public static var currentLevel:int = 0;

@@ -5474,6 +5474,10 @@ va	name	location	role	basis
 0x00059e70	vostok::sound::sound_world::create_sound_voice	entry ESP+12	the propagator's emitter (its +0Ch)	observed
 0x0005cb80	vostok::sound::new_sound_propagator::detach_voice	entry ESP+4	the propagator: its voice (+4) stopped (IXAudio2SourceVoice Stop then FlushSourceBuffers on the bridge +14h -> +10h), removed from the scene's active voices (0x58990), destroyed (0x5A470: the bridge's handler cleared) and back in the world's pool (+0A0h) at once; +4 = 0. Called by the HDR cull (0x5CAD4, then +48h = 2000), the proxy's tick at a propagator's end (0x5B54F) and delete_sound_propagator (0x5D50D)	observed
 0x00038990	vostok::sound::sound_propagator_emitter::get_options	ECX	the emitter (this): a single sound's propagator emitter (single_sound + 108h)	observed
+0x002ffce0	survarium::stack_item::resupply_from_profile_slot	ECX	the stack item (this): its count u16 +260h, its dictionary entry +25Ch	observed
+0x002ffce0	survarium::stack_item::resupply_from_profile_slot	entry ESP+4	the kit slot record: +2 the allowance u16 (the kit's count)	observed
+0x002ffce0	survarium::stack_item::resupply_from_profile_slot	entry ESP+8	the stock record: +8 the units left to take (lowered by what is taken)	observed
+0x00288d60	survarium::lobby_menu::process_default_relocate_item	at 0x289A50..0x289BFB	after the moves, when the kit's pockets got fewer or smaller: each of the six pockets (table 0x9C52D8) past the count is moved to the inventory (dst 64h), each within it sent again with min(units, 1 if parameters/fills_whole_pocket else the pocket size)	observed
 0x001f0e70	survarium::match_options::deserialize	entry ESP+4	the options it fills, in wire order: 20 profiles (0x45FC bytes each), then u8 map (maps_dict id) +577B4h (0x1F0EAD), u8 places +577B5h, u32 seed/match id +577B0h (0x1F0ECD), u16 level +577B6h (0x1F0EDC), 28 f32 +577BCh, 20 u8 squads +5782Ch; the crash breadcrumbs (vostok/breadcrumbs.rs) read map, places, seed and level after it	observed
 0x002ff930	survarium::weapon_controller_core::serialize	ECX	controller	observed
 0x002ff930	survarium::weapon_controller_core::serialize	entry ESP+4	writer	observed

@@ -194,11 +194,7 @@ pub fn bot_kit_of(
         items.push(SlotItem {
             slot,
             dict_id,
-            count: if params.fills_whole_pocket {
-                1
-            } else {
-                units.min(size)
-            },
+            count: units.min(params.pocket_share.units_in(size)),
         });
     }
     let rest: f32 = items
@@ -413,8 +409,7 @@ pub fn kit_problems(loadout: &Loadout, limit: f32) -> Vec<String> {
                 item.slot
             ));
         }
-        let whole = item_params::item_params(item.dict_id).is_some_and(|p| p.fills_whole_pocket);
-        let most = if whole { 1 } else { size };
+        let most = super::pocket_share(item.dict_id).units_in(size);
         if item.count == 0 || item.count > most {
             problems.push(format!(
                 "{} x{} in a pocket of {most}",

@@ -1055,7 +1055,11 @@ STATS = {
             'deploy_m': 'data/max_deploy_distance', 'slope_deg': 'data/max_slope_angle',
             'weight': 'parameters/weight', 'level': 'parameters/item_level',
             'mm_level': 'parameters/match_making_level',
+            # srp's key: the units one takes of a pocket, 2 or none (srp-026g/docs/notes/one-pocket-a-type.md;
+            # pocket-units-1 carries it to the lobby as card property 166)
+            'pocket_units': 'parameters/pocket_units',
         },
+        'add': {'pocket_units'},
         'match': {'splash_damage', 'splash_min', 'splash_pierce', 'splash_radius', 'stopping', 'stamina_damage',
                   'throw_power', 'fuse_ms', 'roll_ms', 'safe_ms', 'contact', 'damage', 'pierce', 'defuse_s',
                   'armed_life_s', 'disarmed_life_s', 'fired_life_s', 'deploy_m', 'slope_deg', 'weight'},
