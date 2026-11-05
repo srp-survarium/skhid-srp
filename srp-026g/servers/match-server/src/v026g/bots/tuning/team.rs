@@ -43,7 +43,7 @@ pub struct TeamPlanRule {
     pub attack_gain: f32,
     /// What a Sneak weighs in a comeback: 1, as usual (#1222's bench: with `attack_gain` on it too the extra attack time was
     /// crouched Sneak, Sneak calm walking +48 % z +4.4, Raid +18 %, attack takes -11.6 % z -3.9, no more steals). A comeback raid
-    /// also runs its approach (`raid.rs`).
+    /// walks its approach as any (running it was heard: `BehindOpen::run_in`).
     pub sneak_gain: f32,
 }
 
@@ -88,15 +88,16 @@ pub struct BehindOpen {
     /// `guard_m` of their container: the first build's early raids walked into held containers (#1236: attack deaths +13 %,
     /// steals 31 vs 38).
     pub thin_guard: u32,
-    /// A team behind runs a raid's approach (`Pace::Run`) outside the play's `sneak_m`: the first build walked it (Raid calm
-    /// walking +13.5 %).
+    /// A team behind runs a raid's approach (`Pace::Run`) outside the play's `sneak_m`. Off by default: on, the 4+5 fix's
+    /// 112-pair gap bench had Raid sprinting +280 %, deaths after an audible sprint +126 % (z +8.8), sprint deaths to a killer
+    /// within 20 m +92 % (z +7.3) and attack deaths +14 % (z +3.3, a guard FAIL): a running raider is heard by the guards.
     pub run_in: bool,
 }
 
 impl Default for BehindOpen {
     fn default() -> Self {
         // GUESS, by bench: one battery behind; a raid from 30 s; 0.6 of the time taken off at two behind.
-        Self { by: 1.0, raid_after_s: 30.0, share: 0.6, full_at: 2.0, thin_guard: 0, run_in: true }
+        Self { by: 1.0, raid_after_s: 30.0, share: 0.6, full_at: 2.0, thin_guard: 0, run_in: false }
     }
 }
 

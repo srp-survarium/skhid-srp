@@ -246,10 +246,7 @@ pub fn step(state: &mut State, target: TargetRef, cx: &Ctx, _rng: &mut Rng) -> S
                 return Step::Continue(Intent::stay().crouched().looking(Look::use_box(at)));
             }
             // [A296 item 4, `behind_open.run_in`] A team behind runs the approach outside `sneak_m`.
-            let run_in = cx.tuning.mods.behind_open.is_some_and(|open| open.run_in && open.behind(cx.sig.score_gap))
-                || cx.tuning.mods.team_plan.is_some_and(|rule| {
-                    matches!(crate::v026g::bots::team::TeamPlan::of(cx.sig, &rule), crate::v026g::bots::team::TeamPlan::Comeback { .. })
-                });
+            let run_in = cx.tuning.mods.behind_open.is_some_and(|open| open.run_in && open.behind(cx.sig.score_gap));
             let pace = if d < num("sneak_m") {
                 Pace::Sneak
             } else if run_in {
@@ -355,10 +352,10 @@ mod tests {
         s.tuning.mods.behind_open = Some(BehindOpen::default());
         s.enemy(3, 1, Vec3::new(70.0, 0.0, 31.0), Some(Source::Seen));
         assert!(raids(&s).is_empty(), "guarded");
-        // Behind, it runs the approach outside sneak_m.
+        // Behind with `run_in` (off by default: a running raider was heard), it runs the approach outside sneak_m.
         let mut s = raid(1);
         s.points(0, 1);
-        s.tuning.mods.behind_open = Some(BehindOpen::default());
+        s.tuning.mods.behind_open = Some(BehindOpen { run_in: true, ..BehindOpen::default() });
         let target = TargetRef::Container(1);
         let mut rng = Rng::new(1);
         let mut state = start(target, &s.cx(0), &mut rng);
