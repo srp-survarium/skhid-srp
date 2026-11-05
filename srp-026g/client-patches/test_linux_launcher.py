@@ -54,7 +54,10 @@ def install_gecko():
 if name=='wine' and sys.argv[1]=='wineboot.exe':
  prefix.mkdir(parents=True,exist_ok=True)
 with open(os.environ['TEST_CALLS'],'a') as f:
- f.write(json.dumps(dict(name=name,args=sys.argv[1:],cwd=os.getcwd(),prefix=str(prefix),dll=os.environ.get('WINEDLLOVERRIDES'),arch=os.environ.get('WINEARCH'))) + '\\n')
+ f.write(json.dumps(dict(name=name,args=sys.argv[1:],cwd=os.getcwd(),prefix=str(prefix),dll=os.environ.get('WINEDLLOVERRIDES'),arch=os.environ.get('WINEARCH'),crash_dump=os.environ.get('SKHID_CRASH_DUMP'))) + '\\n')
+if name=='wine' and sys.argv[1]=='survarium_skhid.exe' and os.environ.get('TEST_CRASH'):
+ pathlib.Path('SRP-crash-test-0.dmp').write_bytes(b'MDMP')
+ pathlib.Path('SRP-crash-test-0.txt').write_text('Reporter:  local build, full-memory dumps')
 if os.environ.get('TEST_FAIL')==name+':'+sys.argv[1]:
  sys.exit(1)
 if name=='wine' and sys.argv[1]=='--version':
@@ -676,6 +679,43 @@ HDMI-1 connected 1366x768+0+0
         calls = self.recorded_calls()
         self.assertEqual([c['name'] for c in calls],
             ['wine', 'wineserver', 'winetricks', 'wine', 'wine'])
+
+    def test_full_crash_dumps_reach_the_game_and_its_crash_files_are_listed(self):
+        self.copy_exe()
+        for tool in ('find', 'sort', 'date'):
+            (self.tools / tool).symlink_to(shutil.which(tool))
+        old = self.bin / 'SRP-crash-old-0.zip'
+        old.write_bytes(b'PK')
+        os.utime(old, (1, 1))
+        self.env.update(SKHID_CRASH_DUMP='full', TEST_CRASH='1', TEST_FAIL='wine:survarium_skhid.exe')
+        result = self.run_script()
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn('Game exited with an error', result.stderr)
+        calls = self.recorded_calls()
+        game = [c for c in calls if c['args'][:1] == ['survarium_skhid.exe']]
+        self.assertEqual([c['crash_dump'] for c in game], ['full'])
+        # The script waits for every Wine process (the game the launcher
+        # started) before it lists the crash files.
+        self.assertEqual(calls[-1]['name'], 'wineserver')
+        self.assertEqual(calls[-1]['args'], ['-w'])
+        self.assertIn(str(self.bin / 'SRP-crash-test-0.dmp'), result.stdout)
+        self.assertIn(str(self.bin / 'SRP-crash-test-0.txt'), result.stdout)
+        self.assertNotIn('SRP-crash-old-0', result.stdout)
+
+    def test_crash_dump_default_and_unknown_values(self):
+        self.copy_exe()
+        self.env['SKHID_CRASH_DUMP'] = ''
+        result = self.run_script()
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        self.assertEqual({c['crash_dump'] for c in self.recorded_calls()}, {None})
+        self.assertNotIn('Crash', result.stdout)
+        self.calls.unlink()
+        for value in ('Full', 'small', '1'):
+            self.env['SKHID_CRASH_DUMP'] = value
+            result = self.run_script()
+            self.assertNotEqual(result.returncode, 0)
+            self.assertIn('SKHID_CRASH_DUMP=' + value, result.stderr)
+            self.assertFalse(self.calls.exists())
 
     def test_concurrent_launcher_cannot_start_wine(self):
         self.copy_exe()

@@ -185,9 +185,10 @@ English, Russian, Ukrainian, German, Polish; English for unsupported languages):
 
 ## Dump contents
 
-`src/dump.rs`, `DUMP_TYPE`:
+`src/dump.rs`, `Kind`: read once, when the DLL is loaded, from the game's
+environment variable `SKHID_CRASH_DUMP`.
 
-- **Players' build:** `MiniDumpWithDataSegs | MiniDumpWithIndirectlyReferencedMemory`
+- **Players' dumps** (unset): `MiniDumpWithDataSegs | MiniDumpWithIndirectlyReferencedMemory`
   (0x41): every thread's stack and registers, the modules, their writable data
   sections, and the memory the stacks point to. Its memory callback also adds,
   for the crashing thread's EAX, EBX, ECX, EDX, ESI, EDI and EBP, the range
@@ -195,15 +196,18 @@ English, Russian, Ukrainian, German, Polish; English for unsupported languages):
   it: the object behind a faulting `mov eax, [esi+116h]`, which no stack slot
   need point to (at most 7 × 2.3 KiB). A range dbghelp cannot read is skipped,
   not a failed dump. Before 2026-11-01 it was DataSegs alone: no heap at all.
-- **Local test build** (`./build.sh --features full-memory-dumps`):
+- **Full-memory dumps** (`SKHID_CRASH_DUMP=full`, any build; on Linux
+  `SKHID_CRASH_DUMP=full bash Skhid.sh launcher`, which refuses any other
+  value and lists the crash files at the end; on Windows `set
+  SKHID_CRASH_DUMP=full` in the `cmd` that starts `Skhid.bat`):
   `MiniDumpWithFullMemory | FullMemoryInfo | HandleData | ThreadInfo |
-  UnloadedModules` (0x1826): the whole process memory, every heap object.
-  About the game's committed memory (1–3 GB); kept as the `.dmp` beside the
-  exe, not zipped (zipping would hold the crash for many seconds, and the dump
-  is read on that PC), the text report beside it. Crash details say
-  `Reporter:  local build, full-memory dumps`. Never released: `build.rs`
-  refuses the feature with `SKHID_REVISION`, which every release build sets
-  (`release/build-zip` builds a fresh worktree with plain `build.sh`).
+  UnloadedModules` (0x1826), no memory callback: the whole process memory,
+  every heap object. About the game's committed memory (1–3 GB); kept as the
+  `.dmp` beside the exe, not zipped (zipping would hold the crash for many
+  seconds, and the dump is read on that PC), the text report beside it. Crash
+  details say `Reporter:  <revision>, full-memory dumps (SKHID_CRASH_DUMP=full)`.
+  The launcher, the updater and Wine pass the environment on to the game
+  (their `CreateProcessW` gives no environment of its own).
 - **Wine's dbghelp** (Linux players and the local clients, which have no
   `dbghelp.dll` beside the exe) ignores DataSegs, IndirectlyReferencedMemory
   and memory callbacks: a players' dump written under Wine has stacks,
@@ -395,7 +399,6 @@ nix develop ./srp-026g
 cd client/bugtrap
 ./build.sh                       # a local build: version 0.0.0.0, "local build"
 SKHID_REVISION=27 ./build.sh     # as release/build-zip builds revision 27
-./build.sh --features full-memory-dumps   # local tests only: whole-memory dumps
 ```
 
 The target is `i686-win7-windows-msvc` (Windows 7 and later, as the game; the
@@ -441,7 +444,7 @@ rustc --edition 2024 -O --test src/zip.rs -o target/zip-test
 ```
 
 What a dump holds (Dump contents) has its own check, no X server needed, run
-once with a players' build and once with a `full-memory-dumps` build. Build the
+for both kinds (the probe runs with `SKHID_CRASH_DUMP` unset and `=full`). Build the
 probe and the test dbghelp with MinGW
 (`nix shell nixpkgs#pkgsCross.mingw32.buildPackages.gcc`), into a folder with
 that `BugTrap.dll`:
