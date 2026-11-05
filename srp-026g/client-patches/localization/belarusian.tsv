@@ -1266,6 +1266,7 @@ st_inv_additional_ammo_bags	Падсумкі для патронаў
 st_inv_ano_armor	Ізаляцыя
 st_inv_armor	Браня
 st_inv_arp	Бранябойнасць
+st_inv_artefact_recharge	Час перазарадкі артэфактаў
 st_inv_artefact_slots	Кантэйнер артэфактаў
 st_inv_buckshot	Шрот
 st_inv_clip_size	Патронаў у пачцы
@@ -1785,6 +1786,8 @@ st_refill_ammo_btn	Ужыць
 st_refill_ammo_label	Боезапас
 st_regen_booster_description	Стары армейскі сухпаёк. Паспяхова выкарыстоўваўся арміямі краін СНД у дакрызісны перыяд. Павышае метабалізм і пры гэтым даволі смачны.
 st_regen_booster_name	Сухпаёк
+st_regen_delay_name	Затрымка рэгенерацыі
+st_regen_limit_name	Мяжа рэгенерацыі
 st_registration_str	Стварыць акаўнт
 st_regular_fix	Рамонт
 st_regular_money	Срэбра

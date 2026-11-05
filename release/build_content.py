@@ -362,10 +362,12 @@ def apply_edits(rows, tree, base, base_files, game, work, world):
             world.put(file.relative_to(out).as_posix(), file.read_bytes(), f'edit {name}')
 
 
-def type_check(base, base_files, game, world):
+def type_check(rows, tree, base, base_files, game, world):
     """Every file the manifest makes keeps the value type of each key path the
     base/live version has, and a new key uses a 0.26g type for its path or is
-    allowlisted (content_type_check.py). A Problem lists every offender with
+    allowlisted (content_type_check.py); an entry of a list the manifest's edit
+    lists key (append_entry's unique_key) is weighed against the entry with
+    its key, wherever an edit moved it. A Problem lists every offender with
     the file, the path, the old type and the new type."""
     import importlib.util
     spec = importlib.util.spec_from_file_location(
@@ -382,6 +384,11 @@ def type_check(base, base_files, game, world):
     corpus_paths = sorted(p for p in base_files if p.endswith(ctc.CONFIG_SUFFIXES))
     corpus = game.get(base, corpus_paths)
     corp = ctc.corpus_with(walk, corpus)
+    try:
+        keys = ctc.list_keys(json.loads((edits_dir(tree) / name).read_text(encoding='utf-8'))
+                             for kind, name, *_ in rows if kind == 'edit' and name.endswith('.json'))
+    except ValueError as why:
+        raise Problem(f'the edit lists: {why}') from None
     # The previous version of each changed file: the base's bytes, where the
     # base has it; None for a file no base archive has (a pack's new file).
     had = [p for p in sorted(world.bytes) if p in base_files]
@@ -397,7 +404,8 @@ def type_check(base, base_files, game, world):
             except ctc.NotAConfig as why:
                 problems.append(f'{path} ({label}): a config the reader refuses ({why})')
     for path in sorted(world.bytes):
-        problems += ctc.violations(walk, previous.get(path), world.bytes[path], path, corp, TYPE_ALLOWLIST)
+        problems += ctc.violations(walk, previous.get(path), world.bytes[path], path, corp, TYPE_ALLOWLIST,
+                                   keys.get(path, {}))
     if problems:
         print()
         for problem in problems:
@@ -557,7 +565,7 @@ def main():
         # The value types every changed file keeps (content_type_check.py):
         # a key that exists in the base/live version keeps its type, a new key
         # uses a type 0.26g files already use at that path or is allowlisted.
-        type_check(base, base_files, game, world)
+        type_check(rows, args.tree, base, base_files, game, world)
         lamp_check(world)
         clothing_check(base, base_files, game, world)
 

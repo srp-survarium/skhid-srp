@@ -1266,6 +1266,7 @@ st_inv_additional_ammo_bags	Torbice za municiju
 st_inv_ano_armor	Izolacija
 st_inv_armor	Oklop
 st_inv_arp	Probojnost oklopa
+st_inv_artefact_recharge	Vreme punjenja artefakata
 st_inv_artefact_slots	Kontejner za artefakte
 st_inv_buckshot	Sačma
 st_inv_clip_size	Metaka u paketu
@@ -1785,6 +1786,8 @@ st_refill_ammo_btn	Primeni
 st_refill_ammo_label	Municija
 st_regen_booster_description	Stari vojni obroci, korišćeni u zemljama ZND-a pre krize. Ubrzavaju metabolizam i još uvek su ukusni.
 st_regen_booster_name	Vojni obrok
+st_regen_delay_name	Kašnjenje regeneracije
+st_regen_limit_name	Granica regeneracije
 st_registration_str	Napravi nalog
 st_regular_fix	Popravka
 st_regular_money	Srebro

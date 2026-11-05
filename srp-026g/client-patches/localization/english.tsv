@@ -1266,6 +1266,7 @@ st_inv_additional_ammo_bags	Ammo bags
 st_inv_ano_armor	Isolation
 st_inv_armor	Armor
 st_inv_arp	Armor penetration
+st_inv_artefact_recharge	Artifact recharge time
 st_inv_artefact_slots	Artifact container
 st_inv_buckshot	Buckshot
 st_inv_clip_size	Bullets in pack
@@ -1785,6 +1786,8 @@ st_refill_ammo_btn	Apply
 st_refill_ammo_label	Ammo
 st_regen_booster_description	Old army rations. Successfully used by the armies of the CIS countries in the pre-crisis period. Increases metabolism while still being quite tasty.
 st_regen_booster_name	Rations
+st_regen_delay_name	Regeneration delay
+st_regen_limit_name	Regeneration limit
 st_registration_str	Create account
 st_regular_fix	Repair
 st_regular_money	Silver

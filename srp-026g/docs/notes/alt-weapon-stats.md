@@ -77,16 +77,16 @@ The owner, 2026-11-04: "Alt on medkits and painkillers should show final numbers
 we implemented." Held Alt over a medicine's card (category 10: bandages, the five medkits,
 antitoxin, painkiller), each line a medical skill changes reads "original -> current", coloured as
 the weapon's. No effects line and no hint: the card has neither. The ranks come from the kit's
-float 43 (packed, `docs/notes/medical-skills.md`), parsed as the exe's `medical_skills` does (a
-refused value is no skill); Medical Training is also float 57. Every rule is the exe's
+floats 43 and 45 (packed, `docs/notes/medical-skills.md`), parsed as the exe's `medical_skills` does
+(a refused value of either is no skill); Medical Training is also float 57. Every rule is the exe's
 (`client-patches/rust/patches/src/medical_skills.rs`, `vostok/medical.rs`):
 
 | card line | in a match |
 |---|---|
-| Activation (19) | x max(0, 1 + S33) (set_active 0x33D45A), then Fast Bandaging x (1 - 0.02 x rank) on a medicine that heals (its card has a healing line: `data/influences`; antitoxin too, not the painkiller) |
-| Duration (18) | + rank s of Potent Painkiller on a pain protector (the painkiller) |
-| Pain protection (17) | c = (1 - p) x max(0, 1 + S58); Potent Painkiller: max(0, 1 - (1 - c) x (1 + 0.05 x rank)); shown 1 - c (10 % -> 12.5 % at rank 5) |
-| Healing lines (135, 136, 137, 13) | x max(0, 1 + S57) (medkit::tick 0x33D790; Medical Training +0.05 a rank), at most 100 % of the pool |
+| Activation (19) | x max(0, 1 + S33) (set_active 0x33D45A), then Fast Bandaging x (1 - 0.05 x rank) on a medicine that heals (its card has a healing line: `data/influences`; antitoxin too, not the painkiller) |
+| Duration (18) | + 1.5 s a rank of Potent Painkiller on a pain protector (the painkiller) |
+| Pain protection (17) | c = (1 - p) x max(0, 1 + S58); Potent Painkiller: max(0, c - 0.01 x rank), a percentage point a rank; shown 1 - c (10 % -> 13 % at rank 3) |
+| Healing lines (135, 136, 137, 13) | x max(0, 1 + S57) (medkit::tick 0x33D790; Medical Training +0.08 a rank), at most 100 % of the pool |
 
 Left out: S34 (`drug_activity_time`, the duration's weight): no skill or item gives it. No skill
 gives S33 or S58 either; they are there as the exe applies them.
@@ -126,7 +126,7 @@ gives them). Pocket counts (S15, S17, `pocket_units` 166) are the paper doll's, 
 - **Release:** the lobby movie and the dictionaries (content) and the exe (the floats). Nothing a
   match computes: no `simulation_changes.tsv` row.
 - **Checked:** `scripts/weapon-details/WeaponDetailsHarness.as` (Ruffle; the medicines in
-  `medicineChecks`: the seven live cards, no skill, each skill alone and all at rank 5, refused ranks,
+  `medicineChecks`: the seven live cards, no skill, each skill alone and all at their most ranks, refused ranks,
   no floats, Alt pressed over an open card; the grenades and the trap in `throwableChecks`: the three
   live cards, Grenadier ranks 1 and 2, S11 and S12, a sum below -1, no floats, Alt pressed over an
   open grenade card), `check_weight_ui_026g.py` (Unicorn). Not run in a game.

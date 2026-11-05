@@ -128,6 +128,29 @@ should mix them just as retail does")
 - So nothing changes in the third person; the first-person glows overlap the same way (each
   kind its own additive effect).
 
+## Artifact-master (the owner, 2026-11-05: "should also make artefacts recharge 20% faster")
+
+- The booster (`artefact_booster`, item 344) in a pocket: artefact search time -25 % as before
+  (built-in 1134, modifier 7: the container's `artefacts_search_time_sec` x max(0, 1 + S),
+  0x31C7EF; 6 s -> 4.5 s), and now every artefact's cooldown -20 % (Spring 40 -> 32 s, Lifebone
+  45 -> 36 s, Onyx 60 -> 48 s).
+- Data only, no exe change: a built-in bonus like 1134. Modification 1310
+  (`artefact-cooldown-bonus-1.json`, `modifications.tsv`): `parameters/artefact_cooldown_modifier`
+  -0.2, type 1, drop weight 0, a type of its own (41: never rolled), card property 173 "Artifact
+  recharge time" (made like 108, the search time: a percentage, lower is better), the search
+  time's icon (13). `boosters.tsv` makes it the booster's second built-in; the booster's config
+  carries the key at 0, as the other boosters carry theirs (the item cook skips a modifier whose
+  key the config lacks, weapon-rolls.md).
+- A booster (0x33F690) makes a player modifier of each of its 68 parameters that is not 0
+  (player_bots.md), and the active's end (0x313530) starts the cooldown at `cooldown_sec` x 1000 x
+  max(0, 1 + S38) (38 is multiplicative: not in the additive list 0x927E08). No skill, other item
+  or modification of the data gives it.
+- The card: "Artifact recharge time -20%" under the search time's line, green (no roll reaches
+  it, so not the gold of a best roll as 1134's -25 %). The lobby's Alt values leave boosters and
+  artefacts out (alt-weapon-stats.md): nothing to show.
+- The HUD slot's fill (0x313880) still divides the time left by the unmodified cooldown: with
+  the booster a cooling artefact's fill starts at 20 % instead of 0 and ends full on time.
+
 ## Texts
 
 - The only texts: each artefact's pickup hint (the passive) and activation hint (the active), fixed

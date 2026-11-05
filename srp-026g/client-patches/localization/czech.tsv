@@ -1266,6 +1266,7 @@ st_inv_additional_ammo_bags	Sumky na munici
 st_inv_ano_armor	Izolace
 st_inv_armor	Ochrana
 st_inv_arp	Průbojnost
+st_inv_artefact_recharge	Doba dobíjení artefaktů
 st_inv_artefact_slots	Kontejner na artefakty
 st_inv_buckshot	Broky
 st_inv_clip_size	Nábojů v balení
@@ -1785,6 +1786,8 @@ st_refill_ammo_btn	Použít
 st_refill_ammo_label	Munice
 st_regen_booster_description	Staré vojenské příděly. Před krizí je úspěšně používaly armády zemí SNS. Zrychlují metabolismus a přitom docela dobře chutnají.
 st_regen_booster_name	Vojenský příděl
+st_regen_delay_name	Prodleva regenerace
+st_regen_limit_name	Mez regenerace
 st_registration_str	Vytvořit účet
 st_regular_fix	Opravit
 st_regular_money	Stříbro

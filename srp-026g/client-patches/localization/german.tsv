@@ -1266,6 +1266,7 @@ st_inv_additional_ammo_bags	Patronen Beutel
 st_inv_ano_armor	Isolierung
 st_inv_armor	Rüstung
 st_inv_arp	Panzerschutzkraft
+st_inv_artefact_recharge	Aufladezeit der Artefakte
 st_inv_artefact_slots	Container für Artefakten
 st_inv_buckshot	Schrotkugeln
 st_inv_clip_size	Patronen in der Packung
@@ -1785,6 +1786,8 @@ st_refill_ammo_btn	Umbenennen
 st_refill_ammo_label	Ausrüstung
 st_regen_booster_description	Alte armee- Ration wurde Erfolgreich von den Armeen der GUS-Staaten in der Vorkrisenperiode verwendet. Erhöht den Metabolismus, dabei ziemlich lecker.
 st_regen_booster_name	Ration
+st_regen_delay_name	Regenerationsverzögerung
+st_regen_limit_name	Regenerationsgrenze
 st_registration_str	Konto registrieren
 st_regular_fix	Reparatur
 st_regular_money	Silber

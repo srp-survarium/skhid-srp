@@ -1266,6 +1266,7 @@ st_inv_additional_ammo_bags	Підсумки для набоїв
 st_inv_ano_armor	Ізоляція
 st_inv_armor	Броня
 st_inv_arp	Бронебійність
+st_inv_artefact_recharge	Час перезарядки артефактів
 st_inv_artefact_slots	Контейнер для артефактів
 st_inv_buckshot	Дріб
 st_inv_clip_size	Набоїв в упаковці
@@ -1785,6 +1786,8 @@ st_refill_ammo_btn	Підтвердити
 st_refill_ammo_label	Боєзапас
 st_regen_booster_description	Старий армійський сухпайок. Успішно застосовувався арміями країн СНД в докризовий період. Підвищує метаболізм, при цьому досить смачний.
 st_regen_booster_name	Сухпайок
+st_regen_delay_name	Затримка регенерації
+st_regen_limit_name	Межа регенерації
 st_registration_str	Створити новий акаунт
 st_regular_fix	Ремонт
 st_regular_money	Срібло

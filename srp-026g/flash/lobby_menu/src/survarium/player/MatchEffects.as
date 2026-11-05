@@ -123,24 +123,24 @@ package survarium.player
          {
             case 19:
                // Use time: x max(0, 1 + S33) (set_active 0x33D45A), then Fast Bandaging's
-               // -2 % a rank on a medicine that heals (data/influences: a healing line on its card).
-               return value * factor(PlayerModifier.DRUG_USING_TIME) * (heals(item) ? 1 - bandaging * 0.02 : 1);
+               // -5 % a rank on a medicine that heals (data/influences: a healing line on its card).
+               return value * factor(PlayerModifier.DRUG_USING_TIME) * (heals(item) ? 1 - bandaging * 0.05 : 1);
             case 18:
-               // Active time: Potent Painkiller's +1 s a rank on a pain protector.
-               return has(item,PAIN_PROTECTION) ? value + painkiller : value;
+               // Active time: Potent Painkiller's +1.5 s a rank on a pain protector.
+               return has(item,PAIN_PROTECTION) ? value + painkiller * 1.5 : value;
             case PAIN_PROTECTION:
                // The hit's coefficient c = (1 - protection) x max(0, 1 + S58); Potent Painkiller
-               // makes it max(0, 1 - (1 - c) x (1 + 0.05 x rank)) (medical::protect). In %, so
-               // that no skill leaves the card's own number exact.
+               // adds a percentage point a rank: max(0, c - 0.01 x rank) (medical::protect). In %,
+               // so that no skill leaves the card's own number exact.
                var coefficient:Number = (100 - value) * factor(PlayerModifier.DRUG_HIT_COEFF);
-               if(painkiller > 0) coefficient = Math.max(0,100 - (100 - coefficient) * (1 + painkiller * 0.05));
+               coefficient = Math.max(0,coefficient - painkiller);
                return 100 - coefficient;
             case 13:
             case 135:
             case 136:
             case 137:
                // Healing: each tick's amount x max(0, 1 + S57) (medkit::tick 0x33D790; Medical
-               // Training +5 % a rank), a pool never above its maximum.
+               // Training +8 % a rank), a pool never above its maximum.
                return Math.min(100,value * factor(PlayerModifier.DRUG_AMOUNT));
             default:
                return value;

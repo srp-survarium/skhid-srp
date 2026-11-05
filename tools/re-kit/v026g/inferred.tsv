@@ -382,7 +382,6 @@ va	status	ref_021d	name
 0x0007b840	inferred-medium	0x0021d20d	vostok::physics::bullet_character_controller::get_corrected_walk_vector
 0x0007ba30	inferred-medium	0x0021d38e	vostok::physics::bullet_character_controller::get_slide_acceleration
 0x0007bc20	inferred-medium	0x0021d428	vostok::physics::bullet_character_controller::need_slide_on_supporting_surface
-0x0007bda0	inferred-medium	0x0021d4a9	vostok::physics::bullet_character_controller::player_step
 0x0007c7e0	inferred-medium	0x0021db35	vostok::physics::bullet_character_controller::can_skeep_player_step
 0x0007c900	inferred-medium	0x0021dbe5	vostok::physics::bullet_character_controller::step_up
 0x0007cb90	inferred-medium	0x0021ddbd	vostok::physics::bullet_character_controller::step_jump_forward
@@ -401,7 +400,6 @@ va	status	ref_021d	name
 0x0007ef90	inferred-medium	0x0021fc07	vostok::physics::bullet_character_controller::on_ground
 0x0007f050	inferred-medium		vostok::physics::bullet_character_controller::end_jump
 0x0007f100	inferred-medium	0x0021fc66	vostok::physics::bullet_character_controller::setup_shape_dim
-0x0007f1a0	inferred-medium	0x0021fcf1	vostok::physics::bullet_character_controller::setup_crouch_state
 0x0007f310	inferred-medium	0x0021fd8e	vostok::physics::bullet_character_controller::initialize
 0x0007f4a0	inferred-medium	0x0021fe60	vostok::physics::bullet_character_controller::insert
 0x0007f520	inferred-medium	0x0021fed8	vostok::physics::bullet_character_controller::remove
@@ -2275,6 +2273,8 @@ va	status	ref_021d	name
 0x0033b780	inferred-medium		survarium::artefact_onyx_core::config::config
 0x0033f3a0	inferred-medium		survarium::armor::add_modifiers
 0x0033f4e0	inferred-medium	0x0020baad	vostok::buffer_vector<survarium::armor::body_part_params>::push_back
+0x0033f690	inferred-medium		survarium::booster::booster
+0x0033f990	inferred-medium		survarium::booster::add_modifiers
 0x0033fd00	inferred-medium		survarium::player_serialized_state::serialize
 0x003402c0	inferred-medium		survarium::hit_player_game_effect_presenter::serialize
 0x00340930	inferred-high	0x0020c3b8	survarium::hit_animations_selector::hit_body_part::hit_body_part
@@ -3206,6 +3206,9 @@ va	status	ref_021d	name
 0x00057560	inferred-medium	0x0003eaef	vostok::sound::sound_scene::get_listenet_position
 0x00063d60	inferred-high	0x000474fb	vostok::sound::composite_sound::emit_sound_propagators
 0x000633f0	inferred-medium	0x00043646	vostok::sound::voice_bridge::set_volume_impl
+0x0005a6b0	inferred-high	0x0004102a	vostok::sound::sound_instance_proxy_internal::sound_instance_proxy_internal
+0x000656e0	inferred-medium		vostok::sound::sound_emitter::emit_spot_sound
+0x00298cc0	inferred-high	0x001b2543	survarium::damage_zone::emit_sound
 0x001ee7c0	inferred-medium		survarium::game::is_text_input_focused
 0x0030a250	inferred-medium		survarium::grenade_set_core::throw_grenade
 0x0030a350	inferred-medium		survarium::grenade_set_core::splash_hit_params

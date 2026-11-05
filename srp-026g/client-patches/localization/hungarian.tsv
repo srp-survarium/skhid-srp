@@ -1266,6 +1266,7 @@ st_inv_additional_ammo_bags	Lőszertáskák
 st_inv_ano_armor	Szigetelés
 st_inv_armor	Páncél
 st_inv_arp	Páncélátütés
+st_inv_artefact_recharge	Artefaktum-töltődési idő
 st_inv_artefact_slots	Artefaktumtároló
 st_inv_buckshot	Sörét
 st_inv_clip_size	Lőszer csomagonként
@@ -1785,6 +1786,8 @@ st_refill_ammo_btn	Alkalmazás
 st_refill_ammo_label	Lőszer
 st_regen_booster_description	Régi katonai fejadag. A FÁK-országok hadseregei sikerrel használták a válság előtt. Gyorsítja az anyagcserét, és még egész finom is.
 st_regen_booster_name	Fejadag
+st_regen_delay_name	Regeneráció késleltetése
+st_regen_limit_name	Regeneráció határa
 st_registration_str	Fiók létrehozása
 st_regular_fix	Javítás
 st_regular_money	Ezüst
