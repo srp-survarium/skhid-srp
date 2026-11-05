@@ -263,7 +263,7 @@ st_army_026_mask_desc	Vojna potkapa sa jednim širokim prorezom za oči, iz otka
 st_army_026_mask_name	Vojna potkapa
 st_artcontainer_time_corr_perc_name	Vreme sakupljanja
 st_artefact_activated_message	Artefakt je aktiviran
-st_artefact_booster_description	Druga verzija zanatskog uređaja za vađenje artefakata. Ugrađeni prigušivač anomalne aktivnosti ubrzava postupak izvlačenja.
+st_artefact_booster_description	Druga verzija zanatskog uređaja za vađenje artefakata. Ugrađeni prigušivač anomalne aktivnosti ubrzava postupak izvlačenja.\nArtefakti se pune 20% brže.
 st_artefact_booster_name	Majstor za artefakte
 st_artefact_no_free_slots	Nema slobodnog mesta za artefakt!
 st_artefact_search_failed	Artefakt nije pronađen

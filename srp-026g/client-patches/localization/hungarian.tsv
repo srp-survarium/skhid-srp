@@ -263,7 +263,7 @@ st_army_026_mask_desc	Egyetlen széles szemnyílású maszk a törölt S.T.A.L.K
 st_army_026_mask_name	Katonai maszk
 st_artcontainer_time_corr_perc_name	Begyűjtési idő
 st_artefact_activated_message	Artefaktum aktiválva
-st_artefact_booster_description	Az artefaktumok begyűjtésére barkácsolt eszköz második változata. A beépített anomáliaelnyomó felgyorsítja a kinyerést.
+st_artefact_booster_description	Az artefaktumok begyűjtésére barkácsolt eszköz második változata. A beépített anomáliaelnyomó felgyorsítja a kinyerést.\nAz artefaktumok 20%-kal gyorsabban töltődnek.
 st_artefact_booster_name	Artefaktummester
 st_artefact_no_free_slots	Nincs szabad rekesz az artefaktumnak!
 st_artefact_search_failed	Nem találtál artefaktumot
