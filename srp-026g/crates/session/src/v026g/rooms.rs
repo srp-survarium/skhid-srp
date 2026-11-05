@@ -48,6 +48,10 @@
 //!   level either (the owner's of 2026-10-26: "private room shouldn't have
 //!   max level too"): whoever has its PIN comes in with any equipment, and
 //!   nothing takes a member out of it for its equipment ([`Door::Pin`]).
+//! - A private room may be made with bots (the owner's of 2026-11-05): its
+//!   pool holds only maps the server's bots play, the room shows no bots,
+//!   and its match fills each team with them, its members on a team in
+//!   bots' places ([`Room::bots_for`]).
 //!
 //! This module keeps the rooms and their rules. The lobby asks it, does
 //! what it says (sends players to a match, tells the clients) and tells it
@@ -101,8 +105,9 @@ pub enum Door {
     /// (0: any).
     Open { max_level: u8 },
     /// A private room: whoever gives its PIN, with any equipment (the
-    /// owner's of 2026-10-26: no max level).
-    Pin(u16),
+    /// owner's of 2026-10-26: no max level). `bots`: its matches are
+    /// filled with the server's bots ([`Room::bots_for`]).
+    Pin { pin: u16, bots: bool },
 }
 
 impl Door {
@@ -110,7 +115,7 @@ impl Door {
     pub fn lets_in(self, gear: u8) -> bool {
         match self {
             Door::Open { max_level } => max_level == 0 || gear <= max_level,
-            Door::Pin(_) => true,
+            Door::Pin { .. } => true,
         }
     }
 
@@ -120,7 +125,7 @@ impl Door {
     pub fn max_level(self) -> u8 {
         match self {
             Door::Open { max_level } => max_level,
-            Door::Pin(_) => 0,
+            Door::Pin { .. } => 0,
         }
     }
 
@@ -128,7 +133,7 @@ impl Door {
     fn opens(self, given: Option<u16>) -> bool {
         match self {
             Door::Open { .. } => true,
-            Door::Pin(pin) => given == Some(pin),
+            Door::Pin { pin, .. } => given == Some(pin),
         }
     }
 }
@@ -267,7 +272,7 @@ impl Room {
         if self.is_open() {
             return true;
         }
-        let free = |side: u8| usize::from(PRIVATE_SIZE).saturating_sub(self.side_count(side));
+        let free = |side: u8| usize::from(self.spec.size).saturating_sub(self.side_count(side));
         match beside.and_then(|mate| self.sides.get(&mate).copied()) {
             Some(side) => free(side) >= comers,
             None => free(0).max(free(1)) >= comers,
@@ -290,7 +295,7 @@ impl Room {
             let fewer = u8::from(self.side_count(1) < self.side_count(0));
             let side = beside
                 .and_then(|mate| self.sides.get(&mate).copied())
-                .filter(|&side| self.side_count(side) < usize::from(PRIVATE_SIZE))
+                .filter(|&side| self.side_count(side) < usize::from(self.spec.size))
                 .unwrap_or(fewer);
             self.sides.insert(account_id, side);
         }
@@ -318,6 +323,22 @@ impl Room {
 
     pub fn is_open(&self) -> bool {
         matches!(self.spec.door, Door::Open { .. })
+    }
+
+    /// A private room made with bots ([`Door::Pin`]).
+    pub fn with_bots(&self) -> bool {
+        matches!(self.spec.door, Door::Pin { bots: true, .. })
+    }
+
+    /// The server's bots each team of its match takes when `seated` play on
+    /// it: a room with bots fills each team up to its size (`pvb/default_size`,
+    /// always 8 v 8), its players in bots' places (the owner's of 2026-11-05);
+    /// none in any other room.
+    pub fn bots_for(&self, seated: [usize; 2]) -> [usize; 2] {
+        if !self.with_bots() {
+            return [0, 0];
+        }
+        seated.map(|on| usize::from(self.spec.size).saturating_sub(on))
     }
 
     /// Whether a player of equipment level `gear` is let in, and may play
@@ -398,7 +419,7 @@ pub enum MoveRefused {
     Playing,
     /// No member at that place.
     NoMember,
-    /// The other side has its [`PRIVATE_SIZE`].
+    /// The other side has its room's size (`Spec::size`).
     Full,
 }
 
@@ -592,7 +613,8 @@ impl Rooms {
     /// the account's draft of them, or the `default` pool with none. The
     /// owner's equipment level `gear` must be within an open room's max
     /// level. A private one (a PIN) is [`PRIVATE_SIZE`] a side, whatever `spec`
-    /// says.
+    /// says; one with bots `pvb/default_size` (8: always 8 v 8), and it keeps
+    /// only the maps of its pool in `bot_maps` (those the server's bots play).
     #[allow(clippy::too_many_arguments)]
     pub fn create(
         &mut self,
@@ -601,18 +623,25 @@ impl Rooms {
         mut spec: Spec,
         entries: &[u8],
         default: &[u8],
+        bot_maps: &[u8],
         most_rooms: usize,
         now: Instant,
         below: &mut impl FnMut(usize) -> usize,
     ) -> Result<u32, Refused> {
-        let pool = self
+        let mut pool = self
             .take_draft(owner, entries, now)
             .unwrap_or_else(|| default.to_vec());
+        if let Door::Pin { bots, .. } = spec.door {
+            spec.size = PRIVATE_SIZE;
+            if bots {
+                // Always 8 v 8 (the owner's of 2026-11-05): bots fill each
+                // team to its size, a team takes no more.
+                spec.size = rules().pvb.default_size;
+                pool.retain(|id| bot_maps.contains(id));
+            }
+        }
         if pool.is_empty() || spec.size == 0 {
             return Err(Refused::Bad);
-        }
-        if let Door::Pin(_) = spec.door {
-            spec.size = PRIVATE_SIZE;
         }
         if !spec.door.lets_in(gear) {
             return Err(Refused::GearTooHigh);
@@ -1389,8 +1418,8 @@ impl Rooms {
 
     /// A member went into the room's running match late, on side `team`:
     /// in a private room its side in the arrangement from now on, as it
-    /// plays, while that team has a place (never more than
-    /// [`PRIVATE_SIZE`]); one on its own team keeps it.
+    /// plays, while that team has a place (never more than the room's size);
+    /// one on its own team keeps it.
     pub fn seated_late(&mut self, key: u32, account_id: u32, team: u8) {
         if let Some(room) = self.rooms.get_mut(&key) {
             room.in_match.insert(account_id);
@@ -1399,7 +1428,7 @@ impl Rooms {
                 .sides
                 .get(&account_id)
                 .is_some_and(|&side| side != team)
-                && room.side_count(team) < usize::from(PRIVATE_SIZE)
+                && room.side_count(team) < usize::from(room.spec.size)
             {
                 room.sides.insert(account_id, team);
             }
@@ -1409,7 +1438,7 @@ impl Rooms {
     /// The owner of a private room moves the member at `place` of its
     /// list (itself too) to the other side (the owner's of 2026-10-26: "a
     /// button to move the player into any team"), while the room waits;
-    /// never onto a side of [`PRIVATE_SIZE`] already. Its side now.
+    /// never onto a side of the room's size already. Its side now.
     pub fn move_member(&mut self, owner: u32, place: usize) -> Result<u8, MoveRefused> {
         let key = *self.of_account.get(&owner).ok_or(MoveRefused::NoRoom)?;
         let room = self.rooms.get_mut(&key).ok_or(MoveRefused::NoRoom)?;
@@ -1424,7 +1453,7 @@ impl Rooms {
         }
         let member = *room.members.get(place).ok_or(MoveRefused::NoMember)?;
         let to = 1 - room.sides.get(&member).copied().unwrap_or(0).min(1);
-        if room.side_count(to) >= usize::from(PRIVATE_SIZE) {
+        if room.side_count(to) >= usize::from(room.spec.size) {
             return Err(MoveRefused::Full);
         }
         room.sides.insert(member, to);
@@ -1644,7 +1673,10 @@ mod tests {
         Spec {
             size,
             wait: 30,
-            door: pin.map_or(Door::Open { max_level: 0 }, Door::Pin),
+            door: pin.map_or(Door::Open { max_level: 0 }, |pin| Door::Pin {
+                pin,
+                bots: false,
+            }),
             min_players: 2,
         }
     }
@@ -1658,7 +1690,17 @@ mod tests {
 
     fn room_of(rooms: &mut Rooms, owner: u32, size: u8, pin: Option<u16>, now: Instant) -> u32 {
         rooms
-            .create(owner, 0, spec(size, pin), &POOL, &POOL, 50, now, &mut first)
+            .create(
+                owner,
+                0,
+                spec(size, pin),
+                &POOL,
+                &POOL,
+                &[],
+                50,
+                now,
+                &mut first,
+            )
             .unwrap()
     }
 
@@ -2008,6 +2050,7 @@ mod tests {
                 },
                 &POOL,
                 &POOL,
+                &[],
                 50,
                 now,
                 &mut first,
@@ -2128,7 +2171,17 @@ mod tests {
         rooms.enqueue_play(2, 0, key, now).unwrap();
         // Leaving this room would not free a room slot: its queue keeps it.
         assert_eq!(
-            rooms.create(1, 0, spec(8, Some(42)), &[61], &[61], 1, now, &mut first),
+            rooms.create(
+                1,
+                0,
+                spec(8, Some(42)),
+                &[61],
+                &[61],
+                &[],
+                1,
+                now,
+                &mut first
+            ),
             Err(Refused::TooMany)
         );
         assert_eq!(rooms.key_of(1), Some(key));
@@ -2191,7 +2244,17 @@ mod tests {
         assert_eq!(rooms.draft(1, 0, 0b101, now), 2);
         assert_eq!(rooms.draft(1, 1, 0b1, now), 3);
         let key = rooms
-            .create(1, 0, spec(8, None), &entries, &[99], 50, now, &mut first)
+            .create(
+                1,
+                0,
+                spec(8, None),
+                &entries,
+                &[99],
+                &[],
+                50,
+                now,
+                &mut first,
+            )
             .unwrap();
         assert_eq!(rooms.get(key).unwrap().pool, vec![0, 2, 20]);
         // Too old: the default.
@@ -2203,6 +2266,7 @@ mod tests {
                 spec(8, None),
                 &entries,
                 &[99],
+                &[],
                 50,
                 now + DRAFT_LIFE + Duration::from_secs(1),
                 &mut first,
@@ -2212,7 +2276,17 @@ mod tests {
         // Nothing at all is no room.
         rooms.draft(3, 0, 0, now);
         assert_eq!(
-            rooms.create(3, 0, spec(8, None), &entries, &[99], 50, now, &mut first),
+            rooms.create(
+                3,
+                0,
+                spec(8, None),
+                &entries,
+                &[99],
+                &[],
+                50,
+                now,
+                &mut first
+            ),
             Err(Refused::Bad)
         );
     }
@@ -2302,7 +2376,7 @@ mod tests {
         let (plain, blackout) = battery_maps();
         let pool: Vec<u8> = plain.iter().chain(&blackout).copied().collect();
         let key = rooms
-            .create(1, 0, spec(6, None), &pool, &pool, 50, now, &mut first)
+            .create(1, 0, spec(6, None), &pool, &pool, &[], 50, now, &mut first)
             .unwrap();
         rooms.join(2, 0, key, now).unwrap();
         let third = rooms.get(key).unwrap().cards[2];
@@ -2324,14 +2398,14 @@ mod tests {
         let mut keys = 0..;
         let mut next = |_: usize| keys.next().unwrap();
         rooms
-            .create(1, 0, spec(8, None), &POOL, &POOL, 1, now, &mut next)
+            .create(1, 0, spec(8, None), &POOL, &POOL, &[], 1, now, &mut next)
             .unwrap();
         assert_eq!(
-            rooms.create(2, 0, spec(8, None), &POOL, &POOL, 1, now, &mut next),
+            rooms.create(2, 0, spec(8, None), &POOL, &POOL, &[], 1, now, &mut next),
             Err(Refused::TooMany)
         );
         rooms
-            .create(1, 0, spec(6, None), &POOL, &POOL, 1, now, &mut next)
+            .create(1, 0, spec(6, None), &POOL, &POOL, &[], 1, now, &mut next)
             .unwrap();
         assert_eq!(rooms.len(), 1);
     }
@@ -2346,11 +2420,11 @@ mod tests {
         };
         // Not under its maker's own equipment level.
         assert_eq!(
-            rooms.create(1, 6, capped, &POOL, &POOL, 50, now, &mut first),
+            rooms.create(1, 6, capped, &POOL, &POOL, &[], 50, now, &mut first),
             Err(Refused::GearTooHigh)
         );
         let key = rooms
-            .create(1, 5, capped, &POOL, &POOL, 50, now, &mut first)
+            .create(1, 5, capped, &POOL, &POOL, &[], 50, now, &mut first)
             .unwrap();
         assert_eq!(rooms.join(2, 6, key, now), Err(Refused::GearTooHigh));
         assert!(rooms.open_rooms(2, 6, 1).next().is_none());
@@ -2367,7 +2441,17 @@ mod tests {
         let now = Instant::now();
         let mut rooms = Rooms::default();
         let key = rooms
-            .create(1, 15, spec(8, Some(42)), &POOL, &POOL, 50, now, &mut first)
+            .create(
+                1,
+                15,
+                spec(8, Some(42)),
+                &POOL,
+                &POOL,
+                &[],
+                50,
+                now,
+                &mut first,
+            )
             .unwrap();
         let room = rooms.get(key).unwrap();
         assert!(room.lets_in(15) && room.lets_in(0));
@@ -2655,6 +2739,7 @@ mod tests {
                 },
                 &POOL,
                 &POOL,
+                &[],
                 50,
                 now,
                 &mut first,
@@ -2797,5 +2882,46 @@ mod tests {
         assert!(!room.has_places(1, Some(30)));
         assert!(room.has_places(1, None));
         assert!(!room.has_places(2, None));
+    }
+
+    /// A private room made with bots keeps only the bots' maps of its pool
+    /// and fills each team with them; no other room has any.
+    #[test]
+    fn a_room_with_bots_keeps_their_maps_and_fills_its_teams() {
+        let now = Instant::now();
+        let mut rooms = Rooms::default();
+        let with_bots = Spec {
+            door: Door::Pin {
+                pin: 42,
+                bots: true,
+            },
+            ..spec(8, None)
+        };
+        let key = rooms
+            .create(
+                1,
+                0,
+                with_bots,
+                &POOL,
+                &POOL,
+                &[61, 117],
+                50,
+                now,
+                &mut first,
+            )
+            .unwrap();
+        let room = rooms.get(key).unwrap();
+        assert!(room.with_bots());
+        assert_eq!(room.pool, [61, 117]);
+        assert_eq!(room.spec.size, rules().pvb.default_size);
+        assert_eq!(room.bots_for([1, 0]), [7, 8]);
+        assert_eq!(room.bots_for([8, 3]), [0, 5]);
+        // None of the bots' maps in its pool: no room.
+        assert_eq!(
+            rooms.create(2, 0, with_bots, &POOL, &[63], &[61], 50, now, &mut first),
+            Err(Refused::Bad)
+        );
+        let plain = room_of(&mut rooms, 3, 8, Some(42), now);
+        assert_eq!(rooms.get(plain).unwrap().bots_for([1, 0]), [0, 0]);
     }
 }

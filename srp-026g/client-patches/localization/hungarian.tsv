@@ -2575,6 +2575,7 @@ st_srp_rooms_all	Összes
 st_srp_rooms_all_rooms	Összes szoba
 st_srp_rooms_any	Bármelyik
 st_srp_rooms_back	Vissza
+st_srp_rooms_bots	Botokkal
 st_srp_rooms_code_10	A tulajdonos eltávolított a szobából.
 st_srp_rooms_code_11	Előbb lépj ki a kláncsapatból.
 st_srp_rooms_code_12	A felszerelésed meghaladja a szintkorlátot.

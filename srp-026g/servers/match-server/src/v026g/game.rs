@@ -5723,9 +5723,22 @@ impl Game {
     /// focus, a stalled link) would hold the match, and one of the few
     /// bots' places, to its time limit. A player in no stage to upload
     /// (loading, resynced, waiting for a world) has the other rules:
-    /// `check_world_lost`, the client timeout, `check_bots_alone`.
+    /// `check_world_lost`, the client timeout, `check_bots_alone`. A match
+    /// against bots with more players in it (a private room's with bots)
+    /// has the rules of any match: its other players upload the world.
     fn check_pvb_stall(&mut self, now: Instant) {
         if !self.formed.vs_bots || self.finished_at.is_some() || self.ending.is_some() {
+            return;
+        }
+        let players = (0..self.formed.places.len())
+            .filter(|&index| {
+                !self.is_bot(index)
+                    && self.peers[index]
+                        .as_ref()
+                        .is_some_and(|peer| peer.stage != Stage::Gone)
+            })
+            .count();
+        if players > 1 {
             return;
         }
         let stall = self.settings.timing.pvb_stall;

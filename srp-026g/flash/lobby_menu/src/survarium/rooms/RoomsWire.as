@@ -29,6 +29,10 @@ package survarium.rooms
         // A private room's owner starts its match now (answered with the
         // state; the owner's of 2026-10-26: no countdown in a private room).
         public static const START:int = FIRST + 41;
+        // Make a private room with bots, its PIN and pool sent first as for
+        // CREATE + CREATE_PIN (answered with the state; the owner's of
+        // 2026-11-05).
+        public static const CREATE_BOTS:int = FIRST + 42;
         // The owner of a private room moves a member to the other team:
         // MOVE + place + MEMBERS_MAX * (the room's serial % KICK_CHECKS), as a
         // kick (answered with the state, whose `A;<sides>` row has the teams).
