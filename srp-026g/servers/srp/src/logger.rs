@@ -30,16 +30,21 @@ use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
 use log::{Level, LevelFilter, Log, Metadata, Record};
 
-const SERVERS: [&str; 5] = ["login", "lobby", "match", "web", "srp"];
+/// Each server's file: its name, the size it is rotated at, and how many
+/// files of it are kept (`<server>.log`, `.1` ...). About two days of each
+/// at the heaviest seen (2026-11-01 to 11-02, 116-127 MB a day in all, of
+/// it about 95 % match, 4 % lobby, 1.5 % srp, under 0.2 % login and web).
+const SERVERS: [(&str, u64, u32); 5] = [
+    ("login", 2 << 20, 4),
+    ("lobby", 4 << 20, 8),
+    ("match", 8 << 20, 32),
+    ("web", 2 << 20, 2),
+    ("srp", 4 << 20, 4),
+];
 
 /// Where the files are: unset for `logs`, empty or `off` for nowhere.
 const LOG_DIR_VAR: &str = "SRP_LOG_DIR";
 const DEFAULT_LOG_DIR: &str = "logs";
-/// A server's file is rotated before it grows past this.
-const MAX_FILE_BYTES: u64 = 8 << 20;
-/// Files per server: `<server>.log` and `<server>.log.1` to `.15` (128 MB:
-/// a day of the match server at its heaviest seen, 2026-11-01).
-const KEPT_FILES: u32 = 16;
 /// The buffer of a file is written out at a line this long after the last.
 const FLUSH_AFTER: Duration = Duration::from_secs(1);
 const SECONDS_PER_DAY: u64 = 86_400;
@@ -170,8 +175,8 @@ pub fn init(level: LevelFilter) -> io::Result<()> {
         .map(|dir| {
             SERVERS
                 .into_iter()
-                .map(|server| {
-                    let log = ServerLog::new(&dir, server, MAX_FILE_BYTES, KEPT_FILES);
+                .map(|(server, max_bytes, kept)| {
+                    let log = ServerLog::new(&dir, server, max_bytes, kept);
                     (server, Mutex::new(log))
                 })
                 .collect()
