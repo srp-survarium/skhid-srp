@@ -69,9 +69,10 @@ dynamic game". Rooms: [rooms.md](rooms.md) (Queue, Late joins). Wire: `lobby.md`
   place; it gets 0xE4 with 0xFF, a trusted world as a newcomer gets one, then every relay and
   roster change. It is sent nothing else (never 0xE9/0xEA of itself, never an answer to an input,
   0xEF..0xF5: its game would index its player table at 0xFF) and nothing of it is taken (inputs,
-  kit choices, hash reports, uploads), so it changes nothing a match computes: no row in
-  `simulation_changes.tsv`. It is let go by one 0xEA naming place 0xFF (a closed link ends no
-  match in the game, `match.md` §24), then silence.
+  kit choices, uploads; its hash reports judge it alone), so it changes nothing a match
+  computes: no row in `simulation_changes.tsv`. It is let go by one 0xEA naming place 0xFF (a
+  closed link ends no match in the game, `match.md` §24; patch 103 ends a spectator's on it),
+  then silence.
 - **The exe** (patch 103, `client_patch.md` §3.67), for a game with no place of its own only:
   after each world the camera keeps the player it follows (else the first living one), where
   the original looked the local place up and read past the player table; the game builds and
