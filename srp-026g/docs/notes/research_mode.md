@@ -10,7 +10,7 @@ Code: exe patch 53 (`crates/research-rule` the rules, `client-patches/research_a
 the game's side, `research_026g.asm` the hooks; README "53."); the hud movie
 (`flash/hud`: `HUD.research_update`, `survarium.controls.ResearchUnits`,
 `ResearchMinimapPoint`, `Minimap.setResearchUnits`); the content (`scripts/research-mode`,
-pack `research-mode@3`); srp (`maps::mode::RESEARCH`, `match_msgs::rules::Research`,
+pack `research-mode@3`); srp (`maps::RuleMode::Research`, `match_msgs::rules::Research`,
 rewards); the lobby (`GameMode.RESEARCH`, the rooms' and matches' mode names).
 
 ## Rules (0.27d's)
