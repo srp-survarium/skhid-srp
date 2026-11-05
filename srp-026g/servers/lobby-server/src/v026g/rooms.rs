@@ -1841,6 +1841,9 @@ impl Core<'_> {
             .flat_map(Waiting::accounts)
             .filter(|account_id| watching.contains(account_id))
             .filter_map(|account_id| self.name_of(account_id))
+            // The first of the queue, as many as the rows say: the room's
+            // state is never refused for its spectators.
+            .take(wire::SPECTATORS_MAX)
             .collect()
     }
 

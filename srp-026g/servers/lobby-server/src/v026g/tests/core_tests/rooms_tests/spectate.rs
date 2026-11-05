@@ -47,6 +47,22 @@ fn spectators(state: &[String]) -> Vec<&str> {
         .collect()
 }
 
+/// More spectators than the rows name: the first of the queue are named,
+/// and the room's state still goes.
+#[test]
+fn a_room_names_its_first_twenty_spectators() {
+    let mut world = World::new();
+    let (key, _, members) = full_room_playing(&mut world);
+    for n in 0..21 {
+        let watcher = world.connect(&format!("Watcher{n}"));
+        rows(&mut world, watcher, ROOM_WATCH_BASE + key, 1);
+    }
+    world.advance(Duration::from_secs(1));
+    let seen = state(&mut world, members[1]);
+    assert_eq!(spectators(&seen).len(), 20, "{seen:?}");
+    assert_eq!(spectators(&seen)[0], "Watcher0");
+}
+
 #[test]
 fn queue_and_spectate_watches_the_match_and_plays_when_a_place_frees() {
     let mut world = World::new();
