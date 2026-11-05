@@ -117,6 +117,11 @@ impl Route {
         let (a, b) = (self.points[k - 1], self.points[k]);
         b.jump.is_none() && !b.low && b.at.y - a.at.y > -DROP_LINK_MIN_M
     }
+    /// Whether point `k` is where a jump or a drop leaves from: the leg into it is the run-up, whose line the press is
+    /// aimed along.
+    fn takes_off(&self, k: usize) -> bool {
+        self.points.get(k + 1).is_some_and(|q| q.jump.is_some() || q.at.y - self.points[k].at.y <= -DROP_LINK_MIN_M)
+    }
 
     /// This route with its corners kept where the capsule fits (module documentation). A grid with no clearance table, or a
     /// route of fewer than two points, comes back as it is.
@@ -140,7 +145,7 @@ impl Route {
         // 1. The corners.
         for k in 1..n - 1 {
             let p = points[k];
-            if !self.walked_into(k) || !self.walked_into(k + 1) || self.keyed(p.at) || edge(grid, p.node) {
+            if !self.walked_into(k) || !self.walked_into(k + 1) || self.takes_off(k + 1) || self.keyed(p.at) || edge(grid, p.node) {
                 continue;
             }
             let Some(here) = grid.wall_clearance(p.node) else { continue };
@@ -180,7 +185,7 @@ impl Route {
         let mut corner: Vec<Option<Waypoint>> = vec![None; n];
         for k in 1..n {
             let (a, b) = (points[k - 1], points[k]);
-            if !self.walked_into(k) || a.at.distance_xz(b.at) < LEG_MIN_M || self.gates.contains(&a.at) && self.gates.contains(&b.at) {
+            if !self.walked_into(k) || self.takes_off(k) || a.at.distance_xz(b.at) < LEG_MIN_M || self.gates.contains(&a.at) && self.gates.contains(&b.at) {
                 continue;
             }
             let Some((dip, at)) = least_clearance(grid, a.at, b.at) else { continue };
