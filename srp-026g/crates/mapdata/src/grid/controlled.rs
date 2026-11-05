@@ -21,6 +21,8 @@ use crate::controller::{Capsule, Collision, Shape};
 pub const WALK_MPS: f32 = 3.5;
 /// A checked walk link stays when the body gets this share of the way.
 pub const CHECK_SHARE: f32 = 0.5;
+/// A floor with less room over it than a standing body is not checked (crouching is not ported), m.
+pub const STANDING_ROOM_M: f32 = 1.8;
 /// A face no body walks on within this of a floor's capsule makes its links checked, m.
 pub const CHECK_REACH_M: f32 = 0.15;
 /// The body is at the target when its feet are this near it flat and this near it in height, m.
@@ -89,7 +91,10 @@ pub fn walk_share(world: &Collision, from: Vec3, to: Vec3) -> (f32, bool) {
         // Toward the target, at most what is left.
         let go = left.length().min(step);
         c.walk = if left.length() > 1e-6 { left * (go / left.length()) } else { Vec3::ZERO };
-        c.step(world, 0.05, &s);
+        if c.step(world, 0.05, &s).ceiling {
+            // A low ceiling: the client slides under it or crouches (neither ported): not a stall the pass knows.
+            return (1.0, false);
+        }
     }
     let feet = c.feet();
     let left = Vec3::new(to.x - feet.x, 0.0, to.z - feet.z);
@@ -196,7 +201,8 @@ impl WalkGrid {
         for a in 0..n {
             for d in 0..8 {
                 let b = wide.links[a][d];
-                if b != NONE && wide.kinds[a][d] == LinkKind::Walk && (near[a] || near[b as usize]) {
+                let room = |n: usize| self.ceiling[n] - self.height[n] >= STANDING_ROOM_M;
+                if b != NONE && wide.kinds[a][d] == LinkKind::Walk && (near[a] || near[b as usize]) && room(a) && room(b as usize) {
                     checks.push((a, d));
                 }
             }

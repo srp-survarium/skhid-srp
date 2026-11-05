@@ -106,6 +106,8 @@ pub struct StepNotes {
     pub landed: bool,
     pub airborne: bool,
     pub refused: bool,
+    /// Refused because the body could not straighten under something (the low-ceiling slide 0x7DF20 is not ported).
+    pub ceiling: bool,
     pub side_slide: bool,
     pub down_slide: bool,
 }
@@ -632,6 +634,7 @@ impl Controller {
                 if !self.can_straighten(world, sb, step) {
                     // side_slide_on_low_ceiling 0x7DF20 is not ported: the refusal.
                     notes.refused = true;
+                    notes.ceiling = true;
                     self.pos = sb + UP * self.d();
                 } else if self.impassable(n, sb, s)
                     && !{
