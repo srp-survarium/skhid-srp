@@ -281,6 +281,8 @@ unsafe extern "thiscall" {
     pub fn engine_di_queue_release(queue: Option<DiCommandQueue>);
     /// 0x242b90 survarium::base_network_client::set_followed_player: client ECX, player ESP+4; pops 4; thiscall, called directly
     pub fn engine_follow_player(client: Option<NetworkClient>, player: Option<Player>);
+    /// 0x242cc0 survarium::base_network_client::detach_from_player: client ECX; pops 0; thiscall, called directly
+    pub fn engine_detach_player(client: Option<NetworkClient>);
 }
 
 #[allow(dead_code, non_upper_case_globals)]
@@ -610,6 +612,24 @@ impl NetworkClient {
     #[inline(always)]
     pub unsafe fn local_place(self) -> *mut u8 {
         unsafe { self.0.byte_add(0x1f1c44).cast::<u8>().as_ptr() }
+    }
+
+    /// +0x8 (ptr<survarium::player>): the last player the camera followed (set_followed_player 0x242C1A, with a reference), kept when detach_from_player 0x242CC0 lets +4 go: where a spectator's F6/F5 step from after a free flight (patch 103)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn last_followed(self) -> Option<Player> {
+        unsafe { self.0.byte_add(0x8).cast::<Option<Player>>().read_volatile() }
+    }
+
+    /// +0x8 (ptr<survarium::player>): the last player the camera followed (set_followed_player 0x242C1A, with a reference), kept when detach_from_player 0x242CC0 lets +4 go: where a spectator's F6/F5 step from after a free flight (patch 103)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn set_last_followed(self, value: Option<Player>) {
+        unsafe { self.0.byte_add(0x8).cast::<Option<Player>>().write_volatile(value) }
     }
 }
 

@@ -20,6 +20,8 @@ dynamic game". Rooms: [rooms.md](rooms.md) (Queue, Late joins). Wire: `lobby.md`
   - nothing pops up or animates: no chat line, no kill feed or hud notice, no sound;
   - never as players: no team row, no score, no results.
 - **What a spectator sees:** the engine's own spectator view, every player, either team.
+- **Detach** (2026-11-05: "I want the detach key yes"): F2 lets go of the followed player and
+  flies freely (the game's free-fly camera); F6/F5 follow a player again.
 
 ## Picks (simplest; the owner may change them)
 
@@ -77,6 +79,8 @@ dynamic game". Rooms: [rooms.md](rooms.md) (Queue, Late joins). Wire: `lobby.md`
   after each world the camera keeps the player it follows (else the first living one), where
   the original looked the local place up and read past the player table; the game builds and
   sends no input for the player it follows (it would drive it in its own world); F6 / F5 (next
-  and previous player) step through both teams; match chat lines and the followed player's
+  and previous player) step through both teams; F2 (the game's own cam_2 binding, the replay's
+  free view) lets go and flies with the game's free-fly camera, kept over a world's load and a
+  player's leave until F6 / F5 (from the last one followed) or the next match; match chat lines and the followed player's
   death show no kit picker; an 0xEA naming 0xFF ends its match quietly (no results screen),
   back to the lobby.

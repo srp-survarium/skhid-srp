@@ -472,3 +472,7 @@ extern engine_follow_player
 ; void engine_spectator_camera(struct game_world *world)
 ; 0x1f8360 survarium::game_world::switch_to_spectator_camera: world EDX; pops 0
 extern engine_spectator_camera
+; void engine_detach_player(struct network_client *client)
+; 0x242cc0 survarium::base_network_client::detach_from_player: client ECX; pops 0; thiscall, called directly
+; thiscall: push (and ECX for thiscall) as that convention says
+extern engine_detach_player

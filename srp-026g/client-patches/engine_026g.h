@@ -515,4 +515,7 @@ void __attribute__((thiscall)) engine_follow_player(struct network_client *clien
 /* 0x1f8360 survarium::game_world::switch_to_spectator_camera: world EDX; pops 0 */
 void engine_spectator_camera(struct game_world *world);
 
+/* 0x242cc0 survarium::base_network_client::detach_from_player: client ECX; pops 0; thiscall, called directly */
+void __attribute__((thiscall)) engine_detach_player(struct network_client *client);
+
 #endif

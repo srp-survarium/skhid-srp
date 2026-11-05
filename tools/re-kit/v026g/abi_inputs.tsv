@@ -5504,3 +5504,5 @@ va	name	location	role	basis
 0x002ff970	survarium::weapon_controller_core::deserialize	entry ESP+4	reader	observed
 0x00330a20	survarium::hit_animations_selector::hit_body_part::deserialize	ECX	hit body parts	observed
 0x00330a20	survarium::hit_animations_selector::hit_body_part::deserialize	EAX	reader	observed
+0x0025cd00	survarium::game_world::on_keyboard_action	at 0x25CE1C	the actions' switch (jump table 0x25CF30, action - 11h): 11h cam_1 (F1) vtable+80h, 12h cam_2 (F2, the replay's free view) +84h, 13h cam_3 (F3) +8Ch, each only with AL (vtable+70h, false in a network client, 0x397C20); 14h..16h the plain return 0x25CF0D; 17h next_player (F6) +64h and 18h prev_player (F5) +68h only with BL (vtable+74h, the client's +0Dh); 19h toggle_replay_ui (F11) the hud's cursor. The binder is asked with the kind mask 1 (EDI at 0x25CD5F), which category 5 (the action table's camera rows 0xA74C1C..0xA74CBC) has	observed
+0x0026e000	survarium::base_local_network_client::switch_to_free_view	ECX	the replay client: vtable+84h, its free view (F2, the hud's select_free_view): vtable+60h, detach_from_player (0x242CC0); `ret 4` (the game world, not read)	observed

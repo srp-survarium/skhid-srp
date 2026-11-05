@@ -25,6 +25,10 @@ use super::world::{NetworkClient, Step};
 use crate::raw;
 
 impl Action {
+    /// cam_2 (the action table 0xA74C30, default F2): the replay's free view
+    /// (on_keyboard_action 0x25CE4D -> vtable+84h, only for a client whose
+    /// vtable+70h says so, a replay's).
+    pub const FREE_VIEW: Action = Action(0x12);
     /// next_player (the action table 0xA74C80, default F6).
     pub const NEXT_PLAYER: Action = Action(0x17);
     /// prev_player (0xA74C94, default F5).
@@ -39,11 +43,20 @@ pub fn world_camera_client<'t>(ctx: &'t Context<'_>) -> Option<NetworkClient<'t>
     Some(NetworkClient::of(client, ctx.thread()))
 }
 
+/// What a spectator's camera key asks for.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum CameraKey {
+    /// Follow the next or the previous player (F6, F5).
+    Follow(Step),
+    /// Let go of the player followed and fly freely (F2).
+    FlyFree,
+}
+
 /// A key's action at `keyboard.spectate`, with the game's client.
 pub struct SpectateKey<'t> {
     pub client: NetworkClient<'t>,
-    /// The camera's step the key asks for; `None` for any other action.
-    pub step: Option<Step>,
+    /// The camera key the action is; `None` for any other action.
+    pub key: Option<CameraKey>,
 }
 
 impl<'t> SpectateKey<'t> {
@@ -54,12 +67,13 @@ impl<'t> SpectateKey<'t> {
         let (game, action) = unsafe { (site::game(ctx)?, site::action(ctx)) };
         // SAFETY: as above.
         let client = unsafe { game.network_client() }?;
-        let step = match Action(action) {
-            Action::NEXT_PLAYER => Some(Step::Next),
-            Action::PREV_PLAYER => Some(Step::Previous),
+        let key = match Action(action) {
+            Action::NEXT_PLAYER => Some(CameraKey::Follow(Step::Next)),
+            Action::PREV_PLAYER => Some(CameraKey::Follow(Step::Previous)),
+            Action::FREE_VIEW => Some(CameraKey::FlyFree),
             _ => None,
         };
-        Some(SpectateKey { client: NetworkClient::of(client, ctx.thread()), step })
+        Some(SpectateKey { client: NetworkClient::of(client, ctx.thread()), key })
     }
 }
 
