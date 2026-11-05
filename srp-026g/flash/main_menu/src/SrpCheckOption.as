@@ -1,7 +1,6 @@
 package
 {
     import flash.display.MovieClip;
-    import flash.external.ExternalInterface;
 
     // A Settings checkbox that the exe keeps in user.cfg as the console
     // variable of its name (exe patch 83's "Hide hit markers" and "Hide
@@ -119,24 +118,10 @@ package
             return selected ? "1" : "0";
         }
 
-        // The exe answers at once (root.srp_check_option). Outside the game (a
-        // test player) there is no exe to call: nothing happens.
+        // The exe answers at once (root.srp_check_option).
         private function ask(state:String):void
         {
-            try
-            {
-                if (state == null)
-                {
-                    ExternalInterface.call(name);
-                }
-                else
-                {
-                    ExternalInterface.call(name, state);
-                }
-            }
-            catch (error:Error)
-            {
-            }
+            SrpExe.call(name, state);
         }
     }
 }
