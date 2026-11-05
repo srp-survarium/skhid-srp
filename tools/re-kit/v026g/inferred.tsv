@@ -776,6 +776,12 @@ va	status	ref_021d	name
 0x0011b510	inferred-medium	0x000d7841	vostok::math::color_rgba
 0x0011b5a0	inferred-medium	0x000d78ef	vostok::render::shader_constant_buffer::set_memory
 0x0011ce40	inferred-medium	0x000d8301	vostok::render::clip_2_screen
+0x0011f280	inferred-medium		vostok::render::gpu_dxt_compressor::block_mip_count
+0x0011f2f0	inferred-medium		vostok::render::gpu_dxt_compressor::data_size
+0x0011f350	inferred-medium		vostok::render::gpu_dxt_compressor::write_dds_header
+0x0011f3f0	inferred-medium		vostok::render::gpu_dxt_compressor::compress
+0x0011f590	inferred-medium		vostok::render::gpu_dxt_compressor::compress_mip
+0x0011f8b0	inferred-medium		vostok::render::gpu_dxt_compressor::make_mips
 0x0011fb00	inferred-medium	0x000d9b82	vostok::buffer_vector<unsigned short>::push_back
 0x0011fb80	inferred-medium	0x000d9bf0	stlp_std::priv::_Rb_tree<vostok::render::render_model_instance *,stlp_std::less<vostok::render::render_model_instance *>,stlp_std::pair<vostok::render::render_model_instance * const,vostok::render::material_effects>,stlp_std::priv::_Select1st<stlp_std::pair<vostok::render::render_model_instance * const,vostok::render::material_effects> >,stlp_std::priv::_MapTraitsT<stlp_std::pair<vostok::render::render_model_instance * const,vostok::render::material_effects> >,vostok::render::std_allocator<stlp_std::pair<vostok::render::render_model_instance *,vostok::render::material_effects> > >::_M_erase
 0x0011fbf0	inferred-medium	0x000d9c7d	vostok::buffer_vector<vostok::render::vertex_colored>::push_back
@@ -835,6 +841,7 @@ va	status	ref_021d	name
 0x0012e510	inferred-medium		vostok::render::camouflage_decal_texture_type_baker_cook::on_textures_loaded
 0x0012ec40	inferred-medium		vostok::render::camouflage_decal_texture_type_baker_cook::process_compression
 0x001307b0	inferred-medium		vostok::render::camouflage_decal_texture_type_baker_cook::render_decal_occlusion
+0x00131590	inferred-medium		vostok::render::camouflage_decal_texture_type_baker_cook::render_bake
 0x00131b40	inferred-medium		vostok::render::camouflage_decal_texture_type_baker_cook::check_loaded_baked_texture
 0x00131f90	inferred-medium		vostok::render::camouflage_decal_texture_type_baker_cook::remove_unwanted_files
 0x00133fb0	inferred-high		vostok::render::camouflage_decal_baker_cook::camouflage_decal_baker_cook
@@ -2913,6 +2920,7 @@ va	status	ref_021d	name
 0x003bb960	inferred-medium	0x002670de	vostok::render::operator<
 0x003bc5e0	inferred-medium	0x002680bf	vostok::render::change_substring
 0x003bc710	inferred-medium	0x002681a5	vostok::render::create_default_texture
+0x003bd030	inferred-medium		vostok::render::resource_manager::create_texture_from_memory
 0x003befd0	inferred-medium		vostok::render::resource_manager::release
 0x003bfd60	inferred-medium		vostok::render::resource_manager::release
 0x003c1110	inferred-medium	0x0026b78a	vostok::buffer_vector<vostok::render::shader_constant_binding>::push_back

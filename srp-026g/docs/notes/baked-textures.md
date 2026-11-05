@@ -62,6 +62,21 @@ fixes them; the RE is in `client_patch.md` section 3.57.
 - A first load of a kept file, and every bake, is still on the main thread: a joiner's kit read from
   the folder took ~40 ms for 12 textures (15:11:27). Spreading them over frames, or moving them behind
   the loading screen, is a separate change; see the PR.
+- **Where a bake's time goes** (read from the code, 2026-11-05; `client_patch.md` 3.57, "The bake's
+  GPU round trips"). Each texture goes GPU -> CPU -> GPU -> CPU -> GPU, and the main thread waits at
+  every readback: 1 + one per block level (11 for 2048x2048) blocking Maps, each after a Flush. The
+  first readback also copies the 16 MB RGBA picture out, and the compressor uploads it again.
+  - The first bake of a burst waits for the GPU: diffuse bake ~15 ms against ~3 ms for the normal and
+    smoothness bakes of the same size, which come right after it. LIKELY the frames still queued plus
+    the bake's own draws.
+  - The rest is mostly CPU copies that a non-blocking Map alone would not remove: the 16 MB staging
+    and its memcpy, the 16 MB upload, ~30 render targets and stagings made and freed, the final
+    texture made from the DDS bytes, the CRC.
+  - The way out: the compressor's input is a GPU copy of the bake's target (the same R8G8B8A8_UNORM
+    texels: no readback, no upload). Then the 10 block levels are drawn and copied to stagings in one
+    go, and one non-blocking Map a frame says when they are done (map2D's byte, D3D11_MAP_FLAG_DO_NOT_WAIT,
+    as the occlusion manager polls at 0x1D7E60). Not built: finishing the query frames later needs
+    process_compression's tail to run outside its frame. Not measured in a game.
 - "camouflage_decal_texture_type_baker_cook: gbuffer_render_stage not found!" (15:41:05, ×28): a bake
   asked for a surface whose material has no gbuffer stage yet (translate_query 0x12D5C5..0x12D64F: the
   material's stage 1 through 0x12C6A0). It fails at once, which costs nothing, and the model's bakes come
