@@ -15,6 +15,9 @@ use crate::math::Vec3;
 
 /// The gap at which a sweep counts as touching, m.
 pub const CONTACT_M: f32 = 1e-4;
+/// A touching capsule's move goes into the face when its part against the normal is over this share of it (float noise in a
+/// normal along the face is not a move into it).
+const GOING_IN: f32 = 1e-4;
 /// Steps of the conservative advancement against one triangle at most.
 const ADVANCE_STEPS: usize = 64;
 /// Triangles a leaf of the tree holds at most.
@@ -217,7 +220,7 @@ fn advance(capsule: Capsule, by: Vec3, face: &Face, limit: f32) -> Option<Contac
     if d0 - r <= CONTACT_M {
         // Touching or overlapping at the start: a contact only when the move goes in.
         let n = if d0 > 1e-6 { (s0 - f0) * (1.0 / d0) } else { face.normal };
-        return (by.dot(n) < 0.0).then_some(Contact { t: 0.0, point: f0, normal: n, face: 0 });
+        return (by.dot(n) < -GOING_IN * speed).then_some(Contact { t: 0.0, point: f0, normal: n, face: 0 });
     }
     if speed <= 0.0 {
         return None;
