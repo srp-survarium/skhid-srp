@@ -6,6 +6,7 @@
 // every read of the game's memory goes through ReadProcessMemory, so a
 // damaged pointer gives no line, not a second crash.
 use crate::{
+    breadcrumbs,
     details::{self, Buffer},
     text::Wide,
     zip::Source,
@@ -42,10 +43,13 @@ const TAIL_BYTES: usize = PATCH_BYTES;
 
 pub struct Report {
     /// The whole report; `text[..head]` is what "Copy" copies.
-    pub text: Buffer<49152>,
+    pub text: Buffer<65536>,
     pub head: usize,
     /// The dialog's lines: the exception, and where.
     pub short: Buffer<512>,
+    /// The game's breadcrumbs (breadcrumbs.rs), when they were found: the
+    /// ring's address (copied to [`CRUMBS`]), and the counter at the crash.
+    ring: Option<(u32, u64)>,
 }
 impl Report {
     pub const fn new() -> Self {
@@ -53,6 +57,7 @@ impl Report {
             text: Buffer::new(),
             head: 0,
             short: Buffer::new(),
+            ring: None,
         }
     }
     pub fn is_empty(&self) -> bool {
@@ -345,7 +350,12 @@ unsafe fn windows(w: &mut dyn Write) {
 }
 
 /// The lines that do not depend on the dump.
-pub unsafe fn collect(report: &mut Report, exception: *const EXCEPTION_POINTERS, thread: u32) {
+pub unsafe fn collect(
+    report: &mut Report,
+    exception: *const EXCEPTION_POINTERS,
+    thread: u32,
+    counter: u64,
+) {
     if exception.is_null() || (*exception).ExceptionRecord.is_null() {
         return;
     }
@@ -415,6 +425,15 @@ pub unsafe fn collect(report: &mut Report, exception: *const EXCEPTION_POINTERS,
     );
     windows(w);
     let _ = w.write_str("\r\n");
+    // The match it was in (the breadcrumbs' header), in what Copy copies.
+    report.ring = find_ring().map(|at| (at, counter));
+    let w = &mut report.text;
+    if let Some(ring) = report
+        .ring
+        .and_then(|(at, _)| breadcrumbs::Ring::parse(crumbs(), at))
+    {
+        let _ = breadcrumbs::write_context(w, &ring);
+    }
     // Non-ASCII folders (a Cyrillic user name): the paths themselves stay
     // on the player's PC.
     let folder = crate::dump::folder();
@@ -625,6 +644,95 @@ unsafe fn tail(
     }
 }
 
+/// Breadcrumbs crash.txt lists (the ZIP's breadcrumbs.txt has them all).
+const CRUMB_LINES: usize = 200;
+
+/// The ring's copy, and the ZIP's text of it: captures are serialized
+/// (dump.rs), so one of each serves.
+struct Crumbs(core::cell::UnsafeCell<([u8; breadcrumbs::BYTES], Buffer<{ 160 * 1024 }>)>);
+unsafe impl Sync for Crumbs {}
+static CRUMBS: Crumbs = Crumbs(core::cell::UnsafeCell::new((
+    [0; breadcrumbs::BYTES],
+    Buffer::new(),
+)));
+
+fn crumbs() -> &'static [u8] {
+    // SAFETY: written only by find_ring, on the one capture's worker.
+    unsafe { &(*CRUMBS.0.get()).0 }
+}
+
+/// The game's breadcrumb ring (srp-026g vostok/breadcrumbs.rs), copied to
+/// [`CRUMBS`]: in the exe's `.srpx` section, the header that holds its own
+/// address and then that address xor [`breadcrumbs::CHECK`]. None in a game
+/// without it, or before its first record.
+unsafe fn find_ring() -> Option<u32> {
+    let base = GetModuleHandleW(null()) as usize;
+    let pe = base + read::<u32>(base + 0x3C)? as usize;
+    let sections = read::<u16>(pe + 6)? as usize;
+    let table = pe + 24 + read::<u16>(pe + 20)? as usize;
+    let (start, size) = (0..sections.min(96)).find_map(|i| {
+        let at = table + 40 * i;
+        (read::<[u8; 8]>(at)? == *b".srpx\0\0\0")
+            .then(|| {
+                Some((
+                    base + read::<u32>(at + 12)? as usize,
+                    read::<u32>(at + 8)? as usize,
+                ))
+            })
+            .flatten()
+    })?;
+    let mut chunk = [0u32; 16 * 1024 + 2];
+    let mut offset = 0;
+    while offset + 8 <= size {
+        let want = (size - offset).min(chunk.len() * 4) & !3;
+        let mut n = 0;
+        if ReadProcessMemory(
+            GetCurrentProcess(),
+            (start + offset) as *const c_void,
+            chunk.as_mut_ptr().cast(),
+            want,
+            &mut n,
+        ) == 0
+            || n < 8
+        {
+            return None;
+        }
+        let words = n / 4;
+        for i in 0..words - 1 {
+            let at = (start + offset + 4 * i) as u32;
+            if chunk[i] == at && chunk[i + 1] == at ^ breadcrumbs::CHECK {
+                let copy = &mut (*CRUMBS.0.get()).0;
+                let mut got = 0;
+                let ok = ReadProcessMemory(
+                    GetCurrentProcess(),
+                    at as usize as *const c_void,
+                    copy.as_mut_ptr().cast(),
+                    copy.len(),
+                    &mut got,
+                ) != 0
+                    && got == copy.len();
+                return ok.then_some(at);
+            }
+        }
+        // The last word again: a pair across two reads.
+        offset += 4 * (words - 1);
+    }
+    None
+}
+
+/// Every kept breadcrumb as text, for the ZIP (empty without a ring).
+pub unsafe fn crumbs_text(report: &Report) -> &'static [u8] {
+    let text = &mut (*CRUMBS.0.get()).1;
+    text.len = 0;
+    if let Some((at, now)) = report.ring
+        && let Some(ring) = breadcrumbs::Ring::parse(crumbs(), at)
+    {
+        let _ = breadcrumbs::write_context(text, &ring);
+        let _ = breadcrumbs::write_events(text, &ring, now, breadcrumbs::CAPACITY);
+    }
+    &text.buf[..text.len]
+}
+
 /// The dump's line, then the logs' tails.
 pub unsafe fn finish(report: &mut Report, saved: bool, partial: bool, error: u32, capture: bool) {
     if report.is_empty() {
@@ -646,6 +754,11 @@ pub unsafe fn finish(report: &mut Report, saved: bool, partial: bool, error: u32
     }
     let _ = w.write_str("\r\n");
     report.head = w.len;
+    if let Some((at, now)) = report.ring
+        && let Some(ring) = breadcrumbs::Ring::parse(crumbs(), at)
+    {
+        let _ = breadcrumbs::write_events(w, &ring, now, CRUMB_LINES);
+    }
     log_tail(w);
     patch_tail(w);
 }

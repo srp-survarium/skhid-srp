@@ -182,6 +182,9 @@ struct Request {
     exception: MINIDUMP_EXCEPTION_INFORMATION,
     crash: bool,
     saved: bool,
+    /// QueryPerformanceCounter as the capture began: the game's
+    /// breadcrumbs are dated from it (report.rs).
+    counter: i64,
 }
 struct Slot(UnsafeCell<Request>);
 // Only the PHASE owner accesses this slot, and it joins the worker before releasing it.
@@ -194,6 +197,7 @@ static REQUEST: Slot = Slot(UnsafeCell::new(Request {
     },
     crash: false,
     saved: false,
+    counter: 0,
 }));
 
 type WriteDump = unsafe extern "system" fn(
@@ -236,6 +240,7 @@ pub unsafe fn capture(exception: *mut EXCEPTION_POINTERS, crash: bool) -> bool {
     }
     OWNER.store(caller, Ordering::Release);
     let request = REQUEST.0.get();
+    windows_sys::Win32::System::Performance::QueryPerformanceCounter(&mut (*request).counter);
     (*request).exception.ThreadId = caller;
     (*request).exception.ExceptionPointers = exception;
     (*request).crash = crash;
@@ -474,6 +479,7 @@ unsafe extern "system" fn worker(parameter: *mut c_void) -> u32 {
             &mut report,
             request.exception.ExceptionPointers,
             request.exception.ThreadId,
+            request.counter as u64,
         );
     }
     crate::report::finish(&mut report, request.saved, partial, error, capture);
@@ -484,7 +490,11 @@ unsafe extern "system" fn worker(parameter: *mut c_void) -> u32 {
     // Zip the dump only now that it is flushed and closed: on any failure, or
     // a crash or exit while zipping, the dump stays and the dialog names it.
     if kept && Kind::get() == Kind::Small {
-        let _ = crate::archive::zip(&mut path, &report.text.buf[..report.text.len]);
+        let _ = crate::archive::zip(
+            &mut path,
+            &report.text.buf[..report.text.len],
+            crate::report::crumbs_text(&report),
+        );
     }
     // Publish only after save() has flushed/closed its file and it is zipped
     // (or all attempts failed). Contending crashes need not wait for callbacks

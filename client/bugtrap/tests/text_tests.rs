@@ -1,3 +1,5 @@
+#[path = "../src/breadcrumbs.rs"]
+mod breadcrumbs;
 #[path = "../src/crash_text.rs"]
 mod crash_text;
 #[path = "../src/details.rs"]
@@ -199,4 +201,83 @@ fn the_local_offset_is_signed_hours_and_minutes() {
     assert_eq!(offset(0), " (local +00:00)");
     assert_eq!(offset(-210), " (local -03:30)");
     assert_eq!(offset(345), " (local +05:45)");
+}
+
+/// A ring as vostok/breadcrumbs.rs lays it out, at `at`, its counter at
+/// 1000 ticks a second.
+fn ring_bytes(at: u32, entries: &[(u32, u8, u8, u16, u64, [u32; 4])], next: u32) -> Vec<u8> {
+    let mut b = vec![0u8; breadcrumbs::BYTES];
+    let put = |b: &mut Vec<u8>, o: usize, v: &[u8]| b[o..o + v.len()].copy_from_slice(v);
+    put(&mut b, 0, &at.to_le_bytes());
+    put(&mut b, 4, &(at ^ breadcrumbs::CHECK).to_le_bytes());
+    put(&mut b, 8, &1u16.to_le_bytes());
+    put(&mut b, 10, &32u16.to_le_bytes());
+    put(&mut b, 12, &1024u32.to_le_bytes());
+    put(&mut b, 16, &next.to_le_bytes());
+    put(&mut b, 24, &1000u64.to_le_bytes());
+    // The match: id 77, map 12, 8 places, level 5, Blackout; local place 3.
+    put(&mut b, 32, &77u32.to_le_bytes());
+    put(&mut b, 36, &[12, 8]);
+    put(&mut b, 38, &5u16.to_le_bytes());
+    put(&mut b, 40, &(1u32 << 31 | 1).to_le_bytes());
+    put(&mut b, 44, &4u32.to_le_bytes());
+    for &(seq, kind, a, x, counter, values) in entries {
+        let o = 64 + 32 * ((seq as usize - 1) % 1024);
+        put(&mut b, o, &seq.to_le_bytes());
+        put(&mut b, o + 4, &[kind, a]);
+        put(&mut b, o + 6, &x.to_le_bytes());
+        put(&mut b, o + 8, &counter.to_le_bytes());
+        for (i, v) in values.iter().enumerate() {
+            put(&mut b, o + 16 + 4 * i, &v.to_le_bytes());
+        }
+    }
+    b
+}
+
+#[test]
+fn breadcrumbs_are_the_match_and_the_last_events_before_the_crash() {
+    let at = 0x0A4D_D000;
+    let bytes = ring_bytes(
+        at,
+        &[
+            (1, 1, 0, 5, 1000, [77, 12, 8, 1]),
+            (2, 2, 3, 4, 2500, [4500, 900, 0, 0]),
+            (3, 7, 4, 0, 9000, [2, 61000, 0, 0]),
+            (4, 8, 2, 0x0103, 9500, [5, 1, 61500, 0]),
+            // Being written at the crash: its number not yet its own.
+            (5, 99, 0, 0, 9900, [0; 4]),
+        ],
+        5,
+    );
+    let mut bytes = bytes;
+    bytes[64 + 32 * 4..][..4].copy_from_slice(&0u32.to_le_bytes());
+    assert!(breadcrumbs::Ring::parse(&bytes, at + 4).is_none(), "its address is the header's");
+    let ring = breadcrumbs::Ring::parse(&bytes, at).unwrap();
+    let mut out = details::Buffer::<4096>::new();
+    breadcrumbs::write_context(&mut out, &ring).unwrap();
+    breadcrumbs::write_events(&mut out, &ring, 10_000, 200).unwrap();
+    assert_eq!(
+        out.as_str(),
+        "Match:     id 77, map 12, 8 places, level 5, Blackout; local place 3\r\n\
+         Events:    5 recorded, the last 4 kept: match 1 world 1 death 1 pickup 1\r\n\
+         \x20          seconds before the crash:\r\n\
+         \x20 -9.000 s  match: id 77, map 12, 8 places, level 5, Blackout\r\n\
+         \x20 -7.500 s  world: 4500 ms, 900 bytes packed, loaded, local place 3\r\n\
+         \x20 -1.000 s  death: place 4, life 2, at 61000 ms\r\n\
+         \x20 -0.500 s  pickup: place 3 slot 1 let go: the gun of place 5 kit 1, at 61500 ms\r\n"
+    );
+}
+
+#[test]
+fn a_wrapped_ring_lists_its_last_lines_and_counts_what_it_kept() {
+    let at = 0x0A4D_D000;
+    let entries: Vec<_> = (1..=1500u32).map(|n| (n, 6, (n % 20) as u8, 0, u64::from(n), [0; 4])).collect();
+    let bytes = ring_bytes(at, &entries, 1500);
+    let ring = breadcrumbs::Ring::parse(&bytes, at).unwrap();
+    assert_eq!(ring.entries().count(), 1024);
+    let mut out = details::Buffer::<16384>::new();
+    breadcrumbs::write_events(&mut out, &ring, 1500, 3).unwrap();
+    assert!(out.as_str().starts_with("Events:    1500 recorded, the last 1024 kept: player-gone 1024\r\n           the last 3, seconds before the crash:\r\n"), "{}", out.as_str());
+    assert_eq!(out.as_str().lines().count(), 5);
+    assert!(out.as_str().ends_with("  -0.000 s  player gone: place 0\r\n"));
 }

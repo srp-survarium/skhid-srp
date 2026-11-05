@@ -96,7 +96,7 @@ impl File {
 
 /// On success `path` names the ZIP and the dump is gone (or, if Windows
 /// refused to delete it, still there beside it).
-pub unsafe fn zip(path: &mut Wide<32768>, report: &[u8]) -> Result<(), u32> {
+pub unsafe fn zip(path: &mut Wide<32768>, report: &[u8], crumbs: &[u8]) -> Result<(), u32> {
     let deadline = GetTickCount64() + LIMIT_MS;
     let len = path.len;
     let split = path.buf[..len]
@@ -177,6 +177,7 @@ pub unsafe fn zip(path: &mut Wide<32768>, report: &[u8]) -> Result<(), u32> {
                 },
                 &name[..name_len],
                 report,
+                crumbs,
                 words,
             );
             CloseHandle(out);
@@ -339,6 +340,7 @@ unsafe fn write(
     out: &mut File,
     name: &[u8],
     report: &[u8],
+    crumbs: &[u8],
     words: &mut [u32],
 ) -> Result<(), u32> {
     let size = dump.size()?;
@@ -364,10 +366,16 @@ unsafe fn write(
     let mut offset = append(dump, Some(size), out, &mut records[0], 0, words, None)?;
     let mut count = 1;
     // The crash's text report (report.rs), when there is one: what happened
-    // and where, readable without a debugger.
-    if !report.is_empty() {
-        let record = &mut records[1];
-        let name = b"crash.txt";
+    // and where, readable without a debugger; and the game's breadcrumbs,
+    // all of them (crash.txt has the last ones).
+    for (name, report) in [
+        (b"crash.txt".as_slice(), report),
+        (b"breadcrumbs.txt", crumbs),
+    ] {
+        if report.is_empty() {
+            continue;
+        }
+        let record = &mut records[count];
         record.name[..name.len()].copy_from_slice(name);
         record.len = name.len();
         record.time = time;
