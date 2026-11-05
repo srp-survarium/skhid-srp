@@ -1384,8 +1384,29 @@ pub fn candidates(cx: &Ctx, out: &mut Vec<Candidate>) {
     resupply::candidates(cx, out);
     answer::candidates(cx, out);
     breach::candidates(cx, out);
+    behind_holds(cx, out);
     #[cfg(test)]
     super::bench_work::add(super::bench_work::Work::Plays, (out.len() - scored_before) as u64);
+}
+
+/// [A297 item 2 `tdm.behind_holds`] In TDM, a team behind on points weighs Crossfire and HoldExit up and Cut down.
+fn behind_holds(cx: &Ctx, out: &mut [Candidate]) {
+    let Some(rule) = cx.tuning.tdm.behind_holds else {
+        return;
+    };
+    if cx.view.objective().has_homes() {
+        return;
+    }
+    let team = usize::from(cx.me.team & 1);
+    let behind = rule.behind(cx.view.points[team], cx.view.points[1 - team]);
+    if behind <= 0.0 {
+        return;
+    }
+    for c in out.iter_mut() {
+        if let Some(factor) = rule.factor(c.kind, behind) {
+            c.score = Score::new(c.score.get() * factor);
+        }
+    }
 }
 
 /// A play's start. `slot` is the assignment's: a play whose rules depend on
@@ -1426,8 +1447,19 @@ pub fn start(
     }
 }
 
-/// A step of the running play.
+/// A step of the running play. [A297 v4 `tdm.group.approach`] A mover the commander has holding short (it approaches a known
+/// enemy alone, its answerer not yet by it) stays, its view on his place, instead of its play's walk (`group::moves`).
 pub fn step(running: &mut Running, target: TargetRef, cx: &Ctx, rng: &mut Rng) -> Step {
+    let step = step_play(running, target, cx, rng);
+    match (step, cx.team.holding.iter().find(|(bot, _)| *bot == cx.me.place)) {
+        (Step::Continue(_), Some(&(_, enemy))) if super::group::moves(Some(running.kind())) => {
+            Step::Continue(Intent::stay().looking(Look::At(enemy)))
+        }
+        (step, _) => step,
+    }
+}
+
+fn step_play(running: &mut Running, target: TargetRef, cx: &Ctx, rng: &mut Rng) -> Step {
     match running {
         Running::Roam(s) => roam::step(s, target, cx, rng),
         Running::Collect(s) => collect::step(s, target, cx, rng),

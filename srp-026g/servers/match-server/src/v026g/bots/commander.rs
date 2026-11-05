@@ -776,17 +776,52 @@ impl Bots {
         } else {
             Vec::new()
         };
+        // [A297 v4 `tdm.group.approach`] Movers approaching an enemy their own memory knows (fresh, within `near_m`, not seen
+        // now): answered as fights are, and they hold short until the answerer is by them (`group::holds_short`).
+        let approach = by_position.and_then(|g| g.approach);
+        let approaching = match approach {
+            Some(rules) => {
+                let fresh_ms = (rules.fresh_s.get() * 1000.0) as u32;
+                let near: Vec<(Place, Place)> = self
+                    .bots
+                    .iter()
+                    .flatten()
+                    .filter(|b| b.team == team && !fighting.iter().any(|f| f.mate == b.place))
+                    .filter(|b| group::moves(b.assignment.as_ref().map(|a| a.kind)))
+                    .filter_map(|b| {
+                        let me = view.place(b.place).filter(|p| p.alive && p.carrying.is_none())?;
+                        b.memory
+                            .tracks()
+                            .iter()
+                            .filter(|t| t.source != know::Source::Seen)
+                            .filter_map(|t| t.own.filter(|&(_, at)| now.saturating_sub(at) <= fresh_ms).map(|(at, _)| (t.who, at)))
+                            .filter(|(_, at)| at.distance_xz(me.feet) <= rules.near_m.get())
+                            .min_by(|a, c| a.1.distance_xz(me.feet).total_cmp(&c.1.distance_xz(me.feet)))
+                            .map(|(enemy, _)| (b.place, enemy))
+                    })
+                    .collect();
+                let before = &self.teams[usize::from(team)].knowledge.approaching;
+                let now_list = group::fighting(&near, before, now);
+                for _ in now_list.iter().filter(|a| a.since == now) {
+                    group::count(group::Count::ApproachBegan);
+                }
+                now_list
+            }
+            None => Vec::new(),
+        };
+        // The fights and the approaches, each answered by one free mover.
+        let engaged: Vec<know::Fighting> = fighting.iter().chain(approaching.iter()).copied().collect();
         // [A297 `tdm.group`, `answer` nearest / nearest_mover] Who answers which fight: each fight the nearest free bot within
         // `answer_m` (not in a fight, not a carrier; with nearest_mover, not holding an angle either: `group::holds`).
         let answers = match by_position.map(|g| (g.answer, g.answer_m.get())) {
             Some((answer @ (tuning::Answer::Nearest | tuning::Answer::NearestMover), answer_m)) => {
                 let fights: Vec<(Place, mapdata::Vec3)> =
-                    fighting.iter().filter_map(|f| view.place(f.mate).filter(|p| p.alive).map(|p| (f.mate, p.feet))).collect();
+                    engaged.iter().filter_map(|f| view.place(f.mate).filter(|p| p.alive).map(|p| (f.mate, p.feet))).collect();
                 let free: Vec<(Place, mapdata::Vec3)> = self
                     .bots
                     .iter()
                     .flatten()
-                    .filter(|b| b.team == team && !fighting.iter().any(|f| f.mate == b.place))
+                    .filter(|b| b.team == team && !engaged.iter().any(|f| f.mate == b.place))
                     .filter(|b| answer == tuning::Answer::Nearest || !b.assignment.as_ref().is_some_and(|a| group::holds(a.kind)))
                     .filter_map(|b| view.place(b.place).filter(|p| p.alive && p.carrying.is_none()).map(|p| (b.place, p.feet)))
                     .collect();
@@ -794,8 +829,34 @@ impl Bots {
             }
             _ => Vec::new(),
         };
-        self.teams[usize::from(team)].knowledge.fighting = fighting;
-        self.teams[usize::from(team)].knowledge.answers = answers;
+        // [A297 v4] Who holds short now, and where it looks (its own memory's place of him).
+        let holding: Vec<(Place, mapdata::Vec3)> = match (approach, by_position) {
+            (Some(rules), Some(group_rules)) => approaching
+                .iter()
+                .filter_map(|a| {
+                    let me = view.place(a.mate)?.feet;
+                    let bot = self.bots.get(a.mate)?.as_ref()?;
+                    let at = bot.memory.tracks().iter().find(|t| t.who == a.enemy).and_then(|t| t.own).map(|(at, _)| at)?;
+                    let answerer = answers.iter().find(|(m, _)| *m == a.mate).and_then(|&(_, b)| view.place(b)).map(|p| p.feet);
+                    if answerer.is_some() && a.since == now {
+                        group::count(group::Count::ApproachAnswered);
+                    }
+                    let ring_m = group_rules.max_m.get() + 3.0;
+                    let approaching = group::Approaching { at: me, enemy: at, since: a.since };
+                    group::holds_short(approaching, now, (rules.hold_s.get() * 1000.0) as u32, answerer, ring_m, &group_rules)
+                        .then_some((a.mate, at))
+                })
+                .collect(),
+            _ => Vec::new(),
+        };
+        for _ in &holding {
+            group::count(group::Count::Holding);
+        }
+        let k = &mut self.teams[usize::from(team)].knowledge;
+        k.fighting = engaged;
+        k.answers = answers;
+        k.approaching = approaching;
+        k.holding = holding;
         // What the team knows of each enemy human, for the match (CG-12).
         let tracks = self
             .bots
@@ -920,6 +981,23 @@ impl Bots {
                 committed.push(bot.place);
             }
             asked.push((bot.place, candidates, bot.assignment.clone()));
+        }
+        // [A296 item 2, `mods.team_plan`] The team's plan from its standing and the time left re-weighs every bot's candidates.
+        if let Some(rule) = tuning.mods.team_plan {
+            let plan = team::TeamPlan::of(&state.signals, &rule);
+            team::plan_tally(plan);
+            for (place, candidates, current) in &mut asked {
+                plan.weigh(candidates, &rule);
+                // A comeback sticks to its runs (A298: on Vostok the trailing team's 23 late denials were each dropped within
+                // 1-20 s, and Chemical Plant's battery 7 lost 55 of 58 Collect plays on the way): a bot running an attack or a
+                // Collect keeps it against plays of its band until it ends.
+                if matches!(plan, team::TeamPlan::Comeback { .. })
+                    && current.as_ref().is_some_and(|a| team::attack(a.kind) || a.kind == plays::PlayKind::Collect)
+                    && !committed.contains(place)
+                {
+                    committed.push(*place);
+                }
+            }
         }
         let asking = asked
             .iter()

@@ -130,6 +130,7 @@ pub use hazard::EscapeRule;
 pub use hazard::HazardTuning;
 pub use hazard::RouteCrossing;
 pub use hazard::ZonePools;
+pub use heal::DrugAmounts;
 pub use heal::DrugStops;
 pub use heal::HealTuning;
 pub use heal::NeedWeights;
@@ -169,6 +170,7 @@ pub use take::ZoneLook;
 pub use take::ZoneTake;
 pub use take::ZoneTakeBehind;
 pub use tdm::Answer;
+pub use tdm::Approach;
 pub use tdm::GroupUp;
 pub use tdm::TdmTuning;
 pub use team::AvoidTuning;
@@ -192,6 +194,7 @@ pub use team::SEARCH_FLOORS_PER_POLL;
 pub use team::SearchQueue;
 pub use team::SniperMemory;
 pub use team::StaminaRates;
+pub use team::TeamPlanRule;
 pub use team::ThinkTuning;
 pub use team::ThreatTuning;
 pub use team::WalkWatch;
@@ -322,6 +325,9 @@ impl Tuning {
         self.skill.check()?;
         self.smoke.check()?;
         self.take.check()?;
+        if let Some(plan) = self.mods.team_plan {
+            plan.check()?;
+        }
         if let Some(open) = self.mods.behind_open {
             open.check()?;
         }
@@ -773,6 +779,7 @@ mod tests {
             "/hazard/leave_islands",
             "/hazard/zone_intensity",
             "/hazard/zone_pools",
+            "/heal/amounts",
             "/heal/drug_stops",
             "/kin/fix_floor",
             "/kin/jump_snap",

@@ -40,6 +40,30 @@ pub struct GroupUp {
     pub max_s: Positive,
     /// It runs to the spot until this near, then walks with the sights on the enemy's known place, m.
     pub walk_m: Metres,
+    /// [v4] A lone mover does not walk into a known enemy: it holds short until a mate covers it ([`Approach`]).
+    pub approach: Option<Approach>,
+}
+
+/// [A297 v4] The pre-contact pair. A moving bot (not holding an angle, not in a fight, not a carrier) whose own memory has an
+/// enemy within `near_m` that it sensed itself or was told of within `fresh_s`, and that it does not see now, is "approaching"
+/// him: the commander gives it an answerer as it gives a fight one (the nearest free mover, to a cover spot round it), and the
+/// bot holds short, its view on his place, until that answerer stands within the cover ring off its line to him, or `hold_s`
+/// passes; then both go. The v3 bench could not move the hunter (he kills inside the reaction window, A287: 65 % of his
+/// victims dead within ~1 s), so the second bot must be set before contact. Holders keep their angles.
+#[derive(Clone, Copy, Debug, PartialEq, Serialize, Deserialize)]
+#[serde(default, deny_unknown_fields)]
+pub struct Approach {
+    pub near_m: Metres,
+    pub fresh_s: Positive,
+    pub hold_s: Positive,
+}
+
+impl Default for Approach {
+    fn default() -> Self {
+        // near: his kills at p75 22 m and median 15.5 m (A287); fresh: the think notes' 5 s and a little; hold: a mate within
+        // `answer_m` (30 m) runs ~6 m/s, so 3 s brings most; longer is a lone bot standing (GUESS).
+        Self { near_m: Metres::of(30.0), fresh_s: Positive::of(8.0), hold_s: Positive::of(3.0) }
+    }
 }
 
 impl Default for GroupUp {
@@ -57,6 +81,7 @@ impl Default for GroupUp {
             linger_s: Positive::of(2.0),
             max_s: Positive::of(8.0),
             walk_m: Metres::of(10.0),
+            approach: Some(Approach::default()),
         }
     }
 }
@@ -79,10 +104,58 @@ pub enum Answer {
     NearestMover,
 }
 
-#[derive(Clone, Copy, Debug, Default, PartialEq, Serialize, Deserialize)]
+/// [A297 item 2] Hold, not feed, when behind, in TDM only: the team behind on tickets (0 level to 1 from `full_tickets`
+/// down) weighs the angle holds that kill the human up and the long cut-offs down. Measured (PROVEN, 168 matches
+/// vs the hunter stand-in, the tip's bots): his deaths per 10 bot-minutes of the killer's play were HoldExit 1.66, Crossfire
+/// 1.24, Roam 0.72, Cut 0.42, Buddy 0.05; Cut held 32 % of the bots' time for 14 % of his deaths.
+#[derive(Clone, Copy, Debug, PartialEq, Serialize, Deserialize)]
+#[serde(default, deny_unknown_fields)]
+pub struct BehindHolds {
+    /// Crossfire and HoldExit scores times `1 + hold_gain * behind`. GUESS (the bench decides).
+    pub hold_gain: f32,
+    /// Cut scores times `1 - cut_cut * behind`, `[0, 1]`. GUESS.
+    pub cut_cut: f32,
+    /// Fully behind from this many tickets (deaths) down. Not `MatchSignals::behind`: that one is full only 30 tickets down
+    /// in TDM (its gap is tickets / 10, full at 3), and the first bench (168 pairs vs the hunter, full at 30) moved the play
+    /// time by under 1 % (Cut 32.3 -> 31.8 %, Crossfire 34.5 -> 35.3 %): the hunter level. GUESS: 5 (the design's).
+    pub full_tickets: f32,
+}
+
+impl Default for BehindHolds {
+    fn default() -> Self {
+        Self { hold_gain: 1.0, cut_cut: 0.75, full_tickets: 5.0 }
+    }
+}
+
+impl BehindHolds {
+    /// How far behind a team with `ours` tickets against `theirs` is, `[0, 1]`.
+    pub fn behind(&self, ours: u32, theirs: u32) -> f32 {
+        ((theirs as f32 - ours as f32) / self.full_tickets).clamp(0.0, 1.0)
+    }
+
+    /// The factor on a candidate of `kind` for a team `behind` (`[0, 1]`); `None` for the plays it leaves as they are.
+    pub fn factor(&self, kind: PlayKind, behind: f32) -> Option<f32> {
+        match kind {
+            PlayKind::Crossfire | PlayKind::HoldExit => Some(1.0 + self.hold_gain * behind),
+            PlayKind::Cut => Some(1.0 - self.cut_cut * behind),
+            _ => None,
+        }
+    }
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(default, deny_unknown_fields)]
 pub struct TdmTuning {
     pub group: Option<GroupUp>,
+    /// ON (2026-11-05): 336 pairs vs the hunter stand-in, his deaths vs the ON team +0.125 a match (z ~ +2.5), the
+    /// no-group-feed guards level (#1269). `all_off.json` names it null.
+    pub behind_holds: Option<BehindHolds>,
+}
+
+impl Default for TdmTuning {
+    fn default() -> Self {
+        Self { group: None, behind_holds: Some(BehindHolds::default()) }
+    }
 }
 
 impl TdmTuning {
@@ -92,6 +165,34 @@ impl TdmTuning {
         {
             return Err("tdm.group".into());
         }
+        if let Some(b) = self.behind_holds
+            && (!(0.0..=4.0).contains(&b.hold_gain) || !(0.0..=1.0).contains(&b.cut_cut) || !(1.0..=60.0).contains(&b.full_tickets))
+        {
+            return Err("tdm.behind_holds".into());
+        }
         Ok(())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// Level: no change; behind: the holds up and Cut down by the share behind; other plays untouched.
+    #[test]
+    fn behind_holds_weighs_the_holds_up_and_cut_down_by_the_share_behind() {
+        let rule = BehindHolds::default();
+        assert_eq!(rule.factor(PlayKind::Crossfire, 0.0), Some(1.0));
+        assert_eq!(rule.factor(PlayKind::HoldExit, 0.5), Some(1.5));
+        assert_eq!(rule.factor(PlayKind::Cut, 1.0), Some(0.25));
+        assert_eq!(rule.factor(PlayKind::Roam, 1.0), None);
+        assert_eq!(rule.behind(60, 60), 0.0);
+        assert_eq!(rule.behind(58, 60), 0.4);
+        assert_eq!(rule.behind(40, 60), 1.0);
+        assert_eq!(rule.behind(60, 50), 0.0, "ahead");
+        let bad = TdmTuning { behind_holds: Some(BehindHolds { cut_cut: 1.5, ..BehindHolds::default() }), ..Default::default() };
+        assert!(bad.check().is_err());
+        assert!(TdmTuning::default().behind_holds.is_some(), "on by default");
+        assert!(Tuning::all_off().tdm.behind_holds.is_none(), "all_off names it off");
     }
 }

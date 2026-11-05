@@ -158,6 +158,9 @@
     "zone_look": null,
     "zone_take": null
   },
+  "tdm": {
+    "behind_holds": null
+  },
   "threat": {
     "area": false,
     "concede": null,
@@ -208,6 +211,7 @@
     "home_no_way_ms": null,
     "progress_ms": null,
     "suicide_after_ms": null,
+    "suicide_loud": null,
     "unknown_meant_needs_keys": false
   },
   "plays": {

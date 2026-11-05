@@ -1259,10 +1259,13 @@ pub(crate) fn real_bot_cost() {
             // The stand-in camper plays by his own tuning (`human_tuning`: the build's defaults with the human aim of
             // `camper_human_aim.json`) whatever his team's tuning is, so that the two runs of a head-to-head bench face the same
             // opponent, and a change of the bots' aim does not move him.
+            // [A302] `SRP_BENCH_CAMPER_AIM=hunter`: the hunter's tuning instead, a camping owner.
             let camper_options = camper::CamperOptions::from_env();
+            let camper_aim = bench_settings().var("SRP_BENCH_CAMPER_AIM").ok();
+            let camper_plays_by = Arc::new(camper_tuning(camper_aim.as_deref()).unwrap_or_else(|e| panic!("{e}")));
             bots.bench_camper = bench_settings()
                 .number_or_refuse::<Place>("SRP_BENCH_CAMPER")
-                .map(|place| BenchCamper::new(camper_options.side.place(place, per_team, seed), camper_options, seed, Arc::new(human_tuning())));
+                .map(|place| BenchCamper::new(camper_options.side.place(place, per_team, seed), camper_options, seed, camper_plays_by));
             let camper_place = bots.bench_camper.as_ref().map(BenchCamper::place);
             owner.set_camper(camper_place);
             // [A290] `SRP_BENCH_HUMAN_PLAY=hunter`: the stand-in human hunts sights-up by his own fixed tuning, on the camper's hooks
@@ -2100,7 +2103,7 @@ pub(crate) fn real_bot_cost() {
             if let Some(camper) = &bots.bench_camper {
                 eprintln!("  {}", camper.line());
                 // [A290] The hunter's shots and hits on an enemy (A287: the owner's 26-30 % a shot on the bots).
-                if HumanPlay::from_env() == HumanPlay::Hunter
+                if (HumanPlay::from_env() == HumanPlay::Hunter || bench_settings().var("SRP_BENCH_CAMPER_AIM").ok().as_deref() == Some("hunter"))
                     && let Some(&(shots, hits)) = game.shots_hits.get(camper.place())
                 {
                     eprintln!("  hunter shots {shots} hits {hits} ({:.1} %)", 100.0 * f64::from(hits) / f64::from(shots.max(1)));
