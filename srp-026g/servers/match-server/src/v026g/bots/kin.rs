@@ -56,6 +56,8 @@ pub struct Kinematics {
     pub blend_ticks: u32,
     /// [A318] How a blend that a further key change interrupts goes on ([`Mixer`]).
     pub mixer: Mixer,
+    /// [A318] The blend a world's fix starts the body's reckoning with ([`FixBlend`]).
+    pub fix_blend: FixBlend,
     /// Which jump links the reckoned body (`body.rs`) takes up after a jump press ([`JumpSnap`]).
     pub jump_snap: JumpSnap,
     /// Where the reckoned body falls off a ledge ([`Edge`]).
@@ -269,6 +271,7 @@ impl Default for Kinematics {
             sprint: 5.0,
             blend_ticks: 6,
             mixer: Mixer::Layers,
+            fix_blend: FixBlend::Replayed,
             jump_snap: JumpSnap::ByKeys,
             edge: Edge::Client,
             open_edge_cost: 0.0,
@@ -331,6 +334,19 @@ pub enum Mixer {
     /// blends are interrupted all the time (`scripts/kin_mixer_fit.py`, fx-zones).
     #[default]
     Layers,
+}
+
+/// [A318] The blend a world's fix starts the reckoning with.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum FixBlend {
+    /// One layer: the way of the keys before the world at the world's speed (as it was). The client is mid-blend at most worlds
+    /// (bots change their keys every ~7 ticks), so its mix and way are lost.
+    Measured,
+    /// The client's own: the keys of the bot's last ticks before the world played through the blend from the keys in force the
+    /// blend's ticks before (an older layer is hidden by then, so the stack is exact), at the body's level.
+    #[default]
+    Replayed,
 }
 
 /// The most layers a blend holds: a change a tick at most, and a layer at full weight after the blend's ticks hides all under
