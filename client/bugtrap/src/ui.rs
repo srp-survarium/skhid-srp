@@ -435,9 +435,12 @@ unsafe fn copy(window: HWND, text: &[u16]) -> bool {
 }
 
 /// `path`: the kept dump (ZIP or `.dmp`), or with none the text report, or
-/// empty. `capture`: the last dump error came from the capture itself.
+/// empty; with `full`, the text report beside a kept full-memory dump of the
+/// same name (`SKHID_CRASH_DUMP=full`), which the player keeps and does not
+/// post. `capture`: the last dump error came from the capture itself.
 pub unsafe fn show(
     path: &Wide<32768>,
+    full: bool,
     saved: bool,
     partial: bool,
     error: u32,
@@ -455,18 +458,28 @@ pub unsafe fn show(
     let mut folder = Wide::<32768>::new();
     let _ = folder.wide(&path.buf[..split]);
     let failure = details::failure(capture, error);
-    let _ = write!(
-        message,
-        "{}",
-        crash_text::status(text, saved, partial, failure)
-    );
+    if full {
+        // The report's name, its `.txt` the dump's `.dmp`.
+        let name = &path.buf[split..path.len];
+        let _ = write!(message, "{}\r\n", text.full_saved);
+        let _ = message.wide(&name[..name.len().saturating_sub(4)]);
+        let _ = write!(message, ".dmp");
+    } else {
+        let _ = write!(
+            message,
+            "{}",
+            crash_text::status(text, saved, partial, failure)
+        );
+    }
     if !saved {
         let _ = write!(message, "\r\n({} ", text.error);
         let _ = details::write_code(&mut message, error);
         let _ = write!(message, ")");
     }
     let have_file = path.len > 0;
-    let instructions = if have_file {
+    let instructions = if full {
+        text.full_instructions
+    } else if have_file {
         text.instructions
     } else {
         text.no_file

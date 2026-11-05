@@ -22,6 +22,16 @@ LANGUAGES = {
 }
 
 
+# A full-memory dump (SKHID_CRASH_DUMP=full): the status line as it starts.
+FULL = {
+    "english": "Crash report saved. The full-memory dump is kept beside it, for the developer:",
+    "russian": "Отчёт о сбое сохранён. Полный дамп памяти оставлен рядом, для разработчика:",
+    "polish": "Raport o awarii został zapisany. Pełny zrzut pamięci zostaje obok, dla programisty:",
+    "ukrainian": "Звіт про збій збережено. Повний дамп пам'яті залишено поруч, для розробника:",
+    "german": "Absturzbericht gespeichert. Der vollständige Speicher-Dump bleibt daneben, für die Entwickler:",
+}
+
+
 # The line for a game folder with non-ASCII letters, as it starts.
 WARNING = {
     "english": "The game is in a folder with non-English letters (",
@@ -44,14 +54,16 @@ def check_details(controls, clip):
                  "|Thread:    ", "|Registers: EAX=", "|Game:      ui_probe.exe, patch revision unknown, sha256 ",
                  "|Reporter:  ", "|Windows:   ", "|Dump:      "):
         assert line in clip, (line, clip)
-    assert "Game log:" not in clip, clip
+    assert "Game log:" not in clip and "Events:" not in clip, clip
+    # One Discord message: at most 2000 characters, the code block's fences in it.
+    assert len(clip.replace("|", "\r\n")) <= 2000, len(clip)
 
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("build", type=Path)
     parser.add_argument("screenshots", type=Path, nargs="?")
-    parser.add_argument("--states", nargs="+", default=["success", "raw", "partial", "failure", "blocked", "unicode", "browser-failure", "dialog-failure"])
+    parser.add_argument("--states", nargs="+", default=["success", "full", "raw", "partial", "failure", "blocked", "unicode", "browser-failure", "dialog-failure"])
     options = parser.parse_args()
     build = options.build.resolve()
     screenshots = options.screenshots.resolve() if options.screenshots else None
@@ -76,6 +88,9 @@ def main():
             root = unicode if state == "unicode" else base
             before = set(root.glob("SRP-crash-*"))
             env = os.environ.copy()
+            env.pop("SKHID_CRASH_DUMP", None)
+            if state == "full":
+                env["SKHID_CRASH_DUMP"] = "full"
             if screenshots and state in ("success", "blocked", "failure", "unicode") and args:
                 env["SRP_UI_SCREENSHOT"] = "Z:" + str(screenshots / f"{language}-{state}.bmp")
             result = subprocess.run(["wine", str(root / "ui_probe.exe"), state, windows, *args],
@@ -108,6 +123,8 @@ def main():
             else:
                 assert 1042 not in controls and "Paths:" not in clips[0], (controls, clips)
             assert "#bugreports" in controls[1036] and button in controls[1036] and copy in controls[1036], controls
+            # Not a dump to post: only a full one's instructions name the .dmp.
+            assert (".dmp" in controls[1036]) == (state == "full"), controls
             [clip] = clips
             check_details(controls, clip)
             if state in ("partial", "failure", "blocked"):
@@ -130,11 +147,20 @@ def main():
                 assert controls[1037] == file_label and controls[1038] == folder_label, controls
                 [text] = texts
                 [report] = new - {text}
-                assert controls[1034] == report.name and str(root).replace("/", "\\") in controls[1035], controls
+                shown = text if state == "full" else report
+                assert controls[1034] == shown.name and str(root).replace("/", "\\") in controls[1035], controls
                 assert text.stem == report.stem, (text, report)
                 content = text.read_bytes()
                 assert content.startswith(b"Skhid crash report") and b"\r\nDump:      saved" in content
-                if state in ("raw", "partial"):
+                if state == "full":
+                    # The report to send is named; the dump stays, named in the status.
+                    [dump] = new - {text}
+                    report = dump
+                    assert controls[1034] == text.name and dump.suffix == ".dmp", controls
+                    assert controls[1031] == FULL[language] + "  " + dump.name, controls
+                    assert dump.read_bytes()[:4] == b"MDMP"
+                    assert b"full-memory dumps (SKHID_CRASH_DUMP=full)" in content
+                elif state in ("raw", "partial"):
                     assert report.suffix == ".dmp" and report.read_bytes()[:4] == b"MDMP"
                 else:
                     assert report.suffix == ".zip"
