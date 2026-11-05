@@ -460,3 +460,14 @@ Applied to the live files of revision 46 (`--check`): 30 new files, the dictiona
 unexpected differences. No simulation change: the copies play the battery rules unchanged. A new
 battery map ported later gets its Blackout config by a row here (its copy, its `add_value` file
 and a dictionary entry), or none.
+
+## sight-alignment-1.json (2026-11-05)
+
+| change | why |
+|---|---|
+| The `aim` locator (`set_entry` of `locators` where `name` is `aim`: position and rotation) of 24 collimator weapon models, 23 of base patch 19's fitted variants and the Kriss Vector's own model (its stock Walther). Each eye now looks along the optic's own axis (the gun's posed frame at `scope_point`: unturned on most guns, the item idle pose on the 9A-91, Val, Vepr, SR-2M, UMP45, Saiga, Valmet, Fort-17, Remington 870), moved across it onto the dot's line (0.6 to 4.6 mm) | the dot showed 2.2 to 14.5 px off the screen's centre at 720 lines (the 9A-91's Cobra 14.5 px high, the Ash-12's 9.7, the UMP45's EOTech 9.3 low), where the bullets go. The fault is in retail 0.29a3's data, which patch 19 shipped as it was: those eyes kept the iron sights' turn, or none where the idle pose turns the gun |
+
+Made by `../sight-alignment/align.py plan` and `export` (`../../docs/notes/sight-alignment.md`) on the
+players' files (the stock db and patches 12 to 47 of release/patches.tsv; revision 48 is live). `content_edit.py --check` on them: 24 files edited, 0 unexpected
+differences. Collimators within 1.5 px (the AK family's 1 px, the IZh-27's, SR-3M's 1.1) stay. View
+only: no simulation change.
