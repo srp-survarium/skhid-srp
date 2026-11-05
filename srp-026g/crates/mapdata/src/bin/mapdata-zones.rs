@@ -1,6 +1,6 @@
 //! Research (mode 5) units against the floors of their maps: where a
 //! standing player counts as inside a unit (exe patch 53's test,
-//! `research_rule_026g.c` `inside_shape`), on what floors.
+//! `research-rule` `inside_shape`), on what floors.
 //!
 //! ```text
 //! mapdata-zones --db <resources.db> --patch <resources.db.patch_12> ... [--config <path>]...
@@ -51,7 +51,7 @@ struct Cli {
     strict: bool,
 }
 
-/// A player's capsule (`grid::Body`, research_rule_026g.c's defaults).
+/// A player's capsule (`grid::Body`, research-rule's defaults).
 const HALF_HEIGHT: f32 = 0.9;
 const MIN_GROUND_NORMAL_Y: f32 = 0.5;
 
@@ -92,7 +92,7 @@ impl Shape {
         }
     }
 
-    /// research_rule_026g.c's inside_shape: a capsule standing on `feet`,
+    /// research-rule's inside_shape: a capsule standing on `feet`,
     /// `2 * half_height` tall and `reach` round, overlaps the shape.
     fn inside(&self, feet: [f32; 3], reach: f32, half_height: f32) -> bool {
         let (mut lo, mut hi) = (feet[1] + reach, feet[1] + 2.0 * half_height - reach);

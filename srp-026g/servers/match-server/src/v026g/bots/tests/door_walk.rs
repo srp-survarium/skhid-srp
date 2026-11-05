@@ -80,7 +80,7 @@ fn walk(world: &Arc<World>, start: Vec3, goal: Vec3, door: Vec3, until: u32, cen
     let teams = [0u8, 1];
     let mut bots = Bots::new(
         0x717,
-        survarium::v026g::maps::mode::TEAM_DEATHMATCH,
+        survarium::v026g::maps::RuleMode::TeamDeathmatch,
         0,
         &teams,
         &[true, false],

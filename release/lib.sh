@@ -12,11 +12,21 @@ DRY_RUN=${DRY_RUN:-0}
 # The two files of a release in <target dir>/download.
 ZIP_NAME=Survarium-0.26g-srp-files.zip
 DATA_NAME=server-game-data.db
+# Where a checkout keeps its item tables (srp-item-tables).
+# shellcheck disable=SC2034 # used by the scripts that source this
+ITEM_TABLES_DIR=srp-026g/docs/data
 # The stock 0.26g resources.db (build 2777).
 # shellcheck disable=SC2034 # used by the scripts that source this
 STOCK_DB_SHA256=c74078be702d17113b9ca23f59aa2b0087238481e7f01fb793620d51d875492c
 # The players' exe in the ZIP.
 ZIP_EXE=game/binaries/x86/survarium_skhid.exe
+# The original game's archive (build 2777): its row of release/game.tsv
+# (GAME_ROW), offered at /game; client/updater/logic/src/game.rs pins it.
+GAME_NAME=survarium-026g.7z
+# More URLs of the offered files, in srp's data volume: `<file> <url>` a
+# line, offered after the release's (release/add-mirror).
+# shellcheck disable=SC2034 # used by the scripts that source this
+MIRRORS_FILE=mirrors.tsv
 # The image the compose file runs srp26 from.
 IMAGE=srp-026g:latest
 # From this revision on the exe expects the menus of resources.db.patch_12: a
@@ -68,6 +78,18 @@ load_env() {
     done
 }
 
+# load_env when there is a release.env, else nothing (for the tools that
+# may run without one: release/bot-data).
+load_env_if_any() {
+    local env=${SKHID_RELEASE_ENV:-} common
+    if [[ -z $env ]]; then
+        common=$(git -C "$ROOT" rev-parse --path-format=absolute --git-common-dir 2>/dev/null) || return 0
+        env=$(dirname "$common")/private/release/release.env
+    fi
+    [[ -f $env ]] || return 0
+    load_env
+}
+
 # A word quoted for a remote shell.
 q() { printf '%q' "$1"; }
 
@@ -116,27 +138,34 @@ CURL_AS_UPDATER=(-L --max-redirs 5 --proto "=http,https" --proto-redir "=http,ht
 # patch is not downloaded again at every release.
 URL_CACHE=${XDG_CACHE_HOME:-$HOME/.cache}/skhid-release/patch-urls.checked
 
-# check_patch_url <url> <sha256> <size> <scratch folder> [full]: whether
-# <url> gives the players that patch, as their updater fetches it. Its
-# first check is a whole download: 200, not a web page (Content-Type
-# text/html: Google Drive's virus-scan page, a sign-in page), the size and
+# check_patch_url <url> <sha256> <size> <scratch folder> [full | quick]:
+# whether <url> gives the players that file (a patch, or the game's archive
+# when <sha256> is GAME_ROW's), as their updater fetches it. Its first
+# check is a whole download: 200, not a web page (Content-Type text/html:
+# Google Drive's virus-scan or quota page, a sign-in page), the size and
 # the sha256; then the line in URL_CACHE. A URL in the cache for that
 # sha256 is asked for its first 13 bytes only: 200 or 206, not a web page,
 # the whole file's size the row's when the answer says it (a 206's
 # Content-Range, a 200's Content-Length: a file replaced since by one of
-# another size), the game archive's `little-endian`. A file replaced by
-# one of the same size and header is seen only by a whole download: the
-# players' updater checks the sha256 all the same and moves on to the next
-# URL. `full`: the whole download all the
-# same (add-mirror). False, with URL_PROBLEM saying why, otherwise; CHECKED
-# says how it was checked (`downloaded`, `as checked before`).
+# another size), the start of a patch (`little-endian`) or of a 7z archive.
+# A file replaced by one of the same size and header is seen only by a
+# whole download: the players' updater checks the sha256 all the same and
+# moves on to the next URL. `full`: the whole download all the same
+# (add-mirror); `quick`: its first bytes alone, cached or not (the game's
+# 2.9 GB at every release's preflight: release/add-mirror downloads it
+# whole once). False, with URL_PROBLEM saying why, otherwise; CHECKED says
+# how it was checked (`downloaded`, `as checked before`, `by its first
+# bytes`).
 URL_PROBLEM='' CHECKED=''
+# The start of a patch and of a 7z archive, as od -tx1 writes it.
+PATCH_START=6c6974746c652d656e6469616e SEVENZIP_START=377abcaf271c
 # shellcheck disable=SC2034 # CHECKED: the callers read it
 check_patch_url() {
-    local url=$1 sha=$2 size=$3 dir=$4 full=${5:-} out head status type total got
+    local url=$1 sha=$2 size=$3 dir=$4 full=${5:-} out head status type total got start=$PATCH_START
     out=$dir/url-check.$$ head=$dir/url-check.$$.head
     URL_PROBLEM='' CHECKED=''
-    if [[ -z $full ]] && grep -qxF -- "$sha $size $url" "$URL_CACHE" 2>/dev/null; then
+    if [[ -n $GAME_ROW && $sha == "$(cut -d' ' -f2 <<<"$GAME_ROW")" ]]; then start=$SEVENZIP_START; fi
+    if [[ $full == quick ]] || { [[ -z $full ]] && grep -qxF -- "$sha $size $url" "$URL_CACHE" 2>/dev/null; }; then
         { curl -sS "${CURL_AS_UPDATER[@]}" --max-time 60 -r 0-12 -D "$head" "$url" 2>/dev/null || true; } |
             head -c 13 >"$out"
         # The last answer's (a redirect's head comes first, with its own).
@@ -151,35 +180,45 @@ check_patch_url() {
                 tolower($1) == "content-range:" { n = split($0, part, "/"); r = part[n] }
                 tolower($1) == "content-length:" { l = $2 }
                 END { print (status == 206 ? r : l) }' || true)
-        got=$(cat "$out")
+        got=$(od -An -v -tx1 <"$out" | tr -d ' \n')
         rm -f "$out" "$head"
+        local before=' (it gave the file before)'
+        if [[ $full == quick ]]; then before=''; fi
         if [[ $status != 200 && $status != 206 ]]; then
-            URL_PROBLEM="$url answers ${status:-nothing} now (it gave the file before)"
+            URL_PROBLEM="$url answers ${status:-nothing} now$before"
         elif [[ $type == text/html* ]]; then
-            URL_PROBLEM="$url answers with a web page now (it gave the file before)"
+            URL_PROBLEM="$url answers with a web page now$before"
         elif [[ $total =~ ^[0-9]+$ && $total != "$size" ]]; then
-            URL_PROBLEM="$url says the file is $total bytes now, not $size (it gave the file before)"
-        elif [[ $got != little-endian ]]; then
-            URL_PROBLEM="$url does not start as a patch now (it gave the file before)"
+            URL_PROBLEM="$url says the file is $total bytes now, not $size$before"
+        elif [[ $got != "$start"* ]]; then
+            URL_PROBLEM="$url does not start as the file now$before"
         else
             CHECKED='as checked before: its first bytes now'
+            if [[ $full == quick ]]; then CHECKED='by its first bytes (status, type, size, start)'; fi
             return 0
         fi
         return 1
     fi
-    got=$(curl -sS "${CURL_AS_UPDATER[@]}" --max-time "${HTTP_TIMEOUT:-600}" -o "$out" -w '%{http_code} %{content_type}' "$url" 2>/dev/null || true)
-    status=${got%% *} type=${got#* }
+    # Streamed into its sha256, nothing kept (2.9 GB for the game's
+    # archive); no limit on the whole, one on a stall (under 10 KB/s for 2
+    # minutes). curl says the status, the type and the size on stderr, last.
+    local got_sha
+    got_sha=$({ curl -sS "${CURL_AS_UPDATER[@]}" --connect-timeout 30 --speed-limit 10240 --speed-time 120 \
+        -w '%{stderr}\n%{http_code} %{size_download} %{content_type}\n' "$url" 2>"$out" || true; } | sha256sum | cut -d' ' -f1)
+    got=$(tail -n 1 "$out")
+    rm -f "$out"
+    status=${got%% *} got=${got#* }
+    total=${got%% *} type=${got#* }
     type=${type,,}
     if [[ $status != 200 ]]; then
         URL_PROBLEM="$url answers ${status:-nothing}, not 200"
     elif [[ $type == text/html* ]]; then
         URL_PROBLEM="$url answers with a web page ($type), not the file (Google Drive: use https://drive.usercontent.google.com/download?id=<id>&export=download&confirm=t)"
-    elif [[ $(size_of "$out") != "$size" ]]; then
-        URL_PROBLEM="$url gave $(size_of "$out") bytes, not $size"
-    elif [[ $(sha256_of "$out") != "$sha" ]]; then
-        URL_PROBLEM="$url gave sha256 $(sha256_of "$out"), not $sha"
+    elif [[ $total != "$size" ]]; then
+        URL_PROBLEM="$url gave $total bytes, not $size"
+    elif [[ $got_sha != "$sha" ]]; then
+        URL_PROBLEM="$url gave sha256 $got_sha, not $sha"
     fi
-    rm -f "$out"
     [[ -z $URL_PROBLEM ]] || return 1
     CHECKED='downloaded whole'
     if ! grep -qxF -- "$sha $size $url" "$URL_CACHE" 2>/dev/null; then
@@ -214,6 +253,22 @@ check_data_bin() {
         die "srp-check-game-data did not build"
     printf '%s\n' "$ROOT/srp-026g/target/release/srp-check-game-data"
 }
+
+# Our srp-item-tables (the per-release item tables of a server game data
+# file, srp-026g/docs/data/: equipment.tsv, weapons.tsv):
+# $SRP_ITEM_TABLES_BIN, else built from this checkout (at nice 10).
+item_tables_bin() {
+    if [[ -n ${SRP_ITEM_TABLES_BIN:-} ]]; then
+        printf '%s\n' "$SRP_ITEM_TABLES_BIN"
+        return
+    fi
+    say "building srp-item-tables (srp-026g, nix develop) ..." >&2
+    (cd "$ROOT" && nice -n 10 nix develop ./srp-026g -c bash -c \
+        'cd srp-026g && cargo build --quiet --release -p web-server --bin srp-item-tables') >&2 ||
+        die "srp-item-tables did not build"
+    printf '%s\n' "$ROOT/srp-026g/target/release/srp-item-tables"
+}
+
 
 # The building steps (build-patch, build-server-db, build-zip) run at nice
 # 10, with every child: the release PC goes on doing other things.
@@ -371,8 +426,10 @@ ask_yes() {
 #         $SKHID_TEST_PATCHES_URL, all three set and none of it the
 #         production folder or URL; the list release/patches-test.tsv
 #         ($SKHID_TEST_PATCH_LIST names another).
-PATCHES_SSH='' PATCHES_DIR='' PATCHES_URL='' PATCH_LIST='' PATCHES_LABEL=''
+PATCHES_SSH='' PATCHES_DIR='' PATCHES_URL='' PATCH_LIST='' PATCHES_LABEL='' GAME_LIST=''
 use_patches() {
+    # The game's archive, the same for both ($SKHID_GAME_LIST names another).
+    GAME_LIST=${SKHID_GAME_LIST:-$ROOT/release/game.tsv}
     case $1 in
     live)
         load_env SKHID_PATCHES_SSH SKHID_PATCHES_DIR SKHID_PATCHES_URL
@@ -404,48 +461,78 @@ on_patches() { ssh "$PATCHES_SSH" "$1" <"${2:-/dev/null}"; }
 # The offered-patch list (use_patches first), a committed file: one patch a
 # line, `<name> <sha256> <size> <urls>` with tabs between, in revision order;
 # `#` starts a comment. <urls> is the patch's URLs, one space apart, in the
-# order the players' updater tries them: the patches server's first, then
-# mirrors (release/add-mirror), 1 to 8, none twice. The server data is built
-# of exactly these and /patches offers exactly these; a file on the patches
-# server that is not in it is offered to no one. Checks every row; sets LIST
-# (the rows, spaces between) and LIST_TOP (the highest revision in it, 0 for
-# none).
-LIST='' LIST_TOP=0
+# order the players' updater tries them (Google Drive's first, the owner's
+# rule; the patches server's among them, always), 1 to 8, none twice. The server data is built of exactly these
+# and /patches offers exactly these; a file on the patches server that is
+# not in it is offered to no one. And release/game.tsv ($GAME_LIST), the
+# row of the game's archive in the same form ($GAME_NAME, any host first):
+# offered at /game, built into the updater and Skhid-without-updater.bat; a
+# list without a row (or no such file) names none. Checks every row; sets
+# LIST (the patches' rows, spaces between), LIST_TOP (the highest revision
+# in it, 0 for none) and GAME_ROW (the game's row so, or nothing).
+LIST='' LIST_TOP=0 GAME_ROW=''
 read_patch_list() {
-    local line name sha size url extra n=0 number rows=() urls=() seen u
+    local line name sha size url extra n=0 number rows=() list
     [[ -f $PATCH_LIST ]] || die "$PATCH_LIST: no such file (the offered-patch list)"
-    LIST_TOP=0
-    while IFS= read -r line || [[ -n $line ]]; do
-        n=$((n + 1))
-        line=${line%$'\r'}
-        [[ -n $line && $line != '#'* ]] || continue
-        IFS=$'\t' read -r name sha size url extra <<<"$line"
-        [[ -n $url && -z $extra ]] || die "$PATCH_LIST:$n: not <name> <sha256> <size> <urls> with tabs between"
-        number=$(patch_number "$name") || die "$PATCH_LIST:$n: $name is not resources.db.patch_<n>"
-        ((number > LIST_TOP)) || die "$PATCH_LIST:$n: $name is not above the row before it (revision order, each patch once)"
-        [[ $sha =~ ^[0-9a-f]{64}$ ]] || die "$PATCH_LIST:$n: $sha is not a sha256"
-        [[ $size =~ ^[1-9][0-9]*$ ]] || die "$PATCH_LIST:$n: $size is not a size in bytes"
-        [[ $url != *'  '* && $url != ' '* && $url != *' ' ]] || die "$PATCH_LIST:$n: the URLs are one space apart"
-        read -r -a urls <<<"$url"
-        ((${#urls[@]} <= MAX_PATCH_URLS)) || die "$PATCH_LIST:$n: ${#urls[@]} URLs; the players' updater takes at most $MAX_PATCH_URLS"
-        [[ ${urls[0]} == "$PATCHES_URL/$name" ]] || die "$PATCH_LIST:$n: ${urls[0]} is not $PATCHES_URL/$name (the list of another patches server?)"
-        seen=' '
-        for u in "${urls[@]}"; do
-            is_patch_url "$u" || die "$PATCH_LIST:$n: $u is not a URL the players' updater takes"
-            [[ $seen != *" $u "* ]] || die "$PATCH_LIST:$n: $u is there twice"
-            seen+="$u "
-        done
-        LIST_TOP=$number
-        rows+=("$name $sha $size $url")
-    done <"$PATCH_LIST"
+    LIST_TOP=0 GAME_ROW=''
+    for list in "$PATCH_LIST" "$GAME_LIST"; do
+        [[ -f $list ]] || continue
+        n=0
+        while IFS= read -r line || [[ -n $line ]]; do
+            n=$((n + 1))
+            line=${line%$'\r'}
+            [[ -n $line && $line != '#'* ]] || continue
+            IFS=$'\t' read -r name sha size url extra <<<"$line"
+            [[ -n $url && -z $extra ]] || die "$list:$n: not <name> <sha256> <size> <urls> with tabs between"
+            if [[ $list == "$GAME_LIST" ]]; then
+                [[ $name == "$GAME_NAME" && -z $GAME_ROW ]] || die "$list:$n: one row, of $GAME_NAME"
+            else
+                number=$(patch_number "$name") || die "$list:$n: $name is not resources.db.patch_<n>"
+                ((number > LIST_TOP)) || die "$list:$n: $name is not above the row before it (revision order, each patch once)"
+            fi
+            check_row "$list:$n" "$sha" "$size" "$url"
+            if [[ $list == "$GAME_LIST" ]]; then
+                GAME_ROW="$name $sha $size $url"
+            else
+                [[ " $url " == *" $PATCHES_URL/$name "* ]] || die "$list:$n: no URL is $PATCHES_URL/$name (the list of another patches server?)"
+                LIST_TOP=$number
+                rows+=("$name $sha $size $url")
+            fi
+        done <"$list"
+    done
     LIST=''
     if ((${#rows[@]})); then LIST=$(printf '%s\n' "${rows[@]}"); fi
 }
 
+# A row's sha256, size and URLs (one space apart, 1 to 8, each one the
+# updater takes, none twice); dies saying <where> otherwise.
+check_row() {
+    local where=$1 sha=$2 size=$3 url=$4 urls=() seen=' ' u
+    [[ $sha =~ ^[0-9a-f]{64}$ ]] || die "$where: $sha is not a sha256"
+    [[ $size =~ ^[1-9][0-9]*$ ]] || die "$where: $size is not a size in bytes"
+    [[ $url != *'  '* && $url != ' '* && $url != *' ' ]] || die "$where: the URLs are one space apart"
+    read -r -a urls <<<"$url"
+    ((${#urls[@]} <= MAX_PATCH_URLS)) || die "$where: ${#urls[@]} URLs; the players' updater takes at most $MAX_PATCH_URLS"
+    for u in "${urls[@]}"; do
+        is_patch_url "$u" || die "$where: $u is not a URL the players' updater takes"
+        [[ $seen != *" $u "* ]] || die "$where: $u is there twice"
+        seen+="$u "
+    done
+}
+
+# The /patches (of LIST) and /game (of GAME_ROW; nothing without one) the
+# release's srp offers before any mirror, as JSON: what release/build-zip
+# builds into the updater (SKHID_BUILTIN_PATCHES, SKHID_BUILTIN_GAME).
+list_patches_json() { patches_json "$(offered_of_list "")"; }
+list_game_json() {
+    [[ -n $GAME_ROW ]] || return 0
+    jq -cn --arg row "$GAME_ROW" '$row | split(" ") | {sha256: .[1], size: (.[2] | tonumber), urls: .[3:]}'
+}
+
 # Every patch of LIST (read_patch_list first) in ~/.cache/skhid-release/patches/
 # ($XDG_CACHE_HOME), each checked by its size and sha256 there, else
-# downloaded there from its row's first URL (200, the row's size and
-# sha256). Sets PATCH_CACHE to that folder.
+# downloaded there from the patches server (200, the row's size and
+# sha256), never from a mirror's quota. Sets PATCH_CACHE to that folder.
 PATCH_CACHE=''
 cache_patches() {
     local name sha size urls file url status
@@ -458,7 +545,7 @@ cache_patches() {
             say "$name: in the cache"
             continue
         fi
-        url=${urls%% *}
+        url=$PATCHES_URL/$name
         say "$name: downloading $url ($size bytes)"
         status=$(http_get "$url" "$file.part")
         [[ $status == 200 ]] || die "GET $url answered $status, not 200 (in $PATCH_LIST)"
@@ -466,6 +553,32 @@ cache_patches() {
             die "GET $url did not give the $size bytes of sha256 $sha that $PATCH_LIST names"
         mv "$file.part" "$file"
     done <<<"$LIST"
+}
+
+# check_file_urls <name> <sha256> <size> <urls> <scratch> <how> [<needed URL>]:
+# every URL of a file's row, as check_patch_url checks it (<how>: '' or
+# quick). One that fails is a WARNING line: the players' updater moves on
+# to the next. False, with URL_PROBLEM saying why, when <needed URL> fails
+# (a patch's on the patches server: the release builds the server data from
+# it) or no URL gives the file. URLS_GOOD: how many gave it.
+URLS_GOOD=0
+check_file_urls() {
+    local name=$1 sha=$2 size=$3 urls=$4 dir=$5 how=$6 needed=${7:-} url last=''
+    local -a each
+    read -r -a each <<<"$urls"
+    URLS_GOOD=0
+    for url in "${each[@]}"; do
+        if check_patch_url "$url" "$sha" "$size" "$dir" "$how"; then
+            URLS_GOOD=$((URLS_GOOD + 1))
+            say "  ok       $name at $url: $CHECKED"
+        elif [[ $url == "$needed" ]]; then
+            return 1
+        else
+            say "  WARNING  $name: $URL_PROBLEM (players move on to its next URL; put it right, or take it out of the row)"
+            last=$URL_PROBLEM
+        fi
+    done
+    ((URLS_GOOD)) || { URL_PROBLEM="none of its URLs gives it (the last: $last)"; return 1; }
 }
 
 # The sha256 of the stock db $1, hashed once and then cached by its size,
@@ -615,8 +728,10 @@ lock_drop() {
 # ZIP's exe says patch revision <n>, the server data reads (srp-game-data
 # info), offers no patch above <n>, and offers patch_12 (the menus) from
 # revision 12 on. Sets ZIP_SHA ZIP_SIZE DATA_SHA, OFFERED (`patch_<n>
-# <sha256> <urls>` lines) and EXPECTED (/patches as JSON). <scratch> is a
-# folder for the exe.
+# <sha256> <urls>` lines), OFFERED_GAME (the game's archive the data names,
+# as GAME_ROW is, or nothing), EXPECTED (/patches as JSON) and
+# EXPECTED_GAME (/game as JSON, or nothing). <scratch> is a folder for the
+# exe.
 check_release_files() {
     local zip=$1 data=$2 revision=$3 scratch=$4 got bin info key
     got=$(zip_revision "$zip" "$scratch/exe")
@@ -624,6 +739,7 @@ check_release_files() {
     bin=$(game_data_bin)
     info=$("$bin" info "$data") || die "$data: srp-game-data info refused it"
     OFFERED=$(offered_in "$info")
+    OFFERED_GAME=$(offered_game_in "$info")
     while read -r key _; do
         [[ -n $key ]] || continue
         ((${key#patch_} <= revision)) || die "$data offers $key, above revision $revision"
@@ -634,6 +750,14 @@ check_release_files() {
     # shellcheck disable=SC2034 # the callers use them
     ZIP_SHA=$(sha256_of "$zip") ZIP_SIZE=$(size_of "$zip") DATA_SHA=$(sha256_of "$data")
     EXPECTED=$(patches_json "$OFFERED")
+    EXPECTED_GAME=''
+    if [[ -n $OFFERED_GAME ]]; then EXPECTED_GAME=$(GAME_ROW=$OFFERED_GAME list_game_json | jq -cS .); fi
+}
+
+# The game's archive `srp-game-data info` says data names, as GAME_ROW is
+# (`<name> <sha256> <size> <urls>`), or nothing.
+offered_game_in() {
+    sed -n 's/^  game \([^ ]*\) \([0-9]*\) bytes sha256 \([0-9a-f]*\) urls \(.*\)$/\1 \3 \2 \4/p' <<<"$1"
 }
 
 # The patches `srp-game-data info` (or build, or check) says data offers:
@@ -721,7 +845,7 @@ stage_upload() {
 # log), state stopped.
 stage_abandon() {
     ((STAGED)) || return 0
-    if on_target "cd $REL_DIR && rm -rf $ZIP_NAME $DATA_NAME ./*.part src src.tar && echo stopped > state && rm -f ../download/.$ZIP_NAME.new ../download/.$DATA_NAME.new"; then
+    if on_target "cd $REL_DIR && rm -rf $ZIP_NAME $DATA_NAME ./*.part src src.tar bot-data bot-data.list bot-data.sh && echo stopped > state && rm -f ../download/.$ZIP_NAME.new ../download/.$DATA_NAME.new"; then
         say "staged files: removed ($TARGET_DIR/$REL stays, state stopped)"
     else
         say "staged files: NOT removed: $TARGET_DIR/$REL"
@@ -854,6 +978,126 @@ SWAP_STATE='' SWAP_SRC=0 SWAP_SRC_INPUTS='' SWAP_BEFORE_STOP=''
 OLD_MIN=none HAVE_ZIP=0 HAVE_DATA=0 OLD_PATCHES=''
 RUN_CONTAINER='' RUN_IMAGE='' RUN_VOLUME='' RUN_VOLUME_DIR='' LATEST_IMAGE=''
 
+# The bots' data files (the switch ledger's F2, F3 and F7): private files the
+# bots read from the data volume's folder (mapdata/<project>.mapdata, the
+# routes humans took as mapdata/bot-routes.json, later the foliage), which the
+# owner copied by hand, so what live had was nobody's record (on 2026-10-26
+# live had no routes table at all, and every bench had one). The committed list
+# release/bot-data.tsv names each file by its path under the volume, its
+# sha256 and size (what was benched), and, when it is another file in the
+# owner's folder, its name there; `release/bot-data` keeps it. The release
+# takes the files from $SKHID_BOT_DATA (a folder laid out as the volume, kept
+# out of git), checks each against the list (a missing or different file
+# stops the release), compares them with the volume's, stages the ones that
+# differ in the release folder, and puts them in place at the swap, with
+# srp26 stopped, keeping the old ones in the folder for the rollback.
+# `#` starts a comment; one file a line, tabs between:
+#   <path under the volume>  <sha256>  <size>  [<name in $SKHID_BOT_DATA>]
+# Sets BD_PATH BD_SHA BD_SIZE BD_SOURCE (arrays, one entry a file).
+BOT_DATA_LIST=$ROOT/release/bot-data.tsv   # $SKHID_BOT_DATA_LIST (release.env) names another
+BD_PATH=() BD_SHA=() BD_SIZE=() BD_SOURCE=()
+# The files to put in the volume (indexes of BD_*): those it lacks or has
+# otherwise. BOT_DATA is 1 when there are any (the rollback undoes them).
+BD_TODO=() BOT_DATA=0
+bot_data_name_ok() { [[ $1 =~ ^[A-Za-z0-9][A-Za-z0-9._-]*(/[A-Za-z0-9][A-Za-z0-9._-]*)*$ ]]; }
+read_bot_data_list() {
+    local line path sha size source extra n=0 i
+    BOT_DATA_LIST=${SKHID_BOT_DATA_LIST:-$BOT_DATA_LIST}
+    [[ -f $BOT_DATA_LIST ]] || die "$BOT_DATA_LIST: no such file (the bots' data list)"
+    BD_PATH=() BD_SHA=() BD_SIZE=() BD_SOURCE=()
+    while IFS= read -r line || [[ -n $line ]]; do
+        n=$((n + 1))
+        line=${line%$'\r'}
+        [[ -n $line && $line != '#'* ]] || continue
+        IFS=$'\t' read -r path sha size source extra <<<"$line"
+        [[ -z $extra ]] || die "$BOT_DATA_LIST:$n: more than four columns"
+        bot_data_name_ok "$path" || die "$BOT_DATA_LIST:$n: $path is not a path under the volume (letters, digits, . _ -, and / between)"
+        [[ $sha =~ ^[0-9a-f]{64}$ ]] || die "$BOT_DATA_LIST:$n: $path: the sha256 is 64 lower-case hex digits"
+        [[ $size =~ ^[0-9]+$ ]] || die "$BOT_DATA_LIST:$n: $path: the size is a whole number of bytes"
+        source=${source:-$path}
+        bot_data_name_ok "$source" || die "$BOT_DATA_LIST:$n: $source is not a name in the owner's folder"
+        for i in "${!BD_PATH[@]}"; do
+            [[ ${BD_PATH[i]} != "$path" ]] || die "$BOT_DATA_LIST:$n: $path is listed twice"
+        done
+        BD_PATH+=("$path") BD_SHA+=("$sha") BD_SIZE+=("$size") BD_SOURCE+=("$source")
+    done <"$BOT_DATA_LIST"
+}
+
+# Every file of the list in <folder> (by its name there), its size and
+# sha256 as listed. Prints one line a problem; fails when there is one.
+bot_data_check_folder() {
+    local dir=$1 i f bad=0 size sha
+    for i in "${!BD_PATH[@]}"; do
+        f=$dir/${BD_SOURCE[i]}
+        if [[ ! -f $f ]]; then
+            say "${BD_SOURCE[i]}: not in $dir"
+            bad=1
+            continue
+        fi
+        size=$(size_of "$f")
+        if [[ $size != "${BD_SIZE[i]}" ]]; then
+            say "${BD_SOURCE[i]}: $size bytes, the list says ${BD_SIZE[i]}"
+            bad=1
+        elif sha=$(sha256_of "$f") && [[ $sha != "${BD_SHA[i]}" ]]; then
+            say "${BD_SOURCE[i]}: sha256 ${sha:0:12}…, the list says ${BD_SHA[i]:0:12}…"
+            bad=1
+        fi
+    done
+    return "$bad"
+}
+
+# The volume's own files against the list (a read: the target's volume
+# folder, RUN_VOLUME_DIR, set by inspect_target): fills BD_TODO and
+# BD_REPORT, one line a file to put in the volume (`missing` or `differs`).
+# A file that cannot be read counts as one to put.
+BD_REPORT=() BD_SAME=0
+bot_data_volume_state() {
+    local out i path there
+    BD_TODO=() BD_REPORT=() BD_SAME=0
+    # shellcheck disable=SC2016 # the host's shell expands it
+    out=$(on_target "cd $(q "$RUN_VOLUME_DIR") && for p in $(printf '%q ' "${BD_PATH[@]}"); do if test -f \"\$p\"; then echo \"\$p \$(nice -n 19 sha256sum < \"\$p\" | cut -d' ' -f1)\"; else echo \"\$p missing\"; fi; done" 2>/dev/null) || out=''
+    for i in "${!BD_PATH[@]}"; do
+        path=${BD_PATH[i]}
+        there=$(grep -m1 -- "^$path " <<<"$out" || true)
+        there=${there#"$path "}
+        if [[ $there == "${BD_SHA[i]}" ]]; then
+            BD_SAME=$((BD_SAME + 1))
+        else
+            BD_TODO+=("$i")
+            case $there in
+            missing) BD_REPORT+=("$path: not in the volume") ;;
+            '') BD_REPORT+=("$path: could not be read in the volume") ;;
+            *) BD_REPORT+=("$path: in the volume sha256 ${there:0:12}…, the list says ${BD_SHA[i]:0:12}…") ;;
+            esac
+        fi
+    done
+    BOT_DATA=$((${#BD_TODO[@]} > 0))
+}
+
+# The files to put, staged in the release folder as bot-data/<path> (sha256
+# checked there) with bot-data.list (their paths) and the script that puts
+# them in place (host-bot-data.sh, as bot-data.sh): as stage_upload does for
+# the ZIP. <folder> is $SKHID_BOT_DATA.
+stage_bot_data() {
+    local dir=$1 i path sha file list there
+    ((${#BD_TODO[@]})) || return 0
+    list=$(mktemp)
+    for i in "${BD_TODO[@]}"; do
+        path=${BD_PATH[i]} sha=${BD_SHA[i]} file=$dir/${BD_SOURCE[i]}
+        printf '%s\n' "$path" >>"$list"
+        write_on live "mkdir -p $REL_DIR/bot-data/$(q "$(dirname "$path")") && cat > $REL_DIR/bot-data/$(q "$path").part" "$file"
+        if ((!DRY_RUN)); then
+            there=$(on_target "sha256sum < $REL_DIR/bot-data/$(q "$path").part")
+            [[ ${there%% *} == "$sha" ]] || die "$REL/bot-data/$path.part has sha256 ${there%% *} on the host, not $sha"
+        fi
+        write_on live "cd $REL_DIR/bot-data && chmod 644 $(q "$path").part && mv $(q "$path").part $(q "$path") && echo '$sha  bot-data/$path' >> $REL_DIR/new.sha"
+    done
+    ((DRY_RUN)) || say "$REL/bot-data: ${#BD_TODO[@]} file(s), sha256 as listed"
+    write_on live "cat > $REL_DIR/bot-data.list" "$list"
+    rm -f "$list"
+    write_on live "cat > $REL_DIR/bot-data.sh" "$(dirname "${BASH_SOURCE[0]}")/host-bot-data.sh"
+}
+
 # The command that keeps the old files in the folder: their sha256sum,
 # hard links (same file system as download/), the image ID, the setting (and
 # the source the release replaces).
@@ -872,7 +1116,7 @@ archive_command() {
 rollback_env() {
     printf '%s=%q\n' TARGET_DIR "$TARGET_DIR" COMPOSE "$TARGET_COMPOSE" IMAGE "$IMAGE" \
         OLD_IMAGE "$RUN_IMAGE" VOLUME_DIR "$RUN_VOLUME_DIR" BACKUP_BEFORE "$BACKUP_BEFORE" OLD_MIN "$OLD_MIN" NEW_MIN "$1" \
-        HAVE_ZIP "$HAVE_ZIP" HAVE_DATA "$HAVE_DATA" SRC "$SWAP_SRC" ZIP_NAME "$ZIP_NAME" DATA_NAME "$DATA_NAME"
+        HAVE_ZIP "$HAVE_ZIP" HAVE_DATA "$HAVE_DATA" SRC "$SWAP_SRC" BOT_DATA "$BOT_DATA" ZIP_NAME "$ZIP_NAME" DATA_NAME "$DATA_NAME"
 }
 
 # The command that puts <name> of the folder into download/: a hard link
@@ -1014,11 +1258,30 @@ check_server() {
         say "GET $TARGET_SITE/patches gave no list (status $status)"
         return 1
     fi
-    if [[ $patches != "$EXPECTED" ]]; then
-        say "/patches is $patches, not $EXPECTED"
+    if ! served_as "$patches" "$EXPECTED"; then
+        say "/patches is $patches, not $EXPECTED (and mirrors after each file's URLs)"
         return 1
     fi
     say "/patches: $patches, as the server data says"
+    if [[ -n ${EXPECTED_GAME:-} ]]; then
+        status=$(HTTP_TIMEOUT=20 http_get "$TARGET_SITE/game" "$SWAP_WORK/game")
+        patches=$(jq -cS . "$SWAP_WORK/game" 2>/dev/null || true)
+        if [[ $status != 200 ]] || ! served_as "{\"game\": $patches}" "{\"game\": $EXPECTED_GAME}"; then
+            say "GET $TARGET_SITE/game: status $status, $patches, not $EXPECTED_GAME (and mirrors after its URLs)"
+            return 1
+        fi
+        say "/game: $patches, as the server data says"
+    fi
+}
+
+# Whether <served> (JSON of files, /patches as srp writes it) is <expected>
+# with any mirrors of mirrors.tsv among each file's URLs: the same files,
+# each with the same members, every expected URL there in its order.
+served_as() {
+    jq -en --argjson got "$1" --argjson want "$2" '($got | keys) == ($want | keys) and
+        all($want | to_entries[]; .key as $k | .value as $w | $got[$k] as $g |
+            ($g | del(.urls)) == ($w | del(.urls)) and
+            [$g.urls[] | select(. as $u | $w.urls | index($u))] == $w.urls)' >/dev/null 2>&1
 }
 
 # <revision>: /api/client-files names the new ZIP (sha256, size) and, when
@@ -1050,6 +1313,10 @@ check_client_files() {
 # rollback (swap_failed), which puts the old ZIP back too.
 swap_server() {
     ((DRY_RUN)) || SWAP_STATE=moved
+    if ((${#BD_TODO[@]})); then
+        write_on live "sh $REL_DIR/bot-data.sh $REL_DIR $(q "$RUN_VOLUME_DIR")"
+        SWAP_DONE+=("bot data: ${#BD_TODO[@]} file(s) in the volume's folder (the old ones in $TARGET_DIR/$REL/old-bot-data)")
+    fi
     write_on live "$(put_command "$DATA_NAME")"
     SWAP_DONE+=("in place: download/$DATA_NAME")
     write_on live "$(put_command "$ZIP_NAME")"

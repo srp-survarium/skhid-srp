@@ -963,7 +963,7 @@ impl Bots {
     #[allow(clippy::too_many_arguments)]
     pub fn new(
         match_id: u32,
-        mode: u8,
+        mode: survarium::v026g::maps::RuleMode,
         level: u8,
         teams: &[u8],
         driven: &[bool],
@@ -971,7 +971,7 @@ impl Bots {
         tuning: Arc<Tuning>,
         trace: Trace,
     ) -> Self {
-        let mode = Mode::parse(mode).expect("a test names a mode the bots play");
+        let mode = Mode::of_rules(mode).expect("a test names a mode the bots play");
         Self::new_with(match_id, mode, level, teams, driven, roles, tuning::TeamTunings::new(tuning), trace)
     }
 
@@ -1252,7 +1252,7 @@ impl Bots {
     /// The human routes of the match's map and mode (play 17), from
     /// `SRP_BOT_ROUTES`; before [`Self::map_ready`].
     pub fn set_routes(&mut self, table: &routes::RouteTable) {
-        self.layers.routes = table.for_map(self.level, self.mode.id());
+        self.layers.routes = table.for_map(self.level, self.mode.rules());
         self.layers.perches = table.perches_for(self.level);
         self.layers.perch_share = table.perch_share(self.level, self.mode.id());
     }
@@ -1316,13 +1316,6 @@ impl Bots {
         for team in &mut self.teams {
             team.knowledge.forget(place);
         }
-    }
-
-    pub fn has_entered(&self, place: Place) -> bool {
-        self.bots
-            .get(place)
-            .and_then(Option::as_ref)
-            .is_some_and(|bot| bot.entered.is_some())
     }
 
     /// Whether a bot waits to see its body in a world (just entered, or

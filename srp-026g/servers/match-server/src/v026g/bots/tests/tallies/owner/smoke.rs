@@ -941,7 +941,7 @@ mod tests {
         tuning.smoke.sight = sight;
         let mut bots = Bots::new(
             0x5E0E + seed as u32,
-            survarium::v026g::maps::mode::TEAM_DEATHMATCH,
+            survarium::v026g::maps::RuleMode::TeamDeathmatch,
             0,
             &teams,
             &[true; 4],

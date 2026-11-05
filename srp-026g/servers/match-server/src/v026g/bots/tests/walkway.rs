@@ -60,7 +60,7 @@ pub(crate) fn a_carrier_fallen_under_its_walkway_route_gets_home() {
     tuning.cheats.batteries = true;
     let mut bots = Bots::new(
         0x57C4,
-        survarium::v026g::maps::mode::BATTERIES,
+        survarium::v026g::maps::RuleMode::Batteries,
         0,
         &teams,
         &[true, false],
@@ -147,7 +147,7 @@ pub(crate) fn walk_to_goals(
     let teams = [0u8, 1];
     let mut bots = Bots::new(
         0x6E07,
-        survarium::v026g::maps::mode::BATTERIES,
+        survarium::v026g::maps::RuleMode::Batteries,
         0,
         &teams,
         &[true, false],

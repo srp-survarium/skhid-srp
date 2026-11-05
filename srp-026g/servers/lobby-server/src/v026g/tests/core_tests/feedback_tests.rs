@@ -19,13 +19,13 @@ fn not_found_bytes() -> (u8, Vec<u8>) {
 
 impl World {
     /// How many messages the lobby has pushed to the client so far.
-    fn mark(&self, index: usize) -> usize {
+    pub(super) fn mark(&self, index: usize) -> usize {
         self.core.links[&self.clients[index].0].pushed.len()
     }
 
     /// The messages pushed to the client since `mark`: `(id, body)`. The
     /// online counts (0x9F), repeated every few seconds, are left out.
-    fn pushed_since(&self, index: usize, mark: usize) -> Vec<(u8, Vec<u8>)> {
+    pub(super) fn pushed_since(&self, index: usize, mark: usize) -> Vec<(u8, Vec<u8>)> {
         self.core.links[&self.clients[index].0].pushed[mark..]
             .iter()
             .filter(|message| message.id_byte() != 0x9F)
@@ -216,6 +216,30 @@ fn a_friend_request_or_an_invite_for_nobody_is_answered_with_player_not_found() 
     world.assert_clean();
 }
 
+/// From a match (the Tab list's menu, exe patch 86) a friend request for a
+/// name that is no account (a bot's place) is dropped: the lobby's message
+/// box would only come up back in the lobby.
+#[test]
+fn a_friend_request_for_nobody_from_a_match_is_dropped_in_silence() {
+    let mut world = World::new();
+    let alice = world.connect("Alice");
+    let carol = world.connect("Carol");
+    world.ask(alice, request::play(1));
+    world.ask(carol, request::play(1));
+    world.advance(PLAY_TO_MATCH);
+    for client in [alice, carol] {
+        world.take(client);
+    }
+    let mark = world.mark(alice);
+    world.ask(alice, request::important("Nobody", 0, ""));
+    assert!(world.denials_since(alice, mark).is_empty());
+    // One to a player is sent from the match as from the lobby.
+    let carol_mark = world.mark(carol);
+    world.ask(alice, request::important("Carol", 0, ""));
+    assert!(world.pushed_since(carol, carol_mark).iter().any(|(id, _)| *id == 0xA4));
+    world.assert_clean();
+}
+
 #[test]
 fn a_refused_squad_action_is_answered_with_the_squad_and_no_text() {
     let mut world = World::new();
@@ -397,12 +421,12 @@ impl World {
     /// Another match of the client's account ends, settled behind the
     /// lobby's back (the lobby is not told: no screen is shown for it).
     fn settle_another(&mut self, index: usize, match_id: u32) {
-        let map_id = self.host.made.lock().unwrap()[0].1.map_id;
+        let made = self.host.made.lock().unwrap()[0].1.map;
         let (account_id, session_id) = self.ids[index];
         let result = MatchResult {
             match_id,
-            map_id,
-            game_mode: maps::map_mode(map_id).unwrap().mode,
+            map_id: made.map().id,
+            mode: made.mode(),
             match_level: 0,
             end: MatchEnd::ModeRule,
             winner: Some(0),
@@ -430,6 +454,7 @@ impl World {
                 longest_killstreak: 0,
                 kit_changes: 0,
                 statistics: Some(PlayerStatistics::default()),
+                pay_statistics: None,
                 supplies: None,
             }],
         };

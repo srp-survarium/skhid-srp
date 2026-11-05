@@ -39,6 +39,12 @@ package survarium.constants
       // the door. Not shown: the buttons are greyed by the same rule
       // (presets.md, the owner's of 2026-10-23).
       public static const KIT_CANT_PLAY:int = 15;
+      public static const PUBLIC_CREATE:int = 16;
+      
+      // A squad member who is not its leader goes into no room on its own:
+      // its leader's Play, Join or Queue takes it (squads.md). Its buttons
+      // are greyed by the same rule (LocalPlayerProfile.squadSoldier).
+      public static const SQUAD_LEADER:int = 17;
       
       public function RoomCode()
       {

@@ -435,7 +435,7 @@ pub(crate) fn the_long_gunned_stand_in_is_known_as_a_sniper() {
     let teams = [0u8, 1];
     let mut bots = Bots::new(
         0x5A1F,
-        survarium::v026g::maps::mode::BATTERIES,
+        survarium::v026g::maps::RuleMode::Batteries,
         0,
         &teams,
         &[true, true],
@@ -462,7 +462,7 @@ fn stand_in_camper_with(seed: u64, tuning: Tuning, options: CamperOptions) -> ([
     let teams = [0u8, 0, 1, 1];
     let mut bots = Bots::new(
         0x50AC,
-        survarium::v026g::maps::mode::TEAM_DEATHMATCH,
+        survarium::v026g::maps::RuleMode::TeamDeathmatch,
         0,
         &teams,
         &[true; 4],

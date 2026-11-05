@@ -246,7 +246,7 @@ Flash `victory_screen_request_player_data` (handler 0x29ED70, slot +0x6A0; slot 
 7. **Descriptors** (0x97, 0x98, 0x99): mods > 8 or upgrades > 3 -> fatal assert "buffer overflow".
 8. **0x99** day count n > 7 overwrites the reward descriptor and beyond.
 9. Score components: forgetting that the 8 bytes per column are omitted for amount == 0.0 desyncs the rest of 0x97/0x93.
-10. **0x97 to a game that has loaded no match** (PROVEN, crash dump of 2026-10-13): the screen's builder reads the map's name from lobby_menu+0x313C (0x29ABE1) and gives it to `translate_text` (0x29AC04 -> 0x1FF0F0), which reads the string at once (0xF6C47). The field has one writer in the whole exe, the match loading screen (0x22052A), so it is NULL until the game has loaded its first match: access violation reading address 0. A game started anew after its player's match (the game was closed or died in it) is such a game. srp sends 0x97 only to a session the lobby has sent into a match (`Core::sent_to_match`, `show_results`); the others get the match's notices and no screen.
+10. **0x97 to a game that has loaded no match** (PROVEN, crash dump of 2026-10-13): the screen's builder reads the map's name from lobby_menu+0x313C (0x29ABE1) and gives it to `translate_text` (0x29AC04 -> 0x1FF0F0), which reads the string at once (0xF6C47). The field has one writer in the whole exe, the match loading screen (0x22052A), so it is NULL until the game has loaded its first match: access violation reading address 0. A game started anew after its player's match (the game was closed or died in it) is such a game. srp sends 0x97 only to a session the lobby has sent into a match (`Core::sent_to_match`, `show_results`); the others get the match's notices and no screen. That was not enough: rev47 crashed the same way (a game restarted and reseated into a match that then ended), so **the client now guards it** (unreleased): the arena hook `match_stat_map` at 0x29ABE1 (`match_stat_map_026g.asm`) reads a NULL map name as "", and the screen shows no map name. `translate_text("")` is safe (statically and in Unicorn): value_exists hashes nothing and finds no key, the key itself is the text, and the copy (0x1FEF90) writes just the terminator. `check_match_stat_map_026g.py` runs the stock fault at 0xF6C47 and the patched "" through the real translator. The server's rule stays. The other NULL key of `translate_text`, expand_text's unbound `{USE}` (0x1FF09D), is guarded too (`EXPAND_TEXT_UNBOUND`, client-patches README).
 
 ---
 
@@ -331,8 +331,7 @@ Code: `crates/session/src/v026g/pay.rs` (every number, each with its tag) and `r
 - **The "x18" of SHOT1** against 17 kills on its scoreboard: the row's events are 0 (kill) and 4 (team kill), so the 18th is LIKELY a team kill, which paid nothing. It does not explain the lesser kind of kill (ten of them). srp's amount counts kills only [choice].
 - **Score weights** (`static_info.rs` `SCORE_WEIGHTS`): kill 10, assist 5, stolen battery 35 (the wiki of February 2015; the stolen battery is event 17, LIKELY); the others are srp's 0.21d choices divided by ten. A Research match (mode 5) is sent and paid with three others (`static_info::RESEARCH_WEIGHTS`, 0.27d's awards): a capture (event 6) and a neutralisation (event 18) 30 for a whole one, a "kill invader" (event 10) 10. Its battery rules do not apply there: no per-match cap of the battery events (`battery_credit.md`), no drop chance a battery, no battery quests.
 - **Quests**: a quest's silver × `money_k` and its reputation × `reputation_k` of the match it was completed in (that the level matters is PROVEN, patch note 0.23h; these multipliers LIKELY), each rounded down; its reputation twice in one of the day's doubled victories (LIKELY, patch note 0.25a). A 0.26g quest awards no experience. The silver rate does not touch a quest's silver; `SRP_REPUTATION_RATE` does raise its reputation (× the percent, in the same rounding down, before the doubling).
-- **Drop chance**, the four f32 of §1.3: base = the table's 40 % (with the play time bonus only when `SRP_DROP_PLAYTIME_BONUS=on`; off by the owner's choice of 2026-10-13, see §12); match result = 2.5 % for each battery the player's own team has at the end (modes 2 and 3; LIKELY); premium = 25 % for a premium account (LIKELY); penalty 0. The parts are cut so that their sum is at most 1, and the roll uses the sum.
-- **A weapon or armour found after a match** arrives at 40 % condition (`SRP_DROP_CONDITION`; the value is the owner's choice) with one defect (`SRP_DROP_DEFECT`), drawn by drop weight from the defects the item may have (`Modifications::defect_candidates`). Source: patch note 0.24a, "all the items found after a match will be in poor condition with critical malfunctions". Stacks, vouchers and cosmetics are as before, and so is an item of a drop card.
+- **The drop** (the owner's of 2026-11-04): every player who finished a match finds one item, rolled as a drop card is (`drop_card_drop` at the match's drop level): a weapon, an armour piece, or a camouflage or decal not owned yet, whole; never money, a voucher or ammo. The four f32 of §1.3 are sent as 1, 0, 0, 0.
 - **Levels**: 100 is the highest; reaching it pays 250 gold (the wiki's table). **Rating** starts at 100 for a new 0.26g account (LIKELY); accounts made before keep theirs.
 - **The seven days** (`bonus.rs`): a day counts when its three victories are made, a day missed or not made does not reset the run, and the reward comes with the third victory of the seventh such day (patch notes 0.24a, 0.24c). `SRP_DAILY_BONUS=off` turns the bonus off (no 0x99 is sent); `SRP_DAILY_BONUS_RESET_HOUR` moves the start of a bonus day.
 
@@ -382,10 +381,9 @@ What the live server's first two days showed (254 results of players who finishe
 | Match silver | 80 % of the original | **120 %** | `pay::DEFAULT_MONEY_RATE`, `SRP_MONEY_RATE` |
 | Wear of the weapons and armour played with | the game's (`degrade_per_match`, `degrade_per_use`), and a defect roll for a worn item | **none**; `SRP_ITEM_WEAR=on` brings the game's rule back | `pay::item_wear`, `rewards::Terms::wear` |
 | Items worn before the switch | - | made whole once: full condition, defects off, repairs over (`g26_meta` key `gear_mended`) | `GameAccounts::from_env`, `items_rules::mend_all` |
-| Ammo | the game's `base_cost` a clip | **about half**, each price set by hand and rounded down to a multiple of 5 | `prices::AMMO_PRICES` |
-| The play time bonus to the drop chance | the table's 40 % times 2, 1.75, 1.5, 1.25 for the first four games of an hour of play (srp's GUESS at the data's `playtime_dependence`) | **not applied**; `SRP_DROP_PLAYTIME_BONUS=on` brings it back | `pay::drop_playtime_bonus`, `rewards::Terms::playtime_bonus` |
+| Ammo | the game's `base_cost` a clip | **about half**, each price set by hand and rounded down to a multiple of 5: its `base_cost`, so it sells back for a quarter of it | `scripts/content-edit/items.tsv` |
 
-Not changed: a weapon or armour piece found after a match still arrives at 40 % with one defect (`SRP_DROP_CONDITION`, `SRP_DROP_DEFECT`), and stays so until its owner repairs it; the batteries' and premium's parts of the drop chance; quest silver, level rewards, the gold exchange; the prices of drugs, traps and grenades.
+Not changed: quest silver, level rewards, the gold exchange; the prices of drugs, traps and grenades.
 
 What follows from them:
 
@@ -417,3 +415,53 @@ What follows from them:
 - The account level was the longest road: at the original's pace level 20 took about 67 hours of play and the skill tree's 81 points about 750; twice the experience makes them about 38 and 390 (`progression_pace.md` §7).
 
 Tests: `pay.rs` `the_silver_rate_rises_with_the_match_level`; `rewards/tests.rs` `the_owners_rates_raise_silver_by_match_level_experience_and_reputation`, the own-terms part of `the_money_rate_scales_the_rows_silver_and_premiums_half_of_it`; `quests.rs`, the raised part of the scale test.
+
+## 14. The floor (the owner's, 2026-10-27)
+
+"The players with the fewest points usually need the silver most."
+
+- A player who stayed to the end and scored at least 30 (`pay::FLOOR_MIN_SCORE`) is paid at
+  least 80 % (`pay::FLOOR_OF_MEDIAN`) of the rows' silver of the match's median player (of those
+  who stayed to the end; bots not counted; of two middle ones, the lower).
+- What its rows lack is added to its main kit's activity cell ("Match Activity Rewards"), so the
+  premium half and the premium items' bonus count it too. Experience and reputation: unchanged.
+- Score under 30 (idle, or barely played), a player who left, a room with a PIN, a match with no
+  trusted snapshot: no floor. A match against bots: its median is of its human players' pay.
+- On live (61 matches of revision 35, no bots): the lowest quarter of each match's scoreboard
+  was paid 2.7k a match, the top quarter 21.9k; the lowest were also the lowest levels (16.9
+  against 31.2). With the floor the lowest quarter's pay rises to about 4.2k (91 of 555
+  players raised); all silver paid rises about 6 %.
+- `rewards.rs` `Shared::money_floor`, applied in `settle_player`.
+
+## 15. Payment-only farming limits (PR #691 revision, 2026-10-28)
+
+`reward_caps::Payment` clones the ordinary statistics after the existing battery policy, then
+applies the repeated-kill limit and Research allowance in that order. The result adapter carries
+this copy as `PlayerResult::pay_statistics`; only `Shared::lines` reads it. Without an override,
+ordinary statistics pay as before. An untrusted result cannot pay from either copy.
+
+Score, quest progress, kit usage and rating use the ordinary counters. This separation fixes the
+initial implementation's unintended reduction of score and combat quest counters. The existing
+battery cap's handling of battery quests is unchanged. The silver floor still uses the lower
+median of human finishers' **post-cap** base pay; its score eligibility uses the ordinary score.
+See `kill_cap.md` and `research_mode.md` for thresholds.
+
+## 16. PvE reward ceiling (owner's choice, 2026-10-28)
+
+PvE settles match rewards at `min(actual match level, 7)` (`pvb::MAX_REWARD_LEVEL`). One effective
+level in `Shared` selects both the dictionary's money/experience/reputation multipliers and the
+silver rate. At seven these are 4.97 / 1.3 / 1.3 and 170% silver with the default by-level rates.
+The usual `SRP_PVB_PAY` share (default 50% for silver and experience) and premium still apply.
+Lower-tier PvE and all PvP retain their normal level scaling. Equipment, bot kits and the actual
+match level are unchanged; this is a payment ceiling, not a change to combat simulation.
+
+The supplied 128/7 bot-match screenshot paid 49,992 base silver plus 24,996 premium = 74,988.
+At the ceiling, its silver scales by `(4.97 * 1.7) / (10.17 * 2.2)`, about 28.3k including premium,
+subject to per-cell rounding. No live balance is changed retroactively. The floor uses these
+capped base rewards; a sole human already earns their own median and gets no floor addition.
+
+**Drops (owner's choice, 2026-11-01).** The end-of-match drop of PvE is rolled the same way, at
+`min(actual match level, 7)` (`pvb::MAX_DROP_LEVEL`, `Shared::drop_level`): the generic table's row
+of match level 7, item levels 5 to 8 (10 / 50 / 30 / 10 %). PvP drops roll at the match's own level.
+A drop card used on a PvE match's results screen rolls at the same level (`pvb::drop_level`, the
+report's `vs_bots`; a report kept before it has none and is read as PvP).

@@ -1021,7 +1021,7 @@ mod tests {
         let teams: Vec<u8> = (0..8).map(|p| u8::from(p >= 4)).collect();
         let mut bots = Bots::new(
             0x50AC,
-            survarium::v026g::maps::mode::BATTERIES,
+            survarium::v026g::maps::RuleMode::Batteries,
             0,
             &teams,
             &[true; 8],

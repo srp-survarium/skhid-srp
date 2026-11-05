@@ -84,7 +84,7 @@ pub(crate) fn a_bot_leaves_a_play_whose_goal_it_proved_no_way_to_and_takes_anoth
     let teams = [0u8, 1];
     let mut bots = Bots::new(
         0x51A7,
-        survarium::v026g::maps::mode::TEAM_DEATHMATCH,
+        survarium::v026g::maps::RuleMode::TeamDeathmatch,
         0,
         &teams,
         &[true, false],

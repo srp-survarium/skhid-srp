@@ -1,0 +1,5 @@
+va	status	name	evidence
+0x200117a50	reviewed	survarium::game::assign_music_emitter	Descriptive name: retains the resource in the selected music slot, stops/releases its old proxy, then calls play_music with 2000 ms and looping enabled; loading callback 0x20014bb60 selects slot 2.
+0x200117b60	observed	survarium::game::play_music	Qualified diagnostic at 0x200956030; six slots; fades other playing proxies out over 2000 ms; selected slot receives duration and looping arguments; out-of-range track stops all slots.
+0x20014bb60	reviewed	survarium::loading_screen::on_music_loaded	Descriptive name: async callback installed at 0x20011b839 for mode/ui/loading_music; forwards the loaded single-sound resource to game::assign_music_emitter with slot 2.
+0x20062a8f0	reviewed	vostok::sound::sound_instance_proxy::fade_out	Descriptive name: vtable 0x2009d7ae0 slot 4, queues duration and proxy to 0x200623400, which converts milliseconds to samples and enters propagator state 5.

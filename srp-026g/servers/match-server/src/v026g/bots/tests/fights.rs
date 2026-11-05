@@ -17,7 +17,7 @@ pub(crate) fn back_to_back_at_arms_length_each_takes_the_other_as_target() {
         let teams = [0u8, 1];
         let mut bots = Bots::new(
             0x6DA4,
-            survarium::v026g::maps::mode::TEAM_DEATHMATCH,
+            survarium::v026g::maps::RuleMode::TeamDeathmatch,
             0,
             &teams,
             &[true, true],

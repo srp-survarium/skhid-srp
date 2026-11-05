@@ -316,6 +316,13 @@ package survarium.ammo
                return;
             }
          }
+         else if(newItem && ProfileSlot.isPocket(move.targetSlot))
+         {
+            // a buy onto the pocket of its type: newItem holds the stack and the pocket after it
+            // (LobbyMenu.relocate_to_paperdoll)
+            item.count = newItem.count;
+            item.value = newItem.value;
+         }
          else if(newItem)
          {
             item.count += newItem.value;

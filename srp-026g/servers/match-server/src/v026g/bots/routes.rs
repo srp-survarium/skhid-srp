@@ -43,6 +43,7 @@ use std::path::{Path, PathBuf};
 
 use mapdata::{Vec3, WalkGrid};
 use serde::Deserialize;
+use survarium::v026g::maps::RuleMode;
 
 #[derive(Debug, Deserialize)]
 struct File {
@@ -241,11 +242,11 @@ impl RouteTable {
     /// The routes of a map (`level` 1-8) in a mode, each point's y the
     /// players' feet height (NaN: none given) until
     /// [`HumanRoute::on_floors`].
-    pub fn for_map(&self, level: u8, mode: u8) -> Vec<HumanRoute> {
+    pub fn for_map(&self, level: u8, mode: RuleMode) -> Vec<HumanRoute> {
         let name = format!("level_{level:02}");
         self.rows
             .iter()
-            .filter(|row| row.level == name && row.mode == mode && row.lives > 0)
+            .filter(|row| row.level == name && row.mode == mode.number() && row.lives > 0)
             .map(Row::route)
             .collect()
     }
@@ -426,14 +427,14 @@ mod tests {
             {"level": "level_03", "mode": 2, "team": 0, "lives": 12, "reward": 2.6,
              "fight": 1.4, "battery": 0.6, "kd": 1.5, "died": 0.8, "by": "top",
              "points": [[1.0, 2.0]]}]}"#;
-        let route = &RouteTable::parse(text).unwrap().for_map(3, 2)[0];
+        let route = &RouteTable::parse(text).unwrap().for_map(3, RuleMode::Batteries)[0];
         assert_eq!(
             (route.fight, route.battery, route.died, route.reward),
             (1.4, 0.6, 0.8, 2.6)
         );
         let old = r#"{"format": 1, "routes": [{"level": "level_03", "mode": 2, "team": 0,
             "lives": 12, "reward": 2.6, "points": [[1.0, 2.0]]}]}"#;
-        let route = &RouteTable::parse(old).unwrap().for_map(3, 2)[0];
+        let route = &RouteTable::parse(old).unwrap().for_map(3, RuleMode::Batteries)[0];
         assert_eq!((route.fight, route.battery), (2.6, 0.0));
     }
 
@@ -480,13 +481,13 @@ mod tests {
              "points": [[1.0, 2.0]]}]}"#;
         let table = RouteTable::parse(text).unwrap();
         assert_eq!(table.len(), 3);
-        let routes = table.for_map(1, 2);
+        let routes = table.for_map(1, RuleMode::Batteries);
         assert_eq!(routes.len(), 1);
         assert_eq!(routes[0].team, 1);
         let p = routes[0].points[1];
         assert_eq!((p.x, p.z), (4.6, -69.4));
         assert!(p.y.is_nan(), "no height given: {p:?}");
-        assert!(table.for_map(3, 2).is_empty());
+        assert!(table.for_map(3, RuleMode::Batteries).is_empty());
         assert!(RouteTable::parse(r#"{"format": 3, "routes": []}"#).is_err());
     }
 
@@ -502,10 +503,10 @@ mod tests {
         };
         let route = &RouteTable::parse(&row(r#", "heights": [20.6, null]"#))
             .unwrap()
-            .for_map(7, 2)[0];
+            .for_map(7, RuleMode::Batteries)[0];
         assert_eq!(route.points[0], Vec3::new(1.0, 20.6, 2.0));
         assert!(route.points[1].y.is_nan());
-        let route = &RouteTable::parse(&row("")).unwrap().for_map(7, 2)[0];
+        let route = &RouteTable::parse(&row("")).unwrap().for_map(7, RuleMode::Batteries)[0];
         assert!(route.points.iter().all(|p| p.y.is_nan()));
         let why = RouteTable::parse(&row(r#", "heights": [20.6]"#)).unwrap_err();
         assert!(why.contains("1 heights for 2 points"), "{why}");
@@ -1017,7 +1018,11 @@ mod tests {
         let table = RouteTable::load(table.as_ref()).unwrap();
         let (mut routes, mut points, mut kept, mut allowed, mut wrong_side) = (0, 0, 0, 0, 0);
         for level in 1..=8u8 {
-            for mode in 2..=4u8 {
+            for mode in [
+                RuleMode::Batteries,
+                RuleMode::TimedBatteries,
+                RuleMode::TeamDeathmatch,
+            ] {
                 let path =
                     std::path::Path::new(&dir).join(format!("level_{level:02}_day_{mode}.mapdata"));
                 let map = mapdata::MapData::read(&path).unwrap();

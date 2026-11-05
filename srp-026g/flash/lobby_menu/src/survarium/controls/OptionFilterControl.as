@@ -2,10 +2,8 @@ package survarium.controls
 {
    import flash.display.Sprite;
    import flash.events.Event;
-   import flash.text.TextField;
    import scaleform.clik.controls.Button;
    import scaleform.clik.controls.ButtonBar;
-   import scaleform.clik.data.DataProvider;
    import scaleform.clik.events.ButtonEvent;
    import scaleform.clik.events.IndexEvent;
    import scaleform.clik.events.ListEvent;
@@ -22,15 +20,9 @@ package survarium.controls
       
       public var filterList:FilterList;
       
-      public var sortTab:ButtonBar;
-      
-      public var textField:TextField;
-      
       protected var _checkbox_enabled_items:Button;
       
       protected var _mask_step:int = 160;
-      
-      protected var sortTypes:Array = ["itemLevel","price"];
       
       protected var _startPosX:int;
       
@@ -53,7 +45,7 @@ package survarium.controls
          _startY = this.y;
          this.filterList.addEventListener(FilterList.NEW_DATA_PROVIDER,this.onNewFilters);
          this.filterList.addEventListener(ListEvent.INDEX_CHANGE,this.checkAllButton);
-         LocalizationData.addCallback(this.onLocal,"sort_level");
+         LocalizationData.addCallback(this.onLocal,"filter_all");
       }
       
       public function getSelectedIndexes() : Array
@@ -76,7 +68,7 @@ package survarium.controls
       {
          _shopTab = value;
          this._shopTab.selectedIndex = ShopFilter.SHOP_AND_INVENTORY;
-         this._shopTab.addEventListener(IndexEvent.INDEX_CHANGE,this.onSortTypeChange);
+         this._shopTab.addEventListener(IndexEvent.INDEX_CHANGE,this.onShopTabChange);
       }
       
       public function set checkbox_enabled_items(value:Button) : void
@@ -159,27 +151,10 @@ package survarium.controls
       {
          return {
             weapons:WeaponHands.ALL,
-            sortFirst:(this.sortTab.selectedIndex == 0 ? this.sortTypes[0] : this.sortTypes[1]),
-            sortSecond:(this.sortTab.selectedIndex == 0 ? this.sortTypes[1] : this.sortTypes[0]),
             onlyEnabled:false,
             allTraders:this.checkbox_all_traders.selected,
             shopItems:this._shopTab.selectedIndex
          };
-      }
-      
-      public function showWeaponsSort(show:Boolean) : void
-      {
-      }
-      
-      public function setSortTab(tabBar:ButtonBar) : void
-      {
-         if(!tabBar)
-         {
-            return;
-         }
-         sortTab = tabBar;
-         this.sortTab.selectedIndex = 0;
-         this.sortTab.addEventListener(IndexEvent.INDEX_CHANGE,this.onSortTypeChange);
       }
       
       public function setShowBtn(button:Button) : void
@@ -239,7 +214,7 @@ package survarium.controls
          dispatchEvent(new ListEvent(ListEvent.INDEX_CHANGE));
       }
       
-      protected function onSortTypeChange(event:Event) : void
+      protected function onShopTabChange(event:Event) : void
       {
          dispatchEvent(new ListEvent(ListEvent.INDEX_CHANGE));
       }
@@ -251,14 +226,6 @@ package survarium.controls
       
       protected function onLocal(value:String) : void
       {
-         if(this.sortTab)
-         {
-            this.sortTab.dataProvider = new DataProvider([LocalizationData.getName("sort_level"),LocalizationData.getName("sort_cost")]);
-         }
-         if(this.sortTab)
-         {
-            this.sortTab.selectedIndex = 0;
-         }
          this.selectAll.data = {
             icon:17,
             name:"all",

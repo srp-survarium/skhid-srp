@@ -1,0 +1,12 @@
+# Original Survarium 0.69d0 survival artwork. PNG bytes retained without editing.
+# Current skill	name	donor path	donor skill / rationale	sha256
+301	Potent Painkiller	flash_movies/textures/ui_icons/skills/survival/1.png	archived survival icon; injector	4060b3e21191c22f87a31871b27ded2e2261ee19e1d7ff8c48e040ce36affc79
+302	Fast Bandaging	flash_movies/textures/ui_icons/skills/survival/3.png	331 st_fast_bandage_apply_name	0fcf9c677f84527645d4cebabd480a6d64cab67b8e1f8cfa33b8abc280c5bde7
+311	Metabolism	flash_movies/textures/ui_icons/skills/survival/6.png	322 st_metabolism_name	cae6d99a967878fb3c5f5bd43b9caf2333890bf18baf345f575bf0b4faecf0b1
+312	Medical Training	flash_movies/textures/ui_icons/skills/survival/5.png	313 st_medical_training_name	79fd996952e6ce8410d16c5a53d5337da0e2aadac0a4d0e0961f54d22b4f1333
+321	Adrenalin	flash_movies/textures/ui_icons/skills/survival/10.png	342 st_run_speed_low_hp_name	c742e5069b18479a6f63eb7951fcb4b835d592ec54447bade43ef84e3ad3ae7a
+322	Additional Medicine	flash_movies/textures/ui_icons/skills/survival/11.png	351 st_more_medicine_name	9c68e926197ef8c93aa2b70f3e99682febeec26a36ce1d0d6c57bc798d97cf1c
+331	Supply Pocket	flash_movies/textures/ui_icons/skills/survival/12.png	353 st_additional_med_pocket_name	3759c0d933021d25955406b55fd60df6507efe882726b8d8dae4eac4a2ac9eeb
+332	Strong Bones	flash_movies/textures/ui_icons/skills/survival/13.png	344 st_strong_bones_name	f23041645b190463d1c195ad31e412dc3e415d13ff1b20ca3c4efb60f02b4742
+341	Medic	flash_movies/textures/ui_icons/skills/survival/14.png	324 st_heal_ally_name	dcf65c3554d4d2f42906c6aa088c6373777bad72942bd00ac90c4d3e8566e3f8
+342	Brothers in Arms	flash_movies/textures/ui_icons/skills/survival/16.png	312 st_less_ally_damage_name	320e1c8a5d196e219c58dba33b3a99fe9014dea8a1988746f23bc6b69bb97821

@@ -1,5 +1,5 @@
-//! The 0.26g match server (`docs/notes/match.md`,
-//! `PLAN-026G.md` step 6): the sockets and the loop around
+//! The 0.26g match server (`docs/notes/match.md`):
+//! the sockets and the loop around
 //! `survarium::v026g::match_msgs`, over the `udp-transport` crate.
 //!
 //! As for 0.21d, the clients simulate and the server does not: it takes
@@ -66,7 +66,7 @@
 //!   statistics in it;
 //! - `SRP_RECORD_DIR=<dir>` (default off): every datagram of a match in
 //!   and out, one file per match, kept when `SRP_RECORD_MIN_PLAYERS`
-//!   (default 6, late joiners counted) have entered it; kept files over
+//!   (default 6 for PvP; one human for PvE, late joiners counted) have entered it; kept files over
 //!   `SRP_RECORD_MAX_MB` (default 5000) together go oldest first
 //!   ([`record`]);
 //! - `SRP_REPLAY_DIR=<dir>`, `SRP_GAME_MODES_DIR=<dir>` (default off; both
@@ -110,11 +110,16 @@ pub mod bots;
 /// server's own bot places' (`MatchPlayer::driven`).
 pub mod drive;
 mod game;
+/// A player's kills of one enemy pay at most 10 times a match.
+mod kill_cap;
 /// Match recordings (`SRP_RECORD_DIR`) and their reader.
 pub mod record;
 mod registry;
 /// "Watch replay": kept recordings made into replay files (`SRP_REPLAY_DIR`).
 pub mod replay;
+/// A player's Research units pay at most 200 score a match.
+mod research_cap;
+mod reward_caps;
 mod server;
 pub mod sur;
 pub mod sur_convert;
@@ -298,31 +303,15 @@ impl Settings {
         let var = |name: &str| std::env::var(name).ok();
         Self {
             late_inputs: parse_late_inputs(var("SRP_LATE_INPUTS").as_deref()),
-            resync_world_only: parse_switch(
-                "SRP_RESYNC_WORLD_ONLY",
-                var("SRP_RESYNC_WORLD_ONLY").as_deref(),
-                false,
-            ),
+            resync_world_only: session::switch("SRP_RESYNC_WORLD_ONLY", false),
             restore_limit: parse_number(
                 "SRP_RESTORE_LIMIT",
                 var("SRP_RESTORE_LIMIT").as_deref(),
                 0,
             ),
-            clock_correction: parse_switch(
-                "SRP_CLOCK_CORRECTION",
-                var("SRP_CLOCK_CORRECTION").as_deref(),
-                true,
-            ),
-            check_initial_world: parse_switch(
-                "SRP_CHECK_INITIAL_WORLD",
-                var("SRP_CHECK_INITIAL_WORLD").as_deref(),
-                true,
-            ),
-            compress_state: parse_switch(
-                "SRP_COMPRESS_STATE",
-                var("SRP_COMPRESS_STATE").as_deref(),
-                true,
-            ),
+            clock_correction: session::switch("SRP_CLOCK_CORRECTION", true),
+            check_initial_world: session::switch("SRP_CHECK_INITIAL_WORLD", true),
+            compress_state: session::switch("SRP_COMPRESS_STATE", true),
             snapshot_dir: parse_snapshot_dir(var("SRP_SNAPSHOT_DIR").as_deref()),
             record: record::RecordSettings::from_env(),
             pack: match var("SRP_RELAY_PACK_MS") {
@@ -430,21 +419,6 @@ fn parse_late_inputs(value: Option<&str>) -> LateInputs {
                  relay"
             );
             LateInputs::Relay
-        }
-    }
-}
-
-fn parse_switch(name: &str, value: Option<&str>, default: bool) -> bool {
-    match value
-        .map(|value| value.trim().to_ascii_lowercase())
-        .as_deref()
-    {
-        None | Some("") => default,
-        Some("on" | "1" | "true" | "yes") => true,
-        Some("off" | "0" | "false" | "no") => false,
-        Some(other) => {
-            log::error!("{name} is `{other}`; it must be `on` or `off`");
-            default
         }
     }
 }

@@ -5,17 +5,21 @@
 //!   (type 3, "membership accepted").
 //! - The inviter's client then asks the lobby to add that player (`2A 02 name`).
 //!
-//! The first member is the commander. A squad holds at most three players.
-//! Each member readies with Play. The commander's Play is unlocked once all
-//! the others are ready, and the squad is in the queue once everyone is.
+//! The first member is the commander. A squad holds at most two players
+//! (the owner's of 2026-10-31, `srp-026g/docs/notes/squads.md`): a pair.
+//! In the 0.21d lobby each member readies with Play, the commander's Play is
+//! unlocked once the other is ready, and the squad queues once both are.
+//! The 0.26g lobby's rooms keep no ready: its squad info says who is free to
+//! come along with a Play (`lobby-server` `rooms::squad_ready`).
 
 use std::collections::{HashMap, HashSet};
 use std::sync::Mutex;
 
 use crate::LockExt;
 
-/// The client keeps three members (`read_squad_info`, spec R7).
-pub const MAX_SQUAD_MEMBERS: usize = 3;
+/// A squad's most members: two (the owner's of 2026-10-31). The clients
+/// keep up to three (`read_squad_info`, spec R7); the server adds no third.
+pub const MAX_SQUAD_MEMBERS: usize = 2;
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Squad {
@@ -35,6 +39,17 @@ impl Squad {
 
     pub fn is_ready(&self, account_id: u32) -> bool {
         self.ready.contains(&account_id)
+    }
+
+    /// The other member of `account_id`'s squad.
+    pub fn mate_of(&self, account_id: u32) -> Option<u32> {
+        if !self.members.contains(&account_id) {
+            return None;
+        }
+        self.members
+            .iter()
+            .copied()
+            .find(|member| *member != account_id)
     }
 
     /// Everyone pressed Play: the squad waits for a match together.
@@ -129,7 +144,11 @@ impl Squads {
             if squad.commander() != commander {
                 return Err(SquadError::NotCommander);
             }
+            // Checked under the lock: of two invites accepted at once,
+            // only the first is added. The other is used up: its place is
+            // gone.
             if squad.members.len() >= MAX_SQUAD_MEMBERS {
+                inner.accepted.remove(&(commander, member));
                 return Err(SquadError::Full);
             }
         }
@@ -206,6 +225,23 @@ impl Squads {
         inner.squad_mut(account_id).map(|squad| squad.clone())
     }
 
+    /// The player's squad mate: the other of its pair.
+    pub fn mate_of(&self, account_id: u32) -> Option<u32> {
+        self.of(account_id)?.mate_of(account_id)
+    }
+
+    /// Whether the player's squad takes nobody more. A player in no squad
+    /// would start one.
+    pub fn is_full(&self, account_id: u32) -> bool {
+        self.of(account_id)
+            .is_some_and(|squad| squad.members.len() >= MAX_SQUAD_MEMBERS)
+    }
+
+    /// Whether there is no squad at all.
+    pub fn is_empty(&self) -> bool {
+        self.inner.locked().squads.is_empty()
+    }
+
     /// Play (ready) or leaving the queue (not ready). Returns the squad, or
     /// `None` for a player in no squad.
     pub fn set_ready(&self, account_id: u32, ready: bool) -> Option<Squad> {
@@ -254,11 +290,42 @@ mod tests {
     }
 
     #[test]
-    fn a_squad_holds_three() {
+    fn a_squad_holds_two() {
         let squads = Squads::default();
-        squad_of(&squads, &[A, B, C]);
-        squads.invite_accepted(A, D);
-        assert_eq!(squads.add(A, D), Err(SquadError::Full));
+        assert!(!squads.is_full(A));
+        // Two invites accepted at once: the first added gets the place.
+        squads.invite_accepted(A, B);
+        squads.invite_accepted(A, C);
+        assert_eq!(squads.add(A, B).unwrap().members, vec![A, B]);
+        assert!(squads.is_full(A) && squads.is_full(B));
+        assert_eq!(squads.mate_of(A), Some(B));
+        assert_eq!(squads.mate_of(B), Some(A));
+        assert_eq!(squads.add(A, C), Err(SquadError::Full));
+        assert_eq!(squads.of(C), None);
+        // That invite is used up: a place freed later does not take C.
+        assert!(!squads.has_accepted(A, C));
+        squads.leave(B).unwrap();
+        assert_eq!(squads.add(A, C), Err(SquadError::NotInvited));
+        assert!(!squads.is_full(A));
+        assert!(squads.is_empty());
+    }
+
+    #[test]
+    fn two_invites_added_from_two_threads_make_one_squad_of_two() {
+        let squads = std::sync::Arc::new(Squads::default());
+        squads.invite_accepted(A, B);
+        squads.invite_accepted(A, C);
+        let adds: Vec<_> = [B, C]
+            .into_iter()
+            .map(|member| {
+                let squads = squads.clone();
+                std::thread::spawn(move || squads.add(A, member))
+            })
+            .collect();
+        let results: Vec<_> = adds.into_iter().map(|add| add.join().unwrap()).collect();
+        assert_eq!(results.iter().filter(|result| result.is_ok()).count(), 1);
+        assert!(results.contains(&Err(SquadError::Full)));
+        assert_eq!(squads.of(A).unwrap().members.len(), 2);
     }
 
     #[test]
@@ -273,11 +340,12 @@ mod tests {
     }
 
     #[test]
-    fn the_last_member_leaving_ends_the_squad() {
+    fn a_member_leaving_ends_the_pair() {
         let squads = Squads::default();
-        squad_of(&squads, &[A, B, C]);
+        squad_of(&squads, &[A, B]);
         squads.leave(A).unwrap();
-        assert_eq!(squads.of(B).unwrap().members, vec![B, C]);
+        assert_eq!(squads.of(B), None);
+        squad_of(&squads, &[B, C]);
         squads.drop_member(B, C).unwrap();
         assert_eq!(squads.of(B), None);
         assert_eq!(squads.of(C), None);
@@ -286,26 +354,25 @@ mod tests {
     #[test]
     fn disbanding_frees_everyone() {
         let squads = Squads::default();
-        squad_of(&squads, &[A, B, C]);
+        squad_of(&squads, &[A, B]);
         assert_eq!(squads.disband(B), Err(SquadError::NotCommander));
         squads.disband(A).unwrap();
-        assert!([A, B, C].iter().all(|member| squads.of(*member).is_none()));
+        assert!([A, B].iter().all(|member| squads.of(*member).is_none()));
     }
 
     #[test]
-    fn everyone_readies_and_a_change_unreadies() {
+    fn both_ready_and_a_change_unreadies() {
         let squads = Squads::default();
-        squad_of(&squads, &[A, B, C]);
+        squad_of(&squads, &[A, B]);
         squads.set_ready(B, true);
-        squads.set_ready(C, true);
         assert!(!squads.of(A).unwrap().all_ready());
         let squad = squads.set_ready(A, true).unwrap();
         assert!(squad.all_ready());
-        let revision = squad.revision;
-        squads.leave(C).unwrap();
+        squads.leave(B).unwrap();
+        assert_eq!(squads.of(A), None);
+        squad_of(&squads, &[A, C]);
         let squad = squads.of(A).unwrap();
         assert!(squad.ready.is_empty());
-        assert!(squad.revision > revision);
         assert_eq!(squads.set_ready(D, true), None);
     }
 }

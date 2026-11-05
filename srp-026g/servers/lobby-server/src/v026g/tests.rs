@@ -50,16 +50,13 @@ impl MatchHost for TestHost {
         }
         let mut made = self.made.locked();
         let match_id = 0xA000 + made.len() as u32;
-        if !maps::map_mode(setup.map_id).is_some_and(|map| map.is_playable()) {
-            return Err(format!("map {} cannot be played", setup.map_id));
-        }
         let options = MatchOptions {
             players: setup
                 .players
                 .iter()
                 .map(|player| player.profile.clone())
                 .collect(),
-            map_id: setup.map_id,
+            map: setup.map,
             match_id,
             match_level: setup.match_level,
             score_weights: SCORE_WEIGHTS,
@@ -170,32 +167,37 @@ pub(super) fn sent_to_match(decoded: &[Decoded]) -> Option<(u32, u8)> {
 #[test]
 fn the_maps_played_are_playable_ones_of_the_modes_asked_for() {
     use super::{Settings, map_pool, parse_maps, parse_modes};
+    use maps::GameMode::{Batteries, TeamDeathmatch, TimedBatteries};
 
-    assert_eq!(parse_modes("2, 4"), Some(vec![2, 4]));
+    assert_eq!(parse_modes("2, 4"), Some(vec![Batteries, TeamDeathmatch]));
     // 0.21d's modes 0 and 1 are none of 0.26g's; nothing is not a list.
     assert_eq!(parse_modes("1,2"), None);
     assert_eq!(parse_modes(""), None);
     assert_eq!(parse_maps(" 61 ,62"), Some(vec![61, 62]));
     assert_eq!(parse_maps("61,x"), None);
 
-    let all = map_pool(&[2, 3, 4], &[]);
+    let all = map_pool(&[Batteries, TimedBatteries, TeamDeathmatch], &[]);
     assert!(!all.is_empty());
     assert!(
         all.iter()
             .all(|id| maps::map_mode(*id).is_some_and(|map| map.is_playable()))
     );
-    let deathmatch = map_pool(&[4], &[]);
+    let deathmatch = map_pool(&[TeamDeathmatch], &[]);
     assert!(!deathmatch.is_empty() && deathmatch.len() < all.len());
     assert!(
         deathmatch
             .iter()
-            .all(|id| maps::map_mode(*id).unwrap().mode == 4)
+            .all(|id| maps::map_mode(*id).unwrap().mode == TeamDeathmatch)
     );
     // A list keeps only what can be played in the modes: the broken and
     // test ids of the dictionary never get in.
-    assert_eq!(map_pool(&[2, 3, 4], &[all[0], 11, 45, 250]), [all[0]]);
-    assert!(map_pool(&[4], &[all[0]]).len() <= 1);
+    assert_eq!(map_pool(&[Batteries, TimedBatteries, TeamDeathmatch], &[all[0], 11, 45, 250]), [all[0]]);
+    assert!(map_pool(&[TeamDeathmatch], &[all[0]]).len() <= 1);
 
+    // The default: every mode, Blackout's maps too (the test data has no
+    // Research maps).
     let settings = Settings::local("127.0.0.1:0");
-    assert_eq!(settings.maps, all);
+    let blackout = map_pool(&[maps::GameMode::Blackout], &[]);
+    assert!(!blackout.is_empty());
+    assert_eq!(settings.maps, [all, blackout].concat());
 }

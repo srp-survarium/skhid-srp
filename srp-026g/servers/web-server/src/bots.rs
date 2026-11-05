@@ -23,7 +23,7 @@
 
 use session::v026g::bot_desk::{ClassLine, DeskView, Kept, KnobState, Preview, Rates, Text};
 
-use super::password_reset::date_utc;
+use session::utc::date as date_utc;
 use super::{AdminView, Lang, Request, Web, clock_utc, escape};
 
 /// The Bots tab as shown.

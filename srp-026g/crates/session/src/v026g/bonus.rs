@@ -79,14 +79,8 @@ impl Settings {
 
     /// The settings from the environment `get` reads.
     pub fn read(get: impl Fn(&str) -> Option<String>) -> Self {
-        let enabled = !matches!(
-            get("SRP_DAILY_BONUS")
-                .unwrap_or_default()
-                .trim()
-                .to_ascii_lowercase()
-                .as_str(),
-            "off" | "0" | "no" | "false"
-        );
+        let enabled =
+            crate::switch_value("SRP_DAILY_BONUS", get("SRP_DAILY_BONUS").as_deref(), true);
         let reset_hour = match get("SRP_DAILY_BONUS_RESET_HOUR") {
             Some(value) => match value.trim().parse::<u8>() {
                 Ok(hour) if hour < 24 => hour,
@@ -155,6 +149,7 @@ fn start_run(account: &mut Account, today: u64, rng: &mut Rng) {
     let rolled = drops::roll(
         &Drops::shared().daily_bonus,
         Dictionary::shared(),
+        &[],
         0,
         0,
         rng,

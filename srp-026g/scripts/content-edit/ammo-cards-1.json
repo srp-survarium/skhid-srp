@@ -1,0 +1,161 @@
+{
+  "_about": "Ammo card lines for what the round itself changes (UI property IDs 163..165; their names in client-patches/localization/*.tsv; the lobby shows a round's card lines as detail rows, AmmoDetails): 163 the bullet's muzzle speed (data/muzzle_speed, m/s) on every round; 164 its range (data/k_max_damage_distance x100, %: the weapon's full- and low-damage distances times it) on the four rounds that change it; 165 its pellets a shot (data/buck_shot) on the three smallshot rounds. ammo.tsv (after this list) writes their values from its cells, so a retune follows; a round given a range or pellets later needs its line here. Presentation only; no simulation fields changed.",
+  "add_entry": [
+    {
+      "files": "gameplay/static_game_parameters.options",
+      "list": "ui_properties",
+      "after": {
+        "prop_id": 162
+      },
+      "like": {
+        "prop_id": 16
+      },
+      "values": {
+        "prop_id": 163,
+        "prop_name": "st_srp_inv_bullet_speed",
+        "max_value": "900"
+      }
+    },
+    {
+      "files": "gameplay/static_game_parameters.options",
+      "list": "ui_properties",
+      "after": {
+        "prop_id": 163
+      },
+      "like": {
+        "prop_id": 21
+      },
+      "values": {
+        "prop_id": 164,
+        "prop_name": "st_srp_inv_ammo_range"
+      }
+    },
+    {
+      "files": "gameplay/static_game_parameters.options",
+      "list": "ui_properties",
+      "after": {
+        "prop_id": 164
+      },
+      "like": {
+        "prop_id": 16
+      },
+      "values": {
+        "prop_id": 165,
+        "prop_name": "st_srp_inv_pellets",
+        "max_value": "10"
+      }
+    },
+    {
+      "files": "gameplay/items/weapons/ammo/*.options",
+      "list": "ui_desc/props_list",
+      "after": {
+        "prop_id": 22
+      },
+      "like": {
+        "prop_id": 22
+      },
+      "values": {
+        "prop_id": 163,
+        "prop_value": "{data/muzzle_speed}"
+      }
+    },
+    {
+      "files": "gameplay/items/weapons/ammo/ammo_12mm_slug.options",
+      "list": "ui_desc/props_list",
+      "after": {
+        "prop_id": 163
+      },
+      "like": {
+        "prop_id": 22
+      },
+      "values": {
+        "prop_id": 164,
+        "prop_value": "{data/k_max_damage_distance}"
+      }
+    },
+    {
+      "files": "gameplay/items/weapons/ammo/ammo_7.62x54_7n1.options",
+      "list": "ui_desc/props_list",
+      "after": {
+        "prop_id": 163
+      },
+      "like": {
+        "prop_id": 22
+      },
+      "values": {
+        "prop_id": 164,
+        "prop_value": "{data/k_max_damage_distance}"
+      }
+    },
+    {
+      "files": "gameplay/items/weapons/ammo/ammo_7.62x54_7n13.options",
+      "list": "ui_desc/props_list",
+      "after": {
+        "prop_id": 163
+      },
+      "like": {
+        "prop_id": 22
+      },
+      "values": {
+        "prop_id": 164,
+        "prop_value": "{data/k_max_damage_distance}"
+      }
+    },
+    {
+      "files": "gameplay/items/weapons/ammo/ammo_sp5.options",
+      "list": "ui_desc/props_list",
+      "after": {
+        "prop_id": 163
+      },
+      "like": {
+        "prop_id": 22
+      },
+      "values": {
+        "prop_id": 164,
+        "prop_value": "{data/k_max_damage_distance}"
+      }
+    },
+    {
+      "files": "gameplay/items/weapons/ammo/ammo_12mm_buck.options",
+      "list": "ui_desc/props_list",
+      "after": {
+        "prop_id": 163
+      },
+      "like": {
+        "prop_id": 22
+      },
+      "values": {
+        "prop_id": 165,
+        "prop_value": "{data/buck_shot}"
+      }
+    },
+    {
+      "files": "gameplay/items/weapons/ammo/ammo_12mm_buck2.options",
+      "list": "ui_desc/props_list",
+      "after": {
+        "prop_id": 163
+      },
+      "like": {
+        "prop_id": 22
+      },
+      "values": {
+        "prop_id": 165,
+        "prop_value": "{data/buck_shot}"
+      }
+    },
+    {
+      "files": "gameplay/items/weapons/ammo/ammo_23mm_r.options",
+      "list": "ui_desc/props_list",
+      "after": {
+        "prop_id": 163
+      },
+      "like": {
+        "prop_id": 22
+      },
+      "values": {
+        "prop_id": 165,
+        "prop_value": "{data/buck_shot}"
+      }
+    }
+  ]
+}
