@@ -405,6 +405,7 @@ items	name	base_cost	gold	like	start
 753	ren_back_8	15400	false		
 754	ren_torso_8	23100	false		
 755	ren_legs_8	11550	false		
+758	artefact_sponge	0	false		
 822	bm_torso_6	34650	false		
 823	bm_torso_7	52500	false		
 824	scav_torso_6	16150	false		

@@ -52,7 +52,9 @@ package survarium.controls
       public var extra_icon:MovieClip;
       
       public var mastery_icon:MovieClip;
-      
+
+      private var spongeIcon:SpongeLogIcon;
+
       public function CombatLogItem()
       {
          super();
@@ -84,6 +86,7 @@ package survarium.controls
                weapon = data.object_icon >= this.object_icon.totalFrames ? moreWeapon(data.object_icon) : null;
             }
             this.object_icon.visible = weapon == null;
+            this.showSpongeIcon(data.object_icon == SpongeLogIcon.ICON);
          }
          this._weaponIcon.bitmapData = weapon;
          this.showIcon(this._weaponIcon,weapon != null);
@@ -196,7 +199,28 @@ package survarium.controls
          }
          this.x = 190 - width;
       }
-      
+
+      // The icon clip has no picture of the Sponge (its frame is empty): its picture is put in the
+      // clip while its icon is shown, and taken out for any other.
+      private function showSpongeIcon(shown:Boolean) : void
+      {
+         if(shown)
+         {
+            if(this.spongeIcon == null)
+            {
+               this.spongeIcon = new SpongeLogIcon();
+            }
+            if(this.spongeIcon.parent != this.object_icon)
+            {
+               this.object_icon.addChild(this.spongeIcon);
+            }
+         }
+         else if(this.spongeIcon != null && this.spongeIcon.parent != null)
+         {
+            this.spongeIcon.parent.removeChild(this.spongeIcon);
+         }
+      }
+
       override public function toString() : String
       {
          return "[CombatLogLayout " + "]";
