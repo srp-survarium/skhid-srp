@@ -18,11 +18,11 @@ package survarium.item
       // In a match's view (Alt): the weapon's own base values, before its modifications, the kit
       // and the skills, for the rows that change ("base -> in a match"); null in the card's own.
       private var base:Object = null;
-      // The rounds it fires (the dictionary's pairs), by dict id: {name, damage and arp (the round's
-      // card lines 21 and 22 / 100: k_damage x pellets, k_arp), speed (163, ammo-cards-1), each NaN
-      // without its line; pierce (PierceLine.forWeapon, null without one)}.
+      // The rounds it fires (the dictionary's pairs), by dict id: {damage and arp (the round's card
+      // lines 21 and 22 / 100: k_damage x pellets, k_arp), speed (163, ammo-cards-1), pellets (165),
+      // each NaN without its line; pierce (PierceLine.forWeapon, null without one)}.
       private var rounds:Array = [];
-      private static const DAMAGE:int = 1, ARP:int = 3, ROUND_DAMAGE:int = 21, ROUND_ARP:int = 22, SPEED:int = 163;
+      private static const DAMAGE:int = 1, ARP:int = 3, ROUND_DAMAGE:int = 21, ROUND_ARP:int = 22, SPEED:int = 163, PELLETS:int = 165;
       // Its own card lines 1 (damage x100) and 3 (armour piercing x100), NaN without them.
       private var damage:Number = NaN, arp:Number = NaN;
       public function WeaponDetails(data:Object) { values = data; }
@@ -59,30 +59,33 @@ package survarium.item
          for each(var id:int in ItemFactory.getList(weapon))
          {
             var props:Array = items.getItemDescription(id).item_properties;
-            var round:Object = {name:items.getItemDescription(id).name,damage:line(props,ROUND_DAMAGE) / 100,
-               arp:line(props,ROUND_ARP) / 100,speed:line(props,SPEED),pierce:PierceLine.forWeapon(props,weapon)};
+            var round:Object = {damage:line(props,ROUND_DAMAGE) / 100,arp:line(props,ROUND_ARP) / 100,
+               speed:line(props,SPEED),pellets:line(props,PELLETS),pierce:PierceLine.forWeapon(props,weapon)};
             if(!isNaN(round.damage) || !isNaN(round.arp) || !isNaN(round.speed) || round.pierce != null) out.push(round);
          }
          return out;
       }
       // The native bars of damage (card line 1) and armour piercing (3) take the weapon's best round:
       // its value times the highest of its rounds' k_damage x pellets (21) or k_arp (22), as a match
-      // multiplies them (bullet::bullet 0x32BA60); 1 for another line or a weapon without rounds.
+      // multiplies them (bullet::bullet 0x32BA60); 1 for another line, a weapon without rounds, or a
+      // shotgun of both kinds (its detail rows give them by kind).
       public static function bestRoundFactor(item:Object, id:int) : Number
       {
          if(item == null || !item.isWeapon || id != DAMAGE && id != ARP) return 1;
+         var rounds:Array = roundsOf(item.dictId);
+         if(kindsOf(rounds) != null) return 1;
          var best:Number = NaN;
-         for each(var round:Object in roundsOf(item.dictId))
+         for each(var round:Object in rounds)
          {
             var k:Number = id == DAMAGE ? round.damage : round.arp;
             if(!isNaN(k) && (isNaN(best) || k > best)) best = k;
          }
          return isNaN(best) ? 1 : best;
       }
-      // Its rounds that have the stat `has` reads.
-      private function roundsWith(has:Function) : Array
+      // A shotgun of both kinds of round (kindsOf): its stats by kind, not one best.
+      public static function splitByKind(item:Object) : Boolean
       {
-         return rounds.filter(function(round:Object, ... rest):Boolean { return has(round); });
+         return item != null && item.isWeapon && kindsOf(roundsOf(item.dictId)) != null;
       }
       private static function copy(from:Object) : Object
       {
@@ -212,32 +215,46 @@ package survarium.item
                function(round:Object):String { return PierceLine.text(round.pierce); },
                function(round:Object):Number { return PierceLine.score(round.pierce); }]];
       }
-      // The card's row of a stat a round changes (roundStats): its best round's value, compared
-      // as the card's other rows; a dash beside a compared weapon that has it.
-      private function bestRound(result:Array, other:WeaponDetails, stat:Array) : void
+      // Of `rounds`, the one `stat` scores best (stat[4], higher is better) among those it has (stat[2]); null for none.
+      private static function bestOf(rounds:Array, stat:Array) : Object
       {
-         var mine:Array = roundsWith(stat[2]), theirs:Array = other == null ? [] : other.roundsWith(stat[2]);
-         if(!mine.length && !theirs.length) return;
-         if(!mine.length)
+         var best:Object = null;
+         for each(var round:Object in rounds) if(stat[2](round) && (best == null || stat[4](round) > stat[4](best))) best = round;
+         return best;
+      }
+      // A row of `round`'s value of `stat`, compared as the card's other rows; a dash, neutral, without one.
+      private static function statRow(result:Array, id:String, label:String, stat:Array, round:Object, child:Boolean = false) : void
+      {
+         result.push(round == null ? {kind:"stat",id:id,label:label,value:"–",child:child,comparison:{kind:"neutral"}}
+            : {kind:"stat",id:id,label:label,value:stat[3](round),child:child,comparison:{kind:"higher",value:stat[4](round)}});
+      }
+      // The card's row of a stat a round changes (roundStats), its best round's; none when neither
+      // compared card has it. A shotgun of both kinds of round (kinds) instead: the stat's label
+      // alone over its best Buckshot and best Slug, each a child row compared with the other card's
+      // same kind (a weapon of one kind has none: no colour between them).
+      private function roundStat(result:Array, other:WeaponDetails, stat:Array) : void
+      {
+         var mine:Object = kinds(), theirs:Array = other == null ? [] : other.rounds;
+         if(mine == null)
          {
-            result.push({kind:"stat",id:stat[0],label:stat[1],value:"–",comparison:{kind:"neutral"}});
+            if(bestOf(rounds,stat) != null || bestOf(theirs,stat) != null) statRow(result,String(stat[0]),stat[1],stat,bestOf(rounds,stat));
             return;
          }
-         var best:Object = mine[0];
-         for each(var round:Object in mine) if(stat[4](round) > stat[4](best)) best = round;
-         result.push({kind:"stat",id:stat[0],label:stat[1],value:stat[3](best),comparison:{kind:"higher",value:stat[4](best)}});
+         result.push({kind:"stat",id:String(stat[0]),label:stat[1],value:"",comparison:{kind:"neutral"}});
+         statRow(result,stat[0] + "/buckshot","• " + LocalizationData.getName("st_srp_ammo_buckshot"),stat,bestOf(mine.buckshot,stat),true);
+         statRow(result,stat[0] + "/slug","• " + LocalizationData.getName("st_srp_ammo_slug"),stat,bestOf(mine.slug,stat),true);
       }
-      // Held Shift, a stat a round changes as a header (its label alone) over each round's value,
-      // the round bulleted and indented (child), neutral; the shorter list of two compared cards
-      // padded with dashes so their rows stay aligned.
-      private function roundGroup(result:Array, other:WeaponDetails, stat:Array) : void
+      // A shotgun's rounds by kind, {buckshot: its rounds of more than one pellet (card line 165),
+      // slug: the others}, when it has both kinds; null for every other weapon.
+      private function kinds() : Object
       {
-         var mine:Array = roundsWith(stat[2]), theirs:Array = other == null ? [] : other.roundsWith(stat[2]);
-         if(!mine.length && !theirs.length) return;
-         result.push({kind:"stat",id:stat[0],label:stat[1],value:"",comparison:{kind:"neutral"}});
-         for(var i:int = 0; i < Math.max(mine.length,theirs.length); i++)
-            result.push({kind:"stat",id:stat[0] + "/" + i,child:true,label:i < mine.length ? "• " + mine[i].name : "•",
-               value:i < mine.length ? stat[3](mine[i]) : "–",comparison:{kind:"neutral"}});
+         return kindsOf(rounds);
+      }
+      private static function kindsOf(rounds:Array) : Object
+      {
+         var buckshot:Array = rounds.filter(function(round:Object, ... rest):Boolean { return round.pellets > 1; });
+         var slug:Array = rounds.filter(function(round:Object, ... rest):Boolean { return !(round.pellets > 1); });
+         return buckshot.length && slug.length ? {buckshot:buckshot,slug:slug} : null;
       }
       private function tactical(result:Array, other:WeaponDetails) : void
       {
@@ -303,24 +320,17 @@ package survarium.item
       public function rows(expanded:Boolean, other:WeaponDetails = null) : Array
       {
          var result:Array = [{kind:"heading",text:LocalizationData.getName("st_srp_weapon_stats")}];
-         var stats:Array = roundStats(), stat:Array;
-         // Held Shift, first: each round's damage, armour piercing, bullet speed and material.
-         if(expanded) for each(stat in stats) roundGroup(result,other,stat);
          scalar(result,138,has(TACTICAL) ? "st_srp_weapon_reload_empty" : "st_srp_weapon_reload","lower","st_srp_unit_seconds");
          tactical(result,other);
          chamber(result,other);
          scalar(result,139,"st_srp_weapon_full_damage","higher","st_srp_unit_meters");
          scalar(result,140,"st_srp_weapon_minimum_damage_from","higher","st_srp_unit_meters");
          scalar(result,141,"st_srp_weapon_minimum_damage","higher","st_srp_unit_percent",100);
-         // The card: the best round's bullet speed and material (its damage and armour piercing
-         // are the native bars', ItemCompare).
-         if(!expanded)
-         {
-            bestRound(result,other,stats[2]);
-            bestRound(result,other,stats[3]);
-            result.push({kind:"hint",text:LocalizationData.getName("st_srp_weapon_shift_hint")});
-            return result;
-         }
+         // The best round's bullet speed and material (its damage and armour piercing are the
+         // native bars', ItemCompare); a shotgun of both kinds all four, by kind.
+         var stats:Array = roundStats();
+         for(var at:int = kinds() == null ? 2 : 0; at < stats.length; at++) roundStat(result,other,stats[at]);
+         if(!expanded) { result.push({kind:"hint",text:LocalizationData.getName("st_srp_weapon_shift_hint")}); return result; }
          scalar(result,142,"st_srp_weapon_draw_time","lower","st_srp_unit_seconds");
          scalar(result,143,"st_srp_weapon_holster_time","lower","st_srp_unit_seconds");
          scalar(result,144,"st_srp_weapon_aim_zoom","neutral","st_srp_unit_times");

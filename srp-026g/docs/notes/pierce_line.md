@@ -1,8 +1,9 @@
-# Pierces: what wall a weapon's bullet gets through, and its rounds on the card
+# Pierces: what wall a weapon's bullet gets through, and its best round on the card
 
 The owner, 2026-11-05 (PR #1340, decided after testing it in the game): the weapon card says the
 hardest wall material its bullet gets through and the damage it keeps there; the stats a round
-changes show the weapon's best round, and Shift lists each round.
+changes show the weapon's best round ("99% of the time people use the best ammo"), a shotgun's by
+kind, Buckshot and Slug (its players switch between them).
 
 ## The owner's rules
 
@@ -21,11 +22,17 @@ changes show the weapon's best round, and Shift lists each round.
   can differ per stat), compared best against best as today: Damage (the bar: the weapon's damage x
   the highest k_damage x pellets of its rounds), Armor penetration (the bar: x the highest k_arp),
   Bullet speed (the fastest round).
-- **Held Shift:** first in the detail list, Damage, Armor penetration, Bullet speed and Pierces each
-  as a header (its label alone, no value) over one row per round the weapon fires, `• <round name>
-  <value>`, the round visibly its child: bulleted, stepped in 16 px, its value where the values are;
-  neutral; the shorter list of two compared cards padded with dashes so their rows stay aligned.
-  Damage and armour piercing as the bars show them with that round (whole).
+- **No round is listed:** held Shift the card shows main's rows plus Bullet speed and Pierces in
+  their places, with the same best values.
+- **A shotgun of both kinds** (from the data: among its rounds one of more than one pellet,
+  `data/buck_shot`, the round's card line 165, and one of a single projectile): Damage, Armor
+  penetration, Bullet speed and Pierces each its label alone over two rows, `• Buckshot <the best of
+  its pellet rounds>` and `• Slug <the best of the others>`, the words alone (no calibre or shot
+  size), bulleted and stepped in 16 px under the stat, at 0.8 of a row; the same held Shift. Its
+  native Damage and Armor penetration bars keep the weapon's own number. A kind compares with the
+  other shotgun's same kind; a shotgun beside any other weapon gets no colour on these four stats
+  (bars included), and no rows are padded. A shotgun of one kind (the KS-23M: buckshot only) is any
+  weapon: its best round.
 - English and Ukrainian, and every other dictionary.
 
 ## The words
@@ -80,26 +87,25 @@ with `Concrete · 52%` beside it does not fit the card's line). The value `st_sr
   when one differs, is missing, or is on a round outside the list's files: a row added after it that
   retunes a gun, a round or a material, or adds one, cannot leave a stale card.
 - The lobby movie: `WeaponDetails` reads the weapon's rounds once (`ItemFactory.getList`, the
-  dictionary's pairs; each round's descriptor lines 21, 22, 163 and its 174 entry for this weapon,
-  `PierceLine.forWeapon`); `roundStats` says what each of the four stats is for a round. Bullet
-  speed and Pierces are its detail rows (best round, compared by value, `PierceLine.score` = rank x
-  1000 + percent); held Shift the four groups head the detail list (`roundGroup`: a header row with
-  an empty value, the rounds as `child` rows, which `ItemDetailsView` steps in by `SUBROW_INDENT` 16
-  after the row's first layout and gives `SUBROW_STRIDE` 0.8 of a row). `ItemCompare` gives the
-  native Damage and Armor penetration bars the weapon's best round
-  (`WeaponDetails.bestRoundFactor`), whole numbers as the card shows them (`Util.getNumberString`
-  cuts a fraction's float tail: 34 x 1.2 read 40.79).
+  dictionary's pairs; each round's descriptor lines 21, 22, 163, 165 and its 174 entry for this
+  weapon, `PierceLine.forWeapon`); `roundStats` says what each of the four stats is for a round
+  (damage and armour piercing the weapon's card number x the round's, whole). Bullet speed and
+  Pierces are its detail rows, after Minimum damage: the best round's, compared by value
+  (`PierceLine.score` = rank x 1000 + percent). A shotgun of both kinds (`kindsOf`) has the four as
+  a value-less row over a Buckshot and a Slug `child` row each (ids `<stat>/buckshot`, `/slug`: the
+  other card's same kind compares, nothing else), which `ItemDetailsView` steps in by
+  `SUBROW_INDENT` 16 after the row's first layout (configUI puts the label at the native column)
+  and gives `SUBROW_STRIDE` 0.8 of a row. `ItemCompare` gives the native Damage and Armor
+  penetration bars the weapon's best round (`WeaponDetails.bestRoundFactor`; 1 for such a
+  shotgun), whole numbers as the card shows them (`Util.getNumberString` cuts a fraction's float
+  tail: 34 x 1.2 read 40.79), and no colour when either card is such a shotgun
+  (`WeaponDetails.splitByKind`).
+- Pellets come from the round's card line 165, which ammo-cards-1.json gives the three smallshot
+  rounds (12mm buck, buck2, 23 mm) and ammo.tsv writes from `data/buck_shot`: a pellet round added
+  later needs its line there, as that list says, or it counts as a slug.
 - The bullet, `•`, is in every full Calibri of the lobby movie (as `·`, `–`, `…`; not `★`, `▸`).
-
-## Shift: groups of rows, not one table
-
-A 4-column "by ammo" table (Damage | Pen | Speed | Material) does not fit: a detail row is one native
-label and one right-aligned value field (about 250 px unscaled; Scaleform resolves the game's font
-only on the movie's own fields), and a material alone ("Ziegel, Stahl · 100%", "Rétegelt lemez ·
-19%") takes most of the value column. Heights, the AK-74M of three rounds beside the PKP, held
-Shift, unscaled (the harness keeps the card under 1200, 900 at its 0.75): main 890; a caption and
-four rows a round 1369; the four groups at full row height 1206; the groups with the rounds at 0.8
-of a row 1152 (shipped).
+- Kept out (the owner, after seeing a per-round listing in the game, "messy"): rows of each round;
+  a 4-column table would not fit the card's line in any case.
 
 ## Rows that change with the round, unchanged (the owner's call)
 
@@ -111,20 +117,26 @@ Minimum damage from, the Distance bar), the minimum damage (`k_min_damage_amount
 
 ## Live data (patch 49, players' files)
 
-Best round per weapon: 82 Concrete, 11 Plywood (the shotguns' slugs), 7 Brick, 2 Stone (the VSSK and
+Best round per weapon (a shotgun of both kinds shows it by kind): 82 Concrete, 11 Plywood (the
+shotguns' slugs), 7 Brick, 2 Stone (the VSSK and
 its camo copy, 12.7x54 VPS: Stone · 36%), 1 Tinplate. The 12.7x54 PT on the VSSK (P 0.7 = stone's
-0.7) stops at stone: Concrete · 100%.
+0.7) stops at stone: Concrete · 100%. By kind, from the data: 16 shotguns (Benelli M4, IZh-27 and
+its two premium copies, Jackhammer, MP-153, the two Neosteads, Remington 870, Saiga-12 and its
+premium, SPAS-12, TOZ-34, TOZ-66, Vepr-12 and its premium); the KS-23M fires buckshot only.
 
 ## Checked
 
 - `scripts/weapon-details/WeaponDetailsHarness.as` (Ruffle, `DETAILS RESULT pass`), in every
-  language: the best round per stat from different rounds (speed 7N10, material 7N22); held Shift
-  the four groups first, their headers without a value, each round `• <name>` stepped in by the
-  indent (its label column checked at +16, its spacing at 0.8 of a row), neutral, padded beside a
-  weapon of one round, aligned, fitting their line, the card under 900; the bars with the best round (armour piercing 35 x 1.2 = 42, damage 34 x 1.2 = 41); a
-  harder material over more damage kept (VPS Stone · 36% over PT Concrete · 100%), the same
-  material by percent, equal and Ctrl neutral, a missing side a dash, no row without the data, no
-  row on the ammo card, no bar.
+  language: any weapon but a shotgun of both kinds, normal and held Shift, each stat its best
+  round's from different rounds (speed 7N10, material 7N22) and no round's own row; a shotgun of
+  buckshot and slugs, each stat a value-less row over its best `• Buckshot` and `• Slug`, stepped in
+  (its label column checked at +16, its spacing at 0.8 of a row), fitting their line; in English
+  the bars with the best round (armour piercing 35 x 1.2 = 42, damage 34 x 1.2 = 41) and a
+  shotgun's own; kind against kind between two shotguns (more damage of buck2, more of the slug's
+  damage kept), a shotgun beside another weapon neutral on the four stats and the bars, nothing
+  padded; a shotgun of one kind its best; a harder material over more damage kept (VPS Stone · 36%
+  over PT Concrete · 100%), the same material by percent, equal and Ctrl neutral, a missing side a
+  dash, no row without the data, no row on the ammo card, no bar.
 - `content-edit/test_content_edit.py`: the lines by weapon, P = A not through (0.2 x 1.0 at brick's
   0.2), the VSSK's VPS through stone at 36 % and PT stopped at stone, no weapon or unpaired round
   touched, tiers out of order refused.

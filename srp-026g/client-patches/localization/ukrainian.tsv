@@ -2185,8 +2185,10 @@ st_sr3m_description	ОПИСАНИЕ НЕ ГОТОВО!!!
 st_sr3m_name	СР-3М "Вихор"
 st_srp_ammo069_23mm_r_desc	Набій калібру 23 мм, споряджений дробом, для КС-23М. Завдає високе пошкодження неброньованим цілям.
 st_srp_ammo069_23mm_r_name	23x75R, дріб
+st_srp_ammo_buckshot	Картеч
 st_srp_ammo_scar_ap_desc	Бронебійні набої 7.62x51 для FN SCAR-H. Кожен підсумок вміщує 20 набоїв.
 st_srp_ammo_scar_ap_name	7.62x51 ББ SCAR-H, 20 набоїв
+st_srp_ammo_slug	Куля
 st_srp_ammo_stats	Характеристики набоїв
 st_srp_attachments	Обвіс
 st_srp_crosshair_dynamic	Динамічний приціл

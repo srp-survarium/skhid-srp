@@ -2185,8 +2185,10 @@ st_sr3m_description	A leírás még nem érhető el.
 st_sr3m_name	SR-3M "Vikhr"
 st_srp_ammo069_23mm_r_desc	23 mm-es sörétes lőszer a KS-23M-hez. Nagy sebzést okoz a páncélozatlan célpontoknak.
 st_srp_ammo069_23mm_r_name	23x75R, sörét
+st_srp_ammo_buckshot	Sörét
 st_srp_ammo_scar_ap_desc	Páncéltörő 7,62x51 lőszer az FN SCAR-H-hoz. Minden lőszerzseb 20 lőszert tartalmaz.
 st_srp_ammo_scar_ap_name	7,62x51 AP SCAR-H, 20 lőszer
+st_srp_ammo_slug	Golyó
 st_srp_ammo_stats	A lőszer statisztikái
 st_srp_attachments	Szerelékek
 st_srp_crosshair_dynamic	Dinamikus célkereszt

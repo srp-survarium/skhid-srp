@@ -74,27 +74,33 @@ package {
   private function boltItem(chamber:String):Object {var d:Object=item(false);d.properties.push({prop_id:160,prop_value:chamber});return d;}
   private function shows(d:Object,other:Object):void {cards[0].data=d;cards[1].data=other;cards[0].itemCompare.setSecondaryWeapon(other);cards[1].itemCompare.setSecondaryWeapon(d);}
   // The rounds a weapon fires, as the lobby's item descriptors have them: card lines 21 (k_damage x
-  // pellets x100), 22 (k_arp x100), 163 (bullet speed) and 174 (pierce-line-1.json: for each weapon
-  // that fires it "<weapon dict id>:<rank>:<key>:<percent> ...", the rank the material's place: glass
-  // 0 .. stone 6). 3 the AK-74M (damage 34, armour piercing 35) with three rounds whose best of each
-  // stat differ: speed 7N10, piercing and material 7N22, 7N6M neither; 2229 the PKP (the cards'
-  // weapons); 2300 an A-545, 2400 an MP-443, 2500 a VSSK stand-in (VPS: damage and piercing x1.2).
+  // pellets x100), 22 (k_arp x100), 163 (bullet speed), 165 (pellets, the smallshot rounds only) and
+  // 174 (pierce-line-1.json: for each weapon that fires it "<weapon dict id>:<rank>:<key>:<percent>
+  // ...", the rank the material's place: glass 0 .. stone 6). 3 the AK-74M (damage 34, armour
+  // piercing 35) with three rounds whose best of each stat differ: speed 7N10, piercing and material
+  // 7N22; 2229 the PKP (the cards' weapons); 2300 an A-545, 2400 an MP-443, 2500 a VSSK stand-in
+  // (VPS: damage and piercing x1.2); 2600 a Benelli M4 and 2700 a Remington 870 (buckshot and slugs),
+  // 2800 a slug-only shotgun.
   private static const ROUNDS:Array=[
-   [901,"7N22",100,120,880,"3:5:st_srp_pierce_concrete:81 2300:5:st_srp_pierce_concrete:52"],
-   [902,"7N10",100,110,920,"3:5:st_srp_pierce_concrete:68 2300:5:st_srp_pierce_concrete:35"],
-   [905,"7N6M",100,100,900,"3:5:st_srp_pierce_concrete:52"],
-   [903,"7N1",100,100,830,"2229:5:st_srp_pierce_concrete:100"],
-   [904,"Para",100,100,360,"2400:3:st_srp_pierce_tinplate:89"],
-   [906,"12.7x54 VPS",120,120,320,"2500:6:st_srp_pierce_stone:36"],
-   [907,"12.7x54 PT",100,100,320,"2500:5:st_srp_pierce_concrete:100"]];
-  private static const ROUND_PAIRS:Array=[{first_item_dict_id:3,second_item_dict_id:901},{first_item_dict_id:902,second_item_dict_id:3},
-   {first_item_dict_id:3,second_item_dict_id:905},{first_item_dict_id:2300,second_item_dict_id:901},{first_item_dict_id:2300,second_item_dict_id:902},
-   {first_item_dict_id:2229,second_item_dict_id:903},{first_item_dict_id:2400,second_item_dict_id:904},
-   {first_item_dict_id:2500,second_item_dict_id:906},{first_item_dict_id:2500,second_item_dict_id:907}];
+   [901,"7N22",100,120,880,0,"3:5:st_srp_pierce_concrete:81 2300:5:st_srp_pierce_concrete:52"],
+   [902,"7N10",100,110,920,0,"3:5:st_srp_pierce_concrete:68 2300:5:st_srp_pierce_concrete:35"],
+   [905,"7N6M",100,100,900,0,"3:5:st_srp_pierce_concrete:52"],
+   [903,"7N1",100,100,830,0,"2229:5:st_srp_pierce_concrete:100"],
+   [904,"Para",100,100,360,0,"2400:3:st_srp_pierce_tinplate:89"],
+   [906,"12.7x54 VPS",120,120,320,0,"2500:6:st_srp_pierce_stone:36"],
+   [907,"12.7x54 PT",100,100,320,0,"2500:5:st_srp_pierce_concrete:100"],
+   [908,"12mm buck",200,60,400,8,"2600:0:st_srp_pierce_glass:100 2700:0:st_srp_pierce_glass:100"],
+   [910,"12mm buck2",240,50,380,10,"2600:0:st_srp_pierce_glass:100"],
+   [909,"12mm slug",100,100,450,0,"2600:2:st_srp_pierce_plywood:19 2700:2:st_srp_pierce_plywood:5 2800:2:st_srp_pierce_plywood:30"]];
+  private static const ROUND_PAIRS:Array=[[3,901],[902,3],[3,905],[2300,901],[2300,902],[2229,903],[2400,904],[2500,906],[2500,907],
+   [2600,908],[2600,910],[2600,909],[2700,908],[2700,909],[2800,909]].map(function(p:Array,...rest):Object{return {first_item_dict_id:p[0],second_item_dict_id:p[1]};});
   private function roundDescriptors():Array {
    var out:Array=[];
-   for each(var r:Array in ROUNDS)out.push({dictId:r[0],name:r[1],item_properties:[{prop_id:21,prop_value:String(r[2])},
-    {prop_id:22,prop_value:String(r[3])},{prop_id:163,prop_value:String(r[4])},{prop_id:174,prop_value:r[5]}]});
+   for each(var r:Array in ROUNDS){
+    var props:Array=[{prop_id:21,prop_value:String(r[2])},{prop_id:22,prop_value:String(r[3])},{prop_id:163,prop_value:String(r[4])},{prop_id:174,prop_value:r[6]}];
+    if(r[5])props.push({prop_id:165,prop_value:String(r[5])});
+    out.push({dictId:r[0],name:r[1],item_properties:props});
+   }
    return out;
   }
   private function weapon(dictId:int,name:String):Object {var d:Object=item(false);d.dictId=dictId;d.name=name;return d;}
@@ -110,7 +116,6 @@ package {
    return t.st_srp_pierce_value.split("%1$s").join(t["st_srp_pierce_"+key]).split("%2$s").join(t.st_srp_unit_percent.split("%1$s").join(String(percent)));
   }
   private function mps(t:Object,n:int):String {return t.st_srp_unit_mps.split("%1$s").join(String(n));}
-  // The value colours of every detail row labelled `label`.
   // The first detail row's label field labelled `text`, in global coordinates (its x).
   private function label(card:Object,text:String):Point {
    var view:Object=detailsView(card);
@@ -118,6 +123,7 @@ package {
     if(!(e is Caption) && e.indicator.textFieldLabel.text==text){var f:TextField=e.indicator.textFieldLabel;return f.parent.localToGlobal(new Point(f.x,f.y));}}
    throw new Error("missing stat: "+text);
   }
+  // The value colours of every detail row labelled `label`.
   private function colours(card:Object,label:String):Array {
    var view:Object=detailsView(card),out:Array=[];
    for(var i:int=0;i<view.numChildren;i++){var e:Object=view.getChildAt(i);if(!(e is Caption) && e.indicator.textFieldLabel.text==label)out.push(e.indicator.textFieldValue.textColor);}
@@ -131,41 +137,58 @@ package {
    for each(var language:String in HarnessText.LANGUAGES){
     Loc.setData(texts(language));
     var t:Object=HarnessText.DATA[language];
-    // The card: each stat its best round's, from different rounds.
-    shows(item(false),item(true));
-    var card:String=text(cards[0]);
-    require(card.indexOf(t.st_srp_inv_material_pierce+": "+pierceText(t,"concrete",81)+"\n")>=0,"the best material (7N22): "+language+" "+card);
-    require(card.indexOf(t.st_srp_inv_bullet_speed+": "+mps(t,920)+"\n")>=0,"the best speed (7N10): "+language);
-    require(overflows(cards[0],language).length==0 && overflows(cards[1],language).length==0,"pierce line fits: "+language+" "+overflows(cards[0],language));
-    aligned();
-    // Held Shift, first: each stat a round changes as a header over its rounds, bulleted and
-    // indented; beside a weapon of one round padded with dashes.
-    Scene.isShift=true;shows(item(false),item(true));
-    card=text(cards[0]);
-    var groups:String="Damage: \n• 7N22: 34\n• 7N10: 34\n• 7N6M: 34\n"+
-     "Armor penetration: \n• 7N22: 42\n• 7N10: 39\n• 7N6M: 35\n"+
-     t.st_srp_inv_bullet_speed+": \n• 7N22: "+mps(t,880)+"\n• 7N10: "+mps(t,920)+"\n• 7N6M: "+mps(t,900)+"\n"+
-     t.st_srp_inv_material_pierce+": \n• 7N22: "+pierceText(t,"concrete",81)+"\n• 7N10: "+pierceText(t,"concrete",68)+"\n• 7N6M: "+pierceText(t,"concrete",52)+"\n";
-    require(card.indexOf(t.st_srp_weapon_stats+"\n"+groups)==0,"the groups first, headers without values: "+language+" "+card.split("\n").join("|"));
-    require(text(cards[1]).split("\n").filter(function(l:String,...rest):Boolean{return l=="•: –";}).length==8,"dashes beside three rounds: "+text(cards[1]).split("\n").join("|"));
-    require(label(cards[0],"• 7N22").x>label(cards[0],t.st_srp_inv_bullet_speed).x+8,"a round steps in under its stat: "+language);
-    require(overflows(cards[0],language).length==0 && overflows(cards[1],language).length==0,"round rows fit: "+language+" "+overflows(cards[0],language));
-    require(cards[0].height<900,"the card with each round's rows fits: "+language+" "+cards[0].height);
-    aligned();
+    // Any weapon but a shotgun of both kinds: each stat its best round's, from different rounds;
+    // held Shift the same rows, no round's own.
+    for each(var shift:Boolean in [false,true]){
+     Scene.isShift=shift;shows(item(false),item(true));
+     var card:String=text(cards[0]);
+     require(card.indexOf(t.st_srp_inv_material_pierce+": "+pierceText(t,"concrete",81)+"\n")>=0,"the best material (7N22): "+language+" "+shift+" "+card);
+     require(card.indexOf(t.st_srp_inv_bullet_speed+": "+mps(t,920)+"\n")>=0,"the best speed (7N10): "+language+" "+shift);
+     require(card.indexOf("•")<0,"no round's own rows: "+language+" "+shift);
+     require(overflows(cards[0],language).length==0 && overflows(cards[1],language).length==0,"pierce line fits: "+language+" "+overflows(cards[0],language));
+     aligned();
+    }
     Scene.isShift=false;
+    // A shotgun of buckshot and slugs: each of the four stats a header over its best Buckshot and
+    // best Slug (damage 34 x 2.4 = 82 of buck2 over 34 x 2 of buck; piercing 35 x 0.6 = 21 of buck).
+    shows(weapon(2600,"Benelli M4"),weapon(2700,"Remington 870"));
+    card=text(cards[0]);
+    var B:String="• "+t.st_srp_ammo_buckshot,L:String="• "+t.st_srp_ammo_slug;
+    var kinds:String="Minimum damage: 60%\nDamage: \n"+B+": 82\n"+L+": 34\nArmor penetration: \n"+B+": 21\n"+L+": 35\n"+
+     t.st_srp_inv_bullet_speed+": \n"+B+": "+mps(t,400)+"\n"+L+": "+mps(t,450)+"\n"+
+     t.st_srp_inv_material_pierce+": \n"+B+": "+pierceText(t,"glass",100)+"\n"+L+": "+pierceText(t,"plywood",19)+"\n";
+    require(card.indexOf(kinds.substr(kinds.indexOf("\n")+1))>0,"a shotgun's stats by kind: "+language+" "+card.split("\n").join("|"));
+    require(label(cards[0],L).x>label(cards[0],t.st_srp_inv_material_pierce).x+8,"a kind steps in under its stat: "+language);
+    require(overflows(cards[0],language).length==0 && overflows(cards[1],language).length==0,"kind rows fit: "+language+" "+overflows(cards[0],language));
+    aligned();
    }
    Loc.setData(texts("english"));
    // The native bars take the best round: the AK-74M's armour piercing 35 x 1.2 (7N22), its damage
-   // x1 (every round); the VSSK's damage 34 x 1.2 and piercing 35 x 1.2 (VPS, PT x1).
+   // x1 (every round); the VSSK's damage 34 x 1.2 and piercing 35 x 1.2 (VPS, PT x1); a shotgun of
+   // both kinds its own (its kinds are its detail rows).
    shows(item(false),weapon(2500,"VSSK"));
    require(nativeText(cards[0],"Damage")=="34" && nativeText(cards[0],"Armor penetration")=="42","best-round bars: "+nativeText(cards[0],"Damage")+" "+nativeText(cards[0],"Armor penetration"));
    require(nativeText(cards[1],"Damage")=="41" && nativeText(cards[1],"Armor penetration")=="42","the best round's damage, whole (34 x 1.2): "+nativeText(cards[1],"Damage"));
-   // Held Shift, each round's rows are neutral.
-   Scene.isShift=true;shows(item(false),weapon(2400,"MP-443"));
-   for each(var name:String in ["7N22","7N10","7N6M"]){
-    var cs:Array=colours(cards[0],"\u2022 "+name);
-    require(cs.length==4 && cs.every(function(c:uint,...rest):Boolean{return c==NEUTRAL;}),"a round's rows are neutral: "+name+" "+cs);
-   }
+   shows(weapon(2600,"Benelli M4"),item(false));
+   require(nativeText(cards[0],"Damage")=="34" && nativeText(cards[0],"Armor penetration")=="35","a shotgun's own bars: "+nativeText(cards[0],"Damage"));
+   // Shotgun against shotgun: each kind against the same kind (the slugs: plywood 19 % against 5 %).
+   shows(weapon(2600,"Benelli M4"),weapon(2700,"Remington 870"));
+   require(colours(cards[0],"• Slug").join()==[NEUTRAL,NEUTRAL,NEUTRAL,GREEN].join() && colours(cards[1],"• Slug").join()==[NEUTRAL,NEUTRAL,NEUTRAL,RED].join(),
+    "slug against slug: "+colours(cards[0],"• Slug")+" / "+colours(cards[1],"• Slug"));
+   require(colours(cards[0],"• Buckshot").join()==[GREEN,NEUTRAL,NEUTRAL,NEUTRAL].join() && colours(cards[1],"• Buckshot").join()==[RED,NEUTRAL,NEUTRAL,NEUTRAL].join(),
+    "buckshot against buckshot: "+colours(cards[0],"• Buckshot")+" / "+colours(cards[1],"• Buckshot"));
+   require(colours(cards[0],"Pierces").join()==[NEUTRAL].join() && colours(cards[0],"Damage").join()==[NEUTRAL].join(),"a header has no value and no colour");
+   // Shotgun against any other: no colour on the four stats, bars included; no rows padded.
+   shows(weapon(2600,"Benelli M4"),weapon(2400,"MP-443"));
+   require(colours(cards[0],"• Slug").concat(colours(cards[0],"• Buckshot"),colours(cards[1],S),colours(cards[1],M)).every(function(c:uint,...rest):Boolean{return c==NEUTRAL;}),"shotgun against another: neutral");
+   require(nativeBoth("Damage")==[NEUTRAL,NEUTRAL].join() && nativeBoth("Armor penetration")==[NEUTRAL,NEUTRAL].join(),"shotgun against another: neutral bars "+nativeBoth("Damage")+" "+nativeBoth("Armor penetration"));
+   require(text(cards[1]).indexOf("•")<0 && text(cards[1]).indexOf("–")<0,"no rows padded on the other card");
+   // A shotgun of one kind is any weapon: its best.
+   shows(weapon(2800,"Slugger"),weapon(2700,"Remington 870"));
+   require(line(cards[0],M)=="Pierces: Plywood · 30%" && text(cards[0]).indexOf("•")<0,"one kind: the best");
+   // Held Shift a shotgun the same.
+   Scene.isShift=true;shows(weapon(2600,"Benelli M4"),weapon(2700,"Remington 870"));
+   require(colours(cards[0],"• Slug").length==4,"held Shift: the kinds");
    Scene.isShift=false;
    // The harder material wins over more damage kept: the VSSK's VPS (stone, 36 %) over PT (concrete, 100 %).
    shows(weapon(2500,"VSSK"),item(false));
@@ -191,7 +214,7 @@ package {
    shows(weapon(4444,"no rounds"),weapon(4445,"none either"));
    require(text(cards[0]).indexOf(M)<0 && text(cards[0]).indexOf(S)<0,"no rows without the data");
    // The ammo card shows no Pierces row (a weapon's and a round's together).
-   shows(round("7N22",ROUNDS[0][5],"120"),round("7N10",ROUNDS[1][5],"110"));
+   shows(round("7N22",ROUNDS[0][6],"120"),round("7N10",ROUNDS[1][6],"110"));
    var Ammo:Object=domain.getDefinition("survarium.item.AmmoDetails");
    for each(var row:Object in Ammo.read(cards[0].data).rows(true,Ammo.read(cards[1].data)))require(row.id!=174 && row.label!=M,"no row on a round's card");
    // Not comparable: no bar.
@@ -199,11 +222,11 @@ package {
    for(var i:int=1;i<=9;i++){var bar:Object=cards[0].itemCompare.getChildByName("diff_"+i);require(!bar || !bar.visible || bar.indicator.label!=M,"no pierce bar");}
    shows(items[0],items[1]);
   }
-  // For a capture (-P pierce=compare|details): the cards of a before|after pair, no checks.
+  // For a capture (-P pierce=compare|shotgun|details): the cards of a before|after pair, no checks.
   private function pierceCapture(what:String):void {
    Scene.isShift=what=="details";
-   if(what=="details")shows(item(false),item(true));
-   else shows(item(false),weapon(2300,"A-545"));
+   if(what=="shotgun")shows(weapon(2600,"Benelli M4"),weapon(2700,"Remington 870"));
+   else shows(item(false),item(true));
    removeEventListener(Event.ENTER_FRAME,tick);trace("DETAILS RESULT capture "+what+" heights "+[cards[0].height/cards[0].scaleY,cards[1].height/cards[1].scaleY].join());
   }
   private function tacticalItem():Object {var d:Object=item(false);d.properties.push({prop_id:162,prop_value:String(4/3)});return d;}
