@@ -47,7 +47,7 @@ unsafe extern "C" {
     pub fn engine_find_pool(pools: Option<MedicalPools>, name: *const *const u8) -> Option<MedicalPool>;
     /// 0x32a420 survarium::body_part::increase_health: pool ESI, time ESP+4, amount ESP+8; pops 8
     pub fn engine_increase_health(pool: Option<MedicalPool>, time: u32, amount: f32);
-    /// 0x313350 (unnamed): artefact ESP+4, time ESP+8; pops 8
+    /// 0x313350 survarium::artefact_base::effect: artefact ESP+4, time ESP+8; pops 8
     pub fn engine_artefact_effect(artefact: *mut c_void, time: u32);
     /// 0x2d5ae0 survarium::player_params_modifiers_container::apply_modifier: modifiers EAX, index ESI, value ESP+4, weight ESP+8; pops 8; XMM0
     pub fn engine_apply_modifier(modifiers: Option<PlayerParamsModifiersContainer>, index: u32, value: f32, weight: f32) -> f32;
@@ -11733,6 +11733,318 @@ impl MedicalClockResult {
     }
 }
 
+/// A vostok::animation::registry_key (fields_026g.tsv): a pointer to one, never 0. Made only here: by a typed field,
+/// a function's typed result or a site's typed register (sites_026g.tsv `holds`).
+#[repr(transparent)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct RegistryKey(NonNull<c_void>);
+
+#[allow(dead_code)]
+impl RegistryKey {
+    /// Its address as a value (an id, a compare): never read through.
+    #[inline(always)]
+    pub fn address(self) -> u32 {
+        self.0.as_ptr() as usize as u32
+    }
+
+    /// +0x0 (ptr<vostok::resources::managed_resource>): an animation pair's first resource, the registry's key (the 1st-view clip; animations_registry::register_animation 0x2EF130 keeps it at the entry's +0, the lookup 0x2D6590 compares it first)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn first(self) -> Option<ManagedResource> {
+        unsafe { self.0.byte_add(0x0).cast::<Option<ManagedResource>>().read_volatile() }
+    }
+
+    /// +0x0 (ptr<vostok::resources::managed_resource>): an animation pair's first resource, the registry's key (the 1st-view clip; animations_registry::register_animation 0x2EF130 keeps it at the entry's +0, the lookup 0x2D6590 compares it first)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn set_first(self, value: Option<ManagedResource>) {
+        unsafe { self.0.byte_add(0x0).cast::<Option<ManagedResource>>().write_volatile(value) }
+    }
+
+    /// +0x4 (ptr<vostok::resources::managed_resource>): the pair's second resource (the 3rd-view clip, the one an id resolves to: 0x1F18B0 returns the entry's +4; the same resource as first for most pairs)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn second(self) -> Option<ManagedResource> {
+        unsafe { self.0.byte_add(0x4).cast::<Option<ManagedResource>>().read_volatile() }
+    }
+
+    /// +0x4 (ptr<vostok::resources::managed_resource>): the pair's second resource (the 3rd-view clip, the one an id resolves to: 0x1F18B0 returns the entry's +4; the same resource as first for most pairs)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn set_second(self, value: Option<ManagedResource>) {
+        unsafe { self.0.byte_add(0x4).cast::<Option<ManagedResource>>().write_volatile(value) }
+    }
+}
+
+/// A survarium::animation_id_frame (fields_026g.tsv): a pointer to one, never 0. Made only here: by a typed field,
+/// a function's typed result or a site's typed register (sites_026g.tsv `holds`).
+#[repr(transparent)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct AnimationIdFrame(NonNull<c_void>);
+
+#[allow(dead_code)]
+impl AnimationIdFrame {
+    /// Its address as a value (an id, a compare): never read through.
+    #[inline(always)]
+    pub fn address(self) -> u32 {
+        self.0.as_ptr() as usize as u32
+    }
+
+    /// +0x10 (ptr<survarium::animations_registry>): ESP+10h at animations.id_missing: the lookup's registry argument (0x2D6590 pushed EBX, ESI, EDI after its return address)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn registry(self) -> Option<AnimationsRegistry> {
+        unsafe { self.0.byte_add(0x10).cast::<Option<AnimationsRegistry>>().read_volatile() }
+    }
+
+    /// +0x10 (ptr<survarium::animations_registry>): ESP+10h at animations.id_missing: the lookup's registry argument (0x2D6590 pushed EBX, ESI, EDI after its return address)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn set_registry(self, value: Option<AnimationsRegistry>) {
+        unsafe { self.0.byte_add(0x10).cast::<Option<AnimationsRegistry>>().write_volatile(value) }
+    }
+}
+
+/// A survarium::animation_id_resolver_frame (fields_026g.tsv): a pointer to one, never 0. Made only here: by a typed field,
+/// a function's typed result or a site's typed register (sites_026g.tsv `holds`).
+#[repr(transparent)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct AnimationIdResolverFrame(NonNull<c_void>);
+
+#[allow(dead_code)]
+impl AnimationIdResolverFrame {
+    /// Its address as a value (an id, a compare): never read through.
+    #[inline(always)]
+    pub fn address(self) -> u32 {
+        self.0.as_ptr() as usize as u32
+    }
+
+    /// +0x4 (u32): the return address into the resolver's caller (EBP+4 of 0x2D7B90's push ebp / mov ebp,esp)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn return_address(self) -> *mut u32 {
+        unsafe { self.0.byte_add(0x4).cast::<u32>().as_ptr() }
+    }
+
+    /// +0x14 (u32): the stack word at EBP+14h, above the resolver's three arguments: its caller's (the boost invoker's) return address and frame among them, logged as they are
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn above_0(self) -> *mut u32 {
+        unsafe { self.0.byte_add(0x14).cast::<u32>().as_ptr() }
+    }
+
+    /// +0x18 (u32): the stack word at EBP+18h, above the resolver's three arguments: its caller's (the boost invoker's) return address and frame among them, logged as they are
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn above_1(self) -> *mut u32 {
+        unsafe { self.0.byte_add(0x18).cast::<u32>().as_ptr() }
+    }
+
+    /// +0x1c (u32): the stack word at EBP+1Ch, above the resolver's three arguments: its caller's (the boost invoker's) return address and frame among them, logged as they are
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn above_2(self) -> *mut u32 {
+        unsafe { self.0.byte_add(0x1c).cast::<u32>().as_ptr() }
+    }
+
+    /// +0x20 (u32): the stack word at EBP+20h, above the resolver's three arguments: its caller's (the boost invoker's) return address and frame among them, logged as they are
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn above_3(self) -> *mut u32 {
+        unsafe { self.0.byte_add(0x20).cast::<u32>().as_ptr() }
+    }
+
+    /// +0x24 (u32): the stack word at EBP+24h, above the resolver's three arguments: its caller's (the boost invoker's) return address and frame among them, logged as they are
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn above_4(self) -> *mut u32 {
+        unsafe { self.0.byte_add(0x24).cast::<u32>().as_ptr() }
+    }
+
+    /// +0x28 (u32): the stack word at EBP+28h, above the resolver's three arguments: its caller's (the boost invoker's) return address and frame among them, logged as they are
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn above_5(self) -> *mut u32 {
+        unsafe { self.0.byte_add(0x28).cast::<u32>().as_ptr() }
+    }
+}
+
+/// A survarium::animations_registry (fields_026g.tsv): a pointer to one, never 0. Made only here: by a typed field,
+/// a function's typed result or a site's typed register (sites_026g.tsv `holds`).
+#[repr(transparent)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct AnimationsRegistry(NonNull<c_void>);
+
+#[allow(dead_code)]
+impl AnimationsRegistry {
+    /// Its address as a value (an id, a compare): never read through.
+    #[inline(always)]
+    pub fn address(self) -> u32 {
+        self.0.as_ptr() as usize as u32
+    }
+
+    /// +0xe044 (u32): the ids' vector, an entry pointer per id (actualize 0x2EF280 sorts and numbers it; the id resolver 0x1F18B0 indexes it unchecked)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn ids_begin(self) -> *mut u32 {
+        unsafe { self.0.byte_add(0xe044).cast::<u32>().as_ptr() }
+    }
+
+    /// +0xe048 (u32): the ids' vector's end
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn ids_end(self) -> *mut u32 {
+        unsafe { self.0.byte_add(0xe048).cast::<u32>().as_ptr() }
+    }
+
+    /// +0x10050 (u8): 1 once actualize (0x2EF280) numbered the entries: the world load's, once (0x2CBFD7); 0 again at ~game_world (0x1F7153)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn actualized(self) -> *mut u8 {
+        unsafe { self.0.byte_add(0x10050).cast::<u8>().as_ptr() }
+    }
+}
+
+/// A vostok::resources::managed_resource (fields_026g.tsv): a pointer to one, never 0. Made only here: by a typed field,
+/// a function's typed result or a site's typed register (sites_026g.tsv `holds`).
+#[repr(transparent)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct ManagedResource(NonNull<c_void>);
+
+#[allow(dead_code)]
+impl ManagedResource {
+    /// Its address as a value (an id, a compare): never read through.
+    #[inline(always)]
+    pub fn address(self) -> u32 {
+        self.0.as_ptr() as usize as u32
+    }
+
+    /// +0xb0 (ptr<vostok::resources::name_registry_entry>): its name registry entry (resource_base::m_name_registry_entry; 0.10b resources_resource_base.h; every one of 221 registered animations of the 2026-11-03 full dump has one, its +4 the resource)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn name_entry(self) -> Option<NameRegistryEntry> {
+        unsafe { self.0.byte_add(0xb0).cast::<Option<NameRegistryEntry>>().read_volatile() }
+    }
+
+    /// +0xb0 (ptr<vostok::resources::name_registry_entry>): its name registry entry (resource_base::m_name_registry_entry; 0.10b resources_resource_base.h; every one of 221 registered animations of the 2026-11-03 full dump has one, its +4 the resource)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn set_name_entry(self, value: Option<NameRegistryEntry>) {
+        unsafe { self.0.byte_add(0xb0).cast::<Option<NameRegistryEntry>>().write_volatile(value) }
+    }
+}
+
+/// A vostok::resources::name_registry_entry (fields_026g.tsv): a pointer to one, never 0. Made only here: by a typed field,
+/// a function's typed result or a site's typed register (sites_026g.tsv `holds`).
+#[repr(transparent)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct NameRegistryEntry(NonNull<c_void>);
+
+#[allow(dead_code)]
+impl NameRegistryEntry {
+    /// Its address as a value (an id, a compare): never read through.
+    #[inline(always)]
+    pub fn address(self) -> u32 {
+        self.0.as_ptr() as usize as u32
+    }
+
+    /// +0x8 (ptr<u8>): the resource's name, a C string (name_registry_entry::name, 0.10b resources_name_registry_entry.h: class_id, associated, name)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn name(self) -> *mut u8 {
+        unsafe { self.0.byte_add(0x8).cast::<*mut u8>().read_volatile() }
+    }
+
+    /// +0x8 (ptr<u8>): the resource's name, a C string (name_registry_entry::name, 0.10b resources_name_registry_entry.h: class_id, associated, name)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn set_name(self, value: *mut u8) {
+        unsafe { self.0.byte_add(0x8).cast::<*mut u8>().write_volatile(value) }
+    }
+}
+
+/// A survarium::change_input_frame (fields_026g.tsv): a pointer to one, never 0. Made only here: by a typed field,
+/// a function's typed result or a site's typed register (sites_026g.tsv `holds`).
+#[repr(transparent)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct ChangeInputFrame(NonNull<c_void>);
+
+#[allow(dead_code)]
+impl ChangeInputFrame {
+    /// Its address as a value (an id, a compare): never read through.
+    #[inline(always)]
+    pub fn address(self) -> u32 {
+        self.0.as_ptr() as usize as u32
+    }
+
+    /// +0x8 (u32): game_world_core::change_input<player_input>'s input at its start (0x1FAB50, by the site's ESP): its rotation, math::half2 as it came (+8 the yaw's half, +0Ah the pitch's)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn rotation(self) -> *mut u32 {
+        unsafe { self.0.byte_add(0x8).cast::<u32>().as_ptr() }
+    }
+
+    /// +0x10 (u32): the input's time (ms)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn time(self) -> *mut u32 {
+        unsafe { self.0.byte_add(0x10).cast::<u32>().as_ptr() }
+    }
+
+    /// +0x14 (u8): the place whose input it is (0..19)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn player(self) -> *mut u8 {
+        unsafe { self.0.byte_add(0x14).cast::<u8>().as_ptr() }
+    }
+}
+
 /// A vostok::physics::bullet_physics_world (fields_026g.tsv): a pointer to one, never 0. Made only here: by a typed field,
 /// a function's typed result or a site's typed register (sites_026g.tsv `holds`).
 #[repr(transparent)]
@@ -14243,6 +14555,54 @@ pub mod site {
         #[inline(always)]
         pub unsafe fn frame(machine: &impl Machine) -> Option<MedicalClockFrame> {
             NonNull::new(machine.site_esp() as usize as *mut c_void).map(MedicalClockFrame)
+        }
+    }
+
+    /// animations.id_missing (0x2d65ee): the animations registry's lookup (0x2D6590, called only by base_player::animation_id_resolver 0x2D7C26) found no entry for the pair and is about to return 0FFFFh (pop edi / pop esi / mov eax,0FFFFh; reached by the three misses at 0x2D65D3, 0x2D65DA, 0x2D65E2): EDI the pair asked for, ESP+10h the registry, EBP the resolver's frame
+    pub mod animations_id_missing {
+        #[allow(unused_imports)]
+        use super::*;
+
+        /// EDI: a vostok::animation::registry_key (None for 0).
+        ///
+        /// # Safety
+        /// `machine` is at this site.
+        #[inline(always)]
+        pub unsafe fn key(machine: &impl Machine) -> Option<RegistryKey> {
+            NonNull::new(machine.register(Register::Edi) as usize as *mut c_void).map(RegistryKey)
+        }
+
+        /// the site's ESP: a survarium::animation_id_frame (None for 0).
+        ///
+        /// # Safety
+        /// `machine` is at this site.
+        #[inline(always)]
+        pub unsafe fn stack(machine: &impl Machine) -> Option<AnimationIdFrame> {
+            NonNull::new(machine.site_esp() as usize as *mut c_void).map(AnimationIdFrame)
+        }
+
+        /// EBP: a survarium::animation_id_resolver_frame (None for 0).
+        ///
+        /// # Safety
+        /// `machine` is at this site.
+        #[inline(always)]
+        pub unsafe fn resolver(machine: &impl Machine) -> Option<AnimationIdResolverFrame> {
+            NonNull::new(machine.register(Register::Ebp) as usize as *mut c_void).map(AnimationIdResolverFrame)
+        }
+    }
+
+    /// change_input.player (0x1fab50): game_world_core::change_input<client_update<player_input,220,235,221,236>>'s start (push ebp / mov ebp,esp / and esp,-8), every player input a world takes: a local one, a relayed one (0xEB, the batch 0x27C5C1), a moved one (0xEF) and a replay's; ESP+4 the core, +8 the input (half2 rotation, then the action mask), +10h its time, +14h the player; refused is its `ret 24h` (0x1FAC4E, the duplicate's; EAX the event action, 6 as both refusals return it)
+    pub mod change_input_player {
+        #[allow(unused_imports)]
+        use super::*;
+
+        /// the site's ESP: a survarium::change_input_frame (None for 0).
+        ///
+        /// # Safety
+        /// `machine` is at this site.
+        #[inline(always)]
+        pub unsafe fn frame(machine: &impl Machine) -> Option<ChangeInputFrame> {
+            NonNull::new(machine.site_esp() as usize as *mut c_void).map(ChangeInputFrame)
         }
     }
 }
