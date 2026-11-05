@@ -1150,9 +1150,10 @@ mod tests {
                             // pressed); a route the press ends would be the heal's.
                             assert!(
                                 bot.route.is_some() || !*routed,
-                                "route ended by a heal: tick {}, place {}",
+                                "route ended by a heal: tick {}, place {}, how the route ended {:?}",
                                 game.tick,
-                                m.place
+                                m.place,
+                                bot.route_end
                             );
                             unchanged += 1;
                         }
