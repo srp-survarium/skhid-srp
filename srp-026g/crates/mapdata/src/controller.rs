@@ -11,6 +11,7 @@
 //! steps that far along the move and measures again, until the gap is under [`CONTACT_M`] or the move ends. A capsule that only
 //! translates gets no closer than its speed allows, so no contact is stepped over.
 pub mod gjk;
+pub mod speed;
 pub mod tick;
 
 use crate::{Triangle, WalkerBehaviour};
@@ -299,6 +300,25 @@ impl Collision {
             if (0.0..=1.0).contains(&t) && best.is_none_or(|b| t < b.0) {
                 let n = if face.normal.dot(d) > 0.0 { -face.normal } else { face.normal };
                 best = Some((t, n));
+            }
+        });
+        best
+    }
+
+    /// The face nearest `shape`'s surface that `keep` accepts within `reach` (a negative gap: overlapping): the gap, the face's
+    /// closest point and the direction from it to the shape.
+    pub fn nearest_to(&self, shape: Shape, reach: f32, keep: impl Fn(&Face) -> bool) -> Option<(f32, Vec3, Vec3)> {
+        let (lo, hi) = shape.aabb();
+        let pad = Vec3::new(reach, reach, reach);
+        let mut best: Option<(f32, Vec3, Vec3)> = None;
+        self.faces_in(lo - pad, hi + pad, |f| {
+            let face = &self.faces[f];
+            if face.normal == Vec3::ZERO || !keep(face) {
+                return;
+            }
+            let (gap, _, on_face, dir) = shape.gap(&face.v, face.normal);
+            if gap <= reach && best.is_none_or(|b| gap < b.0) {
+                best = Some((gap, on_face, dir));
             }
         });
         best
