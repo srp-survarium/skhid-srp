@@ -88,7 +88,7 @@ pub struct Kinematics {
     /// cell between goes on to the bridge's far floor ([`crate::v026g::bots::body::Bridges::Walked`]). The client's capsule
     /// crosses the 0.25 m cell in one stride (the controller walks every such bridge the grid keeps); the reckoning moves cell by
     /// cell over walk links and stalled at the face of each one up (the pass's 324-pair bench: missed jumps 11 -> 29, at bridges
-    /// up 0.45-0.75 m). OFF: as it was.
+    /// up 0.45-0.75 m). ON with `grid.client_controller` (A313 bench4: no guard FAIL); OFF: as it was.
     pub walk_bridges: bool,
 }
 
@@ -275,7 +275,7 @@ impl Default for Kinematics {
             pitch_scale: PitchScale::Client,
             slope_speed: SlopeSpeed::RampsGrade,
             ramp_min_deg: 35.0,
-            walk_bridges: false,
+            walk_bridges: true,
             speed_terms: SpeedTerms::Legs,
         }
     }

@@ -76,6 +76,7 @@
     "zone_lines": false
   },
   "grid": {
+    "client_controller": false,
     "crouch_floors": false,
     "drop_room_walk_faces": false,
     "exact_erosion": false,
@@ -104,7 +105,8 @@
   "kin": {
     "edge": "lattice",
     "margin_edge": "lattice",
-    "slope_speed": "planar"
+    "slope_speed": "planar",
+    "walk_bridges": false
   },
   "kit": {
     "frags": "off",
