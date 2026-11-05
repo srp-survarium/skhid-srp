@@ -63,6 +63,7 @@ pub mod map_names;
 pub mod world_check;
 pub mod weapon_kit;
 pub mod music;
+pub mod sound_voices;
 pub mod drug_interrupt;
 
 pub mod weapon_pickup;

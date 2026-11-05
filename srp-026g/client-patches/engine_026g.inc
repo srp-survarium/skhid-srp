@@ -48,7 +48,7 @@ extern engine_find_pool
 ; 0x32a420 survarium::body_part::increase_health: pool ESI, time ESP+4, amount ESP+8; pops 8
 extern engine_increase_health
 ; void engine_artefact_effect(void *artefact, unsigned int time)
-; 0x313350 (unnamed): artefact ESP+4, time ESP+8; pops 8
+; 0x313350 survarium::artefact_base::effect: artefact ESP+4, time ESP+8; pops 8
 extern engine_artefact_effect
 ; float engine_apply_modifier(const struct player_params_modifiers_container *modifiers, unsigned int index, float value, float weight)
 ; 0x2d5ae0 survarium::player_params_modifiers_container::apply_modifier: modifiers EAX, index ESI, value ESP+4, weight ESP+8; pops 8; XMM0
@@ -428,3 +428,10 @@ extern engine_remove_affect
 ; struct game_effect_slot *engine_effect_resource_emit(struct medical_effect_resource *resource, struct game_effect_slot *out)
 ; 0x329050 survarium::game_effect_resource::emit: resource ESI, out EDI; pops 0; EAX
 extern engine_effect_resource_emit
+; struct sound_voice *engine_create_sound_voice(struct sound_world *world, struct sound_scene *scene, struct new_sound_propagator *propagator, const void *emitter)
+; 0x59e70 vostok::sound::sound_world::create_sound_voice: world EAX, scene ESP+4, propagator ESP+8, emitter ESP+12; pops 12; EAX
+extern engine_create_sound_voice
+; void engine_detach_voice(struct new_sound_propagator *propagator)
+; 0x5cb80 vostok::sound::new_sound_propagator::detach_voice: propagator ESP+4; pops 4; stdcall, called directly
+; stdcall: push (and ECX for thiscall) as that convention says
+extern engine_detach_voice

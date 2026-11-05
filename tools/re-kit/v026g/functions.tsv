@@ -2118,3 +2118,6 @@ va	status	ref_021d	name
 0x00313640	verified		survarium::artefact_base::active_effect_time_calculator::calculate
 0x00313300	verified		survarium::artefact_base::action
 0x00313350	verified		survarium::artefact_base::effect
+0x00059e70	observed	0x00040974	vostok::sound::sound_world::create_sound_voice
+0x0005cb80	reviewed	0x000429b3	vostok::sound::new_sound_propagator::detach_voice
+0x002454a0	observed		survarium::delayed_callbacks_queue<64>::add

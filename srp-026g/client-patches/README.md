@@ -120,6 +120,7 @@ release's. The "Result" row is the build of the revision named in it.
 | `check_tab_self_026g.py` | Runs the original's and patch 43's end of game_world::on_activate, where the hud gets its player's name (the Tab list's own row gold), on a made-up world with the journal off, recording and played back (needs Unicorn) |
 | `check_weapon_show_026g.py` | Runs the original's and patch 91's weapon::on_show and the next weapon::draw's scope (add and remove of the aimed sight, the game's own) on made-up weapons, aimed and not, first person and not, no optic, a red dot and a full-screen scope, with the renderer's in-scene byte kept (needs Unicorn) |
 | `rust/patches/src/scaleform_capture.rs`, `src/scaleform_capture.toml`, `src/vostok/drawable_image.rs`, `check_scaleform_capture_026g.py` | Patch 93: the render thread's walk of a Scaleform DrawableImageContext's command queues (OnNextCapture 0x572660) never reaches a queue being destroyed (the rev-40 crash at a match's end): two lohooks; its check runs OnNextCapture and the queue's destructor on made-up contexts, the original beside (needs Unicorn) |
+| `rust/patches/src/sound_voices.rs`, `src/sound_voices.toml`, `src/vostok/voices.rs`, `check_sound_voices_026g.py` | Patch 96: shots no longer go silent under heavy fire (`../docs/notes/sound_voices.md`): the game world's sound scene has 1024 sound instances and propagators (`SOUND_POOLS`, game_world::load 0x1F8DB6/0x1F8DBD), and a sound refused a voice takes the voice of the quietest one playing when that one is less than half as loud (a lohook after create_sound_voice, 0x5CAB0); the check runs the voice loop from that site on made-up scenes with a model of the world's voice pool, and the self-test's `test_sound_pools` (needs Unicorn) |
 | `check_stage_focus_026g.py` | Runs the original's and patch 52's Stage focus getter (Scaleform's `stage.focus`, 0x771FA0) on a made-up movie: focused objects of each kind, none, one without its ActionScript object (the lobby's crash of 2026-10-22) (needs Unicorn) |
 | `rust/patches/src/language.rs`, `src/language.toml`, `src/vostok/language.rs`, `languages_026g.rs`, `check_language_026g.py` | Patch 79: the game language is a setting kept in user.cfg (Settings, Gameplay, Language; `../docs/notes/language-option.md`): three lohooks (`sites_026g.tsv`); `languages_026g.rs` is generated from `localization_026g.py`'s registry; its check runs each hook from the game's code on made-up objects, the original beside (needs Unicorn); the movie's harness is `../scripts/language-option/check.sh` |
 | `rust/patches/src/tab_cursor.rs`, `src/tab_cursor.toml`, `src/vostok/hud_input.rs`, `src/vostok/keyboard.rs`, `src/vostok/lobby.rs`, `check_tab_cursor_026g.py` | Patch 86: Ctrl on the Tab list shows a cursor, and its rows' menu sends the lobby's friend request (`../docs/notes/tab-cursor-friends.md`): two lohooks (`sites_026g.tsv`); its check runs both from the game's code on made-up objects, the original beside (needs Unicorn); the menu's harness is `../scripts/tab-row-menu/check.sh` |
@@ -4099,6 +4100,38 @@ Checked: `selftest_026g.py` check 91; `check_weapon_show_026g.py` runs on_show a
 models with the game's code for the scope (the renderer stubbed with its in-scene byte): the
 original loses the body in first person with a red dot, the build keeps it, every other case
 ends each draw as the original. **Not run in a game.**
+
+## Shots stay audible under heavy fire (patch 96, unreleased)
+
+The owner (2026-11-05): with a lot of shooting the sound breaks up and the bullets' sound
+disappears. The engine's limits, all fixed: the game world's sound scene has 512 sound instances
+and 196 propagators (game_world::load 0x1F8DB6, 0x1F8DBD), the world 64 voices (sound_world +68h);
+a shot is one instance and one propagator a layer of its composite, and a propagator lives its
+layer's length plus its way to the listener. The ported guns' shot composites carry a 9.2 to 9.9 s
+tail at every distance (`environments/level_01/automatic/outdoor/rudnya_outdoor*`: Vepr-12,
+Saiga-12, Jackhammer, PKP, Glock and the other 0.29/0.69 ports), the AK family a 4.2 s forest
+echo. Under automatic fire the tails take every propagator and every voice: create_sound_propagator
+(0x5D2A0) returns 0 and the new sound is never heard; create_sound_voice (0x59E70) returns 0 and
+the sound waits in silence, the voices given first come first served and taken back only from a
+sound under the gain floor (the HDR cull, 0x5CAD4). So the next shots, impacts and steps go
+silent until the tails end (the tails a fresh shot hears at an offset when a voice comes free).
+
+**The patch:**
+
+- `SOUND_POOLS`: 1024 sound instances and 1024 propagators (224 KiB of the scene's unmanaged
+  allocation instead of 89 KiB).
+- The Rust patch `sound_voices`, a lohook at `sound_scene.voice_made` (0x5CAB0, after
+  calculate_hdr_audio_frame's call of create_sound_voice; the sound thread): a propagator refused a
+  voice takes the voice of the quietest voiced propagator of the scene when that one's loudness
+  (its gain by distance, its master's when it has one, times its sample's amplitude now) is under
+  half its own. The voice is let go as the HDR cull lets one go (detach_voice 0x5CB80, +48h 2000
+  ms) and the world asked again. Tails late in their decay give their voices to new shots; two
+  sounds of about one loudness never take a voice back and forth; a quiet sound never takes a loud
+  one's.
+
+Nothing a match computes (sounds only). Checked: `check_sound_voices_026g.py` (nine scenes, the
+original never takes a voice), the self-test's `test_sound_pools`, `cargo test` and clippy of
+`rust/`. **Not run in a game.**
 
 ## The render thread never reaches a Scaleform queue being destroyed (patch 93, unreleased)
 

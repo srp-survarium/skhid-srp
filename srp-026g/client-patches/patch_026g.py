@@ -778,6 +778,23 @@ AI_ARENA_VA = 0x1E8CCB
 AI_ARENA_SIZE = 0x400000
 AI_ARENA = (AI_ARENA_VA, bytes.fromhex("c744241800000400"), bytes.fromhex("c744241800004000"))
 
+# The game world's sound scene (game_world::load 0x1F8CA0, its
+# sound_scene_creation_params on the stack: proxies [ebp-10h], propagators
+# [ebp-0Ch]) has 512 sound instances and 196 propagators (one a layer of a
+# playing composite: a shot is 2 to 13). A propagator lives the sound's
+# length plus its way to the listener; the ported guns' shot layers include
+# 9.2 to 9.9 s tails, so automatic fire takes all 196 in seconds, and every
+# new sound gets none (create_sound_propagator 0x5D2A0 returns 0, the sound
+# is never heard). 1024 of each: 0x400 x (90h + 50h) bytes from the
+# scene's unmanaged allocation, 224 KiB in all. Numbers, no relocation.
+# Patch 96 (docs/notes/sound_voices.md); it also hands voices on
+# (sound_voices.rs).
+SOUND_INSTANCES = 0x400
+SOUND_POOLS = (
+    (0x1F8DB6, bytes.fromhex("c745f000020000"), bytes.fromhex("c745f0") + struct.pack("<I", SOUND_INSTANCES)),
+    (0x1F8DBD, bytes.fromhex("c745f4c4000000"), bytes.fromhex("c745f4") + struct.pack("<I", SOUND_INSTANCES)),
+)
+
 # Match the shipped launcher's budgets when command-line keys are absent.
 # mt_allocator starts at 16 MiB, then adds 360 MiB on the default branch;
 # an explicit value instead takes the unchanged `shl esi,20` branch.
@@ -3319,6 +3336,9 @@ def build_image(original, mode, code=None, server=None, late_join=None, revision
         for site in MEMORY_DEFAULTS:
             patch(data, *site)
             sites.append((site[0], site[0] + len(site[1])))
+        for site in SOUND_POOLS:
+            patch(data, *site)
+            sites.append((site[0], site[0] + len(site[1])))
         patch(data, *SPOT_COOLDOWN)
         sites.append((SPOT_COOLDOWN[0], SPOT_COOLDOWN[0] + len(SPOT_COOLDOWN[1])))
         for site in FALL_GRAVITY:
@@ -3777,6 +3797,7 @@ def build_image(original, mode, code=None, server=None, late_join=None, revision
                      "a drag turns the warmup camera and the wheel moves it while the kits are shown, "
                      "the archive reads' order is a strict weak ordering, "
                      f"the ai arena is {AI_ARENA_SIZE >> 20} MiB, "
+                     f"the game world's sound scene has {SOUND_INSTANCES} sound instances and propagators, "
                      "a weapon's upgrade window shows the weapon, "
                      "the commit_suicide key (K) kills one's own player, "
                      "a killed player falls as a ragdoll (drawn only) that bullets push and bloody, the death screen's camera on its head, "

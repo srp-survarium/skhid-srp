@@ -47,7 +47,7 @@ unsafe extern "C" {
     pub fn engine_find_pool(pools: Option<MedicalPools>, name: *const *const u8) -> Option<MedicalPool>;
     /// 0x32a420 survarium::body_part::increase_health: pool ESI, time ESP+4, amount ESP+8; pops 8
     pub fn engine_increase_health(pool: Option<MedicalPool>, time: u32, amount: f32);
-    /// 0x313350 (unnamed): artefact ESP+4, time ESP+8; pops 8
+    /// 0x313350 survarium::artefact_base::effect: artefact ESP+4, time ESP+8; pops 8
     pub fn engine_artefact_effect(artefact: *mut c_void, time: u32);
     /// 0x2d5ae0 survarium::player_params_modifiers_container::apply_modifier: modifiers EAX, index ESI, value ESP+4, weight ESP+8; pops 8; XMM0
     pub fn engine_apply_modifier(modifiers: Option<PlayerParamsModifiersContainer>, index: u32, value: f32, weight: f32) -> f32;
@@ -205,6 +205,8 @@ unsafe extern "C" {
     pub fn engine_remove_affect(pool: Option<MedicalPool>, time: u32, affect: u32);
     /// 0x329050 survarium::game_effect_resource::emit: resource ESI, out EDI; pops 0; EAX
     pub fn engine_effect_resource_emit(resource: Option<MedicalEffectResource>, out: Option<GameEffectSlot>) -> Option<GameEffectSlot>;
+    /// 0x59e70 vostok::sound::sound_world::create_sound_voice: world EAX, scene ESP+4, propagator ESP+8, emitter ESP+12; pops 12; EAX
+    pub fn engine_create_sound_voice(world: Option<SoundWorld>, scene: Option<SoundScene>, propagator: Option<NewSoundPropagator>, emitter: *const c_void) -> *mut c_void;
 }
 
 #[allow(dead_code)]
@@ -213,6 +215,8 @@ unsafe extern "stdcall" {
     pub fn engine_action_present(handler: Option<PlayerInputHandler>, action: u32, state: *mut u32) -> u8;
     /// 0x3222f0 survarium::bullet_manager::play_sound: manager ESP+4, sound ESP+8, position ESP+12; pops 12; stdcall, called directly
     pub fn engine_play_sound(manager: Option<BulletManager>, sound: *const u32, position: *const f32);
+    /// 0x5cb80 vostok::sound::new_sound_propagator::detach_voice: propagator ESP+4; pops 4; stdcall, called directly
+    pub fn engine_detach_voice(propagator: Option<NewSoundPropagator>);
 }
 
 #[allow(dead_code)]
@@ -9123,6 +9127,42 @@ impl SoundInstanceProxy {
     pub unsafe fn references(self) -> *mut u32 {
         unsafe { self.0.byte_add(0x28).cast::<u32>().as_ptr() }
     }
+
+    /// +0x64 (ptr<vostok::sound::world_user>): its world user (detach_voice 0x5CBBD, calculate_hdr_audio_frame 0x5CA9F)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn user(self) -> Option<WorldUser> {
+        unsafe { self.0.byte_add(0x64).cast::<Option<WorldUser>>().read_volatile() }
+    }
+
+    /// +0x64 (ptr<vostok::sound::world_user>): its world user (detach_voice 0x5CBBD, calculate_hdr_audio_frame 0x5CA9F)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn set_user(self, value: Option<WorldUser>) {
+        unsafe { self.0.byte_add(0x64).cast::<Option<WorldUser>>().write_volatile(value) }
+    }
+
+    /// +0x68 (ptr<vostok::sound::sound_scene>): its scene (detach_voice 0x5CBBA, calculate_hdr_audio_frame 0x5CA9C)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn scene(self) -> Option<SoundScene> {
+        unsafe { self.0.byte_add(0x68).cast::<Option<SoundScene>>().read_volatile() }
+    }
+
+    /// +0x68 (ptr<vostok::sound::sound_scene>): its scene (detach_voice 0x5CBBA, calculate_hdr_audio_frame 0x5CA9C)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn set_scene(self, value: Option<SoundScene>) {
+        unsafe { self.0.byte_add(0x68).cast::<Option<SoundScene>>().write_volatile(value) }
+    }
 }
 
 /// A vostok::sound::scene_params_variant (fields_026g.tsv): a pointer to one, never 0. Made only here: by a typed field,
@@ -11733,6 +11773,313 @@ impl MedicalClockResult {
     }
 }
 
+/// A vostok::sound::world_user (fields_026g.tsv): a pointer to one, never 0. Made only here: by a typed field,
+/// a function's typed result or a site's typed register (sites_026g.tsv `holds`).
+#[repr(transparent)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct WorldUser(NonNull<c_void>);
+
+#[allow(dead_code)]
+impl WorldUser {
+    /// Its address as a value (an id, a compare): never read through.
+    #[inline(always)]
+    pub fn address(self) -> u32 {
+        self.0.as_ptr() as usize as u32
+    }
+
+    /// +0x118 (ptr<vostok::sound::sound_world>): its sound world (detach_voice 0x5CBC3, calculate_hdr_audio_frame 0x5CAA2)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn world(self) -> Option<SoundWorld> {
+        unsafe { self.0.byte_add(0x118).cast::<Option<SoundWorld>>().read_volatile() }
+    }
+
+    /// +0x118 (ptr<vostok::sound::sound_world>): its sound world (detach_voice 0x5CBC3, calculate_hdr_audio_frame 0x5CAA2)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn set_world(self, value: Option<SoundWorld>) {
+        unsafe { self.0.byte_add(0x118).cast::<Option<SoundWorld>>().write_volatile(value) }
+    }
+}
+
+/// A vostok::sound::new_sound_propagator (fields_026g.tsv): a pointer to one, never 0. Made only here: by a typed field,
+/// a function's typed result or a site's typed register (sites_026g.tsv `holds`).
+#[repr(transparent)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct NewSoundPropagator(NonNull<c_void>);
+
+#[allow(dead_code)]
+impl NewSoundPropagator {
+    /// Its address as a value (an id, a compare): never read through.
+    #[inline(always)]
+    pub fn address(self) -> u32 {
+        self.0.as_ptr() as usize as u32
+    }
+
+    /// +0x4 (u32): its sound voice, 0 while it has none (create_sound_voice's result stored at 0x5CAB0; detach_voice 0x5CBF2 clears it)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn voice(self) -> *mut u32 {
+        unsafe { self.0.byte_add(0x4).cast::<u32>().as_ptr() }
+    }
+
+    /// +0x8 (ptr<vostok::sound::sound_instance_proxy>): the proxy it plays for (the constructor 0x5CB10)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn proxy(self) -> Option<SoundInstanceProxy> {
+        unsafe { self.0.byte_add(0x8).cast::<Option<SoundInstanceProxy>>().read_volatile() }
+    }
+
+    /// +0x8 (ptr<vostok::sound::sound_instance_proxy>): the proxy it plays for (the constructor 0x5CB10)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn set_proxy(self, value: Option<SoundInstanceProxy>) {
+        unsafe { self.0.byte_add(0x8).cast::<Option<SoundInstanceProxy>>().write_volatile(value) }
+    }
+
+    /// +0xc (u32): its propagator emitter, passed to create_sound_voice (0x5CA99; vtable +8 its sound's options: +11h can_be_displaced, 0x5CACD)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn emitter(self) -> *mut u32 {
+        unsafe { self.0.byte_add(0xc).cast::<u32>().as_ptr() }
+    }
+
+    /// +0x14 (ptr<vostok::sound::new_sound_propagator>): the propagator whose gain it takes, if any (amplitude 0x5C1C0 follows the chain to the last)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn master(self) -> Option<NewSoundPropagator> {
+        unsafe { self.0.byte_add(0x14).cast::<Option<NewSoundPropagator>>().read_volatile() }
+    }
+
+    /// +0x14 (ptr<vostok::sound::new_sound_propagator>): the propagator whose gain it takes, if any (amplitude 0x5C1C0 follows the chain to the last)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn set_master(self, value: Option<NewSoundPropagator>) {
+        unsafe { self.0.byte_add(0x14).cast::<Option<NewSoundPropagator>>().write_volatile(value) }
+    }
+
+    /// +0x1c (u32): the ms the sound takes to reach the listener: audible from then (calculate_hdr_audio_frame 0x5C81D, 0x5C9BA, 0x5CA65)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn reach(self) -> *mut u32 {
+        unsafe { self.0.byte_add(0x1c).cast::<u32>().as_ptr() }
+    }
+
+    /// +0x24 (u32): the ms since it was emitted (the proxy's tick 0x5B526)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn elapsed(self) -> *mut u32 {
+        unsafe { self.0.byte_add(0x24).cast::<u32>().as_ptr() }
+    }
+
+    /// +0x44 (f32): its sample's amplitude at its playing offset this frame, 0.01 to 1 (0x5CD40, stored at 0x5C850)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn level(self) -> *mut f32 {
+        unsafe { self.0.byte_add(0x44).cast::<f32>().as_ptr() }
+    }
+
+    /// +0x48 (u32): ms, set to 2000 when the HDR cull takes its voice (0x5CAD9), counted down by the proxy's tick (0x5B529)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn hold(self) -> *mut u32 {
+        unsafe { self.0.byte_add(0x48).cast::<u32>().as_ptr() }
+    }
+
+    /// +0x4c (f32): its gain by distance this frame, 0 to 1 (calculate_hdr_audio_frame 0x5CA37); a voice is given above 0.01 (0x5CA87)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn gain(self) -> *mut f32 {
+        unsafe { self.0.byte_add(0x4c).cast::<f32>().as_ptr() }
+    }
+}
+
+/// A vostok::sound::hdr_frame (fields_026g.tsv): a pointer to one, never 0. Made only here: by a typed field,
+/// a function's typed result or a site's typed register (sites_026g.tsv `holds`).
+#[repr(transparent)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct HdrFrame(NonNull<c_void>);
+
+#[allow(dead_code)]
+impl HdrFrame {
+    /// Its address as a value (an id, a compare): never read through.
+    #[inline(always)]
+    pub fn address(self) -> u32 {
+        self.0.as_ptr() as usize as u32
+    }
+
+    /// +0xc (ptr<vostok::sound::propagator_list>): calculate_hdr_audio_frame's second argument ([ebp+0Ch], 0x5C9A4): the scene's propagators this tick, notify_listener2's vector
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn propagators(self) -> Option<PropagatorList> {
+        unsafe { self.0.byte_add(0xc).cast::<Option<PropagatorList>>().read_volatile() }
+    }
+
+    /// +0xc (ptr<vostok::sound::propagator_list>): calculate_hdr_audio_frame's second argument ([ebp+0Ch], 0x5C9A4): the scene's propagators this tick, notify_listener2's vector
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn set_propagators(self, value: Option<PropagatorList>) {
+        unsafe { self.0.byte_add(0xc).cast::<Option<PropagatorList>>().write_volatile(value) }
+    }
+}
+
+/// A vostok::sound::propagator_list (fields_026g.tsv): a pointer to one, never 0. Made only here: by a typed field,
+/// a function's typed result or a site's typed register (sites_026g.tsv `holds`).
+#[repr(transparent)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct PropagatorList(NonNull<c_void>);
+
+#[allow(dead_code)]
+impl PropagatorList {
+    /// Its address as a value (an id, a compare): never read through.
+    #[inline(always)]
+    pub fn address(self) -> u32 {
+        self.0.as_ptr() as usize as u32
+    }
+
+    /// +0x0 (ptr<vostok::sound::propagator_slot>): the first (0x5CA4E)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn begin(self) -> Option<PropagatorSlot> {
+        unsafe { self.0.byte_add(0x0).cast::<Option<PropagatorSlot>>().read_volatile() }
+    }
+
+    /// +0x0 (ptr<vostok::sound::propagator_slot>): the first (0x5CA4E)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn set_begin(self, value: Option<PropagatorSlot>) {
+        unsafe { self.0.byte_add(0x0).cast::<Option<PropagatorSlot>>().write_volatile(value) }
+    }
+
+    /// +0x4 (ptr<vostok::sound::propagator_slot>): past the last (0x5C7F8)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn end(self) -> Option<PropagatorSlot> {
+        unsafe { self.0.byte_add(0x4).cast::<Option<PropagatorSlot>>().read_volatile() }
+    }
+
+    /// +0x4 (ptr<vostok::sound::propagator_slot>): past the last (0x5C7F8)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn set_end(self, value: Option<PropagatorSlot>) {
+        unsafe { self.0.byte_add(0x4).cast::<Option<PropagatorSlot>>().write_volatile(value) }
+    }
+}
+
+/// A vostok::sound::propagator_slot (fields_026g.tsv): a pointer to one, never 0. Made only here: by a typed field,
+/// a function's typed result or a site's typed register (sites_026g.tsv `holds`).
+#[repr(transparent)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct PropagatorSlot(NonNull<c_void>);
+
+#[allow(dead_code)]
+impl PropagatorSlot {
+    /// Its address as a value (an id, a compare): never read through.
+    #[inline(always)]
+    pub fn address(self) -> u32 {
+        self.0.as_ptr() as usize as u32
+    }
+
+    /// +0x0 (ptr<vostok::sound::new_sound_propagator>): one of the scene's propagators (0x5CA60)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn propagator(self) -> Option<NewSoundPropagator> {
+        unsafe { self.0.byte_add(0x0).cast::<Option<NewSoundPropagator>>().read_volatile() }
+    }
+
+    /// +0x0 (ptr<vostok::sound::new_sound_propagator>): one of the scene's propagators (0x5CA60)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn set_propagator(self, value: Option<NewSoundPropagator>) {
+        unsafe { self.0.byte_add(0x0).cast::<Option<NewSoundPropagator>>().write_volatile(value) }
+    }
+
+    /// 0x4 bytes: a pointer
+    pub const SIZE: usize = 0x4;
+
+    /// The `index`th of an array of them that starts at this one.
+    ///
+    /// # Safety
+    /// The array has more than `index`.
+    #[inline(always)]
+    pub unsafe fn at(self, index: usize) -> Self {
+        Self(unsafe { self.0.byte_add(index * Self::SIZE) })
+    }
+
+    /// Which of an array that starts at `first` this one is (None before `first`, or between two).
+    #[inline(always)]
+    pub fn index_from(self, first: Self) -> Option<usize> {
+        let offset = (self.0.as_ptr() as usize).checked_sub(first.0.as_ptr() as usize)?;
+        (offset % Self::SIZE == 0).then_some(offset / Self::SIZE)
+    }
+}
+
+/// Room of ours for vostok::sound::propagator_slots (0x4 bytes, aligned to 4), zeroed: a local the game fills,
+/// or one we fill for it.
+#[repr(C, align(4))]
+pub struct PropagatorSlotStorage([u8; 0x4]);
+
+#[allow(dead_code)]
+impl PropagatorSlotStorage {
+    pub const fn zeroed() -> Self {
+        Self([0; 0x4])
+    }
+
+    /// The one this room holds (alive while the room is).
+    #[inline(always)]
+    pub fn handle(&mut self) -> PropagatorSlot {
+        PropagatorSlot(NonNull::from(self).cast())
+    }
+
+    /// The first of these rooms, an array of them (None when there is none).
+    #[inline(always)]
+    pub fn first(rooms: &mut [Self]) -> Option<PropagatorSlot> {
+        (!rooms.is_empty()).then(|| PropagatorSlot(NonNull::from(rooms).cast()))
+    }
+}
+
 /// A vostok::physics::bullet_physics_world (fields_026g.tsv): a pointer to one, never 0. Made only here: by a typed field,
 /// a function's typed result or a site's typed register (sites_026g.tsv `holds`).
 #[repr(transparent)]
@@ -11921,21 +12268,6 @@ pub struct LobbyCharacter(NonNull<c_void>);
 
 #[allow(dead_code)]
 impl LobbyCharacter {
-    /// Its address as a value (an id, a compare): never read through.
-    #[inline(always)]
-    pub fn address(self) -> u32 {
-        self.0.as_ptr() as usize as u32
-    }
-}
-
-/// A vostok::sound::world_user (fields_026g.tsv): a pointer to one, never 0. Made only here: by a typed field,
-/// a function's typed result or a site's typed register (sites_026g.tsv `holds`).
-#[repr(transparent)]
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub struct WorldUser(NonNull<c_void>);
-
-#[allow(dead_code)]
-impl WorldUser {
     /// Its address as a value (an id, a compare): never read through.
     #[inline(always)]
     pub fn address(self) -> u32 {
@@ -14243,6 +14575,30 @@ pub mod site {
         #[inline(always)]
         pub unsafe fn frame(machine: &impl Machine) -> Option<MedicalClockFrame> {
             NonNull::new(machine.site_esp() as usize as *mut c_void).map(MedicalClockFrame)
+        }
+    }
+
+    /// sound_scene.voice_made (0x5cab0): calculate_hdr_audio_frame after create_sound_voice for an audible propagator above the gain floor with no voice (mov [esi+4],eax; test eax,eax): the sound thread, ESI the propagator, EAX its new voice or 0 (the world's 64 all taken), EBP the frame
+    pub mod sound_scene_voice_made {
+        #[allow(unused_imports)]
+        use super::*;
+
+        /// ESI: a vostok::sound::new_sound_propagator (None for 0).
+        ///
+        /// # Safety
+        /// `machine` is at this site.
+        #[inline(always)]
+        pub unsafe fn propagator(machine: &impl Machine) -> Option<NewSoundPropagator> {
+            NonNull::new(machine.register(Register::Esi) as usize as *mut c_void).map(NewSoundPropagator)
+        }
+
+        /// EBP: a vostok::sound::hdr_frame (None for 0).
+        ///
+        /// # Safety
+        /// `machine` is at this site.
+        #[inline(always)]
+        pub unsafe fn frame(machine: &impl Machine) -> Option<HdrFrame> {
+            NonNull::new(machine.register(Register::Ebp) as usize as *mut c_void).map(HdrFrame)
         }
     }
 }

@@ -2300,3 +2300,5 @@ va	name	source	ret_cleanup	result
 0x0025a540	survarium::particle_game_effect_emitter_cook::translate_query	manual	4	void; preloads one independent particle resource per requested instance
 0x002e5d80	survarium::default_game_effect_time_calculator::calculate	thiscall	16	EAX: output interval/time/ended record
 0x00313640	survarium::artefact_base::active_effect_time_calculator::calculate	thiscall	16	EAX: output; time stays zero until artefact state is no longer active
+0x00059e70	vostok::sound::sound_world::create_sound_voice	manual	12	EAX
+0x0005cb80	vostok::sound::new_sound_propagator::detach_voice	manual	4	

@@ -134,6 +134,8 @@ global engine_di_queue_next_capture
 global engine_di_queue_release
 global engine_remove_affect
 global engine_effect_resource_emit
+global engine_create_sound_voice
+global engine_detach_voice
 engine_action_present equ 0x242460   ; 0x242460 survarium::player_input_handler::action_present: handler ESP+4, action ESP+8, state ESP+12; pops 12; AL; stdcall, called directly
 engine_create_file_a equ 0x870048   ; the IAT slot 0x870048 (an import, stdcall)
 engine_write_file equ 0x870108   ; the IAT slot 0x870108 (an import, stdcall)
@@ -170,6 +172,7 @@ engine_leave_critical_section equ 0x8700cc   ; the IAT slot 0x8700cc (an import,
 engine_di_capture_remove equ 0x5726f0   ; 0x5726f0 Scaleform::Render::DrawableImageContext::RemoveCaptureNotify: context ECX, queue ESP+4; pops 4; thiscall, called directly
 engine_di_queue_next_capture equ 0x5ee080   ; 0x5ee080 Scaleform::Render::DICommandQueue::OnNextCapture: queue ECX, notify ESP+4; pops 4; thiscall, called directly
 engine_di_queue_release equ 0x505cb0   ; 0x505cb0 Scaleform::RefCountImpl::Release: queue ECX; pops 0; thiscall, called directly
+engine_detach_voice equ 0x5cb80   ; 0x5cb80 vostok::sound::new_sound_propagator::detach_voice: propagator ESP+4; pops 4; stdcall, called directly
 
 engine_cfg_child:
     ; 0xf6b10 vostok::configs::binary_config_value::operator[]: table EAX, key EDI; pops 0; EAX
@@ -434,7 +437,7 @@ engine_increase_health:
 
     align 16, db 0xCC
 engine_artefact_effect:
-    ; 0x313350 (unnamed): artefact ESP+4, time ESP+8; pops 8
+    ; 0x313350 survarium::artefact_base::effect: artefact ESP+4, time ESP+8; pops 8
     push ebp
     push ebx
     push esi
@@ -1774,6 +1777,24 @@ engine_effect_resource_emit:
     mov esi, [esp + 20]   ; resource
     mov edi, [esp + 24]   ; out
     call 0x329050
+    pop edi
+    pop esi
+    pop ebx
+    pop ebp
+    ret
+
+    align 16, db 0xCC
+engine_create_sound_voice:
+    ; 0x59e70 vostok::sound::sound_world::create_sound_voice: world EAX, scene ESP+4, propagator ESP+8, emitter ESP+12; pops 12; EAX
+    push ebp
+    push ebx
+    push esi
+    push edi
+    push dword [esp + 32]   ; emitter -> 12
+    push dword [esp + 32]   ; propagator -> 8
+    push dword [esp + 32]   ; scene -> 4
+    mov eax, [esp + 32]   ; world
+    call 0x59e70
     pop edi
     pop esi
     pop ebx

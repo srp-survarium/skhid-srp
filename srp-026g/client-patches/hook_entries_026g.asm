@@ -3504,6 +3504,45 @@ scaleform_capture_on_queue_destroy_replay:
     db 0x56, 0x8b, 0xf1, 0x8b, 0x4e, 0x34
     jmp 0x5ed1e6
 
+; 0x5cab0 calculate_hdr_audio_frame after create_sound_voice for an audible propagator above the gain floor with no voice (mov [esi+4],eax; test eax,eax): the sound thread, ESI the propagator, EAX its new voice or 0 (the world's 64 all taken), EBP the frame: lohook -> sound_voices_on_voice_made
+global sound_voices_on_voice_made
+extern hook_sound_voices_on_voice_made
+sound_voices_on_voice_made:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_sound_voices_on_voice_made
+    mov edx, sound_voices_on_voice_made_replay
+    cmp eax, 0
+    je sound_voices_on_voice_made_go
+    mov edx, 0x5cab5
+    cmp eax, 1
+    je sound_voices_on_voice_made_go
+    ud2
+sound_voices_on_voice_made_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+sound_voices_on_voice_made_replay:
+    db 0x89, 0x46, 0x04, 0x85, 0xc0
+    jmp 0x5cab5
+
 ; 0x242196 the input builder's last action query (spot): call -> suicide_key_on_spot (wraps engine_action_present 0x242460)
 global suicide_key_on_spot
 suicide_key_on_spot:

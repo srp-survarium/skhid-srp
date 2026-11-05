@@ -41,7 +41,7 @@ unsafe extern "C" {
     pub fn engine_find_pool(pools: *mut c_void, name: *const *const u8) -> *mut c_void;
     /// 0x32a420 survarium::body_part::increase_health: pool ESI, time ESP+4, amount ESP+8; pops 8
     pub fn engine_increase_health(pool: *mut c_void, time: u32, amount: f32);
-    /// 0x313350 (unnamed): artefact ESP+4, time ESP+8; pops 8
+    /// 0x313350 survarium::artefact_base::effect: artefact ESP+4, time ESP+8; pops 8
     pub fn engine_artefact_effect(artefact: *mut c_void, time: u32);
     /// 0x2d5ae0 survarium::player_params_modifiers_container::apply_modifier: modifiers EAX, index ESI, value ESP+4, weight ESP+8; pops 8; XMM0
     pub fn engine_apply_modifier(modifiers: *const c_void, index: u32, value: f32, weight: f32) -> f32;
@@ -199,6 +199,8 @@ unsafe extern "C" {
     pub fn engine_remove_affect(pool: *mut c_void, time: u32, affect: u32);
     /// 0x329050 survarium::game_effect_resource::emit: resource ESI, out EDI; pops 0; EAX
     pub fn engine_effect_resource_emit(resource: *mut c_void, out: *mut c_void) -> *mut c_void;
+    /// 0x59e70 vostok::sound::sound_world::create_sound_voice: world EAX, scene ESP+4, propagator ESP+8, emitter ESP+12; pops 12; EAX
+    pub fn engine_create_sound_voice(world: *mut c_void, scene: *mut c_void, propagator: *mut c_void, emitter: *const c_void) -> *mut c_void;
 }
 
 #[allow(dead_code)]
@@ -207,6 +209,8 @@ unsafe extern "stdcall" {
     pub fn engine_action_present(handler: *mut c_void, action: u32, state: *mut u32) -> u8;
     /// 0x3222f0 survarium::bullet_manager::play_sound: manager ESP+4, sound ESP+8, position ESP+12; pops 12; stdcall, called directly
     pub fn engine_play_sound(manager: *mut c_void, sound: *const u32, position: *const f32);
+    /// 0x5cb80 vostok::sound::new_sound_propagator::detach_voice: propagator ESP+4; pops 4; stdcall, called directly
+    pub fn engine_detach_voice(propagator: *mut c_void);
 }
 
 #[allow(dead_code)]

@@ -1,0 +1,9 @@
+# Patch 96: a refused sound takes the voice of a much quieter one
+# (docs/notes/sound_voices.md). Only the decision: the site and the handler.
+name = "sound_voices"
+patch = 96
+
+# calculate_hdr_audio_frame after create_sound_voice (the sound thread)
+[[hook]]
+site = "sound_scene.voice_made"
+handler = "on_voice_made"
