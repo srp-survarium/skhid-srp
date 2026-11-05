@@ -208,7 +208,8 @@ impl Settings {
         let modes = match var("SRP_MATCH_MODES") {
             Some(value) => parse_modes(&value).unwrap_or_else(|| {
                 log::error!(
-                    "SRP_MATCH_MODES is `{value}`; it must list modes of 2 to 5. Using 2,3,4,5"
+                    "SRP_MATCH_MODES is `{value}`; it must list modes of 2 to 6 (6 Blackout). Using \
+                     2,3,4,5,6"
                 );
                 DEFAULT_MODES.to_vec()
             }),

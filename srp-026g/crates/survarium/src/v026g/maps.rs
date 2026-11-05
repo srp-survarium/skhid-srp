@@ -1,4 +1,4 @@
-//! The maps and game modes of 0.26g (`docs/notes/modes.filter(|_| rule_mode.has_batteries()),maps.md`,
+//! The maps and game modes of 0.26g (`docs/notes/modes_maps.md`,
 //! `static_info.md` §4).
 //!
 //! A 0.26g match names its map, weather and mode by one byte: an id of
@@ -113,14 +113,11 @@ impl GameMode {
     /// A config's mode: `None` for rules srp does not play; an error for a
     /// variant srp does not know or one on other rules than its own.
     pub fn of_config(rules: u8, variant: Option<&str>) -> Result<Option<Self>, String> {
-        let Some(rules) = RuleMode::of_config(rules) else {
-            return Ok(None);
-        };
         let Some(variant) = variant else {
-            return Ok(Some(rules.into()));
+            return Ok(RuleMode::of_config(rules).map(Self::from));
         };
         match VARIANTS.iter().find(|(name, _)| *name == variant) {
-            Some(&(_, mode)) if mode.rules() == rules => Ok(Some(mode)),
+            Some(&(_, mode)) if mode.rules().number() == rules => Ok(Some(mode)),
             Some(&(_, mode)) => Err(format!(
                 "`srp_variant` {variant} plays mode {}, not {rules}",
                 mode.rules()
@@ -588,10 +585,11 @@ mod tests {
     fn a_configs_mode_is_its_rules_or_a_variant_of_them() {
         assert_eq!(GameMode::of_config(4, None), Ok(Some(GameMode::TeamDeathmatch)));
         assert_eq!(GameMode::of_config(2, Some("blackout")), Ok(Some(GameMode::Blackout)));
-        // Rules srp does not play: no mode, whatever the variant.
+        // Rules srp does not play: no mode.
         assert_eq!(GameMode::of_config(0, None), Ok(None));
-        assert_eq!(GameMode::of_config(0, Some("blackout")), Ok(None));
-        // A variant of other rules, or one srp does not know: refused.
+        // A variant of other rules (played or not), or one srp does not know:
+        // refused.
+        assert!(GameMode::of_config(0, Some("blackout")).is_err());
         assert!(GameMode::of_config(4, Some("blackout")).is_err());
         assert!(GameMode::of_config(2, Some("dark")).is_err());
         for mode in GameMode::ALL {

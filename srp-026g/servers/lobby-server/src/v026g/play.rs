@@ -1091,10 +1091,23 @@ impl Core<'_> {
         let chosen = match (pvb, room_map) {
             (Some(choice), _) => choice.map_id,
             (None, Some(map_id)) => map_id,
-            (None, None) => match self.settings.maps.len() {
-                0 => maps::playable().next().map_or(0, |map| map.id),
-                count => self.settings.maps[self.rng.below(count as u32) as usize],
-            },
+            // Neither a room's nor against bots: a map of the pool drawn at
+            // random, never Blackout (a room's mode only, by its card).
+            (None, None) => {
+                let pool: Vec<u8> = self
+                    .settings
+                    .maps
+                    .iter()
+                    .copied()
+                    .filter(|&id| {
+                        maps::map_mode(id).is_some_and(|map| map.mode != maps::GameMode::Blackout)
+                    })
+                    .collect();
+                match pool.len() {
+                    0 => maps::playable().next().map_or(0, |map| map.id),
+                    count => pool[self.rng.below(count as u32) as usize],
+                }
+            }
         };
         let match_level = matchmaking::match_level(&levels);
         let compatible = self
