@@ -41,6 +41,10 @@ pub struct TeamPlanRule {
     pub comeback_left_s: f32,
     pub bring_home_left_s: f32,
     pub attack_gain: f32,
+    /// What a Sneak weighs in a comeback: 1, as usual (#1222's bench: with `attack_gain` on it too the extra attack time was
+    /// crouched Sneak, Sneak calm walking +48 % z +4.4, Raid +18 %, attack takes -11.6 % z -3.9, no more steals). A comeback raid
+    /// also runs its approach (`raid.rs`).
+    pub sneak_gain: f32,
 }
 
 impl Default for TeamPlanRule {
@@ -52,6 +56,7 @@ impl Default for TeamPlanRule {
             comeback_left_s: 540.0,
             bring_home_left_s: 90.0,
             attack_gain: 1.6,
+            sneak_gain: 1.0,
         }
     }
 }
@@ -61,7 +66,8 @@ impl TeamPlanRule {
         let ok = self.level_band >= 0.0
             && self.comeback_left_s > 0.0
             && self.bring_home_left_s >= 0.0
-            && self.attack_gain >= 1.0;
+            && self.attack_gain >= 1.0
+            && self.sneak_gain > 0.0;
         if ok { Ok(()) } else { Err("mods.team_plan".into()) }
     }
 }

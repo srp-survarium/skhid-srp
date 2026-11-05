@@ -246,7 +246,10 @@ pub fn step(state: &mut State, target: TargetRef, cx: &Ctx, _rng: &mut Rng) -> S
                 return Step::Continue(Intent::stay().crouched().looking(Look::use_box(at)));
             }
             // [A296 item 4, `behind_open.run_in`] A team behind runs the approach outside `sneak_m`.
-            let run_in = cx.tuning.mods.behind_open.is_some_and(|open| open.run_in && open.behind(cx.sig.score_gap));
+            let run_in = cx.tuning.mods.behind_open.is_some_and(|open| open.run_in && open.behind(cx.sig.score_gap))
+                || cx.tuning.mods.team_plan.is_some_and(|rule| {
+                    matches!(crate::v026g::bots::team::TeamPlan::of(cx.sig, &rule), crate::v026g::bots::team::TeamPlan::Comeback { .. })
+                });
             let pace = if d < num("sneak_m") {
                 Pace::Sneak
             } else if run_in {
