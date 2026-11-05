@@ -143,11 +143,19 @@ impl BehindHolds {
     }
 }
 
-#[derive(Clone, Copy, Debug, Default, PartialEq, Serialize, Deserialize)]
+#[derive(Clone, Copy, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(default, deny_unknown_fields)]
 pub struct TdmTuning {
     pub group: Option<GroupUp>,
+    /// ON (2026-11-05): 336 pairs vs the hunter stand-in, his deaths vs the ON team +0.125 a match (z ~ +2.5), the
+    /// no-group-feed guards level (#1269). `all_off.json` names it null.
     pub behind_holds: Option<BehindHolds>,
+}
+
+impl Default for TdmTuning {
+    fn default() -> Self {
+        Self { group: None, behind_holds: Some(BehindHolds::default()) }
+    }
 }
 
 impl TdmTuning {
@@ -184,6 +192,7 @@ mod tests {
         assert_eq!(rule.behind(60, 50), 0.0, "ahead");
         let bad = TdmTuning { behind_holds: Some(BehindHolds { cut_cut: 1.5, ..BehindHolds::default() }), ..Default::default() };
         assert!(bad.check().is_err());
-        assert!(TdmTuning::default().behind_holds.is_none(), "off by default");
+        assert!(TdmTuning::default().behind_holds.is_some(), "on by default");
+        assert!(Tuning::all_off().tdm.behind_holds.is_none(), "all_off names it off");
     }
 }
