@@ -1308,7 +1308,7 @@ fn a_lone_gun_sliding_on_the_ground_stops() {
 }
 
 /// A gun-stock hit (the weapon's melee/data: mass 0.01, 1000 m/s) by a
-/// shooter whose kit sums `knockback` (the Force Protein's 3).
+/// shooter whose kit sums `knockback` (the Force Protein's 15).
 fn gun_stock(direction: Vec3, point: Vec3, knockback: f32) -> crate::shot::Hit {
     let push = crate::shot::impulse(direction, 0.01, 1000.0);
     crate::shot::Hit {
@@ -1346,14 +1346,14 @@ fn thrown(hit: crate::shot::Hit, mut each: impl FnMut(&Ragdoll)) -> (f32, f32) {
 #[test]
 fn a_force_protein_gun_stock_kill_throws_the_body_as_far_as_the_played_build() {
     // the played build (its Knockback 4: the push, the caps and the body's
-    // share x4, thrown up at half its level knock): up 0.19 m, on 2.16 m
+    // share x4, thrown up at half its level knock; 16 on the body): up 0.19 m, on 2.16 m
     // (front) and 2.59 (side); a plain gun stock 0.68 and 0.98, not up
     let scenes = [
         (Vec3::new(0.0, 0.0, -1.0), Vec3::new(0.0, 1.3, 0.12)),
         (Vec3::new(1.0, 0.0, 0.0), Vec3::new(-0.15, 1.3, 0.0)),
     ];
     for (direction, point) in scenes {
-        let (rise, on) = thrown(gun_stock(direction, point, 3.0), |_| {});
+        let (rise, on) = thrown(gun_stock(direction, point, 15.0), |_| {});
         assert!(
             rise > 0.15 && (2.0..2.8).contains(&on),
             "thrown: up {rise:.2}, on {on:.2}"
@@ -1372,7 +1372,8 @@ fn no_bullet_and_no_plain_gun_stock_is_a_heavy_hit() {
     for k in [0.0, -1.0, f32::NAN] {
         assert_eq!(crate::shot::knocked_back(push, k), push);
     }
-    assert!(crate::shot::knocked_back(push, 3.0).length() >= tuning::HEAVY_HIT);
+    assert_eq!(crate::shot::knocked_back(push, 15.0), push * 16.0);
+    assert!((push * 16.0).length() >= tuning::HEAVY_HIT);
 }
 
 #[test]
@@ -1390,7 +1391,7 @@ fn render_knockback() {
         ("side", Vec3::new(1.0, 0.0, 0.0), Vec3::new(-0.15, 1.3, 0.0)),
     ];
     for (name, direction, point) in scenes {
-        for k in [0.0, 3.0] {
+        for k in [0.0, 15.0] {
             let mut frames = std::vec::Vec::new();
             thrown(gun_stock(direction, point, k), |r| {
                 let mut caps = std::vec::Vec::new();

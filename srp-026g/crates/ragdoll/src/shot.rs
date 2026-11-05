@@ -174,17 +174,15 @@ pub fn impulse(direction: Vec3, mass: f32, speed: f32) -> Vec3 {
 }
 
 /// A gun-stock hit's push by a shooter whose kit sums `knockback` of
-/// MELEE_KNOCKBACK (the Anomalous Force Protein's +3,
-/// docs/notes/force-protein-knockback.md): (1 + it)^2 times `push`, 1 + it
-/// on the push and again on the share of the whole body it moves (the build
-/// the owner played); +3 makes 16, a heavy hit ([`tuning::HEAVY_HIT`]: the
-/// body thrown). `knockback` counts at most 9, nothing when not above 0.
+/// MELEE_KNOCKBACK (the Anomalous Force Protein's +15,
+/// docs/notes/force-protein-knockback.md): 1 + it times `push`; +15 makes
+/// 16, a heavy hit ([`tuning::HEAVY_HIT`]: the body thrown). `knockback`
+/// counts at most 99, nothing when not above 0.
 pub fn knocked_back(push: Vec3, knockback: f32) -> Vec3 {
     if knockback.is_nan() || knockback <= 0.0 {
         return push;
     }
-    let k = 1.0 + min(knockback, 9.0);
-    push * (k * k)
+    push * (1.0 + min(knockback, 99.0))
 }
 
 /// A bullet that hit a living player: where, and its push (N s).

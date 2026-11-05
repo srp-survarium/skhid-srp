@@ -413,7 +413,7 @@ fn seen(
 
 /// A living hit as its death takes it: a gun-stock hit is knocked back by
 /// its shooter's kit (MELEE_KNOCKBACK: the Anomalous Force Protein in a
-/// pocket, its built-in modification 1330, +3); every other hit as it came.
+/// pocket, its built-in modification 1330, +15); every other hit as it came.
 /// Every client knows every kit, so each draws the same.
 fn pushed(living: &Living, client: &NetworkClient<'_>) -> Hit {
     let Living { hit, round, .. } = *living;

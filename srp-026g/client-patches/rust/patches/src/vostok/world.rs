@@ -243,8 +243,8 @@ impl ModifierIndex {
     /// `stamina_boost_interval` (29): no 0.26g code reads it (no
     /// apply_modifier or apply_modifiers call names it) and nothing sets it
     /// but skill 205's 0; additive (0x927E08's list). srp's: the Force
-    /// Protein's built-in modification 1330 gives 3: its carrier's
-    /// gun-stock kills push the ragdoll (1 + 3)^2 times (shot::knocked_back).
+    /// Protein's built-in modification 1330 gives 15: its carrier's
+    /// gun-stock kills push the ragdoll 1 + 15 times (shot::knocked_back).
     pub const MELEE_KNOCKBACK: ModifierIndex = ModifierIndex(29);
 }
 
