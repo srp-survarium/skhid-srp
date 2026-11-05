@@ -797,8 +797,6 @@ static void AD_STDCALL ec_critical_error(void *self, ad_hresult error)
 }
 
 static const struct xa_engine_callback_vtbl ad_engine_callback_vtbl = { ec_pass, ec_pass, ec_critical_error };
-static struct ad_engine_callback ad_engine_callbacks[2] = { { &ad_engine_callback_vtbl },
-                                                            { &ad_engine_callback_vtbl } };
 
 static struct { const struct mm_client_vtbl *vtbl; } ad_client;
 
@@ -1102,6 +1100,7 @@ ad_hresult audio_device_create(void **out, ad_u32 flags)
     engine->create_flags = flags;
     engine->run = AD_RUNNING;
     engine->binding.kind = AD_NO_MASTER;
+    ad_engine_callbacks[0].vtbl = ad_engine_callbacks[1].vtbl = &ad_engine_callback_vtbl;   /* no .data */
     if (AD_FAILED(engine_methods(real)->register_for_callbacks(real, &ad_engine_callbacks[ad_current_callback])))
         ad_log("the engine callback not registered: a lost device is not seen", 0);
     ad_watch_devices();
@@ -1226,20 +1225,22 @@ static void ad_make_again(struct ad_engine *engine, struct ad_voice *voice)
  * changed (the old graph kept, the rebuild tried again later). Then the old
  * graph goes (the sources, the submixes up their stages, the master, the
  * engine) and every voice is made again on the new one, the submixes down
- * their stages (a voice after the ones it sends to), then the sources. */
-static int ad_rebuild(struct ad_engine *engine)
+ * their stages (a voice after the ones it sends to), then the sources.
+ * `loud`: the first try after the device went says why it failed; the
+ * retries (every AD_RETRY_SECONDS while there is none) do not. */
+static int ad_rebuild(struct ad_engine *engine, int loud)
 {
     void *fresh = 0;
     ad_hresult hr = ad_xaudio2_create(&fresh, engine->create_flags);
     if (AD_FAILED(hr) || !fresh) {
-        ad_log("rebuild: no new engine", (ad_u32)hr);
+        if (loud) ad_log("rebuild: no new engine", (ad_u32)hr);
         return 0;
     }
     const struct xa_engine_vtbl *e = engine_methods(fresh);
     ad_u32 index;
     ad_u16 id[256];
     if (!ad_default_device(fresh, &index, id)) {
-        ad_log("rebuild: no audio device", 0);
+        if (loud) ad_log("rebuild: no audio device (tried again every 2 s, quietly)", 0);
         e->release(fresh);
         return 0;
     }
@@ -1248,7 +1249,7 @@ static int ad_rebuild(struct ad_engine *engine)
     hr = e->create_mastering_voice(fresh, &fresh_master, master->as.master.channels, master->as.master.rate,
                                    master->as.master.flags, index, 0);
     if (AD_FAILED(hr)) {
-        ad_log("rebuild: no mastering voice on the default device", (ad_u32)hr);
+        if (loud) ad_log("rebuild: no mastering voice on the default device", (ad_u32)hr);
         e->release(fresh);
         return 0;
     }
@@ -1333,7 +1334,7 @@ static void ad_step(struct ad_engine *engine, ad_u32 events, ad_u64 now)
         if (!events && now < b->retry_at) return;
         break;
     }
-    if (!ad_rebuild(engine)) {
+    if (!ad_rebuild(engine, b->kind == AD_BOUND)) {
         b->kind = AD_LOST;
         b->retry_at = now + AD_RETRY_SECONDS * ad_frequency();
     }
