@@ -701,6 +701,9 @@ fn a_squad_member_keeps_near_its_leader_and_holds_by_him() {
     let mut c = vec![hold(Vec3::new(55.0, 0.0, 10.0)), hold(Vec3::new(10.0, 0.0, 80.0))];
     squad_holds(&s.cx(0), &mut c);
     assert!((c[0].score.get() - 0.6).abs() < 1e-5 && (c[1].score.get() - 0.2).abs() < 1e-5, "{:?}", c.iter().map(|c| c.score).collect::<Vec<_>>());
+    s.team.losses.push(crate::v026g::bots::know::Loss { at: Vec3::new(52.0, 0.0, 10.0), time: s.view.clock, spawner: None });
+    assert_eq!(squad_return(&s.cx(0)), None, "not onto a fresh death by the leader");
+    s.team.losses.clear();
     s.view.places[0].feet = Vec3::new(40.0, 0.0, 10.0);
     assert_eq!(squad_return(&s.cx(0)), None, "within 20 m");
     s.view.places[0].feet = Vec3::new(10.0, 0.0, 10.0);

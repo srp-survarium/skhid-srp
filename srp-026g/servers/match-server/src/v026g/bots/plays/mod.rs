@@ -1501,6 +1501,13 @@ fn squad_return(cx: &Ctx) -> Option<Vec3> {
     if leader.feet.distance_xz(cx.me.feet) <= rule.radius_m.get() {
         return None;
     }
+    // Not into the leader's fight, nor onto a fresh death by him: the squad's cover answers a fight with its spacing (S3).
+    let fresh_ms = (rule.dead_s.get() * 1000.0) as u32;
+    if cx.team.fighting.iter().any(|f| f.mate == leader.place)
+        || cx.team.losses.iter().any(|l| l.time <= cx.now && cx.now - l.time <= fresh_ms && l.at.distance_xz(leader.feet) <= rule.dead_m.get())
+    {
+        return None;
+    }
     super::group::count(super::group::Count::SquadReturn);
     Some(super::squad::beside(leader.feet, cx.me.feet, rule.close_m.get()))
 }

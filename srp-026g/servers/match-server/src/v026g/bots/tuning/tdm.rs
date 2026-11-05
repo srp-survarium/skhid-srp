@@ -157,11 +157,23 @@ pub struct Squad {
     /// [S2] A member's hold candidates near its leader, and far from him, times these. GUESS.
     pub with_anchor: f32,
     pub away: f32,
+    /// No walk back to a leader in a fight, or standing within `dead_m` of a teammate's death in the last `dead_s` s (the owner's
+    /// "no group feed"): the first bench (240 pairs vs the hunter) had group-fed deaths +14 % (949 vs 832, z +2.24), the walk-back
+    /// heading into the leader's fight; a fight is answered by the squad's spaced cover (S3) instead.
+    pub dead_m: Metres,
+    pub dead_s: Positive,
 }
 
 impl Default for Squad {
     fn default() -> Self {
-        Self { radius_m: Metres::of(20.0), close_m: Metres::of(6.0), with_anchor: 1.5, away: 0.5 }
+        Self {
+            radius_m: Metres::of(20.0),
+            close_m: Metres::of(6.0),
+            with_anchor: 1.5,
+            away: 0.5,
+            dead_m: Metres::of(8.0),
+            dead_s: Positive::of(20.0),
+        }
     }
 }
 
