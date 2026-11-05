@@ -10,6 +10,8 @@
 //! What is LIKELY rather than read: the via-ray wall normal (0x89B80, taken as the face's own normal made horizontal), the
 //! down sweep's ray re-look of a steep by-slope face (0x84810, the face's normal kept), and the stand-up and slide sweeps
 //! (0x86BF0, 0x88CB0, read in outline: capsule sweeps).
+// The exe's comparisons are ported as written: `!(a > b)` and `a > b` differ on NaN, as `comiss` branches do.
+#![allow(clippy::neg_cmp_op_on_partial_ord)]
 use super::{Capsule, Collision, Contact, Shape};
 use crate::WalkerBehaviour;
 use crate::math::Vec3;
@@ -43,7 +45,8 @@ pub struct Settings {
 }
 
 impl Settings {
-    /// The live game's (`startup.cfg` in `resources.db`, extracted 2026-11-05).
+    /// The live game's (`startup.cfg` in `resources.db`, extracted 2026-11-05): the file's numbers as written.
+    #[allow(clippy::approx_constant)]
     pub const LIVE: Self = Self {
         step_height: 0.80,
         max_slope_cos: 0.57358,
