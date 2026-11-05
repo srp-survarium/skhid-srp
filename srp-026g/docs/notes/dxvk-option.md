@@ -7,20 +7,57 @@ The owner (2026-11-05): let Windows players try DXVK; off by default.
 - **Where:** Settings, Graphics, left column, right under Monitor: a "Renderer" list built as
   Monitor's (its label on its left, the same size), "DirectX 11" (the default) or "Vulkan/DXVK"
   (`st_srp_renderer_option`, `_dx11`, `_dxvk`, ten languages; "Vulkan (DXVK)" does not fit Monitor's
-  field). The rows under it move down one of Monitor's steps and the hint's room; the Optimal and Default buttons go
-  side by side in their panel (`flash/main_menu/src/SrpRendererChoice.as`, `SrpVideoTab.as` with the
-  FOV slider).
+  field), and the "Vulkan options" row under it (below). The rows under them move down two of
+  Monitor's steps and the hint's room; the preset panel goes, and its Optimal and Default buttons
+  go side by side into the window's bottom bar, left of Apply (`flash/main_menu/src/SrpRendererChoice.as`,
+  `SrpVulkanOptions.as`, `SrpVideoTab.as` with the FOV slider).
 - **Restart hint:** the Language choice's "Applies after restart." (`st_srp_language_restart`, its
-  style) under the list at its label's left edge, while the saved choice is not the renderer this
-  process runs (the exe's answer says it: DXVK loaded at the start or not). Its room is kept
-  whether it shows or not: the rows under the list are one step and the note's room lower, so
-  nothing moves when it appears; both lists' open popups lie over it.
+  style) under the Vulkan options' row at the labels' left edge, while a saved value (the choice
+  or a Vulkan option) is not what this process runs (the exe's answers say it: DXVK loaded at the
+  start or not, the options DXVK was given). Its room is kept whether it shows or not, so nothing
+  moves when it appears; the lists' open popups lie over it.
 - **DirectX 11 by default.** Apply saves it as `srp_dxvk on|off` (on: Vulkan) in
   `Documents\survarium\user.cfg`, as the HUD crosshair list keeps its Hidden choice (exe patch 83's
   saved bools, `hide-hit-markers-scores.md`); Cancel puts the saved choice back.
 - **At the next start:** the game's Direct3D DLLs (d3d9, dxgi, d3d11) are delayed imports, so a
   module of the same name loaded first serves them. Nothing changes in a running game.
 - **Linux:** nothing changes; `play_skhid.sh` installs DXVK into the Wine prefix as before.
+
+## Vulkan options
+
+The owner (2026-11-05): all five, clearly integrated; (2026-11-06) one row that opens a panel, the
+window keeping its size.
+
+- **Where:** a "Vulkan options" row right under the Renderer list, built as it is (label, a box
+  "Open"); the box opens a panel over the column the way a list's popup opens (black, a thin
+  border), holding the five, one line each. A press outside it or Esc closes it (Esc closes the
+  window only when no panel is open). The row is greyed (not hidden) while the Renderer list shows
+  DirectX 11, following the list's pick before Apply; picking DirectX 11 closes an open panel.
+- **The five** (each kept in user.cfg, `st_srp_vulkan_*` texts in ten languages):
+  - Frame rate limit: Off, 60, 120, 144, 165, 240 (`srp_dxvk_frame_limit 0|60|...`) ->
+    `dxvk.maxFrameRate = <n>`.
+  - Performance overlay: Off, FPS, FPS + graph, Full (`srp_dxvk_overlay off|fps|frametimes|full`) ->
+    `dxvk.hud = fps`, `fps,frametimes`, `fps,frametimes,gpuload,compiler,memory`.
+  - Reduce input lag, off by default (`srp_dxvk_low_latency`) -> `dxvk.latencySleep = True`.
+  - Tear-free with vsync off, off by default (`srp_dxvk_tear_free`) -> `dxvk.tearFree = True`.
+  - Prefer the dedicated GPU, on by default: no line in user.cfg is on (`srp_dxvk_dedicated_gpu`) ->
+    `dxvk.hideIntegratedGraphics = True`. DXVK 3.1.1 hides the integrated GPUs only when it finds a
+    dedicated one too (`dxvk_instance.cpp`: `numDGPU > 0 && numIGPU > 0`), so a PC with an
+    integrated GPU alone keeps it; nothing to check on our side.
+  - An option off is DXVK's default, not named. The game's own anisotropic filtering, FXAA and
+    vsync settings stay the game's.
+- **Settings:** the five and the Renderer list are one change of the tab: a change is pending
+  until Apply (each changed option saved, user.cfg at once), Cancel puts the saved ones back.
+- **At the next start, only with Vulkan/DXVK** (Windows and Linux alike): patch 83's start reads
+  them with the Renderer from user.cfg once (`Choice::Vulkan(VulkanOptions)`: an unknown word is the
+  list's first choice, a checkbox's its default), and the start that loads DXVK sets the process's
+  `DXVK_CONFIG` from them (SetEnvironmentVariableA, the exe's import) right before DXVK's DLLs load.
+  DXVK reads it with GetEnvironmentVariableW, the same Win32 environment, when the game makes its
+  first device; a value of 260 characters or more reads as none (all five: 158). The variable is
+  set (empty with every option off) whatever the player's own environment has; a `dxvk.conf` in
+  `binaries\x86` and `DXVK_HUD` still add to it, as DXVK reads them.
+- `srp_patches.log` says what was given: `dxvk: DXVK_CONFIG "<value>"`. Nothing changes in a running
+  game; DirectX 11 runs ignore the five.
 
 ## The files
 
@@ -44,8 +81,9 @@ The owner (2026-11-05): let Windows players try DXVK; off by default.
   - DirectX 11 picked, or a file of `dxvk\` missing: Windows' own Direct3D; a marker left goes.
   - Vulkan/DXVK picked, all five there, no marker: `dxvk.pending` written first, then the Vulkan
     look: vulkan-1.dll loaded, an instance made, the devices' `apiVersion` read (the CPU's not
-    counted), the instance destroyed, the DLL let go. A device of 1.4 or later: DXVK's DLLs loaded
-    by their full paths, dxgi, d3d11, d3d10core, d3d9, d3d8 (each one's imports by name are of
+    counted), the instance destroyed, the DLL let go. A device of 1.4 or later: `DXVK_CONFIG` set
+    from the Vulkan options (above), then DXVK's DLLs loaded by their full paths, dxgi, d3d11,
+    d3d10core, d3d9, d3d8 (each one's imports by name are of
     those before it), never let go; one that fails stops the loads, logged, and the marker covers
     a crash. As each loads, the game's delayed import of its name (dxgi, d3d11, d3d9) is bound to
     it: its module slot (`survarium::image` `dxgi_module`, `d3d11_module`, `d3d9_module`) holds
@@ -57,7 +95,8 @@ The owner (2026-11-05): let Windows players try DXVK; off by default.
     is the file's) `srp_dxvk` off and user.cfg saved: the list shows DirectX 11; picking Vulkan
     again tries once more.
   - The login screen (`login_menu.activated`) deletes the marker in every case.
-- Every outcome but plain DirectX writes one `dxvk:` line in `srp_patches.log`.
+- Every outcome but plain DirectX writes its `dxvk:` lines in `srp_patches.log` (a start with DXVK
+  the `DXVK_CONFIG` it gave, then the loads).
 - **Why the imports are bound, not left to the name** (the first Windows report, 2026-11-05, rev50,
   RTX 5070 Ti, Windows 10 19045): the Vulkan look itself loads Windows' `System32\dxgi.dll`
   (the Khronos loader sorts its devices through DXGI; the minidump lists it right before
@@ -100,4 +139,8 @@ The owner (2026-11-05): let Windows players try DXVK; off by default.
   VirusTotal before the release. DXVK's release has no signature: its DLLs are not
   Authenticode-signed and it ships no checksum file; GitHub's asset digest (sha256) is the one
   pinned here.
+- The Vulkan options: DXVK 3.1.1's taking of `DXVK_CONFIG` set in-process was checked under Wine
+  11.8 with `../../scripts/dxvk-loader/run.sh <x32> <work> "<value>"` (all five set: DXVK's log has
+  `Found config env: ...`, then each of them in `Effective configuration`), not with the game
+  itself; the panel in Ruffle only (Scaleform's presses and Esc are the game's to show).
 - Not checked on Windows; not played.

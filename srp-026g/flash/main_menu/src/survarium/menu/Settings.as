@@ -96,7 +96,8 @@ package survarium.menu
       protected var _crosshair:SrpCrosshairChoice;
       
       // The Graphics tab's Renderer list (patch 83's `srp_dxvk`, which the game reads at its next
-      // start: docs/notes/dxvk-option.md), under Monitor (SrpVideoTab). A pick is a change of the tab.
+      // start: docs/notes/dxvk-option.md) and its Vulkan options' row, under Monitor (SrpVideoTab). A
+      // pick or an option changed is a change of the tab.
       protected var _renderer:SrpRendererChoice;
       
       // The HUD group's own texts (setHudTexts); null until the exe answers.
@@ -265,9 +266,9 @@ package survarium.menu
             this.crosshairChanged(null);
             return;
          }
-         if(values.length > 0 && values[0] == SrpRendererChoice.NAME)
+         if(values.length > 0 && SrpRendererChoice.named(values[0]))
          {
-            this._renderer.answer(values.slice(1));
+            this._renderer.answer(values);
             this.rendererChanged(null);
             return;
          }
@@ -289,14 +290,15 @@ package survarium.menu
       }
       
       // The HUD group's own texts (root.srp_hud_texts): the heading, "Hide quests", the crosshair
-      // list's three choices, "Static minimap"; then the Renderer list's two choices and its note.
+      // list's three choices, "Static minimap"; then the Renderer list's two choices, its note, and
+      // the Vulkan options' row's label and box.
       public function setHudTexts(values:Array) : void
       {
-         if(values.length >= 9)
+         if(values.length >= 11)
          {
             _hudTexts = values;
             this.applyHudTexts();
-            this._renderer.texts(values[6],values[7],values[8]);
+            this._renderer.texts(values[6],values[7],values[8],values[9],values[10]);
          }
       }
       
@@ -344,6 +346,7 @@ package survarium.menu
       public function hide() : void
       {
          var messageData:Object;
+         this._renderer.close();
          if(this.btn_accept.enabled)
          {
             messageData = {
@@ -622,7 +625,7 @@ package survarium.menu
          this._mouse.slider.addEventListener(IndexEvent.INDEX_CHANGE,this.mouseChanged);
          this._renderer = new SrpRendererChoice(this.settings_content);
          this._changed[this._renderer.menu] = 0;
-         this._renderer.menu.addEventListener(ListEvent.INDEX_CHANGE,this.rendererChanged);
+         this._renderer.listen(this.rendererChanged);
          this._language = new SrpLanguage(this.settings_content,this.settings_content.s_friends);
          this._changed[this._language.menu] = 0;
          this._language.menu.addEventListener(ListEvent.INDEX_CHANGE,this.languageChanged);
@@ -824,7 +827,13 @@ package survarium.menu
          this.listChanged(this._language.menu,this._language.pending);
       }
       
-      // A Renderer pick, the same way.
+      // Esc: the Vulkan options' panel closed, when it is open (MainMenu closes the window otherwise).
+      public function closePanel() : Boolean
+      {
+         return this._renderer.close();
+      }
+      
+      // A Renderer pick or a Vulkan option changed, the same way.
       protected function rendererChanged(event:Event) : void
       {
          this.listChanged(this._renderer.menu,this._renderer.pending);
@@ -863,10 +872,11 @@ package survarium.menu
          var c:MovieClip = this.settings_content;
          if(c.currentFrame != 1)
          {
-            // the other tabs keep their bottom panel (the timeline may keep one instance across frames)
+            // the other tabs keep their bottom panel (the timeline may keep one instance across frames),
+            // but Graphics, whose preset buttons SrpVideoTab moves into the window's bar
             if(c.bottomContainer != null)
             {
-               c.bottomContainer.visible = true;
+               c.bottomContainer.visible = c.currentFrame != SrpVideoTab.VIDEO_FRAME;
             }
             return;
          }

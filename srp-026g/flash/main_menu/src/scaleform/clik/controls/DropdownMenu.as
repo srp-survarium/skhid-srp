@@ -2,12 +2,14 @@ package scaleform.clik.controls
 {
    import flash.display.DisplayObject;
    import flash.display.MovieClip;
+   import flash.display.Sprite;
    import flash.events.Event;
    import flash.events.MouseEvent;
    import flash.utils.getDefinitionByName;
    import scaleform.clik.constants.InputValue;
    import scaleform.clik.constants.InvalidationType;
    import scaleform.clik.constants.NavigationCode;
+   import scaleform.clik.core.UIComponent;
    import scaleform.clik.data.DataProvider;
    import scaleform.clik.events.InputEvent;
    import scaleform.clik.events.ListEvent;
@@ -64,7 +66,12 @@ package scaleform.clik.controls
       protected var _labelFunction:Function;
       
       protected var _popup:MovieClip;
-      
+
+      // srp: a panel the box opens in place of its list (the Graphics tab's Vulkan options,
+      // SrpVulkanOptions), as a popup under the box; a press outside it (and outside a list of
+      // its own while that is open) or Esc closes it.
+      public var panel:Sprite = null;
+
       private var _dropdownRef:MovieClip = null;
       
       public function DropdownMenu()
@@ -304,7 +311,8 @@ package scaleform.clik.controls
          switch(details.navEquivalent)
          {
             case NavigationCode.ESCAPE:
-               if(this.selected)
+               // a panel: MainMenu's Esc closes it (and not the window with it)
+               if(this.selected && this.panel == null)
                {
                   if(keyPress)
                   {
@@ -376,17 +384,35 @@ package scaleform.clik.controls
          {
             return;
          }
-         if(this._dropdownRef.contains(event.target as DisplayObject))
+         if(this.panel != null ? this.inPanel(event.target as DisplayObject) : this._dropdownRef.contains(event.target as DisplayObject))
          {
             return;
          }
          this.close();
       }
-      
+
+      // The panel, or the open list of a dropdown of the panel (shown beside it, a popup too).
+      protected function inPanel(target:DisplayObject) : Boolean
+      {
+         for(var at:DisplayObject = target; at != null; at = at.parent)
+         {
+            if(at == this.panel || at is UIComponent && UIComponent(at).focusTarget != null && this.panel.contains(UIComponent(at).focusTarget))
+            {
+               return true;
+            }
+         }
+         return false;
+      }
+
       protected function showDropdown() : void
       {
          var menu:MovieClip;
          var classRef:Class;
+         if(this.panel != null)
+         {
+            PopUpManager.show(this.panel,x + this.menuOffset.left,y + height + this.menuOffset.top,parent);
+            return;
+         }
          if(this.dropdown == null)
          {
             return;
@@ -439,6 +465,10 @@ package scaleform.clik.controls
       
       protected function hideDropdown() : void
       {
+         if(this.panel != null && this.panel.parent != null)
+         {
+            this.panel.parent.removeChild(this.panel);
+         }
          if(this._dropdownRef)
          {
             this._dropdownRef.parent.removeChild(this._dropdownRef);

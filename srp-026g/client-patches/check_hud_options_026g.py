@@ -86,13 +86,13 @@ RUNNING = {"srp_dxvk", "srp_dxvk_low_latency", "srp_dxvk_tear_free", "srp_dxvk_d
 LISTS = {"srp_dxvk_frame_limit": ("Frame rate limit", ("0", "60", "120", "144", "165", "240"),
                                   ("Off", "60", "120", "144", "165", "240")),
          "srp_dxvk_overlay": ("Performance overlay", ("off", "fps", "frametimes", "full"),
-                              ("Off", "FPS", "FPS and frame times", "Full"))}
+                              ("Off", "FPS", "FPS + graph", "Full"))}
 # the group's own texts, in root.srp_hud_texts' order
 TEXTS = {"st_srp_options_hud": "HUD:", "st_srp_hide_quests_option": "Hide quests", "st_srp_crosshair_dynamic": "Dynamic crosshair",
          "st_srp_crosshair_static": "Static crosshair", "st_srp_crosshair_hidden": "Hidden crosshair",
          "st_srp_static_minimap_option": "Static minimap", "st_srp_renderer_dx11": "DirectX 11",
          "st_srp_renderer_dxvk": "Vulkan/DXVK", "st_srp_language_restart": "Applies after restart.",
-         "st_srp_vulkan_options": "Vulkan options"}
+         "st_srp_vulkan_options": "Vulkan options", "st_srp_vulkan_options_open": "Open"}
 language.ENGLISH.update({key: text.encode() for key, text in TEXTS.items()})
 language.ENGLISH.update({"st_srp_hide_hit_markers_option": b"Hide hit markers", "st_srp_hide_scores_option": b"Hide player scores",
                          "st_srp_map_names_option": b"Names on map",
@@ -101,7 +101,7 @@ language.ENGLISH.update({"st_srp_hide_hit_markers_option": b"Hide hit markers", 
                          "st_srp_vulkan_dedicated_gpu": b"Prefer the dedicated GPU",
                          "st_srp_vulkan_frame_limit": b"Frame rate limit", "st_srp_vulkan_overlay": b"Performance overlay",
                          "st_srp_vulkan_off": b"Off", "st_srp_vulkan_overlay_fps": b"FPS",
-                         "st_srp_vulkan_overlay_frametimes": b"FPS and frame times", "st_srp_vulkan_overlay_full": b"Full"})
+                         "st_srp_vulkan_overlay_frametimes": b"FPS + graph", "st_srp_vulkan_overlay_full": b"Full"})
 OTHER_HUD = 0x20076800                  # another hud movie (a new game world's)
 # a match's options and the message they are read from (check_blackout_026g.py's OPTIONS and WORK
 # lie in check_language_026g.py's DATA: these are their own)
@@ -437,7 +437,7 @@ def main():
     invokes, count = ours.callback("srp_hud_texts")
     expect(invokes == [(language.MOVIE, "root.srp_hud_texts", tuple(TEXTS.values()))] and count == 0 and state() == before,
            "srp_hud_texts: the group's texts (heading, Hide quests, the crosshair list's three choices, Static minimap) "
-           "and the Renderer list's two, "
+           "and the Renderer list's two, its note, the Vulkan options' row's label and box, "
            "nothing set or saved")
     stock_invokes, _ = stock.callback("srp_hud_texts")
     expect(stock_invokes == [], "the original ignores srp_hud_texts")

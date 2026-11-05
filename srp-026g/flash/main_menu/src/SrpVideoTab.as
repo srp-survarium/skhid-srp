@@ -2,40 +2,46 @@ package
 {
     import flash.display.DisplayObject;
     import flash.display.MovieClip;
+    import flash.geom.Rectangle;
     import flash.text.TextField;
     import survarium.menu.Settings;
 
-    // srp's rows of the Graphics tab's left column: the FOV slider under gamma
-    // and the Renderer list under Monitor.
+    // srp's rows of the Graphics tab's left column: the FOV slider under gamma,
+    // and the Renderer list and its Vulkan options' row under Monitor.
     //
     // The native video options send a slider for index 7 (Settings maps it to
     // settings_content._slider_fov), but the stock timeline never places one.
     // create_content calls apply first, so the slider exists when the options
     // are bound (label, range and value come from the native option), and
-    // finish last, after the label is set. The Renderer list is Settings'
-    // (SrpRendererChoice); finish places it.
+    // finish last, after the label is set. The Renderer list and the Vulkan
+    // options are Settings' (SrpRendererChoice); finish places them.
     //
-    // To make room, the rows under Monitor move down one of its steps and the
-    // Renderer note's room (kept whether it shows or not: the rows never move
-    // with it), and the preset panel's top moves down by that and the slider's
-    // row; its two buttons go side by side in it.
+    // To make room, the rows under Monitor move down two of its steps (the
+    // Renderer's and the Vulkan options' rows) and the note's room (kept
+    // whether it shows or not: the rows never move with it), and the FOV slider
+    // goes a row under gamma. The preset panel goes (Settings.layoutGameplay
+    // hides it here): its two buttons, Optimal and Default, go side by side into
+    // the window's bottom bar, left of Apply, at Apply's height.
     public class SrpVideoTab
     {
-        private static const VIDEO_FRAME:int = 3;
+        public static const VIDEO_FRAME:int = 3;
         // Below gamma.
         private static const ROW:Number = 50;
-        // Between the two preset buttons, side by side.
+        // Between the two preset buttons, and from the bar's edge and Apply.
         private static const GAP:Number = 8;
 
         // The timeline recreates frame 3 children on each visit; move each
         // set once.
         private static var moved:DisplayObject;
-        // Monitor's step to the row under it, read from the set before it moved.
+        // Monitor's step to the row under it, and a checkbox's (Fullscreen to
+        // Vertical sync), read from the set before it moved.
         private static var step:Number = 0;
-        // How far the rows under the Renderer list move: a step and its note's room.
+        private static var boxStep:Number = 0;
+        // How far the rows under the Renderer list move: the Vulkan options'
+        // row, its own and the note's room.
         private static function get shift():Number
         {
-            return step + SrpRendererChoice.NOTE_ROOM;
+            return 2 * step + SrpRendererChoice.NOTE_ROOM;
         }
 
         public static function apply(settings:Settings):void
@@ -66,8 +72,8 @@ package
             slider.visible = false;
         }
 
-        // `renderer`: the Renderer list (Settings shows it on this frame once
-        // the exe has answered).
+        // `renderer`: the Renderer list and the Vulkan options (Settings shows
+        // them on this frame once the exe has answered).
         public static function finish(settings:Settings, renderer:SrpRendererChoice):void
         {
             var content:MovieClip = settings.settings_content;
@@ -87,11 +93,11 @@ package
             }
             var optimal:DisplayObject = tabs.button_optimal_video;
             var standard:DisplayObject = tabs.button_default_video;
-            var panel:DisplayObject = tabs.bottomContainer;
-            if (optimal != null && standard != null && panel != null && optimal != moved)
+            if (optimal != null && standard != null && optimal != moved)
             {
                 moved = optimal;
                 step = resolution.y - monitor.y;
+                boxStep = tabs._vsync.y - tabs._fullscreen.y;
                 for each (var row:DisplayObject in [resolution, tabs._fullscreen, tabs._vsync, tabs._antialias,
                     tabs._filtering, gamma])
                 {
@@ -100,14 +106,16 @@ package
                         row.y += shift;
                     }
                 }
-                panel.y += ROW + shift;
-                panel.height -= ROW + shift;
-                var width:Number = (optimal.width - GAP) / 2;
+                // the window's bar, from its left edge to Apply, in the tab's coordinates
+                var bar:Rectangle = settings.bottomContainer.getBounds(content);
+                var accept:Rectangle = settings.btn_accept.getBounds(content);
+                var width:Number = (accept.left - bar.left - 3 * GAP) / 2;
                 optimal.width = standard.width = width;
+                optimal.x = bar.left + GAP;
                 standard.x = optimal.x + width + GAP;
-                optimal.y = standard.y = panel.y + (panel.height - optimal.height) / 2;
+                optimal.y = standard.y = accept.top + (accept.height - optimal.height) / 2;
             }
-            renderer.layout(monitor, monitor.y + step);
+            renderer.layout(monitor, monitor.y + step, step, boxStep);
             slider.visible = true;
             // Scaleform leaves the script-created slider fully transparent.
             slider.alpha = 1;

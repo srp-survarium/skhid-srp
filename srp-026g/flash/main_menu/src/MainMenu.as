@@ -222,7 +222,11 @@ package
             }
             else if(this.settings_window.visible)
             {
-               this.show_settings(false);
+               // an open Vulkan options' panel first, the window at the next Esc
+               if(!this.settings_window.closePanel())
+               {
+                  this.show_settings(false);
+               }
             }
             else
             {

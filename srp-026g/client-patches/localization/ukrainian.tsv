@@ -2705,10 +2705,10 @@ st_srp_vulkan_frame_limit	Обмеження FPS
 st_srp_vulkan_low_latency	Зменшити затримку вводу
 st_srp_vulkan_off	Вимк.
 st_srp_vulkan_options	Налаштування Vulkan
-st_srp_vulkan_options_open	Налаштувати...
+st_srp_vulkan_options_open	Відкрити
 st_srp_vulkan_overlay	Оверлей
 st_srp_vulkan_overlay_fps	FPS
-st_srp_vulkan_overlay_frametimes	FPS і час кадру
+st_srp_vulkan_overlay_frametimes	FPS + графік
 st_srp_vulkan_overlay_full	Повний
 st_srp_vulkan_tear_free	Без розривів без V-Sync
 st_srp_weapon069_akmsu_desc	Укорочений АКМС зі складаним прикладом під набій 7.62×39. Підтримує одиничний і автоматичний режими стрільби.

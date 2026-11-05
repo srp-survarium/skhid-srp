@@ -2705,10 +2705,10 @@ st_srp_vulkan_frame_limit	FPS-korlát
 st_srp_vulkan_low_latency	Kisebb beviteli késés
 st_srp_vulkan_off	Ki
 st_srp_vulkan_options	Vulkan-beállítások
-st_srp_vulkan_options_open	Beállítás...
+st_srp_vulkan_options_open	Megnyitás
 st_srp_vulkan_overlay	Teljesítményjelző
 st_srp_vulkan_overlay_fps	FPS
-st_srp_vulkan_overlay_frametimes	FPS és képidők
+st_srp_vulkan_overlay_frametimes	FPS + ábra
 st_srp_vulkan_overlay_full	Teljes
 st_srp_vulkan_tear_free	Szakadásmentes V-Sync nélkül
 st_srp_weapon069_akmsu_desc	Rövidített, behajtható tusás AKMS, 7.62x39 lőszerrel. Egyes és sorozatlövésre képes.

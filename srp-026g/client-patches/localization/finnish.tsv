@@ -2705,10 +2705,10 @@ st_srp_vulkan_frame_limit	Kuvataajuusraja
 st_srp_vulkan_low_latency	Vähennä syöteviivettä
 st_srp_vulkan_off	Pois
 st_srp_vulkan_options	Vulkan-asetukset
-st_srp_vulkan_options_open	Säädä...
+st_srp_vulkan_options_open	Avaa
 st_srp_vulkan_overlay	Suorituskykynäyttö
 st_srp_vulkan_overlay_fps	FPS
-st_srp_vulkan_overlay_frametimes	FPS ja kuva-ajat
+st_srp_vulkan_overlay_frametimes	FPS + kuvaaja
 st_srp_vulkan_overlay_full	Täysi
 st_srp_vulkan_tear_free	Repeilytön ilman V-Synciä
 st_srp_weapon069_akmsu_desc	Lyhennetty taittoperäinen AKMS, kaliiperi 7.62x39. Kerta- ja sarjatuli.

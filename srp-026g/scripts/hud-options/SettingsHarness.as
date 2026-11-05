@@ -7,6 +7,7 @@ package
     import flash.display.MovieClip;
     import flash.display.Sprite;
     import flash.events.Event;
+    import flash.events.MouseEvent;
     import flash.events.UncaughtErrorEvent;
     import flash.geom.Rectangle;
     import flash.net.URLRequest;
@@ -138,7 +139,11 @@ package
                 }
                 if (frames == 270) graphicsTab(settings, "1");
                 if (frames == 300) trace("SETTINGS SHOT graphics");
-                if (frames == 330)
+                // the Vulkan options' panel open (Vulkan picked), for its screenshot
+                if (frames == 330) settings.settings_content.getChildByName("_srp_vulkan").open();
+                if (frames == 360) trace("SETTINGS SHOT vulkan");
+                if (frames == 400) settings.settings_content.getChildByName("_srp_vulkan").close();
+                if (frames == 410)
                 {
                     // Cancel, as a player would, what the earlier tabs left pending: checkGraphics leaves the
                     // Graphics tab in the frame it bound it (a player cannot), and that tab's stock lists and
@@ -166,13 +171,13 @@ package
                     Object(loader.content).srp_check_option("srp_mouse_vertical_locked", texts[0][17], "1");
                     Object(loader.content).srp_slider_option("srp_mouse_vertical", texts[0][18], "100");
                 }
-                if (frames == 360) trace("SETTINGS SHOT controls-off");
-                if (frames == 370)
+                if (frames == 440) trace("SETTINGS SHOT controls-off");
+                if (frames == 450)
                 {
                     settings.settings_content.getChildByName("_srp_mouse_vertical_locked").selected = false;
                     settings.settings_content.getChildByName("_srp_mouse_vertical").slider.value = 2.35;
                 }
-                if (frames == 400) trace("SETTINGS SHOT controls-on");
+                if (frames == 480) trace("SETTINGS SHOT controls-on");
             });
         }
 
@@ -342,9 +347,33 @@ package
             return [cross.selectedIndex, Object(content)._setter_static_cross.selected];
         }
 
+        // root.srp_hud_texts as patch 83 answers it (its TEXTS), in the first dictionary.
+        private function hudTexts(root:*):void
+        {
+            root.srp_hud_texts(texts[0][2], texts[0][5], texts[0][6], texts[0][7], texts[0][8], texts[0][9], texts[0][15],
+                texts[0][16], texts[0][4], texts[0][19], texts[0][20]);
+        }
+
+        // The Vulkan options as patch 83 names them, in the panel's order, and their values without a user.cfg
+        // line (Prefer the dedicated GPU on).
+        private static const VULKAN:Array = ["srp_dxvk_frame_limit", "srp_dxvk_overlay", "srp_dxvk_low_latency",
+            "srp_dxvk_tear_free", "srp_dxvk_dedicated_gpu"];
+        private static const VULKAN_DEFAULTS:Array = ["0", "0", "0", "0", "1"];
+
+        // A Vulkan option's answer as patch 83 gives it: name, label, saved, running[, the list's choices].
+        private function vulkanAnswer(i:int, saved:String, running:String, row:Array = null):void
+        {
+            var t:Array = row != null ? row : texts[0];
+            var root:* = loader.content;
+            if (i == 0) root.srp_check_option(VULKAN[0], t[21], saved, running, t[22], "60", "120", "144", "165", "240");
+            else if (i == 1) root.srp_check_option(VULKAN[1], t[26], saved, running, t[22], t[27], t[28], t[29]);
+            else root.srp_check_option(VULKAN[i], t[21 + i], saved, running);
+        }
+
         // The Graphics tab as the exe makes it: its 19 options (English labels, values as a game's), then
-        // the Renderer list's answers (`saved`: "1" Vulkan).
-        private function graphicsTab(settings:*, saved:String, running:String = "0"):void
+        // the Renderer list's answers (`saved`: "1" Vulkan) and the Vulkan options' (saved and running).
+        private function graphicsTab(settings:*, saved:String, running:String = "0", options:Array = null,
+            runningOptions:Array = null):void
         {
             var root:* = loader.content;
             var labels:Array = ["Monitor", "Resolution", "Fullscreen", "Vertical sync", "Antialiasing", "Texture filtering",
@@ -373,17 +402,20 @@ package
             settings.settings_content.gotoAndStop(3);
             root.set_settings(2, list);
             root.set_values(2, values);
-            root.srp_hud_texts(texts[0][2], texts[0][5], texts[0][6], texts[0][7], texts[0][8], texts[0][9], texts[0][15],
-                texts[0][16], texts[0][4]);
+            hudTexts(root);
             root.srp_check_option("srp_dxvk", texts[0][14], saved, running);
+            for (var o:int = 0; o < VULKAN.length; ++o)
+            {
+                vulkanAnswer(o, (options || VULKAN_DEFAULTS)[o], (runningOptions || options || VULKAN_DEFAULTS)[o]);
+            }
             // the gamma slider's label, which the game sets through the timeline's alias (its FLA text otherwise)
             settings.settings_content.slider_gamma.textField.text = "Gamma:";
         }
 
         // The Graphics tab's Renderer list (patch 83's srp_dxvk, docs/notes/dxvk-option.md): shown there
         // only, once the exe answers, built as Monitor's (its label on its left, the same size), one of
-        // Monitor's steps under it; the rows under it one step down, in order without overlaps, the preset
-        // buttons side by side inside their panel, its bottom kept; every dictionary's label and choices
+        // Monitor's steps under it, the Vulkan options' row a step under that; the rows under them two steps and
+        // the note's room down, in order without overlaps, the preset buttons side by side in the window's bar; every dictionary's label and choices
         // inside the list's fields; a pick pending until Apply, Cancel dropping it. Ends back on the
         // gameplay tab.
         // The Renderer note's room (SrpRendererChoice.NOTE_ROOM).
@@ -417,7 +449,7 @@ package
             require(note.visible && note.text == texts[0][4], "note: shown while Vulkan is saved and DirectX 11 runs");
             var shown:Array = rows.map(function(r:*, ...rest):Number { return r.y; });
             require(hidden.join() == shown.join(), "note: the rows stay where they are (" + hidden + " / " + shown + ")");
-            var listBottom:Number = list.getBounds(content).bottom;
+            var listBottom:Number = content.getChildByName("_srp_vulkan").getBounds(content).bottom;
             var resolutionTop:Number = span(c._fscr_resolution)[0];
             var columnEnd:Number = monitor.x + monitor.width;
             var widest:Number = 0;
@@ -427,7 +459,7 @@ package
                 require(note.textWidth + 4 <= note.width && note.x + note.width <= columnEnd + 0.1, "note: " + row[4]
                     + " fits the column (" + note.textWidth + " of " + note.width + ", to " + (note.x + note.width) + ")");
                 var top:Number = note.y, bottom:Number = note.y + note.textHeight + 4;
-                require(top >= listBottom - 0.1 && bottom <= resolutionTop + 0.1, "note: " + row[4] + " between the list ("
+                require(top >= listBottom - 0.1 && bottom <= resolutionTop + 0.1, "note: " + row[4] + " between the Vulkan options ("
                     + listBottom + ") and Resolution (" + resolutionTop + "): " + top + "-" + bottom);
                 widest = Math.max(widest, note.textWidth);
             }
@@ -493,20 +525,23 @@ package
             require(near(list.x, monitor.x) && near(list.y, monitor.y + step) && Math.abs(list.width - monitor.width) < 1
                 && Math.abs(list.height - monitor.height) < 1, "Renderer: Monitor's size, one of its steps under it ("
                 + list.width + "x" + list.height + " at " + list.y + ")");
-            // the rows under it: one step and the note's room down, kept whether the note shows or not
+            // the rows under it: two steps (the Vulkan options' row) and the note's room down, kept whether
+            // the note shows or not
             for each (var moved:String in ["_fscr_resolution", "_fullscreen", "_vsync", "_antialias", "_filtering", "slider_gamma"])
             {
-                require(near(c[moved].y, fresh[moved].y + step + NOTE_ROOM), "Renderer: " + moved + " one step and the note's room down");
+                require(near(c[moved].y, fresh[moved].y + 2 * step + NOTE_ROOM), "Renderer: " + moved + " two steps and the note's room down");
             }
             checkNote(settings, content, list, monitor);
-            var column:Array = [c._select_monitor, list, c._fscr_resolution, c._fullscreen, c._vsync, c._antialias, c._filtering,
+            var column:Array = [c._select_monitor, list, c.getChildByName("_srp_vulkan"), c._fscr_resolution, c._fullscreen, c._vsync, c._antialias, c._filtering,
                 c.slider_gamma, c._slider_fov];
-            var panel:Rectangle = c.bottomContainer.getBounds(content);
+            // the window's bottom bar (Apply, Cancel), in the tab's coordinates
+            var bar:Rectangle = settings.bottomContainer.getBounds(content);
+            var accept:Rectangle = settings.btn_accept.getBounds(content);
             for (var i:int = 0; i < column.length; ++i)
             {
                 var here:Array = span(column[i]);
                 require(column[i].visible, "Graphics: " + column[i].name + " shown");
-                var next:Number = i + 1 < column.length ? span(column[i + 1])[0] : panel.top;
+                var next:Number = i + 1 < column.length ? span(column[i + 1])[0] : bar.top;
                 require(here[1] <= next + 1, "Graphics: " + column[i].name + " (" + here + ") over the next (" + next + ")");
             }
             // the buttons draw at their new width in the next frame: now, for the measure
@@ -514,10 +549,18 @@ package
             c.button_default_video.validateNow();
             var optimal:Rectangle = c.button_optimal_video.getBounds(content);
             var standard:Rectangle = c.button_default_video.getBounds(content);
-            require(panel.containsRect(optimal) && panel.containsRect(standard) && optimal.right < standard.left
-                && near(optimal.y, standard.y), "Graphics: the preset buttons side by side inside their panel (" + optimal
-                + ", " + standard + " in " + panel + ")");
-            require(near(panel.bottom, fresh.bottomContainer.getBounds(fresh).bottom), "Graphics: the panel's bottom kept");
+            // the preset panel gone, its buttons side by side in the window's bar left of Apply, at its height,
+            // their labels whole
+            require(!c.bottomContainer.visible && bar.containsRect(optimal) && bar.containsRect(standard)
+                && optimal.right < standard.left && standard.right < accept.left && near(optimal.y, standard.y)
+                && Math.abs(optimal.y + optimal.height / 2 - (accept.y + accept.height / 2)) < 1,
+                "Graphics: the preset buttons side by side in the window's bar left of Apply (" + optimal + ", " + standard
+                + " in " + bar + ", Apply " + accept + ")");
+            for each (var button:* in [c.button_optimal_video, c.button_default_video])
+            {
+                require(button.textField.textWidth + 4 <= button.textField.width * button.scaleX, "Graphics: " + button.label
+                    + " fits its button (" + button.textField.textWidth + " of " + button.textField.width * button.scaleX + ")");
+            }
             var labelEnd:Number = list.x + list.textFieldLabel.x + list.textFieldLabel.width;
             var widestLabel:Number = 0, widestChoice:Number = 0;
             var choices:Object = list.dataProvider;
@@ -546,7 +589,7 @@ package
             list.validateNow();
             require(!settings.btn_accept.enabled, "Renderer: nothing pending after the texts' check");
             trace("SETTINGS Graphics: Renderer at " + list.y + " under Monitor " + monitor.y + ", FOV to " + span(c._slider_fov)[1]
-                + ", panel " + panel.top + "-" + panel.bottom + "; widest label " + widestLabel + ", widest choice " + widestChoice);
+                + ", the bar from " + bar.top + ", the preset buttons " + optimal + " " + standard + "; widest label " + widestLabel + ", widest choice " + widestChoice);
             pick(list, 1);
             require(settings.btn_accept.enabled, "Renderer: picking Vulkan enables Apply");
             click(settings.btn_cancel);
@@ -573,10 +616,12 @@ package
             require(note.visible, "Renderer: Apply of DirectX 11 while DXVK runs: the note");
             root.srp_check_option("srp_dxvk", texts[0][14], "0", "0");
             graphicsTab(settings, "0");
-            require(list.visible && near(list.y, monitor.y + step) && near(c._fscr_resolution.y, fresh._fscr_resolution.y + step + NOTE_ROOM),
+            require(list.visible && near(list.y, monitor.y + step) && near(c._fscr_resolution.y, fresh._fscr_resolution.y + 2 * step + NOTE_ROOM),
                 "Renderer: the tab bound again, every row moved once");
             require(!settings.btn_accept.enabled, "Renderer: nothing pending after the checks");
             trace("SETTINGS Graphics: Renderer pass");
+            checkVulkan(settings, content, step);
+            trace("SETTINGS Graphics: Vulkan options pass");
             try
             {
                 settings.selectIndex(0);
@@ -588,6 +633,156 @@ package
             root.set_settings(0, gameplay);
             root.set_values(0, gameplayValues);
             require(!list.visible && !settings.btn_accept.enabled, "Renderer: not on the gameplay tab again, nothing pending");
+        }
+
+        // The Vulkan options (docs/notes/dxvk-option.md): the row a step under the Renderer list, built as it
+        // is, greyed while the list shows DirectX 11 and lit by a Vulkan pick before Apply; its box opens the
+        // panel under it over the column: the two lists (the Renderer's size, the exe's choices) and the three
+        // checkboxes at the tab's steps, in order, each showing its saved value, every dictionary's texts
+        // inside; a press in it or on its open list keeps it, one outside or Esc closes it (the window stays),
+        // DirectX 11 picked closes it; a change pending until Apply, Cancel dropping it; the note while a
+        // saved value is not the running one.
+        private function checkVulkan(settings:*, content:MovieClip, step:Number):void
+        {
+            var root:* = loader.content;
+            var c:* = content;
+            var list:* = c.getChildByName("_srp_renderer");
+            var row:* = c.getChildByName("_srp_vulkan");
+            var note:* = c.getChildByName("_srp_renderer_note");
+            graphicsTab(settings, "0");
+            row.validateNow();
+            require(row.visible && row.textFieldLabel.text == texts[0][19] && row.dataProvider[0] == texts[0][20]
+                && !row.enabled && row.alpha < 1 && !settings.btn_accept.enabled,
+                "Vulkan options: the row with the exe's texts, greyed while the Renderer shows DirectX 11, nothing pending");
+            require(near(row.x, list.x) && near(row.y, list.y + step) && Math.abs(row.width - list.width) < 1
+                && Math.abs(row.height - list.height) < 1, "Vulkan options: the Renderer's size, one step under it");
+            pick(list, 1);
+            row.validateNow();
+            require(row.enabled && row.alpha == 1 && settings.btn_accept.enabled, "Vulkan options: lit by a Vulkan pick before Apply");
+            row.open();
+            var panel:* = row.panel;
+            require(panel.stage != null, "Vulkan options: the box opens the panel");
+            var body:* = panel.getChildAt(1);
+            var controls:Array = VULKAN.map(function(name:String, ...rest):* { return body.getChildByName("_" + name); });
+            for each (var control:* in controls) control.validateNow();
+            var Point:Class = loader.contentLoaderInfo.applicationDomain.getDefinition("flash.geom.Point") as Class;
+            var bounds:Rectangle = panel.getBounds(content.stage);
+            var rowBounds:Rectangle = row.getBounds(content.stage);
+            var divider:Number = content.localToGlobal(new Point(c._overall_graphics.x - 20, 0)).x;
+            require(bounds.top >= rowBounds.bottom - 0.1 && bounds.top <= rowBounds.bottom + 6 && bounds.left < rowBounds.left
+                && bounds.right > rowBounds.right && bounds.right < divider, "Vulkan options: the panel under the box, over the column ("
+                + bounds + " under " + rowBounds + ", the right column at " + divider + ")");
+            var labels:Array = [texts[0][21], texts[0][26], texts[0][23], texts[0][24], texts[0][25]];
+            var at:Number = -1;
+            for (var i:int = 0; i < controls.length; ++i)
+            {
+                var one:* = controls[i];
+                var label:String = i < 2 ? one.textFieldLabel.text : one.label;
+                require(one != null && one.visible && one.alpha == 1 && label == labels[i], "Vulkan options: " + VULKAN[i]
+                    + " in the panel with the exe's label (" + label + ")");
+                var top:Number = span(one)[0];
+                require(top > at && near(one.x, controls[0].x), "Vulkan options: " + VULKAN[i] + " in order, at the panel's left");
+                at = span(one)[1];
+                require(at <= panel.height, "Vulkan options: " + VULKAN[i] + " inside the panel (" + at + " of " + panel.height + ")");
+            }
+            require(controls[0].dataProvider.length == 6 && controls[0].dataProvider[0] == texts[0][22]
+                && controls[0].dataProvider[3] == "144" && controls[1].dataProvider.length == 4
+                && controls[1].dataProvider[2] == texts[0][28] && controls[0].selectedIndex == 0 && controls[1].selectedIndex == 0
+                && !controls[2].selected && !controls[3].selected && controls[4].selected,
+                "Vulkan options: the lists' choices; each control its saved value (Prefer the dedicated GPU on)");
+            require(near(controls[1].y - controls[0].y, step) && Math.abs(controls[0].width - list.width) < 1
+                && near(controls[3].y - controls[2].y, c._vsync.y - c._fullscreen.y),
+                "Vulkan options: the lists the Renderer's size a list's step apart, the checkboxes a checkbox's");
+            // every dictionary's texts inside the panel
+            var widest:Number = 0;
+            var DataProvider:Class = loader.contentLoaderInfo.applicationDomain.getDefinition("scaleform.clik.data.DataProvider") as Class;
+            for each (var t:Array in texts)
+            {
+                vulkanAnswer(0, "0", "0", t);
+                vulkanAnswer(1, "0", "0", t);
+                for (i = 2; i < controls.length; ++i) vulkanAnswer(i, VULKAN_DEFAULTS[i], VULKAN_DEFAULTS[i], t);
+                for (i = 0; i < 2; ++i)
+                {
+                    var menu:* = controls[i];
+                    require(menu.textFieldLabel.textWidth + 4 < menu.textFieldLabel.width, "Vulkan options: " + menu.textFieldLabel.text
+                        + " fits its label (" + menu.textFieldLabel.textWidth + " of " + menu.textFieldLabel.width + ")");
+                    for (var choice:int = 0; choice < menu.dataProvider.length; ++choice)
+                    {
+                        menu.selectedIndex = choice;
+                        menu.validateNow();
+                        require(menu.textField.textWidth + 2 < menu.textField.width * menu.scaleX, "Vulkan options: "
+                            + menu.dataProvider[choice] + " fits its list (" + menu.textField.textWidth + ")");
+                    }
+                    menu.selectedIndex = 0;
+                }
+                for (i = 2; i < controls.length; ++i)
+                {
+                    var box:* = controls[i];
+                    box.validateNow();
+                    var end:Number = box.x + box.textField.x + box.textField.textWidth + 4;
+                    require(box.textField.numLines == 1 && end <= panel.width, "Vulkan options: " + box.label
+                        + " on one line inside the panel (to " + end + " of " + panel.width + ")");
+                    widest = Math.max(widest, end);
+                }
+                row.textFieldLabel.text = t[19];
+                require(row.textFieldLabel.textWidth + 4 < row.textFieldLabel.width, "Vulkan options: " + t[19] + " fits the row's label");
+                row.dataProvider = new DataProvider([t[20]]);
+                row.validateNow();
+                require(row.textField.textWidth + 2 < row.textField.width * row.scaleX, "Vulkan options: " + t[20] + " fits its box");
+            }
+            // Vulkan saved and running (DXVK at the start), so only an option makes the note
+            graphicsTab(settings, "1", "1");
+            hudTexts(root);
+            require(!settings.btn_accept.enabled && list.selectedIndex == 1 && row.enabled, "Vulkan options: the texts' check left nothing pending");
+            // presses: in the panel and on its open list keep it, outside closes it
+            controls[2].dispatchEvent(new MouseEvent(MouseEvent.MOUSE_DOWN, true));
+            require(panel.stage != null, "Vulkan options: a press in the panel keeps it");
+            controls[0].open();
+            var open:DisplayObject = openList(content.stage);
+            require(open != null, "Vulkan options: the frame rate list opens");
+            open.dispatchEvent(new MouseEvent(MouseEvent.MOUSE_DOWN, true));
+            require(panel.stage != null, "Vulkan options: a press on the panel's open list keeps the panel");
+            controls[0].close();
+            c.slider_gamma.dispatchEvent(new MouseEvent(MouseEvent.MOUSE_DOWN, true));
+            require(panel.stage == null && !row.selected, "Vulkan options: a press outside closes the panel");
+            // Esc (MainMenu's key handler asks Settings.closePanel first; a test player's stage takes no
+            // key event dispatched to it): the panel closes, the window stays; with no panel open nothing
+            row.open();
+            require(settings.closePanel() && panel.stage == null && !row.selected && settings.visible,
+                "Vulkan options: Esc closes the panel, the window stays");
+            require(!settings.closePanel(), "Vulkan options: Esc with no panel open is the window's");
+            // DirectX 11 picked while it is open: closed, greyed
+            row.open();
+            pick(list, 0);
+            row.validateNow();
+            require(panel.stage == null && !row.enabled, "Vulkan options: DirectX 11 picked closes the panel and greys the row");
+            pick(list, 1);
+            // a change pending until Apply, Cancel dropping it
+            require(!settings.btn_accept.enabled, "Vulkan options: nothing pending before a change");
+            controls[2].selected = true;
+            require(settings.btn_accept.enabled, "Vulkan options: Reduce input lag checked is a change");
+            click(settings.btn_cancel);
+            require(!controls[2].selected && !settings.btn_accept.enabled, "Vulkan options: Cancel unchecks it");
+            // in the open panel (a list opens on the stage only)
+            row.open();
+            pick(controls[0], 3);
+            controls[4].selected = false;
+            row.close();
+            require(settings.btn_accept.enabled && !note.visible, "Vulkan options: 144 and the dedicated GPU off are a change, no note yet");
+            click(settings.btn_accept);
+            require(!settings.btn_accept.enabled && controls[0].selectedIndex == 3 && !controls[4].selected && note.visible,
+                "Vulkan options: Apply saves them; the note (saved is not what runs)");
+            // the exe's answers: what it saved, and running DXVK with what the start had
+            graphicsTab(settings, "1", "1", ["3", "0", "0", "0", "0"], ["0", "0", "0", "0", "1"]);
+            require(note.visible && controls[0].selectedIndex == 3 && !controls[4].selected,
+                "Vulkan options: DXVK running with other options: the note");
+            graphicsTab(settings, "1", "1", ["3", "0", "0", "0", "0"]);
+            require(!note.visible, "Vulkan options: saved as running: no note");
+            graphicsTab(settings, "0");
+            require(!row.enabled && !note.visible && !settings.btn_accept.enabled && panel.stage == null,
+                "Vulkan options: back to DirectX 11, nothing pending");
+            trace("SETTINGS Graphics: Vulkan options' panel " + bounds + " under the row " + rowBounds + "; widest checkbox to "
+                + widest + " of " + panel.width);
         }
 
         private function check():void
@@ -657,7 +852,7 @@ package
             }
             root.srp_check_option("srp_hide_crosshair", texts[0][8], "0");
             require(!cross.visible, "the crosshair list waits for its texts");
-            root.srp_hud_texts(texts[0][2], texts[0][5], texts[0][6], texts[0][7], texts[0][8], texts[0][9], texts[0][15], texts[0][16], texts[0][4]);
+            hudTexts(root);
             require(!settings.btn_accept.enabled, "nothing to apply after the answers");
             var heading:TextField = content.getChildByName("_srp_check_group") as TextField;
             require(heading != null && heading.visible && heading.text == texts[0][2], "the group's heading is the exe's: " + (heading ? heading.text : null));
@@ -723,7 +918,7 @@ package
             position.dataProvider = positions;
             position.selectedIndex = shownPosition;
             position.validateNow();
-            root.srp_hud_texts(texts[0][2], texts[0][5], texts[0][6], texts[0][7], texts[0][8], texts[0][9], texts[0][15], texts[0][16], texts[0][4]);
+            hudTexts(root);
             root.set_values(0, values);
             root.srp_check_option("srp_hide_crosshair", texts[0][8], "0");
             require(!settings.btn_accept.enabled, "nothing pending after the texts' check");

@@ -7,7 +7,9 @@
 #   pending until Apply, Cancel, the tabs, every dictionary's labels (inside the panel, their glyphs)
 #   and its crosshair and minimap position choices (inside their lists); the Graphics tab's
 #   Renderer list (docs/notes/dxvk-option.md: under Monitor, the rows under it
-#   moved, every dictionary's label in the column, Apply, Cancel);
+#   moved, every dictionary's label in the column, Apply, Cancel) and its Vulkan options' row under it: greyed
+#   while the list shows DirectX 11, its panel over the column (the five options, every dictionary's texts
+#   inside it), closed by a press outside it or Esc, each option pending until Apply, Cancel, the note;
 # - HudHarness.as: the crosshair's hit marker shown off and hidden on; the Tab list off as today,
 #   on names only, each team by clan tag then name (clanless next, bots last; case-insensitive);
 #   the Tab map's names with Alt, and "Names on map" reversing Alt.
@@ -16,6 +18,7 @@
 #   both sliders at their borders (0.01, 10), Apply and the exe's answers there.
 # Screenshots into the work dir: settings.png (at rest), settings-checked.png (a toggle, Apply
 # enabled), settings-crosshair-open.png, settings-minimap-open.png, settings-graphics.png (Vulkan picked),
+# settings-vulkan.png (its options' panel open),
 # settings-controls-off.png, settings-controls-on.png, list-scores.png, list-names.png. Exits 0 when both say
 # pass. No game, no server.
 set -euo pipefail
@@ -40,7 +43,10 @@ keys = ('st_srp_hide_hit_markers_option', 'st_srp_hide_scores_option', 'st_srp_o
         'st_srp_language_restart', 'st_srp_hide_quests_option', 'st_srp_crosshair_dynamic', 'st_srp_crosshair_static',
         'st_srp_crosshair_hidden', 'st_srp_static_minimap_option', 'st_minimap_off', 'st_minimap_bottom', 'st_minimap_top',
         'st_srp_map_names_option', 'st_srp_renderer_option', 'st_srp_renderer_dx11', 'st_srp_renderer_dxvk',
-        'st_srp_mouse_lock_option', 'st_srp_mouse_vertical_option')
+        'st_srp_mouse_lock_option', 'st_srp_mouse_vertical_option', 'st_srp_vulkan_options', 'st_srp_vulkan_options_open',
+        'st_srp_vulkan_frame_limit', 'st_srp_vulkan_off', 'st_srp_vulkan_low_latency', 'st_srp_vulkan_tear_free',
+        'st_srp_vulkan_dedicated_gpu', 'st_srp_vulkan_overlay', 'st_srp_vulkan_overlay_fps',
+        'st_srp_vulkan_overlay_frametimes', 'st_srp_vulkan_overlay_full')
 print(json.dumps([[read_translations(CATALOG / f'{name}.tsv')[k] for k in keys] for name, *_ in LANGUAGES],
                  ensure_ascii=False, separators=(',', ':')))
 PY
@@ -93,6 +99,7 @@ wait_for SettingsHarness 'SETTINGS SHOT checked' && shot settings-checked.png
 wait_for SettingsHarness 'SETTINGS SHOT open' && shot settings-crosshair-open.png
 wait_for SettingsHarness 'SETTINGS SHOT minimap' && shot settings-minimap-open.png
 wait_for SettingsHarness 'SETTINGS SHOT graphics' && shot settings-graphics.png
+wait_for SettingsHarness 'SETTINGS SHOT vulkan' && shot settings-vulkan.png
 wait_for SettingsHarness 'SETTINGS SHOT controls-off' && shot settings-controls-off.png
 wait_for SettingsHarness 'SETTINGS SHOT controls-on' && shot settings-controls-on.png
 kill $ruffle_pid 2>/dev/null || true
@@ -110,4 +117,5 @@ grep -ho 'SETTINGS .*\|HUD .*' "$work/SettingsHarness.log" "$work/HudHarness.log
 ! grep -q "RESULT fail" "$work/SettingsHarness.log" "$work/HudHarness.log" \
     && grep -q "SETTINGS RESULT pass" "$work/SettingsHarness.log" && grep -q "SETTINGS controls pass" "$work/SettingsHarness.log" \
     && grep -q "SETTINGS borders pass" "$work/SettingsHarness.log" && grep -q "SETTINGS apply-cancel pass" "$work/SettingsHarness.log" \
+    && grep -q "SETTINGS Graphics: Vulkan options pass" "$work/SettingsHarness.log" \
     && grep -q "HUD RESULT pass" "$work/HudHarness.log"

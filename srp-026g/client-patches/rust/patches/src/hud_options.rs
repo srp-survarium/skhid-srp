@@ -595,11 +595,12 @@ pub static SETTINGS: [&Setting; 8] =
 /// checkbox's label as the group shows it (inverted), the crosshair list's
 /// three choices, the stock fixed minimap checkbox's label; then the
 /// Graphics tab's Renderer list's two choices, its note (the Language
-/// choice's "Applies after restart.") and the Vulkan options' heading.
-pub const TEXTS: [&CStr; 10] = [c"st_srp_options_hud", c"st_srp_hide_quests_option", c"st_srp_crosshair_dynamic",
+/// choice's "Applies after restart."), the Vulkan options' row's label and
+/// its box's text.
+pub const TEXTS: [&CStr; 11] = [c"st_srp_options_hud", c"st_srp_hide_quests_option", c"st_srp_crosshair_dynamic",
                                 c"st_srp_crosshair_static", c"st_srp_crosshair_hidden", c"st_srp_static_minimap_option",
                                 c"st_srp_renderer_dx11", c"st_srp_renderer_dxvk", c"st_srp_language_restart",
-                                c"st_srp_vulkan_options"];
+                                c"st_srp_vulkan_options", c"st_srp_vulkan_options_open"];
 
 /// The setting the Settings' call names.
 pub fn setting(name: &CStr) -> Option<&'static Setting> {
