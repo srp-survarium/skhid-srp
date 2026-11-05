@@ -882,6 +882,84 @@ artefact_carry_on_key_replay:
     db 0x8b, 0x75, 0x10, 0x83, 0xfe, 0x01
     jmp 0x23fe48
 
+; 0x31b8e0 generic_anomaly_core::register_artefacts at its entry (push ecx / mov eax,[esp+8]): the anomaly's pool is about to be registered from the core world's artefact vector length on, in pool order (each resolve links rebuilds the vector from empty): lohook -> artefact_keeper_on_register
+global artefact_keeper_on_register
+extern hook_artefact_keeper_on_register
+artefact_keeper_on_register:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_artefact_keeper_on_register
+    mov edx, artefact_keeper_on_register_replay
+    cmp eax, 0
+    je artefact_keeper_on_register_go
+    mov edx, 0x31b8e5
+    cmp eax, 1
+    je artefact_keeper_on_register_go
+    ud2
+artefact_keeper_on_register_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+artefact_keeper_on_register_replay:
+    db 0x51, 0x8b, 0x44, 0x24, 0x08
+    jmp 0x31b8e5
+
+; 0x316eab the respawn rule's spawn 0x316DA0 after vtable+20h(1) put the player into the world (its five pops before ret 0Ch); every spawn of a match in every game and every replay of the tick, the kit's player initialised (0x316E70) and in the world: lohook -> artefact_keeper_on_spawn
+global artefact_keeper_on_spawn
+extern hook_artefact_keeper_on_spawn
+artefact_keeper_on_spawn:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_artefact_keeper_on_spawn
+    mov edx, artefact_keeper_on_spawn_replay
+    cmp eax, 0
+    je artefact_keeper_on_spawn_go
+    mov edx, 0x316eb0
+    cmp eax, 1
+    je artefact_keeper_on_spawn_go
+    ud2
+artefact_keeper_on_spawn_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+artefact_keeper_on_spawn_replay:
+    db 0x5f, 0x5e, 0x5d, 0x5b, 0x59
+    jmp 0x316eb0
+
 ; 0x31c810 artefact_container_core::use_execute after the collection time, before transfer_artefact (lea eax,[ebx+108h]; push eax; call 0x31C8A0): EBX the user, EDI the container; event 5 is counted after it (0x31C845): lohook -> artefact_score_on_transfer
 global artefact_score_on_transfer
 extern hook_artefact_score_on_transfer

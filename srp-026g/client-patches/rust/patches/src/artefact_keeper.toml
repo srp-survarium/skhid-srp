@@ -1,0 +1,12 @@
+name = "artefact_keeper"
+patch = 109
+
+# Keeper of the Artifacts (artefact-skills.md): the map's hidden pool as the core world
+# registers it, and a Keeper's first spawn given one of the match's kind.
+[[hook]]
+site = "keeper.register"
+handler = "on_register"
+
+[[hook]]
+site = "keeper.spawn"
+handler = "on_spawn"

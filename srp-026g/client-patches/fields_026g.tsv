@@ -680,3 +680,10 @@ survarium::image	zone_sound_once_b	0x298F1E	u8	the same, emit_and_play_once at 0
 survarium::image	zone_sound_once_c	0x299269	u8	the same, emit_and_play_once at 0x299264 (in 0x2991A0)
 vostok::engine::message_frame	lparam	0x1C	u32	message_processor's lParam (0x181E0; by the site's ESP inside it, EBX ESI EDI pushed: mov ecx,[esp+1Ch] 0x183AC, mov esi,[esp+1Ch] 0x183F0); an HKL for WM_INPUTLANGCHANGEREQUEST and WM_INPUTLANGCHANGE
 survarium::player_params_modifiers_container	artefact_ranks	0xA0	f32	modifier 40 artefact_power (no getter call, no code reference to its name, no config sets it): the artefact tree's packed skills; artefact-skills.md
+survarium::generic_anomaly_core	containers_begin	0x140	u32	its artefact containers' vector begin (spawn_artefact 0x31B70B: (end - begin) / 4 containers); equal to the end: no container, it never spawns an artefact
+survarium::generic_anomaly_core	containers_end	0x144	u32	its artefact containers' vector end (spawn_artefact 0x31B70B)
+survarium::generic_anomaly_core	pool_count	0x1B4	u32	its pool's artefacts (register_artefacts 0x31B8EB, 0x31B97F): the cook makes count of each config artefacts entry, registered in that order
+survarium::keeper_register_frame	anomaly	0x4	ptr<survarium::generic_anomaly_core>	register_artefacts 0x31B8E0's first argument (by the site ESP, the return address at +0): the anomaly whose pool it registers
+survarium::keeper_register_frame	world	0x8	ptr<survarium::core_world>	its second: the core world, whose artefact vector (+18940h) the pool is pushed onto, each id its index then
+survarium::artefact	default_count	0x27C	u16	the count the anomaly's spawn gives it (artefact_base::on_spawned 0x3134C0: 0xFFFF is 1); set by the constructor from its config (0x3130C4)
+survarium::artefact	cooldown_left	0x28C	u32	ms of its cooldown left (tick 0x313213 counts it down outside state 4; action 0x313313 needs 0); the spawn sets 0 (0x313518)

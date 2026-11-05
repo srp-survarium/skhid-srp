@@ -7,7 +7,7 @@ use crate::{
 };
 
 /// The packed skills of `player`'s current kit; none when the payload is not valid.
-fn skills(player: raw::Player) -> Skills {
+pub(super) fn skills(player: raw::Player) -> Skills {
     kit_modifiers(player)
         // SAFETY: the generated modifier field belongs to the live current kit.
         .and_then(|m| Skills::parse(unsafe { *m.artefact_ranks() }))

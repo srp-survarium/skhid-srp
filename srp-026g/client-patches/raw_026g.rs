@@ -5214,6 +5214,24 @@ impl Artefact {
     pub unsafe fn rattle_callback(self) -> ArtefactClient {
         ArtefactClient(unsafe { self.0.byte_add(0x340) })
     }
+
+    /// +0x27c (u16): the count the anomaly's spawn gives it (artefact_base::on_spawned 0x3134C0: 0xFFFF is 1); set by the constructor from its config (0x3130C4)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn default_count(self) -> *mut u16 {
+        unsafe { self.0.byte_add(0x27c).cast::<u16>().as_ptr() }
+    }
+
+    /// +0x28c (u32): ms of its cooldown left (tick 0x313213 counts it down outside state 4; action 0x313313 needs 0); the spawn sets 0 (0x313518)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn cooldown_left(self) -> *mut u32 {
+        unsafe { self.0.byte_add(0x28c).cast::<u32>().as_ptr() }
+    }
 }
 
 /// A survarium::keyboard_action_frame (fields_026g.tsv): a pointer to one, never 0. Made only here: by a typed field,
@@ -13017,6 +13035,99 @@ impl MessageFrame {
     }
 }
 
+/// A survarium::generic_anomaly_core (fields_026g.tsv): a pointer to one, never 0. Made only here: by a typed field,
+/// a function's typed result or a site's typed register (sites_026g.tsv `holds`).
+#[repr(transparent)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct GenericAnomalyCore(NonNull<c_void>);
+
+#[allow(dead_code)]
+impl GenericAnomalyCore {
+    /// Its address as a value (an id, a compare): never read through.
+    #[inline(always)]
+    pub fn address(self) -> u32 {
+        self.0.as_ptr() as usize as u32
+    }
+
+    /// +0x140 (u32): its artefact containers' vector begin (spawn_artefact 0x31B70B: (end - begin) / 4 containers); equal to the end: no container, it never spawns an artefact
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn containers_begin(self) -> *mut u32 {
+        unsafe { self.0.byte_add(0x140).cast::<u32>().as_ptr() }
+    }
+
+    /// +0x144 (u32): its artefact containers' vector end (spawn_artefact 0x31B70B)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn containers_end(self) -> *mut u32 {
+        unsafe { self.0.byte_add(0x144).cast::<u32>().as_ptr() }
+    }
+
+    /// +0x1b4 (u32): its pool's artefacts (register_artefacts 0x31B8EB, 0x31B97F): the cook makes count of each config artefacts entry, registered in that order
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn pool_count(self) -> *mut u32 {
+        unsafe { self.0.byte_add(0x1b4).cast::<u32>().as_ptr() }
+    }
+}
+
+/// A survarium::keeper_register_frame (fields_026g.tsv): a pointer to one, never 0. Made only here: by a typed field,
+/// a function's typed result or a site's typed register (sites_026g.tsv `holds`).
+#[repr(transparent)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct KeeperRegisterFrame(NonNull<c_void>);
+
+#[allow(dead_code)]
+impl KeeperRegisterFrame {
+    /// Its address as a value (an id, a compare): never read through.
+    #[inline(always)]
+    pub fn address(self) -> u32 {
+        self.0.as_ptr() as usize as u32
+    }
+
+    /// +0x4 (ptr<survarium::generic_anomaly_core>): register_artefacts 0x31B8E0's first argument (by the site ESP, the return address at +0): the anomaly whose pool it registers
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn anomaly(self) -> Option<GenericAnomalyCore> {
+        unsafe { self.0.byte_add(0x4).cast::<Option<GenericAnomalyCore>>().read_volatile() }
+    }
+
+    /// +0x4 (ptr<survarium::generic_anomaly_core>): register_artefacts 0x31B8E0's first argument (by the site ESP, the return address at +0): the anomaly whose pool it registers
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn set_anomaly(self, value: Option<GenericAnomalyCore>) {
+        unsafe { self.0.byte_add(0x4).cast::<Option<GenericAnomalyCore>>().write_volatile(value) }
+    }
+
+    /// +0x8 (ptr<survarium::core_world>): its second: the core world, whose artefact vector (+18940h) the pool is pushed onto, each id its index then
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn world(self) -> Option<CoreWorld> {
+        unsafe { self.0.byte_add(0x8).cast::<Option<CoreWorld>>().read_volatile() }
+    }
+
+    /// +0x8 (ptr<survarium::core_world>): its second: the core world, whose artefact vector (+18940h) the pool is pushed onto, each id its index then
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn set_world(self, value: Option<CoreWorld>) {
+        unsafe { self.0.byte_add(0x8).cast::<Option<CoreWorld>>().write_volatile(value) }
+    }
+}
+
 /// A vostok::physics::bullet_physics_world (fields_026g.tsv): a pointer to one, never 0. Made only here: by a typed field,
 /// a function's typed result or a site's typed register (sites_026g.tsv `holds`).
 #[repr(transparent)]
@@ -15905,6 +16016,36 @@ pub mod site {
         #[inline(always)]
         pub unsafe fn kind(machine: &impl Machine) -> u32 {
             machine.register(Register::Edi)
+        }
+    }
+
+    /// keeper.register (0x31b8e0): generic_anomaly_core::register_artefacts at its entry (push ecx / mov eax,[esp+8]): the anomaly's pool is about to be registered from the core world's artefact vector length on, in pool order (each resolve links rebuilds the vector from empty)
+    pub mod keeper_register {
+        #[allow(unused_imports)]
+        use super::*;
+
+        /// the site's ESP: a survarium::keeper_register_frame (None for 0).
+        ///
+        /// # Safety
+        /// `machine` is at this site.
+        #[inline(always)]
+        pub unsafe fn frame(machine: &impl Machine) -> Option<KeeperRegisterFrame> {
+            NonNull::new(machine.site_esp() as usize as *mut c_void).map(KeeperRegisterFrame)
+        }
+    }
+
+    /// keeper.spawn (0x316eab): the respawn rule's spawn 0x316DA0 after vtable+20h(1) put the player into the world (its five pops before ret 0Ch); every spawn of a match in every game and every replay of the tick, the kit's player initialised (0x316E70) and in the world
+    pub mod keeper_spawn {
+        #[allow(unused_imports)]
+        use super::*;
+
+        /// ESI: a survarium::player (None for 0).
+        ///
+        /// # Safety
+        /// `machine` is at this site.
+        #[inline(always)]
+        pub unsafe fn player(machine: &impl Machine) -> Option<Player> {
+            NonNull::new(machine.register(Register::Esi) as usize as *mut c_void).map(Player)
         }
     }
 }
