@@ -369,9 +369,27 @@ clients and every joiner crashed while place 19 held the gun.
   handed out (let_go, reuse, body_drop, revive, before_world_load's idle
   count); an install refuses a slot whose gun is any copy's
   (Refusal::NotOwnGun); and a copy remembers the pick it last went to, which
-  a rollback naming that pick takes back first. What refused the restore on
-  the majority's clients is not in the logs at hand (the owner's own log, a
-  minority client, has none).
+  a rollback naming that pick takes back first.
+- **Where the other gun came from: an earlier match.** The recording's key
+  frames show it for every pick of the recipe (place 5, kit 2, slot 7) in
+  the match, from place 11's at 291550 ms on: a chamber gun, while place 5's
+  kit 2 primary is an ASh-12 (dict 364, 20 rounds; its kit 1 a VSSK). The
+  owner's log (one process for a day of matches) has it: at 292400 ms place
+  11 got copy 0x7cfa44a8, cooked in the match before for that match's place
+  5 kit 2 and kept past its end (on_destroy moved its holder to a body
+  destroyed before it, so nothing freed it). Copies were matched by recipe
+  alone, never by match: a client that had played the match before took
+  that match's gun for this one's place 5. Now each copy keeps its match
+  (`MatchId`, the options' seed, the 0xE4's match id): the next match frees
+  the copies of the one before wherever it first reaches them (its frames, a
+  world's or a record's load, a death, a pickup).
+- **The replay repro** (test/crash-repros, key frame 294650 of
+  0x5bfde2e7): the world was written by those rev47 clients (place 11 with
+  the earlier match's gun, a chamber byte); the replay's own copy is the
+  ASh-12 (weapon+5F0h 0 in its dump), so the native reader ends place 11's
+  weapon early and inventory_item::deserialize reads a place and kit of
+  garbage (0xFA) and a null kit player (read of 10Ch at 0x2FFF87). A world
+  of rev47's clients with such a gun stays unloadable.
 
 ## The switch: holster, then draw (option (b), exp/pickup-holster-b, built, not run in a game)
 

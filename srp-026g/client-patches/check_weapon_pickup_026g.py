@@ -402,6 +402,7 @@ def main():
     holster(patched)
     keep_and_reuse(patched)
     one_gun_a_copy(patched)
+    a_match_has_its_own_copies(patched)
     second_pickup(patched)
     two_slots(patched)
     ordinary_kit(patched)
@@ -2076,6 +2077,33 @@ def one_gun_a_copy(patched):
     assert any("not the player's own" in l for l in r.log), r.log
     print("ok a copy whose restore was refused is never handed out again (the donor's next drop is a new cook), and "
           "its gun left in the picker's slot is never parked in another copy (the pickup refused)")
+
+
+def a_match_has_its_own_copies(patched):
+    """A copy belongs to the match it was cooked in: its recipe (a place, a kit, a slot) names another player in
+    the next match. Rev47's 0x5bfde2e7: a copy of an earlier match's place 5 kit 2 primary, kept past that match's
+    end, was re-used for this match's place 5 drops on the clients that had played both (a VSSK-like gun with a
+    chamber instead of this place 5's ASh-12): every reader that cooked the recipe misread the picker's state. The
+    next match's first frame frees the copies of the match before; its death of the same place, kit and slot cooks
+    anew."""
+    r = Pick(patched)
+    r.setup()
+    r.pick()
+    kept, kept_cooked = r.new_gun, r.cooked
+    r.remove(r.picker)                                    # let go: idle, kept (ever in hands), re-usable
+    r.restored()
+    references = r.read(kept_cooked + 0xD0)
+    r.word(OPTIONS_HOLDER + 0xC + 0x577B0, SEED ^ 0x5BFDE2E7)   # the next match (the same addresses)
+    r.remove(PLAYER, DIED + 8_000)
+    r.word(PLAYER + 0x328, SPAWNED + 20_000)
+    r.word(PLAYER + 0x324, DIED + 30_000)
+    r.queries, r.log = [], []
+    r.death()
+    assert any("a new match" in l for l in r.log), r.log
+    assert r.read(kept_cooked + 0xD0) == references - 1, "the match before's copy freed"
+    assert len(r.queries) == 1 and not any("re-using a kept copy" in l for l in r.log), r.log
+    print("ok a copy is its match's: the next match frees the copies of the match before (one kept past its end, "
+          "ever in hands); the same place, kit and slot's death there cooks anew")
 
 
 def bullet_record(patched, original):

@@ -72,7 +72,7 @@ use crate::vostok::gun_cook::{self, CookId, Cooked, Gun, Refusal, TICKETS};
 use crate::vostok::log::Piece::{self, Dec, Hex, Text};
 use crate::vostok::pickup::{self as native, Failure, Fresh, GunBox, GunPose, Installed, Mode, NameKey, Registered,
                             RegistryId, Role, Select, Site};
-use crate::vostok::world::{GameWorld, ItemId, Player, PlayerId, WorldKey};
+use crate::vostok::world::{GameWorld, ItemId, MatchId, Player, PlayerId, WorldKey};
 use crate::vostok::{clock, ActionMask, Context, Flow, GameCell, GameWorldUi, InputHandler, Lock, NoExit, Thread, WorldLoad};
 use crate::vostok::{WeaponPickupOnCanUseExit, WeaponPickupOnLoadQuietExit, WeaponPickupOnSaveQuietExit,
                     WeaponPickupOnSwitchExit, WeaponPickupOnUseHintExit};
@@ -160,6 +160,10 @@ struct Waiting {
 /// slot in the cooked inventory), where it is and what the log knows.
 struct Entry {
     gun: Gun,
+    /// The match it was cooked in: its recipe names a place, a kit and a
+    /// slot of that match's profiles only (the next match's place 5 is
+    /// another player: rev47's 0x5bfde2e7 took an earlier match's copy).
+    of: MatchId,
     recipe: Recipe,
     /// The player object it was cooked from (its next drops re-use it).
     donor: PlayerId,
@@ -504,6 +508,9 @@ pub fn on_load(ctx: &mut Context<'_>) -> Flow<NoExit> {
         }
     };
     let thread = ctx.thread();
+    if let Some(current) = player.match_id() {
+        forget_other_matches(thread, current);
+    }
     if let Some((world, place)) = located(&player) {
         update_record(thread, world, place, |r| *r = record);
     }
@@ -669,6 +676,9 @@ const NAMED: usize = 3 * PLACES as usize;
 pub fn before_world_load(load: &WorldLoad<'_>, frame: &Frame<'_>) {
     let thread = load.thread();
     let client = load.network_client();
+    if let Some(current) = client.match_id() {
+        forget_other_matches(thread, current);
+    }
     let local = client.local_player();
     let mut named = [None; NAMED];
     let mut count = 0;
@@ -822,6 +832,9 @@ pub fn died(player: &Player<'_>, thread: &Thread) {
     // The only cancel of a pickup waiting for its switch (the gun in hands drawn again).
     cancel(player, thread, Cancel::Death);
     let Some((world, place)) = located(player) else { return };
+    if let Some(current) = player.match_id() {
+        forget_other_matches(thread, current);
+    }
     let body = Body { player: player.id(), spawned: player.spawned() };
     let now = Ms(player.time());
     // Its drop replaces the one before (at most one a place).
@@ -960,6 +973,9 @@ pub fn hold_fire(player: &Player<'_>, thread: &Thread) {
 
 /// A pickup command played (on the input's apply point).
 fn play(player: &Player<'_>, thread: &Thread, target: Place) {
+    if let Some(current) = player.match_id() {
+        forget_other_matches(thread, current);
+    }
     match take(player, thread, target) {
         Ok((pending, registered)) => {
             log_registered("took (the gun in hands holstering)", player, pending, registered);
@@ -1161,6 +1177,11 @@ fn picker_of(player: &Player<'_>, place: Place) -> Option<Picker> {
 
 /// Asks for `recipe`'s gun from `player`'s profile and keeps it at `at`.
 fn ask(player: &Player<'_>, thread: &Thread, recipe: Recipe, at: At) -> Option<CookId> {
+    let Some(of) = player.match_id() else {
+        log_recipe("FAILED to ask for", recipe, &[Text(": no match options")]);
+        return None;
+    };
+    forget_other_matches(thread, of);
     let memory = gun_cook::memory(thread).map(|(used, _)| used);
     let gun = match gun_cook::start(player, recipe.kit, recipe.slot) {
         Ok(gun) => gun,
@@ -1170,7 +1191,7 @@ fn ask(player: &Player<'_>, thread: &Thread, recipe: Recipe, at: At) -> Option<C
         }
     };
     let id = gun.id();
-    let entry = Entry { gun, recipe, donor: player.id(), at, report: Report::Asked { memory }, history: History::Fresh,
+    let entry = Entry { gun, of, recipe, donor: player.id(), at, report: Report::Asked { memory }, history: History::Fresh,
                         last: None };
     let leftover = CACHE.with(thread, |cache| match cache.iter_mut().find(|e| e.is_none()) {
         Some(free) => {
@@ -1256,6 +1277,18 @@ fn wait_for(thread: &Thread, id: CookId, recipe: Recipe, how: Dispatch, deadline
     outcome
 }
 
+/// Every copy cooked in another match than `current` freed: nothing of this
+/// match's game refers to them (that match's players were destroyed with
+/// it), and its recipes name this match's places as other players. Called
+/// wherever this match first reaches the copies: its frames, a world's
+/// load, a record's load, a death and a pickup.
+fn forget_other_matches(thread: &Thread, current: MatchId) {
+    if CACHE.with(thread, |cache| cache.iter().flatten().any(|e| e.of != current)) {
+        log(&[Text("a new match "), Hex(current.get()), Text(": the copies of the match before are freed")]);
+        release_where(thread, |e| e.of != current);
+    }
+}
+
 fn release_where(thread: &Thread, mut gone: impl FnMut(&Entry) -> bool) {
     loop {
         // One at a time, each dropped outside the lock (the cooked
@@ -1287,6 +1320,9 @@ pub fn after_move(ctx: &Context<'_>) {
     PLAYER_MADE.store(false, Ordering::Release);
     log_finished(thread);
     let world = GameWorld::at_after_move(ctx);
+    if let Some(current) = world.as_ref().and_then(GameWorld::match_id) {
+        forget_other_matches(thread, current);
+    }
     if let Some(key) = world.as_ref().and_then(gun_cook::world_key) {
         diagnose_world(thread, key);
     }
