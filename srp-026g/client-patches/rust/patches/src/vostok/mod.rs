@@ -46,6 +46,7 @@ pub mod lobby;
 pub mod lobby_camera;
 pub mod lobby_menu;
 pub mod log;
+pub mod melee;
 mod options;
 pub mod parse;
 pub mod resources;

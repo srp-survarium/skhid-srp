@@ -1512,6 +1512,45 @@ footsteps_on_step_guard_replay:
     db 0x8b, 0x7e, 0x10, 0x3b, 0xb9, 0xc4, 0x8f, 0x01, 0x00, 0x0f, 0x96, 0xc1, 0x84, 0xc9
     jmp 0x2a6493
 
+; 0x2e50c7 EDI damage model ESI hit_info; invulnerability applied: lohook -> hand_kill_on_hit
+global hand_kill_on_hit
+extern hook_hand_kill_on_hit_chain
+hand_kill_on_hit:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_hand_kill_on_hit_chain
+    mov edx, hand_kill_on_hit_replay
+    cmp eax, 0
+    je hand_kill_on_hit_go
+    mov edx, 0x2e50cc
+    cmp eax, 1
+    je hand_kill_on_hit_go
+    ud2
+hand_kill_on_hit_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+hand_kill_on_hit_replay:
+    db 0x8d, 0x4c, 0x24, 0x10, 0x51
+    jmp 0x2e50cc
+
 ; 0x1ea210 game::on_configs_loaded's start (push ebp / mov ebp,esp / and esp,-8), before it runs startup.cfg and user.cfg (load_cc_script 0x1EA2C2, 0x1EA301): lohook -> language_on_configs_start
 global language_on_configs_start
 extern hook_language_on_configs_start_chain
@@ -2870,45 +2909,6 @@ medical_skills_on_movement_go:
 medical_skills_on_movement_replay:
     db 0x8d, 0x65, 0xe0, 0x5f, 0x5e
     jmp 0x2dbc96
-
-; 0x2e50c7 EDI damage model ESI hit_info; invulnerability applied: lohook -> medical_skills_on_hit
-global medical_skills_on_hit
-extern hook_medical_skills_on_hit
-medical_skills_on_hit:
-    lea esp, [esp - 4]
-    pushfd
-    pushad
-    cld
-    mov ebp, esp
-    sub esp, 512
-    and esp, -16
-    fxsave [esp]
-    mov edi, esp
-    sub esp, 8
-    and esp, -16
-    mov [esp], ebp
-    mov [esp+4], edi
-    mov eax, esp
-    sub esp, 12
-    push eax
-    call hook_medical_skills_on_hit
-    mov edx, medical_skills_on_hit_replay
-    cmp eax, 0
-    je medical_skills_on_hit_go
-    mov edx, 0x2e50cc
-    cmp eax, 1
-    je medical_skills_on_hit_go
-    ud2
-medical_skills_on_hit_go:
-    mov [ebp + 36], edx
-    fxrstor [edi]
-    mov esp, ebp
-    popad
-    popfd
-    ret
-medical_skills_on_hit_replay:
-    db 0x8d, 0x4c, 0x24, 0x10, 0x51
-    jmp 0x2e50cc
 
 ; 0x32a460 ESI pool XMM0 new health before write: lohook -> medical_skills_on_heal
 global medical_skills_on_heal

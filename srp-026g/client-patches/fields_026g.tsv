@@ -572,6 +572,7 @@ survarium::player_params_modifiers_container	medical_ranks	0xAC	f32	Medical hook
 survarium::medical_hit	name	0x0	ptr<u8>	hit body part name
 survarium::medical_hit	kind	0x1C	u32	hit type
 survarium::medical_hit	owner	0x20	ptr<survarium::medical_owner>	hit owner reference
+survarium::medical_hit	attacker	0x44	u8	the attacker's place, 0FFh none (hit_info::hit_info's stack+8, 0x32BA52; hit_impl passes it to generate_killed_event, 0x2D9F09)
 survarium::medical_owner	place	0x4	u32	owner place
 survarium::medical_damage	owner	0x3B0	ptr<survarium::player>	owning player
 survarium::medical_damage	pools	0x108	obj<survarium::medical_pools>	body part lookup list
