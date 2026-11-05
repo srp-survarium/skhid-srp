@@ -103,7 +103,8 @@
   "kin": {
     "edge": "lattice",
     "margin_edge": "lattice",
-    "slope_speed": "planar"
+    "slope_speed": "planar",
+    "speed_terms": "none"
   },
   "kit": {
     "frags": "off",
