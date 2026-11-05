@@ -2844,9 +2844,9 @@ mod tests {
                 let most = if params(item.dict_id).kind == "grenade" {
                     1
                 } else {
-                    params(item.dict_id).pocket_share.units_in(size.into())
+                    params(item.dict_id).pocket_share.units_in(size)
                 };
-                assert_eq!(u32::from(item.count), most, "{at}: slot {}", item.slot);
+                assert_eq!(item.count, most, "{at}: slot {}", item.slot);
             }
             let mut types: Vec<u16> = kit
                 .items
