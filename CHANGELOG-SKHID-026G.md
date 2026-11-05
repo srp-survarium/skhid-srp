@@ -9,6 +9,26 @@ release that made it what it is now.
 
 ---
 
+## 4 Nov, 21:29 — Game update 48: no repeated camouflage (update required)
+
+<!-- Revision 48 (026g-rev48), released 2026-11-04 21:29 UTC. -->
+
+Update through the Skhid launcher before playing.
+
+- Match drops and stash maps never give a camouflage or decal you already have.
+
+## 4 Nov, 10:11 — Game update 47: match drops and Team Deathmatch (update required)
+
+<!-- Revision 47 (026g-rev47), released 2026-11-04 10:11 UTC. -->
+
+Update through the Skhid launcher before playing.
+
+- Every match ends with a drop, rolled like a stash map: a weapon, armour, or a camouflage or decal. Never gold, silver or a toolkit, and always in full condition.
+- Team Deathmatch: a kill scores three times as much.
+- The Blackout notice under the countdown shows its text properly in every language and stays for 10 seconds.
+
+Replays recorded before revision 47 are incompatible with the updated simulation.
+
 ## 4 Nov, 08:49 — Game update 46: new-player kits, Vostok spawns and fixes (update required)
 
 <!-- Revision 46 (026g-rev46), released 2026-11-04 08:49 UTC. -->
@@ -32,7 +52,6 @@ Update through the Skhid launcher before playing.
 **Fixes**
 
 - Medic: Larkspur's shared effect now activates reliably for nearby teammates; one booster per pocket.
-- The Blackout notice under the countdown shows its text properly, also when joining a match late.
 - Hit markers stay visible when the crosshair is hidden.
 - Battery markers update correctly.
 - Weapon stats no longer show long decimal tails.
