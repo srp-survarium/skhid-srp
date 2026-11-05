@@ -33,4 +33,8 @@ id	id_069	donor	name	template_id	faction	level	armour	isolation	drop_weight	pric
 1100	blackmarket_helmet_7	046	Watchman helmet	744	2	9	30	35	70	26250		10	8	1.4		744	Watchman	
 1105	blackmarket_gloves_5	046	"Marodeur" gloves	40	2	4	40	30	120	2620		11	8	0.4	1143	40	Marodeur	
 1092	blackmarket_legs_4	046	Biker pants	329	2	5	55	5	110	8930		12	8	2	1113	329	Corsair	
+998	edge_mask_7	031	Veles Mask	121	4	10	34	21	60	14005		16	8	0.6		113	Veles	
+1098	edge_boots_6	046	Stalker's laced boots	143	4	9	60	20	70	13130		17	8	1.2	1163	143	Stalker	
+1108	renesanse_gloves_6	046	"Shturm" gloves	61	3	9	60	10	70	13130		18	8	0.25	1083	61	Shturm	
+1097	scavenger_boots_6	046	Reinforced padded boots	39	1	5	50	10	110	4460		19	8	1.1	1113	39	Reinforced	
 1863	blackmarket_torso_2_premium	031	Bandit's jacket "MK II"	351	2	3	35	5	0	500	351	13	8			351	Premium	

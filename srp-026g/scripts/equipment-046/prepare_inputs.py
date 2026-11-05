@@ -60,6 +60,34 @@ def icon_path(row, col):
     return f'flash_movies/textures/ui_icons/items/equipment/equipment_{col}_{row}.png'
 
 
+def on_native_head(section):
+    """A data section worn over the player's native head (the owner's rule for ported headwear).
+
+    A donor mask that takes the head's place (remove_head_model) draws a stand-in head as an
+    additional model (the Veles mask: renesanse_novice_combat_head, as stock masks do); the
+    stand-in goes with the flag, or the mask would draw a second head over the player's own.
+    """
+    if section.pop('remove_head_model', None) is True and 'additional_models' in section:
+        section['additional_models'] = [part for part in section['additional_models']
+                                        if not part['base_model'].endswith('_head')]
+        if not section['additional_models']:
+            del section['additional_models']
+    return section
+
+
+def sections(config):
+    return [value for key, value in config.items() if key == 'data' or key.startswith('data_')]
+
+
+def worn(config, covers_head):
+    """The donor config as the pack draws it: over the native head unless it is a closed shell
+    over the whole head (covers_head), which keeps its donor's remove_head_model."""
+    for section in sections(config):
+        if not (covers_head and section.get('remove_head_model') is True):
+            on_native_head(section)
+    return config
+
+
 def models_of(config):
     """The skinned models an item config draws (every data variant, hud hands, extra parts)."""
     found = set()
@@ -217,6 +245,7 @@ def pin(args, donors, base):
             config = bcw.loads((work / 'donor031' / path).read_bytes())
         else:
             config = equipment[row['id_069']]
+        config = worn(config, row['covers_head'])
         inputs['donor' + row['donor']].add(icon_path(*config['ui_desc']['icon']))
         # The sounds the released game has (make_pack replaces the others with the template's).
         inputs['base'] |= {sound_file(*sound) for sound in config.get('sounds', []) if sound_file(*sound) in base}

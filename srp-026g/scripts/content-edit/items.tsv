@@ -485,6 +485,7 @@ items	name	base_cost	gold	like	start
 995	eq046_edge_torso_7	53830	false		
 996	eq046_edge_helmet_7	35580	false		
 997	eq046_edge_back_7	39670	false		
+998	eq046_edge_mask_7	14005	false		
 999	eq046_renesanse_boots_7	15300	false		
 1000	eq046_renesanse_gloves_7	14880	false		
 1001	eq046_renesanse_legs_7	29750	false		
@@ -501,12 +502,15 @@ items	name	base_cost	gold	like	start
 1092	eq046_blackmarket_legs_4	8930	false		
 1094	eq046_edge_helmet_6	26250	false		
 1095	eq046_scavenger_boots_5	4460	false		
+1097	eq046_scavenger_boots_6	4460	false		
+1098	eq046_edge_boots_6	13130	false		
 1099	eq046_blackmarket_boots_7	13130	false		
 1100	eq046_blackmarket_helmet_7	26250	false		
 1102	eq046_scavenger_boots_7	13130	false		
 1103	eq046_edge_gloves_5	11880	false		
 1104	eq046_renesanse_gloves_5	8660	false		
 1105	eq046_blackmarket_gloves_5	2620	false		
+1108	eq046_renesanse_gloves_6	13130	false		
 1196	blackmarket_medkit	40	false		
 1357	eq069_leagues_back_2	10830	false		
 1359	eq069_leagues_back_5	42750	false		

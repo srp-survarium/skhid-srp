@@ -30,10 +30,10 @@ from donors import equipment029  # noqa: E402
 e029 = equipment029()
 bcw, atlas, cell, png = e029.bcw, e029.atlas, e029.cell, e029.png
 drawable_material = e029.drawable_material
-from prepare_inputs import LATER_STAGE_KEYS, sound_file, specs  # noqa: E402
+from prepare_inputs import LATER_STAGE_KEYS, sound_file, specs, worn  # noqa: E402
 
 PACK = 'equipment-046'
-VERSION = '4'
+VERSION = '5'
 DICTIONARY = 'gameplay/db_static_dictionaries'
 GAME_OPTIONS = 'gameplay/game.options'
 MODIFICATIONS = 'gameplay/items/modifications/modifications.options'
@@ -243,12 +243,10 @@ def convert(source, template, spec, released, plain=None):
         result['hit_params'] = copy.deepcopy(plain['hit_params'])
     for section in data_sections(result):
         section.pop('damage_protection', None)  # 0.31's; 0.26g reads hit_params
-        # Masks are worn over the player's native head (owner's rule for ported headwear),
-        # but a closed shell over the whole head (covers_head) takes the head's place, as
-        # in its donor: the native skull pokes through it (the Spectrum-M, 2026-10-30).
-        if spec['covers_head'] and section.get('remove_head_model') is True:
-            continue
-        section.pop('remove_head_model', None)
+    # Masks are worn over the player's native head (owner's rule for ported headwear),
+    # but a closed shell over the whole head (covers_head) takes the head's place, as
+    # in its donor: the native skull pokes through it (the Spectrum-M, 2026-10-30).
+    worn(result, spec['covers_head'])
     if result['data']['type'] != 5:
         raise ValueError(f"{spec['id']}: unsupported donor equipment data type {result['data']['type']}")
     result['data']['type'] = DATA_TYPE

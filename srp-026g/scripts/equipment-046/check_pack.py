@@ -78,7 +78,7 @@ def check(pack, base):
     manifest = json.loads((pack / 'pack.json').read_text())
     operations = manifest['operations']
     entries = next(op['entries'] for op in operations if op['op'] == 'dictionary_add')
-    assert len(entries) == len(rows) == 35
+    assert len(entries) == len(rows) == 39
     assert sum(row['is_premium'] for row in entries) == sum(1 for r in rows if r['plain_id']) == 1
     native = bcw.loads((base / 'gameplay/db_static_dictionaries').read_bytes())['items_dict']
     by_id = {row['dict_id']: row for row in native + entries}
@@ -128,6 +128,9 @@ def check(pack, base):
                 assert part['part_name'] in surfaces[part['base_model']], (ident, part)
             assert 'damage_protection' not in item[key], ident
         assert item['data'].get('remove_head_model', False) == bool(spec['covers_head']), (ident, 'head')
+        # Over the native head, no stand-in head of the donor's (the Veles mask's).
+        assert spec['covers_head'] or not any(part['base_model'].endswith('_head')
+                                              for part in item['data'].get('additional_models', [])), (ident, 'head')
         assert not any('remove_head_model' in item[k] for k in item if k.startswith('data_')), ident
         assert item['ui_desc']['text_descriptions'] == text_keys(spec)
         for sound in item.get('sounds', []):

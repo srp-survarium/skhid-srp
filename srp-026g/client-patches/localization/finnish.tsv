@@ -2381,6 +2381,8 @@ st_srp_equipment046_edge_back_6_desc	Kuvausta ei vielä ole.
 st_srp_equipment046_edge_back_6_name	Stalkerin reppu
 st_srp_equipment046_edge_back_7_desc	Kuvausta ei vielä ole.
 st_srp_equipment046_edge_back_7_name	Taikakalu
+st_srp_equipment046_edge_boots_6_desc	Kuvausta ei vielä ole.
+st_srp_equipment046_edge_boots_6_name	Stalkerin nauhasaappaat
 st_srp_equipment046_edge_boots_7_desc	Kuvausta ei vielä ole.
 st_srp_equipment046_edge_boots_7_name	Tietäjän saappaat
 st_srp_equipment046_edge_gloves_5_desc	Kuvausta ei vielä ole.
@@ -2395,6 +2397,8 @@ st_srp_equipment046_edge_legs_7_desc	Kuvausta ei vielä ole.
 st_srp_equipment046_edge_legs_7_name	Veles-housut
 st_srp_equipment046_edge_mask_6_desc	Kuvausta ei vielä ole.
 st_srp_equipment046_edge_mask_6_name	Pimeänäkölaite
+st_srp_equipment046_edge_mask_7_desc	Kuvausta ei vielä ole.
+st_srp_equipment046_edge_mask_7_name	Veles-kaasunaamari
 st_srp_equipment046_edge_torso_7_desc	Kuvausta ei vielä ole.
 st_srp_equipment046_edge_torso_7_name	Veles-suojaliivi
 st_srp_equipment046_renesanse_boots_3_desc	Kuvausta ei vielä ole.
@@ -2405,6 +2409,8 @@ st_srp_equipment046_renesanse_gloves_3_desc	Kuvausta ei vielä ole.
 st_srp_equipment046_renesanse_gloves_3_name	OZK-UV-käsineet
 st_srp_equipment046_renesanse_gloves_5_desc	Kuvausta ei vielä ole.
 st_srp_equipment046_renesanse_gloves_5_name	Tiedustelijan käsineet
+st_srp_equipment046_renesanse_gloves_6_desc	Kuvausta ei vielä ole.
+st_srp_equipment046_renesanse_gloves_6_name	Šturm-käsineet
 st_srp_equipment046_renesanse_gloves_7_desc	Kuvausta ei vielä ole.
 st_srp_equipment046_renesanse_gloves_7_name	Tarkka-ampujan käsineet
 st_srp_equipment046_renesanse_helmet_7_desc	Kuvausta ei vielä ole.
@@ -2421,6 +2427,8 @@ st_srp_equipment046_renesanse_torso_7_desc	Kuvausta ei vielä ole.
 st_srp_equipment046_renesanse_torso_7_name	Tarkka-ampujan suojaliivi
 st_srp_equipment046_scavenger_boots_5_desc	Kuvausta ei vielä ole.
 st_srp_equipment046_scavenger_boots_5_name	Sabotöörin saappaat
+st_srp_equipment046_scavenger_boots_6_desc	Kuvausta ei vielä ole.
+st_srp_equipment046_scavenger_boots_6_name	Vahvistetut toppasaappaat
 st_srp_equipment046_scavenger_boots_7_desc	Kuvausta ei vielä ole.
 st_srp_equipment046_scavenger_boots_7_name	Jäljittäjän saappaat
 st_srp_equipment069_leagues_back_2_desc	Kuvausta ei vielä ole.
