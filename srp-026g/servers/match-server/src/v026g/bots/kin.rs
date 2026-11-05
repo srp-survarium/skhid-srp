@@ -76,11 +76,30 @@ pub struct Kinematics {
     pub pitch_scale: PitchScale,
     /// [A304] How a ground step over a slope is reckoned ([`SlopeSpeed`]).
     pub slope_speed: SlopeSpeed,
+    /// [A313] Which of the client's speed factor terms the reckoned body moves by ([`SpeedTerms`]).
+    pub speed_terms: SpeedTerms,
     /// [A304] The flattest ramp face (degrees, the grid's ramp mark) [`SlopeSpeed::RampsGrade`] slows on: a floor whose mark is
     /// flatter counts as unmarked. 35 (the lab, 2026-11-05: Vostok Radar Station's and Chemical Plant's stairs carry 20-39 degree
     /// marks and the client climbs them at full speed; Cologne's slowing stairs are 45; 35 was better than 40 and 44). 20: every
     /// mark (`mapdata::grid::RAMP_MIN_DEG`).
     pub ramp_min_deg: f32,
+}
+
+/// [A313] The terms of the client's movement speed factor `F = max(0, 1 + S4)` the reckoned body moves by
+/// (`mapdata::controller::speed`, read from the 0.26g exe: skill 208, the weapon, the weight, each leg's wound, a hit's
+/// stagger, a carried battery, the spring artefact). The body's level (`Kinematics::level_of`) holds what a world shows of the
+/// rest; the terms here are the ones that change within a life faster than the level follows.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum SpeedTerms {
+    /// None: the level alone (as it was).
+    #[default]
+    None,
+    /// Each leg's wound from the world's leg pools ([`super::motor::Hurt::legs_factor`]): -0.1 a leg under 20 % of its pool,
+    /// -0.2 a leg at 0. The drift lab (fx-bench, the controller arm, 12 client-test recordings): the 691 walk worlds with a leg
+    /// under 20 % drift 1 m or more 23.9 % -> 18.8 %, all walk worlds 3.51 -> 3.46 %, every map better or equal. The battery
+    /// and the stagger terms gave nothing there (4.1 % and 4.7 % against 3.6 %), the recorded speed worse.
+    Legs,
 }
 
 /// [A304] How the reckoned body's ground step goes over a slope of the walk grid.
@@ -247,6 +266,7 @@ impl Default for Kinematics {
             pitch_scale: PitchScale::Client,
             slope_speed: SlopeSpeed::RampsGrade,
             ramp_min_deg: 35.0,
+            speed_terms: SpeedTerms::None,
         }
     }
 }

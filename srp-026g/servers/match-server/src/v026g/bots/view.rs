@@ -735,6 +735,13 @@ impl Tracker {
         }
     }
 
+    /// [A313] The legs' term of the speed factor `place`'s body moves by ([`BodyTrack::set_legs`]).
+    pub fn set_legs(&mut self, place: Place, factor: Option<f32>) {
+        if let Some(state) = self.places.get_mut(place) {
+            state.body.set_legs(factor);
+        }
+    }
+
     /// What each place's throw keys throw, by place (decided where the profiles are read).
     pub fn set_throws(&mut self, throws: Vec<Throws>) {
         for (state, throws) in self.places.iter_mut().zip(throws) {

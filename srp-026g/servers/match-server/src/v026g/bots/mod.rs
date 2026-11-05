@@ -1360,6 +1360,9 @@ impl Bots {
     /// A trusted world's word on one place's hurts (with its body's,
     /// [`Self::fixed`]): what its jumps may do ([`Hurt::may_jump`]).
     pub fn hurt(&mut self, place: Place, hurt: Hurt) {
+        // [A313] The legs' term of the speed factor for the body's reckoning, with `kin.speed_terms` legs.
+        let legs = (self.tunings.match_wide().kin.speed_terms == kin::SpeedTerms::Legs).then(|| hurt.legs_factor());
+        self.tracker.set_legs(place, legs);
         if let Some(Some(bot)) = self.bots.get_mut(place) {
             bot.hurt = hurt;
             // [A217] A hit after a drug's press stops it (patch 84): the pantry keeps the first one.
