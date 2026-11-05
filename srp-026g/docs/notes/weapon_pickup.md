@@ -332,6 +332,47 @@ local: nothing synced, no `simulation_changes` row.
   the own kit set aside) and 36 departed donors' picks are not installed.
   With #1045's build, none differ.
 
+## Rev47's crash: one record, two guns (match 0x5bfde2e7, 2026-11-04)
+
+Place 19 picked place 5's kit-2 primary (taken 854400 ms, switched 855100).
+Every client that later loaded place 19's state (the resync at 860050, the
+rejoins at 885450 and 909300) misread its inventory and asserted in
+body_part_parameters::deserialize ("affects_count buffer overflow"): 7
+clients and every joiner crashed while place 19 held the gun.
+
+- **What differed.** Not a field of one gun's codec: two different guns. In
+  the majority's worlds (the server's snapshots) place 19's slot 7 has a
+  chamber byte (has_chamber, weapon+5F0h, a config constant; weapon_core
+  serialize 0x2E3209) and a 4-round magazine; the recipe's gun (place 5's
+  own kit-2 primary in the same worlds, the minority's copy, every fresh
+  cook) has none and 20 rounds. weapon_core's codec is symmetric only for one
+  weapon: has_chamber, the user (+8h), ammo_count (+5B0h) and the two state
+  machines (vostok::ai::fsm 0x38CC90/0x38CCF0 over the weapon's +320h and its
+  controller's states, weapon_controller_core 0x2FF930/0x2FF970) are the
+  reader's own. The resync reader (its kept copy, the recipe's gun) ended
+  place 19's inventory 4 bytes early; the joiners (a fresh cook) 116 late.
+- **How a copy held another gun.** The only code that puts anything but the
+  cooked gun in a copy's weapon slot is the install, which parks the
+  picker's own gun there until the restore. Unpick moved a copy to an idle
+  state (let go, or back in its drop) even when its restore was refused, and
+  re-use, drops and loaded records chose copies by recipe alone: such a copy
+  handed out the picker's own gun as the recipe's (check_weapon_pickup's
+  one_gun_a_copy reproduces it on main: the refused copy is re-used for its
+  donor's next drop). An install also parked whatever gun its slot held,
+  a copy's too.
+- **The split at 855100.** The owner's client rolled back into the holster
+  (855000) and re-registered an older idle copy of the recipe (let_go
+  preferred ended drops and other pickers' let-go copies to the copy back in
+  its drop); the clients that did not roll back kept the drop's copy.
+- **The fix.** gun_cook keeps the gun each copy was made with
+  (`made_gun`); a copy whose slot holds another (`pickup::stray`) is never
+  handed out (let_go, reuse, body_drop, revive, before_world_load's idle
+  count); an install refuses a slot whose gun is any copy's
+  (Refusal::NotOwnGun); and a copy remembers the pick it last went to, which
+  a rollback naming that pick takes back first. What refused the restore on
+  the majority's clients is not in the logs at hand (the owner's own log, a
+  minority client, has none).
+
 ## The switch: holster, then draw (option (b), exp/pickup-holster-b, built, not run in a game)
 
 The owner (2026-11-01): a pickup is a normal weapon switch, the gun in hands

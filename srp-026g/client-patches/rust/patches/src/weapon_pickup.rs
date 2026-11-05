@@ -140,8 +140,9 @@ enum At {
     /// rollback undoing the pickup puts it back.
     Held { picker: PlayerId, slot: WeaponSlot, pick: Pick, installed: Installed, from: DropOf },
     /// Let go (its picker died or took another): idle, kept for a rollback
-    /// that names it again or the donor's next drop (never freed mid-match).
-    LetGo { picker: PlayerId, slot: WeaponSlot, pick: Pick, from: DropOf },
+    /// that names it again (the entry's `last` pick) or the donor's next drop
+    /// (never freed mid-match).
+    LetGo { from: DropOf },
 }
 
 /// A gun registered as `picker`'s pending object, waiting for the weapon
@@ -165,6 +166,19 @@ struct Entry {
     at: At,
     report: Report,
     history: History,
+    /// The pick it last went to (registered or installed): a rollback that
+    /// names that pick again takes this copy back, as every client that
+    /// did not roll back still has it (the live 0x5bfde2e7 at 855000 ms:
+    /// an older idle copy was taken instead and the clients split).
+    last: Option<Taken>,
+}
+
+/// A pick a copy went to: its picker, weapon slot and pick.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+struct Taken {
+    picker: PlayerId,
+    slot: WeaponSlot,
+    pick: Pick,
 }
 
 /// What a copy has been on this client: its lifetime follows (the owner's
@@ -407,9 +421,10 @@ fn used(thread: &Thread, id: CookId) -> bool {
 
 /// The cook `id`'s gun is `holder`'s now: registered, or (`installed`) in
 /// its hands. Kept until `holder` is destroyed.
-fn mark_held(thread: &Thread, id: CookId, holder: PlayerId, installed: bool) {
+fn mark_held(thread: &Thread, id: CookId, holder: PlayerId, installed: bool, slot: WeaponSlot, pick: Pick) {
     CACHE.with(thread, |cache| {
         if let Some(e) = cache.iter_mut().flatten().find(|e| e.gun.id() == id) {
+            e.last = Some(Taken { picker: holder, slot, pick });
             e.history = match (installed, e.history) {
                 (true, _) | (false, History::Used { .. }) => History::Used { holder },
                 (false, _) => History::Registered { holder },
@@ -454,12 +469,13 @@ fn unpick(player: &Player<'_>, thread: &Thread, slot: WeaponSlot, how: Unpick, w
     let outcome = native::restore(player, &installed);
     move_to(thread, id, |at| match at {
         At::Held { from, .. } if how == Unpick::Undo => At::Drop(from),
-        At::Held { picker, slot, pick, from, .. } => At::LetGo { picker, slot, pick, from },
+        At::Held { from, .. } => At::LetGo { from },
         other => other,
     });
     match outcome {
         Ok(()) => log_pick(if how == Unpick::Undo { "gave back to its drop" } else { "let go" }, player, slot, pick, why),
-        Err(refusal) => log_pick("FAILED to restore", player, slot, pick, refusal.text()),
+        Err(refusal) => log_pick("FAILED to restore (its copy, holding the own gun, is never handed out again)", player,
+                                 slot, pick, refusal.text()),
     }
 }
 
@@ -530,7 +546,7 @@ fn reconcile(player: &Player<'_>, thread: &Thread, record: Record) {
             let installed = native::install(player, slot, id, pick.recipe.slot, at, Mode::Load(fresh))
                 .map_err(|f| Why::Install(f.refusal()))?;
             move_to(thread, id, |_| At::Held { picker: player.id(), slot, pick, installed, from });
-            mark_held(thread, id, player.id(), true);
+            mark_held(thread, id, player.id(), true, slot, pick);
             log_gun(player, "a loaded record re-installed", installed.gun(), Some(installed.id()), slot,
                     if fresh == Fresh::No { "no weapon call (the reader set_users and activates it)" }
                     else { "fresh: set_user + initialize" });
@@ -554,7 +570,7 @@ fn reconcile(player: &Player<'_>, thread: &Thread, record: Record) {
         let registered = native::register_pending(player, id, pending.pick.recipe.slot, at, Select::ByReader)
             .map_err(Why::Install)?;
         move_to(thread, id, |_| At::Pending(Waiting { picker: player.id(), pending, registered, from }));
-        mark_held(thread, id, player.id(), false);
+        mark_held(thread, id, player.id(), false, pending.slot, pending.pick);
         Ok::<_, Why>(registered)
     })();
     match outcome {
@@ -600,10 +616,15 @@ fn let_go(thread: &Thread, world: Option<WorldKey>, player: PlayerId, slot: Weap
     // it) is that drop's gun: taken for another pick only as the last resort
     // (a rollback that gave a pickup back to its drop finds its gun there).
     let open = |d: DropOf| world.is_some_and(|w| matches!(record_at(thread, w, d.place).drop, DropState::Open(_)));
+    let this = Taken { picker: player, slot, pick };
     let idle_drops = CACHE.with(thread, |cache| {
-        let flat = || cache.iter().flatten();
+        // A copy holding a gun other than its own is no gun of its recipe.
+        let flat = || cache.iter().flatten().filter(|e| !native::stray(thread, e.gun.id(), e.recipe.slot));
+        // The copy this very pick had (let go, or back in its drop: a
+        // rollback undoing its switch or its pickup), on every client the
+        // copy its command took.
         flat().find_map(|e| match e.at {
-            At::LetGo { picker, slot: s, pick: p, from, .. } if picker == player && s == slot && p == pick => Some((e.gun.id(), from)),
+            At::LetGo { from, .. } | At::Drop(from) if e.last == Some(this) => Some((e.gun.id(), from)),
             _ => None,
         }).or_else(|| flat().find_map(|e| match e.at {
             At::Drop(d) if e.recipe == pick.recipe && d.lies != Lies::Current => Some((e.gun.id(), d)),
@@ -705,7 +726,7 @@ pub fn before_world_load(load: &WorldLoad<'_>, frame: &Frame<'_>) {
         // An open drop's copy is not idle: it stays its drop's (the dead
         // holder of a picked gun names the same recipe).
         let idle = CACHE.with(thread, |cache| cache.iter().flatten()
-            .filter(|e| e.recipe == recipe && match e.at {
+            .filter(|e| e.recipe == recipe && !native::stray(thread, e.gun.id(), recipe.slot) && match e.at {
                 At::Drop(d) => !(d.lies == Lies::Current && open[usize::from(d.place.get())]),
                 At::LetGo { .. } => true,
                 _ => false,
@@ -861,7 +882,8 @@ fn end_drop(thread: &Thread, place: Place, now: Ms) {
 /// ending; true when the place's drop has a copy of `recipe`.
 fn revive(thread: &Thread, place: Place, was: impl Fn(DropOf) -> bool, recipe: Recipe, now: Ms) -> bool {
     let current = |e: &Entry| matches!(e.at, At::Drop(d) if d.place == place && d.lies == Lies::Current);
-    let ended = |e: &Entry| matches!(e.at, At::Drop(d) if d.place == place && d.lies != Lies::Current && was(d));
+    let ended = |e: &Entry| matches!(e.at, At::Drop(d) if d.place == place && d.lies != Lies::Current && was(d))
+        && !native::stray(thread, e.gun.id(), e.recipe.slot);
     CACHE.with(thread, |cache| {
         // One current copy a place, of its record's recipe.
         for e in cache.iter_mut().flatten().filter(|e| current(e) && e.recipe != recipe) {
@@ -889,7 +911,8 @@ fn revive(thread: &Thread, place: Place, was: impl Fn(DropOf) -> bool, recipe: R
 fn reuse(thread: &Thread, donor: PlayerId, recipe: Recipe, from: DropOf) -> Option<ItemId> {
     let id = CACHE.with(thread, |cache| {
         let e = cache.iter_mut().flatten().find(|e| e.donor == donor && e.recipe == recipe && e.history != History::Fresh
-            && matches!(e.at, At::LetGo { .. } | At::Drop(DropOf { lies: Lies::Ended { .. }, .. })))?;
+            && matches!(e.at, At::LetGo { .. } | At::Drop(DropOf { lies: Lies::Ended { .. }, .. }))
+            && !native::stray(thread, e.gun.id(), recipe.slot))?;
         e.at = At::Drop(from);
         Some(e.gun.id())
     })?;
@@ -900,7 +923,8 @@ fn reuse(thread: &Thread, donor: PlayerId, recipe: Recipe, from: DropOf) -> Opti
 /// client has it.
 fn body_drop(thread: &Thread, place: Place, recipe: Recipe) -> Option<(CookId, DropOf)> {
     CACHE.with(thread, |cache| cache.iter().flatten().find_map(|e| match e.at {
-        At::Drop(d) if d.place == place && d.lies == Lies::Current && e.recipe == recipe => Some((e.gun.id(), d)),
+        At::Drop(d) if d.place == place && d.lies == Lies::Current && e.recipe == recipe
+            && !native::stray(thread, e.gun.id(), recipe.slot) => Some((e.gun.id(), d)),
         _ => None,
     }))
 }
@@ -990,7 +1014,7 @@ fn take(player: &Player<'_>, thread: &Thread, target: Place) -> Result<(Pending,
     player.select_animations_now();
     let pending = Pending { slot: into, from: target, pick: Pick { taken: Ms(player.time()), recipe }, magazine };
     move_to(thread, cook, |_| At::Pending(Waiting { picker: player.id(), pending, registered, from }));
-    mark_held(thread, cook, player.id(), false);
+    mark_held(thread, cook, player.id(), false, pending.slot, pending.pick);
     update_record(thread, world, place, |r| r.pending = Some(pending));
     update_record(thread, world, target, |r| r.drop = r.drop.taken());
     Ok((pending, registered))
@@ -1092,10 +1116,10 @@ fn switch(player: &Player<'_>, thread: &Thread) -> Option<bool> {
     log_gun(player, "out of hands at the switch", replaced.as_ref().map_or(installed.own_gun(), |r| r.2.gun()),
             replaced.as_ref().map(|r| r.2.id()), pending.slot, if replaced.is_some() { "the replaced pick, let go" }
             else { "the own gun, hidden" });
-    mark_held(thread, cook, player.id(), true);
+    mark_held(thread, cook, player.id(), true, pending.slot, pending.pick);
     if let Some((old, pick, _)) = replaced {
         move_to(thread, old, |at| match at {
-            At::Held { picker, slot, pick, from, .. } => At::LetGo { picker, slot, pick, from },
+            At::Held { from, .. } => At::LetGo { from },
             other => other,
         });
         log_pick("let go, replaced", player, pending.slot, pick, "");
@@ -1146,7 +1170,8 @@ fn ask(player: &Player<'_>, thread: &Thread, recipe: Recipe, at: At) -> Option<C
         }
     };
     let id = gun.id();
-    let entry = Entry { gun, recipe, donor: player.id(), at, report: Report::Asked { memory }, history: History::Fresh };
+    let entry = Entry { gun, recipe, donor: player.id(), at, report: Report::Asked { memory }, history: History::Fresh,
+                        last: None };
     let leftover = CACHE.with(thread, |cache| match cache.iter_mut().find(|e| e.is_none()) {
         Some(free) => {
             *free = Some(entry);

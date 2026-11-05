@@ -2118,3 +2118,6 @@ va	status	ref_021d	name
 0x00313640	verified		survarium::artefact_base::active_effect_time_calculator::calculate
 0x00313300	verified		survarium::artefact_base::action
 0x00313350	verified		survarium::artefact_base::effect
+0x002ff930	observed		survarium::weapon_controller_core::serialize
+0x002ff970	observed		survarium::weapon_controller_core::deserialize
+0x00330a20	observed		survarium::hit_animations_selector::hit_body_part::deserialize

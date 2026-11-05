@@ -30,8 +30,8 @@ use core::sync::atomic::{AtomicU32, Ordering};
 
 pub use weapon_pickup::{Kit, WeaponSlot};
 
-use super::pickup::{place_lying, remove_lying, Models};
-use super::world::{read, Player};
+use super::pickup::{made_guns, place_lying, remove_lying, Models};
+use super::world::{read, ItemId, Player};
 use super::{clock, Lock, Thread};
 use crate::raw;
 
@@ -240,7 +240,9 @@ enum Ticket {
     Waiting { generation: u32, recipe: Recipe, profile: ProfileCopy, since: u64 },
     /// Its [`Gun`] was dropped while in flight: the completion frees all.
     Abandoned { recipe: Recipe, profile: ProfileCopy },
-    Made { generation: u32, cooked: CookedInventory, since: u64, at: u64 },
+    /// `guns` the client weapons its weapon slots 7 and 10 held when it was
+    /// made: the copy's own gun, whatever an install parks there meanwhile.
+    Made { generation: u32, cooked: CookedInventory, guns: [Option<ItemId>; 2], since: u64, at: u64 },
     Failed { generation: u32, since: u64, at: u64 },
 }
 
@@ -335,7 +337,7 @@ impl Drop for Gun {
 pub fn cooked(thread: &Thread, id: CookId) -> Cooked {
     TABLE.with(thread, |table| match &table.tickets[usize::from(id.index)] {
         Ticket::Waiting { generation, since, .. } if *generation == id.generation => Cooked::Cooking { since: *since },
-        Ticket::Made { generation, cooked, since, at } if *generation == id.generation => {
+        Ticket::Made { generation, cooked, since, at, .. } if *generation == id.generation => {
             Cooked::Made { inventory: InventoryId::of(cooked.inventory), since: *since, at: *at }
         }
         Ticket::Failed { generation, since, at } if *generation == id.generation => {
@@ -352,6 +354,20 @@ pub(in crate::vostok) fn inventory(thread: &Thread, id: CookId) -> Option<raw::I
         Ticket::Made { generation, cooked, .. } if *generation == id.generation => Some(cooked.inventory),
         _ => None,
     })
+}
+
+/// The gun the made cook `id` had in `slot` when it was made (its copy's
+/// own gun): None while it cooks, or when it has none there.
+pub fn made_gun(thread: &Thread, id: CookId, slot: WeaponSlot) -> Option<ItemId> {
+    TABLE.with(thread, |table| match &table.tickets[usize::from(id.index)] {
+        Ticket::Made { generation, guns, .. } if *generation == id.generation => guns[usize::from(slot == WeaponSlot::Second)],
+        _ => None,
+    })
+}
+
+/// Whether `gun` is a made copy's own gun (none of a player's own kit).
+pub fn is_made_gun(thread: &Thread, gun: ItemId) -> bool {
+    TABLE.with(thread, |table| table.tickets.iter().any(|t| matches!(t, Ticket::Made { guns, .. } if guns.contains(&Some(gun)))))
 }
 
 /// The made cook `id`'s gun (its inventory's `slot`) drawn alone lying at
@@ -560,8 +576,10 @@ extern "C" fn cooked_shim(ticket: u32, result: Option<raw::QueriesResult>) {
         match core::mem::replace(slot, Ticket::Free) {
             Ticket::Waiting { generation, recipe, profile, since } => match made {
                 Some(inventory) => {
+                    // SAFETY: the made inventory, one reference ours (taken above).
+                    let guns = unsafe { made_guns(inventory) };
                     *slot = Ticket::Made { generation, cooked: CookedInventory { inventory, _profile: profile, drawn: Drawn::Hidden },
-                                           since, at };
+                                           guns, since, at };
                     ((Some(recipe), None), None)
                 }
                 None => {
