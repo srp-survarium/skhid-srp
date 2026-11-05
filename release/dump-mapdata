@@ -1,0 +1,89 @@
+#!/usr/bin/env bash
+# usage: release/dump-mapdata --out <dir> [--compare <dir>] [--test]
+#
+# Dumps the bots' map data (the .mapdata files: collision, floors, materials with each triangle's
+# armor) from the stock resources.db ($SKHID_STOCK_DB) and the patches of the offered-patch list
+# release/patches.tsv, exactly those, in its order, read and fetched by the same lib.sh functions as
+# release/build-server-db (read_patch_list, cache_patches: ~/.cache/skhid-release/patches/, each
+# checked by size and sha256, downloaded from its row's first URL when missing). So the map data
+# cannot drift from the server data. Run it on Linux (WSL as an owner-approved account): the floats
+# a Windows build writes differ from Linux's in the last bit, and a few maps' bots play out
+# differently on them (PR #705, A103). A map data folder is made for a release that changes any map
+# or material: a patch with maps, models or game.materials.
+#
+#   --out <dir>      a new folder (never overwritten); the 72 stock maps' files, and the patches' maps that
+#                    mapdata-dump finds playable
+#   --compare <dir>  a folder dumped before (the bench's, or the live one): names the maps whose file is
+#                    not byte for byte the same (geometry or armor changed by a patch), those only in one
+#                    of the folders, and says which
+#   --test           the test environment's patch list (release/patches-test.tsv)
+#
+# Checklist, once a release's patches are in release/patches.tsv: run it with --compare on the folder of the
+# last dump; name the changed maps in the release record; look at each (`mapdata-dump --stats`, the
+# armor census line of the map-ready log) before the swap. Copy bot-foliage.json, bot-grass.json and
+# bot-routes.json into the new folder; stage and swap as RELEASE-MAPDATA.md says. Downloading the patches
+# needs the owner's go (about 3 GB for the live list).
+# Reads only the stock db and the cache; runs at nice 10.
+. "$(dirname "$0")/lib.sh"
+
+out='' compare='' which=live
+while (($#)); do
+    case $1 in
+    -h | --help) usage ;;
+    --test) which='test'; shift ;;
+    --out) (($# >= 2)) || usage 1; out=$2; shift 2 ;;
+    --compare) (($# >= 2)) || usage 1; compare=$2; shift 2 ;;
+    *) die "unknown argument $1 (--help)" ;;
+    esac
+done
+[[ -n $out ]] || usage 1
+[[ ! -e $out ]] || die "$out: already there; never overwritten"
+[[ -z $compare || -d $compare ]] || die "--compare $compare: no such folder"
+[[ $(uname -s) == Linux ]] || die "run this on Linux (WSL): a Windows dump differs in the last bit of its floats"
+need_cmds curl sha256sum
+lower_priority
+load_env SKHID_STOCK_DB
+use_patches "$which"
+[[ -f $SKHID_STOCK_DB ]] || die "SKHID_STOCK_DB: $SKHID_STOCK_DB: no such file"
+read_patch_list
+cache_patches
+
+bin=${MAPDATA_DUMP_BIN:-}
+if [[ -z $bin ]]; then
+    say "building mapdata-dump (srp-026g, nix develop) ..." >&2
+    (cd "$ROOT" && nice -n 10 nix develop ./srp-026g -c bash -c \
+        'cd srp-026g && cargo build --quiet --release -p mapdata --bin mapdata-dump') >&2 ||
+        die "mapdata-dump did not build"
+    bin=$ROOT/srp-026g/target/release/mapdata-dump
+fi
+
+args=()
+while read -r name _; do
+    [[ -n $name ]] || continue
+    args+=(--patch "$PATCH_CACHE/$name")
+done <<<"$LIST"
+((${#args[@]})) || say "no patch in $PATCH_LIST: the stock db alone"
+
+mkdir -p "$out"
+"$bin" --db "$SKHID_STOCK_DB" "${args[@]}" --out "$out" >"$out/dump.log" 2>&1 || die "mapdata-dump failed: see $out/dump.log"
+files=$(find "$out" -maxdepth 1 -name '*.mapdata' | wc -l)
+say "$out: $files map files from the stock db and $(wc -l <<<"$LIST") patches ($(tail -n 1 <<<"$LIST" | cut -d' ' -f1) last)"
+
+if [[ -n $compare ]]; then
+    changed=0
+    for f in "$out"/*.mapdata; do
+        name=${f##*/}
+        if [[ ! -f $compare/$name ]]; then
+            say "only here: $name"
+            changed=$((changed + 1))
+        elif [[ $(sha256_of "$f") != "$(sha256_of "$compare/$name")" ]]; then
+            say "changed: $name"
+            changed=$((changed + 1))
+        fi
+    done
+    for f in "$compare"/*.mapdata; do
+        name=${f##*/}
+        [[ -f $out/$name ]] || { say "only in $compare: $name"; changed=$((changed + 1)); }
+    done
+    say "$changed maps differ from $compare"
+fi
