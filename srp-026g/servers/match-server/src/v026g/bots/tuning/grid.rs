@@ -127,6 +127,12 @@ pub struct GridTuning {
     /// told from real stairs with flat treads. A mark only, read by the reckoning's slope rule (`kin.slope_speed`); on with it. A
     /// grid is the map's (see `gap_links`).
     pub ramp_faces: bool,
+    /// [A313] Whether the maps' walk links are decided by the client's own walk tick (`mapdata::Body::client_controller`):
+    /// cracks and riser cells walked (in runs of `mapdata::grid::controlled::BRIDGE_MIN_RUN` side by side), links where the
+    /// client's body stalls dropped. ON (A313, fx-zones bench4, with `kin.walk_bridges`, 324 pairs vs OFF on Cologne, Rudnya and
+    /// Chemical Plant: no guard FAIL; missed jumps 23 -> 25 z +0.2, jumps pressed low -26 % z -2.2, delivered +1.0 %; search
+    /// work +3.9 % z +2.2 the one warn). A grid is the map's (see `gap_links`).
+    pub client_controller: bool,
     /// [A304] Whether `drop_room`'s walls count steep faces whatever their walker behaviour (`mapdata::Body::drop_room_walk_faces`): a
     /// parapet with `walk` faces then cuts the walk-off over it as any wall does (level 7's deck). ON (A304: the drift lab, all 15
     /// client-test recordings: level 7 -9.2 %, no other map changed). A grid is the map's (see `gap_links`).
@@ -158,6 +164,7 @@ impl Default for GridTuning {
             pocket_exits_walled: true,
             gap_no_vaults: true,
             ramp_faces: true,
+            client_controller: true,
             drop_room_walk_faces: true,
             narrow_doors: false,
         }
@@ -191,6 +198,7 @@ impl GridTuning {
             pocket_exits_walled: self.pocket_exits_walled,
             gap_no_vaults: self.gap_no_vaults,
             ramp_faces: self.ramp_faces,
+            client_controller: self.client_controller,
             drop_room_walk_faces: self.drop_room_walk_faces,
             narrow_doors: self.narrow_doors,
             ..body

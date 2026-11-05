@@ -113,6 +113,19 @@ pub(crate) fn stand_in_lift() -> bool {
     *ON.get_or_init(|| bench_settings().var("SRP_BENCH_STAND_IN_LIFT").map_or(true, |v| v != "off"))
 }
 
+/// [A313] How the stand-in body takes a walk-off bridge (`SRP_BENCH_STAND_IN_BRIDGES`, walked unless `off`): the client's capsule
+/// crosses its one cell no floor covers in a stride, as the controller (the exe's walk tick, proven in Unicorn) walks every bridge the
+/// grid keeps; the lattice stopped the body in that cell and held it at the face of each bridge up (the pass's 324-pair bench:
+/// missed jumps 11 -> 29). A grid with no bridges (`grid.client_controller` off) moves as before.
+pub(crate) fn stand_in_bridges() -> body::Bridges {
+    static ON: std::sync::OnceLock<bool> = std::sync::OnceLock::new();
+    if *ON.get_or_init(|| bench_settings().var("SRP_BENCH_STAND_IN_BRIDGES").map_or(true, |v| v != "off")) {
+        body::Bridges::Walked
+    } else {
+        body::Bridges::Leap
+    }
+}
+
 /// Whether the stand-in body is held at a ledge's edge as the client's capsule is (`SRP_BENCH_STAND_IN_EDGE`, on unless `off`): it falls
 /// [`body::SUPPORT_M`] past the last floor's centre, not at the lattice's cell boundary.
 pub(crate) fn stand_in_edge() -> bool {
