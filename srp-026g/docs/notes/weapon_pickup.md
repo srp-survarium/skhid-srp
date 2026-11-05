@@ -24,6 +24,8 @@
   (below, "The drop's gun is its copy"), drawn until the drop ends and
   offered where it lies on this client; a late joiner (no pose) draws and
   offers none, and every game plays a pickup sent.
+- A player's own drop can be taken too (the owner, 2026-11-05): back from
+  a respawn into another kit, the old body's gun.
 - The picked gun has the bullets left in its magazine (chamber included) and
   one full magazine in reserve.
 - A picked gun starts unworn (condition 1.0), whatever the dropped gun's wear
@@ -120,7 +122,7 @@
   was held in and whether its body left), 29 bytes at the start of its
   state; nothing else of the own kit a pick sets aside. The command rides in the input (patch 78's bit 29 with a pattern of
   two or more quick bits naming the place); the server drops an input whose
-  pickup names no other place, and the client never sends one.
+  pickup names no place of the match, and the client never sends one.
 - My picks for stage 2a (the owner: "just don't overcomplicate the
   feature", smallest version everywhere):
   - the records are kept by place, not by kit player object: a state is a
@@ -556,7 +558,7 @@ cooked gun).
   calls `weapon_pickup::on_filter` before patch 78 filters the actions):
   the command (`weapon_pickup::command` of +330h); the rule
   (`weapon_pickup::decide`: alive, a gun of its two slots held and pending
-  in slot 7 or 10, another place's open drop, the carry rule: the other
+  in slot 7 or 10, an open drop (its own place's too), the carry rule: the other
   slot's gun's +5E9h and the kit's modifiers 64 and 25 through
   apply_modifier 0x2D5AE0) first without the gun's handedness; the gun from
   the cache (a cook of that place, kit and slot nobody holds, whatever its
@@ -681,7 +683,7 @@ cooked gun).
   the byte writer recorded): the records written at a death and read back;
   a rifle for a held pistol taken; a second double-handed gun refused, then
   taken with modifier 25; a gun held in slot 10 refused with modifier 64
-  (the game's apply_modifier); the picker's own place, a second command, a
+  (the game's apply_modifier); a second command, a
   command after the donor's remove(1) refused with nothing changed, one 60 s
   after the death with the body there taken; the pickup's slots (the
   borrowed stack in the own gun's slot 8, the own stack parked), owners,
@@ -768,7 +770,7 @@ over `vostok/pickup.rs` (`drawn_gun`, `gun_name`) and `vostok/ui.rs`
   after patch 78's chord step): on Use's down edge while a gun is the
   prompt's and the input has no carry command, the mask becomes
   `weapon_pickup::encode(actions, target)` when `weapon_pickup::sane`
-  passes it (the server's check: another place of the match); the press
+  passes it (the server's check: a place of the match); the press
   then stays the pickup's (Use cleared) until Use is let go. Logged:
   `pickup: place P sends a pickup of the gun of place T`.
 - **The text**: `st_weapon_pick_up` in the ten `localization/*.tsv`;
