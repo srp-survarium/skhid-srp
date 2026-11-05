@@ -103,6 +103,7 @@ package
             try
             {
                 if (frames == 10) hitMarker();
+                if (frames == 11) mapNames();
                 if (frames == 12) scores();
                 if (frames == 40) trace("HUD SHOT scores");
                 if (frames == 100) namesOnly();
@@ -153,7 +154,7 @@ package
             // them, and the separate hit-marker choice works in either crosshair mode.
             hud.show_crosshair(true);
             require(crosshair.crosshair_mc.visible, "normal crosshair shows aiming lines");
-            hud.srp_hud_options(false, false, true);
+            hud.srp_hud_options(false, false, true, false);
             hud.crosshair_enemy_hit(0.5);
             require(!crosshair.crosshair_mc.visible && crosshair.visible && crosshair.bars.visible && markerShown(),
                 "hidden crosshair keeps hit feedback visible");
@@ -163,23 +164,23 @@ package
             hud.crosshair_enemy_hit(1, 1000, true);
             require(markerShown() && crosshair.visible && !crosshair.crosshair_mc.visible,
                 "hidden crosshair keeps kill feedback visible");
-            hud.srp_hud_options(true, false, true);
+            hud.srp_hud_options(true, false, true, false);
             require(!markerShown(), "separate hit-marker option clears feedback with a hidden crosshair");
             crosshair.setDamage(0.5, 1000, false, false);
             require(!markerShown(), "both hidden options suppress both visuals");
-            hud.srp_hud_options(false, false, true);
+            hud.srp_hud_options(false, false, true, false);
             crosshair.setDamage(0.5, 1000, false, false);
             require(markerShown() && !crosshair.crosshair_mc.visible, "hit feedback can return independently");
             hud.show_crosshair(false);
-            hud.srp_hud_options(false, false, false);
+            hud.srp_hud_options(false, false, false, false);
             require(!crosshair.crosshair_mc.visible, "unhiding in ADS or on death respects the game's hidden state");
             hud.show_crosshair(true);
             require(crosshair.crosshair_mc.visible && markerShown(), "leaving ADS restores normal crosshair and feedback");
             hud.show_crosshair(false);
-            hud.srp_hud_options(false, false, true);
+            hud.srp_hud_options(false, false, true, false);
             hud.show_crosshair(true);
             require(!crosshair.crosshair_mc.visible, "respawn cannot override saved Hidden");
-            hud.srp_hud_options(false, false, false);
+            hud.srp_hud_options(false, false, false, false);
             require(crosshair.crosshair_mc.visible, "turning Hidden off restores the latest game request");
             trace("HUD hit marker: independent of Hidden crosshair, including kills, weapon updates, aim/death and respawn");
         }
@@ -270,6 +271,26 @@ package
                 out.push(row);
             }
             return out;
+        }
+
+        // The Tab map's names: Alt shows them; with "Names on map" they show and Alt hides them.
+        private function mapNames():void
+        {
+            var map:* = board.minimap;
+            require(!map.namesShown, "map names: hidden by default");
+            hud.show_map_names(true);
+            require(map.namesShown, "map names: Alt shows them");
+            hud.show_map_names(false);
+            require(!map.namesShown, "map names: Alt let go hides them");
+            hud.srp_hud_options(false, false, false, true);
+            require(map.namesShown, "Names on map: shown without Alt");
+            hud.show_map_names(true);
+            require(!map.namesShown, "Names on map: Alt hides them");
+            hud.show_map_names(false);
+            require(map.namesShown, "Names on map: Alt let go shows them again");
+            hud.srp_hud_options(false, false, false, false);
+            require(!map.namesShown, "Names on map off: hidden again");
+            trace("HUD map names: Alt shows them; Names on map reverses Alt");
         }
 
         private function scores():void

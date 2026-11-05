@@ -484,10 +484,10 @@ extern engine_body_linear_velocity
 ; 0x357830 vostok::physics::bullet_rigid_body::get_angular_velocity: body EAX, out EDX; pops 0
 extern engine_body_angular_velocity
 ; void engine_body_set_linear_velocity(const float *velocity, void *body)
-; 0x3576c0 vostok::physics::bullet_rigid_body::set_linear_velocity: velocity ECX, body ESP+4; pops 4
+; 0x3576c0 vostok::physics::bt_dynamic_rigid_body::set_linear_velocity: velocity ECX, body ESP+4; pops 4
 extern engine_body_set_linear_velocity
 ; void engine_body_set_angular_velocity(const float *velocity, void *body)
-; 0x357750 vostok::physics::bullet_rigid_body::set_angular_velocity: velocity ECX, body ESP+4; pops 4
+; 0x357750 vostok::physics::bt_dynamic_rigid_body::set_angular_velocity: velocity ECX, body ESP+4; pops 4
 extern engine_body_set_angular_velocity
 ; void engine_write_matrix(const void *value, struct buffer_writer *writer, const char *file, unsigned int line, const char *function, const char *name)
 ; 0x301de0 vostok::network_core::buffer_writer::w<class vostok::math::float4x4>: value EAX, writer ESP+4, file ESP+8, line ESP+12, function ESP+16, name ESP+20; pops 20

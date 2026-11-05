@@ -28,7 +28,9 @@ package
     // pass" or "SETTINGS RESULT fail: ...". No game or server.
     public class SettingsHarness extends Sprite
     {
-        private static const NAMES:Array = ["srp_hide_hit_markers", "srp_hide_scores"];
+        private static const NAMES:Array = ["srp_hide_hit_markers", "srp_hide_scores", "srp_map_names"];
+        // Each name's label in a row of check.sh's texts.
+        private static const LABELS:Array = [0, 1, 13];
 
         private static const STOCK_LABELS:Array = ["Invitations from friends only", "Notify when friends are online",
             "Enable message censorship", "Accept private messages from friends only", "Hide chat in match", "Hide spam",
@@ -171,7 +173,8 @@ package
             var left:Array = [c.s_friends, c._setter_invite, c._setter_message, c._set_censure, c._only_friends, c._no_in_batle,
                 c._hide_spam, language, menu];
             if (note.visible) left.push(note);
-            var right:Array = [heading, cross, boxes[0], boxes[1], c._setter_static_show_quests, c._setter_static_minimap,
+            // Names on map (the last box) with the map's rows, over Static minimap
+            var right:Array = [heading, cross, boxes[0], boxes[1], c._setter_static_show_quests, boxes[2], c._setter_static_minimap,
                 c._setter_static_minimap_position];
             var bottom:Number = c.bottomContainer.getBounds(content).bottom;
             for each (var column:Array in [left, right])
@@ -194,7 +197,7 @@ package
             require(near(language.x, c.s_friends.x) && near(menu.x, c._setter_invite.x + stock.dropdownX),
                 when + ": Language under Friends' edges (its list one further)");
             require(near(heading.x, stock.rightHeading) && near(heading.y, c.s_friends.y), when + ": the HUD heading where Crosshair's was");
-            for each (var control:* in [boxes[0], boxes[1], c._setter_static_show_quests, c._setter_static_minimap])
+            for each (var control:* in boxes.concat([c._setter_static_show_quests, c._setter_static_minimap]))
             {
                 require(near(control.x, stock.rightControl), when + ": " + control.name + " at the right controls' x");
             }
@@ -204,14 +207,21 @@ package
             require(near(language.y - c._hide_spam.y, stock.gap) && near(menu.y - language.y, stock.leftFirst),
                 when + ": Language the tab's gap under Friends, its list as Friends' first checkbox");
             require(near(cross.y - heading.y, stock.rightFirst), when + ": the crosshair list under the heading as Crosshair's first control was");
-            require(near(boxes[0].y - cross.y, stock.step) && near(boxes[1].y - boxes[0].y, stock.step)
-                && near(c._setter_static_show_quests.y - boxes[1].y, stock.step) && near(c._setter_static_minimap.y - c._setter_static_show_quests.y, stock.step)
-                && near(c._setter_static_minimap_position.y - c._setter_static_minimap.y, stock.dropdown),
-                when + ": the HUD rows a step apart, the minimap list as the timeline has it");
+            var steps:Array = [cross, boxes[0], boxes[1], c._setter_static_show_quests, boxes[2], c._setter_static_minimap];
+            for (i = 1; i < steps.length; ++i)
+            {
+                require(near(steps[i].y - steps[i - 1].y, stock.step), when + ": the HUD rows a step apart (" + steps[i].name + ")");
+            }
+            require(near(c._setter_static_minimap_position.y - c._setter_static_minimap.y, stock.dropdown),
+                when + ": the minimap list as the timeline has it");
             require(!c.bottomContainer.visible, when + ": no bottom panel across the columns");
             // every dictionary's texts inside their columns
             var leftEnd:Number = stock.rightHeading - 10, rightEnd:Number = stock.rightHeading + c.s_friends.width;
-            var labelled:Array = [[boxes[0], 0], [boxes[1], 1], [c._setter_static_show_quests, 5], [c._setter_static_minimap, 9]];
+            var labelled:Array = [[c._setter_static_show_quests, 5], [c._setter_static_minimap, 9]];
+            for (i = 0; i < boxes.length; ++i)
+            {
+                labelled.push([boxes[i], LABELS[i]]);
+            }
             for each (var row:Array in texts)
             {
                 for each (var pair:Array in labelled)
@@ -244,7 +254,7 @@ package
             }
             trace("SETTINGS layout " + when + ": left Friends " + c.s_friends.y + ", Language " + language.y + " (list " + menu.y
                 + (note.visible ? ", note " + note.y : "") + ", to " + span(left[left.length - 1])[1] + "); right HUD " + heading.y
-                + " (crosshair " + cross.y + ", " + boxes[0].y + ", " + boxes[1].y + ", quests " + c._setter_static_show_quests.y
+                + " (crosshair " + cross.y + ", " + boxes.map(function(b:*, ...rest):Number { return b.y; }).join(", ") + ", quests " + c._setter_static_show_quests.y
                 + ", minimap " + c._setter_static_minimap.y + ", position " + c._setter_static_minimap_position.y + ", to "
                 + span(right[right.length - 1])[1] + "); bottom " + bottom);
         }
@@ -323,9 +333,9 @@ package
             require(cross != null && !cross.visible, "the crosshair list waits for the exe's answers");
             for (i = 0; i < NAMES.length; ++i)
             {
-                root.srp_check_option(NAMES[i], texts[0][i], "0");
+                root.srp_check_option(NAMES[i], texts[0][LABELS[i]], "0");
                 require(boxes[i].visible && boxes[i].alpha == 1, NAMES[i] + ": on the gameplay tab");
-                require(boxes[i].label == texts[0][i], NAMES[i] + ": its label is the exe's: " + boxes[i].label);
+                require(boxes[i].label == texts[0][LABELS[i]], NAMES[i] + ": its label is the exe's: " + boxes[i].label);
                 require(!boxes[i].selected, NAMES[i] + ": the saved state (off) is shown");
             }
             root.srp_check_option("srp_hide_crosshair", texts[0][8], "0");
@@ -339,7 +349,8 @@ package
             require(c._setter_static_show_quests.label == texts[0][5] && c._setter_static_minimap.label == texts[0][9],
                 "the stock quest progress and minimap checkboxes labelled Hide quests and Static minimap");
             root.srp_check_option("srp_no_such", "x", "1");
-            require(!boxes[0].selected && !boxes[1].selected && !settings.btn_accept.enabled, "another name changes nothing");
+            require(!boxes.some(function(b:*, ...rest):Boolean { return b.selected; }) && !settings.btn_accept.enabled,
+                "another name changes nothing");
 
             checkLayout(content, boxes, texts, stockOf(content), "at rest");
             // the restart note shown (a saved language not the running one)
@@ -483,7 +494,7 @@ package
             for (i = 0; i < boxes.length; ++i)
             {
                 box = boxes[i];
-                var other:* = boxes[1 - i];
+                var others:Array = boxes.filter(function(b:*, ...rest):Boolean { return b != box; });
                 box.selected = true;
                 require(settings.btn_accept.enabled && settings.btn_cancel.label == "Cancel", NAMES[i] + ": a toggle enables Apply and Cancel");
                 box.selected = false;
@@ -493,12 +504,13 @@ package
                 require(!box.selected && !settings.btn_accept.enabled, NAMES[i] + ": Cancel puts the saved state back");
                 box.selected = true;
                 click(settings.btn_accept);
-                require(box.selected && !settings.btn_accept.enabled && !other.selected, NAMES[i] + ": Apply saves the toggle, the other unchanged");
+                require(box.selected && !settings.btn_accept.enabled
+                    && !others.some(function(b:*, ...rest):Boolean { return b.selected; }), NAMES[i] + ": Apply saves the toggle, the others unchanged");
                 box.selected = false;
                 require(settings.btn_accept.enabled, NAMES[i] + ": unchecking a saved on is a change");
                 click(settings.btn_cancel);
                 require(box.selected, NAMES[i] + ": Cancel: the saved on again");
-                root.srp_check_option(NAMES[i], texts[0][i], "0");
+                root.srp_check_option(NAMES[i], texts[0][LABELS[i]], "0");
                 require(!box.selected && !settings.btn_accept.enabled, NAMES[i] + ": the exe's answer sets the saved state");
             }
             trace("SETTINGS a toggle is pending until Apply; Cancel drops it; each box on its own");
@@ -507,11 +519,11 @@ package
             content.gotoAndStop(2);
             root.set_settings(0, settingsList);
             root.set_values(0, values);
-            require(!boxes[0].visible && !boxes[1].visible && !cross.visible, "not on another tab");
+            require(!boxes.some(function(b:*, ...rest):Boolean { return b.visible; }) && !cross.visible, "not on another tab");
             content.gotoAndStop(1);
             root.set_settings(0, settingsList);
             root.set_values(0, values);
-            require(boxes[0].visible && boxes[1].visible && cross.visible, "back on the gameplay tab");
+            require(boxes.every(function(b:*, ...rest):Boolean { return b.visible; }) && cross.visible, "back on the gameplay tab");
             require(c._setter_static_show_quests.label == texts[0][5] && !c._setter_static_show_quests.selected
                 && crosshair(content).join() == "1,true", "the new tab content: Hide quests and the crosshair list as before");
             var panelIndex:int = content.getChildIndex(content.bottomContainer);

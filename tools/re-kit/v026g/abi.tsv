@@ -2316,9 +2316,14 @@ va	name	source	ret_cleanup	result
 0x00059e70	vostok::sound::sound_world::create_sound_voice	manual	12	EAX
 0x0005cb80	vostok::sound::new_sound_propagator::detach_voice	manual	4	
 0x00038990	vostok::sound::sound_propagator_emitter::get_options	thiscall	0	EAX: this + 8, the sound's options (single_sound_cook 0x615D8 copies them; +11h can_be_displaced, default 1 at 0x6129F)
+0x002ffce0	survarium::stack_item::resupply_from_profile_slot	manual	8	none; a stack (dictionary entry +22Ah set) grows to the kit slot's count, taking the difference from the stock; a grenade set's vtable+40h (0xA14824), called by resupply_from_profile at 0x2FDEE0: never to the pocket size; descriptive label
 0x002ff930	survarium::weapon_controller_core::serialize	manual	8	A1386C slot 14h, from weapon_core::serialize 2E3382 ([weapon+278h]): legs IK (if 1F1D9EFh) + 2FBBB0 (u32 seed, byte, fsm) + 3309B0 (8 x 12 bytes)
 0x002ff970	survarium::weapon_controller_core::deserialize	manual	12	A1386C slot 18h; the fsm's state from the reader's own list (38CCF0)
 0x00330a20	survarium::hit_animations_selector::hit_body_part::deserialize	manual	0	reads 8 x (u32, u32, u32) into ECX+0Ch.. stride 18h
+0x00303890	survarium::grenade_core::load	manual	4	none; the body: capsule r 0.05 h 0.1 (0x7A390 type 3), 0x357100 with mass 0.3, friction 0.5, restitution 0, into +18Ch; its btRigidBody (+14h) m_ccdMotionThreshold (+104h) 0.03 and m_ccdSweptSphereRadius (+100h) 0.01 (patch 105: 0.04)
+0x00303c10	survarium::grenade_core::throw_grenade	manual	8	none; sets the body's transform, adds it to the physics world (vtable +2Ch) as group 818h mask 8, its linear velocity, a zero angular velocity
+0x003576c0	vostok::physics::bt_dynamic_rigid_body::set_linear_velocity	manual	4	none; writes the btRigidBody's (+14h) m_linearVelocity (+140h) as (x, y, -z), the Bullet axes, a zero as +0
+0x00357750	vostok::physics::bt_dynamic_rigid_body::set_angular_velocity	manual	4	none; (x, y, -z), the Bullet axes, a zero as +0, to 0x8B220 with the btRigidBody (+14h)
 0x0025e660	survarium::artefact_cook::new_derived_resource	manual	16	EAX: the artefact built in the memory (0 for none)
 0x0025e770	survarium::artefact_cook::derived_resource_size	manual	4	EAX: the size by data/type (3 4B8h, 6 3B8h, 7 F40h, 8 360h), else the core cook's
 0x0025e800	survarium::artefact_cook::query_for_derived_resources	manual	12	
@@ -2340,8 +2345,6 @@ va	name	source	ret_cleanup	result
 0x00319d30	survarium::damage_zone_core::deactivate	manual	8	the sensor out (0x308170), +1A8h 0
 0x002f8fe0	survarium::collision_geometry::set_transform	manual	4	the ghost's world transform; its world's vt+20h (after insert)
 0x00357100	vostok::physics::create_dynamic_rigid_body	manual	0	EAX: the body (+10h the shape, +14h the Bullet body: +100h, +104h damping, +140h/+150h velocities with z negated)
-0x003576c0	vostok::physics::bullet_rigid_body::set_linear_velocity	manual	4	
-0x00357750	vostok::physics::bullet_rigid_body::set_angular_velocity	manual	4	
 0x003577d0	vostok::physics::bullet_rigid_body::get_linear_velocity	manual	0	EAX: &out
 0x00357830	vostok::physics::bullet_rigid_body::get_angular_velocity	manual	0	EAX: &out
 0x00125790	vostok::detail::type_to_int<vostok::configs::binary_config_value>::get	manual	0	EAX: the type id a variant<32> of a config value has at +2Ch
@@ -2397,7 +2400,6 @@ va	name	source	ret_cleanup	result
 0x001f6680		manual	0	EAX: the match seed, [[[this+20h]+9Ch]+53ACh] vt+34h (the match options) +577B0h (generic_anomaly_core_cook's slot 10); the map id is the u8 at +577B4h of the same options
 0x0031ba00	survarium::generic_anomaly_core::artefact_respawn_delay	manual	0	EAX: the next spawn's delay in ms from +130h and its variation; one draw of the core's random (+1B8h)
 0x003041b0	survarium::grenade_core::on_contact	manual	4	nothing; with +156h and +155h set: (+14Ch - the holder's time [player+324h]) >= +150h clears +156h, else (none queued, +184h FFh) the explosion queued (0x2D2D70, kind 4: a tail jump)
-0x00303c10	survarium::grenade_core::throw_grenade	manual	8	the body into the physics world (vt+2Ch, 818h, 8), its velocities, +128h's function subscribed on the body (vt+70h)
 0x00303d50	survarium::grenade_core::remove_physics	manual	0	+128h's function unsubscribed (vt+74h), the body out (vt+38h, 1), +148h 0
 0x00304220	boost::function<void (vostok::physics::contact_point const &)>::function<grenade_core's bound on_contact>	manual	16	EAX: the function made, vtable 0xA13FAC|1 (manager 0x3042D0, invoker 0x202300), the bind in its buffer (+8)
 0x00078310	vostok::physics::bullet_physics_world::subscribe_on_contact	manual	8	{body, &function} into the multimap at +0Ch (the function kept by pointer: it must outlive the subscription; twice is twice)

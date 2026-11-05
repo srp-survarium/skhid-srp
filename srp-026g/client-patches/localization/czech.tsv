@@ -1484,11 +1484,11 @@ st_microphone_sensitivity_option	Citlivost mikrofonu
 st_military_medkit_description	Zcela vyléčí ruce a nohy. Obnoví 60% zdraví trupu a hlavy a zmírní bolest o 50%.
 st_military_medkit_name	Vojenská lékárnička
 st_minimap	Minimapa
-st_minimap_bottom	Levý dolní roh
+st_minimap_bottom	Minimapa vlevo dole
 st_minimap_off	Skrytá minimapa
 st_minimap_position	Umístění minimapy
 st_minimap_rotable_option	Zafixovat minimapu
-st_minimap_top	Levý horní roh
+st_minimap_top	Minimapa vlevo nahoře
 st_missile_weapon_action	Granát
 st_missions	Úkoly
 st_mm_button_back	Zpět
@@ -2480,6 +2480,7 @@ st_srp_map_cologne	Kolín nad Rýnem
 st_srp_map_london	Londýn
 st_srp_map_mamayev_kurgan	Mamajova mohyla
 st_srp_map_mamayev_kurgan_v021	Mamajova mohyla (v0.21)
+st_srp_map_names_option	Jména na mapě
 st_srp_map_rudnya	Rudňa
 st_srp_map_rudnya_v069	Rudňa (v0.69)
 st_srp_map_school	Škola

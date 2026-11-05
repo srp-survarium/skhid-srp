@@ -1982,7 +1982,7 @@ engine_body_angular_velocity:
 
     align 16, db 0xCC
 engine_body_set_linear_velocity:
-    ; 0x3576c0 vostok::physics::bullet_rigid_body::set_linear_velocity: velocity ECX, body ESP+4; pops 4
+    ; 0x3576c0 vostok::physics::bt_dynamic_rigid_body::set_linear_velocity: velocity ECX, body ESP+4; pops 4
     push ebp
     push ebx
     push esi
@@ -1998,7 +1998,7 @@ engine_body_set_linear_velocity:
 
     align 16, db 0xCC
 engine_body_set_angular_velocity:
-    ; 0x357750 vostok::physics::bullet_rigid_body::set_angular_velocity: velocity ECX, body ESP+4; pops 4
+    ; 0x357750 vostok::physics::bt_dynamic_rigid_body::set_angular_velocity: velocity ECX, body ESP+4; pops 4
     push ebp
     push ebx
     push esi

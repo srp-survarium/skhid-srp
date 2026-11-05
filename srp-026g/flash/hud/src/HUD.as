@@ -1728,14 +1728,17 @@ package
          this.crosshair.setDamage(size,delay,killed,debug);
       }
       
-      // The Settings' "Hide hit markers", "Hide player scores" and "Hidden crosshair" (exe patch 83, told at
-      // once and again at each change; docs/notes/hide-hit-markers-scores.md): the crosshair shows no hit
-      // marker; the Tab list shows the players' names only; no aiming cross.
-      public function srp_hud_options(hideHitMarkers:Boolean, hideScores:Boolean, hideCrosshair:Boolean) : void
+      // The Settings' "Hide hit markers", "Hide player scores", "Hidden crosshair" and "Names on map" (exe
+      // patch 83, told at once and again at each change; docs/notes/hide-hit-markers-scores.md): the
+      // crosshair shows no hit marker; the Tab list shows the players' names only; no aiming cross; the
+      // Tab map's names shown, Alt hiding them.
+      public function srp_hud_options(hideHitMarkers:Boolean, hideScores:Boolean, hideCrosshair:Boolean, mapNames:Boolean) : void
       {
          this.crosshair.hitMarkersHidden = hideHitMarkers;
          this.player_list.players.namesOnly = hideScores;
          this.crosshair.crosshairHidden = hideCrosshair;
+         this._mapNamesAlways = mapNames;
+         this.showMapNames();
       }
       
       public function show_oxygen(bool:Boolean) : void
@@ -1761,11 +1764,22 @@ package
       }
 
       // The Tab map's names over the player icons, shown while Alt is held (the exe's patch 82 tells
-      // the movie each change; docs/notes/tab-map-names.md). The map is the Tab list's, so they show
-      // only with it: never in Blackout, whose Tab keeps the list hidden.
-      public function show_map_names(shown:Boolean) : void
+      // the movie each change; docs/notes/tab-map-names.md), or with "Names on map" shown unless it is.
+      // The map is the Tab list's, so they show only with it: never in Blackout, whose Tab keeps the
+      // list hidden.
+      public function show_map_names(altHeld:Boolean) : void
       {
-         this.tabMinimap.namesShown = shown;
+         this._mapNamesAlt = altHeld;
+         this.showMapNames();
+      }
+
+      // Alt held (patch 82) and "Names on map" (patch 83), as last told.
+      private var _mapNamesAlt:Boolean = false;
+      private var _mapNamesAlways:Boolean = false;
+
+      private function showMapNames() : void
+      {
+         this.player_list.minimap.namesShown = this._mapNamesAlt != this._mapNamesAlways;
       }
       
       public function list_update_player(_player:Object) : void

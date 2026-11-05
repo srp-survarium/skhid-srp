@@ -223,9 +223,9 @@ unsafe extern "C" {
     pub fn engine_body_linear_velocity(body: *mut c_void, out: *mut f32);
     /// 0x357830 vostok::physics::bullet_rigid_body::get_angular_velocity: body EAX, out EDX; pops 0
     pub fn engine_body_angular_velocity(body: *mut c_void, out: *mut f32);
-    /// 0x3576c0 vostok::physics::bullet_rigid_body::set_linear_velocity: velocity ECX, body ESP+4; pops 4
+    /// 0x3576c0 vostok::physics::bt_dynamic_rigid_body::set_linear_velocity: velocity ECX, body ESP+4; pops 4
     pub fn engine_body_set_linear_velocity(velocity: *const f32, body: *mut c_void);
-    /// 0x357750 vostok::physics::bullet_rigid_body::set_angular_velocity: velocity ECX, body ESP+4; pops 4
+    /// 0x357750 vostok::physics::bt_dynamic_rigid_body::set_angular_velocity: velocity ECX, body ESP+4; pops 4
     pub fn engine_body_set_angular_velocity(velocity: *const f32, body: *mut c_void);
     /// 0x301de0 vostok::network_core::buffer_writer::w<class vostok::math::float4x4>: value EAX, writer ESP+4, file ESP+8, line ESP+12, function ESP+16, name ESP+20; pops 20
     pub fn engine_write_matrix(value: *const c_void, writer: Option<BufferWriter>, file: *const u8, line: u32, function: *const u8, name: *const u8);

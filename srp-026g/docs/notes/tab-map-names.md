@@ -19,6 +19,10 @@ nicknames on top of the player icons".
   names may overlap; the outline keeps each readable.
 - **Updates:** a name moves with its icon (it is part of it); the text changes only when the Tab
   list's rows do (a player entering or leaving). Nothing is made again each frame.
+- **"Names on map"** (Settings, Gameplay, HUD; owner 2026-11-05): the names show on the Tab map
+  without Alt, and Alt hides them. Off by default. The Tab map only: the corner minimap and the
+  names over heads in the world are unchanged. Saved as patch 83's `srp_map_names`
+  (`hide-hit-markers-scores.md`).
 - **Blackout:** no names. Blackout's Tab never shows the Tab list or its map (`HUD.show_player_list`,
   forced: only ammo, quick slots, the timer and the chat, or the kits when dead), so there is no
   map to put names on. Its own Tab rule for names (teammates' names over their heads in the world
@@ -27,4 +31,5 @@ nicknames on top of the player icons".
 - **How:** the hud movie (`HUD.show_map_names`, `Minimap.namesShown`, `MinimapObjectPlayer.showName`)
   and exe patch 82 (Rust `map_names`): at each key the game world handles (`on_keyboard_action`
   0x25CD1C, with the input world's keyboard; a held key comes every tick) it reads both Alt keys
-  and tells the hud movie `root.show_map_names` when that changes. UI only: no simulation change.
+  and tells the hud movie `root.show_map_names` when that changes; the hud shows the names when
+  Alt held differs from "Names on map". UI only: no simulation change.

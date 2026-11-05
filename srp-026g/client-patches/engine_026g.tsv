@@ -145,8 +145,8 @@ engine_matrix_translation	0x0573c0	EAX:out ECX:float3	void *engine_matrix_transl
 engine_matrix_rotation	0x0725e0	EDI:angles ESI:out	void engine_matrix_rotation(const float *angles, void *out)	thunk	
 engine_body_linear_velocity	0x3577d0	EAX:body EDX:out	void engine_body_linear_velocity(void *body, float *out)	thunk	
 engine_body_angular_velocity	0x357830	EAX:body EDX:out	void engine_body_angular_velocity(void *body, float *out)	thunk	
-engine_body_set_linear_velocity	0x3576c0	ECX:velocity ESP+4:body	void engine_body_set_linear_velocity(const float *velocity, void *body)	thunk	
-engine_body_set_angular_velocity	0x357750	ECX:velocity ESP+4:body	void engine_body_set_angular_velocity(const float *velocity, void *body)	thunk	
+engine_body_set_linear_velocity	0x3576c0	ECX:velocity ESP+4:bt_dynamic_rigid_body	void engine_body_set_linear_velocity(const float *velocity, void *body)	thunk	
+engine_body_set_angular_velocity	0x357750	ECX:velocity ESP+4:bt_dynamic_rigid_body	void engine_body_set_angular_velocity(const float *velocity, void *body)	thunk	
 engine_write_matrix	0x301de0	EAX:pointer ESP+4:buffer_writer ESP+8:filename ESP+12:line ESP+16:function ESP+20:label	void engine_write_matrix(const void *value, struct buffer_writer *writer, const char *file, unsigned int line, const char *function, const char *name)	thunk	
 engine_write_float3	0x081a70	EAX:pointer ESP+4:buffer_writer ESP+8:filename ESP+12:line ESP+16:function ESP+20:label	void engine_write_float3(const void *value, struct buffer_writer *writer, const char *file, unsigned int line, const char *function, const char *name)	thunk	
 engine_create_collision_shape	0x07a390	EDX:type ECX:dimensions ESP+4:scale ESP+8:material	void *engine_create_collision_shape(unsigned int type, const float *dims, const float *scale, unsigned int material)	thunk	
