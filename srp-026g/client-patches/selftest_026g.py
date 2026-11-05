@@ -1659,6 +1659,7 @@ def late_join_sites():
         [(va, len(old)) for va, old, _, _ in P.KILL_FEED_HOOKS] + \
         [(P.KILL_FEED_ARGUMENT[0], len(P.KILL_FEED_ARGUMENT[1]))] + \
         [(va, len(old)) for va, old, _ in P.FALL_GRAVITY] + \
+        [(P.GRENADE_CCD[0], len(P.GRENADE_CCD[1]))] + \
         [(va, len(old)) for va, old, _, _ in P.BAKE_CACHE_HOOKS] + \
         [(va, len(old)) for va, old, _, _ in P.WEIGHT_UI_HOOKS] + \
         [(va, len(old)) for va, old, _, _ in P.BULLET_BOUNDS_HOOKS] + \
@@ -5046,6 +5047,38 @@ def test_fall_gravity(original, image, before):
     check(not hits, "no branch aims inside the sites" + "".join(f", {h:#x}" for h in hits))
 
 
+def test_grenade_ccd(original, image, before):
+    """Check 105: a grenade's continuous collision sweeps a sphere inside its
+    capsule (patch 105, GRENADE_CCD; ../docs/notes/grenade_ccd.md)."""
+    stock = Image(original)
+    rows = lambda source, va, size: [text for _, _, text in ndisasm(source.read(va, size), va)]
+    f32 = lambda source, va: struct.unpack("<f", source.read(va, 4))[0]
+    check(rows(stock, 0x3038DB, 8) == ["movss xmm0,dword [dword 0x9cc878]"] and abs(f32(stock, 0x9CC878) - 0.05) < 1e-7
+          and rows(stock, 0x3038FC, 5) == ["mov edx,0x3"] and rows(stock, 0x303914, 5) == ["call 0x7a390"]
+          and rows(stock, 0x3039F2, 5) == ["call 0x357100"],
+          "grenade_core::load makes its shape with create_primitive_shape (0x7A390), type 3 (a capsule), "
+          "radius the 0.05 of 0x9CC878, then its rigid body (0x357100)")
+    check(rows(stock, 0x3039F7, 0x34) == [
+              "movss xmm0,dword [dword 0xa2d744]", "mov [esi+0x18c],eax", "mov eax,[eax+0x14]", "add esp,byte +0x10",
+              "movss dword [eax+0x104],xmm0", "movss xmm0,dword [dword 0xa2d774]", "pop edi",
+              "movss dword [eax+0x100],xmm0", "pop esi", "mov esp,ebp", "pop ebp", "ret 0x4"]
+          and abs(f32(stock, 0xA2D744) - 0.03) < 1e-7 and abs(f32(stock, 0xA2D774) - 0.01) < 1e-7,
+          "the original: btCollisionObject +104h (m_ccdMotionThreshold) 0.03, +100h (m_ccdSweptSphereRadius) 0.01")
+    va, old, new = P.GRENADE_CCD
+    check(stock.read(va, len(old)) == old == before.read(va, len(old)) and image.read(va, len(new)) == new
+          and rows(image, va, len(new)) == ["movss xmm0,dword [dword 0xa2d7dc]"],
+          f"{va:#x}: the original's load of 0.01 in the original and the build without the late join, the 0.04's here")
+    check(abs(f32(stock, 0xA2D7DC) - 0.04) < 1e-7 and f32(image, 0xA2D7DC) == f32(stock, 0xA2D7DC)
+          and 0x870000 <= 0xA2D7DC < 0x870000 + 2021888,
+          "0xA2D7DC is a 0.04 of .rdata (read-only), the same in the build")
+    relocated = sorted(v for kind, v in stock.relocations().values() if kind == 3 and va <= v < va + len(old))
+    built = sorted(v for kind, v in image.relocations().values() if kind == 3 and va <= v < va + len(old))
+    check(relocated == [va + 4] == built, "the operand's base relocation (0x303A17) is the original's and stays")
+    hits = [h for h in aimed_inside(original, va, len(old), 0x82) if not va <= h < va + len(old)
+            and starts_instruction(stock, h)]
+    check(not hits, "no branch aims inside the site" + "".join(f", {h:#x}" for h in hits))
+
+
 def test_bake_cache(original, image, before):
     """Check 70: the baked textures kept and made once (patch 70,
     BAKE_CACHE_HOOKS, BAKE_CACHE_KEEP). check_bake_cache_026g.py runs the
@@ -6949,7 +6982,8 @@ def test_late_join(original, without, server, source):
     with_address = {P.REMOVE_MODEL_VA, P.PICKUP_HOOKS[0][0]} | fov_sites | \
         {va for va, old, _, _ in P.WEAPON_PREVIEW_HOOKS if old[:3] == b"\xf3\x0f\x10"} | \
         {va for va, _, _, _ in P.FOV_LOD_HOOKS} | \
-        {va for va, _, _, _ in P.HIDE_UI_TABLE_REFS}   # the options' table, now the arena's (relocated alike)
+        {va for va, _, _, _ in P.HIDE_UI_TABLE_REFS} | \
+        {P.GRENADE_CCD[0]}   # the options' table, now the arena's (relocated alike); the grenade's 0.04
     kept = [(lo, hi) for lo, hi in sites if lo not in with_address]
     under_kept = [va for kind, va in Image(original).relocations().values()
                   if kind == 3 and any(va + 4 > lo and va < hi for lo, hi in kept)]
@@ -6969,6 +7003,7 @@ def test_late_join(original, without, server, source):
           f"({', '.join(f'{va:#x}' for va in P.FOV_LOD_RELOCS)}), which are disabled, "
           "and of the options' controls table's six readers (patch 62: their address is the arena's, kept "
           "relocatable) "
+          f"and of the grenade's swept sphere ({P.GRENADE_CCD[0] + 4:#x}, patch 105: an .rdata constant for another) "
           f"and of the field-of-view option's name "
           f"({option:#x}, an address for an address), which stays; the rest of the table is the build's without it")
 
@@ -7017,6 +7052,7 @@ def test_late_join(original, without, server, source):
     test_hide_ui(original, image, before)
     test_kill_feed(original, image, before)
     test_fall_gravity(original, image, before)
+    test_grenade_ccd(original, image, before)
     test_bake_cache(original, image, before)
     test_ragdoll(original, image, before)
     test_lamps(original, image, before)

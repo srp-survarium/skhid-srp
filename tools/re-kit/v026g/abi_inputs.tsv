@@ -5481,3 +5481,12 @@ va	name	location	role	basis
 0x002ff970	survarium::weapon_controller_core::deserialize	entry ESP+4	reader	observed
 0x00330a20	survarium::hit_animations_selector::hit_body_part::deserialize	ECX	hit body parts	observed
 0x00330a20	survarium::hit_animations_selector::hit_body_part::deserialize	EAX	reader	observed
+0x00303890	survarium::grenade_core::load	ECX	the grenade_core	observed
+0x00303890	survarium::grenade_core::load	entry ESP+4	its config (game_material_settings/default/game_material_id, read through 0xF6B10 into +210h as a u16)	observed
+0x00303c10	survarium::grenade_core::throw_grenade	ECX	the grenade_core	observed
+0x00303c10	survarium::grenade_core::throw_grenade	entry ESP+4	the transform (to the body, vtable +18h)	observed
+0x00303c10	survarium::grenade_core::throw_grenade	entry ESP+8	the velocity (float3*, given to 0x3576C0)	observed
+0x003576c0	vostok::physics::bt_dynamic_rigid_body::set_linear_velocity	ECX	the velocity (float3*)	observed
+0x003576c0	vostok::physics::bt_dynamic_rigid_body::set_linear_velocity	entry ESP+4	the bt_dynamic_rigid_body	observed
+0x00357750	vostok::physics::bt_dynamic_rigid_body::set_angular_velocity	ECX	the angular velocity (float3*)	observed
+0x00357750	vostok::physics::bt_dynamic_rigid_body::set_angular_velocity	entry ESP+4	the bt_dynamic_rigid_body	observed
