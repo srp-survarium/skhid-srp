@@ -4,7 +4,11 @@ players have: release/build-content's work (run it, not this; --help there).
 
     python3 -I build_content.py --stock <resources.db> --patches <folder> --list <patches.tsv>
         --bin <srp-game-data> --tree <checkout> --manifest <content.tsv> --work <new folder>
-        [--tools <tools.json>] [--vostok-port <program>] [--packs <folder>]
+        --stock-sha256 <its sha256> [--bin-source <the srp-026g it was built from>]
+        [--tools <tools.json>] [--vostok-port <program>] [--packs <folder>] [--cache <folder>]
+
+With --cache, a step whose inputs are those of an earlier build (a movie, the packs, an edit list,
+the checks of a file or a stats table) takes what it made or found then from there (Cache).
 
 The manifest's rows, in this order of kinds (each kind's rows in their order):
   base   resources.db.patch_<n>  <its sha256>  a published patch made outside these sources, taken
@@ -29,6 +33,7 @@ makes is a problem, unless an earlier version of a pack row added it (<packs>/<i
 the row's version, adds the path with the live bytes): printed as left from it, not packed.
 """
 import argparse
+import bisect
 import fnmatch
 import hashlib
 import json
@@ -38,6 +43,7 @@ import re
 import shutil
 import subprocess
 import sys
+import time
 
 KINDS = ('base', 'movie', 'pack', 'edit')
 PATCH = re.compile(r'^resources\.db\.patch_([1-9][0-9]{0,2})$')
@@ -56,6 +62,95 @@ SIMULATION_CHANGES = 'srp-026g/crates/session/src/v026g/simulation_changes.tsv'
 
 class Problem(Exception):
     pass
+
+
+class timed:
+    """Prints how long the step took (`time: <what> <s> s`), for the log."""
+
+    def __init__(self, what):
+        self.what = what
+
+    def __enter__(self):
+        self.start = time.monotonic()
+
+    def __exit__(self, *_):
+        print(f'time: {self.what} {time.monotonic() - self.start:.1f} s')
+
+
+def write_new(path, data):
+    """Writes a file whole or not at all (a reader sees the old one, or none, until it is there)."""
+    path.parent.mkdir(parents=True, exist_ok=True)
+    part = path.with_name(f'.{path.name}.{os.getpid()}')
+    part.write_bytes(data)
+    os.replace(part, path)
+
+
+def tree_digest(folder):
+    """The sha256 of every file under a folder: its path there and its bytes."""
+    digest = hashlib.sha256()
+    for file in sorted(p for p in Path(folder).rglob('*') if p.is_file()):
+        digest.update(f'{file.relative_to(folder).as_posix()}\0{sha256(file.read_bytes())}\0'.encode())
+    return digest.hexdigest()
+
+
+def files_digest(files):
+    """The sha256 of the given files' names and bytes, in that order (a missing one counts as
+    missing); not their folders, so another checkout's same files have the same digest."""
+    return sha256(json.dumps([(f.name, sha256(f.read_bytes()) if f.is_file() else None) for f in files]).encode())
+
+
+def game_data_id(binary, source):
+    """srp-game-data as the cache knows it: with `source` (the srp-026g it was built from), its
+    sources: each checkout's build differs by the paths in it, the same sources read the same;
+    else the program's bytes."""
+    if not source:
+        return files_digest([binary])
+    crates = [source / 'crates' / c for c in ('resources-db', 'binary-config-parser')]
+    return sha256(json.dumps([files_digest([source / f for f in ('Cargo.toml', 'Cargo.lock', 'flake.nix', 'flake.lock')])]
+                             + [tree_digest(c / 'src') + files_digest([c / 'Cargo.toml']) for c in crates]).encode())
+
+
+class Cache:
+    """What a step (a movie, the packs, an edit list) made in an earlier build, by the key of
+    everything it reads: <root>/steps/<key>.json names the files by their sha256 and holds what the
+    step said, <root>/blobs/<sha256> holds each file (checked when read). Anything under <root> may
+    be deleted at any time: a step whose entry or a file is missing runs again. Without a root
+    (build-content --no-cache), every step runs."""
+
+    def __init__(self, root):
+        self.root = root
+
+    @staticmethod
+    def key(*parts):
+        return sha256(json.dumps(parts, sort_keys=True, default=str).encode())
+
+    def get(self, key):
+        """({path: bytes}, said) of the step of that key, or None."""
+        if not self.root:
+            return None
+        try:
+            entry = json.loads((self.root / 'steps' / f'{key}.json').read_text())
+            files = {}
+            for path, digest in entry['files'].items():
+                data = (self.root / 'blobs' / digest[:2] / digest).read_bytes()
+                if sha256(data) != digest:
+                    return None
+                files[path] = data
+            return files, entry['said']
+        except (OSError, ValueError, KeyError):
+            return None
+
+    def put(self, key, files, said):
+        if not self.root:
+            return
+        names = {}
+        for path, data in files.items():
+            digest = sha256(data)
+            blob = self.root / 'blobs' / digest[:2] / digest
+            if not (blob.is_file() and blob.stat().st_size == len(data)):
+                write_new(blob, data)
+            names[path] = digest
+        write_new(self.root / 'steps' / f'{key}.json', json.dumps({'files': names, 'said': said}).encode())
 
 
 def sha256(data):
@@ -180,20 +275,31 @@ class Game:
 
 
 class World:
-    """The files the sources make: path -> bytes, and why (the rows that made them, in order)."""
+    """The files the sources make: path -> bytes, why (the rows that made them, in order), and each
+    one's sha256 (hashed once)."""
 
     def __init__(self):
-        self.bytes, self.why = {}, {}
+        self.bytes, self.why, self.digests = {}, {}, {}
 
     def put(self, path, data, reason):
         if self.bytes.get(path) == data:
             return
         self.bytes[path] = data
+        self.digests.pop(path, None)
         self.why.setdefault(path, []).append(reason)
 
+    def sha256(self, path):
+        if path not in self.digests:
+            self.digests[path] = sha256(self.bytes[path])
+        return self.digests[path]
 
-def build_movies(rows, tree, archive_of, game, tools, work, world):
+
+def build_movies(rows, tree, archive_of, sha_of, game, tools, work, world, cache):
     stand_in = os.environ.get('SKHID_TEST_BUILD_MOVIE')
+    # What a movie's build reads besides its tree and its original: the build's programs and the tools.
+    programs = files_digest(sorted((tree / 'tools' / 'actionscript').glob('*.py'))
+                            + [tree / 'srp-026g' / 'client-patches' / 'build_lobby_026g.py']
+                            + [Path(p) for p in (stand_in, tools) if p])
     for kind, name, _, _, at in rows:
         if kind != 'movie':
             continue
@@ -203,6 +309,14 @@ def build_movies(rows, tree, archive_of, game, tools, work, world):
         if archive not in archive_of:
             raise Problem(f'{at}: movie {name}: its original is in {archive} (movie.json), which is neither the '
                           'stock resources.db nor a base row')
+        key = Cache.key('movie', name, sha_of[archive], tree_digest(movie_dir), programs, stand_in, sys.version)
+        made = cache.get(key)
+        if made:
+            data = made[0][spec['movie']]
+            world.put(spec['movie'], data, f'movie {name} (srp-026g/flash/{name})')
+            print(f'  movie {name}: {spec["movie"]}, {len(data)} bytes, sha256 {sha256(data)[:16]}… '
+                  '(as an earlier build of the same sources made it: the cache)')
+            continue
         original = game.get([archive_of[archive]], [spec['movie']])[spec['movie']]
         if sha256(original) != spec.get('movie_sha256'):
             raise Problem(f'{at}: movie {name}: {spec["movie"]} of {archive} is not the original movie.json names')
@@ -218,15 +332,17 @@ def build_movies(rows, tree, archive_of, game, tools, work, world):
         else:
             command = [sys.executable, tree / 'tools' / 'actionscript' / 'flash_tree.py', '--tools', tools,
                        'build', movie_dir, folder / 'original.swf', out]
-        said = run(command, f'the build of movie {name}')
+        with timed(f'movie {name}'):
+            said = run(command, f'the build of movie {name}')
         for line in said.strip().splitlines()[-2:]:
             print(f'    {line}')
         data = out.read_bytes()
+        cache.put(key, {spec['movie']: data}, said)
         world.put(spec['movie'], data, f'movie {name} (srp-026g/flash/{name})')
         print(f'  movie {name}: {spec["movie"]}, {len(data)} bytes, sha256 {sha256(data)[:16]}…')
 
 
-def compose_packs(rows, base, vostok, packs_dir, work, world):
+def compose_packs(rows, base, base_id, vostok, packs_dir, work, world, cache):
     applied = [(name, source, at) for kind, name, source, _, at in rows if kind == 'pack' and SHA.match(source)]
     if not applied:
         return
@@ -234,9 +350,11 @@ def compose_packs(rows, base, vostok, packs_dir, work, world):
         raise Problem('the manifest has packs to compose: SKHID_VOSTOK_PORT must name resource-porter\'s vostok-port')
     if not packs_dir:
         raise Problem('the manifest has packs to compose: SKHID_PACKS_DIR must name the folder of the packs')
+    reason = 'pack ' + ', '.join(name for name, _, _ in applied)
     command = [vostok, 'pack', 'patch', '--base-db', base[0]]
     for patch in base[1:]:
         command += ['--base-patch', patch]
+    folders = []
     for name, source, at in applied:
         ident, version = name.split('@')
         folder = Path(packs_dir) / f'{ident}-{version}'
@@ -249,6 +367,21 @@ def compose_packs(rows, base, vostok, packs_dir, work, world):
         if (spec.get('id'), str(spec.get('version'))) != (ident, version):
             raise Problem(f'{at}: pack {name}: {manifest} says {spec.get("id")}@{spec.get("version")}')
         command += ['--pack', folder]
+        folders.append(folder)
+    # What vostok-port reads: the base, each pack's folder (its files by size and time: a folder is
+    # one version, made once), the movies it composes over, and itself (the program and the files
+    # beside it named after it: a wrapper and its binary).
+    program = Path(vostok).resolve()
+    key = Cache.key('packs', base_id, files_digest(sorted(program.parent.glob(program.name + '*'))),
+                    [(folder.name, [(p.relative_to(folder).as_posix(), p.stat().st_size, p.stat().st_mtime_ns)
+                                    for p in sorted(folder.rglob('*')) if p.is_file()]) for folder in folders],
+                    sorted((path, world.sha256(path)) for path in world.bytes))
+    made = cache.get(key)
+    if made:
+        print('    as an earlier build of the same packs over the same movies composed them: the cache')
+        for path, data in made[0].items():           # in the order composed
+            world.put(path, data, reason)
+        return
     movies = work / 'movies-for-packs'
     for path, data in world.bytes.items():
         target = movies / path
@@ -259,9 +392,11 @@ def compose_packs(rows, base, vostok, packs_dir, work, world):
     said = run(command + ['--out-dir', out], 'vostok-port pack patch')
     for line in said.strip().splitlines()[-3:]:
         print(f'    {line}')
-    reason = 'pack ' + ', '.join(name for name, _, _ in applied)
-    for file in sorted(p for p in out.rglob('*') if p.is_file()):
-        world.put(file.relative_to(out).as_posix(), file.read_bytes(), reason)
+    composed = {file.relative_to(out).as_posix(): file.read_bytes()
+                for file in sorted(p for p in out.rglob('*') if p.is_file())}
+    cache.put(key, composed, said)
+    for path, data in composed.items():
+        world.put(path, data, reason)
 
 
 def left_by_earlier_packs(rows, packs_dir, paths, base_files, live, game):
@@ -300,8 +435,16 @@ def left_by_earlier_packs(rows, packs_dir, paths, base_files, live, game):
     return left
 
 
+def matching(known, pattern):
+    """fnmatch.filter(known, pattern) of a sorted list, trying only the paths that begin with the
+    pattern's head before its first wildcard."""
+    head = re.split(r'[*?[]', pattern, maxsplit=1)[0]
+    return fnmatch.filter(known[bisect.bisect_left(known, head):bisect.bisect_left(known, head + '\U0010ffff')], pattern)
+
+
 def edit_paths(edits, known):
     """The game paths an edit list reads: its `file`s, its `files` lists and what its `files` globs match."""
+    known = sorted(known)
     paths = set()
     if 'localization' in edits:
         # The catalog compiler reads every existing dictionary, the UI mapping,
@@ -321,34 +464,51 @@ def edit_paths(edits, known):
             if isinstance(entry.get('files'), list):      # add_value: the game paths themselves
                 paths.update(entry['files'])
             elif 'files' in entry:
-                paths.update(fnmatch.filter(known, entry['files']))
+                paths.update(matching(known, entry['files']))
     # What the list's own `copy` makes anew it then edits (an add_value of a copy): no read. A copy
     # onto a live file is refused by content_edit.py; it stays a read here.
     made = set()
     for e in edits.get('copy', []):
-        for p in fnmatch.filter(known, e['files']):
+        for p in matching(known, e['files']):
             if not p.startswith(e['from']):
                 raise Problem(f"copy: {p} does not start with {e['from']}")
             made.add(e['to'] + p[len(e['from']):])
     return sorted(paths - (made - set(known)))
 
 
-def apply_edits(rows, tree, base, base_files, game, work, world):
+def apply_edits(rows, tree, base, base_id, base_files, game, work, world, cache):
     tool = edits_dir(tree) / 'content_edit.py'
+    # What an edit list's run reads besides the list and its files: content_edit.py and its modules
+    # (the localization's of client-patches too), and for a `localization` list its folder.
+    programs = files_digest(sorted(edits_dir(tree).glob('*.py'))
+                            + sorted((tree / 'srp-026g' / 'client-patches').glob('*localization*.py')))
     for kind, name, source, _, at in rows:
         if kind != 'edit' or source != '-':
             continue
         known = sorted(set(base_files) | set(world.bytes))
+        edits = {} if name.endswith('.tsv') else json.loads((edits_dir(tree) / name).read_text(encoding='utf-8'))
         if name.endswith('.tsv'):
             paths = own_content_edit().stats_paths(own_content_edit().stats_category(name), known)
         else:
-            paths = edit_paths(json.loads((edits_dir(tree) / name).read_text(encoding='utf-8')), known)
+            paths = edit_paths(edits, known)
         movies = [p for p in paths if p.startswith('flash_movies/')]
         if movies:
             raise Problem(f'{at}: edit {name} names {movies[0]}: a movie changes in its source tree')
         missing = [p for p in paths if p not in world.bytes and p not in base_files]
         if missing:
             raise Problem(f'{at}: edit {name}: {missing[0]} is in no archive of the base and made by no row above')
+        # Its files: a made one by its bytes, a base one by the base (base_id).
+        folder = edits.get('localization')
+        key = Cache.key('edit', name, sha256((edits_dir(tree) / name).read_bytes()), programs, sys.version, base_id,
+                        [(p, world.sha256(p) if p in world.bytes else None) for p in paths],
+                        tree_digest(edits_dir(tree) / folder) if isinstance(folder, str) else None)
+        made = cache.get(key)
+        if made:
+            files, said = made
+            print(f'  edit {name}: {said} (as an earlier build of the list over the same files made it: the cache)')
+            for path, data in files.items():
+                world.put(path, data, f'edit {name}')
+            continue
         live = work / 'edits' / name / 'live'
         out = work / 'edits' / name / 'out'
         got = game.get(base, [p for p in paths if p not in world.bytes])
@@ -356,19 +516,26 @@ def apply_edits(rows, tree, base, base_files, game, work, world):
             target = live / path
             target.parent.mkdir(parents=True, exist_ok=True)
             target.write_bytes(world.bytes[path] if path in world.bytes else got[path])
-        said = run([sys.executable, '-I', tool, edits_dir(tree) / name, live, out], f'edit {name} (content_edit.py)')
-        print(f'  edit {name}: {said.strip().splitlines()[-2] if len(said.strip().splitlines()) > 1 else said.strip()}')
-        for file in sorted(p for p in out.rglob('*') if p.is_file()):
-            world.put(file.relative_to(out).as_posix(), file.read_bytes(), f'edit {name}')
+        with timed(f'edit {name}'):
+            said = run([sys.executable, '-I', tool, edits_dir(tree) / name, live, out], f'edit {name} (content_edit.py)')
+        said = said.strip().splitlines()[-2] if len(said.strip().splitlines()) > 1 else said.strip()
+        print(f'  edit {name}: {said}')
+        files = {file.relative_to(out).as_posix(): file.read_bytes()
+                 for file in sorted(p for p in out.rglob('*') if p.is_file())}
+        cache.put(key, files, said)
+        for path, data in files.items():
+            world.put(path, data, f'edit {name}')
 
 
-def type_check(rows, tree, base, base_files, game, world):
+def type_check(rows, tree, base, base_id, base_files, game, world, cache):
     """Every file the manifest makes keeps the value type of each key path the
     base/live version has, and a new key uses a 0.26g type for its path or is
     allowlisted (content_type_check.py); an entry of a list the manifest's edit
     lists key (append_entry's unique_key) is weighed against the entry with
     its key, wherever an edit moved it. A Problem lists every offender with
-    the file, the path, the old type and the new type."""
+    the file, the path, the old type and the new type. What the base gives
+    (the corpus, its configs' problems) and each made file's problems are
+    cached: by the base, and by the file's path, bytes and list keys."""
     import importlib.util
     spec = importlib.util.spec_from_file_location(
         'content_type_check', str(Path(__file__).resolve().parent / 'content_type_check.py'))
@@ -378,34 +545,58 @@ def type_check(rows, tree, base, base_files, game, world):
     # (which supplies the content): use build-content's own content_edit.py.
     own = Path(__file__).resolve().parent.parent / 'srp-026g' / 'scripts' / 'content-edit'
     walk = ctc.load_walk(str(own))
-    # The corpus of the types 0.26g already uses at each key name: every base
-    # config file (the stock db and the base patches), so a new key's type is
-    # weighed against all of 0.26g, not only the files this patch touches.
-    corpus_paths = sorted(p for p in base_files if p.endswith(ctc.CONFIG_SUFFIXES))
-    corpus = game.get(base, corpus_paths)
-    corp = ctc.corpus_with(walk, corpus)
+    sources = files_digest([Path(__file__).resolve(), Path(spec.origin), own / 'content_edit.py'])
     try:
         keys = ctc.list_keys(json.loads((edits_dir(tree) / name).read_text(encoding='utf-8'))
                              for kind, name, *_ in rows if kind == 'edit' and name.endswith('.json'))
     except ValueError as why:
         raise Problem(f'the edit lists: {why}') from None
-    # The previous version of each changed file: the base's bytes, where the
-    # base has it; None for a file no base archive has (a pack's new file).
-    had = [p for p in sorted(world.bytes) if p in base_files]
-    previous = game.get(base, had)
-    problems = []
+
+    def refused(path, data, label):
+        try:
+            ctc.parse(walk, data)
+        except ctc.NotAConfig as why:
+            return f'{path} ({label}): a config the reader refuses ({why})'
+
+    # The corpus of the types 0.26g already uses at each key name: every base
+    # config file (the stock db and the base patches), so a new key's type is
+    # weighed against all of 0.26g, not only the files this patch touches.
+    base_key = Cache.key('the types of the base', base_id, sources, sys.version)
+    known = cache.get(base_key)
+    if known:
+        corp = {path: set(types) for path, types in known[1]['corpus'].items()}
+        base_problems = known[1]['problems']
+    else:
+        corpus_paths = sorted(p for p in base_files if p.endswith(ctc.CONFIG_SUFFIXES))
+        corpus = game.get(base, corpus_paths)
+        corp = ctc.corpus_with(walk, corpus)
+        base_problems = [p for p in (refused(path, corpus[path], 'base') for path in corpus_paths) if p]
+        cache.put(base_key, {}, {'corpus': {path: sorted(types) for path, types in corp.items()},
+                                 'problems': base_problems})
+    # Each made file's problems: its own parse (a config path's), its previous version's (the base's
+    # bytes, where the base has it; None for a file no base archive has: a pack's new file), its
+    # value types against them.
+    files_key = Cache.key('the types of made files', base_id, sources, sys.version)
+    earlier = (cache.get(files_key) or ({}, {}))[1]
+    key_of = {path: Cache.key(path, world.sha256(path), keys.get(path, {})) for path in world.bytes}
+    todo = [p for p in sorted(world.bytes) if key_of[p] not in earlier]
+    previous = game.get(base, [p for p in todo if p in base_files])
+    found = {}
+    for path in todo:
+        config = path.endswith(ctc.CONFIG_SUFFIXES)
+        found[key_of[path]] = {
+            'made': refused(path, world.bytes[path], 'made') if config else None,
+            'previous': refused(path, previous[path], 'previous') if config and path in previous else None,
+            'types': ctc.violations(walk, previous.get(path), world.bytes[path], path, corp, TYPE_ALLOWLIST,
+                                    keys.get(path, {}))}
+    if found:
+        cache.put(files_key, {}, {key_of[p]: found.get(key_of[p]) or earlier[key_of[p]] for p in world.bytes})
+    each = [found.get(key_of[p]) or earlier[key_of[p]] for p in sorted(world.bytes)]
     # A file at a config path the reader refuses is a problem, never a file
     # the check skips (a table out of CRC order, a broken record): the made
     # files, their previous versions and every base config alike.
-    for label, files in (('made', world.bytes), ('previous', previous), ('base', corpus)):
-        for path in sorted(p for p in files if p.endswith(ctc.CONFIG_SUFFIXES)):
-            try:
-                ctc.parse(walk, files[path])
-            except ctc.NotAConfig as why:
-                problems.append(f'{path} ({label}): a config the reader refuses ({why})')
-    for path in sorted(world.bytes):
-        problems += ctc.violations(walk, previous.get(path), world.bytes[path], path, corp, TYPE_ALLOWLIST,
-                                   keys.get(path, {}))
+    problems = [e['made'] for e in each if e['made']] + [e['previous'] for e in each if e['previous']] \
+        + base_problems + [p for e in each for p in e['types']]
     if problems:
         print()
         for problem in problems:
@@ -426,35 +617,52 @@ def own_content_edit():
     return module
 
 
-def stats_checks(rows, base, base_files, live, game, world, tree, compared):
+def stats_checks(rows, base, base_id, base_files, live, live_id, game, world, tree, compared, cache):
     """Per content_edit.STATS category: each config (or list entry) is its table row, its cards follow
-    it, and a changed match column needs the `next` row of SIMULATION_CHANGES."""
+    it, and a changed match column needs the `next` row of SIMULATION_CHANGES. A category's findings
+    are cached by its configs, its table and what players have of them."""
     ce = own_content_edit()
+    sources = files_digest([Path(__file__).resolve(), Path(ce.__file__)])
     tables = {name: edits_dir(tree) / name for kind, name, source, _, _ in rows
               if kind == 'edit' and source == '-' and name.endswith('.tsv')}
     problems, moved = [], []
     for category_name, category in ce.STATS.items():
         paths = ce.stats_paths(category, set(base_files) | set(world.bytes))
-        configs = {p: bytearray(b) for p, b in game.get(base, [p for p in paths if p not in world.bytes]).items()}
-        configs.update({p: bytearray(world.bytes[p]) for p in paths if p in world.bytes})
-        targets = ce.stats_targets(category, configs)
         table = tables.get(f'{category_name}.tsv')
-        _, columns, table_rows = ce.read_stats(str(table)) if table else (None, category.get('columns', {}), None)
-        if table:
-            problems += ce.stats_problems(category, columns, table_rows, targets, configs, table.name)
-        if category.get('cards'):
-            problems += [f'{p}: card line {prop_id} says {text!r}, its config {want!r}'
-                         for p in paths for prop_id, text, want in ce.card_differences(configs[p], category['cards'])]
-        # A config players lack (a new key/value table's) has no values: each of its match values moved.
         changed = [p for p in paths if p in world.bytes and compared[p][0] in ('differs', 'new')]
-        players = game.get(live, [p for p in changed if compared[p][0] == 'differs'])
-        try:
-            moved += ce.stats_moved(category, columns, {p: bytearray(b) for p, b in players.items()},
-                                    {p: configs[p] for p in changed})
-        except ValueError as why:
-            problems.append(f'{category_name}: {why}')
-        print(f'{category_name}: {len(targets)} row(s)' + (f', each its row of {table.name}' if table else '')
-              + (', every card line its number' if category.get('cards') else ''))
+        key = Cache.key('stats', category_name, sources, sys.version, base_id, live_id,
+                        sha256(table.read_bytes()) if table else None,
+                        [(p, world.sha256(p) if p in world.bytes else None) for p in paths],
+                        [(p, compared[p][0]) for p in changed])
+        found = cache.get(key)
+        if found:
+            found = found[1]
+        else:
+            found = {'problems': []}
+            configs = {p: bytearray(b) for p, b in game.get(base, [p for p in paths if p not in world.bytes]).items()}
+            configs.update({p: bytearray(world.bytes[p]) for p in paths if p in world.bytes})
+            targets = ce.stats_targets(category, configs)
+            _, columns, table_rows = ce.read_stats(str(table)) if table else (None, category.get('columns', {}), None)
+            if table:
+                found['problems'] += ce.stats_problems(category, columns, table_rows, targets, configs, table.name)
+            if category.get('cards'):
+                found['problems'] += [f'{p}: card line {prop_id} says {text!r}, its config {want!r}' for p in paths
+                                      for prop_id, text, want in ce.card_differences(configs[p], category['cards'])]
+            # A config players lack (a new key/value table's) has no values: each of its match values moved.
+            players = game.get(live, [p for p in changed if compared[p][0] == 'differs'])
+            try:
+                found['moved'] = ce.stats_moved(category, columns, {p: bytearray(b) for p, b in players.items()},
+                                                {p: configs[p] for p in changed})
+            except ValueError as why:
+                found['moved'] = []
+                found['problems'].append(f'{category_name}: {why}')
+            found['said'] = (f'{category_name}: {len(targets)} row(s)'
+                             + (f', each its row of {table.name}' if table else '')
+                             + (', every card line its number' if category.get('cards') else ''))
+            cache.put(key, {}, found)
+        problems += found['problems']
+        moved += found['moved']
+        print(found['said'])
     if problems:
         print()
         for problem in problems:
@@ -536,18 +744,29 @@ def main():
     parser.add_argument('--tools', type=Path)
     parser.add_argument('--vostok-port', type=Path)
     parser.add_argument('--packs', type=Path)
+    parser.add_argument('--stock-sha256', required=True)
+    parser.add_argument('--bin-source', type=Path)
+    parser.add_argument('--cache', type=Path)
     args = parser.parse_args()
     work = args.work
     work.mkdir(parents=True)
     game = Game(args.bin, work)
+    cache = Cache(args.cache)
     offered = read_list(args.list)
     try:
         rows = read_manifest(args.manifest, offered, args.tree)
         base_rows = [name for kind, name, _, _, _ in rows if kind == 'base']
         base_names = ['resources.db'] + sorted(base_rows, key=lambda n: int(PATCH.match(n).group(1)))
         archive_of = {'resources.db': args.stock} | {n: args.patches / n for n in base_rows}
+        sha_of = {'resources.db': args.stock_sha256} | {name: source for kind, name, source, _, _ in rows
+                                                        if kind == 'base'}
         base = [archive_of[n] for n in base_names]
         live = [args.stock] + [args.patches / name for name, _ in offered]
+        # The cache's names of the archives as srp-game-data reads them (build-content checked each
+        # sha256), with srp-game-data itself.
+        reader = game_data_id(args.bin, args.bin_source)
+        base_id = [reader] + [(n, sha_of[n]) for n in base_names]
+        live_id = [reader, ('resources.db', args.stock_sha256)] + offered
         print(f'the base: the stock resources.db and {len(base_rows)} published patch(es): '
               + ' '.join(n.removeprefix('resources.db.') for n in base_names[1:]))
         if any(kind == 'movie' for kind, *_ in rows) and not os.environ.get('SKHID_TEST_BUILD_MOVIE') and \
@@ -556,31 +775,53 @@ def main():
                           f'{args.tools} is not a file (SKHID_FLASH_TOOLS names another)')
         world = World()
         print('the movies, from source:')
-        build_movies(rows, args.tree, archive_of, game, args.tools, work, world)
-        compose_packs(rows, base, args.vostok_port, args.packs, work, world)
-        base_files = game.files(base)
+        with timed('the movies'):
+            build_movies(rows, args.tree, archive_of, sha_of, game, args.tools, work, world, cache)
+        with timed('the packs'):
+            compose_packs(rows, base, base_id, args.vostok_port, args.packs, work, world, cache)
+        with timed('the base files'):
+            base_files = game.files(base)
         print('the edit lists, in order:')
-        apply_edits(rows, args.tree, base, base_files, game, work, world)
+        with timed('the edit lists'):
+            apply_edits(rows, args.tree, base, base_id, base_files, game, work, world, cache)
 
         # The value types every changed file keeps (content_type_check.py):
         # a key that exists in the base/live version keeps its type, a new key
         # uses a type 0.26g files already use at that path or is allowlisted.
-        type_check(rows, args.tree, base, base_files, game, world)
-        lamp_check(world)
-        clothing_check(base, base_files, game, world)
+        with timed('the value types'):
+            type_check(rows, args.tree, base, base_id, base_files, game, world, cache)
+        with timed('the lamps'):
+            lamp_check(world)
+        with timed('the clothing fit'):
+            clothing_check(base, base_files, game, world)
 
-        # What the sources make, against what players have.
-        folder = work / 'world'
-        for path, data in world.bytes.items():
-            target = folder / path
-            target.parent.mkdir(parents=True, exist_ok=True)
-            target.write_bytes(data)
-        compared = game.compare(live, folder) if world.bytes else {}
-        stats_checks(rows, base, base_files, live, game, world, args.tree, compared)
+        # What the sources make, against what players have (build-content compares world/ again,
+        # with the patch). A file's status is cached by its path and bytes, for the same live files.
+        with timed('the made files, written'):
+            folder = work / 'world'
+            for path, data in world.bytes.items():
+                target = folder / path
+                target.parent.mkdir(parents=True, exist_ok=True)
+                target.write_bytes(data)
+        with timed('the comparison with players\' files'):
+            compared_key = Cache.key('players\' files', live_id)
+            earlier = (cache.get(compared_key) or ({}, {}))[1]
+            key_of = {path: f'{world.sha256(path)} {path}' for path in world.bytes}
+            todo = work / 'to-compare'
+            for path in (p for p in world.bytes if key_of[p] not in earlier):
+                (todo / path).parent.mkdir(parents=True, exist_ok=True)
+                (todo / path).write_bytes(world.bytes[path])
+            found = game.compare(live, todo) if todo.is_dir() else {}
+            compared = {p: found[p] if p in found else tuple(earlier[key_of[p]]) for p in world.bytes}
+            if found:
+                cache.put(compared_key, {}, {key_of[p]: compared[p] for p in world.bytes})
+        with timed('the stats checks'):
+            stats_checks(rows, base, base_id, base_files, live, live_id, game, world, args.tree, compared, cache)
         problems = []
-        live_files = game.files(live)
-        unmade = sorted(p for p, name in live_files.items() if name not in base_names and p not in world.bytes)
-        left = left_by_earlier_packs(rows, args.packs, unmade, base_files, live, game)
+        with timed('the live files'):
+            live_files = game.files(live)
+            unmade = sorted(p for p, name in live_files.items() if name not in base_names and p not in world.bytes)
+            left = left_by_earlier_packs(rows, args.packs, unmade, base_files, live, game)
         for path in unmade:
             if path not in left:
                 problems.append(f'{path}: live from {live_files[path]}, which is no base row, and made by no row '

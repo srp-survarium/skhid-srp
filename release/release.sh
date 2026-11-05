@@ -986,7 +986,7 @@ else
     okay "SKHID_GAME: $SKHID_GAME, with the original launcher"
 fi
 if [[ -f $SKHID_STOCK_DB ]]; then
-    stock=$(stock_sha256 "$SKHID_STOCK_DB")
+    stock=$(cached_sha256 "$SKHID_STOCK_DB")
     if [[ $stock == "$STOCK_SHA" ]]; then okay "SKHID_STOCK_DB: the stock resources.db (sha256 ${STOCK_SHA:0:12}…)"; else problem "SKHID_STOCK_DB: $SKHID_STOCK_DB has sha256 $stock, not the stock 0.26g one ($STOCK_SHA)"; fi
 else
     problem "SKHID_STOCK_DB: $SKHID_STOCK_DB: no such file (the stock 0.26g resources.db)"
