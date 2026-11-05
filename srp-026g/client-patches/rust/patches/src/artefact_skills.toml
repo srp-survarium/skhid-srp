@@ -1,0 +1,7 @@
+name = "artefact_skills"
+patch = 109
+
+# Resistance: isolation against the anomalous hit types (artefact-skills.md).
+[[hook]]
+site = "artefact.isolation"
+handler = "on_isolation"

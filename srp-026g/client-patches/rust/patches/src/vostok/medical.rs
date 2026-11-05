@@ -12,6 +12,12 @@ use core::{
     sync::atomic::{AtomicU32, Ordering},
 };
 
+/// The modifiers of `player`'s current kit (the match profile's, as the static info gave it).
+pub(super) fn kit_modifiers(player: raw::Player) -> Option<raw::PlayerParamsModifiersContainer> {
+    // SAFETY: a hook's player owns its profile and current kit.
+    unsafe { Some(player.profile()?.kits().at(usize::from(*player.kit())).modifiers()) }
+}
+
 #[derive(Clone, Copy)]
 struct Player<'t> {
     at: raw::Player,
@@ -22,16 +28,7 @@ impl<'t> Player<'t> {
         Self { at, thread }
     }
     fn modifiers(self) -> Option<raw::PlayerParamsModifiersContainer> {
-        // SAFETY: a hook's player owns its profile and current kit.
-        unsafe {
-            Some(
-                self.at
-                    .profile()?
-                    .kits()
-                    .at(usize::from(*self.at.kit()))
-                    .modifiers(),
-            )
-        }
+        kit_modifiers(self.at)
     }
     fn skills(self) -> Skills {
         // SAFETY: generated modifier fields belong to the live current kit.

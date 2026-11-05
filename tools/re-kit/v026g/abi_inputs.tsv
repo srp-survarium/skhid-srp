@@ -5552,3 +5552,10 @@ va	name	location	role	basis
 0x000181e0	message_processor	ESP+1Ch at 0x1835F	WM_INPUTLANGCHANGEREQUEST's HKL: passed to DefWindowProc (0x18377) only when survarium::game slot 44h (0x1EE7C0) says a text input is focused, else dropped (return 0, 0x18272); patch 107's site window.lang_request	observed
 0x000181e0	message_processor	ESP+1Ch at 0x183E3	WM_INPUTLANGCHANGE's HKL: ActivateKeyboardLayout(hkl, KLF_SETFORPROCESS) at 0x183FE when a text input is focused, then DefWindowProc; patch 107's site window.lang_change	observed
 0x001ee7c0	survarium::game::is_text_input_focused	ECX	the game (its slot 44h, called through engine_world+2D0h at 0x18359 and 0x183DD); +586Ch set to 1 by game::game 0x1E935D, switch_to_lobby 0x1ED256 and switch_to_login 0x1ED2E6, 0 by game::unload 0x1ED1D8, +1/-1 by chat_handler::focus 0x209BF8/0x209C10	observed
+0x00332810	survarium::body_part_parameters::apply_hit_modifiers	EAX	the hit (its type +1Ch, its owner +20h)	observed
+0x00332810	survarium::body_part_parameters::apply_hit_modifiers	EDI	&damage (f32, in place)	observed
+0x00332810	survarium::body_part_parameters::apply_hit_modifiers	stack+4	the pool's model +3B8h (its player at [[it]]+3B0h)	observed
+0x00332810	survarium::body_part_parameters::apply_hit_modifiers	stack+8	the hit again (EBP)	observed
+0x003198d0	survarium::damage_zone_core::on_objects_entered	ECX	the zone (nothing counted while +0A4h is 0); each entering player's +2E4h (byte, zones it is in) incremented at 0x319967	observed
+0x00319780	survarium::damage_zone_core::on_objects_left	ECX	the zone; each leaving player's +2E4h decremented at 0x31980B (also 0x319DAC deactivate, 0x319F11 activate; zeroed at 0x2DB76D)	observed
+0x00329ff0	survarium::body_part_parameters::hit_by_type	EDI at 0x32A083	the hit's type (+1Ch), XMM0 the part's armour for it, XMM1 the piercing, EBX &damage, EBP the pool (patch 109's artefact.isolation)	observed
