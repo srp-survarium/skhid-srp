@@ -116,7 +116,6 @@ fn start<'a>(
         hits: &[],
         load: [0.0; PARTS],
         velocity: Vec3::ZERO,
-        knockback: crate::shot::Knockback::ONE,
     }
 }
 
@@ -1308,28 +1307,79 @@ fn a_lone_gun_sliding_on_the_ground_stops() {
     assert!(gun.body.end_speed() < SLOW && frames < 300, "{frames} frames");
 }
 
-/// A gun-stock hit's push (the weapon's melee/data: mass 0.01, 1000 m/s).
-fn gun_stock(direction: Vec3, point: Vec3) -> crate::shot::Hit {
-    crate::shot::Hit { point, impulse: crate::shot::impulse(direction, 0.01, 1000.0) }
+/// A gun-stock hit (the weapon's melee/data: mass 0.01, 1000 m/s) by a
+/// shooter whose kit sums `knockback` (the Force Protein's 3).
+fn gun_stock(direction: Vec3, point: Vec3, knockback: f32) -> crate::shot::Hit {
+    let push = crate::shot::impulse(direction, 0.01, 1000.0);
+    crate::shot::Hit {
+        point,
+        impulse: crate::shot::knocked_back(push, knockback),
+    }
+}
+
+/// A standing body killed by `hit`, 300 frames at 60 a second, `each`
+/// frame's ragdoll seen: how high its centre of mass went and how far on
+/// (level) it ended, m.
+fn thrown(hit: crate::shot::Hit, mut each: impl FnMut(&Ragdoll)) -> (f32, f32) {
+    let now = standing(Quat::IDENTITY, Vec3::ZERO);
+    let before = driver_bones(&now);
+    let hits = [hit];
+    let mut s = start(&now, &before, Cause::Unknown, Some(GUN));
+    s.hits = &hits;
+    let mut r = Ragdoll::new(&s).unwrap();
+    let centre = |r: &Ragdoll| {
+        let m: f32 = r.bodies.iter().map(|b| 1.0 / b.inverse_mass).sum();
+        r.bodies.iter().fold(Vec3::ZERO, |c, b| {
+            c + b.pose.position * (1.0 / (b.inverse_mass * m))
+        })
+    };
+    let (from, mut rise) = (centre(&r), 0.0f32);
+    let mut ground = Ground::flat();
+    for _ in 0..300 {
+        each(&r);
+        r.step(1.0 / 60.0, None, &mut ground);
+        rise = rise.max(centre(&r).y - from.y);
+    }
+    (rise, (centre(&r) - from).reject(Vec3::Y).length())
 }
 
 #[test]
-fn a_knockback_pushes_harder_and_lifts_the_caps_with_it() {
-    let now = standing(Quat::IDENTITY, Vec3::ZERO);
-    let before = driver_bones(&now);
-    let hits = [gun_stock(Vec3::new(0.0, 0.0, -1.0), Vec3::new(0.0, 1.3, 0.12))];
-    let report = |k: f32| {
-        let mut s = start(&now, &before, Cause::Unknown, None);
-        s.hits = &hits;
-        s.knockback = crate::shot::Knockback::new(k).unwrap();
-        Ragdoll::new(&s).unwrap().report()
+fn a_force_protein_gun_stock_kill_throws_the_body_as_far_as_the_played_build() {
+    // the played build (its Knockback 4: the push, the caps and the body's
+    // share x4, thrown up at half its level knock): up 0.19 m, on 2.16 m
+    // (front) and 2.59 (side); a plain gun stock 0.68 and 0.98, not up
+    let scenes = [
+        (Vec3::new(0.0, 0.0, -1.0), Vec3::new(0.0, 1.3, 0.12)),
+        (Vec3::new(1.0, 0.0, 0.0), Vec3::new(-0.15, 1.3, 0.0)),
+    ];
+    for (direction, point) in scenes {
+        let (rise, on) = thrown(gun_stock(direction, point, 3.0), |_| {});
+        assert!(
+            rise > 0.15 && (2.0..2.8).contains(&on),
+            "thrown: up {rise:.2}, on {on:.2}"
+        );
+        let (rise, on) = thrown(gun_stock(direction, point, 0.0), |_| {});
+        assert!(rise < 0.02 && on < 1.1, "plain: up {rise:.2}, on {on:.2}");
+    }
+    // nor a full-power rifle round (7.62x51)
+    let round = crate::shot::Hit {
+        point: scenes[0].1,
+        impulse: crate::shot::impulse(scenes[0].0, 0.1, 850.0),
     };
-    let (one, four) = (report(1.0), report(4.0));
-    assert!(four.knock > 3.5 * one.knock && four.knock <= tuning::BODY_KNOCK_MAX * 4.0 + 1e-4, "{one:?} {four:?}");
-    assert!(four.peak_speed > 2.0 * one.peak_speed, "{one:?} {four:?}");
-    assert_eq!(crate::shot::Knockback::new(0.5), None);
-    assert_eq!(crate::shot::Knockback::new(f32::NAN), None);
-    assert_eq!(crate::shot::Knockback::new(11.0), None);
+    let (rise, on) = thrown(round, |_| {});
+    assert!(rise < 0.02 && on < 1.5, "a round: up {rise:.2}, on {on:.2}");
+}
+
+#[test]
+fn no_bullet_and_no_plain_gun_stock_is_a_heavy_hit() {
+    let d = Vec3::new(0.0, 0.0, -1.0);
+    assert!(crate::shot::impulse(d, 0.999, 2999.0).length() < tuning::HEAVY_HIT);
+    let push = crate::shot::impulse(d, 0.01, 1000.0);
+    for k in [0.0, -1.0, f32::NAN] {
+        assert_eq!(crate::shot::knocked_back(push, k), push);
+    }
+    assert!(crate::shot::knocked_back(push, 3.0).length() >= tuning::HEAVY_HIT);
+    assert_eq!(crate::shot::knocked_back(push, 50.0), push * 100.0);
 }
 
 #[test]
@@ -1339,33 +1389,39 @@ fn render_knockback() {
     let out = std::env::var("RAGDOLL_DUMP").unwrap();
     let mut file = std::fs::File::create(out).unwrap();
     let scenes = [
-        ("front", gun_stock(Vec3::new(0.0, 0.0, -1.0), Vec3::new(0.0, 1.3, 0.12))),
-        ("side", gun_stock(Vec3::new(1.0, 0.0, 0.0), Vec3::new(-0.15, 1.3, 0.0))),
+        (
+            "front",
+            Vec3::new(0.0, 0.0, -1.0),
+            Vec3::new(0.0, 1.3, 0.12),
+        ),
+        ("side", Vec3::new(1.0, 0.0, 0.0), Vec3::new(-0.15, 1.3, 0.0)),
     ];
-    for (name, hit) in scenes {
-        for k in [1.0, 4.0] {
-            let now = standing(Quat::IDENTITY, Vec3::ZERO);
-            let before = driver_bones(&now);
-            let hits = [hit];
-            let mut s = start(&now, &before, Cause::Unknown, Some(GUN));
-            s.hits = &hits;
-            s.knockback = crate::shot::Knockback::new(k).unwrap();
-            let mut r = Ragdoll::new(&s).unwrap();
-            let mut ground = Ground::flat();
+    for (name, direction, point) in scenes {
+        for k in [0.0, 3.0] {
             let mut frames = std::vec::Vec::new();
-            for _ in 0..240 {
+            thrown(gun_stock(direction, point, k), |r| {
                 let mut caps = std::vec::Vec::new();
                 for b in r.bodies.iter().chain(r.gun.iter()) {
                     let (a, c) = b.shape.ends(b.pose);
                     caps.push(std::format!(
                         "[{:.4},{:.4},{:.4},{:.4},{:.4},{:.4},{:.3}]",
-                        a.x, a.y, a.z, c.x, c.y, c.z, b.shape.radius
+                        a.x,
+                        a.y,
+                        a.z,
+                        c.x,
+                        c.y,
+                        c.z,
+                        b.shape.radius
                     ));
                 }
                 frames.push(std::format!("[{}]", caps.join(",")));
-                r.step(1.0 / 60.0, None, &mut ground);
-            }
-            writeln!(file, "{{\"name\":\"{name}\",\"k\":{k},\"frames\":[{}]}}", frames.join(",")).unwrap();
+            });
+            writeln!(
+                file,
+                "{{\"name\":\"{name}\",\"k\":{k},\"frames\":[{}]}}",
+                frames.join(",")
+            )
+            .unwrap();
         }
     }
 }

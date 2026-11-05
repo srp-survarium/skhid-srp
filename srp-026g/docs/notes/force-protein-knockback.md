@@ -10,19 +10,27 @@
   a percentage made like movement speed's 105; `st_srp_melee_knockback` in the ten languages).
 - **The gun-stock hit:** a bullet whose ammo data's `damage_type` (+4Ch) is blunt: a weapon's
   `melee/data` (rounds are ranged).
-- **The knockback** (patch 76's ragdoll, Rust `ragdoll` and `crates/ragdoll`): a living player's
-  gun-stock hit by a player whose current kit sums modifier 29 above 0 gives the death it makes a
-  `Knockback` of 1 + that (4). The death's hits then push 4 times as hard (the killing hit's
-  3.5 x its momentum push, x4), the part's speed and spin caps 4 times theirs, the whole body's
-  share 4 times more (its cap 4 times too), and the whole body is thrown up at half its level
-  knock (`KNOCKBACK_LIFT` 0.5). Every other death: `Knockback::ONE`, as before.
+- **The push** (patch 76's ragdoll, Rust `ragdoll` and `crates/ragdoll`): the hit's own impulse,
+  where a living player's hit is recorded (the step): a gun-stock hit by a player whose current
+  kit sums modifier 29 above 0 pushes (1 + that)^2 times its own (`shot::knocked_back`; +3: 16 x
+  8 N s = 128). The death takes it as any hit: 3.5 times it on the part, 0.6 of that on the whole
+  body. 128 N s is a heavy hit (`HEAVY_HIT` 100, more than any bullet's push: `shot::impulse`
+  makes at most 0.04 kg x 3000 m/s x 0.8 = 96), which throws the whole body: its share is not
+  capped (1.6 m/s a bullet's) and goes up at half its level speed (`HEAVY_LIFT`). Every other
+  hit pushes as before. The square: the played build (#1326's first version) gave the death a
+  `Knockback` 4 that scaled the push and again the whole body's share (and the caps); one push
+  16 times as big draws the same.
 - **Numbers** (the solver offline, a standing body, a gun-stock push of 8 N s: mass 0.01, 1000 m/s):
-  the body flies about 2 m and lands about 2.5 m on (before: falls in place, about 1 m on).
-  Renders: `private/renders/force-protein/knockback-front.gif`, `-side.gif`, `.png` (before left,
-  after right; `cargo test -p ragdoll render_knockback -- --ignored` with `RAGDOLL_DUMP`).
+  the centre of mass goes 0.19 m up and ends 2.25 m on (front) and 2.56 m (side); the played
+  build 0.19, 2.16 and 2.59; the plain gun stock does not go up and ends 0.69 and 0.98 m on, as
+  before. Renders of the played build: `private/renders/force-protein/knockback-front.gif`,
+  `-side.gif`, `.png` (before left, after right; `cargo test -p ragdoll render_knockback --
+  --ignored` with `RAGDOLL_DUMP`).
 - **Every client the same:** each reads the killer's kit, which every game has (the static info);
   the ragdoll is drawn by each game alone, never in the simulation: no `next` row.
-- **Checked:** `cargo test -p ragdoll` (a knockback's knock and speed, the bounds), the patches'
-  `cargo test`/Clippy, `release/build-content`. **Not run in a game.**
+- **Checked:** `cargo test -p ragdoll` (the protein's throw as far as the played build, a plain
+  gun stock and a rifle round not thrown, no bullet heavy), the patches' `cargo test`/Clippy,
+  `check_ragdoll_026g.py`, `release/build-content` (the first version's; the edit list is
+  unchanged). The first version was played by the owner (2026-11-05, "fine"); this one is not.
 - **In game:** with the booster in a pocket, kill a player with a gun-stock hit: the body flies a
   couple of metres; without it, or with a gun, the death is as before.

@@ -33,7 +33,7 @@ use crate::ragdoll::{
     Cause, DriverBones, GunShape, HeadwearShape, Knock, Level, LoneGun, Motion, Ragdoll, Skeleton,
     Start, StartReport, driver_bones,
 };
-use crate::shot::{Hit, Knockback, RECENT, Shot, ShotHit};
+use crate::shot::{Hit, RECENT, Shot, ShotHit};
 use crate::skeleton::{BONE_COUNT, HEAD, PARTS, Part};
 
 /// The places a match has at most (the ragdoll draws none beyond).
@@ -86,8 +86,6 @@ pub struct Death {
     pub load: [f32; PARTS],
     /// How fast the player moved just before the death.
     pub velocity: Vec3,
-    /// How hard its hits push (a melee kill by the Force Protein's carrier).
-    pub knockback: Knockback,
 }
 
 impl Death {
@@ -111,7 +109,6 @@ impl Death {
             hit_count: 0,
             load: [0.0; PARTS],
             velocity: Vec3::ZERO,
-            knockback: Knockback::ONE,
         }
     }
 }
@@ -626,7 +623,6 @@ impl Corpses {
                     hits: &death.hits[..death.hit_count.min(RECENT)],
                     load: death.load,
                     velocity: death.velocity,
-                    knockback: death.knockback,
                 };
                 let since = *age + frame.dt;
                 Some(match Ragdoll::new(&start) {

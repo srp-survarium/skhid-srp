@@ -173,33 +173,25 @@ pub fn impulse(direction: Vec3, mass: f32, speed: f32) -> Vec3 {
     direction * size
 }
 
+/// A gun-stock hit's push by a shooter whose kit sums `knockback` of
+/// MELEE_KNOCKBACK (the Anomalous Force Protein's +3,
+/// docs/notes/force-protein-knockback.md): (1 + it)^2 times `push`, 1 + it
+/// on the push and again on the share of the whole body it moves (the build
+/// the owner played); +3 makes 16, a heavy hit ([`tuning::HEAVY_HIT`]: the
+/// body thrown). `knockback` counts at most 9, nothing when not above 0.
+pub fn knocked_back(push: Vec3, knockback: f32) -> Vec3 {
+    if knockback.is_nan() || knockback <= 0.0 {
+        return push;
+    }
+    let k = 1.0 + min(knockback, 9.0);
+    push * (k * k)
+}
+
 /// A bullet that hit a living player: where, and its push (N s).
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct Hit {
     pub point: Vec3,
     pub impulse: Vec3,
-}
-
-/// How many times its usual push a death's hits push its body, and how
-/// many times the caps on a part's and the whole body's speed change: 1 for
-/// every death but a melee kill by a carrier of the Anomalous Force Protein
-/// (its kit's knockback, docs/notes/force-protein-knockback.md).
-#[derive(Clone, Copy, Debug, PartialEq)]
-pub struct Knockback(f32);
-
-impl Knockback {
-    pub const ONE: Knockback = Knockback(1.0);
-    /// The most a knockback counts.
-    pub const MAX: f32 = 10.0;
-
-    /// `factor`, if a finite number of at least 1, at most [`Knockback::MAX`].
-    pub fn new(factor: f32) -> Option<Knockback> {
-        (factor.is_finite() && (1.0..=Knockback::MAX).contains(&factor)).then_some(Knockback(factor))
-    }
-
-    pub fn get(self) -> f32 {
-        self.0
-    }
 }
 
 /// The hits a place took lately (a ring of [`RECENT`] a place, the time of
