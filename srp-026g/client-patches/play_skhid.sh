@@ -154,6 +154,18 @@ install_dxvk() {
     export WINEDLLOVERRIDES="$WINEDLLOVERRIDES;d3d11,dxgi=n,b"
 }
 
+install_calibri() {
+    # The game's UI asks Windows for the font Calibri for some text (item
+    # levels); without it Wine draws boxes. Winetricks takes it, once, from
+    # Microsoft's PowerPoint Viewer (60 MB, kept in its download cache).
+    if [[ ! -f "$WINEPREFIX/drive_c/windows/Fonts/calibri.ttf" ]]; then
+        require_command winetricks
+        echo 'Installing the font Calibri (60 MB download, first launch only)...'
+        winetricks -q calibri >>"$log" 2>&1 || die "Calibri installation failed. Run again to retry; see $log"
+        [[ -f "$WINEPREFIX/drive_c/windows/Fonts/calibri.ttf" ]] || die "Calibri installation is incomplete. Run again to retry; see $log"
+    fi
+}
+
 install_gecko() (
     local version=2.47.4 checksum=26cecc47706b091908f7f814bddb074c61beb8063318e9efc5a7f789857793d6
     local gecko="$WINEPREFIX/drive_c/windows/syswow64/gecko/$version/wine_gecko" temporary
@@ -252,6 +264,7 @@ main() {
     prepare_prefix
     prepare_settings
     install_dxvk
+    install_calibri
     if [[ $mode == launcher ]]; then
         install_gecko
         echo "Starting the Skhid launcher. Log: $log"
