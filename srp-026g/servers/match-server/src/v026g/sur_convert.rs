@@ -89,6 +89,9 @@ pub struct Settings {
     /// Key frames at these times are left out (for finding what the
     /// client chokes on).
     pub drop_key_frames: Vec<u32>,
+    /// Only these key frames (and the first): for a replay that must reach
+    /// one world without loading the worlds before it (a crash repro).
+    pub keep_key_frames: Option<Vec<u32>>,
     /// Only the first world as a key frame (the replay is never put
     /// right).
     pub first_key_frame_only: bool,
@@ -100,6 +103,7 @@ impl Default for Settings {
             coding: Coding::Packed,
             key_frame_every_ms: DEFAULT_KEY_FRAME_EVERY_MS,
             drop_key_frames: Vec::new(),
+            keep_key_frames: None,
             first_key_frame_only: false,
         }
     }
@@ -801,6 +805,9 @@ fn finish(
     times.dedup();
     times.truncate(MAX_KEY_FRAMES);
     times.retain(|time| !settings.drop_key_frames.contains(time));
+    if let Some(keep) = &settings.keep_key_frames {
+        times.retain(|time| *time == first_world || keep.contains(time));
+    }
     if settings.first_key_frame_only {
         times.truncate(1);
     }
@@ -1424,6 +1431,7 @@ mod tests {
                 coding,
                 key_frame_every_ms: 10_000,
                 drop_key_frames: Vec::new(),
+                keep_key_frames: None,
                 first_key_frame_only: false,
             };
             let (file, report) = convert(&records, config, settings).unwrap();
