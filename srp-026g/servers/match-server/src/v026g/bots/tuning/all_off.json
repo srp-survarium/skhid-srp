@@ -107,11 +107,6 @@
     "pocket_store": false,
     "smoke": "off"
   },
-  "mods": {
-    "behind_open": null,
-    "raid_regroup": null,
-    "team_plan": null
-  },
   "pace": {
     "calm_sprint": false,
     "goal_clause": false,
