@@ -43,6 +43,9 @@ pub struct Settings {
     pub slide_coefficient: f32,
     pub already_sliding_on_slope_dp: f32,
     pub ground_normal_via_ray_offset: f32,
+    pub max_vertical_speed_to_can_jump: f32,
+    pub low_ceiling_slide: bool,
+    pub low_ceiling_slide_bouncing_factor: f32,
 }
 
 impl Settings {
@@ -69,6 +72,9 @@ impl Settings {
         slide_coefficient: 1.0,
         already_sliding_on_slope_dp: 0.20,
         ground_normal_via_ray_offset: 0.050,
+        max_vertical_speed_to_can_jump: 4.0,
+        low_ceiling_slide: true,
+        low_ceiling_slide_bouncing_factor: 0.40,
     };
 }
 
@@ -96,6 +102,16 @@ pub struct Controller {
     /// +0x2C704, +0x2C708.
     pub tick: f32,
     pub gravity: f32,
+    /// +0x2C70C: in a jump (the game's `base_player::jump` sets it, `end_jump` clears it): the air branch moves the body.
+    pub jumping: bool,
+    /// +0x201: the game asks for a crouch (player_step crouches, or stands when it may).
+    pub want_crouch: bool,
+    /// +0x202: a crouched body may stand (the tail's stand test).
+    pub can_stand: bool,
+    /// +0x2C720: the ceiling normal of the last stand test.
+    pub ceiling_normal: Vec3,
+    /// +0x30: the air control vector the game sets in a jump (a speed, m/s).
+    pub air_control: Vec3,
 }
 
 /// What one step did, for the reader.
@@ -106,6 +122,8 @@ pub struct StepNotes {
     pub landed: bool,
     pub airborne: bool,
     pub refused: bool,
+    /// Refused because the body could not straighten under something (the low-ceiling slide 0x7DF20 is not ported).
+    pub ceiling: bool,
     pub side_slide: bool,
     pub down_slide: bool,
 }
@@ -174,6 +192,12 @@ impl Controller {
             crouching: (0.76, 1.1),
             tick: 0.05,
             gravity: 9.8,
+            jumping: false,
+            want_crouch: false,
+            can_stand: true,
+            // The exe's constructor starts it at -up (Unicorn).
+            ceiling_normal: Vec3::new(0.0, -1.0, 0.0),
+            air_control: Vec3::ZERO,
         }
     }
 
@@ -233,12 +257,24 @@ impl Controller {
     /// One `player_step` of `dt` seconds (the walk branch; a body in a jump is not handled). Returns what it did.
     pub fn step(&mut self, world: &Collision, dt: f32, s: &Settings) -> StepNotes {
         let mut notes = StepNotes::default();
+        if self.want_crouch {
+            if !self.crouched {
+                self.set_crouched(true);
+            }
+        } else if self.crouched && self.can_stand {
+            self.set_crouched(false);
+        }
         let v = self.velocity;
         let vy = (v.y * UP.y + v.z * UP.z) + v.x * UP.x;
         let slow = s.on_ground_max_vertical_speed > vy.abs();
         let start = self.origin;
         self.pos = start;
         let foot = start - UP * self.d();
+        if self.jumping {
+            self.air_step(world, dt, s);
+            notes.airborne = true;
+            return notes;
+        }
         // can_skip_player_step 0x7C7E0.
         if len2(self.walk).abs() < TINY && len2(v) == 0.0 && !self.need_slide(s) && self.slide == Vec3::ZERO && !self.crouched {
             notes.skipped = true;
@@ -303,6 +339,174 @@ impl Controller {
         self.contact_normal = Vec3::new(mm(self.contact_normal.x), mm(self.contact_normal.y), mm(self.contact_normal.z));
         self.walk = Vec3::ZERO;
         notes
+    }
+
+    /// `setup_crouch_state` 0x7F1A0: the crouched or standing capsule, its feet kept (the origin moves).
+    fn set_crouched(&mut self, crouched: bool) {
+        let feet = self.origin - UP * self.d();
+        self.crouched = crouched;
+        self.dims = dims_of(if crouched { self.crouching } else { self.standing });
+        self.can_stand = !crouched;
+        self.origin = feet + UP * self.d();
+    }
+
+    /// The tail's stand test 0x7F7B0 (LIKELY: read in outline): the crouched capsule at `pos` swept up by what standing adds; a
+    /// face met is the ceiling, its normal kept.
+    fn stand_test(&mut self, world: &Collision) -> bool {
+        // From the origin (where the body was at the tick's start), proven in Unicorn; a miss leaves -up.
+        let rise = self.standing.1 - self.crouching.1;
+        match self.up_sweep(world, self.origin, rise) {
+            Some(n) => {
+                self.ceiling_normal = n;
+                false
+            }
+            None => {
+                self.ceiling_normal = -UP;
+                true
+            }
+        }
+    }
+
+    /// `side_slide_on_low_ceiling` 0x7DF20 (PROVEN in the reading): the walk move turned off the ceiling or the ground, the
+    /// less vertical of the two, and slid as on an impassable slope. `n` in/out.
+    #[allow(clippy::too_many_arguments)]
+    fn low_ceiling_slide(&mut self, world: &Collision, w: Vec3, p1: Vec3, sb: Vec3, dist: f32, step: f32, n: &mut Vec3, cn: Vec3, s: &Settings) -> bool {
+        if !s.low_ceiling_slide || ((w.y * w.y + w.z * w.z) + w.x * w.x).abs() < TINY {
+            return false;
+        }
+        let a = ((cn.y * UP.y + cn.z * UP.z) + cn.x * UP.x).abs();
+        let b = ((n.y * UP.y + n.z * UP.z) + n.x * UP.x).abs();
+        if (a - 1.0).abs() < 1e-5 && (b - 1.0).abs() < 1e-5 {
+            return false;
+        }
+        let m = if b > a { cn } else { *n };
+        let inv = 1.0 / ((w.y * w.y + w.z * w.z) + w.x * w.x).sqrt();
+        let bf = s.low_ceiling_slide_bouncing_factor;
+        let q = Vec3::new(m.x - (w.x * inv) * bf, m.y - (w.y * inv) * bf, m.z - (w.z * inv) * bf);
+        let mut n2 = normalized_safe(q, m);
+        let r = self.side_slide_core(world, w, p1, sb, dist, step, &mut n2, s);
+        *n = n2;
+        r
+    }
+
+    /// `end_jump` 0x7F050: out of jump mode, keeping only a downward vertical speed.
+    pub fn end_jump(&mut self) {
+        self.jumping = false;
+        let v = self.velocity;
+        let mut vv = (v.y * UP.y + v.z * UP.z) + v.x * UP.x;
+        if !(0.0 > vv) {
+            vv = 0.0;
+        }
+        self.velocity = UP * vv;
+    }
+
+    /// `on_ground` 0x7EF90 (the game's "can jump"): standing, under 4 m/s vertical, on a walkable contact.
+    pub fn on_ground(&self, s: &Settings) -> bool {
+        if self.crouched {
+            return false;
+        }
+        let v = self.velocity;
+        let vv = (v.y * UP.y + v.z * UP.z) + v.x * UP.x;
+        if !(s.max_vertical_speed_to_can_jump > vv.abs()) {
+            return false;
+        }
+        let n = self.contact_normal;
+        let d = (n.y * UP.y + n.z * UP.z) + n.x * UP.x;
+        !(s.max_slope_cos > d)
+    }
+
+    /// The closest contact of the full capsule at `from` moved by `by`: the air sweepers (proven in Unicorn, 2026-11-05). Up
+    /// and down (0x885C0, callback 0x88380) skip a rim or wall-side hit (its point not inside the capsule's disc and its normal
+    /// across the axis, as the down sweep's 0x846E0); across (0x87B60, callback 0x87B40) keeps every contact.
+    fn air_sweep(&self, world: &Collision, from: Vec3, by: Vec3, axis: bool) -> Option<(f32, Vec3)> {
+        let r = self.dims.0;
+        let mut best: Option<Contact> = None;
+        world.sweep_each(Shape::Capsule(self.capsule_at(from)), by, |c| {
+            if axis {
+                let at = from + by * c.t;
+                let (hx, hz) = (c.point.x - at.x, c.point.z - at.z);
+                if !(hx * hx + hz * hz < r * r - 1e-5) && c.normal.y.abs() < 0.001 {
+                    return;
+                }
+            }
+            if best.is_none_or(|b| c.t < b.t) {
+                best = Some(c);
+            }
+        });
+        best.map(|c| (c.t, c.normal))
+    }
+
+    /// The AIR branch of `player_step` (0x7BF2C): no gravity; the vertical part of the walk vector (the jump clip's root
+    /// motion) and the air control move the body: up, then across (sliding on walls), then down.
+    fn air_step(&mut self, world: &Collision, dt: f32, s: &Settings) {
+        let start = self.origin;
+        let tick = self.tick;
+        let inv = 1.0 / dt;
+        let w = self.walk;
+        let a = self.air_control;
+        let sv = ((w.y * UP.y + w.z * UP.z) + w.x * UP.x) * inv;
+        self.velocity = UP * sv;
+        let m = Vec3::new(tick * ((inv * w.x) + a.x), (a.y + w.y * inv) * tick, (a.z + w.z * inv) * tick);
+        let vert = (m.y * UP.y + m.z * UP.z) + m.x * UP.x;
+        let mut hm = Vec3::new(m.x - vert * UP.x, m.y - vert * UP.y, m.z - vert * UP.z);
+        if vert > 0.0 && !(vert.abs() < TINY) {
+            // step_jump_up 0x7CFC0.
+            let pos = self.pos;
+            let t = pos + UP * vert;
+            self.pos = match self.air_sweep(world, pos, UP * vert, true) {
+                Some((f, _)) => Vec3::new(pos.x * (1.0 - f) + t.x * f, pos.y * (1.0 - f) + t.y * f, pos.z * (1.0 - f) + t.z * f),
+                None => t,
+            };
+        }
+        if !(((hm.x * hm.x + hm.z * hm.z) + hm.y * hm.y).abs() < TINY) {
+            // step_jump_forward 0x7CB90.
+            let pos = self.pos;
+            let t = Vec3::new(hm.x + pos.x, pos.y + hm.y, pos.z + hm.z);
+            match self.air_sweep(world, pos, hm, false) {
+                None => self.pos = t,
+                Some((f, n)) => {
+                    let dn = (n.y * UP.y + n.z * UP.z) + UP.x * n.x;
+                    let h = Vec3::new(n.x - UP.x * dn, n.y - UP.y * dn, n.z - UP.z * dn);
+                    let h = normalized_safe(h, Vec3::new(1.0, 0.0, 0.0));
+                    if !s.wall_slide {
+                        self.pos = Vec3::new(pos.x * (1.0 - f) + t.x * f, pos.y * (1.0 - f) + t.y * f, pos.z * (1.0 - f) + t.z * f);
+                    } else {
+                        hm = wall_slide(hm, h, s);
+                        if !(((hm.z * hm.z + hm.y * hm.y) + hm.x * hm.x).abs() < TINY) {
+                            let t2 = pos + hm;
+                            self.pos = match self.air_sweep(world, pos, hm, false) {
+                                Some((f2, _)) => Vec3::new(pos.x * (1.0 - f2) + t2.x * f2, pos.y * (1.0 - f2) + t2.y * f2, pos.z * (1.0 - f2) + t2.z * f2),
+                                None => t2,
+                            };
+                        }
+                    }
+                }
+            }
+        }
+        if 0.0 > vert && !(vert.abs() < TINY) {
+            // step_jump_down 0x7D0F0.
+            let pos = self.pos;
+            let t = pos + UP * vert;
+            match self.air_sweep(world, pos, UP * vert, true) {
+                Some((f, n)) => {
+                    self.pos = Vec3::new((t.x * f) + ((1.0 - f) * pos.x), (t.y * f) + (pos.y * (1.0 - f)), (t.z * f) + (pos.z * (1.0 - f)));
+                    self.contact_normal = n;
+                }
+                None => {
+                    self.pos = t;
+                    self.contact_normal = -UP;
+                }
+            }
+        }
+        let al = dt / tick;
+        let be = 1.0 - al;
+        let p = self.pos;
+        self.origin = Vec3::new((be * start.x) + (p.x * al), (p.y * al) + (start.y * be), (p.z * al) + (start.z * be));
+        let mm = |x: f32| (x * 1000.0 + 0.5).floor() * 0.001;
+        self.pos = Vec3::new(mm(self.pos.x), mm(self.pos.y), mm(self.pos.z));
+        self.contact_normal = Vec3::new(mm(self.contact_normal.x), mm(self.contact_normal.y), mm(self.contact_normal.z));
+        self.walk = Vec3::ZERO;
+        self.air_control = Vec3::ZERO;
     }
 
     /// `step_up` 0x7C900: the capsule cut from below by the step, its top kept; the rise of its bottom.
@@ -532,13 +736,37 @@ impl Controller {
 
     /// `can_straighten` 0x7EEB0 (the stand-up sweep 0x86BF0 taken as the cut capsule swept up by the step, LIKELY).
     fn can_straighten(&self, world: &Collision, sb: Vec3, step: f32) -> bool {
+        self.straighten(world, sb, step).is_none()
+    }
+
+    /// [`Self::can_straighten`]'s ceiling: the normal of what the rise meets, if anything.
+    fn straighten(&self, world: &Collision, sb: Vec3, step: f32) -> Option<Vec3> {
         let d = self.d();
         let p = self.pos;
         let h = (((p.z - d * UP.z) - sb.z) * UP.z + ((p.x - d * UP.x) - sb.x) * UP.x) + UP.y * ((p.y - d * UP.y) - sb.y);
         if !(h > 0.0) {
-            return true;
+            return None;
         }
-        world.sweep(self.capsule_at(p), UP * step, |_| true).is_none()
+        self.up_sweep(world, p, step)
+    }
+
+    /// The up sweeps 0x86BF0 / 0x873C0 with their callback 0x869D0 (proven in Unicorn): the capsule at `from` swept up by
+    /// `rise`; a hit counts only on the top half of the top sphere and strictly inside the radius from the axis. Its normal.
+    fn up_sweep(&self, world: &Collision, from: Vec3, rise: f32) -> Option<Vec3> {
+        let (r, hh) = self.dims;
+        let by = UP * rise;
+        let mut best: Option<Contact> = None;
+        world.sweep_each(Shape::Capsule(self.capsule_at(from)), by, |c| {
+            let top = from + by * c.t + UP * hh;
+            let (hx, hz) = (c.point.x - top.x, c.point.z - top.z);
+            if c.point.y < top.y || !(hx * hx + hz * hz < r * r) {
+                return;
+            }
+            if best.is_none_or(|b| c.t < b.t) {
+                best = Some(c);
+            }
+        });
+        best.map(|c| c.normal)
     }
 
     /// `slide_in_impassable_case_impl` 0x7D660 (the side slide). `n` in/out.
@@ -547,6 +775,12 @@ impl Controller {
         if !s.impassable_slope_side_slide || ((w.x * w.x + w.y * w.y) + w.z * w.z).abs() < TINY {
             return false;
         }
+        self.side_slide_core(world, w, p1, sb, dist, step, n, s)
+    }
+
+    /// `slide_in_impassable_case_impl` 0x7D660.
+    #[allow(clippy::too_many_arguments)]
+    fn side_slide_core(&mut self, world: &Collision, w: Vec3, p1: Vec3, sb: Vec3, dist: f32, step: f32, n: &mut Vec3, s: &Settings) -> bool {
         let c = (n.x * UP.x + n.z * UP.z) + n.y * UP.y;
         let t = Vec3::new(n.x - UP.x * c, n.y - UP.y * c, n.z - UP.z * c);
         let inv = 1.0 / ((t.z * t.z + t.y * t.y) + t.x * t.x).sqrt();
@@ -629,9 +863,14 @@ impl Controller {
                 self.velocity = Vec3::new(v.x - (g * UP.x) * t, v.y - (g * UP.y) * t, v.z - (g * UP.z) * t);
             }
             Some((_, mut n)) => {
-                if !self.can_straighten(world, sb, step) {
-                    // side_slide_on_low_ceiling 0x7DF20 is not ported: the refusal.
+                let ceiling = self.straighten(world, sb, step);
+                let slid = match ceiling {
+                    Some(cn) => self.low_ceiling_slide(world, w, p1, sb, dist, step, &mut n, cn, s),
+                    None => true,
+                };
+                if !slid {
                     notes.refused = true;
+                    notes.ceiling = true;
                     self.pos = sb + UP * self.d();
                 } else if self.impassable(n, sb, s)
                     && !{
@@ -671,6 +910,16 @@ impl Controller {
         self.dims = dims_of(if self.crouched { self.crouching } else { self.standing });
         let d2 = self.d();
         self.pos = Vec3::new(d2 * UP.x + b.x, d2 * UP.y + b.y, d2 * UP.z + b.z);
+        if self.crouched {
+            self.can_stand = self.stand_test(world);
+            let c = self.ceiling_normal;
+            if !self.can_stand && 0.5 > (-c.y * UP.y + -c.z * UP.z) + -c.x * UP.x {
+                // 0x7BAD0: the horizontal part of the ceiling's normal, times 0.1; no decay this tick.
+                let k = (c.x * UP.x + c.z * UP.z) + c.y * UP.y;
+                self.slide = self.slide + Vec3::new(c.x - UP.x * k, c.y - UP.y * k, c.z - UP.z * k) * 0.1;
+                return;
+            }
+        }
         let sl = self.slide;
         if sl != Vec3::ZERO {
             let len = ((sl.x * sl.x + sl.y * sl.y) + sl.z * sl.z).sqrt();
