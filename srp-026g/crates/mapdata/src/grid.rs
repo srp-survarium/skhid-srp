@@ -1036,7 +1036,11 @@ impl WalkGrid {
             wide.slips = grid.slip_landings(&wide, &solids);
         }
         if body.client_controller {
-            stats.controlled = grid.controlled_links(&mut wide, triangles);
+            let (controlled, failing) = grid.controlled_links(&mut wide, triangles);
+            stats.controlled = controlled;
+            // The walk links the client's body does not walk go, but none that is a floor's only way in from the seeds and spawns
+            // or its only way back (a 39 deg log on Cologne humans jump onto and stand on: ~70 floors lost with its two ends).
+            (stats.controlled.checks_dropped, stats.controlled.checks_kept) = grid.cut_keeping_reach(&mut wide, failing, seeds, spawns, true);
         }
         drop(solids);
         if body.drop_room && body.drop_room_walk_faces {
@@ -1234,6 +1238,21 @@ impl WalkGrid {
                 }
             }
         }
+        self.cut_keeping_reach(wide, failing, seeds, spawns, self.body.keep_last_resorts)
+    }
+
+    /// Takes away the links `failing` names (a floor and a direction, with a score: the higher kept first), except one that is
+    /// the only way to a floor from the seeds and spawns (with `keep_last_resorts`), or the only way back from it: the cut
+    /// disconnects nothing. Returns the links taken away and those kept for that. [`Self::drop_overshot_landings`]'s guard, and
+    /// the controller pass's ([`Body::client_controller`]).
+    fn cut_keeping_reach(
+        &self,
+        wide: &mut Wide,
+        mut failing: Vec<(u32, usize, f32)>,
+        seeds: &[Vec3],
+        spawns: &[Vec3],
+        keep_last_resorts: bool,
+    ) -> (usize, usize) {
         if failing.is_empty() {
             return (0, 0);
         }
@@ -1304,7 +1323,7 @@ impl WalkGrid {
                 // Without the last resorts kept, only the way back out of a floor a body can walk to counts (a pit it fell into);
                 // the floors only those links led to are out of reach.
                 let needed = (0..groups.len()).any(|g| {
-                    (self.body.keep_last_resorts && after[g].0[au] && !after[g].0[bu] && before[g].0[bu])
+                    (keep_last_resorts && after[g].0[au] && !after[g].0[bu] && before[g].0[bu])
                         || (after[g].1[bu] && !after[g].1[au] && before[g].1[au])
                 });
                 if !needed {

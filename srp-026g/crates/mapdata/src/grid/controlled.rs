@@ -8,8 +8,16 @@
 //!   the body across: its take-off becomes a walk-off (a plain leg, no key), where the bots pressed a jump the body does not
 //!   need and failed it.
 //! - **Checks:** a walk link between floors that have a face no body walks on near them (a wall, a rim, a steep pitch within
-//!   the reach of the capsule) stays only when the controller gets the body at least [`CHECK_SHARE`] of the way there; where
-//!   the client's body stalls (a 45 deg by-slope rim, a wall corner the grid passes), the bots' map stops offering the way.
+//!   the reach of the capsule) stays only when the controller gets the body at least [`CHECK_SHARE`] of the way there from
+//!   one of [`STARTS`]; where the client's body stalls from all of them (a 45 deg by-slope rim, a wall corner the grid passes),
+//!   the bots' map stops offering the way. The links that fail are handed back; the build takes them away except one that is
+//!   a floor's only way in from the seeds and spawns or its only way back (`WalkGrid::cut_keeping_reach`).
+//!
+//! [A313, fx-zones] Why the starts and the guard: fx-bench's M4 score (5a18068a, ON vs OFF) lost human coverage on Cologne:
+//! one camper's 205 samples on a 39 deg mossy log (`mossmoss_wood_02`, x 15-18.8, z 40-46): the check dropped the walk links at
+//! both of its ends (the body walked from a cell's centre straight to the next slides off the round log), and the ~70 floors
+//! went when the floors no seed gets to were dropped. A single straight walk from the cell's centre is one line of many a body
+//! takes; a bridge is added, and a walk link taken away, only on what all three lines agree on.
 //!
 //! The controller runs whole ticks at [`WALK_MPS`] toward the target floor for the ticks the leg takes and two more.
 use super::gap::{OffLink, Takeoff};
@@ -25,6 +33,9 @@ pub const CHECK_SHARE: f32 = 0.5;
 pub const STANDING_ROOM_M: f32 = 1.8;
 /// A face no body walks on within this of a floor's capsule makes its links checked, m.
 pub const CHECK_REACH_M: f32 = 0.15;
+/// The lines the controller walks a leg on: from the floor's centre, and this far either side of it across the leg, m. A
+/// check fails, and a bridge is walked, only when every line does.
+pub const STARTS: [f32; 3] = [0.0, -0.1, 0.1];
 /// The body is at the target when its feet are this near it flat and this near it in height, m.
 const AT_FLAT_M: f32 = 0.15;
 const AT_HEIGHT_M: f32 = 0.2;
@@ -37,6 +48,22 @@ pub struct ControlledStats {
     pub bridges_added: usize,
     pub checks: usize,
     pub checks_dropped: usize,
+    /// Failed checks kept as a floor's only way in or back (`WalkGrid::cut_keeping_reach`).
+    pub checks_kept: usize,
+}
+
+/// [`walk_share`] on each of [`STARTS`]: the best share, and whether every line ended at `to`.
+fn walk_lines(world: &Collision, from: Vec3, to: Vec3) -> (f32, bool) {
+    let flat = Vec3::new(to.x - from.x, 0.0, to.z - from.z);
+    let l = flat.length();
+    let side = if l > 1e-4 { Vec3::new(-flat.z / l, 0.0, flat.x / l) } else { Vec3::ZERO };
+    let (mut best, mut all) = (0.0f32, true);
+    for off in STARTS {
+        let (share, at) = walk_share(world, from + side * off, to + side * off);
+        best = best.max(share);
+        all &= at;
+    }
+    (best, all)
 }
 
 /// A floor's feet moved flat out of the faces the client's body would overlap there: the grid keeps floors 0.3175 m from a wall,
@@ -122,7 +149,9 @@ fn parallel<T: Sync, R: Send + Default + Clone>(items: &[T], job: impl Fn(&T) ->
 
 impl WalkGrid {
     /// The controller pass ([`Body::client_controller`], module documentation).
-    pub(super) fn controlled_links(&self, wide: &mut Wide, triangles: &[Triangle]) -> ControlledStats {
+    /// The bridges are made here; the walk links that fail their check are returned (a floor, a direction and the share the body
+    /// got), for the build to take away with `cut_keeping_reach`.
+    pub(super) fn controlled_links(&self, wide: &mut Wide, triangles: &[Triangle]) -> (ControlledStats, Vec<(u32, usize, f32)>) {
         let world = Collision::build(triangles);
         let mut stats = ControlledStats::default();
         let body = self.body;
@@ -147,7 +176,7 @@ impl WalkGrid {
         stats.bridges_tried = bridges.len();
         let walked = parallel(&bridges, |&i| {
             let l: &OffLink = &wide.off[i];
-            walk_share(&world, self.position(l.from), self.position(l.to)).1
+            walk_lines(&world, self.position(l.from), self.position(l.to)).1
         });
         for (&i, ok) in bridges.iter().zip(walked) {
             if ok {
@@ -178,7 +207,7 @@ impl WalkGrid {
             }
         }
         stats.bridges_tried += new.len();
-        let walked = parallel(&new, |&(a, b)| walk_share(&world, self.position(a), self.position(b)).1);
+        let walked = parallel(&new, |&(a, b)| walk_lines(&world, self.position(a), self.position(b)).1);
         for (&(a, b), ok) in new.iter().zip(walked) {
             if ok {
                 wide.off.push(OffLink { from: a, to: b, kind: LinkKind::GapJump, press: Takeoff::WalkOff });
@@ -210,14 +239,14 @@ impl WalkGrid {
         stats.checks = checks.len();
         let shares = parallel(&checks, |&(a, d)| {
             let b = wide.links[a][d];
-            walk_share(&world, self.position(a as NodeId), self.position(b)).0
+            walk_lines(&world, self.position(a as NodeId), self.position(b)).0
         });
-        for (&(a, d), share) in checks.iter().zip(shares) {
-            if share < CHECK_SHARE {
-                wide.links[a][d] = NONE;
-                stats.checks_dropped += 1;
-            }
-        }
-        stats
+        let failing = checks
+            .iter()
+            .zip(shares)
+            .filter(|&(_, share)| share < CHECK_SHARE)
+            .map(|(&(a, d), share)| (a as u32, d, share))
+            .collect();
+        (stats, failing)
     }
 }
