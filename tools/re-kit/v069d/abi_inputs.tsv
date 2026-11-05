@@ -10,3 +10,16 @@ va	name	location	role	basis
 0x20014bb60	survarium::loading_screen::on_music_loaded	RDX	query result (resource pointer at +0x238)	observed
 0x20062a8f0	vostok::sound::sound_instance_proxy::fade_out	RCX	sound instance proxy	observed
 0x20062a8f0	vostok::sound::sound_instance_proxy::fade_out	EDX	fade-out duration in milliseconds	observed
+0x2002f1480	survarium::game_world_core::remote_player_delay_in_ms	RCX	game world core (match core + 0x230)	observed
+0x2002f1480	survarium::game_world_core::remote_player_delay_in_ms	DL	place	observed
+0x2002f1400	survarium::game_world_core::own_confirmation_delay	RCX	game world core	observed
+0x200306550	survarium::base_player::get_damage_collision_for_query	RCX	target player	observed
+0x200306550	survarium::base_player::get_damage_collision_for_query	RDX	query object or null (virtual +0 context: +0x70 origin, +0x7c/+0x80 segment ms, +0x84 length; +0x10 shooter record, place at +8)	observed
+0x200306550	survarium::base_player::get_damage_collision_for_query	R8	float3 crossing point	observed
+0x200307450	survarium::base_player::recompute_damage_collision_bones_for_time_ctr	RCX	player	observed
+0x200307450	survarium::base_player::recompute_damage_collision_bones_for_time_ctr	EDX	u32 game time in ms	observed
+0x200236710	survarium::game_world::interpolate_players_at	RCX	game world	observed
+0x200236710	survarium::game_world::interpolate_players_at	EDX	u32 presentation time in ms	observed
+0x20022e610	survarium::base_player::root_transform_at	RCX	player	observed
+0x20022e610	survarium::base_player::root_transform_at	RDX	output float4x4	observed
+0x20022e610	survarium::base_player::root_transform_at	R8D	u32 grid time in ms	observed

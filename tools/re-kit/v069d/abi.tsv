@@ -3,3 +3,9 @@ va	name	source	ret_cleanup	result
 0x200117b60	survarium::game::play_music	manual	0	void
 0x20014bb60	survarium::loading_screen::on_music_loaded	manual	0	void
 0x20062a8f0	vostok::sound::sound_instance_proxy::fade_out	manual	0	void
+0x2002f1480	survarium::game_world_core::remote_player_delay_in_ms	manual	0	EAX u32 delay in ms, clamped to [tick, max remote delay]
+0x2002f1400	survarium::game_world_core::own_confirmation_delay	manual	0	EAX u32 ms
+0x200306550	survarium::base_player::get_damage_collision_for_query	manual	0	RAX collision wrapper or null
+0x200307450	survarium::base_player::recompute_damage_collision_bones_for_time_ctr	manual	0	void
+0x200236710	survarium::game_world::interpolate_players_at	manual	0	void
+0x20022e610	survarium::base_player::root_transform_at	manual	0	void; float4x4 written to RDX
