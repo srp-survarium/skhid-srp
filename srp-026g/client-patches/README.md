@@ -4420,3 +4420,20 @@ computes changes: a `next` row in
 `../docs/notes/grenade_ccd.md` has the evidence. Checked: selftest check 105
 (`test_grenade_ccd`) and the late join's site and relocation checks.
 **Not run in a game.**
+
+## A dropped battery stays above the ground (patch 106, unreleased)
+
+A battery dropped at its carrier's death sometimes went through the floor
+(the owner's reports, 2026-11-05). Stock 0.26g, as the grenades' before patch
+105: `victory_item_core`'s constructor (0x3000A0) makes the battery a box of
+half extents 0.27 x 0.108 x 0.144 m and stores one 0.01 as both its motion
+threshold and its swept sphere (0x30047D, 0x300485), so a swept hit leaves
+the box about 10 cm inside the level's one-sided mesh. `BATTERY_CCD` rewrites
+the two stores in their 16 bytes (`add eax,100h`, the 0.01 to [eax+4], 0.08 to
+[eax]): the threshold stays, the sphere is 0.08 m. `battery_ccd_sim.cpp` loses
+2 % of drops on a flat floor, 3 % on a slope and 13 to 15 % off a 3 m ledge
+stock, and none of 15000 with 0.08; where batteries come to rest is otherwise
+as before. What a match computes changes: a `next` row in
+`../crates/session/src/v026g/simulation_changes.tsv`.
+`../docs/notes/battery_ccd.md` has the evidence. Checked: selftest check 106
+(`test_battery_ccd`) and the late join's site checks. **Not run in a game.**

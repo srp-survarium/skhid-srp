@@ -5494,3 +5494,5 @@ va	name	location	role	basis
 0x003576c0	vostok::physics::bt_dynamic_rigid_body::set_linear_velocity	entry ESP+4	the bt_dynamic_rigid_body	observed
 0x00357750	vostok::physics::bt_dynamic_rigid_body::set_angular_velocity	ECX	the angular velocity (float3*)	observed
 0x00357750	vostok::physics::bt_dynamic_rigid_body::set_angular_velocity	entry ESP+4	the bt_dynamic_rigid_body	observed
+0x00301cb0	survarium::victory_item_core::activate_physics	ECX	the victory_item_core	observed
+0x00300e50	survarium::victory_item_core::drop	ECX	the victory_item_core	observed

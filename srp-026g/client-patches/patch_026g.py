@@ -544,6 +544,11 @@ Patches:
   sweeps a sphere of 0.04 m (GRENADE_CCD, 0x303A13), not 0.01 m, inside the
   grenade's 0.05 m capsule, so the capsule stops at the surface it hits
   instead of 4 cm into it. A simulation change;
+- a dropped battery stays above the ground (patch 106, with the late join;
+  docs/notes/battery_ccd.md): victory_item_core's continuous collision
+  sweeps a sphere of 0.08 m (BATTERY_CCD, 0x30047D), not 0.01 m, inside the
+  battery's box (thinnest half 0.108 m); its 0.01 m threshold stays. A
+  simulation change;
 - the baked camouflage and decal textures are kept from game to game, and
   a texture asked for again while its bake or load is under way is made
   once (patch 70, with the late join; docs/notes/baked-textures.md).
@@ -1480,6 +1485,19 @@ FALL_GRAVITY = (
 # inside the capsule with a centimetre to spare. Its base relocation (0x303A17)
 # stays. A simulation change.
 GRENADE_CCD = (0x303A13, bytes.fromhex("f30f100574d7a200"), bytes.fromhex("f30f1005dcd7a200"))
+
+# A dropped battery stays above the ground (patch 106, ../docs/notes/battery_ccd.md).
+# victory_item_core's constructor 0x3000A0 makes the battery a box of half
+# extents 0.27 x 0.108 x 0.144 m and stores the 0.01 it loaded at 0x300468 as
+# both its motion threshold (+104h, 0x30047D) and its swept sphere (+100h,
+# 0x300485): the box sank 10 cm into the level wherever a sweep hit. BATTERY_CCD
+# keeps the threshold and writes a swept sphere of 0.08 (2.8 cm inside the box's
+# thinnest side) in the same 16 bytes: eax (the btRigidBody) += 100h, the 0.01
+# to [eax+4], the 0.08 to [eax]. eax is the constructor's result only after
+# `mov eax,ebx` (0x30048E); no address in them, no flag read after. A
+# simulation change.
+BATTERY_CCD = (0x30047D, bytes.fromhex("f30f118004010000" "f30f118000010000"),
+               bytes.fromhex("0500010000" "f30f114004" "c7000ad7a33d"))
 
 # The menus' mouse buttons (patch 102, client_patch.md section 3.63). The
 # mouse gives a key 151h + its button (0..7, platform mouse 0x3B9981) to every
@@ -3476,6 +3494,8 @@ def build_image(original, mode, code=None, server=None, late_join=None, revision
             sites.append((site[0], site[0] + len(site[1])))
         # An address of .rdata for another: its relocation stays.
         patch(data, *GRENADE_CCD)
+        patch(data, *BATTERY_CCD)
+        sites.append((BATTERY_CCD[0], BATTERY_CCD[0] + len(BATTERY_CCD[1])))
         for site in MOUSE_BUTTONS:
             patch(data, *site)
             sites.append((site[0], site[0] + len(site[1])))
