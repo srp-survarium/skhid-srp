@@ -898,10 +898,16 @@ fn smoke_uses(due: &Due, bot: &mut Bot, knowledge: &mut know::TeamKnowledge, not
         // The shooter known to be there now, with a line onto the crossing.
         let chest = crossing + chest_over;
         let now_there = |sensed: u32| view.clock.saturating_sub(sensed) <= t.lane_sensed_ms;
+        // [A308 `smoke.camper`] A camper's spot (its kills tell where he is): sensed within the longer `sensed_ms`.
+        let camper_there = |l: &super::threat::HeldLane| {
+            t.camper.is_some_and(|c| {
+                l.kills >= c.kills as usize && l.sensed.is_some_and(|s| view.clock.saturating_sub(s) <= c.sensed_ms)
+            })
+        };
         let held = bot
             .lanes
             .iter()
-            .filter(|l| l.sensed.is_some_and(now_there) && l.at.distance_xz(crossing) <= l.reach_m)
+            .filter(|l| (l.sensed.is_some_and(now_there) || camper_there(l)) && l.at.distance_xz(crossing) <= l.reach_m)
             .filter(|l| tactics.sees(l.at + eye_over, chest))
             .min_by(|a, b| a.at.distance_xz(crossing).total_cmp(&b.at.distance_xz(crossing)))?;
         // A lane a cloud already covers (a mate's smoke, in plain sight) needs no second one.

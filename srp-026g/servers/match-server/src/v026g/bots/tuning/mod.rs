@@ -150,6 +150,7 @@ pub use sense::SenseTuning;
 pub use sense::ShotRanges;
 pub use smoke::AimPoint;
 pub use smoke::BestCover;
+pub use smoke::CamperSmoke;
 pub use smoke::CloudWaiters;
 pub use smoke::MidLine;
 pub use smoke::NearShooter;
@@ -873,6 +874,7 @@ mod tests {
         assert_eq!(wrong(|t| t.aim.combat.band_cross_deg = Some(95.0)), "aim.combat.band_cross_deg");
         assert_eq!(wrong(|t| t.aim.combat.band_cross_deg = Some(-5.0)), "aim.combat.band_cross_deg");
         assert_eq!(wrong(|t| t.personalities.clear()), "personalities: shares must sum to 1");
+        assert_eq!(wrong(|t| t.smoke.camper = Some(CamperSmoke { sensed_ms: 16_000, ..CamperSmoke::default() })), "smoke.camper");
         // Several wrong at once: the first section in the sorted list says so.
         assert_eq!(
             wrong(|t| {

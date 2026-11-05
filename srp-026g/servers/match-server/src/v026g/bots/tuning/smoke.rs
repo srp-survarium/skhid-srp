@@ -141,6 +141,28 @@ pub struct SmokeTuning {
     /// in that case so enemy would need to leave it"). None: no smoke for that crossing. ON by default as a choice (the
     /// owner's ask; by-side bench in its PR); `all_off.json` names it null.
     pub shooter_spot: Option<ShooterSpot>,
+    /// [A308] A camper's lane (the owner's top complaint: one spot killing bot after bot, K/D 4+): a held spot that counts
+    /// `kills` of the team's deaths is smoked as a lane while the team sensed him there (seen, heard, told, or the kill feed
+    /// of a death to him) within `sensed_ms`, not only within `lane_sensed_ms`: a hidden camper is rarely seen, and his kills
+    /// are what tell the team where he is. The cloud goes on his 3D lines onto the bot's crossing (`aim_point`). None: only
+    /// the lanes sensed within `lane_sensed_ms`.
+    pub camper: Option<CamperSmoke>,
+}
+
+/// [A308] `SmokeTuning::camper`.
+#[derive(Clone, Copy, Debug, PartialEq, Serialize, Deserialize)]
+#[serde(default, deny_unknown_fields)]
+pub struct CamperSmoke {
+    /// A held spot with this many of the team's deaths is a camper's.
+    pub kills: u32,
+    /// Sensed there within this, ms (at most the fairness rule's `smoke::FAIR_SENSED_MS`).
+    pub sensed_ms: u32,
+}
+
+impl Default for CamperSmoke {
+    fn default() -> Self {
+        Self { kills: 2, sensed_ms: 15_000 }
+    }
 }
 
 /// [A291] `SmokeTuning::objective`.
@@ -293,7 +315,11 @@ pub enum CloudWaiters {
 
 impl SmokeTuning {
     pub(super) fn check(&self) -> Result<(), String> {
-        check(self.lane_sensed_ms <= super::super::smoke::FAIR_SENSED_MS, "smoke.lane_sensed_ms")
+        check(self.lane_sensed_ms <= super::super::smoke::FAIR_SENSED_MS, "smoke.lane_sensed_ms")?;
+        check(
+            self.camper.is_none_or(|c| c.sensed_ms <= super::super::smoke::FAIR_SENSED_MS && c.kills >= 1),
+            "smoke.camper",
+        )
     }
 }
 
@@ -328,6 +354,7 @@ impl Default for SmokeTuning {
             aim_point: Some(AimPoint::BestCover(BestCover::default())),
             objective: None,
             shooter_spot: Some(ShooterSpot::default()),
+            camper: None,
         }
     }
 }
