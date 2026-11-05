@@ -43,7 +43,7 @@ const poolColor = p => p === "pain" ? "var(--pool-pain)" : p === "body" ? "var(-
 const state = {
   weapon: "wpn_ak_74n", ammo: null, dist: 20, part: "front",
   armour: { helmet: "renesanse_helmet_3", mask: "", torso: "renesanse_torso_3", gloves: "", legs: "renesanse_legs_3", boots: "renesanse_boots_3", back: "" },
-  cmpAmmo: "best", sort: { k: "shots", dir: 1 },
+  cmpAmmo: "best", sort: { k: "shots", dir: 1 }, mapView: "minimap",
 };
 try { Object.assign(state, JSON.parse(localStorage.getItem("srp-dmg") || "{}")); } catch (e) {}
 const save = () => { try { localStorage.setItem("srp-dmg", JSON.stringify(state)); } catch (e) {} };
@@ -290,9 +290,11 @@ function dollView(view) {
   const parts = D.parts.map(p => `<rect id="${id(p.name)}" mask="url(#${id("m-" + p.name)})" x="0" y="-30" width="140" height="130" fill="rgb(255,180,0)" fill-opacity="0"/>`).join("");
   const zones = D.zones[view].map(z => `<path data-part="${z.part}" transform="${z.transform}" d="${z.d}"/>`).join("");
   const caption = view === "back" ? T("back", "ззаду") : T("front", "спереду");
+  // The extracted zone paths use front-view coordinates. Mirror the figure,
+  // damage tint and interactive selection together, preserving anatomical sides.
   return `<figure><svg viewBox="58 -28 73 114" role="group" aria-label="${caption}"><defs>${defs}</defs>
-    <g${mirror}>${parts}<use href="#${id("bm-outline")}" x="63" y="-24.65"/></g>
-    <g class="zones" transform="translate(63 -24.65)">${zones}</g></svg><figcaption>${caption}</figcaption></figure>`;
+    <g${mirror}>${parts}<use href="#${id("bm-outline")}" x="63" y="-24.65"/>
+    <g class="zones" transform="translate(63 -24.65)">${zones}</g></g></svg><figcaption>${caption}</figcaption></figure>`;
 }
 function drawDoll() {
   const host = $("dollsvg");
@@ -694,11 +696,11 @@ function drawHealing() {
     const cures = (lark.active.remove_affects || []).length;
     rows.push([named(`${nm(lark)}, ${T("activated", "активований")}`, "artefact_lifebone"), T(`at once, every ${lark.cooldown_s} s`, `одразу, раз на ${lark.cooldown_s} с`), dash, dash, dash, dash, cures ? fixed : dash]);
   }
-  for (const key of ["medkit", "bandages"]) {
+  for (const key of ["medkit", "military_medkit", "blackmarket_medkit", "science_medkit", "bandages"]) {
     const d = DATA.drugs && DATA.drugs[key]; if (!d) continue;
-    const heal = d.heal_per_s || {};
+    const heal = d.heal_total || {};
     const cell = ([p]) => {
-      const gain = (heal[p] || 0) * d.activity_s;
+      const gain = heal[p] || 0;
       return gain <= 0 ? dash : gain >= row(p).health ? full : `+${hp(gain)}`;
     };
     rows.push([named(nm(d), key), T(`${d.activation_delay_s} s after use, for ${d.activity_s} s`, `через ${d.activation_delay_s} с, ${d.activity_s} с`),
@@ -753,9 +755,9 @@ function fillMaps() {
   const views = $("mapviews");
   const paintViews = () => {
     views.hidden = !DATA.maps[state.map].minimap;
-    for (const c of views.children) c.setAttribute("aria-pressed", String(c.dataset.view === (state.mapView || "render")));
+    for (const c of views.children) c.setAttribute("aria-pressed", String(c.dataset.view === state.mapView));
   };
-  for (const [v, text] of [["render", T("From above", "Згори")], ["minimap", T("Minimap", "Мінімапа")]]) {
+  for (const [v, text] of [["minimap", T("Minimap", "Мінімапа")], ["render", T("From above", "Згори")]]) {
     const c = el("button", { type: "button", class: "chip", text });
     c.dataset.view = v;
     c.addEventListener("click", () => { state.mapView = v; paintViews(); drawMapBase(); update(); });

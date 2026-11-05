@@ -24,6 +24,9 @@
       # slice_split_once), so stable will not build it.
       rust = pkgs.rust-bin.nightly.latest.default.override {
         extensions = [ "rust-src" "rustfmt" "clippy" "rust-analyzer" ];
+        # The Rust exe patches (client-patches/rust) are tested and linted for
+        # the game's i686, never the host's x86_64 (rust_patches.md).
+        targets = [ "i686-unknown-linux-gnu" ];
       };
 
       # The players' Windows programs (client/bugtrap, client/updater) are
@@ -104,6 +107,9 @@
           PKG_CONFIG_PATH = "${pkgs.openssl.dev}/lib/pkgconfig";
           # Where client/bugtrap and client/updater link the C runtime from.
           SKHID_MSVC_LIB = "${msvcLibs}/lib/x86";
+          # `cargo test --target i686-unknown-linux-gnu` in client-patches/rust
+          # links its test binaries against 32-bit glibc with this.
+          CARGO_TARGET_I686_UNKNOWN_LINUX_GNU_LINKER = "${pkgs.pkgsi686Linux.stdenv.cc}/bin/cc";
         };
       };
     };

@@ -5,9 +5,16 @@ use crate::zip::Source;
 pub const ERROR_UNSAFE_TEXT: u32 = 0xE000_0201;
 pub const ERROR_LONG_LINE: u32 = 0xE000_0202;
 pub const ERROR_AMBIGUOUS_RECORD: u32 = 0xE000_0203;
-const LINE: usize = 64 * 1024;
+pub const LINE: usize = 64 * 1024;
 const INPUT: usize = 8 * 1024;
 const REMOVED: &[u8] = b"[SRP: sensitive log record removed]\r\n";
+
+/// Rewrites `line[..len]`, text in `code_page`, as UTF-8 in place and returns
+/// its new length: [`ERROR_UNSAFE_TEXT`] when the bytes are not text of that
+/// code page, [`ERROR_LONG_LINE`] when the UTF-8 is longer than `line`
+/// ([`LINE`]). The DLL's is logs.rs `transcode` (MultiByteToWideChar, then
+/// WideCharToMultiByte); this file stays free of the OS for its host tests.
+pub type Transcode = fn(code_page: u32, line: &mut [u8], len: usize) -> Result<usize, u32>;
 
 pub struct Filter<'a> {
     source: &'a mut dyn Source,
@@ -19,11 +26,19 @@ pub struct Filter<'a> {
     output_len: usize,
     ended: bool,
     suppress: bool,
+    legacy: Option<(u32, Transcode)>,
     pub removed_lines: u64,
+    pub transcoded_lines: u64,
     pub emitted: u64,
 }
 impl<'a> Filter<'a> {
     pub fn new(source: &'a mut dyn Source) -> Self {
+        Self::legacy(source, None)
+    }
+    /// A filter that takes a line that is not UTF-8 as text of `code_page`
+    /// (the game writes its log in its locale's code page) and passes it on
+    /// as UTF-8, through `transcode`.
+    pub fn legacy(source: &'a mut dyn Source, legacy: Option<(u32, Transcode)>) -> Self {
         Self {
             source,
             input: [0; INPUT],
@@ -34,7 +49,9 @@ impl<'a> Filter<'a> {
             output_len: 0,
             ended: false,
             suppress: false,
+            legacy,
             removed_lines: 0,
+            transcoded_lines: 0,
             emitted: 0,
         }
     }
@@ -66,16 +83,26 @@ impl<'a> Filter<'a> {
         if len == 0 {
             return Ok(false);
         }
-        let line = &self.line[..len];
-        // Fail closed on UTF-16/32, binary/control encodings and non-UTF-8 text.
-        // Never zip a bytewise "redaction" of an encoding we cannot recognize.
-        if core::str::from_utf8(line).is_err()
-            || line
-                .iter()
-                .any(|&b| b == 127 || (b < 32 && !b"\r\n\t".contains(&b)))
+        // Fail closed on UTF-16/32, binary/control encodings, and text that is
+        // neither UTF-8 nor of the legacy code page given. Never zip a bytewise
+        // "redaction" of an encoding we cannot recognize.
+        if self.line[..len]
+            .iter()
+            .any(|&b| b == 127 || (b < 32 && !b"\r\n\t".contains(&b)))
         {
             return Err(ERROR_UNSAFE_TEXT);
         }
+        if core::str::from_utf8(&self.line[..len]).is_err() {
+            let Some((code_page, transcode)) = self.legacy else {
+                return Err(ERROR_UNSAFE_TEXT);
+            };
+            len = transcode(code_page, &mut self.line, len)?;
+            if len > LINE || core::str::from_utf8(&self.line[..len]).is_err() {
+                return Err(ERROR_UNSAFE_TEXT);
+            }
+            self.transcoded_lines += 1;
+        }
+        let line = &self.line[..len];
         let sensitive = sensitive(line);
         if sensitive && ambiguous(line) {
             return Err(ERROR_AMBIGUOUS_RECORD);

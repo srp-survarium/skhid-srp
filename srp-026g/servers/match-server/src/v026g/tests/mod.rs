@@ -81,6 +81,7 @@ pub fn setup(players: usize, map_id: u8) -> MatchSetup {
         vs_bots: false,
         private: false,
         room_minimum: None,
+        blackout: false,
     }
 }
 

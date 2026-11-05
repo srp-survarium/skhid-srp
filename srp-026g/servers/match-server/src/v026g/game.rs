@@ -106,15 +106,17 @@ use survarium::v026g::maps::mode;
 use survarium::v026g::match_msgs::client_model::EVENT_HORIZON_MS;
 use survarium::v026g::match_msgs::players::{self, Supplies};
 use survarium::v026g::match_msgs::rules::{self, TimelimitParams, TimelimitRule, Transition};
-use survarium::v026g::match_msgs::snapshot::{self, Rules, Sections, Standing, Statistics, event};
+use survarium::v026g::match_msgs::snapshot::{self, Rules, Standing, Statistics, event};
 use survarium::v026g::match_msgs::upload::{Pushed, Reassembler, Upload};
 use survarium::v026g::match_msgs::{
     ClientMessage, FORCED_MISMATCH, Generation, PlayerInput, ServerMessage, TICK_MS, TimeReply,
     WireTime, clock as game_clock, parse_client, tick_byte, tick_time,
 };
 use udp_transport::{Event, SendError, Transport};
+use world_frame::{Frame, Places};
 
 use super::battery_cap;
+use super::kill_cap;
 use super::record::{Recorder, Recording};
 use super::registry::{Formed, MatchEnd, MatchResult, PlayerResult};
 use super::{LateInputs, Settings};
@@ -380,7 +382,7 @@ const MOVE_STEPS: u32 = 4;
 /// A roster change (0xE9, 0xEA) is for a tick this far ahead: it is with
 /// every client before its tick, so none stamps it onto a later one of
 /// its own ("CORRECTED", match.md section 5.1). Another 0.26g server ran
-/// with 300 ms against real clients (upstream_compare.md topic 4).
+/// with 300 ms against real clients.
 const ROSTER_LEAD_MS: u32 = 300;
 /// How often clients' disagreeing hashes are logged at most.
 const DISAGREEMENT_LOG: Duration = Duration::from_secs(10);
@@ -498,6 +500,45 @@ struct SetTimeSent {
     /// A 0xE7 of offset 0 went ahead of it in its datagram: a game that
     /// took it has no correction running (`Game::send_set_time`).
     ends_correction: bool,
+}
+
+/// An upper bound on the clocks already assigned, including unanswered
+/// generations. Queue time deliberately bounds delivery time from below:
+/// a delayed or reordered copy cannot put the game past this projection.
+/// A clock correction invalidates it; an acknowledgement does not lower it.
+#[derive(Default)]
+enum AssignedClock {
+    #[default]
+    Unknown,
+    Bound {
+        time: u32,
+        queued_at: Instant,
+    },
+}
+
+impl AssignedClock {
+    fn project(&self, now: Instant) -> Option<u32> {
+        match *self {
+            Self::Unknown => None,
+            Self::Bound { time, queued_at } => {
+                Some(time + now.saturating_duration_since(queued_at).as_millis() as u32)
+            }
+        }
+    }
+
+    fn record(&mut self, time: u32, now: Instant) {
+        let time = self
+            .project(now)
+            .map_or(time, |previous| previous.max(time));
+        *self = Self::Bound {
+            time,
+            queued_at: now,
+        };
+    }
+
+    fn forget(&mut self) {
+        *self = Self::Unknown;
+    }
 }
 
 /// The 0xE5s of one sync remembered, to know their answers.
@@ -748,6 +789,9 @@ struct Peer {
     inputs_moved: u32,
     /// Inputs with a rotation no client makes: not relayed.
     inputs_refused: u32,
+    /// Uploads no game could load (`world_frame::Frame::parse`): sent to
+    /// nobody.
+    uploads_refused: u32,
     resyncs: u32,
     /// Resyncs since its reports last agreed with the right ones.
     restores_unagreed: u32,
@@ -761,9 +805,9 @@ struct Peer {
     discard_run: Option<DiscardRun>,
     lag_ms: Option<i64>,
     correction: Option<(Instant, i64, Duration)>,
-    /// The clock the last 0xE5 it answered gave it, and when that went;
-    /// none once a 0xE7 moved its clock.
-    clock_given: Option<(u32, Instant)>,
+    /// Clocks assigned by 0xE5, retained across retries even without an
+    /// answer. Invalidated when 0xE7 starts moving the clock.
+    assigned_clock: AssignedClock,
     /// Its hash reports for ticks past the snapshot of the world on its
     /// way (`Stage::Syncing`), with when each came: one the majority
     /// agrees with, made after the world could be there, shows that the
@@ -882,6 +926,8 @@ pub(crate) struct Game {
     mode_end_at: Option<u32>,
     state: Option<Observed>,
     best_streaks: Vec<u16>,
+    /// Who killed whom, as far as the snapshots tell ([`kill_cap`]).
+    kill_pairs: kill_cap::Pairs,
     /// By place: the kit choices relayed for a tick before play began
     /// (`TimelimitRule::before_play`), when a patched game (patch 31)
     /// respawns a live player in the chosen kit where it stands. At most as
@@ -956,6 +1002,7 @@ impl Game {
             mode_end_at: None,
             state: None,
             best_streaks: vec![0; players],
+            kill_pairs: kill_cap::Pairs::default(),
             kit_changes: vec![0; players],
             load_waits: vec![late_join::LoadWait::First; players],
             ending: None,
@@ -990,11 +1037,12 @@ impl Game {
             "mode": map.mode,
             "match_level": self.formed.match_level,
             "growing_roster": self.formed.growing_roster,
+            "vs_bots": self.formed.vs_bots,
             "initial_players": self.formed.initial_players,
             "late_inputs": format!("{:?}", self.settings.late_inputs),
             "places": self.places_note(0),
         });
-        self.recording = Some(recorder.open(self.id, header, now));
+        self.recording = Some(recorder.open(self.id, self.formed.vs_bots, header, now));
     }
 
     /// The places from `from` on, for a recording.
@@ -1312,6 +1360,7 @@ impl Game {
             inputs_relayed_late: 0,
             inputs_moved: 0,
             inputs_refused: 0,
+            uploads_refused: 0,
             resyncs: 0,
             restores_unagreed: 0,
             latest_input_ms: 0,
@@ -1323,7 +1372,7 @@ impl Game {
             lag_ms: None,
             correction: None,
             clock_offset_pending: None,
-            clock_given: None,
+            assigned_clock: AssignedClock::default(),
             load_reports: Vec::new(),
             correction_ends: None,
             missed: VecDeque::new(),
@@ -1480,7 +1529,6 @@ impl Game {
             peer.time_confirmed = true;
             peer.time_answered = true;
             peer.clock_set = true;
-            peer.clock_given = Some((sent.start, sent.at));
             if sent.ends_correction {
                 // Its game took the 0xE7 of offset 0 ahead of that 0xE5.
                 peer.correction_ends = None;
@@ -2317,8 +2365,9 @@ impl Game {
     /// arrive; 0xE7 then brings it to the match clock.
     ///
     /// One resynced while it plays (match.md section 30): never behind its
-    /// own clock as the 0xE5 arrives, nor behind its newest own input seen,
-    /// by [`RESYNC_CLOCK_MARGIN_MS`] each. A game whose clock was put back
+    /// own clock as the 0xE5 arrives, nor behind its newest own input seen.
+    /// The first assignment and newest input get [`RESYNC_CLOCK_MARGIN_MS`].
+    /// A game whose clock was put back
     /// made its inputs for ticks it had sent once more, with other contents
     /// (live, 2026-10-14: one player 22 such ticks in a match), which the
     /// others never get (a time seen is a copy here): the guard 0xE5
@@ -2326,15 +2375,15 @@ impl Game {
     /// that. Its own clock is the match clock and the way of the 0xE5
     /// (half its round trip, at most [`RESYNC_ONE_WAY_MAX_MS`]), less how
     /// far it is behind by the pings (`estimated_lag`; games run about
-    /// their way ahead); and once it has answered a 0xE5 of this sync, the
-    /// clock that 0xE5 gave it and the time since, which is exact. The
-    /// margin is for inputs on their way, newer than the newest seen. By
+    /// their way ahead). Once a clock is assigned, its projection bounds
+    /// every copy, including unanswered generations. The margin is for
+    /// inputs on their way, newer than the newest seen; it is not added
+    /// again when a generation is retried. By
     /// the world alone (`SRP_RESYNC_WORLD_ONLY`) the clock stays where it
     /// is.
     ///
-    /// Its clock once it took a 0xE5 of this sync: the latest clock any
-    /// copy of the generation gives (`given_clock`), not the last copy
-    /// sent: copies whose clocks disagree may arrive in any order.
+    /// Copies whose clocks disagree may arrive in any order. The bound
+    /// retains the latest projection until a clock correction invalidates it.
     fn sync_start(&self, index: usize, time: u32, entering: bool, clock: u32, now: Instant) -> u32 {
         let others = self.others_live(index);
         if !entering {
@@ -2351,21 +2400,16 @@ impl Game {
                 .chain(peer.profiles_seen.iter().map(|(at, _)| *at))
                 .max()
                 .map_or(0, |at| at + RESYNC_CLOCK_MARGIN_MS);
-            // The game follows the last copy of the generation it took:
-            // the latest any copy gives (`given_clock`).
-            let given = peer
-                .time_confirmed
-                .then(|| given_clock(&peer.set_times, now))
-                .flatten()
-                .or(peer.clock_given.map(|(start, at)| {
-                    start + now.saturating_duration_since(at).as_millis() as u32
-                }));
+            // Keep the upper bound across generations, answered or not.
+            // `send_sync` already includes the assigned lead in lag_ms;
+            // forgetting this bound would add the margin again on retry.
+            let given = peer.assigned_clock.project(now);
             let lag = estimated_lag(peer, now)
                 .unwrap_or(0)
                 .clamp(-MAX_SANE_LAG_MS, MAX_SANE_LAG_MS);
             let measured = (i64::from(clock + one_way(peer)) - lag).max(0) as u32;
             let own = match given {
-                // Known: no margin but the pings' own error, ahead only.
+                // Already assigned: ahead only, without another margin.
                 Some(given) => given.max(measured),
                 None => measured + RESYNC_CLOCK_MARGIN_MS,
             };
@@ -2405,9 +2449,6 @@ impl Game {
         let Some(peer) = self.peers[index].as_mut() else {
             return start;
         };
-        if peer.set_times.len() == SET_TIMES_KEPT {
-            peer.set_times.pop_front();
-        }
         let set_time = ServerMessage::SetTime {
             generation: peer.generation.0,
             echo,
@@ -2420,19 +2461,31 @@ impl Game {
         // into the base.
         let ends_correction = peer.clock_offset_pending.is_some()
             || peer.correction_ends.is_some_and(|end| now < end);
-        if ends_correction {
+        let queued = if ends_correction {
             let stop = ServerMessage::ClockOffset(0);
-            match peer.transport.send_joined(
-                (stop.id(), &stop.payload()),
-                (set_time.id(), &set_time.payload()),
-            ) {
-                Ok(_) | Err(SendError::NotConnected) => {}
-                Err(error) => {
-                    log::warn!("Match {id:#x}: 0xE7 and 0xE5 to player {index} not sent: {error:?}")
-                }
-            }
+            peer.transport
+                .send_joined(
+                    (stop.id(), &stop.payload()),
+                    (set_time.id(), &set_time.payload()),
+                )
+                .map(|_| ())
         } else {
-            send(peer, &set_time);
+            peer.transport
+                .send(set_time.id(), &set_time.payload())
+                .map(|_| ())
+        };
+        match queued {
+            Ok(_) => {}
+            Err(error) => {
+                if error != SendError::NotConnected {
+                    log::warn!("Match {id:#x}: 0xE5 to player {index} not sent: {error:?}");
+                }
+                return start;
+            }
+        };
+        peer.assigned_clock.record(start, now);
+        if peer.set_times.len() == SET_TIMES_KEPT {
+            peer.set_times.pop_front();
         }
         peer.set_times.push_back(SetTimeSent {
             echo,
@@ -2822,7 +2875,7 @@ impl Game {
     /// until acked (a relay's own 250 ms would lose them on a slow link).
     /// The client's own inputs are never sent back to it: it has them,
     /// and one that came back late would be moved to another tick by the
-    /// client (seen live by another server, upstream_compare.md topic 7).
+    /// client (seen live by another server).
     ///
     /// A client resynced while it plays had the inputs and the roster
     /// changes since the snapshot before (`send_replay`), all acked: it
@@ -3289,6 +3342,7 @@ impl Game {
         let id = self.id;
         let late_inputs = self.settings.late_inputs;
         let reach = self.late_relay_reach(index);
+        let places = u8::try_from(self.players()).unwrap_or(u8::MAX);
         let Some(peer) = self.peers[index].as_mut() else {
             return;
         };
@@ -3324,7 +3378,13 @@ impl Game {
             let oldest = clock.saturating_sub(INPUT_MAX_AGE_MS);
             peer.inputs_seen.retain(|seen| *seen >= oldest);
         }
-        if !input.rotation_is_sane() {
+        // Client patch 85: a pickup naming no other place of the match. The
+        // client never sends one (`weapon_pickup::sane`, its twin).
+        let pickup_sane = u8::try_from(index)
+            .ok()
+            .and_then(weapon_pickup::Place::new)
+            .is_some_and(|sender| weapon_pickup::sane(input.actions, sender, places));
+        if !input.rotation_is_sane() || !pickup_sane {
             // Relayed, it would be in every client's world for good
             // (`PlayerInput::rotation_is_sane`). Its owner drops it as it
             // drops a late one; a copy of it is known by its time and goes
@@ -3337,8 +3397,8 @@ impl Game {
             );
             if peer.inputs_refused <= REFUSED_LOGGED {
                 log::warn!(
-                    "Match {id:#x}: player {index}'s input at {time} ms has a rotation no client \
-                     makes (bytes {:02x?}, actions {:#x}); not relayed, its owner told to drop it",
+                    "Match {id:#x}: player {index}'s input at {time} ms has a rotation or a pickup no \
+                     client makes (bytes {:02x?}, actions {:#x}); not relayed, its owner told to drop it",
                     input.rotation,
                     input.actions
                 );
@@ -3559,6 +3619,19 @@ impl Game {
     }
 
     fn relay_to_others(&mut self, index: usize, what: &Relayed, time: u32, now: Instant) {
+        // A solo human's inputs have no recipient. Keep the accepted
+        // action after rejection/retiming, not the unchecked inbound packet.
+        if self.formed.vs_bots
+            && !self.formed.places[index].driven
+            && let Some(recording) = self.recording.as_mut()
+        {
+            match what {
+                Relayed::Input(input) => recording.accepted_input(index, time, input, now),
+                Relayed::Profile { value, .. } => {
+                    recording.accepted_profile(index, time, *value, now)
+                }
+            }
+        }
         let message = relay(index, what);
         let clock = self.clock(now);
         for (other, peer) in self.peers.iter_mut().enumerate() {
@@ -3617,6 +3690,7 @@ impl Game {
         }
         let initial = self.snapshot.is_none() && self.requested_at.is_none();
         let joiner = self.waiting_entry(index);
+        let places = Places::of(self.snapshot_players());
         let id = self.id;
         let snapshot = Snapshot {
             time: upload.item_time,
@@ -3642,6 +3716,27 @@ impl Game {
                 return;
             }
         }
+        // A world no game could load goes to nobody: a game reads a world
+        // with no check of its own (world_frame_check.md), so its frame must
+        // walk from the front to its end, its mask name no place past the
+        // roster, and no section or player state be over the game's buffer
+        // for it. The game runs the same parse before it loads a world
+        // (exe patch 87). No world a game made was refused so (10 730 kept
+        // worlds). Its client stays asked: a world of its that loads may
+        // still come.
+        if let Err(refusal) = Frame::parse(&snapshot.body, places) {
+            peer.uploads_refused += 1;
+            if peer.uploads_refused <= REFUSED_LOGGED {
+                log::warn!(
+                    "Match {id:#x}: player {index}'s upload at {} ms ({} bytes) is no world a game \
+                     could load, {refusal}; sent to nobody",
+                    snapshot.time,
+                    snapshot.body.len()
+                );
+            }
+            self.dump(&snapshot, index, "unloadable");
+            return;
+        }
         peer.asked = None;
         peer.unanswered_since = None;
         if !initial && let Some(asked_at) = peer.wrong_world_asked.take() {
@@ -3661,19 +3756,6 @@ impl Game {
         peer.simulating_at = Some(now);
         if !initial && let Some(asked) = peer.asked_clock.take() {
             observe_upload(&mut peer.upload_offset, asked, snapshot.time);
-        }
-        // The server needs no more of a world than its bytes; that it does
-        // not split into its sections here says the reader is wrong (no
-        // 0.26g world was seen when it was written) as likely as the world.
-        // It is used, saved to look at, and gives no results.
-        if Sections::candidates(&snapshot.body).is_empty() {
-            log::warn!(
-                "Match {id:#x}: player {index}'s upload at {} ms ({} bytes) does not read as a \
-                 world (a mask, players and six sections); used as it is, without results",
-                snapshot.time,
-                snapshot.body.len()
-            );
-            self.dump(&snapshot, index, "unreadable");
         }
         if initial {
             self.first_snapshot(index, snapshot, now);
@@ -3821,6 +3903,11 @@ impl Game {
                     .max(player.longest_killstreak)
                     .max(u16::from(player.killstreak));
             }
+            let before = self
+                .state
+                .as_ref()
+                .and_then(|state| state.statistics.as_ref());
+            self.kill_pairs.observe(before, statistics, &teams);
         }
         if let Some(read) = &decoded.rules {
             // The map's respawn points are known from its project: a rule
@@ -4528,7 +4615,7 @@ impl Game {
                 .send_unique_kept(message.id(), &message.payload(), resend)
         {
             peer.clock_offset_pending = Some((serial, now, offset, takes));
-            peer.clock_given = None;
+            peer.assigned_clock.forget();
             peer.correction_ends =
                 Some(now + takes + Duration::from_millis(u64::from(peer.round_trip)));
         }
@@ -4743,6 +4830,33 @@ impl Game {
                 statistics
             });
         let statistics = statistics.as_ref();
+        let payment = statistics.map(|played| {
+            let payment = super::reward_caps::Payment::of(
+                played,
+                &self.kill_pairs,
+                self.game_mode(),
+                self.formed.vs_bots,
+            );
+            for cut in &payment.objectives {
+                log::info!(
+                    "Match {:#x}: place {}'s Research capture/neutralisation score {}, paid {}",
+                    self.id,
+                    cut.place,
+                    cut.scored,
+                    cut.paid
+                );
+            }
+            for cut in &payment.kills {
+                log::info!(
+                    "Match {:#x}: place {}'s repeated kills counted {}, paid {}",
+                    self.id,
+                    cut.place,
+                    cut.counted,
+                    cut.paid
+                );
+            }
+            payment
+        });
         let kills_deaths = state
             .and_then(|state| state.rules.as_ref())
             .map(|read| &read.kills_deaths);
@@ -4797,6 +4911,10 @@ impl Game {
                     left,
                     time_in_match_ms: in_match,
                     statistics: own.cloned(),
+                    pay_statistics: payment
+                        .as_ref()
+                        .and_then(|p| p.statistics.players.get(index))
+                        .cloned(),
                     score: own.map_or(0, |player| {
                         snapshot::score(player, &self.formed.score_weights)
                     }),
@@ -4826,6 +4944,7 @@ impl Game {
             players,
             vs_bots: self.formed.vs_bots,
             private: self.formed.private,
+            blackout: self.formed.blackout,
         }
     }
 
@@ -5986,15 +6105,16 @@ fn given_clock(set_times: &VecDeque<SetTimeSent>, now: Instant) -> Option<u32> {
 fn input_summary(peer: &Peer) -> String {
     format!(
         "{} inputs, {} first seen over {LATE_INPUT_MS} ms late on the way, {} too late to relay \
-         and discarded, {} moved, {} refused for their rotation, the latest {} ms, resynced {} \
-         times, started once more after its first world {} times, round trip {} ms, {} messages \
-         to it sent again, our seq skipped ahead {} times, {} of {} relays and roster changes \
-         never acked, {} relayed late at their tick",
+         and discarded, {} moved, {} refused for their rotation, {} uploads no game could \
+         load, the latest {} ms, resynced {} times, started once more after its first world {} \
+         times, round trip {} ms, {} messages to it sent again, our seq skipped ahead {} times, \
+         {} of {} relays and roster changes never acked, {} relayed late at their tick",
         peer.inputs_received,
         peer.inputs_late,
         peer.inputs_discarded,
         peer.inputs_moved,
         peer.inputs_refused,
+        peer.uploads_refused,
         peer.latest_input_ms,
         peer.resyncs,
         peer.reloads,
@@ -6183,6 +6303,14 @@ impl Game {
             .map_or(0, |peer| peer.inputs_refused)
     }
 
+    /// How many of its uploads were sent to nobody: no game could load
+    /// them.
+    pub fn uploads_refused(&self, index: usize) -> u32 {
+        self.peers[index]
+            .as_ref()
+            .map_or(0, |peer| peer.uploads_refused)
+    }
+
     pub fn rule_state(&self) -> u8 {
         self.rule.state
     }
@@ -6300,6 +6428,258 @@ impl Game {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn unanswered_resync_retries_do_not_add_the_clock_margin_again() {
+        use crate::v026g::tests::{Bench, MAP_BATTERIES};
+
+        let mut bench = Bench::new(3, MAP_BATTERIES, Settings::default());
+        bench.join_all();
+        let began = bench.now();
+        let game = bench.server.games.get_mut(&bench.match_id).unwrap();
+        let snapshot = game.newest_snapshot().unwrap();
+        game.clock_start = Some((began, 72_310));
+        let peer = game.peers[2].as_mut().unwrap();
+        peer.assigned_clock.forget();
+        peer.lag_ms = Some(3);
+        peer.round_trip = 500;
+        peer.correction = None;
+        peer.correcting_until = None;
+        peer.clock_offset_pending = None;
+        peer.correction_ends = None;
+        peer.inputs_seen.clear();
+        peer.profiles_seen.clear();
+        peer.lags.clear();
+
+        // Like 67ea552c generations5..9: no time replies during the
+        // retries. A timeout allows each world to go; none is loaded.
+        // The initial clock lead includes the100ms safety margin.
+        let mut leads = Vec::new();
+        for attempt in 0..5 {
+            let now = began + Duration::from_millis(attempt * 2_000);
+            let clock = game.clock(now);
+            let world = Snapshot {
+                time: clock - 500,
+                ..snapshot.clone()
+            };
+            game.begin_timing(2, &world, false, now);
+            let peer = game.peers[2].as_mut().unwrap();
+            leads.push(peer.set_times.back().unwrap().start - clock);
+            // The production timeout sets this even without a reply.
+            peer.time_confirmed = true;
+            assert!(!peer.time_answered);
+            let later = now + Duration::from_millis(800);
+            game.send_sync(2, world, false, later);
+            game.redo_sync(2, false, "test: world not loaded", later);
+        }
+        assert_eq!(leads, [347; 5]);
+    }
+
+    #[test]
+    fn assigned_clock_keeps_new_inputs_and_survives_old_replies_until_correction() {
+        use crate::v026g::tests::{Bench, MAP_BATTERIES};
+
+        let mut bench = Bench::new(3, MAP_BATTERIES, Settings::default());
+        bench.join_all();
+        let now = bench.now();
+        let game = bench.server.games.get_mut(&bench.match_id).unwrap();
+        let snapshot = game.newest_snapshot().unwrap();
+        let clock = game.clock(now);
+        let peer = game.peers[2].as_mut().unwrap();
+        peer.assigned_clock.forget();
+        peer.lag_ms = Some(0);
+        peer.round_trip = 100;
+        peer.correction = None;
+        peer.correcting_until = None;
+        peer.clock_offset_pending = None;
+        peer.correction_ends = None;
+        peer.inputs_seen.clear();
+        peer.profiles_seen.clear();
+        peer.lags.clear();
+
+        game.begin_timing(2, &snapshot, false, now);
+        let peer = game.peers[2].as_mut().unwrap();
+        let first = *peer.set_times.back().unwrap();
+        assert_eq!(first.start, clock + 150);
+        peer.inputs_seen.insert(clock + 700);
+        let later = now + Duration::from_millis(20);
+        assert_eq!(
+            game.send_set_time(2, snapshot.time, false, later),
+            clock + 800
+        );
+        game.peers[2].as_mut().unwrap().transport.poll(later);
+
+        // A delayed answer to the earlier, lower assignment must not
+        // replace the bound for the newer assignment or add a margin.
+        let replied = now + Duration::from_millis(50);
+        game.time_reply(
+            2,
+            TimeReply {
+                first: 0,
+                stamp: first.echo,
+                client_ms: first.start as u16,
+            },
+            replied,
+        );
+        let peer = game.peers[2].as_mut().unwrap();
+        assert_eq!(peer.assigned_clock.project(replied), Some(clock + 830));
+        peer.inputs_seen.clear();
+        assert_eq!(
+            game.sync_start(2, snapshot.time, false, clock + 50, replied),
+            clock + 830
+        );
+
+        // A new clock correction invalidates the assignment even though
+        // the old generation's timing records still exist.
+        let peer = game.peers[2].as_mut().unwrap();
+        peer.stage = Stage::Live;
+        peer.round_trips = [100].into();
+        peer.lags = [LagSample {
+            lag: 1_000,
+            round_trip: 100,
+            at: replied,
+        }; 2]
+            .into();
+        game.correct_clock(2, replied);
+        let peer = game.peers[2].as_mut().unwrap();
+        assert!(peer.clock_offset_pending.is_some());
+        assert_eq!(peer.assigned_clock.project(replied), None);
+
+        // A rejected send cannot manufacture a new assigned clock.
+        peer.transport.disconnect(replied);
+        game.send_set_time(2, snapshot.time, false, replied);
+        assert_eq!(
+            game.peers[2]
+                .as_ref()
+                .unwrap()
+                .assigned_clock
+                .project(replied),
+            None
+        );
+    }
+
+    #[test]
+    fn assigned_clock_bounds_delayed_and_reordered_client_copies() {
+        use crate::v026g::tests::{Bench, MAP_BATTERIES};
+        use survarium::v026g::match_msgs::client_model::Taken;
+
+        let mut bench = Bench::new(3, MAP_BATTERIES, Settings::default());
+        bench.join_all();
+        let client = bench.clients[2].model.clone();
+        assert_eq!(client.correction_left(), 0.0);
+        let began = bench.now();
+        let game = bench.server.games.get_mut(&bench.match_id).unwrap();
+        let snapshot = game.newest_snapshot().unwrap();
+        let clock = game.clock(began);
+        let peer = game.peers[2].as_mut().unwrap();
+        peer.assigned_clock.forget();
+        peer.lag_ms = Some(0);
+        peer.round_trip = 100;
+        peer.correction = None;
+        peer.clock_offset_pending = None;
+        peer.correction_ends = None;
+        peer.inputs_seen.clear();
+        peer.profiles_seen.clear();
+        game.begin_timing(2, &snapshot, false, began);
+        game.send_set_time(2, snapshot.time, false, began + Duration::from_millis(10));
+        game.peers[2]
+            .as_mut()
+            .unwrap()
+            .inputs_seen
+            .insert(clock + 700);
+        game.send_set_time(2, snapshot.time, false, began + Duration::from_millis(20));
+        let peer = game.peers[2].as_ref().unwrap();
+        let copies: Vec<_> = peer.set_times.iter().copied().collect();
+        assert_eq!(copies.len(), 3);
+        let generation = peer.generation.0;
+
+        // Apply actual E5 payloads through the client clock/generation model.
+        // All copies are delayed beyond queue time; every arrival order is
+        // possible. Replies are lost, so none establish an acknowledged clock.
+        for order in [
+            [0, 1, 2],
+            [0, 2, 1],
+            [1, 0, 2],
+            [1, 2, 0],
+            [2, 0, 1],
+            [2, 1, 0],
+        ] {
+            let mut client = client.clone();
+            let mut elapsed = 0;
+            for (copy, arrived) in order.into_iter().zip([100, 350, 900]) {
+                client.advance(arrived - elapsed);
+                elapsed = arrived;
+                let sent = copies[copy];
+                let message = ServerMessage::SetTime {
+                    generation,
+                    echo: sent.echo,
+                    match_time: sent.start,
+                };
+                assert!(matches!(
+                    client
+                        .receive(message.id(), &message.payload(), Dictionary::shared())
+                        .unwrap(),
+                    Taken::Applied(_)
+                ));
+                let now = began + Duration::from_millis(u64::from(arrived));
+                let bound = game.peers[2]
+                    .as_ref()
+                    .unwrap()
+                    .assigned_clock
+                    .project(now)
+                    .unwrap();
+                assert!(client.clock.unwrap() <= bound, "order {order:?}");
+            }
+            client.advance(2_000 - elapsed);
+            let now = began + Duration::from_millis(2_000);
+            let next = game.sync_start(2, snapshot.time, false, clock + 2_000, now);
+            assert_eq!(next, clock + 2_780, "no extra retry margin: {order:?}");
+            assert!(next >= client.clock.unwrap(), "must not rewind: {order:?}");
+        }
+    }
+
+    #[test]
+    fn rejected_clock_retry_preserves_existing_bound_and_full_reply_history() {
+        use crate::v026g::tests::{Bench, MAP_BATTERIES};
+
+        for stop_correction in [false, true] {
+            let mut bench = Bench::new(3, MAP_BATTERIES, Settings::default());
+            bench.join_all();
+            let began = bench.now();
+            let game = bench.server.games.get_mut(&bench.match_id).unwrap();
+            let snapshot = game.newest_snapshot().unwrap();
+            game.begin_timing(2, &snapshot, false, began);
+            for copy in 1..SET_TIMES_KEPT {
+                game.send_set_time(
+                    2,
+                    snapshot.time,
+                    false,
+                    began + Duration::from_millis(copy as u64),
+                );
+            }
+            let now = began + Duration::from_millis(100);
+            let peer = game.peers[2].as_mut().unwrap();
+            let bound = peer.assigned_clock.project(now).unwrap();
+            let history = |peer: &Peer| {
+                peer.set_times
+                    .iter()
+                    .map(|sent| (sent.echo, sent.at, sent.start, sent.ends_correction))
+                    .collect::<Vec<_>>()
+            };
+            let before = history(peer);
+            assert_eq!(before.len(), SET_TIMES_KEPT);
+            // A newer own input requests a higher clock, but the disconnected
+            // transport cannot queue it, either alone or joined with E7-stop.
+            peer.inputs_seen.insert(bound + 1_000);
+            peer.correction_ends = stop_correction.then_some(now + Duration::from_secs(1));
+            peer.transport.disconnect(now);
+            let attempted = game.send_set_time(2, snapshot.time, false, now);
+            assert!(attempted > bound);
+            let peer = game.peers[2].as_ref().unwrap();
+            assert_eq!(peer.assigned_clock.project(now), Some(bound));
+            assert_eq!(history(peer), before);
+        }
+    }
 
     /// Clock samples a second apart: (the lag each shows, its round trip).
     fn samples(taken: &[(i64, u32)]) -> Vec<LagSample> {

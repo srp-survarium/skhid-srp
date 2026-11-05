@@ -153,6 +153,8 @@ ORG CAVE
     jmp near again                  ; +14h 0x284B89 (setup_profile past its early return)
     jmp near made                   ; +19h 0x284F7F (on_player_ready)
     jmp near early                  ; +1Eh 0x284B7C (setup_profile's early return)
+kit_apply:
+    dd 0                            ; +23h patch 68's weapon_kit_preview_apply, written by the build (0: none)
 
 ; 0x29A9B2 `mov edx,[esi+4620h]` -> call relocate + nop: edi = the host,
 ; ebx = the upgrade, cl = the slot, esi = the account's profile, eax = the
@@ -535,11 +537,27 @@ find:
     ret
 
 ; edi = a record, ebx = the state: the queue applied in order, as the
-; server does: "put" (slot 0..3) leaves a record of the same upgrade, slot
-; and dict id as it is, else takes the upgrade and what is in the slot off
-; and adds {upgrade, dict id, 0, slot} when there is room; "take off" takes
-; the upgrade off. Every register kept.
+; server does. With patch 68 (kit_apply, written by the build): its
+; weapon_kit_preview_apply (cdecl: the record, the queue, its count; the Rust
+; patch weapon_kit), on the weapon kit's logical slots (decals 0 and 1,
+; camouflage 2, scope 3, muzzle 4, grip 5), packed again into at most three
+; records. Without it (a build with no arena): "put" (slot 0..3) leaves a
+; record of the same upgrade, slot and dict id as it is, else takes the
+; upgrade and what is in the slot off and adds {upgrade, dict id, 0, slot}
+; when there is room; "take off" takes the upgrade off. Every register kept.
 apply:
+    cmp dword [kit_apply], 0
+    je apply_plain
+    pushad
+    push dword [ebx+COUNT]
+    lea eax, [ebx+OPS]
+    push eax
+    push edi
+    call [kit_apply]
+    add esp, 12
+    popad
+    ret
+apply_plain:
     pushad
     lea esi, [ebx+OPS]
     mov ecx, [ebx+COUNT]

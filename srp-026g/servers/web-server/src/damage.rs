@@ -1,8 +1,10 @@
-//! The damage calculator, `/damage` on the 0.26g site: one page and the files
-//! it loads, built by `srp-026g/scripts/damage-calc/build_page.py --site` into
-//! `../damage/` from the game data of the latest content patch (the script's
-//! README says how). Every file is part of the binary. The page names each
-//! with `?v=<its hash>`, so they are sent to be kept for good.
+//! The damage calculator, `/wiki/calculator` on the 0.26g site (a section of
+//! the wiki, [`crate::wiki`]): one page and the files it loads, built by
+//! `srp-026g/scripts/damage-calc/build_page.py --site` into `../damage/` from
+//! the game data of the latest content patch (the script's README says how).
+//! Every file is part of the binary. The page names each with `?v=<its hash>`,
+//! so they are sent to be kept for good. The files keep their `/damage/`
+//! addresses.
 
 use std::io::Write;
 use std::net::{Shutdown, TcpStream};
@@ -10,7 +12,7 @@ use std::net::{Shutdown, TcpStream};
 use crate::{ContentType, Lang, Response};
 
 /// The page's address.
-pub(crate) const PATH: &str = "/damage";
+pub(crate) const PATH: &str = "/wiki/calculator";
 
 /// The page's Content-Security-Policy: the site's, with its own script,
 /// images (its files and the icons inside the script) and fonts.
@@ -34,41 +36,10 @@ pub(crate) fn font_faces() -> &'static str {
 /// The page, with `{{LANG}}` and `<!--SITE-HEADER-->` to fill.
 const PAGE: &str = include_str!("../damage/damage.html");
 
-macro_rules! files {
-    ($($path:literal => $content_type:literal,)*) => {
-        &[$((
-            concat!("/damage/", $path),
-            $content_type,
-            include_bytes!(concat!("../damage/", $path)) as &[u8],
-        ),)*]
-    };
-}
-
-/// The files the page loads: address, content type, bytes. The renders are
-/// the Maps tab's too ([`crate::maps`]), which has every map's.
-const FILES: &[(&str, &str, &[u8])] = files! {
-    "calc.js" => "text/javascript; charset=utf-8",
-    "fonts/carlito-bold.woff2" => "font/woff2",
-    "fonts/pt-mono-regular.woff2" => "font/woff2",
-    "fonts/pt-sans-bold.woff2" => "font/woff2",
-    "fonts/pt-sans-italic.woff2" => "font/woff2",
-    "fonts/pt-sans-narrow-bold.woff2" => "font/woff2",
-    "fonts/pt-sans-narrow-regular.woff2" => "font/woff2",
-    "fonts/pt-sans-regular.woff2" => "font/woff2",
-    "maps/level_01.webp" => "image/webp",
-    "maps/level_02.webp" => "image/webp",
-    "maps/level_03.webp" => "image/webp",
-    "maps/level_04.webp" => "image/webp",
-    "maps/level_05.webp" => "image/webp",
-    "maps/level_06.webp" => "image/webp",
-    "maps/level_07.webp" => "image/webp",
-    "maps/level_08.webp" => "image/webp",
-    "maps/level_09.webp" => "image/webp",
-    "maps/v011e_level_03.webp" => "image/webp",
-    "maps/v011e_level_04.webp" => "image/webp",
-    "maps/v021d_level_03.webp" => "image/webp",
-    "maps/v021d_level_06.webp" => "image/webp",
-};
+/// The files the page loads: address, content type, bytes. Every file of
+/// `../damage/` but the page and its record (`../build.rs` lists them). The
+/// renders are the Maps tab's too ([`crate::maps`]), which has every map's.
+const FILES: &[(&str, &str, &[u8])] = include!(concat!(env!("OUT_DIR"), "/damage_files.rs"));
 
 /// The page's file at `path` (the target before any `?`): its content type
 /// and bytes.
@@ -123,4 +94,6 @@ margin:-20px calc(-1*max(16px,env(safe-area-inset-right,0px))) 22px calc(-1*max(
 .site .lang:hover{border-color:var(--ink-3);color:var(--ink)}\
 .site .badge{background:#d64531;color:#fff;font:700 .75rem system-ui,sans-serif;letter-spacing:.14em;padding:.2rem .55rem;border-radius:2px}\
 .site .note.test{max-width:1240px;margin:1rem auto 0;font-size:1rem;color:var(--ink-2);background:var(--bg);border-left:3px solid #d64531;padding:.7rem .9rem;border-radius:2px}\
-.site a{color:var(--accent)}";
+.site a{color:var(--accent)}\
+.site .breadcrumb{box-sizing:content-box;max-width:1240px;margin:14px auto 0;padding:0 max(16px,env(safe-area-inset-right,0px)) 0 max(16px,env(safe-area-inset-left,0px));font-size:.8rem;color:var(--ink-3)}\
+.site .breadcrumb a{color:var(--ink-2);text-decoration:none}";

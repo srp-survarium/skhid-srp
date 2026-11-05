@@ -25,7 +25,7 @@ Both button labels are centered horizontally and vertically. Open Discord uses
 the same measured character advances for painting, avoiding the caption offset
 seen under Wine.
 
-Open Discord opens [SRP Discord](https://discord.gg/Pxa4prXfwu) in the default
+Open Discord opens [SRP Discord](https://discord.gg/QUmJg3gBhg) in the default
 browser, only when clicked. The dialog tells the player to find the named file
 in the displayed folder and send it to **#bugreports**. This applies to both a
 ZIP and a raw dump kept after compression failed. If saving failed, it asks
@@ -159,7 +159,7 @@ English, Russian, Ukrainian, German, Polish; English for unsupported languages):
 >    allowed app", and choose: *(the game exe, with its folder)*
 > 3. Start the game again.
 >
-> If this does not help, ask us in Discord: discord.gg/Pxa4prXfwu
+> If this does not help, ask us in Discord: discord.gg/QUmJg3gBhg
 >
 > (Windows error *N*)
 
@@ -183,10 +183,44 @@ English, Russian, Ukrainian, German, Polish; English for unsupported languages):
   the game goes on after OK; an ordinary folder: no box. Not tried: Windows'
   Controlled folder access itself, Wine, the launcher's own start.
 
+## Dump contents
+
+`src/dump.rs`, `DUMP_TYPE`:
+
+- **Players' build:** `MiniDumpWithDataSegs | MiniDumpWithIndirectlyReferencedMemory`
+  (0x41): every thread's stack and registers, the modules, their writable data
+  sections, and the memory the stacks point to. Its memory callback also adds,
+  for the crashing thread's EAX, EBX, ECX, EDX, ESI, EDI and EBP, the range
+  `[value - 256, value + 2048)` cut to the committed readable region holding
+  it: the object behind a faulting `mov eax, [esi+116h]`, which no stack slot
+  need point to (at most 7 × 2.3 KiB). A range dbghelp cannot read is skipped,
+  not a failed dump. Before 2026-11-01 it was DataSegs alone: no heap at all.
+- **Local test build** (`./build.sh --features full-memory-dumps`):
+  `MiniDumpWithFullMemory | FullMemoryInfo | HandleData | ThreadInfo |
+  UnloadedModules` (0x1826): the whole process memory, every heap object.
+  About the game's committed memory (1–3 GB); kept as the `.dmp` beside the
+  exe, not zipped (zipping would hold the crash for many seconds, and the dump
+  is read on that PC), the text report beside it. Crash details say
+  `Reporter:  local build, full-memory dumps`. Never released: `build.rs`
+  refuses the feature with `SKHID_REVISION`, which every release build sets
+  (`release/build-zip` builds a fresh worktree with plain `build.sh`).
+- **Wine's dbghelp** (Linux players and the local clients, which have no
+  `dbghelp.dll` beside the exe) ignores DataSegs, IndirectlyReferencedMemory
+  and memory callbacks: a players' dump written under Wine has stacks,
+  registers and modules only (about 0.5–1 MB, 50 KB zipped). Full memory works
+  under Wine (`tests/check_memory.py`). Microsoft's own dbghelp/dbgcore does
+  not run under Wine 11.8 (`RtlAcquirePrivilege` is missing: the capture fails
+  with 0x80070005), so the Windows sizes below are from players' reports, not
+  measured here.
+- Reading one: `python3Packages.minidump`, or WinDbg (`dd <address>`); a full
+  dump answers for any heap object.
+
 ## Zipped dumps
 
-A dump is about 160–190 MB (it holds the game's data segments); zipped, it is
-2–4 MB, small enough for Discord.
+A Windows dump is about 160–190 MB (it holds the game's data segments, mostly
+zeros); zipped, it is 2–4 MB, small enough for Discord (10 MB). The memory the
+stacks and registers point to is expected to add little (pages near stack
+pointers; not yet measured on Windows: see Dump contents).
 
 - When: right after the dump is written, flushed and closed, on the report
   worker, before callbacks and the dialog; for crashes and for
@@ -208,18 +242,32 @@ A dump is about 160–190 MB (it holds the game's data segments); zipped, it is
   transaction journals, settings, screenshots, other extensions and unrelated
   files are excluded. Directories and reparse points are excluded when Windows
   reports them as such; Wine may expose host symlinks as ordinary files.
+- Legacy code pages: the game writes its log in its locale's code page. The
+  engine's start-up (`core::preinitialize`, 0.26g 0xE3C10) sets it from
+  `-localization`: original and russian cp1251, english cp1252, polish cp1250;
+  any other value leaves the C locale (Latin-1 bytes). Its audio device names
+  (`%S`) and other localized text are therefore not UTF-8 on Russian,
+  Ukrainian or Polish Windows ("Динамики", "Głośniki"), and the whole game log
+  used to be omitted. A line that is not UTF-8 but has no NUL or control bytes
+  is now taken as text of that code page (from the game's `-localization` on
+  its command line; without one the option's default, original: cp1251) and transcoded to
+  UTF-8 (`MultiByteToWideChar` with `MB_ERR_INVALID_CHARS`, then
+  `WideCharToMultiByte`) before the checks below. `collection.txt` names the
+  code page and counts each source's transcoded lines
+  (`transcoded_lines=2 from cp1251`). The crash details' log tail (crash.txt)
+  still replaces such letters with `?`.
 - Credential filtering: before compression, UTF-8/ASCII text is checked one
-  complete line at a time (64 KiB maximum), including labels split across disk
-  reads. Records containing known password/passwd/pwd, account-digest,
+  complete line at a time (64 KiB maximum, also after transcoding), including
+  labels split across disk reads. Records containing known password/passwd/pwd, account-digest,
   authorization/bearer/basic-auth, token, secret, API/access/session-key, cookie,
   credential, command-line or URL-userinfo markers are replaced with a fixed
   removal notice. Following unframed lines are removed until the next native
   `channel <level>\t[HH:MM:SS.mmm]\t` (also with a colon before the milliseconds, `[HH:MM:SS:mmm]`) or updater `YYYY-MM-DD HH:MM:SS ` record.
   This deliberately favors omission over retaining ambiguous continuations.
   Unclosed quotes/trailing backslashes in sensitive lines, oversized lines,
-  invalid UTF-8, UTF-16/32, NUL/binary/control bytes omit the entire source.
-  ASCII and UTF-8 diagnostics around removed records remain available; logs in
-  legacy code pages and binary journals can therefore be omitted.
+  text that is neither UTF-8 nor of the legacy code page, UTF-16/32,
+  NUL/binary/control bytes omit the entire source. Diagnostics around removed
+  records remain available; binary journals can therefore be omitted.
   This detects **known credential-bearing records**, not arbitrary unlabelled
   secrets, unusual obfuscation, or a multiline value that impersonates a valid
   new record. **Minidump memory is not sanitized** and may contain credentials;
@@ -347,6 +395,7 @@ nix develop ./srp-026g
 cd client/bugtrap
 ./build.sh                       # a local build: version 0.0.0.0, "local build"
 SKHID_REVISION=27 ./build.sh     # as release/build-zip builds revision 27
+./build.sh --features full-memory-dumps   # local tests only: whole-memory dumps
 ```
 
 The target is `i686-win7-windows-msvc` (Windows 7 and later, as the game; the
@@ -390,6 +439,26 @@ rustc --edition 2024 --test tests/text_tests.rs -o target/text-tests
 rustc --edition 2024 -O --test src/zip.rs -o target/zip-test
 ./target/zip-test   # SRP_ZIP_SAMPLE=<a dump> zips that file instead
 ```
+
+What a dump holds (Dump contents) has its own check, no X server needed, run
+once with a players' build and once with a `full-memory-dumps` build. Build the
+probe and the test dbghelp with MinGW
+(`nix shell nixpkgs#pkgsCross.mingw32.buildPackages.gcc`), into a folder with
+that `BugTrap.dll`:
+
+```sh
+i686-w64-mingw32-gcc -O2 -DPROBE_NO_CRT -nostdlib -Wl,-e,_probe_start@0 \
+  tests/memory_probe.c -lmsvcrt -lkernel32 -o <folder>/memory_probe.exe
+i686-w64-mingw32-gcc -O2 -D__USE_MINGW_ANSI_STDIO=0 -shared -nostdlib -Wl,--kill-at \
+  -Wl,-e,_DllMainCRTStartup@12 tests/callback_dbghelp.c -lkernel32 -lmsvcrt \
+  -o <folder>/callback_dbghelp.dll
+WINEPREFIX=/path/to/test-prefix python3 tests/check_memory.py <folder>
+```
+
+It checks the dump type BugTrap asks for, the register ranges its callback
+gives (through the test dbghelp, which records them and forwards to Wine's),
+and in Wine's dump: no unreferenced heap object in a players' dump, all three
+probe objects in a full one, and which file is kept (ZIP or `.dmp`).
 
 The text tests cover automatic Windows UI language selection, regional variants,
 English fallback and the startup notice, and the crash details: exception
@@ -465,6 +534,12 @@ account digests, bearer/tokens, command lines, URL credentials and continuation
 values are absent from extracted log members, member names and the summary;
 startup memory diagnostics remain. UTF-16/binary, oversized and ambiguous
 multiline sources are omitted atomically; original files are unchanged.
+cp1251, cp1250, cp1252 and Latin-1 logs (by `-localization=russian`,
+`original`, `polish`, `english`, an unknown one and none (the default,
+original) on the probe's command
+line) come out as UTF-8 with their transcoded lines counted; a control byte
+in a cp1251 line still omits the source, and a cp1251 credential record is
+still removed with its continuation.
 A short successful read followed by premature EOF must also roll back the
 source even though filtered output has a different size. Host-only boundary,
 encoding and read-failure tests run with:
@@ -508,6 +583,10 @@ probes built with MinGW g++ 15.3): `check_abi.py`, `check_localization.py`
 text (10) and sanitize (7) tests pass; `client/check-reproducible.sh` gives the same DLL
 twice. `check_dumps.py` was not run: its probe uses MSVC `__try`, which
 MinGW does not build.
+
+Run on 2026-10-26 for the legacy code pages (Linux, Wine Staging 11.8; the
+probe built with MinGW g++ 15.3): `check_abi.py` and `check_logs.py` pass;
+the text (10) and sanitize (9) tests pass.
 
 For an **idle, disposable installed 0.26g client** with `survarium_skhid.exe`:
 

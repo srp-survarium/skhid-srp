@@ -364,7 +364,13 @@ unsafe fn write(
     let mut manifest = crate::logs::Manifest::new();
     let _ = writeln!(
         manifest,
-        "SRP crash log collection\nPolicy: recent 48 hours; newest 32 matching files; whole sources; 16 MiB compressed log ZIP contribution (headers included, summary separate); 256 MiB source bytes read including failed attempts; 5 second collection budget.\nOnly named game/launcher/updater/render logs and game journals in fixed locations. No recursion.\nText logs preserve startup diagnostics and crash context except sensitive records and their unframed continuations, which are removed before compression. Attachment IDs never echo source names. Only UTF-8/ASCII text with lines at most 64 KiB is accepted; unsafe or ambiguous records omit the source. Detection covers labelled credentials and command lines, not arbitrary unidentified secrets. Minidump memory is not sanitized. Buffered writes may be missing. Over-budget or failed sources are omitted atomically, never truncated.\n"
+        "SRP crash log collection\nPolicy: recent 48 hours; newest 32 matching files; whole sources; 16 MiB compressed log ZIP contribution (headers included, summary separate); 256 MiB source bytes read including failed attempts; 5 second collection budget.\nOnly named game/launcher/updater/render logs and game journals in fixed locations. No recursion.\nText logs preserve startup diagnostics and crash context except sensitive records and their unframed continuations, which are removed before compression. Attachment IDs never echo source names. Only UTF-8/ASCII text, or text of the legacy code page below (transcoded to UTF-8 before filtering), with lines at most 64 KiB is accepted; NUL/control bytes, UTF-16, unsafe or ambiguous records omit the source. Detection covers labelled credentials and command lines, not arbitrary unidentified secrets. Minidump memory is not sanitized. Buffered writes may be missing. Over-budget or failed sources are omitted atomically, never truncated.\n"
+    );
+    let (code_page, code_page_from) = crate::logs::code_page();
+    let _ = writeln!(
+        manifest,
+        "Legacy code page: cp{} ({})",
+        code_page, code_page_from
     );
     let log_deadline = out.deadline.min(GetTickCount64() + 5_000);
     let mut folders = crate::logs::folders();
@@ -441,8 +447,14 @@ unsafe fn write(
         log.left = original;
         record.time = time;
         record.date = date;
-        let (mut result, removed, emitted) = {
-            let mut filtered = crate::sanitize::Filter::new(&mut log);
+        let (mut result, removed, transcoded, emitted) = {
+            let mut filtered = crate::sanitize::Filter::legacy(
+                &mut log,
+                Some((
+                    code_page,
+                    crate::logs::transcode as crate::sanitize::Transcode,
+                )),
+            );
             let result = append(
                 &mut filtered,
                 None,
@@ -452,9 +464,14 @@ unsafe fn write(
                 words,
                 Some((packed_left, log_deadline)),
             );
-            (result, filtered.removed_lines, filtered.emitted)
+            (
+                result,
+                filtered.removed_lines,
+                filtered.transcoded_lines,
+                filtered.emitted,
+            )
         };
-        // Filtered output is shorter than its input. A source that shrank still
+        // Filtered output differs in size from its input. A source that shrank still
         // must fail atomically; successful compression alone cannot prove EOF.
         if result.is_ok() && log.left != 0 {
             result = Err(ERROR_HANDLE_EOF);
@@ -471,8 +488,14 @@ unsafe fn write(
                     + zip::central(&record.entry(), record.offset, &mut central) as u64;
                 let _ = writeln!(
                     manifest,
-                    "included {}: source_bytes={}, sanitized_bytes={}, removed_lines={}, compressed_zip_bytes={}",
-                    label, original, emitted, removed, contribution
+                    "included {}: source_bytes={}, sanitized_bytes={}, removed_lines={}, transcoded_lines={}{}, compressed_zip_bytes={}",
+                    label,
+                    original,
+                    emitted,
+                    removed,
+                    transcoded,
+                    Cp(transcoded, code_page),
+                    contribution
                 );
                 packed_left -= contribution;
                 included_input += original;
@@ -577,4 +600,16 @@ unsafe fn write(
         return Err(ERROR_INVALID_DATA);
     }
     Ok(())
+}
+
+/// " from cpN" after a source's transcoded line count, when it has any.
+struct Cp(u64, u32);
+impl core::fmt::Display for Cp {
+    fn fmt(&self, f: &mut core::fmt::Formatter) -> core::fmt::Result {
+        if self.0 == 0 {
+            Ok(())
+        } else {
+            write!(f, " from cp{}", self.1)
+        }
+    }
 }

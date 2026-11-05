@@ -1,7 +1,7 @@
 //! `srp-bot`: scripted 0.26g clients that take places in a match, so that
 //! one real client gets one. **For testing only.** What a bot does and
 //! does not do: `srp::bot`. The server must be told which accounts are
-//! bots: `SRP_BOT_ACCOUNTS=bot-1` (see `docs/notes/README.md`,
+//! bots: `SRP_BOT_ACCOUNTS=bot-1` (see `docs/SRP-026G.md`,
 //! "A match alone").
 
 use std::sync::Arc;

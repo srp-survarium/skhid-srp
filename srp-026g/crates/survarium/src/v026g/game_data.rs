@@ -24,8 +24,7 @@
 //! its project ([`super::maps`]), the names of the maps and modes in the
 //! game's localizations ([`super::localization`]), drops, quests, skills,
 //! awards and the test profiles. What the game's files do not say stays in
-//! code: the shop's exceptions ([`super::prices::EXCEPTIONS`]), the
-//! bundles.
+//! code: the bundles.
 //!
 //! Without [`init`] (tests, tools), the data is that of
 //! `resources/game-026g/server-game-data.db`: 0.26g's `resources.db` with
@@ -143,11 +142,16 @@ impl GameData {
         })
     }
 
-    /// The data of tests and tools ([`TEST_ARCHIVE`]).
+    /// The data of tests and tools ([`TEST_ARCHIVE`]), with srp's own
+    /// configs and keys made from the repository's tables
+    /// ([`with_srp_tables`]), as a release's content patch has them.
     pub fn test_archive() -> Self {
         let mut archive =
             Archive::new(Cursor::new(TEST_ARCHIVE)).expect("the test archive is an archive");
-        Self::from_archive(&mut archive, TEST_ORIGIN.into()).expect("the test archive reads")
+        let mut data =
+            Self::from_archive(&mut archive, TEST_ORIGIN.into()).expect("the test archive reads");
+        with_srp_tables(&mut data.files);
+        data
     }
 
     /// The server's game data in the file `data`.
@@ -247,6 +251,169 @@ fn read<R: Read + Seek>(archive: &mut Archive<R>, path: &str) -> Result<Vec<u8>,
         .map(|bytes| bytes.expect("a listed file"))
 }
 
+/// srp's own configs, each made by a key/value table of
+/// `scripts/content-edit` (`content_edit.py` STATS) into the content patch:
+/// the test data's are the repository's.
+const SRP_TABLES: &[(&str, &str)] = &[
+    (
+        super::lobby::rooms::RULES_PATH,
+        include_str!("../../../../scripts/content-edit/rooms.tsv"),
+    ),
+    (
+        super::new_account::PATH,
+        include_str!("../../../../scripts/content-edit/new-account.tsv"),
+    ),
+];
+
+/// The dictionary's entries as `scripts/content-edit/items.tsv` writes them
+/// into the content patch: their price and srp's keys, `srp_like` and
+/// `srp_start`.
+const ITEMS_TABLE: &str = include_str!("../../../../scripts/content-edit/items.tsv");
+
+/// srp's shop rules, which name items ([`super::prices::SHOP_PATH`]).
+const SHOP_TABLE: &str = include_str!("../../../../scripts/content-edit/shop.tsv");
+
+/// `files` with srp's own configs ([`SRP_TABLES`], [`SHOP_TABLE`]) and the
+/// dictionary's entries as [`ITEMS_TABLE`] has them, for the items the
+/// dictionary has.
+fn with_srp_tables(files: &mut BTreeMap<String, Vec<u8>>) {
+    for (path, table) in SRP_TABLES {
+        files.insert((*path).to_owned(), key_value_config(table));
+    }
+    let mut lines = ITEMS_TABLE
+        .lines()
+        .filter(|line| !line.trim().is_empty() && !line.starts_with('#'));
+    let head: Vec<&str> = lines.next().expect("a header").split('\t').collect();
+    let column = |name| head.iter().position(|c| *c == name).expect(name);
+    let (cost, like, start) = (column("base_cost"), column("like"), column("start"));
+    let rows: BTreeMap<i32, Vec<&str>> = lines
+        .map(|line| {
+            let cells: Vec<&str> = line.split('\t').collect();
+            (cells[0].parse().expect("a dict id"), cells)
+        })
+        .collect();
+    let path = super::dictionary::PATH;
+    let mut dictionary = ConfigValue::parse(&files[path]).expect("the dictionary parses");
+    let ConfigValue::Named(sections) = &mut dictionary else {
+        panic!("the dictionary is a named table")
+    };
+    let Some((_, ConfigValue::Indexed(entries))) =
+        sections.iter_mut().find(|(name, _)| name == "items_dict")
+    else {
+        panic!("the dictionary has items_dict")
+    };
+    let mut names = Vec::new();
+    for entry in entries {
+        let id = entry.get("dict_id").and_then(ConfigValue::as_i32);
+        names.extend(
+            entry
+                .get("name")
+                .and_then(ConfigValue::as_str)
+                .map(str::to_owned),
+        );
+        let (Some(row), ConfigValue::Named(keys)) = (id.and_then(|id| rows.get(&id)), entry) else {
+            continue;
+        };
+        for (_, value) in keys.iter_mut().filter(|(key, _)| key == "base_cost") {
+            *value = ConfigValue::Integer(row[cost].parse().expect("a price"));
+        }
+        if !row[like].is_empty() {
+            keys.push(("srp_like".into(), ConfigValue::String(row[like].into())));
+        }
+        if !row[start].is_empty() {
+            let ids = row[start].split(' ').map(|id| id.parse().expect("an id"));
+            let ids = ids.map(ConfigValue::Integer).collect();
+            keys.push(("srp_start".into(), ConfigValue::Indexed(ids)));
+        }
+    }
+    files.insert(path.to_owned(), dictionary.to_bytes().expect("a config"));
+    let shop: String = SHOP_TABLE
+        .lines()
+        .filter(|line| {
+            line.split_once('/')
+                .is_none_or(|(item, _)| names.iter().any(|n| n == item))
+        })
+        .map(|line| format!("{line}\n"))
+        .collect();
+    files.insert(super::prices::SHOP_PATH.to_owned(), key_value_config(&shop));
+}
+
+/// A key/value table's config, as `content_edit.py`'s `new_config` makes it:
+/// in a key, `/` goes into a named table and `[i]` to an item of an indexed
+/// one; a cell is a whole number, a number with a point, true/false or a text.
+pub(super) fn key_value_config(table: &str) -> Vec<u8> {
+    enum Node {
+        Leaf(ConfigValue),
+        Table(Vec<(String, Node)>),
+    }
+    fn into_value(node: Node) -> ConfigValue {
+        match node {
+            Node::Leaf(value) => value,
+            Node::Table(entries) if entries.iter().all(|(step, _)| step.starts_with('[')) => {
+                ConfigValue::Indexed(
+                    entries
+                        .into_iter()
+                        .map(|(_, node)| into_value(node))
+                        .collect(),
+                )
+            }
+            Node::Table(entries) => ConfigValue::Named(
+                entries
+                    .into_iter()
+                    .map(|(step, node)| (step, into_value(node)))
+                    .collect(),
+            ),
+        }
+    }
+    let mut root = Vec::new();
+    let rows = table
+        .lines()
+        .filter(|line| !line.trim().is_empty() && !line.starts_with('#'));
+    for row in rows.skip(1) {
+        let (key, cell) = row
+            .split_once('\t')
+            .expect("a key/value table's row: key, value");
+        let value = match cell {
+            "true" | "false" => ConfigValue::Boolean(cell == "true"),
+            _ => cell.parse().map(ConfigValue::Integer).unwrap_or_else(|_| {
+                cell.parse()
+                    .map_or_else(|_| ConfigValue::String(cell.to_owned()), ConfigValue::Float)
+            }),
+        };
+        // `pvb/sizes[0]`: pvb, sizes, [0]
+        let steps: Vec<String> = key
+            .split('/')
+            .flat_map(|part| {
+                let (name, items) = part.split_once('[').unwrap_or((part, ""));
+                let items = items
+                    .split('[')
+                    .filter(|i| !i.is_empty())
+                    .map(|i| format!("[{i}"));
+                std::iter::once(name.to_owned())
+                    .filter(|n| !n.is_empty())
+                    .chain(items)
+            })
+            .collect();
+        let (last, path) = steps.split_last().expect("a key");
+        let mut table = &mut root;
+        for step in path {
+            let at = match table.iter().position(|(name, _)| name == step) {
+                Some(at) => at,
+                None => {
+                    table.push((step.clone(), Node::Table(Vec::new())));
+                    table.len() - 1
+                }
+            };
+            let Node::Table(inner) = &mut table[at].1 else {
+                panic!("{key}: under a value")
+            };
+            table = inner;
+        }
+        table.push((last.clone(), Node::Leaf(value)));
+    }
+    into_value(Node::Table(root)).to_bytes().expect("a config")
+}
+
 static SHARED: OnceLock<GameData> = OnceLock::new();
 
 /// The game's files of this process: those [`init`] read, else those of
@@ -305,6 +472,7 @@ fn init_with(data: GameData) -> Result<&'static GameData, GameDataError> {
     }
     let data = shared();
     super::tables::check(data)?;
+    super::new_account::check_data(data)?;
     super::golden::check(data)?;
     log::info!(
         "game data: {} ({} gameplay and text files, {} projects; made of {}; {} patch(es) offered at \

@@ -1,5 +1,5 @@
 //! The 0.26g lobby (`resources/notes/v026g/lobby.md`, `lobby_requests.md`,
-//! `social.md`; `PLAN-026G.md` steps 3 and 8), beside the 0.21d one.
+//! `social.md`), beside the 0.21d one.
 //!
 //! What 0.26g changed: the lobby is one UDP link on the match transport
 //! (`udp-transport`, `Table::Lobby`), whose connect payload is the sign-in
@@ -54,11 +54,9 @@
 //! - `SRP_BIND_HOST` / `SRP_LOBBY_BIND`, `SRP_LOBBY_PORT` (default 1235),
 //!   `SRP_PUBLIC_HOST` / `SRP_LOBBY_PUBLIC_HOST`, `SRP_LOCAL_PEERS`: the
 //!   address (`vostok::config`), the one the 0.26g login server announces;
-//! - `SRP_BALANCE_PLAYER` (default 12), `SRP_BALANCE_PLAYER_LEVEL` (1.5),
-//!   `SRP_BALANCE_RATING` (4), `SRP_BALANCE_TRUST_MATCHES` (5): what a
-//!   player, a level of its account and a point of its balance rating
-//!   count for when the sides are made, in gear levels, and the matches
-//!   after which the rating counts for half (`session::v026g::balance`);
+//! - `SRP_BALANCE_PLAYER_KD` (default 1): what a player counts for by
+//!   being there when the sides are made, in K/Ds, beside its K/D
+//!   (`session::v026g::balance`, `docs/notes/kd-balance.md`);
 //! - `SRP_BALANCE_RATED_PLAYERS` (default 4): the fewest players a match
 //!   must have had in it to move the balance rating (read where a match
 //!   is settled: `session::v026g::balance::rated_players`);
@@ -66,9 +64,6 @@
 //!   (0.2): in a match being played, what a battery and a ticket of lead
 //!   count for, in players (a late joiner goes to the side that counts for
 //!   less: `rooms`);
-//! - `SRP_SQUADS` (default on), `SRP_SQUADS_OFF_TEXT`: with `off` nobody
-//!   is invited to a squad, and the one who tries is told so in a message
-//!   box (`social.rs`);
 //! - `SRP_MIN_PATCH_REVISION` (default none; not a number from 0 to 255,
 //!   or one under the newest patch of the game data, stops srp
 //!   (`check_min_patch_revision`)): a game older than that patch revision
@@ -92,12 +87,14 @@
 //!   (0: it ends with the link);
 //! - `SRP_PACKET_LOG=<dir>`: the transport's raw datagram log (the sign-in's
 //!   session id is left out of it);
-//! - `SRP_PVB` (default on), `SRP_PVB_MAX_GEAR` (15), `SRP_PVB_MAX_MATCHES`
-//!   (5), `SRP_PVB_PAY` (0.25), `SRP_PVB_STALL_S` (60), `SRP_PVB_RUSHER_KIT`
-//!   (smg): "Player vs Bots" (`pvb`, whose module says what each does and
-//!   which server reads it).
-//! - `SRP_ROOMS_MAX` (50), `SRP_ROOMS_EXTRA_MAPS` (none): rooms, the
-//!   players' "servers" (`rooms`, whose module says what each does).
+//! - `SRP_PVB` (default on), `SRP_PVB_MAX_MATCHES` (5), `SRP_PVB_PAY` (0.25),
+//!   `SRP_PVB_STALL_S` (60), `SRP_PVB_RUSHER_KIT` (the owner's kits),
+//!   `SRP_PVB_MASKS` (top): "Player vs Bots" (`pvb`, whose module says what
+//!   each does and which server reads it); its highest equipment level and
+//!   team sizes are game data (`rooms.tsv`, `RoomRules::pvb`).
+//! - `SRP_ROOMS_EXTRA_MAPS` (none): rooms, the players' "servers" (`rooms`,
+//!   whose module says what each does). Their numbers are game data:
+//!   `gameplay/srp/rooms.options` (`RoomRules`).
 
 mod away;
 #[cfg(feature = "client-test")]
@@ -200,15 +197,10 @@ pub struct Settings {
     /// What a player counts for when the sides of a match are made
     /// (`SRP_BALANCE_*`; `session::v026g::balance`).
     pub balance: Weights,
-    /// Whether players may form squads (`SRP_SQUADS`, default on).
-    pub squads: bool,
-    /// What the message box of a refused squad invite says: a text key of
-    /// the game, or a sentence (`SRP_SQUADS_OFF_TEXT`).
-    pub squads_off_text: String,
-    /// "Player vs Bots" (`SRP_PVB`, `SRP_PVB_MAX_GEAR`,
-    /// `SRP_PVB_MAX_MATCHES`; `pvb`).
+    /// "Player vs Bots" (`SRP_PVB`, `SRP_PVB_MAX_MATCHES`, `RoomRules::pvb`;
+    /// `pvb`).
     pub pvb: pvb::Config,
-    /// Rooms (`SRP_ROOMS_MAX`, `SRP_ROOMS_EXTRA_MAPS`; `rooms`).
+    /// Rooms (`RoomRules::rooms_most`, `SRP_ROOMS_EXTRA_MAPS`; `rooms`).
     pub rooms: rooms::Config,
 }
 
@@ -288,20 +280,14 @@ impl Settings {
         };
         let defaults = Weights::default();
         let balance = Weights {
-            player: weight("SRP_BALANCE_PLAYER", defaults.player),
-            player_level: weight("SRP_BALANCE_PLAYER_LEVEL", defaults.player_level),
-            rating: weight("SRP_BALANCE_RATING", defaults.rating),
-            trust_matches: weight("SRP_BALANCE_TRUST_MATCHES", defaults.trust_matches),
+            player: weight("SRP_BALANCE_PLAYER_KD", defaults.player),
             battery_lead: weight("SRP_BALANCE_BATTERY_LEAD", defaults.battery_lead),
             ticket_lead: weight("SRP_BALANCE_TICKET_LEAD", defaults.ticket_lead),
         };
         log::info!(
-            "The sides of a match: a player counts for {} gear levels, a level of its account \
-             for {}, a point of its balance rating for {} (for half after {} matches)",
-            balance.player,
-            balance.player_level,
-            balance.rating,
-            balance.trust_matches
+            "The sides of a match: each player counts for its K/D at the match's equipment \
+             level, and {} K/D for being there",
+            balance.player
         );
         log::info!(
             "The balance rating: a match moves it when {} players or more were in it for half \
@@ -313,31 +299,10 @@ impl Settings {
             balance.battery_lead,
             balance.ticket_lead
         );
-        let squads = match var("SRP_SQUADS") {
-            Some(value) => match value.trim().to_ascii_lowercase().as_str() {
-                "on" | "1" | "true" | "yes" => true,
-                "off" | "0" | "false" | "no" => false,
-                _ => {
-                    log::error!("SRP_SQUADS is `{value}`; it must be on or off. Using on");
-                    true
-                }
-            },
-            None => true,
-        };
-        // A text the client reads into 256 bytes (`lobby::limits::TEXT`).
-        let squads_off_text = var("SRP_SQUADS_OFF_TEXT")
-            .map(|text| text.trim().to_owned())
-            .filter(|text| !text.is_empty() && text.len() <= 255)
-            .unwrap_or_else(|| DEFAULT_SQUADS_OFF_TEXT.to_owned());
-        if !squads {
-            log::info!("Squads are off: an invite is refused with `{squads_off_text}`");
-        }
         Self {
             pvb: pvb::Config::from_env(),
             rooms: rooms::Config::from_env(),
             balance,
-            squads,
-            squads_off_text,
             min_patch_revision,
             bind: config.bind_addr(),
             public_host: config.public_host.clone(),
@@ -364,18 +329,11 @@ impl Settings {
             maps: map_pool(&DEFAULT_MODES, &[]),
             min_patch_revision: 0,
             balance: Weights::default(),
-            squads: true,
-            squads_off_text: DEFAULT_SQUADS_OFF_TEXT.to_owned(),
             pvb: pvb::Config::default(),
             rooms: rooms::Config::default(),
         }
     }
 }
-
-/// What a refused squad invite says (`SRP_SQUADS_OFF_TEXT`). The game has
-/// no text of its own for it (`social.md` §9.2), and its client shows a
-/// text that is no key of its as it is (`lobby_requests.md` §4.2).
-pub const DEFAULT_SQUADS_OFF_TEXT: &str = "Squads are switched off on this server.";
 
 /// A `SRP_BALANCE_*` number: 0 to 1000.
 fn parse_weight(value: &str) -> Option<f64> {

@@ -65,7 +65,7 @@ the bot sends key-down actions as one-tick pulses.
 
 Batteries (code): taking one from the ground on use is instant (0x3007E0),
 and so are putting one in and stealing from a container (0x31CC40); the
-battery config's `take_time` (0.6, 0.5 from content-edit battery-pickup-1) is
+battery config's `take_time` (0.6, 0.5 from content-edit battery.tsv) is
 the length the hands-up animation is time-scaled to (PROVEN,
 `battery_pickup.md`); the bots plan with no pick-up time. Only resupply zones (`resupply_time_in_ms`), artefact
 containers (`artefacts_search_time_sec`) and defusing a trap need use held.

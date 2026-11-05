@@ -11,6 +11,7 @@ package survarium.controls
    import survarium.data.ItemData;
    import survarium.data.LocalizationData;
    import survarium.item.ItemFactory;
+   import survarium.item.WeaponMovement;
    import survarium.constants.Faction;
    import survarium.constants.ItemCategory;
    import survarium.constants.ItemPlace;
@@ -728,6 +729,7 @@ package survarium.controls
             obj.itemDescription = descrData.descr;
          }
          obj.properties = descrData.item_properties;
+         WeaponMovement.expose(obj);
          obj.descriptor = ItemPlace.SHOP;
          obj.category = descrData.category;
          obj.superCategory = category;

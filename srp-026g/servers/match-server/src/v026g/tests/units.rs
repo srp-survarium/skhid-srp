@@ -3,10 +3,11 @@
 use crate::v026g::{
     CreateError, LateInputs, MatchRegistry, Seat, parse_late_inputs, parse_number,
     parse_snapshot_dir,
-    parse_switch,
 };
 
-use super::{MAP_BATTERIES, session_of, setup};
+use super::{MAP_BATTERIES, MAP_TDM, session_of, setup};
+use survarium::v026g::dictionary::Dictionary;
+use survarium::v026g::match_msgs::static_info::parse_options;
 
 #[test]
 fn a_made_match_seats_its_players_until_it_is_over() {
@@ -123,6 +124,27 @@ fn what_the_clients_could_not_hold_is_refused_when_the_match_is_made() {
 }
 
 #[test]
+fn blackout_is_the_setup_flag_on_battery_maps_only() {
+    // maps_dict 61: Rudnya's batteries (mode 2); 62: its chargers (mode 3).
+    let registry = MatchRegistry::new("127.0.0.1", 1236);
+    for (map_id, asked, expected) in [
+        (MAP_BATTERIES, true, true),
+        (62, true, true),
+        (MAP_TDM, true, false),
+        (MAP_BATTERIES, false, false),
+    ] {
+        let mut made = setup(2, map_id);
+        made.blackout = asked;
+        let ticket = registry.create(made).unwrap();
+        let formed = registry.formed(ticket.match_id).unwrap();
+        assert_eq!(formed.blackout, expected, "map {map_id}");
+        let options = parse_options(formed.info.options(), Dictionary::shared()).unwrap();
+        assert_eq!(options.blackout, expected, "map {map_id}");
+        registry.end(ticket.match_id);
+    }
+}
+
+#[test]
 fn the_settings_and_their_defaults() {
     assert_eq!(parse_late_inputs(None), LateInputs::Relay);
     assert_eq!(parse_late_inputs(Some("relay")), LateInputs::Relay);
@@ -132,10 +154,6 @@ fn the_settings_and_their_defaults() {
     assert_eq!(parse_number("X", None, 10), 10);
     assert_eq!(parse_number("X", Some(" 120 "), 10), 120);
     assert_eq!(parse_number("X", Some("long"), 10), 10);
-    assert!(parse_switch("X", None, true));
-    assert!(!parse_switch("X", Some("off"), true));
-    assert!(parse_switch("X", Some("ON"), false));
-    assert!(parse_switch("X", Some("maybe"), true));
     assert_eq!(
         parse_snapshot_dir(None),
         Some(std::path::PathBuf::from("logs/snapshots"))

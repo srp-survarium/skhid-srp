@@ -46,10 +46,10 @@ Code, in `flash/lobby_menu/src` ([lobby-source.md](lobby-source.md)):
 ## What it finds
 
 - **Live:** the list changes with each key typed.
-- **With the list's own filters:** the category tab, the filter icons, the seller, the sort, and the
-  craft window's donors still apply. The search narrows what they list.
-- **Order:** best matches first. Among equal matches, the list's own order (price, category,
-  rank and so on).
+- **With the list's own filters:** the category tab, the filter icons, the seller and the craft
+  window's donors still apply. The search narrows what they list.
+- **Order:** best matches first. Among equal matches, the list's own order (level, category, rank
+  and so on: `InventoryList.LIST_ORDER`; the list has no sort to choose, shop-owned-mark.md).
 - **By the name shown, in the player's language.** There is no internal name to search: the
   exe's item dictionary gives the movie only the translated `name` and `descr`
   (`fill_items_dictionary_impl`: the keys it sets, 0x2866B1..0x28761D).
@@ -88,7 +88,7 @@ Code, in `flash/lobby_menu/src` ([lobby-source.md](lobby-source.md)):
   - the list closing.
 - **Switching Shop ↔ Inventory clears the search.** The game closes the one list and opens it
   again. A clear box when the window changes is the less surprising of the two choices.
-- **Category tabs, filters and the sort keep the search.**
+- **Category tabs and filters keep the search.**
 - **Esc order** (`esc.md`: Esc closes the topmost modal; a text box gives the keys back first):
   1. a right-click menu closes first;
   2. then Esc empties the box and leaves it;

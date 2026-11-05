@@ -5,15 +5,6 @@
 > 0.21d. The 0.21d page is MATCH-SYNC-021D.md; its history of fixes is the
 > reason behind most numbers here. All addresses are 0.26g's.
 
-> **Status, 2026-10-12.** Written from the disassembly, scripted clients and
-> tests, before the server met a real client. Since that day matches between
-> real players run on 026g.skhid.link with the full patched exe (section
-> build, 50 ms hash interval), and they stay in step by what this page
-> describes; what the live matches showed and what was changed after them
-> (a second start for a player back in a Team Deathmatch, 3 s for a
-> connecting client, the rotation filter) is in `srp-026g/WORK.md` and
-> `srp-026g/docs/notes/match.md` §20 to §22.
->
 > Sections marked *(server, may move)* describe
 > `servers/match-server/src/v026g/` as it was read on 2026-10-12; check the
 > code and `srp-026g/WORK.md` before relying on a number.
@@ -22,8 +13,7 @@ How a 0.26g match stays in step. Byte-level detail:
 `srp-026g/docs/notes/match.md` (§1 messages, §2 handshake, §3
 snapshot and hash, §4 time, §5 input rules, §13 the server, §14 hash
 phases), `client_patch.md`, `snapshot_rules.md`, `transport.md`. Client
-facts in short: CLIENT-FACTS-026G.md. The server: SRP-026G.md. The work
-order: PLAN-026G.md (step 5 the patch, step 6 matches).
+facts in short: CLIENT-FACTS-026G.md. The server: SRP-026G.md.
 
 Tags are the notes': **PROVEN** (read in the exe at the address given),
 **LIKELY**, **GUESS**. A client fact with no tag is PROVEN in its note.
@@ -544,6 +534,12 @@ plain reliables (E3, F3..F5).
 - `SRP_PACKET_LOG`: the packet capture (Wireshark is not installed).
 - `SRP_SNAPSHOT_DIR`: saved worlds, with their kind (`unreadable` among
   them; `wrong`: a game's own world as it was found out of step).
+- `client-patches/check_world_roundtrip_026g.py <survarium.exe> [dumps]`:
+  for each saved world, a late joiner and a resynced game load it and save it at
+  once under Unicorn, through every patch hook inside the world's load and save.
+  Each hook must write back the bytes it loaded; a byte written from the game's
+  own objects is a resync that never converges (`client_patch.md`, "World round
+  trip").
 - `servers/srp/tests/v026g_end_to_end.rs`: the real servers with two
   scripted clients through a whole match. Its clients report every tick's
   hash and skip the countdown, so it proves the servers agree with each

@@ -316,6 +316,9 @@ pub enum Decoded {
         commander_index: u8,
         i_am_commander: bool,
         revision: u32,
+        /// srp's last two bytes: the receiver's lobby pick and its
+        /// commander's (0 none).
+        picks: [u8; 2],
     },
     ChatText {
         sender_type: u8,
@@ -1951,6 +1954,7 @@ impl Client {
                         commander_index: 0,
                         i_am_commander: false,
                         revision: 0,
+                        picks: [r.u8()?, r.u8()?],
                     });
                 }
                 let count = usize::from(r.u8()?);
@@ -1976,6 +1980,7 @@ impl Client {
                     commander_index,
                     i_am_commander: r.bool()?,
                     revision: r.u32()?,
+                    picks: [r.u8()?, r.u8()?],
                 }
             }
             ServerId::ChatText => {

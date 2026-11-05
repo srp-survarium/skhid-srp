@@ -9,7 +9,9 @@ package survarium.controls
    import flash.events.KeyboardEvent;
    import flash.events.MouseEvent;
    import flash.external.ExternalInterface;
+   import flash.geom.Point;
    import flash.text.TextField;
+   import flash.text.TextLineMetrics;
    import flash.ui.Keyboard;
    import flash.utils.Dictionary;
    import flash.utils.Timer;
@@ -39,6 +41,7 @@ package survarium.controls
    import survarium.interfaces.ILocalPlayerProfile;
    import survarium.interfaces.IPaperDollSlot;
    import survarium.item.ItemFactory;
+   import survarium.item.WeaponMovement;
    import survarium.item.ModificationRolls;
    import survarium.messages.MessageCraftItem;
    import survarium.upgrade.UpgradeWindow;
@@ -59,7 +62,6 @@ package survarium.controls
    import survarium.constants.WeaponHands;
    import survarium.constants.ProfileSlot;
    import survarium.player.LocalPaperDoll;
-   import survarium.rooms.RoomsText;
    
    public class InventoryList extends FiltersWindow implements IInventoryItemFactory
    {
@@ -126,8 +128,6 @@ package survarium.controls
       
       public var item_compare:ItemCompare;
       
-      public var textField:TextField;
-      
       public var checkbox_all_traders:Button;
       
       public var _item_control:*;
@@ -135,8 +135,6 @@ package survarium.controls
       public var shop_lights:MovieClip;
       
       public var checkboxCompareItems:Button;
-      
-      public var sortTab:ButtonBarDynam;
       
       public var shopTab:ButtonBarDynam = new ButtonBarDynam();
       
@@ -156,6 +154,10 @@ package survarium.controls
       // its list, still owned.
       private var _craftSlotted:Array = [];
       
+      // The lists' one order (the owner, 2026-11-02: "it should always be per level"; there is no sort
+      // to choose): what can be bought first, then by level, the price last.
+      private static const LIST_ORDER:Array = ["buyValue","itemLevel","superCategory","category","dictId","rank","value","broken","price","factionId"];
+
       // The search box (docs/notes/item-search.md), always there under the grid: the grid is
       // SEARCH_ROW shorter (the fade at its foot moves up with it), and the box sits in that row,
       // centred between the grid's foot and the item panel's buttons (placeSearch),
@@ -182,9 +184,6 @@ package survarium.controls
       
       private static const SEARCH_ICON_GAP:int = 4;
       
-      // the empty box's word, in the game's languages (Language: en, uk, ru, de, pl)
-      private static const SEARCH_WORD:Array = ["Search","Пошук","Поиск","Suche","Szukaj"];
-      
       // A word typed shorter than this matches only as a part of the name; from SEARCH_SPREAD on,
       // its letters in order with others between (at most SEARCH_SPREAD_MOST times its length
       // apart); from SEARCH_TYPO on, also with one letter wrong, missing, extra or swapped, and
@@ -207,22 +206,23 @@ package survarium.controls
       private static const MATCH_LEVEL:int = 1000;
       
       // A word naming a kind of item (owner 2026-10-22), or its start from 3 letters on, matches
-      // the items of that kind above any name: [the words (en, uk, ru), the category, or with group
-      // the super category].
+      // the items of that kind above any name: [the words, the category, or with group the super
+      // category]. The words of every language match, whatever the game's language (search words,
+      // not texts shown: they are not in the dictionaries).
       private static const MATCH_KIND:int = 450;
       
       private static const SEARCH_KIND_LEAST:int = 3;
       
       private static const SEARCH_KINDS:Array = [
-         {words:["gear","equipment","спорядження","снаряжение","экипировка"],group:SuperCategory.EQUIPMENT},
-         {words:["items","предмети","предметы"],group:SuperCategory.ITEMS},
-         {words:["helmet","шолом","шлем"],category:ItemCategory.HELMETS},
-         {words:["mask","маска"],category:ItemCategory.MASKS},
-         {words:["body","armour","armor","vest","бронежилет"],category:ItemCategory.BODY_ARMOR},
-         {words:["rig","розвантаження","разгрузка"],category:ItemCategory.RIGS},
-         {words:["gloves","рукавички","перчатки"],category:ItemCategory.GLOVES},
-         {words:["pants","trousers","штани","штаны"],category:ItemCategory.PANTS},
-         {words:["boots","черевики","ботинки"],category:ItemCategory.BOOTS}];
+         {words:["gear","equipment","спорядження","снаряжение","экипировка", "oprema","výbava","vybaveni","felszerelés","felszereles","varusteet","рыштунак","экіпіроўка"],group:SuperCategory.EQUIPMENT},
+         {words:["items","предмети","предметы","predmeti","předměty","predmety","tárgyak","targyak","esineet","прадметы"],group:SuperCategory.ITEMS},
+         {words:["helmet","шолом","шлем","šlem","helma","sisak","kypärä","kypara"],category:ItemCategory.HELMETS},
+         {words:["mask","маска","maska","maszk","naamari"],category:ItemCategory.MASKS},
+         {words:["body","armour","armor","vest","бронежилет","pancir","vesta","pancíř","páncél","pancel","liivi","panssari","бронекамізэлька"],category:ItemCategory.BODY_ARMOR},
+         {words:["rig","розвантаження","разгрузка","prsluk","nosný systém","taktikai mellény","taisteluliivi"],category:ItemCategory.RIGS},
+         {words:["gloves","рукавички","перчатки","rukavice","kesztyű","kesztyu","käsineet","kasineet","пальчаткі"],category:ItemCategory.GLOVES},
+         {words:["pants","trousers","штани","штаны","pantalone","kalhoty","nadrág","nadrag","housut"],category:ItemCategory.PANTS},
+         {words:["boots","черевики","ботинки","čizme","boty","bakancs","saappaat","боты"],category:ItemCategory.BOOTS}];
       
       // SEARCH_KINDS' words as the search compares them (made once)
       private static var _kindForms:Array;
@@ -245,18 +245,21 @@ package survarium.controls
       private static const SEARCH_LETTERS:Object = {
          "à":"a","á":"a","â":"a","ã":"a","ä":"a","å":"a","ā":"a","ą":"a","Ą":"a",
          "ç":"c","ć":"c","č":"c","Ć":"c","Č":"c",
+         "ď":"d","đ":"d","Ď":"d","Đ":"d",
          "è":"e","é":"e","ê":"e","ë":"e","ę":"e","ě":"e","Ę":"e","Ě":"e",
          "ì":"i","í":"i","î":"i","ï":"i",
          "ł":"l","Ł":"l",
          "ñ":"n","ń":"n","ň":"n","Ń":"n","Ň":"n",
-         "ò":"o","ó":"o","ô":"o","õ":"o","ö":"o","ø":"o",
+         "ò":"o","ó":"o","ô":"o","õ":"o","ö":"o","ø":"o","ő":"o","Ő":"o",
+         "ř":"r","Ř":"r",
          "ś":"s","š":"s","Ś":"s","Š":"s","ß":"ss",
-         "ù":"u","ú":"u","û":"u","ü":"u","ů":"u","Ů":"u",
+         "ù":"u","ú":"u","û":"u","ü":"u","ů":"u","Ů":"u","ű":"u","Ű":"u",
+         "ť":"t","Ť":"t",
          "ý":"y","ÿ":"y",
          "ź":"z","ż":"z","ž":"z","Ź":"z","Ż":"z","Ž":"z",
          "а":"a","б":"b","в":"v","г":"g","ґ":"g","д":"d","е":"e","ё":"e","є":"e","ж":"zh","з":"z",
          "и":"i","і":"i","ї":"i","й":"i","к":"k","л":"l","м":"m","н":"n","о":"o","п":"p","р":"r",
-         "с":"s","т":"t","у":"u","ф":"f","х":"h","ц":"c","ч":"ch","ш":"sh","щ":"sch","ъ":"",
+         "с":"s","т":"t","у":"u","ў":"u","ф":"f","х":"h","ц":"c","ч":"ch","ш":"sh","щ":"sch","ъ":"",
          "ы":"y","ь":"","э":"e","ю":"yu","я":"ya"
       };
       
@@ -269,10 +272,17 @@ package survarium.controls
       
       // an item name as the search compares it ([text, its words' starts]), by the name
       private var _searchNames:Dictionary = new Dictionary();
-      
+
+      // The shop's "not owned" check box (makeOwnedToggle).
+      private var _ownedToggle:CheckBoxShared;
+
+      // The lobby's inventory list (there is one), for the shop's tiles (owned).
+      private static var me:InventoryList;
+
       public function InventoryList()
       {
          super();
+         me = this;
          addEventListener(Event.ADDED_TO_STAGE,this.listenSearchKey);
          itemsTileList.addEventListener(ListEvent.ITEM_ROLL_OVER,this.newItemOver);
          itemsTileList.addEventListener(ListEvent.ITEM_ROLL_OUT,this.newItemOut);
@@ -280,7 +290,6 @@ package survarium.controls
          sellersTabPage.addEventListener(MouseEvent.MOUSE_UP,this.checkReskin);
          optionControl.shopTab = this.shopTab;
          optionControl.setCheckBox(this.checkbox_all_traders);
-         optionControl.setSortTab(this.sortTab);
          this._inventoryItemsDict = new Dictionary(true);
          label.mouseEnabled = false;
          LocalizationData.addTextField(label,"inventory_label");
@@ -339,8 +348,16 @@ package survarium.controls
       {
          isShop = value;
          label.text = LocalizationData.getName(this.isShop ? "shop" : "inventory_label");
+         if(this._ownedToggle != null)
+         {
+            this._ownedToggle.visible = value;
+         }
          this.shopTab.selectedIndex = this.isShop ? ShopFilter.SHOP : ShopFilter.INVENTORY;
          this.itemControlPanel.toggleShop(value);
+         if(this._ownedToggle != null)
+         {
+            this.placeOwnedToggle();
+         }
       }
       
       override public function get width() : Number
@@ -404,17 +421,28 @@ package survarium.controls
          }
       }
       
-      public function hasItem(value:int) : Boolean
+      // Whether the account owns an item of this dictionary id: any condition, a stack while it
+      // holds any (the buy's "already purchased"; the shop's owned mark, shop-owned-mark.md).
+      public function hasItem(dictId:int) : Boolean
       {
-         var l:int = (this._inventoryItems.length);
-         for(var i:uint = 0; i < l; i++)
+         if(this._inventoryItems == null)
          {
-            if(this._inventoryItems[i].dictId == value)
+            return false;
+         }
+         for each(var item:Object in this._inventoryItems)
+         {
+            if(item.dictId == dictId && (!item.isStack || item.value > 0))
             {
                return true;
             }
          }
          return false;
+      }
+
+      // ItemRendererInv: the lobby's inventory's hasItem (the shop's owned mark).
+      public static function owned(dictId:int) : Boolean
+      {
+         return me != null && me.hasItem(dictId);
       }
       
       public function selectItemDict(value:int, seller:int = Faction.ANY) : void
@@ -731,6 +759,7 @@ package survarium.controls
             item_data.modifiersDefault[i].isDefault = true;
          }
          item_data.properties = descrData.item_properties;
+         WeaponMovement.expose(item_data);
          if((descrData.descr))
          {
             item_data.itemDescription = descrData.descr;
@@ -1587,6 +1616,22 @@ package survarium.controls
          return this._inventoryItemsDict[itemId];
       }
       
+      // The first item of the inventory of a dictionary id, or null (the weapon kit names its
+      // attachments by dictionary id: UpgradeWindow.kitUpgrades).
+      public function getInventoryItemOf(dictId:int) : ItemData
+      {
+         var item:ItemData = null;
+         var found:ItemData = null;
+         for each(item in this._inventoryItemsDict)
+         {
+            if(Boolean(item) && int(item.dictId) == dictId && (found == null || item.itemId < found.itemId))
+            {
+               found = item;
+            }
+         }
+         return found;
+      }
+
       // The dictionary ids of the weapons in the chosen kit's two weapon slots.
       public function kitWeaponDicts() : Array
       {
@@ -1971,6 +2016,44 @@ package survarium.controls
          }
       }
       
+      // The menu's Buy: the item the menu was opened on, put on the card and bought as the card's
+      // Buy buys it (shop-character-menu.md). Not the list's selected row, as a double click's
+      // buyElement: a kit item's menu leaves the selection as it was (in the shop the list holds
+      // only the shop's entries, none of them the kit's item), and the menu lists Buy for an item
+      // the shop sells at any seller (buyable), a shop entry locked at its own seller too.
+      protected function buyMenuItem(event:Event = null) : void
+      {
+         var item:ItemData = this._menuItem;
+         if(item == null || !this.buyable(item))
+         {
+            return;
+         }
+         item = this.ownedCopy(item);
+         if(this._item_control.getItemData() != item)
+         {
+            this.setPrimaryItem(item);
+         }
+         // an owned item's own menu: no "already purchased" question; a shop entry's: the card's Buy
+         if(item.descriptor <= ItemPlace.INVENTORY)
+         {
+            this._item_control.buyFromOwnMenu();
+         }
+         else
+         {
+            this._item_control.onBtnClick1();
+         }
+      }
+
+      // An owned item (a row of the inventory, a kit's slot) as the inventory has it, as the card
+      // shows it from the list; any other item (a shop entry, a bundle) itself. Not by its id
+      // alone: a shop entry's is 0 and a bundle's is the bundle's id (8 and up), which can be an
+      // owned item's too.
+      private function ownedCopy(item:ItemData) : ItemData
+      {
+         var owned:Boolean = item.descriptor <= ItemPlace.INVENTORY && this.owns(item.itemId);
+         return owned ? this._inventoryItemsDict[item.itemId] : item;
+      }
+
       protected function upgradeItem(e:Event = null) : void
       {
          if(this.menuItem() == null)
@@ -2104,7 +2187,12 @@ package survarium.controls
          mainTabBar.visible = false;
          itemsTileList.addEventListener(MouseEvent.CLICK,this.onMouseItemClick);
          itemsTileList.addEventListener(ListEvent.ITEM_DOUBLE_CLICK,this.onItemDoubleClick);
-         trace("configureInventoryTab::",this.shop_lights,this.textField,black_gradient,btnClose,this.sortTab);
+         trace("configureInventoryTab::",this.shop_lights,black_gradient,btnClose);
+         // The list has no sort to choose (the owner, 2026-11-02: "noone cares about sorting by
+         // price", "it should always be per level"): its order is LIST_ORDER. The timeline's sort
+         // (its label and its choices) is taken off the list.
+         removeChild(getChildByName("sortTab"));
+         removeChild(getChildByName("textField"));
          inventoryTabPage.buttonWidth = 95;
          (this.bundleList.list as ScrollingList).itemRendererName = itemRendererName;
          this.itemControlPanel.updateData(null);
@@ -2117,26 +2205,68 @@ package survarium.controls
          sellersTabPage.enabled = false;
          this.checkbox_all_traders.selected = true;
          this.checkbox_all_traders.toggle = true;
-         this.textField.defaultTextFormat = this.textField.getTextFormat();
-         this.textField.mouseEnabled = false;
-         LocalizationData.addTextField(this.textField,"sort");
          black_gradient.height -= 25;
          black_gradient.y += 25;
          black_gradient.alpha = 0.8;
          addChild(black_gradient);
-         this.sortTab.itemRendererName = "RadioSharedShort";
-         this.sortTab.buttonWidth = 110;
-         this.sortTab.y += 5;
-         this.sortTab.useRect = false;
-         this.sortTab.spacing = 10;
-         this.sortTab.setMaxFit(true);
          this.shopTab.visible = false;
          optionControl.addEventListener(Event.RESIZE,this.updateTileListSize);
          this.itemControlPanel.setInvenory(this);
          this.checkboxCompareItems.selected = true;
          this.checkboxCompareItems.addEventListener(ButtonEvent.CLICK,this.showCompareCheckbox);
          this.makeSearch();
+         this.makeOwnedToggle();
          LocalizationData.addCallback(this.onLocal,"checkbox_compare_items");
+      }
+
+      // The shop's "Hide owned" check box (shop-owned-mark.md): the compare box's symbol
+      // (CheckBoxShared; Autobuy's, CheckBoxSharedPD, fills its bitmaps unsmoothed, pixelated once the
+      // lobby is scaled to the screen), with Autobuy's label sizing and tooltip; on the compare box's
+      // row, at its right (placeOwnedToggle); shown in the shop only. Off when the lobby opens.
+      private function makeOwnedToggle() : void
+      {
+         _ownedToggle = new CheckBoxShared();
+         LocalizationData.addButton(this._ownedToggle,"st_srp_shop_not_owned");
+         this._ownedToggle.tooltipRendererName = "SrvProfileTipRendererStyled";
+         this._ownedToggle.fitLabel();
+         this._ownedToggle.x = this.checkboxCompareItems.x;
+         this._ownedToggle.y = this.checkboxCompareItems.y;
+         this._ownedToggle.visible = this.isShop;
+         this._ownedToggle.addEventListener(ButtonEvent.CLICK,this.changeInventoryFilterFromFilters);
+         addChild(this._ownedToggle);
+      }
+
+      // The window's last row in the shop (shop-owned-mark.md, the owner's of 2026-11-02): [Comparing
+      // items] [Hide owned], from the window's margin, "Hide owned" after the compare box's label as
+      // far as that box's label is from its square. Placed when the shop opens and when the texts
+      // come.
+      private function placeOwnedToggle() : void
+      {
+         var compare:Button = this.checkboxCompareItems;
+         compare.validateNow();
+         var label:TextField = compare.textField;
+         this._ownedToggle.x = Math.round(this.textRight(label) + this.textLeft(label) - compare.x);
+         this._ownedToggle.y = compare.y;
+      }
+
+      // A text's ends (its first line), in the list's units.
+      private function textLeft(field:TextField) : Number
+      {
+         var line:TextLineMetrics = field.getLineMetrics(0);
+         return globalToLocal(field.localToGlobal(new Point(line.x,0))).x;
+      }
+
+      private function textRight(field:TextField) : Number
+      {
+         var line:TextLineMetrics = field.getLineMetrics(0);
+         return globalToLocal(field.localToGlobal(new Point(line.x + line.width,0))).x;
+      }
+
+      // Whether the shop's list leaves out this entry: the box is on and the account owns the item
+      // (an entry of the shop's; a bundle never, as its mark).
+      private function hiddenAsOwned(item:ItemData) : Boolean
+      {
+         return this.isShop && this._ownedToggle != null && this._ownedToggle.selected && item.descriptor == ItemPlace.SHOP && this.hasItem(item.dictId);
       }
       
       private function onLocal(value:*) : void
@@ -2145,7 +2275,9 @@ package survarium.controls
          this.checkboxCompareItems.tooltipRendererName = "SrvProfileTipRenderer";
          this.checkboxCompareItems.tipData = {name:LocalizationData.getName("checkbox_compare_items_hint")};
          this.shopTab.dataProvider = new DataProvider([LocalizationData.getName("filter_shop_and_inventory"),LocalizationData.getName("filter_shop"),LocalizationData.getName("filter_inventory")]);
-         this._searchBox.defaultText = SEARCH_WORD[RoomsText.language()];
+         this._searchBox.defaultText = LocalizationData.getName("st_srp_inventory_search");
+         this._ownedToggle.tipData = {name:LocalizationData.getName("st_srp_shop_not_owned_hint")};
+         this.placeOwnedToggle();
       }
       
       // The search box (docs/notes/item-search.md): the friends window's name box, always there,
@@ -2806,6 +2938,12 @@ package survarium.controls
          var _relocateArray:Array;
          if(itemAvailable)
          {
+            // the upgrade window open: a camouflage, a decal or a scope goes into its slot there,
+            // as a drop on it would
+            if(UpgradeWindow.attach(item))
+            {
+               return;
+            }
             if((item) && item.usable)
             {
                this.useElement();
@@ -2873,6 +3011,10 @@ package survarium.controls
             this.placeSearch();
             setChildIndex(this._searchBox,numChildren - 1);
             setChildIndex(this._searchIcon,numChildren - 1);
+         }
+         if(this._ownedToggle != null)
+         {
+            setChildIndex(this._ownedToggle,numChildren - 1);
          }
       }
       
@@ -3028,7 +3170,7 @@ package survarium.controls
                   trace("addBuyOPtion");
                   options.push({
                      name:LocalizationData.getName("buy"),
-                     click_function:this.buyElement
+                     click_function:this.buyMenuItem
                   });
                }
             }
@@ -3188,7 +3330,7 @@ package survarium.controls
                }
             }
             shop.length = 0;
-            filteredItems.sortOn(["buyValue",options.sortFirst,"superCategory","category","dictId","rank","value","broken",options.sortSecond,"factionId"],Array.NUMERIC);
+            filteredItems.sortOn(LIST_ORDER,Array.NUMERIC);
          }
          function isEnabled(value:ItemData):Boolean
          {
@@ -3228,15 +3370,14 @@ package survarium.controls
          function checkBaseOptions(value:ItemData):Boolean
          {
             var isWeapon:Boolean = options.weapons == WeaponHands.ALL || ItemFactory.getCategory(value.category) != SuperCategory.WEAPONS || (value.oneHanded && options.weapons == WeaponHands.ONE_HANDED || value.oneHanded == false && options.weapons == WeaponHands.TWO_HANDED);
-            return (options.allTraders || isSeller(value,value.factionId)) && isWeapon && (isStacked(value)) && (!options.onlyEnabled || (isEnabled(value)));
+            return (options.allTraders || isSeller(value,value.factionId)) && isWeapon && (isStacked(value)) && (!options.onlyEnabled || (isEnabled(value))) && !leftOutAsOwned(value);
          }
+         var leftOutAsOwned:Function = this.hiddenAsOwned;
          if((this._filterItems))
          {
             this.filterInventoryItems();
             return;
          }
-         var showWeapons:Boolean = category == SuperCategory.WEAPONS;
-         optionControl.showWeaponsSort(showWeapons);
          var currentItems:Array = this._activeItems == InventoryTab.SHOP ? this._shopItems : this._inventoryItems;
          var sellerId:int;
          var filteredItems:Array;
@@ -3541,8 +3682,8 @@ package survarium.controls
       }
       
       // As the item card's Buy: by the dictionary id, at the shop's price;
-      // the shop names the seller. A buy on an owned item is not asked
-      // whether the account wants another.
+      // the shop names the seller. An item owned already is asked about
+      // first, as every buy (LobbyMenu.try_buy_item).
       private function buyFromCraftMenu(item:Object) : void
       {
          var profile:* = parent != null ? parent["player_profile"] : null;

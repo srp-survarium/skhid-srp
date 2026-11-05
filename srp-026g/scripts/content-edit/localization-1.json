@@ -1,0 +1,4 @@
+{
+  "_about": "All game dictionaries share one TSV workflow. The original dictionary is the Russian alias; new languages inherit English EULA and profanity support files. Keep this as the final manifest edit.",
+  "localization": "../../client-patches/localization"
+}

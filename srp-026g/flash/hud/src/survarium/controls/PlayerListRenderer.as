@@ -108,6 +108,7 @@ package survarium.controls
             {
                this.ui_score.text = _data.score;
             }
+            this.showStats(!this.namesOnly);
             if(this.background)
             {
                if(_data.isLocal == true)
@@ -121,7 +122,8 @@ package survarium.controls
                else
                {
                   this.background.visible = this.index % 2 == 0;
-                  this.background.transform.colorTransform = null;
+                  // the identity: Flash and Ruffle refuse null (#2007), which Scaleform took
+                  this.background.transform.colorTransform = new ColorTransform();
                   this.background.alpha = 0.25;
                }
             }
@@ -183,6 +185,22 @@ package survarium.controls
                this.squad_icon.visible = false;
                this.squad_icon.gotoAndStop(1);
             }
+         }
+      }
+      
+      // The list this row is in shows names only (PlayerList.namesOnly: the Settings' "Hide player scores").
+      protected function get namesOnly() : Boolean
+      {
+         var board:PlayerList = owner != null ? owner.parent as PlayerList : null;
+         return board != null && board.namesOnly;
+      }
+      
+      protected function showStats(shown:Boolean) : void
+      {
+         this.ui_kills.visible = this.ui_deaths.visible = this.ui_rank.visible = shown;
+         if(this.ui_score)
+         {
+            this.ui_score.visible = shown;
          }
       }
       

@@ -29,8 +29,9 @@ window: "we fixed that a few times already, but ... not from a single place".
   (the item search also empties, `item-search.md`, unless a message box is on top; the Upgrade
   window is not one); the next Esc closes the modal.
 - **Nothing open** (no modal, no text box): Esc is the game's (its menu).
-- A dropdown's open list takes Esc itself (`has_active_window` says false); a closed dropdown
-  that still holds the focus does not, so Esc closes the top modal.
+- **Transient windows first** (`transient-windows.md`: History, the match settings under Play,
+  the character panel's presets list, a dropdown's open list): Esc closes the top one before anything else; they are not modals, and
+  a modal opening closes them.
 - **A match found or loading** (`set_mm_sync_state`, `set_loading_level`) closes the message up
   with `Message.close`, not as Esc: nothing is answered.
 
@@ -46,15 +47,14 @@ window: "we fixed that a few times already, but ... not from a single place".
 | Squad's player search | LOBBY | `SquadList.onItemClick` | closes it |
 | Rooms window | LOBBY | `RoomsWindow.show` | hides it |
 | Rooms join popup (loadout offer) | LOBBY | `RoomsWindow.takeOffer` | its Exit (no join) |
-| Character panel's presets list | LOBBY | `LocalPlayerProfile` (list opens) | closes it, no change |
 | Tutorial slides | LOBBY | `LobbyMenu.show_tutorial` | ends them |
 | Message box (any type) | MESSAGE | `Message.addMessageToStage` | `cancelByEsc` |
 | Right-click menu | MENU | `SrvContextMenu.show` | hides it |
 
 ## Where Esc arrives
 
-- The exe, on every key, calls `root.has_active_window` (true: a modal or a text box) and on Esc
-  then `root.close_active_window` (`tools/re-kit/v026g/abi.tsv`, 0x26CB80).
+- The exe, on every key, calls `root.has_active_window` (true: a transient window, a modal or a
+  text box) and on Esc then `root.close_active_window` (`tools/re-kit/v026g/abi.tsv`, 0x26CB80).
 - `LobbyMenu.handleInput` (CLIK) calls the same two; `_escapeHandled` makes one press act once.
-- No other Esc handler: the messages', the friends list's, the squad search's and the player
-  search's own Esc cases are gone (the menu's `DropdownMenu` keeps its own).
+- No other Esc handler: the messages', the friends list's, the squad search's, the player
+  search's and CLIK's `DropdownMenu`'s own Esc cases are gone.

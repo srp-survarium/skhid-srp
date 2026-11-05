@@ -10,8 +10,13 @@ package survarium.controls
    import survarium.data.PropertiesDescriptor;
    import survarium.item.ItemFactory;
    import survarium.item.ModificationRolls;
+   import survarium.item.WeaponDetails;
+   import survarium.player.LocalPlayerProfile;
+   import survarium.player.MatchEffects;
    import survarium.constants.ModifierType;
+   import survarium.constants.PropertyDirection;
    import survarium.constants.SuperCategory;
+   import survarium.constants.ItemCategory;
    
    public class ItemCompare extends MovieClip
    {
@@ -85,6 +90,16 @@ package survarium.controls
          }
       }
       
+      // A card property a modifier of another property changes: a weapon's aim-time roll (102,
+      // 2070..2074) scales its aim time (133, parameters/aim_time) since weapon-rolls-1.
+      private static const MODIFIED_BY:Object = {133:102};
+
+      // Whether a modifier of `modifierProp` changes the card property `prop`.
+      private static function modifies(modifierProp:int, prop:int) : Boolean
+      {
+         return modifierProp == prop || MODIFIED_BY[prop] === modifierProp;
+      }
+
       public static function setPropsDescriptor(descriptor:PropertiesDescriptor) : void
       {
          trace("setPropsDescriptor::",descriptor);
@@ -183,6 +198,10 @@ package survarium.controls
       {
          return this._primary;
       }
+
+      public function getSecondaryData() : Object { return this._secondary; }
+
+      public function refreshComparison() : void { updateData(); }
       
       public function setSecondaryWeapon(item:Object) : void
       {
@@ -218,11 +237,17 @@ package survarium.controls
          }
          trace("ItemCompare::updateData");
          var prim_cat:int = ItemFactory.getCategory(this._primary.category);
+         var medical:Boolean = this._primary.category == ItemCategory.MEDKITS;
+         var weaponDetails:Boolean = WeaponDetails.read(this._primary) != null;
          var index:int = 0;
          var _diff:MovieClip = null;
          var propDescription:Object = null;
          var indicators:uint = this._indicator.length;
          var modifier_value:Number = 0;
+         // Held Alt over a weapon: the stats as a match has them, with the kit and the skills.
+         var effects:MatchEffects = LocalPlayerProfile.heldMatchEffects(this._primary);
+         // The weapon's own base value of the property last read (initPropValues).
+         var base_value:Number = 0;
          function initPropValues(baseProperty:Object, modifierList:Object):void
          {
             modifier_value = 0;
@@ -238,7 +263,7 @@ package survarium.controls
                {
                   for each(modifierProp in modifierEntry.props)
                   {
-                     if(modifierProp.prop_id == propDescription.prop_id)
+                     if(modifies(modifierProp.prop_id,propDescription.prop_id))
                      {
                         propValue = Number(modifierProp.prop_value);
                         if(propValue != Number(modifierProp.prop_value))
@@ -255,19 +280,21 @@ package survarium.controls
             // The exe sends a line's prop_value as the config's text ("175", ui_desc/props_list):
             // a number before any sum, where "175" + 0 would be "1750".
             var base:Number = ModificationRolls.value(baseProperty);
+            base_value = base;
             if(modifierType == ModifierType.ADD)
             {
                total = base + modifier_value;
             }
             else
             {
-               total = base * (1 + modifier_value);
+               // The cook's type 2: base * max(0, 1 + sum) (0x358010).
+               total = base * Math.max(0,1 + modifier_value);
             }
             if(modifierType == ModifierType.MULTIPLY)
             {
                modifier_value = base * modifier_value;
             }
-            _value = total;
+            _value = effects == null ? total : effects.stat(propDescription.prop_id,total);
          }
          function initIndicatorValues(diffClip:MovieClip, propertyInfo:Object, compareValue:Number, currentValue:Number):void
          {
@@ -291,9 +318,11 @@ package survarium.controls
             _diff.indicator.extra = modifier_value;
             _diff.indicator.compare = compareValue;
             _diff.indicator.value = currentValue;
+            _diff.indicator.setChange(null,null);
          }
          for each(var s:Object in this._primary.properties)
          {
+            if(weaponDetails && s.prop_id == 24) continue;
             var _valueObject:Object = s;
             propDescription = _propsDescriptor.getPropertyDescription(_valueObject.prop_id);
             if(!propDescription)
@@ -308,6 +337,11 @@ package survarium.controls
                {
                   initPropValues(_valueObject,this._primary.modifiers);
                   initIndicatorValues(this._indicator[index],propDescription,_value,_value);
+                  // While Alt is held, a value its modifications, the kit or the skills change
+                  // reads "base -> in a match", the current green when better, red when worse.
+                  if(effects != null && MatchEffects.changed(base_value,_value))
+                     _diff.indicator.setChange(MatchEffects.change(base_value,_value,2) + _diff.indicator.postfix,
+                        MatchEffects.verdict(base_value,_value,propDescription.direction == PropertyDirection.HIGHER_IS_BETTER));
                   index++;
                   if(index == indicators)
                   {
@@ -319,7 +353,7 @@ package survarium.controls
          while(index < indicators)
          {
             _diff = this._indicator[index];
-            removeChild(_diff);
+            if(_diff.parent == this) removeChild(_diff);
             _diff.visible = false;
             index++;
          }
@@ -334,12 +368,15 @@ package survarium.controls
             _diff = this._indicator[index];
             if(_diff.visible)
             {
-               _diff.indicator.compare = 0;
+               // A medicine without this property has no comparable value.
+               // Missing healing is not a claim of zero healing.
+               _diff.indicator.compare = medical ? _diff.indicator.value : 0;
             }
             index++;
          }
          for each(s in this._secondary.properties)
          {
+            if(weaponDetails && s.prop_id == 24) continue;
             _valueObject = s;
             propDescription = _propsDescriptor.getPropertyDescription(_valueObject.prop_id);
             if(!propDescription)
@@ -355,6 +392,7 @@ package survarium.controls
                   _diff = this._indicator[index];
                   if(!_diff.visible)
                   {
+                     if(medical) break;
                      initIndicatorValues(this._indicator[index],propDescription,_value,0);
                      break;
                   }

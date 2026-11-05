@@ -1,7 +1,8 @@
 //! Where a player is and how he moves, from his state in a world
 //! (`docs/notes/player_bots.md` §4).
 //!
-//! `base_player::serialize` 0x2DAF60 ends the state with:
+//! The state starts with the two kit indices and client patch 85's pickup
+//! record ([`FIELDS_AT`]); `base_player::serialize` 0x2DAF60 ends it with:
 //!
 //! ```text
 //! ... u8 jump_type, f32 m_linear_horizontal_speed          0x2DB27D, 0x2DB2A5
@@ -13,19 +14,25 @@
 //! u32 m_spotted_time_left_in_ms, u32 m_time_left_to_try_spot_in_ms, f32 stagger
 //! u32 n, n x {u32 time, f32 stopping speed}: m_recent_hits  0x2DB385..0x2DB42F
 //! bool m_respawn_disabled                                   0x2DB445
+//! the artefact carry's state, 32 bytes, version byte 2      client patch 78
 //! ```
 //!
-//! PROVEN in the exe; read back on the worlds of real matches. The
-//! inventory before it is not walked, so the tail is read from the end
-//! (the recent hits' count is tried until one fits) and the damage model
-//! is found by an anchored search: its last tick time is the state's own.
+//! PROVEN in the exe; read back on the worlds of real matches. Client
+//! patch 78 (`artefact_carry`, carry.save 0x2DB47E) appends the carry's
+//! snapshot (`artefact_carry::carry::Carry::snapshot`) after the native
+//! end; a state without a valid one is not read. The inventory before it
+//! is not walked, so the tail is read from the end (the recent hits'
+//! count is tried until one fits) and the damage model is found by an
+//! anchored search: its last tick time is the state's own.
 //!
 //! The controller's position is `m_last_pos`, in the physics' space with
 //! z mirrored: the map's frame is `(x, y, -z)` (PROVEN: 0.90 ± 0.03 m above
 //! the walker floor of level_05 standing, scattered without the flip). It
 //! is the capsule's centre, set at the start of a physics step.
 
-use super::players::PlayerState;
+use artefact_carry::carry::Carry;
+
+use super::players::{FIELDS_AT, PlayerState};
 
 /// One player's movement state, as a world has it.
 #[derive(Clone, Debug, PartialEq)]
@@ -176,9 +183,10 @@ impl Motion {
     /// Reads the state of a player whose profile has `items` items.
     /// `None`: not a state of that profile, or two readings fit.
     pub fn read(state: &[u8], items: usize) -> Option<Self> {
+        let state = native_state(state)?;
         let head_state = PlayerState::read(state, items)?;
         let head = PlayerState::head_len(items);
-        let time_ms = u32_at(state, 2 + 4 * items + 19)?;
+        let time_ms = u32_at(state, FIELDS_AT + 4 * items + 19)?;
         let len = state.len();
         flag(state, len.checked_sub(1)?)?;
         let mut found = None;
@@ -249,7 +257,7 @@ impl Motion {
     pub fn find(state: &[u8], time_ms: u32) -> Option<(usize, Self)> {
         let mut found = None;
         for items in 0..=MAX_ITEMS {
-            if u32_at(state, 2 + 4 * items + 19) != Some(time_ms) {
+            if u32_at(state, FIELDS_AT + 4 * items + 19) != Some(time_ms) {
                 continue;
             }
             if let Some(motion) = Self::read(state, items) {
@@ -322,6 +330,14 @@ fn damage_model(s: &[u8], head: usize, inserted_at: usize, now: u32) -> Option<D
     found
 }
 
+/// The state as the game wrote it, without client patch 78's carry
+/// snapshot at its end (None without a valid one).
+fn native_state(state: &[u8]) -> Option<&[u8]> {
+    let (native, carry) = state.split_at_checked(state.len().checked_sub(Carry::SNAPSHOT_SIZE)?)?;
+    Carry::restore(carry.try_into().ok()?)?;
+    Some(native)
+}
+
 /// The end of a state as [`Motion::read`] reads it, for tests and tools
 /// ([`state_bytes`]).
 #[derive(Clone, Debug, PartialEq)]
@@ -340,12 +356,12 @@ pub struct Tail {
 
 /// A whole player state for tests and tools: the head (its time set to the
 /// tail's), an opaque inventory, and the tail as the game writes it
-/// (20 body parts, no usable object).
+/// (20 body parts, no usable object), then a stowed carry (client patch 78).
 pub fn state_bytes(head: &PlayerState, inventory: &[u8], tail: &Tail) -> Vec<u8> {
     let items = head.items.len();
     let mut out = super::players::state_bytes(head, inventory);
     let now = tail.time_ms;
-    out[2 + 4 * items + 19..2 + 4 * items + 23].copy_from_slice(&now.to_le_bytes());
+    out[FIELDS_AT + 4 * items + 19..FIELDS_AT + 4 * items + 23].copy_from_slice(&now.to_le_bytes());
     // Damage model.
     out.push(2); // jump_type
     out.extend(tail.speed.to_le_bytes());
@@ -384,6 +400,7 @@ pub fn state_bytes(head: &PlayerState, inventory: &[u8], tail: &Tail) -> Vec<u8>
         out.extend(speed.to_le_bytes());
     }
     out.push(0); // respawn not disabled
+    out.extend(Carry::NEW.snapshot());
     out
 }
 
@@ -397,6 +414,7 @@ mod tests {
         PlayerState {
             current_index: 0,
             target_index: 0,
+            pickup: weapon_pickup::Record::EMPTY,
             items: (0..items as u32).map(|item| 1000 + item).collect(),
             alive,
             has_to_die: false,
@@ -471,8 +489,26 @@ mod tests {
     #[test]
     fn bytes_that_do_not_end_a_state_are_not_read() {
         let mut bytes = state(true, 5, 1.0, &[]);
-        *bytes.last_mut().unwrap() = 1; // no bool
+        let flag = bytes.len() - Carry::SNAPSHOT_SIZE - 1;
+        bytes[flag] = 1; // no bool
         assert_eq!(Motion::read(&bytes, 5), None);
         assert_eq!(Motion::read(&[0; 10], 5), None);
+    }
+
+    /// Client patch 78 ends every state with the carry's snapshot: read
+    /// past it, never into it, and not without it.
+    #[test]
+    fn the_carry_snapshot_at_the_end_is_skipped_and_required() {
+        let hits = [(100_000, 0.3)];
+        let bytes = state(true, 5, 0.5, &hits);
+        let native = &bytes[..bytes.len() - Carry::SNAPSHOT_SIZE];
+        assert_eq!(Motion::read(native, 5), None);
+        let motion = Motion::read(&bytes, 5).unwrap();
+        assert_eq!(motion.body.unwrap().position, [10.0, 1.9, 20.0]);
+        assert_eq!(motion.recent_hits, hits.to_vec());
+        let mut bad = bytes.clone();
+        let version = bad.len() - Carry::SNAPSHOT_SIZE;
+        bad[version] = 1;
+        assert_eq!(Motion::read(&bad, 5), None);
     }
 }

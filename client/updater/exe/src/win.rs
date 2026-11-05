@@ -621,24 +621,20 @@ pub fn list_with_times(folder: &str, pattern: &str) -> Vec<(String, u64)> {
     out
 }
 
-/// The language the launcher keeps for the player
-/// (`HKCU\Software\Vostok Games\Survarium`, `language`, 0..4), read only.
-pub fn launcher_language() -> Option<u32> {
-    use windows_sys::Win32::System::Registry::{HKEY_CURRENT_USER, RRF_RT_REG_DWORD, RegGetValueW};
-    let mut value = 0_u32;
-    let mut size = 4_u32;
-    let status = unsafe {
-        RegGetValueW(
-            HKEY_CURRENT_USER,
-            wide("Software\\Vostok Games\\Survarium").as_ptr(),
-            wide("language").as_ptr(),
-            RRF_RT_REG_DWORD,
-            null_mut(),
-            (&raw mut value).cast(),
-            &mut size,
-        )
-    };
-    (status == 0).then_some(value)
+/// The game's language, which its Settings and the launcher's menu keep
+/// (`localization` of `<Documents>\survarium\user.cfg`, the folder the game
+/// takes: CSIDL_PERSONAL), as a number of `replay::LANGUAGES`; read only.
+pub fn game_language() -> Option<u32> {
+    use windows_sys::Win32::UI::Shell::SHGetFolderPathW;
+    const CSIDL_PERSONAL: i32 = 5;
+    let mut folder = [0_u16; 260];
+    let status = unsafe { SHGetFolderPathW(null_mut(), CSIDL_PERSONAL, null_mut(), 0, folder.as_mut_ptr()) };
+    if status != 0 {
+        return None;
+    }
+    let end = folder.iter().position(|&unit| unit == 0)?;
+    let path = alloc::format!("{}\\survarium\\user.cfg", from_wide(&folder[..end]));
+    updater_logic::replay::language_of_user_cfg(&read_file(&path, 1 << 16).ok()?)
 }
 
 /// Whether the game, which reads its command line as ANSI text

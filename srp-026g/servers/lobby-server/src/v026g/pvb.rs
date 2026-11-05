@@ -57,7 +57,6 @@
 //! | Setting | Default | What | Read by |
 //! |---|---|---|---|
 //! | `SRP_PVB` | on | `off`: the mode is not offered | the lobby, the match server |
-//! | `SRP_PVB_MAX_GEAR` | 15 | the highest equipment level let in, 0 to 15 (15: every player, the owner's of 2026-10-23) | the lobby |
 //! | `SRP_PVB_MAX_MATCHES` | 5 | the most matches against bots at once, 1 to 20; the match server keeps up to that many bots' maps in memory | the lobby, the match server |
 //! | `SRP_PVB_RUSHER_KIT` | `9-10=alt,13-15=smg` | what the rusher bots of tiers 9-10 and 13-15 wear: the owner's `9-10=alt,13-15=smg` when unset; `control` (the old kit: the SPAS-12 with buckshot), `smg` (the tier's SMG: `sr2m`, `fn_p90`), `alt` (`ump45`, `kriss_vector`), `slug` / `helmet` (the SPAS-12 with slugs / buckshot and the SMG kit's helmet); one word for both tiers or `9-10=alt,13-15=smg`; a kit whose items the game data lacks is the old kit (`loadouts::RusherKit`) | the lobby |
 //! | `SRP_PVB_PAY` | 0.25 | the share of a match's silver and experience it pays, 0 to 1; only a match played to its own end pays | the rewards (`session::v026g::pvb`) |
@@ -71,6 +70,7 @@ use session::v026g::{matchmaking, quests};
 use session::{LockExt, QueuePool};
 use survarium::v026g::loadouts::{Masks, RusherKits};
 use survarium::v026g::lobby::requests::id;
+use survarium::v026g::lobby::rooms::rules;
 use survarium::v026g::lobby::{self, PvbCode, PvbMap, PvbNumbers, PvbStatus};
 use survarium::v026g::maps::{self, MapMode};
 
@@ -90,30 +90,20 @@ pub(super) const PLAY_REFUSED: &str = "st_cant_change_ready_state";
 pub const MAPS: [u8; 16] = [
     61, 67, 73, 79, 85, 91, 97, 103, 117, 120, 123, 126, 129, 132, 135, 138,
 ];
-/// The team sizes offered: each side's players.
-pub const SIZES: [u8; 3] = [6, 8, 10];
-/// What the movie shows first.
-pub const DEFAULT_SIZE: u8 = 8;
+/// The map the movie shows first (the team sizes and the size it shows first: `PvbRules`).
 pub const DEFAULT_MAP: u8 = 61;
 /// How long a choice is held for the player's Play.
 pub const HOLD: Duration = Duration::from_secs(10);
 /// A Play this long after its hold ran out is still taken as one meant for
 /// bots: refused, never into a room.
 pub const EXPIRED_REFUSED: Duration = Duration::from_secs(30);
-/// The highest equipment level there is (`items_levels_modifiers`).
-const MOST_GEAR: u8 = 15;
-/// `SRP_PVB_MAX_GEAR` when unset: every level (the owner's of 2026-10-23:
-/// matches against bots for every level, the bots of the player's tier;
-/// it was 5 from 2026-10-16).
-pub const DEFAULT_MAX_GEAR: u8 = MOST_GEAR;
 
 /// The mode's settings in the lobby.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Config {
     /// `SRP_PVB` (default on).
     pub enabled: bool,
-    /// `SRP_PVB_MAX_GEAR` (default 15, every level): the highest equipment
-    /// level let in.
+    /// The highest equipment level let in (`PvbRules::max_gear`).
     pub max_gear: u8,
     /// `SRP_PVB_MAX_MATCHES` (default 5).
     pub max_matches: usize,
@@ -128,7 +118,7 @@ impl Default for Config {
     fn default() -> Self {
         Self {
             enabled: session::v026g::pvb::DEFAULT_ENABLED,
-            max_gear: DEFAULT_MAX_GEAR,
+            max_gear: rules().pvb.max_gear,
             max_matches: session::v026g::pvb::DEFAULT_MAX_MATCHES,
             rusher_kits: RusherKits::owners(),
         }
@@ -138,16 +128,6 @@ impl Default for Config {
 impl Config {
     /// The environment's.
     pub fn from_env() -> Self {
-        let max_gear = match std::env::var("SRP_PVB_MAX_GEAR") {
-            Ok(value) => parse_max_gear(&value).unwrap_or_else(|| {
-                log::error!(
-                    "SRP_PVB_MAX_GEAR is `{value}`; it must be 0 to {MOST_GEAR}. Using \
-                     {DEFAULT_MAX_GEAR}"
-                );
-                DEFAULT_MAX_GEAR
-            }),
-            Err(_) => DEFAULT_MAX_GEAR,
-        };
         let mut rusher_kits = match std::env::var("SRP_PVB_RUSHER_KIT") {
             Ok(value) => parse_rusher_kits(&value).unwrap_or_else(|why| {
                 log::error!("SRP_PVB_RUSHER_KIT is `{value}` ({why}). Using the owner's kits");
@@ -165,7 +145,7 @@ impl Config {
         };
         let config = Self {
             enabled: session::v026g::pvb::enabled(),
-            max_gear,
+            max_gear: rules().pvb.max_gear,
             max_matches: session::v026g::pvb::max_matches(),
             rusher_kits,
         };
@@ -181,11 +161,6 @@ impl Config {
         }
         config
     }
-}
-
-/// `SRP_PVB_MAX_GEAR`: 0 to [`MOST_GEAR`].
-fn parse_max_gear(value: &str) -> Option<u8> {
-    value.trim().parse().ok().filter(|gear| *gear <= MOST_GEAR)
 }
 
 /// `SRP_PVB_RUSHER_KIT`: empty is the default (the owner's kits); else one kit
@@ -349,8 +324,8 @@ impl Core<'_> {
         let status = PvbStatus {
             code,
             numbers,
-            sizes: SIZES.to_vec(),
-            default_size: DEFAULT_SIZE,
+            sizes: rules().pvb.sizes.clone(),
+            default_size: rules().pvb.default_size,
             default_map: DEFAULT_MAP,
         };
         log::debug!(
@@ -372,7 +347,7 @@ impl Core<'_> {
         self.pvb_forget_old(now);
         self.pvb_holds.remove(&who.account_id);
         let choice = lobby::pvb_choice(start)
-            .filter(|(size, map_id)| SIZES.contains(size) && MAPS.contains(map_id));
+            .filter(|(size, map_id)| rules().pvb.sizes.contains(size) && MAPS.contains(map_id));
         let fit = match choice {
             None => Err(PvbCode::UnknownChoice),
             Some(choice) => self.pvb_fit(who, now).map(|()| choice),
@@ -521,7 +496,7 @@ mod tests {
                 assert!(!MAPS.contains(&map.id), "{} is offered", map.id);
             }
         }
-        assert!(MAPS.contains(&DEFAULT_MAP) && SIZES.contains(&DEFAULT_SIZE));
+        assert!(MAPS.contains(&DEFAULT_MAP));
         let rudnya = maps::map_mode(DEFAULT_MAP).unwrap();
         assert_eq!((rudnya.level, rudnya.mode), (1, maps::mode::BATTERIES));
     }
@@ -530,10 +505,10 @@ mod tests {
     fn the_settings_read_as_documented() {
         let config = Config::default();
         assert!(config.enabled, "on unless SRP_PVB says off");
-        assert_eq!((config.max_gear, config.max_matches), (15, 5));
-        assert_eq!(parse_max_gear(" 4 "), Some(4));
-        assert_eq!(parse_max_gear("16"), None);
-        assert_eq!(parse_max_gear("x"), None);
+        assert_eq!(
+            (config.max_gear, config.max_matches),
+            (rules().pvb.max_gear, 5)
+        );
     }
 
     /// The rusher kit setting: the owner's kits (`alt` at 9-10, `smg` at 13-15, the top players' respirator) unless set, `control`

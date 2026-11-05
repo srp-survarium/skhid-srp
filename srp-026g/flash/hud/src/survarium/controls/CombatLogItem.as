@@ -7,6 +7,7 @@ package survarium.controls
    import flash.display.PixelSnapping;
    import flash.text.TextField;
    import flash.text.TextFieldAutoSize;
+   import flash.utils.getDefinitionByName;
    import survarium.constants.Colors;
    import survarium.constants.CombatAction;
    
@@ -33,6 +34,14 @@ package survarium.controls
       private var _ricochetIcon:Bitmap = new Bitmap(RICOCHET,PixelSnapping.ALWAYS);
       
       private var _painIcon:Bitmap = new Bitmap(PAIN,PixelSnapping.ALWAYS);
+      
+      // A weapon's icon is its config's ui_desc/combat_log_icon: frame (icon + 1) of object_icon, whose
+      // 53 frames end at icon 52. The builds the ported weapons come from number theirs on from 53:
+      // icon n past the clip is the bitmap class CombatLogWeapon<n> (bitmaps/, src/), when the movie has
+      // one, shown in the frame's place. A ported weapon's icon is one bitmap and its class, no list here.
+      private static var _moreWeapons:Object = {};
+      
+      private var _weaponIcon:Bitmap = new Bitmap(null,PixelSnapping.ALWAYS);
       
       public var who_name:TextField;
       
@@ -66,10 +75,18 @@ package survarium.controls
             this.victim_name.autoSize = TextFieldAutoSize.LEFT;
          }
          this.who_name.text = data.who_name;
+         var weapon:BitmapData = null;
          if(this.object_icon)
          {
             this.object_icon.gotoAndStop(data.object_icon + 1);
+            if(_action_id == CombatAction.KILL)
+            {
+               weapon = data.object_icon >= this.object_icon.totalFrames ? moreWeapon(data.object_icon) : null;
+            }
+            this.object_icon.visible = weapon == null;
          }
+         this._weaponIcon.bitmapData = weapon;
+         this.showIcon(this._weaponIcon,weapon != null);
          if(_action_id == CombatAction.KILL)
          {
             this.victim_name.text = data.victim_name;
@@ -84,6 +101,31 @@ package survarium.controls
          this.showIcon(this._ricochetIcon,death && data.ricochet_icon == 1);
          this.showIcon(this._painIcon,death && data.pain_icon == 1);
          this.makeLayout();
+      }
+      
+      // The bitmap of icon `icon` (CombatLogWeapon<icon>), made once; null when the movie has none.
+      private static function moreWeapon(icon:int) : BitmapData
+      {
+         if(!(icon in _moreWeapons))
+         {
+            var made:BitmapData = null;
+            try
+            {
+               made = new (getDefinitionByName("CombatLogWeapon" + icon) as Class)() as BitmapData;
+            }
+            catch(error:Error)
+            {
+               made = null;
+            }
+            _moreWeapons[icon] = made;
+         }
+         return _moreWeapons[icon];
+      }
+      
+      // What shows the weapon: object_icon, or the bitmap in its place; null on a suicide row.
+      private function get weaponMark() : DisplayObject
+      {
+         return this._weaponIcon.parent == this ? this._weaponIcon : this.object_icon;
       }
       
       private function showIcon(icon:DisplayObject, shown:Boolean) : void
@@ -107,7 +149,7 @@ package survarium.controls
          {
             return x;
          }
-         var mark:DisplayObject = this.object_icon != null ? this.object_icon : this.extra_icon;
+         var mark:DisplayObject = this.weaponMark != null ? this.weaponMark : this.extra_icon;
          icon.x = x;
          icon.y = mark == null ? 0 : Math.max(0,int(mark.y + (mark.height - icon.height) / 2));
          return x + icon.width + dx;
@@ -121,11 +163,17 @@ package survarium.controls
          x = this.who_name.x + this.who_name.width + dx;
          if(this.object_icon != null)
          {
-            if(this.object_icon)
-            {
-               this.object_icon.x = x;
-            }
-            x += this.object_icon.width + dx;
+            this.object_icon.x = x;
+         }
+         if(this._weaponIcon.parent == this)
+         {
+            // centred where the clip's frames centre theirs (12.5 px down it), never above it
+            this._weaponIcon.x = x;
+            this._weaponIcon.y = this.object_icon.y + Math.max(0,int((25 - this._weaponIcon.height) / 2));
+         }
+         if(this.weaponMark != null)
+         {
+            x += this.weaponMark.width + dx;
          }
          x = this.placeIcon(this._wallIcon,x,dx);
          x = this.placeIcon(this._ricochetIcon,x,dx);

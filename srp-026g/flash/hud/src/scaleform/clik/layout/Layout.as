@@ -278,6 +278,22 @@ package scaleform.clik.layout
          }
       }
       
+      // A sprite laid out by this layout wherever it is (skhid: a part the hud keeps over its hidden
+      // root, in a layer placed as the root is, HUD.keep): its layoutData's place, as its own
+      // children's, at every reflow from now on. Once.
+      public function manage(spr:Sprite) : void
+      {
+         if(spr == null || spr["layoutData"] == null || this._managedSprites == null)
+         {
+            return;
+         }
+         if(this._managedSprites.indexOf(spr) < 0)
+         {
+            this.evaluateLayoutForSprite(spr);
+         }
+         this.reflow();
+      }
+
       public function reset() : void
       {
          if(stage == null)

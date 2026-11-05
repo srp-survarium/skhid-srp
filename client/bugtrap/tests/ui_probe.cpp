@@ -47,7 +47,7 @@ static void Fits(HWND control, int id, bool wrap)
 
 static HINSTANCE WINAPI Browser(HWND, LPCWSTR verb, LPCWSTR url, LPCWSTR args, LPCWSTR dir, INT)
 {
-    if (wcscmp(verb, L"open") || wcscmp(url, L"https://discord.gg/Pxa4prXfwu") || args || dir)
+    if (wcscmp(verb, L"open") || wcscmp(url, L"https://discord.gg/QUmJg3gBhg") || args || dir)
         ExitProcess(72);
     InterlockedIncrement(&browserCalls);
     return (HINSTANCE)(browserFailure ? 31 : 33);

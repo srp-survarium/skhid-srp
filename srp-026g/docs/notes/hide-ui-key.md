@@ -60,13 +60,19 @@ too, for screenshots.
   what the game put on the stage is in the root's `_stageLayer` (kept the root's last child, at
   the stage's scale); the hud's screen effects are the one thing beside it. The movie goes on
   running.
+- Forced (Blackout, patch 65; `blackout.md`): the movies' `force_interface_hidden`, which patch 65
+  tells them; while forced their `hide_interface` does nothing, so this key and a match's reset
+  leave the interface as forced. Each movie keeps what a forced interface keeps: the hud the
+  pre-match countdown and its Tab view, the player icons the players' markers on Tab.
 - The controls row: patch 62 gives the options a 41st row (its table moved into the arena); its
-  label is content edit `hide-interface-1.json`.
+  label is in `client-patches/localization/*.tsv`.
 - No simulation change, no server change.
 
 ## Later: a match without UI
 
-The owner's ask (2026-10-23), specced, not built: "the no-UI battery mode", Battery Hunt's rules
+A prototype is built (2026-10-24): `blackout.md` (a server switch and the static info's flag,
+everything hidden as F11 hides it but the players' markers; the bands parked). The spec below was the
+first plan: "the no-UI battery mode", Battery Hunt's rules
 with no UI for anyone; the teams told apart by coloured bands on the characters.
 
 ### Rules
@@ -91,7 +97,7 @@ with no UI for anyone; the teams told apart by coloured bands on the characters.
   `ui.mode_name`, the same projects (`level_0N/<w>_3`), new `maps_dict` rows after Research's
   184-203 (u8: 204-228 leaves 27 ids).
 - **The exe reads it once at load**, as patch 53 reads `mode.parameters` (the mode config's root
-  at +Ch of the rule's options, `research_native_026g.c`).
+  at +Ch of the rule's options, `research_arena`).
 - **Not show_ui(false):** `game_world::show_ui` (0x1F95F0) hides all of `hud.swf`, and the kits,
   the Tab list, chat and messages are in it (`HUD.as`: `_profilePanel`, `player_list`, chat).
   - `player_icons.swf` hidden all match (its `hide_interface`, as patch 62 hides it);
