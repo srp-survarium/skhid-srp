@@ -1748,6 +1748,44 @@ mod tests {
         assert_eq!(open, all_down(&build(false, false)), "the switch leaves the open edge's links");
     }
 
+    /// [A304] With [`Body::ramp_faces`] the floors on a 40 deg ramp keep its slope, the flat ground and a stair's flat treads keep
+    /// none, and the grid's floors and links are those of the grid built without the switch (a mark only).
+    #[test]
+    fn a_ramp_face_is_marked_and_a_stair_tread_is_not_with_ramp_faces() {
+        let walker = WalkerBehaviour::BySlope;
+        let mut t = quad(0.0, 0.0, 18.0, 10.0, 0.0).to_vec();
+        // The ramp: x 2-5 rising 40 deg, then a block at its top.
+        let rise = 3.0 * 40f32.to_radians().tan();
+        let (p, q, r, u) = (Vec3::new(2.0, 0.0, 0.0), Vec3::new(5.0, rise, 0.0), Vec3::new(5.0, rise, 10.0), Vec3::new(2.0, 0.0, 10.0));
+        t.push(Triangle { v: [p, q, r], walker });
+        t.push(Triangle { v: [p, r, u], walker });
+        t.extend(block(5.0, 7.0, rise, 0.0));
+        // The stair: treads 0.5 m deep, 0.2 m risers, x 10-13.
+        for i in 0..6 {
+            let x = 10.0 + 0.5 * i as f32;
+            t.extend(block(x, x + 0.5, 0.2 * (i + 1) as f32, 0.0));
+        }
+        let build = |ramp_faces: bool| {
+            WalkGrid::build_with_links(&t, [0.0, 0.0, 18.0, 10.0], 0.25, Body { ramp_faces, ..Body::default() }, OffMeshLinks::None)
+        };
+        let (off, on) = (build(false), build(true));
+        let slopes = |part: &dyn Fn(Vec3) -> bool| {
+            (0..on.len() as NodeId).filter(|&n| part(on.position(n))).map(|n| on.ramp_slope_deg(n)).collect::<Vec<_>>()
+        };
+        let ramp = slopes(&|p: Vec3| p.x > 2.4 && p.x < 4.6 && p.y > 0.3);
+        assert!(!ramp.is_empty() && ramp.iter().all(|s| s.is_some_and(|d| (d - 40.0).abs() < 1.5)), "the ramp keeps 40 deg: {ramp:?}");
+        let stair = slopes(&|p: Vec3| p.x > 10.1 && p.x < 12.9 && p.y > 0.1);
+        assert!(!stair.is_empty() && stair.iter().all(Option::is_none), "the stair's treads keep none: {stair:?}");
+        let ground = slopes(&|p: Vec3| p.x > 14.5 && p.y < 0.05);
+        assert!(!ground.is_empty() && ground.iter().all(Option::is_none), "the ground keeps none");
+        assert!((0..off.len() as NodeId).all(|n| off.ramp_slope_deg(n).is_none()), "nothing is kept without the switch");
+        assert_eq!(on.len(), off.len());
+        for n in 0..on.len() as NodeId {
+            assert_eq!(on.position(n), off.position(n));
+            assert_eq!(on.links(n).collect::<Vec<_>>(), off.links(n).collect::<Vec<_>>());
+        }
+    }
+
     fn world_triangles(a: f32, b: f32, gap: f32, ground: f32) -> Vec<Triangle> {
         let mut t = quad(0.0, 0.0, 14.0, 10.0, ground).to_vec();
         t.extend(block(0.0, 6.0, a, ground));
