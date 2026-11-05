@@ -602,6 +602,55 @@ const LANE_OPEN_LOOK_M: f32 = 20.0;
 /// outranges it (`anti_sniper`), or across a held lane its route enters ahead (`cross_lane`). Only against an enemy
 /// the team sensed within [`super::smoke::FAIR_SENSED_MS`], with a smoke in the kit and the hands free; one note
 /// per throw decided.
+/// [A302 `threat.check_spot`] The way enters a known spot's line ahead (the one test, `lane_ahead::known_lane_ahead`, from
+/// the spot's eye): a check of it begins (`Reflex::check_spot`), its stop the last point of the way short of the crossing
+/// he does not see. Not a carrier (home first), not an intercept (it cuts a carrier off), not in his line already.
+fn spot_check(due: &Due, bot: &mut Bot) {
+    let Due { view, me, tactics, tuning, .. } = *due;
+    let Some(rule) = tuning.threat.check_spot else {
+        return;
+    };
+    if bot.lanes.is_empty()
+        || bot.reflex.checks_spot()
+        || me.carrying.is_some()
+        || bot.assignment.as_ref().is_some_and(|a| a.kind == PlayKind::Intercept)
+    {
+        return;
+    }
+    let Some((route, _)) = bot.route.as_ref() else {
+        return;
+    };
+    let heights = bot.motor.heights();
+    let start = route.walked();
+    let end = (start + rule.ahead_m).min(route.length());
+    let sees = |a: Vec3, b: Vec3| tactics.sees(a, b);
+    let Some(ahead) = super::lane_ahead::known_lane_ahead(
+        &bot.lanes,
+        super::lane_ahead::Known { kills: 1, sensed_ms: super::smoke::FAIR_SENSED_MS },
+        view.clock,
+        me.feet,
+        |s| route.at(s, heights),
+        (start, end, 2.0),
+        sees,
+    ) else {
+        return;
+    };
+    if ahead.in_line {
+        return;
+    }
+    let up = |h: f32| Vec3::new(0.0, h, 0.0);
+    let eye = ahead.lane.at + up(super::lane_ahead::EYE_M);
+    // The stop: the last 1 m step back from the crossing he does not see (chest high), the feet if none.
+    let stop = (1..)
+        .map(|k| ahead.crossing_s - k as f32)
+        .take_while(|&s| s > start)
+        .map(|s| route.at(s, heights))
+        .find(|&p| !sees(eye, p + up(super::lane_ahead::CHEST_M)))
+        .unwrap_or(me.feet);
+    let check = reflex::SpotCheck { shooter: ahead.lane.shooter, eye, crossing: ahead.crossing, stop, rule };
+    bot.reflex.check_spot(check, me, view.clock);
+}
+
 fn smoke_uses(due: &Due, bot: &mut Bot, knowledge: &mut know::TeamKnowledge, notes: &mut Vec<Note>) {
     use super::smoke::{self, SmokeUse};
     let Due {
@@ -1118,6 +1167,7 @@ pub(super) fn react(
         None => state.knowledge.wounds.push_release(bot.place),
     }
     smoke_uses(due, bot, &mut state.knowledge, notes);
+    spot_check(due, bot);
     // A grenade decided on: its place is the team's to skip for a while.
     if let Some(at) = bot.reflex.take_throw_claim() {
         state.knowledge.claim_throw(bot.place, at, now);

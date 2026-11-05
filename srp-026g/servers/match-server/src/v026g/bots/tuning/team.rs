@@ -746,6 +746,36 @@ pub struct ThreatTuning {
     /// (z -2.4), enemy carriers killed -24 % (z -3.1), own carriers lost +32 % (z +3.1)
     /// (`traces-20261028/fx-threat-obj-a229-a231-note.md` §6).
     pub walk_watch: Option<WalkWatch>,
+    /// A302 ([`CheckSpot`], `reflex.rs` `spot_checking`): a bot whose way enters a known spot's line ahead stops short of
+    /// it with its sights up on him, settles, then crosses with its view and sights on him. OFF until its by-side bench
+    /// against the farming camper.
+    pub check_spot: Option<CheckSpot>,
+}
+
+/// A302 (`traces-20261028/fx-fights-a302-first-shot-plan.md`): the farming camper killed walkers that crossed a line their
+/// team knew (98 % of his kills), their view on their route (the owner: "they keep crossing lines near me without even
+/// watching at me"). A player checks a known angle before he crosses it ("slicing the pie"): he stops short, the sights up
+/// where the enemy can be, and crosses with them there, so his reaction starts with the view already on him. The known line
+/// is the one test `lane_ahead::known_lane_ahead` (A317), the team's own senses and callouts only.
+#[derive(Clone, Copy, Debug, PartialEq, Serialize, Deserialize)]
+#[serde(default, deny_unknown_fields)]
+pub struct CheckSpot {
+    /// The way this far ahead is looked through for a known line, m (every 2 m). GUESS.
+    pub ahead_m: f32,
+    /// At the stop the sights stay up on him this long at least, ms (the aim's settle). GUESS.
+    pub settle_least_ms: u32,
+    /// And this long at most before it crosses, ms. GUESS.
+    pub settle_most_ms: u32,
+    /// The crossing, from the step out, ends this late at most, ms. GUESS.
+    pub cross_most_ms: u32,
+    /// A check of a crossing is not begun again within this of the last one's end there, ms. GUESS.
+    pub again_ms: u32,
+}
+
+impl Default for CheckSpot {
+    fn default() -> Self {
+        Self { ahead_m: 20.0, settle_least_ms: 300, settle_most_ms: 1_500, cross_most_ms: 4_000, again_ms: 10_000 }
+    }
 }
 
 /// A229 (`traces-20261028/fx-threat-obj-a229-a231-note.md`): a walk looks along its route, so a bot walks into a lane its
@@ -942,6 +972,7 @@ impl Default for ThreatTuning {
             breach: None,
             pair_target: None,
             walk_watch: None,
+            check_spot: None,
         }
     }
 }

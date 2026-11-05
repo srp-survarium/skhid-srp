@@ -1793,6 +1793,9 @@ pub enum LegsWhy {
     /// [A208 `smoke.wait_for_cloud`] Holding short of a crossing until a cloud hides it (`smoke::CloudWait`): the
     /// route stays for the walk on.
     WaitingForCloud,
+    /// [A302 `threat.check_spot`] Standing short of a known line with the sights up on him (`SpotCheck`): the route
+    /// stays for the crossing after it.
+    CheckingSpot,
     /// A hurt enemy who broke sight: on his last place while he cannot mend
     /// ([`Reflex::finish`]); the push is this state, the enemy is its own.
     Finish(Place),
@@ -2157,6 +2160,51 @@ enum HoldLegs {
 
 /// [A208] A hold walking to its point stands once this near it, metres.
 const HOLD_AT_M: f32 = 1.5;
+
+/// [A302 `threat.check_spot`] A check of a known spot's line before the way crosses it: his eye, the crossing (the first
+/// point of the way he sees) and the stop short of it (the last point he does not see, the bot's feet when none).
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct SpotCheck {
+    pub shooter: Place,
+    pub eye: Vec3,
+    pub crossing: Vec3,
+    pub stop: Vec3,
+    pub rule: super::tuning::CheckSpot,
+}
+
+/// [A302] Where a check is: walking to the stop, standing there with the sights up, or crossing with them on him.
+#[derive(Clone, Copy, Debug, PartialEq)]
+enum Checking {
+    ToStop { since: u32 },
+    Settling { at: Vec3, since: u32 },
+    Crossing { since: u32 },
+}
+
+/// [A302] Why a check ended.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum CheckEnd {
+    /// A target: the fight starts with the view on his spot.
+    Fight,
+    /// Hit since it began.
+    Hit,
+    /// Past the crossing's stretch.
+    Crossed,
+    /// A phase's cap.
+    Cap,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq)]
+struct SpotChecking {
+    check: SpotCheck,
+    began: u32,
+    phase: Checking,
+}
+
+/// [A302] A crossing is past once the bot is this much farther from the stop than the crossing is, m (a few steps
+/// into his line).
+const CHECK_PAST_M: f32 = 6.0;
+/// [A302] The view is on his eye within this cone, degrees wide: settled.
+const CHECK_SETTLED_DEG: f32 = 6.0;
 /// [A208] Two crossings this near are the same one, metres (`crossing_of`'s 2 m steps and a step's slack).
 const HOLD_SAME_CROSSING_M: f32 = 3.0;
 
@@ -3481,6 +3529,9 @@ pub struct Reflex {
     cloud_hold: Option<CloudHolding>,
     /// [A208] The crossing of the last hold that ended and when: a mate's cloud holds it there no second time.
     hold_ended: Option<(Vec3, u32)>,
+    /// [A302 `threat.check_spot`] A check of a known line under way, and the crossing and end of the last one.
+    spot_check: Option<SpotChecking>,
+    check_ended: Option<(Vec3, u32)>,
     /// [A208, the bench's] The last thrown smoke's crossing.
     #[cfg(test)]
     crossing_watch: Option<CrossingWatch>,
@@ -4472,6 +4523,106 @@ impl Reflex {
         }
         self.begin_hold(wait, me, now);
         true
+    }
+
+    /// [A302 `threat.check_spot`] Whether a check of a known line is under way.
+    pub fn checks_spot(&self) -> bool {
+        self.spot_check.is_some()
+    }
+
+    /// [A302 `threat.check_spot`] A check of a known line from now, if nothing has the legs or the look: no throw, no
+    /// cloud hold, no target, no check of the same crossing ended within `again_ms`. Whether it was begun.
+    pub fn check_spot(&mut self, check: SpotCheck, me: &PlaceView, now: u32) -> bool {
+        if self.spot_check.is_some() || self.cloud_hold.is_some() || self.smoke_throw.is_some() || self.throw.is_some() || self.target.is_some() {
+            return false;
+        }
+        if self
+            .check_ended
+            .is_some_and(|(crossing, ended)| crossing.distance_xz(check.crossing) <= HOLD_SAME_CROSSING_M && now < ended + check.rule.again_ms)
+        {
+            return false;
+        }
+        let phase = if me.feet.distance_xz(check.stop) <= HOLD_AT_M {
+            Checking::Settling { at: me.feet, since: now }
+        } else {
+            Checking::ToStop { since: now }
+        };
+        self.spot_check = Some(SpotChecking { check, began: now, phase });
+        self.smoke_notes.push(format!(
+            "checks the line of player {} at ({:.1}, {:.1}, {:.1}) before the crossing at ({:.1}, {:.1}, {:.1})",
+            check.shooter, check.eye.x, check.eye.y, check.eye.z, check.crossing.x, check.crossing.y, check.crossing.z
+        ));
+        #[cfg(test)]
+        check_tally::begun(me.team);
+        true
+    }
+
+    /// [A302 `threat.check_spot`] A check under way: walking the route to the stop with the view on his eye, standing at
+    /// the stop with the sights up until settled (`settle_least_ms` at least, `settle_most_ms` at most), then crossing
+    /// with the view and the sights on him; it ends on a target (the fight starts with the view on his spot), a hit
+    /// since it began, past the crossing's stretch, or a phase's cap. `None`: no check, or it ended.
+    fn spot_checking(&mut self, me: &PlaceView, now: u32, settle_s: f32, (legs, reload): (Option<Legs>, u32)) -> Option<Override> {
+        let mut s = self.spot_check?;
+        let c = s.check;
+        let rule = c.rule;
+        let hit = |at: Option<u32>| at.is_some_and(|at| at >= s.began);
+        let to_crossing = c.stop.distance_xz(c.crossing);
+        let end = if hit(self.hit_at) || hit(self.bullet_hit_at) {
+            Some(CheckEnd::Hit)
+        } else {
+            match s.phase {
+                Checking::ToStop { since } => (now >= since + rule.cross_most_ms).then_some(CheckEnd::Cap),
+                Checking::Settling { .. } => None,
+                Checking::Crossing { since } => {
+                    if me.feet.distance_xz(c.stop) >= to_crossing + CHECK_PAST_M {
+                        Some(CheckEnd::Crossed)
+                    } else {
+                        (now >= since + rule.cross_most_ms).then_some(CheckEnd::Cap)
+                    }
+                }
+            }
+        };
+        if let Some(why) = end {
+            self.end_check(me.team, now, why);
+            return None;
+        }
+        // The stop reached, or nearer the crossing than the stop is (the route bent round it): it stands there.
+        if let Checking::ToStop { .. } = s.phase
+            && (me.feet.distance_xz(c.stop) <= HOLD_AT_M || me.feet.distance_xz(c.crossing) <= to_crossing)
+        {
+            s.phase = Checking::Settling { at: me.feet, since: now };
+        }
+        if let Checking::Settling { since, .. } = s.phase {
+            let settled = super::sense::in_view(me.feet, me.yaw, c.eye, CHECK_SETTLED_DEG);
+            if now >= since + rule.settle_most_ms || (settled && now >= since + rule.settle_least_ms) {
+                s.phase = Checking::Crossing { since: now };
+            }
+        }
+        self.spot_check = Some(s);
+        let base = Override { look_at: Some(c.eye), turn_time_s: Some(settle_s), keys: reload, legs, band_m: self.band, ..Override::default() };
+        Some(match s.phase {
+            // Walking to the stop: the view on him through what hides him, the route's legs and pace.
+            Checking::ToStop { .. } => base,
+            Checking::Settling { at, .. } => Override {
+                keys: key::AIM | reload,
+                legs: Some(Legs { at, within_m: 1.0, run: false, crouch: me.crouched(), why: LegsWhy::CheckingSpot }),
+                ..base
+            },
+            Checking::Crossing { .. } => Override { keys: key::AIM | reload, ..base },
+        })
+    }
+
+    /// [A302] The check under way ended, for `why`: its crossing is not checked again within `again_ms`.
+    fn end_check(&mut self, team: u8, now: u32, why: CheckEnd) {
+        let Some(s) = self.spot_check.take() else {
+            return;
+        };
+        self.check_ended = Some((s.check.crossing, now));
+        self.smoke_notes.push(format!("ends the check of player {}'s line: {why:?}", s.check.shooter));
+        #[cfg(test)]
+        check_tally::ended(team, why);
+        #[cfg(not(test))]
+        let _ = team;
     }
 
     /// [A208] A hold begun, counted from `since`.
@@ -7410,6 +7561,10 @@ impl Reflex {
             if let Some(over) = self.fire_through((me, view), now, fire_allowed, aim, (legs, reload, carry), rng) {
                 return over;
             }
+            // [A302 `threat.check_spot`] A check of a known line under way.
+            if let Some(over) = self.spot_checking(me, now, settle_s, (legs, reload)) {
+                return over;
+            }
             // Play 21: the partner's death spot within `trade_m`, weapon
             // up, unless a shot was heard lately (play 6 first: the killer
             // is there, not at the body); else play 6.
@@ -7463,6 +7618,8 @@ impl Reflex {
                 },
             };
         };
+        // [A302] A target ends a check: the fight starts with the view on his spot.
+        self.end_check(me.team, now, CheckEnd::Fight);
         // The seen body where it is now (a seen enemy is tracked by eye).
         let body = view.place(track.who()).filter(|p| p.alive);
         let known = track.at() + Vec3::new(0.0, 1.3, 0.0);
@@ -8149,6 +8306,46 @@ fn bearing_rate(me: &PlaceView, point: Vec3, velocity: [f32; 2]) -> (f32, f32) {
     let (yaw0, pitch0) = angles(to);
     let (yaw1, pitch1) = angles(next);
     (wrap(yaw1 - yaw0) / DT, (pitch1 - pitch0) / DT)
+}
+
+/// [A302 `threat.check_spot`, measure] The checks of known lines by team: begun, then ended by [`CheckEnd`] (fight, hit,
+/// crossed, cap). Test builds only; nothing decides by it.
+#[cfg(test)]
+pub mod check_tally {
+    use super::CheckEnd;
+
+    thread_local! {
+        static CHECKS: std::cell::Cell<[[u64; 5]; 2]> = const { std::cell::Cell::new([[0; 5]; 2]) };
+    }
+
+    fn add(team: u8, k: usize) {
+        CHECKS.with(|c| {
+            let mut all = c.get();
+            all[usize::from(team).min(1)][k] += 1;
+            c.set(all);
+        });
+    }
+
+    pub fn begun(team: u8) {
+        add(team, 0);
+    }
+
+    pub fn ended(team: u8, why: CheckEnd) {
+        add(
+            team,
+            match why {
+                CheckEnd::Fight => 1,
+                CheckEnd::Hit => 2,
+                CheckEnd::Crossed => 3,
+                CheckEnd::Cap => 4,
+            },
+        );
+    }
+
+    /// By team: begun, fight, hit, crossed, cap, since the thread began.
+    pub fn counted() -> [[u64; 5]; 2] {
+        CHECKS.with(std::cell::Cell::get)
+    }
 }
 
 #[cfg(test)]
@@ -12145,6 +12342,56 @@ mod tests {
         assert!(reflex.smoke_throwing(&carrier, 50, &c, 0.1).is_none());
         assert!(reflex.can_smoke());
         assert!(reflex.take_smoke_notes().iter().any(|n| n.contains("gave up a smoke for CrossLane: carrying")));
+    }
+
+    /// [A302 `threat.check_spot`] A check walks the route to its stop with the view on his eye, stands there with the
+    /// sights up until the view is on him (at least `settle_least_ms`), crosses with them up, and ends past the crossing's
+    /// stretch; the same crossing is not checked again within `again_ms`, a target refuses one, and a hit ends one.
+    #[test]
+    fn a_check_stops_short_of_a_known_line_sights_up_and_crosses_with_them_on_him() {
+        use crate::v026g::bots::tuning::CheckSpot;
+        let rule = CheckSpot::default();
+        let check = SpotCheck {
+            shooter: 7,
+            eye: Vec3::new(40.0, 1.6, 20.0),
+            crossing: Vec3::new(0.0, 0.0, 20.0),
+            stop: Vec3::new(0.0, 0.0, 16.0),
+            rule,
+        };
+        let legs = None;
+        let me = body(0, 0, Vec3::ZERO, 0.0);
+        let mut reflex = Reflex::default();
+        assert!(reflex.check_spot(check, &me, 1_000));
+        assert!(!reflex.check_spot(check, &me, 1_000), "one at a time");
+        // Walking to the stop: the view on him, the route's legs, no sights.
+        let o = reflex.spot_checking(&me, 1_050, 0.1, (legs, 0)).expect("walking");
+        assert_eq!((o.look_at, o.keys, o.legs), (Some(check.eye), 0, None));
+        // At the stop: standing, sights up.
+        let yaw = crate::v026g::bots::kin::yaw_of([40.0, 4.8]);
+        let at = Vec3::new(0.0, 0.0, 15.2);
+        let there = body(0, 0, at, yaw + 1.0);
+        let o = reflex.spot_checking(&there, 1_100, 0.1, (legs, 0)).expect("stands");
+        assert_eq!(o.keys & key::AIM, key::AIM);
+        assert!(o.legs.is_some_and(|l| l.why == LegsWhy::CheckingSpot && l.at == at), "{o:?}");
+        // The view off him: it stands on (up to settle_most_ms); on him after settle_least_ms: it crosses.
+        assert!(reflex.spot_checking(&there, 1_100 + rule.settle_least_ms, 0.1, (legs, 0)).is_some_and(|o| o.legs.is_some()));
+        let aimed = body(0, 0, at, yaw);
+        let o = reflex.spot_checking(&aimed, 1_100 + rule.settle_least_ms + 50, 0.1, (legs, 0)).expect("crosses");
+        assert_eq!((o.look_at, o.keys & key::AIM, o.legs), (Some(check.eye), key::AIM, None));
+        // Past the stretch: over.
+        let past = body(0, 0, Vec3::new(0.0, 0.0, 26.5), yaw);
+        assert!(reflex.spot_checking(&past, 2_000, 0.1, (legs, 0)).is_none());
+        assert!(!reflex.checks_spot());
+        assert!(reflex.take_smoke_notes().iter().any(|n| n.contains("Crossed")));
+        assert!(!reflex.check_spot(check, &me, 2_000 + rule.again_ms - 1), "the same crossing again too soon");
+        assert!(reflex.check_spot(check, &me, 2_000 + rule.again_ms));
+        // A hit ends it.
+        reflex.bullet_hit(Some(12_100));
+        assert!(reflex.spot_checking(&me, 12_150, 0.1, (legs, 0)).is_none());
+        assert!(!reflex.checks_spot());
+        // With a target none begins.
+        let mut fighting = Reflex { target: Some(3), ..Reflex::default() };
+        assert!(!fighting.check_spot(check, &me, 1_000));
     }
 
     /// [A208 `smoke.wait_for_cloud`] After the launch the thrower walks on to its hold point (no override), stands
