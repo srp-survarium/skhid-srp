@@ -122,6 +122,15 @@ pub struct GridTuning {
     /// 2 s of one 9 -> 4, every guard level, CPU level). The old value offers jumps down the client's body does not make, so the
     /// all-off arm keeps the default (`KEPT_RIGHT`). A grid is the map's (see `gap_links`).
     pub gap_no_vaults: bool,
+    /// [A304] Whether the maps' walk grids keep, by floor, the slope of a ramp face under it (`mapdata::Body::ramp_faces`,
+    /// `WalkGrid::ramp_slope_deg`): a walker ramp laid over steps, which the client walks at cos of its grade (Cologne's stairs),
+    /// told from real stairs with flat treads. A mark only, read by the reckoning's slope rule (`kin.slope_speed`); on with it. A
+    /// grid is the map's (see `gap_links`).
+    pub ramp_faces: bool,
+    /// [A304] Whether `drop_room`'s walls count steep faces whatever their walker behaviour (`mapdata::Body::drop_room_walk_faces`): a
+    /// parapet with `walk` faces then cuts the walk-off over it as any wall does (level 7's deck). ON (A304: the drift lab, all 15
+    /// client-test recordings: level 7 -9.2 %, no other map changed). A grid is the map's (see `gap_links`).
+    pub drop_room_walk_faces: bool,
 }
 
 impl Default for GridTuning {
@@ -144,6 +153,8 @@ impl Default for GridTuning {
             steep_walk_base: true,
             pocket_exits_walled: true,
             gap_no_vaults: true,
+            ramp_faces: true,
+            drop_room_walk_faces: true,
         }
     }
 }
@@ -174,6 +185,8 @@ impl GridTuning {
             steep_walk_base: self.steep_walk_base,
             pocket_exits_walled: self.pocket_exits_walled,
             gap_no_vaults: self.gap_no_vaults,
+            ramp_faces: self.ramp_faces,
+            drop_room_walk_faces: self.drop_room_walk_faces,
             ..body
         }
     }

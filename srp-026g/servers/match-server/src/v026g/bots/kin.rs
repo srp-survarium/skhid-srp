@@ -76,36 +76,46 @@ pub struct Kinematics {
     pub pitch_scale: PitchScale,
     /// [A304] How a ground step over a slope is reckoned ([`SlopeSpeed`]).
     pub slope_speed: SlopeSpeed,
+    /// [A304] The flattest ramp face (degrees, the grid's ramp mark) [`SlopeSpeed::RampsGrade`] slows on: a floor whose mark is
+    /// flatter counts as unmarked. 35 (the lab, 2026-11-05: Vostok Radar Station's and Chemical Plant's stairs carry 20-39 degree
+    /// marks and the client climbs them at full speed; Cologne's slowing stairs are 45; 35 was better than 40 and 44). 20: every
+    /// mark (`mapdata::grid::RAMP_MIN_DEG`).
+    pub ramp_min_deg: f32,
 }
 
 /// [A304] How the reckoned body's ground step goes over a slope of the walk grid.
 ///
-/// The client's capsule moves along its walker floor at the keys' speed, so over a slope its ground speed is the speed times the
-/// cosine of the grade: on the 45 degree stair ramps of the walker mesh a sprint's 5.1 m/s is 3.6 m/s over the ground (fx-grid's
-/// class of fx-bench's 73 slowed sprints, 2026-11-05: stairs and ramps of 20-50 degrees, 51 %). The reckoning moved at the keys'
-/// ground speed whatever the floor.
+/// The client's capsule moves along its walker floor at the keys' speed, so over a ramp its ground speed is the speed times the
+/// cosine of the grade along the walk: on Cologne's 45 degree stair ramps a sprint's 5.1 m/s is 3.6 m/s over the ground (fx-grid's
+/// class of fx-bench's 73 slowed sprints, 2026-11-05: stairs and ramps, 51 %). On real stairs with treads the capsule steps up
+/// (`cc_step_height`) at full speed. The reckoning moved at the keys' ground speed whatever the floor.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum SlopeSpeed {
     /// The keys' ground speed on any floor (as it was).
-    #[default]
     Planar,
-    /// A step whose floor rises is shortened to the cosine of its grade; a falling one is not.
+    /// Every rising step is shortened to the cosine of its grade (the lab's first rule: real stairs too, which made Vostok Radar
+    /// Station and Chemical Plant worse).
     Up,
-    /// A step whose floor rises or falls is shortened to the cosine of its grade.
-    Both,
+    /// A rising step on a floor with a ramp mark at least [`Kinematics::ramp_min_deg`] steep (`grid.ramp_faces`,
+    /// `WalkGrid::ramp_slope_deg`) is shortened to the cosine of its own grade: the rise along the walk, not the face's slope, as
+    /// a walk across a ramp climbs little. Falling steps and unmarked floors keep their length (the client does not slow down a
+    /// ramp, in the lab).
+    #[default]
+    RampsGrade,
 }
 
 impl SlopeSpeed {
-    /// The share of a ground step of `run` metres that rises `rise` metres the body covers: 1 on the flat or where the setting
-    /// leaves the step as it is, else the grade's cosine.
-    pub fn share(self, run: f32, rise: f32) -> f32 {
-        let counts = match self {
+    /// The share of a ground step of `run` metres that rises `rise` metres the body covers, on a floor whose ramp mark is
+    /// `ramp_deg` (`None`: no mark, or one flatter than [`Kinematics::ramp_min_deg`]): 1 where the setting leaves the step as it
+    /// is, else the grade's cosine.
+    pub fn share(self, run: f32, rise: f32, ramp_deg: Option<f32>) -> f32 {
+        let shortened = match self {
             Self::Planar => false,
             Self::Up => rise > 0.0,
-            Self::Both => rise != 0.0,
+            Self::RampsGrade => rise > 0.0 && ramp_deg.is_some(),
         };
-        if counts && run > 1e-4 { run / run.hypot(rise) } else { 1.0 }
+        if shortened && run > 1e-4 { run / run.hypot(rise) } else { 1.0 }
     }
 }
 
@@ -235,7 +245,8 @@ impl Default for Kinematics {
             margin_edge: MarginEdge::Body,
             fix_floor: FixFloor::UnderInJump,
             pitch_scale: PitchScale::Client,
-            slope_speed: SlopeSpeed::Planar,
+            slope_speed: SlopeSpeed::RampsGrade,
+            ramp_min_deg: 35.0,
         }
     }
 }
@@ -425,18 +436,26 @@ mod tests {
     }
 
     #[test]
-    fn a_step_up_a_slope_covers_the_grades_cosine_and_a_flat_or_falling_one_all_of_it() {
+    fn a_step_up_a_marked_ramp_covers_its_grades_cosine_and_any_other_step_all_of_it() {
         let close = |a: f32, b: f32| (a - b).abs() < 1e-3;
-        // A 45 degree ramp: a step of 0.25 m that rises 0.25 m covers cos 45 of the run.
-        let up = SlopeSpeed::Up.share(0.25, 0.25);
-        assert!(close(up, std::f32::consts::FRAC_1_SQRT_2), "{up}");
-        // The sprint's ground speed there: 5.1 x 0.707 = 3.6 m/s, the client's on the stairs.
+        let cos45 = std::f32::consts::FRAC_1_SQRT_2;
+        // A 45 degree ramp with its mark: a step of 0.25 m that rises 0.25 m covers cos 45 of the run.
+        let up = SlopeSpeed::RampsGrade.share(0.25, 0.25, Some(45.0));
+        assert!(close(up, cos45), "{up}");
+        // The sprint's ground speed there: 5.1 x 0.707 = 3.6 m/s, the client's on Cologne's stairs.
         assert!(close(5.1 * up, 3.606), "{}", 5.1 * up);
-        assert_eq!(SlopeSpeed::Up.share(0.25, 0.0), 1.0, "the flat");
-        assert_eq!(SlopeSpeed::Up.share(0.25, -0.25), 1.0, "down a slope: all of it");
-        assert!(close(SlopeSpeed::Both.share(0.25, -0.25), std::f32::consts::FRAC_1_SQRT_2), "both: down too");
-        assert_eq!(SlopeSpeed::Planar.share(0.25, 0.25), 1.0, "planar: as it was");
-        assert_eq!(SlopeSpeed::Up.share(0.0, 0.3), 1.0, "no run: nothing to shorten");
+        // Across a ramp: the step's own grade, not the face's.
+        assert!(close(SlopeSpeed::RampsGrade.share(0.25, 0.1, Some(45.0)), 0.25 / 0.25f32.hypot(0.1)));
+        assert_eq!(SlopeSpeed::RampsGrade.share(0.25, 0.25, None), 1.0, "no mark (real stairs): full speed");
+        assert_eq!(SlopeSpeed::RampsGrade.share(0.25, -0.25, Some(45.0)), 1.0, "down a ramp: all of it");
+        assert_eq!(SlopeSpeed::RampsGrade.share(0.25, 0.0, Some(45.0)), 1.0, "a flat step on a marked floor");
+        assert_eq!(SlopeSpeed::RampsGrade.share(0.0, 0.3, Some(45.0)), 1.0, "no run: nothing to shorten");
+        assert!(close(SlopeSpeed::Up.share(0.25, 0.25, None), cos45), "up: any rising step, mark or none");
+        assert_eq!(SlopeSpeed::Up.share(0.25, -0.25, None), 1.0);
+        assert_eq!(SlopeSpeed::Planar.share(0.25, 0.25, Some(45.0)), 1.0, "planar: as it was");
+        // The defaults: the ramp rule, from 35 degree marks.
+        let kin = Kinematics::default();
+        assert_eq!((kin.slope_speed, kin.ramp_min_deg), (SlopeSpeed::RampsGrade, 35.0));
     }
 
     #[test]

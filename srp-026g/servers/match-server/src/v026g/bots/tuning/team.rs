@@ -176,12 +176,12 @@ impl Default for ModTuning {
             smoothing: 0.2,
             min: 0.1,
             max: 1.0,
-            // A296 items 2, 4 and 5 ON together (the owner: ship the intended design ON with a safety, then tune): their joint
-            // by-side bench from a 2-battery gap (112 pairs, 600 s) had the behind side's wins 22 vs 19, points +2.9 %, delivered
-            // +4.3 %, steals +25 %, the ahead side no worse (wins 80 vs 72), no guard FAIL.
-            team_plan: Some(TeamPlanRule::default()),
-            behind_open: Some(BehindOpen::default()),
-            raid_regroup: Some(RaidRegroup::default()),
+            // A296 items 2, 4 and 5: OFF again. ON by #1272 on 112 pairs (behind side up, no guard FAIL); its 224-pair check turned
+            // down: behind points 810 vs 816, thefts suffered 111 vs 95, attack deaths +17.8 % (z +5.0, a guard FAIL): the
+            // comeback takes the behind team off defence (Raid time +81 %, Raid deaths +36 %, its container unheld +58 %).
+            team_plan: None,
+            behind_open: None,
+            raid_regroup: None,
         }
     }
 }
@@ -1152,7 +1152,7 @@ impl Default for ThinkTuning {
             stranded_start: true,
             goal_off_floor_no_way: true,
             door_centres: false,
-            wall_clear_corners: false,
+            wall_clear_corners: true,
             stamina: true,
             stamina_rates: StaminaRates::Kit,
             fall_lock: true,

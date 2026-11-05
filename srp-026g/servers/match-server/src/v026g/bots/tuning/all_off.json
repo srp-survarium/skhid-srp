@@ -76,12 +76,14 @@
   },
   "grid": {
     "crouch_floors": false,
+    "drop_room_walk_faces": false,
     "exact_erosion": false,
     "floor_paths": false,
     "gap_links": false,
     "honest_drops": false,
     "jump_cap_m": 1.05,
     "landing_carry": false,
+    "ramp_faces": false,
     "walk_off_lips": false
   },
   "hazard": {
@@ -100,17 +102,13 @@
   },
   "kin": {
     "edge": "lattice",
-    "margin_edge": "lattice"
+    "margin_edge": "lattice",
+    "slope_speed": "planar"
   },
   "kit": {
     "frags": "off",
     "pocket_store": false,
     "smoke": "off"
-  },
-  "mods": {
-    "behind_open": null,
-    "raid_regroup": null,
-    "team_plan": null
   },
   "pace": {
     "calm_sprint": false,
@@ -190,7 +188,8 @@
     "search_queue": "first_come",
     "shut_in_gate": false,
     "stamina": false,
-    "stranded_start": false
+    "stranded_start": false,
+    "wall_clear_corners": false
   },
   "traps": {
     "chance": 0.35,
