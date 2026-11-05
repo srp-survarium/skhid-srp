@@ -111,7 +111,9 @@
 #      --now: nothing is planned;
 #   5. at the planned time, once the launcher page says the server is
 #      down and $SKHID_SITE/api/stats says "matches":0 (waiting up to
-#      --match-wait more): shows what changes, y/N (or touch the swap file
+#      --match-wait more); sooner, once "matches":0 has held 30 s while
+#      Play is locked (polled every quarter of a minute while it waits for
+#      the planned time): shows what changes, y/N (or touch the swap file
 #      it names beside the go file; no answer in
 #      $SKHID_SWAP_ANSWER_MINUTES, default 10: no), then the swap of
 #      release/deploy. With --no-maintenance: once "matches":0 (waiting up
@@ -1493,9 +1495,9 @@ if ((now)); then
 elif ((no_maint)); then
     say "  maintenance: none (--no-maintenance)$scale; prepared and staged before the go, then at the go the swap as soon as $TARGET_SITE/api/stats says \"matches\":0 (up to $match_wait min, --match-wait); lobby players get a ~30 s \"server sync\" and reconnect"
 elif [[ -n $minutes ]]; then
-    say "  maintenance: in $minutes min (--minutes)$scale, planned right after the go; prepared and staged before the go; players see the countdown, Play is locked in its last 30 min; the swap at its end, once \"matches\":0"
+    say "  maintenance: in $minutes min (--minutes)$scale, planned right after the go; prepared and staged before the go; players see the countdown, Play is locked in its last 30 min; the swap at its end, once \"matches\":0, or sooner once \"matches\":0 has held 30 s while Play is locked"
 else
-    say "  maintenance: planned right after the go, to start 30 s after the last running match ends$scale; prepared and staged before the go; players see the countdown, Play is locked from then on; the swap at its end, once \"matches\":0"
+    say "  maintenance: planned right after the go, to start 30 s after the last running match ends$scale; prepared and staged before the go; players see the countdown, Play is locked from then on; the swap at its end, once \"matches\":0, or sooner once \"matches\":0 has held 30 s"
 fi
 # What comes right after the go.
 if ((now)); then
@@ -1621,7 +1623,7 @@ else
         say "(up to $match_wait min), after one more y/N."
     else
         say "Next, at the go: the maintenance planned on $TARGET_SITE at once, $(if [[ -n $minutes ]]; then printf 'in %s min (--minutes)' "$minutes"; else printf 'to start 30 s after the last running match ends'; fi): Play locks;"
-        say "the swap at its end, once no match runs, after one more y/N. From the plan on, a stop cancels it."
+        say "the swap at its end, once no match runs (sooner once none has run for 30 s), after one more y/N. From the plan on, a stop cancels it."
     fi
     wait_for_go "$after_go"
     go_given=1
@@ -1634,8 +1636,8 @@ else
     fi
 fi
 
-# 5. The swap, at the planned time, once no match runs (--no-maintenance:
-# no planned time; --now: at once).
+# 5. The swap, at the planned time at the latest, once no match runs
+# (--no-maintenance: no planned time; --now: at once).
 if ((DRY_RUN && now)); then
     say "[dry run] 5. at the go: the swap at once, NO wait for matches (--now: the running ones end without results), y/N (no answer in $answer_wait min: no) and:"
     SWAP_BEFORE_STOP=count_ended_matches
@@ -1643,7 +1645,7 @@ elif ((DRY_RUN && no_maint)); then
     say "[dry run] 5. at the go: wait for \"matches\":0 on $TARGET_SITE/api/stats (up to $match_wait min), then y/N (no answer in $answer_wait min: no) and:"
     SWAP_BEFORE_STOP=match_check_before_stop
 elif ((DRY_RUN)); then
-    say "[dry run] 5. at the planned time: the launcher page saying the server is down, and \"matches\":0 on $TARGET_SITE/api/stats (up to $match_wait min more), then y/N (no answer in $answer_wait min: no) and:"
+    say "[dry run] 5. at the planned time: the launcher page saying the server is down, and \"matches\":0 on $TARGET_SITE/api/stats (up to $match_wait min more); sooner, polling $TARGET_SITE/api/stats while it waits: once \"matches\":0 has held $LAST_MATCH_MARGIN s while Play is locked (the countdown's last 30 min), the swap at once; then y/N (no answer in $answer_wait min: no) and:"
 elif ((now)); then
     progress "5. --now: the swap at once, NO wait for matches, NO notice was given"
 elif ((no_maint)); then
@@ -1651,13 +1653,31 @@ elif ((no_maint)); then
     limit=$(($(date +%s) + match_wait * MINUTE))
     wait_no_match "after $match_wait min of waiting (--match-wait)"
 else
+    # The planned time is the latest: once no match has run for
+    # LAST_MATCH_MARGIN s (the plan's own margin after the last match),
+    # while Play is locked (the countdown's last 30 min), the swap comes
+    # at once.
+    said=- idle_since=''
     while (($(date +%s) < end)); do
-        progress "5. waiting for the planned time ($(clock "$end") UTC)"
+        matches=$(matches_now)
+        if [[ $matches != "$said" ]]; then
+            progress "5. waiting for the planned time ($(clock "$end") UTC): ${matches:-? (no answer from /api/stats)} match(es) running"
+            said=$matches
+        fi
+        now_s=$(date +%s)
+        if [[ $matches != 0 ]] || ((end - now_s > 30 * MINUTE)); then
+            idle_since=''
+        elif ((now_s - ${idle_since:=$now_s} >= LAST_MATCH_MARGIN)); then
+            progress "5. no match has run for $LAST_MATCH_MARGIN s: swapping now, $(((end - now_s + MINUTE - 1) / MINUTE)) min before the planned time"
+            break
+        fi
         left=$((end - $(date +%s)))
-        if ((left > MINUTE)); then pause 1; elif ((left > 0)); then nap "$left"; fi
+        if ((left * 4 > MINUTE)); then pause 0.25; elif ((left > 0)); then nap "$left"; fi
     done
+    # The launcher page says the server is down from the planned time on
+    # (not before it, after an early swap).
     limit=$(($(date +%s) + 5 * MINUTE))
-    while :; do
+    while (($(date +%s) >= end)); do
         state=$(maintenance_state)
         [[ $state == down ]] && break
         [[ $state != none ]] || die "the maintenance is no longer planned on $TARGET_SITE (cancelled on the admin page, or srp restarted)"
