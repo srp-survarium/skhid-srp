@@ -54,6 +54,7 @@ mod damage_zones;
 mod feel;
 mod fight;
 mod fire_gate;
+mod first_shot;
 mod gang_up;
 mod golden;
 mod grenades;
@@ -111,6 +112,7 @@ use damage_zones::*;
 use feel::*;
 use fight::*;
 use fire_gate::FireGate;
+use first_shot::FirstShotCounts;
 use gang_up::*;
 use grenades::*;
 use grid::*;
@@ -250,6 +252,7 @@ impl OwnerTally {
     pub(crate) fn set_scoreboard(&mut self, context: String, mode: survarium::v026g::maps::RuleMode, human: Option<Place>, camper: Option<Place>) {
         self.topic::<Feel>().set_human(human, camper);
         self.topic::<LookCounts>().set_human(human);
+        self.topic::<FirstShotCounts>().set_human(human);
         self.topic::<CollectAtCounts>().set_stand_in(human.or(camper));
         self.topic::<UnderFireCounts>().set_human(human);
         self.topic::<GroupCounts>().set_human(human);
