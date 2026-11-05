@@ -139,3 +139,6 @@ engine_create_sound_voice	0x059e70	EAX:world ESP+4:scene ESP+8:propagator ESP+12
 engine_detach_voice	0x05cb80	ESP+4:propagator	void engine_detach_voice(struct new_sound_propagator *propagator)	stdcall	
 engine_sound_options	vostok::sound::sound_propagator_emitter+0x8	ECX:emitter	const struct sound_options *engine_sound_options(const struct sound_propagator_emitter *emitter)	virtual	
 engine_buffer_reallocate	0x07ab70	ESI:mutable_buffer EDI:capacity	void engine_buffer_reallocate(void *buffer, unsigned int capacity)	thunk	
+engine_follow_player	0x242b90	ECX:client ESP+4:player	void engine_follow_player(struct network_client *client, struct player *player)	thiscall
+engine_spectator_camera	0x1f8360	EDX:world	void engine_spectator_camera(struct game_world *world)	thunk
+engine_detach_player	0x242cc0	ECX:client	void engine_detach_player(struct network_client *client)	thiscall	

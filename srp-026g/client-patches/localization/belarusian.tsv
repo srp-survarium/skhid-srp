@@ -2634,9 +2634,11 @@ st_srp_rooms_pool_hint	Галасаванне бярэ 3 карткі з іх.
 st_srp_rooms_private_room	Прыватны пакой: да 20 гульцоў; каманды і старт за вамі.
 st_srp_rooms_queue	Чарга
 st_srp_rooms_queue_room	Чарга ў пакой
+st_srp_rooms_queue_spectate	У чаргу і глядзець
 st_srp_rooms_room	Пакой
 st_srp_rooms_room_chat	Чат пакоя
 st_srp_rooms_servers	Пакоі
+st_srp_rooms_spectators	Гледачы:
 st_srp_rooms_start_hint	Націсніце «Пачаць», калі ўсе зойдуць.
 st_srp_rooms_start_match	Пачаць
 st_srp_rooms_starts	Матч пачнецца праз

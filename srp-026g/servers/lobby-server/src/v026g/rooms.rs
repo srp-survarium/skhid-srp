@@ -98,7 +98,7 @@ use survarium::v026g::lobby::{self, ClientState};
 use survarium::v026g::maps;
 
 use super::MAINTENANCE_WINDOW;
-use super::core::{Core, Who};
+use super::core::{Core, JoinAt, Who};
 use super::play::{MatchPlayer, Running, match_profile};
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -226,8 +226,7 @@ impl Core<'_> {
             .extra_maps
             .iter()
             .filter(|id| !pool.contains(id));
-        pool
-            .iter()
+        pool.iter()
             .map(|id| (*id, false))
             .chain(extra.map(|id| (*id, true)))
             .filter_map(|(id, extra)| {
@@ -348,8 +347,14 @@ impl Core<'_> {
         if self.pool_for_sessions([player.session_id]) != Some(QueuePool::GrowingRoster) {
             return Err(RoomCode::Outdated);
         }
-        if player.in_match.is_some()
-            || player.connect.is_some()
+        // A spectator (Queue and spectate) is in the match it watches with
+        // no place: its room's queue lets it in all the same.
+        let watching = self
+            .store
+            .matchmaking()
+            .watched(player.session_id)
+            .is_some();
+        if (!watching && (player.in_match.is_some() || player.connect.is_some()))
             || player.queued_since.is_some()
             || self
                 .store
@@ -405,7 +410,7 @@ impl Core<'_> {
                 | RoomRequest::Friends
                 | RoomRequest::Offer { .. }
         ) {
-            self.room_shown(who.account_id);
+            self.room_shown(who.account_id, now);
         }
         match request {
             RoomRequest::List { count } => {
@@ -508,10 +513,15 @@ impl Core<'_> {
             RoomRequest::Join { key } => self.room_join(who, key, now),
             RoomRequest::Offer { key } => self.room_offer(who, key),
             RoomRequest::PresetJoin { preset, key } => self.room_preset_join(who, preset, key, now),
-            RoomRequest::Queue { key } => self.room_queue(who, key, now),
+            RoomRequest::Queue { key } => self.room_queue(who, key, QueueChoice::Chosen, now),
+            // Queue and spectate: the same queue, and its match watched
+            // meanwhile (`room_watchers`).
+            RoomRequest::QueueWatch { key } => {
+                self.room_queue(who, key, QueueChoice::ChosenToWatch, now)
+            }
             RoomRequest::JoinMatch => {
                 // The member does not wait: into its room's match now.
-                self.room_join_at.insert(who.account_id, now);
+                self.room_join_at.insert(who.account_id, JoinAt::At(now));
                 self.room_late_join(who.account_id, now);
                 self.send_room_state(who, RoomCode::None, now);
             }
@@ -519,7 +529,10 @@ impl Core<'_> {
             // ask, of any room (a PIN keeps the door, not the names).
             RoomRequest::Members { key } => {
                 let members = self.room_members(who, key);
-                self.send_made(who.addr, wire::room_members(key, &members));
+                self.send_made(
+                    who.addr,
+                    wire::room_members(key, &members, &self.room_spectators(key)),
+                );
             }
             // A commander takes its pair's place out whole; its mate leaves
             // it alone (`Rooms::dequeue`).
@@ -587,7 +600,7 @@ impl Core<'_> {
     /// only, one at a time; a room with a place is joined at once
     /// ([`Self::room_join`]). A squad mate free in the lobby waits with it
     /// (`room_mate`). The state answers it.
-    fn room_queue(&mut self, who: &Who, key: u32, now: Instant) {
+    fn room_queue(&mut self, who: &Who, key: u32, choice: QueueChoice, now: Instant) {
         let gear = matchmaking::gear_level(&who.account.locked(), quests::now());
         let mate = self.room_mate(who.account_id);
         let free = self.rooms.get(key).is_some_and(|room| {
@@ -608,7 +621,7 @@ impl Core<'_> {
             Err(code) => code,
             Ok(()) => {
                 let before = self.rooms.queue_place(who.account_id);
-                match self.room_enqueue_party(who, gear, mate, key, QueueChoice::Chosen, now) {
+                match self.room_enqueue_party(who, gear, mate, key, choice, now) {
                     Ok(place) => {
                         // Queue stays lit while queued: a press again
                         // is logged only when the place moved.
@@ -769,7 +782,7 @@ impl Core<'_> {
                 if key == 0 {
                     self.room_play_pressed(who, now);
                 } else {
-                    self.room_queue(who, key, now);
+                    self.room_queue(who, key, QueueChoice::Chosen, now);
                 }
             }
             Err(_) => self.send_room_state(who, RoomCode::PresetRefused, now),
@@ -886,7 +899,7 @@ impl Core<'_> {
     /// new one; the lobby state, so the movie shows it. Its own room if it
     /// has one.
     pub(super) fn room_play(&mut self, who: &Who, now: Instant) {
-        self.room_shown(who.account_id);
+        self.room_shown(who.account_id, now);
         self.room_quick(who, now);
         self.send(who.addr, lobby::client_state(&ClientState::Lobby, None));
     }
@@ -1296,6 +1309,7 @@ impl Core<'_> {
                     .map(|member| room.sides.get(member).copied().unwrap_or(0))
                     .collect()
             }),
+            spectators: self.room_spectators(room.key),
         })
     }
 
@@ -1362,11 +1376,12 @@ impl Core<'_> {
             return Ok(None);
         };
         let left = || {
-            let at = self
-                .room_join_at
-                .get(&who.account_id)
-                .copied()
-                .unwrap_or(now + wire::rules().late_join_wait);
+            let at = match self.room_join_at.get(&who.account_id) {
+                Some(JoinAt::At(at)) => *at,
+                // Its game asked: it goes in at once (`room_shown`).
+                Some(JoinAt::Shown) => now,
+                None => now + wire::rules().late_join_wait,
+            };
             at.saturating_duration_since(now).as_millis().div_ceil(1000) as u32
         };
         // Its place in the match is kept (its game started anew, or came
@@ -1632,8 +1647,7 @@ impl Core<'_> {
                 let fits = self.room_fit_of(lead).is_ok()
                     && self.rooms.get(key).is_some_and(|room| {
                         room.lets_in(gear_of(lead))
-                            && (choice == QueueChoice::Chosen
-                                || PublicBracket::of(party_gear).contains(room))
+                            && (choice.is_chosen() || PublicBracket::of(party_gear).contains(room))
                     });
                 let beside = goes.get(&lead).and_then(|(_, beside)| *beside);
                 if fits && self.rooms.admit_party(&accounts, key, beside) {
@@ -1674,7 +1688,12 @@ impl Core<'_> {
     /// The account's game was told its room (a request answered with its
     /// state, or Play): the room plays with it again. One that comes while
     /// its room's match is played sees the room first (`RoomRules::late_join_wait`).
-    fn room_shown(&mut self, account_id: u32) {
+    fn room_shown(&mut self, account_id: u32, now: Instant) {
+        // A spectator given a place: its game is back in the lobby and goes
+        // into the match at once, with no room shown first.
+        if self.room_join_at.get(&account_id) == Some(&JoinAt::Shown) {
+            self.room_join_at.insert(account_id, JoinAt::At(now));
+        }
         if self.room_unseen.remove(&account_id).is_some() {
             self.room_join_at.remove(&account_id);
             log::info!("Account {account_id}: its game started anew was told its room");
@@ -1712,6 +1731,126 @@ impl Core<'_> {
         self.rooms.forget_pin(account_id);
         self.room_codes.remove(&account_id);
         self.room_unseen.remove(&account_id);
+    }
+
+    /// Queue and spectate (`docs/notes/queue-spectate.md`), one pass for
+    /// every way a watch starts and ends: whoever waits in a room's queue by
+    /// that button while the room's match is played watches it; nobody else
+    /// does.
+    /// - A spectator whose game left the match by itself (its menu's Leave
+    ///   match, its link) is out of the queue.
+    /// - A watch nobody waits for any more ends (the match server closes its
+    ///   link; `queue_status` puts it back in the lobby): its place came
+    ///   (it then goes into the match as soon as its game asks for its room,
+    ///   `room_shown`), Leave queue, a join or a room made, the match over.
+    /// - A waiter free in the lobby, its game of the growing roster, starts
+    ///   watching unless its room's match is ending; `queue_status` sends
+    ///   it (`send_to_watch`).
+    fn room_watchers(&mut self, now: Instant) {
+        for (match_id, account_id) in self.store.matchmaking().take_watchers_left() {
+            if let Some(key) = self.rooms.dequeue(account_id) {
+                log::info!(
+                    "{}: left match {match_id:#x}, which it watched, and with it room {key}'s \
+                     queue",
+                    self.name_of(account_id).unwrap_or_default()
+                );
+            }
+        }
+        // Who should watch: by account, the room's match (the lobby's id).
+        let wanted: HashMap<u32, u32> = self
+            .rooms
+            .watching_queue()
+            .into_iter()
+            .filter_map(|(account_id, key)| match self.rooms.get(key)?.stage {
+                Stage::InMatch { match_id, .. } if self.matches.contains_key(&match_id) => {
+                    Some((account_id, match_id))
+                }
+                _ => None,
+            })
+            .collect();
+        let matchmaking = self.store.matchmaking();
+        for &match_id in self.matches.keys() {
+            for (session_id, watcher) in matchmaking.watchers_of(match_id) {
+                let current = self
+                    .by_account
+                    .get(&watcher.account_id)
+                    .and_then(|addr| self.player(*addr))
+                    .is_some_and(|player| player.session_id == session_id);
+                if current && wanted.get(&watcher.account_id) == Some(&match_id) {
+                    continue;
+                }
+                matchmaking.stop_watching(session_id);
+                let placed = self.rooms.of(watcher.account_id).is_some_and(|room| {
+                    matches!(room.stage, Stage::InMatch { match_id: id, .. } if id == match_id)
+                });
+                if placed {
+                    self.room_join_at.insert(watcher.account_id, JoinAt::Shown);
+                }
+                log::info!(
+                    "{}: watches match {match_id:#x} no more{}",
+                    self.name_of(watcher.account_id).unwrap_or_default(),
+                    if placed { ": a place came" } else { "" }
+                );
+            }
+        }
+        for (account_id, match_id) in wanted {
+            let Some(addr) = self.room_free(account_id) else {
+                continue;
+            };
+            let Some((session_id, ticket)) = self.player(addr).and_then(|player| {
+                let running = self.matches.get(&match_id)?;
+                Some((player.session_id, running.ticket.match_id))
+            }) else {
+                continue;
+            };
+            // The match server runs the match once a seated game connected
+            // (it says then whether the match admits, or why not): before,
+            // a spectator's game would be turned away. Not one ending.
+            let closed = self.host.closed(ticket, now);
+            let running = closed.is_some() || self.host.admits(ticket, now);
+            if self.pool_for_sessions([session_id]) != Some(QueuePool::GrowingRoster)
+                || !running
+                || closed == Some(Closed::Ending)
+            {
+                continue;
+            }
+            let watcher = session::Watcher {
+                match_id,
+                ticket,
+                account_id,
+            };
+            if matchmaking.watch(session_id, watcher) {
+                log::info!(
+                    "{}: watches its queue's room's match {ticket:#x}",
+                    self.name_of(account_id).unwrap_or_default()
+                );
+            }
+        }
+    }
+
+    /// The spectators of the room's match being played (Queue and
+    /// spectate), in queue order: what its window and the list's panel show.
+    fn room_spectators(&self, key: u32) -> Vec<String> {
+        let Some(Stage::InMatch { match_id, .. }) = self.rooms.get(key).map(|room| room.stage)
+        else {
+            return Vec::new();
+        };
+        let matchmaking = self.store.matchmaking();
+        let watching: HashSet<u32> = matchmaking
+            .watchers_of(match_id)
+            .into_iter()
+            .map(|(_, watcher)| watcher.account_id)
+            .collect();
+        self.rooms
+            .queue_of(key)
+            .into_iter()
+            .flat_map(Waiting::accounts)
+            .filter(|account_id| watching.contains(account_id))
+            .filter_map(|account_id| self.name_of(account_id))
+            // The first of the queue, as many as the rows say: the room's
+            // state is never refused for its spectators.
+            .take(wire::SPECTATORS_MAX)
+            .collect()
     }
 
     /// Who left its room's match by its own word (its game's 0xE0, which
@@ -1881,6 +2020,8 @@ impl Core<'_> {
         if !self.store.squads().is_empty() {
             self.squads_dirty = true;
         }
+        // Queue and spectate: who watches, before the rooms can be gone.
+        self.room_watchers(now);
         if self.rooms.is_empty() {
             return;
         }
@@ -1958,8 +2099,8 @@ impl Core<'_> {
             let at = *self
                 .room_join_at
                 .entry(account_id)
-                .or_insert(now + wire::rules().late_join_wait);
-            if at <= now {
+                .or_insert(JoinAt::At(now + wire::rules().late_join_wait));
+            if matches!(at, JoinAt::At(at) if at <= now) {
                 self.room_late_join(account_id, now);
             }
         }

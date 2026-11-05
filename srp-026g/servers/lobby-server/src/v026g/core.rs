@@ -240,14 +240,27 @@ pub(super) struct Core<'a> {
     /// with its next room state (`rooms`).
     pub room_codes: HashMap<u32, survarium::v026g::lobby::rooms::RoomCode>,
     /// When a member who came while its room's match is played goes into
-    /// it (`RoomRules::late_join_wait` after it came, or at once on its ask).
-    pub room_join_at: HashMap<u32, Instant>,
+    /// it ([`JoinAt`]); kept while it waits so (`rooms::room_tick`).
+    pub room_join_at: HashMap<u32, JoinAt>,
     /// Each member's room at the last tick: who came and went is said in
     /// the room's chat (`room_chat`).
     pub room_seen: HashMap<u32, u32>,
     /// A member (or one queued) whose game started anew, until its new
     /// game is told the room: by then, or it loses the place (`rooms`).
     pub room_unseen: HashMap<u32, Instant>,
+}
+
+/// When a member waiting in its room while the room's match is played goes
+/// into it.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum JoinAt {
+    /// At this time: `RoomRules::late_join_wait` after it came, or at once
+    /// on its ask.
+    At(Instant),
+    /// A spectator given a place in the match it watched (Queue and
+    /// spectate): at once, as soon as its game, back in the lobby, asks for
+    /// its room (`rooms::room_shown`).
+    Shown,
 }
 
 impl<'a> Core<'a> {

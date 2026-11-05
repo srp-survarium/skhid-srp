@@ -2634,9 +2634,11 @@ st_srp_rooms_pool_hint	Die Wahl zieht 3 Karten daraus.
 st_srp_rooms_private_room	Privater Raum: bis 20 Spieler; du stellst die Teams und startest.
 st_srp_rooms_queue	Warteschlange
 st_srp_rooms_queue_room	Raum-Warteschlange
+st_srp_rooms_queue_spectate	Warten und zuschauen
 st_srp_rooms_room	Raum
 st_srp_rooms_room_chat	Raum-Chat
 st_srp_rooms_servers	Räume
+st_srp_rooms_spectators	Zuschauer:
 st_srp_rooms_start_hint	Drücke Starten, wenn alle da sind.
 st_srp_rooms_start_match	Starten
 st_srp_rooms_starts	Match beginnt in

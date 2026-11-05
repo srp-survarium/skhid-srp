@@ -1,0 +1,232 @@
+//! Queue and spectate (`docs/notes/queue-spectate.md`, the owner's of
+//! 2026-11-05): only that button of a full room watches its running match
+//! while its player waits; a plain Queue stays in the lobby. The first place
+//! that frees takes the spectator out of the match and into it as a player;
+//! leaving the match leaves the queue; the room's end of match keeps it
+//! queued, to watch the next.
+
+use super::*;
+use session::matchmaking_policy::Closed;
+use survarium::v026g::lobby::rooms::ROOM_WATCH_BASE;
+
+/// A full room (6 v 6, twelve members) playing its match: its key, the
+/// match server's ticket and its members.
+fn full_room_playing(world: &mut World) -> (u32, u32, Vec<usize>) {
+    let owner = world.connect("Owner");
+    let key = create(world, owner, spec(6), None);
+    let mut members = vec![owner];
+    for n in 1..12 {
+        let member = world.connect(&format!("Member{n}"));
+        rows(world, member, ROOM_JOIN_BASE + key, 1);
+        members.push(member);
+    }
+    world.advance(VOTE_AND_WAIT);
+    let (ticket, _) = sent_to_match(&world.take(owner)).expect("a match");
+    for &member in &members {
+        world.take(member);
+    }
+    running(world, ticket);
+    (key, ticket, members)
+}
+
+/// The match server runs the match: it says why it takes nobody now.
+fn running(world: &mut World, ticket: u32) {
+    world.host.closed.locked().insert(ticket, Closed::Joining);
+}
+
+fn session_of(world: &World, index: usize) -> u32 {
+    world.ids[index].1
+}
+
+fn watched(world: &World, index: usize) -> Option<u32> {
+    world
+        .core
+        .store
+        .matchmaking()
+        .watched(session_of(world, index))
+        .map(|watcher| watcher.ticket)
+}
+
+fn spectators(state: &[String]) -> Vec<&str> {
+    state
+        .iter()
+        .filter_map(|row| row.strip_prefix("V;"))
+        .collect()
+}
+
+/// More spectators than the rows name: the first of the queue are named,
+/// and the room's state still goes.
+#[test]
+fn a_room_names_its_first_twenty_spectators() {
+    let mut world = World::new();
+    let (key, _, members) = full_room_playing(&mut world);
+    for n in 0..21 {
+        let watcher = world.connect(&format!("Watcher{n}"));
+        rows(&mut world, watcher, ROOM_WATCH_BASE + key, 1);
+    }
+    world.advance(Duration::from_secs(1));
+    let seen = state(&mut world, members[1]);
+    assert_eq!(spectators(&seen).len(), 20, "{seen:?}");
+    assert_eq!(spectators(&seen)[0], "Watcher0");
+}
+
+#[test]
+fn queue_and_spectate_watches_the_match_and_plays_when_a_place_frees() {
+    let mut world = World::new();
+    let (key, ticket, members) = full_room_playing(&mut world);
+    let carol = world.connect("Carol");
+    assert_eq!(
+        rows(&mut world, carol, ROOM_WATCH_BASE + key, 1),
+        [format!("S1;N;0;{key};1")]
+    );
+    // Sent to the match at once, with no place in it.
+    world.advance(Duration::from_secs(1));
+    assert_eq!(sent_to_match(&world.take(carol)), Some((ticket, 0)));
+    assert_eq!(watched(&world, carol), Some(ticket));
+    let made = world.host.made.locked().last().unwrap().1.players.len();
+    assert_eq!(made, 12, "a spectator is no player of the match");
+    // The members see who watches; nobody else is told anything.
+    let seen = state(&mut world, members[1]);
+    assert_eq!(spectators(&seen), ["Carol"], "{seen:?}");
+    let listed = rows(&mut world, carol, ROOM_MEMBERS_BASE + key, 1);
+    assert_eq!(spectators(&listed), ["Carol"]);
+    // A member leaves the match by its menu (out of the room, its place in
+    // the match given up): Carol is the room's, out of the match she
+    // watched...
+    let id = world
+        .core
+        .matches
+        .iter()
+        .find(|(_, running)| running.ticket.match_id == ticket)
+        .map(|(id, _)| *id)
+        .unwrap();
+    let (place, _) = seat_of(&world, id, members[1]);
+    let leaver = world.ids[members[1]].0;
+    assert_eq!(world.store.matchmaking().leave_match(leaver), Some(id));
+    world.host.live.locked().insert(
+        ticket,
+        LiveView {
+            present: ((1 << 12) - 1) & !(1 << place),
+            ..LiveView::default()
+        },
+    );
+    world.advance(Duration::from_secs(2));
+    assert_eq!(world.core.rooms.key_of(world.ids[carol].0), Some(key));
+    assert_eq!(watched(&world, carol), None);
+    assert!(spectators(&state(&mut world, members[2])).is_empty());
+    // ... and into it as a player as soon as her game, in the lobby again,
+    // asks for its room: no 15 s.
+    world.host.admitting.locked().insert(ticket);
+    world.take(carol);
+    state(&mut world, carol);
+    world.advance(Duration::from_secs(1));
+    let (sent, _) = sent_to_match(&world.take(carol)).expect("Carol plays");
+    assert_eq!(sent, ticket);
+    let made = world.host.made.locked().last().unwrap().1.players.len();
+    assert_eq!(made, 13);
+}
+
+#[test]
+fn a_plain_queue_stays_in_the_lobby() {
+    let mut world = World::new();
+    let (key, _, _) = full_room_playing(&mut world);
+    let dave = world.connect("Dave");
+    assert_eq!(
+        rows(&mut world, dave, ROOM_QUEUE_BASE + key, 1),
+        [format!("S1;N;0;{key};1")]
+    );
+    world.advance(Duration::from_secs(2));
+    assert!(sent_to_match(&world.take(dave)).is_none());
+    assert_eq!(watched(&world, dave), None);
+    // Queue and spectate pressed after it: the same place, watching now.
+    assert_eq!(
+        rows(&mut world, dave, ROOM_WATCH_BASE + key, 1),
+        [format!("S1;N;0;{key};1")]
+    );
+    world.advance(Duration::from_secs(1));
+    assert!(sent_to_match(&world.take(dave)).is_some());
+    // And Queue again: back to the lobby, still first.
+    rows(&mut world, dave, ROOM_QUEUE_BASE + key, 1);
+    world.advance(Duration::from_secs(1));
+    assert_eq!(watched(&world, dave), None);
+    assert_eq!(
+        world.core.rooms.queue_place(world.ids[dave].0),
+        Some((key, 1))
+    );
+}
+
+#[test]
+fn a_spectator_that_leaves_the_match_leaves_the_queue() {
+    let mut world = World::new();
+    let (key, ticket, _) = full_room_playing(&mut world);
+    let carol = world.connect("Carol");
+    rows(&mut world, carol, ROOM_WATCH_BASE + key, 1);
+    world.advance(Duration::from_secs(1));
+    assert!(sent_to_match(&world.take(carol)).is_some());
+    assert_eq!(watched(&world, carol), Some(ticket));
+    // Its game's menu (0xE0), as the match server passes it on.
+    let session = session_of(&world, carol);
+    world.core.store.matchmaking().watcher_left(session, ticket);
+    world.advance(Duration::from_secs(1));
+    assert_eq!(world.core.rooms.queue_place(world.ids[carol].0), None);
+    assert_eq!(state(&mut world, carol), ["S1;N;0;0;0"]);
+    // In the lobby again: free to join or queue.
+    world.advance(Duration::from_secs(1));
+    assert!(sent_to_match(&world.take(carol)).is_none());
+}
+
+/// Its game's word to the lobby (`31 .. 1`, back from its match) may come
+/// before the match server's: it leaves the queue all the same, and is
+/// never sent back to the match.
+#[test]
+fn a_spectator_back_in_the_lobby_by_its_own_word_leaves_the_queue() {
+    let mut world = World::new();
+    let (key, ticket, _) = full_room_playing(&mut world);
+    let carol = world.connect("Carol");
+    rows(&mut world, carol, ROOM_WATCH_BASE + key, 1);
+    world.advance(Duration::from_secs(1));
+    assert!(sent_to_match(&world.take(carol)).is_some());
+    world.ask(carol, request::leave(1, true));
+    world.advance(Duration::from_secs(2));
+    assert!(sent_to_match(&world.take(carol)).is_none());
+    assert_eq!(watched(&world, carol), None);
+    assert_eq!(world.core.rooms.queue_place(world.ids[carol].0), None);
+    // The match server's word, later: nothing more.
+    let session = session_of(&world, carol);
+    world.core.store.matchmaking().watcher_left(session, ticket);
+    world.advance(Duration::from_secs(1));
+    assert!(sent_to_match(&world.take(carol)).is_none());
+}
+
+#[test]
+fn a_spectator_stays_queued_past_the_match_and_watches_the_next() {
+    let mut world = World::new();
+    let (key, ticket, members) = full_room_playing(&mut world);
+    let carol = world.connect("Carol");
+    rows(&mut world, carol, ROOM_WATCH_BASE + key, 1);
+    world.advance(Duration::from_secs(1));
+    assert_eq!(watched(&world, carol), Some(ticket));
+    world.end_match(ticket, 0);
+    world.advance(Duration::from_secs(2));
+    assert_eq!(watched(&world, carol), None);
+    assert_eq!(
+        world.core.rooms.queue_place(world.ids[carol].0),
+        Some((key, 1))
+    );
+    // The room's next match, still full: Carol watches it.
+    for &member in &members {
+        world.take(member);
+    }
+    world.take(carol);
+    world.advance(NEXT_MATCH);
+    let (next, _) = sent_to_match(&world.take(members[0])).expect("the next match");
+    assert_ne!(next, ticket);
+    // Not before the match server runs it: its game would be turned away.
+    world.advance(Duration::from_secs(1));
+    assert_eq!(watched(&world, carol), None);
+    assert!(sent_to_match(&world.take(carol)).is_none());
+    running(&mut world, next);
+    world.advance(Duration::from_secs(1));
+    assert_eq!(watched(&world, carol), Some(next));
+    assert_eq!(sent_to_match(&world.take(carol)), Some((next, 0)));
+}

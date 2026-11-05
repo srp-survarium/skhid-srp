@@ -410,11 +410,24 @@ struct Draft {
     at: Instant,
 }
 
-/// Whether a queued player chose this room or asked Play to find a match.
+/// How a queued player came: it chose this room (its Queue, or its Queue
+/// and spectate, which also watches the room's running match meanwhile:
+/// `docs/notes/queue-spectate.md`), or asked Play to find a match.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum QueueChoice {
     Chosen,
+    /// The owner's of 2026-11-05: only this button spectates; a plain
+    /// Queue keeps the player in the lobby (its inventory, the shop).
+    ChosenToWatch,
     Play,
+}
+
+impl QueueChoice {
+    /// The player chose the room (not Play): it never moves with Play's
+    /// expansion and is not held to Play's bracket.
+    pub fn is_chosen(self) -> bool {
+        matches!(self, Self::Chosen | Self::ChosenToWatch)
+    }
 }
 
 /// Who has a place in a queue: one player, or a squad's commander with its
@@ -1051,6 +1064,20 @@ impl Rooms {
     /// How many players wait in all the queues.
     pub fn queued_total(&self) -> usize {
         self.queued.len()
+    }
+
+    /// Who waits in a queue to watch its room's match (Queue and
+    /// spectate), with the room's key: every account of an entry, a pair's
+    /// mate too.
+    pub fn watching_queue(&self) -> Vec<(u32, u32)> {
+        let mut watching: Vec<(u32, u32)> = self
+            .queued
+            .iter()
+            .filter(|(_, queued)| queued.choice == QueueChoice::ChosenToWatch)
+            .map(|(&account_id, queued)| (account_id, queued.key))
+            .collect();
+        watching.sort_unstable();
+        watching
     }
 
     /// Play's waiters across all rooms, oldest first, an entry each (a

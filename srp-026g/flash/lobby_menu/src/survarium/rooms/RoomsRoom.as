@@ -237,7 +237,15 @@ package survarium.rooms
                 }
             }
             else
-                look.footer(buttons);
+            {
+                var shown:Array = look.footer(buttons);
+                // While it plays (no switch is offered then), its spectators on
+                // a quiet line left of the buttons, where nothing else is: the
+                // members never move as they come and go (the owner's of
+                // 2026-11-05, "shouldn't distract anyone").
+                if (playing)
+                    look.spectators(look._content, room.spectators, 16, look._h - RoomsLook.FOOT_H + 15, shown[0].x - 28);
+            }
         }
 
         // A place of the room's list at (mx, my): the member at `m` of the

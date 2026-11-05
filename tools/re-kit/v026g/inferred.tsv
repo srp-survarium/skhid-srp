@@ -1092,7 +1092,6 @@ va	status	ref_021d	name
 0x001f77e0	inferred-high	0x0015a9ee	survarium::game_world::tick
 0x001f8070	inferred-medium		survarium::game_world::select_profile
 0x001f8120	inferred-medium		survarium::game_world::local_player_profiles
-0x001f8360	inferred-medium		survarium::game_world::switch_to_spectator_camera
 0x001f96e0	inferred-medium	0x0015bd37	survarium::game_world::get_current_time_in_ms
 0x001fa2d0	inferred-medium	0x0015c5a9	vostok::buffer_vector<vostok::variant<32> >::push_back
 0x001fa420	inferred-medium	0x002282ea	survarium::hud_game_effect_emitter_cook::`scalar deleting destructor'
@@ -1333,8 +1332,6 @@ va	status	ref_021d	name
 0x002425c0	inferred-medium	0x0017f882	vostok::buffer_vector<enum survarium::game_action_id>::push_back
 0x00242900	inferred-medium	0x00180cfa	survarium::game_camera::get_projection_matrix
 0x00242950	inferred-medium	0x0018457c	survarium::base_network_client::base_network_client
-0x00242d50	inferred-medium		survarium::base_network_client::spectate_next_player
-0x00242f00	inferred-medium		survarium::base_network_client::spectate_previous_player
 0x00243770	inferred-medium	0x00184a1e	survarium::weapon::`scalar deleting destructor'
 0x00243790	inferred-medium	0x00184a3c	survarium::weapon::~weapon
 0x002443d0	inferred-medium	0x0018511b	survarium::weapon::play_weapon_fire_pfx

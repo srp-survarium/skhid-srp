@@ -23,6 +23,7 @@ use survarium::v026g::match_msgs::snapshot::{
     self, Battery, Container, Gather, KillsDeaths, PlayerStatistics, Research, ResearchUnit,
     Respawn, Rules, Sections, Statistics, StatisticsTail, Tdm, Timed, Timelimit, VictoryItemStatus,
 };
+use survarium::v026g::match_msgs::static_info::NO_LOCAL_PLACE;
 use survarium::v026g::match_msgs::{
     PlayerInput, ServerMessage, TICK_MS, WireTime, id, tick_byte, upload,
 };
@@ -906,7 +907,26 @@ impl Client {
     }
 
     fn deliver(&mut self, id: u8, payload: &[u8]) {
-        if self.model.growing_roster && id == id::STATIC_INFO && payload.first() == Some(&0xff) {
+        // A spectator's game (no place of its own) takes an 0xEA naming no
+        // place as its end: the exe's spectator patch, ahead of
+        // `leave_match` (`game/spectate.rs`).
+        if id == id::PLAYER_LEFT
+            && self.model.options.is_some()
+            && self.model.local_index.is_none()
+            && payload.get(1) == Some(&NO_LOCAL_PLACE)
+        {
+            self.told_to_leave = true;
+            self.closed = true;
+            return;
+        }
+        // A prepare comes once the game has its static info (the patched
+        // 0xE4 case goes by the connection state, `prepare_hook`): before,
+        // a first byte 0xFF is a spectator's static info.
+        if self.model.growing_roster
+            && id == id::STATIC_INFO
+            && payload.first() == Some(&0xff)
+            && self.model.options.is_some()
+        {
             match Prepare::decode(payload, Dictionary::shared()) {
                 Ok(prepare) => {
                     self.prepares_received += 1;
