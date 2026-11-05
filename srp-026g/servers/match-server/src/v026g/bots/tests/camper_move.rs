@@ -300,8 +300,8 @@ const AFTER_HIT_M: (f32, f32) = (2.0, 2.5);
 /// Health lost between two thinks that counts as a hit. GUESS.
 const HIT_HEALTH: f32 = 0.02;
 /// An enemy this recently known is "known", ms, and as near as this, m. GUESS.
-const KNOWN_MS: u32 = 6_000;
-const KNOWN_M: f32 = 60.0;
+pub(crate) const KNOWN_MS: u32 = 6_000;
+pub(crate) const KNOWN_M: f32 = 60.0;
 /// A crouch spell lasts this long, ms, and comes this often, ms.
 const CROUCH_MS: (f32, f32) = (1_000.0, 2_000.0);
 const CROUCH_EVERY_MS: (f32, f32) = (10_000.0, 16_000.0);
@@ -964,9 +964,15 @@ pub(crate) fn plan_area(tactics: &Tactics, side: i32, spot: Vec3, crouched: bool
 
 /// The nearest enemy the bot knows within reach: a track not older than [`KNOWN_MS`], near enough and placed well enough.
 pub(crate) fn nearest_known(tracks: &[Track], me: Vec3, now: u32) -> Option<Vec3> {
+    nearest_known_within(tracks, me, now, (KNOWN_MS, KNOWN_M))
+}
+
+/// [`nearest_known`] with its own window: a track given within `ms` and within `m` of `me` (the hunter's calibration,
+/// `SRP_BENCH_HUNTER_KNOWN_S` / `_M`).
+pub(crate) fn nearest_known_within(tracks: &[Track], me: Vec3, now: u32, (ms, m): (u32, f32)) -> Option<Vec3> {
     tracks
         .iter()
-        .filter(|t| now.saturating_sub(t.time) <= KNOWN_MS && t.error_m <= 6.0 && t.at.distance_xz(me) <= KNOWN_M)
+        .filter(|t| now.saturating_sub(t.time) <= ms && t.error_m <= 6.0 && t.at.distance_xz(me) <= m)
         .map(|t| t.at)
         .min_by(|a, b| a.distance_xz(me).total_cmp(&b.distance_xz(me)))
 }
@@ -1179,7 +1185,7 @@ impl BenchCamper {
     /// (no spot, no long gun, no start spot).
     pub(crate) fn hunter(place: Place, seed: u32, tuning: Arc<Tuning>) -> Self {
         let options = CamperOptions::parse(&|_| None).expect("the unset camper options parse");
-        Self { place, options, seed, tuning, state: CamperState::Hunting(Box::default()), lane: None, walks: None }
+        Self { place, options, seed, tuning, state: CamperState::Hunting(Box::new(Hunt::from_env())), lane: None, walks: None }
     }
 
     /// [A239b] While he is dead after his death at tick `died`: how long his next life, on his spot, waits after the respawn, ms: a

@@ -19,7 +19,7 @@
 //! hunter or a camper, never both. Bench only: nothing of the release build changes.
 
 use super::*;
-use super::camper_move::nearest_known;
+use super::camper_move::{KNOWN_M, KNOWN_MS, nearest_known_within};
 use crate::v026g::bots::control::Driver;
 use crate::v026g::bots::plays::{Go, Intent, Look, Pace};
 use crate::v026g::bots::reflex::StandStrafe;
@@ -101,7 +101,44 @@ pub(crate) const HUNTER_AIM: HunterAim = HunterAim {
 /// every aim pair and the live side steps in a fight.
 pub(crate) fn hunter_tuning() -> Tuning {
     let aim = HunterAim::parse(bench_settings().var("SRP_BENCH_HUNTER_AIM").ok().as_deref()).unwrap_or_else(|e| panic!("{e}"));
-    hunter_tuning_with(aim)
+    let mut tuning = hunter_tuning_with(aim);
+    // [A302 hunter calibration H1] His fire's reach (`SRP_BENCH_HUNTER_FIRE_M`): the owner's kills at p98 39.6 m.
+    if let Some(m) = bench_settings().number::<f32>("SRP_BENCH_HUNTER_FIRE_M") {
+        tuning.aim.range_m = m;
+    }
+    tuning
+}
+
+/// [A302 hunter calibration] `traces-20261028/fx-fights-a302-hunter-gap.md`: the hunter died as often as the owner but killed
+/// 1.08 a minute against his 1.75, fighting at any range (63 % of the bots' shots at him from 20 m+, 65 % of the owner's
+/// fatal exchanges under 20 m) and knowing no enemy in 31 % of his thinks. Unset: as he was.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub(crate) struct HunterCal {
+    /// H1 `SRP_BENCH_HUNTER_FIGHT_M`: a target he sees farther than this is hunted (walked at, sights up), not fought from where
+    /// he stands (the owner's fatal exchanges at p90 30.5 m).
+    pub(crate) fight_m: Option<f32>,
+    /// H2 `SRP_BENCH_HUNTER_KNOWN_S` / `_M`: how long and how far an enemy he was given stays known to him, ms and m
+    /// (unset: the camper's 6 s / 60 m).
+    pub(crate) known: (u32, f32),
+}
+
+impl HunterCal {
+    pub(crate) fn from_env() -> Self {
+        let s = bench_settings();
+        Self {
+            fight_m: s.number("SRP_BENCH_HUNTER_FIGHT_M"),
+            known: (
+                s.number::<f32>("SRP_BENCH_HUNTER_KNOWN_S").map_or(KNOWN_MS, |v| (v * 1000.0) as u32),
+                s.number("SRP_BENCH_HUNTER_KNOWN_M").unwrap_or(KNOWN_M),
+            ),
+        }
+    }
+}
+
+impl Default for HunterCal {
+    fn default() -> Self {
+        Self { fight_m: None, known: (KNOWN_MS, KNOWN_M) }
+    }
 }
 
 impl HunterAim {
@@ -156,23 +193,31 @@ pub(crate) struct Hunt {
     pub(crate) fighting: u32,
     /// Thinks with no enemy known: his play.
     pub(crate) playing: u32,
+    /// [A302] His calibration ([`HunterCal`]).
+    pub(crate) cal: HunterCal,
 }
 
 impl Hunt {
+    /// The hunter with the calibration the bench settings give.
+    pub(crate) fn from_env() -> Self {
+        Self { cal: HunterCal::from_env(), ..Self::default() }
+    }
+
     /// His think: true when it set his intent (hunting), false when his play and reflex go on (a fight, no enemy known).
     pub(crate) fn drive(&mut self, due: &Due, bot: &mut Bot) -> bool {
         let Due { me, now, .. } = *due;
         let tracks = bot.memory.tracks();
-        let in_fight = bot
-            .reflex
-            .target()
-            .is_some_and(|target| tracks.iter().any(|t| t.who == target && t.sight_since.is_some()));
+        // [A302 H1] A target farther than `fight_m` is hunted, not fought from where he stands.
+        let fight_m = self.cal.fight_m.unwrap_or(f32::INFINITY);
+        let in_fight = bot.reflex.target().is_some_and(|target| {
+            tracks.iter().any(|t| t.who == target && t.sight_since.is_some() && t.at.distance_xz(me.feet) <= fight_m)
+        });
         if in_fight {
             self.fighting += 1;
             bot.control = Driver::Own;
             return false;
         }
-        let Some(at) = nearest_known(tracks, me.feet, now) else {
+        let Some(at) = nearest_known_within(tracks, me.feet, now, self.cal.known) else {
             self.playing += 1;
             bot.control = Driver::Own;
             return false;
