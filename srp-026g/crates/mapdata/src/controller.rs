@@ -10,6 +10,8 @@
 //! from the capsule's segment to the triangle, less the radius, is how far the capsule can move with no contact, so the sweep
 //! steps that far along the move and measures again, until the gap is under [`CONTACT_M`] or the move ends. A capsule that only
 //! translates gets no closer than its speed allows, so no contact is stepped over.
+pub mod gjk;
+
 use crate::Triangle;
 use crate::math::Vec3;
 
