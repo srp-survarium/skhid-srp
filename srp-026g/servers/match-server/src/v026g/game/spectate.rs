@@ -372,10 +372,23 @@ impl Game {
         }
     }
 
+    /// The places a spectator's game must have: all but those from the
+    /// first no game installs any more on (`Admission::install_stopped`:
+    /// none after it can be installed, `late_join`), which nobody asks it
+    /// to install either (`prepare_for_spectator`).
+    fn spectator_roster(&self) -> usize {
+        self.admissions
+            .iter()
+            .position(|admission| admission.as_ref().is_some_and(Admission::install_stopped))
+            .unwrap_or(self.players())
+    }
+
     /// A trusted world the spectator may start from now: final, young
     /// enough for its 1-byte ticks, taken when every game had every place
-    /// (`after_preparation`) and no game is installing one (a world with a
-    /// place's kit objects is another than one without).
+    /// (`after_preparation`; a place whose newcomer failed has no barrier,
+    /// and is in every game's world as one whose player left) and no game is
+    /// installing one (a world with a place's kit objects is another than
+    /// one without).
     fn spectator_start(&self, clock: u32) -> Option<Snapshot> {
         if self.installing() {
             return None;
@@ -388,7 +401,12 @@ impl Game {
             .into_iter()
             .flatten()
             .filter(|world| {
-                (0..self.players()).all(|place| self.after_preparation(place, world.time))
+                (0..self.spectator_roster()).all(|place| {
+                    self.after_preparation(place, world.time)
+                        || self.admissions[place]
+                            .as_ref()
+                            .is_some_and(Admission::failed)
+                })
             })
             .filter(|world| clock.saturating_sub(world.time) <= FRESH_SNAPSHOT_MS)
             .filter(|world| Some(world.time) == first_time || world.time + HORIZON_MS <= clock)
@@ -563,11 +581,11 @@ impl Game {
             self.prepare_for_spectator(at, now);
             let start = match stage {
                 Watch::Waiting
-                    if self.spectators[at].installed_roster >= self.players()
+                    if self.spectators[at].installed_roster >= self.spectator_roster()
                         && self.clock_start.is_some() =>
                 {
                     let start = self.spectator_start(clock);
-                    if start.is_none() {
+                    if start.is_none() && !self.installing() {
                         self.request_upload(usize::MAX, now, RESYNC_REQUEST_GAP);
                     }
                     start

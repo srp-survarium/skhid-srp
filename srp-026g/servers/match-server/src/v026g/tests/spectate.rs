@@ -418,3 +418,34 @@ fn a_spectators_reports_never_vouch_for_a_world() {
     };
     assert_eq!(trusted(true), trusted(false));
 }
+
+/// Review of 2026-11-05: a newcomer that failed left its place with no
+/// barrier, and every spectator waited the whole match, asking the players
+/// for a world each second.
+#[test]
+fn a_place_whose_newcomer_failed_keeps_no_spectator_waiting() {
+    let mut bench = running();
+    let place = bench.game().roster_size();
+    bench
+        .registry
+        .join_running(
+            bench.match_id,
+            MatchPlayer {
+                session_id: session_of(place),
+                account_id: 100 + place as u32,
+                profile: profile("never-came", 0),
+                bot: false,
+                driven: false,
+            },
+        )
+        .unwrap();
+    // Its game never connects: let go after 20 s.
+    bench.run_long(21_000);
+    assert!(bench.registry.seat(session_of(place)).is_none());
+    let at = spectate(&mut bench, SPECTATOR);
+    assert!(
+        bench.until(10_000, |b| b.game().spectator_watches(SPECTATOR)),
+        "{:?}",
+        bench.clients[at].faults
+    );
+}
