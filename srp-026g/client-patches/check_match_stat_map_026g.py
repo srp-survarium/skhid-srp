@@ -7,10 +7,15 @@ Runs lobby_menu::fill_match_statistic from its map-name read (0x29ABE1)
 through the real text_translator::translate_text (0x1FF0F0) and its
 binary_config lookups (find 0xF6B10, value_exists 0xF6C00, the CRC table
 0x1C210, the search 0xF6D50) and the copy into the screen's buffer
-(0x1FEF90), on a made-up translator config with one dictionary. Nothing is
-stubbed. lobby_menu+313Ch NULL (no match loaded): the stock game faults
-reading address 0 at 0xF6C47 (the live crash), the patched one shows "".
-A map key, translated or not, gives the same text in both.
+(expand_text 0x1FEF90), on a made-up translator config with one dictionary.
+Nothing is stubbed. lobby_menu+313Ch NULL (no match loaded): the stock game
+faults reading address 0 at 0xF6C47 (the live crash), the patched one shows
+"". A map key, translated or not, gives the same text in both.
+
+expand_text's {USE}: the key bound to the translator's action is looked up in
+the key table (0x207BF0, 0xA74FA0) and its name translated. Bound, both builds
+give the key's text; unbound (no entry), the stock game translates NULL
+(0x1FF09D) and faults at 0xF6C47, the patched one leaves the placeholder empty.
 """
 import struct
 import sys
@@ -25,9 +30,12 @@ SITE, AFTER = 0x29ABE1, 0x29AC09                   # the map name's read, after 
 FAULT = 0xF6C47                                    # value_exists' strlen of the key
 SECTION = 0x9FC84C                                 # the dictionary's name translate_text looks up
 HEAP, STACK = 0x30000000, 0x30100000
-MENU, HOLDER, OWNER, ROOT, NODES, STRINGS = (HEAP + i * 0x10000 for i in range(6))
+MENU, HOLDER, OWNER, ROOT, NODES, STRINGS, INPUT, BINDS, ACTIONS, ACTION = (
+    HEAP + i * 0x10000 for i in range(10))
 TRANSLATOR = HOLDER + 0x52A8
-DICTIONARY = {b"mp_bath": b"Bath", b"mp_rudnya": b"Rudnya"}
+KEYS, KEY_STRIDE = 0xA74FA0, 0x88                  # the key table 0x207BF0 searches: +0 name, +4 code
+DICTIONARY = {b"mp_bath": b"Bath", b"mp_rudnya": b"Rudnya", b"st_pickup_item": b"Pick up ({USE})",
+              b"kb_key_f": b"F"}
 
 
 class Game:
@@ -36,7 +44,7 @@ class Game:
         for _, rva, vs, raw, size, _ in base.Headers(data).sections(data):
             u.mem_map(base.IMAGE_BASE + rva, (max(vs, size) + 4095) & ~4095)
             u.mem_write(base.IMAGE_BASE + rva, bytes(data[raw:raw + min(size, vs or size)]))
-        u.mem_map(HEAP, 0x60000)
+        u.mem_map(HEAP, 0xA0000)
         u.mem_map(STACK, 0x10000)
         self.text = STRINGS
         section = bytes(u.mem_read(SECTION, 64)).split(b"\0")[0]
@@ -53,6 +61,14 @@ class Game:
         self.word(OWNER + 0x108, ROOT)
         self.word(TRANSLATOR, OWNER)
         self.word(MENU + 0x9C, HOLDER)
+        # expand_text's {USE}: translator+8, +0B4h, +5344h, +280h: the action,
+        # whose +4 is the key's code. The table: one key, code 0x21.
+        for at, value in ((TRANSLATOR + 8, INPUT), (INPUT + 0xB4, BINDS), (BINDS + 0x5344, ACTIONS),
+                          (ACTIONS + 0x280, ACTION), (KEYS, self.string(b"kb_key_f")), (KEYS + 4, 0x21),
+                          (KEYS + KEY_STRIDE, 0)):
+            self.word(at, value)
+
+    def bind(self, code): self.word(ACTION + 4, code)
 
     def word(self, at, value): self.u.mem_write(at, struct.pack("<I", value))
 
@@ -97,7 +113,17 @@ def checks(original, built):
     for name, text in ((b"mp_bath", "Bath"), (b"mp_rudnya", "Rudnya"), (b"mp_unknown", "mp_unknown")):
         assert stock.results(name) == fixed.results(name) == text, name
     assert fixed.results(None) == "", "and again after a named map"
-    print("ok: stock faults at 0xF6C47 on a NULL map name; patched shows \"\", map names unchanged")
+    assert bytes(stock.u.mem_read(0x1FF073, 2)) == bytes.fromhex("741b")
+    assert bytes(fixed.u.mem_read(0x1FF073, 2)) == bytes.fromhex("7436")
+    for code, text in ((0x21, "Pick up (F)"), (0x22, None), (0x21, "Pick up (F)")):
+        for game in (stock, fixed): game.bind(code)
+        if text is None:
+            assert stock.results(b"st_pickup_item") == FAULT, "the stock game translates NULL for an unbound {USE}"
+            assert fixed.results(b"st_pickup_item") == "Pick up ()", "the patched one leaves it empty"
+        else:
+            assert stock.results(b"st_pickup_item") == fixed.results(b"st_pickup_item") == text
+    print("ok: stock faults at 0xF6C47 on a NULL map name and on an unbound {USE}; patched shows \"\" and "
+          "\"Pick up ()\"; map names and a bound {USE} unchanged")
 
 
 if __name__ == "__main__":

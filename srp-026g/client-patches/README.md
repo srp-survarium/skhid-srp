@@ -3804,6 +3804,16 @@ read it (0xF6C47). `match_stat_map_026g.asm` (the arena block
 shows no map name. See `docs/notes/results.md` section 6, hazard 10, and
 `check_match_stat_map_026g.py`.
 
+The same NULL came from expand_text (0x1FEF90): a text's `{USE}` whose
+action has no key bound (the key table 0x207BF0 finds no entry) translated
+NULL at 0x1FF09D. `EXPAND_TEXT_UNBOUND` retargets its branch (0x1FF073,
+`je 1FF090` to `je 1FF0AB`) to the path of an unknown placeholder, which
+appends nothing: "Pick up ()". Later builds (0.31a2 on) translate
+`st_key_use_not_assigned` there; 0.26g's dictionary has no such key, and
+translating "" would give the same empty text. translate_text's 0x200 is
+only a log line ("Too long localization string"), it truncates nothing; the
+catalog check already keeps every text under 512 bytes, so it stays.
+
 ## Knowledge database link (unreleased)
 
 The lobby's Knowledge database button opens `https://026g.skhid.link/wiki`

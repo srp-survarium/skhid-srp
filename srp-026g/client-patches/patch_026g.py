@@ -2467,6 +2467,11 @@ MATCH_STAT_MAP_HOOKS = (
 )
 INSTALLS[0x29ABE1] = (JUMP, "fill_match_statistic's map name (lobby_menu+313Ch, NULL until a match is loaded) as \"\"; "
                             "replay mov ecx,[esi+313Ch]", None, None)
+# expand_text's {USE} with no key bound (0x207BF0 finds no entry) translated
+# NULL (0x1FF09D); the branch goes to its unknown-placeholder path instead,
+# which appends nothing: what translate_text("") gives (0.31+ translate
+# st_key_use_not_assigned, a key 0.26g's dictionary does not have).
+EXPAND_TEXT_UNBOUND = (0x1FF073, bytes.fromhex("741b"), bytes.fromhex("7436"))   # je 1FF090 -> je 1FF0AB
 
 # The bodies a patch replaces in place, at a function's entry: {VA: size}.
 BODIES = {READ_ORDER_VA: READ_ORDER_SIZE}
@@ -3745,6 +3750,7 @@ def build_image(original, mode, code=None, server=None, late_join=None, revision
                 patch_section_value(data, *ARTEFACT_KEY_DEFAULT)
                 patch(data, *KILL_FEED_ARGUMENT)
                 patch(data, *BAKE_CACHE_KEEP)
+                patch(data, *EXPAND_TEXT_UNBOUND)
                 if artefacts_backs(linked) != list(ARTEFACTS_BACKS):
                     sys.exit("artefacts_026g.asm: its entries do not go on where patch_026g.py's ARTEFACTS_BACKS "
                              "says")

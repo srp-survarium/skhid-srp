@@ -2227,6 +2227,7 @@ va	name	location	role	basis
 0x00206670	survarium::timelimit_rule_cook::create_resource	entry ESP+8	the size out (0x158 written)	observed
 0x002079d0	survarium::key_binder::id_to_action_name	EDX	action_id	inferred
 0x00207ad0	survarium::key_binder::action_name_to_ptr	stack+4	action_name	inferred
+0x00207bf0	survarium::key_binder::keycode_to_ptr	EDX	key code; returns EAX the key table entry (0xA74FA0, 88h each: +0 name, +4 code) or NULL; expand_text {USE}; native Unicorn check_match_stat_map_026g	observed
 0x00207c30	survarium::key_binder::keyname_to_ptr	EDI	keyboard_key_name	inferred
 0x002093a0	survarium::chat_handler::initialize_tabs	ECX	whole chat handler	inferred
 0x002093a0	survarium::chat_handler::initialize_tabs	stack+4	movie reference pointer	inferred

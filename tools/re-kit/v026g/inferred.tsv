@@ -1164,6 +1164,7 @@ va	status	ref_021d	name
 0x00205cb0	inferred-medium	0x00162397	vostok::detail::concrete_type_helper<survarium::inventory_cooker_data *>::copy_helper
 0x00205d10	inferred-medium	0x00162400	vostok::detail::concrete_type_helper<vostok::collision::animated_object_cook_data>::copy_helper
 0x002078a0	inferred-medium	0x00155843	survarium::key_binder::set_default_controls
+0x00207bf0	inferred-medium		survarium::key_binder::keycode_to_ptr
 0x00207d50	inferred-medium	0x00155bcf	survarium::key_binder::get_binded_action
 0x00207dc0	inferred-medium	0x00155c1b	survarium::key_binder::bind_key
 0x002080c0	inferred-medium	0x00017949	survarium::game_options::input_priority
