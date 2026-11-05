@@ -1394,8 +1394,12 @@ fn behind_holds(cx: &Ctx, out: &mut [Candidate]) {
     let Some(rule) = cx.tuning.tdm.behind_holds else {
         return;
     };
-    let behind = cx.sig.behind();
-    if behind <= 0.0 || cx.view.objective().has_homes() {
+    if cx.view.objective().has_homes() {
+        return;
+    }
+    let team = usize::from(cx.me.team & 1);
+    let behind = rule.behind(cx.view.points[team], cx.view.points[1 - team]);
+    if behind <= 0.0 {
         return;
     }
     for c in out.iter_mut() {

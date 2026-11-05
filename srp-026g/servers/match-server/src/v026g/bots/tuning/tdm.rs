@@ -104,8 +104,8 @@ pub enum Answer {
     NearestMover,
 }
 
-/// [A297 item 2] Hold, not feed, when behind, in TDM only: the team behind on points (`MatchSignals::behind`, 0 level to 1
-/// from 30 tickets down in TDM) weighs the angle holds that kill the human up and the long cut-offs down. Measured (PROVEN, 168 matches
+/// [A297 item 2] Hold, not feed, when behind, in TDM only: the team behind on tickets (0 level to 1 from `full_tickets`
+/// down) weighs the angle holds that kill the human up and the long cut-offs down. Measured (PROVEN, 168 matches
 /// vs the hunter stand-in, the tip's bots): his deaths per 10 bot-minutes of the killer's play were HoldExit 1.66, Crossfire
 /// 1.24, Roam 0.72, Cut 0.42, Buddy 0.05; Cut held 32 % of the bots' time for 14 % of his deaths.
 #[derive(Clone, Copy, Debug, PartialEq, Serialize, Deserialize)]
@@ -115,15 +115,24 @@ pub struct BehindHolds {
     pub hold_gain: f32,
     /// Cut scores times `1 - cut_cut * behind`, `[0, 1]`. GUESS.
     pub cut_cut: f32,
+    /// Fully behind from this many tickets (deaths) down. Not `MatchSignals::behind`: that one is full only 30 tickets down
+    /// in TDM (its gap is tickets / 10, full at 3), and the first bench (168 pairs vs the hunter, full at 30) moved the play
+    /// time by under 1 % (Cut 32.3 -> 31.8 %, Crossfire 34.5 -> 35.3 %): the hunter level. GUESS: 5 (the design's).
+    pub full_tickets: f32,
 }
 
 impl Default for BehindHolds {
     fn default() -> Self {
-        Self { hold_gain: 1.0, cut_cut: 0.75 }
+        Self { hold_gain: 1.0, cut_cut: 0.75, full_tickets: 5.0 }
     }
 }
 
 impl BehindHolds {
+    /// How far behind a team with `ours` tickets against `theirs` is, `[0, 1]`.
+    pub fn behind(&self, ours: u32, theirs: u32) -> f32 {
+        ((theirs as f32 - ours as f32) / self.full_tickets).clamp(0.0, 1.0)
+    }
+
     /// The factor on a candidate of `kind` for a team `behind` (`[0, 1]`); `None` for the plays it leaves as they are.
     pub fn factor(&self, kind: PlayKind, behind: f32) -> Option<f32> {
         match kind {
@@ -149,7 +158,7 @@ impl TdmTuning {
             return Err("tdm.group".into());
         }
         if let Some(b) = self.behind_holds
-            && (!(0.0..=4.0).contains(&b.hold_gain) || !(0.0..=1.0).contains(&b.cut_cut))
+            && (!(0.0..=4.0).contains(&b.hold_gain) || !(0.0..=1.0).contains(&b.cut_cut) || !(1.0..=60.0).contains(&b.full_tickets))
         {
             return Err("tdm.behind_holds".into());
         }
@@ -169,7 +178,11 @@ mod tests {
         assert_eq!(rule.factor(PlayKind::HoldExit, 0.5), Some(1.5));
         assert_eq!(rule.factor(PlayKind::Cut, 1.0), Some(0.25));
         assert_eq!(rule.factor(PlayKind::Roam, 1.0), None);
-        let bad = TdmTuning { behind_holds: Some(BehindHolds { hold_gain: 0.5, cut_cut: 1.5 }), ..Default::default() };
+        assert_eq!(rule.behind(60, 60), 0.0);
+        assert_eq!(rule.behind(58, 60), 0.4);
+        assert_eq!(rule.behind(40, 60), 1.0);
+        assert_eq!(rule.behind(60, 50), 0.0, "ahead");
+        let bad = TdmTuning { behind_holds: Some(BehindHolds { cut_cut: 1.5, ..BehindHolds::default() }), ..Default::default() };
         assert!(bad.check().is_err());
         assert!(TdmTuning::default().behind_holds.is_none(), "off by default");
     }
