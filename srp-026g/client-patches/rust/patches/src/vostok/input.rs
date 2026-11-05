@@ -1,8 +1,10 @@
 //! The player's input: survarium::player_input_handler, which turns the
-//! keys' events into the input sent each tick.
+//! keys' events into the input sent each tick, and the input as a world takes
+//! it (game_world_core::change_input<player_input>, [`InputChange`]).
 
 use core::marker::PhantomData;
 
+use super::context::{Context, Reg};
 use super::hook::{Handle, Thread};
 use crate::raw;
 
@@ -182,9 +184,101 @@ impl InputHandler<'_> {
     }
 }
 
+/// An input's rotation (`math::half2`): two IEEE half floats, the yaw's and
+/// the pitch's turn, as they came. Never decoded: every world adds the halves
+/// as they are, so a re-encoded one would be another simulation.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct Rotation(u32);
+
+/// A half float's exponent field.
+const HALF_EXPONENT: u16 = 0x7C00;
+/// The exponent of 1024.0: a rotation of 163 turns in one input.
+const HALF_EXPONENT_1024: u16 = 25 << 10;
+
+impl Rotation {
+    pub fn from_bits(bits: u32) -> Rotation {
+        Rotation(bits)
+    }
+
+    pub fn bits(self) -> u32 {
+        self.0
+    }
+
+    /// Whether a client's mouse can make it: both halves numbers, each under
+    /// 1024 radians. The match server's rule (`PlayerInput::rotation_is_sane`,
+    /// crates/survarium), which refuses every input 0.27d's change_input
+    /// refuses (its validator 0x1EA990: a half that is a NaN or an infinity)
+    /// and those whose sum of two merged into one node (0x2C5B60) could reach
+    /// infinity.
+    pub fn is_sane(self) -> bool {
+        [self.0 as u16, (self.0 >> 16) as u16].iter().all(|half| half & HALF_EXPONENT < HALF_EXPONENT_1024)
+    }
+}
+
+/// game_world_core::change_input<player_input>'s event action (its result,
+/// `event_action_enum`) for an input it refused: what both of 0.26g's own
+/// refusals ("older than last resync", 0x1FAD10) and 0.27d's "input is
+/// invalid" (0x1EFA3F) return. Its callers read nothing of a refusal.
+const REJECTED: u32 = 6;
+
+/// A player input at the start of a world's change_input (`change_input.player`,
+/// 0x1FAB50): every input a world takes goes through it, a local one, a
+/// relayed one, a moved one and a replay's.
+pub struct InputChange<'c, 'm> {
+    ctx: &'c mut Context<'m>,
+    rotation: Rotation,
+    time: u32,
+    place: u8,
+}
+
+impl<'c, 'm> InputChange<'c, 'm> {
+    pub fn at(ctx: &'c mut Context<'m>) -> Option<InputChange<'c, 'm>> {
+        use raw::site::change_input_player as site;
+        // SAFETY: the context is this site's: its ESP the function's
+        // arguments, alive while it runs on the game's thread.
+        let (rotation, time, place) = unsafe {
+            let frame = site::frame(&*ctx)?;
+            (*frame.rotation(), *frame.time(), *frame.player())
+        };
+        Some(InputChange { ctx, rotation: Rotation(rotation), time, place })
+    }
+
+    pub fn rotation(&self) -> Rotation {
+        self.rotation
+    }
+
+    pub fn time(&self) -> u32 {
+        self.time
+    }
+
+    pub fn place(&self) -> u8 {
+        self.place
+    }
+
+    /// The world does not take it: nothing of it is kept. The caller then
+    /// leaves by the site's `refused` exit (its `ret 24h`).
+    pub fn refuse(self) {
+        self.ctx.set_reg(Reg::Eax, REJECTED);
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn rotations_a_mouse_makes_and_the_rest() {
+        let both = |x: u16, y: u16| Rotation::from_bits(u32::from(x) | u32::from(y) << 16).is_sane();
+        assert!(both(0, 0));
+        assert!(both(0x3C00, 0xBC00)); // 1.0, -1.0
+        assert!(both(0x63FF, 0xE3FF)); // 1023.5 and its negative
+        assert!(both(0x0001, 0x8000)); // a subnormal, -0
+        for wrong in [0x6400, 0xE400, 0x7BFF, 0x7C00, 0xFC00, 0x7E00, 0xFFFF] {
+            // 1024, -1024, 65504, the infinities, NaNs
+            assert!(!both(wrong, 0), "{wrong:#x} as the yaw");
+            assert!(!both(0, wrong), "{wrong:#x} as the pitch");
+        }
+    }
 
     #[test]
     fn states_parsed_and_refused() {

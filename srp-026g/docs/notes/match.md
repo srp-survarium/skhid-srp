@@ -175,6 +175,7 @@ Same shape as 0.21d (match.md §2), with the new ids and the sync generation:
 ### 5.1 Relayed inputs (`change_input<client_update<player_input,…>>` 0x1FAB50, FUNCSIG 0x9FBAB0 family; 0.21d `change_input` 0x1CB12C)
 
 - `T ≤ last resync time` (`game_world_core`+0x18FD4, 0.21d C804): rejected, log "older than last resync" (0x9FB820). Same as 0.21d. PROVEN.
+- No check of the input itself (0.27d added one: a rotation half that is a NaN or an infinity, "input is invalid", validator 0x1EA990). Exe patch 99 refuses at the function's start, returning 6 as this refusal does, any rotation the match server refuses (client_patch.md §3.62).
 - **"too old" (`T + 500 ≤ now`) is no longer a rejection.** The 0.21d strings "REJECTED, reason: too old" / "too new" (0x819D90, 0x819DE0) have no 0.26g counterpart in `change_input`. Instead, when `T + horizon ≤ now` (horizon 0 if server, +0x18FB4 otherwise; now = +0x18FC4; 0x1FAD1E..0x1FAD47):
   - the input is **moved** to `ceil50(base) + (T mod 50)`, where `base = now + [+0x18FB8]*50`, lowered to `[+0x18FC8] + 50` when that is set and smaller (client only), and logged "input is moved %d.%03d => %d.%03d" (0x9FBA70);
   - unless the client runs with **`-reject_inputs`** ("reject players inputs if too old or too new", option 0xAA2290 / 0xA0F6B0; `game_world_core`+0x18FDE = option state != 1, 0x2D00EA..0x2D0120), then it is dropped with "input is SKIPPED ... -reject_inputs is set" (0x9FB9F8).
