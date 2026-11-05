@@ -1,5 +1,6 @@
 package survarium.ammo
 {
+   import survarium.constants.ProfileSlot;
    import flash.display.Sprite;
    import flash.events.Event;
    import scaleform.clik.interfaces.IDataProvider;
@@ -86,7 +87,7 @@ package survarium.ammo
       
       public function openSlots(slotsN:int, slotsA:int) : void
       {
-         _slotsN = slotsN;
+         _slotsN = ProfileSlot.pocketCount(slotsN);
          slotsA = slotsA;
       }
       
@@ -377,7 +378,7 @@ package survarium.ammo
                   }
                   else if((inv.quickSlotItemSize))
                   {
-                     clips = 1 / inv.quickSlotItemSize;
+                     clips = PlayerInfo.pocketUnits(inv.category,inv.quickSlotItemSize);
                   }
                   auto_buy = false;
                   for(j = 0; j < _itemsAutoBuy.length; j++)

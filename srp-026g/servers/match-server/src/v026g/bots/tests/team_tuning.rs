@@ -733,7 +733,7 @@ fn only_the_team_whose_tuning_has_kit_frags_carries_them() {
         let Throws::Bot(pockets) = throws else { panic!("place {place}: {throws:?}") };
         let team = usize::from(teams[place]);
         if !new_kit() {
-            assert_eq!(pockets.frags(), 2, "place {place}: the old kit gives every role two, whatever the choice");
+            assert_eq!(pockets.frags(), 1, "place {place}: the old kit gives every role one (an RGD-5 takes two units of a pocket), whatever the choice");
             continue;
         }
         match roles[place] {
@@ -746,7 +746,8 @@ fn only_the_team_whose_tuning_has_kit_frags_carries_them() {
         let count = |role| roles[..8].iter().filter(|&&r| r == role).count() as u16;
         let (supports, campers) = (count(BotRole::Support), count(BotRole::Camper));
         assert_eq!(units[0], [supports, 0], "team 0 is the owner's kit");
-        assert_eq!(units[1], [2 * supports, campers], "team 1 carries the choice");
+        // The support's "two" is one: a pocket of two holds one RGD-5 (`KitFrags::units`).
+        assert_eq!(units[1], [supports, campers], "team 1 carries the choice");
     }
 }
 

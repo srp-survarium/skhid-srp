@@ -247,7 +247,7 @@ impl OwnerTally {
     }
 
     /// The scoreboard's context line (`<project> NvN seed S`) and which places are the stand-in human and the stand-in camper.
-    pub(crate) fn set_scoreboard(&mut self, context: String, mode: u8, human: Option<Place>, camper: Option<Place>) {
+    pub(crate) fn set_scoreboard(&mut self, context: String, mode: survarium::v026g::maps::RuleMode, human: Option<Place>, camper: Option<Place>) {
         self.topic::<Feel>().set_human(human, camper);
         self.topic::<LookCounts>().set_human(human);
         self.topic::<CollectAtCounts>().set_stand_in(human.or(camper));
@@ -433,7 +433,7 @@ impl Part {
 fn made_up(teams: &[u8]) -> (Game, OwnerTally) {
     let game = Game::new(super::soak_world(), teams, 1, None, None);
     let mut tally = OwnerTally::new(teams.len());
-    tally.set_scoreboard(String::new(), survarium::v026g::maps::mode::BATTERIES, None, None);
+    tally.set_scoreboard(String::new(), survarium::v026g::maps::RuleMode::Batteries, None, None);
     (game, tally)
 }
 

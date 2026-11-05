@@ -1,0 +1,3271 @@
+{
+ "_about": "London (level_09) without anomalies, its spawns where the owner placed them in the map editor (the owner, 2026-10-25: \"let's remove anomalies from London, move spawns closer to bases like in newer Londons\"; then, in the map editor: \"I expect them to be closer to the exit of the building\"). Every London project: day_2 (batteries, mode 2), day_3 (batteries with chargers, mode 3), day_4 (Team Deathmatch) and day_5 (Research, pack research-mode@3). Removed (remove_entry, by full_name and type): the 7 anomalies of patch 14 (terrain/random_anomaly*: 3 lifebone, 2 spring, 2 onyx), each its generic_anomaly_core, artefact_container, damage_zone (its idle particle and sound are the zone's own) and the two collision_geometry of its zone and artefact, 35 entries a project; in day_2 and day_3 the two inv_zone effect zones and their inv_collision boxes around the old outdoor spawns (no point spawns there now; the points' own invulnerability_time 6 s stays). Moved (set_entry, from the map editor's list map-edits/level_09.json, re-based on the live points): server_objects/respawn_points, 10 a team, the same count, order and names, the same places in all four projects. team1 (west): building_06_1's first floor (y 9.25), placed to match team2's, 13-26.5 m walk from the door whose stairs go down to the street (about (-47, 7.8, 7.0)), 44-65 m walk from its battery container. team2 (east): building_10's first floor (y 9.52-9.56), the owner's 8 points and 2 beside them (respawn_point and respawn_point(1)), 68-74 m walk from its container. A point the owner moved without turning keeps the facing it had in the editor. Changes the simulation (simulation_changes.tsv).",
+ "set_entry": [
+  {
+   "file": "projects/level_09/day_2/client_project",
+   "list": "server_objects/respawn_points",
+   "where": {
+    "full_name": "logic/modes/items_random/team2/respawn/respawn_point(11)"
+   },
+   "from": {
+    "position": [
+     101.957,
+     7.153,
+     -51.836
+    ]
+   },
+   "to": {
+    "position": [
+     42.24666,
+     9.56228,
+     -60.31087
+    ],
+    "rotation": [
+     0.00109,
+     0.43298,
+     -0.00059
+    ]
+   }
+  },
+  {
+   "file": "projects/level_09/day_2/client_project",
+   "list": "server_objects/respawn_points",
+   "where": {
+    "full_name": "logic/modes/items_random/team2/respawn/respawn_point(12)"
+   },
+   "from": {
+    "position": [
+     102.413,
+     7.068,
+     -48.88
+    ]
+   },
+   "to": {
+    "position": [
+     36.98043,
+     9.56228,
+     -57.34548
+    ],
+    "rotation": [
+     -3.141,
+     0.413,
+     -3.141
+    ]
+   }
+  },
+  {
+   "file": "projects/level_09/day_2/client_project",
+   "list": "server_objects/respawn_points",
+   "where": {
+    "full_name": "logic/modes/items_random/team2/respawn/respawn_point(15)"
+   },
+   "from": {
+    "position": [
+     105.175,
+     6.639,
+     -55.754
+    ]
+   },
+   "to": {
+    "position": [
+     54.90518,
+     9.52169,
+     -40.14845
+    ],
+    "rotation": [
+     3.14116,
+     1.12484,
+     -3.14028
+    ]
+   }
+  },
+  {
+   "file": "projects/level_09/day_2/client_project",
+   "list": "server_objects/respawn_points",
+   "where": {
+    "full_name": "logic/modes/items_random/team2/respawn/respawn_point(16)"
+   },
+   "from": {
+    "position": [
+     101.811,
+     5.803,
+     -57.756
+    ]
+   },
+   "to": {
+    "position": [
+     48.62735,
+     9.56227,
+     -54.03697
+    ],
+    "rotation": [
+     3.12803,
+     -0.95399,
+     -3.13644
+    ]
+   }
+  },
+  {
+   "file": "projects/level_09/day_2/client_project",
+   "list": "server_objects/respawn_points",
+   "where": {
+    "full_name": "logic/modes/items_random/team2/respawn/respawn_point(17)"
+   },
+   "from": {
+    "position": [
+     103.385,
+     6.522,
+     -54.824
+    ]
+   },
+   "to": {
+    "position": [
+     53.31227,
+     9.56227,
+     -44.5933
+    ],
+    "rotation": [
+     0.00198,
+     1.12891,
+     -0.00127
+    ]
+   }
+  },
+  {
+   "file": "projects/level_09/day_2/client_project",
+   "list": "server_objects/respawn_points",
+   "where": {
+    "full_name": "logic/modes/items_random/team2/respawn/respawn_point(2)"
+   },
+   "from": {
+    "position": [
+     103.601,
+     6.991,
+     -52.141
+    ]
+   },
+   "to": {
+    "position": [
+     45.66214,
+     9.56228,
+     -59.90827
+    ],
+    "rotation": [
+     -3.14089,
+     0.10693,
+     -3.14102
+    ]
+   }
+  },
+  {
+   "file": "projects/level_09/day_2/client_project",
+   "list": "server_objects/respawn_points",
+   "where": {
+    "full_name": "logic/modes/items_random/team2/respawn/respawn_point(3)"
+   },
+   "from": {
+    "position": [
+     104.094,
+     7.023,
+     -49.302
+    ]
+   },
+   "to": {
+    "position": [
+     50.36281,
+     9.56194,
+     -47.96914
+    ],
+    "rotation": [
+     -3.141,
+     0.245,
+     -3.141
+    ]
+   }
+  },
+  {
+   "file": "projects/level_09/day_2/client_project",
+   "list": "server_objects/respawn_points",
+   "where": {
+    "full_name": "logic/modes/items_random/team2/respawn/respawn_point(4)"
+   },
+   "from": {
+    "position": [
+     105.285,
+     6.982,
+     -51.805
+    ]
+   },
+   "to": {
+    "position": [
+     57.53337,
+     9.56228,
+     -45.38141
+    ],
+    "rotation": [
+     0.00205,
+     1.15548,
+     -0.00135
+    ]
+   }
+  },
+  {
+   "file": "projects/level_09/day_2/client_project",
+   "list": "server_objects/respawn_points",
+   "where": {
+    "full_name": "logic/modes/items_random/team1/respawn/respawn_point(8)"
+   },
+   "from": {
+    "position": [
+     -103.925,
+     6.129,
+     27.21
+    ]
+   },
+   "to": {
+    "position": [
+     -56.0,
+     9.25428,
+     12.5
+    ],
+    "rotation": [
+     3.14159,
+     -0.0,
+     3.14159
+    ]
+   }
+  },
+  {
+   "file": "projects/level_09/day_2/client_project",
+   "list": "server_objects/respawn_points",
+   "where": {
+    "full_name": "logic/modes/items_random/team1/respawn/respawn_point(7)"
+   },
+   "from": {
+    "position": [
+     -97.718,
+     6.149,
+     35.66
+    ]
+   },
+   "to": {
+    "position": [
+     -57.0,
+     9.31068,
+     7.0
+    ],
+    "rotation": [
+     0.0,
+     -0.94311,
+     0.0
+    ]
+   }
+  },
+  {
+   "file": "projects/level_09/day_2/client_project",
+   "list": "server_objects/respawn_points",
+   "where": {
+    "full_name": "logic/modes/items_random/team1/respawn/respawn_point(4)"
+   },
+   "from": {
+    "position": [
+     -99.353,
+     5.785,
+     29.046
+    ]
+   },
+   "to": {
+    "position": [
+     -53.0,
+     9.25428,
+     15.5
+    ],
+    "rotation": [
+     3.14159,
+     -1.11764,
+     3.14159
+    ]
+   }
+  },
+  {
+   "file": "projects/level_09/day_2/client_project",
+   "list": "server_objects/respawn_points",
+   "where": {
+    "full_name": "logic/modes/items_random/team1/respawn/respawn_point(2)"
+   },
+   "from": {
+    "position": [
+     -99.804,
+     6.013,
+     33.136
+    ]
+   },
+   "to": {
+    "position": [
+     -59.5,
+     9.25428,
+     14.5
+    ],
+    "rotation": [
+     3.14159,
+     -0.40902,
+     3.14159
+    ]
+   }
+  },
+  {
+   "file": "projects/level_09/day_2/client_project",
+   "list": "server_objects/respawn_points",
+   "where": {
+    "full_name": "logic/modes/items_random/team1/respawn/respawn_point(6)"
+   },
+   "from": {
+    "position": [
+     -98.535,
+     6.414,
+     40.173
+    ]
+   },
+   "to": {
+    "position": [
+     -50.0,
+     9.25428,
+     18.5
+    ],
+    "rotation": [
+     3.14159,
+     0.1419,
+     3.14159
+    ]
+   }
+  },
+  {
+   "file": "projects/level_09/day_2/client_project",
+   "list": "server_objects/respawn_points",
+   "where": {
+    "full_name": "logic/modes/items_random/team1/respawn/respawn_point(1)"
+   },
+   "from": {
+    "position": [
+     -103.693,
+     6.093,
+     29.947
+    ]
+   },
+   "to": {
+    "position": [
+     -56.5,
+     9.23428,
+     17.5
+    ],
+    "rotation": [
+     3.14159,
+     -0.0,
+     3.14159
+    ]
+   }
+  },
+  {
+   "file": "projects/level_09/day_2/client_project",
+   "list": "server_objects/respawn_points",
+   "where": {
+    "full_name": "logic/modes/items_random/team1/respawn/respawn_point(9)"
+   },
+   "from": {
+    "position": [
+     -101.668,
+     6.155,
+     33.119
+    ]
+   },
+   "to": {
+    "position": [
+     -63.0,
+     9.25428,
+     12.5
+    ],
+    "rotation": [
+     0.0,
+     -1.53816,
+     0.0
+    ]
+   }
+  },
+  {
+   "file": "projects/level_09/day_2/client_project",
+   "list": "server_objects/respawn_points",
+   "where": {
+    "full_name": "logic/modes/items_random/team1/respawn/respawn_point(3)"
+   },
+   "from": {
+    "position": [
+     -101.787,
+     6.002,
+     27.958
+    ]
+   },
+   "to": {
+    "position": [
+     -48.0,
+     9.25428,
+     22.0
+    ],
+    "rotation": [
+     3.14159,
+     0.32175,
+     3.14159
+    ]
+   }
+  },
+  {
+   "file": "projects/level_09/day_2/client_project",
+   "list": "server_objects/respawn_points",
+   "where": {
+    "full_name": "logic/modes/items_random/team1/respawn/respawn_point"
+   },
+   "from": {
+    "position": [
+     -98.097,
+     6.138,
+     32.128
+    ]
+   },
+   "to": {
+    "position": [
+     -62.5,
+     9.25428,
+     17.5
+    ],
+    "rotation": [
+     3.14159,
+     -0.0,
+     3.14159
+    ]
+   }
+  },
+  {
+   "file": "projects/level_09/day_2/client_project",
+   "list": "server_objects/respawn_points",
+   "where": {
+    "full_name": "logic/modes/items_random/team1/respawn/respawn_point(5)"
+   },
+   "from": {
+    "position": [
+     -100.601,
+     6.186,
+     35.294
+    ]
+   },
+   "to": {
+    "position": [
+     -46.0,
+     9.25428,
+     25.5
+    ],
+    "rotation": [
+     3.14159,
+     0.32175,
+     3.14159
+    ]
+   }
+  },
+  {
+   "file": "projects/level_09/day_2/client_project",
+   "list": "server_objects/respawn_points",
+   "where": {
+    "full_name": "logic/modes/items_random/team2/respawn/respawn_point"
+   },
+   "from": {
+    "position": [
+     99.504,
+     6.06,
+     -56.656
+    ]
+   },
+   "to": {
+    "position": [
+     41.0,
+     9.56228,
+     -56.5
+    ],
+    "rotation": [
+     3.14159,
+     -1.4289,
+     3.14159
+    ]
+   }
+  },
+  {
+   "file": "projects/level_09/day_2/client_project",
+   "list": "server_objects/respawn_points",
+   "where": {
+    "full_name": "logic/modes/items_random/team2/respawn/respawn_point(1)"
+   },
+   "from": {
+    "position": [
+     101.128,
+     6.488,
+     -54.403
+    ]
+   },
+   "to": {
+    "position": [
+     53.0,
+     9.56228,
+     -51.0
+    ],
+    "rotation": [
+     3.14159,
+     0.7854,
+     3.14159
+    ]
+   }
+  },
+  {
+   "file": "projects/level_09/day_3/client_project",
+   "list": "server_objects/respawn_points",
+   "where": {
+    "full_name": "logic/modes/items_charger/team2/respawn/respawn_point(1)"
+   },
+   "from": {
+    "position": [
+     100.214,
+     5.892,
+     -58.589
+    ]
+   },
+   "to": {
+    "position": [
+     42.24666,
+     9.56228,
+     -60.31087
+    ],
+    "rotation": [
+     0.00109,
+     0.43298,
+     -0.00059
+    ]
+   }
+  },
+  {
+   "file": "projects/level_09/day_3/client_project",
+   "list": "server_objects/respawn_points",
+   "where": {
+    "full_name": "logic/modes/items_charger/team2/respawn/respawn_point(2)"
+   },
+   "from": {
+    "position": [
+     103.137,
+     6.485,
+     -54.785
+    ]
+   },
+   "to": {
+    "position": [
+     36.98043,
+     9.56228,
+     -57.34548
+    ],
+    "rotation": [
+     -3.141,
+     0.413,
+     -3.141
+    ]
+   }
+  },
+  {
+   "file": "projects/level_09/day_3/client_project",
+   "list": "server_objects/respawn_points",
+   "where": {
+    "full_name": "logic/modes/items_charger/team2/respawn/respawn_point(12)"
+   },
+   "from": {
+    "position": [
+     99.35,
+     6.311,
+     -54.902
+    ]
+   },
+   "to": {
+    "position": [
+     54.90518,
+     9.52169,
+     -40.14845
+    ],
+    "rotation": [
+     3.14116,
+     1.12484,
+     -3.14028
+    ]
+   }
+  },
+  {
+   "file": "projects/level_09/day_3/client_project",
+   "list": "server_objects/respawn_points",
+   "where": {
+    "full_name": "logic/modes/items_charger/team2/respawn/respawn_point(16)"
+   },
+   "from": {
+    "position": [
+     102.738,
+     5.968,
+     -56.739
+    ]
+   },
+   "to": {
+    "position": [
+     48.62735,
+     9.56227,
+     -54.03697
+    ],
+    "rotation": [
+     3.12803,
+     -0.95399,
+     -3.13644
+    ]
+   }
+  },
+  {
+   "file": "projects/level_09/day_3/client_project",
+   "list": "server_objects/respawn_points",
+   "where": {
+    "full_name": "logic/modes/items_charger/team2/respawn/respawn_point(11)"
+   },
+   "from": {
+    "position": [
+     102.57,
+     5.619,
+     -59.285
+    ]
+   },
+   "to": {
+    "position": [
+     53.31227,
+     9.56227,
+     -44.5933
+    ],
+    "rotation": [
+     0.00198,
+     1.12891,
+     -0.00127
+    ]
+   }
+  },
+  {
+   "file": "projects/level_09/day_3/client_project",
+   "list": "server_objects/respawn_points",
+   "where": {
+    "full_name": "logic/modes/items_charger/team2/respawn/respawn_point(18)"
+   },
+   "from": {
+    "position": [
+     100.241,
+     6.84,
+     -52.972
+    ]
+   },
+   "to": {
+    "position": [
+     45.66214,
+     9.56228,
+     -59.90827
+    ],
+    "rotation": [
+     -3.14089,
+     0.10693,
+     -3.14102
+    ]
+   }
+  },
+  {
+   "file": "projects/level_09/day_3/client_project",
+   "list": "server_objects/respawn_points",
+   "where": {
+    "full_name": "logic/modes/items_charger/team2/respawn/respawn_point(15)"
+   },
+   "from": {
+    "position": [
+     100.817,
+     6.136,
+     -55.984
+    ]
+   },
+   "to": {
+    "position": [
+     50.36281,
+     9.56194,
+     -47.96914
+    ],
+    "rotation": [
+     -3.141,
+     0.245,
+     -3.141
+    ]
+   }
+  },
+  {
+   "file": "projects/level_09/day_3/client_project",
+   "list": "server_objects/respawn_points",
+   "where": {
+    "full_name": "logic/modes/items_charger/team2/respawn/respawn_point"
+   },
+   "from": {
+    "position": [
+     98.449,
+     6.031,
+     -57.558
+    ]
+   },
+   "to": {
+    "position": [
+     57.53337,
+     9.56228,
+     -45.38141
+    ],
+    "rotation": [
+     0.00205,
+     1.15548,
+     -0.00135
+    ]
+   }
+  },
+  {
+   "file": "projects/level_09/day_3/client_project",
+   "list": "server_objects/respawn_points",
+   "where": {
+    "full_name": "logic/modes/items_charger/team1/respawn/respawn_point(14)"
+   },
+   "from": {
+    "position": [
+     -102.487,
+     6.298,
+     24.554
+    ]
+   },
+   "to": {
+    "position": [
+     -56.0,
+     9.25428,
+     12.5
+    ],
+    "rotation": [
+     3.14159,
+     -0.0,
+     3.14159
+    ]
+   }
+  },
+  {
+   "file": "projects/level_09/day_3/client_project",
+   "list": "server_objects/respawn_points",
+   "where": {
+    "full_name": "logic/modes/items_charger/team1/respawn/respawn_point(2)"
+   },
+   "from": {
+    "position": [
+     -99.159,
+     5.989,
+     34.354
+    ]
+   },
+   "to": {
+    "position": [
+     -57.0,
+     9.31068,
+     7.0
+    ],
+    "rotation": [
+     0.0,
+     -0.94311,
+     0.0
+    ]
+   }
+  },
+  {
+   "file": "projects/level_09/day_3/client_project",
+   "list": "server_objects/respawn_points",
+   "where": {
+    "full_name": "logic/modes/items_charger/team1/respawn/respawn_point(11)"
+   },
+   "from": {
+    "position": [
+     -103.044,
+     6.073,
+     29.268
+    ]
+   },
+   "to": {
+    "position": [
+     -53.0,
+     9.25428,
+     15.5
+    ],
+    "rotation": [
+     3.14159,
+     -1.11764,
+     3.14159
+    ]
+   }
+  },
+  {
+   "file": "projects/level_09/day_3/client_project",
+   "list": "server_objects/respawn_points",
+   "where": {
+    "full_name": "logic/modes/items_charger/team1/respawn/respawn_point(3)"
+   },
+   "from": {
+    "position": [
+     -101.254,
+     6.017,
+     27.884
+    ]
+   },
+   "to": {
+    "position": [
+     -59.5,
+     9.25428,
+     14.5
+    ],
+    "rotation": [
+     3.14159,
+     -0.40902,
+     3.14159
+    ]
+   }
+  },
+  {
+   "file": "projects/level_09/day_3/client_project",
+   "list": "server_objects/respawn_points",
+   "where": {
+    "full_name": "logic/modes/items_charger/team1/respawn/respawn_point(9)"
+   },
+   "from": {
+    "position": [
+     -101.668,
+     6.155,
+     33.119
+    ]
+   },
+   "to": {
+    "position": [
+     -50.0,
+     9.25428,
+     18.5
+    ],
+    "rotation": [
+     3.14159,
+     0.1419,
+     3.14159
+    ]
+   }
+  },
+  {
+   "file": "projects/level_09/day_3/client_project",
+   "list": "server_objects/respawn_points",
+   "where": {
+    "full_name": "logic/modes/items_charger/team1/respawn/respawn_point(10)"
+   },
+   "from": {
+    "position": [
+     -102.341,
+     5.997,
+     31.12
+    ]
+   },
+   "to": {
+    "position": [
+     -56.5,
+     9.23428,
+     17.5
+    ],
+    "rotation": [
+     3.14159,
+     -0.0,
+     3.14159
+    ]
+   }
+  },
+  {
+   "file": "projects/level_09/day_3/client_project",
+   "list": "server_objects/respawn_points",
+   "where": {
+    "full_name": "logic/modes/items_charger/team1/respawn/respawn_point"
+   },
+   "from": {
+    "position": [
+     -99.511,
+     5.76,
+     31.457
+    ]
+   },
+   "to": {
+    "position": [
+     -63.0,
+     9.25428,
+     12.5
+    ],
+    "rotation": [
+     0.0,
+     -1.53816,
+     0.0
+    ]
+   }
+  },
+  {
+   "file": "projects/level_09/day_3/client_project",
+   "list": "server_objects/respawn_points",
+   "where": {
+    "full_name": "logic/modes/items_charger/team1/respawn/respawn_point(15)"
+   },
+   "from": {
+    "position": [
+     -104.695,
+     6.3,
+     24.456
+    ]
+   },
+   "to": {
+    "position": [
+     -48.0,
+     9.25428,
+     22.0
+    ],
+    "rotation": [
+     3.14159,
+     0.32175,
+     3.14159
+    ]
+   }
+  },
+  {
+   "file": "projects/level_09/day_3/client_project",
+   "list": "server_objects/respawn_points",
+   "where": {
+    "full_name": "logic/modes/items_charger/team1/respawn/respawn_point(13)"
+   },
+   "from": {
+    "position": [
+     -107.546,
+     6.702,
+     24.221
+    ]
+   },
+   "to": {
+    "position": [
+     -62.5,
+     9.25428,
+     17.5
+    ],
+    "rotation": [
+     3.14159,
+     -0.0,
+     3.14159
+    ]
+   }
+  },
+  {
+   "file": "projects/level_09/day_3/client_project",
+   "list": "server_objects/respawn_points",
+   "where": {
+    "full_name": "logic/modes/items_charger/team1/respawn/respawn_point(8)"
+   },
+   "from": {
+    "position": [
+     -103.925,
+     6.129,
+     27.21
+    ]
+   },
+   "to": {
+    "position": [
+     -46.0,
+     9.25428,
+     25.5
+    ],
+    "rotation": [
+     3.14159,
+     0.32175,
+     3.14159
+    ]
+   }
+  },
+  {
+   "file": "projects/level_09/day_3/client_project",
+   "list": "server_objects/respawn_points",
+   "where": {
+    "full_name": "logic/modes/items_charger/team2/respawn/respawn_point(17)"
+   },
+   "from": {
+    "position": [
+     105.292,
+     6.633,
+     -57.041
+    ]
+   },
+   "to": {
+    "position": [
+     41.0,
+     9.56228,
+     -56.5
+    ],
+    "rotation": [
+     3.14159,
+     -1.4289,
+     3.14159
+    ]
+   }
+  },
+  {
+   "file": "projects/level_09/day_3/client_project",
+   "list": "server_objects/respawn_points",
+   "where": {
+    "full_name": "logic/modes/items_charger/team2/respawn/respawn_point(19)"
+   },
+   "from": {
+    "position": [
+     101.764,
+     6.774,
+     -53.8
+    ]
+   },
+   "to": {
+    "position": [
+     53.0,
+     9.56228,
+     -51.0
+    ],
+    "rotation": [
+     3.14159,
+     0.7854,
+     3.14159
+    ]
+   }
+  },
+  {
+   "file": "projects/level_09/day_4/client_project",
+   "list": "server_objects/respawn_points",
+   "where": {
+    "full_name": "logic/modes/team-death-match/team2/respawn/respawn_point(19)"
+   },
+   "from": {
+    "position": [
+     102.785,
+     5.715,
+     -58.594
+    ]
+   },
+   "to": {
+    "position": [
+     42.24666,
+     9.56228,
+     -60.31087
+    ],
+    "rotation": [
+     0.00109,
+     0.43298,
+     -0.00059
+    ]
+   }
+  },
+  {
+   "file": "projects/level_09/day_4/client_project",
+   "list": "server_objects/respawn_points",
+   "where": {
+    "full_name": "logic/modes/team-death-match/team2/respawn/respawn_point(12)"
+   },
+   "from": {
+    "position": [
+     100.609,
+     7.21,
+     -51.263
+    ]
+   },
+   "to": {
+    "position": [
+     36.98043,
+     9.56228,
+     -57.34548
+    ],
+    "rotation": [
+     -3.141,
+     0.413,
+     -3.141
+    ]
+   }
+  },
+  {
+   "file": "projects/level_09/day_4/client_project",
+   "list": "server_objects/respawn_points",
+   "where": {
+    "full_name": "logic/modes/team-death-match/team2/respawn/respawn_point(2)"
+   },
+   "from": {
+    "position": [
+     100.694,
+     5.808,
+     -59.696
+    ]
+   },
+   "to": {
+    "position": [
+     54.90518,
+     9.52169,
+     -40.14845
+    ],
+    "rotation": [
+     3.14116,
+     1.12484,
+     -3.14028
+    ]
+   }
+  },
+  {
+   "file": "projects/level_09/day_4/client_project",
+   "list": "server_objects/respawn_points",
+   "where": {
+    "full_name": "logic/modes/team-death-match/team2/respawn/respawn_point(1)"
+   },
+   "from": {
+    "position": [
+     98.31,
+     6.274,
+     -55.347
+    ]
+   },
+   "to": {
+    "position": [
+     48.62735,
+     9.56227,
+     -54.03697
+    ],
+    "rotation": [
+     3.12803,
+     -0.95399,
+     -3.13644
+    ]
+   }
+  },
+  {
+   "file": "projects/level_09/day_4/client_project",
+   "list": "server_objects/respawn_points",
+   "where": {
+    "full_name": "logic/modes/team-death-match/team2/respawn/respawn_point(16)"
+   },
+   "from": {
+    "position": [
+     100.098,
+     6.154,
+     -55.842
+    ]
+   },
+   "to": {
+    "position": [
+     53.31227,
+     9.56227,
+     -44.5933
+    ],
+    "rotation": [
+     0.00198,
+     1.12891,
+     -0.00127
+    ]
+   }
+  },
+  {
+   "file": "projects/level_09/day_4/client_project",
+   "list": "server_objects/respawn_points",
+   "where": {
+    "full_name": "logic/modes/team-death-match/team2/respawn/respawn_point(18)"
+   },
+   "from": {
+    "position": [
+     102.573,
+     6.29,
+     -55.928
+    ]
+   },
+   "to": {
+    "position": [
+     45.66214,
+     9.56228,
+     -59.90827
+    ],
+    "rotation": [
+     -3.14089,
+     0.10693,
+     -3.14102
+    ]
+   }
+  },
+  {
+   "file": "projects/level_09/day_4/client_project",
+   "list": "server_objects/respawn_points",
+   "where": {
+    "full_name": "logic/modes/team-death-match/team2/respawn/respawn_point(11)"
+   },
+   "from": {
+    "position": [
+     99.22,
+     6.724,
+     -53.256
+    ]
+   },
+   "to": {
+    "position": [
+     50.36281,
+     9.56194,
+     -47.96914
+    ],
+    "rotation": [
+     -3.141,
+     0.245,
+     -3.141
+    ]
+   }
+  },
+  {
+   "file": "projects/level_09/day_4/client_project",
+   "list": "server_objects/respawn_points",
+   "where": {
+    "full_name": "logic/modes/team-death-match/team2/respawn/respawn_point(15)"
+   },
+   "from": {
+    "position": [
+     99.533,
+     6.027,
+     -58.482
+    ]
+   },
+   "to": {
+    "position": [
+     57.53337,
+     9.56228,
+     -45.38141
+    ],
+    "rotation": [
+     0.00205,
+     1.15548,
+     -0.00135
+    ]
+   }
+  },
+  {
+   "file": "projects/level_09/day_4/client_project",
+   "list": "server_objects/respawn_points",
+   "where": {
+    "full_name": "logic/modes/team-death-match/team1/respawn/respawn_point(2)"
+   },
+   "from": {
+    "position": [
+     -99.159,
+     5.989,
+     34.354
+    ]
+   },
+   "to": {
+    "position": [
+     -56.0,
+     9.25428,
+     12.5
+    ],
+    "rotation": [
+     3.14159,
+     -0.0,
+     3.14159
+    ]
+   }
+  },
+  {
+   "file": "projects/level_09/day_4/client_project",
+   "list": "server_objects/respawn_points",
+   "where": {
+    "full_name": "logic/modes/team-death-match/team1/respawn/respawn_point(4)"
+   },
+   "from": {
+    "position": [
+     -99.466,
+     5.762,
+     29.529
+    ]
+   },
+   "to": {
+    "position": [
+     -57.0,
+     9.31068,
+     7.0
+    ],
+    "rotation": [
+     0.0,
+     -0.94311,
+     0.0
+    ]
+   }
+  },
+  {
+   "file": "projects/level_09/day_4/client_project",
+   "list": "server_objects/respawn_points",
+   "where": {
+    "full_name": "logic/modes/team-death-match/team1/respawn/respawn_point(15)"
+   },
+   "from": {
+    "position": [
+     -104.695,
+     6.3,
+     24.456
+    ]
+   },
+   "to": {
+    "position": [
+     -53.0,
+     9.25428,
+     15.5
+    ],
+    "rotation": [
+     3.14159,
+     -1.11764,
+     3.14159
+    ]
+   }
+  },
+  {
+   "file": "projects/level_09/day_4/client_project",
+   "list": "server_objects/respawn_points",
+   "where": {
+    "full_name": "logic/modes/team-death-match/team1/respawn/respawn_point(8)"
+   },
+   "from": {
+    "position": [
+     -103.925,
+     6.129,
+     27.21
+    ]
+   },
+   "to": {
+    "position": [
+     -59.5,
+     9.25428,
+     14.5
+    ],
+    "rotation": [
+     3.14159,
+     -0.40902,
+     3.14159
+    ]
+   }
+  },
+  {
+   "file": "projects/level_09/day_4/client_project",
+   "list": "server_objects/respawn_points",
+   "where": {
+    "full_name": "logic/modes/team-death-match/team1/respawn/respawn_point(3)"
+   },
+   "from": {
+    "position": [
+     -101.254,
+     6.017,
+     27.884
+    ]
+   },
+   "to": {
+    "position": [
+     -50.0,
+     9.25428,
+     18.5
+    ],
+    "rotation": [
+     3.14159,
+     0.1419,
+     3.14159
+    ]
+   }
+  },
+  {
+   "file": "projects/level_09/day_4/client_project",
+   "list": "server_objects/respawn_points",
+   "where": {
+    "full_name": "logic/modes/team-death-match/team1/respawn/respawn_point"
+   },
+   "from": {
+    "position": [
+     -99.511,
+     5.76,
+     31.457
+    ]
+   },
+   "to": {
+    "position": [
+     -56.5,
+     9.23428,
+     17.5
+    ],
+    "rotation": [
+     3.14159,
+     -0.0,
+     3.14159
+    ]
+   }
+  },
+  {
+   "file": "projects/level_09/day_4/client_project",
+   "list": "server_objects/respawn_points",
+   "where": {
+    "full_name": "logic/modes/team-death-match/team1/respawn/respawn_point(12)"
+   },
+   "from": {
+    "position": [
+     -102.18,
+     6.056,
+     25.917
+    ]
+   },
+   "to": {
+    "position": [
+     -63.0,
+     9.25428,
+     12.5
+    ],
+    "rotation": [
+     0.0,
+     -1.53816,
+     0.0
+    ]
+   }
+  },
+  {
+   "file": "projects/level_09/day_4/client_project",
+   "list": "server_objects/respawn_points",
+   "where": {
+    "full_name": "logic/modes/team-death-match/team1/respawn/respawn_point(11)"
+   },
+   "from": {
+    "position": [
+     -103.044,
+     6.073,
+     29.268
+    ]
+   },
+   "to": {
+    "position": [
+     -48.0,
+     9.25428,
+     22.0
+    ],
+    "rotation": [
+     3.14159,
+     0.32175,
+     3.14159
+    ]
+   }
+  },
+  {
+   "file": "projects/level_09/day_4/client_project",
+   "list": "server_objects/respawn_points",
+   "where": {
+    "full_name": "logic/modes/team-death-match/team1/respawn/respawn_point(10)"
+   },
+   "from": {
+    "position": [
+     -102.341,
+     5.997,
+     31.12
+    ]
+   },
+   "to": {
+    "position": [
+     -62.5,
+     9.25428,
+     17.5
+    ],
+    "rotation": [
+     3.14159,
+     -0.0,
+     3.14159
+    ]
+   }
+  },
+  {
+   "file": "projects/level_09/day_4/client_project",
+   "list": "server_objects/respawn_points",
+   "where": {
+    "full_name": "logic/modes/team-death-match/team1/respawn/respawn_point(9)"
+   },
+   "from": {
+    "position": [
+     -101.668,
+     6.155,
+     33.119
+    ]
+   },
+   "to": {
+    "position": [
+     -46.0,
+     9.25428,
+     25.5
+    ],
+    "rotation": [
+     3.14159,
+     0.32175,
+     3.14159
+    ]
+   }
+  },
+  {
+   "file": "projects/level_09/day_4/client_project",
+   "list": "server_objects/respawn_points",
+   "where": {
+    "full_name": "logic/modes/team-death-match/team2/respawn/respawn_point"
+   },
+   "from": {
+    "position": [
+     97.744,
+     6.122,
+     -57.783
+    ]
+   },
+   "to": {
+    "position": [
+     41.0,
+     9.56228,
+     -56.5
+    ],
+    "rotation": [
+     3.14159,
+     -1.4289,
+     3.14159
+    ]
+   }
+  },
+  {
+   "file": "projects/level_09/day_4/client_project",
+   "list": "server_objects/respawn_points",
+   "where": {
+    "full_name": "logic/modes/team-death-match/team2/respawn/respawn_point(17)"
+   },
+   "from": {
+    "position": [
+     101.174,
+     6.704,
+     -53.736
+    ]
+   },
+   "to": {
+    "position": [
+     53.0,
+     9.56228,
+     -51.0
+    ],
+    "rotation": [
+     3.14159,
+     0.7854,
+     3.14159
+    ]
+   }
+  },
+  {
+   "file": "projects/level_09/day_5/client_project",
+   "list": "server_objects/respawn_points",
+   "where": {
+    "full_name": "logic/modes/items_capture-points/team2/respawn/respawn_point(15)"
+   },
+   "from": {
+    "position": [
+     102.657,
+     7.003,
+     -52.471
+    ]
+   },
+   "to": {
+    "position": [
+     42.24666,
+     9.56228,
+     -60.31087
+    ],
+    "rotation": [
+     0.00109,
+     0.43298,
+     -0.00059
+    ]
+   }
+  },
+  {
+   "file": "projects/level_09/day_5/client_project",
+   "list": "server_objects/respawn_points",
+   "where": {
+    "full_name": "logic/modes/items_capture-points/team2/respawn/respawn_point(4)"
+   },
+   "from": {
+    "position": [
+     107.055,
+     7.043,
+     -53.057
+    ]
+   },
+   "to": {
+    "position": [
+     36.98043,
+     9.56228,
+     -57.34548
+    ],
+    "rotation": [
+     -3.141,
+     0.413,
+     -3.141
+    ]
+   }
+  },
+  {
+   "file": "projects/level_09/day_5/client_project",
+   "list": "server_objects/respawn_points",
+   "where": {
+    "full_name": "logic/modes/items_capture-points/team2/respawn/respawn_point(18)"
+   },
+   "from": {
+    "position": [
+     105.425,
+     6.97,
+     -50.283
+    ]
+   },
+   "to": {
+    "position": [
+     54.90518,
+     9.52169,
+     -40.14845
+    ],
+    "rotation": [
+     3.14116,
+     1.12484,
+     -3.14028
+    ]
+   }
+  },
+  {
+   "file": "projects/level_09/day_5/client_project",
+   "list": "server_objects/respawn_points",
+   "where": {
+    "full_name": "logic/modes/items_capture-points/team2/respawn/respawn_point(17)"
+   },
+   "from": {
+    "position": [
+     103.218,
+     7.061,
+     -49.733
+    ]
+   },
+   "to": {
+    "position": [
+     48.62735,
+     9.56227,
+     -54.03697
+    ],
+    "rotation": [
+     3.12803,
+     -0.95399,
+     -3.13644
+    ]
+   }
+  },
+  {
+   "file": "projects/level_09/day_5/client_project",
+   "list": "server_objects/respawn_points",
+   "where": {
+    "full_name": "logic/modes/items_capture-points/team2/respawn/respawn_point(12)"
+   },
+   "from": {
+    "position": [
+     104.539,
+     6.52,
+     -55.653
+    ]
+   },
+   "to": {
+    "position": [
+     53.31227,
+     9.56227,
+     -44.5933
+    ],
+    "rotation": [
+     0.00198,
+     1.12891,
+     -0.00127
+    ]
+   }
+  },
+  {
+   "file": "projects/level_09/day_5/client_project",
+   "list": "server_objects/respawn_points",
+   "where": {
+    "full_name": "logic/modes/items_capture-points/team2/respawn/respawn_point(1)"
+   },
+   "from": {
+    "position": [
+     101.364,
+     6.425,
+     -54.572
+    ]
+   },
+   "to": {
+    "position": [
+     45.66214,
+     9.56228,
+     -59.90827
+    ],
+    "rotation": [
+     -3.14089,
+     0.10693,
+     -3.14102
+    ]
+   }
+  },
+  {
+   "file": "projects/level_09/day_5/client_project",
+   "list": "server_objects/respawn_points",
+   "where": {
+    "full_name": "logic/modes/items_capture-points/team2/respawn/respawn_point(11)"
+   },
+   "from": {
+    "position": [
+     103.337,
+     6.136,
+     -57.305
+    ]
+   },
+   "to": {
+    "position": [
+     50.36281,
+     9.56194,
+     -47.96914
+    ],
+    "rotation": [
+     -3.141,
+     0.245,
+     -3.141
+    ]
+   }
+  },
+  {
+   "file": "projects/level_09/day_5/client_project",
+   "list": "server_objects/respawn_points",
+   "where": {
+    "full_name": "logic/modes/items_capture-points/team2/respawn/respawn_point(16)"
+   },
+   "from": {
+    "position": [
+     105.035,
+     7.038,
+     -53.065
+    ]
+   },
+   "to": {
+    "position": [
+     57.53337,
+     9.56228,
+     -45.38141
+    ],
+    "rotation": [
+     0.00205,
+     1.15548,
+     -0.00135
+    ]
+   }
+  },
+  {
+   "file": "projects/level_09/day_5/client_project",
+   "list": "server_objects/respawn_points",
+   "where": {
+    "full_name": "logic/modes/items_capture-points/team1/respawn/respawn_point(9)"
+   },
+   "from": {
+    "position": [
+     -101.668,
+     6.155,
+     33.119
+    ]
+   },
+   "to": {
+    "position": [
+     -56.0,
+     9.25428,
+     12.5
+    ],
+    "rotation": [
+     3.14159,
+     -0.0,
+     3.14159
+    ]
+   }
+  },
+  {
+   "file": "projects/level_09/day_5/client_project",
+   "list": "server_objects/respawn_points",
+   "where": {
+    "full_name": "logic/modes/items_capture-points/team1/respawn/respawn_point(8)"
+   },
+   "from": {
+    "position": [
+     -103.925,
+     6.129,
+     27.21
+    ]
+   },
+   "to": {
+    "position": [
+     -57.0,
+     9.31068,
+     7.0
+    ],
+    "rotation": [
+     0.0,
+     -0.94311,
+     0.0
+    ]
+   }
+  },
+  {
+   "file": "projects/level_09/day_5/client_project",
+   "list": "server_objects/respawn_points",
+   "where": {
+    "full_name": "logic/modes/items_capture-points/team1/respawn/respawn_point(2)"
+   },
+   "from": {
+    "position": [
+     -99.159,
+     5.989,
+     34.354
+    ]
+   },
+   "to": {
+    "position": [
+     -53.0,
+     9.25428,
+     15.5
+    ],
+    "rotation": [
+     3.14159,
+     -1.11764,
+     3.14159
+    ]
+   }
+  },
+  {
+   "file": "projects/level_09/day_5/client_project",
+   "list": "server_objects/respawn_points",
+   "where": {
+    "full_name": "logic/modes/items_capture-points/team1/respawn/respawn_point(10)"
+   },
+   "from": {
+    "position": [
+     -102.341,
+     5.997,
+     31.12
+    ]
+   },
+   "to": {
+    "position": [
+     -59.5,
+     9.25428,
+     14.5
+    ],
+    "rotation": [
+     3.14159,
+     -0.40902,
+     3.14159
+    ]
+   }
+  },
+  {
+   "file": "projects/level_09/day_5/client_project",
+   "list": "server_objects/respawn_points",
+   "where": {
+    "full_name": "logic/modes/items_capture-points/team1/respawn/respawn_point(12)"
+   },
+   "from": {
+    "position": [
+     -102.043,
+     6.115,
+     25.129
+    ]
+   },
+   "to": {
+    "position": [
+     -50.0,
+     9.25428,
+     18.5
+    ],
+    "rotation": [
+     3.14159,
+     0.1419,
+     3.14159
+    ]
+   }
+  },
+  {
+   "file": "projects/level_09/day_5/client_project",
+   "list": "server_objects/respawn_points",
+   "where": {
+    "full_name": "logic/modes/items_capture-points/team1/respawn/respawn_point"
+   },
+   "from": {
+    "position": [
+     -99.511,
+     5.76,
+     31.457
+    ]
+   },
+   "to": {
+    "position": [
+     -56.5,
+     9.23428,
+     17.5
+    ],
+    "rotation": [
+     3.14159,
+     -0.0,
+     3.14159
+    ]
+   }
+  },
+  {
+   "file": "projects/level_09/day_5/client_project",
+   "list": "server_objects/respawn_points",
+   "where": {
+    "full_name": "logic/modes/items_capture-points/team1/respawn/respawn_point(5)"
+   },
+   "from": {
+    "position": [
+     -100.469,
+     6.254,
+     35.962
+    ]
+   },
+   "to": {
+    "position": [
+     -63.0,
+     9.25428,
+     12.5
+    ],
+    "rotation": [
+     0.0,
+     -1.53816,
+     0.0
+    ]
+   }
+  },
+  {
+   "file": "projects/level_09/day_5/client_project",
+   "list": "server_objects/respawn_points",
+   "where": {
+    "full_name": "logic/modes/items_capture-points/team1/respawn/respawn_point(11)"
+   },
+   "from": {
+    "position": [
+     -103.044,
+     6.073,
+     29.268
+    ]
+   },
+   "to": {
+    "position": [
+     -48.0,
+     9.25428,
+     22.0
+    ],
+    "rotation": [
+     3.14159,
+     0.32175,
+     3.14159
+    ]
+   }
+  },
+  {
+   "file": "projects/level_09/day_5/client_project",
+   "list": "server_objects/respawn_points",
+   "where": {
+    "full_name": "logic/modes/items_capture-points/team1/respawn/respawn_point(3)"
+   },
+   "from": {
+    "position": [
+     -101.254,
+     6.017,
+     27.884
+    ]
+   },
+   "to": {
+    "position": [
+     -62.5,
+     9.25428,
+     17.5
+    ],
+    "rotation": [
+     3.14159,
+     -0.0,
+     3.14159
+    ]
+   }
+  },
+  {
+   "file": "projects/level_09/day_5/client_project",
+   "list": "server_objects/respawn_points",
+   "where": {
+    "full_name": "logic/modes/items_capture-points/team1/respawn/respawn_point(15)"
+   },
+   "from": {
+    "position": [
+     -104.695,
+     6.3,
+     24.456
+    ]
+   },
+   "to": {
+    "position": [
+     -46.0,
+     9.25428,
+     25.5
+    ],
+    "rotation": [
+     3.14159,
+     0.32175,
+     3.14159
+    ]
+   }
+  },
+  {
+   "file": "projects/level_09/day_5/client_project",
+   "list": "server_objects/respawn_points",
+   "where": {
+    "full_name": "logic/modes/items_capture-points/team2/respawn/respawn_point(3)"
+   },
+   "from": {
+    "position": [
+     107.544,
+     7.152,
+     -50.346
+    ]
+   },
+   "to": {
+    "position": [
+     41.0,
+     9.56228,
+     -56.5
+    ],
+    "rotation": [
+     3.14159,
+     -1.4289,
+     3.14159
+    ]
+   }
+  },
+  {
+   "file": "projects/level_09/day_5/client_project",
+   "list": "server_objects/respawn_points",
+   "where": {
+    "full_name": "logic/modes/items_capture-points/team2/respawn/respawn_point"
+   },
+   "from": {
+    "position": [
+     100.9,
+     5.992,
+     -56.759
+    ]
+   },
+   "to": {
+    "position": [
+     53.0,
+     9.56228,
+     -51.0
+    ],
+    "rotation": [
+     3.14159,
+     0.7854,
+     3.14159
+    ]
+   }
+  }
+ ],
+ "remove_entry": [
+  {
+   "file": "projects/level_09/day_2/client_project",
+   "list": "client_objects",
+   "where": {
+    "full_name": "terrain/random_anomaly_indoor(2)/anomaly_collision",
+    "game_object_type": "collision_geometry"
+   }
+  },
+  {
+   "file": "projects/level_09/day_2/client_project",
+   "list": "client_objects",
+   "where": {
+    "full_name": "terrain/random_anomaly_indoor(2)/artefact_collision_onyx",
+    "game_object_type": "collision_geometry"
+   }
+  },
+  {
+   "file": "projects/level_09/day_2/client_project",
+   "list": "client_objects",
+   "where": {
+    "full_name": "terrain/random_anomaly_indoor(1)/anomaly_collision",
+    "game_object_type": "collision_geometry"
+   }
+  },
+  {
+   "file": "projects/level_09/day_2/client_project",
+   "list": "client_objects",
+   "where": {
+    "full_name": "terrain/random_anomaly_indoor(1)/artefact_collision_spring",
+    "game_object_type": "collision_geometry"
+   }
+  },
+  {
+   "file": "projects/level_09/day_2/client_project",
+   "list": "client_objects",
+   "where": {
+    "full_name": "terrain/random_anomaly_indoor(3)/anomaly_collision",
+    "game_object_type": "collision_geometry"
+   }
+  },
+  {
+   "file": "projects/level_09/day_2/client_project",
+   "list": "client_objects",
+   "where": {
+    "full_name": "terrain/random_anomaly_indoor(3)/artefact_collision_lifebone",
+    "game_object_type": "collision_geometry"
+   }
+  },
+  {
+   "file": "projects/level_09/day_2/client_project",
+   "list": "client_objects",
+   "where": {
+    "full_name": "terrain/random_anomaly_outdoor/anomaly_collision",
+    "game_object_type": "collision_geometry"
+   }
+  },
+  {
+   "file": "projects/level_09/day_2/client_project",
+   "list": "client_objects",
+   "where": {
+    "full_name": "terrain/random_anomaly_outdoor/artefact_collision_lifebone",
+    "game_object_type": "collision_geometry"
+   }
+  },
+  {
+   "file": "projects/level_09/day_2/client_project",
+   "list": "client_objects",
+   "where": {
+    "full_name": "terrain/random_anomaly_indoor(4)/anomaly_collision",
+    "game_object_type": "collision_geometry"
+   }
+  },
+  {
+   "file": "projects/level_09/day_2/client_project",
+   "list": "client_objects",
+   "where": {
+    "full_name": "terrain/random_anomaly_indoor(4)/artefact_collision_spring",
+    "game_object_type": "collision_geometry"
+   }
+  },
+  {
+   "file": "projects/level_09/day_2/client_project",
+   "list": "client_objects",
+   "where": {
+    "full_name": "terrain/random_anomaly_indoor(5)/anomaly_collision",
+    "game_object_type": "collision_geometry"
+   }
+  },
+  {
+   "file": "projects/level_09/day_2/client_project",
+   "list": "client_objects",
+   "where": {
+    "full_name": "terrain/random_anomaly_indoor(5)/artefact_collision_onyx",
+    "game_object_type": "collision_geometry"
+   }
+  },
+  {
+   "file": "projects/level_09/day_2/client_project",
+   "list": "client_objects",
+   "where": {
+    "full_name": "terrain/random_anomaly_indoor/anomaly_collision",
+    "game_object_type": "collision_geometry"
+   }
+  },
+  {
+   "file": "projects/level_09/day_2/client_project",
+   "list": "client_objects",
+   "where": {
+    "full_name": "terrain/random_anomaly_indoor/artefact_collision_lifebone",
+    "game_object_type": "collision_geometry"
+   }
+  },
+  {
+   "file": "projects/level_09/day_2/client_project",
+   "list": "client_objects",
+   "where": {
+    "full_name": "logic/modes/items_random/team2/inv_zone",
+    "game_object_type": "effect_zone"
+   }
+  },
+  {
+   "file": "projects/level_09/day_2/client_project",
+   "list": "client_objects",
+   "where": {
+    "full_name": "logic/modes/items_random/team2/inv_collision",
+    "game_object_type": "collision_geometry"
+   }
+  },
+  {
+   "file": "projects/level_09/day_2/client_project",
+   "list": "client_objects",
+   "where": {
+    "full_name": "logic/modes/items_random/team1/inv_collision",
+    "game_object_type": "collision_geometry"
+   }
+  },
+  {
+   "file": "projects/level_09/day_2/client_project",
+   "list": "client_objects",
+   "where": {
+    "full_name": "logic/modes/items_random/team1/inv_zone",
+    "game_object_type": "effect_zone"
+   }
+  },
+  {
+   "file": "projects/level_09/day_2/client_project",
+   "list": "client_objects",
+   "where": {
+    "full_name": "terrain/random_anomaly_indoor(2)/damage_zone_onyx",
+    "game_object_type": "damage_zone"
+   }
+  },
+  {
+   "file": "projects/level_09/day_2/client_project",
+   "list": "client_objects",
+   "where": {
+    "full_name": "terrain/random_anomaly_indoor(2)/artefact_container_onyx",
+    "game_object_type": "artefact_container"
+   }
+  },
+  {
+   "file": "projects/level_09/day_2/client_project",
+   "list": "client_objects",
+   "where": {
+    "full_name": "terrain/random_anomaly_indoor(2)/timeout_anomaly_onyx_indoor2",
+    "game_object_type": "generic_anomaly_core"
+   }
+  },
+  {
+   "file": "projects/level_09/day_2/client_project",
+   "list": "client_objects",
+   "where": {
+    "full_name": "terrain/random_anomaly_indoor(1)/damage_zone_spring",
+    "game_object_type": "damage_zone"
+   }
+  },
+  {
+   "file": "projects/level_09/day_2/client_project",
+   "list": "client_objects",
+   "where": {
+    "full_name": "terrain/random_anomaly_indoor(1)/artefact_container_spring",
+    "game_object_type": "artefact_container"
+   }
+  },
+  {
+   "file": "projects/level_09/day_2/client_project",
+   "list": "client_objects",
+   "where": {
+    "full_name": "terrain/random_anomaly_indoor(1)/timeout_anomaly_spring_indoor1",
+    "game_object_type": "generic_anomaly_core"
+   }
+  },
+  {
+   "file": "projects/level_09/day_2/client_project",
+   "list": "client_objects",
+   "where": {
+    "full_name": "terrain/random_anomaly_indoor(3)/damage_zone_lifebone",
+    "game_object_type": "damage_zone"
+   }
+  },
+  {
+   "file": "projects/level_09/day_2/client_project",
+   "list": "client_objects",
+   "where": {
+    "full_name": "terrain/random_anomaly_indoor(3)/artefact_container_lifebone",
+    "game_object_type": "artefact_container"
+   }
+  },
+  {
+   "file": "projects/level_09/day_2/client_project",
+   "list": "client_objects",
+   "where": {
+    "full_name": "terrain/random_anomaly_indoor(3)/timeout_anomaly_lifebone_indoor3",
+    "game_object_type": "generic_anomaly_core"
+   }
+  },
+  {
+   "file": "projects/level_09/day_2/client_project",
+   "list": "client_objects",
+   "where": {
+    "full_name": "terrain/random_anomaly_outdoor/damage_zone_lifebone",
+    "game_object_type": "damage_zone"
+   }
+  },
+  {
+   "file": "projects/level_09/day_2/client_project",
+   "list": "client_objects",
+   "where": {
+    "full_name": "terrain/random_anomaly_outdoor/artefact_container_lifebone",
+    "game_object_type": "artefact_container"
+   }
+  },
+  {
+   "file": "projects/level_09/day_2/client_project",
+   "list": "client_objects",
+   "where": {
+    "full_name": "terrain/random_anomaly_outdoor/timeout_anomaly_lifebone_outdoor",
+    "game_object_type": "generic_anomaly_core"
+   }
+  },
+  {
+   "file": "projects/level_09/day_2/client_project",
+   "list": "client_objects",
+   "where": {
+    "full_name": "terrain/random_anomaly_indoor(4)/damage_zone_spring",
+    "game_object_type": "damage_zone"
+   }
+  },
+  {
+   "file": "projects/level_09/day_2/client_project",
+   "list": "client_objects",
+   "where": {
+    "full_name": "terrain/random_anomaly_indoor(4)/artefact_container_spring",
+    "game_object_type": "artefact_container"
+   }
+  },
+  {
+   "file": "projects/level_09/day_2/client_project",
+   "list": "client_objects",
+   "where": {
+    "full_name": "terrain/random_anomaly_indoor(4)/timeout_anomaly_spring_indoor4",
+    "game_object_type": "generic_anomaly_core"
+   }
+  },
+  {
+   "file": "projects/level_09/day_2/client_project",
+   "list": "client_objects",
+   "where": {
+    "full_name": "terrain/random_anomaly_indoor(5)/damage_zone_onyx",
+    "game_object_type": "damage_zone"
+   }
+  },
+  {
+   "file": "projects/level_09/day_2/client_project",
+   "list": "client_objects",
+   "where": {
+    "full_name": "terrain/random_anomaly_indoor(5)/artefact_container_onyx",
+    "game_object_type": "artefact_container"
+   }
+  },
+  {
+   "file": "projects/level_09/day_2/client_project",
+   "list": "client_objects",
+   "where": {
+    "full_name": "terrain/random_anomaly_indoor(5)/timeout_anomaly_onyx_indoor5",
+    "game_object_type": "generic_anomaly_core"
+   }
+  },
+  {
+   "file": "projects/level_09/day_2/client_project",
+   "list": "client_objects",
+   "where": {
+    "full_name": "terrain/random_anomaly_indoor/damage_zone_lifebone",
+    "game_object_type": "damage_zone"
+   }
+  },
+  {
+   "file": "projects/level_09/day_2/client_project",
+   "list": "client_objects",
+   "where": {
+    "full_name": "terrain/random_anomaly_indoor/artefact_container_lifebone",
+    "game_object_type": "artefact_container"
+   }
+  },
+  {
+   "file": "projects/level_09/day_2/client_project",
+   "list": "client_objects",
+   "where": {
+    "full_name": "terrain/random_anomaly_indoor/timeout_anomaly_lifebone_indoor",
+    "game_object_type": "generic_anomaly_core"
+   }
+  },
+  {
+   "file": "projects/level_09/day_3/client_project",
+   "list": "client_objects",
+   "where": {
+    "full_name": "terrain/random_anomaly_indoor(2)/anomaly_collision",
+    "game_object_type": "collision_geometry"
+   }
+  },
+  {
+   "file": "projects/level_09/day_3/client_project",
+   "list": "client_objects",
+   "where": {
+    "full_name": "terrain/random_anomaly_indoor(2)/artefact_collision_onyx",
+    "game_object_type": "collision_geometry"
+   }
+  },
+  {
+   "file": "projects/level_09/day_3/client_project",
+   "list": "client_objects",
+   "where": {
+    "full_name": "terrain/random_anomaly_indoor(1)/anomaly_collision",
+    "game_object_type": "collision_geometry"
+   }
+  },
+  {
+   "file": "projects/level_09/day_3/client_project",
+   "list": "client_objects",
+   "where": {
+    "full_name": "terrain/random_anomaly_indoor(1)/artefact_collision_spring",
+    "game_object_type": "collision_geometry"
+   }
+  },
+  {
+   "file": "projects/level_09/day_3/client_project",
+   "list": "client_objects",
+   "where": {
+    "full_name": "terrain/random_anomaly_indoor(3)/anomaly_collision",
+    "game_object_type": "collision_geometry"
+   }
+  },
+  {
+   "file": "projects/level_09/day_3/client_project",
+   "list": "client_objects",
+   "where": {
+    "full_name": "terrain/random_anomaly_indoor(3)/artefact_collision_lifebone",
+    "game_object_type": "collision_geometry"
+   }
+  },
+  {
+   "file": "projects/level_09/day_3/client_project",
+   "list": "client_objects",
+   "where": {
+    "full_name": "terrain/random_anomaly_outdoor/anomaly_collision",
+    "game_object_type": "collision_geometry"
+   }
+  },
+  {
+   "file": "projects/level_09/day_3/client_project",
+   "list": "client_objects",
+   "where": {
+    "full_name": "terrain/random_anomaly_outdoor/artefact_collision_lifebone",
+    "game_object_type": "collision_geometry"
+   }
+  },
+  {
+   "file": "projects/level_09/day_3/client_project",
+   "list": "client_objects",
+   "where": {
+    "full_name": "terrain/random_anomaly_indoor(4)/anomaly_collision",
+    "game_object_type": "collision_geometry"
+   }
+  },
+  {
+   "file": "projects/level_09/day_3/client_project",
+   "list": "client_objects",
+   "where": {
+    "full_name": "terrain/random_anomaly_indoor(4)/artefact_collision_spring",
+    "game_object_type": "collision_geometry"
+   }
+  },
+  {
+   "file": "projects/level_09/day_3/client_project",
+   "list": "client_objects",
+   "where": {
+    "full_name": "terrain/random_anomaly_indoor(5)/anomaly_collision",
+    "game_object_type": "collision_geometry"
+   }
+  },
+  {
+   "file": "projects/level_09/day_3/client_project",
+   "list": "client_objects",
+   "where": {
+    "full_name": "terrain/random_anomaly_indoor(5)/artefact_collision_onyx",
+    "game_object_type": "collision_geometry"
+   }
+  },
+  {
+   "file": "projects/level_09/day_3/client_project",
+   "list": "client_objects",
+   "where": {
+    "full_name": "terrain/random_anomaly_indoor/anomaly_collision",
+    "game_object_type": "collision_geometry"
+   }
+  },
+  {
+   "file": "projects/level_09/day_3/client_project",
+   "list": "client_objects",
+   "where": {
+    "full_name": "terrain/random_anomaly_indoor/artefact_collision_lifebone",
+    "game_object_type": "collision_geometry"
+   }
+  },
+  {
+   "file": "projects/level_09/day_3/client_project",
+   "list": "client_objects",
+   "where": {
+    "full_name": "logic/modes/items_charger/team2/inv_collision",
+    "game_object_type": "collision_geometry"
+   }
+  },
+  {
+   "file": "projects/level_09/day_3/client_project",
+   "list": "client_objects",
+   "where": {
+    "full_name": "logic/modes/items_charger/team2/inv_zone",
+    "game_object_type": "effect_zone"
+   }
+  },
+  {
+   "file": "projects/level_09/day_3/client_project",
+   "list": "client_objects",
+   "where": {
+    "full_name": "logic/modes/items_charger/team1/inv_zone",
+    "game_object_type": "effect_zone"
+   }
+  },
+  {
+   "file": "projects/level_09/day_3/client_project",
+   "list": "client_objects",
+   "where": {
+    "full_name": "logic/modes/items_charger/team1/inv_collision",
+    "game_object_type": "collision_geometry"
+   }
+  },
+  {
+   "file": "projects/level_09/day_3/client_project",
+   "list": "client_objects",
+   "where": {
+    "full_name": "terrain/random_anomaly_indoor(2)/damage_zone_onyx",
+    "game_object_type": "damage_zone"
+   }
+  },
+  {
+   "file": "projects/level_09/day_3/client_project",
+   "list": "client_objects",
+   "where": {
+    "full_name": "terrain/random_anomaly_indoor(2)/artefact_container_onyx",
+    "game_object_type": "artefact_container"
+   }
+  },
+  {
+   "file": "projects/level_09/day_3/client_project",
+   "list": "client_objects",
+   "where": {
+    "full_name": "terrain/random_anomaly_indoor(2)/timeout_anomaly_onyx_indoor2",
+    "game_object_type": "generic_anomaly_core"
+   }
+  },
+  {
+   "file": "projects/level_09/day_3/client_project",
+   "list": "client_objects",
+   "where": {
+    "full_name": "terrain/random_anomaly_indoor(1)/damage_zone_spring",
+    "game_object_type": "damage_zone"
+   }
+  },
+  {
+   "file": "projects/level_09/day_3/client_project",
+   "list": "client_objects",
+   "where": {
+    "full_name": "terrain/random_anomaly_indoor(1)/artefact_container_spring",
+    "game_object_type": "artefact_container"
+   }
+  },
+  {
+   "file": "projects/level_09/day_3/client_project",
+   "list": "client_objects",
+   "where": {
+    "full_name": "terrain/random_anomaly_indoor(1)/timeout_anomaly_spring_indoor1",
+    "game_object_type": "generic_anomaly_core"
+   }
+  },
+  {
+   "file": "projects/level_09/day_3/client_project",
+   "list": "client_objects",
+   "where": {
+    "full_name": "terrain/random_anomaly_indoor(3)/damage_zone_lifebone",
+    "game_object_type": "damage_zone"
+   }
+  },
+  {
+   "file": "projects/level_09/day_3/client_project",
+   "list": "client_objects",
+   "where": {
+    "full_name": "terrain/random_anomaly_indoor(3)/artefact_container_lifebone",
+    "game_object_type": "artefact_container"
+   }
+  },
+  {
+   "file": "projects/level_09/day_3/client_project",
+   "list": "client_objects",
+   "where": {
+    "full_name": "terrain/random_anomaly_indoor(3)/timeout_anomaly_lifebone_indoor3",
+    "game_object_type": "generic_anomaly_core"
+   }
+  },
+  {
+   "file": "projects/level_09/day_3/client_project",
+   "list": "client_objects",
+   "where": {
+    "full_name": "terrain/random_anomaly_outdoor/damage_zone_lifebone",
+    "game_object_type": "damage_zone"
+   }
+  },
+  {
+   "file": "projects/level_09/day_3/client_project",
+   "list": "client_objects",
+   "where": {
+    "full_name": "terrain/random_anomaly_outdoor/artefact_container_lifebone",
+    "game_object_type": "artefact_container"
+   }
+  },
+  {
+   "file": "projects/level_09/day_3/client_project",
+   "list": "client_objects",
+   "where": {
+    "full_name": "terrain/random_anomaly_outdoor/timeout_anomaly_lifebone_outdoor",
+    "game_object_type": "generic_anomaly_core"
+   }
+  },
+  {
+   "file": "projects/level_09/day_3/client_project",
+   "list": "client_objects",
+   "where": {
+    "full_name": "terrain/random_anomaly_indoor(4)/damage_zone_spring",
+    "game_object_type": "damage_zone"
+   }
+  },
+  {
+   "file": "projects/level_09/day_3/client_project",
+   "list": "client_objects",
+   "where": {
+    "full_name": "terrain/random_anomaly_indoor(4)/artefact_container_spring",
+    "game_object_type": "artefact_container"
+   }
+  },
+  {
+   "file": "projects/level_09/day_3/client_project",
+   "list": "client_objects",
+   "where": {
+    "full_name": "terrain/random_anomaly_indoor(4)/timeout_anomaly_spring_indoor4",
+    "game_object_type": "generic_anomaly_core"
+   }
+  },
+  {
+   "file": "projects/level_09/day_3/client_project",
+   "list": "client_objects",
+   "where": {
+    "full_name": "terrain/random_anomaly_indoor(5)/damage_zone_onyx",
+    "game_object_type": "damage_zone"
+   }
+  },
+  {
+   "file": "projects/level_09/day_3/client_project",
+   "list": "client_objects",
+   "where": {
+    "full_name": "terrain/random_anomaly_indoor(5)/artefact_container_onyx",
+    "game_object_type": "artefact_container"
+   }
+  },
+  {
+   "file": "projects/level_09/day_3/client_project",
+   "list": "client_objects",
+   "where": {
+    "full_name": "terrain/random_anomaly_indoor(5)/timeout_anomaly_onyx_indoor5",
+    "game_object_type": "generic_anomaly_core"
+   }
+  },
+  {
+   "file": "projects/level_09/day_3/client_project",
+   "list": "client_objects",
+   "where": {
+    "full_name": "terrain/random_anomaly_indoor/damage_zone_lifebone",
+    "game_object_type": "damage_zone"
+   }
+  },
+  {
+   "file": "projects/level_09/day_3/client_project",
+   "list": "client_objects",
+   "where": {
+    "full_name": "terrain/random_anomaly_indoor/artefact_container_lifebone",
+    "game_object_type": "artefact_container"
+   }
+  },
+  {
+   "file": "projects/level_09/day_3/client_project",
+   "list": "client_objects",
+   "where": {
+    "full_name": "terrain/random_anomaly_indoor/timeout_anomaly_lifebone_indoor",
+    "game_object_type": "generic_anomaly_core"
+   }
+  },
+  {
+   "file": "projects/level_09/day_4/client_project",
+   "list": "client_objects",
+   "where": {
+    "full_name": "terrain/random_anomaly_indoor(2)/anomaly_collision",
+    "game_object_type": "collision_geometry"
+   }
+  },
+  {
+   "file": "projects/level_09/day_4/client_project",
+   "list": "client_objects",
+   "where": {
+    "full_name": "terrain/random_anomaly_indoor(2)/artefact_collision_onyx",
+    "game_object_type": "collision_geometry"
+   }
+  },
+  {
+   "file": "projects/level_09/day_4/client_project",
+   "list": "client_objects",
+   "where": {
+    "full_name": "terrain/random_anomaly_indoor(1)/anomaly_collision",
+    "game_object_type": "collision_geometry"
+   }
+  },
+  {
+   "file": "projects/level_09/day_4/client_project",
+   "list": "client_objects",
+   "where": {
+    "full_name": "terrain/random_anomaly_indoor(1)/artefact_collision_spring",
+    "game_object_type": "collision_geometry"
+   }
+  },
+  {
+   "file": "projects/level_09/day_4/client_project",
+   "list": "client_objects",
+   "where": {
+    "full_name": "terrain/random_anomaly_indoor(3)/anomaly_collision",
+    "game_object_type": "collision_geometry"
+   }
+  },
+  {
+   "file": "projects/level_09/day_4/client_project",
+   "list": "client_objects",
+   "where": {
+    "full_name": "terrain/random_anomaly_indoor(3)/artefact_collision_lifebone",
+    "game_object_type": "collision_geometry"
+   }
+  },
+  {
+   "file": "projects/level_09/day_4/client_project",
+   "list": "client_objects",
+   "where": {
+    "full_name": "terrain/random_anomaly_outdoor/anomaly_collision",
+    "game_object_type": "collision_geometry"
+   }
+  },
+  {
+   "file": "projects/level_09/day_4/client_project",
+   "list": "client_objects",
+   "where": {
+    "full_name": "terrain/random_anomaly_outdoor/artefact_collision_lifebone",
+    "game_object_type": "collision_geometry"
+   }
+  },
+  {
+   "file": "projects/level_09/day_4/client_project",
+   "list": "client_objects",
+   "where": {
+    "full_name": "terrain/random_anomaly_indoor(4)/anomaly_collision",
+    "game_object_type": "collision_geometry"
+   }
+  },
+  {
+   "file": "projects/level_09/day_4/client_project",
+   "list": "client_objects",
+   "where": {
+    "full_name": "terrain/random_anomaly_indoor(4)/artefact_collision_spring",
+    "game_object_type": "collision_geometry"
+   }
+  },
+  {
+   "file": "projects/level_09/day_4/client_project",
+   "list": "client_objects",
+   "where": {
+    "full_name": "terrain/random_anomaly_indoor(5)/anomaly_collision",
+    "game_object_type": "collision_geometry"
+   }
+  },
+  {
+   "file": "projects/level_09/day_4/client_project",
+   "list": "client_objects",
+   "where": {
+    "full_name": "terrain/random_anomaly_indoor(5)/artefact_collision_onyx",
+    "game_object_type": "collision_geometry"
+   }
+  },
+  {
+   "file": "projects/level_09/day_4/client_project",
+   "list": "client_objects",
+   "where": {
+    "full_name": "terrain/random_anomaly_indoor/anomaly_collision",
+    "game_object_type": "collision_geometry"
+   }
+  },
+  {
+   "file": "projects/level_09/day_4/client_project",
+   "list": "client_objects",
+   "where": {
+    "full_name": "terrain/random_anomaly_indoor/artefact_collision_lifebone",
+    "game_object_type": "collision_geometry"
+   }
+  },
+  {
+   "file": "projects/level_09/day_4/client_project",
+   "list": "client_objects",
+   "where": {
+    "full_name": "terrain/random_anomaly_indoor(2)/damage_zone_onyx",
+    "game_object_type": "damage_zone"
+   }
+  },
+  {
+   "file": "projects/level_09/day_4/client_project",
+   "list": "client_objects",
+   "where": {
+    "full_name": "terrain/random_anomaly_indoor(2)/artefact_container_onyx",
+    "game_object_type": "artefact_container"
+   }
+  },
+  {
+   "file": "projects/level_09/day_4/client_project",
+   "list": "client_objects",
+   "where": {
+    "full_name": "terrain/random_anomaly_indoor(2)/timeout_anomaly_onyx_indoor2",
+    "game_object_type": "generic_anomaly_core"
+   }
+  },
+  {
+   "file": "projects/level_09/day_4/client_project",
+   "list": "client_objects",
+   "where": {
+    "full_name": "terrain/random_anomaly_indoor(1)/damage_zone_spring",
+    "game_object_type": "damage_zone"
+   }
+  },
+  {
+   "file": "projects/level_09/day_4/client_project",
+   "list": "client_objects",
+   "where": {
+    "full_name": "terrain/random_anomaly_indoor(1)/artefact_container_spring",
+    "game_object_type": "artefact_container"
+   }
+  },
+  {
+   "file": "projects/level_09/day_4/client_project",
+   "list": "client_objects",
+   "where": {
+    "full_name": "terrain/random_anomaly_indoor(1)/timeout_anomaly_spring_indoor1",
+    "game_object_type": "generic_anomaly_core"
+   }
+  },
+  {
+   "file": "projects/level_09/day_4/client_project",
+   "list": "client_objects",
+   "where": {
+    "full_name": "terrain/random_anomaly_indoor(3)/damage_zone_lifebone",
+    "game_object_type": "damage_zone"
+   }
+  },
+  {
+   "file": "projects/level_09/day_4/client_project",
+   "list": "client_objects",
+   "where": {
+    "full_name": "terrain/random_anomaly_indoor(3)/artefact_container_lifebone",
+    "game_object_type": "artefact_container"
+   }
+  },
+  {
+   "file": "projects/level_09/day_4/client_project",
+   "list": "client_objects",
+   "where": {
+    "full_name": "terrain/random_anomaly_indoor(3)/timeout_anomaly_lifebone_indoor3",
+    "game_object_type": "generic_anomaly_core"
+   }
+  },
+  {
+   "file": "projects/level_09/day_4/client_project",
+   "list": "client_objects",
+   "where": {
+    "full_name": "terrain/random_anomaly_outdoor/damage_zone_lifebone",
+    "game_object_type": "damage_zone"
+   }
+  },
+  {
+   "file": "projects/level_09/day_4/client_project",
+   "list": "client_objects",
+   "where": {
+    "full_name": "terrain/random_anomaly_outdoor/artefact_container_lifebone",
+    "game_object_type": "artefact_container"
+   }
+  },
+  {
+   "file": "projects/level_09/day_4/client_project",
+   "list": "client_objects",
+   "where": {
+    "full_name": "terrain/random_anomaly_outdoor/timeout_anomaly_lifebone_outdoor",
+    "game_object_type": "generic_anomaly_core"
+   }
+  },
+  {
+   "file": "projects/level_09/day_4/client_project",
+   "list": "client_objects",
+   "where": {
+    "full_name": "terrain/random_anomaly_indoor(4)/damage_zone_spring",
+    "game_object_type": "damage_zone"
+   }
+  },
+  {
+   "file": "projects/level_09/day_4/client_project",
+   "list": "client_objects",
+   "where": {
+    "full_name": "terrain/random_anomaly_indoor(4)/artefact_container_spring",
+    "game_object_type": "artefact_container"
+   }
+  },
+  {
+   "file": "projects/level_09/day_4/client_project",
+   "list": "client_objects",
+   "where": {
+    "full_name": "terrain/random_anomaly_indoor(4)/timeout_anomaly_spring_indoor4",
+    "game_object_type": "generic_anomaly_core"
+   }
+  },
+  {
+   "file": "projects/level_09/day_4/client_project",
+   "list": "client_objects",
+   "where": {
+    "full_name": "terrain/random_anomaly_indoor(5)/damage_zone_onyx",
+    "game_object_type": "damage_zone"
+   }
+  },
+  {
+   "file": "projects/level_09/day_4/client_project",
+   "list": "client_objects",
+   "where": {
+    "full_name": "terrain/random_anomaly_indoor(5)/artefact_container_onyx",
+    "game_object_type": "artefact_container"
+   }
+  },
+  {
+   "file": "projects/level_09/day_4/client_project",
+   "list": "client_objects",
+   "where": {
+    "full_name": "terrain/random_anomaly_indoor(5)/timeout_anomaly_onyx_indoor5",
+    "game_object_type": "generic_anomaly_core"
+   }
+  },
+  {
+   "file": "projects/level_09/day_4/client_project",
+   "list": "client_objects",
+   "where": {
+    "full_name": "terrain/random_anomaly_indoor/damage_zone_lifebone",
+    "game_object_type": "damage_zone"
+   }
+  },
+  {
+   "file": "projects/level_09/day_4/client_project",
+   "list": "client_objects",
+   "where": {
+    "full_name": "terrain/random_anomaly_indoor/artefact_container_lifebone",
+    "game_object_type": "artefact_container"
+   }
+  },
+  {
+   "file": "projects/level_09/day_4/client_project",
+   "list": "client_objects",
+   "where": {
+    "full_name": "terrain/random_anomaly_indoor/timeout_anomaly_lifebone_indoor",
+    "game_object_type": "generic_anomaly_core"
+   }
+  },
+  {
+   "file": "projects/level_09/day_5/client_project",
+   "list": "client_objects",
+   "where": {
+    "full_name": "terrain/random_anomaly_indoor(2)/anomaly_collision",
+    "game_object_type": "collision_geometry"
+   }
+  },
+  {
+   "file": "projects/level_09/day_5/client_project",
+   "list": "client_objects",
+   "where": {
+    "full_name": "terrain/random_anomaly_indoor(2)/artefact_collision_onyx",
+    "game_object_type": "collision_geometry"
+   }
+  },
+  {
+   "file": "projects/level_09/day_5/client_project",
+   "list": "client_objects",
+   "where": {
+    "full_name": "terrain/random_anomaly_indoor(1)/anomaly_collision",
+    "game_object_type": "collision_geometry"
+   }
+  },
+  {
+   "file": "projects/level_09/day_5/client_project",
+   "list": "client_objects",
+   "where": {
+    "full_name": "terrain/random_anomaly_indoor(1)/artefact_collision_spring",
+    "game_object_type": "collision_geometry"
+   }
+  },
+  {
+   "file": "projects/level_09/day_5/client_project",
+   "list": "client_objects",
+   "where": {
+    "full_name": "terrain/random_anomaly_indoor(3)/anomaly_collision",
+    "game_object_type": "collision_geometry"
+   }
+  },
+  {
+   "file": "projects/level_09/day_5/client_project",
+   "list": "client_objects",
+   "where": {
+    "full_name": "terrain/random_anomaly_indoor(3)/artefact_collision_lifebone",
+    "game_object_type": "collision_geometry"
+   }
+  },
+  {
+   "file": "projects/level_09/day_5/client_project",
+   "list": "client_objects",
+   "where": {
+    "full_name": "terrain/random_anomaly_outdoor/anomaly_collision",
+    "game_object_type": "collision_geometry"
+   }
+  },
+  {
+   "file": "projects/level_09/day_5/client_project",
+   "list": "client_objects",
+   "where": {
+    "full_name": "terrain/random_anomaly_outdoor/artefact_collision_lifebone",
+    "game_object_type": "collision_geometry"
+   }
+  },
+  {
+   "file": "projects/level_09/day_5/client_project",
+   "list": "client_objects",
+   "where": {
+    "full_name": "terrain/random_anomaly_indoor(4)/anomaly_collision",
+    "game_object_type": "collision_geometry"
+   }
+  },
+  {
+   "file": "projects/level_09/day_5/client_project",
+   "list": "client_objects",
+   "where": {
+    "full_name": "terrain/random_anomaly_indoor(4)/artefact_collision_spring",
+    "game_object_type": "collision_geometry"
+   }
+  },
+  {
+   "file": "projects/level_09/day_5/client_project",
+   "list": "client_objects",
+   "where": {
+    "full_name": "terrain/random_anomaly_indoor(5)/anomaly_collision",
+    "game_object_type": "collision_geometry"
+   }
+  },
+  {
+   "file": "projects/level_09/day_5/client_project",
+   "list": "client_objects",
+   "where": {
+    "full_name": "terrain/random_anomaly_indoor(5)/artefact_collision_onyx",
+    "game_object_type": "collision_geometry"
+   }
+  },
+  {
+   "file": "projects/level_09/day_5/client_project",
+   "list": "client_objects",
+   "where": {
+    "full_name": "terrain/random_anomaly_indoor/anomaly_collision",
+    "game_object_type": "collision_geometry"
+   }
+  },
+  {
+   "file": "projects/level_09/day_5/client_project",
+   "list": "client_objects",
+   "where": {
+    "full_name": "terrain/random_anomaly_indoor/artefact_collision_lifebone",
+    "game_object_type": "collision_geometry"
+   }
+  },
+  {
+   "file": "projects/level_09/day_5/client_project",
+   "list": "client_objects",
+   "where": {
+    "full_name": "terrain/random_anomaly_indoor(2)/damage_zone_onyx",
+    "game_object_type": "damage_zone"
+   }
+  },
+  {
+   "file": "projects/level_09/day_5/client_project",
+   "list": "client_objects",
+   "where": {
+    "full_name": "terrain/random_anomaly_indoor(2)/artefact_container_onyx",
+    "game_object_type": "artefact_container"
+   }
+  },
+  {
+   "file": "projects/level_09/day_5/client_project",
+   "list": "client_objects",
+   "where": {
+    "full_name": "terrain/random_anomaly_indoor(2)/timeout_anomaly_onyx_indoor2",
+    "game_object_type": "generic_anomaly_core"
+   }
+  },
+  {
+   "file": "projects/level_09/day_5/client_project",
+   "list": "client_objects",
+   "where": {
+    "full_name": "terrain/random_anomaly_indoor(1)/damage_zone_spring",
+    "game_object_type": "damage_zone"
+   }
+  },
+  {
+   "file": "projects/level_09/day_5/client_project",
+   "list": "client_objects",
+   "where": {
+    "full_name": "terrain/random_anomaly_indoor(1)/artefact_container_spring",
+    "game_object_type": "artefact_container"
+   }
+  },
+  {
+   "file": "projects/level_09/day_5/client_project",
+   "list": "client_objects",
+   "where": {
+    "full_name": "terrain/random_anomaly_indoor(1)/timeout_anomaly_spring_indoor1",
+    "game_object_type": "generic_anomaly_core"
+   }
+  },
+  {
+   "file": "projects/level_09/day_5/client_project",
+   "list": "client_objects",
+   "where": {
+    "full_name": "terrain/random_anomaly_indoor(3)/damage_zone_lifebone",
+    "game_object_type": "damage_zone"
+   }
+  },
+  {
+   "file": "projects/level_09/day_5/client_project",
+   "list": "client_objects",
+   "where": {
+    "full_name": "terrain/random_anomaly_indoor(3)/artefact_container_lifebone",
+    "game_object_type": "artefact_container"
+   }
+  },
+  {
+   "file": "projects/level_09/day_5/client_project",
+   "list": "client_objects",
+   "where": {
+    "full_name": "terrain/random_anomaly_indoor(3)/timeout_anomaly_lifebone_indoor3",
+    "game_object_type": "generic_anomaly_core"
+   }
+  },
+  {
+   "file": "projects/level_09/day_5/client_project",
+   "list": "client_objects",
+   "where": {
+    "full_name": "terrain/random_anomaly_outdoor/damage_zone_lifebone",
+    "game_object_type": "damage_zone"
+   }
+  },
+  {
+   "file": "projects/level_09/day_5/client_project",
+   "list": "client_objects",
+   "where": {
+    "full_name": "terrain/random_anomaly_outdoor/artefact_container_lifebone",
+    "game_object_type": "artefact_container"
+   }
+  },
+  {
+   "file": "projects/level_09/day_5/client_project",
+   "list": "client_objects",
+   "where": {
+    "full_name": "terrain/random_anomaly_outdoor/timeout_anomaly_lifebone_outdoor",
+    "game_object_type": "generic_anomaly_core"
+   }
+  },
+  {
+   "file": "projects/level_09/day_5/client_project",
+   "list": "client_objects",
+   "where": {
+    "full_name": "terrain/random_anomaly_indoor(4)/damage_zone_spring",
+    "game_object_type": "damage_zone"
+   }
+  },
+  {
+   "file": "projects/level_09/day_5/client_project",
+   "list": "client_objects",
+   "where": {
+    "full_name": "terrain/random_anomaly_indoor(4)/artefact_container_spring",
+    "game_object_type": "artefact_container"
+   }
+  },
+  {
+   "file": "projects/level_09/day_5/client_project",
+   "list": "client_objects",
+   "where": {
+    "full_name": "terrain/random_anomaly_indoor(4)/timeout_anomaly_spring_indoor4",
+    "game_object_type": "generic_anomaly_core"
+   }
+  },
+  {
+   "file": "projects/level_09/day_5/client_project",
+   "list": "client_objects",
+   "where": {
+    "full_name": "terrain/random_anomaly_indoor(5)/damage_zone_onyx",
+    "game_object_type": "damage_zone"
+   }
+  },
+  {
+   "file": "projects/level_09/day_5/client_project",
+   "list": "client_objects",
+   "where": {
+    "full_name": "terrain/random_anomaly_indoor(5)/artefact_container_onyx",
+    "game_object_type": "artefact_container"
+   }
+  },
+  {
+   "file": "projects/level_09/day_5/client_project",
+   "list": "client_objects",
+   "where": {
+    "full_name": "terrain/random_anomaly_indoor(5)/timeout_anomaly_onyx_indoor5",
+    "game_object_type": "generic_anomaly_core"
+   }
+  },
+  {
+   "file": "projects/level_09/day_5/client_project",
+   "list": "client_objects",
+   "where": {
+    "full_name": "terrain/random_anomaly_indoor/damage_zone_lifebone",
+    "game_object_type": "damage_zone"
+   }
+  },
+  {
+   "file": "projects/level_09/day_5/client_project",
+   "list": "client_objects",
+   "where": {
+    "full_name": "terrain/random_anomaly_indoor/artefact_container_lifebone",
+    "game_object_type": "artefact_container"
+   }
+  },
+  {
+   "file": "projects/level_09/day_5/client_project",
+   "list": "client_objects",
+   "where": {
+    "full_name": "terrain/random_anomaly_indoor/timeout_anomaly_lifebone_indoor",
+    "game_object_type": "generic_anomaly_core"
+   }
+  }
+ ]
+}

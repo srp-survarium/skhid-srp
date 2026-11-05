@@ -1,0 +1,7 @@
+# The parts of weapons-069 textures that are painted, by a UV point on each (../weapon-camo/weapon_camo.py);
+# the others take its suggestion. A texture with no points stays plain (its mask paints nothing): the
+# cartridges and the KS-23M's loose shell.
+weapons/ammo/nato_556x45/nato_556x45	
+weapons/ammo/ps_762x39/ps_762x39	
+weapons/ammo/shell_40cal/shell_40cal	
+weapons/ammo/tt_762x25/tt_762x25	

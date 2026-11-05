@@ -308,7 +308,7 @@ pub(crate) fn the_bots_tuning_sets_the_eye_of_its_thread() {
         tuning.aim.combat.live_eye = on;
         let mut bots = Bots::new(
             1,
-            survarium::v026g::maps::mode::TEAM_DEATHMATCH,
+            survarium::v026g::maps::RuleMode::TeamDeathmatch,
             0,
             &[0, 1],
             &[true, true],

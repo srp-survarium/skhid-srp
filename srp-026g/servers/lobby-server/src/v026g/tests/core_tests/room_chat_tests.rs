@@ -47,6 +47,45 @@ fn line(sender: &str, body: &str) -> Vec<(String, String)> {
     vec![(sender.to_owned(), body.to_owned())]
 }
 
+#[test]
+fn room_chat_and_history_use_each_recipients_mute_mode() {
+    use survarium::v026g::lobby::ChatMuteMode::{Hidden, Placeholder};
+    let mut world = World::new();
+    let alice = world.connect("Alice");
+    let bob = world.connect("Bob");
+    let carol = world.connect("Carol");
+    let key = create(&mut world, alice, spec(6), None);
+    for client in [bob, carol] {
+        rows(&mut world, client, ROOM_JOIN_BASE + key, 1);
+    }
+    world.advance(Duration::from_secs(1));
+    for client in [alice, bob, carol] {
+        listen(&mut world, client);
+    }
+    world.ask(bob, request::chat_mute("Alice", Some(Placeholder)));
+    world.ask(carol, request::chat_mute("Alice", Some(Hidden)));
+    say(&mut world, alice, "original");
+    assert_eq!(heard(&mut world, bob), line("Alice", "<muted>"));
+    assert!(heard(&mut world, carol).is_empty());
+    let from_alice = |lines: Vec<(String, String)>| {
+        lines
+            .into_iter()
+            .filter(|(name, _)| name == "Alice")
+            .collect::<Vec<_>>()
+    };
+    assert_eq!(
+        from_alice(listen(&mut world, bob)),
+        line("Alice", "<muted>")
+    );
+    assert!(from_alice(listen(&mut world, carol)).is_empty());
+    world.ask(bob, request::chat_mute("Alice", None));
+    assert_eq!(
+        from_alice(listen(&mut world, bob)),
+        line("Alice", "original")
+    );
+    world.assert_clean();
+}
+
 /// Two rooms, each with its own chat; a player in no room hears neither
 /// and is heard by none.
 #[test]
@@ -296,7 +335,15 @@ fn play_into_a_room_is_a_member_of_its_chat() {
     let mut world = World::new();
     let alice = world.connect("Alice");
     let bob = world.connect("Bob");
-    let key = create(&mut world, alice, spec(8), None);
+    let key = create(
+        &mut world,
+        alice,
+        survarium::v026g::lobby::rooms::RoomSpec {
+            max_level: 10,
+            ..spec(8)
+        },
+        None,
+    );
     world.advance(Duration::from_secs(1));
     assert!(listen(&mut world, alice).is_empty());
     world.ask(bob, request::play(1));

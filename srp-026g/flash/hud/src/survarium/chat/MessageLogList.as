@@ -135,7 +135,11 @@ package survarium.chat
       {
          trace("LogListStartTimer::",value);
          this._hideTimer.reset();
-         this._hideTimer.start();
+         // A new line must not restart fading while Tab, typing or a mode notice holds history.
+         if(this._isHiding)
+         {
+            this._hideTimer.start();
+         }
          _nextHideTime = getTimer() + value;
       }
       

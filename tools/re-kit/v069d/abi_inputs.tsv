@@ -1,0 +1,12 @@
+va	name	location	role	basis
+0x200117a50	survarium::game::assign_music_emitter	RCX	game	observed
+0x200117a50	survarium::game::assign_music_emitter	RDX	pointer to intrusive resource pointer	observed
+0x200117a50	survarium::game::assign_music_emitter	R8B	music slot	observed
+0x200117b60	survarium::game::play_music	RCX	game	observed
+0x200117b60	survarium::game::play_music	DL	music track: 0 main, 1 lobby, 2 loading, 3 finale, 4 loss, 5 win; outside 0..5 stops all	observed
+0x200117b60	survarium::game::play_music	R8D	selected track fade-in duration in milliseconds	observed
+0x200117b60	survarium::game::play_music	R9B	looping, forwarded to proxy playback mode	observed
+0x20014bb60	survarium::loading_screen::on_music_loaded	RCX	loading-screen owner (game at +0x18)	observed
+0x20014bb60	survarium::loading_screen::on_music_loaded	RDX	query result (resource pointer at +0x238)	observed
+0x20062a8f0	vostok::sound::sound_instance_proxy::fade_out	RCX	sound instance proxy	observed
+0x20062a8f0	vostok::sound::sound_instance_proxy::fade_out	EDX	fade-out duration in milliseconds	observed

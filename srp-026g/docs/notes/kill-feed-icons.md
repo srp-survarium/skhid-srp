@@ -58,3 +58,74 @@ the hud movie's `survarium/controls/CombatLogItem.as` and `flash/hud/bitmaps/`; 
   behind.
 - **Release:** the exe patch (the default build) and the hud movie together; an older exe with
   the new movie shows rows without the three icons.
+
+## The ported weapons' icons (2026-10-26)
+
+- **The owner, 2026-10-26:** "new weapons that were added have incorrect icons" in the kill feed.
+- **How the icon is picked:** a weapon's config `ui_desc/combat_log_icon` (an int; the exe passes it
+  as the row's `object_icon`, `client_patch.md` 3.55) is frame (icon + 1) of the row's weapon clip
+  (`object_icon` of `CombatLogItem`'s kill frame). 0.26g's clip has 53 frames: icons 0 to 52 (17 is an
+  empty frame no weapon uses, 21 an M4 no 0.26g weapon used).
+- **The cause:** base patch 19's weapons (0.27d0 to 0.31a2 builds, which give each the same icon:
+  53 to 68) came with stand-ins of stock weapons' icons, as the clip ends at 52: the AK-74M's 31 for
+  the Saiga-12K, Vepr-12, FNC, HK416, MSBS, Valmet and M4A1, the AKMN's 29 for the SOK-94 and the
+  vz. 58, the UMP45's 47 for the P90 and the KRISS, the Vityaz's 1 for the three MP7s, the RPK's 38
+  for the PKP, the UZI's 3 for the AEK-919K, the Kiparis's 22 for the Kedr, the Remington 870's 12
+  for the Neostead.
+- **The fix:**
+  - the icons after the clip's last are bitmaps of the hud movie, `CombatLogWeapon<icon>` (53 to 68;
+    `bitmaps/`, made by `scripts/kill-feed-icons/make_weapon_icons.py`): 53 to 63 the bitmaps of
+    0.28d0's clip's frames 54 to 64, as they are (its frames 1 to 53 are 0.26g's bit for bit), 64 to
+    68 0.31a2's kill log icons `icon_65.png` to `icon_69.png` (0.28d0's clip ends at 63; 0.31a2 loads
+    its icons from textures); weapons batch 1 (`weapons-031.md`) adds 70, 71, 72 and 74, 0.31a2's
+    `icon_71.png` to `icon_75.png` of its guns;
+  - `CombatLogItem`: a kill row whose icon is past the clip's frames shows that bitmap in the clip's
+    place (the clip hidden), centred where the clip's frames centre theirs (12.5 px down it), never
+    above it; the icons after it and the victim follow it as they follow the clip; an icon past the
+    clip with no bitmap shows the clip's last frame, as before. A bitmap is found by its class name
+    (`CombatLogWeapon<n>`, `getDefinitionByName`; the lobby's `KillFeedWeapon<n>` the same way), so a
+    ported weapon's icon is its bitmap and class, with no list to edit;
+  - weapons batch 2 (`weapons-046.md`, release 41's weapons): `make_weapon_icons_046.py` adds
+    0.46c2's 75, 77 to 80, 82 to 84, 0.69d0's 95 and the Colt M1911's 99, drawn from its lobby cell;
+  - `content-edit/kill-feed-weapons-1.json`: the 21 configs take their builds' icons again (the
+    premium Saiga and Vepr-12, the Neostead's second config and the MP7 Special their weapon's); the
+    M4A1 21, the clip's own M4.
+  - The premium copies of stock weapons (base patch 19's `_premium`, `_premium_2`, `_camo`) keep
+    their plain weapon's icon, as in those builds.
+- **0.69d0's weapons (pack weapons-069, 2026-11-01):** their own numbers and 0.69d0's
+  `icon_<icon + 1>.png` (85 KS-23M, 86 Mauser M.712, 96 AKMSU, 97 FAMAS, 98 H&K G3SG/1);
+  `CombatLogItem` finds `CombatLogWeapon<icon>` by name (as #948), so a batch adds only its
+  bitmaps and classes.
+- **Checked:** `scripts/kill-feed-icons/check-combat-log/check.sh` also adds a kill row for every
+  icon 0 to 99 and checks what it shows (the frame, or `CombatLogWeapon<icon>` with the clip hidden
+  when the hud defines that class)
+  and where (after the killer, within the row, before the victim).
+- **Release:** the hud movie and the edit list together; the movie alone shows the stand-ins as
+  before, the edit list alone the clip's last frame (the VSSK) for icons 53 to 68.
+
+## In the lobby (2026-10-30)
+
+- **The owner:** "for weapons we can use icons from the kill list": the speed tooltip's weapon row
+  shows the weapon's kill feed icon.
+- **The images:** `scripts/kill-feed-icons/make_lobby_weapon_icons.py` takes them from the hud: the
+  bitmap of each frame of the weapon icon clip (sprite 698, `object_icon` of `CombatLogItem`; each
+  frame one shape filled 1:1 with its icon's bitmap, read from the shape's fill styles, exported by
+  FFDec as it is) for icons 0 to 52, and the hud's own `CombatLogWeapon<icon>` past them; icon 17
+  has none (an empty frame). It writes `flash/lobby_menu/bitmaps/KillFeedWeapon<icon>.png`, their
+  classes, and `survarium/player/KillFeedIcons.as` (the index). Rerun it when the hud's icons change.
+- **The number:** `content-edit/weapon-kill-icon-ui-1.json` copies each weapon's
+  `ui_desc/combat_log_icon` (after `kill-feed-weapons-1`) into its lobby descriptor as property 161,
+  not comparable (no card shows it).
+- **The row:** the icon fitted by the glyph box's width (they are wide), centred; a weapon whose
+  icon the index lacks shows its class's shop filter icon.
+- **Colour:** the images are white (the hud tints them per side); in the tooltip they take the
+  modifier icons' own colour: a ColorTransform from the average opaque pixel of the atlas's speed
+  icon (11), read once at run time (the owner: "too white").
+- **Checked:** `make_lobby_weapon_icons.py --check` (run by `scripts/weight-ui/check_ui.sh`, with
+  the hud's original read from the published patches) fails when the lobby's files differ from what
+  the hud's images make.
+- **Size (owner: "a bit bigger", "not too big"):** a weapon's icon box is 1.5 glyph boxes wide
+  (39 x 21 in the atlas cell's units): its silhouette shows 1.5 times the glyph-box fit, never
+  taller than the other icons. With a weapon row the card's icon column is that wide; the other
+  icons stay centred in it, every text after it. The generator trims a transparent margin (the
+  hud's images have none today: their alpha reaches every edge).

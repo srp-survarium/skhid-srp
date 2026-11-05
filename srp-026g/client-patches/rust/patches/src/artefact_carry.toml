@@ -1,0 +1,89 @@
+name = "artefact_carry"
+patch = 78
+
+[[hook]]
+site = "carry.weapon_hide"
+handler = "on_weapon_hide"
+
+[[hook]]
+site = "carry.input"
+handler = "on_input"
+
+[[hook]]
+site = "carry.filter"
+handler = "on_filter"
+
+[[hook]]
+site = "carry.tick"
+handler = "on_tick"
+
+[[hook]]
+site = "carry.construct"
+handler = "on_construct"
+
+[[hook]]
+site = "carry.save"
+handler = "on_save"
+
+[[hook]]
+site = "carry.load"
+handler = "on_load"
+
+# Shared sites compose explicitly in blackout::on_input_end and ragdoll's
+# on_bones/on_cull; there is one installed detour at each address.
+
+[[hook]]
+site = "carry.weapon"
+handler = "on_weapon"
+
+[[hook]]
+site = "carry.spring"
+handler = "on_spring"
+
+[[hook]]
+site = "carry.lifebone"
+handler = "on_lifebone"
+
+[[hook]]
+site = "carry.onyx"
+handler = "on_onyx"
+
+[[hook]]
+site = "carry.rattle"
+handler = "on_rattle"
+
+[[hook]]
+site = "carry.damage_bones"
+handler = "on_damage_bones"
+
+[[hook]]
+site = "carry.flower_query"
+handler = "on_flower_query"
+
+[[hook]]
+site = "carry.flower_ready"
+handler = "on_flower_ready"
+
+[[hook]]
+site = "carry.flower_destroy"
+handler = "on_flower_destroy"
+
+[[hook]]
+site = "carry.death"
+handler = "on_death"
+
+[[hook]]
+site = "carry.ground_save"
+handler = "on_ground_save"
+
+[[hook]]
+site = "carry.ground_load"
+handler = "on_ground_load"
+
+[[hook]]
+site = "carry.client_death"
+handler = "on_client_death"
+
+[[hook]]
+site = "carry.key"
+handler = "on_key"

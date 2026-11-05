@@ -1,0 +1,35 @@
+# Patch 83: the hud's "Hide hit markers" and "Hide player scores", settings kept in
+# user.cfg (docs/notes/hide-hit-markers-scores.md). Only the decisions:
+# which sites, and the handlers. The sites are sites_026g.tsv's; the logic is
+# hud_options.rs. Each site is another patch's too: this hook runs after it
+# (patch 79's configs.start and options.callback, patch 65's
+# player_icons.update_start, order 1; patch 65's static_info.options_read and
+# replay.options_read, order 0). Order 2 everywhere: patch 86 takes 1 at the
+# options reads.
+name = "hud_options"
+patch = 83
+
+[[hook]]
+site = "configs.start"
+handler = "on_configs"
+order = 2
+
+[[hook]]
+site = "options.callback"
+handler = "on_options_call"
+order = 2
+
+[[hook]]
+site = "player_icons.update_start"
+handler = "on_update_icons"
+order = 2
+
+[[hook]]
+site = "static_info.options_read"
+handler = "on_static_info"
+order = 2
+
+[[hook]]
+site = "replay.options_read"
+handler = "on_replay_options"
+order = 2

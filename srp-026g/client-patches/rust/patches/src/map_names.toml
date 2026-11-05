@@ -1,0 +1,10 @@
+# Patch 82: the names on the Tab map while Alt is held (docs/notes/tab-map-names.md).
+# Only the decisions: which site, and the handler. The site (its VA, kind and
+# span, what its registers hold) is sites_026g.tsv's; the logic is
+# map_names.rs.
+name = "map_names"
+patch = 82
+
+[[hook]]
+site = "keyboard.key_state"
+handler = "on_key"

@@ -22,8 +22,9 @@ pub const MAX_TAKEN_ITEMS: usize = 32;
 pub const MAX_REASON: usize = 200;
 
 /// One admin action, as the audit trail keeps it (`g26_admin_actions`) and
-/// the log writes it. The reason is the admin's only: no player is ever
-/// shown it.
+/// the log writes it. The reason is the admin's only (no player is ever
+/// shown it), but a chat mute's, which its player is told
+/// (`docs/notes/admin-chat-mute.md`).
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct AdminAction {
     /// Unix seconds.
@@ -33,7 +34,7 @@ pub struct AdminAction {
     pub account_id: u32,
     /// The account's character name then.
     pub account: String,
-    /// `money` or `items`.
+    /// `money`, `items` or `chat_mute`.
     pub kind: String,
     /// What was done, e.g. `silver -480000 (asked -500000)`.
     pub change: String,

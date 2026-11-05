@@ -70,7 +70,7 @@ pub(crate) fn the_bots_rest_through_the_start_countdown() {
     let teams: Vec<u8> = (0..4).map(|p| u8::from(p >= 2)).collect();
     let mut bots = Bots::new(
         0x50AC,
-        survarium::v026g::maps::mode::BATTERIES,
+        survarium::v026g::maps::RuleMode::Batteries,
         0,
         &teams,
         &[true; 4],

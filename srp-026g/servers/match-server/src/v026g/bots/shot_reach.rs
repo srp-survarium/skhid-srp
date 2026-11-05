@@ -78,11 +78,22 @@ mod tests {
         assert_eq!(reach_of("wpn_nothing"), None);
     }
 
-    /// The five guns with Rudnya's environment layer are heard as far as it carries (240 m, the third
-    /// column); the general reach stays in the file as information; no other weapon is above 200 m.
+    /// The eight guns with Rudnya's environment layer (five, and main's jackhammer, KS-23M and SVU-A at
+    /// revision 48) are heard as far as it carries (240 m, the third column); the general reach stays in
+    /// the file as information; no other weapon is above 200 m.
     #[test]
     fn the_guns_with_the_environment_layer_are_heard_to_240_m_and_no_other_is_above_200() {
-        for stem in ["wpn_neostead", "wpn_neostead_2", "wpn_saiga_12", "wpn_vepr_12", "wpn_vepr_12_premium"] {
+        const LAYERED: [&str; 8] = [
+            "wpn_jackhammer",
+            "wpn_ks_23m",
+            "wpn_neostead",
+            "wpn_neostead_2",
+            "wpn_saiga_12",
+            "wpn_svu_a",
+            "wpn_vepr_12",
+            "wpn_vepr_12_premium",
+        ];
+        for stem in LAYERED {
             assert_eq!(reach_of(stem), Some(240.0), "{stem}");
             let row = super::TABLE.lines().find(|l| l.starts_with(&format!("{stem}\t"))).unwrap();
             let fields: Vec<&str> = row.split('\t').collect();
@@ -90,7 +101,7 @@ mod tests {
             assert!(fields[1].parse::<f32>().unwrap() < 30.0, "the general reach is kept: {row}");
         }
         let above: Vec<_> = table().iter().filter(|(_, m)| *m > 200.0).map(|(n, _)| *n).collect();
-        assert_eq!(above.len(), 5, "{above:?}");
+        assert_eq!(above, LAYERED, "{above:?}");
         let at_200: Vec<_> = table().iter().filter(|(_, m)| *m == 200.0).map(|(n, _)| *n).collect();
         assert_eq!(at_200, ["wpn_mosin_nagant", "wpn_rem_700", "wpn_rem_700_premium", "wpn_sv_98"]);
     }

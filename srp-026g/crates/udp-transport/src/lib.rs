@@ -1,5 +1,5 @@
 //! The 0.26g client's reliable-UDP transport, server side: shared by the
-//! lobby server and the match server (PLAN-026G step 1). The spec is
+//! lobby server and the match server. The spec is
 //! `docs/notes/transport.md`; section numbers in the comments
 //! (§2.2, §4.1 …) point there, and hex addresses are in the 0.26g client.
 //!

@@ -80,7 +80,7 @@ fn drive_on(world: Arc<World>, level: u8, start: Vec3, goal: Vec3, until: u32) -
     let teams = [0u8];
     let mut bots = Bots::new(
         0xB17,
-        survarium::v026g::maps::mode::BATTERIES,
+        survarium::v026g::maps::RuleMode::Batteries,
         level,
         &teams,
         &[true],
@@ -319,7 +319,7 @@ fn run_pit(tuning: Tuning, until: u32) -> PitRun {
     let teams = [0u8];
     let mut bots = Bots::new(
         0xB17,
-        survarium::v026g::maps::mode::BATTERIES,
+        survarium::v026g::maps::RuleMode::Batteries,
         0,
         &teams,
         &[true],

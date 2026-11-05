@@ -58,11 +58,11 @@ pub(crate) fn soak_volume(
     let driven = vec![true; teams.len()];
     let roles: Vec<Option<&str>> = vec![None; teams.len()];
     let mode = if timed_s.is_some() {
-        survarium::v026g::maps::mode::TIMED_BATTERIES
+        survarium::v026g::maps::RuleMode::TimedBatteries
     } else if win > 0 {
-        survarium::v026g::maps::mode::BATTERIES
+        survarium::v026g::maps::RuleMode::Batteries
     } else {
-        survarium::v026g::maps::mode::TEAM_DEATHMATCH
+        survarium::v026g::maps::RuleMode::TeamDeathmatch
     };
     // `SRP_SOAK_TRACE=<dir>`: the decision trace of each run there.
     let trace = std::env::var_os("SRP_SOAK_TRACE").map_or(Trace::none(0), |dir| {

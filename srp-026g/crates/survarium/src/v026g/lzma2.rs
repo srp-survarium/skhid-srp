@@ -39,7 +39,8 @@
 //!
 //! What does matter is the client's **output buffer**: the decode's result
 //! is not checked, so never send more than the reader's buffer holds
-//! (0x578A0 bytes for the static info, 0x8000 for a compressed snapshot,
+//! (0x578A0 bytes for the static info, 0xF000 for a compressed snapshot
+//! since patch 98 (0x8000 in the original exe),
 //! `n × 8` for the prices).
 
 use std::io::{Read, Write};

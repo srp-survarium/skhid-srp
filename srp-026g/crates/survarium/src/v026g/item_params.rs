@@ -52,7 +52,8 @@ pub struct ItemParams {
     /// Weapons: the rounds a magazine holds.
     pub magazine_capacity: u32,
     pub double_handed: bool,
-    pub fills_whole_pocket: bool,
+    /// What one unit of it takes of a pocket ([`PocketShare`]).
+    pub pocket_share: PocketShare,
     /// Cosmetics: the modification that puts it on an item.
     pub modification: u32,
     /// The modifications the item always has.
@@ -62,6 +63,58 @@ pub struct ItemParams {
     /// with a built-in mask covers the mask's; the Duty exoskeleton, worn in
     /// the back slot, all six others.
     pub covered_slots: &'static [u8],
+    /// The localization key of its name (`ui_desc.text_descriptions.name`),
+    /// if it has one.
+    pub name_key: Option<&'static str>,
+}
+
+/// What one unit of a pocket item takes of its pocket; a pocket of `size`
+/// units holds [`PocketShare::units_in`] of it
+/// (`docs/notes/one-pocket-a-type.md`).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum PocketShare {
+    /// One unit: the pocket holds its size (most stacks).
+    Unit,
+    /// Two units (`parameters.pocket_units` 2, srp's key: the RGD-5): the
+    /// pocket holds half its size, at least one.
+    Pair,
+    /// The whole pocket, one in it (`parameters.fills_whole_pocket`, the
+    /// game's key: the boosters).
+    Whole,
+}
+
+impl PocketShare {
+    /// The units of it a pocket of `size` holds (as the lobby's
+    /// `PlayerInfo.pocketUnits`).
+    pub fn units_in(self, size: u32) -> u32 {
+        match self {
+            Self::Unit => size,
+            Self::Pair => (size / 2).max(1).min(size),
+            Self::Whole => 1,
+        }
+    }
+
+    /// `parameters.fills_whole_pocket` and `parameters.pocket_units` (1 or
+    /// 2, none 1; the lobby reads it from the card's property 166,
+    /// content-edit `pocket-units-1`): an item that fills a whole pocket
+    /// has no units.
+    fn from_config(parameters: Option<&ConfigValue>) -> Result<Self, ConfigError> {
+        let units = parameters.and_then(|p| p.get("pocket_units"));
+        match (flag(parameters, "fills_whole_pocket")?, units) {
+            (true, None) => Ok(Self::Whole),
+            (true, Some(_)) => Err(ConfigError(
+                "`pocket_units` on an item that `fills_whole_pocket`".into(),
+            )),
+            (false, None) => Ok(Self::Unit),
+            (false, Some(value)) => match value.as_f32() {
+                Some(1.0) => Ok(Self::Unit),
+                Some(2.0) => Ok(Self::Pair),
+                _ => Err(ConfigError(
+                    "`pocket_units` is not 1 or 2, the shares srp and the lobby know".into(),
+                )),
+            },
+        }
+    }
 }
 
 /// What `gameplay/players/default.player` says of what a player carries.
@@ -292,10 +345,25 @@ impl ItemParams {
             required_bags: int(p, "required_bags")?,
             magazine_capacity: int(p, "magazine_capacity")?,
             double_handed: flag(p, "double_handed")?,
-            fills_whole_pocket: flag(p, "fills_whole_pocket")?,
+            pocket_share: PocketShare::from_config(p)?,
             modification: int(p, "modification")?,
             default_modifications: leak(default_modifications),
             covered_slots: leak(covered_slots_of(config)?),
+            name_key: match config
+                .get("ui_desc")
+                .and_then(|desc| desc.get("text_descriptions"))
+                .and_then(|texts| texts.get("name"))
+            {
+                None => None,
+                Some(name) => Some(&*Box::leak(
+                    name.as_str()
+                        .ok_or_else(|| {
+                            ConfigError("`ui_desc.text_descriptions.name` is not a string".into())
+                        })?
+                        .to_owned()
+                        .into_boxed_str(),
+                )),
+            },
         })
     }
 }
@@ -409,6 +477,35 @@ mod tests {
             assert!(params.default_modifications.len() <= 8, "{}", item.name);
         }
         assert!(item_params(73).is_none());
+    }
+
+    /// The RGD-5 takes two units of a pocket (throwables.tsv), a booster
+    /// the whole pocket, the rest one unit (the owner, 2026-11-05).
+    #[test]
+    fn what_an_item_takes_of_a_pocket() {
+        let share = |name| {
+            let item = Dictionary::shared().item_named(name).unwrap();
+            item_params(item.dict_id).unwrap().pocket_share
+        };
+        assert_eq!(share("rgd-5"), PocketShare::Pair);
+        assert_eq!(share("rdg-m"), PocketShare::Unit);
+        assert_eq!(share("medkit"), PocketShare::Unit);
+        assert_eq!(share("speed_booster"), PocketShare::Whole);
+        let pair: Vec<u32> = (0..=5).map(|size| PocketShare::Pair.units_in(size)).collect();
+        assert_eq!(pair, [0, 1, 1, 1, 2, 2]);
+        let whole: Vec<u32> = (0..=5).map(|size| PocketShare::Whole.units_in(size)).collect();
+        assert_eq!(whole, [1; 6]);
+        assert_eq!(PocketShare::Unit.units_in(4), 4);
+
+        let parse = |keys: &[(&str, ConfigValue)]| {
+            let keys = keys.iter().map(|(key, value)| ((*key).to_owned(), value.clone()));
+            PocketShare::from_config(Some(&ConfigValue::Named(keys.collect())))
+        };
+        let units = |n| ("pocket_units", ConfigValue::Integer(n));
+        assert_eq!(parse(&[units(2)]).unwrap(), PocketShare::Pair);
+        assert_eq!(parse(&[units(1)]).unwrap(), PocketShare::Unit);
+        assert!(parse(&[units(3)]).is_err());
+        assert!(parse(&[("fills_whole_pocket", ConfigValue::Boolean(true)), units(2)]).is_err());
     }
 
     #[test]

@@ -84,15 +84,13 @@ RUST_LOG=info
 # Optional game settings (srp's defaults when left out; see SRP-026G.md):
 # SRP_REGISTRATION=closed
 # SRP_MATCH_MODES=2,3,4
-# What a player counts for when the sides of a match are made, in gear
-# levels: by being there (with an odd count the side with a player more has
-# this much more, so the stronger players are the side of fewer), for a
-# level of its account, and for a point of its balance rating; and the
-# matches after which that rating counts for half. The defaults:
-# SRP_BALANCE_PLAYER=12
-# SRP_BALANCE_PLAYER_LEVEL=1.5
-# SRP_BALANCE_RATING=4
-# SRP_BALANCE_TRUST_MATCHES=5
+# What a player counts for by being there when the sides of a match are
+# made, in K/Ds, beside its K/D at the match's equipment level
+# (docs/notes/kd-balance.md): with an odd count the side with a player more
+# has this much more, so the stronger players are the side of fewer. The
+# default (SRP_BALANCE_PLAYER, _PLAYER_LEVEL, _RATING and _TRUST_MATCHES,
+# in gear levels, are no longer read; unset them):
+# SRP_BALANCE_PLAYER_KD=1
 # The fewest players a match must have had in it, for half of it or more,
 # to move the balance rating: 4 leaves out one against one and two against
 # one. 1: every match moves it.
@@ -106,9 +104,6 @@ RUST_LOG=info
 # count for, in players:
 # SRP_BALANCE_BATTERY_LEAD=0.55
 # SRP_BALANCE_TICKET_LEAD=0.2
-# No squads: an invite is refused, and its sender is told in a message box.
-# SRP_SQUADS=off
-# SRP_SQUADS_OFF_TEXT=Squads are switched off on this server.
 # A game older than this patch revision (what the exe says at its sign-in)
 # is refused at its sign-in with the game's own "outdated version", and its
 # sessions from before a restart in the lobby. Left out (or 0): every game
@@ -139,15 +134,6 @@ RUST_LOG=info
 # item stays as it is. The first start with it off makes every worn item of
 # every account whole, once.
 # SRP_ITEM_WEAR=off
-# A weapon or armour found after a match arrives at this percent of its
-# condition, and with one defect (off: without).
-# SRP_DROP_CONDITION=40
-# SRP_DROP_DEFECT=on
-# Whether the first four games of an hour of play raise the chance of
-# finding something (the game's data has the numbers, not how they were
-# used). Off by the owner's choice: every match has the table's 40 %, plus
-# the batteries' and premium's parts.
-# SRP_DROP_PLAYTIME_BONUS=off
 # The daily bonus (double experience and reputation for a day's first three
 # victories, a reward for seven such days). off: none of it. A bonus day
 # starts at this hour of UTC (0 to 23).
@@ -159,14 +145,14 @@ RUST_LOG=info
 
 # "Player vs Bots": one player against the server's own bots, chosen in
 # the changed lobby movie (servers/lobby-server/src/v026g/pvb.rs). On by
-# default (in the code and the compose file); `off` switches it off. The highest equipment level
-# let in, the most such matches at once (the server keeps a bots' map in
-# memory for each, 35-150 MB: with 5, give SRP26_MEMORY about 750 MB
-# more), the share of silver, experience and drop chance they give (only
-# a match played to its own end pays at all), and the seconds after which
-# a match whose player uploads no world it is asked for is over.
+# default (in the code and the compose file); `off` switches it off. The most
+# such matches at once (the server keeps a bots' map in memory for each,
+# 35-150 MB: with 5, give SRP26_MEMORY about 750 MB more), the share of
+# silver, experience and drop chance they give (only a match played to its
+# own end pays at all), and the seconds after which a match whose player
+# uploads no world it is asked for is over. The highest equipment level let
+# in and the team sizes are game data (`pvb/max_gear`, `pvb/sizes` of rooms.tsv).
 # SRP_PVB=off  (on when unset)
-# SRP_PVB_MAX_GEAR=15
 # SRP_PVB_MAX_MATCHES=5
 # SRP_PVB_PAY=0.25
 # SRP_PVB_STALL_S=60
@@ -198,10 +184,9 @@ RUST_LOG=info
 # Rooms, the players' "servers": made, listed and joined in the changed
 # lobby movie, a match after match in each, its map voted on
 # (servers/lobby-server/src/v026g/rooms.rs, docs/notes/lobby.md 2.16.3).
-# Every PvP match is a room's, and Play puts a player into one. The most
-# rooms at once, and the playable maps_dict ids a creator may add besides
-# SRP_MATCH_MAPS.
-# SRP_ROOMS_MAX=50
+# Every PvP match is a room's, and Play puts a player into one. The
+# playable maps_dict ids a creator may add besides SRP_MATCH_MAPS (the rooms'
+# numbers: gameplay/srp/rooms.options, scripts/content-edit/rooms.tsv).
 # SRP_ROOMS_EXTRA_MAPS=
 # The bots' maps (docs/notes/player_bots_mapdata.md section 6): the
 # <project>.mapdata files, copied by hand into the data volume (game data:

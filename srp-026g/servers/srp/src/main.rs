@@ -97,6 +97,7 @@ fn main() {
         on_exit.0.flush();
         on_exit.1.flush();
         log::info!("srp: stopped");
+        log::logger().flush();
         std::process::exit(0);
     });
     if let Err(error) = stop {

@@ -1,0 +1,600 @@
+#!/usr/bin/env python3
+"""Exercise breakable lamps through build 2777's native project/history loops.
+
+python check_lamps_026g.py <original survarium.exe>
+python check_lamps_026g.py <original survarium.exe> --patched <local test exe>
+Renderer/effect queue endpoints, the splash trace (0x3393F0), the writer's byte sink and GetCurrentThreadId are stubbed;
+each queued shard burst is then oriented by the game's own game_world::play_particle (0x25B9B0). Config
+lookup, project iteration, vtable dispatch, visual/light methods, empty-bullet
+serialization/deserialization and all installed lamp hooks execute x86 code.
+"""
+import argparse
+import importlib.util
+import json
+from pathlib import Path
+import struct
+
+from unicorn import Uc, UcError, UC_ARCH_X86, UC_MODE_32, UC_HOOK_CODE
+from unicorn.x86_const import (UC_X86_REG_EAX, UC_X86_REG_EBX, UC_X86_REG_ECX,
+    UC_X86_REG_EDX, UC_X86_REG_ESI, UC_X86_REG_EDI, UC_X86_REG_EBP, UC_X86_REG_ESP,
+    UC_X86_REG_EIP, UC_X86_REG_EFLAGS, UC_X86_REG_XMM0)
+import patch_026g as base
+
+ROOT = Path(__file__).resolve().parents[1]
+spec = importlib.util.spec_from_file_location('content_edit', ROOT / 'scripts/content-edit/content_edit.py')
+c = importlib.util.module_from_spec(spec)
+spec.loader.exec_module(c)
+HEAP, STACK, RET = 0x40000000, 0x408ff000, 0x40900000
+PROJECT, CONFIG, SCENE, GAME, RENDERER = (HEAP + i * 0x1000 for i in range(5))
+VISUALS, OBJECTS, LIGHTS, MODELS = HEAP + 0x300000, HEAP + 0x400000, HEAP + 0x410000, HEAP + 0x500000
+MANAGER, BULLET, RESULT, WRITER, READER, BUFFER = (HEAP + i * 0x10000 for i in range(5, 11))
+# The project config, relocated: Vector's, with its 99 fixtures, is 72 KB.
+CFG, CFG_SIZE = HEAP + 0x600000, 0x100000
+PHYSICS = HEAP + 0xb0000
+# A hit about to queue its decal: process_front_face_piercing, back_face,
+# reflection and collision, each at its pair's decal slot (site, the label
+# past add_decal, the slot).
+DECAL_SITES = ((0x32e672, 0x32e6ba, 0x08), (0x32e8cc, 0x32e914, 0x0c),
+               (0x32eaf2, 0x32eb4e, 0x10), (0x32ed71, 0x32edb9, 0x14))
+HIT, DECAL = HEAP + 0xb8000, HEAP + 0xb9000
+CAMERA, CORE = HEAP + 0xd0000, HEAP + 0xe0000
+# A blast: its splash (bullet_manager::explode's ESI) and its centre.
+SPLASH, CENTRE = HEAP + 0xba000, HEAP + 0xbb000
+MATERIALS, BULLET_MAT, GLASS_MAT, PAIR, PARTICLES = (HEAP + i for i in (0x200000, 0x211000, 0x212000, 0x213000, 0x214000))
+# game_world::play_particle's receiver (game_world+0ECh: its +(-50h) is the
+# world whose renderer holds the scene) and the arguments of one call.
+ENGINE, ORIENT = HEAP + 0x800100, HEAP + 0x810000
+REGS = (UC_X86_REG_EAX, UC_X86_REG_EBX, UC_X86_REG_ECX, UC_X86_REG_EDX,
+        UC_X86_REG_ESI, UC_X86_REG_EDI, UC_X86_REG_EBP)
+
+
+def config_tree():
+    rows = {}
+    for i, x in enumerate((0.0, 3.0)):
+        views = {'intact': {'index': i * 2, 'state': 0}, 'broken': {'index': i * 2 + 1, 'state': 1}}
+        if i == 0:
+            views['cone'] = {'index': 4, 'state': 0}
+        rows[str(i)] = dict(min_x=x - .1, max_x=x + .1, min_y=-.1, max_y=.1, min_z=-.1, max_z=.1,
+                           glass_from_x=x - .0625, glass_from_y=0.0, glass_from_z=0.0,
+                           glass_to_x=x + .0625, glass_to_y=0.0, glass_to_z=0.0,
+                           visuals=views, lights={'light': dict(x=x, y=0.0, z=0.0)})
+    return {'srp_lamps': {'version': 3, 'break_material': 29, 'effect_material': 7, 'lamps': rows}}
+
+
+def relocated_config(value):
+    b = bytearray(24)
+    b[:24] = c.value_record(b, 0, '', value)
+    offsets = []
+
+    def visit(off):
+        d, name, crc, t, count = c.rec(b, off)
+        offsets.append((off, d, name, crc, t, count))
+        if t in (3, 4):
+            for kid in c.children(b, off):
+                visit(kid)
+    visit(0)
+    for off, d, name, crc, t, count in offsets:
+        c.REC.pack_into(b, off, d + CFG if t >= 3 and d else d,
+                       name + CFG if name else 0, crc, t, count)
+    return b
+
+
+class Game:
+    def __init__(self, built):
+        self.u = u = Uc(UC_ARCH_X86, UC_MODE_32)
+        for _, rva, vsize, raw, rsize, _ in base.Headers(built).sections(built):
+            addr = base.IMAGE_BASE + rva
+            u.mem_map(addr, (max(vsize, rsize) + 0xfff) & ~0xfff)
+            u.mem_write(addr, bytes(built[raw:raw + min(rsize, vsize or rsize)]))
+        u.mem_map(HEAP, 0xa00000)
+        self.active, self.events, self.output = set(), [], bytearray()
+        self.effects, self.decals, self.traces, self.bursts = [], [], [], []
+        self.passes = 1.0
+        u.hook_add(UC_HOOK_CODE, self.endpoint, begin=0x21cd0, end=0x21cd0)
+        u.hook_add(UC_HOOK_CODE, self.endpoint, begin=0x21f40, end=0x21f40)
+        u.hook_add(UC_HOOK_CODE, self.endpoint, begin=0x24750, end=0x24750)
+        u.hook_add(UC_HOOK_CODE, self.endpoint, begin=0x24890, end=0x24890)
+        u.hook_add(UC_HOOK_CODE, self.write, begin=0x1f48a0, end=0x1f48a0)
+        u.hook_add(UC_HOOK_CODE, self.effect, begin=0x3223e0, end=0x3223e0)
+        u.hook_add(UC_HOOK_CODE, self.effect, begin=0x3222f0, end=0x3222f0)
+        u.hook_add(UC_HOOK_CODE, self.decal, begin=0x321fa0, end=0x321fa0)
+        u.hook_add(UC_HOOK_CODE, self.reach, begin=0x3393f0, end=0x3393f0)
+        u.hook_add(UC_HOOK_CODE, self.particle_system, begin=0x22660, end=0x22660)
+        self.w(PROJECT + 0x17c, CONFIG); self.w(CONFIG + 0x108, CFG)
+        self.w(PROJECT + 0x180, SCENE); self.w(SCENE + 0x98, CAMERA)
+        self.w(SCENE + 0x9c, GAME); self.w(GAME + 0x5360, RENDERER)
+        self.w(RENDERER + 0x200064, HEAP + 0x300000)
+        self.w(PROJECT + 0x1e8, VISUALS); self.w(PROJECT + 0x1ec, 5)
+        self.w(PROJECT + 0x184, OBJECTS); self.w(PROJECT + 0x188, OBJECTS + 8)
+        for i in range(5):
+            self.w(VISUALS + i * 0x48, 0xa029b4)
+            self.w(VISUALS + i * 0x48 + 0x44, MODELS + i * 0x200)
+        for i in range(2):
+            light = LIGHTS + i * 0x300
+            self.w(OBJECTS + i * 4, light); self.w(light, 0xa0adec)
+            self.w(light + 0x108, SCENE); self.w(light + 0x250, 100 + i)
+            self.f(light + 0x140, (float(i * 3), 0., 0.))
+        u.mem_write(CFG, bytes(relocated_config(config_tree())))
+        self.w(MANAGER + 0x98, PHYSICS); self.w(BULLET + 0x44, MANAGER)
+        self.w(MANAGER + 0x90, RENDERER); self.w(MANAGER + 0x94, MATERIALS)
+        self.w(BULLET + 0x48, BULLET_MAT)
+        for address, ident in ((BULLET_MAT, 7), (GLASS_MAT, 29)):
+            u.mem_write(address + 0x64, struct.pack('<HH', ident, 0xffff))
+            self.w(MATERIALS + 0x108 + ident * 4, address)
+        self.w(MATERIALS + 0x308 + 4 * (7 * 128 + 29), PAIR)
+        self.w(PAIR + 0x18, HEAP + 0x215000)
+        self.w(PAIR + 0x24, PARTICLES); self.w(PAIR + 0x28, PARTICLES + 4)
+        # particle_orientation: the bullet x glass pair's is 0 (material.pairs).
+        self.w(PAIR + 0x74, 0)
+        self.w(ENGINE - 0x50, GAME)
+        # Ragdoll's neighboring hook uses this import for its own lock.
+        self.w(0x870118, RET + 0x100)
+        u.mem_write(RET + 0x100, b'\xb8\x01\x00\x00\x00\xc3')
+        # The shared frame hook also runs ragdolls. Supply a deterministic
+        # clock, and let rejected-history panics reach their real UD2 after
+        # the logger's file-open failure (no filesystem in the emulator).
+        for slot, stub, value in ((0x870158, RET + 0x120, 0), (0x870150, RET + 0x160, 6_000_000)):
+            self.w(slot, stub)
+            code = bytes.fromhex('8b442404c700') + struct.pack('<I', value)
+            code += bytes.fromhex('c7400400000000b801000000c20400')
+            u.mem_write(stub, code)
+        self.w(0x870048, RET + 0x1a0)
+        u.mem_write(RET + 0x1a0, bytes.fromhex('b8ffffffffc21c00'))
+
+    def map_metadata(self, metadata):
+        assert not self.active
+        config = bytes(relocated_config({'srp_lamps': metadata}))
+        assert len(config) <= CFG_SIZE, len(config)
+        self.u.mem_write(CFG, config)
+        rows = metadata['lamps'].values()
+        indices = [v['index'] for row in rows for v in row['visuals'].values()]
+        count = max(indices) + 1
+        assert count * 0x48 < OBJECTS - VISUALS
+        self.w(PROJECT + 0x1ec, count)
+        for i in range(count):
+            self.w(VISUALS + i * 0x48, 0xa029b4)
+            self.w(VISUALS + i * 0x48 + 0x44, 0)
+        for i in indices:
+            self.w(VISUALS + i * 0x48 + 0x44, MODELS + i * 0x200)
+        lights = [light for row in rows for light in row['lights'].values()]
+        self.w(PROJECT + 0x188, OBJECTS + len(lights) * 4)
+        for i, position in enumerate(lights):
+            light = LIGHTS + i * 0x300
+            self.w(OBJECTS + i * 4, light); self.w(light, 0xa0adec)
+            self.w(light + 0x108, SCENE); self.w(light + 0x250, 100 + i)
+            self.f(light + 0x140, tuple(position[k] for k in ('x', 'y', 'z')))
+        return {('model', v['index']) for row in rows for v in row['visuals'].values() if v['state'] == 0} | {
+            ('light', i) for i in range(len(lights))}
+
+    def w(self, at, value):
+        self.u.mem_write(at, struct.pack('<I', value))
+
+    def r(self, at):
+        return struct.unpack('<I', self.u.mem_read(at, 4))[0]
+
+    def f(self, at, values):
+        self.u.mem_write(at, struct.pack('<%df' % len(values), *values))
+
+    def finish(self, cleanup):
+        esp = self.u.reg_read(UC_X86_REG_ESP)
+        self.u.reg_write(UC_X86_REG_EIP, self.r(esp))
+        self.u.reg_write(UC_X86_REG_ESP, esp + 4 + cleanup)
+
+    def endpoint(self, u, va, _size, _data):
+        esp = u.reg_read(UC_X86_REG_ESP)
+        if va in (0x21cd0, 0x21f40):
+            key = ('model', (u.reg_read(UC_X86_REG_EAX) - MODELS - 0x108) // 0x200)
+            add, cleanup = va == 0x21cd0, 16 if va == 0x21cd0 else 8
+        else:
+            key = ('light', self.r(esp + 12) - 100)
+            add, cleanup = va == 0x24750, 16 if va == 0x24750 else 12
+        assert (key not in self.active) if add else (key in self.active), (va, key, self.active)
+        (self.active.add if add else self.active.remove)(key)
+        self.events.append((add, key)); self.finish(cleanup)
+
+    def write(self, u, *_):
+        self.output += u.mem_read(u.reg_read(UC_X86_REG_EAX), 4)
+        self.finish(20)
+
+    def effect(self, u, va, _size, _data):
+        esp = u.reg_read(UC_X86_REG_ESP)
+        assert self.r(esp + 4) == MANAGER
+        if va == 0x3223e0:
+            assert self.r(esp + 8) == PARTICLES and self.r(esp + 20) == min(self.r(PAIR + 0x74), 1)
+            point, kind, cleanup = u.reg_read(UC_X86_REG_EAX), 'shards', 20
+            self.bursts.append(tuple(struct.unpack('<3f', u.mem_read(self.r(esp + k), 12)) for k in (12, 16))
+                               + (self.r(esp + 20),))
+        else:
+            assert self.r(esp + 8) == PAIR + 0x18
+            point, kind, cleanup = self.r(esp + 12), 'glass sound', 12
+        self.effects.append((kind, struct.unpack('<3f', u.mem_read(point, 12))))
+        self.finish(cleanup)
+
+    def particle_system(self, u, *_):
+        # scene_renderer::play_particle_system: the emitter's two transforms.
+        esp = u.reg_read(UC_X86_REG_ESP)
+        self.transforms = [struct.unpack('<16f', u.mem_read(self.r(esp + k), 64)) for k in (16, 20)]
+        self.finish(28)
+
+    def thrown(self, ray):
+        """Every queued burst, oriented by the game's own play_particle (made
+        unit as bullet_manager::play_particle makes them): two finite,
+        orthonormal transforms, the first's normal axis back along `ray` (its
+        z along it, for a pair oriented to the direction)."""
+        unit = lambda v: tuple(x / sum(y * y for y in v) ** .5 for x in v)
+        ray = unit(ray)
+        assert self.bursts
+        for direction, normal, orientation in self.bursts:
+            self.f(ORIENT, (0.,) * 4 + unit(direction) + (0.,) + unit(normal)); self.w(ORIENT + 0x30, 0)
+            self.run(0x25b9b0, args=(ORIENT + 0x30, ORIENT, ORIENT + 0x10, ORIENT + 0x20, orientation),
+                     regs={UC_X86_REG_ECX: ENGINE})
+            for m in self.transforms:
+                rows = [m[i * 4:i * 4 + 3] for i in range(3)]
+                assert all(abs(sum(a * b for a, b in zip(rows[i], rows[j])) - (i == j)) < 1e-4
+                           for i in range(3) for j in range(3)), (direction, normal, m)
+            axis = self.transforms[0][8:11] if orientation else tuple(-v for v in self.transforms[0][4:7])
+            assert all(abs(a - b) < 1e-4 for a, b in zip(axis, ray)), (ray, direction, normal, orientation)
+        self.bursts = []
+
+    def decal(self, u, *_):
+        # bullet_manager::add_decal: the manager in EAX, the pair's slot, the
+        # hit's point; it queues a world-space decal (stubbed, cleanup 32).
+        esp = u.reg_read(UC_X86_REG_ESP)
+        assert u.reg_read(UC_X86_REG_EAX) == MANAGER and self.r(self.r(esp + 4)) == DECAL
+        self.decals.append(struct.unpack('<3f', u.mem_read(self.r(esp + 16), 12)))
+        self.finish(32)
+
+    def reach(self, u, *_):
+        # The game's splash trace from the centre along the ray (stubbed):
+        # what it leaves of the strength, `passes` of it (0: a wall between).
+        esp = u.reg_read(UC_X86_REG_ESP)
+        assert self.r(esp + 4) == MANAGER and self.r(esp + 16) == 0
+        centre = struct.unpack('<3f', u.mem_read(self.r(esp + 8), 12))
+        ray = struct.unpack('<3f', u.mem_read(u.reg_read(UC_X86_REG_EAX), 12))
+        strength = struct.unpack('<f', u.mem_read(esp + 12, 4))[0]
+        self.traces.append((centre, ray, strength))
+        u.reg_write(UC_X86_REG_XMM0, struct.unpack('<I', struct.pack('<f', strength * self.passes))[0])
+        self.finish(16)
+
+    def explode(self, centre, radius, pierce=40.):
+        """bullet_manager::explode from its entry to the native code after the
+        hook's replayed `sub esp,0BCh`, the game's own splash not run."""
+        self.f(SPLASH + 0x28, (radius,)); self.f(SPLASH + 0x34, (pierce,)); self.f(CENTRE, centre)
+        self.run(0x339630, 0x339636, args=(MANAGER, CENTRE, 0), regs={UC_X86_REG_ESI: SPLASH})
+        assert self.u.reg_read(UC_X86_REG_ESI) == SPLASH
+
+    def mark(self, point, surface=GLASS_MAT):
+        """How many of the four hit kinds queue their decal at `point` on a
+        surface of `surface`'s material. Each runs from its site to the
+        native code after add_decal, with the function's registers intact."""
+        placed = 0
+        self.w(BULLET + 0x4c, surface)
+        for site, after, slot in DECAL_SITES:
+            self.w(PAIR + slot, DECAL)
+            self.f(HIT, point); self.f(HIT + 0x10, (-1., 0., 0.))
+            before = len(self.decals)
+            regs = {UC_X86_REG_EBP: BULLET, UC_X86_REG_EBX: HIT, UC_X86_REG_ESI: PAIR}
+            assert self.run(site, after, regs=regs) == STACK
+            assert all(self.u.reg_read(r) == v for r, v in regs.items())
+            assert self.decals[before:] in ([], [struct.unpack('<3f', struct.pack('<3f', *point))]), self.decals[before:]
+            placed += len(self.decals) - before
+            self.w(PAIR + slot, 0)
+        self.w(BULLET + 0x4c, 0)
+        assert placed in (0, len(DECAL_SITES)), placed
+        return placed != 0
+
+    def run(self, site, stop=RET, args=(), regs=None, flags=2):
+        u = self.u
+        u.mem_write(STACK, struct.pack('<%dI' % (1 + len(args)), RET, *args))
+        u.reg_write(UC_X86_REG_ESP, STACK)
+        for i, reg in enumerate(REGS):
+            u.reg_write(reg, HEAP + 0x100000 + i * 0x100)
+        for reg, val in (regs or {}).items():
+            u.reg_write(reg, val)
+        u.reg_write(UC_X86_REG_EFLAGS, flags)
+        # Vector binds 99 fixtures among ~1,700 visuals: 2.6M instructions.
+        u.emu_start(site, stop, count=10_000_000)
+        assert u.reg_read(UC_X86_REG_EIP) == stop, hex(u.reg_read(UC_X86_REG_EIP))
+        return u.reg_read(UC_X86_REG_ESP)
+
+    def insert(self):
+        # Enter through the real match insertion ABI, with the scene's
+        # camera deliberately distinct from the physics argument. Stop
+        # after its native insert_static call, before unrelated NPC setup.
+        self.run(0x285750, 0x285793, args=(PHYSICS, CORE), regs={UC_X86_REG_ECX: PROJECT})
+
+    def remove(self):
+        assert self.run(0x2855b0, regs={UC_X86_REG_ESI: PROJECT}) == STACK + 4
+
+    def present(self):
+        self.u.mem_write(STACK + 0xf, bytes([0]))
+        self.run(0x1f7c3c, 0x1f7c6c)
+
+    def shoot(self, start=(-1., 0., 0.), length=2., hit=None, direction=(1., 0., 0.)):
+        self.f(STACK + 0x90, start); self.f(STACK + 0x20, direction); self.f(STACK + 0x14, (length,))
+        self.w(RESULT + 0x1c, HEAP if hit is not None else 0)
+        if hit is not None:
+            self.f(RESULT, hit)
+        before = bytes(self.u.mem_read(BULLET, 0x100))
+        self.run(0x32d627, 0x32d63c, regs={UC_X86_REG_EAX: RESULT, UC_X86_REG_EDI: BULLET})
+        assert before == bytes(self.u.mem_read(BULLET, 0x100))
+        assert bytes(self.u.mem_read(STACK + 0x40, 8)) == bytes(self.u.mem_read(RESULT + 8, 8))
+
+    def save(self):
+        self.output.clear()
+        assert self.run(0x321b90, args=(WRITER,), regs={UC_X86_REG_EDI: MANAGER}) == STACK + 8
+        return bytes(self.output)
+
+    def load(self, data):
+        self.u.mem_write(BUFFER, data)
+        self.w(READER, BUFFER); self.w(READER + 4, BUFFER); self.w(READER + 8, len(data))
+        assert self.run(0x321c50, args=(READER,), regs={UC_X86_REG_EAX: MANAGER}) == STACK + 8
+        assert self.r(READER + 4) == BUFFER + len(data)
+
+
+def main():
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument('original', type=Path)
+    parser.add_argument('--patched', type=Path, help='Exercise an already-built client, without relinking')
+    parser.add_argument('--save-built', type=Path, help='Save the exact tested executable')
+    args = parser.parse_args()
+    original = args.original.read_bytes()
+    if args.patched:
+        built = args.patched.read_bytes()
+    else:
+        built, _ = base.build(original, 'section', Path(base.default_bin('section')).read_bytes(), None,
+                              Path(base.late_join_bin()).read_bytes())
+    if args.save_built:
+        args.save_built.write_bytes(built)
+    g = Game(built)
+    g.insert()
+    intact = {('model', i) for i in (0, 2, 4)} | {('light', 0), ('light', 1)}
+    assert g.active == intact
+    print('ok: visual insert through project loop; light insert through project loop')
+    # Exercise both displaced branches; the fallthrough must still execute
+    # its native fld, and neither path may disturb the frame's registers.
+    for flag_byte, flags, stop in ((0, 0x46, 0x1f7c6c), (1, 2, 0x1f7c4a)):
+        g.u.mem_write(STACK + 0xf, bytes([flag_byte]))
+        assert g.run(0x1f7c3c, stop) == STACK
+        assert g.u.reg_read(UC_X86_REG_EFLAGS) == flags
+        assert all(g.u.reg_read(reg) == HEAP + 0x100000 + i * 0x100 for i, reg in enumerate(REGS))
+    print('ok: both frame continuations preserve registers and flags')
+    fresh = g.save()
+    assert len(fresh) == 28 and struct.unpack_from('<II', fresh, 16) == (0x31504d4c, 2)
+    # A separate unconfigured scenery project must neither reject nor clear
+    # the active match's lamp owner. Its native arrays are empty.
+    scenery, config, root = HEAP + 0xc0000, HEAP + 0xc1000, HEAP + 0xc2000
+    g.w(scenery + 0x17c, config); g.w(config + 0x108, root)
+    g.w(scenery + 0x180, SCENE)
+    g.u.mem_write(root, bytes(relocated_config({})))
+    g.run(0x285750, 0x285793, args=(PHYSICS, CORE), regs={UC_X86_REG_ECX: scenery})
+    g.run(0x2855b0, regs={UC_X86_REG_ESI: scenery})
+    assert g.active == intact and g.save() == fresh
+    print('ok: unrelated scenery does not steal or clear the active lamp project')
+    for kw in ({'hit': (-.5, 0., 0.)}, {'start': (-1., .2, 0.)}, {'length': .5}):
+        g.shoot(**kw); g.present(); assert g.active == intact
+    assert not g.effects
+    print('ok: misses, short segments and an intervening wall do not break lamps')
+    # The game's bullet decal is a world-space box no model owns: one on a
+    # fixture's glass would outlive the glass. No glass mark is queued inside
+    # a fixture's bounds (1 cm margin), entering, leaving, ricocheting or
+    # stopping, whatever the lamp's state; other materials and places are.
+    def marks(game):
+        return (not game.mark((-.1, 0., 0.)) and not game.mark((3., .1, -.05)) and not game.mark((-.105, 0., 0.))
+                and game.mark((-.12, 0., 0.)) and game.mark((1.5, 0., 0.)) and game.mark((-.1, 0., 0.), BULLET_MAT))
+    assert marks(g) and g.active == intact and not g.effects
+    print('ok: no glass decal on an intact fixture (four hit kinds); other surfaces and materials keep theirs')
+    g.shoot(); g.present()
+    broken = (intact - {('model', 0), ('model', 4), ('light', 0)}) | {('model', 1)}
+    assert g.active == broken
+    assert marks(g) and g.active == broken
+    assert g.effects == [('shards', (0., 0., 0.)), ('glass sound', (0., 0., 0.))]
+    g.thrown((1., 0., 0.))
+    events = len(g.events)
+    g.shoot(); g.present(); assert len(g.events) == events
+    assert len(g.effects) == 2
+    damaged = g.save(); assert damaged != fresh
+    print('ok: hit switches model and removes light/cone once, preserving the bullet')
+    g.load(fresh); g.present(); assert g.active == intact
+    g.shoot(); assert g.save() == damaged
+    g.present(); assert g.active == broken
+    g.load(damaged); g.present(); assert g.active == broken
+    print('ok: rollback restores the intact lamp; resimulation and snapshot load reproduce the break')
+    late = Game(built); late.insert(); late.load(damaged); late.present(); assert late.active == broken
+    assert marks(late)
+    assert not late.effects  # snapshot loading must not replay a historical break
+    quiet = Game(built); quiet.insert(); quiet.u.mem_write(BULLET + 0x80, b'\x01')
+    quiet.shoot(); quiet.present(); assert quiet.active == broken and not quiet.effects
+    print('ok: each new break queues glass sound and shards once; quiet bullets and snapshot loads stay silent')
+    # The game builds a burst's basis from normalize(normal x direction):
+    # a normal along the ray made it NaN, and the shards were drawn nowhere.
+    for orientation, ray in ((0, (.6, .8, 0.)), (0, (-.3, .9, .3)), (7, (1., 0., 0.)), (7, (0., -.8, -.6))):
+        aimed = Game(built); aimed.insert(); aimed.w(PAIR + 0x74, orientation)
+        aimed.shoot(start=tuple(-2 * v for v in ray), length=3., direction=ray)
+        assert [kind for kind, _ in aimed.effects] == ['shards', 'glass sound'], aimed.effects
+        aimed.thrown(ray)
+    print('ok: the game orients each burst along its ray, a finite frame, for pairs oriented to the normal '
+          'or to the direction')
+    for invalid in (damaged[:-1], damaged[:16], damaged[:16] + bytes(12),
+                    damaged[:20] + struct.pack('<I', 256) + damaged[24:]):
+        try:
+            late.load(invalid)
+        except UcError:
+            pass
+        else:
+            raise AssertionError('invalid lamp history accepted')
+        late.present(); assert late.active == broken
+    print('ok: truncated, unknown and mismatched histories rejected before lamp state changes')
+    g.shoot(length=5.); g.present(); assert g.active == {('model', 1), ('model', 3)}
+    print('ok: late join/replay snapshot; two lamps on one unobstructed segment')
+    print('ok: no glass decal on a broken fixture, after rollback, resimulation or a late join')
+    g.remove(); assert not g.active
+    assert all(g.r(VISUALS + i * 0x48) == 0xa029b4 for i in range(5))
+    assert all(g.r(LIGHTS + i * 0x300) == 0xa0adec for i in range(2))
+    print('ok: visual remove through project loop; light remove through project loop; original vtables restored')
+    g.insert(); assert g.active == intact and g.save() == fresh
+    # Destruction without remove still drops exactly the inserted objects
+    # before the native destructor starts releasing members.
+    g.run(0x285330, 0x28533a, regs={UC_X86_REG_ECX: PROJECT})
+    assert not g.active
+    assert all(g.r(VISUALS + i * 0x48) == 0xa029b4 for i in range(5))
+    # A map without metadata retains the original bullet wire format.
+    g.u.mem_write(CFG, bytes(relocated_config({})))
+    g.insert(); assert len(g.save()) == 16
+    assert g.mark((-.1, 0., 0.)) and g.mark((3., 0., 0.))
+    g.remove()
+    print('ok: new match resets lamps; maps without lamp metadata retain native history and decals')
+    # Invalid metadata must fail before any native binding changes. Objects
+    # the metadata names wrongly (a wrong index, a moved light) leave the
+    # project without lamps, the game running; malformed metadata refuses.
+    # Repairing the input afterwards must work without a leaked owner/lock.
+    cases = []
+    duplicate = config_tree()
+    rows = list(duplicate['srp_lamps']['lamps'].values())
+    second_visual = next(iter(rows[1]['visuals'].values()))
+    second_visual['index'] = 0
+    cases.append((duplicate, False))
+    missing_light = config_tree()
+    light = next(iter(list(missing_light['srp_lamps']['lamps'].values())[-1]['lights'].values()))
+    light['x'] = 999.0
+    cases.append((missing_light, False))
+    invalid_bounds = config_tree()
+    last = list(invalid_bounds['srp_lamps']['lamps'].values())[-1]
+    last['max_x'] = last['min_x']
+    cases.append((invalid_bounds, True))
+    no_glass = config_tree()
+    del list(no_glass['srp_lamps']['lamps'].values())[-1]['glass_to_z']
+    cases.append((no_glass, True))
+    unbound = {('model', i) for i in range(5)} | {('light', 0), ('light', 1)}
+    for tree, aborts in cases:
+        refused = Game(built)
+        refused.u.mem_write(CFG, bytes(relocated_config(tree)))
+        try:
+            refused.insert()
+        except UcError:
+            assert aborts, 'a wrong binding aborted the game'
+            assert not refused.events
+        else:
+            assert not aborts, 'invalid metadata accepted'
+            # Unbound: every object stays the game's, drawn and removed by
+            # it; shots break nothing and the history is the native one.
+            assert refused.active == unbound
+            refused.shoot(); refused.present()
+            assert refused.active == unbound and not refused.effects and len(refused.save()) == 16
+            refused.remove()
+        assert not refused.active
+        assert all(refused.r(VISUALS + i * 0x48) == 0xa029b4 for i in range(5))
+        assert all(refused.r(LIGHTS + i * 0x300) == 0xa0adec for i in range(2))
+        refused.u.mem_write(CFG, bytes(relocated_config(config_tree())))
+        refused.insert(); assert refused.active == intact
+        refused.remove(); assert not refused.active
+    print('ok: duplicate visuals and missing lights leave the map without lamps, late malformed bounds refuse; '
+          'nothing bound either way, retry has no leaked owner')
+    # A native scenery project without metadata does not require lamp-only
+    # physics/scene inputs, and must not disturb another bound project.
+    scenery_only = Game(built)
+    scenery_only.u.mem_write(CFG, bytes(relocated_config({})))
+    scenery_only.w(PROJECT + 0x180, 0)
+    scenery_only.w(PROJECT + 0x1ec, 0)
+    scenery_only.w(PROJECT + 0x188, OBJECTS)
+    scenery_only.run(0x285750, 0x285793, args=(0, 0), regs={UC_X86_REG_ECX: PROJECT})
+    scenery_only.remove()
+    print('ok: unconfigured scenery needs no lamp physics or scene')
+
+    # Every shipped metadata row is accepted by the actual client parser and
+    # dispatches its intended model/light instances. Unrelated visuals are
+    # empty native models; the renderer endpoints remain the only stubs.
+    source = json.loads((ROOT / 'scripts/content-edit/breakable-lamps-1.json').read_text())
+    for entry in source['add_value']:
+        expected = g.map_metadata(entry['value'])
+        g.insert(); assert g.active == expected, entry['files']
+        g.remove(); assert not g.active, entry['files']
+    print(f"ok: all {len(source['add_value'])} map variants bind, insert and remove their authored fixtures through native code")
+
+    # A break plays the glass pair's shards along the fixture's authored
+    # glass line, about one burst per 15 cm of it (at most ten), each in the
+    # middle of its share, and its sound once at the line's middle, wherever
+    # the bullet struck the fixture.
+    def shards(project, lamp, bursts, blast=False):
+        entry = next(e for e in source['add_value'] if e['files'] == [f'projects/{project}/client_project'])
+        row = entry['value']['lamps'][lamp]
+        low, high = [row['min_' + a] for a in 'xyz'], [row['max_' + a] for a in 'xyz']
+        start, end = ([row[f'glass_{e}_{a}'] for a in 'xyz'] for e in ('from', 'to'))
+        centre = [(a + b) / 2 for a, b in zip(low, high)]
+        game = Game(built)
+        game.map_metadata(entry['value']); game.insert()
+        middle = [(a + b) / 2 for a, b in zip(start, end)]
+        if blast:   # a grenade half a metre under it, reaching it alone
+            grenade = (centre[0], low[1] - .5, centre[2])
+            game.explode(grenade, .55)
+            game.thrown([m - g for m, g in zip(middle, grenade)])
+        else:       # up into the fixture's bottom, stopping at its centre
+            game.shoot(start=(centre[0], low[1] - .05, centre[2]), length=centre[1] - low[1] + .05,
+                       direction=(0., 1., 0.))
+            game.thrown((0., 1., 0.))
+        points = [p for kind, p in game.effects if kind == 'shards']
+        assert len(points) == bursts, (project, lamp, game.effects)
+        expected = [[a + (b - a) * (i + .5) / bursts for a, b in zip(start, end)] for i in range(bursts)]
+        assert all(abs(p[k] - q[k]) < 1e-4 for p, q in zip(points, expected) for k in range(3)), (points, expected)
+        sounds = [p for kind, p in game.effects if kind == 'glass sound']
+        assert len(sounds) == 1 and all(abs(a - b) < 1e-4 for a, b in zip(sounds[0], middle)), sounds
+        game.remove()
+        return points
+    shards('level_06/day_2', 'lamp000', 3)    # Mamayev Kurgan's plafon, 0.52 m high
+    shards('level_02/day_2', 'lamp009', 10)   # School's hanging tubes, 1.5 m: capped
+    shards('level_09/day_2', 'lamp002', 6)    # London's lit tubes, 0.83 m
+    shards('level_07/day_2', 'lamp034', 10)   # Vector's tube fixture, 1.5 m
+    shards('level_07/day_2', 'lamp034', 10, blast=True)   # a blast's break: the same bursts
+    # London's fixture turned 54 degrees: its bursts follow its tubes, across
+    # both world axes of its box, at the tubes' height inside the housing.
+    turned = shards('level_09/day_2', 'lamp000', 6)
+    dx, dz = turned[-1][0] - turned[0][0], turned[-1][2] - turned[0][2]
+    assert abs(dx) > .3 and abs(dz) > .3 and all(abs(p[1] - turned[0][1]) < .01 for p in turned), turned
+    print('ok: a break bursts along its glass line, one burst per 15 cm (a plafon three, tubes six to ten, '
+          'a turned fixture along its tubes, a blast\'s as a bullet\'s, thrown up into the lamp or away from the '
+          'grenade), one sound each at the glass\'s middle')
+
+    # A blast breaks every intact fixture whose bounds come within its splash
+    # radius, where the game's own splash trace reaches the bounds' nearest
+    # point; through the lamps' one transition, in their bullet history.
+    blast = Game(built); blast.insert()
+    blast.explode((1.5, 0., 0.), 1.35); blast.present()
+    assert blast.active == intact and not blast.effects and not blast.traces
+    print('ok: a blast outside its splash radius of the bounds breaks nothing and traces nothing')
+    blast.passes = 0.
+    blast.explode((1.5, 0., 0.), 1.45); blast.present()
+    assert blast.active == intact and not blast.effects
+    # One trace a fixture, from the centre to its bounds' nearest point,
+    # with the splash's strength.
+    assert sorted((c, round(r[0], 4), r[1:], s) for c, r, s in blast.traces) == [
+        ((1.5, 0., 0.), -1.4, (0., 0.), 40.), ((1.5, 0., 0.), 1.4, (0., 0.), 40.)], blast.traces
+    print('ok: the splash trace stopped (a wall between) breaks nothing')
+    blast.passes, blast.traces = 1., []
+    blast.explode((1.5, 0., 0.), 1.45); blast.present()
+    assert blast.active == {('model', 1), ('model', 3)}
+    assert sorted(blast.effects) == [('glass sound', (0., 0., 0.)), ('glass sound', (3., 0., 0.)),
+                                     ('shards', (0., 0., 0.)), ('shards', (3., 0., 0.))], blast.effects
+    assert len(blast.traces) == 2
+    blasted = blast.save()
+    both = Game(built); both.insert(); both.shoot(length=5.); assert both.save() == blasted
+    blast.effects, blast.traces = [], []
+    blast.explode((1.5, 0., 0.), 3.); blast.present()
+    assert not blast.effects and not blast.traces and blast.save() == blasted
+    print('ok: a grenade between two lamps breaks both, one shards and sound each, the history a bullet leaves; '
+          'a second blast breaks nothing again')
+    blast.load(fresh); blast.present(); assert blast.active == intact
+    blast.explode((1.5, 0., 0.), 1.45); assert blast.save() == blasted
+    late = Game(built); late.insert(); late.load(blasted); late.present()
+    assert late.active == {('model', 1), ('model', 3)} and not late.effects
+    silent = Game(built); silent.insert(); silent.w(MANAGER + 0x90, 0)
+    silent.explode((1.5, 0., 0.), 1.45); silent.present()
+    assert silent.active == {('model', 1), ('model', 3)} and not silent.effects and silent.save() == blasted
+    inside = Game(built); inside.insert(); inside.explode((0., 0., 0.), 0.)
+    assert inside.save() != fresh and not inside.traces and inside.effects[0] == ('shards', (0., 0., 0.))
+    inside.thrown((0., -1., 0.))   # a blast at the glass throws its shards down
+    print('ok: rollback and resimulation repeat a blast\'s breaks, a late join loads them silently, a world without '
+          'a renderer breaks quietly; a blast inside a fixture needs no trace')
+
+
+if __name__ == '__main__':
+    main()

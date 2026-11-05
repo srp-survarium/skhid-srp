@@ -22,7 +22,7 @@
 use std::fmt;
 
 use mapdata::{MapData, Vec3};
-use survarium::v026g::maps::mode;
+use survarium::v026g::maps::RuleMode;
 
 use super::know::TeamKnowledge;
 use super::view::{MatchView, Place, PlaceView};
@@ -53,21 +53,31 @@ impl Mode {
 
     /// The mode of a map's `mode.mode` id.
     pub fn parse(id: u8) -> Result<Self, Unsupported> {
-        match id {
-            mode::BATTERIES => Ok(Self::Batteries),
-            mode::TIMED_BATTERIES => Ok(Self::TimedBatteries),
-            mode::TEAM_DEATHMATCH => Ok(Self::TeamDeathmatch),
-            other => Err(Unsupported(other)),
+        RuleMode::of_config(id).ok_or(Unsupported(id)).and_then(Self::of_rules)
+    }
+
+    /// The mode of a match's typed rules (`RuleMode`): Research is none the bots play.
+    pub fn of_rules(rules: RuleMode) -> Result<Self, Unsupported> {
+        match rules {
+            RuleMode::Batteries => Ok(Self::Batteries),
+            RuleMode::TimedBatteries => Ok(Self::TimedBatteries),
+            RuleMode::TeamDeathmatch => Ok(Self::TeamDeathmatch),
+            RuleMode::Research => Err(Unsupported(rules.number())),
+        }
+    }
+
+    /// The match rules of the mode.
+    pub fn rules(self) -> RuleMode {
+        match self {
+            Self::Batteries => RuleMode::Batteries,
+            Self::TimedBatteries => RuleMode::TimedBatteries,
+            Self::TeamDeathmatch => RuleMode::TeamDeathmatch,
         }
     }
 
     /// The id of the map's `mode.mode` (the routes table's key).
     pub fn id(self) -> u8 {
-        match self {
-            Self::Batteries => mode::BATTERIES,
-            Self::TimedBatteries => mode::TIMED_BATTERIES,
-            Self::TeamDeathmatch => mode::TEAM_DEATHMATCH,
-        }
+        self.rules().number()
     }
 
     /// The key of a play's weight for this mode (`weight_tdm`,
@@ -274,10 +284,12 @@ mod tests {
 
     #[test]
     fn the_modes_the_bots_play_parse_and_research_does_not() {
-        for id in [mode::BATTERIES, mode::TIMED_BATTERIES, mode::TEAM_DEATHMATCH] {
-            assert_eq!(Mode::parse(id).map(Mode::id), Ok(id));
+        for rules in [RuleMode::Batteries, RuleMode::TimedBatteries, RuleMode::TeamDeathmatch] {
+            assert_eq!(Mode::parse(rules.number()).map(Mode::id), Ok(rules.number()));
+            assert_eq!(Mode::of_rules(rules).map(Mode::rules), Ok(rules));
         }
-        assert_eq!(Mode::parse(mode::RESEARCH), Err(Unsupported(5)));
+        assert_eq!(Mode::parse(RuleMode::Research.number()), Err(Unsupported(5)));
+        assert_eq!(Mode::of_rules(RuleMode::Research), Err(Unsupported(5)));
         assert_eq!(Mode::parse(0), Err(Unsupported(0)));
         assert_eq!(Mode::parse(6), Err(Unsupported(6)));
         // `ALL` is every mode the parse gives.

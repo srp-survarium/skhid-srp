@@ -37,6 +37,9 @@ package player_icons_fla
       public var movingLeft:Boolean;
       
       public var lastPosY:Number;
+
+      // force_interface_hidden's state, for the layer frame 1 makes.
+      public var objectsForced:Boolean = false;
       
       public function MainTimeline()
       {
@@ -48,7 +51,34 @@ package player_icons_fla
       // and names over heads are this movie's root, hidden in one step with the hud; the movie runs on.
       public function hide_interface(hidden:Boolean) : void
       {
+         // forced (Blackout, force_interface_hidden) the key does nothing: the players' markers stay
+         if(this.objectsForced)
+         {
+            return;
+         }
          visible = !hidden;
+      }
+
+      // The interface forced hidden for a match (exe patch 62's hide_ui_force, Blackout; docs/notes/blackout.md):
+      // the match's objects' markers (HUDIconLayer.FIRST_OBJECT on: the batteries and the like) hidden, the
+      // players' markers shown as in a plain match (the teammates'; an enemy's never, HUDIconLayer.canShow).
+      // Kept for frame 1's layer when told before it.
+      public function force_interface_hidden(forced:Boolean) : void
+      {
+         this.objectsForced = forced;
+         if(forced)
+         {
+            visible = true;
+         }
+         this.applyForced();
+      }
+
+      private function applyForced() : void
+      {
+         if(this.iconControl)
+         {
+            this.iconControl.objectsHidden = this.objectsForced;
+         }
       }
 
       public function create_player_icon(id:uint, kind:uint = 0, baseScale:Number = 1) : void
@@ -103,6 +133,11 @@ package player_icons_fla
          trace("propsSetted");
       }
       
+      public function research_markers(... values) : void
+      {
+         this.iconControl.research_markers(values);
+      }
+
       public function set_player_icon_pos(id:uint, posX:Number, posY:Number, scale:Number) : void
       {
          this.iconControl.set_player_icon_pos(id,posX,posY,scale);
@@ -181,6 +216,7 @@ package player_icons_fla
          this.iconControl.register_icon_renderer(0,PlayerNameRenderer);
          this.iconControl.register_icon_renderer(1,MarkerRenderer);
          HUDMarker.setLabelRendererClass(MarkerLabel);
+         this.applyForced();
          addChildAt(this.iconControl,0);
          movingLeft = false;
          lastPosY = 0;

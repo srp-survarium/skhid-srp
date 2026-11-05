@@ -73,7 +73,9 @@ Every apply carries its time, and the replay skips the "too far in the future" c
 
 ## 5. The converter
 
-`srp-recording-to-sur <file.srprec> --game-modes <dir> [--out <dir>] [--stored] [--every <ms>]` (`cargo run -p match-server --bin srp-recording-to-sur`). `<dir>` holds the game's `gameplay/game_modes/*.options` files under their own names (`tools/re-kit/common/dbgrab get gameplay/game_modes/ <dir>` writes them as `gameplay__game_modes__<name>`; strip the prefix); the one the recording's `map_id` names in `maps_dict` is used. It prints a summary and writes `<name>.sur`.
+`srp-recording-to-sur <file.srprec> --game-modes <dir> [--out <dir>] [--stored] [--every <ms>]` (`cargo run -p match-server --bin srp-recording-to-sur`). `<dir>` holds the game's `gameplay/game_modes/*.options` files under their own names (`tools/re-kit/common/dbgrab get gameplay/game_modes/ <dir>` writes them as `gameplay__game_modes__<name>`; strip the prefix); the one the recording's `map_id` names in `maps_dict` is used. It prints a summary (with every key frame's time) and writes `<name>.sur`.
+
+`SRP_GAME_DATA` must name the server game data of the recording's revision (`private/release/rev<n>/content/server-game-data.db`), as for `srp`: the 0xE4 of a match whose kits hold items newer than the test archive's (every live match since the ported weapons) parses only with that dictionary. `--keep-key-frames <ms,...>` keeps the first world and those key frames only, for a replay that must reach one world without loading those before it (a crash repro).
 
 | `.sur` part | made from |
 |---|---|
@@ -87,7 +89,7 @@ Choices, each one in the summary:
 - **The match clock** is the recording's time less a constant, the median over the notes that carry both (`entered`, `clock`: 1100 to 2900 ms); its use is only to read the relays' one-byte ticks (`tick_time`: the tick within ±127 of the clock's, so ±6.35 s). An event the clock puts more than 1 s ahead of the recording is dropped.
 - **A place whose link is backed up** gets its copies late: match 0x57b21c79 (14 Oct 13:36) sent place 2 its relays up to 30 s late from 340 s to 680 s, through its resyncs. A copy more than 6.35 s late reads as another tick: the first converter put about 2 200 inputs 12.8 s late there, and counted 38 965 conflicting copies and 249 604 "future" ones (its summary claimed none). Now a copy no other place got within 2 s before it (or 1 s after), but another place got within 60 s before, is a sign of a backed-up link, and **every copy that place gets within 15 s of a sign is dropped**: the server sends an event to every other place at once, so the others had it on time. In that match 799 085 copies of place 2 are dropped, no message is left without a copy, and there are 0 conflicts and 0 "future"; the other 19 come out as before (no copy dropped). A match with one recipient per event (2 places) has nothing to compare with, and a late copy there would still be read as another tick.
 - **Masks.** A match that lets players in late (`growing_roster`, every sample) sizes the 0xED/0xEE masks for 20 from the start (`Game::snapshot_players`); the server sends no 0xED/0xEE today, but the converter reads them so.
-- **Inputs, not the players' own packets.** The relays hold what the server accepted (late inputs moved, refused ones dropped, `game.rs::input`); each input is relayed to every place but its owner's, so the union over the places is all of them. A match with one place only would lose its inputs.
+- **Inputs, not the players' own packets.** The relays hold what the server accepted (late inputs moved, refused ones dropped, `game.rs::input`); each input is relayed to every place but its owner's, so the union over the places is all of them. Solo PvE now additionally records the human's accepted actions and kit choices directly, after validation and retiming, using their full match time. Records of kinds 4 and 5 supply these events without another client; network copies are deduplicated against them. Old files without these records still use relays.
 - **A 0xEA to the leaver itself** is its farewell (tick 0 for a game that never loaded), not a leave: ignored.
 - **The start** is the first uploaded world's time (50 ms in every sample); the first record is the marker.
 
@@ -112,7 +114,7 @@ Not proven (each would show on a first run):
 4. **The start**: the fresh world is built from the options and the config; the first seconds differ from the match if it does not agree with the first world (50 ms) until the first key frame (about 10 s).
 5. **The record rules** of section 4 in a running game: the type 0 at every tick's end (correct by the code, with a one-tick rollback per tick), and the seek to the first record after a key frame's time (PROVEN by the code).
 6. **Statistics of the replay** (the UI's score screen): the replay restarts the match's score; a replay does not run the server's rules.
-7. A recording made with `SRP_RECORD_MIN_PLAYERS` below 2 places has no relays to take inputs from.
+7. Legacy recordings with one human have no relays for that human's own inputs. New PvE recordings retain accepted human actions and kit choices directly (record kinds 4 and 5); discarded old recordings cannot be recovered.
 
 **The first run** (not done: the owner's decision to run a game):
 

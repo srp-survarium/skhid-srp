@@ -139,15 +139,15 @@ fn fill_of(
 /// process runs on (the mode's `respawn_time`, the radio's modifier): the
 /// live game's with `SRP_GAME_DATA`, so the constants above cannot go
 /// stale when a content edit changes the time.
-pub(crate) fn respawn_ms_from_data(level: u8, weather: u8, mode: u8) -> Option<u32> {
+pub(crate) fn respawn_ms_from_data(level: u8, weather: u8, mode: survarium::v026g::maps::RuleMode) -> Option<u32> {
     let (time_s, modifier) = respawn_rule_from_data(level, weather, mode)?;
     Some(respawn_ms_of(time_s, modifier))
 }
 
 /// The mode's `respawn_time` (s) and the radio's `respawn_time_modifier`, from the game data: a body that carries the radio waits
 /// [`respawn_ms_of`] of both, one that does not waits the time itself (the radio works by being carried, `loadouts::BOT_RADIO`).
-pub(crate) fn respawn_rule_from_data(level: u8, weather: u8, mode: u8) -> Option<(u32, f32)> {
-    let row = survarium::v026g::maps::find(level, weather, mode)?;
+pub(crate) fn respawn_rule_from_data(level: u8, weather: u8, mode: survarium::v026g::maps::RuleMode) -> Option<(u32, f32)> {
+    let row = survarium::v026g::maps::find(level, weather, mode.into())?;
     let radio = survarium::v026g::dictionary::Dictionary::shared()
         .item_named("respawn_booster")?
         .dict_id;
@@ -2806,14 +2806,14 @@ fn the_respawn_delay_is_the_modes_time_less_the_radio_on_the_50_ms_grid() {
 /// `SRP_GAME_DATA`, and the constants stay the default on the built-in one.
 #[test]
 fn the_respawn_is_read_from_the_data_the_run_is_on() {
-    use survarium::v026g::maps::{mode, weather};
-    let batteries = respawn_ms_from_data(1, weather::DAY, mode::BATTERIES);
-    let tdm = respawn_ms_from_data(1, weather::DAY, mode::TEAM_DEATHMATCH);
+    use survarium::v026g::maps::{RuleMode, weather};
+    let batteries = respawn_ms_from_data(1, weather::DAY, RuleMode::Batteries);
+    let tdm = respawn_ms_from_data(1, weather::DAY, RuleMode::TeamDeathmatch);
     assert_eq!(batteries, Some(6_400), "the built-in archive's 8 s less the radio");
     assert_eq!(tdm, Some(RESPAWN_TDM_MS));
     assert_ne!(batteries, Some(RESPAWN_BATTERIES_MS));
     // A map that does not exist has none.
-    assert_eq!(respawn_ms_from_data(99, weather::DAY, mode::BATTERIES), None);
+    assert_eq!(respawn_ms_from_data(99, weather::DAY, RuleMode::Batteries), None);
 }
 
 /// The bench's weapons follow the data it runs on: on the live file

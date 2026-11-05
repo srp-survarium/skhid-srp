@@ -103,7 +103,7 @@ impl Walkers {
             return None;
         }
         let id = formed.match_id;
-        let mode = match Mode::parse(formed.map.mode) {
+        let mode = match Mode::of_rules(formed.played.mode().rules()) {
             Ok(mode) => mode,
             Err(error) => {
                 log::warn!("Match {id:#x}: no bots: {error}");
@@ -140,7 +140,7 @@ impl Walkers {
             )
         );
         log::info!("Match {id:#x}: {}", switch_log::env_switches());
-        let project = formed.map.project;
+        let project = formed.played.map().project;
         maps.request(project);
         let teams: Vec<u8> = formed.places.iter().map(|place| place.team).collect();
         let bots: Vec<_> = formed
@@ -192,14 +192,14 @@ impl Walkers {
             bots: Bots::new_with(
                 id,
                 mode,
-                formed.map.level,
+                formed.played.map().level,
                 &teams,
                 &driven,
                 &roles,
                 crate::v026g::bots::tuning::TeamTunings::new(tuning),
                 trace,
             )
-            .with_container_teams(formed.map.container_teams)
+            .with_container_teams(formed.played.map().container_teams)
             // [A241] The players' clients sway the bots' aimed automatic shots as their own.
             .with_client_sway(crate::v026g::bots::recoil::ClientSway::Live)
             .with_tiers(&equipments),
@@ -1047,7 +1047,8 @@ mod tests {
                 let matched = profile_of(role, tier, true, PocketStore::PerMatch);
                 assert_eq!(grenades_in_lives(&matched), (expect_new, 0), "{at}: owner's kit, storage at the count");
                 let old = profile_of(role, tier, false, PocketStore::PerLife);
-                assert_eq!(grenades_in_lives(&old), (2, 2), "{at}: the old pockets");
+                // The old pockets' frag (`loadouts::BOT_GRENADE`): one, an RGD-5 taking two units of a pocket of two.
+                assert_eq!(grenades_in_lives(&old), (1, 1), "{at}: the old pockets");
                 assert!(matches!(Throws::of_profile(&stocked, Player::Bot, false), Throws::Bot(_)), "{at}");
             }
         }
@@ -1132,7 +1133,7 @@ mod tests {
         )
         .unwrap();
         let table = route_table(1, None, Some(&dir)).expect("the mapdata folder's table");
-        let routes = table.for_map(3, 2);
+        let routes = table.for_map(3, survarium::v026g::maps::RuleMode::Batteries);
         assert_eq!(routes.len(), 1);
         assert_eq!(routes[0].points.len(), 2);
         assert!(route_table(1, Some("off".as_ref()), Some(&dir)).is_none());

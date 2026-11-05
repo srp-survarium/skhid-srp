@@ -1,0 +1,5 @@
+va	name	source	ret_cleanup	result
+0x200117a50	survarium::game::assign_music_emitter	manual	0	void
+0x200117b60	survarium::game::play_music	manual	0	void
+0x20014bb60	survarium::loading_screen::on_music_loaded	manual	0	void
+0x20062a8f0	vostok::sound::sound_instance_proxy::fade_out	manual	0	void
