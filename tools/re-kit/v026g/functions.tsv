@@ -2134,6 +2134,12 @@ va	status	ref_021d	name
 0x0005cb80	reviewed	0x000429b3	vostok::sound::new_sound_propagator::detach_voice
 0x002454a0	observed		survarium::delayed_callbacks_queue<64>::add
 0x00245ad0	observed		survarium::delayed_callbacks_queue<64>::push_back
+0x000a02d0	reviewed		btCollisionWorld::rayTestSingle
+0x000a3050	reviewed		btSingleRayCallback::btSingleRayCallback
+0x000a3310	reviewed		btSingleRayCallback::process
+0x00075b40	reviewed		vostok::physics::closest_ray_result_callback::closest_ray_result_callback
+0x00075bd0	reviewed		vostok::physics::closest_ray_result_callback::needsCollision
+0x00075c40	reviewed		vostok::physics::closest_ray_result_callback::addSingleResult
 0x002ff930	observed		survarium::weapon_controller_core::serialize
 0x002ff970	observed		survarium::weapon_controller_core::deserialize
 0x00330a20	observed		survarium::hit_animations_selector::hit_body_part::deserialize

@@ -2546,6 +2546,9 @@ st_srp_pvb_searching	Prvo prekini pretragu
 st_srp_pvb_team_size	%1$s protiv %2$s
 st_srp_pvb_title	Igrač protiv botova
 st_srp_pvb_unknown_choice	Ova mapa ili veličina tima trenutno nije dostupna
+st_srp_renderer_dx11	DirectX 11
+st_srp_renderer_dxvk	Vulkan/DXVK
+st_srp_renderer_option	Renderer
 st_srp_replay_asking	Traženje snimka ovog meča od servera…
 st_srp_replay_being_made	Snimak se pravi iz zapisa meča. To se dešava kada neko prvi put gleda ovaj meč i može da potraje.\nMožeš zatvoriti prozor: server će nastaviti izradu.\n\n%1$s
 st_srp_replay_busy	Server je trenutno zauzet drugim snimcima. Pokušaj ponovo za minut.

@@ -9,13 +9,19 @@
 #define ENGINE_026G_H
 
 struct artefact;
+struct bt_broadphase_proxy;
+struct bt_collision_object;
+struct bt_collision_shape;
+struct bt_transform;
 struct buffer_string;
 struct buffer_writer;
+struct bullet;
 struct bullet_manager;
 struct bullet_physics_world;
 struct cc_bool;
 struct cc_float;
 struct cc_string;
+struct closest_ray_result_callback;
 struct core_world;
 struct critical_section;
 struct di_command_queue;
@@ -211,6 +217,24 @@ extern unsigned int (__attribute__((stdcall)) *const engine_write_file)(void * f
 
 /* the IAT slot 0x870040 (an import, stdcall) */
 extern unsigned int (__attribute__((stdcall)) *const engine_close_handle)(void * handle);
+
+/* the IAT slot 0x87021c (an import, stdcall) */
+extern unsigned int (__attribute__((stdcall)) *const engine_delete_file_a)(const char * name);
+
+/* the IAT slot 0x870080 (an import, stdcall) */
+extern void * (__attribute__((stdcall)) *const engine_load_library_a)(const char * name);
+
+/* the IAT slot 0x870084 (an import, stdcall) */
+extern void * (__attribute__((stdcall)) *const engine_get_proc_address)(void * module, const char * name);
+
+/* the IAT slot 0x870088 (an import, stdcall) */
+extern unsigned int (__attribute__((stdcall)) *const engine_free_library)(void * module);
+
+/* the IAT slot 0x87014c (an import, stdcall) */
+extern unsigned int (__attribute__((stdcall)) *const engine_get_module_file_name_a)(void * module, char * name, unsigned int size);
+
+/* the IAT slot 0xaefe7c (an import, stdcall) */
+extern unsigned int (__attribute__((stdcall)) *const engine_sh_get_folder_path_a)(void * window, unsigned int folder, void * token, unsigned int flags, char * path);
 
 /* 0x75e20 vostok::physics::bullet_physics_world::ray_test: world ECX, result ESP+4, origin ESP+8, direction ESP+12, length ESP+16, group ESP+20, mask ESP+24, delegate ESP+28, unflipped ESP+32; pops 32 */
 void engine_ray_test(struct bullet_physics_world *world, struct ray_result *result, const float *origin, const float *direction, float length, unsigned int group, unsigned int mask, const void *delegate, unsigned int unflipped);
@@ -509,6 +533,15 @@ const struct sound_options *engine_sound_options(const struct sound_propagator_e
 /* 0x7ab70 vostok::network_core::mutable_buffer::reallocate: buffer ESI, capacity EDI; pops 0 */
 void engine_buffer_reallocate(void *buffer, unsigned int capacity);
 
+/* 0x75b40 vostok::physics::closest_ray_result_callback::closest_ray_result_callback: callback EAX, from ESI, to EDX, group ESP+4, mask ESP+8, requester ESP+12; pops 12 */
+void engine_ray_callback(struct closest_ray_result_callback *callback, const float *from, const float *to, unsigned int group, unsigned int mask, struct bullet *requester);
+
+/* 0x75bd0 vostok::physics::closest_ray_result_callback::needsCollision: callback ECX, proxy ESP+4; pops 4; AL */
+unsigned char engine_ray_needs_collision(struct closest_ray_result_callback *callback, struct bt_broadphase_proxy *proxy);
+
+/* 0xa02d0 btCollisionWorld::rayTestSingle: from ESP+4, to ESP+8, object ESP+12, shape ESP+16, transform ESP+20, callback ESP+24; pops 0; cdecl, called directly */
+void __attribute__((cdecl)) engine_ray_test_single(struct bt_transform *from, struct bt_transform *to, struct bt_collision_object *object, struct bt_collision_shape *shape, struct bt_transform *transform, struct closest_ray_result_callback *callback);
+
 /* 0x3b9c00 vostok::input::platform::keyboard::get_dik_name: keyboard ECX, key ESP+4, name ESP+8, size ESP+12; pops 12; AL; thiscall, called directly */
 unsigned char __attribute__((thiscall)) engine_key_name(struct keyboard *keyboard, unsigned int key, char *name, unsigned int size);
 
@@ -517,8 +550,5 @@ extern unsigned int (__attribute__((stdcall)) *const engine_activate_keyboard_la
 
 /* the IAT slot 0x87003c (an import, stdcall) */
 extern void * (__attribute__((stdcall)) *const engine_get_module_handle_a)(const char * name);
-
-/* the IAT slot 0x870084 (an import, stdcall) */
-extern void * (__attribute__((stdcall)) *const engine_get_proc_address)(void * module, const char * name);
 
 #endif

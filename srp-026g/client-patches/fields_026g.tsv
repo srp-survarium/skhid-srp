@@ -665,6 +665,37 @@ vostok::sound::propagator_slot	propagator	0x0	ptr<vostok::sound::new_sound_propa
 vostok::sound::propagator_slot	size	0x4	size	a pointer
 vostok::sound::sound_propagator_emitter	options	0x8	obj<vostok::sound::sound_options>	its sound's options, inline (vtable slot 2 0x38990 returns this + 8; calculate_hdr_audio_frame asks the slot, 0x5CAC3)
 vostok::sound::sound_options	can_be_displaced	0x11	u8	the HDR cull may take its voice (0x5CACD); single_sound_cook's default 1 (0x6129F), raw_options can_be_displaced false makes it 0
+survarium::bullet	now	0x60	u32	the time it was last ticked to (bullet::tick 0x32C18E writes its EAX): at its check_collision, the end of the world's step
+survarium::bullet_owner	world_core	0x10	ptr<survarium::core_world>	the shooter's world core: a bullet's owner is its player's +110h (weapon_core::set_user 0x2E299D, the other emit 0x33AB8C; +4 the place is the player's +114h), so +10h is the player's +120h
+survarium::check_collision_frame	start	0x9C	ptr<f32>	the ray's start time (entry ESP+10h: s since the segment's origin; bullet::tick's +64h)
+survarium::check_collision_frame	end	0xA0	ptr<f32>	the piece's end time (entry ESP+14h): the ray ends where the bullet is then; a hit's time is start + (end - start) x distance / length (0x32D7D6)
+survarium::check_collision_frame	step_end	0xA4	ptr<f32>	the step's end time (entry ESP+18h): the world's time the bullet is ticked to, s since the segment's origin
+vostok::physics::ray_result	fraction	0xC	f32	the hit's fraction of the ray, 0..1 (its callback's m_closestHitFraction; 0 on a miss)
+vostok::physics::ray_result	part	0x20	u32	the hit's shape part (the callback's +60h: a compound child's or a triangle's index, 0 a bare primitive, -1 none)
+vostok::physics::ray_result	part_kind	0x24	u8	the callback's +68h (1 a bare primitive)
+vostok::physics::bt_animated_rigid_body	object	0x30	ptr<vostok::physics::bt_collision_object>	its Bullet collision object (the ctor 0x70E70: its +0F8h points back here)
+vostok::physics::bt_collision_object	transform	0x10	obj<vostok::physics::bt_transform>	m_worldTransform (Bullet frame: z negated, from_vostok 0x74470)
+vostok::physics::bt_collision_object	broadphase	0xC8	ptr<vostok::physics::bt_broadphase_proxy>	m_broadphaseHandle: 0 when it is not in a physics world
+vostok::physics::bt_collision_object	shape	0xCC	ptr<vostok::physics::bt_collision_shape>	m_collisionShape (process 0xA3356)
+vostok::physics::bt_collision_object	user	0xF8	ptr<vostok::physics::hit_object>	m_userObjectPointer: the game's object (what a ray_result names, 0x75FFD)
+vostok::physics::bt_transform	basis	0x0	f32	its 16 f32: three basis rows of four, then the origin (btMatrix3x3 m_basis, btVector3 m_origin)
+vostok::physics::bt_transform	origin	0x30	f32	its origin, a float4 (w 0)
+vostok::physics::bt_transform	size	0x40	size	a btTransform: 40h bytes
+vostok::physics::closest_ray_result_callback	fraction	0x4	f32	m_closestHitFraction: the cutoff a hit must be under, then the hit's (the ctor 0x75B40: 1.0)
+vostok::physics::closest_ray_result_callback	object	0x8	ptr<vostok::physics::bt_collision_object>	m_collisionObject: the object hit (0: none)
+vostok::physics::closest_ray_result_callback	flags	0x10	u32	m_flags (ray_test 0x75F2E sets bit 2, unflipped, for its last argument)
+vostok::physics::closest_ray_result_callback	normal	0x40	f32	m_hitNormalWorld, a float4 (Bullet frame)
+vostok::physics::closest_ray_result_callback	point	0x50	f32	m_hitPointWorld, a float4 (Bullet frame)
+vostok::physics::closest_ray_result_callback	part	0x60	u32	the hit's shape part (addSingleResult 0x75CA0)
+vostok::physics::closest_ray_result_callback	part_kind	0x68	u8	the hit's part kind (addSingleResult 0x75CA9)
+vostok::physics::closest_ray_result_callback	single_pass	0x6A	u8	set: needsCollision lets a hit model through when its delegate posed it (ray_test's second pass, 0x75F6A)
+vostok::physics::closest_ray_result_callback	size	0x70	size	the callback: 6Bh bytes used (ray_test keeps it at ESP+40h of its frame)
+survarium::player	controller	0x494	ptr<survarium::player_controller>	its character controller's holder (assign_physics_transform 0x2D942A: [[+494h]] the controller)
+survarium::player_controller	controller	0x0	ptr<vostok::physics::bullet_character_controller>	the controller (get_transform 0x7F5C0's ESI)
+vostok::physics::bullet_character_controller	last_position	0x50	f32	m_last_pos, a float3, Bullet frame (z the game's -z; the capsule's offset above the feet, along y, as +0B0h): the position its last step started from (player_step 0x7BE84; serialized 0x7F7F0)
+vostok::physics::bullet_character_controller	position	0xB0	f32	its position, a float3, Bullet frame (the translation of its matrix +80h: z the game's -z, set_transform 0x7F6D0 adds the capsule's offset along y (0xA7DC00), get_transform 0x7F5C0 takes it off for from_bullet 0x74620; player_step copies it to m_last_pos)
+vostok::physics::bt_broadphase_proxy	group	0x4	u16	m_collisionFilterGroup (needsCollision 0x75BD8; 40h a hit model)
+vostok::physics::bt_collision_shape	shape_type	0x4	u32	m_shapeType (8 a sphere, 31 a compound; rayTestSingle 0xA02EB)
 vostok::sound::sound_instance_proxy	source	0x8C	u32	patch 94's tag of what it plays (vostok::sound::Source: 0 untagged, 1 the environment, 2 an opponent's): the tail padding of its 144-byte pool record (new_*_sound_instance_proxy: the count x 90h; the constructors 0x5A6B0, 0x5A840, 0x5A9C0 write up to +88h; the sound code 0x55000..0x67000 has no +8Ch access of a proxy, its one +8Ch is world_user::initialize's own 0x56089), cleared at each allocation (sound_proxy.allocated, 0x65484)
 vostok::sound::proxy_slot	proxy	0x0	ptr<vostok::sound::sound_instance_proxy>	an intrusive_ptr<sound_instance_proxy> an emit fills: the new proxy with one reference, or 0 (emit_point_sound 0x65670, new_hud_sound_instance_proxy 0x65100)
 vostok::sound::emit_once_frame	caller	0x4	u32	emit_and_play_once's return address (push ebp / mov ebp,esp at 0x657C0: [ebp+4]): the call it plays for

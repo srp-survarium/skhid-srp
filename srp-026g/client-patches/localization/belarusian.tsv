@@ -2546,6 +2546,9 @@ st_srp_pvb_searching	Спачатку скасуйце пошук
 st_srp_pvb_team_size	%1$s на %2$s
 st_srp_pvb_title	Гулец супраць ботаў
 st_srp_pvb_unknown_choice	Гэтая карта або памер каманд зараз недаступныя
+st_srp_renderer_dx11	DirectX 11
+st_srp_renderer_dxvk	Vulkan/DXVK
+st_srp_renderer_option	Рэндар
 st_srp_replay_asking	Запытваем у сервера матча паўтор гэтага матча…
 st_srp_replay_being_made	Паўтор ствараецца з запісу матча. Так бывае, калі гэты матч глядзяць упершыню, і гэта займае крыху часу.\nГэтае акно можна закрыць: сервер працягне яго ствараць.\n\n%1$s
 st_srp_replay_busy	Сервер зараз заняты іншымі паўторамі. Паспрабуйце яшчэ раз праз хвіліну.

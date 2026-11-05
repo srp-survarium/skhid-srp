@@ -1857,6 +1857,18 @@ A 10v10 bot match of revision 47 stopped every game in it: the dump's thread ass
 - **Memory:** six blocks of 0xC000 bytes together per live history item, from an arena of 768 MiB (patch 37), each grown block freed with its item.
 - **Checked:** `check_world_sections_026g.py` (Unicorn 2.1.4), the build beside the original: construct (the build's six buffers {0xA8001C, a block, the inline capacity, 0}, the players' and the item's other fields the original's); destroy (each block freed once); a 10v10 world of 0x818A bytes within the original's inline buffers (the original's hash() asserts, the build's CRC-32 is zlib's of the body), 300 bullets in flight with twenty players (0xAA52 bytes: the original asserts at the bullets' writer, the build grows them to 0x9000 and hashes the world), each loaded by deserialize into a new item whose hash is the same; a world of 0x1100E bytes (the build's hash() asserts past 0xF000); a packed 0xE8 of a 0xA014-byte world (liblzma, dictionary 0x8000) through the whole handler from its entry with the game's own codec and Lzma2Decode (the build loads it whole; the original's decode stops at 0x8000 and it loads the world cut short). `check_world_check_026g.py`: the six sections past the original's inline buffers load, a body of 0xF000 bytes loads and one over is refused. The self-test's `test_world_buffer` (the two immediates, nothing else in hash()), `test_bytes` of each variant, `test_late_join`. `cargo test` of world-frame, udp-transport, survarium's upload, match-server. **Not run:** a game.
 
+### 3.67 A bullet meets a player where he stood when it crossed him (written 2026-11-05, README patch 103, the next release's revision; the rules: `subtick_bullet_hits.md`) — PROVEN in the code, check_collision's ray test run with Unicorn in both exes, the game's own Bullet code end to end; not run in a game
+
+- **The step and its order** (PROVEN). atomic_tick 0x2D1E20 runs the core's seven delegate lists in order, then sets the core's time +18FC0h to the step's end (0x2D1E84): during the lists +18FC0h is the time the step started from. The lists are filled at 0x2D3A44..0x2D3B16 and 0x2DA903..0x2DA98B: the player's +688h (0x2DA9A0) in list 2, the physics (0x2D1D00 -> bullet_physics_world::tick: the character controllers' updateAction once with the step's dt) in list 3, the player's +6A0h (assign_physics_transform 0x2D93A0: the controller's transform to +40Ch and the hit model's body moved there by the world's move, 0x2D94A9) in list 4, the bullets (0x321D10) in list 5. So a bullet's ray meets every hit model where this step left it.
+- **The step's move is world state** (PROVEN). player_step 0x7BDA0 copies the controller's position (+0B0h, the translation of its matrix +80h, Bullet's frame: set_transform 0x7F6D0 writes it from from_vostok's matrix, its z the game's -z, plus the capsule's offset along y, 0xA7DC00 (0, 1, 0); get_transform 0x7F5C0 takes the offset off and assign_physics_transform's from_bullet 0x74620 makes +40Ch of it, game z = -[+38h] at 0x7476A) to +40h and m_last_pos +50h at its start (0x7BE62..0x7BE94), after the crouch state, then moves it dt / 0.05 of a step. updateAction 0x7B730 skips player_step only for a dt other than 0.05 with the position equal to m_last_pos (it did not move). m_last_pos is serialized raw (0x7F7F0, 0x7FB10), so a loaded world has it as the stepped one did. The serialized m_linear_horizontal_speed (+334h, 0x2D9507..0x2D9545) is a horizontal magnitude only (x87), no direction: not used. A step is in parts when an off-grid input splits it (tick_events 0x2D21E0, section 3.56): then m_last_pos is where the last part began, and the core's time its start.
+- **The bullet's flight times** (PROVEN). bullet::tick 0x32C180 (EAX the time, +60h := it) calls check_collision 0x32D4E0 with the origin by value and three float pointers (entry ESP+10h start, +14h the piece's end, +18h the step's end; s since the segment's origin, rebased at a hit 0x32D921..0x32D94D); its hit time is start + (end - start) x distance / length (0x32D7D6..0x32D802).
+- **The ray test** (PROVEN). check_collision calls bullet_physics_world::ray_test (vtable +48h, 0x32D625; group 10h, mask 48h, the bullet as requester, 1 unflipped). ray_test 0x75E20 makes the ends in Bullet's frame (z negated, -0 made 0), the callback (0x75B40: vtable 0x9E3030, +4 fraction 1.0, +8 object, +0Ch/+0Eh group/mask, +10h flags (|2), +20h/+30h from/to, +40h normal, +50h point, +60h part, +64h requester, +68h part kind, +69h/+6Ah the pass flags), btCollisionWorld::rayTest 0xA33A0 -> btSingleRayCallback 0xA3050 (identity bases, the ends as origins) -> the broadphase -> process 0xA3310: needsCollision 0x75BD0, then rayTestSingle 0xA02D0 (cdecl: from, to, object, shape +0CCh, transform +10h, callback). needsCollision calls a group-40h object's delegate (recompute_damage_collision_bones 0x2DA5B0: 0 for the shooter's own place, 2 already posed, 1 posed now); with +6Ah clear a 1 aborts the pass and ray_test runs it again with +6Ah set (0x75F4C..0x75F8D). The result (0x75F8F..0x760B6): the point and normal back in the game frame, +0Ch the fraction, +1Ch the object's +0F8h, +20h part, +24h part kind.
+- **The shooter's core** (PROVEN): the bullet's owner (+8) is the player's +110h (weapon_core::set_user 0x2E299D; the other emit 0x33AB8C), +4 the place (the player's +114h), so +10h is the player's world core +120h.
+
+**The patch** (the Rust patch `subtick_hits`, one lohook at `bullet.ray_traced` 0x32D627, order -1: before the ragdoll's and the lamps'): for each place's active player (core_active_player 0x2D0AB0) whose hit model's collision object is in the world, the ray's point nearest his middle (root + 0.9 m) gives the crossing's time, its age before the step's end over the step's length (at most 1) the share, and the controller's move (position - m_last_pos, Bullet's: its z negated to the game's, the offset cancelling) times the share how far back he stood; a player not alive or inserted after the step began is not put back. Only bodies within 2.5 m of the ray are looked at. None put back: nothing done. Else, when the game's hit is a hit model, ray_test runs again with mask 8 (the level alone) into the result; then every body near the ray (the game's hit a hit model), or each put-back one (else), is tested with the game's callback (its ctor, flags |2, +6Ah 1, the cutoff the result's fraction) and needsCollision, and rayTestSingle with a copy of its transform moved back (Bullet's z the game's -z); a hit replaces the result as ray_test writes it. New engine rows: engine_ray_callback, engine_ray_needs_collision, engine_ray_test_single.
+
+**Not changed:** the physics world (no body moved, no AABB), what is drawn, the protocol, the server. **Changed:** what a match computes (`simulation_changes.tsv` `next`).
+
 ### 3.68 Chat text follows the keyboard layout (written 2026-11-05, README patch 107, the next release's revision; the rules: `keyboard_layout.md`) — PROVEN in the code, message_processor and translate_text run with Unicorn in both exes; not run in a game
 
 - **The text** (PROVEN). `vostok::input::platform::keyboard::translate_text` (0x3B92D0, 0.21d 0x265484) calls `GetKeyboardLayout(0)` (0x3B92DC, the delay-loaded slot 0xAEFF58) and hands its HKL (EDI) to `MapVirtualKeyExA(scan, 3, hkl)` (0x3B9318) and `ToUnicodeEx(vk, scan, state, buf, 3, 0, hkl)` (0x3B9341). It runs on the engine's logic thread, the input world's tick (0.10b `engine_world_logic.cpp`: the "logic" thread on more than one core), not the window's.
@@ -3135,3 +3147,32 @@ updates. The stock divergence and patched convergence run in
 `check_bullet_bounds_026g.py`. See [bullet_bounds.md](bullet_bounds.md) for
 the latest Victorianbeauty match's evidence and the remaining attribution
 limit: the defect is reproduced, but that match's bounds were not captured.
+
+### DXVK at the process's start (patch 83, unreleased)
+
+What it is for and the owner's rules: [dxvk-option.md](dxvk-option.md). Here: where it is in the exe.
+
+- **Every Direct3D DLL is a delayed import.** The exe imports only KERNEL32 and CRYPT32 at load;
+  d3d9 (`Direct3DCreate9` 0xAF003C), dxgi (`CreateDXGIFactory` 0xAF0054), d3d11
+  (`D3D11CreateDevice` 0xAF0030), d3dx11_43 and D3DCOMPILER_43 are delay-loaded (the helper loads a
+  DLL by its plain name at its first call). Microsoft's `d3dx11_43.dll` and `D3DCompiler_43.dll`
+  (June 2010 redist) import neither d3d11 nor dxgi.
+- **Their first calls.** `Direct3DCreate9` at the VRAM check (0xE9C3F calls
+  `get_local_video_memory_size` 0x106300; 0.10b `memory_video_win.cpp`, in
+  `memory::platform::allocate_arenas` 0xE9580, from `memory::allocate_region` 0xE11F9), then the
+  render device: `device::create` 0x3BB0F0 (`create_d3d` 0x3BA7B0's `CreateDXGIFactory` at
+  0x3BA7D3, `D3D11CreateDevice` at 0x3BB289), from `render::world::world` 0x1EF90. The game's
+  `on_configs_loaded` 0x1EA210 (user.cfg) comes after the device: it names the render output's
+  window title (0x1EA6EC), and in 0.10b the game world is made in `initialize_logic_modules`, after
+  `initialize_render`.
+- **The site:** `memory.allocate_arenas`, a lohook at 0xE9580 (`mov eax,11A8h`, 5 bytes, before
+  the stack probe 0x429F20): no relocation, branch or absolute reference into it.
+- **The library rows:** the imports LoadLibraryA 0x870080, GetProcAddress 0x870084, FreeLibrary
+  0x870088, GetModuleFileNameA 0x87014C, DeleteFileA 0x87021C and SHGetFolderPathA (delay-loaded)
+  0xAEFE7C; and the library's `dynamic` kind (engine_026g.py), a function a GetProcAddress gives,
+  for vkCreateInstance, vkDestroyInstance, vkEnumeratePhysicalDevices and
+  vkGetPhysicalDeviceProperties (stdcall).
+- **Checked:** `check_hud_options_026g.py` (the process's start in every state, the load order,
+  no engine allocation; the login screen's turn-off), `check_music_026g.py` (the login screen's
+  chain), `../scripts/dxvk-loader/run.sh` (the loader under Wine). **Not run** on Windows or in a
+  game.
