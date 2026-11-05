@@ -52,7 +52,7 @@ Every crash also gets a short text report, made from the exception and
 context records whether or not the dump is saved:
 
 ```
-Skhid crash report, 2026-10-25 18:44:17
+Skhid crash report, 2026-10-25 18:44:17 UTC (local +03:00)
 Exception: 0xC0000005 ACCESS_VIOLATION (write to 0x00000000)
 Address:   report_probe.exe+0x1444 (0x00401444)
 Thread:    284
@@ -67,8 +67,13 @@ Windows:   10.0.19045 (Wine 11.8)
 Dump:      saved
 Game log:  last 20 lines of the newest Survarium*.log in Documents\Survarium
 ...
+Patch log: last 100 lines of srp_patches.log
+srp: ...
 ```
 
+- The first line: the time in UTC (the server's logs are UTC), and the
+  PC's offset from UTC then (`FileTimeToLocalFileTime`, daylight saving
+  included).
 - Exception: the code, its Windows name, and for an access violation
   whether it read, wrote or executed and the address; for an MSVC C++
   exception the thrown type (`.?AVbad_alloc@std@@`).
@@ -92,6 +97,9 @@ Game log:  last 20 lines of the newest Survarium*.log in Documents\Survarium
   record (a cut inside a sensitive record's continuation lines would not be
   caught), through the same credential filter as the ZIP's logs; the file
   name is not written (it holds the account name).
+- Patch log: the last 100 lines of `srp_patches.log` beside the exe (the
+  client patches' log, `vostok/log.rs`; its last 24 KiB), the same way;
+  each of its `srp: ` lines is a record of its own for the filter.
 - Every read of the game's memory goes through `ReadProcessMemory`: a
   damaged pointer gives no line, not a second crash. The stack scan reads
   whole dwords only and stops at a short read. The report is made only after
@@ -247,6 +255,11 @@ pointers; not yet measured on Windows: see Dump contents).
   transaction journals, settings, screenshots, other extensions and unrelated
   files are excluded. Directories and reparse points are excluded when Windows
   reports them as such; Wine may expose host symlinks as ordinary files.
+- The client patches' log: `srp_patches.log` beside the EXE (`vostok/log.rs`;
+  the game never cuts it), first, as `logs/game-exe/srp_patches.log`,
+  whatever its age: its last 2 MiB, from the first whole line in them
+  (`collection.txt` says from which byte), under the same filter and budgets.
+  Its `srp: ` lines are each a record of their own for the filter.
 - Legacy code pages: the game writes its log in its locale's code page. The
   engine's start-up (`core::preinitialize`, 0.26g 0xE3C10) sets it from
   `-localization`: original and russian cp1251, english cp1252, polish cp1250;
@@ -569,6 +582,12 @@ or not (the scan once hung there), and checks the report beside the ZIP and in i
 exception line, the address inside the faulting function as module+offset,
 the caller on the stack scan, the other lines, and the log tail with a
 password's record and its continuation removed and the records after it kept.
+It also puts a 3 MB `srp_patches.log` beside the probe and checks the UTC
+header with its offset, the report's last 100 patch-log lines (a token's line
+removed), and the ZIP's `logs/game-exe/srp_patches.log`: at most 2 MiB, from
+a whole line, ending with the file's last line. (Nix's MinGW g++ links
+mcfgthread: add `-L` of `nixpkgs#pkgsCross.mingw32.windows.mcfgthreads`'s
+`lib`.)
 
 Run on 2026-10-21 (Linux, Wine, Xvfb), the build with the standard library
 and the C runtime linked in, the C++ probes built with `clang-cl` against the

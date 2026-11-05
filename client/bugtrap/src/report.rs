@@ -23,7 +23,7 @@ use windows_sys::Win32::{
         Diagnostics::Debug::*,
         LibraryLoader::*,
         Memory::*,
-        SystemInformation::{GetLocalTime, OSVERSIONINFOW},
+        SystemInformation::{GetSystemTime, GetSystemTimeAsFileTime, OSVERSIONINFOW},
         Threading::GetCurrentProcess,
     },
 };
@@ -34,10 +34,15 @@ const STACK_BYTES: usize = 256 * 1024;
 /// The game log's tail: at most this many lines of its last bytes.
 const LOG_LINES: usize = 20;
 const LOG_BYTES: usize = 8 * 1024;
+/// srp_patches.log's tail (its lines are at most 200 bytes, vostok/log.rs).
+const PATCH_LINES: usize = 100;
+const PATCH_BYTES: usize = 24 * 1024;
+/// The largest tail read.
+const TAIL_BYTES: usize = PATCH_BYTES;
 
 pub struct Report {
     /// The whole report; `text[..head]` is what "Copy" copies.
-    pub text: Buffer<16384>,
+    pub text: Buffer<49152>,
     pub head: usize,
     /// The dialog's lines: the exception, and where.
     pub short: Buffer<512>,
@@ -356,13 +361,23 @@ pub unsafe fn collect(report: &mut Report, exception: *const EXCEPTION_POINTERS,
     location(short, address);
 
     let w = &mut report.text;
-    let mut now: SYSTEMTIME = zeroed();
-    GetLocalTime(&mut now);
+    // UTC, as the server's logs, and the PC's offset from it then (its
+    // zone's bias, daylight saving included).
+    let mut utc: SYSTEMTIME = zeroed();
+    GetSystemTime(&mut utc);
     let _ = write!(
         w,
-        "Skhid crash report, {:04}-{:02}-{:02} {:02}:{:02}:{:02}\r\nException: ",
-        now.wYear, now.wMonth, now.wDay, now.wHour, now.wMinute, now.wSecond
+        "Skhid crash report, {:04}-{:02}-{:02} {:02}:{:02}:{:02} UTC",
+        utc.wYear, utc.wMonth, utc.wDay, utc.wHour, utc.wMinute, utc.wSecond
     );
+    let (mut now, mut local) = (zeroed(), zeroed());
+    GetSystemTimeAsFileTime(&mut now);
+    if FileTimeToLocalFileTime(&now, &mut local) != 0 {
+        let ticks = |t: FILETIME| ((t.dwHighDateTime as u64) << 32 | t.dwLowDateTime as u64) as i64;
+        // 100 ns ticks to whole minutes.
+        let _ = details::write_offset(w, (ticks(local) - ticks(now)) / 600_000_000);
+    }
+    let _ = w.write_str("\r\nException: ");
     let _ = details::write_exception(w, record.ExceptionCode as u32, params, cpp);
     let _ = w.write_str("\r\nAddress:   ");
     location(w, address);
@@ -503,6 +518,52 @@ unsafe fn log_tail(w: &mut dyn Write) {
         let _ = w.write_str("Game log:  none found\r\n");
         return;
     }
+    let _ = tail(
+        w,
+        &path,
+        "Game log:  ",
+        LOG_LINES,
+        LOG_BYTES,
+        format_args!(
+            "Game log:  last {LOG_LINES} lines of the newest Survarium*.log in Documents\\Survarium\r\n"
+        ),
+    );
+}
+
+/// `srp_patches.log` beside the exe (vostok/log.rs; the game's working
+/// folder is the exe's): what the client patches said last.
+unsafe fn patch_tail(w: &mut dyn Write) {
+    // The exe's folder from GetModuleFileNameW alone (logs::folders would
+    // ask the shell for Documents too).
+    let exe = crate::dump::folder();
+    let mut path = Wide::<1400>::new();
+    if exe.len == 0
+        || path.wide(&exe.buf[..exe.len]).is_err()
+        || write!(path, "{}", crate::logs::PATCH_LOG).is_err()
+    {
+        let _ = w.write_str("Patch log: no game folder\r\n");
+        return;
+    }
+    let _ = tail(
+        w,
+        &path,
+        "Patch log: ",
+        PATCH_LINES,
+        PATCH_BYTES,
+        format_args!("Patch log: last {PATCH_LINES} lines of srp_patches.log\r\n"),
+    );
+}
+
+/// The last `lines` lines of `path`'s last `bytes`, after `title` (a line
+/// of its own); `label` starts the line that says why there are none.
+unsafe fn tail(
+    w: &mut dyn Write,
+    path: &Wide<1400>,
+    label: &str,
+    lines: usize,
+    bytes: usize,
+    title: core::fmt::Arguments,
+) -> core::fmt::Result {
     let file = CreateFileW(
         path.ptr(),
         GENERIC_READ,
@@ -513,69 +574,59 @@ unsafe fn log_tail(w: &mut dyn Write) {
         null_mut(),
     );
     if file == INVALID_HANDLE_VALUE {
-        let _ = write!(w, "Game log:  unreadable (error {})\r\n", GetLastError());
-        return;
+        let error = GetLastError();
+        return if matches!(error, ERROR_FILE_NOT_FOUND | ERROR_PATH_NOT_FOUND) {
+            write!(w, "{label}none\r\n")
+        } else {
+            write!(w, "{label}unreadable (error {error})\r\n")
+        };
     }
+    let bytes = bytes.min(TAIL_BYTES);
     let mut size = 0i64;
-    let mut tail = [0u8; LOG_BYTES];
+    let mut buf = [0u8; TAIL_BYTES];
     let mut n = 0;
     let from = if GetFileSizeEx(file, &mut size) != 0 {
-        (size as u64).saturating_sub(LOG_BYTES as u64)
+        (size as u64).saturating_sub(bytes as u64)
     } else {
         u64::MAX
     };
     let ok = from != u64::MAX
         && SetFilePointerEx(file, from as i64, null_mut(), FILE_BEGIN) != 0
-        && ReadFile(
-            file,
-            tail.as_mut_ptr(),
-            LOG_BYTES as u32,
-            &mut n,
-            null_mut(),
-        ) != 0;
+        && ReadFile(file, buf.as_mut_ptr(), bytes as u32, &mut n, null_mut()) != 0;
     let error = GetLastError();
     CloseHandle(file);
     if !ok {
-        let _ = write!(w, "Game log:  unreadable (error {error})\r\n");
-        return;
+        return write!(w, "{label}unreadable (error {error})\r\n");
     }
-    let tail = &mut tail[..n as usize];
+    let text = &mut buf[..n as usize];
     // Non-UTF-8 text (a legacy code page) would make the filter refuse
     // the whole tail; its non-ASCII letters are not needed here.
-    if core::str::from_utf8(tail).is_err() {
-        for b in tail.iter_mut().filter(|b| **b >= 0x80) {
+    if core::str::from_utf8(text).is_err() {
+        for b in text.iter_mut().filter(|b| **b >= 0x80) {
             *b = b'?';
         }
     }
     // From a record's first line: the cut may fall inside the continuation
     // lines of a sensitive record, which a fresh filter would let through.
-    let lines = crate::sanitize::from_record(details::last_lines(tail, LOG_LINES, from == 0));
-    let _ = write!(
-        w,
-        "Game log:  last {LOG_LINES} lines of the newest Survarium*.log in Documents\\Survarium\r\n"
-    );
-    let mut source = Bytes(lines);
+    let text = crate::sanitize::from_record(details::last_lines(text, lines, from == 0));
+    w.write_fmt(title)?;
+    let mut source = Bytes(text);
     let mut filter = crate::sanitize::Filter::new(&mut source);
     let mut out = [0u8; 1024];
     loop {
         match filter.read(&mut out) {
-            Ok(0) => break,
+            Ok(0) => return Ok(()),
             Ok(n) => {
                 for chunk in out[..n].utf8_chunks() {
-                    if w.write_str(chunk.valid()).is_err() {
-                        return;
-                    }
+                    w.write_str(chunk.valid())?;
                 }
             }
-            Err(e) => {
-                let _ = write!(w, "[log tail omitted: not plain text (0x{e:08X})]\r\n");
-                return;
-            }
+            Err(e) => return write!(w, "[log tail omitted: not plain text (0x{e:08X})]\r\n"),
         }
     }
 }
 
-/// The dump's line, then the game log's tail.
+/// The dump's line, then the logs' tails.
 pub unsafe fn finish(report: &mut Report, saved: bool, partial: bool, error: u32, capture: bool) {
     if report.is_empty() {
         return;
@@ -597,6 +648,7 @@ pub unsafe fn finish(report: &mut Report, saved: bool, partial: bool, error: u32
     let _ = w.write_str("\r\n");
     report.head = w.len;
     log_tail(w);
+    patch_tail(w);
 }
 
 /// Writes the report. `kept`: `path` names a kept dump, and the report goes
