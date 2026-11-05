@@ -1266,6 +1266,7 @@ st_inv_additional_ammo_bags	Подсумки для патронов
 st_inv_ano_armor	Изоляция
 st_inv_armor	Броня
 st_inv_arp	Бронебойность
+st_inv_artefact_recharge	Время перезарядки артефактов
 st_inv_artefact_slots	Контейнер артефактов
 st_inv_buckshot	Дробь
 st_inv_clip_size	Патронов в пачке

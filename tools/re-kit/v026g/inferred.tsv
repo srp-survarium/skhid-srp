@@ -2275,6 +2275,8 @@ va	status	ref_021d	name
 0x0033b780	inferred-medium		survarium::artefact_onyx_core::config::config
 0x0033f3a0	inferred-medium		survarium::armor::add_modifiers
 0x0033f4e0	inferred-medium	0x0020baad	vostok::buffer_vector<survarium::armor::body_part_params>::push_back
+0x0033f690	inferred-medium		survarium::booster::booster
+0x0033f990	inferred-medium		survarium::booster::add_modifiers
 0x0033fd00	inferred-medium		survarium::player_serialized_state::serialize
 0x003402c0	inferred-medium		survarium::hit_player_game_effect_presenter::serialize
 0x00340930	inferred-high	0x0020c3b8	survarium::hit_animations_selector::hit_body_part::hit_body_part

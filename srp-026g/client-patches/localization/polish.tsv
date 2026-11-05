@@ -1266,6 +1266,7 @@ st_inv_additional_ammo_bags	Ładownice
 st_inv_ano_armor	Izolacja
 st_inv_armor	Pancerz
 st_inv_arp	Penetracja pancerza
+st_inv_artefact_recharge	Czas ładowania artefaktów
 st_inv_artefact_slots	Pojemnik na artefakty
 st_inv_buckshot	Śrut
 st_inv_clip_size	Nabojów w opakowaniu

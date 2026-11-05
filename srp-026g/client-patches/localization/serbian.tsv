@@ -1266,6 +1266,7 @@ st_inv_additional_ammo_bags	Torbice za municiju
 st_inv_ano_armor	Izolacija
 st_inv_armor	Oklop
 st_inv_arp	Probojnost oklopa
+st_inv_artefact_recharge	Vreme punjenja artefakata
 st_inv_artefact_slots	Kontejner za artefakte
 st_inv_buckshot	Sačma
 st_inv_clip_size	Metaka u paketu

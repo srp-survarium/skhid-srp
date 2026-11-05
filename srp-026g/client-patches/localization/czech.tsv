@@ -1266,6 +1266,7 @@ st_inv_additional_ammo_bags	Sumky na munici
 st_inv_ano_armor	Izolace
 st_inv_armor	Ochrana
 st_inv_arp	Průbojnost
+st_inv_artefact_recharge	Doba dobíjení artefaktů
 st_inv_artefact_slots	Kontejner na artefakty
 st_inv_buckshot	Broky
 st_inv_clip_size	Nábojů v balení

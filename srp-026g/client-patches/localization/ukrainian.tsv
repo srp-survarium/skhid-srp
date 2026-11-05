@@ -1266,6 +1266,7 @@ st_inv_additional_ammo_bags	Підсумки для набоїв
 st_inv_ano_armor	Ізоляція
 st_inv_armor	Броня
 st_inv_arp	Бронебійність
+st_inv_artefact_recharge	Час перезарядки артефактів
 st_inv_artefact_slots	Контейнер для артефактів
 st_inv_buckshot	Дріб
 st_inv_clip_size	Набоїв в упаковці

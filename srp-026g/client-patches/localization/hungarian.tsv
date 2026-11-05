@@ -1266,6 +1266,7 @@ st_inv_additional_ammo_bags	Lőszertáskák
 st_inv_ano_armor	Szigetelés
 st_inv_armor	Páncél
 st_inv_arp	Páncélátütés
+st_inv_artefact_recharge	Artefaktum-töltődési idő
 st_inv_artefact_slots	Artefaktumtároló
 st_inv_buckshot	Sörét
 st_inv_clip_size	Lőszer csomagonként
