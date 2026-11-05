@@ -15,7 +15,7 @@
 use super::gap::{OffLink, Takeoff};
 use super::*;
 use crate::controller::tick::{Controller, Settings};
-use crate::controller::{Capsule, Collision};
+use crate::controller::{Capsule, Collision, Shape};
 
 /// The walk speed the controller is driven at, m/s (a run's root motion; over the client's 3 m/s floor).
 pub const WALK_MPS: f32 = 3.5;
@@ -37,6 +37,33 @@ pub struct ControlledStats {
     pub checks_dropped: usize,
 }
 
+/// A floor's feet moved flat out of the faces the client's body would overlap there: the grid keeps floors 0.3175 m from a wall,
+/// the body's move test holds 0.42 m (the cylinder and its margin, over the step), and the client never stands inside a wall (its
+/// world pushes a body out: `bullet_physics_world::recover_from_penetrations`). At most [`OUT_OF_WALLS_M`] in all.
+fn out_of_walls(world: &Collision, feet: Vec3) -> Vec3 {
+    let mut at = feet;
+    let mut moved = 0.0f32;
+    for _ in 0..4 {
+        let cyl = Shape::Cylinder { centre: at + Vec3::new(0.0, 1.3, 0.0), half: 0.5, radius: 0.38, margin: 0.04 };
+        let Some((gap, _, dir)) = world.nearest_to(cyl, 0.0, |f| f.normal.y.abs() < 0.5) else { break };
+        let flat = Vec3::new(dir.x, 0.0, dir.z);
+        let l = flat.length();
+        if gap >= 0.0 || l < 1e-4 {
+            break;
+        }
+        let push = (-gap + 0.002).min(OUT_OF_WALLS_M - moved);
+        if push <= 0.0 {
+            break;
+        }
+        at = at + flat * (push / l);
+        moved += push;
+    }
+    at
+}
+
+/// How far [`out_of_walls`] moves a floor's feet at most, m (the 0.42 m hold less the grid's 0.3175 m, and a little).
+pub const OUT_OF_WALLS_M: f32 = 0.15;
+
 /// How far the controller takes a standing body from `from` toward `to` (feet), as a share of the flat way, and whether it
 /// ended at `to`.
 pub fn walk_share(world: &Collision, from: Vec3, to: Vec3) -> (f32, bool) {
@@ -48,7 +75,7 @@ pub fn walk_share(world: &Collision, from: Vec3, to: Vec3) -> (f32, bool) {
     let dir = flat * (1.0 / length);
     let step = WALK_MPS * 0.05;
     let ticks = (length / step).ceil() as usize + 2;
-    let mut c = Controller::standing_at(from);
+    let mut c = Controller::standing_at(out_of_walls(world, from));
     let s = Settings::LIVE;
     let mut best = 0.0f32;
     for _ in 0..ticks {

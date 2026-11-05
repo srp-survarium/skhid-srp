@@ -304,6 +304,25 @@ impl Collision {
         best
     }
 
+    /// The face nearest `shape`'s surface that `keep` accepts within `reach` (a negative gap: overlapping): the gap, the face's
+    /// closest point and the direction from it to the shape.
+    pub fn nearest_to(&self, shape: Shape, reach: f32, keep: impl Fn(&Face) -> bool) -> Option<(f32, Vec3, Vec3)> {
+        let (lo, hi) = shape.aabb();
+        let pad = Vec3::new(reach, reach, reach);
+        let mut best: Option<(f32, Vec3, Vec3)> = None;
+        self.faces_in(lo - pad, hi + pad, |f| {
+            let face = &self.faces[f];
+            if face.normal == Vec3::ZERO || !keep(face) {
+                return;
+            }
+            let (gap, _, on_face, dir) = shape.gap(&face.v, face.normal);
+            if gap <= reach && best.is_none_or(|b| gap < b.0) {
+                best = Some((gap, on_face, dir));
+            }
+        });
+        best
+    }
+
     /// The smallest distance from the capsule's surface to a face `keep` accepts within `reach` (negative when it overlaps
     /// one), with that face's closest point and the direction from it to the capsule's segment.
     pub fn nearest(&self, capsule: Capsule, reach: f32, keep: impl Fn(&Face) -> bool) -> Option<(f32, Vec3, Vec3, usize)> {
