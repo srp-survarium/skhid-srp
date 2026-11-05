@@ -20,6 +20,12 @@ fn every_report_state_has_localized_instructions_and_fits_its_buffers() {
         assert!(t.no_file.contains(t.discord));
         assert!(t.instructions.contains(t.copy) && t.no_file.contains(t.copy));
         assert!(t.blocked.contains("#bugreports") && t.blocked.contains("Windows"));
+        // A full-memory dump: the report is what is sent, the .dmp is kept.
+        for full in [t.full_instructions, t.full_no_file] {
+            assert!(full.contains("#bugreports") && full.contains(".dmp"), "{language:?}");
+            assert!(full.contains(t.discord) && full.contains(t.copy), "{language:?}");
+        }
+        assert!(!t.full_saved.is_empty() && t.full_saved.ends_with(':'), "{language:?}");
         assert!(t.copy.encode_utf16().count() < 64 && t.copied.encode_utf16().count() < 64);
         assert!(
             t.browser_failed.encode_utf16().count() + t.manual.encode_utf16().count() + 4 < 512

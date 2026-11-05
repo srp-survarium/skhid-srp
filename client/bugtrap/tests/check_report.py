@@ -99,6 +99,11 @@ with tempfile.TemporaryDirectory(prefix="srp-report-test-") as temporary:
         assert "\r\nMatch:     0x1092, map 12, 8 places, level 5; local place 3\r\n" in text, text
         reading = re.search(r"\r\nReading:   place 3's player state, from byte 420 of its stream, (\d+\.\d{3}) s before the crash\r\n", text)
         assert reading and 0.25 <= float(reading[1]) < 1.25, text
+        # What Copy copies (everything to the dump's line, in a code block):
+        # the Match and Reading lines, not the events; one Discord message.
+        head = text.split("\r\nDump:      saved\r\n", 1)[0] + "\r\nDump:      saved\r\n"
+        assert "\r\nMatch:     " in head and "\r\nReading:   " in head and "Events:" not in head, head
+        assert len("```\r\n" + head + "```") <= 2000, len(head)
         events = text.split("\r\nDump:      saved\r\n", 1)[1].split("\r\nGame log:", 1)[0]
         lines = events.split("\r\n")
         assert lines[0] == "Events:    3 recorded, the last 3 kept: match 1 world 1 death 1", events
