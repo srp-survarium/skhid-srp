@@ -1,0 +1,27 @@
+# Patch 104: another player's correction is drawn smoothly
+# (docs/notes/remote_player_smoothing.md). The sites are sites_026g.tsv's;
+# the logic is remote_smoothing.rs.
+name = "remote_smoothing"
+patch = 104
+
+# tick_events has saved a grid point: each player's place at its time
+[[hook]]
+site = "history.grid_saved"
+handler = "on_grid_saved"
+
+# once a frame, after the simulation's move: the frame's offsets
+[[hook]]
+site = "game_world.after_move"
+handler = "on_frame"
+order = 2
+
+# mt_draw's bones, after the ragdoll's capture: a smoothed player's moved
+[[hook]]
+site = "player_draw.bones"
+handler = "on_bones"
+order = 1
+
+# render_name: a smoothed player's tag placed from its moved eye
+[[hook]]
+site = "name_tag.eye"
+handler = "on_name_tag"

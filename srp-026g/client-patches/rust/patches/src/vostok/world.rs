@@ -116,6 +116,60 @@ impl<'t> NetworkClient<'t> {
     }
 }
 
+/// The world core at `history.grid_saved`: game_world_core::tick_events has
+/// just saved a grid point of the history (serialize 0x2D2570 returned), so
+/// the world and its players are at that point's time. Read only: the saved
+/// item is the game's alone.
+pub struct GridSave<'t> {
+    core: raw::CoreWorld,
+    thread: &'t Thread,
+}
+
+impl<'t> GridSave<'t> {
+    pub fn at(ctx: &'t Context<'_>) -> Option<GridSave<'t>> {
+        // SAFETY: the context is this site's: the core tick_events steps,
+        // alive while it does, on its thread.
+        let core = unsafe { raw::site::history_grid_saved::core(ctx) }?;
+        Some(GridSave { core, thread: ctx.thread() })
+    }
+
+    /// Which match's world it is.
+    pub fn world(&self) -> WorldKey {
+        WorldKey::of(self.core)
+    }
+
+    /// The saved point's time (the world's time now, +18FC0h).
+    pub fn time(&self) -> super::types::GameTime {
+        // SAFETY: the core is alive for the hook.
+        super::types::GameTime(unsafe { read(self.core.time()) })
+    }
+
+    /// Each place's current player in the world (core_active_player: a
+    /// place in the world, its current kit's player), to `f`. The lookup
+    /// adds a reference; it is given back at once, as NetworkClient::player
+    /// does (the place holds its own).
+    pub fn each_player(&self, mut f: impl FnMut(super::types::Place, Player<'_>)) {
+        for index in 0..super::types::Place::COUNT as u32 {
+            let Some(place) = super::types::Place::new(index) else { continue };
+            let mut out = None;
+            // SAFETY: the live core; the native lookup bounds the place by
+            // the places' vector and the world's mask, and writes `out`.
+            unsafe { raw::engine_core_active_player(Some(self.core), index, &mut out) };
+            let Some(this) = out else { continue };
+            // SAFETY: a player, its reference count a u32 the game changes
+            // with locked instructions.
+            unsafe {
+                let count = this.references();
+                if AtomicU32::from_ptr(count).fetch_sub(1, Ordering::AcqRel) == 1 {
+                    raw::engine_release_object(Some(this), count);
+                    continue;
+                }
+            }
+            f(place, Player { this, thread: self.thread });
+        }
+    }
+}
+
 /// What a player holds.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Held {
@@ -243,6 +297,14 @@ impl<'t> Player<'t> {
             let scene = self.this.game_world()?.game()?.renderer()?.scene_renderer()?;
             Some((scene, model.render_instance()))
         }
+    }
+
+    /// Whether the camera takes this player's view: it holds an input
+    /// handler (+F470h), the local player's, or the spectated player's
+    /// while the local one spectates.
+    pub fn has_view(&self) -> bool {
+        // SAFETY: the player is alive for the hook; the pointer is compared only.
+        unsafe { self.this.input_handler().is_some() }
     }
 
     /// The simulated transform, a row-vector 4x4 (rows i, j, k, place).

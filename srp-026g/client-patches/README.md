@@ -123,6 +123,7 @@ release's. The "Result" row is the build of the revision named in it.
 | `rust/patches/src/input_check.rs`, `src/input_check.toml`, `src/vostok/input.rs`, `check_input_check_026g.py` | Patch 99: a world takes no player input whose rotation no client makes (a NaN, an infinity, 1024 radians or more), as 0.27d's change_input refuses one: a lohook at change_input<player_input>'s start (0x1FAB50); its check runs that start on made-up inputs, the original beside (needs Unicorn) |
 | `check_mouse_buttons_026g.py` | Patch 102 (`MOUSE_BUTTONS` in `patch_026g.py`): a side mouse button (mouse4..mouse8) is no left click in the lobby, login, options and match menus; its check runs the five handlers in both exes (needs Unicorn) |
 | `rust/patches/src/footsteps.rs`, `src/footsteps.toml`, `src/vostok/footstep.rs`, `check_footsteps_026g.py` | Patch 101: a footstep that only a re-simulation makes (another player's late input) is heard instead of dropped; one lohook in on_player_sound_event's time test; its check runs the handler in both exes (needs Unicorn) |
+| `rust/patches/src/remote_smoothing.rs`, `src/remote_smoothing.toml`, `check_remote_smoothing_026g.py` | Patch 104: another player's correction (a rollback after his late input) is drawn away over 80 ms instead of a jump; four lohooks (the history's grid save, the frame, mt_draw's bones, the name tag's eye), display only; its check runs them on check_ragdoll_026g.py's made-up match (needs Unicorn) |
 | `audio_device_026g.c`, `audio_device_026g.h`, `audio_device_engine_026g.c`, `test_audio_device_026g.c` | Patch 100: the sound follows the audio output device (XAudio2's engine and voices proxied, made again on the default device after a lost device or a new default); the test runs the core on i686 under the sanitizers against a made-up XAudio2 that keeps its rules (no Unicorn) |
 | `rust/patches/src/sound_voices.rs`, `src/sound_voices.toml`, `src/vostok/voices.rs`, `check_sound_voices_026g.py` | Patch 96: shots no longer go silent under heavy fire (`../docs/notes/sound_voices.md`): the game world's sound scene has 1024 sound instances and propagators (`SOUND_POOLS`, game_world::load 0x1F8DB6/0x1F8DBD), and a sound refused a voice takes the voice of the quietest one playing when that one is less than half as loud (a lohook after create_sound_voice, 0x5CAB0), and the source voice walk is bounded to one pass (`sound_voices_026g.asm`, 0x5E5E7, 0x631D9, 0x59F8E); the check runs the voice loop from that site on made-up scenes with a model of the world's voice pool, and the self-test's `test_sound_pools` (needs Unicorn) |
 | `check_stage_focus_026g.py` | Runs the original's and patch 52's Stage focus getter (Scaleform's `stage.focus`, 0x771FA0) on a made-up movie: focused objects of each kind, none, one without its ActionScript object (the lobby's crash of 2026-10-22) (needs Unicorn) |
@@ -4280,6 +4281,22 @@ Checked: `check_input_check_026g.py` runs change_input's start on rotations a mo
 build at 0x1FAB56 as the original, every register the same) and on NaNs, infinities, 65504 and
 ±1024 as either half (the original keeps them; the build returns 6 with its arguments popped, the
 callee-saved registers kept, nothing written, the line logged). **Not run in a game.**
+
+## Other players' corrections are drawn smoothly (patch 104, unreleased)
+
+The game draws other players at the predicted present (their last input carried on); when an input
+of theirs comes late the world re-simulates them and they jumped to the new place. Now the jump is
+drawn away: where a rollback saves a grid point of the history again (`history.grid_saved`,
+tick_events 0x2D230F) each player's old and new place at that time give his correction, and his
+body, held item (posed from the same bones), muzzle effects, shadow and name tag are drawn at
+`new + offset`, the offset falling linearly from `old - new` to nothing over 80 ms of world time.
+A correction of 1 m or more, a death, a respawn, the local player and the player the camera looks
+from (a spectator's) are drawn as before, at once. **The patch** (the Rust patch `remote_smoothing`,
+four lohooks: `history.grid_saved`, `game_world.after_move` order 2, `player_draw.bones` order 1
+after the ragdoll's capture, `name_tag.eye` render_name 0x1F2B98). Display only: it writes mt_draw's
+own bone array and a copy of the tag's eye, nothing of the world, a player or a hash input. Nothing a
+match computes. The rules, what is covered and what is not (tracer starts, 3D sounds): `../docs/notes/remote_player_smoothing.md`;
+the addresses: `client_patch.md` 3.67. Checked with `check_remote_smoothing_026g.py`; not run in a game.
 
 ## A side mouse button is no left click in the menus (patch 102, unreleased)
 

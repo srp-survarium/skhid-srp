@@ -961,6 +961,24 @@ impl Player {
     pub unsafe fn feet(self) -> *mut f32 {
         unsafe { self.0.byte_add(0x43c).cast::<f32>().as_ptr() }
     }
+
+    /// +0xf470 (ptr<survarium::player_input_handler>): the input handler whose view the camera takes: the local player's; given to a player at 0x242C41 (0x242B90) and taken back at 0x242CE2 (0x242CC0): the network client's vtable+5Ch and +60h (base_network_client), so the spectated player's while spectating (spectate_next_player 0x242D50 gives the new player to +5Ch at 0x242EB2); update_camera (0x1F348D) returns without it; mt_draw calls update_camera for every player and only this one moves the view
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn input_handler(self) -> Option<PlayerInputHandler> {
+        unsafe { self.0.byte_add(0xf470).cast::<Option<PlayerInputHandler>>().read_volatile() }
+    }
+
+    /// +0xf470 (ptr<survarium::player_input_handler>): the input handler whose view the camera takes: the local player's; given to a player at 0x242C41 (0x242B90) and taken back at 0x242CE2 (0x242CC0): the network client's vtable+5Ch and +60h (base_network_client), so the spectated player's while spectating (spectate_next_player 0x242D50 gives the new player to +5Ch at 0x242EB2); update_camera (0x1F348D) returns without it; mt_draw calls update_camera for every player and only this one moves the view
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn set_input_handler(self, value: Option<PlayerInputHandler>) {
+        unsafe { self.0.byte_add(0xf470).cast::<Option<PlayerInputHandler>>().write_volatile(value) }
+    }
 }
 
 /// A survarium::player_profile (fields_026g.tsv): a pointer to one, never 0. Made only here: by a typed field,
@@ -15158,6 +15176,36 @@ pub mod site {
         #[inline(always)]
         pub unsafe fn frame(machine: &impl Machine) -> Option<HdrFrame> {
             NonNull::new(machine.register(Register::Ebp) as usize as *mut c_void).map(HdrFrame)
+        }
+    }
+
+    /// history.grid_saved (0x2d230f): game_world_core::tick_events just after serialize(item&) 0x2D2570 saved a grid point (cmp dword [esi+0C0BACh],0, the jne after it a new item or not): EBX the world core, at that point's time (+18FC0h), its players stepped to it
+    pub mod history_grid_saved {
+        #[allow(unused_imports)]
+        use super::*;
+
+        /// EBX: a survarium::core_world (None for 0).
+        ///
+        /// # Safety
+        /// `machine` is at this site.
+        #[inline(always)]
+        pub unsafe fn core(machine: &impl Machine) -> Option<CoreWorld> {
+            NonNull::new(machine.register(Register::Ebx) as usize as *mut c_void).map(CoreWorld)
+        }
+    }
+
+    /// name_tag.eye (0x1f2b98): player::render_name (0x1F2AD0, from st_draw) reading the eye transform its tag is placed from (lea ecx,[esi+44Ch]; 0xEE700 multiplies the tag's raise by it at 0x1F2BA0, point_to_screen 0x23DEC0 projects it): ESI the player
+    pub mod name_tag_eye {
+        #[allow(unused_imports)]
+        use super::*;
+
+        /// ESI: a survarium::player (None for 0).
+        ///
+        /// # Safety
+        /// `machine` is at this site.
+        #[inline(always)]
+        pub unsafe fn player(machine: &impl Machine) -> Option<Player> {
+            NonNull::new(machine.register(Register::Esi) as usize as *mut c_void).map(Player)
         }
     }
 }

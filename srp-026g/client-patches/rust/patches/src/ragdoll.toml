@@ -21,6 +21,7 @@ handler = "on_cull"
 [[hook]]
 site = "player_draw.bones"
 handler = "on_bones"
+order = 0
 
 # update_camera: the local player's ragdoll's eye
 [[hook]]
