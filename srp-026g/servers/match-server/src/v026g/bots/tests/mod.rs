@@ -79,6 +79,7 @@ mod late_map;
 mod live_zones;
 mod match_wide;
 mod narrow_doors;
+mod nav_spots;
 mod neck;
 mod no_way;
 mod opening;
