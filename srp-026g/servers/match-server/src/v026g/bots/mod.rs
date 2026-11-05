@@ -1947,10 +1947,12 @@ impl Bots {
         let react = self.tunings.match_wide().traps.react.on;
         let hear = self.tunings.match_wide().traps.react.hear;
         let own = self.teams.iter().any(|team| !team.knowledge.traps.all().is_empty());
+        let found = survarium::v026g::match_msgs::traps::find(objects, time);
+        // [A302] For the match log, whatever the tuning, before the teams drop what went off.
+        self.log_went_off(&found, time);
         if !own && !react && !hear {
             return 0;
         }
-        let found = survarium::v026g::match_msgs::traps::find(objects, time);
         if hear {
             self.hear_snaps(&found, time);
         }
@@ -2000,6 +2002,43 @@ impl Bots {
             .filter(|trap| trap.state == TrapState::Armed)
             .map(at)
             .collect();
+    }
+
+    /// [A302] A trap the last world showed armed that this one shows fired: kept for the match log with the body nearest it and,
+    /// if a team of bots knows it, whose it was. No bot reads it.
+    fn log_went_off(&mut self, found: &[PlacedTrap], time: u32) {
+        let at = |trap: &PlacedTrap| Vec3::new(trap.position[0], trap.position[1], trap.position[2]);
+        let mut went_off = Vec::new();
+        for fired in found.iter().filter(|trap| trap.state == TrapState::Fired) {
+            let spot = at(fired);
+            if !self.features.trap_log.armed.iter().any(|armed| armed.distance_xz(spot) < trap_know::MATCH_M) {
+                continue;
+            }
+            let by = self.teams.iter().enumerate().find_map(|(team, state)| {
+                state
+                    .knowledge
+                    .traps
+                    .all()
+                    .iter()
+                    .find(|known| known.at.distance_xz(spot) < trap_know::MATCH_M)
+                    .map(|known| (team as u8, known.by))
+            });
+            went_off.push(trap_know::WentOff {
+                time,
+                at: spot,
+                placed_ms: fired.placed_ms,
+                under: self.tracker.nearest_body(spot, 3.0),
+                by,
+            });
+        }
+        let log = &mut self.features.trap_log;
+        log.went_off.extend(went_off);
+        log.armed = found.iter().filter(|trap| trap.state == TrapState::Armed).map(at).collect();
+    }
+
+    /// [A302] The traps that went off since the last call, for the match log.
+    pub fn take_traps_went_off(&mut self) -> Vec<trap_know::WentOff> {
+        std::mem::take(&mut self.features.trap_log.went_off)
     }
 
     /// Snaps given to the bots' ears, for the bench.

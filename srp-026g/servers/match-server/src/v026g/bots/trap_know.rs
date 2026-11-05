@@ -68,6 +68,28 @@ pub struct Snaps {
     pub heard: u32,
 }
 
+/// [A302] What the match log keeps of the traps (`Bots::traps_from_world`): the armed traps the last world showed, whatever the
+/// tuning, and the traps that went off since the log last took them. Counts and log lines only: no bot reads it.
+#[derive(Clone, Debug, Default)]
+pub struct WentOffLog {
+    pub armed: Vec<Vec3>,
+    pub went_off: Vec<WentOff>,
+}
+
+/// [A302] A trap the last world showed armed that this one shows fired.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct WentOff {
+    /// The world's time, ms.
+    pub time: u32,
+    pub at: Vec3,
+    /// When it was placed (the world's), ms.
+    pub placed_ms: u32,
+    /// The body nearest it as the bots' view shows it (within 3 m), if any.
+    pub under: Option<Place>,
+    /// Whose it was, if a team of bots knows it: the team and the placer.
+    pub by: Option<(u8, Place)>,
+}
+
 /// Where a team's trap is in its life.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Phase {
