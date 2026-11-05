@@ -9,11 +9,13 @@ fn medical_tree_progression_and_native_payload() {
     // physical-skills-1.json: the two unlearnable melee skills out, Packrat
     // in column 4 of its row, no two physical skills in one place.
     assert!(tree.skill(206).is_none() && tree.skill(210).is_none());
-    let packrat = tree.skill(209).unwrap();
+    let packrat = tree.skill(202).unwrap();
     assert_eq!(
         (packrat.column, packrat.row, packrat.branch_points),
-        (4, 2, 5)
+        (4, 3, 10)
     );
+    let athlete = tree.skill(209).unwrap();
+    assert_eq!((athlete.column, athlete.row), (3, 2));
     let mut physical = std::collections::HashSet::new();
     for skill in tree.skills.iter().filter(|skill| skill.branch() == 2) {
         assert!(physical.insert((skill.column, skill.row)), "{}", skill.id);

@@ -225,7 +225,7 @@ from the live tree (the owner, 2026-11-06; edit list `scripts/content-edit/physi
 as the original developers did: both are in 0.31a2's `skills_tree`, neither is in 0.46c2's, and 0.69
 keeps only their strings (which stay here too). Nobody could learn them (`branch_points` 50, past the
 25 the window unlocks; their two modifiers are not among the exe's 68), so no account held a point
-in them. With column 4 of the physical tree empty, Packrat (209) moves from [3, 2] to [4, 2]
+in them. With column 4 of the physical tree empty, Packrat (202) moves from [3, 3] to [4, 3]
 (`ui.position` is [column, row]), its row and threshold unchanged.
 
 Consequences:

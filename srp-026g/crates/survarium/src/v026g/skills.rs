@@ -637,13 +637,13 @@ mod tests {
 
     #[test]
     fn the_players_tree_without_206_and_210_unlocks_as_the_stock_one() {
-        // physical-skills-1.json: 206 and 210 out, 209 to column 4 of its row.
+        // physical-skills-1.json: 206 and 210 out, 202 to column 4 of its row.
         let stock = SkillsTree::shared();
         let mut players = stock.clone();
         players
             .skills
             .retain(|skill| ![206, 210].contains(&skill.id));
-        let packrat = players.skills.iter_mut().find(|skill| skill.id == 209);
+        let packrat = players.skills.iter_mut().find(|skill| skill.id == 202);
         packrat.unwrap().column = 4;
         let sets: [&[(u16, u8)]; 5] = [
             &[],
