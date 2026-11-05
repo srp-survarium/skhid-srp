@@ -74,6 +74,39 @@ pub struct Kinematics {
     /// and shot 16 % there against 29 % with the map, `player_bots_weapons.md`). The world's pitch, the pitch turns the bots send and the geometry from the
     /// view's pitch (the eye, the throws, the rays) all follow it, so it is one setting for the whole match, not a team's.
     pub pitch_scale: PitchScale,
+    /// [A304] How a ground step over a slope is reckoned ([`SlopeSpeed`]).
+    pub slope_speed: SlopeSpeed,
+}
+
+/// [A304] How the reckoned body's ground step goes over a slope of the walk grid.
+///
+/// The client's capsule moves along its walker floor at the keys' speed, so over a slope its ground speed is the speed times the
+/// cosine of the grade: on the 45 degree stair ramps of the walker mesh a sprint's 5.1 m/s is 3.6 m/s over the ground (fx-grid's
+/// class of fx-bench's 73 slowed sprints, 2026-11-05: stairs and ramps of 20-50 degrees, 51 %). The reckoning moved at the keys'
+/// ground speed whatever the floor.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum SlopeSpeed {
+    /// The keys' ground speed on any floor (as it was).
+    #[default]
+    Planar,
+    /// A step whose floor rises is shortened to the cosine of its grade; a falling one is not.
+    Up,
+    /// A step whose floor rises or falls is shortened to the cosine of its grade.
+    Both,
+}
+
+impl SlopeSpeed {
+    /// The share of a ground step of `run` metres that rises `rise` metres the body covers: 1 on the flat or where the setting
+    /// leaves the step as it is, else the grade's cosine.
+    pub fn share(self, run: f32, rise: f32) -> f32 {
+        let counts = match self {
+            Self::Planar => false,
+            Self::Up => rise > 0.0,
+            Self::Both => rise != 0.0,
+        };
+        if counts && run > 1e-4 { run / run.hypot(rise) } else { 1.0 }
+    }
 }
 
 /// Which jump links the reckoned body takes up after a jump press, until a world shows where the body is.
@@ -202,6 +235,7 @@ impl Default for Kinematics {
             margin_edge: MarginEdge::Body,
             fix_floor: FixFloor::UnderInJump,
             pitch_scale: PitchScale::Client,
+            slope_speed: SlopeSpeed::Planar,
         }
     }
 }

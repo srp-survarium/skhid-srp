@@ -663,7 +663,18 @@ fn advance(
             (Some(grid), Some(node)) => {
                 let offs = WalkOffs::of(kin.walk_off_landing, at.velocity[0].hypot(at.velocity[1]));
                 let (mut node, mut feet, mut stopped) = slide_edge(kin, grid, node, at.feet, to, offs);
-                if at.time + step * TICK_MS <= at.air_until
+                // [A304] On the ground, a step over a slope covers its grade's cosine of the run ([`SlopeSpeed`]).
+                let in_air = at.time + step * TICK_MS <= at.air_until;
+                let share = if in_air { 1.0 } else { kin.slope_speed.share(at.feet.distance_xz(feet), feet.y - at.feet.y) };
+                if share < 1.0 {
+                    let short = Vec3::new(
+                        at.feet.x + (to.x - at.feet.x) * share,
+                        at.feet.y,
+                        at.feet.z + (to.z - at.feet.z) * share,
+                    );
+                    (node, feet, stopped) = slide_edge(kin, grid, at.node.unwrap_or(node), at.feet, short, offs);
+                }
+                if in_air
                     && feet.distance_xz(to) > 1e-3
                     && let Some(up) = jumped_to(grid, node, feet, to)
                     && grid.position(up).y - grid.position(node).y <= at.air_cap
