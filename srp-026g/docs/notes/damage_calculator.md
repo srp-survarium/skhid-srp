@@ -39,9 +39,12 @@ number from the game data, the rules as the client's hit code applies them. Buil
   share). The calculator itself shows one box per shot.
 - Formula (owner 2026-11-05): numbered steps in the bullet's order (Bullet, Wall, Onyx, Armour,
   Pools, Pain, Death), each a bold label and its rule in one chip, no sentences (the trace has the
-  details); armour and penetration in the page's units (x100), no letter for two things. Beside each
-  step (under it on a phone) this shot's numbers, from the same result the trace shows, named as
-  its lines are; "—" when the step does not apply.
+  details), the operation written out (no word standing for a value); armour and penetration in the
+  page's units (x100), no letter for two things, a legend line for D, P and A. One grid for all
+  rows (number | label | rule | this shot), stacked on a phone. Beside each step this shot's
+  numbers as a running chain, from the same result the trace shows: the step's input, then D and P
+  after it (from Armour on, the hit); "none" carries the values through, "—" after a bullet the
+  wall keeps.
 - Wall (owner 2026-11-05): the shooter picks the wall the bullet goes through just in front of the
   target, in a drop-down: `<none>` first (the default: no change), then the material groups by
   armour, named as retail names materials where they fit (Plywood, Tinplate, Brick, steel,
