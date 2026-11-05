@@ -109,6 +109,14 @@ pub(super) struct FirstShotCounts {
     /// Each bot's tick of his first hit on it in this life (for "crossing at his first hit").
     hit_at: Vec<Option<u32>>,
     his_kills: Kills,
+    /// [A302 `threat.check_spot`] The checks of known lines by team since the match began (`reflex::check_tally`: begun, then
+    /// ended by fight, hit, crossed, cap), the counter at the match's start, and each team's bots' deaths and bots (for checks
+    /// a life). Counted with or without a stand-in human.
+    checks: [[u64; 5]; 2],
+    checks_from: Option<[[u64; 5]; 2]>,
+    team_deaths: [u64; 2],
+    team_bots: [u64; 2],
+    deaths_seen: usize,
 }
 
 impl FirstShotCounts {
@@ -244,6 +252,25 @@ impl FirstShotCounts {
             pct(self.human_died),
             self.bot_first_and_died,
         ) + &self.fatal_line()
+            + &self.checks_line()
+    }
+
+    /// [A302 `threat.check_spot`] The checks a team's bots began, how they ended, and per bot life (its bots plus their deaths).
+    fn checks_line(&self) -> String {
+        let team = |t: usize| {
+            let c = self.checks[t];
+            let lives = self.team_bots[t] + self.team_deaths[t];
+            format!(
+                "team {t}: checks {} (ended fight {} hit {} crossed {} cap {}), bot lives {lives}, a life {:.2}",
+                c[0],
+                c[1],
+                c[2],
+                c[3],
+                c[4],
+                c[0] as f64 / lives.max(1) as f64
+            )
+        };
+        format!("\n  check_spot (A302): {}; {}", team(0), team(1))
     }
 
     /// [fatal exchanges] The same contacts counted as the live baseline counts them (`fx-fights-a302-firstshot-baseline.md`:
@@ -303,6 +330,29 @@ impl Topic for FirstShotCounts {
     }
 
     fn end(&mut self, run: &Run, game: &mut Game, _sight: &mapdata::RayTree, _rays: &mut u64) {
+        // [A302 `threat.check_spot`] The checks, and the bots' lives they are counted over.
+        let counted = crate::v026g::bots::reflex::check_tally::counted();
+        let from = *self.checks_from.get_or_insert(counted);
+        for (t, team) in self.checks.iter_mut().enumerate() {
+            for (k, n) in team.iter_mut().enumerate() {
+                *n = counted[t][k] - from[t][k];
+            }
+        }
+        if self.team_bots == [0, 0] {
+            for (p, b) in game.bodies.iter().enumerate() {
+                if run.is_bot.get(p).copied().unwrap_or(false) {
+                    self.team_bots[usize::from(b.team).min(1)] += 1;
+                }
+            }
+        }
+        for &(_, _, victim) in &run.kills[self.deaths_seen.min(run.kills.len())..] {
+            if run.is_bot.get(victim).copied().unwrap_or(false)
+                && let Some(b) = game.bodies.get(victim)
+            {
+                self.team_deaths[usize::from(b.team).min(1)] += 1;
+            }
+        }
+        self.deaths_seen = run.kills.len();
         let Some(human) = self.human else {
             return;
         };
@@ -390,6 +440,7 @@ impl Topic for FirstShotCounts {
             "bot_first_and_died": self.bot_first_and_died,
             "human_first_and_bot_died": self.human_first_and_bot_died,
             "bot_first_and_human_died": self.bot_first_and_human_died,
+            "check_spot": { "checks": self.checks, "team_bots": self.team_bots, "team_deaths": self.team_deaths },
             "his_kills": {
                 "kills": self.his_kills.kills, "team_knew": self.his_kills.team_knew, "victim_knew": self.his_kills.victim_knew,
                 "walking": self.his_kills.walking, "crossing": self.his_kills.crossing, "crossing_team_knew": self.his_kills.crossing_team_knew,

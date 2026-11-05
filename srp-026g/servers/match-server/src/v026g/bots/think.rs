@@ -626,7 +626,8 @@ fn spot_check(due: &Due, bot: &mut Bot) {
     let sees = |a: Vec3, b: Vec3| tactics.sees(a, b);
     let Some(ahead) = super::lane_ahead::known_lane_ahead(
         &bot.lanes,
-        super::lane_ahead::Known { kills: 1, sensed_ms: super::smoke::FAIR_SENSED_MS },
+        // A farming spot only (A317: a looser rule held on almost every route and stopped a life in every one).
+        super::lane_ahead::Known::FARMING,
         view.clock,
         me.feet,
         |s| route.at(s, heights),

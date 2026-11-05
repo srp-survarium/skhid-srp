@@ -4644,6 +4644,9 @@ impl Reflex {
         }
         if let Checking::Settling { since, .. } = s.phase {
             let settled = super::sense::in_view(me.feet, me.yaw, c.eye, CHECK_SETTLED_DEG);
+            // The sights come up only once the client lets them (the sprint's and a jump's gates, a reload, a switch, a
+            // chambering: `Reflex::aim_open`, fx-grid's aim gates): the stand counts from then.
+            let since = since.max(self.aim_open(ClientGate::default()));
             if now >= since + rule.settle_most_ms || (settled && now >= since + rule.settle_least_ms) {
                 s.phase = Checking::Crossing { since: now };
             }
