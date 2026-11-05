@@ -7,9 +7,14 @@ The owner (2026-11-05): let Windows players try DXVK; off by default.
 - **Where:** Settings, Graphics, left column, right under Monitor: a "Renderer" list built as
   Monitor's (its label on its left, the same size), "DirectX 11" (the default) or "Vulkan/DXVK"
   (`st_srp_renderer_option`, `_dx11`, `_dxvk`, ten languages; "Vulkan (DXVK)" does not fit Monitor's
-  field). The rows under it move down one of Monitor's steps; the Optimal and Default buttons go
+  field). The rows under it move down one of Monitor's steps and the hint's room; the Optimal and Default buttons go
   side by side in their panel (`flash/main_menu/src/SrpRendererChoice.as`, `SrpVideoTab.as` with the
-  FOV slider). No restart hint: the tab says none for its other settings either.
+  FOV slider).
+- **Restart hint:** the Language choice's "Applies after restart." (`st_srp_language_restart`, its
+  style) under the list at its label's left edge, while the saved choice is not the renderer this
+  process runs (the exe's answer says it: DXVK loaded at the start or not). Its room is kept
+  whether it shows or not: the rows under the list are one step and the note's room lower, so
+  nothing moves when it appears; both lists' open popups lie over it.
 - **DirectX 11 by default.** Apply saves it as `srp_dxvk on|off` (on: Vulkan) in
   `Documents\survarium\user.cfg`, as the HUD crosshair list keeps its Hidden choice (exe patch 83's
   saved bools, `hide-hit-markers-scores.md`); Cancel puts the saved choice back.

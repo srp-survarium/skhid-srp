@@ -218,10 +218,11 @@ pub static SETTINGS: [&Setting; 5] = [&HIDE_HIT_MARKERS, &HIDE_SCORES, &MAP_NAME
 /// `root.srp_hud_texts` gives them: the heading, the stock quest progress
 /// checkbox's label as the group shows it (inverted), the crosshair list's
 /// three choices, the stock fixed minimap checkbox's label; then the
-/// Graphics tab's Renderer list's two choices.
-pub const TEXTS: [&CStr; 8] = [c"st_srp_options_hud", c"st_srp_hide_quests_option", c"st_srp_crosshair_dynamic",
+/// Graphics tab's Renderer list's two choices and its note (the Language
+/// choice's "Applies after restart.").
+pub const TEXTS: [&CStr; 9] = [c"st_srp_options_hud", c"st_srp_hide_quests_option", c"st_srp_crosshair_dynamic",
                                c"st_srp_crosshair_static", c"st_srp_crosshair_hidden", c"st_srp_static_minimap_option",
-                               c"st_srp_renderer_dx11", c"st_srp_renderer_dxvk"];
+                               c"st_srp_renderer_dx11", c"st_srp_renderer_dxvk", c"st_srp_language_restart"];
 
 /// The setting the Settings' call names.
 pub fn setting(name: &CStr) -> Option<&'static Setting> {
@@ -308,7 +309,13 @@ pub fn on_options_call(ctx: &mut Context<'_>) -> Flow<HudOptionsOnOptionsCallExi
     let mut label = [0; 0x200];
     let label = call.translate(setting.label, &mut label);
     let saved = if setting.on(thread) { c"1" } else { c"0" };
-    call.answer(c"root.srp_check_option", &[setting.name, label, saved]);
+    if core::ptr::eq(setting, &DXVK) {
+        // and the renderer this process runs ("1": DXVK loaded at its start), for the list's note
+        let running = if RENDERER.get(thread) == Renderer::Dxvk { c"1" } else { c"0" };
+        call.answer(c"root.srp_check_option", &[setting.name, label, saved, running]);
+    } else {
+        call.answer(c"root.srp_check_option", &[setting.name, label, saved]);
+    }
     Flow::Exit(HudOptionsOnOptionsCallExit::Done)
 }
 

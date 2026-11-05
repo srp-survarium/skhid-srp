@@ -30,6 +30,8 @@ Scaleform's Invoke 0x511600 a stub that records each call; translate_text
   no user.cfg, a file missing, a marker left: nothing loaded, the marker
   deleted; never the engine's allocator; registers (EAX the probe's size) and
   stack as the original's, which calls none of these;
+- the Renderer's answer (root.srp_check_option) says the renderer running:
+  "1" in a process that loaded DXVK at its start, "0" otherwise;
 - the login screen (0x21EAC8, after patch 88's handler): after a failed DXVK
   start (a marker left) `srp_dxvk` off and user.cfg saved once, the marker
   deleted; after that, and after a start with DXVK, only the marker deleted;
@@ -70,7 +72,7 @@ SETTINGS = {"srp_hide_hit_markers": "Hide hit markers", "srp_hide_scores": "Hide
 TEXTS = {"st_srp_options_hud": "HUD:", "st_srp_hide_quests_option": "Hide quests", "st_srp_crosshair_dynamic": "Dynamic crosshair",
          "st_srp_crosshair_static": "Static crosshair", "st_srp_crosshair_hidden": "Hidden crosshair",
          "st_srp_static_minimap_option": "Static minimap", "st_srp_renderer_dx11": "DirectX 11",
-         "st_srp_renderer_dxvk": "Vulkan/DXVK"}
+         "st_srp_renderer_dxvk": "Vulkan/DXVK", "st_srp_language_restart": "Applies after restart."}
 language.ENGLISH.update({key: text.encode() for key, text in TEXTS.items()})
 language.ENGLISH.update({"st_srp_hide_hit_markers_option": b"Hide hit markers", "st_srp_hide_scores_option": b"Hide player scores",
                          "st_srp_map_names_option": b"Names on map",
@@ -344,7 +346,9 @@ def main():
             before = state()
             invokes, count = ours.callback(name, argument)
             after = state()
-            expect(invokes == [(language.MOVIE, "root.srp_check_option", (name, label, "1" if on else "0"))]
+            # the Renderer's answer says the renderer running too: DirectX here (no DXVK loaded at the start)
+            answer = (name, label, "1" if on else "0") + (("0",) if name == "srp_dxvk" else ())
+            expect(invokes == [(language.MOVIE, "root.srp_check_option", answer)]
                    and count == saves and after[name] == on and all(after[n] == before[n] for n in others),
                    f"{name} with {case}: it is {int(on)} (the others unchanged), user.cfg written {saves} time(s), "
                    f"the movie answered with its name, label and {int(on)}")
@@ -481,6 +485,9 @@ def renderer(original, patched, expect):
     expect(kept and r.saves == saves and calls == unmark, "the next login screen: only the marker's delete")
     r = Run(patched)
     r.process_start(user_cfg=on, vulkan=good)
+    invokes, _ = r.callback("srp_dxvk")
+    expect([v[-1] for _, m, v in invokes if m == "root.srp_check_option"] == ["1"],
+           f"the Renderer's answer in a process that loaded DXVK: running \"1\" ({invokes})")
     kept, calls = r.login()
     expect(kept and calls == unmark and not r.marker and r.saves == 0,
            "the login screen after a start with DXVK: the marker deleted, nothing saved")

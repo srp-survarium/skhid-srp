@@ -45,8 +45,6 @@ package
             menu.itemRenderer = "OptionsListRenderer";
             menu.menuDirection = "down";
             menu.menuMargin = 0;
-            menu.inspectableMenuOffset = {"top": 4, "right": 0, "bottom": 0, "left": 0};
-            menu.inspectableMenuPadding = {"top": 5, "right": 1, "bottom": 5, "left": 1};
             menu.menuRowsFixed = false;
             menu.menuWidth = MENU_WIDTH;
             menu.menuWrapping = "normal";
