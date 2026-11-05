@@ -88,6 +88,7 @@ const FLIGHT_CELLS: i32 = 48;
 /// A floor this far under the body's feet in the air still catches it, metres.
 const FLIGHT_TOLERANCE_M: f32 = 0.1;
 
+pub mod controlled;
 pub mod gap;
 pub use gap::{GapStats, OffLink, OffMeshLinks, PressLead};
 use gap::gap_cost;
@@ -216,6 +217,10 @@ pub struct Body {
     /// (4, 32-34), Chemical Plant's (8, 22): 0-20 deg). A mark only: the floors and links are as without it. A build input: in the key
     /// when set.
     pub ramp_faces: bool,
+    /// [A313] Whether the walk links are decided by the client's own walk tick (`grid::controlled`): gap links over one cell
+    /// between floors within a step are walked where the controller walks the body across (a crack, a riser cell), and walk
+    /// links by a face no body walks on stay only where it gets the body half way. A build input: in the key when set.
+    pub client_controller: bool,
     /// [A304] Whether [`Self::drop_room`]'s walls count steep faces whatever their walker behaviour: a `walk` face (`walk`
     /// material: stairs and steep paths, always ground to the slope test) that stands up across a walk-off's way blocks the capsule
     /// as any wall does. The exact erosion's walls are as without it. Level 7's deck parapet at (16.15-16.30, 20.20-22.03, -18.4 to
@@ -276,6 +281,7 @@ impl Body {
             pocket_exits_walled: false,
             gap_no_vaults: false,
             ramp_faces: false,
+            client_controller: false,
             drop_room_walk_faces: false,
         }
     }
@@ -346,6 +352,7 @@ impl Default for Body {
             pocket_exits_walled: false,
             gap_no_vaults: false,
             ramp_faces: false,
+            client_controller: false,
             drop_room_walk_faces: false,
         }
     }
@@ -827,6 +834,8 @@ pub struct BuildStats {
     pub floors_kept: usize,
     /// [A304] The floors with a ramp mark ([`Body::ramp_faces`]).
     pub ramp_floors: usize,
+    /// [A313] The controller pass ([`Body::client_controller`]).
+    pub controlled: controlled::ControlledStats,
     /// The floors the exact pass took after the rounds ([`Erosion::Exact`]).
     pub exact_eroded: usize,
     /// The Drop links the honest drops took away ([`Body::drop_flight_mps`]): for a fall deeper than the harmless one
@@ -1025,6 +1034,9 @@ impl WalkGrid {
         };
         if body.slip_landings {
             wide.slips = grid.slip_landings(&wide, &solids);
+        }
+        if body.client_controller {
+            stats.controlled = grid.controlled_links(&mut wide, triangles);
         }
         drop(solids);
         if body.drop_room && body.drop_room_walk_faces {
