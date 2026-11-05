@@ -222,6 +222,12 @@ mod tests {
         let floor = [Vec3::new(-5.0, -0.7, -5.0), Vec3::new(5.0, -0.7, -5.0), Vec3::new(0.0, -0.7, 5.0)];
         let (d, _, _) = distance(&cyl, &floor, Vec3::Y);
         assert!((d - 0.2).abs() < 1e-4, "{d}");
+        // A riser face under the cylinder, its top edge 0.3 under the cylinder's bottom and 0.1 beside its side: the corner gap.
+        let cyl = Cylinder { centre: Vec3::new(1.52, 1.3, 0.0), half: 0.5, radius: 0.38 };
+        let riser = [Vec3::new(2.0, 0.0, -10.0), Vec3::new(2.0, 0.5, -10.0), Vec3::new(2.0, 0.5, 10.0)];
+        let (d, pa, pb) = distance(&cyl, &riser, cyl.centre - Vec3::new(2.0, 0.3, 0.0));
+        let want = (0.1f32 * 0.1 + 0.3 * 0.3).sqrt();
+        assert!((d - want).abs() < 1e-3, "{d} vs {want}: {pa:?} {pb:?}");
         // Overlapping: 0.
         let (d, _, _) = distance(&Segment(Vec3::new(0.2, -1.0, 0.2), Vec3::new(0.2, 1.0, 0.2)), &tri, Vec3::Y);
         assert!(d < 1e-4, "{d}");
