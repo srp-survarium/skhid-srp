@@ -5,6 +5,7 @@ va	name	source	ret_cleanup	result
 0x00014710	vostok::render::one_way_render_channel::owner_finalize	manual	0	
 0x000147e0	on_mounted_resources	manual	0	
 0x000148b0	on_mounted_user_data	manual	0	
+0x0001b7b0	vostok::timing::timer::elapsed_ticks	manual	0	EDX:EAX: (QueryPerformanceCounter - [esi+8]) x [esi+10h] (_ftol2 0x424B86) + [esi]
 0x0001c410	vostok::memory::mt_free	manual	0	
 0x0001c6a0	vostok::memory::mt_allocate	manual	0	EAX: the memory; 0 when [1F1D61Bh] is set or the MT allocator has none
 0x0001ef10	vostok::render::one_way_render_channel::one_way_render_channel	manual	0	EAX: receiver pointer
@@ -229,6 +230,7 @@ va	name	source	ret_cleanup	result
 0x000f70e0	vostok::memory::writer::seek	manual	4	
 0x000f8480	vostok::resources::resources_manager::add_fs_task	manual	0	
 0x000fef60	vostok::render::renderer_cook::destroy_resource	manual		
+0x00106a00	vostok::timing::timer::elapsed_ms	manual	0	ST0: elapsed_ticks / the thread's ticks a ms (fs:[2Ch] TLS, its block +8, a 64-bit count)
 0x00109ed0	vostok::resources::make_save_descriptor	manual	0	EAX: the descriptor (allocate_save_descriptor), its data an MT copy of the bytes, +8 = 1
 0x00109f30	vostok::resources::allocate_save_descriptor	manual	0	EAX: the descriptor, 18h bytes and the two paths after them, MT; 0 when MT refuses
 0x0010a050	vostok::resources::save_descriptor::~save_descriptor	manual	0	

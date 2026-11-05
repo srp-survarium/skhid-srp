@@ -181,6 +181,7 @@ global engine_ray_test_single
 global engine_key_name
 global engine_activate_keyboard_layout
 global engine_get_module_handle_a
+global engine_backend_reset
 engine_action_present equ 0x242460   ; 0x242460 survarium::player_input_handler::action_present: handler ESP+4, action ESP+8, state ESP+12; pops 12; AL; stdcall, called directly
 engine_create_file_a equ 0x870048   ; the IAT slot 0x870048 (an import, stdcall)
 engine_write_file equ 0x870108   ; the IAT slot 0x870108 (an import, stdcall)
@@ -2210,6 +2211,21 @@ engine_ray_needs_collision:
     mov ecx, [esp + 24]   ; callback
     call 0x75bd0
     movzx eax, al
+    pop edi
+    pop esi
+    pop ebx
+    pop ebp
+    ret
+
+    align 16, db 0xCC
+engine_backend_reset:
+    ; 0x11b740 vostok::render::backend::reset: backend EDI; pops 0
+    push ebp
+    push ebx
+    push esi
+    push edi
+    mov edi, [esp + 20]   ; backend
+    call 0x11b740
     pop edi
     pop esi
     pop ebx

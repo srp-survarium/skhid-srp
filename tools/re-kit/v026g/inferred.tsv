@@ -31,6 +31,7 @@ va	status	ref_021d	name
 0x0001b1f0	inferred-medium	0x00016dd6	vostok::engine::engine_world::on_before_editor_tick
 0x0001b320	inferred-medium	0x00016eaa	vostok::engine::engine_world::create_editor_console
 0x0001b380	inferred-medium	0x00016f0d	vostok::engine::engine_world::terminate_on_timeout
+0x0001b7b0	inferred-medium		vostok::timing::timer::elapsed_ticks
 0x0001b810	inferred-medium	0x000171d2	vostok::timing::timer::get_elapsed_msec
 0x0001b9b0	inferred-medium	0x00017293	vostok::fs_new::asynchronous_device_interface::~asynchronous_device_interface
 0x0001bb00	inferred-medium	0x0001739d	boost::detail::function::void_function_obj_invoker0<boost::_bi::bind_t<void,boost::_mfi::mf2<void,vostok::engine::engine_world,enum vostok::apc::threads_enum,vostok::engine::device_ticker const &>,boost::_bi::list3<boost::_bi::value<vostok::engine::engine_world *>,boost::_bi::value<enum vostok::apc::threads_enum>,boost::_bi::value<vostok::engine::device_ticker> > >,void>::invoke
@@ -655,6 +656,7 @@ va	status	ref_021d	name
 0x001064c0	inferred-medium	0x000c93e0	vostok::resources::game_resources_manager::try_reallocate_queue
 0x001065d0	inferred-medium	0x000c944b	vostok::resources::game_resources_manager::on_resource_freed_callback
 0x00106660	inferred-medium	0x000c94b7	vostok::resources::game_resources_manager::out_of_memory_callback
+0x00106a00	inferred-medium		vostok::timing::timer::elapsed_ms
 0x00106a70	inferred-high	0x000c9752	slwait
 0x00107070	inferred-medium	0x000c9bdb	pt3realloc
 0x001085a0	inferred-medium	0x000cab8c	vostok::resources::query_result::associate_created_resource_with_fat_or_name_registry

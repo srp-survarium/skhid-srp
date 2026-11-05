@@ -40,6 +40,8 @@ const DEFAULT_USAGE: u32 = 0;
 const HEADER: u32 = 0x80;
 /// The most block levels a texture has (4096 texels: 11).
 const LEVELS: usize = 12;
+/// The timer's scale process_compression's prologue writes ([0A70884h], 0x12EC66).
+const TIMER_SCALE: f32 = 1.0;
 /// finish_query's error, as on_textures_loaded fails a bake (0x12EAED: 1, assert, type 0Bh).
 const ERROR: (u32, u32, u32) = (1, 1, 0xB);
 
@@ -421,6 +423,7 @@ pub fn compress(thread: &Thread, job: &Job, level0: &HeldTexture) -> Option<Comp
         }
         raw::engine_write_dds_header(dds.at.as_ptr(), format, width, height, data + 1, normal, count as u32);
         levels[0] = Some(HeldTexture::hold(level0.raw()).into_raw());
+        raw::engine_backend_reset(raw::image::backend_global().backend());
         raw::engine_make_mips(width, height, renderer.renderer(), levels.as_mut_ptr(), count as u32);
         cursor.handle().set_next(dds.at.as_ptr().add(HEADER as usize));
         CAPTURE.set(thread, Capture::On { dds: dds.address(), size: job.size, count: 0, levels: [None; LEVELS] });
@@ -661,6 +664,10 @@ pub fn resume(ctx: &mut Context<'_>) -> bool {
         *f.timer_base_high() = 0;
         *f.timer_start_low() = r.started.0 as u32;
         *f.timer_start_high() = (r.started.0 >> 32) as u32;
+        // the prologue's two 1.0s (0x12EC73, 0x12EC79), the first the
+        // timer's scale (elapsed_ticks multiplies by it)
+        *f.timer_scale() = TIMER_SCALE;
+        *f.prologue_scale() = TIMER_SCALE;
         f.timer_base_low() as usize as u32
     };
     RESUMING.set(thread, Resuming::Tail(r, None));

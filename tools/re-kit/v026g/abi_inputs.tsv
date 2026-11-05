@@ -9,6 +9,7 @@ va	name	location	role	basis
 0x000147e0	on_mounted_resources	entry ESP+12	pointer to the result mount_ptr	observed
 0x000148b0	on_mounted_user_data	entry ESP+4	mount_ptr holder	observed
 0x000148b0	on_mounted_user_data	entry ESP+8	pointer to the result mount_ptr	observed
+0x0001b7b0	vostok::timing::timer::elapsed_ticks	ESI	the timer, 14h bytes: +0 a 64-bit base added, +8 its start (a QueryPerformanceCounter), +10h an f32 scale (process_compression writes 1.0 at 0x12EC73: [esp+60h])	observed
 0x0001c410	vostok::memory::mt_free	entry ESP+4	the memory (0: nothing); freed by 0x106FC0 unless [1F1D61Bh] is set, untracked (0xFD500) when [[1F1D308h]+10h]	observed
 0x0001c6a0	vostok::memory::mt_allocate	ESI	the size	observed
 0x0001c6a0	vostok::memory::mt_allocate	entry ESP+4	the allocator object (0xA8001C, make_save_descriptor 0x109EF1): its +10h byte turns tracking (0xFD430) on	observed
@@ -645,6 +646,7 @@ va	name	location	role	basis
 0x000f70e0	vostok::memory::writer::seek	entry ESP+4	new position	observed
 0x000f8480	vostok::resources::resources_manager::add_fs_task	EAX	fs task	observed
 0x000fef60	vostok::render::renderer_cook::destroy_resource	entry ESP+4	resource pointer	observed
+0x00106a00	vostok::timing::timer::elapsed_ms	ESI	the timer (elapsed_ticks's): process_compression's [esp+50h] (0x12EFA6, 0x12F00B)	observed
 0x00109ed0	vostok::resources::make_save_descriptor	ECX	the physical path span (begin, end): the descriptor +0Ch (process_compression 0x12F2D1: &[esp+3C8h], 0x1051E0s output)	observed
 0x00109ed0	vostok::resources::make_save_descriptor	EAX	the virtual path span: the descriptor +10h (process_compression 0x12F2CA)	observed
 0x00109ed0	vostok::resources::make_save_descriptor	entry ESP+4	the bytes {data, size}: copied into mt_allocate(size) (0x109EF8), the descriptor +0 data, +4 size, +8 byte 1: its data its own	observed

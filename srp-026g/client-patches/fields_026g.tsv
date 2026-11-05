@@ -814,3 +814,7 @@ vostok::render::bake_pair	size	0x8	size	two words
 vostok::input::keyboard	events	0x408	obj<vostok::input::key_event>	the events GetDeviceData buffers (execute 0x3B8D41/0x3B9080: DIDEVICEOBJECTDATA, at most 40h, their count to +404h at 0x3B914B), read by execute's loop (0x3B915E) and process (0x3B9B0E)
 vostok::input::key_event	key	0x0	u32	DIDEVICEOBJECTDATA.dwOfs: the key's DirectInput code, the index of the keys' states (execute 0x3B916A, 0x3B91EE; process 0x3B9B20)
 vostok::input::key_event	size	0x14	size	a DIDEVICEOBJECTDATA (GetDeviceData's push 14h 0x3B9081; execute's add ecx,14h 0x3B91F2)
+vostok::render::process_compression_frame	timer_scale	0x60	f32	[esp+60h]: the timer's scale (elapsed_ticks 0x1B7B0 multiplies by [esi+10h]): 1.0 from [0A70884h], written by the prologue (0x12EC73)
+vostok::render::process_compression_frame	prologue_scale	0x64	f32	[esp+64h]: the prologue's second 1.0 (0x12EC79)
+vostok::render::backend_slot	backend	0x0	ptr<vostok::render::backend>	the render backend ([2260490h]; the compressor's reset 0x11F4D7)
+survarium::image	backend_global	0x2260490	obj<vostok::render::backend_slot>	the render backend's global (mov edi,[2260490h] / call backend::reset, 0x11F4D7)

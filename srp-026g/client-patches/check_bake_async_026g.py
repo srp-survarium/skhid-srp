@@ -22,10 +22,14 @@ the save descriptor (bake.save), the CRC, the record, bake.free, finish).
 
 - issued: process_compression returns (ret 28h) with its query not
   finished, no Map at all, level 0 a DEFAULT texture with no initial data
-  and the target copied into it on the GPU, the levels drawn, each level's
+  and the target copied into it on the GPU, backend::reset once before
+  make_mips (as 0x11F3F0 at 0x11F4D7), the levels drawn, each level's
   staging copied and kept; the original maps 1 + the levels, blocking;
 - polled with the GPU busy: one Map with the no-wait flag, nothing else;
-- polled with the GPU done: each level read into the DDS at its place,
+- polled with the GPU done (the resumed frame's stack filled with 0CDh): the
+  tail's compress ms the real timer's (elapsed_ms 0x106A00 and elapsed_ticks
+  0x1B7B0, fs:[2Ch] a made-up GDT's segment, the scale 1.0 the resume
+  writes), each level read into the DDS at its place,
   each staging unmapped and let go, the texture made from that DDS (its
   name, size, pair and value), in the surface's slot, the query given its
   resource and finished with success, the save's descriptor owning that
@@ -50,9 +54,10 @@ the save descriptor (bake.save), the CRC, the record, bake.free, finish).
 import struct
 import sys
 
-from unicorn import UC_PROT_ALL
+from unicorn import UC_PROT_ALL, UC_HOOK_CODE
 from unicorn.x86_const import UC_X86_REG_EAX, UC_X86_REG_ECX, UC_X86_REG_EDX, UC_X86_REG_EBX, \
-    UC_X86_REG_ESP, UC_X86_REG_EBP, UC_X86_REG_ESI, UC_X86_REG_EDI, UC_X86_REG_EIP
+    UC_X86_REG_ESP, UC_X86_REG_EBP, UC_X86_REG_ESI, UC_X86_REG_EDI, UC_X86_REG_EIP, UC_X86_REG_FS, UC_X86_REG_GDTR, \
+    UC_X86_REG_SS, UC_X86_REG_DS, UC_X86_REG_ES
 
 import check_bake_cache_026g as cache
 import patch_026g as base
@@ -63,7 +68,7 @@ DEVICE_GLOBAL, MANAGER_GLOBAL, RENDERER_GLOBAL, BACKEND_GLOBAL = 0x2260478, 0x22
 RENDER_ALLOCATOR, MT_TRACKING, MT_SLOT, NO_MEMORY = 0x1F1D960, 0xA8002C, 0x1F1D308, 0x1F1D61B
 CREATE_TEXTURE, CREATE_TARGET, RELEASE_TARGET, COPY2D = 0x3BEA70, 0x3BF930, 0x3BFBC0, 0x3C0E00
 APPLY_PASS, BIND, CONSTANTS, FILL, RESET = 0x3D7230, 0x3D6960, 0x132A90, 0x11D950, 0x11B740
-TIMER, APPENDF, PHYSICAL, CONVERT, FROM_MEMORY = 0x106A00, 0xE4590, 0x1051E0, 0x12780, 0x3BD030
+APPENDF, PHYSICAL, CONVERT, FROM_MEMORY = 0xE4590, 0x1051E0, 0x12780, 0x3BD030
 MT_ALLOC, MT_FREE, RENDER_FREE, MAKE_SAVE, TRIM = 0x106EF0, 0x106FC0, 0x1539D0, 0x109ED0, 0x131F90
 BLOCK_FREE = 0x1015E0
 QPC, QPF, THREAD_ID = 0x870158, 0x870150, 0x870118
@@ -71,6 +76,10 @@ SAVE_COUNTER = 0x1B3A2AC
 WAS_STILL_DRAWING, DEVICE_REMOVED = 0x887A000A, 0x887A0005
 NO_WAIT = 0x100000
 HEAP = 0x50000000
+TEB = 0x60000000                   # the thread's block: fs:[2Ch] its TLS array (elapsed_ms's ticks a ms)
+TICKS_A_MS = 1000                  # QueryPerformanceFrequency's 1e6 / 1000
+COMPRESS_TIMED = 0x12F014          # past the tail's `fstp dword [esp+48h]`: the compress ms
+ELAPSED_QPC_BACK = 0x1B7C3        # elapsed_ticks's QueryPerformanceCounter returns here
 NAME = "renesanse_heavy_com_tank_01_torso_s1d"
 PATH = cache.PREFIX + NAME + ".dds"
 
@@ -115,13 +124,28 @@ class Game(cache.Game):
         self.resource_vtable = self.new(0x40)
         self.word(self.resource_vtable + 0x1C, cache.STUBS + 0x700)
         self.stubs[cache.STUBS + 0x700] = "GetType"
-        # fld1 / ret: the timer's st0
-        self.fld1 = cache.STUBS + 0x600
-        self.emu.mem_write(self.fld1, bytes.fromhex("d9e8c3"))
+        # the thread's block for elapsed_ms (0x106A23: fs:[2Ch], the TLS array, its first block +8): FS a
+        # data segment of a made-up GDT
+        self.emu.mem_map(TEB, 0x3000, UC_PROT_ALL)
+        self.word(TEB + 0x2C, TEB + 0x100)
+        self.word(TEB + 0x100, TEB + 0x200)
+        self.word(TEB + 0x208, TICKS_A_MS)
+        self.word(TEB + 0x20C, 0)
+        gdt = TEB + 0x2000
+        self.emu.mem_write(gdt, bytes(8) + struct.pack("<HHBBBB", 0xFFFF, TEB & 0xFFFF, (TEB >> 16) & 0xFF, 0x93,
+                                                         0xCF, (TEB >> 24) & 0xFF)
+                           + struct.pack("<HHBBBB", 0xFFFF, 0, 0, 0x93, 0xCF, 0))   # 2: flat, for SS, DS and ES
+        self.emu.reg_write(UC_X86_REG_GDTR, (0, gdt, 23, 0))
+        self.emu.reg_write(UC_X86_REG_FS, 1 << 3)
+        for segment in (UC_X86_REG_SS, UC_X86_REG_DS, UC_X86_REG_ES):
+            self.emu.reg_write(segment, 2 << 3)
+        self.qpcs = []                     # (return address, value) of each QueryPerformanceCounter
+        self.timed = []                    # (the compress ms, its timer's start, scale) at 0x12F014
+        self.emu.hook_add(UC_HOOK_CODE, self.compress_timed, begin=COMPRESS_TIMED, end=COMPRESS_TIMED)
         for va, name in ((CREATE_TEXTURE, "create texture"), (CREATE_TARGET, "create target"),
                          (RELEASE_TARGET, "release target"), (COPY2D, "copy2D"), (APPLY_PASS, "apply pass"),
                          (BIND, "bind"), (CONSTANTS, "constants"), (FILL, "fill"), (RESET, "reset"),
-                         (TIMER, "timer"), (APPENDF, "appendf"), (PHYSICAL, "physical"), (CONVERT, "convert"),
+                         (APPENDF, "appendf"), (PHYSICAL, "physical"), (CONVERT, "convert"),
                          (FROM_MEMORY, "from memory"), (MT_ALLOC, "mt alloc"), (MT_FREE, "mt free"),
                          (RENDER_FREE, "render free"), (MAKE_SAVE, "make save"), (TRIM, "trim"),
                          (BLOCK_FREE, "block free")):
@@ -132,6 +156,12 @@ class Game(cache.Game):
             self.tracked[name] = stub
             self.word(slot, stub)
             self.stubs[stub] = name
+
+    def compress_timed(self, emu, address, size, user):
+        sp = emu.reg_read(UC_X86_REG_ESP)
+        start = self.read(sp + 0x58) | self.read(sp + 0x5C) << 32
+        ms, scale = (struct.unpack("<f", emu.mem_read(sp + at, 4))[0] for at in (0x48, 0x60))
+        self.timed.append((ms, start, scale))
 
     def new(self, size):
         at, self.free_at = self.free_at, self.free_at + ((size + 0xF) & ~0xF)
@@ -201,11 +231,9 @@ class Game(cache.Game):
             self.returns(0, 4)
         elif name == "fill":
             self.returns(0, 0x1C)
-        elif name == "reset":
+        elif name == "reset":                        # edi the backend
+            self.calls[-1] = (name, reg(UC_X86_REG_EDI))
             self.returns(0)
-        elif name == "timer":                        # esi the timer: st0 its ms
-            self.calls[-1] = (name, reg(UC_X86_REG_ESI))
-            emu.reg_write(UC_X86_REG_EIP, self.fld1)
         elif name == "appendf":                      # eax the buffer_string; the format, its strings
             fmt = self.text(arg(0))
             out, n = "", 1
@@ -280,6 +308,7 @@ class Game(cache.Game):
             self.returns(0, 4)
         elif name == "QueryPerformanceCounter":
             self.qpc += 1000
+            self.qpcs.append((self.read(sp), self.qpc))
             self.word(arg(0), self.qpc & 0xFFFFFFFF)
             self.word(arg(0) + 4, self.qpc >> 32)
             self.returns(1, 4)
@@ -440,6 +469,12 @@ def main():
            and copies and copies[0][1:3] == (level0[6], bake.source),
            "level 0: a DEFAULT R8G8B8A8 texture of the bake's size, no initial data, the target copied into it "
            "on the GPU (copy2D)")
+    order = [c[0] for c in calls]
+    resets = names(calls, "reset")
+    report(resets == [("reset", game.read(BACKEND_GLOBAL))] and level0 is not None
+           and calls.index(level0) < order.index("reset") < order.index("create target"),
+           "backend::reset (EDI the backend [2260490h]) once, after level 0 and before make_mips, as 0x11F3F0 at "
+           "0x11F4D7")
     report(len(stagings) == bake.levels and len(names(calls, "create target")) == 2 * bake.levels - 1,
            f"the levels drawn (make_mips: {bake.levels - 1} targets) and compressed ({bake.levels} block targets, "
            f"{len(stagings)} stagings copied to, none mapped)")
@@ -449,7 +484,19 @@ def main():
            and not names(calls, "finish"),
            "a dispatch, the GPU busy: one Map of the last staging with the no-wait flag (0 back), nothing else")
     game.done.update(stagings)
+    # the resumed frame's stack garbage: a local the resume does not write shows
+    game.emu.mem_write(cache.STACK + 0xB0000, b"\xCD" * 0xFF00)
     ok, calls = dispatched(game)
+    timer_reads = [value for back, value in game.qpcs if back == ELAPSED_QPC_BACK]
+    if game.timed and timer_reads:
+        ms, start, scale = game.timed[-1]
+        want = (timer_reads[-1] - start) * 1.0 / TICKS_A_MS
+        report(scale == 1.0 and ms == want and 0 < ms < 1000,
+               f"the tail's compress ms (elapsed_ms 0x106A00 and elapsed_ticks 0x1B7B0 for real, on the fake "
+               f"QueryPerformanceCounter): {ms} = (its read {timer_reads[-1]} - the readback's start {start}) x the "
+               f"scale {scale} / {TICKS_A_MS}")
+    else:
+        report(False, "the tail's compress ms: the timer ran (0x12F014 reached, 0x1B7B0 read the counter)")
     maps, unmaps = names(calls, "Map"), names(calls, "Unmap")
     made = names(calls, "from memory")
     report(ok and maps[0] == ("Map", stagings[-1], NO_WAIT) and sorted(m[1] for m in maps[1:]) == sorted(stagings)

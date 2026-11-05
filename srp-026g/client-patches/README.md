@@ -3757,7 +3757,9 @@ branch into one.
 reach, the generated lohooks, no relocation or branch inside). `check_bake_async_026g.py`
 (Unicorn) runs process_compression from its entry, the compressor's functions, map2D, the
 dispatch's end and the tail for real on a made-up D3D11 context: the original maps 1 + the
-levels, blocking; the build issues with no Map, polls busy with one no-wait Map, then reads the
+levels, blocking; the build issues with no Map (backend::reset once before make_mips, as 0x11F3F0),
+polls busy with one no-wait Map, then (the tail's compress ms the real timer's, 0x106A00 and 0x1B7B0 on
+a fake counter, the scale the resume writes) reads the
 levels into the DDS, makes the texture from it (its bytes the stagings' rows), fills the slot and
 patch 70's waiter's, finishes both, the save descriptor owning that DDS with no copy, the record
 listed; late after 1 s; the device lost (an error finish, the waiter made again, the DDS freed);

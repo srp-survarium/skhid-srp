@@ -9,6 +9,7 @@
 #define ENGINE_026G_H
 
 struct artefact;
+struct backend;
 struct bake_pair;
 struct bake_parameters_copy;
 struct baked_texture_resource;
@@ -639,5 +640,8 @@ extern unsigned int (__attribute__((stdcall)) *const engine_activate_keyboard_la
 
 /* the IAT slot 0x87003c (an import, stdcall) */
 extern void * (__attribute__((stdcall)) *const engine_get_module_handle_a)(const char * name);
+
+/* 0x11b740 vostok::render::backend::reset: backend EDI; pops 0 */
+void engine_backend_reset(struct backend *backend);
 
 #endif

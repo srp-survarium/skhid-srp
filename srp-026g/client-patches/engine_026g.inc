@@ -596,3 +596,6 @@ extern engine_activate_keyboard_layout
 ; the IAT slot 0x87003c (an import, stdcall)
 ; `call [symbol]`: stdcall, it pops its arguments
 extern engine_get_module_handle_a
+; void engine_backend_reset(struct backend *backend)
+; 0x11b740 vostok::render::backend::reset: backend EDI; pops 0
+extern engine_backend_reset

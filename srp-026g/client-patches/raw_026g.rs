@@ -245,6 +245,8 @@ unsafe extern "C" {
     pub fn engine_ray_callback(callback: Option<ClosestRayResultCallback>, from: *const f32, to: *const f32, group: u32, mask: u32, requester: Option<Bullet>);
     /// 0x75bd0 vostok::physics::closest_ray_result_callback::needsCollision: callback ECX, proxy ESP+4; pops 4; AL
     pub fn engine_ray_needs_collision(callback: Option<ClosestRayResultCallback>, proxy: Option<BtBroadphaseProxy>) -> u8;
+    /// 0x11b740 vostok::render::backend::reset: backend EDI; pops 0
+    pub fn engine_backend_reset(backend: Option<Backend>);
 }
 
 #[allow(dead_code)]
@@ -14727,6 +14729,24 @@ impl ProcessCompressionFrame {
     pub unsafe fn draw_ms(self) -> *mut f32 {
         unsafe { self.0.byte_add(0x624).cast::<f32>().as_ptr() }
     }
+
+    /// +0x60 (f32): [esp+60h]: the timer's scale (elapsed_ticks 0x1B7B0 multiplies by [esi+10h]): 1.0 from [0A70884h], written by the prologue (0x12EC73)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn timer_scale(self) -> *mut f32 {
+        unsafe { self.0.byte_add(0x60).cast::<f32>().as_ptr() }
+    }
+
+    /// +0x64 (f32): [esp+64h]: the prologue's second 1.0 (0x12EC79)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn prologue_scale(self) -> *mut f32 {
+        unsafe { self.0.byte_add(0x64).cast::<f32>().as_ptr() }
+    }
 }
 
 /// A vostok::render::texture_loaded_frame (fields_026g.tsv): a pointer to one, never 0. Made only here: by a typed field,
@@ -15543,6 +15563,39 @@ impl KeyEventStorage {
     }
 }
 
+/// A vostok::render::backend_slot (fields_026g.tsv): a pointer to one, never 0. Made only here: by a typed field,
+/// a function's typed result or a site's typed register (sites_026g.tsv `holds`).
+#[repr(transparent)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct BackendSlot(NonNull<c_void>);
+
+#[allow(dead_code)]
+impl BackendSlot {
+    /// Its address as a value (an id, a compare): never read through.
+    #[inline(always)]
+    pub fn address(self) -> u32 {
+        self.0.as_ptr() as usize as u32
+    }
+
+    /// +0x0 (ptr<vostok::render::backend>): the render backend ([2260490h]; the compressor's reset 0x11F4D7)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn backend(self) -> Option<Backend> {
+        unsafe { self.0.byte_add(0x0).cast::<Option<Backend>>().read_volatile() }
+    }
+
+    /// +0x0 (ptr<vostok::render::backend>): the render backend ([2260490h]; the compressor's reset 0x11F4D7)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn set_backend(self, value: Option<Backend>) {
+        unsafe { self.0.byte_add(0x0).cast::<Option<Backend>>().write_volatile(value) }
+    }
+}
+
 /// A vostok::physics::bullet_physics_world (fields_026g.tsv): a pointer to one, never 0. Made only here: by a typed field,
 /// a function's typed result or a site's typed register (sites_026g.tsv `holds`).
 #[repr(transparent)]
@@ -15888,6 +15941,21 @@ impl MtAllocator {
     }
 }
 
+/// A vostok::render::backend (fields_026g.tsv): a pointer to one, never 0. Made only here: by a typed field,
+/// a function's typed result or a site's typed register (sites_026g.tsv `holds`).
+#[repr(transparent)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct Backend(NonNull<c_void>);
+
+#[allow(dead_code)]
+impl Backend {
+    /// Its address as a value (an id, a compare): never read through.
+    #[inline(always)]
+    pub fn address(self) -> u32 {
+        self.0.as_ptr() as usize as u32
+    }
+}
+
 /// The image's data: VAs of the game's (fields_026g.tsv, the kinds ending in ::image).
 #[allow(dead_code)]
 pub mod image {
@@ -16075,6 +16143,13 @@ pub mod image {
     pub fn mt_allocator() -> MtAllocator {
         // SAFETY: an image VA, not 0.
         MtAllocator(unsafe { NonNull::new_unchecked(0xa8001c as *mut c_void) })
+    }
+
+    /// 0x2260490 (obj<vostok::render::backend_slot>, survarium::image): the render backend's global (mov edi,[2260490h] / call backend::reset, 0x11F4D7)
+    #[inline(always)]
+    pub fn backend_global() -> BackendSlot {
+        // SAFETY: an image VA, not 0.
+        BackendSlot(unsafe { NonNull::new_unchecked(0x2260490 as *mut c_void) })
     }
 }
 
