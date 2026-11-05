@@ -38,6 +38,7 @@
 
 pub mod built;
 mod config;
+pub mod controller;
 pub mod digest;
 pub mod format;
 pub mod grid;
