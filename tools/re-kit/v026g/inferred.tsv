@@ -3218,3 +3218,19 @@ va	status	ref_021d	name
 0x0030a350	inferred-medium		survarium::grenade_set_core::splash_hit_params
 0x00304a40	inferred-medium		survarium::booby_trap_core::hit_victim
 0x003055f0	inferred-medium		survarium::booby_trap_core::splash_hit_params
+0x003134c0	inferred-medium		survarium::artefact_base::on_spawned
+0x0031b8e0	inferred-medium		survarium::generic_anomaly_core::register_artefacts
+0x0031c360	inferred-medium		vostok::buffer_vector<survarium::artefact_base *>::push_back
+0x00285c50	inferred-medium		survarium::game_project::resolve_links
+0x00318d30	inferred-medium		survarium::game_project_core::resolve_links
+0x002ee930	inferred-medium		survarium::artefact_core_cook::create_resource
+0x002eea30	inferred-medium		survarium::artefact_cook::callback_offset
+0x002ffdd0	inferred-medium		survarium::inventory_item::count
+0x002ea440	inferred-medium		vostok::type_id<survarium::artefact_cook_data>
+0x0022fd70	inferred-medium		vostok::variant<32>::try_get<survarium::game_object_cook_data>
+0x0022fcc0	inferred-medium		vostok::variant<32>::set<survarium::game_object_cook_data>
+0x0022f8c0	inferred-medium		vostok::variant<32>::try_get<survarium::project_cook_data>
+0x0021e7f0	inferred-medium		vostok::type_id<survarium::project_cook_data>
+0x002cc920	inferred-medium		vostok::variant<32>::try_get<survarium::level_cook_data>
+0x00219520	inferred-medium		vostok::type_id<survarium::level_cook_data>
+0x002194c0	inferred-medium		vostok::variant<32>::set<survarium::level_cook_data>
