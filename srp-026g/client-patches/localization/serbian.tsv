@@ -2185,8 +2185,10 @@ st_sr3m_description	Opis još nije dostupan.
 st_sr3m_name	SR-3M "Vikhr"
 st_srp_ammo069_23mm_r_desc	Metak kalibra 23 mm sa sitnom sačmom, za KS-23M. Nanosi veliku štetu neoklopljenim metama.
 st_srp_ammo069_23mm_r_name	23x75R, sačma
+st_srp_ammo_buckshot	Sačma
 st_srp_ammo_scar_ap_desc	Pancirni meci 7,62x51 za FN SCAR-H. Svaka torbica za municiju prima 20 metaka.
 st_srp_ammo_scar_ap_name	7,62x51 AP SCAR-H, 20 metaka
+st_srp_ammo_slug	Kugla
 st_srp_ammo_stats	Osobine municije
 st_srp_attachments	Dodaci
 st_srp_crosshair_dynamic	Dinamični nišan
@@ -2451,6 +2453,7 @@ st_srp_inv_ammo_range	Domet
 st_srp_inv_bullet_speed	Brzina metka
 st_srp_inv_defuse_time	Vreme deaktiviranja
 st_srp_inv_fuse_time	Vreme upaljača
+st_srp_inv_material_pierce	Probija
 st_srp_inv_pellets	Sačme
 st_srp_inv_pocket_units	Mesta u džepu
 st_srp_inv_stamina_damage	Šteta izdržljivosti
@@ -2526,6 +2529,14 @@ st_srp_mouse_lock_option	Zaključaj vertikalnu osetljivost
 st_srp_mouse_vertical_option	Vertikalna osetljivost
 st_srp_optics	Optika
 st_srp_options_hud	HUD:
+st_srp_pierce_brick	Cigla, čelik
+st_srp_pierce_car	Automobil
+st_srp_pierce_concrete	Beton
+st_srp_pierce_glass	Staklo
+st_srp_pierce_plywood	Šperploča
+st_srp_pierce_stone	Kamen
+st_srp_pierce_tinplate	Lim
+st_srp_pierce_value	%1$s · %2$s
 st_srp_play_in_squad	U odredu
 st_srp_pvb_at_limit	Već je pokrenut najveći dozvoljeni broj mečeva protiv botova, pokušaj ponovo za minut
 st_srp_pvb_at_limit_count	Već je pokrenut najveći dozvoljeni broj mečeva protiv botova (%1$s/%2$s), pokušaj ponovo za minut
@@ -2702,7 +2713,6 @@ st_srp_weapon069_mauser_m712_name	Mauser M.712
 st_srp_weapon069_ppsh_drum_desc	Automat Špagin sa dobošastim okvirom za 71 metak, municija 7,62x25. Podržava pojedinačnu i automatsku paljbu.
 st_srp_weapon069_ppsh_drum_name	PPSH-41 „Doboš“
 st_srp_weapon_aim_zoom	Osnovno uvećanje
-st_srp_weapon_bullet_speed_varies	Promenljiva
 st_srp_weapon_chamber	Vreme repetiranja
 st_srp_weapon_draw_time	Vreme vađenja
 st_srp_weapon_full_damage	Puna šteta do

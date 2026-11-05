@@ -2185,8 +2185,10 @@ st_sr3m_description	OPIS NIE JEST GOTOWY
 st_sr3m_name	SR-3M "Wichr"
 st_srp_ammo069_23mm_r_desc	Nabój kalibru 23 mm nabity śrutem, do KS-23M. Zadaje poważne obrażenia nieopancerzonym celom.
 st_srp_ammo069_23mm_r_name	23x75R, Śrutowa
+st_srp_ammo_buckshot	Śrut
 st_srp_ammo_scar_ap_desc	Przeciwpancerne naboje 7,62x51 do FN SCAR-H. Każda ładownica mieści 20 nabojów.
 st_srp_ammo_scar_ap_name	7,62x51 AP SCAR-H, 20 nabojów
+st_srp_ammo_slug	Breneka
 st_srp_ammo_stats	Statystyki amunicji
 st_srp_attachments	Dodatki
 st_srp_crosshair_dynamic	Celownik dynamiczny
@@ -2451,6 +2453,7 @@ st_srp_inv_ammo_range	Zasięg
 st_srp_inv_bullet_speed	Prędkość pocisku
 st_srp_inv_defuse_time	Czas rozbrajania
 st_srp_inv_fuse_time	Czas zapalnika
+st_srp_inv_material_pierce	Przebija
 st_srp_inv_pellets	Śruciny
 st_srp_inv_pocket_units	Miejsca w kieszeni
 st_srp_inv_stamina_damage	Obrażenia wytrzymałości
@@ -2526,6 +2529,14 @@ st_srp_mouse_lock_option	Zablokuj czułość pionową
 st_srp_mouse_vertical_option	Czułość pionowa
 st_srp_optics	Optyka
 st_srp_options_hud	HUD:
+st_srp_pierce_brick	Cegła, stal
+st_srp_pierce_car	Samochód
+st_srp_pierce_concrete	Beton
+st_srp_pierce_glass	Szkło
+st_srp_pierce_plywood	Sklejka
+st_srp_pierce_stone	Kamień
+st_srp_pierce_tinplate	Blacha
+st_srp_pierce_value	%1$s · %2$s
 st_srp_play_in_squad	W oddziale
 st_srp_pvb_at_limit	Trwa już maksymalna liczba rozgrywek z botami, spróbuj ponownie za minutę
 st_srp_pvb_at_limit_count	Trwa już maksymalna liczba rozgrywek z botami (%1$s/%2$s), spróbuj ponownie za minutę
@@ -2702,7 +2713,6 @@ st_srp_weapon069_mauser_m712_name	Mauser M.712
 st_srp_weapon069_ppsh_drum_desc	Pistolet maszynowy Szpagina z magazynkiem bębnowym na 71 naboi, amunicja: 7,62x25. Ogień pojedynczy i ciągły.
 st_srp_weapon069_ppsh_drum_name	PPSz-41 „Bęben”
 st_srp_weapon_aim_zoom	Bazowe przybliżenie
-st_srp_weapon_bullet_speed_varies	Zmienna
 st_srp_weapon_chamber	Czas repetowania
 st_srp_weapon_draw_time	Czas wyciągnięcia
 st_srp_weapon_full_damage	Pełne obrażenia do
