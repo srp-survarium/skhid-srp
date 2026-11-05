@@ -283,6 +283,8 @@ unsafe extern "thiscall" {
     pub fn engine_di_queue_next_capture(queue: Option<DiCommandQueue>, notify: Option<RenderNotify>);
     /// 0x505cb0 Scaleform::RefCountImpl::Release: queue ECX; pops 0; thiscall, called directly
     pub fn engine_di_queue_release(queue: Option<DiCommandQueue>);
+    /// 0x3b9c00 vostok::input::platform::keyboard::get_dik_name: keyboard ECX, key ESP+4, name ESP+8, size ESP+12; pops 12; AL; thiscall, called directly
+    pub fn engine_key_name(keyboard: Option<Keyboard>, key: u32, name: *mut u8, size: u32) -> u8;
 }
 
 #[allow(dead_code, non_upper_case_globals)]
@@ -319,6 +321,12 @@ unsafe extern "C" {
     pub static engine_get_process_heap: unsafe extern "stdcall" fn() -> *mut c_void;
     /// the IAT slot 0x870054 (an import, stdcall): unsigned int engine_heap_free(void *heap, unsigned int flags, void *memory)
     pub static engine_heap_free: unsafe extern "stdcall" fn(*mut c_void, u32, *mut c_void) -> u32;
+    /// the IAT slot 0xaeff20 (an import, stdcall): unsigned int engine_activate_keyboard_layout(unsigned int layout, unsigned int flags)
+    pub static engine_activate_keyboard_layout: unsafe extern "stdcall" fn(u32, u32) -> u32;
+    /// the IAT slot 0x87003c (an import, stdcall): void *engine_get_module_handle_a(const char *name)
+    pub static engine_get_module_handle_a: unsafe extern "stdcall" fn(*const u8) -> *mut c_void;
+    /// the IAT slot 0x870084 (an import, stdcall): void *engine_get_proc_address(void *module, const char *name)
+    pub static engine_get_proc_address: unsafe extern "stdcall" fn(*mut c_void, *const u8) -> *mut c_void;
 }
 
 /// A survarium::player_input_handler (fields_026g.tsv): a pointer to one, never 0. Made only here: by a typed field,
@@ -8113,6 +8121,15 @@ impl Keyboard {
     pub unsafe fn keys(self) -> KeyState {
         KeyState(unsafe { self.0.byte_add(0x4) })
     }
+
+    /// +0x408 (obj<vostok::input::key_event>): the events GetDeviceData buffers (execute 0x3B8D41/0x3B9080: DIDEVICEOBJECTDATA, at most 40h, their count to +404h at 0x3B914B), read by execute's loop (0x3B915E) and process (0x3B9B0E)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn events(self) -> KeyEvent {
+        KeyEvent(unsafe { self.0.byte_add(0x408) })
+    }
 }
 
 /// A vostok::input::key_state (fields_026g.tsv): a pointer to one, never 0. Made only here: by a typed field,
@@ -13559,6 +13576,73 @@ impl MessageFrame {
     }
 }
 
+/// A vostok::input::key_event (fields_026g.tsv): a pointer to one, never 0. Made only here: by a typed field,
+/// a function's typed result or a site's typed register (sites_026g.tsv `holds`).
+#[repr(transparent)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct KeyEvent(NonNull<c_void>);
+
+#[allow(dead_code)]
+impl KeyEvent {
+    /// Its address as a value (an id, a compare): never read through.
+    #[inline(always)]
+    pub fn address(self) -> u32 {
+        self.0.as_ptr() as usize as u32
+    }
+
+    /// +0x0 (u32): DIDEVICEOBJECTDATA.dwOfs: the key's DirectInput code, the index of the keys' states (execute 0x3B916A, 0x3B91EE; process 0x3B9B20)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn key(self) -> *mut u32 {
+        unsafe { self.0.byte_add(0x0).cast::<u32>().as_ptr() }
+    }
+
+    /// 0x14 bytes: a DIDEVICEOBJECTDATA (GetDeviceData's push 14h 0x3B9081; execute's add ecx,14h 0x3B91F2)
+    pub const SIZE: usize = 0x14;
+
+    /// The `index`th of an array of them that starts at this one.
+    ///
+    /// # Safety
+    /// The array has more than `index`.
+    #[inline(always)]
+    pub unsafe fn at(self, index: usize) -> Self {
+        Self(unsafe { self.0.byte_add(index * Self::SIZE) })
+    }
+
+    /// Which of an array that starts at `first` this one is (None before `first`, or between two).
+    #[inline(always)]
+    pub fn index_from(self, first: Self) -> Option<usize> {
+        let offset = (self.0.as_ptr() as usize).checked_sub(first.0.as_ptr() as usize)?;
+        (offset % Self::SIZE == 0).then_some(offset / Self::SIZE)
+    }
+}
+
+/// Room of ours for vostok::input::key_events (0x14 bytes, aligned to 4), zeroed: a local the game fills,
+/// or one we fill for it.
+#[repr(C, align(4))]
+pub struct KeyEventStorage([u8; 0x14]);
+
+#[allow(dead_code)]
+impl KeyEventStorage {
+    pub const fn zeroed() -> Self {
+        Self([0; 0x14])
+    }
+
+    /// The one this room holds (alive while the room is).
+    #[inline(always)]
+    pub fn handle(&mut self) -> KeyEvent {
+        KeyEvent(NonNull::from(self).cast())
+    }
+
+    /// The first of these rooms, an array of them (None when there is none).
+    #[inline(always)]
+    pub fn first(rooms: &mut [Self]) -> Option<KeyEvent> {
+        (!rooms.is_empty()).then(|| KeyEvent(NonNull::from(rooms).cast()))
+    }
+}
+
 /// A vostok::physics::bullet_physics_world (fields_026g.tsv): a pointer to one, never 0. Made only here: by a typed field,
 /// a function's typed result or a site's typed register (sites_026g.tsv `holds`).
 #[repr(transparent)]
@@ -16423,6 +16507,30 @@ pub mod site {
         #[inline(always)]
         pub unsafe fn frame(machine: &impl Machine) -> Option<MessageFrame> {
             NonNull::new(machine.site_esp() as usize as *mut c_void).map(MessageFrame)
+        }
+    }
+
+    /// keyboard.events (0x3b914b): keyboard::execute (0x3B8D20) after GetDeviceData filled the event buffer (every successful read joins at 0x3B9147: mov eax,[esp+14h] the count; here mov [edi+404h],eax): EDI the platform keyboard, its events at +408h, EAX their count (at most 40h); before the loop that sets each key's state and the Shift/Ctrl/Alt flags from them (0x3B9159) and process (0x3B9AF0), which hands them to the handlers
+    pub mod keyboard_events {
+        #[allow(unused_imports)]
+        use super::*;
+
+        /// EDI: a vostok::input::keyboard (None for 0).
+        ///
+        /// # Safety
+        /// `machine` is at this site.
+        #[inline(always)]
+        pub unsafe fn keyboard(machine: &impl Machine) -> Option<Keyboard> {
+            NonNull::new(machine.register(Register::Edi) as usize as *mut c_void).map(Keyboard)
+        }
+
+        /// EAX: a u32 value.
+        ///
+        /// # Safety
+        /// `machine` is at this site.
+        #[inline(always)]
+        pub unsafe fn count(machine: &impl Machine) -> u32 {
+            machine.register(Register::Eax)
         }
     }
 }

@@ -475,3 +475,19 @@ extern engine_ray_needs_collision
 ; 0xa02d0 btCollisionWorld::rayTestSingle: from ESP+4, to ESP+8, object ESP+12, shape ESP+16, transform ESP+20, callback ESP+24; pops 0; cdecl, called directly
 ; cdecl: push (and ECX for thiscall) as that convention says
 extern engine_ray_test_single
+; unsigned char engine_key_name(struct keyboard *keyboard, unsigned int key, char *name, unsigned int size)
+; 0x3b9c00 vostok::input::platform::keyboard::get_dik_name: keyboard ECX, key ESP+4, name ESP+8, size ESP+12; pops 12; AL; thiscall, called directly
+; thiscall: push (and ECX for thiscall) as that convention says
+extern engine_key_name
+; unsigned int engine_activate_keyboard_layout(unsigned int layout, unsigned int flags)
+; the IAT slot 0xaeff20 (an import, stdcall)
+; `call [symbol]`: stdcall, it pops its arguments
+extern engine_activate_keyboard_layout
+; void *engine_get_module_handle_a(const char *name)
+; the IAT slot 0x87003c (an import, stdcall)
+; `call [symbol]`: stdcall, it pops its arguments
+extern engine_get_module_handle_a
+; void *engine_get_proc_address(void *module, const char *name)
+; the IAT slot 0x870084 (an import, stdcall)
+; `call [symbol]`: stdcall, it pops its arguments
+extern engine_get_proc_address

@@ -126,6 +126,7 @@ release's. The "Result" row is the build of the revision named in it.
 | `check_mouse_buttons_026g.py` | Patch 102 (`MOUSE_BUTTONS` in `patch_026g.py`): a side mouse button (mouse4..mouse8) is no left click in the lobby, login, options and match menus; its check runs the five handlers in both exes (needs Unicorn) |
 | `rust/patches/src/footsteps.rs`, `src/footsteps.toml`, `src/vostok/footstep.rs`, `check_footsteps_026g.py` | Patch 101: a footstep that only a re-simulation makes (another player's late input) is heard instead of dropped; one lohook in on_player_sound_event's time test; its check runs the handler in both exes (needs Unicorn) |
 | `rust/patches/src/keyboard_layout.rs`, `src/keyboard_layout.toml`, `src/vostok/keyboard_layout.rs`, `check_keyboard_layout_026g.py` | Patch 107: chat text follows the keyboard layout the window was last told of (under Wine the engine's logic thread never got it); three lohooks, in message_processor's two layout messages and after translate_text's GetKeyboardLayout(0); its check runs both functions in both exes (needs Unicorn) |
+| `rust/patches/src/key_remap.rs`, `src/key_remap.toml`, `src/vostok/keyboard.rs` (`KeyEvents`, `KeyMoves`), `src/vostok/system.rs`, `check_key_remap_026g.py` | Patch 110: the keys a desktop moves (xkb `caps:swapescape`, `ctrl:nocaps`) are moved in the game under Wine's Wayland driver, whose DirectInput codes are the physical keys'; one lohook in keyboard::execute after GetDeviceData moves each event's function key to the one the told layout names it; its check runs execute whole in both exes (needs Unicorn) |
 | `audio_device_026g.c`, `audio_device_026g.h`, `audio_device_engine_026g.c`, `test_audio_device_026g.c` | Patch 100: the sound follows the audio output device (XAudio2's engine and voices proxied, made again on the default device after a lost device or a new default); the test runs the core on i686 under the sanitizers against a made-up XAudio2 that keeps its rules (no Unicorn) |
 | `rust/patches/src/sound_voices.rs`, `src/sound_voices.toml`, `src/vostok/voices.rs`, `check_sound_voices_026g.py` | Patch 96: shots no longer go silent under heavy fire (`../docs/notes/sound_voices.md`): the game world's sound scene has 1024 sound instances and propagators (`SOUND_POOLS`, game_world::load 0x1F8DB6/0x1F8DBD), and a sound refused a voice takes the voice of the quietest one playing when that one is less than half as loud (a lohook after create_sound_voice, 0x5CAB0), and the source voice walk is bounded to one pass (`sound_voices_026g.asm`, 0x5E5E7, 0x631D9, 0x59F8E); the check runs the voice loop from that site on made-up scenes with a model of the world's voice pool, and the self-test's `test_sound_pools` (needs Unicorn) |
 | `check_stage_focus_026g.py` | Runs the original's and patch 52's Stage focus getter (Scaleform's `stage.focus`, 0x771FA0) on a made-up movie: focused objects of each kind, none, one without its ActionScript object (the lobby's crash of 2026-10-22) (needs Unicorn) |
@@ -4483,3 +4484,25 @@ until one is recorded. X11: unchanged. Wayland: Alt+Shift switches the chat. Win
 outside a text input carries over to the next chat. Nothing a match computes. The rules:
 `../docs/notes/keyboard_layout.md`; the addresses: `client_patch.md` 3.68. Checked with
 `check_keyboard_layout_026g.py`; not run in a game.
+
+## The desktop's moved keys (patch 110, unreleased)
+
+Since revision 49 (#1240, Wine's Wayland driver under niri) a key the desktop moves does not move in
+the game: with xkb's `caps:swapescape` the Caps Lock key stayed Caps Lock. The game reads the
+keyboard through DirectInput's buffered events (keyboard::execute, 0x3B8D20). Wine's X11 driver
+made each key's scan code from its keysym, so moved keys arrived moved; the Wayland driver gives the
+physical key's scan code (`key2scan` of the evdev code) and its virtual key from a fixed QWERTY table,
+so neither DirectInput nor WM_KEYDOWN sees the move. Only the layout's key names (each physical key's
+keysym, `GetKeyNameTextW`) and its text say it: under `caps:swapescape` the Caps Lock key is named
+`Escape`.
+
+**The patch** (the Rust patch `key_remap`, one lohook, `sites_026g.tsv`): at `keyboard.events`
+(0x3B914B, after GetDeviceData, before the loop that sets the keys' states and before process), each
+event's key among the 14 function keys (Esc, Backspace, Tab, Enter, the Ctrl, Shift, Alt and Windows
+keys, Caps Lock, Menu) becomes the function key its name says; letters and digits stay physical, as
+on Windows. The names are DirectInput's (the game's own get_dik_name, 0x3B9C00) in the layout patch
+107 recorded, lent to the polling thread for the reading (`ActivateKeyboardLayout(hkl, 0)`, then its
+own back), once a layout. Under Windows (no `wine_get_version` in ntdll) and before a layout is told
+nothing moves. X11: the names are the moved keys' own, so nothing moves twice. Each client's own
+keys: nothing a match computes. The rules: `../docs/notes/keyboard_layout.md`; the addresses:
+`client_patch.md` 3.69. Checked with `check_key_remap_026g.py`; not run in a game.

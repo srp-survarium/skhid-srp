@@ -2165,3 +2165,5 @@ va	status	ref_021d	name
 0x00075550	reviewed	0x00056439	vostok::physics::bullet_physics_world::tick
 0x003b92d0	verified	0x00265484	vostok::input::platform::keyboard::translate_text
 0x000181e0	verified	0x000152cc	message_processor
+0x003b9c00	verified	0x00265b8a	vostok::input::platform::keyboard::get_dik_name
+0x003b8d20	verified	0x00265091	vostok::input::platform::keyboard::execute

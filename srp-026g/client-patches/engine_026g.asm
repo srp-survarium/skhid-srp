@@ -147,6 +147,10 @@ global engine_buffer_reallocate
 global engine_ray_callback
 global engine_ray_needs_collision
 global engine_ray_test_single
+global engine_key_name
+global engine_activate_keyboard_layout
+global engine_get_module_handle_a
+global engine_get_proc_address
 engine_action_present equ 0x242460   ; 0x242460 survarium::player_input_handler::action_present: handler ESP+4, action ESP+8, state ESP+12; pops 12; AL; stdcall, called directly
 engine_create_file_a equ 0x870048   ; the IAT slot 0x870048 (an import, stdcall)
 engine_write_file equ 0x870108   ; the IAT slot 0x870108 (an import, stdcall)
@@ -191,6 +195,10 @@ engine_get_process_heap equ 0x870050   ; the IAT slot 0x870050 (an import, stdca
 engine_heap_free equ 0x870054   ; the IAT slot 0x870054 (an import, stdcall)
 engine_detach_voice equ 0x5cb80   ; 0x5cb80 vostok::sound::new_sound_propagator::detach_voice: propagator ESP+4; pops 4; stdcall, called directly
 engine_ray_test_single equ 0xa02d0   ; 0xa02d0 btCollisionWorld::rayTestSingle: from ESP+4, to ESP+8, object ESP+12, shape ESP+16, transform ESP+20, callback ESP+24; pops 0; cdecl, called directly
+engine_key_name equ 0x3b9c00   ; 0x3b9c00 vostok::input::platform::keyboard::get_dik_name: keyboard ECX, key ESP+4, name ESP+8, size ESP+12; pops 12; AL; thiscall, called directly
+engine_activate_keyboard_layout equ 0xaeff20   ; the IAT slot 0xaeff20 (an import, stdcall)
+engine_get_module_handle_a equ 0x87003c   ; the IAT slot 0x87003c (an import, stdcall)
+engine_get_proc_address equ 0x870084   ; the IAT slot 0x870084 (an import, stdcall)
 
 engine_cfg_child:
     ; 0xf6b10 vostok::configs::binary_config_value::operator[]: table EAX, key EDI; pops 0; EAX

@@ -16,12 +16,18 @@
 
 #![forbid(unsafe_code)]
 
-use crate::vostok::keyboard_layout::{activated_layout, requested_layout, ActiveLayout, TextLayout};
+use crate::vostok::keyboard_layout::{activated_layout, requested_layout, ActiveLayout, Hkl, TextLayout};
 use crate::vostok::{Context, Flow, NoExit};
 
 /// The layout the window procedure was last told of: written on the
 /// window's thread, read on the logic thread.
 static LAYOUT: ActiveLayout = ActiveLayout::none();
+
+/// The layout the window procedure was last told of, if any (patch 110's
+/// keys follow it too).
+pub fn told() -> Option<Hkl> {
+    LAYOUT.get()
+}
 
 pub fn on_request(ctx: &mut Context) -> Flow<NoExit> {
     if let Some(hkl) = requested_layout(ctx) {
