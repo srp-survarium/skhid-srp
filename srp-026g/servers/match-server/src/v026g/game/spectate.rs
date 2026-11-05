@@ -143,17 +143,17 @@ pub(crate) struct Spectator {
 
 impl Game {
     /// The game at `addr` of `session_id` connects as a spectator (its
-    /// session watches this match: the lobby's Queue and spectate).
+    /// session watches this match: the lobby's Queue and spectate). A match
+    /// that is over, or not of growing rosters, takes none: its transport
+    /// back, for the server to turn it away.
     pub(crate) fn watch(
         &mut self,
         addr: SocketAddr,
         session_id: u32,
         mut transport: Transport,
-        now: Instant,
-    ) {
+    ) -> Result<(), Transport> {
         if self.finished_at.is_some() || !self.growing_roster() {
-            transport.disconnect(now);
-            return;
+            return Err(transport);
         }
         // One game a session, one session an address.
         self.spectators
@@ -179,6 +179,7 @@ impl Game {
             reports: VecDeque::new(),
             restarts: VecDeque::new(),
         });
+        Ok(())
     }
 
     /// The spectator at `addr`, if any: one that watches takes its

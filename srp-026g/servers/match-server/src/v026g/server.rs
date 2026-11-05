@@ -469,20 +469,23 @@ impl Server {
         session_id: u32,
         ticket: u32,
         debug: u8,
-        mut transport: Transport,
+        transport: Transport,
         now: Instant,
     ) {
         let growing = survarium::v026g::match_msgs::late_join::has_connect_capability(debug);
-        match self.games.get_mut(&ticket) {
-            Some(game) if growing && game.growing_roster() => {
-                game.watch(addr, session_id, transport, now);
+        let watched = match self.games.get_mut(&ticket) {
+            Some(game) if growing => game.watch(addr, session_id, transport),
+            _ => Err(transport),
+        };
+        match watched {
+            Ok(()) => {
                 self.spectator_routes.insert(addr, ticket);
                 self.store.seen_in_match(session_id);
             }
-            _ => {
+            Err(mut transport) => {
                 log::info!(
                     "{addr} connected to watch match {ticket:#x} (session {session_id:#x}), \
-                     which is not played here in its dialect; turned away"
+                     which is not played here in its dialect, or is over; turned away"
                 );
                 transport.disconnect(now);
                 self.pending.insert(addr, transport);
