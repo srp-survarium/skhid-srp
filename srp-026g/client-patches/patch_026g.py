@@ -544,6 +544,12 @@ Patches:
   sweeps a sphere of 0.04 m (GRENADE_CCD, 0x303A13), not 0.01 m, inside the
   grenade's 0.05 m capsule, so the capsule stops at the surface it hits
   instead of 4 cm into it. A simulation change;
+- the mouse look's pitch is 16:9's at every window, and with "Lock vertical
+  sensitivity" unticked the vertical slider's at 1:1 (patch 112, the Rust
+  patch mouse_pitch; docs/notes/mouse-pitch.md): on_mouse_move's height over
+  width (0x2402E9) is 0.5625 while locked, and unlocked the factor that
+  makes a count's pitch radians the yaw's, up and down; the death camera's
+  (patch 46) too. The input carries the turn: nothing a match computes;
 - the baked camouflage and decal textures are kept from game to game, and
   a texture asked for again while its bake or load is under way is made
   once (patch 70, with the late join; docs/notes/baked-textures.md). The
@@ -755,7 +761,7 @@ WORLD_UNPACK = (
 # its "Release revision <n>" commit), never a feature change: a release
 # builds with --revision=<n>, the live exe's + 1, which changes the revision
 # byte alone, and records <n> here once it went out.
-REVISION = 49
+REVISION = 50
 # The first revision whose default build takes the lobby's replay link
 # (REPLAY_LINK): the server's replay rule asks for it
 # (session::v026g::replays::MIN_REVISION).
@@ -1167,6 +1173,13 @@ DEATH_CAMERA_EXITS = (WARMUP_LOOK_VA, WARMUP_LIMITS_VA + WARMUP_DRAG_END_OFFSET,
 DEATH_CAMERA_EXITS_EXPECTED = sorted([(0xE9, WARMUP_LOOK_VA), (0xE9, WARMUP_LOOK_VA),
                                       (0xE8, WARMUP_LIMITS_VA + WARMUP_DRAG_END_OFFSET),
                                       (0xE9, DEATH_UPDATE_VA), (0xE9, DEATH_THIRD_VA)])
+# The drag's pitch (patch 112): a dword of the code (zeros in the file) the
+# build writes with patch 112's entry mouse.death_pitch, which `.turn` calls:
+# EAX 0 with "Lock vertical sensitivity" ticked (the stock step, h / w 16:9's
+# 0.5625, 0xA2D79C), EAX 1 and XMM1 the vertical sensitivity unticked (its
+# radians a count the yaw's); without the arena the call is skipped, locked.
+DEATH_CAMERA_PITCH = 0x184
+DEATH_PITCH_ENTRY = "mouse_pitch_on_death_pitch"   # the generated entry of mouse.death_pitch
 
 # The order of the archive reads (patch 33, README; client_patch.md section
 # 3.31). vostok::resources::hdd_manager_sorting_predicate::operator()
@@ -1501,6 +1514,16 @@ MOUSE_BUTTONS = (
     (0x26D059, bytes.fromhex("750e"), bytes.fromhex("7521")),   # -> 0x26D07C mov al,1 / pop esi
     (0x28DCEE, bytes.fromhex("750e"), bytes.fromhex("7520")),   # -> 0x28DD10 mov al,1 / pop ecx
 )
+
+# The mouse look's pitch (patch 112, client_patch.md section 3.70,
+# ../docs/notes/mouse-pitch.md): the Rust patch mouse_pitch
+# (rust/patches/src/mouse_pitch.rs), a lohook at on_mouse_move's pitch step
+# (mouse.pitch_step, 0x2402E9): with "Lock vertical sensitivity" ticked (the
+# default) the stock step with h / w fixed at 16:9's 0.5625, bit for bit the
+# game at a 16:9 window; unticked, the factor making a count's pitch radians
+# the yaw's at the vertical sensitivity (1 looking up, 60/67.5 looking down,
+# pi/3 in the warmup's orbit); and an entry patch 46's drag calls through
+# its DEATH_CAMERA_PITCH dword.
 
 # "Watch replay" (patch revision 14, client_patch.md section 3.27). The
 # lobby movie's ExternalInterface call video_tutorial_link_clicked is the
@@ -3833,7 +3856,8 @@ def build_image(original, mode, code=None, server=None, late_join=None, revision
         data = add_section(data, cave)
         if late_join is not None:
             add_state_section(data, late_join_state_va(late_join))
-            data = add_code_section(data, DEATH_CAMERA_NAME, death_camera_va(late_join), death_camera,
+            data = add_code_section(data, DEATH_CAMERA_NAME, death_camera_va(late_join),
+                                    with_death_pitch(death_camera, linked),
                                     DEATH_CAMERA_CHARACTERISTICS)
             data = add_code_section(data, WEAPON_CAMO_NAME, weapon_camo_va(late_join), weapon_camo,
                                     WEAPON_CAMO_CHARACTERISTICS)
@@ -4093,6 +4117,18 @@ def weapon_decals_bin():
 
 def upgrade_preview_bin():
     return os.path.join(os.path.dirname(os.path.abspath(__file__)), "upgrade_preview_026g.section.bin")
+
+
+def with_death_pitch(code, linked):
+    """death_camera_026g.section.bin (`code`) with its pitch_entry dword
+    (DEATH_CAMERA_PITCH, zeros in the file) holding patch 112's entry of the
+    arena `linked`; as it is without one."""
+    if code[DEATH_CAMERA_PITCH:DEATH_CAMERA_PITCH + 4] != bytes(4):
+        sys.exit("death_camera_026g.section.bin: its pitch_entry dword is not the zeros the build fills")
+    if linked is None or DEATH_PITCH_ENTRY not in linked.symbols:
+        return code
+    target = struct.pack("<I", arena_target(linked, DEATH_PITCH_ENTRY))
+    return code[:DEATH_CAMERA_PITCH] + target + code[DEATH_CAMERA_PITCH + 4:]
 
 
 def with_kit_apply(code, linked):

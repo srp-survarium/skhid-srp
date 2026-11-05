@@ -9,6 +9,36 @@ release that made it what it is now.
 
 ---
 
+## 5 Nov, 19:51 — TODO: the owner's words (update required)
+
+<!-- Revision 50 (026g-rev50), released 2026-11-05 19:51 UTC. To be worded for players; what it shipped: -->
+
+- TODO: #1308 Lobby: only a buy started in the shop asks about an item owned already
+- TODO: #1311 Grenade and trap cards, with Alt after skills
+- TODO: #1312 Artifact-master: artefacts recharge 20% faster (built-in bonus 1310)
+- TODO: #1268 Medical tree retune: combo skills, fewer ranks, tier-5 either/or
+- TODO: #1315 Regeneration booster: regenerates to full health, starts 2 s sooner
+- TODO: #1313 Blackout: Tab no longer stops a held Use (artefact search, refill)
+- TODO: #1316 Gun-stock hits to the hand kill (patch 108)
+- TODO: #1330 Patch 110: keys the desktop moves are moved in the game under Wine's Wayland driver
+- TODO: #1283 Test bullet hits at the crossing millisecond, not the 50 ms grid
+- TODO: #1323 Opt-in Vulkan renderer (DXVK) for Windows players
+- TODO: #1326 Force Protein: gun-stock kills by its carrier send the ragdoll flying (visual)
+- TODO: #1338 Ragdoll: no travel cap, a thrown body flies on until friction stops it
+- TODO: #1334 Calculator: a wall in front of the target
+- TODO: #1339 Login and main menu: closing a message gives the focus back (Esc, close, Enter signs in)
+- TODO: #1341 Renderer list: open under its box, and the restart hint
+- TODO: #1331 Patch 70 (bake_cache) in Rust
+- TODO: #1343 Lobby: held Alt, Bear Arms shows a cancelled movement penalty
+- TODO: #1342 Calculator: the formula as numbered steps with this shot's numbers
+- TODO: #1347 Rooms: private rooms with bots
+- TODO: #1328 Mouse look: "Lock vertical sensitivity": 16:9's look at every window when locked, 1:1 when unlocked (patch 110)
+- TODO: #1348 VPN.txt: zapret settings and AmneziaVPN's white-list mode
+- TODO: #1349 hud-options harness: Controls part passes again; mouse sliders at their borders
+- TODO: #1346 Calculator: the glass wall is just Glass
+- TODO: #1340 Weapon card: Pierces, the best round per stat, shotguns by kind
+- TODO: #1350 tools/check: run only the checks a change affects, cached by their inputs
+
 ## 5 Nov, 09:40 — TODO: the owner's words (update required)
 
 <!-- Revision 49 (026g-rev49), released 2026-11-05 09:40 UTC. To be worded for players; what it shipped: -->

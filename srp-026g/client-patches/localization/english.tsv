@@ -2185,8 +2185,10 @@ st_sr3m_description	ОПИСАНИЕ НЕ ГОТОВО!!!
 st_sr3m_name	SR-3M "Vikhr"
 st_srp_ammo069_23mm_r_desc	A 23 mm round stuffed with smallshot, for the KS-23M. Provides high damage against non-armoured targets.
 st_srp_ammo069_23mm_r_name	23x75R, smallshot
+st_srp_ammo_buckshot	Buckshot
 st_srp_ammo_scar_ap_desc	Armour-piercing 7.62x51 cartridges for the FN SCAR-H. Each ammunition bag holds 20 rounds.
 st_srp_ammo_scar_ap_name	7.62x51 AP SCAR-H, 20-round pack
+st_srp_ammo_slug	Slug
 st_srp_ammo_stats	Ammo stats
 st_srp_attachments	Attachments
 st_srp_crosshair_dynamic	Dynamic crosshair
@@ -2451,6 +2453,7 @@ st_srp_inv_ammo_range	Range
 st_srp_inv_bullet_speed	Bullet speed
 st_srp_inv_defuse_time	Defuse time
 st_srp_inv_fuse_time	Fuse time
+st_srp_inv_material_pierce	Pierces
 st_srp_inv_pellets	Pellets
 st_srp_inv_pocket_units	Pocket slots
 st_srp_inv_stamina_damage	Stamina damage
@@ -2516,13 +2519,24 @@ st_srp_matches_starting	starting
 st_srp_matches_title	Matches
 st_srp_matches_versus	v
 st_srp_matches_waiting	waiting
+st_srp_melee_knockback	Melee knockback
 st_srp_mode_blackout	Protective device: blackout
 st_srp_mode_chargers	Protective device: chargers
 st_srp_mode_protective_device	Protective device
 st_srp_mode_research	Research
 st_srp_mode_team_deathmatch	Team Deathmatch
+st_srp_mouse_lock_option	Lock vertical sensitivity
+st_srp_mouse_vertical_option	Vertical sensitivity
 st_srp_optics	Optics
 st_srp_options_hud	HUD:
+st_srp_pierce_brick	Brick, steel
+st_srp_pierce_car	Car
+st_srp_pierce_concrete	Concrete
+st_srp_pierce_glass	Glass
+st_srp_pierce_plywood	Plywood
+st_srp_pierce_stone	Stone
+st_srp_pierce_tinplate	Tinplate
+st_srp_pierce_value	%1$s · %2$s
 st_srp_play_in_squad	In squad
 st_srp_pvb_at_limit	The most bot matches at a time are already running, try again in a minute
 st_srp_pvb_at_limit_count	The most bot matches at a time are already running (%1$s/%2$s), try again in a minute
@@ -2545,6 +2559,9 @@ st_srp_pvb_searching	Leave the search first
 st_srp_pvb_team_size	%1$s vs %2$s
 st_srp_pvb_title	Player vs Bots
 st_srp_pvb_unknown_choice	This map or team size is not available now
+st_srp_renderer_dx11	DirectX 11
+st_srp_renderer_dxvk	Vulkan/DXVK
+st_srp_renderer_option	Renderer
 st_srp_replay_asking	Asking the match server for the replay of this match…
 st_srp_replay_being_made	The replay is being made from the match record. This happens the first time anyone watches this match and takes a little while.\nYou can close this window: the server keeps making it.\n\n%1$s
 st_srp_replay_busy	The server is busy with other replays right now. Try again in a minute.
@@ -2575,6 +2592,7 @@ st_srp_rooms_all	All
 st_srp_rooms_all_rooms	All rooms
 st_srp_rooms_any	Any
 st_srp_rooms_back	Back
+st_srp_rooms_bots	With bots
 st_srp_rooms_code_10	The owner removed you from that room.
 st_srp_rooms_code_11	Leave your clan team first.
 st_srp_rooms_code_12	Your equipment is above the max level.
@@ -2695,7 +2713,6 @@ st_srp_weapon069_mauser_m712_name	Mauser M.712
 st_srp_weapon069_ppsh_drum_desc	Shpagin submachine gun with a 71-round drum magazine, ammo: 7.62x25. Supports single shot and automatic fire modes.
 st_srp_weapon069_ppsh_drum_name	PPSH-41 "Drum"
 st_srp_weapon_aim_zoom	Base aim zoom
-st_srp_weapon_bullet_speed_varies	Varies
 st_srp_weapon_chamber	Chambering time
 st_srp_weapon_draw_time	Draw time
 st_srp_weapon_full_damage	Full damage up to

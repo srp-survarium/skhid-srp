@@ -2492,6 +2492,23 @@ check "build-content: ... no site pages without --site: said, the tree as it was
 check "build-content: ... the item tables of its server data, in --out; unchanged: said, the tree's untouched" bash -c \
     "tail -n 1 $T/item-tables.args | grep -qx -- '$T/work/content-rev41/server-game-data.db --dir $T/work/content-rev41/item-tables' && grep -q '  equipment.tsv: unchanged' <<<\"\$1\" && test ! -e $C/srp-026g/docs/data" _ "$out"
 check "build-content: ... says what is next" has "$out" "next: release/release.sh --resources $T/work/content-rev41/resources.db.patch_41"
+check "build-content: ... how long each step took" has "$out" "^time: the manifest (build_content.py) [0-9.]* s$"
+# The cache ($XDG_CACHE_HOME/skhid-release/build-content): the same tree again takes each step's
+# result from it, and makes the same files as a build without it (--no-cache).
+from_cache='made it: the cache\|composed them: the cache'
+out=$("$bc" 41 --out "$T/work/c41c" 2>&1) || fail "build-content, again: $out"
+check "build-content: again: the movie and the edit list from the cache" bash -c \
+    "grep -q '  movie m: .*made it: the cache' <<<\"\$1\" && grep -q '  edit e1.json: .*made it: the cache' <<<\"\$1\"" _ "$out"
+out=$("$bc" 41 --out "$T/work/c41n" --no-cache 2>&1) || fail "build-content --no-cache: $out"
+check "build-content --no-cache: every step runs" bash -c "! grep -q '$from_cache' <<<\"\$1\"" _ "$out"
+for file in resources.db.patch_41 server-game-data.db files.tsv; do
+    check "build-content: the first build, again from the cache and with --no-cache: the same $file" bash -c \
+        "cmp -s $T/work/content-rev41/$file $T/work/c41c/$file && cmp -s $T/work/c41c/$file $T/work/c41n/$file"
+done
+rm -rf "$T/cache/skhid-release/build-content"
+out=$("$bc" 41 --out "$T/work/c41d" 2>&1) || fail "build-content, the cache deleted: $out"
+check "build-content: the cache deleted: every step runs, the same patch" bash -c \
+    "! grep -q '$from_cache' <<<\"\$1\" && cmp -s $T/work/content-rev41/resources.db.patch_41 $T/work/c41d/resources.db.patch_41" _ "$out"
 expect_refused "build-content never overwrites" "already there" "$bc" 41 --out "$T/work/content-rev41"
 out=$("$bc" 41 --out "$T/work/c41site" --site 2>&1) || fail "build-content --site: $out"
 check "build-content --site: the site's pages in its tree, of the list and the new patch" bash -c \

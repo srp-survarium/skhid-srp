@@ -3928,12 +3928,16 @@ def test_death_camera(original, image, before):
     identity_at = (data_at + 24 + 15) // 16 * 16
     identity = struct.pack("<16f", 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1)
     limits = [round(math.degrees(a), 4) for a in (yaw_max, yaw_min, pitch_up, pitch_down)] == [70, -70, 60, -40]
-    parts = ((0, data_at, ["call [eax+0x30]", "call [eax+0x1c]", f"call {drag_end:#x}"], ["ret 0x10"],
-              {P.WARMUP_LOOK_VA}, {0xA74AEC, 0x1F1D9D3, state, state + 4}
+    pitch_slot = death_va + P.DEATH_CAMERA_PITCH
+    parts = ((0, data_at, ["call [eax+0x30]", f"call [dword {pitch_slot:#x}]", f"call {drag_end:#x}"], ["ret 0x10"],
+              {P.WARMUP_LOOK_VA}, {0xA74AEC, 0x1F1D9D3, 0xA2D79C, pitch_slot, state, state + 4}
               | {death_va + data_at + 4 * i for i in range(6)}),
              (P.DEATH_VIEW_OFFSET, len(code), None, ["ret 0x8"], {P.DEATH_UPDATE_VA, P.DEATH_THIRD_VA},
               {state, state + 4}))
-    good = image.read(death_va, len(code)) == code and limits \
+    built = image.read(death_va, len(code))
+    pitch_entry = struct.unpack_from("<I", built, P.DEATH_CAMERA_PITCH)[0]
+    good = built[:P.DEATH_CAMERA_PITCH] + bytes(4) + built[P.DEATH_CAMERA_PITCH + 4:] == code and limits \
+        and code[P.DEATH_CAMERA_PITCH:P.DEATH_CAMERA_PITCH + 4] == bytes(4) and P.ARENA_VA <= pitch_entry < P.ARENA_VA + P.ARENA_LIMIT \
         and code[identity_at:identity_at + 64] == identity \
         and set(code[data_at + 24:identity_at] + code[identity_at + 64:P.DEATH_VIEW_OFFSET]) <= {0xCC}
     for begin, end, calls, rets, exits, absolute in parts:
@@ -3961,13 +3965,15 @@ def test_death_camera(original, image, before):
         == ["mulps xmm1,xmm4", "mulps xmm2,xmm5", "addps xmm1,xmm2", "mulps xmm0,xmm6", "addps xmm1,xmm0"] * 3
     check(good and P.FOV_LOD_STATE_OFFSET + P.FOV_LOD_STATE_SIZE <= P.DEATH_CAMERA_STATE_OFFSET
           and P.DEATH_CAMERA_STATE_OFFSET + P.DEATH_CAMERA_STATE_SIZE <= P.LATE_JOIN_STATE_SIZE
-          and abs(step_value - math.pi / 180 * 0.1) < 1e-9 and abs(aspect - 0.95492965) < 1e-7,
+          and abs(step_value - math.pi / 180 * 0.1) < 1e-9 and abs(aspect - 0.95492965) < 1e-7
+          and struct.unpack("<f", stock.read(0xA2D79C, 4))[0] == 0.5625 and 0x870000 <= 0xA2D79C < 0x870000 + 2021888,
           f"the code at {death_va:#x} (.srpc) is death_camera_026g.section.bin ({len(code)} bytes): death_look "
           f"begins with warmup_look's test of the kits, leaves to warmup_look ({P.WARMUP_LOOK_VA:#x}) alone, "
-          "calls the hud's pointer (vtable+30h), the window's size (vtable+1Ch) and the end of a drag, keeps the "
+          "calls the hud's pointer (vtable+30h), patch 112's pitch entry through its dword (the build's, in .srpx) "
+          "and the end of a drag (not the window's size), keeps the "
           f"drag in warmup_look's state ({look_state:#x}) and the turn at {state:#x} (the late join's page "
-          f"+{P.DEATH_CAMERA_STATE_OFFSET:#x}), reads the options sensitivity, mouse_invertion and its two constants (pi/180 "
-          "x 0.1, 0.9549) and the turn's limits (70 degrees either side, 60 up, 40 down); death_view leaves to "
+          f"+{P.DEATH_CAMERA_STATE_OFFSET:#x}), reads the options sensitivity, mouse_invertion, its two constants "
+          "(pi/180 x 0.1, 0.9549), .rdata's 0.5625 (0xA2D79C: patch 112's locked 16:9) and the turn's limits (70 degrees either side, 60 up, 40 down); death_view leaves to "
           "the view's update or its third-person step after the update's own start, which it gives the "
           "identity, then multiplies the turn by the eyes' three rows; every branch inside lands on an "
           "instruction; `ret 10h` and `ret 8`")
@@ -5074,6 +5080,43 @@ def test_grenade_ccd(original, image, before):
     built = sorted(v for kind, v in image.relocations().values() if kind == 3 and va <= v < va + len(old))
     check(relocated == [va + 4] == built, "the operand's base relocation (0x303A17) is the original's and stays")
     hits = [h for h in aimed_inside(original, va, len(old), 0x82) if not va <= h < va + len(old)
+            and starts_instruction(stock, h)]
+    check(not hits, "no branch aims inside the site" + "".join(f", {h:#x}" for h in hits))
+
+
+def test_mouse_pitch(original, image, before):
+    """Check 112: the mouse look's pitch is 16:9's at every window, locked; with
+    "Lock vertical sensitivity" unticked, 1:1 (patch 112, the Rust patch mouse_pitch;
+    ../docs/notes/mouse-pitch.md).
+    check_mouse_pitch_026g.py runs on_mouse_move at 4:3, 16:9 and 21:9."""
+    stock = Image(original)
+    rows = lambda source, va, size: [text for _, _, text in ndisasm(source.read(va, size), va)]
+    f32 = lambda source, va: struct.unpack("<f", source.read(va, 4))[0]
+    check(rows(stock, 0x2402B0, 0x240319 - 0x2402B0) == [
+              "mov eax,ecx", "mov ecx,[eax+0x334]", "mov edx,[ecx+0x9c]", "mov esi,[edx+0x5348]", "mov eax,[esi]",
+              "mov edx,[eax+0x1c]", "lea ecx,[esp+0x1e8]", "push ecx", "mov ecx,esi", "call edx", "lea edi,[eax+0x4]",
+              "mov eax,[esi]", "mov edx,[eax+0x1c]", "lea ecx,[esp+0x1f8]", "push ecx", "mov ecx,esi", "call edx",
+              "movss xmm1,dword [edi]", "divss xmm1,dword [eax]", "movss xmm2,dword [esp+0x28]", "mulss xmm1,xmm2",
+              "mulss xmm1,dword [esp+0x1c]", "mulss xmm1,dword [dword 0xa2dac4]", "mov edi,[esp+0x18]",
+              "mov eax,[edi+0x338]", "movss dword [esp+0x1c],xmm1"]
+          and abs(f32(stock, 0xA2DAC4) - 3 / math.pi) < 1e-7,
+          "player_input_handler::on_mouse_move: the pitch's step is the render window's height (+4) over its width "
+          "(game+5348h, vtable+1Ch, floats) x the yaw's step x the invert x 3/pi (0xA2DAC4)")
+    va, size = 0x2402E9, 18
+    hooks = [(at, old, symbol, opcode) for at, old, symbol, opcode in P.rust_hooks(original) if at == va]
+    check(len(hooks) == 1 and hooks[0][2] == "mouse_pitch_on_pitch_step" and hooks[0][3] == 0xE9
+          and hooks[0][1] == stock.read(va, size) == before.read(va, size)
+          and rows(stock, va, size) == ["movss xmm1,dword [edi]", "divss xmm1,dword [eax]",
+                                        "movss xmm2,dword [esp+0x28]", "mulss xmm1,xmm2"],
+          f"{va:#x}: the site of patch 112's lohook mouse.pitch_step (18 bytes: h / w, the yaw's step, their "
+          "product) in the original and the build without the late join")
+    jump = rows(image, va, 5)
+    target = branch_target(jump[0]) if jump else None
+    check(target is not None and jump[0].startswith("jmp") and P.ARENA_VA <= target < P.ARENA_VA + P.ARENA_LIMIT,
+          f"{va:#x}: a jump into the arena (.srpx) here")
+    under = lambda source: [v for kind, v in source.relocations().values() if kind == 3 and va - 3 <= v < va + size]
+    check(not under(stock) and not under(image), "no base relocation is under the site, in the original or the build")
+    hits = [h for h in aimed_inside(original, va, size, 0x82) if not va <= h < va + size
             and starts_instruction(stock, h)]
     check(not hits, "no branch aims inside the site" + "".join(f", {h:#x}" for h in hits))
 
@@ -6932,9 +6975,11 @@ def test_late_join(original, without, server, source):
     check(name_c == P.DEATH_CAMERA_NAME and flags_c == P.DEATH_CAMERA_CHARACTERISTICS
           and rva_c == state_rva + state_size and P.IMAGE_BASE + rva_c == P.death_camera_va(code)
           and vsize_c == len(death) and raw_c == raw + rsize and rsize_c == align(vsize_c, headers.file_alignment)
-          and bytes(data[raw_c:raw_c + vsize_c]) == death and set(data[raw_c + vsize_c:raw_c + rsize_c]) <= {0xCC},
-          f".srpc at VA {P.IMAGE_BASE + rva_c:#x}: death_camera_026g.section.bin ({len(death)} bytes) and int3 "
-          "padding, code | execute | read, on the page after .srpd, its file bytes right after .srp's")
+          and bytes(data[raw_c:raw_c + vsize_c]) == P.with_death_pitch(death, P.arena())
+          and set(data[raw_c + vsize_c:raw_c + rsize_c]) <= {0xCC},
+          f".srpc at VA {P.IMAGE_BASE + rva_c:#x}: death_camera_026g.section.bin ({len(death)} bytes, its pitch_entry "
+          "dword patch 112's entry of the arena) and int3 padding, code | execute | read, on the page after .srpd, its "
+          "file bytes right after .srp's")
     camo = open(P.weapon_camo_bin(), "rb").read()
     camo = camo + b"\xCC" * (P.WEAPON_STASH_OFFSET - len(camo)) + open(P.weapon_stash_bin(), "rb").read()
     camo = camo + b"\xCC" * (P.WEAPON_TABLE_OFFSET - len(camo)) + open(P.weapon_table_bin(), "rb").read()
@@ -7141,6 +7186,7 @@ def test_late_join(original, without, server, source):
     test_kill_feed(original, image, before)
     test_fall_gravity(original, image, before)
     test_grenade_ccd(original, image, before)
+    test_mouse_pitch(original, image, before)
     test_bake_cache(original, image, before)
     test_bake_async(original, image, before)
     test_ragdoll(original, image, before)

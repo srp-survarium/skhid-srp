@@ -48,6 +48,12 @@ Edits (edits.json):
   "_inputs":        [{"files" (glob)}]               read-only dependencies supplied by build-content.
                     add_entry with reload_clip_ratio:true copies the empty/tactical hands-clip
                     duration ratio into prop_value, only for state 314. Declare its clips here.
+                    add_entry with "pierce_line": {"tiers": [[material, text], ...]} puts in a
+                    round's prop_value, for each weapon the dictionary pairs it with, the hardest
+                    material their bullet gets through and the damage it keeps there (pierce_lines:
+                    "<weapon dict_id>:<rank>:<text>:<percent> ..."), only on the rounds of its
+                    `files`. Declare the weapons, game_materials/game.materials and
+                    gameplay/db_static_dictionaries here.
   "retime_reload":  [{"files" (glob)}]               compile explicit reload_empty_time pairs after
                     weapon-stats.tsv. Private hands/item clips and event times follow the pair;
                     declare source .b-spline and .bones_names dependencies in _inputs.
@@ -690,6 +696,91 @@ def promoted_defaults(read, categories, from_top):
     return edits
 
 
+GAME_MATERIALS = 'game_materials/game.materials'
+
+
+def single(v):
+    """`v` in single precision, as the game computes."""
+    return struct.unpack('<f', struct.pack('<f', v))[0]
+
+
+def pierce_kept(pierce, armor):
+    """What a wall of material `armor` leaves of a bullet of piercing `pierce` (its damage, speed and
+    piercing are all multiplied by it; 0 stops it), as survarium::bullet::try_pierce 0x32D960 computes
+    it in single precision: t = clamp((P - A) / A, 0, 1), 1 when A is 0; 1 - (1 - t)^2. No thickness
+    and no angle: every wall of the material alike."""
+    t = 1.0 if armor == 0 else min(1.0, max(0.0, single(single(pierce - armor) / armor)))
+    return single(1 - single(single(1 - t) * single(1 - t)))
+
+
+def pierce_lines(read, paths, spec):
+    """{round config: its pierce line} (add_entry's `pierce_line`), for each round config of `paths`
+    the item dictionary pairs (items_compatibility) with a weapon config of `paths`: for each such
+    weapon, by its dictionary id ascending, "<dict_id>:<rank>:<text>:<percent>", space-separated.
+    The text is the hardest tier the pair's bullet gets through, as try_pierce has it: piercing P
+    above the material's armor A (it stops at P <= A; A = 0 lets every bullet through); the rank the
+    tier's place, 0 the softest (the lobby compares cards by it); the percent what of its damage it
+    keeps there, round(100 x pierce_kept). P is the weapon's parameters/bullet_pierce x the round's
+    data/k_arp (bullet::bullet 0x32BA60: +74h = ammo +24h x weapon +520h). spec["tiers"]:
+    [material, text], softest first, their game_materials/game.materials `armor` rising from 0.
+    The round carries its weapons' texts, the weapon none: no weapon config grows (several are
+    within 3 entries of the client's arena, tables.rs MAX_CONFIG_ENTRIES); the lobby takes a
+    weapon's from its rounds."""
+    mats = read(GAME_MATERIALS)
+    armor = {}
+    for i, _ in enumerate(children(mats, find(mats, 'materials'))):
+        at = 'materials[%d]' % i
+        armor[value_of(mats, find(mats, at + '/name'))] = value_of(mats, find(mats, at + '/physic/armor'))
+    missing = [m for m, _ in spec['tiers'] if m not in armor]
+    if missing:
+        raise ValueError('pierce_line: no material %s in %s' % (missing[0], GAME_MATERIALS))
+    tiers = [(armor[m], text) for m, text in spec['tiers']]
+    if tiers[0][0] != 0 or any(a >= b for (a, _), (b, _) in zip(tiers, tiers[1:])):
+        raise ValueError('pierce_line: the tiers\' armor is not 0 and rising: %s' %
+                         ', '.join('%s %g' % (m, armor[m]) for m, _ in spec['tiers']))
+    cache = {}
+
+    def number(cfg, path):
+        if cfg not in paths:
+            return None
+        if cfg not in cache:
+            cache[cfg] = read(cfg)
+        try:
+            return value_of(cache[cfg], find(cache[cfg], path))
+        except KeyError:
+            return None
+    dictionary = read(DICTIONARY)
+    cfg_of = {}
+    for i, _ in enumerate(children(dictionary, find(dictionary, 'items_dict'))):
+        at = 'items_dict[%d]' % i
+        cfg_of[value_of(dictionary, find(dictionary, at + '/dict_id'))] = value_of(dictionary, find(dictionary, at + '/cfg_name'))
+    lines = {}  # round config -> {weapon dict id: "<rank>:<text>:<percent>"}
+    for pair in children(dictionary, find(dictionary, 'items_compatibility')):
+        ids = [value_of(dictionary, find(dictionary, k, pair)) for k in ('first_item', 'second_item')]
+        for wid, mid in (ids, ids[::-1]):
+            w, m = cfg_of.get(wid), cfg_of.get(mid)
+            pierce, k_arp = number(w, 'parameters/bullet_pierce'), number(m, 'data/k_arp')
+            if pierce is None or k_arp is None:
+                continue
+            bullet = single(pierce * k_arp)
+            rank, wall, text = [(rank, a, text) for rank, (a, text) in enumerate(tiers) if a == 0 or bullet > a][-1]
+            percent = math.floor(100 * pierce_kept(bullet, wall) + 0.5)
+            lines.setdefault(m, {})[wid] = '%d:%s:%d' % (rank, text, percent)
+    return {m: ' '.join('%d:%s' % (wid, line) for wid, line in sorted(texts.items())) for m, texts in lines.items()}
+
+
+def prop_text(buf, prop_id):
+    """The `ui_desc/props_list` text of line `prop_id`, None when the config has no such line."""
+    try:
+        lines = children(buf, find(buf, 'ui_desc/props_list'))
+    except KeyError:
+        return None
+    for entry in lines:
+        if value_of(buf, find(buf, 'prop_id', entry)) == prop_id:
+            return value_of(buf, find(buf, 'prop_value', entry))
+    return None
+
+
 def shifted(path, lst, at):
     """A path of the file before an entry was put at `at` of the table `lst`, after it."""
     head = lst + '['
@@ -1207,6 +1298,9 @@ STATS = {
             # after a hit (seconds) and to its limit (a fraction of the maximum, at most all of it)
             'regen_delay': default_modification(129),
             'regen_limit': default_modification(130),
+            # srp's player modifier 29, which the exe never reads (force-protein-knockback-1.json): the
+            # ragdoll (patch 76, visual only) pushes a gun-stock kill's body 1 + it times as hard
+            'knockback': default_modification(133),
         },
         'match': {'weight', 'artefact_cooldown', 'regen_delay', 'regen_limit', 'health_regen', 'stamina_regen', 'movement', 'max_weight',
                   'artefact_search', 'sway', 'respawn'},
@@ -2268,7 +2362,12 @@ def main():
             print('localization %s: %d keys, no fallback' % (p, len(new_keys)))
     for e in edits.get('add_entry', []):
         n = 0
-        for p in sorted(fnmatch.filter(list(files) + list(copies), e['files'])):
+        paths = sorted(fnmatch.filter(list(files) + list(copies), e['files']))
+        # Computed from the live files (the weapons, materials and dictionary declared in _inputs):
+        # each round's pierce line.
+        pierced = pierce_lines(lambda path: bufs[path] if path in bufs else bytearray(open(files[path], 'rb').read()),
+                               set(files) | set(copies), e['pierce_line']) if e.get('pierce_line') else None
+        for p in paths:
             b = bytearray(open(files[p], 'rb').read()) if p not in bufs else bufs[p]
             if e.get('only_if'):
                 try:
@@ -2283,6 +2382,10 @@ def main():
                 if ratio is None:
                     continue
                 values = dict(values, prop_value=format(ratio, '.9g'))
+            if pierced is not None:
+                if p not in pierced:
+                    continue
+                values = dict(values, prop_value=pierced[p])
             at = add_entry(b, e['list'], e['after'], e['like'], values)
             if at is None:
                 continue

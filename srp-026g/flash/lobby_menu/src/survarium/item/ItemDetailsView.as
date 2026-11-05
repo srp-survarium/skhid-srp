@@ -13,6 +13,9 @@ package survarium.item
    public final class ItemDetailsView extends Sprite
    {
       private var contentHeight:Number = 0;
+      // A row under a stat (entry.child) steps its label in by SUBROW_INDENT (the row's units) and takes
+      // SUBROW_STRIDE of a row.
+      public static const SUBROW_INDENT:Number = 16, SUBROW_STRIDE:Number = 0.8;
       override public function get height() : Number { return contentHeight; }
       public function ItemDetailsView()
       {
@@ -88,19 +91,22 @@ package survarium.item
             {
                row.direction = entry.comparison.kind == "higher";
                row.value = entry.comparison.value;
-               // A dash (no such stat) compares with nothing.
-               row.compare = compared == null || compared.comparison.kind != entry.comparison.kind ? entry.comparison.value : compared.comparison.value;
+               // A dash (no such stat) compares with nothing; a row may name what it compares with
+               // (against: a shotgun's Buckshot against the other weapon's best).
+               if(entry.comparison.against !== undefined) row.compare = entry.comparison.against;
+               else row.compare = compared == null || compared.comparison.kind != entry.comparison.kind ? entry.comparison.value : compared.comparison.value;
             }
             else row.value = row.compare = 0;
             row.setDetailText(entry.label,entry.value,entry.verdict);
             row.validateNow();
+            if(entry.child) stepIn(row);
             var lines:int = row.detailLines;
             // Both cards reserve the larger label height for a compared row.
             // Different falloff distances can wrap differently in translation.
             // Held Alt, a wider value ("base -> in a match") leaves its label less room, too.
             if(compared != null && (compared.label != entry.label || effects != null && compared.value != entry.value))
                lines = Math.max(lines,linesOf(compared));
-            nextY += stride * Math.max(1,lines);
+            nextY += stride * Math.max(1,lines) * (entry.child ? SUBROW_STRIDE : 1);
          }
          contentHeight = nextY * scaleY;
       }
@@ -115,6 +121,13 @@ package survarium.item
          var lines:int = probe.indicator.detailLines;
          removeChild(probe);
          return lines;
+      }
+
+      // A row under a stat (entry.child: a shotgun's Buckshot and Slug): its label SUBROW_INDENT to the
+      // right, after the row's first layout (configUI puts it at the native column); a kind's word is short.
+      private static function stepIn(row:LabelDiffIndicator) : void
+      {
+         row.textFieldLabel.x += SUBROW_INDENT;
       }
    }
 }

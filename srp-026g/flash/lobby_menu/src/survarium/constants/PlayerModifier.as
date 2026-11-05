@@ -48,6 +48,10 @@ package survarium.constants
       // a medicine's damage protection coefficient (medkit::reduce_damage)
       public static const DRUG_HIT_COEFF:int = 58;
 
+      // Bear Arms (skill 112), additive: above 0 the drawn weapon's movement penalty is not added
+      // to the speed (weapon_core::initialize 0x2E2C5C..0x2E2C9C)
+      public static const BEAR_ARMS:int = 62;
+
       // By card property: the player modifier an armour piece's modification adds to (its
       // `parameters/<name>_modifier`, type 1; ui_properties' prop_id of the modification).
       public static const BY_ARMOUR_PROPERTY:Object = {

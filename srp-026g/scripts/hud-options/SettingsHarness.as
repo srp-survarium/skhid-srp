@@ -1,6 +1,8 @@
 package
 {
     import flash.display.DisplayObject;
+    import flash.display.DisplayObjectContainer;
+    import flash.utils.getQualifiedClassName;
     import flash.display.Loader;
     import flash.display.MovieClip;
     import flash.display.Sprite;
@@ -38,6 +40,10 @@ package
 
         private var loader:Loader = new Loader();
         private var frames:int = 0;
+        // The texts of check.sh (texts[n][14..16]: "Renderer", "DirectX 11", "Vulkan/DXVK").
+        private var texts:Array;
+        // The gameplay tab's settings and values as check() gave them.
+        private var gameplay:Array;
 
         public function SettingsHarness()
         {
@@ -112,6 +118,59 @@ package
                     settings.settings_content._setter_static_minimap_position.open();
                 }
                 if (frames == 230) trace("SETTINGS SHOT minimap");
+                if (frames == 240)
+                {
+                    settings.settings_content._setter_static_minimap_position.close();
+                    // the toggle of the checked shot dropped
+                    click(settings.btn_cancel);
+                }
+                // the Graphics tab after the gameplay shots: its controls tell their changes a frame later
+                if (frames == 250)
+                {
+                    try
+                    {
+                        checkGraphics(settings, settings.settings_content, gameplay[0], gameplay[1]);
+                    }
+                    catch (error:Error)
+                    {
+                        trace("SETTINGS RESULT fail: " + error.message);
+                    }
+                }
+                if (frames == 270) graphicsTab(settings, "1");
+                if (frames == 300) trace("SETTINGS SHOT graphics");
+                if (frames == 330)
+                {
+                    // Cancel, as a player would, what the earlier tabs left pending: checkGraphics leaves the
+                    // Graphics tab in the frame it bound it (a player cannot), and that tab's stock lists and
+                    // steppers tell their bound values a frame later, on the gameplay tab, as changes. With
+                    // nothing pending Cancel is Exit, which would close Settings.
+                    if (settings.btn_accept.enabled) click(settings.btn_cancel);
+                    var domain:ApplicationDomain = loader.contentLoaderInfo.applicationDomain;
+                    var texts:Array = JSON.parse(loaderInfo.parameters.texts) as Array;
+                    // the controls tab, after the gameplay tab's screenshots (its stock stepper takes a
+                    // value of its own at a later visit, which a test player's tab bar cannot avoid)
+                    try
+                    {
+                        checkControls(Object(loader.content), settings, texts, domain);
+                        trace("SETTINGS controls pass");
+                        checkBorders(Object(loader.content), settings, texts, domain);
+                        trace("SETTINGS borders pass");
+                    }
+                    catch (error:Error)
+                    {
+                        trace("SETTINGS RESULT fail: " + error.message);
+                    }
+                    controls(Object(loader.content), settings, domain, 1.25);
+                    Object(loader.content).srp_check_option("srp_mouse_vertical_locked", texts[0][17], "1");
+                    Object(loader.content).srp_slider_option("srp_mouse_vertical", texts[0][18], "100");
+                }
+                if (frames == 360) trace("SETTINGS SHOT controls-off");
+                if (frames == 370)
+                {
+                    settings.settings_content.getChildByName("_srp_mouse_vertical_locked").selected = false;
+                    settings.settings_content.getChildByName("_srp_mouse_vertical").slider.value = 2.35;
+                }
+                if (frames == 400) trace("SETTINGS SHOT controls-on");
             });
         }
 
@@ -125,6 +184,12 @@ package
                 return [item.y, item.y + Math.max(item.textField.y + item.textField.textHeight + 4, 26)];
             var bounds:Rectangle = item.getBounds(item.parent);
             return [bounds.top, bounds.bottom];
+        }
+
+        // Equal slider values (a slider keeps n x its snap, not the decimal).
+        private static function close(a:Number, b:Number):Boolean
+        {
+            return Math.abs(a - b) < 1e-6;
         }
 
         // Equal places (x and y are kept in twips, 1/20 px).
@@ -275,12 +340,260 @@ package
             return [cross.selectedIndex, Object(content)._setter_static_cross.selected];
         }
 
+        // The Graphics tab as the exe makes it: its 19 options (English labels, values as a game's), then
+        // the Renderer list's answers (`saved`: "1" Vulkan).
+        private function graphicsTab(settings:*, saved:String, running:String = "0"):void
+        {
+            var root:* = loader.content;
+            var labels:Array = ["Monitor", "Resolution", "Fullscreen", "Vertical sync", "Antialiasing", "Texture filtering",
+                "Gamma:", "Field of view", "Overall", "Textures", "Geometry", "Shadows", "Lighting", "Water", "Decorations",
+                "Post process", "Ambient occlusion", "Particles", "Motion blur"];
+            var list:Array = [], values:Array = [];
+            for (var i:int = 0; i < labels.length; ++i)
+            {
+                var option:Object = {label: labels[i], setter: function(value:*):* { return value; }};
+                if (i == 0) option.dataProvider = ["Generic PnP Monitor"];
+                else if (i == 1) option.dataProvider = ["1920x1080", "1280x720"];
+                else if (i == 4) option.dataProvider = ["Off", "2x", "4x"];
+                else if (i == 5) option.dataProvider = ["Bilinear", "Trilinear", "Anisotropic"];
+                else if (i != 2 && i != 3 && i != 6 && i != 7) option.dataProvider = ["Low", "Medium", "High"];
+                list.push(option);
+                values.push({id: i, value: i < 2 || i == 3 ? 0 : i == 2 ? 1 : i == 6 || i == 7 ? 0 : 2});
+            }
+            try
+            {
+                settings.selectIndex(2);
+            }
+            catch (error:Error)
+            {
+                // the tab's change calls the exe, which a test player lacks
+            }
+            settings.settings_content.gotoAndStop(3);
+            root.set_settings(2, list);
+            root.set_values(2, values);
+            root.srp_hud_texts(texts[0][2], texts[0][5], texts[0][6], texts[0][7], texts[0][8], texts[0][9], texts[0][15],
+                texts[0][16], texts[0][4]);
+            root.srp_check_option("srp_dxvk", texts[0][14], saved, running);
+            // the gamma slider's label, which the game sets through the timeline's alias (its FLA text otherwise)
+            settings.settings_content.slider_gamma.textField.text = "Gamma:";
+        }
+
+        // The Graphics tab's Renderer list (patch 83's srp_dxvk, docs/notes/dxvk-option.md): shown there
+        // only, once the exe answers, built as Monitor's (its label on its left, the same size), one of
+        // Monitor's steps under it; the rows under it one step down, in order without overlaps, the preset
+        // buttons side by side inside their panel, its bottom kept; every dictionary's label and choices
+        // inside the list's fields; a pick pending until Apply, Cancel dropping it. Ends back on the
+        // gameplay tab.
+        // The Renderer note's room (SrpRendererChoice.NOTE_ROOM).
+        private static const NOTE_ROOM:Number = 20;
+
+        // The open list of the stage (a dropdown's OptionScrollingList, PopUpManager's), or null.
+        private function openList(at:DisplayObjectContainer):DisplayObject
+        {
+            for (var i:int = 0; i < at.numChildren; ++i)
+            {
+                var child:DisplayObject = at.getChildAt(i);
+                if (child.visible && getQualifiedClassName(child).indexOf("OptionScrollingList") >= 0) return child;
+                var inner:DisplayObjectContainer = child as DisplayObjectContainer;
+                var found:DisplayObject = inner != null ? openList(inner) : null;
+                if (found != null) return found;
+            }
+            return null;
+        }
+
+        // The Renderer's note (the Language choice's "Applies after restart."): in its room under the list,
+        // at the list's label, in the column, over nothing, under both lists' open popups; shown and hidden
+        // the rows stay where they are; every dictionary's note fits its width.
+        private function checkNote(settings:*, content:MovieClip, list:*, monitor:*):void
+        {
+            var c:* = content;
+            var note:TextField = content.getChildByName("_srp_renderer_note") as TextField;
+            var rows:Array = [c._fscr_resolution, c._fullscreen, c._vsync, c._antialias, c._filtering, c.slider_gamma, c._slider_fov];
+            var hidden:Array = rows.map(function(r:*, ...rest):Number { return r.y; });
+            require(note != null && !note.visible, "note: hidden while the saved choice is the running one");
+            graphicsTab(settings, "1", "0");
+            require(note.visible && note.text == texts[0][4], "note: shown while Vulkan is saved and DirectX 11 runs");
+            var shown:Array = rows.map(function(r:*, ...rest):Number { return r.y; });
+            require(hidden.join() == shown.join(), "note: the rows stay where they are (" + hidden + " / " + shown + ")");
+            var listBottom:Number = list.getBounds(content).bottom;
+            var resolutionTop:Number = span(c._fscr_resolution)[0];
+            var columnEnd:Number = monitor.x + monitor.width;
+            var widest:Number = 0;
+            for each (var row:Array in texts)
+            {
+                note.text = row[4];
+                require(note.textWidth + 4 <= note.width && note.x + note.width <= columnEnd + 0.1, "note: " + row[4]
+                    + " fits the column (" + note.textWidth + " of " + note.width + ", to " + (note.x + note.width) + ")");
+                var top:Number = note.y, bottom:Number = note.y + note.textHeight + 4;
+                require(top >= listBottom - 0.1 && bottom <= resolutionTop + 0.1, "note: " + row[4] + " between the list ("
+                    + listBottom + ") and Resolution (" + resolutionTop + "): " + top + "-" + bottom);
+                widest = Math.max(widest, note.textWidth);
+            }
+            require(near(note.x, list.x + list.textFieldLabel.x), "note: at the list's label");
+            // the open lists against the widest dictionary's note
+            var longest:String = texts[0][4];
+            for each (row in texts)
+            {
+                note.text = row[4];
+                if (note.textWidth > widest - 0.01) longest = row[4];
+            }
+            note.text = longest;
+            // the open lists: the Renderer's under its box (where Monitor's opens), both over the note
+            var Point:Class = loader.contentLoaderInfo.applicationDomain.getDefinition("flash.geom.Point") as Class;
+            var lefts:Array = [];
+            for each (var dropdown:* in [monitor, list])
+            {
+                dropdown.open();
+                var open:DisplayObject = openList(content.stage);
+                require(open != null, "note: " + dropdown.name + "'s list opens");
+                var bounds:Rectangle = open.getBounds(content.stage);
+                lefts.push(bounds.left);
+                // the note's text where it meets the open list: the list on top there, or apart
+                var drawn:Rectangle = new Rectangle(note.x, note.y, note.textWidth + 4, note.textHeight + 4);
+                var topLeft:* = content.localToGlobal(new Point(drawn.x, drawn.y));
+                var meet:Rectangle = new Rectangle(topLeft.x, topLeft.y, drawn.width, drawn.height).intersection(bounds);
+                if (!meet.isEmpty())
+                {
+                    var under:Array = content.stage.getObjectsUnderPoint(new Point(meet.x + meet.width / 2, meet.y + meet.height / 2));
+                    var topmost:DisplayObject = under.length > 0 ? under[under.length - 1] : null;
+                    var inList:Boolean = false;
+                    for (var o:DisplayObject = topmost; o != null; o = o.parent) if (o == open) inList = true;
+                    require(inList, "note: " + dropdown.name + "'s open list (" + bounds + ") is over the note where they meet");
+                }
+                trace("SETTINGS Graphics: " + dropdown.name + "'s open list " + bounds + (meet.isEmpty() ? ", apart from the note" : ", over the note") + " (" + note.text + ")");
+                dropdown.close();
+                require(openList(content.stage) == null, "note: " + dropdown.name + "'s list closes");
+            }
+            require(Math.abs(lefts[0] - lefts[1]) < 1, "note: the Renderer's list opens at Monitor's box (" + lefts + ")");
+            note.text = texts[0][4];
+            graphicsTab(settings, "0", "0");
+            require(!note.visible && rows.map(function(r:*, ...rest):Number { return r.y; }).join() == hidden.join(),
+                "note: hidden again, the rows where they were");
+            trace("SETTINGS Graphics: the note between " + listBottom + " and " + resolutionTop + ", the widest " + widest
+                + " of " + note.width + "; both lists open at x " + lefts);
+        }
+
+        private function checkGraphics(settings:*, content:MovieClip, gameplay:Array, gameplayValues:Array):void
+        {
+            var root:* = loader.content;
+            var list:* = content.getChildByName("_srp_renderer");
+            require(list != null && !list.visible, "Renderer: not on the gameplay tab");
+            var fresh:* = new (Object(content).constructor as Class)();
+            fresh.gotoAndStop(3);
+            graphicsTab(settings, "0");
+            var c:* = content;
+            require(c.currentFrame == 3 && list.visible && list.alpha == 1 && list.textFieldLabel.text == texts[0][14]
+                && list.selectedIndex == 0 && list.dataProvider.length == 2 && list.dataProvider[0] == texts[0][15]
+                && list.dataProvider[1] == texts[0][16] && !settings.btn_accept.enabled,
+                "Renderer: on the Graphics tab, the exe's label and choices, DirectX 11, nothing pending");
+            var step:Number = fresh._fscr_resolution.y - fresh._select_monitor.y;
+            var monitor:* = c._select_monitor;
+            require(near(list.x, monitor.x) && near(list.y, monitor.y + step) && Math.abs(list.width - monitor.width) < 1
+                && Math.abs(list.height - monitor.height) < 1, "Renderer: Monitor's size, one of its steps under it ("
+                + list.width + "x" + list.height + " at " + list.y + ")");
+            // the rows under it: one step and the note's room down, kept whether the note shows or not
+            for each (var moved:String in ["_fscr_resolution", "_fullscreen", "_vsync", "_antialias", "_filtering", "slider_gamma"])
+            {
+                require(near(c[moved].y, fresh[moved].y + step + NOTE_ROOM), "Renderer: " + moved + " one step and the note's room down");
+            }
+            checkNote(settings, content, list, monitor);
+            var column:Array = [c._select_monitor, list, c._fscr_resolution, c._fullscreen, c._vsync, c._antialias, c._filtering,
+                c.slider_gamma, c._slider_fov];
+            var panel:Rectangle = c.bottomContainer.getBounds(content);
+            for (var i:int = 0; i < column.length; ++i)
+            {
+                var here:Array = span(column[i]);
+                require(column[i].visible, "Graphics: " + column[i].name + " shown");
+                var next:Number = i + 1 < column.length ? span(column[i + 1])[0] : panel.top;
+                require(here[1] <= next + 1, "Graphics: " + column[i].name + " (" + here + ") over the next (" + next + ")");
+            }
+            // the buttons draw at their new width in the next frame: now, for the measure
+            c.button_optimal_video.validateNow();
+            c.button_default_video.validateNow();
+            var optimal:Rectangle = c.button_optimal_video.getBounds(content);
+            var standard:Rectangle = c.button_default_video.getBounds(content);
+            require(panel.containsRect(optimal) && panel.containsRect(standard) && optimal.right < standard.left
+                && near(optimal.y, standard.y), "Graphics: the preset buttons side by side inside their panel (" + optimal
+                + ", " + standard + " in " + panel + ")");
+            require(near(panel.bottom, fresh.bottomContainer.getBounds(fresh).bottom), "Graphics: the panel's bottom kept");
+            var labelEnd:Number = list.x + list.textFieldLabel.x + list.textFieldLabel.width;
+            var widestLabel:Number = 0, widestChoice:Number = 0;
+            var choices:Object = list.dataProvider;
+            for each (var row:Array in texts)
+            {
+                list.textFieldLabel.text = row[14];
+                require(list.textFieldLabel.textWidth + 4 < list.textFieldLabel.width, "Renderer: " + row[14]
+                    + " fits its label (" + list.textFieldLabel.textWidth + " of " + list.textFieldLabel.width + ")");
+                widestLabel = Math.max(widestLabel, list.textFieldLabel.textWidth);
+                list.dataProvider = new (loader.contentLoaderInfo.applicationDomain.getDefinition("scaleform.clik.data.DataProvider")
+                    as Class)([row[15], row[16]]);
+                for (var choice:int = 0; choice < 2; ++choice)
+                {
+                    list.selectedIndex = choice;
+                    list.validateNow();
+                    // Monitor's list leaves its field a little room: within half its 2-pixel gutters the
+                    // text is drawn whole (the screenshot's "Vulkan/DXVK")
+                    require(list.textField.textWidth + 2 < list.textField.width * list.scaleX, "Renderer: " + row[15 + choice]
+                        + " fits the list (" + list.textField.textWidth + " of " + list.textField.width * list.scaleX + ")");
+                    widestChoice = Math.max(widestChoice, list.textField.textWidth);
+                }
+            }
+            list.textFieldLabel.text = texts[0][14];
+            list.dataProvider = choices;
+            list.selectedIndex = 0;
+            list.validateNow();
+            require(!settings.btn_accept.enabled, "Renderer: nothing pending after the texts' check");
+            trace("SETTINGS Graphics: Renderer at " + list.y + " under Monitor " + monitor.y + ", FOV to " + span(c._slider_fov)[1]
+                + ", panel " + panel.top + "-" + panel.bottom + "; widest label " + widestLabel + ", widest choice " + widestChoice);
+            pick(list, 1);
+            require(settings.btn_accept.enabled, "Renderer: picking Vulkan enables Apply");
+            click(settings.btn_cancel);
+            require(list.selectedIndex == 0 && !settings.btn_accept.enabled, "Renderer: Cancel puts DirectX 11 back");
+            pick(list, 1);
+            click(settings.btn_accept);
+            require(list.selectedIndex == 1 && !settings.btn_accept.enabled, "Renderer: Apply saves Vulkan");
+            var note:* = content.getChildByName("_srp_renderer_note");
+            require(note.visible, "Renderer: the note after Apply of Vulkan (DirectX 11 running)");
+            root.srp_check_option("srp_dxvk", texts[0][14], "1", "0");
+            require(list.selectedIndex == 1 && !settings.btn_accept.enabled && note.visible,
+                "Renderer: the exe's answer (on, DirectX running) keeps it, the note shown");
+            pick(list, 0);
+            require(settings.btn_accept.enabled, "Renderer: DirectX 11 over a saved Vulkan is a change");
+            click(settings.btn_cancel);
+            require(list.selectedIndex == 1, "Renderer: Cancel: Vulkan again");
+            root.srp_check_option("srp_dxvk", texts[0][14], "0", "0");
+            require(list.selectedIndex == 0 && !settings.btn_accept.enabled && !note.visible,
+                "Renderer: the exe's answer sets the saved choice; saved as running, no note");
+            root.srp_check_option("srp_dxvk", texts[0][14], "1", "1");
+            require(!note.visible, "Renderer: Vulkan saved and running: no note");
+            pick(list, 0);
+            click(settings.btn_accept);
+            require(note.visible, "Renderer: Apply of DirectX 11 while DXVK runs: the note");
+            root.srp_check_option("srp_dxvk", texts[0][14], "0", "0");
+            graphicsTab(settings, "0");
+            require(list.visible && near(list.y, monitor.y + step) && near(c._fscr_resolution.y, fresh._fscr_resolution.y + step + NOTE_ROOM),
+                "Renderer: the tab bound again, every row moved once");
+            require(!settings.btn_accept.enabled, "Renderer: nothing pending after the checks");
+            trace("SETTINGS Graphics: Renderer pass");
+            try
+            {
+                settings.selectIndex(0);
+            }
+            catch (error:Error)
+            {
+            }
+            content.gotoAndStop(1);
+            root.set_settings(0, gameplay);
+            root.set_values(0, gameplayValues);
+            require(!list.visible && !settings.btn_accept.enabled, "Renderer: not on the gameplay tab again, nothing pending");
+        }
+
         private function check():void
         {
             // [[hit markers' label, scores' label, the group's heading, "Language:", its restart note, "Hide quests",
             //   the crosshair list's three choices, "Static minimap", the minimap position list's three
             //   (st_minimap_off, _bottom, _top)], ...] for every dictionary
-            var texts:Array = JSON.parse(loaderInfo.parameters.texts) as Array;
+            texts = JSON.parse(loaderInfo.parameters.texts) as Array;
             var root:* = loader.content;
             var settings:* = root.settings_window;
             var content:MovieClip = settings.settings_content;
@@ -290,6 +603,8 @@ package
             try
             {
                 root.set_labels([{name: "gameplay_options_type", label: "Gameplay"}, {name: "controllers_options_type", label: "Controls"},
+                    {name: "video_options_type", label: "Graphics"}, {name: "sound_options_type", label: "Sound"},
+                    {name: "button_optimal_video", label: "Optimal"}, {name: "button_default_video", label: "Default"},
                     {name: "settings_label", label: "Settings"}, {name: "button_apply", label: "Apply"},
                     {name: "button_exit", label: "Exit"}, {name: "button_cancel", label: "Cancel"},
                     {name: "s_friends", label: "Friends:"}, {name: "s_cross", label: "Crosshair:"},
@@ -340,7 +655,7 @@ package
             }
             root.srp_check_option("srp_hide_crosshair", texts[0][8], "0");
             require(!cross.visible, "the crosshair list waits for its texts");
-            root.srp_hud_texts(texts[0][2], texts[0][5], texts[0][6], texts[0][7], texts[0][8], texts[0][9]);
+            root.srp_hud_texts(texts[0][2], texts[0][5], texts[0][6], texts[0][7], texts[0][8], texts[0][9], texts[0][15], texts[0][16], texts[0][4]);
             require(!settings.btn_accept.enabled, "nothing to apply after the answers");
             var heading:TextField = content.getChildByName("_srp_check_group") as TextField;
             require(heading != null && heading.visible && heading.text == texts[0][2], "the group's heading is the exe's: " + (heading ? heading.text : null));
@@ -406,7 +721,7 @@ package
             position.dataProvider = positions;
             position.selectedIndex = shownPosition;
             position.validateNow();
-            root.srp_hud_texts(texts[0][2], texts[0][5], texts[0][6], texts[0][7], texts[0][8], texts[0][9]);
+            root.srp_hud_texts(texts[0][2], texts[0][5], texts[0][6], texts[0][7], texts[0][8], texts[0][9], texts[0][15], texts[0][16], texts[0][4]);
             root.set_values(0, values);
             root.srp_check_option("srp_hide_crosshair", texts[0][8], "0");
             require(!settings.btn_accept.enabled, "nothing pending after the texts' check");
@@ -531,6 +846,8 @@ package
                 "the HUD controls over the bottom panel after a tab change");
             checkLayout(content, boxes, texts, stockOf(content), "after a tab change");
             trace("SETTINGS tabs pass");
+            gameplay = [settingsList, values];
+
 
             var fontName:String = boxes[0].textField.getTextFormat().font;
             var font:Font = null;
@@ -559,6 +876,243 @@ package
             }
             require(missing == "", fontName + " lacks " + missing);
             trace("SETTINGS " + fontName + " has the glyphs of every dictionary's texts");
+        }
+
+        // The controls tab as the exe gives it: Invert mouse, Mouse sensitivity (its range), the
+        // default button and the three key lists (their rows as applyKeys sizes them).
+        private function controls(root:*, settings:*, domain:ApplicationDomain, sensitivity:Number):void
+        {
+            var c:* = settings.settings_content;
+            var given:Array = [];
+            frame2(settings);
+            root.set_settings(1, [{label: "Invert mouse", setter: setterOf(0, given)},
+                {label: "Mouse sensitivity", setter: setterOf(1, given), dataProvider: {minimum: 0.01, maximum: 10, snapInterval: 0.01}},
+                {label: "Default settings", setter: setterOf(2, given)}, {label: ""}, {label: ""}, {label: ""}]);
+            root.set_values(1, [{id: 0, value: 0}, {id: 1, value: sensitivity}]);
+            keys(settings, domain);
+        }
+
+        // The controls frame (the tab bar's change calls the exe first, which a test player lacks).
+        private function frame2(settings:*):void
+        {
+            try
+            {
+                settings.tabs.selectedIndex = 1;
+            }
+            catch (error:Error)
+            {
+            }
+            if (settings.settings_content.currentFrame != 2) settings.settings_content.gotoAndStop(2);
+        }
+
+        // The key lists filled after the tab's bind, as applyKeys fills them: 5 lobby keys, 3 chat keys,
+        // 34 game keys (the game's counts).
+        private function keys(settings:*, domain:ApplicationDomain):void
+        {
+            var c:* = settings.settings_content;
+            var DP:Class = domain.getDefinition("scaleform.clik.data.DataProvider") as Class;
+            var rows:Function = function(n:int, group:int):Array {
+                var out:Array = [];
+                for (var i:int = 0; i < n; ++i) out.push({action_id: 100 * group + i, group_id: group, type: 1, label: "Action " + i, key: ""});
+                return out;
+            };
+            c.keysLobby.dataProvider = new DP(rows(5, 0));
+            c.keysChat.dataProvider = new DP(rows(3, 1));
+            c.keysGame.dataProvider = new DP(rows(34, 2));
+            c.keysLobby.height = 5 * c.keysLobby.rowHeight;
+            c.keysChat.height = 3 * c.keysChat.rowHeight;
+        }
+
+        // "Lock vertical sensitivity" and "Vertical sensitivity" (exe patch 112,
+        // docs/notes/mouse-pitch.md) on the controls tab: waiting for the exe's answers; ticked (the
+        // default), the vertical slider greyed and showing the main one x 0.5625 as it is dragged;
+        // unticked, its own from that value, the main one staying when it is dragged; pending until
+        // Apply, Cancel putting the saved state back; the exe's answers; the tab's left column (main
+        // slider, the box, the vertical slider, Invert mouse, the lobby's keys) and right column (the
+        // game's keys, the chat's over the default button) spaced as the tab's own, every
+        // dictionary's labels inside the left column.
+        private function checkControls(root:*, settings:*, texts:Array, domain:ApplicationDomain):void
+        {
+            var c:* = settings.settings_content;
+            var LOCKED:String = "srp_mouse_vertical_locked";
+            // what the greyed slider shows: the main one x 0.5625, to the slider's 0.01
+            var shown:Function = function(main:Number):Number { return Math.round(main * 0.5625 / 0.01) * 0.01; };
+            controls(root, settings, domain, 1.25);
+            var box:* = c.getChildByName("_" + LOCKED);
+            var vertical:* = c.getChildByName("_srp_mouse_vertical");
+            var main:* = c._slider_mouse_sens;
+            require(box != null && vertical != null && !box.visible && !vertical.visible,
+                "controls: the box and the vertical slider wait for the exe's answers");
+            root.srp_check_option(LOCKED, texts[0][17], "1");
+            require(box.visible && !vertical.visible, "controls: the box shown at its answer, the slider waits for its own");
+            root.srp_slider_option("srp_mouse_vertical", texts[0][18], "100");
+            require(vertical.visible && vertical.alpha < 1 && !vertical.slider.enabled && box.selected
+                && box.label == texts[0][17] && vertical.textField.text == texts[0][18],
+                "controls: both shown, labelled the exe's; ticked (locked): the vertical slider greyed and inactive");
+            require(close(vertical.selectedIndex, 0.7) && close(main.selectedIndex, 1.25) && !settings.btn_accept.enabled,
+                "controls: locked, the vertical slider shows the main one x 0.5625 (1.25 -> 0.70), nothing pending: "
+                + vertical.selectedIndex);
+            require(vertical.slider.minimum == main.slider.minimum && vertical.slider.maximum == main.slider.maximum
+                && vertical.slider.snapInterval == main.slider.snapInterval, "controls: the main slider's range");
+            // drag the main one: the vertical follows at x 0.5625
+            main.slider.value = 2.5;
+            require(close(main.selectedIndex, 2.5) && close(vertical.selectedIndex, shown(2.5)), "controls: locked, dragging the "
+                + "main slider moves the vertical one with it (2.5 -> " + vertical.selectedIndex + ")");
+            main.slider.value = 0.7;
+            require(close(vertical.selectedIndex, shown(0.7)), "controls: and again (0.7 -> " + vertical.selectedIndex + ")");
+            // untick: its own from the value shown; drag the vertical one: the main stays
+            var from:Number = vertical.selectedIndex;
+            box.selected = false;
+            require(vertical.alpha == 1 && vertical.slider.enabled && close(vertical.selectedIndex, from) && settings.btn_accept.enabled,
+                "controls: unticked, the vertical slider active at the value it showed (" + from + "), Apply enabled");
+            vertical.slider.value = 3.1;
+            require(close(vertical.selectedIndex, 3.1) && close(main.selectedIndex, 0.7), "controls: unlocked, dragging the vertical "
+                + "slider leaves the main one: " + main.selectedIndex);
+            main.slider.value = 1.5;
+            require(close(vertical.selectedIndex, 3.1) && close(main.selectedIndex, 1.5), "controls: unlocked, dragging the main "
+                + "slider leaves the vertical one: " + vertical.selectedIndex);
+            click(settings.btn_cancel);
+            require(box.selected && vertical.alpha < 1 && close(vertical.selectedIndex, shown(main.selectedIndex))
+                && !settings.btn_accept.enabled, "controls: Cancel: locked again, following the main one x 0.5625");
+            box.selected = false;
+            vertical.slider.value = 3.1;
+            click(settings.btn_accept);
+            require(!box.selected && close(vertical.selectedIndex, 3.1) && !settings.btn_accept.enabled, "controls: Apply keeps it unlocked at 3.1");
+            root.srp_check_option(LOCKED, texts[0][17], "0");
+            root.srp_slider_option("srp_mouse_vertical", texts[0][18], "310");
+            require(!box.selected && close(vertical.selectedIndex, 3.1) && vertical.slider.enabled && !settings.btn_accept.enabled,
+                "controls: the exe's answers (unlocked, 310) keep it, nothing pending");
+            vertical.slider.value = 4;
+            require(settings.btn_accept.enabled, "controls: unlocked, a vertical move is pending");
+            vertical.slider.value = 3.1;
+            require(!settings.btn_accept.enabled, "controls: and back at the saved value, nothing pending");
+            box.selected = true;
+            require(vertical.alpha < 1 && !vertical.slider.enabled && close(vertical.selectedIndex, shown(main.selectedIndex))
+                && settings.btn_accept.enabled, "controls: ticked, the vertical slider follows the main one x 0.5625 again, greyed, pending");
+            click(settings.btn_cancel);
+            require(!box.selected && close(vertical.selectedIndex, 3.1) && vertical.slider.enabled && !settings.btn_accept.enabled,
+                "controls: Cancel: unlocked at the saved 3.1 again");
+            box.selected = true;
+            click(settings.btn_accept);
+            root.srp_check_option(LOCKED, texts[0][17], "1");
+            require(box.selected && close(vertical.selectedIndex, shown(main.selectedIndex)) && !settings.btn_accept.enabled,
+                "controls: Apply locked: following the main slider x 0.5625, nothing pending");
+            trace("SETTINGS controls: locked follows the main slider x 0.5625, unlocked is its own, pending until Apply, "
+                + "Cancel reverts");
+            require(!settings.btn_accept.enabled, "controls: nothing pending after the toggles");
+
+            // the layout: a new visit of the frame as the game makes it
+            c.gotoAndStop(1);
+            controls(root, settings, domain, 1.25);
+            root.srp_check_option("srp_mouse_vertical_locked", texts[0][17], "1");
+            root.srp_slider_option("srp_mouse_vertical", texts[0][18], "100");
+            require(!settings.btn_accept.enabled, "controls: nothing pending at a new visit of the frame");
+            var left:Array = [main, box, vertical, c._setter_inverse_mouse, c.s_lobby, c.keysLobby];
+            var right:Array = [c.keysGame, c.s_chat_keys, c.keysChat, c.button_default_controls];
+            var bottom:Number = Math.max(c.button_default_controls.y + c.button_default_controls.height, c.keysLobby.y + c.keysLobby.height);
+            for each (var column:Array in [left, right])
+            {
+                for (var i:int = 0; i < column.length; ++i)
+                {
+                    require(column[i].visible, "controls: " + column[i].name + " shown");
+                    if (i + 1 < column.length)
+                    {
+                        // the game's list as sized (it redraws at its next frame)
+                        var here:Array = column[i] == c.keysGame ? [c.keysGame.y, c.keysGame.y + c.keysGame.height] : span(column[i]);
+                        var next:Array = span(column[i + 1]);
+                        require(here[1] <= next[0] + 1, "controls: " + column[i].name + " (" + here + ") over " + column[i + 1].name + " (" + next + ")");
+                    }
+                }
+            }
+            require(span(c.keysLobby)[1] <= 400 && span(c.keysChat)[1] <= c.button_default_controls.y,
+                "controls: the lobby's keys in the window, the chat's above the default button: " + span(c.keysLobby) + ", " + span(c.keysChat));
+            require(near(box.x, c._setter_inverse_mouse.x) && near(vertical.x, main.x) && near(c.keysChat.x, c.keysGame.x),
+                "controls: the box at Invert mouse's x, the vertical slider at the main one's, the chat's keys at the game's");
+            var edge:Number = 297;                       // the column divider
+            for each (var row:Array in texts)
+            {
+                box.label = row[17];
+                box.validateNow();
+                require(box.x + box.textField.x + box.textField.textWidth < edge, "controls: " + row[17] + " ends in the left column");
+                vertical.label = row[18];
+                require(vertical.x + vertical.textField.x + vertical.textField.textWidth < edge, "controls: " + row[18] + " ends in the left column");
+            }
+            box.label = texts[0][17];
+            box.validateNow();
+            vertical.label = texts[0][18];
+            trace("SETTINGS controls layout: slider " + main.y + ", box " + box.y + ", vertical " + vertical.y + ", invert "
+                + c._setter_inverse_mouse.y + ", lobby " + c.s_lobby.y + " to " + span(c.keysLobby)[1] + "; game to " + (c.keysGame.y + c.keysGame.height)
+                + ", chat " + c.s_chat_keys.y + " to " + span(c.keysChat)[1] + ", button " + c.button_default_controls.y);
+        }
+
+        // The two sliders at their borders (the stock mouse_sensitivity's 0.01 to 10, from its console
+        // variable): locked, the greyed slider shows the main one x 0.5625 within its own range; unlocking at
+        // either end starts from that value; unlocked, either slider at either end leaves the other; Apply,
+        // the exe's answers and a new visit of the tab (Settings reopened) keep each value; after an Apply
+        // unlocked, the lock's answer alone shows the vertical value Apply saved (what it gave the exe).
+        private function checkBorders(root:*, settings:*, texts:Array, domain:ApplicationDomain):void
+        {
+            var c:* = settings.settings_content;
+            var LOCKED:String = "srp_mouse_vertical_locked";
+            var main:* = null;
+            // Settings opened again: the exe's settings and answers bound anew (a test player's tab bar
+            // cannot change the frame and bind in one go)
+            var reopen:Function = function(value:Number, locked:String, vertical:String = null):void {
+                controls(root, settings, domain, value);
+                root.srp_check_option(LOCKED, texts[0][17], locked);
+                if (vertical != null) root.srp_slider_option("srp_mouse_vertical", texts[0][18], vertical);
+                main = c._slider_mouse_sens;               // the tab's new instance at each visit
+            };
+            reopen(1.25, "1", "100");
+            var box:* = c.getChildByName("_" + LOCKED), vertical:* = c.getChildByName("_srp_mouse_vertical");
+            var least:Number = main.slider.minimum, most:Number = main.slider.maximum;
+            var valid:Function = function(v:Number):Boolean { return !isNaN(v) && v >= vertical.slider.minimum - 1e-9 && v <= vertical.slider.maximum + 1e-9; };
+            require(close(least, 0.01) && close(most, 10), "borders: the main slider's range 0.01 to 10: " + least + " to " + most);
+            for each (var end:Number in [least, most])
+            {
+                main.slider.value = end;
+                var shown:Number = Math.round(end * 0.5625 / 0.01) * 0.01;
+                require(box.selected && close(vertical.selectedIndex, shown) && valid(vertical.selectedIndex) && vertical.visible,
+                    "borders: locked, the main slider at " + end + ": the greyed one shows " + vertical.selectedIndex + " (" + shown + "), in its range");
+                box.selected = false;
+                require(close(vertical.selectedIndex, shown) && vertical.slider.enabled && settings.btn_accept.enabled,
+                    "borders: unlocked at main " + end + ": it starts from " + vertical.selectedIndex);
+                click(settings.btn_accept);
+                var saved:String = String(Math.round(shown * 100));
+                reopen(end, "0");
+                require(!box.selected && close(main.selectedIndex, end) && close(vertical.selectedIndex, shown) && !settings.btn_accept.enabled,
+                    "borders: Apply and reopen at main " + end + ": unlocked at the saved " + vertical.selectedIndex + " (" + shown + ")");
+                reopen(end, "0", saved);
+                require(!box.selected && close(vertical.selectedIndex, shown) && !settings.btn_accept.enabled,
+                    "borders: the exe's answer " + saved + " at main " + end + ": unlocked at " + vertical.selectedIndex);
+                box.selected = true;
+                click(settings.btn_accept);
+                reopen(end, "1", saved);
+                require(box.selected && close(vertical.selectedIndex, shown), "borders: locked again at main " + end);
+            }
+            // unlocked: either slider at either end leaves the other
+            reopen(1.25, "0", "300");
+            for each (end in [least, most])
+            {
+                vertical.slider.value = end;
+                require(close(vertical.selectedIndex, end) && close(main.selectedIndex, 1.25) && valid(vertical.selectedIndex),
+                    "borders: unlocked, the vertical slider at " + end + ", the main one stays 1.25: " + main.selectedIndex);
+                click(settings.btn_accept);
+                reopen(1.25, "0", String(Math.round(end * 100)));
+                require(close(vertical.selectedIndex, end) && !box.selected && !settings.btn_accept.enabled,
+                    "borders: Apply and reopen at vertical " + end + ": " + vertical.selectedIndex);
+            }
+            for each (end in [least, most])
+            {
+                var before:Number = vertical.selectedIndex;
+                main.slider.value = end;
+                require(close(main.selectedIndex, end) && close(vertical.selectedIndex, before), "borders: unlocked, the main slider at "
+                    + end + ", the vertical one stays " + before + ": " + vertical.selectedIndex);
+            }
+            click(settings.btn_cancel);
+            reopen(1.25, "1", "100");
+            trace("SETTINGS borders: locked shows main x 0.5625 within range at 0.01 and 10 (0.01, 5.63); unlocking starts there; "
+                + "unlocked ends leave the other slider; Apply and reopen keep the values");
         }
 
         // The exe's setter of option `i`: records [i, value] and gives the value back.
