@@ -340,7 +340,7 @@ package survarium.char
       
       private function setSkillProgress(branchPoints:uint) : void
       {
-         this.progressIndicator.value = Math.min(branchPoints + 1,this.progressIndicator.maximum - this.POINTS_PER_LEVEL);
+         this.progressIndicator.value = Math.min(this.indicatorPoints(branchPoints) + 1,this.progressIndicator.maximum - this.POINTS_PER_LEVEL);
          var unclockedData:Object = this.getBranchUnlockedLevel();
          var unlocked:uint = unclockedData.points;
          if(unclockedData.lastUnlocked == true)
@@ -357,6 +357,46 @@ package survarium.char
             renderer.unlockable = this.points_aviable > 0;
             renderer.invalidateData();
          }
+      }
+      
+      // Where branchPoints fall on the progress indicator, whose rows are POINTS_PER_LEVEL apart:
+      // a row's mark is reached at the branch points the tree gives that row, and between two rows
+      // the bar moves evenly (stock rows ask 0/5/10/15/20, drawn as the points themselves; the
+      // medical tree's 0/3/10/15/20 mark its second row at 3)
+      private function indicatorPoints(branchPoints:uint) : Number
+      {
+         var thresholds:Array = [];
+         for each(var skillData:Object in this._skillList[this._activeSkillBranch])
+         {
+            if(skillData && skillData.branch_points <= this.SKILL_LEVELS)
+            {
+               thresholds[skillData.level] = skillData.branch_points;
+            }
+         }
+         var rows:Array = [];
+         for(var r:int = 0; r < thresholds.length; r++)
+         {
+            if(thresholds[r] != undefined)
+            {
+               rows.push(r);
+            }
+         }
+         if(rows.length == 0 || branchPoints < thresholds[rows[0]])
+         {
+            return branchPoints;
+         }
+         var k:int = 0;
+         while(k + 1 < rows.length && thresholds[rows[k + 1]] <= branchPoints)
+         {
+            k++;
+         }
+         var at:Number = this.POINTS_PER_LEVEL * (rows[k] - rows[0]);
+         var over:Number = branchPoints - thresholds[rows[k]];
+         if(k + 1 == rows.length)
+         {
+            return at + over;
+         }
+         return at + this.POINTS_PER_LEVEL * (rows[k + 1] - rows[k]) * over / (thresholds[rows[k + 1]] - thresholds[rows[k]]);
       }
       
       private function getBranchUnlockedLevel() : Object

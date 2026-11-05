@@ -68,6 +68,10 @@ Unflinching or Concentration); a full build 32.
   leave a threshold of 3 locked. The lobby source (`CharWindow.as`) and
   `SkillsTree::unlocked_branch_points` take it whole; for the stock tree, whose
   thresholds are fives, nothing changes.
+- The skills window's progress bar reaches a row's mark at that row's
+  `branch_points` from the tree and moves evenly between two rows
+  (`CharWindow.indicatorPoints`): the medical tab marks 3, 10, 15 and 20; a
+  stock tab (0/5/10/15/20) draws its points as before.
 - Tiers 3 and 4 shuffled: tier 3 Brothers in Arms column 1, Numb Legs 2,
   Adrenalin 4; tier 4 Strong Bones column 2, Unflinching 3.
 - Saved skills: `SkillsTree::settle` refunds a saved Numb Legs only when rows 1
@@ -495,3 +499,10 @@ Implemented and tested locally; not played, not released.
   +3% / +4.5 s texts, Numb Legs on the painkiller bitmap, Take Cover's
   physical/15 pixels) and `DETAILS RESULT pass` (Alt card 10 -> 13%,
   Unflinching 5 refused, full combo 74 valid).
+- The progress bar (lobby movie built from source, sha256
+  `f87241fecf1007c8510fb07d022648a8b20bfd23b6e6f8c249c4d06d793d850c`):
+  `MEDICALSKILLS RESULT pass` with the bar's value checked on the medical tab
+  (below the row-2 mark at 2, the marks at 3/10/15/20, full with tier 5 taken)
+  and on a stock 0/5/10/15/20 tab at every point 0..20 (min(points + 1, 21),
+  as before, then full); the old drawing fails the medical marks. `DETAILS
+  RESULT pass` on the same movie. Not seen in the game.

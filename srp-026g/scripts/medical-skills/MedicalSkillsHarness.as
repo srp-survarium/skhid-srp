@@ -115,6 +115,13 @@ package {
      branch_points:v.preconditions.branch_points});
     values.push({id:v.id,value:0});
    }
+   // A stock tab's rows, as the stock trees ask them (0/5/10/15/20): the indicator draws its points.
+   var stock:Array=[[101,5,0],[111,5,5],[121,5,10],[131,5,15],[141,1,20]];
+   for(var s:int=0;s<stock.length;s++) {
+    props.push({id:stock[s][0],branch:0,max_value:stock[s][1],name:"stock",description_1:"d",description_2:["a","b","c","d","e","f"],
+     icon:1,column:1,row:s+1,antiskills:[],branch_points:stock[s][2]});
+    values.push({id:stock[s][0],value:0});
+   }
    check(skills[341]==null,"Medic left the medical tree");
    var layout:Object={301:[2,1,3,0],302:[3,1,2,0],311:[1,2,5,3],313:[3,2,2,3],312:[4,2,3,3],
     342:[1,3,2,10],303:[2,3,2,10],321:[4,3,3,10],332:[2,4,5,15],323:[3,4,4,15],333:[4,4,4,15],331:[2,5,1,20],322:[3,5,1,20]};
@@ -139,7 +146,8 @@ package {
    stage_="init";win.init(new Event(Event.RENDER));
    stage_="properties";win.fillSkillsProperties(props);
    stage_="skills";win.fillSkills(values);
-   stage_="points";win.setData({points_available:40});
+   stage_="points";win.setData({points_available:80});
+   stage_="progress";win.fillSkillsProgress([{points:0},{points:0},{points:0}]);
    stage_="medical tab";win.skillsTabPage.selectedIndex=2;
    stage_="checks";var shown:Object=renderers(win,Renderer);
    check(shown[341]==null,"no Medic in the menu");
@@ -155,24 +163,36 @@ package {
     return r.data.newValue;
    }
    function take(id:int,times:int):int {var v:int=0;for(var k:int=0;k<times;k++) v=click(id);return v;}
+   // The progress indicator: a row's mark is POINTS_PER_LEVEL (5) further, +1 (CharWindow.setSkillProgress).
+   function bar(want:Number,label:String):void {
+    var have:Number=win.progressIndicator.value;
+    check(Math.abs(have-want)<1e-9,"indicator "+label+": "+have+", want "+want);
+   }
+   check(win.progressIndicator.maximum==26,"indicator maximum "+win.progressIndicator.maximum);
+   bar(1,"medical at 0");
    check(take(301,2)==2,"Potent Painkiller 2");
+   bar(1+5*2/3,"medical at 2, below tier 2's mark");
    check(take(311,1)==0,"tier 2 refused at 2 points");
    check(take(301,2)==3,"Potent Painkiller stops at 3");
+   bar(6,"medical tier 2 mark at 3");
    check(take(311,1)==1,"tier 2 opens at 3");
    check(take(302,3)==2,"Fast Bandaging stops at 2");
    check(shown[301].data.description_2_string==shown[301].data.description_2[3],"Potent Painkiller tooltip at maximum");
    check(String(shown[301].data.description_2_string).indexOf("+3% / +4.5 s")>=0,"Potent Painkiller tooltip text");
    check(take(303,1)==0,"tier 3 refused at 6 points");
    check(take(311,4)==5,"Metabolism 5: 10 points");
+   bar(11,"medical tier 3 mark at 10");
    check(take(303,3)==2,"tier 3 at 10; Numb Legs stops at 2");
    check(take(321,1)==1 && take(342,1)==1,"tier 3 at 10");
    click(321,true);click(342,true);
    check(shown[321].data.newValue==0 && shown[342].data.newValue==0,"tier 3 points taken back");
    check(take(313,3)==2,"Take Cover stops at 2: 14 points");
+   bar(15,"medical at 14");
    check(take(323,1)==0,"tier 4 refused at 14 points");
    check(take(312,4)==3,"Medical Training stops at 3");
    click(312,true);click(312,true);
    check(shown[312].data.newValue==1,"Medical Training back to 1: 15 points");
+   bar(16,"medical tier 4 mark at 15");
    check(take(323,5)==4,"tier 4 at 15; Unflinching stops at 4");
    check(take(333,1)==0,"Concentration refused beside Unflinching");
    for(var back:int=0;back<4;back++) click(323,true);
@@ -181,12 +201,24 @@ package {
    check(take(323,1)==0,"Unflinching refused beside Concentration");
    check(take(331,1)==0 && take(322,1)==0,"tier 5 refused at 19 points");
    check(take(332,1)==1,"20 points");
+   bar(21,"medical tier 5 mark at 20");
    check(take(331,2)==1,"Supply Pocket at 20, one rank");
+   bar(26,"medical full with the last tier taken");
    check(take(322,1)==0,"Additional Medicine refused beside Supply Pocket");
    click(331,true);
    check(shown[331].data.newValue==0,"Supply Pocket taken back");
    check(take(322,2)==1,"Additional Medicine at 20, one rank");
    check(take(331,1)==0,"Supply Pocket refused beside Additional Medicine");
+   // The stock tab: the indicator at every point as the stock window drew it, min(points + 1, 21).
+   stage_="stock tab";win.skillsTabPage.selectedIndex=0;shown=renderers(win,Renderer);
+   check(shown[101]!=null && shown[141]!=null && shown[301]==null,"stock tab shown");
+   bar(1,"stock at 0");
+   for(var p:int=1;p<=20;p++) {
+    check(click(stock[int((p-1)/5)][0])==(p-1)%5+1,"stock click "+p);
+    bar(Math.min(p+1,21),"stock at "+p);
+   }
+   check(click(141)==1,"stock last tier");
+   bar(26,"stock full with the last tier taken");
    // One renderer shows skills of 5, 2, 3, 1 and 4 ranks in turn (tabs reuse renderers).
    var reused:Object=new Renderer();addChild(DisplayObject(reused));
    for each(var ranks:int in [5,2,2,3,1,4,5]) {
