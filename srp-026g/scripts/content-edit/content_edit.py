@@ -1208,7 +1208,7 @@ STATS = {
             'regen_delay': default_modification(129),
             'regen_limit': default_modification(130),
             # srp's player modifier 29, which the exe never reads (force-protein-knockback-1.json): the
-            # ragdoll (patch 76, visual only) knocks a gun-stock kill's body 1 + it times as hard
+            # ragdoll (patch 76, visual only) pushes a gun-stock kill's body (1 + it)^2 times as hard
             'knockback': default_modification(133),
         },
         'match': {'weight', 'artefact_cooldown', 'regen_delay', 'regen_limit', 'health_regen', 'stamina_regen', 'movement', 'max_weight',
