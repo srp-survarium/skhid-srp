@@ -111,6 +111,10 @@ OWN_CHECKS = {
 
     (0x27C0FF, 6): "world_load.raw: the same preparation as world_load.unpacked (world_check.rs `check`), for a "
                    "world sent raw; check_world_check_026g.py",
+    (0x27C059, 5): "WORLD_UNPACK (patch 98): the 0xE8 handler's stack buffer for a packed world, 0x8000 -> 0xF000 "
+                   "bytes, a capacity, no bytes of the world; check_world_sections_026g.py (a packed 0xA014-byte "
+                   "world through the whole handler loads whole)",
+    (0x27C07C, 5): "WORLD_UNPACK (patch 98): the decompress and mutable_buffer capacity, as 0x27C059",
     (0x2D1050, 10): "first_load input and kit (late_join_026g.asm): the place's input and kit choice into the core's "
                     "lists at a first load, no bytes of the world; check_late_join_026g.py",
     (0x2F5ACF, 6): "shared_statistics::serialize: twenty records, a constant, as its deserialize; selftest_026g.py",
