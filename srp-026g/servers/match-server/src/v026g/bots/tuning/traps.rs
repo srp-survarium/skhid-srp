@@ -122,6 +122,15 @@ pub struct TrapTuning {
     /// the team's trap field: in the S1 + `after_press` + ring 2.0 bench 17 of 23 self-catches were stayers 4-32 s after their
     /// press. `place` by default until its bench decides.
     pub stayer: Stayer,
+    /// [A309] A spot is taken only this far forward on the way from the bot's side's home (its spawns' centre) to the enemy's:
+    /// `d_own / (d_own + d_enemy)` at least `min_share`. In the A309 bench (the owner's trap set, 224 pairs against the hunter)
+    /// 411 traps caught 13 enemies: 11 of them were 80 m or more from the placer's home, 1 of the 253 traps placed 40-80 m
+    /// from it. Off by default.
+    pub forward: Option<Forward>,
+    /// [A309] For `for_ms` after its press the placer's routes come no nearer its fresh trap than its feet are (within `ring_m`
+    /// of it): it walks away from it, never back over it. In the A309 bench the placer caught itself 14 times, median 2.5 s
+    /// after the press (the after-press stand ends at 1.5 s), more often than its traps caught an enemy. Off by default.
+    pub fresh_ring: Option<FreshRing>,
 }
 
 /// The habit's rule for the spots of killed holders (`TrapTuning::at_defeated`). The numbers are GUESSES chosen from the K1 spots'
@@ -180,6 +189,35 @@ pub struct SensedNear {
 impl Default for SensedNear {
     fn default() -> Self {
         Self { within_m: 40.0 }
+    }
+}
+
+/// [A309] How far forward a spot must lie (`TrapTuning::forward`).
+#[derive(Clone, Copy, Debug, PartialEq, Serialize, Deserialize)]
+#[serde(default, deny_unknown_fields)]
+pub struct Forward {
+    /// The least share of the way from home to the enemy's home, 0-1: 0.5 is the middle of the map. A GUESS from the A309
+    /// bench's distances (80 m and more from home caught, 40-80 m did not); the bench decides.
+    pub min_share: f32,
+}
+
+impl Default for Forward {
+    fn default() -> Self {
+        Self { min_share: 0.5 }
+    }
+}
+
+/// [A309] How long the placer keeps off its fresh trap (`TrapTuning::fresh_ring`).
+#[derive(Clone, Copy, Debug, PartialEq, Serialize, Deserialize)]
+#[serde(default, deny_unknown_fields)]
+pub struct FreshRing {
+    /// From the press, ms: the A309 self-catches came 0.6-14 s after it (median 2.5 s).
+    pub for_ms: u32,
+}
+
+impl Default for FreshRing {
+    fn default() -> Self {
+        Self { for_ms: 8_000 }
     }
 }
 
@@ -423,6 +461,8 @@ impl Default for TrapTuning {
             sensed_near: Some(SensedNear { within_m: 40.0 }),
             after_press: None,
             stayer: Stayer::Place,
+            forward: None,
+            fresh_ring: None,
         }
     }
 }
@@ -488,6 +528,8 @@ impl Check for TrapTuning {
                 .is_none_or(|a| a.hold_ms > 0 && a.hold_ms <= 5_000 && (0.0..=1.3).contains(&a.clear_m) && (0.0..=3.0).contains(&a.sweep_s)),
             "traps.after_press",
         )?;
+        check(self.forward.is_none_or(|f| (0.0..=1.0).contains(&f.min_share)), "traps.forward")?;
+        check(self.fresh_ring.is_none_or(|f| f.for_ms <= 60_000), "traps.fresh_ring")?;
         let r = &self.react;
         check(
             (0.0..=1.0).contains(&r.p0)

@@ -676,6 +676,26 @@ pub struct Search<'a> {
     pub in_spawn: &'a dyn Fn(Vec3) -> bool,
     /// [A145] The spots of killed holders this bot's route passes.
     pub wish: Option<Wish<'a>>,
+    /// [A309] With `TrapTuning::forward`: its side's home and the enemy's (the spawns' centres, [`homes_of`]).
+    pub homes: Option<(Vec3, Vec3)>,
+}
+
+/// [A309] The centres of the spawns of `side` and of the other sides, on the ground: what every player knows of a map. None when
+/// either has no spawn.
+pub fn homes_of(map: &mapdata::project::MapData, side: Option<i32>) -> Option<(Vec3, Vec3)> {
+    let centre = |own: bool| {
+        let points: Vec<Vec3> = map.spawns.iter().filter(|s| (Some(s.team) == side) == own).map(|s| s.position).collect();
+        let n = points.len() as f32;
+        (n > 0.0).then(|| Vec3::new(points.iter().map(|p| p.x).sum::<f32>() / n, 0.0, points.iter().map(|p| p.z).sum::<f32>() / n))
+    };
+    Some((centre(true)?, centre(false)?))
+}
+
+/// [A309] How far forward `at` lies on the way from `own` to `enemy`: `d_own / (d_own + d_enemy)` on the ground (0 at home, 1 at
+/// the enemy's).
+pub fn forward_share(own: Vec3, enemy: Vec3, at: Vec3) -> f32 {
+    let (a, b) = (at.distance_xz(own), at.distance_xz(enemy));
+    if a + b <= 1e-3 { 0.5 } else { a / (a + b) }
 }
 
 /// [A145] The spots of killed holders (`know::Defeated`) a search wants a trap on (`TrapTuning::at_defeated`).
@@ -929,6 +949,13 @@ pub fn choose_counted(s: &Search, refused: &mut [u32; 9]) -> Option<Chosen> {
                     defeated::count(defeated::R_ROUTE);
                 }
             }
+            continue;
+        }
+        // [A309] Only forward enough on the way to the enemy's home: nearer its own, enemies rarely come.
+        if let (Some(f), Some((own, enemy))) = (t.forward, s.homes)
+            && forward_share(own, enemy, spot) < f.min_share
+        {
+            refuse(Candidate::LowScore);
             continue;
         }
         // Where its own body will be: it keeps off the disc.
@@ -1190,11 +1217,39 @@ pub(super) fn soften(bot: &Bot, filter: RouteFilter, start: Option<NodeId>) -> R
 /// (`start`: a trap let go of a metre off must not shut the way out).
 pub(super) fn filter(bot: &Bot, landings: Vec<super::stuck::Shut>, start: Option<NodeId>) -> RouteFilter {
     let filter = RouteFilter::shutting_landings(landings);
-    if bot.features.traps.field.is_empty() {
+    let fresh = bot.features.traps.fresh_shut.clone();
+    if bot.features.traps.field.is_empty() && fresh.is_empty() {
         return filter;
     }
     let field = bot.features.traps.field.clone();
-    filter.with_floors(move |node| Some(node) == start || field.open(node))
+    filter.with_floors(move |node| Some(node) == start || (field.open(node) && fresh.binary_search(&node).is_err()))
+}
+
+/// [A309] At a think, the floors the placer of a fresh trap may not take (`TrapTuning::fresh_ring`): within `ring_m` of the trap and
+/// nearer it than its feet are now, so every way it takes leads away from the trap; none once the time is over.
+fn fresh_shut(bot: &mut Bot, due: &Due, ring_m: f32) {
+    let Some((at, until)) = bot.features.traps.fresh else {
+        return;
+    };
+    if due.now >= until {
+        bot.features.traps.fresh = None;
+        bot.features.traps.fresh_shut = Default::default();
+        return;
+    }
+    let grid = &due.tactics.world.grid;
+    let reach = ring_m.max(FIELD_M);
+    let mine = due.me.feet.distance_xz(at);
+    let area = [at.x - reach, at.z - reach, at.x + reach, at.z + reach];
+    let mut shut: Vec<NodeId> = grid
+        .floors_in(area)
+        .filter(|&node| {
+            let p = grid.position(node);
+            let d = p.distance_xz(at);
+            d <= reach && d < mine - 0.05 && (p.y - at.y).abs() < 1.0
+        })
+        .collect();
+    shut.sort_unstable();
+    bot.features.traps.fresh_shut = std::sync::Arc::new(shut);
 }
 
 /// A think: whether this bot starts to put a trap down.
@@ -1212,6 +1267,7 @@ pub(super) fn think(bot: &mut Bot, due: &Due, state: &mut TeamState, notes: &mut
         state.refresh_traps(&due.tactics.world.grid, t.ring_m);
         bot.features.traps.field = state.features.traps.field.clone();
     }
+    fresh_shut(bot, due, t.ring_m);
     keep_off(bot, due);
     #[cfg(test)]
     passes::observe(bot, due, state);
@@ -1384,6 +1440,7 @@ pub(super) fn think(bot: &mut Bot, due: &Due, state: &mut TeamState, notes: &mut
         own: &own,
         in_spawn: &in_spawn,
         wish,
+        homes: t.forward.and(homes_of(&due.tactics.world.map, bot.side)),
     };
     let mut refused = [0; 9];
     let chosen = choose_counted(&search, &mut refused);
@@ -1500,7 +1557,8 @@ pub(super) fn think(bot: &mut Bot, due: &Due, state: &mut TeamState, notes: &mut
                 };
                 (way, d)
             };
-            bot.features.traps.planned_by = Some((source, way, to_home));
+            let share = homes_of(&due.tactics.world.map, bot.side).map_or(-1.0, |(own, enemy)| forward_share(own, enemy, chosen.spot));
+            bot.features.traps.planned_by = Some((source, way, to_home, share));
         }
         let play = bot.assignment.as_ref().map(|a| a.kind);
         let near = nearest_lane(lanes_of(t, state), chosen.spot);
@@ -2053,13 +2111,17 @@ pub(super) fn drive(
         let landed = landing(eye, me.yaw, me.pitch, planned.y);
         bot.features.traps.placed = landed.map(|at| (at, now));
         bot.features.traps.pressed_at = landed.map(|_| now);
+        // [A309] The placer keeps off its fresh trap for a while (`traps.fresh_ring`).
+        if let (Some(at), Some(f)) = (landed, t.fresh_ring) {
+            bot.features.traps.fresh = Some((at, now.saturating_add(f.for_ms)));
+        }
         #[cfg(test)]
         if let Some(at) = landed {
             bot.features.traps.pressed = Some((at, me.velocity, now));
             // [A309] The bench's press line: where, what chose it, which way the placer walked.
-            let (source, way, to_home) = bot.features.traps.planned_by.unwrap_or(("unknown", "unknown", 0.0));
+            let (source, way, to_home, share) = bot.features.traps.planned_by.unwrap_or(("unknown", "unknown", 0.0, -1.0));
             eprintln!(
-                "  trap press: place {} team {} at ({:.1}, {:.1}) t {} source {source} way {way} home {to_home:.0} m play {:?} speed {:.1}",
+                "  trap press: place {} team {} at ({:.1}, {:.1}) t {} source {source} way {way} home {to_home:.0} m forward {share:.2} play {:?} speed {:.1}",
                 bot.place,
                 bot.team,
                 at.x,
@@ -2219,6 +2281,10 @@ pub struct BotState {
     pub tally: tally::Tally,
     /// [A292 S4a] When it last let go of a trap, ms: its legs stay `AfterPress::hold_ms` from then.
     pub pressed_at: Option<u32>,
+    /// [A309] Its fresh trap and until when it keeps off it (`TrapTuning::fresh_ring`), and the floors its searches may not take:
+    /// those within `ring_m` of the trap nearer it than its feet were at the last think.
+    pub fresh: Option<(Vec3, u32)>,
+    pub fresh_shut: std::sync::Arc<Vec<NodeId>>,
     /// [A292] Log notes of the ticks since its last think (a press, a look that ended) with their times: the think writes them.
     pub notes: Vec<(u32, String)>,
     /// The bench's: the standing own trap this body last came within 3 m of, and the class it came with
@@ -2231,7 +2297,7 @@ pub struct BotState {
     /// [A309] The bench's: what chose its planned spot, which way it walked against its side's home (the spawns' centre) and how
     /// far home was, for the press line.
     #[cfg(test)]
-    pub planned_by: Option<(&'static str, &'static str, f32)>,
+    pub planned_by: Option<(&'static str, &'static str, f32, f32)>,
 }
 
 impl super::features::Feature for BotState {
@@ -2240,6 +2306,8 @@ impl super::features::Feature for BotState {
         self.react.new_life();
         self.pass_wait = None;
         self.pressed_at = None;
+        self.fresh = None;
+        self.fresh_shut = Default::default();
         #[cfg(test)]
         {
             self.near = None;
@@ -2829,6 +2897,7 @@ mod tests {
             own: &[],
             in_spawn,
             wish: None,
+            homes: None,
         }
     }
 
@@ -3331,6 +3400,37 @@ mod tests {
         })
         .expect("a spot");
         assert!((chosen.spot.distance_xz(feet) - look.run_m).abs() < 1e-3, "{chosen:?}");
+    }
+
+    /// [A309] The forward rule: a spot nearer home than `min_share` of the way to the enemy's home is refused, one past it taken;
+    /// without the rule or without homes the spot is the same as before.
+    #[test]
+    fn a_spot_short_of_the_middle_is_refused_with_the_forward_rule() {
+        let (own, enemy) = (Vec3::new(0.0, 0.0, 10.0), Vec3::new(100.0, 0.0, 10.0));
+        assert!((forward_share(own, enemy, Vec3::new(25.0, 0.0, 10.0)) - 0.25).abs() < 1e-4);
+        assert!((forward_share(own, enemy, Vec3::new(50.0, 0.0, 10.0)) - 0.5).abs() < 1e-4);
+        let s = Scenario::field(Mode::TeamDeathmatch);
+        let mut tuning = t();
+        let not_spawn = |_: Vec3| false;
+        // The enemy's lane by the bot; the bot at a third of the way: no spot with the rule, the same spot without it.
+        let feet = Vec3::new(30.0, 0.0, 10.0);
+        let lanes = lanes_at(Vec3::new(33.0, 0.0, 10.0), 6, 100_000);
+        let free = choose(&search(&s, &tuning, feet, &lanes, &not_spawn)).expect("a spot");
+        tuning.forward = Some(crate::v026g::bots::tuning::Forward { min_share: 0.5 });
+        assert_eq!(choose(&search(&s, &tuning, feet, &lanes, &not_spawn)), Some(free), "no homes: as before");
+        let short = choose(&Search {
+            homes: Some((Vec3::new(0.0, 0.0, 10.0), Vec3::new(100.0, 0.0, 10.0))),
+            ..search(&s, &tuning, feet, &lanes, &not_spawn)
+        });
+        assert!(short.is_none(), "{short:?}");
+        // Past the middle: the spot is taken.
+        let feet = Vec3::new(60.0, 0.0, 10.0);
+        let lanes = lanes_at(Vec3::new(63.0, 0.0, 10.0), 6, 100_000);
+        let past = choose(&Search {
+            homes: Some((Vec3::new(0.0, 0.0, 10.0), Vec3::new(100.0, 0.0, 10.0))),
+            ..search(&s, &tuning, feet, &lanes, &not_spawn)
+        });
+        assert!(past.is_some_and(|c| forward_share(Vec3::new(0.0, 0.0, 10.0), Vec3::new(100.0, 0.0, 10.0), c.spot) >= 0.5), "{past:?}");
     }
 
     /// A292 S1: with `lanes: enemies` the trap map takes every enemy the team sensed itself, bot or human; a mate, a cheat or a

@@ -203,6 +203,8 @@ pub use team::WatchNear;
 pub use teams::TeamTunings;
 pub use traps::AfterPress;
 pub use traps::DefeatedTuning;
+pub use traps::Forward;
+pub use traps::FreshRing;
 pub use traps::PassTuning;
 pub use traps::ReactTuning;
 pub use traps::SensedNear;
