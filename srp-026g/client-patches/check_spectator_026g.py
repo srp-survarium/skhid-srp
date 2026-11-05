@@ -48,7 +48,7 @@ if len(sys.argv) > 1:
 import patch_026g as base
 
 NC_VTABLE, REPLAY_VTABLE = 0x9FFB14, 0x9FF344
-GET_ACTIVE, FOLLOW, CAMERA = 0x27A9C0, 0x242B90, 0x1F8360
+GET_ACTIVE, FOLLOW, CAMERA, CLOSE = 0x27A9C0, 0x242B90, 0x1F8360, 0x27A790
 THREAD_SLOT = 0x870118
 NC, GAME, OBJECTS, STUBS, STACK = 0x40000000, 0x48000000, 0x50000000, 0x51000000, 0x52000000
 HOLDER, UI = OBJECTS + 0x0, OBJECTS + 0x60000
@@ -62,6 +62,7 @@ SITES = {
     "key": (0x25CDBD, bytes.fromhex("8bb3ac530000"), 0x25CDC3, 0x25CEAE),
     "chat": (0x208D77, bytes.fromhex("0fb686441c1f00"), 0x208D7E, 0x208DE2),
     "hud": (0x23B7B9, bytes.fromhex("8a853c030000"), 0x23B7BF, None),
+    "left": (0x27C72C, bytes.fromhex("8a86441c1f003cff"), 0x27C734, 0x27C79F),
 }
 
 failed = 0
@@ -88,7 +89,8 @@ class Game:
         self.word(THREAD_SLOT, STUBS + 0x80)
         emu.mem_write(STUBS + 0x80, b"\xB8\x01\x00\x00\x00\xC3")
         self.calls = []
-        for va, how in ((GET_ACTIVE, self.get_active), (FOLLOW, self.follow), (CAMERA, self.camera)):
+        for va, how in ((GET_ACTIVE, self.get_active), (FOLLOW, self.follow), (CAMERA, self.camera),
+                        (CLOSE, self.close)):
             emu.hook_add(UC_HOOK_CODE, how, begin=va, end=va)
 
     def word(self, at, value, size=4):
@@ -118,6 +120,11 @@ class Game:
         player = self.read(sp + 4)
         self.word(player + 0xD0, self.read(player + 0xD0) - 1)     # it releases its argument
         self.calls.append(("set_followed_player", emu.reg_read(UC_X86_REG_ECX), player))
+        self.ret(4)
+
+    def close(self, emu, *_):
+        sp = emu.reg_read(UC_X86_REG_ESP)
+        self.calls.append(("close_current_match", emu.reg_read(UC_X86_REG_ECX), self.read(sp + 4)))
         self.ret(4)
 
     def camera(self, emu, *_):
@@ -184,6 +191,9 @@ def site_regs(site, action=0x17):
         regs[UC_X86_REG_EDI] = action
     elif site == "chat":
         regs[UC_X86_REG_ESI] = NC
+    elif site == "left":
+        regs[UC_X86_REG_ESI] = NC
+        regs[UC_X86_REG_EBX] = 0x0B0B0B00 | action      # BL the place that left, the rest the tick's
     else:
         regs[UC_X86_REG_ESI] = UI
         regs[UC_X86_REG_EBP] = PLAYERS[2]
@@ -226,10 +236,61 @@ def main():
     for vtable, local, name in ((NC_VTABLE, 2, "a player (local place 2)"),
                                 (REPLAY_VTABLE, 0xFF, "a replay's client")):
         for site in SITES:
-            for action in ((0x17, 0x18, 0x11) if site == "key" else (0x17,)):
-                both(stock, ours, site, f"{name}, action {action:#x}" if site == "key" else name,
+            values = {"key": (0x17, 0x18, 0x11), "left": (2, 0xFF, 1, 3)}.get(site, (0x17,))
+            for action in values:
+                case = {"key": f"{name}, action {action:#x}", "left": f"{name}, 0xEA of place {action:#x}"}
+                both(stock, ours, site, case.get(site, name),
                      site_regs(site, action), struct.pack("<20I", *range(0x100, 0x114)),
                      vtable=vtable, local=local, followed=1, players=MATCH)
+
+    # leave_match (0x2D18A0, before the handler's local test: every game
+    # runs it) of place 0xFF, the game's own code on a made-up core whose
+    # history has one item at the leave's tick, all twenty places entered:
+    # the place's bit is `shl edx,cl` with CL masked to 31 by the CPU, bit
+    # 31, which no entered mask has, so it returns 1 at 0x2D1CC6 with
+    # nothing written and the leave (0x2D1100) not called; place 3 reaches it.
+    core, item = OBJECTS + 0x40000, OBJECTS + 0x3F000
+    for place, leaves in ((0xFF, False), (3, True)):
+        emu = stock.emu
+        emu.mem_write(OBJECTS + 0x3F000, bytes(0x1D000))
+        stock.word(core + 0x18FD4, 1000)          # the core's time: the leave's tick is ahead of it
+        stock.word(core + 0x18FC4, 1000)
+        stock.word(core + 0x18FDD, 1, 1)
+        stock.word(core + 0x12284, item)          # the history's first item
+        stock.word(item + 0x8, 0xFFFFF)           # its entered mask: places 0..19
+        stock.word(item + 0xC, 1050)              # its tick
+        emu.mem_write(SP, struct.pack("<3I", STUBS + 0xF00, core, place))
+        emu.reg_write(UC_X86_REG_EAX, 1050)
+        emu.reg_write(UC_X86_REG_ESP, SP)
+        reached = []
+        hook = emu.hook_add(UC_HOOK_CODE, lambda e, a, *_: (reached.append(a), e.emu_stop())
+                            if a in (0x2D1100, STUBS + 0xF00) else None)
+        before = bytes(emu.mem_read(OBJECTS + 0x3F000, 0x1D000))
+        emu.emu_start(0x2D18A0, 0, count=100000)
+        emu.hook_del(hook)
+        after = bytes(emu.mem_read(OBJECTS + 0x3F000, 0x1D000))
+        if leaves:
+            check(reached == [0x2D1100], "leave_match of place 3 (entered): on to the leave, 0x2D1100")
+        else:
+            check(reached == [STUBS + 0xF00] and emu.reg_read(UC_X86_REG_EAX) == 1 and before == after
+                  and emu.reg_read(UC_X86_REG_ESP) == SP + 12,
+                  "leave_match of place 0xFF: returns 1 (ret 8), the core and its history unwritten, no leave")
+
+    # An 0xEA naming 0xFF in a player's game (the server never sends one):
+    # past leave_match, not the local place, not the followed player's: the
+    # handler's return, nothing called.
+    stock.setup(vtable=NC_VTABLE, local=2, followed=1, players=MATCH)
+    stock.emu.mem_write(STACK, bytes(0x10000))
+    for reg, value in site_regs("left", 0xFF).items():
+        stock.emu.reg_write(reg, value)
+    stock.emu.reg_write(UC_X86_REG_ESP, SP)
+    hook = stock.emu.hook_add(UC_HOOK_CODE, lambda e, a, *_: e.emu_stop() if a == 0x27C79F else None)
+    before = bytes(stock.emu.mem_read(OBJECTS, 0x80000)), bytes(stock.emu.mem_read(NC, 0x20))
+    stock.emu.emu_start(0x27C72C, 0, count=100000)
+    stock.emu.hook_del(hook)
+    after = bytes(stock.emu.mem_read(OBJECTS, 0x80000)), bytes(stock.emu.mem_read(NC, 0x20))
+    check(stock.emu.reg_read(UC_X86_REG_EIP) == 0x27C79F and not stock.calls and before == after,
+          "left, a player, 0xEA of place 0xFF in the original: on to the handler's return, nothing called or written")
 
     # The same game a player again (a spectator taken in: it reconnects, the
     # network client is the game's one): its first world turns its input on.
@@ -283,6 +344,22 @@ def main():
     check(state[UC_X86_REG_EIP] == 0x208DE2 and state[UC_X86_REG_ESP] == SP and not done
           and ours.read(SP + 0x48) == 0 and state[UC_X86_REG_ESI] == NC,
           "chat, a spectator: [esp+48h] 0, at 0x208DE2 (a plain line), ESP as at the site, nothing called")
+
+    state, _, done = spectator("left", 1, action=0xFF)
+    check(state[UC_X86_REG_EIP] == 0x27C79F and done == [("close_current_match", NC, 0)]
+          and state[UC_X86_REG_ESP] == SP and state[UC_X86_REG_ESI] == NC,
+          "left, a spectator, 0xEA of place 0xFF: close_current_match(0) (the world ended, no results), "
+          "then the handler's return 0x27C79F")
+    state, _, done = spectator("left", 1, action=1)
+    made = [c for c in done if c[0] != "get_active_player"]
+    check(state[UC_X86_REG_EIP] == 0x27C79F
+          and made == [("set_followed_player", NC, PLAYERS[3]), ("switch_to_spectator_camera", world)],
+          "left, a spectator, 0xEA of the place it follows (1): the next living player (3), then 0x27C79F")
+    ours.setup(vtable=NC_VTABLE, local=0xFF, followed=1, players=MATCH)
+    stock.setup(vtable=NC_VTABLE, local=0xFF, followed=1, players=MATCH)
+    s, o = stock.run("left", site_regs("left", 3)), ours.run("left", site_regs("left", 3))
+    check(s == o and s[0][UC_X86_REG_EIP] == 0x27C734,
+          "left, a spectator, 0xEA of another place (3): at 0x27C734 as the original (its je: nothing)")
 
     state, _, done = spectator("hud", 1)
     check(state[UC_X86_REG_EIP] == 0x23B7BF and state[UC_X86_REG_EAX] & 0xFF == 1

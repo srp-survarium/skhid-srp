@@ -15,7 +15,9 @@
 //! - `chat.match_team` (0x208D77): a match line's team colour, by the local
 //!   place's player;
 //! - `hud.followed_alive` (0x23B7B9): the hud's change of the followed
-//!   player's life (the kits and the cursor at a death).
+//!   player's life (the kits and the cursor at a death);
+//! - `player_left.local` (0x27C72C): an 0xEA, which the game takes as its
+//!   own end only for its local place: a game with none returns at once.
 
 use super::context::{Context, Reg};
 use super::input::Action;
@@ -84,6 +86,24 @@ impl<'t> MatchLine<'t> {
         // SAFETY: the frame's local, the game's to write before 0x208D86's
         // call would; 0 is its "no player".
         unsafe { self.frame.set_team_player(None) }
+    }
+}
+
+/// A place that left (0xEA) at `player_left.local`, after leave_match.
+pub struct PlayerLeft<'t> {
+    pub client: NetworkClient<'t>,
+    /// The place the 0xEA names; 0xFF a spectator's own end (the match
+    /// server's farewell to a game with no place).
+    pub place: u8,
+}
+
+impl<'t> PlayerLeft<'t> {
+    pub fn at(ctx: &'t Context<'_>) -> Option<PlayerLeft<'t>> {
+        use raw::site::player_left_local as site;
+        // SAFETY: the context is this site's: ESI the network client the
+        // handler runs on, BL the place it read (0x27C6F9).
+        let (client, place) = unsafe { (site::client(ctx)?, site::place(ctx) as u8) };
+        Some(PlayerLeft { client: NetworkClient::of(client, ctx.thread()), place })
     }
 }
 

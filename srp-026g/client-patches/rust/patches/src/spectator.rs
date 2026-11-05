@@ -3,7 +3,8 @@
 //! The match server's 0xE4 names no place local; the game has no player and
 //! sends no input. Its camera follows a player of any team, as the game's
 //! spectate_next_player does (mode 4, the player's eyes), F6 and F5 (the
-//! game's next_player and prev_player) the next or the previous one. A game
+//! game's next_player and prev_player) the next or the previous one; an 0xEA
+//! naming place 0xFF (the server's farewell) ends its match. A game
 //! with a place of its own runs the game's code unchanged at every site.
 //!
 //! Nothing a match computes changes: a spectator's game builds and sends no
@@ -11,10 +12,11 @@
 //! it; the sites move the camera and the hud alone.
 #![forbid(unsafe_code)]
 
-use crate::vostok::spectate::{world_camera_client, FollowedAlive, MatchLine, SpectateKey};
+use crate::vostok::spectate::{world_camera_client, FollowedAlive, MatchLine, PlayerLeft, SpectateKey};
 use crate::vostok::world::{Role, Step};
 use crate::vostok::{
-    Context, Flow, NoExit, SpectatorOnKeyExit, SpectatorOnMatchLineExit, SpectatorOnWorldCameraExit,
+    Context, Flow, NoExit, SpectatorOnKeyExit, SpectatorOnMatchLineExit, SpectatorOnPlayerLeftExit,
+    SpectatorOnWorldCameraExit,
 };
 
 /// `world_load.camera`: after a world. A player's game: the game's own
@@ -66,6 +68,34 @@ pub fn on_match_line(ctx: &mut Context<'_>) -> Flow<SpectatorOnMatchLineExit> {
         Some(Role::Player) | None => Flow::Continue,
     }
 }
+
+/// `player_left.local`: an 0xEA, after leave_match. A spectator's game
+/// takes one naming place 0xFF as its own end (the server's farewell: it is
+/// taken in as a player, or its match ended) and goes back to the lobby with
+/// no results screen; one naming the player it follows moves its camera to
+/// the next. Every other 0xEA, and every player's game, go on as the game's
+/// (a spectator's: nothing, 0x27C734).
+pub fn on_player_left(ctx: &mut Context<'_>) -> Flow<SpectatorOnPlayerLeftExit> {
+    let Some(left) = PlayerLeft::at(ctx) else {
+        return Flow::Continue;
+    };
+    if left.client.role() != Some(Role::Spectator) {
+        return Flow::Continue;
+    }
+    if left.place == NO_PLACE {
+        left.client.stop_watching();
+        return Flow::Exit(SpectatorOnPlayerLeftExit::Done);
+    }
+    if left.client.local_player().is_some_and(|player| player.place() == left.place) {
+        left.client.follow(Step::Next);
+        return Flow::Exit(SpectatorOnPlayerLeftExit::Done);
+    }
+    Flow::Continue
+}
+
+/// The place an 0xEA names for a spectator's own end: the local place it
+/// does not have.
+const NO_PLACE: u8 = 0xFF;
 
 /// `hud.followed_alive`: a spectator's hud takes the player it follows for
 /// alive, so a death shows it no kits and no cursor (a kit picked there

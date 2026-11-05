@@ -1943,6 +1943,26 @@ pub extern "C" fn hook_spectator_on_followed_alive(frame: &mut Frame) -> u32 {
     }
 }
 
+// ---- spectator (patch 103) ----
+
+/// The named exits of spectator::on_player_left (the order the shim's Flow code
+/// follows, 2 upward).
+#[repr(u32)]
+#[allow(dead_code)]
+pub enum SpectatorOnPlayerLeftExit { Done }
+/// The entry `spectator_on_player_left` (0x27c72c, process_player_left_match (0xEA) after leave_match (0x27C720) and its count (0x27C727): mov al,[esi+1F1C44h] / cmp al,0FFh, then je 0x27C79F (no local place: nothing), the local place's own end (0x27C73A: `31 <order> FF` to the lobby, close_current_match(3), the results screen) or a followed player's leave (0x27C776); done is the handler's epilogue (0x27C79F, `ret 4`). ESI the network client, BL the place that left) calls this with the saved machine.
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_spectator_on_player_left(frame: &mut Frame) -> u32 {
+    // SAFETY: only the entry `spectator_on_player_left` calls this, from the game's jump at 0x27c72c,
+    // on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::new(frame) };
+    match crate::spectator::on_player_left(&mut ctx) {
+        Flow::Continue => 0,
+        Flow::Skip => 1,
+        Flow::Exit(e) => 2 + e as u32,
+    }
+}
+
 // ---- suicide_key (patch 34) ----
 
 /// engine_action_present (0x242460), as the call hook at 0x242196 wraps it.
