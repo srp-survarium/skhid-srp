@@ -1087,6 +1087,8 @@ package survarium.menu
                control.invalidateData();
             }
          }
+         // the locked vertical slider follows the main one, which a set value does not tell
+         this._mouse.followMain();
       }
       
       protected function update_values(tabIndex:uint, isBaseline:Boolean = false) : void
