@@ -6,21 +6,31 @@ package survarium.item
    import survarium.player.MatchEffects;
    import temp_test_fla.weapon_compare_mc_8;
 
+   // A card's detail rows, label left and value right: a weapon's (WeaponDetails) or a
+   // round's (AmmoDetails).
    // Use the exported native symbol, not a new TextField: Scaleform resolves
    // the game's embedded font on its timeline fields, unlike Ruffle's fallback.
-   public final class WeaponDetailsView extends Sprite
+   public final class ItemDetailsView extends Sprite
    {
       private var contentHeight:Number = 0;
       override public function get height() : Number { return contentHeight; }
-      public function WeaponDetailsView()
+      public function ItemDetailsView()
       {
          mouseEnabled = false;
          mouseChildren = false;
       }
 
+      // An item's detail rows (WeaponDetails or AmmoDetails), null for an item without them;
+      // a weapon's with the kit and the skills when `effects` is given.
+      public static function read(item:Object, effects:MatchEffects = null) : Object
+      {
+         var weapon:WeaponDetails = WeaponDetails.read(item,effects);
+         return weapon != null ? weapon : AmmoDetails.read(item);
+      }
+
       // effects: the kit's and the skills' while Alt is held (details already with them), null for
       // the weapon's own stats.
-      public function show(details:WeaponDetails, expanded:Boolean, original:ItemCompare, effects:MatchEffects = null) : void
+      public function show(details:Object, expanded:Boolean, original:ItemCompare, effects:MatchEffects = null) : void
       {
          while(numChildren) removeChildAt(numChildren - 1);
          contentHeight = 0;
@@ -30,7 +40,9 @@ package survarium.item
          scaleY = original.scaleY;
          var stride:Number = original.diff_2.y - original.diff_1.y;
          var nextY:Number = 0;
-         var secondary:WeaponDetails = WeaponDetails.read(original.getSecondaryData(),effects);
+         var secondary:Object = read(original.getSecondaryData(),effects);
+         // Only rows of the same kind compare (a weapon's with a weapon's).
+         if(secondary != null && secondary.constructor != details.constructor) secondary = null;
          var entries:Array = details.rows(expanded,secondary);
          // Under the heading, one line saying what is on ("With kit and skills").
          if(effects != null) entries.splice(1,0,{kind:"effects",text:effects.label});

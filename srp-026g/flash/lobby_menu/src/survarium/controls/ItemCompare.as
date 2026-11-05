@@ -10,6 +10,7 @@ package survarium.controls
    import survarium.data.PropertiesDescriptor;
    import survarium.item.ItemFactory;
    import survarium.item.ModificationRolls;
+   import survarium.item.AmmoDetails;
    import survarium.item.WeaponDetails;
    import survarium.player.LocalPlayerProfile;
    import survarium.player.MatchEffects;
@@ -239,6 +240,8 @@ package survarium.controls
          var prim_cat:int = ItemFactory.getCategory(this._primary.category);
          var medical:Boolean = this._primary.category == ItemCategory.MEDKITS;
          var weaponDetails:Boolean = WeaponDetails.read(this._primary) != null;
+         // A round's stats are all detail rows (AmmoDetails): no bars.
+         var ammoDetails:Boolean = AmmoDetails.read(this._primary) != null;
          var index:int = 0;
          var _diff:MovieClip = null;
          var propDescription:Object = null;
@@ -323,7 +326,7 @@ package survarium.controls
          }
          for each(var s:Object in this._primary.properties)
          {
-            if(weaponDetails && s.prop_id == 24) continue;
+            if(ammoDetails || weaponDetails && s.prop_id == 24) continue;
             var _valueObject:Object = s;
             propDescription = _propsDescriptor.getPropertyDescription(_valueObject.prop_id);
             if(!propDescription)
@@ -377,7 +380,7 @@ package survarium.controls
          }
          for each(s in this._secondary.properties)
          {
-            if(weaponDetails && s.prop_id == 24) continue;
+            if(ammoDetails || weaponDetails && s.prop_id == 24) continue;
             _valueObject = s;
             propDescription = _propsDescriptor.getPropertyDescription(_valueObject.prop_id);
             if(!propDescription)

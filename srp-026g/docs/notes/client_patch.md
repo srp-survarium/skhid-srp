@@ -2621,7 +2621,7 @@ wraps before its value rather than under it (`LabelDiffIndicator`), the row
 taking the lines. The existing weight harness also checks the shop constructor.
 
 Weapon detail rows use the complete `weapon_compare_mc_8` symbol through
-`WeaponDetailsView`, including its `HintDiffIndicator`, embedded-font fields,
+`ItemDetailsView` (a round's card too, `AmmoDetails`), including its `HintDiffIndicator`, embedded-font fields,
 transforms and original row spacing from `ItemCompare`.
 An initial dynamic `TextField` copied from the empty description rendered with
 tiny black fallback text in Scaleform despite looking legible in Ruffle.

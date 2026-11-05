@@ -760,12 +760,15 @@ def weapon_card(buf):
 
 def ammo_card(buf):
     """{prop_id: text} of an ammo card: 21 damage (every pellet) x100, 22 piercing x100, 16 rounds a clip,
-    15 a clip's weight."""
+    15 a clip's weight, 163 the muzzle speed, 164 the range x100, 165 the pellets a shot."""
     def number(path):
         return value_of(buf, find(buf, path))
     return {21: number_text(number('data/k_damage') * number('data/buck_shot') * 100),
             22: number_text(number('data/k_arp') * 100), 16: number_text(number('parameters/clip_size')),
-            15: weight_text(number('parameters/clip_weight'))}
+            15: weight_text(number('parameters/clip_weight')),
+            163: number_text(number('data/muzzle_speed')),
+            164: number_text(round(number('data/k_max_damage_distance') * 100, 4)),
+            165: number_text(number('data/buck_shot'))}
 
 
 def throwable_card(buf):

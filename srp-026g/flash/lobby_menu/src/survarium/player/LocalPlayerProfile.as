@@ -534,13 +534,17 @@ package survarium.player
                // A pocket's booster has the effect's own icon (the shop's consumables
                // filter icon is a thin stroke that suits none of them); armour its group's.
                var group:Object = armour ? item.category : null;
-               if(propOf(item,105) != 0) kit.speed.push({name:item.name,value:propOf(item,105),category:group});
-               if(propOf(item,106) != 0) kit.limit.push({name:item.name,value:propOf(item,106),category:group});
-               if(propOf(item,116) != 0) kit.stamina.push({name:item.name,value:propOf(item,116),category:group});
+               if(propOf(item,105) != 0) kit.speed.push({name:item.name,value:propOf(item,105),category:group,slot:item.slotId});
+               if(propOf(item,106) != 0) kit.limit.push({name:item.name,value:propOf(item,106),category:group,slot:item.slotId});
+               if(propOf(item,116) != 0) kit.stamina.push({name:item.name,value:propOf(item,116),category:group,slot:item.slotId});
             }
             else if(item.slotId == ProfileSlot.WEAPON_1 && propOf(item,105) != 0)
                kit.weapon = {name:item.name,value:propOf(item,105),category:item.category,killIcon:killIconOf(item)};
          }
+         // Armour head to boots, then the pockets: the tooltips list them so.
+         kit.speed.sortOn("slot",Array.NUMERIC);
+         kit.limit.sortOn("slot",Array.NUMERIC);
+         kit.stamina.sortOn("slot",Array.NUMERIC);
          return effects.withItems(kit);
       }
       
