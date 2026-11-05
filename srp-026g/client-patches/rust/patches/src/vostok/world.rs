@@ -81,6 +81,12 @@ impl<'t> NetworkClient<'t> {
         unsafe { raw::engine_match_options(Some(self.this)).map_or(0, |options| u32::from(read(options.places()))) }
     }
 
+    /// The match it plays ([`MatchId`]), when it has match options.
+    pub fn match_id(&self) -> Option<MatchId> {
+        // SAFETY: the client, alive for the hook; match_options is its own.
+        unsafe { raw::engine_match_options(Some(self.this)).map(|options| MatchId(read(options.seed()))) }
+    }
+
     /// The local player, if the match has one.
     pub fn local_player(&self) -> Option<Player<'t>> {
         // SAFETY: the client's local player, alive for the hook.
@@ -92,6 +98,20 @@ impl<'t> NetworkClient<'t> {
     pub fn local_place(&self) -> Option<u8> {
         // SAFETY: the client's local player, alive for the hook.
         unsafe { Some(read(self.this.local_player()?.place())) }
+    }
+
+    /// The place the static info marked the local player's (its profile's
+    /// is_local, set at 0x27BE5F), if any: the options' own bytes, read
+    /// without the local player's object.
+    pub fn local_profile(&self) -> Option<u8> {
+        // SAFETY: the client's options and their places live as long as the
+        // client, on the hook's thread; a place below the count (at most the
+        // 20 of the array) is one of them.
+        unsafe {
+            let options = self.this.options_holder()?.options();
+            let places = read(options.places()).min(20);
+            (0..places).find(|&p| read(options.first_place().at(usize::from(p)).is_local()) != 0)
+        }
     }
 
     /// The place's current player. get_active_player adds a reference; it is
@@ -148,6 +168,35 @@ impl ItemId {
     }
 }
 
+/// Which match: its options' seed (+577B0h, the 0xE4's match id: the
+/// server's own a match, logged by the client as `Match id`). A world
+/// core's address (`WorldKey`) can be the next match's too; this cannot.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct MatchId(u32);
+
+impl MatchId {
+    /// Its value, for the log.
+    pub fn get(self) -> u32 {
+        self.0
+    }
+}
+
+impl<'t> GameWorld<'t> {
+    /// The match this world is of.
+    pub fn match_id(&self) -> Option<MatchId> {
+        self.network_client()?.match_id()
+    }
+}
+
+impl Player<'_> {
+    /// The match this player is of.
+    pub fn match_id(&self) -> Option<MatchId> {
+        // SAFETY: the live player's world, game and network client.
+        let client = unsafe { self.this.game_world()?.game()?.network_client() }?;
+        NetworkClient::of(client, self.thread).match_id()
+    }
+}
+
 /// A match's world core as a value kept between hooks: which match a
 /// record is of. Made only from its handle.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -191,6 +240,11 @@ impl<'t> Player<'t> {
     /// The player a site's typed register holds (raw's `site`), on its hook's thread.
     pub(in crate::vostok) fn of(ctx: &'t Context<'_>, this: Option<raw::Player>) -> Option<Player<'t>> {
         this.map(|this| Player { this, thread: ctx.thread() })
+    }
+
+    /// The hook's thread it borrows.
+    pub fn thread(&self) -> &'t Thread {
+        self.thread
     }
 
     pub fn id(&self) -> PlayerId {

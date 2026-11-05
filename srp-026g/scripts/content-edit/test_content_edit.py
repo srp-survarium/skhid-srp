@@ -486,9 +486,11 @@ class OtherTables(unittest.TestCase):
         self.assertEqual(ce.stats_label(category, 'gone'), 'gone')
 
     def test_an_ammo_card_counts_every_pellet(self):
-        ammo = config({'data': {'k_damage': 0.2, 'buck_shot': 10, 'k_arp': 0.2},
+        ammo = config({'data': {'k_damage': 0.2, 'buck_shot': 10, 'k_arp': 0.2, 'muzzle_speed': 250.0,
+                                'k_max_damage_distance': 1.1},
                        'parameters': {'clip_size': 15, 'clip_weight': 0.45}})
-        self.assertEqual(ce.ammo_card(ammo), {21: '200', 22: '20', 16: '15', 15: '0.5'})
+        self.assertEqual(ce.ammo_card(ammo), {21: '200', 22: '20', 16: '15', 15: '0.5', 163: '250', 164: '110',
+                                              165: '10'})
 
     def test_a_grenade_card_counts_every_body_and_a_trap_card_its_foot(self):
         grenade = config({'data': {'splash_max_damage': 1.3, 'splash_radius': 10, 'splash_affected_bodies': [6, 0, 1]},
@@ -626,14 +628,18 @@ class OtherTables(unittest.TestCase):
                     checked += 1
         self.assertGreater(checked, 50)
 
-    def test_a_medicine_heals_by_the_second_and_its_card_shows_the_share(self):
+    def test_a_medicine_card_uses_course_totals_independent_of_duration(self):
         medkit = config({'data': {'activity_time_sec': 3, 'activation_delay_sec': 2,
                                   'influences': [{'body_part': p, 'amount': a} for p, a in
-                                                 (('left_hand', 1), ('right_leg', 1), ('head', 0.4), ('pain', 0.1333))]},
+                                                 (('left_hand', 0.25), ('right_leg', 0.25), ('body', 0.6),
+                                                  ('head', 0.24), ('pain', 0.4))]},
                          'parameters': {'weight': 0.2}})
         self.assertEqual([ce.cell_text(medkit, o) for _, o in
-                          ce.resolve(medkit, ce.STATS['medicines']['columns']['limbs'])], ['1', '1'])
-        self.assertEqual(ce.medicine_card(medkit), {18: '3.0', 19: '2.0', 15: '0.2', 135: '100', 137: '40'})
+                          ce.resolve(medkit, ce.STATS['medicines']['columns']['limbs'])], ['0.25', '0.25'])
+        expected = {18: '3.0', 19: '2.0', 15: '0.2', 135: '50', 136: '60', 137: '40'}
+        self.assertEqual(ce.medicine_card(medkit), expected)
+        ce.set_number(medkit, 'data/activity_time_sec', 3, 6)
+        self.assertEqual(ce.medicine_card(medkit), {**expected, 18: '6.0'})
 
     def test_an_items_row_gives_a_copy_its_plain_item_and_starting_ids(self):
         dictionary = config({'items_dict': [{'dict_id': 1, 'name': 'jacket', 'base_cost': 900, 'is_premium': 0},

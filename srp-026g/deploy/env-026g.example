@@ -134,15 +134,6 @@ RUST_LOG=info
 # item stays as it is. The first start with it off makes every worn item of
 # every account whole, once.
 # SRP_ITEM_WEAR=off
-# A weapon or armour found after a match arrives at this percent of its
-# condition, and with one defect (off: without).
-# SRP_DROP_CONDITION=40
-# SRP_DROP_DEFECT=on
-# Whether the first four games of an hour of play raise the chance of
-# finding something (the game's data has the numbers, not how they were
-# used). Off by the owner's choice: every match has the table's 40 %, plus
-# the batteries' and premium's parts.
-# SRP_DROP_PLAYTIME_BONUS=off
 # The daily bonus (double experience and reputation for a day's first three
 # victories, a reward for seven such days). off: none of it. A bonus day
 # starts at this hour of UTC (0 to 23).

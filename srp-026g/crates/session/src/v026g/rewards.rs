@@ -96,16 +96,11 @@
 //!   statistics]; `degrade_per_death` for each death (0 in every 0.26g
 //!   item). Armour's `degrade_per_use` is not applied: how often it was hit
 //!   is not in the statistics.
-//! - **A drop**: one roll of `survarium::v026g::drops` for a player who
-//!   stayed to the end: the new player's table while the account has no
-//!   experience, else the generic one. The chance has three parts, each
-//!   sent in its own place of the screen: the table's (40 %), with the play
-//!   time bonus only when `SRP_DROP_PLAYTIME_BONUS=on`
-//!   ([`pay::drop_playtime_bonus`]); [`pay::DROP_CHANCE_PER_BATTERY`] for each battery the
-//!   player's own team has at the end (modes 2 and 3); [`pay::DROP_CHANCE_PREMIUM`] for a
-//!   premium account. Together they are at most 1. A weapon or an armour
-//!   piece found so arrives worn, with one defect
-//!   ([`pay::drop_condition`], [`pay::drop_defect`]).
+//! - **A drop**: for a player who stayed to the end, always one roll of
+//!   `drop_card_drop` at the match's drop level, as a drop card's (the
+//!   owner's of 2026-11-04): a weapon, an armour piece or a camouflage or
+//!   decal not owned yet, whole; never money or a voucher. The screen shows
+//!   its chance, 100 %, as the first of its parts.
 //! - **A drop card** (`drop_card`, used on the results screen) is one
 //!   roll of `drop_card_drop` at the match's level, and only one for each
 //!   player that finished the match: [`Results::use_drop_card`]
@@ -159,10 +154,9 @@ use survarium::v026g::lobby::{
     self, AccountBody, BonusColumn, FULL_CONDITION, FullResult, ItemDescr, ResultRow,
     ServerMessage, TitleHolder, WireError, limits,
 };
-use survarium::v026g::maps::mode;
+use survarium::v026g::maps::GameMode;
 use survarium::v026g::match_msgs::snapshot::{EVENTS, HUNDREDTHS, KITS, PlayerStatistics, event};
 use survarium::v026g::match_msgs::static_info::{self, SCORE_WEIGHTS};
-use survarium::v026g::modifications;
 use survarium::v026g::quests::MatchStats as QuestStats;
 
 use super::account::Account;
@@ -194,9 +188,6 @@ pub const EVENT_LINES: [usize; EVENTS] = [
 /// The line of the match activity: the fixed part for finishing and
 /// winning, and the other score.
 const ACTIVITY_LINE: usize = 2;
-/// A bonus to [`drops::roll`]'s chance that makes any table give: the
-/// chance is rolled here, with its three parts.
-const CERTAIN_PERCENT: u32 = 100_000_000;
 
 /// Event 25: a kill with a weapon of `item_category_grenades` (PROVEN:
 /// `shared_statistics::on_player_killed` 0x2F5141 compares the weapon's
@@ -277,8 +268,10 @@ pub struct PlayerResult {
 pub struct MatchResult {
     pub match_id: u32,
     pub map_id: u8,
-    /// `survarium::v026g::maps::mode`.
-    pub game_mode: u8,
+    /// Its mode; in Blackout (`docs/notes/blackout.md`) every point a
+    /// player earns counts twice, in its score and in what the score pays
+    /// ([`BLACKOUT_FACTOR`]); the counts (kills, batteries) are as played.
+    pub mode: GameMode,
     pub match_level: u16,
     pub end: MatchEnd,
     /// 0 or 1, [`DRAW`], or `None` when no trusted snapshot gave a standing.
@@ -305,10 +298,6 @@ pub struct MatchResult {
     /// joiners too, and its screen takes no drop card (the owner's of
     /// 2026-10-20; `docs/notes/rooms.md`).
     pub private: bool,
-    /// A Blackout match (`docs/notes/blackout.md`): every point a player
-    /// earns in it counts twice, in its score and in what the score pays
-    /// ([`BLACKOUT_FACTOR`]); the counts (kills, batteries) are as played.
-    pub blackout: bool,
 }
 
 /// What a Blackout match's score and pay are worth: the owner's of
@@ -362,9 +351,6 @@ pub struct Terms {
     /// Whether the match wears the items of the kits played
     /// ([`pay::item_wear`]).
     pub wear: bool,
-    /// Whether the first games of a play period raise the drop chance
-    /// ([`pay::drop_playtime_bonus`]).
-    pub playtime_bonus: bool,
     /// The fewest players a match must have had in it to move the balance
     /// rating ([`balance::players_in`]). 1: every match does.
     pub rated_players: u32,
@@ -377,8 +363,7 @@ pub struct Terms {
 impl Terms {
     /// srp's terms at `now`: `SRP_EXPERIENCE_RATE` (default 2),
     /// `SRP_MONEY_RATE` (default: by the match's level),
-    /// `SRP_REPUTATION_RATE` (default 120), `SRP_ITEM_WEAR` and
-    /// `SRP_DROP_PLAYTIME_BONUS` (both off unless set),
+    /// `SRP_REPUTATION_RATE` (default 120), `SRP_ITEM_WEAR` (off unless set),
     /// `SRP_BALANCE_RATED_PLAYERS` (default 4), `SRP_PVB_PAY` (default
     /// 0.5) and the weights srp's matches are made with.
     pub fn at(now: u64) -> Self {
@@ -389,7 +374,6 @@ impl Terms {
             reputation_rate: pay::reputation_rate(),
             score_weights: SCORE_WEIGHTS,
             wear: pay::item_wear(),
-            playtime_bonus: pay::drop_playtime_bonus(),
             rated_players: balance::rated_players(),
             pvb_pay: super::pvb::pay(),
         }
@@ -1484,7 +1468,7 @@ struct Shared<'a> {
 impl<'a> Shared<'a> {
     fn of(result: &'a MatchResult, terms: &'a Terms) -> Self {
         let trusted = result.played_ms.is_some() && result.trusted_by > 0;
-        let batteries = mode::WITH_BATTERIES.contains(&result.game_mode);
+        let batteries = result.mode.rules().has_batteries();
         let mut stole = [false; 2];
         if trusted && batteries {
             for player in &result.players {
@@ -1515,7 +1499,7 @@ impl<'a> Shared<'a> {
             winner: result.winner.filter(|&winner| trusted && winner <= DRAW),
             batteries,
             stole,
-            weights: static_info::weights_of(result.game_mode, terms.score_weights),
+            weights: static_info::weights_of(result.mode.rules(), terms.score_weights),
             reward_level,
             multipliers,
             drop_level,
@@ -1619,7 +1603,7 @@ impl<'a> Shared<'a> {
 
     /// What a point is worth: twice in a Blackout match.
     fn points_factor(&self) -> f64 {
-        if self.result.blackout {
+        if self.result.mode == GameMode::Blackout {
             BLACKOUT_FACTOR
         } else {
             1.0
@@ -1978,11 +1962,6 @@ impl<'a> Shared<'a> {
             reward.supplies_used =
                 super::autobuy::used(account, player.supplies.as_ref(), &shots, respawns);
         }
-        // A new player is one with no experience from a match yet (what a
-        // new account starts with at most, `tutorial::experience`): its
-        // first drop is from the new player's table.
-        let new_player = account.exp_total <= super::tutorial::experience();
-
         // The score's lines, and the premium half of each kit's column. A
         // match against the server's bots pays a share of the silver and
         // the experience (`SRP_PVB_PAY`): of every cell, so of the premium
@@ -2143,58 +2122,24 @@ impl<'a> Shared<'a> {
             notices.extend(pay.notices);
         }
 
-        // The drop.
+        // The drop: a drop card's roll (the owner's of 2026-11-04), every
+        // time. Its table gives a weapon, an armour piece or a cosmetic,
+        // whole; the screen shows its chance, 100 %, as the first part.
         if standing == Standing::Finished && game > 0 {
-            let tables = Drops::shared();
-            let (table, percent) = if new_player {
-                (&tables.new_player, 0)
-            } else if self.terms.playtime_bonus {
-                (&tables.generic, tables.playtime.bonus_percent(game))
-            } else {
-                (&tables.generic, 0)
-            };
-            // The chance's parts, as the screen shows them: the table's
-            // (with the play time bonus when that is on); the match's result (the batteries
-            // of the player's own team at the end); the premium account.
-            // Together at most 1, the later parts cut.
-            let base = (table.item_chance() * (1.0 + percent as f32 / 100.0)).min(1.0);
-            let batteries = if self.trusted && self.batteries && player.team < 2 {
-                self.result.team_points[usize::from(player.team)]
-            } else {
-                0
-            };
-            let from_result = (f32::from(batteries) * pay::DROP_CHANCE_PER_BATTERY).min(1.0 - base);
-            let from_premium = if reward.premium {
-                pay::DROP_CHANCE_PREMIUM
-                    .min(1.0 - base - from_result)
-                    .max(0.0)
-            } else {
-                0.0
-            };
-            let chance = base + from_result + from_premium;
-            reward.drop_chance = chance;
-            // The fourth part is a penalty ("for idleness"); srp has none.
-            // The third's label is the client's choice: it shows "Premium
-            // account" only for a raw value over 12.5 and "Premium players
-            // in match" under it, and prints either × 100 (`results.md`
-            // §9), so a fraction always has the second label.
-            full.drop_chances = [base, from_result, from_premium, 0.0];
+            let table = &Drops::shared().drop_card;
+            reward.drop_chance = table.item_chance();
+            full.drop_chances = [reward.drop_chance, 0.0, 0.0, 0.0];
             let level = self.drop_level.min(u16::from(u8::MAX)) as u8;
-            let found = (rng.below(1 << 24) as f32 / (1 << 24) as f32) < chance;
-            let rolled = if found {
-                drops::roll(
-                    table,
-                    Dictionary::shared(),
-                    &account.owned_dict_ids(),
-                    level,
-                    CERTAIN_PERCENT,
-                    rng,
-                )
-            } else {
-                None
-            };
+            let rolled = drops::roll(
+                table,
+                Dictionary::shared(),
+                &account.owned_dict_ids(),
+                level,
+                0,
+                rng,
+            );
             if let Some(rolled) = rolled {
-                let (dropped, shown) = give_drop(account, &rolled, true, rng);
+                let (dropped, shown) = give_drop(account, &rolled, rng);
                 full.dropped = Some(shown);
                 full.drop_rarity = dropped.rarity;
                 reward.drop = Some(dropped);
@@ -2284,7 +2229,7 @@ impl<'a> Shared<'a> {
             // 0, as the top of a bar whose value is the team's rows [GUESS:
             // the players a team had].
             team_params: [team_size(0), team_size(1)],
-            game_mode: result.game_mode,
+            game_mode: result.mode.rules().number(),
             best_player: holder(player),
             best_player_score: clamp_u16(player.map_or(0, |line| line.score)),
             best_shooter: holder(shooter),
@@ -2318,19 +2263,10 @@ impl<'a> Shared<'a> {
 
 /// Gives the account a rolled drop: silver and gold to the balances, a
 /// stack onto the one owned, anything else as a new item with the
-/// modifications of its rarity (`items_rules::roll_modifications`).
-/// `found_in_match`: a weapon or an armour piece arrives worn
-/// ([`pay::drop_condition`]) and with one defect it may have
-/// ([`pay::drop_defect`]); an item of a drop card arrives whole, and so
-/// does anything that has no condition to lose (a cosmetic).
+/// modifications of its rarity (`items_rules::roll_modifications`), whole.
 /// Returns what was given and the item as a message describes it (a
 /// stack's value is the units dropped, not the stack's size).
-fn give_drop(
-    account: &mut Account,
-    rolled: &drops::Drop,
-    found_in_match: bool,
-    rng: &mut Rng,
-) -> (Dropped, ItemDescr) {
+fn give_drop(account: &mut Account, rolled: &drops::Drop, rng: &mut Rng) -> (Dropped, ItemDescr) {
     let dictionary = Dictionary::shared();
     let mut shown = None;
     let (item_id, value, rarity) = match rolled.dict_id {
@@ -2348,19 +2284,10 @@ fn give_drop(
             rolled.rarity,
         ),
         dict_id => {
-            let worn = found_in_match && is_gear(dict_id);
-            let condition = if worn {
-                FULL_CONDITION / 100 * pay::drop_condition().min(100)
-            } else {
-                FULL_CONDITION
-            };
-            let item_id = account.add_item(dict_id, condition);
+            let item_id = account.add_item(dict_id, FULL_CONDITION);
             let rank = items_rules::roll_modifications(account, item_id, rolled.rarity, rng);
-            if worn && pay::drop_defect() {
-                add_defect(account, item_id, rng);
-            }
             shown = account.item(item_id).map(wire::item_descr);
-            (item_id, condition, rank)
+            (item_id, FULL_CONDITION, rank)
         }
     };
     (
@@ -2373,35 +2300,6 @@ fn give_drop(
         },
         shown.unwrap_or_else(|| ItemDescr::plain(item_id, rolled.dict_id, value)),
     )
-}
-
-/// Whether the item is a weapon or an armour piece: what takes
-/// modifications and defects (`items_rules`), and so has a condition.
-fn is_gear(dict_id: u16) -> bool {
-    modifications::item_mods(dict_id).is_some_and(|mods| mods.modifications != 0)
-}
-
-/// One defect for a new item, among those the client knows for it and its
-/// modifications allow (`Modifications::defect_candidates`, the list a
-/// worn item's defect is rolled from), by drop weight. None if the item
-/// can have none.
-fn add_defect(account: &mut Account, item_id: u32, rng: &mut Rng) -> Option<u32> {
-    let item = account.item_mut(item_id)?;
-    if item.modifications.len() >= limits::MODIFICATIONS {
-        return None;
-    }
-    let candidates = modifications::Modifications::shared().defect_candidates(
-        item.dict_id,
-        &items_rules::own_modifications(item),
-        &items_rules::defects(item),
-    );
-    let weights: Vec<u32> = candidates
-        .iter()
-        .map(|row| (row.drop_weight * 1000.0).round().max(0.0) as u32)
-        .collect();
-    let defect = candidates[rng.pick(&weights)?].id;
-    item.modifications.push((defect, true));
-    Some(defect)
 }
 
 /// What using a drop card did.
@@ -2463,7 +2361,7 @@ fn use_card(
     // card.
     let rolled = drops::roll(table, dictionary, &account.owned_dict_ids(), level, 0, rng)
         .ok_or(DropCardRefusal::NoRoll)?;
-    let (dropped, shown) = give_drop(account, &rolled, false, rng);
+    let (dropped, shown) = give_drop(account, &rolled, rng);
     let cards_left = match account
         .inventory
         .iter()

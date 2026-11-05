@@ -1,5 +1,5 @@
 {
-  "_about": "Base weapon detail transport, properties 138..160 (160: chambering time, on the 11 bolt and pump weapons that have one). Numeric values copied from each weapon after balance edits. The movie renders these itself; native comparison rows skip them. No simulation changes.",
+  "_about": "Base weapon detail transport, properties 138..160 (160: chambering time, on the 11 bolt and pump weapons that have one). Numeric values copied from each weapon after balance edits. The movie renders these itself; native comparison rows skip them. No simulation changes. Property 162 carries the empty/tactical hands-clip duration ratio for state 314; both displayed times derive from property 138.",
   "add_entry": [
     {
       "files": "gameplay/static_game_parameters.options",
@@ -667,6 +667,39 @@
         "prop_value": "{parameters/chamber_a_round_time}"
       },
       "only_if": "parameters/chamber_a_round_time"
+    },
+    {
+      "files": "gameplay/static_game_parameters.options",
+      "list": "ui_properties",
+      "after": {
+        "prop_id": 160
+      },
+      "like": {
+        "prop_id": 133
+      },
+      "values": {
+        "prop_id": 162,
+        "comparable": false
+      }
+    },
+    {
+      "files": "gameplay/items/weapons/wpn_*.options",
+      "list": "ui_desc/props_list",
+      "after": {
+        "prop_id": 138
+      },
+      "like": {
+        "prop_id": 138
+      },
+      "values": {
+        "prop_id": 162
+      },
+      "reload_clip_ratio": true
+    }
+  ],
+  "_inputs": [
+    {
+      "files": "animations/single/weapons/*reload*.b-spline"
     }
   ]
 }

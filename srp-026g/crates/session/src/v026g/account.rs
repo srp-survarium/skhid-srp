@@ -187,6 +187,8 @@ pub struct Account {
     /// The settings of the last room it made by hand, its create window's
     /// start ([`super::room_settings`]); none before its first.
     pub room_settings: Option<super::room_settings::RoomSettings>,
+    /// Account-wide, persistent allowances for the first three introductions to each mode.
+    pub mode_introductions: super::mode_intro::Allowances,
     /// The matches whose results screen it used a drop card on, sorted,
     /// of those whose reports are kept: one card a match
     /// ([`super::rewards::Results::use_drop_card`]). Kept with the account,
@@ -299,6 +301,7 @@ impl Account {
             },
             map_plays: Vec::new(),
             room_settings: None,
+            mode_introductions: Default::default(),
             drop_cards: Vec::new(),
             presets: [None; super::presets::PRESETS],
             active_preset: super::presets::FIRST_PRESET,
@@ -312,7 +315,10 @@ impl Account {
                 continue;
             }
             let (value, count) = if entry.is_stack {
-                (worn.count, worn.count)
+                (
+                    worn.count,
+                    loadouts::equipped_units(worn.slot, worn.dict_id, worn.count),
+                )
             } else {
                 (FULL_CONDITION, 1)
             };
@@ -620,7 +626,7 @@ impl Account {
                 .iter()
                 .flatten()
                 .any(|slot| stripped.contains(&slot.item_id));
-            for slot in &mut kit.slots {
+            for (index, slot) in kit.slots.iter_mut().enumerate() {
                 let Some(held) = slot.as_mut() else {
                     continue;
                 };
@@ -629,13 +635,20 @@ impl Account {
                     changed = true;
                     continue;
                 };
-                if dictionary.is_stack(owned.dict_id) && held.count > owned.condition_or_stack {
-                    if owned.condition_or_stack == 0 {
-                        *slot = None;
-                    } else {
-                        held.count = owned.condition_or_stack;
+                if dictionary.is_stack(owned.dict_id) {
+                    let count = loadouts::equipped_units(
+                        index as u8,
+                        owned.dict_id,
+                        held.count.min(owned.condition_or_stack),
+                    );
+                    if count != held.count {
+                        if count == 0 {
+                            *slot = None;
+                        } else {
+                            held.count = count;
+                        }
+                        changed = true;
                     }
-                    changed = true;
                 }
             }
             if changed {
@@ -1029,7 +1042,7 @@ mod tests {
         assert_eq!(account.inventory, before.inventory);
         assert_eq!(units(&account), units(&before));
         assert_eq!(account.generic_money, before.generic_money);
-        // Valid now: nothing more to merge, and the repair keeps it.
+        // All six pockets are supported after duplicate types are merged.
         assert_eq!(account.merge_pockets(), 0);
         assert!(!account.repair());
     }
@@ -1043,7 +1056,7 @@ mod tests {
         let few = account.add_item(grenade, 1);
         let many = account.add_item(grenade, 4);
         in_pocket(&mut account, 2, 16, few, 1);
-        in_pocket(&mut account, 2, 13, many, 3);
+        in_pocket(&mut account, 2, 13, many, 2);
         let inventory = account.inventory.clone();
         assert_eq!(account.doubled_pockets(&account.kits[2]), [16]);
         assert!(account.repair());
@@ -1051,7 +1064,7 @@ mod tests {
             account.kits[2].slots[13],
             Some(KitSlot {
                 item_id: many,
-                count: 3
+                count: 2
             })
         );
         assert_eq!(account.kits[2].slots[16], None);
@@ -1059,7 +1072,7 @@ mod tests {
 
         // The other way round: the kept stack owns less than the most held.
         in_pocket(&mut account, 2, 13, few, 1);
-        in_pocket(&mut account, 2, 16, many, 3);
+        in_pocket(&mut account, 2, 16, many, 2);
         assert!(account.repair());
         assert_eq!(
             account.kits[2].slots[13],
@@ -1071,6 +1084,26 @@ mod tests {
         assert_eq!(account.kits[2].slots[16], None);
         assert_eq!(account.inventory, inventory);
         units(&account);
+    }
+
+    /// An RGD-5 takes two units of a pocket, so a pocket holds two of them
+    /// at most (the largest pocket, five units): a kit saved with more
+    /// keeps two, the rest stays in the storage.
+    #[test]
+    fn a_pocket_holds_two_rgd_5s_at_most() {
+        let grenade = Dictionary::shared().item_named("rgd-5").unwrap().dict_id;
+        let smoke = Dictionary::shared().item_named("rdg-m").unwrap().dict_id;
+        let mut account = Account::new("Alice");
+        let grenades = account.add_item(grenade, 30);
+        let smokes = account.add_item(smoke, 30);
+        in_pocket(&mut account, 0, 13, grenades, 5);
+        in_pocket(&mut account, 0, 14, smokes, 5);
+        let inventory = account.inventory.clone();
+        assert!(account.repair());
+        let count = |slot: usize| account.kits[0].slots[slot].unwrap().count;
+        assert_eq!((count(13), count(14)), (2, 5));
+        assert_eq!(account.inventory, inventory);
+        assert!(!account.repair());
     }
 
     /// Ammo is no pocket item: one ammo in several ammo slots is the ammo

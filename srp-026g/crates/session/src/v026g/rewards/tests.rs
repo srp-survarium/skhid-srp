@@ -3,6 +3,7 @@ use crate::v026g::MemoryGameRepository;
 use crate::v026g::account::QuestInstance;
 use crate::v026g::quests::QUEST_MESSAGE;
 use survarium::v026g::lobby::client_model::{Client, Decoded};
+use survarium::v026g::maps::RuleMode;
 use survarium::v026g::match_msgs::snapshot;
 use survarium::v026g::quests::Quests;
 
@@ -10,8 +11,8 @@ const NOW: u64 = 1_000_000;
 const MATCH: u32 = 0x77;
 
 /// The original's pay: the rates of a match's experience, silver and
-/// reputation at 1, 100 % and 100 %, with the game's wear and the play time
-/// bonus to the drop chance (both off in srp's own terms). Every match
+/// reputation at 1, 100 % and 100 %, with the game's wear (off in srp's
+/// own terms). Every match
 /// moves the balance rating, whatever its size (srp's own terms: from four
 /// players).
 fn terms() -> Terms {
@@ -22,7 +23,6 @@ fn terms() -> Terms {
         reputation_rate: 100,
         score_weights: SCORE_WEIGHTS,
         wear: true,
-        playtime_bonus: true,
         rated_players: 1,
         pvb_pay: 0.5,
     }
@@ -66,7 +66,7 @@ fn result(players: Vec<PlayerResult>) -> MatchResult {
     MatchResult {
         match_id: MATCH,
         map_id: 1,
-        game_mode: mode::BATTERIES,
+        mode: GameMode::Batteries,
         match_level: 0,
         end: MatchEnd::ModeRule,
         winner: Some(0),
@@ -78,7 +78,6 @@ fn result(players: Vec<PlayerResult>) -> MatchResult {
         players,
         vs_bots: false,
         private: false,
-        blackout: false,
     }
 }
 
@@ -170,9 +169,6 @@ fn dropped_money(reward: &Reward) -> (u32, u32) {
     }
 }
 
-/// The condition a weapon or armour found in a match arrives in: 40 %.
-const FOUND_CONDITION: u32 = FULL_CONDITION / 100 * 40;
-
 fn columns(full: &FullResult, line: usize) -> (f32, u32, i16, i16) {
     full.components[line].columns[0]
 }
@@ -258,7 +254,7 @@ fn the_winner_and_the_loser_are_paid_by_the_score() {
     assert_eq!(stats.winner_team, 0);
     assert_eq!(stats.team_scores, [3, 1]);
     assert_eq!(stats.team_params, [1, 1]);
-    assert_eq!(stats.game_mode, mode::BATTERIES);
+    assert_eq!(stats.game_mode, RuleMode::Batteries.number());
     assert_eq!(stats.best_player.name, "Alice");
     assert_eq!(stats.best_player_score, 35);
     // Nobody fired, helped or found anything the counters show.
@@ -522,14 +518,13 @@ fn the_money_rate_scales_the_rows_silver_and_premiums_half_of_it() {
     assert_eq!(alice.reward.premium_bonus, (67, 132, 3));
     assert_eq!(alice.reward.money, 134);
     // srp's own terms: the owner's silver by match level, twice the
-    // experience and 120 % of the reputation, no wear and no play time
-    // bonus.
+    // experience and 120 % of the reputation, no wear.
     let own = Terms::at(NOW);
     assert_eq!(
         (own.money_rate, own.experience_rate, own.reputation_rate),
         (pay::MoneyRate::ByLevel, 2, 120)
     );
-    assert_eq!((own.wear, own.playtime_bonus), (false, false));
+    assert!(!own.wear);
     assert_eq!(own.score_weights, SCORE_WEIGHTS);
 }
 
@@ -710,24 +705,17 @@ fn one_who_left_gets_no_finish_bonus_and_no_drop_and_loses_rating() {
     assert_eq!(report.stats.rows.len(), 4);
     assert!(report.screen_for(13).unwrap().is_ok());
 
-    // Those who stayed, new players both, found something.
+    // Those who stayed found something: a drop card's item, whole.
     for index in [0, 1] {
         let reward = &report.players[index].reward;
         let drop = reward.drop.unwrap();
         assert_eq!(reward.drop_chance, 1.0);
-        let params = item_params(drop.dict_id).unwrap();
-        assert!((1..=2).contains(&params.item_level));
-        // An item in the inventory, with the three modifications of the
-        // rarity the new player's table always rolls; found in a match, so
-        // at 40 % and with one defect.
-        assert_eq!((drop.count, drop.rarity, drop.rolled_rarity), (1, 3, 3));
         let owner = account(&store, 10 + index as u32);
         let item = owner.item(drop.item_id).unwrap();
-        assert_eq!(crate::v026g::items_rules::rank(item), 3);
-        assert_eq!(crate::v026g::items_rules::defects(item).len(), 1);
+        assert_eq!(crate::v026g::items_rules::defects(item).len(), 0);
         assert_eq!(
             (item.dict_id, item.condition_or_stack),
-            (drop.dict_id, FOUND_CONDITION)
+            (drop.dict_id, FULL_CONDITION)
         );
         let shown = report.players[index].full.dropped.as_ref().unwrap();
         assert_eq!((shown.item_id, shown.dict_id), (drop.item_id, drop.dict_id));
@@ -1050,14 +1038,14 @@ fn the_quest_numbers_come_from_the_counters() {
     assert_eq!(bob.team_batteries, 1);
     // Tickets are no batteries.
     let mut deathmatch = result.clone();
-    deathmatch.game_mode = mode::TEAM_DEATHMATCH;
+    deathmatch.mode = GameMode::TeamDeathmatch;
     let shared = Shared::of(&deathmatch, &terms);
     let alice = shared.quest_stats(&deathmatch.players[0]);
     assert_eq!(alice.team_batteries, 0);
     assert!(!alice.battery_mode);
     // Nor are Research's points, and no base is robbed there.
     let mut research = result.clone();
-    research.game_mode = mode::RESEARCH;
+    research.mode = GameMode::Research;
     let shared = Shared::of(&research, &terms);
     let alice = shared.quest_stats(&research.players[0]);
     assert_eq!(alice.team_batteries, 0);
@@ -1068,7 +1056,7 @@ fn the_quest_numbers_come_from_the_counters() {
 /// A Research match (mode 5) team 0 won 100 to 64: Alice captured units
 /// worth fifteen whole captures (more than a map has batteries),
 /// neutralised one and killed two invaders.
-fn research_match(game_mode: u8, weights: &[f32; EVENTS]) -> (GameAccounts, MatchResult) {
+fn research_match(mode: GameMode, weights: &[f32; EVENTS]) -> (GameAccounts, MatchResult) {
     let mut alice = player(
         0,
         0,
@@ -1086,16 +1074,16 @@ fn research_match(game_mode: u8, weights: &[f32; EVENTS]) -> (GameAccounts, Matc
     let players = vec![alice, player(1, 1, "Bob", PlayerStatistics::default())];
     let store = accounts(&players);
     let mut result = result(players);
-    result.game_mode = game_mode;
+    result.mode = mode;
     result.team_points = [100, 64];
     (store, result)
 }
 
 #[test]
 fn a_research_match_pays_its_captures_by_research_weights_uncapped() {
-    let research_weights = static_info::score_weights(mode::RESEARCH);
+    let research_weights = static_info::score_weights(RuleMode::Research);
     // The score the match server sent and counted: 15 × 30 + 30 + 2 × 10.
-    let (store, result) = research_match(mode::RESEARCH, &research_weights);
+    let (store, result) = research_match(GameMode::Research, &research_weights);
     assert_eq!(result.players[0].score, 500);
     let report = Results::new()
         .settle(&result, &store, &terms(), &mut Rng::new(1))
@@ -1103,7 +1091,7 @@ fn a_research_match_pays_its_captures_by_research_weights_uncapped() {
     let alice = &report.players[0];
     assert!(alice.reward.won);
     assert_eq!(alice.reward.score, 500);
-    assert_eq!(report.stats.game_mode, mode::RESEARCH);
+    assert_eq!(report.stats.game_mode, RuleMode::Research.number());
     assert_eq!(
         (report.stats.winner_team, report.stats.team_scores),
         (0, [100, 64])
@@ -1113,7 +1101,7 @@ fn a_research_match_pays_its_captures_by_research_weights_uncapped() {
     assert_eq!(activity.0, 20.0);
     // As a match whose terms weigh so pays it: all fifteen captures, at
     // Research's weights and not the batteries'.
-    let (store, plain) = research_match(mode::BATTERIES, &research_weights);
+    let (store, plain) = research_match(GameMode::Batteries, &research_weights);
     let weighed = Terms {
         score_weights: research_weights,
         ..terms()
@@ -1122,347 +1110,74 @@ fn a_research_match_pays_its_captures_by_research_weights_uncapped() {
         .settle(&plain, &store, &weighed, &mut Rng::new(1))
         .unwrap();
     assert_eq!(columns(&as_weighed.players[0].full, 2), activity);
-    let (store, batteries) = research_match(mode::BATTERIES, &SCORE_WEIGHTS);
+    let (store, batteries) = research_match(GameMode::Batteries, &SCORE_WEIGHTS);
     let at_battery_weights = Results::new()
         .settle(&batteries, &store, &terms(), &mut Rng::new(1))
         .unwrap();
     assert!(columns(&at_battery_weights.players[0].full, 2).1 < activity.1);
-    // Research's points are no batteries: nothing to the drop chance.
-    assert_eq!(alice.full.drop_chances[1], 0.0);
-    assert!(as_weighed.players[0].full.drop_chances[1] > 0.0);
 }
 
+/// A weapon or an armour piece: what has a condition to lose.
+fn is_gear(dict_id: u16) -> bool {
+    survarium::v026g::modifications::item_mods(dict_id).is_some_and(|mods| mods.modifications != 0)
+}
+
+/// Every finisher finds a drop card's item (the owner's of 2026-11-04):
+/// a weapon, an armour piece or a cosmetic, whole, never money or a
+/// stack; the screen shows 100 % as the first part, whatever the
+/// batteries or premium.
 #[test]
-fn drops_follow_the_seed_and_the_play_time() {
-    let dictionary = Dictionary::shared();
+fn a_finisher_always_finds_a_drop_cards_item() {
     let players = alice_and_bob();
     let settle = |seed: u64| {
         let store = accounts(&players);
+        store.get(10).unwrap().locked().premium_until = NOW + 3600;
         let before = account(&store, 10);
         let report = Results::new()
-            .settle(
-                &result(players.clone()),
-                &store,
-                &terms(),
-                &mut Rng::new(seed),
-            )
+            .settle(&result(players.clone()), &store, &terms(), &mut Rng::new(seed))
             .unwrap();
         (report, before, account(&store, 10))
     };
-    let (mut some, mut none, mut gear) = (0, 0, 0);
+    let (mut gear, mut cosmetic) = (0, 0);
     for seed in 1..=60 {
         let (report, before, after) = settle(seed);
         // The same seed, the same match.
         assert_eq!(*settle(seed).0, *report);
         let alice = &report.players[0];
-        // The first game of a play period: twice the table's 40 %; and
-        // 2.5 % for each of her team's three batteries. No premium, no
-        // penalty.
-        assert!((alice.full.drop_chances[0] - 0.8).abs() < 1e-6);
-        assert!((alice.full.drop_chances[1] - 0.075).abs() < 1e-6);
-        assert_eq!(alice.full.drop_chances[2..], [0.0, 0.0]);
-        assert!((alice.reward.drop_chance - 0.875).abs() < 1e-6);
-        // Bob's team has one.
-        let bob = &report.players[1].full.drop_chances;
-        assert!((bob[1] - 0.025).abs() < 1e-6, "{bob:?}");
-        let Some(drop) = alice.reward.drop else {
-            none += 1;
-            assert_eq!(alice.full.dropped, None);
-            assert_eq!(after.inventory.len(), before.inventory.len());
-            continue;
-        };
-        some += 1;
+        assert_eq!(alice.full.drop_chances, [1.0, 0.0, 0.0, 0.0]);
+        assert_eq!(alice.reward.drop_chance, 1.0);
+        let drop = alice.reward.drop.expect("always a drop");
+        assert!(!Dictionary::shared().is_stack(drop.dict_id), "{drop:?}");
+        let item = after.item(drop.item_id).unwrap();
+        assert_eq!(item.condition_or_stack, FULL_CONDITION);
+        assert!(crate::v026g::items_rules::defects(item).is_empty());
+        let rank = crate::v026g::items_rules::rank(item);
+        assert_eq!(usize::from(alice.full.drop_rarity), rank);
         let shown = alice.full.dropped.as_ref().unwrap();
-        assert_eq!(shown.dict_id, drop.dict_id);
-        match drop.dict_id {
-            GENERIC_MONEY => {
-                assert_eq!(drop.item_id, 0);
-                assert_eq!(shown.condition_or_stack, drop.count);
-                assert_eq!(
-                    after.generic_money,
-                    before.generic_money + alice.reward.money + drop.count
-                );
-                assert_eq!(after.inventory.len(), before.inventory.len());
-            }
-            PREMIUM_MONEY => {
-                assert_eq!(after.premium_money, before.premium_money + drop.count);
-                assert_eq!(after.inventory.len(), before.inventory.len());
-            }
-            dict_id if dictionary.is_stack(dict_id) => {
-                let item = after.item(drop.item_id).unwrap();
-                assert_eq!(item.condition_or_stack, drop.count);
-                assert_eq!(alice.full.drop_rarity, drop.rolled_rarity);
-            }
-            _ => {
-                let item = after.item(drop.item_id).unwrap();
-                // A weapon or armour has the modifications of its rarity,
-                // and the screen is told how many. Found in a match, it is
-                // at 40 % and has one defect; a cosmetic is whole.
-                let rank = crate::v026g::items_rules::rank(item);
-                let defects = crate::v026g::items_rules::defects(item).len();
-                if is_gear(drop.dict_id) {
-                    gear += 1;
-                    assert_eq!(item.condition_or_stack, FOUND_CONDITION);
-                    assert_eq!(defects, 1);
-                } else {
-                    assert_eq!(item.condition_or_stack, FULL_CONDITION);
-                    assert_eq!((rank, defects), (0, 0));
-                }
-                assert_eq!(usize::from(alice.full.drop_rarity), rank);
-                assert!(rank <= usize::from(drop.rolled_rarity));
-                let shown = alice.full.dropped.as_ref().unwrap();
-                assert_eq!(shown.modifications.len(), rank + defects);
-                assert_eq!(shown.condition_or_stack, item.condition_or_stack);
-                assert_eq!(after.inventory.len(), before.inventory.len() + 1);
-            }
+        assert_eq!((shown.dict_id, shown.condition_or_stack), (drop.dict_id, FULL_CONDITION));
+        assert_eq!(after.inventory.len(), before.inventory.len() + 1);
+        assert_eq!(after.generic_money, before.generic_money + alice.reward.money);
+        if is_gear(drop.dict_id) {
+            gear += 1;
+        } else {
+            cosmetic += 1;
+            assert_eq!(rank, 0);
         }
     }
-    assert!(some > 30 && none > 0, "{some} drops, {none} none");
-    assert!(gear > 5, "{gear} weapons and armour");
+    assert!(gear > 20 && cosmetic > 10, "{gear} gear, {cosmetic} cosmetics");
 
-    // The play time bonus: 100, 75, 50, 25 % more for the first four games
-    // of a period, none after; an hour without a match starts another.
-    let store = accounts(&players);
-    let results = Results::new();
-    let mut rng = Rng::new(3);
-    let mut chances = Vec::new();
-    let mut at = NOW;
-    for game in 0..7 {
-        if game == 5 {
-            at += 3600;
-        }
-        at += 900;
-        let mut result = result(players.clone());
-        result.match_id = MATCH + game;
-        let terms = Terms { now: at, ..terms() };
-        let report = results.settle(&result, &store, &terms, &mut rng).unwrap();
-        chances.push((report.players[0].full.drop_chances[0] * 100.0).round() as u32);
-    }
-    assert_eq!(chances, [80, 70, 60, 50, 40, 80, 70]);
-
-    // With the bonus off (srp's own terms) every game has the table's
-    // plain chance.
-    let store = accounts(&players);
-    let results = Results::new();
-    let mut rng = Rng::new(3);
-    let mut chances = Vec::new();
-    for game in 0..3 {
-        let mut result = result(players.clone());
-        result.match_id = MATCH + game;
-        let terms = Terms {
-            now: NOW + 900 * u64::from(game),
-            playtime_bonus: false,
-            ..terms()
-        };
-        let report = results.settle(&result, &store, &terms, &mut rng).unwrap();
-        chances.push((report.players[0].full.drop_chances[0] * 100.0).round() as u32);
-    }
-    assert_eq!(chances, [40, 40, 40]);
-}
-
-#[test]
-fn the_drop_chance_has_its_three_parts() {
-    // Team 0 has `batteries` at the end; Alice has premium or not; the
-    // fifth game of a play period, so the table's plain 40 %.
-    let parts = |batteries: u16, premium: bool, mode: u8| {
-        let players = alice_and_bob();
-        let store = accounts(&players);
-        if premium {
-            store.get(10).unwrap().locked().premium_until = NOW + 3600;
-        }
-        let results = Results::new();
-        let mut rng = Rng::new(11);
-        let mut last = None;
-        for game in 0..5 {
-            let mut result = result(players.clone());
-            result.match_id = MATCH + game;
-            result.game_mode = mode;
-            result.team_points = [batteries, 0];
-            last = results.settle(&result, &store, &terms(), &mut rng);
-        }
-        let report = last.unwrap();
-        let alice = &report.players[0];
-        let sum: f32 = alice.full.drop_chances[..3].iter().sum();
-        assert!((alice.reward.drop_chance - sum).abs() < 1e-6);
-        alice
-            .full
-            .drop_chances
-            .map(|part| (part * 1000.0).round() as u32)
-    };
-    assert_eq!(parts(0, false, mode::BATTERIES), [400, 0, 0, 0]);
-    assert_eq!(parts(5, false, mode::BATTERIES), [400, 125, 0, 0]);
-    assert_eq!(parts(5, true, mode::BATTERIES), [400, 125, 250, 0]);
-    assert_eq!(parts(0, true, mode::BATTERIES), [400, 0, 250, 0]);
-    // All ten home and premium: 40 + 25 + 25.
-    assert_eq!(parts(10, true, mode::BATTERIES), [400, 250, 250, 0]);
-    // Tickets are no batteries.
-    assert_eq!(parts(40, true, mode::TEAM_DEATHMATCH), [400, 0, 250, 0]);
     // The parts are sent as the client reads them: four f32 at the end of
     // the screen.
-    let players = alice_and_bob();
-    let store = accounts(&players);
-    store.get(10).unwrap().locked().premium_until = NOW + 3600;
-    let report = Results::new()
-        .settle(&result(players), &store, &terms(), &mut Rng::new(1))
-        .unwrap();
-    // The first game: 80 %, 7.5 % for three batteries, and what is left
-    // of 100 for premium.
+    let (report, _, _) = settle(1);
     let message = report.screen_for(10).unwrap().unwrap();
     let body = message.body();
-    let mut tail = Vec::new();
-    for part in [0.8_f32, 0.075, 0.125, 0.0] {
-        tail.extend(part.to_le_bytes());
-    }
     let sent: Vec<f32> = body[body.len() - 16..]
         .chunks(4)
         .map(|bytes| f32::from_le_bytes(bytes.try_into().unwrap()))
         .collect();
-    for (sent, part) in sent.iter().zip([0.8_f32, 0.075, 0.125, 0.0]) {
-        assert!((sent - part).abs() < 1e-6, "{sent} is not {part}");
-    }
-    assert_eq!(body[body.len() - 16..body.len() - 12], tail[..4]);
-    assert_eq!(body[body.len() - 4..], [0, 0, 0, 0]);
+    assert_eq!(sent, [1.0, 0.0, 0.0, 0.0]);
 }
 
-/// A weapon found in a match: 40 % and one defect the client knows for
-/// it, byte for byte as the screen (`97`) and the inventory (`89`) carry
-/// it.
-#[test]
-fn a_weapon_found_in_a_match_is_worn_and_has_a_defect() {
-    let dictionary = Dictionary::shared();
-    let table = modifications::Modifications::shared();
-    let toz = dictionary.item_named("toz_34").unwrap().dict_id;
-    assert!(is_gear(toz));
-    let rolled = drops::Drop {
-        dict_id: toz,
-        count: 1,
-        rarity: 0,
-    };
-    let candidates: Vec<u32> = table
-        .defect_candidates(toz, &[], &[])
-        .iter()
-        .map(|row| row.id)
-        .collect();
-    assert!(!candidates.is_empty());
-    let mut defects_seen = Vec::new();
-    for seed in 1..=40 {
-        let mut account = Account::new("Alice");
-        let mut rng = Rng::new(seed);
-        let (dropped, shown) = give_drop(&mut account, &rolled, true, &mut rng);
-        let item = account.item(dropped.item_id).unwrap().clone();
-        assert_eq!(item.condition_or_stack, 400_000);
-        // No modification (rarity 0), one defect, of those the item may
-        // have: an id the client's defect table has.
-        assert_eq!(item.modifications.len(), 1);
-        let (defect, state) = item.modifications[0];
-        assert!(state);
-        assert!(table.is_known(defect, true));
-        assert!(candidates.contains(&defect));
-        if !defects_seen.contains(&defect) {
-            defects_seen.push(defect);
-        }
-        assert_eq!(dropped.rarity, 0);
-
-        // The descriptor of the screen: id, dict id, condition, one time
-        // (no repair, no change of modifications), one `{id, state 1}`,
-        // no upgrades.
-        let mut expected = Vec::new();
-        expected.extend(dropped.item_id.to_le_bytes());
-        expected.extend(toz.to_le_bytes());
-        expected.extend([0x80, 0x1A, 0x06, 0x00]);
-        expected.extend([0, 0, 0, 0]);
-        expected.push(1);
-        expected.extend(defect.to_le_bytes());
-        expected.push(1);
-        expected.push(0);
-        let mut full = FullResult::empty(1);
-        full.dropped = Some(shown);
-        let stats = lobby::MatchStats {
-            match_id: MATCH,
-            unknown: 0,
-            winner_team: 0,
-            team_scores: [0, 0],
-            team_params: [0, 0],
-            game_mode: mode::BATTERIES,
-            best_player: TitleHolder::default(),
-            best_player_score: 0,
-            best_shooter: TitleHolder::default(),
-            shooter_accuracy_percent: 0,
-            shooter_shots: 0,
-            best_support: TitleHolder::default(),
-            support_value: 0,
-            best_explorer: TitleHolder::default(),
-            explorer_artefacts: 0,
-            explorer_items: 0,
-            rows: Vec::new(),
-        };
-        let screen = lobby::match_stats(&stats, &full).unwrap();
-        let body = screen.body();
-        // After the descriptor: the rarity and the four chances.
-        let end = body.len() - 17;
-        assert_eq!(body[end - expected.len()..end], expected[..], "seed {seed}");
-        // The client reads the screen and the inventory with the item.
-        let mut client = Client::signed_in();
-        let Decoded::MatchStats { own, .. } = client.receive(&screen).unwrap() else {
-            panic!("not the screen");
-        };
-        let read = own.dropped.unwrap();
-        assert_eq!(read.condition_or_stack, 400_000);
-        assert_eq!(read.modifications.len(), 1);
-        // The inventory's descriptor has the repair time too.
-        let inventory = wire::after_change(&account, NOW).unwrap();
-        let mut expected = Vec::new();
-        expected.extend(dropped.item_id.to_le_bytes());
-        expected.extend(toz.to_le_bytes());
-        expected.extend([0x80, 0x1A, 0x06, 0x00]);
-        expected.extend([0; 8]);
-        expected.push(1);
-        expected.extend(defect.to_le_bytes());
-        expected.extend([1, 0]);
-        let body = inventory[0].body();
-        assert!(
-            body.windows(expected.len())
-                .any(|window| window == expected),
-            "seed {seed}"
-        );
-        client.receive_all(&inventory).unwrap();
-        assert!(
-            client
-                .inventory()
-                .iter()
-                .any(|held| held.item_id == dropped.item_id && held.condition_or_stack == 400_000)
-        );
-
-        // From a drop card the same weapon is whole.
-        let (card, _) = give_drop(&mut account, &rolled, false, &mut rng);
-        let item = account.item(card.item_id).unwrap();
-        assert_eq!(item.condition_or_stack, FULL_CONDITION);
-        assert!(item.modifications.is_empty());
-    }
-    // The defect is rolled among those the weapon may have.
-    assert!(
-        defects_seen.len() > 1 || candidates.len() == 1,
-        "{defects_seen:?} of {candidates:?}"
-    );
-    // A cosmetic has no condition to lose.
-    let camouflage = dictionary
-        .items
-        .iter()
-        .find(|item| !item.is_stack && !is_gear(item.dict_id) && item.dict_id > 215)
-        .map(|item| item.dict_id);
-    if let Some(dict_id) = camouflage {
-        let mut account = Account::new("Alice");
-        let rolled = drops::Drop {
-            dict_id,
-            count: 1,
-            rarity: 0,
-        };
-        let (dropped, _) = give_drop(&mut account, &rolled, true, &mut Rng::new(1));
-        let item = account.item(dropped.item_id).unwrap();
-        assert_eq!(item.condition_or_stack, FULL_CONDITION);
-        assert!(item.modifications.is_empty());
-    }
-}
 
 #[test]
 fn a_stack_dropped_goes_onto_the_stack_owned() {
@@ -1477,9 +1192,9 @@ fn a_stack_dropped_goes_onto_the_stack_owned() {
         rarity: 0,
     };
     let mut rng = Rng::new(1);
-    let (first, shown) = give_drop(&mut account, &rolled, true, &mut rng);
+    let (first, shown) = give_drop(&mut account, &rolled, &mut rng);
     assert_eq!(shown, ItemDescr::plain(first.item_id, card, 2));
-    let (second, shown) = give_drop(&mut account, &rolled, true, &mut rng);
+    let (second, shown) = give_drop(&mut account, &rolled, &mut rng);
     assert_eq!(second.item_id, first.item_id);
     // The message carries what dropped, the inventory the sum.
     assert_eq!(shown.condition_or_stack, 2);
@@ -2257,7 +1972,7 @@ fn the_client_takes_every_players_pushes() {
         let mut result = result(players.clone());
         result.match_level = (seed % 21) as u16;
         if seed % 5 == 0 {
-            result.game_mode = mode::TEAM_DEATHMATCH;
+            result.mode = GameMode::TeamDeathmatch;
             result.team_points = [40, 0];
         }
         let report = results
@@ -2357,7 +2072,7 @@ fn the_client_takes_every_players_pushes() {
         assert_eq!(bob.full.components[0].columns[2].0, 1.0);
         assert_eq!(columns(&bob.full, 2).0, 1.0);
         assert!(bob.reward.drop.is_some());
-        if result.game_mode == mode::TEAM_DEATHMATCH {
+        if result.mode == GameMode::TeamDeathmatch {
             assert_eq!(report.stats.team_scores, [40, 0]);
         }
     }
@@ -3279,8 +2994,8 @@ fn a_restart_keeps_the_screens_not_shown_and_the_play_periods() {
     assert_eq!(results.find(MATCH + 2).unwrap(), kept);
 }
 
-/// The play period's counter is what a restart reset until 2026-10-12: a
-/// player's drop chance went back to its first game's at every update.
+/// The play period's counter is what a restart reset until 2026-10-12: it
+/// went back to its first game at every update.
 #[test]
 fn the_game_of_the_play_period_is_counted_across_a_restart() {
     let players = alice_and_bob();
@@ -3298,7 +3013,8 @@ fn the_game_of_the_play_period_is_counted_across_a_restart() {
                     &mut Rng::new(1),
                 )
                 .unwrap();
-            chances.push((report.players[0].full.drop_chances[0] * 1000.0).round() as u32);
+            assert!(report.players[0].reward.drop.is_some());
+            chances.push(results.inner.locked().periods[&10].1);
             store.flush();
             if restart_after == Some(game) {
                 store = kept_accounts(&players, &repository);
@@ -3308,8 +3024,7 @@ fn the_game_of_the_play_period_is_counted_across_a_restart() {
         chances
     };
     let straight = chance(None);
-    // The chance moves with the game of the period, so the test tells.
-    assert_ne!(straight[0], straight[3]);
+    assert_eq!(straight, [1, 2, 3, 4]);
     assert_eq!(chance(Some(0)), straight);
     assert_eq!(chance(Some(2)), straight);
 }
@@ -3832,7 +3547,7 @@ fn a_blackout_match_pays_its_points_twice() {
     let players = alice_and_bob();
     let plain = result(players.clone());
     let mut blackout = result(players.clone());
-    blackout.blackout = true;
+    blackout.mode = GameMode::Blackout;
     let once = Results::new()
         .settle(&plain, &accounts(&players), &terms(), &mut Rng::new(1))
         .unwrap();
@@ -3928,8 +3643,8 @@ fn pve_drops_stop_at_level_seven() {
             .reward
             .drop
     };
-    // The highest item level the generic table's row of match level 7 gives.
-    let row = &Drops::shared().generic.levels[usize::from(crate::v026g::pvb::MAX_DROP_LEVEL)];
+    // The highest item level the drop card table's row of match level 7 gives.
+    let row = &Drops::shared().drop_card.levels[usize::from(crate::v026g::pvb::MAX_DROP_LEVEL)];
     let top = row.iter().rposition(|&weight| weight > 0).unwrap() as u8;
     let level_of = |drop: Option<Dropped>| {
         drop.filter(|drop| is_gear(drop.dict_id))

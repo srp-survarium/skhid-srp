@@ -5,6 +5,8 @@ package survarium.buttons
    import flash.events.Event;
    import flash.events.MouseEvent;
    import flash.text.TextField;
+   import flash.geom.Rectangle;
+   import survarium.char.MedicalSkillIcon;
    import scaleform.clik.constants.InvalidationType;
    import scaleform.clik.controls.ListItemRenderer;
    import scaleform.gfx.MouseEventEx;
@@ -36,6 +38,7 @@ package survarium.buttons
       public var lockSpriteRed:MovieClip;
       
       protected var _perksIconsContainer:MovieClip;
+      private var _medicalIcon:MedicalSkillIcon;
       
       protected var _complete:Boolean = false;
       
@@ -153,6 +156,13 @@ package survarium.buttons
          this._perksIconsContainer.gotoAndStop(1);
          this._perksIconsContainer.icons.gotoAndStop(1);
          this.iconContainer.addChildAt(this._perksIconsContainer,this.iconContainer.numChildren - 1);
+         _medicalIcon = new MedicalSkillIcon();
+         _medicalIcon.name = "medicalSkillIcon";
+         var bounds:Rectangle = _perksIconsContainer.getBounds(iconContainer);
+         _medicalIcon.x = bounds.x + bounds.width / 2;
+         _medicalIcon.y = bounds.y + bounds.height / 2;
+         _medicalIcon.scaleX = _medicalIcon.scaleY = Math.min(bounds.width,bounds.height) / 34;
+         this.iconContainer.addChildAt(_medicalIcon,this.iconContainer.numChildren - 1);
       }
       
       private function onSliderUpdate(event:MouseEventEx) : void
@@ -221,8 +231,17 @@ package survarium.buttons
             this.skillProgressIndicator.invalidateData();
             this.skillProgressIndicator.validateNow();
             this.background.sprite.gotoAndStop(_data.branch + 1);
-            this._perksIconsContainer.gotoAndStop(_data.branch + 1);
-            this._perksIconsContainer.icons.gotoAndStop(_data.icon + 1);
+            _medicalIcon.visible = _data.branch == 2;
+            _perksIconsContainer.visible = !_medicalIcon.visible;
+            if(_medicalIcon.visible)
+            {
+               _medicalIcon.show(_data.id);
+            }
+            else
+            {
+               this._perksIconsContainer.gotoAndStop(_data.branch + 1);
+               this._perksIconsContainer.icons.gotoAndStop(_data.icon + 1);
+            }
             if(enabled)
             {
                this._perksIconsContainer.alpha = currentValue > 0 ? 1 : 0.4;
@@ -233,6 +252,7 @@ package survarium.buttons
                this._perksIconsContainer.alpha = 0.6;
                this.skillProgressIndicator.alpha = this._perksIconsContainer.alpha;
             }
+            _medicalIcon.alpha = _perksIconsContainer.alpha;
          }
       }
    }

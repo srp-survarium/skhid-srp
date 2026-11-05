@@ -973,7 +973,7 @@ fn two_players_meet_in_a_room_and_go_to_one_match() {
     assert_eq!(made.len(), 1);
     let (match_id, setup) = &made[0];
     assert_eq!(*match_id, alice_match);
-    assert!(maps::map_mode(setup.map_id).unwrap().is_playable());
+    assert!(setup.map.map().is_playable());
     assert_eq!(setup.players.len(), 2);
     assert_eq!(setup.players[0].session_id, world.ids[alice].1);
     assert_eq!(setup.players[0].account_id, world.ids[alice].0);
@@ -2179,8 +2179,8 @@ impl World {
             .collect();
         let result = MatchResult {
             match_id,
-            map_id: setup.map_id,
-            game_mode: maps::map_mode(setup.map_id).unwrap().mode,
+            map_id: setup.map.map().id,
+            mode: setup.map.mode(),
             match_level: setup.match_level,
             end: MatchEnd::ModeRule,
             winner: Some(winner),
@@ -2192,7 +2192,6 @@ impl World {
             players,
             vs_bots: setup.vs_bots,
             private: setup.private,
-            blackout: setup.blackout,
         };
         let terms = Terms::at(session::v026g::quests::now());
         let report = self
@@ -2250,8 +2249,8 @@ impl World {
             .collect();
         let result = MatchResult {
             match_id,
-            map_id: setup.map_id,
-            game_mode: maps::map_mode(setup.map_id).unwrap().mode,
+            map_id: setup.map.map().id,
+            mode: setup.map.mode(),
             match_level: setup.match_level,
             end: MatchEnd::NotMade,
             winner: None,
@@ -2263,7 +2262,6 @@ impl World {
             players,
             vs_bots: setup.vs_bots,
             private: setup.private,
-            blackout: setup.blackout,
         };
         let terms = Terms::at(session::v026g::quests::now());
         let report = self
@@ -2758,6 +2756,7 @@ mod clan_tests;
 mod feedback_tests;
 mod gear_tests;
 mod items_tests;
+mod mode_intro_tests;
 mod patch_check_tests;
 mod presets_tests;
 mod pvb_tests;

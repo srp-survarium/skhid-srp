@@ -242,6 +242,30 @@ pub fn starter_stash() -> &'static [(u16, u32)] {
 /// grenade (its table at 0x925FC0). PROVEN.
 pub const POCKET_SLOTS: [u8; 6] = [13, 14, 15, 16, 17, 18];
 
+/// Supply pockets and artefacts share six quick positions.
+pub const MAX_POCKETS: usize = POCKET_SLOTS.len();
+
+/// Final units in one supply pocket, including medicine bonuses.
+pub const MAX_POCKET_UNITS: u32 = 5;
+
+/// Cap equipped supply stacks without limiting stored items or ammunition:
+/// a pocket holds what the largest pocket ([`MAX_POCKET_UNITS`]) holds of
+/// the item ([`item_params::PocketShare::units_in`]; the server does not
+/// know the kit's pocket size, the exe sets it).
+pub fn equipped_units(slot: u8, dict_id: u16, units: u32) -> u32 {
+    if POCKET_SLOTS.contains(&slot) {
+        units.min(pocket_share(dict_id).units_in(MAX_POCKET_UNITS))
+    } else {
+        units
+    }
+}
+
+/// What one unit of the item takes of a pocket (its config's,
+/// [`item_params::PocketShare`]); one unit for an item with no config.
+pub fn pocket_share(dict_id: u16) -> item_params::PocketShare {
+    item_params::item_params(dict_id).map_or(item_params::PocketShare::Unit, |p| p.pocket_share)
+}
+
 /// The order in which the client counts the slots for the quick-use keys
 /// (its table at 0x925FD8, read by 0x2FE7F0): the pockets, the back, then
 /// the other armour. PROVEN. Quick use `n` (1 on) is the `n`-th of these
@@ -340,12 +364,13 @@ pub const BOT_MEDKIT: BotKitItem = kit_item("medkit", 13, 2, Some(QUICK_USE_FIRS
 /// traced).
 pub const BOT_RADIO: BotKitItem = kit_item("respawn_booster", 14, 1, None);
 
-/// Two RGD-5 frag grenades (`rgd-5`, `grenade`, item level 3, 30 silver;
+/// One RGD-5 frag grenade (`rgd-5`, `grenade`, item level 3, 30 silver;
 /// the other grenade, `rdg-m`, is smoke at level 6) in the third pocket,
-/// thrown with [`GRENADE_BIT`]. After the medkit, so the medkit's
+/// thrown with [`GRENADE_BIT`]: it takes two units of a pocket, and the
+/// bots' pockets hold two. After the medkit, so the medkit's
 /// quick-use key does not depend on whether a grenade or the radio counts
 /// for quick use.
-pub const BOT_GRENADE: BotKitItem = kit_item("rgd-5", 15, 2, Some(GRENADE_BIT));
+pub const BOT_GRENADE: BotKitItem = kit_item("rgd-5", 15, 1, Some(GRENADE_BIT));
 
 /// Two bandages (`bandages`, `drugs`) in the first pocket, quick use 1: the
 /// medkit's place in a kit of a level under the medkit's
@@ -645,7 +670,7 @@ fn default_modifier(dict_id: u16, parameter: &str) -> f32 {
 /// The pockets a loadout opens and how many units each holds, with no
 /// skills: the player's `pocket_slots_count` and `pocket_slot_size` (1 and
 /// 1, `default.player`) plus what the worn items' default modifications
-/// add, at most the six [`POCKET_SLOTS`].
+/// add, at most [`MAX_POCKETS`].
 ///
 /// LIKELY the client's rule: the lobby opens the first `item_slots` of
 /// slots 13..=18 and empties and locks the others
@@ -665,8 +690,9 @@ pub fn pockets(loadout: &Loadout) -> (u32, u32) {
             .max(0.0) as u32
     };
     let count = (item_params::player().pocket_slots_count + added("pocket_slots_modifier"))
-        .min(POCKET_SLOTS.len() as u32);
-    let size = item_params::player().pocket_slot_size + added("pocket_slot_size_modifier");
+        .min(MAX_POCKETS as u32);
+    let size = (item_params::player().pocket_slot_size + added("pocket_slot_size_modifier"))
+        .min(MAX_POCKET_UNITS);
     (count, size)
 }
 
@@ -906,11 +932,7 @@ mod tests {
                 .filter(|item| POCKET_SLOTS.contains(&item.slot))
             {
                 assert!(open.contains(&item.slot), "{role}: slot {}", item.slot);
-                let limit = if params(item.dict_id).fills_whole_pocket {
-                    1
-                } else {
-                    size
-                };
+                let limit = params(item.dict_id).pocket_share.units_in(size);
                 assert!(item.count >= 1 && item.count <= limit, "slot {}", item.slot);
             }
 

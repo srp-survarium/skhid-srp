@@ -1,11 +1,11 @@
 //! Patch 83: the Settings' "HUD:" group (docs/notes/hide-hit-markers-scores.md):
-//! three settings of the match hud kept in user.cfg, "Hide hit markers", "Hide
-//! player scores" and the crosshair list's "Hidden crosshair". The hooks are
+//! four settings of the match hud kept in user.cfg, "Hide hit markers", "Hide
+//! player scores", "Names on map" and the crosshair list's "Hidden crosshair". The hooks are
 //! `hud_options.toml`'s, each a `lohook` after another patch's at the same site:
 //!
 //! - on_configs_loaded before user.cfg (`configs.start`, after patch 79):
-//!   the console variables `srp_hide_hit_markers`, `srp_hide_scores` and
-//!   `srp_hide_crosshair`, saved in user.cfg, off by default;
+//!   the console variables `srp_hide_hit_markers`, `srp_hide_scores`,
+//!   `srp_map_names` and `srp_hide_crosshair`, saved in user.cfg, off by default;
 //! - the Settings' call (`options.callback`, after patch 79): a setting's
 //!   name answers the main menu with `root.srp_check_option(name, label,
 //!   saved)`, and with "1" or "0" saves that first (user.cfg at once);
@@ -13,15 +13,17 @@
 //!   the heading, "Hide quests", the crosshair list's three choices,
 //!   "Static minimap");
 //! - each frame's player icons update (`player_icons.update_start`, after
-//!   patch 65): the hud movie is told the three settings
-//!   (`root.srp_hud_options(hide hit markers, hide scores, hide crosshair)`),
+//!   patch 65): the hud movie is told the four settings
+//!   (`root.srp_hud_options(hide hit markers, hide scores, hide crosshair,
+//!   map names)`),
 //!   once for each change of the movie or of a setting;
 //! - a match's options read (`static_info.options_read`,
 //!   `replay.options_read`, after patch 65): a new match, whose hud may be
 //!   another at the last one's address, is told again.
 //!
 //! What the hud does with them is the hud's (HUD.as): no hit marker on the
-//! crosshair; a Tab list of names only; no crosshair. Nothing a match
+//! crosshair; a Tab list of names only; no crosshair; the Tab map's names
+//! shown unless Alt is held (patch 82 tells it Alt). Nothing a match
 //! computes: the interface only.
 
 #![forbid(unsafe_code)]
@@ -51,12 +53,15 @@ impl Setting {
 
 pub static HIDE_HIT_MARKERS: Setting = Setting::new(c"srp_hide_hit_markers", c"st_srp_hide_hit_markers_option");
 pub static HIDE_SCORES: Setting = Setting::new(c"srp_hide_scores", c"st_srp_hide_scores_option");
+/// The Tab map's player names always shown, Alt hiding them (patch 82's Alt
+/// reversed; docs/notes/tab-map-names.md).
+pub static MAP_NAMES: Setting = Setting::new(c"srp_map_names", c"st_srp_map_names_option");
 /// The crosshair list's third choice, "Hidden crosshair" (Dynamic and Static
 /// are the stock static crosshair setting's two states).
 pub static HIDE_CROSSHAIR: Setting = Setting::new(c"srp_hide_crosshair", c"st_srp_crosshair_hidden");
 
 /// Every setting of this patch, as the Settings call them.
-pub static SETTINGS: [&Setting; 3] = [&HIDE_HIT_MARKERS, &HIDE_SCORES, &HIDE_CROSSHAIR];
+pub static SETTINGS: [&Setting; 4] = [&HIDE_HIT_MARKERS, &HIDE_SCORES, &MAP_NAMES, &HIDE_CROSSHAIR];
 
 /// The Settings' "HUD:" group's own texts (dictionary keys), in the order
 /// `root.srp_hud_texts` gives them: the heading, the stock quest progress
@@ -79,12 +84,13 @@ fn choice(text: &CStr) -> Option<bool> {
     }
 }
 
-/// What the hud is told: the three settings.
+/// What the hud is told: the four settings.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct HudView {
     pub hit_markers_hidden: bool,
     pub scores_hidden: bool,
     pub crosshair_hidden: bool,
+    pub map_names: bool,
 }
 
 impl HudView {
@@ -93,6 +99,7 @@ impl HudView {
             hit_markers_hidden: HIDE_HIT_MARKERS.on(thread),
             scores_hidden: HIDE_SCORES.on(thread),
             crosshair_hidden: HIDE_CROSSHAIR.on(thread),
+            map_names: MAP_NAMES.on(thread),
         }
     }
 }
@@ -166,7 +173,8 @@ pub fn on_update_icons(ctx: &mut Context<'_>) -> Flow<NoExit> {
     let now = Told { movie: movie.id(), view: HudView::now(thread) };
     if TOLD.get(thread) != Some(now)
         && movie.invoke_bools(c"root.srp_hud_options",
-                           [now.view.hit_markers_hidden, now.view.scores_hidden, now.view.crosshair_hidden])
+                           [now.view.hit_markers_hidden, now.view.scores_hidden, now.view.crosshair_hidden,
+                            now.view.map_names])
     {
         TOLD.set(thread, Some(now));
     }
@@ -189,6 +197,7 @@ mod tests {
     fn a_setting_is_found_by_its_name_only() {
         assert!(core::ptr::eq(setting(c"srp_hide_hit_markers").unwrap(), &HIDE_HIT_MARKERS));
         assert!(core::ptr::eq(setting(c"srp_hide_scores").unwrap(), &HIDE_SCORES));
+        assert!(core::ptr::eq(setting(c"srp_map_names").unwrap(), &MAP_NAMES));
         assert!(setting(c"srp_language").is_none());
         assert!(setting(c"srp_hide").is_none());
     }

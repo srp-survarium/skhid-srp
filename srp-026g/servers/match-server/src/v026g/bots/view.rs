@@ -21,6 +21,7 @@
 use std::collections::VecDeque;
 
 use mapdata::{Vec3, World};
+use survarium::v026g::maps::RuleMode;
 
 use super::body::{BodyTrack, Fix};
 use super::kin::Kinematics;
@@ -44,12 +45,11 @@ pub enum Mode {
 }
 
 impl Mode {
-    pub fn from_id(mode: u8) -> Self {
-        use survarium::v026g::maps::mode;
+    pub fn of(mode: RuleMode) -> Self {
         match mode {
-            mode::TIMED_BATTERIES => Self::TimedBatteries,
-            mode::TEAM_DEATHMATCH => Self::TeamDeathmatch,
-            _ => Self::Batteries,
+            RuleMode::TimedBatteries => Self::TimedBatteries,
+            RuleMode::TeamDeathmatch => Self::TeamDeathmatch,
+            RuleMode::Batteries | RuleMode::Research => Self::Batteries,
         }
     }
 
@@ -307,7 +307,7 @@ pub struct Tracker {
 
 impl Tracker {
     /// `teams[place]`, `bots[place]`; `containers[id]` = (team, place).
-    pub fn new(mode: u8, teams: &[u8], bots: &[bool], containers: Vec<(u8, Vec3)>) -> Self {
+    pub fn new(mode: RuleMode, teams: &[u8], bots: &[bool], containers: Vec<(u8, Vec3)>) -> Self {
         Self {
             places: teams
                 .iter()
@@ -319,7 +319,7 @@ impl Tracker {
                     ..PlaceState::default()
                 })
                 .collect(),
-            mode: Mode::from_id(mode),
+            mode: Mode::of(mode),
             container_counts: vec![0; containers.len()],
             containers,
             batteries: Vec::new(),
@@ -690,7 +690,7 @@ mod tests {
     #[test]
     fn a_humans_body_is_reckoned_to_the_clock_and_its_keys_are_heard() {
         let kin = Kinematics::default();
-        let mut tracker = Tracker::new(2, &[0, 1], &[true, false], vec![]);
+        let mut tracker = Tracker::new(RuleMode::Batteries, &[0, 1], &[true, false], vec![]);
         tracker.entered(1, true);
         assert!(tracker.fixed(
             1,
@@ -734,7 +734,7 @@ mod tests {
     fn a_death_in_the_statistics_is_an_event_and_the_user_near_a_battery_carries_it() {
         let kin = Kinematics::default();
         let mut tracker = Tracker::new(
-            2,
+            RuleMode::Batteries,
             &[0, 1],
             &[false, false],
             vec![(0, Vec3::ZERO), (1, Vec3::new(50.0, 0.0, 0.0))],
@@ -785,7 +785,7 @@ mod tests {
     #[test]
     fn a_death_the_world_shows_without_feet_is_in_the_feed_where_the_body_fell() {
         let kin = Kinematics::default();
-        let mut tracker = Tracker::new(2, &[0, 0, 1], &[true, true, false], vec![]);
+        let mut tracker = Tracker::new(RuleMode::Batteries, &[0, 0, 1], &[true, true, false], vec![]);
         for place in 0..3 {
             tracker.entered(place, true);
         }

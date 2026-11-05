@@ -6,6 +6,7 @@ use core::{
     ptr::{null, null_mut},
     sync::atomic::{AtomicU32, Ordering},
 };
+use std::{ffi::OsStr, sync::OnceLock};
 use windows_sys::Win32::{
     Foundation::*,
     Storage::FileSystem::*,
@@ -14,26 +15,50 @@ use windows_sys::Win32::{
     },
 };
 
-/// What a dump holds. A player's build: the threads' stacks and registers,
-/// the modules, their data segments, and the memory the stacks point to and
-/// around what the crashing thread's registers point to ([`Registers`]), so
-/// the object behind a faulting pointer is in it. Zipped: a few MB.
-#[cfg(not(feature = "full-memory-dumps"))]
-const DUMP_TYPE: MINIDUMP_TYPE = MiniDumpWithDataSegs | MiniDumpWithIndirectlyReferencedMemory;
-/// A local test build (`./build.sh --features full-memory-dumps`; `build.rs`
-/// and `release/build-zip` refuse it for a release): the whole process
-/// memory, every heap object. Hundreds of MB to a few GB, kept as a `.dmp`
-/// (not zipped: zipping would hold the crash for seconds, and it is read on
-/// this PC anyway).
-#[cfg(feature = "full-memory-dumps")]
-const DUMP_TYPE: MINIDUMP_TYPE = MiniDumpWithFullMemory
-    | MiniDumpWithFullMemoryInfo
-    | MiniDumpWithHandleData
-    | MiniDumpWithThreadInfo
-    | MiniDumpWithUnloadedModules;
-/// Whether the dump is zipped with the logs, and gets the [`Registers`]
-/// ranges (a full-memory dump holds them already).
-const SMALL: bool = !cfg!(feature = "full-memory-dumps");
+/// What a dump holds, chosen once when the DLL is loaded ([`Kind::get`]).
+#[derive(Clone, Copy, PartialEq, Eq)]
+pub enum Kind {
+    /// Players' dumps: the threads' stacks and registers, the modules, their
+    /// data segments, and the memory the stacks point to and around what the
+    /// crashing thread's registers point to ([`Registers`]), so the object
+    /// behind a faulting pointer is in it. Zipped with the logs: a few MB.
+    Small,
+    /// `SKHID_CRASH_DUMP=full` in the game's environment (for a crash to
+    /// investigate on this PC): the whole process memory, every heap object.
+    /// Hundreds of MB to a few GB, kept as a `.dmp` (not zipped: zipping would
+    /// hold the crash for seconds, and it is read on this PC anyway).
+    Full,
+}
+static KIND: OnceLock<Kind> = OnceLock::new();
+impl Kind {
+    /// The game's `SKHID_CRASH_DUMP`, read at the first call (`DllMain`, at
+    /// load): `full` is [`Kind::Full`] (any case, spaces around it: cmd's
+    /// `set SKHID_CRASH_DUMP=full ` keeps the space), anything else (unset)
+    /// [`Kind::Small`]. `play_skhid.sh` refuses other values before the game
+    /// starts.
+    pub fn get() -> Kind {
+        *KIND.get_or_init(|| {
+            let value = std::env::var_os("SKHID_CRASH_DUMP");
+            if value.as_deref().and_then(OsStr::to_str).is_some_and(crate::details::asks_full_dump) {
+                Kind::Full
+            } else {
+                Kind::Small
+            }
+        })
+    }
+    const fn dump_type(self) -> MINIDUMP_TYPE {
+        match self {
+            Kind::Small => MiniDumpWithDataSegs | MiniDumpWithIndirectlyReferencedMemory,
+            Kind::Full => {
+                MiniDumpWithFullMemory
+                    | MiniDumpWithFullMemoryInfo
+                    | MiniDumpWithHandleData
+                    | MiniDumpWithThreadInfo
+                    | MiniDumpWithUnloadedModules
+            }
+        }
+    }
+}
 
 /// Bytes kept before and after each register's value.
 const BEFORE: usize = 256;
@@ -160,6 +185,9 @@ struct Request {
     exception: MINIDUMP_EXCEPTION_INFORMATION,
     crash: bool,
     saved: bool,
+    /// QueryPerformanceCounter as the capture began: the game's
+    /// breadcrumbs are dated from it (report.rs).
+    counter: i64,
 }
 struct Slot(UnsafeCell<Request>);
 // Only the PHASE owner accesses this slot, and it joins the worker before releasing it.
@@ -172,6 +200,7 @@ static REQUEST: Slot = Slot(UnsafeCell::new(Request {
     },
     crash: false,
     saved: false,
+    counter: 0,
 }));
 
 type WriteDump = unsafe extern "system" fn(
@@ -214,6 +243,7 @@ pub unsafe fn capture(exception: *mut EXCEPTION_POINTERS, crash: bool) -> bool {
     }
     OWNER.store(caller, Ordering::Release);
     let request = REQUEST.0.get();
+    windows_sys::Win32::System::Performance::QueryPerformanceCounter(&mut (*request).counter);
     (*request).exception.ThreadId = caller;
     (*request).exception.ExceptionPointers = exception;
     (*request).crash = crash;
@@ -360,6 +390,8 @@ unsafe fn save(
             UserStreamCount: 1,
             UserStreamArray: &mut comment,
         };
+        // The Registers ranges only for a small dump: a full one holds them.
+        let kind = Kind::get();
         let mut registers = Registers::of(request.exception.ExceptionPointers);
         let callback = MINIDUMP_CALLBACK_INFORMATION {
             CallbackRoutine: Some(callback),
@@ -369,10 +401,13 @@ unsafe fn save(
             GetCurrentProcess(),
             GetCurrentProcessId(),
             file,
-            DUMP_TYPE,
+            kind.dump_type(),
             exception,
             &streams,
-            if SMALL { &callback } else { null() },
+            match kind {
+                Kind::Small => &callback,
+                Kind::Full => null(),
+            },
         );
         let mut error = if ok == 0 { GetLastError() } else { 0 };
         if ok != 0 {
@@ -447,17 +482,30 @@ unsafe extern "system" fn worker(parameter: *mut c_void) -> u32 {
             &mut report,
             request.exception.ExceptionPointers,
             request.exception.ThreadId,
+            request.counter as u64,
         );
     }
     crate::report::finish(&mut report, request.saved, partial, error, capture);
     // The text report beside the dump (or, with none, beside the exe or in
     // the temporary folder, and the dialog names it in the dump's place);
     // when neither takes it, the dialog still shows it.
-    crate::report::save(&report, kept, &mut path, request.exception.ThreadId);
+    let reported = crate::report::save(&report, kept, &mut path, request.exception.ThreadId);
+    // A full-memory dump is kept for the developer, never posted (also one
+    // saved only in part): the dialog names its report to send (beside it,
+    // the same name), or with none says so.
+    let full = (kept && Kind::get() == Kind::Full).then_some(if reported {
+        crate::ui::FullDump::WithReport
+    } else {
+        crate::ui::FullDump::WithoutReport
+    });
     // Zip the dump only now that it is flushed and closed: on any failure, or
     // a crash or exit while zipping, the dump stays and the dialog names it.
-    if kept && SMALL {
-        let _ = crate::archive::zip(&mut path, &report.text.buf[..report.text.len]);
+    if kept && Kind::get() == Kind::Small {
+        let _ = crate::archive::zip(
+            &mut path,
+            &report.text.buf[..report.text.len],
+            crate::report::crumbs_text(&report),
+        );
     }
     // Publish only after save() has flushed/closed its file and it is zipped
     // (or all attempts failed). Contending crashes need not wait for callbacks
@@ -476,7 +524,11 @@ unsafe extern "system" fn worker(parameter: *mut c_void) -> u32 {
             // Both callbacks and UI occur only after the persistent dump is closed.
             api::callback(&api::PRE, &api::PRE_PARAM);
             if api::ACTIVITY.load(Ordering::Relaxed) == 1 {
-                crate::ui::show(&path, request.saved, partial, error, capture, &report);
+                if full == Some(crate::ui::FullDump::WithReport) {
+                    let n = path.len;
+                    path.buf[n - 3..n].copy_from_slice(&[b't' as u16, b'x' as u16, b't' as u16]);
+                }
+                crate::ui::show(&path, full, request.saved, partial, error, capture, &report);
             }
             api::callback(&api::POST, &api::POST_PARAM);
         }

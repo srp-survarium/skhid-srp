@@ -59,31 +59,34 @@ fn a_world_reads_into_its_slots_and_sections() {
 }
 
 #[test]
-fn at_their_caps_sections_and_states_go() {
+fn a_state_at_its_cap_and_sections_past_the_old_inline_buffers_go() {
     let state = vec![0; PLAYER_STATE_CAP];
-    let caps = Section::ALL.map(|section| vec![0; section.cap()]);
-    let full = body(
-        &[(19, &state)],
-        [&caps[0], &caps[1], &caps[2], &caps[3], &caps[4], &caps[5]],
-    );
+    // Each section over the inline buffer the original game had for it
+    // (0x2400, 0xC00, 0x2000, 0x4000, 0x800, 0xC00): patch 98 grows them.
+    let sections = [0x2401, 0xC01, 0x2001, 0x4001, 0x801, 0xC01].map(|len| vec![0; len]);
+    let full = body(&[(19, &state)], sections.each_ref().map(Vec::as_slice));
+    assert!(full.len() < MAX_BODY);
     assert!(Frame::parse(&full, Places::ALL).is_ok());
 }
 
 #[test]
-fn a_section_over_its_buffer_is_refused() {
-    for (index, section) in Section::ALL.into_iter().enumerate() {
-        let over = vec![0; section.cap() + 1];
-        let mut sections: [&[u8]; 6] = [&[]; 6];
-        sections[index] = &over;
-        let world = body(&[(0, STATE)], sections);
-        let Err(Refusal::SectionOverCap { section: what, at, len }) =
-            Frame::parse(&world, Places::ALL)
-        else {
-            panic!("{section:?} over its cap");
-        };
-        assert_eq!((what, len), (section, section.cap() + 1));
-        assert_eq!(world[at - 2..at], (len as u16).to_le_bytes());
-    }
+fn a_body_over_the_world_buffer_is_refused() {
+    // 300 bullets in flight and twenty players fit; the bullets alone at
+    // the world buffer do not.
+    let state = vec![0; 0x3A8];
+    let blocks: Vec<(u8, &[u8])> = (0..20).map(|slot| (slot, &state[..])).collect();
+    let bullets = vec![0; 300 * 69];
+    let world = body(&blocks, [&bullets, &[], &[], &[], &[], &[]]);
+    assert!(Frame::parse(&world, Places::ALL).is_ok());
+    let fill = |len: usize| body(&[], [&vec![0; len], &[], &[], &[], &[], &[]]);
+    // mask 4, six u16 lengths 12.
+    let at = fill(MAX_BODY - 16);
+    assert_eq!(at.len(), MAX_BODY);
+    assert!(Frame::parse(&at, Places::ALL).is_ok());
+    assert_eq!(
+        Frame::parse(&fill(MAX_BODY - 15), Places::ALL),
+        Err(Refusal::OverBuffer { len: MAX_BODY + 1 })
+    );
 }
 
 #[test]
@@ -181,12 +184,8 @@ fn an_animated_block_ends_where_its_bits_do() {
 fn a_refusal_says_part_offset_and_reason() {
     let line = |refusal: Refusal| format!("{refusal}");
     assert_eq!(
-        line(Refusal::SectionOverCap {
-            section: Section::Bullets,
-            at: 0x2C,
-            len: 0x2401
-        }),
-        "bullets at 0x2c: 0x2401 bytes, over 0x2400"
+        line(Refusal::OverBuffer { len: 0xF001 }),
+        "body at 0x0: 0xf001 bytes, over 0xf000"
     );
     assert_eq!(
         line(Refusal::StateOverCap {

@@ -32,6 +32,28 @@ only `gameplay/` (the server game data holds only the files srp reads).
 `content_edit.py` runs on its own for a check (`--check`) on a folder of files at their game paths
 (`srp-game-data get --db <resources.db> --patch <patch>... --out live/ <path>...`).
 
+### Explicit reload durations
+
+`weapon-stats.tsv` owns the times in seconds. `reload` maps to the native
+`parameters/reload_time`: tactical for a two-clip state-314 weapon, the ordinary
+reload for a single-clip weapon. The optional `reload_empty` column maps to
+`parameters/reload_empty_time`. Fill both columns to author an independent pair;
+leave `reload_empty` blank to retain the existing animation-derived behavior.
+
+`reload-timings-1.json`, immediately after the table in `release/content.tsv`,
+compiles each explicit pair into private hands and item animations under
+`animations/single/weapons/srp_reload/<weapon>/`. It scales every bone curve's
+time coordinates and every event timestamp, preserving poses, event payloads,
+bone names and the original hands/item phase relationship. All four hands pairs
+must agree. The native first-clip normalization and reload-speed modifiers then
+produce the authored pair; no extra gameplay timer or executable hook is needed.
+The compiler also refreshes lobby property 162's empty/tactical ratio. Bots read
+the explicit pair from the same weapon config.
+
+Change the two table cells for future tuning; do not edit generated animations.
+The paths remain stable across retunes. Such changes require a `next` simulation
+row and the normal `release/build-content` validation.
+
 ### Headwear render assets
 
 `headwear-1.json` uses `append_headwear_bind` (`file`) and `rigid_headwear`
@@ -355,7 +377,7 @@ Removed: its text is in `client-patches/localization/*.tsv`.
 
 | change | why |
 |---|---|
-| `gameplay/items/drugs/bandages.options` `data/influences`: hands and legs `amount` 0.3 -> 1 (per second), and three new entries made like `right_leg`'s, after it: `body` 0.35, `head` 0.14, `pain` 0.35 | the owner: bandages heal legs and hands fully, and pain, body and head by 35 %. An influence is the pool's health added per second for `activity_time_sec` (1 s; `medkit::tick` 0x33D790). 1/s fills a 0.5 limb pool, as the medkit's 1/s does. 0.35, 0.14 and 0.35 are 35 % of the body (1.0), head (0.4) and pain (1.0) pools ([`../../docs/notes/bandages.md`](../../docs/notes/bandages.md)) |
+| `gameplay/items/drugs/bandages.options` `data/influences`: hands and legs `amount` 0.3 -> 1 (course total), and three new entries made like `right_leg`'s, after it: `body` 0.35, `head` 0.14, `pain` 0.35 | the owner: bandages heal legs and hands fully, and pain, body and head by 35 %. An influence is total health over `activity_time_sec` (1 s here); the constructor 0x33CAC0 divides it by duration before `medkit::tick` 0x33D790 applies it. A total of 1 fills a 0.5 limb pool. 0.35, 0.14 and 0.35 are 35 % of the body (1.0), head (0.4) and pain (1.0) pools ([`../../docs/notes/bandages.md`](../../docs/notes/bandages.md)) |
 | `st_base_bandages_description` in the six localization tables: "Fully heals arms and legs. Restores 35% of body, head and pain." (Heilt Arme und Beine vollständig. Stellt 35% von Körper, Kopf und Schmerz wieder her. / W pełni leczy ręce i nogi. Przywraca 35% zdrowia tułowia, głowy i bólu. / Полностью лечит руки и ноги. Восстанавливает 35% здоровья тела, головы и боли. / Повністю лікує руки і ноги. Відновлює 35% здоров'я тіла, голови та болю.) | the owner, 2026-10-25: the description says what a bandage now heals. Each text uses only characters its table already has |
 | the card's "Heal amount" line taken out: `ui_desc/props_list` entry `prop_id` 12 ("30") | the owner, 2026-10-25: one number can't describe full and 35 %, so the line would contradict the text. The card keeps use time, active time and weight |
 
@@ -427,3 +449,26 @@ before they can ship on top of this list.
 | change | why |
 |---|---|
 | The six configs of pack weapons-069 (the 0.69d0 guns, `../../docs/notes/weapons-069.md`): `parameters/camo_available` true, a `data` table with `camo_scale` 4.0, `parameters/decal_available` true and an empty `data/decals` | they wear a camouflage and a decal as the live weapons do (weapon-camo-1 and weapon-decals-1 for them); their `_aoac` masks are pack weapons-069-camo (`../weapons-069/camo.tsv`), so no shared list or pack changes |
+
+## blackout-mode-1.json (2026-11-05)
+
+| change | why |
+|---|---|
+| Each playable battery config (mode 2) of `maps_dict`, 30 live, copied to `gameplay/game_modes/blackout/<its name>`; in the copy `mode/srp_variant` "blackout" and `mode/ui/mode_name` `st_srp_mode_blackout` (the localizations' "Protective device: blackout"); a `maps_dict` row each, `cfg_mode_name` `blackout/<its name>`, ids 219 to 248 in the order of the battery maps' ids (61 to 109, then 166, 175, 181, 206, 208, 216). level_08 at night (no project) has none | Blackout (`../../docs/notes/blackout.md`) is a mode of its own maps, as the other modes are: the lobby, the match server, the results and replays know it by the map's id. Before, its maps were ids of the lobby's own counted down from 255 that the server turned back into the battery map with a flag beside it. srp reads `srp_variant` (`survarium::v026g::maps::GameMode::of_config`, `VARIANTS`) and sends the static info's Blackout entry for these maps; the client loads them as the battery maps they copy (rules 93, 91, 88, 94; the same project) |
+
+Applied to the live files of revision 46 (`--check`): 30 new files, the dictionary edited, 0
+unexpected differences. No simulation change: the copies play the battery rules unchanged. A new
+battery map ported later gets its Blackout config by a row here (its copy, its `add_value` file
+and a dictionary entry), or none.
+
+## sight-alignment-1.json (2026-11-05)
+
+| change | why |
+|---|---|
+| The `aim` locator (`set_entry` of `locators` where `name` is `aim`: position and rotation) of `weapons/a9_91/a9_91_cobra_ekp_8`, the 9A-91's Cobra EKP-8 variant model: rotation (0.009, 0, -0.006) -> (-0.01476, 0, -0.00607), the turn its idle pose gives the gun; position 3.8 mm down and 0.5 mm aside, onto the dot's line | the dot showed 14.5 px above the screen's centre at 720 lines, where the bullets go (the owner's report). The fault is in retail 0.29a3's data, which base patch 19 shipped as it was: the eye kept the iron sights' turn where the idle pose turns the gun the other way. Checked in the game by the owner (2026-11-05): centred |
+
+Made by `../sight-alignment/align.py plan` and `export` (`../../docs/notes/sight-alignment.md`) on the
+players' files (the stock db and patches 12 to 47 of release/patches.tsv; revision 48 is live), then
+cut to this one entry. `content_edit.py --check` on them: 1 file edited, 0 unexpected differences.
+The other collimators the plan found off stay as they are, by the owner's choice (the note lists
+them). View only: no simulation change.

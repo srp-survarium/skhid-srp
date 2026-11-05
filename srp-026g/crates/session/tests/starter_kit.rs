@@ -38,7 +38,8 @@ fn a_new_account_on_the_released_data_wears_the_whole_kit() {
         ammo,
         [
             7, 20, 22, 50, 51, 52, 53, 70, 71, 72, 81, 91, 103, 104, 147, 148, 217, 218, 300, 301,
-            302, 322, 323, 331, 368, 369, 370, 371, 372, 2201, 2202, 2203, 2204, 2205
+            302, 322, 323, 331, 368, 369, 370, 371, 372, 2201, 2202, 2203, 2204, 2205, 2253, 2254,
+            2265, 2266, 2275
         ]
     );
     // Every item the game calls ammo.
@@ -59,13 +60,17 @@ fn a_new_account_on_the_released_data_wears_the_whole_kit() {
         assert_eq!(stacks(dict_id), [1000], "{dict_id}");
     }
 
-    // Owned: the TT-33 (18), the PPSh-41 (106) and the Mosin (107), 50
+    // Owned: the TT-33 (18), the PPSh-41 (106), the Mosin (107), the AKMN (80) and
+    // the AKMSU (2290), 10 stash maps (153), 50
     // medkits (67), 50 antitoxins (82) and 20 bandages (66), the kits'
     // pockets taking theirs from these stacks.
     for (dict_id, owned) in [
         (18, FULL_CONDITION),
         (106, FULL_CONDITION),
         (107, FULL_CONDITION),
+        (80, FULL_CONDITION),
+        (2290, FULL_CONDITION),
+        (153, 10),
         (67, 50),
         (82, 50),
         (66, 20),
@@ -93,7 +98,7 @@ fn a_new_account_on_the_released_data_wears_the_whole_kit() {
     for kit in 0..3 {
         assert_eq!(tutorial::starter_ammo_bags(dictionary, kit), 3);
     }
-    let weapons = [(88, 70, 150, 4), (12, 51, 30, 4), (110, 22, 45, 4)];
+    let weapons = [(306, 7, 90, 7), (14, 51, 30, 5), (110, 22, 45, 4)];
     let mut item_ids: Vec<Vec<u32>> = Vec::new();
     for (kit, (weapon, ammo, rounds, level)) in account.kits.iter().zip(weapons) {
         let worn: Vec<Worn> = kit
@@ -148,7 +153,8 @@ fn a_new_account_on_the_released_data_wears_the_whole_kit() {
         let weight = account.kit_weight(kit);
         assert!(weight <= 30.0, "kit {}: {weight}", kit.id);
         // The kit's level for the rooms, the bots (at most 5) and the
-        // matchmaking: 4, the Novice's backpack's (the MP-153 4 too).
+        // matchmaking: its highest item's, the AK-74N's 7, the Remington 700's 5, the
+        // Novice's backpack's 4 (the MP-153 4 too).
         assert_eq!(
             session::v026g::matchmaking::kit_level(&account, kit),
             level,

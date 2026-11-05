@@ -182,11 +182,11 @@ fn a_room_counts_down_from_two_and_plays_the_card_voted_for() {
     let voted_cards = cards(&counting);
     assert_eq!(voted_cards.len(), 3);
     // The third card is Blackout (the owner's of 2026-11-02), the others not.
-    assert!(maps::blackout_played(voted_cards[2]).is_some());
+    assert!(maps::map_mode(voted_cards[2]).is_some_and(|map| map.mode == maps::GameMode::Blackout));
     assert!(
         voted_cards[..2]
             .iter()
-            .all(|&card| maps::blackout_played(card).is_none())
+            .all(|&card| !maps::map_mode(card).is_some_and(|map| map.mode == maps::GameMode::Blackout))
     );
     // Alice changes her mind: one vote, the last.
     rows(&mut world, alice, ROOM_VOTE_BASE + 2, 1);
@@ -228,13 +228,13 @@ fn a_room_counts_down_from_two_and_plays_the_card_voted_for() {
     assert_eq!(to_alice.0, to_bob.0);
     assert_ne!(to_alice.1, to_bob.1, "one a side");
     let setup = world.host.made.locked().last().unwrap().1.clone();
-    // The third card won: its battery map, played as Blackout.
+    // The third card won: its Blackout map.
     assert_eq!(
-        Some(setup.map_id),
-        maps::blackout_played(voted_cards[2]),
+        setup.map.map().id,
+        voted_cards[2],
         "the vote's winner when it started"
     );
-    assert!(setup.blackout);
+    assert_eq!(setup.map.mode(), maps::GameMode::Blackout);
     assert_eq!(setup.players.len(), 2, "no bots");
     assert!(!setup.vs_bots);
     assert!(!setup.private, "no PIN: it pays");
@@ -1195,7 +1195,7 @@ fn a_rooms_match_has_its_players_mean_level_and_counts_its_map() {
     };
     assert_eq!(*id, ticket);
     assert_eq!(setup.match_level, 3);
-    let map = maps::map_mode(setup.map_id).unwrap().level;
+    let map = setup.map.map().level;
     for player in [alice, bob] {
         let account = world.account(player);
         assert_eq!(account.map_plays, [(map, 1)]);
@@ -1457,7 +1457,7 @@ fn one_who_leaves_the_match_by_its_own_word_is_out_of_the_room_and_may_come_agai
             .in_match
             .contains(&bob_account)
     );
-    let map = maps::map_mode(setup.map_id).unwrap().level;
+    let map = setup.map.map().level;
     assert_eq!(world.account(bob).map_plays, [(map, 1)]);
 
     // The match ends: Bob's latest place is his result, once.
@@ -2696,20 +2696,21 @@ fn a_queued_player_whose_kit_can_not_play_keeps_its_place_and_the_next_goes_in()
     assert_eq!(header(&inside)[KEY], key.to_string(), "{inside:?}");
 }
 
-/// Blackout (`docs/notes/blackout.md`): the rooms always offer
-/// each plain battery map of the pool once more as mode 6, by a lobby id of
-/// its own (its tile the battery map's), as part of the standard pool (the
+/// Blackout (`docs/notes/blackout.md`): its maps are mode 6 of the rooms'
+/// pool (their tiles their battery maps'), part of the standard pool (the
 /// owner's of 2026-10-25): in the create window's defaults and in a room
 /// Play makes; Play puts players into a room that offers it; its match
-/// plays the battery map with the flag.
+/// plays the Blackout map.
 #[test]
 fn blackout_is_a_mode_of_the_standard_pool() {
     let mut settings = Settings::local("127.0.0.1:0");
-    // Rudnya's day: batteries (61), chargers (62), Team Deathmatch (117).
-    settings.maps = vec![61, 62, 117];
+    // Rudnya's day: batteries (61), chargers (62), Team Deathmatch (117)
+    // and Blackout (its battery map's twin, `blackout-mode-1.json`).
+    let twin = maps::find(1, maps::weather::DAY, maps::GameMode::Blackout).unwrap().id;
+    settings.maps = vec![61, 62, 117, twin];
     let mut world = World::with_settings(settings);
     let entries = world.core.room_entries();
-    let blackout = maps::mode::BLACKOUT;
+    let blackout = maps::GameMode::Blackout.lobby_number();
     let offered: Vec<_> = entries
         .iter()
         .filter(|entry| entry.mode == blackout)
@@ -2717,7 +2718,7 @@ fn blackout_is_a_mode_of_the_standard_pool() {
         .collect();
     assert_eq!(offered.len(), 1, "{entries:?}");
     let lobby_id = offered[0].map_id;
-    assert_eq!(maps::blackout_played(lobby_id), Some(61));
+    assert_eq!(lobby_id, twin);
     assert_eq!(
         (offered[0].level, offered[0].weather),
         (entries[0].level, entries[0].weather)
@@ -2763,6 +2764,6 @@ fn blackout_is_a_mode_of_the_standard_pool() {
         .iter()
         .find(|(id, _)| *id == ticket)
         .expect("the room's match");
-    assert_eq!(setup.map_id, 61, "the battery map");
-    assert!(setup.blackout);
+    assert_eq!(setup.map.map().id, twin, "the Blackout map");
+    assert_eq!(setup.map.mode(), maps::GameMode::Blackout);
 }

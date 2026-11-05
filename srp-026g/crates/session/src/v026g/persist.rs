@@ -29,6 +29,7 @@ mod extras;
 mod items;
 mod level_stats;
 mod map_plays;
+mod mode_intro;
 mod presets;
 mod results;
 mod room_settings;
@@ -143,6 +144,8 @@ const MIGRATIONS: &[&str] = &[
     // 12: an account's kills and deaths by the matches' equipment level
     // (`level_stats`).
     level_stats::MIGRATION,
+    // 13: per-mode onboarding allowances.
+    mode_intro::MIGRATION,
 ];
 
 /// The child tables of an account, children of children first.
@@ -615,6 +618,7 @@ impl GameRepository for SqliteGameRepository {
                         extras: Default::default(),
                         map_plays: Vec::new(),
                         room_settings: None,
+                        mode_introductions: Default::default(),
                         drop_cards: Vec::new(),
                         presets: [None; super::presets::PRESETS],
                         active_preset: super::presets::FIRST_PRESET,
@@ -632,6 +636,7 @@ impl GameRepository for SqliteGameRepository {
             account.balance = balance::load(&transaction, account_id)?;
             account.level_stats = level_stats::load(&transaction, account_id)?;
             account.room_settings = room_settings::load(&transaction, account_id)?;
+            account.mode_introductions = mode_intro::load(&transaction, account_id)?;
             account.drop_cards = drop_cards::load(&transaction, account_id)?;
             account.presets = presets::load(&transaction, account_id)?;
             account.active_preset = presets::load_active(&transaction, account_id)?;
@@ -880,6 +885,7 @@ fn write_account(
     balance::save(transaction, account_id, account.balance)?;
     level_stats::save(transaction, account_id, &account.level_stats)?;
     room_settings::save(transaction, account_id, account.room_settings.as_ref())?;
+    mode_intro::save(transaction, account_id, &account.mode_introductions)?;
     drop_cards::save(transaction, account_id, &account.drop_cards)?;
     presets::save(transaction, account_id, &account.presets)?;
     presets::save_active(transaction, account_id, account.active_preset)?;

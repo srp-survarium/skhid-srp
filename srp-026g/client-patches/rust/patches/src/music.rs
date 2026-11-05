@@ -25,6 +25,7 @@ use core::ffi::CStr;
 use crate::vostok::resources::{self, Arrived, QueryResults, QueryTag, Serial};
 use crate::vostok::settings::ConsoleFloat;
 use crate::vostok::sound::{BusScene, Emitter, LoadingMusic, SoundTick, SoundUser, TrackPath, Voice, Volume};
+use crate::vostok::breadcrumbs::{self, Crumb};
 use crate::vostok::log::{self, Piece::Text};
 use crate::vostok::{Context, Flow, GameCell, Lock, NoExit, Thread, clock};
 
@@ -552,12 +553,14 @@ pub fn on_replay(ctx: &mut Context<'_>) -> Flow<NoExit> {
 
 /// update_ui's welcome message: the match has started.
 pub fn on_announced(ctx: &mut Context<'_>) -> Flow<NoExit> {
+    breadcrumbs::record(ctx.thread(), Crumb::Started);
     tell(ctx.thread(), Told::Announced);
     Flow::Continue
 }
 
 /// game::clear_resources: the music stops.
 pub fn on_unload(ctx: &mut Context<'_>) -> Flow<NoExit> {
+    breadcrumbs::record(ctx.thread(), Crumb::Unloaded);
     tell(ctx.thread(), Told::Unload);
     Flow::Continue
 }

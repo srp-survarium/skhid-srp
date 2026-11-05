@@ -46,9 +46,13 @@ struct lobby_client;
 struct lobby_menu;
 struct match_options;
 struct material_pair;
+struct medical_effect_resource;
+struct medical_pool;
+struct medical_pools;
 struct medkit;
 struct messaging_client;
 struct network_client;
+struct new_sound_propagator;
 struct object_light;
 struct particle_slot;
 struct player;
@@ -72,7 +76,10 @@ struct scene_renderer;
 struct simple_game_project;
 struct sound_emitter;
 struct sound_instance_proxy;
+struct sound_options;
+struct sound_propagator_emitter;
 struct sound_scene;
+struct sound_voice;
 struct sound_world;
 struct static_collision;
 struct static_model_instance;
@@ -121,12 +128,12 @@ unsigned int engine_movie_invoke(struct gfx_movie *movie, const char *method, st
 void engine_show_message(const char *key, void *ui, unsigned int first, unsigned int second, unsigned int third);
 
 /* 0x2e58b0 (unnamed): pools EAX, name ECX; pops 0; EAX */
-void *engine_find_pool(void *pools, const char *const *name);
+struct medical_pool *engine_find_pool(struct medical_pools *pools, const char *const *name);
 
 /* 0x32a420 survarium::body_part::increase_health: pool ESI, time ESP+4, amount ESP+8; pops 8 */
-void engine_increase_health(void *pool, unsigned int time, float amount);
+void engine_increase_health(struct medical_pool *pool, unsigned int time, float amount);
 
-/* 0x313350 (unnamed): artefact ESP+4, time ESP+8; pops 8 */
+/* 0x313350 survarium::artefact_base::effect: artefact ESP+4, time ESP+8; pops 8 */
 void engine_artefact_effect(void *artefact, unsigned int time);
 
 /* 0x2d5ae0 survarium::player_params_modifiers_container::apply_modifier: modifiers EAX, index ESI, value ESP+4, weight ESP+8; pops 8; XMM0 */
@@ -464,5 +471,41 @@ void __attribute__((thiscall)) engine_di_queue_next_capture(struct di_command_qu
 
 /* 0x505cb0 Scaleform::RefCountImpl::Release: queue ECX; pops 0; thiscall, called directly */
 void __attribute__((thiscall)) engine_di_queue_release(struct di_command_queue *queue);
+
+/* 0x32a6a0 survarium::body_part::remove_affect: pool ESP+4, time ESP+8, affect ESP+12; pops 12 */
+void engine_remove_affect(struct medical_pool *pool, unsigned int time, unsigned int affect);
+
+/* 0x329050 survarium::game_effect_resource::emit: resource ESI, out EDI; pops 0; EAX */
+struct game_effect_slot *engine_effect_resource_emit(struct medical_effect_resource *resource, struct game_effect_slot *out);
+
+/* 0x5a640 XAudio2Create: engine ESP+4, flags ESP+8; pops 0; EAX; cdecl, called directly */
+unsigned int __attribute__((cdecl)) engine_xaudio2_create(void **engine, unsigned int flags);
+
+/* 0x59dd0 vostok::sound::sound_world::process_orders: world ESP+4; pops 4; stdcall, called directly */
+void __attribute__((stdcall)) engine_process_sound_orders(struct sound_world *world);
+
+/* the IAT slot 0xaf0064 (an import, stdcall) */
+extern unsigned int (__attribute__((stdcall)) *const engine_co_create_instance)(const void * clsid, void * outer, unsigned int context, const void * iid, void ** object);
+
+/* the IAT slot 0x87004c (an import, stdcall) */
+extern void * (__attribute__((stdcall)) *const engine_heap_alloc)(void * heap, unsigned int flags, unsigned int size);
+
+/* the IAT slot 0x870050 (an import, stdcall) */
+extern void * (__attribute__((stdcall)) *const engine_get_process_heap)(void);
+
+/* the IAT slot 0x870054 (an import, stdcall) */
+extern unsigned int (__attribute__((stdcall)) *const engine_heap_free)(void * heap, unsigned int flags, void * memory);
+
+/* 0x59e70 vostok::sound::sound_world::create_sound_voice: world EAX, scene ESP+4, propagator ESP+8, emitter ESP+12; pops 12; EAX */
+struct sound_voice *engine_create_sound_voice(struct sound_world *world, struct sound_scene *scene, struct new_sound_propagator *propagator, const void *emitter);
+
+/* 0x5cb80 vostok::sound::new_sound_propagator::detach_voice: propagator ESP+4; pops 4; stdcall, called directly */
+void __attribute__((stdcall)) engine_detach_voice(struct new_sound_propagator *propagator);
+
+/* virtual vostok::sound::sound_propagator_emitter+0x8 (1 vtables of vtables.tsv: 0x38990): emitter ECX; pops 0; EAX */
+const struct sound_options *engine_sound_options(const struct sound_propagator_emitter *emitter);
+
+/* 0x7ab70 vostok::network_core::mutable_buffer::reallocate: buffer ESI, capacity EDI; pops 0 */
+void engine_buffer_reallocate(void *buffer, unsigned int capacity);
 
 #endif

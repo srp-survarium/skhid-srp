@@ -146,6 +146,13 @@ Patches:
   tick, and the match server then cannot compare their worlds (match.md
   section 14). With 50 every client reports every tick. The key on the
   command line still overrides it;
+- a world up to 0xF000 bytes is hashed (patch 98, client_patch.md section
+  3.66): game_state_history_item::hash (0x325150) serializes it into a stack
+  buffer of 0x8000 bytes with no allocator (0x325176, 0x32519D), and a
+  10v10 match's world passed it; the 0xE8 handler's unpack buffer the same
+  (0x27C059, 0x27C07C); and, with the late join, the history item's
+  six world sections (inline 0x800 to 0x4000 bytes, the bullets' 0x2400) grow
+  on the heap (world_sections_026g.asm, the block world_sections.code);
 - the patch revision in the sign-in (sign_in_on_connected 0x3807D0). The
   first login message has a 12-byte version field: "0.26g0" and six zero
   bytes. `mov cl,[9DAE9Eh]` at 0x380862 (it reads the string's own zero,
@@ -532,6 +539,11 @@ Patches:
   min(player_step's dt, 0.05), not x 0.05 at every step, so a tick the
   world steps in parts (each precise input) adds one tick of speed in all;
   whole ticks bit for bit as before. A simulation change;
+- a thrown grenade stays above the ground (patch 105, with the late join;
+  docs/notes/grenade_ccd.md): grenade_core::load's continuous collision
+  sweeps a sphere of 0.04 m (GRENADE_CCD, 0x303A13), not 0.01 m, inside the
+  grenade's 0.05 m capsule, so the capsule stops at the surface it hits
+  instead of 4 cm into it. A simulation change;
 - the baked camouflage and decal textures are kept from game to game, and
   a texture asked for again while its bake or load is under way is made
   once (patch 70, with the late join; docs/notes/baked-textures.md).
@@ -621,6 +633,32 @@ HASH_INTERVAL_VA = 0x27CC4F
 HASH_INTERVAL = (HASH_INTERVAL_VA, bytes.fromhex("c744241864000000"), bytes.fromhex("c744241832000000"))
 HASH_INTERVAL_BYTE_VA = HASH_INTERVAL_VA + 4  # the one byte that differs
 HASH_INTERVAL_MS = 50                         # = one tick
+
+# game_state_history_item::hash (0x325150) serializes the world into a stack
+# buffer with no allocator: `mov eax,8000h` / call _alloca_probe_16 at
+# 0x325176, the mutable_buffer {0, esp, capacity, 0} with `mov [ebp-0Ch],
+# 8000h` at 0x32519D. A world past it asserts in mutable_buffer::reallocate
+# (0x7AB70, "mutable buffer overflow"): a 10v10 match's world reached 33.3 KB
+# (rev47's dump). Both 0xF000 (patch 98, client_patch.md section 3.66): what the
+# upload's u16 total holds, 128 chunks of 480 (under the packet pool's guard);
+# on_hash_mismatch takes 0x10000 bytes of the same thread's stack (0x325DE5).
+# Numbers, no relocation under them.
+WORLD_BUFFER_SIZE = 0xF000
+WORLD_BUFFER = (
+    (0x325176, bytes.fromhex("b800800000"), b"\xb8" + struct.pack("<I", WORLD_BUFFER_SIZE)),
+    (0x32519D, bytes.fromhex("c745f400800000"), bytes.fromhex("c745f4") + struct.pack("<I", WORLD_BUFFER_SIZE)),
+)
+# The 0xE8 handler (process_dynamic_match_info 0x27BFF0) unpacks a packed
+# world into a stack buffer of the same kind: `mov eax,8000h` / call
+# _alloca_probe_16 at 0x27C059, and `mov eax,8000h` at 0x27C07C, the
+# capacity it gives the codec's decompress ([ebp-0Ch]) and the
+# mutable_buffer ([ebp-1Ch]). Both 0xF000 too, so the server keeps every
+# world packed (COMPRESSED_SNAPSHOT_BUFFER): a raw world of 0x8000 bytes or
+# more is 66 to 123 parts, each holding a pool packet until it completes.
+WORLD_UNPACK = (
+    (0x27C059, bytes.fromhex("b800800000"), b"\xb8" + struct.pack("<I", WORLD_BUFFER_SIZE)),
+    (0x27C07C, bytes.fromhex("b800800000"), b"\xb8" + struct.pack("<I", WORLD_BUFFER_SIZE)),
+)
 
 # sign_in_on_connected 0x3807D0 builds the 12-byte version field of the first
 # login message on the stack at [esp+20h]: eight zero bytes, "0.26" at +0,
@@ -716,7 +754,7 @@ HASH_INTERVAL_MS = 50                         # = one tick
 # its "Release revision <n>" commit), never a feature change: a release
 # builds with --revision=<n>, the live exe's + 1, which changes the revision
 # byte alone, and records <n> here once it went out.
-REVISION = 44
+REVISION = 48
 # The first revision whose default build takes the lobby's replay link
 # (REPLAY_LINK): the server's replay rule asks for it
 # (session::v026g::replays::MIN_REVISION).
@@ -777,6 +815,23 @@ BAKED_TEXTURE_MISSING = (0x131C1E, bytes.fromhex("7553"), bytes.fromhex("eb53"))
 AI_ARENA_VA = 0x1E8CCB
 AI_ARENA_SIZE = 0x400000
 AI_ARENA = (AI_ARENA_VA, bytes.fromhex("c744241800000400"), bytes.fromhex("c744241800004000"))
+
+# The game world's sound scene (game_world::load 0x1F8CA0, its
+# sound_scene_creation_params on the stack: proxies [ebp-10h], propagators
+# [ebp-0Ch]) has 512 sound instances and 196 propagators (one a layer of a
+# playing composite: a shot is 2 to 13). A propagator lives the sound's
+# length plus its way to the listener; the ported guns' shot layers include
+# 9.2 to 9.9 s tails, so automatic fire takes all 196 in seconds, and every
+# new sound gets none (create_sound_propagator 0x5D2A0 returns 0, the sound
+# is never heard). 1024 of each: 0x400 x (90h + 50h) bytes from the
+# scene's unmanaged allocation, 224 KiB in all. Numbers, no relocation.
+# Patch 96 (docs/notes/sound_voices.md); it also hands voices on
+# (sound_voices.rs).
+SOUND_INSTANCES = 0x400
+SOUND_POOLS = (
+    (0x1F8DB6, bytes.fromhex("c745f000020000"), bytes.fromhex("c745f0") + struct.pack("<I", SOUND_INSTANCES)),
+    (0x1F8DBD, bytes.fromhex("c745f4c4000000"), bytes.fromhex("c745f4") + struct.pack("<I", SOUND_INSTANCES)),
+)
 
 # Match the shipped launcher's budgets when command-line keys are absent.
 # mt_allocator starts at 16 MiB, then adds 360 MiB on the default branch;
@@ -1412,6 +1467,38 @@ FALL_GRAVITY = (
                             "f30f108b78c70200" "f30f5cc8" "f30f119b70c70200" "f30f118b78c70200"),
      bytes.fromhex("f30f10586c" "f30f5cd9" "f30f104870" "f30f5cca" "f30f114870" "f30f104874" "f30f5cc8"
                    "f30f11586c" "f30f114874" "eb10" "8b4d00" "f30f105908" "f30f5d18" "eb9c" "cccc")),
+)
+
+# A thrown grenade stays above the ground (patch 105, ../docs/notes/grenade_ccd.md).
+# grenade_core::load 0x303890 gives the grenade (RGD-5 and RDG-M) a capsule of
+# radius 0.05 m (0x3038DB) and continuous collision: motion threshold 0.03 m
+# (0x303A0B) and a swept sphere of 0.01 m (0x303A1C, the 0.01 of 0xA2D774).
+# vostok's integrateTransforms moves a body whose sweep hits to the sphere's
+# time of impact, so the capsule sat 4 cm into the level's collision there and
+# its contact often pushed it out the other side. GRENADE_CCD loads the 0.04
+# of 0xA2D7DC instead (.rdata, the same `movss xmm0,[abs]`): the sphere stays
+# inside the capsule with a centimetre to spare. Its base relocation (0x303A17)
+# stays. A simulation change.
+GRENADE_CCD = (0x303A13, bytes.fromhex("f30f100574d7a200"), bytes.fromhex("f30f1005dcd7a200"))
+
+# The menus' mouse buttons (patch 102, client_patch.md section 3.63). The
+# mouse gives a key 151h + its button (0..7, platform mouse 0x3B9981) to every
+# listener. The five that hand a button to their movie (0x2AF610, `ret 0Ch`):
+# swf_input_translator::process_mouse_btn 0x1FDD30, game_options 0x201754,
+# game_world 0x25D08C, lobby_menu 0x26D044 and login_menu 0x28DCDA, each map
+# 151h/152h/153h to the movie's 0/1/2 and leave any other key at 0: the side
+# buttons (mouse4..mouse8) were left clicks in the menus (0.60's "pressing
+# additional mouse buttons in the lobby counted as pressing LMB"). Each `jne`
+# past 153h now goes to the handler's own `mov al,1` after the movie's call:
+# the key is taken, the movie gets nothing. The callee pops its three
+# arguments, so the stack there is the jne's. No relocation, no branch into
+# the two bytes.
+MOUSE_BUTTONS = (
+    (0x1FDD41, bytes.fromhex("750e"), bytes.fromhex("7525")),   # -> 0x1FDD68 mov al,1 / ret 0Ch
+    (0x201769, bytes.fromhex("750e"), bytes.fromhex("751d")),   # -> 0x201788 pop edi / mov al,1
+    (0x25D0A1, bytes.fromhex("750e"), bytes.fromhex("7521")),   # -> 0x25D0C4 pop edi / pop esi / mov al,1
+    (0x26D059, bytes.fromhex("750e"), bytes.fromhex("7521")),   # -> 0x26D07C mov al,1 / pop esi
+    (0x28DCEE, bytes.fromhex("750e"), bytes.fromhex("7520")),   # -> 0x28DD10 mov al,1 / pop ecx
 )
 
 # "Watch replay" (patch revision 14, client_patch.md section 3.27). The
@@ -2299,6 +2386,14 @@ INSTALLS = {
     0x2F1771: (JUMP, "item_config_cook::translate_query 0x2F1750, its `call 0x2F2060` (esi the query's holder, edi "
                      "ebp+38h): weapon_kit_query_room, which calls it, takes the kit's room below the frame and "
                      "goes on at 0x2F1776 (the lohook weapon_kit.query_records)", None, None),
+    # patch 96 (the Rust patch sound_voices' three code hooks, sound_voices_026g.asm)
+    0x5E5E7: (JUMP, "voice_factory::new_voice 0x5E5C0 before its walk: sound_voices_pick, one pass, 0x5E605 with "
+                    "the free voice or its own `ret 8` with 0", None, None),
+    0x631D9: (JUMP, "sound_voice's constructor 0x63140 after new_voice: sound_voices_picked stores the source "
+                    "voice (+14h), back at 0x631DF, or with 0 pops edi and goes to the epilogue 0x631EF", None, None),
+    0x59F8E: (JUMP, "create_sound_voice 0x59E70 after the constructor: sound_voices_built frees a voice with no "
+                    "source and returns 0 by 0x59F9A, else replays push edi / add esi,2B0h and goes on at 0x59F95",
+              None, None),
     # the snapshot upload (every full build) and the default server's stub
     0x27AEA1: (JUMP, "on_match_ready: the snapshot upload (the late join's ready_hook first)", None, None),
     0x27A505: (JUMP, "the 0xF6 case: the snapshot upload", None, None),
@@ -2454,6 +2549,56 @@ WEIGHT_UI_HOOKS = (
 )
 INSTALLS[0x22110F] = (JUMP, "cache player stamina config for this lobby; preserve machine, replay mov eax,[esi+108h]", None, None)
 INSTALLS[0x2222EB] = (CALLEE, "weight GFx Invoke: same current/capacity plus weight penalties and sprint state; ret 16", None, None)
+
+# Bullet lifetime is bounded by the level, never by past transient bodies.
+BULLET_BOUNDS_HOOKS = (
+    (0x758E1, bytes.fromhex("f6450c0a0f844c010000"), "bullet_bounds_static", 0xE9),
+)
+INSTALLS[0x758E1] = (JUMP, "static level bounds after body insertion; transient bodies skip bounds growth, all bodies still update their AABB", None, None)
+
+# The results screen of a game that has loaded no match: its NULL map name reads as "".
+MATCH_STAT_MAP_HOOKS = (
+    (0x29ABE1, bytes.fromhex("8b8e3c310000"), "match_stat_map", 0xE9),
+)
+INSTALLS[0x29ABE1] = (JUMP, "fill_match_statistic's map name (lobby_menu+313Ch, NULL until a match is loaded) as \"\"; "
+                            "replay mov ecx,[esi+313Ch]", None, None)
+# expand_text's {USE} with no key bound (0x207BF0 finds no entry) translated
+# NULL (0x1FF09D); the branch goes to its unknown-placeholder path instead,
+# which appends nothing: what translate_text("") gives (0.31+ translate
+# st_key_use_not_assigned, a key 0.26g's dictionary does not have).
+EXPAND_TEXT_UNBOUND = (0x1FF073, bytes.fromhex("741b"), bytes.fromhex("7436"))   # je 1FF090 -> je 1FF0AB
+# The game's sound follows the audio output device (patch 100, README;
+# ../docs/notes/audio_device.md): audio_device_026g.c and
+# audio_device_engine_026g.c in the arena's blocks audio_device.code and
+# .state (ARENA below):
+# - initialize_xaudio's two XAudio2Create calls (`call 0x5A640`, 0x59187 and
+#   the retry without the debug flag 0x591C8; cdecl, the engine pointer
+#   sound_world+0C0h and the flags): audio_device_create, which makes the
+#   engine with it and gives the game our proxy of it (CALLEE);
+# - sound_world::tick's process_orders (`push edi / call 0x59DD0`, 0x59AAC;
+#   stdcall, the world): audio_device_orders, the sound thread's step (a
+#   rebuild after a device event), then process_orders (CALLEE).
+AUDIO_DEVICE_HOOKS = (
+    (0x59187, bytes.fromhex("e8b4140000"), "audio_device_create", 0xE8),    # XAudio2Create
+    (0x591C8, bytes.fromhex("e873140000"), "audio_device_create", 0xE8),    # its retry, flags 0
+    (0x59AAC, bytes.fromhex("e81f030000"), "audio_device_orders", 0xE8),    # tick's process_orders
+)
+INSTALLS[0x59187] = (CALLEE, "initialize_xaudio's XAudio2Create 0x5A640 (cdecl: &sound_world+0C0h, the flags): "
+                             "audio_device_create, which calls it and gives the game our proxy", None, None)
+INSTALLS[0x591C8] = (CALLEE, "initialize_xaudio's XAudio2Create retry without the debug flag: audio_device_create",
+                     None, None)
+INSTALLS[0x59AAC] = (CALLEE, "sound_world::tick's process_orders 0x59DD0 (stdcall, the world; `ret 4`): "
+                             "audio_device_orders, the device step, then the function", None, None)
+# Patch 98 (client_patch.md section 3.66): game_state_history_item::construct
+# (0x324510) ends `mov [esi+0C0BC8h],ebx` / `mov eax,esi` / `pop ebx` /
+# `ret`; the hook takes the first (ESI the item, EBX 0) and gives the six
+# world sections' buffers the global multithreaded allocator and a heap block
+# of their inline capacity (world_sections_026g.asm), then goes on at 0x3246C6.
+WORLD_SECTIONS_HOOKS = (
+    (0x3246C0, bytes.fromhex("899ec80b0c00"), "world_sections_construct", 0xE9),
+)
+INSTALLS[0x3246C0] = (JUMP, "game_state_history_item::construct's last store: the six world sections' buffers "
+                            "get the multithreaded allocator and a block each; back at 0x3246C6", None, None)
 
 # The bodies a patch replaces in place, at a function's entry: {VA: size}.
 BODIES = {READ_ORDER_VA: READ_ORDER_SIZE}
@@ -2642,6 +2787,8 @@ ARENA_LIMIT = 0x100000
 ArenaBlock = linker.ArenaBlock
 
 ARENA = (
+    ArenaBlock("bullet_bounds.code", "code", 0x1000, ("bullet_bounds_026g.asm",)),
+    ArenaBlock("match_stat_map.code", "code", 0x10, ("match_stat_map_026g.asm",)),
     ArenaBlock("weight_ui.code", "code", 0x1000, ("weight_ui_026g.asm", "weight_ui_026g.c")),
     ArenaBlock("weight_ui.state", "state", 0x1000, ("weight_ui_026g.c",)),
     # Research, patch 53: four aligned asm entries and stubs, then Rust
@@ -2658,6 +2805,8 @@ ARENA = (
     ArenaBlock("kill_feed.code", "code", 0x1000, ("kill_feed_026g.asm",)),       # patch 67
     ArenaBlock("bake_cache.code", "code", 0x1000, ("bake_cache_026g.asm", "bake_cache_026g.c")),   # patch 70
     ArenaBlock("bake_cache.state", "state", 0x1000, ("bake_cache_026g.c",)),     # its owners and waiters
+    ArenaBlock("audio_device.code", "code", 0x1000, ("audio_device_026g.c", "audio_device_engine_026g.c")),  # patch 100
+    ArenaBlock("audio_device.state", "state", 0x10, ("audio_device_026g.c", "audio_device_engine_026g.c")),  # its engine
     # The Rust exe patches (the framework's example is patch 34, the
     # commit_suicide key): one crate, its generated hook entries, the arena's
     # block patches.code (docs/notes/rust_patches.md, hooks_026g.py).
@@ -2666,6 +2815,8 @@ ARENA = (
     # (rust/patches/src/ragdoll.rs; vostok's Lock and GameCell)
     ArenaBlock("patches.data", "data", 0x1000, ("rust/patches/Cargo.toml",)),
     ArenaBlock("patches.state", "state", 0x1000, ("rust/patches/Cargo.toml",)),
+    # patch 98: the history item's six world sections on the heap
+    ArenaBlock("world_sections.code", "code", 0x1000, ("world_sections_026g.asm",)),
 )
 
 
@@ -3218,6 +3369,9 @@ def build_image(original, mode, code=None, server=None, late_join=None, revision
     patch(data, *HASH_INTERVAL)
     rewritten = [(HASH_INTERVAL_BYTE_VA, HASH_INTERVAL_BYTE_VA + 1),
                  (MEMORY_CHECK[0], MEMORY_CHECK[0] + 1)]
+    for site in WORLD_BUFFER + WORLD_UNPACK:
+        patch(data, *site)
+        rewritten.append((site[0], site[0] + len(site[1])))
     patch(data, *revision_site(revision))
     rewritten.append((REVISION_VA, REVISION_VA + len(REVISION_ORIGINAL)))
     upload_size = len(cave)
@@ -3312,9 +3466,17 @@ def build_image(original, mode, code=None, server=None, late_join=None, revision
         for site in MEMORY_DEFAULTS:
             patch(data, *site)
             sites.append((site[0], site[0] + len(site[1])))
+        for site in SOUND_POOLS:
+            patch(data, *site)
+            sites.append((site[0], site[0] + len(site[1])))
         patch(data, *SPOT_COOLDOWN)
         sites.append((SPOT_COOLDOWN[0], SPOT_COOLDOWN[0] + len(SPOT_COOLDOWN[1])))
         for site in FALL_GRAVITY:
+            patch(data, *site)
+            sites.append((site[0], site[0] + len(site[1])))
+        # An address of .rdata for another: its relocation stays.
+        patch(data, *GRENADE_CCD)
+        for site in MOUSE_BUTTONS:
             patch(data, *site)
             sites.append((site[0], site[0] + len(site[1])))
         for site in ARTEFACTS_SIZES:
@@ -3718,7 +3880,8 @@ def build_image(original, mode, code=None, server=None, late_join=None, revision
             # hook's target taken from the link by its symbol.
             if linked is not None:
                 for va, expected, symbol, opcode in RESEARCH_HOOKS + ARTEFACTS_HOOKS + MATCH_KEYS_HOOKS + HIDE_UI_HOOKS \
-                        + KILL_FEED_HOOKS + BAKE_CACHE_HOOKS + WEIGHT_UI_HOOKS + rust_hooks(original):
+                        + KILL_FEED_HOOKS + BAKE_CACHE_HOOKS + WEIGHT_UI_HOOKS + BULLET_BOUNDS_HOOKS \
+                        + MATCH_STAT_MAP_HOOKS + AUDIO_DEVICE_HOOKS + WORLD_SECTIONS_HOOKS + rust_hooks(original):
                     patch(data, va, expected, hook_bytes(arena_target(linked, symbol), va, expected, 0, opcode))
                     if neutralize_relocs(data, [(va, va + len(expected))]):
                         sys.exit(f"{va:#x}: a base relocation under the hook to {symbol}")
@@ -3729,6 +3892,7 @@ def build_image(original, mode, code=None, server=None, late_join=None, revision
                 patch_section_value(data, *ARTEFACT_KEY_DEFAULT)
                 patch(data, *KILL_FEED_ARGUMENT)
                 patch(data, *BAKE_CACHE_KEEP)
+                patch(data, *EXPAND_TEXT_UNBOUND)
                 if artefacts_backs(linked) != list(ARTEFACTS_BACKS):
                     sys.exit("artefacts_026g.asm: its entries do not go on where patch_026g.py's ARTEFACTS_BACKS "
                              "says")
@@ -3742,6 +3906,7 @@ def build_image(original, mode, code=None, server=None, late_join=None, revision
     headers = Headers(data)
     struct.pack_into("<I", data, headers.checksum_at, pe_checksum(data, headers.checksum_at))
     return data, (f"certificate check, mutex, minimum VRAM check, hash interval {HASH_INTERVAL_MS} ms, "
+                  f"a world of {WORLD_BUFFER_SIZE:#x} bytes hashed and unpacked, "
                   f"patch revision {revision}, battery rule, mount without a root, no journal by default, "
                   "stage.focus null for a focused object without its ActionScript object, "
                   f"{upload_size} bytes of upload code {where} "
@@ -3770,6 +3935,8 @@ def build_image(original, mode, code=None, server=None, late_join=None, revision
                      "a drag turns the warmup camera and the wheel moves it while the kits are shown, "
                      "the archive reads' order is a strict weak ordering, "
                      f"the ai arena is {AI_ARENA_SIZE >> 20} MiB, "
+                     f"the game world's sound scene has {SOUND_INSTANCES} sound instances and propagators, "
+                     "a history item's six world sections grow on the heap, "
                      "a weapon's upgrade window shows the weapon, "
                      "the commit_suicide key (K) kills one's own player, "
                      "a killed player falls as a ragdoll (drawn only) that bullets push and bloody, the death screen's camera on its head, "

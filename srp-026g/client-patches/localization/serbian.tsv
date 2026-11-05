@@ -1482,11 +1482,11 @@ st_microphone_sensitivity_option	Osetljivost mikrofona
 st_military_medkit_description	Potpuno leči ruke i noge. Obnavlja 60% zdravlja trupa i glave i ublažava bol za 50%.
 st_military_medkit_name	Vojna prva pomoć
 st_minimap	Mini-mapa
-st_minimap_bottom	Donji levi ugao
+st_minimap_bottom	Mini-mapa dole levo
 st_minimap_off	Skrivena mini-mapa
 st_minimap_position	Položaj mini-mape
 st_minimap_rotable_option	Fiksiraj mini-mapu
-st_minimap_top	Gornji levi ugao
+st_minimap_top	Mini-mapa gore levo
 st_missile_weapon_action	Granata
 st_missions	Zadaci
 st_mm_button_back	Nazad
@@ -2184,6 +2184,7 @@ st_srp_ammo069_23mm_r_desc	Metak kalibra 23 mm sa sitnom sačmom, za KS-23M. Nan
 st_srp_ammo069_23mm_r_name	23x75R, sačma
 st_srp_ammo_scar_ap_desc	Pancirni meci 7,62x51 za FN SCAR-H. Svaka torbica za municiju prima 20 metaka.
 st_srp_ammo_scar_ap_name	7,62x51 AP SCAR-H, 20 metaka
+st_srp_ammo_stats	Osobine municije
 st_srp_attachments	Dodaci
 st_srp_crosshair_dynamic	Dinamični nišan
 st_srp_crosshair_hidden	Skriven nišan
@@ -2433,6 +2434,8 @@ st_srp_hide_hit_markers_option	Sakrij oznake pogodaka
 st_srp_hide_quests_option	Sakrij zadatke
 st_srp_hide_scores_option	Sakrij poene igrača
 st_srp_hud_add_friend	Dodaj u prijatelje
+st_srp_hud_blackout_intro	Zamračenje: donesi baterije do uređaja svog tima. Interfejs i oznake pogodaka su skriveni radi uživljavanja. Drži Tab: municija, zdravlje, čet; posle smrti — izbor opreme.
+st_srp_hud_blackout_start	Zamračenje\nDonesi baterije do uređaja svog tima.\nInterfejs i oznake pogodaka su skriveni. Drži Tab da vidiš municiju i zdravlje.
 st_srp_hud_friend_not_sent	Zahtev za prijateljstvo nije poslat
 st_srp_hud_friend_sent	Zahtev za prijateljstvo je poslat
 st_srp_hud_mute_hide	Sakrij čet
@@ -2441,6 +2444,9 @@ st_srp_hud_mute_not_sent	Nije poslato
 st_srp_hud_muted	Čet utišan
 st_srp_hud_unmute	Uključi čet
 st_srp_hud_unmuted	Čet uključen
+st_srp_inv_ammo_range	Domet
+st_srp_inv_bullet_speed	Brzina metka
+st_srp_inv_pellets	Sačme
 st_srp_inventory_search	Pretraga
 st_srp_language_option	Jezik:
 st_srp_language_restart	Primenjuje se posle ponovnog pokretanja.
@@ -2470,6 +2476,7 @@ st_srp_map_cologne	Keln
 st_srp_map_london	London
 st_srp_map_mamayev_kurgan	Mamajev kurgan
 st_srp_map_mamayev_kurgan_v021	Mamajev kurgan (v0.21)
+st_srp_map_names_option	Imena na mapi
 st_srp_map_rudnya	Rudnja
 st_srp_map_rudnya_v069	Rudnja (v0.69)
 st_srp_map_school	Škola
@@ -2662,6 +2669,7 @@ st_srp_speed_title	Brzina kretanja: %1$s
 st_srp_static_minimap_option	Statična mini-mapa
 st_srp_unit_kg	%1$s kg
 st_srp_unit_meters	%1$sm
+st_srp_unit_mps	%1$s m/s
 st_srp_unit_percent	%1$s%
 st_srp_unit_seconds	%1$ss
 st_srp_unit_times	%1$sx
@@ -2678,6 +2686,7 @@ st_srp_weapon069_mauser_m712_name	Mauser M.712
 st_srp_weapon069_ppsh_drum_desc	Automat Špagin sa dobošastim okvirom za 71 metak, municija 7,62x25. Podržava pojedinačnu i automatsku paljbu.
 st_srp_weapon069_ppsh_drum_name	PPSH-41 „Doboš“
 st_srp_weapon_aim_zoom	Osnovno uvećanje
+st_srp_weapon_bullet_speed_varies	Promenljiva
 st_srp_weapon_chamber	Vreme repetiranja
 st_srp_weapon_draw_time	Vreme vađenja
 st_srp_weapon_full_damage	Puna šteta do
@@ -2691,6 +2700,8 @@ st_srp_weapon_minimum_damage	Minimalna šteta
 st_srp_weapon_minimum_damage_from	Minimalna šteta od
 st_srp_weapon_recoil_heading	Trzaj, rasipanje i ljuljanje
 st_srp_weapon_reload	Punjenje
+st_srp_weapon_reload_empty	Punjenje (prazno)
+st_srp_weapon_reload_tactical	Taktičko punjenje
 st_srp_weapon_shift_hint	Shift: više · Alt: u meču
 st_srp_weapon_spread_growth	Brzina rasta rasipanja
 st_srp_weapon_spread_max	Najveće dodatno rasipanje
@@ -2708,12 +2719,12 @@ st_srp_weather_day	dan
 st_srp_weather_evening	veče
 st_srp_weather_night	noć
 st_srp_weather_rain	kiša
-st_srp_weight_base	Osnovna granica: %1$s
+st_srp_weight_base	Osnovna granica
 st_srp_weight_no_sprint_heavyweight	Sprint nije moguć zbog veštine Teškaš.
 st_srp_weight_no_sprint_limit	Sprint nije moguć: dostignuta je nosivost.
 st_srp_weight_penalty	%1$s% kazne za težinu
-st_srp_weight_speed	Brzina kretanja: %1$s
-st_srp_weight_sprint_stamina	Potrošnja izdržljivosti pri sprintu: %1$s
+st_srp_weight_speed	Brzina kretanja
+st_srp_weight_sprint_stamina	Potrošnja izdržljivosti pri sprintu
 st_srp_weight_title	Uticaj težine
 st_stamina_boost_name	Drugi dah
 st_stamina_boost_time_description	Energija obnovljena ubistvom neprijatelja:

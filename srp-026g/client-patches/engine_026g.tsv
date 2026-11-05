@@ -12,8 +12,8 @@ engine_statistics_notify	0x2f5d40	EAX:listener ESP+4:place ESP+8:event ESP+12:am
 engine_register_cook	0x102d10	EDI:cook	void engine_register_cook(void *cook)	thunk	
 engine_movie_invoke	0x511600	ECX:movie ESP+4:name ESP+8:result ESP+12:arguments ESP+16:count	unsigned int engine_movie_invoke(struct gfx_movie *movie, const char *method, struct gfx_value *result, const struct gfx_value *args, unsigned int count)	thunk	
 engine_show_message	0x2375c0	ECX:key ESP+4:game_world_ui ESP+8:first ESP+12:second ESP+16:third	void engine_show_message(const char *key, void *ui, unsigned int first, unsigned int second, unsigned int third)	thunk	
-engine_find_pool	0x2e58b0	EAX:pools ECX:name	void *engine_find_pool(void *pools, const char *const *name)	thunk	
-engine_increase_health	0x32a420	ESI:pool ESP+4:time ESP+8:amount	void engine_increase_health(void *pool, unsigned int time, float amount)	thunk	
+engine_find_pool	0x2e58b0	EAX:pools ECX:name	struct medical_pool *engine_find_pool(struct medical_pools *pools, const char *const *name)	thunk
+engine_increase_health	0x32a420	ESI:pool ESP+4:time ESP+8:amount	void engine_increase_health(struct medical_pool *pool, unsigned int time, float amount)	thunk
 engine_artefact_effect	0x313350	ESP+4:artefact ESP+8:time	void engine_artefact_effect(void *artefact, unsigned int time)	thunk	
 engine_apply_modifier	0x2d5ae0	EAX:modifiers ESI:index ESP+4:value ESP+8:weight	float engine_apply_modifier(const struct player_params_modifiers_container *modifiers, unsigned int index, float value, float weight)	thunk	
 engine_setup_profile	0x284b10	EAX:profile ESP+4:lobby_character ESP+8:kit	void engine_setup_profile(const void *profile, void *character, unsigned int kit)	thunk	
@@ -127,3 +127,15 @@ engine_leave_critical_section	0x8700cc	-	void engine_leave_critical_section(stru
 engine_di_capture_remove	0x5726f0	ECX:context ESP+4:queue	void engine_di_capture_remove(struct drawable_image_context *context, struct di_command_queue *queue)	thiscall	
 engine_di_queue_next_capture	0x5ee080	ECX:queue ESP+4:notify	void engine_di_queue_next_capture(struct di_command_queue *queue, struct render_notify *notify)	thiscall	
 engine_di_queue_release	0x505cb0	ECX:queue	void engine_di_queue_release(struct di_command_queue *queue)	thiscall	
+engine_remove_affect	0x32A6A0	ESP+4:pool ESP+8:time ESP+12:affect	void engine_remove_affect(struct medical_pool *pool, unsigned int time, unsigned int affect)	thunk
+engine_effect_resource_emit	0x329050	ESI:resource EDI:out	struct game_effect_slot *engine_effect_resource_emit(struct medical_effect_resource *resource, struct game_effect_slot *out)	thunk
+engine_xaudio2_create	0x05a640	ESP+4:engine ESP+8:flags	unsigned int engine_xaudio2_create(void **engine, unsigned int flags)	cdecl	
+engine_process_sound_orders	0x059dd0	ESP+4:world	void engine_process_sound_orders(struct sound_world *world)	stdcall	
+engine_co_create_instance	0xaf0064	-	unsigned int engine_co_create_instance(const void *clsid, void *outer, unsigned int context, const void *iid, void **object)	import	
+engine_heap_alloc	0x87004c	-	void *engine_heap_alloc(void *heap, unsigned int flags, unsigned int size)	import	
+engine_get_process_heap	0x870050	-	void *engine_get_process_heap(void)	import	
+engine_heap_free	0x870054	-	unsigned int engine_heap_free(void *heap, unsigned int flags, void *memory)	import	
+engine_create_sound_voice	0x059e70	EAX:world ESP+4:scene ESP+8:propagator ESP+12:emitter	struct sound_voice *engine_create_sound_voice(struct sound_world *world, struct sound_scene *scene, struct new_sound_propagator *propagator, const void *emitter)	thunk	
+engine_detach_voice	0x05cb80	ESP+4:propagator	void engine_detach_voice(struct new_sound_propagator *propagator)	stdcall	
+engine_sound_options	vostok::sound::sound_propagator_emitter+0x8	ECX:emitter	const struct sound_options *engine_sound_options(const struct sound_propagator_emitter *emitter)	virtual	
+engine_buffer_reallocate	0x07ab70	ESI:mutable_buffer EDI:capacity	void engine_buffer_reallocate(void *buffer, unsigned int capacity)	thunk	
