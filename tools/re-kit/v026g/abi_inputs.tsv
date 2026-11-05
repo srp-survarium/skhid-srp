@@ -2213,6 +2213,7 @@ va	name	location	role	basis
 0x001f97d0	survarium::game_world::on_resync	ECX	world receiver	inferred
 0x001f9800	survarium::game_world::demo_play	ECX	world receiver	inferred
 0x001f9800	survarium::game_world::demo_play	stack+4	track filename	inferred
+0x001fdd30	survarium::swf_input_translator::process_mouse_btn	EAX	the mouse key: 151h + the button (0..7, made at 0x3B9981); 151h/152h/153h give the movie 0/1/2 and any other key 0, a left click (patch 102 gives the movie nothing then); the same mapping inline in game_options 0x201754, game_world 0x25D08C, lobby_menu 0x26D044, login_menu 0x28DCDA	observed
 0x001feed0	survarium::text_translator::load_text_localization	stack+4	text translator	inferred
 0x001ff0f0	survarium::text_translator::translate_text	ECX	text translator	inferred
 0x001ff0f0	survarium::text_translator::translate_text	stack+4	input text or localization key	inferred
