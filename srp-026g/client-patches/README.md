@@ -128,6 +128,7 @@ release's. The "Result" row is the build of the revision named in it.
 | `rust/patches/src/tab_cursor.rs`, `src/tab_cursor.toml`, `src/vostok/hud_input.rs`, `src/vostok/keyboard.rs`, `src/vostok/lobby.rs`, `check_tab_cursor_026g.py` | Patch 86: Ctrl on the Tab list shows a cursor, and its rows' menu sends the lobby's friend request and chat mute (`../docs/notes/tab-cursor-friends.md`, `chat-mute.md`): two lohooks (`sites_026g.tsv`); its check runs both from the game's code on made-up objects, the original beside (needs Unicorn); the menu's harness is `../scripts/tab-row-menu/check.sh` |
 | `rust/patches/src/world_check.rs`, `src/world_check.toml`, `src/vostok/world_load.rs`, `../crates/world-frame`, `check_world_check_026g.py` | Patch 87: a game parses every world it is sent (0xE8) before it loads it, with the match server's own parse (crate `world-frame`: the frame to its end, no slot past 20, no section or state over the game's buffer); a refused one is never loaded and the game leaves the match (`../docs/notes/world_frame_check.md`): two lohooks (`sites_026g.tsv`); its check runs both loads beside the original and, with `--drift`, kept worlds and mutated copies through the arena's build against the host's (needs Unicorn) |
 | `check_world_roundtrip_026g.py`, `worlds_026g/` | A resync always converges: a late joiner and a resynced game load each recorded world (`worlds_026g/`, 8 dumps of rev41's match 0x1c0ebd31; or any `SRP_SNAPSHOT_DIR` dumps) and save it at once, through every patch hook inside the world's load and save (the 0xE8 preparation, patch 85's record, patch 78's carry); each must write back the bytes it read. Every patch site in a `::serialize` or `::deserialize` function is run there or named with its own check (`../docs/notes/client_patch.md`, "World round trip"; needs Unicorn) |
+| `rust/patches/src/animation_id_log.rs`, `src/animation_id_log.toml`, `src/vostok/animation_id.rs`, `check_animation_id_log_026g.py` | Patch 95: a diagnostic (`../docs/notes/animation-ids.md`): an animation pair the registry has no id for (the lookup 0x2D6590 returns 0FFFFh, the rev47 crashes at 0x1F18C8) is logged to srp_patches.log once, with the clips' names, the registry's size and who asked; one lohook (`sites_026g.tsv` `animations.id_missing`); its check runs the lookup in the original and the patched exe (needs Unicorn) |
 | `rust/patches/src/drug_interrupt.rs`, `src/drug_interrupt.toml`, `src/vostok/drug.rs`, `check_drug_interrupt_026g.py` | Patch 84: a bullet that hits a player stops the healing drug he is using (`../docs/notes/drug-interrupt.md`): one lohook (`sites_026g.tsv` `player.hit_applied`), the game's own `medkit::set_active(0)` through the engine library; its check runs the hook in the patched exe and the game's set_active(0) in the original (needs Unicorn) |
 | `rust/patches/src/text_input.rs`, `check_text_input_026g.py` | Patch 52: ignore a character event whose Scaleform text field has lost its AS3 receiver; reproduces the PIN-entry crash and checks native register/stack behavior (needs Unicorn) |
 | `weapon_camo_026g.asm`, `weapon_camo_026g.section.bin` | The source of patch 44's code (a weapon wears the camouflage its item holds) and that code assembled for `.srpw`, its own section on the page after `.srpc` (0xA42A000), which `patch_026g.py` reads. Assembling the source again gives the same bytes |
@@ -4158,3 +4159,25 @@ past its own removal, the game's Release and RemoveCaptureNotify, on made-up con
 none, a dying queue, a queue destroyed while the walk is at the one before (the original reaches
 the freed queue), and the walk's own reference the last; the lock never held across a call, every
 list read made with it, the references and registers as they were. **Not run in a game.**
+
+### 95. A missing animation id is logged (a diagnostic; the next release's revision)
+
+The rev47 crashes at 0x1F18C8 (drawing a player's held weapon) read the animations registry's
+ids' vector at 0FFFFh: the registry's lookup (0x2D6590) had no entry for a clip pair, and its
+0FFFFh went into the player's animation tree. Which clip, and why nobody registered it, the
+dumps cannot say (no heap). `../docs/notes/animation-ids.md` has what is known: the registry,
+who registers (`player::register_animations` 0x2D8100 and the match rules, at the world's load,
+and a late join's install), the full dump's 221 entries, the owner's crash and the pickup just before it.
+
+**The patch** (the Rust patch `animation_id_log`, one lohook, `sites_026g.tsv`
+`animations.id_missing`, 0x2D65EE: the lookup's 0FFFFh exit, its `pop edi / pop esi / mov
+eax,0FFFFh` replayed): each distinct missing pair, at most eight a run, is written to
+srp_patches.log: the clips' addresses and names (the resource's name registry entry, +B0h, its
+name +8), the registry's id count, the resolver's return address and the six stack words above
+its arguments. The lookup still returns 0FFFFh: nothing a match computes changes, no row in
+`../crates/session/src/v026g/simulation_changes.tsv`.
+
+Checked: `check_animation_id_log_026g.py` runs the lookup from its entry on a made-up registry
+in both exes: a registered pair (its id, no line), a missing one (0FFFFh, the registers kept, the
+lines), the same again (no line), a pair of two resources, a resource without a name, a ninth
+pair (no line). **Not run in a game.**

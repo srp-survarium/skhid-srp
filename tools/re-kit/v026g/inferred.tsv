@@ -3182,3 +3182,7 @@ va	status	ref_021d	name
 0x0033aa40	inferred-medium		survarium::weapon_core_fire_state_base::finalize
 0x00391c40	inferred-medium		vostok::animation::animation_player::subscribe_event_channel
 0x003921a0	inferred-medium		vostok::animation::animation_player::unsubscribe_event_channel
+0x001f18b0	inferred-medium		survarium::game_world::animation_resolver
+0x002d6590	inferred-medium		survarium::animations_registry::animation_id
+0x002ef130	inferred-medium		survarium::animations_registry::register_animation
+0x002ef280	inferred-medium		survarium::animations_registry::actualize
