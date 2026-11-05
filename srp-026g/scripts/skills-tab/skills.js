@@ -2,8 +2,8 @@
 // The skills' tooltip: one box out of the page's flow (position: fixed), filled from the skill's
 // own text. A mouse shows it while hovering, a click pins nothing; a tap opens it, and a tap
 // anywhere (the same skill too) or a scroll closes it; the keyboard shows it on focus, Escape and
-// blur hide it. Below the skill when it fits the window, above it otherwise, kept inside the
-// window; on a phone it is docked at the bottom (CSS), over the page.
+// blur hide it, and a scroll moves it with its skill. Below the skill when it fits the window,
+// above it otherwise, kept inside the window; on a phone it is docked at the bottom (CSS).
 const box = document.querySelector(".skill-float");
 const docked = matchMedia("(max-width:560px)");
 let shown = null, touch = false;
@@ -44,7 +44,7 @@ document.addEventListener("click", event => {
   hide();
   if (skill && !again) { skill.classList.add("open"); show(skill); }
 });
-addEventListener("scroll", () => { if (touch) hide(); }, {passive: true});
+addEventListener("scroll", () => { if (touch) hide(); else if (shown) show(shown); }, {passive: true});
 document.addEventListener("keydown", event => {
   if (event.key === "Escape" && shown) { const skill = shown; hide(); skill.blur(); }
 });
