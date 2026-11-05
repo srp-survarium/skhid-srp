@@ -2923,7 +2923,7 @@ st_weapon_pick_up	Podnieś %1$s ({USE})
 st_weapon_reload_action	Przeładowanie
 st_weapon_switching	Poczekaj na zmianę broni
 st_wear	Zastosuj
-st_weight_booster_description	Białka zawierające składniki odżywcze dla przyrostu masy mięśniowej i zwiększenia siły. Stosowanie ich jednak niepoparte wysiłkiem fizycznym jest nieskuteczne.\nUderzenie kolbą w rękę zabija.
+st_weight_booster_description	Białka zawierające składniki odżywcze dla przyrostu masy mięśniowej i zwiększenia siły. Stosowanie ich jednak niepoparte wysiłkiem fizycznym jest nieskuteczne.
 st_weight_booster_name	Odżywka "Anormalna Siła"
 st_winchester1894_description	Zaprojektowany przez amerykańskiego konstruktora w 1894 r. Produkowany aż do 2006 r., co czyni go jednym z najbardziej rozpoznawalnych i popularnych karabinów myśliwskich na świecie. Wyposażony w 6-nabojowy magazynek rurowy.
 st_winchester1894_name	Winchester 1894

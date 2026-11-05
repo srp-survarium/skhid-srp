@@ -10348,15 +10348,6 @@ impl CorePlace {
         unsafe { self.0.byte_add(0x8).cast::<Option<Player>>().write_volatile(value) }
     }
 
-    /// +0xc (u8): the place's current kit, which of kit0..kit2 is its player (core_active_player 0x2D0AF9)
-    ///
-    /// # Safety
-    /// `self` is alive (its fields are its kind's: the type says so).
-    #[inline(always)]
-    pub unsafe fn kit(self) -> *mut u8 {
-        unsafe { self.0.byte_add(0xc).cast::<u8>().as_ptr() }
-    }
-
     /// 0x30 bytes: a place's entry: 30h bytes (core_active_player 0x2D0AE7)
     pub const SIZE: usize = 0x30;
 

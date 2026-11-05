@@ -3,8 +3,8 @@
 //! invulnerability, and goes next to the zone's armour and its pools
 //! (body_part_parameters::hit_by_type 0x329FF0). Every game runs it for
 //! every hit of every player in its simulation, so what is decided there is
-//! decided alike everywhere (patch 108, docs/notes/force-protein-hand-kill.md).
-//! Every field is fields_026g.tsv's.
+//! decided alike everywhere (patch 108, docs/notes/hand-kill.md). Every field
+//! is fields_026g.tsv's.
 
 use core::ffi::CStr;
 
@@ -13,29 +13,19 @@ use super::drug::HitType;
 use super::world::read;
 use crate::raw;
 
-/// A player modifier's index in a kit's 68 (the exe's names at 0x928448).
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub struct ModifierIndex(u32);
-
-impl ModifierIndex {
-    /// `stamina_boost_interval` (29): no 0.26g code reads it (no
-    /// apply_modifier or apply_modifiers call names it) and nothing sets it
-    /// but skill 205's 0; additive (0x927E08's list). srp's: a booster that sets it
-    /// makes its carrier's gun-stock hits on a hand lethal.
-    pub const MELEE_HAND_KILL: ModifierIndex = ModifierIndex(29);
-}
-
 /// The hit at `medical.hit`, before armour.
 pub struct DealingHit<'c> {
     kind: Option<HitType>,
     zone: Option<&'c CStr>,
-    victim: Option<raw::Player>,
-    attacker: Option<u8>,
+    by_another: bool,
     frame: raw::MedicalDamageFrame,
 }
 
 /// The longest zone name (hit_params' names: `right_forearm`, 13 bytes).
 const ZONE_LIMIT: usize = 32;
+
+/// hit_info's attacker for none (hit_info::hit_info's stack+8).
+const NO_PLACE: u8 = 0xFF;
 
 impl<'c> DealingHit<'c> {
     pub fn at(ctx: &'c Context<'_>) -> Option<DealingHit<'c>> {
@@ -47,10 +37,11 @@ impl<'c> DealingHit<'c> {
         // model's bone table keeps for the match.
         unsafe {
             let (hit, frame) = (site::hit(ctx)?, site::frame(ctx)?);
-            let victim = site::model(ctx).and_then(|model| model.owner());
+            let victim = site::model(ctx)?.owner()?;
             let zone = super::ui::c_string(hit.name(), ZONE_LIMIT);
-            let attacker = Some(read(hit.attacker())).filter(|&place| place != 0xFF);
-            Some(DealingHit { kind: HitType::parse(read(hit.kind())), zone, victim, attacker, frame })
+            let attacker = read(hit.attacker());
+            let by_another = attacker != NO_PLACE && attacker != read(victim.place());
+            Some(DealingHit { kind: HitType::parse(read(hit.kind())), zone, by_another, frame })
         }
     }
 
@@ -63,41 +54,10 @@ impl<'c> DealingHit<'c> {
         self.zone
     }
 
-    /// The sum of `index` in the attacker's current kit (the skills, the
-    /// armour's and the carried boosters' entries: apply_modifier
-    /// 0x2D5AE0, additive, of 0); None when the hit has no attacker or it
-    /// is the victim's own.
-    pub fn attacker_modifier(&self, index: ModifierIndex) -> Option<f32> {
-        let victim = self.victim?;
-        let place = usize::from(self.attacker?);
-        // SAFETY: the victim's world core and its places' vector, the place
-        // bounded by the vector's end before its entry is read; a place
-        // keeps its kits' players for the match (core_active_player reads
-        // them so), and a player's profile its kits' modifiers.
-        unsafe {
-            let core = victim.world_core()?;
-            let (begin, end) = (core.places()?, core.places_end()?);
-            if end.index_from(begin)? <= place {
-                return None;
-            }
-            let entry = begin.at(place);
-            let kit = read(entry.kit());
-            let attacker = match kit {
-                0 => entry.kit0(),
-                1 => entry.kit1(),
-                2 => entry.kit2(),
-                _ => None,
-            }?;
-            if attacker == victim {
-                return None;
-            }
-            let kit = usize::from(read(attacker.kit()));
-            if kit >= 3 {
-                return None;
-            }
-            let modifiers = attacker.profile()?.kits().at(kit).modifiers();
-            Some(raw::engine_apply_modifier(Some(modifiers), index.0, 0.0, 1.0))
-        }
+    /// The hit has an attacker, another player than the victim (a fall has
+    /// none).
+    pub fn by_another(&self) -> bool {
+        self.by_another
     }
 
     /// The damage the zone's armour and pools are dealt from here.

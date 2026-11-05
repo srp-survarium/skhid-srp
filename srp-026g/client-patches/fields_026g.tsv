@@ -494,7 +494,6 @@ survarium::core_world	active_places	0x18FD8	u32	the places in the world, a bit e
 survarium::core_place	kit0	0x0	ptr<survarium::player>	the place's kit 0 player (core_active_player reads [place + kit x 4], kit +0Ch); kept when the place's player leaves
 survarium::core_place	kit1	0x4	ptr<survarium::player>	the place's kit 1 player
 survarium::core_place	kit2	0x8	ptr<survarium::player>	the place's kit 2 player
-survarium::core_place	kit	0xC	u8	the place's current kit, which of kit0..kit2 is its player (core_active_player 0x2D0AF9)
 survarium::core_place	size	0x30	size	a place's entry: 30h bytes (core_active_player 0x2D0AE7)
 survarium::item	active_object	-0x10	obj<survarium::item>	a weapon's inventory item's active object (a weapon slot holds active+10h): only for an item known to be a weapon's
 survarium::weapon	core	0x4	ptr<survarium::core_world>	the bound world core (bind_to_game_core 0x2E3117); a cooked gun has none

@@ -2923,7 +2923,7 @@ st_weapon_pick_up	Sebrat %1$s ({USE})
 st_weapon_reload_action	Přebít
 st_weapon_switching	Počkej na výměnu zbraně
 st_wear	Nasadit
-st_weight_booster_description	Protein s nezbytnými živinami pro růst svalů a síly. Bez fyzické námahy ale neúčinkuje.\nÚder pažbou do ruky zabíjí.
+st_weight_booster_description	Protein s nezbytnými živinami pro růst svalů a síly. Bez fyzické námahy ale neúčinkuje.
 st_weight_booster_name	Protein Anomální síla
 st_winchester1894_description	Puška navržená americkým inženýrem roku 1894 se vyráběla až do roku 2006. Patří k nejznámějším a nejoblíbenějším loveckým puškám. Pákové přebíjení, trubicový zásobník na 6 nábojů.
 st_winchester1894_name	Winchester Model 1894

@@ -2923,7 +2923,7 @@ st_weapon_pick_up	Podigni %1$s ({USE})
 st_weapon_reload_action	Napuni oružje
 st_weapon_switching	Sačekaj zamenu oružja
 st_wear	Primeni
-st_weight_booster_description	Proteinski dodatak sa hranljivim materijama potrebnim za rast mišića i snagu. Bez fizičkog napora nema efekta.\nUdarac kundakom u ruku ubija.
+st_weight_booster_description	Proteinski dodatak sa hranljivim materijama potrebnim za rast mišića i snagu. Bez fizičkog napora nema efekta.
 st_weight_booster_name	Proteinski dodatak - Anomalna snaga
 st_winchester1894_description	Puška koju je američki konstruktor razvio 1894, a proizvodila se do 2006. Jedna od najpoznatijih lovačkih pušaka. Repetira se polugom i ima cevasti magacin za 6 metaka.
 st_winchester1894_name	Winchester Model 1894

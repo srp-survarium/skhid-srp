@@ -2923,7 +2923,7 @@ st_weapon_pick_up	%1$s felvétele ({USE})
 st_weapon_reload_action	Újratöltés
 st_weapon_switching	Várd meg a fegyverváltást
 st_wear	Alkalmazás
-st_weight_booster_description	Fehérje az izomnövekedéshez és erősödéshez szükséges tápanyagokkal. Fizikai terhelés nélkül azonban hatástalan.\nA puskatussal a kézre mért ütés öl.
+st_weight_booster_description	Fehérje az izomnövekedéshez és erősödéshez szükséges tápanyagokkal. Fizikai terhelés nélkül azonban hatástalan.
 st_weight_booster_name	Anomális Erő fehérje
 st_winchester1894_description	Egy amerikai mérnök 1894-es terve, amelyet 2006-ig gyártottak. Az egyik legismertebb és legnépszerűbb vadászpuska lett. Alsókulcsos ismétlő, 6 lőszeres csőtárral.
 st_winchester1894_name	Winchester Model 1894

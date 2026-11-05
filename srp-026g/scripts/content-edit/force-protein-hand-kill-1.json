@@ -1,6 +1,0 @@
-{
-  "_about": "The Anomalous Force Protein (weight_booster, 339) in a pocket makes its carrier's gun-stock hits to a hand lethal (the owner, 2026-11-05): the booster's parameter stamina_boost_interval_modifier 1 (player modifier 29, which no 0.26g code reads) is in its carrier's kit while carried (survarium::booster 0x33F690 / 0x33F990), and exe patch 108 deals a blunt hit on an arm or forearm zone by such an attacker as lethal (docs/notes/force-protein-hand-kill.md).",
-  "add_value": [
-    {"files": ["gameplay/items/boosters/weight_booster.options"], "table": "parameters", "key": "stamina_boost_interval_modifier", "value": 1.0}
-  ]
-}
