@@ -617,6 +617,50 @@ mod tests {
     }
 
     #[test]
+    fn keep_off_shuts_the_floors_to_its_hard_metres_and_the_ring_outside_them() {
+        let s = Scenario::field(Mode::TeamDeathmatch);
+        let grid = &s.tactics.world.grid;
+        let trap = Vec3::new(25.0, 0.0, 10.0);
+        let mut list = TrapList::default();
+        list.promise(0, trap, 1_000);
+        let near = |r0: f32, r1: f32| -> Vec<NodeId> {
+            let area = [trap.x - r1, trap.z - r1, trap.x + r1, trap.z + r1];
+            grid.floors_in(area)
+                .filter(|&n| {
+                    let d = grid.position(n).distance_xz(trap);
+                    d > r0 && d <= r1 && (grid.position(n).y - trap.y).abs() < 1.0
+                })
+                .collect()
+        };
+        // The default: reach FIELD_M, the same field as before.
+        let narrow = TrapField::of_ringed(&list, grid, 1.3);
+        assert!((narrow.reach() - FIELD_M).abs() < 1e-6);
+        // keep_off 1.3 m: every floor within 1.3 m shut, beyond open; no ring left inside it.
+        let wide = TrapField::of_ringed_within(&list, grid, 1.3, 1.3);
+        assert!((wide.reach() - 1.3).abs() < 1e-6 && !wide.has_ring());
+        let band = near(FIELD_M, 1.3);
+        assert!(!band.is_empty());
+        assert!(band.iter().all(|&n| !wide.open(n) && narrow.open(n)));
+        assert!(near(1.3, 3.0).iter().all(|&n| wide.open(n)));
+        // Its hits are its reach: a leg 1.0 m off hits the wide field, not the narrow one.
+        let leg = |z: f32| [Vec3::new(20.0, 0.0, z), Vec3::new(30.0, 0.0, z)];
+        assert!(wide.hits(&leg(11.0)) && !narrow.hits(&leg(11.0)));
+        assert!(!wide.hits(&leg(11.4)));
+        // A ring wider than the reach stays the soft band outside it.
+        let ringed = TrapField::of_ringed_within(&list, grid, 2.0, 1.3);
+        assert!(ringed.has_ring());
+        assert!(near(1.3, 2.0).iter().all(|&n| ringed.open(n) && !ringed.ring_open(n)));
+        // A search along the trap's row keeps 1.3 m off it.
+        let from = grid.locate(Vec3::new(15.0, 0.0, 10.0), 1.0).unwrap();
+        let to = grid.locate(Vec3::new(35.0, 0.0, 10.0), 1.0).unwrap();
+        let rule = Arc::new(wide);
+        let filter = RouteFilter::open().with_floors(move |node| rule.open(node));
+        let round = s.tactics.route_nodes(from, to, 0, Some(0), false, &filter).expect("a route");
+        let points: Vec<Vec3> = round.points().iter().map(|p| p.at).collect();
+        assert!(off_route_m(&points, trap) >= 1.3 - 0.3, "{:?}", points);
+    }
+
+    #[test]
     fn a_sync_says_which_of_the_teams_traps_went_off() {
         let at = Vec3::new(30.0, 0.0, 10.0);
         let mut list = TrapList::default();
