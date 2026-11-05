@@ -2219,6 +2219,7 @@ va	name	location	role	basis
 0x001fab50	survarium::game_world_core::change_input<struct survarium::client_update<struct survarium::player_input,220,235,221,236>>	entry ESP+10h	the input's time (ms)	observed
 0x001fab50	survarium::game_world_core::change_input<struct survarium::client_update<struct survarium::player_input,220,235,221,236>>	entry ESP+14h	the player (place, < 20)	observed
 0x001fab50	survarium::game_world_core::change_input<struct survarium::client_update<struct survarium::player_input,220,235,221,236>>	entry ESP+18h	from network (byte; 1 relayed/moved, 0 local and a replay's)	observed
+0x001fdd30	survarium::swf_input_translator::process_mouse_btn	EAX	the mouse key: 151h + the button (0..7, made at 0x3B9981); 151h/152h/153h give the movie 0/1/2 and any other key 0, a left click (patch 102 gives the movie nothing then); the same mapping inline in game_options 0x201754, game_world 0x25D08C, lobby_menu 0x26D044, login_menu 0x28DCDA	observed
 0x001feed0	survarium::text_translator::load_text_localization	stack+4	text translator	inferred
 0x001fef90	survarium::text_translator::expand_text	EAX	the text (C string; "{key}" is looked up and translated, "{{" a brace); "" writes only the terminator	observed
 0x001fef90	survarium::text_translator::expand_text	ECX	output buffer	observed

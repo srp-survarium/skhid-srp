@@ -1414,6 +1414,26 @@ FALL_GRAVITY = (
                    "f30f11586c" "f30f114874" "eb10" "8b4d00" "f30f105908" "f30f5d18" "eb9c" "cccc")),
 )
 
+# The menus' mouse buttons (patch 102, client_patch.md section 3.63). The
+# mouse gives a key 151h + its button (0..7, platform mouse 0x3B9981) to every
+# listener. The five that hand a button to their movie (0x2AF610, `ret 0Ch`):
+# swf_input_translator::process_mouse_btn 0x1FDD30, game_options 0x201754,
+# game_world 0x25D08C, lobby_menu 0x26D044 and login_menu 0x28DCDA, each map
+# 151h/152h/153h to the movie's 0/1/2 and leave any other key at 0: the side
+# buttons (mouse4..mouse8) were left clicks in the menus (0.60's "pressing
+# additional mouse buttons in the lobby counted as pressing LMB"). Each `jne`
+# past 153h now goes to the handler's own `mov al,1` after the movie's call:
+# the key is taken, the movie gets nothing. The callee pops its three
+# arguments, so the stack there is the jne's. No relocation, no branch into
+# the two bytes.
+MOUSE_BUTTONS = (
+    (0x1FDD41, bytes.fromhex("750e"), bytes.fromhex("7525")),   # -> 0x1FDD68 mov al,1 / ret 0Ch
+    (0x201769, bytes.fromhex("750e"), bytes.fromhex("751d")),   # -> 0x201788 pop edi / mov al,1
+    (0x25D0A1, bytes.fromhex("750e"), bytes.fromhex("7521")),   # -> 0x25D0C4 pop edi / pop esi / mov al,1
+    (0x26D059, bytes.fromhex("750e"), bytes.fromhex("7521")),   # -> 0x26D07C mov al,1 / pop esi
+    (0x28DCEE, bytes.fromhex("750e"), bytes.fromhex("7520")),   # -> 0x28DD10 mov al,1 / pop ecx
+)
+
 # "Watch replay" (patch revision 14, client_patch.md section 3.27). The
 # lobby movie's ExternalInterface call video_tutorial_link_clicked is the
 # delegate {lobby ui, 0x28CDA0} (registered at 0x283053; the name is entry
@@ -3335,6 +3355,9 @@ def build_image(original, mode, code=None, server=None, late_join=None, revision
         patch(data, *SPOT_COOLDOWN)
         sites.append((SPOT_COOLDOWN[0], SPOT_COOLDOWN[0] + len(SPOT_COOLDOWN[1])))
         for site in FALL_GRAVITY:
+            patch(data, *site)
+            sites.append((site[0], site[0] + len(site[1])))
+        for site in MOUSE_BUTTONS:
             patch(data, *site)
             sites.append((site[0], site[0] + len(site[1])))
         for site in ARTEFACTS_SIZES:
