@@ -934,11 +934,11 @@ static void consume(struct sponge *s) {
 /* The explosion (ACT_EXPLODE) at `at` (where it was armed: the hand or the
  * body): the splash, the zone on there, out of the physics world, +280h 7,
  * the passive out (0.28 leaves it in the thrower's list: its +30h skips
- * state 6). Still in its slot: the throw state holding it (+17Ch) lets it go
- * at its next is_ready (sp_released), and a world saved before that names it
- * by that slot (0x33A51B; its load 0x33A5BD reads the slot back). Players
- * tick before the anomaly; it leaves its slot when no throw state holds it
- * any more (sp_tick, let_go), or now when none does (ACT_CONSUME). */
+ * state 6). Still in its slot while a throw state holds it (+17Ch), so a
+ * world saved then names it by that slot (0x33A51B; its load 0x33A5BD reads
+ * the slot back). It leaves its slot at the first tick its holder's weapon's
+ * current state no longer holds it (sp_tick, let_go), or now when none does
+ * (ACT_CONSUME). */
 static void explode(struct sponge *s, const matrix *at, void *physics, u32 time) {
     struct splash hit;
     matrix transform = *at;
