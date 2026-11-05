@@ -139,3 +139,7 @@ engine_create_sound_voice	0x059e70	EAX:world ESP+4:scene ESP+8:propagator ESP+12
 engine_detach_voice	0x05cb80	ESP+4:propagator	void engine_detach_voice(struct new_sound_propagator *propagator)	stdcall	
 engine_sound_options	vostok::sound::sound_propagator_emitter+0x8	ECX:emitter	const struct sound_options *engine_sound_options(const struct sound_propagator_emitter *emitter)	virtual	
 engine_buffer_reallocate	0x07ab70	ESI:mutable_buffer EDI:capacity	void engine_buffer_reallocate(void *buffer, unsigned int capacity)	thunk	
+engine_key_name	0x3b9c00	ECX:keyboard ESP+4:key ESP+8:buffer ESP+12:size	unsigned char engine_key_name(struct keyboard *keyboard, unsigned int key, char *name, unsigned int size)	thiscall	
+engine_activate_keyboard_layout	0xaeff20	-	unsigned int engine_activate_keyboard_layout(unsigned int layout, unsigned int flags)	import	
+engine_get_module_handle_a	0x87003c	-	void *engine_get_module_handle_a(const char *name)	import	
+engine_get_proc_address	0x870084	-	void *engine_get_proc_address(void *module, const char *name)	import	

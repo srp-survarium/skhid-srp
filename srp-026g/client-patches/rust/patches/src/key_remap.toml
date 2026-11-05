@@ -1,0 +1,10 @@
+# Patch 110: the keys a desktop moves are moved in the game
+# (docs/notes/keyboard_layout.md). The site is sites_026g.tsv's; the logic is
+# key_remap.rs and vostok/keyboard.rs.
+name = "key_remap"
+patch = 110
+
+# keyboard::execute after GetDeviceData, before anything reads the events.
+[[hook]]
+site = "keyboard.events"
+handler = "on_events"
