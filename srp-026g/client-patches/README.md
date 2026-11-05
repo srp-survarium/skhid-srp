@@ -123,6 +123,7 @@ release's. The "Result" row is the build of the revision named in it.
 | `rust/patches/src/input_check.rs`, `src/input_check.toml`, `src/vostok/input.rs`, `check_input_check_026g.py` | Patch 99: a world takes no player input whose rotation no client makes (a NaN, an infinity, 1024 radians or more), as 0.27d's change_input refuses one: a lohook at change_input<player_input>'s start (0x1FAB50); its check runs that start on made-up inputs, the original beside (needs Unicorn) |
 | `check_mouse_buttons_026g.py` | Patch 102 (`MOUSE_BUTTONS` in `patch_026g.py`): a side mouse button (mouse4..mouse8) is no left click in the lobby, login, options and match menus; its check runs the five handlers in both exes (needs Unicorn) |
 | `rust/patches/src/footsteps.rs`, `src/footsteps.toml`, `src/vostok/footstep.rs`, `check_footsteps_026g.py` | Patch 101: a footstep that only a re-simulation makes (another player's late input) is heard instead of dropped; one lohook in on_player_sound_event's time test; its check runs the handler in both exes (needs Unicorn) |
+| `audio_device_026g.c`, `audio_device_026g.h`, `audio_device_engine_026g.c`, `test_audio_device_026g.c` | Patch 100: the sound follows the audio output device (XAudio2's engine and voices proxied, made again on the default device after a lost device or a new default); the test runs the core on i686 under the sanitizers against a made-up XAudio2 that keeps its rules (no Unicorn) |
 | `check_stage_focus_026g.py` | Runs the original's and patch 52's Stage focus getter (Scaleform's `stage.focus`, 0x771FA0) on a made-up movie: focused objects of each kind, none, one without its ActionScript object (the lobby's crash of 2026-10-22) (needs Unicorn) |
 | `rust/patches/src/language.rs`, `src/language.toml`, `src/vostok/language.rs`, `languages_026g.rs`, `check_language_026g.py` | Patch 79: the game language is a setting kept in user.cfg (Settings, Gameplay, Language; `../docs/notes/language-option.md`): three lohooks (`sites_026g.tsv`); `languages_026g.rs` is generated from `localization_026g.py`'s registry; its check runs each hook from the game's code on made-up objects, the original beside (needs Unicorn); the movie's harness is `../scripts/language-option/check.sh` |
 | `rust/patches/src/tab_cursor.rs`, `src/tab_cursor.toml`, `src/vostok/hud_input.rs`, `src/vostok/keyboard.rs`, `src/vostok/lobby.rs`, `check_tab_cursor_026g.py` | Patch 86: Ctrl on the Tab list shows a cursor, and its rows' menu sends the lobby's friend request (`../docs/notes/tab-cursor-friends.md`): two lohooks (`sites_026g.tsv`); its check runs both from the game's code on made-up objects, the original beside (needs Unicorn); the menu's harness is `../scripts/tab-row-menu/check.sh` |
@@ -4238,3 +4239,45 @@ before it (a copy of a played step, moved by the correction, stays single; a lon
 window plays each foot's newest step at most). Rustles and the other tests are the game's. Nothing a match computes.
 The rules and the 0.27d0 code: `../docs/notes/footsteps.md`; the addresses: `client_patch.md` 3.64.
 Checked with `check_footsteps_026g.py`; not run in a game.
+
+## The sound follows the audio output device (patch 100, unreleased)
+
+Players' report (B43): when the audio output device goes or changes (a headset unplugged, a
+Bluetooth headset connecting, the default device switched), the game has no sound until it
+restarts. 0.26g makes its XAudio2 2.7 engine and mastering voice once, on the default device of
+that moment (`sound_world::initialize_xaudio` 0x59080), registers no engine callback and watches
+no device; after XAudio2's critical error (its device gone) the engine is stopped for good, and a
+new default device is never used. XAudio2's only way back is a new engine, and a mastering voice
+goes only after every other voice, so 0.69 (`stop_mastering_voice` / `restart_mastering_voice`)
+makes every voice again; this patch does the same for 0.26g.
+
+**The patch** (`audio_device_026g.c`, `audio_device_engine_026g.c`; the arena's blocks
+`audio_device.code` and `.state`; `AUDIO_DEVICE_HOOKS`):
+
+- initialize_xaudio's two XAudio2Create calls (`call 0x5A640`, 0x59187 and 0x591C8):
+  `audio_device_create` makes the engine and gives the game our proxy of it; each voice made
+  through it is a proxy of ours that forwards every call and keeps what it set (sends, effect
+  chain and parameters, volumes, matrices, filters; a source's format, callback, frequency ratio,
+  started state and the buffers whose OnBufferEnd has not come). An engine callback of ours
+  (OnCriticalError) and an IMMNotificationClient (OnDefaultDeviceChanged, render, not
+  communications) raise event bits.
+- sound_world::tick's process_orders (`call 0x59DD0`, 0x59AAC, the sound thread):
+  `audio_device_orders`, then process_orders. After an event (a default change only when the
+  default device's id is another), a rebuild: a new engine and a mastering voice on the device the
+  game's rule picks first (on failure nothing changes, tried again 2 s later, quietly); then the
+  old voices, master and engine go, and every voice is made again from what was kept, the pending
+  buffers queued again in order (a flushed one, which the game makes at every detach_voice and a
+  dead or stopped engine never ends, is ended by the rebuild itself and never played again), the
+  game's pointers unchanged.
+
+New engine-function rows: `engine_xaudio2_create` (0x5A640, cdecl), `engine_process_sound_orders`
+(0x59DD0, stdcall), the imports `engine_co_create_instance` (the delay-loaded slot 0xAF0064),
+`engine_heap_alloc`, `engine_get_process_heap`, `engine_heap_free`. Sound only: no row in
+`../crates/session/src/v026g/simulation_changes.tsv`. The evidence and the spec:
+`../docs/notes/audio_device.md`.
+
+Checked: `test_audio_device_026g.c` (its header has the command; i686 gcc, ASan/UBSan) runs the
+core against a made-up XAudio2 that keeps XAudio2's rules: the game's graph rebuilt the same after
+a lost device and a new default, nothing on the same default or a communications one, kept and
+retried with no device or no engine, every buffer ending once, everything given back at the end.
+The exe built and its three sites disassembled. **Not run in a game.**

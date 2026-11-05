@@ -242,7 +242,6 @@ va	status	ref_021d	name
 0x00058940	inferred-medium	0x0003f96f	vostok::sound::sound_scene::add_active_voice
 0x00058990	inferred-medium	0x0003f9ad	vostok::sound::sound_scene::remove_active_voice
 0x00058cf0	inferred-medium	0x0003fba0	vostok::sound::sound_world::sound_world
-0x00059080	inferred-medium	0x0003febd	vostok::sound::sound_world::initialize_xaudio
 0x00059910	inferred-medium	0x00040470	vostok::sound::sound_world::~sound_world
 0x00059a60	inferred-medium	0x00040549	vostok::sound::sound_world::tick
 0x00059b80	inferred-medium	0x0004061e	vostok::sound::sound_world::create_submix_voice
@@ -3188,3 +3187,4 @@ va	status	ref_021d	name
 0x002d6590	inferred-medium		survarium::animations_registry::animation_id
 0x002ef130	inferred-medium		survarium::animations_registry::register_animation
 0x002ef280	inferred-medium		survarium::animations_registry::actualize
+0x00059dd0	inferred-medium		vostok::sound::sound_world::process_orders

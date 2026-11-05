@@ -2119,3 +2119,5 @@ va	status	ref_021d	name
 0x00313640	verified		survarium::artefact_base::active_effect_time_calculator::calculate
 0x00313300	verified		survarium::artefact_base::action
 0x00313350	verified		survarium::artefact_base::effect
+0x00059080	observed		vostok::sound::sound_world::initialize_xaudio
+0x0005a640	reviewed		XAudio2Create

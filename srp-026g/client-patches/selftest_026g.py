@@ -1574,6 +1574,7 @@ def late_join_sites():
         [(va, len(old)) for va, old, _, _ in P.WEIGHT_UI_HOOKS] + \
         [(va, len(old)) for va, old, _, _ in P.BULLET_BOUNDS_HOOKS] + \
         [(va, len(old)) for va, old, _, _ in P.MATCH_STAT_MAP_HOOKS] + \
+        [(va, len(old)) for va, old, _, _ in P.AUDIO_DEVICE_HOOKS] + \
         [(P.BAKE_CACHE_KEEP[0], len(P.BAKE_CACHE_KEEP[1]))] + \
         [(P.EXPAND_TEXT_UNBOUND[0], len(P.EXPAND_TEXT_UNBOUND[1]))]
 

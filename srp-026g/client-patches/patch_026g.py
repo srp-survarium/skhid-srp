@@ -2492,6 +2492,28 @@ INSTALLS[0x29ABE1] = (JUMP, "fill_match_statistic's map name (lobby_menu+313Ch, 
 # which appends nothing: what translate_text("") gives (0.31+ translate
 # st_key_use_not_assigned, a key 0.26g's dictionary does not have).
 EXPAND_TEXT_UNBOUND = (0x1FF073, bytes.fromhex("741b"), bytes.fromhex("7436"))   # je 1FF090 -> je 1FF0AB
+# The game's sound follows the audio output device (patch 100, README;
+# ../docs/notes/audio_device.md): audio_device_026g.c and
+# audio_device_engine_026g.c in the arena's blocks audio_device.code and
+# .state (ARENA below):
+# - initialize_xaudio's two XAudio2Create calls (`call 0x5A640`, 0x59187 and
+#   the retry without the debug flag 0x591C8; cdecl, the engine pointer
+#   sound_world+0C0h and the flags): audio_device_create, which makes the
+#   engine with it and gives the game our proxy of it (CALLEE);
+# - sound_world::tick's process_orders (`push edi / call 0x59DD0`, 0x59AAC;
+#   stdcall, the world): audio_device_orders, the sound thread's step (a
+#   rebuild after a device event), then process_orders (CALLEE).
+AUDIO_DEVICE_HOOKS = (
+    (0x59187, bytes.fromhex("e8b4140000"), "audio_device_create", 0xE8),    # XAudio2Create
+    (0x591C8, bytes.fromhex("e873140000"), "audio_device_create", 0xE8),    # its retry, flags 0
+    (0x59AAC, bytes.fromhex("e81f030000"), "audio_device_orders", 0xE8),    # tick's process_orders
+)
+INSTALLS[0x59187] = (CALLEE, "initialize_xaudio's XAudio2Create 0x5A640 (cdecl: &sound_world+0C0h, the flags): "
+                             "audio_device_create, which calls it and gives the game our proxy", None, None)
+INSTALLS[0x591C8] = (CALLEE, "initialize_xaudio's XAudio2Create retry without the debug flag: audio_device_create",
+                     None, None)
+INSTALLS[0x59AAC] = (CALLEE, "sound_world::tick's process_orders 0x59DD0 (stdcall, the world; `ret 4`): "
+                             "audio_device_orders, the device step, then the function", None, None)
 
 # The bodies a patch replaces in place, at a function's entry: {VA: size}.
 BODIES = {READ_ORDER_VA: READ_ORDER_SIZE}
@@ -2698,6 +2720,8 @@ ARENA = (
     ArenaBlock("kill_feed.code", "code", 0x1000, ("kill_feed_026g.asm",)),       # patch 67
     ArenaBlock("bake_cache.code", "code", 0x1000, ("bake_cache_026g.asm", "bake_cache_026g.c")),   # patch 70
     ArenaBlock("bake_cache.state", "state", 0x1000, ("bake_cache_026g.c",)),     # its owners and waiters
+    ArenaBlock("audio_device.code", "code", 0x1000, ("audio_device_026g.c", "audio_device_engine_026g.c")),  # patch 100
+    ArenaBlock("audio_device.state", "state", 0x10, ("audio_device_026g.c", "audio_device_engine_026g.c")),  # its engine
     # The Rust exe patches (the framework's example is patch 34, the
     # commit_suicide key): one crate, its generated hook entries, the arena's
     # block patches.code (docs/notes/rust_patches.md, hooks_026g.py).
@@ -3762,7 +3786,7 @@ def build_image(original, mode, code=None, server=None, late_join=None, revision
             if linked is not None:
                 for va, expected, symbol, opcode in RESEARCH_HOOKS + ARTEFACTS_HOOKS + MATCH_KEYS_HOOKS + HIDE_UI_HOOKS \
                         + KILL_FEED_HOOKS + BAKE_CACHE_HOOKS + WEIGHT_UI_HOOKS + BULLET_BOUNDS_HOOKS \
-                        + MATCH_STAT_MAP_HOOKS + rust_hooks(original):
+                        + MATCH_STAT_MAP_HOOKS + AUDIO_DEVICE_HOOKS + rust_hooks(original):
                     patch(data, va, expected, hook_bytes(arena_target(linked, symbol), va, expected, 0, opcode))
                     if neutralize_relocs(data, [(va, va + len(expected))]):
                         sys.exit(f"{va:#x}: a base relocation under the hook to {symbol}")

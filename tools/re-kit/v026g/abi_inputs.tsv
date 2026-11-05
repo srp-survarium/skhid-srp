@@ -5454,3 +5454,7 @@ va	name	location	role	basis
 0x001f18b0	survarium::game_world::animation_resolver	ECX	the registry	observed
 0x001f18b0	survarium::game_world::animation_resolver	stack+4	the out resource_ptr	observed
 0x001f18b0	survarium::game_world::animation_resolver	stack+8	the id (u16)	observed
+0x00059080	vostok::sound::sound_world::initialize_xaudio	entry ESP+4	the sound world: its engine at +0C0h (XAudio2Create 0x59187/0x591C8), its mastering voice at +0C4h (CreateMasteringVoice, IXAudio2 vtable +28h, 0x596C3: default channels, 44100 Hz, the last device of role DefaultMultimediaDevice else 0)	observed
+0x0005a640	XAudio2Create	entry ESP+4	the engine out pointer (IXAudio2**, written only on success)	observed
+0x0005a640	XAudio2Create	entry ESP+8	creation flags (bit 0, XAUDIO2_DEBUG_ENGINE: CoCreateInstance of the debug CLSID 0x9E0C78, else 0x9E0C88; IID 0x9E0C98; the CoCreateInstance slot 0xAF0064; Initialize vtable +14h with flags and processor -1)	observed
+0x00059dd0	vostok::sound::sound_world::process_orders	entry ESP+4	the sound world: its XAudio2 callback orders (+60h queue) run, then its logic world user's (+0B0h, 0x564A0); called by tick 0x59AAC and 0x59E68	observed
