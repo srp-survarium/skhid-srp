@@ -209,6 +209,8 @@ unsafe extern "C" {
     pub fn engine_create_sound_voice(world: Option<SoundWorld>, scene: Option<SoundScene>, propagator: Option<NewSoundPropagator>, emitter: *const c_void) -> *mut c_void;
     /// virtual vostok::sound::sound_propagator_emitter+0x8 (1 vtables of vtables.tsv: 0x38990): emitter ECX; pops 0; EAX
     pub fn engine_sound_options(emitter: Option<SoundPropagatorEmitter>) -> Option<SoundOptions>;
+    /// 0x7ab70 vostok::network_core::mutable_buffer::reallocate: buffer ESI, capacity EDI; pops 0
+    pub fn engine_buffer_reallocate(buffer: *mut c_void, capacity: u32);
 }
 
 #[allow(dead_code)]
@@ -601,6 +603,24 @@ impl MatchOptions {
     #[inline(always)]
     pub unsafe fn seed(self) -> *mut u32 {
         unsafe { self.0.byte_add(0x577b0).cast::<u32>().as_ptr() }
+    }
+
+    /// +0x577b4 (u8): the match's maps_dict id (its map and mode): match_options::deserialize 0x1F0EAD, the byte after the 20 profiles
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn map(self) -> *mut u8 {
+        unsafe { self.0.byte_add(0x577b4).cast::<u8>().as_ptr() }
+    }
+
+    /// +0x577b6 (u16): the match's level: match_options::deserialize 0x1F0EDC, after the seed
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn level(self) -> *mut u16 {
+        unsafe { self.0.byte_add(0x577b6).cast::<u16>().as_ptr() }
     }
 }
 
@@ -7561,6 +7581,15 @@ impl MatchPlace {
         unsafe { self.0.byte_add(0x45ec).cast::<u32>().as_ptr() }
     }
 
+    /// +0x45f0 (u8): nonzero for the local player's place: process_static_match_info sets it by the message's local index (0x27BE5F, abi_inputs.tsv)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn is_local(self) -> *mut u8 {
+        unsafe { self.0.byte_add(0x45f0).cast::<u8>().as_ptr() }
+    }
+
     /// 0x45fc bytes: a place's record: 45FCh bytes (imul esi,esi,45FCh at 0x234EEF)
     pub const SIZE: usize = 0x45fc;
 
@@ -8041,7 +8070,7 @@ impl DynamicInfoFrame {
         self.0.as_ptr() as usize as u32
     }
 
-    /// -0x24 (obj<vostok::mutable_buffer>): process_dynamic_match_info's buffer of an unpacked world (by EBP; on the 0x8000 stack bytes it takes at 0x27C05E, its allocator null, 0x27C06D..0x27C084; sized by resize at 0x27C0A8)
+    /// -0x24 (obj<vostok::mutable_buffer>): process_dynamic_match_info's buffer of an unpacked world (by EBP; on the 0xF000 stack bytes it takes at 0x27C05E (0x8000 in the original exe; patch 98), its allocator null, 0x27C06D..0x27C084; sized by resize at 0x27C0A8)
     ///
     /// # Safety
     /// `self` is alive (its fields are its kind's: the type says so).

@@ -2221,8 +2221,6 @@ va	status	ref_021d	name
 0x00323790	inferred-medium	0x001fd610	survarium::kd_stats_rule::kd_stats_rule
 0x00323c80	inferred-medium	0x001ff8e4	survarium::animation_analysis_result::`scalar deleting destructor'
 0x00323d60	inferred-medium		survarium::blackboard::serialize
-0x00323f90	inferred-medium		survarium::bullet_manager_history_item::serialize
-0x00324090	inferred-medium		survarium::statistics_history_item::serialize
 0x00324110	inferred-medium		survarium::game_rules_history_item::serialize
 0x00324210	inferred-medium		survarium::game_objects_serialized_state::serialize
 0x00324310	inferred-medium		survarium::game_effect_player_history_item::serialize

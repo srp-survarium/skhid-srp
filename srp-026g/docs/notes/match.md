@@ -730,3 +730,76 @@ Mode 4. Found from the live logs and the saved worlds of 2026-10-14/15; tools: `
   - A game of a place that stands in, connecting meanwhile, waits for the stand-in's leave (`stands_in`), then enters after it, from a world after it: a lost player as one back in the match (`enter_early`), a place no player had as a new arrival. Never a second entry while the stand-in is in, nor taken out by its leave.
 - **A gap, not new:** any leave the server sends within its roster lead (300 ms) of that place's entry can come before a game played the entry and be dropped (a newcomer who leaves at once); the server does not hold those back yet.
 - **What a game does when a match is called off** (the same end as every match, §24): 0xEA of its own place → `close_current_match(3)`: the world ended, the lobby's victory screen opened (`show_match_statistic`; PROVEN 0x27A806..0x27A81A, 0x29AAF0). No 0x97 comes for it, so the screen shows its "receiving the statistics" spinner (`VictoryScreen.prepare`, no time-out in the movie) until the player closes it (×, Esc, a tab); a room's member has its room's window under it. LIKELY: not seen in a game. The quiet way (a 5 s silence ends the match link as `close_current_match(0)`, the world ended with no screen: jump table 0x27A958 entry 0 = 0x27A941) was not taken: the server would have to swallow the game's datagrams for as long as it loads, with no 0xFD, and that path is not exercised live.
+
+## 35. A resync whose game already agrees is skipped; the bloc of games that loaded a world (added 2026-11-05)
+
+Live, 2026-11-04 (rev48, the storm of resyncs every 4 to 8 s). PROVEN from the server's log and its
+saved worlds unless tagged.
+
+- **A game resynced while already back in step.** Match 0x60ebe205: player 9's world taken just
+  ahead of its resync (`ask_wrong_world`, kind `wrong`, tick 200700) is player 1's checked world of
+  that tick byte for byte (12835 bytes). The hash is the CRC of exactly those bytes
+  (MATCH-SYNC-026G.md "Uploads": the upload serializes the item as `hash()` 0x325150 does), so the
+  game agreed again at the moment of its resync; it was wrong at older ticks, judged
+  `hash_settle_ms` (2.5 s) late. The log shows many such short disagreements that heal on their own
+  ("disagreed from ... and agrees again; not resynced", dozens a minute in 0x60ebe205).
+- **The fix, as 0.69:** 0.69's `process_dynamic_match_info` (0x2001AF7B0, x64) ignores a resync
+  "hash on time %d matches". In 0.26g that cannot be done by the client: 0xE5 frees its whole
+  history before the 0xE8 comes (section 17) and carries no hash. So the server does it
+  (`Game::agrees_now`, `check_hashes`): before a resync it takes the game's newest report past its
+  disagreement whose tick more than half of the games in the simulation reported alike (no report
+  still to come can turn it); if the game's CRC is that one, no resync, and its older wrong reports
+  (`Peer::agreed_at`) count no more. Test
+  `a_game_back_in_step_before_its_disagreement_is_judged_is_not_resynced` (fails without it).
+  Never worse than the resync: the world it would have loaded is the one it has.
+- **What the skip does not fix: the games that loaded a world go wrong together.** In 0x60ebe205
+  the games that had started from a world form one side and the games that never did the other:
+  players 2, 3, 4, 6 resynced from 668350 and player 0 started from 665400 all report
+  `3b8b91a1` at 672050, the never-loaded 1, 7, 11, 12, 14 `b48489ad`; resynced again from 675400 /
+  684050, the same five, then 16 (started from 672050) and 8 (from 679400), go wrong together again
+  3 to 7 s after each load (681000, 680700, 685050, 690850, ...). Games that loaded different worlds
+  at different times agree with each other and not with the others: a state the world does not
+  carry, which a load sets alike in every game that loads, and which shows in the hashed state
+  seconds later. Not yet found (open): which field.
+  - Not a patch hook: `check_world_roundtrip_026g.py` over the 21 storm worlds
+    (`live/snap`, `worlds`, `w_anim/worlds2` of 0x5bfde2e7, 0x71a7a62a, 0x60ebe205) passes in all
+    three games (fresh A, fresh B, resync). The native codec is not run there.
+  - Where the worlds of one tick differ (0x71a7a62a): 271700 and 278000, player 10's position,
+    velocities and animation state; 278000, player 14's state has one 16-byte entry more in a list
+    of (u32 time, f32) pairs (times 275900, 276250; LIKELY a timed effect list), and the bullets and
+    statistics differ. These are worlds already apart, not the first tick of the split.
+  - The 16-byte entry (player 14, 278000; offsets from the state's start, A the majority's, B
+    the bloc's): at 470 A has `u32 276250, u8 0, u8 4` then four `{u32, f32}` (0x644 0.097,
+    0x67D 0.23, 0x684 0.23, 0x690 0.23), B `u8 5` and five (0x644 0.097, 0x67D 0.23, 0x681
+    0.097, 0x683 0.23, 0x68F 0.23); the same at 736 (B one more entry, `0x681`, 0.127), and so
+    the rest of B's state is 16 bytes later. This is inside the inventory (after the head and the
+    effects, before the recent hits: those, 4 x {time, 0.15} at the end, are equal). Not the
+    weapon's transition helpers (0x32FEE0: 4 f32 + u32) nor its dispersion (0x3312F0: two of them
+    and an f32). Not named.
+  - **Leading candidate (not proven): the kit players that are not current.** Each place has three
+    kit players; a world carries only the current one (and the profile with it). The others keep,
+    in each game, what that game's own past left: their last life's in a game that played it, the
+    constructor's in a game that loaded a world since (§3.20 in client_patch.md). A respawn into
+    another kit brings that player into the hashed world. Patch revision 10's `KIT_STATE_HOOK`
+    resets a weapon's fields at such a spawn, but its own list of what it does not reset is open:
+    a weapon's state machine (+468h), +3F8h, +320h, the object at +278h, the scope, artefacts,
+    medkits (`m_active`, `m_activity_time_ms`, ...), oxygen tanks. A split a few seconds after a
+    load (a death and its respawn are 8 s or less) and a bloc of loaded games fit it; one player
+    of the pair at a time (271700: only player 10) fits it.
+  - **The capture** (`Game::capture_split`, since 2026-11-05): at a game's first report against
+    more than half of the games, its world (kind `split`) and a majority game's (kind `checked`)
+    are asked for at once, aimed at one tick when both upload offsets are known; three splits a
+    match, 20 s apart, one a player. Comparing the two names the first field apart.
+  - **Local repro** (not run): the local server with `SRP_SNAPSHOT_DIR` set; 3 or more clients
+    in a battery match; each player picks a different kit at least once (so every place has a
+    non-current kit with a life behind it); then one client is resynced (no switch forces one: stall its game 2 s, or have it leave and
+    come back, a late join) and every player dies and respawns into another kit within 10 s. Expected if the
+    candidate holds: the loaded game reports against the others within a respawn of the load
+    ("splits from the majority" in the log), and the `split` world differs from the `checked` one
+    in the respawned player's block.
+- **The input history of 27 entries does not limit a rollback.** A rollback replays from a history
+  item: 11 items, 550 ms (MATCH-SYNC-026G.md "The model"). At one input a tick, 27 entries of a
+  player are 1.35 s. Only precise inputs (several a tick; 32 in 1.1 s seen, `INPUT_RING`) could put
+  27 entries inside 550 ms; the server already redoes a resync world past the ring. 0.46c2's 125
+  entries go with its longer history. So the ring is not what made the rollbacks of PR #1246 wrong.
+  LIKELY (from the counts; the ring's own eviction was not read).

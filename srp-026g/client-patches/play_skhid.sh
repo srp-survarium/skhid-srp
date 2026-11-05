@@ -2,6 +2,9 @@
 # Put beside survarium_skhid.exe, then run: bash play_skhid.sh
 # With the Skhid launcher beside it too: bash play_skhid.sh launcher
 # (it looks for newer Skhid files, and its PLAY button starts the game).
+# SKHID_CRASH_DUMP=full: a crash writes the game's whole memory (a .dmp of
+# 1-3 GB beside the game, for a developer to investigate); this script waits
+# for the game and prints the crash files it wrote. Unset: players' dumps.
 set -euo pipefail
 
 # The game's language is chosen in its Settings. Server: empty when the
@@ -197,11 +200,41 @@ Details: game/binaries/x86/updater_skhid.log"
         || die "Game exited with an error. See $log"
 }
 
+# The crash files a game started since $1 (seconds since the epoch) wrote:
+# beside the exe, or in Windows' temporary folder when that is not writable.
+# The launcher has closed by now; the game may still run, so wait for it.
+print_crashes() {
+    local started=$1 temp file
+    local -a found
+    "$WINESERVER" -w || true
+    temp="$WINEPREFIX/drive_c/users/$(id -un)/AppData/Local/Temp"
+    mapfile -t found < <(find "$PWD" "$temp" -maxdepth 1 -type f -name 'SRP-crash-*' \
+        ! -name '*.part' -newermt "@$started" 2>/dev/null | sort)
+    if ((${#found[@]})); then
+        echo 'Crash reports and full-memory dumps of this run:'
+        for file in "${found[@]}"; do
+            case $file in
+                *.zip) echo "    $file  (a crash ZIP: send this to a new post in #bugreports)" ;;
+                *.dmp) echo "    $file  (the whole memory: keep it, do not post it; give its path when asked)" ;;
+                *.txt) echo "    $file  (the crash report: send this to a new post in #bugreports)" ;;
+                *) echo "    $file" ;;
+            esac
+        done
+    else
+        echo 'No crash in this run.'
+    fi
+}
+
 main() {
     local exe=survarium_skhid.exe mode=${1-} log file
     cd -- "$(dirname -- "${BASH_SOURCE[0]}")"
     [[ -f "$exe" && ! -L "$exe" ]] || die "Put this script beside $exe."
     [[ $# -le 1 && ( -z $mode || $mode == launcher ) ]] || die 'Usage: bash play_skhid.sh [launcher]'
+    case ${SKHID_CRASH_DUMP-} in
+        '') unset SKHID_CRASH_DUMP ;;
+        full) export SKHID_CRASH_DUMP ;;
+        *) die "SKHID_CRASH_DUMP=$SKHID_CRASH_DUMP: the one value is full (whole-memory crash dumps); leave it unset for players' dumps." ;;
+    esac
     if [[ $mode == launcher ]]; then
         for file in launcher_skhid.exe updater_skhid.exe; do
             [[ -f "$file" && ! -L "$file" ]] || die "Put $file beside this script to use the launcher."
@@ -211,6 +244,11 @@ main() {
     flock -n 9 || die 'This launcher is already running.'
 
     configure_wine
+    if [[ ${SKHID_CRASH_DUMP-} == full ]]; then
+        echo 'SKHID_CRASH_DUMP=full: a crash writes a full-memory dump beside the game.'
+        # shellcheck disable=SC2064 # the start time, now
+        trap "print_crashes $(date +%s)" EXIT
+    fi
     prepare_prefix
     prepare_settings
     install_dxvk

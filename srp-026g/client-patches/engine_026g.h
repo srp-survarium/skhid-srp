@@ -505,4 +505,7 @@ void __attribute__((stdcall)) engine_detach_voice(struct new_sound_propagator *p
 /* virtual vostok::sound::sound_propagator_emitter+0x8 (1 vtables of vtables.tsv: 0x38990): emitter ECX; pops 0; EAX */
 const struct sound_options *engine_sound_options(const struct sound_propagator_emitter *emitter);
 
+/* 0x7ab70 vostok::network_core::mutable_buffer::reallocate: buffer ESI, capacity EDI; pops 0 */
+void engine_buffer_reallocate(void *buffer, unsigned int capacity);
+
 #endif

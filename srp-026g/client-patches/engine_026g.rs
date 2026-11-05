@@ -203,6 +203,8 @@ unsafe extern "C" {
     pub fn engine_create_sound_voice(world: *mut c_void, scene: *mut c_void, propagator: *mut c_void, emitter: *const c_void) -> *mut c_void;
     /// virtual vostok::sound::sound_propagator_emitter+0x8 (1 vtables of vtables.tsv: 0x38990): emitter ECX; pops 0; EAX
     pub fn engine_sound_options(emitter: *const c_void) -> *const c_void;
+    /// 0x7ab70 vostok::network_core::mutable_buffer::reallocate: buffer ESI, capacity EDI; pops 0
+    pub fn engine_buffer_reallocate(buffer: *mut c_void, capacity: u32);
 }
 
 #[allow(dead_code)]
