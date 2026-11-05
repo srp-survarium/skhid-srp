@@ -174,6 +174,16 @@ fn triangle(p: Vertex, q: Vertex, r: Vertex) -> (Vec3, Vec<Vertex>, Vec3, Vec3) 
 fn tetrahedron(p: Vertex, q: Vertex, r: Vertex, s: Vertex) -> (Vec3, Vec<Vertex>, Vec3, Vec3) {
     // The origin outside a face (on the other side from the fourth vertex) is nearest that face's region; inside all, 0.
     let faces = [(p, q, r, s), (p, r, s, q), (p, s, q, r), (q, s, r, p)];
+    let volume = (q.w - p.w).cross(r.w - p.w).dot(s.w - p.w);
+    let scale = [q.w - p.w, r.w - p.w, s.w - p.w].iter().map(|e| e.length()).fold(0.0f32, f32::max);
+    if volume.abs() <= 1e-7 * scale * scale * scale {
+        // Flat: no inside; the nearest of its faces.
+        return faces
+            .iter()
+            .map(|&(a, b, c, _)| triangle(a, b, c))
+            .min_by(|x, y| x.0.dot(x.0).total_cmp(&y.0.dot(y.0)))
+            .unwrap_or_else(|| triangle(p, q, r));
+    }
     let mut best: Option<(Vec3, Vec<Vertex>, Vec3, Vec3)> = None;
     let mut inside = true;
     for (a, b, c, d) in faces {
