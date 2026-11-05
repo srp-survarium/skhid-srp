@@ -2213,6 +2213,12 @@ va	name	location	role	basis
 0x001f97d0	survarium::game_world::on_resync	ECX	world receiver	inferred
 0x001f9800	survarium::game_world::demo_play	ECX	world receiver	inferred
 0x001f9800	survarium::game_world::demo_play	stack+4	track filename	inferred
+0x001fab50	survarium::game_world_core::change_input<struct survarium::client_update<struct survarium::player_input,220,235,221,236>>	entry ESP+4	game_world_core (the core; [ebp+8])	observed
+0x001fab50	survarium::game_world_core::change_input<struct survarium::client_update<struct survarium::player_input,220,235,221,236>>	entry ESP+8	the input: math::half2 rotation (+8 yaw half, +0Ah pitch half), as sent; 0.27d validates these two halves (0x1EA990)	observed
+0x001fab50	survarium::game_world_core::change_input<struct survarium::client_update<struct survarium::player_input,220,235,221,236>>	entry ESP+0Ch	the input's action mask	observed
+0x001fab50	survarium::game_world_core::change_input<struct survarium::client_update<struct survarium::player_input,220,235,221,236>>	entry ESP+10h	the input's time (ms)	observed
+0x001fab50	survarium::game_world_core::change_input<struct survarium::client_update<struct survarium::player_input,220,235,221,236>>	entry ESP+14h	the player (place, < 20)	observed
+0x001fab50	survarium::game_world_core::change_input<struct survarium::client_update<struct survarium::player_input,220,235,221,236>>	entry ESP+18h	from network (byte; 1 relayed/moved, 0 local and a replay's)	observed
 0x001feed0	survarium::text_translator::load_text_localization	stack+4	text translator	inferred
 0x001fef90	survarium::text_translator::expand_text	EAX	the text (C string; "{key}" is looked up and translated, "{{" a brace); "" writes only the terminator	observed
 0x001fef90	survarium::text_translator::expand_text	ECX	output buffer	observed

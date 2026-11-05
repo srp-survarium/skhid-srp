@@ -622,3 +622,6 @@ survarium::animations_registry	ids_end	0xE048	u32	the ids' vector's end
 survarium::animations_registry	actualized	0x10050	u8	1 once actualize (0x2EF280) numbered the entries: the world load's, once (0x2CBFD7); 0 again at ~game_world (0x1F7153)
 vostok::resources::managed_resource	name_entry	0xB0	ptr<vostok::resources::name_registry_entry>	its name registry entry (resource_base::m_name_registry_entry; 0.10b resources_resource_base.h; every one of 221 registered animations of the 2026-11-03 full dump has one, its +4 the resource)
 vostok::resources::name_registry_entry	name	0x8	ptr<u8>	the resource's name, a C string (name_registry_entry::name, 0.10b resources_name_registry_entry.h: class_id, associated, name)
+survarium::change_input_frame	rotation	0x8	u32	game_world_core::change_input<player_input>'s input at its start (0x1FAB50, by the site's ESP): its rotation, math::half2 as it came (+8 the yaw's half, +0Ah the pitch's)
+survarium::change_input_frame	time	0x10	u32	the input's time (ms)
+survarium::change_input_frame	player	0x14	u8	the place whose input it is (0..19)

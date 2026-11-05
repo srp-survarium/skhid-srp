@@ -70,3 +70,4 @@ pub mod weapon_pickup;
 pub mod medical_skills;
 
 pub mod animation_id_log;
+pub mod input_check;

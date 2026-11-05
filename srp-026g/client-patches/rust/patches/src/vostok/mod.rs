@@ -87,7 +87,7 @@ pub use sync::Lock;
 pub use context::{Context, Exit, Flag, Flow, NoExit, Reg, Ret};
 pub use generated::*;
 pub use hook::{CallbackEntry, Handle, Out, Regs, Thread};
-pub use input::{Action, ActionMask, ActionState, InputHandler, KeyboardAction, UnknownActionState};
+pub use input::{Action, ActionMask, ActionState, InputChange, InputHandler, KeyboardAction, Rotation, UnknownActionState};
 pub use keyboard::{Dik, GameWorldKey, GameWorldKeys, KeyKind, TabTest};
 pub use hud_input::{Hud, HudCall, HudView};
 pub use lobby::{Lobby, MuteChoice, Muted, NotConnected};

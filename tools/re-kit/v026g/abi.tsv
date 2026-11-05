@@ -919,6 +919,7 @@ va	name	source	ret_cleanup	result
 0x001f9740	survarium::game_world::set_match	manual	0	
 0x001f97d0	survarium::game_world::on_resync	manual	4	
 0x001f9800	survarium::game_world::demo_play	manual	4	
+0x001fab50	survarium::game_world_core::change_input<struct survarium::client_update<struct survarium::player_input,220,235,221,236>>	manual	36	EAX: survarium::event_action_enum (1 a duplicate, 0x1FAC43; 6 refused: older than the last resync 0x1FAD10, or patch 99's rotation); no caller reads it (0x27C326, 0x27C5C6, 0x27D802, 0x1EE2BF, 0x1F7928)
 0x001feed0	survarium::text_translator::load_text_localization	manual	4	
 0x001ff0f0	survarium::text_translator::translate_text	manual	8	
 0x001ff240	survarium::text_translator::on_texts_ready	manual	4	
