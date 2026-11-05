@@ -1332,6 +1332,26 @@ mod tests {
             Some(RoomRequest::Queue { key: 7 })
         );
         assert_eq!(room_request(ROOM_QUEUE_BASE, 1), None);
+        // Queue and spectate: above every create's code.
+        assert!(
+            create_start(RoomSpec {
+                size: 10,
+                min_side: 3,
+                max_level: 15,
+                wait: 60,
+                pin: true,
+            }) < ROOM_WATCH_BASE
+        );
+        const { assert!(ROOM_WATCH_BASE + ROOM_KEY_MAX <= ROOMS_LAST) };
+        assert_eq!(room_request(ROOM_WATCH_BASE, 1), None);
+        assert_eq!(
+            room_request(ROOM_WATCH_BASE + 7, 1),
+            Some(RoomRequest::QueueWatch { key: 7 })
+        );
+        assert_eq!(
+            room_request(ROOM_WATCH_BASE + ROOM_KEY_MAX, 1),
+            Some(RoomRequest::QueueWatch { key: ROOM_KEY_MAX })
+        );
         // Who is in a room: after the queues, below the pool's bits.
         assert_eq!(ROOM_QUEUE_BASE + ROOM_KEY_MAX + 1, ROOM_MEMBERS_BASE);
         const { assert!(ROOM_MEMBERS_BASE + ROOM_KEY_MAX < ROOM_BITS_BASE) };

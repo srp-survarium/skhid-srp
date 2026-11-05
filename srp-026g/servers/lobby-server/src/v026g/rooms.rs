@@ -347,8 +347,14 @@ impl Core<'_> {
         if self.pool_for_sessions([player.session_id]) != Some(QueuePool::GrowingRoster) {
             return Err(RoomCode::Outdated);
         }
-        if player.in_match.is_some()
-            || player.connect.is_some()
+        // A spectator (Queue and spectate) is in the match it watches with
+        // no place: its room's queue lets it in all the same.
+        let watching = self
+            .store
+            .matchmaking()
+            .watched(player.session_id)
+            .is_some();
+        if (!watching && (player.in_match.is_some() || player.connect.is_some()))
             || player.queued_since.is_some()
             || self
                 .store

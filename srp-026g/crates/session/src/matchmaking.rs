@@ -1095,6 +1095,52 @@ mod tests {
         assert_eq!(mm.formed_match(id).unwrap().seats[1].team, 1);
     }
 
+    /// Queue and spectate: a session watches one match with no seat; a
+    /// seated one watches none, a watching one gets no seat until it stops;
+    /// its game's own leave is told once, the match's end tells nothing.
+    #[test]
+    fn a_watcher_has_no_seat_and_gets_one_only_once_it_watches_no_more() {
+        let mm = Matchmaking::new(Duration::ZERO);
+        let now = Instant::now();
+        let pool = QueuePool::GrowingRoster;
+        let id = mm
+            .seat_sides_in_pool([&[player(1)], &[player(2)]], now, pool, &|_| 0)
+            .expect("1 v 1");
+        let watcher = |account_id| Watcher {
+            match_id: id,
+            ticket: 0xA000,
+            account_id,
+        };
+        assert!(!mm.watch(1, watcher(1001)), "a seated session watches none");
+        assert!(!mm.watch(
+            3,
+            Watcher {
+                match_id: id + 1,
+                ..watcher(1003)
+            }
+        ));
+        assert!(mm.watch(3, watcher(1003)));
+        assert_eq!(mm.watched(3), Some(watcher(1003)));
+        assert_eq!(mm.watchers_of(id), [(3, watcher(1003))]);
+        assert_eq!(mm.poll(3, now), None, "no place");
+        assert!(!mm.append_player(id, player(3), 0, |_, _| true));
+        assert_eq!(mm.stop_watching(3), Some(watcher(1003)));
+        assert!(mm.append_player(id, player(3), 0, |first, _| first == 2));
+        // Another one leaves by itself: told once, by the lobby's id.
+        assert!(mm.watch(4, watcher(1004)));
+        mm.watcher_left(4, 0xB000);
+        assert_eq!(mm.watched(4), Some(watcher(1004)), "another match's word");
+        mm.watcher_left(4, 0xA000);
+        assert_eq!(mm.watched(4), None);
+        assert_eq!(mm.take_watchers_left(), [(id, 1004)]);
+        assert!(mm.take_watchers_left().is_empty());
+        // The end of the match: its watchers watch nothing, nobody is told.
+        assert!(mm.watch(5, watcher(1005)));
+        mm.end_match(id);
+        assert_eq!(mm.watched(5), None);
+        assert!(mm.take_watchers_left().is_empty());
+    }
+
     #[test]
     fn a_player_out_of_the_queue_is_seated_into_a_match_being_played() {
         let mm = Matchmaking::new(Duration::ZERO);
