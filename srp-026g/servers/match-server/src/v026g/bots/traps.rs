@@ -2223,6 +2223,11 @@ fn aim_of(bot: &Bot, me: &PlaceView, crouched: bool, t: &TrapTuning) -> Aim {
                 (Press::Ready, Some(a), Some(at)) if swept_m(me.feet, me.velocity, a.sweep_s, at) < a.clear_m => Press::Wait(Why::OnRoute),
                 (press, ..) => press,
             };
+            // [A309] Nor while the body is slow: a slow placer stays by its trap (`traps.press_moving`).
+            let press = match (press, t.press_moving) {
+                (Press::Ready, Some(p)) if me.speed() < p.min_speed_ms => Press::Wait(Why::OnRoute),
+                (press, _) => press,
+            };
             Aim::Look {
                 pitch: look.pitch,
                 press,

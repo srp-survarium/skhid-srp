@@ -131,6 +131,10 @@ pub struct TrapTuning {
     /// of it): it walks away from it, never back over it. In the A309 bench the placer caught itself 14 times, median 2.5 s
     /// after the press (the after-press stand ends at 1.5 s), more often than its traps caught an enemy. Off by default.
     pub fresh_ring: Option<FreshRing>,
+    /// [A309] The press waits until the body moves at `min_speed_ms` or more: a slow placer (one holding a spot in a fight play)
+    /// stays by its trap and steps onto it. Over three A309 benches (835 presses) the presses under 2 m/s caught 8 enemies,
+    /// their placer 10 times and a mate 6; those at 2 m/s or more 31 enemies, the placer 13 times, a mate 5. Off by default.
+    pub press_moving: Option<PressMoving>,
 }
 
 /// The habit's rule for the spots of killed holders (`TrapTuning::at_defeated`). The numbers are GUESSES chosen from the K1 spots'
@@ -224,6 +228,20 @@ pub struct FreshRing {
 impl Default for FreshRing {
     fn default() -> Self {
         Self { for_ms: 8_000 }
+    }
+}
+
+/// [A309] How fast the placer must move to press (`TrapTuning::press_moving`).
+#[derive(Clone, Copy, Debug, PartialEq, Serialize, Deserialize)]
+#[serde(default, deny_unknown_fields)]
+pub struct PressMoving {
+    /// Ground speed at the press, m/s.
+    pub min_speed_ms: f32,
+}
+
+impl Default for PressMoving {
+    fn default() -> Self {
+        Self { min_speed_ms: 2.0 }
     }
 }
 
@@ -469,6 +487,7 @@ impl Default for TrapTuning {
             stayer: Stayer::Place,
             forward: None,
             fresh_ring: None,
+            press_moving: None,
         }
     }
 }
@@ -539,6 +558,7 @@ impl Check for TrapTuning {
             "traps.forward",
         )?;
         check(self.fresh_ring.is_none_or(|f| f.for_ms <= 60_000), "traps.fresh_ring")?;
+        check(self.press_moving.is_none_or(|p| (0.0..=8.0).contains(&p.min_speed_ms)), "traps.press_moving")?;
         let r = &self.react;
         check(
             (0.0..=1.0).contains(&r.p0)

@@ -206,6 +206,7 @@ pub use traps::DefeatedTuning;
 pub use traps::Forward;
 pub use traps::FreshRing;
 pub use traps::PassTuning;
+pub use traps::PressMoving;
 pub use traps::ReactTuning;
 pub use traps::SensedNear;
 pub use traps::Stayer;
