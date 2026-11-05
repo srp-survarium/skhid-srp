@@ -109,8 +109,10 @@ Unflinching or Concentration); a full build 32.
 - Potent Painkiller shows both values per rank and in the final result.
 - Medic (341) leaves the tree; it returns later in an anomalous tree. Its native
   code (activation sharing, the Larkspur 20-instance pool, the length clock) and
-  its transport bit 20 stay as they are: the bit is 0 because no skill sets it.
-  The sections below about Medic describe that retained code.
+  its transport bit 20 stay as they are. It returned in the artefact tree:
+  Resonance Cascade (541) sets bit 20 (artefact-skills.md), so a Larkspur's
+  activation heals the teammates within 5 m with its glow. The sections below
+  about Medic describe that retained code.
 - Supply Pocket and Additional Medicine move to tier 5 and exclude each other,
   symmetrically; Supply Pocket keeps its exclusion of 111 and 113.
 - Saved skills are settled when an account loads (`Account::repair`,
@@ -161,7 +163,7 @@ leaves the player with no medical skill at all.
 - Slot 43 `armored_trap`, 24 bits, the layout it shipped with: bit offsets 0
   (Potent Painkiller, 0..3), 3 (Fast Bandaging, 0..2), 6 (Metabolism, 0..5),
   9 (Medical Training, 0..3), 12 (Adrenalin, 0..3), 15 (Additional Medicine),
-  16 (Supply Pocket), 17 (Strong Bones, 0..5), 20 (Medic, retained, 0 now) and
+  16 (Supply Pocket), 17 (Strong Bones, 0..5), 20 (Medic, retained: set by the artefact tree's Resonance Cascade) and
   21 (Brothers in Arms, 0..2). Ranked fields keep three bits; unlocks use one.
 - Slot 45 `can_defuse_traps`, 10 bits: Numb Legs at 0 (2 bits, 1.0 a rank,
   0..2), Take Cover at 2 (2 bits, 4.0, 0..2), Unflinching at 4 (3 bits, 16.0,

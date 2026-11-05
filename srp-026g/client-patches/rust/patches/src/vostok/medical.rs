@@ -11,26 +11,27 @@ use core::{
     sync::atomic::{AtomicU32, Ordering},
 };
 
+/// The modifiers of `player`'s current kit (the match profile's, as the static info gave it).
+pub(super) fn kit_modifiers(player: raw::Player) -> Option<raw::PlayerParamsModifiersContainer> {
+    // SAFETY: a hook's player owns its profile and current kit.
+    unsafe { Some(player.profile()?.kits().at(usize::from(*player.kit())).modifiers()) }
+}
+
+/// A player a hook reads (the artefact tree's aura too, vostok::artefact_skills).
 #[derive(Clone, Copy)]
-struct Player<'t> {
+pub(super) struct Player<'t> {
     at: raw::Player,
     thread: &'t Thread,
 }
 impl<'t> Player<'t> {
-    fn new(thread: &'t Thread, at: raw::Player) -> Self {
+    pub(super) fn new(thread: &'t Thread, at: raw::Player) -> Self {
         Self { at, thread }
     }
+    pub(super) fn get(self) -> raw::Player {
+        self.at
+    }
     fn modifiers(self) -> Option<raw::PlayerParamsModifiersContainer> {
-        // SAFETY: a hook's player owns its profile and current kit.
-        unsafe {
-            Some(
-                self.at
-                    .profile()?
-                    .kits()
-                    .at(usize::from(*self.at.kit()))
-                    .modifiers(),
-            )
-        }
+        kit_modifiers(self.at)
     }
     fn skills(self) -> Skills {
         // SAFETY: generated modifier fields belong to the live current kit.
@@ -72,10 +73,10 @@ impl<'t> Player<'t> {
         // SAFETY: the live player's place byte.
         unsafe { *self.at.place() }
     }
-    fn ally(self, other: Self) -> bool {
+    pub(super) fn ally(self, other: Self) -> bool {
         self.at != other.at && matches!(self.team(), Some(0 | 1)) && self.team() == other.team()
     }
-    fn active(self) -> bool {
+    pub(super) fn active(self) -> bool {
         // The core lookup already checked the synchronized active roster.
         // +33F is a temporary insertion flag, cleared by native remove during
         // restoration; it is not serialized and cannot gate shared gameplay.
@@ -99,7 +100,7 @@ impl<'t> Player<'t> {
             *self.at.refresh_selection() = 1;
         }
     }
-    fn distance_squared(self, other: Self) -> f32 {
+    pub(super) fn distance_squared(self, other: Self) -> f32 {
         // SAFETY: both translation fields have three contiguous floats.
         unsafe {
             let (a, b) = (self.at.feet(), other.at.feet());
@@ -111,16 +112,28 @@ impl<'t> Player<'t> {
                 .sum()
         }
     }
-    fn at_place(self, thread: &'t Thread, place: u8) -> Option<OwnedPlayer<'t>> {
+    /// The player at `place` of this player's world (its active roster).
+    pub(super) fn at_place(self, thread: &'t Thread, place: u8) -> Option<OwnedPlayer<'t>> {
+        // SAFETY: the live player's world core.
+        Self::in_core(thread, unsafe { self.at.world_core() }, place)
+    }
+    /// The player at `place` of `core`'s active roster (core_active_player: a departed place,
+    /// one past the places or a place without a player is none).
+    pub(super) fn in_core(thread: &'t Thread, core: Option<raw::CoreWorld>, place: u8) -> Option<OwnedPlayer<'t>> {
         let mut out = None;
         // SAFETY: native lookup in this simulation world adds one reference.
         unsafe {
-            raw::engine_core_active_player(self.at.world_core(), u32::from(place), &mut out);
+            raw::engine_core_active_player(core, u32::from(place), &mut out);
         }
         out.map(|at| OwnedPlayer(Self::new(thread, at)))
     }
 }
-struct OwnedPlayer<'t>(Player<'t>);
+pub(super) struct OwnedPlayer<'t>(Player<'t>);
+impl<'t> OwnedPlayer<'t> {
+    pub(super) fn get(&self) -> Player<'t> {
+        self.0
+    }
+}
 impl Drop for OwnedPlayer<'_> {
     fn drop(&mut self) {
         // SAFETY: release exactly the one reference acquired by core lookup.
@@ -133,7 +146,7 @@ impl Drop for OwnedPlayer<'_> {
     }
 }
 // Native pool names have at most 15 bytes and a NUL terminator.
-unsafe fn name_equal(a: *const u8, b: *const u8) -> bool {
+pub(super) unsafe fn name_equal(a: *const u8, b: *const u8) -> bool {
     if a.is_null() || b.is_null() {
         return false;
     }

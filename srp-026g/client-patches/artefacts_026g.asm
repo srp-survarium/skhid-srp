@@ -26,10 +26,16 @@
 ; `active/stopping_power_mod`, linked and unlinked with the active's three.
 ; List 42 (artefact_synergy, which no code of 0.26g reads and no config
 ; sets) is the stagger's: a hit's slow is times max(0, 1 + its sum).
+; Spring II (the artefact tree, patch 109; artefact-skills.md): two reload
+; speed nodes (list 13) after those (the sizes grow to 3F8h), +3D8h linked
+; and unlinked with the passive's (0x311AD0, 0x311D10), +3E8h with the
+; active's. Their values are patch 109's (its entry artefact_skills_on_spring_reload
+; at the passive's link: the holder's Spring II, else 0).
 BITS 32
 global artefacts_loader, artefacts_link, artefacts_unlink, artefacts_lifebone, artefacts_fire
-global artefacts_stagger, artefacts_onyx, artefacts_popup
+global artefacts_stagger, artefacts_onyx, artefacts_popup, artefacts_link_passive, artefacts_unlink_passive
 extern medical_skills_on_stopping  ; patch 94's generated entry (rust_patches.md, `entry`)
+extern artefact_skills_on_spring_reload  ; patch 109's (cdecl: the Spring)
 section .text
 
 %define CONFIG_CHILD 0xF6B10       ; eax = a config value, edi = a key: eax = its child
@@ -55,6 +61,11 @@ section .text
 %define STOPPING 0x2A              ; list 42: the stagger's multiplier
 %define AIM_NODE 0x3B8             ; the active's aim_time node in a Spring
 %define STOP_NODE 0x3C8            ; the active's stopping power node
+%define RELOAD 0xD                 ; the reload_speed modifier's index (13)
+%define RELOAD_PASSIVE_NODE 0x3D8  ; Spring II's reload node of the passive
+%define RELOAD_ACTIVE_NODE 0x3E8   ; ... of the active
+%define PASSIVE_LINK_BACK 0x311ADA ; the passive's link after its first instructions
+%define PASSIVE_UNLINK_BACK 0x311D15 ; the passive's unlink after `push ebx; mov ebx,[esp+8]`
 %define FIRST_SLOT 13              ; the inventory's artefact slots, 13..18
 %define LAST_SLOT 18
 
@@ -74,6 +85,10 @@ artefacts_onyx:
     jmp near onyx_hit              ; +30 from 0x312C03
 artefacts_popup:
     jmp near onyx_popup            ; +35 from 0x25F9DD
+artefacts_link_passive:
+    jmp near link_passive          ; +40 from 0x311AD0
+artefacts_unlink_passive:
+    jmp near unlink_passive        ; +45 from 0x311D10
 
 ; The loader at 0x33AE13 `mov dword [esi+48h],13h` (the active's third
 ; node): ebx = `data`, esi = the config; eax, edi and xmm0 are the next
@@ -98,6 +113,12 @@ loader:
     call value                     ; xmm0 = active/stopping_power_mod
     lea edx, [esi+STOP_NODE-0x340]
     mov ecx, STOPPING
+    call node
+    xorps xmm0, xmm0               ; Spring II's two: values at the passive's link
+    lea edx, [esi+RELOAD_PASSIVE_NODE-0x340]
+    mov ecx, RELOAD
+    call node
+    lea edx, [esi+RELOAD_ACTIVE_NODE-0x340]
     call node
     movups xmm0, [esp]
     add esp, 16
@@ -185,12 +206,48 @@ link_active:
     call link
     lea edx, [ebx+STOP_NODE]
     call link
+    lea edx, [ebx+RELOAD_ACTIVE_NODE]
+    call link
     popad
     push ebx
     push esi
     mov esi, eax
     mov eax, [esi+0x250]
     jmp LINK_BACK
+
+; 0x311AD0 `push ebx; push esi; mov esi,eax; mov eax,[esi+250h]`, eax = the
+; Spring: patch 109 gives its reload nodes their values (the holder's Spring
+; II), the passive's goes in, then the function links its own two.
+link_passive:
+    pushad
+    mov ebx, eax
+    push eax
+    call artefact_skills_on_spring_reload
+    add esp, 4
+    mov eax, ebx
+    call lists
+    lea edx, [ebx+RELOAD_PASSIVE_NODE]
+    call link
+    popad
+    push ebx
+    push esi
+    mov esi, eax
+    mov eax, [esi+0x250]
+    jmp PASSIVE_LINK_BACK
+
+; 0x311D10 `push ebx; mov ebx,[esp+8]`, [esp+4] = the Spring: the passive's
+; reload node out before the original's two.
+unlink_passive:
+    pushad
+    mov ebx, [esp+0x24]
+    mov eax, ebx
+    call lists
+    lea eax, [ebx+RELOAD_PASSIVE_NODE]
+    call unlink
+    popad
+    push ebx
+    mov ebx, [esp+8]
+    jmp PASSIVE_UNLINK_BACK
 
 ; 0x311DA0 `push ebx; mov ebx,[esp+8]`, [esp+4] = the Spring: its two
 ; nodes out before the original's three.
@@ -202,6 +259,8 @@ unlink_active:
     lea eax, [ebx+AIM_NODE]
     call unlink
     lea eax, [ebx+STOP_NODE]
+    call unlink
+    lea eax, [ebx+RELOAD_ACTIVE_NODE]
     call unlink
     popad
     push ebx

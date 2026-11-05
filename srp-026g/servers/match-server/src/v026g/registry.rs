@@ -12,6 +12,7 @@ use std::sync::{Mutex, MutexGuard};
 use std::time::{Duration, Instant};
 
 use session::matchmaking_policy::Closed;
+use survarium::v026g::keeper;
 use survarium::v026g::dictionary::Dictionary;
 use survarium::v026g::maps::{self, GameMode, MatchMap};
 use survarium::v026g::match_msgs::MAX_PLAYERS;
@@ -206,6 +207,9 @@ pub(crate) struct Formed {
     pub private: bool,
     /// [`MatchSetup::room_minimum`].
     pub room_minimum: Option<u8>,
+    /// Keeper of the Artifacts' kind, drawn once when the match is made and written into every
+    /// kit of every profile, a late joiner's too (`survarium::v026g::keeper`).
+    pub keeper: keeper::Kind,
 }
 
 /// How far a match is.
@@ -448,11 +452,16 @@ impl MatchRegistry {
             .iter()
             .map(|player| (!player.driven).then_some(player.session_id))
             .collect();
+        let keeper = keeper::draw(random());
         let options = MatchOptions {
             players: setup
                 .players
                 .into_iter()
-                .map(|player| player.profile)
+                .map(|player| {
+                    let mut profile = player.profile;
+                    keeper::give(&mut profile, keeper);
+                    profile
+                })
                 .collect(),
             map: played,
             match_id: static_id(match_id),
@@ -490,6 +499,7 @@ impl MatchRegistry {
                 vs_bots: setup.vs_bots,
                 private: setup.private,
                 room_minimum: setup.room_minimum,
+                keeper,
             }),
         );
         let count = |which: fn(&Place) -> bool| {
@@ -588,8 +598,11 @@ impl MatchRegistry {
         }
         let mut next = (**formed).clone();
         let first = next.places.len();
-        next.profiles
-            .extend(players.iter().map(|player| player.profile.clone()));
+        next.profiles.extend(players.iter().map(|player| {
+            let mut profile = player.profile.clone();
+            keeper::give(&mut profile, next.keeper);
+            profile
+        }));
         next.info = StaticInfo::new(
             &MatchOptions {
                 players: next.profiles.clone(),

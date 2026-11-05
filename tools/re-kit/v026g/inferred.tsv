@@ -487,6 +487,7 @@ va	status	ref_021d	name
 0x000e77e0	inferred-medium	0x000b28c4	vostok::resources::check_queries_result
 0x000e7ef0	inferred-medium		vostok::resources::query_mount_archive
 0x000e8d20	inferred-medium	0x000b386a	get_minimum_kernel_memory
+0x000e9580	inferred-medium		vostok::memory::platform::allocate_arenas
 0x000e9e20	inferred-medium	0x000b431f	vostok::math::align_up<unsigned __int64>
 0x000eab50	inferred-medium	0x000b4d61	vostok::resources::schedule_release_all_resources
 0x000eae00	inferred-medium	0x000b4eab	boost::detail::function::functor_manager<boost::_bi::bind_t<void,boost::_mfi::mf1<void,vostok::resources::game_resources_manager,vostok::resources::resource_base *>,boost::_bi::list2<boost::_bi::value<vostok::resources::game_resources_manager *>,boost::arg<1> > > >::manager
@@ -647,6 +648,7 @@ va	status	ref_021d	name
 0x00105290	inferred-medium		vostok::resources::query_erase_file
 0x00105ad0	inferred-medium	0x000c8e62	GetVideoMemoryViaWMI
 0x00105db0	inferred-medium	0x000c90d3	GetVideoMemoryViaDirectDraw
+0x00106300	inferred-medium		vostok::platform::get_local_video_memory_size
 0x00106430	inferred-medium	0x000c9389	vostok::resources::game_resources_manager::try_free_or_decrease_quality
 0x001064c0	inferred-medium	0x000c93e0	vostok::resources::game_resources_manager::try_reallocate_queue
 0x001065d0	inferred-medium	0x000c944b	vostok::resources::game_resources_manager::on_resource_freed_callback
@@ -3211,7 +3213,28 @@ va	status	ref_021d	name
 0x000656e0	inferred-medium		vostok::sound::sound_emitter::emit_spot_sound
 0x00298cc0	inferred-high	0x001b2543	survarium::damage_zone::emit_sound
 0x001ee7c0	inferred-medium		survarium::game::is_text_input_focused
+0x00319780	inferred-high		survarium::damage_zone_core::on_objects_left
+0x003198d0	inferred-high		survarium::damage_zone_core::on_objects_entered
+0x00332810	inferred-high		survarium::body_part_parameters::apply_hit_modifiers
+0x00332890	inferred-high		survarium::body_part_parameters::apply_anomaly_damage_modifier
 0x0030a250	inferred-medium		survarium::grenade_set_core::throw_grenade
 0x0030a350	inferred-medium		survarium::grenade_set_core::splash_hit_params
 0x00304a40	inferred-medium		survarium::booby_trap_core::hit_victim
 0x003055f0	inferred-medium		survarium::booby_trap_core::splash_hit_params
+0x00312590	inferred-medium		survarium::artefact_lifebone_core::regeneration_modifier
+0x003134c0	inferred-medium		survarium::artefact_base::on_spawned
+0x0031b8e0	inferred-medium		survarium::generic_anomaly_core::register_artefacts
+0x0031c360	inferred-medium		vostok::buffer_vector<survarium::artefact_base *>::push_back
+0x00285c50	inferred-medium		survarium::game_project::resolve_links
+0x00318d30	inferred-medium		survarium::game_project_core::resolve_links
+0x002ee930	inferred-medium		survarium::artefact_core_cook::create_resource
+0x002eea30	inferred-medium		survarium::artefact_cook::callback_offset
+0x002ffdd0	inferred-medium		survarium::inventory_item::count
+0x002ea440	inferred-medium		vostok::type_id<survarium::artefact_cook_data>
+0x0022fd70	inferred-medium		vostok::variant<32>::try_get<survarium::game_object_cook_data>
+0x0022fcc0	inferred-medium		vostok::variant<32>::set<survarium::game_object_cook_data>
+0x0022f8c0	inferred-medium		vostok::variant<32>::try_get<survarium::project_cook_data>
+0x0021e7f0	inferred-medium		vostok::type_id<survarium::project_cook_data>
+0x002cc920	inferred-medium		vostok::variant<32>::try_get<survarium::level_cook_data>
+0x00219520	inferred-medium		vostok::type_id<survarium::level_cook_data>
+0x002194c0	inferred-medium		vostok::variant<32>::set<survarium::level_cook_data>

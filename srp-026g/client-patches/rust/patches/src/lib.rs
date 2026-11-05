@@ -70,8 +70,15 @@ pub mod footsteps;
 pub mod weapon_pickup;
 
 pub mod medical_skills;
+pub mod artefact_skills;
+pub mod artefact_keeper;
+
+pub mod hand_kill;
 pub mod forest_glow;
 
 pub mod animation_id_log;
 pub mod input_check;
+pub mod subtick_hits;
 pub mod keyboard_layout;
+pub mod bake_cache;
+pub mod key_remap;

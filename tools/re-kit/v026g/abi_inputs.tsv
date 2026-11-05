@@ -5486,6 +5486,35 @@ va	name	location	role	basis
 0x00059e70	vostok::sound::sound_world::create_sound_voice	entry ESP+12	the propagator's emitter (its +0Ch)	observed
 0x0005cb80	vostok::sound::new_sound_propagator::detach_voice	entry ESP+4	the propagator: its voice (+4) stopped (IXAudio2SourceVoice Stop then FlushSourceBuffers on the bridge +14h -> +10h), removed from the scene's active voices (0x58990), destroyed (0x5A470: the bridge's handler cleared) and back in the world's pool (+0A0h) at once; +4 = 0. Called by the HDR cull (0x5CAD4, then +48h = 2000), the proxy's tick at a propagator's end (0x5B54F) and delete_sound_propagator (0x5D50D)	observed
 0x00038990	vostok::sound::sound_propagator_emitter::get_options	ECX	the emitter (this): a single sound's propagator emitter (single_sound + 108h)	observed
+0x000a02d0	btCollisionWorld::rayTestSingle	entry ESP+4	rayFromTrans: the ray's start (a btTransform, Bullet frame)	observed
+0x000a02d0	btCollisionWorld::rayTestSingle	entry ESP+8	rayToTrans: the ray's end (a btTransform, Bullet frame)	observed
+0x000a02d0	btCollisionWorld::rayTestSingle	entry ESP+12	the collision object tested (btCollisionObject)	observed
+0x000a02d0	btCollisionWorld::rayTestSingle	entry ESP+16	its collision shape (the object's +0CCh, or a compound's child)	observed
+0x000a02d0	btCollisionWorld::rayTestSingle	entry ESP+20	the shape's world transform (btTransform; the object's +10h from process 0xA3310)	observed
+0x000a02d0	btCollisionWorld::rayTestSingle	entry ESP+24	the result callback (RayResultCallback: +4 m_closestHitFraction the cutoff)	observed
+0x000a3050	btSingleRayCallback::btSingleRayCallback	ESI	this	observed
+0x000a3050	btSingleRayCallback::btSingleRayCallback	ECX	the ray's from (float4*, Bullet frame)	observed
+0x000a3050	btSingleRayCallback::btSingleRayCallback	EAX	the ray's to (float4*, Bullet frame)	observed
+0x000a3050	btSingleRayCallback::btSingleRayCallback	entry ESP+4	the collision world	observed
+0x000a3050	btSingleRayCallback::btSingleRayCallback	entry ESP+8	the result callback	observed
+0x000a3310	btSingleRayCallback::process	ECX	this	observed
+0x000a3310	btSingleRayCallback::process	entry ESP+4	the broadphase proxy (+0 its object)	observed
+0x00075b40	vostok::physics::closest_ray_result_callback::closest_ray_result_callback	EAX	this: the callback (6Ch bytes)	observed
+0x00075b40	vostok::physics::closest_ray_result_callback::closest_ray_result_callback	ESI	the ray's from (float4*, Bullet frame, 16 bytes copied)	observed
+0x00075b40	vostok::physics::closest_ray_result_callback::closest_ray_result_callback	EDX	the ray's to (float4*, Bullet frame, 16 bytes copied)	observed
+0x00075b40	vostok::physics::closest_ray_result_callback::closest_ray_result_callback	entry ESP+4	the filter group (u16 to +0Ch)	observed
+0x00075b40	vostok::physics::closest_ray_result_callback::closest_ray_result_callback	entry ESP+8	the filter mask (u16 to +0Eh)	observed
+0x00075b40	vostok::physics::closest_ray_result_callback::closest_ray_result_callback	entry ESP+12	the requester (+64h): the argument of a hit model's delegate	observed
+0x00075bd0	vostok::physics::closest_ray_result_callback::needsCollision	ECX	this: the callback	observed
+0x00075bd0	vostok::physics::closest_ray_result_callback::needsCollision	entry ESP+4	the broadphase proxy (+0 its object, +4 group, +6 mask)	observed
+0x0007bda0	vostok::physics::bullet_character_controller::player_step	EAX	the controller	observed
+0x0032c180	survarium::bullet::tick	EAX	the time (the world's step's end, ms)	observed
+0x0032c180	survarium::bullet::tick	entry ESP+4	the bullet	observed
+0x0032d4e0	survarium::bullet::check_collision	entry ESP+4	the ray's origin x, then y (+8), z (+0Ch): the bullet's position at the start (by value)	observed
+0x0032d4e0	survarium::bullet::check_collision	entry ESP+16	the start's time (float*, s since the segment's origin)	observed
+0x0032d4e0	survarium::bullet::check_collision	entry ESP+20	the piece's end time (float*): the ray ends at the bullet's position then (0x32CCC0); a hit's time is start + (end - start) x distance / length	observed
+0x0032d4e0	survarium::bullet::check_collision	entry ESP+24	the step's end time (float*, s since the segment's origin: the world's time now)	observed
+0x0007bda0	vostok::physics::bullet_character_controller::player_step	entry ESP+4	dt (float32, s)	observed
 0x002ffce0	survarium::stack_item::resupply_from_profile_slot	ECX	the stack item (this): its count u16 +260h, its dictionary entry +25Ch	observed
 0x002ffce0	survarium::stack_item::resupply_from_profile_slot	entry ESP+4	the kit slot record: +2 the allowance u16 (the kit's count)	observed
 0x002ffce0	survarium::stack_item::resupply_from_profile_slot	entry ESP+8	the stock record: +8 the units left to take (lowered by what is taken)	observed
@@ -5558,6 +5587,51 @@ va	name	location	role	basis
 0x000181e0	message_processor	ESP+1Ch at 0x1835F	WM_INPUTLANGCHANGEREQUEST's HKL: passed to DefWindowProc (0x18377) only when survarium::game slot 44h (0x1EE7C0) says a text input is focused, else dropped (return 0, 0x18272); patch 107's site window.lang_request	observed
 0x000181e0	message_processor	ESP+1Ch at 0x183E3	WM_INPUTLANGCHANGE's HKL: ActivateKeyboardLayout(hkl, KLF_SETFORPROCESS) at 0x183FE when a text input is focused, then DefWindowProc; patch 107's site window.lang_change	observed
 0x001ee7c0	survarium::game::is_text_input_focused	ECX	the game (its slot 44h, called through engine_world+2D0h at 0x18359 and 0x183DD); +586Ch set to 1 by game::game 0x1E935D, switch_to_lobby 0x1ED256 and switch_to_login 0x1ED2E6, 0 by game::unload 0x1ED1D8, +1/-1 by chat_handler::focus 0x209BF8/0x209C10	observed
+0x00332810	survarium::body_part_parameters::apply_hit_modifiers	EAX	the hit (its type +1Ch, its owner +20h)	observed
+0x00332810	survarium::body_part_parameters::apply_hit_modifiers	EDI	&damage (f32, in place)	observed
+0x00332810	survarium::body_part_parameters::apply_hit_modifiers	stack+4	the pool's model +3B8h (its player at [[it]]+3B0h)	observed
+0x00332810	survarium::body_part_parameters::apply_hit_modifiers	stack+8	the hit again (EBP)	observed
+0x003198d0	survarium::damage_zone_core::on_objects_entered	ECX	the zone (nothing counted while +0A4h is 0); each entering player's +2E4h (byte, zones it is in) incremented at 0x319967	observed
+0x00319780	survarium::damage_zone_core::on_objects_left	ECX	the zone; each leaving player's +2E4h decremented at 0x31980B (also 0x319DAC deactivate, 0x319F11 activate; zeroed at 0x2DB76D)	observed
+0x00329ff0	survarium::body_part_parameters::hit_by_type	EDI at 0x32A083	the hit's type (+1Ch), XMM0 the part's armour for it, XMM1 the piercing, EBX &damage, EBP the pool (patch 109's artefact.isolation)	observed
 0x0033f690	survarium::booster::booster	EDI	the booster (vtable 0xA1CA34) after inventory_item 0x2FFB80: its 68 modifier floats at +108h, one node {0, 0, index, value} at +268h for each that is not 0, their count +26Ch	observed
 0x0033f990	survarium::booster::add_modifiers	EDI	the booster: +250h its inventory (+174h the holder, vtable +0Ch the player); links its +268h nodes at the tail of the kit list +6B8h + kit x 704h + 204h + index x 14h	observed
 0x00313530	survarium::artefact_base::end_active	EDI	the artefact: +274h cooldown_sec x 1000; +28Ch = round(+274h x apply_modifier index 38 artefact_cooldown, k 1: x max(0, 1 + S)) on the holder kit container; +280h = 3	observed
+0x002d86e0	survarium::base_player::apply_new_input	at 0x2D88B1..0x2D88DF	a use starts only with none going ([player+134h] 0) on Use's edge: bit 21 clear in the actions before ([esp+24h]) and set in the new +330h; then detect_usable_object 0x2D84C0, its can_use (vtable+30h) and its use start (vtable+3Ch). A Use held from before starts nothing	observed
+0x0031c780	survarium::artefact_container_core::use_execute	at 0x31C783..0x31C7A2	called every tick of a use (0x2D86C6, base_player tick 0x2DAB0D while [player+134h] is set): 0 (the use ends, vtable+40h at 0x2D86D4) when the detected object (stack+12) is not this container or the user's actions [[stack+4]]+330h lack bit 21 (Use); else the search time, then the transfer or the progress	observed
+0x00042050		EAX	&the CRC, updated a byte a step: crc = T[(crc ^ byte) & 0xFF] ^ (crc >> 8), T the table 0x225FD68 (0x1C210 makes it from 04C11DB7h reflected); the callers do the start and the end	observed
+0x00042050		EDX	the bytes	observed
+0x00042050		entry ESP+4	how many bytes (0: nothing read, not even the CRC)	observed
+0x003b9c00	vostok::input::platform::keyboard::get_dik_name	ECX	the platform keyboard (its DirectInput device at +914h: GetProperty, vtable+14h, DIPROP_KEYNAME 14h)	observed
+0x003b9c00	vostok::input::platform::keyboard::get_dik_name	entry ESP+4	the key, a DirectInput code (DIPROPSTRING.dwObj, DIPH_BYOFFSET); under Wine the name is GetKeyNameTextW of its scan code in the calling thread's layout (dinput keyboard_enum_objects)	observed
+0x003b9c00	vostok::input::platform::keyboard::get_dik_name	entry ESP+8	the buffer the name is written to, multibyte (wcstombs_s 0x420C5F)	observed
+0x003b9c00	vostok::input::platform::keyboard::get_dik_name	entry ESP+12	the buffer's size in bytes (wcstombs_s's room and count)	observed
+0x003b8d20	vostok::input::platform::keyboard::execute	EAX at 0x3B914B	the count of events GetDeviceData buffered at +408h (DIDEVICEOBJECTDATA, dwOfs the DirectInput code), stored to +404h there; under Wine the codes are the physical keys' (winewayland key2scan); patch 110's site keyboard.events	observed
+0x0032d960	survarium::bullet::try_pierce	EBX+4Ch at 0x32D97D	the material check_collision set (0x32D87B); its +4Ch armor A: t = clamp((P - A) / A, 0, 1), 1 for A = 0, k = 1 - (1 - t)^2 ([esp+78h], 0x32D9CF); k <= 0 returns AL=0 (0x32DA7E); else +70h damage, +74h pierce (0x32DA9C) and the speed (0x32DADD) times k. No thickness or angle term	observed
+0x0032ee90	survarium::bullet::update_bullet_position	EAX+70h, EAX+74h at 0x32F0E0, 0x32F174	after every move: u = clamp((speed - +7Ch) / (+78h - +7Ch), 0, 1) (+78h/+7Ch: compute_damage_speed 0x32C520, at birth only); +70h = min(+70h, Dmin + (Dmax - Dmin) u) with Dmax = weapon+51Ch x ammo+8 (0x2E1CF0), Dmin = Dmax x weapon+534h x ammo+20h (0x2E1C80); +74h likewise with weapon+520h x ammo+24h; check_collision runs it to each hit point before try_pierce (0x32D817)	observed
+0x002d8220	survarium::base_player::on_physical_controller_landing	ECX at 0x2D8220	its ret 4 at 0x2D84AE (after add esp,6Ch) is reachable from the entry with nothing pushed; patch 109's artefact.landing exits there (Onyx II)	observed
+0x00311ad0	survarium::artefact_spring_core::add_passive_modifiers	EAX	the Spring: its passive nodes +340h, +350h linked into the holder's kit lists ([player+6B8h] + kit x 704h + 204h + index x 14h)	observed
+0x00311d10	survarium::artefact_spring_core::remove_passive_modifiers	stack+4	the Spring (stdcall): the passive nodes unlinked through 0x2D5D00	observed
+0x002d5ae0	survarium::player_params_modifiers_container::apply_modifier	EAX	the kit's modifiers, whose float of the index ESI is XMM0 at 0x2D5AE6 (movss xmm0,[eax+esi*4]), to which the list's node values are added at 0x2D5B33; patch 109's artefact.shared_modifier adds the shared Springs' nodes there	observed
+0x002d5bc0	survarium::player_params_modifiers_container::apply_modifiers	stack+4	the kit's modifiers (EBX in the loop)	observed
+0x002d5bc0	survarium::player_params_modifiers_container::apply_modifiers	stack+8	a vector {begin, end} of pairs {u32 index, f32 weight}	observed
+0x002d5bc0	survarium::player_params_modifiers_container::apply_modifiers	stack+12	B, the base value	observed
+0x002d5bc0	survarium::player_params_modifiers_container::apply_modifiers	XMM0 at 0x2D5C18	one pair's index's own kit float (movss xmm0,[ebx+eax*4], EAX the index), stored at 0x2D5C2A, its nodes added at 0x2D5C69; patch 109's artefact.shared_modifiers	observed
+0x00312590	survarium::artefact_lifebone_core::regeneration_modifier	stack+4	body_part::regenerate's frame {rate, delay, limit} (its ESP+10h, 0x32A52A)	observed
+0x00312590	survarium::artefact_lifebone_core::regeneration_modifier	stack+8	the Lifebone's passive record for the part (+354h + i x 34h), bound with the Lifebone by its constructor (0x311F4C)	observed
+0x003121a0	survarium::artefact_lifebone_core::enable_passive_effects	ECX	the Lifebone: its records +354h..+358h (34h each: the part's name +0, rate +1Ch/+20h, delay s +24h/+28h, limit +2Ch/+30h); node i (+490h + i x 28h) linked at the tail of the named part's regeneration modifiers (+2E8h: head +4, tail +8; next +20h)	observed
+0x00312810	survarium::artefact_onyx_core::enable_passive_effects	ECX	the Onyx: its parts +0C90h..+0C94h (1Ch each, the name +0); protector i (+340h + i x 70h, protect 0x312BF0 bound by the constructor 0x312777) linked into the named part's protectors (+0BCh count, +0C4h head, +0C8h tail; next +68h)	observed
+0x00329ff0	survarium::body_part_parameters::hit_by_type	ESP+144h at 0x32A020	&piercing, which each protector (+0C4h, called through 0x3FE2C0 with the hit, &damage, &piercing) and the armour read (0x32A058); EBX &damage, EDI the hit, EBP the pool; patch 109's artefact.shared_protection	observed
+0x00312bf0	survarium::artefact_onyx_core::protect	ECX (fields)	the Onyx's numbers: +0EE8h its hit type, +0EECh/+0EF0h passive damage add/mul, +0EF4h/+0EF8h passive piercing, +0EFCh/+0F00h active damage, +0F04h/+0F08h active piercing, +0F18h the active's absorb (enable_active 0x312934 copies absorb_total +0F0Ch); nothing written to the Onyx	observed
+0x003134c0	survarium::artefact_base::on_spawned	EAX	the artefact; sets count +260h (from +27Ch, 0xFFFF -> 1, marking the owner inventory +184h), +284h = the container +64h, +288h = +278h, cooldown +28Ch = 0, state 1	observed
+0x003134c0	survarium::artefact_base::on_spawned	entry ESP+4	the anomaly container it goes into (its +64h byte); ret 4	observed
+0x0031b8e0	survarium::generic_anomaly_core::register_artefacts	entry ESP+4	the anomaly; each pool artefact (+1B0h, +1B4h of them) gets +27Eh = the core world vector +18940h length, is pushed (0x31C360) and bound by vfn +70h(the world); ret 8	observed
+0x0031b8e0	survarium::generic_anomaly_core::register_artefacts	entry ESP+8	the core world (its +18940h artefact vector, inline 128 entries at +1894Ch)	observed
+0x002ee930	survarium::artefact_core_cook::create_resource	entry ESP+0Ch	the artefact_cook_data second word: a pointer to a refcounted resource pointer, which artefact_base::artefact_base (0x312FD0, its second argument) keeps at +290h and the activation effect (0x313350) plays through; a null resource there skips the effect; set by the anomaly cook from its game_object_cook_data (0x22FD70), itself from the project cook data (0x22F8C0) and the level cook data (0x2CC920, set at 0x27AFE0 by the match load)	observed
+0x00316da0	survarium::player_respawn_rule_base::spawn_player	ECX	the respawn rule (+134h its core world: places +18458h, 30h a place, its kit players by the place's +0Ch current kit)	observed
+0x00316da0	survarium::player_respawn_rule_base::spawn_player	entry ESP+4	the place (low byte); the new kit is the place's pending +0Dh made current (0x316DE3); a kit change runs vfn +60h first	observed
+0x00316da0	survarium::player_respawn_rule_base::spawn_player	entry ESP+8	the spawn time: the player's vfn +1Ch(time, point + 8, its rotation, 0) initialises it, vfn +20h(1) puts it into the world (0x316EA9); ret 0Ch	observed
+0x00316da0	survarium::player_respawn_rule_base::spawn_player	entry ESP+0Ch	the respawn point (+8 position, +14h rotation, +20h its protection added to the time at player +32Ch)	observed
+0x0031b6c0	survarium::generic_anomaly_core::spawn_artefact	ECX	the anomaly: draws (+1B8h LCG) the chance +134h, then a free container of +140h..+144h (none: returns, +13Ch the earliest next) and a dormant pool artefact (+1B0h, +1B4h of them, state +280h 0); ret 4	observed
+0x0031b5b0	survarium::generic_anomaly_core::tick	ECX	the anomaly: selects a state (0x31BA90) and executes it with no null check (0x31BCB0 reads state +1Ch), spawns when +124h artefacts_enabled, +138h and the time +13Ch come, then ticks every pool artefact (vfn +74h)	observed
+0x002e9c70	survarium::generic_anomaly_core_cook::translate_query	entry ESP+4	the query (its +108h the anomaly's config): cooks the artefacts pool (query_for_artefacts 0x2E9D40, each artefacts entry {dict_id, count} count times) only when artefacts_enabled is set; else the anomaly is made with none	observed
