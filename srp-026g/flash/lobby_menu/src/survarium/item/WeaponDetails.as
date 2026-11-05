@@ -22,7 +22,7 @@ package survarium.item
       private var speed:Object = null;
       private static const SPEED:int = 163;
       // What its rounds pierce (PierceLine), null without the line.
-      private var pierce:String = null;
+      private var pierce:Object = null;
       public function WeaponDetails(data:Object) { values = data; }
       // The weapon's stats with its modifications; with effects (held Alt), as a match has them
       // with the kit and the skills too.

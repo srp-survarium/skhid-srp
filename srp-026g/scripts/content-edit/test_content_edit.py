@@ -316,7 +316,8 @@ class MapEditorEdits(unittest.TestCase):
             self.assertIn('0 unexpected differences', result.stdout)
             got = {p: ce.prop_text(bytearray((root / 'out' / W / p).read_bytes()), 174)
                    for p in ('ammo/ap.options', 'ammo/fmj.options')}
-            self.assertEqual(got, {'ammo/ap.options': '1:st_concrete', 'ammo/fmj.options': '1:st_brick 2:st_glass'})
+            # <weapon dict id>:<tier rank>:<text>
+            self.assertEqual(got, {'ammo/ap.options': '1:2:st_concrete', 'ammo/fmj.options': '1:1:st_brick 2:0:st_glass'})
             # No weapon grows; a round no weapon fires gets no line.
             for p in ('wpn_rifle.options', 'wpn_pistol.options', 'wpn_lonely.options', 'ammo/spare.options'):
                 self.assertFalse((root / 'out' / W / p).exists(), p)

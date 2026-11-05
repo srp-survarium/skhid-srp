@@ -7,7 +7,9 @@ penetration", a plain material name, no number and no bar).
 ## The owner's rules
 
 - **One row:** `Material penetration: <material>`, a detail row (label left, value right), no bar,
-  no number, no explanation; neutral colour (a material is no better or worse than another beside it).
+  no number, no explanation. Compared with another card (the equipped item), coloured as the other
+  rows: a harder material in the card's better colour, a softer one in its worse colour, the same
+  neutral; Varies, or a side without the row, neutral (the owner, testing #1340, 2026-11-05).
 - **The material:** the hardest wall material the bullet goes through keeping at least half its speed
   and penetration (the pierce factor k >= 0.5, below).
 - **A weapon:** its compatible rounds all agree: that material; they differ: `Varies`.
@@ -57,8 +59,9 @@ every bullet.
 - `scripts/content-edit/pierce-line-1.json`, the last edit row of `release/content.tsv`: UI property
   174 (not comparable) and, on each round the item dictionary pairs with a weapon
   (`items_compatibility`), a `ui_desc/props_list` line 174 naming the key above for each of those
-  weapons: `<weapon dict_id>:<key> ...` (the 5.45x39 7N10: `3:st_srp_pierce_concrete ...
-  220:st_srp_pierce_brick ...`, 220 the A-545; at most about 400 bytes, a string the exe hands the
+  weapons: `<weapon dict_id>:<rank>:<key> ...`, the rank the tier's place in the list (0 glass .. 6
+  stone), so the order is the data's (the 5.45x39 7N10: `3:5:st_srp_pierce_concrete ...
+  220:4:st_srp_pierce_brick ...`, 220 the A-545; at most about 420 bytes, a string the exe hands the
   movie as it is, 0x28709C). `content_edit.py` (`pierce_lines`) computes it from the files as the
   rows above leave them (weapon-stats.tsv, ammo.tsv, packs), the tiers' armour read from
   `game_materials/game.materials` by material name (refused when a material is gone or the tiers'
@@ -70,11 +73,13 @@ every bullet.
 - `release/build-content` (`pierce_check`) computes every line again from the final files and stops
   when one differs, is missing, or is on a round outside the list's files: a row added after it that
   retunes a gun, a round or a material, or adds one, cannot leave a stale card.
-- The lobby movie (`survarium.item.PierceLine`) reads the line once into {weapon id: key}. A round's
+- The lobby movie (`survarium.item.PierceLine`) reads the line once into {weapon id: {key, rank}}. A round's
   card (`AmmoDetails`, last row): the key its weapons agree on, else Varies. A weapon's card
   (`WeaponDetails`, after the bullet speed): the key each of its rounds (`ItemFactory.getList`, the
   dictionary's pairs, as the bullet speed row) gives it, else Varies. A dash beside a compared item
-  that has the row; no row when neither has.
+  that has the row; no row when neither has. The row compares by rank as the other detail rows do
+  (`comparison {kind: "higher", value: rank}`, ItemDetailsView, LabelDiffIndicator's green and red, Ctrl
+  neutral); Varies has no rank and compares with nothing.
 
 ## Live data (patch 49, players' files)
 
@@ -85,8 +90,9 @@ concrete). Rounds that vary: 5.45x39 7N10, .45 ACP, 12mm slug, 12mm buck2.
 ## Checked
 
 - `scripts/weapon-details/WeaponDetailsHarness.as` (Ruffle, `DETAILS RESULT pass`): the row in every
-  language on a weapon and a round, each tier's text, Varies, the dash, no row without the line, no
-  bar, the label fitting one line beside its value.
+  language on a weapon and a round; each tier's text and colour against concrete (better, worse,
+  equal); Ctrl, Varies and a missing side neutral, on weapon and round cards; the dash, no row
+  without the line, no bar, the label fitting one line beside its value.
 - `content-edit/test_content_edit.py` (each round's line by weapon, no weapon or unpaired round
   touched, tiers out of order refused); `content_edit.py` on players' files, aggregated as the movie
   does, reproduces the counts above.

@@ -16,8 +16,8 @@ package survarium.item
          [16,null,"higher"],[15,"st_srp_unit_kg","lower"]];
       private var values:Object;
       // What it pierces (PierceLine), null without the line.
-      private var pierce:String;
-      public function AmmoDetails(data:Object, pierce:String) { values = data; this.pierce = pierce; }
+      private var pierce:Object;
+      public function AmmoDetails(data:Object, pierce:Object) { values = data; this.pierce = pierce; }
       public static function read(item:Object) : AmmoDetails
       {
          if(item == null || ItemFactory.getCategory(item.category) != SuperCategory.AMMO || !(item.properties is Array)) return null;

@@ -74,12 +74,15 @@ package {
   private function boltItem(chamber:String):Object {var d:Object=item(false);d.properties.push({prop_id:160,prop_value:chamber});return d;}
   private function shows(d:Object,other:Object):void {cards[0].data=d;cards[1].data=other;cards[0].itemCompare.setSecondaryWeapon(other);cards[1].itemCompare.setSecondaryWeapon(d);}
   // Material penetration (pierce-line-1.json): a round's line 174 says it for each weapon that fires
-  // it ("<weapon dict id>:<key> ..."), as the content build computes it; a weapon's card reads its
-  // rounds'. 3 the AK-74M and 2229 the PKP (the cards' weapons), 2300 an A-545 stand-in.
-  private static const ROUND_LINES:Object={901:"3:st_srp_pierce_concrete 2300:st_srp_pierce_concrete",
-   902:"3:st_srp_pierce_concrete 2300:st_srp_pierce_brick",903:"2229:st_srp_pierce_concrete"};
+  // it ("<weapon dict id>:<rank>:<key> ...", the rank the material's place: glass 0 .. stone 6), as
+  // the content build computes it; a weapon's card reads its rounds'. 3 the AK-74M and 2229 the PKP
+  // (the cards' weapons), 2300 an A-545 stand-in, 2400 an MP-443 stand-in (tinplate).
+  private static const ROUND_LINES:Object={901:"3:5:st_srp_pierce_concrete 2300:5:st_srp_pierce_concrete",
+   902:"3:5:st_srp_pierce_concrete 2300:4:st_srp_pierce_brick",903:"2229:5:st_srp_pierce_concrete",904:"2400:3:st_srp_pierce_tinplate"};
   private static const ROUND_PAIRS:Array=[{first_item_dict_id:3,second_item_dict_id:901},{first_item_dict_id:902,second_item_dict_id:3},
-   {first_item_dict_id:2300,second_item_dict_id:901},{first_item_dict_id:2300,second_item_dict_id:902},{first_item_dict_id:2229,second_item_dict_id:903}];
+   {first_item_dict_id:2300,second_item_dict_id:901},{first_item_dict_id:2300,second_item_dict_id:902},{first_item_dict_id:2229,second_item_dict_id:903},
+   {first_item_dict_id:2400,second_item_dict_id:904}];
+  private static const TIERS:Array=["glass","car","plywood","tinplate","brick","concrete","stone"];
   private var roundProps:Object={};
   private function roundDescriptors():Array {
    var out:Array=[];
@@ -112,16 +115,36 @@ package {
     aligned();
    }
    Loc.setData(texts("english"));
-   for each(var key:String in ["glass","car","plywood","tinplate","brick","concrete","stone"]){
-    roundProps[903][0].prop_value="2229:st_srp_pierce_"+key;
+   // Each material's text; beside the AK-74M's concrete (rank 5) a harder one is the card's green, a
+   // softer its red, the same neutral, as the other rows compare.
+   for(var rank:int=0;rank<TIERS.length;rank++){
+    var key:String=TIERS[rank];
+    roundProps[903][0].prop_value="2229:"+rank+":st_srp_pierce_"+key;
     shows(item(true),item(false));
     require(line(cards[0],"Material penetration")=="Material penetration: "+HarnessText.DATA.english["st_srp_pierce_"+key],"tier text: "+key);
-    require(color(cards[0],"Material penetration")==NEUTRAL,"a material is no better or worse: "+key);
+    var want:Array=rank>5?[GREEN,RED]:rank<5?[RED,GREEN]:[NEUTRAL,NEUTRAL];
+    require(color(cards[0],"Material penetration")==want[0] && color(cards[1],"Material penetration")==want[1],
+     "compared by material: "+key+" "+[color(cards[0],"Material penetration"),color(cards[1],"Material penetration")]);
    }
    roundProps[903][0].prop_value=ROUND_LINES[903];
+   // Concrete against tinplate: better and worse; Ctrl keeps them neutral.
+   shows(item(false),weapon(2400,"MP-443"));
+   require(color(cards[0],"Material penetration")==GREEN && color(cards[1],"Material penetration")==RED,"harder is better, softer worse");
+   Scene.isCtrl=true;shows(weapon(2400,"MP-443"),item(false));
+   require(color(cards[0],"Material penetration")==NEUTRAL && color(cards[1],"Material penetration")==NEUTRAL,"Ctrl: neutral");
+   Scene.isCtrl=false;
+   // Varies compares with nothing: both neutral.
+   shows(weapon(2300,"A-545"),weapon(2400,"MP-443"));
+   require(color(cards[0],"Material penetration")==NEUTRAL && color(cards[1],"Material penetration")==NEUTRAL,"Varies stays neutral");
+   // A round's card, the same: concrete against tinplate, against Varies.
+   shows(round("7N22",ROUND_LINES[901],"120"),round("9x19",ROUND_LINES[904],"100"));
+   require(color(cards[0],"Material penetration")==GREEN && color(cards[1],"Material penetration")==RED,"a harder round is better");
+   shows(round("7N22",ROUND_LINES[901],"120"),round("7N10",ROUND_LINES[902],"110"));
+   require(color(cards[0],"Material penetration")==NEUTRAL && color(cards[1],"Material penetration")==NEUTRAL,"a round beside Varies stays neutral");
    // A weapon no round speaks for beside one: a dash keeps the rows aligned; two such: no row.
    shows(weapon(4444,"no rounds"),item(false));
    require(line(cards[0],"Material penetration")=="Material penetration: –","a dash beside a weapon with the line");aligned();
+   require(color(cards[0],"Material penetration")==NEUTRAL && color(cards[1],"Material penetration")==NEUTRAL,"missing on one side: neutral");
    shows(weapon(4444,"no rounds"),weapon(4445,"none either"));require(text(cards[0]).indexOf("Material penetration")<0,"no row without the data");
    shows(round("old",null,"100"),round("7N22",ROUND_LINES[901],"120"));
    require(roundLine(cards[0].data,cards[1].data)=="Material penetration: –","a dash beside a round with the line");aligned();
@@ -136,10 +159,11 @@ package {
    for each(var row:Object in Ammo.read(d).rows(false,Ammo.read(other)))if(row.kind=="stat" && row.id==174)return row.label+": "+row.value;
    return null;
   }
-  // For a capture (-P pierce=one|varies|ammo): the cards of a before|after pair, no checks.
+  // For a capture (-P pierce=one|varies|ammo|compare): the cards of a before|after pair, no checks.
   private function pierceCapture(what:String):void {
    Scene.isShift=false;
    if(what=="one")shows(item(false),item(true));
+   else if(what=="compare")shows(item(false),weapon(2400,"MP-443"));
    else if(what=="varies")shows(weapon(2300,"A-545"),item(false));
    else shows(round("5.45x39 7N22",ROUND_LINES[901],"120"),round("5.45x39 7N10",ROUND_LINES[902],"110"));
    removeEventListener(Event.ENTER_FRAME,tick);trace("DETAILS RESULT capture "+what);
