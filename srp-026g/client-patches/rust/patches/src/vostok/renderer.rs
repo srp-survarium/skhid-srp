@@ -169,12 +169,20 @@ impl DelayedImport {
 }
 
 /// The game's delayed `import` bound to `module`: the delay-load helper
-/// (0xE48E0) takes a module already in its slot and loads nothing. Before
-/// the import's first call (at the process's start none has been called).
-pub fn bind_delayed_import(_: &Thread, import: DelayedImport, module: Module) {
+/// (0xE48E0) takes a module already in its slot and loads nothing. Only
+/// while the slot is empty (the import not called yet: its functions'
+/// slots would keep the module the helper bound); whether it was bound.
+pub fn bind_delayed_import(_: &Thread, import: DelayedImport, module: Module) -> bool {
+    let slot = import.slot() as *mut *mut c_void;
     // SAFETY: the slot is an HMODULE of the exe's .data, written by the
-    // helper alone, at the import's first call; none has run yet.
-    unsafe { *(import.slot() as *mut *mut c_void) = module.0.as_ptr() };
+    // helper alone, at the import's first call, on the game's thread.
+    unsafe {
+        if !(*slot).is_null() {
+            return false;
+        }
+        *slot = module.0.as_ptr();
+    }
+    true
 }
 
 /// A Vulkan version as Vulkan packs it (`VK_MAKE_API_VERSION`, variant 0).

@@ -73,7 +73,10 @@ The owner (2026-11-05): let Windows players try DXVK; off by default.
   the game's factory is DXVK's and it reaches the login screen.
   The game's VRAM probe `GetVideoMemoryViaDXGI` (0x106030, the DirectX SDK sample's) still loads
   `dxgi.dll` by its plain name (LoadLibraryW, then CreateDXGIFactory1): whichever dxgi it gets
-  answers that, Windows' own included.
+  answers that, Windows' own included. DXVK's own d3d11 imports `CreateDXGIFactory1` from
+  `dxgi.dll` by name, so on Windows it may be bound to Windows' one; DXVK calls it only for a
+  device asked without an adapter, and the game's one `D3D11CreateDevice` (0x3BB289) always
+  passes its factory's adapter (driver type 0).
 - **Why it works** (`../../scripts/dxvk-loader/run.sh`, Wine 11.8): a program that preloads the five
   from `dxvk\` by full path and then asks for each plain name gets the preloaded module, one module
   of each name in the process (DXVK's d3d11 bound to its dxgi), and its delay-loaded

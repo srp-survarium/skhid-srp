@@ -205,12 +205,14 @@ fn drive(thread: &Thread, event: Event) {
             }
             Action::Load => {
                 if is_loaded(thread, c"dxgi.dll") {
-                    line(&[Text("dxvk: another dxgi.dll is loaded already (the Vulkan loader's)")]);
+                    line(&[Text("dxvk: another dxgi.dll is loaded already")]);
                 }
                 match load_dxvk(thread) {
                     Ok(()) => line(&[Text("dxvk: DXVK loaded from dxvk\\, the game's d3d9, dxgi and d3d11 bound to it")]),
-                    Err(i) => line(&[Text("dxvk: loading DXVK stopped at DLL "), Dec(i as u32),
-                                     Text(" of dxgi, d3d11, d3d10core, d3d9, d3d8 (from 0)")]),
+                    Err(Unloaded(i)) => line(&[Text("dxvk: loading DXVK stopped at DLL "), Dec(i as u32),
+                                               Text(" of dxgi, d3d11, d3d10core, d3d9, d3d8 (from 0)")]),
+                    Err(Called(i)) => line(&[Text("dxvk: the game had called DLL "), Dec(i as u32),
+                                             Text(" of dxgi, d3d11, d3d10core, d3d9, d3d8 (from 0) already: not bound")]),
                 }
             }
             Action::TurnOff => {
@@ -228,13 +230,23 @@ fn drive(thread: &Thread, event: Event) {
     }
 }
 
+/// Why DXVK's loads stopped: the DLL of that index did not load, or the
+/// game's import it serves was bound already.
+enum Stopped {
+    Unloaded(usize),
+    Called(usize),
+}
+use Stopped::*;
+
 /// DXVK's DLLs loaded in order, each delayed import of the game bound to its
-/// DLL as it loads; the index of the first that did not load.
-fn load_dxvk(thread: &Thread) -> Result<(), usize> {
+/// DLL as it loads.
+fn load_dxvk(thread: &Thread) -> Result<(), Stopped> {
     for (i, dll) in DXVK_DLLS.iter().enumerate() {
-        let module = load_beside_exe(thread, dll.file).ok_or(i)?;
-        if let Some(import) = dll.serves {
-            bind_delayed_import(thread, import, module);
+        let module = load_beside_exe(thread, dll.file).ok_or(Unloaded(i))?;
+        if let Some(import) = dll.serves
+            && !bind_delayed_import(thread, import, module)
+        {
+            return Err(Called(i));
         }
     }
     Ok(())

@@ -101,6 +101,7 @@ SLOTS = {"CreateFileA": (0x870048, 7), "ReadFile": (0x870064, 5), "WriteFile": (
          "GetModuleHandleA": (0x87003C, 1)}
 # the game's delayed imports' module slots (__delayLoadHelper2 0xE48E0 loads nothing for one set), DXVK's DLL of each
 MODULE_SLOTS = {"dxgi.dll": 0xAF30CC, "d3d11.dll": 0xAF30D0, "d3d9.dll": 0xAF1194}
+CALLED = 0x6B000000     # a module the helper bound before patch 83 ran
 VK = {"vkCreateInstance": 3, "vkDestroyInstance": 2, "vkEnumeratePhysicalDevices": 3, "vkGetPhysicalDeviceProperties": 2}
 
 
@@ -121,12 +122,15 @@ class Run(language.Run):
     def malloc(self, *_):
         self.mallocs += 1
 
-    def windows_world(self, user_cfg=None, present=DXVK, marker=False, vulkan=None, fails=None, windows_dxgi=False):
+    def windows_world(self, user_cfg=None, present=DXVK, marker=False, vulkan=None, fails=None, windows_dxgi=False,
+                      called=None):
         """What the stubs answer: user.cfg's text (None: no file), the dxvk\\ files there, a marker left,
         the best device's (apiVersion, type) (None: no vulkan-1.dll), a DLL whose load fails, whether Windows'
-        dxgi.dll is loaded already (the Vulkan loader's)."""
+        dxgi.dll is loaded already (the Vulkan loader's), a delayed import the game called already (its slot set)."""
         self.user_cfg, self.present, self.marker, self.vulkan, self.fails = user_cfg, set(present), marker, vulkan, fails
         self.windows_dxgi, self.modules = windows_dxgi, {}
+        for name, slot in MODULE_SLOTS.items():
+            self.word(slot, CALLED if name == called else 0)
         self.calls_made, self.logged, self.read_at = [], b"", 0
         if getattr(self, "stubs", None):
             return
@@ -471,12 +475,15 @@ def renderer(original, patched, expect):
         ("Vulkan picked, d3d10core.dll does not load: the loads stop there, nothing let go, the marker kept",
          dict(user_cfg=on, vulkan=good, fails="d3d10core.dll"), opened + files + marker + look + loads[:4] + log, True,
          b"stopped at DLL 2"),
+        ("Vulkan picked, the game's dxgi called already (its slot set): dxgi loaded, its slot kept, the loads stop "
+         "there", dict(user_cfg=on, vulkan=good, called="dxgi.dll"), opened + files + marker + look + loads[:2] + log,
+         True, b"had called DLL 0"),
     ]
     for what, world, wanted, marked, words in cases:
         r = Run(patched)
         kept, calls = r.process_start(**world)
         bound = {name: r.read(slot) for name, slot in MODULE_SLOTS.items()}
-        loaded = {name: r.modules.get(name, 0) for name in MODULE_SLOTS}
+        loaded = {name: CALLED if name == world.get("called") else r.modules.get(name, 0) for name in MODULE_SLOTS}
         expect(kept and calls == wanted and r.marker == marked and words in r.logged and r.mallocs == 0
                and bound == loaded,
                f"the process's start, {what} (no engine allocation, registers and stack as the original's; the "
