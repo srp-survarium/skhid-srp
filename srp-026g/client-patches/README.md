@@ -3846,15 +3846,16 @@ code. Native Unicorn tests cover all authored maps. Details and test limits:
 
 ## The Settings' HUD group (patch 83)
 
-The Gameplay tab's "HUD:" group (`../docs/notes/hide-hit-markers-scores.md`): three settings kept in
-user.cfg, off by default, `srp_hide_hit_markers`, `srp_hide_scores` and `srp_hide_crosshair` (the
-crosshair list's Hidden). The Rust `hud_options` patch registers the saved bools at
+The Gameplay tab's "HUD:" group (`../docs/notes/hide-hit-markers-scores.md`): four settings kept in
+user.cfg, off by default, `srp_hide_hit_markers`, `srp_hide_scores`, `srp_map_names` and
+`srp_hide_crosshair` (the crosshair list's Hidden). The Rust `hud_options` patch registers the saved bools at
 `configs.start`, answers the main menu's `srp_hide_*` calls and `srp_hud_texts` (the group's
 texts) at `options.callback` (after patch 79's hooks there, sharing `vostok::settings` with it), and
-tells the hud movie the three at `player_icons.update_start` (after patch 65's hook) when the movie
+tells the hud movie the four at `player_icons.update_start` (after patch 65's hook) when the movie
 or a setting changes, and again after each match's or replay's options read (a new hud can be made
 at the last one's address). The hud hides the crosshair's hit marker, shows the Tab list as names
-only, and hides the crosshair. The stock quest progress and minimap controls are moved into the
+only, hides the crosshair, and shows the Tab map's names without Alt (Alt hiding them, patch
+82). The stock quest progress and minimap controls are moved into the
 group by the main menu alone. Interface only: no simulation change. `check_hud_options_026g.py`
 runs the hooks from the game's code; `../scripts/hud-options/check.sh` the movies in Ruffle.
 

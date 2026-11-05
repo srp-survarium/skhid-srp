@@ -78,12 +78,12 @@ package survarium.menu
       protected var _language:SrpLanguage;
       
       // The gameplay tab's "HUD:" group: the checkboxes the exe keeps in user.cfg
-      // (patch 83: "Hide hit markers", "Hide player scores"), with the stock
+      // (patch 83: "Hide hit markers", "Hide player scores", "Names on map"), with the stock
       // quest progress and minimap controls under them (layoutGameplay). A
       // toggle is a change of the tab as the Language pick is, saved by Apply.
       protected var _hudGroup:SrpCheckGroup;
       
-      private static const HUD_OPTIONS:Array = ["srp_hide_hit_markers","srp_hide_scores"];
+      private static const HUD_OPTIONS:Array = ["srp_hide_hit_markers","srp_hide_scores","srp_map_names"];
       
       // The gameplay tab's spacing, read from its own groups (the timeline's) the first
       // time it is laid out (layoutGameplay); null until then.
