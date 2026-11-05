@@ -9,13 +9,21 @@
 #define ENGINE_026G_H
 
 struct artefact;
+struct baked_texture_resource;
+struct bt_broadphase_proxy;
+struct bt_collision_object;
+struct bt_collision_shape;
+struct bt_transform;
 struct buffer_string;
 struct buffer_writer;
+struct bullet;
 struct bullet_manager;
 struct bullet_physics_world;
+struct camouflage_decal_texture_type_baker_cook;
 struct cc_bool;
 struct cc_float;
 struct cc_string;
+struct closest_ray_result_callback;
 struct core_world;
 struct critical_section;
 struct di_command_queue;
@@ -40,6 +48,7 @@ struct inventory_recipe;
 struct item;
 struct item_entry;
 struct items_dictionary;
+struct keyboard;
 struct lobby_camera;
 struct lobby_character;
 struct lobby_client;
@@ -63,11 +72,14 @@ struct pure_game_effect_emitter;
 struct queries_result;
 struct query_callback;
 struct query_function;
+struct query_result_for_cook;
 struct query_user_data;
 struct ray_result;
 struct render_model_instance;
 struct render_notify;
 struct render_visual;
+struct res_texture;
+struct resource_manager;
 struct resource_request;
 struct scene_model;
 struct scene_model_ref;
@@ -210,6 +222,24 @@ extern unsigned int (__attribute__((stdcall)) *const engine_write_file)(void * f
 
 /* the IAT slot 0x870040 (an import, stdcall) */
 extern unsigned int (__attribute__((stdcall)) *const engine_close_handle)(void * handle);
+
+/* the IAT slot 0x87021c (an import, stdcall) */
+extern unsigned int (__attribute__((stdcall)) *const engine_delete_file_a)(const char * name);
+
+/* the IAT slot 0x870080 (an import, stdcall) */
+extern void * (__attribute__((stdcall)) *const engine_load_library_a)(const char * name);
+
+/* the IAT slot 0x870084 (an import, stdcall) */
+extern void * (__attribute__((stdcall)) *const engine_get_proc_address)(void * module, const char * name);
+
+/* the IAT slot 0x870088 (an import, stdcall) */
+extern unsigned int (__attribute__((stdcall)) *const engine_free_library)(void * module);
+
+/* the IAT slot 0x87014c (an import, stdcall) */
+extern unsigned int (__attribute__((stdcall)) *const engine_get_module_file_name_a)(void * module, char * name, unsigned int size);
+
+/* the IAT slot 0xaefe7c (an import, stdcall) */
+extern unsigned int (__attribute__((stdcall)) *const engine_sh_get_folder_path_a)(void * window, unsigned int folder, void * token, unsigned int flags, char * path);
 
 /* 0x75e20 vostok::physics::bullet_physics_world::ray_test: world ECX, result ESP+4, origin ESP+8, direction ESP+12, length ESP+16, group ESP+20, mask ESP+24, delegate ESP+28, unflipped ESP+32; pops 32 */
 void engine_ray_test(struct bullet_physics_world *world, struct ray_result *result, const float *origin, const float *direction, float length, unsigned int group, unsigned int mask, const void *delegate, unsigned int unflipped);
@@ -507,5 +537,59 @@ const struct sound_options *engine_sound_options(const struct sound_propagator_e
 
 /* 0x7ab70 vostok::network_core::mutable_buffer::reallocate: buffer ESI, capacity EDI; pops 0 */
 void engine_buffer_reallocate(void *buffer, unsigned int capacity);
+
+/* 0x1e8da0 survarium::delete_folder: path EAX; pops 0 */
+void engine_delete_folder(const struct buffer_string *path);
+
+/* 0x12de30 vostok::render::baked_texture_resource::baked_texture_resource: memory EAX; pops 0; EAX */
+struct baked_texture_resource *engine_baked_texture_resource(void *memory);
+
+/* 0xf0080 vostok::resources::query_result_for_cook::set_unmanaged_resource: query EDX, resource ESP+4, allocator ESP+8, size ESP+12; pops 12 */
+void engine_set_unmanaged_resource(struct query_result_for_cook *query, struct baked_texture_resource *resource, void *allocator, unsigned int size);
+
+/* 0xf0d00 vostok::resources::query_result_for_cook::finish_query_impl: query ESP+4, result ESP+8, assert_on_fail ESP+12, error ESP+16; pops 16; stdcall, called directly */
+void __attribute__((stdcall)) engine_finish_query(struct query_result_for_cook *query, unsigned int result, unsigned int assert_on_fail, unsigned int error);
+
+/* 0x3bee00 vostok::render::resource_manager::release: texture EAX, manager ESP+4; pops 4 */
+void engine_resource_release(const struct res_texture *texture, struct resource_manager *manager);
+
+/* 0x12d1d0 vostok::render::camouflage_decal_texture_type_baker_cook::translate_query: cook ECX, query ESP+4; pops 4; thiscall, called directly */
+void __attribute__((thiscall)) engine_translate_query(struct camouflage_decal_texture_type_baker_cook *cook, struct query_result_for_cook *query);
+
+/* 0xe0210 vostok::render::render_model_instance::destroy: instance ECX, count EAX; pops 0 */
+void engine_release_model_instance(struct render_model_instance *instance, unsigned int *count);
+
+/* the IAT slot 0x870220 (an import, stdcall) */
+extern unsigned int (__attribute__((stdcall)) *const engine_create_directory_a)(const char * name, void * security);
+
+/* the IAT slot 0x870090 (an import, stdcall) */
+extern unsigned int (__attribute__((stdcall)) *const engine_get_tick_count)(void);
+
+/* the IAT slot 0x870238 (an import, stdcall) */
+extern void * (__attribute__((stdcall)) *const engine_find_first_file_a)(const char * pattern, void * data);
+
+/* the IAT slot 0x87023c (an import, stdcall) */
+extern unsigned int (__attribute__((stdcall)) *const engine_find_next_file_a)(void * find, void * data);
+
+/* the IAT slot 0x870228 (an import, stdcall) */
+extern unsigned int (__attribute__((stdcall)) *const engine_find_close)(void * find);
+
+/* 0x75b40 vostok::physics::closest_ray_result_callback::closest_ray_result_callback: callback EAX, from ESI, to EDX, group ESP+4, mask ESP+8, requester ESP+12; pops 12 */
+void engine_ray_callback(struct closest_ray_result_callback *callback, const float *from, const float *to, unsigned int group, unsigned int mask, struct bullet *requester);
+
+/* 0x75bd0 vostok::physics::closest_ray_result_callback::needsCollision: callback ECX, proxy ESP+4; pops 4; AL */
+unsigned char engine_ray_needs_collision(struct closest_ray_result_callback *callback, struct bt_broadphase_proxy *proxy);
+
+/* 0xa02d0 btCollisionWorld::rayTestSingle: from ESP+4, to ESP+8, object ESP+12, shape ESP+16, transform ESP+20, callback ESP+24; pops 0; cdecl, called directly */
+void __attribute__((cdecl)) engine_ray_test_single(struct bt_transform *from, struct bt_transform *to, struct bt_collision_object *object, struct bt_collision_shape *shape, struct bt_transform *transform, struct closest_ray_result_callback *callback);
+
+/* 0x3b9c00 vostok::input::platform::keyboard::get_dik_name: keyboard ECX, key ESP+4, name ESP+8, size ESP+12; pops 12; AL; thiscall, called directly */
+unsigned char __attribute__((thiscall)) engine_key_name(struct keyboard *keyboard, unsigned int key, char *name, unsigned int size);
+
+/* the IAT slot 0xaeff20 (an import, stdcall) */
+extern unsigned int (__attribute__((stdcall)) *const engine_activate_keyboard_layout)(unsigned int layout, unsigned int flags);
+
+/* the IAT slot 0x87003c (an import, stdcall) */
+extern void * (__attribute__((stdcall)) *const engine_get_module_handle_a)(const char * name);
 
 #endif

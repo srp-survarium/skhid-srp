@@ -1,6 +1,8 @@
 package
 {
     import flash.display.DisplayObject;
+    import flash.display.DisplayObjectContainer;
+    import flash.utils.getQualifiedClassName;
     import flash.display.Loader;
     import flash.display.MovieClip;
     import flash.display.Sprite;
@@ -38,6 +40,10 @@ package
 
         private var loader:Loader = new Loader();
         private var frames:int = 0;
+        // The texts of check.sh (texts[n][14..16]: "Renderer", "DirectX 11", "Vulkan/DXVK").
+        private var texts:Array;
+        // The gameplay tab's settings and values as check() gave them.
+        private var gameplay:Array;
 
         public function SettingsHarness()
         {
@@ -112,6 +118,26 @@ package
                     settings.settings_content._setter_static_minimap_position.open();
                 }
                 if (frames == 230) trace("SETTINGS SHOT minimap");
+                if (frames == 240)
+                {
+                    settings.settings_content._setter_static_minimap_position.close();
+                    // the toggle of the checked shot dropped
+                    click(settings.btn_cancel);
+                }
+                // the Graphics tab after the gameplay shots: its controls tell their changes a frame later
+                if (frames == 250)
+                {
+                    try
+                    {
+                        checkGraphics(settings, settings.settings_content, gameplay[0], gameplay[1]);
+                    }
+                    catch (error:Error)
+                    {
+                        trace("SETTINGS RESULT fail: " + error.message);
+                    }
+                }
+                if (frames == 270) graphicsTab(settings, "1");
+                if (frames == 300) trace("SETTINGS SHOT graphics");
             });
         }
 
@@ -275,12 +301,260 @@ package
             return [cross.selectedIndex, Object(content)._setter_static_cross.selected];
         }
 
+        // The Graphics tab as the exe makes it: its 19 options (English labels, values as a game's), then
+        // the Renderer list's answers (`saved`: "1" Vulkan).
+        private function graphicsTab(settings:*, saved:String, running:String = "0"):void
+        {
+            var root:* = loader.content;
+            var labels:Array = ["Monitor", "Resolution", "Fullscreen", "Vertical sync", "Antialiasing", "Texture filtering",
+                "Gamma:", "Field of view", "Overall", "Textures", "Geometry", "Shadows", "Lighting", "Water", "Decorations",
+                "Post process", "Ambient occlusion", "Particles", "Motion blur"];
+            var list:Array = [], values:Array = [];
+            for (var i:int = 0; i < labels.length; ++i)
+            {
+                var option:Object = {label: labels[i], setter: function(value:*):* { return value; }};
+                if (i == 0) option.dataProvider = ["Generic PnP Monitor"];
+                else if (i == 1) option.dataProvider = ["1920x1080", "1280x720"];
+                else if (i == 4) option.dataProvider = ["Off", "2x", "4x"];
+                else if (i == 5) option.dataProvider = ["Bilinear", "Trilinear", "Anisotropic"];
+                else if (i != 2 && i != 3 && i != 6 && i != 7) option.dataProvider = ["Low", "Medium", "High"];
+                list.push(option);
+                values.push({id: i, value: i < 2 || i == 3 ? 0 : i == 2 ? 1 : i == 6 || i == 7 ? 0 : 2});
+            }
+            try
+            {
+                settings.selectIndex(2);
+            }
+            catch (error:Error)
+            {
+                // the tab's change calls the exe, which a test player lacks
+            }
+            settings.settings_content.gotoAndStop(3);
+            root.set_settings(2, list);
+            root.set_values(2, values);
+            root.srp_hud_texts(texts[0][2], texts[0][5], texts[0][6], texts[0][7], texts[0][8], texts[0][9], texts[0][15],
+                texts[0][16], texts[0][4]);
+            root.srp_check_option("srp_dxvk", texts[0][14], saved, running);
+            // the gamma slider's label, which the game sets through the timeline's alias (its FLA text otherwise)
+            settings.settings_content.slider_gamma.textField.text = "Gamma:";
+        }
+
+        // The Graphics tab's Renderer list (patch 83's srp_dxvk, docs/notes/dxvk-option.md): shown there
+        // only, once the exe answers, built as Monitor's (its label on its left, the same size), one of
+        // Monitor's steps under it; the rows under it one step down, in order without overlaps, the preset
+        // buttons side by side inside their panel, its bottom kept; every dictionary's label and choices
+        // inside the list's fields; a pick pending until Apply, Cancel dropping it. Ends back on the
+        // gameplay tab.
+        // The Renderer note's room (SrpRendererChoice.NOTE_ROOM).
+        private static const NOTE_ROOM:Number = 20;
+
+        // The open list of the stage (a dropdown's OptionScrollingList, PopUpManager's), or null.
+        private function openList(at:DisplayObjectContainer):DisplayObject
+        {
+            for (var i:int = 0; i < at.numChildren; ++i)
+            {
+                var child:DisplayObject = at.getChildAt(i);
+                if (child.visible && getQualifiedClassName(child).indexOf("OptionScrollingList") >= 0) return child;
+                var inner:DisplayObjectContainer = child as DisplayObjectContainer;
+                var found:DisplayObject = inner != null ? openList(inner) : null;
+                if (found != null) return found;
+            }
+            return null;
+        }
+
+        // The Renderer's note (the Language choice's "Applies after restart."): in its room under the list,
+        // at the list's label, in the column, over nothing, under both lists' open popups; shown and hidden
+        // the rows stay where they are; every dictionary's note fits its width.
+        private function checkNote(settings:*, content:MovieClip, list:*, monitor:*):void
+        {
+            var c:* = content;
+            var note:TextField = content.getChildByName("_srp_renderer_note") as TextField;
+            var rows:Array = [c._fscr_resolution, c._fullscreen, c._vsync, c._antialias, c._filtering, c.slider_gamma, c._slider_fov];
+            var hidden:Array = rows.map(function(r:*, ...rest):Number { return r.y; });
+            require(note != null && !note.visible, "note: hidden while the saved choice is the running one");
+            graphicsTab(settings, "1", "0");
+            require(note.visible && note.text == texts[0][4], "note: shown while Vulkan is saved and DirectX 11 runs");
+            var shown:Array = rows.map(function(r:*, ...rest):Number { return r.y; });
+            require(hidden.join() == shown.join(), "note: the rows stay where they are (" + hidden + " / " + shown + ")");
+            var listBottom:Number = list.getBounds(content).bottom;
+            var resolutionTop:Number = span(c._fscr_resolution)[0];
+            var columnEnd:Number = monitor.x + monitor.width;
+            var widest:Number = 0;
+            for each (var row:Array in texts)
+            {
+                note.text = row[4];
+                require(note.textWidth + 4 <= note.width && note.x + note.width <= columnEnd + 0.1, "note: " + row[4]
+                    + " fits the column (" + note.textWidth + " of " + note.width + ", to " + (note.x + note.width) + ")");
+                var top:Number = note.y, bottom:Number = note.y + note.textHeight + 4;
+                require(top >= listBottom - 0.1 && bottom <= resolutionTop + 0.1, "note: " + row[4] + " between the list ("
+                    + listBottom + ") and Resolution (" + resolutionTop + "): " + top + "-" + bottom);
+                widest = Math.max(widest, note.textWidth);
+            }
+            require(near(note.x, list.x + list.textFieldLabel.x), "note: at the list's label");
+            // the open lists against the widest dictionary's note
+            var longest:String = texts[0][4];
+            for each (row in texts)
+            {
+                note.text = row[4];
+                if (note.textWidth > widest - 0.01) longest = row[4];
+            }
+            note.text = longest;
+            // the open lists: the Renderer's under its box (where Monitor's opens), both over the note
+            var Point:Class = loader.contentLoaderInfo.applicationDomain.getDefinition("flash.geom.Point") as Class;
+            var lefts:Array = [];
+            for each (var dropdown:* in [monitor, list])
+            {
+                dropdown.open();
+                var open:DisplayObject = openList(content.stage);
+                require(open != null, "note: " + dropdown.name + "'s list opens");
+                var bounds:Rectangle = open.getBounds(content.stage);
+                lefts.push(bounds.left);
+                // the note's text where it meets the open list: the list on top there, or apart
+                var drawn:Rectangle = new Rectangle(note.x, note.y, note.textWidth + 4, note.textHeight + 4);
+                var topLeft:* = content.localToGlobal(new Point(drawn.x, drawn.y));
+                var meet:Rectangle = new Rectangle(topLeft.x, topLeft.y, drawn.width, drawn.height).intersection(bounds);
+                if (!meet.isEmpty())
+                {
+                    var under:Array = content.stage.getObjectsUnderPoint(new Point(meet.x + meet.width / 2, meet.y + meet.height / 2));
+                    var topmost:DisplayObject = under.length > 0 ? under[under.length - 1] : null;
+                    var inList:Boolean = false;
+                    for (var o:DisplayObject = topmost; o != null; o = o.parent) if (o == open) inList = true;
+                    require(inList, "note: " + dropdown.name + "'s open list (" + bounds + ") is over the note where they meet");
+                }
+                trace("SETTINGS Graphics: " + dropdown.name + "'s open list " + bounds + (meet.isEmpty() ? ", apart from the note" : ", over the note") + " (" + note.text + ")");
+                dropdown.close();
+                require(openList(content.stage) == null, "note: " + dropdown.name + "'s list closes");
+            }
+            require(Math.abs(lefts[0] - lefts[1]) < 1, "note: the Renderer's list opens at Monitor's box (" + lefts + ")");
+            note.text = texts[0][4];
+            graphicsTab(settings, "0", "0");
+            require(!note.visible && rows.map(function(r:*, ...rest):Number { return r.y; }).join() == hidden.join(),
+                "note: hidden again, the rows where they were");
+            trace("SETTINGS Graphics: the note between " + listBottom + " and " + resolutionTop + ", the widest " + widest
+                + " of " + note.width + "; both lists open at x " + lefts);
+        }
+
+        private function checkGraphics(settings:*, content:MovieClip, gameplay:Array, gameplayValues:Array):void
+        {
+            var root:* = loader.content;
+            var list:* = content.getChildByName("_srp_renderer");
+            require(list != null && !list.visible, "Renderer: not on the gameplay tab");
+            var fresh:* = new (Object(content).constructor as Class)();
+            fresh.gotoAndStop(3);
+            graphicsTab(settings, "0");
+            var c:* = content;
+            require(c.currentFrame == 3 && list.visible && list.alpha == 1 && list.textFieldLabel.text == texts[0][14]
+                && list.selectedIndex == 0 && list.dataProvider.length == 2 && list.dataProvider[0] == texts[0][15]
+                && list.dataProvider[1] == texts[0][16] && !settings.btn_accept.enabled,
+                "Renderer: on the Graphics tab, the exe's label and choices, DirectX 11, nothing pending");
+            var step:Number = fresh._fscr_resolution.y - fresh._select_monitor.y;
+            var monitor:* = c._select_monitor;
+            require(near(list.x, monitor.x) && near(list.y, monitor.y + step) && Math.abs(list.width - monitor.width) < 1
+                && Math.abs(list.height - monitor.height) < 1, "Renderer: Monitor's size, one of its steps under it ("
+                + list.width + "x" + list.height + " at " + list.y + ")");
+            // the rows under it: one step and the note's room down, kept whether the note shows or not
+            for each (var moved:String in ["_fscr_resolution", "_fullscreen", "_vsync", "_antialias", "_filtering", "slider_gamma"])
+            {
+                require(near(c[moved].y, fresh[moved].y + step + NOTE_ROOM), "Renderer: " + moved + " one step and the note's room down");
+            }
+            checkNote(settings, content, list, monitor);
+            var column:Array = [c._select_monitor, list, c._fscr_resolution, c._fullscreen, c._vsync, c._antialias, c._filtering,
+                c.slider_gamma, c._slider_fov];
+            var panel:Rectangle = c.bottomContainer.getBounds(content);
+            for (var i:int = 0; i < column.length; ++i)
+            {
+                var here:Array = span(column[i]);
+                require(column[i].visible, "Graphics: " + column[i].name + " shown");
+                var next:Number = i + 1 < column.length ? span(column[i + 1])[0] : panel.top;
+                require(here[1] <= next + 1, "Graphics: " + column[i].name + " (" + here + ") over the next (" + next + ")");
+            }
+            // the buttons draw at their new width in the next frame: now, for the measure
+            c.button_optimal_video.validateNow();
+            c.button_default_video.validateNow();
+            var optimal:Rectangle = c.button_optimal_video.getBounds(content);
+            var standard:Rectangle = c.button_default_video.getBounds(content);
+            require(panel.containsRect(optimal) && panel.containsRect(standard) && optimal.right < standard.left
+                && near(optimal.y, standard.y), "Graphics: the preset buttons side by side inside their panel (" + optimal
+                + ", " + standard + " in " + panel + ")");
+            require(near(panel.bottom, fresh.bottomContainer.getBounds(fresh).bottom), "Graphics: the panel's bottom kept");
+            var labelEnd:Number = list.x + list.textFieldLabel.x + list.textFieldLabel.width;
+            var widestLabel:Number = 0, widestChoice:Number = 0;
+            var choices:Object = list.dataProvider;
+            for each (var row:Array in texts)
+            {
+                list.textFieldLabel.text = row[14];
+                require(list.textFieldLabel.textWidth + 4 < list.textFieldLabel.width, "Renderer: " + row[14]
+                    + " fits its label (" + list.textFieldLabel.textWidth + " of " + list.textFieldLabel.width + ")");
+                widestLabel = Math.max(widestLabel, list.textFieldLabel.textWidth);
+                list.dataProvider = new (loader.contentLoaderInfo.applicationDomain.getDefinition("scaleform.clik.data.DataProvider")
+                    as Class)([row[15], row[16]]);
+                for (var choice:int = 0; choice < 2; ++choice)
+                {
+                    list.selectedIndex = choice;
+                    list.validateNow();
+                    // Monitor's list leaves its field a little room: within half its 2-pixel gutters the
+                    // text is drawn whole (the screenshot's "Vulkan/DXVK")
+                    require(list.textField.textWidth + 2 < list.textField.width * list.scaleX, "Renderer: " + row[15 + choice]
+                        + " fits the list (" + list.textField.textWidth + " of " + list.textField.width * list.scaleX + ")");
+                    widestChoice = Math.max(widestChoice, list.textField.textWidth);
+                }
+            }
+            list.textFieldLabel.text = texts[0][14];
+            list.dataProvider = choices;
+            list.selectedIndex = 0;
+            list.validateNow();
+            require(!settings.btn_accept.enabled, "Renderer: nothing pending after the texts' check");
+            trace("SETTINGS Graphics: Renderer at " + list.y + " under Monitor " + monitor.y + ", FOV to " + span(c._slider_fov)[1]
+                + ", panel " + panel.top + "-" + panel.bottom + "; widest label " + widestLabel + ", widest choice " + widestChoice);
+            pick(list, 1);
+            require(settings.btn_accept.enabled, "Renderer: picking Vulkan enables Apply");
+            click(settings.btn_cancel);
+            require(list.selectedIndex == 0 && !settings.btn_accept.enabled, "Renderer: Cancel puts DirectX 11 back");
+            pick(list, 1);
+            click(settings.btn_accept);
+            require(list.selectedIndex == 1 && !settings.btn_accept.enabled, "Renderer: Apply saves Vulkan");
+            var note:* = content.getChildByName("_srp_renderer_note");
+            require(note.visible, "Renderer: the note after Apply of Vulkan (DirectX 11 running)");
+            root.srp_check_option("srp_dxvk", texts[0][14], "1", "0");
+            require(list.selectedIndex == 1 && !settings.btn_accept.enabled && note.visible,
+                "Renderer: the exe's answer (on, DirectX running) keeps it, the note shown");
+            pick(list, 0);
+            require(settings.btn_accept.enabled, "Renderer: DirectX 11 over a saved Vulkan is a change");
+            click(settings.btn_cancel);
+            require(list.selectedIndex == 1, "Renderer: Cancel: Vulkan again");
+            root.srp_check_option("srp_dxvk", texts[0][14], "0", "0");
+            require(list.selectedIndex == 0 && !settings.btn_accept.enabled && !note.visible,
+                "Renderer: the exe's answer sets the saved choice; saved as running, no note");
+            root.srp_check_option("srp_dxvk", texts[0][14], "1", "1");
+            require(!note.visible, "Renderer: Vulkan saved and running: no note");
+            pick(list, 0);
+            click(settings.btn_accept);
+            require(note.visible, "Renderer: Apply of DirectX 11 while DXVK runs: the note");
+            root.srp_check_option("srp_dxvk", texts[0][14], "0", "0");
+            graphicsTab(settings, "0");
+            require(list.visible && near(list.y, monitor.y + step) && near(c._fscr_resolution.y, fresh._fscr_resolution.y + step + NOTE_ROOM),
+                "Renderer: the tab bound again, every row moved once");
+            require(!settings.btn_accept.enabled, "Renderer: nothing pending after the checks");
+            trace("SETTINGS Graphics: Renderer pass");
+            try
+            {
+                settings.selectIndex(0);
+            }
+            catch (error:Error)
+            {
+            }
+            content.gotoAndStop(1);
+            root.set_settings(0, gameplay);
+            root.set_values(0, gameplayValues);
+            require(!list.visible && !settings.btn_accept.enabled, "Renderer: not on the gameplay tab again, nothing pending");
+        }
+
         private function check():void
         {
             // [[hit markers' label, scores' label, the group's heading, "Language:", its restart note, "Hide quests",
             //   the crosshair list's three choices, "Static minimap", the minimap position list's three
             //   (st_minimap_off, _bottom, _top)], ...] for every dictionary
-            var texts:Array = JSON.parse(loaderInfo.parameters.texts) as Array;
+            texts = JSON.parse(loaderInfo.parameters.texts) as Array;
             var root:* = loader.content;
             var settings:* = root.settings_window;
             var content:MovieClip = settings.settings_content;
@@ -290,6 +564,8 @@ package
             try
             {
                 root.set_labels([{name: "gameplay_options_type", label: "Gameplay"}, {name: "controllers_options_type", label: "Controls"},
+                    {name: "video_options_type", label: "Graphics"}, {name: "sound_options_type", label: "Sound"},
+                    {name: "button_optimal_video", label: "Optimal"}, {name: "button_default_video", label: "Default"},
                     {name: "settings_label", label: "Settings"}, {name: "button_apply", label: "Apply"},
                     {name: "button_exit", label: "Exit"}, {name: "button_cancel", label: "Cancel"},
                     {name: "s_friends", label: "Friends:"}, {name: "s_cross", label: "Crosshair:"},
@@ -340,7 +616,7 @@ package
             }
             root.srp_check_option("srp_hide_crosshair", texts[0][8], "0");
             require(!cross.visible, "the crosshair list waits for its texts");
-            root.srp_hud_texts(texts[0][2], texts[0][5], texts[0][6], texts[0][7], texts[0][8], texts[0][9]);
+            root.srp_hud_texts(texts[0][2], texts[0][5], texts[0][6], texts[0][7], texts[0][8], texts[0][9], texts[0][15], texts[0][16], texts[0][4]);
             require(!settings.btn_accept.enabled, "nothing to apply after the answers");
             var heading:TextField = content.getChildByName("_srp_check_group") as TextField;
             require(heading != null && heading.visible && heading.text == texts[0][2], "the group's heading is the exe's: " + (heading ? heading.text : null));
@@ -406,7 +682,7 @@ package
             position.dataProvider = positions;
             position.selectedIndex = shownPosition;
             position.validateNow();
-            root.srp_hud_texts(texts[0][2], texts[0][5], texts[0][6], texts[0][7], texts[0][8], texts[0][9]);
+            root.srp_hud_texts(texts[0][2], texts[0][5], texts[0][6], texts[0][7], texts[0][8], texts[0][9], texts[0][15], texts[0][16], texts[0][4]);
             root.set_values(0, values);
             root.srp_check_option("srp_hide_crosshair", texts[0][8], "0");
             require(!settings.btn_accept.enabled, "nothing pending after the texts' check");
@@ -531,6 +807,7 @@ package
                 "the HUD controls over the bottom panel after a tab change");
             checkLayout(content, boxes, texts, stockOf(content), "after a tab change");
             trace("SETTINGS tabs pass");
+            gameplay = [settingsList, values];
 
             var fontName:String = boxes[0].textField.getTextFormat().font;
             var font:Font = null;

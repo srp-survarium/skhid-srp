@@ -68,6 +68,7 @@ survarium::inventory	slots_end	0x168	obj<survarium::inventory_slot>	the slots' e
 survarium::inventory_slot	item	0x0	ptr<survarium::item>	the slot's item (0: empty; inventory::update_weight 0x2FC6E0)
 survarium::inventory_slot	size	0x4	size	a slot is the item's pointer: update_weight's loop steps 4 (0x2FC6E0)
 survarium::ammo_data	muzzle_speed	0x3C	f32	the ammo config's data.muzzle_speed, m/s (ammo_data::load 0x332440): with the mass, the ammo's identity in the trace
+survarium::ammo_data	damage_type	0x4C	u32	the ammo config's data.damage_type, hit_type_enum (ammo_data::load 0x332725, 0 ranged when absent: every round); a weapon's melee/data says blunt (1), the bullet of a gun-stock hit
 survarium::player	game_world	0xF474	ptr<survarium::game_world>	its game world (mt_draw 0x2477E8: +9Ch its game, for the renderer)
 survarium::game	renderer	0x5360	ptr<vostok::render::game::renderer>	the game's vostok::render::game::renderer (mt_draw 0x2477FE)
 vostok::render::game::renderer	scene_renderer	0x200064	ptr<vostok::render::scene_renderer>	its scene renderer (the ctor 0x1F310 writes it at 0x1F3CE; update_skeleton's EDI at mt_draw 0x247804)
@@ -434,7 +435,7 @@ vostok::resources::queries_result	emitter	0x12C	ptr<vostok::sound::sound_emitter
 survarium::image	scene_params_helper	0x9FC7C0	u32	concrete_type_helper<sound_scene_creation_params>'s vtable (its copy_helper 0x1FA690), the variant helper of a sound scene's request (lobby_menu::query_resources 0x21E559)
 survarium::image	game_allocator	0x1F1D9C4	obj<survarium::allocator_slot>	the game's allocator's slot (the lobby's query 0x21E5D6, the late join's)
 survarium::image	ai_allocator	0x1F1DA44	obj<survarium::allocator_slot>	the ai arena's slot (patch 36's 4 MiB arena "ai", the static initializer 0x1E8B50 registers it with 0xE21C0)
-survarium::image	render_allocator	0x1F1D960	u32	the render's allocator global (set at 0x13C61; read by the render's resource code 0x1F00B..0x1F3C3)
+survarium::image	render_allocator	0x1F1D960	obj<survarium::allocator_slot>	the render's allocator's slot (set at 0x13C61; read by the render's resource code 0x1F00B..0x1F3C3; a baked texture resource's 108h bytes come from it, mov esi,[0x1F1D960] before 0xE4F90, 0x12F184 and 0x12DDA9)
 survarium::allocator_slot	allocator	0x0	ptr<vostok::memory::game_allocator>	the allocator (a doug_lea_allocator: query_resources' allocator, the late join's)
 vostok::engine_cfg	text	0x0	ptr<u8>	a text node's (type 5) string, its offset relocated to an address by the loader as a table's children (the count +16h its bytes with the zero)
 vostok::sound::sound_instance_proxy	references	0x28	u32	its references, not atomic (single_threading_policy: intrusive_ptr::dec 0x56807; at 0 free_object 0x5B390)
@@ -572,6 +573,7 @@ survarium::player_params_modifiers_container	medical_ranks	0xAC	f32	Medical hook
 survarium::medical_hit	name	0x0	ptr<u8>	hit body part name
 survarium::medical_hit	kind	0x1C	u32	hit type
 survarium::medical_hit	owner	0x20	ptr<survarium::medical_owner>	hit owner reference
+survarium::medical_hit	attacker	0x44	u8	the attacker's place, 0FFh none (hit_info::hit_info's stack+8, 0x32BA52; hit_impl passes it to generate_killed_event, 0x2D9F09)
 survarium::medical_owner	place	0x4	u32	owner place
 survarium::medical_damage	owner	0x3B0	ptr<survarium::player>	owning player
 survarium::medical_damage	pools	0x108	obj<survarium::medical_pools>	body part lookup list
@@ -663,6 +665,37 @@ vostok::sound::propagator_slot	propagator	0x0	ptr<vostok::sound::new_sound_propa
 vostok::sound::propagator_slot	size	0x4	size	a pointer
 vostok::sound::sound_propagator_emitter	options	0x8	obj<vostok::sound::sound_options>	its sound's options, inline (vtable slot 2 0x38990 returns this + 8; calculate_hdr_audio_frame asks the slot, 0x5CAC3)
 vostok::sound::sound_options	can_be_displaced	0x11	u8	the HDR cull may take its voice (0x5CACD); single_sound_cook's default 1 (0x6129F), raw_options can_be_displaced false makes it 0
+survarium::bullet	now	0x60	u32	the time it was last ticked to (bullet::tick 0x32C18E writes its EAX): at its check_collision, the end of the world's step
+survarium::bullet_owner	world_core	0x10	ptr<survarium::core_world>	the shooter's world core: a bullet's owner is its player's +110h (weapon_core::set_user 0x2E299D, the other emit 0x33AB8C; +4 the place is the player's +114h), so +10h is the player's +120h
+survarium::check_collision_frame	start	0x9C	ptr<f32>	the ray's start time (entry ESP+10h: s since the segment's origin; bullet::tick's +64h)
+survarium::check_collision_frame	end	0xA0	ptr<f32>	the piece's end time (entry ESP+14h): the ray ends where the bullet is then; a hit's time is start + (end - start) x distance / length (0x32D7D6)
+survarium::check_collision_frame	step_end	0xA4	ptr<f32>	the step's end time (entry ESP+18h): the world's time the bullet is ticked to, s since the segment's origin
+vostok::physics::ray_result	fraction	0xC	f32	the hit's fraction of the ray, 0..1 (its callback's m_closestHitFraction; 0 on a miss)
+vostok::physics::ray_result	part	0x20	u32	the hit's shape part (the callback's +60h: a compound child's or a triangle's index, 0 a bare primitive, -1 none)
+vostok::physics::ray_result	part_kind	0x24	u8	the callback's +68h (1 a bare primitive)
+vostok::physics::bt_animated_rigid_body	object	0x30	ptr<vostok::physics::bt_collision_object>	its Bullet collision object (the ctor 0x70E70: its +0F8h points back here)
+vostok::physics::bt_collision_object	transform	0x10	obj<vostok::physics::bt_transform>	m_worldTransform (Bullet frame: z negated, from_vostok 0x74470)
+vostok::physics::bt_collision_object	broadphase	0xC8	ptr<vostok::physics::bt_broadphase_proxy>	m_broadphaseHandle: 0 when it is not in a physics world
+vostok::physics::bt_collision_object	shape	0xCC	ptr<vostok::physics::bt_collision_shape>	m_collisionShape (process 0xA3356)
+vostok::physics::bt_collision_object	user	0xF8	ptr<vostok::physics::hit_object>	m_userObjectPointer: the game's object (what a ray_result names, 0x75FFD)
+vostok::physics::bt_transform	basis	0x0	f32	its 16 f32: three basis rows of four, then the origin (btMatrix3x3 m_basis, btVector3 m_origin)
+vostok::physics::bt_transform	origin	0x30	f32	its origin, a float4 (w 0)
+vostok::physics::bt_transform	size	0x40	size	a btTransform: 40h bytes
+vostok::physics::closest_ray_result_callback	fraction	0x4	f32	m_closestHitFraction: the cutoff a hit must be under, then the hit's (the ctor 0x75B40: 1.0)
+vostok::physics::closest_ray_result_callback	object	0x8	ptr<vostok::physics::bt_collision_object>	m_collisionObject: the object hit (0: none)
+vostok::physics::closest_ray_result_callback	flags	0x10	u32	m_flags (ray_test 0x75F2E sets bit 2, unflipped, for its last argument)
+vostok::physics::closest_ray_result_callback	normal	0x40	f32	m_hitNormalWorld, a float4 (Bullet frame)
+vostok::physics::closest_ray_result_callback	point	0x50	f32	m_hitPointWorld, a float4 (Bullet frame)
+vostok::physics::closest_ray_result_callback	part	0x60	u32	the hit's shape part (addSingleResult 0x75CA0)
+vostok::physics::closest_ray_result_callback	part_kind	0x68	u8	the hit's part kind (addSingleResult 0x75CA9)
+vostok::physics::closest_ray_result_callback	single_pass	0x6A	u8	set: needsCollision lets a hit model through when its delegate posed it (ray_test's second pass, 0x75F6A)
+vostok::physics::closest_ray_result_callback	size	0x70	size	the callback: 6Bh bytes used (ray_test keeps it at ESP+40h of its frame)
+survarium::player	controller	0x494	ptr<survarium::player_controller>	its character controller's holder (assign_physics_transform 0x2D942A: [[+494h]] the controller)
+survarium::player_controller	controller	0x0	ptr<vostok::physics::bullet_character_controller>	the controller (get_transform 0x7F5C0's ESI)
+vostok::physics::bullet_character_controller	last_position	0x50	f32	m_last_pos, a float3, Bullet frame (z the game's -z; the capsule's offset above the feet, along y, as +0B0h): the position its last step started from (player_step 0x7BE84; serialized 0x7F7F0)
+vostok::physics::bullet_character_controller	position	0xB0	f32	its position, a float3, Bullet frame (the translation of its matrix +80h: z the game's -z, set_transform 0x7F6D0 adds the capsule's offset along y (0xA7DC00), get_transform 0x7F5C0 takes it off for from_bullet 0x74620; player_step copies it to m_last_pos)
+vostok::physics::bt_broadphase_proxy	group	0x4	u16	m_collisionFilterGroup (needsCollision 0x75BD8; 40h a hit model)
+vostok::physics::bt_collision_shape	shape_type	0x4	u32	m_shapeType (8 a sphere, 31 a compound; rayTestSingle 0xA02EB)
 vostok::sound::sound_instance_proxy	source	0x8C	u32	patch 94's tag of what it plays (vostok::sound::Source: 0 untagged, 1 the environment, 2 an opponent's): the tail padding of its 144-byte pool record (new_*_sound_instance_proxy: the count x 90h; the constructors 0x5A6B0, 0x5A840, 0x5A9C0 write up to +88h; the sound code 0x55000..0x67000 has no +8Ch access of a proxy, its one +8Ch is world_user::initialize's own 0x56089), cleared at each allocation (sound_proxy.allocated, 0x65484)
 vostok::sound::proxy_slot	proxy	0x0	ptr<vostok::sound::sound_instance_proxy>	an intrusive_ptr<sound_instance_proxy> an emit fills: the new proxy with one reference, or 0 (emit_point_sound 0x65670, new_hud_sound_instance_proxy 0x65100)
 vostok::sound::emit_once_frame	caller	0x4	u32	emit_and_play_once's return address (push ebp / mov ebp,esp at 0x657C0: [ebp+4]): the call it plays for
@@ -679,3 +712,56 @@ survarium::image	zone_sound_once_a	0x298DEE	u8	a code address (u8: a return addr
 survarium::image	zone_sound_once_b	0x298F1E	u8	the same, emit_and_play_once at 0x298F19 (in 0x298EB0)
 survarium::image	zone_sound_once_c	0x299269	u8	the same, emit_and_play_once at 0x299264 (in 0x2991A0)
 vostok::engine::message_frame	lparam	0x1C	u32	message_processor's lParam (0x181E0; by the site's ESP inside it, EBX ESI EDI pushed: mov ecx,[esp+1Ch] 0x183AC, mov esi,[esp+1Ch] 0x183F0); an HKL for WM_INPUTLANGCHANGEREQUEST and WM_INPUTLANGCHANGE
+vostok::buffer_string	end	0x4	ptr<u8>	past the text's last byte (its NUL there)
+survarium::game_start_frame	folder	0x470	obj<vostok::buffer_string>	game::game's local at [esp+470h] by its ESP at 0x1E944E: user_data/streamed_textures' physical path (converted by 0x12780 at 0x1E9449), the buffer_string its delete 0x1E8DA0 gets in EAX
+survarium::image	baker	0xA264E80	obj<vostok::render::camouflage_decal_texture_type_baker_cook>	the camouflage/decal baker, camouflage_decal_texture_type_baker_cook, a static (set up by 0x12CCE0; translate_query's ECX, the look-up's EAX at 0x12D4C5)
+vostok::render::camouflage_decal_texture_type_baker_cook	list_begin	0x230	ptr<vostok::render::baked_texture_data>	its list of saved textures, a buffer_vector<baked_texture_data> (0x12CD39..0x12CDA6 set it up; find_baked_texture 0x131ED0 walks it): begin
+vostok::render::camouflage_decal_texture_type_baker_cook	list_end	0x234	ptr<vostok::render::baked_texture_data>	the list's end (push_back 0x132640 moves it one record on)
+vostok::render::camouflage_decal_texture_type_baker_cook	list_capacity	0x238	ptr<vostok::render::baked_texture_data>	the list's capacity end (1024 records, storage at +23Ch)
+vostok::render::camouflage_decal_texture_type_baker_cook	list_bytes	0x4923C	u32	the bytes of its records' files (push_back adds a record's, remove_unwanted_files 0x131F90 keeps it under 1 GiB)
+vostok::render::baked_texture_data	path_begin	0x0	ptr<u8>	a record of the baker's list (0x131ED0): its path, a buffer_string whose text is the record's own (begin)
+vostok::render::baked_texture_data	path_end	0x4	ptr<u8>	its path's end (at its NUL)
+vostok::render::baked_texture_data	path_capacity	0x8	ptr<u8>	its path's capacity end (the text + 104h)
+vostok::render::baked_texture_data	text	0xC	u8	its path's text, 104h bytes NUL-ended (user_data/streamed_textures/<name>.dds)
+vostok::render::baked_texture_data	separator	0x110	u8	'/' after the text (0x132640's push_back writes it)
+vostok::render::baked_texture_data	crc	0x114	u32	the CRC of the file's bytes (check_loaded_baked_texture's cmp eax,[edi+114h], 0x131C90)
+vostok::render::baked_texture_data	file_bytes	0x118	u32	the file's bytes (the list's +4923Ch sums them)
+vostok::render::baked_texture_data	age	0x11C	u32	its age (the counter 0x2260920's at its push; check_loaded renews it)
+vostok::render::baked_texture_data	loading	0x120	u8	a load of it under way (0x131ED0 sets it for the record it finds)
+vostok::render::baked_texture_data	size	0x124	size	a record's bytes (0x131F5F add esi,124h)
+survarium::image	baker_ages	0x2260920	obj<vostok::render::bake_ages>	the counter of the baker's records' ages (push_back 0x132640: ++ for each record)
+vostok::render::bake_ages	last	0x0	u32	the last age a record took
+survarium::image	patch_revision	0x380864	obj<skhid::revision_byte>	the dword (aligned) around the patch revision byte in .text: patch 7's `mov byte [esp+27h],REVISION` (0x380862), its immediate at 0x380866
+skhid::revision_byte	revision	0x2	u8	the exe's patch revision, the immediate (README's revision table)
+survarium::image	render_resources	0x226047C	obj<vostok::render::resource_manager_slot>	the render's resource manager's global (push dword [0x226047C] / call 0x3BEE00: a texture released, 0x12F178)
+vostok::render::resource_manager_slot	manager	0x0	ptr<vostok::render::resource_manager>	the resource manager a texture is released to (0x3BEE00's stack argument)
+survarium::image	baked_resource_name	0xAC3334	u32	the object whose +8 names a baked texture resource's allocation (mov ecx,0AC3334h / call 0x420789, 0x12F18A and 0x12DDAF; a relocated immediate)
+survarium::image	unmanaged_resource_allocator	0x21E76C8	u32	the allocator set_unmanaged_resource 0xF0080 gets with a baked texture resource (push 21E76C8h, 0x12F1B1 and 0x12DDD6)
+vostok::render::bake_parameters	kind	0x7A0	u32	a bake's camouflage_decal_texture_type_baker_cook_parameters: its texture type, 0 d, 1 n, 2 f, 3 s (0x12DD95 cmp dword [esi+7A0h],3)
+vostok::render::bake_parameters	model	0x790	ptr<vostok::render::render_model_instance>	the model instance whose surface it bakes (translate_query keeps a reference while it runs, EDI; its end 0x12D443 lets it go)
+vostok::render::render_model_instance	references	0xD0	u32	a render_model_instance's references (lock xadd; translate_query's end 0x12D443 lets one go, 0xE0210 at 0)
+vostok::render::render_surface_instance	textures	0x0	obj<vostok::render::texture_slot>	a model instance's surface a bake is for (render_surface_instance): its four textures by type, d n f s (process_compression 0x12F0E0 mov edx,[esp+610h] / mov [edx],ecx; on_baked_texture_loaded 0x12C6D0..0x12C760, +4 a type)
+vostok::render::texture_slot	texture	0x0	ptr<vostok::render::res_texture>	a surface's texture of one type (0 none)
+vostok::render::texture_slot	size	0x4	size	a slot a type
+vostok::render::res_texture	references	0x4	u32	a texture's references, plain adds (0x12C6D0's inc [eax+4] / add [eax+4],-1, then 0x3BEE00 at 0)
+vostok::render::baked_texture_resource	references	0xD0	u32	a baked texture resource's references (lock xadd [eax+0D0h], 0x12DDF4 and 0xF009E)
+vostok::render::bake_translate_stack	parameters	0x1C	ptr<vostok::render::bake_parameters>	translate_query's [esp+1Ch] at 0x12D4C5: the bake's parameters
+vostok::render::bake_translate_stack	path	0x1B8	obj<vostok::buffer_string>	its [esp+1B8h] there: the path looked up (0x131ED0's argument)
+vostok::render::bake_translate_frame	query	0x8	ptr<vostok::resources::query_result_for_cook>	translate_query's [ebp+8]: the query
+vostok::render::process_compression_frame	texture	0x10	ptr<vostok::render::res_texture>	process_compression's [esp+10h] at 0x12F194 (its ESP after the prologue): the texture made, in the surface's slot (0x12F0E0)
+vostok::render::process_compression_frame	query	0x604	ptr<vostok::resources::query_result_for_cook>	its [esp+604h] there: the query
+vostok::render::process_compression_frame	surface	0x610	ptr<vostok::render::render_surface_instance>	its [esp+610h] there: the surface
+vostok::render::process_compression_frame	kind	0x620	u32	its [esp+620h] there: the texture's type
+vostok::render::texture_loaded_frame	parameters	0xC	ptr<vostok::render::bake_parameters>	on_baked_texture_loaded's [ebp+0Ch] (its second argument): the bake's parameters
+vostok::render::texture_loaded_frame	surface	0x10	ptr<vostok::render::render_surface_instance>	its [ebp+10h]: the surface
+vostok::render::texture_loaded_frame	query	0x14	ptr<vostok::resources::query_result_for_cook>	its [ebp+14h]: the query
+vostok::resources::finish_query_frame	query	0x4	ptr<vostok::resources::query_result_for_cook>	finish_query_impl's (0xF0D00, stdcall) first argument at its start: the query
+vostok::resources::finish_query_frame	result	0x8	u32	its second: the result (1 error, 2 postponed, 3 success, 4 requery, 5 out of memory)
+vostok::resources::finish_query_frame	assert_on_fail	0xC	u32	its third: assert on fail
+vostok::resources::finish_query_frame	error	0x10	u32	its fourth: the error type
+vostok::checksum::crc32_value	value	0x0	u32	the CRC the CRC-32 step 0x42050 updates (its EAX points to it)
+vostok::checksum::crc32_bytes	first	0x0	u8	the first of the bytes the step goes over (its EDX)
+vostok::checksum::crc32_step_frame	count	0x4	u32	the step's [esp+4] at its start: how many bytes
+vostok::input::keyboard	events	0x408	obj<vostok::input::key_event>	the events GetDeviceData buffers (execute 0x3B8D41/0x3B9080: DIDEVICEOBJECTDATA, at most 40h, their count to +404h at 0x3B914B), read by execute's loop (0x3B915E) and process (0x3B9B0E)
+vostok::input::key_event	key	0x0	u32	DIDEVICEOBJECTDATA.dwOfs: the key's DirectInput code, the index of the keys' states (execute 0x3B916A, 0x3B91EE; process 0x3B9B20)
+vostok::input::key_event	size	0x14	size	a DIDEVICEOBJECTDATA (GetDeviceData's push 14h 0x3B9081; execute's add ecx,14h 0x3B91F2)

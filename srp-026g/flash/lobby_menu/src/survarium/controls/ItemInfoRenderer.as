@@ -12,6 +12,7 @@ package survarium.controls
    import survarium.constants.Colors;
    import survarium.item.ItemFactory;
    import survarium.item.ItemDetailsView;
+   import survarium.item.WeaponMovement;
    import survarium.player.LocalPlayerProfile;
    import survarium.player.MatchEffects;
    import survarium.core.Icon;
@@ -104,6 +105,7 @@ package survarium.controls
          if(mode == _detailsMode) return;
          itemCompare.refreshComparison();
          updateDetailsText();
+         if(_data is ItemData) fillModifiers();
          layoutDetails();
          dispatchEvent(new Event(Event.RESIZE));
       }
@@ -189,6 +191,8 @@ package survarium.controls
       {
          var allModifiers:Array = this._data.modifiers != null ? this._data.modifiers : [];
          var icons:IconContainer = IconContainer.getInstance("modifiers");
+         // Held Alt: a bonus line a match changes (a weapon's movement under Bear Arms) as a match has it.
+         var effects:MatchEffects = LocalPlayerProfile.heldMatchEffects(_data);
          var i:uint = 0;
          var modifier:Object;
          var modifierIcon:Icon;
@@ -199,7 +203,7 @@ package survarium.controls
             modifierIcon = icons.getIcon(modifier.icon);
             entry = {
                icon:modifierIcon,
-               label:modifier.textValue
+               label:effects == null ? modifier.textValue : WeaponMovement.inMatch(_data,modifier,effects)
             };
             if(modifier.state == ModificationState.DEFECT)
             {
@@ -305,7 +309,6 @@ package survarium.controls
       public function set data(value:Object) : void
       {
          var nameColor:uint = 0;
-         var criticalModifiers:Array = null;
          var iconFrame:uint = 0;
          this._data = value;
          var item:ItemData = this._data as ItemData;
@@ -413,18 +416,7 @@ package survarium.controls
          this.layoutHeader(this.naturalHeaderHeight());
          this.itemCompare.setPrimaryWeapon(item);
          trace("updateIIR::2",this._data.name,this._data.modifiers);
-         var regularModifiers:Array = [];
-         var defaultModifiers:Array = [];
-         criticalModifiers = [];
-         this.sortModifiers(regularModifiers,defaultModifiers,criticalModifiers);
-         InventoryList.logModifiers(criticalModifiers);
-         trace("modifiersList",this.modifiersList,this.defaultModifiersList,this.criticalModifiersList);
-         this.modifiersList.dataProvider = new DataProvider(regularModifiers);
-         this.modifiersList.validateNow();
-         this.defaultModifiersList.dataProvider = new DataProvider(defaultModifiers);
-         this.defaultModifiersList.validateNow();
-         this.criticalModifiersList.dataProvider = new DataProvider(criticalModifiers);
-         this.criticalModifiersList.validateNow();
+         this.fillModifiers();
          this.layoutDetails();
          trace("ItemHint::",item.name,item.descriptor);
          if(item.descriptor == ItemPlace.SHOP)
@@ -440,6 +432,23 @@ package survarium.controls
             this.textFieldStatus.text = LocalizationData.getName("item_hint_label");
          }
 
+      }
+
+      // The card's bonus, built-in and critical lines, as the card's mode shows them (sortModifiers).
+      private function fillModifiers() : void
+      {
+         var regularModifiers:Array = [];
+         var defaultModifiers:Array = [];
+         var criticalModifiers:Array = [];
+         this.sortModifiers(regularModifiers,defaultModifiers,criticalModifiers);
+         InventoryList.logModifiers(criticalModifiers);
+         trace("modifiersList",this.modifiersList,this.defaultModifiersList,this.criticalModifiersList);
+         this.modifiersList.dataProvider = new DataProvider(regularModifiers);
+         this.modifiersList.validateNow();
+         this.defaultModifiersList.dataProvider = new DataProvider(defaultModifiers);
+         this.defaultModifiersList.validateNow();
+         this.criticalModifiersList.dataProvider = new DataProvider(criticalModifiers);
+         this.criticalModifiersList.validateNow();
       }
 
       private function naturalHeaderHeight() : Number
