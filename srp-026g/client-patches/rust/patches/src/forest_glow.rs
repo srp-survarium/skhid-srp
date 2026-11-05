@@ -40,8 +40,9 @@ impl Glow {
     }
 }
 
-/// The effect's resource: asked for at the first frame of a world, kept for
-/// the process once it came. `E` the kept resource.
+/// The effect's resource: asked for at the first frame of a match (a world
+/// with its network client), kept for the process once it came. `E` the
+/// kept resource.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 enum Load<E> {
     Unasked,
@@ -87,13 +88,13 @@ static LOAD: GameCell<Load<KeptEffect>> = GameCell::new(Load::Unasked);
 /// After the simulation's move: each player's glow on or off.
 pub fn on_frame(ctx: &mut Context<'_>) -> Flow<NoExit> {
     let Some(world) = GameWorld::at_after_move(ctx) else { return Flow::Continue };
+    let Some(client) = world.network_client() else { return Flow::Continue };
     let thread = ctx.thread();
     let (load, action) = LOAD.get(thread).step(Event::Frame);
     LOAD.set(thread, load);
     match action {
         Action::Ask => resources::query_effect(thread, EFFECT, crate::vostok::forest_glow_on_loaded_entry()),
         Action::Show(kept) => {
-            let Some(client) = world.network_client() else { return Flow::Continue };
             for place in 0..client.places() {
                 let Some(player) = client.player(place) else { continue };
                 let glow = Glow::of(player.alive(), player.damage_zones(), player.weapon_damage_in_anomaly());

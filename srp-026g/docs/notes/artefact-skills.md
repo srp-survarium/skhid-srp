@@ -99,8 +99,19 @@ preferred-image VAs; `apply_modifier` is the kit-modifier getter 0x2D5AE0.
   so other players see that the player is protected there: every client, enemies included, in
   the third person; the own first-person view optional. Every game knows the kit's modifier
   41 and the zone count, so it is derived where it is drawn: no new network data, no
-  simulation change, no `next` row. Not built yet (a pack of the grey leg effect and its
-  trigger, a small PR after Resistance).
+  simulation change, no `next` row.
+- Built (exe patch 110 `forest_glow`, client_patch.md 3.69; pack artefact-glow@5):
+  - the effect `forest_protection` (gameplay/effects/effect_forest_protection): the Onyx glow's
+    particle effect, `view` 2 (the others' third-person view and the player's own first-person
+    legs), playing fx/artifacts/human_forest_protection: the stock Onyx glow (its emitters, sizes,
+    rates, haze) with every body part but the six leg parts off, the emitters with no leg part
+    left out (the hands' strokes, the chest's rays), the materials' grey copies
+    (fx/artifacts/rays_grey, stroke_scroll_grey, up_grey: the stock material, constant_emissive
+    0.5 grey) and the point light grey (scripts/artefact-glow/make_pack.py);
+  - the trigger, every frame after the move, each player: alive, its damage-zone count above 0
+    and its current kit's modifier 41 factor below 1 (the native getter): the effect played with
+    a held clock (never ends on its own); otherwise the one it plays removed. Nothing kept but the
+    loaded resource; the player's effect list says whether it plays.
 
 ## Artifact Container (534)
 
@@ -194,3 +205,6 @@ preferred-image VAs; `apply_modifier` is the kit-modifier getter 0x2D5AE0.
 ## Status
 
 - Spec written 2026-11-05. Nothing played or released.
+- Forest Protection's glow (2026-11-05): implemented and checked with Unicorn
+  (`check_forest_glow_026g.py`); captured in a local game (private/renders/artefact-tree/);
+  not played by the owner, not released.

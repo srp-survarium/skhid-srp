@@ -175,6 +175,11 @@ def matrix(position, turn=0.0):
 
 
 class Game:
+    def no_query(self, emu, *_):
+        sp = emu.reg_read(UC_X86_REG_ESP)
+        emu.reg_write(UC_X86_REG_EIP, struct.unpack("<I", emu.mem_read(sp, 4))[0])
+        emu.reg_write(UC_X86_REG_ESP, sp + 4)
+
     def __init__(self, data, client_vtable=CLIENT_VTABLE):
         self.emu = emu = Uc(UC_ARCH_X86, UC_MODE_32)
         for _, rva, vsize, raw, rsize, _ in base.Headers(data).sections(data):
@@ -207,6 +212,9 @@ class Game:
         emu.mem_write(STUBS + 0x10, b"\xC2\x04\x00")
         emu.hook_add(UC_HOOK_CODE, self.counter, begin=STUBS, end=STUBS)
         emu.hook_add(UC_HOOK_CODE, self.frequency, begin=STUBS + 0x10, end=STUBS + 0x10)
+        # query_resources (cdecl; 0xE5B60): returns, nothing loads (Forest
+        # Protection's glow, patch 110, asks its effect at a match's first frame)
+        emu.hook_add(UC_HOOK_CODE, self.no_query, begin=0xE5B60, end=0xE5B60)
         # GetCurrentThreadId (stdcall, none): one thread, id 1
         emu.mem_write(THREAD_SLOT, struct.pack("<I", STUBS + 0x80))
         emu.mem_write(STUBS + 0x80, b"\xB8\x01\x00\x00\x00\xC3")

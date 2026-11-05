@@ -410,6 +410,7 @@ FOOT_STEP, FOOT_STEPPED = 0x2A6563, 0x2A6577
 LANDING, LANDED, LANDED_END = 0x1F3B97, 0x1F3BBB, 0x1F3BC2
 OBJECT_SOUND, ZONE_SOUND, WEAPON_SOUND = 0x294A6F, 0x298CF8, 0x297F7E
 AFTER_MOVE = 0x1F7C3C
+QUERY = 0xE5B60                            # query_resources
 CLIENT_VTABLE = 0x9FFB14
 THREAD_SLOT, QPC_SLOT, QPF_SLOT = 0x870118, 0x870158, 0x870150
 CORE_FIRE, PISTOL_FIRE, DOUBLE_FIRE = 0xA04F10, 0xA05274, 0xA0517C
@@ -445,6 +446,17 @@ class SoundGame(MedicalGame):
             self.word(self.options+place*0x45fc+0x45ec,team)
         self.word(KITS+0x45ec,teams[0])           # the local player's profile
         self.emu.mem_write(PLAYER+0x114,b'\0')
+        # query_resources (cdecl: eax the requests, ecx their count; the
+        # function, allocator, user data, parent, flag): recorded, nothing
+        # loads (Forest Protection's glow asks its effect at the first frame)
+        self.queries=[]
+        emu.hook_add(UC_HOOK_CODE,self.query,begin=QUERY,end=QUERY)
+    def query(self,emu,address,size,_):
+        esp=emu.reg_read(UC_X86_REG_ESP);requests=emu.reg_read(UC_X86_REG_EAX)
+        path=bytes(emu.mem_read(self.read(requests),64)).split(b'\0')[0].decode()
+        self.queries.append((path,self.read(requests+4),emu.reg_read(UC_X86_REG_ECX),
+                             bytes(emu.mem_read(self.read(esp+4),0x20))))
+        emu.reg_write(UC_X86_REG_EIP,self.read(esp));emu.reg_write(UC_X86_REG_ESP,esp+4)
     def thread(self,id):self.word(self.thread_var,id)
     def run(self,site,stop,stack=(),xmm1=None,**regs):
         self.emu.reg_write(UC_X86_REG_ESP,DEEP)
