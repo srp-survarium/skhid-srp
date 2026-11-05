@@ -731,6 +731,36 @@ pub extern "C" fn hook_footsteps_on_step_guard(frame: &mut Frame) -> u32 {
     }
 }
 
+// ---- hand_kill (patch 108) ----
+
+/// The entry `hand_kill_on_hit` (0x2e50c7, EDI damage model ESI hit_info; invulnerability applied) calls this with the saved machine.
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_hand_kill_on_hit(frame: &mut Frame) -> u32 {
+    // SAFETY: only the entry `hand_kill_on_hit` calls this, from the game's jump at 0x2e50c7,
+    // on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::new(frame) };
+    match crate::hand_kill::on_hit(&mut ctx) {
+        Flow::Continue => 0,
+        Flow::Skip => 1,
+        Flow::Exit(e) => match e {},
+    }
+}
+
+// ---- medical_skills (patch 94) ----
+
+/// The entry `medical_skills_on_hit` (0x2e50c7, EDI damage model ESI hit_info; invulnerability applied) calls this with the saved machine.
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_medical_skills_on_hit(frame: &mut Frame) -> u32 {
+    // SAFETY: only the entry `medical_skills_on_hit` calls this, from the game's jump at 0x2e50c7,
+    // on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::new(frame) };
+    match crate::medical_skills::on_hit(&mut ctx) {
+        Flow::Continue => 0,
+        Flow::Skip => 1,
+        Flow::Exit(e) => match e {},
+    }
+}
+
 // ---- language (patch 79) ----
 
 /// The entry `language_on_configs_start` (0x1ea210, game::on_configs_loaded's start (push ebp / mov ebp,esp / and esp,-8), before it runs startup.cfg and user.cfg (load_cc_script 0x1EA2C2, 0x1EA301)) calls this with the saved machine.
@@ -1531,21 +1561,6 @@ pub extern "C" fn hook_medical_skills_on_movement(frame: &mut Frame) -> u32 {
     // on the game's thread; `frame` is its saved registers and fxsave area.
     let mut ctx = unsafe { Context::new(frame) };
     match crate::medical_skills::on_movement(&mut ctx) {
-        Flow::Continue => 0,
-        Flow::Skip => 1,
-        Flow::Exit(e) => match e {},
-    }
-}
-
-// ---- medical_skills (patch 94) ----
-
-/// The entry `medical_skills_on_hit` (0x2e50c7, EDI damage model ESI hit_info; invulnerability applied) calls this with the saved machine.
-#[unsafe(no_mangle)]
-pub extern "C" fn hook_medical_skills_on_hit(frame: &mut Frame) -> u32 {
-    // SAFETY: only the entry `medical_skills_on_hit` calls this, from the game's jump at 0x2e50c7,
-    // on the game's thread; `frame` is its saved registers and fxsave area.
-    let mut ctx = unsafe { Context::new(frame) };
-    match crate::medical_skills::on_hit(&mut ctx) {
         Flow::Continue => 0,
         Flow::Skip => 1,
         Flow::Exit(e) => match e {},
@@ -2622,6 +2637,15 @@ pub extern "C" fn hook_weapon_flight_on_view_chain(frame: &mut Frame) -> u32 {
     let flow = hook_camera_sweep_on_view(frame);
     if flow != 0 { return flow; }
     let flow = hook_lobby_scene_on_tick(frame);
+    if flow != 0 { return flow; }
+    0
+}
+
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_hand_kill_on_hit_chain(frame: &mut Frame) -> u32 {
+    let flow = hook_hand_kill_on_hit(frame);
+    if flow != 0 { return flow; }
+    let flow = hook_medical_skills_on_hit(frame);
     if flow != 0 { return flow; }
     0
 }

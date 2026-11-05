@@ -11131,6 +11131,15 @@ impl MedicalHit {
     pub unsafe fn set_owner(self, value: Option<MedicalOwner>) {
         unsafe { self.0.byte_add(0x20).cast::<Option<MedicalOwner>>().write_volatile(value) }
     }
+
+    /// +0x44 (u8): the attacker's place, 0FFh none (hit_info::hit_info's stack+8, 0x32BA52; hit_impl passes it to generate_killed_event, 0x2D9F09)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn attacker(self) -> *mut u8 {
+        unsafe { self.0.byte_add(0x44).cast::<u8>().as_ptr() }
+    }
 }
 
 /// A survarium::medical_owner (fields_026g.tsv): a pointer to one, never 0. Made only here: by a typed field,
