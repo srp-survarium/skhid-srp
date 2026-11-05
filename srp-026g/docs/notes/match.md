@@ -767,9 +767,36 @@ saved worlds unless tagged.
     velocities and animation state; 278000, player 14's state has one 16-byte entry more in a list
     of (u32 time, f32) pairs (times 275900, 276250; LIKELY a timed effect list), and the bullets and
     statistics differ. These are worlds already apart, not the first tick of the split.
-  - Next step: a `wrong` world of a bloc game and the majority's at the first tick of a split (the
-    server asks for the wrong world only at the resync, seconds later), then name the field in
-    the player state's serializer.
+  - The 16-byte entry (player 14, 278000; offsets from the state's start, A the majority's, B
+    the bloc's): at 470 A has `u32 276250, u8 0, u8 4` then four `{u32, f32}` (0x644 0.097,
+    0x67D 0.23, 0x684 0.23, 0x690 0.23), B `u8 5` and five (0x644 0.097, 0x67D 0.23, 0x681
+    0.097, 0x683 0.23, 0x68F 0.23); the same at 736 (B one more entry, `0x681`, 0.127), and so
+    the rest of B's state is 16 bytes later. This is inside the inventory (after the head and the
+    effects, before the recent hits: those, 4 x {time, 0.15} at the end, are equal). Not the
+    weapon's transition helpers (0x32FEE0: 4 f32 + u32) nor its dispersion (0x3312F0: two of them
+    and an f32). Not named.
+  - **Leading candidate (not proven): the kit players that are not current.** Each place has three
+    kit players; a world carries only the current one (and the profile with it). The others keep,
+    in each game, what that game's own past left: their last life's in a game that played it, the
+    constructor's in a game that loaded a world since (§3.20 in client_patch.md). A respawn into
+    another kit brings that player into the hashed world. Patch revision 10's `KIT_STATE_HOOK`
+    resets a weapon's fields at such a spawn, but its own list of what it does not reset is open:
+    a weapon's state machine (+468h), +3F8h, +320h, the object at +278h, the scope, artefacts,
+    medkits (`m_active`, `m_activity_time_ms`, ...), oxygen tanks. A split a few seconds after a
+    load (a death and its respawn are 8 s or less) and a bloc of loaded games fit it; one player
+    of the pair at a time (271700: only player 10) fits it.
+  - **The capture** (`Game::capture_split`, since 2026-11-05): at a game's first report against
+    more than half of the games, its world (kind `split`) and a majority game's (kind `checked`)
+    are asked for at once, aimed at one tick when both upload offsets are known; three splits a
+    match, 20 s apart, one a player. Comparing the two names the first field apart.
+  - **Local repro** (not run): the local server with `SRP_SNAPSHOT_DIR` set; 3 or more clients
+    in a battery match; each player picks a different kit at least once (so every place has a
+    non-current kit with a life behind it); then one client is resynced (the server's
+    `SRP_RESYNC_FORCE`-like trigger does not exist: stall it 2 s, or leave and come back, a late
+    join) and every player dies and respawns into another kit within 10 s. Expected if the
+    candidate holds: the loaded game reports against the others within a respawn of the load
+    ("splits from the majority" in the log), and the `split` world differs from the `checked` one
+    in the respawned player's block.
 - **The input history of 27 entries does not limit a rollback.** A rollback replays from a history
   item: 11 items, 550 ms (MATCH-SYNC-026G.md "The model"). At one input a tick, 27 entries of a
   player are 1.35 s. Only precise inputs (several a tick; 32 in 1.1 s seen, `INPUT_RING`) could put

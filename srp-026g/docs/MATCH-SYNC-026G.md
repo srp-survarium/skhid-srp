@@ -546,7 +546,9 @@ plain reliables (E3, F3..F5).
 
 - `SRP_PACKET_LOG`: the packet capture (Wireshark is not installed).
 - `SRP_SNAPSHOT_DIR`: saved worlds, with their kind (`unreadable` among
-  them; `wrong`: a game's own world as it was found out of step).
+  them; `wrong`: a game's own world as it was found out of step; `split`: a
+  game's world at its first report against the majority, with a majority
+  game's `checked` world asked for at the same moment).
 - `client-patches/check_world_roundtrip_026g.py <survarium.exe> [dumps]`:
   for each saved world, a late joiner and a resynced game load it and save it at
   once under Unicorn, through every patch hook inside the world's load and save.
