@@ -393,7 +393,7 @@ impl MatchRegistry {
         let played = setup.map;
         let map = played.map();
         // The server's bots play modes 2 to 4 (`bots`): none in Research.
-        if map.mode == maps::RuleMode::Research && setup.players.iter().any(|player| player.driven) {
+        if map.mode.rules() == maps::RuleMode::Research && setup.players.iter().any(|player| player.driven) {
             return Err(CreateError::Map(map.id));
         }
         let mut inner = self.inner();
@@ -429,7 +429,7 @@ impl MatchRegistry {
         inner.last_id = match_id;
         let score_weights = setup
             .score_weights
-            .unwrap_or_else(|| static_info_weights(map.mode));
+            .unwrap_or_else(|| static_info_weights(map.mode.rules()));
         let places = setup
             .players
             .iter()
@@ -454,12 +454,10 @@ impl MatchRegistry {
                 .into_iter()
                 .map(|player| player.profile)
                 .collect(),
-            map_id: map.id,
+            map: played,
             match_id: static_id(match_id),
             match_level: setup.match_level,
             score_weights,
-            // The client knows Blackout by this entry on its battery map.
-            blackout: played.mode() == GameMode::Blackout,
         };
         let info =
             StaticInfo::new(&options, Dictionary::shared()).map_err(CreateError::StaticInfo)?;
@@ -506,7 +504,7 @@ impl MatchRegistry {
             "Match {match_id:#x} made: map {} ({}, mode {}), {} players{}{}{}",
             map.id,
             map.name,
-            map.mode,
+            map.mode.lobby_number(),
             options.players.len(),
             if setup.vs_bots {
                 ", one player against the server's bots"
@@ -595,11 +593,10 @@ impl MatchRegistry {
         next.info = StaticInfo::new(
             &MatchOptions {
                 players: next.profiles.clone(),
-                map_id: next.played.map().id,
+                map: next.played,
                 match_id: static_id(match_id),
                 match_level: next.match_level,
                 score_weights: next.score_weights,
-                blackout: next.played.mode() == GameMode::Blackout,
             },
             Dictionary::shared(),
         )

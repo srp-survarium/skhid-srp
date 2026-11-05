@@ -92,7 +92,7 @@ fn entry<'a>(value: &'a mut ConfigValue, key: &str) -> &'a mut ConfigValue {
 fn stock_config(game_mode: RuleMode) -> ConfigValue {
     let stock = super::all()
         .iter()
-        .find(|map| (map.level, map.weather, map.mode) == (1, super::weather::DAY, game_mode))
+        .find(|map| (map.level, map.weather, map.mode) == (1, super::weather::DAY, game_mode.into()))
         .expect("a stock config of the mode");
     let bytes = game_data::shared()
         .file(&format!("{GAME_MODES_DIR}{}", stock.config))

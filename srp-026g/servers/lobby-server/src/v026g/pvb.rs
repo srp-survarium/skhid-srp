@@ -271,7 +271,7 @@ impl Core<'_> {
             .map(|map| PvbMap {
                 map_id: map.id,
                 level: map.level,
-                mode: map.mode.number(),
+                mode: map.mode.lobby_number(),
                 free,
             })
             .collect();
@@ -423,9 +423,9 @@ mod tests {
             assert!(
                 matches!(
                     map.mode,
-                    maps::RuleMode::Batteries | maps::RuleMode::TeamDeathmatch
+                    maps::GameMode::Batteries | maps::GameMode::TeamDeathmatch
                 ),
-                "{} is mode {}",
+                "{} is mode {:?}",
                 map.id,
                 map.mode
             );
@@ -445,14 +445,14 @@ mod tests {
         for map in maps::all() {
             if map.level == 9
                 || map.level == 88
-                || matches!(map.mode, maps::RuleMode::TimedBatteries | maps::RuleMode::Research)
+                || matches!(map.mode, maps::GameMode::TimedBatteries | maps::GameMode::Research)
             {
                 assert!(!MAPS.contains(&map.id), "{} is offered", map.id);
             }
         }
         assert!(MAPS.contains(&DEFAULT_MAP));
         let rudnya = maps::map_mode(DEFAULT_MAP).unwrap();
-        assert_eq!((rudnya.level, rudnya.mode), (1, maps::RuleMode::Batteries));
+        assert_eq!((rudnya.level, rudnya.mode), (1, maps::GameMode::Batteries));
     }
 
     #[test]

@@ -35,7 +35,7 @@ fn one_player_plays_a_whole_match_over_udp() {
         let options = client.model.options.clone().unwrap();
         assert_eq!(client.model.local_index, Some(0));
         assert_eq!(options.players.len(), 1);
-        assert_eq!(options.map_id, MAP_TDM);
+        assert_eq!(options.map.map().id, MAP_TDM);
         assert_eq!(options.match_id, static_id(match_id));
     }
 

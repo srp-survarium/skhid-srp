@@ -1088,9 +1088,7 @@ impl Core<'_> {
             );
             players
         });
-        // A room's card names its map by the lobby's id: a Blackout card's
-        // is one of Blackout's (`maps::MatchMap::of_lobby_id`).
-        let lobby_map = match (pvb, room_map) {
+        let chosen = match (pvb, room_map) {
             (Some(choice), _) => choice.map_id,
             (None, Some(map_id)) => map_id,
             (None, None) => match self.settings.maps.len() {
@@ -1104,7 +1102,7 @@ impl Core<'_> {
             == Some(formed.pool);
         let made = match (
             players.filter(|_| compatible),
-            maps::MatchMap::of_lobby_id(lobby_map),
+            maps::MatchMap::of(chosen),
         ) {
             (Some(players), Some(map)) => self
                 .host
@@ -1121,7 +1119,7 @@ impl Core<'_> {
             (None, _) => {
                 Err("a seated player is unavailable or uses an incompatible client".to_owned())
             }
-            (_, None) => Err(format!("map {lobby_map} cannot be played")),
+            (_, None) => Err(format!("map {chosen} cannot be played")),
         };
         match made {
             Ok((ticket, played)) => {
@@ -1146,7 +1144,7 @@ impl Core<'_> {
                     sides[1].1.join(", ")
                 );
                 if let Some(choice) = pvb {
-                    let mode = played.map().mode;
+                    let mode = played.mode().lobby_number();
                     log::info!(
                         "Match {:#x} vs bots: {} with {} of the server's bots against {}, {} v {} \
                          on map {map_id} (level_{map:02}, mode {mode}); {} bot matches of {} at \
@@ -1533,11 +1531,10 @@ mod tests {
         // reads back from what it read.
         let options = MatchOptions {
             players: bots.iter().map(|bot| bot.profile.clone()).collect(),
-            map_id: maps::playable().next().unwrap().id,
+            map: maps::MatchMap::of(maps::playable().next().unwrap().id).unwrap(),
             match_id: 0x1234,
             match_level: 1,
             score_weights: SCORE_WEIGHTS,
-            blackout: false,
         };
         let info = StaticInfo::new(&options, dictionary).expect("a client can hold it");
         let (index, read) = parse_payload(&info.payload(1).unwrap(), dictionary).unwrap();
@@ -1606,11 +1603,10 @@ mod tests {
         assert!(profile.items.iter().all(|item| item.instance_id != scope));
         let options = MatchOptions {
             players: vec![profile.clone()],
-            map_id: maps::playable().next().unwrap().id,
+            map: maps::MatchMap::of(maps::playable().next().unwrap().id).unwrap(),
             match_id: 0x1234,
             match_level: 1,
             score_weights: SCORE_WEIGHTS,
-            blackout: false,
         };
         let info = StaticInfo::new(&options, dictionary).expect("a client can hold it");
         let (_, read) = parse_payload(&info.payload(0).unwrap(), dictionary).unwrap();
@@ -1711,11 +1707,10 @@ mod tests {
         assert_eq!(weapon_kit::unpack(&as_lobby).map(|logical| logical.len()), Ok(4));
         let options = MatchOptions {
             players: vec![profile.clone()],
-            map_id: maps::playable().next().unwrap().id,
+            map: maps::MatchMap::of(maps::playable().next().unwrap().id).unwrap(),
             match_id: 0x1234,
             match_level: 1,
             score_weights: SCORE_WEIGHTS,
-            blackout: false,
         };
         let info = StaticInfo::new(&options, dictionary).expect("a client can hold it");
         let (_, read) = parse_payload(&info.payload(0).unwrap(), dictionary).unwrap();

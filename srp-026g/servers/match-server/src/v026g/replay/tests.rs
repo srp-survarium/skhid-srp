@@ -91,11 +91,10 @@ fn write_recording(path: &Path, secrets: &[&str]) -> String {
     let map = survarium::v026g::maps::playable().next().unwrap();
     let options = MatchOptions {
         players: vec![profile("a", 0), profile("b", 1)],
-        map_id: map.id,
+        map: survarium::v026g::maps::MatchMap::of(map.id).unwrap(),
         match_id: MATCH | 0x8000_0000,
         match_level: 1,
         score_weights: [0.0; SCORE_EVENTS],
-        blackout: false,
     };
     let info = StaticInfo::new(&options, Dictionary::shared()).unwrap();
     let note =
@@ -104,7 +103,7 @@ fn write_recording(path: &Path, secrets: &[&str]) -> String {
     raw.extend(note(
         0,
         serde_json::json!({
-            "note": "header", "map": map.name, "map_id": map.id, "mode": map.mode.number(),
+            "note": "header", "map": map.name, "map_id": map.id, "mode": map.mode.rules().number(),
             "match_id": format!("{MATCH:#x}"),
             "places": [
                 {"place": 0, "account_id": 1001, "name": "a"},

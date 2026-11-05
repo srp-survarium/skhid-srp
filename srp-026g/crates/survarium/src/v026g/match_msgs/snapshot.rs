@@ -2215,7 +2215,7 @@ mod tests {
         );
         // The map's respawn points (`MapMode::respawn_points`): level_07's
         // in batteries.
-        let map = super::super::super::maps::playable_in(RuleMode::Batteries)
+        let map = super::super::super::maps::playable_in(super::super::super::maps::GameMode::Batteries)
             .find(|map| map.level == 7)
             .unwrap();
         assert_eq!(

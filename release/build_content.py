@@ -322,7 +322,9 @@ def edit_paths(edits, known):
                 paths.update(entry['files'])
             elif 'files' in entry:
                 paths.update(fnmatch.filter(known, entry['files']))
-    return sorted(paths)
+    # What the list's own `copy` makes it then edits (an add_value of a copy): no read.
+    made = {e['to'] + p[len(e['from']):] for e in edits.get('copy', []) for p in fnmatch.filter(known, e['files'])}
+    return sorted(paths - made)
 
 
 def apply_edits(rows, tree, base, base_files, game, work, world):

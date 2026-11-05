@@ -56,11 +56,10 @@ impl MatchHost for TestHost {
                 .iter()
                 .map(|player| player.profile.clone())
                 .collect(),
-            map_id: setup.map.map().id,
+            map: setup.map,
             match_id,
             match_level: setup.match_level,
             score_weights: SCORE_WEIGHTS,
-            blackout: setup.map.mode() == maps::GameMode::Blackout,
         };
         StaticInfo::new(&options, Dictionary::shared()).map_err(|error| error.to_string())?;
         self.open.locked().insert(match_id);
@@ -168,7 +167,7 @@ pub(super) fn sent_to_match(decoded: &[Decoded]) -> Option<(u32, u8)> {
 #[test]
 fn the_maps_played_are_playable_ones_of_the_modes_asked_for() {
     use super::{Settings, map_pool, parse_maps, parse_modes};
-    use maps::RuleMode::{Batteries, TeamDeathmatch, TimedBatteries};
+    use maps::GameMode::{Batteries, TeamDeathmatch, TimedBatteries};
 
     assert_eq!(parse_modes("2, 4"), Some(vec![Batteries, TeamDeathmatch]));
     // 0.21d's modes 0 and 1 are none of 0.26g's; nothing is not a list.
@@ -195,6 +194,10 @@ fn the_maps_played_are_playable_ones_of_the_modes_asked_for() {
     assert_eq!(map_pool(&[Batteries, TimedBatteries, TeamDeathmatch], &[all[0], 11, 45, 250]), [all[0]]);
     assert!(map_pool(&[TeamDeathmatch], &[all[0]]).len() <= 1);
 
+    // The default: every mode, Blackout's maps too (the test data has no
+    // Research maps).
     let settings = Settings::local("127.0.0.1:0");
-    assert_eq!(settings.maps, all);
+    let blackout = map_pool(&[maps::GameMode::Blackout], &[]);
+    assert!(!blackout.is_empty());
+    assert_eq!(settings.maps, [all, blackout].concat());
 }

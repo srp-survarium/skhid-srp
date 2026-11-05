@@ -16,8 +16,8 @@ distinguish teams… this is the new battery mode". The owner's changes of 2026-
   writes "Protective device: chargers"): a tick of the rooms' create window, a card of the vote, a
   row of the room and match lists. Listed with the protective device's kinds: plain, chargers,
   blackout, then team deathmatch and Research (the owner, 2026-10-26).
-- **Always offered:** the rooms' pool
-  holds each plain battery map of the match pool once more as Blackout.
+- **Always offered:** each plain battery map has a Blackout map of its own (below), in the
+  match pool and the rooms' pool as every playable map.
 - **Rules:** the plain battery mode (mode 2, "Protective device": batteries from the spawners,
   no chargers), on its maps; the battery rules unchanged. Not the chargers' mode (3).
 - **Part of the standard pool** (the owner, 2026-10-25): in the create window's defaults, in every
@@ -109,16 +109,26 @@ distinguish teams… this is the new battery mode". The owner's changes of 2026-
 
 ## How
 
-- **Lobby (srp):** Blackout's maps are named by ids of the lobby's own (`maps::blackout_pairs`:
-  ids `maps_dict` does not use, from 255 down), mode 6 in the rooms' pool, cards and rows
-  (`GameMode::lobby_number`). Such a card's id parses into a `maps::MatchMap` of the battery
-  map in `GameMode::Blackout`, which the lobby's and the match server's `MatchSetup` carry: no
-  flag beside the map, and no Blackout on another mode's map.
+- **Its own maps (content):** a mode of its own maps, as every mode is: each playable battery
+  config once more under `gameplay/game_modes/blackout/`, with `mode/srp_variant` "blackout"
+  and the name `st_srp_mode_blackout`, and a `maps_dict` row each (ids 219 to 248; the edit list
+  `scripts/content-edit/blackout-mode-1.json`). The client loads one as the battery map it
+  copies (the same rules and project).
+- **One mode a map (srp):** `maps::GameMode` is read from the config once
+  (`GameMode::of_config`: the rules of `mode.mode` or a variant of srp's, `maps::VARIANTS`; an
+  unknown variant, or one on other rules, stops the server). The lobby, the match server, the
+  results and replays know a Blackout match by its map's id alone (`maps::MatchMap`). In the
+  lobby its maps are mode 6 (`GameMode::lobby_number`) of the rooms' pool, cards and rows, and of
+  `SRP_MATCH_MODES`; with that unset they are in the match pool as every playable map.
+- **A new variant** of a mode's rules: a row of `maps::VARIANTS` (and its `GameMode`), and its
+  configs by an edit list. New rules (a `mode.mode` of their own) still need the exe's support,
+  as Research's did (patch 53).
 - **Rewards (srp):** the match server's result carries `GameMode::Blackout`; the rewards' score
   and each line's pay are times `rewards::BLACKOUT_FACTOR` (2) before rounding; nothing in the match
   computes otherwise (the hud's score is hidden).
-- **Static info:** the flag is tag 2 (one byte, 1) of srp's block after the squads, on battery
-  maps only; a late joiner's static info keeps it.
+- **Static info:** tag 2 (one byte, 1) of srp's block after the squads, written for a Blackout
+  map's options and only for them (`static_info::MatchOptions` carries the `MatchMap`; read back,
+  the entry and the map's mode must agree); a late joiner's static info keeps it.
 - **Exe, patch 65:** the Rust module `patches::blackout` (`client-patches/rust/patches/src/
   blackout.rs`, its hooks `blackout.toml`; `client_patch.md` 3.58, `rust_patches.md`), six
   `lohook`s at sites of its own (`sites_026g.tsv`), no other patch touched:
@@ -182,3 +192,6 @@ distinguish teams… this is the new battery mode". The owner's changes of 2026-
   have it ticked, as the defaults do; no schema step is needed.
 - A game without patch 65 would show the interface: refuse it by revision before a
   release (`SRP_MIN_PATCH_REVISION`).
+- Ships with its content patch: a game without `blackout-mode-1.json`'s maps_dict rows cannot
+  load maps 219 to 248 ("Wrong map config"), and a server on game data without them offers no
+  Blackout. Both are the same release.

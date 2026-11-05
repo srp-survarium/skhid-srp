@@ -1034,7 +1034,7 @@ impl Game {
             "match_id": format!("{:#x}", self.id),
             "map_id": map.id,
             "map": map.name,
-            "mode": map.mode.number(),
+            "mode": map.mode.rules().number(),
             "match_level": self.formed.match_level,
             "growing_roster": self.formed.growing_roster,
             "vs_bots": self.formed.vs_bots,
@@ -1123,7 +1123,7 @@ impl Game {
     }
 
     fn game_mode(&self) -> RuleMode {
-        self.formed.played.map().mode
+        self.formed.played.mode().rules()
     }
 
     /// Whether the place is a test bot's (`SRP_BOT_ACCOUNTS`) or the

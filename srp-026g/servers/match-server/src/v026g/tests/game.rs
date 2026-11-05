@@ -75,7 +75,7 @@ fn a_solo_match_runs_from_the_connect_to_the_time_limit() {
         let options = client.model.options.as_ref().unwrap();
         assert_eq!(options.players.len(), 1);
         assert_eq!(options.players[0].name, "player0");
-        assert_eq!(options.map_id, MAP_BATTERIES);
+        assert_eq!(options.map.map().id, MAP_BATTERIES);
         assert_eq!(options.match_id, static_id(bench.match_id));
         assert_eq!(options.match_level, 3);
     }

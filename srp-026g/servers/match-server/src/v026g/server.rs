@@ -397,7 +397,7 @@ impl Server {
                 formed.match_id,
                 formed.played.map().id,
                 formed.played.map().name,
-                formed.played.map().mode,
+                formed.played.mode().lobby_number(),
                 formed.places.len()
             );
             let mut game = Game::new(formed, self.port, self.settings.clone(), now);

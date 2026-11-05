@@ -1,4 +1,4 @@
-//! The maps and game modes of 0.26g (`docs/notes/modes_maps.md`,
+//! The maps and game modes of 0.26g (`docs/notes/modes.filter(|_| rule_mode.has_batteries()),maps.md`,
 //! `static_info.md` §4).
 //!
 //! A 0.26g match names its map, weather and mode by one byte: an id of
@@ -89,20 +89,46 @@ impl std::fmt::Display for RuleMode {
 /// The rules a Blackout match plays: the plain battery mode (no chargers).
 pub const BLACKOUT_RULES: RuleMode = RuleMode::Batteries;
 
-/// The mode a match is played in: one of the configs' ([`RuleMode`]), or
-/// Blackout ("Protective device: blackout", `docs/notes/blackout.md`),
-/// which no config names: the rules of [`BLACKOUT_RULES`] with the static
-/// info's Blackout entry (exe patch 65) and its own pay.
+/// The mode a match is played in, as its map's config says: its rules
+/// (`mode.mode`, [`RuleMode`]), or a variant of srp's of them
+/// (`mode.srp_variant`, [`VARIANTS`]). A map is one mode: the lobby, the
+/// match server and the results know it by the map's `maps_dict` id.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub enum GameMode {
     Batteries,
     TimedBatteries,
     TeamDeathmatch,
     Research,
+    /// "Protective device: blackout" (`docs/notes/blackout.md`): the rules
+    /// of [`BLACKOUT_RULES`], the static info's Blackout entry (exe patch
+    /// 65) and its own pay.
     Blackout,
 }
 
+/// srp's variants of a config's rules, by `mode.srp_variant`, and the
+/// rules each plays.
+pub const VARIANTS: [(&str, GameMode); 1] = [("blackout", GameMode::Blackout)];
+
 impl GameMode {
+    /// A config's mode: `None` for rules srp does not play; an error for a
+    /// variant srp does not know or one on other rules than its own.
+    pub fn of_config(rules: u8, variant: Option<&str>) -> Result<Option<Self>, String> {
+        let Some(rules) = RuleMode::of_config(rules) else {
+            return Ok(None);
+        };
+        let Some(variant) = variant else {
+            return Ok(Some(rules.into()));
+        };
+        match VARIANTS.iter().find(|(name, _)| *name == variant) {
+            Some(&(_, mode)) if mode.rules() == rules => Ok(Some(mode)),
+            Some(&(_, mode)) => Err(format!(
+                "`srp_variant` {variant} plays mode {}, not {rules}",
+                mode.rules()
+            )),
+            None => Err(format!("`srp_variant` {variant} is none of srp's")),
+        }
+    }
+
     /// The rules it plays.
     pub const fn rules(self) -> RuleMode {
         match self {
@@ -114,17 +140,32 @@ impl GameMode {
         }
     }
 
-    /// Its number in the lobby's rooms (the pool's and the cards' `mode`,
-    /// the room settings' modes left out): the config's, 6 for Blackout.
+    /// Its number in the lobby (the rooms' pool, cards and rows, the room
+    /// settings' modes left out, `SRP_MATCH_MODES`): its rules', 6 for
+    /// Blackout.
     pub const fn lobby_number(self) -> u8 {
         match self {
             Self::Blackout => 6,
             other => other.rules().number(),
         }
     }
+
+    /// The mode of a lobby number.
+    pub fn of_lobby_number(number: u8) -> Option<Self> {
+        Self::ALL.into_iter().find(|mode| mode.lobby_number() == number)
+    }
+
+    /// Every mode.
+    pub const ALL: [Self; 5] = [
+        Self::Batteries,
+        Self::TimedBatteries,
+        Self::TeamDeathmatch,
+        Self::Research,
+        Self::Blackout,
+    ];
 }
 
-/// A config's own mode: the one a match on its map plays but Blackout.
+/// A config's rules with no variant.
 impl From<RuleMode> for GameMode {
     fn from(rules: RuleMode) -> Self {
         match rules {
@@ -136,88 +177,25 @@ impl From<RuleMode> for GameMode {
     }
 }
 
-/// What a match plays: a playable map in its config's mode, or Blackout
-/// on a map of [`BLACKOUT_RULES`]. Made only from the game data
-/// ([`Self::of`], [`Self::of_lobby_id`]), so its map can be played and a
-/// Blackout match is on a battery map.
+/// A map a match can be played on ([`MapMode::is_playable`]): made only
+/// by [`Self::of`], so whatever holds one need not check it again.
 #[derive(Clone, Copy, Debug, PartialEq)]
-pub struct MatchMap {
-    map: &'static MapMode,
-    mode: GameMode,
-}
+pub struct MatchMap(&'static MapMode);
 
 impl MatchMap {
-    /// A `maps_dict` id in its config's mode, if it can be played.
+    /// A `maps_dict` id, if a match can be played on it.
     pub fn of(map_id: u8) -> Option<Self> {
-        let map = map_mode(map_id).filter(|map| map.is_playable())?;
-        Some(Self {
-            map,
-            mode: map.mode.into(),
-        })
-    }
-
-    /// An id of the lobby's: a Blackout map's ([`blackout_played`]) or a
-    /// `maps_dict` id ([`Self::of`]).
-    pub fn of_lobby_id(id: u8) -> Option<Self> {
-        match blackout_played(id) {
-            Some(played) => Some(Self {
-                mode: GameMode::Blackout,
-                ..Self::of(played)?
-            }),
-            None => Self::of(id),
-        }
+        map_mode(map_id).filter(|map| map.is_playable()).map(Self)
     }
 
     /// The map played: what the client loads.
     pub fn map(self) -> &'static MapMode {
-        self.map
+        self.0
     }
 
     pub fn mode(self) -> GameMode {
-        self.mode
+        self.0.mode
     }
-}
-
-/// Blackout's maps, `(the lobby's id, the maps_dict id played)`: one for
-/// each playable map of [`BLACKOUT_RULES`] in `rules_ids`, by id, each named
-/// by an id `maps_dict` (`dictionary_ids`) does not use, from 255 down (0
-/// never). The lobby's rooms pool, cards and rows carry the lobby's id; a
-/// match is made on the id played, in Blackout ([`MatchMap::of_lobby_id`]).
-pub fn blackout_pairs_of(dictionary_ids: &[u8], rules_ids: &[u8]) -> Vec<(u8, u8)> {
-    let mut free = (1..=u8::MAX).rev().filter(|id| !dictionary_ids.contains(id));
-    let mut played: Vec<u8> = rules_ids.to_vec();
-    played.sort_unstable();
-    played.dedup();
-    played
-        .into_iter()
-        .map_while(|id| free.next().map(|lobby| (lobby, id)))
-        .collect()
-}
-
-/// [`blackout_pairs_of`] the game data's dictionary and playable maps.
-pub fn blackout_pairs() -> &'static [(u8, u8)] {
-    static SHARED: std::sync::OnceLock<Vec<(u8, u8)>> = std::sync::OnceLock::new();
-    SHARED.get_or_init(|| {
-        let dictionary: Vec<u8> = Dictionary::shared().maps.iter().map(|map| map.id).collect();
-        let rules: Vec<u8> = playable_in(BLACKOUT_RULES).map(|map| map.id).collect();
-        blackout_pairs_of(&dictionary, &rules)
-    })
-}
-
-/// The `maps_dict` id a lobby's Blackout id plays, if it is one.
-pub fn blackout_played(id: u8) -> Option<u8> {
-    blackout_pairs()
-        .iter()
-        .find(|(lobby, _)| *lobby == id)
-        .map(|&(_, played)| played)
-}
-
-/// The lobby's Blackout id of a `maps_dict` id of [`BLACKOUT_RULES`].
-pub fn blackout_id(map_id: u8) -> Option<u8> {
-    blackout_pairs()
-        .iter()
-        .find(|(_, played)| *played == map_id)
-        .map(|&(lobby, _)| lobby)
 }
 
 /// `match_making_params.map_weather_id`.
@@ -239,8 +217,8 @@ pub struct MapMode {
     pub config: &'static str,
     /// `mode.name`.
     pub name: &'static str,
-    /// `mode.mode`.
-    pub mode: RuleMode,
+    /// `mode.mode` and srp's `mode.srp_variant` ([`GameMode::of_config`]).
+    pub mode: GameMode,
     /// `match_making_params.map_id`: the map, whatever the weather and mode
     /// (`level_0N` is N; the test maps are 88). A number of the data's.
     pub level: u8,
@@ -431,11 +409,15 @@ impl MapMode {
                 .as_f32()
                 .ok_or_else(|| ConfigError("`wait_player_percent` is not a number".into()))?,
         };
-        let Some(game_mode) = RuleMode::of_config(int(Some(mode), "mode")?) else {
+        let variant = Some(text(Some(mode), "srp_variant")?).filter(|variant| !variant.is_empty());
+        let Some(game_mode) =
+            GameMode::of_config(int(Some(mode), "mode")?, variant).map_err(ConfigError)?
+        else {
             return Ok(None);
         };
+        let rule_mode = game_mode.rules();
         let objects = project
-            .map(|project| ProjectObjects::from_project(project, game_mode.has_batteries()))
+            .map(|project| ProjectObjects::from_project(project, rule_mode.has_batteries()))
             .transpose()?
             .unwrap_or(ProjectObjects {
                 respawn_points: 0,
@@ -473,7 +455,7 @@ impl MapMode {
             respawn_points: objects.respawn_points,
             container_teams: objects
                 .container_teams
-                .filter(|_| game_mode.has_batteries()),
+                .filter(|_| rule_mode.has_batteries()),
         };
         if row.is_playable() {
             if row.respawn_points == 0 {
@@ -482,13 +464,13 @@ impl MapMode {
                     row.project
                 )));
             }
-            if row.mode.has_batteries() && row.container_teams.is_none() {
+            if rule_mode.has_batteries() && row.container_teams.is_none() {
                 return Err(ConfigError(format!(
                     "its project {} has no battery containers, and it is mode {}",
-                    row.project, row.mode
+                    row.project, rule_mode
                 )));
             }
-            if row.mode == RuleMode::Research && row.resources_count == 0 {
+            if rule_mode == RuleMode::Research && row.resources_count == 0 {
                 return Err(ConfigError(
                     "it is mode 5 and has no `resources_count`".to_owned(),
                 ));
@@ -563,12 +545,12 @@ pub fn playable() -> impl Iterator<Item = &'static MapMode> {
 }
 
 /// The ids a match of `mode` may use.
-pub fn playable_in(mode: RuleMode) -> impl Iterator<Item = &'static MapMode> {
+pub fn playable_in(mode: GameMode) -> impl Iterator<Item = &'static MapMode> {
     playable().filter(move |map| map.mode == mode)
 }
 
 /// The id for a level, weather and mode, if it can be played.
-pub fn find(level: u8, weather: u8, mode: RuleMode) -> Option<&'static MapMode> {
+pub fn find(level: u8, weather: u8, mode: GameMode) -> Option<&'static MapMode> {
     playable().find(|map| (map.level, map.weather, map.mode) == (level, weather, mode))
 }
 
@@ -577,35 +559,44 @@ mod tests {
     use super::super::dictionary::Dictionary;
     use super::*;
 
-    fn ids(mode: RuleMode) -> Vec<u8> {
+    fn ids(mode: GameMode) -> Vec<u8> {
         playable_in(mode).map(|map| map.id).collect()
     }
 
     #[test]
-    fn blackout_names_its_maps_by_free_ids_from_the_top() {
-        let pairs = blackout_pairs_of(&[1, 61, 63, 254, 252], &[63, 61, 61]);
-        assert_eq!(pairs, vec![(255, 61), (253, 63)]);
-        // No free id left: no more Blackout maps.
-        let all: Vec<u8> = (1..=254).collect();
-        assert_eq!(blackout_pairs_of(&all, &[61, 63]), vec![(255, 61)]);
-        // The data's: every plain battery map has one, none of them a maps_dict id.
-        let pairs = blackout_pairs();
-        assert_eq!(pairs.len(), playable_in(BLACKOUT_RULES).count());
-        for &(lobby, played) in pairs {
-            assert!(map_mode(lobby).is_none());
-            assert_eq!(map_mode(played).map(|map| map.mode), Some(BLACKOUT_RULES));
-            assert_eq!(blackout_played(lobby), Some(played));
-            assert_eq!(blackout_id(played), Some(lobby));
-            // A Blackout card plays its battery map in Blackout, which
-            // plays the battery rules; the map's own id its config's mode.
-            let blackout = MatchMap::of_lobby_id(lobby).unwrap();
-            assert_eq!((blackout.map().id, blackout.mode()), (played, GameMode::Blackout));
-            assert_eq!(GameMode::Blackout.rules(), BLACKOUT_RULES);
-            let plain = MatchMap::of_lobby_id(played).unwrap();
-            assert_eq!((plain.map().id, plain.mode()), (played, GameMode::Batteries));
+    fn blackout_is_a_mode_of_its_own_maps() {
+        // The test data's 24 battery maps, each once more as Blackout
+        // (`scripts/content-edit/blackout-mode-1.json`: ids from 219).
+        let blackout: Vec<&MapMode> = playable_in(GameMode::Blackout).collect();
+        assert_eq!(blackout.len(), playable_in(GameMode::Batteries).count());
+        let ids: Vec<u8> = blackout.iter().map(|map| map.id).collect();
+        assert_eq!(ids, (219..=242).collect::<Vec<u8>>());
+        for map in blackout {
+            let twin = find(map.level, map.weather, GameMode::Batteries).unwrap();
+            assert_eq!(map.config, format!("blackout/{}", twin.config));
+            assert_eq!((map.project, map.rules), (twin.project, twin.rules));
+            assert_eq!(map.mode.rules(), BLACKOUT_RULES);
+            assert_eq!(map.mode.lobby_number(), 6);
+            assert_eq!(map.mode_name_key, "st_srp_mode_blackout");
+            assert_eq!(map.container_teams, twin.container_teams);
+            assert_eq!(MatchMap::of(map.id).unwrap().mode(), GameMode::Blackout);
         }
-        assert_eq!(blackout_played(61), None);
         assert_eq!(MatchMap::of(11), None, "a test map the client cannot load");
+    }
+
+    #[test]
+    fn a_configs_mode_is_its_rules_or_a_variant_of_them() {
+        assert_eq!(GameMode::of_config(4, None), Ok(Some(GameMode::TeamDeathmatch)));
+        assert_eq!(GameMode::of_config(2, Some("blackout")), Ok(Some(GameMode::Blackout)));
+        // Rules srp does not play: no mode, whatever the variant.
+        assert_eq!(GameMode::of_config(0, None), Ok(None));
+        assert_eq!(GameMode::of_config(0, Some("blackout")), Ok(None));
+        // A variant of other rules, or one srp does not know: refused.
+        assert!(GameMode::of_config(4, Some("blackout")).is_err());
+        assert!(GameMode::of_config(2, Some("dark")).is_err());
+        for mode in GameMode::ALL {
+            assert_eq!(GameMode::of_lobby_number(mode.lobby_number()), Some(mode));
+        }
     }
 
     #[test]
@@ -614,10 +605,11 @@ mod tests {
         let mode_2: Vec<u8> = (61..=105).step_by(2).chain([109]).collect();
         let mode_3: Vec<u8> = (62..=106).step_by(2).chain([110]).collect();
         let mode_4: Vec<u8> = (117..=140).collect();
-        assert_eq!(ids(RuleMode::Batteries), mode_2);
-        assert_eq!(ids(RuleMode::TimedBatteries), mode_3);
-        assert_eq!(ids(RuleMode::TeamDeathmatch), mode_4);
-        assert_eq!(playable().count(), 72);
+        assert_eq!(ids(GameMode::Batteries), mode_2);
+        assert_eq!(ids(GameMode::TimedBatteries), mode_3);
+        assert_eq!(ids(GameMode::TeamDeathmatch), mode_4);
+        // And Blackout's 24, one for each battery map.
+        assert_eq!(playable().count(), 72 + 24);
         for bad in [11, 45, 107, 108, 114, 115].into_iter().chain(141..=151) {
             assert!(playable().all(|map| map.id != bad), "{bad}");
         }
@@ -625,9 +617,9 @@ mod tests {
         for missing in [114, 141, 142].into_iter().chain(143..=151) {
             assert!(map_mode(missing).is_none(), "{missing}");
         }
-        // 9 ids a level: 3 weathers × 3 modes.
+        // 12 ids a level: 3 weathers × 3 modes, and Blackout in each weather.
         for level in 1..=8 {
-            assert_eq!(playable().filter(|map| map.level == level).count(), 9);
+            assert_eq!(playable().filter(|map| map.level == level).count(), 12);
         }
     }
 
@@ -650,8 +642,9 @@ mod tests {
             .collect();
         assert_eq!(missing, [114, 141, 142, 143, 144, 145, 146, 147, 148, 149, 150, 151]);
         // A playable id's config name spells its level, weather and mode,
-        // and its project is `level_0X/<weather>_<mode>`.
-        for map in playable() {
+        // and its project is `level_0X/<weather>_<mode>` (Blackout's: its
+        // battery map's, `blackout_is_a_mode_of_its_own_maps`).
+        for map in playable().filter(|map| map.mode != GameMode::Blackout) {
             let weather = match map.weather {
                 weather::DAY => "day",
                 weather::RAIN => "rain",
@@ -659,10 +652,10 @@ mod tests {
                 weather::PRERAIN => "prerain",
                 other => panic!("{} has weather {other}", map.id),
             };
-            let config = format!("level_0{}_{weather}_{}.options", map.level, map.mode);
+            let config = format!("level_0{}_{weather}_{}.options", map.level, map.mode.rules());
             assert_eq!(map.config, config);
             let long = if weather == "evn" { "evening" } else { weather };
-            let project = format!("level_0{}/{long}_{}", map.level, map.mode);
+            let project = format!("level_0{}/{long}_{}", map.level, map.mode.rules());
             assert_eq!(map.project, project);
             assert!(map.project.len() <= 31);
         }
@@ -671,22 +664,22 @@ mod tests {
     #[test]
     fn spot_checks() {
         let map = map_mode(61).unwrap();
-        assert_eq!((map.level, map.weather, map.mode), (1, weather::DAY, RuleMode::Batteries));
+        assert_eq!((map.level, map.weather, map.mode), (1, weather::DAY, GameMode::Batteries));
         assert_eq!(map.project, "level_01/day_2");
         assert_eq!(map.rules, [93, 91, 88, 94]);
         let map = map_mode(109).unwrap();
-        assert_eq!((map.level, map.weather, map.mode), (8, weather::PRERAIN, RuleMode::Batteries));
+        assert_eq!((map.level, map.weather, map.mode), (8, weather::PRERAIN, GameMode::Batteries));
         assert_eq!(map.loading_screen_id, 25);
-        assert_eq!(find(8, weather::PRERAIN, RuleMode::TeamDeathmatch).unwrap().id, 140);
-        assert_eq!(find(1, weather::EVENING, RuleMode::TimedBatteries).unwrap().id, 64);
-        assert_eq!(find(4, weather::RAIN, RuleMode::TeamDeathmatch).unwrap().id, 128);
+        assert_eq!(find(8, weather::PRERAIN, GameMode::TeamDeathmatch).unwrap().id, 140);
+        assert_eq!(find(1, weather::EVENING, GameMode::TimedBatteries).unwrap().id, 64);
+        assert_eq!(find(4, weather::RAIN, GameMode::TeamDeathmatch).unwrap().id, 128);
         // Level 8 has no rain, and its night has no project.
-        assert!(find(8, weather::RAIN, RuleMode::Batteries).is_none());
-        assert!(find(8, weather::NIGHT, RuleMode::Batteries).is_none());
+        assert!(find(8, weather::RAIN, GameMode::Batteries).is_none());
+        assert!(find(8, weather::NIGHT, GameMode::Batteries).is_none());
         assert!(!map_mode(107).unwrap().has_project);
         // Loading screens, static_info.md §4.
-        assert_eq!(find(5, weather::EVENING, RuleMode::Batteries).unwrap().loading_screen_id, 14);
-        assert_eq!(find(7, weather::DAY, RuleMode::TeamDeathmatch).unwrap().loading_screen_id, 18);
+        assert_eq!(find(5, weather::EVENING, GameMode::Batteries).unwrap().loading_screen_id, 14);
+        assert_eq!(find(7, weather::DAY, GameMode::TeamDeathmatch).unwrap().loading_screen_id, 18);
     }
 
     #[test]
@@ -697,7 +690,7 @@ mod tests {
             assert_eq!(map.countdown_time, 20, "{}", map.id);
             assert_eq!(map.wait_player_percent, 0.8, "{}", map.id);
             assert_eq!(map.respawn_time, 8, "{}", map.id);
-            let (rule, icon) = match map.mode {
+            let (rule, icon) = match map.mode.rules() {
                 RuleMode::Batteries => (88, 0),
                 RuleMode::TimedBatteries => (89, 0),
                 _ => (90, 2),
@@ -705,7 +698,7 @@ mod tests {
             assert_eq!(map.rules, [93, 91, rule, 94], "{}", map.id);
             assert_eq!(map.icon, icon, "{}", map.id);
             match map.mode {
-                RuleMode::TeamDeathmatch => {
+                GameMode::TeamDeathmatch => {
                     // 150 tickets on level_05 and level_08, else 100.
                     let tickets = if matches!(map.level, 5 | 8) { 150 } else { 100 };
                     assert_eq!(map.tickets_count, tickets, "{}", map.id);
@@ -716,7 +709,7 @@ mod tests {
                     assert_eq!(map.tickets_count, 0);
                 }
             }
-            if map.mode == RuleMode::TimedBatteries {
+            if map.mode == GameMode::TimedBatteries {
                 assert_eq!((map.vi_spawn_time, map.vi_spawn_variation), (60, 10));
                 let stations = if map.level == 8 { 2 } else { 3 };
                 assert_eq!(map.spawn_points_count, stations, "{}", map.id);
@@ -746,7 +739,7 @@ mod tests {
             let level = usize::from(map.level);
             assert!((1..=9).contains(&level), "{}", map.id);
             let (points, teams) = match map.mode {
-                RuleMode::TeamDeathmatch => (TDM_BEFORE[level - 1], None),
+                GameMode::TeamDeathmatch => (TDM_BEFORE[level - 1], None),
                 _ => (GATHER_BEFORE[level - 1], Some(teams_before(map.level))),
             };
             assert_eq!(map.respawn_points, points, "{} ({})", map.id, map.project);
@@ -756,15 +749,15 @@ mod tests {
 
     #[test]
     fn the_projects_give_what_srp_had_by_hand() {
-        // The test data: 0.26g's maps, levels 1 to 8, all 72.
-        assert_eq!(playable().count(), 72);
+        // The test data: 0.26g's maps, levels 1 to 8, all 72, and Blackout's 24.
+        assert_eq!(playable().count(), 72 + 24);
         as_before(all());
         // Spot checks: level_04's Team Deathmatch has 75 points (39 of
         // layer `tdm`), level_02's 31 (one of team 2).
-        assert_eq!(find(4, weather::RAIN, RuleMode::TeamDeathmatch).unwrap().respawn_points, 75);
-        assert_eq!(find(2, weather::DAY, RuleMode::TeamDeathmatch).unwrap().respawn_points, 31);
+        assert_eq!(find(4, weather::RAIN, GameMode::TeamDeathmatch).unwrap().respawn_points, 75);
+        assert_eq!(find(2, weather::DAY, GameMode::TeamDeathmatch).unwrap().respawn_points, 31);
         assert_eq!(
-            find(7, weather::DAY, RuleMode::TimedBatteries).unwrap().container_teams,
+            find(7, weather::DAY, GameMode::TimedBatteries).unwrap().container_teams,
             Some([0, 1])
         );
         // Without a project, nothing: level_08 at night.
@@ -800,26 +793,26 @@ mod tests {
         assert!(map.is_playable());
         assert_eq!(
             (map.level, map.mode, map.project),
-            (12, RuleMode::TeamDeathmatch, "level_12/day_4")
+            (12, GameMode::TeamDeathmatch, "level_12/day_4")
         );
         // Its respawn points are its project's, and it has no containers.
         assert_eq!(map.respawn_points, 17);
         assert_eq!(map.container_teams, None);
         // It is played in mode 4 only.
-        let playable_in = |game_mode: RuleMode| -> Vec<u8> {
+        let playable_in = |game_mode: GameMode| -> Vec<u8> {
             table
                 .iter()
                 .filter(|map| map.is_playable() && map.mode == game_mode)
                 .map(|map| map.id)
                 .collect()
         };
-        assert!(playable_in(RuleMode::TeamDeathmatch).contains(&added.id));
-        assert_eq!(playable_in(RuleMode::TeamDeathmatch).len(), 25);
-        for game_mode in [RuleMode::Batteries, RuleMode::TimedBatteries] {
+        assert!(playable_in(GameMode::TeamDeathmatch).contains(&added.id));
+        assert_eq!(playable_in(GameMode::TeamDeathmatch).len(), 25);
+        for game_mode in [GameMode::Batteries, GameMode::TimedBatteries] {
             assert!(!playable_in(game_mode).contains(&added.id));
             assert_eq!(playable_in(game_mode), ids(game_mode));
         }
-        assert_eq!(table.iter().filter(|map| map.is_playable()).count(), 73);
+        assert_eq!(table.iter().filter(|map| map.is_playable()).count(), 73 + 24);
     }
 
     #[test]
@@ -832,12 +825,12 @@ mod tests {
         assert!(map.is_playable());
         assert_eq!(
             (map.level, map.mode, map.project),
-            (12, RuleMode::Research, "level_12/day_5")
+            (12, GameMode::Research, "level_12/day_5")
         );
         assert_eq!(map.rules, [93, 91, 480, 94]);
         assert_eq!((map.respawn_points, map.container_teams), (14, None));
         assert_eq!((map.resources_count, map.tickets_count), (100, 0));
-        assert!(!map.mode.has_batteries());
+        assert!(!map.mode.rules().has_batteries());
         // The stock maps are as they were.
         assert!(
             table
@@ -979,7 +972,7 @@ mod tests {
                 map.id,
                 map.level,
                 map.weather,
-                map.mode,
+                map.mode.lobby_number(),
                 map.project,
                 map.respawn_points,
                 map.container_teams
@@ -994,7 +987,7 @@ mod tests {
         assert_eq!(london.len(), 3);
         for map in london {
             assert_eq!(map.respawn_points, 20, "{}", map.id);
-            if map.mode != RuleMode::TeamDeathmatch {
+            if map.mode != GameMode::TeamDeathmatch {
                 assert_eq!(map.container_teams, Some([1, 0]), "{}", map.id);
             }
             let names = |language| {

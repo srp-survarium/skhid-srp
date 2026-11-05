@@ -139,7 +139,7 @@ pub use patch_check::{check_min_patch_revision, min_patch_revision_from_env};
 pub use play::{LiveView, MatchHost, MatchPlayer, MatchSetup, MatchTicket, match_profile};
 
 /// The modes played when `SRP_MATCH_MODES` is unset: all the client has.
-const DEFAULT_MODES: [maps::RuleMode; maps::RuleMode::ALL.len()] = maps::RuleMode::ALL;
+const DEFAULT_MODES: [maps::GameMode; maps::GameMode::ALL.len()] = maps::GameMode::ALL;
 /// A silent client keeps its link this long: what the store calls a game
 /// that is gone (`session::GONE_AFTER`). The client itself gives up after
 /// 5 s without a datagram (0x26F0ED).
@@ -340,15 +340,16 @@ fn parse_weight(value: &str) -> Option<f64> {
         .filter(|weight| weight.is_finite() && (0.0..=1000.0).contains(weight))
 }
 
-/// `SRP_MATCH_MODES`: modes of 2 to 5, at least one.
-fn parse_modes(value: &str) -> Option<Vec<maps::RuleMode>> {
-    let modes: Option<Vec<maps::RuleMode>> = value
+/// `SRP_MATCH_MODES`: modes by their lobby numbers, 2 to 6 (6 Blackout;
+/// `maps::GameMode::lobby_number`), at least one.
+fn parse_modes(value: &str) -> Option<Vec<maps::GameMode>> {
+    let modes: Option<Vec<maps::GameMode>> = value
         .split(',')
         .map(|mode| {
             mode.trim()
                 .parse::<u8>()
                 .ok()
-                .and_then(maps::RuleMode::of_config)
+                .and_then(maps::GameMode::of_lobby_number)
         })
         .collect();
     modes.filter(|modes| !modes.is_empty())
@@ -365,7 +366,7 @@ fn parse_maps(value: &str) -> Option<Vec<u8>> {
 
 /// The playable ids of `modes`; with `only` not empty, those of them it
 /// names.
-fn map_pool(modes: &[maps::RuleMode], only: &[u8]) -> Vec<u8> {
+fn map_pool(modes: &[maps::GameMode], only: &[u8]) -> Vec<u8> {
     maps::playable()
         .filter(|map| modes.contains(&map.mode))
         .filter(|map| only.is_empty() || only.contains(&map.id))

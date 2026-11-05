@@ -5,7 +5,7 @@ use crate::v026g::{
     parse_snapshot_dir,
 };
 
-use super::{MAP_BATTERIES, MAP_TDM, session_of, setup};
+use super::{MAP_BATTERIES, session_of, setup};
 use survarium::v026g::dictionary::Dictionary;
 use survarium::v026g::maps::{self, GameMode, MatchMap};
 use survarium::v026g::match_msgs::static_info::parse_options;
@@ -128,11 +128,10 @@ fn what_the_clients_could_not_hold_is_refused_when_the_match_is_made() {
 fn blackout_is_the_static_info_entry_on_its_battery_map() {
     // maps_dict 61: Rudnya's batteries (mode 2); 62: its chargers (mode 3).
     let registry = MatchRegistry::new("127.0.0.1", 1236);
-    let blackout = MatchMap::of_lobby_id(maps::blackout_id(MAP_BATTERIES).unwrap()).unwrap();
+    // Rudnya's Blackout map: its battery map's twin (`blackout-mode-1.json`).
+    let twin = maps::find(1, maps::weather::DAY, GameMode::Blackout).unwrap();
+    let blackout = MatchMap::of(twin.id).unwrap();
     assert_eq!(blackout.mode(), GameMode::Blackout);
-    // Blackout has only the plain battery maps.
-    assert_eq!(maps::blackout_id(62), None);
-    assert_eq!(maps::blackout_id(MAP_TDM), None);
     for (played, expected) in [
         (blackout, true),
         (MatchMap::of(MAP_BATTERIES).unwrap(), false),
@@ -144,8 +143,9 @@ fn blackout_is_the_static_info_entry_on_its_battery_map() {
         let formed = registry.formed(ticket.match_id).unwrap();
         assert_eq!(formed.played, played);
         let options = parse_options(formed.info.options(), Dictionary::shared()).unwrap();
-        assert_eq!(options.map_id, played.map().id);
-        assert_eq!(options.blackout, expected, "{played:?}");
+        assert_eq!(options.map, played);
+        let entry = formed.info.options().ends_with(b"SRPX\x02\x01\x01");
+        assert_eq!(entry, expected, "{played:?}");
         registry.end(ticket.match_id);
     }
 }

@@ -121,7 +121,7 @@ impl Sim {
     }
 
     fn game_mode(&self) -> RuleMode {
-        maps::map_mode(self.map_id).map_or(RuleMode::Batteries, |map| map.mode)
+        maps::map_mode(self.map_id).map_or(RuleMode::Batteries, |map| map.mode.rules())
     }
 
     fn batteries(&self) -> usize {

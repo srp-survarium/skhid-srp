@@ -134,7 +134,7 @@ impl Walkers {
         Some(Self {
             bots: Bots::new(
                 id,
-                formed.played.map().mode,
+                formed.played.mode().rules(),
                 formed.played.map().level,
                 &teams,
                 &driven,
