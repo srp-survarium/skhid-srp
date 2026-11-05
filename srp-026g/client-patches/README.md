@@ -123,6 +123,7 @@ release's. The "Result" row is the build of the revision named in it.
 | `rust/patches/src/scaleform_capture.rs`, `src/scaleform_capture.toml`, `src/vostok/drawable_image.rs`, `check_scaleform_capture_026g.py` | Patch 93: the render thread's walk of a Scaleform DrawableImageContext's command queues (OnNextCapture 0x572660) never reaches a queue being destroyed (the rev-40 crash at a match's end): two lohooks; its check runs OnNextCapture and the queue's destructor on made-up contexts, the original beside (needs Unicorn) |
 | `rust/patches/src/input_check.rs`, `src/input_check.toml`, `src/vostok/input.rs`, `check_input_check_026g.py` | Patch 99: a world takes no player input whose rotation no client makes (a NaN, an infinity, 1024 radians or more), as 0.27d's change_input refuses one: a lohook at change_input<player_input>'s start (0x1FAB50); its check runs that start on made-up inputs, the original beside (needs Unicorn) |
 | `check_mouse_buttons_026g.py` | Patch 102 (`MOUSE_BUTTONS` in `patch_026g.py`): a side mouse button (mouse4..mouse8) is no left click in the lobby, login, options and match menus; its check runs the five handlers in both exes (needs Unicorn) |
+| `check_mouse_pitch_026g.py` | Patch 110 (`MOUSE_PITCH` in `patch_026g.py`): the mouse look's pitch is a 4:3 window's at every window; its check runs on_mouse_move in both exes at 4:3 to 32:9 (needs Unicorn) |
 | `rust/patches/src/footsteps.rs`, `src/footsteps.toml`, `src/vostok/footstep.rs`, `check_footsteps_026g.py` | Patch 101: a footstep that only a re-simulation makes (another player's late input) is heard instead of dropped; one lohook in on_player_sound_event's time test; its check runs the handler in both exes (needs Unicorn) |
 | `rust/patches/src/keyboard_layout.rs`, `src/keyboard_layout.toml`, `src/vostok/keyboard_layout.rs`, `check_keyboard_layout_026g.py` | Patch 107: chat text follows the keyboard layout the window was last told of (under Wine the engine's logic thread never got it); three lohooks, in message_processor's two layout messages and after translate_text's GetKeyboardLayout(0); its check runs both functions in both exes (needs Unicorn) |
 | `audio_device_026g.c`, `audio_device_026g.h`, `audio_device_engine_026g.c`, `test_audio_device_026g.c` | Patch 100: the sound follows the audio output device (XAudio2's engine and voices proxied, made again on the default device after a lost device or a new default); the test runs the core on i686 under the sanitizers against a made-up XAudio2 that keeps its rules (no Unicorn) |
@@ -2849,7 +2850,8 @@ join's state page +E60h):
   the hud's pointer off the screen during it, back where it began at the
   release). A drag's move turns the yaw by x and the pitch by y at the
   player's look's step (the option sensitivity, 0xA74AEC, x 0.1 x pi/180; the
-  pitch also x height / width of the render window x 0.9549, and inverted by
+  pitch also x 0.75, a 4:3 window's height over its width at every window as
+  the player's look since patch 110, x 0.9549, and inverted by
   mouse_invertion, 0x1F1D9D3), within 70 degrees to either side, 60 up and
   40 down (relative to the head, below), and is taken (1):
   neither the cursor's nor the player's handler's. The wheel in a drag is
@@ -2897,7 +2899,7 @@ section 3.43.
 Checked: `selftest_026g.py` check 46 (the site, the view's update and its
 step, the mode a death leaves, the input a dead player does not send, the
 handler's world, game, client and local player, the window's size and the
-look's step as the game has them; the code's exits, calls, absolute
+look's step as the game has them (patch 110's 0.75 in the code); the code's exits, calls, absolute
 operands and returns) and the layout checks of check 15 (ten sections,
 `.srpc` last); check 32 sees the mouse move's jump go to death_look.
 `check_death_camera_026g.py` (Unicorn) runs mouse moves through the input
@@ -4444,3 +4446,20 @@ until one is recorded. X11: unchanged. Wayland: Alt+Shift switches the chat. Win
 outside a text input carries over to the next chat. Nothing a match computes. The rules:
 `../docs/notes/keyboard_layout.md`; the addresses: `client_patch.md` 3.68. Checked with
 `check_keyboard_layout_026g.py`; not run in a game.
+
+## The mouse look's pitch at every window (patch 110, unreleased)
+
+Players' report (Discord suggestions, 2026-11-03): the mouse is right only at 4:3; at 16:9 the
+look up and down is slower than the turn. `player_input_handler::on_mouse_move` (0x240200) turns
+the yaw by x × π/180 × s radians and the look pitch by y × π/180 × s × h/w × 3/π units (h/w the
+render window's), a unit 60° of view up and 67.5° down: the pitch turned 0.75 of the yaw at 4:3
+(0.84 down), 0.5625 at 16:9, 0.42 at 21:9. 4:3 was not 1:1 either; it is the aspect the game was
+tuned at. 0.69d0 keeps the same formula.
+
+**The patch** (`MOUSE_PITCH`, 8 bytes at 0x2402E9): the window's h/w is the 0.75 of .rdata
+(0xA2D728). Every window turns as a 4:3 one did, bit for bit; the aimed look and the warmup's
+camera go through the same lines. Patch 46's death camera, which copied the look's step, takes the
+same 0.75. No setting. The input carries the turn, not the mouse's counts: nothing a match
+computes. The rules: `../docs/notes/mouse-pitch.md`; the addresses: `client_patch.md` 3.69.
+Checked with `check_mouse_pitch_026g.py`, `check_death_camera_026g.py` and selftest checks 110
+and 46; not run in a game.

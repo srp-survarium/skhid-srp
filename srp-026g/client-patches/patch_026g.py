@@ -544,6 +544,11 @@ Patches:
   sweeps a sphere of 0.04 m (GRENADE_CCD, 0x303A13), not 0.01 m, inside the
   grenade's 0.05 m capsule, so the capsule stops at the surface it hits
   instead of 4 cm into it. A simulation change;
+- the mouse look's pitch is a 4:3 window's at every window (patch 110, with
+  the late join; docs/notes/mouse-pitch.md): on_mouse_move's height over
+  width (MOUSE_PITCH, 0x2402E9) is the 0.75 of .rdata, so the pitch's step
+  to the yaw's is the same at 16:9 and 21:9 as at 4:3; the death camera's
+  (patch 46) too. The input carries the turn: nothing a match computes;
 - the baked camouflage and decal textures are kept from game to game, and
   a texture asked for again while its bake or load is under way is made
   once (patch 70, with the late join; docs/notes/baked-textures.md).
@@ -1500,6 +1505,25 @@ MOUSE_BUTTONS = (
     (0x26D059, bytes.fromhex("750e"), bytes.fromhex("7521")),   # -> 0x26D07C mov al,1 / pop esi
     (0x28DCEE, bytes.fromhex("750e"), bytes.fromhex("7520")),   # -> 0x28DD10 mov al,1 / pop ecx
 )
+
+# The mouse look's pitch at every window (patch 110, client_patch.md section
+# 3.69, ../docs/notes/mouse-pitch.md). player_input_handler::on_mouse_move
+# (0x240200) turns the yaw by x * pi/180 * s radians (s = the handler's
+# +94h x the option sensitivity 0xA74AEC x 0.1) and the look pitch by
+# y * pi/180 * s * h/w * 3/pi (0xA2DAC4) units, h/w the render window's
+# height over its width (0x2402B0..0x2402ED: vtable+1Ch of game+5348h, as
+# floats); a unit is 60 degrees of view up and 67.5 down (the look clip,
+# abi.tsv 0x2FBF90). So the pitch turned 0.75 of the yaw (up) at 4:3,
+# 0.5625 at 16:9, 0.42 at 21:9. `movss xmm1,[edi]` / `divss xmm1,[eax]`
+# (h, then / w) becomes `movss xmm1,[0A2D728h]`, the 0.75 of .rdata
+# (read-only, twelve readers): every window turns as a 4:3 one did, bit for
+# bit. The two size calls stay (getters; their result is not read). Neither
+# replaced instruction held an address; the new one's has no base
+# relocation (the exe is never rebased: no DYNAMICBASE). The warmup's look
+# (patch 31) goes through the same lines. Nothing a match computes: the
+# input carries the turn, not the mouse's counts.
+MOUSE_PITCH = (0x2402E9, bytes.fromhex("f30f100f" "f30f5e08"), bytes.fromhex("f30f100d28d7a200"))
+MOUSE_PITCH_ASPECT = 0xA2D728                 # the 0.75 of .rdata: a 4:3 window's height over its width
 
 # "Watch replay" (patch revision 14, client_patch.md section 3.27). The
 # lobby movie's ExternalInterface call video_tutorial_link_clicked is the
@@ -3479,6 +3503,8 @@ def build_image(original, mode, code=None, server=None, late_join=None, revision
         for site in MOUSE_BUTTONS:
             patch(data, *site)
             sites.append((site[0], site[0] + len(site[1])))
+        patch(data, *MOUSE_PITCH)
+        sites.append((MOUSE_PITCH[0], MOUSE_PITCH[0] + len(MOUSE_PITCH[1])))
         for site in ARTEFACTS_SIZES:
             patch(data, *site)
             sites.append((site[0], site[0] + len(site[1])))

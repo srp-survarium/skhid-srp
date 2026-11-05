@@ -59,7 +59,6 @@ ORG CAVE
 %define POINTER     -0x16C         ; handler: the hud's pointer, x and y (game world+8Ch, +90h)
 %define CLIENT      0x53AC         ; game: the network client
 %define LOCAL        4             ; network client: the local player
-%define RENDER      0x5348         ; game: its vtable+1Ch gives the window's size (w, h), 0x2402BE
 %define ALIVE       0x33C          ; player: m_is_alive
 %define MODE        0x358          ; player's input handler: its mode, 0 the first person
 %define VIEW_WORLD  0x334          ; player's input handler: the game world
@@ -73,6 +72,7 @@ ORG CAVE
 %define AWAY        -128           ; the hud's pointer in a drag
 %define SENSITIVITY 0xA74AEC       ; the option sensitivity, a float (0x24026C)
 %define INVERT      0x1F1D9D3      ; the option mouse_invertion, a byte (0x240226)
+%define FOUR_THREE  0xA2D728       ; 0.75 (.rdata), the look's height over width (MOUSE_PITCH)
 %define DEATH_VIEW_OFFSET 0x200   ; death_view's place in the section
 %define UPDATE      0x2422B0       ; the view's update (the handler, the transform; ret 8)
 %define THIRD       0x2422DE       ; its step for the modes but 0 and 4
@@ -147,15 +147,7 @@ death_look:
     mov eax, [ecx]
     call [eax+0x30]                 ; the hud's pointer off the screen
 .turn:
-    mov ecx, [esi+GAME]             ; the window's height over its width
-    mov ecx, [ecx+RENDER]
-    sub esp, 8
-    push esp
-    mov eax, [ecx]
-    call [eax+0x1C]                 ; w, h into the 8 bytes (`ret 4`, 0x283E1C)
-    movss xmm1, [esp+4]
-    divss xmm1, [esp]
-    add esp, 8
+    movss xmm1, [FOUR_THREE]        ; a 4:3 window's height over its width, as the look's (patch 110)
     movss xmm0, [SENSITIVITY]       ; a unit's turn, as the player's look (0x24026C..0x240353)
     mulss xmm0, [step]
     mulss xmm1, xmm0
@@ -176,7 +168,7 @@ death_look:
     mov eax, [edi+8]
     test eax, eax
     jz .taken
-    cvtsi2ss xmm2, eax              ; pitch -= y * step * h / w * 0.955 (inverted: +)
+    cvtsi2ss xmm2, eax              ; pitch -= y * step * 0.75 * 0.955 (inverted: +)
     mulss xmm2, xmm1
     movss xmm3, [STATE+S_PITCH]
     subss xmm3, xmm2

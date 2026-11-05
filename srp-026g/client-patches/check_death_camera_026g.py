@@ -10,7 +10,8 @@ world's loop, the game world's on_mouse_move with the build's death_look,
 patch 31's warmup_look and the original; stubs for the hud's pointer, the
 system's cursor and the player's input handler), with a game (+53ACh its
 network client, whose +4 is the local player; +5348h the render window,
-whose vtable+1Ch gives 1920 x 1080). The view's update runs as machine
+whose vtable+1Ch gives 1920 x 1080, which the build never asks since patch
+110). The view's update runs as machine
 code (0x2422B0 with the game's own rotations and products) on a made-up
 player, input handler and eye transform. The rules:
 ../docs/notes/death-camera.md.
@@ -21,8 +22,8 @@ button and the wheel without a button are the cursor's, as in the
 original; a left press that moves little is the cursor's (a click); past
 that, or with the lobby's buttons at once, a drag takes the hud's pointer
 off the screen, gives the player's handler nothing, and turns a yaw and a
-pitch by the player's look's step (the mouse's sensitivity, the window's
-height over its width, an inverted mouse), within 70 degrees to either side,
+pitch by the player's look's step (the mouse's sensitivity, a 4:3 window's
+height over its width at every window, an inverted mouse), within 70 degrees to either side,
 60 up and 40 down; the wheel in a drag changes nothing; the first move after it puts the cursor
 back where the drag began. A live player, a dead one in another mode (the
 warmup's before the start: patch 31's drag; a spectator's), the kits
@@ -115,7 +116,7 @@ def expected_turn(turn, x, y, invert=0, sensitivity=1.0):
     """The build's step, as float32 at each operation."""
     yaw, pitch = turn
     k = f32(f32(sensitivity) * f32(math.pi / 180 * 0.1))
-    v = f32(f32(f32(H) / f32(W)) * k)
+    v = f32(f32(0.75) * k)                    # a 4:3 window's height over its width (patch 110)
     v = f32(v * f32(0.95492965))
     if invert:
         v = -v
@@ -143,7 +144,6 @@ def look_cases():
     def player(x, y, z=0):
         return [("player", x, y, z)]
     away = [("pointer", -128, -128, 0)]
-    size = [("window size",)]
     dead = dict(kits=1, mode=0, cursor=1, alive=0)
     yield "the death screen: moves", dead, [
         (0, 5, 0, 0, cursor(305, 200), cursor(305, 200), False),
@@ -156,31 +156,31 @@ def look_cases():
         (LEFT, 1, -2, 0, cursor(303, 199), cursor(303, 199), False),
         (0, 0, 1, 0, cursor(303, 200), cursor(303, 200), False)]
     yield "the death screen: a right drag", dead, [
-        (RIGHT, 3, 0, 0, cursor(303, 200), away + size, True),
-        (RIGHT, 1, 1, 0, cursor(304, 201), size, True),
-        (RIGHT, -40, 25, 0, cursor(264, 226), size, True),
-        (RIGHT, 0, 0, 120, cursor(264, 226), size, True),       # the wheel in a drag: nothing
+        (RIGHT, 3, 0, 0, cursor(303, 200), away, True),
+        (RIGHT, 1, 1, 0, cursor(304, 201), [], True),
+        (RIGHT, -40, 25, 0, cursor(264, 226), [], True),
+        (RIGHT, 0, 0, 120, cursor(264, 226), [], True),       # the wheel in a drag: nothing
         (0, 1, 0, 0, cursor(265, 226), [("cursor back", 300, 200)] + cursor(300, 200), False),
         (0, 2, 2, 0, cursor(267, 228), cursor(302, 202), False)]
     yield "the death screen: a left drag", dead, [
         (0, 10, 0, 0, cursor(310, 200), cursor(310, 200), False),
         (LEFT, 5, 0, 0, cursor(315, 200), cursor(315, 200), False),
-        (LEFT, 6, 0, 0, cursor(321, 200), away + size, True),
-        (LEFT, 10, -4, 0, cursor(331, 196), size, True),
+        (LEFT, 6, 0, 0, cursor(321, 200), away, True),
+        (LEFT, 10, -4, 0, cursor(331, 196), [], True),
         (0, 1, 0, 0, cursor(332, 196), [("cursor back", 315, 200)] + cursor(315, 200), False)]
     yield "the death screen: an inverted mouse", dict(dead, invert=1), [
-        (RIGHT, 7, -9, 0, cursor(307, 191), away + size, True),
-        (RIGHT, -2, 30, 0, cursor(305, 221), size, True)]
+        (RIGHT, 7, -9, 0, cursor(307, 191), away, True),
+        (RIGHT, -2, 30, 0, cursor(305, 221), [], True)]
     yield "the death screen: a slow mouse", dict(dead, sensitivity=0.25), [
-        (RIGHT, 12, 6, 0, cursor(312, 206), away + size, True)]
+        (RIGHT, 12, 6, 0, cursor(312, 206), away, True)]
     yield "the death screen: the pitch's limit", dead, [
-        (RIGHT, 0, -3000, 0, cursor(300, -2800), away + size, True),
-        (RIGHT, 0, -500, 0, cursor(300, -3300), size, True),
-        (RIGHT, 0, 9000, 0, cursor(300, 5700), size, True)]
+        (RIGHT, 0, -3000, 0, cursor(300, -2800), away, True),
+        (RIGHT, 0, -500, 0, cursor(300, -3300), [], True),
+        (RIGHT, 0, 9000, 0, cursor(300, 5700), [], True)]
     yield "the death screen: the yaw's limit", dead, [
-        (RIGHT, 4000, 0, 0, cursor(4300, 200), away + size, True),
-        (RIGHT, -9000, 0, 0, cursor(-4700, 200), size, True),
-        (RIGHT, 300, 0, 0, cursor(-4400, 200), size, True)]
+        (RIGHT, 4000, 0, 0, cursor(4300, 200), away, True),
+        (RIGHT, -9000, 0, 0, cursor(-4700, 200), [], True),
+        (RIGHT, 300, 0, 0, cursor(-4400, 200), [], True)]
     for name, keywords in (("a live player (the start's frame)", dict(dead, alive=1)),
                            ("a spectator (the input off)", dict(dead, mode=4)),
                            ("third person", dict(dead, mode=2)),

@@ -976,7 +976,7 @@ va	name	source	ret_cleanup	result
 0x0023ff50	survarium::player_input_handler::on_mouse_key_action	manual	12	AL: zero at each local return; higher EAX bits unspecified
 0x00240050	survarium::player_input_handler::process_toggle_action	manual	4	
 0x00240170	survarium::player_input_handler::process_dependent_actions	manual	12	
-0x00240200	survarium::player_input_handler::on_mouse_move	manual	16	none; yaw delta -= x/180*pi (0xA2D7E8, 0x9CC970) * the horizontal sensitivity (radians); pitch delta -= y/180*pi * the same * window H/W * 3/pi (0xA2DAC4, as 0.10b's 0.95492965): a look-pitch unit is pi/3 rad (60 deg) of mouse turn
+0x00240200	survarium::player_input_handler::on_mouse_move	manual	16	AL 0; mode +358h 4 (spectator) turns nothing; else s = +94h (the fov factor) * option sensitivity 0xA74AEC * 0.1 (journal playback, journal_usage 2: +94h * 0xA9F638 / 0xA9F63C), yaw +338h (half) -= x/180*pi (0xA2D7E8, 0x9CC970) * s radians; pitch +33Ah (half) -= y/180*pi * s * h/w * invert (+-1, mouse_invertion 0x1F1D9D3) * 3/pi (0xA2DAC4, as 0.10b's 0.95492965) look-pitch units, h/w the render window's (game+5348h vtable+1Ch, floats, 0x2402B0); +348h -= z * 0.001. A unit is 60 deg of view up, 67.5 down (0x2FBF90): pitch rad / yaw rad = h/w up, 1.125 h/w down (0.75 at 4:3, 0.5625 at 16:9); patch 110 makes h/w 0.75 (0xA2D728) at every window
 0x00241090	survarium::player_input_handler::on_before_processing	manual	4	
 0x00241170	survarium::player_input_handler::on_after_processing	manual	4	
 0x00241200	survarium::player_input_handler::alt_is_held	manual	0	EAX: 1 when the left or the right Alt key is down
@@ -2341,3 +2341,5 @@ va	name	source	ret_cleanup	result
 0x003b92d0	vostok::input::platform::keyboard::translate_text	manual	8	AL: 1 a character written to entry ESP+8's WCHAR (or a dead key kept at ECX+90Ch), 0 none
 0x000181e0	message_processor	manual	16	EAX: the message's result (most cases tail-jump to DefWindowProc, [0AEFF1Ch])
 0x001ee7c0	survarium::game::is_text_input_focused	manual	0	AL: 1 when game+586Ch is not 0 (a text input has the keyboard)
+0x000f65a0	vostok::math::float_to_half	manual	0	AX = entry ESP+4 (a float) as a half; cdecl, the caller pops (0x240371)
+0x000f66d0	vostok::math::half_to_float	manual	0	EAX = the float (its bits) of the half in AX
