@@ -58,11 +58,16 @@ client and server: 96 shells, no crash, no resync.
 
 ## Results screen with no match loaded (crash 5)
 
-Two clients in a room's match; near its end `c5b.sh <match> <time-up epoch>
-<exe> <tag> 2.2` kills one client, starts it again and clicks Enter 2.2 s
-before the time is up: the room seats the game back in its match at the
-sign-in and the match ends while it loads. Signed in too late, the server
-gives it no results screen ("its game has loaded no match since it signed in").
+Two clients in a room's match (mode 5 only: `SRP_MATCH_MODES=5`); `FREEZE=1
+c5next.sh <exe> <tag> 45` waits for the room's next match (time up = its "play
+begins" log line + 902 s), kills the second client 85 s before the end, starts
+it again, signs it in 45 s before the end, and with FREEZE stops the game
+(SIGSTOP) from the lobby's "goes to match" until the lobby has sent it the
+results. The room reseats a signed-in game 17-20 s after its sign-in. Not
+reproduced yet: signed in too late the server gives no results screen ("its
+game has loaded no match since it signed in"); frozen 120 s the lobby dropped
+the link the same millisecond it sent the results (a 45 s lead keeps the
+freeze near 25 s; that run was stopped by the owner's wrap-up).
 
 ## Side mouse buttons (PR #1257)
 
