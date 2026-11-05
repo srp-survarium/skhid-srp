@@ -389,7 +389,8 @@ mod tests {
     fn a_touching_capsule_is_stopped_only_going_in() {
         let world = Collision::build(&wall(2.0));
         let c = Capsule::standing(Vec3::new(2.0 - 0.38, 0.5, 0.0), 1.8, 0.38);
-        assert!(world.sweep(c, Vec3::new(0.0, 0.0, 1.0), |_| true).is_none());
+        let along = world.sweep(c, Vec3::new(0.0, 0.0, 1.0), |_| true);
+        assert!(along.is_none(), "{along:?}");
         let hit = world.sweep(c, Vec3::new(1.0, 0.0, 0.0), |_| true).expect("into the wall");
         assert_eq!(hit.t, 0.0);
     }
