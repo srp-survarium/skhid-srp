@@ -2451,6 +2451,7 @@ st_srp_inv_ammo_range	Range
 st_srp_inv_bullet_speed	Bullet speed
 st_srp_inv_defuse_time	Defuse time
 st_srp_inv_fuse_time	Fuse time
+st_srp_inv_material_pierce	Material penetration
 st_srp_inv_pellets	Pellets
 st_srp_inv_pocket_units	Pocket slots
 st_srp_inv_stamina_damage	Stamina damage
@@ -2523,6 +2524,14 @@ st_srp_mode_research	Research
 st_srp_mode_team_deathmatch	Team Deathmatch
 st_srp_optics	Optics
 st_srp_options_hud	HUD:
+st_srp_pierce_brick	Brick, steel
+st_srp_pierce_car	Car
+st_srp_pierce_concrete	Concrete
+st_srp_pierce_glass	Glass, foliage
+st_srp_pierce_plywood	Plywood
+st_srp_pierce_stone	Stone
+st_srp_pierce_tinplate	Tinplate
+st_srp_pierce_varies	Varies
 st_srp_play_in_squad	In squad
 st_srp_pvb_at_limit	The most bot matches at a time are already running, try again in a minute
 st_srp_pvb_at_limit_count	The most bot matches at a time are already running (%1$s/%2$s), try again in a minute

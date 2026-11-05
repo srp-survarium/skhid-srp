@@ -73,6 +73,77 @@ package {
   // A bolt-action AK-74M stand-in: its chambering time (prop 160, the weapons that have one).
   private function boltItem(chamber:String):Object {var d:Object=item(false);d.properties.push({prop_id:160,prop_value:chamber});return d;}
   private function shows(d:Object,other:Object):void {cards[0].data=d;cards[1].data=other;cards[0].itemCompare.setSecondaryWeapon(other);cards[1].itemCompare.setSecondaryWeapon(d);}
+  // Material penetration (pierce-line-1.json): a round's line 174 says it for each weapon that fires
+  // it ("<weapon dict id>:<key> ..."), as the content build computes it; a weapon's card reads its
+  // rounds'. 3 the AK-74M and 2229 the PKP (the cards' weapons), 2300 an A-545 stand-in.
+  private static const ROUND_LINES:Object={901:"3:st_srp_pierce_concrete 2300:st_srp_pierce_concrete",
+   902:"3:st_srp_pierce_concrete 2300:st_srp_pierce_brick",903:"2229:st_srp_pierce_concrete"};
+  private static const ROUND_PAIRS:Array=[{first_item_dict_id:3,second_item_dict_id:901},{first_item_dict_id:902,second_item_dict_id:3},
+   {first_item_dict_id:2300,second_item_dict_id:901},{first_item_dict_id:2300,second_item_dict_id:902},{first_item_dict_id:2229,second_item_dict_id:903}];
+  private var roundProps:Object={};
+  private function roundDescriptors():Array {
+   var out:Array=[];
+   for(var id:String in ROUND_LINES){roundProps[id]=[{prop_id:174,prop_value:ROUND_LINES[id]}];out.push({dictId:int(id),item_properties:roundProps[id]});}
+   return out;
+  }
+  private function weapon(dictId:int,name:String):Object {var d:Object=item(false);d.dictId=dictId;d.name=name;return d;}
+  private function round(name:String,line:String,ap:String):Object {
+   var Data:Class=domain.getDefinition("survarium.data.ItemData") as Class;
+   var d:Object=new Data();d.name=name;d.category=9;d.superCategory=3;d.isWeapon=false;d.itemLevel=10;d.modifiers=[];d.modifiersDefault=[];
+   d.properties=[{prop_id:21,prop_value:"100"},{prop_id:22,prop_value:ap},{prop_id:163,prop_value:"800"},{prop_id:16,prop_value:"30"},{prop_id:15,prop_value:"0.3"}];
+   if(line)d.properties.push({prop_id:174,prop_value:line});
+   return d;
+  }
+  private function pierceChecks():void {
+   Scene.isShift=false;Scene.isAlt=false;
+   for each(var language:String in HarnessText.LANGUAGES){
+    Loc.setData(texts(language));
+    var t:Object=HarnessText.DATA[language];
+    shows(item(false),weapon(2300,"A-545"));
+    require(text(cards[0]).indexOf(t.st_srp_inv_material_pierce+": "+t.st_srp_pierce_concrete+"\n")>=0,"a weapon whose rounds agree: "+language);
+    require(text(cards[1]).indexOf(t.st_srp_inv_material_pierce+": "+t.st_srp_pierce_varies+"\n")>=0,"a weapon whose rounds differ: "+language);
+    require(overflows(cards[0],language).length==0 && overflows(cards[1],language).length==0,"pierce line fits: "+language+" "+overflows(cards[1],language));
+    aligned();
+    // A round's card (no bars, so no native row to measure its typography against: its rows' own text).
+    shows(round("7N22",ROUND_LINES[901],"120"),round("7N10",ROUND_LINES[902],"110"));
+    require(roundLine(cards[0].data,cards[1].data)==t.st_srp_inv_material_pierce+": "+t.st_srp_pierce_concrete,"a round its weapons agree on: "+language);
+    require(roundLine(cards[1].data,cards[0].data)==t.st_srp_inv_material_pierce+": "+t.st_srp_pierce_varies,"a round its weapons differ on: "+language);
+    require(overflows(cards[0],language).length==0 && overflows(cards[1],language).length==0,"round pierce line fits: "+language+" "+overflows(cards[0],language));
+    aligned();
+   }
+   Loc.setData(texts("english"));
+   for each(var key:String in ["glass","car","plywood","tinplate","brick","concrete","stone"]){
+    roundProps[903][0].prop_value="2229:st_srp_pierce_"+key;
+    shows(item(true),item(false));
+    require(line(cards[0],"Material penetration")=="Material penetration: "+HarnessText.DATA.english["st_srp_pierce_"+key],"tier text: "+key);
+    require(color(cards[0],"Material penetration")==NEUTRAL,"a material is no better or worse: "+key);
+   }
+   roundProps[903][0].prop_value=ROUND_LINES[903];
+   // A weapon no round speaks for beside one: a dash keeps the rows aligned; two such: no row.
+   shows(weapon(4444,"no rounds"),item(false));
+   require(line(cards[0],"Material penetration")=="Material penetration: –","a dash beside a weapon with the line");aligned();
+   shows(weapon(4444,"no rounds"),weapon(4445,"none either"));require(text(cards[0]).indexOf("Material penetration")<0,"no row without the data");
+   shows(round("old",null,"100"),round("7N22",ROUND_LINES[901],"120"));
+   require(roundLine(cards[0].data,cards[1].data)=="Material penetration: –","a dash beside a round with the line");aligned();
+   // Not comparable: no bar.
+   shows(item(false),item(true));
+   for(var i:int=1;i<=9;i++){var row:Object=cards[0].itemCompare.getChildByName("diff_"+i);require(!row || !row.visible || row.indicator.label!="Material penetration","no pierce bar");}
+   shows(items[0],items[1]);
+  }
+  // A round's Material penetration row beside `other`, "label: value".
+  private function roundLine(d:Object,other:Object):String {
+   var Ammo:Object=domain.getDefinition("survarium.item.AmmoDetails");
+   for each(var row:Object in Ammo.read(d).rows(false,Ammo.read(other)))if(row.kind=="stat" && row.id==174)return row.label+": "+row.value;
+   return null;
+  }
+  // For a capture (-P pierce=one|varies|ammo): the cards of a before|after pair, no checks.
+  private function pierceCapture(what:String):void {
+   Scene.isShift=false;
+   if(what=="one")shows(item(false),item(true));
+   else if(what=="varies")shows(weapon(2300,"A-545"),item(false));
+   else shows(round("5.45x39 7N22",ROUND_LINES[901],"120"),round("5.45x39 7N10",ROUND_LINES[902],"110"));
+   removeEventListener(Event.ENTER_FRAME,tick);trace("DETAILS RESULT capture "+what);
+  }
   private function tacticalItem():Object {var d:Object=item(false);d.properties.push({prop_id:162,prop_value:String(4/3)});return d;}
   private function tacticalChecks():void {
    var gun:Object=tacticalItem(),plain:Object=item(true);
@@ -476,6 +547,8 @@ package {
     // A grenade's and a trap's (throwable-cards-1); 166 the pocket units (pocket-units-1), no bar.
     for each(spec in [[23,"Explosion radius",1,"m"],[167,"Stamina damage",1,""],[168,"Fuse time",0,"s"],[169,"Throw speed",1,"m/s"],[170,"Defuse time",1,"s"]])list.push({prop_id:spec[0],prop_name:spec[1],direction:spec[2],postfix:spec[3],comparable:true,min_value:0,max_value:100});
     list.push({prop_id:166,prop_name:"Pocket slots",comparable:false});
+    // A round's lines (AmmoDetails labels them by these names), and Material penetration (pierce-line-1), no bar.
+    for each(spec in [[21,"Damage"],[22,"Armor penetration"],[163,"Bullet speed"],[16,"Rounds in a pack"],[174,"Material penetration"]])list.push({prop_id:spec[0],prop_name:spec[1],comparable:false});
     // The rolls' own properties, multiplied (modifier_type 1) as the exe tells the movie (mod_type 2).
     for each(id in [102,115,119])list.push({prop_id:id,comparable:false,modifier_type:1});
     props.setPropertiesDictionary(list);domain.getDefinition("survarium.controls.ItemCompare").setPropsDescriptor(props);
@@ -484,7 +557,8 @@ package {
     new Container("modifiers",38,38,Bitmap(new Atlas()).bitmapData,true,0,0,0,false);
     items=[item(true),item(false)];
     var Descriptor:Class=domain.getDefinition("survarium.data.ItemDescriptor") as Class;
-    var descriptor:Object=new Descriptor("InventoryItems");descriptor.setItemsDictionary([{dictId:3,item_properties:items[1].properties}]);
+    var descriptor:Object=new Descriptor("InventoryItems");descriptor.setItemsDictionary([{dictId:3,item_properties:items[1].properties}].concat(roundDescriptors()));
+    domain.getDefinition("survarium.item.ItemFactory").setItemsCompatibility(ROUND_PAIRS);
     var Hint:Class=domain.getDefinition("InventoryItemHint") as Class;
     for(var i:int=0;i<2;i++){var card:Object=new Hint();card.x=40+i*440;card.y=20;card.scaleX=card.scaleY=.75;addChild(card as DisplayObject);cards.push(card);}
     addEventListener(Event.ENTER_FRAME,tick);
@@ -512,7 +586,7 @@ package {
        require(!row[name].text.length || (actual.font==expected.font && actual.size==expected.size && actual.bold==expected.bold && actual.align==expected.align),"original typography: "+name+" '"+row[name].text+"' got="+[actual.font,actual.size,actual.bold,actual.align]+" expected="+[expected.font,expected.size,expected.bold,expected.align]);
        // A value's right edge (a wide changed value held Alt grows to its left).
        var edge:Function=function(f:TextField):Number{return f.parent.localToGlobal(new Point(f.x+(name=="textFieldValue"?f.width:0),f.y)).x;};
-       require(Math.abs(edge(row[name])-edge(original[name]))<.2,"original column alignment: "+name);
+       require(Math.abs(edge(row[name])-edge(original[name]))<.2,"original column alignment: "+name+" '"+row[name].text+"'");
        require(Math.abs(row[name].transform.concatenatedMatrix.a-original[name].transform.concatenatedMatrix.a)<.001 && Math.abs(row[name].transform.concatenatedMatrix.d-original[name].transform.concatenatedMatrix.d)<.001,"original text scale: "+name);
       }
       require(row.textFieldLabel.textColor==original.textFieldLabel.textColor,"original label color");
@@ -586,6 +660,7 @@ package {
   private function tick(e:Event):void {
    frame++;
    try {
+    if(frame==20 && loaderInfo.parameters.pierce){pierceCapture(loaderInfo.parameters.pierce);return;}
     if(frame==20){cards[0].data=items[0];cards[1].data=items[1];cards[0].itemCompare.setSecondaryWeapon(items[1]);cards[1].itemCompare.setSecondaryWeapon(items[0]);}
     if(frame==35){
      // Native Scaleform can resize the comparison before ButtonBar.configUI
@@ -689,6 +764,7 @@ package {
      cards[0].alignComparisonHeader(null);
      require(Math.abs(cards[0].topBlackContainer.height-headerHeight)<.1,"single card restores its natural header");
      cards[1].textFieldDescription.visible=false;cards[0].alignComparisonHeader(cards[1]);aligned();
+     pierceChecks();
      altChecks();
      throwableChecks();
      medicineChecks();

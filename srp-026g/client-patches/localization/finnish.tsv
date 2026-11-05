@@ -2451,6 +2451,7 @@ st_srp_inv_ammo_range	Kantama
 st_srp_inv_bullet_speed	Luodin nopeus
 st_srp_inv_defuse_time	Purkuaika
 st_srp_inv_fuse_time	Sytytysaika
+st_srp_inv_material_pierce	Materiaalin läpäisy
 st_srp_inv_pellets	Haulit
 st_srp_inv_pocket_units	Taskupaikat
 st_srp_inv_stamina_damage	Kestävyysvahinko
@@ -2523,6 +2524,14 @@ st_srp_mode_research	Tutkimus
 st_srp_mode_team_deathmatch	Joukkuetaistelu
 st_srp_optics	Optiikka
 st_srp_options_hud	HUD:
+st_srp_pierce_brick	Tiili, teräs
+st_srp_pierce_car	Auto
+st_srp_pierce_concrete	Betoni
+st_srp_pierce_glass	Lasi, lehvistö
+st_srp_pierce_plywood	Vaneri
+st_srp_pierce_stone	Kivi
+st_srp_pierce_tinplate	Pelti
+st_srp_pierce_varies	Vaihtelee
 st_srp_play_in_squad	Ryhmässä
 st_srp_pvb_at_limit	Bottiotteluita on jo enimmäismäärä käynnissä, yritä uudelleen minuutin kuluttua
 st_srp_pvb_at_limit_count	Bottiotteluita on jo enimmäismäärä käynnissä (%1$s/%2$s), yritä uudelleen minuutin kuluttua

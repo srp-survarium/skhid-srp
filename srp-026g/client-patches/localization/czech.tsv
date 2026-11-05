@@ -2451,6 +2451,7 @@ st_srp_inv_ammo_range	Dostřel
 st_srp_inv_bullet_speed	Rychlost střely
 st_srp_inv_defuse_time	Doba zneškodnění
 st_srp_inv_fuse_time	Doba zápalníku
+st_srp_inv_material_pierce	Průraznost materiálů
 st_srp_inv_pellets	Broky
 st_srp_inv_pocket_units	Místa v kapse
 st_srp_inv_stamina_damage	Poškození výdrže
@@ -2523,6 +2524,14 @@ st_srp_mode_research	Výzkum
 st_srp_mode_team_deathmatch	Týmový deathmatch
 st_srp_optics	Optika
 st_srp_options_hud	HUD:
+st_srp_pierce_brick	Cihla, ocel
+st_srp_pierce_car	Auto
+st_srp_pierce_concrete	Beton
+st_srp_pierce_glass	Sklo, listí
+st_srp_pierce_plywood	Překližka
+st_srp_pierce_stone	Kámen
+st_srp_pierce_tinplate	Plech
+st_srp_pierce_varies	Různě
 st_srp_play_in_squad	V četě
 st_srp_pvb_at_limit	Už běží maximální počet zápasů s boty, zkus to za minutu
 st_srp_pvb_at_limit_count	Už běží maximální počet zápasů s boty (%1$s/%2$s), zkus to za minutu

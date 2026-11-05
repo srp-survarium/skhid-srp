@@ -2451,6 +2451,7 @@ st_srp_inv_ammo_range	Zasięg
 st_srp_inv_bullet_speed	Prędkość pocisku
 st_srp_inv_defuse_time	Czas rozbrajania
 st_srp_inv_fuse_time	Czas zapalnika
+st_srp_inv_material_pierce	Przebicie materiałów
 st_srp_inv_pellets	Śruciny
 st_srp_inv_pocket_units	Miejsca w kieszeni
 st_srp_inv_stamina_damage	Obrażenia wytrzymałości
@@ -2523,6 +2524,14 @@ st_srp_mode_research	Badania
 st_srp_mode_team_deathmatch	Walka drużynowa
 st_srp_optics	Optyka
 st_srp_options_hud	HUD:
+st_srp_pierce_brick	Cegła, stal
+st_srp_pierce_car	Samochód
+st_srp_pierce_concrete	Beton
+st_srp_pierce_glass	Szkło, liście
+st_srp_pierce_plywood	Sklejka
+st_srp_pierce_stone	Kamień
+st_srp_pierce_tinplate	Blacha
+st_srp_pierce_varies	Różnie
 st_srp_play_in_squad	W oddziale
 st_srp_pvb_at_limit	Trwa już maksymalna liczba rozgrywek z botami, spróbuj ponownie za minutę
 st_srp_pvb_at_limit_count	Trwa już maksymalna liczba rozgrywek z botami (%1$s/%2$s), spróbuj ponownie za minutę

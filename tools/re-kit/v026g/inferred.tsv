@@ -3214,3 +3214,5 @@ va	status	ref_021d	name
 0x0030a350	inferred-medium		survarium::grenade_set_core::splash_hit_params
 0x00304a40	inferred-medium		survarium::booby_trap_core::hit_victim
 0x003055f0	inferred-medium		survarium::booby_trap_core::splash_hit_params
+0x002e1c80	inferred-medium		survarium::weapon::min_damage
+0x002e1cf0	inferred-medium		survarium::weapon::damage

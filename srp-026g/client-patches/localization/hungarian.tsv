@@ -2451,6 +2451,7 @@ st_srp_inv_ammo_range	Lőtávolság
 st_srp_inv_bullet_speed	Lövedéksebesség
 st_srp_inv_defuse_time	Hatástalanítási idő
 st_srp_inv_fuse_time	Gyújtási idő
+st_srp_inv_material_pierce	Anyagátütés
 st_srp_inv_pellets	Sörétek
 st_srp_inv_pocket_units	Zsebhelyek
 st_srp_inv_stamina_damage	Állóképesség-sebzés
@@ -2523,6 +2524,14 @@ st_srp_mode_research	Kutatás
 st_srp_mode_team_deathmatch	Csapatos deathmatch
 st_srp_optics	Távcsövek
 st_srp_options_hud	HUD:
+st_srp_pierce_brick	Tégla, acél
+st_srp_pierce_car	Autó
+st_srp_pierce_concrete	Beton
+st_srp_pierce_glass	Üveg, lomb
+st_srp_pierce_plywood	Rétegelt lemez
+st_srp_pierce_stone	Kő
+st_srp_pierce_tinplate	Bádog
+st_srp_pierce_varies	Változó
 st_srp_play_in_squad	Osztagban
 st_srp_pvb_at_limit	Már elindult a megengedett legtöbb botmeccs, próbáld újra egy perc múlva
 st_srp_pvb_at_limit_count	Már elindult a megengedett legtöbb botmeccs (%1$s/%2$s), próbáld újra egy perc múlva

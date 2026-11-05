@@ -2451,6 +2451,7 @@ st_srp_inv_ammo_range	Дальність
 st_srp_inv_bullet_speed	Швидкість кулі
 st_srp_inv_defuse_time	Час знешкодження
 st_srp_inv_fuse_time	Час запалу
+st_srp_inv_material_pierce	Пробиття матеріалів
 st_srp_inv_pellets	Дробин
 st_srp_inv_pocket_units	Місце в кишені
 st_srp_inv_stamina_damage	Шкода витривалості
@@ -2523,6 +2524,14 @@ st_srp_mode_research	Дослідження
 st_srp_mode_team_deathmatch	Командний бій
 st_srp_optics	Оптика
 st_srp_options_hud	Інтерфейс бою:
+st_srp_pierce_brick	Цегла, сталь
+st_srp_pierce_car	Автомобіль
+st_srp_pierce_concrete	Бетон
+st_srp_pierce_glass	Скло, листя
+st_srp_pierce_plywood	Фанера
+st_srp_pierce_stone	Камінь
+st_srp_pierce_tinplate	Бляха
+st_srp_pierce_varies	Різне
 st_srp_play_in_squad	У загоні
 st_srp_pvb_at_limit	Уже йде найбільше матчів з ботами одночасно, спробуйте за хвилину
 st_srp_pvb_at_limit_count	Уже йде найбільше матчів з ботами одночасно (%1$s/%2$s), спробуйте за хвилину

@@ -1,0 +1,35 @@
+{
+  "_about": "Weapon and ammo cards: Material penetration, the hardest wall material the bullet goes through keeping at least half its speed and piercing (srp-026g/docs/notes/pierce_line.md). UI property 174 (st_srp_inv_material_pierce, not comparable: a detail row, no bar) and, on every round the item dictionary pairs with a weapon, a line 174 \"<weapon dict_id>:<text key> ...\" for each of its weapons, computed by content_edit.py (pierce_lines) from the files as the rows above leave them: the weapon's bullet_pierce x the round's k_arp against game.materials' armor of each tier's material, so a retune, a new gun or a new round follows. The weapons get no line (several configs are within 3 entries of the client's arena, tables.rs MAX_CONFIG_ENTRIES): the lobby reads a weapon's from its rounds. Last of the edit rows: build-content checks that the final files still make every line. Presentation only.",
+  "_inputs": [
+    {"files": "gameplay/items/weapons/wpn_*.options"},
+    {"files": "game_materials/game.materials"},
+    {"files": "gameplay/db_static_dictionaries"}
+  ],
+  "add_entry": [
+    {
+      "files": "gameplay/static_game_parameters.options",
+      "list": "ui_properties",
+      "after": {"prop_id": 166},
+      "like": {"prop_id": 16},
+      "values": {"prop_id": 174, "prop_name": "st_srp_inv_material_pierce", "comparable": false}
+    },
+    {
+      "files": "gameplay/items/weapons/ammo/*.options",
+      "list": "ui_desc/props_list",
+      "after": {"prop_id": 15},
+      "like": {"prop_id": 15},
+      "values": {"prop_id": 174},
+      "pierce_line": {
+        "tiers": [
+          ["glass", "st_srp_pierce_glass"],
+          ["metal_car", "st_srp_pierce_car"],
+          ["wood_thin", "st_srp_pierce_plywood"],
+          ["metall_thin", "st_srp_pierce_tinplate"],
+          ["brick", "st_srp_pierce_brick"],
+          ["concrete", "st_srp_pierce_concrete"],
+          ["stone", "st_srp_pierce_stone"]
+        ]
+      }
+    }
+  ]
+}

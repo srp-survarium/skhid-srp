@@ -21,6 +21,8 @@ package survarium.item
       // round it takes has the same, {kind:"varies"} when they differ, null without rounds.
       private var speed:Object = null;
       private static const SPEED:int = 163;
+      // What its rounds pierce (PierceLine), null without the line.
+      private var pierce:String = null;
       public function WeaponDetails(data:Object) { values = data; }
       // The weapon's stats with its modifications; with effects (held Alt), as a match has them
       // with the kit and the skills too.
@@ -30,6 +32,7 @@ package survarium.item
          var details:WeaponDetails = fromProperties(item.properties);
          if(details == null) return null;
          details.speed = roundsSpeed(item.dictId);
+         details.pierce = PierceLine.ofWeapon(item.dictId);
          if(effects != null) details.base = copy(details.values);
          details.applyWeaponModifiers(item.modifiers);
          if(effects != null) for(var id:String in details.values) details.values[id] = effects.stat(item,int(id),details.values[id]);
@@ -243,6 +246,7 @@ package survarium.item
          scalar(result,140,"st_srp_weapon_minimum_damage_from","higher","st_srp_unit_meters");
          scalar(result,141,"st_srp_weapon_minimum_damage","higher","st_srp_unit_percent",100);
          bulletSpeed(result,other);
+         PierceLine.row(result,pierce,other == null ? null : other.pierce);
          if(!expanded) { result.push({kind:"hint",text:LocalizationData.getName("st_srp_weapon_shift_hint")}); return result; }
          scalar(result,142,"st_srp_weapon_draw_time","lower","st_srp_unit_seconds");
          scalar(result,143,"st_srp_weapon_holster_time","lower","st_srp_unit_seconds");

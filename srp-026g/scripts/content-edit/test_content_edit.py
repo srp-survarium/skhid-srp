@@ -269,6 +269,62 @@ class MapEditorEdits(unittest.TestCase):
             self.assertEqual(ce.items_of(data, 'objects[0]/containers'), ['b', 'c'])
             self.assertEqual(value(data, 'objects[1]/full_name'), 'second')
 
+    def test_cli_puts_each_rounds_pierce_line_for_each_of_its_weapons(self):
+        """Material penetration (pierce-line-1): on each round the dictionary pairs with a weapon, for
+        each such weapon by dictionary id, the hardest tier kept at half (k >= 0.5, k = 1 - (1 -
+        clamp((P - A) / A, 0, 1))^2); the weapons themselves get no line."""
+        def card(params, data=None):
+            out = {'parameters': params, 'ui_desc': {'props_list': [{'prop_id': 15, 'prop_value': '1'}]}}
+            if data:
+                out['data'] = data
+            return config(out)
+        W = 'gameplay/items/weapons/'
+        live = {
+            'game_materials/game.materials': config({'materials': [
+                {'name': 'glass', 'physic': {'armor': 0}}, {'name': 'brick', 'physic': {'armor': 0.2}},
+                {'name': 'concrete', 'physic': {'armor': 0.23}}]}),
+            'gameplay/db_static_dictionaries': config({
+                'items_dict': [{'dict_id': i, 'cfg_name': W + n} for i, n in
+                               enumerate(['wpn_rifle.options', 'wpn_pistol.options', 'wpn_lonely.options',
+                                          'ammo/ap.options', 'ammo/fmj.options', 'ammo/spare.options'], 1)],
+                'items_compatibility': {'a': {'first_item': 1, 'second_item': 4},
+                                        'b': {'first_item': 5, 'second_item': 1},
+                                        'c': {'first_item': 2, 'second_item': 5}}}),
+            # P = 0.25 x 1.2 = 0.3: concrete (needs 0.23 x 1.293 = 0.297); x 1.1 = 0.275: brick only.
+            W + 'wpn_rifle.options': card({'bullet_pierce': 0.25}),
+            # P = 0.1 x 1.1: glass only (brick needs 0.259).
+            W + 'wpn_pistol.options': card({'bullet_pierce': 0.1}),
+            W + 'wpn_lonely.options': card({'bullet_pierce': 0.5}),
+            W + 'ammo/ap.options': card({}, {'k_arp': 1.2}),
+            W + 'ammo/fmj.options': card({}, {'k_arp': 1.1}),
+            W + 'ammo/spare.options': card({}, {'k_arp': 1.0}),
+        }
+        tiers = [['glass', 'st_glass'], ['brick', 'st_brick'], ['concrete', 'st_concrete']]
+        edits = {'add_entry': [{'files': W + 'ammo/*.options', 'list': 'ui_desc/props_list', 'after': {'prop_id': 15},
+                                'like': {'prop_id': 15}, 'values': {'prop_id': 174},
+                                'pierce_line': {'tiers': tiers}}]}
+        with tempfile.TemporaryDirectory() as folder:
+            root = Path(folder)
+            for path, data in live.items():
+                (root / 'live' / path).parent.mkdir(parents=True, exist_ok=True)
+                (root / 'live' / path).write_bytes(bytes(data))
+            (root / 'edits.json').write_text(json.dumps(edits))
+            result = subprocess.run([sys.executable, str(Path(ce.__file__).resolve()),
+                                     str(root / 'edits.json'), str(root / 'live'), str(root / 'out')],
+                                    capture_output=True, text=True)
+            self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+            self.assertIn('0 unexpected differences', result.stdout)
+            got = {p: ce.prop_text(bytearray((root / 'out' / W / p).read_bytes()), 174)
+                   for p in ('ammo/ap.options', 'ammo/fmj.options')}
+            self.assertEqual(got, {'ammo/ap.options': '1:st_concrete', 'ammo/fmj.options': '1:st_brick 2:st_glass'})
+            # No weapon grows; a round no weapon fires gets no line.
+            for p in ('wpn_rifle.options', 'wpn_pistol.options', 'wpn_lonely.options', 'ammo/spare.options'):
+                self.assertFalse((root / 'out' / W / p).exists(), p)
+        # Tiers whose armour does not rise are refused (a material retuned out of order).
+        files = {p: bytearray(b) for p, b in live.items()}
+        with self.assertRaises(ValueError):
+            ce.pierce_lines(files.__getitem__, set(files), {'tiers': [tiers[0], tiers[2], tiers[1]]})
+
 
 
 def weapon(damage, card_damage, rpm=600, chamber=None):
