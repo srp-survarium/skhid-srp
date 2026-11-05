@@ -79,6 +79,7 @@ use crate::sight::RayTree;
 
 mod clearance;
 pub use clearance::{CLEARANCE_MAX_M, CLEARANCE_STEP_M};
+mod doors;
 mod exact;
 mod open;
 /// g, m/s^2 (`fall_params.gravity` 9.8, PROVEN).
@@ -223,6 +224,10 @@ pub struct Body {
     /// the client's body stood at the edge while the reckoning dropped (68 drifts in two matches, the drift lab). A build input:
     /// in the key when set.
     pub drop_room_walk_faces: bool,
+    /// [A313] Whether the floors the erosion rounds took in a narrow door the body fits are given back (`grid::doors`): the
+    /// rounds take a floor beside any wall cell, so a doorway 0.8-1.2 m wide closes though the capsule passes (Vector
+    /// Laboratory's strip). Needs [`Erosion::Exact`]. A build input: in the key when set.
+    pub narrow_doors: bool,
 }
 
 /// How the floors a body's radius from walls are taken away.
@@ -277,6 +282,7 @@ impl Body {
             gap_no_vaults: false,
             ramp_faces: false,
             drop_room_walk_faces: false,
+            narrow_doors: false,
         }
     }
 }
@@ -347,6 +353,7 @@ impl Default for Body {
             gap_no_vaults: false,
             ramp_faces: false,
             drop_room_walk_faces: false,
+            narrow_doors: false,
         }
     }
 }
@@ -1625,6 +1632,9 @@ impl WalkGrid {
             for a in doomed {
                 alive[a] = false;
             }
+        }
+        if self.body.narrow_doors && let Some(walls) = walls {
+            self.open_narrow_doors(wide, &mut alive, walls);
         }
         let furthest = rounds as i32 + 1;
         for a in 0..n {
