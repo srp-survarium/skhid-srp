@@ -1660,6 +1660,7 @@ def late_join_sites():
         [(P.KILL_FEED_ARGUMENT[0], len(P.KILL_FEED_ARGUMENT[1]))] + \
         [(va, len(old)) for va, old, _ in P.FALL_GRAVITY] + \
         [(P.GRENADE_CCD[0], len(P.GRENADE_CCD[1]))] + \
+        [(P.BATTERY_CCD[0], len(P.BATTERY_CCD[1]))] + \
         [(va, len(old)) for va, old, _, _ in P.BAKE_CACHE_HOOKS] + \
         [(va, len(old)) for va, old, _, _ in P.WEIGHT_UI_HOOKS] + \
         [(va, len(old)) for va, old, _, _ in P.BULLET_BOUNDS_HOOKS] + \
@@ -5079,6 +5080,36 @@ def test_grenade_ccd(original, image, before):
     check(not hits, "no branch aims inside the site" + "".join(f", {h:#x}" for h in hits))
 
 
+def test_battery_ccd(original, image, before):
+    """Check 106: a dropped battery's continuous collision sweeps a sphere
+    inside its box (patch 106, BATTERY_CCD; ../docs/notes/battery_ccd.md)."""
+    stock = Image(original)
+    rows = lambda source, va, size: [text for _, _, text in ndisasm(source.read(va, size), va)]
+    f32 = lambda source, va: struct.unpack("<f", source.read(va, 4))[0]
+    check(rows(stock, 0x30036D, 0x14) == ["lea ecx,[esp+0x28]", "mov edx,0x1", "movss dword [esp+0x30],xmm1",
+                                         "call 0x7a390"]
+          and abs(f32(stock, 0xA2DB40) - 0.9) < 1e-7 and rows(stock, 0x300463, 5) == ["call 0x357100"],
+          "victory_item_core's constructor makes a box (create_primitive_shape type 1) of 0.9 x its config's scale, "
+          "then its rigid body (0x357100)")
+    va, old, new = P.BATTERY_CCD
+    check(rows(stock, 0x300468, 0x2F) == [
+              "movss xmm0,dword [dword 0xa2d774]", "mov [ebx+0x2a8],eax", "mov eax,[eax+0x14]", "add esp,byte +0x10",
+              "pop edi", "movss dword [eax+0x104],xmm0", "movss dword [eax+0x100],xmm0", "pop esi", "mov eax,ebx",
+              "pop ebx", "mov esp,ebp", "pop ebp", "ret 0xc"]
+          and abs(f32(stock, 0xA2D774) - 0.01) < 1e-7,
+          "the original: one 0.01 as btCollisionObject +104h (m_ccdMotionThreshold) and +100h "
+          "(m_ccdSweptSphereRadius); eax is the result only after mov eax,ebx, no flag is read before ret")
+    check(stock.read(va, len(old)) == old == before.read(va, len(old)) and image.read(va, len(new)) == new
+          and rows(image, va, len(new)) == ["add eax,0x100", "movss dword [eax+0x4],xmm0", "mov dword [eax],0x3da3d70a"]
+          and struct.pack("<f", 0.08) == bytes.fromhex("0ad7a33d"),
+          f"{va:#x}: the original's two stores in the original and the build without the late join; here the "
+          "threshold's 0.01 at +104h and 0.08 at +100h")
+    relocated = [v for kind, v in stock.relocations().values() if kind == 3 and va - 3 < v < va + len(old)]
+    check(not relocated, "no base relocation under the site")
+    hits = [h for h in aimed_inside(original, va, len(old), 0x82) if not va <= h < va + len(old)
+            and starts_instruction(stock, h)]
+    check(not hits, "no branch aims inside the site" + "".join(f", {h:#x}" for h in hits))
+
 def test_bake_cache(original, image, before):
     """Check 70: the baked textures kept and made once (patch 70,
     BAKE_CACHE_HOOKS, BAKE_CACHE_KEEP). check_bake_cache_026g.py runs the
@@ -7053,6 +7084,7 @@ def test_late_join(original, without, server, source):
     test_kill_feed(original, image, before)
     test_fall_gravity(original, image, before)
     test_grenade_ccd(original, image, before)
+    test_battery_ccd(original, image, before)
     test_bake_cache(original, image, before)
     test_ragdoll(original, image, before)
     test_lamps(original, image, before)
