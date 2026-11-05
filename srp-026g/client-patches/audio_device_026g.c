@@ -35,6 +35,7 @@
 #include "audio_device_026g.h"
 
 #define AD_SENDS 4              /* sends kept a voice (the game gives 1) */
+#define AD_TRANSLATE 32         /* sends a call may give (more: refused, never our proxies to XAudio2) */
 #define AD_EFFECTS 4            /* effects kept a chain (the game's reverb: 1) */
 #define AD_PARAMETERS 128       /* bytes of an effect's parameters (XAUDIO2FX_REVERB_PARAMETERS: 52) */
 #define AD_CHANNELS 8           /* channel volumes kept */
@@ -302,10 +303,19 @@ static const struct xa_sends *ad_real_sends(const struct ad_sends *sends, struct
     return list;
 }
 
-static const struct xa_sends *ad_translate_sends(const struct xa_sends *given, struct xa_sends *list,
-                                                 struct xa_send room[AD_SENDS])
+/* A call's sends as the real voices (the default stays 0); the caller has
+ * refused more than AD_TRANSLATE (ad_too_many_sends). */
+static int ad_too_many_sends(const struct xa_sends *given)
 {
-    if (!given || given->count > AD_SENDS) return given;    /* the default, or more than we translate */
+    if (!given || given->count <= AD_TRANSLATE) return 0;
+    ad_log("a call of more sends than we translate refused", given->count);
+    return 1;
+}
+
+static const struct xa_sends *ad_translate_sends(const struct xa_sends *given, struct xa_sends *list,
+                                                 struct xa_send room[AD_TRANSLATE])
+{
+    if (!given) return 0;
     list->count = given->count;
     list->sends = room;
     for (ad_u32 i = 0; i < given->count; ++i)
@@ -431,7 +441,8 @@ static ad_hresult AD_STDCALL v_set_output_voices(void *self, const struct xa_sen
 {
     REAL_OR(self, AD_XAUDIO2_E_INVALID_CALL);
     struct xa_sends list;
-    struct xa_send room[AD_SENDS];
+    struct xa_send room[AD_TRANSLATE];
+    if (ad_too_many_sends(sends)) return AD_XAUDIO2_E_INVALID_CALL;
     ad_hresult hr = REAL(self)->set_output_voices(VOICE(self)->real, ad_translate_sends(sends, &list, room));
     if (!AD_FAILED(hr)) ad_keep_sends(VOICE(self), sends);
     return hr;
@@ -948,10 +959,11 @@ static ad_hresult AD_STDCALL e_create_source_voice(void *self, void **out, const
 {
     struct ad_engine *engine = ENGINE(self);
     ad_u32 format_size = ad_format_size(format);
+    if (ad_too_many_sends(sends)) return AD_XAUDIO2_E_INVALID_CALL;
     struct ad_voice *voice = ad_new_voice(AD_SOURCE);
     if (!voice) return AD_E_OUTOFMEMORY;
     struct xa_sends list;
-    struct xa_send room[AD_SENDS];
+    struct xa_send room[AD_TRANSLATE];
     void *real = 0;
     ad_hresult hr = REAL_ENGINE(self)->create_source_voice(engine->real, &real, format, flags, max_ratio,
                                                            &voice->as.source.callback,
@@ -977,10 +989,11 @@ static ad_hresult AD_STDCALL e_create_submix_voice(void *self, void **out, ad_u3
                                                    ad_u32 flags, ad_u32 stage, const struct xa_sends *sends,
                                                    const struct xa_chain *chain)
 {
+    if (ad_too_many_sends(sends)) return AD_XAUDIO2_E_INVALID_CALL;
     struct ad_voice *voice = ad_new_voice(AD_SUBMIX);
     if (!voice) return AD_E_OUTOFMEMORY;
     struct xa_sends list;
-    struct xa_send room[AD_SENDS];
+    struct xa_send room[AD_TRANSLATE];
     void *real = 0;
     ad_hresult hr = REAL_ENGINE(self)->create_submix_voice(ENGINE(self)->real, &real, channels, rate, flags, stage,
                                                            ad_translate_sends(sends, &list, room), chain);
