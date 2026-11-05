@@ -205,6 +205,10 @@ unsafe extern "C" {
     pub fn engine_sound_options(emitter: *const c_void) -> *const c_void;
     /// 0x7ab70 vostok::network_core::mutable_buffer::reallocate: buffer ESI, capacity EDI; pops 0
     pub fn engine_buffer_reallocate(buffer: *mut c_void, capacity: u32);
+    /// 0x75b40 vostok::physics::closest_ray_result_callback::closest_ray_result_callback: callback EAX, from ESI, to EDX, group ESP+4, mask ESP+8, requester ESP+12; pops 12
+    pub fn engine_ray_callback(callback: *mut c_void, from: *const f32, to: *const f32, group: u32, mask: u32, requester: *mut c_void);
+    /// 0x75bd0 vostok::physics::closest_ray_result_callback::needsCollision: callback ECX, proxy ESP+4; pops 4; AL
+    pub fn engine_ray_needs_collision(callback: *mut c_void, proxy: *mut c_void) -> u8;
 }
 
 #[allow(dead_code)]
@@ -229,6 +233,8 @@ unsafe extern "cdecl" {
     pub fn engine_store_first_resource(result: *mut c_void, value: *mut c_void);
     /// 0x5a640 XAudio2Create: engine ESP+4, flags ESP+8; pops 0; EAX; cdecl, called directly
     pub fn engine_xaudio2_create(engine: *mut *mut c_void, flags: u32) -> u32;
+    /// 0xa02d0 btCollisionWorld::rayTestSingle: from ESP+4, to ESP+8, object ESP+12, shape ESP+16, transform ESP+20, callback ESP+24; pops 0; cdecl, called directly
+    pub fn engine_ray_test_single(from: *mut c_void, to: *mut c_void, object: *mut c_void, shape: *mut c_void, transform: *mut c_void, callback: *mut c_void);
 }
 
 #[allow(dead_code)]
