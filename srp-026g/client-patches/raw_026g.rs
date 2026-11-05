@@ -209,6 +209,8 @@ unsafe extern "C" {
     pub fn engine_create_sound_voice(world: Option<SoundWorld>, scene: Option<SoundScene>, propagator: Option<NewSoundPropagator>, emitter: *const c_void) -> *mut c_void;
     /// virtual vostok::sound::sound_propagator_emitter+0x8 (1 vtables of vtables.tsv: 0x38990): emitter ECX; pops 0; EAX
     pub fn engine_sound_options(emitter: Option<SoundPropagatorEmitter>) -> Option<SoundOptions>;
+    /// 0x7ab70 vostok::network_core::mutable_buffer::reallocate: buffer ESI, capacity EDI; pops 0
+    pub fn engine_buffer_reallocate(buffer: *mut c_void, capacity: u32);
 }
 
 #[allow(dead_code)]
@@ -8041,7 +8043,7 @@ impl DynamicInfoFrame {
         self.0.as_ptr() as usize as u32
     }
 
-    /// -0x24 (obj<vostok::mutable_buffer>): process_dynamic_match_info's buffer of an unpacked world (by EBP; on the 0x8000 stack bytes it takes at 0x27C05E, its allocator null, 0x27C06D..0x27C084; sized by resize at 0x27C0A8)
+    /// -0x24 (obj<vostok::mutable_buffer>): process_dynamic_match_info's buffer of an unpacked world (by EBP; on the 0xF000 stack bytes it takes at 0x27C05E (0x8000 in the original exe; patch 98), its allocator null, 0x27C06D..0x27C084; sized by resize at 0x27C0A8)
     ///
     /// # Safety
     /// `self` is alive (its fields are its kind's: the type says so).
