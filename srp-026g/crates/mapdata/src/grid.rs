@@ -216,6 +216,13 @@ pub struct Body {
     /// (4, 32-34), Chemical Plant's (8, 22): 0-20 deg). A mark only: the floors and links are as without it. A build input: in the key
     /// when set.
     pub ramp_faces: bool,
+    /// [A304] Whether [`Self::drop_room`]'s walls count steep faces whatever their walker behaviour: a `walk` face (`walk`
+    /// material: stairs and steep paths, always ground to the slope test) that stands up across a walk-off's way blocks the capsule
+    /// as any wall does. The exact erosion's walls are as without it. Level 7's deck parapet at (16.15-16.30, 20.20-22.03, -18.4 to
+    /// -25.3), 1.09 m over the deck, has `walk` faces: a walk-off GapDrop from the deck's edge down 4.3 m through it was kept, and
+    /// the client's body stood at the edge while the reckoning dropped (68 drifts in two matches, the drift lab). A build input:
+    /// in the key when set.
+    pub drop_room_walk_faces: bool,
 }
 
 /// How the floors a body's radius from walls are taken away.
@@ -269,6 +276,7 @@ impl Body {
             pocket_exits_walled: false,
             gap_no_vaults: false,
             ramp_faces: false,
+            drop_room_walk_faces: false,
         }
     }
 }
@@ -338,6 +346,7 @@ impl Default for Body {
             pocket_exits_walled: false,
             gap_no_vaults: false,
             ramp_faces: false,
+            drop_room_walk_faces: false,
         }
     }
 }
@@ -1018,7 +1027,11 @@ impl WalkGrid {
             wide.slips = grid.slip_landings(&wide, &solids);
         }
         drop(solids);
-        if let Some(walls) = walls.as_ref().filter(|_| body.drop_room) {
+        if body.drop_room && body.drop_room_walk_faces {
+            // The walk-offs' walls with the steep `walk` faces too (the erosion's are as before).
+            let walls = exact::Walls::new_with(triangles, x0, z0, cell, nx, nz, exact::WallFaces::AnyWalker);
+            stats.drops_blocked = grid.cut_blocked_walk_offs(&mut wide, &walls);
+        } else if let Some(walls) = walls.as_ref().filter(|_| body.drop_room) {
             stats.drops_blocked = grid.cut_blocked_walk_offs(&mut wide, walls);
         }
         if body.landing_carry {
