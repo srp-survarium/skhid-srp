@@ -511,8 +511,28 @@ impl Default for VictoryItemStatus {
     }
 }
 
+/// The client patch revision from which a battery's record carries exe patch 92's progress and held steps
+/// ([`VictoryItemStatus::progress`], [`VictoryItemStatus::held`]; revision 41, #1000 and #1023).
+pub const BATTERY_PROGRESS_REVISION: u16 = 41;
+
+/// How a battery's record in the statistics section is laid out: by the client patch revision that wrote it.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum BatteryRecord {
+    /// Before [`BATTERY_PROGRESS_REVISION`]: it ends at `first_finder`.
+    Plain,
+    /// Today's: `progress` and the held steps after `first_finder`.
+    WithProgress,
+}
+
+impl BatteryRecord {
+    /// The layout a client of patch revision `revision` wrote.
+    pub fn at_revision(revision: u16) -> Self {
+        if revision >= BATTERY_PROGRESS_REVISION { Self::WithProgress } else { Self::Plain }
+    }
+}
+
 impl VictoryItemStatus {
-    fn read(reader: &mut Reader, players: usize) -> Option<Self> {
+    fn read(reader: &mut Reader, players: usize, record: BatteryRecord) -> Option<Self> {
         let mut status = Self::default();
         for distances in &mut status.carried_distances {
             read_masked_f32(reader, players, distances)?;
@@ -520,8 +540,10 @@ impl VictoryItemStatus {
         status.nearest_positions = [reader.f32()?, reader.f32()?];
         status.owner_team = reader.u8()?;
         status.first_finder = reader.u8()?;
-        status.progress = [reader.u8()?, reader.u8()?];
-        status.held = HeldSteps::read_all(reader)?;
+        if record == BatteryRecord::WithProgress {
+            status.progress = [reader.u8()?, reader.u8()?];
+            status.held = HeldSteps::read_all(reader)?;
+        }
         Some(status)
     }
 
@@ -608,6 +630,17 @@ impl Statistics {
     /// Reads a section of a match with `players` roster places and
     /// `batteries` batteries. `None` unless it fills `bytes` exactly.
     pub fn decode(bytes: &[u8], players: usize, batteries: usize) -> Option<Self> {
+        Self::decode_as(bytes, players, batteries, BatteryRecord::WithProgress)
+    }
+
+    /// [`Self::decode`] of a section a client of patch revision `revision` wrote (recordings, saved worlds and fixtures
+    /// made before, as `players::state_at_revision` reads their player states): before
+    /// [`BATTERY_PROGRESS_REVISION`] a battery's record has no progress and no held steps, read as none.
+    pub fn decode_at_revision(bytes: &[u8], players: usize, batteries: usize, revision: u16) -> Option<Self> {
+        Self::decode_as(bytes, players, batteries, BatteryRecord::at_revision(revision))
+    }
+
+    fn decode_as(bytes: &[u8], players: usize, batteries: usize, record: BatteryRecord) -> Option<Self> {
         if players > MAX_PLAYERS {
             return None;
         }
@@ -617,7 +650,7 @@ impl Statistics {
                 .map(|_| PlayerStatistics::read(&mut reader))
                 .collect::<Option<_>>()?,
             victory_items: (0..batteries)
-                .map(|_| VictoryItemStatus::read(&mut reader, players))
+                .map(|_| VictoryItemStatus::read(&mut reader, players, record))
                 .collect::<Option<_>>()?,
             tail: StatisticsTail::read(&mut reader)?,
         };
@@ -1518,6 +1551,19 @@ pub fn decode(
     game_mode: u8,
     batteries: usize,
 ) -> Option<Decoded<'_>> {
+    decode_at_revision(time, body, players, game_mode, batteries, u16::MAX)
+}
+
+/// [`decode`] of a world a client of patch revision `revision` wrote: its statistics section by
+/// [`Statistics::decode_at_revision`] (recordings made before revision 41; `u16::MAX`: today's).
+pub fn decode_at_revision(
+    time: u32,
+    body: &[u8],
+    players: usize,
+    game_mode: u8,
+    batteries: usize,
+    revision: u16,
+) -> Option<Decoded<'_>> {
     let batteries = if mode::WITH_BATTERIES.contains(&game_mode) {
         batteries
     } else {
@@ -1531,8 +1577,8 @@ pub fn decode(
         } else {
             // With no gather rule object the client writes no battery
             // records at all.
-            let Some(statistics) = Statistics::decode(sections.statistics, players, batteries)
-                .or_else(|| Statistics::decode(sections.statistics, players, 0))
+            let Some(statistics) = Statistics::decode_at_revision(sections.statistics, players, batteries, revision)
+                .or_else(|| Statistics::decode_at_revision(sections.statistics, players, 0, revision))
             else {
                 continue;
             };
@@ -1778,6 +1824,37 @@ mod tests {
         bytes.extend([0; 8]);
         bytes.extend([0x00, 0x00, 0x80, 0x3F, 0x00, 0x00, 0x40, 0x40, 1, 0, 4, 0, 2, 3, 2, 10, 5]);
         bytes
+    }
+
+    #[test]
+    fn a_section_before_revision_41_reads_its_batteries_without_progress() {
+        // Revision 40's record: today's without patch 92's progress and held steps (the last 7 bytes of the
+        // test battery); an untouched battery is 22 bytes, not 25.
+        let today = battery_bytes();
+        let old = today[..today.len() - 7].to_vec();
+        let mut bytes = EMPTY_PLAYER.to_vec();
+        bytes.extend(EMPTY_PLAYER);
+        bytes.extend(&old);
+        bytes.extend([0; 22]);
+        bytes.extend(TAIL);
+        assert_eq!(Statistics::decode(&bytes, 2, 2), None, "today's reader refuses it");
+        let statistics = Statistics::decode_at_revision(&bytes, 2, 2, 40).unwrap();
+        let first = &statistics.victory_items[0];
+        assert_eq!(first.carried_distances[0][1], 2.0);
+        assert_eq!(first.nearest_positions, [1.0, 3.0]);
+        assert_eq!((first.owner_team, first.first_finder), (1, 0));
+        assert_eq!((first.progress, first.held.len()), ([0, 0], 0), "no progress, no held steps");
+        assert_eq!(statistics.victory_items[1], VictoryItemStatus::default());
+        assert_eq!(statistics.tail, Statistics::decode_at_revision(&bytes, 2, 2, 34).unwrap().tail);
+        // From revision 41 it is today's reader.
+        assert_eq!(Statistics::decode_at_revision(&bytes, 2, 2, 41), None);
+        let mut now = EMPTY_PLAYER.to_vec();
+        now.extend(EMPTY_PLAYER);
+        now.extend(&today);
+        now.extend([0; 25]);
+        now.extend(TAIL);
+        assert_eq!(Statistics::decode_at_revision(&now, 2, 2, 41), Statistics::decode(&now, 2, 2));
+        assert!(Statistics::decode(&now, 2, 2).is_some());
     }
 
     #[test]
