@@ -30,14 +30,31 @@ pub(super) struct Walls {
     triangles: Vec<[Vec3; 3]>,
 }
 
+/// Which steep faces are walls ([`Walls::new_with`]).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(super) enum WallFaces {
+    /// Not a `walk` face (always ground to the slope test): the exact erosion's walls.
+    NotWalk,
+    /// Any walker behaviour ([`Body::drop_room_walk_faces`]).
+    AnyWalker,
+}
+
 impl Walls {
     /// The walls among `triangles` over the area starting at (`x0`, `z0`) `nx * nz` cells of `cell` metres.
     pub(super) fn new(triangles: &[Triangle], x0: f32, z0: f32, cell: f32, nx: usize, nz: usize) -> Self {
+        Self::new_with(triangles, x0, z0, cell, nx, nz, WallFaces::NotWalk)
+    }
+
+    /// [`Self::new`] with `faces` the steep faces that are walls.
+    pub(super) fn new_with(triangles: &[Triangle], x0: f32, z0: f32, cell: f32, nx: usize, nz: usize, faces: WallFaces) -> Self {
         let (width, depth) = (nx as f32 * cell, nz as f32 * cell);
         let (bx, bz) = (((width / BIN_M).ceil() as usize).max(1), ((depth / BIN_M).ceil() as usize).max(1));
         let walls: Vec<[Vec3; 3]> = triangles
             .iter()
-            .filter(|t| is_wall(t))
+            .filter(|t| match faces {
+                WallFaces::NotWalk => is_wall(t),
+                WallFaces::AnyWalker => is_steep(t),
+            })
             .map(|t| t.v)
             .filter(|v| v.iter().all(|p| p.is_finite()))
             .collect();
@@ -205,10 +222,15 @@ fn segment_distance(polygon: &[Vec3], from: Vec3, to: Vec3) -> f32 {
 /// Whether a triangle is a wall: no `walk` face, and steeper than [`STEEP_NORMAL_Y`] (which no body walks on,
 /// whatever its material says).
 fn is_wall(t: &Triangle) -> bool {
+    t.walker != WalkerBehaviour::Walk && is_steep(t)
+}
+
+/// Whether a triangle is steep enough to be a wall whatever its walker behaviour.
+fn is_steep(t: &Triangle) -> bool {
     let [a, b, c] = t.v;
     let normal = (b - a).cross(c - a);
     let length = normal.length();
-    t.walker != WalkerBehaviour::Walk && length >= 1e-9 && normal.y.abs() / length < STEEP_NORMAL_Y
+    length >= 1e-9 && normal.y.abs() / length < STEEP_NORMAL_Y
 }
 
 /// The distance on the ground from (`x`, `z`) to the convex polygon `polygon` (0 inside it).
@@ -546,6 +568,37 @@ mod tests {
         // The bracket is past the take-off's clearance and within the way's: the switch takes the link, not the floor.
         assert!(room.exact_clearance() < 0.335_f32.hypot(0.175) && room.walk_off_clearance() > 0.175);
         assert_eq!(room.len(), plain.len());
+    }
+
+    /// `Body::drop_room_walk_faces`: the same bracket with `walk` sides (a parapet of `walk` material, as level 7's deck has) is no
+    /// wall to `drop_room` alone, so the drop past it stays; with the switch the drop goes, and the floors (the erosion's walls) are
+    /// as without it.
+    #[test]
+    fn a_walk_faced_wall_beside_the_way_off_an_edge_takes_the_drop_with_drop_room_walk_faces() {
+        let mut tris = floor(0.0, 0.0, 5.0, 10.0, 0.0).to_vec();
+        tris.extend(floor(5.0, 0.0, 10.0, 10.0, 2.0));
+        let (a, b, c, d) = (Vec3::new(5.0, 0.0, 0.0), Vec3::new(5.0, 0.0, 10.0), Vec3::new(5.0, 2.0, 10.0), Vec3::new(5.0, 2.0, 0.0));
+        tris.extend([Triangle { v: [a, b, c], walker: WalkerBehaviour::BySlope }, Triangle { v: [a, c, d], walker: WalkerBehaviour::BySlope }]);
+        // The bracket's upright sides are `walk` faces; its top and bottom stay `dont_walk` (no floor on it).
+        tris.extend(block(4.6, 4.79, 4.8, 4.95, 2.7, 3.0).into_iter().map(|t| {
+            let normal = (t.v[1] - t.v[0]).cross(t.v[2] - t.v[0]);
+            let up = normal.y.abs() / normal.length();
+            Triangle { walker: if up < 0.5 { WalkerBehaviour::Walk } else { t.walker }, ..t }
+        }));
+        let build = |drop_room_walk_faces| {
+            let body = Body { erosion: Erosion::Exact, drop_room: true, drop_room_walk_faces, ..Body::default() };
+            WalkGrid::build_with_stats(&tris, AREA, 0.25, body)
+        };
+        let straight = |grid: &WalkGrid| {
+            let node = grid.locate(Vec3::new(5.125, 2.0, 5.125), 0.05).expect("the take-off is a floor");
+            grid.links(node).any(|(to, kind)| kind == LinkKind::Drop && grid.position(to).distance_xz(Vec3::new(4.625, 0.0, 5.125)) < 0.05)
+        };
+        let (room, room_stats) = build(false);
+        let (walk, walk_stats) = build(true);
+        assert!(straight(&room), "drop_room alone does not see the walk-faced bracket");
+        assert!(!straight(&walk), "the switch does");
+        assert!(walk_stats.drops_blocked > room_stats.drops_blocked);
+        assert_eq!(walk.len(), room.len(), "the floors are as without it");
     }
 
     /// Stairs (`walk` faces) and floors are no walls: a staircase beside a floor takes no floors.
