@@ -330,6 +330,50 @@ impl SkillsTree {
         Ok(())
     }
 
+    /// A saved set of `skills` made valid again after the tree changed,
+    /// taking points back and never adding any (the points to spend are the
+    /// level minus the points held, so what is taken back is refunded):
+    /// - a skill keeps at most its levels;
+    /// - a skill the tree no longer has, in a branch it still has, goes;
+    /// - of two exclusive skills that both have points, the higher id stays
+    ///   (Supply Pocket 331 over Additional Medicine 322);
+    /// - then a skill whose row its branch no longer unlocks goes, until
+    ///   every row is reached (taking one back can lock rows below it).
+    ///
+    /// Skills of a branch the tree lacks, and a set spending more than the
+    /// level, are left as they are.
+    pub fn settle(&self, level: u8, skills: &[(u16, u8)]) -> Vec<(u16, u8)> {
+        let has_branch = |branch: u16| self.skills.iter().any(|skill| skill.branch() == branch);
+        let mut kept: Vec<(u16, u8)> = skills
+            .iter()
+            .filter_map(|&(id, points)| match self.skill(id) {
+                Some(skill) => Some((id, points.min(skill.levels_amount))),
+                None if has_branch(id / 100) => None,
+                None => Some((id, points)),
+            })
+            .collect();
+        let held = |set: &[(u16, u8)], id: u16| {
+            set.iter().any(|&(other, points)| other == id && points > 0)
+        };
+        let excluded: Vec<u16> = kept
+            .iter()
+            .filter(|&&(_, points)| points > 0)
+            .filter_map(|&(id, _)| {
+                let skill = self.skill(id)?;
+                skill
+                    .antiskills
+                    .iter()
+                    .any(|&other| other > id && held(&kept, other))
+                    .then_some(id)
+            })
+            .collect();
+        kept.retain(|(id, _)| !excluded.contains(id));
+        while let Err(SkillError::Locked { skill, .. }) = self.validate(level, &kept) {
+            kept.retain(|&(id, _)| id != skill);
+        }
+        kept
+    }
+
     /// The modifiers `skills` (`(skill id, points)`) give: for each skill
     /// the sum of its first `points` levels. Unknown skills add nothing.
     pub fn modifiers(&self, skills: &[(u16, u8)]) -> [f32; MODIFIERS] {
@@ -650,6 +694,105 @@ mod tests {
         assert_eq!(
             tree.validate(50, &body),
             Err(SkillError::Exclusive(213, 214))
+        );
+    }
+
+    /// The medical branch as the content builds it (medical-skills.md):
+    /// `(id, levels, branch_points, column, row, antiskills)`.
+    fn medical_tree() -> SkillsTree {
+        type Row = (u16, u8, u32, u8, u8, &'static [u16]);
+        #[rustfmt::skip]
+        let rows: [Row; 12] = [
+            (303, 2, 0, 1, 1, &[]), (301, 3, 0, 2, 1, &[]), (302, 2, 0, 3, 1, &[]),
+            (311, 5, 5, 1, 2, &[]), (313, 2, 5, 3, 2, &[]), (312, 3, 5, 4, 2, &[]),
+            (321, 3, 10, 2, 3, &[]), (342, 2, 10, 3, 3, &[]),
+            (323, 2, 15, 2, 4, &[]), (332, 5, 15, 3, 4, &[]),
+            (331, 1, 20, 2, 5, &[322]), (322, 1, 20, 3, 5, &[331]),
+        ];
+        let mut skills: Vec<Skill> = rows
+            .iter()
+            .map(
+                |&(id, levels_amount, branch_points, column, row, antiskills)| Skill {
+                    id,
+                    levels_amount,
+                    branch_points,
+                    antiskills: antiskills.to_vec(),
+                    column,
+                    row,
+                    levels: vec![Vec::new(); levels_amount.into()],
+                    unknown_modifiers: Vec::new(),
+                },
+            )
+            .collect();
+        skills.sort_by_key(|skill| skill.id);
+        SkillsTree { skills }
+    }
+
+    #[test]
+    fn a_changed_tree_settles_saved_skills_by_refunding() {
+        let tree = medical_tree();
+        let full = [
+            (301, 3),
+            (302, 2),
+            (303, 2),
+            (311, 5),
+            (312, 3),
+            (313, 2),
+            (321, 3),
+            (322, 0),
+            (323, 2),
+            (331, 1),
+            (332, 5),
+            (342, 2),
+        ];
+        assert_eq!(tree.validate(100, &full), Ok(()));
+        assert_eq!(tree.settle(100, &full), full);
+        // Ranks past the new levels are taken back; Medic (341) is gone.
+        assert_eq!(
+            tree.settle(100, &[(301, 5), (302, 5), (311, 5), (341, 1), (342, 5)]),
+            [(301, 3), (302, 2), (311, 5), (342, 2)]
+        );
+        // Without row 2 the five points of row 1 no longer reach row 3.
+        assert_eq!(
+            tree.settle(100, &[(301, 5), (302, 5), (342, 5)]),
+            [(301, 3), (302, 2)]
+        );
+        // Both of the new exclusive pair: Supply Pocket stays.
+        let both = [
+            (301, 3),
+            (302, 2),
+            (303, 2),
+            (311, 5),
+            (312, 3),
+            (313, 2),
+            (321, 3),
+            (322, 1),
+            (323, 2),
+            (331, 1),
+            (332, 5),
+        ];
+        let settled = tree.settle(100, &both);
+        assert!(!settled.iter().any(|&(id, _)| id == 322));
+        assert!(settled.contains(&(331, 1)));
+        assert_eq!(tree.validate(100, &settled), Ok(()));
+        // A row no longer reached goes, and with it the rows it unlocked:
+        // 301 at 5 is 3 now, under row 2's five points.
+        assert_eq!(
+            tree.settle(100, &[(301, 5), (311, 5), (321, 5)]),
+            [(301, 3)]
+        );
+        // The old tier-4 Supply Pocket is out of reach at 16 of 20.
+        assert_eq!(
+            tree.settle(
+                100,
+                &[(301, 5), (302, 5), (311, 5), (312, 5), (321, 5), (331, 1)]
+            ),
+            [(301, 3), (302, 2), (311, 5), (312, 3), (321, 3)]
+        );
+        // A branch the tree does not have is not this tree's to change.
+        assert_eq!(
+            tree.settle(100, &[(101, 9), (301, 3)]),
+            [(101, 9), (301, 3)]
         );
     }
 }

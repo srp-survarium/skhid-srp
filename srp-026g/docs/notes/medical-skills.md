@@ -1,25 +1,73 @@
 # Medical skill tree
 
 Source: `scripts/content-edit/medical-skills-1.json`, listed in `release/content.tsv`.
-The third skill tab has 38 points: seven skills with five ranks and three unlocks.
-Thresholds count points in earlier tiers of this branch. Tier 5 uses 25, within
-the existing menu's unlock limit. Implemented and tested locally; not released. The owner played the near-ally
-Larkspur crash correction. Final duration and restore corrections have automated
-coverage, without a completed live multiplayer synchronization check.
+The third skill tab has 30 points in a full build: twelve skills, of which the
+two tier-5 unlocks exclude each other. Thresholds count points in earlier tiers
+of this branch: 0, 5, 10, 15 and 20. The 2026-11-05 retune below is implemented
+and tested locally; it has not been played or released.
 
 | Tier | Required points | ID | Skill | Per rank / unlock | Maximum |
 |---|---:|---:|---|---|---|
-| 1 | 0 | 301 | Potent Painkiller | Existing protection +5%; duration +1 s | +25%; +5 s |
-| 1 | 0 | 302 | Fast Bandaging | First-aid kit and bandage use time −2% | −10% |
+| 1 | 0 | 303 | Numb Legs | Sprint stamina -20% while a painkiller is active | -40% |
+| 1 | 0 | 301 | Potent Painkiller | Existing protection +8%; duration +1.5 s | +24%; +4.5 s |
+| 1 | 0 | 302 | Fast Bandaging | First-aid kit and bandage use time -5% | -10% |
 | 2 | 5 | 311 | Metabolism | Regeneration starts 0.5 s sooner | 2.5 s sooner |
-| 2 | 5 | 312 | Medical Training | First-aid kit and bandage healing +5% | +25% |
-| 3 | 10 | 321 | Adrenalin | Movement +3% below 20 body health | +15% |
-| 3 | 10 | 342 | Brothers in Arms | Incoming allied damage −10% | −50% |
-| 4 | 20 | 331 | Supply Pocket | Secondary weapon replaced with supply pocket | One rank |
-| 4 | 20 | 332 | Strong Bones | Arm and leg maximum health +10% | +50% |
-| 4 | 20 | 322 | Additional Medicine | One extra medicine per medicine pocket | One rank |
-| 5 | 25 | 341 | Medic | Larkspur active effect shared within 5 m | One rank |
+| 2 | 5 | 313 | Take Cover | First-aid kit and bandage healing +10% while crouched | +20% |
+| 2 | 5 | 312 | Medical Training | First-aid kit and bandage healing +8% | +24% |
+| 3 | 10 | 321 | Adrenalin | Movement +5% below 30 body health | +15% |
+| 3 | 10 | 342 | Brothers in Arms | Incoming allied damage -25% | -50% |
+| 4 | 15 | 323 | Unflinching | Bullets' slow -20% while a painkiller is active | -40% |
+| 4 | 15 | 332 | Strong Bones | Arm and leg maximum health +10% | +50% |
+| 5 | 20 | 331 | Supply Pocket | Secondary weapon replaced with supply pocket | One rank |
+| 5 | 20 | 322 | Additional Medicine | One extra medicine per medicine pocket | One rank |
 
+The four-column layout, from tier 1 down to tier 5 (`S` Supply Pocket and `M`
+Additional Medicine, one or the other):
+
+```text
+| x x x - |    Numb Legs, Potent Painkiller, Fast Bandaging
+| x - x x |    Metabolism, Take Cover, Medical Training
+| - x x - |    Adrenalin, Brothers in Arms
+| - x x - |    Unflinching, Strong Bones
+| - S M - |    Supply Pocket XOR Additional Medicine
+```
+
+Points held: tier 1 = 7, tiers 1-2 = 17, tiers 1-3 = 22, tiers 1-4 = 29.
+
+## 2026-11-05 retune (owner decisions)
+
+- Numb Legs (new, 2 ranks): while a painkiller is active, sprinting costs 20%
+  less stamina a rank. Sprint cost only; jumps and other costs are unchanged.
+- Take Cover (new, 2 ranks): first-aid kits and bandages heal +10% a rank while
+  the player is effectively crouched, checked at each heal tick. It multiplies
+  with Medical Training. Effective crouch is the controller's, which stays set
+  under a low ceiling, never the crouch key.
+- Unflinching (new, 2 ranks): while a painkiller is active, the movement slow of
+  bullets (their stopping power) is 20% less a rank. It multiplies with Spring's
+  factor, whose active already removes the slow.
+- "A painkiller is active" is native set_active's flag on a painkiller in the
+  player's inventory: the whole time its pain protection is linked, from the use
+  (0x33D638) to its end (0x33DA3E).
+- Fewer ranks, the same or a near maximum: Potent Painkiller 3 x (+8%, +1.5 s);
+  Fast Bandaging 2 x -5%; Medical Training 3 x +8%; Adrenalin 3 x +5% below
+  30 health (was 20); Brothers in Arms 2 x -25%. Metabolism and Strong Bones
+  keep five ranks.
+- Potent Painkiller shows both values per rank and in the final result.
+- Medic (341) leaves the tree; it returns later in an anomalous tree. Its native
+  code (activation sharing, the Larkspur 20-instance pool, the length clock) and
+  its transport bit 20 stay as they are: the bit is 0 because no skill sets it.
+  The sections below about Medic describe that retained code.
+- Supply Pocket and Additional Medicine move to tier 5 and exclude each other,
+  symmetrically; Supply Pocket keeps its exclusion of 111 and 113.
+- Saved skills are settled when an account loads (`Account::repair`,
+  `SkillsTree::settle`): ranks past a skill's levels, Medic, Additional Medicine
+  beside Supply Pocket (Supply Pocket stays: it shapes the saved loadout) and
+  skills whose row is no longer reached are taken back. Their points are free
+  again (points to spend are the level minus the points held), the kits are sent
+  again, and the five-items-a-pocket cap handles pockets that become overfilled.
+- Icons: unchanged 0.69d0 survival PNGs chosen by the owner: Numb Legs
+  `survival/9.png`, Take Cover `survival/14.png` (Medic's former icon),
+  Unflinching `survival/7.png` (`scripts/medical-skills/icons-069.tsv`).
 
 Current equipment limits (owner clarification): **six quick slots total**, shared
 between supply pockets and artifacts. Six supply pockets leave no artifact slot;
@@ -27,39 +75,22 @@ four supply pockets leave at most two artifact slots. Each supply pocket holds
 **at most five items after all bonuses**, including Additional Medicine. Storage
 stacks and ammunition quantities are not restricted to five.
 
-The four-column layout, from tier 1 down to tier 5:
-
-```text
-| - x x - |
-| x - - x |
-| - x x - |
-| - x x x |
-| - x - - |
-```
-
-Tier 2 places Metabolism in column 1 and Medical Training in column 4.
-Tier 3 has Adrenalin and Brothers in Arms; tier 4 has Supply Pocket, Strong
-Bones and Additional Medicine; tier 5 has Medic alone in column 2.
-
 Painkiller protection strengthens the existing effect relatively. The stock
-coefficient 0.9 means 10% protection: at rank 5 it becomes 0.875, or 12.5%
-protection, for 15 instead of 10 seconds. It does not add 25 percentage points.
-The English Medic description ends exactly: `"They glow, you shine"`, including the quotes. All ten supported languages
-and the original Russian table contain medical names, descriptions and a quoted
-translation of this ending.
+coefficient 0.9 means 10% protection: at rank 3 it becomes 0.876, or 12.4%
+protection, for 14.5 instead of 10 seconds. It does not add 24 percentage points.
+The English Medic description ended exactly: `"They glow, you shine"`; its texts
+leave the edit list with the skill.
 
-Supply Pocket excludes both Terminator (111) and the existing shooting Supply
-Pocket (113); the exclusions are symmetric. Medicine capacity uses category 10,
+Supply Pocket excludes Terminator (111), the existing shooting Supply Pocket (113)
+and Additional Medicine (322); the exclusions are symmetric. Medicine capacity uses category 10,
 the native medicine category, excluding whole-pocket items (the boosters).
 Whole-pocket items remain one; the server applies the same cap to moves, preset
 fills and account repair without deleting inventory stock. The menu uses committed skills, never an unsaved preview. Server reset
 validation obtains available branches from the loaded tree instead of assuming
 two tabs. The stock movie contains only two icon sets; `MedicalSkillIcon.as`
-now displays ten original 0.69d survival PNGs for branch 3 within the existing
+displays original 0.69d survival PNGs for branch 3 within the existing
 skill renderer. Their bytes are unchanged in `flash/lobby_menu/bitmaps/`;
 `scripts/medical-skills/icons-069.tsv` records the donor paths, mapping and SHA-256.
-The injector artwork represents Potent Painkiller; the original heal-ally
-artwork represents Medic. The remaining eight use their corresponding 0.69 skills.
 
 ## Native implementation
 
@@ -68,14 +99,55 @@ artwork represents Medic. The remaining eight use their corresponding 0.69 skill
 patch 94's hooks; this is a code patch ID, not a release revision. The generated
 engine library supplies every new call. Fields and sites are in their TSVs.
 
-The unchanged 68-float modifier block transports the ten ranks as an exact
-24-bit integer in unused `armored_trap` slot 43. Rank bit offsets, in table order,
-are 0, 3, 6, 9, 12, 15, 16, 17, 20 and 21. Five-rank fields use three bits;
-unlocks use one. The parser refuses fractional, nonfinite, out-of-range or
-rank-6/7 values. Only the base profile value is decoded. Do not repurpose this
-slot for gear or a trap feature. Healing uses native modifier 57; the supply
-pocket uses native modifiers 15 and 64. Fast Bandaging is filtered to healing
-medicines at the native use-time site, without altering global modifier 33.
+The unchanged 68-float modifier block transports the ranks as exact integers in
+two unused slots, parsed once together (`Skills::parse`); either one invalid
+leaves the player with no medical skill at all.
+
+- Slot 43 `armored_trap`, 24 bits, the layout it shipped with: bit offsets 0
+  (Potent Painkiller, 0..3), 3 (Fast Bandaging, 0..2), 6 (Metabolism, 0..5),
+  9 (Medical Training, 0..3), 12 (Adrenalin, 0..3), 15 (Additional Medicine),
+  16 (Supply Pocket), 17 (Strong Bones, 0..5), 20 (Medic, retained, 0 now) and
+  21 (Brothers in Arms, 0..2). Ranked fields keep three bits; unlocks use one.
+- Slot 45 `can_defuse_traps`, 6 bits: two bits each, Numb Legs at 0 (1.0 a
+  rank), Take Cover at 2 (4.0), Unflinching at 4 (16.0); 0..2 each.
+- The parser refuses fractional, nonfinite, negative or too-large values and any
+  rank past its skill's levels. Only the base profile value is decoded.
+- Do not repurpose either slot for gear or a trap feature.
+- Slot 45 evidence (2026-11-05, the exact 0.26g exe): all 94 calls of the
+  modifier getter 0x2D5AE0 and its rounding wrapper 0x2D5B80 resolve to an index
+  and none is 45 (44 friendly_trap is read at 0x304D4C, 46 at 0x30500F, 48 at
+  0x247054); apply_kit_parameter 0x2F7660 is called with 5, 14, 15, 16 and 17
+  only; the name `can_defuse_traps_modifier` is referenced only by the two name
+  tables (0x9284FC, 0x9C9C9C), not by code (25 and 64, read by name, have code
+  references 0x224609 and 0x22462C); no kit-stride (704h) access reads its
+  offset; neither the stock resources.db nor server-game-data.db nor any edit
+  list contains `can_defuse_traps`. Only the weighted getter 0x2D5BC0 takes
+  indices from configs, which never name it. The same scan finds no read of 43.
+
+Healing uses native modifier 57; the supply pocket uses native modifiers 15 and
+64. Fast Bandaging is filtered to healing medicines at the native use-time site,
+without altering global modifier 33.
+
+The combo skills' sites (sites_026g.tsv; fields_026g.tsv rows):
+
+- Numb Legs: `medical.sprint`, 0x329AAD in player_stamina::sprint, XMM0 the sprint
+  cost a second after modifiers 19 and 67, before the elapsed-time multiply. The
+  stamina is embedded at base_player+6C0h (ctor 0x2D6E5C, tick 0x2D8FBC): field
+  `player_stamina.player` at -6C0h.
+- Take Cover: `medical.medicine_heal`, 0x33D948 in medkit::tick, XMM0 the amount of
+  this influence (drug_amount times the elapsed time, after the minimum's comiss;
+  the hook keeps the flags for the `ja`), EBP the holder. 0x33D93D was refused: a
+  base relocation lies under it.
+- Effective crouch: player+494h is the bt_character_controller wrapper (made at
+  0x2D6EF1 by 0x3569D0); its +0 the Bullet controller; its +201h byte the
+  effective crouch, set by the crouch states' request (0x337810) and cleared only
+  when it can stand (+202h; 0x337830) or by a jump (0x2D793E); serialized at
+  0x7FBA0; player_step 0x7BDA0 shapes the capsule from it (setup_crouch_state
+  0x7F1A0 writes +203h). It is 0.69d's controller +251h.
+- Unflinching: patch 54's stagger hook at 0x2DBD89 (artefacts_026g.asm) stays the
+  one owner of that site. After Spring's getter it calls patch 94's generated
+  entry `medical.stopping` (cdecl: the player, the sum in and out; every register
+  kept), which multiplies the sum by the painkiller factor. No second hook.
 
 Painkiller duration is adjusted at start, tick, deserialize comparison and HUD
 presentation. Native remaining-time fields remain the sole timer state. Limb
