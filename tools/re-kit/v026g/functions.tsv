@@ -2137,3 +2137,15 @@ va	status	ref_021d	name
 0x002ff930	observed		survarium::weapon_controller_core::serialize
 0x002ff970	observed		survarium::weapon_controller_core::deserialize
 0x00330a20	observed		survarium::hit_animations_selector::hit_body_part::deserialize
+0x00057b80	reviewed	0x0003ee1e	vostok::sound::sound_scene::tick
+0x00057d70	reviewed	0x0003ef94	vostok::sound::sound_scene::calculate_3d_pan
+0x0005c1c0	reviewed	0x0004221f	vostok::sound::new_sound_propagator::amplitude
+0x0005c1f0	reviewed	0x00042245	vostok::sound::sound_instance_proxy_internal::get_position
+0x0005c280	reviewed	0x0004228a	vostok::sound::sound_scene::notify_listener2
+0x0005dc40	reviewed	0x00043523	vostok::sound::voice_bridge::set_output_matrix_impl
+0x000633f0	reviewed	0x00043646	vostok::sound::voice_bridge::set_volume_impl
+0x00064f80	reviewed	0x00048046	vostok::sound::sound_scene::new_point_sound_instance_proxy
+0x00065670	reviewed	0x000484b4	vostok::sound::sound_emitter::emit_point_sound
+0x000657c0	reviewed	0x00048534	vostok::sound::sound_emitter::emit_and_play_once
+0x0025b940	reviewed	0x0019356c	survarium::game_world::play_sound
+0x00297c50	reviewed	0x001b17f9	survarium::weapon_sound_effect::on_sound_event

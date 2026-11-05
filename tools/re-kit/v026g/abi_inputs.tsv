@@ -5487,3 +5487,38 @@ va	name	location	role	basis
 0x002ff970	survarium::weapon_controller_core::deserialize	entry ESP+4	reader	observed
 0x00330a20	survarium::hit_animations_selector::hit_body_part::deserialize	ECX	hit body parts	observed
 0x00330a20	survarium::hit_animations_selector::hit_body_part::deserialize	EAX	reader	observed
+0x00057b80	vostok::sound::sound_scene::tick	entry ESP+4	the sound scene (one of the world's active scenes, +48E4h, next +108h)	observed
+0x00057b80	vostok::sound::sound_scene::tick	entry ESP+8	the ms since the world's last tick (sound_world::tick's EBX, 0x59AC0): the sound thread	observed
+0x00057d70	vostok::sound::sound_scene::calculate_3d_pan	entry ESP+4	the sound scene	observed
+0x00057d70	vostok::sound::sound_scene::calculate_3d_pan	entry ESP+8	the panning table (the scene's world +11Ch, then +0CCh)	observed
+0x00057d70	vostok::sound::sound_scene::calculate_3d_pan	entry ESP+0Ch	the sound_instance_proxy_internal (+80h its sound_type: 0 point, 1 cone/spot, 2 volumetric, 3 hud)	observed
+0x00057d70	vostok::sound::sound_scene::calculate_3d_pan	entry ESP+10h	the proxy's position (float3*, get_position 0x5C1F0)	observed
+0x00057d70	vostok::sound::sound_scene::calculate_3d_pan	entry ESP+14h	the listener distance, float, at least 1 (the propagator's +38h)	observed
+0x00057d70	vostok::sound::sound_scene::calculate_3d_pan	entry ESP+18h	the output matrix (float[2..4] out)	observed
+0x00057d70	vostok::sound::sound_scene::calculate_3d_pan	entry ESP+1Ch	the low-pass coefficient (float* out)	observed
+0x0005c1c0	vostok::sound::new_sound_propagator::amplitude	ECX	the propagator	observed
+0x0005c1f0	vostok::sound::sound_instance_proxy_internal::get_position	EAX	the proxy (its position an atomic half3 at +40h, read with lock cmpxchg8b)	observed
+0x0005c1f0	vostok::sound::sound_instance_proxy_internal::get_position	ESI	the float3 out	observed
+0x0005c280	vostok::sound::sound_scene::notify_listener2	entry ESP+4	the sound scene (its listener +120h; only when +2FAh is set, sound_scene::tick 0x57C9C)	observed
+0x0005c280	vostok::sound::sound_scene::notify_listener2	entry ESP+8	the ms since the last tick (passed to calculate_hdr_audio_frame 0x5C7A0 in EAX): the sound thread	observed
+0x000633f0	vostok::sound::voice_bridge::set_volume_impl	EAX	the sound_voice (not the bridge: +24h its not-started byte, +14h its voice_bridge: +10h the IXAudio2SourceVoice, +2Ch the volume set)	observed
+0x000633f0	vostok::sound::voice_bridge::set_volume_impl	entry ESP+4	the volume, float (notify_listener2: options volume_k x amplitude, 0x5C73A..0x5C73E)	observed
+0x00064f80	vostok::sound::sound_scene::new_point_sound_instance_proxy	EDI	the sound scene (its proxy allocator +188h, new_helper 0x65450)	observed
+0x00064f80	vostok::sound::sound_scene::new_point_sound_instance_proxy	entry ESP+4	the out slot (sound_instance_proxy*)	observed
+0x00064f80	vostok::sound::sound_scene::new_point_sound_instance_proxy	entry ESP+8	the sound emitter's slot (its reference taken for the proxy, +6Ch)	observed
+0x00064f80	vostok::sound::sound_scene::new_point_sound_instance_proxy	entry ESP+0Ch	the propagator emitter (the emitter's vtable +1Ch for the world user; the proxy's +70h)	observed
+0x00064f80	vostok::sound::sound_scene::new_point_sound_instance_proxy	entry ESP+10h	the world user (the proxy's +64h)	observed
+0x00065670	vostok::sound::sound_emitter::emit_point_sound	EAX	the scene slot (ptr to the sound_scene pointer: a game object's +94h)	observed
+0x00065670	vostok::sound::sound_emitter::emit_point_sound	ECX	the sound emitter (a reference held for the call)	observed
+0x00065670	vostok::sound::sound_emitter::emit_point_sound	entry ESP+4	the out slot (sound_instance_proxy*)	observed
+0x00065670	vostok::sound::sound_emitter::emit_point_sound	entry ESP+8	the world user (the sound world's logic user, its vtable slot 2)	observed
+0x000657c0	vostok::sound::sound_emitter::emit_and_play_once	ECX	the scene slot (ptr to the sound_scene pointer: a game object's +94h)	observed
+0x000657c0	vostok::sound::sound_emitter::emit_and_play_once	EAX	the world user	observed
+0x000657c0	vostok::sound::sound_emitter::emit_and_play_once	entry ESP+4	the sound emitter	observed
+0x000657c0	vostok::sound::sound_emitter::emit_and_play_once	entry ESP+8	the position (float3*)	observed
+0x000657c0	vostok::sound::sound_emitter::emit_and_play_once	entry ESP+0Ch	bool: nonzero a hud sound, 0 a point sound (0x657C9)	observed
+0x0025b940	survarium::game_world::play_sound	ECX	the game world (+94h its scene slot, +9Ch the game)	observed
+0x0025b940	survarium::game_world::play_sound	entry ESP+4	the emitter's slot (ptr<sound_emitter>*; an empty slot plays nothing)	observed
+0x0025b940	survarium::game_world::play_sound	entry ESP+8	the position (float3*)	observed
+0x00297c50	survarium::weapon_sound_effect::on_sound_event	ECX	the effect, embedded in its state's sound handler (weapon_sound_events_handler_state<S> +158h..+170h by S): +0/+4 first-view and +18h/+1Ch third-view sounds, +30h its weapon, +34h the game object whose scene slot (+94h) it plays in, +39h the variant index	observed
+0x00297c50	survarium::weapon_sound_effect::on_sound_event	entry ESP+4	the animation_callback_params (+20h the variant, 0FFh the next in turn)	observed
