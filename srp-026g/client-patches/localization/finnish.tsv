@@ -1482,11 +1482,11 @@ st_microphone_sensitivity_option	Mikrofonin herkkyys
 st_military_medkit_description	Parantaa kädet ja jalat täysin. Palauttaa 60% vartalon ja pään terveydestä ja vähentää kipua 50%.
 st_military_medkit_name	Sotilasensiapupakkaus
 st_minimap	Pienoiskartta
-st_minimap_bottom	Vasen alakulma
+st_minimap_bottom	Pienoiskartta alhaalla
 st_minimap_off	Piilotettu pienoiskartta
 st_minimap_position	Pienoiskartan sijainti
 st_minimap_rotable_option	Lukitse pienoiskartta
-st_minimap_top	Vasen yläkulma
+st_minimap_top	Pienoiskartta ylhäällä
 st_missile_weapon_action	Kranaatti
 st_missions	Tehtävät
 st_mm_button_back	Takaisin
@@ -2476,6 +2476,7 @@ st_srp_map_cologne	Köln
 st_srp_map_london	Lontoo
 st_srp_map_mamayev_kurgan	Mamajevin kurgaani
 st_srp_map_mamayev_kurgan_v021	Mamajevin kurgaani (v0.21)
+st_srp_map_names_option	Nimet kartalla
 st_srp_map_rudnya	Rudnja
 st_srp_map_rudnya_v069	Rudnja (v0.69)
 st_srp_map_school	Koulu

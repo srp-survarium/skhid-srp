@@ -1083,6 +1083,7 @@ fn wiki_routes_use_the_sites_navigation_and_language() {
         "/wiki/equipment",
         "/wiki/calculator",
         "/wiki/maps",
+        "/wiki/skills",
     ] {
         for lang in [Lang::En, Lang::Uk] {
             let mut request = get(path);
@@ -1108,6 +1109,7 @@ fn wiki_routes_use_the_sites_navigation_and_language() {
         "/wiki/equipment",
         "/wiki/calculator",
         "/wiki/maps",
+        "/wiki/skills",
     ] {
         assert!(
             index.contains(&format!("<a class=wiki-link href=\"{section}?lang=en\">")),
@@ -1218,8 +1220,8 @@ fn every_file_the_maps_name_is_served() {
 }
 
 #[test]
-fn the_maps_and_the_calculator_are_built_from_the_offered_patches() {
-    // A live release rebuilds both pages from the patches it offers and its
+fn the_site_pages_are_built_from_the_offered_patches() {
+    // A live release rebuilds the pages from the patches it offers and its
     // record commits them with release/patches.tsv (release/build-site); this
     // fails a PR that changes one without the other.
     let rows = |text: &str| -> Vec<(String, String)> {
@@ -1244,6 +1246,11 @@ fn the_maps_and_the_calculator_are_built_from_the_offered_patches() {
     assert_eq!(
         calculator, offered,
         "the calculator is built from other patches than release/patches.tsv: rebuild it with build_site.py (srp-026g/scripts/damage-calc/README.md)"
+    );
+    let skills = rows(include_str!("../../skills/built-from.tsv"));
+    assert_eq!(
+        skills, offered,
+        "the skills are built from other patches than release/patches.tsv: rebuild them with release/build-site (srp-026g/scripts/skills-tab/build.py)"
     );
 }
 

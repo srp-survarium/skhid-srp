@@ -1635,6 +1635,123 @@ input_check_on_change_input_replay:
     db 0x55, 0x8b, 0xec, 0x83, 0xe4, 0xf8
     jmp 0x1fab56
 
+; 0x1835f message_processor's WM_INPUTLANGCHANGEREQUEST (50h) case (the je at 0x181F4), before the game's text-focus check (mov ecx,[edx+2D0h] after mov edx,[1F1D310h]; survarium::game slot 44h, 0x1EE7C0, false drops the request at 0x18272): the site's ESP+1Ch the requested HKL: lohook -> keyboard_layout_on_request
+global keyboard_layout_on_request
+extern hook_keyboard_layout_on_request
+keyboard_layout_on_request:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_keyboard_layout_on_request
+    mov edx, keyboard_layout_on_request_replay
+    cmp eax, 0
+    je keyboard_layout_on_request_go
+    mov edx, 0x18365
+    cmp eax, 1
+    je keyboard_layout_on_request_go
+    ud2
+keyboard_layout_on_request_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+keyboard_layout_on_request_replay:
+    db 0x8b, 0x8a, 0xd0, 0x02, 0x00, 0x00
+    jmp 0x18365
+
+; 0x183e3 message_processor's WM_INPUTLANGCHANGE (51h) case (the je at 0x1839A), before the same check guards ActivateKeyboardLayout(lParam, KLF_SETFORPROCESS) at 0x183FE (mov ecx,[ecx+2D0h] after mov ecx,[1F1D310h]): the site's ESP+1Ch the activated HKL: lohook -> keyboard_layout_on_change
+global keyboard_layout_on_change
+extern hook_keyboard_layout_on_change
+keyboard_layout_on_change:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_keyboard_layout_on_change
+    mov edx, keyboard_layout_on_change_replay
+    cmp eax, 0
+    je keyboard_layout_on_change_go
+    mov edx, 0x183e9
+    cmp eax, 1
+    je keyboard_layout_on_change_go
+    ud2
+keyboard_layout_on_change_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+keyboard_layout_on_change_replay:
+    db 0x8b, 0x89, 0xd0, 0x02, 0x00, 0x00
+    jmp 0x183e9
+
+; 0x3b92e2 keyboard::translate_text after its GetKeyboardLayout(0) (0x3B92DC; mov edi,eax / lea eax,[esp+20h]): EAX the calling thread's HKL, which EDI carries to MapVirtualKeyExA (0x3B9318) and ToUnicodeEx (0x3B9341); the logic thread's, which Wine never changes (KLF_SETFORPROCESS unsupported): lohook -> keyboard_layout_on_text
+global keyboard_layout_on_text
+extern hook_keyboard_layout_on_text
+keyboard_layout_on_text:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_keyboard_layout_on_text
+    mov edx, keyboard_layout_on_text_replay
+    cmp eax, 0
+    je keyboard_layout_on_text_go
+    mov edx, 0x3b92e8
+    cmp eax, 1
+    je keyboard_layout_on_text_go
+    ud2
+keyboard_layout_on_text_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+keyboard_layout_on_text_replay:
+    db 0x8b, 0xf8, 0x8d, 0x44, 0x24, 0x20
+    jmp 0x3b92e8
+
 ; 0x285750 before insert_static, ECX project and ESP+4 physics: lohook -> lamps_on_bind
 global lamps_on_bind
 extern hook_lamps_on_bind

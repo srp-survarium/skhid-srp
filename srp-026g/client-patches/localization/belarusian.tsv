@@ -1482,11 +1482,11 @@ st_microphone_sensitivity_option	Адчувальнасць мікрафона
 st_military_medkit_description	Цалкам лечыць рукі і ногі. Аднаўляе 60% здароўя цела і галавы і 50% болю.
 st_military_medkit_name	Армейская аптэчка
 st_minimap	Мінікарта
-st_minimap_bottom	Ніжні левы вугал
+st_minimap_bottom	Мінікарта ўнізе
 st_minimap_off	Схаваная мінікарта
 st_minimap_position	Пазіцыя мінікарты
 st_minimap_rotable_option	Фіксаваць мінікарту
-st_minimap_top	Верхні левы вугал
+st_minimap_top	Мінікарта ўверсе
 st_missile_weapon_action	Граната
 st_missions	Заданні
 st_mm_button_back	Назад
@@ -2476,6 +2476,7 @@ st_srp_map_cologne	Кёльн
 st_srp_map_london	Лондан
 st_srp_map_mamayev_kurgan	Мамаеў курган
 st_srp_map_mamayev_kurgan_v021	Мамаеў курган (v0.21)
+st_srp_map_names_option	Імёны на карце
 st_srp_map_rudnya	Рудня
 st_srp_map_rudnya_v069	Рудня (v0.69)
 st_srp_map_school	Школа

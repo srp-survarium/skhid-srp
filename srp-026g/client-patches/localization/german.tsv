@@ -1482,11 +1482,11 @@ st_microphone_sensitivity_option	Die Sensibilität des Mikrofons.
 st_military_medkit_description	Heilt Arme und Beine vollständig. Stellt 60% von Körper und Kopf und 50% von Schmerz wieder her.
 st_military_medkit_name	Armee-Kit
 st_minimap	Minikarte
-st_minimap_bottom	untere linke Winkel
+st_minimap_bottom	Minikarte unten links
 st_minimap_off	Versteckte Minikarte
 st_minimap_position	Position der Minikarte
 st_minimap_rotable_option	Minikarte fixieren
-st_minimap_top	Der obere linke Winkel.
+st_minimap_top	Minikarte oben links
 st_missile_weapon_action	Granate
 st_missions	Aufgaben
 st_mm_button_back	Zurück
@@ -2476,6 +2476,7 @@ st_srp_map_cologne	Köln
 st_srp_map_london	London
 st_srp_map_mamayev_kurgan	Mamaew kurgan
 st_srp_map_mamayev_kurgan_v021	Mamaew kurgan (v0.21)
+st_srp_map_names_option	Namen auf Karte
 st_srp_map_rudnya	Rudnya
 st_srp_map_rudnya_v069	Rudnya (v0.69)
 st_srp_map_school	Schule

@@ -435,7 +435,7 @@ The order, as it runs:
      before, the record PRs left out), a `CHANGELOG-SKHID-026G.md` entry
      under the rule, `TODO` for the owner to word, with those PRs, and
      `release/patches.tsv` as the server offers it (the row
-     `upload-patch` added), the Maps tab and the calculator when
+     `upload-patch` added), the Maps tab, the calculator and the skills when
      step 1 rebuilt them (so main's pages match its list, as the web-server
      test wants), the item tables (`srp-026g/docs/data/`) of the server data
      it shipped where an item changed (the first 50 changes in the commit's
@@ -611,7 +611,7 @@ shows the command, unless release.sh, already given the go-ahead, runs it):
 | `release/upload-patch [--test] [--dry-run] <file>` | publishes one patch: `.tmp`, sha256 there, `chmod 644`, `mv -n`, GET must be 200 with the sha256, then its row in the list; never replaces one | the patches server, the list |
 | `release/add-mirror [--test] <name> <url>` | another URL of a listed patch: downloaded as the updater does, not a web page, the row's size and sha256, then appended to the row | the list (and the URL cache) |
 | `release/build-server-db [--test] [--out <file>]` | `server-game-data.db` from the stock db and the list's patches (local cache checked by size and SHA-256; missing or invalid files downloaded; every primary URL and mirror checked whole once, then by its first bytes), `srp-game-data build --patch "<file>=<urls>"` | a local file, the patch cache |
-| `release/build-site --tree <checkout> [--with <patch>]` | the Maps tab and the calculator from the stock db and the list's patches (cached, each sha256 checked), FFDec 26.0.0, dbgrab; both `built-from.tsv` must name exactly those; release.sh runs it in its preflight, by hand it is a local preview (`--tree .`) | the checkout's `servers/web-server/{maps,damage}/`, the cache |
+| `release/build-site --tree <checkout> [--with <patch>]` | the Maps tab, the calculator and the skills from the stock db and the list's patches (cached, each sha256 checked), FFDec 26.0.0, dbgrab; each `built-from.tsv` must name exactly those; release.sh runs it in its preflight, by hand it is a local preview (`--tree .`) | the checkout's `servers/web-server/{maps,damage,skills,wiki}/`, the cache |
 | `release/build-zip [--test] [--ref <commit>] [--revision <n>] [--patches <list>] [--work <dir>]` | the players' ZIP from a fresh worktree of origin/main (never this checkout, never `git stash`): `--server`, `--site`, `--revision` (default: the site's exe's + 1; above it), `--required-patches` (every patch of the offered-patch list, or `--patches`'; release.sh passes its list with the new patch: the exe stops at its start without one, patch 49), no resources.db regions; the exe without a server too, both sha256 in `<work>/exe.sha256`; entries against the site's ZIP | a worktree, the ZIP |
 | `release/deploy --zip --server-data --revision [--label] [--dry-run]` | the swap on its own, in a window planned by hand: the release folder, the checks, the rollback on failure | the live host |
 | `release/rollback [--test] [--keep-db] [<folder>]` | a release folder's rollback | the target |

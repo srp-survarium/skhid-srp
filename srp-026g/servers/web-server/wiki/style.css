@@ -213,3 +213,43 @@ main.wiki { max-width: 1160px; gap: 0; margin-top: 28px }
 .protection tbody th { text-align:left; font:400 .82rem var(--body); color:var(--ink-2) }
 .gear-modifiers { grid-column:1 / -1 }
 .gear-modifiers h3 { font-size:.85rem; margin:8px 0 6px; color:var(--ink-3); text-transform:uppercase; letter-spacing:.08em }
+/* Skills: each branch a card of the wiki's (.wiki-link), its skills the lobby's own (the
+   skill renderer's icons, states and rank indicator; PerkTipRenderer's tooltip). A tree is
+   never reflowed: a card that does not fit goes to the next row, and one wider than the
+   screen scales whole (--u: one CSS pixel, or less, of the tree's --tier + 86 a column). */
+.skill-trees { --skill-green:#5c7d47; display:grid; grid-template-columns:repeat(auto-fill,minmax(min(100%,464px),1fr));
+  gap:16px; margin:18px 0 24px }
+@media(prefers-color-scheme:dark) { .skill-trees,.skill-float { --skill-green:#8bc779 } }
+.skill-branch { border:1px solid var(--rule); background:var(--panel); padding:24px; container-type:inline-size }
+.skill-branch h2 { color:var(--accent); font-size:1.5rem; line-height:1.1; margin:0 0 16px }
+.skill-branch h2 .glyph { width:1.5em; height:1.1em; margin-right:.3em; vertical-align:-.2em }
+.skill-grid { --tier:84; --u:min(1px,calc(100cqw / (var(--tier) + var(--columns) * 86))); display:grid; justify-content:center;
+  grid-template-columns:calc(var(--tier) * var(--u)) repeat(var(--columns),calc(82 * var(--u))); gap:calc(12 * var(--u)) calc(4 * var(--u)) }
+/* A tier's numeral and threshold, one line, level with its icons' centre. */
+.skill-tier { grid-column:1; align-self:start; margin-top:calc((28 * var(--disc) - 8) * var(--u)); white-space:nowrap; text-align:right;
+  font:calc(12 * var(--u))/calc(16 * var(--u)) var(--body); color:var(--ink-3) }
+.skill-tier b { font-weight:700 }
+.skill { position:relative; display:flex; flex-direction:column; align-items:center; gap:calc(2 * var(--u)); text-align:center;
+  outline:none; cursor:default; -webkit-tap-highlight-color:transparent }
+.skill-disc { position:relative; width:calc(56 * var(--disc) * var(--u)); height:calc(56 * var(--disc) * var(--u)) }
+.skill-disc img { position:absolute; inset:0; width:100%; height:100% }
+.skill-over,.skill-lock-red,.skill-tip { display:none }
+.skill.open .skill-over,.skill:focus-visible .skill-over { display:block }
+@media(hover:hover) { .skill:hover .skill-over { display:block } }
+.skill-or { position:absolute; top:0; left:0; font:700 calc(10 * var(--u)) var(--display); text-transform:uppercase; letter-spacing:.06em;
+  background:var(--panel); color:var(--bad); border:1px solid var(--bad); border-radius:2px; padding:0 calc(3 * var(--u)) }
+.skill-name { font:700 calc(11 * var(--u))/1.2 var(--body); color:var(--ink); overflow-wrap:normal; word-break:normal; hyphens:manual }
+.skill.locked .skill-name { color:var(--ink-3) }
+.skill:focus-visible .skill-disc { outline:2px solid var(--accent); outline-offset:-2px; border-radius:50% }
+/* The tooltip (skills.js): out of the page's flow, placed by the script. */
+.skill-float { position:fixed; z-index:20; min-width:100px; width:max-content; max-width:min(280px,calc(100vw - 16px));
+  text-align:left; background:var(--panel); border:1px solid var(--rule); box-shadow:0 8px 28px rgba(0,0,0,.28); padding:8px;
+  font:.875rem/1.3 var(--body); color:var(--ink-2); pointer-events:none }
+.skill-float[hidden] { display:none }
+.skill-float.wrap { width:250px }
+.skill-float b { display:block; color:var(--ink); padding-bottom:6px; border-bottom:1px solid var(--rule); margin-bottom:4px }
+.skill-float p { margin:0 }
+.skill-value { color:var(--skill-green); font-weight:700; white-space:nowrap }
+@media(max-width:560px) {
+  .skill-float,.skill-float.wrap { left:16px; right:16px; bottom:16px; top:auto; width:auto; max-width:none }
+}

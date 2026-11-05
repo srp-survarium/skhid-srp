@@ -539,6 +539,11 @@ Patches:
   min(player_step's dt, 0.05), not x 0.05 at every step, so a tick the
   world steps in parts (each precise input) adds one tick of speed in all;
   whole ticks bit for bit as before. A simulation change;
+- a thrown grenade stays above the ground (patch 105, with the late join;
+  docs/notes/grenade_ccd.md): grenade_core::load's continuous collision
+  sweeps a sphere of 0.04 m (GRENADE_CCD, 0x303A13), not 0.01 m, inside the
+  grenade's 0.05 m capsule, so the capsule stops at the surface it hits
+  instead of 4 cm into it. A simulation change;
 - the baked camouflage and decal textures are kept from game to game, and
   a texture asked for again while its bake or load is under way is made
   once (patch 70, with the late join; docs/notes/baked-textures.md).
@@ -1463,6 +1468,18 @@ FALL_GRAVITY = (
      bytes.fromhex("f30f10586c" "f30f5cd9" "f30f104870" "f30f5cca" "f30f114870" "f30f104874" "f30f5cc8"
                    "f30f11586c" "f30f114874" "eb10" "8b4d00" "f30f105908" "f30f5d18" "eb9c" "cccc")),
 )
+
+# A thrown grenade stays above the ground (patch 105, ../docs/notes/grenade_ccd.md).
+# grenade_core::load 0x303890 gives the grenade (RGD-5 and RDG-M) a capsule of
+# radius 0.05 m (0x3038DB) and continuous collision: motion threshold 0.03 m
+# (0x303A0B) and a swept sphere of 0.01 m (0x303A1C, the 0.01 of 0xA2D774).
+# vostok's integrateTransforms moves a body whose sweep hits to the sphere's
+# time of impact, so the capsule sat 4 cm into the level's collision there and
+# its contact often pushed it out the other side. GRENADE_CCD loads the 0.04
+# of 0xA2D7DC instead (.rdata, the same `movss xmm0,[abs]`): the sphere stays
+# inside the capsule with a centimetre to spare. Its base relocation (0x303A17)
+# stays. A simulation change.
+GRENADE_CCD = (0x303A13, bytes.fromhex("f30f100574d7a200"), bytes.fromhex("f30f1005dcd7a200"))
 
 # The menus' mouse buttons (patch 102, client_patch.md section 3.63). The
 # mouse gives a key 151h + its button (0..7, platform mouse 0x3B9981) to every
@@ -3457,6 +3474,8 @@ def build_image(original, mode, code=None, server=None, late_join=None, revision
         for site in FALL_GRAVITY:
             patch(data, *site)
             sites.append((site[0], site[0] + len(site[1])))
+        # An address of .rdata for another: its relocation stays.
+        patch(data, *GRENADE_CCD)
         for site in MOUSE_BUTTONS:
             patch(data, *site)
             sites.append((site[0], site[0] + len(site[1])))

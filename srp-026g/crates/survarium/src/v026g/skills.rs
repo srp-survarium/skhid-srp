@@ -26,7 +26,9 @@
 //!   not in the whole branch. PROVEN (UI); that the original server checked
 //!   the same is LIKELY.
 //! - Skills 206 and 210 have `branch_points` 50, past the 25 the walk
-//!   allows: they can never take a point. PROVEN (UI).
+//!   allows: they can never take a point. PROVEN (UI). The players' tree
+//!   no longer has them (content edit list `physical-skills-1.json`, as
+//!   0.46c2's tree); the tests' game data is the stock tree, which does.
 //! - `antiskills`: a skill with points locks the skills it names
 //!   (`handleAntiskills`): 111 against 113, 213 against 214. PROVEN (UI).
 //!
@@ -676,6 +678,53 @@ mod tests {
                 unlocked: 20
             })
         );
+    }
+
+    #[test]
+    fn the_players_tree_without_206_and_210_unlocks_as_the_stock_one() {
+        // physical-skills-1.json: 206 and 210 out, 202 to column 4 of its row.
+        let stock = SkillsTree::shared();
+        let mut players = stock.clone();
+        players
+            .skills
+            .retain(|skill| ![206, 210].contains(&skill.id));
+        let packrat = players.skills.iter_mut().find(|skill| skill.id == 202);
+        packrat.unwrap().column = 4;
+        let sets: [&[(u16, u8)]; 5] = [
+            &[],
+            &[(201, 5)],
+            &[(201, 3), (204, 2), (209, 5)],
+            &[(201, 5), (209, 4), (208, 5)],
+            &[
+                (201, 5),
+                (204, 5),
+                (203, 2),
+                (209, 5),
+                (202, 5),
+                (208, 5),
+                (211, 5),
+            ],
+        ];
+        for set in sets {
+            assert_eq!(
+                players.unlocked_branch_points(2, set),
+                stock.unlocked_branch_points(2, set),
+                "{set:?}"
+            );
+            assert_eq!(
+                players.validate(50, set),
+                stock.validate(50, set),
+                "{set:?}"
+            );
+        }
+        // A point in either was refused before and is now.
+        for id in [206, 210] {
+            assert!(stock.validate(99, &[(id, 1)]).is_err());
+            assert_eq!(
+                players.validate(99, &[(id, 1)]),
+                Err(SkillError::Unknown(id))
+            );
+        }
     }
 
     #[test]

@@ -2149,3 +2149,13 @@ va	status	ref_021d	name
 0x000657c0	reviewed	0x00048534	vostok::sound::sound_emitter::emit_and_play_once
 0x0025b940	reviewed	0x0019356c	survarium::game_world::play_sound
 0x00297c50	reviewed	0x001b17f9	survarium::weapon_sound_effect::on_sound_event
+0x00303890	reviewed	0x001ec2a7	survarium::grenade_core::load
+0x00303c10	reviewed	0x001ec537	survarium::grenade_core::throw_grenade
+0x003576c0	reviewed	0x0021c3a7	vostok::physics::bt_dynamic_rigid_body::set_linear_velocity
+0x00357750	reviewed	0x0021c3fe	vostok::physics::bt_dynamic_rigid_body::set_angular_velocity
+0x00357100	reviewed	0x0021c095	vostok::physics::create_dynamic_rigid_body
+0x0007a390	verified	0x000591ca	vostok::physics::create_primitive_shape
+0x0007a1f0	verified	0x0005904e	vostok::physics::create_bt_primitive
+0x00075550	reviewed	0x00056439	vostok::physics::bullet_physics_world::tick
+0x003b92d0	verified	0x00265484	vostok::input::platform::keyboard::translate_text
+0x000181e0	verified	0x000152cc	message_processor

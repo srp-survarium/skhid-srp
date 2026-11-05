@@ -50,6 +50,7 @@ mod moderation;
 mod modifiers;
 mod password_reset;
 mod patches;
+mod skills;
 mod stats;
 mod v026g;
 mod wiki;
@@ -668,13 +669,14 @@ impl Web {
             self.resource(&mut stream, &request, &file);
             return;
         }
-        // The calculator's and the Maps tab's files on the 0.26g site; the
+        // The calculator's, the Maps tab's and the skills' files on the 0.26g site; the
         // calculator's fonts, which every page uses, on both.
         let site_file = self.game.is_some() || request.path.starts_with(damage::FONTS);
         if site_file && matches!(request.method.as_str(), "GET" | "HEAD") {
             let file = damage::file(&request.path)
                 .or_else(|| self.game.as_ref().and_then(|_| maps::file(&request.path)))
                 .or_else(|| self.game.as_ref().and_then(|_| wiki::file(&request.path)))
+                .or_else(|| self.game.as_ref().and_then(|_| skills::file(&request.path)))
                 .or_else(|| self.game.as_ref().and_then(|_| icons::file(&request.path)));
             if let Some((content_type, bytes)) = file {
                 damage::send(&mut stream, request.method == "HEAD", content_type, bytes);
@@ -707,7 +709,7 @@ impl Web {
         } else if self.game.is_some()
             && matches!(
                 request.path.as_str(),
-                wiki::PATH | wiki::WEAPONS | wiki::MODIFIERS | wiki::EQUIPMENT
+                wiki::PATH | wiki::WEAPONS | wiki::MODIFIERS | wiki::EQUIPMENT | skills::PATH
             )
         {
             damage::POLICY
@@ -975,7 +977,11 @@ impl Web {
                     }
                     damage::PATH => return damage_page(request.lang),
                     maps::PATH => return maps_page(request.lang),
-                    path @ (wiki::PATH | wiki::WEAPONS | wiki::MODIFIERS | wiki::EQUIPMENT) => {
+                    path @ (wiki::PATH
+                    | wiki::WEAPONS
+                    | wiki::MODIFIERS
+                    | wiki::EQUIPMENT
+                    | skills::PATH) => {
                         return wiki_page(path, &request.target, request.lang);
                     }
                     path if path.starts_with(launcher::FRESH) => {

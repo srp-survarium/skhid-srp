@@ -2319,6 +2319,7 @@ va	name	source	ret_cleanup	result
 0x00059e70	vostok::sound::sound_world::create_sound_voice	manual	12	EAX
 0x0005cb80	vostok::sound::new_sound_propagator::detach_voice	manual	4	
 0x00038990	vostok::sound::sound_propagator_emitter::get_options	thiscall	0	EAX: this + 8, the sound's options (single_sound_cook 0x615D8 copies them; +11h can_be_displaced, default 1 at 0x6129F)
+0x002ffce0	survarium::stack_item::resupply_from_profile_slot	manual	8	none; a stack (dictionary entry +22Ah set) grows to the kit slot's count, taking the difference from the stock; a grenade set's vtable+40h (0xA14824), called by resupply_from_profile at 0x2FDEE0: never to the pocket size; descriptive label
 0x002ff930	survarium::weapon_controller_core::serialize	manual	8	A1386C slot 14h, from weapon_core::serialize 2E3382 ([weapon+278h]): legs IK (if 1F1D9EFh) + 2FBBB0 (u32 seed, byte, fsm) + 3309B0 (8 x 12 bytes)
 0x002ff970	survarium::weapon_controller_core::deserialize	manual	12	A1386C slot 18h; the fsm's state from the reader's own list (38CCF0)
 0x00330a20	survarium::hit_animations_selector::hit_body_part::deserialize	manual	0	reads 8 x (u32, u32, u32) into ECX+0Ch.. stride 18h
@@ -2333,3 +2334,10 @@ va	name	source	ret_cleanup	result
 0x000657c0	vostok::sound::sound_emitter::emit_and_play_once	manual	12	none; makes a hud (new_hud 0x65803) or point (new_point 0x65874) proxy, sets its position (proxy vtable +10h), plays it once (vtable +0, mode 0) with a finished callback and lets its reference go: the caller never holds the proxy
 0x0025b940	survarium::game_world::play_sound	manual	8	none; emit_and_play_once (0x25B98A) of the emitter at the position as a point sound, from the world's own scene slot (+94h)
 0x00297c50	survarium::weapon_sound_effect::on_sound_event	manual	4	EAX 0 (callback_return_type_enum)
+0x00303890	survarium::grenade_core::load	manual	4	none; the body: capsule r 0.05 h 0.1 (0x7A390 type 3), 0x357100 with mass 0.3, friction 0.5, restitution 0, into +18Ch; its btRigidBody (+14h) m_ccdMotionThreshold (+104h) 0.03 and m_ccdSweptSphereRadius (+100h) 0.01 (patch 105: 0.04)
+0x00303c10	survarium::grenade_core::throw_grenade	manual	8	none; sets the body's transform, adds it to the physics world (vtable +2Ch) as group 818h mask 8, its linear velocity, a zero angular velocity
+0x003576c0	vostok::physics::bt_dynamic_rigid_body::set_linear_velocity	manual	4	none; writes the btRigidBody's (+14h) m_linearVelocity (+140h) as (x, y, -z), the Bullet axes, a zero as +0
+0x00357750	vostok::physics::bt_dynamic_rigid_body::set_angular_velocity	manual	4	none; (x, y, -z), the Bullet axes, a zero as +0, to 0x8B220 with the btRigidBody (+14h)
+0x003b92d0	vostok::input::platform::keyboard::translate_text	manual	8	AL: 1 a character written to entry ESP+8's WCHAR (or a dead key kept at ECX+90Ch), 0 none
+0x000181e0	message_processor	manual	16	EAX: the message's result (most cases tail-jump to DefWindowProc, [0AEFF1Ch])
+0x001ee7c0	survarium::game::is_text_input_focused	manual	0	AL: 1 when game+586Ch is not 0 (a text input has the keyboard)

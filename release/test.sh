@@ -1106,7 +1106,7 @@ if [[ -e $TEST_DIR/build-site-fails ]]; then echo "build.py: the Maps tab's buil
 . "$SKHID_RELEASE_ENV"
 rows=$(grep -v '^#' "$SKHID_PATCH_LIST" | cut -f1,2)
 if [[ -n $with && ! -e $TEST_DIR/build-site-wrong ]]; then rows+=$'\n'"${with##*/}"$'\t'"$(sha256sum <"$with" | cut -c1-64)"; fi
-for dir in maps damage; do
+for dir in maps damage skills; do
     mkdir -p "$tree/srp-026g/servers/web-server/$dir"
     { echo "# The patches the $dir page was built from: name, sha256."; grep . <<<"$rows"; } >"$tree/srp-026g/servers/web-server/$dir/built-from.tsv"
     printf 'built from %s\n' "$(cut -f1 <<<"$rows" | tr '\n' ' ')" >"$tree/srp-026g/servers/web-server/$dir/page.js"
@@ -1367,7 +1367,7 @@ echo "item 13" >"$T/p13/gameplay/items/d.txt"
 "$bin" pack --dir "$T/p13" --out "$T/r13/resources.db.patch_13" >/dev/null
 # The site's pages on main, built from the list (patch_3, patch_12): the
 # release of new content rebuilds them (build-site's stand-in).
-for dir in maps damage; do
+for dir in maps damage skills; do
     mkdir -p "$src/servers/web-server/$dir"
     grep -v '^#' "$T/patches.tsv" | cut -f1,2 >"$src/servers/web-server/$dir/built-from.tsv"
     echo "built by hand" >"$src/servers/web-server/$dir/page.js"
@@ -1392,9 +1392,9 @@ check "release --resources: ... in the preflight, before the maintenance" bash -
 check "release --resources: ... the server's source carries them" bash -c \
     "grep -qx \$'resources.db.patch_13\t'\$(sha256sum <$T/r13/resources.db.patch_13 | cut -c1-64) $T/live/servers/web-server/maps/built-from.tsv && grep -qx 'built from resources.db.patch_3 resources.db.patch_12 resources.db.patch_13 ' $T/live/servers/web-server/damage/page.js"
 check "release --resources: ... the record commits them: main's pages built from main's list" bash -c \
-    "for d in maps damage; do cmp -s <(git -C $T/origin.git show main:srp-026g/servers/web-server/\$d/built-from.tsv | grep -v '^#') <(git -C $T/origin.git show main:release/patches.tsv | grep -v '^#' | cut -f1,2) || exit 1; done"
+    "for d in maps damage skills; do cmp -s <(git -C $T/origin.git show main:srp-026g/servers/web-server/\$d/built-from.tsv | grep -v '^#') <(git -C $T/origin.git show main:release/patches.tsv | grep -v '^#' | cut -f1,2) || exit 1; done"
 check "release --resources: ... the record's commit: the pages, the list and its own files, and says so" bash -c \
-    "test \"\$(git -C $T/origin.git diff --name-only $pages_commit 'main^2' | tr '\n' ' ')\" = 'CHANGELOG-SKHID-026G.md release/patches.tsv srp-026g/client-patches/README.md srp-026g/client-patches/patch_026g.py srp-026g/crates/session/src/v026g/simulation_changes.tsv srp-026g/docs/data/equipment.tsv srp-026g/servers/web-server/damage/built-from.tsv srp-026g/servers/web-server/damage/page.js srp-026g/servers/web-server/maps/built-from.tsv srp-026g/servers/web-server/maps/page.js srp-026g/servers/web-server/wiki/page.js ' && git -C $T/origin.git log -1 --format=%B 'main^2' | grep -q '^The Maps tab and the calculator (srp-026g/servers/web-server/maps/ and'"
+    "test \"\$(git -C $T/origin.git diff --name-only $pages_commit 'main^2' | tr '\n' ' ')\" = 'CHANGELOG-SKHID-026G.md release/patches.tsv srp-026g/client-patches/README.md srp-026g/client-patches/patch_026g.py srp-026g/crates/session/src/v026g/simulation_changes.tsv srp-026g/docs/data/equipment.tsv srp-026g/servers/web-server/damage/built-from.tsv srp-026g/servers/web-server/damage/page.js srp-026g/servers/web-server/maps/built-from.tsv srp-026g/servers/web-server/maps/page.js srp-026g/servers/web-server/skills/built-from.tsv srp-026g/servers/web-server/skills/page.js srp-026g/servers/web-server/wiki/page.js ' && git -C $T/origin.git log -1 --format=%B 'main^2' | grep -q '^The Maps tab and the calculator (srp-026g/servers/web-server/maps/ and'"
 check "release --resources: ... the changed item table in the record, its change said" bash -c \
     "git -C $T/origin.git show 'main:srp-026g/docs/data/equipment.tsv' | grep -qx \$'item_a\t2.5' && git -C $T/origin.git log -1 --format=%B 'main^2' | grep -q '^The item tables (srp-026g/docs/data/) of the server data it ships:' && git -C $T/origin.git log -1 --format=%B 'main^2' | grep -q 'item_a: weight_kg 3 -> 2.5'"
 check "release --resources: ... the message (the PR's body) shows the first lines of the changes, the rest counted" bash -c \
@@ -1658,8 +1658,8 @@ develop)
 esac
 STANDIN
 chmod +x "$T/sb/bin/nix"
-sb_repo() { # <dir> <main.rs>: a checkout whose commit has dbgrab's sources and the two builds
-    mkdir -p "$1/tools/re-kit/common/dbgrab/src" "$1/srp-026g/scripts/maps-tab" "$1/srp-026g/scripts/damage-calc"
+sb_repo() { # <dir> <main.rs>: a checkout whose commit has dbgrab's sources and the three builds
+    mkdir -p "$1/tools/re-kit/common/dbgrab/src" "$1/srp-026g/scripts/maps-tab" "$1/srp-026g/scripts/damage-calc" "$1/srp-026g/scripts/skills-tab"
     echo '[package]' >"$1/tools/re-kit/common/dbgrab/Cargo.toml"
     echo "$2" >"$1/tools/re-kit/common/dbgrab/src/main.rs"
     cat >"$1/srp-026g/scripts/maps-tab/build.py" <<'PY'
@@ -1672,12 +1672,13 @@ rows = [line.split("\t")[:2] for line in pathlib.Path(opts["--list"]).read_text(
 if "--with" in opts and not os.path.exists(os.environ["TEST_DIR"] + "/sb/drop-with"):
     rows.append([pathlib.Path(opts["--with"]).name, hashlib.sha256(pathlib.Path(opts["--with"]).read_bytes()).hexdigest()])
 rows.sort(key=lambda row: int(row[0].rsplit("_", 1)[1]))
-out = pathlib.Path("srp-026g/servers/web-server", "maps" if sys.argv[0].endswith("/build.py") else "damage")
+out = pathlib.Path("srp-026g/servers/web-server", {"maps-tab": "maps", "damage-calc": "damage", "skills-tab": "skills"}[pathlib.Path(sys.argv[0]).parent.name])
 out.mkdir(parents=True, exist_ok=True)
 (out / "built-from.tsv").write_text("# The patches it was built from: name, sha256.\n" + "".join(f"{n}\t{s}\n" for n, s in rows))
 (out / "dbgrab.txt").write_text(subprocess.run([opts["--dbgrab"]], capture_output=True, text=True, check=True).stdout)
 PY
     cp "$1/srp-026g/scripts/maps-tab/build.py" "$1/srp-026g/scripts/damage-calc/build_site.py"
+    cp "$1/srp-026g/scripts/maps-tab/build.py" "$1/srp-026g/scripts/skills-tab/build.py"
     git_t -C "$1" init -q && git_t -C "$1" add -A && git_t -C "$1" commit -q -m "$2"
 }
 sb_repo "$T/sb/root" "the operator's dbgrab"
@@ -1697,9 +1698,9 @@ sb_run() { # <args...>: build-site in $T, its output into $out
 sb_run --with r5/resources.db.patch_5 || fail "build-site: $out"
 sb_rows=$( { grep -v '^#' "$T/patches.tsv" | cut -f1,2; printf 'resources.db.patch_5\t%s\n' "$(sha256sum <"$T/r5/resources.db.patch_5" | cut -c1-64)"; } | sort -V)
 check "build-site: relative --with, SKHID_STOCK_DB and SKHID_PATCH_LIST: the builds (in the tree) find them" bash -c \
-    "for d in maps damage; do test \"\$(grep -v '^#' $T/sb/tree/srp-026g/servers/web-server/\$d/built-from.tsv | sort -V)\" = \"\$1\" || exit 1; done" _ "$sb_rows"
+    "for d in maps damage skills; do test \"\$(grep -v '^#' $T/sb/tree/srp-026g/servers/web-server/\$d/built-from.tsv | sort -V)\" = \"\$1\" || exit 1; done" _ "$sb_rows"
 check "build-site: a --with patch below the list's top, the pages naming it in another order: passes" has "$out" \
-    "^the Maps tab and the calculator: built in $T/sb/tree/srp-026g/servers/web-server/ from the stock resources.db and $(grep -c . <<<"$sb_rows") patch(es):"
+    "^the Maps tab, the calculator and the skills: built in $T/sb/tree/srp-026g/servers/web-server/ from the stock resources.db and $(grep -c . <<<"$sb_rows") patch(es):"
 check "build-site: dbgrab built from the tree's commit, not the checkout running it" grep -qx "the tree's dbgrab" "$T/sb/tree/srp-026g/servers/web-server/maps/dbgrab.txt"
 check "build-site: ... from a source folder made anew (an earlier one's file gone)" test "$(cat "$T/sb/dbgrab-src")" = "./Cargo.toml ./src/main.rs "
 check "build-site: ... its target kept" test -f "$T/sb/cache/skhid-release/dbgrab-target/kept"

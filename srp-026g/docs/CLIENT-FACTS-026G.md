@@ -462,7 +462,7 @@ All modes: 900 s, countdown 20 s, respawn 8 s, waiting limit 5 min,
 - Skills: `gameplay/skills/skills_tree.options`, 26 skills in two branches
   (101..113, 201..214), named modifiers, values as fractions. A row needs
   its `branch_points` spent in the rows above; exclusive pairs 111/113 and
-  213/214. Skills 206 and 210 can never be bought. §3.
+  213/214. Skills 206 and 210 can never be bought (Skhid removes them). §3.
 - `default.player`: carry limit 30 kg (0.21d 25), 3 ammo bags. §4.
 - Items wear out (`degrade_per_use`, `_per_match`, `_per_death`); 158
   modifications, 20 defects; armour keeps only `armor` (no `reduce`). §4.

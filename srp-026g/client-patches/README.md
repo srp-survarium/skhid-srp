@@ -123,6 +123,7 @@ release's. The "Result" row is the build of the revision named in it.
 | `rust/patches/src/input_check.rs`, `src/input_check.toml`, `src/vostok/input.rs`, `check_input_check_026g.py` | Patch 99: a world takes no player input whose rotation no client makes (a NaN, an infinity, 1024 radians or more), as 0.27d's change_input refuses one: a lohook at change_input<player_input>'s start (0x1FAB50); its check runs that start on made-up inputs, the original beside (needs Unicorn) |
 | `check_mouse_buttons_026g.py` | Patch 102 (`MOUSE_BUTTONS` in `patch_026g.py`): a side mouse button (mouse4..mouse8) is no left click in the lobby, login, options and match menus; its check runs the five handlers in both exes (needs Unicorn) |
 | `rust/patches/src/footsteps.rs`, `src/footsteps.toml`, `src/vostok/footstep.rs`, `check_footsteps_026g.py` | Patch 101: a footstep that only a re-simulation makes (another player's late input) is heard instead of dropped; one lohook in on_player_sound_event's time test; its check runs the handler in both exes (needs Unicorn) |
+| `rust/patches/src/keyboard_layout.rs`, `src/keyboard_layout.toml`, `src/vostok/keyboard_layout.rs`, `check_keyboard_layout_026g.py` | Patch 107: chat text follows the keyboard layout the window was last told of (under Wine the engine's logic thread never got it); three lohooks, in message_processor's two layout messages and after translate_text's GetKeyboardLayout(0); its check runs both functions in both exes (needs Unicorn) |
 | `audio_device_026g.c`, `audio_device_026g.h`, `audio_device_engine_026g.c`, `test_audio_device_026g.c` | Patch 100: the sound follows the audio output device (XAudio2's engine and voices proxied, made again on the default device after a lost device or a new default); the test runs the core on i686 under the sanitizers against a made-up XAudio2 that keeps its rules (no Unicorn) |
 | `rust/patches/src/sound_voices.rs`, `src/sound_voices.toml`, `src/vostok/voices.rs`, `check_sound_voices_026g.py` | Patch 96: shots no longer go silent under heavy fire (`../docs/notes/sound_voices.md`): the game world's sound scene has 1024 sound instances and propagators (`SOUND_POOLS`, game_world::load 0x1F8DB6/0x1F8DBD), and a sound refused a voice takes the voice of the quietest one playing when that one is less than half as loud (a lohook after create_sound_voice, 0x5CAB0), and the source voice walk is bounded to one pass (`sound_voices_026g.asm`, 0x5E5E7, 0x631D9, 0x59F8E); the check runs the voice loop from that site on made-up scenes with a model of the world's voice pool, and the self-test's `test_sound_pools` (needs Unicorn) |
 | `check_stage_focus_026g.py` | Runs the original's and patch 52's Stage focus getter (Scaleform's `stage.focus`, 0x771FA0) on a made-up movie: focused objects of each kind, none, one without its ActionScript object (the lobby's crash of 2026-10-22) (needs Unicorn) |
@@ -3846,15 +3847,16 @@ code. Native Unicorn tests cover all authored maps. Details and test limits:
 
 ## The Settings' HUD group (patch 83)
 
-The Gameplay tab's "HUD:" group (`../docs/notes/hide-hit-markers-scores.md`): three settings kept in
-user.cfg, off by default, `srp_hide_hit_markers`, `srp_hide_scores` and `srp_hide_crosshair` (the
-crosshair list's Hidden). The Rust `hud_options` patch registers the saved bools at
+The Gameplay tab's "HUD:" group (`../docs/notes/hide-hit-markers-scores.md`): four settings kept in
+user.cfg, off by default, `srp_hide_hit_markers`, `srp_hide_scores`, `srp_map_names` and
+`srp_hide_crosshair` (the crosshair list's Hidden). The Rust `hud_options` patch registers the saved bools at
 `configs.start`, answers the main menu's `srp_hide_*` calls and `srp_hud_texts` (the group's
 texts) at `options.callback` (after patch 79's hooks there, sharing `vostok::settings` with it), and
-tells the hud movie the three at `player_icons.update_start` (after patch 65's hook) when the movie
+tells the hud movie the four at `player_icons.update_start` (after patch 65's hook) when the movie
 or a setting changes, and again after each match's or replay's options read (a new hud can be made
 at the last one's address). The hud hides the crosshair's hit marker, shows the Tab list as names
-only, and hides the crosshair. The stock quest progress and minimap controls are moved into the
+only, hides the crosshair, and shows the Tab map's names without Alt (Alt hiding them, patch
+82). The stock quest progress and minimap controls are moved into the
 group by the main menu alone. Interface only: no simulation change. `check_hud_options_026g.py`
 runs the hooks from the game's code; `../scripts/hud-options/check.sh` the movies in Ruffle.
 
@@ -4398,3 +4400,43 @@ exes on made-up items: the rev47 world (0x818A bytes), 300 bullets with
 twenty players, a world over 0xF000, and a packed 0xE8 of a 0xA014-byte
 world through the whole handler with the game's own decoder. **Not run in a
 game.**
+
+## A thrown grenade stays above the ground (patch 105, unreleased)
+
+Grenades often went through the ground where they hit it (players' reports,
+2026-11-04). Stock 0.26g: `grenade_core::load` (0x303890) gives the grenade a
+0.05 m capsule and continuous collision with a swept sphere of 0.01 m; vostok's
+`integrateTransforms` moves a body whose sweep hits to the sphere's time of
+impact, which leaves the capsule 4 cm or more inside the level's one-sided
+collision mesh, and its contact then often pushes it through. `GRENADE_CCD`
+(0x303A13) loads the 0.04 of 0xA2D7DC instead of the 0.01 of 0xA2D774 (8
+bytes, the same instruction; its base relocation stays): the sphere is inside
+the capsule with a centimetre to spare and the capsule stops at the surface.
+A simulation of the game's world, step and body over vostok's Bullet 2.79
+(`grenade_ccd_sim.cpp`) loses 10 to 23 % of throws under the ground stock and
+none of 4700 with 0.04; a grenade rolls on about half as far after it lands
+(stock, the sunk capsule was pushed back out with speed). What a match
+computes changes: a `next` row in
+`../crates/session/src/v026g/simulation_changes.tsv`.
+`../docs/notes/grenade_ccd.md` has the evidence. Checked: selftest check 105
+(`test_grenade_ccd`) and the late join's site and relocation checks.
+**Not run in a game.**
+
+## Chat text follows the keyboard layout (patch 107, unreleased)
+
+Under Wine, Alt+Shift never reached the chat (the owner's report, 2026-11-05, Wine's Wayland driver
+under niri). `keyboard::translate_text` (0x3B92D0) types a key on the engine's logic thread with
+`GetKeyboardLayout(0)`, that thread's layout. The window procedure (0x181E0) gives the logic thread
+a new layout with `ActivateKeyboardLayout(hkl, KLF_SETFORPROCESS)`, and only while a text input
+has the keyboard: it drops a layout request otherwise. Wine ignores the flag, so the logic thread
+keeps its first layout. With the X11 driver this does not show (its text ignores the layout); with
+the Wayland driver the chat stays in the US layout.
+
+**The patch** (the Rust patch `keyboard_layout`, three lohooks, `sites_026g.tsv`): the window
+procedure records the HKL of every WM_INPUTLANGCHANGEREQUEST (`window.lang_request`, 0x1835F)
+and WM_INPUTLANGCHANGE (`window.lang_change`, 0x183E3), before the game's text-input check, in one
+atomic. translate_text types with it (`keyboard.text_layout`, 0x3B92E2), or with the thread's own
+until one is recorded. X11: unchanged. Wayland: Alt+Shift switches the chat. Windows: a switch made
+outside a text input carries over to the next chat. Nothing a match computes. The rules:
+`../docs/notes/keyboard_layout.md`; the addresses: `client_patch.md` 3.68. Checked with
+`check_keyboard_layout_026g.py`; not run in a game.
