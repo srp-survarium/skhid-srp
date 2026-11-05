@@ -1,8 +1,14 @@
 //! Tables of a match recording (local analysis tool, A187 reader validation; not for a PR):
 //!
 //! ```text
-//! srp-rec-table <file.srprec> <out dir>
+//! srp-rec-table <file.srprec> <out dir> [--revision <n>]
 //! ```
+//!
+//! The states are read in the layout of the client patch revision that wrote them (`players::state_at_revision`, A305 F7). A
+//! world's layout is its uploader's, not each block's place's (a client-test recording's one human uploads every bot's block),
+//! and the tables do not say who uploaded: each block is read at each revision the recording's `revision` notes name (oldest
+//! first), then `--revision`, then as it is (today's layout), and the first that reads is taken; a wrong layout does not read
+//! (`PlayerState::read` refuses its pickup record). `rec_head.txt` counts the blocks read at each.
 //!
 //! Writes, read the way the replay converter reads them (`sur_convert::tables_of_file`):
 //!
@@ -40,11 +46,21 @@ fn half(bits: u16) -> f32 {
 
 fn main() -> ExitCode {
     let args: Vec<String> = std::env::args().skip(1).collect();
-    let [input, out] = args.as_slice() else {
-        eprintln!("usage: srp-rec-table <file.srprec> <out dir>");
-        return ExitCode::from(2);
+    let (input, out, fallback) = match args.as_slice() {
+        [input, out] => (input, out, None),
+        [input, out, flag, n] if flag == "--revision" => match n.parse::<u16>() {
+            Ok(n) => (input, out, Some(n)),
+            Err(_) => {
+                eprintln!("--revision takes a number");
+                return ExitCode::from(2);
+            }
+        },
+        _ => {
+            eprintln!("usage: srp-rec-table <file.srprec> <out dir> [--revision <n>]");
+            return ExitCode::from(2);
+        }
     };
-    match run(Path::new(input), Path::new(out)) {
+    match run(Path::new(input), Path::new(out), fallback) {
         Ok(()) => ExitCode::SUCCESS,
         Err(error) => {
             eprintln!("{input}: {error}");
@@ -53,11 +69,17 @@ fn main() -> ExitCode {
     }
 }
 
-fn run(input: &Path, out: &Path) -> Result<(), Box<dyn std::error::Error>> {
+/// Client patch 78's carry snapshot at the end of a state (`artefact_carry::carry::Carry::SNAPSHOT_SIZE`): every state has one
+/// once read at its revision.
+const CARRY_SNAPSHOT: usize = 32;
+
+fn run(input: &Path, out: &Path, fallback: Option<u16>) -> Result<(), Box<dyn std::error::Error>> {
     std::fs::create_dir_all(out)?;
     let notes = record::read_notes(input)?;
     let mut kinds: BTreeMap<String, usize> = BTreeMap::new();
     let mut head = String::new();
+    // Each place's client patch revision, from its `revision` note (game.rs).
+    let mut revisions: BTreeMap<u8, u16> = BTreeMap::new();
     for (k, note) in notes.iter().filter(|r| r.kind == NOTE).enumerate() {
         let Ok(value) = serde_json::from_slice::<serde_json::Value>(&note.bytes) else {
             *kinds.entry("unparsed".into()).or_default() += 1;
@@ -77,6 +99,11 @@ fn run(input: &Path, out: &Path) -> Result<(), Box<dyn std::error::Error>> {
             .and_then(|o| o.get("note").or_else(|| o.get("kind")).or_else(|| o.get("event")))
             .and_then(|v| v.as_str())
             .map_or_else(|| value.as_object().map_or("?".into(), |o| o.keys().cloned().collect::<Vec<_>>().join("+")), str::to_owned);
+        if kind == "revision"
+            && let (Some(place), Some(revision)) = (value["place"].as_u64(), value["revision"].as_u64())
+        {
+            revisions.insert(place as u8, revision as u16);
+        }
         *kinds.entry(kind).or_default() += 1;
     }
     let tables = sur_convert::tables_of_file(input, &notes)?;
@@ -99,22 +126,42 @@ fn run(input: &Path, out: &Path) -> Result<(), Box<dyn std::error::Error>> {
     let mut motions = std::io::BufWriter::new(std::fs::File::create(out.join("rec_motion.csv"))?);
     writeln!(motions, "match,time,upload,place,alive,sprinting,jumping,colliding,can_stand,normal_y,fall_y,last_hit,hits,last_recent_hit,stagger,health0")?;
     let (mut read, mut unread) = (0usize, 0usize);
+    // The layouts to try, oldest revision first, then the fallback, then today's.
+    let mut candidates: Vec<Option<u16>> = revisions.values().copied().collect::<std::collections::BTreeSet<_>>().into_iter().map(Some).collect();
+    if let Some(n) = fallback
+        && !candidates.contains(&Some(n))
+    {
+        candidates.push(Some(n));
+    }
+    candidates.push(None);
+    let mut read_at: BTreeMap<Option<u16>, usize> = BTreeMap::new();
     for (&time, bodies) in &tables.worlds {
         let same = u8::from(bodies.windows(2).all(|w| w[0] == w[1]));
         for (k, body) in bodies.iter().enumerate() {
             for block in players::walk(body).map(|(blocks, _)| blocks).unwrap_or_default() {
-                let Some((_, motion)) = Motion::find(block.state, time) else {
+                let found = candidates.iter().find_map(|&revision| {
+                    let state = match revision {
+                        Some(revision) => players::state_at_revision(block.state, revision)?,
+                        None => std::borrow::Cow::Borrowed(block.state),
+                    };
+                    let (_, motion) = Motion::find(&state, time)?;
+                    Some((revision, state, motion))
+                });
+                let Some((revision, state, motion)) = found else {
                     unread += 1;
                     continue;
                 };
+                *read_at.entry(revision).or_default() += 1;
+                let state = &*state;
                 read += 1;
                 let (c, f) = motion.body.as_ref().map_or(([f32::NAN; 3], [f32::NAN; 3]), |b| (b.position, b.feet()));
                 let speed = motion.damage.as_ref().map_or(f32::NAN, |d| d.linear_horizontal_speed);
                 // The stagger float: the 4 bytes before the recent hits' count, which ends the state but for the last bool.
-                let count_at = block.state.len().checked_sub(5 + 8 * motion.recent_hits.len());
+                let native = state.len().saturating_sub(CARRY_SNAPSHOT);
+                let count_at = native.checked_sub(5 + 8 * motion.recent_hits.len());
                 let stagger = count_at
                     .and_then(|at| at.checked_sub(4))
-                    .and_then(|at| block.state.get(at..at + 4))
+                    .and_then(|at| state.get(at..at + 4))
                     .map_or(f32::NAN, |b| f32::from_le_bytes([b[0], b[1], b[2], b[3]]));
                 let flag = |b: bool| u8::from(b).to_string();
                 let (sprinting, jumping, colliding, can_stand, normal_y, fall_y) = motion.body.as_ref().map_or_else(
@@ -165,7 +212,7 @@ fn run(input: &Path, out: &Path) -> Result<(), Box<dyn std::error::Error>> {
     motions.flush()?;
     let r = &tables.report;
     let text = format!(
-        "{head}\nnote kinds: {kinds:?}\nclock offset ms: {}\ndatagrams in {} out {} unparsed {} {:?}\nworlds complete {} world times {}\ninputs {} copies {} conflicts {} flagged {} dropped_future {}\nplayer blocks read {read} unread {unread}\n",
+        "{head}\nnote kinds: {kinds:?}\nclock offset ms: {}\ndatagrams in {} out {} unparsed {} {:?}\nworlds complete {} world times {}\ninputs {} copies {} conflicts {} flagged {} dropped_future {}\nplayer blocks read {read} unread {unread}\nrevisions by place {revisions:?}, else {fallback:?}; blocks read at (None = as they are) {read_at:?}\n",
         r.clock_offset_ms,
         r.datagrams_in,
         r.datagrams_out,
