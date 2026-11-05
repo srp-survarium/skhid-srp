@@ -49,6 +49,9 @@ package survarium.rooms
         public static const PRESET_STEP:int = 100000;
         public static const BITS:int = FIRST + 1000000;
         public static const CREATE:int = FIRST + 10000000;
+        // "Queue and spectate": WATCH + key, a full room's queue as QUEUE's, its
+        // match watched meanwhile (queue-spectate.md; the owner's of 2026-11-05).
+        public static const WATCH:int = FIRST + 11000000;
         public static const LAST:int = FIRST + 19999999;
         // The rows asked of the list (the server's LIST_ROWS, 31 rooms, and
         // the header) and of a pool page (POOL_PAGE_ROWS, 30, and the header).
