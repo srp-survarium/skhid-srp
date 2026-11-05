@@ -25,6 +25,9 @@ lzma-rust2 = { workspace = true }
 # The lobby's results types are kept in srp's database as JSON
 # (`session::v026g::rewards`).
 serde = { workspace = true }
+# The content edit lists: Blackout's, laid over the test data's configs
+# (`v026g::game_data::test_archive`), and those the modification tests read.
+serde_json = { workspace = true }
 # The ED/EE mask and length, as the transport works them out (`v026g::match_msgs`).
 udp-transport = { workspace = true }
 
@@ -34,7 +37,3 @@ udp-transport = { workspace = true }
 # the crates that use this one.
 fixtures = []
 
-[dev-dependencies]
-# The content edit lists, read by the modification tests
-# (`v026g::modifications::tests`).
-serde_json = { workspace = true }
