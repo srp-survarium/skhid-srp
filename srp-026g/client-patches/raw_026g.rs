@@ -6154,6 +6154,15 @@ impl CoreWorld {
     pub unsafe fn active_places(self) -> *mut u32 {
         unsafe { self.0.byte_add(0x18fd8).cast::<u32>().as_ptr() }
     }
+
+    /// +0x18fc4 (u32): the newest simulation time played once (prediction core; set to an item's time after its move 0x2D0FCB, 50 by clear 0x2D0776): a tick at or before it is a re-simulation (the time rule's 0x267AD2, the step guard 0x2A6488)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn maximum_time(self) -> *mut u32 {
+        unsafe { self.0.byte_add(0x18fc4).cast::<u32>().as_ptr() }
+    }
 }
 
 /// A vostok::scene_reference (fields_026g.tsv): a pointer to one, never 0. Made only here: by a typed field,
@@ -12045,6 +12054,90 @@ impl ChangeInputFrame {
     }
 }
 
+/// A survarium::player_equipment_sound_effect (fields_026g.tsv): a pointer to one, never 0. Made only here: by a typed field,
+/// a function's typed result or a site's typed register (sites_026g.tsv `holds`).
+#[repr(transparent)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct PlayerEquipmentSoundEffect(NonNull<c_void>);
+
+#[allow(dead_code)]
+impl PlayerEquipmentSoundEffect {
+    /// Its address as a value (an id, a compare): never read through.
+    #[inline(always)]
+    pub fn address(self) -> u32 {
+        self.0.as_ptr() as usize as u32
+    }
+
+    /// +0x3c (ptr<survarium::player>): its player (on_player_sound_event 0x2A6472; the player's +884h)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn player(self) -> Option<Player> {
+        unsafe { self.0.byte_add(0x3c).cast::<Option<Player>>().read_volatile() }
+    }
+
+    /// +0x3c (ptr<survarium::player>): its player (on_player_sound_event 0x2A6472; the player's +884h)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn set_player(self, value: Option<Player>) {
+        unsafe { self.0.byte_add(0x3c).cast::<Option<Player>>().write_volatile(value) }
+    }
+
+    /// +0x44 (u8): the feet's positions are read (1 by 0x2A645A from the toe bones, 0 when the bone indices are taken again 0x2A63B3); on_player_sound_event plays no step without it
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn feet(self) -> *mut u8 {
+        unsafe { self.0.byte_add(0x44).cast::<u8>().as_ptr() }
+    }
+}
+
+/// A vostok::animation::animation_callback_params (fields_026g.tsv): a pointer to one, never 0. Made only here: by a typed field,
+/// a function's typed result or a site's typed register (sites_026g.tsv `holds`).
+#[repr(transparent)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct AnimationCallbackParams(NonNull<c_void>);
+
+#[allow(dead_code)]
+impl AnimationCallbackParams {
+    /// Its address as a value (an id, a compare): never read through.
+    #[inline(always)]
+    pub fn address(self) -> u32 {
+        self.0.as_ptr() as usize as u32
+    }
+
+    /// +0x0 (u32): the animated object (on_player_sound_event plays only for its own player, 0x2A6495): an address, compared only
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn object(self) -> *mut u32 {
+        unsafe { self.0.byte_add(0x0).cast::<u32>().as_ptr() }
+    }
+
+    /// +0x10 (u32): the event's simulation milliseconds (compared with core_world maximum_time at 0x2A6488)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn time(self) -> *mut u32 {
+        unsafe { self.0.byte_add(0x10).cast::<u32>().as_ptr() }
+    }
+
+    /// +0x20 (u8): the event channel's domain value: 0 and 1 a step of one foot or the other, 2..4 the rustles (on_player_sound_event's switch 0x2A64A2)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn domain(self) -> *mut u8 {
+        unsafe { self.0.byte_add(0x20).cast::<u8>().as_ptr() }
+    }
+}
+
 /// A vostok::physics::bullet_physics_world (fields_026g.tsv): a pointer to one, never 0. Made only here: by a typed field,
 /// a function's typed result or a site's typed register (sites_026g.tsv `holds`).
 #[repr(transparent)]
@@ -14603,6 +14696,39 @@ pub mod site {
         #[inline(always)]
         pub unsafe fn frame(machine: &impl Machine) -> Option<ChangeInputFrame> {
             NonNull::new(machine.site_esp() as usize as *mut c_void).map(ChangeInputFrame)
+        }
+    }
+
+    /// player_sound.step_guard (0x2a6485): player_equipment_sound_effect::on_player_sound_event's guard (mov edi,[esi+10h] / cmp edi,[ecx+18FC4h] / setbe cl / test cl,cl; the jne at 0x2A6493 skips an event at or before the newest played time): EAX the effect, ESI the event, ECX its player's world core (not 0: the je at 0x2A6483); play goes on to the object test and the switch, skip is the handler's return 0
+    pub mod player_sound_step_guard {
+        #[allow(unused_imports)]
+        use super::*;
+
+        /// EAX: a survarium::player_equipment_sound_effect (None for 0).
+        ///
+        /// # Safety
+        /// `machine` is at this site.
+        #[inline(always)]
+        pub unsafe fn effect(machine: &impl Machine) -> Option<PlayerEquipmentSoundEffect> {
+            NonNull::new(machine.register(Register::Eax) as usize as *mut c_void).map(PlayerEquipmentSoundEffect)
+        }
+
+        /// ESI: a vostok::animation::animation_callback_params (None for 0).
+        ///
+        /// # Safety
+        /// `machine` is at this site.
+        #[inline(always)]
+        pub unsafe fn event(machine: &impl Machine) -> Option<AnimationCallbackParams> {
+            NonNull::new(machine.register(Register::Esi) as usize as *mut c_void).map(AnimationCallbackParams)
+        }
+
+        /// ECX: a survarium::core_world (None for 0).
+        ///
+        /// # Safety
+        /// `machine` is at this site.
+        #[inline(always)]
+        pub unsafe fn core(machine: &impl Machine) -> Option<CoreWorld> {
+            NonNull::new(machine.register(Register::Ecx) as usize as *mut c_void).map(CoreWorld)
         }
     }
 }

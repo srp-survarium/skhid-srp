@@ -1467,6 +1467,51 @@ drug_interrupt_on_hit_applied_replay:
     db 0x8b, 0xfe, 0x83, 0x7f, 0x40, 0x00
     jmp 0x2d9cb7
 
+; 0x2a6485 player_equipment_sound_effect::on_player_sound_event's guard (mov edi,[esi+10h] / cmp edi,[ecx+18FC4h] / setbe cl / test cl,cl; the jne at 0x2A6493 skips an event at or before the newest played time): EAX the effect, ESI the event, ECX its player's world core (not 0: the je at 0x2A6483); play goes on to the object test and the switch, skip is the handler's return 0: lohook -> footsteps_on_step_guard
+global footsteps_on_step_guard
+extern hook_footsteps_on_step_guard
+footsteps_on_step_guard:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_footsteps_on_step_guard
+    mov edx, footsteps_on_step_guard_replay
+    cmp eax, 0
+    je footsteps_on_step_guard_go
+    mov edx, 0x2a6493
+    cmp eax, 1
+    je footsteps_on_step_guard_go
+    mov edx, 0x2a6495
+    cmp eax, 2
+    je footsteps_on_step_guard_go
+    mov edx, 0x2a64fc
+    cmp eax, 3
+    je footsteps_on_step_guard_go
+    ud2
+footsteps_on_step_guard_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+footsteps_on_step_guard_replay:
+    db 0x8b, 0x7e, 0x10, 0x3b, 0xb9, 0xc4, 0x8f, 0x01, 0x00, 0x0f, 0x96, 0xc1, 0x84, 0xc9
+    jmp 0x2a6493
+
 ; 0x1ea210 game::on_configs_loaded's start (push ebp / mov ebp,esp / and esp,-8), before it runs startup.cfg and user.cfg (load_cc_script 0x1EA2C2, 0x1EA301): lohook -> language_on_configs_start
 global language_on_configs_start
 extern hook_language_on_configs_start_chain

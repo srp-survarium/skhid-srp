@@ -64,6 +64,7 @@ pub mod world_check;
 pub mod weapon_kit;
 pub mod music;
 pub mod drug_interrupt;
+pub mod footsteps;
 
 pub mod weapon_pickup;
 

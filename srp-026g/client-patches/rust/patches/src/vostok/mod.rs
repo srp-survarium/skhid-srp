@@ -24,6 +24,7 @@
 
 pub mod bullet;
 pub mod explosion;
+pub mod footstep;
 pub mod camera;
 pub mod carry_runtime;
 pub mod carry_ground;
