@@ -94,18 +94,39 @@ pub enum SlopeSpeed {
     Up,
     /// A step whose floor rises or falls is shortened to the cosine of its grade.
     Both,
+    /// A rising step on a floor with a ramp mark (`grid.ramp_faces`, `WalkGrid::ramp_slope_deg`) is shortened to the cosine of
+    /// the ramp face's slope; a step anywhere else, or a falling one, is not. Real stairs with flat treads have no mark, and the
+    /// client's capsule steps up them at full speed.
+    RampsUp,
+    /// [`Self::RampsUp`] for a rising or a falling step.
+    Ramps,
 }
 
 impl SlopeSpeed {
     /// The share of a ground step of `run` metres that rises `rise` metres the body covers: 1 on the flat or where the setting
     /// leaves the step as it is, else the grade's cosine.
     pub fn share(self, run: f32, rise: f32) -> f32 {
-        let counts = match self {
-            Self::Planar => false,
-            Self::Up => rise > 0.0,
-            Self::Both => rise != 0.0,
+        self.share_on(run, rise, None)
+    }
+
+    /// [`Self::share`] of a step whose floor carries the ramp mark `ramp_deg` (the slope of the walker ramp face under it,
+    /// `WalkGrid::ramp_slope_deg`; `None`: no mark): the ramp modes shorten a marked floor's step to its face's cosine.
+    pub fn share_on(self, run: f32, rise: f32, ramp_deg: Option<f32>) -> f32 {
+        if run <= 1e-4 {
+            return 1.0;
+        }
+        let ramp = |counts: bool| match ramp_deg {
+            Some(deg) if counts => deg.to_radians().cos(),
+            _ => 1.0,
         };
-        if counts && run > 1e-4 { run / run.hypot(rise) } else { 1.0 }
+        match self {
+            Self::Planar => 1.0,
+            Self::Up if rise > 0.0 => run / run.hypot(rise),
+            Self::Both if rise != 0.0 => run / run.hypot(rise),
+            Self::Up | Self::Both => 1.0,
+            Self::RampsUp => ramp(rise > 0.0),
+            Self::Ramps => ramp(rise != 0.0),
+        }
     }
 }
 
@@ -437,6 +458,13 @@ mod tests {
         assert!(close(SlopeSpeed::Both.share(0.25, -0.25), std::f32::consts::FRAC_1_SQRT_2), "both: down too");
         assert_eq!(SlopeSpeed::Planar.share(0.25, 0.25), 1.0, "planar: as it was");
         assert_eq!(SlopeSpeed::Up.share(0.0, 0.3), 1.0, "no run: nothing to shorten");
+        // The ramp modes: only a floor with a ramp mark, at its face's cosine.
+        let cos45 = std::f32::consts::FRAC_1_SQRT_2;
+        assert!(close(SlopeSpeed::RampsUp.share_on(0.25, 0.25, Some(45.0)), cos45), "a marked ramp, up");
+        assert_eq!(SlopeSpeed::RampsUp.share_on(0.25, 0.25, None), 1.0, "real stairs: no mark, full speed");
+        assert_eq!(SlopeSpeed::RampsUp.share_on(0.25, -0.25, Some(45.0)), 1.0, "ramps_up: down a ramp, full speed");
+        assert!(close(SlopeSpeed::Ramps.share_on(0.25, -0.25, Some(45.0)), cos45), "ramps: down a ramp too");
+        assert_eq!(SlopeSpeed::Ramps.share_on(0.25, 0.0, Some(45.0)), 1.0, "a flat step on a marked floor");
     }
 
     #[test]
