@@ -786,15 +786,20 @@ impl Ragdoll {
                 let j = hit.impulse * (weight * tuning::DEATH_KNOCK);
                 ragdoll.knock(part_of(hit.point), hit.point, j);
                 // and the body as a whole goes with it (level: the legs
-                // stay on the ground), capped
+                // stay on the ground), capped; a heavy hit throws it
                 let mass: f32 = ragdoll.bodies.iter().map(|b| 1.0 / b.inverse_mass).sum();
                 let level = j.reject(up) * (tuning::BODY_SHARE / mass);
-                let dv = limit_length(level, tuning::BODY_KNOCK_MAX);
+                let heavy = hit.impulse.length() >= tuning::HEAVY_HIT;
+                let (dv, lift) = if heavy {
+                    (level, up * (level.length() * tuning::HEAVY_LIFT))
+                } else {
+                    (limit_length(level, tuning::BODY_KNOCK_MAX), Vec3::ZERO)
+                };
                 for body in ragdoll.bodies.iter_mut() {
-                    body.velocity += dv;
+                    body.velocity += dv + lift;
                 }
                 ragdoll.report.knock += dv.length();
-                ragdoll.report.capped |= level.length() > tuning::BODY_KNOCK_MAX;
+                ragdoll.report.capped |= !heavy && level.length() > tuning::BODY_KNOCK_MAX;
             }
         }
         for part in Part::ALL {
