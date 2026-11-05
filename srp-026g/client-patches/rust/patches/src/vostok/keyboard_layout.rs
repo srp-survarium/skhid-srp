@@ -56,6 +56,23 @@ impl ActiveLayout {
     }
 }
 
+/// Runs `f` with `hkl` the calling thread's layout, then gives the thread
+/// its own back (`ActivateKeyboardLayout(hkl, 0)`, then again with the
+/// layout it answered: the thread's GetKeyNameTextW and GetKeyboardLayout(0)
+/// say the same after as before). None, `f` not run, when the system
+/// refuses `hkl`.
+pub fn with_thread_layout<R>(hkl: Hkl, f: impl FnOnce() -> R) -> Option<R> {
+    // SAFETY: user32's ActivateKeyboardLayout, the game's import (its
+    // delay-loaded slot, which the window procedure calls too): an HKL and
+    // no flags, on the calling thread. It answers the thread's layout
+    // before, 0 when it refused.
+    let own = Hkl::of(unsafe { (raw::engine_activate_keyboard_layout)(hkl.raw(), 0) })?;
+    let result = f();
+    // SAFETY: as above, the layout the thread had.
+    unsafe { (raw::engine_activate_keyboard_layout)(own.raw(), 0) };
+    Some(result)
+}
+
 /// The layout a WM_INPUTLANGCHANGEREQUEST asks for (`window.lang_request`),
 /// before the game's check that a text input is focused.
 pub fn requested_layout(ctx: &Context<'_>) -> Option<Hkl> {

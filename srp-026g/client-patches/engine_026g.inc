@@ -465,3 +465,19 @@ extern engine_sound_options
 ; void engine_buffer_reallocate(void *buffer, unsigned int capacity)
 ; 0x7ab70 vostok::network_core::mutable_buffer::reallocate: buffer ESI, capacity EDI; pops 0
 extern engine_buffer_reallocate
+; unsigned char engine_key_name(struct keyboard *keyboard, unsigned int key, char *name, unsigned int size)
+; 0x3b9c00 vostok::input::platform::keyboard::get_dik_name: keyboard ECX, key ESP+4, name ESP+8, size ESP+12; pops 12; AL; thiscall, called directly
+; thiscall: push (and ECX for thiscall) as that convention says
+extern engine_key_name
+; unsigned int engine_activate_keyboard_layout(unsigned int layout, unsigned int flags)
+; the IAT slot 0xaeff20 (an import, stdcall)
+; `call [symbol]`: stdcall, it pops its arguments
+extern engine_activate_keyboard_layout
+; void *engine_get_module_handle_a(const char *name)
+; the IAT slot 0x87003c (an import, stdcall)
+; `call [symbol]`: stdcall, it pops its arguments
+extern engine_get_module_handle_a
+; void *engine_get_proc_address(void *module, const char *name)
+; the IAT slot 0x870084 (an import, stdcall)
+; `call [symbol]`: stdcall, it pops its arguments
+extern engine_get_proc_address
