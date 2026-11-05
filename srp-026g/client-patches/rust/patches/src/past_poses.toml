@@ -1,0 +1,56 @@
+# Patch 105: other players drawn in the past, a bullet's hit rewound to what
+# its shooter saw (docs/notes/past_poses.md). The sites are sites_026g.tsv's;
+# the logic is past_poses.rs (the rewind itself is patch 103's hit test,
+# subtick_hits.rs, which asks this patch for a target's ring and age).
+name = "past_poses"
+patch = 105
+
+# a match's options (and a replay's): nothing kept, the cap read
+[[hook]]
+site = "static_info.options_read"
+handler = "on_static_info"
+order = 3
+
+[[hook]]
+site = "replay.options_read"
+handler = "on_replay_options"
+order = 4
+
+# atomic_tick's end: on the grid, the rings and the declared ages
+[[hook]]
+site = "core.ticked"
+handler = "on_ticked"
+
+# the place's record after his player state, after patch 78's carry
+[[hook]]
+site = "carry.save"
+handler = "on_save"
+order = 1
+
+[[hook]]
+site = "carry.load"
+handler = "on_load"
+order = 1
+
+# every input a world takes, after patch 99's check: how late it came
+[[hook]]
+site = "change_input.player"
+handler = "on_input"
+order = 1
+
+# once a frame after the move: the declaration and where the others are drawn
+[[hook]]
+site = "game_world.after_move"
+handler = "on_frame"
+order = 3
+
+# mt_draw's bones, after the ragdoll's capture (order 0; patch 104 takes 1)
+[[hook]]
+site = "player_draw.bones"
+handler = "on_bones"
+order = 2
+
+# render_name: a player drawn back has his tag there too
+[[hook]]
+site = "name_tag.eye"
+handler = "on_name_tag"

@@ -75,8 +75,9 @@ class Game:
             start = base.IMAGE_BASE + rva
             emu.mem_map(start, (max(vsize, rsize) + 0xFFF) & ~0xFFF, UC_PROT_ALL)
             emu.mem_write(start, bytes(data[raw:raw + min(rsize, vsize or rsize)]))
-        for at in (CORE, STUBS, STACK):
-            emu.mem_map(at, 0x10000, UC_PROT_ALL)
+        # the core as far as patch 105's chained hook reads it (+18FDCh, the local place)
+        for at, size in ((CORE, 0x20000), (STUBS, 0x10000), (STACK, 0x10000)):
+            emu.mem_map(at, size, UC_PROT_ALL)
         self.word(THREAD_SLOT, STUBS + 0x80)
         emu.mem_write(STUBS + 0x80, b"\xB8\x01\x00\x00\x00\xC3")
         # the log: CreateFileA (a handle, stdcall 7), WriteFile (the bytes kept, stdcall 5), CloseHandle (1)

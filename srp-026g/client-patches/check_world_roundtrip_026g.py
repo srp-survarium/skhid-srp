@@ -23,9 +23,10 @@ over the bytes it owns in a recorded world:
   the guns its records name that this game has no copy of);
 - in each place's state, as base_player::deserialize reaches them:
   `pickup.load` (0x2DB4CF) at offset 2, patch 85's record, and `carry.load`
-  (0x2DBAB5) at its last 32 bytes, patch 78's carry; then, as
-  base_player::serialize does, each place's `pickup.save` (0x2DAF70) and
-  `carry.save` (0x2DB47E), with the game's byte writer (0x1F3DE0).
+  (0x2DBAB5) at its last 105 bytes, patch 78's carry (32) and patch 105's
+  record (73, its chain's second); then, as base_player::serialize does,
+  each place's `pickup.save` (0x2DAF70) and `carry.save` (0x2DB47E), with
+  the game's byte writer (0x1F3DE0).
 
 Each hook must read as many bytes as it writes and write the bytes it read;
 and no patch may log that what it loaded is not what this game has (a pick
@@ -54,7 +55,8 @@ OWN_CHECKS with the check that runs its round trip and why it is not run here.
 A new site there fails this check until it is one or the other.
 
 The worlds: worlds_026g/ (default: a few of rev41's match 0x1c0ebd31, each
-kind of record and carry in it), or WORLD files and folders of the match
+kind of record and carry in it; recorded before patch 105, each state is
+given a record of it: a ring of four roots and a declared age), or WORLD files and folders of the match
 server's dumps (SRP_SNAPSHOT_DIR: match026g_<id>_<tick>_..bin, the body; the
 tick is the world's time); the whole match's 501:
 private/live-worlds-1c0ebd31/ in the owner's checkout. A world recorded with
@@ -87,7 +89,9 @@ REKIT = os.path.join(HERE, "..", "..", "tools", "re-kit", "v026g")
 
 CARRY_SAVE, CARRY_SAVE_AFTER = 0x2DB47E, 0x2DB483
 CARRY_LOAD, CARRY_LOAD_AFTER = 0x2DBAB5, 0x2DBABC
-CARRY = 32                                  # artefact_carry::Carry::SNAPSHOT_SIZE, the state's last bytes
+CARRY = 32                                  # artefact_carry::Carry::SNAPSHOT_SIZE
+POSES = 73                                  # rewind::Record::SIZE, after the carry: the state's last bytes
+TAIL = CARRY + POSES                        # what carry.load's chain reads and carry.save's writes
 PLACES = 20
 EXTRA = wp.PICK + 0x100000                  # room for every place's kit players after the Pick's own
 # Each own gun's magazine, its stack's rounds, and its condition (weapon+270h, the wear a pick hides).
@@ -97,7 +101,7 @@ OWN_KITS = {"fresh A": (30, 90, 1.0), "fresh B": (7, 13, 0.5)}
 RUN = {
     (0x27C0D0, 9): "world_load.unpacked (patch 87's parse, patch 85's guns cooked before the load)",
     (0x2DB4CF, 6): "pickup.load (patch 85's record, state offset 2)",
-    (0x2DBAB5, 7): "carry.load (patch 78's carry, the state's last 32 bytes)",
+    (0x2DBAB5, 7): "carry.load (patch 78's carry and patch 105's record, the state's last 105 bytes)",
     (0x2DAF70, 6): "pickup.save",
     (0x2DB47E, 5): "carry.save",
 }
@@ -238,9 +242,28 @@ def walk(body):
     return states
 
 
-def migrate(body, version, size):
+def poses_record(place, now):
+    """Patch 105's record (rewind::Record::encode) a state recorded before it is given: the place's player at
+    the four grid points before `now` (x by place, z by time), and an age of 90 ms declared a second before,
+    30 before that."""
+    out = bytearray(POSES)
+    out[0] = 1
+    grid = now - now % 50
+    for n in range(4):
+        at = grid - 50 * n
+        if at < 0:
+            continue
+        slot = at // 50 % 4
+        out[1] |= 1 << slot
+        struct.pack_into("<I3f", out, 2 + 16 * slot, at, place + 0.5, 1.25, at / 1000)
+    if now >= 1000:
+        struct.pack_into("<BBBI", out, 66, 1, 30, 90, now - now % 50 - 1000)
+    return bytes(out)
+
+
+def migrate(body, version, size, now):
     """`body` with each state's record the exe's (version, size): one recorded at version 4 converted
-    (`from_v4`), each state's length with it."""
+    (`from_v4`), each state's length with it; and patch 105's record after the carry (`poses_record`)."""
     out, at = bytearray(body[:4]), 4
     for place, start, end in walk(body):
         state = bytes(body[start:end])
@@ -248,6 +271,7 @@ def migrate(body, version, size):
             state = state[:2] + from_v4(state[2:2 + V4_BYTES], place, version, size) + state[2 + V4_BYTES:]
         elif state[2] != version:
             sys.exit(f"a world's record of version {state[2]}: the exe writes {version}, from_v4 converts 4 only")
+        state += poses_record(place, now)
         out += body[at:start - 2] + struct.pack("<H", len(state)) + state
         at = end
     return bytes(out + body[at:])
@@ -381,7 +405,7 @@ class Game(wp.Pick):
 
     def load(self, now, body):
         """The 0xE8 handler's load of the world `body` at `now`: its preparation, then each place's state's
-        hooks. {place: (player, the record's bytes read, the carry's bytes read)}."""
+        hooks. {place: (player, the record's bytes read, the carry's and patch 105's record's bytes read)}."""
         self.now = now
         self.time(now)
         states = walk(body)
@@ -397,14 +421,14 @@ class Game(wp.Pick):
             reader = self.reader(at + start, at + start + 2, end - start)
             self.lohook(wp.LOAD_SITE, wp.LOAD_AFTER, {UC_X86_REG_EBX: player, UC_X86_REG_ESI: reader})
             record = body[start + 2:start + 2 + self.read(reader + 4) - (at + start + 2)]
-            reader = self.reader(at + start, at + end - CARRY, end - start)
+            reader = self.reader(at + start, at + end - TAIL, end - start)
             self.lohook(CARRY_LOAD, CARRY_LOAD_AFTER, {UC_X86_REG_EBX: player, UC_X86_REG_ESI: reader})
-            carry = body[end - CARRY:self.read(reader + 4) - at]
+            carry = body[end - TAIL:self.read(reader + 4) - at]
             read[place] = (player, record, carry)
         return read
 
     def save(self, player):
-        """base_player::serialize's hooks: (the record's bytes, the carry's)."""
+        """base_player::serialize's hooks: (the record's bytes, the carry's and patch 105's record's)."""
         self.written = bytearray()
         self.lohook(wp.SAVE_SITE, wp.SAVE_AFTER, {UC_X86_REG_EBX: player, UC_X86_REG_ESI: 0x5A5A0000})
         record, self.written = bytes(self.written), bytearray()
@@ -520,7 +544,7 @@ def main():
 
     version, size = record_version(patched)
     recorded = worlds(args.worlds)
-    loaded = [(name, now, migrate(body, version, size)) for name, now, body in recorded]
+    loaded = [(name, now, migrate(body, version, size, now)) for name, now, body in recorded]
     games = {what: (lambda kit=kit: Game(patched, kit)) for what, kit in OWN_KITS.items()}
     resync = Game(patched, OWN_KITS["fresh A"])
     for what in [*games, "resync"]:
@@ -531,7 +555,7 @@ def main():
         for _, _, _, line in failures[:args.show]:
             print(f"  FAIL  {what}: {line}")
         print(f"  {'FAIL' if failures else 'ok'}  {what}: {len(loaded)} worlds loaded and saved at once "
-              f"(record version {version}, {size} bytes; carry {CARRY}): "
+              f"(record version {version}, {size} bytes; carry {CARRY}, patch 105's record {POSES}): "
               f"{summary(failures, len(loaded)) if failures else 'every hook wrote what it read'}")
         failed += len(failures)
     print(f"{'all cases passed' if not failed else f'{failed} FAILED'} ({time.time() - started:.0f} s)")

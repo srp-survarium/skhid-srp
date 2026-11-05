@@ -46,6 +46,7 @@ pub mod lobby_menu;
 pub mod log;
 mod options;
 pub mod parse;
+pub mod past;
 pub mod resources;
 pub mod gun_cook;
 pub mod pickup;
@@ -94,7 +95,7 @@ pub use input::{Action, ActionMask, ActionState, InputChange, InputHandler, Keyb
 pub use keyboard::{Dik, GameWorldKey, GameWorldKeys, KeyKind, TabTest};
 pub use hud_input::{Hud, HudCall, HudView};
 pub use lobby::{Lobby, MuteChoice, Muted, NotConnected};
-pub use options::OptionsRead;
+pub use options::{OptionsRead, srp_entries};
 pub use world_load::WorldLoad;
 pub use upgrades::{AttachedPairs, CookQuery, FlashUpgrade, PreviewApply, PreviewChange, Records};
 pub use rt::c_u32;

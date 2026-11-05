@@ -723,6 +723,10 @@ dependencies = [
 ]
 
 [[package]]
+name = "rewind"
+version = "0.1.0"
+
+[[package]]
 name = "rusqlite"
 version = "0.37.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -859,6 +863,7 @@ dependencies = [
  "log",
  "lzma-rust2",
  "resources-db 0.1.0",
+ "rewind",
  "serde",
  "serde_json",
  "udp-transport",

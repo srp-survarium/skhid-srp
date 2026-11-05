@@ -245,6 +245,14 @@ impl<'t> Player<'t> {
         }
     }
 
+    /// Whether the camera takes this player's view: it holds an input
+    /// handler (+F470h), the local player's, or the spectated player's
+    /// while the local one spectates.
+    pub fn has_view(&self) -> bool {
+        // SAFETY: the player is alive for the hook; the pointer is compared only.
+        unsafe { self.this.input_handler().is_some() }
+    }
+
     /// The simulated transform, a row-vector 4x4 (rows i, j, k, place).
     pub fn transform(&self) -> [f32; 16] {
         // SAFETY: the player is alive for the hook; 16 f32 from its field on.

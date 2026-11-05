@@ -5503,3 +5503,7 @@ va	name	location	role	basis
 0x0032d4e0	survarium::bullet::check_collision	entry ESP+20	the piece's end time (float*): the ray ends at the bullet's position then (0x32CCC0); a hit's time is start + (end - start) x distance / length	observed
 0x0032d4e0	survarium::bullet::check_collision	entry ESP+24	the step's end time (float*, s since the segment's origin: the world's time now)	observed
 0x0007bda0	vostok::physics::bullet_character_controller::player_step	entry ESP+4	dt (float32, s)	observed
+0x001f8070	survarium::game_world::select_profile	EDI	the game world (its game +9Ch, its match core +4D4Ch)	observed
+0x001f8070	survarium::game_world::select_profile	entry ESP+4	the kit choice's value byte (a kit 0..2; the movie's profile_changed index, 0x233F23)	observed
+0x00321790	survarium::game_world_core_client::player_slot::apply_profile_input	ECX	the place's slot (+0..+8 its kit players, +0Dh the next kit, +28h the world core, +2Ch the place)	observed
+0x00321790	survarium::game_world_core_client::player_slot::apply_profile_input	entry ESP+8	the tick's time: the newest kit choice at or before it (from [core+89D8h] + place x 480h, newest first) is the next kit when it is under 3 and that kit has a player	observed

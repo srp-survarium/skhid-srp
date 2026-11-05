@@ -1,5 +1,6 @@
-//! player::mt_draw 0x2474A0 at its two lohook sites (sites_026g.tsv): the
-//! cull (`player_draw.cull`) and the bones made (`player_draw.bones`).
+//! player::mt_draw 0x2474A0 at its lohook sites (sites_026g.tsv): the cull
+//! (`player_draw.cull`) and the bones made (`player_draw.bones`); and
+//! player::render_name 0x1F2AD0 placing a name tag (`name_tag.eye`).
 //! What each site's registers hold is said here, once.
 
 use super::context::{Context, Flag, Flow, NoExit, Reg};
@@ -53,6 +54,35 @@ pub const MAX_BONES: usize = 80;
 pub fn no_held_item(ctx: &mut Context<'_>) {
     ctx.set_reg(Reg::Esi, 0);
 }
+
+/// The player whose name tag render_name places (at `name_tag.eye`, before
+/// it reads the eye transform the tag is raised from).
+pub fn name_tag_player<'t>(ctx: &'t Context<'_>) -> Option<Player<'t>> {
+    // SAFETY: the context is this site's: render_name's player, alive while
+    // st_draw draws it, on the game's thread.
+    Player::of(ctx, unsafe { raw::site::name_tag_eye::player(ctx) })
+}
+
+/// The eye transform the name tag is placed from instead of the player's
+/// own (+44Ch), a row-vector 4x4: kept in [`TAG_EYE`], which the product
+/// right after the span reads (0x1F2BA0); the span (`lea ecx,[esi+44Ch]`)
+/// is skipped. The player's field is not touched.
+pub fn place_name_tag_from(ctx: &mut Context<'_>, eye: [f32; 16]) -> Flow<NoExit> {
+    // SAFETY: render_name runs on the game's thread (st_draw's serial loop,
+    // game_world::tick 0x1F7F1F): the only writer, and the product reads it
+    // there before any other tag is placed.
+    unsafe { *TAG_EYE.0.get() = eye };
+    ctx.set_reg(Reg::Ecx, TAG_EYE.0.get() as usize as u32);
+    Flow::Skip
+}
+
+struct TagEye(core::cell::UnsafeCell<[f32; 16]>);
+
+// SAFETY: as place_name_tag_from: one thread writes and reads it.
+unsafe impl Sync for TagEye {}
+
+/// The eye a name tag is placed from (not 0: the arena's data).
+static TAG_EYE: TagEye = TagEye(core::cell::UnsafeCell::new([1.0, 0.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 0.0, 1.0]));
 
 /// The player mt_draw culls (at `player_draw.cull`).
 pub fn culled_player<'t>(ctx: &'t Context<'_>) -> Option<Player<'t>> {

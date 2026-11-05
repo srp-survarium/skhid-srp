@@ -121,6 +121,7 @@ release's. The "Result" row is the build of the revision named in it.
 | `check_weapon_show_026g.py` | Runs the original's and patch 91's weapon::on_show and the next weapon::draw's scope (add and remove of the aimed sight, the game's own) on made-up weapons, aimed and not, first person and not, no optic, a red dot and a full-screen scope, with the renderer's in-scene byte kept (needs Unicorn) |
 | `rust/patches/src/scaleform_capture.rs`, `src/scaleform_capture.toml`, `src/vostok/drawable_image.rs`, `check_scaleform_capture_026g.py` | Patch 93: the render thread's walk of a Scaleform DrawableImageContext's command queues (OnNextCapture 0x572660) never reaches a queue being destroyed (the rev-40 crash at a match's end): two lohooks; its check runs OnNextCapture and the queue's destructor on made-up contexts, the original beside (needs Unicorn) |
 | `rust/patches/src/subtick_hits.rs`, `src/subtick_hits.toml`, `src/vostok/ray_test.rs`, `check_subtick_hits_026g.py` | Patch 103: a bullet meets a player where he stood at the ms it crossed him, not where the 50 ms step left him (`../docs/notes/subtick_bullet_hits.md`); one lohook first in `bullet.ray_traced`'s chain; its check runs the game's own ray test (ray_test, rayTest, rayTestSingle) in both exes on made-up bodies (needs Unicorn) |
+| `rust/patches/src/past_poses.rs`, `src/past_poses.toml`, `src/vostok/past.rs`, `../crates/rewind`, `check_subtick_hits_026g.py` | Patch 105: other players drawn in the past and a bullet's hit rewound to what its shooter saw (`../docs/notes/past_poses.md`): a ring of each place's grid roots and a declared age (a kit-choice byte) in the world, patch 103's test put back by that age, the others drawn at now less it; lohooks at atomic_tick's end, the player state's end, change_input, the frame, mt_draw's bones and the name tag; its cases are check_subtick_hits_026g.py's, its record check_world_roundtrip_026g.py's (needs Unicorn) |
 | `rust/patches/src/input_check.rs`, `src/input_check.toml`, `src/vostok/input.rs`, `check_input_check_026g.py` | Patch 99: a world takes no player input whose rotation no client makes (a NaN, an infinity, 1024 radians or more), as 0.27d's change_input refuses one: a lohook at change_input<player_input>'s start (0x1FAB50); its check runs that start on made-up inputs, the original beside (needs Unicorn) |
 | `check_mouse_buttons_026g.py` | Patch 102 (`MOUSE_BUTTONS` in `patch_026g.py`): a side mouse button (mouse4..mouse8) is no left click in the lobby, login, options and match menus; its check runs the five handlers in both exes (needs Unicorn) |
 | `rust/patches/src/footsteps.rs`, `src/footsteps.toml`, `src/vostok/footstep.rs`, `check_footsteps_026g.py` | Patch 101: a footstep that only a re-simulation makes (another player's late input) is heard instead of dropped; one lohook in on_player_sound_event's time test; its check runs the handler in both exes (needs Unicorn) |
@@ -4427,3 +4428,30 @@ that the original misses is hit as the original hits him standing where he stood
 and behind, the shooter's own body, a target spawned in the step or dead, a step in parts, a move
 along z; every byte of the made-up world the same after the run. `check_ragdoll_026g.py` and
 `check_lamps_026g.py` (the site's other hooks) pass. **Not run in a game.**
+
+## Others drawn in the past, a bullet's hit rewound to what its shooter saw (patch 105, unreleased)
+
+On patch 103. 0.26g draws everyone else at the predicted present and tests a bullet against where
+the target really was, decided again when his late input comes. The patch (the Rust patch
+`past_poses`, the shared `../crates/rewind`) keeps, as world state, each place's feet at the last
+four grid points (written at atomic_tick's end, 0x2D1E6D, a new site `core.ticked`) and the age the
+place's game declared it draws the others at (a kit-choice byte of 3..13, 0xDE relayed as 0xF3;
+the place's tick 0x321790 leaves the kit for it), both in a 73-byte record after the player state
+(after patch 78's carry). Patch 103's test then puts each target back by the crossing's ms and that
+age (capped by the match, 150 ms), along the ring before the step's start; each game draws the
+others at now less the age the camera's player declared (mt_draw's bones, the name tag). The age is
+the client's: how late each other place's inputs reach it, about their 90th percentile and 10 ms,
+the latest place's, in 15 ms steps. The rules: `../docs/notes/past_poses.md`; the evidence:
+`../docs/notes/client_patch.md` 3.68.
+
+It changes what a match computes and the player state's bytes: the row `next` in
+`../crates/session/src/v026g/simulation_changes.tsv`; the match server reads the state's new end
+(`crates/survarium` motion.rs) and counts only bytes 0..2 as kit changes.
+
+Checked: `cargo test` (rewind and the patch crate), `check_subtick_hits_026g.py` (patch 105's sites
+and the ray test: an age of 0 is patch 103's byte for byte, ages of 60/90/150 tested that far back,
+the cap, a life's start, the dead, two games and a late joiner computing the same bytes and hit),
+`check_world_roundtrip_026g.py`, and the shared sites' checks (`check_artefact_carry_026g.py`,
+`check_input_check_026g.py`, `check_ragdoll_026g.py`, `check_blackout_026g.py`,
+`check_hud_options_026g.py`, `check_music_026g.py`, `check_weapon_pickup_026g.py`). **Not run in a
+game.**

@@ -22,3 +22,5 @@ world-frame = { path = "../../../crates/world-frame" }
 weapon-pickup = { path = "../../../crates/weapon-pickup" }
 # patch 68's weapon kit: srp's servers pack it, the client reads the same crate
 weapon-kit = { path = "../../../crates/weapon-kit" }
+# patch 105's ring, declared age and record: the match server reads the record
+rewind = { path = "../../../crates/rewind" }

@@ -242,7 +242,7 @@ artefact_carry_on_construct_replay:
 
 ; 0x2db47e base_player serialize epilogue; EBX player, EDI writer; before pop edi/pop esi/pop ebx/mov esp,ebp: lohook -> artefact_carry_on_save
 global artefact_carry_on_save
-extern hook_artefact_carry_on_save
+extern hook_artefact_carry_on_save_chain
 artefact_carry_on_save:
     lea esp, [esp - 4]
     pushfd
@@ -260,7 +260,7 @@ artefact_carry_on_save:
     mov eax, esp
     sub esp, 12
     push eax
-    call hook_artefact_carry_on_save
+    call hook_artefact_carry_on_save_chain
     mov edx, artefact_carry_on_save_replay
     cmp eax, 0
     je artefact_carry_on_save_go
@@ -281,7 +281,7 @@ artefact_carry_on_save_replay:
 
 ; 0x2dbab5 base_player deserialize after final native field; EBX player, ESI reader: lohook -> artefact_carry_on_load
 global artefact_carry_on_load
-extern hook_artefact_carry_on_load
+extern hook_artefact_carry_on_load_chain
 artefact_carry_on_load:
     lea esp, [esp - 4]
     pushfd
@@ -299,7 +299,7 @@ artefact_carry_on_load:
     mov eax, esp
     sub esp, 12
     push eax
-    call hook_artefact_carry_on_load
+    call hook_artefact_carry_on_load_chain
     mov edx, artefact_carry_on_load_replay
     cmp eax, 0
     je artefact_carry_on_load_go
@@ -1595,7 +1595,7 @@ language_on_options_call_replay:
 
 ; 0x1fab50 game_world_core::change_input<client_update<player_input,220,235,221,236>>'s start (push ebp / mov ebp,esp / and esp,-8), every player input a world takes: a local one, a relayed one (0xEB, the batch 0x27C5C1), a moved one (0xEF) and a replay's; ESP+4 the core, +8 the input (half2 rotation, then the action mask), +10h its time, +14h the player; refused is its `ret 24h` (0x1FAC4E, the duplicate's; EAX the event action, 6 as both refusals return it): lohook -> input_check_on_change_input
 global input_check_on_change_input
-extern hook_input_check_on_change_input
+extern hook_input_check_on_change_input_chain
 input_check_on_change_input:
     lea esp, [esp - 4]
     pushfd
@@ -1613,7 +1613,7 @@ input_check_on_change_input:
     mov eax, esp
     sub esp, 12
     push eax
-    call hook_input_check_on_change_input
+    call hook_input_check_on_change_input_chain
     mov edx, input_check_on_change_input_replay
     cmp eax, 0
     je input_check_on_change_input_go
@@ -3270,6 +3270,123 @@ music_on_sound_tick_replay:
 ; 0x14730 the cdecl f(queries_result&, value) a boost function made by 0x176D0 calls when a query ends, on the thread that asked (on_mounted_resources 0x1482A binds 0x14730 itself): its convention, for a callback the patch hands a query: callback -> music_on_query_done (wraps engine_store_first_resource 0x14730)
     RUST_CDECL music_on_query_done, hook_music_on_query_done, 2
 
+; 0x2d1e6d game_world_core::atomic_tick after its seven delegate lists, before it writes the time (mov eax,[ecx+18FC4h]; the jz 0x2D1E4D lands here when the lists are none): ECX the world core, EDI the step's time (on the grid: time % 50 == 0, as the delegates were told), its players stepped and its bullets ticked to it; tick_events saves a grid point after it (serialize 0x2D230A): lohook -> past_poses_on_ticked
+global past_poses_on_ticked
+extern hook_past_poses_on_ticked
+past_poses_on_ticked:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_past_poses_on_ticked
+    mov edx, past_poses_on_ticked_replay
+    cmp eax, 0
+    je past_poses_on_ticked_go
+    mov edx, 0x2d1e73
+    cmp eax, 1
+    je past_poses_on_ticked_go
+    ud2
+past_poses_on_ticked_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+past_poses_on_ticked_replay:
+    db 0x8b, 0x81, 0xc4, 0x8f, 0x01, 0x00
+    jmp 0x2d1e73
+
+; 0x247716 mt_draw after the bones, before the Weapon bone (mov ecx,[ebx+0F290h]; EBX the player, EBP its frame): lohook -> ragdoll_on_bones
+global ragdoll_on_bones
+extern hook_ragdoll_on_bones_chain
+ragdoll_on_bones:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_ragdoll_on_bones_chain
+    mov edx, ragdoll_on_bones_replay
+    cmp eax, 0
+    je ragdoll_on_bones_go
+    mov edx, 0x24771c
+    cmp eax, 1
+    je ragdoll_on_bones_go
+    ud2
+ragdoll_on_bones_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+ragdoll_on_bones_replay:
+    db 0x8b, 0x8b, 0x90, 0xf2, 0x00, 0x00
+    jmp 0x24771c
+
+; 0x1f2b98 player::render_name (0x1F2AD0, from st_draw) reading the eye transform its tag is placed from (lea ecx,[esi+44Ch]; 0xEE700 multiplies the tag's raise by it at 0x1F2BA0, point_to_screen 0x23DEC0 projects it): ESI the player: lohook -> past_poses_on_name_tag
+global past_poses_on_name_tag
+extern hook_past_poses_on_name_tag
+past_poses_on_name_tag:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_past_poses_on_name_tag
+    mov edx, past_poses_on_name_tag_replay
+    cmp eax, 0
+    je past_poses_on_name_tag_go
+    mov edx, 0x1f2b9e
+    cmp eax, 1
+    je past_poses_on_name_tag_go
+    ud2
+past_poses_on_name_tag_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+past_poses_on_name_tag_replay:
+    db 0x8d, 0x8e, 0x4c, 0x04, 0x00, 0x00
+    jmp 0x1f2b9e
+
 ; 0x24757c mt_draw's cull: the model not seen the last frame (cmp byte [ebx+0F4E2h],0, the je draws; EBX the player): lohook -> ragdoll_on_cull
 global ragdoll_on_cull
 extern hook_ragdoll_on_cull
@@ -3308,45 +3425,6 @@ ragdoll_on_cull_go:
 ragdoll_on_cull_replay:
     db 0x80, 0xbb, 0xe2, 0xf4, 0x00, 0x00, 0x00
     jmp 0x247583
-
-; 0x247716 mt_draw after the bones, before the Weapon bone (mov ecx,[ebx+0F290h]; EBX the player, EBP its frame): lohook -> ragdoll_on_bones
-global ragdoll_on_bones
-extern hook_ragdoll_on_bones
-ragdoll_on_bones:
-    lea esp, [esp - 4]
-    pushfd
-    pushad
-    cld
-    mov ebp, esp
-    sub esp, 512
-    and esp, -16
-    fxsave [esp]
-    mov edi, esp
-    sub esp, 8
-    and esp, -16
-    mov [esp], ebp
-    mov [esp+4], edi
-    mov eax, esp
-    sub esp, 12
-    push eax
-    call hook_ragdoll_on_bones
-    mov edx, ragdoll_on_bones_replay
-    cmp eax, 0
-    je ragdoll_on_bones_go
-    mov edx, 0x24771c
-    cmp eax, 1
-    je ragdoll_on_bones_go
-    ud2
-ragdoll_on_bones_go:
-    mov [ebp + 36], edx
-    fxrstor [edi]
-    mov esp, ebp
-    popad
-    popfd
-    ret
-ragdoll_on_bones_replay:
-    db 0x8b, 0x8b, 0x90, 0xf2, 0x00, 0x00
-    jmp 0x24771c
 
 ; 0x1f3643 update_camera's join, EAX the eye transform the view gets (mov ecx,[ebx+0F470h]; EBX the player): lohook -> ragdoll_on_eye
 global ragdoll_on_eye

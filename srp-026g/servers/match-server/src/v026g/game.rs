@@ -3706,7 +3706,11 @@ impl Game {
             }
         }
         peer.placed_profiles.push_back((time, relayed_time));
-        self.note_kit_choice(index, relayed_time);
+        // A byte of 3 or more is no kit (the place's tick 0x321790 leaves the
+        // next kit): client patch 105's declared age, relayed alike.
+        if usize::from(value) < survarium::v026g::match_msgs::static_info::MAX_KITS {
+            self.note_kit_choice(index, relayed_time);
+        }
         let what = Relayed::Profile {
             tick: relayed_tick,
             value,

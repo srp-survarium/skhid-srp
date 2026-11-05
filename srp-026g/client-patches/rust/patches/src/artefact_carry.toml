@@ -24,10 +24,12 @@ handler = "on_construct"
 [[hook]]
 site = "carry.save"
 handler = "on_save"
+order = 0
 
 [[hook]]
 site = "carry.load"
 handler = "on_load"
+order = 0
 
 # Shared sites compose explicitly in blackout::on_input_end and ragdoll's
 # on_bones/on_cull; there is one installed detour at each address.

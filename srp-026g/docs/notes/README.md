@@ -132,6 +132,7 @@ given), LIKELY or GUESS.
 | [masks-pack.md](masks-pack.md) | Ported masks: the Army balaclava and five 0.69d masks |
 | [match-hud-options.md](match-hud-options.md) | Match HUD options |
 | [no-tutorial.md](no-tutorial.md) | No tutorial; what a new account starts with |
+| [past_poses.md](past_poses.md) | Others drawn in the past, hits rewound to what the shooter saw (the owner, 2026-11-05; exe patch 105, unreleased, on patch 103): a ring of each player's last four grid roots and a declared age (a kit-choice byte) in the world; a target tested at the crossing less the shooter's age, capped at 150 ms; others drawn at now less that age; in the match simulation (`simulation_changes.tsv`) |
 | [player_bots.md](player_bots.md) | Player bots driven by the server |
 | [player_bots_behaviour.md](player_bots_behaviour.md) | Player bots: behaviour design |
 | [player_bots_mapdata.md](player_bots_mapdata.md) | Player bots: map data (`crates/mapdata`) |

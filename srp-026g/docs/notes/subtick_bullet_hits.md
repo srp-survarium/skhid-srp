@@ -33,8 +33,9 @@ Piece 1 of `pixel_correct_shooting_069.md` section 8 (PR #1274), the owner 2026-
 
 ## What it does not do
 
-- No rewind for the shooter's delay or view (that is piece 2, the owner's choice): a target is
-  never put back before the step the bullet is ticked in.
+- No rewind for the shooter's view here: that is patch 105 (`past_poses.md`), which tests a target
+  further back by the age his shooter declared, along a ring of his grid roots; with no age
+  declared a target is never put back before the step the bullet is ticked in.
 - No change to explosions, grenades, melee or traps.
 - No change to what is drawn.
 

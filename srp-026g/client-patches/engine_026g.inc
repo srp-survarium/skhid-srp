@@ -475,3 +475,6 @@ extern engine_ray_needs_collision
 ; 0xa02d0 btCollisionWorld::rayTestSingle: from ESP+4, to ESP+8, object ESP+12, shape ESP+16, transform ESP+20, callback ESP+24; pops 0; cdecl, called directly
 ; cdecl: push (and ECX for thiscall) as that convention says
 extern engine_ray_test_single
+; void engine_select_profile(struct game_world *world, unsigned int value)
+; 0x1f8070 survarium::game_world::select_profile: world EDI, value ESP+4; pops 4
+extern engine_select_profile

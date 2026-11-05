@@ -74,3 +74,4 @@ pub mod medical_skills;
 pub mod animation_id_log;
 pub mod input_check;
 pub mod subtick_hits;
+pub mod past_poses;

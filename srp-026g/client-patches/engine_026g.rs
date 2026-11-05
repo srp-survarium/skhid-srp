@@ -209,6 +209,8 @@ unsafe extern "C" {
     pub fn engine_ray_callback(callback: *mut c_void, from: *const f32, to: *const f32, group: u32, mask: u32, requester: *mut c_void);
     /// 0x75bd0 vostok::physics::closest_ray_result_callback::needsCollision: callback ECX, proxy ESP+4; pops 4; AL
     pub fn engine_ray_needs_collision(callback: *mut c_void, proxy: *mut c_void) -> u8;
+    /// 0x1f8070 survarium::game_world::select_profile: world EDI, value ESP+4; pops 4
+    pub fn engine_select_profile(world: *mut c_void, value: u32);
 }
 
 #[allow(dead_code)]

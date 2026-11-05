@@ -111,6 +111,21 @@ pub extern "C" fn hook_artefact_carry_on_save(frame: &mut Frame) -> u32 {
     }
 }
 
+// ---- past_poses (patch 105) ----
+
+/// The entry `past_poses_on_save` (0x2db47e, base_player serialize epilogue; EBX player, EDI writer; before pop edi/pop esi/pop ebx/mov esp,ebp) calls this with the saved machine.
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_past_poses_on_save(frame: &mut Frame) -> u32 {
+    // SAFETY: only the entry `past_poses_on_save` calls this, from the game's jump at 0x2db47e,
+    // on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::new(frame) };
+    match crate::past_poses::on_save(&mut ctx) {
+        Flow::Continue => 0,
+        Flow::Skip => 1,
+        Flow::Exit(e) => match e {},
+    }
+}
+
 // ---- artefact_carry (patch 78) ----
 
 /// The entry `artefact_carry_on_load` (0x2dbab5, base_player deserialize after final native field; EBX player, ESI reader) calls this with the saved machine.
@@ -120,6 +135,21 @@ pub extern "C" fn hook_artefact_carry_on_load(frame: &mut Frame) -> u32 {
     // on the game's thread; `frame` is its saved registers and fxsave area.
     let mut ctx = unsafe { Context::new(frame) };
     match crate::artefact_carry::on_load(&mut ctx) {
+        Flow::Continue => 0,
+        Flow::Skip => 1,
+        Flow::Exit(e) => match e {},
+    }
+}
+
+// ---- past_poses (patch 105) ----
+
+/// The entry `past_poses_on_load` (0x2dbab5, base_player deserialize after final native field; EBX player, ESI reader) calls this with the saved machine.
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_past_poses_on_load(frame: &mut Frame) -> u32 {
+    // SAFETY: only the entry `past_poses_on_load` calls this, from the game's jump at 0x2dbab5,
+    // on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::new(frame) };
+    match crate::past_poses::on_load(&mut ctx) {
         Flow::Continue => 0,
         Flow::Skip => 1,
         Flow::Exit(e) => match e {},
@@ -501,6 +531,21 @@ pub extern "C" fn hook_hud_options_on_static_info(frame: &mut Frame) -> u32 {
     }
 }
 
+// ---- past_poses (patch 105) ----
+
+/// The entry `past_poses_on_static_info` (0x27b92d, process_static_match_info after its match_options::deserialize (0x27B928): esi the options, the reader at [ebp-2Ch]) calls this with the saved machine.
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_past_poses_on_static_info(frame: &mut Frame) -> u32 {
+    // SAFETY: only the entry `past_poses_on_static_info` calls this, from the game's jump at 0x27b92d,
+    // on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::new(frame) };
+    match crate::past_poses::on_static_info(&mut ctx) {
+        Flow::Continue => 0,
+        Flow::Skip => 1,
+        Flow::Exit(e) => match e {},
+    }
+}
+
 // ---- blackout (patch 65) ----
 
 /// The entry `blackout_on_replay_options` (0x1f0971, a replay's chunk 1 after its match_options::deserialize (0x1F096C): the options at [esp+40h], the reader at esp+14h) calls this with the saved machine.
@@ -555,6 +600,21 @@ pub extern "C" fn hook_music_on_replay(frame: &mut Frame) -> u32 {
     // on the game's thread; `frame` is its saved registers and fxsave area.
     let mut ctx = unsafe { Context::new(frame) };
     match crate::music::on_replay(&mut ctx) {
+        Flow::Continue => 0,
+        Flow::Skip => 1,
+        Flow::Exit(e) => match e {},
+    }
+}
+
+// ---- past_poses (patch 105) ----
+
+/// The entry `past_poses_on_replay_options` (0x1f0971, a replay's chunk 1 after its match_options::deserialize (0x1F096C): the options at [esp+40h], the reader at esp+14h) calls this with the saved machine.
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_past_poses_on_replay_options(frame: &mut Frame) -> u32 {
+    // SAFETY: only the entry `past_poses_on_replay_options` calls this, from the game's jump at 0x1f0971,
+    // on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::new(frame) };
+    match crate::past_poses::on_replay_options(&mut ctx) {
         Flow::Continue => 0,
         Flow::Skip => 1,
         Flow::Exit(e) => match e {},
@@ -851,6 +911,26 @@ pub extern "C" fn hook_input_check_on_change_input(frame: &mut Frame) -> u32 {
     }
 }
 
+// ---- past_poses (patch 105) ----
+
+/// The named exits of past_poses::on_input (the order the shim's Flow code
+/// follows, 2 upward).
+#[repr(u32)]
+#[allow(dead_code)]
+pub enum PastPosesOnInputExit { Refused }
+/// The entry `past_poses_on_input` (0x1fab50, game_world_core::change_input<client_update<player_input,220,235,221,236>>'s start (push ebp / mov ebp,esp / and esp,-8), every player input a world takes: a local one, a relayed one (0xEB, the batch 0x27C5C1), a moved one (0xEF) and a replay's; ESP+4 the core, +8 the input (half2 rotation, then the action mask), +10h its time, +14h the player; refused is its `ret 24h` (0x1FAC4E, the duplicate's; EAX the event action, 6 as both refusals return it)) calls this with the saved machine.
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_past_poses_on_input(frame: &mut Frame) -> u32 {
+    // SAFETY: only the entry `past_poses_on_input` calls this, from the game's jump at 0x1fab50,
+    // on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::new(frame) };
+    match crate::past_poses::on_input(&mut ctx) {
+        Flow::Continue => 0,
+        Flow::Skip => 1,
+        Flow::Exit(e) => 2 + e as u32,
+    }
+}
+
 // ---- lamps (patch 81) ----
 
 /// The entry `lamps_on_bind` (0x285750, before insert_static, ECX project and ESP+4 physics) calls this with the saved machine.
@@ -920,6 +1000,21 @@ pub extern "C" fn hook_lamps_on_present(frame: &mut Frame) -> u32 {
     // on the game's thread; `frame` is its saved registers and fxsave area.
     let mut ctx = unsafe { Context::new(frame) };
     match crate::lamps::on_present(&mut ctx) {
+        Flow::Continue => 0,
+        Flow::Skip => 1,
+        Flow::Exit(e) => match e {},
+    }
+}
+
+// ---- past_poses (patch 105) ----
+
+/// The entry `past_poses_on_frame` (0x1f7c3c, game_world::tick's join after the simulation's move (cmp byte [esp+0Fh],0; EBX the game world)) calls this with the saved machine.
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_past_poses_on_frame(frame: &mut Frame) -> u32 {
+    // SAFETY: only the entry `past_poses_on_frame` calls this, from the game's jump at 0x1f7c3c,
+    // on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::new(frame) };
+    match crate::past_poses::on_frame(&mut ctx) {
         Flow::Continue => 0,
         Flow::Skip => 1,
         Flow::Exit(e) => match e {},
@@ -1718,15 +1813,15 @@ pub unsafe extern "C" fn hook_music_on_query_done(a0: Option<raw::QueriesResult>
     { crate::music::on_query_done(result, tag); 0 }
 }
 
-// ---- ragdoll (patch 76) ----
+// ---- past_poses (patch 105) ----
 
-/// The entry `ragdoll_on_cull` (0x24757c, mt_draw's cull: the model not seen the last frame (cmp byte [ebx+0F4E2h],0, the je draws; EBX the player)) calls this with the saved machine.
+/// The entry `past_poses_on_ticked` (0x2d1e6d, game_world_core::atomic_tick after its seven delegate lists, before it writes the time (mov eax,[ecx+18FC4h]; the jz 0x2D1E4D lands here when the lists are none): ECX the world core, EDI the step's time (on the grid: time % 50 == 0, as the delegates were told), its players stepped and its bullets ticked to it; tick_events saves a grid point after it (serialize 0x2D230A)) calls this with the saved machine.
 #[unsafe(no_mangle)]
-pub extern "C" fn hook_ragdoll_on_cull(frame: &mut Frame) -> u32 {
-    // SAFETY: only the entry `ragdoll_on_cull` calls this, from the game's jump at 0x24757c,
+pub extern "C" fn hook_past_poses_on_ticked(frame: &mut Frame) -> u32 {
+    // SAFETY: only the entry `past_poses_on_ticked` calls this, from the game's jump at 0x2d1e6d,
     // on the game's thread; `frame` is its saved registers and fxsave area.
     let mut ctx = unsafe { Context::new(frame) };
-    match crate::ragdoll::on_cull(&mut ctx) {
+    match crate::past_poses::on_ticked(&mut ctx) {
         Flow::Continue => 0,
         Flow::Skip => 1,
         Flow::Exit(e) => match e {},
@@ -1742,6 +1837,51 @@ pub extern "C" fn hook_ragdoll_on_bones(frame: &mut Frame) -> u32 {
     // on the game's thread; `frame` is its saved registers and fxsave area.
     let mut ctx = unsafe { Context::new(frame) };
     match crate::ragdoll::on_bones(&mut ctx) {
+        Flow::Continue => 0,
+        Flow::Skip => 1,
+        Flow::Exit(e) => match e {},
+    }
+}
+
+// ---- past_poses (patch 105) ----
+
+/// The entry `past_poses_on_bones` (0x247716, mt_draw after the bones, before the Weapon bone (mov ecx,[ebx+0F290h]; EBX the player, EBP its frame)) calls this with the saved machine.
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_past_poses_on_bones(frame: &mut Frame) -> u32 {
+    // SAFETY: only the entry `past_poses_on_bones` calls this, from the game's jump at 0x247716,
+    // on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::new(frame) };
+    match crate::past_poses::on_bones(&mut ctx) {
+        Flow::Continue => 0,
+        Flow::Skip => 1,
+        Flow::Exit(e) => match e {},
+    }
+}
+
+// ---- past_poses (patch 105) ----
+
+/// The entry `past_poses_on_name_tag` (0x1f2b98, player::render_name (0x1F2AD0, from st_draw) reading the eye transform its tag is placed from (lea ecx,[esi+44Ch]; 0xEE700 multiplies the tag's raise by it at 0x1F2BA0, point_to_screen 0x23DEC0 projects it): ESI the player) calls this with the saved machine.
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_past_poses_on_name_tag(frame: &mut Frame) -> u32 {
+    // SAFETY: only the entry `past_poses_on_name_tag` calls this, from the game's jump at 0x1f2b98,
+    // on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::new(frame) };
+    match crate::past_poses::on_name_tag(&mut ctx) {
+        Flow::Continue => 0,
+        Flow::Skip => 1,
+        Flow::Exit(e) => match e {},
+    }
+}
+
+// ---- ragdoll (patch 76) ----
+
+/// The entry `ragdoll_on_cull` (0x24757c, mt_draw's cull: the model not seen the last frame (cmp byte [ebx+0F4E2h],0, the je draws; EBX the player)) calls this with the saved machine.
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_ragdoll_on_cull(frame: &mut Frame) -> u32 {
+    // SAFETY: only the entry `ragdoll_on_cull` calls this, from the game's jump at 0x24757c,
+    // on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::new(frame) };
+    match crate::ragdoll::on_cull(&mut ctx) {
         Flow::Continue => 0,
         Flow::Skip => 1,
         Flow::Exit(e) => match e {},
@@ -2313,12 +2453,32 @@ pub extern "C" fn hook_world_check_on_raw(frame: &mut Frame) -> u32 {
 }
 
 #[unsafe(no_mangle)]
+pub extern "C" fn hook_artefact_carry_on_save_chain(frame: &mut Frame) -> u32 {
+    let flow = hook_artefact_carry_on_save(frame);
+    if flow != 0 { return flow; }
+    let flow = hook_past_poses_on_save(frame);
+    if flow != 0 { return flow; }
+    0
+}
+
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_artefact_carry_on_load_chain(frame: &mut Frame) -> u32 {
+    let flow = hook_artefact_carry_on_load(frame);
+    if flow != 0 { return flow; }
+    let flow = hook_past_poses_on_load(frame);
+    if flow != 0 { return flow; }
+    0
+}
+
+#[unsafe(no_mangle)]
 pub extern "C" fn hook_blackout_on_static_info_chain(frame: &mut Frame) -> u32 {
     let flow = hook_blackout_on_static_info(frame);
     if flow != 0 { return flow; }
     let flow = hook_tab_cursor_on_static_info(frame);
     if flow != 0 { return flow; }
     let flow = hook_hud_options_on_static_info(frame);
+    if flow != 0 { return flow; }
+    let flow = hook_past_poses_on_static_info(frame);
     if flow != 0 { return flow; }
     0
 }
@@ -2332,6 +2492,8 @@ pub extern "C" fn hook_blackout_on_replay_options_chain(frame: &mut Frame) -> u3
     let flow = hook_hud_options_on_replay_options(frame);
     if flow != 0 { return flow; }
     let flow = hook_music_on_replay(frame);
+    if flow != 0 { return flow; }
+    let flow = hook_past_poses_on_replay_options(frame);
     if flow != 0 { return flow; }
     0
 }
@@ -2379,10 +2541,21 @@ pub extern "C" fn hook_language_on_options_call_chain(frame: &mut Frame) -> u32 
 }
 
 #[unsafe(no_mangle)]
+pub extern "C" fn hook_input_check_on_change_input_chain(frame: &mut Frame) -> u32 {
+    let flow = hook_input_check_on_change_input(frame);
+    if flow != 0 { return flow; }
+    let flow = hook_past_poses_on_input(frame);
+    if flow != 0 { return flow; }
+    0
+}
+
+#[unsafe(no_mangle)]
 pub extern "C" fn hook_ragdoll_on_step_chain(frame: &mut Frame) -> u32 {
     let flow = hook_ragdoll_on_step(frame);
     if flow != 0 { return flow; }
     let flow = hook_lamps_on_present(frame);
+    if flow != 0 { return flow; }
+    let flow = hook_past_poses_on_frame(frame);
     if flow != 0 { return flow; }
     0
 }
@@ -2403,6 +2576,15 @@ pub extern "C" fn hook_music_on_unload_chain(frame: &mut Frame) -> u32 {
     let flow = hook_music_on_unload(frame);
     if flow != 0 { return flow; }
     let flow = hook_lobby_scene_on_game_closing(frame);
+    if flow != 0 { return flow; }
+    0
+}
+
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_ragdoll_on_bones_chain(frame: &mut Frame) -> u32 {
+    let flow = hook_ragdoll_on_bones(frame);
+    if flow != 0 { return flow; }
+    let flow = hook_past_poses_on_bones(frame);
     if flow != 0 { return flow; }
     0
 }

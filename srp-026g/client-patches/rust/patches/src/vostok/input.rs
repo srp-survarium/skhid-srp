@@ -255,6 +255,25 @@ impl<'c, 'm> InputChange<'c, 'm> {
         self.place
     }
 
+    /// Another place's input as it reaches this game (a relayed one, or a
+    /// moved one): its place, and the world's newest time (+18FC4h, the
+    /// frame's clock it last moved to), how late the input is by it. None for
+    /// the local place's own, in a world with no local place (a replay's), or
+    /// an input newer than the world.
+    pub fn arrival(&self) -> Option<(super::types::Place, super::types::GameTime)> {
+        use raw::site::change_input_player as site;
+        // SAFETY: the site's frame, its core argument alive while
+        // change_input runs on the game's thread.
+        let (owner, newest) = unsafe {
+            let core = site::frame(&*self.ctx)?.core()?;
+            (core.owner().read_volatile(), core.maximum_time().read_volatile())
+        };
+        super::types::Place::new(u32::from(owner))?;
+        let place = super::types::Place::new(u32::from(self.place)).filter(|p| p.get() != owner)?;
+        let newest = super::types::GameTime(newest);
+        super::types::GameTime(self.time).not_after(newest).then_some((place, newest))
+    }
+
     /// The world does not take it: nothing of it is kept. The caller then
     /// leaves by the site's `refused` exit (its `ret 24h`).
     pub fn refuse(self) {
