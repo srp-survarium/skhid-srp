@@ -417,6 +417,12 @@ impl Game {
     /// The spectator answered its 0xE5: the time again, the inputs and the
     /// entries since the world, and the world.
     fn spectator_world(&mut self, at: usize, time: u32, echo: u16, now: Instant) {
+        // A place appended while it was timed, not installed yet: the
+        // entries and inputs since the world could be of it.
+        if self.spectators[at].installed_roster < self.spectator_roster() {
+            self.spectators[at].wait_again();
+            return;
+        }
         let clock = self.clock(now);
         let Some(world) = [self.snapshot.as_ref(), self.recent.as_ref()]
             .into_iter()
