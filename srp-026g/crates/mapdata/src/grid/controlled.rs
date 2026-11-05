@@ -39,6 +39,11 @@ pub const STARTS: [f32; 3] = [0.0, -0.1, 0.1];
 /// The body is at the target when its feet are this near it flat and this near it in height, m.
 const AT_FLAT_M: f32 = 0.15;
 const AT_HEIGHT_M: f32 = 0.2;
+/// A walked bridge is kept only in a run of at least this many walked bridges side by side, each one cell over across the
+/// bridge's way (0.75 m at the 0.25 m cell: the body's 0.76 m width). [A313, fx-zones] Cologne day 2 (x 9.7-10, z 32.1-32.6):
+/// two bridges up a 0.6 m riser beside a leaning board, where the walks were dropped; bots cut the corner to them one column
+/// off and stalled at the board (bench3: 14 presses that freed nothing there, 1 without the pass).
+pub const BRIDGE_MIN_RUN: usize = 3;
 
 /// What the controller pass did ([`BuildStats`]).
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
@@ -46,6 +51,8 @@ pub struct ControlledStats {
     pub bridges_tried: usize,
     pub bridges_walked: usize,
     pub bridges_added: usize,
+    /// Bridges the controller walks in a run narrower than [`BRIDGE_MIN_RUN`]: not walked (a gap link stays pressed).
+    pub bridges_narrow: usize,
     pub checks: usize,
     pub checks_dropped: usize,
     /// Failed checks kept as a floor's only way in or back (`WalkGrid::cut_keeping_reach`).
@@ -178,12 +185,7 @@ impl WalkGrid {
             let l: &OffLink = &wide.off[i];
             walk_lines(&world, self.position(l.from), self.position(l.to)).1
         });
-        for (&i, ok) in bridges.iter().zip(walked) {
-            if ok {
-                wide.off[i].press = Takeoff::WalkOff;
-                stats.bridges_walked += 1;
-            }
-        }
+        let old: Vec<usize> = bridges.iter().zip(walked).filter(|&(_, ok)| ok).map(|(&i, _)| i).collect();
         // Bridges with no link yet: two cells on, a floor within a step, the cell between with no floor near that height (a
         // crack no face covers, a cell holding only a riser), walked by the controller: a walked off-mesh link.
         wide.off.sort_by_key(|l| (l.from, l.to));
@@ -208,11 +210,26 @@ impl WalkGrid {
         }
         stats.bridges_tried += new.len();
         let walked = parallel(&new, |&(a, b)| walk_lines(&world, self.position(a), self.position(b)).1);
-        for (&(a, b), ok) in new.iter().zip(walked) {
-            if ok {
+        let new: Vec<(u32, u32)> = new.iter().zip(walked).filter(|&(_, ok)| ok).map(|(&p, _)| p).collect();
+        // Only the bridges in a run at least [`BRIDGE_MIN_RUN`] wide are walked: a narrower one is crossed only by a body
+        // inside its columns, which a bot steering at a point ahead of it does not keep to.
+        let all: std::collections::HashSet<(u32, u32)> =
+            old.iter().map(|&i| (wide.off[i].from, wide.off[i].to)).chain(new.iter().copied()).collect();
+        for &i in &old {
+            if self.bridge_run(&all, wide.off[i].from, wide.off[i].to) >= BRIDGE_MIN_RUN {
+                wide.off[i].press = Takeoff::WalkOff;
+                stats.bridges_walked += 1;
+            } else {
+                stats.bridges_narrow += 1;
+            }
+        }
+        for &(a, b) in &new {
+            if self.bridge_run(&all, a, b) >= BRIDGE_MIN_RUN {
                 wide.off.push(OffLink { from: a, to: b, kind: LinkKind::GapJump, press: Takeoff::WalkOff });
                 stats.bridges_walked += 1;
                 stats.bridges_added += 1;
+            } else {
+                stats.bridges_narrow += 1;
             }
         }
         wide.off.sort_by_key(|l| (l.from, l.to));
@@ -248,5 +265,85 @@ impl WalkGrid {
             .map(|(&(a, d), share)| (a as u32, d, share))
             .collect();
         (stats, failing)
+    }
+
+    /// How many bridges of `all` are side by side with the bridge `a` -> `b`, it included, counted out to [`BRIDGE_MIN_RUN`]
+    /// either side: one floor's cell over across the bridge's way each, to a floor one cell over from `b`'s.
+    fn bridge_run(&self, all: &std::collections::HashSet<(u32, u32)>, a: u32, b: u32) -> usize {
+        let (ia, ka) = self.cell_xz(self.cell_of[a as usize] as usize);
+        let (ib, kb) = self.cell_xz(self.cell_of[b as usize] as usize);
+        let (dx, dz) = ((ib - ia) as f32, (kb - ka) as f32);
+        let l = dx.hypot(dz);
+        let (sx, sz) = ((-dz / l).round() as i32, (dx / l).round() as i32);
+        let mut run = 1;
+        for side in [1, -1] {
+            for s in 1..BRIDGE_MIN_RUN as i32 {
+                let (ox, oz) = (side * s * sx, side * s * sz);
+                let (Some(ca), Some(cb)) = (self.cell_index(ia + ox, ka + oz), self.cell_index(ib + ox, kb + oz)) else { break };
+                let found = (self.start[ca]..self.start[ca + 1])
+                    .any(|a2| (self.start[cb]..self.start[cb + 1]).any(|b2| all.contains(&(a2, b2))));
+                if !found {
+                    break;
+                }
+                run += 1;
+            }
+        }
+        run
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn quad(tris: &mut Vec<Triangle>, a: Vec3, b: Vec3, c: Vec3, d: Vec3) {
+        tris.push(Triangle { v: [a, b, c], walker: WalkerBehaviour::BySlope });
+        tris.push(Triangle { v: [a, c, d], walker: WalkerBehaviour::BySlope });
+    }
+
+    fn floor(tris: &mut Vec<Triangle>, x0: f32, z0: f32, x1: f32, z1: f32, y: f32) {
+        quad(tris, Vec3::new(x0, y, z0), Vec3::new(x0, y, z1), Vec3::new(x1, y, z1), Vec3::new(x1, y, z0));
+    }
+
+    /// A floor at 0 and a top 0.6 m up past one 0.25 m cell (x 5.0-5.25), 6 m wide. With `strip`, that cell holds a 0.3 m
+    /// step (walked up in two) except over `strip` metres of the width, where it holds only the riser (none: the riser all the
+    /// way): the walk-off bridges the pass makes up it, and the ones it walks but leaves pressed as too narrow a run.
+    fn bridges_up(strip: Option<f32>) -> (usize, usize) {
+        let mut tris = Vec::new();
+        floor(&mut tris, 0.0, 0.0, 5.0, 6.0, 0.0);
+        floor(&mut tris, 5.25, 0.0, 10.0, 6.0, 0.6);
+        quad(&mut tris, Vec3::new(5.25, 0.0, 0.0), Vec3::new(5.25, 0.6, 0.0), Vec3::new(5.25, 0.6, 6.0), Vec3::new(5.25, 0.0, 6.0));
+        if let Some(w) = strip {
+            let (z0, z1) = (3.0 - w / 2.0, 3.0 + w / 2.0);
+            for (a, b) in [(0.0, z0), (z1, 6.0)] {
+                floor(&mut tris, 5.0, a, 5.25, b, 0.3);
+                quad(&mut tris, Vec3::new(5.0, 0.0, a), Vec3::new(5.0, 0.0, b), Vec3::new(5.0, 0.3, b), Vec3::new(5.0, 0.3, a));
+            }
+        }
+        let body = Body { client_controller: true, ..Body::client() };
+        let (grid, stats) = WalkGrid::build_kept_with_links(&tris, [0.0, 0.0, 10.0, 6.0], 0.25, body, &[], &[], OffMeshLinks::Gaps);
+        let walked = grid
+            .off_links()
+            .iter()
+            .filter(|l| {
+                l.kind == LinkKind::GapJump
+                    && l.press == Takeoff::WalkOff
+                    && grid.position(l.from).y.abs() < 0.05
+                    && (grid.position(l.to).y - 0.6).abs() < 0.05
+            })
+            .count();
+        (walked, stats.controlled.bridges_narrow)
+    }
+
+    /// [A313] A riser bare its whole width is bridged; bare over a 0.5 m strip only (two columns of the grid, the rest
+    /// stepped) it is walked by the controller but not bridged: a bot steering at a point ahead does not keep inside so
+    /// narrow a run, and walks the step beside it.
+    #[test]
+    fn a_narrow_bridge_run_is_not_walked() {
+        let (open, _) = bridges_up(None);
+        assert!(open >= BRIDGE_MIN_RUN, "the bare riser: {open} bridges");
+        let (walked, narrow) = bridges_up(Some(0.5));
+        assert_eq!(walked, 0, "the 0.5 m strip");
+        assert!(narrow > 0, "the 0.5 m strip had bridges the controller walks, left pressed");
     }
 }
