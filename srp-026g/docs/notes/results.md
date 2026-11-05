@@ -300,7 +300,7 @@ Code: `crates/session/src/v026g/rewards.rs` (rules and the choices srp made are 
 
 ## 10. What a match pays (added 2026-10-12)
 
-Code: `crates/session/src/v026g/pay.rs` (every number, each with its tag) and `rewards.rs` (how they are applied). The sources are in `progression_sources.md`; two results screens of the owner's fix the numbers:
+Code: `crates/session/src/v026g/pay.rs` (every number, each with its tag) and `rewards.rs` (how they are applied). The sources are in `progression_sources.md`; two results screens of the owner's fix the numbers. **Since 2026-11-05 srp pays no silver by the rows** (§14): the rows' silver below is the original's, kept as what the screens show; their experience and reputation are paid as below.
 
 | | SHOT1 (0.26) | SHOT2 (LIKELY 0.27) |
 |---|---|---|
@@ -325,7 +325,7 @@ Code: `crates/session/src/v026g/pay.rs` (every number, each with its tag) and `r
 
 - **Other score** = the score of the events of the row itself (every event that is no kill and no help; `event_categories` value 2), with the weights the match was played with. For a player whose helps are all assists that is "score − 10 a kill − 5 an assist", which is how both screens were read.
 - **A match not won** (lost, drawn, or with no known result) and played to the end pays half of the fixed part and the same for each point; **a player who left early** gets nothing of the fixed part. The owner's choice (2026-10-12), until a lost match's screen is seen.
-- **Rates** (srp's): the rows' silver × the percent of the match's level (`pay::MONEY_RATES`, the owner's choice of 2026-10-14: 150 to level 5, ten more a level, 220 from level 12; 120 at every level from 2026-10-13, 80 before; `SRP_MONEY_RATE` sets one percent for every level); their experience × `SRP_EXPERIENCE_RATE` (default 2 since 2026-10-14; 1, the original's pace, before); their reputation × `SRP_REPUTATION_RATE` percent (default 120). §13.
+- **Rates** (srp's): the match's silver (§14; the rows' until 2026-11-05) × the percent of the match's level (`pay::MONEY_RATES`, the owner's choice of 2026-10-14: 150 to level 5, ten more a level, 220 from level 12; 120 at every level from 2026-10-13, 80 before; `SRP_MONEY_RATE` sets one percent for every level); their experience × `SRP_EXPERIENCE_RATE` (default 2 since 2026-10-14; 1, the original's pace, before); their reputation × `SRP_REPUTATION_RATE` percent (default 120). §13.
 - **Daily bonus** = the rows' experience and reputation once more, no silver; **premium** = half of the rows, of all three, not of the daily bonus; total = rows + daily + premium (PROVEN: SHOT1's 188 + 188 + 94 = 470, 26 + 26 + 13 = 65; SHOT2's 379 + 189 = 568).
 - **The money total is net of expenses in the client** (PROVEN, `VictoryScreen.updateMoney`): it adds the autobuy and repair lists of the inventory push (0x89) to the sum of the rows, quests and bonus blocks. 0x97 carries the gross rows; SHOT2's 9784 = 10707 + 5353 − 6276.
 - **The "x18" of SHOT1** against 17 kills on its scoreboard: the row's events are 0 (kill) and 4 (team kill), so the 18th is LIKELY a team kill, which paid nothing. It does not explain the lesser kind of kill (ten of them). srp's amount counts kills only [choice].
@@ -416,35 +416,103 @@ What follows from them:
 
 Tests: `pay.rs` `the_silver_rate_rises_with_the_match_level`; `rewards/tests.rs` `the_owners_rates_raise_silver_by_match_level_experience_and_reputation`, the own-terms part of `the_money_rate_scales_the_rows_silver_and_premiums_half_of_it`; `quests.rs`, the raised part of the scale test.
 
-## 14. The floor (the owner's, 2026-10-27)
+## 14. Silver by the minute (the owner's, 2026-11-05)
 
-"The players with the fewest points usually need the silver most."
+"Silver shouldn't even be based on player score"; "top players get +30%", "losing team 10-20%
+less", "high players shouldn't lose, weak players should gain"; deathmatch "as much silver as
+research or batteries". It replaces the floor of 2026-10-27 (80 % of the match's median for a
+finisher who scored 30), which the flat pay makes moot.
 
-- A player who stayed to the end and scored at least 30 (`pay::FLOOR_MIN_SCORE`) is paid at
-  least 80 % (`pay::FLOOR_OF_MEDIAN`) of the rows' silver of the match's median player (of those
-  who stayed to the end; bots not counted; of two middle ones, the lower).
-- What its rows lack is added to its main kit's activity cell ("Match Activity Rewards"), so the
-  premium half and the premium items' bonus count it too. Experience and reputation: unchanged.
-- Score under 30 (idle, or barely played), a player who left, a room with a PIN, a match with no
-  trusted snapshot: no floor. A match against bots: its median is of its human players' pay.
-- On live (61 matches of revision 35, no bots): the lowest quarter of each match's scoreboard
-  was paid 2.7k a match, the top quarter 21.9k; the lowest were also the lowest levels (16.9
-  against 31.2). With the floor the lowest quarter's pay rises to about 4.2k (91 of 555
-  players raised); all silver paid rises about 6 %.
-- `rewards.rs` `Shared::money_floor`, applied in `settle_player`.
+- **The silver of a match** = the player's time in it (`time_in_match_ms`, its latest place's) ×
+  70 a minute (`pay::SILVER_PER_MINUTE`) × the team's percent × the top's percent, then × the
+  match level's `money_k` and the rate (§10, §13), rounded down once (`pay::silver_of`,
+  `Shared::silver`). The same in every mode.
+- **The team**: 100 % for one who stayed to the end of a match its team won, 85 %
+  (`pay::NOT_WON_PERCENT`) for every other: a loss, a draw, no known result, or a match it left.
+- **The top**: 130 % (`pay::TOP_PERCENT`) for the best quarter, rounded down
+  (`pay::TOP_ONE_IN`), of those who stayed to the end, bots not counted, by the score of the
+  counters that pay (§15; of equal scores, the earlier roster place). Four of 16, two of 8, none of
+  three; none in a match against bots (one player) or with no trusted snapshot. A top player on the
+  losing side gets 85 % × 130 %. The score ranks; it is no amount.
+- **On the screen** it is all in the main kit's "Match Activity Rewards" cell; the kills and help
+  cells carry experience and reputation only. One who left has that cell's amount at 1 (the cell
+  carries nothing on the wire at 0), as one who finished counts 1 for finishing. Premium's half and
+  the premium items' bonus are counted from it as before.
+- **Unchanged**: the experience and reputation of the rows (and Blackout's double points for them,
+  but not for silver), quests, the daily bonus, the drop, PvB's `SRP_PVB_PAY` share and level-7
+  ceiling, a PIN room paying nothing.
+- **Gone** (score-based): 25 silver a kill, 10 a help, about 7 a point of other score, the fixed
+  part of 83 (won) or 41 (not won) for finishing, the floor, Blackout's double silver; the farming
+  limits (§15) now cut experience, reputation and the ranking for the top, not silver.
+
+**Measured** (`g26_results` of every srp.db backup from 2026-10-29 19:33 UTC, after PR #691, to the
+live copy of 2026-11-05 21:00: 1,015 reports, of them 285 PvP matches with a winner, 654 PvB, 56 PIN
+rooms, 20 drawn or deserted). Silver = rows + items' bonus before premium; "plain" = silver /
+(`money_k` × rate), comparable across levels; top = the best quarter by score of the finishers.
+
+| PvP, 285 matches | before | after |
+|---|---|---|
+| top quarter / match average (finishers) | 1.84 (1.67-2.08) | 1.38 (1.29-1.52) |
+| losers' average / winners' (finishers) | 0.68 (0.48-0.87) | 0.80 (0.72-0.85) |
+| a loser / a winner of the same rank | (by score) | 0.85 |
+
+The averages' ratios are of a match's mix: the top's 30 % lands mostly on the winning side, and
+late joiners are paid fewer minutes.
+
+| mode | matches | plain a minute, finishers: before -> after | won | lost | top | left | a match (median): before -> after |
+|---|---|---|---|---|---|---|---|
+| TDM | 53 | 31 (21-46) -> 70 | 35 -> 70 | 26 -> 59 | 58 -> 91 | 5 -> 59 | 6,798 -> 17,276 |
+| batteries | 160 | 52 (31-82) -> 70 | 63 -> 70 | 42 -> 59 | 81 -> 91 | 0 -> 59 | 10,352 -> 14,786 |
+| research | 72 | 73 (44-106) -> 70 | 90 -> 70 | 60 -> 59 | 121 -> 91 | 10 -> 59 | 10,536 -> 11,233 |
+| PvB TDM | 378 | 70 (47-89) -> 35 | 73 -> 35 | 14 -> 30 | | | 8,871 -> 4,233 |
+| PvB batteries | 276 | 92 (55-128) -> 35 | 96 -> 35 | 9 -> 30 | | | 6,566 -> 2,970 |
+
+(PvB's plain is before its 50 % share: it paid more a minute than PvP by the score, bot kills
+being many; it now pays the half of PvP that `SRP_PVB_PAY` says.)
+
+**The base**: 70 makes the top of a won match (91) earn a minute what the winning top quarter's
+median earned (91 pooled; batteries 91, research 133, deathmatch 59). No single base can keep every
+mode's top whole: research's top would need 102.
+
+| base | top of a won match | PvP total | PvB total | top earning less | middle half earning less | bottom quarter earning less |
+|---|---|---|---|---|---|---|
+| 60 | 78 | x0.93 | x0.41 | 319 of 547 | 574 of 1,481 | 127 of 547 |
+| **70** | **91** | **x1.09** | **x0.48** | **263 of 547** | **445 of 1,481** | **104 of 547** |
+| 80 | 104 | x1.24 | x0.55 | 207 of 547 | 361 of 1,481 | 78 of 547 |
+| 102 | 133 | x1.59 | x0.70 | 141 of 547 | 223 of 1,481 | 50 of 547 |
+
+At 70: of the top who earn less, 129 of 148 are research's, 126 of 277 batteries', 8 of 122
+deathmatch's. 86 of the 104 bottom-quarter players who earn less played under 10 minutes (late
+joiners, whom the fixed part and the floor paid whatever their minutes). The owner's example of
+Chemical Plant (match 0x73d0500e, level 9): winners 8,842 -> 13,342 a player before premium,
+losers 3,940 -> 9,654, the average 6,555 -> 11,621, its top earner 20,117 -> 16,552.
+
+**A day** (the settlement lines of 2026-11-01 to 11-04): PvP paid 18.8 to 37.1 million silver a day
+with premium (26.2 on average), PvB 1.2 to 3.5 (2.5). At these factors PvP gains about 2.3 million a
+day and PvB loses about 1.3: about +1.0 million a day, +3.5 % of all match silver.
+
+**Idle players**: the pay is the minutes, so a player who stays in a match and does nothing is paid
+as a loser is (59.5 a minute), where the score paid it about 4. In the 285 matches 45 finishers sat
+a whole match with a score under 30. Nothing here tells them apart from the weakest players.
+
+Tests: `pay.rs` `a_minute_pays_its_silver_by_the_team_and_the_top`; `rewards/tests.rs`
+`the_winner_and_the_loser_are_paid_by_the_minute`,
+`the_top_quarter_is_paid_thirty_percent_more_and_the_score_nothing_else`,
+`the_top_is_ranked_by_the_score_that_pays` and the rest's silver.
 
 ## 15. Payment-only farming limits (PR #691 revision, 2026-10-28)
 
 `reward_caps::Payment` clones the ordinary statistics after the existing battery policy, then
 applies the repeated-kill limit and Research allowance in that order. The result adapter carries
-this copy as `PlayerResult::pay_statistics`; only `Shared::lines` reads it. Without an override,
+this copy as `PlayerResult::pay_statistics`; only `Shared::lines` (the rows' experience and
+reputation) and `Shared::top_places` (who is the top, §14) read it. Without an override,
 ordinary statistics pay as before. An untrusted result cannot pay from either copy.
 
 Score, quest progress, kit usage and rating use the ordinary counters. This separation fixes the
 initial implementation's unintended reduction of score and combat quest counters. The existing
-battery cap's handling of battery quests is unchanged. The silver floor still uses the lower
-median of human finishers' **post-cap** base pay; its score eligibility uses the ordinary score.
-See `kill_cap.md` and `research_mode.md` for thresholds.
+battery cap's handling of battery quests is unchanged. Since 2026-11-05 the silver is by the
+minute (§14), so the limits cut no silver but the top's 30 % of a player they would have made the
+top. See `kill_cap.md` and `research_mode.md` for thresholds.
 
 ## 16. PvE reward ceiling (owner's choice, 2026-10-28)
 
@@ -457,8 +525,8 @@ match level are unchanged; this is a payment ceiling, not a change to combat sim
 
 The supplied 128/7 bot-match screenshot paid 49,992 base silver plus 24,996 premium = 74,988.
 At the ceiling, its silver scales by `(4.97 * 1.7) / (10.17 * 2.2)`, about 28.3k including premium,
-subject to per-cell rounding. No live balance is changed retroactively. The floor uses these
-capped base rewards; a sole human already earns their own median and gets no floor addition.
+subject to per-cell rounding (that was the silver by the rows; since 2026-11-05 it is by the
+minute, §14, at the same ceiling). No live balance is changed retroactively.
 
 **Drops (owner's choice, 2026-11-01).** The end-of-match drop of PvE is rolled the same way, at
 `min(actual match level, 7)` (`pvb::MAX_DROP_LEVEL`, `Shared::drop_level`): the generic table's row

@@ -9,6 +9,8 @@ PR #691, revised 2026-10-28 after the owner asked to preserve normal play.
   exempt just because its roster is small.
 - Headshot, melee, silent and grenade payment counters are reduced in the same proportion.
   Score, displayed kills/deaths, all quest counters and rating retain the original statistics.
+- Since 2026-11-05 silver is by the minute (`results.md` §14): a kill pays experience and
+  reputation, and the limited counters also rank the match's top (its 30 % more silver).
 - The server sees running totals, not explicit killer-victim events. A trusted snapshot with
   exactly one player's kills increased and matching enemy deaths (no teammate or unknown-team
   deaths) pairs them. Ambiguous kills still pay. This cannot detect every farm.

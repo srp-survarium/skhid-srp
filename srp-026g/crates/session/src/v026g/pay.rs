@@ -1,11 +1,11 @@
-//! What a 0.26g match pays, in numbers: the three rows of the results
-//! screen, the two rates, the level rewards, the rating a new account
-//! starts with and the drop chance's bonuses
-//! (`docs/notes/progression_sources.md` §2, §7 and
-//! `results.md` §10). [`super::rewards`] applies them.
+//! What a 0.26g match pays, in numbers: the silver of a minute played,
+//! the three rows of the results screen, the rates, the level rewards, the
+//! rating a new account starts with and the drop chance's bonuses
+//! (`docs/notes/progression_sources.md` §2, §7 and `results.md` §10,
+//! §14). [`super::rewards`] applies them.
 //!
-//! The client holds none of these numbers. They are fitted to two results
-//! screens of the time:
+//! The client holds none of these numbers. The rows' experience and
+//! reputation are fitted to two results screens of the time:
 //!
 //! - **SHOT1** (0.26, match level 1: `money_k` 1.47, the others 1; a win
 //!   5:4, score 223, 17 kills, 4 helps): kills 551 / 41 / 17, help
@@ -17,22 +17,24 @@
 //! Each cell of a row is its plain amount times the match level's
 //! multiplier (`match_levels_dict`), rounded down after multiplying
 //! (PROVEN by SHOT2: every cell of its kills and help rows comes out).
+//! Their silver was by the rows too (kills 25 and helps 10 a piece, the
+//! activity row a fixed part and about 7 a point of score: `results.md`
+//! §10); srp's is by the minute played ([`SILVER_PER_MINUTE`], the owner's
+//! of 2026-11-05).
 
 /// What one event, or one point of score, pays before the match level's
-/// multipliers: silver, experience, reputation.
+/// multipliers: experience, reputation.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct Pay {
-    pub money: f64,
     pub experience: f64,
     pub reputation: f64,
 }
 
 impl Pay {
-    pub const NONE: Self = Self::new(0.0, 0.0, 0.0);
+    pub const NONE: Self = Self::new(0.0, 0.0);
 
-    pub const fn new(money: f64, experience: f64, reputation: f64) -> Self {
+    pub const fn new(experience: f64, reputation: f64) -> Self {
         Self {
-            money,
             experience,
             reputation,
         }
@@ -40,42 +42,37 @@ impl Pay {
 
     /// `self × factor`.
     pub fn times(self, factor: f64) -> Self {
-        Self::new(
-            self.money * factor,
-            self.experience * factor,
-            self.reputation * factor,
-        )
+        Self::new(self.experience * factor, self.reputation * factor)
     }
 
     pub fn plus(self, other: Self) -> Self {
         Self::new(
-            self.money + other.money,
             self.experience + other.experience,
             self.reputation + other.reputation,
         )
     }
 }
 
-/// "Enemies killed": a kill (PROVEN by SHOT2: 19 kills are 475 / 57 / 19
-/// before the multipliers).
-pub const KILL: Pay = Pay::new(25.0, 3.0, 1.0);
-/// A lesser kind of kill, cause unknown: SHOT1's 17 kills (375 / 41 / 17
-/// before the multipliers) are exactly 7 kills of [`KILL`] and 10 of
-/// this. Not used: every kill pays [`KILL`] until the cause is known.
+/// "Enemies killed": a kill (PROVEN by SHOT2: 19 kills are 57 / 19 before
+/// the multipliers).
+pub const KILL: Pay = Pay::new(3.0, 1.0);
+/// A lesser kind of kill, cause unknown: SHOT1's 17 kills (41 / 17 before
+/// the multipliers) are exactly 7 kills of [`KILL`] and 10 of this. Not
+/// used: every kill pays [`KILL`] until the cause is known.
 #[allow(dead_code)]
-pub const LESSER_KILL: Pay = Pay::new(20.0, 2.0, 1.0);
+pub const LESSER_KILL: Pay = Pay::new(2.0, 1.0);
 /// "Help ally": an assist (PROVEN by both screens). A cure and a rescue of
 /// a teammate are in the same row of the game's table and are paid the
 /// same (LIKELY).
-pub const HELP: Pay = Pay::new(10.0, 1.0, 1.0);
+pub const HELP: Pay = Pay::new(1.0, 1.0);
 
 // ---------------------------------------------------------------------
 // GUESS: "Match Activity Rewards". Both screens are wins, so all that is
 // known is the row's sum for a won match played to the end, at two "other
 // scores" (the score less what kills and helps scored):
 //
-//   SHOT1, other score 33: 315 / 143 / 5 before the multipliers
-//   SHOT2, other score 59: 498 / 159 / 6.5 to 7
+//   SHOT1, other score 33: 143 / 5 before the multipliers
+//   SHOT2, other score 59: 159 / 6.5 to 7
 //
 // The row is taken as the line through both: a fixed part and a part for
 // each point of other score. How the fixed part splits between finishing
@@ -88,33 +85,55 @@ pub const HELP: Pay = Pay::new(10.0, 1.0, 1.0);
 /// The other score of the two screens.
 const SHOT1_SCORE: f64 = 33.0;
 const SHOT2_SCORE: f64 = 59.0;
-/// For each point of other score: (498 − 315) / 26 silver, (159 − 143) /
-/// 26 experience, 0.077 reputation.
-pub const ACTIVITY_PER_SCORE: Pay = Pay::new(
-    (498.0 - 315.0) / (SHOT2_SCORE - SHOT1_SCORE),
-    (159.0 - 143.0) / (SHOT2_SCORE - SHOT1_SCORE),
-    0.077,
-);
-/// For a won match played to the end: about 82.73 silver, 122.69
-/// experience, 2.46 reputation.
-pub const ACTIVITY_WON: Pay = Pay::new(
-    315.0 - SHOT1_SCORE * ACTIVITY_PER_SCORE.money,
-    143.0 - SHOT1_SCORE * ACTIVITY_PER_SCORE.experience,
-    2.46,
-);
+/// For each point of other score: (159 − 143) / 26 experience, 0.077
+/// reputation.
+pub const ACTIVITY_PER_SCORE: Pay = Pay::new((159.0 - 143.0) / (SHOT2_SCORE - SHOT1_SCORE), 0.077);
+/// For a won match played to the end: about 122.69 experience, 2.46
+/// reputation.
+pub const ACTIVITY_WON: Pay = Pay::new(143.0 - SHOT1_SCORE * ACTIVITY_PER_SCORE.experience, 2.46);
 /// The share of [`ACTIVITY_WON`] a match played to the end and not won
 /// pays (the owner's choice).
 pub const ACTIVITY_NOT_WON: f64 = 0.5;
 // ------------------------------------------------------------- GUESS ends
 
-/// The floor of a match's lowest (the owner's, 2026-10-27: the players
-/// with the fewest points need the silver most): a player who stayed to
-/// the end and scored at least [`FLOOR_MIN_SCORE`] gets at least this share
-/// of the silver of the match's median player's rows, the rest added to
-/// its activity line (`docs/notes/results.md`, "The floor").
-pub const FLOOR_OF_MEDIAN: f64 = 0.8;
-/// The least score that takes the floor: an idle player gets none.
-pub const FLOOR_MIN_SCORE: u32 = 30;
+// ---------------------------------------------------------------------
+// The match's silver (the owner's of 2026-11-05, `results.md` §14):
+// "silver shouldn't even be based on player score". A player is paid for
+// its time in the match, the same in every mode, by its team's result and
+// whether it is of the match's top; the score only says who the top is.
+// These are before the match level's multiplier and the rate, as a row's
+// cell is.
+// ---------------------------------------------------------------------
+/// The silver of a minute in the match: the owner's "high players
+/// shouldn't lose, weak players should gain" set it so the top of a won
+/// match ([`TOP_PERCENT`] of it, 91) is paid a minute what the winning top
+/// quarter's median was paid by the score (91 on live: 285 matches of
+/// 2026-10-29 to 11-05; batteries 91, Research 133, deathmatch 59).
+pub const SILVER_PER_MINUTE: u32 = 70;
+/// The percent of it a player is paid that did not stay to the end of a
+/// match its team won: a loss, a draw, a match with no known result, or one
+/// it left (the owner's "losing team 10-20% less").
+pub const NOT_WON_PERCENT: u32 = 85;
+/// The percent the match's top players are paid of their team's (the
+/// owner's "top players get +30%").
+pub const TOP_PERCENT: u32 = 130;
+/// The top of a match: one in this many of those who stayed to the end
+/// (bots not counted), the best by score, rounded down (four of 16, none of
+/// three).
+pub const TOP_ONE_IN: usize = 4;
+
+/// The silver of `played_ms` in a match, before the match level's
+/// multiplier and the rate: [`SILVER_PER_MINUTE`] a minute, times the
+/// team's percent ([`NOT_WON_PERCENT`] unless `won`) and, for the top,
+/// [`TOP_PERCENT`].
+pub fn silver_of(played_ms: u32, won: bool, top: bool) -> f64 {
+    let team = if won { 100 } else { NOT_WON_PERCENT };
+    let top = if top { TOP_PERCENT } else { 100 };
+    // At most 2^32 ms × 70 × 100 × 130: under 2^52, whole in an f64.
+    let scaled =
+        u64::from(played_ms) * u64::from(SILVER_PER_MINUTE) * u64::from(team) * u64::from(top);
+    scaled as f64 / (60_000.0 * 100.0 * 100.0)
+}
 
 /// A multiplier of `match_levels_dict` as the decimal the data means: the
 /// file's f32 for 1.05 is a hair under it, and 20 × 1.05 must be 21.
@@ -129,8 +148,8 @@ pub fn cell(plain: f64, k: f64) -> f64 {
     (plain * k + 1e-6).floor().max(0.0)
 }
 
-/// The owner's choice (2026-10-14): the percent of the original's silver a
-/// match's rows pay, by the match's level: 150 to level 5, ten more each
+/// The owner's choice (2026-10-14): the percent of the match's silver
+/// ([`SILVER_PER_MINUTE`]) paid, by the match's level: 150 to level 5, ten more each
 /// level after, 220 from level 12. The kits' prices grow faster than
 /// `money_k` does (`progression_pace.md`: a tier's kit was 20 to 26
 /// matches of silver up to tier 6 and 53 to 72 from tier 12), and past 220
@@ -149,7 +168,7 @@ pub const DEFAULT_EXPERIENCE_RATE: u32 = 2;
 /// reputation a match's rows and its quests pay.
 pub const DEFAULT_REPUTATION_RATE: u32 = 120;
 
-/// The percent of the original's silver the rows of a match pay.
+/// The percent of the match's silver ([`SILVER_PER_MINUTE`]) a match pays.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum MoneyRate {
     /// [`MONEY_RATES`], by the match's level.
@@ -181,9 +200,9 @@ fn setting(name: &str, default: u32, most: u32) -> u32 {
     }
 }
 
-/// `SRP_MONEY_RATE`: one percent of the original's silver for the three
-/// rows of a match at every level, 1 to 1000; unset, [`MONEY_RATES`] by
-/// the match's level. Premium's half is counted from the rows, so it
+/// `SRP_MONEY_RATE`: one percent of the match's silver ([`SILVER_PER_MINUTE`])
+/// at every level, 1 to 1000; unset, [`MONEY_RATES`] by
+/// the match's level. Premium's half is counted from it, so it
 /// follows. Read once.
 pub fn money_rate() -> MoneyRate {
     static RATE: std::sync::OnceLock<MoneyRate> = std::sync::OnceLock::new();
@@ -274,56 +293,57 @@ mod tests {
     fn the_activity_line_goes_through_both_screens() {
         let at = |score: f64| ACTIVITY_WON.plus(ACTIVITY_PER_SCORE.times(score));
         let first = at(33.0);
-        // SHOT1, level 1: 463 / 143 / 5.
-        assert_eq!(cell(first.money, multiplier(1.47)), 463.0);
+        // SHOT1, level 1: 143 / 5.
         assert_eq!(cell(first.experience, 1.0), 143.0);
         assert_eq!(cell(first.reputation, 1.0), 5.0);
         let second = at(59.0);
-        // SHOT2, level 15: 5064 / 270 / 11.
-        assert_eq!(cell(second.money, multiplier(10.17)), 5064.0);
+        // SHOT2, level 15: 270 / 11.
         assert_eq!(cell(second.experience, multiplier(1.7)), 270.0);
         assert_eq!(cell(second.reputation, multiplier(1.7)), 11.0);
         // The fixed part is what the coordinator's fit names.
-        assert!((ACTIVITY_WON.money - 82.73).abs() < 0.01);
         assert!((ACTIVITY_WON.experience - 122.69).abs() < 0.01);
-        assert!((ACTIVITY_PER_SCORE.money - 7.04).abs() < 0.01);
         assert!((ACTIVITY_PER_SCORE.experience - 0.615).abs() < 0.001);
     }
 
     #[test]
     fn kills_and_help_are_the_screens() {
-        let (money_k, k) = (multiplier(10.17), multiplier(1.7));
+        let k = multiplier(1.7);
         // SHOT2: 19 kills, 8 helps.
         let kills = KILL.times(19.0);
         assert_eq!(
-            (
-                cell(kills.money, money_k),
-                cell(kills.experience, k),
-                cell(kills.reputation, k)
-            ),
-            (4830.0, 96.0, 32.0)
+            (cell(kills.experience, k), cell(kills.reputation, k)),
+            (96.0, 32.0)
         );
         let help = HELP.times(8.0);
         assert_eq!(
-            (
-                cell(help.money, money_k),
-                cell(help.experience, k),
-                cell(help.reputation, k)
-            ),
-            (813.0, 13.0, 13.0)
+            (cell(help.experience, k), cell(help.reputation, k)),
+            (13.0, 13.0)
         );
-        // SHOT1: 4 helps at level 1.
-        assert_eq!(cell(HELP.times(4.0).money, multiplier(1.47)), 58.0);
-        // Its kills are 7 full and 10 lesser ones.
+        // SHOT1: its kills are 7 full and 10 lesser ones.
         let mixed = KILL.times(7.0).plus(LESSER_KILL.times(10.0));
+        assert_eq!((mixed.experience, mixed.reputation), (41.0, 17.0));
+    }
+
+    #[test]
+    fn a_minute_pays_its_silver_by_the_team_and_the_top() {
+        let minute = 60_000;
+        assert_eq!(silver_of(minute, true, false), 70.0);
+        assert_eq!(silver_of(minute, false, false), 59.5);
+        assert_eq!(silver_of(minute, true, true), 91.0);
+        assert_eq!(silver_of(minute, false, true), 77.35);
+        // A whole match of 15 minutes, and a second of it.
+        assert_eq!(silver_of(15 * minute, true, false), 1050.0);
+        assert_eq!(silver_of(1000, true, false), 70.0 / 60.0);
+        assert_eq!(silver_of(0, true, true), 0.0);
+        // The most a u32 of milliseconds can be stays exact.
         assert_eq!(
-            (
-                cell(mixed.money, multiplier(1.47)),
-                mixed.experience,
-                mixed.reputation
-            ),
-            (551.0, 41.0, 17.0)
+            silver_of(u32::MAX, true, true),
+            f64::from(u32::MAX) * 91.0 / 60_000.0
         );
+        // At a match level's multiplier and rate, rounded down as a cell:
+        // the top of a won match of 15 minutes at level 15 (220 %).
+        let k = multiplier(10.17) * 2.2;
+        assert_eq!(cell(silver_of(15 * minute, true, true), k), 30_540.0);
     }
 
     #[test]
