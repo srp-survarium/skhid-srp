@@ -35,7 +35,7 @@ dynamic game". Rooms: [rooms.md](rooms.md) (Queue, Late joins). Wire: `lobby.md`
 - **A squad** that uses it watches as a pair and goes in together when two places are free (the
   queue's own rule).
 - **A free place:** the queue's own rule takes the first who may come; a spectator may, though
-  its game is in the match it watches. Its match link is closed; its game, back in the lobby,
+  its game is in the match it watches. It is let go (one 0xEA naming 0xFF); its game, back in the lobby,
   goes into the match at once when it asks for its room (no 15 s), as a late joiner: side
   choice, until `LOAD_MARGIN`. Past it, it waits in the room for the next match, as any member.
 - **The match ends:** a spectator watches nothing; it is still in the queue (in the lobby), and
@@ -81,6 +81,7 @@ dynamic game". Rooms: [rooms.md](rooms.md) (Queue, Late joins). Wire: `lobby.md`
   sends no input for the player it follows (it would drive it in its own world); F6 / F5 (next
   and previous player) step through both teams; F2 (the game's own cam_2 binding, the replay's
   free view) lets go and flies with the game's free-fly camera, kept over a world's load and a
-  player's leave until F6 / F5 (from the last one followed) or the next match; match chat lines and the followed player's
+  player's leave until F6 / F5 (from the last one followed) or the next match; match chat
+  lines and the followed player's
   death show no kit picker; an 0xEA naming 0xFF ends its match quietly (no results screen),
   back to the lobby.
