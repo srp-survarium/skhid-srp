@@ -213,16 +213,6 @@ package survarium.char
          {
             this.btn_change_titul.addEventListener(MouseEvent.CLICK,this.showTitulList);
          }
-         var temp_achievments:Array = [];
-         for(var i:uint = 0; i < 20; i++)
-         {
-            var icon:MovieClip = new MovieClip();
-            icon.gotoAndStop(Math.random() * 2);
-            temp_achievments.push({
-               label:"achievement" + i.toString(),
-               icon:icon
-            });
-         }
          this.skillsTabPage.dataProvider = new DataProvider([{
             name:"skills_01",
             id:0,

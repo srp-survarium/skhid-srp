@@ -10,3 +10,6 @@
 332	Strong Bones	flash_movies/textures/ui_icons/skills/survival/13.png	344 st_strong_bones_name	f23041645b190463d1c195ad31e412dc3e415d13ff1b20ca3c4efb60f02b4742
 341	Medic	flash_movies/textures/ui_icons/skills/survival/14.png	324 st_heal_ally_name	dcf65c3554d4d2f42906c6aa088c6373777bad72942bd00ac90c4d3e8566e3f8
 342	Brothers in Arms	flash_movies/textures/ui_icons/skills/survival/16.png	312 st_less_ally_damage_name	320e1c8a5d196e219c58dba33b3a99fe9014dea8a1988746f23bc6b69bb97821
+303	Numb Legs	flash_movies/textures/ui_icons/skills/survival/9.png	archived survival icon (no retail skill); running soldier, owner's pick	0c85275ee53846a1013708e8c744902a206251d8a14b576114723c8e77c42997
+313	Take Cover	flash_movies/textures/ui_icons/skills/survival/14.png	324 st_heal_ally_name; owner's pick, shares Medic's embedded bitmap (MedicalSkill069341)	dcf65c3554d4d2f42906c6aa088c6373777bad72942bd00ac90c4d3e8566e3f8
+323	Unflinching	flash_movies/textures/ui_icons/skills/survival/7.png	333 st_broken_legs_speed_name; flexed arm, owner's pick	a143dad415a4199a887fed5e359dc2978b190ccb1ce35146336eb89aff3f14f3
