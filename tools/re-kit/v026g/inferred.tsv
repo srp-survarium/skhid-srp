@@ -3207,3 +3207,7 @@ va	status	ref_021d	name
 0x00063d60	inferred-high	0x000474fb	vostok::sound::composite_sound::emit_sound_propagators
 0x000633f0	inferred-medium	0x00043646	vostok::sound::voice_bridge::set_volume_impl
 0x001ee7c0	inferred-medium		survarium::game::is_text_input_focused
+0x0030a250	inferred-medium		survarium::grenade_set_core::throw_grenade
+0x0030a350	inferred-medium		survarium::grenade_set_core::splash_hit_params
+0x00304a40	inferred-medium		survarium::booby_trap_core::hit_victim
+0x003055f0	inferred-medium		survarium::booby_trap_core::splash_hit_params

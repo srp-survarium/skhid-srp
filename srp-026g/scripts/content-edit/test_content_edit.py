@@ -492,12 +492,17 @@ class OtherTables(unittest.TestCase):
         self.assertEqual(ce.ammo_card(ammo), {21: '200', 22: '20', 16: '15', 15: '0.5', 163: '250', 164: '110',
                                               165: '10'})
 
-    def test_a_grenade_card_counts_every_body_and_a_trap_card_its_foot(self):
-        grenade = config({'data': {'splash_max_damage': 1.3, 'splash_radius': 10, 'splash_affected_bodies': [6, 0, 1]},
+    def test_a_throwable_card_shows_the_damage_on_one_body(self):
+        grenade = config({'data': {'splash_max_damage': 1.3, 'splash_radius': 10, 'splash_affected_bodies': [6, 0, 1],
+                                   'splash_pierce': 0.15, 'stopping_power': 0.1, 'stamina_damage': 10,
+                                   'ttl_ms': 4000, 'throw_power': 17},
                           'parameters': {'weight': 0.35}})
-        trap = config({'data': {'damage_parameters': [{'amount': 0.6}, {'amount': 0.6}]}, 'parameters': {'weight': 0.8}})
-        self.assertEqual(ce.throwable_card(grenade), {1: '390', 23: '10', 15: '0.4'})
-        self.assertEqual(ce.throwable_card(trap), {1: '60', 15: '0.8'})
+        trap = config({'data': {'damage_parameters': [{'amount': 0.6, 'armor_piercing': 1},
+                                                      {'amount': 0.6, 'armor_piercing': 1}], 'defuse_time': 5},
+                       'parameters': {'weight': 0.8}})
+        self.assertEqual(ce.throwable_card(grenade), {1: '130', 3: '15', 132: '10', 167: '10', 23: '10', 168: '4',
+                                                      169: '17', 15: '0.4'})
+        self.assertEqual(ce.throwable_card(trap), {1: '60', 3: '100', 170: '5', 15: '0.8'})
 
     def test_only_an_add_column_adds_a_key_the_config_lacks(self):
         category = {'configs': 'a/*.options', 'match': set(), 'add': {'aim'},
