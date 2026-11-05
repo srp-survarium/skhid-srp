@@ -716,7 +716,7 @@ HASH_INTERVAL_MS = 50                         # = one tick
 # its "Release revision <n>" commit), never a feature change: a release
 # builds with --revision=<n>, the live exe's + 1, which changes the revision
 # byte alone, and records <n> here once it went out.
-REVISION = 47
+REVISION = 48
 # The first revision whose default build takes the lobby's replay link
 # (REPLAY_LINK): the server's replay rule asks for it
 # (session::v026g::replays::MIN_REVISION).
@@ -2461,6 +2461,18 @@ BULLET_BOUNDS_HOOKS = (
 )
 INSTALLS[0x758E1] = (JUMP, "static level bounds after body insertion; transient bodies skip bounds growth, all bodies still update their AABB", None, None)
 
+# The results screen of a game that has loaded no match: its NULL map name reads as "".
+MATCH_STAT_MAP_HOOKS = (
+    (0x29ABE1, bytes.fromhex("8b8e3c310000"), "match_stat_map", 0xE9),
+)
+INSTALLS[0x29ABE1] = (JUMP, "fill_match_statistic's map name (lobby_menu+313Ch, NULL until a match is loaded) as \"\"; "
+                            "replay mov ecx,[esi+313Ch]", None, None)
+# expand_text's {USE} with no key bound (0x207BF0 finds no entry) translated
+# NULL (0x1FF09D); the branch goes to its unknown-placeholder path instead,
+# which appends nothing: what translate_text("") gives (0.31+ translate
+# st_key_use_not_assigned, a key 0.26g's dictionary does not have).
+EXPAND_TEXT_UNBOUND = (0x1FF073, bytes.fromhex("741b"), bytes.fromhex("7436"))   # je 1FF090 -> je 1FF0AB
+
 # The bodies a patch replaces in place, at a function's entry: {VA: size}.
 BODIES = {READ_ORDER_VA: READ_ORDER_SIZE}
 # A vtable our code builds and installs at run time (a rule's, a cook's):
@@ -2649,6 +2661,7 @@ ArenaBlock = linker.ArenaBlock
 
 ARENA = (
     ArenaBlock("bullet_bounds.code", "code", 0x1000, ("bullet_bounds_026g.asm",)),
+    ArenaBlock("match_stat_map.code", "code", 0x10, ("match_stat_map_026g.asm",)),
     ArenaBlock("weight_ui.code", "code", 0x1000, ("weight_ui_026g.asm", "weight_ui_026g.c")),
     ArenaBlock("weight_ui.state", "state", 0x1000, ("weight_ui_026g.c",)),
     # Research, patch 53: four aligned asm entries and stubs, then Rust
@@ -3725,7 +3738,8 @@ def build_image(original, mode, code=None, server=None, late_join=None, revision
             # hook's target taken from the link by its symbol.
             if linked is not None:
                 for va, expected, symbol, opcode in RESEARCH_HOOKS + ARTEFACTS_HOOKS + MATCH_KEYS_HOOKS + HIDE_UI_HOOKS \
-                        + KILL_FEED_HOOKS + BAKE_CACHE_HOOKS + WEIGHT_UI_HOOKS + BULLET_BOUNDS_HOOKS + rust_hooks(original):
+                        + KILL_FEED_HOOKS + BAKE_CACHE_HOOKS + WEIGHT_UI_HOOKS + BULLET_BOUNDS_HOOKS \
+                        + MATCH_STAT_MAP_HOOKS + rust_hooks(original):
                     patch(data, va, expected, hook_bytes(arena_target(linked, symbol), va, expected, 0, opcode))
                     if neutralize_relocs(data, [(va, va + len(expected))]):
                         sys.exit(f"{va:#x}: a base relocation under the hook to {symbol}")
@@ -3736,6 +3750,7 @@ def build_image(original, mode, code=None, server=None, late_join=None, revision
                 patch_section_value(data, *ARTEFACT_KEY_DEFAULT)
                 patch(data, *KILL_FEED_ARGUMENT)
                 patch(data, *BAKE_CACHE_KEEP)
+                patch(data, *EXPAND_TEXT_UNBOUND)
                 if artefacts_backs(linked) != list(ARTEFACTS_BACKS):
                     sys.exit("artefacts_026g.asm: its entries do not go on where patch_026g.py's ARTEFACTS_BACKS "
                              "says")
