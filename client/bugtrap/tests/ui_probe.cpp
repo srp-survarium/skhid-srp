@@ -197,6 +197,17 @@ static BOOL CALLBACK Inspect(HWND window, LPARAM)
     }
     return TRUE;
 }
+// "full-no-report": the dump is written, its text report (a new .txt) is not.
+static HANDLE WINAPI RefuseReport(LPCWSTR name, DWORD access, DWORD share, LPSECURITY_ATTRIBUTES security,
+                                  DWORD disposition, DWORD flags, HANDLE source)
+{
+    size_t n = wcslen(name);
+    if (disposition == CREATE_NEW && n > 4 && !_wcsicmp(name + n - 4, L".txt")) {
+        SetLastError(ERROR_ACCESS_DENIED);
+        return INVALID_HANDLE_VALUE;
+    }
+    return CreateFileW(name, access, share, security, disposition, flags, source);
+}
 static DWORD WINAPI InspectUI(PVOID)
 {
     for (int i = 0; i < 300; ++i) {
@@ -219,7 +230,9 @@ int main(int argc, char** argv)
     dialogFailure = !strcmp(argv[1], "dialog-failure");
     if (dialogFailure) ReplaceImport("DialogBoxIndirectParamW", (void*)RefuseDialog);
     if (!strcmp(argv[1], "raw")) ReplaceImport("MoveFileExW", (void*)RefuseMove);
-    if (!strcmp(argv[1], "partial")) ReplaceImport("FlushFileBuffers", (void*)RefuseFlush);
+    if (!strcmp(argv[1], "partial") || !strcmp(argv[1], "full-partial"))
+        ReplaceImport("FlushFileBuffers", (void*)RefuseFlush);
+    if (!strcmp(argv[1], "full-no-report")) ReplaceImport("CreateFileW", (void*)RefuseReport);
     if (!strcmp(argv[1], "failure")) ReplaceImport("CreateFileW", (void*)RefuseCreate);
     if (!strcmp(argv[1], "blocked")) ReplaceImport("GetProcAddress", (void*)CaptureRefused);
     typedef void (WINAPI *SetValue)(DWORD);

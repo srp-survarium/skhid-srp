@@ -367,7 +367,7 @@ static void acquire(u8 *resource) {
 
 static void release(u8 *resource) {
     if (resource && __atomic_sub_fetch(&AT(resource, REFCOUNT, i32), 1, __ATOMIC_SEQ_CST) == 0)
-        engine_resource_release(resource, resource + REFCOUNT);   /* eax as 0x25FB1D has it */
+        engine_release_resource((struct game_project_resource *)resource, (unsigned int *)(resource + REFCOUNT));
 }
 
 static u32 vt(const void *object, u32 offset) { return AT(*(const u8 *const *)object, offset, u32); }

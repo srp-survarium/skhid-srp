@@ -244,11 +244,11 @@ package survarium.controls
          var propDescription:Object = null;
          var indicators:uint = this._indicator.length;
          var modifier_value:Number = 0;
-         // Held Alt over a weapon: the stats as a match has them, with the kit and the skills.
+         // Held Alt over a weapon or a medicine: the stats as a match has them, with the kit and the skills.
          var effects:MatchEffects = LocalPlayerProfile.heldMatchEffects(this._primary);
-         // The weapon's own base value of the property last read (initPropValues).
+         // The item's own base value of the property last read (initPropValues).
          var base_value:Number = 0;
-         function initPropValues(baseProperty:Object, modifierList:Object):void
+         function initPropValues(baseProperty:Object, owner:Object):void
          {
             modifier_value = 0;
             var total:Number = 0;
@@ -257,6 +257,7 @@ package survarium.controls
             var modifierProp:Object;
             var propValue:Number;
             var modifierDescription:Object;
+            var modifierList:Object = owner.modifiers;
             if(modifierList)
             {
                for each(modifierEntry in modifierList)
@@ -294,7 +295,7 @@ package survarium.controls
             {
                modifier_value = base * modifier_value;
             }
-            _value = effects == null ? total : effects.stat(propDescription.prop_id,total);
+            _value = effects == null ? total : effects.stat(owner,propDescription.prop_id,total);
          }
          function initIndicatorValues(diffClip:MovieClip, propertyInfo:Object, compareValue:Number, currentValue:Number):void
          {
@@ -335,7 +336,7 @@ package survarium.controls
                trace("primaryProps::",propDescription.prop_name,"value::",_valueObject.prop_value);
                if(propDescription.comparable)
                {
-                  initPropValues(_valueObject,this._primary.modifiers);
+                  initPropValues(_valueObject,this._primary);
                   initIndicatorValues(this._indicator[index],propDescription,_value,_value);
                   // While Alt is held, a value its modifications, the kit or the skills change
                   // reads "base -> in a match", the current green when better, red when worse.
@@ -385,7 +386,7 @@ package survarium.controls
             }
             else if(propDescription.comparable)
             {
-               initPropValues(_valueObject,this._secondary.modifiers);
+               initPropValues(_valueObject,this._secondary);
                index = 0;
                while(index < indicators)
                {

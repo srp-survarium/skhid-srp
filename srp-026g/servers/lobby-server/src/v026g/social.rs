@@ -1029,7 +1029,9 @@ impl Core<'_> {
             return;
         };
         let eligible = match mode {
-            session::v026g::mode_intro::Mode::Blackout => running.blackout,
+            session::v026g::mode_intro::Mode::Blackout => {
+                running.map.mode() == survarium::v026g::maps::GameMode::Blackout
+            }
         };
         if !eligible
             || !running

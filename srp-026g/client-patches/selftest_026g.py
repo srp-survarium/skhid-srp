@@ -842,6 +842,9 @@ def allowed_ranges(original, mode, cave_size, server=None):
     rewritten.extend((va, va + len(old)) for va, old, _ in P.KNOWLEDGE_BASE[1:])
     ranges.append((P.file_offset(P.HASH_INTERVAL_BYTE_VA), 1))
     rewritten.append((P.HASH_INTERVAL_BYTE_VA, P.HASH_INTERVAL_BYTE_VA + 1))
+    for va, old, _ in P.WORLD_BUFFER + P.WORLD_UNPACK:
+        ranges.append((P.file_offset(va), len(old)))
+        rewritten.append((va, va + len(old)))
     for va, old, _ in P.GATHER:
         ranges.append((P.file_offset(va), len(old)))
         rewritten.append((va, va + len(old)))
@@ -1000,6 +1003,66 @@ def test_hash_interval(original, image, mode):
     hits = [f"{address:#x}: {text}" for address, _, text in ndisasm(Image(original).read(0x27CC45, 0x30B), 0x27CC45)
             if branch_target(text) in inside]
     check(not hits, "no branch of try_send_all lands inside that instruction")
+
+
+def test_world_buffer(original, image, mode):
+    """hash()'s world buffer and the 0xE8 handler's unpack buffer are 0xF000
+    bytes (patch 98, client_patch.md section 3.66): each its stack allocation
+    and its capacity, two immediates; the rest of both the original's."""
+    stock = Image(original)
+    start, end = 0x325150, 0x325270
+    original_rows = {address: text for address, _, text in ndisasm(stock.read(start, end - start), start)}
+    rows = {address: text for address, _, text in ndisasm(image.read(start, end - start), start)}
+    (alloc, alloc_old, alloc_new), (capacity, capacity_old, capacity_new) = P.WORLD_BUFFER
+    check(stock.read(alloc, len(alloc_old)) == alloc_old and stock.read(capacity, len(capacity_old)) == capacity_old
+          and original_rows.get(alloc) == "mov eax,0x8000" and original_rows.get(0x32517B) == "mov byte [esi+0xc0bb8],0x1"
+          and original_rows.get(0x325182) == "call 0x424ca0" and original_rows.get(0x32518A) == "mov eax,esp"
+          and original_rows.get(capacity) == "mov dword [ebp-0xc],0x8000"
+          and original_rows.get(0x32518E) == "mov [ebp-0x10],eax" and original_rows.get(0x32519A) == "mov [ebp-0x14],edi",
+          "the original hash(): 0x8000 bytes of the stack (0x325176, _alloca_probe_16 0x424ca0), the buffer "
+          "{[ebp-0x14] allocator 0, [ebp-0x10] esp, [ebp-0xc] 0x8000}")
+    size = f"{P.WORLD_BUFFER_SIZE:#x}"
+    if mode == "cert-only":
+        check(image.read(alloc, len(alloc_old)) == alloc_old and image.read(capacity, len(capacity_old)) == capacity_old,
+              "cert-only: hash()'s buffer is the original's 0x8000 bytes")
+    else:
+        check(image.read(alloc, len(alloc_new)) == alloc_new and image.read(capacity, len(capacity_new)) == capacity_new
+              and rows.get(alloc) == f"mov eax,{size}" and rows.get(capacity) == f"mov dword [ebp-0xc],{size}",
+              f"{alloc:#x} `mov eax,{size}` and {capacity:#x} `mov dword [ebp-0xc],{size}`")
+        changed = [a for a in range(start, end) if image.read(a, 1) != stock.read(a, 1)]
+        check(changed == [alloc + 2, capacity + 4], "nothing else in hash() 0x325150..0x325270 differs: "
+              + ", ".join(f"{a:#x}" for a in changed))
+    relocated = [rva for kind, rva in stock.relocations().values()
+                 if kind == 3 and any(rva + 4 > va and rva < va + len(old) for va, old, _ in P.WORLD_BUFFER)]
+    check(not relocated, "no base relocation of the original is under the two instructions")
+    inside = [a for va, old, _ in P.WORLD_BUFFER for a in range(va + 1, va + len(old))]
+    hits = [f"{address:#x}: {text}" for address, text in original_rows.items() if branch_target(text) in inside]
+    check(not hits, "no branch of hash() lands inside them")
+    # The 0xE8 handler's unpack buffer, the same two immediates.
+    start, end = 0x27BFF0, 0x27C1F0
+    original_rows = {address: text for address, _, text in ndisasm(stock.read(start, end - start), start)}
+    rows = {address: text for address, _, text in ndisasm(image.read(start, end - start), start)}
+    (alloc, alloc_old, alloc_new), (capacity, capacity_old, capacity_new) = P.WORLD_UNPACK
+    check(original_rows.get(alloc) == "mov eax,0x8000" and original_rows.get(0x27C05E) == "call 0x424ca0"
+          and original_rows.get(0x27C069) == "mov eax,esp" and original_rows.get(capacity) == "mov eax,0x8000"
+          and original_rows.get(0x27C081) == "mov [ebp-0xc],eax" and original_rows.get(0x27C084) == "mov [ebp-0x1c],eax"
+          and original_rows.get(0x27C09F) == "call edx" and original_rows.get(0x27C036) == "lea esp,[ebp-0x30]",
+          "the original 0xE8 handler: 0x8000 bytes of the stack (0x27C059), the capacity 0x8000 (0x27C07C) to "
+          "[ebp-0xc] (the codec's) and [ebp-0x1c] (the buffer's); its exits restore esp from ebp")
+    if mode == "cert-only":
+        check(all(image.read(va, len(old)) == old for va, old, _ in P.WORLD_UNPACK),
+              "cert-only: the 0xE8 handler's buffer is the original's")
+        return
+    check(all(image.read(va, len(new)) == new and rows.get(va) == f"mov eax,{size}" for va, _, new in P.WORLD_UNPACK),
+          f"{alloc:#x} and {capacity:#x} `mov eax,{size}`")
+    changed = [a for a in range(start, 0x27C0D0) if image.read(a, 1) != stock.read(a, 1)]
+    check(changed == [alloc + 2, capacity + 2], "nothing else in the handler before its first hook (0x27C0D0) "
+          "differs: " + ", ".join(f"{a:#x}" for a in changed))
+    inside = [a for va, old, _ in P.WORLD_UNPACK for a in range(va + 1, va + len(old))]
+    relocated = [rva for kind, rva in stock.relocations().values()
+                 if kind == 3 and any(rva + 4 > va and rva < va + len(old) for va, old, _ in P.WORLD_UNPACK)]
+    hits = [a for a, text in original_rows.items() if branch_target(text) in inside]
+    check(not relocated and not hits, "no relocation under them, no branch of the handler into them")
 
 
 def test_gather(original, image, mode):
@@ -1182,6 +1245,31 @@ def test_memory_defaults(original, image, before):
     for va, length in ((0xE0FF0, 31), (0xE1015, 20), (0xE9956, 47), (0xE998A, 15)):
         check(image.read(va, length) == stock.read(va, length),
               f"{va:#x}: option parsing, explicit-value branch and units remain unchanged")
+
+
+def test_sound_pools(original, image, before):
+    """The game world's sound scene has 1024 sound instances and 1024
+    propagators (patch 96, SOUND_POOLS): two immediates of game_world::load's
+    sound_scene_creation_params; the build without the late join keeps 512
+    and 196."""
+    stock = Image(original)
+    start, end = 0x1F8DA6, 0x1F8E9D
+    original_at = {address: text for address, _, text in ndisasm(stock.read(start, end - start), start)}
+    rows = {address: text for address, _, text in ndisasm(image.read(start, end - start), start)}
+    check(original_at.get(0x1F8DB6) == "mov dword [ebp-0x10],0x200" and original_at.get(0x1F8DBD) == "mov dword [ebp-0xc],0xc4"
+          and original_at.get(0x1F8E68) == "movq xmm0,[ebp-0x10]" and original_at.get(0x1F8E72) == "movq [eax],xmm0"
+          and original_at.get(0x1F8E79) == "mov dword [esi],0x9fc7c0",
+          "the original: proxies 0x200 at [ebp-10h], propagators 0xc4 at [ebp-0Ch], copied as one qword into the "
+          "variant of sound_scene_creation_params (helper 0x9fc7c0)")
+    for va, old, new in P.SOUND_POOLS:
+        check(stock.read(va, len(old)) == old and before.read(va, len(old)) == old and image.read(va, len(new)) == new,
+              f"{va:#x}: the original's `{old.hex()}`, kept by the build without the late join, `{new.hex()}` in this one")
+        relocated = [rva for kind, rva in stock.relocations().values() if kind == 3 and rva + 4 > va and rva < va + len(old)]
+        check(not relocated, f"{va:#x}: no base relocation under the number")
+    check(rows.get(0x1F8DB6) == f"mov dword [ebp-0x10],{P.SOUND_INSTANCES:#x}"
+          and rows.get(0x1F8DBD) == f"mov dword [ebp-0xc],{P.SOUND_INSTANCES:#x}"
+          and all(rows.get(a) == original_at.get(a) for a in (0x1F8DC4, 0x1F8E68, 0x1F8E72, 0x1F8E79)),
+          "the build: both numbers 0x400, the rest of the block the original's")
 
 
 def test_start_up_folder(original, image, mode):
@@ -1566,6 +1654,7 @@ def late_join_sites():
         [(P.BAKED_TEXTURE_MISSING[0], len(P.BAKED_TEXTURE_MISSING[1]))] + \
         [(P.AI_ARENA_VA, len(P.AI_ARENA[1]))] + \
         [(va, len(old)) for va, old, _ in P.MEMORY_DEFAULTS] + \
+        [(va, len(old)) for va, old, _ in P.SOUND_POOLS] + \
         [(va, len(old)) for va, old, _, _ in P.WEAPON_PREVIEW_HOOKS] + \
         [(P.WEAPON_DRAW_HOOK[0], len(P.WEAPON_DRAW_HOOK[1]))] + [(va, len(old)) for va, old, _, _ in P.RUST_HOOKS] + \
         [(va, len(old)) for va, old, _, _ in P.TAB_LIST_HOOKS] + [(P.TAB_LIST_LOOP_VA, len(P.TAB_LIST_LOOP[1]))] + \
@@ -1579,6 +1668,7 @@ def late_join_sites():
         [(va, len(old)) for va, old, _, _ in P.RESEARCH_HOOKS] + \
         [(va, len(old)) for va, old, _, _ in P.ARTEFACTS_HOOKS] + \
         [(va, len(old)) for va, old, _ in P.ARTEFACTS_SIZES] + \
+        [(va, len(old)) for va, old, _ in P.MOUSE_BUTTONS] + \
         [(va, len(old)) for va, old, _, _ in P.MATCH_KEYS_HOOKS] + \
         [(va, len(old)) for va, old, _, _ in P.HIDE_UI_HOOKS] + \
         [(va, len(old)) for va, old, _, _ in P.HIDE_UI_TABLE_REFS] + \
@@ -1589,7 +1679,11 @@ def late_join_sites():
         [(va, len(old)) for va, old, _, _ in P.BAKE_CACHE_HOOKS] + \
         [(va, len(old)) for va, old, _, _ in P.WEIGHT_UI_HOOKS] + \
         [(va, len(old)) for va, old, _, _ in P.BULLET_BOUNDS_HOOKS] + \
+        [(va, len(old)) for va, old, _, _ in P.MATCH_STAT_MAP_HOOKS] + \
+        [(va, len(old)) for va, old, _, _ in P.AUDIO_DEVICE_HOOKS] + \
+        [(va, len(old)) for va, old, _, _ in P.WORLD_SECTIONS_HOOKS] + \
         [(P.BAKE_CACHE_KEEP[0], len(P.BAKE_CACHE_KEEP[1]))] + \
+        [(P.EXPAND_TEXT_UNBOUND[0], len(P.EXPAND_TEXT_UNBOUND[1]))] + \
         [(va, len(old)) for va, old, _, _ in P.SPONGE_HOOKS]
 
 
@@ -2581,7 +2675,7 @@ def test_sponge_a(original, image, before):
     library = {f["symbol"]: (linked.symbols[f["symbol"]], f["va"]) for f in engine_026g.functions()}
     c_listing = [plain(t) for _, _, t in ndisasm(code[c_start - block.va:], c_start)]
     for symbol in ("engine_cfg_child", "engine_cfg_has", "engine_malloc", "engine_free", "engine_query_resources",
-                   "engine_resource_release", "engine_rattle_construct", "engine_rattle_loaded",
+                   "engine_release_resource", "engine_rattle_construct", "engine_rattle_loaded",
                    "engine_rattle_set_world", "engine_rattle_draw", "engine_rattle_destroy", "engine_cook_finish_query",
                    "engine_artefact_tick", "engine_artefact_serialize", "engine_artefact_deserialize",
                    "engine_apply_modifier", "engine_find_pool", "engine_hand_transform", "engine_splash_hit",
@@ -7070,6 +7164,7 @@ def test_late_join(original, without, server, source):
     test_baked_texture_missing(original, image, before)
     test_ai_arena(original, image, before)
     test_memory_defaults(original, image, before)
+    test_sound_pools(original, image, before)
     test_weapon_preview(original, image, before)
     test_weapon_table(original, image, before)
     test_weapon_decals(original, image, before)
@@ -7099,6 +7194,7 @@ def test_late_join(original, without, server, source):
     test_revision_override(original, data, server)
     test_required_patches(original, data, server)
     test_hash_interval(original, image, "section")
+    test_world_buffer(original, image, "section")
     test_memory_check(original, image, "section")
     test_default_server(original, image, "section", server)
     test_gather(original, image, "section")
@@ -7192,6 +7288,7 @@ def main():
         test_pe(original, image, mode)
         test_bytes(original, image, mode, payload, server)
         test_hash_interval(original, image, mode)
+        test_world_buffer(original, image, mode)
         test_memory_check(original, image, mode)
         test_default_server(original, image, mode, server)
         test_revision(original, image, mode, P.REVISION_WITHOUT_LATE_JOIN)

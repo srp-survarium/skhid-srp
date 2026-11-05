@@ -235,13 +235,22 @@ mod tests {
     #[test]
     fn blackout_is_in_the_defaults_and_its_maker_may_leave_it_out() {
         let mut entries = pool();
-        entries.push(entry(255, 1, 1, survarium::v026g::maps::mode::BLACKOUT, false));
+        entries.push(entry(
+            255,
+            1,
+            1,
+            survarium::v026g::maps::GameMode::Blackout.lobby_number(),
+            false,
+        ));
         let form = form(None, &entries, 4);
         assert!(form.modes_off.is_empty());
         assert!(chosen(&form, &entries).contains(&255));
         // Left out once, kept out: a room made without it gives that back.
         let kept = RoomSettings::of_room(8, 1, 0, 30, &[10, 11, 12, 20, 21], &entries);
-        assert_eq!(kept.modes_off, vec![survarium::v026g::maps::mode::BLACKOUT]);
+        assert_eq!(
+            kept.modes_off,
+            vec![survarium::v026g::maps::GameMode::Blackout.lobby_number()]
+        );
         let again = super::form(Some(&kept), &entries, 4);
         assert!(!chosen(&again, &entries).contains(&255));
         // Settings kept before Blackout was offered: it is in, as any mode

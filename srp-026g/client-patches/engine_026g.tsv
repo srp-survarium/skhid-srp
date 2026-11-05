@@ -129,7 +129,16 @@ engine_di_queue_next_capture	0x5ee080	ECX:queue ESP+4:notify	void engine_di_queu
 engine_di_queue_release	0x505cb0	ECX:queue	void engine_di_queue_release(struct di_command_queue *queue)	thiscall	
 engine_remove_affect	0x32A6A0	ESP+4:pool ESP+8:time ESP+12:affect	void engine_remove_affect(struct medical_pool *pool, unsigned int time, unsigned int affect)	thunk
 engine_effect_resource_emit	0x329050	ESI:resource EDI:out	struct game_effect_slot *engine_effect_resource_emit(struct medical_effect_resource *resource, struct game_effect_slot *out)	thunk
-engine_resource_release	0x0e0210	ECX:resource EAX:field	void engine_resource_release(void *resource, void *count)	thunk	
+engine_xaudio2_create	0x05a640	ESP+4:engine ESP+8:flags	unsigned int engine_xaudio2_create(void **engine, unsigned int flags)	cdecl	
+engine_process_sound_orders	0x059dd0	ESP+4:world	void engine_process_sound_orders(struct sound_world *world)	stdcall	
+engine_co_create_instance	0xaf0064	-	unsigned int engine_co_create_instance(const void *clsid, void *outer, unsigned int context, const void *iid, void **object)	import	
+engine_heap_alloc	0x87004c	-	void *engine_heap_alloc(void *heap, unsigned int flags, unsigned int size)	import	
+engine_get_process_heap	0x870050	-	void *engine_get_process_heap(void)	import	
+engine_heap_free	0x870054	-	unsigned int engine_heap_free(void *heap, unsigned int flags, void *memory)	import	
+engine_create_sound_voice	0x059e70	EAX:world ESP+4:scene ESP+8:propagator ESP+12:emitter	struct sound_voice *engine_create_sound_voice(struct sound_world *world, struct sound_scene *scene, struct new_sound_propagator *propagator, const void *emitter)	thunk	
+engine_detach_voice	0x05cb80	ESP+4:propagator	void engine_detach_voice(struct new_sound_propagator *propagator)	stdcall	
+engine_sound_options	vostok::sound::sound_propagator_emitter+0x8	ECX:emitter	const struct sound_options *engine_sound_options(const struct sound_propagator_emitter *emitter)	virtual	
+engine_buffer_reallocate	0x07ab70	ESI:mutable_buffer EDI:capacity	void engine_buffer_reallocate(void *buffer, unsigned int capacity)	thunk	
 engine_hand_transform	0x309f00	EAX:item ESP+4:out	void engine_hand_transform(void *item, void *out)	thunk	
 engine_matrix_multiply	0x0ee700	ECX:second EDX:first ESP+4:out	void *engine_matrix_multiply(const void *second, const void *first, void *out)	thunk	
 engine_matrix_translation	0x0573c0	EAX:out ECX:float3	void *engine_matrix_translation(void *out, const float *position)	thunk	
@@ -140,11 +149,11 @@ engine_body_set_linear_velocity	0x3576c0	ECX:velocity ESP+4:body	void engine_bod
 engine_body_set_angular_velocity	0x357750	ECX:velocity ESP+4:body	void engine_body_set_angular_velocity(const float *velocity, void *body)	thunk	
 engine_write_matrix	0x301de0	EAX:pointer ESP+4:buffer_writer ESP+8:filename ESP+12:line ESP+16:function ESP+20:label	void engine_write_matrix(const void *value, struct buffer_writer *writer, const char *file, unsigned int line, const char *function, const char *name)	thunk	
 engine_write_float3	0x081a70	EAX:pointer ESP+4:buffer_writer ESP+8:filename ESP+12:line ESP+16:function ESP+20:label	void engine_write_float3(const void *value, struct buffer_writer *writer, const char *file, unsigned int line, const char *function, const char *name)	thunk	
-engine_create_collision_shape	0x07a390	EDX:type ECX:dims ESP+4:scale ESP+8:material	void *engine_create_collision_shape(unsigned int type, const float *dims, const float *scale, unsigned int material)	thunk	
+engine_create_collision_shape	0x07a390	EDX:type ECX:dimensions ESP+4:scale ESP+8:material	void *engine_create_collision_shape(unsigned int type, const float *dims, const float *scale, unsigned int material)	thunk	
 engine_create_rigid_body	0x357100	ESP+4:description ESP+8:shape	void *engine_create_rigid_body(const void *description, void *shape)	thunk	
 engine_destroy_shape	0x07a1b0	ESI:shape	void engine_destroy_shape(void *shape)	thunk	
 engine_rt_cast_to_void	0x42a390	ESP+4:object	void *engine_rt_cast_to_void(void *object)	thunk	
-engine_splash_hit	0x339630	ESI:parameters ESP+4:manager ESP+8:centre ESP+12:time	void engine_splash_hit(const void *parameters, void *manager, const float *centre, unsigned int time)	thunk	
+engine_splash_hit	0x339630	ESI:splash ESP+4:manager ESP+8:centre ESP+12:time	void engine_splash_hit(const void *parameters, void *manager, const float *centre, unsigned int time)	thunk	
 engine_inventory_remove_item	0x2fc680	ESI:inventory EAX:slot	void engine_inventory_remove_item(void *inventory, unsigned int slot)	thunk	
 engine_scene_add_model	0x021cd0	EAX:render-model ESP+4:receiver ESP+8:scene ESP+12:first ESP+16:second	void engine_scene_add_model(void *model, void *renderer, void *scene, const void *first, const void *second)	thunk	
 engine_scene_update_model	0x022280	EAX:render-model ESP+4:receiver ESP+8:scene ESP+12:first ESP+16:second	void engine_scene_update_model(void *model, void *renderer, void *scene, const void *first, const void *second)	thunk	
@@ -153,7 +162,7 @@ engine_damage_type_of	0x304370	ESI:name	unsigned int engine_damage_type_of(const
 engine_rattle_construct	0x25fa10	EAX:effect ECX:root ESP+4:memory ESP+8:scene	void *engine_rattle_construct(void *effect, const void *root, void *memory, void *scene)	thunk	
 engine_rattle_loaded	0x2605f0	EDI:artefact ESP+4:queries_result	void engine_rattle_loaded(void *artefact, void *results)	thunk	
 engine_rattle_set_world	0x25fb30	ECX:artefact ESP+4:game_world_core	void engine_rattle_set_world(void *artefact, void *world)	thunk	
-engine_rattle_draw	0x25fb80	ECX:drawable	void engine_rattle_draw(void *drawable)	thunk	
+engine_rattle_draw	0x25fb80	ECX:callback	void engine_rattle_draw(void *drawable)	thunk	
 engine_rattle_destroy	0x260860	ECX:artefact ESP+4:flags	void *engine_rattle_destroy(void *artefact, unsigned int flags)	thunk	
 engine_cook_finish_query	0x2ee8d0	ECX:cook EDX:resource_ptr ESI:artefact EDI:query	void engine_cook_finish_query(void *cook, void *resource, void *artefact, void *query)	thunk	
 engine_artefact_tick	0x313200	ECX:artefact ESP+4:dt ESP+8:time	void engine_artefact_tick(void *artefact, unsigned int dt, unsigned int time)	thunk	

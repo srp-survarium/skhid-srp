@@ -70,6 +70,7 @@ use weapon_pickup::{Drop as DropState, Handedness, Hands, Held, Lying, Ms, Pendi
 
 use crate::vostok::gun_cook::{self, CookId, Cooked, Gun, Refusal, TICKETS};
 use crate::vostok::log::Piece::{self, Dec, Hex, Text};
+use crate::vostok::breadcrumbs::{self, Crumb, Pickup, Reading};
 use crate::vostok::pickup::{self as native, Failure, Fresh, GunBox, GunPose, Installed, Mode, NameKey, Registered,
                             RegistryId, Role, Select, Site};
 use crate::vostok::world::{GameWorld, ItemId, Player, PlayerId, WorldKey};
@@ -397,7 +398,7 @@ fn cancel(player: &Player<'_>, thread: &Thread, why: Cancel) {
             });
         }
     }
-    log_pick("CANCELLED the switch to", player, pending.slot, pending.pick, why.text());
+    log_pick(Pickup::Cancelled, player, pending.slot, pending.pick, why.text());
 }
 
 /// Whether the cook `id`'s gun was ever installed on this client.
@@ -458,8 +459,8 @@ fn unpick(player: &Player<'_>, thread: &Thread, slot: WeaponSlot, how: Unpick, w
         other => other,
     });
     match outcome {
-        Ok(()) => log_pick(if how == Unpick::Undo { "gave back to its drop" } else { "let go" }, player, slot, pick, why),
-        Err(refusal) => log_pick("FAILED to restore", player, slot, pick, refusal.text()),
+        Ok(()) => log_pick(if how == Unpick::Undo { Pickup::BackToDrop } else { Pickup::LetGo }, player, slot, pick, why),
+        Err(refusal) => log_pick(Pickup::RestoreFailed, player, slot, pick, refusal.text()),
     }
 }
 
@@ -476,8 +477,12 @@ pub fn on_save(ctx: &mut Context<'_>) -> Flow<NoExit> {
 /// `pickup.load` (base_player::deserialize's start): the player's record,
 /// then its weapon slots made what the record says before the native readers run.
 pub fn on_load(ctx: &mut Context<'_>) -> Flow<NoExit> {
+    let offset = native::load_offset(ctx);
     let bytes = native::read_record(ctx);
     let Some(player) = native::player(ctx, Site::Load) else { return Flow::Continue };
+    if let Some(offset) = offset {
+        breadcrumbs::reading(ctx.thread(), Reading::Player { place: player.place(), offset });
+    }
     let record = match bytes.and_then(Record::decode) {
         Some(record) => record,
         None => {
@@ -537,8 +542,8 @@ fn reconcile(player: &Player<'_>, thread: &Thread, record: Record) {
             Ok::<_, Why>(())
         })();
         match outcome {
-            Ok(()) => log_pick("a loaded record: installed", player, slot, pick, ""),
-            Err(why) => log_pick("a loaded record's pick NOT installed (the state will not match)", player, slot, pick, why.text()),
+            Ok(()) => log_pick(Pickup::Loaded, player, slot, pick, ""),
+            Err(why) => log_pick(Pickup::LoadedNotInstalled, player, slot, pick, why.text()),
         }
     }
     // The own gun's wear each pick hides, as the record keeps it.
@@ -559,8 +564,7 @@ fn reconcile(player: &Player<'_>, thread: &Thread, record: Record) {
     })();
     match outcome {
         Ok(registered) => log_registered("a loaded record: registered", player, pending, registered),
-        Err(why) => log_pick("a loaded record's pending pickup NOT registered (the state will not match)", player,
-                             pending.slot, pending.pick, why.text()),
+        Err(why) => log_pick(Pickup::PendingNotRegistered, player, pending.slot, pending.pick, why.text()),
     }
 }
 /// The gun a loaded record names for `player`'s `slot`: one this client has
@@ -796,6 +800,7 @@ pub fn on_remove(ctx: &mut Context<'_>) -> Flow<NoExit> {
 /// is there (a rollback replaying the death). The ragdoll draws the gun in
 /// its hands; the prompt's box is the copy's, the same gun.
 pub fn died(player: &Player<'_>, thread: &Thread) {
+    breadcrumbs::record(thread, Crumb::Death { place: player.place(), life: player.spawned(), time: player.time() });
     log(&[Text("death hook: place "), Dec(u32::from(player.place())), Text(" life "), Dec(player.spawned()),
           Text(" at "), Dec(player.time()), Text(" ms")]);
     // The only cancel of a pickup waiting for its switch (the gun in hands drawn again).
@@ -1019,7 +1024,7 @@ pub fn on_tick_active(ctx: &mut Context<'_>) -> Flow<NoExit> {
     let Some((_, pending, registered, _)) = pending_of(thread, player.id()) else { return Flow::Continue };
     if !player.pending_is(&registered) {
         native::select_pending(&player, &registered, pending.slot);
-        log_pick("ignored another weapon switch while holstering for", &player, pending.slot, pending.pick, "");
+        log_pick(Pickup::Ignored, &player, pending.slot, pending.pick, "");
     }
     Flow::Continue
 }
@@ -1042,8 +1047,7 @@ fn nudge(player: &Player<'_>, thread: &Thread) {
         other => other,
     });
     if first {
-        log_pick("still waiting for the gun in hands to be put away (no switch within the deadline; the game is \
-                  asked to look at it each tick, never forced) for", player, pending.slot, pending.pick, "");
+        log_pick(Pickup::Waiting, player, pending.slot, pending.pick, "");
     }
 }
 
@@ -1098,14 +1102,14 @@ fn switch(player: &Player<'_>, thread: &Thread) -> Option<bool> {
             At::Held { picker, slot, pick, from, .. } => At::LetGo { picker, slot, pick, from },
             other => other,
         });
-        log_pick("let go, replaced", player, pending.slot, pick, "");
+        log_pick(Pickup::Replaced, player, pending.slot, pick, "");
     }
     move_to(thread, cook, |_| At::Held { picker: player.id(), slot: pending.slot, pick: pending.pick, installed, from });
     update_record(thread, world, place, |r| {
         r.set_pick(pending.slot, Some(Held { pick: pending.pick, own: installed.own_wear() }));
         r.pending = None;
     });
-    log_pick("switched (the gun in hands holstered)", player, pending.slot, pending.pick, "");
+    log_pick(Pickup::Switched, player, pending.slot, pending.pick, "");
     log_installed(player, pending.magazine, &installed);
     Some(true)
 }
@@ -1303,7 +1307,8 @@ fn log_finished(thread: &Thread) {
 
 /// A player is being made (a player cook's batch is in): a late joiner's
 /// install may follow in the next callbacks.
-pub fn on_player_made(_: &mut Context<'_>) -> Flow<NoExit> {
+pub fn on_player_made(ctx: &mut Context<'_>) -> Flow<NoExit> {
+    breadcrumbs::record(ctx.thread(), Crumb::PlayerMade);
     PLAYER_MADE.store(true, Ordering::Release);
     Flow::Continue
 }
@@ -1313,6 +1318,7 @@ pub fn on_player_made(_: &mut Context<'_>) -> Flow<NoExit> {
 pub fn on_destroy(ctx: &mut Context<'_>) -> Flow<NoExit> {
     let thread = ctx.thread();
     if let Some(player) = native::player(ctx, Site::Destroy) {
+        breadcrumbs::record(thread, Crumb::PlayerGone { place: player.place() });
         cancel(&player, thread, Cancel::Destruction);
         for slot in SLOTS {
             unpick(&player, thread, slot, Unpick::LetGo, "its destruction");
@@ -1976,8 +1982,36 @@ fn log(rest: &[Piece<'_>]) {
 }
 
 /// `place P at T ms <what>: slot S's picked gun (taken at T', cooked from place P' kit K slot S'')`.
-fn log_pick(what: &str, player: &Player<'_>, slot: WeaponSlot, pick: Pick, why: &str) {
+/// What [`log_pick`] says of each step.
+fn pick_text(event: Pickup) -> &'static str {
+    match event {
+        Pickup::Cancelled => "CANCELLED the switch to",
+        Pickup::BackToDrop => "gave back to its drop",
+        Pickup::LetGo => "let go",
+        Pickup::RestoreFailed => "FAILED to restore",
+        Pickup::Loaded => "a loaded record: installed",
+        Pickup::LoadedNotInstalled => "a loaded record's pick NOT installed (the state will not match)",
+        Pickup::PendingNotRegistered => "a loaded record's pending pickup NOT registered (the state will not match)",
+        Pickup::Ignored => "ignored another weapon switch while holstering for",
+        Pickup::Waiting => "still waiting for the gun in hands to be put away (no switch within the deadline; the game \
+                            is asked to look at it each tick, never forced) for",
+        Pickup::Replaced => "let go, replaced",
+        Pickup::Switched => "switched (the gun in hands holstered)",
+    }
+}
+
+/// A pick's step: its line in `srp_patches.log` and its crash-report breadcrumb.
+fn log_pick(event: Pickup, player: &Player<'_>, slot: WeaponSlot, pick: Pick, why: &str) {
     let r = pick.recipe;
+    breadcrumbs::record(player.thread(), Crumb::Pickup {
+        event,
+        place: player.place(),
+        slot: slot.slot(),
+        from: r.place.get(),
+        kit: r.kit.get(),
+        time: player.time(),
+    });
+    let what = pick_text(event);
     log(&[Text("place "), Dec(u32::from(player.place())), Text(" at "), Dec(player.time()), Text(" ms "), Text(what),
           Text(": slot "), Dec(u32::from(slot.slot())), Text("'s picked gun (taken at "), Dec(pick.taken.0),
           Text(" ms, the gun of place "), Dec(u32::from(r.place.get())), Text(" kit "), Dec(u32::from(r.kit.get())),

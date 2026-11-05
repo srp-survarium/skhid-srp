@@ -164,14 +164,14 @@ pub const TDM_KILL_FACTOR: f32 = 3.0;
 /// The weights of a match of `game_mode`: `weights`, with Research's own
 /// in mode 5 and a Team Deathmatch kill [`TDM_KILL_FACTOR`] times its
 /// weight in mode 4. The other modes play with `weights` as they are.
-pub fn weights_of(game_mode: u8, weights: [f32; SCORE_EVENTS]) -> [f32; SCORE_EVENTS] {
+pub fn weights_of(game_mode: maps::RuleMode, weights: [f32; SCORE_EVENTS]) -> [f32; SCORE_EVENTS] {
     let mut weights = weights;
-    if game_mode == maps::mode::RESEARCH {
+    if game_mode == maps::RuleMode::Research {
         for (event, weight) in RESEARCH_WEIGHTS {
             weights[event] = weight;
         }
     }
-    if game_mode == maps::mode::TEAM_DEATHMATCH {
+    if game_mode == maps::RuleMode::TeamDeathmatch {
         weights[event::KILL] *= TDM_KILL_FACTOR;
     }
     weights
@@ -179,7 +179,7 @@ pub fn weights_of(game_mode: u8, weights: [f32; SCORE_EVENTS]) -> [f32; SCORE_EV
 
 /// srp's weights for a match of `game_mode` ([`SCORE_WEIGHTS`],
 /// [`weights_of`]).
-pub fn score_weights(game_mode: u8) -> [f32; SCORE_EVENTS] {
+pub fn score_weights(game_mode: maps::RuleMode) -> [f32; SCORE_EVENTS] {
     weights_of(game_mode, SCORE_WEIGHTS)
 }
 
@@ -332,24 +332,22 @@ pub struct MatchOptions {
     /// The roster, by place: N is its length. The wire's other places are
     /// written empty.
     pub players: Vec<MatchProfile>,
-    /// A playable `maps_dict` id ([`maps`]).
-    pub map_id: u8,
+    /// The map, and with it the mode: a Blackout map's options carry srp's
+    /// Blackout entry (tag 2; exe patch 65, `docs/notes/blackout.md`: no
+    /// interface for anyone, the players' markers on Tab).
+    pub map: maps::MatchMap,
     /// What the client logs as `Match id`: the seed of the match's
     /// anomalies, victory items and player objects. It must not be the id
     /// the lobby's `82` gives (`lobby::client_rules::connects_to_match`).
     pub match_id: u32,
     pub match_level: u16,
     pub score_weights: [f32; SCORE_EVENTS],
-    /// A Blackout match (srp's block, tag 2; exe patch 65,
-    /// `docs/notes/blackout.md`): no interface for anyone, the players'
-    /// markers on Tab. `false`: the entry not sent.
-    pub blackout: bool,
 }
 
 /// srp's block after the options: its magic, then tagged entries
 /// `{u8 tag, u8 len, len bytes}`.
 pub const SRPX_MAGIC: &[u8; 4] = b"SRPX";
-/// The entry of [`MatchOptions::blackout`]: one byte, 1.
+/// The entry of a Blackout map's options ([`maps::GameMode::Blackout`]): one byte, 1.
 pub const SRPX_BLACKOUT: u8 = 2;
 
 /// Why options cannot go to a client, or why bytes are no options.
@@ -622,9 +620,6 @@ pub fn options_bytes(
     if roster == 0 || roster > MAX_PLAYERS {
         return Err(StaticInfoError::Roster(roster));
     }
-    if !maps::map_mode(options.map_id).is_some_and(|map| map.is_playable()) {
-        return Err(StaticInfoError::Map(options.map_id));
-    }
     let mut out = Vec::new();
     for (player, profile) in options.players.iter().enumerate() {
         check_profile(player, profile, dictionary)?;
@@ -633,7 +628,7 @@ pub fn options_bytes(
     for _ in roster..MAX_PLAYERS {
         out.extend(EMPTY_PROFILE);
     }
-    out.push(options.map_id);
+    out.push(options.map.map().id);
     out.push(roster as u8);
     out.extend(options.match_id.to_le_bytes());
     out.extend(options.match_level.to_le_bytes());
@@ -646,7 +641,7 @@ pub fn options_bytes(
     }
     out.extend(squads);
     let mut block = Vec::new();
-    if options.blackout {
+    if options.map.mode() == maps::GameMode::Blackout {
         block.extend([SRPX_BLACKOUT, 1, 1]);
     }
     if !block.is_empty() {
@@ -892,9 +887,11 @@ pub fn parse_options(
     if roster == 0 || roster > MAX_PLAYERS {
         return Err(StaticInfoError::Roster(roster));
     }
-    if !maps::map_mode(map_id).is_some_and(|map| map.is_playable()) {
-        return Err(StaticInfoError::Map(map_id));
-    }
+    // The Blackout entry on a map of another mode, or none on a Blackout
+    // map: no map and mode the client plays.
+    let map = maps::MatchMap::of(map_id)
+        .filter(|map| (map.mode() == maps::GameMode::Blackout) == blackout)
+        .ok_or(StaticInfoError::Map(map_id))?;
     players.truncate(roster);
     for (player, (profile, &squad)) in players.iter_mut().zip(squads).enumerate() {
         profile.squad = squad;
@@ -902,11 +899,10 @@ pub fn parse_options(
     }
     Ok(MatchOptions {
         players,
-        map_id,
+        map,
         match_id,
         match_level,
         score_weights,
-        blackout,
     })
 }
 
@@ -1010,23 +1006,44 @@ mod tests {
     fn options(players: Vec<MatchProfile>) -> MatchOptions {
         MatchOptions {
             players,
-            map_id: 61,
+            map: maps::MatchMap::of(61).unwrap(),
             match_id: 0x1234_5678,
             match_level: 3,
             score_weights: SCORE_WEIGHTS,
-            blackout: false,
         }
     }
 
+    /// A Blackout map of the test data.
+    fn blackout_map() -> maps::MatchMap {
+        maps::playable()
+            .find(|map| map.mode == maps::GameMode::Blackout)
+            .and_then(|map| maps::MatchMap::of(map.id))
+            .expect("a Blackout map")
+    }
+
     #[test]
-    fn blackout_is_an_entry_of_the_block_and_reads_back() {
-        let mut with = options(vec![alice()]);
-        let without = options_bytes(&with, dictionary()).unwrap();
-        with.blackout = true;
+    fn a_blackout_maps_options_end_with_its_entry_and_read_back() {
+        let plain = options(vec![alice()]);
+        let without = options_bytes(&plain, dictionary()).unwrap();
+        let with = MatchOptions {
+            map: blackout_map(),
+            ..plain
+        };
         let bytes = options_bytes(&with, dictionary()).unwrap();
-        assert_eq!(bytes[..without.len()], without[..]);
+        assert_eq!(bytes.len(), without.len() + 7);
         assert_eq!(bytes[without.len()..], b"SRPX\x02\x01\x01"[..]);
         assert_eq!(parse_options(&bytes, dictionary()), Ok(with.clone()));
+        // The entry on another mode's map, or a Blackout map without it:
+        // no map and mode the client plays.
+        let entry_on_plain = [&without[..], b"SRPX\x02\x01\x01"].concat();
+        assert_eq!(
+            parse_options(&entry_on_plain, dictionary()),
+            Err(StaticInfoError::Map(61))
+        );
+        assert_eq!(
+            parse_options(&bytes[..without.len()], dictionary()),
+            Err(StaticInfoError::Map(with.map.map().id))
+        );
         // Another value or length, an unknown tag, another magic: refused.
         for bad in [
             &b"SRPX\x02\x01\x00"[..],
@@ -1119,15 +1136,15 @@ mod tests {
         assert_eq!(taken(false), 5);
         // Research weighs them the same.
         assert_eq!(
-            score_weights(super::super::super::maps::mode::RESEARCH)[event::WINNING_TEAM_VI_BONUS],
+            score_weights(super::super::super::maps::RuleMode::Research)[event::WINNING_TEAM_VI_BONUS],
             10.0
         );
     }
 
     #[test]
     fn research_weighs_its_captures_and_kill_invader() {
-        use super::super::super::maps::mode;
-        let research = score_weights(mode::RESEARCH);
+        use super::super::super::maps::RuleMode;
+        let research = score_weights(RuleMode::Research);
         assert_eq!(
             (research[6], research[18], research[10]),
             (30.0, 30.0, 10.0)
@@ -1137,20 +1154,20 @@ mod tests {
             assert_eq!(research[event], SCORE_WEIGHTS[event], "{event}");
         }
         // Modes 2 and 3 are unchanged.
-        for game_mode in [mode::BATTERIES, mode::TIMED_BATTERIES] {
+        for game_mode in [RuleMode::Batteries, RuleMode::TimedBatteries] {
             assert_eq!(score_weights(game_mode), SCORE_WEIGHTS);
         }
         // Team Deathmatch: a kill three times, 30; the rest as every mode's.
-        let tdm = score_weights(mode::TEAM_DEATHMATCH);
+        let tdm = score_weights(RuleMode::TeamDeathmatch);
         assert_eq!(tdm[event::KILL], 30.0);
         for event in (0..SCORE_EVENTS).filter(|&event| event != event::KILL) {
             assert_eq!(tdm[event], SCORE_WEIGHTS[event], "{event}");
         }
         // Over weights of another's (a test's, a tool's): the three only.
-        let mut zero = weights_of(mode::RESEARCH, [0.0; SCORE_EVENTS]);
+        let mut zero = weights_of(RuleMode::Research, [0.0; SCORE_EVENTS]);
         assert_eq!(zero.iter().filter(|weight| **weight != 0.0).count(), 3);
         zero[10] = 0.0;
-        assert_eq!(weights_of(mode::BATTERIES, zero), zero);
+        assert_eq!(weights_of(RuleMode::Batteries, zero), zero);
     }
 
     #[test]
@@ -1334,9 +1351,10 @@ mod tests {
         use StaticInfoError as E;
         assert_eq!(refused(&|o| o.players.clear()), E::Roster(0));
         assert_eq!(refused(&|o| o.players = vec![alice(); 21]), E::Roster(21));
-        // 107 is level_08 at night, which has no project; 0 is no map.
-        assert_eq!(refused(&|o| o.map_id = 107), E::Map(107));
-        assert_eq!(refused(&|o| o.map_id = 0), E::Map(0));
+        // 107 is level_08 at night, which has no project; 0 is no map: no
+        // options can name them.
+        assert_eq!(maps::MatchMap::of(107), None);
+        assert_eq!(maps::MatchMap::of(0), None);
         assert_eq!(
             refused(&|o| o.players[0].team = 2),
             E::Team { player: 0, team: 2 }

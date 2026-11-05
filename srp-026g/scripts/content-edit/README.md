@@ -450,6 +450,16 @@ before they can ship on top of this list.
 |---|---|
 | The six configs of pack weapons-069 (the 0.69d0 guns, `../../docs/notes/weapons-069.md`): `parameters/camo_available` true, a `data` table with `camo_scale` 4.0, `parameters/decal_available` true and an empty `data/decals` | they wear a camouflage and a decal as the live weapons do (weapon-camo-1 and weapon-decals-1 for them); their `_aoac` masks are pack weapons-069-camo (`../weapons-069/camo.tsv`), so no shared list or pack changes |
 
+## blackout-mode-1.json (2026-11-05)
+
+| change | why |
+|---|---|
+| Each playable battery config (mode 2) of `maps_dict`, 30 live, copied to `gameplay/game_modes/blackout/<its name>`; in the copy `mode/srp_variant` "blackout" and `mode/ui/mode_name` `st_srp_mode_blackout` (the localizations' "Protective device: blackout"); a `maps_dict` row each, `cfg_mode_name` `blackout/<its name>`, ids 219 to 248 in the order of the battery maps' ids (61 to 109, then 166, 175, 181, 206, 208, 216). level_08 at night (no project) has none | Blackout (`../../docs/notes/blackout.md`) is a mode of its own maps, as the other modes are: the lobby, the match server, the results and replays know it by the map's id. Before, its maps were ids of the lobby's own counted down from 255 that the server turned back into the battery map with a flag beside it. srp reads `srp_variant` (`survarium::v026g::maps::GameMode::of_config`, `VARIANTS`) and sends the static info's Blackout entry for these maps; the client loads them as the battery maps they copy (rules 93, 91, 88, 94; the same project) |
+
+Applied to the live files of revision 46 (`--check`): 30 new files, the dictionary edited, 0
+unexpected differences. No simulation change: the copies play the battery rules unchanged. A new
+battery map ported later gets its Blackout config by a row here (its copy, its `add_value` file
+and a dictionary entry), or none.
 ## artefact-spots-1.json (2026-11-05)
 
 | change | why |

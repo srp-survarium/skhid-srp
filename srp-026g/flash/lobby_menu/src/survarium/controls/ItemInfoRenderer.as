@@ -109,12 +109,12 @@ package survarium.controls
       }
 
       // What the card shows: its rows (none, compact or expanded with Shift), neutral colours
-      // (Ctrl), a weapon's stats in a match (Alt, docs/notes/alt-weapon-stats.md).
+      // (Ctrl), a weapon's or a medicine's stats in a match (Alt, docs/notes/alt-weapon-stats.md).
       private function detailsMode() : String
       {
          if(_data == null) return "none";
          var rows:String = _weaponDetails == null ? "none" : MainScene.isShift ? "expanded" : "compact";
-         return rows + (MainScene.isCtrl ? "-neutral" : "") + (MainScene.isAlt && _data.isWeapon ? "-match" : "");
+         return rows + (MainScene.isCtrl ? "-neutral" : "") + (MainScene.isAlt && MatchEffects.covers(_data) ? "-match" : "");
       }
 
       private function updateDetailsText() : void
