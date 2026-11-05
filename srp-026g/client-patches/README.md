@@ -3846,15 +3846,16 @@ code. Native Unicorn tests cover all authored maps. Details and test limits:
 
 ## The Settings' HUD group (patch 83)
 
-The Gameplay tab's "HUD:" group (`../docs/notes/hide-hit-markers-scores.md`): three settings kept in
-user.cfg, off by default, `srp_hide_hit_markers`, `srp_hide_scores` and `srp_hide_crosshair` (the
-crosshair list's Hidden). The Rust `hud_options` patch registers the saved bools at
+The Gameplay tab's "HUD:" group (`../docs/notes/hide-hit-markers-scores.md`): four settings kept in
+user.cfg, off by default, `srp_hide_hit_markers`, `srp_hide_scores`, `srp_map_names` and
+`srp_hide_crosshair` (the crosshair list's Hidden). The Rust `hud_options` patch registers the saved bools at
 `configs.start`, answers the main menu's `srp_hide_*` calls and `srp_hud_texts` (the group's
 texts) at `options.callback` (after patch 79's hooks there, sharing `vostok::settings` with it), and
-tells the hud movie the three at `player_icons.update_start` (after patch 65's hook) when the movie
+tells the hud movie the four at `player_icons.update_start` (after patch 65's hook) when the movie
 or a setting changes, and again after each match's or replay's options read (a new hud can be made
 at the last one's address). The hud hides the crosshair's hit marker, shows the Tab list as names
-only, and hides the crosshair. The stock quest progress and minimap controls are moved into the
+only, hides the crosshair, and shows the Tab map's names without Alt (Alt hiding them, patch
+82). The stock quest progress and minimap controls are moved into the
 group by the main menu alone. Interface only: no simulation change. `check_hud_options_026g.py`
 runs the hooks from the game's code; `../scripts/hud-options/check.sh` the movies in Ruffle.
 
@@ -4398,3 +4399,24 @@ exes on made-up items: the rev47 world (0x818A bytes), 300 bullets with
 twenty players, a world over 0xF000, and a packed 0xE8 of a 0xA014-byte
 world through the whole handler with the game's own decoder. **Not run in a
 game.**
+
+## A thrown grenade stays above the ground (patch 105, unreleased)
+
+Grenades often went through the ground where they hit it (players' reports,
+2026-11-04). Stock 0.26g: `grenade_core::load` (0x303890) gives the grenade a
+0.05 m capsule and continuous collision with a swept sphere of 0.01 m; vostok's
+`integrateTransforms` moves a body whose sweep hits to the sphere's time of
+impact, which leaves the capsule 4 cm or more inside the level's one-sided
+collision mesh, and its contact then often pushes it through. `GRENADE_CCD`
+(0x303A13) loads the 0.04 of 0xA2D7DC instead of the 0.01 of 0xA2D774 (8
+bytes, the same instruction; its base relocation stays): the sphere is inside
+the capsule with a centimetre to spare and the capsule stops at the surface.
+A simulation of the game's world, step and body over vostok's Bullet 2.79
+(`grenade_ccd_sim.cpp`) loses 10 to 23 % of throws under the ground stock and
+none of 4700 with 0.04; a grenade rolls on about half as far after it lands
+(stock, the sunk capsule was pushed back out with speed). What a match
+computes changes: a `next` row in
+`../crates/session/src/v026g/simulation_changes.tsv`.
+`../docs/notes/grenade_ccd.md` has the evidence. Checked: selftest check 105
+(`test_grenade_ccd`) and the late join's site and relocation checks.
+**Not run in a game.**

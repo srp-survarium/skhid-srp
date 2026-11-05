@@ -78,12 +78,15 @@ package survarium.menu
       protected var _language:SrpLanguage;
       
       // The gameplay tab's "HUD:" group: the checkboxes the exe keeps in user.cfg
-      // (patch 83: "Hide hit markers", "Hide player scores"), with the stock
+      // (patch 83: "Hide hit markers", "Hide player scores", "Names on map"), with the stock
       // quest progress and minimap controls under them (layoutGameplay). A
       // toggle is a change of the tab as the Language pick is, saved by Apply.
       protected var _hudGroup:SrpCheckGroup;
       
-      private static const HUD_OPTIONS:Array = ["srp_hide_hit_markers","srp_hide_scores"];
+      private static const HUD_OPTIONS:Array = ["srp_hide_hit_markers","srp_hide_scores","srp_map_names"];
+
+      // The HUD group's option that goes with the map's controls, over Static minimap (layoutGameplay).
+      private static const MAP_OPTION:String = "srp_map_names";
       
       // The gameplay tab's spacing, read from its own groups (the timeline's) the first
       // time it is laid out (layoutGameplay); null until then.
@@ -814,14 +817,19 @@ package survarium.menu
          this._language.layout(c.s_friends,space.leftHeading,space.leftControl + space.dropdownX,
             c._hide_spam.y + space.gap,space.leftFirst);
          // the right column: the HUD group, each row a step under the last (a list under a checkbox
-         // as the minimap's is), a list one further right as the timeline has them
+         // as the minimap's is), a list one further right as the timeline has them; the map's rows
+         // (Names on map, Static minimap, the minimap position list) last
          this._hudGroup.layout(c.s_friends,space.rightHeading,space.top);
          var rows:Array = [this._crosshair.menu];
          for each(var option:SrpCheckOption in this._hudGroup.options)
          {
-            rows.push(option.box);
+            if(option.name != MAP_OPTION)
+            {
+               rows.push(option.box);
+            }
          }
-         rows.push(c._setter_static_show_quests,c._setter_static_minimap,c._setter_static_minimap_position);
+         rows.push(c._setter_static_show_quests,this._hudGroup.option(MAP_OPTION).box,c._setter_static_minimap,
+            c._setter_static_minimap_position);
          var y:Number = space.top + space.rightFirst;
          for(var i:int = 0; i < rows.length; i++)
          {

@@ -2133,3 +2133,11 @@ va	status	ref_021d	name
 0x002ff930	observed		survarium::weapon_controller_core::serialize
 0x002ff970	observed		survarium::weapon_controller_core::deserialize
 0x00330a20	observed		survarium::hit_animations_selector::hit_body_part::deserialize
+0x00303890	reviewed	0x001ec2a7	survarium::grenade_core::load
+0x00303c10	reviewed	0x001ec537	survarium::grenade_core::throw_grenade
+0x003576c0	reviewed	0x0021c3a7	vostok::physics::bt_dynamic_rigid_body::set_linear_velocity
+0x00357750	reviewed	0x0021c3fe	vostok::physics::bt_dynamic_rigid_body::set_angular_velocity
+0x00357100	reviewed	0x0021c095	vostok::physics::create_dynamic_rigid_body
+0x0007a390	verified	0x000591ca	vostok::physics::create_primitive_shape
+0x0007a1f0	verified	0x0005904e	vostok::physics::create_bt_primitive
+0x00075550	reviewed	0x00056439	vostok::physics::bullet_physics_world::tick

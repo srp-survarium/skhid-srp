@@ -1482,11 +1482,11 @@ st_microphone_sensitivity_option	Чутливість мікрофона
 st_military_medkit_description	Повністю лікує руки і ноги. Відновлює 60% здоров'я тіла та голови і 50% болю.
 st_military_medkit_name	Військова аптечка
 st_minimap	Мінімапа
-st_minimap_bottom	Нижній лівий кут
+st_minimap_bottom	Мінімапа внизу
 st_minimap_off	Прихована мінімапа
 st_minimap_position	Розташування мінімапи
 st_minimap_rotable_option	Фіксувати мінімапу
-st_minimap_top	Верхній лівий кут
+st_minimap_top	Мінімапа вгорі
 st_missile_weapon_action	Граната
 st_missions	Завдання
 st_mm_button_back	Назад
@@ -2476,6 +2476,7 @@ st_srp_map_cologne	Кельн
 st_srp_map_london	Лондон
 st_srp_map_mamayev_kurgan	Мамаїв курган
 st_srp_map_mamayev_kurgan_v021	Мамаїв курган (v0.21)
+st_srp_map_names_option	Імена на мапі
 st_srp_map_rudnya	Рудня
 st_srp_map_rudnya_v069	Рудня (v0.69)
 st_srp_map_school	Школа
