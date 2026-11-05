@@ -2,9 +2,12 @@
 
 The owner's pick of 0.69d equipment that live Skhid (rev 38) lacks: 38 pieces.
 35 ship in the content pack `equipment-046@4` (`scripts/equipment-046`); 3 are
-left out (below). `@5` adds four more the owner picked on 2026-11-05 (the
+left out (below). `@6` adds four more the owner picked on 2026-11-05 (the
 Veles Mask, Stalker's laced boots, "Shturm" gloves, Reinforced padded boots:
-below): 39 pieces. Every number here is a proposal: balance is the owner's call.
+below), each with its donor's quirk, and makes the NVD open goggles with a
+bonus of its own: 39 pieces. (`@5`, the four as the first draft of PR #1360
+had them, was never released.) Every number here is a proposal: balance is
+the owner's call.
 
 ## What ships
 
@@ -32,14 +35,27 @@ below): 39 pieces. Every number here is a proposal: balance is the owner's call.
   both (the owner, in game, 2026-10-30; fixed in @4). The NVD
   is goggles on straps over the native head: its goggles' rear rims touch the
   face (up to 1 cm inside it, round the eyes), as goggles do.
-- The Veles Mask (@5) is a gas mask with goggles on a harness round the head,
-  not a closed shell. Its donor takes the head's place and draws the stock
-  stand-in head `renesanse_novice_combat_head` beside it (as the stock "Keeper"
-  mask does); over the native head both go (`prepare_inputs.on_native_head`:
-  a donor's `..._head` additional model goes with its `remove_head_model`).
-  Fit: 118 of its 1,144 vertices lie inside the native head, against 193
-  inside the stand-in head it was made on (the straps and the mask's inner
-  rim), the deepest about 2 cm in both: the native head fits it no worse.
+- The Veles Mask is a gas mask with goggles on three straps round the head,
+  open at the back (renders): not a closed shell, so it is worn over the
+  native head. Its donor takes the head's place and draws the stock stand-in
+  head `renesanse_novice_combat_head` beside it (as the stock "Keeper" mask
+  does); over the native head both go (`prepare_inputs.on_native_head`: a
+  donor's `..._head` additional model goes with its `remove_head_model`).
+- Made on the stand-in, it is fitted onto the native head (`make_pack.
+  fit_to_native_head`, resource-porter mask_fit's outward push: rays from
+  inside the skull, 4 mm clearance, each push spread to its neighbours). As
+  built in @5, 6 native skull points showed through it (up to 4 mm: the
+  forehead over the goggles' frame, the back straps sunk in the skull) and
+  118 of its 1,144 vertices lay inside the head. Only what can be seen moves:
+  the outer surface inside the head and the skin through the outermost
+  surface; the inner rim the respirator seals on the face with stays in the
+  face, as it lay in the stand-in's (pushing it, a first try, swelled the
+  whole front). 548 vertices move, at most 1.0 cm; no skull point shows
+  through (`check_pack.py` checks every mask over the native head, 1 mm
+  allowed for rims resting on the skin: the NVD's goggle rims). There is no
+  eye-hole move or neck tuck: the stand-in is on the native skeleton and the
+  mask ends at the chin, above every collar. 0.26g has one head mesh
+  (`base_character_head`); faces differ by texture only.
 - A donor sound 0.26g lacks (the pants' `material/crouch_wear`) takes the
   template's sound in its place.
 - Shaders: 0.26g ships its shaders compiled per switch combination and mesh
@@ -63,7 +79,7 @@ below): 39 pieces. Every number here is a proposal: balance is the owner's call.
   taken by the stock db, a released patch, equipment-029 or live revision 50.
   The premium copy takes 1863 (0.69d's 352 is the stock Bandit jacket premium).
 - Icons: the donors' own item icons, in the free equipment-atlas columns 7
-  (rows 1-22) and 8 (rows 1-13 and, @5, 16-19; equipment-069 has 14-15).
+  (rows 1-22) and 8 (rows 1-13 and, @6, 16-19; equipment-069 has 14-15).
 - The declared tables carry the pieces too: their armour, weight, levels,
   rollable kinds and built-in bonus in `content-edit/armor.tsv`, their price in
   `content-edit/items.tsv`, both as the pack makes them.
@@ -121,7 +137,8 @@ analysis, 2026-10-30).
   1 kg 1,190 (the level-3 medians).
 - **Missing pieces of sets 0.26g has** (the set's level and protection):
   - Fringe Stalker (level 9): Stalker's helmet 35/25 1.6 kg 26,250; Stalker's
-    backpack 4.5 kg 35,000 (ammo bag + pocket); NVD (mask) 30/20 0.8 kg 11,880.
+    backpack 4.5 kg 35,000 (ammo bag + pocket); NVD (mask) 11,880: 30/20
+    0.8 kg until @6, then open goggles (below).
   - Fringe Warrior gloves (level 9) 60/20 0.3 kg 11,880 (recoil -8 %).
   - Scavenger Pathfinder boots (level 9) 65/20 1.3 kg 13,130 (movement +4 %);
     Saboteur boots (level 5) 45/20 1 kg 4,460 (energy -8 %). Scavengers rank 5.
@@ -132,31 +149,79 @@ analysis, 2026-10-30).
     (reload +12 %; between the level-3 and level-5 prices); Biker pants
     (level 5, the Corsair set's model family, rank 5) 55/5 2 kg 8,930
     (movement +4 %).
-- **@5, the owner's pick of 2026-11-05** (prices: the live level medians of
-  the kind in revision 50; built-in bonuses unlike their set's other piece of
-  the slot):
+- **@6, the owner's pick of 2026-11-05**, each with its donor's quirk (the
+  owner: "make sure they fit properly and are well balanced with their
+  quirks"): 0.69d0's own numbers set where the piece stands against its live
+  peers of the same level and slot; its built-in bonus is the donor's, at the
+  second-strongest strength (`built-in-bonuses-1`), unless that bonus makes
+  no sense for the slot (the owner: "how boots can give reload speed"), when
+  it is one of the slot's family (boots: movement, stamina spending or
+  regeneration; gloves: recoil, reload, aim; masks: breathing) unlike the
+  set's other piece of the slot. Prices: the live level medians of the kind
+  in revision 50. 0.26g has no `slowdown` (0.69's 1 % movement penalty of
+  some boots): carried weight slows the wearer instead.
   - **Veles Mask** (998, 0.31a2 `edge_mask_7`, `edge_keeper_07_mask`): Fringe
-    level 10 with the Veles set, rank 5, drop 60; 34/21 0.6 kg 14,005, a fifth
-    of the way from the NVD (level 9, 30/20) to the "Keeper" mask (14, 50/25);
-    the donor's weight. Template the "Smaragd" respirator (121): a gas mask,
-    the donor's respirator sounds.
+    level 10 with the Veles set, rank 5, drop 60, 14,005. 0.69d: 50/20 0.6 kg
+    against the Protective mask's 45/16 0.5 kg, a heavy mask. Here 45/20
+    1.8 kg against the live level-10 masks, the Protective mask (1816, 40/5
+    1.5 kg) and the Spectrum-M (27/37 0.5 kg): the most armour, the weight
+    the price of it (1.2x the Protective's, as in 0.69d), below the level-15
+    Armored mask's 50. Bonus: 0.69d's recoil -3.5 % (the whole Veles set has
+    recoil) is no mask's, so energy costs -8 % (1163, breathing through it).
+    Template the "Smaragd" respirator (121): a gas mask, the donor's
+    respirator sounds.
   - **Stalker's laced boots** (1098, 0.46c2 `edge_boots_6`,
     `edge_stalker_02_boot_new`): the boots 0.46c2 and 0.69d gave the Stalker
     set in place of the fur-topped Stalker's boots (143), which live has; both
-    stay. Level 9, 60/20 1.2 kg 13,130, drop 70, energy costs -8 % (the
-    Stalker's boots: movement +4 %).
+    stay. 0.69d: light (5/8 0.8 kg against the fur boots' 10/5 1 kg). Here
+    level 9, 45/25 0.8 kg 13,130, drop 70: less armour (the peer band's
+    floor, 15 under the Stalker's boots' 60), more isolation, the lightest
+    level-9 boots (the others 60-65 armour, 1.2-1.3 kg). Bonus: 0.69d's recoil
+    -3.5 % (boots don't steady a gun) becomes energy costs -8 % (1163): light
+    boots; the Stalker's boots have movement +4 %.
   - **"Shturm" gloves** (1108, 0.46c2 `renesanse_gloves_6`,
     `renesance_combat_hand`): the gloves of the Army Shturm set's own model
     family (the Shturm vest and pants, Vityaz-S helmet, Assault mask);
     0.46c2's "Assault gloves", a name live has (`ren_gloves_1`, the set's
-    gloves so far, the novice model). Level 9, 60/10 0.25 kg 13,130, drop 70,
-    aim -8 % (the Assault gloves: recoil -8 %).
+    gloves so far, the novice model). 0.69d: heavy, 69/1 0.5 kg against the
+    Sniper gloves' 54/5 0.3 kg. Here level 9, 70/2 0.5 kg 13,130, drop 70:
+    the most armour of the level-9 gloves (the others 60), almost no
+    isolation (they 10-25), twice their weight. Bonus: the donor's recoil
+    (-2.8 %), kept, at -8 % (1153), as the Assault gloves'.
   - **Reinforced padded boots** (1097, 0.46c2 `scavenger_boots_6`,
     `scavengers_05_boot`): the boots of the Scavengers' Reinforced set
     (Reinforced padded jacket and pants, level 5, which had none); 0.46c2's
-    "Reinforced boots", a name the Army's level-12 boots have. Level 5, 50/10
-    1.1 kg 4,460, drop 110, movement +4 %.
+    "Reinforced boots", a name the Army's level-12 boots have. 0.69d: 10/2
+    0.8 kg against the Saboteur boots' 5/2 0.6 kg (twice the armour,
+    heavier, 1 % slower). Here level 5, 55/10 1.3 kg 4,460, drop 110: their
+    set's protection, more armour and less isolation than the Saboteur boots
+    (45/20 1 kg), the heaviest level-5 boots (the Black Market's 55/10 1.1 kg).
+    Bonus: 0.69d's reload +10 % (boots don't reload) becomes stamina
+    regeneration +8 % (1103): the set's other boots have energy -8 %
+    (Saboteur) and movement +4 % (Pathfinder).
+  - **NVD** (145, live since @1): open goggles on a head harness (renders),
+    so no mask's protection: 0.69d has 7/8. Here 10/5 0.3 kg (was 30/20
+    0.8 kg), the same price. In exchange a bonus no other gear has: scope sway
+    -25 % (`breath_vibration_modifier`, 1211, its family's strongest: it pays
+    for the protection given up). The engine reads it: the aiming booster's
+    1210 (-20 %) reaches the player the same way (`armor::add_modifiers`,
+    `player_params_modifiers_container::apply_modifier`, armour-params.md);
+    no armour piece had 1210/1211 (`armor.tsv` had no column for it; its new
+    `sway` column is the NVD's alone). Benchmark the Fringe respirator (102):
+    the Assault mask's band (40 armour) is a closed mask's.
   - Names in every language without a duplicate of a live item name.
+  - `balance_audit.py`: the Veles Mask against the Protective mask and the
+    Spectrum-M; the laced boots against the Stalker's, Watchman and
+    Pathfinder boots; the Shturm gloves against the five level-9 gloves; the
+    padded boots against the Saboteur and Black Market level-5 boots; the
+    NVD against the Assault mask: each better in one way, worse in another.
+  - Fit, offline renders (`private/renders/equipment-046-more/`, the
+    porter's rasteriser in solid colours: no textures hide a gap): the Veles
+    Mask before (@5) and after (@6) and on its donor's stand-in head, front,
+    side and back; with the Veles helmet and over four collars; the laced
+    boots under six pants (`data_long`); the padded boots under four
+    (`data_medium`); the Shturm gloves on five jackets (`data_full`), the live
+    Assault gloves and Stalker's boots as references. Nothing clips.
 - **Premium**: Bandit's jacket "MK II" (1863), a premium copy of the Bandit's
   jacket (351, level 3) with its own model: the plain piece's combat values and
   default, +5 % experience and +5 % Black Market reputation as its first two
@@ -188,10 +253,11 @@ analysis, 2026-10-30).
 - @3 again: the Watchman helmet (the lobby loads with it), the Stalker's
   backpack and NVD (the donor's materials), the Watchman boots (no emissive).
 - The 39 icons in the lobby (0.46c2's are scaled from 128x128 pictures).
-- @5: the Veles Mask over the native head (its harness, goggles and inner rim
-  on every face, with the Veles helmet on it), the laced boots under the
-  Stalker's pants, the "Shturm" gloves in first person (0.46c2's gloves have
-  no hud model, as the other 0.46c2 gloves here), the Reinforced padded boots.
+- @6: the Veles Mask textured and animated (its straps when the head turns,
+  the inner rim from the side, with the Veles helmet), the laced and padded
+  boots walking and crouching, the "Shturm" gloves in first person (0.46c2's
+  gloves have no hud model, as the other 0.46c2 gloves here), the NVD's
+  scope sway in a scope.
 
 ## Decisions
 
@@ -211,5 +277,6 @@ analysis, 2026-10-30).
 ## Open questions for the owner
 
 - Drop weights and built-in bonuses as proposed?
-- @5's names: "Shturm" gloves and Reinforced padded boots for 0.46c2's
+- @6's names: "Shturm" gloves and Reinforced padded boots for 0.46c2's
   duplicates, Stalker's laced boots beside the Stalker's boots?
+- The NVD's scope sway -25 %: enough for 20 armour and 15 isolation given up?

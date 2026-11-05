@@ -60,6 +60,18 @@ def icon_path(row, col):
     return f'flash_movies/textures/ui_icons/items/equipment/equipment_{col}_{row}.png'
 
 
+# The native head every 0.26g character wears (make_pack fits a stand-in's mask onto it).
+NATIVE_HEAD = 'models/character/human/base/base_character_head.skinned_model/render/black_market_01_head_s/converted_model'
+
+
+def made_on_stand_in(config, covers_head):
+    """The models of a donor's sections that take the head's place with a stand-in head beside
+    them: made on that head, they are fitted onto the native one (make_pack)."""
+    return {section['base_model'] for section in sections(config)
+            if not covers_head and section.get('remove_head_model') is True
+            and any(part['base_model'].endswith('_head') for part in section.get('additional_models', []))}
+
+
 def on_native_head(section):
     """A data section worn over the player's native head (the owner's rule for ported headwear).
 
@@ -245,6 +257,8 @@ def pin(args, donors, base):
             config = bcw.loads((work / 'donor031' / path).read_bytes())
         else:
             config = equipment[row['id_069']]
+        if made_on_stand_in(config, row['covers_head']):
+            inputs['base'].add(NATIVE_HEAD)
         config = worn(config, row['covers_head'])
         inputs['donor' + row['donor']].add(icon_path(*config['ui_desc']['icon']))
         # The sounds the released game has (make_pack replaces the others with the template's).
