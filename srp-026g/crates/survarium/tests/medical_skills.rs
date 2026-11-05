@@ -6,6 +6,18 @@ use survarium::v026g::skills::{SkillError, SkillsTree};
 fn medical_tree_progression_and_native_payload() {
     let path = std::env::var("SRP_MEDICAL_SKILLS_CONFIG").expect("built skills_tree.options");
     let tree = SkillsTree::parse(&std::fs::read(path).unwrap()).unwrap();
+    // physical-skills-1.json: the two unlearnable melee skills out, Packrat
+    // in column 4 of its row, no two physical skills in one place.
+    assert!(tree.skill(206).is_none() && tree.skill(210).is_none());
+    let packrat = tree.skill(209).unwrap();
+    assert_eq!(
+        (packrat.column, packrat.row, packrat.branch_points),
+        (4, 2, 5)
+    );
+    let mut physical = std::collections::HashSet::new();
+    for skill in tree.skills.iter().filter(|skill| skill.branch() == 2) {
+        assert!(physical.insert((skill.column, skill.row)), "{}", skill.id);
+    }
     let ids = [301, 302, 311, 312, 321, 322, 331, 332, 341, 342];
     let shifts = [0, 3, 6, 9, 12, 15, 16, 17, 20, 21];
     let ranks = [5, 5, 5, 5, 5, 1, 1, 5, 1, 5];
