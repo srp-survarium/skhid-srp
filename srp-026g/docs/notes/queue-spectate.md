@@ -40,8 +40,13 @@ dynamic game". Rooms: [rooms.md](rooms.md) (Queue, Late joins). Wire: `lobby.md`
   goes in if the end frees places, or watches the next match.
 - **Leaving:** the game's own Leave match (0xE0), or its match link lost, leaves the queue (one
   exit). A plain Queue pressed for the same room keeps the place and stops the watch.
-- **Not in the Tab list:** spectators are not roster places, so no game has their names; a Tab
-  line needs a way to send them (see the PR).
+- **Not in the Tab list yet:** spectators are not roster places, so no game has their names, and
+  the match link has no free message for them. It would take three new parts: a tagged system
+  line of the lobby to the match's players, an exe hook in `process_incoming_text_message`
+  (0x26B6F0, beside `#mstats`), and a muted line in hud.swf's `PlayerList` while Tab is held.
+  Left for the owner to decide.
+- **Out of step:** a spectator's hash reports are not heard, so a spectator whose world drifts
+  is not found; it starts again only when it lacks a place or its sync stalls.
 
 ## How
 
@@ -57,9 +62,17 @@ dynamic game". Rooms: [rooms.md](rooms.md) (Queue, Late joins). Wire: `lobby.md`
   sends its game to the match as a seated player's is sent.
 - **The seats** (`session::Matchmaking`): a session watches one match with no seat; a watching
   session gets no seat until it watches no more.
-- **The match server** relays every input to a spectator and takes nothing from it (no input,
-  hash vote or world), so it changes nothing a match computes: no row in
-  `simulation_changes.tsv`.
-- **The exe** keeps the spectator's camera on the player it follows after each world, where the
-  original looked up the local place (none) and reset the view; next/previous player keys work
-  as in the stock spectator mode.
+- **The match server** (`game/spectate.rs`, `match.md` §36): a spectator is no `Peer` and no
+  place; it gets 0xE4 with 0xFF, a trusted world as a newcomer gets one, then every relay and
+  roster change. It is sent nothing else (never 0xE9/0xEA of itself, never an answer to an input,
+  0xEF..0xF5: its game would index its player table at 0xFF) and nothing of it is taken (inputs,
+  kit choices, hash reports, uploads), so it changes nothing a match computes: no row in
+  `simulation_changes.tsv`. It is let go by one 0xEA naming place 0xFF (a closed link ends no
+  match in the game, `match.md` §24), then silence.
+- **The exe** (patch 103, `client_patch.md` §3.67), for a game with no place of its own only:
+  after each world the camera keeps the player it follows (else the first living one), where
+  the original looked the local place up and read past the player table; the game builds and
+  sends no input for the player it follows (it would drive it in its own world); F6 / F5 (next
+  and previous player) step through both teams; match chat lines and the followed player's
+  death show no kit picker; an 0xEA naming 0xFF ends its match quietly (no results screen),
+  back to the lobby.
