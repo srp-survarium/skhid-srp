@@ -278,8 +278,10 @@ mod tests {
     use crate::v026g::bots::know::Track;
     use crate::v026g::bots::path::Waypoint;
 
+    /// The gate as these cases were written for (A300 moved the defaults): a 30 m ring left at 34, tracks of 20 s, the radar's
+    /// and the death spots' places counted, no goal clause, Collect on its old rule.
     fn tuning() -> PaceTuning {
-        PaceTuning::default()
+        PaceTuning::ring_30()
     }
 
     fn at(x: f32, z: f32) -> Vec3 {

@@ -166,6 +166,20 @@ pub(super) fn take_fixes() -> Box<dyn RouteTopic> {
     )
 }
 
+/// [A296 items 4 and 5] `mods.behind_open` and `mods.raid_regroup` at work (`raid::raid_counts`): raids offered early, regroup
+/// stops, those a mate came to, those that waited out.
+pub(super) fn raid_switches() -> Box<dyn RouteTopic> {
+    Delta::of(
+        || crate::v026g::bots::plays::raid::raid_counts::counts().to_vec(),
+        |d, line| {
+            line.main.push(format!(
+                "raid_early_offered {} raid_regroup_stops {} raid_regroup_mate {} raid_regroup_timed_out {}",
+                d[0], d[1], d[2], d[3]
+            ));
+        },
+    )
+}
+
 /// A battery's crossings weighed with the pools routed (F2): asked, borne, refused (`zone_cost::asks`).
 pub(super) fn zone_pool_asks() -> Box<dyn RouteTopic> {
     Delta::of(

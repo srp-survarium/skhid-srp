@@ -38,7 +38,8 @@ pub(crate) fn a_cruise_walks_for_a_danger_along_its_route_and_runs_when_the_way_
     let bot = bots.bots[0].as_mut().unwrap();
     let feet = Vec3::new(0.0, 0.0, 0.0);
     let intent = Intent::to(Vec3::new(50.0, 0.0, 0.0), Pace::Cruise);
-    let tuning = Tuning::default();
+    // The gate on the ring these cases were written for (A300 moved the defaults).
+    let tuning = Tuning { pace: crate::v026g::bots::tuning::PaceTuning::ring_30(), ..Tuning::default() };
     bot.route = Some(leg(&[(0.0, 0.0), (50.0, 0.0)]));
     bot.memory = Memory::default();
     assert_eq!(pace_gate(bot, feet, &intent, &tuning, 1_000), Gate::Run, "no one known");
@@ -72,7 +73,8 @@ pub(crate) fn a_danger_the_line_passes_but_the_route_leaves_does_not_walk_the_bo
     let mut bots = bot();
     let bot = bots.bots[0].as_mut().unwrap();
     let feet = Vec3::new(0.0, 0.0, 0.0);
-    let tuning = Tuning::default();
+    // The gate on the ring these cases were written for (A300 moved the defaults).
+    let tuning = Tuning { pace: crate::v026g::bots::tuning::PaceTuning::ring_30(), ..Tuning::default() };
     // The route goes 60 m north then 60 m east; the goal is 60 m east, 60 m north. An enemy at (40, 0) is 40 m from the feet.
     bot.route = Some(leg(&[(0.0, 0.0), (0.0, 60.0), (60.0, 60.0)]));
     bot.memory = Memory::with_tracks(vec![track(2, 40.0, 0.0, Source::Seen)]);
