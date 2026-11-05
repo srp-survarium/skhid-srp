@@ -7,7 +7,7 @@
 //! All of it is PROVEN (read in the exe at the addresses the notes give)
 //! unless a comment says otherwise.
 
-use super::super::maps::{MapMode, mode};
+use super::super::maps::{MapMode, RuleMode};
 
 /// `timelimit_rule_core`'s states (+0x148).
 pub mod state {
@@ -282,8 +282,8 @@ pub fn research_finished(points: [u32; 2], goal: u32) -> bool {
 /// over at `time`: the gather rules at `completion ≤ time` (0x314230),
 /// Team Deathmatch at `completion < time` (0x316520), Research at
 /// `completion ≤ time` (exe patch 53, `rr_completed`).
-pub fn mode_rule_completed(game_mode: u8, completion: u32, time: u32) -> bool {
-    if game_mode == mode::TEAM_DEATHMATCH {
+pub fn mode_rule_completed(game_mode: RuleMode, completion: u32, time: u32) -> bool {
+    if game_mode == RuleMode::TeamDeathmatch {
         completion < time
     } else {
         completion <= time
@@ -455,11 +455,11 @@ mod tests {
         assert!(!gather_finished([0, 0], 0));
         // The gather rules are over at their completion time, Team
         // Deathmatch one tick after.
-        assert!(mode_rule_completed(mode::BATTERIES, 5_000, 5_000));
-        assert!(mode_rule_completed(mode::TIMED_BATTERIES, 5_000, 5_000));
-        assert!(!mode_rule_completed(mode::TEAM_DEATHMATCH, 5_000, 5_000));
-        assert!(mode_rule_completed(mode::TEAM_DEATHMATCH, 5_000, 5_050));
-        assert!(!mode_rule_completed(mode::BATTERIES, 5_000, 4_950));
+        assert!(mode_rule_completed(RuleMode::Batteries, 5_000, 5_000));
+        assert!(mode_rule_completed(RuleMode::TimedBatteries, 5_000, 5_000));
+        assert!(!mode_rule_completed(RuleMode::TeamDeathmatch, 5_000, 5_000));
+        assert!(mode_rule_completed(RuleMode::TeamDeathmatch, 5_000, 5_050));
+        assert!(!mode_rule_completed(RuleMode::Batteries, 5_000, 4_950));
     }
 
     #[test]
@@ -479,8 +479,8 @@ mod tests {
         assert!(research_finished([3, 100_000_000], 100));
         assert!(!research_finished([0, 0], 0));
         // Its end is the rule's end time, as the gather rules'.
-        assert!(!mode_rule_completed(mode::RESEARCH, 5_000, 4_950));
-        assert!(mode_rule_completed(mode::RESEARCH, 5_000, 5_000));
+        assert!(!mode_rule_completed(RuleMode::Research, 5_000, 4_950));
+        assert!(mode_rule_completed(RuleMode::Research, 5_000, 5_000));
         // The leader: more shown points, equal a draw.
         assert_eq!(winner_by_points([100, 64]), 0);
         assert_eq!(winner_by_points([37, 37]), DRAW);
