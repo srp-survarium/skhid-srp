@@ -21,6 +21,7 @@ members = [
   "servers/web-server",
 
   "scripts/binary-config-cli",      # Parser for binary config files
+  "scripts/prediction-fit/decode",  # Match recordings to input timelines (prediction fit)
 ]
 exclude = []
 resolver = "3"
