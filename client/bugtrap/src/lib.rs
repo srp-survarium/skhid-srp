@@ -64,6 +64,8 @@ pub unsafe extern "system" fn DllMain(module: HINSTANCE, reason: u32, _: *mut c_
             // A closure of no state: no allocation; one lock of the standard
             // library's own, no other thread, nothing loaded.
             std::panic::set_hook(Box::new(panic));
+            // What a dump holds, from the environment: read now, not in a crash.
+            dump::Kind::get();
             BT_InstallSehFilter();
         }
         0 => BT_UninstallSehFilter(),

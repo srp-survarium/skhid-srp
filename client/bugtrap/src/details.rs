@@ -151,6 +151,12 @@ pub fn follows_call(before: &[u8; 8]) -> bool {
     before[3] == 0xE8 || (2..=7).any(|len| call_rm(8 - len, len))
 }
 
+/// Whether `SKHID_CRASH_DUMP`'s value asks for full-memory dumps: `full`,
+/// in any case, with spaces or tabs around it.
+pub fn asks_full_dump(value: &str) -> bool {
+    value.trim_matches([' ', '\t']).eq_ignore_ascii_case("full")
+}
+
 /// The last `lines` lines of `text` (a file's tail), from the start of a
 /// whole line: a first line cut by the read is dropped unless `whole` (the
 /// read began at the file's start).
