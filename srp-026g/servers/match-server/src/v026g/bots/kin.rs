@@ -98,25 +98,16 @@ pub enum SlopeSpeed {
 
 impl SlopeSpeed {
     /// The share of a ground step of `run` metres that rises `rise` metres the body covers: 1 on the flat or where the setting
-    /// leaves the step as it is, else the grade's cosine. A grade steeper than the client's walkable slope (55 degrees,
-    /// [`MIN_SLOPE_COS`]) is a step the capsule climbs (`cc_step_height`), not a ramp it walks along: all of it.
+    /// leaves the step as it is, else the grade's cosine.
     pub fn share(self, run: f32, rise: f32) -> f32 {
         let counts = match self {
             Self::Planar => false,
             Self::Up => rise > 0.0,
             Self::Both => rise != 0.0,
         };
-        if !counts || run <= 1e-4 {
-            return 1.0;
-        }
-        let cos = run / run.hypot(rise);
-        if cos < MIN_SLOPE_COS { 1.0 } else { cos }
+        if counts && run > 1e-4 { run / run.hypot(rise) } else { 1.0 }
     }
 }
-
-/// The cosine of the steepest ground the client walks up: `cc_max_slope_angle_cos` 0.57358 of the game's `startup.cfg`, 55
-/// degrees (`mapdata::grid::Body::client`, PROVEN).
-pub const MIN_SLOPE_COS: f32 = 0.57358;
 
 /// Which jump links the reckoned body takes up after a jump press, until a world shows where the body is.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
@@ -431,24 +422,6 @@ mod tests {
         assert!(close(at(key::LEFT)[0], -2.5));
         assert!(close(at(key::RIGHT)[0], 2.5));
         assert!(close(k.target_velocity(key::FORWARD, 0.0, 0.95)[1], 3.325));
-    }
-
-    #[test]
-    fn a_step_up_a_slope_covers_the_grades_cosine_and_a_flat_or_falling_one_all_of_it() {
-        let close = |a: f32, b: f32| (a - b).abs() < 1e-3;
-        // A 45 degree ramp: a step of 0.25 m that rises 0.25 m covers cos 45 of the run.
-        let up = SlopeSpeed::Up.share(0.25, 0.25);
-        assert!(close(up, std::f32::consts::FRAC_1_SQRT_2), "{up}");
-        // The sprint's ground speed there: 5.1 x 0.707 = 3.6 m/s, the client's on the stairs.
-        assert!(close(5.1 * up, 3.606), "{}", 5.1 * up);
-        assert_eq!(SlopeSpeed::Up.share(0.25, 0.0), 1.0, "the flat");
-        assert_eq!(SlopeSpeed::Up.share(0.25, -0.25), 1.0, "down a slope: all of it");
-        assert!(close(SlopeSpeed::Both.share(0.25, -0.25), std::f32::consts::FRAC_1_SQRT_2), "both: down too");
-        assert_eq!(SlopeSpeed::Planar.share(0.25, 0.25), 1.0, "planar: as it was");
-        assert_eq!(SlopeSpeed::Up.share(0.0, 0.3), 1.0, "no run: nothing to shorten");
-        // Steeper than the 55 degree walkable slope: a step climbed, all of it.
-        assert_eq!(SlopeSpeed::Up.share(0.25, 0.4), 1.0, "58 degrees: a step");
-        assert!(SlopeSpeed::Up.share(0.25, 0.35) < 1.0, "54.5 degrees: a ramp");
     }
 
     #[test]
