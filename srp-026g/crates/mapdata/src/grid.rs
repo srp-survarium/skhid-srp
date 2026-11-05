@@ -80,6 +80,7 @@ use crate::sight::RayTree;
 mod clearance;
 pub use clearance::{CLEARANCE_MAX_M, CLEARANCE_STEP_M};
 mod doors;
+mod drop_check;
 mod exact;
 mod open;
 /// g, m/s^2 (`fall_params.gravity` 9.8, PROVEN).
@@ -228,6 +229,12 @@ pub struct Body {
     /// rounds take a floor beside any wall cell, so a doorway 0.8-1.2 m wide closes though the capsule passes (Vector
     /// Laboratory's strip). Needs [`Erosion::Exact`]. A build input: in the key when set.
     pub narrow_doors: bool,
+    /// [A313] Whether a Drop link is kept only where the client's own walk tick (`controller::tick`, proven against the exe) takes
+    /// a body walking off it down to the landing (`grid::drop_check`): steered at the landing, then on along the link as a bot
+    /// walks on to its next node. Off: 18 % of the maps' Drop links leave the body on a ledge the grid does not have, or under the
+    /// landing (the drops census, A313). A link that is the only way back out of a floor is kept. A build input: in the key when
+    /// set.
+    pub drop_check: bool,
 }
 
 /// How the floors a body's radius from walls are taken away.
@@ -283,6 +290,7 @@ impl Body {
             ramp_faces: false,
             drop_room_walk_faces: false,
             narrow_doors: false,
+            drop_check: false,
         }
     }
 }
@@ -354,6 +362,7 @@ impl Default for Body {
             ramp_faces: false,
             drop_room_walk_faces: false,
             narrow_doors: false,
+            drop_check: false,
         }
     }
 }
@@ -852,6 +861,10 @@ pub struct BuildStats {
     pub overshot_kept: usize,
     /// The walk-offs taken away for a wall in the way of the capsule ([`Body::drop_room`]).
     pub drops_blocked: usize,
+    /// The Drop links taken away because the client's walk tick does not take a body down them ([`Body::drop_check`]), and those
+    /// kept because they are the only way back out of a floor.
+    pub drops_unfollowed: usize,
+    pub drops_unfollowed_kept: usize,
     /// The gap pass ([`gap`]).
     pub gaps: gap::GapStats,
 }
@@ -1044,6 +1057,10 @@ impl WalkGrid {
         if body.landing_carry {
             (stats.overshot_cut, stats.overshot_kept) = grid.drop_overshot_landings(&mut wide, seeds, spawns);
         }
+        if body.drop_check {
+            let failing = grid.unfollowed_drops(&wide, triangles);
+            (stats.drops_unfollowed, stats.drops_unfollowed_kept) = grid.cut_keeping_reach(&mut wide, failing, seeds, spawns);
+        }
         stats.floors_after_erosion = grid.len();
         grid.keep_reached(&mut wide, seeds);
         grid.pieces(&wide);
@@ -1229,6 +1246,13 @@ impl WalkGrid {
                 }
             }
         }
+        self.cut_keeping_reach(wide, failing, seeds, spawns)
+    }
+
+    /// Takes away the neighbour links `failing` ((take-off, direction, rank): the higher rank kept first where one must be),
+    /// keeping a link that is the only way to a floor from the seeds or a spawn ([`Body::keep_last_resorts`]) or the only way back
+    /// from it: the cut disconnects nothing a body can walk to. Returns the links taken away and those kept for that.
+    fn cut_keeping_reach(&self, wide: &mut Wide, mut failing: Vec<(u32, usize, f32)>, seeds: &[Vec3], spawns: &[Vec3]) -> (usize, usize) {
         if failing.is_empty() {
             return (0, 0);
         }

@@ -135,6 +135,10 @@ pub struct GridTuning {
     /// (`mapdata::Body::narrow_doors`): 6 doorways on the 8 maps the client walks through and the grid closed (Vector
     /// Laboratory's strip among them). OFF until benched. A grid is the map's (see `gap_links`).
     pub narrow_doors: bool,
+    /// [A313] Whether a Drop link is kept in the maps' walk grids only where the client's own walk tick takes a body down it
+    /// (`mapdata::Body::drop_check`): the drops census found 18 % of the Drop links leave the body on a ledge the grid does not
+    /// have, or under the landing. OFF until benched. A grid is the map's (see `gap_links`).
+    pub drop_check: bool,
 }
 
 impl Default for GridTuning {
@@ -160,6 +164,7 @@ impl Default for GridTuning {
             ramp_faces: true,
             drop_room_walk_faces: true,
             narrow_doors: false,
+            drop_check: false,
         }
     }
 }
@@ -193,6 +198,7 @@ impl GridTuning {
             ramp_faces: self.ramp_faces,
             drop_room_walk_faces: self.drop_room_walk_faces,
             narrow_doors: self.narrow_doors,
+            drop_check: self.drop_check,
             ..body
         }
     }
