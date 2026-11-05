@@ -158,11 +158,15 @@ install_calibri() {
     # The game's UI asks Windows for the font Calibri for some text (item
     # levels); without it Wine draws boxes. Winetricks takes it, once, from
     # Microsoft's PowerPoint Viewer (60 MB, kept in its download cache).
-    if [[ ! -f "$WINEPREFIX/drive_c/windows/Fonts/calibri.ttf" ]]; then
+    # The game is playable without it, so a failure warns and the game starts.
+    local font="$WINEPREFIX/drive_c/windows/Fonts/calibri.ttf"
+    if [[ ! -f "$font" ]]; then
         require_command winetricks
         echo 'Installing the font Calibri (60 MB download, first launch only)...'
-        winetricks -q calibri >>"$log" 2>&1 || die "Calibri installation failed. Run again to retry; see $log"
-        [[ -f "$WINEPREFIX/drive_c/windows/Fonts/calibri.ttf" ]] || die "Calibri installation is incomplete. Run again to retry; see $log"
+        winetricks -q calibri >>"$log" 2>&1 || true
+        [[ -f "$font" ]] || echo "Warning: the font Calibri could not be installed (see $log)." \
+            'Some UI text, such as the item levels on item cards, may show as boxes.' \
+            'The next start tries again.' >&2
     fi
 }
 
