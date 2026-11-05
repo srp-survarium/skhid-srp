@@ -1,4 +1,4 @@
-//! Patch 110: the mouse look's pitch (docs/notes/mouse-pitch.md). The hooks
+//! Patch 112: the mouse look's pitch (docs/notes/mouse-pitch.md). The hooks
 //! are `mouse_pitch.toml`'s:
 //!
 //! - on_configs_loaded before user.cfg (`configs.start`, after patch 88): the

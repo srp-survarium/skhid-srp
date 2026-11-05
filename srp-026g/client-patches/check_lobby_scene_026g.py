@@ -396,7 +396,7 @@ def main():
            and names[-1] == "localization" and names[:3] == ["srp_mouse_vertical", "srp_mouse_vertical_locked", "s_music_volume"]
            and names.index("s_music_volume") < names.index("srp_lobby") < names.index("localization"),
            f"configs.start: `srp_lobby`, a saved string of 4 bytes, in the console's list once, after patch 79's "
-           f"`localization` and patch 83's, before patch 88's `s_music_volume` and patch 110's (newest first: {', '.join(names)})")
+           f"`localization` and patch 83's, before patch 88's `s_music_volume` and patch 112's (newest first: {', '.join(names)})")
     _, _, again = ours.start()
     expect(again == head, "configs.start again: registered once")
     buffer = variable[1]

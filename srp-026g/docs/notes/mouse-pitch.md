@@ -1,10 +1,10 @@
-# The mouse look's pitch: 16:9's at every window, and "Lock vertical sensitivity" (patch 110)
+# The mouse look's pitch: 16:9's at every window, and "Lock vertical sensitivity" (patch 112)
 
 The rules that the code and the checks follow. Code: the Rust patch `mouse_pitch`
 (`client-patches/rust/patches/src/mouse_pitch.rs`, `vostok/mouse.rs`), `death_camera_026g.asm`
 (patch 46), the main menu movie (`flash/main_menu/src`: `SrpMouseVertical`, `SrpCheckOption`,
-`survarium/menu/Settings.as`). See README patch 110 and `client_patch.md` section 3.69. Checks:
-`check_mouse_pitch_026g.py`, `check_death_camera_026g.py`, selftest checks 110 and 46,
+`survarium/menu/Settings.as`). See README patch 112 and `client_patch.md` section 3.70. Checks:
+`check_mouse_pitch_026g.py`, `check_death_camera_026g.py`, selftest checks 112 and 46,
 `scripts/hud-options/check.sh`.
 
 - **The report:** the Discord suggestions thread "Чувствительность мыши на широкоформатных

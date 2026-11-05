@@ -72,7 +72,7 @@ ORG CAVE
 %define AWAY        -128           ; the hud's pointer in a drag
 %define SENSITIVITY 0xA74AEC       ; the option sensitivity, a float (0x24026C)
 %define INVERT      0x1F1D9D3      ; the option mouse_invertion, a byte (0x240226)
-%define SIXTEEN_NINE 0xA2D79C      ; 0.5625 (.rdata), 16:9's height over width (patch 110, locked)
+%define SIXTEEN_NINE 0xA2D79C      ; 0.5625 (.rdata), 16:9's height over width (patch 112, locked)
 %define DEATH_VIEW_OFFSET 0x200   ; death_view's place in the section
 %define UPDATE      0x2422B0       ; the view's update (the handler, the transform; ret 8)
 %define THIRD       0x2422DE       ; its step for the modes but 0 and 4
@@ -149,7 +149,7 @@ death_look:
 .turn:
     movss xmm0, [SENSITIVITY]       ; a unit's turn, as the player's look (0x24026C..0x240353)
     mulss xmm0, [step]
-    xor eax, eax                    ; patch 110's entry, when the build wrote it: EAX 1 with
+    xor eax, eax                    ; patch 112's entry, when the build wrote it: EAX 1 with
     cmp dword [pitch_entry], 0      ; "Lock vertical sensitivity" unticked, XMM1 the vertical
     je .locked                      ; sensitivity; EAX 0 locked
     movss xmm1, [SENSITIVITY]
@@ -202,7 +202,7 @@ death_look:
     jmp LOOK                        ; on to warmup_look and the original: the cursor's
 
 align 4, db 0xcc
-pitch_entry: dd 0                   ; patch 110's mouse_pitch_on_death_pitch (DEATH_CAMERA_PITCH: the build writes it)
+pitch_entry: dd 0                   ; patch 112's mouse_pitch_on_death_pitch (DEATH_CAMERA_PITCH: the build writes it)
 step:   dd 0.0017453292             ; pi / 180 * 0.1 (0x2402F1: 1/180, pi, 0.1)
 aspect: dd 0.95492965               ; 0xA2DAC4
 yaw_max:    dd 1.2217305            ; 70 degrees to either side of the face

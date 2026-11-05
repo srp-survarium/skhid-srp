@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
-"""Patch 110 (the Rust patch mouse_pitch, rust/patches/src/mouse_pitch.rs): the
+"""Patch 112 (the Rust patch mouse_pitch, rust/patches/src/mouse_pitch.rs): the
 mouse look's pitch with "Lock vertical sensitivity" (client_patch.md section
-3.69, ../docs/notes/mouse-pitch.md).
+3.70, ../docs/notes/mouse-pitch.md).
 
     python check_mouse_pitch_026g.py <original survarium.exe>
 

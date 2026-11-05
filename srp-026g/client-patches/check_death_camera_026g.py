@@ -11,7 +11,7 @@ patch 31's warmup_look and the original; stubs for the hud's pointer, the
 system's cursor and the player's input handler), with a game (+53ACh its
 network client, whose +4 is the local player; +5348h the render window,
 whose vtable+1Ch gives 1920 x 1080, which the build never asks since patch
-110). The view's update runs as machine
+112). The view's update runs as machine
 code (0x2422B0 with the game's own rotations and products) on a made-up
 player, input handler and eye transform. The rules:
 ../docs/notes/death-camera.md.
@@ -113,7 +113,7 @@ class Look(kc.Look):
             super().stub(emu, address, size, user)
 
     def split(self, vertical):
-        """Patch 110's "Lock vertical sensitivity" unticked at `vertical`: its two
+        """Patch 112's "Lock vertical sensitivity" unticked at `vertical`: its two
         console variables registered (on_configs_loaded's start, 0x1EA210 to
         0x1EA216) and set where the console keeps them."""
         emu = self.emu
@@ -135,10 +135,10 @@ class Look(kc.Look):
 
 def expected_turn(turn, x, y, invert=0, sensitivity=1.0, vertical=None):
     """The build's step, as float32 at each operation: the pitch's
-    sensitivity the option's, or patch 110's vertical one when it is on."""
+    sensitivity the option's, or patch 112's vertical one when it is on."""
     yaw, pitch = turn
     k = f32(f32(sensitivity) * f32(math.pi / 180 * 0.1))
-    if vertical is None:                      # locked: the stock step at 16:9 (patch 110)
+    if vertical is None:                      # locked: the stock step at 16:9 (patch 112)
         v = f32(f32(f32(0.5625) * k) * f32(0.95492965))
     else:                                     # unlocked: the pitch's radians the yaw's at the vertical value
         v = f32(f32(vertical) * f32(math.pi / 180 * 0.1))
@@ -195,7 +195,7 @@ def look_cases():
     yield "the death screen: an inverted mouse", dict(dead, invert=1), [
         (RIGHT, 7, -9, 0, cursor(307, 191), away, True),
         (RIGHT, -2, 30, 0, cursor(305, 221), [], True)]
-    yield "the death screen: a separate vertical sensitivity (patch 110)", dict(dead, sensitivity=0.5, vertical=2.35), [
+    yield "the death screen: a separate vertical sensitivity (patch 112)", dict(dead, sensitivity=0.5, vertical=2.35), [
         (RIGHT, 12, 6, 0, cursor(312, 206), away, True),
         (RIGHT, -3, -40, 0, cursor(309, 166), [], True)]
     yield "the death screen: a separate vertical sensitivity at the option's", dict(dead, sensitivity=0.5, vertical=0.5), [

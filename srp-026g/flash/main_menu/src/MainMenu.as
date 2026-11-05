@@ -121,7 +121,7 @@ package
          this.settings_window.setCheckOption(values);
       }
       
-      // The exe's answer to a slider it keeps in user.cfg (patch 110, Settings.setSliderOption):
+      // The exe's answer to a slider it keeps in user.cfg (patch 112, Settings.setSliderOption):
       // its name, label and saved hundredths.
       public function srp_slider_option(... values) : void
       {

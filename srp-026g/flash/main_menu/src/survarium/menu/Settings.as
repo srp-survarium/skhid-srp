@@ -95,10 +95,14 @@ package survarium.menu
       // The HUD group's crosshair list (Dynamic, Static: the stock static crosshair; Hidden: patch 83).
       protected var _crosshair:SrpCrosshairChoice;
       
+      // The Graphics tab's Renderer list (patch 83's `srp_dxvk`, which the game reads at its next
+      // start: docs/notes/dxvk-option.md), under Monitor (SrpVideoTab). A pick is a change of the tab.
+      protected var _renderer:SrpRendererChoice;
+      
       // The HUD group's own texts (setHudTexts); null until the exe answers.
       protected var _hudTexts:Array = null;
       
-      // The controls tab's "Lock vertical sensitivity" and its slider (exe patch 110), under
+      // The controls tab's "Lock vertical sensitivity" and its slider (exe patch 112), under
       // the stock Mouse sensitivity slider (layoutControls). A change of either is a change of the
       // tab, saved by Apply.
       protected var _mouse:SrpMouseVertical;
@@ -261,6 +265,12 @@ package survarium.menu
             this.crosshairChanged(null);
             return;
          }
+         if(values.length > 0 && values[0] == SrpRendererChoice.NAME)
+         {
+            this._renderer.answer(values.slice(1));
+            this.rendererChanged(null);
+            return;
+         }
          this._hudGroup.answer(values);
          var option:SrpCheckOption = values.length > 0 ? this._hudGroup.option(values[0]) : null;
          if(option != null)
@@ -269,7 +279,7 @@ package survarium.menu
          }
       }
       
-      // The exe's answer to the vertical sensitivity (root.srp_slider_option, patch 110): its name,
+      // The exe's answer to the vertical sensitivity (root.srp_slider_option, patch 112): its name,
       // label and saved hundredths.
       public function setSliderOption(values:Array) : void
       {
@@ -279,13 +289,14 @@ package survarium.menu
       }
       
       // The HUD group's own texts (root.srp_hud_texts): the heading, "Hide quests", the crosshair
-      // list's three choices, "Static minimap".
+      // list's three choices, "Static minimap"; then the Renderer list's two choices and its note.
       public function setHudTexts(values:Array) : void
       {
-         if(values.length >= 6)
+         if(values.length >= 9)
          {
             _hudTexts = values;
             this.applyHudTexts();
+            this._renderer.texts(values[6],values[7],values[8]);
          }
       }
       
@@ -503,6 +514,10 @@ package survarium.menu
                {
                   this._mouse.save();
                }
+               else if(control == this._renderer.menu)
+               {
+                  this._renderer.save();
+               }
                else if(this.checkOf(control) != null)
                {
                   this.checkOf(control).save();
@@ -557,6 +572,7 @@ package survarium.menu
          }
          this._crosshair.revert();
          this._mouse.revert();
+         this._renderer.revert();
          this.btn_accept.enabled = false;
          this.btn_cancel.label = this._exitLabel;
          _changes = 0;
@@ -604,6 +620,9 @@ package survarium.menu
          this._changed[this._mouse.slider] = 0;
          this._mouse.check.box.addEventListener(Event.SELECT,this.mouseChanged);
          this._mouse.slider.addEventListener(IndexEvent.INDEX_CHANGE,this.mouseChanged);
+         this._renderer = new SrpRendererChoice(this.settings_content);
+         this._changed[this._renderer.menu] = 0;
+         this._renderer.menu.addEventListener(ListEvent.INDEX_CHANGE,this.rendererChanged);
          this._language = new SrpLanguage(this.settings_content,this.settings_content.s_friends);
          this._changed[this._language.menu] = 0;
          this._language.menu.addEventListener(ListEvent.INDEX_CHANGE,this.languageChanged);
@@ -612,9 +631,10 @@ package survarium.menu
       
       protected function create_content(settings:Array) : void
       {
-         SrpFovSlider.apply(this);
+         SrpVideoTab.apply(this);
          this._hudGroup.place();
          this._mouse.place();
+         this._renderer.place();
          this._language.place();
          var key:Object;
          var tabIndex:uint;
@@ -716,7 +736,7 @@ package survarium.menu
          {
             hideChat.enabled = true;
          }
-         SrpFovSlider.finish(this);
+         SrpVideoTab.finish(this,this._renderer);
          // the HUD group, after the tab's settings are bound (their labels set)
          this._crosshair.place();
          this.applyHudTexts();
@@ -801,8 +821,19 @@ package survarium.menu
       // the selected language is not the saved one.
       protected function languageChanged(event:Event) : void
       {
-         var menu:DropdownMenu = this._language.menu;
-         if(this._language.pending)
+         this.listChanged(this._language.menu,this._language.pending);
+      }
+      
+      // A Renderer pick, the same way.
+      protected function rendererChanged(event:Event) : void
+      {
+         this.listChanged(this._renderer.menu,this._renderer.pending);
+      }
+      
+      // One of srp's lists counts as a changed option while `pending`.
+      protected function listChanged(menu:DropdownMenu, pending:Boolean) : void
+      {
+         if(pending)
          {
             if(this._changed[menu] != 1)
             {
@@ -896,21 +927,7 @@ package survarium.menu
       
       protected function crosshairChanged(event:Event) : void
       {
-         var menu:DropdownMenu = this._crosshair.menu;
-         if(this._crosshair.pending)
-         {
-            if(this._changed[menu] != 1)
-            {
-               this._changed[menu] = 1;
-               _changes += 1;
-            }
-         }
-         else if(this._changed[menu] == 1)
-         {
-            this._changed[menu] = 0;
-            _changes -= 1;
-         }
-         this.checkButtons();
+         this.listChanged(this._crosshair.menu,this._crosshair.pending);
       }
       
       // A toggle of "Lock vertical sensitivity" or a move of its slider: each pending while it is
@@ -937,7 +954,7 @@ package survarium.menu
          this.checkButtons();
       }
       
-      // The controls tab's left column: the stock Mouse sensitivity slider, then patch 110's
+      // The controls tab's left column: the stock Mouse sensitivity slider, then patch 112's
       // "Lock vertical sensitivity" and "Vertical sensitivity" under it, then Invert mouse and the
       // lobby's keys, at the tab's own spacing (the timeline's, read once). The chat's keys go to the
       // right column under the game's, whose list (it scrolls) ends where they begin.
@@ -1107,6 +1124,8 @@ package survarium.menu
          this._changed[this._mouse.check.box] = 0;
          this._changed[this._mouse.slider] = 0;
          this._mouse.revert();
+         this._changed[this._renderer.menu] = 0;
+         this._renderer.revert();
          this.checkButtons();
          this.settings_content.gotoAndStop(this.tabs.selectedIndex + 1);
          this.create_labels(this.tabs.selectedIndex);

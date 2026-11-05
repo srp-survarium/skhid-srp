@@ -50,7 +50,7 @@
 //! | Setting | Default | What | Read by |
 //! |---|---|---|---|
 //! | `SRP_PVB` | off | the mode is offered (`on`) | the lobby, the match server |
-//! | `SRP_PVB_MAX_MATCHES` | 5 | the most matches against bots at once, 1 to 20; the match server keeps up to that many bots' maps in memory | the lobby, the match server |
+//! | `SRP_PVB_MAX_MATCHES` | 5 | the most matches against bots at once (private rooms' with bots too, `rooms`), 1 to 20; the match server keeps up to that many bots' maps in memory | the lobby, the match server |
 //! | `SRP_PVB_PAY` | 0.5 | the share of a match's silver and experience it pays, 0 to 1 | the rewards (`session::v026g::pvb`) |
 //! | `SRP_PVB_STALL_S` | 60 | a match whose only player uploads no world it is asked for this long is over, 10 to 3600 | the match server |
 //!
@@ -98,6 +98,9 @@ pub struct Config {
     pub max_gear: u8,
     /// `SRP_PVB_MAX_MATCHES` (default 5).
     pub max_matches: usize,
+    /// The maps a private room with bots may hold ([`bot_maps`]); none with
+    /// the mode off.
+    pub bot_maps: Vec<u8>,
 }
 
 impl Default for Config {
@@ -107,6 +110,7 @@ impl Default for Config {
             enabled: false,
             max_gear: rules().pvb.max_gear,
             max_matches: session::v026g::pvb::DEFAULT_MAX_MATCHES,
+            bot_maps: Vec::new(),
         }
     }
 }
@@ -114,22 +118,51 @@ impl Default for Config {
 impl Config {
     /// The environment's.
     pub fn from_env() -> Self {
+        let enabled = session::v026g::pvb::enabled();
+        let dir = std::env::var("SRP_MAPDATA_DIR").ok();
+        let dir = dir
+            .as_deref()
+            .map(str::trim)
+            .filter(|dir| !dir.is_empty() && !dir.eq_ignore_ascii_case("off"));
         let config = Self {
-            enabled: session::v026g::pvb::enabled(),
+            enabled,
             max_gear: rules().pvb.max_gear,
             max_matches: session::v026g::pvb::max_matches(),
+            bot_maps: match (enabled, dir) {
+                (true, Some(dir)) => bot_maps(maps::playable(), std::path::Path::new(dir)),
+                _ => Vec::new(),
+            },
         };
         if config.enabled {
             log::info!(
                 "Player vs Bots is on: equipment level {} at most, {} matches at once, pay {} of \
-                 silver and experience",
+                 silver and experience; {} maps for rooms with bots",
                 config.max_gear,
                 config.max_matches,
-                session::v026g::pvb::pay()
+                session::v026g::pvb::pay(),
+                config.bot_maps.len()
             );
         }
         config
     }
+}
+
+/// The maps of `maps` the server's bots play: in the modes they play
+/// (batteries, timed batteries, Team Deathmatch: not Research, which the
+/// match server refuses them, nor Blackout, which Play vs Bots never
+/// offered) and with a bots' map in `dir` (`SRP_MAPDATA_DIR`, the match
+/// server's: without one its bots only run their script).
+pub fn bot_maps<'a>(maps: impl Iterator<Item = &'a MapMode>, dir: &std::path::Path) -> Vec<u8> {
+    maps.filter(|map| {
+        matches!(
+            map.mode,
+            maps::GameMode::Batteries
+                | maps::GameMode::TimedBatteries
+                | maps::GameMode::TeamDeathmatch
+        ) && dir.join(mapdata::format::file_name(map.project)).is_file()
+    })
+    .map(|map| map.id)
+    .collect()
 }
 
 /// The offered maps as the dictionary has them.
@@ -171,17 +204,17 @@ fn why(code: PvbCode) -> &'static str {
 }
 
 impl Core<'_> {
-    /// The matches against bots running now (made, and not over at the
-    /// match server).
+    /// The matches the server's bots play in running now (made, and not
+    /// over at the match server): against bots, and rooms' with bots.
     pub(super) fn pvb_running(&self) -> usize {
         self.matches
             .values()
-            .filter(|running| running.vs_bots && self.host.is_open(running.ticket.match_id))
+            .filter(|running| running.server_bots && self.host.is_open(running.ticket.match_id))
             .count()
     }
 
     /// The choices held now for players other than `asker`.
-    fn pvb_held(&self, asker: u32, now: Instant) -> usize {
+    pub(super) fn pvb_held(&self, asker: u32, now: Instant) -> usize {
         self.pvb_holds
             .iter()
             .filter(|(account_id, hold)| **account_id != asker && hold.until > now)
@@ -463,5 +496,35 @@ mod tests {
             (config.max_gear, config.max_matches),
             (rules().pvb.max_gear, 5)
         );
+        assert!(config.bot_maps.is_empty());
+    }
+
+    /// The bots play a map of their modes with a bots' map file, nothing
+    /// else: every map has one here but those in batteries.
+    #[test]
+    fn the_bots_play_their_modes_maps_with_a_file() {
+        let dir = std::env::temp_dir().join(format!("srp-bot-maps-{}", std::process::id()));
+        std::fs::create_dir_all(&dir).unwrap();
+        let with_file: Vec<&MapMode> = maps::playable()
+            .filter(|map| map.mode != maps::GameMode::Batteries)
+            .collect();
+        for map in &with_file {
+            std::fs::write(dir.join(mapdata::format::file_name(map.project)), b"").unwrap();
+        }
+        let found = bot_maps(maps::playable(), &dir);
+        std::fs::remove_dir_all(&dir).unwrap();
+        let expected: Vec<u8> = maps::playable()
+            .filter(|map| {
+                matches!(
+                    map.mode,
+                    maps::GameMode::Batteries
+                        | maps::GameMode::TimedBatteries
+                        | maps::GameMode::TeamDeathmatch
+                ) && with_file.iter().any(|other| other.project == map.project)
+            })
+            .map(|map| map.id)
+            .collect();
+        assert!(!found.is_empty());
+        assert_eq!(found, expected);
     }
 }

@@ -1,10 +1,10 @@
-# Patch 110: the mouse look's pitch (docs/notes/mouse-pitch.md): 16:9's h / w
+# Patch 112: the mouse look's pitch (docs/notes/mouse-pitch.md): 16:9's h / w
 # at every window, and "Lock vertical sensitivity" (1:1 unticked) kept in
 # user.cfg. Only the decisions: which sites, and the handlers; the logic is
 # mouse_pitch.rs. configs.start after patches 79, 83, 81 and 88 (orders 1 to
 # 4), options.callback after patches 79 and 83 (1, 2).
 name = "mouse_pitch"
-patch = 110
+patch = 112
 
 [[hook]]
 site = "configs.start"

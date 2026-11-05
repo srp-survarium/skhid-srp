@@ -6,7 +6,7 @@ package
     import scaleform.clik.events.IndexEvent;
 
     // The controls tab's "Lock vertical sensitivity" and "Vertical
-    // sensitivity" (exe patch 110, docs/notes/mouse-pitch.md), under the stock
+    // sensitivity" (exe patch 112, docs/notes/mouse-pitch.md), under the stock
     // Mouse sensitivity slider. The exe keeps both in user.cfg
     // (srp_mouse_vertical_locked, on by default; srp_mouse_vertical): it
     // answers ExternalInterface.call(LOCKED[, "1" or "0"]) with

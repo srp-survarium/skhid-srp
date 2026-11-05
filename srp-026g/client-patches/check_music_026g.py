@@ -42,6 +42,9 @@ thread). Checked:
 - the unload: the voice and the sound let go at once;
 - a bus the engine refuses (a null first result): logged, asked again once
   at the next screen, a second refusal logged and nothing asked after;
+- the login screen's chain: after the theme, patch 83's handler deletes the
+  game's `dxvk.pending` (DeleteFileA, stub 0x87021C; docs/notes/dxvk-option.md),
+  the lobby deletes nothing;
 - the Music slider: `s_music_volume` registered at on_configs_loaded's start
   (after patches 79's and 83's), found by the console's lookup (0xEB7C0, the
   stock option's), a saved kind-2 cc_float of 0 to 100 at 100; the game's
@@ -72,6 +75,7 @@ INVOKER = 0x3AAA20                       # the bound cdecl function's invoker (v
 FUNCTION_VTABLE, PARAMS_HELPER = 0x9DB9E0, 0x9FC7C0
 QPC_SLOT, QPF_SLOT, THREAD_SLOT = 0x870158, 0x870150, 0x870118
 CREATE_FILE_SLOT, WRITE_FILE_SLOT, CLOSE_SLOT = 0x870048, 0x870108, 0x870040   # the log's kernel32
+DELETE_FILE_SLOT = 0x87021C             # DeleteFileA: patch 83's DXVK marker, at the login screen
 FREQUENCY = 10_000_000
 HEAP, STUBS, STACK = 0x30000000, 0x31000000, 0x32000000
 GAME, WORLD, USER, SCENE, RESULTS, UI = (HEAP + 0x10000 * i for i in range(6))
@@ -117,6 +121,12 @@ class Game:
             self.word(slot, stub)
             emu.mem_write(stub, code)
         emu.hook_add(UC_HOOK_CODE, self.write_file, begin=STUBS + 0xA0, end=STUBS + 0xA0)
+        # DeleteFileA (stdcall 1): the names kept
+        self.deleted = []
+        self.word(DELETE_FILE_SLOT, STUBS + 0xC0)
+        emu.mem_write(STUBS + 0xC0, b"\xB8\x01\x00\x00\x00\xC2\x04\x00")
+        emu.hook_add(UC_HOOK_CODE, lambda emu, *_: self.deleted.append(self.text(self.read(emu.reg_read(UC_X86_REG_ESP) + 4))),
+                     begin=STUBS + 0xC0, end=STUBS + 0xC0)
         self.calls = []
         self.proxies = 0
         for stub in (QUERY, EMIT, PLAY, FREE_VOICE, RELEASE, SSCANF, INVALID):
@@ -343,7 +353,7 @@ def main():
     name = game.put_text("s_music_volume")
     node = game.call(FIND, {UC_X86_REG_ESI: name})[UC_X86_REG_EAX]
     music_value = game.read(node + 0x40) if node else 0
-    registered = game.read(LIST_HEAD)                 # the chain's newest (patch 110's registers after this one)
+    registered = game.read(LIST_HEAD)                 # the chain's newest (patch 112's registers after this one)
     check(node and game.read(node) == CC_FLOAT_VTABLE
           and game.text(game.read(node + 0x10)) == "s_music_volume" and game.read(node + 0x14) == 2
           and game.read(node + 0x1C, 2)[1] == 1 and (game.float(node + 0x44), game.float(node + 0x48)) == (0.0, 100.0)
@@ -363,7 +373,8 @@ def main():
           "the least; 62.50; 100")
     check(run("sound", EDI=WORLD, EBX=10) == [] and game.read(WORLD + 0x48E4) == 0,
           "the sound thread's tick before the bus: the world untouched")
-    check(run("login", ESI=HEAP + 0x200) == [], "the login screen before the first frame: the theme waits")
+    check(run("login", ESI=HEAP + 0x200) == [] and game.deleted == ["dxvk.pending"],
+          f"the login screen before the first frame: the theme waits; patch 83 deletes the DXVK marker ({game.deleted})")
     calls = run("frame", EBX=GAME)
     q = calls[0] if calls else None
     function = q[4] if q else bytes(0x20)
@@ -439,6 +450,7 @@ def main():
 
     calls = run("lobby", EDI=HEAP + 0x300)
     check(calls == [], "the lobby: nothing asked while the main theme fades out")
+    check(game.deleted == ["dxvk.pending"], f"the lobby: nothing more deleted ({game.deleted})")
     frames(1000)
     check(abs(volume() - 0.5) < 0.02 and not any(c[0] == "query" for c in game.calls),
           f"half way out a second later ({volume():.3f})")

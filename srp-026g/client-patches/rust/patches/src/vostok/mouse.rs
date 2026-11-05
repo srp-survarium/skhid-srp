@@ -1,4 +1,4 @@
-//! The mouse look's steps (patch 110, docs/notes/mouse-pitch.md).
+//! The mouse look's steps (patch 112, docs/notes/mouse-pitch.md).
 //!
 //! `player_input_handler::on_mouse_move` (0x240200) turns the yaw by
 //! x * pi/180 * s radians, s the yaw's step (the handler's fov factor +94h x
