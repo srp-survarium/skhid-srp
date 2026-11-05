@@ -173,8 +173,9 @@ package
             var left:Array = [c.s_friends, c._setter_invite, c._setter_message, c._set_censure, c._only_friends, c._no_in_batle,
                 c._hide_spam, language, menu];
             if (note.visible) left.push(note);
-            var right:Array = [heading, cross].concat(boxes, [c._setter_static_show_quests, c._setter_static_minimap,
-                c._setter_static_minimap_position]);
+            // Names on map (the last box) with the map's rows, over Static minimap
+            var right:Array = [heading, cross, boxes[0], boxes[1], c._setter_static_show_quests, boxes[2], c._setter_static_minimap,
+                c._setter_static_minimap_position];
             var bottom:Number = c.bottomContainer.getBounds(content).bottom;
             for each (var column:Array in [left, right])
             {
@@ -206,7 +207,7 @@ package
             require(near(language.y - c._hide_spam.y, stock.gap) && near(menu.y - language.y, stock.leftFirst),
                 when + ": Language the tab's gap under Friends, its list as Friends' first checkbox");
             require(near(cross.y - heading.y, stock.rightFirst), when + ": the crosshair list under the heading as Crosshair's first control was");
-            var steps:Array = [cross].concat(boxes, [c._setter_static_show_quests, c._setter_static_minimap]);
+            var steps:Array = [cross, boxes[0], boxes[1], c._setter_static_show_quests, boxes[2], c._setter_static_minimap];
             for (i = 1; i < steps.length; ++i)
             {
                 require(near(steps[i].y - steps[i - 1].y, stock.step), when + ": the HUD rows a step apart (" + steps[i].name + ")");

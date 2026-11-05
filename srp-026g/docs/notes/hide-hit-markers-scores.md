@@ -10,9 +10,9 @@ The owner (2026-10-30, for release 40): "allow hiding hit markers (UI change) an
 
 - **Where:** Settings, Gameplay, a group of its own, "HUD:", at the top of the right column
   (`../images/hide-options-settings.png`), in this order: the crosshair list (Dynamic crosshair,
-  Static crosshair, Hidden crosshair), "Hide hit markers", "Hide player scores", "Names on map"
-  (the Tab map's names without Alt, Alt hiding them: `tab-map-names.md`), "Hide quests",
-  "Static minimap", the minimap position list. The tab's own look: the heading as "Friends:" is,
+  Static crosshair, Hidden crosshair), "Hide hit markers", "Hide player scores", "Hide quests",
+  then the map's rows: "Names on map" (the Tab map's names without Alt, Alt hiding them:
+  `tab-map-names.md`), "Static minimap", the minimap position list. The tab's own look: the heading as "Friends:" is,
   plain checkboxes and the stock list, the same spacing.
 - **The tab's groups** (the owner, 2026-10-31: "quest progress I think is part of the HUD too",
   "and map"; the crosshair a list in HUD; "Language:" under Friends): left "Friends:", then
@@ -35,11 +35,13 @@ The owner (2026-10-30, for release 40): "allow hiding hit markers (UI change) an
     the minimap does not turn with the view (north up; the hud's `set_rotable(false)`, the player
     arrow turns instead). Its value and behaviour are the stock ones.
   - **The minimap position list** (`_setter_static_minimap_position`: off, lower left, upper left)
-    as it was, its off choice named "Hidden minimap" as the crosshair list's "Hidden crosshair"
-    (the owner, 2026-10-31: "minimap off and hidden crosshair are inconsistent"; the stock key
-    `st_minimap_off`, which only this list uses, in every dictionary;
-    `../images/hide-options-minimap.png`). These two are the game's only map settings (no other
-    tab has any).
+    as it was, its choices named for the minimap (the owner, 2026-11-05: a bare "Upper left corner"
+    says nothing): "Hidden minimap", "Minimap lower left", "Minimap upper left" (the stock keys
+    `st_minimap_off`, `st_minimap_bottom`, `st_minimap_top`, which only this list uses); the off
+    choice named as the crosshair list's "Hidden crosshair" (the owner, 2026-10-31: "minimap off
+    and hidden crosshair are inconsistent"; `../images/hide-options-minimap.png`). Russian,
+    Ukrainian and Belarusian say only up or down ("Миникарта вверху"): with "left" they do not fit
+    the list. With "Names on map" these are the game's only map settings (no other tab has any).
 - **The crosshair list:** Dynamic and Static are the stock static crosshair setting
   (`_setter_static_cross`: unchecked Dynamic, checked Static), so the stock values carry over; a
   pick of either sets it, which reaches the exe as the tab's own change. Hidden is patch 83's

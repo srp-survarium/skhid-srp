@@ -1482,11 +1482,11 @@ st_microphone_sensitivity_option	Osetljivost mikrofona
 st_military_medkit_description	Potpuno leči ruke i noge. Obnavlja 60% zdravlja trupa i glave i ublažava bol za 50%.
 st_military_medkit_name	Vojna prva pomoć
 st_minimap	Mini-mapa
-st_minimap_bottom	Donji levi ugao
+st_minimap_bottom	Mini-mapa dole levo
 st_minimap_off	Skrivena mini-mapa
 st_minimap_position	Položaj mini-mape
 st_minimap_rotable_option	Fiksiraj mini-mapu
-st_minimap_top	Gornji levi ugao
+st_minimap_top	Mini-mapa gore levo
 st_missile_weapon_action	Granata
 st_missions	Zadaci
 st_mm_button_back	Nazad

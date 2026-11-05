@@ -1482,11 +1482,11 @@ st_microphone_sensitivity_option	Mikrofonin herkkyys
 st_military_medkit_description	Parantaa kädet ja jalat täysin. Palauttaa 60% vartalon ja pään terveydestä ja vähentää kipua 50%.
 st_military_medkit_name	Sotilasensiapupakkaus
 st_minimap	Pienoiskartta
-st_minimap_bottom	Vasen alakulma
+st_minimap_bottom	Pienoiskartta alhaalla
 st_minimap_off	Piilotettu pienoiskartta
 st_minimap_position	Pienoiskartan sijainti
 st_minimap_rotable_option	Lukitse pienoiskartta
-st_minimap_top	Vasen yläkulma
+st_minimap_top	Pienoiskartta ylhäällä
 st_missile_weapon_action	Kranaatti
 st_missions	Tehtävät
 st_mm_button_back	Takaisin

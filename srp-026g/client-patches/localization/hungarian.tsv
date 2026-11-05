@@ -1482,11 +1482,11 @@ st_microphone_sensitivity_option	Mikrofon érzékenysége
 st_military_medkit_description	Teljesen meggyógyítja a karokat és lábakat. A törzs és a fej életerejének 60%-át visszaállítja, és 50%-kal csökkenti a fájdalmat.
 st_military_medkit_name	Katonai elsősegélycsomag
 st_minimap	Minitérkép
-st_minimap_bottom	Bal alsó sarok
+st_minimap_bottom	Minitérkép bal lent
 st_minimap_off	Rejtett minitérkép
 st_minimap_position	Minitérkép helye
 st_minimap_rotable_option	Minitérkép rögzítése
-st_minimap_top	Bal felső sarok
+st_minimap_top	Minitérkép bal fent
 st_missile_weapon_action	Gránát
 st_missions	Feladatok
 st_mm_button_back	Vissza

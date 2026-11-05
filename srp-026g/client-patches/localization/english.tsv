@@ -1482,11 +1482,11 @@ st_microphone_sensitivity_option	Microphone sensitivity
 st_military_medkit_description	Fully heals arms and legs. Restores 60% of body and head and 50% of pain.
 st_military_medkit_name	Military Medkit
 st_minimap	Minimap
-st_minimap_bottom	Lower left corner
+st_minimap_bottom	Minimap lower left
 st_minimap_off	Hidden minimap
 st_minimap_position	Minimap position
 st_minimap_rotable_option	Fix minimap
-st_minimap_top	Upper left corner
+st_minimap_top	Minimap upper left
 st_missile_weapon_action	Grenade
 st_missions	Missions
 st_mm_button_back	Back
