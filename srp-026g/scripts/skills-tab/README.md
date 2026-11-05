@@ -5,12 +5,17 @@ every branch of the skill tree as the lobby draws it.
 
 - One card per branch the tree has (the wiki's card look), named as the game names its tab.
 - Each skill at its column and tier, its icon drawn as the lobby's skill renderer draws it (plate,
-  branch tint, rim), with its tier numeral and one pip per rank.
-- Each tier's threshold (branch points) at its left.
+  branch tint, rim) with its rank indicator (the lobby's pips on the disc's lower arc, empty).
+- Each tier's numeral and threshold on one line at its left.
 - Either/or skills marked "or"; hovering one shows the renderer's red lock on what it excludes,
   as the lobby does; hovering any shows its hover rim.
 - A skill that needs more points than its branch can hold carries the renderer's lock.
-- Hover or tap: the name, the description, each rank's value in the game's green.
+- The tooltip is the lobby's: the name, a line, the text the exe writes for a player without the
+  skill (the next rank's value in the game's green, "Current value"). It follows a mouse's hover;
+  a tap opens it, a tap or a scroll closes it; it opens below the skill, or above when there is
+  no room, and never moves the page.
+- A tree is never squeezed: a card that does not fit goes to the next row; on a phone the whole
+  tree scales down.
 - English and Ukrainian, like the rest of the wiki; the site's colours and type around the
   game's own pictures.
 

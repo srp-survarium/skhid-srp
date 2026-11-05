@@ -1,5 +1,6 @@
 // Built by srp-026g/scripts/skills-tab/build.py; do not edit. The files the skills page names.
 files! {
+    "skills.js" => "text/javascript; charset=utf-8",
     "icons/101.webp" => "image/webp",
     "icons/102.webp" => "image/webp",
     "icons/103.webp" => "image/webp",
@@ -39,4 +40,8 @@ files! {
     "icons/lock-red.webp" => "image/webp",
     "icons/lock.webp" => "image/webp",
     "icons/over.webp" => "image/webp",
+    "icons/pips-1.webp" => "image/webp",
+    "icons/pips-2.webp" => "image/webp",
+    "icons/pips-3.webp" => "image/webp",
+    "icons/pips-5.webp" => "image/webp",
 }

@@ -166,16 +166,22 @@ mod tests {
             assert!(page.body.contains(&format!("lang=\"{}\"", lang.code())));
             assert!(page.body.contains("class=\"skill-branch\""));
             assert!(page.body.contains("data-skill=\"101\""));
-            let icons: Vec<&str> = page
+            let files: Vec<&str> = page
                 .body
-                .match_indices("/skills/icons/")
-                .map(|(at, _)| page.body[at..].split_once("?v=").unwrap().0)
+                .match_indices("\"/skills/")
+                .map(|(at, _)| page.body[at + 1..].split_once("?v=").unwrap().0)
                 .collect();
-            assert!(!icons.is_empty());
-            for icon in icons {
-                let (content_type, bytes) = skills::file(icon).unwrap_or_else(|| panic!("{icon}"));
-                assert_eq!(content_type, "image/webp");
-                assert!(!bytes.is_empty(), "{icon}");
+            assert!(files.iter().any(|file| file.starts_with("/skills/icons/")));
+            assert!(files.contains(&"/skills/skills.js"));
+            for file in files {
+                let (content_type, bytes) = skills::file(file).unwrap_or_else(|| panic!("{file}"));
+                let kind = if file.ends_with(".js") {
+                    "text/javascript; charset=utf-8"
+                } else {
+                    "image/webp"
+                };
+                assert_eq!(content_type, kind, "{file}");
+                assert!(!bytes.is_empty(), "{file}");
             }
         }
     }

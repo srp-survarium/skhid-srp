@@ -12,13 +12,12 @@ in their order, as the game does. Nothing about a skill is written here: of
 as the exe's fill_skills_properties 0x223a70 makes it), place in the tree
 (`ui.position`: column, tier), threshold (`preconditions.branch_points`),
 exclusions (`preconditions.antiskills`), ranks (`levels_amount`), name and
-description (`ui.name`, `ui.description`) and the value of each rank, from
-`ui.skill_descriptions` and `ui.postfix` as the exe writes the lobby's
-tooltip: per rank r, description + d[r][0] + postfix + d[r][2], and below the
-last rank + "Current value:" + d[r][1] + postfix + d[r][3]. A rank's value
-here is the one the tooltip calls current at it (d[r][1], the last rank's
-d[r][0]). `ui.invert_sign` is read by nothing in the exe: the strings carry
-their signs. The texts are the English and Ukrainian localization; a branch's
+description (`ui.name`, `ui.description`), and the tooltip as the lobby
+shows it to a player without the skill: the exe's text for rank 0, from
+`ui.skill_descriptions` and `ui.postfix` (per rank r, description + d[r][0] +
+postfix + d[r][2], and below the last rank + "Current value:" + d[r][1] +
+postfix + d[r][3]), laid out as PerkTipRenderer lays it out. `ui.invert_sign`
+is read by nothing in the exe: the strings carry their signs. The texts are the English and Ukrainian localization; a branch's
 name is the label the exe gives its tab (BRANCHES).
 
 The icons are the lobby's, from flash_movies/lobby_menu.swf through FFDec,
@@ -29,10 +28,13 @@ rim); a skill that `survarium.char.MedicalSkillIcon` names (its `show` switch)
 has that bitmap, fitted to the icon sets' box; any other is frame `ui.icon` + 1
 of the icon set PerkIconContainer places at frame branch + 1 (the movie's
 SkillListRenderer). The renderer's overSprite, lockSprite and lockSpriteRed
-are the page's hover, locked and excluded states.
+are the page's hover, locked and excluded states; its skillProgressIndicator
+(SkillProgressIndicator: SkillListRenderer's pip class on an arc of `radius`,
+`angleStep` apart) is drawn empty, one pip a rank.
 
 Writes <out>/skills.<lang>.html (the wiki page's body, the server adds the
-site's header), <out>/icons/<id>.webp, <out>/files.rs (those files, for the
+site's header), <out>/icons/<id>.webp, <out>/skills.js (the tooltip: hover, taps, keys;
+placed out of the page's flow), <out>/files.rs (those files, for the
 server's include) and <out>/built-from.tsv (the patches it was built from:
 release/release.sh rebuilds the page, through release/build-site, when it
 offers others). Needs pillow and java on PATH.
@@ -40,6 +42,7 @@ offers others). Needs pillow and java on PATH.
 import argparse
 import hashlib
 import html
+import math
 import re
 import shutil
 import struct
@@ -70,14 +73,12 @@ BRANCHES = ("st_shooting_skills_label", "st_physical_skills_label", "st_survival
 NUMERALS = ("I", "II", "III", "IV", "V", "VI")
 SITE = "/skills"
 ICON_SIZE = 128
-TYPES = {"webp": "image/webp"}
+TYPES = {"webp": "image/webp", "js": "text/javascript; charset=utf-8"}
 # The page's own words; the rest is the game's.
 WORDS = {
     "title": ("Skills", "Навички"),
     "wiki": ("Wiki", "Вікі"),
     "or": ("or", "або"),
-    "excludes": ("Not with: {}", "Не разом з: {}"),
-    "locked": ("Needs {} in the branch", "Потрібно {} у гілці"),
 }
 # The lobby's skill renderer, and its sprites for the states: hovered, locked (its tier not
 # reached), excluded (another skill excluding it is hovered).
@@ -85,6 +86,10 @@ RENDERER = "SrvSkillRendererCh"
 OVERLAYS = {"over": "overSprite", "lock": "lockSprite", "lock-red": "lockSpriteRed"}
 SVG, FFDEC = "http://www.w3.org/2000/svg", "https://www.free-decompiler.com/flash"
 SHAPES = {2, 22, 32, 83}
+# The movie's scripts read: the medical icons, the rank indicator, the skill renderer.
+SCRIPTS = ("survarium.char.MedicalSkillIcon", "survarium.char.SkillProgressIndicator",
+           "survarium.buttons.SkillListRenderer")
+ZOOM = 2
 PLACE_OBJECT2, PLACE_OBJECT3, REMOVE_OBJECT, REMOVE_OBJECT2, SHOW_FRAME, DEFINE_SPRITE = 26, 70, 5, 28, 1, 39
 
 
@@ -132,26 +137,62 @@ def sprite_frames(tags, sprite):
 
 
 def renderer_layers(svg):
-    """SrvSkillRendererCh's children as FFDec draws it: [(character id, instance name or None)],
-    bottom to top."""
+    """SrvSkillRendererCh's children as FFDec draws it, bottom to top: [(character id, instance
+    name or None, (x, y) of its box's centre)], in the renderer's units."""
     root = ElementTree.fromstring(svg)
     frame = next(iter(root))
-    return [(int(use.get(f"{{{FFDEC}}}characterId")), use.get("id")) for use in frame.iter(f"{{{SVG}}}use")
-            if use.get(f"{{{FFDEC}}}characterId")]
+    layers = []
+    for use in frame.iter(f"{{{SVG}}}use"):
+        if not use.get(f"{{{FFDEC}}}characterId"):
+            continue
+        x, y = map(float, re.findall(r"-?[\d.]+", use.get("transform"))[4:6])
+        layers.append((int(use.get(f"{{{FFDEC}}}characterId")), use.get("id"),
+                       (x + float(use.get("width")) / 2, y + float(use.get("height")) / 2), (x, y)))
+    return layers
+
+
+def script(work, name):
+    path = work / "script" / "scripts" / Path(*name.split(".")).with_suffix(".as")
+    if not path.is_file():
+        die(f"lobby_menu.swf: FFDec made no script of {name}")
+    return path.read_text()
+
+
+def found(pattern, text, what):
+    match = re.search(pattern, text)
+    if not match:
+        die(f"lobby_menu.swf: {what}")
+    return match.groups()
 
 
 def icons(args, raw, work, tree, out):
-    """{skill id: the icon's address} and {overlay: its address}: each skill's lobby icon as
-    the skill renderer draws it, as webp in <out>/icons/, and the renderer's state overlays."""
+    """{skill id: the icon's address}, {overlay: its address} and the disc's size in renderer
+    units: each skill's lobby icon as the skill renderer draws it, as webp in <out>/icons/, the
+    renderer's state overlays and its rank indicator (empty) for each number of ranks."""
     movie = raw / "flash_movies__lobby_menu.swf"
     ffdec = ["java", "-jar", args.ffdec]
-    subprocess.run(ffdec + ["-selectclass", "survarium.char.MedicalSkillIcon", "-export", "script",
-                            str(work / "script"), str(movie)], check=True, capture_output=True)
-    source = (work / "script" / "scripts" / "survarium" / "char" / "MedicalSkillIcon.as").read_text()
-    bitmaps = {int(i): cls for i, cls in re.findall(r"case (\d+):\s*\w+ = (\w+);", source)}
+    subprocess.run(ffdec + ["-selectclass", ",".join(SCRIPTS), "-export", "script", str(work / "script"), str(movie)],
+                   check=True, capture_output=True)
+    bitmaps = {int(i): cls for i, cls in re.findall(r"case (\d+):\s*\w+ = (\w+);", script(work, SCRIPTS[0]))}
+    # The rank indicator: SkillListRenderer's pip class; SkillProgressIndicator lays the pips
+    # on an arc (radius, angleStep), each at frame `filled` below the rank, `empty` above it.
+    pip_class, = found(r"skillProgressIndicator\.registerRenderer\((\w+)\)", script(work, SCRIPTS[2]), "no pip class")
+    indicator = script(work, SCRIPTS[1])
+    radius, = found(r"radius:uint = (\d+)", indicator, "no indicator radius")
+    # The arc's first angle: -90 - count / 2 * step + step / 2, the step a local of FFDec's naming.
+    arc = re.search(r"= -90 - \w+ / 2 \* (\w+) \+ \w+ / 2;", indicator)
+    if not arc:
+        die("lobby_menu.swf: no indicator arc")
+    # Its value: the last one given it before (FFDec declares it 0 first).
+    steps = re.findall(rf"\b{arc.group(1)}(?::\w+)? = (\d+);", indicator[:arc.start()])
+    if not steps:
+        die("lobby_menu.swf: no indicator angle step")
+    step = steps[-1]
+    _, empty = found(r"< _value \? (\d+) : (\d+)\)", indicator, "no pip frames")
+    radius, step, empty = int(radius), int(step), int(empty)
     _, tags = swf.split(movie.read_bytes())
     ids = {name: cid for cid, name in swf.symbol_classes(tags)}
-    for name in ("PerkIconContainer", RENDERER):
+    for name in ("PerkIconContainer", RENDERER, pip_class):
         if name not in ids:
             die(f"lobby_menu.swf: no {name}")
 
@@ -166,16 +207,20 @@ def icons(args, raw, work, tree, out):
     subprocess.run(ffdec + ["-format", "sprite:svg", "-selectid", str(ids[RENDERER]), "-export", "sprite",
                             str(work / "renderer"), str(movie)], check=True, capture_output=True)
     layers = renderer_layers(next((work / "renderer").glob("*/1.svg")).read_text())
-    named = {name: cid for cid, name in layers if name}
-    for name in ("background", "iconContainer", *OVERLAYS.values()):
+    named = {name: (cid, centre, origin) for cid, name, centre, origin in layers if name}
+    for name in ("background", "iconContainer", "skillProgressIndicator", *OVERLAYS.values()):
         if name not in named:
             die(f"lobby_menu.swf: {RENDERER} has no {name}")
-    at = [cid for cid, _ in layers].index(named["iconContainer"])
+    cids = [cid for cid, *_ in layers]
+    at = cids.index(named["iconContainer"][0])
     shapes = {struct.unpack_from("<H", swf.payload(r))[0] for k, r in tags if k in SHAPES}
-    under = [cid for cid, name in layers[:at] if name in (None, "background")]
-    over = [cid for cid, name in layers[at + 1:] if name is None and cid in shapes]
+    under = [cid for cid, name, *_ in layers[:at] if name in (None, "background")]
+    over = [cid for cid, name, *_ in layers[at + 1:] if name is None and cid in shapes]
+    # The disc's centre: the plate's, the renderer's first layer.
+    centre = layers[0][2]
     # The background's one child, its frame branch + 1 the branch's tint.
-    tint = only_child(named["background"])
+    background = named["background"][0]
+    tint = only_child(background)
     wanted = {}
     for s in tree:
         if s["id"] in bitmaps:
@@ -186,9 +231,9 @@ def icons(args, raw, work, tree, out):
             wanted[s["id"]] = ("sprite", sets[s["branch"]], s["icon"] + 1)
         else:
             die(f"skill {s['id']}: no icon (MedicalSkillIcon has none, PerkIconContainer no frame {s['branch'] + 1})")
-    chars = {cid for _, cid, _ in wanted.values()} | set(under) | set(over) | {tint, named["iconContainer"]}
-    chars |= {named[n] for n in OVERLAYS.values()} | set(sets)
-    subprocess.run(ffdec + ["-format", "sprite:png,shape:png,image:png", "-zoom", "2",
+    chars = {cid for _, cid, _ in wanted.values()} | set(under) | set(over) | {tint, named["iconContainer"][0]}
+    chars |= {named[n][0] for n in OVERLAYS.values()} | set(sets) | {ids[pip_class]}
+    subprocess.run(ffdec + ["-format", "sprite:png,shape:png,image:png", "-zoom", str(ZOOM),
                             "-selectid", ",".join(map(str, sorted(chars))), "-export", "sprite,shape,image",
                             str(work / "art"), str(movie)], check=True, capture_output=True)
 
@@ -204,26 +249,40 @@ def icons(args, raw, work, tree, out):
             die(f"lobby_menu.swf: FFDec made no picture of {cid}" + (f" frame {frame}" if frame else ""))
         return Image.open(found[0]).convert("RGBA")
 
-    # The layers are concentric discs: each is centred on one canvas.
-    under_art = {cid: art(cid) for cid in under if cid != named["background"]}
-    over_art = [art(cid) for cid in over]
-    side = max(im.width for im in [*under_art.values(), *over_art, art(tint)])
+    def pips(count):
+        """Each pip's centre from the disc's centre, in renderer units (SkillProgressIndicator)."""
+        ox, oy = named["skillProgressIndicator"][2]
+        angle = int(-90 - count / 2 * step + step / 2)
+        spots = []
+        for j in range(count):
+            a = math.radians(angle + j * step)
+            spots.append((ox + math.cos(a) * radius - centre[0], oy - radius - math.sin(a) * radius - centre[1]))
+        return spots
 
-    def centred(im, canvas=None):
+    pip = art(ids[pip_class], empty)
+    counts = sorted({s["ranks"] for s in tree if s["ranks"]})
+    reach = max((max(abs(x), abs(y)) for n in counts for x, y in pips(n)), default=0) * ZOOM + max(pip.size) / 2
+    # The layers are concentric discs: each is centred on one canvas, big enough for the pips.
+    under_art = {cid: art(cid) for cid in under if cid != background}
+    over_art = [art(cid) for cid in over]
+    plate = max(im.width for im in [*under_art.values(), *over_art, art(tint)])
+    side = math.ceil(max(plate, 2 * reach))
+
+    def centred(im, canvas=None, offset=(0, 0)):
         canvas = canvas or Image.new("RGBA", (side, side))
         box = im.getbbox() or (0, 0, im.width, im.height)
         cx, cy = (box[0] + box[2]) / 2, (box[1] + box[3]) / 2
         layer = Image.new("RGBA", canvas.size)
-        layer.paste(im, (round(side / 2 - cx), round(side / 2 - cy)))
+        layer.paste(im, (round(side / 2 + offset[0] - cx), round(side / 2 + offset[1] - cy)))
         return Image.alpha_composite(canvas, layer)
 
     def save(im, name):
-        im = im.resize((ICON_SIZE, ICON_SIZE), Image.LANCZOS)
+        im = im.resize((round(ICON_SIZE * side / plate),) * 2, Image.LANCZOS)
         path = out / "icons" / f"{name}.webp"
         im.save(path, "WEBP", quality=90, method=6)
         return f"{SITE}/icons/{name}.webp?v={version(path.read_bytes())}"
 
-    mask = centred(art(named["iconContainer"])).getchannel("A")
+    mask = centred(art(named["iconContainer"][0])).getchannel("A")
     frame_size = art(sets[0]).size
     (out / "icons").mkdir(parents=True)
     urls = {}
@@ -231,7 +290,7 @@ def icons(args, raw, work, tree, out):
         branch = skill // 100 - 1
         canvas = Image.new("RGBA", (side, side))
         for c in under:
-            canvas = centred(art(tint, branch + 1) if c == named["background"] else under_art[c], canvas)
+            canvas = centred(art(tint, branch + 1) if c == background else under_art[c], canvas)
         icon = art(cid, frame)
         if kind == "image":
             # MedicalSkillIcon fits its bitmap to the icon set's box.
@@ -242,13 +301,30 @@ def icons(args, raw, work, tree, out):
         for im in over_art:
             canvas = centred(im, canvas)
         urls[skill] = save(canvas, skill)
-    overlays = {key: save(centred(art(named[name])), key) for key, name in OVERLAYS.items()}
-    return urls, overlays
+    overlays = {key: save(centred(art(named[name][0])), key) for key, name in OVERLAYS.items()}
+    for n in counts:
+        canvas = Image.new("RGBA", (side, side))
+        for x, y in pips(n):
+            canvas = centred(pip, canvas, (x * ZOOM, y * ZOOM))
+        overlays[f"pips-{n}"] = save(canvas, f"pips-{n}")
+    return urls, overlays, side / plate
 
 
-def plain(text):
-    """A game string without its markup (<green>...)."""
-    return re.sub(r"<[^>]*>", "", str(text)).strip()
+def tooltip(skill, text, rank=0):
+    """The lobby's tooltip text of `skill` at `rank` as fill_skills_properties writes it, as
+    HTML: description + d[r][0] + postfix + d[r][2], below the last rank + st_current_value +
+    d[r][1] + postfix + d[r][3]; the markup (<green>) as the movie's stylesheet draws it."""
+    said = text(skill["description"])
+    if skill["postfix"]:
+        d, postfix = [str(part) for part in skill["rows"][rank]], text(skill["postfix"])
+        said += d[0] + postfix + d[2]
+        if rank < skill["ranks"]:
+            said += text("st_current_value") + d[1] + postfix + d[3]
+    said = html.escape(said.strip())
+    said = said.replace("&lt;green&gt;", '<span class="skill-value">').replace("&lt;/green&gt;", "</span>")
+    said = re.sub(r"&lt;/?\w+&gt;", "", said).replace("\n", "<br>")
+    # A value stays on its label's line.
+    return re.sub(r'\s*<span class="skill-value">\s*', '&nbsp;<span class="skill-value">', said)
 
 
 def skills_of(raw):
@@ -264,19 +340,16 @@ def skills_of(raw):
         if not 0 <= branch < len(BRANCHES):
             die(f"skill {entry['id']}: branch {branch} has no tab in the exe")
         rows = ui.get("skill_descriptions") or []
-        values = []
-        if ui.get("postfix"):
-            if len(rows) != ranks + 1:
-                die(f"skill {entry['id']}: {len(rows)} skill_descriptions for {ranks} ranks")
-            values = [(rows[r][1], rows[r][3]) if r < ranks else (rows[r][0], rows[r][2]) for r in range(1, ranks + 1)]
+        if ui.get("postfix") and len(rows) != ranks + 1:
+            die(f"skill {entry['id']}: {len(rows)} skill_descriptions for {ranks} ranks")
         tree.append({"id": entry["id"], "branch": branch, "column": column, "tier": tier, "ranks": ranks,
                      "needs": pre.get("branch_points", 0), "excludes": pre.get("antiskills") or [],
                      "icon": ui["icon"], "name": ui["name"], "description": ui["description"],
-                     "postfix": ui.get("postfix"), "values": values})
+                     "postfix": ui.get("postfix"), "rows": rows})
     return tree
 
 
-def page(lang, tree, texts, urls, overlays):
+def page(lang, tree, texts, urls, overlays, disc, script_url):
     """The wiki page's body in `lang`."""
     i = 0 if lang == "en" else 1
 
@@ -288,18 +361,20 @@ def page(lang, tree, texts, urls, overlays):
 
     word = lambda key: WORDS[key][i]
     esc = html.escape
-    by_id = {s["id"]: s for s in tree}
     columns = max(s["column"] for s in tree)
     out = [f'<p class="breadcrumb"><a href="/wiki?lang={lang}">{word("wiki")}</a> / {word("title")}</p>',
            f'<div class="wiki-heading"><div><h1>{word("title")}</h1></div></div>',
-           '<div class="skill-trees">']
+           f'<div class="skill-trees" style="--disc:{disc:.4f}">']
     # The exclusions: hovering a skill locks what it excludes in red, as the lobby does.
-    style = [f'.skill-trees:has([data-skill="{s["id"]}"]:is(:hover,:focus)) [data-skill="{x}"] .skill-lock-red'
-             for s in tree for x in s["excludes"]]
-    if style:
-        out.append(f'<style>{",".join(style)}{{display:block}}</style>')
+    # (A hovered skill with a mouse; an opened one, tapped; a focused one, keyboard.)
+    style = lambda state: ",".join(
+        f'.skill-trees:has([data-skill="{s["id"]}"]{state}) [data-skill="{x}"] .skill-lock-red'
+        for s in tree for x in s["excludes"])
+    if style(""):
+        out.append(f'<style>{style(":is(.open,:focus-visible)")}{{display:block}}'
+                   f'@media(hover:hover){{{style(":hover")}{{display:block}}}}</style>')
     excluded = {x for s in tree for x in s["excludes"]}
-    overlay = lambda key: f'<img class="skill-{key}" src="{overlays[key]}" alt="" width="64" height="64" loading="lazy">'
+    overlay = lambda key: f'<img class="skill-{key.split("-")[0] if key.startswith("pips") else key}" src="{overlays[key]}" alt="" loading="lazy">'
     for branch in sorted({s["branch"] for s in tree}):
         skills = sorted((s for s in tree if s["branch"] == branch), key=lambda s: (s["tier"], s["column"]))
         tiers = sorted({s["tier"] for s in skills})
@@ -309,34 +384,25 @@ def page(lang, tree, texts, urls, overlays):
         out.append(f'<section class="skill-branch"><h2>{esc(text(BRANCHES[branch]))}</h2>'
                    f'<div class="skill-grid" style="--columns:{columns}">')
         for t in tiers:
-            out.append(f'<div class="skill-tier" style="grid-row:{t}">{points(lang, needs[t])}</div>')
+            out.append(f'<div class="skill-tier" style="grid-row:{t}"><b>{NUMERALS[t - 1]}</b> · {points(lang, needs[t])}</div>')
         for s in skills:
             name = text(s["name"])
             reach = sum(o["ranks"] for o in skills if o is not s and o["needs"] < s["needs"])
             locked = s["needs"] > reach
-            edge = " start" if s["column"] == 1 else " end" if s["column"] == columns else ""
-            tip = [f"<b>{esc(name)}</b>", f"<p>{esc(text(s['description']))}</p>"]
-            if s["values"]:
-                postfix = text(s["postfix"])
-                tip.append('<ol class="skill-ranks">' + "".join(
-                    f'<li><span>{NUMERALS[r]}</span><span class="skill-value">{esc(plain(f"{a}{postfix}{b}"))}</span></li>'
-                    for r, (a, b) in enumerate(s["values"])) + "</ol>")
-            if s["excludes"]:
-                tip.append(f'<p class="skill-note">{esc(word("excludes").format(", ".join(text(by_id[x]["name"]) for x in s["excludes"] if x in by_id)))}</p>')
-            if locked or s["needs"] != needs[s["tier"]]:
-                tip.append(f'<p class="skill-note">{esc(word("locked").format(points(lang, s["needs"])))}</p>')
+            # PerkTipRenderer: the name, a line, the text; one line unless the skill has one rank.
+            wrap = " wrap" if s["ranks"] <= 1 else ""
+            tip = f'<div class="skill-tip{wrap}"><b>{esc(name)}</b><p>{tooltip(s, text)}</p></div>'
             badge = f'<span class="skill-or">{word("or")}</span>' if s["excludes"] else ""
             out.append(
-                f'<div class="skill{" locked" if locked else ""}{edge}" tabindex="0" data-skill="{s["id"]}" '
+                f'<div class="skill{" locked" if locked else ""}" tabindex="0" data-skill="{s["id"]}" '
                 f'style="grid-area:{s["tier"]}/{s["column"] + 1}">'
-                f'<span class="skill-disc"><img src="{urls[s["id"]]}" alt="" width="64" height="64" loading="lazy">'
+                f'<span class="skill-disc"><img src="{urls[s["id"]]}" alt="" loading="lazy">'
                 f'{overlay("over")}{overlay("lock") if locked else ""}{overlay("lock-red") if s["id"] in excluded else ""}'
-                f'<span class="skill-numeral">{NUMERALS[s["tier"] - 1]}</span>{badge}</span>'
-                f'<span class="skill-name">{esc(name)}</span>'
-                f'<span class="skill-pips">{"<i></i>" * s["ranks"]}</span>'
-                f'<div class="skill-tip" role="tooltip">{"".join(tip)}</div></div>')
+                f'{overlay(f"pips-{s['ranks']}") if s["ranks"] else ""}{badge}</span>'
+                f'<span class="skill-name">{esc(name)}</span>{tip}</div>')
         out.append("</div></section>")
-    out.append("</div>")
+    out.append('</div>\n<div class="skill-float" role="tooltip" hidden></div>')
+    out.append(f'<script src="{script_url}" defer></script>')
     return "\n".join(out) + "\n"
 
 
@@ -366,13 +432,15 @@ def main():
         texts = {lang: load(raw, f"localization/{name}/localization")["strings"] for lang, name in LANGS.items()}
         shutil.rmtree(out, ignore_errors=True)
         out.mkdir(parents=True)
-        urls, overlays = icons(args, raw, work, tree, out)
+        urls, overlays, disc = icons(args, raw, work, tree, out)
+    shutil.copy(HERE / "skills.js", out / "skills.js")
+    script_url = f"{SITE}/skills.js?v={version((out / 'skills.js').read_bytes())}"
     for lang in LANGS:
-        (out / f"skills.{lang}.html").write_text(page(lang, tree, texts, urls, overlays))
+        (out / f"skills.{lang}.html").write_text(page(lang, tree, texts, urls, overlays, disc, script_url))
+    served = ["skills.js"] + [f"icons/{f.name}" for f in sorted((out / "icons").iterdir())]
     (out / "files.rs").write_text(
         "// Built by srp-026g/scripts/skills-tab/build.py; do not edit. The files the skills page names.\n"
-        "files! {\n" + "".join(f'    "icons/{f.name}" => "{TYPES["webp"]}",\n'
-                               for f in sorted((out / "icons").iterdir())) + "}\n")
+        "files! {\n" + "".join(f'    "{f}" => "{TYPES[f.rsplit(".", 1)[1]]}",\n' for f in served) + "}\n")
     write_built_from(out / "built-from.tsv", rows, "the skills (srp-026g/scripts/skills-tab/build.py)")
     print(f"{out}: {len(tree)} skills in {len({s['branch'] for s in tree})} branches")
 
