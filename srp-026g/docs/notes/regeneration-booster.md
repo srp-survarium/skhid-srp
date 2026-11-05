@@ -15,8 +15,8 @@ lets health regenerate to full and starts it 2 s sooner, while it is in a pocket
   the booster 6 s and 3.5 s. Never below 0.
 - Two would add up (a second booster, a future item of the kind): the limit stays at most 100 %.
 - The card shows them as built-in bonuses, as the other boosters' (the owner): "Regeneration
-  delay: -2s" and "Regeneration limit: +100%" under "Regeneration: +15%" (UI properties 167 and
-  168, labels in all 10 languages). Alt on cards covers weapons and medicines only, not
+  delay: -2s" and "Regeneration limit: +100%" under "Regeneration: +15%" (UI properties 171 and
+  172, labels in all 10 languages). Alt on cards covers weapons and medicines only, not
   regeneration: nothing to show there.
 
 ## How

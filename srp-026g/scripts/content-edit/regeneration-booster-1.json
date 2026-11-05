@@ -1,5 +1,5 @@
 {
-  "_about": "The Regeneration booster's two new bonuses as built-in modifications (docs/notes/regeneration-booster.md): 1290 the delay after a hit -2 s (kit modifier 10, engineer_success_chance) and 1300 the regeneration limit +100 % (kit modifier 9, engineer_use_time), which exe patch 94 applies in body_part::regenerate; their card lines (UI properties 167, 168) and the two parameters at 0 in the booster's config, so the item cook has keys to add the modifications to (it skips a modification whose key the config lacks). Their values are rows of modifications.tsv; which booster has them, boosters.tsv.",
+  "_about": "The Regeneration booster's two new bonuses as built-in modifications (docs/notes/regeneration-booster.md): 1290 the delay after a hit -2 s (kit modifier 10, engineer_success_chance) and 1300 the regeneration limit +100 % (kit modifier 9, engineer_use_time), which exe patch 94 applies in body_part::regenerate; their card lines (UI properties 171, 172) and the two parameters at 0 in the booster's config, so the item cook has keys to add the modifications to (it skips a modification whose key the config lacks). Their values are rows of modifications.tsv; which booster has them, boosters.tsv.",
   "append_entry": [
     {
       "file": "gameplay/items/modifications/modifications.options",
@@ -10,7 +10,7 @@
         "id": 1290,
         "drop_weight": 0,
         "lobby_info": {"engineer_success_chance_modifier": -2.0},
-        "ui_desc": {"name": "st_regen_delay_name", "icon": 9, "props_list": [{"prop_value": "-2", "prop_id": 167}]},
+        "ui_desc": {"name": "st_regen_delay_name", "icon": 9, "props_list": [{"prop_value": "-2", "prop_id": 171}]},
         "type_mask": "00000000000000000000010000000000000000000",
         "type_requirements_mask": "00000000000000000000010000000000000000000",
         "modifiers": [{"path": ["parameters", "engineer_success_chance_modifier"], "value": -2.0, "type": 1}]
@@ -25,7 +25,7 @@
         "id": 1300,
         "drop_weight": 0,
         "lobby_info": {"engineer_use_time_modifier": 1.0},
-        "ui_desc": {"name": "st_regen_limit_name", "icon": 9, "props_list": [{"prop_value": "1", "prop_id": 168}]},
+        "ui_desc": {"name": "st_regen_limit_name", "icon": 9, "props_list": [{"prop_value": "1", "prop_id": 172}]},
         "type_mask": "00000000000000000000010000000000000000000",
         "type_requirements_mask": "00000000000000000000010000000000000000000",
         "modifiers": [{"path": ["parameters", "engineer_use_time_modifier"], "value": 1.0, "type": 1}]
@@ -38,14 +38,14 @@
       "list": "ui_properties",
       "after": {"prop_id": 161},
       "like": {"prop_id": 106},
-      "values": {"prop_id": 167, "prop_name": "st_regen_delay_name", "postfix": "st_item_props_sec", "direction": 0}
+      "values": {"prop_id": 171, "prop_name": "st_regen_delay_name", "postfix": "st_item_props_sec", "direction": 0}
     },
     {
       "files": "gameplay/static_game_parameters.options",
       "list": "ui_properties",
       "after": {"prop_id": 161},
       "like": {"prop_id": 103},
-      "values": {"prop_id": 168, "prop_name": "st_regen_limit_name"}
+      "values": {"prop_id": 172, "prop_name": "st_regen_limit_name"}
     }
   ],
   "add_value": [
