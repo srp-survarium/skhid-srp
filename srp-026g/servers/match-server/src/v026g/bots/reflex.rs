@@ -8819,6 +8819,9 @@ mod tests {
                 combat: CombatTuning {
                     aim_carry: carry,
                     ads_near_chance: 1.0,
+                    // The bot reloads while he is lost; the client drops the sights in a reload (fx-grid's aim gates), so
+                    // with `gate_from_client` the aim comes up again after it. This test is the carry alone.
+                    gate_from_client: None,
                     ..CombatTuning::default()
                 },
                 ..AimTuning::default()
