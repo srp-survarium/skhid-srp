@@ -42,10 +42,12 @@ One lohook at the test (`player_sound.step_guard`, 0x2A6485, 14 bytes), Rust `fo
 
 - a rustle, another object's event, feet not read: the game's own test, unchanged;
 - a step past `maximum_time`: plays, as in the original;
-- a step at or before it (a re-simulation): plays when the same foot of the same effect played
-  nothing in the 250 ms before it; otherwise it is the step already played, its time moved by the
-  correction, and is dropped. A foot steps once a cycle (600 ms at the quickest, the sprint
-  clips), so 250 ms keeps every real step and drops the copies.
+- a step at or before it (a re-simulation): plays when it is less than 250 ms before
+  `maximum_time` and the same foot of the same effect played nothing in the 250 ms before it;
+  otherwise it is the step already played, its time moved by the correction, or an old step of a
+  long re-simulated window (a resync), and is dropped. A foot steps once a cycle (600 ms at the
+  quickest, the sprint clips), so 250 ms keeps every real step and drops the copies, and a
+  window of any length plays at most each foot's newest step, never a burst in one frame.
 - The newest played time per foot is kept for 128 effects (three player objects a player); a
   new effect takes a free slot, else the oldest. An effect not remembered plays its step.
 - Never fewer steps than the original: every step the original plays still plays.

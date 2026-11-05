@@ -10,10 +10,12 @@ core and event, on_foot_step (0x2A6520) and the three rustles (0x2A6580,
 0x2A6630, 0x2A66C0) stubbed to record their calls:
 1. a step past the core's newest played time (+18FC4h) plays in both;
 2. a step at or before it (a re-simulation): the original drops it; the
-   patched exe plays it when its foot played nothing in the 250 ms before,
-   so a copy of a step played (the same time, moved up to 249 ms either
-   way) stays single and a new one (none played, or 250 ms on) is heard;
-   the two feet and two effects are their own;
+   patched exe plays it when it is less than 250 ms before the played time
+   and its foot played nothing in the 250 ms before it, so a copy of a step
+   played (the same time, moved up to 249 ms either way) stays single, a
+   new one (none played, or 250 ms on) is heard, and a long re-simulated
+   window plays only each foot's newest step; the two feet and two effects
+   are their own;
 3. in both: a rustle at a played time is dropped, a new one plays; an
    event of another object, or with the feet not read (+44h), plays nothing;
    a player without a world core (+120h) plays every step;
@@ -131,15 +133,22 @@ def main():
     new = Run(bytes(built))
     assert new.event(0, 1000, 950) == [("step", EFFECT, LEFT)]              # played the first time
     for t in (1000, 1249, 900, 760):                                        # its copies, moved
-        assert new.event(0, t, 1500) == [], t
-        assert old.event(0, t, 1500) == [], t
-    assert new.event(0, 1250, 1500) == [("step", EFFECT, LEFT)]             # a new step, 250 ms on
-    assert old.event(0, 1250, 1500) == []
-    assert new.event(1, 1100, 1500) == [("step", EFFECT, RIGHT)]            # the other foot: none played
-    assert new.event(0, 1300, 1500, effect=EFFECT2) == [("step", EFFECT2, LEFT)]
-    assert old.event(1, 1100, 1500) == [] and old.event(0, 1300, 1500, effect=EFFECT2) == []
+        assert new.event(0, t, 1260) == [], t
+        assert old.event(0, t, 1260) == [], t
+    assert new.event(0, 1250, 1260) == [("step", EFFECT, LEFT)]             # a new step, 250 ms on
+    assert old.event(0, 1250, 1260) == []
+    assert new.event(1, 1100, 1260) == [("step", EFFECT, RIGHT)]            # the other foot: none played
+    assert new.event(0, 1300, 1400, effect=EFFECT2) == [("step", EFFECT2, LEFT)]
+    assert old.event(1, 1100, 1260) == [] and old.event(0, 1300, 1400, effect=EFFECT2) == []
     print("ok re-simulated steps: the original drops them all; patched, a copy stays single, a new one plays,"
           " each foot and effect its own")
+    # a long re-simulated window (a resync to 5000): only the step within 250 ms of its end
+    for t in (3200, 3800, 4400, 4750):
+        assert new.event(1, t, 5000, effect=EFFECT2) == [], t
+    assert new.event(1, 4900, 5000, effect=EFFECT2) == [("step", EFFECT2, RIGHT)]
+    assert new.event(1, 4950, 5000, effect=EFFECT2) == []
+    assert all(old.event(1, t, 5000, effect=EFFECT2) == [] for t in (3200, 4400, 4900))
+    print("ok a long re-simulated window plays one step a foot, its newest; none 250 ms or more before its end")
 
     for run in (old, new):
         assert run.event(2, 5000, 5000) == []

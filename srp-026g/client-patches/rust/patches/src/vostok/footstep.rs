@@ -75,8 +75,9 @@ impl StepSource {
 pub enum Pass {
     /// Past the newest time played: the game plays it.
     First,
-    /// At or before it: a re-simulation; the game drops it.
-    Again,
+    /// At or before it: a re-simulation; the game drops it. `newest` is the
+    /// newest time played (core_world `maximum_time`).
+    Again { newest: SimTime },
 }
 
 /// A step the game would play but for its time: its own player's event,
@@ -107,7 +108,8 @@ impl Step {
                 return None;
             }
             let time = read(event.time());
-            let pass = if time > read(core.maximum_time()) { Pass::First } else { Pass::Again };
+            let newest = read(core.maximum_time());
+            let pass = if time > newest { Pass::First } else { Pass::Again { newest: SimTime(newest) } };
             Some(Step { source: StepSource(effect.address()), foot, time: SimTime(time), pass })
         }
     }

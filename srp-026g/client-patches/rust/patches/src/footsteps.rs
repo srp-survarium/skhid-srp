@@ -10,10 +10,12 @@
 //! the next frame, 0x29AFA0).
 //!
 //! The rule here: a step past the played time plays, as before. A
-//! re-simulated step plays when its foot played nothing in the last
-//! `SAME_STEP` ms before it: the same step again (its time moved by the
-//! correction) stays single, a new one is heard. Nothing of the simulation:
-//! the step is a sound, a decal and particles.
+//! re-simulated step plays when it is within `SAME_STEP` ms of the newest
+//! played time and its foot played nothing in the `SAME_STEP` ms before it:
+//! the same step again (its time moved by the correction) stays single, a
+//! new one is heard, and a long re-simulated window (a resync) plays only
+//! each foot's newest step, not a burst of them in one frame. Nothing of the
+//! simulation: the step is a sound, a decal and particles.
 
 #![forbid(unsafe_code)]
 
@@ -54,9 +56,12 @@ impl Steps {
     fn decide(&mut self, step: Step) -> Decision {
         let slot = self.slot(step.source);
         let last = &mut slot.last[step.foot.index()];
-        let play = match (step.pass, *last) {
-            (Pass::First, _) | (Pass::Again, None) => true,
-            (Pass::Again, Some(played)) => step.time.since(played) >= SAME_STEP,
+        let play = match step.pass {
+            Pass::First => true,
+            Pass::Again { newest } => {
+                newest.since(step.time) < SAME_STEP
+                    && last.is_none_or(|played| step.time.since(played) >= SAME_STEP)
+            }
         };
         if play {
             *last = Some(step.time);
@@ -105,6 +110,11 @@ mod tests {
         Step { source: StepSource::at(source), foot, time: SimTime::at(time), pass }
     }
 
+    /// A re-simulated step whose time is the newest played (a window's end).
+    fn again(time: u32) -> Pass {
+        Pass::Again { newest: SimTime::at(time) }
+    }
+
     #[test]
     fn first_pass_always_plays() {
         let mut s = Steps::EMPTY;
@@ -119,7 +129,7 @@ mod tests {
         assert_eq!(s.decide(step(1, Foot::Left, 1000, Pass::First)), Decision::Play);
         // the same step again, at its time, moved later or earlier
         for t in [1000, 1100, 1249, 950, 400] {
-            assert_eq!(s.decide(step(1, Foot::Left, t, Pass::Again)), Decision::Skip, "{t}");
+            assert_eq!(s.decide(step(1, Foot::Left, t, again(t))), Decision::Skip, "{t}");
         }
     }
 
@@ -127,12 +137,12 @@ mod tests {
     fn resimulated_new_step_plays() {
         let mut s = Steps::EMPTY;
         // never played: a player who started walking under lag
-        assert_eq!(s.decide(step(1, Foot::Right, 2000, Pass::Again)), Decision::Play);
-        assert_eq!(s.decide(step(1, Foot::Right, 2000, Pass::Again)), Decision::Skip);
-        assert_eq!(s.decide(step(1, Foot::Right, 2600, Pass::Again)), Decision::Play);
+        assert_eq!(s.decide(step(1, Foot::Right, 2000, again(2000))), Decision::Play);
+        assert_eq!(s.decide(step(1, Foot::Right, 2000, again(2000))), Decision::Skip);
+        assert_eq!(s.decide(step(1, Foot::Right, 2600, again(2600))), Decision::Play);
         // the other foot and another player are their own
-        assert_eq!(s.decide(step(1, Foot::Left, 2100, Pass::Again)), Decision::Play);
-        assert_eq!(s.decide(step(2, Foot::Right, 2100, Pass::Again)), Decision::Play);
+        assert_eq!(s.decide(step(1, Foot::Left, 2100, again(2100))), Decision::Play);
+        assert_eq!(s.decide(step(2, Foot::Right, 2100, again(2100))), Decision::Play);
     }
 
     #[test]
@@ -144,14 +154,34 @@ mod tests {
         assert_eq!(s.played.iter().flatten().count(), SOURCES);
         // the newest kept: its copy stays single
         let newest = SOURCES as u32 + 4;
-        assert_eq!(s.decide(step(newest, Foot::Left, 1000, Pass::Again)), Decision::Skip);
+        assert_eq!(s.decide(step(newest, Foot::Left, 1000, again(1000))), Decision::Skip);
+    }
+
+    #[test]
+    fn long_window_plays_one_step_per_foot() {
+        let mut s = Steps::EMPTY;
+        // a resync re-simulates 3 s: each foot stepped every 600 ms in it
+        let newest = 5000;
+        let mut played = [0; 2];
+        for (i, t) in (2000..=newest).step_by(300).enumerate() {
+            let foot = if i % 2 == 0 { Foot::Left } else { Foot::Right };
+            if s.decide(step(1, foot, t, Pass::Again { newest: SimTime::at(newest) })) == Decision::Play {
+                played[foot.index()] += 1;
+            }
+        }
+        // only the window's last 250 ms plays: the left step at 5000; the right
+        // one at 4700 is 300 ms behind
+        assert_eq!(played, [1, 0]);
+        // a step 250 ms or more before the newest played time stays silent
+        assert_eq!(s.decide(step(2, Foot::Left, 4750, again(5000))), Decision::Skip);
+        assert_eq!(s.decide(step(2, Foot::Left, 4751, again(5000))), Decision::Play);
     }
 
     #[test]
     fn clock_wrap() {
         let mut s = Steps::EMPTY;
         assert_eq!(s.decide(step(1, Foot::Left, u32::MAX - 100, Pass::First)), Decision::Play);
-        assert_eq!(s.decide(step(1, Foot::Left, 50, Pass::Again)), Decision::Skip);
-        assert_eq!(s.decide(step(1, Foot::Left, 200, Pass::Again)), Decision::Play);
+        assert_eq!(s.decide(step(1, Foot::Left, 50, again(50))), Decision::Skip);
+        assert_eq!(s.decide(step(1, Foot::Left, 200, again(200))), Decision::Play);
     }
 }

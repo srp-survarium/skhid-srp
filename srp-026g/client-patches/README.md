@@ -4150,8 +4150,9 @@ and is never heard. 0.27d0 dropped the test (its effect plays each foot's newest
 next frame).
 
 **The patch** (the Rust patch `footsteps`, one lohook, `player_sound.step_guard` at 0x2A6485):
-a step past the played time plays as before; a re-simulated one plays when the same foot of the
-same player object played nothing in the 250 ms before it (a copy of a played step, moved by the
-correction, stays single). Rustles and the other tests are the game's. Nothing a match computes.
+a step past the played time plays as before; a re-simulated one plays when it is less than 250 ms
+before the played time and the same foot of the same player object played nothing in the 250 ms
+before it (a copy of a played step, moved by the correction, stays single; a long re-simulated
+window plays each foot's newest step at most). Rustles and the other tests are the game's. Nothing a match computes.
 The rules and the 0.27d0 code: `../docs/notes/footsteps.md`; the addresses: `client_patch.md` 3.62.
 Checked with `check_footsteps_026g.py`; not run in a game.
