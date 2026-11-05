@@ -191,3 +191,22 @@ fn the_log_tail_is_its_last_whole_lines() {
     assert!(b.write_str("abcжд").is_err());
     assert_eq!(b.as_str(), "abcж");
 }
+
+#[test]
+fn the_local_offset_is_signed_hours_and_minutes() {
+    let offset = |m| text(|w| details::write_offset(w, m));
+    assert_eq!(offset(180), " (local +03:00)");
+    assert_eq!(offset(0), " (local +00:00)");
+    assert_eq!(offset(-210), " (local -03:30)");
+    assert_eq!(offset(345), " (local +05:45)");
+}
+
+#[test]
+fn full_dumps_are_asked_for_in_any_case_with_spaces() {
+    for value in ["full", "FULL", "Full", "full ", " full\t"] {
+        assert!(details::asks_full_dump(value), "{value:?}");
+    }
+    for value in ["", "small", "fu ll", "1", "fullx"] {
+        assert!(!details::asks_full_dump(value), "{value:?}");
+    }
+}

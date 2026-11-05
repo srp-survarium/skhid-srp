@@ -279,6 +279,19 @@ once.
 - A player back in the match (in the others' worlds since its entry) is put
   at the match clock by its first world, as a resynced client is, and its
   inputs are taken while that world is on its way.
+- **A game already back in step is not resynced** (`agrees_now`, since
+  2026-11-05): just before a resync the server looks at the game's newest
+  report, past its disagreement and not yet settled, whose tick more than
+  half of the games in the simulation reported alike. If the game's CRC
+  there is that one, the resync is skipped ("... but its hash at T ms
+  matches the majority's; resync skipped") and its older wrong reports
+  count no more. The hash is the CRC of the bytes a resync would load, so
+  such a resync loads what the game has. 0.69 does the same on the client
+  (`process_dynamic_match_info` 0x2001AF7B0, "ignoring resync request: hash
+  on time %d matches"). In 0.26g the client cannot: 0xE5 frees its whole
+  history before 0xE8 comes (match.md section 17), and 0xE5 carries no hash.
+  Live, 2026-11-04 (match 0x60ebe205): the world a game gave just ahead of
+  its resync (tick 200700) was the majority's byte for byte.
 - Who is wrong (`judge`): the majority's CRC is right. With no majority, a
   client known to be out of step is wrong; else the side with the better
   links is right, if it clearly outweighs the rest (`TRUST_MARGIN`); else
@@ -534,7 +547,9 @@ plain reliables (E3, F3..F5).
 
 - `SRP_PACKET_LOG`: the packet capture (Wireshark is not installed).
 - `SRP_SNAPSHOT_DIR`: saved worlds, with their kind (`unreadable` among
-  them; `wrong`: a game's own world as it was found out of step).
+  them; `wrong`: a game's own world as it was found out of step; `split`: a
+  game's world at its first report against the majority, with a majority
+  game's `checked` world asked for at the same moment).
 - `client-patches/check_world_roundtrip_026g.py <survarium.exe> [dumps]`:
   for each saved world, a late joiner and a resynced game load it and save it at
   once under Unicorn, through every patch hook inside the world's load and save.

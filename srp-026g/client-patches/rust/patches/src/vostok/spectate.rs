@@ -1,0 +1,113 @@
+//! A spectator's game (patch 103, docs/notes/queue-spectate.md): a game in a
+//! match whose 0xE4 named no place its own. process_static_match_info sets
+//! each place's is_local (+45F0h) by the message's first byte (0x27BE5F); the
+//! server sends 0xFF, so on_match_ready never sets the client's local place
+//! (+1F1C44h stays 0xFF, 0x27AD89) and the game has no player of its own
+//! ([`Role::Spectator`]). Where the game asks for that place's player it
+//! gets an unchecked slot-table index (get_player 0x27A980); the sites here
+//! are those it reaches in a match, each read once into its typed view:
+//!
+//! - `world_load.camera` (0x27C116): after every world, the camera back to
+//!   the local place;
+//! - `keyboard.spectate` (0x25CDBD): the bindings next_player and
+//!   prev_player, which the game takes only from a client that may spectate
+//!   its teammates (+0Dh, which nothing sets in a live match's client);
+//! - `chat.match_team` (0x208D77): a match line's team colour, by the local
+//!   place's player;
+//! - `hud.followed_alive` (0x23B7B9): the hud's change of the followed
+//!   player's life (the kits and the cursor at a death).
+
+use super::context::{Context, Reg};
+use super::input::Action;
+use super::world::{NetworkClient, Step};
+use crate::raw;
+
+impl Action {
+    /// next_player (the action table 0xA74C80, default F6).
+    pub const NEXT_PLAYER: Action = Action(0x17);
+    /// prev_player (0xA74C94, default F5).
+    pub const PREV_PLAYER: Action = Action(0x18);
+}
+
+/// The client at `world_load.camera`: a world was just loaded (or skipped).
+pub fn world_camera_client<'t>(ctx: &'t Context<'_>) -> Option<NetworkClient<'t>> {
+    // SAFETY: the context is this site's: EDI the network client
+    // process_dynamic_match_info runs on, alive on the game's thread.
+    let client = unsafe { raw::site::world_load_camera::client(ctx) }?;
+    Some(NetworkClient::of(client, ctx.thread()))
+}
+
+/// A key's action at `keyboard.spectate`, with the game's client.
+pub struct SpectateKey<'t> {
+    pub client: NetworkClient<'t>,
+    /// The camera's step the key asks for; `None` for any other action.
+    pub step: Option<Step>,
+}
+
+impl<'t> SpectateKey<'t> {
+    pub fn at(ctx: &'t Context<'_>) -> Option<SpectateKey<'t>> {
+        use raw::site::keyboard_spectate as site;
+        // SAFETY: the context is this site's: EBX the game, EDI the action,
+        // the game's client alive with it on the game's thread.
+        let (game, action) = unsafe { (site::game(ctx)?, site::action(ctx)) };
+        // SAFETY: as above.
+        let client = unsafe { game.network_client() }?;
+        let step = match Action(action) {
+            Action::NEXT_PLAYER => Some(Step::Next),
+            Action::PREV_PLAYER => Some(Step::Previous),
+            _ => None,
+        };
+        Some(SpectateKey { client: NetworkClient::of(client, ctx.thread()), step })
+    }
+}
+
+/// A match line at `chat.match_team`, before add_message asks for the local
+/// place's player.
+pub struct MatchLine<'t> {
+    pub client: NetworkClient<'t>,
+    frame: raw::AddMessageFrame,
+}
+
+impl<'t> MatchLine<'t> {
+    pub fn at(ctx: &'t Context<'_>) -> Option<MatchLine<'t>> {
+        use raw::site::chat_match_team as site;
+        // SAFETY: the context is this site's: ESI the game's network client,
+        // its ESP add_message's frame, alive while it runs.
+        let (client, frame) = unsafe { (site::client(ctx)?, site::frame(ctx)?) };
+        Some(MatchLine { client: NetworkClient::of(client, ctx.thread()), frame })
+    }
+
+    /// The line goes on as one of the reader's own team (the site's exit
+    /// `plain`, 0x208DE2), with no player asked for: the local the release
+    /// at 0x208E27 reads is 0, as for no player.
+    pub fn as_plain(self) {
+        // SAFETY: the frame's local, the game's to write before 0x208D86's
+        // call would; 0 is its "no player".
+        unsafe { self.frame.set_team_player(None) }
+    }
+}
+
+/// The hud's read of the followed player's life at `hud.followed_alive`.
+pub struct FollowedAlive<'c, 'm> {
+    ctx: &'c mut Context<'m>,
+}
+
+impl<'c, 'm> FollowedAlive<'c, 'm> {
+    pub fn at(ctx: &'c mut Context<'m>) -> FollowedAlive<'c, 'm> {
+        FollowedAlive { ctx }
+    }
+
+    /// The game's client, from the hud: its game world's game's.
+    pub fn client(&self) -> Option<NetworkClient<'_>> {
+        // SAFETY: the context is this site's: ESI the hud, its game world,
+        // the world's game and client, alive on the game's thread.
+        let client = unsafe { raw::site::hud_followed_alive::ui(&*self.ctx)?.world()?.game()?.network_client() }?;
+        Some(NetworkClient::of(client, self.ctx.thread()))
+    }
+
+    /// The hud takes the player for alive (AL 1, the overwritten read
+    /// skipped): it shows no kits and no cursor at the player's death.
+    pub fn as_alive(&mut self) {
+        self.ctx.set_reg8(Reg::Eax, 1);
+    }
+}

@@ -199,6 +199,29 @@ pub unsafe fn zip(path: &mut Wide<32768>, report: &[u8]) -> Result<(), u32> {
     Ok(())
 }
 
+/// A source read from inside a line: its bytes from the first line break.
+struct FromLine<'a> {
+    source: &'a mut File,
+    skip: bool,
+}
+impl Source for FromLine<'_> {
+    fn read(&mut self, buf: &mut [u8]) -> Result<usize, u32> {
+        loop {
+            let n = self.source.read(buf)?;
+            if !self.skip || n == 0 {
+                return Ok(n);
+            }
+            if let Some(at) = buf[..n].iter().position(|&b| b == b'\n') {
+                self.skip = false;
+                buf.copy_within(at + 1..n, 0);
+                if n - at - 1 > 0 {
+                    return Ok(n - at - 1);
+                }
+            }
+        }
+    }
+}
+
 struct Bytes<'a>(&'a [u8]);
 impl Source for Bytes<'_> {
     fn read(&mut self, buf: &mut [u8]) -> Result<usize, u32> {
@@ -364,7 +387,7 @@ unsafe fn write(
     let mut manifest = crate::logs::Manifest::new();
     let _ = writeln!(
         manifest,
-        "SRP crash log collection\nPolicy: recent 48 hours; newest 32 matching files; whole sources; 16 MiB compressed log ZIP contribution (headers included, summary separate); 256 MiB source bytes read including failed attempts; 5 second collection budget.\nOnly named game/launcher/updater/render logs and game journals in fixed locations. No recursion.\nText logs preserve startup diagnostics and crash context except sensitive records and their unframed continuations, which are removed before compression. Attachment IDs never echo source names. Only UTF-8/ASCII text, or text of the legacy code page below (transcoded to UTF-8 before filtering), with lines at most 64 KiB is accepted; NUL/control bytes, UTF-16, unsafe or ambiguous records omit the source. Detection covers labelled credentials and command lines, not arbitrary unidentified secrets. Minidump memory is not sanitized. Buffered writes may be missing. Over-budget or failed sources are omitted atomically, never truncated.\n"
+        "SRP crash log collection\nPolicy: recent 48 hours; newest 32 matching files; whole sources; 16 MiB compressed log ZIP contribution (headers included, summary separate); 256 MiB source bytes read including failed attempts; 5 second collection budget.\nOnly named game/launcher/updater/render logs and game journals in fixed locations. No recursion. The client patches' srp_patches.log beside the exe: its last 2 MiB, from its first whole line there.\nText logs preserve startup diagnostics and crash context except sensitive records and their unframed continuations, which are removed before compression. Attachment IDs never echo source names. Only UTF-8/ASCII text, or text of the legacy code page below (transcoded to UTF-8 before filtering), with lines at most 64 KiB is accepted; NUL/control bytes, UTF-16, unsafe or ambiguous records omit the source. Detection covers labelled credentials and command lines, not arbitrary unidentified secrets. Minidump memory is not sanitized. Buffered writes may be missing. Over-budget or failed sources are omitted atomically, never truncated.\n"
     );
     let (code_page, code_page_from) = crate::logs::code_page();
     let _ = writeln!(
@@ -378,10 +401,15 @@ unsafe fn write(
     let mut packed_left = crate::logs::PACKED_BYTES;
     let mut input_left = crate::logs::INPUT_BYTES;
     let mut included_input = 0;
-    for (index, candidate) in candidates.iter().enumerate() {
-        if candidate.len == 0 {
-            break;
-        }
+    // The patch log first (its own name, a tail), then the recent logs.
+    let patch_log = crate::logs::Candidate::patch_log();
+    let sources_in_order = core::iter::once((0, &patch_log)).chain(
+        candidates
+            .iter()
+            .enumerate()
+            .take_while(|(_, c)| c.len != 0),
+    );
+    for (index, candidate) in sources_in_order {
         let record = &mut records[count];
         record.len = candidate.zip_name(index, &mut record.name);
         let label = core::str::from_utf8(&record.name[..record.len]).unwrap_or("invalid name");
@@ -427,7 +455,15 @@ unsafe fn write(
             }
             log.size()
         })();
-        let original = match original {
+        // A tail: from the cut on, its first (partial) line dropped below.
+        let original = original.and_then(|size| match candidate.take {
+            crate::logs::Take::Whole => Ok((size, 0)),
+            crate::logs::Take::Last(cap) => {
+                let from = size.saturating_sub(cap);
+                log.seek(from as i64).map(|()| (size - from, from))
+            }
+        });
+        let (original, from) = match original {
             Ok(size) => size,
             Err(error) => {
                 CloseHandle(handle);
@@ -447,9 +483,16 @@ unsafe fn write(
         log.left = original;
         record.time = time;
         record.date = date;
+        if from != 0 {
+            let _ = writeln!(manifest, "tail of {}: from byte {}", label, from);
+        }
         let (mut result, removed, transcoded, emitted) = {
+            let mut cut = FromLine {
+                source: &mut log,
+                skip: from != 0,
+            };
             let mut filtered = crate::sanitize::Filter::legacy(
-                &mut log,
+                &mut cut,
                 Some((
                     code_page,
                     crate::logs::transcode as crate::sanitize::Transcode,

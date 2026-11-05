@@ -2130,3 +2130,12 @@ va	status	ref_021d	name
 0x0005cb80	reviewed	0x000429b3	vostok::sound::new_sound_propagator::detach_voice
 0x002454a0	observed		survarium::delayed_callbacks_queue<64>::add
 0x00245ad0	observed		survarium::delayed_callbacks_queue<64>::push_back
+0x001f8360	reviewed		survarium::game_world::switch_to_spectator_camera
+0x00242d50	reviewed		survarium::base_network_client::spectate_next_player
+0x00242f00	reviewed		survarium::base_network_client::spectate_previous_player
+0x00242ae0	reviewed		survarium::base_network_client::attach_to_player
+0x00242b90	reviewed		survarium::base_network_client::set_followed_player
+0x00242cc0	reviewed		survarium::base_network_client::detach_from_player
+0x002430f0	reviewed		survarium::base_network_client::may_spectate
+0x00242a70	reviewed		survarium::base_network_client::followed_team
+0x001f8070	reviewed		survarium::game_world::select_profile

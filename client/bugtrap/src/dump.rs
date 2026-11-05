@@ -6,6 +6,7 @@ use core::{
     ptr::{null, null_mut},
     sync::atomic::{AtomicU32, Ordering},
 };
+use std::{ffi::OsStr, sync::OnceLock};
 use windows_sys::Win32::{
     Foundation::*,
     Storage::FileSystem::*,
@@ -14,26 +15,50 @@ use windows_sys::Win32::{
     },
 };
 
-/// What a dump holds. A player's build: the threads' stacks and registers,
-/// the modules, their data segments, and the memory the stacks point to and
-/// around what the crashing thread's registers point to ([`Registers`]), so
-/// the object behind a faulting pointer is in it. Zipped: a few MB.
-#[cfg(not(feature = "full-memory-dumps"))]
-const DUMP_TYPE: MINIDUMP_TYPE = MiniDumpWithDataSegs | MiniDumpWithIndirectlyReferencedMemory;
-/// A local test build (`./build.sh --features full-memory-dumps`; `build.rs`
-/// and `release/build-zip` refuse it for a release): the whole process
-/// memory, every heap object. Hundreds of MB to a few GB, kept as a `.dmp`
-/// (not zipped: zipping would hold the crash for seconds, and it is read on
-/// this PC anyway).
-#[cfg(feature = "full-memory-dumps")]
-const DUMP_TYPE: MINIDUMP_TYPE = MiniDumpWithFullMemory
-    | MiniDumpWithFullMemoryInfo
-    | MiniDumpWithHandleData
-    | MiniDumpWithThreadInfo
-    | MiniDumpWithUnloadedModules;
-/// Whether the dump is zipped with the logs, and gets the [`Registers`]
-/// ranges (a full-memory dump holds them already).
-const SMALL: bool = !cfg!(feature = "full-memory-dumps");
+/// What a dump holds, chosen once when the DLL is loaded ([`Kind::get`]).
+#[derive(Clone, Copy, PartialEq, Eq)]
+pub enum Kind {
+    /// Players' dumps: the threads' stacks and registers, the modules, their
+    /// data segments, and the memory the stacks point to and around what the
+    /// crashing thread's registers point to ([`Registers`]), so the object
+    /// behind a faulting pointer is in it. Zipped with the logs: a few MB.
+    Small,
+    /// `SKHID_CRASH_DUMP=full` in the game's environment (for a crash to
+    /// investigate on this PC): the whole process memory, every heap object.
+    /// Hundreds of MB to a few GB, kept as a `.dmp` (not zipped: zipping would
+    /// hold the crash for seconds, and it is read on this PC anyway).
+    Full,
+}
+static KIND: OnceLock<Kind> = OnceLock::new();
+impl Kind {
+    /// The game's `SKHID_CRASH_DUMP`, read at the first call (`DllMain`, at
+    /// load): `full` is [`Kind::Full`] (any case, spaces around it: cmd's
+    /// `set SKHID_CRASH_DUMP=full ` keeps the space), anything else (unset)
+    /// [`Kind::Small`]. `play_skhid.sh` refuses other values before the game
+    /// starts.
+    pub fn get() -> Kind {
+        *KIND.get_or_init(|| {
+            let value = std::env::var_os("SKHID_CRASH_DUMP");
+            if value.as_deref().and_then(OsStr::to_str).is_some_and(crate::details::asks_full_dump) {
+                Kind::Full
+            } else {
+                Kind::Small
+            }
+        })
+    }
+    const fn dump_type(self) -> MINIDUMP_TYPE {
+        match self {
+            Kind::Small => MiniDumpWithDataSegs | MiniDumpWithIndirectlyReferencedMemory,
+            Kind::Full => {
+                MiniDumpWithFullMemory
+                    | MiniDumpWithFullMemoryInfo
+                    | MiniDumpWithHandleData
+                    | MiniDumpWithThreadInfo
+                    | MiniDumpWithUnloadedModules
+            }
+        }
+    }
+}
 
 /// Bytes kept before and after each register's value.
 const BEFORE: usize = 256;
@@ -360,6 +385,8 @@ unsafe fn save(
             UserStreamCount: 1,
             UserStreamArray: &mut comment,
         };
+        // The Registers ranges only for a small dump: a full one holds them.
+        let kind = Kind::get();
         let mut registers = Registers::of(request.exception.ExceptionPointers);
         let callback = MINIDUMP_CALLBACK_INFORMATION {
             CallbackRoutine: Some(callback),
@@ -369,10 +396,13 @@ unsafe fn save(
             GetCurrentProcess(),
             GetCurrentProcessId(),
             file,
-            DUMP_TYPE,
+            kind.dump_type(),
             exception,
             &streams,
-            if SMALL { &callback } else { null() },
+            match kind {
+                Kind::Small => &callback,
+                Kind::Full => null(),
+            },
         );
         let mut error = if ok == 0 { GetLastError() } else { 0 };
         if ok != 0 {
@@ -456,7 +486,7 @@ unsafe extern "system" fn worker(parameter: *mut c_void) -> u32 {
     crate::report::save(&report, kept, &mut path, request.exception.ThreadId);
     // Zip the dump only now that it is flushed and closed: on any failure, or
     // a crash or exit while zipping, the dump stays and the dialog names it.
-    if kept && SMALL {
+    if kept && Kind::get() == Kind::Small {
         let _ = crate::archive::zip(&mut path, &report.text.buf[..report.text.len]);
     }
     // Publish only after save() has flushed/closed its file and it is zipped

@@ -144,6 +144,8 @@ global engine_create_sound_voice
 global engine_detach_voice
 global engine_sound_options
 global engine_buffer_reallocate
+global engine_follow_player
+global engine_spectator_camera
 engine_action_present equ 0x242460   ; 0x242460 survarium::player_input_handler::action_present: handler ESP+4, action ESP+8, state ESP+12; pops 12; AL; stdcall, called directly
 engine_create_file_a equ 0x870048   ; the IAT slot 0x870048 (an import, stdcall)
 engine_write_file equ 0x870108   ; the IAT slot 0x870108 (an import, stdcall)
@@ -187,6 +189,7 @@ engine_heap_alloc equ 0x87004c   ; the IAT slot 0x87004c (an import, stdcall)
 engine_get_process_heap equ 0x870050   ; the IAT slot 0x870050 (an import, stdcall)
 engine_heap_free equ 0x870054   ; the IAT slot 0x870054 (an import, stdcall)
 engine_detach_voice equ 0x5cb80   ; 0x5cb80 vostok::sound::new_sound_propagator::detach_voice: propagator ESP+4; pops 4; stdcall, called directly
+engine_follow_player equ 0x242b90   ; 0x242b90 survarium::base_network_client::set_followed_player: client ECX, player ESP+4; pops 4; thiscall, called directly
 
 engine_cfg_child:
     ; 0xf6b10 vostok::configs::binary_config_value::operator[]: table EAX, key EDI; pops 0; EAX
@@ -1841,6 +1844,21 @@ engine_buffer_reallocate:
     mov esi, [esp + 20]   ; buffer
     mov edi, [esp + 24]   ; capacity
     call 0x7ab70
+    pop edi
+    pop esi
+    pop ebx
+    pop ebp
+    ret
+
+    align 16, db 0xCC
+engine_spectator_camera:
+    ; 0x1f8360 survarium::game_world::switch_to_spectator_camera: world EDX; pops 0
+    push ebp
+    push ebx
+    push esi
+    push edi
+    mov edx, [esp + 20]   ; world
+    call 0x1f8360
     pop edi
     pop esi
     pop ebx

@@ -30,6 +30,7 @@ struct game_effect_slot;
 struct game_material_manager;
 struct game_project_resource;
 struct game_scene;
+struct game_world;
 struct game_world_ui;
 struct gfx_movie;
 struct gfx_object;
@@ -507,5 +508,11 @@ const struct sound_options *engine_sound_options(const struct sound_propagator_e
 
 /* 0x7ab70 vostok::network_core::mutable_buffer::reallocate: buffer ESI, capacity EDI; pops 0 */
 void engine_buffer_reallocate(void *buffer, unsigned int capacity);
+
+/* 0x242b90 survarium::base_network_client::set_followed_player: client ECX, player ESP+4; pops 4; thiscall, called directly */
+void __attribute__((thiscall)) engine_follow_player(struct network_client *client, struct player *player);
+
+/* 0x1f8360 survarium::game_world::switch_to_spectator_camera: world EDX; pops 0 */
+void engine_spectator_camera(struct game_world *world);
 
 #endif

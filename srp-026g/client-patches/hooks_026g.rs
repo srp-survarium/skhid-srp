@@ -1868,6 +1868,81 @@ pub extern "C" fn hook_sound_voices_on_voice_made(frame: &mut Frame) -> u32 {
     }
 }
 
+// ---- spectator (patch 103) ----
+
+/// The named exits of spectator::on_world_camera (the order the shim's Flow code
+/// follows, 2 upward).
+#[repr(u32)]
+#[allow(dead_code)]
+pub enum SpectatorOnWorldCameraExit { Done }
+/// The entry `spectator_on_world_camera` (0x27c116, process_dynamic_match_info after a world's load (or its skip: 0x27C0E3, 0x27C0E7, 0x27C0FD jump here): mov eax,[edi+4] / test eax,eax, then the camera back to the local place (get_player(+1F1C44h), set_followed_player, the warmup or player camera); done is the join 0x27C1B9 after it. EDI the network client) calls this with the saved machine.
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_spectator_on_world_camera(frame: &mut Frame) -> u32 {
+    // SAFETY: only the entry `spectator_on_world_camera` calls this, from the game's jump at 0x27c116,
+    // on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::new(frame) };
+    match crate::spectator::on_world_camera(&mut ctx) {
+        Flow::Continue => 0,
+        Flow::Skip => 1,
+        Flow::Exit(e) => 2 + e as u32,
+    }
+}
+
+// ---- spectator (patch 103) ----
+
+/// The named exits of spectator::on_key (the order the shim's Flow code
+/// follows, 2 upward).
+#[repr(u32)]
+#[allow(dead_code)]
+pub enum SpectatorOnKeyExit { Taken }
+/// The entry `spectator_on_key` (0x25cdbd, game_world::on_keyboard_action at a key down's action (mov esi,[ebx+53ACh]; EBX the game, EDI the binder's action for the key, 0x25CD64): next/prev player (17h/18h) call spectate_next/previous_player only with the client's +0Dh (0x25CEA1); taken is their return (xor al,al and the epilogue, 0x25CEAE)) calls this with the saved machine.
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_spectator_on_key(frame: &mut Frame) -> u32 {
+    // SAFETY: only the entry `spectator_on_key` calls this, from the game's jump at 0x25cdbd,
+    // on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::new(frame) };
+    match crate::spectator::on_key(&mut ctx) {
+        Flow::Continue => 0,
+        Flow::Skip => 1,
+        Flow::Exit(e) => 2 + e as u32,
+    }
+}
+
+// ---- spectator (patch 103) ----
+
+/// The named exits of spectator::on_match_line (the order the shim's Flow code
+/// follows, 2 upward).
+#[repr(u32)]
+#[allow(dead_code)]
+pub enum SpectatorOnMatchLineExit { Plain }
+/// The entry `spectator_on_match_line` (0x208d77, chat_handler::add_message, a match line in a match, before it asks for the local place's player (movzx eax,byte [esi+1F1C44h]; ESI the game's network client, EDI the sender's team): plain is the line of one's own team or of no team (0x208DE2), which releases [esp+48h] when not 0) calls this with the saved machine.
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_spectator_on_match_line(frame: &mut Frame) -> u32 {
+    // SAFETY: only the entry `spectator_on_match_line` calls this, from the game's jump at 0x208d77,
+    // on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::new(frame) };
+    match crate::spectator::on_match_line(&mut ctx) {
+        Flow::Continue => 0,
+        Flow::Skip => 1,
+        Flow::Exit(e) => 2 + e as u32,
+    }
+}
+
+// ---- spectator (patch 103) ----
+
+/// The entry `spectator_on_followed_alive` (0x23b7b9, update_local_player_state's read of the followed player's alive byte (mov al,[ebp+33Ch]; ESI the hud, EBP the player, CL the hud's last +2DEh): at a change the quick slots, the stamina and the kits (0x23B7C5..0x23B7F7)) calls this with the saved machine.
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_spectator_on_followed_alive(frame: &mut Frame) -> u32 {
+    // SAFETY: only the entry `spectator_on_followed_alive` calls this, from the game's jump at 0x23b7b9,
+    // on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::new(frame) };
+    match crate::spectator::on_followed_alive(&mut ctx) {
+        Flow::Continue => 0,
+        Flow::Skip => 1,
+        Flow::Exit(e) => match e {},
+    }
+}
+
 // ---- suicide_key (patch 34) ----
 
 /// engine_action_present (0x242460), as the call hook at 0x242196 wraps it.
