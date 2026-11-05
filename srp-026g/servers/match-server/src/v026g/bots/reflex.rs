@@ -12059,6 +12059,7 @@ mod tests {
             for_use,
             covers_m: 4.0,
             line: SmokeLine { eye: Vec3::new(40.0, 1.6, 20.0), target: Vec3::new(0.0, 1.3, 20.0), crossing: Vec3::new(0.0, 0.0, 20.0) },
+            placed_by: crate::v026g::bots::smoke::PlacedBy::Between,
         };
         let key = key::QUICK[3];
         let mut reflex = Reflex::default();
@@ -12123,6 +12124,7 @@ mod tests {
             for_use: SmokeUse::CrossLane,
             covers_m: 4.0,
             line,
+            placed_by: crate::v026g::bots::smoke::PlacedBy::Between,
         };
         let on = SmokeTuning { wait_for_cloud: Some(WaitForCloud::default()), ..SmokeTuning::default() };
         let off = SmokeTuning { wait_for_cloud: None, ..SmokeTuning::default() };
