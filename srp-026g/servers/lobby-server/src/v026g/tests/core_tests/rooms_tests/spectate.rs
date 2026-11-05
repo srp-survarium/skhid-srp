@@ -6,6 +6,7 @@
 //! queued, to watch the next.
 
 use super::*;
+use session::matchmaking_policy::Closed;
 use survarium::v026g::lobby::rooms::ROOM_WATCH_BASE;
 
 /// A full room (6 v 6, twelve members) playing its match: its key, the
@@ -24,7 +25,13 @@ fn full_room_playing(world: &mut World) -> (u32, u32, Vec<usize>) {
     for &member in &members {
         world.take(member);
     }
+    running(world, ticket);
     (key, ticket, members)
+}
+
+/// The match server runs the match: it says why it takes nobody now.
+fn running(world: &mut World, ticket: u32) {
+    world.host.closed.locked().insert(ticket, Closed::Joining);
 }
 
 fn session_of(world: &World, index: usize) -> u32 {
@@ -191,6 +198,12 @@ fn a_spectator_stays_queued_past_the_match_and_watches_the_next() {
     world.advance(NEXT_MATCH);
     let (next, _) = sent_to_match(&world.take(members[0])).expect("the next match");
     assert_ne!(next, ticket);
+    // Not before the match server runs it: its game would be turned away.
+    world.advance(Duration::from_secs(1));
+    assert_eq!(watched(&world, carol), None);
+    assert!(sent_to_match(&world.take(carol)).is_none());
+    running(&mut world, next);
     world.advance(Duration::from_secs(1));
     assert_eq!(watched(&world, carol), Some(next));
+    assert_eq!(sent_to_match(&world.take(carol)), Some((next, 0)));
 }

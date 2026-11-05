@@ -1803,8 +1803,14 @@ impl Core<'_> {
             }) else {
                 continue;
             };
+            // The match server runs the match once a seated game connected
+            // (it says then whether the match admits, or why not): before,
+            // a spectator's game would be turned away. Not one ending.
+            let closed = self.host.closed(ticket, now);
+            let running = closed.is_some() || self.host.admits(ticket, now);
             if self.pool_for_sessions([session_id]) != Some(QueuePool::GrowingRoster)
-                || self.host.closed(ticket, now) == Some(Closed::Ending)
+                || !running
+                || closed == Some(Closed::Ending)
             {
                 continue;
             }
