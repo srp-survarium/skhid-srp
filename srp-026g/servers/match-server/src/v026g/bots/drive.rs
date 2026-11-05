@@ -343,6 +343,7 @@ fn drive_tick_inner(
     // this tick's rise itself, `Override::pull`).
     let kick = bot.reflex.weapon_tick(me, time, tuning.kin.pitch_scale);
     bot.reflex.gate_mirror(tuning.aim.combat.mirror_gated);
+    bot.reflex.kit_recoil(tuning.aim.combat.kit_recoil);
     // Only this tick's walk to the play's own exact spot sets it (below).
     bot.motor.exact_end = None;
     // The view's pitch is the game's unit; the geometry below reckons in elevations (`pitch.rs`).

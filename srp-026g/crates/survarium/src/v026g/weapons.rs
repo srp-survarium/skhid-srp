@@ -95,6 +95,8 @@ pub struct WeaponParams {
     /// plays the other at that scale (0.100b `computed_reload_animation_time_scale`; PROVEN there, LIKELY the
     /// same in 0.26g, whose constants came out equal for the TT-33 and the TOZ-34). `None` when the game data has
     /// no clip lengths or the state names fewer than two clips: the bots then go by their constants.
+    /// [A307] For [`STATE_RELOAD_EMPTY`] with `parameters.reload_empty_time` (main's authored pairs, whose clips
+    /// are compiled to that ratio): `reload_empty_time / reload_time`, before the clips.
     pub reload_share: Option<f32>,
     /// It has a [`STATE_CHAMBER`] state.
     pub has_chamber: bool,
@@ -377,6 +379,15 @@ impl WeaponParams {
                     }
                     _ => {}
                 }
+            }
+        }
+        // [A307] A two-clip reload from empty with its own authored length (`parameters.reload_empty_time`, main's
+        // explicit tactical/empty pairs; their clips are compiled to that ratio): that length over `reload_time` first,
+        // the clips' ratio only without it.
+        if reload_state == STATE_RELOAD_EMPTY {
+            let (tactical, empty) = (number(Some(p), "reload_time")?, number(Some(p), "reload_empty_time")?);
+            if tactical > 0.0 && empty > 0.0 {
+                reload_share = Some(empty / tactical);
             }
         }
         let rpm = number(Some(p), "rounds_per_minute")?;
@@ -1020,5 +1031,45 @@ mod tests {
         let with = data.laid_over("zero", Vec::new()).with_clip_lengths(zero);
         let table = derive(&with, Dictionary::shared()).unwrap();
         assert_eq!(table.iter().find(|w| w.name == "tt_33").unwrap().reload_share, None);
+    }
+
+    /// [A307] A two-clip reload from empty with an authored `reload_empty_time` (main's explicit pairs) takes its share
+    /// from that over `reload_time`, before the clips and without them; a magazine reload ignores the key.
+    #[test]
+    fn an_authored_empty_reload_time_sets_the_share() {
+        use super::fixtures::patched_item;
+        let dictionary = Dictionary::shared();
+        let tt = *weapon_named("tt_33").unwrap();
+        assert_eq!(tt.reload_state, STATE_RELOAD_EMPTY);
+        let data = patched_item(
+            crate::v026g::game_data::shared(),
+            dictionary,
+            "tt_33",
+            &[
+                (&["parameters", "reload_time"], ConfigValue::Float(2.4)),
+                (&["parameters", "reload_empty_time"], ConfigValue::Float(3.4)),
+            ],
+        );
+        // Without clip lengths, and with clips of another ratio: the authored pair wins.
+        let table = derive(&data, dictionary).unwrap();
+        let share = table.iter().find(|w| w.name == "tt_33").unwrap().reload_share.unwrap();
+        assert!((share - 3.4 / 2.4).abs() < 1e-6, "{share}");
+        let mut clips = ClipLengths::default();
+        for (clip, frames) in reload_clip_names("tt_33").iter().zip([65.0, 125.0]) {
+            clips.insert(clip.clone(), frames);
+        }
+        let with = data.laid_over("clips", Vec::new()).with_clip_lengths(clips);
+        let table = derive(&with, dictionary).unwrap();
+        let share = table.iter().find(|w| w.name == "tt_33").unwrap().reload_share.unwrap();
+        assert!((share - 3.4 / 2.4).abs() < 1e-6, "{share}");
+        // A magazine reload (state 303) has no share, the key or not.
+        let uzi = patched_item(
+            crate::v026g::game_data::shared(),
+            dictionary,
+            "uzi",
+            &[(&["parameters", "reload_empty_time"], ConfigValue::Float(3.0))],
+        );
+        let table = derive(&uzi, dictionary).unwrap();
+        assert_eq!(table.iter().find(|w| w.name == "uzi").unwrap().reload_share, None);
     }
 }

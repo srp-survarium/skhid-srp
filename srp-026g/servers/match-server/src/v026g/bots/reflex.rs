@@ -932,6 +932,14 @@ pub struct CombatTuning {
     /// tier 9-10) and ran its cadence on while the client's restarted, so the pull took back a kick that was not there or missed one that
     /// was: the shot line of a later shot of a run stood +0.10 degrees above where the bot thought (`kick_gap`). Off: the raw key.
     pub mirror_gated: bool,
+    /// [A307] The mirror of the weapon's kick takes the kit's `recoil_modifier` (the skills' `recoil` and the worn items':
+    /// `ren_gloves_1`, worn by our kits, -8 % since revision 38): the client multiplies every shot's kick ranges by
+    /// `max(0, 1 + recoil_modifier)` (0x331C50, PROVEN in `recoil.rs`). Off: 0 assumed for the bots' kits, which the data
+    /// proves wrong since revision 38, so the pull took back up to 8 % more kick than the client gave. **Off by default** (A307,
+    /// coordinator 2026-11-05): on the bench's revision 34 data the gloves give -2 %, a kick gap of 0.001-0.03 degrees the
+    /// bench cannot resolve (two by-side benches, 256 pairs each, disagreed: attack deaths 241/241, then 297/216). Waits for:
+    /// a bench on revision 48 data (gloves -8 %), with `SRP_BENCH_CLIENT_KIT_RECOIL` on; the two flip together.
+    pub kit_recoil: bool,
     /// [smoke review S1] A target with no part showing and no part seen (a new target held by the sight's grace,
     /// or one lost in smoke before any part was seen) is looked at where the memory has him (`track.at()`), not
     /// at his true chest: knowledge by looking comes only through the eyes (`smoke.rs`). Off: his chest, the server's
@@ -1601,6 +1609,7 @@ impl Default for CombatTuning {
             lead_flight: false,
             lead_drop: false,
             mirror_gated: true,
+            kit_recoil: false,
             aim_last_known: true,
             pre_aim_heard: None,
             lead_most_ms: 300,
@@ -3697,6 +3706,9 @@ pub struct Reflex {
     /// earliest the client's weapon can fire again, ms: the last counted shot's fire clip, and the bolt after it.
     gated: bool,
     ready_at: f32,
+    /// [A307] The mirror's kick takes the kit's recoil modifier (`Gun::recoil_scale`; [`CombatTuning::kit_recoil`], set each tick by
+    /// [`Self::kit_recoil`]).
+    kit_recoil: bool,
     /// [bench] The mirror's kick after the tick's turn and before its shots (pitch units), and the shots it counted in the tick:
     /// what the stand-in's own kick is read against.
     #[cfg(test)]
@@ -4713,6 +4725,11 @@ impl Reflex {
         self.gated = on;
     }
 
+    /// [A307] Whether the mirror's kick takes the kit's recoil modifier ([`CombatTuning::kit_recoil`]), from the next weapon update.
+    pub fn kit_recoil(&mut self, on: bool) {
+        self.kit_recoil = on;
+    }
+
     /// [bench] The mirror's kick after the last tick's turn, before its shots, and the shots it counted ([`Self::sent`]).
     #[cfg(test)]
     pub(crate) fn seen(&self) -> (f32, u8) {
@@ -4724,12 +4741,14 @@ impl Reflex {
     /// with no kick of its own keeps its stand-in kick between ticks (A224:
     /// rebuilt at every tick, it never pulled against the kick).
     fn in_hand(&mut self) {
-        let item = self.hands().held().gun.item;
-        if self.recoil.held() != item {
-            self.recoil = Recoil::in_hand(item);
+        let gun = self.hands().held().gun;
+        if self.recoil.held() != gun.item {
+            self.recoil = Recoil::in_hand(gun.item);
             self.cadence = Cadence::default();
             self.ready_at = 0.0;
         }
+        // [A307] The kit's recoil modifier on each shot's kick.
+        self.recoil.scaled(if self.kit_recoil { gun.recoil_scale } else { 1.0 });
     }
 
     /// A new life: the per-life counts start again; what it carries stays,
