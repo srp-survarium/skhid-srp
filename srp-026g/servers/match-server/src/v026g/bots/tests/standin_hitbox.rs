@@ -1188,7 +1188,7 @@ mod game_tests {
         let top = kick.top(game.rng.unit());
         let (gun, keys) = (body.gun, body.keys);
         game.bodies[shooter].recoil.shot(at, top, 0.0);
-        let (aim_state, cone) = game.bodies[shooter].spread.shot(gun, keys, at);
+        let (aim_state, cone) = game.bodies[shooter].spread.shot(gun, keys, at, game.gates);
         let view_dir = dir;
         let dir = if game.spread {
             bench_spread::deflect(dir, cone, &mut game.rng)
