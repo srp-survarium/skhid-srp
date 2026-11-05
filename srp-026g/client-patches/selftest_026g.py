@@ -1660,7 +1660,6 @@ def late_join_sites():
         [(P.KILL_FEED_ARGUMENT[0], len(P.KILL_FEED_ARGUMENT[1]))] + \
         [(va, len(old)) for va, old, _ in P.FALL_GRAVITY] + \
         [(P.GRENADE_CCD[0], len(P.GRENADE_CCD[1]))] + \
-        [(va, len(old)) for va, old, _, _ in P.BAKE_CACHE_HOOKS] + \
         [(va, len(old)) for va, old, _, _ in P.WEIGHT_UI_HOOKS] + \
         [(va, len(old)) for va, old, _, _ in P.BULLET_BOUNDS_HOOKS] + \
         [(va, len(old)) for va, old, _, _ in P.MATCH_STAT_MAP_HOOKS] + \
@@ -3929,12 +3928,16 @@ def test_death_camera(original, image, before):
     identity_at = (data_at + 24 + 15) // 16 * 16
     identity = struct.pack("<16f", 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1)
     limits = [round(math.degrees(a), 4) for a in (yaw_max, yaw_min, pitch_up, pitch_down)] == [70, -70, 60, -40]
-    parts = ((0, data_at, ["call [eax+0x30]", "call [eax+0x1c]", f"call {drag_end:#x}"], ["ret 0x10"],
-              {P.WARMUP_LOOK_VA}, {0xA74AEC, 0x1F1D9D3, state, state + 4}
+    pitch_slot = death_va + P.DEATH_CAMERA_PITCH
+    parts = ((0, data_at, ["call [eax+0x30]", f"call [dword {pitch_slot:#x}]", f"call {drag_end:#x}"], ["ret 0x10"],
+              {P.WARMUP_LOOK_VA}, {0xA74AEC, 0x1F1D9D3, 0xA2D79C, pitch_slot, state, state + 4}
               | {death_va + data_at + 4 * i for i in range(6)}),
              (P.DEATH_VIEW_OFFSET, len(code), None, ["ret 0x8"], {P.DEATH_UPDATE_VA, P.DEATH_THIRD_VA},
               {state, state + 4}))
-    good = image.read(death_va, len(code)) == code and limits \
+    built = image.read(death_va, len(code))
+    pitch_entry = struct.unpack_from("<I", built, P.DEATH_CAMERA_PITCH)[0]
+    good = built[:P.DEATH_CAMERA_PITCH] + bytes(4) + built[P.DEATH_CAMERA_PITCH + 4:] == code and limits \
+        and code[P.DEATH_CAMERA_PITCH:P.DEATH_CAMERA_PITCH + 4] == bytes(4) and P.ARENA_VA <= pitch_entry < P.ARENA_VA + P.ARENA_LIMIT \
         and code[identity_at:identity_at + 64] == identity \
         and set(code[data_at + 24:identity_at] + code[identity_at + 64:P.DEATH_VIEW_OFFSET]) <= {0xCC}
     for begin, end, calls, rets, exits, absolute in parts:
@@ -3962,13 +3965,15 @@ def test_death_camera(original, image, before):
         == ["mulps xmm1,xmm4", "mulps xmm2,xmm5", "addps xmm1,xmm2", "mulps xmm0,xmm6", "addps xmm1,xmm0"] * 3
     check(good and P.FOV_LOD_STATE_OFFSET + P.FOV_LOD_STATE_SIZE <= P.DEATH_CAMERA_STATE_OFFSET
           and P.DEATH_CAMERA_STATE_OFFSET + P.DEATH_CAMERA_STATE_SIZE <= P.LATE_JOIN_STATE_SIZE
-          and abs(step_value - math.pi / 180 * 0.1) < 1e-9 and abs(aspect - 0.95492965) < 1e-7,
+          and abs(step_value - math.pi / 180 * 0.1) < 1e-9 and abs(aspect - 0.95492965) < 1e-7
+          and struct.unpack("<f", stock.read(0xA2D79C, 4))[0] == 0.5625 and 0x870000 <= 0xA2D79C < 0x870000 + 2021888,
           f"the code at {death_va:#x} (.srpc) is death_camera_026g.section.bin ({len(code)} bytes): death_look "
           f"begins with warmup_look's test of the kits, leaves to warmup_look ({P.WARMUP_LOOK_VA:#x}) alone, "
-          "calls the hud's pointer (vtable+30h), the window's size (vtable+1Ch) and the end of a drag, keeps the "
+          "calls the hud's pointer (vtable+30h), patch 112's pitch entry through its dword (the build's, in .srpx) "
+          "and the end of a drag (not the window's size), keeps the "
           f"drag in warmup_look's state ({look_state:#x}) and the turn at {state:#x} (the late join's page "
-          f"+{P.DEATH_CAMERA_STATE_OFFSET:#x}), reads the options sensitivity, mouse_invertion and its two constants (pi/180 "
-          "x 0.1, 0.9549) and the turn's limits (70 degrees either side, 60 up, 40 down); death_view leaves to "
+          f"+{P.DEATH_CAMERA_STATE_OFFSET:#x}), reads the options sensitivity, mouse_invertion, its two constants "
+          "(pi/180 x 0.1, 0.9549), .rdata's 0.5625 (0xA2D79C: patch 112's locked 16:9) and the turn's limits (70 degrees either side, 60 up, 40 down); death_view leaves to "
           "the view's update or its third-person step after the update's own start, which it gives the "
           "identity, then multiplies the turn by the eyes' three rows; every branch inside lands on an "
           "instruction; `ret 10h` and `ret 8`")
@@ -5079,20 +5084,61 @@ def test_grenade_ccd(original, image, before):
     check(not hits, "no branch aims inside the site" + "".join(f", {h:#x}" for h in hits))
 
 
+def test_mouse_pitch(original, image, before):
+    """Check 112: the mouse look's pitch is 16:9's at every window, locked; with
+    "Lock vertical sensitivity" unticked, 1:1 (patch 112, the Rust patch mouse_pitch;
+    ../docs/notes/mouse-pitch.md).
+    check_mouse_pitch_026g.py runs on_mouse_move at 4:3, 16:9 and 21:9."""
+    stock = Image(original)
+    rows = lambda source, va, size: [text for _, _, text in ndisasm(source.read(va, size), va)]
+    f32 = lambda source, va: struct.unpack("<f", source.read(va, 4))[0]
+    check(rows(stock, 0x2402B0, 0x240319 - 0x2402B0) == [
+              "mov eax,ecx", "mov ecx,[eax+0x334]", "mov edx,[ecx+0x9c]", "mov esi,[edx+0x5348]", "mov eax,[esi]",
+              "mov edx,[eax+0x1c]", "lea ecx,[esp+0x1e8]", "push ecx", "mov ecx,esi", "call edx", "lea edi,[eax+0x4]",
+              "mov eax,[esi]", "mov edx,[eax+0x1c]", "lea ecx,[esp+0x1f8]", "push ecx", "mov ecx,esi", "call edx",
+              "movss xmm1,dword [edi]", "divss xmm1,dword [eax]", "movss xmm2,dword [esp+0x28]", "mulss xmm1,xmm2",
+              "mulss xmm1,dword [esp+0x1c]", "mulss xmm1,dword [dword 0xa2dac4]", "mov edi,[esp+0x18]",
+              "mov eax,[edi+0x338]", "movss dword [esp+0x1c],xmm1"]
+          and abs(f32(stock, 0xA2DAC4) - 3 / math.pi) < 1e-7,
+          "player_input_handler::on_mouse_move: the pitch's step is the render window's height (+4) over its width "
+          "(game+5348h, vtable+1Ch, floats) x the yaw's step x the invert x 3/pi (0xA2DAC4)")
+    va, size = 0x2402E9, 18
+    hooks = [(at, old, symbol, opcode) for at, old, symbol, opcode in P.rust_hooks(original) if at == va]
+    check(len(hooks) == 1 and hooks[0][2] == "mouse_pitch_on_pitch_step" and hooks[0][3] == 0xE9
+          and hooks[0][1] == stock.read(va, size) == before.read(va, size)
+          and rows(stock, va, size) == ["movss xmm1,dword [edi]", "divss xmm1,dword [eax]",
+                                        "movss xmm2,dword [esp+0x28]", "mulss xmm1,xmm2"],
+          f"{va:#x}: the site of patch 112's lohook mouse.pitch_step (18 bytes: h / w, the yaw's step, their "
+          "product) in the original and the build without the late join")
+    jump = rows(image, va, 5)
+    target = branch_target(jump[0]) if jump else None
+    check(target is not None and jump[0].startswith("jmp") and P.ARENA_VA <= target < P.ARENA_VA + P.ARENA_LIMIT,
+          f"{va:#x}: a jump into the arena (.srpx) here")
+    under = lambda source: [v for kind, v in source.relocations().values() if kind == 3 and va - 3 <= v < va + size]
+    check(not under(stock) and not under(image), "no base relocation is under the site, in the original or the build")
+    hits = [h for h in aimed_inside(original, va, size, 0x82) if not va <= h < va + size
+            and starts_instruction(stock, h)]
+    check(not hits, "no branch aims inside the site" + "".join(f", {h:#x}" for h in hits))
+
+
 def test_bake_cache(original, image, before):
-    """Check 70: the baked textures kept and made once (patch 70,
-    BAKE_CACHE_HOOKS, BAKE_CACHE_KEEP). check_bake_cache_026g.py runs the
-    sites from the game's code on a made-up baker, folder and queries."""
+    """Check 70: the baked textures kept and made once (patch 70, the Rust
+    patch bake_cache, seven lohooks; BAKE_CACHE_KEEP). check_bake_cache_026g.py
+    runs the sites from the game's code on a made-up baker, folder and
+    queries."""
+    import hooks_026g
     stock = Image(original)
     rows = lambda source, va, size: [text for _, _, text in ndisasm(source.read(va, size), va)]
     cstr = lambda va: stock.read(va, 60).split(b"\0")[0]
     check(rows(stock, 0x1E944E, 0xC) == ["lea eax,[esp+0x470]", "call 0x1e8da0"]
+          and rows(stock, 0x1E945A, 7) == ["test byte [dword 0xa2b4090],0x1"]
           and rows(stock, 0x1EC82B, 0xC) == ["lea eax,[esp+0x358]", "call 0x1e8da0"]
           and stock.read(0x1E8DCF, 7) == bytes.fromhex("c745e403000000") and stock.read(0x1E8DF4, 5) == bytes.fromhex("b814040000")
           and stock.read(0x1E8E01, 6) == bytes.fromhex("ff1578feae00")
           and cstr(0x9EE470) == b"user_data/streamed_textures",
-          "game::game (0x1E9455) and game::exit (0x1EC832) delete user_data/streamed_textures: 0x1E8DA0 is "
-          "SHFileOperationA (delay import 0xAEFE78) with FO_DELETE (3) and flags 414h")
+          "game::game (0x1E944E: the folder's path at [esp+470h], then its delete) and game::exit (0x1EC832) "
+          "delete user_data/streamed_textures: 0x1E8DA0 is SHFileOperationA (delay import 0xAEFE78) with "
+          "FO_DELETE (3) and flags 414h; 0x1E945A reads no register before it writes it")
     check(rows(stock, 0x131C88, 0x14) == ["mov eax,[esp+0x18]", "mov [esp+0x44],edi", "cmp eax,[edi+0x114]",
                                           "jz near 0x131dc2"]
           and rows(stock, 0x12D4BE, 0x16) == ["mov eax,[esp+0x58]", "add esp,byte +0xc", "lea edx,[esp+0x1b8]",
@@ -5104,44 +5150,63 @@ def test_bake_cache(original, image, before):
           and rows(stock, 0x12D45F, 9) == ["pop edi", "pop esi", "pop ebx", "mov esp,ebp", "pop ebp", "ret 0x4"]
           and rows(stock, 0x12DA56, 9) == ["pop edi", "pop esi", "pop ebx", "mov esp,ebp", "pop ebp", "ret 0x4"]
           and rows(stock, 0x12D2F7, 0x14)[:2] == ["mov edi,eax", "mov [esp+0x48],edi"]
-          and rows(stock, 0x12F184, 0x10) == ["mov esi,[dword 0x1f1d960]", "mov ecx,0xac3334", "call 0x420789"]
-          and rows(stock, 0x12DDA9, 0x10) == ["mov esi,[dword 0x1f1d960]", "mov ecx,0xac3334", "call 0x420789"]
+          and rows(stock, 0x12F184, 0x16) == ["mov esi,[dword 0x1f1d960]", "mov ecx,0xac3334", "call 0x420789",
+                                              "push eax", "mov eax,0x108"]
+          and rows(stock, 0x12DDA9, 0x16) == ["mov esi,[dword 0x1f1d960]", "mov ecx,0xac3334", "call 0x420789",
+                                              "push eax", "mov eax,0x108"]
           and stock.read(0x420789, 4) == bytes.fromhex("8d4108c3")
           and rows(stock, 0x12F0E0, 0xD) == ["mov edx,[esp+0x610]", "mov ecx,eax", "mov eax,[edx]", "mov [edx],ecx"]
-          and stock.read(0xF0D00, 6) == bytes.fromhex("558bec83e4f8") and popped(stock, 0xF0D00, 0xF0F90) == 0x10,
-          "check_loaded's CRC compare (0x131C90), translate_query's look-up (0x12D4CD) and its end after a refused "
-          "query (0x12D42D: the surfaces emptied, edi's model instance released, `ret 4`), the texture's slot "
-          "set before `call 0x420789` (`lea eax,[ecx+8]`) in process_compression (0x12F18F) and "
-          "on_baked_texture_loaded (0x12DDB4), finish_query's entry (0xF0D00, `ret 10h`)")
+          and stock.read(0xF0D00, 6) == bytes.fromhex("558bec83e4f8") and popped(stock, 0xF0D00, 0xF0F90) == 0x10
+          and rows(stock, 0xF0E66, 9) == ["pop edi", "pop esi", "pop ebx", "mov esp,ebp", "pop ebp", "ret 0x10"],
+          "check_loaded's CRC compare (0x131C90), translate_query before its look-up (0x12D4C5) and its end after "
+          "a refused query (0x12D42D: the surfaces emptied, edi's model instance released, `ret 4`), the "
+          "texture's slot set, then `mov ecx,0AC3334h / call 0x420789` (`lea eax,[ecx+8]`; a relocated immediate) and "
+          "`push eax / mov eax,108h` in process_compression (0x12F194) and on_baked_texture_loaded (0x12DDB9), finish_query's entry "
+          "(0xF0D00) and its `ret 10h` (0xF0E6C)")
     check(stock.read(0x42050, 0x31) == bytes.fromhex("8b4c2404" "57" "8d3c0a" "3bd7" "7321" "56" "8d4900" "8a08" "320a"
                                                      "c12808" "8b30" "0fb6c9" "8b0c8d68fd2502" "33ce" "42" "8908"
                                                      "3bd7" "72e4" "5e" "5f" "c20400")
           and stock.read(0x1C235, 5) == bytes.fromhex("35b71dc104") and stock.read(0x1C210, 7) == bytes.fromhex("803d64fd250200"),
-          "the CRC-32 step 0x42050 (eax &the CRC, edx the bytes, [esp+4] the count; `ret 4`): a byte a step, "
-          "crc = T[(crc ^ byte) & 0xFF] ^ (crc >> 8), T at 0x225FD68 made by 0x1C210 from the polynomial 04C11DB7h "
-          "reflected (EDB88320h, bake_cache_026g.c's tables)")
+          "the CRC-32 step 0x42050 (eax &the CRC, edx the bytes, [esp+4] the count; `ret 4` at 0x4207E): a byte a "
+          "step, crc = T[(crc ^ byte) & 0xFF] ^ (crc >> 8), T at 0x225FD68 made by 0x1C210 from the polynomial "
+          "04C11DB7h reflected (EDB88320h, bake_cache.rs's tables)")
     linked = P.arena()
-    block = linked.blocks["bake_cache.code"]
-    for va, old, symbol, opcode in P.BAKE_CACHE_HOOKS:
-        target = linked.symbols[symbol]
-        hook = P.hook_bytes(target, va, old, 0, opcode)
-        check(stock.read(va, len(old)) == old == before.read(va, len(old)) and image.read(va, len(hook)) == hook
-              and block.va <= target < block.va + block.size,
-              f"{va:#x}: {old.hex()} in the original and the build without the late join, "
-              f"`{'call' if opcode == 0xE8 else 'jmp'} {target:#x}` ({symbol}, an entry of bake_cache.code) here")
+    block = linked.blocks["patches.code"]
+    want = {0x1E944E: ("bake.game_start", {"kept": 0x1E945A}), 0x131C90: ("bake.check_crc", {}),
+            0x12D4C5: ("bake.lookup", {"not_baked": 0x12D42D}), 0x12F194: ("bake.baked", {}),
+            0x12DDB9: ("bake.loaded", {}), 0xF0D00: ("bake.finish", {"done": 0xF0E6C}),
+            0x42050: ("crc32.step", {"done": 0x4207E})}
+    found = {}
+    for hook in hooks_026g.hooks(exe=hooks_026g.original_reader(original)):
+        owners = [member["patch"] for member in hook.get("chain", [hook])]
+        if "bake_cache" not in owners:
+            continue
+        va, old = hook["site"], hook["original"]
+        found[va] = (hook["site_name"], dict(hook["exits"]))
+        target = linked.symbols[hook["entry"]]
+        expected = P.hook_bytes(target, va, old, 0, 0xE9)
+        check(hook["kind"] == "lohook" and owners == ["bake_cache"]
+              and stock.read(va, len(old)) == old == before.read(va, len(old))
+              and image.read(va, len(old)) == expected and block.va <= target < block.va + block.size,
+              f"{va:#x} ({hook['site_name']}): {old.hex()} in the original and the build without the late join, "
+              f"`jmp {target:#x}` ({hook['entry']}, a generated lohook entry of patches.code) here")
+        hits = [h for h in aimed_inside(original, va, len(old), 0x82)
+                if not va <= h < va + len(old) and starts_instruction(stock, h)]
+        under = [v for kind, v in stock.relocations().values() if kind == 3 and va - 4 < v < va + len(old)]
+        check(not hits and not under,
+              f"{hook['site_name']}: no branch enters the displaced instructions and no base relocation is under "
+              "them" + "".join(f", {h:#x}" for h in hits + under))
+    check(found == want, f"bake_cache's seven lohooks at their sites with their exits: {sorted(f'{va:#x}' for va in found)}")
     va, old, new = P.BAKE_CACHE_KEEP
     check(stock.read(va, len(old)) == old == before.read(va, len(old)) and image.read(va, len(new)) == new,
           f"{va:#x}: game::exit's delete is a 5-byte nop")
-    sites = [(s, o) for s, o, _, _ in P.BAKE_CACHE_HOOKS] + [(va, old)]
-    under = [v for kind, v in stock.relocations().values() if kind == 3
-             and any(s - 4 < v < s + len(o) for s, o in sites)]
-    hits = [h for s, o in sites for h in aimed_inside(original, s, len(o), 0x82)
-            if not s <= h < s + len(o) and starts_instruction(stock, h)]
-    check(not under and not hits, "no base relocation under the sites, and no branch aims inside one"
+    under = [v for kind, v in stock.relocations().values() if kind == 3 and va - 4 < v < va + len(old)]
+    hits = [h for h in aimed_inside(original, va, len(old), 0x82) if not va <= h < va + len(old)
+            and starts_instruction(stock, h)]
+    check(not under and not hits, "no base relocation under game::exit's delete, and no branch aims inside it"
           + "".join(f", {h:#x}" for h in hits + under))
-    code = P.linker.block_bytes(linked, "bake_cache.code")
-    check(image.read(block.va, len(code)) == code and "bake_cache.state" in linked.blocks,
-          f"the code at {block.va:#x} is the link's bake_cache.code ({len(code)} bytes), its tables bake_cache.state")
+    check("bake_cache.code" not in linked.blocks and "bake_cache.state" not in linked.blocks,
+          "the old asm/C blocks bake_cache.code and .state are gone (the patch is patches.code's)")
 
 
 def test_lamps(original, image, before):
@@ -5302,6 +5367,12 @@ def test_ragdoll(original, image, before):
     # adaptation (stage_postprocess's byte, which the render thread reads and clears; lobby-scenes.md)
     game_flags = {x["offset"]: f'{x["field"]}' for x in engine_026g.fields() if x["module"] == "image"
                   and x["field"] in ("postprocess",)}
+    # patch 70's records of kept files pushed onto the baker's list as its push_back does (0x132640):
+    # the list's end and bytes, the records' ages' counter (baked-textures.md)
+    for x in engine_026g.fields():
+        if x["module"] == "image" and x["field"] in ("baker", "baker_ages"):
+            game_flags.update({x["offset"] + f["offset"]: f'{x["field"]}.{f["field"]}' for f in engine_026g.fields()
+                               if f["kind"] == x["target"] and f["of"] != "size"})
     inside = lambda a: any(d.va <= a < d.va + d.size for d in data) or a in shared_fields or a in game_flags
     check(all(inside(a) for a in absolute),
           f"its stores to absolute addresses ({len(absolute)}) are all in patches.data and .state, or fields of "
@@ -6844,9 +6915,11 @@ def test_late_join(original, without, server, source):
     check(name_c == P.DEATH_CAMERA_NAME and flags_c == P.DEATH_CAMERA_CHARACTERISTICS
           and rva_c == state_rva + state_size and P.IMAGE_BASE + rva_c == P.death_camera_va(code)
           and vsize_c == len(death) and raw_c == raw + rsize and rsize_c == align(vsize_c, headers.file_alignment)
-          and bytes(data[raw_c:raw_c + vsize_c]) == death and set(data[raw_c + vsize_c:raw_c + rsize_c]) <= {0xCC},
-          f".srpc at VA {P.IMAGE_BASE + rva_c:#x}: death_camera_026g.section.bin ({len(death)} bytes) and int3 "
-          "padding, code | execute | read, on the page after .srpd, its file bytes right after .srp's")
+          and bytes(data[raw_c:raw_c + vsize_c]) == P.with_death_pitch(death, P.arena())
+          and set(data[raw_c + vsize_c:raw_c + rsize_c]) <= {0xCC},
+          f".srpc at VA {P.IMAGE_BASE + rva_c:#x}: death_camera_026g.section.bin ({len(death)} bytes, its pitch_entry "
+          "dword patch 112's entry of the arena) and int3 padding, code | execute | read, on the page after .srpd, its "
+          "file bytes right after .srp's")
     camo = open(P.weapon_camo_bin(), "rb").read()
     camo = camo + b"\xCC" * (P.WEAPON_STASH_OFFSET - len(camo)) + open(P.weapon_stash_bin(), "rb").read()
     camo = camo + b"\xCC" * (P.WEAPON_TABLE_OFFSET - len(camo)) + open(P.weapon_table_bin(), "rb").read()
@@ -7053,6 +7126,7 @@ def test_late_join(original, without, server, source):
     test_kill_feed(original, image, before)
     test_fall_gravity(original, image, before)
     test_grenade_ccd(original, image, before)
+    test_mouse_pitch(original, image, before)
     test_bake_cache(original, image, before)
     test_ragdoll(original, image, before)
     test_lamps(original, image, before)

@@ -189,6 +189,36 @@ parts in the game's classes (`TopMenu`'s tab, `StatusPanel`'s Play, `LobbyMenu`'
     the next open room); the room's info line, its list row and the facts beside the list
     show no max level (the server tells 0). On the server a private room's settings have no
     max level at all (`rooms::Door::Pin`).
+  - **With bots** (the owner's of 2026-11-05: "private room should receive a with bots
+    toggle", "the room doesn't show bots", "when you enter the game, whoever is in which team
+    replaces bots"):
+    - The create window always has "With bots" under the private room's line (the owner's of
+      2026-11-05: "it should always be there, if you click it, all maps regimes are
+      unclicked"). Turned on, it unticks every mode and map the bots play none of; they are
+      greyed and cannot be chosen while it is on, and the pool's count is of the rest. Turned
+      off, they can be chosen again and stay unticked until ticked.
+    - The bots play batteries, timed batteries and Team Deathmatch (not Research, which the
+      match server refuses them, nor Blackout, which Play vs Bots never offered) on a map with a
+      bots' map file in `SRP_MAPDATA_DIR`, and only with Player vs Bots on (`SRP_PVB`). The
+      server keeps only those maps of the pool sent; none of them: refused (code 8).
+    - The room shows no bots: its list, teams, moves and Start are a private room's. The list
+      and its info line say "BOT" where a PIN room's say "PIN" (the owner's of 2026-11-05:
+      "PIN * should be replaced with BOT *").
+    - Always 8 v 8 (the owner's of 2026-11-05: "i wish matches were always 8vs8", "let's keep
+      it simple for now"): a team takes 8 members at most (`pvb/default_size`, the room's
+      size: 16 members, "TEAM 1 k / 8"), and Start fills each team with bots up to 8, the
+      members on it in bots' places (5 members split 3 v 2: 5 and 6 bots). Its match takes no
+      late joiner: a newcomer waits in the room, told the match is full (`J;-1;4`), and takes a
+      bot's place at the next Start. No bot leaves a match being played (a match's 20 places
+      are never used twice).
+    - Its matches count towards `SRP_PVB_MAX_MATCHES` with Play vs Bots'; at that many (or the
+      mode off), Start does nothing (logged).
+    - It pays as Player vs Bots (the owner's of 2026-11-05: "this should still give bot
+      rewards"), not as a PIN room: `SRP_PVB_PAY` of silver and experience, rewards at level 7
+      at most, no quest, daily bonus or rating (`MatchSetup::vs_bots`). No kill caps, as against
+      bots. With more than one player, the match server's stall rule of Play vs Bots (its one
+      player uploads no world) does not apply: the others upload.
+    - Its settings are not kept for the next create window (its pool is the bots' maps only).
   - Open rooms and Play keep their size, players to start, max level and countdown.
 - **The chosen room beside the list** (the owner's of 2026-10-29: it flipped between two layouts):
   one layout through the vote. Before the vote, and while no card leads alone (the server then

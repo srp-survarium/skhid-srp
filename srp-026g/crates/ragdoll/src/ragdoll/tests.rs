@@ -1306,3 +1306,119 @@ fn a_lone_gun_sliding_on_the_ground_stops() {
     assert!(sunk < 0.02 && (at.y - radius).abs() < 0.03, "on the ground: {at:?}, sunk {sunk}");
     assert!(gun.body.end_speed() < SLOW && frames < 300, "{frames} frames");
 }
+
+/// A gun-stock hit (the weapon's melee/data: mass 0.01, 1000 m/s) by a
+/// shooter whose kit sums `knockback` (the Force Protein's 15).
+fn gun_stock(direction: Vec3, point: Vec3, knockback: f32) -> crate::shot::Hit {
+    let push = crate::shot::impulse(direction, 0.01, 1000.0);
+    crate::shot::Hit {
+        point,
+        impulse: crate::shot::knocked_back(push, knockback),
+    }
+}
+
+/// A standing body killed by `hit`, 300 frames at 60 a second, `each`
+/// frame's ragdoll seen: how high its centre of mass went and how far on
+/// (level) it ended, m, and when it first settled, s.
+fn thrown(hit: crate::shot::Hit, mut each: impl FnMut(&Ragdoll)) -> (f32, f32, Option<f32>) {
+    let now = standing(Quat::IDENTITY, Vec3::ZERO);
+    let before = driver_bones(&now);
+    let hits = [hit];
+    let mut s = start(&now, &before, Cause::Unknown, Some(GUN));
+    s.hits = &hits;
+    let mut r = Ragdoll::new(&s).unwrap();
+    let centre = |r: &Ragdoll| {
+        let m: f32 = r.bodies.iter().map(|b| 1.0 / b.inverse_mass).sum();
+        r.bodies.iter().fold(Vec3::ZERO, |c, b| {
+            c + b.pose.position * (1.0 / (b.inverse_mass * m))
+        })
+    };
+    let (from, mut rise, mut settled) = (centre(&r), 0.0f32, None);
+    let mut ground = Ground::flat();
+    for frame in 0..300 {
+        each(&r);
+        if r.step(1.0 / 60.0, None, &mut ground) == Motion::Settled {
+            settled = settled.or(Some(frame as f32 / 60.0));
+        }
+        rise = rise.max(centre(&r).y - from.y);
+    }
+    (rise, (centre(&r) - from).reject(Vec3::Y).length(), settled)
+}
+
+#[test]
+fn a_force_protein_gun_stock_kill_flies_on_and_rests_by_friction() {
+    // nothing holds a body near where it died (no wall at 2.5 m, the old
+    // cap): the throw goes on past it and the ground's friction stops it,
+    // the rest rules settle it before the age cap; a plain gun stock falls
+    // about where it stood
+    let scenes = [
+        (Vec3::new(0.0, 0.0, -1.0), Vec3::new(0.0, 1.3, 0.12)),
+        (Vec3::new(1.0, 0.0, 0.0), Vec3::new(-0.15, 1.3, 0.0)),
+    ];
+    let rested = |settled: Option<f32>| settled.is_some_and(|t| t < MAX_AGE - 0.5);
+    for (direction, point) in scenes {
+        let (rise, on, settled) = thrown(gun_stock(direction, point, 15.0), |_| {});
+        let seen = std::format!("up {rise:.2}, on {on:.2}, settled {settled:?}");
+        assert!(rise > 0.15 && on > 3.0 && rested(settled), "thrown: {seen}");
+        let (rise, on, settled) = thrown(gun_stock(direction, point, 0.0), |_| {});
+        let seen = std::format!("up {rise:.2}, on {on:.2}, settled {settled:?}");
+        assert!(rise < 0.02 && on < 1.1 && rested(settled), "plain: {seen}");
+    }
+}
+
+#[test]
+fn no_bullet_and_no_plain_gun_stock_is_a_heavy_hit() {
+    // so every bullet's death is pushed as before (the heaviest a bullet makes)
+    let d = Vec3::new(0.0, 0.0, -1.0);
+    assert!(crate::shot::impulse(d, 0.999, 2999.0).length() < tuning::HEAVY_HIT);
+    let push = crate::shot::impulse(d, 0.01, 1000.0);
+    for k in [0.0, -1.0, f32::NAN] {
+        assert_eq!(crate::shot::knocked_back(push, k), push);
+    }
+    assert_eq!(crate::shot::knocked_back(push, 15.0), push * 16.0);
+    assert!((push * 16.0).length() >= tuning::HEAVY_HIT);
+}
+
+#[test]
+#[ignore = "render dump: RAGDOLL_DUMP=<file> cargo test -p ragdoll render_knockback -- --ignored"]
+fn render_knockback() {
+    use std::io::Write;
+    let out = std::env::var("RAGDOLL_DUMP").unwrap();
+    let mut file = std::fs::File::create(out).unwrap();
+    let scenes = [
+        (
+            "front",
+            Vec3::new(0.0, 0.0, -1.0),
+            Vec3::new(0.0, 1.3, 0.12),
+        ),
+        ("side", Vec3::new(1.0, 0.0, 0.0), Vec3::new(-0.15, 1.3, 0.0)),
+    ];
+    for (name, direction, point) in scenes {
+        for k in [0.0, 15.0] {
+            let mut frames = std::vec::Vec::new();
+            thrown(gun_stock(direction, point, k), |r| {
+                let mut caps = std::vec::Vec::new();
+                for b in r.bodies.iter().chain(r.gun.iter()) {
+                    let (a, c) = b.shape.ends(b.pose);
+                    caps.push(std::format!(
+                        "[{:.4},{:.4},{:.4},{:.4},{:.4},{:.4},{:.3}]",
+                        a.x,
+                        a.y,
+                        a.z,
+                        c.x,
+                        c.y,
+                        c.z,
+                        b.shape.radius
+                    ));
+                }
+                frames.push(std::format!("[{}]", caps.join(",")));
+            });
+            writeln!(
+                file,
+                "{{\"name\":\"{name}\",\"k\":{k},\"frames\":[{}]}}",
+                frames.join(",")
+            )
+            .unwrap();
+        }
+    }
+}

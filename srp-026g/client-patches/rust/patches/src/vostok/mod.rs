@@ -22,9 +22,11 @@
 //!
 //! It grows with what the patches need, and no further.
 
+pub mod baker;
 pub mod breadcrumbs;
 pub mod bullet;
 pub mod explosion;
+pub mod files;
 pub mod footstep;
 pub mod camera;
 pub mod carry_runtime;
@@ -32,6 +34,7 @@ pub mod carry_ground;
 pub mod carry_flower;
 mod cell;
 pub mod clock;
+pub mod crc32;
 mod context;
 pub mod draw;
 pub mod headwear;
@@ -45,13 +48,16 @@ pub mod language;
 pub mod lobby;
 pub mod lobby_camera;
 pub mod lobby_menu;
+pub mod mouse;
 pub mod log;
 pub mod melee;
 mod options;
 pub mod parse;
 pub mod resources;
+pub mod renderer;
 pub mod gun_cook;
 pub mod pickup;
+pub mod ray_test;
 mod rt;
 pub mod sound;
 pub mod system;

@@ -25,6 +25,8 @@ USAGE
         [--updater=<updater_skhid.exe>]  defaults to the release build in this repo
         [--extractor=<7zr.exe>]      defaults to the copy in this repo; it must be
                                      the file the updater is built to run
+        [--dxvk=<dxvk-3.1.1.tar.gz>] DXVK's release archive; by default the copy in
+                                     ~/.cache/skhid, downloaded from GitHub once
         [--site=https://<host>]      the server's web page; https://<host of --server>
                                      when not given
         [--no-launcher]              without the launcher and its updater
@@ -86,6 +88,10 @@ WHAT IT WRITES (the overlay mirrors the game's layout)
         compiled into the updater. This tool refuses another file.
     <output>/game/binaries/x86/updater_skhid.url
         the server it asks: --site.
+    <output>/game/binaries/x86/dxvk/d3d8.dll, d3d9.dll, d3d10core.dll, d3d11.dll, dxgi.dll
+        DXVK's 32-bit DLLs, unchanged (DXVK_VERSION, pinned): the game loads
+        them from there at its start when the Settings' Renderer is Vulkan/DXVK
+        (../docs/notes/dxvk-option.md).
     <output>/game/binaries/x86/launcher_skhid/index-*.html
         what the launcher shows while and when the server's page does not
         load (launcher/launcher_pages.py).
@@ -146,10 +152,13 @@ updater downloads the original game from its pinned mirror when it is missing.
 """
 
 import hashlib
+import io
 import os
 from pathlib import Path
 import re
 import sys
+import tarfile
+import urllib.request
 import zipfile
 
 import patch_026g as P
@@ -168,6 +177,21 @@ EXTRACTOR_NAME = "7zr.exe"
 EXTRACTOR_EXE = os.path.abspath(os.path.join(HERE, "..", "..", "client", "updater", "extractor", EXTRACTOR_NAME))
 EXTRACTOR_SIZE = 602624
 EXTRACTOR_SHA256 = "256feca8e274e5da655e2a284fabafd9f554365eb164862089dacd4e8276d282"
+# DXVK (../docs/notes/dxvk-option.md): the release archive and its x32 DLLs,
+# the ones `winetricks dxvk` installs (d3d8, d3d9, d3d10core, d3d11, dxgi),
+# pinned. The game loads them from dxvk\ when its Renderer is Vulkan/DXVK
+# (exe patch 83's DXVK_DLLS; a test here compares the names).
+DXVK_VERSION = "3.1.1"
+DXVK_URL = f"https://github.com/doitsujin/dxvk/releases/download/v{DXVK_VERSION}/dxvk-{DXVK_VERSION}.tar.gz"
+DXVK_SHA256 = "40565b4a724aadc4433fa4e010b4b23916d9b1f1baeee64e17186db94f54e608"
+DXVK_DLLS = {
+    "d3d8.dll": "9152ba43386e756790a66f61cdcee01b3287d156d4161c7456d816faa82fc364",
+    "d3d9.dll": "265888c31ca78dffa290c39cb7e50bfb02762590e41927906e46fb32f01497fa",
+    "d3d10core.dll": "110c41a5f67a0ab6d4eea586708883ce05aede204a0df6665e6362669079c2ba",
+    "d3d11.dll": "f44543cbe5c40202915a02ed6e9ac8140c3524e846ae67b01f6faa79485d1fd3",
+    "dxgi.dll": "abd1449dc28d536a4289c256ae7f4b6bbd15fa552792b7170c2ddece473c8bda",
+}
+DXVK_CACHE = Path(os.environ.get("XDG_CACHE_HOME") or Path.home() / ".cache", "skhid", f"dxvk-{DXVK_VERSION}.tar.gz")
 BUGTRAP_DLL = os.path.abspath(os.path.join(
     HERE, "..", "..", "client", "bugtrap", "target", "i686-win7-windows-msvc", "release", "BugTrap.dll"))
 # Where the original game is had by hand: the patches server's address of its
@@ -255,6 +279,37 @@ def read_extractor(path):
         sys.exit(f"{path}: not the extractor the updater is built to run "
                  f"({EXTRACTOR_SIZE} bytes, sha256 {EXTRACTOR_SHA256})")
     return data
+
+
+def read_dxvk(path=None):
+    """DXVK's DLLs, {name: bytes}, from its release archive: `path`, else the
+    cache, downloaded into it the first time. The archive and each DLL must be
+    the pinned ones."""
+    if path is None and not DXVK_CACHE.is_file():
+        print(f"downloading {DXVK_URL}")
+        try:
+            with urllib.request.urlopen(DXVK_URL, timeout=120) as answer:
+                data = answer.read()
+        except OSError as e:
+            sys.exit(f"{DXVK_URL}: cannot download DXVK ({e}); pass --dxvk=<dxvk-{DXVK_VERSION}.tar.gz>")
+        if sha256(data) != DXVK_SHA256:
+            sys.exit(f"{DXVK_URL}: not the pinned archive (sha256 {sha256(data)}, expected {DXVK_SHA256})")
+        DXVK_CACHE.parent.mkdir(parents=True, exist_ok=True)
+        part = DXVK_CACHE.with_suffix(".part")
+        part.write_bytes(data)
+        part.replace(DXVK_CACHE)
+    path = Path(path or DXVK_CACHE)
+    data = path.read_bytes()
+    if sha256(data) != DXVK_SHA256:
+        sys.exit(f"{path}: not DXVK {DXVK_VERSION}'s release archive (sha256 {DXVK_SHA256})")
+    dlls = {}
+    with tarfile.open(fileobj=io.BytesIO(data)) as archive:
+        for name, digest in DXVK_DLLS.items():
+            dll = archive.extractfile(f"dxvk-{DXVK_VERSION}/x32/{name}").read()
+            if sha256(dll) != digest:
+                sys.exit(f"{path}: x32/{name} is not the pinned file (sha256 {digest})")
+            dlls[name] = dll
+    return dlls
 
 
 def game_root(folder):
@@ -554,6 +609,7 @@ def main():
     archive = False
     launcher, updater_path, site = True, UPDATER_EXE, None
     extractor_path = EXTRACTOR_EXE
+    dxvk_path = None
     late_join, revision, required = True, None, None
     downloads = []
     for option in options:
@@ -581,6 +637,8 @@ def main():
             updater_path = option[len("--updater="):]
         elif option.startswith("--extractor="):
             extractor_path = option[len("--extractor="):]
+        elif option.startswith("--dxvk="):
+            dxvk_path = option[len("--dxvk="):]
         elif option.startswith("--site="):
             site = L.parse_site(option[len("--site="):])
         elif option == "--no-launcher":
@@ -645,6 +703,7 @@ def main():
             (os.path.join("game", EXE_DIR, L.UPDATER_NAME), read_updater(updater_path)),
             (os.path.join("game", EXE_DIR, EXTRACTOR_NAME), read_extractor(extractor_path)),
             (os.path.join("game", EXE_DIR, "updater_skhid.url"), (site + "\r\n").encode("ascii")),
+            *((os.path.join("game", EXE_DIR, "dxvk", name), dll) for name, dll in read_dxvk(dxvk_path).items()),
             (STARTER, starter()),
             (WITHOUT_UPDATER, without_updater(downloads)),
             # Windows checkouts may use CRLF; Bash needs LF.
