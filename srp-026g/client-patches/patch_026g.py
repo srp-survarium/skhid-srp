@@ -778,6 +778,23 @@ AI_ARENA_VA = 0x1E8CCB
 AI_ARENA_SIZE = 0x400000
 AI_ARENA = (AI_ARENA_VA, bytes.fromhex("c744241800000400"), bytes.fromhex("c744241800004000"))
 
+# The game world's sound scene (game_world::load 0x1F8CA0, its
+# sound_scene_creation_params on the stack: proxies [ebp-10h], propagators
+# [ebp-0Ch]) has 512 sound instances and 196 propagators (one a layer of a
+# playing composite: a shot is 2 to 13). A propagator lives the sound's
+# length plus its way to the listener; the ported guns' shot layers include
+# 9.2 to 9.9 s tails, so automatic fire takes all 196 in seconds, and every
+# new sound gets none (create_sound_propagator 0x5D2A0 returns 0, the sound
+# is never heard). 1024 of each: 0x400 x (90h + 50h) bytes from the
+# scene's unmanaged allocation, 224 KiB in all. Numbers, no relocation.
+# Patch 96 (docs/notes/sound_voices.md); it also hands voices on
+# (sound_voices.rs).
+SOUND_INSTANCES = 0x400
+SOUND_POOLS = (
+    (0x1F8DB6, bytes.fromhex("c745f000020000"), bytes.fromhex("c745f0") + struct.pack("<I", SOUND_INSTANCES)),
+    (0x1F8DBD, bytes.fromhex("c745f4c4000000"), bytes.fromhex("c745f4") + struct.pack("<I", SOUND_INSTANCES)),
+)
+
 # Match the shipped launcher's budgets when command-line keys are absent.
 # mt_allocator starts at 16 MiB, then adds 360 MiB on the default branch;
 # an explicit value instead takes the unchanged `shl esi,20` branch.
@@ -2319,6 +2336,14 @@ INSTALLS = {
     0x2F1771: (JUMP, "item_config_cook::translate_query 0x2F1750, its `call 0x2F2060` (esi the query's holder, edi "
                      "ebp+38h): weapon_kit_query_room, which calls it, takes the kit's room below the frame and "
                      "goes on at 0x2F1776 (the lohook weapon_kit.query_records)", None, None),
+    # patch 96 (the Rust patch sound_voices' three code hooks, sound_voices_026g.asm)
+    0x5E5E7: (JUMP, "voice_factory::new_voice 0x5E5C0 before its walk: sound_voices_pick, one pass, 0x5E605 with "
+                    "the free voice or its own `ret 8` with 0", None, None),
+    0x631D9: (JUMP, "sound_voice's constructor 0x63140 after new_voice: sound_voices_picked stores the source "
+                    "voice (+14h), back at 0x631DF, or with 0 pops edi and goes to the epilogue 0x631EF", None, None),
+    0x59F8E: (JUMP, "create_sound_voice 0x59E70 after the constructor: sound_voices_built frees a voice with no "
+                    "source and returns 0 by 0x59F9A, else replays push edi / add esi,2B0h and goes on at 0x59F95",
+              None, None),
     # the snapshot upload (every full build) and the default server's stub
     0x27AEA1: (JUMP, "on_match_ready: the snapshot upload (the late join's ready_hook first)", None, None),
     0x27A505: (JUMP, "the 0xF6 case: the snapshot upload", None, None),
@@ -3376,6 +3401,9 @@ def build_image(original, mode, code=None, server=None, late_join=None, revision
         for site in MEMORY_DEFAULTS:
             patch(data, *site)
             sites.append((site[0], site[0] + len(site[1])))
+        for site in SOUND_POOLS:
+            patch(data, *site)
+            sites.append((site[0], site[0] + len(site[1])))
         patch(data, *SPOT_COOLDOWN)
         sites.append((SPOT_COOLDOWN[0], SPOT_COOLDOWN[0] + len(SPOT_COOLDOWN[1])))
         for site in FALL_GRAVITY:
@@ -3839,6 +3867,7 @@ def build_image(original, mode, code=None, server=None, late_join=None, revision
                      "a drag turns the warmup camera and the wheel moves it while the kits are shown, "
                      "the archive reads' order is a strict weak ordering, "
                      f"the ai arena is {AI_ARENA_SIZE >> 20} MiB, "
+                     f"the game world's sound scene has {SOUND_INSTANCES} sound instances and propagators, "
                      "a weapon's upgrade window shows the weapon, "
                      "the commit_suicide key (K) kills one's own player, "
                      "a killed player falls as a ragdoll (drawn only) that bullets push and bloody, the death screen's camera on its head, "

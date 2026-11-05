@@ -51,6 +51,7 @@ pub mod gun_cook;
 pub mod pickup;
 mod rt;
 pub mod sound;
+pub mod voices;
 pub mod settings;
 mod sync;
 pub mod trace;

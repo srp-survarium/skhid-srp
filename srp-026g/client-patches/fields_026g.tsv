@@ -631,3 +631,22 @@ survarium::player_equipment_sound_effect	feet	0x44	u8	the feet's positions are r
 vostok::animation::animation_callback_params	object	0x0	u32	the animated object (on_player_sound_event plays only for its own player, 0x2A6495): an address, compared only
 vostok::animation::animation_callback_params	time	0x10	u32	the event's simulation milliseconds (compared with core_world maximum_time at 0x2A6488)
 vostok::animation::animation_callback_params	domain	0x20	u8	the event channel's domain value: 0 and 1 a step of one foot or the other, 2..4 the rustles (on_player_sound_event's switch 0x2A64A2)
+vostok::sound::sound_instance_proxy	user	0x64	ptr<vostok::sound::world_user>	its world user (detach_voice 0x5CBBD, calculate_hdr_audio_frame 0x5CA9F)
+vostok::sound::sound_instance_proxy	scene	0x68	ptr<vostok::sound::sound_scene>	its scene (detach_voice 0x5CBBA, calculate_hdr_audio_frame 0x5CA9C)
+vostok::sound::world_user	world	0x118	ptr<vostok::sound::sound_world>	its sound world (detach_voice 0x5CBC3, calculate_hdr_audio_frame 0x5CAA2)
+vostok::sound::new_sound_propagator	voice	0x4	u32	its sound voice, 0 while it has none (create_sound_voice's result stored at 0x5CAB0; detach_voice 0x5CBF2 clears it)
+vostok::sound::new_sound_propagator	proxy	0x8	ptr<vostok::sound::sound_instance_proxy>	the proxy it plays for (the constructor 0x5CB10)
+vostok::sound::new_sound_propagator	emitter	0xC	ptr<vostok::sound::sound_propagator_emitter>	its propagator emitter, passed to create_sound_voice (0x5CA99; vtable +8 its sound's options: +11h can_be_displaced, 0x5CACD)
+vostok::sound::new_sound_propagator	master	0x14	ptr<vostok::sound::new_sound_propagator>	the propagator whose gain it takes, if any (amplitude 0x5C1C0 follows the chain to the last)
+vostok::sound::new_sound_propagator	reach	0x1C	u32	the ms the sound takes to reach the listener: audible from then (calculate_hdr_audio_frame 0x5C81D, 0x5C9BA, 0x5CA65)
+vostok::sound::new_sound_propagator	elapsed	0x24	u32	the ms since it was emitted (the proxy's tick 0x5B526)
+vostok::sound::new_sound_propagator	level	0x44	f32	its sample's amplitude at its playing offset this frame, 0.01 to 1 (0x5CD40, stored at 0x5C850)
+vostok::sound::new_sound_propagator	hold	0x48	u32	ms, set to 2000 when the HDR cull takes its voice (0x5CAD9), counted down by the proxy's tick (0x5B529)
+vostok::sound::new_sound_propagator	gain	0x4C	f32	its gain by distance this frame, 0 to 1 (calculate_hdr_audio_frame 0x5CA37); a voice is given above 0.01 (0x5CA87)
+vostok::sound::hdr_frame	propagators	0xC	ptr<vostok::sound::propagator_list>	calculate_hdr_audio_frame's second argument ([ebp+0Ch], 0x5C9A4): the scene's propagators this tick, notify_listener2's vector
+vostok::sound::propagator_list	begin	0x0	ptr<vostok::sound::propagator_slot>	the first (0x5CA4E)
+vostok::sound::propagator_list	end	0x4	ptr<vostok::sound::propagator_slot>	past the last (0x5C7F8)
+vostok::sound::propagator_slot	propagator	0x0	ptr<vostok::sound::new_sound_propagator>	one of the scene's propagators (0x5CA60)
+vostok::sound::propagator_slot	size	0x4	size	a pointer
+vostok::sound::sound_propagator_emitter	options	0x8	obj<vostok::sound::sound_options>	its sound's options, inline (vtable slot 2 0x38990 returns this + 8; calculate_hdr_audio_frame asks the slot, 0x5CAC3)
+vostok::sound::sound_options	can_be_displaced	0x11	u8	the HDR cull may take its voice (0x5CACD); single_sound_cook's default 1 (0x6129F), raw_options can_be_displaced false makes it 0

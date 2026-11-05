@@ -3188,3 +3188,13 @@ va	status	ref_021d	name
 0x002ef130	inferred-medium		survarium::animations_registry::register_animation
 0x002ef280	inferred-medium		survarium::animations_registry::actualize
 0x00059dd0	inferred-medium		vostok::sound::sound_world::process_orders
+0x0005c7a0	inferred-high	0x000425cd	vostok::sound::sound_scene::calculate_hdr_audio_frame
+0x0005c280	inferred-high	0x0004228a	vostok::sound::sound_scene::notify_listener2
+0x0005b470	inferred-high	0x000416db	vostok::sound::sound_instance_proxy_internal::tick
+0x0005b5b0	inferred-high	0x000417b8	vostok::sound::sound_instance_proxy_internal::execute_finished_callback
+0x0005c1c0	inferred-high	0x0004221f	vostok::sound::new_sound_propagator::amplitude
+0x0005e5c0	inferred-high		vostok::sound::voice_factory::new_voice
+0x0005e310	inferred-high	0x00043b41	vostok::sound::voice_factory::voice_factory
+0x00063140	inferred-high	0x00046be8	vostok::sound::sound_voice::sound_voice
+0x0005a470	inferred-medium		vostok::sound::sound_voice::~sound_voice
+0x0005dde0	inferred-high	0x00043729	vostok::sound::voice_bridge::OnBufferEnd

@@ -1853,6 +1853,21 @@ pub extern "C" fn hook_scaleform_capture_on_queue_destroy(frame: &mut Frame) -> 
     }
 }
 
+// ---- sound_voices (patch 96) ----
+
+/// The entry `sound_voices_on_voice_made` (0x5cab0, calculate_hdr_audio_frame after create_sound_voice for an audible propagator above the gain floor with no voice (mov [esi+4],eax; test eax,eax): the sound thread, ESI the propagator, EAX its new voice or 0 (the world's 64 all taken), EBP the frame) calls this with the saved machine.
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_sound_voices_on_voice_made(frame: &mut Frame) -> u32 {
+    // SAFETY: only the entry `sound_voices_on_voice_made` calls this, from the game's jump at 0x5cab0,
+    // on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::new(frame) };
+    match crate::sound_voices::on_voice_made(&mut ctx) {
+        Flow::Continue => 0,
+        Flow::Skip => 1,
+        Flow::Exit(e) => match e {},
+    }
+}
+
 // ---- suicide_key (patch 34) ----
 
 /// engine_action_present (0x242460), as the call hook at 0x242196 wraps it.

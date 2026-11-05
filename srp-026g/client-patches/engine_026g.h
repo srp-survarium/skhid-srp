@@ -52,6 +52,7 @@ struct medical_pools;
 struct medkit;
 struct messaging_client;
 struct network_client;
+struct new_sound_propagator;
 struct object_light;
 struct particle_slot;
 struct player;
@@ -75,7 +76,10 @@ struct scene_renderer;
 struct simple_game_project;
 struct sound_emitter;
 struct sound_instance_proxy;
+struct sound_options;
+struct sound_propagator_emitter;
 struct sound_scene;
+struct sound_voice;
 struct sound_world;
 struct static_collision;
 struct static_model_instance;
@@ -491,5 +495,14 @@ extern void * (__attribute__((stdcall)) *const engine_get_process_heap)(void);
 
 /* the IAT slot 0x870054 (an import, stdcall) */
 extern unsigned int (__attribute__((stdcall)) *const engine_heap_free)(void * heap, unsigned int flags, void * memory);
+
+/* 0x59e70 vostok::sound::sound_world::create_sound_voice: world EAX, scene ESP+4, propagator ESP+8, emitter ESP+12; pops 12; EAX */
+struct sound_voice *engine_create_sound_voice(struct sound_world *world, struct sound_scene *scene, struct new_sound_propagator *propagator, const void *emitter);
+
+/* 0x5cb80 vostok::sound::new_sound_propagator::detach_voice: propagator ESP+4; pops 4; stdcall, called directly */
+void __attribute__((stdcall)) engine_detach_voice(struct new_sound_propagator *propagator);
+
+/* virtual vostok::sound::sound_propagator_emitter+0x8 (1 vtables of vtables.tsv: 0x38990): emitter ECX; pops 0; EAX */
+const struct sound_options *engine_sound_options(const struct sound_propagator_emitter *emitter);
 
 #endif

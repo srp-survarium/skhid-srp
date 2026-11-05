@@ -452,3 +452,13 @@ extern engine_get_process_heap
 ; the IAT slot 0x870054 (an import, stdcall)
 ; `call [symbol]`: stdcall, it pops its arguments
 extern engine_heap_free
+; struct sound_voice *engine_create_sound_voice(struct sound_world *world, struct sound_scene *scene, struct new_sound_propagator *propagator, const void *emitter)
+; 0x59e70 vostok::sound::sound_world::create_sound_voice: world EAX, scene ESP+4, propagator ESP+8, emitter ESP+12; pops 12; EAX
+extern engine_create_sound_voice
+; void engine_detach_voice(struct new_sound_propagator *propagator)
+; 0x5cb80 vostok::sound::new_sound_propagator::detach_voice: propagator ESP+4; pops 4; stdcall, called directly
+; stdcall: push (and ECX for thiscall) as that convention says
+extern engine_detach_voice
+; const struct sound_options *engine_sound_options(const struct sound_propagator_emitter *emitter)
+; virtual vostok::sound::sound_propagator_emitter+0x8 (1 vtables of vtables.tsv: 0x38990): emitter ECX; pops 0; EAX
+extern engine_sound_options

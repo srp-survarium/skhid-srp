@@ -140,6 +140,9 @@ global engine_co_create_instance
 global engine_heap_alloc
 global engine_get_process_heap
 global engine_heap_free
+global engine_create_sound_voice
+global engine_detach_voice
+global engine_sound_options
 engine_action_present equ 0x242460   ; 0x242460 survarium::player_input_handler::action_present: handler ESP+4, action ESP+8, state ESP+12; pops 12; AL; stdcall, called directly
 engine_create_file_a equ 0x870048   ; the IAT slot 0x870048 (an import, stdcall)
 engine_write_file equ 0x870108   ; the IAT slot 0x870108 (an import, stdcall)
@@ -182,6 +185,7 @@ engine_co_create_instance equ 0xaf0064   ; the IAT slot 0xaf0064 (an import, std
 engine_heap_alloc equ 0x87004c   ; the IAT slot 0x87004c (an import, stdcall)
 engine_get_process_heap equ 0x870050   ; the IAT slot 0x870050 (an import, stdcall)
 engine_heap_free equ 0x870054   ; the IAT slot 0x870054 (an import, stdcall)
+engine_detach_voice equ 0x5cb80   ; 0x5cb80 vostok::sound::new_sound_propagator::detach_voice: propagator ESP+4; pops 4; stdcall, called directly
 
 engine_cfg_child:
     ; 0xf6b10 vostok::configs::binary_config_value::operator[]: table EAX, key EDI; pops 0; EAX
@@ -1786,6 +1790,40 @@ engine_effect_resource_emit:
     mov esi, [esp + 20]   ; resource
     mov edi, [esp + 24]   ; out
     call 0x329050
+    pop edi
+    pop esi
+    pop ebx
+    pop ebp
+    ret
+
+    align 16, db 0xCC
+engine_create_sound_voice:
+    ; 0x59e70 vostok::sound::sound_world::create_sound_voice: world EAX, scene ESP+4, propagator ESP+8, emitter ESP+12; pops 12; EAX
+    push ebp
+    push ebx
+    push esi
+    push edi
+    push dword [esp + 32]   ; emitter -> 12
+    push dword [esp + 32]   ; propagator -> 8
+    push dword [esp + 32]   ; scene -> 4
+    mov eax, [esp + 32]   ; world
+    call 0x59e70
+    pop edi
+    pop esi
+    pop ebx
+    pop ebp
+    ret
+
+    align 16, db 0xCC
+engine_sound_options:
+    ; virtual vostok::sound::sound_propagator_emitter+0x8 (1 vtables of vtables.tsv: 0x38990): emitter ECX; pops 0; EAX
+    push ebp
+    push ebx
+    push esi
+    push edi
+    mov ecx, [esp + 20]   ; emitter
+    mov eax, [ecx]                   ; this's vtable
+    call [eax + 0x8]
     pop edi
     pop esi
     pop ebx

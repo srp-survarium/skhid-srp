@@ -2308,3 +2308,6 @@ va	name	source	ret_cleanup	result
 0x00059080	vostok::sound::sound_world::initialize_xaudio	manual	4	AL: 1 a mastering voice made (sound_world+0C4h), 0 none (no device, or CreateMasteringVoice failed)
 0x0005a640	XAudio2Create	manual	0	EAX: HRESULT; the engine written to *engine only on success (Initialize failed: released)
 0x00059dd0	vostok::sound::sound_world::process_orders	manual	4	
+0x00059e70	vostok::sound::sound_world::create_sound_voice	manual	12	EAX
+0x0005cb80	vostok::sound::new_sound_propagator::detach_voice	manual	4	
+0x00038990	vostok::sound::sound_propagator_emitter::get_options	thiscall	0	EAX: this + 8, the sound's options (single_sound_cook 0x615D8 copies them; +11h can_be_displaced, default 1 at 0x6129F)

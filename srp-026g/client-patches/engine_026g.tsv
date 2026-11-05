@@ -135,3 +135,6 @@ engine_co_create_instance	0xaf0064	-	unsigned int engine_co_create_instance(cons
 engine_heap_alloc	0x87004c	-	void *engine_heap_alloc(void *heap, unsigned int flags, unsigned int size)	import	
 engine_get_process_heap	0x870050	-	void *engine_get_process_heap(void)	import	
 engine_heap_free	0x870054	-	unsigned int engine_heap_free(void *heap, unsigned int flags, void *memory)	import	
+engine_create_sound_voice	0x059e70	EAX:world ESP+4:scene ESP+8:propagator ESP+12:emitter	struct sound_voice *engine_create_sound_voice(struct sound_world *world, struct sound_scene *scene, struct new_sound_propagator *propagator, const void *emitter)	thunk	
+engine_detach_voice	0x05cb80	ESP+4:propagator	void engine_detach_voice(struct new_sound_propagator *propagator)	stdcall	
+engine_sound_options	vostok::sound::sound_propagator_emitter+0x8	ECX:emitter	const struct sound_options *engine_sound_options(const struct sound_propagator_emitter *emitter)	virtual	
