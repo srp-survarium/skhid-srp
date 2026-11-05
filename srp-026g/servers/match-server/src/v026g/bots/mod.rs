@@ -55,8 +55,8 @@ pub mod grenade_threat;
 pub mod group;
 pub mod guns;
 pub mod hazards;
-#[cfg(feature = "jump-test")]
 pub mod jump_arc;
+#[cfg(feature = "jump-test")]
 pub mod jump_test;
 pub mod kin;
 pub mod know;
