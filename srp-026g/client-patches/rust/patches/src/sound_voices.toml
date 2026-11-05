@@ -7,3 +7,23 @@ patch = 96
 [[hook]]
 site = "sound_scene.voice_made"
 handler = "on_voice_made"
+
+# source_voice_pool::acquire's walk bounded to one pass, as retail 0.46c2
+# (0x8D1370), and a voice with no source not made (sound_voices_026g.asm)
+[[hook]]
+site = "sound_voice.pick"
+source = "sound_voices_026g.asm"
+symbol = "sound_voices_pick"
+limit = 48
+
+[[hook]]
+site = "sound_voice.picked"
+source = "sound_voices_026g.asm"
+symbol = "sound_voices_picked"
+limit = 24
+
+[[hook]]
+site = "sound_world.voice_built"
+source = "sound_voices_026g.asm"
+symbol = "sound_voices_built"
+limit = 64

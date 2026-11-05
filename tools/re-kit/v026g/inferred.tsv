@@ -3185,3 +3185,8 @@ va	status	ref_021d	name
 0x0005b470	inferred-high	0x000416db	vostok::sound::sound_instance_proxy_internal::tick
 0x0005b5b0	inferred-high	0x000417b8	vostok::sound::sound_instance_proxy_internal::execute_finished_callback
 0x0005c1c0	inferred-high	0x0004221f	vostok::sound::new_sound_propagator::amplitude
+0x0005e5c0	inferred-high		vostok::sound::voice_factory::new_voice
+0x0005e310	inferred-high	0x00043b41	vostok::sound::voice_factory::voice_factory
+0x00063140	inferred-high	0x00046be8	vostok::sound::sound_voice::sound_voice
+0x0005a470	inferred-medium		vostok::sound::sound_voice::~sound_voice
+0x0005dde0	inferred-high	0x00043729	vostok::sound::voice_bridge::OnBufferEnd

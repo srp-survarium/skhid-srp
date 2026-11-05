@@ -2316,6 +2316,14 @@ INSTALLS = {
     0x2F1771: (JUMP, "item_config_cook::translate_query 0x2F1750, its `call 0x2F2060` (esi the query's holder, edi "
                      "ebp+38h): weapon_kit_query_room, which calls it, takes the kit's room below the frame and "
                      "goes on at 0x2F1776 (the lohook weapon_kit.query_records)", None, None),
+    # patch 96 (the Rust patch sound_voices' three code hooks, sound_voices_026g.asm)
+    0x5E5E7: (JUMP, "voice_factory::new_voice 0x5E5C0 before its walk: sound_voices_pick, one pass, 0x5E605 with "
+                    "the free voice or its own `ret 8` with 0", None, None),
+    0x631D9: (JUMP, "sound_voice's constructor 0x63140 after new_voice: sound_voices_picked stores the source "
+                    "voice (+14h), back at 0x631DF, or with 0 pops edi and goes to the epilogue 0x631EF", None, None),
+    0x59F8E: (JUMP, "create_sound_voice 0x59E70 after the constructor: sound_voices_built frees a voice with no "
+                    "source and returns 0 by 0x59F9A, else replays push edi / add esi,2B0h and goes on at 0x59F95",
+              None, None),
     # the snapshot upload (every full build) and the default server's stub
     0x27AEA1: (JUMP, "on_match_ready: the snapshot upload (the late join's ready_hook first)", None, None),
     0x27A505: (JUMP, "the 0xF6 case: the snapshot upload", None, None),

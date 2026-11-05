@@ -2121,3 +2121,4 @@ va	status	ref_021d	name
 0x00059e70	observed	0x00040974	vostok::sound::sound_world::create_sound_voice
 0x0005cb80	reviewed	0x000429b3	vostok::sound::new_sound_propagator::detach_voice
 0x002454a0	observed		survarium::delayed_callbacks_queue<64>::add
+0x00245ad0	observed		survarium::delayed_callbacks_queue<64>::push_back

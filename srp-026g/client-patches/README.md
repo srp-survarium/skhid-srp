@@ -120,7 +120,7 @@ release's. The "Result" row is the build of the revision named in it.
 | `check_tab_self_026g.py` | Runs the original's and patch 43's end of game_world::on_activate, where the hud gets its player's name (the Tab list's own row gold), on a made-up world with the journal off, recording and played back (needs Unicorn) |
 | `check_weapon_show_026g.py` | Runs the original's and patch 91's weapon::on_show and the next weapon::draw's scope (add and remove of the aimed sight, the game's own) on made-up weapons, aimed and not, first person and not, no optic, a red dot and a full-screen scope, with the renderer's in-scene byte kept (needs Unicorn) |
 | `rust/patches/src/scaleform_capture.rs`, `src/scaleform_capture.toml`, `src/vostok/drawable_image.rs`, `check_scaleform_capture_026g.py` | Patch 93: the render thread's walk of a Scaleform DrawableImageContext's command queues (OnNextCapture 0x572660) never reaches a queue being destroyed (the rev-40 crash at a match's end): two lohooks; its check runs OnNextCapture and the queue's destructor on made-up contexts, the original beside (needs Unicorn) |
-| `rust/patches/src/sound_voices.rs`, `src/sound_voices.toml`, `src/vostok/voices.rs`, `check_sound_voices_026g.py` | Patch 96: shots no longer go silent under heavy fire (`../docs/notes/sound_voices.md`): the game world's sound scene has 1024 sound instances and propagators (`SOUND_POOLS`, game_world::load 0x1F8DB6/0x1F8DBD), and a sound refused a voice takes the voice of the quietest one playing when that one is less than half as loud (a lohook after create_sound_voice, 0x5CAB0); the check runs the voice loop from that site on made-up scenes with a model of the world's voice pool, and the self-test's `test_sound_pools` (needs Unicorn) |
+| `rust/patches/src/sound_voices.rs`, `src/sound_voices.toml`, `src/vostok/voices.rs`, `check_sound_voices_026g.py` | Patch 96: shots no longer go silent under heavy fire (`../docs/notes/sound_voices.md`): the game world's sound scene has 1024 sound instances and propagators (`SOUND_POOLS`, game_world::load 0x1F8DB6/0x1F8DBD), and a sound refused a voice takes the voice of the quietest one playing when that one is less than half as loud (a lohook after create_sound_voice, 0x5CAB0), and the source voice walk is bounded to one pass (`sound_voices_026g.asm`, 0x5E5E7, 0x631D9, 0x59F8E); the check runs the voice loop from that site on made-up scenes with a model of the world's voice pool, and the self-test's `test_sound_pools` (needs Unicorn) |
 | `check_stage_focus_026g.py` | Runs the original's and patch 52's Stage focus getter (Scaleform's `stage.focus`, 0x771FA0) on a made-up movie: focused objects of each kind, none, one without its ActionScript object (the lobby's crash of 2026-10-22) (needs Unicorn) |
 | `rust/patches/src/language.rs`, `src/language.toml`, `src/vostok/language.rs`, `languages_026g.rs`, `check_language_026g.py` | Patch 79: the game language is a setting kept in user.cfg (Settings, Gameplay, Language; `../docs/notes/language-option.md`): three lohooks (`sites_026g.tsv`); `languages_026g.rs` is generated from `localization_026g.py`'s registry; its check runs each hook from the game's code on made-up objects, the original beside (needs Unicorn); the movie's harness is `../scripts/language-option/check.sh` |
 | `rust/patches/src/tab_cursor.rs`, `src/tab_cursor.toml`, `src/vostok/hud_input.rs`, `src/vostok/keyboard.rs`, `src/vostok/lobby.rs`, `check_tab_cursor_026g.py` | Patch 86: Ctrl on the Tab list shows a cursor, and its rows' menu sends the lobby's friend request (`../docs/notes/tab-cursor-friends.md`): two lohooks (`sites_026g.tsv`); its check runs both from the game's code on made-up objects, the original beside (needs Unicorn); the menu's harness is `../scripts/tab-row-menu/check.sh` |
@@ -4129,9 +4129,37 @@ silent until the tails end (the tails a fresh shot hears at an offset when a voi
   sounds of about one loudness never take a voice back and forth; a quiet sound never takes a loud
   one's.
 
+- The bound (`sound_voices_026g.asm`, three `code` hooks): voice_factory::new_voice (0x5E5C0)
+  walks its mono or stereo source voices round-robin until one has no owner and never stops
+  when all are owned (the count at 0x5E602 is never compared), so the sound thread would spin and
+  no sound play again (0.27d0, 0.28a2, 0.31a2 alike; retail 0.46c2's 0x8D1370 walks one pass and
+  returns 0). Now one pass, 0 back; sound_voice's constructor (0x631D9) stores the 0 and returns
+  without writing through it; create_sound_voice (0x59F8E) lets such a voice go (its sound's
+  release as ~sound_voice does it from 0x5A47B, the wrapper back to the pool) and answers 0, as for
+  a full pool. With 64 sound voices and 64 source voices of each kind it is not reached today (a
+  sound voice owns one source voice at most, its release clears the owner, 0x5A474), the voice
+  hand-on included: it is the guard against a leaked owner or a later change of the counts.
+
+Not taken from retail, and why:
+- **Retail's loudness sort** (0.46c2 sorts the propagators before the grant loop, 0x8CEC21): in
+  0.26g a propagator's grant loudness is its distance gain alone (+4Ch), so a shot's 10 s tail is
+  as loud as the next shot of the same gun and a sort cannot put the shot first; and it hands out
+  free voices only, while the tails hold all 64. The hand-on uses gain x the sample's amplitude
+  now, which tells a fading tail from a new shot.
+- **128 + 128 voices** (0.46c2's `snd_max_mono_voices`/`snd_max_stereo_voices`): three numbers
+  (the 64 sound voices at +68h and both source pools, 0x58E79) and 192 more XAudio2 voices at all
+  times for what the hand-on already gives; a PKP's tails alone (~100) would still fill 128.
+- **Guards of the null orders** (free_object 0x5B44A, play 0x5AC9E, OnBufferEnd 0x5DE94 write
+  through a failed allocation): those allocations are the world user's order allocator and the
+  multi-threaded allocator (0x5DF10: 0 only when malloc 0x106EF0 fails or at shutdown, flag
+  0x1F1D61B), one per order or buffer end; neither the bigger pools (allocated once with the scene,
+  its unmanaged resource) nor the hand-on (no order) asks for more of them. Out of memory there is
+  the game's end anyway.
+
 Nothing a match computes (sounds only). Checked: `check_sound_voices_026g.py` (nine scenes, the
-original never takes a voice), the self-test's `test_sound_pools`, `cargo test` and clippy of
-`rust/`. **Not run in a game.**
+original never takes a voice; new_voice with a free voice and with all owned, the original never
+returning; create_sound_voice whole on a made-up world, with a source voice and without), the
+self-test's `test_sound_pools`, `cargo test` and clippy of `rust/`. **Not run in a game.**
 
 ## The render thread never reaches a Scaleform queue being destroyed (patch 93, unreleased)
 
