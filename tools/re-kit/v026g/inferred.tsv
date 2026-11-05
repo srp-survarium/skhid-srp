@@ -3180,3 +3180,13 @@ va	status	ref_021d	name
 0x0033aa40	inferred-medium		survarium::weapon_core_fire_state_base::finalize
 0x00391c40	inferred-medium		vostok::animation::animation_player::subscribe_event_channel
 0x003921a0	inferred-medium		vostok::animation::animation_player::unsubscribe_event_channel
+0x00025f30	inferred-high	0x0001e2f6	vostok::math::curve_line_points<float,0>::evaluate
+0x00062a80	inferred-high	0x0004674f	vostok::math::curve_line_points<float,0>::load<vostok::configs::binary_config_value>
+0x00062930	inferred-medium		vostok::sound::sound_spl::sound_spl
+0x0005c280	inferred-high	0x0004228a	vostok::sound::sound_scene::notify_listener2
+0x0005c7a0	inferred-high	0x000425cd	vostok::sound::sound_scene::calculate_hdr_audio_frame
+0x0005c1c0	inferred-high	0x0004221f	vostok::sound::new_sound_propagator::amplitude
+0x0005c1f0	inferred-medium	0x00042245	vostok::sound::sound_instance_proxy_internal::get_position
+0x00057560	inferred-medium	0x0003eaef	vostok::sound::sound_scene::get_listenet_position
+0x00063d60	inferred-high	0x000474fb	vostok::sound::composite_sound::emit_sound_propagators
+0x000633f0	inferred-medium	0x00043646	vostok::sound::voice_bridge::set_volume_impl
