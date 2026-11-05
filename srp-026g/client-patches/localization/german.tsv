@@ -1777,7 +1777,7 @@ st_ranking	Rating
 st_ranking_diff	Unterschied
 st_rattle_activation_hint	Der Klapper ist aktiviert! Ihre Schritte sind für den Gegner unhörbar!
 st_rattle_pickup_hint	Das Artefakt Klapper. Verringert die Laute der Schritte auf 50 %.
-st_rdgm_descr	Description is not ready!!!
+st_rdgm_descr	Rauchhandgranate. Legt einen dichten Sichtschutz, der Bewegungen verbirgt.
 st_rdgm_name	Rauchgranate RDG-M
 st_reach_level	<green>Stufe </green> erreicht
 st_ready	Bereit
@@ -2446,8 +2446,14 @@ st_srp_hud_unmute	Chat freigeben
 st_srp_hud_unmuted	Chat freigegeben
 st_srp_inv_ammo_range	Reichweite
 st_srp_inv_bullet_speed	Geschossgeschwindigkeit
+st_srp_inv_defuse_time	Entschärfzeit
+st_srp_inv_fuse_time	Zündzeit
 st_srp_inv_pellets	Schrotkugeln
+st_srp_inv_pocket_units	Taschenplätze
+st_srp_inv_stamina_damage	Ausdauerschaden
+st_srp_inv_throw_speed	Wurfgeschwindigkeit
 st_srp_inventory_search	Suche
+st_srp_item_props_mps	m/s
 st_srp_language_option	Sprache:
 st_srp_language_restart	Gilt nach einem Neustart.
 st_srp_loadout_block_ammo	Zu wenig Munition für eine Waffe

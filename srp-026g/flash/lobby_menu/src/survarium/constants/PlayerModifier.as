@@ -1,13 +1,19 @@
 package survarium.constants
 {
    // A player modifier: its index in a kit's 68 floats, the exe's name table at 0x928448
-   // (srp's skills::MODIFIER_NAMES; docs/notes/static_info.md 3.1). Only those a weapon's
-   // or a medicine's card shows the effect of (docs/notes/alt-weapon-stats.md).
+   // (srp's skills::MODIFIER_NAMES; docs/notes/static_info.md 3.1). Only those a weapon's, a
+   // medicine's, a grenade's or a trap's card shows the effect of (docs/notes/alt-weapon-stats.md).
    public class PlayerModifier
    {
 
       // the stance's spread, at the stance's weight (1 standing, walking, crouching, aiming)
       public static const DISPERSION:int = 0;
+
+      // a grenade's splash damage, stopping power and stamina damage, a trap's hit
+      public static const DEVICE_DAMAGE:int = 11;
+
+      // a grenade's splash radius
+      public static const SPLASH_RADIUS:int = 12;
 
       public static const RELOAD_SPEED:int = 13;
 
@@ -17,6 +23,9 @@ package survarium.constants
 
       // draw and holster
       public static const CHANGE_WEAPON_SPEED:int = 22;
+
+      // a grenade's throw speed (skill 203, Grenadier)
+      public static const GRENADE_THROW_POWER:int = 27;
 
       // a medicine's use time (medkit::set_active 0x33D45A)
       public static const DRUG_USING_TIME:int = 33;

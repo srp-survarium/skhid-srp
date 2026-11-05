@@ -1777,7 +1777,7 @@ st_ranking	Рэйтынг
 st_ranking_diff	Розніца
 st_rattle_activation_hint	Бразготка актывавана! Вашы крокі зусім не чутныя для праціўніка!
 st_rattle_pickup_hint	Артэфакт Бразготка. Памяншае гукі крокаў на 50%.
-st_rdgm_descr	Апісанне пакуль недаступнае.
+st_rdgm_descr	Ручная дымавая граната. Ставіць шчыльную заслону, якая хавае перамяшчэнне.
 st_rdgm_name	Дымавая граната РДГ-М
 st_reach_level	дасягнуў <green>Узроўню</green>
 st_ready	Гатовы
@@ -2446,8 +2446,14 @@ st_srp_hud_unmute	Уключыць чат
 st_srp_hud_unmuted	Чат уключаны
 st_srp_inv_ammo_range	Далёкасць
 st_srp_inv_bullet_speed	Хуткасць кулі
+st_srp_inv_defuse_time	Час абясшкоджвання
+st_srp_inv_fuse_time	Час запалу
 st_srp_inv_pellets	Шрацін
+st_srp_inv_pocket_units	Месца ў кішэні
+st_srp_inv_stamina_damage	Шкода вынослівасці
+st_srp_inv_throw_speed	Хуткасць кідка
 st_srp_inventory_search	Пошук
+st_srp_item_props_mps	м/с
 st_srp_language_option	Мова:
 st_srp_language_restart	Прыменіцца пасля перазапуску.
 st_srp_loadout_block_ammo	Мала патронаў да зброі
