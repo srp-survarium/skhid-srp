@@ -80,7 +80,8 @@ python3 pack_icons.py --packs /path/to/content-packs --icons icons \
 The pack builder refuses to replace an existing version. It checks every
 PNG, copies the three source packs, replaces only their listed weapon icon
 PNGs, and verifies that all other file bytes remain identical. The outputs
-are weapons-031@9, weapons-046@12 and weapons-069@14, pinned in
+are weapons-031@11 (from @10, the port with the Groza's 0.69d0 aim locator),
+weapons-046@12 and weapons-069@14, pinned in
 `release/content.tsv`. Ammo and kill-feed images, gameplay configs, models,
 textures and animations stay byte-identical. No simulation-change row is
 needed.
