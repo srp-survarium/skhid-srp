@@ -5502,3 +5502,7 @@ va	name	location	role	basis
 0x000181e0	message_processor	ESP+1Ch at 0x1835F	WM_INPUTLANGCHANGEREQUEST's HKL: passed to DefWindowProc (0x18377) only when survarium::game slot 44h (0x1EE7C0) says a text input is focused, else dropped (return 0, 0x18272); patch 107's site window.lang_request	observed
 0x000181e0	message_processor	ESP+1Ch at 0x183E3	WM_INPUTLANGCHANGE's HKL: ActivateKeyboardLayout(hkl, KLF_SETFORPROCESS) at 0x183FE when a text input is focused, then DefWindowProc; patch 107's site window.lang_change	observed
 0x001ee7c0	survarium::game::is_text_input_focused	ECX	the game (its slot 44h, called through engine_world+2D0h at 0x18359 and 0x183DD); +586Ch set to 1 by game::game 0x1E935D, switch_to_lobby 0x1ED256 and switch_to_login 0x1ED2E6, 0 by game::unload 0x1ED1D8, +1/-1 by chat_handler::focus 0x209BF8/0x209C10	observed
+0x0030a250		AL	the grenade's index in the item's list +268h (the throw state's +180h, 0x33A7CD)	observed
+0x0030a250		entry ESP+4	the grenade item (the throw state's +17Ch): +250h its holder (+174h vtable +0Ch the thrower, whose kit gives S27), +2B8h throw_power	observed
+0x0030a250		entry ESP+8	the throw transform (its +20h..28h the direction the velocity is)	observed
+0x0030a250		entry ESP+12	the thrower's eye transform (player +44Ch)	observed

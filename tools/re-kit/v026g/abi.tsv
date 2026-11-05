@@ -2327,3 +2327,4 @@ va	name	source	ret_cleanup	result
 0x003b92d0	vostok::input::platform::keyboard::translate_text	manual	8	AL: 1 a character written to entry ESP+8's WCHAR (or a dead key kept at ECX+90Ch), 0 none
 0x000181e0	message_processor	manual	16	EAX: the message's result (most cases tail-jump to DefWindowProc, [0AEFF1Ch])
 0x001ee7c0	survarium::game::is_text_input_focused	manual	0	AL: 1 when game+586Ch is not 0 (a text input has the keyboard)
+0x0030a250		manual	12	none; a grenade's launch: velocity = the throw transform +20h..28h x apply_modifier 0x2D5AE0 (the thrower's kit, index 27 grenade_throw_power, the grenade's throw_power +2B8h, 1.0) at 0x30A2DE, B x max(0, 1 + S27), then the grenade's vtable +18h (grenade_core::throw_grenade 0x303C10); skipped when the grenade is out (+154h) or thrown (+148h); force-protein.md

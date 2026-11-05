@@ -2667,6 +2667,7 @@ st_srp_skills	Навыки
 st_srp_speed_label	Скорость
 st_srp_speed_title	Скорость движения: %1$s
 st_srp_static_minimap_option	Статическая миникарта
+st_srp_throw_distance	Дальность броска
 st_srp_unit_kg	%1$s кг
 st_srp_unit_meters	%1$sм
 st_srp_unit_mps	%1$s м/с

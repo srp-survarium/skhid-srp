@@ -31,7 +31,8 @@ whatever else too".
 
 - **The kit:** the selected kit (the one the paper doll shows): its armour's modifications (built-in,
   rolled and defects; every slot from the head to the boots, the mask and backpack included) of a
-  player modifier the weapon uses. A weapon's card shows the kit's effects wherever the weapon is
+  player modifier the weapon uses, and its pocket boosters' built-in ones (a booster adds them while
+  carried, `survarium::booster` 0x33F990; the Force Protein's throw distance, force-protein.md). A weapon's card shows the kit's effects wherever the weapon is
   (inventory, shop, the kit), as if it were in that kit.
 - **The skills:** the account's skills, which srp sends as the kit's own 68 floats (the exe forwards
   them to the movie, below).
@@ -39,7 +40,7 @@ whatever else too".
 - **The compared weapon** (the second card) gets the same kit and skills, so the comparison holds.
 - **Left out, and why:**
   - artefacts: found in a match, never part of a lobby kit;
-  - drugs and boosters: used in a match, for seconds;
+  - drugs: used in a match, for seconds;
   - injuries, stamina and the stance: the match's state. Spread is shown as standing, walking,
     crouching or aiming (their skill weight is 1; running, prone from the hip, jumping and low
     stamina 0, `default.player` `character_dispersion_skill_influence`);
@@ -52,8 +53,8 @@ whatever else too".
 
 ## The formulas
 
-A player modifier's sum S = the kit's float (skills) + its armour's modifications of it
-(`armor::add_modifiers` 0x33F3A0). `apply_modifier` 0x2D5AE0: B x max(0, 1 + k x S), k = 1 at
+A player modifier's sum S = the kit's float (skills) + its armour's and pocket boosters' modifications
+of it (`armor::add_modifiers` 0x33F3A0, `booster` 0x33F990). `apply_modifier` 0x2D5AE0: B x max(0, 1 + k x S), k = 1 at
 every site below (multiplicative indices; the additive list 0x927E08 has none of them).
 
 | card stat | S | in a match | where |

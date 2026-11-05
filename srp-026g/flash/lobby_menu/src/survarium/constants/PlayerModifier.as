@@ -18,6 +18,9 @@ package survarium.constants
       // draw and holster
       public static const CHANGE_WEAPON_SPEED:int = 22;
 
+      // a grenade's throw speed (skill 203, Grenadier)
+      public static const GRENADE_THROW_POWER:int = 27;
+
       // a medicine's use time (medkit::set_active 0x33D45A)
       public static const DRUG_USING_TIME:int = 33;
 
@@ -35,13 +38,15 @@ package survarium.constants
       // a medicine's damage protection coefficient (medkit::reduce_damage)
       public static const DRUG_HIT_COEFF:int = 58;
 
-      // By card property: the player modifier an armour piece's modification adds to (its
-      // `parameters/<name>_modifier`, type 1; ui_properties' prop_id of the modification).
-      public static const BY_ARMOUR_PROPERTY:Object = {
+      // By card property: the player modifier an armour piece's or a pocket booster's
+      // modification adds to (its `parameters/<name>_modifier`, type 1; ui_properties' prop_id
+      // of the modification).
+      public static const BY_PROPERTY:Object = {
          101:DISPERSION,
          102:AIM_TIME,
          114:RELOAD_SPEED,
-         115:RECOIL
+         115:RECOIL,
+         171:GRENADE_THROW_POWER
       };
 
       public function PlayerModifier()

@@ -8,7 +8,8 @@ package survarium.player
 
    // What a match adds to a weapon's or a medicine's card stats in the selected kit, shown while Alt is held
    // (docs/notes/alt-weapon-stats.md). A player modifier's sum S is the kit's own float (the
-   // skills) plus the kit's armour's modifications of it (armor::add_modifiers 0x33F3A0): the sum
+   // skills) plus the kit's armour's and pocket boosters' modifications of it
+   // (armor::add_modifiers 0x33F3A0, booster 0x33F990): the sum
    // apply_modifier 0x2D5AE0 takes, B x max(0, 1 + k x S), k 1 at every site below.
    public final class MatchEffects
    {
@@ -27,26 +28,26 @@ package survarium.player
       // null when the exe gave no floats: the skills are unknown and left out.
       private var _kit:KitModifiers;
 
-      // By modifier index: the sum of the armour's modifications of it.
-      private var _armour:Object = {};
+      // By modifier index: the sum of the armour's and the pockets' modifications of it.
+      private var _worn:Object = {};
 
-      // `items`: the kit's items (ItemData with slotId); its armour's modifications (built-in,
-      // rolled, defects) count.
+      // `items`: the kit's items (ItemData with slotId); its armour's (built-in, rolled, defects)
+      // and its pocket boosters' (built-in) modifications count.
       public function MatchEffects(kit:KitModifiers, items:Array)
       {
          _kit = kit;
          for each(var item:Object in items)
          {
-            if(item == null || item.slotId < ProfileSlot.HEAD || item.slotId > ProfileSlot.FOOT) continue;
+            if(item == null || !(item.slotId >= ProfileSlot.HEAD && item.slotId <= ProfileSlot.FOOT || ProfileSlot.isPocket(item.slotId))) continue;
             for each(var modifier:Object in item.modifiers)
             {
                if(modifier == null) continue;
                for each(var prop:Object in modifier.props)
                {
-                  var index:* = PlayerModifier.BY_ARMOUR_PROPERTY[prop.prop_id];
+                  var index:* = PlayerModifier.BY_PROPERTY[prop.prop_id];
                   var amount:Number = ModificationRolls.value(prop);
                   if(index === undefined || !isFinite(amount)) continue;
-                  _armour[index] = (_armour[index] == undefined ? 0 : _armour[index]) + amount;
+                  _worn[index] = (_worn[index] == undefined ? 0 : _worn[index]) + amount;
                }
             }
          }
@@ -167,7 +168,7 @@ package survarium.player
 
       private function factor(index:int) : Number
       {
-         var sum:Number = (_kit == null ? 0 : _kit.at(index)) + (_armour[index] == undefined ? 0 : _armour[index]);
+         var sum:Number = (_kit == null ? 0 : _kit.at(index)) + (_worn[index] == undefined ? 0 : _worn[index]);
          return Math.max(0,1 + sum);
       }
 
