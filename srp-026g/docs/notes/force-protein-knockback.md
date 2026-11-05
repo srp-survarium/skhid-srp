@@ -21,9 +21,9 @@
   (#1326's first version, +3) gave the death a `Knockback` 4 that scaled the push and again the
   whole body's share (and the caps), 16 on the body; one push 16 times as big draws the same.
 - **Numbers** (the solver offline, a standing body, a gun-stock push of 8 N s: mass 0.01, 1000 m/s):
-  the centre of mass goes 0.19 m up and ends 2.25 m on (front) and 2.56 m (side); the played
-  build 0.19, 2.16 and 2.59; the plain gun stock does not go up and ends 0.69 and 0.98 m on, as
-  before. Renders of the played build: `private/renders/force-protein/knockback-front.gif`,
+  the centre of mass goes 0.19 m up and ends 3.70 m on (front) and 4.11 m (side), stopped by
+  the ground's friction; the played build 0.19, 2.16 and 2.59, stopped at the old 2.5 m travel cap
+  (gone, ragdoll.md section 7); the plain gun stock does not go up and ends 0.69 and 0.98 m on. Renders of the played build: `private/renders/force-protein/knockback-front.gif`,
   `-side.gif`, `.png` (before left, after right; `cargo test -p ragdoll render_knockback --
   --ignored` with `RAGDOLL_DUMP`).
 - **Every client the same:** each reads the killer's kit, which every game has (the static info);

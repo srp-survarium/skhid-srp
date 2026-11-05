@@ -1319,8 +1319,8 @@ fn gun_stock(direction: Vec3, point: Vec3, knockback: f32) -> crate::shot::Hit {
 
 /// A standing body killed by `hit`, 300 frames at 60 a second, `each`
 /// frame's ragdoll seen: how high its centre of mass went and how far on
-/// (level) it ended, m.
-fn thrown(hit: crate::shot::Hit, mut each: impl FnMut(&Ragdoll)) -> (f32, f32) {
+/// (level) it ended, m, and when it first settled, s.
+fn thrown(hit: crate::shot::Hit, mut each: impl FnMut(&Ragdoll)) -> (f32, f32, Option<f32>) {
     let now = standing(Quat::IDENTITY, Vec3::ZERO);
     let before = driver_bones(&now);
     let hits = [hit];
@@ -1333,33 +1333,36 @@ fn thrown(hit: crate::shot::Hit, mut each: impl FnMut(&Ragdoll)) -> (f32, f32) {
             c + b.pose.position * (1.0 / (b.inverse_mass * m))
         })
     };
-    let (from, mut rise) = (centre(&r), 0.0f32);
+    let (from, mut rise, mut settled) = (centre(&r), 0.0f32, None);
     let mut ground = Ground::flat();
-    for _ in 0..300 {
+    for frame in 0..300 {
         each(&r);
-        r.step(1.0 / 60.0, None, &mut ground);
+        if r.step(1.0 / 60.0, None, &mut ground) == Motion::Settled {
+            settled = settled.or(Some(frame as f32 / 60.0));
+        }
         rise = rise.max(centre(&r).y - from.y);
     }
-    (rise, (centre(&r) - from).reject(Vec3::Y).length())
+    (rise, (centre(&r) - from).reject(Vec3::Y).length(), settled)
 }
 
 #[test]
-fn a_force_protein_gun_stock_kill_throws_the_body_as_far_as_the_played_build() {
-    // the played build (its Knockback 4: the push, the caps and the body's
-    // share x4, thrown up at half its level knock; 16 on the body): up 0.19 m, on 2.16 m
-    // (front) and 2.59 (side); a plain gun stock 0.68 and 0.98, not up
+fn a_force_protein_gun_stock_kill_flies_on_and_rests_by_friction() {
+    // nothing holds a body near where it died (no wall at 2.5 m, the old
+    // cap): the throw goes on past it and the ground's friction stops it,
+    // the rest rules settle it before the age cap; a plain gun stock falls
+    // about where it stood
     let scenes = [
         (Vec3::new(0.0, 0.0, -1.0), Vec3::new(0.0, 1.3, 0.12)),
         (Vec3::new(1.0, 0.0, 0.0), Vec3::new(-0.15, 1.3, 0.0)),
     ];
+    let rested = |settled: Option<f32>| settled.is_some_and(|t| t < MAX_AGE - 0.5);
     for (direction, point) in scenes {
-        let (rise, on) = thrown(gun_stock(direction, point, 15.0), |_| {});
-        assert!(
-            rise > 0.15 && (2.0..2.8).contains(&on),
-            "thrown: up {rise:.2}, on {on:.2}"
-        );
-        let (rise, on) = thrown(gun_stock(direction, point, 0.0), |_| {});
-        assert!(rise < 0.02 && on < 1.1, "plain: up {rise:.2}, on {on:.2}");
+        let (rise, on, settled) = thrown(gun_stock(direction, point, 15.0), |_| {});
+        let seen = std::format!("up {rise:.2}, on {on:.2}, settled {settled:?}");
+        assert!(rise > 0.15 && on > 3.0 && rested(settled), "thrown: {seen}");
+        let (rise, on, settled) = thrown(gun_stock(direction, point, 0.0), |_| {});
+        let seen = std::format!("up {rise:.2}, on {on:.2}, settled {settled:?}");
+        assert!(rise < 0.02 && on < 1.1 && rested(settled), "plain: {seen}");
     }
 }
 
