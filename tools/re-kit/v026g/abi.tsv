@@ -2316,3 +2316,6 @@ va	name	source	ret_cleanup	result
 0x00059e70	vostok::sound::sound_world::create_sound_voice	manual	12	EAX
 0x0005cb80	vostok::sound::new_sound_propagator::detach_voice	manual	4	
 0x00038990	vostok::sound::sound_propagator_emitter::get_options	thiscall	0	EAX: this + 8, the sound's options (single_sound_cook 0x615D8 copies them; +11h can_be_displaced, default 1 at 0x6129F)
+0x002ff930	survarium::weapon_controller_core::serialize	manual	8	A1386C slot 14h, from weapon_core::serialize 2E3382 ([weapon+278h]): legs IK (if 1F1D9EFh) + 2FBBB0 (u32 seed, byte, fsm) + 3309B0 (8 x 12 bytes)
+0x002ff970	survarium::weapon_controller_core::deserialize	manual	12	A1386C slot 18h; the fsm's state from the reader's own list (38CCF0)
+0x00330a20	survarium::hit_animations_selector::hit_body_part::deserialize	manual	0	reads 8 x (u32, u32, u32) into ECX+0Ch.. stride 18h
