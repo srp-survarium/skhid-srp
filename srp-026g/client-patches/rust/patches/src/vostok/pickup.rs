@@ -330,6 +330,12 @@ pub fn write_record(ctx: &Context<'_>, bytes: &[u8; weapon_pickup::Record::BYTES
     }
 }
 
+/// The player state's stream offset at `pickup.load` (base_player::deserialize's start).
+pub fn load_offset(ctx: &Context<'_>) -> Option<u32> {
+    // SAFETY: base_player::deserialize's live reader (the site's ESI).
+    super::carry_runtime::offset_of(unsafe { raw::site::pickup_load::reader(ctx) }?)
+}
+
 /// Reads the record's bytes at `pickup.load` (None: the state is shorter).
 pub fn read_record(ctx: &Context<'_>) -> Option<[u8; weapon_pickup::Record::BYTES]> {
     // SAFETY: base_player::deserialize's live reader (the site's ESI).
