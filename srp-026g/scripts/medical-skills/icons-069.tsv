@@ -1,4 +1,4 @@
-# Original Survarium 0.69d0 survival artwork. PNG bytes retained without editing.
+# Original Survarium 0.69d0 skill artwork (survival, and physical for Take Cover). PNG bytes retained without editing.
 # Current skill	name	donor path	donor skill / rationale	sha256
 301	Potent Painkiller	flash_movies/textures/ui_icons/skills/survival/1.png	archived survival icon; injector	4060b3e21191c22f87a31871b27ded2e2261ee19e1d7ff8c48e040ce36affc79
 302	Fast Bandaging	flash_movies/textures/ui_icons/skills/survival/3.png	331 st_fast_bandage_apply_name	0fcf9c677f84527645d4cebabd480a6d64cab67b8e1f8cfa33b8abc280c5bde7
@@ -10,3 +10,7 @@
 332	Strong Bones	flash_movies/textures/ui_icons/skills/survival/13.png	344 st_strong_bones_name	f23041645b190463d1c195ad31e412dc3e415d13ff1b20ca3c4efb60f02b4742
 341	Medic	flash_movies/textures/ui_icons/skills/survival/14.png	324 st_heal_ally_name	dcf65c3554d4d2f42906c6aa088c6373777bad72942bd00ac90c4d3e8566e3f8
 342	Brothers in Arms	flash_movies/textures/ui_icons/skills/survival/16.png	312 st_less_ally_damage_name	320e1c8a5d196e219c58dba33b3a99fe9014dea8a1988746f23bc6b69bb97821
+303	Numb Legs	flash_movies/textures/ui_icons/skills/survival/1.png	archived survival icon; injector, owner's pick (2026-11-06): shares Potent Painkiller's embedded bitmap (MedicalSkill069301)	4060b3e21191c22f87a31871b27ded2e2261ee19e1d7ff8c48e040ce36affc79
+313	Take Cover	flash_movies/textures/ui_icons/skills/physical/15.png	234 st_crouch_movement_speed_name (Mobility); crouched soldier, owner's pick (2026-11-06, a try to judge in game)	d300e0956570a5b31cf661299f00edf44bfda0d8b2cb068681f96e222033f90d
+323	Unflinching	flash_movies/textures/ui_icons/skills/survival/7.png	333 st_broken_legs_speed_name; flexed arm, owner's pick	a143dad415a4199a887fed5e359dc2978b190ccb1ce35146336eb89aff3f14f3
+333	Concentration	flash_movies/textures/ui_icons/skills/survival/15.png	brain; owner's pick (2026-11-06) for retail 0.69's orphan st_trained_ears (Concentration)	579b1ae8b58893c19c0fad30b51fffb5050426aefd8ed543ad80fe5923489755

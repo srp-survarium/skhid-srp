@@ -1,7 +1,10 @@
 //! Medical hooks over generated typed native handles. A borrowed player lives
 //! for the paused hook; a core lookup owns one reference until its guard drops.
-use super::{Context, Thread};
-use crate::{medical_skills::Skills, raw};
+use super::{Context, Thread, drug::DrugsInUse, types::Place};
+use crate::{
+    medical_skills::{Opponents, Painkiller, Skills, Stance},
+    raw,
+};
 use core::{
     cell::UnsafeCell,
     ffi::CStr,
@@ -12,14 +15,11 @@ use core::{
 #[derive(Clone, Copy)]
 struct Player<'t> {
     at: raw::Player,
-    _thread: PhantomData<&'t Thread>,
+    thread: &'t Thread,
 }
 impl<'t> Player<'t> {
-    fn new(_: &'t Thread, at: raw::Player) -> Self {
-        Self {
-            at,
-            _thread: PhantomData,
-        }
+    fn new(thread: &'t Thread, at: raw::Player) -> Self {
+        Self { at, thread }
     }
     fn modifiers(self) -> Option<raw::PlayerParamsModifiersContainer> {
         // SAFETY: a hook's player owns its profile and current kit.
@@ -34,10 +34,32 @@ impl<'t> Player<'t> {
         }
     }
     fn skills(self) -> Skills {
-        // SAFETY: generated modifier field belongs to the live current kit.
+        // SAFETY: generated modifier fields belong to the live current kit.
         self.modifiers()
-            .and_then(|m| Skills::parse(unsafe { *m.medical_ranks() }))
+            .and_then(|m| unsafe { Skills::parse(*m.medical_ranks(), *m.combo_ranks()) })
             .unwrap_or_default()
+    }
+    /// Any painkiller of its inventory in use (set_active's +2B0h, the time
+    /// its protection records are linked into the body parts, 0x33D638).
+    fn painkiller(self) -> Painkiller {
+        // SAFETY: a hook's player is alive on its thread; a drug in use is
+        // its inventory's medkit, which owns its protection records.
+        let active = unsafe {
+            DrugsInUse::of(self.thread, self.at).any(|drug| painkiller(drug.medkit()))
+        };
+        if active { Painkiller::Active } else { Painkiller::Inactive }
+    }
+    /// The controller's effective crouch (+201h): it stays set under a low
+    /// ceiling after the crouch key is released (0x337830).
+    fn stance(self) -> Stance {
+        // SAFETY: the player owns its controller wrapper and Bullet controller.
+        let crouched = unsafe {
+            self.at
+                .character_controller()
+                .and_then(|wrapper| wrapper.controller())
+                .is_some_and(|controller| *controller.effective_crouch() != 0)
+        };
+        if crouched { Stance::Crouched } else { Stance::Standing }
     }
     fn damage(self) -> Option<raw::MedicalDamage> {
         // SAFETY: the model is bound before the initialization hook.
@@ -46,6 +68,10 @@ impl<'t> Player<'t> {
     fn team(self) -> Option<u32> {
         // SAFETY: the profile is owned by the live player.
         unsafe { Some(*self.at.profile()?.team()) }
+    }
+    fn place(self) -> u8 {
+        // SAFETY: the live player's place byte.
+        unsafe { *self.at.place() }
     }
     fn ally(self, other: Self) -> bool {
         self.at != other.at && matches!(self.team(), Some(0 | 1)) && self.team() == other.team()
@@ -199,6 +225,73 @@ pub fn use_time(ctx: &mut Context<'_>) {
     };
     ctx.set_xmm_f32(0, value);
 }
+/// Numb Legs at player_stamina::sprint: XMM0 the stamina a second.
+pub fn sprint(ctx: &mut Context<'_>) {
+    // SAFETY: the stamina is embedded in its live player (base_player+6C0h).
+    let value = unsafe {
+        let Some(stamina) = raw::site::medical_sprint::stamina(ctx) else {
+            return;
+        };
+        let player = Player::new(ctx.thread(), stamina.player());
+        player.skills().sprint_cost(ctx.xmm_f32(0), player.painkiller())
+    };
+    ctx.set_xmm_f32(0, value);
+}
+/// Take Cover at medkit::tick's heal amount (after drug_amount, which
+/// Medical Training raises): XMM0 the amount of this influence.
+pub fn medicine_heal(ctx: &mut Context<'_>) {
+    use raw::site::medical_medicine_heal as site;
+    // SAFETY: medkit::tick's holder (EBP) is live for the tick.
+    let value = unsafe {
+        let Some(at) = site::player(ctx) else {
+            return;
+        };
+        let player = Player::new(ctx.thread(), at);
+        player.skills().medicine_heal(ctx.xmm_f32(0), player.stance())
+    };
+    ctx.set_xmm_f32(0, value);
+}
+/// Unflinching, from patch 54's stagger after Spring's factor: the sum of
+/// the recent hits' stopping power, written back to its argument.
+pub fn stopping(ctx: &mut Context<'_>) {
+    use raw::site::medical_stopping as site;
+    // SAFETY: the caller's frame holds the staggered live player and the sum.
+    unsafe {
+        let Some(frame) = site::frame(ctx) else {
+            return;
+        };
+        let Some(at) = frame.player() else {
+            return;
+        };
+        let player = Player::new(ctx.thread(), at);
+        *frame.sum() = player.skills().stopping_power(*frame.sum(), player.painkiller());
+    }
+}
+/// The local player as Concentration hears, at `game_world.after_move`
+/// (the simulation's move done, its bullet tasks joined): its ranks, its
+/// painkiller (the same test as Numb Legs' and Unflinching's) and the
+/// places whose sounds are an opponent's.
+pub struct Listener {
+    pub skills: Skills,
+    pub painkiller: Painkiller,
+    pub opponents: Opponents,
+}
+
+pub fn listener(ctx: &Context<'_>) -> Option<Listener> {
+    let client = super::world::GameWorld::at_after_move(ctx)?.network_client()?;
+    let local = Player::new(ctx.thread(), client.local_player()?.this);
+    let team = local.team();
+    let mut opponents = Opponents::NONE;
+    for (place, other) in Place::all().zip(client.place_teams()) {
+        // ally()'s rule by place: teams 0 and 1 have allies, any other none.
+        let ally = matches!(team, Some(0 | 1)) && other == team;
+        if other.is_some() && !ally && place.index() != usize::from(local.place()) {
+            opponents.insert(place);
+        }
+    }
+    Some(Listener { skills: local.skills(), painkiller: local.painkiller(), opponents })
+}
+
 pub fn initialize(ctx: &mut Context<'_>) {
     // SAFETY: constructor bound the complete model, before first reset/load.
     unsafe {

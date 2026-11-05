@@ -611,6 +611,13 @@ survarium::medical_clock_result	interval	0	u32	interval zero while holding
 survarium::medical_clock_result	time	4	f32	hold at zero like native artefact clock
 survarium::medical_clock_result	ended	8	u8	end when activation duration elapses
 survarium::medical_artefact	item	0	obj<survarium::item>	owned inventory item at activation
+survarium::player_params_modifiers_container	combo_ranks	0xB4	f32	modifier 45 can_defuse_traps (no getter call, no code name reference, no retail config): the medical combo skills' packed ranks; medical-skills.md
+survarium::player_stamina	player	-0x6C0	obj<survarium::player>	its player: base_player embeds player_stamina at +6C0h (ctor 0x2D6E5C, tick 0x2D8FBC lea eax,[edi+6C0h])
+survarium::player	character_controller	0x494	ptr<vostok::physics::bt_character_controller>	its character controller wrapper, made at 0x2D6EF1 by 0x3569D0 (8 bytes; jump 0x2D7925, tick_animations 0x2D8F09)
+vostok::physics::bt_character_controller	controller	0x0	ptr<vostok::physics::bullet_character_controller>	the Bullet controller (0x2C790 bytes, ctor 0x356A40)
+vostok::physics::bullet_character_controller	effective_crouch	0x201	u8	effective crouch: set by the crouch states (0x337810), cleared only when it can stand (+202h, 0x337830) or on jump (0x2D793E); serialized (0x7FBA0); player_step 0x7BDAE shapes the capsule from it
+survarium::medical_stopping_frame	player	0x4	ptr<survarium::player>	medical.stopping's first argument (by the site ESP, the return address at +0): the staggered player
+survarium::medical_stopping_frame	sum	0x8	f32	its second: the recent hits' stopping power after Spring's list 42, written back
 vostok::animation::registry_key	first	0x0	ptr<vostok::resources::managed_resource>	an animation pair's first resource, the registry's key (the 1st-view clip; animations_registry::register_animation 0x2EF130 keeps it at the entry's +0, the lookup 0x2D6590 compares it first)
 vostok::animation::registry_key	second	0x4	ptr<vostok::resources::managed_resource>	the pair's second resource (the 3rd-view clip, the one an id resolves to: 0x1F18B0 returns the entry's +4; the same resource as first for most pairs)
 survarium::animation_id_frame	registry	0x10	ptr<survarium::animations_registry>	ESP+10h at animations.id_missing: the lookup's registry argument (0x2D6590 pushed EBX, ESI, EDI after its return address)
@@ -654,4 +661,19 @@ vostok::sound::propagator_slot	propagator	0x0	ptr<vostok::sound::new_sound_propa
 vostok::sound::propagator_slot	size	0x4	size	a pointer
 vostok::sound::sound_propagator_emitter	options	0x8	obj<vostok::sound::sound_options>	its sound's options, inline (vtable slot 2 0x38990 returns this + 8; calculate_hdr_audio_frame asks the slot, 0x5CAC3)
 vostok::sound::sound_options	can_be_displaced	0x11	u8	the HDR cull may take its voice (0x5CACD); single_sound_cook's default 1 (0x6129F), raw_options can_be_displaced false makes it 0
+vostok::sound::sound_instance_proxy	source	0x8C	u32	patch 94's tag of what it plays (vostok::sound::Source: 0 untagged, 1 the environment, 2 an opponent's): the tail padding of its 144-byte pool record (new_*_sound_instance_proxy: the count x 90h; the constructors 0x5A6B0, 0x5A840, 0x5A9C0 write up to +88h; the sound code 0x55000..0x67000 has no +8Ch access of a proxy, its one +8Ch is world_user::initialize's own 0x56089), cleared at each allocation (sound_proxy.allocated, 0x65484)
+vostok::sound::proxy_slot	proxy	0x0	ptr<vostok::sound::sound_instance_proxy>	an intrusive_ptr<sound_instance_proxy> an emit fills: the new proxy with one reference, or 0 (emit_point_sound 0x65670, new_hud_sound_instance_proxy 0x65100)
+vostok::sound::emit_once_frame	caller	0x4	u32	emit_and_play_once's return address (push ebp / mov ebp,esp at 0x657C0: [ebp+4]): the call it plays for
+survarium::weapon_play_sound_frame	effect	0x24	ptr<survarium::weapon_sound_effect>	play_sound_callback's effect (its ECX, kept at [esp+24h] by 0x297E32; at 0x297F7E both paths' pushes are popped by their callees, the same ESP)
+survarium::weapon_sound_effect	weapon	0x30	ptr<survarium::weapon_core>	its weapon (on_sound_event 0x297C60, play_sound_callback 0x297E47: +594h its user's place)
+survarium::weapon_sound_effect	core_fire_handler	-0x150	u32	the word 150h before it: when the effect is weapon_sound_events_handler_state<weapon_core_fire_state>'s (its +168h, initialize 0x2517AE), that state's +18h vtable 0xA04F10 (its ctor 0x254FA7). Every effect is a handler state's member at +158h..+170h (initialize 0x25081E, 0x2513AE, 0x2537C3, 0x2522FE), so the word is inside its own state
+survarium::weapon_sound_effect	sidearm_fire_handler	-0x158	u32	the word 158h before it: for the pistol and double-barrelled fire states' effects (+170h, initialize 0x253423, 0x252A33), their state's +18h vtable 0xA05274 (ctor 0x255307) or 0xA0517C (0x255227); inside its own state, as above
+survarium::weapon_core	user	0x594	ptr<survarium::weapon_user>	its user: the holder's player + 110h (instant_fire calls its slot +4, 0x2E258D; on_sound_event and play_sound_callback read its place, 0x297C69, 0x297E50); deactivate leaves it (0x2E2EA4)
+survarium::weapon_user	place	0x4	u8	its player's place (player + 114h)
+survarium::image	core_fire_sound_handler	0xA04F10	u32	weapon_sound_events_handler_state<weapon_core_fire_state>'s +18h vtable (RTTI TD 0xAD2478; its ctor writes it at 0x254FA7, the primary 0xA04EE4 at 0x254FA1)
+survarium::image	pistol_fire_sound_handler	0xA05274	u32	weapon_sound_events_handler_state<pistol_weapon_core_fire_state>'s +18h vtable (TD 0xAD1498; ctor 0x255307)
+survarium::image	double_fire_sound_handler	0xA0517C	u32	weapon_sound_events_handler_state<double_barreled_weapon_core_fire_state>'s +18h vtable (TD 0xAD1920; ctor 0x255227)
+survarium::image	zone_sound_once_a	0x298DEE	u8	a code address (u8: a return address has no alignment), the return address of a damage_zone fx's one-shot sound (emit_and_play_once at 0x298DE9, in 0x298D80; 0.21d's emit_sound_once, inlined)
+survarium::image	zone_sound_once_b	0x298F1E	u8	the same, emit_and_play_once at 0x298F19 (in 0x298EB0)
+survarium::image	zone_sound_once_c	0x299269	u8	the same, emit_and_play_once at 0x299264 (in 0x2991A0)
 vostok::engine::message_frame	lparam	0x1C	u32	message_processor's lParam (0x181E0; by the site's ESP inside it, EBX ESI EDI pushed: mov ecx,[esp+1Ch] 0x183AC, mov esi,[esp+1Ch] 0x183F0); an HKL for WM_INPUTLANGCHANGEREQUEST and WM_INPUTLANGCHANGE

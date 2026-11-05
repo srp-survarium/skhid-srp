@@ -2655,6 +2655,9 @@ check "--help is build-content's usage" has "$("$here/build-content" --help)" "u
 # where the previous version already mixed types at that path), a colour
 # ramp's new key of another type than its keys, an allowlist row lets a new
 # key through but never a changed one, and a config walk refuses is reported.
+# A list an edit list keys (append_entry's unique_key) is weighed entry by
+# key: entries taken out and the rest moved up pass, a real change of a
+# same-key entry is refused, and so are an entry without its key or two with one.
 python3 - "$here/content_type_check.py" "$here/../srp-026g/scripts/content-edit" "$T/tc.log" <<'EOF'
 import importlib.util, struct, sys, zlib
 ctc_path, ce_dir, logp = sys.argv[1:4]
@@ -2682,6 +2685,8 @@ def build(root, sort=True):  # ('named', [(name, node)]) | ('indexed', [node]) |
             while len(buf) % 8: buf.append(0)
             d = len(buf); buf.extend(struct.pack('<fff', *v)); REC.pack_into(buf, at, d, off, crc, 7, 3)
         elif kind == 'i': REC.pack_into(buf, at, v & 0xffffffff, off, crc, 1, 4)
+        elif kind == 's':
+            d = len(buf); buf.extend(v.encode() + b'\0'); REC.pack_into(buf, at, d, off, crc, 5, len(v) + 1)
         else: REC.pack_into(buf, at, struct.unpack('<I', struct.pack('<f', v))[0], off, crc, 2, 4)
     write(0, None, root)
     return bytes(buf)
@@ -2702,6 +2707,25 @@ both = ctc.corpus_with(walk, {'n1': num(1.5), 'n2': num(2)})
 cases += [('number_where_both', ctc.violations(walk, num(2), num(1.5), 'n', both, {})),
           ('number_where_float_only', ctc.violations(walk, num(2), num(1.5), 'n', ctc.corpus_with(walk, {'n1': num(1.5)}), {})),
           ('vector_to_float_where_both', ctc.violations(walk, lvl(vec), lvl(('f', 1.0)), 'a', ctc.corpus_with(walk, {'x': lvl(vec), 'y': lvl(('f', 2.0))}), {}))]
+# skills_tree as main's physical-skills (206, 210 taken out) and the medical skills (302 appended,
+# an int in a row where 211 has a text) leave it: the entry now at 211's old index is another skill.
+skill = lambda i, d: ('named', [('id', ('i', i)), ('ui', ('named', [('descriptions', ('indexed', [d]))]))])
+tree = lambda *es: build(('named', [('skills_tree', ('indexed', [skill(i, d) for i, d in es]))]))
+txt, zero = ('s', ' +5'), ('i', 0)
+keys = ctc.list_keys([{'append_entry': [{'file': 'skills', 'list': 'skills_tree', 'unique_key': 'id'}]}])['skills']
+skills_corp = ctc.corpus_with(walk, {'other': tree((1, txt), (2, zero))})
+was = tree((206, txt), (210, txt), (211, txt))
+cases += [('keyed_reordered_removed', ctc.violations(walk, was, tree((211, txt), (302, zero)), 'skills', skills_corp, {}, keys)),
+          ('unkeyed_reordered_removed', ctc.violations(walk, was, tree((211, txt), (302, zero)), 'skills', skills_corp, {})),
+          ('keyed_same_key_changed', ctc.violations(walk, was, tree((302, txt), (211, zero)), 'skills', skills_corp, {}, keys)),
+          ('keyed_shared_key', ctc.violations(walk, was, tree((211, txt), (211, txt)), 'skills', skills_corp, {}, keys)),
+          ('keyed_entry_without_key', ctc.violations(walk, was, build(('named', [('skills_tree', ('indexed', [skill(211, txt), ('named', [('ui', ('named', []))])]))])), 'skills', skills_corp, {}, keys))]
+try:
+    ctc.list_keys([{'append_entry': [{'file': 'f', 'list': 'l', 'unique_key': 'id'}]},
+                   {'append_entry': [{'file': 'f', 'list': 'l', 'unique_key': 'name'}]}])
+    two_keys = 'accepted'
+except ValueError as error:
+    two_keys = 'refused: ' + str(error)
 try:
     ctc.parse(walk, build(('named', [('a', vec), ('b', vec)]), sort=False))  # crc32 a > b
     unsorted = 'parsed'
@@ -2711,6 +2735,7 @@ with open(logp, 'w') as f:
     for name, v in cases:
         f.write('%s\t%d\t%s\n' % (name, len(v), ' | '.join(v)))
     f.write('unsorted\t%s\n' % unsorted)
+    f.write('two_keys\t%s\n' % two_keys)
 EOF
 tc() { grep -P "^$1\t" "$T/tc.log" | cut -f2-; }
 check "type check: a file unchanged has no violation" test "$(tc identity | cut -f1)" = 0
@@ -2732,6 +2757,18 @@ check "type check: ... but not where they have it only one way" test "$(tc numbe
 check "type check: ... and never a vector, even where the base mixes vectors and numbers" test "$(tc vector_to_float_where_both | cut -f1)" = 1
 check "type check: a config whose table is not sorted by CRC is refused, not skipped" \
     bash -c "grep -P '^unsorted\trefused: ' '$T/tc.log' | grep -q 'not sorted'"
+check "type check: a keyed list's entries taken out and moved up keep their types (known by id, not index)" \
+    test "$(tc keyed_reordered_removed | cut -f1)" = 0
+check "type check: ... where by index the entry now at 211's old place would be taken for it" \
+    bash -c "grep -P '^unkeyed_reordered_removed\t1\t' '$T/tc.log' | grep -q 'skills_tree\[1\]/ui/descriptions\[0\] was string, now int'"
+check "type check: ... but a same-id entry whose value changes type is refused, wherever it moved" \
+    bash -c "grep -P '^keyed_same_key_changed\t1\t' '$T/tc.log' | grep -q 'skills_tree\[id=211\]/ui/descriptions\[0\] was string, now int'"
+check "type check: two entries of a keyed list with one key are refused" \
+    bash -c "grep -P '^keyed_shared_key\t1\t' '$T/tc.log' | grep -q 'share id=211'"
+check "type check: an entry of a keyed list without its key is refused" \
+    bash -c "grep -P '^keyed_entry_without_key\t1\t' '$T/tc.log' | grep -q 'skills_tree\[1\] has no id'"
+check "type check: two edit lists keying one list by two keys are refused" \
+    bash -c "grep -P '^two_keys\trefused: ' '$T/tc.log' | grep -q 'keyed by id and by name'"
 
 echo
 if ((failures)); then
