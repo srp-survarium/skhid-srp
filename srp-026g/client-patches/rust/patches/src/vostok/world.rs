@@ -100,6 +100,20 @@ impl<'t> NetworkClient<'t> {
         unsafe { Some(read(self.this.local_player()?.place())) }
     }
 
+    /// The place the static info marked the local player's (its profile's
+    /// is_local, set at 0x27BE5F), if any: the options' own bytes, read
+    /// without the local player's object.
+    pub fn local_profile(&self) -> Option<u8> {
+        // SAFETY: the client's options and their places live as long as the
+        // client, on the hook's thread; a place below the count (at most the
+        // 20 of the array) is one of them.
+        unsafe {
+            let options = self.this.options_holder()?.options();
+            let places = read(options.places()).min(20);
+            (0..places).find(|&p| read(options.first_place().at(usize::from(p)).is_local()) != 0)
+        }
+    }
+
     /// The place's current player. get_active_player adds a reference; it is
     /// given back at once (the place holds its own), as the game does when
     /// the last one goes (0x0E0210).
@@ -226,6 +240,11 @@ impl<'t> Player<'t> {
     /// The player a site's typed register holds (raw's `site`), on its hook's thread.
     pub(in crate::vostok) fn of(ctx: &'t Context<'_>, this: Option<raw::Player>) -> Option<Player<'t>> {
         this.map(|this| Player { this, thread: ctx.thread() })
+    }
+
+    /// The hook's thread it borrows.
+    pub fn thread(&self) -> &'t Thread {
+        self.thread
     }
 
     pub fn id(&self) -> PlayerId {

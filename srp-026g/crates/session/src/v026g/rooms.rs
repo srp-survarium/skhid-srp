@@ -1253,7 +1253,7 @@ impl Rooms {
         left.dedup();
         let (blackout, rest): (Vec<u8>, Vec<u8>) = left
             .iter()
-            .partition(|&&id| maps::blackout_played(id).is_some());
+            .partition(|&&id| is_blackout(id));
         if blackout.is_empty() || rest.is_empty() {
             return Self::pick(left, CARDS, below);
         }
@@ -1626,9 +1626,14 @@ fn fill(mut parties: Vec<(Vec<u32>, Strength)>, size: usize) -> [Vec<u32>; 2] {
 }
 
 /// The map (`maps::MapMode::level`) a card is played on, whatever its
-/// weather and mode: a Blackout card's is its battery map's.
+/// weather and mode.
 fn location(id: u8) -> Option<u8> {
-    maps::map_mode(maps::blackout_played(id).unwrap_or(id)).map(|map| map.level)
+    maps::map_mode(id).map(|map| map.level)
+}
+
+/// Whether a card is a Blackout map.
+fn is_blackout(id: u8) -> bool {
+    maps::map_mode(id).is_some_and(|map| map.mode == maps::GameMode::Blackout)
 }
 
 #[cfg(test)]
@@ -2217,14 +2222,18 @@ mod tests {
     fn battery_maps() -> ([u8; 3], [u8; 3]) {
         let mut places = Vec::new();
         let mut plain = Vec::new();
-        for map in maps::playable_in(maps::BLACKOUT_RULES) {
+        for map in maps::playable_in(maps::GameMode::Batteries) {
             if !places.contains(&map.level) && plain.len() < 3 {
                 places.push(map.level);
                 plain.push(map.id);
             }
         }
         let plain: [u8; 3] = plain.try_into().expect("three battery places");
-        (plain, plain.map(|id| maps::blackout_id(id).unwrap()))
+        let twin = |id| {
+            let map = maps::map_mode(id).unwrap();
+            maps::find(map.level, map.weather, maps::GameMode::Blackout).unwrap().id
+        };
+        (plain, plain.map(twin))
     }
 
     /// The owner's of 2026-11-02 ("offers blackout in voting always as a
@@ -2285,7 +2294,7 @@ mod tests {
     }
 
     /// A room's vote won by its third card starts its match on that
-    /// Blackout card (the lobby plays it as Blackout: `blackout_played`).
+    /// Blackout map.
     #[test]
     fn the_third_card_won_starts_the_blackout_match() {
         let now = Instant::now();
@@ -2297,7 +2306,7 @@ mod tests {
             .unwrap();
         rooms.join(2, 0, key, now).unwrap();
         let third = rooms.get(key).unwrap().cards[2];
-        assert!(maps::blackout_played(third).is_some());
+        assert!(is_blackout(third));
         rooms.vote(1, 2);
         rooms.vote(2, 2);
         rooms.tick(now, &mut first, |_| true);
