@@ -192,7 +192,7 @@ preferred-image VAs; `apply_modifier` is the kit-modifier getter 0x2D5AE0.
   (Resonance its passives within 8 m, Cascade its actives within 5 m, between the feet +43Ch), its
   containers' Springs, Lifebones and Onyx (the vtable's enable_active) in container order. A
   copy gives its passive in state 3 or 4 (Onyx 3 only: its protect's passive branch), its
-  active in 4. Nothing is kept between two reads.
+  active in 4. Nothing is kept between two reads (but the movement's re-selection, below).
 - Spring: the getters' sites `artefact.shared_modifier` (0x2D5AE6, apply_modifier after it reads
   the kit's own float) and `artefact.shared_modifiers` (0x2D5C18, apply_modifiers' loop) add, for
   an index of Spring's lists (4, 49, 3, 19, 42, 13), the shared copies' node values of that
@@ -201,6 +201,15 @@ preferred-image VAs; `apply_modifier` is the kit-modifier getter 0x2D5AE0.
   is the current kit of one of the match's players: the match is the engine world's
   (0x1F1D310) game's embedded game world (+18h)'s match (+4D4Ch), live or replay alike, none
   in the lobby.
+- Spring's movement (list 4) is read by movement_speed (0x2DBB50) only, which only
+  select_animations (0x2D9690) calls, which tick_animations (0x2D8EE0) runs only while the
+  player's +33Eh (m_need_to_select_animations, serialized) is set: a player holding one input
+  would keep its old speed. So at each player's tick before tick_animations
+  (`battery.carrier_tick` 0x2DAAD3, order 2 after the battery's) its shared movement is summed
+  as the getters do, and when it differs from the tick before's, +33Eh is set, as patch 94 does
+  for Adrenalin. The one thing kept: each place's sums of its last 64 ticks (a 50 ms tick's own
+  slot), so a re-simulated tick compares with the tick before it as its first simulation did;
+  a tick before that is not kept (a place's first) compares with 0, nothing shared.
 - Onyx: `artefact.shared_protection` (hit_by_type 0x32A020, after apply_hit_modifiers, before
   the part's protectors): each shared passive Onyx, then one shared active when none of the
   recipient's own Onyx is active, as its protect (0x312BF0) with that Onyx's numbers, for a

@@ -5,10 +5,12 @@
 use super::{
     Context, Reg, Thread,
     medical::{OwnedPlayer, Player, kit_modifiers, name_equal},
+    types::{GameTime, Place, Tick},
 };
 use crate::{
     artefact_skills::{
-        HitKind, Kind, LifeboneRegeneration, OnyxProtection, Phase, Regeneration, Room, SPRING_LISTS, Skills, State,
+        HitKind, Kind, LifeboneRegeneration, MOVEMENT_LIST, OnyxProtection, Phase, Regeneration, Room, SPRING_LISTS,
+        Skills, State,
     },
     raw,
 };
@@ -246,29 +248,70 @@ fn spring_nodes(spring: raw::Artefact, phase: Phase, index: u32) -> f32 {
     }
 }
 
+/// What the shared Springs' nodes add to the kit list `index` of `modifiers`, when the kit is
+/// the current kit of a player of the match (none in the lobby, or for another kit).
+fn shared_springs(thread: &Thread, modifiers: raw::PlayerParamsModifiersContainer, index: u32) -> Option<f32> {
+    let roster = Roster::of(thread, Some(match_core()?));
+    let recipient = roster.iter().find(|player| kit_modifiers(player.get()) == Some(modifiers))?;
+    let (passives, actives) = shared(&roster, recipient, Kind::Spring);
+    let passive = passives.iter().fold(0.0, |sum, spring| sum + spring_nodes(spring, Phase::Passive, index));
+    Some(actives.iter().fold(passive, |sum, spring| sum + spring_nodes(spring, Phase::Active, index)))
+}
+
 /// Resonance and Cascade at a kit modifier's own float (XMM0): the shared Springs' nodes of its
-/// list, when the kit is the current kit of a player of the match.
+/// list.
 fn add_shared_springs(ctx: &mut Context<'_>, modifiers: Option<raw::PlayerParamsModifiersContainer>, index: u32) {
     if !SPRING_LISTS.contains(&index) {
         return;
     }
-    let Some(modifiers) = modifiers else {
+    let Some(sum) = modifiers.and_then(|modifiers| shared_springs(ctx.thread(), modifiers, index)) else {
         return;
-    };
-    let Some(core) = match_core() else {
-        return;
-    };
-    let sum = {
-        let roster = Roster::of(ctx.thread(), Some(core));
-        let Some(recipient) = roster.iter().find(|player| kit_modifiers(player.get()) == Some(modifiers)) else {
-            return;
-        };
-        let (passives, actives) = shared(&roster, recipient, Kind::Spring);
-        let passive = passives.iter().fold(0.0, |sum, spring| sum + spring_nodes(spring, Phase::Passive, index));
-        actives.iter().fold(passive, |sum, spring| sum + spring_nodes(spring, Phase::Active, index))
     };
     if sum != 0.0 {
         ctx.set_xmm_f32(0, ctx.xmm_f32(0) + sum);
+    }
+}
+
+/// A player at its tick before its animations (base_player::tick, battery.carrier_tick
+/// 0x2DAAD3, EBX; tick_animations 0x2D8EE0 is called right after): its place, the tick of its
+/// time (+324h) and what the shared Springs add to its movement list now. Only for the hook.
+pub struct MovementTick<'c> {
+    player: Player<'c>,
+    place: Place,
+    tick: Tick,
+    shared: f32,
+}
+
+impl<'c> MovementTick<'c> {
+    /// The tick's player, none outside a match (or a player at no place of it).
+    pub fn at(ctx: &'c Context<'_>) -> Option<Self> {
+        // SAFETY: base_player::tick's EBX is its live player, its place and time its own.
+        let (at, place, time) = unsafe {
+            let at = raw::site::battery_carrier_tick::player(ctx)?;
+            (at, *at.place(), *at.time())
+        };
+        let place = Place::new(u32::from(place))?;
+        let shared = kit_modifiers(at).and_then(|modifiers| shared_springs(ctx.thread(), modifiers, MOVEMENT_LIST))?;
+        Some(Self { player: Player::new(ctx.thread(), at), place, tick: GameTime(time).tick(), shared })
+    }
+
+    pub fn place(&self) -> Place {
+        self.place
+    }
+
+    pub fn tick(&self) -> Tick {
+        self.tick
+    }
+
+    pub fn shared(&self) -> f32 {
+        self.shared
+    }
+
+    /// Its animations selected again this tick (m_need_to_select_animations, +33Eh, a simulation
+    /// field): movement_speed (0x2DBB50) is read only by select_animations (0x2D9690), which
+    /// tick_animations runs only when it is set.
+    pub fn reselect(self) {
+        self.player.refresh();
     }
 }
 
