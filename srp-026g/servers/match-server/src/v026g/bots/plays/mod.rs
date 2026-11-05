@@ -1426,8 +1426,19 @@ pub fn start(
     }
 }
 
-/// A step of the running play.
+/// A step of the running play. [A297 v4 `tdm.group.approach`] A mover the commander has holding short (it approaches a known
+/// enemy alone, its answerer not yet by it) stays, its view on his place, instead of its play's walk (`group::moves`).
 pub fn step(running: &mut Running, target: TargetRef, cx: &Ctx, rng: &mut Rng) -> Step {
+    let step = step_play(running, target, cx, rng);
+    match (step, cx.team.holding.iter().find(|(bot, _)| *bot == cx.me.place)) {
+        (Step::Continue(_), Some(&(_, enemy))) if super::group::moves(Some(running.kind())) => {
+            Step::Continue(Intent::stay().looking(Look::At(enemy)))
+        }
+        (step, _) => step,
+    }
+}
+
+fn step_play(running: &mut Running, target: TargetRef, cx: &Ctx, rng: &mut Rng) -> Step {
     match running {
         Running::Roam(s) => roam::step(s, target, cx, rng),
         Running::Collect(s) => collect::step(s, target, cx, rng),
