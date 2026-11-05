@@ -1719,6 +1719,20 @@ The owner's report (2026-10-25, revision 33): short freezes in matches at ~100 f
   end while Tab is down: patch 58's kit keys (0x25CD41) never get one. In Blackout the hook clears
   bl after the call's byte is stored (0x25CD28: [esp+14h], loaded at 0x25CD2C), so 1 to 3 reach the
   kits Tab shows and show_player_list still gets Tab.
+- **Use held through Tab** (PROVEN in the code, 2026-11-05; the owner's report: Tab during an
+  artefact search froze it, and it stayed frozen after Tab). A use ends at the first tick whose
+  input lacks Use: `artefact_container_core::use_execute` (0x31C780, every tick of a use from
+  0x2D86C6) answers 0 when the user's actions +330h lack bit 21, and the use ends (vtable+40h,
+  0x2D86D4). A new one starts only on Use's edge (apply_new_input 0x2D88B1..0x2D88DF: bit 21 clear
+  before, set now, no use going). Blackout's filter took Use out at Tab's press (the acts) and kept
+  it out after the release while E stayed held (HELD), so the search ended and E did nothing until
+  pressed again; the hud's bar stayed at its last fill, since `set_using_info_message` (0x23A560)
+  sends the prompt only when its id differs from the one it last sent (ui+334h), and the progress
+  message (0x23A430) does not change that id: after a use the container's prompt is the one sent
+  before it. Use is no longer one of Tab's acts (owner: Tab must not affect the collection). A plain
+  match never had it: the game world answers 0 for every key while Tab is down (0x25CF0D `xor
+  al,al`), Tab binds only `send_to` (kind 8, the chat's; the player's handler asks kind 1, or 4,
+  game+F544h), so E reaches `player_input_handler::on_keyboard_action` (0x23FE00) every tick.
 - **The kits** (PROVEN in the code). game_world_ui::update_local_player_state (0x23B740) shows
   them at a death and hides them at a respawn (show_profiles_selector 0x2383B0 at 0x23B7F7: the
   kits, root.select_player_profile and the cursor); a pick is the movie's `profile_changed`

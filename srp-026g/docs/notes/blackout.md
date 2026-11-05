@@ -78,13 +78,17 @@ distinguish teams… this is the new battery mode". The owner's changes of 2026-
   shown) and the time left; hidden again when Tab is let go.
   Keys 1 to 3 pick a kit with or without Tab. A death or a respawn while Tab is held switches
   between the kits and the alive player's view immediately.
-- **Keys while Tab is held** go on as with Tab up (a plain match's Tab list takes every key while it
-  is up; Blackout has no list): the kits' 1 to 3, the replay's keys; acts are filtered, and
-  movement is filtered after the 200 ms grace.
+- **Keys while Tab is held** go on as with Tab up (a plain match's Tab list keeps the game world's
+  own keys, the kits' and the chat's, while it is up, and the player's go on; Blackout has no
+  list): the kits' 1 to 3, the replay's keys; acts are filtered, and movement is filtered after
+  the 200 ms grace.
 - **Tab held stops the player after 200 ms:** a quick tap keeps walking and sprinting;
   holding longer stops them. Actions, including jumping, are blocked immediately (a crouch stays, it does not
-  move); no fire, aim, reload, held breath, grenade, melee, use, drop or quick use. The mouse
-  look, the weapon keys, the fire mode, spot and the suicide key stay.
+  move); no fire, aim, reload, held breath, grenade, melee, drop or quick use. The mouse
+  look, the weapon keys, the fire mode, spot, the suicide key and Use stay.
+- **Use is never stopped by Tab** (the owner, 2026-11-05: "Tab shouldn't affect the collection at
+  all"): an artefact search or an ammo refill held through Tab keeps filling and ends as without
+  Tab; Use pressed with Tab held uses as it would without it.
 - **On Tab's release:** the moves come back at once; an act whose key was held through Tab acts
   again only after it is let go and pressed again (nothing fires on the release).
 - **In step for everyone:** the local input is filtered before it is sent, as if those keys were
