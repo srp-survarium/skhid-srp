@@ -200,3 +200,13 @@ fn the_local_offset_is_signed_hours_and_minutes() {
     assert_eq!(offset(-210), " (local -03:30)");
     assert_eq!(offset(345), " (local +05:45)");
 }
+
+#[test]
+fn full_dumps_are_asked_for_in_any_case_with_spaces() {
+    for value in ["full", "FULL", "Full", "full ", " full\t"] {
+        assert!(details::asks_full_dump(value), "{value:?}");
+    }
+    for value in ["", "small", "fu ll", "1", "fullx"] {
+        assert!(!details::asks_full_dump(value), "{value:?}");
+    }
+}
