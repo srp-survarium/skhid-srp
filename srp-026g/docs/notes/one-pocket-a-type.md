@@ -94,8 +94,9 @@ The owner: "each one takes two pocket slots". A pocket holds at most 5 units (`M
   for up to the pocket's size; the server keeps 2 at most, so a pocket of 3 can show 2 until the
   next move. No exe patch for it.
 - **Kits saved before the rule:** the release that ships it empties every RGD-5 pocket of every kit
-  and preset once, in the database with srp stopped (kit revisions raised). The grenades stay in
-  the storage; players put them back under the rule. No code for it: load and `repair` cap at 2
+  and preset once, in the database with srp stopped (kit revisions raised):
+  `release/one-off/rgd5-pocket-reset.py`. The grenades stay in the storage; players put them
+  back under the rule. No server code for it: load and `repair` cap at 2
   only, as the server does not know a pocket's size.
 - **Match:** the crate refills a pocket to the kit's count (`resupply_from_profile` 0x2FDC10, the
   stack's `vtable+0x40` 0x2FFCE0: up to the kit slot's count, from the stock), never to the pocket's
