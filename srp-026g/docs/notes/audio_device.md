@@ -1,4 +1,4 @@
-# The sound follows the audio output device (patch 99)
+# The sound follows the audio output device (patch 100)
 
 Players' report (Discord backlog 2026-10-21, B43): when the audio output device changes or goes
 (a Bluetooth headset connects or disconnects, the default device is switched, a USB DAC is

@@ -241,8 +241,9 @@ impl PlayerInput {
     /// Whether the rotation is one a client's mouse can make: both halves
     /// numbers, and each under 1024 radians.
     ///
-    /// The client checks nothing of a relayed input (the reader 0x318400
-    /// stores the four bytes as they came), and every client then adds the
+    /// The stock client checks nothing of a relayed input (the reader 0x318400
+    /// stores the four bytes as they came; exe patch 99 now refuses one by
+    /// this same rule at change_input, as 0.27d does), and every client then adds the
     /// two to that player's angles (`base_player`, 0x2D89A4 → 0x2D8AD0:
     /// `yaw += dx`, the rotation built from it handed to the physics
     /// world; `dy` to the item in its hands). An infinity or a NaN stays

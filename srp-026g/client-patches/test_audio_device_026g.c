@@ -1,4 +1,4 @@
-/* Host test of patch 99 (audio_device_026g.c) against a made-up XAudio2 2.7
+/* Host test of patch 100 (audio_device_026g.c) against a made-up XAudio2 2.7
  * that keeps XAudio2's rules: one mastering voice an engine; a voice is
  * made only after the master, sends only to voices of its engine and of a
  * later stage; a voice that is another's destination, and the master

@@ -876,6 +876,7 @@ va	status	ref_021d	name
 0x001f9740	reviewed	0x0015bdc0	survarium::game_world::set_match
 0x001f97d0	reviewed	0x0015be45	survarium::game_world::on_resync
 0x001f9800	reviewed	0x0015be66	survarium::game_world::demo_play
+0x001fab50	observed		survarium::game_world_core::change_input<struct survarium::client_update<struct survarium::player_input,220,235,221,236>>
 0x001feed0	reviewed	0x0015da18	survarium::text_translator::load_text_localization
 0x001ff0f0	reviewed	0x0015dac0	survarium::text_translator::translate_text
 0x001ff240	reviewed	0x0015dbbd	survarium::text_translator::on_texts_ready

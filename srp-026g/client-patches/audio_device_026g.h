@@ -1,4 +1,4 @@
-/* Patch 99: the game's sound follows the audio output device
+/* Patch 100: the game's sound follows the audio output device
  * (docs/notes/audio_device.md). The core, audio_device_026g.c, is plain C
  * over XAudio2 2.7's COM interfaces and the five platform functions below;
  * audio_device_engine_026g.c gives them in the game (the engine-function

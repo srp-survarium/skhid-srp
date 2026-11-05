@@ -1,4 +1,4 @@
-/* Patch 99: the game's sound follows the audio output device
+/* Patch 100: the game's sound follows the audio output device
  * (docs/notes/audio_device.md; the types and the platform are
  * audio_device_026g.h's).
  *

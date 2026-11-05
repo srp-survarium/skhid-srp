@@ -1,4 +1,4 @@
-/* Patch 99 in the game: audio_device_026g.c's platform through the
+/* Patch 100 in the game: audio_device_026g.c's platform through the
  * engine-function library (engine_026g.tsv), and the sound thread's hook.
  * patch_026g.py's AUDIO_DEVICE_HOOKS call audio_device_create (from
  * initialize_xaudio's two XAudio2Create calls) and audio_device_orders

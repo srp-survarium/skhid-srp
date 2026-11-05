@@ -1414,6 +1414,26 @@ FALL_GRAVITY = (
                    "f30f11586c" "f30f114874" "eb10" "8b4d00" "f30f105908" "f30f5d18" "eb9c" "cccc")),
 )
 
+# The menus' mouse buttons (patch 102, client_patch.md section 3.63). The
+# mouse gives a key 151h + its button (0..7, platform mouse 0x3B9981) to every
+# listener. The five that hand a button to their movie (0x2AF610, `ret 0Ch`):
+# swf_input_translator::process_mouse_btn 0x1FDD30, game_options 0x201754,
+# game_world 0x25D08C, lobby_menu 0x26D044 and login_menu 0x28DCDA, each map
+# 151h/152h/153h to the movie's 0/1/2 and leave any other key at 0: the side
+# buttons (mouse4..mouse8) were left clicks in the menus (0.60's "pressing
+# additional mouse buttons in the lobby counted as pressing LMB"). Each `jne`
+# past 153h now goes to the handler's own `mov al,1` after the movie's call:
+# the key is taken, the movie gets nothing. The callee pops its three
+# arguments, so the stack there is the jne's. No relocation, no branch into
+# the two bytes.
+MOUSE_BUTTONS = (
+    (0x1FDD41, bytes.fromhex("750e"), bytes.fromhex("7525")),   # -> 0x1FDD68 mov al,1 / ret 0Ch
+    (0x201769, bytes.fromhex("750e"), bytes.fromhex("751d")),   # -> 0x201788 pop edi / mov al,1
+    (0x25D0A1, bytes.fromhex("750e"), bytes.fromhex("7521")),   # -> 0x25D0C4 pop edi / pop esi / mov al,1
+    (0x26D059, bytes.fromhex("750e"), bytes.fromhex("7521")),   # -> 0x26D07C mov al,1 / pop esi
+    (0x28DCEE, bytes.fromhex("750e"), bytes.fromhex("7520")),   # -> 0x28DD10 mov al,1 / pop ecx
+)
+
 # "Watch replay" (patch revision 14, client_patch.md section 3.27). The
 # lobby movie's ExternalInterface call video_tutorial_link_clicked is the
 # delegate {lobby ui, 0x28CDA0} (registered at 0x283053; the name is entry
@@ -2461,7 +2481,18 @@ BULLET_BOUNDS_HOOKS = (
 )
 INSTALLS[0x758E1] = (JUMP, "static level bounds after body insertion; transient bodies skip bounds growth, all bodies still update their AABB", None, None)
 
-# The game's sound follows the audio output device (patch 99, README;
+# The results screen of a game that has loaded no match: its NULL map name reads as "".
+MATCH_STAT_MAP_HOOKS = (
+    (0x29ABE1, bytes.fromhex("8b8e3c310000"), "match_stat_map", 0xE9),
+)
+INSTALLS[0x29ABE1] = (JUMP, "fill_match_statistic's map name (lobby_menu+313Ch, NULL until a match is loaded) as \"\"; "
+                            "replay mov ecx,[esi+313Ch]", None, None)
+# expand_text's {USE} with no key bound (0x207BF0 finds no entry) translated
+# NULL (0x1FF09D); the branch goes to its unknown-placeholder path instead,
+# which appends nothing: what translate_text("") gives (0.31+ translate
+# st_key_use_not_assigned, a key 0.26g's dictionary does not have).
+EXPAND_TEXT_UNBOUND = (0x1FF073, bytes.fromhex("741b"), bytes.fromhex("7436"))   # je 1FF090 -> je 1FF0AB
+# The game's sound follows the audio output device (patch 100, README;
 # ../docs/notes/audio_device.md): audio_device_026g.c and
 # audio_device_engine_026g.c in the arena's blocks audio_device.code and
 # .state (ARENA below):
@@ -2672,6 +2703,7 @@ ArenaBlock = linker.ArenaBlock
 
 ARENA = (
     ArenaBlock("bullet_bounds.code", "code", 0x1000, ("bullet_bounds_026g.asm",)),
+    ArenaBlock("match_stat_map.code", "code", 0x10, ("match_stat_map_026g.asm",)),
     ArenaBlock("weight_ui.code", "code", 0x1000, ("weight_ui_026g.asm", "weight_ui_026g.c")),
     ArenaBlock("weight_ui.state", "state", 0x1000, ("weight_ui_026g.c",)),
     # Research, patch 53: four aligned asm entries and stubs, then Rust
@@ -2688,7 +2720,7 @@ ARENA = (
     ArenaBlock("kill_feed.code", "code", 0x1000, ("kill_feed_026g.asm",)),       # patch 67
     ArenaBlock("bake_cache.code", "code", 0x1000, ("bake_cache_026g.asm", "bake_cache_026g.c")),   # patch 70
     ArenaBlock("bake_cache.state", "state", 0x1000, ("bake_cache_026g.c",)),     # its owners and waiters
-    ArenaBlock("audio_device.code", "code", 0x1000, ("audio_device_026g.c", "audio_device_engine_026g.c")),  # patch 99
+    ArenaBlock("audio_device.code", "code", 0x1000, ("audio_device_026g.c", "audio_device_engine_026g.c")),  # patch 100
     ArenaBlock("audio_device.state", "state", 0x10, ("audio_device_026g.c", "audio_device_engine_026g.c")),  # its engine
     # The Rust exe patches (the framework's example is patch 34, the
     # commit_suicide key): one crate, its generated hook entries, the arena's
@@ -3349,6 +3381,9 @@ def build_image(original, mode, code=None, server=None, late_join=None, revision
         for site in FALL_GRAVITY:
             patch(data, *site)
             sites.append((site[0], site[0] + len(site[1])))
+        for site in MOUSE_BUTTONS:
+            patch(data, *site)
+            sites.append((site[0], site[0] + len(site[1])))
         for site in ARTEFACTS_SIZES:
             patch(data, *site)
             sites.append((site[0], site[0] + len(site[1])))
@@ -3751,7 +3786,7 @@ def build_image(original, mode, code=None, server=None, late_join=None, revision
             if linked is not None:
                 for va, expected, symbol, opcode in RESEARCH_HOOKS + ARTEFACTS_HOOKS + MATCH_KEYS_HOOKS + HIDE_UI_HOOKS \
                         + KILL_FEED_HOOKS + BAKE_CACHE_HOOKS + WEIGHT_UI_HOOKS + BULLET_BOUNDS_HOOKS \
-                        + AUDIO_DEVICE_HOOKS + rust_hooks(original):
+                        + MATCH_STAT_MAP_HOOKS + AUDIO_DEVICE_HOOKS + rust_hooks(original):
                     patch(data, va, expected, hook_bytes(arena_target(linked, symbol), va, expected, 0, opcode))
                     if neutralize_relocs(data, [(va, va + len(expected))]):
                         sys.exit(f"{va:#x}: a base relocation under the hook to {symbol}")
@@ -3762,6 +3797,7 @@ def build_image(original, mode, code=None, server=None, late_join=None, revision
                 patch_section_value(data, *ARTEFACT_KEY_DEFAULT)
                 patch(data, *KILL_FEED_ARGUMENT)
                 patch(data, *BAKE_CACHE_KEEP)
+                patch(data, *EXPAND_TEXT_UNBOUND)
                 if artefacts_backs(linked) != list(ARTEFACTS_BACKS):
                     sys.exit("artefacts_026g.asm: its entries do not go on where patch_026g.py's ARTEFACTS_BACKS "
                              "says")
