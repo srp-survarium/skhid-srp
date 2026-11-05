@@ -93,6 +93,8 @@ The owner: "each one takes two pocket slots". A pocket holds at most 5 units (`M
   (`process_default_relocate_item` 0x289B04: `min(units, pocket size)`, `fills_whole_pocket` 1) asks
   for up to the pocket's size; the server keeps 2 at most, so a pocket of 3 can show 2 until the
   next move. No exe patch for it.
+- **Kits saved before the rule:** load and `repair` cap an RGD-5 pocket at 2 (the server does not
+  know the pocket's size), so a pocket of 2 or 3 that held 2 keeps them until the pocket is touched.
 - **Match:** the crate refills a pocket to the kit's count (`resupply_from_profile` 0x2FDC10, the
   stack's `vtable+0x40` 0x2FFCE0: up to the kit slot's count, from the stock), never to the pocket's
   size, so it keeps the rule. The kit is sent at the start: no `next` row.
