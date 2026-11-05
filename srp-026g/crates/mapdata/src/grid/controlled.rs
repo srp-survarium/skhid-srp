@@ -33,12 +33,6 @@ pub const CHECK_SHARE: f32 = 0.5;
 pub const STANDING_ROOM_M: f32 = 1.8;
 /// A face no body walks on within this of a floor's capsule makes its links checked, m.
 pub const CHECK_REACH_M: f32 = 0.15;
-/// A bridge is walked off (no key) only up to this rise, m: one higher keeps its jump's press, and none is added. GUESS, by bench:
-/// the 324-pair nav bench of the first pass (6840a99a, ON vs OFF) had missed jumps 11 -> 29 (z +2.7, its one guard FAIL), +10 on
-/// Chemical Plant and +6 on Rudnya, at walk-offs made up 0.45-0.75 m rises (Chemical Plant (30.4, 7.2, 20.4) -> (29.9, 7.95,
-/// 20.9); Rudnya (9.2-11.2, 14.9-15.6, 3.6-4.4)): the client's tick walks the body up them, the bots' legs given no key stall at
-/// the face. The cracks the pass is for are flat (Vostok's slab joint: 0.04 m).
-pub const BRIDGE_RISE_M: f32 = 0.3;
 /// The lines the controller walks a leg on: from the floor's centre, and this far either side of it across the leg, m. A
 /// check fails, and a bridge is walked, only when every line does.
 pub const STARTS: [f32; 3] = [0.0, -0.1, 0.1];
@@ -175,7 +169,6 @@ impl WalkGrid {
                 l.kind == LinkKind::GapJump
                     && !matches!(l.press, Takeoff::WalkOff)
                     && (self.height[l.from as usize] - self.height[l.to as usize]).abs() <= body.step
-                    && self.height[l.to as usize] - self.height[l.from as usize] <= BRIDGE_RISE_M
                     && cells_apart(l.from as usize, l.to as usize) == 2
             })
             .map(|(i, _)| i)
@@ -207,8 +200,7 @@ impl WalkGrid {
                     continue;
                 }
                 for b in self.start[c3]..self.start[c3 + 1] {
-                    let rise = self.height[b as usize] - ha;
-                    if rise.abs() <= body.step && rise <= BRIDGE_RISE_M && wide.off.binary_search_by_key(&(a as u32, b), |l| (l.from, l.to)).is_err() {
+                    if (self.height[b as usize] - ha).abs() <= body.step && wide.off.binary_search_by_key(&(a as u32, b), |l| (l.from, l.to)).is_err() {
                         new.push((a as u32, b));
                     }
                 }

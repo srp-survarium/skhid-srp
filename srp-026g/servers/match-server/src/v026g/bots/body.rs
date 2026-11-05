@@ -716,10 +716,10 @@ fn advance(
 /// the client's walk off an open side ([`walk_off_open`]).
 fn slide_edge(kin: &Kinematics, grid: &WalkGrid, node: NodeId, from: Vec3, to: Vec3, offs: WalkOffs) -> (NodeId, Vec3, bool) {
     match kin.edge {
-        Edge::Lattice => slide(grid, node, from, to),
-        Edge::Client => slide_supported_by(grid, node, from, to, f32::INFINITY, SUPPORT_M, offs),
+        Edge::Lattice => slide_up_to(grid, node, from, to, f32::INFINITY, Bridges::of(kin)),
+        Edge::Client => slide_supported_by(grid, node, from, to, f32::INFINITY, SUPPORT_M, offs, Bridges::of(kin)),
         Edge::ClientWalksOff => {
-            let slid = slide_supported_by(grid, node, from, to, f32::INFINITY, SUPPORT_M, offs);
+            let slid = slide_supported_by(grid, node, from, to, f32::INFINITY, SUPPORT_M, offs, Bridges::of(kin));
             walk_off_open(grid, slid.0, slid.1, to).map_or(slid, |(node, feet)| (node, feet, false))
         }
     }
@@ -787,7 +787,7 @@ pub(crate) mod open_walks {
 /// Returns the floor, the feet, and whether the move was stopped before
 /// it got anywhere.
 pub fn slide(grid: &WalkGrid, node: NodeId, from: Vec3, to: Vec3) -> (NodeId, Vec3, bool) {
-    slide_up_to(grid, node, from, to, f32::INFINITY)
+    slide_up_to(grid, node, from, to, f32::INFINITY, Bridges::Leap)
 }
 
 /// [`slide`] with no step up a walk link higher than `max_rise`: the
@@ -803,7 +803,7 @@ pub fn slide_capped(
     to: Vec3,
     max_rise: f32,
 ) -> (NodeId, Vec3, bool) {
-    slide_up_to(grid, node, from, to, max_rise)
+    slide_up_to(grid, node, from, to, max_rise, Bridges::Leap)
 }
 
 /// How far past a floor's centre the client's capsule stays held at a ledge, metres: the lattice drops a body at its last cell's
@@ -821,7 +821,7 @@ pub const SUPPORT_M: f32 = 0.435;
 /// body later. `max_rise` is the step up a walk link (infinite for the reckoning, which climbs the grid's forced stairs); what
 /// counts as a fall is a floor lower than the grid body's step.
 pub fn slide_supported(grid: &WalkGrid, node: NodeId, from: Vec3, to: Vec3, max_rise: f32, support_m: f32) -> (NodeId, Vec3, bool) {
-    slide_supported_by(grid, node, from, to, max_rise, support_m, WalkOffs::Landings)
+    slide_supported_by(grid, node, from, to, max_rise, support_m, WalkOffs::Landings, Bridges::Leap)
 }
 
 /// [POCKETS (b)] Which landings a step off a ledge comes down on ([`slide_supported_by`]).
@@ -861,7 +861,39 @@ fn is_walk_off(grid: &WalkGrid, node: NodeId, next: NodeId) -> bool {
     grid.off_link(node, next).is_some_and(|l| l.kind == LinkKind::GapDrop && l.press == mapdata::grid::gap::Takeoff::WalkOff)
 }
 
-/// [`slide_supported`] with the landings a step off a ledge may come down on ([`WalkOffs`]).
+/// [A313] How a slide takes a walk-off bridge (an off-mesh `GapJump` walked off with no key, two cells on over a cell no floor
+/// covers: `mapdata::grid::controlled`).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Bridges {
+    /// As any off-mesh link: not walked (the body stops in the cell between).
+    Leap,
+    /// Walked as a Walk link within the step: a step that lands in the cell between goes on to the far floor, at its cell's near
+    /// edge (the client's capsule crosses the cell in one stride).
+    Walked,
+}
+
+impl Bridges {
+    /// The reckoned body's rule ([`Kinematics::walk_bridges`]).
+    pub fn of(kin: &Kinematics) -> Self {
+        if kin.walk_bridges { Self::Walked } else { Self::Leap }
+    }
+}
+
+/// [`slide_supported`] with a bridge rule ([`Bridges`]).
+pub fn slide_supported_with(
+    grid: &WalkGrid,
+    node: NodeId,
+    from: Vec3,
+    to: Vec3,
+    max_rise: f32,
+    support_m: f32,
+    bridges: Bridges,
+) -> (NodeId, Vec3, bool) {
+    slide_supported_by(grid, node, from, to, max_rise, support_m, WalkOffs::Landings, bridges)
+}
+
+/// [`slide_supported`] with the landings a step off a ledge may come down on ([`WalkOffs`]) and a bridge rule ([`Bridges`]).
+#[allow(clippy::too_many_arguments)]
 pub fn slide_supported_by(
     grid: &WalkGrid,
     mut node: NodeId,
@@ -870,6 +902,7 @@ pub fn slide_supported_by(
     max_rise: f32,
     support_m: f32,
     offs: WalkOffs,
+    bridges: Bridges,
 ) -> (NodeId, Vec3, bool) {
     let half = grid.cell_size() * 0.5;
     let (dx, dz) = (to.x - from.x, to.z - from.z);
@@ -886,7 +919,7 @@ pub fn slide_supported_by(
             let point = Vec3::new(at.x + mx, at.y, at.z + mz);
             let base = grid.position(node).y;
             // A step down onto a floor lower than a step is a fall, whether the cell is walked to or the drop skips one.
-            let walked = floor_under(grid, node, point, max_rise).map(|next| (next, Vec3::new(point.x, grid.position(next).y, point.z)));
+            let walked = walked_to(grid, node, point, max_rise, bridges);
             let fall = match walked {
                 Some((next, _)) if grid.position(next).y >= base - fall_below => return walked,
                 Some((next, _)) => Down::Onto(next, grid.position(next)),
@@ -935,6 +968,7 @@ fn slide_up_to(
     from: Vec3,
     to: Vec3,
     max_rise: f32,
+    bridges: Bridges,
 ) -> (NodeId, Vec3, bool) {
     let half = grid.cell_size() * 0.5;
     let (dx, dz) = (to.x - from.x, to.z - from.z);
@@ -953,8 +987,7 @@ fn slide_up_to(
                 return None;
             }
             let point = Vec3::new(at.x + mx, at.y, at.z + mz);
-            floor_under(grid, node, point, max_rise)
-                .map(|next| (next, Vec3::new(point.x, grid.position(next).y, point.z)))
+            walked_to(grid, node, point, max_rise, bridges)
                 .or_else(|| {
                     dropped_to(grid, node, at, (mx, mz)).map(|next| (next, grid.position(next)))
                 })
@@ -1069,6 +1102,40 @@ pub fn jumped_to(grid: &WalkGrid, node: NodeId, feet: Vec3, to: Vec3) -> Option<
         })
 }
 
+/// Where a step to `point` from `node` walks: the floor whose cell holds it ([`floor_under`]), its feet at `point`; else with
+/// [`Bridges::Walked`], over a walk-off bridge of `node`'s within the step whose cell between holds `point`, its far floor, the
+/// feet at the near edge of that floor's cell.
+fn walked_to(grid: &WalkGrid, node: NodeId, point: Vec3, max_rise: f32, bridges: Bridges) -> Option<(NodeId, Vec3)> {
+    if let Some(next) = floor_under(grid, node, point, max_rise) {
+        return Some((next, Vec3::new(point.x, grid.position(next).y, point.z)));
+    }
+    if bridges == Bridges::Leap {
+        return None;
+    }
+    let half = grid.cell_size() * 0.5;
+    let a = grid.position(node);
+    let step = grid.body().step;
+    grid.links(node)
+        .filter(|&(next, kind)| {
+            kind == LinkKind::GapJump
+                && grid.off_link(node, next).is_some_and(|l| l.press == mapdata::grid::gap::Takeoff::WalkOff)
+        })
+        .map(|(next, _)| (next, grid.position(next)))
+        .find(|&(_, b)| {
+            let rise = b.y - a.y;
+            let mid = Vec3::new((a.x + b.x) * 0.5, 0.0, (a.z + b.z) * 0.5);
+            rise <= max_rise.min(step)
+                && rise >= -step
+                && (point.x - mid.x).abs() <= half + 1e-4
+                && (point.z - mid.z).abs() <= half + 1e-4
+                && ((b.x - a.x).abs() > half || (b.z - a.z).abs() > half)
+        })
+        .map(|(next, b)| {
+            let inside = half - 1e-3;
+            (next, Vec3::new(point.x.clamp(b.x - inside, b.x + inside), b.y, point.z.clamp(b.z - inside, b.z + inside)))
+        })
+}
+
 /// The floor whose cell holds `point`: `node` itself or one it walks or
 /// drops to.
 fn floor_under(grid: &WalkGrid, node: NodeId, point: Vec3, max_rise: f32) -> Option<NodeId> {
@@ -1165,7 +1232,7 @@ pub(super) mod tests {
             let (mut node, mut feet) = (edge, grid.position(edge));
             for _ in 0..400 {
                 let to = Vec3::new(feet.x + 0.005, feet.y, feet.z);
-                (node, feet, _) = slide_supported_by(&grid, node, feet, to, f32::INFINITY, SUPPORT_M, offs);
+                (node, feet, _) = slide_supported_by(&grid, node, feet, to, f32::INFINITY, SUPPORT_M, offs, Bridges::Leap);
                 if feet.y < 3.9 {
                     break;
                 }
@@ -1182,6 +1249,69 @@ pub(super) mod tests {
         assert_eq!(WalkOffs::of(WalkOffLanding::BySpeed, 3.0), WalkOffs::Landings);
         assert_eq!(WalkOffs::of(WalkOffLanding::Link, 0.1), WalkOffs::Landings);
         assert_eq!(Kinematics::default().walk_off_landing, WalkOffLanding::BySpeed);
+    }
+
+    /// [A313] A floor at 0 and a top `rise` up past one 0.25 m cell holding only the riser (x 5.0-5.25), built with the client's
+    /// body and the controller pass (`grid.client_controller`): the bridge the pass makes over it, if any, and the grid.
+    fn riser_bridge(rise: f32) -> (WalkGrid, Option<mapdata::OffLink>) {
+        let mut tris = Vec::new();
+        tris.extend(floor(0.0, 0.0, 5.0, 6.0, 0.0));
+        tris.extend(floor(5.25, 0.0, 10.0, 6.0, rise));
+        tris.push(Triangle { v: [Vec3::new(5.25, 0.0, 0.0), Vec3::new(5.25, rise, 0.0), Vec3::new(5.25, rise, 6.0)], walker: WalkerBehaviour::BySlope });
+        tris.push(Triangle { v: [Vec3::new(5.25, 0.0, 0.0), Vec3::new(5.25, rise, 6.0), Vec3::new(5.25, 0.0, 6.0)], walker: WalkerBehaviour::BySlope });
+        let body = Body { client_controller: true, ..Body::client() };
+        let grid = WalkGrid::build_with_links(&tris, [0.0, 0.0, 10.0, 6.0], 0.25, body, mapdata::OffMeshLinks::Gaps);
+        let bridge = grid.off_links().iter().copied().find(|l| {
+            l.kind == LinkKind::GapJump
+                && l.press == mapdata::grid::gap::Takeoff::WalkOff
+                && grid.position(l.from).y.abs() < 0.05
+                && (grid.position(l.to).y - rise).abs() < 0.05
+        });
+        (grid, bridge)
+    }
+
+    /// [A313, `kin.walk_bridges`] Up a 0.75 m riser the pass walks off (the client's tick climbs it in a stride over the riser
+    /// cell): a body walked from the bridge's take-off toward the top stalls at the face with [`Bridges::Leap`] (as the bench's
+    /// missed jumps) and is on the top with [`Bridges::Walked`].
+    #[test]
+    fn a_walk_off_bridge_up_a_riser_is_walked_only_with_walk_bridges() {
+        let (grid, bridge) = riser_bridge(0.75);
+        let l = bridge.unwrap_or_else(|| panic!("no walk-off bridge up the 0.75 m riser: {:?}", grid.off_links()));
+        let (a, b) = (grid.position(l.from), grid.position(l.to));
+        let walk = |bridges: Bridges| {
+            let (mut node, mut feet) = (l.from, a);
+            let to = Vec3::new(b.x + (b.x - a.x), a.y, b.z + (b.z - a.z));
+            for _ in 0..40 {
+                let step = Vec3::new(feet.x + (to.x - a.x) / 40.0, feet.y, feet.z + (to.z - a.z) / 40.0);
+                (node, feet, _) = slide_supported_by(&grid, node, feet, step, f32::INFINITY, SUPPORT_M, WalkOffs::Landings, bridges);
+            }
+            (node, feet)
+        };
+        let (_, stalled) = walk(Bridges::Leap);
+        assert!(stalled.y < 0.05, "Leap: held at the face, at {stalled:?}");
+        let (node, over) = walk(Bridges::Walked);
+        assert!((grid.position(node).y - 0.75).abs() < 0.05 && over.x > 5.25, "Walked: on the top, at {over:?}");
+        assert_eq!(Bridges::of(&Kinematics::default()), Bridges::Leap, "OFF by default");
+        assert_eq!(Bridges::of(&Kinematics { walk_bridges: true, ..Kinematics::default() }), Bridges::Walked);
+    }
+
+    /// [A313] A 1.0 m riser is over the client's step (0.80): the pass makes no walk-off bridge up it, so a body walked into it with
+    /// [`Bridges::Walked`] still stays below: it needs the jump.
+    #[test]
+    fn a_riser_over_the_step_still_needs_the_jump() {
+        let (grid, bridge) = riser_bridge(1.0);
+        assert!(bridge.is_none(), "no walk-off up 1.0 m: {bridge:?}");
+        let start = (0..grid.len() as NodeId)
+            .filter(|&n| grid.position(n).y.abs() < 0.05 && (grid.position(n).z - 3.0).abs() < 0.2)
+            .max_by(|&p, &q| grid.position(p).x.total_cmp(&grid.position(q).x))
+            .expect("a floor at the foot");
+        let a = grid.position(start);
+        let (mut node, mut feet) = (start, a);
+        for _ in 0..40 {
+            let step = Vec3::new(feet.x + 0.05, feet.y, feet.z);
+            (node, feet, _) = slide_supported_by(&grid, node, feet, step, f32::INFINITY, SUPPORT_M, WalkOffs::Landings, Bridges::Walked);
+        }
+        assert!(grid.position(node).y < 0.05 && feet.x < 5.25, "below the 1.0 m riser, at {feet:?}");
     }
 
     /// A wall across x at `x` from z0 to z1, 3 m high.
