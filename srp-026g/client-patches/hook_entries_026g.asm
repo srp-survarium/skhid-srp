@@ -3311,7 +3311,7 @@ ragdoll_on_cull_replay:
 
 ; 0x247716 mt_draw after the bones, before the Weapon bone (mov ecx,[ebx+0F290h]; EBX the player, EBP its frame): lohook -> ragdoll_on_bones
 global ragdoll_on_bones
-extern hook_ragdoll_on_bones
+extern hook_ragdoll_on_bones_chain
 ragdoll_on_bones:
     lea esp, [esp - 4]
     pushfd
@@ -3329,7 +3329,7 @@ ragdoll_on_bones:
     mov eax, esp
     sub esp, 12
     push eax
-    call hook_ragdoll_on_bones
+    call hook_ragdoll_on_bones_chain
     mov edx, ragdoll_on_bones_replay
     cmp eax, 0
     je ragdoll_on_bones_go
@@ -3548,6 +3548,84 @@ ragdoll_on_killed_go:
 ragdoll_on_killed_replay:
     db 0x8b, 0x86, 0x20, 0x01, 0x00, 0x00
     jmp 0x2da3e5
+
+; 0x2d230f game_world_core::tick_events just after serialize(item&) 0x2D2570 saved a grid point (cmp dword [esi+0C0BACh],0, the jne after it a new item or not): EBX the world core, at that point's time (+18FC0h), its players stepped to it: lohook -> remote_smoothing_on_grid_saved
+global remote_smoothing_on_grid_saved
+extern hook_remote_smoothing_on_grid_saved
+remote_smoothing_on_grid_saved:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_remote_smoothing_on_grid_saved
+    mov edx, remote_smoothing_on_grid_saved_replay
+    cmp eax, 0
+    je remote_smoothing_on_grid_saved_go
+    mov edx, 0x2d2316
+    cmp eax, 1
+    je remote_smoothing_on_grid_saved_go
+    ud2
+remote_smoothing_on_grid_saved_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+remote_smoothing_on_grid_saved_replay:
+    db 0x83, 0xbe, 0xac, 0x0b, 0x0c, 0x00, 0x00
+    jmp 0x2d2316
+
+; 0x1f2b98 player::render_name (0x1F2AD0, from st_draw) reading the eye transform its tag is placed from (lea ecx,[esi+44Ch]; 0xEE700 multiplies the tag's raise by it at 0x1F2BA0, point_to_screen 0x23DEC0 projects it): ESI the player: lohook -> remote_smoothing_on_name_tag
+global remote_smoothing_on_name_tag
+extern hook_remote_smoothing_on_name_tag
+remote_smoothing_on_name_tag:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_remote_smoothing_on_name_tag
+    mov edx, remote_smoothing_on_name_tag_replay
+    cmp eax, 0
+    je remote_smoothing_on_name_tag_go
+    mov edx, 0x1f2b9e
+    cmp eax, 1
+    je remote_smoothing_on_name_tag_go
+    ud2
+remote_smoothing_on_name_tag_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+remote_smoothing_on_name_tag_replay:
+    db 0x8d, 0x8e, 0x4c, 0x04, 0x00, 0x00
+    jmp 0x1f2b9e
 
 ; 0x572675 DrawableImageContext::OnNextCapture (0x572660, the render thread) after its ExecuteNextCapture (vtable+4, call edx at 0x572673), at the walk of its queues (mov ecx,[esi+44h] / lea edi,[esi+40h]): ESI the context's capture notify (context+8), EBX the render notify; done is its epilogue (pop edi / pop esi / pop ebx / ret 4, the registers the entry pushed): lohook -> scaleform_capture_on_next_capture
 global scaleform_capture_on_next_capture

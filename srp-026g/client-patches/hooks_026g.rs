@@ -926,6 +926,21 @@ pub extern "C" fn hook_lamps_on_present(frame: &mut Frame) -> u32 {
     }
 }
 
+// ---- remote_smoothing (patch 104) ----
+
+/// The entry `remote_smoothing_on_frame` (0x1f7c3c, game_world::tick's join after the simulation's move (cmp byte [esp+0Fh],0; EBX the game world)) calls this with the saved machine.
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_remote_smoothing_on_frame(frame: &mut Frame) -> u32 {
+    // SAFETY: only the entry `remote_smoothing_on_frame` calls this, from the game's jump at 0x1f7c3c,
+    // on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::new(frame) };
+    match crate::remote_smoothing::on_frame(&mut ctx) {
+        Flow::Continue => 0,
+        Flow::Skip => 1,
+        Flow::Exit(e) => match e {},
+    }
+}
+
 // ---- ragdoll (patch 76) ----
 
 /// The entry `ragdoll_on_ray` (0x32d627, check_collision after the bullet's ray_test (movq of its result; EAX the result, EDI the bullet)) calls this with the saved machine.
@@ -1733,6 +1748,21 @@ pub extern "C" fn hook_ragdoll_on_bones(frame: &mut Frame) -> u32 {
     }
 }
 
+// ---- remote_smoothing (patch 104) ----
+
+/// The entry `remote_smoothing_on_bones` (0x247716, mt_draw after the bones, before the Weapon bone (mov ecx,[ebx+0F290h]; EBX the player, EBP its frame)) calls this with the saved machine.
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_remote_smoothing_on_bones(frame: &mut Frame) -> u32 {
+    // SAFETY: only the entry `remote_smoothing_on_bones` calls this, from the game's jump at 0x247716,
+    // on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::new(frame) };
+    match crate::remote_smoothing::on_bones(&mut ctx) {
+        Flow::Continue => 0,
+        Flow::Skip => 1,
+        Flow::Exit(e) => match e {},
+    }
+}
+
 // ---- ragdoll (patch 76) ----
 
 /// The entry `ragdoll_on_eye` (0x1f3643, update_camera's join, EAX the eye transform the view gets (mov ecx,[ebx+0F470h]; EBX the player)) calls this with the saved machine.
@@ -1812,6 +1842,36 @@ pub extern "C" fn hook_ragdoll_on_killed(frame: &mut Frame) -> u32 {
     // on the game's thread; `frame` is its saved registers and fxsave area.
     let mut ctx = unsafe { Context::new(frame) };
     match crate::ragdoll::on_killed(&mut ctx) {
+        Flow::Continue => 0,
+        Flow::Skip => 1,
+        Flow::Exit(e) => match e {},
+    }
+}
+
+// ---- remote_smoothing (patch 104) ----
+
+/// The entry `remote_smoothing_on_grid_saved` (0x2d230f, game_world_core::tick_events just after serialize(item&) 0x2D2570 saved a grid point (cmp dword [esi+0C0BACh],0, the jne after it a new item or not): EBX the world core, at that point's time (+18FC0h), its players stepped to it) calls this with the saved machine.
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_remote_smoothing_on_grid_saved(frame: &mut Frame) -> u32 {
+    // SAFETY: only the entry `remote_smoothing_on_grid_saved` calls this, from the game's jump at 0x2d230f,
+    // on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::new(frame) };
+    match crate::remote_smoothing::on_grid_saved(&mut ctx) {
+        Flow::Continue => 0,
+        Flow::Skip => 1,
+        Flow::Exit(e) => match e {},
+    }
+}
+
+// ---- remote_smoothing (patch 104) ----
+
+/// The entry `remote_smoothing_on_name_tag` (0x1f2b98, player::render_name (0x1F2AD0, from st_draw) reading the eye transform its tag is placed from (lea ecx,[esi+44Ch]; 0xEE700 multiplies the tag's raise by it at 0x1F2BA0, point_to_screen 0x23DEC0 projects it): ESI the player) calls this with the saved machine.
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_remote_smoothing_on_name_tag(frame: &mut Frame) -> u32 {
+    // SAFETY: only the entry `remote_smoothing_on_name_tag` calls this, from the game's jump at 0x1f2b98,
+    // on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::new(frame) };
+    match crate::remote_smoothing::on_name_tag(&mut ctx) {
         Flow::Continue => 0,
         Flow::Skip => 1,
         Flow::Exit(e) => match e {},
@@ -2369,6 +2429,8 @@ pub extern "C" fn hook_ragdoll_on_step_chain(frame: &mut Frame) -> u32 {
     if flow != 0 { return flow; }
     let flow = hook_lamps_on_present(frame);
     if flow != 0 { return flow; }
+    let flow = hook_remote_smoothing_on_frame(frame);
+    if flow != 0 { return flow; }
     0
 }
 
@@ -2386,6 +2448,15 @@ pub extern "C" fn hook_music_on_unload_chain(frame: &mut Frame) -> u32 {
     let flow = hook_music_on_unload(frame);
     if flow != 0 { return flow; }
     let flow = hook_lobby_scene_on_game_closing(frame);
+    if flow != 0 { return flow; }
+    0
+}
+
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_ragdoll_on_bones_chain(frame: &mut Frame) -> u32 {
+    let flow = hook_ragdoll_on_bones(frame);
+    if flow != 0 { return flow; }
+    let flow = hook_remote_smoothing_on_bones(frame);
     if flow != 0 { return flow; }
     0
 }

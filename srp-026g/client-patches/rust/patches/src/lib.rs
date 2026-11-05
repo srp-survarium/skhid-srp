@@ -66,6 +66,7 @@ pub mod music;
 pub mod sound_voices;
 pub mod drug_interrupt;
 pub mod footsteps;
+pub mod remote_smoothing;
 
 pub mod weapon_pickup;
 

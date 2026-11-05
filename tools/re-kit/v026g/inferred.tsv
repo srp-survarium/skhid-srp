@@ -3203,3 +3203,5 @@ va	status	ref_021d	name
 0x00057560	inferred-medium	0x0003eaef	vostok::sound::sound_scene::get_listenet_position
 0x00063d60	inferred-high	0x000474fb	vostok::sound::composite_sound::emit_sound_propagators
 0x000633f0	inferred-medium	0x00043646	vostok::sound::voice_bridge::set_volume_impl
+0x00242b90	inferred-medium		survarium::base_network_client::set_active_player
+0x00242cc0	inferred-medium		survarium::base_network_client::reset_active_player

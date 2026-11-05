@@ -37,6 +37,14 @@ impl GameTime {
         self.0.wrapping_sub(earlier.0)
     }
 
+    /// The ms from `earlier` to this time, None when `earlier` is the later
+    /// one (a clock set back): the wrapping difference read as signed, half
+    /// the range either way.
+    pub fn elapsed_since(self, earlier: GameTime) -> Option<u32> {
+        let ms = self.since(earlier);
+        (ms <= i32::MAX as u32).then_some(ms)
+    }
+
     /// The tick this time is in.
     pub fn tick(self) -> Tick {
         Tick(self.0 / Tick::MS)
