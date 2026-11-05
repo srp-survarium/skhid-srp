@@ -475,7 +475,11 @@ impl Gather {
                     }
                     let whole: Vec<u8> = parts.values().flatten().copied().collect();
                     place.options.remove(&x);
-                    if let Ok((_, parsed)) = static_info::parse_payload(&whole, dictionary) {
+                    let tried = static_info::parse_payload(&whole, dictionary);
+                    if let Err(e) = &tried {
+                        eprintln!("a314 0xE4 of {} bytes: {e:?}", whole.len());
+                    }
+                    if let Ok((_, parsed)) = tried {
                         let roster = parsed.players.len() as u8;
                         place.roster = roster;
                         self.options
@@ -1191,13 +1195,15 @@ pub struct Tables {
     pub inputs: BTreeMap<(u32, u8), InputValue>,
     pub worlds: BTreeMap<u32, Vec<Vec<u8>>>,
     pub report: Report,
+    /// A314 (fx-review, local): the 0xE4 options of each roster size, and when one first went out.
+    pub rosters: BTreeMap<u8, (u32, static_info::MatchOptions)>,
 }
 
 /// [`Tables`] of a recording, by the converter's own reading (the relays' copies resolved as [`finish`] does).
 pub fn tables_of_file(path: &Path, notes: &[Record]) -> Result<Tables, ConvertError> {
     let mut gather = Gather::new(notes)?;
     record::read_each(path, |record| gather.push(record)).map_err(ConvertError::Read)?;
-    let Gather { mut report, offset, counts, copies, messages, worlds, accepted_inputs, .. } = gather;
+    let Gather { mut report, offset, counts, copies, messages, worlds, accepted_inputs, rosters, .. } = gather;
     let mut starts = Vec::with_capacity(counts.len() + 1);
     let mut total = 0usize;
     for &count in &counts {
@@ -1297,7 +1303,7 @@ pub fn tables_of_file(path: &Path, notes: &[Record]) -> Result<Tables, ConvertEr
     }
     report.inputs = inputs.len();
     report.world_times = worlds.len();
-    Ok(Tables { inputs, worlds, report })
+    Ok(Tables { inputs, worlds, report, rosters })
 }
 
 /// The start of the tick a time is in; here for the CLI's summary.

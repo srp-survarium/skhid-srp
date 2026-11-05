@@ -75,11 +75,18 @@ const CARRY_SNAPSHOT: usize = 32;
 
 fn run(input: &Path, out: &Path, fallback: Option<u16>) -> Result<(), Box<dyn std::error::Error>> {
     std::fs::create_dir_all(out)?;
+    // A314 (fx-review, local): with SRP_GAME_DATA set, the server's own game data (its dictionary has the patches' items).
+    if std::env::var_os(survarium::v026g::game_data::GAME_DATA_ENV).is_some()
+        && let Err(e) = survarium::v026g::game_data::init()
+    {
+        eprintln!("a314 game data: {e}");
+    }
     let notes = record::read_notes(input)?;
     let mut kinds: BTreeMap<String, usize> = BTreeMap::new();
     let mut head = String::new();
     // Each place's client patch revision, from its `revision` note (game.rs).
     let mut revisions: BTreeMap<u8, u16> = BTreeMap::new();
+    let mut notes_out: Vec<String> = Vec::new();
     for (k, note) in notes.iter().filter(|r| r.kind == NOTE).enumerate() {
         let Ok(value) = serde_json::from_slice::<serde_json::Value>(&note.bytes) else {
             *kinds.entry("unparsed".into()).or_default() += 1;
@@ -104,8 +111,13 @@ fn run(input: &Path, out: &Path, fallback: Option<u16>) -> Result<(), Box<dyn st
         {
             revisions.insert(place as u8, revision as u16);
         }
+        // A314 (fx-review, local): every note but the header (which names the places) to rec_notes.jsonl, one JSON a line.
+        if k != 0 {
+            notes_out.push(value.to_string());
+        }
         *kinds.entry(kind).or_default() += 1;
     }
+    std::fs::write(out.join("rec_notes.jsonl"), notes_out.join("\n") + "\n")?;
     let tables = sur_convert::tables_of_file(input, &notes)?;
     let id = tables.report.match_id.trim_start_matches("0x").to_owned();
     let mut inputs = std::io::BufWriter::new(std::fs::File::create(out.join("rec_inputs.csv"))?);
@@ -121,10 +133,40 @@ fn run(input: &Path, out: &Path, fallback: Option<u16>) -> Result<(), Box<dyn st
         )?;
     }
     inputs.flush()?;
+    // A314 (fx-review, local): every roster place's quick-use keys, as the client gives them (the n-th filled slot of
+    // `QUICK_USE_ORDER`, keys 1..6), with the item in each: `rec_kits.csv`: `match,roster,place,team,kit,quick,slot,item,count`.
+    let mut kits = std::io::BufWriter::new(std::fs::File::create(out.join("rec_kits.csv"))?);
+    writeln!(kits, "match,roster,place,team,kit,quick,slot,item,count")?;
+    let dictionary = survarium::v026g::dictionary::Dictionary::shared();
+    for (&roster, (_, options)) in &tables.rosters {
+        eprintln!(
+            "a314 roster {roster}: {} players, kits {:?}",
+            options.players.len(),
+            options.players.iter().map(|p| (p.kits.len(), p.items.len())).collect::<Vec<_>>()
+        );
+        for (place, profile) in options.players.iter().enumerate() {
+            for (k, kit) in profile.kits.iter().enumerate() {
+                let filled = survarium::v026g::loadouts::QUICK_USE_ORDER
+                    .iter()
+                    .copied()
+                    .filter(|&slot| kit.slots[usize::from(slot)].is_some_and(|(_, count)| count > 0));
+                for (quick, slot) in filled.enumerate().take(6) {
+                    let Some((index, count)) = kit.slots[usize::from(slot)] else { continue };
+                    let name = profile
+                        .items
+                        .get(usize::from(index))
+                        .and_then(|item| dictionary.item(item.dict_id))
+                        .map_or("?".to_string(), |row| row.name.to_string());
+                    writeln!(kits, "{id},{roster},{place},{},{k},{},{slot},{name},{count}", profile.team, quick + 1)?;
+                }
+            }
+        }
+    }
+    kits.flush()?;
     let mut worlds = std::io::BufWriter::new(std::fs::File::create(out.join("rec_worlds.csv"))?);
     writeln!(worlds, "match,time,upload,uploads,same,place,alive,cx,cy,cz,fx,fy,fz,yaw,pitch,keys,speed,inserted")?;
     let mut motions = std::io::BufWriter::new(std::fs::File::create(out.join("rec_motion.csv"))?);
-    writeln!(motions, "match,time,upload,place,alive,sprinting,jumping,colliding,can_stand,normal_y,fall_y,last_hit,hits,last_recent_hit,stagger,health0")?;
+    writeln!(motions, "match,time,upload,place,alive,sprinting,jumping,colliding,can_stand,normal_y,fall_y,last_hit,hits,last_recent_hit,stagger,health0,kit,head,legs,hands,pain,infection")?;
     let (mut read, mut unread) = (0usize, 0usize);
     // The layouts to try, oldest revision first, then the fallback, then today's.
     let mut candidates: Vec<Option<u16>> = revisions.values().copied().collect::<std::collections::BTreeSet<_>>().into_iter().map(Some).collect();
@@ -135,6 +177,18 @@ fn run(input: &Path, out: &Path, fallback: Option<u16>) -> Result<(), Box<dyn st
     }
     candidates.push(None);
     let mut read_at: BTreeMap<Option<u16>, usize> = BTreeMap::new();
+    // A314 (fx-review, local): each human place's medicines in hand (`players::Supplies`, as the bots read a live block):
+    // `rec_supplies.csv`: `match,time,place,kit,item,in_hand,stored`, upload 0 only. The profile is the largest roster's.
+    let mut supplies = std::io::BufWriter::new(std::fs::File::create(out.join("rec_supplies.csv"))?);
+    writeln!(supplies, "match,time,place,kit,item,in_hand,stored")?;
+    let mut profiles: BTreeMap<u8, &survarium::v026g::match_msgs::static_info::MatchProfile> = BTreeMap::new();
+    for (_, options) in tables.rosters.values() {
+        for (place, profile) in options.players.iter().enumerate() {
+            profiles.insert(place as u8, profile);
+        }
+    }
+    const MEDS: [&str; 7] =
+        ["medkit", "science_medkit", "blackmarket_medkit", "military_medkit", "bandages", "antitoxin", "painkiller"];
     for (&time, bodies) in &tables.worlds {
         let same = u8::from(bodies.windows(2).all(|w| w[0] == w[1]));
         for (k, body) in bodies.iter().enumerate() {
@@ -154,6 +208,23 @@ fn run(input: &Path, out: &Path, fallback: Option<u16>) -> Result<(), Box<dyn st
                 *read_at.entry(revision).or_default() += 1;
                 let state = &*state;
                 read += 1;
+                if k == 0
+                    && revisions.contains_key(&block.place)
+                    && let Some(profile) = profiles.get(&block.place)
+                {
+                    let read_block = players::PlayerBlock { place: block.place, state, animation: block.animation };
+                    if let Some(s) = players::Supplies::read(&read_block, profile, dictionary) {
+                        for item in &s.items {
+                            let Some(row) = dictionary.item(item.dict_id) else { continue };
+                            if !item.stack || !MEDS.contains(&row.name.as_str()) {
+                                continue;
+                            }
+                            if let Some(n) = item.in_hand {
+                                writeln!(supplies, "{id},{time},{},{},{},{n},{}", block.place, s.kit, row.name, item.stored)?;
+                            }
+                        }
+                    }
+                }
                 let (c, f) = motion.body.as_ref().map_or(([f32::NAN; 3], [f32::NAN; 3]), |b| (b.position, b.feet()));
                 let speed = motion.damage.as_ref().map_or(f32::NAN, |d| d.linear_horizontal_speed);
                 // The stagger float: the 4 bytes before the recent hits' count, which ends the state but for the last bool.
@@ -181,12 +252,18 @@ fn run(input: &Path, out: &Path, fallback: Option<u16>) -> Result<(), Box<dyn st
                     (d.last_hit_time_ms.to_string(), d.part_health.first().map_or(String::new(), |h| format!("{h:.3}")))
                 });
                 let last_recent = motion.recent_hits.last().map_or(String::new(), |h| h.0.to_string());
+                // A314: the other pools (bots/pools.rs: head 3, legs 6-7, hands 16-17, pain 18), the lower limb of each pair.
+                let pools = motion.damage.as_ref().filter(|d| d.part_health.len() >= 20).map_or(",,,,".to_string(), |d| {
+                    let p = &d.part_health;
+                    format!("{:.3},{:.3},{:.3},{:.3},{:.3}", p[3], p[6].min(p[7]), p[16].min(p[17]), p[18], p[19])
+                });
                 writeln!(
                     motions,
-                    "{id},{time},{k},{},{},{sprinting},{jumping},{colliding},{can_stand},{normal_y},{fall_y},{last_hit},{},{last_recent},{stagger:.4},{health0}",
+                    "{id},{time},{k},{},{},{sprinting},{jumping},{colliding},{can_stand},{normal_y},{fall_y},{last_hit},{},{last_recent},{stagger:.4},{health0},{},{pools}",
                     block.place,
                     u8::from(motion.alive),
-                    motion.recent_hits.len()
+                    motion.recent_hits.len(),
+                    state.first().copied().unwrap_or(0)
                 )?;
                 writeln!(
                     worlds,
@@ -210,6 +287,7 @@ fn run(input: &Path, out: &Path, fallback: Option<u16>) -> Result<(), Box<dyn st
     }
     worlds.flush()?;
     motions.flush()?;
+    supplies.flush()?;
     let r = &tables.report;
     let text = format!(
         "{head}\nnote kinds: {kinds:?}\nclock offset ms: {}\ndatagrams in {} out {} unparsed {} {:?}\nworlds complete {} world times {}\ninputs {} copies {} conflicts {} flagged {} dropped_future {}\nplayer blocks read {read} unread {unread}\nrevisions by place {revisions:?}, else {fallback:?}; blocks read at (None = as they are) {read_at:?}\n",
