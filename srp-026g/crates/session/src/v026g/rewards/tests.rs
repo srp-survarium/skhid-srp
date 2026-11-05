@@ -3263,7 +3263,7 @@ fn a_match_moves_the_balance_rating_by_the_sides_sizes() {
 /// otherwise (`docs/notes/kd-balance.md`).
 #[test]
 fn a_rated_match_counts_kills_and_deaths_at_its_equipment_level() {
-    use crate::v026g::level_stats::KillsDeaths;
+    use crate::v026g::level_stats::{KillsDeaths, TimedKills};
 
     let players = three_and_two();
     let store = accounts(&players);
@@ -3285,6 +3285,14 @@ fn a_rated_match_counts_kills_and_deaths_at_its_equipment_level() {
         KillsDeaths {
             kills: 1,
             deaths: 1
+        }
+    );
+    // With its time in the match: the kills a minute.
+    assert_eq!(
+        alice.timed_at(9),
+        TimedKills {
+            kills: 1,
+            seconds: 600
         }
     );
     assert_eq!(account(&store, 10).balance.matches, 1);

@@ -7,6 +7,7 @@
 
 use super::*;
 use session::v026g::rooms::QueueChoice;
+use survarium::v026g::lobby::presets::PRESETS_FIRST;
 use survarium::v026g::lobby::rooms::ROOM_PRESET_BASE;
 
 fn play(world: &mut World, index: usize) {
@@ -449,8 +450,10 @@ fn a_running_match_with_one_place_on_each_side_takes_the_pair_only_on_a_side_of_
 #[test]
 fn a_place_kept_for_a_player_who_may_come_back_counts_on_its_side() {
     // 3 v 3: of team 0 two are gone (their places kept), one of team 1
-    // left for good: 1 v 2 in the match. Team 0 has the fewer players
-    // but no place (1 + 2 kept of 3): one alone goes to team 1.
+    // left for good: 1 v 2 in the match. Team 0, the weaker, has no place
+    // (1 + 2 kept of 3): one alone waits (the owner's of 2026-11-05: never
+    // the stronger side), told the match is full, and goes there once a
+    // kept place is given up.
     let mut world = World::new();
     let (key, ticket, id, players) = playing(&mut world, 3, 6);
     let team = |world: &World, side: u8| -> Vec<usize> {
@@ -465,8 +468,11 @@ fn a_place_kept_for_a_player_who_may_come_back_counts_on_its_side() {
     without(&mut world, ticket, id, &[team_0[0], team_0[1], team_1[0]]);
     let carol = world.connect("Carol");
     rows(&mut world, carol, ROOM_JOIN_BASE + key, 1);
+    assert_eq!(go_in(&mut world, ticket, &[carol]), [None]);
+    assert_eq!(join_row(&state(&mut world, carol)), Some("J;-1;4"));
+    quits(&mut world, id, team_0[1]);
     assert_eq!(go_in(&mut world, ticket, &[carol]), [Some(ticket)]);
-    assert_eq!(seat_of(&world, id, carol).1, 1);
+    assert_eq!(seat_of(&world, id, carol).1, 0);
 
     // A pair: 3 v 3, one of each team left for good and one more of team 0
     // gone (its place kept): 1 v 2 in the match. Two places on team 0
@@ -872,4 +878,92 @@ fn a_queued_pair_follows_its_squad_and_nobody_loses_a_place() {
     rows(&mut world, bob, ROOM_JOIN_BASE + other, 1);
     assert_eq!(room_of(&world, alice), Some(other));
     assert_eq!(queued(&world, single), Some((key, 1)));
+}
+
+/// `kills` for each 1000 deaths at every equipment level: a strength of
+/// about `kills / 1000` (no time kept, so the kills a minute are the
+/// average's).
+fn of_strength(world: &mut World, player: usize, kills: u32) {
+    world.change(player, |account| {
+        account.level_stats =
+            session::v026g::level_stats::LevelStats::from_rows((0..=15).map(|level| {
+                (
+                    level,
+                    session::v026g::level_stats::KillsDeaths {
+                        kills,
+                        deaths: 1000,
+                    },
+                )
+            }));
+    });
+}
+
+/// The owner's of 2026-11-05: a squad of two strong players plays no
+/// match. Play and Join are refused (18), the movie told by the presets'
+/// list (bit 64, Play greyed); split up, each plays.
+#[test]
+fn a_squad_of_two_strong_players_is_refused() {
+    let mut world = World::new();
+    let owner = world.connect("Owner");
+    let open = create(&mut world, owner, spec(6), None);
+    let (alice, bob) = pair(&mut world);
+    of_strength(&mut world, alice, 3000);
+    of_strength(&mut world, bob, 2600);
+    assert_eq!(code(&rows(&mut world, alice, ROOM_PLAY, 1)), "18");
+    assert_eq!(
+        code(&rows(&mut world, alice, ROOM_JOIN_BASE + open, 1)),
+        "18"
+    );
+    assert_eq!((room_of(&world, alice), room_of(&world, bob)), (None, None));
+    let presets = rows(&mut world, alice, PRESETS_FIRST, 1);
+    assert_eq!(presets[0].split(';').nth(5), Some("64"), "{presets:?}");
+    // One of them strong is no squad too strong.
+    of_strength(&mut world, bob, 2400);
+    rows(&mut world, alice, ROOM_JOIN_BASE + open, 1);
+    assert_eq!(room_of(&world, alice), Some(open));
+    assert_eq!(room_of(&world, bob), Some(open));
+    let presets = rows(&mut world, alice, PRESETS_FIRST, 1);
+    assert_eq!(presets[0].split(';').nth(5), Some("0"), "{presets:?}");
+}
+
+/// The owner's of 2026-11-05: a late joiner goes only to the weaker side,
+/// and never to the side of the other of the two strongest: it waits.
+#[test]
+fn the_second_strongest_never_joins_the_strongest() {
+    let mut world = World::new();
+    let players: Vec<usize> = (0..4)
+        .map(|n| world.connect(&format!("Player{n}")))
+        .collect();
+    // 4, 1, 2, 2: the sides 4 + 1 against 2 + 2.
+    for (&player, kills) in players.iter().zip([4000, 1000, 2000, 2000]) {
+        of_strength(&mut world, player, kills);
+    }
+    let key = create(&mut world, players[0], spec(3), None);
+    for &player in &players[1..] {
+        rows(&mut world, player, ROOM_JOIN_BASE + key, 1);
+    }
+    world.advance(VOTE_AND_WAIT);
+    let (ticket, _) = sent_to_match(&world.take(players[0])).expect("a match");
+    let id = *world
+        .core
+        .matches
+        .iter()
+        .find(|(_, running)| running.ticket.match_id == ticket)
+        .unwrap()
+        .0;
+    let strongest = seat_of(&world, id, players[0]).1;
+    assert_eq!(seat_of(&world, id, players[1]).1, strongest);
+    // The 1 is out: the strongest's side is the weaker (1 + 4 against 2 +
+    // 2 + 2), the one a joiner may go to.
+    without(&mut world, ticket, id, &[players[1]]);
+    // Carol, of 3.5, would be the second strongest there: she waits.
+    let carol = world.connect("Carol");
+    of_strength(&mut world, carol, 3500);
+    rows(&mut world, carol, ROOM_JOIN_BASE + key, 1);
+    assert_eq!(go_in(&mut world, ticket, &[carol]), [None]);
+    assert_eq!(join_row(&state(&mut world, carol)), Some("J;-1;4"));
+    // Of 1.5 she is not: in, on the weaker side.
+    of_strength(&mut world, carol, 1500);
+    assert_eq!(go_in(&mut world, ticket, &[carol]), [Some(ticket)]);
+    assert_eq!(seat_of(&world, id, carol).1, strongest);
 }

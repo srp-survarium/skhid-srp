@@ -2467,6 +2467,7 @@ st_srp_loadout_block_locked	Tämä profiili on lukittu
 st_srp_loadout_block_maintenance	Palvelinhuolto alkaa %1$s min kuluttua
 st_srp_loadout_block_pocket_twice	Sama esinetyyppi kahdessa taskussa
 st_srp_loadout_block_shared_slot	Kaksi esinettä samassa paikassa
+st_srp_loadout_block_squad_too_strong	Ryhmä on liian vahva: jakautukaa
 st_srp_loadout_block_weapon	Ei asetta
 st_srp_loadout_empty	tyhjä
 st_srp_loadout_refused	Varustesetin valinta epäonnistui.
@@ -2538,6 +2539,7 @@ st_srp_pierce_stone	Kivi
 st_srp_pierce_tinplate	Pelti
 st_srp_pierce_value	%1$s · %2$s
 st_srp_play_in_squad	Ryhmässä
+st_srp_play_squad_too_strong	Jakautukaa
 st_srp_pvb_at_limit	Bottiotteluita on jo enimmäismäärä käynnissä, yritä uudelleen minuutin kuluttua
 st_srp_pvb_at_limit_count	Bottiotteluita on jo enimmäismäärä käynnissä (%1$s/%2$s), yritä uudelleen minuutin kuluttua
 st_srp_pvb_busy	%1$s (varattu)

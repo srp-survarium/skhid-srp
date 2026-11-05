@@ -45,7 +45,12 @@ package survarium.constants
       // its leader's Play, Join or Queue takes it (squads.md). Its buttons
       // are greyed by the same rule (LocalPlayerProfile.squadSoldier).
       public static const SQUAD_LEADER:int = 17;
-      
+
+      // The squad is too strong to play (two strong players or more): Play,
+      // Join and Queue refused, a room's match takes it out of the room. Play
+      // is red by the same rule (LocalPlayerProfile.squadTooStrong).
+      public static const SQUAD_TOO_STRONG:int = 18;
+
       public function RoomCode()
       {
          super();

@@ -488,10 +488,55 @@ package
             panel.showRoomsPlay(false,false,false,false,true,"");
             if(btn.label != "PLAY")
                failures.push(language + ": Play out of the room says " + btn.label);
+            // A squad too strong to play (the presets' list's bit 64): both of it see Play
+            // greyed, "Squad too strong", the soldier too; split up, PLAY again.
+            if(tooStrong(domain, 64))
+            {
+               Info.isInSquad = true;
+               for each(var commander:Boolean in [true, false])
+               {
+                  Info.commander = commander;
+                  panel.showRoomsPlay(false,false,false,false,true,"");
+                  fits("too strong", language, "st_srp_play_squad_too_strong");
+                  if(btn.enabled)
+                     failures.push("too strong, " + language + ": Play lit");
+               }
+               Info.isInSquad = false;
+               tooStrong(domain, 0);
+               panel.showRoomsPlay(false,false,false,false,true,"");
+               if(btn.label != "PLAY")
+                  failures.push(language + ": Play after the squad split says " + btn.label);
+            }
          }
          Info.isInSquad = false;
          Loc.setData(HarnessText.DATA.english);
          trace("ROOMS Play: " + said.join(", "));
+      }
+
+      // The local profile told the presets' list with `blocks` (the server's `P2;L` header),
+      // made first if there is none (its constructor names it first, so a profile without
+      // the lobby's parts, which then fails, is one all the same); false (a failure) when
+      // there is none.
+      private function tooStrong(domain:ApplicationDomain, blocks:int) : Boolean
+      {
+         var Profile:Object = domain.getDefinition("survarium.player.LocalPlayerProfile");
+         if(Profile.me == null)
+         {
+            try
+            {
+               new (domain.getDefinition("SrvLocalPlayerProfile") as Class)();
+            }
+            catch(err:Error)
+            {
+            }
+         }
+         if(Profile.me == null)
+         {
+            failures.push("too strong: no local profile");
+            return false;
+         }
+         Profile.presetsTake([{"place":2090000000, "nickname":"P2;L;0;0;1;" + blocks + ";-1"}]);
+         return true;
       }
 
       // The list's rows (their sprites are named by their rooms' keys).

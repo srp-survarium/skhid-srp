@@ -33,16 +33,18 @@ fn everywhere(row: KillsDeaths) -> LevelStats {
     LevelStats::from_rows((0..=15).map(|level| (level, row)))
 }
 
+/// The owner's of 2026-11-05: the two strongest go one against another,
+/// even where together on the side of fewer would be the most even split.
 #[test]
-fn with_an_odd_count_the_stronger_players_are_the_side_of_fewer() {
+fn the_two_strongest_players_go_one_against_another() {
     let settings = Settings::local("127.0.0.1:0");
     assert_eq!(settings.balance, Weights::default());
 
     let mut world = World::new();
     let players = five(&mut world);
     // Carol and Erin kill two for each death, over many: each counts for
-    // 2, the others (new) for 1, and a player for 1 more. The two on the
-    // side of fewer: 2 + 4 against 3 + 3.
+    // 2, the others (new) for 1, and a player for 1 more. Together on the
+    // side of fewer they would be 2 + 4 against 3 + 3; apart they are.
     for strong in [players[2], players[4]] {
         world.change(strong, |account| {
             account.level_stats = everywhere(KillsDeaths {
@@ -52,9 +54,7 @@ fn with_an_odd_count_the_stronger_players_are_the_side_of_fewer() {
         });
     }
     let sides = sides_of_five(&mut world, &players);
-    assert_eq!(sides[2], sides[4], "{sides:?}");
-    let with_them = sides.iter().filter(|&&side| side == sides[2]).count();
-    assert_eq!(with_them, 2, "{sides:?}");
+    assert_ne!(sides[2], sides[4], "{sides:?}");
     world.assert_clean();
 }
 

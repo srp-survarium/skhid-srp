@@ -9,9 +9,9 @@
 //!
 //! The match itself is the match server's: the lobby hands it the roster
 //! through [`MatchHost`] and sends each player where the ticket says
-//! (0x82). A running room match takes a late joiner on the side with fewer
-//! players, then the side it played on before, then the one that counts
-//! for less (`rooms`, `policy::place_joiner`) until its end.
+//! (0x82). A running room match takes a late joiner only on the side that
+//! counts for less, with no rival of it there (`rooms`,
+//! `policy::place_joiner`, `level_stats::rivals`) until its end.
 //!
 //! Each minute of a match being played the log has what its sides count for
 //! and the chance that gives team 0 ([`Core::log_predictions`]): what the
@@ -288,6 +288,9 @@ pub(super) struct Running {
     /// By place: what its player counted for when it was seated, beside
     /// being there ([`strength_in`]).
     pub strengths: Vec<Strength>,
+    /// By place: its player as the rivals are told by
+    /// (`level_stats::rivals`); none for one of the server's bots.
+    pub rivals: Vec<Option<Rival>>,
     /// By place: its player's name, for the log.
     pub names: Vec<String>,
     /// When the log last had what the sides count for.
@@ -297,14 +300,44 @@ pub(super) struct Running {
     pub server_bots: bool,
 }
 
+/// A player of a match as the rivals are told by (`level_stats::rivals`):
+/// its party in the match (the account of its squad's first member seated,
+/// its own alone) and its own strength (beside a squad's factor).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(super) struct Rival {
+    pub party: u32,
+    pub own: Strength,
+}
+
+/// One who goes into a match being played: its rival (its party and own
+/// strength) and whether it counts as a squad's member there.
+pub(super) struct Joiner {
+    pub player: session::Player,
+    pub rival: Rival,
+    pub squad: bool,
+}
+
+impl Joiner {
+    /// What it counts for, beside being there.
+    pub(super) fn strength(&self) -> Strength {
+        if self.squad {
+            level_stats::in_squad(self.rival.own)
+        } else {
+            self.rival.own
+        }
+    }
+}
+
 /// One player as the log's "sides" and "late join" lines have it: what it
 /// counts for and the parts of that, at the match's equipment level
-/// `at`. `scripts/balance-refit` reads these.
-fn counted_player(account: &Account, counts: f64, gear: u8, at: u8) -> String {
+/// `at`, and whether it counts as a squad's member. `scripts/balance-refit`
+/// reads these.
+fn counted_player(account: &Account, counts: f64, gear: u8, at: u8, squad: bool) -> String {
     let there = account.level_stats.at(at);
+    let timed = account.level_stats.timed_at(at);
     format!(
         "{} {counts:.2} (gear {gear}, level {}, rating {:+.2} of {} matches, at {at}: kd {:.2} \
-         of {}/{})",
+         of {}/{}, kpm {:.2} of {}/{} min{}{})",
         account.name,
         account.level(),
         f64::from(account.balance.rating) / f64::from(session::v026g::balance::UNIT),
@@ -312,14 +345,24 @@ fn counted_player(account: &Account, counts: f64, gear: u8, at: u8) -> String {
         account.level_stats.kd_at(at).as_kd(),
         there.kills,
         there.deaths,
+        account.level_stats.kill_rate_at(at).per_minute(),
+        timed.kills,
+        timed.seconds / 60,
+        if squad { ", squad" } else { "" },
+        if account.level_stats.strength_at(at) >= level_stats::STRONG {
+            ", strong"
+        } else {
+            ""
+        },
     )
 }
 
 /// What a player counts for in a match of equipment level `gear`, beside
-/// being there: its K/D there (`level_stats`; the owner's of 2026-11-01),
-/// 1.3 times for a member of a squad that plays together.
+/// being there: its K/D there times its kills a minute there over the
+/// server's average (`level_stats`; the owner's of 2026-11-01 and
+/// 2026-11-05), 1.3 times for a member of a squad that plays together.
 pub(super) fn strength_in(account: &Account, gear: u8, squad: bool) -> Strength {
-    let strength = account.level_stats.kd_at(gear);
+    let strength = account.level_stats.strength_at(gear);
     if squad {
         level_stats::in_squad(strength)
     } else {
@@ -611,15 +654,16 @@ impl Core<'_> {
         }
     }
 
-    /// Players the match server took into a running match (`joined`: each
-    /// with its team and what it counted for): the lobby's roster of the
-    /// match grows by them, the map is one more each has played, and the
-    /// log has the "late join" line (`scripts/balance-refit` reads it) with
-    /// the sides as `placement` has them.
+    /// Players the match server took into a running match on `team`: the
+    /// lobby's roster of the match grows by them, the map is one more each
+    /// has played, and the log has the "late join" line
+    /// (`scripts/balance-refit` reads it) with the sides as `placement` has
+    /// them.
     pub(super) fn seated_late(
         &mut self,
         id: u32,
-        joined: &[(session::Player, u8, Strength)],
+        team: u8,
+        joined: &[Joiner],
         placement: &policy::LatePlacement,
         lead: [Strength; 2],
     ) {
@@ -643,16 +687,19 @@ impl Core<'_> {
         // The joiners are in: the match's equipment level is the highest
         // of its players' (`level_stats`).
         let mut match_gear = self.results.match_gear(ticket).unwrap_or(0);
-        for &(player, ..) in joined {
-            if let Some(account) = self.accounts.get(player.account_id) {
+        for joiner in joined {
+            if let Some(account) = self.accounts.get(joiner.player.account_id) {
                 let gear = matchmaking::gear_level(&account.locked(), unix);
                 match_gear = self.results.raise_match_gear(ticket, gear);
             }
         }
         let mut said = Vec::new();
-        for &(player, team, strength) in joined {
+        for joiner in joined {
+            let player = joiner.player;
+            let strength = joiner.strength();
             running.seats.push((player.session_id, team));
             running.strengths.push(strength);
+            running.rivals.push(Some(joiner.rival));
             let mut name = String::new();
             if let Some(account) = self.accounts.get(player.account_id) {
                 let mut account = account.locked();
@@ -663,7 +710,8 @@ impl Core<'_> {
                         &account,
                         weights.player + strength.as_kd(),
                         matchmaking::level(&account, unix).min,
-                        match_gear
+                        match_gear,
+                        joiner.squad
                     )
                 ));
                 let places = seats
@@ -1020,6 +1068,7 @@ impl Core<'_> {
         let weights = self.settings.balance;
         let mut sides: [(f64, Vec<String>); 2] = Default::default();
         let mut strengths = Vec::with_capacity(formed.seats.len());
+        let mut rivals = Vec::with_capacity(formed.seats.len());
         let mut names = Vec::with_capacity(formed.seats.len());
         // The match's equipment level: the highest gear level of its
         // players (the owner's of 2026-11-01), what each counts for at.
@@ -1043,14 +1092,25 @@ impl Core<'_> {
                 let level = matchmaking::level(&account, unix).min;
                 levels.push(level);
                 gear_levels.push(matchmaking::gear_level(&account, unix));
-                let strength = strength_in(&account, match_gear, seat.squad != 0);
+                let squad = seat.squad != 0;
+                let strength = strength_in(&account, match_gear, squad);
                 strengths.push(strength);
+                // A squad's party: its first member seated.
+                let party = formed
+                    .seats
+                    .iter()
+                    .find(|other| squad && other.squad == seat.squad)
+                    .map_or(seat.player.account_id, |first| first.player.account_id);
+                rivals.push(Some(Rival {
+                    party,
+                    own: strength_in(&account, match_gear, false),
+                }));
                 names.push(account.name.clone());
                 let counts = weights.player + strength.as_kd();
                 let side = &mut sides[usize::from(seat.team.min(1))];
                 side.0 += counts;
                 side.1
-                    .push(counted_player(&account, counts, level, match_gear));
+                    .push(counted_player(&account, counts, level, match_gear, squad));
                 Some(MatchPlayer {
                     session_id: seat.player.session_id,
                     account_id: seat.player.account_id,
@@ -1241,6 +1301,10 @@ impl Core<'_> {
                         strengths: strengths
                             .into_iter()
                             .chain(bot_kits.iter().map(|_| level_stats::BOT_STRENGTH))
+                            .collect(),
+                        rivals: rivals
+                            .into_iter()
+                            .chain(bot_kits.iter().map(|_| None))
                             .collect(),
                         names: names
                             .into_iter()

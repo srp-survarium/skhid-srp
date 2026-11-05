@@ -112,7 +112,73 @@ class Refit(unittest.TestCase):
         self.assertEqual((sides[0][0]["gear"], sides[0][0]["matches"]), (3, 4))
         self.assertEqual([p["name"] for p in sides[1]], ["D"])
         self.assertEqual(ms[0]["events"][0], ("join", [dict(name="E", value=2.1, team=1, gear=3, level=2,
-                                                           rating=0.5, matches=4)]))
+                                                           rating=0.5, matches=4, kd=1.25, squad=False,
+                                                           at="2026-10-13T12:05:00.000")]))
+        self.assertEqual((ms[0]["level"], ms[0]["at"]), (6, "2026-10-13T12:00:00.000"))
+        self.assertEqual(sides[0][1]["kd"], 1.25)
+
+    def test_lines_since_the_kills_a_minute(self):
+        # Since 2026-11-05 the parts go on with the kills a minute, and say a
+        # squad's member and a strong player.
+        squad = "(gear 9, level 30, rating +0.10 of 9 matches, at 10: kd 2.00 of 50/20, kpm 1.10 of 33/30 min, squad, strong)"
+        alone = "(gear 9, level 30, rating +0.10 of 9 matches, at 10: kd 1.00 of 5/5, kpm 0.83 of 0/0 min)"
+        ms = read("\n".join([
+            line("12:00:00.000", f"Match 0xd sides (equipment level 10): team 0 counts 3.60: A 3.60 {squad} "
+                 f"| team 1 counts 2.00: B 2.00 {alone}"),
+            settled("0xd", 1, 2),
+        ]))
+        a, b = ms[0]["sides"][0][0], ms[0]["sides"][1][0]
+        self.assertEqual((a["kd"], a["squad"], a["gear"]), (2.0, True, 9))
+        self.assertEqual((b["kd"], b["squad"]), (1.0, False))
+        self.assertTrue(refit.is_squad(a))
+        self.assertFalse(refit.is_squad(b))
+
+    def test_rivals_and_too_strong(self):
+        # The two strongest of two parties; a tie for the second, none.
+        self.assertEqual(refit.rivals([("a", 3.0), ("b", 2.0), ("c", 1.0)]), {frozenset("ab")})
+        self.assertEqual(refit.rivals([("a", 3.0), ("b", 1.0), ("c", 1.0)]), set())
+        # The two strongest in one squad, strong: every other strong party against it.
+        pairs = refit.rivals([("s", 4.0), ("s", 2.0), ("x", 2.6), ("y", 2.5), ("z", 0.5)])
+        self.assertEqual(pairs, {frozenset("sx"), frozenset("sy")})
+        self.assertTrue(refit.too_strong([2.5, 9.0]))
+        self.assertFalse(refit.too_strong([2.4, 9.0]))
+        self.assertFalse(refit.too_strong([9.0]))
+
+    def test_kpm_factor_and_its_cap(self):
+        # A new player is the average; 6 kills in a match of 15 minutes less, 60 at the cap.
+        self.assertAlmostEqual(refit.kpm_factor(0, 0), 1.0)
+        self.assertLess(refit.kpm_factor(6, 15), 0.8)
+        self.assertEqual(refit.kpm_factor(60, 15), refit.KPM_FACTOR_MOST)
+
+    def test_reports_of_a_database(self):
+        import json
+        import sqlite3
+        report = dict(match_id=10, end="TimeLimit", match_level=5, private=False, vs_bots=False,
+                      stats=dict(winner_team=0, rows=[
+                          dict(name="A", clan_tag="X", player_id=1, kills=10, deaths=2, team=0),
+                          dict(name="B", clan_tag="", player_id=2, kills=2, deaths=10, team=1)]),
+                      players=[dict(account_id=7, player_id=1, full=dict(play_seconds=[600, 0, 0])),
+                               dict(account_id=8, player_id=2, full=dict(play_seconds=[300, 0, 0]))])
+        bots = dict(report, match_id=11, vs_bots=True)
+        with tempfile.TemporaryDirectory() as d:
+            db = Path(d) / "srp.db"
+            con = sqlite3.connect(db)
+            con.execute("CREATE TABLE g26_results (key TEXT PRIMARY KEY, body TEXT NOT NULL)")
+            con.execute("CREATE TABLE g26_accounts (account_id INTEGER, name TEXT, clan_tag TEXT)")
+            for r in (report, bots):
+                con.execute("INSERT INTO g26_results VALUES (?, ?)", (f"report:{r['match_id']}", json.dumps(r)))
+            con.execute("INSERT INTO g26_accounts VALUES (7, 'A2', 'X')")
+            con.commit()
+            con.close()
+            reports, accounts = refit.read_reports([d])
+        self.assertEqual(list(reports), ["0xa"])
+        self.assertEqual(reports["0xa"]["players"]["A"], dict(account=7, team=0, kills=10, deaths=2, seconds=600))
+        totals = refit.Totals(reports, accounts)
+        self.assertEqual(totals.of("A"), (10, 2, 10.0))
+        # Its other matches: none.
+        self.assertEqual(totals.of("A", without="0xa"), (0, 0, 0.0))
+        # Renamed since: the new name is the same account.
+        self.assertEqual(totals.of("A2"), (10, 2, 10.0))
 
     def test_features_and_trust(self):
         side = [dict(value=0, gear=3, level=2, rating=1.0, matches=5), dict(value=0, gear=1, level=1, rating=-1.0, matches=0)]
@@ -136,7 +202,7 @@ class Refit(unittest.TestCase):
         # Two were in it for two of its three minutes.
         self.assertEqual(refit.players_in(m), 2)
         self.assertEqual([kind for kind, _ in m["events"]], ["minute", "join", "minute", "minute"])
-        self.assertEqual(m["events"][1][1], [dict(name="5", value=12.0, team=0)])
+        self.assertEqual(m["events"][1][1], [dict(name="5", value=12.0, team=0, at="2026-10-13T22:41:11.685")])
         self.assertEqual(m["events"][2][1]["n"], (2, 1))
         # Only the first minute gives the roster: after it a player without
         # parts is in, and then one of two is out and the old line does not say who.

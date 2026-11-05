@@ -61,12 +61,16 @@ impl Core<'_> {
     /// Why the asker may enter no room now (`P2;L`'s `<blocks>`, the
     /// reasons table of `presets.md`): the kit a match would take can not
     /// play (`rules::kits_play_blocks`, which the entries refuse with code
-    /// 15), the maintenance rule (`maintenance_is_near`, code 9). The same
-    /// functions as the doors', so the movie's greying and the server agree.
+    /// 15), the maintenance rule (`maintenance_is_near`, code 9), a squad too
+    /// strong to play (`too_strong_squad`, code 18). The same functions as
+    /// the doors', so the movie's greying and the server agree.
     pub(super) fn entry_blocks(&self, who: &Who) -> u8 {
         let mut blocks = rules::kits_play_blocks(&who.account.locked(), quests::now());
         if self.maintenance_is_near() {
             blocks |= wire::BLOCK_MAINTENANCE;
+        }
+        if self.too_strong_squad(who.account_id).is_some() {
+            blocks |= wire::BLOCK_SQUAD_TOO_STRONG;
         }
         blocks
     }

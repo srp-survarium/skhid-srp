@@ -168,7 +168,7 @@ parts in the game's classes (`TopMenu`'s tab, `StatusPanel`'s Play, `LobbyMenu`'
     goes in late on the team its owner put it on while that team has fewer than 10 in the
     match, else on the other; its team in the arrangement stays (the review of #527: a 1 v 3
     whose member came 15 s late had become 2 v 2). A newcomer who joins with the PIN during
-    the match goes to the side with fewer players, as in any room, and is on that team in
+    the match goes to the weaker side, as in any room (`kd-balance.md`), and is on that team in
     the arrangement after, while it has fewer than 10 there. No team ever has more than 10.
   - The server refuses (does nothing) a move of anyone but the owner, in an open room, while
     the room plays its match, onto a team of 10, or from an older list (`2 060 020 000`,
@@ -240,11 +240,13 @@ parts in the game's classes (`TopMenu`'s tab, `StatusPanel`'s Play, `LobbyMenu`'
   mark each pair: `squads.md`.
 - **Late joins:** a member who comes during the room's match (by Play, Join, its queue or a
   switch) sees the room first: who is in it and at what levels, to switch or make its own;
-  it goes into the match 15 s later, or at once with "Join match". It goes in on the
-  side with fewer players in the match; of two alike in that, on the side it played on in
-  that match before (it left, or its game was gone for good); then on the weaker one (the
-  owner's of 2026-10-19: players, then the previous team, then the balance; after a 4 v 8
-  by strength), from its countdown on (the first seconds too) until 30 s (`LOAD_MARGIN`) are
+  it goes into the match 15 s later, or at once with "Join match". It goes in only on the
+  weaker side (the owner's of 2026-11-05: "late joiners can't skew balance"; what the
+  players in the match count for and the lead, `kd-balance.md`), and never on a side with a
+  rival of it (the two strongest, a strong squad and another strong player); else it waits,
+  told the match is full, until it can. Until 2026-11-05 it went to the side with fewer
+  players, then the side it had played on, then the weaker (a 15.5 apart match, 0x73d0500e).
+  From its countdown on (the first seconds too) until 30 s (`LOAD_MARGIN`) are
   left of it; one who comes later waits in the same room and plays its next match.
   - **One with a seat in the match** (its game started anew, or back from the match it
     closed; the owner's of 2026-11-01: "player should just be able to rejoin through the
@@ -257,8 +259,8 @@ parts in the game's classes (`TopMenu`'s tab, `StatusPanel`'s Play, `LobbyMenu`'
   that broke: its seat is kept and Play takes it back there, `Matchmaking::held_places`)
   while they are still members of the room; once the room lets them go (their game gone past
   its ~90 s, or Leave) their place is free. A place given up (left by its own word, a
-  failed join) does not count. The side with fewer players full that way, the other one; both full: it waits
-  ("The match is full."). The roster's 20 places, never used twice, are the match server's
+  failed join) does not count. The weaker side full that way: it waits ("The match is
+  full."), never the other side. The roster's 20 places, never used twice, are the match server's
   own limit ("player limit"). Until then a joiner could fill a side a player came back to,
   past the room's size.
 - **A late join that fails** (its game did not come, left, or did not catch up; the match

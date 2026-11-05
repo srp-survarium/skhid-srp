@@ -1,10 +1,11 @@
 //! The rows an account has in `g26_level_stats`: its kills and deaths by
-//! the equipment level of the matches ([`crate::v026g::level_stats`]).
+//! the equipment level of the matches, and its kills with the seconds they
+//! took ([`crate::v026g::level_stats`]).
 
 use rusqlite::{Connection, params};
 
 use crate::persist::PersistError;
-use crate::v026g::level_stats::{KillsDeaths, LevelStats};
+use crate::v026g::level_stats::{KillsDeaths, LevelRow, LevelStats, TimedKills};
 
 /// The schema step that adds the table. An account of before has no rows:
 /// it counts as a new player at every level until its first rated match
@@ -20,21 +21,37 @@ pub(super) const MIGRATION: &str = "
     );
     ";
 
+/// The schema step that keeps the kills again with the seconds they took
+/// (the kills a minute, `docs/notes/kd-balance.md`). A row of before keeps
+/// its kills and deaths and has no time: its kills count in the K/D, not
+/// in the rate.
+pub(super) const MIGRATION_TIMED: &str = "
+    ALTER TABLE g26_level_stats ADD COLUMN timed_kills INTEGER NOT NULL DEFAULT 0;
+    ALTER TABLE g26_level_stats ADD COLUMN seconds INTEGER NOT NULL DEFAULT 0;
+    ";
+
 /// The account's rows.
 pub(super) fn load(connection: &Connection, account_id: u32) -> Result<LevelStats, PersistError> {
     let mut statement = connection.prepare_cached(
-        "SELECT level, kills, deaths FROM g26_level_stats WHERE account_id = ?1 ORDER BY level",
+        "SELECT level, kills, deaths, timed_kills, seconds FROM g26_level_stats
+         WHERE account_id = ?1 ORDER BY level",
     )?;
     let rows = statement.query_map([account_id], |row| {
         Ok((
             row.get::<_, u8>(0)?,
-            KillsDeaths {
-                kills: row.get(1)?,
-                deaths: row.get(2)?,
+            LevelRow {
+                kd: KillsDeaths {
+                    kills: row.get(1)?,
+                    deaths: row.get(2)?,
+                },
+                timed: TimedKills {
+                    kills: row.get(3)?,
+                    seconds: row.get(4)?,
+                },
             },
         ))
     })?;
-    let rows: Vec<(u8, KillsDeaths)> = rows.collect::<Result<_, _>>()?;
+    let rows: Vec<(u8, LevelRow)> = rows.collect::<Result<_, _>>()?;
     Ok(LevelStats::from_rows(rows))
 }
 
@@ -50,9 +67,16 @@ pub(super) fn save(
     )?;
     for &(level, row) in stats.rows() {
         connection.execute(
-            "INSERT INTO g26_level_stats (account_id, level, kills, deaths)
-             VALUES (?1, ?2, ?3, ?4)",
-            params![account_id, level, row.kills, row.deaths],
+            "INSERT INTO g26_level_stats (account_id, level, kills, deaths, timed_kills, seconds)
+             VALUES (?1, ?2, ?3, ?4, ?5, ?6)",
+            params![
+                account_id,
+                level,
+                row.kd.kills,
+                row.kd.deaths,
+                row.timed.kills,
+                row.timed.seconds
+            ],
         )?;
     }
     Ok(())
@@ -86,20 +110,27 @@ mod tests {
     fn the_rows_come_back_as_they_were_saved() {
         let dir = temp_dir("round-trip");
         let mut alice = Account::new("Alice");
-        alice.level_stats.played(7, kd(12, 5));
-        alice.level_stats.played(3, kd(1, 4));
+        alice.level_stats.played(7, kd(12, 5), 600);
+        alice.level_stats.played(3, kd(1, 4), 0);
         {
             let mut repository = SqliteGameRepository::open(&dir.join(DB_FILE)).unwrap();
             repository.save(1, &alice).unwrap();
             repository.save(2, &Account::new("Bob")).unwrap();
             // A second save replaces the rows.
-            alice.level_stats.played(7, kd(2, 1));
+            alice.level_stats.played(7, kd(2, 1), 60);
             repository.save(1, &alice).unwrap();
         }
         let mut repository = SqliteGameRepository::open(&dir.join(DB_FILE)).unwrap();
         let loaded = repository.load_all().unwrap();
         assert_eq!(loaded[0].1.level_stats.at(7), kd(14, 6));
         assert_eq!(loaded[0].1.level_stats.at(3), kd(1, 4));
+        assert_eq!(
+            loaded[0].1.level_stats.timed_at(7),
+            TimedKills {
+                kills: 14,
+                seconds: 660
+            }
+        );
         assert_eq!(loaded[0].1, alice);
         assert!(loaded[1].1.level_stats.rows().is_empty());
         drop(repository);
@@ -149,10 +180,58 @@ mod tests {
         assert_eq!((id, account.rating), (5, 118));
         assert_eq!(account.level_stats, LevelStats::default());
         // And it is kept from then on.
-        account.level_stats.played(4, kd(3, 3));
+        account.level_stats.played(4, kd(3, 3), 120);
         repository.save(id, &account).unwrap();
         let loaded = repository.load_all().unwrap();
         assert_eq!(loaded[0].1.level_stats.at(4), kd(3, 3));
+        drop(repository);
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    /// The step that keeps the time: a row of before keeps its kills and
+    /// deaths, and has none.
+    #[test]
+    fn the_rows_of_before_the_time_keep_their_kills_and_deaths() {
+        let dir = temp_dir("timed");
+        let path = dir.join(DB_FILE);
+        {
+            let connection = Connection::open(&path).unwrap();
+            connection
+                .execute_batch(
+                    "CREATE TABLE g26_meta (key TEXT PRIMARY KEY, value INTEGER NOT NULL);",
+                )
+                .unwrap();
+            let before = MIGRATIONS
+                .iter()
+                .position(|step| *step == MIGRATION_TIMED)
+                .unwrap();
+            for step in &MIGRATIONS[..before] {
+                connection.execute_batch(step).unwrap();
+            }
+            connection
+                .execute(
+                    "INSERT INTO g26_meta (key, value) VALUES ('schema', ?1)",
+                    [before as i64],
+                )
+                .unwrap();
+            connection
+                .execute_batch(
+                    "INSERT INTO g26_accounts (
+                        account_id, name, clan_tag, generic_money, premium_money,
+                        premium_until, exp_total, quest_faction, rating, rating_before,
+                        active_kit, autobuy, next_item_id, next_quest_instance,
+                        tutorial_step, tutorial_done
+                     ) VALUES (5, 'Carol', '', 4321, 5, 0, 900, 2, 118, 100, 1, 0, 3, 1, 0, 1);
+                     INSERT INTO g26_level_stats (account_id, level, kills, deaths)
+                     VALUES (5, 10, 300, 100);",
+                )
+                .unwrap();
+        }
+        let mut repository = SqliteGameRepository::open(&path).unwrap();
+        let loaded = repository.load_all().unwrap();
+        let stats = &loaded[0].1.level_stats;
+        assert_eq!(stats.at(10), kd(300, 100));
+        assert_eq!(stats.timed_at(10), TimedKills::default());
         drop(repository);
         let _ = std::fs::remove_dir_all(&dir);
     }

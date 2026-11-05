@@ -23,9 +23,8 @@
 //!   how sides should be made.
 //! - **A match that is being played** counts a third thing for the side
 //!   that leads: its lead ([`Weights::lead`]), a battery or a ticket being
-//!   a part of a player. A player who joins such a match goes to the side
-//!   with fewer players; of two alike in that, to the side it played on in
-//!   that match before, then to the one that counts for less
+//!   a part of a player. A player who joins such a match goes only to the
+//!   side that counts for less, or waits
 //!   (`crate::matchmaking_policy::place_joiner`).
 //!   [`Weights::expected`] is the chance the whole count gives a side; the
 //!   lobby writes it in its log each minute, to be fitted again.

@@ -35,7 +35,8 @@ package survarium.rooms
             "5": "st_srp_rooms_code_5", "6": "st_srp_rooms_code_6", "7": "st_srp_rooms_code_7",
             "8": "st_srp_rooms_code_8", "9": "st_srp_rooms_code_9", "10": "st_srp_rooms_code_10",
             "11": "st_srp_rooms_code_11", "12": "st_srp_rooms_code_12", "13": "st_srp_rooms_code_13",
-            "14": "st_srp_rooms_code_14", "16": "st_srp_rooms_code_16", "17": "st_srp_rooms_code_17"
+            "14": "st_srp_rooms_code_14", "16": "st_srp_rooms_code_16", "17": "st_srp_rooms_code_17",
+            "18": "st_srp_loadout_block_squad_too_strong"
         };
         // Why a member waiting in its room cannot go into the match now
         // (`J;-1;<why>`, the owner's of 2026-10-20).

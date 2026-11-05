@@ -37,8 +37,9 @@ Usage:
   refit.py logs/ --start-roster                # the sides as the lobby made them
   refit.py logs/ --strict                      # only matches whose roster the log gives in full
   refit.py logs/ --min-players 2               # the smallest matches too
+  refit.py logs/ --db dbs/ [--clan TAG] [--show REGEX]   # test the strength rule (kd-balance.md)
 
-Needs only Python 3. Prints no player names.
+Needs only Python 3. Prints no player names (but those --show and --clan ask for).
 
 Reading the result: with few matches the fit is noisy; the bootstrap range
 says how much. Do not change a setting unless the range for it excludes the
@@ -46,20 +47,26 @@ value in force AND the log loss of the fit beats the weights in force by a
 clear margin over several dozen matches.
 """
 import argparse
+import json
 import math
 import random
 import re
+import sqlite3
 import sys
+from datetime import datetime, timezone
 from pathlib import Path
 
-# Since 2026-11-01 the parts go on with the K/D at the match's level.
-PARTS = r"\(gear (\d+), level (\d+), rating ([+-]\d+\.\d+) of (\d+) matches(?:, [^)]*)?\)"
+# Since 2026-11-01 the parts go on with the K/D at the match's level (the
+# last group: "at 6: kd 1.25 of 40/31", and since the kills a minute
+# ", kpm 0.90 of 27/30 min" and ", squad" for a squad's member).
+PARTS = r"\(gear (\d+), level (\d+), rating ([+-]\d+\.\d+) of (\d+) matches(?:, ([^)]*))?\)"
+KD_AT = re.compile(r"at (\d+): kd (\d+\.\d+) of (\d+)/(\d+)")
 # The server files (lobby.log, srp.log) date each line; the day files of
 # before 2026-11-05 (srp-YYYY-MM-DD.log) have the date in their name.
 LINE = re.compile(r"^(?:(\d{4}-\d\d-\d\d)T)?(\d\d:\d\d:\d\d(?:\.\d+)?)Z ")
 # A server file and its rotated ones: lobby.log, lobby.log.1 (older), ...
 ROTATED = re.compile(r"(.+\.log)(?:\.(\d+))?")
-SIDES = re.compile(r"Match (0x[0-9a-f]+) sides(?: \(equipment level \d+\))?: team 0 counts -?[\d.]+: (.*) \| team 1 counts -?[\d.]+: (.*)$")
+SIDES = re.compile(r"Match (0x[0-9a-f]+) sides(?: \(equipment level (\d+)\))?: team 0 counts -?[\d.]+: (.*) \| team 1 counts -?[\d.]+: (.*)$")
 PLAYER = re.compile(r"(?:^|, )(.*?) (-?\d+\.\d+) " + PARTS)
 LATE = re.compile(r"Match (0x[0-9a-f]+) late join: (.*); with them team 0 counts ")
 # The parts are in the line since 2026-10-14; a line from before has none.
@@ -76,20 +83,29 @@ IN_FORCE = (10.0, 1.0, 2.0, 4.0)
 BEFORE = (12.0, 1.0, 1.5, 4.0)
 
 
+def at_level(extra):
+    """The parts after the rating (since 2026-11-01): {"kd": K/D at the match's
+    level, "squad": counted as a squad's member} when they give the K/D."""
+    m = KD_AT.search(extra)
+    if m is None:
+        return {}
+    return dict(kd=float(m.group(2)), squad="squad" in extra.split(", "))
+
+
 def parse_side(text):
     return [
-        dict(name=n, value=float(v), gear=int(g), level=int(l), rating=float(r), matches=int(m))
-        for n, v, g, l, r, m in PLAYER.findall(text)
+        dict(name=n, value=float(v), gear=int(g), level=int(l), rating=float(r), matches=int(m), **at_level(x))
+        for n, v, g, l, r, m, x in PLAYER.findall(text)
     ]
 
 
 def parse_joiners(text):
     """The players of a "late join" line. One without parts has no "gear" key."""
     joiners = []
-    for n, v, g, l, r, m, team in JOINER.findall(text):
+    for n, v, g, l, r, m, x, team in JOINER.findall(text):
         p = dict(name=n, value=float(v), team=int(team))
         if g:
-            p.update(gear=int(g), level=int(l), rating=float(r), matches=int(m))
+            p.update(gear=int(g), level=int(l), rating=float(r), matches=int(m), **at_level(x))
         joiners.append(p)
     return joiners
 
@@ -124,22 +140,26 @@ def read_matches(paths, since, until):
                 line = line.rstrip("\n")
                 if "Match 0x" not in line:
                     continue
+                t = LINE.match(line)
+                stamp = f"{t.group(1) or day}T{t.group(2)}" if t else ""
                 m = SIDES.search(line)
                 if m:
-                    t = LINE.match(line)
-                    stamp = f"{t.group(1) or day}T{t.group(2)}" if t else ""
                     if (since or until) and not stamp[:1].isdigit():
                         sys.exit(f"{f.name}: a line without a date, so --since and --until cannot be applied to it")
                     if (since and stamp < since) or (until and stamp > until):
                         continue
                     if m.group(1) not in sides:
-                        sides[m.group(1)] = [parse_side(m.group(2)), parse_side(m.group(3))]
+                        level = int(m.group(2)) if m.group(2) else None
+                        sides[m.group(1)] = ([parse_side(m.group(3)), parse_side(m.group(4))], level, stamp)
                         events[m.group(1)] = []
                     continue
                 m = LATE.search(line)
                 if m:
                     if m.group(1) in events:
-                        events[m.group(1)].append(("join", parse_joiners(m.group(2))))
+                        joiners = parse_joiners(m.group(2))
+                        for p in joiners:
+                            p["at"] = stamp
+                        events[m.group(1)].append(("join", joiners))
                     continue
                 m = MINUTE.search(line)
                 if m:
@@ -147,16 +167,16 @@ def read_matches(paths, since, until):
                         c0, n0, l0, c1, n1, l1 = m.group(2, 3, 4, 5, 6, 7)
                         events[m.group(1)].append(("minute", dict(
                             count=(float(c0), float(c1)), n=(int(n0), int(n1)),
-                            lead=(float(l0), float(l1)), out=m.group(8))))
+                            lead=(float(l0), float(l1)), out=m.group(8), at=stamp)))
                     continue
                 m = SETTLED.search(line)
                 if m:
                     win = int(m.group(4)) if m.group(4) is not None else None
-                    settled[m.group(1)] = (win, int(m.group(5)), m.group(2))
-    for mid, s in sides.items():
+                    settled[m.group(1)] = (win, int(m.group(5)), m.group(2), stamp)
+    for mid, (s, level, stamp) in sides.items():
         if mid in settled:
             yield dict(id=mid, sides=s, winner=settled[mid][0], settled_players=settled[mid][1],
-                       reason=settled[mid][2],
+                       reason=settled[mid][2], level=level, at=stamp, settled_at=settled[mid][3],
                        late=any(kind == "join" for kind, _ in events[mid]), events=events[mid])
 
 
@@ -369,6 +389,413 @@ def score_weights(feats, ys, w):
     return log_loss(ps, ys), acc, k, wrong
 
 
+# ---------------------------------------------------------------------------
+# The strength back-test (--db): docs/notes/kd-balance.md. A player counts for
+# its K/D at the match's level times its kills a minute against the server's
+# average; the sides keep the strongest apart and a late joiner goes to the
+# weaker side. The numbers are those of crates/session/src/v026g/level_stats.rs.
+PRIOR_DEATHS = 10
+PRIOR_MINUTES = 15
+AVERAGE_KPM = 0.83
+KPM_FACTOR_MOST = 1.5
+STRONG = 2.5
+SQUAD_FACTOR = 1.3
+PLAYER_KD = 1.0  # SRP_BALANCE_PLAYER_KD
+
+
+def read_reports(paths):
+    """The match reports kept in srp databases (their g26_results rows; any
+    number of copies of the database, a report in several read once), by
+    match id as the log writes it: how a match against players (no bots, no
+    PIN) ended, its winner, and by name each player's team, kills, deaths and
+    seconds in it."""
+    files = []
+    for p in map(Path, paths):
+        files += p.glob("*.db") if p.is_dir() else [p]
+    reports, accounts = {}, {}
+    # Oldest first, so the newest database names each account.
+    for f in sorted(files, key=lambda f: f.stat().st_mtime):
+        con = sqlite3.connect(f"{f.resolve().as_uri()}?mode=ro", uri=True)
+        try:
+            rows = con.execute("SELECT key, body FROM g26_results WHERE key LIKE 'report:%'").fetchall()
+            for account, name, tag in con.execute("SELECT account_id, name, clan_tag FROM g26_accounts"):
+                accounts[account] = (name, tag)
+        finally:
+            con.close()
+        for key, body in rows:
+            mid = f"{int(key[len('report:'):]):#x}"
+            if mid in reports:
+                continue
+            r = json.loads(body)
+            stats = r["stats"]
+            by_place = {row["player_id"]: row for row in stats["rows"]}
+            bots = r.get("vs_bots") or any(row["clan_tag"] == "BOTS" for row in by_place.values())
+            players = {}
+            for p in r["players"]:
+                row = by_place.get(p["player_id"])
+                seconds = ((p.get("full") or {}).get("play_seconds") or [0])[0]
+                if row is None or not p["account_id"] or seconds <= 0:
+                    continue
+                players[row["name"]] = dict(account=p["account_id"], team=row["team"], kills=row["kills"],
+                                            deaths=row["deaths"], seconds=seconds)
+            reports[mid] = None if bots or r.get("private") else dict(
+                end=r["end"], winner=stats["winner_team"], players=players)
+    return {mid: r for mid, r in reports.items() if r is not None}, accounts
+
+
+class Totals:
+    """Each account's kills, deaths and minutes over the reports, and the
+    same without one match (so a match is never predicted from itself). A
+    name of the log is the account that had it in that match's report, else
+    the one named so now (or last in a report)."""
+
+    def __init__(self, reports, accounts):
+        self.reports = reports
+        self.sums, self.names, self.clans = {}, {}, {}
+        for r in reports.values():
+            for name, p in r["players"].items():
+                s = self.sums.setdefault(p["account"], [0, 0, 0.0])
+                s[0] += p["kills"]
+                s[1] += p["deaths"]
+                s[2] += p["seconds"] / 60
+                self.names.setdefault(name, p["account"])
+        for account, (name, tag) in accounts.items():
+            self.names[name] = account
+            self.clans[account] = tag
+
+    def account(self, name, match=None):
+        own = self.reports.get(match, {}).get("players", {}).get(name) if match else None
+        return own["account"] if own else self.names.get(name)
+
+    def of(self, name, without=None):
+        """(kills, deaths, minutes) of the account named so, without the match."""
+        k, d, minutes = self.sums.get(self.account(name, without), (0, 0, 0.0))
+        own = self.reports.get(without, {}).get("players", {}).get(name) if without else None
+        if own:
+            k, d, minutes = k - own["kills"], d - own["deaths"], minutes - own["seconds"] / 60
+        return k, d, max(minutes, 0.0)
+
+
+def damped_kd(kills, deaths, prior=1.0):
+    return (kills + PRIOR_DEATHS * prior) / (deaths + PRIOR_DEATHS)
+
+
+def kpm_factor(kills, minutes, prior_minutes=None, most=None):
+    """The kills a minute against the server's average, damped toward it, at
+    most KPM_FACTOR_MOST."""
+    pm = PRIOR_MINUTES if prior_minutes is None else prior_minutes
+    most = KPM_FACTOR_MOST if most is None else most
+    return min((kills + pm * AVERAGE_KPM) / (minutes + pm) / AVERAGE_KPM, most)
+
+
+def rivals(players):
+    """The parties that are never on one side (level_stats::rivals): the two
+    strongest players' when they are of two parties (and not tied with a
+    third), and a squad that has a strong player with every other party that
+    has one. `players`: (party, own strength). A set of frozensets."""
+    order = sorted(players, key=lambda p: -p[1])
+    pairs = set()
+    if len(order) >= 2 and (len(order) == 2 or order[1][1] > order[2][1]) and order[0][0] != order[1][0]:
+        pairs.add(frozenset((order[0][0], order[1][0])))
+    size = {}
+    for party, _ in players:
+        size[party] = size.get(party, 0) + 1
+    strong = {party for party, s in players if s >= STRONG}
+    for q in strong:
+        if size[q] >= 2:
+            pairs |= {frozenset((q, r)) for r in strong - {q}}
+    return pairs
+
+
+def too_strong(members):
+    """A squad that plays no match (level_stats::too_strong): two or more strong."""
+    return len(members) >= 2 and sum(1 for s in members if s >= STRONG) >= 2
+
+
+def stamp_seconds(stamp):
+    return datetime.fromisoformat(stamp).replace(tzinfo=timezone.utc).timestamp() if stamp[:1].isdigit() else None
+
+
+def report_backtest(reports, totals, min_players, prior_minutes=None):
+    """Per decided match of the reports: side 0 less side 1, each player by
+    its share of the match (its time against the longest anybody's), for the
+    K/D alone and for K/D x kpm, both of the player's other matches. Returns
+    (kd diffs, kd x kpm diffs, winners)."""
+    a, b, ys = [], [], []
+    for mid, r in reports.items():
+        if r["winner"] not in (0, 1) or r["end"] in ("Deserted", "NoShow") or not r["players"]:
+            continue
+        longest = max(p["seconds"] for p in r["players"].values())
+        if sum(1 for p in r["players"].values() if 2 * p["seconds"] >= longest) < min_players:
+            continue
+        da = db = 0.0
+        for name, p in r["players"].items():
+            k, d, minutes = totals.of(name, without=mid)
+            kd = damped_kd(k, d)
+            sign = (1 if p["team"] == 0 else -1) * p["seconds"] / longest
+            da += sign * (PLAYER_KD + kd)
+            db += sign * (PLAYER_KD + kd * kpm_factor(k, minutes, prior_minutes))
+        a.append(da)
+        b.append(db)
+        ys.append(1 if r["winner"] == 0 else 0)
+    return a, b, ys
+
+
+def scored(ds, ys):
+    k = fit_scale(ds, ys)
+    return log_loss([sigmoid(k * d) for d in ds], ys)
+
+
+def loss_range(a, b, ys, rounds, seed):
+    """90 % range of loss(b) - loss(a) over resampled matches."""
+    rnd = random.Random(seed)
+    n = len(ys)
+    diffs = []
+    for _ in range(rounds):
+        idx = [rnd.randrange(n) for _ in range(n)]
+        diffs.append(scored([b[i] for i in idx], [ys[i] for i in idx])
+                     - scored([a[i] for i in idx], [ys[i] for i in idx]))
+    diffs.sort()
+    return (diffs[int(0.05 * rounds)], diffs[int(0.95 * rounds) - 1]) if diffs else (float("nan"),) * 2
+
+
+def is_squad(p):
+    """Whether the log counted the player as a squad's member: the line says
+    so (", squad"), or, in lines of before, its count is 1.3 times its K/D."""
+    if p.get("squad"):
+        return True
+    if "kd" not in p or p["kd"] < 0.05:
+        return False
+    own = p["value"] - PLAYER_KD
+    return abs(own - SQUAD_FACTOR * p["kd"]) + 0.006 < abs(own - p["kd"])
+
+
+class Strengths:
+    """Each player of a logged match as the new rule counts it: its logged K/D
+    at the match's level times its kpm factor of the reports (without that
+    match), 1.3 times for a squad's member; and its party (a squad: its
+    members counted as such on one side)."""
+
+    def __init__(self, totals, mid):
+        self.totals, self.mid = totals, mid
+
+    def own(self, p):
+        k, _, minutes = self.totals.of(p["name"], without=self.mid)
+        return p.get("kd", 1.0) * kpm_factor(k, minutes)
+
+    def counted(self, p):
+        return self.own(p) * (SQUAD_FACTOR if is_squad(p) else 1.0)
+
+    @staticmethod
+    def party(p, team):
+        return ("squad", team) if is_squad(p) else ("solo", p["name"])
+
+
+def strength_backtest(args):
+    reports, accounts = read_reports(args.db)
+    totals = Totals(reports, accounts)
+    kills = sum(s[0] for s in totals.sums.values())
+    minutes = sum(s[2] for s in totals.sums.values())
+    print(f"Reports: {len(reports)} matches against players in the databases, {len(totals.sums)} players.")
+    if not minutes:
+        sys.exit("No minutes in the reports: nothing to test.")
+    print(f"Kills a minute: {kills} kills in {minutes:.0f} minutes, {kills / minutes:.3f} "
+          f"(AVERAGE_KPM in force here {AVERAGE_KPM}).")
+    # The prior: how far players' rates are apart against the noise of a minute
+    # (kills as a Poisson count: a rate's variance is its mean over the minutes).
+    rated = [(s[0], s[2]) for s in totals.sums.values() if s[2] >= 1]
+    if rated:
+        mean = sum(k for k, _ in rated) / sum(m for _, m in rated)
+        between = sum(m * (k / m - mean) ** 2 for k, m in rated) / sum(m for _, m in rated) \
+            - mean * len(rated) / sum(m for _, m in rated)
+        if between > 0:
+            print(f"  players' rates apart: variance {between:.3f}; a prior of mean / variance = "
+                  f"{mean / between:.1f} minutes (Poisson noise only, so a floor)")
+    regular = sorted(s[0] / s[2] for s in totals.sums.values() if s[2] >= 30)
+    if regular:
+        q = lambda f: regular[int(f * (len(regular) - 1))]
+        print(f"  of {len(regular)} players of 30 minutes or more: median {q(0.5):.2f}, 90th {q(0.9):.2f}, "
+              f"99th {q(0.99):.2f}")
+
+    # 1. Which predicts the winners: K/D alone or K/D x kpm.
+    a, b, ys = report_backtest(reports, totals, args.min_players)
+    if len(ys) >= 8:
+        la, lb = scored(a, ys), scored(b, ys)
+        lo, hi = loss_range(a, b, ys, args.bootstrap, args.seed)
+        print(f"\nWinners of {len(ys)} decided matches of {args.min_players} players or more (each player by its "
+              "other matches, by its share of the match):")
+        print(f"  K/D alone       log loss {la:.4f}")
+        print(f"  K/D x kpm       log loss {lb:.4f}   (difference {lb - la:+.4f}, 90% range {lo:+.4f} .. {hi:+.4f})")
+        for pm in (5, 15, 30, 60):
+            print(f"    prior {pm:3d} min: {scored(report_backtest(reports, totals, args.min_players, pm)[1], ys):.4f}")
+        print(f"  a coin          log loss {math.log(2):.4f}")
+
+    # The logged matches since the K/D rule (their "sides" line names the level).
+    ms = [m for m in read_matches(args.logs, args.since, args.until)
+          if m["level"] is not None and m["sides"][0] and m["sides"][1]]
+    print(f"\nLogged matches against players since the K/D rule: {len(ms)}.")
+    if not ms:
+        return
+    strong_seen, best = [], {}
+    changed = dict(top=0, squad=0, any=0)
+    refused = {}
+    rows_in_force, rows_new, rows_y = [], [], []
+    for m in ms:
+        st = Strengths(totals, m["id"])
+        players = [(Strengths.party(p, team), st.own(p), team, p) for team in (0, 1) for p in m["sides"][team]]
+        strong_seen += [own for _, own, _, _ in players]
+        for _, own, _, p in players:
+            best[p["name"]] = max(best.get(p["name"], 0.0), own)
+        pairs = rivals([(party, own) for party, own, _, _ in players])
+        side_of = {party: team for party, _, team, _ in players}
+        bad = [pair for pair in pairs if len({side_of[x] for x in pair}) == 1]
+        top = sorted(players, key=lambda x: -x[1])
+        top_bad = len(top) >= 2 and top[0][0] != top[1][0] and frozenset((top[0][0], top[1][0])) in bad
+        changed["top"] += bool(top_bad)
+        changed["squad"] += any(pair for pair in bad if pair != frozenset((top[0][0], top[1][0])))
+        changed["any"] += bool(bad)
+        for team in (0, 1):
+            squad = [(p["name"], own) for party, own, t, p in players if t == team and party[0] == "squad"]
+            if too_strong([own for _, own in squad]):
+                refused.setdefault(tuple(sorted(name for name, _ in squad)), []).append(m["id"])
+        # The winners by who was in each minute: as logged, and as the new rule counts.
+        if left_out(m, args.min_players) is None:
+            snapshots, _ = rosters(m)
+            if snapshots:
+                old = sum(sum(p["value"] for p in s[0]) - sum(p["value"] for p in s[1]) for s in snapshots)
+                new = sum(sum(PLAYER_KD + st.counted(p) for p in s[0])
+                          - sum(PLAYER_KD + st.counted(p) for p in s[1]) for s in snapshots)
+                rows_in_force.append(old / len(snapshots))
+                rows_new.append(new / len(snapshots))
+                rows_y.append(1 if m["winner"] == 0 else 0)
+    n = len(strong_seen)
+    print(f"  players at the start: {n}; strong (>= {STRONG}) {sum(s >= STRONG for s in strong_seen)} "
+          f"({sum(s >= STRONG for s in strong_seen) / n:.0%}); at other cuts: "
+          + ", ".join(f">= {c} {sum(s >= c for s in strong_seen) / n:.0%}" for c in (1.5, 2.5, 3.0, 4.0)))
+    print(f"  players: {len(best)}; strong in a match or more {sum(s >= STRONG for s in best.values())} "
+          f"({sum(s >= STRONG for s in best.values()) / len(best):.0%}); at other cuts: "
+          + ", ".join(f">= {c} {sum(s >= c for s in best.values()) / len(best):.0%}" for c in (1.5, 2.5, 3.0, 4.0)))
+    print(f"  sides the new rule would have changed: {changed['any']} of {len(ms)} "
+          f"(the two strongest together {changed['top']}, a strong player beside a squad with one "
+          f"{changed['squad']})")
+    print(f"  squads too strong to play (two strong or more): {len(refused)} squads, in "
+          f"{sum(len(v) for v in refused.values())} matches")
+    if len(rows_y) >= 8:
+        la, lb = scored(rows_in_force, rows_y), scored(rows_new, rows_y)
+        lo, hi = loss_range(rows_in_force, rows_new, rows_y, args.bootstrap, args.seed)
+        print(f"  winners of {len(rows_y)} of them by who was in each minute: in force {la:.4f}, "
+              f"new {lb:.4f} (difference {lb - la:+.4f}, 90% range {lo:+.4f} .. {hi:+.4f})")
+
+    # 2. The late joiners, put on the weaker side only.
+    late_backtest(ms, totals, args.room_size)
+
+    # 3. Named players, on request only.
+    if args.show or args.clan:
+        named_players(ms, totals, reports, args)
+
+
+def late_backtest(ms, totals, room_size):
+    """Each logged late join again by the new rule: the weaker side now, with a
+    seat (the room's size) and no rival there; else it waits, until a later
+    minute's sides let it in (the sides as they really went on)."""
+    at_once = other_side = waited = to_end = 0
+    waits = []
+    for m in ms:
+        st = Strengths(totals, m["id"])
+        roster = [list(m["sides"][0]), list(m["sides"][1])]
+        out, lead = [], (0.0, 0.0)
+        events = m["events"]
+        for i, (kind, what) in enumerate(events):
+            if kind == "minute":
+                out = split_names(what["out"], [p["name"] for side in roster for p in side]) or []
+                lead = what["lead"]
+                continue
+            joiners = what
+            team = joiners[0]["team"]
+            mate = len(joiners) == 1 and is_squad(joiners[0])
+
+            def allowed(roster, out, lead):
+                now = [[p for p in side if p["name"] not in out] for side in roster]
+                worth = [sum(PLAYER_KD + st.counted(p) for p in now[t]) + lead[t] for t in (0, 1)]
+                weaker = 1 if worth[1] < worth[0] else 0
+                if len(now[weaker]) + len(joiners) > room_size or (mate and weaker != team):
+                    return None
+                party = ("join", joiners[0]["name"]) if not mate else ("squad", team)
+                players = [(Strengths.party(p, t), st.own(p), t) for t in (0, 1) for p in now[t]]
+                players += [(party, st.own(p), weaker) for p in joiners]
+                for pair in rivals([(x, s) for x, s, _ in players]):
+                    if party in pair:
+                        (other,) = pair - {party}
+                        if any(x == other and t == weaker for x, _, t in players):
+                            return None
+                return weaker
+
+            side = allowed(roster, out, lead)
+            if side is not None:
+                at_once += 1
+                other_side += side != team
+            else:
+                waited += 1
+                start = stamp_seconds(joiners[0]["at"])
+                later_roster = [list(s) for s in roster]
+                found = None
+                for kind2, what2 in events[i + 1:]:
+                    if kind2 == "join":
+                        for p in what2:
+                            later_roster[p["team"]].append(p)
+                        continue
+                    names = [p["name"] for s in later_roster for p in s]
+                    o = split_names(what2["out"], names) or []
+                    if allowed(later_roster, o, what2["lead"]) is not None:
+                        found = stamp_seconds(what2["at"])
+                        break
+                if found is not None and start is not None:
+                    waits.append(found - start)
+                else:
+                    to_end += 1
+            for p in joiners:
+                roster[p["team"]].append(p)
+    total = at_once + waited
+    print(f"\nLate joins: {total}; by the new rule {at_once} in at once ({other_side} of them on the other side "
+          f"than they went), {waited} would have waited ({len(waits)} let in later, {to_end} to the match's end)")
+    if waits:
+        waits.sort()
+        print(f"  waits: median {waits[len(waits) // 2] / 60:.1f} min, longest {waits[-1] / 60:.1f} min")
+
+
+def named_players(ms, totals, reports, args):
+    """Where the players named by --show / --clan land: K/D and kpm, the
+    strength, its rank among the players of 30 minutes or more, and their
+    logged K/D at each level."""
+    pattern = re.compile(args.show) if args.show else None
+    named = {account: name for name, account in totals.names.items()}
+    # Each account's latest logged K/D at each level.
+    at_levels = {}
+    for m in ms:
+        for side in m["sides"]:
+            for p in side:
+                if "kd" in p:
+                    at_levels.setdefault(totals.account(p["name"], m["id"]), {})[m["level"]] = p["kd"]
+
+    def of(account):
+        k, d, minutes = totals.sums[account]
+        return k, d, minutes, damped_kd(k, d), kpm_factor(k, minutes)
+
+    ranked = sorted((a for a, s in totals.sums.items() if s[2] >= 30), key=lambda a: -of(a)[3] * of(a)[4])
+    rank = {a: i + 1 for i, a in enumerate(ranked)}
+    print(f"\nNamed players (rank of {len(ranked)} with 30 minutes or more; K/D and kpm of the reports, "
+          f"strength = K/D x kpm factor (factor at most {KPM_FACTOR_MOST}); at L: the logged K/D there x the factor):")
+    shown = [a for a in totals.sums if (pattern and pattern.search(named.get(a, "")))
+             or (args.clan and totals.clans.get(a) == args.clan)]
+    for account in sorted(shown, key=lambda a: -of(a)[3] * of(a)[4]):
+        k, d, minutes, kd, f = of(account)
+        levels = ", ".join(f"{lv}: {at:.2f} -> {at * f:.2f}{' strong' if at * f >= STRONG else ''}"
+                           for lv, at in sorted(at_levels.get(account, {}).items()))
+        print(f"  {named.get(account, account)} [{totals.clans.get(account, '')}]: K/D {kd:.2f} ({k}/{d}), "
+              f"kpm {k / max(minutes, 1e-9):.2f} in {minutes:.0f} min, factor {f:.2f}; strength {kd * f:.2f}"
+              f"{' STRONG' if kd * f >= STRONG else ''}, rank {rank.get(account, '-')}; at L {levels or '-'}")
+
+
 def main():
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("logs", nargs="+")
@@ -386,7 +813,16 @@ def main():
                          "(4: no one against one, no two against one; 0 keeps every size)")
     ap.add_argument("--bootstrap", type=int, default=300, help="resamples for the ranges (0 = off)")
     ap.add_argument("--seed", type=int, default=1)
+    ap.add_argument("--db", action="append", default=[],
+                    help="srp databases (copies of srp.db, or a directory of them): test the strength rule "
+                         "(kd-balance.md) on their match reports and the logs instead of fitting the weights")
+    ap.add_argument("--room-size", type=int, default=8, help="with --db: a side's most players (8)")
+    ap.add_argument("--show", default="", help="with --db: print the players whose name matches this regex")
+    ap.add_argument("--clan", default="", help="with --db: print the players of this clan tag")
     args = ap.parse_args()
+    if args.db:
+        strength_backtest(args)
+        return
 
     ms = list(read_matches(args.logs, args.since, args.until))
     total = len(ms)
