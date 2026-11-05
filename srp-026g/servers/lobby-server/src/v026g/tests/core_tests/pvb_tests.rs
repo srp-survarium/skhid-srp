@@ -16,7 +16,7 @@ use crate::v026g::pvb::{self, Config, MAPS, PLAY_REFUSED};
 /// equipment level 5 at most (the default before 2026-10-26, which the
 /// refusals below are told by).
 fn world_with(max_matches: usize) -> World {
-    let mut settings = Settings::local("127.0.0.1:0");
+    let mut settings = settings();
     settings.pvb = Config {
         enabled: true,
         max_matches,
@@ -344,7 +344,7 @@ fn a_level_15_player_plays_level_15_bots_in_the_top_players_kits() {
     use survarium::v026g::dictionary::Dictionary;
     use survarium::v026g::loadouts::{BOT_AMMO_SLOTS, BotRole, Loadout, SlotItem, bot_role_of};
 
-    let mut settings = Settings::local("127.0.0.1:0");
+    let mut settings = settings();
     settings.pvb = Config {
         enabled: true,
         ..Config::default()

@@ -44,9 +44,21 @@ struct World {
     now: Instant,
 }
 
+/// The lobby's settings of the tests: every mode but Blackout, so there is
+/// no server's room (its pool would be the Blackout maps) and the rooms a
+/// test counts are its players'. `blackout_is_the_servers_rooms_alone` has
+/// it.
+fn settings() -> Settings {
+    let mut settings = Settings::local("127.0.0.1:0");
+    settings
+        .maps
+        .retain(|&id| maps::map_mode(id).is_some_and(|map| map.mode != maps::GameMode::Blackout));
+    settings
+}
+
 impl World {
     fn new() -> Self {
-        Self::with_settings(Settings::local("127.0.0.1:0"))
+        Self::with_settings(settings())
     }
 
     fn with_settings(settings: Settings) -> Self {

@@ -20,8 +20,7 @@
 //!   soon as a match starts (its players vote during it); a member may
 //!   change its vote. Each card is a map with its weather and mode
 //!   (a `maps_dict` id); the card with the most votes is played, a tie and no
-//!   vote at all are drawn at random. The third card is Blackout while the
-//!   pool has it (the owner's of 2026-11-02, `Rooms::draw`).
+//!   vote at all are drawn at random.
 //! - There are no teams in the room: the sides are drawn when the match
 //!   starts (squads together, the sides as even as they can be).
 //! - A squad (two at most) comes together, by its commander alone: a join
@@ -52,6 +51,11 @@
 //!   pool holds only maps the server's bots play, the room shows no bots,
 //!   and its match fills each team with them, its members on a team in
 //!   bots' places ([`Room::bots_for`]).
+//! - The server keeps one room of its own (the owner's of 2026-11-05):
+//!   open from its start, of any level, never gone, owned by nobody,
+//!   joined only from the list (Play never puts anyone in it,
+//!   [`Room::takes_play`]); its pool is the Blackout maps, which no other
+//!   room has ([`Made::ByServer`], [`Rooms::open_server_room`]).
 //!
 //! This module keeps the rooms and their rules. The lobby asks it, does
 //! what it says (sends players to a match, tells the clients) and tells it
@@ -62,7 +66,6 @@ use std::time::{Duration, Instant};
 
 use survarium::v026g::drops::Rng;
 use survarium::v026g::lobby::rooms::rules;
-use survarium::v026g::maps;
 
 use super::level_stats;
 use crate::Strength;
@@ -165,13 +168,26 @@ pub enum Refused {
     GearTooHigh,
 }
 
+/// Who made a room, and so who runs it.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Made {
+    /// A player made it (by hand, or its Play): the room is named after
+    /// `maker`, whoever owns it now. `owner`: its maker, or the member who
+    /// came first after it left; a private room's owner starts its match,
+    /// arranges its teams and takes members out.
+    ByPlayer { maker: u32, owner: u32 },
+    /// The server's own room (the owner's of 2026-11-05: "the third room,
+    /// it is always open and can be entered only through lobby (never
+    /// through PLAY)"): there from the server's start, kept when empty,
+    /// owned by nobody, never gone ([`Rooms::open_server_room`]).
+    ByServer,
+}
+
 /// A room.
 #[derive(Clone, Debug)]
 pub struct Room {
     pub key: u32,
-    pub owner: u32,
-    /// Who made it: the room is named after it, whoever owns it now.
-    pub maker: u32,
+    pub made: Made,
     pub spec: Spec,
     /// The `maps_dict` ids the vote's cards are drawn from.
     pub pool: Vec<u8>,
@@ -219,6 +235,48 @@ pub struct ChatLine {
 }
 
 impl Room {
+    /// A room of no member yet, waiting, with its first cards.
+    fn new(key: u32, made: Made, spec: Spec, pool: Vec<u8>, cards: Vec<u8>, serial: u32) -> Self {
+        Self {
+            key,
+            made,
+            spec,
+            pool,
+            members: Vec::new(),
+            stage: Stage::Waiting,
+            cards,
+            votes: HashMap::new(),
+            last_map: 0,
+            after_match: false,
+            in_match: HashSet::new(),
+            serial,
+            kicked: HashSet::new(),
+            chat: VecDeque::new(),
+            sides: HashMap::new(),
+            came_in_match: HashSet::new(),
+        }
+    }
+
+    /// Who runs it now: a player-made room's owner; nobody the server's.
+    pub fn owner(&self) -> Option<u32> {
+        match self.made {
+            Made::ByPlayer { owner, .. } => Some(owner),
+            Made::ByServer => None,
+        }
+    }
+
+    /// Whether Play may put players in it, or queue them for it: an open
+    /// room a player made. The server's room is joined from the list only.
+    pub fn takes_play(&self) -> bool {
+        self.is_open() && matches!(self.made, Made::ByPlayer { .. })
+    }
+
+    /// Whether it stays with no member: the server's always; an open room
+    /// while players wait in its queue (`queued`), to let them in.
+    fn kept_empty(&self, queued: bool) -> bool {
+        matches!(self.made, Made::ByServer) || (self.is_open() && queued)
+    }
+
     /// Each side's players times two.
     pub fn capacity(&self) -> usize {
         2 * usize::from(self.spec.size)
@@ -284,8 +342,10 @@ impl Room {
     /// while that has a place, else on the side with fewer (side 0 of two
     /// alike).
     fn add_member(&mut self, account_id: u32, beside: Option<u32>) {
-        if self.members.is_empty() {
-            self.owner = account_id;
+        if self.members.is_empty()
+            && let Made::ByPlayer { owner, .. } = &mut self.made
+        {
+            *owner = account_id;
         }
         let at = beside
             .and_then(|mate| self.members.iter().position(|member| *member == mate))
@@ -648,7 +708,7 @@ impl Rooms {
         }
         if self.rooms.len() >= most_rooms
             && self.of(owner).is_none_or(|room| {
-                room.members.len() > 1 || (room.is_open() && self.queue_len(room.key) > 0)
+                room.members.len() > 1 || room.kept_empty(self.queue_len(room.key) > 0)
             })
         {
             return Err(Refused::TooMany);
@@ -658,29 +718,40 @@ impl Rooms {
         let serial = self.next_serial();
         // The vote is always there: its cards from the start.
         let cards = Self::draw(&pool, below);
-        let mut room = Room {
+        let mut room = Room::new(
             key,
-            owner,
-            maker: owner,
+            Made::ByPlayer {
+                maker: owner,
+                owner,
+            },
             spec,
             pool,
-            members: Vec::new(),
-            stage: Stage::Waiting,
             cards,
-            votes: HashMap::new(),
-            last_map: 0,
-            after_match: false,
-            in_match: HashSet::new(),
             serial,
-            kicked: HashSet::new(),
-            chat: VecDeque::new(),
-            sides: HashMap::new(),
-            came_in_match: HashSet::new(),
-        };
+        );
         room.add_member(owner, None);
         self.rooms.insert(key, room);
         self.of_account.insert(owner, key);
         self.dequeue(owner);
+        Ok(key)
+    }
+
+    /// The server's own room ([`Made::ByServer`]): open with `spec`, its
+    /// pool `pool`, no member. Made at the lobby's start; never gone.
+    pub fn open_server_room(
+        &mut self,
+        spec: Spec,
+        pool: Vec<u8>,
+        below: &mut impl FnMut(usize) -> usize,
+    ) -> Result<u32, Refused> {
+        if pool.is_empty() || spec.size == 0 || !matches!(spec.door, Door::Open { .. }) {
+            return Err(Refused::Bad);
+        }
+        let key = self.new_key(below).ok_or(Refused::TooMany)?;
+        let serial = self.next_serial();
+        let cards = Self::draw(&pool, below);
+        let room = Room::new(key, Made::ByServer, spec, pool, cards, serial);
+        self.rooms.insert(key, room);
         Ok(key)
     }
 
@@ -799,9 +870,10 @@ impl Rooms {
         self.dequeue(account_id);
     }
 
-    /// The rooms Play may put the account into: no PIN, `places` free (its
-    /// squad's), its max level not under the account's equipment level
-    /// `gear`, not one that turned it out.
+    /// The rooms Play may put the account into ([`Room::takes_play`]): no
+    /// PIN, not the server's, `places` free (its squad's), its max level
+    /// not under the account's equipment level `gear`, not one that turned
+    /// it out.
     pub fn open_rooms(
         &self,
         account_id: u32,
@@ -809,16 +881,16 @@ impl Rooms {
         places: usize,
     ) -> impl Iterator<Item = &Room> {
         self.rooms.values().filter(move |room| {
-            room.is_open()
+            room.takes_play()
                 && room.free_places() >= places.max(1)
                 && room.lets_in(gear)
                 && !room.kicked.contains(&account_id)
         })
     }
 
-    /// The account leaves its room. An empty public room keeps its queue; an
-    /// otherwise empty room is gone. An owner hands it to the next member. The
-    /// room it left, if any.
+    /// The account leaves its room. An empty public room keeps its queue, the
+    /// server's room stays; an otherwise empty room is gone. An owner hands it
+    /// to the next member. The room it left, if any.
     pub fn leave(&mut self, account_id: u32) -> Option<u32> {
         let key = self.of_account.remove(&account_id)?;
         let serial = self.next_serial();
@@ -829,7 +901,7 @@ impl Rooms {
         room.sides.remove(&account_id);
         room.came_in_match.remove(&account_id);
         room.serial = serial;
-        if room.members.is_empty() && !(room.is_open() && self.queues.contains_key(&key)) {
+        if room.members.is_empty() && !room.kept_empty(self.queues.contains_key(&key)) {
             self.rooms.remove(&key);
             // Its queue goes with it: nobody waits for a room that is gone.
             for waiting in self.queues.remove(&key).unwrap_or_default() {
@@ -837,24 +909,35 @@ impl Rooms {
                     self.queued.remove(&account_id);
                 }
             }
-        } else if room.owner == account_id
-            && let Some(&owner) = room.members.first()
+        } else if let Some(&first) = room.members.first()
+            && let Made::ByPlayer { owner, .. } = &mut room.made
+            && *owner == account_id
         {
-            room.owner = owner;
+            *owner = first;
         }
         Some(key)
     }
 
     /// The room is gone, all its members out of it (a maintenance): who
-    /// they were.
+    /// they were. The server's room stays, empty.
     pub fn disband(&mut self, key: u32) -> Vec<u32> {
-        let Some(room) = self.rooms.remove(&key) else {
+        let Some(room) = self.rooms.get(&key) else {
             return Vec::new();
         };
-        for member in &room.members {
-            self.of_account.remove(member);
+        let mut gone = room.members.clone();
+        match room.made {
+            Made::ByServer => {
+                for &member in &gone {
+                    self.leave(member);
+                }
+            }
+            Made::ByPlayer { .. } => {
+                self.rooms.remove(&key);
+                for member in &gone {
+                    self.of_account.remove(member);
+                }
+            }
         }
-        let mut gone = room.members;
         for waiting in self.queues.remove(&key).unwrap_or_default() {
             for account_id in waiting.accounts() {
                 self.queued.remove(&account_id);
@@ -913,7 +996,7 @@ impl Rooms {
             return Err(Refused::Bad);
         }
         let room = self.rooms.get(&key).ok_or(Refused::Unknown)?;
-        if choice == QueueChoice::Play && !room.is_open() {
+        if choice == QueueChoice::Play && !room.takes_play() {
             return Err(Refused::Bad);
         }
         if room.kicked.contains(&account_id) {
@@ -1014,7 +1097,7 @@ impl Rooms {
                 if self
                     .rooms
                     .get(&key)
-                    .is_some_and(|room| room.members.is_empty())
+                    .is_some_and(|room| room.members.is_empty() && !room.kept_empty(false))
                 {
                     self.rooms.remove(&key);
                 }
@@ -1213,7 +1296,7 @@ impl Rooms {
         let room = self.rooms.get(&key)?;
         // Only a private room (with a PIN) turns anyone out: an open one is
         // everybody's (the owner's of 2026-10-19).
-        if room.owner != owner || room.is_open() {
+        if room.owner() != Some(owner) || room.is_open() {
             return None;
         }
         let member = *room.members.get(place)?;
@@ -1254,7 +1337,7 @@ impl Rooms {
         below: &mut impl FnMut(usize) -> usize,
     ) -> Result<Due, StartRefused> {
         let room = self.of(account_id).ok_or(StartRefused::NoRoom)?;
-        if room.owner != account_id {
+        if room.owner() != Some(account_id) {
             return Err(StartRefused::NotOwner);
         }
         if room.is_open() {
@@ -1271,33 +1354,12 @@ impl Rooms {
     }
 
     /// The vote's cards from the pool, all different while the pool has as
-    /// many, each drawn at random: the third a Blackout map (the owner's of
-    /// 2026-11-02: "offers blackout in voting always as a third choice"),
-    /// on a map the first two are not while the pool's Blackout has one;
-    /// the first two of the rest of the pool. A pool without Blackout (a
-    /// private room's maker left it out) or of Blackout alone: three of it.
+    /// many, each drawn at random.
     fn draw(pool: &[u8], below: &mut impl FnMut(usize) -> usize) -> Vec<u8> {
         let mut left: Vec<u8> = pool.to_vec();
         left.sort_unstable();
         left.dedup();
-        let (blackout, rest): (Vec<u8>, Vec<u8>) = left
-            .iter()
-            .partition(|&&id| is_blackout(id));
-        if blackout.is_empty() || rest.is_empty() {
-            return Self::pick(left, CARDS, below);
-        }
-        let mut cards = Self::pick(rest, CARDS - 1, below);
-        let shown: Vec<Option<u8>> = cards.iter().map(|&id| location(id)).collect();
-        let (elsewhere, same): (Vec<u8>, Vec<u8>) = blackout
-            .into_iter()
-            .partition(|&id| !shown.contains(&location(id)));
-        let third = if elsewhere.is_empty() {
-            same
-        } else {
-            elsewhere
-        };
-        cards.extend(Self::pick(third, 1, below));
-        cards
+        Self::pick(left, CARDS, below)
     }
 
     /// `count` of `left` at random, all different while it has as many.
@@ -1326,9 +1388,11 @@ impl Rooms {
         counts: impl Fn(u32) -> bool,
     ) -> Vec<Due> {
         // Admission can discard the final ineligible waiter of an empty
-        // room. An empty public room with a queue survives for admission.
-        self.rooms
-            .retain(|key, room| !room.members.is_empty() || self.queues.contains_key(key));
+        // room. An empty public room with a queue survives for admission;
+        // the server's always.
+        self.rooms.retain(|key, room| {
+            !room.members.is_empty() || self.queues.contains_key(key) || room.kept_empty(false)
+        });
         let mut due = Vec::new();
         for room in self.rooms.values_mut() {
             let enough = room
@@ -1442,7 +1506,7 @@ impl Rooms {
     pub fn move_member(&mut self, owner: u32, place: usize) -> Result<u8, MoveRefused> {
         let key = *self.of_account.get(&owner).ok_or(MoveRefused::NoRoom)?;
         let room = self.rooms.get_mut(&key).ok_or(MoveRefused::NoRoom)?;
-        if room.owner != owner {
+        if room.owner() != Some(owner) {
             return Err(MoveRefused::NotOwner);
         }
         if room.is_open() {
@@ -1652,17 +1716,6 @@ fn fill(mut parties: Vec<(Vec<u32>, Strength)>, size: usize) -> [Vec<u32>; 2] {
     }
     let [(a, _), (b, _)] = sides;
     [a, b]
-}
-
-/// The map (`maps::MapMode::level`) a card is played on, whatever its
-/// weather and mode.
-fn location(id: u8) -> Option<u8> {
-    maps::map_mode(id).map(|map| map.level)
-}
-
-/// Whether a card is a Blackout map.
-fn is_blackout(id: u8) -> bool {
-    maps::map_mode(id).is_some_and(|map| map.mode == maps::GameMode::Blackout)
 }
 
 #[cfg(test)]
@@ -1998,7 +2051,7 @@ mod tests {
         // The maker names it, whoever owns it later.
         rooms.leave(1);
         let room = rooms.get(key).unwrap();
-        assert_eq!((room.owner, room.maker), (2, 1));
+        assert_eq!(room.made, Made::ByPlayer { maker: 1, owner: 2 });
     }
 
     #[test]
@@ -2230,7 +2283,7 @@ mod tests {
         assert_eq!(rooms.join(3, 0, key, now), Err(Refused::Kicked));
         // The owner leaves: the first to have come owns it.
         rooms.leave(1);
-        assert_eq!(rooms.get(key).unwrap().owner, 2);
+        assert_eq!(rooms.get(key).unwrap().owner(), Some(2));
         rooms.leave(2);
         assert!(rooms.get(key).is_none());
         assert!(rooms.is_empty());
@@ -2291,104 +2344,86 @@ mod tests {
         );
     }
 
-    /// Three battery maps of three different places, by id, and their
-    /// Blackout twins.
-    fn battery_maps() -> ([u8; 3], [u8; 3]) {
-        let mut places = Vec::new();
-        let mut plain = Vec::new();
-        for map in maps::playable_in(maps::GameMode::Batteries) {
-            if !places.contains(&map.level) && plain.len() < 3 {
-                places.push(map.level);
-                plain.push(map.id);
-            }
-        }
-        let plain: [u8; 3] = plain.try_into().expect("three battery places");
-        let twin = |id| {
-            let map = maps::map_mode(id).unwrap();
-            maps::find(map.level, map.weather, maps::GameMode::Blackout).unwrap().id
-        };
-        (plain, plain.map(twin))
-    }
-
-    /// The owner's of 2026-11-02 ("offers blackout in voting always as a
-    /// third choice"): the first two cards of the rest of the pool, the
-    /// third Blackout, on a map the first two are not while there is one.
+    /// Three cards, all different, whatever the pool's modes.
     #[test]
-    fn the_third_card_is_blackout_on_another_map() {
-        let (plain, blackout) = battery_maps();
-        let pool: Vec<u8> = plain.iter().chain(&blackout).copied().collect();
-        // The first choice each time: the lowest plain id, then the highest
-        // (the draw takes out what it picks); Blackout of the third map only
-        // is elsewhere.
-        assert_eq!(
-            Rooms::draw(&pool, &mut first),
-            vec![plain[0], plain[2], blackout[1]]
-        );
-        // Whatever is drawn.
-        for seed in 0..32 {
-            let mut turn = seed;
-            let mut below = |bound: usize| {
-                turn = turn * 7 + 3;
-                turn % bound
-            };
-            let cards = Rooms::draw(&pool, &mut below);
-            assert_eq!(cards.len(), CARDS);
-            assert!(cards[..2].iter().all(|id| plain.contains(id)), "{cards:?}");
-            assert!(blackout.contains(&cards[2]), "{cards:?}");
-            assert!(
-                !cards[..2]
-                    .iter()
-                    .any(|&id| location(id) == location(cards[2]))
-            );
-        }
-        // No other map left: Blackout of one shown.
-        let pool = [plain[0], plain[1], blackout[0]];
-        assert_eq!(
-            Rooms::draw(&pool, &mut first),
-            vec![plain[0], plain[1], blackout[0]]
-        );
-    }
-
-    /// A pool without Blackout (a private room's maker left it out) draws
-    /// as before; so does one of Blackout alone.
-    #[test]
-    fn a_pool_without_blackout_or_of_it_alone_draws_three_of_it() {
+    fn a_vote_draws_three_different_cards_of_the_pool() {
         assert_eq!(Rooms::draw(&POOL, &mut first), vec![61, 118, 117]);
-        let (plain, blackout) = battery_maps();
-        assert_eq!(
-            Rooms::draw(&plain, &mut first),
-            vec![plain[0], plain[2], plain[1]]
-        );
-        let mut alone = blackout.to_vec();
-        alone.sort_unstable();
-        assert_eq!(
-            Rooms::draw(&blackout, &mut first),
-            vec![alone[0], alone[2], alone[1]]
-        );
+        assert_eq!(Rooms::draw(&[61, 61, 63], &mut first), vec![61, 63]);
     }
 
-    /// A room's vote won by its third card starts its match on that
-    /// Blackout map.
+    /// The server's room (the owner's of 2026-11-05): an open room of any
+    /// level, with no member and no owner, kept when its last member
+    /// leaves and when it is disbanded; joined from the list only.
     #[test]
-    fn the_third_card_won_starts_the_blackout_match() {
+    fn the_servers_room_stays_open_and_is_not_plays() {
         let now = Instant::now();
         let mut rooms = Rooms::default();
-        let (plain, blackout) = battery_maps();
-        let pool: Vec<u8> = plain.iter().chain(&blackout).copied().collect();
         let key = rooms
-            .create(1, 0, spec(6, None), &pool, &pool, &[], 50, now, &mut first)
+            .open_server_room(spec(8, None), POOL.to_vec(), &mut first)
             .unwrap();
-        rooms.join(2, 0, key, now).unwrap();
-        let third = rooms.get(key).unwrap().cards[2];
-        assert!(is_blackout(third));
-        rooms.vote(1, 2);
-        rooms.vote(2, 2);
+        let room = rooms.get(key).unwrap();
+        assert_eq!(room.made, Made::ByServer);
+        assert_eq!(room.owner(), None);
+        assert!(room.members.is_empty() && room.cards.len() == CARDS);
+        // Nothing removes it: an empty tick, a member leaving.
         rooms.tick(now, &mut first, |_| true);
-        let wait = Duration::from_secs(30);
+        assert!(rooms.get(key).is_some());
+        // Any equipment level comes in from the list; nobody owns it, so
+        // nobody takes a member out.
+        rooms.join(1, 15, key, now).unwrap();
+        rooms.join(2, 0, key, now).unwrap();
+        assert_eq!(rooms.get(key).unwrap().owner(), None);
+        assert_eq!(rooms.kick(1, 1), None);
+        assert_eq!(rooms.start(1, &mut first), Err(StartRefused::NotOwner));
+        // Play never takes it, nor queues for it.
+        assert_eq!(rooms.open_rooms(3, 0, 1).count(), 0);
+        assert_eq!(rooms.enqueue_play(3, 0, key, now), Err(Refused::Bad));
+        assert_eq!(rooms.leave(1), Some(key));
+        assert_eq!(rooms.leave(2), Some(key));
+        rooms.tick(now, &mut first, |_| true);
+        assert!(rooms.get(key).unwrap().members.is_empty());
+        // A maintenance takes its members out; it stays.
+        rooms.join(1, 0, key, now).unwrap();
+        assert_eq!(rooms.disband(key), vec![1]);
+        assert_eq!(rooms.of(1).map(|room| room.key), None);
+        assert!(rooms.get(key).is_some_and(|room| room.members.is_empty()));
+        // A player-made open room is Play's, beside it.
+        let made = room_of(&mut rooms, 4, 8, None, now);
+        let play: Vec<u32> = rooms.open_rooms(3, 0, 1).map(|room| room.key).collect();
+        assert_eq!(play, [made]);
+    }
+
+    /// Its full queue is a chosen one, and an empty queue leaves it there.
+    #[test]
+    fn the_servers_room_queues_who_chose_it() {
+        let now = Instant::now();
+        let mut rooms = Rooms::default();
+        let key = rooms
+            .open_server_room(spec(1, None), POOL.to_vec(), &mut first)
+            .unwrap();
+        rooms.join(1, 0, key, now).unwrap();
+        rooms.join(2, 0, key, now).unwrap();
+        assert_eq!(rooms.join(3, 0, key, now), Err(Refused::Full));
+        assert_eq!(rooms.enqueue(3, 0, key, now), Ok(1));
+        rooms.leave(1);
+        rooms.leave(2);
+        assert_eq!(rooms.dequeue(3), Some(key));
+        assert!(rooms.get(key).is_some());
+    }
+
+    /// It is made only open, with a pool.
+    #[test]
+    fn the_servers_room_needs_a_pool_and_no_pin() {
+        let mut rooms = Rooms::default();
         assert_eq!(
-            rooms.tick(now + rules().vote + wait, &mut first, |_| true),
-            vec![Due::Start { key, map_id: third }]
+            rooms.open_server_room(spec(8, None), Vec::new(), &mut first),
+            Err(Refused::Bad)
         );
+        assert_eq!(
+            rooms.open_server_room(spec(8, Some(1234)), POOL.to_vec(), &mut first),
+            Err(Refused::Bad)
+        );
+        assert!(rooms.is_empty());
     }
 
     #[test]

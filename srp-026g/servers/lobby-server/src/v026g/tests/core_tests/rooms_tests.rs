@@ -183,13 +183,6 @@ fn a_room_counts_down_from_two_and_plays_the_card_voted_for() {
     assert_eq!(header(&counting)[NEXT], "0");
     let voted_cards = cards(&counting);
     assert_eq!(voted_cards.len(), 3);
-    // The third card is Blackout (the owner's of 2026-11-02), the others not.
-    assert!(maps::map_mode(voted_cards[2]).is_some_and(|map| map.mode == maps::GameMode::Blackout));
-    assert!(
-        voted_cards[..2]
-            .iter()
-            .all(|&card| !maps::map_mode(card).is_some_and(|map| map.mode == maps::GameMode::Blackout))
-    );
     // Alice changes her mind: one vote, the last.
     rows(&mut world, alice, ROOM_VOTE_BASE + 2, 1);
     rows(&mut world, alice, ROOM_VOTE_BASE + 1, 1);
@@ -230,13 +223,12 @@ fn a_room_counts_down_from_two_and_plays_the_card_voted_for() {
     assert_eq!(to_alice.0, to_bob.0);
     assert_ne!(to_alice.1, to_bob.1, "one a side");
     let setup = world.host.made.locked().last().unwrap().1.clone();
-    // The third card won: its Blackout map.
+    // The third card won.
     assert_eq!(
         setup.map.map().id,
         voted_cards[2],
         "the vote's winner when it started"
     );
-    assert_eq!(setup.map.mode(), maps::GameMode::Blackout);
     assert_eq!(setup.players.len(), 2, "no bots");
     assert!(!setup.vs_bots);
     assert!(!setup.private, "no PIN: it pays");
@@ -2776,69 +2768,56 @@ fn a_queued_player_whose_kit_can_not_play_keeps_its_place_and_the_next_goes_in()
     assert_eq!(header(&inside)[KEY], key.to_string(), "{inside:?}");
 }
 
-/// Blackout (`docs/notes/blackout.md`): its maps are mode 6 of the rooms'
-/// pool (their tiles their battery maps'), part of the standard pool (the
-/// owner's of 2026-10-25): in the create window's defaults and in a room
-/// Play makes; Play puts players into a room that offers it; its match
-/// plays the Blackout map.
+/// Blackout (`docs/notes/blackout.md`) is the server's room's alone (the
+/// owner's of 2026-11-05: "BLACKOUT ONLY", "ANY LEVEL", "can be entered
+/// only through lobby (never through PLAY)", "no blackout in other rooms"):
+/// the room is listed from the start, empty, owned by nobody; its match
+/// plays a Blackout map; Play never goes into it, and no other room's pool
+/// (the create window's, Play's) has a Blackout map.
 #[test]
-fn blackout_is_a_mode_of_the_standard_pool() {
+fn blackout_is_the_servers_rooms_alone() {
     let mut settings = Settings::local("127.0.0.1:0");
     // Rudnya's day: batteries (61), chargers (62), Team Deathmatch (117)
     // and Blackout (its battery map's twin, `blackout-mode-1.json`).
     let twin = maps::find(1, maps::weather::DAY, maps::GameMode::Blackout).unwrap().id;
     settings.maps = vec![61, 62, 117, twin];
     let mut world = World::with_settings(settings);
+    // The create window offers no Blackout.
     let entries = world.core.room_entries();
-    let blackout = maps::GameMode::Blackout.lobby_number();
-    let offered: Vec<_> = entries
-        .iter()
-        .filter(|entry| entry.mode == blackout)
-        .copied()
-        .collect();
-    assert_eq!(offered.len(), 1, "{entries:?}");
-    let lobby_id = offered[0].map_id;
-    assert_eq!(lobby_id, twin);
     assert_eq!(
-        (offered[0].level, offered[0].weather),
-        (entries[0].level, entries[0].weather)
+        entries.iter().map(|entry| entry.map_id).collect::<Vec<_>>(),
+        [61, 62, 117]
     );
-    let index = entries
-        .iter()
-        .position(|entry| entry.mode == blackout)
-        .unwrap();
+    let server: Vec<_> = world.core.rooms.all().map(|room| room.key).collect();
+    let [server] = server[..] else {
+        panic!("one room at the start: {server:?}");
+    };
+    assert_eq!(world.core.rooms.get(server).unwrap().pool, [twin]);
 
     let alice = world.connect("Alice");
     let bob = world.connect("Bob");
     let carol = world.connect("Carol");
-    // The defaults have it.
-    let (_, chosen) = form(&mut world, alice);
-    assert!(chosen.contains(&lobby_id), "{chosen:?}");
-    // A room Play makes has it.
+    // Listed empty, any level, no PIN, by its name.
+    let list = rows(&mut world, carol, ROOMS_LIST, 32);
+    assert_eq!(list, ["S1;L;1;0".to_owned(), format!("{server};0;0;8;0;0;0;0;0;BLACKOUT")]);
+    // Play makes a room of its own, without Blackout.
+    let (_, chosen) = form(&mut world, carol);
+    assert!(!chosen.contains(&twin), "{chosen:?}");
     let made_by_play: u32 = play_into_room(&mut world, carol).parse().unwrap();
-    assert!(
-        world
-            .core
-            .rooms
-            .get(made_by_play)
-            .unwrap()
-            .pool
-            .contains(&lobby_id)
-    );
+    assert_ne!(made_by_play, server);
+    assert!(!world.core.rooms.get(made_by_play).unwrap().pool.contains(&twin));
     rows(&mut world, carol, ROOM_LEAVE, 1);
-    // Alice's room: Blackout alone. Play puts Bob into it.
-    rows(&mut world, alice, bits_start(0, 1 << index), 1);
-    let key = create(
-        &mut world,
-        alice,
-        RoomSpec {
-            max_level: 10,
-            ..spec(6)
-        },
-        None,
-    );
-    assert_eq!(play_into_room(&mut world, bob), key.to_string());
-    let ticket = room_match_starts(&mut world, &[alice, bob], VOTE_AND_WAIT);
+    // Joined from the list, any equipment; nobody owns it.
+    with_gear(&mut world, alice, 15);
+    let joined = rows(&mut world, alice, ROOM_JOIN_BASE + server, 1);
+    assert_eq!(header(&joined)[KEY], server.to_string(), "{joined:?}");
+    assert_eq!(header(&joined)[OWNER], "0");
+    assert!(joined.iter().any(|row| row == "P;0;15;0;1;0;0;0;Alice"), "{joined:?}");
+    rows(&mut world, bob, ROOM_JOIN_BASE + server, 1);
+    // Carol's Play does not go in beside them.
+    let elsewhere: u32 = play_into_room(&mut world, carol).parse().unwrap();
+    assert_ne!(elsewhere, server);
+    let ticket = room_match_starts(&mut world, &[alice, bob], PLAY_TO_MATCH);
     let made = world.host.made.locked().clone();
     let (_, setup) = made
         .iter()
@@ -2846,6 +2825,13 @@ fn blackout_is_a_mode_of_the_standard_pool() {
         .expect("the room's match");
     assert_eq!(setup.map.map().id, twin, "the Blackout map");
     assert_eq!(setup.map.mode(), maps::GameMode::Blackout);
+    // Everyone gone: it stays, listed.
+    world.end_match(ticket, 0);
+    world.advance(Duration::from_secs(2));
+    rows(&mut world, alice, ROOM_LEAVE, 1);
+    rows(&mut world, bob, ROOM_LEAVE, 1);
+    world.advance(Duration::from_secs(2));
+    assert!(world.core.rooms.get(server).is_some_and(|room| room.members.is_empty()));
 }
 
 /// The owner's of 2026-11-05 ("i wish matches were always 8vs8"): a room
