@@ -566,6 +566,36 @@ pub extern "C" fn hook_medical_skills_on_regenerate(frame: &mut Frame) -> u32 {
     }
 }
 
+// ---- battery_progress (patch 92) ----
+
+/// The entry `battery_progress_on_carrier_tick` (0x2daad3, base_player::tick after the held object's tick (call [vtbl+28h] at 0x2DAAD1, or the je at 0x2DAAC9 with nothing held), before the movement (mov ecx,[esp+10h] / push edi): EBX the player, every simulation tick) calls this with the saved machine.
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_battery_progress_on_carrier_tick(frame: &mut Frame) -> u32 {
+    // SAFETY: only the entry `battery_progress_on_carrier_tick` calls this, from the game's jump at 0x2daad3,
+    // on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::new(frame) };
+    match crate::battery_progress::on_carrier_tick(&mut ctx) {
+        Flow::Continue => 0,
+        Flow::Skip => 1,
+        Flow::Exit(e) => match e {},
+    }
+}
+
+// ---- artefact_skills (patch 109) ----
+
+/// The entry `artefact_skills_on_movement_tick` (0x2daad3, base_player::tick after the held object's tick (call [vtbl+28h] at 0x2DAAD1, or the je at 0x2DAAC9 with nothing held), before the movement (mov ecx,[esp+10h] / push edi): EBX the player, every simulation tick) calls this with the saved machine.
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_artefact_skills_on_movement_tick(frame: &mut Frame) -> u32 {
+    // SAFETY: only the entry `artefact_skills_on_movement_tick` calls this, from the game's jump at 0x2daad3,
+    // on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::new(frame) };
+    match crate::artefact_skills::on_movement_tick(&mut ctx) {
+        Flow::Continue => 0,
+        Flow::Skip => 1,
+        Flow::Exit(e) => match e {},
+    }
+}
+
 // ---- bake_cache (patch 70) ----
 
 /// The named exits of bake_cache::on_game_start (the order the shim's Flow code
@@ -688,21 +718,6 @@ pub extern "C" fn hook_bake_cache_on_crc_step(frame: &mut Frame) -> u32 {
         Flow::Continue => 0,
         Flow::Skip => 1,
         Flow::Exit(e) => 2 + e as u32,
-    }
-}
-
-// ---- battery_progress (patch 92) ----
-
-/// The entry `battery_progress_on_carrier_tick` (0x2daad3, base_player::tick after the held object's tick (call [vtbl+28h] at 0x2DAAD1, or the je at 0x2DAAC9 with nothing held), before the movement (mov ecx,[esp+10h] / push edi): EBX the player, every simulation tick) calls this with the saved machine.
-#[unsafe(no_mangle)]
-pub extern "C" fn hook_battery_progress_on_carrier_tick(frame: &mut Frame) -> u32 {
-    // SAFETY: only the entry `battery_progress_on_carrier_tick` calls this, from the game's jump at 0x2daad3,
-    // on the game's thread; `frame` is its saved registers and fxsave area.
-    let mut ctx = unsafe { Context::new(frame) };
-    match crate::battery_progress::on_carrier_tick(&mut ctx) {
-        Flow::Continue => 0,
-        Flow::Skip => 1,
-        Flow::Exit(e) => match e {},
     }
 }
 
@@ -2951,6 +2966,15 @@ pub extern "C" fn hook_artefact_skills_on_shared_regeneration_chain(frame: &mut 
     let flow = hook_artefact_skills_on_shared_regeneration(frame);
     if flow != 0 { return flow; }
     let flow = hook_medical_skills_on_regenerate(frame);
+    if flow != 0 { return flow; }
+    0
+}
+
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_battery_progress_on_carrier_tick_chain(frame: &mut Frame) -> u32 {
+    let flow = hook_battery_progress_on_carrier_tick(frame);
+    if flow != 0 { return flow; }
+    let flow = hook_artefact_skills_on_movement_tick(frame);
     if flow != 0 { return flow; }
     0
 }

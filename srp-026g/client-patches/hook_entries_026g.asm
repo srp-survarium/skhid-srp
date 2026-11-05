@@ -1307,6 +1307,45 @@ artefact_skills_on_shared_regeneration_replay:
     db 0x8b, 0x6c, 0x24, 0x24, 0x85, 0xc0
     jmp 0x32a545
 
+; 0x2daad3 base_player::tick after the held object's tick (call [vtbl+28h] at 0x2DAAD1, or the je at 0x2DAAC9 with nothing held), before the movement (mov ecx,[esp+10h] / push edi): EBX the player, every simulation tick: lohook -> battery_progress_on_carrier_tick
+global battery_progress_on_carrier_tick
+extern hook_battery_progress_on_carrier_tick_chain
+battery_progress_on_carrier_tick:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_battery_progress_on_carrier_tick_chain
+    mov edx, battery_progress_on_carrier_tick_replay
+    cmp eax, 0
+    je battery_progress_on_carrier_tick_go
+    mov edx, 0x2daad8
+    cmp eax, 1
+    je battery_progress_on_carrier_tick_go
+    ud2
+battery_progress_on_carrier_tick_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+battery_progress_on_carrier_tick_replay:
+    db 0x8b, 0x4c, 0x24, 0x10, 0x57
+    jmp 0x2daad8
+
 ; 0x1e944e game::game before its delete of user_data/streamed_textures (lea eax,[esp+470h] / call 0x1E8DA0: [esp+470h] the folder's physical path, a buffer_string); kept: past the delete's call (0x1E945A reads no register before it writes it): lohook -> bake_cache_on_game_start
 global bake_cache_on_game_start
 extern hook_bake_cache_on_game_start
@@ -1591,45 +1630,6 @@ bake_cache_on_crc_step_go:
 bake_cache_on_crc_step_replay:
     db 0x8b, 0x4c, 0x24, 0x04, 0x57
     jmp 0x42055
-
-; 0x2daad3 base_player::tick after the held object's tick (call [vtbl+28h] at 0x2DAAD1, or the je at 0x2DAAC9 with nothing held), before the movement (mov ecx,[esp+10h] / push edi): EBX the player, every simulation tick: lohook -> battery_progress_on_carrier_tick
-global battery_progress_on_carrier_tick
-extern hook_battery_progress_on_carrier_tick
-battery_progress_on_carrier_tick:
-    lea esp, [esp - 4]
-    pushfd
-    pushad
-    cld
-    mov ebp, esp
-    sub esp, 512
-    and esp, -16
-    fxsave [esp]
-    mov edi, esp
-    sub esp, 8
-    and esp, -16
-    mov [esp], ebp
-    mov [esp+4], edi
-    mov eax, esp
-    sub esp, 12
-    push eax
-    call hook_battery_progress_on_carrier_tick
-    mov edx, battery_progress_on_carrier_tick_replay
-    cmp eax, 0
-    je battery_progress_on_carrier_tick_go
-    mov edx, 0x2daad8
-    cmp eax, 1
-    je battery_progress_on_carrier_tick_go
-    ud2
-battery_progress_on_carrier_tick_go:
-    mov [ebp + 36], edx
-    fxrstor [edi]
-    mov esp, ebp
-    popad
-    popfd
-    ret
-battery_progress_on_carrier_tick_replay:
-    db 0x8b, 0x4c, 0x24, 0x10, 0x57
-    jmp 0x2daad8
 
 ; 0x334999 victory_item_event_manager::start_match once both containers' positions are kept, before the batteries' nearest positions (mov eax,[esi+0A38h]): ESI the manager, +0A38h its rule just set: lohook -> battery_progress_on_match_start
 global battery_progress_on_match_start

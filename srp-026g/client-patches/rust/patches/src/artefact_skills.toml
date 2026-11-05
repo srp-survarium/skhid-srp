@@ -41,3 +41,10 @@ handler = "on_shared_protection"
 site = "medical.regenerate"
 handler = "on_shared_regeneration"
 order = 1
+
+# The shared Springs' movement: a recipient's animations selected again when it changes (each
+# player's tick before tick_animations; after the battery carrier's).
+[[hook]]
+site = "battery.carrier_tick"
+handler = "on_movement_tick"
+order = 2

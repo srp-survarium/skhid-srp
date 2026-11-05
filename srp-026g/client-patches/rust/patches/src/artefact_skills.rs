@@ -4,7 +4,10 @@
 //! once here.
 #![forbid(unsafe_code)]
 
-use crate::vostok::{ArtefactSkillsOnLandingExit, Context, Flow, NoExit, artefact_skills};
+use crate::vostok::{
+    ArtefactSkillsOnLandingExit, Context, Flow, GameCell, NoExit, artefact_skills,
+    types::{Place, Tick},
+};
 
 /// A hit's type (the hit +1Ch; 0.26g's seven, `blunt` gone): 4..7 are the anomalous ones
 /// (table 0x92075C), against which armour is the card's isolation.
@@ -298,6 +301,65 @@ impl LifeboneRegeneration {
     }
 }
 
+/// The kit list a Spring's movement nodes are in: movement_speed (0x2DBB50) reads it when the
+/// player's animations are selected (select_animations 0x2D9690), not every tick.
+pub const MOVEMENT_LIST: u32 = 4;
+
+/// The ticks of a place's shared movement kept (3.2 s): a re-simulated tick finds the tick
+/// before it.
+const HISTORY: usize = 64;
+
+/// One place's shared movement (what the shared Springs add to its list 4) at its recent ticks,
+/// each in the slot of its tick.
+#[derive(Clone, Copy)]
+pub struct MovementHistory {
+    slots: [Option<(Tick, f32)>; HISTORY],
+}
+
+impl MovementHistory {
+    pub const EMPTY: Self = Self { slots: [None; HISTORY] };
+
+    fn slot(tick: Tick) -> usize {
+        tick.0 as usize % HISTORY
+    }
+
+    /// Records `shared` at `tick`; whether it differs from the tick before's (nothing shared, 0,
+    /// when that tick is not kept: the place's first tick). A function of the two ticks' worlds
+    /// alone: a re-simulated tick answers as its first simulation did.
+    pub fn changed(&mut self, tick: Tick, shared: f32) -> bool {
+        let before = Tick(tick.0.wrapping_sub(1));
+        let was = match self.slots[Self::slot(before)] {
+            Some((at, value)) if at == before => value,
+            _ => 0.0,
+        };
+        self.slots[Self::slot(tick)] = Some((tick, shared));
+        was != shared
+    }
+}
+
+/// Every place's shared movement history (the game's thread alone runs base_player::tick).
+static MOVEMENTS: [GameCell<MovementHistory>; Place::COUNT] =
+    [const { GameCell::new(MovementHistory::EMPTY) }; Place::COUNT];
+
+/// Resonance and Cascade at each player's tick before its animations (battery.carrier_tick
+/// 0x2DAAD3, right before tick_animations 0x2D8EE0): when the shared Springs' movement changed
+/// since the tick before (a carrier came into reach or left it, died, a Spring's state changed),
+/// the player's animations are selected again this tick, which takes the new movement speed
+/// in, as patch 94 does for Adrenalin. No change, no re-selection.
+pub fn on_movement_tick(ctx: &mut Context<'_>) -> Flow<NoExit> {
+    let Some(tick) = artefact_skills::MovementTick::at(ctx) else {
+        return Flow::Continue;
+    };
+    let history = &MOVEMENTS[tick.place().index()];
+    let mut kept = history.get(ctx.thread());
+    let changed = kept.changed(tick.tick(), tick.shared());
+    history.set(ctx.thread(), kept);
+    if changed {
+        tick.reselect();
+    }
+    Flow::Continue
+}
+
 /// Resonance and Cascade at apply_modifier (0x2D5AE6): XMM0 the kit's own float of an index,
 /// to which the shared Springs' nodes of that list are added.
 pub fn on_shared_modifier(ctx: &mut Context<'_>) -> Flow<NoExit> {
@@ -354,6 +416,27 @@ pub fn on_spring_reload(ctx: &mut Context<'_>) -> Flow<NoExit> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn a_shared_movement_reselects_on_a_change_only() {
+        let mut history = MovementHistory::EMPTY;
+        // The first tick against nothing shared; then each tick against the one before.
+        assert!(!history.changed(Tick(20), 0.0));
+        assert!(history.changed(Tick(21), 0.05), "a carrier came into reach");
+        assert!(!history.changed(Tick(22), 0.05), "no change");
+        assert!(history.changed(Tick(23), 0.0), "the carrier left or died");
+        assert!(!history.changed(Tick(24), 0.0));
+        // A re-simulation from tick 21: each tick against its own tick before, as at first.
+        assert!(history.changed(Tick(21), 0.05));
+        assert!(!history.changed(Tick(22), 0.05));
+        assert!(history.changed(Tick(23), 0.0));
+        // ...and a re-simulated world where the carrier stayed: tick 23 no longer changes.
+        assert!(!history.changed(Tick(23), 0.05));
+        assert!(history.changed(Tick(24), 0.0), "tick 24 now sees tick 23's 0.05");
+        // A gap (a place's first tick, or one past the history): against nothing shared.
+        assert!(history.changed(Tick(24 + HISTORY as u32), 0.15));
+        assert!(!history.changed(Tick(1000), 0.0));
+    }
 
     #[test]
     fn parses_the_packed_ranks_only_exactly() {
