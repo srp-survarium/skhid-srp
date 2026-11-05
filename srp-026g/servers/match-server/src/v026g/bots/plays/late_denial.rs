@@ -66,10 +66,20 @@ pub fn candidates(cx: &Ctx, out: &mut Vec<Candidate>) {
     if theirs.batteries == 0 {
         return;
     }
-    out.extend(cx.candidate(
+    // [A296 item 4, `mods.behind_open`] A team behind reads the time left shorter (`BehindOpen::time_left`).
+    let given: Vec<(Input, f32)> = cx
+        .tuning
+        .mods
+        .behind_open
+        .filter(|open| open.behind(cx.sig.score_gap))
+        .map(|open| (Input::TimeLeftBehind, open.time_left(cx.sig.time_left_s, cx.sig.score_gap)))
+        .into_iter()
+        .collect();
+    out.extend(cx.candidate_given(
         PlayKind::LateDenial,
         TargetRef::Container(theirs.id),
         Some(u32::from(theirs.id)),
+        &given,
     ));
 }
 

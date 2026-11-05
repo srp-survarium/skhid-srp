@@ -173,6 +173,7 @@ pub use tdm::Approach;
 pub use tdm::GroupUp;
 pub use tdm::TdmTuning;
 pub use team::AvoidTuning;
+pub use team::BehindOpen;
 pub use team::CommitTuning;
 pub use team::Concede;
 pub use team::GangRule;
@@ -185,6 +186,7 @@ pub use team::Personalities;
 pub use team::Personality;
 pub use team::PinFromCover;
 pub use team::PinRule;
+pub use team::RaidRegroup;
 pub use team::RefuseFights;
 pub use team::RoamAvoid;
 pub use team::SEARCH_FLOORS_PER_POLL;
@@ -321,6 +323,12 @@ impl Tuning {
         self.skill.check()?;
         self.smoke.check()?;
         self.take.check()?;
+        if let Some(open) = self.mods.behind_open {
+            open.check()?;
+        }
+        if let Some(regroup) = self.mods.raid_regroup {
+            regroup.check()?;
+        }
         self.tdm.check()?;
         self.think.check()?;
         self.traps.check()?;
