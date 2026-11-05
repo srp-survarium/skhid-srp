@@ -105,6 +105,22 @@ fn the_controller_walks_the_nav_problem_spots_as_real_bodies_do() {
             row.spot
         );
         println!("{line}");
+        if !reached {
+            // What stops it: the first face straight up from its feet, and toward the target at shin, waist and head height.
+            let up = world.ray(end + Vec3::new(0.0, 0.05, 0.0), end + Vec3::new(0.0, 1.9, 0.0)).map(|(t, _)| 0.05 + t * 1.85);
+            let toward = |h: f32| {
+                let a = end + Vec3::new(0.0, h, 0.0);
+                let b = Vec3::new(row.to.x, end.y + h, row.to.z);
+                world.ray(a, b).map(|(t, _)| t * ((b.x - a.x).powi(2) + (b.z - a.z).powi(2)).sqrt())
+            };
+            println!(
+                "   stopped: a face over the feet at {:?} m; toward the target, a face at 0.3 m height {:?} m on, 1.0 m {:?}, 1.7 m {:?}",
+                up,
+                toward(0.3),
+                toward(1.0),
+                toward(1.7)
+            );
+        }
         if reached != row.walk {
             wrong.push(line);
         }
