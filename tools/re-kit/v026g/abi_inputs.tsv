@@ -5474,6 +5474,12 @@ va	name	location	role	basis
 0x0005cb80	vostok::sound::new_sound_propagator::detach_voice	entry ESP+4	the propagator: its voice (+4) stopped (IXAudio2SourceVoice Stop then FlushSourceBuffers on the bridge +14h -> +10h), removed from the scene's active voices (0x58990), destroyed (0x5A470: the bridge's handler cleared) and back in the world's pool (+0A0h) at once; +4 = 0. Called by the HDR cull (0x5CAD4, then +48h = 2000), the proxy's tick at a propagator's end (0x5B54F) and delete_sound_propagator (0x5D50D)	observed
 0x00038990	vostok::sound::sound_propagator_emitter::get_options	ECX	the emitter (this): a single sound's propagator emitter (single_sound + 108h)	observed
 0x001f0e70	survarium::match_options::deserialize	entry ESP+4	the options it fills, in wire order: 20 profiles (0x45FC bytes each), then u8 map (maps_dict id) +577B4h (0x1F0EAD), u8 places +577B5h, u32 seed/match id +577B0h (0x1F0ECD), u16 level +577B6h (0x1F0EDC), 28 f32 +577BCh, 20 u8 squads +5782Ch; the crash breadcrumbs (vostok/breadcrumbs.rs) read map, places, seed and level after it	observed
+0x002ff930	survarium::weapon_controller_core::serialize	ECX	controller	observed
+0x002ff930	survarium::weapon_controller_core::serialize	entry ESP+4	writer	observed
+0x002ff970	survarium::weapon_controller_core::deserialize	ECX	controller	observed
+0x002ff970	survarium::weapon_controller_core::deserialize	entry ESP+4	reader	observed
+0x00330a20	survarium::hit_animations_selector::hit_body_part::deserialize	ECX	hit body parts	observed
+0x00330a20	survarium::hit_animations_selector::hit_body_part::deserialize	EAX	reader	observed
 0x0025e660	survarium::artefact_cook::new_derived_resource	ECX	the cook	observed
 0x0025e660	survarium::artefact_cook::new_derived_resource	stack+4	the memory (its size from resource_size)	observed
 0x0025e660	survarium::artefact_cook::new_derived_resource	stack+8	&resource_ptr<binary_config>: [it]+108h the item config's root (data/type picks the class: 3, 6, 7, 8)	observed
@@ -5502,7 +5508,7 @@ va	name	location	role	basis
 0x002ee8d0	survarium::artefact_core_cook::finish_query	EDX	&resource_ptr<binary_config>	observed
 0x002ee8d0	survarium::artefact_core_cook::finish_query	ESI	the artefact	observed
 0x002ee8d0	survarium::artefact_core_cook::finish_query	EDI	the artefact's query ([queries_result+20h])	observed
-0x002e4090	survarium::weapon_core::can_start_throw_grenade	ECX	weapon_core: +8 the player, +5ECh its state	observed
+0x002e4090	survarium::weapon_core::can_start_throw_grenade	ECX	weapon_core: +8 the player, +5ECh its state; weapon_core: at 0x2E40B4 the inventory's grenade slot +17Ch, 17h none (je), else the slot's item (+10Ch[slot]) dereferenced at 0x2E40C6 with no check for an empty cell (weapon_core's tick 0x2E0BEF calls it every tick)	observed
 0x0033a770	survarium::weapon_core_throw_grenade_state::throw_grenade	ESI	the throw state: +17Ch the grenade set (the slot's item, no cast), +180h the grenade's index, +120h -> +8 the player	observed
 0x003103a0	survarium::weapon_core_throw_grenade_pull_substate::initialize	ECX	the pull substate: +138h the throw state	observed
 0x0030a090	survarium::grenade_set_core::ready_to_throw	EAX	the grenade set	observed
@@ -5638,8 +5644,8 @@ va	name	location	role	basis
 0x000783a0	vostok::physics::bullet_physics_world::unsubscribe_from_contact	ECX	the physics world (its slot +74h)	observed
 0x000783a0	vostok::physics::bullet_physics_world::unsubscribe_from_contact	entry ESP+4	the rigid body	observed
 0x000783a0	vostok::physics::bullet_physics_world::unsubscribe_from_contact	entry ESP+8	the function's address subscribed	observed
-0x002993f0	survarium::damage_zone::draw	ECX	the client damage_zone's drawable (zone+408h): -2E4h the zone on, -237h hitting, +10h the state it last drew	observed
-0x00298d80	survarium::damage_zone::play_activated	ESI	the client damage_zone (+41Ch/+420h the sound zones' matrices and count, +424h activated sounds, +43Ch/+440h the effect zones', +444h activated particles: data/active/damage_zone activated_particle)	observed
+0x002993f0	survarium::damage_zone::draw	ECX	the client damage_zone's drawable (zone+408h): -2E4h the zone on, -237h hitting, +10h the state it last drew; reached every frame through the scene's drawable loop (0x23DD41); plays the activated sounds and particles for any zone that switches on, whoever switched it (no kind or origin read); 0.46c2's twin 0x6F3E00 is the zone's update delegate (its constructor stores it at +5C8h, 0x6F3378)	observed
+0x00298d80	survarium::damage_zone::play_activated	ESI	the client damage_zone (+41Ch/+420h the sound zones' matrices and count, +424h activated sounds, +43Ch/+440h the effect zones', +444h activated particles: data/active/damage_zone activated_particle); each activated sound (+424h[i], data's activated_sound) played once by survarium::play_sound 0x657C0 (0x298DE9: ECX the scene's sound scene +94h, the sound, &its sound point's position (+41Ch + 40h x i, +30h), hud flag 0); 0.46c2's twin is 0x6F37E0 (+590h the sounds, +588h the points, through 0x6F35D0)	observed
 0x00298fe0	survarium::damage_zone::start_idle	ESI	the client damage_zone (+428h looped sounds, +448h idle particles: idle_particle, played while the zone is on)	observed
 0x002990d0	survarium::damage_zone::stop_idle	entry ESP+4	the client damage_zone	observed
 0x0005cb00	vostok::sound::new_sound_propagator::new_sound_propagator	EAX	the proxy (+8h)	observed
@@ -5658,10 +5664,7 @@ va	name	location	role	basis
 0x00245430		EAX	the sound event (its time and clip)	observed
 0x0005a840	vostok::sound::sound_instance_proxy_internal::sound_instance_proxy_internal	ESI	the proxy's memory (a 90h block of the scene's pool)	observed
 0x0005c280	vostok::sound::sound_scene::notify_listener2	stack+4	the sound scene	observed
-0x002e4090	survarium::weapon_core::can_start_throw_grenade	ECX	weapon_core: at 0x2E40B4 the inventory's grenade slot +17Ch, 17h none (je), else the slot's item (+10Ch[slot]) dereferenced at 0x2E40C6 with no check for an empty cell (weapon_core's tick 0x2E0BEF calls it every tick)	observed
 0x0033a730	survarium::weapon_core_throw_grenade_state::is_grenade_slot_held	ECX	the throw state: +120h -> +8 the player (+10Ch the inventory), +17Ch its item	observed
 0x0033a730	survarium::weapon_core_throw_grenade_state::is_grenade_slot_held	entry ESP+4	the answer wanted (u8)	observed
 0x00364f10	vostok::particle::particle_system::construct_action<vostok::configs::binary_config_value>	entry ESP+10h	the action's config by value (24 bytes: type_index, properties)	observed
 0x00077e50	vostok::physics::bullet_physics_world::notify_about_contact	entry ESP+4	the physics world: each manifold's two collision objects' +F8h (the rigid bodies) looked up in its contact subscriptions (+0Ch, by body), each subscribed function called with the contact point (0x780BB: the function's vtable +4, its buffer)	observed
-0x00298d80	survarium::damage_zone::play_activated	ESI	each activated sound (+424h[i], data's activated_sound) played once by survarium::play_sound 0x657C0 (0x298DE9: ECX the scene's sound scene +94h, the sound, &its sound point's position (+41Ch + 40h x i, +30h), hud flag 0); 0.46c2's twin is 0x6F37E0 (+590h the sounds, +588h the points, through 0x6F35D0)	observed
-0x002993f0	survarium::damage_zone::draw	ECX	reached every frame through the scene's drawable loop (0x23DD41); plays the activated sounds and particles for any zone that switches on, whoever switched it (no kind or origin read); 0.46c2's twin 0x6F3E00 is the zone's update delegate (its constructor stores it at +5C8h, 0x6F3378)	observed

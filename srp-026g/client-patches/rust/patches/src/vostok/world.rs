@@ -81,6 +81,12 @@ impl<'t> NetworkClient<'t> {
         unsafe { raw::engine_match_options(Some(self.this)).map_or(0, |options| u32::from(read(options.places()))) }
     }
 
+    /// The match it plays ([`MatchId`]), when it has match options.
+    pub fn match_id(&self) -> Option<MatchId> {
+        // SAFETY: the client, alive for the hook; match_options is its own.
+        unsafe { raw::engine_match_options(Some(self.this)).map(|options| MatchId(read(options.seed()))) }
+    }
+
     /// The local player, if the match has one.
     pub fn local_player(&self) -> Option<Player<'t>> {
         // SAFETY: the client's local player, alive for the hook.
@@ -159,6 +165,35 @@ impl ItemId {
     /// Its address, for the log.
     pub fn address(self) -> u32 {
         self.0
+    }
+}
+
+/// Which match: its options' seed (+577B0h, the 0xE4's match id: the
+/// server's own a match, logged by the client as `Match id`). A world
+/// core's address (`WorldKey`) can be the next match's too; this cannot.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct MatchId(u32);
+
+impl MatchId {
+    /// Its value, for the log.
+    pub fn get(self) -> u32 {
+        self.0
+    }
+}
+
+impl<'t> GameWorld<'t> {
+    /// The match this world is of.
+    pub fn match_id(&self) -> Option<MatchId> {
+        self.network_client()?.match_id()
+    }
+}
+
+impl Player<'_> {
+    /// The match this player is of.
+    pub fn match_id(&self) -> Option<MatchId> {
+        // SAFETY: the live player's world, game and network client.
+        let client = unsafe { self.this.game_world()?.game()?.network_client() }?;
+        NetworkClient::of(client, self.thread).match_id()
     }
 }
 

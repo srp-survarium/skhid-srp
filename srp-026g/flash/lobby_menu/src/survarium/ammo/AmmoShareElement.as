@@ -2,6 +2,7 @@ package survarium.ammo
 {
    import flash.display.Sprite;
    import flash.events.Event;
+   import flash.events.MouseEvent;
    import flash.external.ExternalInterface;
    import flash.geom.ColorTransform;
    import flash.text.TextField;
@@ -13,18 +14,21 @@ package survarium.ammo
    import scaleform.clik.events.IndexEvent;
    import scaleform.clik.events.ListEvent;
    import scaleform.clik.events.SliderEvent;
-   import survarium.Util;
    import survarium.constants.Colors;
    import survarium.controls.IconRenderer;
    import survarium.controls.NumericStepperSrv;
    import survarium.controls.PlayerInfo;
    import survarium.data.ItemData;
    import survarium.data.LocalizationData;
-   import survarium.data.PropertiesDescriptor;
    
    public class AmmoShareElement extends UIComponent
    {
       
+      // Its round's card: the lobby shows the inventory's own item card (LobbyMenu) while the
+      // mouse is over the element's hint area, and takes it away when it leaves.
+      public static const SHOW_CARD:String = "ammoShowCard";
+      public static const HIDE_CARD:String = "ammoHideCard";
+
       public var id:int = 0;
       
       public var index:uint = 0;
@@ -80,6 +84,9 @@ package survarium.ammo
       protected var _max:int = 0;
       
       protected var _data:ItemData;
+
+      // The item the element was given (setData), whole: the card shows it; null when disabled.
+      private var _cardItem:ItemData;
       
       protected var _owner:Sprite;
       
@@ -162,30 +169,10 @@ package survarium.ammo
          copy.premiumCost = item.premiumCost;
          itemLevel = item.itemLevel;
          _data = copy;
+         _cardItem = item;
          var unlocked:Boolean = !(item.canBuy == false && this._data.value == 0);
          var premium:Boolean = this.isPremium();
          _item_price = premium ? this._data.premiumCost : this._data.cost;
-         var properties:Object = item.properties;
-         if(properties)
-         {
-            hint = "";
-            descriptor = PropertiesDescriptor.getPropertiesDescriptor("properties");
-            for each(entry in properties)
-            {
-               prop = entry;
-               propInfo = descriptor.getPropertyDescription(prop.prop_id);
-               hint += propInfo.prop_name + ": " + Util.styledChar(String(prop.prop_value + (propInfo.postfix ? propInfo.postfix : "")),"highlight") + "\n";
-            }
-            hint += Util.styledChar(String(copy.itemLevel),"small") + "\n";
-            hint += LocalizationData.getName("item_level") + ": " + Util.styledChar(String(copy.itemLevel),"highlight") + "\n";
-            this.ammoHintArea.tipData = {
-               tipText:hint,
-               isPremium:premium || copy.isPremium,
-               cost:this._item_price,
-               lock:!unlocked || premium,
-               lockText:copy.unlockLevelLabel
-            };
-         }
          _clipSize = copy.clipSize;
          _clipsInBag = copy.clipsInBag;
          this.textField.text = copy.name;
@@ -197,11 +184,6 @@ package survarium.ammo
          this.weaponSlot.content = this._data.icon;
          this.slider.removeEventListener(SliderEvent.VALUE_CHANGE,this.onElementSlider);
          var ownedCount:int = this._data.value;
-         var hint:String;
-         var descriptor:*;
-         var entry:Object;
-         var prop:Object;
-         var propInfo:Object;
          var goldTint:ColorTransform;
          _max = int(int(this.available * this._clipsInBag) * this._clipSize);
          if(!this._data.canBuy)
@@ -325,6 +307,7 @@ package survarium.ammo
       public function disable() : void
       {
          _data = null;
+         _cardItem = null;
          focusable = false;
          mouseChildren = false;
          mouseEnabled = false;
@@ -433,13 +416,24 @@ package survarium.ammo
          this.stepper_storage.invalidateData();
       }
       
+      // The round the element shows, null for an empty one.
+      public function get cardItem() : ItemData { return _cardItem; }
+
+      private function onCardOver(e:MouseEvent) : void
+      {
+         if(_cardItem != null) dispatchEvent(new Event(SHOW_CARD,true));
+      }
+
+      private function onCardOut(e:MouseEvent) : void { dispatchEvent(new Event(HIDE_CARD,true)); }
+
       override protected function configUI() : void
       {
          if(this.hintButton)
          {
             this.hintButton.tooltipRendererName = "SrvProfileTipRendererStyled";
          }
-         this.ammoHintArea.tooltipRendererName = "SrvAmmoHintRenderer";
+         this.ammoHintArea.addEventListener(MouseEvent.ROLL_OVER,this.onCardOver);
+         this.ammoHintArea.addEventListener(MouseEvent.ROLL_OUT,this.onCardOut);
          this.stepper_backpack.visible = false;
          this.stepper_backpack.addEventListener(IndexEvent.INDEX_CHANGE,this.stepperChange);
          this.stepper_storage.addEventListener(IndexEvent.INDEX_CHANGE,this.stepperChange);

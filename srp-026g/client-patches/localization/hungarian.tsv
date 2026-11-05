@@ -2188,6 +2188,7 @@ st_srp_ammo069_23mm_r_desc	23 mm-es sörétes lőszer a KS-23M-hez. Nagy sebzés
 st_srp_ammo069_23mm_r_name	23x75R, sörét
 st_srp_ammo_scar_ap_desc	Páncéltörő 7,62x51 lőszer az FN SCAR-H-hoz. Minden lőszerzseb 20 lőszert tartalmaz.
 st_srp_ammo_scar_ap_name	7,62x51 AP SCAR-H, 20 lőszer
+st_srp_ammo_stats	A lőszer statisztikái
 st_srp_attachments	Szerelékek
 st_srp_crosshair_dynamic	Dinamikus célkereszt
 st_srp_crosshair_hidden	Rejtett célkereszt
@@ -2447,6 +2448,9 @@ st_srp_hud_mute_not_sent	Nincs elküldve
 st_srp_hud_muted	Chat némítva
 st_srp_hud_unmute	Némítás feloldása
 st_srp_hud_unmuted	Némítás feloldva
+st_srp_inv_ammo_range	Lőtávolság
+st_srp_inv_bullet_speed	Lövedéksebesség
+st_srp_inv_pellets	Sörétek
 st_srp_inventory_search	Keresés
 st_srp_language_option	Nyelv:
 st_srp_language_restart	Újraindítás után lép életbe.
@@ -2668,6 +2672,7 @@ st_srp_speed_title	Mozgási sebesség: %1$s
 st_srp_static_minimap_option	Statikus minitérkép
 st_srp_unit_kg	%1$s kg
 st_srp_unit_meters	%1$sm
+st_srp_unit_mps	%1$s m/s
 st_srp_unit_percent	%1$s%
 st_srp_unit_seconds	%1$ss
 st_srp_unit_times	%1$sx
@@ -2684,6 +2689,7 @@ st_srp_weapon069_mauser_m712_name	Mauser M.712
 st_srp_weapon069_ppsh_drum_desc	Spagin géppisztolya 71 lőszeres dobtárral, 7.62x25 lőszerrel. Egyes és sorozatlövésre képes.
 st_srp_weapon069_ppsh_drum_name	PPSH-41 „Dob”
 st_srp_weapon_aim_zoom	Alap célzási nagyítás
+st_srp_weapon_bullet_speed_varies	Változó
 st_srp_weapon_chamber	Csőre töltési idő
 st_srp_weapon_draw_time	Elővételi idő
 st_srp_weapon_full_damage	Teljes sebzés hatótávja
@@ -2716,12 +2722,12 @@ st_srp_weather_day	nappal
 st_srp_weather_evening	este
 st_srp_weather_night	éjszaka
 st_srp_weather_rain	eső
-st_srp_weight_base	Alapkorlát: %1$s
+st_srp_weight_base	Alapkorlát
 st_srp_weight_no_sprint_heavyweight	Nem sprintelhetsz: Nehézsúlyú képesség.
 st_srp_weight_no_sprint_limit	Nem sprintelhetsz: túlterhelés.
 st_srp_weight_penalty	%1$s% súlybüntetés
-st_srp_weight_speed	Mozgási sebesség: %1$s
-st_srp_weight_sprint_stamina	Állóképesség-fogyasztás sprinteléskor: %1$s
+st_srp_weight_speed	Mozgási sebesség
+st_srp_weight_sprint_stamina	Állóképesség-fogyasztás sprinteléskor
 st_srp_weight_title	A súly hatásai
 st_stamina_boost_name	Újult erő
 st_stamina_boost_time_description	Ellenségöléssel visszanyert állóképesség:

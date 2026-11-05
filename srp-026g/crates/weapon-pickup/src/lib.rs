@@ -143,17 +143,18 @@ pub fn encode(actions: u32, target: Place) -> u32 {
 }
 
 /// The server's check, which the client applies before it sends: a pickup
-/// names a place of the match other than the sender's own.
-pub fn allowed(sender: Place, target: Place, places: u8) -> bool {
-    target != sender && target.0 < places
+/// names a place of the match, the sender's own too (its own drop: the
+/// owner, 2026-11-05).
+pub fn allowed(target: Place, places: u8) -> bool {
+    target.0 < places
 }
 
-/// Whether the server relays an input with these actions from `sender`: no
+/// Whether the server relays an input with these actions: no
 /// pickup, or an [`allowed`] one. The server drops any other as it drops an
 /// input with an impossible rotation (its owner told to drop it too), and the
 /// client never makes one.
-pub fn sane(actions: u32, sender: Place, places: u8) -> bool {
-    command(actions).is_none_or(|target| allowed(sender, target, places))
+pub fn sane(actions: u32, places: u8) -> bool {
+    command(actions).is_none_or(|target| allowed(target, places))
 }
 
 /// A player's own drop: the gun it held at its death (the owner,
@@ -557,14 +558,14 @@ pub enum Refusal {
 
 /// The rule of a pickup command (the owner's, `weapon_pickup.md`): a living
 /// picker with a gun of its two weapon slots in hands (its own or a picked
-/// one), an available drop of another place; the slot in hands takes the
+/// one), an available drop (its own place's too); the slot in hands takes the
 /// drop's gun (never the other slot), which the result names, as the carry
 /// rule allows beside the other slot's gun: with
 /// [`CarryRule::OneWeapon`] only a gun held in slot 7 with slot 10 empty,
 /// with [`CarryRule::OneDoubleHanded`] no double-handed gun beside another.
 /// `incoming` gives the drop's gun's handedness (asked only when the other
 /// slot holds a double-handed gun).
-pub fn decide(picker: Picker, target: Place, drop: Drop,
+pub fn decide(picker: Picker, drop: Drop,
               incoming: impl FnOnce(Recipe) -> Handedness) -> Result<WeaponSlot, Refusal> {
     if !picker.alive {
         return Err(Refusal::Dead);
@@ -574,9 +575,6 @@ pub fn decide(picker: Picker, target: Place, drop: Drop,
         Hands::Switching => return Err(Refusal::Switching),
         Hands::NoGun => return Err(Refusal::NoGunInHands),
     };
-    if target == picker.place {
-        return Err(Refusal::NotAvailable);
-    }
     let gun = drop.available().ok_or(Refusal::NotAvailable)?;
     match picker.rule {
         CarryRule::OneWeapon if own == WeaponSlot::Second || picker.other.is_some() => {
@@ -709,14 +707,14 @@ mod tests {
     #[test]
     fn the_server_and_the_client_check_alike() {
         let (me, other) = (Place::new(3).unwrap(), Place::new(5).unwrap());
-        assert!(allowed(me, other, 10));
-        assert!(!allowed(me, me, 10));
-        assert!(!allowed(me, other, 5));
-        assert!(sane(encode(0x1, other), me, 10));
-        assert!(!sane(encode(0x1, other), me, 5));
-        assert!(!sane(encode(0x1, me), me, 10));
-        assert!(sane(CHORD | 0x4000, me, 10), "a carry command");
-        assert!(sane(0x1, me, 10));
+        assert!(allowed(other, 10));
+        assert!(allowed(me, 10), "its own drop");
+        assert!(!allowed(other, 5));
+        assert!(sane(encode(0x1, other), 10));
+        assert!(!sane(encode(0x1, other), 5));
+        assert!(sane(encode(0x1, me), 10));
+        assert!(sane(CHORD | 0x4000, 10), "a carry command");
+        assert!(sane(0x1, 10));
     }
 
     #[test]
@@ -837,13 +835,15 @@ mod tests {
         let drop = Drop::Open(Dropped { recipe: Recipe { place: donor, kit, slot: WeaponSlot::First }, held: WeaponSlot::First,
                                         lying: Lying::OnBody });
         let rifle = |_| Handedness::Two;
-        assert_eq!(decide(picker, donor, drop, rifle), Ok(WeaponSlot::Second), "the slot in hands");
-        assert_eq!(decide(picker, donor, drop.taken(), rifle), Err(Refusal::NotAvailable));
-        assert_eq!(decide(picker, donor, Drop::None, rifle), Err(Refusal::NotAvailable), "its body gone");
-        assert_eq!(decide(picker, me, drop, rifle), Err(Refusal::NotAvailable));
-        assert_eq!(decide(Picker { alive: false, ..picker }, donor, drop, rifle), Err(Refusal::Dead));
-        assert_eq!(decide(Picker { hands: Hands::NoGun, ..picker }, donor, drop, rifle), Err(Refusal::NoGunInHands));
-        assert_eq!(decide(Picker { hands: Hands::Switching, ..picker }, donor, drop, rifle), Err(Refusal::Switching));
+        assert_eq!(decide(picker, drop, rifle), Ok(WeaponSlot::Second), "the slot in hands");
+        assert_eq!(decide(picker, drop.taken(), rifle), Err(Refusal::NotAvailable));
+        assert_eq!(decide(picker, Drop::None, rifle), Err(Refusal::NotAvailable), "its body gone");
+        let own = Drop::Open(Dropped { recipe: Recipe { place: me, kit, slot: WeaponSlot::First }, held: WeaponSlot::First,
+                                       lying: Lying::Alone });
+        assert_eq!(decide(picker, own, rifle), Ok(WeaponSlot::Second), "its own drop (the owner, 2026-11-05)");
+        assert_eq!(decide(Picker { alive: false, ..picker }, drop, rifle), Err(Refusal::Dead));
+        assert_eq!(decide(Picker { hands: Hands::NoGun, ..picker }, drop, rifle), Err(Refusal::NoGunInHands));
+        assert_eq!(decide(Picker { hands: Hands::Switching, ..picker }, drop, rifle), Err(Refusal::Switching));
     }
 
     #[test]
@@ -855,18 +855,17 @@ mod tests {
                                         lying: Lying::OnBody });
         let (rifle, pistol) = (|_| Handedness::Two, |_| Handedness::One);
         // Any gun for any gun: a rifle for the held pistol beside a pistol.
-        assert_eq!(decide(picker, donor, drop, rifle), Ok(WeaponSlot::Second));
+        assert_eq!(decide(picker, drop, rifle), Ok(WeaponSlot::Second));
         // Beside a rifle: a pistol yes, a rifle no, unless modifier 25.
         let beside = Picker { other: Some(Handedness::Two), ..picker };
-        assert!(decide(beside, donor, drop, pistol).is_ok());
-        assert_eq!(decide(beside, donor, drop, rifle), Err(Refusal::TwoDoubleHanded));
-        assert!(decide(Picker { rule: CarryRule::TwoDoubleHanded, ..beside }, donor, drop, rifle).is_ok());
+        assert!(decide(beside, drop, pistol).is_ok());
+        assert_eq!(decide(beside, drop, rifle), Err(Refusal::TwoDoubleHanded));
+        assert!(decide(Picker { rule: CarryRule::TwoDoubleHanded, ..beside }, drop, rifle).is_ok());
         // Modifier 64: slot 7 alone.
         let one = Picker { rule: CarryRule::OneWeapon, other: None, ..picker };
-        assert_eq!(decide(one, donor, drop, pistol), Err(Refusal::SecondWeaponDisabled));
-        assert!(decide(Picker { hands: Hands::Gun(WeaponSlot::First), ..one }, donor, drop, rifle).is_ok());
-        assert_eq!(decide(Picker { hands: Hands::Gun(WeaponSlot::First), other: Some(Handedness::One), ..one }, donor,
-                          drop, pistol), Err(Refusal::SecondWeaponDisabled));
+        assert_eq!(decide(one, drop, pistol), Err(Refusal::SecondWeaponDisabled));
+        assert!(decide(Picker { hands: Hands::Gun(WeaponSlot::First), ..one }, drop, rifle).is_ok());
+        assert_eq!(decide(Picker { hands: Hands::Gun(WeaponSlot::First), other: Some(Handedness::One), ..one }, drop, pistol), Err(Refusal::SecondWeaponDisabled));
         assert_eq!(CarryRule::from_modifiers(0.0, 0.0), CarryRule::OneDoubleHanded);
         assert_eq!(CarryRule::from_modifiers(0.0, 1.0), CarryRule::TwoDoubleHanded);
         assert_eq!(CarryRule::from_modifiers(1.0, 1.0), CarryRule::OneWeapon);
