@@ -230,7 +230,8 @@ environment variable `SKHID_CRASH_DUMP`.
 - **Full-memory dumps** (`SKHID_CRASH_DUMP=full`, any build; on Linux
   `SKHID_CRASH_DUMP=full bash Skhid.sh launcher`, which refuses any other
   value and lists the crash files at the end; on Windows `set
-  SKHID_CRASH_DUMP=full` in the `cmd` that starts `Skhid.bat`):
+  SKHID_CRASH_DUMP=full` in the `cmd` that starts `Skhid.bat`; the DLL
+  takes `full` in any case, with spaces around it, as `set` keeps them):
   `MiniDumpWithFullMemory | FullMemoryInfo | HandleData | ThreadInfo |
   UnloadedModules` (0x1826), no memory callback: the whole process memory,
   every heap object. About the game's committed memory (1–3 GB); kept as the
