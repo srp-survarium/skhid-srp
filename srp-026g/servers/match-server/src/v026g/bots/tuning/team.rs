@@ -176,9 +176,12 @@ impl Default for ModTuning {
             smoothing: 0.2,
             min: 0.1,
             max: 1.0,
-            team_plan: None,
-            behind_open: None,
-            raid_regroup: None,
+            // A296 items 2, 4 and 5 ON together (the owner: ship the intended design ON with a safety, then tune): their joint
+            // by-side bench from a 2-battery gap (112 pairs, 600 s) had the behind side's wins 22 vs 19, points +2.9 %, delivered
+            // +4.3 %, steals +25 %, the ahead side no worse (wins 80 vs 72), no guard FAIL.
+            team_plan: Some(TeamPlanRule::default()),
+            behind_open: Some(BehindOpen::default()),
+            raid_regroup: Some(RaidRegroup::default()),
         }
     }
 }
