@@ -157,23 +157,34 @@ impl<'t> Roster<'t> {
     }
 }
 
-/// The match's world core: the engine world's game's network client's match, none in the
-/// lobby (the client's match 0) or before the engine runs.
+/// The match's world core: the engine world's game's game world's match (a live or a replay
+/// match alike; never the network client's own field, which a replay client keeps elsewhere,
+/// ragdoll.md section 16), none in the lobby (the world's match 0) or before the engine runs.
 fn match_core() -> Option<raw::CoreWorld> {
-    // SAFETY: the image's engine world slot, the engine world, its game, the game's network
-    // client and its match are live while the game runs; each pointer is 0 when absent.
-    unsafe { Some(raw::image::engine_world().world()?.game()?.network_client()?.pvp_match()?.core()) }
+    // SAFETY: the image's engine world slot, the engine world, its game and the game's embedded
+    // world are live while the game runs, the match while the world holds it; each pointer is 0
+    // when absent.
+    unsafe { Some(raw::image::engine_world().world()?.game()?.world().pvp_match()?.core()) }
 }
 
-/// The shared copies a recipient takes of one kind and phase, in the order they come.
-#[derive(Clone, Copy, Default)]
+/// The shared copies a recipient takes of one kind and phase, in the order they are offered, as
+/// many as its room.
+#[derive(Clone, Copy)]
 struct Shared {
+    room: Room,
     copies: [Option<raw::Artefact>; Room::MOST as usize],
 }
 
 impl Shared {
-    fn push(&mut self, copy: raw::Artefact) {
-        if let Some(free) = self.copies.iter_mut().find(|copy| copy.is_none()) {
+    fn new(room: Room) -> Self {
+        Self { room, copies: [None; Room::MOST as usize] }
+    }
+
+    /// Takes `copy` if there is room for it.
+    fn offer(&mut self, copy: raw::Artefact) {
+        if self.room.take()
+            && let Some(free) = self.copies.iter_mut().find(|copy| copy.is_none())
+        {
             *free = Some(copy);
         }
     }
@@ -189,12 +200,12 @@ impl Shared {
 /// as many of each phase as the recipient's room after its own carried copies of the kind. A
 /// dead recipient gets none.
 fn shared(roster: &Roster<'_>, recipient: Player<'_>, kind: Kind) -> (Shared, Shared) {
-    let (mut passives, mut actives) = (Shared::default(), Shared::default());
     if !recipient.active() {
-        return (passives, actives);
+        let none = Shared::new(Room::NONE);
+        return (none, none);
     }
     let own = carried(recipient.get()).filter(|copy| copy.kind == kind && copy.state != State::Other).count();
-    let (mut passive_room, mut active_room) = (Room::after(own), Room::after(own));
+    let (mut passives, mut actives) = (Shared::new(Room::after(own)), Shared::new(Room::after(own)));
     for carrier in roster.iter() {
         if !carrier.active() || !carrier.ally(recipient) {
             continue;
@@ -207,11 +218,11 @@ fn shared(roster: &Roster<'_>, recipient: Player<'_>, kind: Kind) -> (Shared, Sh
             continue;
         }
         for copy in carried(carrier.get()).filter(|copy| copy.kind == kind) {
-            if passive && kind.gives(Phase::Passive, copy.state) && passive_room.take() {
-                passives.push(copy.at);
+            if passive && kind.gives(Phase::Passive, copy.state) {
+                passives.offer(copy.at);
             }
-            if active && kind.gives(Phase::Active, copy.state) && active_room.take() {
-                actives.push(copy.at);
+            if active && kind.gives(Phase::Active, copy.state) {
+                actives.offer(copy.at);
             }
         }
     }

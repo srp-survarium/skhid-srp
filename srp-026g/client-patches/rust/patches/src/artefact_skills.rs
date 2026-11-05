@@ -215,6 +215,8 @@ pub struct Room(u8);
 
 impl Room {
     pub const MOST: u8 = 4;
+    /// A recipient that takes none (a dead one).
+    pub const NONE: Room = Room(0);
 
     pub fn after(own: usize) -> Self {
         Self(usize::from(Self::MOST).saturating_sub(own) as u8)

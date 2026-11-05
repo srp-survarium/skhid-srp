@@ -9,7 +9,7 @@ Larkspur, a press, a repeated press and a key-up, and another kind's activation.
 game's Spring loader and its passive and active links and unlinks (0x311AD0, 0x311BC0, 0x311DA0,
 0x311D10) through patch 54, the reload modifier (13) by the game's getter, one and two Springs,
 the skill taken away between two links. Resonance and Cascade, one aura over a constructed match
-(its world core and roster, the engine world's game, network client and match for the getters):
+(its world core and roster; the engine world's game, its game world and match for the getters):
 the shared Springs through the game's getters (0x2D5AE0, the weighted 0x2D5BC0) on every Spring
 list and one other, beside the recipient's own Springs linked by the game; the shared Onyx through
 hit_by_type's protectors' path (0x32A020 .. 0x32A058), each compared with the game's own Onyx
@@ -24,7 +24,6 @@ Usage: python check_artefact_skills_026g.py ORIGINAL_EXE
 import struct
 import sys
 from unicorn.x86_const import *  # noqa: F403
-from unicorn import UC_PROT_ALL
 import patch_026g as base
 from unicorn import UC_HOOK_CODE
 from check_artefacts_026g import PLAYER, STACK, STOP, HOLDER_VT, DM, ENABLE_ACTIVE, KITS, SPRING, ONYX, Game, \
@@ -212,8 +211,7 @@ def check_spring(data):
 
 
 RESONANCE, CASCADE = 16, 256
-ENGINE_WORLD = 0x1F1D310    # the engine world's global: +2D0h its game, +53AC the client, +1F1C40h the match
-CLIENT = 0x31000000         # a network client (its match at +1F1C40h, 2 MiB in)
+ENGINE_WORLD = 0x1F1D310    # the engine world's global: +2D0h its game, +18h its game world, +4D4Ch its match
 WEIGHTED = 0x2D5BC0         # apply_modifiers (the kit's modifiers, &{begin, end} of {index, weight}, B), ret 0Ch
 SPRING_ACTIVE, LIFEBONE_ACTIVE_, ONYX_ACTIVE_ = 0x3118D0, 0x312250, 0x3128C0
 SPRING_LISTS = [4, 49, 3, 19, 42, 13]
@@ -225,18 +223,17 @@ SPRING_ACTIVE_NODES = {4: 0.1, 3: 5.0, 19: -5.0, 49: -0.1, 42: -1.0}
 
 class Match:
     """A match around the medical fixture's player (place 0, team 0, at the origin): the engine
-    world's chain to its world core (the getters' way to their kit's player), players at places
-    with their own inventories and holders, artefacts in their containers."""
+    world's chain (its game, the game's world, the world's match) to its world core, the getters'
+    way to their kit's player; players at places with their own inventories and holders,
+    artefacts in their containers."""
 
     def __init__(self, data, in_match=True):
         self.g = g = MedicalGame(data)
-        g.emu.mem_map(CLIENT, 0x200000, UC_PROT_ALL)
         if in_match:
-            world, game = g.block(0x300), g.block(0x5400)
-            g.word(ENGINE_WORLD, world)
-            g.word(world + 0x2D0, game)
-            g.word(game + 0x53AC, CLIENT)
-            g.word(CLIENT + 0x1F1C40, g.core - 0x1F8)
+            engine, game = g.block(0x300), g.block(0x5400)
+            g.word(ENGINE_WORLD, engine)
+            g.word(engine + 0x2D0, game)
+            g.word(game + 0x18 + 0x4D4C, g.core - 0x1F8)
         self.inventories = {}
         self.inventory(PLAYER)
 

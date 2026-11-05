@@ -493,6 +493,15 @@ impl Game {
     pub unsafe fn set_dictionary(self, value: Option<ItemsDictionary>) {
         unsafe { self.0.byte_add(0x53a4).cast::<Option<ItemsDictionary>>().write_volatile(value) }
     }
+
+    /// +0x18 (obj<survarium::game_world>): its game world, embedded: game::game 0x1E909F constructs it at +18h (game_world::game_world 0x1F67B0, the game its +9Ch); its match (+4D4Ch, a counted reference) is 0 from the constructor (0x1F68A2), set at 0x1F9766 and 0 again at 0x1F8B64, for a live and a replay match alike
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn world(self) -> GameWorld {
+        GameWorld(unsafe { self.0.byte_add(0x18) })
+    }
 }
 
 /// A survarium::network_client (fields_026g.tsv): a pointer to one, never 0. Made only here: by a typed field,
@@ -552,24 +561,6 @@ impl NetworkClient {
     #[inline(always)]
     pub unsafe fn set_options_holder(self, value: Option<MatchOptionsHolder>) {
         unsafe { self.0.byte_add(0x1f1c48).cast::<Option<MatchOptionsHolder>>().write_volatile(value) }
-    }
-
-    /// +0x1f1c40 (ptr<survarium::pvp_match>): the match's core wrapper, 0 without a match (tested at 0x27BECE, 0x27BFA9, 0x27C289): get_active_player 0x27A9C1 looks a place's player up in its +1F8h core (core_active_player 0x2D0AB0)
-    ///
-    /// # Safety
-    /// `self` is alive (its fields are its kind's: the type says so).
-    #[inline(always)]
-    pub unsafe fn pvp_match(self) -> Option<PvpMatch> {
-        unsafe { self.0.byte_add(0x1f1c40).cast::<Option<PvpMatch>>().read_volatile() }
-    }
-
-    /// +0x1f1c40 (ptr<survarium::pvp_match>): the match's core wrapper, 0 without a match (tested at 0x27BECE, 0x27BFA9, 0x27C289): get_active_player 0x27A9C1 looks a place's player up in its +1F8h core (core_active_player 0x2D0AB0)
-    ///
-    /// # Safety
-    /// `self` is alive (its fields are its kind's: the type says so).
-    #[inline(always)]
-    pub unsafe fn set_pvp_match(self, value: Option<PvpMatch>) {
-        unsafe { self.0.byte_add(0x1f1c40).cast::<Option<PvpMatch>>().write_volatile(value) }
     }
 }
 
