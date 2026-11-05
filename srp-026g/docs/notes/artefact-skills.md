@@ -59,10 +59,10 @@ preferred-image VAs; `apply_modifier` is the kit-modifier getter 0x2D5AE0.
   its wrapper 0x2D5B80 resolve to an index, none 40; `artefact_power_modifier` is referenced
   only by the two name tables (0x9284E8, 0x9C9C88); no config or edit list names it; no open
   PR uses it. 42 (`artefact_synergy`) is patch 54's stopping list, 43/45 the medical ranks.
-- Keeper's draw is not a skill rank: srp rolls it once per match and writes it into modifier
-  40 of every kit of every player, bots too, with the skill or not (bits 9..11: the draw 1..6,
-  0 none), so every game knows it at the map's load, before any Keeper player exists. The client makes it a kind
-  of those the map has: present[(draw - 1) % n], uniform for 1, 2 or 3 kinds (Keeper's PR).
+- Keeper's draw is not a skill rank: srp draws it once per match and writes it into modifier
+  40 of every kit of every player, bots too, with the skill or not (bits 9..11: the kind's draw,
+  1 Larkspur, 2 Onyx, 3 Spring; 4 the Sponge once it is on main; 0 none), so every game knows it
+  from the static info. The parser takes 1..6; a draw past the kinds gives nothing.
 - Bit 12 and above: nothing (a payload with one is refused).
 
 ## Concentration (501)
@@ -126,15 +126,58 @@ preferred-image VAs; `apply_modifier` is the kit-modifier getter 0x2D5AE0.
 
 ## Keeper of the Artifacts (521)
 
-- At a player's first spawn of the match, the kit it spawns with gets one artefact in its
-  first container slot, if it has a container (modifier 14 > 0). Lost at death like any other.
-- The kind: random, rolled once per match by srp at the match's start: every player of the
-  match with the skill gets the same kind, in every kit (the owner, 2026-11-05: "all kits with
-  containers receive the same type" is per match); written into the static info's kits
-  (Transport), so every game and every replay gives the same.
-- "First spawn" = the place has no death yet (the match statistics' deaths, already
-  serialized), so no new state (my pick: start of the match only, not every life).
-- Late joiners: their first spawn, as anyone's.
+- What it is for (the owner, 2026-11-05): now and then a player starts with an artefact "from
+  a different map", one the map's anomalies may not hold. So the kind is drawn over every kind
+  Keeper gives, never limited to the map's.
+- The rule (the owner, 2026-11-05): tier 3, one rank. One kind is drawn once per match; every
+  player of the match with the skill and a container gets one artefact of that kind, on its
+  first spawn of the match only (not after a death), in its first container.
+- The table: `crates/artefact-carry/src/keeper.rs` (`KINDS`, `POOL`), the one table srp draws
+  from and the game takes by: Larkspur (dict 54, artefact_lifebone), Onyx (76), Spring (74).
+  srp refuses game data whose dictionary names them otherwise.
+- srp (the match server's registry, `survarium::v026g::keeper`): one kind a match, uniform, drawn
+  when the match is made, kept with it and written into every kit of every profile, a late
+  joiner's too.
+- Where the artefact comes from: a hidden anomaly on every map (the owner's idea, 2026-11-05),
+  content edit `artefact-keeper-1.json` (made by `scripts/artefact-keeper/make_edit.py` from the
+  live projects): one more generic_anomaly_core in every project's client_objects (not the
+  lobby's), `srp/artefact_keeper/pool`, with
+  - a pool of 20 dormant artefacts of each kind (one a place: a gift only in a place's first
+    life, and one that comes back is dormant again), cooked by the map's own cook chain, so its
+    resources (the activation effect's at artefact +290h, the models) are there on every map,
+    level_08 too;
+  - no artefact container and a chance of 0: it never spawns one (spawn_artefact 0x31B6C0
+    returns without a container);
+  - energy off and one state at threshold 0 with no groups: no zone, nothing drawn, heard or
+    hit. The tick executes the selected state with no null check (0x31BCB0), so the state is
+    there; the config lookup has no end check, so the object has every key a real anomaly has.
+  - Its pool is cooked because `artefacts_enabled` is set (translate_query 0x2E9C70 cooks a pool
+    only then); position under the map, layer default.
+- Native from there: register_artefacts (0x31B8E0) gives the pool ids in the core world's
+  artefact vector after the map's own (85 of its 128 at most: level_03's 25 + 60); the anomaly
+  ticks its pool (vfn +74h each: cooldowns, state 5 on a dead holder) and its save (0x31AF20)
+  writes every pool artefact in every world; the inventory's save names the one a container
+  holds. Late join, resync and replay load it as any found artefact.
+- The gift (exe patch 109, `artefact_keeper.rs`): a hook at register_artefacts' entry keeps the
+  id range of the anomaly with no container (a load's first registration forgets the last
+  map's); the respawn rule's spawn, after the player is in the world (0x316EAB, every spawn in
+  every game and every replay of the tick), gives the player, when its kit has the Keeper bit,
+  its place has no death or suicide counted (the statistics, any kit; none before the start)
+  and its first container is empty, the lowest-id dormant artefact of the drawn kind of that
+  range: the count and cooldown a spawn gives one (0x3134C0), then the game's own take_artefact.
+- A kit switch before the start: the old kit's unload returns its gift to the pool (dormant);
+  the new kit gets one (my pick: "the kit it spawns with").
+- Death: as any artefact taken from an anomaly: state 5 on the body, back to the pool at the
+  respawn's unload; held in the hand, patch 78 drops it (state 6, anyone takes it). Never given
+  again after a death. Places are never reused, so a late joiner's first spawn gets one.
+- Costs: every world about 735 bytes more (the 60 dormant artefacts and the core, about +13 % of
+  a 5-6 KB world); 60 more artefact objects a match, the three kinds' models loaded on every
+  map; the edit list pins each project's client_objects count (a map change in between: run
+  `make_edit.py` again).
+- Checks: `client-patches/check_artefact_keeper_026g.py` (Unicorn: registration, the gift, the
+  refusals, a new load, a late joiner's ids and container read), `crates/mapdata/tests/
+  artefact_keeper.rs` (the edit list against the table, the anomaly as a map object),
+  `survarium::v026g::keeper` and the registry test (the draw in every kit, a late joiner's too).
 
 ## Spring II (531)
 
