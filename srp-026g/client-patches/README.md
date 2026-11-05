@@ -4156,8 +4156,13 @@ game_world_core::serialize.
 - hash(): 0x325176 `mov eax,8000h` and 0x32519D `mov dword [ebp-0Ch],8000h`
   (the stack allocation and the buffer's capacity) become 0xF000 (every full
   build): what the upload's u16 total holds, 128 chunks. The upload's own
-  buffer (`snapshot_upload_026g.asm` `BUFFER_SIZE`) is 0xF000 too. The game
-  thread's stack is 8 MiB; on_hash_mismatch takes 0x10000 bytes of it.
+  buffer (`snapshot_upload_026g.asm` `BUFFER_SIZE`) is 0xF000 too, and so is
+  the 0xE8 handler's unpack buffer (0x27C059 and 0x27C07C, the same two
+  immediates), so the server keeps every world packed
+  (`COMPRESSED_SNAPSHOT_BUFFER`): a raw world past 0x8000 bytes would be some
+  100 parts, each holding one of the client's 256 pool packets until it
+  completes. The game thread's stack is 8 MiB; on_hash_mismatch takes
+  0x10000 bytes of it.
 - The sections (with the late join): a jump at the end of
   `game_state_history_item::construct` (0x3246C0, its last store) to
   `world_sections_026g.asm`, which gives each of the six world sections'
@@ -4175,9 +4180,12 @@ game_world_core::serialize.
 Worlds are byte-identical: nothing a match computes changes, no row in
 `../crates/session/src/v026g/simulation_changes.tsv`. What stays: a world
 over 0xF000 bytes (some 550 bullets with twenty players), a player state
-over its inline 0x1000 (none past 0x3A8 seen), and a packed 0xE8 world over
-0x8000 (the server sends such a world raw). `../docs/notes/client_patch.md`
+over its inline 0x1000 (none past 0x3A8 seen), and the objects item's
+second, unserialized buffer (inline 0x2000 at 0xBDF58, which
+game_world_core::serialize fills each tick). `../docs/notes/client_patch.md`
 section 3.62 has the evidence. `check_world_sections_026g.py` runs the
 constructor, the sections' writers, hash, deserialize and destroy of both
 exes on made-up items: the rev47 world (0x818A bytes), 300 bullets with
-twenty players, and a world over 0xF000. **Not run in a game.**
+twenty players, a world over 0xF000, and a packed 0xE8 of a 0xA014-byte
+world through the whole handler with the game's own decoder. **Not run in a
+game.**

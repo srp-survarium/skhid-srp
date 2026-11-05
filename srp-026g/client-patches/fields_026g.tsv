@@ -364,7 +364,7 @@ vostok::input::key_state	size	0x4	size	a key's state is a u32 (is_key_down 0x3B8
 survarium::image	keyboard_vtable	0xA25478	u32	vostok::input::platform::keyboard's vtable (its ctor 0x3B8BDC writes it; slot 0 is_key_down 0x3B8D00)
 vostok::mutable_buffer	begin	0x4	ptr<u8>	a growable buffer of bytes {allocator, begin, capacity, size} (mutable_buffer::resize 0x7AB30 reads +8h, writes +0Ch; with a null allocator reallocate 0x7AB70 asserts): the first byte
 vostok::mutable_buffer	size	0xC	u32	the bytes used, from begin
-survarium::dynamic_info_frame	unpacked	-0x24	obj<vostok::mutable_buffer>	process_dynamic_match_info's buffer of an unpacked world (by EBP; on the 0x8000 stack bytes it takes at 0x27C05E, its allocator null, 0x27C06D..0x27C084; sized by resize at 0x27C0A8)
+survarium::dynamic_info_frame	unpacked	-0x24	obj<vostok::mutable_buffer>	process_dynamic_match_info's buffer of an unpacked world (by EBP; on the 0xF000 stack bytes it takes at 0x27C05E (0x8000 in the original exe; patch 98), its allocator null, 0x27C06D..0x27C084; sized by resize at 0x27C0A8)
 survarium::translate_query_frame	upgrades	0x40	ptr<survarium::upgrade_records>	item_config_cook::translate_query's [ebp+40h]: the item's upgrades' buffer_vector (0x2F2060 copies the query's +10h there), read at 0x2F1799 (the records' count) and 0x2F18D0 (each record) only
 survarium::translate_query_frame	dictionary	0x44	ptr<survarium::items_dictionary>	[ebp+44h]: the items dictionary each record's dict id is looked up in (0x2F18E0, item_by_id 0x1F0090; a null entry is read at 0x2F18ED)
 survarium::items_dictionary	entries	0x130	ptr<survarium::item_entry>	the entries, 3A0h bytes each (item_by_id 0x1F0090; +0 the u16 dict id, 0x1F00D4)

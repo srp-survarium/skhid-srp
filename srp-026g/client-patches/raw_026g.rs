@@ -8016,7 +8016,7 @@ impl DynamicInfoFrame {
         self.0.as_ptr() as usize as u32
     }
 
-    /// -0x24 (obj<vostok::mutable_buffer>): process_dynamic_match_info's buffer of an unpacked world (by EBP; on the 0x8000 stack bytes it takes at 0x27C05E, its allocator null, 0x27C06D..0x27C084; sized by resize at 0x27C0A8)
+    /// -0x24 (obj<vostok::mutable_buffer>): process_dynamic_match_info's buffer of an unpacked world (by EBP; on the 0xF000 stack bytes it takes at 0x27C05E (0x8000 in the original exe; patch 98), its allocator null, 0x27C06D..0x27C084; sized by resize at 0x27C0A8)
     ///
     /// # Safety
     /// `self` is alive (its fields are its kind's: the type says so).

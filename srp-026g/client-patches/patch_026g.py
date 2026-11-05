@@ -149,7 +149,8 @@ Patches:
 - a world up to 0xF000 bytes is hashed (patch 98, client_patch.md section
   3.62): game_state_history_item::hash (0x325150) serializes it into a stack
   buffer of 0x8000 bytes with no allocator (0x325176, 0x32519D), and a
-  10v10 match's world passed it; and, with the late join, the history item's
+  10v10 match's world passed it; the 0xE8 handler's unpack buffer the same
+  (0x27C059, 0x27C07C); and, with the late join, the history item's
   six world sections (inline 0x800 to 0x4000 bytes, the bullets' 0x2400) grow
   on the heap (world_sections_026g.asm, the block world_sections.code);
 - the patch revision in the sign-in (sign_in_on_connected 0x3807D0). The
@@ -641,6 +642,17 @@ WORLD_BUFFER_SIZE = 0xF000
 WORLD_BUFFER = (
     (0x325176, bytes.fromhex("b800800000"), b"\xb8" + struct.pack("<I", WORLD_BUFFER_SIZE)),
     (0x32519D, bytes.fromhex("c745f400800000"), bytes.fromhex("c745f4") + struct.pack("<I", WORLD_BUFFER_SIZE)),
+)
+# The 0xE8 handler (process_dynamic_match_info 0x27BFF0) unpacks a packed
+# world into a stack buffer of the same kind: `mov eax,8000h` / call
+# _alloca_probe_16 at 0x27C059, and `mov eax,8000h` at 0x27C07C, the
+# capacity it gives the codec's decompress ([ebp-0Ch]) and the
+# mutable_buffer ([ebp-1Ch]). Both 0xF000 too, so the server keeps every
+# world packed (COMPRESSED_SNAPSHOT_BUFFER): a raw world of 0x8000 bytes or
+# more is 66 to 123 parts, each holding a pool packet until it completes.
+WORLD_UNPACK = (
+    (0x27C059, bytes.fromhex("b800800000"), b"\xb8" + struct.pack("<I", WORLD_BUFFER_SIZE)),
+    (0x27C07C, bytes.fromhex("b800800000"), b"\xb8" + struct.pack("<I", WORLD_BUFFER_SIZE)),
 )
 
 # sign_in_on_connected 0x3807D0 builds the 12-byte version field of the first
@@ -3259,7 +3271,7 @@ def build_image(original, mode, code=None, server=None, late_join=None, revision
     patch(data, *HASH_INTERVAL)
     rewritten = [(HASH_INTERVAL_BYTE_VA, HASH_INTERVAL_BYTE_VA + 1),
                  (MEMORY_CHECK[0], MEMORY_CHECK[0] + 1)]
-    for site in WORLD_BUFFER:
+    for site in WORLD_BUFFER + WORLD_UNPACK:
         patch(data, *site)
         rewritten.append((site[0], site[0] + len(site[1])))
     patch(data, *revision_site(revision))
@@ -3787,7 +3799,7 @@ def build_image(original, mode, code=None, server=None, late_join=None, revision
     headers = Headers(data)
     struct.pack_into("<I", data, headers.checksum_at, pe_checksum(data, headers.checksum_at))
     return data, (f"certificate check, mutex, minimum VRAM check, hash interval {HASH_INTERVAL_MS} ms, "
-                  f"a world of {WORLD_BUFFER_SIZE:#x} bytes hashed, "
+                  f"a world of {WORLD_BUFFER_SIZE:#x} bytes hashed and unpacked, "
                   f"patch revision {revision}, battery rule, mount without a root, no journal by default, "
                   "stage.focus null for a focused object without its ActionScript object, "
                   f"{upload_size} bytes of upload code {where} "

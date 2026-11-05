@@ -120,6 +120,8 @@ use world_frame::{Frame, Places};
 const _: () = assert!(
     survarium::v026g::match_msgs::upload::MAX_TOTAL == world_frame::MAX_BODY
         && udp_transport::wire::MAX_SNAPSHOT_TOTAL == world_frame::MAX_BODY
+        && survarium::v026g::match_msgs::client_model::COMPRESSED_SNAPSHOT_BUFFER
+            == world_frame::MAX_BODY
 );
 
 use super::battery_cap;

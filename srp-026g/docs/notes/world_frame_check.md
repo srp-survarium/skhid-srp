@@ -8,7 +8,7 @@ own fixed limits, which no world a game made can fail. Written 2026-10-31.
 ## What a game does with a world
 
 - The 0xE8 handler (`network_client::process_dynamic_match_info` 0x27BFF0) takes the generation
-  and the flag, unpacks a packed world into 0x8000 bytes of its stack (0x27C059..0x27C0A8), and
+  and the flag, unpacks a packed world into 0x8000 bytes of its stack (0x27C059..0x27C0A8; 0xF000 since patch 98), and
   hands the world, its time (u32) then the body, to `game_world_core::deserialize` 0x2D0B70: at
   0x27C0D9 (unpacked) and 0x27C111 (raw). PROVEN.
 - Nothing checks the body before `game_state_history_item::deserialize` 0x324D80 reads it. Its

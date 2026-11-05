@@ -27,12 +27,20 @@ on one game_state_history_item (0xC0BCC bytes) of each exe:
 - game_state_history_item::destroy (0x324910): every block freed with the
   allocator (call_free 0xEB5B0, a stub), none twice, none left;
 - a world over 0xF000 bytes: the build's hash() asserts as the original's
-  did past 0x8000 (the limit that stays; patch 87 refuses such a world).
+  did past 0x8000 (the limit that stays; patch 87 refuses such a world);
+- a packed 0xE8 of a world over 0x8000 bytes (the server's LZMA2, liblzma,
+  dictionary 0x8000) through the 0xE8 handler (process_dynamic_match_info
+  0x27BFF0) from its entry, the game's own codec (0x357EB0, Lzma2Decode
+  0x3EE810; its allocator a stub) and, in the build, patch 87's check, to the
+  load (game_world_core::deserialize 0x2D0B70, a stub that records its
+  reader): the build loads the whole world; the original's decode stops at
+  its 0x8000 bytes and it loads the world cut short.
 
 An assert is mutable_buffer::reallocate (0x7AB70) reached with no allocator
 (its "mutable buffer overflow"): the run stops there.
 """
 import argparse
+import lzma
 import struct
 import sys
 import zlib
@@ -177,6 +185,76 @@ class Run:
         return self.call(DESERIALIZE, {}, (item, reader))
 
 
+HANDLER, LOAD, EPILOGUE, CLOSE = 0x27BFF0, 0x2D0B70, 0x27C1E0, 0x27A790
+CODEC_VTABLE = 0x9FAFF4                  # the LZMA2 codec (network_client+4Ch)
+IMPORTS = (0x870048, 0x870108, 0x870040)  # CreateFileA, WriteFile, CloseHandle (patch 87's log)
+CLIENT, GAME, FAKE = 0x45000000, 0x45400000, 0x45500000
+
+
+def unpack(run, packet):
+    """The 0xE8 handler on `packet` (generation, flag, stream): the state
+    the load got, or what stopped it."""
+    emu = run.emu
+    if not getattr(run, "handler_ready", False):
+        for at, size in ((CLIENT, 0x200000), (GAME, 0x100000), (FAKE, 0x10000)):
+            emu.mem_map(at, size, UC_PROT_ALL)
+        vtable, stubs = FAKE + 0x100, FAKE + 0x200
+        run.word(FAKE, vtable)
+        for slot, stub in ((0x10, stubs), (0x18, stubs + 0x10)):
+            run.word(vtable + slot, stub)
+        for i, slot in enumerate(IMPORTS):
+            run.word(slot, stubs + 0x20 + 0x10 * i)
+        run.unpack_stubs = {stubs: ("malloc", 20), stubs + 0x10: ("free", 16), stubs + 0x20: ("create", 28),
+                            stubs + 0x30: ("write", 20), stubs + 0x40: ("close", 4), CLOSE: ("leave", 4)}
+
+        def stub(emu, address, size, _):
+            what, pops = run.unpack_stubs[address]
+            sp = emu.reg_read(UC_X86_REG_ESP)
+            arg = run.read(sp + 4)
+            result = 1
+            if what == "malloc":
+                result = run.heap
+                run.heap += (arg + 0xF) & ~0xF
+            elif what == "write":
+                run.word(run.read(sp + 16), run.read(sp + 12))
+            elif what == "leave":
+                run.left = True
+            emu.reg_write(UC_X86_REG_EAX, result)
+            emu.reg_write(UC_X86_REG_ESP, sp + 4 + pops)
+            emu.reg_write(UC_X86_REG_EIP, run.read(sp))
+
+        def stop(emu, address, size, _):
+            run.stopped = address
+            if address == LOAD:
+                reader = run.read(emu.reg_read(UC_X86_REG_ESP) + 8)
+                begin, cursor, length = (run.read(reader + 4 * i) for i in range(3))
+                run.loaded = bytes(emu.mem_read(begin, length))
+            emu.emu_stop()
+
+        for address in run.unpack_stubs:
+            emu.hook_add(UC_HOOK_CODE, stub, begin=address, end=address)
+        for address in (LOAD, EPILOGUE):
+            emu.hook_add(UC_HOOK_CODE, stop, begin=address, end=address)
+        run.handler_ready = True
+    emu.mem_write(CLIENT, bytes(0x200000))
+    run.word(CLIENT + 0x1F1C40, GAME)
+    run.word(CLIENT + 0x4C, CODEC_VTABLE)
+    run.word(CLIENT + 0x4C + 4, FAKE)
+    emu.mem_write(CLIENT + 0x4C + 0x18, bytes([6]))      # the property byte of 0x8000 (0x357DD0)
+    reader = DATA + 0xF300
+    emu.mem_write(DATA + 0x20000, packet)
+    for i, value in enumerate((DATA + 0x20000, DATA + 0x20000, len(packet))):
+        run.word(reader + 4 * i, value)
+    run.stopped, run.loaded, run.left = None, None, False
+    sp = STACK + STACK_ROOM - 0x100
+    run.word(sp, STOP)
+    for reg, value in ((UC_X86_REG_EAX, reader), (UC_X86_REG_ECX, CLIENT), (UC_X86_REG_ESP, sp),
+                       (UC_X86_REG_EBX, 0), (UC_X86_REG_ESI, 0), (UC_X86_REG_EDI, 0), (UC_X86_REG_EBP, 0)):
+        emu.reg_write(reg, value)
+    emu.emu_start(HANDLER, STOP, count=200_000_000)
+    return run.loaded, run.stopped, run.left
+
+
 def body(states, sections):
     out = struct.pack("<I", (1 << len(states)) - 1)
     for state in states:
@@ -275,6 +353,21 @@ def main():
         for run in (stock, ours):
             run.call(DESTROY, {}, (item,))
         check(not ours.blocks, "destroy frees every block, none left")
+    # A packed 0xE8 of a world past the original's 0x8000 bytes: no players
+    # (patch 87's check and the pickup's preparation have nothing to cook),
+    # the bullets of some 600 pellets.
+    world = struct.pack("<I", 1000) + body([], [bytes((i * 7 + i // 300) & 0xFF for i in range(0xA000)),
+                                                 b"", b"", b"", b"", b""])
+    stream = lzma.compress(world, format=lzma.FORMAT_RAW,
+                           filters=[{"id": lzma.FILTER_LZMA2, "dict_size": 0x8000, "preset": 3}])
+    packet = bytes([1, 1]) + stream
+    print(f"a packed 0xE8 of a world of {len(world):#x} bytes ({len(stream)} bytes packed)")
+    loaded, stopped, left = unpack(ours, packet)
+    check(stopped == LOAD and loaded == world and not left,
+          "the build unpacks it whole and loads it")
+    loaded, stopped, left = unpack(stock, packet)
+    check(stopped == LOAD and loaded is not None and len(loaded) == 0x8000 and loaded == world[:0x8000],
+          f"the original's decode stops at its 0x8000 bytes: it loads {len(loaded or b''):#x} bytes of the world")
     print("all cases passed" if not failed else f"{len(failed)} FAILED")
     sys.exit(1 if failed else 0)
 
