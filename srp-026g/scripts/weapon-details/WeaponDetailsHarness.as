@@ -111,6 +111,13 @@ package {
   }
   private function mps(t:Object,n:int):String {return t.st_srp_unit_mps.split("%1$s").join(String(n));}
   // The value colours of every detail row labelled `label`.
+  // The first detail row's label field labelled `text`, in global coordinates (its x).
+  private function label(card:Object,text:String):Point {
+   var view:Object=detailsView(card);
+   for(var i:int=0;i<view.numChildren;i++){var e:Object=view.getChildAt(i);
+    if(!(e is Caption) && e.indicator.textFieldLabel.text==text){var f:TextField=e.indicator.textFieldLabel;return f.parent.localToGlobal(new Point(f.x,f.y));}}
+   throw new Error("missing stat: "+text);
+  }
   private function colours(card:Object,label:String):Array {
    var view:Object=detailsView(card),out:Array=[];
    for(var i:int=0;i<view.numChildren;i++){var e:Object=view.getChildAt(i);if(!(e is Caption) && e.indicator.textFieldLabel.text==label)out.push(e.indicator.textFieldValue.textColor);}
@@ -131,14 +138,17 @@ package {
     require(card.indexOf(t.st_srp_inv_bullet_speed+": "+mps(t,920)+"\n")>=0,"the best speed (7N10): "+language);
     require(overflows(cards[0],language).length==0 && overflows(cards[1],language).length==0,"pierce line fits: "+language+" "+overflows(cards[0],language));
     aligned();
-    // Held Shift: each round's under each line, beside a weapon of one round padded with dashes.
+    // Held Shift, first: each stat a round changes as a header over its rounds, bulleted and
+    // indented; beside a weapon of one round padded with dashes.
     Scene.isShift=true;shows(item(false),item(true));
     card=text(cards[0]);
-    for each(var r:Array in [["7N22",880,81],["7N10",920,68],["7N6M",900,52]]){
-     require(card.indexOf("\n"+r[0]+": "+mps(t,r[1])+"\n")>0,"a round's speed: "+language+" "+r[0]);
-     require(card.indexOf("\n"+r[0]+": "+pierceText(t,"concrete",r[2])+"\n")>0,"a round's material: "+language+" "+r[0]);
-    }
-    require(text(cards[1]).split("\n").filter(function(l:String,...rest):Boolean{return l==" : –";}).length==4,"dashes beside three rounds: "+text(cards[1]).split("\n").join("|"));
+    var groups:String="Damage: \n• 7N22: 34\n• 7N10: 34\n• 7N6M: 34\n"+
+     "Armor penetration: \n• 7N22: 42\n• 7N10: 39\n• 7N6M: 35\n"+
+     t.st_srp_inv_bullet_speed+": \n• 7N22: "+mps(t,880)+"\n• 7N10: "+mps(t,920)+"\n• 7N6M: "+mps(t,900)+"\n"+
+     t.st_srp_inv_material_pierce+": \n• 7N22: "+pierceText(t,"concrete",81)+"\n• 7N10: "+pierceText(t,"concrete",68)+"\n• 7N6M: "+pierceText(t,"concrete",52)+"\n";
+    require(card.indexOf(t.st_srp_weapon_stats+"\n"+groups)==0,"the groups first, headers without values: "+language+" "+card.split("\n").join("|"));
+    require(text(cards[1]).split("\n").filter(function(l:String,...rest):Boolean{return l=="•: –";}).length==8,"dashes beside three rounds: "+text(cards[1]).split("\n").join("|"));
+    require(label(cards[0],"• 7N22").x>label(cards[0],t.st_srp_inv_bullet_speed).x+8,"a round steps in under its stat: "+language);
     require(overflows(cards[0],language).length==0 && overflows(cards[1],language).length==0,"round rows fit: "+language+" "+overflows(cards[0],language));
     require(cards[0].height<900,"the card with each round's rows fits: "+language+" "+cards[0].height);
     aligned();
@@ -153,8 +163,8 @@ package {
    // Held Shift, each round's rows are neutral.
    Scene.isShift=true;shows(item(false),weapon(2400,"MP-443"));
    for each(var name:String in ["7N22","7N10","7N6M"]){
-    var cs:Array=colours(cards[0],name);
-    require(cs.length==2 && cs[0]==NEUTRAL && cs[1]==NEUTRAL,"a round's rows are neutral: "+name+" "+cs);
+    var cs:Array=colours(cards[0],"\u2022 "+name);
+    require(cs.length==4 && cs.every(function(c:uint,...rest):Boolean{return c==NEUTRAL;}),"a round's rows are neutral: "+name+" "+cs);
    }
    Scene.isShift=false;
    // The harder material wins over more damage kept: the VSSK's VPS (stone, 36 %) over PT (concrete, 100 %).
@@ -638,7 +648,10 @@ package {
        require(!row[name].text.length || (actual.font==expected.font && actual.size==expected.size && actual.bold==expected.bold && actual.align==expected.align),"original typography: "+name+" '"+row[name].text+"' got="+[actual.font,actual.size,actual.bold,actual.align]+" expected="+[expected.font,expected.size,expected.bold,expected.align]);
        // A value's right edge (a wide changed value held Alt grows to its left).
        var edge:Function=function(f:TextField):Number{return f.parent.localToGlobal(new Point(f.x+(name=="textFieldValue"?f.width:0),f.y)).x;};
-       require(Math.abs(edge(row[name])-edge(original[name]))<.2,"original column alignment: "+name+" '"+row[name].text+"'");
+       // A round under a stat (held Shift: "• 7N22") steps its label in by the view's indent.
+       var stepped:Number=name=="textFieldLabel" && row[name].text.charAt(0)=="•"?
+        row[name].parent.localToGlobal(new Point(Object(DetailsView).SUBROW_INDENT,0)).x-row[name].parent.localToGlobal(new Point(0,0)).x:0;
+       require(Math.abs(edge(row[name])-edge(original[name])-stepped)<.2,"original column alignment: "+name+" '"+row[name].text+"' "+[edge(row[name]),edge(original[name]),stepped,row[name].x,original[name].x]);
        require(Math.abs(row[name].transform.concatenatedMatrix.a-original[name].transform.concatenatedMatrix.a)<.001 && Math.abs(row[name].transform.concatenatedMatrix.d-original[name].transform.concatenatedMatrix.d)<.001,"original text scale: "+name);
       }
       require(row.textFieldLabel.textColor==original.textFieldLabel.textColor,"original label color");
@@ -647,7 +660,9 @@ package {
       // The native stride, or whole strides more where the compared card's row wraps.
       if(j+1<child.numChildren && !(child.getChildAt(j+1) is Caption) && row.textFieldLabel.numLines==1){
        var stride:Number=card.itemCompare.diff_2.y-card.itemCompare.diff_1.y,step:Number=(child.getChildAt(j+1).y-child.getChildAt(j).y)/stride;
-       require(step>=1-.01 && Math.abs(step-Math.round(step))<.01,"original row spacing");
+       // A round under a stat ("• 7N22", held Shift) takes SUBROW_STRIDE of a row.
+       if(row.textFieldLabel.text.charAt(0)=="•")step/=Object(DetailsView).SUBROW_STRIDE;
+       require(step>=1-.01 && Math.abs(step-Math.round(step))<.01,"original row spacing: "+row.textFieldLabel.text+" "+step);
       }
      }
     }
@@ -672,6 +687,8 @@ package {
     var below:Boolean=value.y>label.y+1;
     var align:String=value.getTextFormat().align,valueStart:Number=value.x;
     if(below)valueStart+=value.width+6;
+    // A row without a value (a stat's header over its rounds, held Shift): the label has the row.
+    else if(!value.text.length)valueStart+=value.width+6;
     else if(align==TextFormatAlign.RIGHT)valueStart+=value.width-value.textWidth-4;
     else if(align==TextFormatAlign.CENTER)valueStart+=(value.width-value.textWidth)/2-2;
     if(label.numLines!=1 || label.x+label.textWidth*(1+FIT_MARGIN)+6>valueStart)misses.push(language+": '"+label.text+"' "+Math.round(label.textWidth)+"/"+Math.round(valueStart-label.x-6)+(label.numLines!=1?" ("+label.numLines+" lines)":"")+(below?" (value below)":""));

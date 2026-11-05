@@ -13,6 +13,11 @@ package survarium.item
    public final class ItemDetailsView extends Sprite
    {
       private var contentHeight:Number = 0;
+      // How far a row under a stat (entry.child) steps its label in, in the row's units.
+      public static const SUBROW_INDENT:Number = 16;
+      // The part of a row's height a row under a stat takes (the rounds held Shift: twelve for a
+      // weapon of three, and the card still fits the screen).
+      public static const SUBROW_STRIDE:Number = 0.8;
       override public function get height() : Number { return contentHeight; }
       public function ItemDetailsView()
       {
@@ -94,13 +99,16 @@ package survarium.item
             else row.value = row.compare = 0;
             row.setDetailText(entry.label,entry.value,entry.verdict);
             row.validateNow();
+            // A row under a stat (a round under Bullet speed, held Shift: child) steps its label in, its
+            // value where it was; after the first layout, which puts the label at the native column.
+            if(entry.child) stepIn(row);
             var lines:int = row.detailLines;
             // Both cards reserve the larger label height for a compared row.
             // Different falloff distances can wrap differently in translation.
             // Held Alt, a wider value ("base -> in a match") leaves its label less room, too.
             if(compared != null && (compared.label != entry.label || effects != null && compared.value != entry.value))
                lines = Math.max(lines,linesOf(compared));
-            nextY += stride * Math.max(1,lines);
+            nextY += stride * Math.max(1,lines) * (entry.child ? SUBROW_STRIDE : 1);
          }
          contentHeight = nextY * scaleY;
       }
@@ -112,9 +120,17 @@ package survarium.item
          addChild(probe);
          probe.indicator.setDetailText(entry.label,entry.value);
          probe.indicator.validateNow();
+         if(entry.child) stepIn(probe.indicator);
          var lines:int = probe.indicator.detailLines;
          removeChild(probe);
          return lines;
+      }
+
+      // A row's label SUBROW_INDENT to the right, as wide less that: it ends where it did.
+      private static function stepIn(row:LabelDiffIndicator) : void
+      {
+         row.textFieldLabel.x += SUBROW_INDENT;
+         row.textFieldLabel.width = Math.max(1,row.textFieldLabel.width - SUBROW_INDENT);
       }
    }
 }

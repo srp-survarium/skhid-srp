@@ -2,6 +2,7 @@ package survarium.item
 {
    import survarium.data.ItemDescriptor;
    import survarium.data.LocalizationData;
+   import survarium.data.PropertiesDescriptor;
    import survarium.player.MatchEffects;
 
    // Read-only weapon stats from weapon-details-ui-1.json. These are not item
@@ -22,6 +23,8 @@ package survarium.item
       // without its line; pierce (PierceLine.forWeapon, null without one)}.
       private var rounds:Array = [];
       private static const DAMAGE:int = 1, ARP:int = 3, ROUND_DAMAGE:int = 21, ROUND_ARP:int = 22, SPEED:int = 163;
+      // Its own card lines 1 (damage x100) and 3 (armour piercing x100), NaN without them.
+      private var damage:Number = NaN, arp:Number = NaN;
       public function WeaponDetails(data:Object) { values = data; }
       // The weapon's stats with its modifications; with effects (held Alt), as a match has them
       // with the kit and the skills too.
@@ -31,6 +34,8 @@ package survarium.item
          var details:WeaponDetails = fromProperties(item.properties);
          if(details == null) return null;
          details.rounds = roundsOf(item.dictId);
+         details.damage = line(item.properties,DAMAGE);
+         details.arp = line(item.properties,ARP);
          if(effects != null) details.base = copy(details.values);
          details.applyWeaponModifiers(item.modifiers);
          if(effects != null) for(var id:String in details.values) details.values[id] = effects.stat(item,int(id),details.values[id]);
@@ -181,44 +186,58 @@ package survarium.item
          result.push({kind:"stat",id:CHAMBER,label:label,value:value,verdict:verdictOf(before,values[CHAMBER],"lower"),
             comparison:{kind:"lower",value:Number(modified)}});
       }
-      // A detail row of its best round (by `score`, higher is better), compared as the card's other
-      // rows; a dash beside a compared weapon that has it. Held Shift, under it each round's (its
-      // name, its value), neutral, the shorter list of the two cards padded with dashes so their rows
-      // stay aligned.
-      private function roundStat(result:Array, other:WeaponDetails, expanded:Boolean, id:int, key:String,
-         has:Function, text:Function, score:Function) : void
+      // The stats a round changes: [the row's id, its label, has (which rounds have it), text, score
+      // (higher is better)]. Damage and armour piercing as the native bars show them with that
+      // round (the weapon's own card number x the round's k, whole), bullet speed the round's, the
+      // material and damage kept PierceLine's (the harder material, then the more damage kept).
+      private function roundStats() : Array
       {
-         var mine:Array = roundsWith(has), theirs:Array = other == null ? [] : other.roundsWith(has);
+         var names:PropertiesDescriptor = PropertiesDescriptor.getPropertiesDescriptor("properties");
+         var whole:Function = function(n:Number):String { return MatchEffects.fixed(Math.round(n),0); };
+         return [
+            [DAMAGE,names.getPropertyDescription(DAMAGE).prop_name,
+               function(round:Object):Boolean { return !isNaN(damage * round.damage); },
+               function(round:Object):String { return whole(damage * round.damage); },
+               function(round:Object):Number { return damage * round.damage; }],
+            [ARP,names.getPropertyDescription(ARP).prop_name,
+               function(round:Object):Boolean { return !isNaN(arp * round.arp); },
+               function(round:Object):String { return whole(arp * round.arp); },
+               function(round:Object):Number { return arp * round.arp; }],
+            [SPEED,LocalizationData.getName("st_srp_inv_bullet_speed"),
+               function(round:Object):Boolean { return !isNaN(round.speed); },
+               function(round:Object):String { return LocalizationData.format("st_srp_unit_mps",MatchEffects.fixed(round.speed,0)); },
+               function(round:Object):Number { return round.speed; }],
+            [PierceLine.ID,LocalizationData.getName("st_srp_inv_material_pierce"),
+               function(round:Object):Boolean { return round.pierce != null; },
+               function(round:Object):String { return PierceLine.text(round.pierce); },
+               function(round:Object):Number { return PierceLine.score(round.pierce); }]];
+      }
+      // The card's row of a stat a round changes (roundStats): its best round's value, compared
+      // as the card's other rows; a dash beside a compared weapon that has it.
+      private function bestRound(result:Array, other:WeaponDetails, stat:Array) : void
+      {
+         var mine:Array = roundsWith(stat[2]), theirs:Array = other == null ? [] : other.roundsWith(stat[2]);
          if(!mine.length && !theirs.length) return;
-         var label:String = LocalizationData.getName(key);
-         if(!mine.length) result.push({kind:"stat",id:id,label:label,value:"–",comparison:{kind:"neutral"}});
-         else
+         if(!mine.length)
          {
-            var best:Object = mine[0];
-            for each(var round:Object in mine) if(score(round) > score(best)) best = round;
-            result.push({kind:"stat",id:id,label:label,value:text(best),comparison:{kind:"higher",value:score(best)}});
+            result.push({kind:"stat",id:stat[0],label:stat[1],value:"–",comparison:{kind:"neutral"}});
+            return;
          }
-         if(!expanded) return;
+         var best:Object = mine[0];
+         for each(var round:Object in mine) if(stat[4](round) > stat[4](best)) best = round;
+         result.push({kind:"stat",id:stat[0],label:stat[1],value:stat[3](best),comparison:{kind:"higher",value:stat[4](best)}});
+      }
+      // Held Shift, a stat a round changes as a header (its label alone) over each round's value,
+      // the round bulleted and indented (child), neutral; the shorter list of two compared cards
+      // padded with dashes so their rows stay aligned.
+      private function roundGroup(result:Array, other:WeaponDetails, stat:Array) : void
+      {
+         var mine:Array = roundsWith(stat[2]), theirs:Array = other == null ? [] : other.roundsWith(stat[2]);
+         if(!mine.length && !theirs.length) return;
+         result.push({kind:"stat",id:stat[0],label:stat[1],value:"",comparison:{kind:"neutral"}});
          for(var i:int = 0; i < Math.max(mine.length,theirs.length); i++)
-            result.push({kind:"stat",id:id + "/" + i,label:i < mine.length ? mine[i].name : " ",
-               value:i < mine.length ? text(mine[i]) : "–",comparison:{kind:"neutral"}});
-      }
-      // Bullet speed: its fastest round's; held Shift, each round's.
-      private function bulletSpeed(result:Array, other:WeaponDetails, expanded:Boolean) : void
-      {
-         roundStat(result,other,expanded,SPEED,"st_srp_inv_bullet_speed",
-            function(round:Object):Boolean { return !isNaN(round.speed); },
-            function(round:Object):String { return LocalizationData.format("st_srp_unit_mps",MatchEffects.fixed(round.speed,0)); },
-            function(round:Object):Number { return round.speed; });
-      }
-      // Material penetration (PierceLine): its best round's, the harder material, then the more
-      // damage kept; held Shift, each round's.
-      private function materialPenetration(result:Array, other:WeaponDetails, expanded:Boolean) : void
-      {
-         roundStat(result,other,expanded,PierceLine.ID,"st_srp_inv_material_pierce",
-            function(round:Object):Boolean { return round.pierce != null; },
-            function(round:Object):String { return PierceLine.text(round.pierce); },
-            function(round:Object):Number { return PierceLine.score(round.pierce); });
+            result.push({kind:"stat",id:stat[0] + "/" + i,child:true,label:i < mine.length ? "• " + mine[i].name : "•",
+               value:i < mine.length ? stat[3](mine[i]) : "–",comparison:{kind:"neutral"}});
       }
       private function tactical(result:Array, other:WeaponDetails) : void
       {
@@ -284,15 +303,24 @@ package survarium.item
       public function rows(expanded:Boolean, other:WeaponDetails = null) : Array
       {
          var result:Array = [{kind:"heading",text:LocalizationData.getName("st_srp_weapon_stats")}];
+         var stats:Array = roundStats(), stat:Array;
+         // Held Shift, first: each round's damage, armour piercing, bullet speed and material.
+         if(expanded) for each(stat in stats) roundGroup(result,other,stat);
          scalar(result,138,has(TACTICAL) ? "st_srp_weapon_reload_empty" : "st_srp_weapon_reload","lower","st_srp_unit_seconds");
          tactical(result,other);
          chamber(result,other);
          scalar(result,139,"st_srp_weapon_full_damage","higher","st_srp_unit_meters");
          scalar(result,140,"st_srp_weapon_minimum_damage_from","higher","st_srp_unit_meters");
          scalar(result,141,"st_srp_weapon_minimum_damage","higher","st_srp_unit_percent",100);
-         bulletSpeed(result,other,expanded);
-         materialPenetration(result,other,expanded);
-         if(!expanded) { result.push({kind:"hint",text:LocalizationData.getName("st_srp_weapon_shift_hint")}); return result; }
+         // The card: the best round's bullet speed and material (its damage and armour piercing
+         // are the native bars', ItemCompare).
+         if(!expanded)
+         {
+            bestRound(result,other,stats[2]);
+            bestRound(result,other,stats[3]);
+            result.push({kind:"hint",text:LocalizationData.getName("st_srp_weapon_shift_hint")});
+            return result;
+         }
          scalar(result,142,"st_srp_weapon_draw_time","lower","st_srp_unit_seconds");
          scalar(result,143,"st_srp_weapon_holster_time","lower","st_srp_unit_seconds");
          scalar(result,144,"st_srp_weapon_aim_zoom","neutral","st_srp_unit_times");

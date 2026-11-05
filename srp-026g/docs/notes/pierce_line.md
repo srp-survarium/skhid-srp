@@ -21,9 +21,11 @@ changes show the weapon's best round, and Shift lists each round.
   can differ per stat), compared best against best as today: Damage (the bar: the weapon's damage x
   the highest k_damage x pellets of its rounds), Armor penetration (the bar: x the highest k_arp),
   Bullet speed (the fastest round).
-- **Held Shift:** under Bullet speed and under Pierces, one row per round the weapon fires,
-  `<round name>  <value>`, neutral; the shorter list of two compared cards padded with dashes so their
-  rows stay aligned. Damage and Armor penetration list no rounds (below).
+- **Held Shift:** first in the detail list, Damage, Armor penetration, Bullet speed and Pierces each
+  as a header (its label alone, no value) over one row per round the weapon fires, `• <round name>
+  <value>`, the round visibly its child: bulleted, stepped in 16 px, its value where the values are;
+  neutral; the shorter list of two compared cards padded with dashes so their rows stay aligned.
+  Damage and armour piercing as the bars show them with that round (whole).
 - English and Ukrainian, and every other dictionary.
 
 ## The words
@@ -79,22 +81,25 @@ with `Concrete · 52%` beside it does not fit the card's line). The value `st_sr
   retunes a gun, a round or a material, or adds one, cannot leave a stale card.
 - The lobby movie: `WeaponDetails` reads the weapon's rounds once (`ItemFactory.getList`, the
   dictionary's pairs; each round's descriptor lines 21, 22, 163 and its 174 entry for this weapon,
-  `PierceLine.forWeapon`). Bullet speed and Pierces are its detail rows (best round, compared by
-  value, `PierceLine.score` = rank x 1000 + percent); held Shift each round's under them.
-  `ItemCompare` gives the native Damage and Armor penetration bars the weapon's best round
+  `PierceLine.forWeapon`); `roundStats` says what each of the four stats is for a round. Bullet
+  speed and Pierces are its detail rows (best round, compared by value, `PierceLine.score` = rank x
+  1000 + percent); held Shift the four groups head the detail list (`roundGroup`: a header row with
+  an empty value, the rounds as `child` rows, which `ItemDetailsView` steps in by `SUBROW_INDENT` 16
+  after the row's first layout and gives `SUBROW_STRIDE` 0.8 of a row). `ItemCompare` gives the
+  native Damage and Armor penetration bars the weapon's best round
   (`WeaponDetails.bestRoundFactor`), whole numbers as the card shows them (`Util.getNumberString`
   cuts a fraction's float tail: 34 x 1.2 read 40.79).
+- The bullet, `•`, is in every full Calibri of the lobby movie (as `·`, `–`, `…`; not `★`, `▸`).
 
-## Shift: rows under each stat, not one table
+## Shift: groups of rows, not one table
 
 A 4-column "by ammo" table (Damage | Pen | Speed | Material) does not fit: a detail row is one native
 label and one right-aligned value field (about 250 px unscaled; Scaleform resolves the game's font
 only on the movie's own fields), and a material alone ("Ziegel, Stahl · 100%", "Rétegelt lemez ·
-19%") takes most of the value column. Per-round blocks of all four stats (a caption and four rows a
-round) made the AK-74M's Shift card 1369 px unscaled (main: 890), past the 1200 the harness keeps it
-in (900 at the card's 0.75); four sub-row lists, about 1250. Rows under Bullet speed and Pierces only:
-1026. Damage and Armor penetration are native bars at the card's top, with no room under them for
-rows: Shift shows their best round only.
+19%") takes most of the value column. Heights, the AK-74M of three rounds beside the PKP, held
+Shift, unscaled (the harness keeps the card under 1200, 900 at its 0.75): main 890; a caption and
+four rows a round 1369; the four groups at full row height 1206; the groups with the rounds at 0.8
+of a row 1152 (shipped).
 
 ## Rows that change with the round, unchanged (the owner's call)
 
@@ -113,9 +118,10 @@ its camo copy, 12.7x54 VPS: Stone · 36%), 1 Tinplate. The 12.7x54 PT on the VSS
 ## Checked
 
 - `scripts/weapon-details/WeaponDetailsHarness.as` (Ruffle, `DETAILS RESULT pass`), in every
-  language: the best round per stat from different rounds (speed 7N10, material 7N22); each round's
-  rows held Shift, neutral, padded beside a weapon of one round, aligned, fitting their line, the card
-  under 900; the bars with the best round (armour piercing 35 x 1.2 = 42, damage 34 x 1.2 = 41); a
+  language: the best round per stat from different rounds (speed 7N10, material 7N22); held Shift
+  the four groups first, their headers without a value, each round `• <name>` stepped in by the
+  indent (its label column checked at +16, its spacing at 0.8 of a row), neutral, padded beside a
+  weapon of one round, aligned, fitting their line, the card under 900; the bars with the best round (armour piercing 35 x 1.2 = 42, damage 34 x 1.2 = 41); a
   harder material over more damage kept (VPS Stone · 36% over PT Concrete · 100%), the same
   material by percent, equal and Ctrl neutral, a missing side a dash, no row without the data, no
   row on the ammo card, no bar.
