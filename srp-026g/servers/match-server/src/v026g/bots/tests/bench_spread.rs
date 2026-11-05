@@ -34,6 +34,17 @@ pub(super) struct Spread {
     aim_since: Option<u32>,
     /// The last tick the sprint was held, ms (the client's sprint gate, `SRP_BENCH_SPRINT_GATE`).
     sprinted_at: Option<u32>,
+    /// The tick the jump was last pressed, ms (the client's jump gate, `SRP_BENCH_JUMP_GATE`).
+    jumped_at: Option<u32>,
+}
+
+/// The client's gates on the shot and the aim-in the bench applies, ms after the sprint's last tick and after a jump's
+/// press (`SRP_BENCH_SPRINT_GATE`, `SRP_BENCH_JUMP_GATE`; fx-grid, `private/grid/aim-gates/FINDINGS.md`: 300 PROVEN, 1200
+/// LIKELY). `None`: no gate.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub(crate) struct ClientGates {
+    pub(crate) sprint_ms: Option<u32>,
+    pub(crate) jump_ms: Option<u32>,
 }
 
 /// A move key held as the game reads it (forward xor back, left xor right).
@@ -68,6 +79,9 @@ impl Spread {
         if keys & key::SPRINT != 0 {
             self.sprinted_at = Some(tick);
         }
+        if pressed & key::JUMP != 0 {
+            self.jumped_at = Some(tick);
+        }
         if keys & key::AIM == 0 {
             self.aim_since = None;
         } else if pressed & key::AIM != 0 || self.aim_since.is_none() {
@@ -89,20 +103,21 @@ impl Spread {
         self.aim_since.filter(|_| keys & key::AIM != 0).map(|since| (at as u32).saturating_sub(since))
     }
 
-    /// The end of the client's sprint gate of `out_ms` after the last sprint tick (0: never sprinted).
-    fn sprint_end(&self, out_ms: u32) -> u32 {
-        self.sprinted_at.map_or(0, |at| at + out_ms)
+    /// The end of the client's `gates` (0: none holds).
+    fn gate_end(&self, gates: ClientGates) -> u32 {
+        let after = |at: Option<u32>, ms: Option<u32>| at.zip(ms).map_or(0, |(at, ms)| at + ms);
+        after(self.sprinted_at, gates.sprint_ms).max(after(self.jumped_at, gates.jump_ms))
     }
 
-    /// Whether the client's sprint gate of `out_ms` holds at `tick`.
-    pub(super) fn sprint_blocks(&self, tick: u32, out_ms: u32) -> bool {
-        tick < self.sprint_end(out_ms)
+    /// Whether the client's `gates` hold at `tick`: no shot.
+    pub(super) fn gated(&self, tick: u32, gates: ClientGates) -> bool {
+        tick < self.gate_end(gates)
     }
 
     /// A shot at `at` ms with `keys`: the aim's state and the cone,
-    /// degrees (full angle); the shot's bloom added after. With a sprint gate (`out_ms`) the aim-in counts from its end.
-    pub(super) fn shot(&mut self, gun: &Gun, keys: u32, at: f32, sprint_gate: Option<u32>) -> (AimState, f32) {
-        let gate = sprint_gate.map_or(0, |ms| self.sprint_end(ms));
+    /// degrees (full angle); the shot's bloom added after. The aim-in counts from the end of the client's `gates`.
+    pub(super) fn shot(&mut self, gun: &Gun, keys: u32, at: f32, gates: ClientGates) -> (AimState, f32) {
+        let gate = self.gate_end(gates);
         let state = match self.aim_since {
             Some(since) if keys & key::AIM != 0 && at >= (since.max(gate) + gun.aim_ms) as f32 => {
                 AimState::AimedIn
@@ -153,18 +168,23 @@ mod tests {
     fn the_sprint_gate_holds_the_shot_and_the_aim_in() {
         let gun = Arms::fallback().primary.0;
         let out = 300;
+        let gates = ClientGates { sprint_ms: Some(out), jump_ms: Some(1_200) };
         let mut s = Spread::default();
-        assert!(!s.sprint_blocks(0, out), "never sprinted");
+        assert!(!s.gated(0, gates), "never sprinted");
         let run = key::FORWARD | key::SPRINT;
         s.tick(gun, run, run, 1_000, 0.05);
         let aim = key::FORWARD | key::AIM;
         s.tick(gun, aim, key::AIM, 1_050, 0.05);
-        assert!(s.sprint_blocks(1_000 + out - 1, out));
-        assert!(!s.sprint_blocks(1_000 + out, out));
+        assert!(s.gated(1_000 + out - 1, gates));
+        assert!(!s.gated(1_000 + out, gates));
         let at = (1_050 + gun.aim_ms) as f32;
-        assert_eq!(s.shot(gun, aim, at, None).0, AimState::AimedIn, "no gate: from the press");
-        assert_eq!(s.shot(gun, aim, at, Some(out)).0, AimState::AimingIn, "the gate: from its end");
-        assert_eq!(s.shot(gun, aim, (1_000 + out + gun.aim_ms) as f32, Some(out)).0, AimState::AimedIn);
+        assert_eq!(s.shot(gun, aim, at, ClientGates::default()).0, AimState::AimedIn, "no gate: from the press");
+        assert_eq!(s.shot(gun, aim, at, gates).0, AimState::AimingIn, "the gate: from its end");
+        assert_eq!(s.shot(gun, aim, (1_000 + out + gun.aim_ms) as f32, gates).0, AimState::AimedIn);
+        // A jump: its clips.
+        s.tick(gun, key::JUMP, key::JUMP, 5_000, 0.05);
+        assert!(s.gated(5_000 + 1_199, gates));
+        assert!(!s.gated(5_000 + 1_200, gates));
     }
 
     #[test]
@@ -174,15 +194,15 @@ mod tests {
         let walk = character_dispersion().walk * d.from_the_hip;
         let mut s = Spread::default();
         s.tick(gun, key::LEFT, key::LEFT, 100, 0.05);
-        let (state, cone) = s.shot(gun, key::LEFT, 100.0, None);
+        let (state, cone) = s.shot(gun, key::LEFT, 100.0, ClientGates::default());
         assert_eq!(state, AimState::Hip);
         assert!((cone - (d.base + walk)).abs() < 1e-4, "{cone}");
         let mut s = Spread::default();
         let aim = key::LEFT | key::AIM;
         s.tick(gun, aim, aim, 100, 0.05);
-        assert_eq!(s.shot(gun, aim, (100 + gun.aim_ms - 1) as f32, None).0, AimState::AimingIn);
+        assert_eq!(s.shot(gun, aim, (100 + gun.aim_ms - 1) as f32, ClientGates::default()).0, AimState::AimingIn);
         s.tick(gun, aim, 0, 150, 0.05);
-        let (state, cone) = s.shot(gun, aim, (100 + gun.aim_ms) as f32, None);
+        let (state, cone) = s.shot(gun, aim, (100 + gun.aim_ms) as f32, ClientGates::default());
         assert_eq!(state, AimState::AimedIn);
         assert_eq!(cone, d.base);
         let mut rng = Rng::new(4);

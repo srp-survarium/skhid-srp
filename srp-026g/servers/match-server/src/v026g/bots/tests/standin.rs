@@ -15,6 +15,7 @@
 //! | `SRP_BENCH_NUDGE` | no nudged battery |
 //! | `SRP_BENCH_SPREAD` | off: no shot spread |
 //! | `SRP_BENCH_SPRINT_GATE` | off: a shot and the aim-in right after a sprint |
+//! | `SRP_BENCH_JUMP_GATE` | off: a shot and the aim-in in a jump |
 //! | `SRP_BENCH_HIT_MODEL` ([`standin_hitbox`](super::standin_hitbox)) | off: the old 0.45 m disc about the chest, the centre ray, no scatter; `on`: a shot is a ray against the 19 hit shapes, a shotgun's ten pellets rays, and the line is scattered by the live position error |
 //! | `SRP_BENCH_BATTERIES` | one battery at every spawner |
 //! | `SRP_BENCH_START` | 0,0: every battery lying |
@@ -655,8 +656,8 @@ pub(crate) struct Game {
     pub(crate) kick_ticks: Vec<fight_tally::KickTick>,
     /// Shots spread as the game's do ([`bench_spread`], `SRP_BENCH_SPREAD`).
     pub(crate) spread: bool,
-    /// The client's sprint gate on shots and the aim-in, ms after the sprint (`SRP_BENCH_SPRINT_GATE`; [`bench_spread`]).
-    pub(crate) sprint_gate: Option<u32>,
+    /// The client's sprint and jump gates on shots and the aim-in (`SRP_BENCH_SPRINT_GATE`, `SRP_BENCH_JUMP_GATE`).
+    pub(crate) gates: bench_spread::ClientGates,
     /// [A241] An aimed automatic's shot leaves right of the view by the client's aim sway when `Live` (`SRP_BENCH_AIM_SWAY=live`,
     /// [`crate::v026g::bots::recoil::AIM_SWAY_DEG`]); and each team's shots so turned, with the degrees in all.
     pub(crate) aim_sway: crate::v026g::bots::recoil::ClientSway,
@@ -961,7 +962,7 @@ impl Game {
             kick_pairs: Vec::new(),
             kick_ticks: Vec::new(),
             spread: false,
-            sprint_gate: None,
+            gates: bench_spread::ClientGates::default(),
             aim_sway: crate::v026g::bots::recoil::ClientSway::Absent,
             swayed: [(0, 0.0); 2],
             volume: HitVolume::Disc,
@@ -1566,7 +1567,7 @@ impl Game {
                 && body.carrying.is_none()
                 && tick >= body.drawn_at
                 && body.stock.may_fire(tick)
-                && !self.sprint_gate.is_some_and(|ms| body.spread.sprint_blocks(tick, ms));
+                && !body.spread.gated(tick, self.gates);
             let (auto, interval_ms) = (body.gun.auto, body.gun.shot_ms());
             let mut times = Vec::new();
             body.cadence
@@ -1657,7 +1658,7 @@ impl Game {
         let truth = body.recoil.y();
         let mirror = body.mirror.map(|m| m.0);
         self.bodies[shooter].recoil.shot(at, top, 0.0);
-        let (aim_state, cone) = self.bodies[shooter].spread.shot(gun, keys, at, self.sprint_gate);
+        let (aim_state, cone) = self.bodies[shooter].spread.shot(gun, keys, at, self.gates);
         let view_dir = dir;
         let (origin, dir) = self.shot_line(eye, dir, cone);
         let tick = self.tick;

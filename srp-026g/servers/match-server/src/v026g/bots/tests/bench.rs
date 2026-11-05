@@ -1075,7 +1075,10 @@ pub(crate) fn real_bot_cost() {
             game.nudge = bench_settings().number("SRP_BENCH_NUDGE")
                 .map(|m| (m, NUDGE_EVERY_MS));
             game.spread = bench_settings().flag("SRP_BENCH_SPREAD");
-            game.sprint_gate = bench_settings().number("SRP_BENCH_SPRINT_GATE");
+            game.gates = super::bench_spread::ClientGates {
+                sprint_ms: bench_settings().number("SRP_BENCH_SPRINT_GATE"),
+                jump_ms: bench_settings().number("SRP_BENCH_JUMP_GATE"),
+            };
             // [A241] The client's aim sway on the stand-in's aimed automatic shots.
             game.aim_sway = bench_client_sway();
             game.volume = HitVolume::bench();

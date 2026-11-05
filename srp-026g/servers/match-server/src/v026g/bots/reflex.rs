@@ -1829,18 +1829,26 @@ pub struct StrafeStats {
     pub stand: u32,
 }
 
+/// [`CombatTuning::gate_from_client`] A jump key held this long is one press (the drive holds a jump `JUMP_HOLD_MS`).
+const JUMP_PRESS_MS: u32 = 500;
+
 /// [`CombatTuning::gate_from_client`]: the client's gates on the sights, as fx-grid read them from the 0.26g exe.
 #[derive(Clone, Copy, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(default, deny_unknown_fields)]
 pub struct ClientGate {
-    /// After the sprint stops, no sights and no shot until the sprint animation's end callback (weapon+0x5EC back to 6,
-    /// 0x2E25C0: the gate PROVEN), ms: the 0.3 s blend (const 0x921804, LIKELY; every weapon, no config key).
+    /// After the input that ends the sprint (the aim, the fire, the sprint let go), no sights and no shot until the sprint
+    /// lexeme's end event (weapon+0x5EC back to 6, 0x2E25C0), ms: its 0.3 s blend (0x336628, const 0x921804; 0x3B6A90 times
+    /// the event at the transition's start + the blend), every weapon, no config key. PROVEN (fx-grid round 2).
     pub sprint_out_ms: u32,
+    /// After a jump's press, no sights and no shot through its clips, ms: the take-off clip 800 ms and the landing 400 ms
+    /// (the clips PROVEN, the total LIKELY, for a standing jump; a moving one GUESS 1.2-1.35 s; a sprint's jump also keeps
+    /// the sprint's gate). fx-grid round 2.
+    pub jump_ms: u32,
 }
 
 impl Default for ClientGate {
     fn default() -> Self {
-        Self { sprint_out_ms: 300 }
+        Self { sprint_out_ms: 300, jump_ms: 1_200 }
     }
 }
 
@@ -3505,6 +3513,8 @@ pub struct Reflex {
     hold_ended: Option<(Vec3, u32)>,
     /// [`CombatTuning::gate_from_client`] The last tick it sent the sprint, ms.
     sprinted_at: Option<u32>,
+    /// [`CombatTuning::gate_from_client`] The tick it last pressed the jump, ms.
+    jumped_at: Option<u32>,
     /// [A208, the bench's] The last thrown smoke's crossing.
     #[cfg(test)]
     crossing_watch: Option<CrossingWatch>,
@@ -3986,8 +3996,9 @@ impl Reflex {
     /// the chambering's end.
     pub fn aim_open(&self, gate: ClientGate) -> u32 {
         let sprint = self.sprinted_at.map_or(0, |at| at + gate.sprint_out_ms);
+        let jump = self.jumped_at.map_or(0, |at| at + gate.jump_ms);
         let chambered = if self.held_gun().chamber_ms > 0 { self.ready_at.ceil() as u32 } else { 0 };
-        sprint.max(self.busy_until).max(chambered)
+        sprint.max(jump).max(self.busy_until).max(chambered)
     }
 
     /// The aim-in's start for an aim pressed at `since`: with `gate_from_client` not before [`Self::aim_open`].
@@ -4722,6 +4733,9 @@ impl Reflex {
     pub fn sent(&mut self, now: u32, keys: u32, pitch: f32) -> f32 {
         if keys & key::SPRINT != 0 {
             self.sprinted_at = Some(now);
+        }
+        if keys & key::JUMP != 0 && self.jumped_at.is_none_or(|at| now >= at + JUMP_PRESS_MS) {
+            self.jumped_at = Some(now);
         }
         self.in_hand();
         self.recoil.update(now);
@@ -8211,6 +8225,9 @@ mod tests {
         assert_eq!(reflex.aim_from(2_000, &on), 2_000, "pressed after the gate");
         reflex.busy_until = 3_000;
         assert_eq!(reflex.aim_from(2_000, &on), 3_000, "a reload's end");
+        reflex.sent(4_000, key::JUMP, 0.0);
+        reflex.sent(4_050, key::JUMP, 0.0);
+        assert_eq!(reflex.aim_from(4_100, &on), 4_000 + gate.jump_ms, "a jump's clips, from its press");
     }
 
     use super::*;
