@@ -38,15 +38,17 @@ def project_file(raw, project_path):
 
 def playable(raw):
     """The playable maps by project folder: a `maps_dict` id whose
-    `gameplay/game_modes/` config is of mode 2 to 5 and whose project
-    (`match_making_params.map_name`) exists. Of each map: the name key
+    `gameplay/game_modes/` config is of mode 2 to 5, is none of srp's
+    variants (`mode.srp_variant`: Blackout's configs are mode 2, under
+    their own ids) and whose project (`match_making_params.map_name`)
+    exists. Of each map: the name key
     (`map_name`) and per mode the ids, their projects and configs, the mode's
     name key, parameters and rules."""
     dictionary = load(raw, "gameplay/db_static_dictionaries")
     maps = defaultdict(lambda: {"modes": defaultdict(lambda: {"ids": [], "projects": [], "configs": []})})
     for entry in dictionary["maps_dict"]:
         config = load(raw, "gameplay/game_modes/" + entry["cfg_mode_name"])
-        if not config or config["mode"].get("mode") not in MODES:
+        if not config or config["mode"].get("mode") not in MODES or config["mode"].get("srp_variant"):
             continue
         mode = config["mode"]
         project_path = mode["match_making_params"]["map_name"]
