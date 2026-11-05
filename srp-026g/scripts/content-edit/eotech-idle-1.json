@@ -1,0 +1,17 @@
+{
+ "_about": "The stock EOTech 552 of the HK416 and the MSBS (scope eotech_552, base patch 19's 0.29a3 port) flickered in the hand while running, never while aimed (the owner, 2026-11-05). Its one model was both the idle and the aimed sight, so its glowing reticle (eotech_552_emissive_s: a 1 cm flat emissive surface, x10, between the hood's two windows) was drawn at the hip too, where the eye sees it from above and behind: in the sprint pose the hood hides 36-74 % of it on the HK416 and 80-99 % on the MSBS, and a centimetre of bob changes that share by up to 30 points (rays from the posed eye; the AK sprint clip every rifle uses), so the reticle blinks behind the hood at every step. Aimed, the eye is on its axis and sees all of it. Every 0.26g collimator draws its dot only when aimed (the UMP45's EOTech, every fit: the idle model is the housing alone). The idle sight is now a copy of the model without the reticle surface (eotech_552_idle: settings, the model's box, the housing and the glass, byte for byte; the reticle out of its LOD0 list and material settings); the aimed sight stays the full model. Visual only.",
+ "copy": [
+  {"files": "models/weapons/attach/eotech_552/eotech_552.model/settings", "from": "models/weapons/attach/eotech_552/eotech_552.model/", "to": "models/weapons/attach/eotech_552/eotech_552_idle.model/"},
+  {"files": "models/weapons/attach/eotech_552/eotech_552.model/render/export_properties", "from": "models/weapons/attach/eotech_552/eotech_552.model/", "to": "models/weapons/attach/eotech_552/eotech_552_idle.model/"},
+  {"files": "models/weapons/attach/eotech_552/eotech_552.model/render/eotech552_s*", "from": "models/weapons/attach/eotech_552/eotech_552.model/", "to": "models/weapons/attach/eotech_552/eotech_552_idle.model/"}
+ ],
+ "remove_item": [
+  {"file": "models/weapons/attach/eotech_552/eotech_552_idle.model/settings", "path": "lod_hierrarchy/LOD0/surfaces", "value": "eotech_552_emissive_s"}
+ ],
+ "remove_key": [
+  {"files": "models/weapons/attach/eotech_552/eotech_552_idle.model/settings", "keys": ["material_settings/eotech_552_emissive_s"]}
+ ],
+ "edit_text": [
+  {"file": "gameplay/items/scopes/eotech_552.options", "path": "data/idle_model", "from": "weapons/attach/eotech_552/eotech_552", "to": "weapons/attach/eotech_552/eotech_552_idle"}
+ ]
+}

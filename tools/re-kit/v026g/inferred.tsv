@@ -3207,3 +3207,5 @@ va	status	ref_021d	name
 0x00063d60	inferred-high	0x000474fb	vostok::sound::composite_sound::emit_sound_propagators
 0x000633f0	inferred-medium	0x00043646	vostok::sound::voice_bridge::set_volume_impl
 0x001ee7c0	inferred-medium		survarium::game::is_text_input_focused
+0x00143c50	inferred-medium		stlp_std::sort<vostok::render::render_surface_instance * *,vostok::render::sort_by_distance_predicate>
+0x00147290	inferred-medium		stlp_std::priv::__insertion_sort<vostok::render::render_surface_instance * *,vostok::render::sort_by_distance_predicate>
