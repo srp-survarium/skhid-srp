@@ -3147,3 +3147,32 @@ updates. The stock divergence and patched convergence run in
 `check_bullet_bounds_026g.py`. See [bullet_bounds.md](bullet_bounds.md) for
 the latest Victorianbeauty match's evidence and the remaining attribution
 limit: the defect is reproduced, but that match's bounds were not captured.
+
+### DXVK at the process's start (patch 83, unreleased)
+
+What it is for and the owner's rules: [dxvk-option.md](dxvk-option.md). Here: where it is in the exe.
+
+- **Every Direct3D DLL is a delayed import.** The exe imports only KERNEL32 and CRYPT32 at load;
+  d3d9 (`Direct3DCreate9` 0xAF003C), dxgi (`CreateDXGIFactory` 0xAF0054), d3d11
+  (`D3D11CreateDevice` 0xAF0030), d3dx11_43 and D3DCOMPILER_43 are delay-loaded (the helper loads a
+  DLL by its plain name at its first call). Microsoft's `d3dx11_43.dll` and `D3DCompiler_43.dll`
+  (June 2010 redist) import neither d3d11 nor dxgi.
+- **Their first calls.** `Direct3DCreate9` at the VRAM check (0xE9C3F calls
+  `get_local_video_memory_size` 0x106300; 0.10b `memory_video_win.cpp`, in
+  `memory::platform::allocate_arenas` 0xE9580, from `memory::allocate_region` 0xE11F9), then the
+  render device: `device::create` 0x3BB0F0 (`create_d3d` 0x3BA7B0's `CreateDXGIFactory` at
+  0x3BA7D3, `D3D11CreateDevice` at 0x3BB289), from `render::world::world` 0x1EF90. The game's
+  `on_configs_loaded` 0x1EA210 (user.cfg) comes after the device: it names the render output's
+  window title (0x1EA6EC), and in 0.10b the game world is made in `initialize_logic_modules`, after
+  `initialize_render`.
+- **The site:** `memory.allocate_arenas`, a lohook at 0xE9580 (`mov eax,11A8h`, 5 bytes, before
+  the stack probe 0x429F20): no relocation, branch or absolute reference into it.
+- **The library rows:** the imports LoadLibraryA 0x870080, GetProcAddress 0x870084, FreeLibrary
+  0x870088, GetModuleFileNameA 0x87014C, DeleteFileA 0x87021C and SHGetFolderPathA (delay-loaded)
+  0xAEFE7C; and the library's `dynamic` kind (engine_026g.py), a function a GetProcAddress gives,
+  for vkCreateInstance, vkDestroyInstance, vkEnumeratePhysicalDevices and
+  vkGetPhysicalDeviceProperties (stdcall).
+- **Checked:** `check_hud_options_026g.py` (the process's start in every state, the load order,
+  no engine allocation; the login screen's turn-off), `check_music_026g.py` (the login screen's
+  chain), `../scripts/dxvk-loader/run.sh` (the loader under Wine). **Not run** on Windows or in a
+  game.

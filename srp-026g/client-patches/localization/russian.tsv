@@ -2545,6 +2545,9 @@ st_srp_pvb_searching	Сначала отмените поиск
 st_srp_pvb_team_size	%1$s на %2$s
 st_srp_pvb_title	Игрок против ботов
 st_srp_pvb_unknown_choice	Эта карта или размер команд сейчас недоступны
+st_srp_renderer_dx11	DirectX 11
+st_srp_renderer_dxvk	Vulkan/DXVK
+st_srp_renderer_option	Рендер
 st_srp_replay_asking	Запрашиваем у сервера матча повтор этого матча…
 st_srp_replay_being_made	Повтор создаётся из записи матча. Так бывает, когда этот матч смотрят впервые, и это занимает немного времени.\nЭто окно можно закрыть: сервер продолжит его создавать.\n\n%1$s
 st_srp_replay_busy	Сервер сейчас занят другими повторами. Попробуйте ещё раз через минуту.

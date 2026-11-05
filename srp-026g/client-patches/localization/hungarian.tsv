@@ -2545,6 +2545,9 @@ st_srp_pvb_searching	Előbb állítsd le a keresést
 st_srp_pvb_team_size	%1$s ellen %2$s
 st_srp_pvb_title	Botok ellen
 st_srp_pvb_unknown_choice	Ez a pálya vagy csapatméret most nem érhető el
+st_srp_renderer_dx11	DirectX 11
+st_srp_renderer_dxvk	Vulkan/DXVK
+st_srp_renderer_option	Megjelenítő
 st_srp_replay_asking	A meccs visszajátszásának lekérése a szerverről…
 st_srp_replay_being_made	A visszajátszás a meccs naplójából készül. Ez az első megtekintéskor történik, és eltart egy ideig.\nBezárhatod ezt az ablakot, a szerver tovább dolgozik.\n\n%1$s
 st_srp_replay_busy	A szerver most más felvételekkel dolgozik. Próbáld újra egy perc múlva.

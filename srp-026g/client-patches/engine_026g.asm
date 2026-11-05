@@ -45,6 +45,12 @@ global engine_action_present
 global engine_create_file_a
 global engine_write_file
 global engine_close_handle
+global engine_delete_file_a
+global engine_load_library_a
+global engine_get_proc_address
+global engine_free_library
+global engine_get_module_file_name_a
+global engine_sh_get_folder_path_a
 global engine_ray_test
 global engine_release_object
 global engine_material_pair
@@ -150,11 +156,16 @@ global engine_ray_test_single
 global engine_key_name
 global engine_activate_keyboard_layout
 global engine_get_module_handle_a
-global engine_get_proc_address
 engine_action_present equ 0x242460   ; 0x242460 survarium::player_input_handler::action_present: handler ESP+4, action ESP+8, state ESP+12; pops 12; AL; stdcall, called directly
 engine_create_file_a equ 0x870048   ; the IAT slot 0x870048 (an import, stdcall)
 engine_write_file equ 0x870108   ; the IAT slot 0x870108 (an import, stdcall)
 engine_close_handle equ 0x870040   ; the IAT slot 0x870040 (an import, stdcall)
+engine_delete_file_a equ 0x87021c   ; the IAT slot 0x87021c (an import, stdcall)
+engine_load_library_a equ 0x870080   ; the IAT slot 0x870080 (an import, stdcall)
+engine_get_proc_address equ 0x870084   ; the IAT slot 0x870084 (an import, stdcall)
+engine_free_library equ 0x870088   ; the IAT slot 0x870088 (an import, stdcall)
+engine_get_module_file_name_a equ 0x87014c   ; the IAT slot 0x87014c (an import, stdcall)
+engine_sh_get_folder_path_a equ 0xaefe7c   ; the IAT slot 0xaefe7c (an import, stdcall)
 engine_play_sound equ 0x3222f0   ; 0x3222f0 survarium::bullet_manager::play_sound: manager ESP+4, sound ESP+8, position ESP+12; pops 12; stdcall, called directly
 engine_query_performance_counter equ 0x870158   ; the IAT slot 0x870158 (an import, stdcall)
 engine_query_performance_frequency equ 0x870150   ; the IAT slot 0x870150 (an import, stdcall)
@@ -198,7 +209,6 @@ engine_ray_test_single equ 0xa02d0   ; 0xa02d0 btCollisionWorld::rayTestSingle: 
 engine_key_name equ 0x3b9c00   ; 0x3b9c00 vostok::input::platform::keyboard::get_dik_name: keyboard ECX, key ESP+4, name ESP+8, size ESP+12; pops 12; AL; thiscall, called directly
 engine_activate_keyboard_layout equ 0xaeff20   ; the IAT slot 0xaeff20 (an import, stdcall)
 engine_get_module_handle_a equ 0x87003c   ; the IAT slot 0x87003c (an import, stdcall)
-engine_get_proc_address equ 0x870084   ; the IAT slot 0x870084 (an import, stdcall)
 
 engine_cfg_child:
     ; 0xf6b10 vostok::configs::binary_config_value::operator[]: table EAX, key EDI; pops 0; EAX
