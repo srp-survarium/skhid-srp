@@ -2214,8 +2214,11 @@ va	name	location	role	basis
 0x001f9800	survarium::game_world::demo_play	ECX	world receiver	inferred
 0x001f9800	survarium::game_world::demo_play	stack+4	track filename	inferred
 0x001feed0	survarium::text_translator::load_text_localization	stack+4	text translator	inferred
+0x001fef90	survarium::text_translator::expand_text	EAX	the text (C string; "{key}" is looked up and translated, "{{" a brace); "" writes only the terminator	observed
+0x001fef90	survarium::text_translator::expand_text	ECX	output buffer	observed
+0x001fef90	survarium::text_translator::expand_text	stack+4	text translator (ret 4)	observed
 0x001ff0f0	survarium::text_translator::translate_text	ECX	text translator	inferred
-0x001ff0f0	survarium::text_translator::translate_text	stack+4	input text or localization key	inferred
+0x001ff0f0	survarium::text_translator::translate_text	stack+4	key (C string; must not be NULL: value_exists 0xF6C00 strlens it at 0xF6C47; "" is safe and gives ""); native Unicorn check_match_stat_map_026g	observed
 0x001ff0f0	survarium::text_translator::translate_text	stack+8	output buffer	inferred
 0x001ff240	survarium::text_translator::on_texts_ready	ECX	text translator	inferred
 0x001ff240	survarium::text_translator::on_texts_ready	stack+4	resource query results	inferred
@@ -2224,6 +2227,7 @@ va	name	location	role	basis
 0x00206670	survarium::timelimit_rule_cook::create_resource	entry ESP+8	the size out (0x158 written)	observed
 0x002079d0	survarium::key_binder::id_to_action_name	EDX	action_id	inferred
 0x00207ad0	survarium::key_binder::action_name_to_ptr	stack+4	action_name	inferred
+0x00207bf0	survarium::key_binder::keycode_to_ptr	EDX	key code; returns EAX the key table entry (0xA74FA0, 88h each: +0 name, +4 code) or NULL; expand_text {USE}; native Unicorn check_match_stat_map_026g	observed
 0x00207c30	survarium::key_binder::keyname_to_ptr	EDI	keyboard_key_name	inferred
 0x002093a0	survarium::chat_handler::initialize_tabs	ECX	whole chat handler	inferred
 0x002093a0	survarium::chat_handler::initialize_tabs	stack+4	movie reference pointer	inferred
