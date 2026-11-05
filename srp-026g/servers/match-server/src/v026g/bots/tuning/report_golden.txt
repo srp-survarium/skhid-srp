@@ -29,7 +29,7 @@ switches OFF pace: ring_death_spots ring_radar
 switches OFF smoke: objective
 switches OFF spacing: apart_ease apart_tie lane
 switches OFF take: cross_from_zone far_stands team_memory world_stand
-switches OFF tdm: group
+switches OFF tdm: group squad
 switches OFF think: door_centres
 switches OFF threat: answer_sniper breach job_out_of_all_lines job_spot_levels pair_target pin_from_cover replan sniper_lanes trade_cover walk_watch
 switches OFF traps: after_press at_cleared at_defeated forward fresh_ring press_moving

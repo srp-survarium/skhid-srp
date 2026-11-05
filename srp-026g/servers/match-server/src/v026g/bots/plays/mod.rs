@@ -1385,8 +1385,41 @@ pub fn candidates(cx: &Ctx, out: &mut Vec<Candidate>) {
     answer::candidates(cx, out);
     breach::candidates(cx, out);
     behind_holds(cx, out);
+    squad_holds(cx, out);
     #[cfg(test)]
     super::bench_work::add(super::bench_work::Work::Plays, (out.len() - scored_before) as u64);
+}
+
+/// [A310 `tdm.squad` S2] A squad member's holds: within the radius of its living leader `with_anchor` times, farther `away`
+/// times (the leader's own are left as they are).
+fn squad_holds(cx: &Ctx, out: &mut [Candidate]) {
+    let Some(rule) = cx.tuning.tdm.squad else {
+        return;
+    };
+    let Some(leader) = cx
+        .team
+        .squad_leaders
+        .iter()
+        .find(|(member, _)| *member == cx.me.place)
+        .and_then(|&(_, leader)| cx.view.place(leader).filter(|p| p.alive))
+    else {
+        return;
+    };
+    for c in out.iter_mut().filter(|c| super::group::holds(c.kind)) {
+        if let Some(at) = hold_point(cx, c.target) {
+            let factor = if at.distance_xz(leader.feet) <= rule.radius_m.get() { rule.with_anchor } else { rule.away };
+            c.score = Score::new(c.score.get() * factor);
+        }
+    }
+}
+
+/// Where a hold candidate's target lies: its point, or the enemy base's exit.
+fn hold_point(cx: &Ctx, target: TargetRef) -> Option<Vec3> {
+    match target {
+        TargetRef::Point(at) => Some(at),
+        TargetRef::Exit(i) => cx.bot.side.and_then(|side| cx.enemy_side(side)).and_then(|enemy| cx.tactics.exits(enemy).get(i).copied()),
+        _ => None,
+    }
 }
 
 /// [A297 item 2 `tdm.behind_holds`] In TDM, a team behind on points weighs Crossfire and HoldExit up and Cut down.
@@ -1451,12 +1484,32 @@ pub fn start(
 /// enemy alone, its answerer not yet by it) stays, its view on his place, instead of its play's walk (`group::moves`).
 pub fn step(running: &mut Running, target: TargetRef, cx: &Ctx, rng: &mut Rng) -> Step {
     let step = step_play(running, target, cx, rng);
+    let moves = super::group::moves(Some(running.kind()));
     match (step, cx.team.holding.iter().find(|(bot, _)| *bot == cx.me.place)) {
-        (Step::Continue(_), Some(&(_, enemy))) if super::group::moves(Some(running.kind())) => {
-            Step::Continue(Intent::stay().looking(Look::At(enemy)))
-        }
+        (Step::Continue(_), Some(&(_, enemy))) if moves => Step::Continue(Intent::stay().looking(Look::At(enemy))),
+        (Step::Continue(intent), None) if moves => Step::Continue(squad_return(cx).map_or(intent, |at| Intent::to(at, Pace::Cruise))),
         (step, _) => step,
     }
+}
+
+/// [A310 `tdm.squad`] Where a moving squad member farther than the radius from its living leader walks back to: beside him
+/// (`squad::beside`); `None` when the switch is off, it leads, its leader is dead, or it is within the radius.
+fn squad_return(cx: &Ctx) -> Option<Vec3> {
+    let rule = cx.tuning.tdm.squad?;
+    let &(_, leader) = cx.team.squad_leaders.iter().find(|(member, _)| *member == cx.me.place)?;
+    let leader = cx.view.place(leader).filter(|p| p.alive)?;
+    if leader.feet.distance_xz(cx.me.feet) <= rule.radius_m.get() {
+        return None;
+    }
+    // Not into the leader's fight, nor onto a fresh death by him: the squad's cover answers a fight with its spacing (S3).
+    let fresh_ms = (rule.dead_s.get() * 1000.0) as u32;
+    if cx.team.fighting.iter().any(|f| f.mate == leader.place)
+        || cx.team.losses.iter().any(|l| l.time <= cx.now && cx.now - l.time <= fresh_ms && l.at.distance_xz(leader.feet) <= rule.dead_m.get())
+    {
+        return None;
+    }
+    super::group::count(super::group::Count::SquadReturn);
+    Some(super::squad::beside(leader.feet, cx.me.feet, rule.close_m.get()))
 }
 
 fn step_play(running: &mut Running, target: TargetRef, cx: &Ctx, rng: &mut Rng) -> Step {

@@ -29,6 +29,18 @@ const AGE_MS: [u32; 3] = [20_000, 45_000, 90_000];
 /// ... and "alone": no living mate within this of the dead at the death, m.
 const ALONE_M: f32 = 20.0;
 const SLOW_MS: u32 = 3_000;
+/// [A310 measure] A team's fight on the stand-in human: a new one when its bots had not targeted him for this long, ms; the
+/// bots that target him within the first `HUMAN_WINDOW_MS` of it are counted (2+ = the squad order reached him).
+const HUMAN_GAP_MS: u32 = 3_000;
+const HUMAN_WINDOW_MS: u32 = 2_000;
+
+/// [A310 measure] A team's fight on the stand-in human now.
+#[derive(Clone, Copy, Debug, Default)]
+enum OnHuman {
+    #[default]
+    Off,
+    On { since: u32, last: u32, bots: u64, cover: bool },
+}
 
 pub(super) struct GroupCounts {
     /// The switch's counts when the match began (the counts are the thread's).
@@ -48,6 +60,10 @@ pub(super) struct GroupCounts {
     on_human_ticks: [u64; 2],
     /// By the killer's team: the stand-in human's deaths by the killer's play.
     human_killed_by: [std::collections::BTreeMap<String, u32>; 2],
+    /// [A310 measure] By team: its fight on the human now, and the fights closed: (team, since, last, bots in the window,
+    /// a cover running in the window).
+    on_human: [OnHuman; 2],
+    human_fights: Vec<(usize, u32, u32, u32, bool)>,
 }
 
 impl Default for GroupCounts {
@@ -63,11 +79,42 @@ impl Default for GroupCounts {
             cover_ticks: [0; 2],
             on_human_ticks: [0; 2],
             human_killed_by: Default::default(),
+            on_human: [OnHuman::Off; 2],
+            human_fights: Vec::new(),
         }
     }
 }
 
 impl GroupCounts {
+    /// [A310 measure] By team: its fights on the human, those with 2+ of its bots on him within the window, those with a cover
+    /// in it, and those that ended in his death by the team (within a second of the fight's last tick).
+    fn human_fights_json(&self, run: &Run) -> serde_json::Value {
+        let mut all = self.human_fights.clone();
+        for (t, state) in self.on_human.iter().enumerate() {
+            if let OnHuman::On { since, last, bots, cover } = *state {
+                all.push((t, since, last, bots.count_ones(), cover));
+            }
+        }
+        let per: Vec<serde_json::Value> = (0..2)
+            .map(|t| {
+                let mine: Vec<_> = all.iter().filter(|f| f.0 == t).collect();
+                let killed = mine
+                    .iter()
+                    .filter(|f| {
+                        run.kills.iter().any(|&(k, _, victim)| Some(victim) == self.human && k >= f.1 && k <= f.2 + 1_000)
+                    })
+                    .count();
+                serde_json::json!({
+                    "fights": mine.len(),
+                    "two_plus_within_2s": mine.iter().filter(|f| f.3 >= 2).count(),
+                    "cover_within_2s": mine.iter().filter(|f| f.4).count(),
+                    "human_died": killed,
+                })
+            })
+            .collect();
+        serde_json::json!(per)
+    }
+
     pub(super) fn set_human(&mut self, human: Option<Place>) {
         self.human = human;
     }
@@ -78,7 +125,7 @@ impl Topic for GroupCounts {
         self
     }
 
-    fn read(&mut self, place: Place, bot: Option<&Bot>, _tick: u32) {
+    fn read(&mut self, place: Place, bot: Option<&Bot>, tick: u32) {
         if self.targets.len() <= place {
             self.targets.resize(place + 1, None);
         }
@@ -100,6 +147,30 @@ impl Topic for GroupCounts {
             let t = usize::from(*team);
             self.cover_ticks[t] += u64::from(play == "Cover");
             self.on_human_ticks[t] += u64::from(self.human.is_some() && self.targets[place] == self.human);
+        }
+        // [A310 measure] The team's fights on the human: begun, bots on him in the first window, a cover in it.
+        if let (Some(human), Some(Some((team, play)))) = (self.human, self.doing.get(place)) {
+            let t = usize::from(*team);
+            let on = self.targets[place] == Some(human);
+            let covering = play == "Cover";
+            let bit = 1u64 << (place.min(63));
+            self.on_human[t] = match self.on_human[t] {
+                OnHuman::On { since, last, bots, cover } if tick.saturating_sub(last) <= HUMAN_GAP_MS => {
+                    let window = tick.saturating_sub(since) <= HUMAN_WINDOW_MS;
+                    OnHuman::On {
+                        since,
+                        last: if on { tick } else { last },
+                        bots: if on && window { bots | bit } else { bots },
+                        cover: cover || (covering && window),
+                    }
+                }
+                state => {
+                    if let OnHuman::On { since, last, bots, cover } = state {
+                        self.human_fights.push((t, since, last, bots.count_ones(), cover));
+                    }
+                    if on { OnHuman::On { since: tick, last: tick, bots: bit, cover: covering } } else { OnHuman::Off }
+                }
+            };
         }
     }
 
@@ -327,6 +398,7 @@ impl GroupCounts {
                 "switch": switch,
                 "cover_ticks": self.cover_ticks,
                 "on_human_ticks": self.on_human_ticks,
+                "human_fights": self.human_fights_json(run),
                 "human_killed_by": [&self.human_killed_by[0], &self.human_killed_by[1]],
             }
         });

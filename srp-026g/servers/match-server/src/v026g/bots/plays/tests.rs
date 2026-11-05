@@ -678,3 +678,38 @@ fn a_remembered_snipers_lanes_on_the_way_score_an_objective_down_not_out() {
     assert_eq!(SniperMemory::default().way_weight(500.0), 0.5, "a cost, never a block");
     assert_eq!(SniperMemory::default().way_weight(0.0), 1.0);
 }
+
+/// [A310 `tdm.squad`] A member farther than 20 m from its living leader walks back beside him, and its holds near him count
+/// more than far ones; the leader itself, a member within the radius, a dead leader and the switch off change nothing.
+#[test]
+fn a_squad_member_keeps_near_its_leader_and_holds_by_him() {
+    let mut s = Scenario::field(Mode::TeamDeathmatch);
+    s.tuning.tdm.squad = Some(crate::v026g::bots::tuning::Squad::default());
+    s.bot(0, 0, Vec3::new(10.0, 0.0, 10.0));
+    s.bot(1, 0, Vec3::new(50.0, 0.0, 10.0));
+    s.team.squad_leaders = vec![(0, 1)];
+    assert_eq!(squad_return(&s.cx(0)), Some(Vec3::new(44.0, 0.0, 10.0)), "6 m beside the leader, on its own side");
+    assert_eq!(squad_return(&s.cx(1)), None, "the leader");
+    let hold = |at: Vec3| Candidate {
+        kind: PlayKind::Cut,
+        target: TargetRef::Point(at),
+        rank: Rank::Fight,
+        score: Score::new(0.4),
+        why: Default::default(),
+        slot: None,
+    };
+    let mut c = vec![hold(Vec3::new(55.0, 0.0, 10.0)), hold(Vec3::new(10.0, 0.0, 80.0))];
+    squad_holds(&s.cx(0), &mut c);
+    assert!((c[0].score.get() - 0.6).abs() < 1e-5 && (c[1].score.get() - 0.2).abs() < 1e-5, "{:?}", c.iter().map(|c| c.score).collect::<Vec<_>>());
+    s.team.losses.push(crate::v026g::bots::know::Loss { at: Vec3::new(52.0, 0.0, 10.0), time: s.view.clock, spawner: None });
+    assert_eq!(squad_return(&s.cx(0)), None, "not onto a fresh death by the leader");
+    s.team.losses.clear();
+    s.view.places[0].feet = Vec3::new(40.0, 0.0, 10.0);
+    assert_eq!(squad_return(&s.cx(0)), None, "within 20 m");
+    s.view.places[0].feet = Vec3::new(10.0, 0.0, 10.0);
+    s.view.places[1].alive = false;
+    assert_eq!(squad_return(&s.cx(0)), None, "a dead leader");
+    s.view.places[1].alive = true;
+    s.tuning.tdm.squad = None;
+    assert_eq!(squad_return(&s.cx(0)), None, "off");
+}

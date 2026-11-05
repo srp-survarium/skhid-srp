@@ -145,7 +145,8 @@ fn in_held_line(cx: &Ctx, at: Vec3) -> bool {
 
 /// [A297 `tdm.group`] The switch's rules in Team Deathmatch, none elsewhere or off.
 fn group(cx: &Ctx) -> Option<GroupUp> {
-    cx.tuning.tdm.group.filter(|_| !cx.view.objective().has_homes())
+    // [A310 `tdm.squad` S3] The squads answer their fights with `tdm.group`'s cover (its default rules).
+    cx.tuning.tdm.group.or_else(|| cx.tuning.tdm.squad.map(|_| GroupUp::default())).filter(|_| !cx.view.objective().has_homes())
 }
 
 /// The rules of a trade's cover spot: TDM's `tdm.group`, else [A302 #1] `threat.trade_cover` in any mode.

@@ -268,10 +268,12 @@ pub enum Count {
     ApproachBegan,
     /// [v4] An approach with an answerer within the commander's free movers.
     ApproachAnswered,
+    /// [A310 `tdm.squad`] A moving member's step walked back to its leader (one per bot and step).
+    SquadReturn,
 }
 
 /// The counts' order.
-pub const COUNTS: [Count; 11] = [
+pub const COUNTS: [Count; 12] = [
     Count::CoverTaken,
     Count::CoverHeld,
     Count::CoverFar,
@@ -283,6 +285,7 @@ pub const COUNTS: [Count; 11] = [
     Count::Holding,
     Count::ApproachBegan,
     Count::ApproachAnswered,
+    Count::SquadReturn,
 ];
 
 #[cfg(test)]

@@ -143,6 +143,40 @@ impl BehindHolds {
     }
 }
 
+/// [A310] The squad layer in TDM (`bots/squad.rs`, `traces-20261028/fx-team-a310-squad.md`): squads of 2-3 formed at spawn,
+/// a leader each, and the radius the members keep round him. S1: a moving member farther than `radius_m` walks to `close_m`
+/// beside the leader. S2: a member's hold candidates (`group::holds`) within `radius_m` of its leader count `with_anchor`
+/// times, farther ones `away` times (the squad holds together: two angles on one lane).
+#[derive(Clone, Copy, Debug, PartialEq, Serialize, Deserialize)]
+#[serde(default, deny_unknown_fields)]
+pub struct Squad {
+    /// A member keeps within this of its leader, m (the Arma mod's 20 m; A297's "alone" measure).
+    pub radius_m: Metres,
+    /// ... walking back to this beside him, m.
+    pub close_m: Metres,
+    /// [S2] A member's hold candidates near its leader, and far from him, times these. GUESS.
+    pub with_anchor: f32,
+    pub away: f32,
+    /// No walk back to a leader in a fight, or standing within `dead_m` of a teammate's death in the last `dead_s` s (the owner's
+    /// "no group feed"): the first bench (240 pairs vs the hunter) had group-fed deaths +14 % (949 vs 832, z +2.24), the walk-back
+    /// heading into the leader's fight; a fight is answered by the squad's spaced cover (S3) instead.
+    pub dead_m: Metres,
+    pub dead_s: Positive,
+}
+
+impl Default for Squad {
+    fn default() -> Self {
+        Self {
+            radius_m: Metres::of(20.0),
+            close_m: Metres::of(6.0),
+            with_anchor: 1.5,
+            away: 0.5,
+            dead_m: Metres::of(8.0),
+            dead_s: Positive::of(20.0),
+        }
+    }
+}
+
 #[derive(Clone, Copy, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(default, deny_unknown_fields)]
 pub struct TdmTuning {
@@ -150,11 +184,12 @@ pub struct TdmTuning {
     /// ON (2026-11-05): 336 pairs vs the hunter stand-in, his deaths vs the ON team +0.125 a match (z ~ +2.5), the
     /// no-group-feed guards level (#1269). `all_off.json` names it null.
     pub behind_holds: Option<BehindHolds>,
+    pub squad: Option<Squad>,
 }
 
 impl Default for TdmTuning {
     fn default() -> Self {
-        Self { group: None, behind_holds: Some(BehindHolds::default()) }
+        Self { group: None, behind_holds: Some(BehindHolds::default()), squad: None }
     }
 }
 
@@ -169,6 +204,11 @@ impl TdmTuning {
             && (!(0.0..=4.0).contains(&b.hold_gain) || !(0.0..=1.0).contains(&b.cut_cut) || !(1.0..=60.0).contains(&b.full_tickets))
         {
             return Err("tdm.behind_holds".into());
+        }
+        if let Some(q) = self.squad
+            && (q.close_m.get() > q.radius_m.get() || !(0.0..=4.0).contains(&q.with_anchor) || !(0.0..=4.0).contains(&q.away))
+        {
+            return Err("tdm.squad".into());
         }
         Ok(())
     }

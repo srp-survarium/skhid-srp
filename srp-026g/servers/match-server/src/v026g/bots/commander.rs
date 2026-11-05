@@ -11,6 +11,8 @@ pub(super) struct TeamState {
     pub(super) next_commander: u32,
     /// What each feature keeps of the team ([`features`]).
     pub(super) features: TeamFeatures,
+    /// [A310 `tdm.squad`] The team's squads, formed once at the first commander tick with every bot alive (`squad::form`).
+    pub(super) squads: Option<Vec<Vec<Place>>>,
 }
 
 /// [threat.breach] The team's Breaches at its commander tick (`breach.rs`): the due spots (its Flanks' failures) tried, the
@@ -738,6 +740,26 @@ impl Bots {
                 _ => {}
             }
         }
+        // [A310 `tdm.squad`] Squads formed at spawn by position, kept for the match; each living member's leader now.
+        if tuning.tdm.squad.is_some() && !view.objective().has_homes() {
+            let alive_feet = |place: Place| view.place(place).filter(|p| p.alive).map(|p| (place, p.feet));
+            let skills: Vec<(Place, f32)> = mates
+                .iter()
+                .filter_map(|&p| self.bots.get(p).and_then(Option::as_ref).map(|b| (p, b.skill)))
+                .collect();
+            let state = &mut self.teams[usize::from(team)];
+            if state.squads.is_none() {
+                let members: Vec<(Place, Vec3)> = mates.iter().filter_map(|&p| alive_feet(p)).collect();
+                if !members.is_empty() && members.len() == mates.len() {
+                    state.squads = Some(squad::form(&members));
+                }
+            }
+            state.knowledge.squad_leaders = state.squads.as_ref().map_or_else(Vec::new, |squads| {
+                squad::leaders(squads, |p| {
+                    alive_feet(p).and_then(|_| skills.iter().find(|s| s.0 == p).map(|s| s.1))
+                })
+            });
+        }
         // The bots checking spawners' spots now, and where (no more of
         // them than batteries missing, and apart, `plays::collect`).
         let searching = self
@@ -763,6 +785,13 @@ impl Bots {
             .filter_map(|b| b.assignment.as_ref().filter(|a| a.kind == plays::PlayKind::Crossfire).map(|a| (b.place, a.target)))
             .collect();
         self.teams[usize::from(team)].knowledge.crossfiring = crossfiring;
+        // [A310 `tdm.squad` S3] The squad target order: with the squads on, fights are answered as `tdm.group`'s (play 21's cover,
+        // its default rules), by a free mover of the fighting bot's own squad.
+        let squad_on = tuning.tdm.squad.is_some() && !view.objective().has_homes();
+        let by_position = by_position.or_else(|| squad_on.then(tuning::GroupUp::default));
+        let squad_of = |place: Place| -> Option<usize> {
+            self.teams[usize::from(team)].squads.as_ref()?.iter().position(|s| s.contains(&place))
+        };
         // [A297 `tdm.group`] The team's bots in a fight now (their reflex targets): their mates answer them (play 21's cover).
         let fighting = if by_position.is_some() {
             let targets: Vec<(Place, Place)> = self
@@ -825,7 +854,19 @@ impl Bots {
                     .filter(|b| answer == tuning::Answer::Nearest || !b.assignment.as_ref().is_some_and(|a| group::holds(a.kind)))
                     .filter_map(|b| view.place(b.place).filter(|p| p.alive && p.carrying.is_none()).map(|p| (b.place, p.feet)))
                     .collect();
-                group::answerers(&fights, &free, answer_m)
+                if squad_on {
+                    // Each fight answered within its squad only.
+                    fights
+                        .iter()
+                        .flat_map(|&fight| {
+                            let mine: Vec<(Place, mapdata::Vec3)> =
+                                free.iter().copied().filter(|f| squad_of(f.0).is_some() && squad_of(f.0) == squad_of(fight.0)).collect();
+                            group::answerers(&[fight], &mine, answer_m)
+                        })
+                        .collect()
+                } else {
+                    group::answerers(&fights, &free, answer_m)
+                }
             }
             _ => Vec::new(),
         };

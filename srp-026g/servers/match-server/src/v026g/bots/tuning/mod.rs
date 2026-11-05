@@ -172,6 +172,7 @@ pub use take::ZoneTakeBehind;
 pub use tdm::Answer;
 pub use tdm::Approach;
 pub use tdm::GroupUp;
+pub use tdm::Squad;
 pub use tdm::TdmTuning;
 pub use team::AvoidTuning;
 pub use team::BehindOpen;
