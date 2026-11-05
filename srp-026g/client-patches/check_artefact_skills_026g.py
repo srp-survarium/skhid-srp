@@ -3,14 +3,18 @@
 
 Resistance: body_part_parameters::hit_by_type's armour slice (0x32A083 .. 0x32A0B0, the
 game's own clamp and multiply) for every hit type, Resistance 0..5 and refused payloads, on
-two kits. A constructed player, not a played match.
+two kits. Onyx II: the landing (0x2D8220) with and without the skill, an Onyx active, passive,
+none, or another artefact active. Larkspur II: the real detoured action entry (0x313300) of a
+Larkspur, a press, a repeated press and a key-up, and another kind's activation. A constructed
+player, not a played match.
 Usage: python check_artefact_skills_026g.py ORIGINAL_EXE
 """
 import struct
 import sys
-from unicorn.x86_const import *
+from unicorn.x86_const import *  # noqa: F403
 import patch_026g as base
-from check_artefacts_026g import PLAYER, STACK
+from unicorn import UC_HOOK_CODE
+from check_artefacts_026g import PLAYER, STACK, STOP, HOLDER_VT, DM, ENABLE_ACTIVE
 from check_medical_skills_026g import MedicalGame, bits, close
 
 ARMOUR_AT = 0x32A083   # after `movss xmm0,[eax+8]` (the part's armour for the type), the hook
@@ -56,11 +60,105 @@ def check_resistance(data, kit):
     return outcomes
 
 
+LANDING = 0x2D8220      # base_player::on_physical_controller_landing (thiscall: the speed), ret 4
+LANDING_BODY = 0x2D8226 # its second instruction: reached only when the landing goes on
+ONYX_ACTIVE = 0x3128C0  # Onyx's enable_active (vtable +80h)
+LIFEBONE_ACTIVE = 0x312250
+ACTION = 0x313300       # artefact_base::action, patch 54's detoured entry (thiscall: pressed, time)
+ONYX_II, LARKSPUR_II = 64, 128
+
+
+def inventory(g):
+    """The player's inventory: its six artefact containers (+168h the first, +16Ch the count) are
+    slots 13..18 of its 23, the holder (+174h) the player's inventory_holder (+108h)."""
+    at = g.block(0x200)
+    g.word(PLAYER + 0x10C, at)
+    g.word(PLAYER + 0x108, HOLDER_VT)
+    g.word(at + 0x174, PLAYER + 0x108)
+    g.word(at + 0x168, at + 0x10C + 13 * 4)
+    g.emu.mem_write(at + 0x16C, bytes([6]))
+    return at
+
+
+def artefact(g, inv, slot, enable_active, state):
+    vt = g.block(0x100)
+    g.word(vt + 0x80, enable_active)
+    item = g.block(0x500)
+    for off, value in [(0, vt), (0x250, inv), (0x24C, 1), (0x280, state), (0x48C, 3000)]:
+        g.word(item + off, value)
+    g.word(inv + 0x10C + slot * 4, item)
+    return item
+
+
+def check_onyx(data, kit):
+    outcomes = []
+    for payload in [0, ONYX_II, ONYX_II + 5 + 32 + 128, LARKSPUR_II, ONYX_II + 0.5]:
+        for carried in [[], [(ONYX_ACTIVE, 3)], [(ONYX_ACTIVE, 4)], [(ENABLE_ACTIVE, 4)],
+                        [(ENABLE_ACTIVE, 4), (ONYX_ACTIVE, 3), (ONYX_ACTIVE, 4)]]:
+            g = MedicalGame(data)
+            g.emu.mem_write(PLAYER + 0x115, bytes([kit]))
+            g.ranks(payload, RANKS)
+            inv = inventory(g)
+            for slot, (kind, state) in enumerate(carried, 13):
+                artefact(g, inv, slot, kind, state)
+            # Harmless and fatal speeds the landing compares with: 100 m/s, a landing at 1 m/s
+            # does nothing in the game either, so only the hook decides whether it goes on.
+            g.word(PLAYER + 0x30C, bits(100.0))
+            g.word(PLAYER + 0x310, bits(100.0))
+            reached = []
+            hook = g.emu.hook_add(UC_HOOK_CODE, lambda *a: reached.append(1), begin=LANDING_BODY, end=LANDING_BODY)
+            esp = STACK - 0x300
+            g.word(esp, STOP)
+            g.word(esp + 4, bits(1.0))
+            g.emu.reg_write(UC_X86_REG_ESP, esp)
+            g.emu.reg_write(UC_X86_REG_ECX, PLAYER)
+            g.emu.emu_start(LANDING, STOP, count=500_000)
+            g.emu.hook_del(hook)
+            assert g.emu.reg_read(UC_X86_REG_EIP) == STOP
+            assert g.emu.reg_read(UC_X86_REG_ESP) == esp + 8, "ret 4 either way"
+            protected = payload in (ONYX_II, ONYX_II + 5 + 32 + 128) and (ONYX_ACTIVE, 4) in carried
+            assert bool(reached) != protected, (payload, carried)
+            outcomes.append((payload, len(carried), protected))
+    print(f"Onyx II kit {kit}: the landing skipped only with the skill and an active Onyx (passive Onyx, "
+          "another kind active, no skill, a refused payload: the game's landing): PASS")
+    return outcomes
+
+
+def check_larkspur(data, kit):
+    outcomes = []
+    for payload, kind in [(0, LIFEBONE_ACTIVE), (LARKSPUR_II, LIFEBONE_ACTIVE), (LARKSPUR_II + 5, LIFEBONE_ACTIVE),
+                          (LARKSPUR_II, ENABLE_ACTIVE), (LARKSPUR_II + 0.5, LIFEBONE_ACTIVE)]:
+        g = MedicalGame(data)
+        g.emu.mem_write(PLAYER + 0x115, bytes([kit]))
+        g.ranks(payload, RANKS)
+        g.word(DM, g.read(PLAYER + 0x2E0))
+        inv = inventory(g)
+        item = artefact(g, inv, 13, kind, 3)
+        stamina = PLAYER + 0x6C0
+        g.word(stamina, bits(100.0))
+        g.word(stamina + 0x6C, bits(10.0))
+        g.call(ACTION, (1, 1234), ecx=item)
+        assert g.read(item + 0x280) == 4, "activated"
+        filled = payload in (LARKSPUR_II, LARKSPUR_II + 5) and kind == LIFEBONE_ACTIVE
+        close(g.float(stamina + 0x6C), 100.0 if filled else 10.0)
+        # Active now: a repeated press and a key-up do not fill it again.
+        g.word(stamina + 0x6C, bits(10.0))
+        for pressed in [1, 0]:
+            g.call(ACTION, (pressed, 2234), ecx=item)
+            close(g.float(stamina + 0x6C), 10.0)
+        outcomes.append((payload, kind, filled))
+    print(f"Larkspur II kit {kit}: a Larkspur's activation fills the stamina with the skill only; "
+          "a repeated press, a key-up, another kind and a refused payload do nothing: PASS")
+    return outcomes
+
+
 def main():
     original = open(sys.argv[1], 'rb').read()
     patched, _ = base.build(original, 'section', open(base.default_bin('section'), 'rb').read(), None,
                             open(base.late_join_bin(), 'rb').read())
     assert check_resistance(patched, 0) == check_resistance(patched, 2)
+    assert check_onyx(patched, 0) == check_onyx(patched, 2)
+    assert check_larkspur(patched, 0) == check_larkspur(patched, 2)
     print('Artefact skills: identical outcomes on two kits: PASS')
 
 

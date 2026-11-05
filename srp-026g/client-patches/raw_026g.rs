@@ -997,6 +997,15 @@ impl Player {
     pub unsafe fn set_character_controller(self, value: Option<BtCharacterController>) {
         unsafe { self.0.byte_add(0x494).cast::<Option<BtCharacterController>>().write_volatile(value) }
     }
+
+    /// +0x6c0 (obj<survarium::player_stamina>): the embedded stamina (ctor 0x2D6E5C, tick 0x2D8FBC lea eax,[edi+6C0h])
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn stamina(self) -> PlayerStamina {
+        PlayerStamina(unsafe { self.0.byte_add(0x6c0) })
+    }
 }
 
 /// A survarium::player_profile (fields_026g.tsv): a pointer to one, never 0. Made only here: by a typed field,
@@ -5213,6 +5222,24 @@ impl Artefact {
     #[inline(always)]
     pub unsafe fn rattle_callback(self) -> ArtefactClient {
         ArtefactClient(unsafe { self.0.byte_add(0x340) })
+    }
+
+    /// +0x0 (ptr<survarium::medical_vtable>): an inventory slot's artefact's (core) virtual table: its +80h enable_active names the kind (Onyx 0x3128C0, Lifebone 0x312250)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn vtable(self) -> Option<MedicalVtable> {
+        unsafe { self.0.byte_add(0x0).cast::<Option<MedicalVtable>>().read_volatile() }
+    }
+
+    /// +0x0 (ptr<survarium::medical_vtable>): an inventory slot's artefact's (core) virtual table: its +80h enable_active names the kind (Onyx 0x3128C0, Lifebone 0x312250)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn set_vtable(self, value: Option<MedicalVtable>) {
+        unsafe { self.0.byte_add(0x0).cast::<Option<MedicalVtable>>().write_volatile(value) }
     }
 }
 
@@ -11901,6 +11928,24 @@ impl PlayerStamina {
     pub unsafe fn player(self) -> Player {
         Player(unsafe { self.0.byte_sub(0x6c0) })
     }
+
+    /// +0x0 (f32): the most stamina: player_stamina::regenerate clamps current to it (0x329925 movss xmm1,[edi])
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn maximum(self) -> *mut f32 {
+        unsafe { self.0.byte_add(0x0).cast::<f32>().as_ptr() }
+    }
+
+    /// +0x6c (f32): the stamina now, 0..maximum (regenerate writes it at 0x329938 / 0x32994F)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn current(self) -> *mut f32 {
+        unsafe { self.0.byte_add(0x6c).cast::<f32>().as_ptr() }
+    }
 }
 
 /// A vostok::physics::bt_character_controller (fields_026g.tsv): a pointer to one, never 0. Made only here: by a typed field,
@@ -13368,6 +13413,9 @@ pub mod image {
 
     /// 0x299269 (u8, survarium::image): the same, emit_and_play_once at 0x299264 (in 0x2991A0)
     pub const ZONE_SOUND_ONCE_C: u32 = 0x299269;
+
+    /// 0x3128c0 (u32, survarium::image): artefact_onyx_core::enable_active_effects (vtable +80h; abi_inputs 0x3128C0)
+    pub const ONYX_ACTIVE: u32 = 0x3128c0;
 }
 
 /// A general-purpose register at a hook's site.
@@ -15848,6 +15896,21 @@ pub mod site {
         #[inline(always)]
         pub unsafe fn kind(machine: &impl Machine) -> u32 {
             machine.register(Register::Edi)
+        }
+    }
+
+    /// artefact.landing (0x2d8220): base_player::on_physical_controller_landing's start (movss xmm2,[esp+4]; ECX the player, the landing speed at the site's ESP+4): all it does is the fall damage hit (fatal above +30Ch, scaled above +310h, modifier 30); done is its ret 4 at 0x2D84AE with nothing pushed
+    pub mod artefact_landing {
+        #[allow(unused_imports)]
+        use super::*;
+
+        /// ECX: a survarium::player (None for 0).
+        ///
+        /// # Safety
+        /// `machine` is at this site.
+        #[inline(always)]
+        pub unsafe fn player(machine: &impl Machine) -> Option<Player> {
+            NonNull::new(machine.register(Register::Ecx) as usize as *mut c_void).map(Player)
         }
     }
 }

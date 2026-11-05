@@ -396,6 +396,56 @@ pub extern "C" fn hook_artefact_skills_on_isolation(frame: &mut Frame) -> u32 {
     }
 }
 
+// ---- artefact_skills (patch 109) ----
+
+/// The named exits of artefact_skills::on_landing (the order the shim's Flow code
+/// follows, 2 upward).
+#[repr(u32)]
+#[allow(dead_code)]
+pub enum ArtefactSkillsOnLandingExit { Done }
+/// The entry `artefact_skills_on_landing` (0x2d8220, base_player::on_physical_controller_landing's start (movss xmm2,[esp+4]; ECX the player, the landing speed at the site's ESP+4): all it does is the fall damage hit (fatal above +30Ch, scaled above +310h, modifier 30); done is its ret 4 at 0x2D84AE with nothing pushed) calls this with the saved machine.
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_artefact_skills_on_landing(frame: &mut Frame) -> u32 {
+    // SAFETY: only the entry `artefact_skills_on_landing` calls this, from the game's jump at 0x2d8220,
+    // on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::new(frame) };
+    match crate::artefact_skills::on_landing(&mut ctx) {
+        Flow::Continue => 0,
+        Flow::Skip => 1,
+        Flow::Exit(e) => 2 + e as u32,
+    }
+}
+
+// ---- medical_skills (patch 94) ----
+
+/// The entry `medical_skills_on_artefact` (0x313333, actual activation after enable/effect; EDI simulation time; never called by visual reconstruction) calls this with the saved machine.
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_medical_skills_on_artefact(frame: &mut Frame) -> u32 {
+    // SAFETY: only the entry `medical_skills_on_artefact` calls this, from the game's jump at 0x313333,
+    // on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::new(frame) };
+    match crate::medical_skills::on_artefact(&mut ctx) {
+        Flow::Continue => 0,
+        Flow::Skip => 1,
+        Flow::Exit(e) => match e {},
+    }
+}
+
+// ---- artefact_skills (patch 109) ----
+
+/// The entry `artefact_skills_on_larkspur` (0x313333, actual activation after enable/effect; EDI simulation time; never called by visual reconstruction) calls this with the saved machine.
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_artefact_skills_on_larkspur(frame: &mut Frame) -> u32 {
+    // SAFETY: only the entry `artefact_skills_on_larkspur` calls this, from the game's jump at 0x313333,
+    // on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::new(frame) };
+    match crate::artefact_skills::on_larkspur(&mut ctx) {
+        Flow::Continue => 0,
+        Flow::Skip => 1,
+        Flow::Exit(e) => match e {},
+    }
+}
+
 // ---- battery_progress (patch 92) ----
 
 /// The entry `battery_progress_on_carrier_tick` (0x2daad3, base_player::tick after the held object's tick (call [vtbl+28h] at 0x2DAAD1, or the je at 0x2DAAC9 with nothing held), before the movement (mov ecx,[esp+10h] / push edi): EBX the player, every simulation tick) calls this with the saved machine.
@@ -1599,21 +1649,6 @@ pub extern "C" fn hook_medical_skills_on_wound(frame: &mut Frame) -> u32 {
 
 // ---- medical_skills (patch 94) ----
 
-/// The entry `medical_skills_on_artefact` (0x313333, actual activation after enable/effect; EDI simulation time; never called by visual reconstruction) calls this with the saved machine.
-#[unsafe(no_mangle)]
-pub extern "C" fn hook_medical_skills_on_artefact(frame: &mut Frame) -> u32 {
-    // SAFETY: only the entry `medical_skills_on_artefact` calls this, from the game's jump at 0x313333,
-    // on the game's thread; `frame` is its saved registers and fxsave area.
-    let mut ctx = unsafe { Context::new(frame) };
-    match crate::medical_skills::on_artefact(&mut ctx) {
-        Flow::Continue => 0,
-        Flow::Skip => 1,
-        Flow::Exit(e) => match e {},
-    }
-}
-
-// ---- medical_skills (patch 94) ----
-
 /// The named exits of medical_skills::on_protection (the order the shim's Flow code
 /// follows, 2 upward).
 #[repr(u32)]
@@ -2580,6 +2615,15 @@ pub extern "C" fn hook_world_check_on_raw(frame: &mut Frame) -> u32 {
         Flow::Skip => 1,
         Flow::Exit(e) => 2 + e as u32,
     }
+}
+
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_medical_skills_on_artefact_chain(frame: &mut Frame) -> u32 {
+    let flow = hook_medical_skills_on_artefact(frame);
+    if flow != 0 { return flow; }
+    let flow = hook_artefact_skills_on_larkspur(frame);
+    if flow != 0 { return flow; }
+    0
 }
 
 #[unsafe(no_mangle)]

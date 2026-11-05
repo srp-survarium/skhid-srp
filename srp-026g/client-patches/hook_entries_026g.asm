@@ -960,6 +960,87 @@ artefact_skills_on_isolation_replay:
     db 0x0f, 0x57, 0xd2, 0xf3, 0x0f, 0x5c, 0xc1
     jmp 0x32a08a
 
+; 0x2d8220 base_player::on_physical_controller_landing's start (movss xmm2,[esp+4]; ECX the player, the landing speed at the site's ESP+4): all it does is the fall damage hit (fatal above +30Ch, scaled above +310h, modifier 30); done is its ret 4 at 0x2D84AE with nothing pushed: lohook -> artefact_skills_on_landing
+global artefact_skills_on_landing
+extern hook_artefact_skills_on_landing
+artefact_skills_on_landing:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_artefact_skills_on_landing
+    mov edx, artefact_skills_on_landing_replay
+    cmp eax, 0
+    je artefact_skills_on_landing_go
+    mov edx, 0x2d8226
+    cmp eax, 1
+    je artefact_skills_on_landing_go
+    mov edx, 0x2d84ae
+    cmp eax, 2
+    je artefact_skills_on_landing_go
+    ud2
+artefact_skills_on_landing_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+artefact_skills_on_landing_replay:
+    db 0xf3, 0x0f, 0x10, 0x54, 0x24, 0x04
+    jmp 0x2d8226
+
+; 0x313333 actual activation after enable/effect; EDI simulation time; never called by visual reconstruction: lohook -> medical_skills_on_artefact
+global medical_skills_on_artefact
+extern hook_medical_skills_on_artefact_chain
+medical_skills_on_artefact:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_medical_skills_on_artefact_chain
+    mov edx, medical_skills_on_artefact_replay
+    cmp eax, 0
+    je medical_skills_on_artefact_go
+    mov edx, 0x313339
+    cmp eax, 1
+    je medical_skills_on_artefact_go
+    ud2
+medical_skills_on_artefact_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+medical_skills_on_artefact_replay:
+    db 0x89, 0xbe, 0xa0, 0x02, 0x00, 0x00
+    jmp 0x313339
+
 ; 0x2daad3 base_player::tick after the held object's tick (call [vtbl+28h] at 0x2DAAD1, or the je at 0x2DAAC9 with nothing held), before the movement (mov ecx,[esp+10h] / push edi): EBX the player, every simulation tick: lohook -> battery_progress_on_carrier_tick
 global battery_progress_on_carrier_tick
 extern hook_battery_progress_on_carrier_tick
@@ -2987,45 +3068,6 @@ medical_skills_on_wound_go:
 medical_skills_on_wound_replay:
     db 0xf3, 0x0f, 0x11, 0x85, 0xa0, 0x00, 0x00, 0x00
     jmp 0x32a293
-
-; 0x313333 actual activation after enable/effect; EDI simulation time; never called by visual reconstruction: lohook -> medical_skills_on_artefact
-global medical_skills_on_artefact
-extern hook_medical_skills_on_artefact
-medical_skills_on_artefact:
-    lea esp, [esp - 4]
-    pushfd
-    pushad
-    cld
-    mov ebp, esp
-    sub esp, 512
-    and esp, -16
-    fxsave [esp]
-    mov edi, esp
-    sub esp, 8
-    and esp, -16
-    mov [esp], ebp
-    mov [esp+4], edi
-    mov eax, esp
-    sub esp, 12
-    push eax
-    call hook_medical_skills_on_artefact
-    mov edx, medical_skills_on_artefact_replay
-    cmp eax, 0
-    je medical_skills_on_artefact_go
-    mov edx, 0x313339
-    cmp eax, 1
-    je medical_skills_on_artefact_go
-    ud2
-medical_skills_on_artefact_go:
-    mov [ebp + 36], edx
-    fxrstor [edi]
-    mov esp, ebp
-    popad
-    popfd
-    ret
-medical_skills_on_artefact_replay:
-    db 0x89, 0xbe, 0xa0, 0x02, 0x00, 0x00
-    jmp 0x313339
 
 ; 0x33db30 ECX medkit entry; exit is bare ret 12: lohook -> medical_skills_on_protection
 global medical_skills_on_protection

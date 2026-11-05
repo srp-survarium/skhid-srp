@@ -4,7 +4,7 @@
 //! once here.
 #![forbid(unsafe_code)]
 
-use crate::vostok::{Context, Flow, NoExit, artefact_skills};
+use crate::vostok::{ArtefactSkillsOnLandingExit, Context, Flow, NoExit, artefact_skills};
 
 /// A hit's type (the hit +1Ch; 0.26g's seven, `blunt` gone): 4..7 are the anomalous ones
 /// (table 0x92075C), against which armour is the card's isolation.
@@ -113,6 +113,16 @@ impl Skills {
         })
     }
 
+    /// Onyx II: no fall damage while one of the player's Onyx is active.
+    pub fn onyx(self) -> bool {
+        self.onyx
+    }
+
+    /// Larkspur II: a Larkspur's activation restores all energy.
+    pub fn larkspur(self) -> bool {
+        self.larkspur
+    }
+
     /// Resistance: the part's armour `native` against a hit of `kind`, +0.05 a rank for the
     /// anomalous types, before the piercing's subtraction and the native clamp.
     pub fn armour(self, native: f32, kind: HitKind) -> f32 {
@@ -127,6 +137,22 @@ impl Skills {
 /// Resistance at body_part_parameters::hit_by_type (0x32A083): XMM0 the part's armour.
 pub fn on_isolation(ctx: &mut Context<'_>) -> Flow<NoExit> {
     artefact_skills::isolation(ctx);
+    Flow::Continue
+}
+
+/// Onyx II at the landing's start: the whole landing is its fall damage, skipped when the player
+/// has the skill and an active Onyx.
+pub fn on_landing(ctx: &mut Context<'_>) -> Flow<ArtefactSkillsOnLandingExit> {
+    if artefact_skills::lands_unhurt(ctx) {
+        Flow::Exit(ArtefactSkillsOnLandingExit::Done)
+    } else {
+        Flow::Continue
+    }
+}
+
+/// Larkspur II at an artefact's actual activation (artefact_base::action 0x313333).
+pub fn on_larkspur(ctx: &mut Context<'_>) -> Flow<NoExit> {
+    artefact_skills::larkspur(ctx);
     Flow::Continue
 }
 

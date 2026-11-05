@@ -5,3 +5,14 @@ patch = 109
 [[hook]]
 site = "artefact.isolation"
 handler = "on_isolation"
+
+# Onyx II: no fall damage while one of the player's Onyx is active.
+[[hook]]
+site = "artefact.landing"
+handler = "on_landing"
+
+# Larkspur II: a Larkspur's activation restores all energy (after Medic's share).
+[[hook]]
+site = "medical.artefact"
+handler = "on_larkspur"
+order = 2
