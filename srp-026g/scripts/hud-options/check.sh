@@ -109,5 +109,5 @@ done
 grep -ho 'SETTINGS .*\|HUD .*' "$work/SettingsHarness.log" "$work/HudHarness.log" || true
 ! grep -q "RESULT fail" "$work/SettingsHarness.log" "$work/HudHarness.log" \
     && grep -q "SETTINGS RESULT pass" "$work/SettingsHarness.log" && grep -q "SETTINGS controls pass" "$work/SettingsHarness.log" \
-    && grep -q "SETTINGS borders pass" "$work/SettingsHarness.log" \
+    && grep -q "SETTINGS borders pass" "$work/SettingsHarness.log" && grep -q "SETTINGS apply-cancel pass" "$work/SettingsHarness.log" \
     && grep -q "HUD RESULT pass" "$work/HudHarness.log"

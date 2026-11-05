@@ -2,7 +2,6 @@ package
 {
     import flash.display.MovieClip;
     import flash.events.Event;
-    import flash.external.ExternalInterface;
     import scaleform.clik.events.IndexEvent;
 
     // The controls tab's "Lock vertical sensitivity" and "Vertical
@@ -203,23 +202,10 @@ package
             return Math.round(value * 100);
         }
 
-        // Outside the game (a test player) there is no exe to call.
+        // The exe answers at once (root.srp_slider_option).
         private function ask(value:String):void
         {
-            try
-            {
-                if (value == null)
-                {
-                    ExternalInterface.call(VERTICAL);
-                }
-                else
-                {
-                    ExternalInterface.call(VERTICAL, value);
-                }
-            }
-            catch (error:Error)
-            {
-            }
+            SrpExe.call(VERTICAL, value);
         }
     }
 }
