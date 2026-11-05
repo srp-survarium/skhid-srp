@@ -16,13 +16,27 @@
 //!
 //! The follower goes to a point `close_m` short of the leader on its own
 //! side of him (a second angle, not his back), runs while farther than
-//! `keep_m`, walks nearer, and stands looking about once there. Fights,
-//! objectives and alarms outrank it (it is in the roam band), so it is the
-//! default of a follower and nothing more; when the leader is down the
-//! follower roams by itself.
+//! `keep_m`, walks nearer. Fights, objectives and alarms outrank it (it is
+//! in the roam band), so it is the default of a follower and nothing more;
+//! when the leader is down the follower roams by itself. It does the same
+//! when the leader has just come out at home and is far (`just_respawned`:
+//! in a spawn area or under `leader_settle_s` into his life, and more than
+//! `rejoin_m` away): the follower stands forward, and following him would
+//! walk it back across the map to the spawn.
+//!
+//! Near him it covers him, as a teammate a player would want: it watches
+//! where he does not (a known enemy off his facing, else behind him or a
+//! side, drawn and turned now and then, as `cover_human`) and matches his
+//! stance. The audit of three real 7v7 matches (2026-10-22) had followers
+//! standing beside their leader, doing nothing, for minutes. Stepping out
+//! of his line of fire too was tried and left out: it covered more (58 %
+//! of the time near him looking more than 60 degrees off his facing,
+//! against 47 % looking only and 36 % before) but its moves churned the
+//! plays (A->B->A flips +8 %, beyond the noise).
 
 use super::*;
 use crate::v026g::bots::curve::{Consideration, Curve, Input};
+use crate::v026g::bots::kin;
 
 pub const NUMBERS: &[(&str, f32)] = &[
     // Stand this far from the leader, metres.
@@ -35,7 +49,29 @@ pub const NUMBERS: &[(&str, f32)] = &[
     ("wait_max_m", 90.0),
     // The leader waits at most this long a run, seconds.
     ("wait_s", 6.0),
+    // The follower does not follow a leader in a spawn area, or less than
+    // `leader_settle_s` into a life, while it is farther than `rejoin_m`
+    // from him: metres, seconds (human yardstick: 90 % of lives are out of
+    // the 20 m area by 20 s, and a human's nearest mate is farther than 40 m
+    // 13 % of the time, `push-record.md` R1).
+    ("rejoin_m", 40.0),
+    ("leader_settle_s", 20.0),
+    // The switch for that rule (0 off, the old behaviour; 1 on, the default).
+    ("respawn_rule", 1.0),
     ("give_up_s", 90.0),
+    // Near him: the direction it watches, off his facing, is drawn again
+    // this often, seconds. GUESS, cover_human's.
+    ("turn_min_s", 4.0),
+    ("turn_max_s", 9.0),
+    // A point this far out along the watched direction is looked at,
+    // metres (cover_human's).
+    ("look_m", 20.0),
+    // A known enemy this near him and more than `front_deg` off his facing
+    // is watched instead, metres. GUESS: the fights' ranges (median kill at
+    // 19 m, few past 60).
+    ("threat_m", 60.0),
+    // What he covers himself: within this of his facing, degrees. GUESS.
+    ("front_deg", 60.0),
 ];
 
 pub fn tuning() -> PlayTuning {
@@ -52,7 +88,7 @@ pub fn tuning() -> PlayTuning {
                 },
             ),
         ],
-        numbers: Default::default(),
+        numbers: super::named(PlayKind::Buddy, &["respawn_rule"]),
     }
 }
 
@@ -66,6 +102,31 @@ pub fn leader<'a>(cx: &Ctx<'a>) -> Option<&'a PlaceView> {
     cx.view
         .place(partner)
         .filter(|p| p.present && p.alive && p.team == cx.me.team)
+        .filter(|p| !just_respawned(cx, p))
+}
+
+/// Whether `leader` has just come out at home, far from the follower: in a
+/// spawn area, or less than `leader_settle_s` into his life, and farther
+/// than `rejoin_m` from the bot. Following him there walks a follower
+/// that stands forward back across the map to the spawn (253 such moments
+/// in ten matches, 90 % with the leader 20 s old or less; they were 12 % of
+/// the bots' returns), so the follower roams until he is out and near, as
+/// `cover_human` does for a human in a spawn area.
+///
+/// Root cause (`push-record.md` R1): `leader()` had no place or life-age
+/// condition, and `roam::candidates` offers no Roam while a leader is alive,
+/// so the follower always followed.
+fn just_respawned(cx: &Ctx, leader: &PlaceView) -> bool {
+    let num = |name| cx.num(PlayKind::Buddy, name);
+    let just = num("respawn_rule") > 0.5
+        && cx.me.feet.distance_xz(leader.feet) > num("rejoin_m")
+        && (cx.tactics.in_spawn_area(leader.feet, None)
+            || cx.now.saturating_sub(leader.spawned) < (num("leader_settle_s") * 1000.0) as u32);
+    #[cfg(test)]
+    if just {
+        super::super::pair_counts::respawned();
+    }
+    just
 }
 
 /// The follower to wait for, when the bot leads its pair and the follower
@@ -86,7 +147,10 @@ pub fn lagging<'a>(cx: &Ctx<'a>) -> Option<&'a PlaceView> {
 }
 
 pub fn candidates(cx: &Ctx, out: &mut Vec<Candidate>) {
-    if cx.me.carrying.is_some() {
+    if !cx.tuning.spacing.buddy {
+        return;
+    }
+    if cx.me.carrying.is_some() || given_up(cx) {
         return;
     }
     if let Some(leader) = leader(cx) {
@@ -94,16 +158,83 @@ pub fn candidates(cx: &Ctx, out: &mut Vec<Candidate>) {
     }
 }
 
+/// Given up in its pocket (`think.shut_in_gate`): it cannot follow anyone out of it, so it is not
+/// offered the play (taken, it ended at its first step, and the next poll took it again).
+fn given_up(cx: &Ctx) -> bool {
+    cx.tuning.think.shut_in_gate && cx.trapped().is_some_and(|t| t.gave_up)
+}
+
 #[derive(Clone, Debug, PartialEq)]
 pub enum State {
-    Follow,
+    Follow {
+        /// What it watches near him, off his facing, degrees.
+        watch_deg: f32,
+        turn_at: u32,
+        /// Till when it keeps going round him ([`round_him`]): a point
+        /// beside him proved no way to lately ([`ROUND_HOLD_MS`]).
+        round_until: u32,
+    },
 }
 
-pub fn start(_target: TargetRef, _cx: &Ctx, _rng: &mut Rng) -> State {
-    State::Follow
+/// A watched direction off his facing: behind, or a side.
+fn draw_watch(rng: &mut Rng) -> f32 {
+    [180.0, 90.0, -90.0][rng.below(3)]
 }
 
-pub fn step(_state: &mut State, target: TargetRef, cx: &Ctx, _rng: &mut Rng) -> Step {
+/// When the watched direction is drawn again.
+fn next_turn(cx: &Ctx, rng: &mut Rng) -> u32 {
+    let num = |name| cx.num(PlayKind::Buddy, name);
+    cx.now + (rng.range(num("turn_min_s"), num("turn_max_s")) * 1000.0) as u32
+}
+
+pub fn start(_target: TargetRef, cx: &Ctx, rng: &mut Rng) -> State {
+    State::Follow {
+        watch_deg: draw_watch(rng),
+        turn_at: next_turn(cx, rng),
+        round_until: 0,
+    }
+}
+
+/// The ground point `m` from `from` along `yaw`.
+fn along(from: Vec3, yaw: f32, m: f32) -> Vec3 {
+    let f = kin::forward(yaw);
+    Vec3::new(from.x + f[0] * m, from.y, from.z + f[1] * m)
+}
+
+/// The degrees between `him`'s facing and the way from him to `at`.
+fn off_facing(him: &PlaceView, at: Vec3) -> f32 {
+    let (dx, dz) = (at.x - him.feet.x, at.z - him.feet.z);
+    let len = dx.hypot(dz);
+    if len < 1e-3 {
+        return 180.0;
+    }
+    let f = kin::forward(him.yaw);
+    ((f[0] * dx + f[1] * dz) / len).clamp(-1.0, 1.0).acos().to_degrees()
+}
+
+/// Where it looks near him: the known enemy nearest him off his facing,
+/// else the drawn direction.
+fn watch(cx: &Ctx, him: &PlaceView, watch_deg: f32) -> Look {
+    let num = |name| cx.num(PlayKind::Buddy, name);
+    let threat = cx
+        .memory
+        .tracks()
+        .iter()
+        .filter(|t| {
+            t.at.distance_xz(him.feet) <= num("threat_m")
+                && off_facing(him, t.at) > num("front_deg")
+        })
+        .min_by(|a, b| {
+            a.at.distance_xz(him.feet)
+                .total_cmp(&b.at.distance_xz(him.feet))
+        })
+        .map(|t| t.at);
+    Look::At(threat.unwrap_or_else(|| {
+        along(cx.me.eye(), him.yaw + watch_deg.to_radians(), num("look_m"))
+    }))
+}
+
+pub fn step(state: &mut State, target: TargetRef, cx: &Ctx, rng: &mut Rng) -> Step {
     let num = |name| cx.num(PlayKind::Buddy, name);
     if let Some((_, _, started)) = cx.bot.current
         && cx.now > started + (num("give_up_s") * 1000.0) as u32
@@ -113,6 +244,9 @@ pub fn step(_state: &mut State, target: TargetRef, cx: &Ctx, _rng: &mut Rng) -> 
     let TargetRef::Place(place) = target else {
         return Step::Failed("no partner");
     };
+    if given_up(cx) {
+        return Step::Done("shut in its pocket");
+    }
     let Some(him) = cx
         .view
         .place(place)
@@ -120,10 +254,22 @@ pub fn step(_state: &mut State, target: TargetRef, cx: &Ctx, _rng: &mut Rng) -> 
     else {
         return Step::Done("the partner is down");
     };
+    if just_respawned(cx, him) {
+        return Step::Done("the partner just respawned at home");
+    }
     let d = cx.me.feet.distance_xz(him.feet);
     let close = num("close_m");
     if d <= close * 1.4 {
-        return Step::Continue(Intent::stay());
+        let State::Follow { watch_deg, turn_at, .. } = state;
+        if cx.now >= *turn_at {
+            *watch_deg = draw_watch(rng);
+            *turn_at = next_turn(cx, rng);
+        }
+        let mut intent = Intent::stay().looking(watch(cx, him, *watch_deg));
+        if him.crouched() {
+            intent = intent.crouched();
+        }
+        return Step::Continue(intent);
     }
     // Short of him on the bot's own side: beside, not in his back.
     let k = close / d;
@@ -132,6 +278,19 @@ pub fn step(_state: &mut State, target: TargetRef, cx: &Ctx, _rng: &mut Rng) -> 
         him.feet.y,
         him.feet.z + (cx.me.feet.z - him.feet.z) * k,
     );
+    // That point proved no way to (beyond a drop, on a ledge): the nearest
+    // of those round him it may have a way to, kept up [`ROUND_HOLD_MS`]
+    // past the proof (not back to the shut side the think the point slides
+    // out of it); none: kept, and the think leaves the play, `goal_shut`.
+    let State::Follow { round_until, .. } = state;
+    if cx.no_way_lately(at) {
+        *round_until = cx.now + ROUND_HOLD_MS;
+    }
+    let at = if cx.now < *round_until {
+        round_him(cx, him.feet).unwrap_or(at)
+    } else {
+        at
+    };
     let pace = if d > num("keep_m") {
         cx.pace_toward(at)
     } else {
@@ -140,11 +299,39 @@ pub fn step(_state: &mut State, target: TargetRef, cx: &Ctx, _rng: &mut Rng) -> 
     Step::Continue(Intent::to(at, pace).within(close * 0.3))
 }
 
+/// Of the points [`ROUND_HIM_M`] round `feet` (not his own cell: two bodies
+/// there block each other), the nearest this bot may have a way to
+/// ([`Ctx::reachable`], no search lately proved none).
+fn round_him(cx: &Ctx, feet: Vec3) -> Option<Vec3> {
+    ROUND_HIM_M
+        .iter()
+        .flat_map(|&m| {
+            (0..8).map(move |k| {
+                let yaw = k as f32 * std::f32::consts::FRAC_PI_4;
+                along(feet, yaw, m)
+            })
+        })
+        .filter(|&p| cx.can_go(p))
+        .min_by(|a, b| {
+            a.distance_xz(cx.me.feet)
+                .total_cmp(&b.distance_xz(cx.me.feet))
+        })
+}
+
+/// How far round the partner [`round_him`] looks, metres.
+const ROUND_HIM_M: [f32; 2] = [1.5, 2.0];
+
+/// How long it keeps going round him once the point beside him is no
+/// longer proved no way to, ms.
+const ROUND_HOLD_MS: u32 = 3_000;
+
 #[cfg(test)]
 mod tests {
     use super::super::tests::Scenario;
     use super::*;
+    use crate::v026g::bots::know::Source;
     use crate::v026g::bots::view::Mode;
+    use crate::v026g::drive::key;
 
     /// Bot 2 follows its partner bot 0, `d` metres ahead on the x axis.
     fn pair(d: f32) -> Scenario {
@@ -189,6 +376,33 @@ mod tests {
         assert!(lagging(&s.cx(0)).is_none());
     }
 
+    /// A bot given up in its pocket is not offered the follow (`think.shut_in_gate`): offered, it took the play,
+    /// the step ended it, and the next poll took it again (Buddy to Buddy, 817 times in 8 matches of the train).
+    /// `spacing.buddy` off: the follower is not offered the follow (the diagnosis arm: does Buddy gather the bots).
+    #[test]
+    fn with_the_buddy_switch_off_the_follow_is_not_offered() {
+        let mut s = pair(40.0);
+        assert!(s.candidates(2).iter().any(|c| c.kind == PlayKind::Buddy));
+        s.tuning.spacing.buddy = false;
+        assert!(s.candidates(2).iter().all(|c| c.kind != PlayKind::Buddy), "{:#?}", s.candidates(2));
+    }
+
+    #[test]
+    fn a_bot_given_up_in_its_pocket_is_not_offered_the_follow() {
+        use crate::v026g::bots::escape::Trapped;
+        let offers_buddy = |s: &Scenario| s.candidates(2).iter().any(|c| c.kind == PlayKind::Buddy);
+        let mut s = pair(40.0);
+        let since = s.view.clock;
+        s.tactics.escapes.set_trapped_for_test(2, Some(Trapped { since, gave_up: true }));
+        assert!(offers_buddy(&s), "switch off: the old offer");
+        s.tuning.think.shut_in_gate = true;
+        assert!(!offers_buddy(&s), "given up: no offer");
+        s.tactics.escapes.set_trapped_for_test(2, Some(Trapped { since, gave_up: false }));
+        assert!(offers_buddy(&s), "still trying: offered");
+        s.tactics.escapes.set_trapped_for_test(2, None);
+        assert!(offers_buddy(&s), "free: offered");
+    }
+
     #[test]
     fn it_closes_to_beside_him_and_stands_there() {
         let mut s = pair(40.0);
@@ -207,6 +421,99 @@ mod tests {
         assert_eq!(steps[0], Step::Done("the partner is down"));
     }
 
+    /// Near him it watches where he does not look, in his stance.
+    #[test]
+    fn near_him_it_covers_his_back_in_his_stance() {
+        // The cosine between his facing and the way from the bot to what
+        // it looks at.
+        let looks_his_way = |s: &Scenario, look: Look| {
+            let Look::At(at) = look else {
+                panic!("{look:?}")
+            };
+            let me = s.view.places[2].feet;
+            let f = kin::forward(s.view.places[0].yaw);
+            let (dx, dz) = (at.x - me.x, at.z - me.z);
+            (f[0] * dx + f[1] * dz) / dx.hypot(dz)
+        };
+        let first = |s: &Scenario, seed: u64| {
+            let mut rng = Rng::new(seed);
+            let mut state = start(TargetRef::Place(0), &s.cx(2), &mut rng);
+            match step(&mut state, TargetRef::Place(0), &s.cx(2), &mut rng) {
+                Step::Continue(i) => i,
+                other => panic!("{other:?}"),
+            }
+        };
+        // He faces away from it (+x), it stands 8 m behind: it stays and
+        // watches behind him or a side, never his way.
+        let mut s = pair(8.0);
+        s.view.places[0].yaw = kin::yaw_of([1.0, 0.0]);
+        for seed in 0..6 {
+            let i = first(&s, seed);
+            assert_eq!(i.go, Go::Stay, "{i:?}");
+            assert!(looks_his_way(&s, i.look) < 0.5, "{i:?}");
+        }
+        // A known enemy off his facing: watched.
+        let enemy = Vec3::new(20.0, 0.0, 10.0);
+        s.enemy(5, 1, enemy, Some(Source::Heard));
+        assert_eq!(first(&s, 1).look, Look::At(enemy));
+        // A known enemy he faces: his own, so it keeps to its watch.
+        let ahead = Vec3::new(40.0, 0.0, 30.0);
+        let mut s = pair(8.0);
+        s.view.places[0].yaw = kin::yaw_of([1.0, 0.0]);
+        s.enemy(5, 1, ahead, Some(Source::Heard));
+        assert_ne!(first(&s, 1).look, Look::At(ahead));
+        // He crouches: so does it, staying.
+        s.view.places[0].keys |= key::CROUCH;
+        let i = first(&s, 1);
+        assert!(i.go == Go::Stay && i.crouch, "{i:?}");
+    }
+
+    /// The partner has just respawned at home and the follower stands forward:
+    /// no Buddy, and the follower roams (the returns record's 253 moments).
+    #[test]
+    fn a_follower_far_forward_does_not_follow_a_leader_who_just_respawned() {
+        // The field's spawns are at x = 5 and 75 (areas of 20 m): the
+        // leader stands mid-field, 63 m from the follower.
+        let mut s = Scenario::field(Mode::Batteries);
+        s.number(PlayKind::Buddy, "respawn_rule", 1.0);
+        s.bot(0, 0, Vec3::new(50.0, 0.0, 38.0));
+        s.bot(2, 0, Vec3::new(6.0, 0.0, 4.0));
+        s.partner = Some(0);
+        let at_home = |s: &mut Scenario, spawned: u32| {
+            s.view.places[0].spawned = spawned;
+        };
+        // A leader 60 m off whose life began 2 s ago: not followed.
+        let now = s.view.clock;
+        at_home(&mut s, now.saturating_sub(2_000));
+        let mut out = Vec::new();
+        candidates(&s.cx(2), &mut out);
+        assert!(out.is_empty(), "{out:?}");
+        assert!(leader(&s.cx(2)).is_none());
+        // A step of a running Buddy ends at once.
+        let mut rng = Rng::new(5);
+        let mut state = start(TargetRef::Place(0), &s.cx(2), &mut rng);
+        assert_eq!(
+            step(&mut state, TargetRef::Place(0), &s.cx(2), &mut rng),
+            Step::Done("the partner just respawned at home")
+        );
+        // 21 s on, out of the area: followed again.
+        at_home(&mut s, now.saturating_sub(21_000));
+        assert!(leader(&s.cx(2)).is_some());
+        // Switched off: followed, as before.
+        at_home(&mut s, now.saturating_sub(2_000));
+        s.number(PlayKind::Buddy, "respawn_rule", 0.0);
+        assert!(leader(&s.cx(2)).is_some());
+    }
+
+    /// Two bots close together at home (the start of a match) still pair up.
+    #[test]
+    fn a_follower_near_a_fresh_leader_keeps_with_him() {
+        let mut s = pair(15.0);
+        let now = s.view.clock;
+        s.view.places[0].spawned = now.saturating_sub(1_000);
+        assert!(leader(&s.cx(2)).is_some());
+    }
+
     #[test]
     fn a_leader_waits_for_a_follower_left_behind_but_not_for_one_at_home() {
         let mut s = pair(0.0);
@@ -217,5 +524,35 @@ mod tests {
         assert!(lagging(&s.cx(0)).is_none(), "20 m: near enough");
         s.view.places[0].feet = Vec3::new(20.0, 0.0, 130.0);
         assert!(lagging(&s.cx(0)).is_none(), "100 m: respawned at home");
+    }
+
+    /// The point beside him proved no way to: the nearest point 1.5-2 m round
+    /// him it may have a way to, not his own spot.
+    #[test]
+    fn beside_him_proved_no_way_to_it_goes_round_him_instead() {
+        let mut s = pair(40.0);
+        let mut rng = Rng::new(5);
+        let him = s.view.places[0].feet;
+        let mut state = start(TargetRef::Place(0), &s.cx(2), &mut rng);
+        let to = |st: Step| match st {
+            Step::Continue(Intent { go: Go::To { at, .. }, .. }) => at,
+            other => panic!("{other:?}"),
+        };
+        let beside = to(step(&mut state, TargetRef::Place(0), &s.cx(2), &mut rng));
+        assert!(beside.distance_xz(him) > 5.0, "{beside:?}");
+        s.no_way_to = vec![(beside, s.view.clock + 5_000)];
+        let round = to(step(&mut state, TargetRef::Place(0), &s.cx(2), &mut rng));
+        let d = round.distance_xz(him);
+        assert!((1.4..=2.1).contains(&d), "{round:?} {d}");
+        // The nearest of them: on its side of him.
+        assert!(round.x < him.x, "{round:?}");
+        // Kept round him for ROUND_HOLD_MS past the proof, then beside again.
+        s.no_way_to.clear();
+        s.view.clock += ROUND_HOLD_MS - 50;
+        let kept = to(step(&mut state, TargetRef::Place(0), &s.cx(2), &mut rng));
+        assert_eq!(kept, round);
+        s.view.clock += 50;
+        let back = to(step(&mut state, TargetRef::Place(0), &s.cx(2), &mut rng));
+        assert_eq!(back, beside);
     }
 }

@@ -1,0 +1,23 @@
+owner-test stuck watch: team 0: notes 5 (by the keys 0), walked on 0, out and back 0, pinned 0 s, standing on a flight 0 s; team 1: notes 5 (by the keys 0), walked on 0, out and back 0, pinned 0 s, standing on a flight 0 s
+{
+  "stuck_watch": {
+    "by_team": {
+      "0": {
+        "flight_wait_s": 0.0,
+        "notes": 5,
+        "notes_by_keys": 0,
+        "notes_moved": 0,
+        "notes_out_back": 0,
+        "pinned_s": 0.0
+      },
+      "1": {
+        "flight_wait_s": 0.0,
+        "notes": 5,
+        "notes_by_keys": 0,
+        "notes_moved": 0,
+        "notes_out_back": 0,
+        "pinned_s": 0.0
+      }
+    }
+  }
+}

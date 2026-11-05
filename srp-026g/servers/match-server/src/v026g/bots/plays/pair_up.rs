@@ -6,8 +6,10 @@
 //! scoreboard (fair: every player sees it). When he is known near (the
 //! memory: seen, heard, told), the bot goes to stand within `pair_m` of a
 //! teammate who is nearer to him, and stays by that teammate while he is
-//! near; with no such teammate it waits back, watching where he was, for a
-//! drawn while. It never aims or shoots: the reflex does, beside a friend.
+//! near (the same teammate, though once beside him it may stand the nearer
+//! of the two); with no such teammate it waits back, watching where he
+//! was, for a drawn while. It never aims or shoots: the reflex does,
+//! beside a friend.
 //!
 //! The slot is the bot pair (the bot and the teammate it joins), so two
 //! bots do not run to each other. A hunter squad that goes for the top
@@ -15,6 +17,20 @@
 
 use super::*;
 use crate::v026g::bots::curve::{Consideration, Curve, Input};
+use crate::v026g::bots::tactics::SpotQuery;
+
+/// Out of his sight (F3, `ThreatTuning::pair_up_hidden`): a join spot is
+/// looked for again when the teammate moved this far from where it was
+/// looked for, m (GUESS: most of `pair_m`, 8 m, so a teammate on the move
+/// costs a spot query every few seconds, not every think).
+pub const REJOIN_M: f32 = 5.0;
+/// A join or wait spot is reached within this, m.
+pub const SPOT_REACH_M: f32 = 1.5;
+/// A wait spot out of his sight is looked for within this of the bot, m
+/// (GUESS: a few seconds' walk back into cover).
+pub const HIDE_M: f32 = 10.0;
+/// Spot samples a query.
+const HIDE_SAMPLES: usize = 32;
 
 pub const NUMBERS: &[(&str, f32)] = &[
     // The scoreboard's worth: kills + this times the streak.
@@ -57,26 +73,53 @@ pub fn tuning() -> PlayTuning {
     }
 }
 
+/// The rule that names a scoreboard's top: a player's worth is kills + `streak_weight` x streak; the top has at least `top_min` and
+/// `top_lead` over the next. One rule for the play and for the bench's counters (`tallies/owner/feel.rs`).
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct TopRule {
+    pub streak_weight: f32,
+    pub top_min: f32,
+    pub top_lead: f32,
+}
+
+impl TopRule {
+    /// The rule with the numbers `num` gives (a tuning's, or [`NUMBERS`]).
+    pub fn of(num: impl Fn(&str) -> f32) -> Self {
+        Self { streak_weight: num("streak_weight"), top_min: num("top_min"), top_lead: num("top_lead") }
+    }
+
+    /// The rule with the default numbers ([`NUMBERS`]); a missing name is a bug and panics.
+    pub fn default_numbers() -> Self {
+        Self::of(|name| NUMBERS.iter().find(|(n, _)| *n == name).unwrap_or_else(|| panic!("pair_up has no number {name}")).1)
+    }
+
+    /// The top among `players` (place, kills, streak), if one stands out.
+    pub fn top(&self, players: impl Iterator<Item = (Place, u32, u32)>) -> Option<Place> {
+        let mut ranked: Vec<(Place, f32)> =
+            players.map(|(place, kills, streak)| (place, kills as f32 + self.streak_weight * streak as f32)).collect();
+        ranked.sort_by(|a, b| b.1.total_cmp(&a.1));
+        let (top, best) = *ranked.first()?;
+        let next = ranked.get(1).map_or(0.0, |e| e.1);
+        (best >= self.top_min && best - next >= self.top_lead).then_some(top)
+    }
+}
+
 /// The scoreboard's top enemy, if he stands out.
 fn top_player(cx: &Ctx) -> Option<Place> {
-    let num = |name| cx.num(PlayKind::PairUp, name);
-    let worth = |p: &PlaceView| p.kills as f32 + num("streak_weight") * p.streak as f32;
-    let mut enemies: Vec<(Place, f32)> = cx
-        .view
-        .places
-        .iter()
-        .filter(|p| p.present && p.team != cx.me.team)
-        .map(|p| (p.place, worth(p)))
-        .collect();
-    enemies.sort_by(|a, b| b.1.total_cmp(&a.1));
-    let (top, best) = *enemies.first()?;
-    let next = enemies.get(1).map_or(0.0, |e| e.1);
-    (best >= num("top_min") && best - next >= num("top_lead")).then_some(top)
+    TopRule::of(|name| cx.num(PlayKind::PairUp, name))
+        .top(cx.view.places.iter().filter(|p| p.present && p.team != cx.me.team).map(|p| (p.place, p.kills, p.streak)))
 }
 
 /// The teammate to join against him at `at`: alive, nearer to him than
-/// the bot, the nearest such to the bot.
+/// the bot, the nearest such to the bot; with `pair_up_hidden`, not one
+/// standing in a held spot's lanes (K3: joining him there is walking into
+/// the line the team died in).
 fn mate<'a>(cx: &Ctx<'a>, at: Vec3) -> Option<&'a PlaceView> {
+    mate_where(cx, at, cx.tuning.threat.pair_up_hidden)
+}
+
+/// [`mate`], keeping out of the held lines or not (`hidden`).
+fn mate_where<'a>(cx: &Ctx<'a>, at: Vec3, hidden: bool) -> Option<&'a PlaceView> {
     let num = |name| cx.num(PlayKind::PairUp, name);
     let mine = cx.me.feet.distance_xz(at);
     cx.view
@@ -85,6 +128,7 @@ fn mate<'a>(cx: &Ctx<'a>, at: Vec3) -> Option<&'a PlaceView> {
             p.place != cx.me.place
                 && p.feet.distance_xz(at) + num("nearer_by_m") <= mine
                 && p.feet.distance_xz(cx.me.feet) <= num("mate_max_m")
+                && !(hidden && cx.team.threat.line_at(p.feet).is_some())
         })
         .min_by(|a, b| {
             a.feet
@@ -117,28 +161,80 @@ pub fn candidates(cx: &Ctx, out: &mut Vec<Candidate>) {
 
 #[derive(Clone, Debug, PartialEq)]
 pub enum State {
-    /// By the teammate nearer to him.
-    Pair,
-    /// No teammate: back, watching.
-    Wait { until: u32 },
+    /// By the teammate who was nearer to him when it joined him: kept while
+    /// he lives and stays within `mate_max_m`. Asking again for one nearer
+    /// ended it as soon as it stood beside him a step ahead (the audit of
+    /// three real 7v7 matches: "no teammate nearer to him now" 10-29 times
+    /// a match, mostly within the second).
+    /// `join`: where it stands by him, out of the top player's sight and
+    /// the held lanes (F3), looked for when the teammate stood at `mate_at`;
+    /// none looked for yet (or the switch off).
+    Pair { mate: Place, join: Option<Join> },
+    /// No teammate: back, watching; at `hide`, out of his sight, if one was
+    /// found (F3).
+    Wait { until: u32, hide: Option<Vec3> },
+}
+
+/// A join spot by the teammate, and where he stood when it was looked for.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct Join {
+    /// None: no spot out of his sight there; the teammate's feet, as before.
+    pub spot: Option<Vec3>,
+    pub mate_at: Vec3,
+}
+
+/// A spot within `min_m`-`max_m` of `around` out of his fire at `him`, out
+/// of every held spot's lanes, a fine goal, the nearest to the bot. The
+/// fire test is the spot query's (`SpotQuery::out_of_fire_of`, #705): no
+/// line a bullet of the team's cover rule reaches the spot by (a crate is
+/// no cover from a gun that pierces it).
+fn hidden_near(cx: &Ctx, around: Vec3, min_m: f32, max_m: f32, him: Vec3, rng: &mut Rng) -> Option<Vec3> {
+    let query = SpotQuery {
+        out_of_fire_of: Some(him),
+        cover: cx.tuning.cover.rule(),
+        side: cx.bot.side,
+        samples: HIDE_SAMPLES,
+        ..SpotQuery::ring(around, min_m, max_m)
+    };
+    cx.tactics
+        .spots(&query, cx.now, 6, rng)
+        .into_iter()
+        .map(|s| s.at)
+        .filter(|at| cx.tactics.fine_goal(*at, cx.now, cx.bot.side) && cx.team.threat.line_at(*at).is_none())
+        .min_by(|a, b| a.distance_xz(cx.me.feet).total_cmp(&b.distance_xz(cx.me.feet)))
 }
 
 pub fn start(target: TargetRef, cx: &Ctx, rng: &mut Rng) -> State {
-    let has_mate = cx.point_of(target).and_then(|at| mate(cx, at)).is_some();
-    if has_mate {
-        State::Pair
+    use crate::v026g::bots::threat::{Count, count};
+    let him = cx.point_of(target);
+    // The bench's count: the teammate it would have joined stands in a held line.
+    if let Some(at) = him
+        && cx.tuning.threat.pair_up_hidden
+        && mate_where(cx, at, false).map(|p| p.place) != mate(cx, at).map(|p| p.place)
+    {
+        count(Count::PairUpMateRefused);
+    }
+    if let Some(m) = him.and_then(|at| mate(cx, at)) {
+        State::Pair { mate: m.place, join: None }
     } else {
         let s = rng.range(
             cx.num(PlayKind::PairUp, "wait_min_s"),
             cx.num(PlayKind::PairUp, "wait_max_s"),
         );
+        let hide = him
+            .filter(|_| cx.tuning.threat.pair_up_hidden)
+            .and_then(|him| hidden_near(cx, cx.me.feet, 0.0, HIDE_M, him, rng));
+        if hide.is_some() {
+            count(Count::PairUpWaitHidden);
+        }
         State::Wait {
             until: cx.now + (s * 1000.0) as u32,
+            hide,
         }
     }
 }
 
-pub fn step(state: &mut State, target: TargetRef, cx: &Ctx, _rng: &mut Rng) -> Step {
+pub fn step(state: &mut State, target: TargetRef, cx: &Ctx, rng: &mut Rng) -> Step {
     let num = |name| cx.num(PlayKind::PairUp, name);
     if let Some((_, _, started)) = cx.bot.current
         && cx.now > started + (num("give_up_s") * 1000.0) as u32
@@ -151,13 +247,37 @@ pub fn step(state: &mut State, target: TargetRef, cx: &Ctx, _rng: &mut Rng) -> S
     if him.distance_xz(cx.me.feet) > num("near_m") * 1.5 {
         return Step::Done("he is far now");
     }
-    let mate = mate(cx, him).map(|p| p.feet);
     match state {
-        State::Pair => {
-            let Some(mate) = mate else {
-                return Step::Done("no teammate nearer to him now");
+        State::Pair { mate, join } => {
+            let Some(mate) = cx
+                .view
+                .team(cx.me.team)
+                .find(|p| p.place == *mate)
+                .map(|p| p.feet)
+                .filter(|at| at.distance_xz(cx.me.feet) <= num("mate_max_m"))
+            else {
+                return Step::Done("its teammate is down or gone");
             };
             let pair = num("pair_m");
+            // [F3] By him, out of the top player's sight and the held lanes.
+            if cx.tuning.threat.pair_up_hidden {
+                if join.is_none_or(|j| j.mate_at.distance_xz(mate) > REJOIN_M) {
+                    use crate::v026g::bots::threat::{Count, count};
+                    let spot = hidden_near(cx, mate, 0.0, pair, him, rng);
+                    count(if spot.is_some() { Count::PairUpJoinHidden } else { Count::PairUpJoinNone });
+                    *join = Some(Join { spot, mate_at: mate });
+                }
+                if let Some(Join { spot: Some(spot), .. }) = *join {
+                    if cx.me.feet.distance_xz(spot) <= SPOT_REACH_M {
+                        return Step::Continue(Intent::stay().looking(Look::At(him)));
+                    }
+                    return Step::Continue(
+                        Intent::to(spot, cx.pace_toward(spot))
+                            .within(SPOT_REACH_M * 0.7)
+                            .looking(Look::At(him)),
+                    );
+                }
+            }
             if cx.me.feet.distance_xz(mate) <= pair {
                 return Step::Continue(Intent::stay().looking(Look::At(him)));
             }
@@ -167,13 +287,21 @@ pub fn step(state: &mut State, target: TargetRef, cx: &Ctx, _rng: &mut Rng) -> S
                     .looking(Look::At(him)),
             )
         }
-        State::Wait { until } => {
-            if mate.is_some() {
-                *state = State::Pair;
+        State::Wait { until, hide } => {
+            if let Some(m) = mate(cx, him) {
+                *state = State::Pair { mate: m.place, join: None };
                 return Step::Continue(Intent::stay().looking(Look::At(him)));
             }
             if cx.now >= *until {
                 return Step::Done("no one came");
+            }
+            // [F3] Back into its spot out of his sight first.
+            if let Some(spot) = *hide
+                && cx.me.feet.distance_xz(spot) > SPOT_REACH_M
+            {
+                return Step::Continue(
+                    Intent::to(spot, Pace::Walk).within(SPOT_REACH_M * 0.7).looking(Look::At(him)),
+                );
             }
             Step::Continue(Intent::stay().crouched().looking(Look::At(him)))
         }
@@ -261,6 +389,19 @@ mod tests {
             matches!(steps.last(), Some(Step::Continue(i)) if i.go == Go::Stay && i.look == Look::At(Vec3::new(50.0, 0.0, 32.0))),
             "{steps:?}"
         );
+        // Beside him a step nearer the top player than he is: kept.
+        let mut s = top();
+        let mut rng = Rng::new(1);
+        let mut state = start(TargetRef::Place(1), &s.cx(0), &mut rng);
+        assert_eq!(state, State::Pair { mate: 2, join: None });
+        s.view.places[0].feet = Vec3::new(34.0, 0.0, 34.0);
+        assert!(super::mate(&s.cx(0), Vec3::new(50.0, 0.0, 32.0)).is_none());
+        let st = step(&mut state, TargetRef::Place(1), &s.cx(0), &mut rng);
+        assert!(matches!(st, Step::Continue(i) if i.go == Go::Stay), "{st:?}");
+        // He dies: done.
+        s.view.places[2].alive = false;
+        let st = step(&mut state, TargetRef::Place(1), &s.cx(0), &mut rng);
+        assert_eq!(st, Step::Done("its teammate is down or gone"));
         // Alone: it waits back, crouched, then is done.
         let mut s = top();
         s.view.places[2].alive = false;

@@ -96,6 +96,13 @@ pub struct Damage {
     /// `m_linear_horizontal_speed` [LIKELY m/s: 3.1–3.6 walking, 5.2–5.3
     /// sprinting].
     pub linear_horizontal_speed: f32,
+    /// `m_last_hit_time_ms`: the world's time of the last hit that took
+    /// health, of any type (a bullet, a zone, a fall, a blast):
+    /// `damage_model::hit_body_part` 0x2E5080, the one damage step of every
+    /// hit (`base_player::hit_impl` 0x2D9B90), writes the hit's time at
+    /// 0x2E5134 when the damage the armour left is above 0.0 (PROVEN)
+    /// [LIKELY 0 before the first].
+    pub last_hit_time_ms: u32,
     /// `m_health` of each body part (20 in every world seen); [LIKELY]
     /// part 0 is the body's, 1.0 unhurt.
     pub part_health: Vec<f32>,
@@ -316,6 +323,7 @@ fn damage_model(s: &[u8], head: usize, inserted_at: usize, now: u32) -> Option<D
         found = Some(Damage {
             jump_type: s[start],
             linear_horizontal_speed: f32_at(s, start + 1)?,
+            last_hit_time_ms: u32_at(s, start + 6)?,
             part_health: parts,
         });
     }
@@ -358,7 +366,8 @@ pub fn state_bytes(head: &PlayerState, inventory: &[u8], tail: &Tail) -> Vec<u8>
     out.push(2); // jump_type
     out.extend(tail.speed.to_le_bytes());
     out.push(0); // second chance
-    out.extend(0u32.to_le_bytes()); // last hit
+    let last_hit = tail.recent_hits.iter().map(|&(time, _)| time).max();
+    out.extend(last_hit.unwrap_or(0).to_le_bytes()); // last hit
     out.extend(now.to_le_bytes()); // last tick
     out.extend([0; 8]); // invulnerability
     for part in 0..20 {
@@ -453,6 +462,7 @@ mod tests {
         let damage = motion.damage.unwrap();
         assert_eq!(damage.jump_type, 2);
         assert_eq!(damage.linear_horizontal_speed, 3.4);
+        assert_eq!(damage.last_hit_time_ms, 104_000);
         assert_eq!(damage.part_health.len(), 20);
         assert_eq!(damage.part_health[0], 0.5);
     }

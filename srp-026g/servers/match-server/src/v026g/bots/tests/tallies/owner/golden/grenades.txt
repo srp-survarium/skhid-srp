@@ -1,0 +1,34 @@
+owner-test other: grenades 1 (the client's blast) damaged self 0.29 mates 0.00 enemies 0.95, killed [0, 0, 0], inside at the blast [1, 0, 1] walked in [0, 0, 0]; short 0 (aimed beyond 12 m, first contact within), thrower died in the press to launch 0, fire pressed in the hold 0, refused (thrower's blast, wall, teammate, other) [0, 0, 0, 0]; team kills by gunfire 3, team hits 7
+{
+  "grenade_damage_applied": true,
+  "grenade_died_throwing": 0,
+  "grenade_enemy_dmg": 0.949999988079071,
+  "grenade_fired_after_held": 0,
+  "grenade_in_radius": [
+    1,
+    0,
+    1
+  ],
+  "grenade_kills": [
+    0,
+    0,
+    0
+  ],
+  "grenade_mate_dmg": 0.0,
+  "grenade_refused": [
+    0,
+    0,
+    0,
+    0
+  ],
+  "grenade_self_dmg": 0.28999999165534973,
+  "grenade_short": 0,
+  "grenade_walk_ins": [
+    0,
+    0,
+    0
+  ],
+  "grenades": 1,
+  "team_hits": 7,
+  "team_kills_gun": 3
+}

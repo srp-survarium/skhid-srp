@@ -1,0 +1,268 @@
+//! Who dies of the damage zones, and how the stretch in the zone began (register #27, zone entry): the spells of a match by the team
+//! of the body, with the flags that tell the causes apart (`ZoneSpell`): a floor only a crouched body fits (the restored floors of
+//! the exact erosion), the zone came on under the body, the zones never switch (no schedule to read), a zone the bots' marks miss, and
+//! the motives of the bot over the spell (`Bot::bench_why`). Keys are `zd_<name>`, and `zd_by_team` with the same under "0" and "1",
+//! so that a head-to-head run reads the ON team's counts as the ON team's.
+//!
+//! A death counts in the pool that ran out; a spell that ended otherwise (the body left, or an enemy killed it in the zone) is a spell.
+
+use super::*;
+use crate::v026g::bots::why;
+use crate::v026g::bots::tests::{ZoneNote, ZoneSpell};
+
+/// The motives of `Bot::bench_why`, by bit, as the keys name them.
+const WHY: [(u16, &str); 11] = [
+    (why::PLAIN, "plain"),
+    (why::ESCAPE, "escape"),
+    (why::CROSS, "cross"),
+    (why::RING, "ring"),
+    (why::NONE, "none"),
+    (why::WALK_ON, "walk_on"),
+    (why::LEGS, "legs"),
+    (why::ZONE_OUT, "zone_out"),
+    (why::ZONE_OK, "zone_ok"),
+    (why::STRAIGHT, "straight"),
+    (why::POCKET, "pocket"),
+];
+
+/// The names of the pools that kill, in the order of `ZoneNote::died`.
+const POOLS: [&str; 4] = ["body", "head", "infection", "pain"];
+
+/// A route's planned drops at least this far down are read (the zone spells begin after a drop of 3 m or more).
+const ROUTE_DROP_M: f32 = 2.0;
+
+/// The landings of the planned drops of each bot's route, kept when they change: (tick, landings).
+pub(super) struct ZoneDeaths {
+    drops: Vec<Vec<(u32, Vec<Vec3>)>>,
+    /// The lip guard's state (`Bot::bench_guard`: 0 clear, 1 safe, 2 swapped, 3 braked or doomed, 5 a jump) of each bot, kept when it changes: (tick, state).
+    guards: Vec<Vec<(u32, u8)>>,
+}
+
+impl ZoneDeaths {
+    pub(super) fn new(n: usize) -> Self {
+        Self { drops: vec![Vec::new(); n], guards: vec![Vec::new(); n] }
+    }
+}
+
+/// One team's counts.
+#[derive(Default)]
+struct Side {
+    spells: u64,
+    /// Health the zones took, in thousandths.
+    lost_milli: u64,
+    deaths: u64,
+    deaths_by_pool: [u64; 4],
+    /// Spells, and deaths among them, with each flag set.
+    restored: [u64; 2],
+    came_on: [u64; 2],
+    fixed: [u64; 2],
+    unmarked: [u64; 2],
+    fight: [u64; 2],
+    /// Spells and deaths over which a motive was on.
+    why: [[u64; 2]; WHY.len()],
+}
+
+impl Side {
+    fn add(&mut self, note: &ZoneNote) {
+        let died = usize::from(note.died.is_some());
+        self.spells += 1;
+        self.lost_milli += (f64::from(note.spell.lost) * 1000.0).round() as u64;
+        if let Some(pool) = note.died {
+            self.deaths += 1;
+            self.deaths_by_pool[usize::from(pool).min(3)] += 1;
+        }
+        let spell = &note.spell;
+        for (flags, on) in [
+            (&mut self.restored, spell.restored),
+            (&mut self.came_on, spell.came_on),
+            (&mut self.fixed, spell.fixed),
+            (&mut self.unmarked, spell.unmarked),
+            (&mut self.fight, note.fight),
+        ] {
+            if on {
+                flags[0] += 1;
+                flags[1] += died as u64;
+            }
+        }
+        for (counts, (bit, _)) in self.why.iter_mut().zip(WHY) {
+            if spell.why & bit != 0 {
+                counts[0] += 1;
+                counts[1] += died as u64;
+            }
+        }
+    }
+
+    /// The keys of one side: `<name>` is the spells with it, `<name>_deaths` the deaths among them.
+    fn keyed(&self) -> serde_json::Value {
+        let mut json = serde_json::json!({
+            "zd_spells": self.spells,
+            "zd_lost_milli": self.lost_milli,
+            "zd_deaths": self.deaths,
+        });
+        for (pool, n) in POOLS.iter().zip(self.deaths_by_pool) {
+            json[format!("zd_deaths_{pool}")] = n.into();
+        }
+        for (name, flags) in [
+            ("restored", &self.restored),
+            ("came_on", &self.came_on),
+            ("fixed", &self.fixed),
+            ("unmarked", &self.unmarked),
+            ("fight", &self.fight),
+        ] {
+            json[format!("zd_{name}")] = flags[0].into();
+            json[format!("zd_{name}_deaths")] = flags[1].into();
+        }
+        for ((_, name), counts) in WHY.iter().zip(&self.why) {
+            json[format!("zd_why_{name}")] = counts[0].into();
+            json[format!("zd_why_{name}_deaths")] = counts[1].into();
+        }
+        json
+    }
+
+    fn line(&self) -> String {
+        format!(
+            "{} spells, {} deaths (restored {}, came on {}, fixed {}, unmarked {}, fight {})",
+            self.spells, self.deaths, self.restored[1], self.came_on[1], self.fixed[1], self.unmarked[1], self.fight[1]
+        )
+    }
+}
+
+impl ZoneDeaths {
+    /// Whether the route the bot had when the spell began held a planned drop whose landing is within 3 m of where the first hit was: `PLANNED[<m>]` the distance of the
+    /// nearest such landing, `UNPLANNED` when the route had none there (a fall the route did not plan).
+    fn planned(&self, note: &ZoneNote) -> String {
+        let Some(history) = self.drops.get(note.place) else {
+            return "PLANNED[-]".to_owned();
+        };
+        let landings = history.iter().rev().find(|(t, _)| *t <= note.spell.start).map(|(_, l)| l.as_slice()).unwrap_or(&[]);
+        let nearest = landings.iter().map(|l| l.distance_xz(note.spell.at)).fold(f32::INFINITY, f32::min);
+        // The lip guard's state over the 12 ticks (0.6 s) before the spell, oldest first.
+        let guard: String = self.guards.get(note.place).map_or(String::new(), |g| {
+            (0..12u32)
+                .rev()
+                .map(|k| {
+                    let t = note.spell.start.saturating_sub(k * 50);
+                    g.iter().rev().find(|(at, _)| *at <= t).map_or('-', |&(_, state)| char::from(b'0' + state))
+                })
+                .collect()
+        });
+        if nearest <= 3.0 {
+            format!("PLANNED[{nearest:.1}m of {}] GUARD[{guard}]", landings.len())
+        } else {
+            format!("UNPLANNED[{} landings, nearest {nearest:.1}m] GUARD[{guard}]", landings.len())
+        }
+    }
+}
+
+impl Topic for ZoneDeaths {
+    fn as_any_mut(&mut self) -> &mut dyn std::any::Any {
+        self
+    }
+
+    fn read(&mut self, place: Place, bot: Option<&Bot>, tick: u32) {
+        let Some(bot) = bot else {
+            return;
+        };
+        let landings: Vec<Vec3> = bot.route.as_ref().map_or_else(Vec::new, |(route, _)| {
+            route.points().windows(2).filter(|w| w[0].at.y - w[1].at.y >= ROUTE_DROP_M).map(|w| w[1].at).collect()
+        });
+        let guards = &mut self.guards[place];
+        if guards.last().is_none_or(|&(_, state)| state != bot.bench_guard) {
+            guards.push((tick, bot.bench_guard));
+        }
+        let history = &mut self.drops[place];
+        if history.last().is_none_or(|(_, last)| *last != landings) {
+            history.push((tick, landings));
+        }
+    }
+
+    fn parts(&mut self, run: &Run, game: &Game, _scale: &Scale, _shared: &Shared) -> Vec<(&'static str, Part)> {
+        let mut sides = [Side::default(), Side::default()];
+        let mut total = Side::default();
+        // Spells under way when the match ends are spells too.
+        let open = game.bodies.iter().enumerate().filter_map(|(place, b)| b.zone_spell.map(|spell| ZoneNote::of(place, &spell, b, None)));
+        for note in game.zone_notes.iter().copied().chain(open) {
+            sides[usize::from(note.team.min(1))].add(&note);
+            total.add(&note);
+            eprintln!("  {} {} {}", note.line(), before(run, &note), self.planned(&note));
+        }
+        let mut json = total.keyed();
+        json["zd_by_team"] = serde_json::json!({ "0": sides[0].keyed(), "1": sides[1].keyed() });
+        let text = format!(
+            "owner-test zone deaths: {}; team 0: {}; team 1: {}",
+            total.line(),
+            sides[0].line(),
+            sides[1].line()
+        );
+        vec![("zone_deaths", Part::new(json, text))]
+    }
+}
+
+/// What the bot was doing before a spell began (from the run's per-tick record): its play, motives (`Bot::bench_why`), route and keys at the spell's start and
+/// 1 and 2 s before it, and when it left the upper floor (the last tick its feet were within 0.5 m of the height it dropped from) and in what state.
+fn before(run: &Run, note: &ZoneNote) -> String {
+    let Some(recs) = run.recs.get(note.place).filter(|recs| !recs.is_empty()) else {
+        return String::new();
+    };
+    let at = (note.spell.start.saturating_sub(run.first_tick) / TICK_MS) as usize;
+    let show = |i: usize| -> String {
+        recs.get(i).map_or("-".to_owned(), |r| {
+            format!(
+                "{}/why{}/route{}/keys{:x}/air{}/{:.1}mps",
+                run.plays.get(usize::from(r.play)).map_or("?", String::as_str),
+                r.why,
+                u8::from(r.has_route),
+                r.keys,
+                u8::from(r.air),
+                r.speed
+            )
+        })
+    };
+    let top = note.spell.at.y + note.spell.drop_m;
+    let left = (0..=at.min(recs.len().saturating_sub(1))).rev().find(|&i| recs[i].feet.y >= top - 0.5);
+    format!(
+        "START[{}] M1S[{}] M2S[{}] LEFT[{}ms {}]",
+        show(at),
+        show(at.saturating_sub(TPS)),
+        show(at.saturating_sub(2 * TPS)),
+        left.map_or(-1, |i| ((at - i) as i64) * i64::from(TICK_MS)),
+        left.map_or("-".to_owned(), show)
+    )
+}
+
+/// A made-up spell: the flags, the motives and how it ended are filed under the body's team and counted once.
+#[test]
+pub(crate) fn a_zone_spell_is_filed_under_its_team_with_its_flags_and_motives() {
+    let (mut game, mut tally) = made_up(&[0, 1]);
+    let spell = |why: u16, restored: bool, came_on: bool, fixed: bool| ZoneSpell {
+        start: 1000,
+        health: 1.0,
+        lost: 0.5,
+        last: 2000,
+        why,
+        restored,
+        unmarked: false,
+        came_on,
+        fixed,
+        at: Vec3::ZERO,
+        drop_m: 0.0,
+        zone: Some(3),
+    };
+    let note = |team: u8, s: ZoneSpell, died: Option<u8>| ZoneNote { place: 0, team, spell: s, died, fight: false, to: Vec3::ZERO };
+    game.zone_notes.push(note(0, spell(why::CROSS, true, false, true), Some(0)));
+    game.zone_notes.push(note(0, spell(why::PLAIN, false, true, false), None));
+    game.zone_notes.push(note(1, spell(why::PLAIN | why::ZONE_OK, false, true, false), Some(2)));
+    let (_, json) = tally.finish(&game);
+    assert_eq!(json["zd_spells"], 3, "{json}");
+    assert_eq!(json["zd_deaths"], 2, "{json}");
+    assert_eq!(json["zd_by_team"]["0"]["zd_deaths"], 1);
+    assert_eq!(json["zd_by_team"]["0"]["zd_restored_deaths"], 1);
+    assert_eq!(json["zd_by_team"]["0"]["zd_fixed_deaths"], 1);
+    assert_eq!(json["zd_by_team"]["0"]["zd_came_on"], 1);
+    assert_eq!(json["zd_by_team"]["0"]["zd_came_on_deaths"], 0);
+    assert_eq!(json["zd_by_team"]["0"]["zd_why_cross_deaths"], 1);
+    assert_eq!(json["zd_by_team"]["1"]["zd_deaths_infection"], 1);
+    assert_eq!(json["zd_by_team"]["1"]["zd_why_zone_ok_deaths"], 1);
+    assert_eq!(json["zd_why_plain"], 2);
+    assert_eq!(json["zd_lost_milli"], 1500);
+}

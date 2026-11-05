@@ -15,48 +15,145 @@
 //!   deaths and streaks, steals and deliveries, the batteries and the
 //!   containers' counts, the teams' points. A death seen in the statistics
 //!   is an event with its place (the kill feed).
-//! - **Carriers:** a world says a battery is carried, not by whom; the
-//!   carrier is the player who pressed use near it last, else the nearest.
+//! - **Carriers:** a world says a battery is carried, not by whom
+//!   ([`Carry`]). The carrier is the player whose use's ray passed nearest
+//!   it lately (for a battery taken from a container, one of the other
+//!   team), else the nearest; a player believed to carry another battery
+//!   is none (a player holds one, `m_carried_item`). The others near stay
+//!   candidates: when the believed carrier's uses at his own container put
+//!   nothing in, or he died and the battery stayed carried, the next one
+//!   has it. (Audit of the owner's matches, #2: a bot at its container
+//!   pressing to put its battery in won a teammate's take beside it, the
+//!   latest use, and tried nine times to put in a battery the teammate
+//!   walked off with unaware.)
 
 use std::collections::VecDeque;
 
 use mapdata::{Vec3, World};
-use survarium::v026g::maps::RuleMode;
 
+use super::arc::{self, Flight, Grenade, Mesh};
 use super::body::{BodyTrack, Fix};
 use super::kin::Kinematics;
+use super::objective::ObjectiveMap;
+use super::live_grenades::{
+    LiveGrenade, LAUNCH_MS, Phase, Player, Pocketed, SAME_THROW_MS, THROW_KEYS, ThrowCounts, Throws, Whose,
+};
+use super::smoke::{Cloud, Clouds, MatchMs, SmokeCounts, SmokeGrenade, SmokeThrow};
+use survarium::v026g::match_msgs::grenades::{GrenadeBody, Motion};
 use crate::v026g::drive::key;
+
+/// A body this far over or under another is not beside it, metres.
+const NEAR_FLOOR_M: f32 = 1.5;
 
 /// A roster place.
 pub type Place = usize;
 
-/// The height of the eyes over the feet, standing and crouched, metres
-/// (GUESS from the capsule: 1.8 m standing, 1.1 m crouched).
-pub const EYE_STANDING: f32 = 1.6;
-pub const EYE_CROUCHED: f32 = 0.95;
+/// The body nearest to another ([`Tracker::neighbour_of`]).
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct Beside {
+    pub place: Place,
+    pub distance_m: f32,
+    /// An enemy of the other body (else a friend).
+    pub enemy: bool,
+}
+
+/// Where the game's bullet starts, over the feet, metres: the player's head
+/// matrix (`player+0x44C`, the Head locator of its animation), which
+/// `weapon_core::instant_fire` (0x2E23A0) copies as the bullet's transform
+/// and `detect_usable_object` (0x2D84C0) takes the use ray from (PROVEN, the
+/// exe). It is an animated bone, so the height depends on the pose. Live
+/// bullets of 23 recorded matches (`fact-own-eye.md` 3, 2,591 of them, the
+/// body's world position of the same tick):
+///
+/// - standing: 1.470 m level (sd 0.03), 1.460 + 0.160 sin(pitch) over the
+///   2,053 rows (PROVEN); the same running, walking and still;
+/// - crouched and moving: 1.14 + 0.22 sin(pitch) over the 385 rows under
+///   1.3 m (PROVEN for the height, LIKELY for the pitch term: the sample is
+///   small; the 0.30 of all 493 rows holds the 17 % of rows above 1.3 m,
+///   the capsule flag flipping before the head follows);
+/// - crouched and still: 1.04 m (n = 24, PROVEN for the height; the pitch
+///   term is the moving one's, GUESS), 1.11 m at 0.1-0.5 m/s.
+///
+/// The old 1.6 and 0.95 m (GUESS from the capsule) were 0.13 m too high
+/// standing and 0.1-0.19 m too low crouched.
+const EYE_STANDING_M: f32 = 1.46;
+const EYE_STANDING_PITCH_M: f32 = 0.16;
+const EYE_CROUCHED_M: f32 = 1.14;
+const EYE_CROUCHED_STILL_M: f32 = 1.04;
+const EYE_CROUCHED_PITCH_M: f32 = 0.22;
+/// Slower than this a crouched body counts as still, m/s (the data's
+/// class: 24 rows under 0.1 m/s sit at 1.04, those at 0.1-0.5 m/s at 1.11).
+const EYE_STILL_MPS: f32 = 0.1;
+
+/// The heights before the measurement (GUESS from the capsule: 1.8 m
+/// standing, 1.1 m crouched), kept for the off switch
+/// (`CombatTuning::live_eye`).
+const EYE_GUESSED_STANDING_M: f32 = 1.6;
+const EYE_GUESSED_CROUCHED_M: f32 = 0.95;
+
+thread_local! {
+    static LIVE_EYE: std::cell::Cell<bool> = const { std::cell::Cell::new(true) };
+    static USE_RAY: std::cell::Cell<f32> = const { std::cell::Cell::new(mapdata::stands::USE_RAY_M) };
+}
+
+/// The length of the client's use ray the bots count with
+/// (`SenseTuning::use_ray_m`: the stands, a take's reach, the belief about a use's
+/// ray). `Bots` sets it for its thread at each call; 2.0 by default, the client runs
+/// with 1.80.
+pub fn use_ray_m() -> f32 {
+    USE_RAY.with(|m| m.get())
+}
+
+/// Sets [`use_ray_m`] for this thread.
+pub fn set_use_ray_m(m: f32) {
+    USE_RAY.with(|cell| cell.set(m));
+}
+
+/// Whether the eye is the game's ([`eye_height`], the stand ranges, the
+/// look's re-look, the stand-in's shot order) or the old one (the off
+/// switch of the fix, `CombatTuning::live_eye`). `Bots` sets it for its
+/// thread at each call; on by default.
+pub fn live_eye() -> bool {
+    LIVE_EYE.with(|on| on.get())
+}
+
+/// Sets [`live_eye`] for this thread.
+pub fn set_live_eye(on: bool) {
+    LIVE_EYE.with(|cell| cell.set(on));
+}
+
+/// The height of the eyes (the bullet's origin) over the feet: `crouched`
+/// or standing, at `speed` (m/s, ground) with the view at `pitch` (radians,
+/// up is positive). The one place the crate gets an eye from: a body's own
+/// ([`PlaceView::eye`]), a target's head in a sight test, a cover spot's.
+pub fn eye_height(crouched: bool, speed: f32, pitch: f32) -> f32 {
+    if !live_eye() {
+        return if crouched {
+            EYE_GUESSED_CROUCHED_M
+        } else {
+            EYE_GUESSED_STANDING_M
+        };
+    }
+    let sin = pitch.sin();
+    if !crouched {
+        EYE_STANDING_M + EYE_STANDING_PITCH_M * sin
+    } else if speed < EYE_STILL_MPS {
+        EYE_CROUCHED_STILL_M + EYE_CROUCHED_PITCH_M * sin
+    } else {
+        EYE_CROUCHED_M + EYE_CROUCHED_PITCH_M * sin
+    }
+}
+
+/// The eye of a body at `feet` that holds still and looks level, standing
+/// or `crouched`: a cover spot, a stand, a track (nothing is known of its
+/// pose).
+pub fn still_eye(feet: Vec3, crouched: bool) -> Vec3 {
+    feet + Vec3::new(0.0, eye_height(crouched, 0.0, 0.0), 0.0)
+}
 /// The chest, where a shot is aimed.
 pub const CHEST: f32 = 1.3;
 
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub enum Mode {
-    Batteries,
-    TimedBatteries,
-    TeamDeathmatch,
-}
-
-impl Mode {
-    pub fn of(mode: RuleMode) -> Self {
-        match mode {
-            RuleMode::TimedBatteries => Self::TimedBatteries,
-            RuleMode::TeamDeathmatch => Self::TeamDeathmatch,
-            RuleMode::Batteries | RuleMode::Research => Self::Batteries,
-        }
-    }
-
-    pub fn has_batteries(self) -> bool {
-        self != Self::TeamDeathmatch
-    }
-}
+pub use super::objective::Mode;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum SoundKind {
@@ -66,6 +163,9 @@ pub enum SoundKind {
     Switch,
     Use,
     Jump,
+    /// A bear trap went off under a body (`Tracker::snap`): the sound is the
+    /// body's, heard at the loudness of its steps.
+    Trap,
 }
 
 /// A sound a player made.
@@ -75,6 +175,9 @@ pub struct Sound {
     pub kind: SoundKind,
     pub at: Vec3,
     pub time: u32,
+    /// A shot's reach by the weapon that fired it, metres
+    /// ([`super::shot_reach`]), where the shooter's weapon 1 is known.
+    pub reach_m: Option<f32>,
 }
 
 /// A death seen in a world's statistics: who, where last reckoned, when.
@@ -123,6 +226,15 @@ pub struct PlaceView {
     pub carrying: Option<usize>,
     /// The time of the world (or input) the body was last put right by.
     pub seen_at: u32,
+    /// For a player: how late his inputs reach the server, ms (a running
+    /// mean over his last accepted inputs, `Tracker::lateness`); 0 for a
+    /// bot and until his first input. Not the world's age (`seen_at`).
+    pub late_ms: u32,
+    /// The time (ms) `feet` and `velocity` are for: a bot's last decided
+    /// tick (up to [`super::encode::LEAD_TICKS`] past the clock), a human's
+    /// reckoning to the clock. A bot's input for a tick runs then, so what
+    /// it aims at is led from this to that tick (`reflex`, `lead_target`).
+    pub known_at: u32,
 }
 
 impl PlaceView {
@@ -131,11 +243,7 @@ impl PlaceView {
     }
 
     pub fn eye(&self) -> Vec3 {
-        let up = if self.crouched() {
-            EYE_CROUCHED
-        } else {
-            EYE_STANDING
-        };
+        let up = eye_height(self.crouched(), self.speed(), self.pitch);
         self.feet + Vec3::new(0.0, up, 0.0)
     }
 
@@ -185,6 +293,12 @@ pub struct MatchView {
     pub can_respawn: [bool; 2],
     /// Timed batteries: when the next battery appears (match ms).
     pub next_battery: Option<u32>,
+    /// The fragmentation grenades thrown and not yet gone off, from the
+    /// throw keys the server saw ([`super::live_grenades`]).
+    pub grenades: Vec<LiveGrenade>,
+    /// The smoke clouds thrown and not yet gone, from the same keys ([`super::smoke`]): those still in the air
+    /// have a cloud to come, with no smoke yet.
+    pub smoke: Clouds,
 }
 
 impl MatchView {
@@ -192,18 +306,9 @@ impl MatchView {
         self.places.get(place)
     }
 
-    /// Our points minus theirs, for `team` (tickets count a tenth).
-    pub fn score_gap(&self, team: u8) -> f32 {
-        let (ours, theirs) = (
-            self.points[usize::from(team & 1)],
-            self.points[usize::from(!team & 1)],
-        );
-        let gap = ours as f32 - theirs as f32;
-        if self.mode == Mode::TeamDeathmatch {
-            gap / 10.0
-        } else {
-            gap
-        }
+    /// The questions about what this match is won by.
+    pub fn objective(&self) -> ObjectiveMap {
+        self.mode.objective()
     }
 
     /// The living players of `team` (or not of it).
@@ -263,9 +368,120 @@ pub struct WorldFacts {
 const SOUNDS_KEPT_MS: u32 = 3_000;
 /// Deaths are kept this long, ms.
 const DEATHS_KEPT_MS: u32 = 30_000;
-/// A use this near a battery, this recently, makes the user its carrier.
+/// The carriers' numbers. Each is a GUESS unless it says otherwise;
+/// measured on the battery bench (`real_bot_cost`) and the whole-match
+/// soaks, which check the belief against the stand-in's truth (`carry:`
+/// lines), and on the audit's match 0x4da3b51d.
+///
+/// A use this near a battery (feet, metres), this recently (ms), makes the
+/// user a candidate for its carrier.
 const CARRIER_USE_M: f32 = 4.0;
 const CARRIER_USE_MS: u32 = 6_000;
+/// The uses kept of each place.
+const USES_KEPT: usize = 4;
+/// A lying battery's middle over its place (its box is about a quarter of
+/// a metre high), and a container's use box's over its place
+/// (`plays::Look::use_box`), metres.
+const BATTERY_MIDDLE_M: f32 = 0.12;
+const USE_BOX_UP_M: f32 = 1.0;
+/// A candidate's cost, metres: how far its use's ray passed the battery,
+/// and this share of how far its feet were from it (the ray tells most:
+/// a take passes within a fifth of a metre, a put-in at a container a
+/// metre or more off a battery lying beside it)...
+const CARRIER_FEET_SHARE: f32 = 0.25;
+/// ... this more for a use pressed this long before the last world that
+/// showed the battery lying (a take is instant on the key)...
+const CARRIER_STALE_MS: u32 = 1_000;
+const CARRIER_STALE_COST: f32 = 1.0;
+/// ... and for a player who pressed no use within this of it, this more
+/// than his distance (the old rule's nearest within 6 m).
+const CARRIER_NEAR_M: f32 = 6.0;
+const CARRIER_UNPRESSED_COST: f32 = 3.0;
+/// The other candidates kept, likeliest first.
+const CARRIER_OTHERS: usize = 4;
+/// The believed carrier's uses at his own container (feet within this of
+/// it, metres): after this many, each followed by a world this long after
+/// it still showing the battery carried, he does not carry it, if another
+/// candidate whose own use met the battery may (a put-in is a use on the
+/// key; the PutIn play presses two a play, and is taken again).
+/// The wait covers the put (`states[2].put_time` 0.6 s; the battery goes
+/// in at its end) and the world's lag: at 1.5 s, in the owner's Cologne
+/// match of 2026-10-24 the belief moved off the real carrier 1 s before
+/// each of 3 put-ins went in, once to a bot 8 m off that had pressed
+/// nothing (GUESS, 0.6 s + 2 s + slack).
+const PUT_IN_NEAR_M: f32 = 2.5;
+const PUT_IN_FAILS: usize = 3;
+const PUT_IN_SEEN_MS: u32 = 3_000;
+/// A believed carrier died, and the battery stayed carried this long
+/// after: another candidate has it (the drop shows in the world after the
+/// death's, about a second on).
+const DEAD_CARRY_MS: u32 = 2_500;
+/// A battery that fell this far from its believed carrier was not his
+/// (a note), metres.
+const FELL_OFF_M: f32 = 4.0;
+
+/// A use pressed: when, where the feet were, and its ray (the eye and the
+/// view's way).
+#[derive(Clone, Copy, Debug, PartialEq)]
+struct UsePress {
+    time: u32,
+    feet: Vec3,
+    eye: Vec3,
+    dir: Vec3,
+}
+
+impl UsePress {
+    /// How far the use's ray passes `point`, metres.
+    fn miss(&self, point: Vec3) -> f32 {
+        let along = (point - self.eye).dot(self.dir).clamp(0.0, use_ray_m());
+        (self.eye + self.dir * along - point).length()
+    }
+
+    /// Whether `point` lies past the end of the use's ray: its length ([`use_ray_m`]) decides the miss.
+    fn ends_short_of(&self, point: Vec3) -> bool {
+        (point - self.eye).dot(self.dir) > use_ray_m()
+    }
+}
+
+/// What two features of the senses did in the match, by the team of the body concerned (A122: `sense.sprint_body_mps` and
+/// `sense.use_ray_m` have no effect to see in a score, so these say whether they ran at all).
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub struct SenseActivity {
+    /// Sprint sounds made, and the polls in which SPRINT and FORWARD were held and the body's speed or the key rule kept the
+    /// sound from being made (`sense.sprint_body_mps`; always 0 with it off, where the keys alone make the sound).
+    pub sprint_sounds: u64,
+    pub sprint_quiet: u64,
+    /// The carrier guesses of a battery that read one of this team's use presses, and those whose ray ended short of the
+    /// battery (`sense.use_ray_m` decided the miss).
+    pub use_judged: u64,
+    pub use_short: u64,
+}
+
+/// What the view believes of a carried battery's carrier.
+#[derive(Clone, Debug, Default, PartialEq)]
+struct Carry {
+    carrier: Option<Place>,
+    /// Who else may have it, likeliest first, and whether their own use
+    /// met it (else only near it).
+    others: Vec<(Place, bool)>,
+    /// Who it is not with: their put-ins failed, or they died and it
+    /// stayed carried.
+    not_with: Vec<Place>,
+    /// The believed carrier's uses at his own container, ms.
+    put_ins: Vec<u32>,
+    /// Its believed carrier died, at the world's time.
+    died: Option<u32>,
+}
+
+/// A candidate for a carrier: its cost, and its use's ray's miss and its
+/// distance.
+#[derive(Clone, Copy, Debug)]
+struct Candidate {
+    place: Place,
+    cost: f32,
+    miss: Option<f32>,
+    distance: f32,
+}
 
 #[derive(Clone, Debug, Default)]
 struct PlaceState {
@@ -276,16 +492,27 @@ struct PlaceState {
     keys: u32,
     /// The last input's tick.
     last_input: Option<u32>,
+    /// A running mean of how late his inputs came, ms.
+    late: Option<f32>,
     alive: bool,
     health: f32,
     spawned: u32,
     stats: (u32, u32, u32),
-    last_use: Option<(u32, Vec3)>,
+    /// The last few uses pressed.
+    uses: VecDeque<UsePress>,
+    /// What its throw keys throw (`live_grenades::Throws`).
+    throws: Throws,
+    /// The press of its last throw ([`SAME_THROW_MS`]).
+    last_throw: Option<u32>,
     last_shot: Option<u32>,
     /// The body's life (`BodyTrack::last_alive`) whose death the kill feed
     /// has a spot for: one spot a life.
     death_spotted: Option<u32>,
 }
+
+/// A player's lateness is the mean of about this many of his last inputs
+/// (a second or so of play).
+const LATE_MEAN_INPUTS: f32 = 16.0;
 
 /// The view's keeper.
 pub struct Tracker {
@@ -295,19 +522,65 @@ pub struct Tracker {
     containers: Vec<(u8, Vec3)>,
     batteries: Vec<BatteryState>,
     marks: Vec<u32>,
-    carriers: Vec<Option<Place>>,
+    carries: Vec<Carry>,
+    /// The time of the last world that said where the batteries are.
+    batteries_time: u32,
+    /// What the carriers' belief came to, for the log ([`Tracker::take_notes`]).
+    notes: Vec<String>,
     container_counts: Vec<usize>,
     points: [u32; 2],
     can_respawn: [bool; 2],
     next_battery: Option<u32>,
+    grenades: Vec<LiveGrenade>,
+    throws: ThrowCounts,
+    /// Smoke grenades in the hand, and the clouds they made ([`super::smoke`]): the clouds' one owner.
+    smoke_throws: Vec<SmokeThrow>,
+    /// Whether the listing of a grenade is noted (`grenade listed`, `throw key found no grenade`): on while one of the live
+    /// list's switches is on (`Bots::poll` sets it from `avoid.bot_pockets` / `avoid.kit_in_use`), so a run with both off notes
+    /// nothing new and its decisions digest is the old one's.
+    listing_notes: bool,
+    clouds: Vec<Cloud>,
+    smoke_counts: SmokeCounts,
     sounds: VecDeque<Sound>,
+    /// By place, the reach of a shot of its weapon 1 ([`super::shot_reach`]),
+    /// where known.
+    shot_reach: Vec<Option<f32>>,
     deaths: VecDeque<Death>,
     world_time: u32,
+    /// What the sprint-sound rule and the use ray did, by team (a carrier guess reads them through `&self`).
+    activity: std::cell::Cell<[SenseActivity; 2]>,
+    /// The bench only: by place, a bot seen as a human is, its body known
+    /// this many ms before the clock (his ping and the input's way) and
+    /// reckoned on from there to the clock ([`BodyTrack::seen_late`]). The
+    /// bench's bots are otherwise known to their decided tick, which no
+    /// live human is.
+    #[cfg(test)]
+    pub seen_late: Option<Vec<u32>>,
+    /// The bench only (`SRP_BENCH_PING_JITTER`): each place's `seen_late`
+    /// is off by a random walk within this many ms either way, one step a
+    /// tick of at most [`JITTER_STEP_MS`] (the live lateness changes by
+    /// 14 ms a tick at the 99th percentile), from the seed. Spikes of
+    /// 150 ms are the live 90th percentile.
+    #[cfg(test)]
+    pub seen_jitter: (u32, u32),
+    /// The walks: by place, the tick last drawn for and the offset there.
+    #[cfg(test)]
+    jitter_walks: std::cell::RefCell<Vec<(u32, i32)>>,
+    /// The bench only: by place, the lateness above which the relay
+    /// discards an input (`Game::late_relay_reach`): a body late by more is
+    /// shown as it is, with no error, for the input never came (nor to
+    /// the game's other clients).
+    #[cfg(test)]
+    pub seen_reach: Vec<u32>,
 }
+
+/// The most a bench jitter walk moves in a tick, ms.
+#[cfg(test)]
+pub const JITTER_STEP_MS: i32 = 14;
 
 impl Tracker {
     /// `teams[place]`, `bots[place]`; `containers[id]` = (team, place).
-    pub fn new(mode: RuleMode, teams: &[u8], bots: &[bool], containers: Vec<(u8, Vec3)>) -> Self {
+    pub fn new(mode: Mode, teams: &[u8], bots: &[bool], containers: Vec<(u8, Vec3)>) -> Self {
         Self {
             places: teams
                 .iter()
@@ -316,21 +589,40 @@ impl Tracker {
                     team,
                     bot,
                     health: 1.0,
+                    throws: Throws::unread(Player::of(bot)),
                     ..PlaceState::default()
                 })
                 .collect(),
-            mode: Mode::of(mode),
+            mode,
             container_counts: vec![0; containers.len()],
             containers,
             batteries: Vec::new(),
             marks: Vec::new(),
-            carriers: Vec::new(),
+            carries: Vec::new(),
+            batteries_time: 0,
+            notes: Vec::new(),
             points: [0, 0],
             can_respawn: [true, true],
             next_battery: None,
+            grenades: Vec::new(),
+            throws: ThrowCounts::default(),
+            smoke_throws: Vec::new(),
+            listing_notes: false,
+            clouds: Vec::new(),
+            smoke_counts: SmokeCounts::default(),
             sounds: VecDeque::new(),
+            shot_reach: Vec::new(),
             deaths: VecDeque::new(),
             world_time: 0,
+            activity: Default::default(),
+            #[cfg(test)]
+            seen_late: None,
+            #[cfg(test)]
+            seen_jitter: (0, 0),
+            #[cfg(test)]
+            jitter_walks: Default::default(),
+            #[cfg(test)]
+            seen_reach: Vec::new(),
         }
     }
 
@@ -338,6 +630,57 @@ impl Tracker {
     pub fn set_containers(&mut self, containers: Vec<(u8, Vec3)>) {
         self.container_counts.resize(containers.len(), 0);
         self.containers = containers;
+    }
+
+    /// The jitter of a place's ping at `clock`, ms: a random walk within
+    /// `seen_jitter`, a step at most [`JITTER_STEP_MS`] each tick, the same
+    /// for a place and a seed, advanced to the tick of `clock` (asking again
+    /// for it gives the same).
+    #[cfg(test)]
+    fn jitter(&self, place: usize, clock: u32) -> i32 {
+        let (ms, seed) = self.seen_jitter;
+        if ms == 0 {
+            return 0;
+        }
+        let bound = ms as i32;
+        let tick = clock / 50;
+        let mut walks = self.jitter_walks.borrow_mut();
+        if walks.len() <= place {
+            walks.resize(place + 1, (tick, 0));
+        }
+        let (mut at, mut offset) = walks[place];
+        while at < tick {
+            at += 1;
+            let mut z = u64::from(seed) << 32 | u64::from(at);
+            z = z.wrapping_add((place as u64 + 1).wrapping_mul(0x9E37_79B9_7F4A_7C15));
+            z = (z ^ (z >> 30)).wrapping_mul(0xBF58_476D_1CE4_E5B9);
+            z = (z ^ (z >> 27)).wrapping_mul(0x94D0_49BB_1331_11EB);
+            z ^= z >> 31;
+            let step = (z % (2 * JITTER_STEP_MS as u64 + 1)) as i32 - JITTER_STEP_MS;
+            offset = (offset + step).clamp(-bound, bound);
+        }
+        walks[place] = (at, offset);
+        offset
+    }
+
+    /// A player's input reached the server `late_ms` after its tick: his
+    /// running mean of that (each input weighs 1/[`LATE_MEAN_INPUTS`]),
+    /// which the view gives as [`PlaceView::late_ms`]. Called for an input
+    /// the server accepted, not one it discarded for being later than
+    /// the relay's reach.
+    pub fn lateness(&mut self, place: Place, late_ms: u32) {
+        if let Some(state) = self.places.get_mut(place) {
+            let late = late_ms as f32;
+            state.late = Some(state.late.map_or(late, |mean| {
+                mean + (late - mean) / LATE_MEAN_INPUTS
+            }));
+        }
+    }
+
+    /// TEST ONLY: the tick of the last input taken for `place`.
+    #[cfg(test)]
+    pub fn last_input(&self, place: Place) -> Option<u32> {
+        self.places.get(place).and_then(|state| state.last_input)
     }
 
     /// A place added (a late joiner).
@@ -357,6 +700,190 @@ impl Tracker {
 
     pub fn body(&self, place: Place) -> Option<&BodyTrack> {
         self.places.get(place).map(|state| &state.body)
+    }
+
+    /// The other place whose last world shows it alive nearest to `feet` on the same floor (within a storey's
+    /// step): how far in the plane, metres, and whether it is a friend of `place` or an enemy. Enemies block a
+    /// body in the game, friends pass through it (the J0 bodies files).
+    pub fn neighbour_of(&self, place: Place, feet: Vec3) -> Option<Beside> {
+        let mine = self.places.get(place)?.team;
+        self.places
+            .iter()
+            .enumerate()
+            .filter(|&(other, _)| other != place)
+            .filter_map(|(other, state)| {
+                let at = state.body.fix().filter(|fix| fix.alive).and_then(|fix| fix.feet)?;
+                ((at.y - feet.y).abs() < NEAR_FLOOR_M).then(|| Beside {
+                    place: other,
+                    distance_m: at.distance_xz(feet),
+                    enemy: state.team != mine,
+                })
+            })
+            .min_by(|a, b| a.distance_m.total_cmp(&b.distance_m))
+    }
+
+    /// Every place's shot reach, metres ([`super::shot_reach`]), by place.
+    pub fn set_shot_reach(&mut self, reach: Vec<Option<f32>>) {
+        self.shot_reach = reach;
+    }
+
+    /// The speed level each place's profile gives (by place), taken for a
+    /// body until a world shows its own (`BodyTrack::set_prior_level`).
+    pub fn set_prior_levels(&mut self, levels: &[Option<f32>]) {
+        for (state, &level) in self.places.iter_mut().zip(levels) {
+            state.body.set_prior_level(level);
+        }
+    }
+
+    /// What each place's throw keys throw, by place (decided where the profiles are read).
+    pub fn set_throws(&mut self, throws: Vec<Throws>) {
+        for (state, throws) in self.places.iter_mut().zip(throws) {
+            state.throws = throws;
+        }
+    }
+
+    /// A world says `place` is in its kit `kit` (`players::Supplies::kit`): its throw keys act on that kit's
+    /// pockets. A kit the profile does not have is counted and the kit in use stays.
+    pub fn kit_in_use(&mut self, place: Place, kit: usize) {
+        let Some(pockets) = self.places.get_mut(place).and_then(|state| state.throws.pockets_mut()) else {
+            return;
+        };
+        match pockets.kit(kit) {
+            Some(kit) => pockets.use_kit(kit),
+            None => self.throws.unknown_kit += 1,
+        }
+    }
+
+    /// The fragmentation grenades in the match now.
+    pub fn live_grenades(&self) -> &[LiveGrenade] {
+        &self.grenades
+    }
+
+    /// What the throw keys came to so far.
+    pub fn throw_counts(&self) -> ThrowCounts {
+        self.throws
+    }
+
+    /// What the sprint-sound rule and the use ray did so far, by team.
+    pub fn sense_activity(&self) -> [SenseActivity; 2] {
+        self.activity.get()
+    }
+
+    fn count_activity(&self, team: u8, count: impl FnOnce(&mut SenseActivity)) {
+        let mut all = self.activity.get();
+        count(&mut all[usize::from(team & 1)]);
+        self.activity.set(all);
+    }
+
+    /// Notes the listing decisions from now on, or stops.
+    pub fn note_listings(&mut self, on: bool) {
+        self.listing_notes = on;
+    }
+
+    /// The fragmentation grenades `place` holds now in its kit in use, where its pockets are known ([`Throws::frags_left`]).
+    pub fn frags_left(&self, place: Place) -> Option<u16> {
+        self.places.get(place)?.throws.frags_left()
+    }
+
+    /// [smoke] The quick-use key that throws a smoke from `place`'s kit in use now ([`Throws::smoke_key`]).
+    pub fn smoke_key(&self, place: Place) -> Option<u32> {
+        self.places.get(place)?.throws.smoke_key()
+    }
+
+    /// The smoke clouds in the match now, those still in the air included ([`super::smoke`]).
+    pub fn clouds(&self) -> &[Cloud] {
+        &self.clouds
+    }
+
+    /// What the smoke throw keys came to so far, by the thrower's team.
+    pub fn smoke_counts(&self) -> SmokeCounts {
+        self.smoke_counts
+    }
+
+    /// The launched grenades a trusted world shows (`match_msgs::grenades`): a smoke's cloud is put where its body
+    /// lies (on the floor under it), in place of the arc's prediction, once the body is at rest ([`Motion::Resting`]):
+    /// a body still flying or rolling is not where it stops, and the arc's rest stands. Which throw a body is: one
+    /// already placed by its id, else the throw (smoke cloud or frag) whose blast is its blast within
+    /// [`super::smoke::BLAST_MATCH_MS`], the nearest predicted rest among ties; a frag's body moves no cloud. A later
+    /// resting sighting of the same body wins. One note for the first placing of each cloud, and for any later one
+    /// that moves it [`super::smoke::BODY_NOTE_M`] or more.
+    pub fn grenade_bodies(&mut self, bodies: &[GrenadeBody], world: Option<&World>, time: u32) {
+        use super::smoke::{BLAST_MATCH_MS, BODY_NOTE_M, Placed};
+        for body in bodies {
+            if body.motion != Motion::Resting {
+                continue;
+            }
+            let at = Vec3::from_array(body.place.0);
+            let near = |blast: u32| blast.abs_diff(body.blast.0) <= BLAST_MATCH_MS;
+            let by_id = self
+                .clouds
+                .iter()
+                .position(|c| matches!(c.placed, Placed::Seen { id, .. } if id == body.id));
+            let index = by_id.or_else(|| {
+                // The nearest predicted rest among the throws going off then: a cloud's, or a frag's (none).
+                let cloud = self
+                    .clouds
+                    .iter()
+                    .enumerate()
+                    .filter(|(_, c)| c.placed == Placed::Arc && near(c.pours.0))
+                    .map(|(i, c)| (Some(i), c.centre.distance_xz(at)))
+                    .min_by(|a, b| a.1.total_cmp(&b.1));
+                let frag = self
+                    .grenades
+                    .iter()
+                    .filter(|g| near(g.blast_at()))
+                    .filter_map(|g| match g.phase {
+                        Phase::Flying { rest, .. } => Some((None::<usize>, rest.distance_xz(at))),
+                        Phase::Pressed => None,
+                    })
+                    .min_by(|a, b| a.1.total_cmp(&b.1));
+                match (cloud, frag) {
+                    (Some(c), Some(f)) if f.1 < c.1 => None,
+                    (c, _) => c.and_then(|c| c.0),
+                }
+            });
+            let Some(cloud) = index.and_then(|i| self.clouds.get_mut(i)) else {
+                continue;
+            };
+            let floor = world.and_then(|world| super::smoke::floor_under(&world.sight, at));
+            let centre = floor.map_or(at, |y| Vec3::new(at.x, y, at.z));
+            let moved = cloud.centre.distance_xz(centre);
+            let first = cloud.placed == Placed::Arc;
+            let team = usize::from(cloud.team & 1);
+            if first {
+                // The arc's error, against a resting body only.
+                self.smoke_counts.bodies_seen[team] += 1;
+                self.smoke_counts.moved_dm[team] += (moved * 10.0).round() as u32;
+            }
+            if first || moved >= BODY_NOTE_M {
+                self.notes.push(format!(
+                    "smoke cloud by player {} put on its grenade {} at rest at ({:.1}, {:.1}, {:.1}) in the world at {time} ms: {moved:.1} m from {}",
+                    cloud.by,
+                    body.id.0,
+                    at.x,
+                    at.y,
+                    at.z,
+                    if first { "the arc's rest" } else { "its last sighting" },
+                ));
+            }
+            cloud.centre = centre;
+            cloud.placed = Placed::Seen {
+                world_ms: time,
+                id: body.id,
+            };
+        }
+    }
+
+    /// A cloud put in the match as if thrown (tests: a bench or a probe with no human thrower).
+    #[cfg(test)]
+    pub fn add_cloud(&mut self, cloud: Cloud) {
+        self.clouds.push(cloud);
+    }
+
+    /// The clouds, to change one (tests).
+    #[cfg(test)]
+    pub fn clouds_mut_for_test(&mut self) -> &mut [Cloud] {
+        &mut self.clouds
     }
 
     /// An input of `place` for the tick `time` (a human's as relayed, a
@@ -386,16 +913,18 @@ impl Tracker {
         state
             .body
             .decided(time, keys, turn, kick, kin, world.map(|world| &*world.grid));
-        let at = state.body.estimate().map(|e| e.feet);
-        let Some(at) = at else {
+        let Some(estimate) = state.body.estimate().copied() else {
             return;
         };
+        let at = estimate.feet;
+        let reach_m = self.shot_reach.get(place).copied().flatten();
         let mut heard = |kind| {
             self.sounds.push_back(Sound {
                 from: place,
                 kind,
                 at,
                 time,
+                reach_m: (kind == SoundKind::Shot).then_some(reach_m).flatten(),
             });
         };
         if pressed & key::FIRE != 0 {
@@ -410,16 +939,270 @@ impl Tracker {
         }
         if pressed & key::USE != 0 {
             heard(SoundKind::Use);
-            state.last_use = Some((time, at));
         }
         if pressed & key::JUMP != 0 {
             heard(SoundKind::Jump);
+        }
+        if pressed & THROW_KEYS != 0
+            && state.last_throw.is_none_or(|last| time >= last + SAME_THROW_MS)
+        {
+            let bots_frag = *Grenade::bots();
+            let mut kit = 0;
+            let thrown = match &mut state.throws {
+                Throws::Human(pockets) => {
+                    kit = pockets.in_use().get();
+                    self.throws.quick_rules_differ += u32::from(pockets.quick_rules_differ(pressed));
+                    match pockets.throw_grenade(pressed) {
+                        Some((item, grenade)) => Some((item, grenade, Whose::Human)),
+                        // The client throws nothing: counted.
+                        None => {
+                            self.throws.human_empty += 1;
+                            if self.listing_notes {
+                                self.notes
+                                    .push(format!("throw key found no grenade: place {place} pressed {pressed:#x} at {time}, kit {kit}"));
+                            }
+                            None
+                        }
+                    }
+                }
+                Throws::Bot(pockets) => {
+                    kit = pockets.in_use().get();
+                    self.throws.quick_rules_differ += u32::from(pockets.quick_rules_differ(pressed));
+                    match pockets.throw_grenade(pressed) {
+                        Some((item, grenade)) => Some((item, grenade, Whose::Bot)),
+                        // The client throws nothing: the throw key is listed as an assumed grenade.
+                        None if pressed & key::GRENADE != 0 => {
+                            self.throws.bot_empty += 1;
+                            Some((Pocketed::Frag, bots_frag, Whose::Assumed))
+                        }
+                        None => None,
+                    }
+                }
+                Throws::GrenadeKeyIsFrag => (pressed & key::GRENADE != 0).then_some((Pocketed::Frag, bots_frag, Whose::Unread)),
+                Throws::Unknown => {
+                    self.throws.no_pockets += 1;
+                    None
+                }
+            };
+            match thrown {
+                Some((Pocketed::Frag, grenade, whose)) => {
+                    match whose {
+                        Whose::Human => {
+                            self.throws.frag += 1;
+                            self.throws.human_frag += 1;
+                            self.throws.human_quick += u32::from(pressed & key::GRENADE == 0);
+                            self.throws.human_other_kit += u32::from(kit != 0);
+                        }
+                        Whose::Bot => self.throws.frag += 1,
+                        Whose::Assumed => self.throws.assumed += 1,
+                        Whose::Unread => self.throws.unread += 1,
+                    }
+                    state.last_throw = Some(time);
+                    if self.listing_notes {
+                        self.notes.push(format!(
+                            "grenade listed: place {place} team {} pressed {pressed:#x} at {time}, kit {kit}, {whose:?}",
+                            state.team
+                        ));
+                    }
+                    self.grenades.push(LiveGrenade {
+                        by: place,
+                        team: state.team,
+                        press: time,
+                        phase: Phase::Pressed,
+                        grenade,
+                        whose,
+                    });
+                }
+                Some((Pocketed::Smoke, _, _)) => {
+                    self.throws.smoke += 1;
+                    state.last_throw = Some(time);
+                    self.smoke_counts.thrown[usize::from(state.team & 1)] += 1;
+                    self.smoke_throws.push(SmokeThrow {
+                        by: place,
+                        team: state.team,
+                        press: MatchMs(time),
+                        grenade: *SmokeGrenade::of_game_data(),
+                    });
+                }
+                Some((Pocketed::Other, _, _)) | None => {}
+            }
+        }
+        if pressed & key::USE != 0 {
+            let pitch = estimate.view_pitch();
+            let speed = estimate.velocity[0].hypot(estimate.velocity[1]);
+            let up = eye_height(keys & key::CROUCH != 0, speed, pitch);
+            let [fx, fz] = super::kin::forward(estimate.yaw);
+            let (sin, cos) = pitch.sin_cos();
+            self.used(
+                place,
+                UsePress {
+                    time,
+                    feet: at,
+                    eye: at + Vec3::new(0.0, up, 0.0),
+                    dir: Vec3::new(fx * cos, sin, fz * cos),
+                },
+            );
+        }
+    }
+
+    /// A use of `place`: kept, and if he is believed to carry a battery
+    /// and stands at his own container, a put-in of it.
+    fn used(&mut self, place: Place, press: UsePress) {
+        let Some(state) = self.places.get_mut(place) else {
+            return;
+        };
+        if state.uses.len() >= USES_KEPT {
+            state.uses.pop_front();
+        }
+        state.uses.push_back(press);
+        let team = state.team;
+        let home = self
+            .containers
+            .iter()
+            .any(|&(t, at)| t == team && at.distance_xz(press.feet) <= PUT_IN_NEAR_M);
+        if !home {
+            return;
+        }
+        for (carry, battery) in self.carries.iter_mut().zip(&self.batteries) {
+            if carry.carrier == Some(place) && matches!(battery, BatteryState::Carried(_)) {
+                carry.put_ins.push(press.time);
+            }
+        }
+    }
+
+    /// The grenades due to leave the hand at `clock` get their landing: the
+    /// arc model from the thrower's body as reckoned now, over the map's
+    /// bullet mesh (`arc::Flight::landing`); entries past their blast go.
+    /// With no map a grenade stays pressed.
+    pub fn launch_grenades(&mut self, clock: u32, world: Option<&World>) {
+        let grenades = std::mem::take(&mut self.grenades);
+        let mut kept = Vec::with_capacity(grenades.len());
+        for mut grenade in grenades {
+            if !grenade.live_at(clock) {
+                continue;
+            }
+            if grenade.phase == Phase::Pressed
+                && clock >= grenade.press + LAUNCH_MS
+                && let Some(world) = world
+            {
+                match self.launch_of(grenade.by, grenade.grenade, world) {
+                    Launch::Dead => {
+                        self.throws.died_throwing += 1;
+                        continue;
+                    }
+                    Launch::NoLanding => {
+                        self.throws.unplaced += 1;
+                        continue;
+                    }
+                    Launch::Lands(landing) => {
+                        let launched = grenade.press + LAUNCH_MS;
+                        grenade.phase = Phase::Flying {
+                            launched,
+                            lands: launched + (landing.contact.t * 1000.0) as u32,
+                            rest: landing.rest,
+                        };
+                        self.throws.launched += 1;
+                    }
+                }
+            }
+            kept.push(grenade);
+        }
+        self.grenades = kept;
+        self.launch_smoke(clock, world);
+    }
+
+    /// The smoke grenades due to leave the hand at `clock` become clouds where the arc puts them to rest (as a
+    /// frag's landing, with the smoke's throw speed); clouds past their end go. With no map a smoke stays in
+    /// the hand.
+    fn launch_smoke(&mut self, clock: u32, world: Option<&World>) {
+        let now = MatchMs(clock);
+        self.clouds.retain(|cloud| cloud.live_at(now));
+        let throws = std::mem::take(&mut self.smoke_throws);
+        let mut kept = Vec::with_capacity(throws.len());
+        for throw in throws {
+            let (Some(world), true) = (world, clock >= throw.press.0 + LAUNCH_MS) else {
+                kept.push(throw);
+                continue;
+            };
+            let team = usize::from(throw.team & 1);
+            match self.launch_of(throw.by, throw.grenade.flight, world) {
+                Launch::Lands(landing) => {
+                    // The floor under the rest: straight down the bullet mesh from just over it.
+                    let cloud = throw.cloud_at(landing.rest, |rest| super::smoke::floor_under(&world.sight, rest));
+                    let c = cloud.centre;
+                    self.notes.push(format!(
+                        "smoke cloud by player {} (team {}) at ({:.1}, {:.1}, {:.1}), pours at {} ms, gone at {} ms",
+                        cloud.by,
+                        cloud.team,
+                        c.x,
+                        c.y,
+                        c.z,
+                        cloud.pours.0,
+                        cloud.ends().0
+                    ));
+                    self.clouds.push(cloud);
+                    self.smoke_counts.clouds[team] += 1;
+                }
+                Launch::Dead | Launch::NoLanding => self.smoke_counts.dropped[team] += 1,
+            }
+        }
+        self.smoke_throws = kept;
+    }
+
+    /// Where a grenade `grenade` let go by `by` lands, from its thrower's body now.
+    fn launch_of(&self, by: Place, grenade: Grenade, world: &World) -> Launch {
+        let Some(state) = self.places.get(by).filter(|state| state.alive) else {
+            return Launch::Dead;
+        };
+        let Some(e) = state.body.estimate().copied() else {
+            return Launch::Dead;
+        };
+        let pitch = e.view_pitch();
+        let speed = e.velocity[0].hypot(e.velocity[1]);
+        let up = eye_height(e.keys & key::CROUCH != 0, speed, pitch);
+        let eye = e.feet + Vec3::new(0.0, up, 0.0);
+        match Flight::thrown_by(grenade, eye, e.yaw, pitch).landing(&Mesh(&world.sight)) {
+            Some(landing) => Launch::Lands(landing),
+            None => Launch::NoLanding,
         }
     }
 
     /// The sounds of keys held: fire held is a shot every 150 ms, a sprint
     /// is heard while it lasts (a sound a poll, at most every 500 ms).
-    pub fn held_sounds(&mut self, clock: u32) {
+    /// Sounds the held keys make. `sprint_body_mps` (`SenseTuning::
+    /// sprint_body_mps`): `None`, SPRINT and FORWARD held make the sprint
+    /// sound; `Some(v)`, only a body that also sprints by the client's key
+    /// rule ([`Kinematics::sprints`]) and moves at `v` m/s or more.
+    /// The alive body nearest `at` within `within` metres, if any: whose
+    /// foot a trap that went off there was under.
+    pub fn nearest_body(&self, at: Vec3, within: f32) -> Option<Place> {
+        self.places
+            .iter()
+            .enumerate()
+            .filter(|(_, state)| state.present && state.alive)
+            .filter_map(|(place, state)| {
+                let feet = state.body.estimate()?.feet;
+                let d = feet.distance_xz(at);
+                (d <= within && (feet.y - at.y).abs() < 2.0).then_some((place, d))
+            })
+            .min_by(|a, b| a.1.total_cmp(&b.1))
+            .map(|(place, _)| place)
+    }
+
+    /// A trap went off under body `victim` at `at`: a sound of its own, heard
+    /// by the enemies of the body like its steps.
+    pub fn snap(&mut self, victim: Place, at: Vec3, time: u32) {
+        self.sounds.push_back(Sound {
+            from: victim,
+            kind: SoundKind::Trap,
+            at,
+            time,
+            // A trap's snap has no weapon reach.
+            reach_m: None,
+        });
+    }
+
+    pub fn held_sounds(&mut self, clock: u32, sprint_body_mps: Option<f32>) {
         for (place, state) in self.places.iter_mut().enumerate() {
             let Some(at) = state.body.estimate().map(|e| e.feet) else {
                 continue;
@@ -432,22 +1215,35 @@ impl Tracker {
                     kind: SoundKind::Shot,
                     at,
                     time: clock,
+                    reach_m: self.shot_reach.get(place).copied().flatten(),
                 });
             }
-            let sprinting = state.keys & key::SPRINT != 0 && state.keys & key::FORWARD != 0;
+            let held = state.keys & key::SPRINT != 0 && state.keys & key::FORWARD != 0;
+            let sprinting = match sprint_body_mps {
+                None => held,
+                Some(least) => {
+                    let [vx, vz] = state.body.estimate().map_or([0.0; 2], |e| e.velocity);
+                    Kinematics::sprints(state.keys) && vx.hypot(vz) >= least
+                }
+            };
             let heard_lately = self
                 .sounds
                 .iter()
                 .rev()
                 .take_while(|sound| sound.time + 500 > clock)
                 .any(|sound| sound.from == place && sound.kind == SoundKind::Sprint);
+            let team = usize::from(state.team & 1);
             if sprinting && !heard_lately {
                 self.sounds.push_back(Sound {
                     from: place,
                     kind: SoundKind::Sprint,
                     at,
                     time: clock,
+                    reach_m: None,
                 });
+                self.activity.get_mut()[team].sprint_sounds += 1;
+            } else if held && !sprinting {
+                self.activity.get_mut()[team].sprint_quiet += 1;
             }
         }
         while self
@@ -480,6 +1276,11 @@ impl Tracker {
             return false;
         };
         state.alive = fix.alive;
+        if state.spawned != fix.inserted
+            && let Some(pockets) = state.throws.pockets_mut()
+        {
+            pockets.refill();
+        }
         state.spawned = fix.inserted;
         if let Some(health) = health {
             state.health = health;
@@ -535,59 +1336,253 @@ impl Tracker {
         if facts.batteries.is_empty() {
             return new_deaths;
         }
-        self.carriers.resize(facts.batteries.len(), None);
-        for (battery, state) in facts.batteries.iter().enumerate() {
-            let before = self.batteries.get(battery).copied();
-            self.carriers[battery] = match state {
-                BatteryState::Carried(_) => match before {
-                    Some(BatteryState::Carried(_)) => self.carriers[battery],
-                    Some(BatteryState::Free(at)) => self.carrier_near(at, facts.time),
-                    Some(BatteryState::Home(id)) => {
-                        let at = self.containers.get(usize::from(id)).map(|c| c.1);
-                        at.and_then(|at| self.carrier_near(at, facts.time))
-                    }
-                    None => None,
-                },
-                _ => None,
-            };
-            // A carrier who died has dropped it (the next world says where).
-            if let Some(carrier) = self.carriers[battery]
-                && !self.places[carrier].alive
-            {
-                self.carriers[battery] = None;
-            }
-        }
+        self.carriers_seen(&facts.batteries, facts.time);
         self.batteries = facts.batteries;
+        self.batteries_time = facts.time;
         self.marks = facts.marks;
         new_deaths
     }
 
-    /// The player who pressed use near `at` lately, else the nearest one.
-    fn carrier_near(&self, at: Vec3, time: u32) -> Option<Place> {
-        let used = self
+    /// Who is believed to carry `battery` (a soak checks it against its
+    /// stand-in's truth).
+    pub fn carrier(&self, battery: usize) -> Option<Place> {
+        self.carries.get(battery).and_then(|carry| carry.carrier)
+    }
+
+    /// What the carriers' belief came to since the last call: lines for
+    /// the log.
+    pub fn take_notes(&mut self) -> Vec<String> {
+        std::mem::take(&mut self.notes)
+    }
+
+    /// The carriers, from a world's batteries (`self.batteries` is still
+    /// the world before's).
+    fn carriers_seen(&mut self, batteries: &[BatteryState], time: u32) {
+        self.carries.resize_with(batteries.len(), Carry::default);
+        // Batteries no longer carried; and their carriers' deaths.
+        for (battery, state) in batteries.iter().enumerate() {
+            let before = self.batteries.get(battery).copied();
+            if !matches!(state, BatteryState::Carried(_)) {
+                if let (BatteryState::Free(at), Some(BatteryState::Carried(_))) = (state, before)
+                    && let Some(carrier) = self.carries[battery].carrier
+                    && let Some(feet) = self.feet(carrier)
+                    && feet.distance_xz(*at) > FELL_OFF_M
+                {
+                    self.notes.push(format!(
+                        "battery {battery} fell {:.1} m from player {carrier}, believed its carrier",
+                        feet.distance_xz(*at)
+                    ));
+                }
+                self.carries[battery] = Carry::default();
+                continue;
+            }
+            let carry = &mut self.carries[battery];
+            if let Some(carrier) = carry.carrier
+                && !self.places[carrier].alive
+            {
+                // A carrier who died has dropped it (the next world says
+                // where), unless it was not his.
+                carry.carrier = None;
+                carry.not_with.push(carrier);
+                carry.died = Some(time);
+            }
+        }
+        // Batteries picked up since the world before.
+        let mut picked = Vec::new();
+        for (battery, state) in batteries.iter().enumerate() {
+            if !matches!(state, BatteryState::Carried(_)) {
+                continue;
+            }
+            let (point, thieves_of) = match self.batteries.get(battery).copied() {
+                Some(BatteryState::Free(at)) => (at + Vec3::new(0.0, BATTERY_MIDDLE_M, 0.0), None),
+                Some(BatteryState::Home(id)) => match self.containers.get(usize::from(id)) {
+                    Some(&(team, at)) => (at + Vec3::new(0.0, USE_BOX_UP_M, 0.0), Some(team)),
+                    None => continue,
+                },
+                _ => continue,
+            };
+            let mut candidates = self.candidates(point, thieves_of, time);
+            let carry = &mut self.carries[battery];
+            *carry = Carry::default();
+            if candidates.is_empty() {
+                self.notes.push(format!(
+                    "battery {battery} picked up by nobody known near it"
+                ));
+                continue;
+            }
+            let best = candidates.remove(0);
+            carry.carrier = Some(best.place);
+            picked.push((battery, best.place));
+            carry.others = candidates
+                .iter()
+                .map(|c| (c.place, c.miss.is_some()))
+                .take(CARRIER_OTHERS)
+                .collect();
+            let others: Vec<String> = candidates
+                .iter()
+                .take(CARRIER_OTHERS)
+                .map(|c| format!("{} ({:.1})", c.place, c.cost))
+                .collect();
+            self.notes.push(format!(
+                "battery {battery} picked up by {}: {}, {:.1} m away; the others near: {}",
+                best.place,
+                best.miss
+                    .map_or("pressed no use".to_string(), |miss| format!(
+                        "its use's ray {miss:.2} m off it"
+                    )),
+                best.distance,
+                if others.is_empty() {
+                    "none".to_string()
+                } else {
+                    others.join(", ")
+                },
+            ));
+        }
+        // One who picked up a battery did not have another (the game
+        // gives a battery only to a player carrying nothing:
+        // `victory_item_core::can_use` 0x300710): he is no other candidate
+        // for any other carry, even once he has put his own in. In
+        // 0x1b8ee975 one world showed batteries 6 and 8 picked up by bots
+        // 6 and 4 side by side; bot 4 put 8 in, bot 6's put-ins failed, and
+        // battery 6 was believed bot 4's for 35 s while bot 6 carried it.
+        for &(battery, place) in &picked {
+            for (other, carry) in self.carries.iter_mut().enumerate() {
+                if other != battery {
+                    carry.others.retain(|&(p, _)| p != place);
+                }
+            }
+        }
+        // Beliefs the batteries' staying carried rule out.
+        for (battery, state) in batteries.iter().enumerate() {
+            if !matches!(state, BatteryState::Carried(_)) {
+                continue;
+            }
+            let carry = &self.carries[battery];
+            // Failed put-ins tell only that it is not his: another takes the
+            // belief only if his own use met it. A death with it still
+            // carried tells someone has it: the likeliest.
+            let (why, pressed_only) = match (carry.carrier, carry.died) {
+                (Some(_), _)
+                    if carry
+                        .put_ins
+                        .iter()
+                        .filter(|&&t| t + PUT_IN_SEEN_MS <= time)
+                        .count()
+                        >= PUT_IN_FAILS =>
+                {
+                    (
+                        format!(
+                            "{} uses at his container put nothing in",
+                            carry.put_ins.len()
+                        ),
+                        true,
+                    )
+                }
+                (None, Some(died)) if died + DEAD_CARRY_MS <= time => {
+                    ("he died and it stayed carried".to_string(), false)
+                }
+                _ => continue,
+            };
+            let was = carry.carrier.or(carry.not_with.last().copied());
+            let next = carry.others.iter().copied().find_map(|(place, pressed)| {
+                (!carry.not_with.contains(&place)
+                    && (pressed || !pressed_only)
+                    && Some(place) != carry.carrier
+                    && self.places.get(place).is_some_and(|s| s.alive)
+                    && !self.carries.iter().any(|c| c.carrier == Some(place)))
+                .then_some(place)
+            });
+            let carry = &mut self.carries[battery];
+            carry.put_ins.clear();
+            carry.died = None;
+            match (next, carry.carrier) {
+                (Some(next), Some(was)) => {
+                    carry.not_with.push(was);
+                    carry.carrier = Some(next);
+                }
+                (Some(next), None) => carry.carrier = Some(next),
+                // No one else: the belief stays.
+                (None, _) => {}
+            }
+            self.notes.push(format!(
+                "player {} no longer believed to carry battery {battery} ({why}); now {}",
+                was.map_or("nobody".to_string(), |p| p.to_string()),
+                match (next, carry.carrier) {
+                    (Some(next), _) => format!("player {next}"),
+                    (None, Some(still)) => format!(
+                        "still player {still}, no one else {}",
+                        if pressed_only {
+                            "whose use met it"
+                        } else {
+                            "near it"
+                        }
+                    ),
+                    (None, None) => "nobody known".to_string(),
+                }
+            ));
+        }
+    }
+
+    /// The feet of `place` as last reckoned.
+    fn feet(&self, place: Place) -> Option<Vec3> {
+        Some(self.places.get(place)?.body.estimate()?.feet)
+    }
+
+    /// Who may have picked up a battery at `point` by the world at `time`,
+    /// likeliest first: the living, near it, not believed to carry another
+    /// battery, and for one taken from a container of `thieves_of`'s, not
+    /// of that team.
+    fn candidates(&self, point: Vec3, thieves_of: Option<u8>, time: u32) -> Vec<Candidate> {
+        let lying_seen = self.batteries_time;
+        let mut candidates: Vec<Candidate> = self
             .places
             .iter()
             .enumerate()
-            .filter_map(|(place, state)| {
-                let (when, from) = state.last_use?;
-                (when + CARRIER_USE_MS >= time && from.distance_xz(at) < CARRIER_USE_M)
-                    .then_some((place, when))
+            .filter(|(place, state)| {
+                state.alive
+                    && thieves_of != Some(state.team)
+                    && !self.carries.iter().any(|c| c.carrier == Some(*place))
             })
-            .max_by_key(|(_, when)| *when)
-            .map(|(place, _)| place);
-        used.or_else(|| {
-            self.places
-                .iter()
-                .enumerate()
-                .filter(|(_, state)| state.alive)
-                .filter_map(|(place, state)| {
-                    let feet = state.body.estimate()?.feet;
-                    Some((place, feet.distance_xz(at)))
+            .filter_map(|(place, state)| {
+                let used = state
+                    .uses
+                    .iter()
+                    .filter(|u| {
+                        u.time + CARRIER_USE_MS >= time && u.feet.distance_xz(point) < CARRIER_USE_M
+                    })
+                    .map(|u| {
+                        let miss = u.miss(point);
+                        self.count_activity(state.team, |a| {
+                            a.use_judged += 1;
+                            a.use_short += u64::from(u.ends_short_of(point));
+                        });
+                        let distance = u.feet.distance_xz(point);
+                        let stale = if u.time + CARRIER_STALE_MS < lying_seen {
+                            CARRIER_STALE_COST
+                        } else {
+                            0.0
+                        };
+                        Candidate {
+                            place,
+                            cost: miss + CARRIER_FEET_SHARE * distance + stale,
+                            miss: Some(miss),
+                            distance,
+                        }
+                    })
+                    .min_by(|a, b| a.cost.total_cmp(&b.cost));
+                used.or_else(|| {
+                    let distance = state.body.estimate()?.feet.distance_xz(point);
+                    (distance < CARRIER_NEAR_M).then_some(Candidate {
+                        place,
+                        cost: CARRIER_UNPRESSED_COST + distance,
+                        miss: None,
+                        distance,
+                    })
                 })
-                .filter(|(_, d)| *d < 6.0)
-                .min_by(|a, b| a.1.total_cmp(&b.1))
-                .map(|(place, _)| place)
-        })
+            })
+            .collect();
+        candidates.sort_by(|a, b| a.cost.total_cmp(&b.cost));
+        candidates
     }
 
     /// The match as it is at `clock`. A human's body is reckoned on from
@@ -600,16 +1595,32 @@ impl Tracker {
             .enumerate()
             .map(|(place, state)| {
                 let estimate = if state.bot {
-                    state.body.estimate().copied()
+                    let own = state.body.estimate().copied();
+                    // The bench's bots seen as humans are (`seen_late`).
+                    #[cfg(test)]
+                    let own = match self.seen_late.as_ref().and_then(|late| late.get(place)) {
+                        Some(&late) => {
+                            let late = late.saturating_add_signed(self.jitter(place, clock.clock));
+                            // Later than the relay takes: never came.
+                            let late = if self.seen_reach.get(place).is_some_and(|&r| late > r) {
+                                0
+                            } else {
+                                late
+                            };
+                            own.map(|e| state.body.seen_late(e, clock.clock, late))
+                        }
+                        None => own,
+                    };
+                    own
                 } else {
                     state
                         .body
                         .at(clock.clock, kin, world.map(|world| &*world.grid))
                 };
                 let carrying = self
-                    .carriers
+                    .carries
                     .iter()
-                    .position(|carrier| *carrier == Some(place));
+                    .position(|carry| carry.carrier == Some(place));
                 PlaceView {
                     place,
                     team: state.team,
@@ -628,6 +1639,8 @@ impl Tracker {
                     streak: state.stats.2,
                     carrying,
                     seen_at: state.body.fix().map_or(0, |fix| fix.time),
+                    late_ms: state.late.map_or(0, |late| late.round() as u32),
+                    known_at: estimate.map_or(clock.clock, |e| e.time),
                 }
             })
             .collect();
@@ -636,7 +1649,7 @@ impl Tracker {
             .iter()
             .enumerate()
             .map(|(battery, state)| match state {
-                BatteryState::Carried(_) => BatteryState::Carried(self.carriers[battery]),
+                BatteryState::Carried(_) => BatteryState::Carried(self.carrier(battery)),
                 other => *other,
             })
             .collect();
@@ -666,8 +1679,19 @@ impl Tracker {
             world_time: self.world_time,
             can_respawn: self.can_respawn,
             next_battery: self.next_battery,
+            grenades: self.grenades.clone(),
+            smoke: Clouds::new(self.clouds.clone()),
         }
     }
+}
+
+/// What a grenade's launch came to.
+enum Launch {
+    /// The thrower is dead or not placed: nothing was thrown.
+    Dead,
+    /// The throw touches no ground within the flight's time.
+    NoLanding,
+    Lands(arc::Landing),
 }
 
 #[cfg(test)]
@@ -687,10 +1711,89 @@ mod tests {
         }
     }
 
+    /// A human's body at place 1 that holds `keys` for `ms` ms from 1.05 s
+    /// on, then `held_sounds` at its end with `by_body`: the sprint sounds
+    /// made in all.
+    fn sprint_sounds(keys: u32, ms: u32, by_body: Option<f32>) -> usize {
+        sprint_tracker(keys, ms, by_body)
+            .sounds
+            .iter()
+            .filter(|s| s.from == 1 && s.kind == SoundKind::Sprint)
+            .count()
+    }
+
+    /// The tracker [`sprint_sounds`] counts in.
+    fn sprint_tracker(keys: u32, ms: u32, by_body: Option<f32>) -> Tracker {
+        let kin = Kinematics::default();
+        let mut tracker = Tracker::new(Mode::Batteries, &[0, 1], &[true, false], vec![]);
+        tracker.entered(1, true);
+        assert!(tracker.fixed(1, fix(1_000, Vec3::new(5.0, 0.0, 5.0)), Some(0.8), &kin, None));
+        let mut now = 1_000;
+        for _ in 0..=ms / 50 {
+            now += 50;
+            tracker.input(1, now, keys, (0.0, 0.0), 0.0, &kin, None);
+        }
+        tracker.held_sounds(now, by_body);
+        tracker
+    }
+
+    /// A122: the sprint sounds made and the held sprint keys kept quiet by the body are counted for the body's team; with
+    /// `sprint_body_mps` off the keys alone make the sound and none is quiet.
+    #[test]
+    fn the_sprint_rule_counts_the_sounds_made_and_the_keys_it_kept_quiet() {
+        let sprint = key::SPRINT | key::FORWARD;
+        let by = |keys, ms, least| {
+            let activity = sprint_tracker(keys, ms, least).sense_activity();
+            assert_eq!(activity[0], SenseActivity::default(), "place 1 is on team 1");
+            (activity[1].sprint_sounds, activity[1].sprint_quiet)
+        };
+        assert_eq!(by(sprint, 0, None), (1, 0));
+        assert_eq!(by(sprint, 0, Some(4.6)), (0, 1), "keys held, the body not moving yet");
+        assert_eq!(by(sprint, 800, Some(4.6)), (1, 0));
+        assert_eq!(by(key::FORWARD, 800, Some(4.6)), (0, 0), "no sprint key held: nothing to keep quiet");
+    }
+
+    /// A122: a carrier guess that reads a use press is counted for the press's team, and again when the press's ray ended
+    /// short of the battery (the use ray's length decided the miss).
+    #[test]
+    fn a_carrier_guess_counts_the_use_presses_it_read_and_those_ended_short() {
+        let kin = Kinematics::default();
+        let mut tracker = Tracker::new(Mode::Batteries, &[0, 1], &[true, false], vec![]);
+        tracker.entered(1, true);
+        assert!(tracker.fixed(1, fix(1_000, Vec3::new(0.0, 0.0, 0.0)), Some(0.8), &kin, None));
+        set_use_ray_m(1.8);
+        tracker.used(
+            1,
+            UsePress { time: 1_000, feet: Vec3::ZERO, eye: Vec3::new(0.0, 1.5, 0.0), dir: Vec3::new(0.0, 0.0, 1.0) },
+        );
+        // A battery 1 m ahead is within the ray, one 2.5 m ahead past its 1.8 m.
+        for z in [1.0, 2.5] {
+            tracker.candidates(Vec3::new(0.0, 1.5, z), None, 1_100);
+        }
+        let activity = tracker.sense_activity();
+        assert_eq!((activity[1].use_judged, activity[1].use_short), (2, 1));
+        assert_eq!(activity[0], SenseActivity::default());
+        set_use_ray_m(mapdata::stands::USE_RAY_M);
+    }
+
+    #[test]
+    fn the_sprint_sound_follows_the_keys_by_default_and_the_body_when_asked() {
+        let sprint = key::SPRINT | key::FORWARD;
+        // Off (`None`): the keys make it, a body that has not moved yet too.
+        assert_eq!(sprint_sounds(sprint, 0, None), 1);
+        // On: the key rule and the speed (5.0 m/s sprinting after the blend).
+        assert_eq!(sprint_sounds(sprint, 0, Some(4.6)), 0, "not moving yet");
+        assert_eq!(sprint_sounds(sprint, 800, Some(4.6)), 1, "sprinting");
+        // A body that walks (FORWARD alone, 3.5 m/s) or holds FIRE makes none.
+        assert_eq!(sprint_sounds(key::FORWARD, 800, Some(4.6)), 0);
+        assert_eq!(sprint_sounds(sprint | key::FIRE, 800, Some(4.6)), 0);
+        assert_eq!(sprint_sounds(sprint | key::CROUCH, 800, Some(4.6)), 0);
+    }
+
     #[test]
     fn a_humans_body_is_reckoned_to_the_clock_and_its_keys_are_heard() {
         let kin = Kinematics::default();
-        let mut tracker = Tracker::new(RuleMode::Batteries, &[0, 1], &[true, false], vec![]);
+        let mut tracker = Tracker::new(Mode::Batteries, &[0, 1], &[true, false], vec![]);
         tracker.entered(1, true);
         assert!(tracker.fixed(
             1,
@@ -708,7 +1811,7 @@ mod tests {
             &kin,
             None,
         );
-        tracker.held_sounds(1_100);
+        tracker.held_sounds(1_100, None);
         let clock = Clock {
             clock: 3_000,
             time_left_s: 600.0,
@@ -734,7 +1837,7 @@ mod tests {
     fn a_death_in_the_statistics_is_an_event_and_the_user_near_a_battery_carries_it() {
         let kin = Kinematics::default();
         let mut tracker = Tracker::new(
-            RuleMode::Batteries,
+            Mode::Batteries,
             &[0, 1],
             &[false, false],
             vec![(0, Vec3::ZERO), (1, Vec3::new(50.0, 0.0, 0.0))],
@@ -785,7 +1888,7 @@ mod tests {
     #[test]
     fn a_death_the_world_shows_without_feet_is_in_the_feed_where_the_body_fell() {
         let kin = Kinematics::default();
-        let mut tracker = Tracker::new(RuleMode::Batteries, &[0, 0, 1], &[true, true, false], vec![]);
+        let mut tracker = Tracker::new(Mode::Batteries, &[0, 0, 1], &[true, true, false], vec![]);
         for place in 0..3 {
             tracker.entered(place, true);
         }
@@ -868,5 +1971,334 @@ mod tests {
             ..WorldFacts::default()
         });
         assert!(new.is_empty());
+    }
+
+    /// The audit's match 0x4da3b51d at 206 s, two bots of team 1 at
+    /// their container (57, 44): one at it, pressing use at its use box;
+    /// one a metre beside it, crouched, pressing use at a battery lying
+    /// there, which a world later is carried.
+    struct AtTheContainer {
+        kin: Kinematics,
+        tracker: Tracker,
+    }
+
+    const CONTAINER: Vec3 = Vec3::new(57.0, 0.0, 44.0);
+    /// At the container, facing it (-z).
+    const AT_IT: Vec3 = Vec3::new(57.0, 0.0, 45.2);
+    /// Beside it, facing the battery (+z) a metre on.
+    const BESIDE: Vec3 = Vec3::new(58.5, 0.0, 45.0);
+    const BATTERY: Vec3 = Vec3::new(58.5, 0.0, 46.0);
+
+    impl AtTheContainer {
+        /// Places 0 and 1 the two bots, 2 an enemy far off.
+        fn new() -> Self {
+            let kin = Kinematics::default();
+            let mut tracker = Tracker::new(
+                Mode::Batteries,
+                &[1, 1, 0],
+                &[true, true, true],
+                vec![(0, Vec3::new(12.0, 0.0, 30.0)), (1, CONTAINER)],
+            );
+            for place in 0..3 {
+                tracker.entered(place, true);
+            }
+            let mut at = Self { kin, tracker };
+            at.stand(
+                0,
+                1_000,
+                AT_IT,
+                std::f32::consts::PI,
+                (1.0 - 1.6f32).atan2(1.2),
+            );
+            at.stand(1, 1_000, BESIDE, 0.0, (0.12 - 0.95f32).atan2(1.0));
+            at.stand(2, 1_000, Vec3::new(12.0, 0.0, 30.0), 0.0, 0.0);
+            at.world(1_000, vec![BatteryState::Free(BATTERY)]);
+            at
+        }
+
+        fn stand(&mut self, place: Place, time: u32, feet: Vec3, yaw: f32, pitch: f32) {
+            let fix = Fix {
+                yaw,
+                pitch,
+                ..fix(time, feet)
+            };
+            self.tracker.fixed(place, fix, None, &self.kin, None);
+        }
+
+        fn press(&mut self, place: Place, time: u32, keys: u32) {
+            let kin = &self.kin;
+            self.tracker
+                .input(place, time, keys | key::USE, (0.0, 0.0), 0.0, kin, None);
+            self.tracker
+                .input(place, time + 50, keys, (0.0, 0.0), 0.0, kin, None);
+        }
+
+        fn world(&mut self, time: u32, batteries: Vec<BatteryState>) {
+            self.tracker.facts(WorldFacts {
+                time,
+                batteries,
+                ..WorldFacts::default()
+            });
+        }
+    }
+
+    /// The bot beside the battery whose use's ray passed through it takes
+    /// it, not the one at the container who pressed later (the old rule:
+    /// the latest use within 4 m).
+    #[test]
+    fn of_two_bots_at_their_container_the_one_whose_use_met_the_battery_carries_it() {
+        let mut at = AtTheContainer::new();
+        at.press(1, 1_100, key::CROUCH);
+        at.press(0, 1_600, 0);
+        at.world(2_000, vec![BatteryState::Carried(None)]);
+        assert_eq!(at.tracker.carrier(0), Some(1));
+        let notes = at.tracker.take_notes();
+        assert!(
+            notes
+                .iter()
+                .any(|n| n.starts_with("battery 0 picked up by 1: its use's ray")),
+            "{notes:?}"
+        );
+        let view = at.tracker.view(
+            &Clock {
+                clock: 2_000,
+                time_left_s: 100.0,
+                total_s: 900.0,
+                playing: true,
+            },
+            &at.kin,
+            None,
+        );
+        assert_eq!(view.place(1).unwrap().carrying, Some(0));
+        assert_eq!(view.place(0).unwrap().carrying, None);
+    }
+
+    /// A player carries one battery: the bot at the container already
+    /// carrying one is not the taker of a second one beside it, however
+    /// its use went.
+    #[test]
+    fn a_player_believed_to_carry_a_battery_takes_no_second_one() {
+        let mut at = AtTheContainer::new();
+        // Place 0 brought battery 1 and puts it in: its uses at the
+        // container are as near the lying battery as its teammate's.
+        at.world(
+            1_200,
+            vec![BatteryState::Free(BATTERY), BatteryState::Free(AT_IT)],
+        );
+        at.press(0, 1_300, 0);
+        at.world(
+            1_400,
+            vec![BatteryState::Free(BATTERY), BatteryState::Carried(None)],
+        );
+        assert_eq!(at.tracker.carrier(1), Some(0));
+        // Place 1 presses facing away: its ray misses the battery by more
+        // than place 0's, which turned to it.
+        at.stand(1, 1_500, BESIDE, std::f32::consts::PI, 0.3);
+        at.press(1, 1_600, key::CROUCH);
+        let to = BATTERY - AT_IT;
+        at.stand(
+            0,
+            1_650,
+            AT_IT,
+            (-to.x).atan2(to.z),
+            (0.12 - 1.6f32).atan2(to.length()),
+        );
+        at.press(0, 1_700, 0);
+        at.world(
+            2_000,
+            vec![BatteryState::Carried(None), BatteryState::Carried(None)],
+        );
+        assert_eq!(at.tracker.carrier(0), Some(1));
+        assert_eq!(at.tracker.carrier(1), Some(0));
+    }
+
+    /// Two batteries picked up in one world side by side (0x1b8ee975,
+    /// 607 s): the one who put his in is no candidate for the other's
+    /// carry when the other's put-ins fail (the game gives a battery only
+    /// to a player carrying nothing), so the belief stays with its taker.
+    #[test]
+    fn one_who_picked_up_another_battery_is_not_believed_to_carry_this_one() {
+        let mut at = AtTheContainer::new();
+        at.world(
+            1_200,
+            vec![BatteryState::Free(BATTERY), BatteryState::Free(AT_IT)],
+        );
+        at.press(1, 1_300, key::CROUCH);
+        at.press(0, 1_300, 0);
+        at.world(
+            1_400,
+            vec![BatteryState::Carried(None), BatteryState::Carried(None)],
+        );
+        assert_eq!(at.tracker.carrier(0), Some(1));
+        assert_eq!(at.tracker.carrier(1), Some(0));
+        // Place 0 puts battery 1 in; place 1's uses there put nothing in.
+        at.world(
+            2_000,
+            vec![BatteryState::Carried(None), BatteryState::Home(1)],
+        );
+        at.tracker.take_notes();
+        for time in [2_400, 3_600, 4_800] {
+            at.press(1, time, key::CROUCH);
+            at.world(
+                time + 1_000,
+                vec![BatteryState::Carried(None), BatteryState::Home(1)],
+            );
+        }
+        at.world(
+            8_000,
+            vec![BatteryState::Carried(None), BatteryState::Home(1)],
+        );
+        assert_eq!(at.tracker.carrier(0), Some(1));
+        let notes = at.tracker.take_notes();
+        assert!(
+            notes
+                .iter()
+                .any(|n| n.ends_with("now still player 1, no one else whose use met it")),
+            "{notes:?}"
+        );
+    }
+
+    /// The belief went to the wrong teammate: place 1's use met the battery
+    /// a while before the world showed it lying (stale), place 0's later
+    /// one too, from nearer. Place 0's uses at its own container put
+    /// nothing in, judged after the put and the world's lag, so place 1 has
+    /// it; and a believed carrier who died while the battery stayed carried
+    /// did not carry it.
+    #[test]
+    fn a_belief_moves_on_when_put_ins_fail_or_its_carrier_dies_with_it_still_carried() {
+        let mut at = AtTheContainer::new();
+        at.press(1, 1_050, key::CROUCH);
+        at.world(2_100, vec![BatteryState::Free(BATTERY)]);
+        // Place 0 turns to the battery, standing at the container.
+        at.stand(
+            0,
+            2_150,
+            AT_IT,
+            (-1.5f32).atan2(0.8),
+            (0.12 - 1.6f32).atan2(1.7),
+        );
+        at.press(0, 2_200, 0);
+        at.world(2_500, vec![BatteryState::Carried(None)]);
+        assert_eq!(at.tracker.carrier(0), Some(0), "the fresher, nearer use");
+        at.tracker.take_notes();
+        for (i, time) in [2_700, 3_900, 5_100].into_iter().enumerate() {
+            at.press(0, time, 0);
+            at.world(time + 1_000, vec![BatteryState::Carried(None)]);
+            assert_eq!(at.tracker.carrier(0), Some(0), "use {i} not yet judged");
+        }
+        // 2 s after the third use: the put (0.6 s) may still show.
+        at.world(7_100, vec![BatteryState::Carried(None)]);
+        assert_eq!(
+            at.tracker.carrier(0),
+            Some(0),
+            "the third use not judged yet"
+        );
+        at.world(8_200, vec![BatteryState::Carried(None)]);
+        assert_eq!(at.tracker.carrier(0), Some(1));
+        let notes = at.tracker.take_notes();
+        assert!(
+            notes.iter().any(|n| n
+                == "player 0 no longer believed to carry battery 0 (3 uses at his container put nothing in); now player 1"),
+            "{notes:?}"
+        );
+        // Place 1 dies; the battery stays carried: place 0 has it after
+        // all (the only other one near, ruled out before, is not taken
+        // again), so the belief is nobody.
+        let mut dead = fix(9_000, BESIDE);
+        dead.alive = false;
+        dead.feet = None;
+        at.tracker.fixed(1, dead, None, &at.kin, None);
+        at.world(9_000, vec![BatteryState::Carried(None)]);
+        assert_eq!(at.tracker.carrier(0), None);
+        at.world(12_000, vec![BatteryState::Carried(None)]);
+        assert_eq!(at.tracker.carrier(0), None);
+    }
+
+    /// Cologne 2026-10-24: failed put-ins move the belief only to one whose
+    /// own use met the battery; a teammate who was only near it is not
+    /// believed the carrier (bot 4, 8 m off, had pressed nothing).
+    #[test]
+    fn failed_put_ins_move_no_belief_to_a_teammate_who_pressed_nothing() {
+        let mut at = AtTheContainer::new();
+        at.press(0, 1_600, 0);
+        at.world(2_000, vec![BatteryState::Carried(None)]);
+        assert_eq!(at.tracker.carrier(0), Some(0), "the only use near it");
+        at.tracker.take_notes();
+        for time in [2_400, 3_600, 4_800] {
+            at.press(0, time, 0);
+            at.world(time + 1_000, vec![BatteryState::Carried(None)]);
+        }
+        at.world(8_000, vec![BatteryState::Carried(None)]);
+        assert_eq!(at.tracker.carrier(0), Some(0));
+        let notes = at.tracker.take_notes();
+        assert!(
+            notes
+                .iter()
+                .any(|n| n.ends_with("now still player 0, no one else whose use met it")),
+            "{notes:?}"
+        );
+    }
+
+    /// The bench's ping jitter is a bounded random walk: within its bound
+    /// either way (a spike of 150 ms is the live 90th percentile), a step of
+    /// at most the live 99th percentile of the lateness's change a tick, the
+    /// same for a place and a seed however it is asked, different from place
+    /// to place and seed to seed, and none when it is 0.
+    #[test]
+    fn the_bench_jitter_is_a_seeded_bounded_walk_with_small_steps() {
+        let tracker = |seed| {
+            let mut tracker = Tracker::new(Mode::Batteries, &[0, 1], &[true, true], vec![]);
+            tracker.seen_jitter = (150, seed);
+            tracker
+        };
+        let walk = |tracker: &Tracker, place| -> Vec<i32> {
+            (0..2_000).map(|k| tracker.jitter(place, 1_000 + k * 50)).collect()
+        };
+        let mut off = Tracker::new(Mode::Batteries, &[0, 1], &[true, true], vec![]);
+        assert_eq!(off.jitter(0, 1_000), 0);
+        off.seen_jitter = (0, 7);
+        assert_eq!(off.jitter(0, 2_000), 0);
+        let one = tracker(7);
+        let draws = walk(&one, 0);
+        assert!(draws.iter().all(|d| d.abs() <= 150));
+        assert!(draws.windows(2).all(|w| (w[1] - w[0]).abs() <= JITTER_STEP_MS));
+        // It wanders: both sides of the bound are reached in 100 s.
+        assert!(draws.iter().any(|&d| d > 100) && draws.iter().any(|&d| d < -100));
+        // The same tick asked again, or within it, gives the same.
+        assert_eq!(one.jitter(0, 1_000 + 1_999 * 50), draws[1_999]);
+        assert_eq!(one.jitter(0, 1_000 + 1_999 * 50 + 49), draws[1_999]);
+        assert_eq!(walk(&tracker(7), 0), draws);
+        assert_ne!(walk(&one, 1), draws);
+        assert_ne!(walk(&tracker(8), 0), draws);
+    }
+
+    /// A player's lateness is the running mean of his accepted inputs'; a
+    /// bot has none.
+    #[test]
+    fn a_players_lateness_is_the_running_mean_of_his_inputs() {
+        let kin = Kinematics::default();
+        let mut tracker = Tracker::new(Mode::Batteries, &[0, 1], &[true, false], vec![]);
+        tracker.entered(1, true);
+        tracker.fixed(1, fix(1_000, Vec3::ZERO), None, &kin, None);
+        let clock = Clock {
+            clock: 1_100,
+            time_left_s: 600.0,
+            total_s: 900.0,
+            playing: true,
+        };
+        assert_eq!(tracker.view(&clock, &kin, None).place(1).unwrap().late_ms, 0);
+        for _ in 0..200 {
+            tracker.lateness(1, 100);
+        }
+        let late = |tracker: &Tracker| tracker.view(&clock, &kin, None).place(1).unwrap().late_ms;
+        assert_eq!(late(&tracker), 100);
+        // A spike moves the mean by a sixteenth of it; a run of them, all.
+        tracker.lateness(1, 420);
+        assert_eq!(late(&tracker), 120);
+        for _ in 0..200 {
+            tracker.lateness(1, 20);
+        }
+        assert_eq!(late(&tracker), 20);
+        assert_eq!(tracker.view(&clock, &kin, None).place(0).unwrap().late_ms, 0);
     }
 }

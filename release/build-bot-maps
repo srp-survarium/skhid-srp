@@ -1,0 +1,86 @@
+#!/usr/bin/env bash
+# usage: release/build-bot-maps [<bot-data folder>]
+#
+# Builds the bots' maps of a release ahead of the swap (A197): the walk grids,
+# sight trees and tactics srp would otherwise build in the first match on each
+# map after the swap, on the host's one core while players play (a new
+# GRID_ALGO, SIGHT_ALGO or bot body changes every key: release.sh warns).
+#
+#   1. builds srp-build-maps from this checkout (the commit the release ships,
+#      nix develop, nice 10; $SRP_BUILD_MAPS_BIN names one built already);
+#   2. runs it on the .mapdata files release/bot-data.tsv lists (the offered
+#      maps), into a new folder: it builds each map through the server's own
+#      store with the server's tuning (SRP_BOT_TUNING as srp reads it; the
+#      compose file sets none: the defaults), then a second store (a restart)
+#      must read every part back with the same digests, or it fails;
+#   3. puts that folder at <folder>/mapdata/built (one already there is moved
+#      to mapdata/built.<UTC stamp>, never deleted);
+#   4. lists the files in release/bot-data.tsv as mapdata/built/<name> (the
+#      rows of an earlier build dropped first), so the release stages them and
+#      puts them in the data volume at the swap like the maps (host-bot-data.sh).
+#
+# <bot-data folder> defaults to $SKHID_BOT_DATA (release.env). Commit
+# release/bot-data.tsv afterwards. On the host the old built files stay beside
+# the new ones (srp never finds them: another key); removing them is a step of
+# its own, with the owner's OK.
+set -euo pipefail
+. "$(dirname "$0")/lib.sh"
+
+case ${1:-} in
+-h | --help) usage 0 ;;
+-*) die "unknown option $1 (--help)" ;;
+esac
+
+dir=${1:-}
+if [[ -z $dir ]]; then
+    load_env SKHID_BOT_DATA
+    dir=$SKHID_BOT_DATA
+fi
+maps=$dir/mapdata
+[[ -d $maps ]] || die "$maps is not a folder"
+if [[ -n ${SRP_BOT_TUNING:-} ]]; then
+    say "WARNING  SRP_BOT_TUNING is $SRP_BOT_TUNING here: the maps are built for that tuning; the server must run the same file"
+fi
+lower_priority
+read_bot_data_list
+
+# The offered maps: the list's mapdata/<level>_<weather>.mapdata rows, as srp's projects.
+projects=()
+for path in "${BD_PATH[@]}"; do
+    [[ $path =~ ^mapdata/(level_[0-9]+)_([a-z]+_[0-9]+)\.mapdata$ ]] || continue
+    projects+=("${BASH_REMATCH[1]}/${BASH_REMATCH[2]}")
+done
+((${#projects[@]})) || die "release/bot-data.tsv lists no mapdata/*.mapdata"
+
+# Our srp-build-maps: $SRP_BUILD_MAPS_BIN, else built from this checkout (as lib.sh builds srp-game-data).
+if [[ -n ${SRP_BUILD_MAPS_BIN:-} ]]; then
+    bin=$SRP_BUILD_MAPS_BIN
+else
+    say "building srp-build-maps (srp-026g, nix develop) ..."
+    (cd "$ROOT" && nice -n 10 nix develop ./srp-026g -c bash -c \
+        'cd srp-026g && cargo build --quiet --release -p match-server --bin srp-build-maps') ||
+        die "srp-build-maps did not build"
+    bin=$ROOT/srp-026g/target/release/srp-build-maps
+fi
+
+new=$(mktemp -d "$maps/built.new.XXXXXX")
+chmod 755 "$new"
+say "building ${#projects[@]} maps into $new (minutes) ..."
+"$bin" "$maps" "$new" "${projects[@]}" || die "srp-build-maps failed: nothing changed ($new is left for a look)"
+
+if [[ -e $maps/built ]]; then
+    aside=$maps/built.$(date -u +%Y%m%dT%H%M%SZ)
+    mv "$maps/built" "$aside"
+    say "the earlier mapdata/built moved to $aside"
+fi
+mv "$new" "$maps/built"
+
+# The list: an earlier build's rows out, this build's files in.
+awk -F '\t' '$1 !~ /^mapdata\/built\//' "$BOT_DATA_LIST" >"$BOT_DATA_LIST.new"
+mv "$BOT_DATA_LIST.new" "$BOT_DATA_LIST"
+files=()
+for file in "$maps/built"/*; do
+    files+=("mapdata/built/${file##*/}")
+done
+"$(dirname "$0")/bot-data" add "$dir" "${files[@]}"
+say "${#files[@]} built file(s) listed in $BOT_DATA_LIST: commit it"

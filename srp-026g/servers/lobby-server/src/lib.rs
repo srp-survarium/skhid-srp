@@ -12,8 +12,8 @@ use std::sync::Arc;
 use std::time::Duration;
 
 const _: () = {
-    // `bytemuck` is used for serializing and deserializing messages.
-    // And all messages are expected to use little endian.
+    // The messages are serialized and deserialized as plain bytes (`vostok`, `survarium`),
+    // and all of them are expected to use little endian.
     assert!(
         cfg!(target_endian = "little"),
         "This code only supports little-endian systems"

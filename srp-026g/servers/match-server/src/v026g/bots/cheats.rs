@@ -115,6 +115,8 @@ mod tests {
             streak: 0,
             carrying: None,
             seen_at: 0,
+            late_ms: 0,
+            known_at: 0,
         };
         let thief_at = Vec3::new(50.0, 0.0, 50.0);
         let view = MatchView {
@@ -132,6 +134,8 @@ mod tests {
             world_time: 9_000,
             can_respawn: [true, true],
             next_battery: None,
+            grenades: Vec::new(),
+            smoke: Default::default(),
         };
         let tuning = CheatTuning::default();
         let mut clock = CheatClock::default();

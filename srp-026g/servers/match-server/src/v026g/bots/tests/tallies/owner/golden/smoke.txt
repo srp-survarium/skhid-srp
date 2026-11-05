@@ -1,0 +1,794 @@
+owner-test smoke (by team 0, 1): bots' smoke throws [begun, thrown, given up, died] by use [("CrossLane", [[0, 0, 0, 0], [0, 0, 0, 0]]), ("AntiSniper", [[0, 0, 0, 0], [0, 0, 0, 0]]), ("ObjectiveActor", [[0, 0, 0, 0], [0, 0, 0, 0]]), ("Breach", [[0, 0, 0, 0], [0, 0, 0, 0]])], thrown by role [("flanker", [0, 0]), ("support", [0, 0]), ("rusher", [0, 0]), ("camper", [0, 0])]; plans' landings [plans, on the shooter, shooter dm, crossing dm, stretch hidden, stretch, alive at 15 s, died to the shooter, died to another, ticks followed, ticks hidden from the shooter, mate-ticks own fire blocked, mate-ticks] by use [("CrossLane", [[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0], [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]]), ("AntiSniper", [[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0], [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]]), ("ObjectiveActor", [[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0], [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]]), ("Breach", [[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0], [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]])]; plans' shooters [between, on him] [followed, moved over 3 m in 5-10 s, his kills in 15 s] [[[0, 0, 0], [0, 0, 0]], [[0, 0, 0], [0, 0, 0]]], shooter-spot plans [0, 0]; plans by the shooter's height [plans, on the shooter, stretch hidden, stretch, lanes with no landing covering, alive at 15 s, died to the shooter, died to another, ticks followed, ticks hidden from the shooter] [("Above", [[0, 0, 0, 0, 0, 0, 0, 0, 0, 0], [0, 0, 0, 0, 0, 0, 0, 0, 0, 0]]), ("Level", [[0, 0, 0, 0, 0, 0, 0, 0, 0, 0], [0, 0, 0, 0, 0, 0, 0, 0, 0, 0]]), ("Below", [[0, 0, 0, 0, 0, 0, 0, 0, 0, 0], [0, 0, 0, 0, 0, 0, 0, 0, 0, 0]])]; thrown [0, 0] clouds [0, 0] dropped [0, 0] (grenade keys with pockets unknown 0), placed by a world's grenade [0, 0] moved [0, 0] dm in all; looks lost to smoke [0, 0], sights not begun for it [0, 0], aim's target lost in it [0, 0], spray ticks [0, 0], smoke edges watched [0, 0] (busy [0, 0]), clouds learnt seen [0, 0] heard [0, 0] told [0, 0], outranged by a seen sniper with a smoke: planned [0, 0] no plan [0, 0] (outranged at all [0, 0]); spot rules: plans refused, smoke there [0, 0], a mate's claim [0, 0], crossings under a cloud [0, 0]; plans skipped while sprinting [0, 0]; through smoke hits [0, 0] (spray [0, 0]) kills [0, 0]; time in smoke [0.0, 0.0] s, deaths there [0, 0]; FAIR (0 with smoke.sight on): seen through smoke (the bot's look replayed) [0, 0], seen with no look [0, 0], fire through smoke not a spray with no look within the spray's time [0, 0]; [diagnosis] seen with every eye clearly behind smoke from the game's bodies [0, 0], fire so [0, 0]; anti-sniper throws by class ["a legit", "b1 covered already", "b2 another crossing", "c died first", "c not crossed", "c route changed", "d wrong target", "e no line"]: [[0, 0, 0, 0, 0, 0, 0, 0], [0, 0, 0, 0, 0, 0, 0, 0]]; sniper crossings by [not smoked, smoked] [crossings, crossed alive, died to him, died to another] [[[0, 0, 0, 0], [0, 0, 0, 0]], [[0, 0, 0, 0], [0, 0, 0, 0]]]; deaths [deaths, crowded, enemies near, traded, killer screened] by class ["own throw", "by a team cloud", "neither"]: the tops' [[[0, 0, 0, 0, 0], [0, 0, 0, 0, 0], [0, 0, 0, 0, 0]], [[0, 0, 0, 0, 0], [0, 0, 0, 0, 0], [0, 0, 0, 0, 0]]], the others' [[[0, 0, 0, 0, 0], [0, 0, 0, 0, 0], [8, 8, 0, 0, 0]], [[0, 0, 0, 0, 0], [0, 0, 0, 0, 0], [4, 4, 4, 0, 0]]]
+{
+  "smoke_aim_lost": [
+    0,
+    0
+  ],
+  "smoke_bodies_seen": [
+    0,
+    0
+  ],
+  "smoke_bot_thrown_by_role": {
+    "camper": [
+      0,
+      0
+    ],
+    "flanker": [
+      0,
+      0
+    ],
+    "rusher": [
+      0,
+      0
+    ],
+    "support": [
+      0,
+      0
+    ]
+  },
+  "smoke_bot_throws_by_use": {
+    "AntiSniper": [
+      [
+        0,
+        0,
+        0,
+        0
+      ],
+      [
+        0,
+        0,
+        0,
+        0
+      ]
+    ],
+    "Breach": [
+      [
+        0,
+        0,
+        0,
+        0
+      ],
+      [
+        0,
+        0,
+        0,
+        0
+      ]
+    ],
+    "CrossLane": [
+      [
+        0,
+        0,
+        0,
+        0
+      ],
+      [
+        0,
+        0,
+        0,
+        0
+      ]
+    ],
+    "ObjectiveActor": [
+      [
+        0,
+        0,
+        0,
+        0
+      ],
+      [
+        0,
+        0,
+        0,
+        0
+      ]
+    ]
+  },
+  "smoke_clouds": [
+    0,
+    0
+  ],
+  "smoke_crossed_hidden": [
+    [
+      0,
+      0,
+      0,
+      0,
+      0
+    ],
+    [
+      0,
+      0,
+      0,
+      0,
+      0
+    ]
+  ],
+  "smoke_crossed_never": [
+    [
+      0,
+      0,
+      0,
+      0,
+      0
+    ],
+    [
+      0,
+      0,
+      0,
+      0,
+      0
+    ]
+  ],
+  "smoke_crossed_open": [
+    [
+      0,
+      0,
+      0,
+      0,
+      0
+    ],
+    [
+      0,
+      0,
+      0,
+      0,
+      0
+    ]
+  ],
+  "smoke_crossings_under_cloud": [
+    0,
+    0
+  ],
+  "smoke_deaths_in": [
+    0,
+    0
+  ],
+  "smoke_dropped": [
+    0,
+    0
+  ],
+  "smoke_edge_watches": [
+    0,
+    0
+  ],
+  "smoke_fair_fire_through": [
+    0,
+    0
+  ],
+  "smoke_fair_fire_through_margin": [
+    0,
+    0
+  ],
+  "smoke_fair_seen_through": [
+    0,
+    0
+  ],
+  "smoke_fair_seen_through_margin": [
+    0,
+    0
+  ],
+  "smoke_fair_seen_unlooked": [
+    0,
+    0
+  ],
+  "smoke_hits_through": [
+    0,
+    0
+  ],
+  "smoke_hold_begun": [
+    [
+      0,
+      0,
+      0,
+      0,
+      0
+    ],
+    [
+      0,
+      0,
+      0,
+      0,
+      0
+    ]
+  ],
+  "smoke_hold_cap": [
+    [
+      0,
+      0,
+      0,
+      0,
+      0
+    ],
+    [
+      0,
+      0,
+      0,
+      0,
+      0
+    ]
+  ],
+  "smoke_hold_close": [
+    [
+      0,
+      0,
+      0,
+      0,
+      0
+    ],
+    [
+      0,
+      0,
+      0,
+      0,
+      0
+    ]
+  ],
+  "smoke_hold_died": [
+    [
+      0,
+      0,
+      0,
+      0,
+      0
+    ],
+    [
+      0,
+      0,
+      0,
+      0,
+      0
+    ]
+  ],
+  "smoke_hold_fight": [
+    [
+      0,
+      0,
+      0,
+      0,
+      0
+    ],
+    [
+      0,
+      0,
+      0,
+      0,
+      0
+    ]
+  ],
+  "smoke_hold_hidden": [
+    [
+      0,
+      0,
+      0,
+      0,
+      0
+    ],
+    [
+      0,
+      0,
+      0,
+      0,
+      0
+    ]
+  ],
+  "smoke_hold_hit": [
+    [
+      0,
+      0,
+      0,
+      0,
+      0
+    ],
+    [
+      0,
+      0,
+      0,
+      0,
+      0
+    ]
+  ],
+  "smoke_hold_ms": [
+    [
+      0,
+      0,
+      0,
+      0,
+      0
+    ],
+    [
+      0,
+      0,
+      0,
+      0,
+      0
+    ]
+  ],
+  "smoke_in_s": [
+    0.0,
+    0.0
+  ],
+  "smoke_kills_through": [
+    0,
+    0
+  ],
+  "smoke_landing_by_use": {
+    "AntiSniper": [
+      [
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0
+      ],
+      [
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0
+      ]
+    ],
+    "Breach": [
+      [
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0
+      ],
+      [
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0
+      ]
+    ],
+    "CrossLane": [
+      [
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0
+      ],
+      [
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0
+      ]
+    ],
+    "ObjectiveActor": [
+      [
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0
+      ],
+      [
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0
+      ]
+    ]
+  },
+  "smoke_learnt_heard": [
+    0,
+    0
+  ],
+  "smoke_learnt_seen": [
+    0,
+    0
+  ],
+  "smoke_learnt_told": [
+    0,
+    0
+  ],
+  "smoke_moved_dm": [
+    0,
+    0
+  ],
+  "smoke_no_plan_by_height": {
+    "Above": [
+      [
+        0,
+        0,
+        0,
+        0
+      ],
+      [
+        0,
+        0,
+        0,
+        0
+      ]
+    ],
+    "Below": [
+      [
+        0,
+        0,
+        0,
+        0
+      ],
+      [
+        0,
+        0,
+        0,
+        0
+      ]
+    ],
+    "Level": [
+      [
+        0,
+        0,
+        0,
+        0
+      ],
+      [
+        0,
+        0,
+        0,
+        0
+      ]
+    ]
+  },
+  "smoke_not_seen": [
+    0,
+    0
+  ],
+  "smoke_outranged_any": [
+    0,
+    0
+  ],
+  "smoke_outranged_no_plan": [
+    0,
+    0
+  ],
+  "smoke_outranged_planned": [
+    0,
+    0
+  ],
+  "smoke_plans_by_height": {
+    "Above": [
+      [
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0
+      ],
+      [
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0
+      ]
+    ],
+    "Below": [
+      [
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0
+      ],
+      [
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0
+      ]
+    ],
+    "Level": [
+      [
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0
+      ],
+      [
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0
+      ]
+    ]
+  },
+  "smoke_plans_claim_refused": [
+    0,
+    0
+  ],
+  "smoke_plans_cloud_there": [
+    0,
+    0
+  ],
+  "smoke_plans_shooter_spot": [
+    0,
+    0
+  ],
+  "smoke_plans_skipped_sprinting": [
+    0,
+    0
+  ],
+  "smoke_rest_deaths_by_class": {
+    "by a team cloud": [
+      [
+        0,
+        0,
+        0,
+        0,
+        0
+      ],
+      [
+        0,
+        0,
+        0,
+        0,
+        0
+      ]
+    ],
+    "neither": [
+      [
+        8,
+        8,
+        0,
+        0,
+        0
+      ],
+      [
+        4,
+        4,
+        4,
+        0,
+        0
+      ]
+    ],
+    "own throw": [
+      [
+        0,
+        0,
+        0,
+        0,
+        0
+      ],
+      [
+        0,
+        0,
+        0,
+        0,
+        0
+      ]
+    ]
+  },
+  "smoke_shooter_by_landing": {
+    "between": [
+      [
+        0,
+        0,
+        0
+      ],
+      [
+        0,
+        0,
+        0
+      ]
+    ],
+    "on_him": [
+      [
+        0,
+        0,
+        0
+      ],
+      [
+        0,
+        0,
+        0
+      ]
+    ]
+  },
+  "smoke_sight_lost": [
+    0,
+    0
+  ],
+  "smoke_sniper_crossings": [
+    [
+      [
+        0,
+        0,
+        0,
+        0
+      ],
+      [
+        0,
+        0,
+        0,
+        0
+      ]
+    ],
+    [
+      [
+        0,
+        0,
+        0,
+        0
+      ],
+      [
+        0,
+        0,
+        0,
+        0
+      ]
+    ]
+  ],
+  "smoke_spray_hits": [
+    0,
+    0
+  ],
+  "smoke_spray_ticks": [
+    0,
+    0
+  ],
+  "smoke_thrown": [
+    0,
+    0
+  ],
+  "smoke_top_deaths_by_class": {
+    "by a team cloud": [
+      [
+        0,
+        0,
+        0,
+        0,
+        0
+      ],
+      [
+        0,
+        0,
+        0,
+        0,
+        0
+      ]
+    ],
+    "neither": [
+      [
+        0,
+        0,
+        0,
+        0,
+        0
+      ],
+      [
+        0,
+        0,
+        0,
+        0,
+        0
+      ]
+    ],
+    "own throw": [
+      [
+        0,
+        0,
+        0,
+        0,
+        0
+      ],
+      [
+        0,
+        0,
+        0,
+        0,
+        0
+      ]
+    ]
+  },
+  "smoke_unknown_pockets": 0,
+  "smoke_watches_busy": [
+    0,
+    0
+  ]
+}

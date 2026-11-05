@@ -30,8 +30,15 @@ use binary_config_parser::ConfigValue;
 
 use crate::config::{children, float3, float3_or, float3_req, i32_or, str_or};
 use crate::library::{Library, Materials, WalkerBehaviour};
+use crate::pierce::FaceArmor;
+use crate::sight::RayTree;
 use crate::math::{Rotation, Transform, Vec3};
 use crate::resources::{Error, Resources};
+
+/// A model's walking body's collision and its bullets' (`lib_name`s
+/// `<model>.model/walker_collision#[..]` and `<model>.model/collision#[..]`).
+const WALKER_COLLISION: &str = ".model/walker_collision";
+const BULLET_COLLISION: &str = ".model/collision";
 
 /// A body's collision filter: it meets an object when
 /// `object.cgroup & body.mask != 0` and `object.cmask & body.group != 0`.
@@ -149,6 +156,27 @@ pub struct Zone {
     pub shapes: Vec<Shape>,
 }
 
+impl Zone {
+    /// How far `point` is from the zone's centre towards its surface, `[0, 1]`: the least over its shapes
+    /// ([`Shape::normalised_distance`]), from 1 (the client's `collision_sensor` helper 0x307870 starts at 1.0 and keeps the
+    /// least of `damage_zone_shape::normalised_distance` 0x2F9860, PROVEN).
+    pub fn normalised_distance(&self, point: Vec3) -> f32 {
+        Shape::least_normalised_distance(&self.shapes, point)
+    }
+
+    /// The share of the zone's full hit a body at `point` takes: the hit curve at its normalised distance
+    /// ([`Damage::intensity`]); 1 for a zone with no damage.
+    pub fn intensity_at(&self, point: Vec3) -> f32 {
+        self.damage.as_ref().map_or(1.0, |damage| damage.intensity(self.normalised_distance(point)))
+    }
+
+    /// What a body whose centre is at `point` takes a second in this zone, before armour: [`Damage::rate_at`] at its
+    /// normalised distance; 0 for a zone with no damage.
+    pub fn hit_rate_at(&self, point: Vec3) -> f32 {
+        self.damage.as_ref().map_or(0.0, |damage| damage.rate_at(self.normalised_distance(point)))
+    }
+}
+
 /// A damage zone's hit (`damage_zone` config; the zone side of the hit is
 /// read in the client, 0x319AF0 / 0x31A410, PROVEN):
 /// - `continuous`: every tick `max_hit × intensity × dt / interval` to each
@@ -171,6 +199,9 @@ pub struct Damage {
     pub continuous: bool,
     /// How many body parts each hit goes to (`hit_parts_filter`).
     pub parts: u8,
+    /// The parts' names, as the project gives them (`face`, `left_foot`, ...), in its order.
+    /// Empty in a file written before format 4 (the count in `parts` is all it knew).
+    pub part_names: Vec<String>,
     /// `hit_curve` keys as `(d, value)`, sorted by `d`.
     pub hit_curve: Vec<(f32, f32)>,
 }
@@ -187,9 +218,38 @@ impl Damage {
         self.max_hit * f32::from(self.parts)
     }
 
+    /// What a body takes a second inside at full intensity, the client's rate: a continuous zone gives each part
+    /// `max_hit x intensity x dt / interval_ms` every tick, the others `max_hit x intensity` once an interval
+    /// (`damage_zone_core::tick` 0x319A70 -> 0x319AF0, PROVEN; the interval is the zone's `interval_in_msec`), so both are
+    /// `raw() x 1000 / interval_ms` a second. [`Self::raw`] is that rate only for an interval of 1000 ms, which every
+    /// shipped continuous zone has but Vector Laboratory's `death_damage_zone` (500 ms: twice `raw()`).
+    pub fn rate_per_s(&self) -> f32 {
+        self.part_rate_per_s() * f32::from(self.parts)
+    }
+
+    /// [`Self::rate_per_s`] for one part.
+    pub fn part_rate_per_s(&self) -> f32 {
+        // A continuous zone whose file gives no interval counts as 1000 ms (hand-made test zones; every shipped one gives it).
+        let interval_ms = if self.continuous && self.interval_ms == 0 { 1000 } else { self.interval_ms.max(1) };
+        self.max_hit * 1000.0 / interval_ms as f32
+    }
+
+    /// [`Self::rate_per_s`] at the zone's normalised distance `d` ([`Self::intensity`]).
+    pub fn rate_at(&self, d: f32) -> f32 {
+        self.rate_per_s() * self.intensity(d)
+    }
+
+    /// [`Self::part_rate_per_s`] at the zone's normalised distance `d`.
+    pub fn part_rate_at(&self, d: f32) -> f32 {
+        self.part_rate_per_s() * self.intensity(d)
+    }
+
     /// The hit curve at `d` (0 centre, 1 edge): linear between keys,
-    /// clamped to [0, 1]. Keys are Hermite in the game (GUESS: close
-    /// enough for a cost); no keys is 1.
+    /// clamped to [0, 1]; no keys is 1. The game evaluates the keys as a cubic
+    /// (0x25F30, PROVEN), but every shipped key's tangents lie on the chord to
+    /// its neighbour, so every segment is a straight line: the largest gap to
+    /// this function is 0.001 over all the shipped zones (`fx-zones-armour-re.md`
+    /// section 5).
     pub fn intensity(&self, d: f32) -> f32 {
         let d = d.clamp(0.0, 1.0);
         let curve = &self.hit_curve;
@@ -270,6 +330,34 @@ pub struct AnomalyArtefacts {
     pub containers: u32,
 }
 
+/// What an anomaly core names of its artefacts: the containers a spawn puts one in, with the
+/// holding time and the cooldown their objects give, and the pool the spawn draws from. Kept
+/// apart from [`Anomaly`] (format version 3; a version 2 file has none): `core` is that
+/// anomaly's `name`.
+#[derive(Clone, Debug, Default, PartialEq)]
+pub struct ArtefactCore {
+    /// The anomaly core's `full_name`.
+    pub core: String,
+    /// `artefacts`: `(dict_id, count)` in config order. `dict_id` is the item's id in the game's
+    /// dictionary (54 lifebone, 74 spring, 76 onyx in 0.26g).
+    pub pool: Vec<(u32, u32)>,
+    /// `artefact_containers`, in config order.
+    pub containers: Vec<ArtefactContainer>,
+}
+
+/// An artefact container a core names: the zone of the same name (`ZoneKind::ArtefactContainer`)
+/// is its place.
+#[derive(Clone, Debug, Default, PartialEq)]
+pub struct ArtefactContainer {
+    /// The container object's `full_name`.
+    pub name: String,
+    /// `artefacts_search_time_sec`: how long a player holds USE to take the artefact (6 in every
+    /// project but Vostok's electro corridor, 5, and London's, 2).
+    pub search_s: f32,
+    /// `artefacts_cooldown_time_sec`: how long the container is shut after a take (80).
+    pub cooldown_s: f32,
+}
+
 /// One state of an anomaly core.
 #[derive(Clone, Debug, Default, PartialEq)]
 pub struct AnomalyState {
@@ -348,6 +436,34 @@ impl Shape {
         self.distance(point) <= 0.0
     }
 
+    /// 0 at the shape's centre, 1 on its surface and beyond (the gauge of the convex shape: the point's distance from the
+    /// centre over the distance from the centre to the surface along the same ray): a sphere `|v| / r`, a box `max |v_i| / h_i`
+    /// in its own axes, a cylinder `max(rho / r, |y| / h)`. The client's `damage_zone_shape::normalised_distance` (0x2F9860)
+    /// divides the point's distance by a per-kind extent: the sphere's is its radius (PROVEN); the box (0x2F9050) and the
+    /// cylinder (0x2F9200) helpers were read only in part, so those two are LIKELY.
+    pub fn normalised_distance(&self, point: Vec3) -> f32 {
+        let d = point - self.center;
+        let at = |extent: f32, along: f32| if extent > 0.0 { along / extent } else { f32::INFINITY };
+        let gauge = match self.kind {
+            ShapeKind::Sphere => at(self.half.x, d.length()),
+            ShapeKind::Box => {
+                let local = self.rotation.transposed().apply(d);
+                at(self.half.x, local.x.abs()).max(at(self.half.y, local.y.abs())).max(at(self.half.z, local.z.abs()))
+            }
+            ShapeKind::Cylinder => {
+                let local = self.rotation.transposed().apply(d);
+                at(self.half.x, (local.x * local.x + local.z * local.z).sqrt()).max(at(self.half.y, local.y.abs()))
+            }
+        };
+        gauge.min(1.0)
+    }
+
+    /// The least [`Self::normalised_distance`] over `shapes`, 1 for none: a zone's (the client's helper 0x307870 keeps the
+    /// least over its shapes). The one place the zone's shapes are folded, for [`Zone`] and for a copy of its shapes.
+    pub fn least_normalised_distance(shapes: &[Shape], point: Vec3) -> f32 {
+        shapes.iter().map(|shape| shape.normalised_distance(point)).fold(1.0, f32::min)
+    }
+
     /// Metres from `point` to the shape, 0 inside.
     pub fn distance(&self, point: Vec3) -> f32 {
         let d = point - self.center;
@@ -423,6 +539,48 @@ pub struct Triangle {
     pub walker: WalkerBehaviour,
 }
 
+/// The bullet mesh in the map frame: the triangles a bullet meets, each with what it is made of (one
+/// armor per triangle, in the same order).
+#[derive(Clone, Debug, Default, PartialEq)]
+pub struct BulletMesh {
+    triangles: Vec<Triangle>,
+    armor: Vec<FaceArmor>,
+}
+
+impl BulletMesh {
+    pub fn triangles(&self) -> &[Triangle] {
+        &self.triangles
+    }
+
+    /// What a bullet meets in each triangle, in the triangles' order.
+    pub fn armor(&self) -> &[FaceArmor] {
+        &self.armor
+    }
+
+    pub fn len(&self) -> usize {
+        self.triangles.len()
+    }
+
+    pub fn is_empty(&self) -> bool {
+        self.triangles.is_empty()
+    }
+
+    /// The key of the tree this mesh builds ([`crate::sight_key`]).
+    pub fn key(&self) -> u64 {
+        crate::sight_key(&self.triangles, &self.armor)
+    }
+
+    /// The sight tree, with each triangle's armor.
+    pub fn build_tree(&self) -> RayTree {
+        RayTree::from_armored_corners(
+            self.triangles
+                .iter()
+                .zip(&self.armor)
+                .map(|(t, &armor)| (t.v, armor)),
+        )
+    }
+}
+
 /// Everything this crate knows of one project; what [`crate::format`]
 /// stores.
 #[derive(Clone, Debug, Default, PartialEq)]
@@ -439,6 +597,9 @@ pub struct MapData {
     pub stations: Vec<Vec3>,
     pub zones: Vec<Zone>,
     pub anomalies: Vec<Anomaly>,
+    /// What the anomaly cores name of their artefacts, for the cores that name any (none in a
+    /// version 2 file).
+    pub artefact_cores: Vec<ArtefactCore>,
     /// Each collision library a placement uses, once, in its own space.
     pub libraries: Vec<Library>,
     pub placements: Vec<Placement>,
@@ -556,6 +717,11 @@ impl MapData {
                 map.stations.push(point_at(station, "position"));
             }
         }
+        let container_objects: HashMap<&str, &ConfigValue> = children(root, "client_objects")
+            .into_iter()
+            .filter(|object| str_or(object, "game_object_type") == "artefact_container")
+            .map(|object| (str_or(object, "full_name"), object))
+            .collect();
         for object in children(root, "client_objects") {
             let kind = str_or(object, "game_object_type");
             if let Some(kind) = ZoneKind::from_game_object_type(kind) {
@@ -570,39 +736,77 @@ impl MapData {
                 });
             } else if kind == "generic_anomaly_core" {
                 map.anomalies.push(anomaly_of(object));
+                if let Some(core) = artefact_core_of(object, &container_objects) {
+                    map.artefact_cores.push(core);
+                }
             }
         }
         Ok(map)
     }
 
     /// Every triangle a body with `filter` meets, placed in the map frame.
+    ///
+    /// A walking body's placement of a `walker_collision` the archive does
+    /// not have (fruit trees, level 3's anomalous trees, a bench, a wheel:
+    /// 0-60 placements a map) meets the model's own `collision` instead,
+    /// when the map has it. LIKELY: in the live logs of 2026-10-17..23
+    /// bots stood caught against those trees' bullet meshes with nothing
+    /// of the walker mesh within reach, and on level_02 two bodies at once
+    /// stayed stuck for minutes inside an anomalous tree
+    /// (`player_bots_stuck.md`); the engine's loading of a missing one is
+    /// not read.
     pub fn triangles(&self, filter: CollisionFilter) -> Vec<Triangle> {
-        let count = self
-            .placements
-            .iter()
-            .filter(|p| filter.meets(p.cgroup, p.cmask))
-            .map(|p| self.libraries[p.library as usize].triangles.len())
-            .sum();
-        let mut out = Vec::with_capacity(count);
+        let mut out = Vec::new();
+        self.place_faces(filter, |triangle, _| out.push(triangle));
+        out
+    }
+
+    /// Each triangle a body with `filter` meets, placed in the map frame, with its face's armor
+    /// ([`Self::triangles`] without the armor, [`Self::bullet_mesh`] with it).
+    fn place_faces(&self, filter: CollisionFilter, mut each: impl FnMut(Triangle, FaceArmor)) {
+        let walking = filter == CollisionFilter::WALKER;
+        let by_name: HashMap<&str, usize> = if walking {
+            self.libraries
+                .iter()
+                .enumerate()
+                .map(|(i, library)| (library.name.as_str(), i))
+                .collect()
+        } else {
+            HashMap::new()
+        };
+        let library_of = |placement: &Placement| -> &Library {
+            let library = &self.libraries[placement.library as usize];
+            if walking && library.faces.is_empty() {
+                let stand_in = library
+                    .name
+                    .contains(WALKER_COLLISION)
+                    .then(|| library.name.replacen(WALKER_COLLISION, BULLET_COLLISION, 1))
+                    .and_then(|name| by_name.get(name.as_str()).copied());
+                if let Some(index) = stand_in {
+                    return &self.libraries[index];
+                }
+            }
+            library
+        };
         for placement in &self.placements {
             if !filter.meets(placement.cgroup, placement.cmask) {
                 continue;
             }
-            let library = &self.libraries[placement.library as usize];
+            let library = library_of(placement);
             let transform = placement.transform();
             let world: Vec<Vec3> = library
                 .vertices
                 .iter()
                 .map(|&v| transform.apply(v))
                 .collect();
-            for (t, &walker) in library.triangles.iter().zip(&library.walker) {
-                out.push(Triangle {
-                    v: t.map(|i| world[i as usize]),
-                    walker,
-                });
+            for face in &library.faces {
+                let triangle = Triangle {
+                    v: face.corners.map(|i| world[i as usize]),
+                    walker: face.surface.walker,
+                };
+                each(triangle, face.surface.armor);
             }
         }
-        out
     }
 
     /// Where a body is known to get to, for [`crate::WalkGrid::build_kept`]:
@@ -624,6 +828,16 @@ impl MapData {
     /// The bullet world: what stops shots and sight.
     pub fn bullet_triangles(&self) -> Vec<Triangle> {
         self.triangles(CollisionFilter::BULLET)
+    }
+
+    /// [`Self::bullet_triangles`] with what a bullet meets in each ([`FaceArmor`]).
+    pub fn bullet_mesh(&self) -> BulletMesh {
+        let (mut triangles, mut armor) = (Vec::new(), Vec::new());
+        self.place_faces(CollisionFilter::BULLET, |triangle, face_armor| {
+            triangles.push(triangle);
+            armor.push(face_armor);
+        });
+        BulletMesh { triangles, armor }
     }
 
     /// The area a walk grid should cover, as `[x0, z0, x1, z1]`: the
@@ -739,8 +953,47 @@ fn damage_of(object: &ConfigValue) -> Damage {
         interval_ms: u32_or_0(object, "interval_in_msec"),
         continuous: bool_or(object, "continuous_hit", false),
         parts: u8::try_from(children(object, "hit_parts_filter").len()).unwrap_or(u8::MAX),
+        part_names: children(object, "hit_parts_filter")
+            .into_iter()
+            .filter_map(|part| part.as_str().map(str::to_owned))
+            .collect(),
         hit_curve,
     }
+}
+
+/// The containers and the pool a core names, if it names any of either. A container the core
+/// names that no `artefact_container` object has keeps its name with no times (0).
+fn artefact_core_of(
+    object: &ConfigValue,
+    container_objects: &HashMap<&str, &ConfigValue>,
+) -> Option<ArtefactCore> {
+    let containers: Vec<ArtefactContainer> = children(object, "artefact_containers")
+        .into_iter()
+        .filter_map(|name| name.as_str())
+        .map(|name| {
+            let times = container_objects.get(name);
+            let time = |key: &str| times.map_or(0.0, |object| f32_or(object, key, 0.0));
+            ArtefactContainer {
+                name: name.to_owned(),
+                search_s: time("artefacts_search_time_sec"),
+                cooldown_s: time("artefacts_cooldown_time_sec"),
+            }
+        })
+        .collect();
+    let pool: Vec<(u32, u32)> = children(object, "artefacts")
+        .into_iter()
+        .map(|artefact| {
+            (
+                u32_or_0(artefact, "dict_id"),
+                u32_or_0(artefact, "count"),
+            )
+        })
+        .collect();
+    (!containers.is_empty() || !pool.is_empty()).then(|| ArtefactCore {
+        core: str_or(object, "full_name").to_owned(),
+        pool,
+        containers,
+    })
 }
 
 fn anomaly_of(object: &ConfigValue) -> Anomaly {
@@ -818,6 +1071,73 @@ fn anomaly_of(object: &ConfigValue) -> Anomaly {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::library::Face;
+
+    fn shape(kind: ShapeKind, half: Vec3) -> Shape {
+        Shape { kind, center: Vec3::new(10.0, 5.0, 10.0), rotation: Rotation::IDENTITY, half }
+    }
+
+    /// 0 at a shape's centre, 1 on its surface and beyond, the gauge in between (a cylinder: the larger of the radial and the
+    /// vertical share).
+    #[test]
+    fn a_shapes_normalised_distance_runs_from_its_centre_to_its_surface() {
+        let at = |dx: f32, dy: f32, dz: f32| Vec3::new(10.0 + dx, 5.0 + dy, 10.0 + dz);
+        let sphere = shape(ShapeKind::Sphere, Vec3::new(4.0, 4.0, 4.0));
+        assert_eq!(sphere.normalised_distance(at(0.0, 0.0, 0.0)), 0.0);
+        assert!((sphere.normalised_distance(at(2.0, 0.0, 0.0)) - 0.5).abs() < 1e-6);
+        assert_eq!(sphere.normalised_distance(at(0.0, 9.0, 0.0)), 1.0);
+        let cylinder = shape(ShapeKind::Cylinder, Vec3::new(10.0, 2.0, 10.0));
+        assert!((cylinder.normalised_distance(at(5.0, 0.0, 0.0)) - 0.5).abs() < 1e-6);
+        assert!((cylinder.normalised_distance(at(1.0, 1.8, 0.0)) - 0.9).abs() < 1e-6, "the vertical share is the larger");
+        let cuboid = shape(ShapeKind::Box, Vec3::new(4.0, 1.0, 2.0));
+        assert!((cuboid.normalised_distance(at(1.0, 0.0, 1.0)) - 0.5).abs() < 1e-6);
+    }
+
+    /// The client's rate is the hit over the interval, a second's worth whatever the interval: Vector Laboratory's
+    /// `death_damage_zone` (0.2 x 4 parts, 500 ms, continuous) takes 1.6 a second at its centre, the 1000 ms zones their `raw()`.
+    #[test]
+    fn a_zones_rate_is_its_hit_over_its_interval_at_its_intensity() {
+        let death = Damage { max_hit: 0.2, parts: 4, interval_ms: 500, continuous: true, hit_curve: vec![(0.0, 1.0), (1.0, 0.0)], ..Damage::default() };
+        assert!((death.rate_per_s() - 1.6).abs() < 1e-6 && (death.raw() - 0.8).abs() < 1e-6);
+        assert!((death.rate_at(0.75) - 0.4).abs() < 1e-6);
+        let anomaly = Damage { max_hit: 0.08, parts: 4, interval_ms: 1000, continuous: true, ..death.clone() };
+        assert_eq!(anomaly.rate_per_s(), anomaly.raw());
+        let pulse = Damage { continuous: false, ..death };
+        assert!((pulse.rate_per_s() - 1.6).abs() < 1e-6, "a hit each 500 ms is 2 hits a second");
+        let zone = Zone {
+            kind: ZoneKind::Damage,
+            name: "z".into(),
+            team: -1,
+            position: Vec3::new(10.0, 5.0, 10.0),
+            damage_type: "radiation".into(),
+            damage: Some(anomaly),
+            shapes: vec![shape(ShapeKind::Sphere, Vec3::new(4.0, 4.0, 4.0))],
+        };
+        assert!((zone.hit_rate_at(Vec3::new(12.0, 5.0, 10.0)) - 0.32 * 0.5).abs() < 1e-6);
+        assert_eq!(Zone { damage: None, ..zone }.hit_rate_at(Vec3::new(10.0, 5.0, 10.0)), 0.0);
+    }
+
+    /// A zone's intensity is its hit curve at the least normalised distance over its shapes: Vector Laboratory's radiation
+    /// zones fall in a straight line from 1 at the centre to 0 at the rim.
+    #[test]
+    fn a_zones_intensity_is_its_hit_curve_at_its_normalised_distance() {
+        let zone = Zone {
+            kind: ZoneKind::Damage,
+            name: "logic/anomaly/anomaly_damage_zone".into(),
+            team: -1,
+            position: Vec3::new(10.0, 5.0, 10.0),
+            damage_type: "radiation".into(),
+            damage: Some(Damage { max_hit: 0.08, hit_curve: vec![(0.0, 1.0), (1.0, 0.0)], ..Damage::default() }),
+            shapes: vec![
+                shape(ShapeKind::Cylinder, Vec3::new(10.0, 2.0, 10.0)),
+                Shape { center: Vec3::new(40.0, 5.0, 10.0), ..shape(ShapeKind::Sphere, Vec3::new(2.0, 2.0, 2.0)) },
+            ],
+        };
+        assert!((zone.intensity_at(Vec3::new(15.0, 5.0, 10.0)) - 0.5).abs() < 1e-6);
+        assert!((zone.intensity_at(Vec3::new(10.0, 5.0, 10.0)) - 1.0).abs() < 1e-6);
+        assert_eq!(zone.intensity_at(Vec3::new(25.0, 5.0, 10.0)), 0.0);
+        assert!((zone.intensity_at(Vec3::new(41.0, 5.0, 10.0)) - 0.5).abs() < 1e-6, "the nearer shape counts");
+    }
 
     #[test]
     fn filters_follow_the_engine_groups() {
@@ -888,6 +1208,50 @@ mod tests {
         assert_eq!(container.use_point(), Vec3::new(4.0, 0.0, 5.0));
         container.use_shapes.clear();
         assert_eq!(container.use_point(), container.position);
+    }
+
+    /// A core names its containers (with the times their objects give) and its pool; a core that
+    /// names neither has no entry, and a container no object has keeps its name with no times.
+    #[test]
+    fn a_core_names_its_containers_with_their_times_and_its_pool() {
+        let json = serde_json::json!({
+            "levelmap_min": [-10.0, 0.0, -10.0],
+            "levelmap_max": [10.0, 1.0, 10.0],
+            "collision_objects": [],
+            "server_objects": {},
+            "client_objects": [
+                { "game_object_type": "artefact_container", "full_name": "af/c1", "position": [0.0, 0.0, 0.0],
+                  "artefacts_search_time_sec": 6, "artefacts_cooldown_time_sec": 80, "collision_geometries": [] },
+                { "game_object_type": "generic_anomaly_core", "full_name": "core", "position": [0.0, 0.0, 0.0],
+                  "artefact_containers": ["af/c1", "af/missing"],
+                  "artefacts": [ { "dict_id": 76, "count": 5 }, { "dict_id": 74, "count": 2 } ],
+                  "states": [] },
+                { "game_object_type": "generic_anomaly_core", "full_name": "bare", "position": [1.0, 0.0, 0.0], "states": [] },
+            ],
+        });
+        let config = binary_config_parser::BinaryConfig::parse_json(&json);
+        let root = ConfigValue::parse(config.as_bytes()).unwrap();
+        let map = MapData::from_config("test/day_4", &root).unwrap();
+        assert_eq!(map.anomalies.len(), 2);
+        assert_eq!(
+            map.artefact_cores,
+            vec![ArtefactCore {
+                core: "core".into(),
+                pool: vec![(76, 5), (74, 2)],
+                containers: vec![
+                    ArtefactContainer {
+                        name: "af/c1".into(),
+                        search_s: 6.0,
+                        cooldown_s: 80.0,
+                    },
+                    ArtefactContainer {
+                        name: "af/missing".into(),
+                        search_s: 0.0,
+                        cooldown_s: 0.0,
+                    },
+                ],
+            }]
+        );
     }
 
     #[test]
@@ -1006,8 +1370,7 @@ mod tests {
                 Vec3::new(1.0, 0.0, 0.0),
                 Vec3::new(0.0, 0.0, 1.0),
             ],
-            triangles: vec![[0, 1, 2]],
-            walker: vec![WalkerBehaviour::Walk],
+            faces: vec![Face::unknown([0, 1, 2], WalkerBehaviour::Walk)],
             primitives: 0,
         };
         let map = MapData {
@@ -1035,6 +1398,54 @@ mod tests {
         assert_eq!(walker[0].walker, WalkerBehaviour::Walk);
         let b = walker[0].v[1];
         assert!((b - Vec3::new(9.0, 1.0, 0.0)).length() < 1e-5, "{b:?}");
+        assert_eq!(map.bullet_triangles().len(), 1);
+    }
+
+    /// A tree whose `walker_collision` the archive lacks: the walking body
+    /// meets its `collision` (the same scale), the bullets as before; a
+    /// model with neither has nothing.
+    #[test]
+    fn a_missing_walker_collision_is_stood_in_for_by_the_models_collision() {
+        let empty = |name: &str| Library {
+            name: name.into(),
+            ..Library::default()
+        };
+        let trunk = Library {
+            name: "resources/models/flora/tree.model/collision#[1.20][1.20][1.20]".into(),
+            vertices: vec![
+                Vec3::new(0.0, 0.0, 0.0),
+                Vec3::new(0.0, 2.0, 0.0),
+                Vec3::new(0.3, 0.0, 0.0),
+            ],
+            faces: vec![Face::unknown([0, 1, 2], WalkerBehaviour::BySlope)],
+            primitives: 0,
+        };
+        let placement = |library: u32, cgroup: u16, cmask: u16| Placement {
+            library,
+            position: Vec3::new(5.0, 0.0, 5.0),
+            rotation: Vec3::ZERO,
+            cgroup,
+            cmask,
+        };
+        let map = MapData {
+            libraries: vec![
+                empty("resources/models/flora/tree.model/walker_collision#[1.20][1.20][1.20]"),
+                trunk,
+                empty("resources/models/flora/bush.model/walker_collision"),
+                // Another scale's collision is not this placement's.
+                empty("resources/models/flora/tree.model/walker_collision"),
+            ],
+            placements: vec![
+                placement(0, 2, 4),
+                placement(1, 8, 16),
+                placement(2, 2, 4),
+                placement(3, 2, 4),
+            ],
+            ..MapData::default()
+        };
+        let walker = map.walker_triangles();
+        assert_eq!(walker.len(), 1, "the trunk, once");
+        assert!((walker[0].v[1] - Vec3::new(5.0, 2.0, 5.0)).length() < 1e-5);
         assert_eq!(map.bullet_triangles().len(), 1);
     }
 }

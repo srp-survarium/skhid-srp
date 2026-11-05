@@ -856,3 +856,146 @@ mod tests {
         assert_eq!(supplies.items[0].magazine, None);
     }
 }
+
+/// The client patch revision from which a state ends with client patch 78's
+/// carry snapshot (`motion`'s `native_state`).
+pub const CARRY_REVISION: u16 = 38;
+/// The client patch revision from which a state has client patch 85's pickup
+/// record after the two kit indices: version 4 (48 bytes) in revision 41.
+pub const PICKUP_REVISION: u16 = 41;
+/// The client patch revision from which the pickup record is today's
+/// (`weapon_pickup::Record`, version 8, 29 bytes).
+pub const PICKUP_V8_REVISION: u16 = 42;
+/// The bytes of revision 41's pickup record (version 4: 20 bytes and two
+/// parked kits of 2 + 3 x 4).
+const PICKUP_V4_BYTES: usize = 48;
+
+/// A state that a client of patch revision `revision` wrote, in the layout
+/// this server reads ([`PlayerState::read`], `Motion::read`): for recordings,
+/// saved worlds and fixtures made before (A218, the owner's of 2026-11-01:
+/// read them too).
+/// - Before revision 41 the state has no pickup record: the empty one goes
+///   after the two kit indices.
+/// - Revision 41's record (version 4) is replaced by the empty one: its
+///   picks are not read.
+/// - Before revision 38 there is no carry snapshot either: a new carry's
+///   goes at the end.
+///
+/// From revision 42 on the state is as it is. `None`: a state too short for
+/// its kit indices, or for revision 41's record.
+pub fn state_at_revision(state: &[u8], revision: u16) -> Option<std::borrow::Cow<'_, [u8]>> {
+    use artefact_carry::carry::Carry;
+    use std::borrow::Cow;
+    if revision >= PICKUP_V8_REVISION {
+        return Some(Cow::Borrowed(state));
+    }
+    let skip = if revision >= PICKUP_REVISION { PICKUP_V4_BYTES } else { 0 };
+    let rest = state.get(2 + skip..)?;
+    let mut out = Vec::with_capacity(state.len() + weapon_pickup::Record::BYTES + Carry::SNAPSHOT_SIZE);
+    out.extend_from_slice(&state[..2]);
+    out.extend(weapon_pickup::Record::EMPTY.encode());
+    out.extend_from_slice(rest);
+    if revision < CARRY_REVISION {
+        out.extend(Carry::NEW.snapshot());
+    }
+    Some(Cow::Owned(out))
+}
+
+#[cfg(test)]
+mod revision_tests {
+    use super::super::motion::Motion;
+    use super::*;
+
+    fn today() -> Vec<u8> {
+        let head = PlayerState {
+            current_index: 1,
+            target_index: 1,
+            pickup: weapon_pickup::Record::EMPTY,
+            items: vec![990_000, 180, 4],
+            alive: true,
+            has_to_die: false,
+            look_pitch: 0.25,
+            rotation_y: -2.0,
+            actions_mask: 0xa,
+            effects: 0,
+        };
+        state_bytes(&head, &[0xA5; 40])
+    }
+
+    #[test]
+    fn a_state_of_revision_42_or_later_is_read_as_it_is() {
+        let state = today();
+        for revision in [42, 48, 60] {
+            assert_eq!(state_at_revision(&state, revision).unwrap().as_ref(), &state[..]);
+        }
+    }
+
+    #[test]
+    fn a_state_before_revision_41_gets_the_empty_pickup_record() {
+        let state = today();
+        let mut old = state[..2].to_vec();
+        old.extend_from_slice(&state[FIELDS_AT..]);
+        for revision in [38, 40] {
+            let now = state_at_revision(&old, revision).unwrap();
+            assert_eq!(now.as_ref(), &state[..], "{revision}");
+            assert_eq!(PlayerState::read(&now, 3).unwrap().items, vec![990_000, 180, 4]);
+        }
+        assert_eq!(PlayerState::read(&old, 3), None, "main's reader refuses it as it is");
+    }
+
+    #[test]
+    fn revision_41s_record_is_replaced_by_the_empty_one() {
+        let state = today();
+        let mut old = state[..2].to_vec();
+        let mut v4 = [0u8; PICKUP_V4_BYTES];
+        v4[0] = 4;
+        old.extend_from_slice(&v4);
+        old.extend_from_slice(&state[FIELDS_AT..]);
+        assert_eq!(state_at_revision(&old, 41).unwrap().as_ref(), &state[..]);
+        assert_eq!(state_at_revision(&[1, 1, 4], 41), None, "too short for its record");
+    }
+
+    #[test]
+    fn a_state_before_revision_38_gets_a_carry_snapshot_too() {
+        use artefact_carry::carry::Carry;
+        let state = today();
+        let mut old = state[..2].to_vec();
+        old.extend_from_slice(&state[FIELDS_AT..]);
+        let now = state_at_revision(&old, 34).unwrap();
+        assert_eq!(&now[..state.len()], &state[..]);
+        assert_eq!(&now[state.len()..], &Carry::NEW.snapshot()[..]);
+    }
+
+    /// A world a live client uploaded with client patch 78 (rev 38): School,
+    /// day 4, match 4758f64b at 203,850 ms, 20 places, 1 human and 19 server
+    /// bots, all alive (A154, e28746ead). Read through [`state_at_revision`],
+    /// every body of it reads under today's layout, as it did then.
+    #[test]
+    fn every_body_of_a_live_rev_38_world_reads_at_its_revision() {
+        const WORLD: &[u8] =
+            include_bytes!("../../../../../resources/worlds-026g/school_rev38_4758f64b_203850.bin");
+        const TIME_MS: u32 = 203_850;
+        let (blocks, _) = walk(WORLD).expect("the world's player blocks");
+        assert_eq!(blocks.len(), 20);
+        let bodies: Vec<(u8, Motion)> = blocks
+            .iter()
+            .filter_map(|block| {
+                let state = state_at_revision(block.state, 38)?;
+                Motion::find(&state, TIME_MS).map(|(_, motion)| (block.place, motion))
+            })
+            .filter(|(_, motion)| motion.body.is_some())
+            .collect();
+        assert!(bodies.len() * 100 >= blocks.len() * 99, "{} of {} blocks read with a body", bodies.len(), blocks.len());
+        // Without it, today's reader finds none.
+        assert!(blocks.iter().all(|block| Motion::find(block.state, TIME_MS).is_none()));
+        // Place 1, as the recording and the snapshot table read it: feet
+        // (48.022, 15.606, 117.538), yaw -2.1051, keys 0xa.
+        let (_, one) = bodies.iter().find(|(place, _)| *place == 1).expect("place 1");
+        let feet = one.body.as_ref().unwrap().feet();
+        assert!(
+            (feet[0] - 48.022).abs() < 0.01 && (feet[1] - 15.606).abs() < 0.01 && (feet[2] - 117.538).abs() < 0.01,
+            "{feet:?}"
+        );
+        assert!((one.rotation_y + 2.1051).abs() < 1e-3 && one.actions_mask == 0xa && one.alive);
+    }
+}

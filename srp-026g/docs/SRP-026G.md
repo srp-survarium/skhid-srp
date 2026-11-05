@@ -222,10 +222,16 @@ One player against the server's own bots, chosen in srp's changed lobby movie (`
 
 | Variable | Default | What |
 |---|---|---|
-| `SRP_PVB` | off (the compose file sets `on`) | `on`: the mode is offered |
+| `SRP_PVB` | on (the compose file sets it too) | `off`: the mode is not offered |
 | `SRP_PVB_MAX_MATCHES` | 5 | The most matches against bots at once, 1 to 20 (choices held for a Play count too). With `SRP_PVB=on` the match server keeps up to this many bots' maps in memory (or `SRP_MAPDATA_AT_ONCE` if more): about 35-70 MB each |
-| `SRP_PVB_PAY` | 0.5 | The share of a match's silver and experience such a match pays, 0 to 1. It counts for no quest and no daily bonus, and moves no rating |
+| `SRP_PVB_PAY` | 0.25 | The share of a match's silver, experience and drop chance such a match gives, 0 to 1. Only a match that came to its own end (the mode's rule or the time limit) with its player in it pays at all: one left, lost or stalled pays nothing. It counts for no quest and no daily bonus, and moves no rating |
 | `SRP_PVB_STALL_S` | 60 | A match against bots whose player has been asked for its world this long and uploaded none while it plays is over (as deserted), 10 to 3600 |
+| `SRP_PVB_RUSHER_KIT` | `9-10=alt,13-15=smg` | The kit the rusher bots of the tiers 9-10 and 13-15 wear (`docs/notes/pvb-tiers.md` §3.1): the owner's `9-10=alt,13-15=smg` when unset; `control` (the old kit: the SPAS-12 with buckshot), `smg` (the tier's SMG: `sr2m`, `fn_p90`), `alt` (`ump45`, `kriss_vector`), `slug` or `helmet` (the SPAS-12 with slugs or buckshot and the SMG kit's helmet). One word for both tiers or `9-10=alt,13-15=smg`; read when the server starts. A kit whose items the game data lacks is the old kit |
+| `SRP_PVB_MASKS` | top | Whether every bot wears the respirator the top players of its tier wear (`docs/notes/pvb-tiers.md` §3.2): `top` (the default) puts `ren_mask_3` at 9-10, `edge_resp_3` at 13-15 in the mask slot of every role, in place of the table's piece; the lowest tier has none (two in three of its top players wear none). Read when the server starts. An item the game data lacks: none |
+| `SRP_BOT_TRACE_DIR` | unset (off) | Where each match's bots write their decision trace, one JSON line a decision (`bots_<match>.jsonl`, `servers/match-server/src/v026g/bots/trace.rs`): what a stuck or odd bot was doing and why |
+| `SRP_BOT_TRACE_MAX_MB` | 2000 | The traces over this many MB together go, the oldest first, when a match opens its own |
+| `SRP_BOT_TUNING` | unset (the shipped defaults) | The bots' tuning: a JSON merge patch over the defaults (`servers/match-server/src/v026g/bots/tuning/mod.rs`). A file the server cannot use stops it at the start; it is read again before each match, and one refused then (unreadable, a value refused, or a change of the maps' grid or the bots' kits, which needs a restart) keeps the last good tuning, logged and shown on the admin page |
+| `SRP_BOT_ADMIN_TUNING` | `/srv/srp/data/bot-admin-tuning.json` (the compose file; unset: in memory only) | Where the admin page's Bots tab keeps its changes over the tuning (a JSON merge patch of the tab's knobs only, from the next match), with their audit beside it (`<name>.audit.jsonl`: when, from which address, the knob, old and new). One that cannot be used at the start is left out and shown on the tab (`bots/tuning/live.rs`) |
 
 ### Match server (`servers/match-server/src/v026g/mod.rs`)
 

@@ -39,8 +39,9 @@
 //!   was not read: everything in it counts as solid.
 //! - **Grenades** are not aimed here: they go over cover on purpose.
 //!
-//! The cost: a target's parts are looked at again every [`LOOK_AGAIN_MS`]
-//! or when the target changes, in order, stopping at the first that shows
+//! The cost: a target's parts are looked at again every [`LOOK_AGAIN_MS`],
+//! when the target changes or when the bot's eye has moved
+//! [`LOOK_EYE_MOVED_M`] from where it looked, in order, stopping at the first that shows
 //! (at most 8 rays, 16 for one on the move; 1 or 2 for an enemy in the
 //! open); the view's lines are two rays, only at a tick it would fire.
 
@@ -49,10 +50,17 @@ use std::sync::Arc;
 use mapdata::{RayTree, Vec3, World};
 
 use super::kin::{forward, yaw_of};
-use super::view::{MatchView, Place, PlaceView};
+use super::smoke::Veil;
+use super::tuning::{CoverRule, SmokeTuning};
+use super::view::{MatchView, Place, PlaceView, live_eye};
 
 /// A target's parts are looked at again after this, ms.
 pub const LOOK_AGAIN_MS: u32 = 100;
+/// ... or sooner, when the bot's eye is this far from where it looked
+/// from, metres: a look is of the line from that eye (GUESS: a walker's
+/// 3 m/s is 0.15 m a tick, and the view's rays run from the eye now; the
+/// bots' own error at a shot was 0.15-0.3 m, `fact-own-eye.md` 5).
+pub const LOOK_EYE_MOVED_M: f32 = 0.15;
 /// The last part seen is looked at this long after the target is out of
 /// sight, ms.
 pub const PRE_AIM_MS: u32 = 1_500;
@@ -150,6 +158,20 @@ thread_local! {
     static RAYS: std::cell::Cell<u64> = const { std::cell::Cell::new(0) };
 }
 
+// [measure] Aims at a target with no part seen and his body alive (the fallback point), and the summed distance of
+// the fallback point from his true chest, metres, this thread.
+#[cfg(test)]
+thread_local! {
+    static FALLBACK: std::cell::Cell<(u64, f64)> = const { std::cell::Cell::new((0, 0.0)) };
+}
+
+/// The fallback aims so far on this thread: how many, and the mean distance of the point used from his true chest
+/// (0 with `aim_last_known` off: the point is his chest).
+#[cfg(test)]
+pub fn fallback_aims() -> (u64, f64) {
+    FALLBACK.with(|f| f.get())
+}
+
 /// The rays this thread cast through this module so far.
 #[cfg(test)]
 pub fn rays_cast() -> u64 {
@@ -165,18 +187,19 @@ pub fn sight_line(sight: &RayTree, from: Vec3, to: Vec3) -> bool {
 fn visible(sight: &RayTree, from: Vec3, to: Vec3) -> bool {
     #[cfg(test)]
     RAYS.with(|r| r.set(r.get() + 1));
-    sight.visible(from, to)
+    super::rays::visible(sight, from, to)
 }
 
 fn ray_cast(sight: &RayTree, from: Vec3, dir: Vec3, max_t: f32) -> Option<f32> {
     #[cfg(test)]
     RAYS.with(|r| r.set(r.get() + 1));
-    sight.ray_cast(from, dir, max_t)
+    super::rays::ray_cast(sight, from, dir, max_t)
 }
 
 /// Whether some part of `body` shows from `eye`, in
 /// [`Part::SIGHT_ORDER`], stopping at the first that does; each ray first
 /// takes one from `budget` (none left: not seen).
+#[cfg(test)]
 pub fn any_part_visible(
     eye: Vec3,
     body: &PlaceView,
@@ -186,7 +209,45 @@ pub fn any_part_visible(
     shows(eye, body.feet, body.crouched(), sight, budget)
 }
 
-/// [`any_part_visible`] for a body with its feet at `feet`.
+/// What a look at a body's parts came to, smoke read ([`look_parts`]).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum PartsLook {
+    /// A part shows.
+    Shows,
+    /// None shows, and smoke hid one or more of them (the others were behind the world, or untested).
+    Smoke,
+    /// None shows on the bullet mesh.
+    Hidden,
+}
+
+/// [`any_part_visible`] through `veil`: a part the smoke hides is not looked at (no ray, nothing taken from
+/// `budget`); the others as [`shows`] looks at them, in the same order with the same budget. With
+/// [`Veil::Clear`] the rays and the answer are [`any_part_visible`]'s.
+pub fn look_parts(
+    eye: Vec3,
+    body: &PlaceView,
+    sight: &RayTree,
+    veil: Veil<'_>,
+    mut budget: impl FnMut() -> bool,
+) -> PartsLook {
+    let (feet, crouched) = (body.feet, body.crouched());
+    let mut smoke = false;
+    for part in Part::SIGHT_ORDER {
+        let point = part.point_of(feet, crouched, eye);
+        if veil.hides(eye, point) {
+            smoke = true;
+            continue;
+        }
+        if budget() && visible(sight, eye, point) {
+            return PartsLook::Shows;
+        }
+    }
+    if smoke { PartsLook::Smoke } else { PartsLook::Hidden }
+}
+
+/// [`any_part_visible`] for a body with its feet at `feet`, on the bullet mesh alone (tests and the bench's
+/// stand-in, which model a human's eyes; a bot's go through [`look_parts`]).
+#[cfg(test)]
 pub fn shows(
     eye: Vec3,
     feet: Vec3,
@@ -199,20 +260,52 @@ pub fn shows(
         .any(|part| budget() && visible(sight, eye, part.point_of(feet, crouched, eye)))
 }
 
-/// The first part of `body` in [`Part::AIM_ORDER`] that shows from `eye`.
+/// The first part of `body` in [`Part::AIM_ORDER`] that shows from `eye`, on the bullet mesh alone (tests: a bot's
+/// aim goes through the smoke's veil, [`Sight::update`]).
+#[cfg(test)]
 pub fn aim_part(eye: Vec3, body: &PlaceView, sight: &RayTree) -> Option<Part> {
-    aim_part_moving(eye, body, body.feet, sight)
+    aim_part_moving(eye, body, body.feet, sight, Veil::Clear).0
 }
 
-/// [`aim_part`] for a body that may be at `then` by the shot: the part
-/// must show both where he is and there.
-fn aim_part_moving(eye: Vec3, body: &PlaceView, then: Vec3, sight: &RayTree) -> Option<Part> {
+/// The part of a body that may be at `then` by the shot: the part
+/// must show both where he is and there. Also whether some part shows
+/// where he is, which the rays already cast say: the sight's answer
+/// ([`TargetLook::look`]) at no ray more. The pelvis, which the sight's
+/// order ([`Part::SIGHT_ORDER`]) leaves out, shows him only when a part
+/// is found: it cannot show alone.
+///
+/// Through `veil`: a part the smoke hides, where he is or there, does not show (no ray for it); a look with none
+/// showing and one so hidden is [`PartsLook::Smoke`]. With [`Veil::Clear`] the rays and answers are as with no
+/// smoke.
+fn aim_part_moving(
+    eye: Vec3,
+    body: &PlaceView,
+    then: Vec3,
+    sight: &RayTree,
+    veil: Veil<'_>,
+) -> (Option<Part>, PartsLook) {
     let moves = then.distance_xz(body.feet) > 0.05;
     let crouched = body.crouched();
-    Part::AIM_ORDER.into_iter().find(|part| {
-        visible(sight, eye, part.point(body, eye))
-            && (!moves || visible(sight, eye, part.point_of(then, crouched, eye)))
-    })
+    let mut shown = false;
+    let mut smoke = false;
+    let mut seen = |point: Vec3| {
+        if veil.hides(eye, point) {
+            smoke = true;
+            return false;
+        }
+        visible(sight, eye, point)
+    };
+    let part = Part::AIM_ORDER.into_iter().find(|part| {
+        let now = seen(part.point(body, eye));
+        shown |= now && *part != Part::Pelvis;
+        now && (!moves || seen(part.point_of(then, crouched, eye)))
+    });
+    let look = match (shown || part.is_some(), smoke) {
+        (true, _) => PartsLook::Shows,
+        (false, true) => PartsLook::Smoke,
+        (false, false) => PartsLook::Hidden,
+    };
+    (part, look)
 }
 
 /// What the parts looked like at the last look.
@@ -220,15 +313,72 @@ fn aim_part_moving(eye: Vec3, body: &PlaceView, then: Vec3, sight: &RayTree) -> 
 struct Looked {
     who: Place,
     at: u32,
+    /// The bot's eye it looked from.
+    eye: Vec3,
     crouched: bool,
     part: Option<Part>,
+    /// Whether some part showed where he was, or none, smoke hiding one.
+    look: PartsLook,
 }
 
-/// Where the aim goes this tick, and whether a part of the target shows.
+/// What the target's parts looked like at a tick, for the sight (the
+/// tick's look, `reflex`).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct TargetLook {
+    /// Some part of him shows from the eyes; or none, smoke hiding one (the sight is lost to smoke); or none.
+    pub look: PartsLook,
+    /// Looked at again at this tick (every [`LOOK_AGAIN_MS`]), not the last
+    /// look's answer kept.
+    pub fresh: bool,
+}
+
+/// [measure] What kept a shot from going clear ([`Sight::blocked`]): no
+/// part of the target shows; the view's ray, or the aim's, hits the world
+/// this far along, metres.
 #[derive(Clone, Copy, Debug, PartialEq)]
-pub struct Aim {
-    pub point: Vec3,
-    pub shows: bool,
+pub enum Blocked {
+    Hidden,
+    View(f32),
+    Aim(f32),
+}
+
+/// Where the aim goes this tick.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub enum Aim {
+    /// A part of the target shows: at it. Only this aim may lead him or feed his turn (his body is seen).
+    Shows(Vec3),
+    /// He went into smoke a moment ago (`SmokeTuning::spray_ms`): at the last part seen of him, where he was.
+    /// Only fire already going may use it ([`Aim::sprayed`]); nothing of his body now is read.
+    Spray(Vec3),
+    /// Nothing shows: at the last part seen, or where he is last known; no shot.
+    Hidden(Vec3),
+}
+
+impl Aim {
+    /// The point the view turns to.
+    pub fn point(self) -> Vec3 {
+        match self {
+            Aim::Shows(at) | Aim::Spray(at) | Aim::Hidden(at) => at,
+        }
+    }
+
+    /// Whether a shot may go: a part shows, or a spray.
+    pub fn may_fire(self) -> bool {
+        !matches!(self, Aim::Hidden(_))
+    }
+
+    /// Whether his body is seen now: the aim may lead him and follow his turn.
+    pub fn sees_body(self) -> bool {
+        matches!(self, Aim::Shows(_))
+    }
+
+    /// This aim, with a spray into smoke refused unless the fire is `continuing`: then it is hidden.
+    pub fn sprayed(self, continuing: bool) -> Self {
+        match self {
+            Aim::Spray(at) if !continuing => Aim::Hidden(at),
+            aim => aim,
+        }
+    }
 }
 
 /// One bot's look at its target's parts, kept between ticks (the
@@ -246,6 +396,11 @@ pub struct Sight {
     reach: f32,
     /// The last part seen of a target, where it was, and when.
     last_seen: Option<(Place, Vec3, u32)>,
+    /// Where the feet of that last target were then (fire through cover aims low at the place he went down).
+    last_feet: Vec3,
+    /// The target just went into smoke: the spray at the last part seen of him is open (`SmokeTuning::
+    /// spray_ms` from that sight), for this target.
+    spray: Option<Place>,
 }
 
 impl std::fmt::Debug for Sight {
@@ -254,6 +409,7 @@ impl std::fmt::Debug for Sight {
             .field("map", &self.world.is_some())
             .field("looked", &self.looked)
             .field("last_seen", &self.last_seen)
+            .field("spray", &self.spray)
             .finish()
     }
 }
@@ -261,14 +417,20 @@ impl std::fmt::Debug for Sight {
 impl Sight {
     /// Before a tick: the parts of `target` (the reflex's) that show from
     /// `me`'s eyes on `world`'s bullet mesh, looked at again when due.
+    /// What the look found, if there is a target alive. The match's smoke,
+    /// as the team's `smoke` tuning reads it ([`super::smoke::Clouds::veil`]),
+    /// hides parts behind a cloud; a target lost to it within `spray_ms` of
+    /// the last part seen of him opens the spray at that part ([`Aim::Spray`]).
     pub fn update(
         &mut self,
         me: &PlaceView,
         target: Option<Place>,
         view: &MatchView,
         world: &Arc<World>,
+        smoke: &SmokeTuning,
         now: u32,
-    ) {
+    ) -> Option<TargetLook> {
+        let veil = view.smoke.veil(view.clock, smoke);
         if !self.world.as_ref().is_some_and(|w| Arc::ptr_eq(w, world)) {
             self.world = Some(world.clone());
         }
@@ -280,61 +442,89 @@ impl Sight {
         {
             self.last_seen = None;
         }
+        self.spray = None;
         let Some((who, body)) =
             target.and_then(|t| view.place(t).filter(|p| p.alive).map(|p| (t, p)))
         else {
             self.looked = None;
-            return;
+            return None;
         };
         // Where his speed takes him by the shot and the next look.
         let ahead_s =
             (now.saturating_sub(view.clock) + LOOK_AGAIN_MS).min(AHEAD_MAX_MS) as f32 / 1000.0;
         let then = body.feet + Vec3::new(body.velocity[0], 0.0, body.velocity[1]) * ahead_s;
         let due = self.looked.is_none_or(|l| {
-            l.who != who || l.crouched != body.crouched() || now >= l.at + LOOK_AGAIN_MS
+            l.who != who
+                || l.crouched != body.crouched()
+                || now >= l.at + LOOK_AGAIN_MS
+                || (live_eye() && (l.eye - eye).length() > LOOK_EYE_MOVED_M)
         });
         if due {
+            let (part, look) = aim_part_moving(eye, body, then, sight, veil);
             self.looked = Some(Looked {
                 who,
                 at: now,
+                eye,
                 crouched: body.crouched(),
-                part: aim_part_moving(eye, body, then, sight),
+                part,
+                look,
             });
         }
+        let look = self.looked.map_or(PartsLook::Hidden, |l| l.look);
         let Some(part) = self.looked.and_then(|l| l.part) else {
-            return;
+            if look == PartsLook::Smoke
+                && self
+                    .last_seen
+                    .is_some_and(|(seen, _, at)| seen == who && now <= at + smoke.spray_ms)
+            {
+                self.spray = Some(who);
+            }
+            return Some(TargetLook { look, fresh: due });
         };
         let point = part.point(body, eye);
         self.last_seen = Some((who, point, now));
+        self.last_feet = body.feet;
         self.reach = (point - eye)
             .length()
             .min((part.point_of(then, body.crouched(), eye) - eye).length())
             - SHORT_M;
+        Some(TargetLook { look, fresh: due })
+    }
+
+    /// The map's bullet mesh from the first look: what a thrown grenade
+    /// meets ([`super::arc::Mesh`]); none for a reflex never told a map.
+    pub fn ground(&self) -> Option<Arc<RayTree>> {
+        self.world.as_ref().map(|world| world.sight.clone())
     }
 
     /// The aim at `who` (`body`: him now, if alive), `chest` with no map:
-    /// the part that shows; with no part showing, the last part seen (where
-    /// he went), and `shows` false.
-    pub fn aim(&self, who: Place, body: Option<&PlaceView>, chest: Vec3) -> Aim {
+    /// the part that shows; a spray at the last part seen while it is open;
+    /// with no part showing, the last part seen (where he went), else
+    /// `known` (where the memory has him: the caller's choice), hidden.
+    pub fn aim(&self, who: Place, body: Option<&PlaceView>, chest: Vec3, known: Vec3) -> Aim {
         if self.world.is_none() {
-            return Aim {
-                point: chest,
-                shows: true,
-            };
+            return Aim::Shows(chest);
         }
         let looked = self.looked.filter(|l| l.who == who);
-        match (looked.and_then(|l| l.part), body) {
-            (Some(part), Some(body)) => Aim {
-                point: part.point(body, self.eye),
-                shows: true,
-            },
-            _ => Aim {
-                point: self
-                    .last_seen
-                    .filter(|(seen, _, _)| *seen == who)
-                    .map_or(chest, |(_, at, _)| at),
-                shows: false,
-            },
+        let last_seen = self
+            .last_seen
+            .filter(|(seen, _, _)| *seen == who)
+            .map(|(_, at, _)| at);
+        match (looked.and_then(|l| l.part), body, last_seen) {
+            (Some(part), Some(body), _) => Aim::Shows(part.point(body, self.eye)),
+            (_, _, Some(at)) if self.spray == Some(who) => Aim::Spray(at),
+            (_, _, Some(at)) => Aim::Hidden(at),
+            (_, _, None) => {
+                // [measure] A target with no part seen: where the memory has him (`known`) against his true chest.
+                #[cfg(test)]
+                if body.is_some() {
+                    FALLBACK.with(|f| {
+                        let (n, sum) = f.get();
+                        f.set((n + 1, sum + f64::from((known - chest).length())));
+                    });
+                }
+                Aim::Hidden(known)
+            }
         }
     }
 
@@ -343,14 +533,21 @@ impl Sight {
     /// to (`aim`'s point with `error`, yaw and pitch, radians), each up to
     /// the target. Always with no map; never when no part shows.
     pub fn clear_shot(&self, me: &PlaceView, aim: &Aim, error: (f32, f32)) -> bool {
+        self.blocked(me, aim, error).is_none()
+    }
+
+    /// [measure] What keeps [`Self::clear_shot`] from passing, if anything:
+    /// no part shows, or which ray hits the world first and how far along
+    /// it, metres (the same rays in the same order).
+    pub fn blocked(&self, me: &PlaceView, aim: &Aim, error: (f32, f32)) -> Option<Blocked> {
         let Some(world) = &self.world else {
-            return true;
+            return None;
         };
-        if !aim.shows {
-            return false;
+        if !aim.may_fire() {
+            return Some(Blocked::Hidden);
         }
         if self.reach <= 0.0 {
-            return true;
+            return None;
         }
         let eye = me.eye();
         let along = |yaw: f32, pitch: f32| {
@@ -358,14 +555,20 @@ impl Sight {
             let (c, s) = (pitch.cos(), pitch.sin());
             Vec3::new(fx * c, s, fz * c)
         };
-        let to = aim.point - eye;
+        let to = aim.point() - eye;
         let (yaw, pitch) = (
             yaw_of([to.x, to.z]) + error.0,
             to.y.atan2(to.x.hypot(to.z)) + error.1,
         );
-        [along(me.yaw, me.pitch), along(yaw, pitch)]
-            .into_iter()
-            .all(|dir| ray_cast(&world.sight, eye, dir, self.reach).is_none())
+        if let Some(m) = ray_cast(&world.sight, eye, along(me.yaw, me.pitch), self.reach) {
+            return Some(Blocked::View(m));
+        }
+        ray_cast(&world.sight, eye, along(yaw, pitch), self.reach).map(Blocked::Aim)
+    }
+
+    /// [measure] How long ago its target's parts were last looked at, ms.
+    pub fn looked_ms(&self, now: u32) -> Option<u32> {
+        self.looked.map(|l| now.saturating_sub(l.at))
     }
 
     /// With no target: the last part seen, for [`PRE_AIM_MS`] after.
@@ -373,6 +576,21 @@ impl Sight {
         self.last_seen
             .filter(|(_, _, at)| now <= at + PRE_AIM_MS)
             .map(|(_, at, _)| at)
+    }
+
+    /// Who was last seen, where his feet were, and when, if it is within `within_ms` of `now` (fire through cover goes at the
+    /// place he was: the shot is aimed low there, at a belly standing, where a body that ducked or stepped behind a crate is).
+    pub fn last_place(&self, now: u32, within_ms: u32) -> Option<(Place, Vec3, u32)> {
+        self.last_seen
+            .filter(|(_, _, at)| now <= at + within_ms)
+            .map(|(who, _, at)| (who, self.last_feet, at))
+    }
+
+    /// The share of a bullet's damage that reaches `to` from the bot's eye (`from`), by the game's rule `rule`: the line followed
+    /// through what a bullet pierces, giving up under `floor`; so a share under `floor` is only an upper bound. None: no map.
+    pub fn damage_share(&self, from: Vec3, to: Vec3, rule: CoverRule, floor: f32) -> Option<f32> {
+        let world = self.world.as_ref()?;
+        Some(super::rays::follow(&world.sight, from, to, rule.pierce, floor).share.value())
     }
 }
 
@@ -382,7 +600,7 @@ mod tests {
     use crate::v026g::bots::know::{Memory, Percept, Source};
     use crate::v026g::bots::reflex::{CombatTuning, Reflex};
     use crate::v026g::bots::rng::Rng;
-    use crate::v026g::bots::tuning::AimTuning;
+    use crate::v026g::bots::tuning::{AimTuning, SenseTuning};
     use crate::v026g::bots::view::Mode;
     use crate::v026g::drive::key;
 
@@ -405,6 +623,8 @@ mod tests {
             streak: 0,
             carrying: None,
             seen_at: 0,
+            late_ms: 0,
+            known_at: 0,
         }
     }
 
@@ -424,6 +644,8 @@ mod tests {
             world_time: 0,
             can_respawn: [true, true],
             next_battery: None,
+            grenades: Vec::new(),
+            smoke: Default::default(),
         }
     }
 
@@ -462,7 +684,7 @@ mod tests {
     /// reflex aims. Returns the reflex's aim points and whether it fired.
     fn duel(world: &Arc<World>, enemy: PlaceView) -> (Vec<Vec3>, bool) {
         let mut me = body(0, 0, Vec3::ZERO, false);
-        let view = view_of(vec![me.clone(), enemy.clone()]);
+        let mut view = view_of(vec![me.clone(), enemy.clone()]);
         let aim = AimTuning::default();
         let mut memory = Memory::default();
         let mut reflex = Reflex::default();
@@ -483,7 +705,8 @@ mod tests {
         for k in 0..20 {
             let now = 1_300 + k * 50;
             memory.update(&[seen(now)], now, |_| 300, 3_000, 20_000);
-            reflex.look(&me, &view, world, now);
+            view.clock = now;
+            reflex.look(&me, &view, world, &mut memory, &SenseTuning::default(), now);
             let o = reflex.tick(&me, &view, &memory, now, true, &aim, 1.0, &mut rng);
             let point = o.look_at.unwrap();
             facing(&mut me, point);
@@ -508,6 +731,44 @@ mod tests {
         );
     }
 
+    /// The parts are looked at from the eye of the moment, so a look stands only while the eye
+    /// is near where it looked from: a step of the bot (the tick's 0.15 m and more) or a
+    /// crouch looks again within the 100 ms, the view's pitch (0.13 m at most) does not.
+    #[test]
+    fn the_parts_are_looked_at_again_when_the_eye_has_moved() {
+        let world = world_of(&[]);
+        let enemy = body(1, 1, Vec3::new(0.0, 0.0, 20.0), false);
+        let me = body(0, 0, Vec3::ZERO, false);
+        let view = view_of(vec![me.clone(), enemy]);
+        let mut sight = Sight::default();
+        sight.update(&me, Some(1), &view, &world, &SmokeTuning::default(), 1_000);
+        assert_eq!(sight.looked_ms(1_000), Some(0));
+        // 50 ms on, the eye 0.1 m along: the look stands.
+        let mut then = me.clone();
+        then.feet = Vec3::new(0.1, 0.0, 0.0);
+        sight.update(&then, Some(1), &view, &world, &SmokeTuning::default(), 1_050);
+        assert_eq!(sight.looked_ms(1_050), Some(50));
+        // The view up a radian (feet back) lifts the eye 0.13 m: still.
+        then.feet = Vec3::ZERO;
+        then.pitch = 1.0;
+        sight.update(&then, Some(1), &view, &world, &SmokeTuning::default(), 1_050);
+        assert_eq!(sight.looked_ms(1_050), Some(50));
+        // 0.3 m along: looked at again, from there.
+        then.pitch = 0.0;
+        then.feet = Vec3::new(0.3, 0.0, 0.0);
+        sight.update(&then, Some(1), &view, &world, &SmokeTuning::default(), 1_050);
+        assert_eq!(sight.looked_ms(1_050), Some(0));
+        // A crouch drops the eye 0.3 m (idle 1.04 against 1.46 m): looked at again.
+        then.keys = key::CROUCH;
+        sight.update(&then, Some(1), &view, &world, &SmokeTuning::default(), 1_100);
+        assert_eq!(sight.looked_ms(1_100), Some(0));
+        // And the look is as old as ever when nothing moved: 100 ms on, again.
+        sight.update(&then, Some(1), &view, &world, &SmokeTuning::default(), 1_150);
+        assert_eq!(sight.looked_ms(1_150), Some(50));
+        sight.update(&then, Some(1), &view, &world, &SmokeTuning::default(), 1_200);
+        assert_eq!(sight.looked_ms(1_200), Some(0));
+    }
+
     #[test]
     fn over_a_high_wall_only_the_head_shows_and_is_aimed_at() {
         let world = world_of(&[wall(19.0, -3.0, 3.0, 0.0, 1.45)]);
@@ -526,7 +787,7 @@ mod tests {
     /// pull. Returns the longest run of ticks it fired.
     fn kicked_burst(world: &Arc<World>, enemy: PlaceView, aim: &AimTuning) -> u32 {
         let mut me = body(0, 0, Vec3::ZERO, false);
-        let view = view_of(vec![me.clone(), enemy.clone()]);
+        let mut view = view_of(vec![me.clone(), enemy.clone()]);
         let mut memory = Memory::default();
         let mut reflex = Reflex::default();
         assert!(reflex.hands().held().gun.auto);
@@ -547,9 +808,10 @@ mod tests {
         for k in 0..80 {
             let now = 1_300 + k * 50;
             memory.update(&[seen(now)], now, |_| 300, 3_000, 20_000);
-            let kick = reflex.weapon_tick(&me, now);
+            view.clock = now;
+            let kick = reflex.weapon_tick(&me, now, crate::v026g::bots::pitch::PitchScale::Radian);
             me.pitch = base + kick;
-            reflex.look(&me, &view, world, now);
+            reflex.look(&me, &view, world, &mut memory, &SenseTuning::default(), now);
             let o = reflex.tick(&me, &view, &memory, now, true, aim, 1.0, &mut rng);
             let before = me.pitch;
             facing(&mut me, o.look_at.unwrap());
@@ -584,12 +846,219 @@ mod tests {
         let lifted = AimTuning {
             combat: CombatTuning {
                 recoil_pull: 0.0,
+                recoil_pull_low: 0.0,
                 ..CombatTuning::default()
             },
             ..AimTuning::default()
         };
         let longest = kicked_burst(&world, enemy, &lifted);
         assert!(longest <= 2, "longest burst {} ms", longest * 50);
+    }
+
+    /// A duel in the open at 20 m with a smoke cloud between from `hides_at` (its puffs dense enough then),
+    /// read by `smoke`: the ticks it fired.
+    ///
+    /// As the live think: the memory is given a `Seen` sensing only while no cloud covers his chest (the defaults'
+    /// sight window: the refresh on, its grace and hold), and the reflex looks through the cloud. With `turning`,
+    /// he walks across at 5 m/s, back and forth every 200 ms, from the moment the cloud hides him. Returns the
+    /// ticks it fired and the view's points at its spray ticks.
+    fn smoke_duel(
+        smoke: &crate::v026g::bots::tuning::SmokeTuning,
+        hides_at: u32,
+        turning: bool,
+    ) -> (Vec<u32>, Vec<Vec3>) {
+        use crate::v026g::bots::know::SightWindow;
+        use crate::v026g::bots::smoke::{Cloud, Clouds, MatchMs, SmokeGrenade};
+        use crate::v026g::bots::tuning::Tuning;
+        let world = world_of(&[]);
+        let mut enemy = body(1, 1, Vec3::new(0.0, 0.0, 20.0), false);
+        let mut me = body(0, 0, Vec3::ZERO, false);
+        let mut view = view_of(vec![me.clone(), enemy.clone()]);
+        let shape = SmokeGrenade::RDG_M.cloud;
+        // Hiding by `hides_at`, or from the blast when that is sooner than its forming (smoke from the start).
+        let pours = MatchMs(hides_at.saturating_sub(crate::v026g::bots::smoke::Forming::of(smoke).ms(&shape)));
+        view.smoke = Clouds::new(vec![Cloud {
+            by: 1,
+            team: 1,
+            placed: crate::v026g::bots::smoke::Placed::Arc,
+            centre: Vec3::new(0.0, 0.0, 10.0),
+            thrown: MatchMs(pours.0.saturating_sub(shape.fuse_ms)),
+            pours,
+            shape,
+        }]);
+        let tuning = Tuning::default();
+        let (aim, sense) = (tuning.aim.clone(), tuning.sense.clone());
+        let mut memory = Memory::default();
+        memory.set_sight_window(SightWindow::of(&sense, &tuning.cheats));
+        let mut reflex = Reflex::default();
+        let mut rng = Rng::new(5);
+        let seen = |at: Vec3, time| Percept {
+            who: 1,
+            at,
+            error_m: 0.0,
+            time,
+            source: Source::Seen,
+            busy: false,
+        };
+        memory.update(&[seen(enemy.feet, 1_000)], 1_000, |_| 300, 3_000, 20_000);
+        memory.update(&[seen(enemy.feet, 1_300)], 1_300, |_| 300, 3_000, 20_000);
+        reflex.think(&me, &memory, 1_300, &aim, 1.0, &mut rng);
+        let (mut fired, mut sprayed) = (Vec::new(), Vec::new());
+        for k in 0..60 {
+            let now = 1_300 + k * 50;
+            if turning && now >= hides_at {
+                let way = if ((now - hides_at) / 200).is_multiple_of(2) { 5.0 } else { -5.0 };
+                enemy.velocity = [way, 0.0];
+                enemy.feet.x += way * 0.05;
+            }
+            view.places[1] = enemy.clone();
+            view.clock = now;
+            // A sensing only through clear air, as the think's look gives it.
+            let percepts: Vec<Percept> = if view.smoke.covers(now, smoke, me.eye(), enemy.chest()) {
+                Vec::new()
+            } else {
+                vec![seen(enemy.feet, now)]
+            };
+            memory.update(&percepts, now, |_| 300, 3_000, 20_000);
+            reflex.look_through(&me, &view, &world, &mut memory, &sense, smoke, now);
+            let o = reflex.tick(&me, &view, &memory, now, true, &aim, 1.0, &mut rng);
+            // No view of its own once the memory let him go (no target, nothing to pre-aim).
+            let Some(look_at) = o.look_at else {
+                continue;
+            };
+            facing(&mut me, look_at);
+            if o.fire {
+                fired.push(now);
+                if now >= hides_at {
+                    sprayed.push(look_at);
+                }
+            }
+        }
+        (fired, sprayed)
+    }
+
+    #[test]
+    fn smoke_hides_him_and_only_fire_already_going_sprays_his_last_spot_for_a_moment() {
+        use crate::v026g::bots::tuning::SmokeTuning;
+        let on = SmokeTuning::default();
+        let off = SmokeTuning {
+            sight: false,
+            ..SmokeTuning::default()
+        };
+        let no_spray = SmokeTuning {
+            spray_ms: 0,
+            ..SmokeTuning::default()
+        };
+        let hides_at = 2_500;
+        // The switch off: the smoke is not read, it fires to the end.
+        let (blind, _) = smoke_duel(&off, hides_at, false);
+        assert!(blind.iter().any(|&t| t > hides_at + 1_000), "{blind:?}");
+        // On: it fires before the smoke, sprays at most `spray_ms` after it last saw him, then stops. With the live
+        // sight window the memory lets him go once its grace after the failed look ends, so the spray is shorter
+        // than `spray_ms`: its length is printed.
+        let (fired, _) = smoke_duel(&on, hides_at, false);
+        assert!(fired.iter().any(|&t| t < hides_at), "{fired:?}");
+        let last = *fired.last().unwrap();
+        assert!(last >= hides_at && last <= hides_at + on.spray_ms, "sprayed to {last}: {fired:?}");
+        println!("smoke duel: the spray ran {} ms past the cloud", last - hides_at);
+        // No spray: it stops once the look finds the smoke (a look every 100 ms).
+        let (stopped, _) = smoke_duel(&no_spray, hides_at, false);
+        assert!(stopped.iter().all(|&t| t < hides_at + LOOK_AGAIN_MS), "{stopped:?}");
+        // Smoke from the start: it never saw him, so nothing is going and nothing is sprayed.
+        assert!(smoke_duel(&on, 1_000, false).0.is_empty());
+    }
+
+    /// A spray is at the last part seen of him and nothing of his body now: he turns back and forth inside the
+    /// cloud and the view's point does not move (no lead, no turn feed: `Aim::Spray`).
+    #[test]
+    fn a_spray_does_not_follow_a_target_turning_inside_the_cloud() {
+        use crate::v026g::bots::tuning::SmokeTuning;
+        let (fired, sprayed) = smoke_duel(&SmokeTuning::default(), 2_500, true);
+        assert!(!sprayed.is_empty(), "no spray: {fired:?}");
+        assert!(sprayed.iter().all(|p| (*p - sprayed[0]).length() < 1e-4), "{sprayed:?}");
+    }
+
+    /// A duel at 20 m in the open that a crate (armor `armor`, 2 m high) comes between from `shut_at`, the enemy no longer sensed
+    /// (he went behind it): the ticks the bot fired from then on, the reflex's through-fire counts and the share at the crate.
+    fn through_duel(armor: f32, tuning: &AimTuning, shut_at: u32) -> (Vec<(u32, Vec3)>, crate::v026g::bots::reflex::ThroughStats, f32) {
+        use crate::v026g::bots::know::SightWindow;
+        use crate::v026g::bots::tuning::{CoverRule, SmokeTuning, Tuning};
+        use mapdata::{Armor, FaceArmor};
+        let open = world_of(&[]);
+        // Wound to face the bot: the pierce meets front faces.
+        let crate_tris = wall(10.0, -3.0, 3.0, 0.0, 2.0);
+        let shut = Arc::new(World {
+            map: mapdata::MapData::default(),
+            grid: open.grid.clone(),
+            sight: Arc::new(RayTree::from_armored_corners(
+                crate_tris.iter().flatten().copied().collect::<Vec<_>>().chunks(3).map(|t| ([t[0], t[2], t[1]], FaceArmor::Material(Armor::new(armor).unwrap()))),
+            )),
+        });
+        let rule = CoverRule { pierce: mapdata::Pierce::new(0.3125).unwrap(), max_share: 0.5, spot_cost: None };
+        let eye = body(0, 0, Vec3::ZERO, false).eye();
+        let share = shut.sight.follow(eye, Vec3::new(0.0, 1.02, 20.0), rule.pierce, 0.0).share.value();
+        let enemy = body(1, 1, Vec3::new(0.0, 0.0, 20.0), false);
+        let mut me = body(0, 0, Vec3::ZERO, false);
+        let view = view_of(vec![me.clone(), enemy.clone()]);
+        let full = Tuning::default();
+        let sense = full.sense.clone();
+        let mut memory = Memory::default();
+        memory.set_sight_window(SightWindow::of(&sense, &full.cheats));
+        let mut reflex = Reflex::default();
+        reflex.set_cover_rule(Some(rule));
+        let mut rng = Rng::new(5);
+        let seen = |time| Percept { who: 1, at: enemy.feet, error_m: 0.0, time, source: Source::Seen, busy: false };
+        memory.update(&[seen(1_000)], 1_000, |_| 300, 3_000, 20_000);
+        memory.update(&[seen(1_300)], 1_300, |_| 300, 3_000, 20_000);
+        reflex.think(&me, &memory, 1_300, tuning, 1.0, &mut rng);
+        let mut fired = Vec::new();
+        let smoke = SmokeTuning::default();
+        for k in 0..60 {
+            let now = 1_300 + k * 50;
+            let shut_now = now >= shut_at;
+            let mut view = view.clone();
+            view.clock = now;
+            if !shut_now {
+                memory.update(&[seen(now)], now, |_| 300, 3_000, 20_000);
+            } else {
+                memory.update(&[], now, |_| 300, 3_000, 20_000);
+            }
+            reflex.look_through(&me, &view, if shut_now { &shut } else { &open }, &mut memory, &sense, &smoke, now);
+            let o = reflex.tick(&me, &view, &memory, now, true, tuning, 1.0, &mut rng);
+            if let Some(look_at) = o.look_at {
+                facing(&mut me, look_at);
+            }
+            if o.fire && shut_now {
+                fired.push((now, o.look_at.unwrap_or(Vec3::ZERO)));
+            }
+        }
+        (fired, reflex.through_stats(), share)
+    }
+
+    #[test]
+    fn a_bot_goes_on_firing_a_moment_through_cover_that_lets_its_bullets_pass() {
+        use crate::v026g::bots::reflex::CombatTuning;
+        let on = AimTuning::default();
+        let off = AimTuning { combat: CombatTuning { fire_through_ms: 0, ..CombatTuning::default() }, ..AimTuning::default() };
+        let shut_at = 2_500;
+        // A thin crate: most of the damage reaches him. It fires on after the sight is lost, no longer than the window.
+        let (fired, stats, share) = through_duel(0.05, &on, shut_at);
+        assert!(share >= 0.8, "the premise: share {share}");
+        assert!(!fired.is_empty() && stats.ticks as usize == fired.len(), "{fired:?} {stats:?}");
+        assert!(stats.bursts >= 1 && stats.refused_share == 0, "{stats:?}");
+        let last = fired.last().unwrap().0;
+        assert!(last <= shut_at + on.combat.fire_through_ms, "fired to {last}: {fired:?}");
+        // Aimed low at the place he went down (his belly standing), not at the chest it last saw over the crate.
+        assert!(fired.iter().all(|(_, at)| (at.y - 1.02).abs() < 0.01 && at.z > 19.9), "{fired:?}");
+        // One burst a gap: the bursts begun are no closer than the gap.
+        assert!(stats.bursts <= 1 + on.combat.fire_through_ms / on.combat.fire_through_gap_ms, "{stats:?}");
+        // Switched off: it does not fire at what it does not see.
+        let (blind, none, _) = through_duel(0.05, &off, shut_at);
+        assert!(blind.is_empty() && none.total() == 0, "{blind:?} {none:?}");
+        // A wall that stops the bullet: nothing goes, and the refusal is counted.
+        let (stopped, refused, share) = through_duel(50.0, &on, shut_at);
+        assert!(share < 0.8, "the premise: share {share}");
+        assert!(stopped.is_empty() && refused.refused_share > 0 && refused.ticks == 0, "{stopped:?} {refused:?}");
     }
 
     #[test]
@@ -667,22 +1136,22 @@ mod tests {
         let view = view_of(vec![me.clone(), enemy.clone()]);
         let mut look = Sight::default();
         facing(&mut me, enemy.chest());
-        look.update(&me, Some(1), &view, &world, 1_000);
-        let aim = look.aim(1, Some(&enemy), enemy.chest());
-        assert!(aim.shows && (aim.point.y - 1.60).abs() < 1e-3);
+        look.update(&me, Some(1), &view, &world, &SmokeTuning::default(), 1_000);
+        let aim = look.aim(1, Some(&enemy), enemy.chest(), enemy.chest());
+        assert!(aim.may_fire() && (aim.point().y - 1.60).abs() < 1e-3);
         assert!(!look.clear_shot(&me, &aim, (0.0, 0.0)));
-        facing(&mut me, aim.point);
+        facing(&mut me, aim.point());
         assert!(look.clear_shot(&me, &aim, (0.0, 0.0)));
         // On the head, but turning a degree low this tick: into the wall.
         assert!(!look.clear_shot(&me, &aim, (0.0, -1f32.to_radians())));
         // Out of sight altogether: no shot, the view stays where he was
         // last seen, for a while after the target is gone too.
         let hidden = world_of(&[wall(19.0, -3.0, 3.0, 0.0, 3.0)]);
-        look.update(&me, Some(1), &view, &hidden, 1_200);
-        let aim = look.aim(1, Some(&enemy), enemy.chest());
-        assert!(!aim.shows && (aim.point.y - 1.60).abs() < 1e-3);
+        look.update(&me, Some(1), &view, &hidden, &SmokeTuning::default(), 1_200);
+        let aim = look.aim(1, Some(&enemy), enemy.chest(), enemy.chest());
+        assert!(!aim.may_fire() && (aim.point().y - 1.60).abs() < 1e-3);
         assert!(!look.clear_shot(&me, &aim, (0.0, 0.0)));
-        look.update(&me, None, &view, &hidden, 1_300);
+        look.update(&me, None, &view, &hidden, &SmokeTuning::default(), 1_300);
         assert!(look.pre_aim(1_300).is_some());
         assert!(look.pre_aim(1_000 + PRE_AIM_MS + 1).is_none());
     }
@@ -697,14 +1166,14 @@ mod tests {
         assert_eq!(aim_part(eye, &enemy, &world.sight), Some(Part::Chest));
         let view = view_of(vec![body(0, 0, Vec3::ZERO, false), enemy.clone()]);
         let mut look = Sight::default();
-        look.update(&view.places[0], Some(1), &view, &world, 100);
-        assert!(look.aim(1, Some(&enemy), enemy.chest()).shows);
+        look.update(&view.places[0], Some(1), &view, &world, &SmokeTuning::default(), 100);
+        assert!(look.aim(1, Some(&enemy), enemy.chest(), enemy.chest()).may_fire());
         enemy.velocity = [-5.0, 0.0];
         let view = view_of(vec![body(0, 0, Vec3::ZERO, false), enemy.clone()]);
         let mut look = Sight::default();
-        look.update(&view.places[0], Some(1), &view, &world, 100);
-        let aim = look.aim(1, Some(&enemy), enemy.chest());
-        assert!(!aim.shows, "{aim:?}");
+        look.update(&view.places[0], Some(1), &view, &world, &SmokeTuning::default(), 100);
+        let aim = look.aim(1, Some(&enemy), enemy.chest(), enemy.chest());
+        assert!(!aim.may_fire(), "{aim:?}");
     }
 
     #[test]
@@ -736,11 +1205,11 @@ mod tests {
         let mut look = Sight::default();
         let before = rays_cast();
         for k in 0..4 {
-            look.update(&me, Some(1), &view, &open, 1_000 + k * 50);
+            look.update(&me, Some(1), &view, &open, &SmokeTuning::default(), 1_000 + k * 50);
         }
         // Looks at 1000 and 1100.
         assert_eq!(rays_cast() - before, 2);
-        let aim = look.aim(1, Some(&enemy), enemy.chest());
+        let aim = look.aim(1, Some(&enemy), enemy.chest(), enemy.chest());
         let before = rays_cast();
         assert!(look.clear_shot(&me, &aim, (0.0, 0.0)));
         assert_eq!(rays_cast() - before, 2);
@@ -810,5 +1279,404 @@ mod tests {
                 aim_took * 1e6 / pairs.len() as f64,
             );
         }
+    }
+
+    /// Where the enemy of a [`fight`] is at a poll.
+    #[derive(Clone, Copy)]
+    struct Enemy {
+        feet: Vec3,
+        alive: bool,
+        spawned: u32,
+    }
+
+    fn at(feet: Vec3) -> Enemy {
+        Enemy {
+            feet,
+            alive: true,
+            spawned: 0,
+        }
+    }
+
+    /// What a [`fight`] came to, by tick.
+    struct Fought {
+        /// (tick time, the clock it was read on, the reflex's target, the
+        /// target seen).
+        ticks: Vec<(u32, u32, Option<Place>, bool)>,
+        /// The ticks a target's sight ended on (not his death).
+        lapses: Vec<u32>,
+    }
+
+    impl Fought {
+        /// The first tick, from `from` on, with no target.
+        fn lost_at(&self, from: u32) -> Option<(u32, u32)> {
+            self.ticks
+                .iter()
+                .find(|(now, _, target, _)| *now >= from && target.is_none())
+                .map(|(now, clock, _, _)| (*now, *clock))
+        }
+    }
+
+    /// A bot at the origin (turned to `yaw_at`) against one enemy (`enemy_at`,
+    /// by the information clock) over `world`, polled every 50 ms from 1 s
+    /// to `until`: a think every `gap` ms senses him, the ticks run `lead`
+    /// ms ahead of the clock as the encoder's do, each with its look.
+    /// `stall` = (clock, ms): the poll after `clock` comes `ms` later and
+    /// its ticks all at once, on one view.
+    fn fight(
+        world: &Arc<World>,
+        gap: u32,
+        lead: u32,
+        until: u32,
+        stall: Option<(u32, u32)>,
+        enemy_at: &dyn Fn(u32) -> Enemy,
+        yaw_at: &dyn Fn(u32) -> f32,
+    ) -> Fought {
+        use crate::v026g::bots::sense::{RayBudget, sense};
+        use crate::v026g::bots::tuning::CheatTuning;
+        let aim = AimTuning::default();
+        // The sight refresh on: these are its tests.
+        let senses = SenseTuning {
+            sight_refresh: true,
+            ..SenseTuning::default()
+        };
+        let mut memory = Memory::default();
+        memory.set_sight_window(crate::v026g::bots::know::SightWindow::refreshed());
+        let mut reflex = Reflex::default();
+        let mut rng = Rng::new(5);
+        let mut fought = Fought {
+            ticks: Vec::new(),
+            lapses: Vec::new(),
+        };
+        let (mut clock, mut next_think, mut last_tick) = (1_000, 1_000, 1_000 + lead - 50);
+        while clock < until {
+            let e = enemy_at(clock);
+            let mut me = body(0, 0, Vec3::ZERO, false);
+            me.yaw = yaw_at(clock);
+                let mut foe = body(1, 1, e.feet, false);
+            (foe.alive, foe.spawned) = (e.alive, e.spawned);
+            let mut view = view_of(vec![me.clone(), foe]);
+            view.clock = clock;
+            if clock >= next_think {
+                next_think = clock + gap;
+                let percepts = sense(
+                    &me,
+                    &view,
+                    &world.sight,
+                    &senses,
+                    &CheatTuning::default(),
+                    clock,
+                    &[1],
+                    &mut RayBudget::new(400),
+                    &mut rng,
+                );
+                memory.update(&percepts, clock, |_| 300, 3_000, 20_000);
+                reflex.think(&me, &memory, clock, &aim, 1.0, &mut rng);
+            }
+            while last_tick < clock + lead {
+                last_tick += 50;
+                let now = last_tick;
+                reflex.look(&me, &view, world, &mut memory, &senses, now);
+                reflex.tick(&me, &view, &memory, now, true, &aim, 1.0, &mut rng);
+                if reflex.take_lapse().is_some() {
+                    fought.lapses.push(now);
+                }
+                let target = reflex.target();
+                let seen = target.is_some_and(|t| memory.seen(t, now, clock).is_some());
+                fought.ticks.push((now, clock, target, seen));
+            }
+            clock += match stall {
+                Some((at, ms)) if clock == at => ms,
+                _ => 50,
+            };
+        }
+        fought
+    }
+
+    /// 8.13: a target in plain view is never lost to the think cadence,
+    /// whatever the think gap (200-400 ms) and the input's lead (50-100 ms):
+    /// before, 19 times a bot-minute.
+    #[test]
+    fn a_target_in_the_open_is_never_lost_between_thinks() {
+        let world = world_of(&[]);
+        for lead in [50, 100] {
+            for gap in [200, 250, 300, 350, 400] {
+                let f = fight(
+                    &world,
+                    gap,
+                    lead,
+                    8_000,
+                    None,
+                    &|_| at(Vec3::new(0.0, 0.0, 20.0)),
+                    &|_| 0.0,
+                );
+                let taken = f.ticks.iter().position(|t| t.2.is_some()).expect("taken");
+                // First sight is as before: sensed at the first think (1 s),
+                // taken at the first tick after his noticing delay (300 ms)
+                // on the tick clock, whatever the lead.
+                assert_eq!(f.ticks[taken].0, 1_300, "gap {gap}, lead {lead}");
+                assert!(
+                    f.ticks[taken..].iter().all(|t| t.2 == Some(1) && t.3),
+                    "gap {gap}, lead {lead}: lost {:?}",
+                    f.lost_at(f.ticks[taken].0)
+                );
+                assert!(f.lapses.is_empty());
+            }
+        }
+    }
+
+    /// A target that steps behind a wall is lost [`SIGHT_GRACE_MS`] after the
+    /// look that failed, on the information clock: not before, and not later
+    /// than the next tick.
+    #[test]
+    fn a_target_behind_a_wall_is_lost_after_the_grace() {
+        use crate::v026g::bots::know::SIGHT_GRACE_MS;
+        let world = world_of(&[wall(10.0, 1.0, 8.0, 0.0, 3.0)]);
+        let hide = 3_000;
+        let f = fight(
+            &world,
+            300,
+            100,
+            6_000,
+            None,
+            &|clock| {
+                at(Vec3::new(if clock < hide { 0.0 } else { 4.0 }, 0.0, 20.0))
+            },
+            &|_| 0.0,
+        );
+        let (now, clock) = f.lost_at(hide).expect("lost");
+        // The failed look is the first one after he hid, a look every 100 ms
+        // (every other tick): the clock it was read on is within 100 ms.
+        assert!(clock > hide + SIGHT_GRACE_MS, "lost at {clock}");
+        assert!(clock <= hide + 100 + SIGHT_GRACE_MS + 50, "lost at {clock} (tick {now})");
+        assert_eq!(f.lapses, vec![now]);
+        // Until then he was seen at every tick.
+        assert!(f.ticks.iter().take_while(|t| t.0 < now).skip(30).all(|t| t.3));
+    }
+
+    /// A target reckoned behind a wall for a moment (a late input, then the
+    /// snap back) stays seen while the moment is inside the grace, and is
+    /// lost when it is longer: the numbers behind the ping bands.
+    #[test]
+    fn a_snap_inside_the_grace_keeps_the_target_and_a_longer_one_loses_it() {
+        let world = world_of(&[wall(10.0, 1.0, 8.0, 0.0, 3.0)]);
+        let overshoot = |ms: u32| {
+            fight(
+                &world,
+                300,
+                100,
+                6_000,
+                None,
+                &|clock| {
+                    let behind = (3_000..3_000 + ms).contains(&clock);
+                    at(Vec3::new(if behind { 4.0 } else { 0.0 }, 0.0, 20.0))
+                },
+                &|_| 0.0,
+            )
+        };
+        // An overshoot of up to 200 ms: a look finds him back in the grace.
+        for ms in [50, 100, 150, 200] {
+            let f = overshoot(ms);
+            assert_eq!(f.lost_at(3_000), None, "{ms} ms");
+        }
+        // 300 ms of false-blocked picture: lost. Here the picture is moved by
+        // hand; what a late input does to it, and the discard of one past the
+        // relay's reach, is `a_players_late_stop_input_...` (a lateness of 300
+        // ms is a ping of about 670: the live server shows no such snap).
+        let f = overshoot(300);
+        assert!(f.lost_at(3_000).is_some());
+        assert_eq!(f.lapses.len(), 1);
+    }
+
+    /// A bot that turns its back on its target loses him after the grace,
+    /// not at once; a glance away shorter than that does not.
+    #[test]
+    fn a_target_out_of_the_view_is_lost_after_the_grace() {
+        let world = world_of(&[]);
+        let turned = |ms: u32| {
+            fight(
+                &world,
+                300,
+                100,
+                6_000,
+                None,
+                &|_| at(Vec3::new(0.0, 0.0, 20.0)),
+                &|clock| {
+                    if (3_000..3_000 + ms).contains(&clock) {
+                        std::f32::consts::PI
+                    } else {
+                        0.0
+                    }
+                },
+            )
+        };
+        assert_eq!(turned(100).lost_at(3_000), None);
+        let f = turned(1_000);
+        let (_, clock) = f.lost_at(3_000).expect("lost");
+        let grace = crate::v026g::bots::know::SIGHT_GRACE_MS;
+        assert!(clock > 3_000 + grace && clock <= 3_000 + grace + 50, "{clock}");
+    }
+
+    /// A dead target is lost at once, no grace; after he spawns again he
+    /// is a new sight, noticed anew, not the old one carried over.
+    #[test]
+    fn a_dead_target_ends_the_sight_and_a_respawn_does_not_carry_it_over() {
+        let world = world_of(&[]);
+        let f = fight(
+            &world,
+            300,
+            100,
+            7_000,
+            None,
+            &|clock| Enemy {
+                feet: Vec3::new(0.0, 0.0, 20.0),
+                alive: !(3_000..3_100).contains(&clock),
+                // Back at 3.1 s, a new life.
+                spawned: if clock >= 3_100 { 3_100 } else { 0 },
+            },
+            &|_| 0.0,
+        );
+        let (now, clock) = f.lost_at(3_000).expect("lost");
+        assert!(clock <= 3_000 + 50, "at once, not after the grace: {clock}");
+        assert_eq!(now, clock + 100);
+        // The new life is taken again only after the next think senses
+        // him and his noticing delay is out: a few hundred ms.
+        let back = f.ticks.iter().find(|t| t.0 > now && t.2.is_some()).expect("taken again");
+        assert!(back.0 >= 3_100 + 300, "noticed anew: {}", back.0);
+    }
+
+    /// A rare stall of the server (1 s between polls): a clear target is
+    /// not dropped by it, and one that hid during it is not kept past the
+    /// bound for untested time.
+    #[test]
+    fn a_second_long_stall_neither_drops_a_clear_target_nor_keeps_a_hidden_one() {
+        let world = world_of(&[wall(10.0, 1.0, 8.0, 0.0, 3.0)]);
+        let clear = fight(
+            &world,
+            300,
+            100,
+            7_000,
+            Some((3_000, 1_000)),
+            &|_| at(Vec3::new(0.0, 0.0, 20.0)),
+            &|_| 0.0,
+        );
+        let taken = clear.ticks.iter().position(|t| t.2.is_some()).expect("taken");
+        assert!(clear.ticks[taken..].iter().all(|t| t.2 == Some(1) && t.3));
+        assert!(clear.lapses.is_empty());
+        // He steps behind the wall in the stall: the first look after it
+        // finds him gone, and the sight (450 ms untested at the most) is over
+        // with that tick.
+        let hidden = fight(
+            &world,
+            300,
+            100,
+            7_000,
+            Some((3_000, 1_000)),
+            &|clock| at(Vec3::new(if clock > 3_000 { 4.0 } else { 0.0 }, 0.0, 20.0)),
+            &|_| 0.0,
+        );
+        let (_, clock) = hidden.lost_at(3_000).expect("lost");
+        assert_eq!(clock, 4_000, "at the first tick after the stall");
+    }
+
+    /// A player walking at +z along x = 4 from `z = 6` at 1.05 s, who lets go
+    /// of the key at the tick `stop`: the real [`Tracker`] is given his
+    /// inputs `late` ms after their ticks and reckons him on as the bots'
+    /// view does. Returns his place at the information clock, and the
+    /// tracker's place count's feet where the stop puts him at rest.
+    fn walker_through_the_tracker(
+        world: &Arc<World>,
+        stop: u32,
+        late: u32,
+    ) -> impl Fn(u32) -> Enemy {
+        use crate::v026g::bots::body::Fix;
+        use crate::v026g::bots::kin::Kinematics;
+        use crate::v026g::bots::view::{Clock, Tracker};
+        let kin = Kinematics::default();
+        let mut tracker = Tracker::new(crate::v026g::bots::objective::Mode::Batteries, &[0, 1], &[true, false], vec![]);
+        tracker.entered(1, true);
+        let start = Fix {
+            time: 1_000,
+            alive: true,
+            inserted: 10,
+            feet: Some(Vec3::new(4.0, 0.0, 6.0)),
+            yaw: 0.0,
+            pitch: 0.0,
+            keys: 0,
+            speed: Some(0.0),
+        };
+        tracker.fixed(1, start, None, &kin, Some(world));
+        // (arrival, tick, keys): a client sends an input at every tick; he
+        // walks from 1.05 s and lets go of the key at `stop`.
+        let mut sent: Vec<(u32, u32, u32)> = (1_050..stop)
+            .step_by(50)
+            .map(|tick| (tick + late, tick, key::FORWARD))
+            .collect();
+        sent.push((stop + late, stop, 0));
+        let inputs = std::cell::RefCell::new(sent);
+        let tracker = std::cell::RefCell::new(tracker);
+        let world = world.clone();
+        move |clock| {
+            let mut tracker = tracker.borrow_mut();
+            let mut inputs = inputs.borrow_mut();
+            while let Some(&(arrival, tick, keys)) = inputs.first() {
+                if arrival > clock {
+                    break;
+                }
+                inputs.remove(0);
+                tracker.input(1, tick, keys, (0.0, 0.0), 0.0, &kin, Some(&world));
+            }
+            let clock = Clock {
+                clock,
+                time_left_s: 600.0,
+                total_s: 900.0,
+                playing: true,
+            };
+            let view = tracker.view(&clock, &kin, Some(&world));
+            let body = view.place(1).unwrap();
+            Enemy {
+                feet: body.feet,
+                alive: body.alive,
+                spawned: body.spawned,
+            }
+        }
+    }
+
+    /// Where a walker who stops at the tick 4 s rests, with his input on
+    /// time.
+    fn rest_z(stop: u32) -> f32 {
+        let world = world_of(&[]);
+        let at = walker_through_the_tracker(&world, stop, 0);
+        at(8_000).feet.z
+    }
+
+    /// A player stops at the edge of cover, his stop input `late` ms late
+    /// (the real [`Tracker`] reckons him on past the edge until it comes),
+    /// at two phases of the 100 ms looks: the target stays seen through
+    /// 300 ms (the false-blocked run is `late` less 100 ms, and three failed
+    /// looks are needed to lose a sight past the 250 ms grace), is lost at
+    /// 400 by phase, and at 1000 always. The relay discards an input later
+    /// than its reach, 425 ms less the largest round trip of the other
+    /// players: the longer rows are what the live server never shows
+    /// (`tests/sight.rs` takes the intake).
+    #[test]
+    fn a_players_late_stop_input_keeps_the_target_to_300_ms_and_loses_him_by_400() {
+        let lost = |stop: u32, late: u32| {
+            let rest = rest_z(stop);
+            // The wall's face is where he rests: any run-on is behind it.
+            let world = world_of(&[wall(rest + 0.001, 3.0, 8.0, 0.0, 3.0)]);
+            let enemy = walker_through_the_tracker(&world, stop, late);
+            let f = fight(&world, 300, 100, 9_000, None, &enemy, &|_| 0.0);
+            // He was taken long before the stop, and at rest is seen.
+            let taken = f.ticks.iter().position(|t| t.2.is_some()).expect("taken");
+            assert!(f.ticks[taken].0 < stop, "taken at {}", f.ticks[taken].0);
+            f.lost_at(stop - 100)
+        };
+        for late in [0, 50, 100, 150, 200, 250, 300] {
+            for stop in [4_000, 4_050] {
+                assert_eq!(lost(stop, late), None, "late {late}, stop {stop}");
+            }
+        }
+        assert!(lost(4_000, 400).is_some() || lost(4_050, 400).is_some());
+        assert!(lost(4_000, 1_000).is_some() && lost(4_050, 1_000).is_some());
     }
 }

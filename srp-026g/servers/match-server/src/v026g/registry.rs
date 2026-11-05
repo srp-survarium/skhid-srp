@@ -13,7 +13,8 @@ use std::time::{Duration, Instant};
 
 use session::matchmaking_policy::Closed;
 use survarium::v026g::dictionary::Dictionary;
-use survarium::v026g::maps::{self, GameMode, MatchMap};
+use survarium::v026g::loadouts::BotPocketKit;
+use survarium::v026g::maps::{GameMode, MatchMap};
 use survarium::v026g::match_msgs::MAX_PLAYERS;
 use survarium::v026g::match_msgs::players::Supplies;
 use survarium::v026g::match_msgs::snapshot::{PlayerStatistics, Standing};
@@ -324,6 +325,8 @@ pub struct MatchRegistry {
     host: String,
     port: u16,
     inner: Mutex<Inner>,
+    /// The pockets the server's own bots' kits are made with (`kit` of the bots' tuning: the store and the smoke).
+    bot_pockets: BotPocketKit,
 }
 
 impl MatchRegistry {
@@ -336,7 +339,16 @@ impl MatchRegistry {
                 last_id: random() | 1,
                 ..Inner::default()
             }),
+            bot_pockets: BotPocketKit::default(),
         }
+    }
+
+    /// The pockets of the server's own bots: the lobby builds their profiles with the default
+    /// ([`BotPocketKit::default`]) and a match made here has them built again with these. The bots' tuning is not the
+    /// lobby's, so the match server is where `kit` (`pocket_store`, `smoke`) is applied.
+    pub fn with_bot_pockets(mut self, pockets: BotPocketKit) -> Self {
+        self.bot_pockets = pockets;
+        self
     }
 
     /// The registry of the configured match server (`SRP_PUBLIC_HOST`,
@@ -383,7 +395,7 @@ impl MatchRegistry {
 
     pub(crate) fn create_with_dialect(
         &self,
-        setup: MatchSetup,
+        mut setup: MatchSetup,
         now: Instant,
         growing_roster: bool,
     ) -> Result<MatchTicket, CreateError> {
@@ -392,9 +404,16 @@ impl MatchRegistry {
         }
         let played = setup.map;
         let map = played.map();
-        // The server's bots play modes 2 to 4 (`bots`): none in Research.
-        if map.mode.rules() == maps::RuleMode::Research && setup.players.iter().any(|player| player.driven) {
+        // The server's bots play the modes `Mode::of_rules` gives: none in Research.
+        if crate::v026g::bots::objective::Mode::of_rules(map.mode.rules()).is_err()
+            && setup.players.iter().any(|player| player.driven)
+        {
             return Err(CreateError::Map(map.id));
+        }
+        if self.bot_pockets != BotPocketKit::default() {
+            for player in setup.players.iter_mut().filter(|player| player.driven) {
+                survarium::v026g::loadouts::with_bot_pockets(&mut player.profile, self.bot_pockets);
+            }
         }
         let mut inner = self.inner();
         for (place, player) in setup.players.iter().enumerate() {

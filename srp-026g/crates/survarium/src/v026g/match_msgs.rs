@@ -25,12 +25,14 @@
 
 pub mod client_model;
 pub mod clock;
+pub mod grenades;
 pub mod late_join;
 pub mod motion;
 pub mod players;
 pub mod rules;
 pub mod snapshot;
 pub mod static_info;
+pub mod traps;
 pub mod upload;
 
 use client_model::COMPRESSED_SNAPSHOT_BUFFER;
@@ -255,9 +257,9 @@ impl PlayerInput {
     /// the rotations of two inputs it merges into one node, as halves
     /// (0x2C5B60 → 0x2C6640 → 0xF67B0), and a half ends at 65 504.
     pub fn rotation_is_sane(&self) -> bool {
-        self.rotation
-            .chunks_exact(2)
-            .all(|half| u16::from_le_bytes([half[0], half[1]]) & HALF_EXPONENT < HALF_EXPONENT_1024)
+        self.rotation.as_chunks::<2>().0.iter().all(|&half| {
+            u16::from_le_bytes(half) & HALF_EXPONENT < HALF_EXPONENT_1024
+        })
     }
 }
 

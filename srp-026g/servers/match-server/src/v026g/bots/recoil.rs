@@ -20,7 +20,8 @@
 //!   (1 - |x|^p)`, with `T`, `R`, `L` uniform in the weapon's config ranges
 //!   (degrees, `T / 63.735`, `R` and `L / 21.48`: [`TOP_DEG_PER_UNIT`],
 //!   [`SIDE_DEG_PER_UNIT`]), `p` its `recoil_power`, each times
-//!   `max(0, 1 + recoil_modifier)` (0 for the bots' kit), clamped to ±1.
+//!   `max(0, 1 + recoil_modifier)` (the kit's: its skills' `recoil` and its worn items' `recoil_modifier`,
+//!   `ren_gloves_1` -8 % since revision 38; [`Recoil::scaled`], A307), clamped to ±1.
 //!   The kick does not jump: the shot sets a speed that takes it to the
 //!   new value over the shot interval `60 / rounds_per_minute` (0x331F82).
 //!   PROVEN.
@@ -124,76 +125,77 @@ impl Kick {
     }
 }
 
-/// The weapons whose kick is known: the AK-74M first (the default, for a
-/// weapon not here), then the five the server's bots carry
-/// (`super::guns::GUNS`). From the 0.26g configs (PROVEN).
-pub const KICKS: [Kick; 6] = [
-    Kick {
-        item: "ak_74m",
-        rpm: 650,
-        top_deg: (1.8, 2.0),
-        left_deg: (1.4, 1.8),
-        right_deg: (1.4, 1.8),
-        power: 0.8,
-        gains: (5.0, 10.0, 0.0),
-    },
-    Kick {
-        item: "uzi",
-        rpm: 600,
-        top_deg: (1.0, 1.2),
-        left_deg: (1.5, 1.5),
-        right_deg: (1.5, 1.5),
-        power: 0.6,
-        gains: (5.0, 15.0, 0.0),
-    },
-    Kick {
-        item: "ak_74u",
-        rpm: 650,
-        top_deg: (2.0, 2.2),
-        left_deg: (1.4, 1.8),
-        right_deg: (1.4, 1.8),
-        power: 0.8,
-        gains: (5.0, 10.0, 0.0),
-    },
-    // Fires one barrel a press.
-    Kick {
-        item: "toz_34",
-        rpm: 240,
-        top_deg: (3.0, 3.0),
-        left_deg: (3.0, 3.0),
-        right_deg: (3.0, 3.0),
-        power: 1.0,
-        gains: (5.0, 15.0, 0.0),
-    },
-    // A bolt action: left and right the same, no side kick at all.
-    Kick {
-        item: "mosin_nagant",
-        rpm: 160,
-        top_deg: (3.0, 3.0),
-        left_deg: (3.0, 3.0),
-        right_deg: (3.0, 3.0),
-        power: 1.0,
-        gains: (5.0, 15.0, 0.0),
-    },
-    Kick {
-        item: "tt_33",
-        rpm: 300,
-        top_deg: (0.8, 0.8),
-        left_deg: (0.8, 0.8),
-        right_deg: (0.8, 0.8),
-        power: 0.5,
-        gains: (5.0, 10.0, 0.0),
-    },
-];
+/// Every weapon's kick, read from the game data (`survarium::v026g::weapons`,
+/// the configs' `recoil` blocks and rates of fire): a weapon a patch adds or
+/// rebalances kicks by its own numbers. PROVEN (the configs).
+pub fn kicks() -> &'static [Kick] {
+    static ALL: std::sync::OnceLock<Vec<Kick>> = std::sync::OnceLock::new();
+    ALL.get_or_init(|| kicks_of(survarium::v026g::weapons::all()))
+}
+
+/// The kicks of the weapon table `weapons`: what [`kicks`] makes of the
+/// process's own, and a test makes of a patched copy's.
+pub fn kicks_of(weapons: &[survarium::v026g::weapons::WeaponParams]) -> Vec<Kick> {
+    weapons
+        .iter()
+        .map(|w| Kick {
+            item: w.name,
+            rpm: w.rounds_per_minute,
+            top_deg: w.top_recoil,
+            left_deg: w.left_recoil,
+            right_deg: w.right_recoil,
+            power: w.recoil_power,
+            gains: w.recoil_gains,
+        })
+        .collect()
+}
+
+/// The weapon whose kick a weapon the data does not know takes: the
+/// AK-74M. Reached by [`Recoil::default`] (a reflex with no arms yet,
+/// `Reflex::default`, until `Reflex::in_hand` gives it its weapon's) and by
+/// an item that is not in the table; a `Gun` of the same table always has
+/// its own kick.
+pub const DEFAULT_KICK: &str = "ak_74m";
+
+/// The kick of `item` among `all`: [`DEFAULT_KICK`]'s for one not there,
+/// and the table's first when a patch has taken the AK-74M out too.
+pub fn kick_in<'a>(all: &'a [Kick], item: &str) -> &'a Kick {
+    all.iter()
+        .find(|k| k.item == item)
+        .or_else(|| all.iter().find(|k| k.item == DEFAULT_KICK))
+        .or_else(|| all.first())
+        .expect("the game data has a weapon")
+}
 
 /// The kick of the weapon item `item`; the AK-74M's for one not known.
 pub fn kick_of(item: &str) -> &'static Kick {
-    KICKS.iter().find(|k| k.item == item).unwrap_or(&KICKS[0])
+    kick_in(kicks(), item)
+}
+
+/// The weapons taken in hand that have no kick of their own and took [`DEFAULT_KICK`]'s, each once
+/// ([`Recoil::in_hand`]).
+static NO_KICK: std::sync::Mutex<Vec<&'static str>> = std::sync::Mutex::new(Vec::new());
+
+/// `item` has no kick of its own: said in the log the first time, so a weapon the data lacks is never silent.
+fn no_kick(item: &'static str) {
+    let mut seen = NO_KICK.lock().unwrap_or_else(std::sync::PoisonError::into_inner);
+    if !seen.contains(&item) {
+        seen.push(item);
+        log::warn!("bots: the weapon {item} has no kick in the game data; it kicks as the {DEFAULT_KICK}");
+    }
+}
+
+/// The weapons taken in hand so far that had no kick of their own.
+pub fn weapons_without_kick() -> Vec<&'static str> {
+    NO_KICK.lock().unwrap_or_else(std::sync::PoisonError::into_inner).clone()
 }
 
 /// One weapon's kick as the client keeps it (0x331FF0's fields).
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct Recoil {
+    /// The weapon in hand the model is for: the kick's own item, or one the
+    /// data has no kick for, which kicks as [`DEFAULT_KICK`] ([`Self::in_hand`]).
+    held: &'static str,
     kick: &'static Kick,
     /// The side and the vertical kick, pitch units.
     at: [f32; 2],
@@ -207,18 +209,37 @@ pub struct Recoil {
     last_shot: Option<f32>,
     /// The last weapon tick, ms.
     ticked: Option<u32>,
+    /// [A307] What every shot's kick is multiplied by: the kit's `max(0, 1 + recoil_modifier)` ([`Self::scaled`]); 1 alone.
+    scale: f32,
 }
 
 impl Default for Recoil {
     fn default() -> Self {
-        Self::new(&KICKS[0])
+        Self::new(kick_of(DEFAULT_KICK))
     }
 }
 
 impl Recoil {
     /// The weapon of `kick` just taken in hand.
     pub fn new(kick: &'static Kick) -> Self {
+        Self::of(kick.item, kick)
+    }
+
+    /// The weapon item `item` just taken in hand: its own kick, or
+    /// [`DEFAULT_KICK`]'s for one the data has none for ([`kick_of`]; logged
+    /// once). The model stays `item`'s ([`Self::held`]), so the weapon in hand
+    /// keeps it from tick to tick either way.
+    pub fn in_hand(item: &'static str) -> Self {
+        let kick = kick_of(item);
+        if kick.item != item {
+            no_kick(item);
+        }
+        Self::of(item, kick)
+    }
+
+    fn of(held: &'static str, kick: &'static Kick) -> Self {
         Self {
+            held,
             kick,
             at: [0.0; 2],
             speed: [0.0; 2],
@@ -226,7 +247,18 @@ impl Recoil {
             integral: [0.0; 2],
             last_shot: None,
             ticked: None,
+            scale: 1.0,
         }
+    }
+
+    /// [A307] Every shot's kick from now times `scale` (the kit's `max(0, 1 + recoil_modifier)`, `Gun::recoil_scale`).
+    pub fn scaled(&mut self, scale: f32) {
+        self.scale = scale;
+    }
+
+    /// The weapon in hand the model is for.
+    pub fn held(&self) -> &'static str {
+        self.held
     }
 
     pub fn kick(&self) -> &'static Kick {
@@ -253,7 +285,7 @@ impl Recoil {
     pub fn reset(&mut self) {
         *self = Self {
             ticked: self.ticked,
-            ..Self::new(self.kick)
+            ..Self::of(self.held, self.kick)
         };
     }
 
@@ -304,6 +336,7 @@ impl Recoil {
         self.error = [0.0; 2];
         self.integral = [0.0; 2];
         let p = self.kick.power;
+        let (top, side) = (top * self.scale, side * self.scale);
         let [x, y] = self.at;
         let to = [
             (x + side * (1.0 - x.abs().powf(p))).clamp(-1.0, 1.0),
@@ -374,14 +407,91 @@ impl Cadence {
     }
 }
 
+/// [A241] An aimed shot's drift off the view to the right, degrees, by the time since the aim began, ms: the mean over the live
+/// bots' aimed bullets of each band (fx-struct's A233 table: 90,193 bullets of the 407 PvB recordings of 2026-10-29..31, each one's
+/// ground direction against its shooter's view; joined with the shooters' AIM key by fx-fights' `a241_aim_drift.py`), at the band's
+/// middle; bullets per band 21,959 / 18,954 / 18,911 / 10,600 / 5,944 / 5,420 / 1,757 / 1,016 / 140. Not aiming they drift 0.10
+/// degrees left (5,234). PROVEN as measured; it follows the aim, not the trigger (the first shots alone: +0.12 at 0-100 ms of aim,
+/// +0.38 at 2-3 s).
+///
+/// Read in the client (LIKELY the cause: the channel's value was not traced to degrees, so the table is the bullets'): while the aim key is down
+/// (`[weapon+0x5E8]`, set by `instant_aim_start` 0x2E1B50, cleared by `instant_aim_end` 0x2E1BF0) the breath sway's horizontal term
+/// `[weapon+0x2CC]` is added to the side kick in the recoil animation's horizontal channel (`get_recoil_expression` 0x2E1210,
+/// `computed_horizontal_recoil_time` 0x2E3840: time `0.5 - clamp(x / 2 + sway)`). The term is `cos(2π phase)` times its amplitude
+/// (`breath_vibration_calculator::tick` 0x31D6E0, `base_horizontal_amplitude`, `base_period`), its phase restarted at 0.25 on each
+/// aim (`restart_on_aim` 0x31D970), so every aim begins the same swing. A player sees it: the camera turns with the head the bullet
+/// leaves from (`instant_fire` 0x2E23A0), and his crosshair stays on the shot. The guns' `breath_vibration` (resources.db): the
+/// rifles `base_period` 5 s, `base_horizontal_amplitude` 0.05; the submachine guns 10 s, 0.02; the RPK 20 s, 0.04. The recoil's
+/// side kick has no side (`min/max_left_recoil` = `right` on every automatic but the A-91 and the VAL).
+pub const AIM_SWAY_DEG: [(u32, f32); 9] = [
+    (50, 0.164),
+    (175, 0.070),
+    (375, 0.180),
+    (625, 0.281),
+    (875, 0.308),
+    (1250, 0.278),
+    (1750, 0.277),
+    (2500, 0.413),
+    (3500, 0.351),
+];
+
+/// [A241] [`AIM_SWAY_DEG`] at `aim_ms` since the aim began, degrees to the right: linear between its points, held at the ends.
+pub fn aim_sway_deg(aim_ms: u32) -> f32 {
+    let (first, last) = (AIM_SWAY_DEG[0], AIM_SWAY_DEG[AIM_SWAY_DEG.len() - 1]);
+    if aim_ms <= first.0 {
+        return first.1;
+    }
+    AIM_SWAY_DEG
+        .windows(2)
+        .find(|w| aim_ms <= w[1].0)
+        .map_or(last.1, |w| {
+            let f = (aim_ms - w[0].0) as f32 / (w[1].0 - w[0].0) as f32;
+            w[0].1 + f * (w[1].1 - w[0].1)
+        })
+}
+
+/// [A241] Whether `gun`'s aimed shots drift as [`AIM_SWAY_DEG`] measured: the automatics (rifles, submachine guns, machine guns),
+/// whose bullets the table is; a shotgun's pellets drifted otherwise (A233: the SPAS-12 -0.65 in bursts), the scoped single shots
+/// were not measured.
+pub fn sways(gun: &crate::v026g::bots::guns::Gun) -> bool {
+    use crate::v026g::bots::guns::WeaponClass;
+    matches!(gun.by_category, WeaponClass::Rifle | WeaponClass::Smg | WeaponClass::MachineGun)
+}
+
+/// [A241] Whether the client sways the bots' aimed automatic shots by [`AIM_SWAY_DEG`]: the bots' host says. The live server's
+/// players' clients do (`game/driven.rs`); a bench only when it models it (`SRP_BENCH_AIM_SWAY=live`); every other test has none.
+/// The bots' counter (`aim.combat.aim_sway_counter`) takes back only a sway that is there, so it is never measured without it.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub enum ClientSway {
+    /// No sway: the counter holds.
+    #[default]
+    Absent,
+    /// The live client's sway.
+    Live,
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::v026g::bots::guns::GUNS;
+    use crate::v026g::bots::guns::guns;
+
+    /// [A241] The aim sway is the live table at its points, linear between them and held at the ends; only the automatics sway.
+    #[test]
+    fn the_aim_sway_follows_the_live_table() {
+        assert_eq!(aim_sway_deg(0), 0.164);
+        assert_eq!(aim_sway_deg(625), 0.281);
+        assert!((aim_sway_deg(750) - 0.2945).abs() < 1e-4, "{}", aim_sway_deg(750));
+        assert_eq!(aim_sway_deg(10_000), 0.351);
+        assert!(AIM_SWAY_DEG.windows(2).all(|w| w[0].0 < w[1].0));
+        for gun in guns() {
+            let auto = matches!(gun.class(), "rifle" | "smg" | "mg");
+            assert_eq!(sways(gun), auto, "{}", gun.item);
+        }
+    }
 
     #[test]
     fn every_bot_weapon_has_its_kick_at_its_rate_of_fire() {
-        for gun in &GUNS {
+        for gun in guns() {
             let kick = kick_of(gun.item);
             assert_eq!(kick.item, gun.item);
             assert_eq!(kick.rpm, gun.rpm, "{}", gun.item);

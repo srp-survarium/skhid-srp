@@ -45,10 +45,10 @@ use std::path::{Path, PathBuf};
 use std::sync::{Arc, Mutex, MutexGuard, Weak};
 use std::time::Instant;
 
-use mapdata::{Body, MapData, RayTree, WalkGrid, World};
+use mapdata::{MapData, RayTree, WalkGrid, World};
 
 use super::tactics::TacticsBase;
-use super::tuning::Tuning;
+use super::tuning::{GridTuning, Tuning};
 
 /// How many built maps the store keeps by default, beyond those running
 /// matches hold. With 72 projects the next match is rarely on the last
@@ -88,6 +88,51 @@ impl fmt::Debug for MapState {
     }
 }
 
+/// Where a build thread is, for the tests: a build that does not finish names the step it is in (a no-op
+/// outside the tests).
+#[cfg(test)]
+mod stage {
+    use std::collections::HashMap;
+    use std::sync::Mutex;
+    use std::thread::ThreadId;
+    use std::time::{Duration, Instant};
+
+    type Where = HashMap<ThreadId, (&'static str, &'static str, Instant)>;
+    static NOW: Mutex<Option<Where>> = Mutex::new(None);
+
+    fn put(step: Option<&'static str>, detail: &'static str) {
+        let mut now = NOW.lock().unwrap_or_else(|p| p.into_inner());
+        let id = std::thread::current().id();
+        let step = step.unwrap_or_else(|| now.as_ref().and_then(|w| w.get(&id)).map_or("", |s| s.0));
+        now.get_or_insert_with(HashMap::new).insert(id, (step, detail, Instant::now()));
+    }
+
+    /// The build thread begins `step`.
+    pub fn set(step: &'static str) {
+        put(Some(step), "");
+    }
+
+    /// It is in `detail` of its step (reading, building or writing a built file).
+    pub fn detail(detail: &'static str) {
+        put(None, detail);
+    }
+
+    /// The step a thread was last in, the detail and how long ago it began it.
+    pub fn of(id: ThreadId) -> Option<(&'static str, &'static str, Duration)> {
+        let now = NOW.lock().unwrap_or_else(|p| p.into_inner());
+        now.as_ref()?.get(&id).map(|(step, detail, since)| (*step, *detail, since.elapsed()))
+    }
+}
+
+#[cfg(not(test))]
+mod stage {
+    #[inline(always)]
+    pub fn set(_step: &'static str) {}
+
+    #[inline(always)]
+    pub fn detail(_detail: &'static str) {}
+}
+
 /// The store of built maps, shared by every match of the server.
 pub struct Maps {
     dir: Option<PathBuf>,
@@ -95,12 +140,22 @@ pub struct Maps {
     /// each load.
     built: Option<PathBuf>,
     keep: usize,
+    /// The grids' body and off-mesh links: the server's tuning (`SRP_BOT_TUNING`, read once at its start), which
+    /// every match of the server runs on. A grid is the map's, shared by every match on it.
+    grid: GridTuning,
+    /// Whether the grids get their table of wall clearances ([`Tuning::needs_wall_clearance`] of the server's tuning).
+    wall_clearance: bool,
+    /// The support their table of open sides is made for, if they get one ([`Tuning::needs_open_sides`] of the server's tuning).
+    open_sides: Option<f32>,
     /// At most this many maps in memory ([`AT_ONCE`]).
     at_once: usize,
     cache: Arc<Mutex<Cache>>,
     /// Held by the build under way: one at a time, for memory and the one
     /// core of the host.
     builds: Arc<Mutex<()>>,
+    /// The build threads, to say in a test what one that does not finish is doing.
+    #[cfg(test)]
+    builders: Mutex<HashMap<String, std::thread::JoinHandle<()>>>,
 }
 
 #[derive(Default)]
@@ -112,6 +167,8 @@ struct Cache {
     /// while something holds it.
     grids: HashMap<u64, Weak<WalkGrid>>,
     sights: HashMap<u64, Weak<RayTree>>,
+    /// By project: how the build that made its map made it (a map taken back from the dropped is that build's).
+    made: HashMap<String, Made>,
 }
 
 enum Entry {
@@ -127,34 +184,57 @@ enum Entry {
 }
 
 impl Maps {
-    /// A store loading from `dir`; `None`: every project is absent.
+    /// A store loading from `dir`; `None`: every project is absent. Its grids are the code defaults': for tests; the
+    /// server's store is [`Maps::configured`] with the loaded tuning's.
+    #[cfg(test)]
     pub fn new(dir: Option<PathBuf>) -> Arc<Self> {
         let built = dir.as_ref().map(|dir| dir.join(BUILT_DIR));
-        Self::configured(dir, KEEP, AT_ONCE, built)
+        Self::configured(dir, KEEP, AT_ONCE, built, GridTuning::default())
     }
 
     /// As [`Maps::new`], keeping `keep` maps (at least one), with no bound
     /// on the maps in memory at once.
+    #[cfg(test)]
     pub fn with_keep(dir: Option<PathBuf>, keep: usize) -> Arc<Self> {
         let built = dir.as_ref().map(|dir| dir.join(BUILT_DIR));
-        Self::configured(dir, keep, usize::MAX, built)
+        Self::configured(dir, keep, usize::MAX, built, GridTuning::default())
     }
 
     /// As [`Maps::with_keep`], at most `at_once` maps in memory (at least
-    /// one), the built files in `built` (none: built at each load).
+    /// one), the built files in `built` (none: built at each load), the grids made as `grid` says.
     pub fn configured(
         dir: Option<PathBuf>,
         keep: usize,
         at_once: usize,
         built: Option<PathBuf>,
+        grid: GridTuning,
+    ) -> Arc<Self> {
+        Self::configured_for(dir, keep, at_once, built, grid, false, None)
+    }
+
+    /// [`Maps::configured`], with the grids' table of wall clearances when `wall_clearance` and their table of open sides for the
+    /// support `open_sides` (the server derives both from its tuning: [`Tuning::needs_wall_clearance`], [`Tuning::needs_open_sides`]).
+    pub fn configured_for(
+        dir: Option<PathBuf>,
+        keep: usize,
+        at_once: usize,
+        built: Option<PathBuf>,
+        grid: GridTuning,
+        wall_clearance: bool,
+        open_sides: Option<f32>,
     ) -> Arc<Self> {
         Arc::new(Self {
             dir,
             built,
+            grid,
+            wall_clearance,
+            open_sides,
             keep: keep.max(1),
             at_once: at_once.max(1),
             cache: Arc::default(),
             builds: Arc::default(),
+            #[cfg(test)]
+            builders: Mutex::default(),
         })
     }
 
@@ -162,10 +242,15 @@ impl Maps {
         self.dir.as_deref()
     }
 
+    /// How `project`'s map was made by the build that made it, once one has.
+    pub fn made(&self, project: &str) -> Option<Made> {
+        lock(&self.cache).made.get(project).copied()
+    }
+
     /// The hazard margin the shared tactics are built for: the tuning's
     /// default. A match tuned otherwise builds its own.
     pub fn margin() -> f32 {
-        Tuning::default().hazard_margin
+        Tuning::default().hazard.margin_m.get()
     }
 
     /// Starts building `project`'s map (`level_01/day_4`) unless it is
@@ -230,14 +315,15 @@ impl Maps {
     fn spawn_build(&self, project: &str, path: PathBuf) {
         let (cache, builds) = (self.cache.clone(), self.builds.clone());
         let (keep, name) = (self.keep, project.to_owned());
-        let built = self.built.clone();
+        let (built, grid, wall_clearance, open_sides) = (self.built.clone(), self.grid.clone(), self.wall_clearance, self.open_sides);
         let spawned = std::thread::Builder::new()
             .name(format!("map {project}"))
             .spawn(move || {
                 let result = {
                     let _turn = builds.lock().unwrap_or_else(|p| p.into_inner());
-                    build(&path, built.as_deref(), &cache)
+                    build(&path, built.as_deref(), &cache, &grid, wall_clearance, open_sides)
                 };
+                stage::set("putting the map in the store");
                 let mut cache = lock(&cache);
                 match result {
                     Ok((base, built)) => {
@@ -247,6 +333,7 @@ impl Maps {
                             built.how(),
                             (world_bytes(&base.world) + base.memory_bytes()) >> 20
                         );
+                        cache.made.insert(name.clone(), built.made());
                         cache.insert_ready(&name, Arc::new(base), keep);
                     }
                     Err(reason) => {
@@ -255,6 +342,13 @@ impl Maps {
                     }
                 }
             });
+        #[cfg(test)]
+        let spawned = spawned.map(|handle| {
+            self.builders
+                .lock()
+                .unwrap_or_else(|p| p.into_inner())
+                .insert(project.to_owned(), handle);
+        });
         if let Err(error) = spawned {
             let reason = format!("can't start its build: {error}");
             log::warn!("Bot map {project}: {reason}");
@@ -355,9 +449,9 @@ impl Cache {
     }
 }
 
-/// Where a grid or tree came from, for the log.
-#[derive(Clone, Copy, Debug, PartialEq)]
-enum Source {
+/// Where a grid, tree or tactics came from: for the log, and for the pre-build's check ([`prebuild`]).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Source {
     /// Another project of the same geometry has it.
     Shared,
     /// Read from its built file.
@@ -374,7 +468,26 @@ struct Built {
     tactics: Source,
 }
 
+/// How a map's grid, sight tree and tactics were made by the build that made it ([`Maps::made`]).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct Made {
+    pub grid: Source,
+    pub sight: Source,
+    pub tactics: Source,
+}
+
+impl Made {
+    /// Whether nothing of it was built: every part read from its file or shared with another project of the geometry.
+    pub fn none_built(self) -> bool {
+        [self.grid, self.sight, self.tactics].iter().all(|&source| source != Source::Built)
+    }
+}
+
 impl Built {
+    fn made(&self) -> Made {
+        Made { grid: self.grid, sight: self.sight, tactics: self.tactics }
+    }
+
     fn how(&self) -> String {
         let word = |source: Source| match source {
             Source::Shared => "shared",
@@ -400,16 +513,20 @@ fn read_or_build<T>(
     write: impl FnOnce(&T, &Path) -> Result<(), mapdata::Error>,
 ) -> (T, Source) {
     let Some(built) = built else {
+        stage::detail("building (no built files)");
         return (build(), Source::Built);
     };
     let path = built.join(file_name);
     if path.is_file() {
+        stage::detail("reading the built file");
         match read(&path) {
             Ok(value) => return (value, Source::Read),
             Err(why) => log::warn!("Bot map file refused ({why}); built again"),
         }
     }
+    stage::detail("building");
     let value = build();
+    stage::detail("writing the built file");
     let written = std::fs::create_dir_all(built)
         .map_err(|e| mapdata::Error(format!("{}: {e}", built.display())))
         .and_then(|()| write(&value, &path));
@@ -425,9 +542,14 @@ fn build(
     path: &Path,
     built: Option<&Path>,
     cache: &Mutex<Cache>,
+    grid_tuning: &GridTuning,
+    wall_clearance: bool,
+    open_sides: Option<f32>,
 ) -> Result<(TacticsBase, Built), String> {
     let started = Instant::now();
+    stage::set("reading the map file");
     let bytes = std::fs::read(path).map_err(|error| format!("{}: {error}", path.display()))?;
+    stage::set("parsing the map file");
     let mut map_file = mapdata::digest::Digest::new();
     map_file.bytes(&bytes);
     let map_file = map_file.finish();
@@ -435,11 +557,16 @@ fn build(
         MapData::from_bytes(&bytes).map_err(|error| format!("{}: {error}", path.display()))?;
     drop(bytes);
     let built = catch_unwind(AssertUnwindSafe(|| {
-        let (cell, body) = (mapdata::CELL, Body::default());
+        stage::set("the grid key");
+        let (cell, body) = (mapdata::CELL, grid_tuning.body());
         let walker = map.walker_triangles();
         let area = map.play_area(mapdata::AREA_MARGIN);
         let seeds = map.grid_seeds();
-        let grid_key = mapdata::grid_key(&walker, area, cell, body, &seeds);
+        let spawns: Vec<mapdata::Vec3> = map.spawns.iter().map(|s| s.position).collect();
+        // With the gap links when the server's tuning has them (`GridTuning::gap_links`).
+        let links = grid_tuning.off_mesh_links();
+        let grid_key = mapdata::grid_key_with_links(&walker, area, cell, body, &seeds, links);
+        stage::set("the grid");
         let shared = lock(cache).grids.get(&grid_key).and_then(Weak::upgrade);
         let (grid, grid_source) = match shared {
             Some(grid) => (grid, Source::Shared),
@@ -447,18 +574,29 @@ fn build(
                 let (grid, source) = read_or_build(
                     built,
                     mapdata::built::grid_file_name(grid_key),
-                    |path| WalkGrid::read(path, grid_key),
-                    || WalkGrid::build_kept(&walker, area, cell, body, &seeds),
+                    |path| WalkGrid::read(path, grid_key, body),
+                    || WalkGrid::build_kept_with_links(&walker, area, cell, body, &seeds, &spawns, links).0,
                     |grid, path| grid.write(path, grid_key),
                 );
+                // The table of wall clearances ([`WalkGrid::wall_clearance`]) only where the tuning in force needs it
+                // ([`Tuning::needs_wall_clearance`]):
+                // derived from the triangles, in neither the cached file nor the key, and 0.5-1.7 s of CPU a map.
+                let grid = if wall_clearance { grid.with_wall_clearance(&walker) } else { grid };
+                // The table of open sides ([`WalkGrid::open_toward`]) likewise ([`Tuning::needs_open_sides`]).
+                let grid = match open_sides {
+                    Some(support_m) => grid.with_open_sides(&walker, support_m),
+                    None => grid,
+                };
                 let grid = Arc::new(grid);
                 lock(cache).grids.insert(grid_key, Arc::downgrade(&grid));
                 (grid, source)
             }
         };
         drop(walker);
-        let bullet = map.bullet_triangles();
-        let sight_key = mapdata::sight_key(&bullet);
+        stage::set("the sight tree key");
+        let bullet = map.bullet_mesh();
+        let sight_key = bullet.key();
+        stage::set("the sight tree");
         let shared = lock(cache).sights.get(&sight_key).and_then(Weak::upgrade);
         let (sight, sight_source) = match shared {
             Some(sight) => (sight, Source::Shared),
@@ -467,7 +605,7 @@ fn build(
                     built,
                     mapdata::built::sight_file_name(sight_key),
                     |path| RayTree::read(path, sight_key),
-                    || RayTree::build(&bullet),
+                    || bullet.build_tree(),
                     |sight, path| sight.write(path, sight_key),
                 );
                 let sight = Arc::new(sight);
@@ -479,7 +617,9 @@ fn build(
         // The meshes are not read once the grid and the tree are built.
         map.libraries = Vec::new();
         map.placements = Vec::new();
+        stage::set("assembling the world");
         let world = Arc::new(World::assemble(map, grid, sight));
+        stage::set("the tactics");
         let margin = Maps::margin();
         let key = TacticsBase::key(map_file, grid_key, margin);
         let (base, tactics_source) = read_or_build(
@@ -504,6 +644,61 @@ fn build(
     ))
 }
 
+/// One map of a pre-build ([`prebuild`]): how the first store made it and in how long, and its digests (grid, sight tree,
+/// tactics), which a second store read back the same.
+#[derive(Clone, Debug)]
+pub struct Prebuilt {
+    pub project: String,
+    pub made: Made,
+    pub seconds: f32,
+    pub digests: [u64; 3],
+}
+
+/// `project`'s map from `maps`, waiting up to `limit` for its build.
+fn ready(maps: &Maps, project: &str, limit: std::time::Duration) -> Result<Arc<TacticsBase>, String> {
+    let started = Instant::now();
+    loop {
+        match maps.get(project) {
+            MapState::Ready(base) => return Ok(base),
+            MapState::Absent(why) => return Err(format!("{project}: {why}")),
+            MapState::Loading | MapState::Waiting(_) if started.elapsed() < limit => {
+                std::thread::sleep(std::time::Duration::from_millis(20));
+            }
+            other => return Err(format!("{project}: {other:?} after {:?}", started.elapsed())),
+        }
+    }
+}
+
+/// The bots' maps of `projects` built ahead of a release (A197): a store from `store` (the server's own,
+/// [`crate::v026g::bot_maps`], so the files have the keys the server computes) makes each map, one at a time, and writes
+/// its grid, sight tree and tactics to its built folder; then a second store from `store` (a restart) loads each again and
+/// must read every part (or share it) with the same digests. Err names the first project a restart would build again, or
+/// read otherwise: a key the server would not find fails here, not in the first live match on the map.
+pub fn prebuild(store: impl Fn() -> Arc<Maps>, projects: &[String], limit: std::time::Duration) -> Result<Vec<Prebuilt>, String> {
+    let digests = |base: &TacticsBase| [base.world.grid.digest(), base.world.sight.digest(), base.digest()];
+    let first = store();
+    let mut done = Vec::with_capacity(projects.len());
+    for project in projects {
+        let started = Instant::now();
+        let base = ready(&first, project, limit)?;
+        let made = first.made(project).ok_or_else(|| format!("{project}: ready with no build"))?;
+        done.push(Prebuilt { project: project.clone(), made, seconds: started.elapsed().as_secs_f32(), digests: digests(&base) });
+    }
+    drop(first);
+    let second = store();
+    for map in &done {
+        let base = ready(&second, &map.project, limit)?;
+        let made = second.made(&map.project).ok_or_else(|| format!("{}: ready with no build", map.project))?;
+        if !made.none_built() {
+            return Err(format!("{}: a restart built it again ({made:?}): its files are not where the server looks", map.project));
+        }
+        if digests(&base) != map.digests {
+            return Err(format!("{}: read back otherwise than built ({:?} vs {:?})", map.project, digests(&base), map.digests));
+        }
+    }
+    Ok(done)
+}
+
 /// Bytes a built world holds: the grid, the sight tree and what is left of
 /// the map's meshes (the objectives are a few kB).
 pub fn world_bytes(world: &World) -> usize {
@@ -514,8 +709,7 @@ pub fn world_bytes(world: &World) -> usize {
         .map(|library| {
             library.name.len()
                 + library.vertices.len() * size_of::<mapdata::Vec3>()
-                + library.triangles.len() * size_of::<[u32; 3]>()
-                + library.walker.len() * size_of::<mapdata::WalkerBehaviour>()
+                + library.faces.len() * size_of::<mapdata::library::Face>()
         })
         .sum();
     world.grid.memory_bytes()
@@ -578,8 +772,10 @@ mod tests {
                 Vec3::new(10.0, 0.0, 10.0),
                 Vec3::new(-10.0, 0.0, 10.0),
             ],
-            triangles: vec![[0, 2, 1], [0, 3, 2]],
-            walker: vec![WalkerBehaviour::Walk; 2],
+            faces: vec![
+                mapdata::library::Face::unknown([0, 2, 1], WalkerBehaviour::Walk),
+                mapdata::library::Face::unknown([0, 3, 2], WalkerBehaviour::Walk),
+            ],
             primitives: 0,
         };
         let spawn = |team: i32, x: f32| Spawn {
@@ -614,6 +810,36 @@ mod tests {
         dir
     }
 
+    /// What the build thread of `project` is doing, for a build that does not finish in time: whether it ended
+    /// (and with what panic), else the step it is in and for how long.
+    fn build_report(maps: &Maps, project: &str) -> String {
+        let mut builders = maps.builders.lock().unwrap_or_else(|p| p.into_inner());
+        let Some(handle) = builders.remove(project) else {
+            return "no build thread was started for it".to_owned();
+        };
+        let id = handle.thread().id();
+        let at = stage::of(id).map_or_else(
+            || "no step recorded".to_owned(),
+            |(step, detail, since)| format!("step \"{step}\" {detail} for {since:?}"),
+        );
+        if handle.is_finished() {
+            return match handle.join() {
+                Ok(()) => format!("the build thread ended without a result in the store ({at})"),
+                Err(payload) => {
+                    let why = payload
+                        .downcast_ref::<&str>()
+                        .map(|s| (*s).to_owned())
+                        .or_else(|| payload.downcast_ref::<String>().cloned())
+                        .unwrap_or_else(|| "a payload that is no text".to_owned());
+                    format!("the build thread panicked: {why} ({at})")
+                }
+            };
+        }
+        let report = format!("the build thread is still running: {at}");
+        builders.insert(project.to_owned(), handle);
+        report
+    }
+
     fn wait_ready(maps: &Maps, project: &str, limit: Duration) -> Arc<TacticsBase> {
         let started = Instant::now();
         loop {
@@ -622,9 +848,37 @@ mod tests {
                 MapState::Loading if started.elapsed() < limit => {
                     std::thread::sleep(Duration::from_millis(5))
                 }
-                other => panic!("{project}: {other:?} after {:?}", started.elapsed()),
+                other => panic!(
+                    "{project}: {other:?} after {:?}; {}",
+                    started.elapsed(),
+                    build_report(maps, project)
+                ),
             }
         }
+    }
+
+    /// The diagnosis of a build that does not finish names its thread and step.
+    #[test]
+    fn a_build_that_does_not_finish_in_time_is_reported_with_its_step() {
+        let dir = temp_dir("report");
+        let project = "tiny/day_4";
+        tiny_map(project)
+            .write(&dir.join(mapdata::format::file_name(project)))
+            .unwrap();
+        let maps = Maps::new(Some(dir.clone()));
+        // Holding the build turn keeps the thread from starting its work: it waits, with no step yet.
+        let turn = maps.builds.lock().unwrap();
+        assert!(matches!(maps.get(project), MapState::Loading));
+        std::thread::sleep(Duration::from_millis(50));
+        let report = build_report(&maps, project);
+        assert!(report.contains("still running"), "{report}");
+        drop(turn);
+        let _ = wait_ready(&maps, project, Duration::from_secs(10));
+        // In the store: the thread ended cleanly, and its last step is on record.
+        let report = build_report(&maps, project);
+        assert!(report.contains("ended without a result"), "{report}");
+        assert!(report.contains("putting the map in the store"), "{report}");
+        let _ = std::fs::remove_dir_all(dir);
     }
 
     #[test]
@@ -735,7 +989,7 @@ mod tests {
             let path = dir.join(BUILT_DIR).join(name);
             let key = u64::from_str_radix(&name[name.len() - 20..name.len() - 4], 16).unwrap();
             let fine = if name.starts_with("grid-") {
-                WalkGrid::read(&path, key).is_ok()
+                WalkGrid::read(&path, key, GridTuning::default().body()).is_ok()
             } else if name.starts_with("sight-") {
                 RayTree::read(&path, key).is_ok()
             } else {
@@ -743,6 +997,67 @@ mod tests {
             };
             assert!(fine, "{name} written over");
         }
+        let _ = std::fs::remove_dir_all(dir);
+    }
+
+    /// A197: the maps built ahead of a release (`srp-build-maps`: [`prebuild`] through [`crate::v026g::bot_maps`]) are what
+    /// the server's own store (`parse_mapdata_dir`, as the server makes it from its settings) reads at load, grid, sight
+    /// tree and tactics alike, with the same digests: their keys are the server's.
+    #[test]
+    fn a_prebuilt_map_is_read_by_the_servers_store() {
+        let dir = temp_dir("prebuilt");
+        let built = dir.join("built");
+        let project = "tiny/day_4";
+        tiny_map(project).write(&dir.join(mapdata::format::file_name(project))).unwrap();
+        let tuning = crate::v026g::bots::tuning::Tuning::default();
+        let store = || crate::v026g::bot_maps(dir.clone(), KEEP, AT_ONCE, Some(built.clone()), &tuning);
+        let done = prebuild(store, &[project.to_owned()], Duration::from_secs(10)).unwrap();
+        assert_eq!(done.len(), 1);
+        assert!(done[0].made.grid == Source::Built && done[0].made.sight == Source::Built && done[0].made.tactics == Source::Built);
+        let server = crate::v026g::parse_mapdata_dir(
+            dir.to_str(),
+            KEEP as u32,
+            AT_ONCE as u32,
+            built.to_str(),
+            &tuning,
+        )
+        .unwrap();
+        let base = wait_ready(&server, project, Duration::from_secs(10));
+        assert_eq!(server.made(project), Some(Made { grid: Source::Read, sight: Source::Read, tactics: Source::Read }));
+        assert_eq!([base.world.grid.digest(), base.world.sight.digest(), base.digest()], done[0].digests);
+        let _ = std::fs::remove_dir_all(dir);
+    }
+
+    /// A pre-build a restart would not read back fails the run (here: a store that keeps no files), naming the map.
+    #[test]
+    fn a_prebuild_whose_files_a_restart_does_not_find_fails() {
+        let dir = temp_dir("prebuilt-none");
+        let project = "tiny/day_4";
+        tiny_map(project).write(&dir.join(mapdata::format::file_name(project))).unwrap();
+        let store = || Maps::configured(Some(dir.clone()), KEEP, AT_ONCE, None, GridTuning::default());
+        let why = prebuild(store, &[project.to_owned()], Duration::from_secs(10)).unwrap_err();
+        assert!(why.starts_with("tiny/day_4: a restart built it again"), "{why}");
+        let _ = std::fs::remove_dir_all(dir);
+    }
+
+    /// The keys carry the tuning's grid: a server tuned otherwise than the pre-build does not find its grid and builds it
+    /// again (what the pre-build's own read-back catches when it runs with the server's tuning).
+    #[test]
+    fn a_server_tuned_otherwise_builds_the_prebuilt_grid_again() {
+        let dir = temp_dir("prebuilt-other");
+        let built = dir.join("built");
+        let project = "tiny/day_4";
+        tiny_map(project).write(&dir.join(mapdata::format::file_name(project))).unwrap();
+        let tuning = crate::v026g::bots::tuning::Tuning::default();
+        let store = || crate::v026g::bot_maps(dir.clone(), KEEP, AT_ONCE, Some(built.clone()), &tuning);
+        prebuild(store, &[project.to_owned()], Duration::from_secs(10)).unwrap();
+        let other = crate::v026g::bots::tuning::Tuning {
+            grid: GridTuning { client_numbers: false, gap_links: false, ..GridTuning::default() },
+            ..Default::default()
+        };
+        let server = crate::v026g::parse_mapdata_dir(dir.to_str(), KEEP as u32, AT_ONCE as u32, built.to_str(), &other).unwrap();
+        wait_ready(&server, project, Duration::from_secs(10));
+        assert_eq!(server.made(project).map(|made| made.grid), Some(Source::Built));
         let _ = std::fs::remove_dir_all(dir);
     }
 
@@ -774,9 +1089,41 @@ mod tests {
         assert!(!Arc::ptr_eq(&day.world.grid, &evening.world.grid));
         assert!(!Arc::ptr_eq(&day.world.sight, &evening.world.sight));
         // A shared grid is the grid the project builds on its own.
-        let alone = World::build(tiny_map("tiny/rain_4"), mapdata::CELL, Body::default());
+        let defaults = crate::v026g::bots::tuning::Tuning::default();
+        let alone = World::build_with_links(
+            tiny_map("tiny/rain_4"),
+            mapdata::CELL,
+            defaults.grid_body(),
+            defaults.off_mesh_links(),
+        );
         assert_eq!(rain.world.grid.digest(), alone.grid.digest());
         assert_eq!(rain.world.sight.digest(), alone.sight.digest());
+        let _ = std::fs::remove_dir_all(dir);
+    }
+
+    /// A tuning file's `grid` keys reach the server's grids (A137): the maps are built as the loaded tuning says, not
+    /// as the code's defaults.
+    #[test]
+    fn the_grids_are_built_as_the_servers_tuning_says() {
+        let dir = temp_dir("tuned-grid");
+        tiny_map("tiny/day_4").write(&dir.join(mapdata::format::file_name("tiny/day_4"))).unwrap();
+        let grid_tuning = GridTuning { client_numbers: false, gap_links: false, ..GridTuning::default() };
+        assert_ne!(grid_tuning, GridTuning::default());
+        let wait = Duration::from_secs(10);
+        let tuned = wait_ready(
+            &Maps::configured(Some(dir.clone()), KEEP, AT_ONCE, None, grid_tuning.clone()),
+            "tiny/day_4",
+            wait,
+        );
+        let alone = World::build_with_links(
+            tiny_map("tiny/day_4"),
+            mapdata::CELL,
+            grid_tuning.body(),
+            grid_tuning.off_mesh_links(),
+        );
+        assert_eq!(tuned.world.grid.digest(), alone.grid.digest());
+        let default = wait_ready(&Maps::configured(Some(dir.clone()), KEEP, AT_ONCE, None, GridTuning::default()), "tiny/day_4", wait);
+        assert_ne!(tuned.world.grid.digest(), default.world.grid.digest(), "the body is in the grid");
         let _ = std::fs::remove_dir_all(dir);
     }
 
@@ -832,7 +1179,7 @@ mod tests {
                 .write(&dir.join(mapdata::format::file_name(project)))
                 .unwrap();
         }
-        let maps = Maps::configured(Some(dir.clone()), 1, 1, None);
+        let maps = Maps::configured(Some(dir.clone()), 1, 1, None, GridTuning::default());
         let wait = Duration::from_secs(10);
         let a = wait_ready(&maps, "a/day_4", wait);
         // A match holds a: b waits, and so does it again.
@@ -890,7 +1237,7 @@ mod tests {
         }
         let at_once = session::v026g::pvb::maps_at_once(AT_ONCE, true, 5);
         assert_eq!(at_once, 5);
-        let maps = Maps::configured(Some(dir.clone()), KEEP, at_once, None);
+        let maps = Maps::configured(Some(dir.clone()), KEEP, at_once, None, GridTuning::default());
         let wait = Duration::from_secs(10);
         let mut held: Vec<Arc<TacticsBase>> = projects[..5]
             .iter()
@@ -947,6 +1294,7 @@ mod tests {
             KEEP,
             session::v026g::pvb::maps_at_once(AT_ONCE, true, projects.len()),
             built,
+            GridTuning::default(),
         );
         let before = resident();
         eprintln!("before any map: {}", show(before));
@@ -1033,11 +1381,11 @@ mod tests {
                 base.digest(),
             )
         };
-        let first = Maps::configured(Some(dir.clone()), 1, AT_ONCE, Some(built.clone()));
+        let first = Maps::configured(Some(dir.clone()), 1, AT_ONCE, Some(built.clone()), GridTuning::default());
         let started = Instant::now();
         let written: Vec<_> = projects.iter().map(|p| digests(&first, p)).collect();
         let build_s = started.elapsed().as_secs_f32();
-        let second = Maps::configured(Some(dir.clone()), 1, AT_ONCE, Some(built.clone()));
+        let second = Maps::configured(Some(dir.clone()), 1, AT_ONCE, Some(built.clone()), GridTuning::default());
         let started = Instant::now();
         for (project, written) in projects.iter().zip(&written) {
             assert_eq!(&digests(&second, project), written, "{project}");

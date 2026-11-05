@@ -144,6 +144,8 @@ fn a_new_account_on_the_released_data_wears_the_whole_kit() {
                     slot: slot as u8,
                     dict_id,
                     count,
+                    stored: count,
+                    mods: &[],
                 })
                 .collect(),
         };

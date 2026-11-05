@@ -3631,7 +3631,7 @@ impl Game {
             }
         }
         peer.placed.push_back((time, relayed_time));
-        self.observe_input(index, relayed_time, &relayed);
+        self.observe_input(index, relayed_time, clock.saturating_sub(time), &relayed);
         let what = Relayed::Input(relayed);
         self.relay_to_others(index, &what, relayed_time, now);
         self.inputs.push((relayed_time, index, what));
@@ -3823,6 +3823,16 @@ impl Game {
     /// A client's whole world came (its 0xE0 chunks).
     fn uploaded(&mut self, index: usize, upload: Upload, now: Instant) {
         let clock = self.clock(now);
+        // TEST ONLY (`bots/jump_test.rs`): a world the jump test asked for is logged and goes no further.
+        #[cfg(feature = "jump-test")]
+        if self.jump_test_upload(upload.item_time, clock, upload.body.len(), &upload.body) {
+            if let Some(peer) = self.peers[index].as_mut() {
+                peer.asked = None;
+                peer.unanswered_since = None;
+                peer.simulating_at = Some(now);
+            }
+            return;
+        }
         let initial = self.snapshot.is_none() && self.requested_at.is_none();
         let joiner = self.waiting_entry(index);
         let places = Places::of(self.snapshot_players());
@@ -4158,6 +4168,7 @@ impl Game {
             standing,
             supplies,
         });
+        self.observe_stock(snapshot.time);
     }
 
     /// Whether a snapshot's results could have come from real play: no
@@ -5171,6 +5182,32 @@ impl Game {
                 .map(|player| player.score)
                 .collect::<Vec<_>>()
         );
+        if let Some(walkers) = &self.walkers {
+            log::info!(
+                "Match {:#x}: the bots' polls: {}",
+                self.id,
+                walkers.bots.poll_report()
+            );
+            log::info!(
+                "Match {:#x}: the bots' pockets: {}",
+                self.id,
+                walkers.bots.pocket_report()
+            );
+            log::info!(
+                "Match {:#x}: the live grenade list: {}",
+                self.id,
+                walkers.bots.grenade_report()
+            );
+            log::info!(
+                "Match {:#x}: the bots' traps: {}",
+                self.id,
+                walkers.bots.trap_report()
+            );
+            // A294: the bots' drift against the worlds, by bot and by the map cells where it began.
+            for line in walkers.bots.drift_report() {
+                log::info!("Match {:#x}: the bots' {line}", self.id);
+            }
+        }
         self.result = Some(result);
         self.result_made = true;
         for (index, peer) in self.peers.iter_mut().enumerate() {
@@ -5533,6 +5570,8 @@ impl Game {
             self.request_upload(usize::MAX, now, SNAPSHOT_WAIT.min(every));
         }
         self.send_requests(now);
+        #[cfg(feature = "jump-test")]
+        self.jump_test_burst(now);
         if self.inputs.len() > 4096
             && self
                 .inputs
@@ -5589,6 +5628,11 @@ impl Game {
     /// it, or the time limit, as the server's copy of the clients' rule
     /// has it.
     fn check_end(&mut self, clock: u32, now: Instant) {
+        // TEST ONLY: the jump test keeps the match going while tries remain.
+        #[cfg(feature = "jump-test")]
+        if self.jump_test_holds_end() {
+            return;
+        }
         let timing = self.settings.timing.clone();
         if self.finished_at.is_some() || self.clock_start.is_none() {
             return;

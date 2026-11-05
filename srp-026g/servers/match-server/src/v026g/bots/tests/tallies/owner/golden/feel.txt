@@ -1,0 +1,334 @@
+owner-test feel (the live census's definitions; live in brackets)
+  top of team 0: alive 0.0 min, deaths 0 = 0 a minute (live 1.19 top, 0.81 not), crowded 0 = 0 % (live top 41-45, not 27-29), enemies within 30 m at death 0 / distinct in 10 s 0 (live 1.1), shooters in 5 s 0 (3+ 0 %), spawn to first contact p25/median/p75 s [None, None, None] over 0 lives, 0 lives with none (live 14-15 top, 17-18 not)
+    gangup top of team 0: plays aimed at him 0 a tick, 3+ enemies near 0 % of his alive time; 0 arrivals: aimed at {"another place": 0, "exit": 0, "him": 0, "none": 0, "objective": 0}, track of him {"Heard": 0, "Hud": 0, "Radar": 0, "Seen": 0, "Thief": 0, "Told": 0, "none": 0}, source held in the 10 s before {"Heard": 0, "Hud": 0, "Radar": 0, "Seen": 0, "Thief": 0, "Told": 0}, by play {}; PairUp aimed at him 0 = 0 a death (guard <= 1)
+  top of team 1: alive 0.0 min, deaths 0 = 0 a minute (live 1.19 top, 0.81 not), crowded 0 = 0 % (live top 41-45, not 27-29), enemies within 30 m at death 0 / distinct in 10 s 0 (live 1.1), shooters in 5 s 0 (3+ 0 %), spawn to first contact p25/median/p75 s [None, None, None] over 0 lives, 0 lives with none (live 14-15 top, 17-18 not)
+    gangup top of team 1: plays aimed at him 0 a tick, 3+ enemies near 0 % of his alive time; 0 arrivals: aimed at {"another place": 0, "exit": 0, "him": 0, "none": 0, "objective": 0}, track of him {"Heard": 0, "Hud": 0, "Radar": 0, "Seen": 0, "Thief": 0, "Told": 0, "none": 0}, source held in the 10 s before {"Heard": 0, "Hud": 0, "Radar": 0, "Seen": 0, "Thief": 0, "Told": 0}, by play {}; PairUp aimed at him 0 = 0 a death (guard <= 1)
+  other bots of team 0: alive 5.9 min, deaths 7 = 1.192 a minute (live 1.19 top, 0.81 not), crowded 6 = 85.7 % (live top 41-45, not 27-29), enemies within 30 m at death 1.714 / distinct in 10 s 2.571 (live 1.1), shooters in 5 s 1.714 (3+ 0 %), spawn to first contact p25/median/p75 s [Some(0.0), Some(0.0), Some(0.0)] over 11 lives, 0 lives with none (live 14-15 top, 17-18 not)
+  other bots of team 1: alive 5.9 min, deaths 16 = 2.695 a minute (live 1.19 top, 0.81 not), crowded 14 = 87.5 % (live top 41-45, not 27-29), enemies within 30 m at death 2.625 / distinct in 10 s 2.875 (live 1.1), shooters in 5 s 1.125 (3+ 0 %), spawn to first contact p25/median/p75 s [Some(0.0), Some(0.0), Some(0.0)] over 7 lives, 0 lives with none (live 14-15 top, 17-18 not)
+  the stand-in human: alive 0.0 min, deaths 0 = 0 a minute (live 1.19 top, 0.81 not), crowded 0 = 0 % (live top 41-45, not 27-29), enemies within 30 m at death 0 / distinct in 10 s 0 (live 1.1), shooters in 5 s 0 (3+ 0 %), spawn to first contact p25/median/p75 s [None, None, None] over 0 lives, 0 lives with none (live 14-15 top, 17-18 not)
+    gangup the stand-in human: plays aimed at him 0 a tick, 3+ enemies near 0 % of his alive time; 0 arrivals: aimed at {"another place": 0, "exit": 0, "him": 0, "none": 0, "objective": 0}, track of him {"Heard": 0, "Hud": 0, "Radar": 0, "Seen": 0, "Thief": 0, "Told": 0, "none": 0}, source held in the 10 s before {"Heard": 0, "Hud": 0, "Radar": 0, "Seen": 0, "Thief": 0, "Told": 0}, by play {}; PairUp aimed at him 0 = 0 a death (guard <= 1)
+  the stand-in camper: alive 0.0 min, deaths 0 = 0 a minute (live 1.19 top, 0.81 not), crowded 0 = 0 % (live top 41-45, not 27-29), enemies within 30 m at death 0 / distinct in 10 s 0 (live 1.1), shooters in 5 s 0 (3+ 0 %), spawn to first contact p25/median/p75 s [None, None, None] over 0 lives, 0 lives with none (live 14-15 top, 17-18 not)
+    gangup the stand-in camper: plays aimed at him 0 a tick, 3+ enemies near 0 % of his alive time; 0 arrivals: aimed at {"another place": 0, "exit": 0, "him": 0, "none": 0, "objective": 0}, track of him {"Heard": 0, "Hud": 0, "Radar": 0, "Seen": 0, "Thief": 0, "Told": 0, "none": 0}, source held in the 10 s before {"Heard": 0, "Hud": 0, "Radar": 0, "Seen": 0, "Thief": 0, "Told": 0}, by play {}; PairUp aimed at him 0 = 0 a death (guard <= 1)
+  density within 30 m of a living bot, by team: mates [1.762, 1.979] (live 1.65), enemies [2.823, 2.793] (live 0.65); after the first minute: mates [1.978, 1.979], enemies [2.989, 2.957]
+{
+  "feel": {
+    "density": {
+      "enemies_30m": [
+        2.823,
+        2.793
+      ],
+      "enemies_30m_after_1min": [
+        2.989,
+        2.957
+      ],
+      "mates_30m": [
+        1.762,
+        1.979
+      ],
+      "mates_30m_after_1min": [
+        1.978,
+        1.979
+      ]
+    },
+    "other bots of team 0": {
+      "aimed_plays_mean": 0.0,
+      "alive_3plus_near_pct": 0.0,
+      "alive_min": 5.873,
+      "arrivals": {
+        "aimed_at": {
+          "another place": 0,
+          "exit": 0,
+          "him": 0,
+          "none": 0,
+          "objective": 0
+        },
+        "by_play": {},
+        "held_10s": {
+          "Heard": 0,
+          "Hud": 0,
+          "Radar": 0,
+          "Seen": 0,
+          "Thief": 0,
+          "Told": 0
+        },
+        "pair_up_on_him": 0,
+        "pair_up_per_death": 0.0,
+        "total": 0,
+        "track_source": {
+          "Heard": 0,
+          "Hud": 0,
+          "Radar": 0,
+          "Seen": 0,
+          "Thief": 0,
+          "Told": 0,
+          "none": 0
+        }
+      },
+      "contact_lives": 11,
+      "contact_s_p25_median_p75": [
+        0.0,
+        0.0,
+        0.0
+      ],
+      "crowded": 6,
+      "crowded_pct": 85.7,
+      "deaths": 7,
+      "deaths_per_min": 1.192,
+      "enemies_30m_at_death": 1.714,
+      "enemies_30m_in_10s": 2.571,
+      "no_contact_lives": 0,
+      "shooters_5s_3plus_pct": 0.0,
+      "shooters_5s_mean": 1.714
+    },
+    "other bots of team 1": {
+      "aimed_plays_mean": 0.0,
+      "alive_3plus_near_pct": 0.0,
+      "alive_min": 5.937,
+      "arrivals": {
+        "aimed_at": {
+          "another place": 0,
+          "exit": 0,
+          "him": 0,
+          "none": 0,
+          "objective": 0
+        },
+        "by_play": {},
+        "held_10s": {
+          "Heard": 0,
+          "Hud": 0,
+          "Radar": 0,
+          "Seen": 0,
+          "Thief": 0,
+          "Told": 0
+        },
+        "pair_up_on_him": 0,
+        "pair_up_per_death": 0.0,
+        "total": 0,
+        "track_source": {
+          "Heard": 0,
+          "Hud": 0,
+          "Radar": 0,
+          "Seen": 0,
+          "Thief": 0,
+          "Told": 0,
+          "none": 0
+        }
+      },
+      "contact_lives": 7,
+      "contact_s_p25_median_p75": [
+        0.0,
+        0.0,
+        0.0
+      ],
+      "crowded": 14,
+      "crowded_pct": 87.5,
+      "deaths": 16,
+      "deaths_per_min": 2.695,
+      "enemies_30m_at_death": 2.625,
+      "enemies_30m_in_10s": 2.875,
+      "no_contact_lives": 0,
+      "shooters_5s_3plus_pct": 0.0,
+      "shooters_5s_mean": 1.125
+    },
+    "the stand-in camper": {
+      "aimed_plays_mean": 0.0,
+      "alive_3plus_near_pct": 0.0,
+      "alive_min": 0.0,
+      "arrivals": {
+        "aimed_at": {
+          "another place": 0,
+          "exit": 0,
+          "him": 0,
+          "none": 0,
+          "objective": 0
+        },
+        "by_play": {},
+        "held_10s": {
+          "Heard": 0,
+          "Hud": 0,
+          "Radar": 0,
+          "Seen": 0,
+          "Thief": 0,
+          "Told": 0
+        },
+        "pair_up_on_him": 0,
+        "pair_up_per_death": 0.0,
+        "total": 0,
+        "track_source": {
+          "Heard": 0,
+          "Hud": 0,
+          "Radar": 0,
+          "Seen": 0,
+          "Thief": 0,
+          "Told": 0,
+          "none": 0
+        }
+      },
+      "contact_lives": 0,
+      "contact_s_p25_median_p75": [
+        null,
+        null,
+        null
+      ],
+      "crowded": 0,
+      "crowded_pct": 0.0,
+      "deaths": 0,
+      "deaths_per_min": 0.0,
+      "enemies_30m_at_death": 0.0,
+      "enemies_30m_in_10s": 0.0,
+      "no_contact_lives": 0,
+      "shooters_5s_3plus_pct": 0.0,
+      "shooters_5s_mean": 0.0
+    },
+    "the stand-in human": {
+      "aimed_plays_mean": 0.0,
+      "alive_3plus_near_pct": 0.0,
+      "alive_min": 0.0,
+      "arrivals": {
+        "aimed_at": {
+          "another place": 0,
+          "exit": 0,
+          "him": 0,
+          "none": 0,
+          "objective": 0
+        },
+        "by_play": {},
+        "held_10s": {
+          "Heard": 0,
+          "Hud": 0,
+          "Radar": 0,
+          "Seen": 0,
+          "Thief": 0,
+          "Told": 0
+        },
+        "pair_up_on_him": 0,
+        "pair_up_per_death": 0.0,
+        "total": 0,
+        "track_source": {
+          "Heard": 0,
+          "Hud": 0,
+          "Radar": 0,
+          "Seen": 0,
+          "Thief": 0,
+          "Told": 0,
+          "none": 0
+        }
+      },
+      "contact_lives": 0,
+      "contact_s_p25_median_p75": [
+        null,
+        null,
+        null
+      ],
+      "crowded": 0,
+      "crowded_pct": 0.0,
+      "deaths": 0,
+      "deaths_per_min": 0.0,
+      "enemies_30m_at_death": 0.0,
+      "enemies_30m_in_10s": 0.0,
+      "no_contact_lives": 0,
+      "shooters_5s_3plus_pct": 0.0,
+      "shooters_5s_mean": 0.0
+    },
+    "top of team 0": {
+      "aimed_plays_mean": 0.0,
+      "alive_3plus_near_pct": 0.0,
+      "alive_min": 0.0,
+      "arrivals": {
+        "aimed_at": {
+          "another place": 0,
+          "exit": 0,
+          "him": 0,
+          "none": 0,
+          "objective": 0
+        },
+        "by_play": {},
+        "held_10s": {
+          "Heard": 0,
+          "Hud": 0,
+          "Radar": 0,
+          "Seen": 0,
+          "Thief": 0,
+          "Told": 0
+        },
+        "pair_up_on_him": 0,
+        "pair_up_per_death": 0.0,
+        "total": 0,
+        "track_source": {
+          "Heard": 0,
+          "Hud": 0,
+          "Radar": 0,
+          "Seen": 0,
+          "Thief": 0,
+          "Told": 0,
+          "none": 0
+        }
+      },
+      "contact_lives": 0,
+      "contact_s_p25_median_p75": [
+        null,
+        null,
+        null
+      ],
+      "crowded": 0,
+      "crowded_pct": 0.0,
+      "deaths": 0,
+      "deaths_per_min": 0.0,
+      "enemies_30m_at_death": 0.0,
+      "enemies_30m_in_10s": 0.0,
+      "no_contact_lives": 0,
+      "shooters_5s_3plus_pct": 0.0,
+      "shooters_5s_mean": 0.0
+    },
+    "top of team 1": {
+      "aimed_plays_mean": 0.0,
+      "alive_3plus_near_pct": 0.0,
+      "alive_min": 0.0,
+      "arrivals": {
+        "aimed_at": {
+          "another place": 0,
+          "exit": 0,
+          "him": 0,
+          "none": 0,
+          "objective": 0
+        },
+        "by_play": {},
+        "held_10s": {
+          "Heard": 0,
+          "Hud": 0,
+          "Radar": 0,
+          "Seen": 0,
+          "Thief": 0,
+          "Told": 0
+        },
+        "pair_up_on_him": 0,
+        "pair_up_per_death": 0.0,
+        "total": 0,
+        "track_source": {
+          "Heard": 0,
+          "Hud": 0,
+          "Radar": 0,
+          "Seen": 0,
+          "Thief": 0,
+          "Told": 0,
+          "none": 0
+        }
+      },
+      "contact_lives": 0,
+      "contact_s_p25_median_p75": [
+        null,
+        null,
+        null
+      ],
+      "crowded": 0,
+      "crowded_pct": 0.0,
+      "deaths": 0,
+      "deaths_per_min": 0.0,
+      "enemies_30m_at_death": 0.0,
+      "enemies_30m_in_10s": 0.0,
+      "no_contact_lives": 0,
+      "shooters_5s_3plus_pct": 0.0,
+      "shooters_5s_mean": 0.0
+    }
+  }
+}

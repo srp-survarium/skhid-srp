@@ -1,0 +1,226 @@
+use super::*;
+
+/// What the owner decided the delay to be, ms (2026-10-26): a train turns the default to it.
+pub const SUICIDE_AFTER_OWNER_MS: u32 = 60_000;
+
+/// The last resort of a bot with nothing left to try: it kills itself
+/// (`stuck::SelfKill`). Every number is the owner's rule of 2026-10-24..26 or a
+/// GUESS where it says so.
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[serde(default, deny_unknown_fields)]
+pub struct UnstickTuning {
+    /// A bot with nothing left to try (every exit of its pocket tried, or the
+    /// ladder at its last step three times at one spot) kills itself this
+    /// long after the run began, ms; none: never. The default is the owner's 60 s ([`SUICIDE_AFTER_OWNER_MS`]).
+    pub suicide_after_ms: Option<u32>,
+    /// … only with no enemy sensed and no hit taken for this long, ms: a bot in
+    /// a fight is left to the enemy, whose kill it is.
+    pub suicide_quiet_ms: u32,
+    /// … only when the life is this old, ms (spawn protection 6 s, then the
+    /// first route), and the match is this old, ms. GUESS.
+    pub suicide_life_ms: u32,
+    pub suicide_match_ms: u32,
+    /// [A302] The quiet rule ([`Self::suicide_quiet_ms`]) waived for a bot hopeless long enough that the noise around it, not a
+    /// fight, is what keeps it alive ([`SuicideLoud`]). None: the quiet rule always holds (as before). PROVEN case: the owner's
+    /// Cologne match 0x151faf3d, player 6 pinned 135 s at (38.4, 33.7, 28.2), its body within 0.49 m through 24 ladder steps;
+    /// the self-kill never came, as a heard or told enemy was in its tracks every few seconds (the map's middle).
+    pub suicide_loud: Option<SuicideLoud>,
+    /// … at most once a bot in this long, ms, and this many a team in a
+    /// minute. Owner: one a bot in 3 minutes, two a team a minute.
+    pub suicide_bot_gap_ms: u32,
+    pub suicide_team_per_min: u32,
+    /// … in Team Deathmatch only when the team has more tickets than this
+    /// (a suicide costs one). Owner: above 5.
+    pub suicide_min_tickets: u32,
+    /// The world must show the body dead within this long after the bit's
+    /// ticks, ms, else it is sent once more, then never again in the life
+    /// (the J0 run's deaths came with the next world, 1-2 s apart).
+    pub suicide_wait_ms: u32,
+    /// The bit is held this many ticks (the J0 run's, `SUICIDE_TICKS`).
+    pub suicide_ticks: u8,
+    /// A world the bot has no reckoning of (`BodyTrack::last_meant` none: it
+    /// came newer than every tick the bot decided, as in a burst) says how far
+    /// the bot's keys meant to move it only by the keys that world shows: a
+    /// walk key held means a walk, none means the bot stood. Off,
+    /// an unknown way is a walk, and a body at rest is flagged stuck
+    /// (`stuck::Stuck::walking`; School 12a83438 2:38.2: four resting bots at
+    /// once).
+    pub unknown_meant_needs_keys: bool,
+    /// A body that held walk keys this long, ms, without getting [`PROGRESS_M`](super::super::stuck::PROGRESS_M) further along
+    /// its route is not getting there (it goes round a post it cannot pass: J0 0cec7eab, the notch of the team 0 deck, 95 s):
+    /// the leg it fails on is kept clear of for the spot's time and the route is planned again. None: the watch is off (the
+    /// held-keys watch only sees a body that stays within half a metre).
+    pub progress_ms: Option<u32>,
+    /// A world this long after the one before it, ms, ends the stuck check (the watch starts again at the next
+    /// world, no note, no recovery, no spot for the team): the bot was not shown the body for that long, so a body
+    /// that "did not move" is not known to have been stuck. None: the check goes on (the default: 32 of the 35
+    /// stuck notes after a 3 s gap in the J0 matches were bodies really pinned).
+    pub fix_gap_ms: Option<u32>,
+    /// A bot whose last world is this old, ms, stands still (no walk key, no sprint) until another world comes: its
+    /// reckoning is all it has, and with no world a body that the reckoning walks on may be pinned or fallen (J0 0146be4a:
+    /// 72 s of sprint into a fence panel on a reckoning frozen at one mid-fall world). None: it walks on.
+    pub blind_stop_ms: Option<u32>,
+    /// A carrier whose way home has been found shut by its own searches (`Bot::no_way_to`, kept while they go on failing) for this long, ms, lets go of the battery (as a carrier
+    /// whose escape from a pocket is given up does, `escape.rs`) and fights from where it stands; the play ends. The bench's tip (the 16 offered maps, batteries and Team
+    /// Deathmatch, 16 matches each): Vostok Radar Station batteries had a Collect carrier stand at its no-way goal for 10 s or more in 7 of 16 matches, 5 of them for 30-60 s
+    /// (the fallback of the Bring state walks `to(home)` for ever); every other map 0-2 cases, none over 30 s. 20 s is a GUESS between a zone that goes off soon and a
+    /// carrier that will not move again. None: it stands as before.
+    pub home_no_way_ms: Option<u32>,
+    /// A carrier whose way home is shut by zones that switch (Vostok Radar Station's electric anomalies: 1.2 a second, on about 54 s, off about 40 s) waits for the gate
+    /// instead: up to this long from when it stands, ms, to the soonest the schedule opens it (`Tactics::gate_opens`), and only then is `home_no_way_ms` its bound. The
+    /// bench (Vostok Radar Station batteries, 10v10, seeds 13-20): its carriers stood 31-60 s, one on-window, and the 20 s bound dropped a battery that was deliverable
+    /// before the 54 s were out. 90 s is a GUESS over one on-window and the start of the next. None: every no-way is the bound's.
+    pub home_gate_max_ms: Option<u32>,
+    /// A body held at the top of a drop its route goes down (the stuck ladder fires there, the route's next point a
+    /// lip's height or more below) shuts the drops off where it stands to its own searches, as a jump it gave up
+    /// (`stuck::Stuck::failed_drop`), and tells its team the top as a fall's spot; a search that then finds no way proves
+    /// nothing for the team (`Stuck::no_way_is_proof`). None: the searches hand it the same drop again (A199, Chemical
+    /// Plant's spawn ledge: 9 live bots held 1-9 minutes). On by default: the by-side bench of the 16 offered maps (192
+    /// pairs) had 16.6 stuck notes a bot-hour against 19.6 (z -4.8), no self-kill either side, no cost to score or deliveries.
+    pub drop_shut: Option<DropShut>,
+    /// A drop shut ([`Self::drop_shut`]) keeps a search off its landing only while the body stands over the landing by more than
+    /// the least a drop off a top falls below the feet (`stuck::DROP_SHUT_BELOW_M`, 0.2 m): the drop was shut at its top, and a
+    /// body that got down to the landing's height anyway (a fall, a slide, another way) walks on those floors. A251, PROVEN by
+    /// the route search's checks one by one: Vector Laboratory, a body at 11.6 whose only way out lay over the landings of the
+    /// drops it had shut (11.59; each new shut lengthened them, to 184 s) had no way for 63 s, 635 of the 64 matches' 4,311
+    /// no-way ticks. On by default (A251's bench, both switches, 64 matches: no-way ticks 4,311 -> 2,970, Vector Laboratory day 2
+    /// 720 -> 144, stuck notes 146 -> 143); the all-off arm keeps it (its old value is the proven trap). Off: every shut drop's
+    /// landing is kept off, wherever the body is.
+    pub drop_shut_from_top: bool,
+    /// A search that finds no way while the body holds drops it shut ([`Self::drop_shut`]) searches once more without them, in
+    /// the same poll: a way found is taken (the shut drops are its only way, so it takes one again, as a stuck spot is gone
+    /// through when there is no way round), and no way without them either proves the goal has none for the plays. A275,
+    /// PROVEN by the failed searches searched again (A93's cells, Vector Laboratory and Chemical Plant, 192 matches an arm): the
+    /// largest class of failed searches (443 of 1,010 with A93's five switches at their old values, 887 of 1,657 with them on)
+    /// had a way without the body's own shut drops, all on Chemical Plant batteries' walkway beams (x 64-66, z 62-68), where a
+    /// bot fallen in at the match's start stood about 45 s with no way and no proof (its play kept the goal, searched every
+    /// 0.5 s). On by default (A275's benches: those cells, 192 matches an arm, both teams: time held at that ledge 500 s ->
+    /// 68 s, the longest 55 s -> 13 s, failed searches 1,658 -> 631, A123's gap_failed_above 198 -> 97, stuck seconds -6.9 %
+    /// (z -2.8), kills and deliveries level; by side, 8 maps x 6/8/10, 288 pairs: every outcome level); the all-off arm keeps
+    /// it (its old value is the proven trap). Off: a shut drop is kept off for its whole time, whatever is left.
+    pub drop_shut_last_resort: bool,
+    /// What the reckoned stuck watch (`stuck::Stuck::walking_in`: two worlds 1.5 s+ apart, the body moved under 0.4 m while the keys
+    /// meant 1.2 m) judges a window by (A240b).
+    pub window: StuckWindow,
+    /// The stuck recovery's back-off and sidestep keys (`Bots::fixed`'s escapes) are taken only where the way they go has a
+    /// floor under it all along ([`Tactics::floor_free_step`](super::super::tactics::Tactics::floor_free_step)): no edge
+    /// over a lip's drop, no wall above a step; with none left the recovery takes no walk key (the sidestep's jump in place).
+    /// A271, PROVEN by the A265 walk: on Station 705's 0.10 m rail top the sidestep's back-diagonal jump carried a bot 3.3 m
+    /// off the rail to the ground, its escape checked against the zones only. On by default (A271's bench, whole match, the
+    /// 16 offered maps x seeds 5-8, 64 matches an arm: falls off the route that began in a recovery's keys 17 -> 4, falls off
+    /// the route 357 -> 287, stuck again at a spot 28 -> 20, stuck notes 169 -> 155; kills, deaths, deliveries within 1.5 %);
+    /// the all-off arm keeps it (its old value is the proven fall). Off: the zones alone, as before.
+    pub escape_floor: bool,
+}
+
+/// What the reckoned stuck watch judges a window by ([`UnstickTuning::window`]).
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum StuckWindow {
+    /// As it was: from the first world it was asked at since its last check, however long before (a world with no route to walk
+    /// does not ask it), against the length of the way the keys meant.
+    #[default]
+    SinceAsked,
+    /// The walk's own: a world with no route starts it again (a pause, as the watch's doc has it), and what the keys meant is
+    /// their net move over it, the reckoning's from each world to the next (a way out and back means none, however long), unless
+    /// every world between showed the body still (keys that turned on the spot: the way's length, as it was). The
+    /// bench's tip (A240b, defaults, 16 maps x 6/8/10, seeds 5-7): the keys meant under 1.2 m net in most of the stuck notes, the
+    /// body's own way over the window out and back or walked on, the window spanning a route that began inside it.
+    Walked,
+}
+
+/// [`UnstickTuning::suicide_loud`]: a hopeless bot may kill itself with enemies sensed around it, once it has been hopeless
+/// [`UnstickTuning::suicide_after_ms`] plus `after_ms`, as long as no hit came to it for `hit_quiet_ms` (a bot being shot is in
+/// a fight: the enemy's kill). GUESS both: half the owner's delay again; a burst and its aim.
+#[derive(Clone, Copy, Debug, PartialEq, Serialize, Deserialize)]
+#[serde(default, deny_unknown_fields)]
+pub struct SuicideLoud {
+    pub after_ms: u32,
+    pub hit_quiet_ms: u32,
+}
+
+impl Default for SuicideLoud {
+    fn default() -> Self {
+        Self { after_ms: 30_000, hit_quiet_ms: 5_000 }
+    }
+}
+
+/// How a drop the body was held at the top of is shut ([`UnstickTuning::drop_shut`]).
+#[derive(Clone, Copy, Debug, PartialEq, Serialize, Deserialize)]
+#[serde(default, deny_unknown_fields)]
+pub struct DropShut {
+    /// The drops of the floors this far across from the feet are shut, metres: a stuck spot's reach
+    /// (`stuck::SPOT_M`), so the drops beside the one taken (a ledge's land side by side, a cell apart) go too.
+    pub near_m: Metres,
+    /// For this long, ms: a stuck spot's time (`stuck::SPOT_KEPT_MS`). GUESS: a drop the body did not fit is not
+    /// taken later either, but the body may stand elsewhere on the top then.
+    pub kept_ms: u32,
+}
+
+impl Default for DropShut {
+    fn default() -> Self {
+        Self { near_m: Metres::of(2.0), kept_ms: 45_000 }
+    }
+}
+
+impl Default for UnstickTuning {
+    fn default() -> Self {
+        Self {
+            suicide_after_ms: Some(SUICIDE_AFTER_OWNER_MS),
+            suicide_quiet_ms: 15_000,
+            suicide_life_ms: 20_000,
+            suicide_match_ms: 120_000,
+            suicide_loud: Some(SuicideLoud::default()),
+            suicide_bot_gap_ms: 180_000,
+            suicide_team_per_min: 2,
+            suicide_min_tickets: 5,
+            suicide_wait_ms: 4_000,
+            suicide_ticks: 3,
+            unknown_meant_needs_keys: true,
+            progress_ms: Some(6_000),
+            fix_gap_ms: None,
+            blind_stop_ms: Some(4_500),
+            home_no_way_ms: Some(20_000),
+            home_gate_max_ms: Some(90_000),
+            drop_shut: Some(DropShut::default()),
+            drop_shut_from_top: true,
+            drop_shut_last_resort: true,
+            window: StuckWindow::SinceAsked,
+            escape_floor: true,
+        }
+    }
+}
+
+impl Check for UnstickTuning {
+    fn check(&self) -> Result<(), String> {
+        check(
+            self.suicide_wait_ms >= 2_000 && (1..=8).contains(&self.suicide_ticks),
+            "unstick.suicide_wait_ms, suicide_ticks",
+        )?;
+        check(
+            self.suicide_after_ms.is_none_or(|after| after >= self.suicide_quiet_ms),
+            "unstick.suicide_after_ms",
+        )?;
+        check(self.suicide_loud.is_none_or(|loud| loud.hit_quiet_ms >= 1_000), "unstick.suicide_loud.hit_quiet_ms")
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// Off is no number at all: `null` is none, a number is on (the defaults have the owner's 60 s), and a patch
+    /// turns it on or off.
+    #[test]
+    fn the_self_kill_is_off_with_no_number_and_on_with_one() {
+        let parse = |json: &str| serde_json::from_str::<Tuning>(json).unwrap().unstick.suicide_after_ms;
+        assert_eq!(Tuning::default().unstick.suicide_after_ms, Some(SUICIDE_AFTER_OWNER_MS));
+        assert_eq!(parse("{}"), Some(SUICIDE_AFTER_OWNER_MS));
+        assert_eq!(parse(r#"{"unstick":{"suicide_after_ms":null}}"#), None);
+        assert_eq!(parse(r#"{"unstick":{"suicide_after_ms":60000}}"#), Some(SUICIDE_AFTER_OWNER_MS));
+        // Under the quiet time it would act in a fight: refused.
+        let mut tuning = Tuning::default();
+        tuning.unstick.suicide_after_ms = Some(1_000);
+        assert_eq!(tuning.validate().unwrap_err(), "unstick.suicide_after_ms");
+    }
+}

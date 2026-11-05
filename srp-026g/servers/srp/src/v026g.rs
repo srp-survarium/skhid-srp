@@ -459,6 +459,8 @@ pub struct Stack {
     pub match_addr: SocketAddr,
     /// `SRP_MIN_PATCH_REVISION`, which the web page says to the updater.
     pub min_patch_revision: u8,
+    /// The bots' tuning: what each match runs on, which the admin page's Bots section changes.
+    pub bot_tuning: Arc<matches::LiveTuning>,
     stop: Arc<AtomicBool>,
     /// The lobby's and the match server's threads: the ones [`Stack::stop`]
     /// waits for.
@@ -474,10 +476,33 @@ impl Stack {
         accounts: Arc<GameAccounts>,
         options: Options,
     ) -> io::Result<Self> {
+        // The bots' tuning file, read here: one the server cannot use stops srp here, with the reason, and never
+        // starts the matches on the defaults. Each match takes it again, with the admin page's changes.
+        let bot_tuning = matches::bot_tuning_from_env()?;
         // Kept in the accounts' repository: a restart forgets neither a
         // results screen not shown yet nor an account's play period.
         let results = Results::attached(&accounts);
         let inbox = Inbox::new();
+        // TEST ONLY: the client tests tell the owner in the game's chat (channel 2, the system's), through the lobby link he
+        // keeps in a match (`docs/notes/client_tests.md`).
+        #[cfg(feature = "client-test")]
+        matches::bots::client_tests::set_say({
+            let inbox = inbox.clone();
+            Box::new(move |account_id, text| {
+                use survarium::v026g::lobby::{channel, chat_text, sender};
+                inbox.push(account_id, vec![chat_text(sender::ACCOUNT, 0, "", "", channel::SYSTEM, text)]);
+            })
+        });
+        // TEST ONLY: the client tests choose the roles of a Player vs Bots match's server bots (`lobby_server::v026g::client_test`).
+        #[cfg(feature = "client-test")]
+        if let Err(error) = lobby_server::v026g::client_test::set_roles_hook(Box::new(|roster| {
+            let Some(map) = survarium::v026g::maps::map_mode(roster.map_id) else {
+                return roster.defaults;
+            };
+            matches::bots::client_tests::bot_roles(map.level, map.mode, roster.per_team, roster.bot_teams, roster.defaults)
+        })) {
+            log::error!("CLIENT_TEST: the roles hook is not set: {error:?}");
+        }
         let stop = Arc::new(AtomicBool::new(false));
         // The lobby (who is a bot when a match is made), the rewards and
         // the ranking read it from the accounts.
@@ -494,10 +519,10 @@ impl Stack {
         // The match server first: the registry tells the port it got.
         let match_socket = UdpSocket::bind(&options.match_bind)?;
         let match_addr = match_socket.local_addr()?;
-        let registry = Arc::new(MatchRegistry::new(
-            &options.match_public_host,
-            match_addr.port(),
-        ));
+        let registry = Arc::new(
+            MatchRegistry::new(&options.match_public_host, match_addr.port())
+                .with_bot_pockets(bot_tuning.at_start().kit.pockets()),
+        );
 
         // One for the process: the match server converts, the lobby gives
         // tokens, the web page takes them.
@@ -567,7 +592,7 @@ impl Stack {
             None => log::info!("Replays are off (SRP_REPLAY_DIR, SRP_GAME_MODES_DIR)"),
         }
         {
-            let (registry, store, accounts, results, inbox, stop, replays) = (
+            let (registry, store, accounts, results, inbox, stop, replays, bot_tuning) = (
                 registry.clone(),
                 store.clone(),
                 accounts.clone(),
@@ -575,6 +600,7 @@ impl Stack {
                 inbox.clone(),
                 stop.clone(),
                 replays.clone(),
+                bot_tuning.clone(),
             );
             let mut socket = Some(match_socket);
             let flag = stop.clone();
@@ -596,6 +622,7 @@ impl Stack {
                     move |result| settler.match_ended(result),
                     &flag,
                     Some(replays.clone()),
+                    bot_tuning.clone(),
                 )
             }));
         }
@@ -643,6 +670,7 @@ impl Stack {
             lobby_addr,
             match_addr,
             min_patch_revision: options.lobby.min_patch_revision,
+            bot_tuning,
             stop,
             threads,
         })
@@ -665,6 +693,7 @@ impl Stack {
             )),
             min_patch_revision: self.min_patch_revision,
             replays: Some(self.replays.clone()),
+            bots: Some(self.bot_tuning.clone()),
         }
     }
 

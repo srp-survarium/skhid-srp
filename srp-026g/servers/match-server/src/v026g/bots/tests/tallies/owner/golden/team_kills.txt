@@ -1,0 +1,13 @@
+owner-test team kills: 0 (bullet 0, frag 0); team hits 7; mates caught by traps 0; killer in a jump 0, victim in a jump 0, a ledge within 3 m of either 0
+{
+  "team_kills": {
+    "a_ledge_within_3_m": 0,
+    "bullet": 0,
+    "frag": 0,
+    "killer_in_jump": 0,
+    "kills": 0,
+    "mates_caught_by_traps": 0,
+    "team_hits": 7,
+    "victim_in_jump": 0
+  }
+}

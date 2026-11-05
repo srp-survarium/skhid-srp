@@ -35,6 +35,7 @@ use std::f32::consts::{PI, TAU};
 
 use serde::{Deserialize, Serialize};
 
+use super::pitch::PitchScale;
 use crate::v026g::drive::key;
 
 /// The game's ticks, seconds.
@@ -53,7 +54,180 @@ pub struct Kinematics {
     pub sprint: f32,
     /// Ticks of the blend to a new velocity.
     pub blend_ticks: u32,
+    /// Which jump links the reckoned body (`body.rs`) takes up after a jump press ([`JumpSnap`]).
+    pub jump_snap: JumpSnap,
+    /// Where the reckoned body falls off a ledge ([`Edge`]).
+    pub edge: Edge,
+    /// [A269c] What a route adds to the cost of a walk onto a floor near an open side (with [`Edge::ClientWalksOff`], the grid's
+    /// table of open sides), times the walk's own: the route keeps a body's width in from an edge the capsule walks off where the
+    /// floor allows (`RouteFilter::weighing_open_sides`). 2 makes a cell's walk there cost 0.75 m, as a deep fall's edge does
+    /// (`mapdata::grid::FALL_EDGE_PENALTY`). 0: none, as it was.
+    pub open_edge_cost: f32,
+    /// Where the reckoned body comes down off a ledge whose drop is an off-mesh walk-off ([`WalkOffLanding`]).
+    pub walk_off_landing: WalkOffLanding,
+    /// Where the stop forecast's margin falls off a ledge ([`MarginEdge`]).
+    pub margin_edge: MarginEdge,
+    /// Which floor a world's feet are put on ([`FixFloor`]).
+    pub fix_floor: FixFloor,
+    /// How a view's pitch unit relates to its elevation ([`PitchScale`]): the unit is 60.0 degrees up and 67.48 down
+    /// (`pitch.rs`), not a radian (`radian`: the bots as they were, which aimed 3.5 degrees low at a target 15 to 30 degrees below the eye
+    /// and shot 16 % there against 29 % with the map, `player_bots_weapons.md`). The world's pitch, the pitch turns the bots send and the geometry from the
+    /// view's pitch (the eye, the throws, the rays) all follow it, so it is one setting for the whole match, not a team's.
+    pub pitch_scale: PitchScale,
+    /// [A304] How a ground step over a slope is reckoned ([`SlopeSpeed`]).
+    pub slope_speed: SlopeSpeed,
+    /// [A304] The flattest ramp face (degrees, the grid's ramp mark) [`SlopeSpeed::RampsGrade`] slows on: a floor whose mark is
+    /// flatter counts as unmarked. 35 (the lab, 2026-11-05: Vostok Radar Station's and Chemical Plant's stairs carry 20-39 degree
+    /// marks and the client climbs them at full speed; Cologne's slowing stairs are 45; 35 was better than 40 and 44). 20: every
+    /// mark (`mapdata::grid::RAMP_MIN_DEG`).
+    pub ramp_min_deg: f32,
 }
+
+/// [A304] How the reckoned body's ground step goes over a slope of the walk grid.
+///
+/// The client's capsule moves along its walker floor at the keys' speed, so over a ramp its ground speed is the speed times the
+/// cosine of the grade along the walk: on Cologne's 45 degree stair ramps a sprint's 5.1 m/s is 3.6 m/s over the ground (fx-grid's
+/// class of fx-bench's 73 slowed sprints, 2026-11-05: stairs and ramps, 51 %). On real stairs with treads the capsule steps up
+/// (`cc_step_height`) at full speed. The reckoning moved at the keys' ground speed whatever the floor.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum SlopeSpeed {
+    /// The keys' ground speed on any floor (as it was).
+    Planar,
+    /// Every rising step is shortened to the cosine of its grade (the lab's first rule: real stairs too, which made Vostok Radar
+    /// Station and Chemical Plant worse).
+    Up,
+    /// A rising step on a floor with a ramp mark at least [`Kinematics::ramp_min_deg`] steep (`grid.ramp_faces`,
+    /// `WalkGrid::ramp_slope_deg`) is shortened to the cosine of its own grade: the rise along the walk, not the face's slope, as
+    /// a walk across a ramp climbs little. Falling steps and unmarked floors keep their length (the client does not slow down a
+    /// ramp, in the lab).
+    #[default]
+    RampsGrade,
+}
+
+impl SlopeSpeed {
+    /// The share of a ground step of `run` metres that rises `rise` metres the body covers, on a floor whose ramp mark is
+    /// `ramp_deg` (`None`: no mark, or one flatter than [`Kinematics::ramp_min_deg`]): 1 where the setting leaves the step as it
+    /// is, else the grade's cosine.
+    pub fn share(self, run: f32, rise: f32, ramp_deg: Option<f32>) -> f32 {
+        let shortened = match self {
+            Self::Planar => false,
+            Self::Up => rise > 0.0,
+            Self::RampsGrade => rise > 0.0 && ramp_deg.is_some(),
+        };
+        if shortened && run > 1e-4 { run / run.hypot(rise) } else { 1.0 }
+    }
+}
+
+/// Which jump links the reckoned body takes up after a jump press, until a world shows where the body is.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum JumpSnap {
+    /// Any jump link: the body is on its landing 0.8 s after the press whatever the rise, so a jump the clip
+    /// cannot make is believed made until the next world.
+    Any,
+    /// Only a link whose rise the jump pressed could make: the plain jump's 1.09 m, or with forward and sprint held at
+    /// the walk cap or more the sprint jump's 1.28 m (the client's choice by the keys and the speed at the press, PROVEN,
+    /// the sprint-jump RE 1.1).
+    #[default]
+    ByKeys,
+    /// None: the body stays on the take-off side until a world shows it on the landing floor (a landing counts only
+    /// with walkable ground under the body near the target).
+    Never,
+}
+
+/// Where the reckoned body (and the lip guard's forecast) falls off a ledge.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum Edge {
+    /// At the grid's cell boundary, 0.125 m past the last floor cell's centre (the lattice's picture, the bots' reckoning
+    /// before the client edge).
+    Lattice,
+    /// As the client's capsule: held until [`super::body::SUPPORT_M`] past the centre of the floor it stands on, so a
+    /// body that stays up at a ledge is not reckoned fallen (`body::slide_supported`, LIKELY, the live samples at lips).
+    #[default]
+    Client,
+    /// [`Self::Client`], and over an open side of its floor (`WalkGrid::open_toward`: no link that way, no floor of its level
+    /// beside, no wall) the body goes on as the client's capsule does: on while a floor of its level holds it within
+    /// [`super::body::SUPPORT_M`], then straight down onto the floor under it (`body::walk_off_open`; `step_down` 0x7E1B0, PROVEN,
+    /// the stand-in's `past_edge`). [`Self::Client`] holds it there as at a wall, since it moves a body past its floor only toward
+    /// a drop link or along a lip: the reckoning stood while the body walked on, and the lip guard's stop forecast never fell, so
+    /// the guard let keys walk the body off. A269: every entry into the Vector Laboratory middle pit (a 5.3 m edge, deeper than
+    /// the harmless drop: no link) and into the Tarakanovsky Fort shut pocket at (-8, -20) (a walkway edge 1.7 m over it, no link)
+    /// was over such an edge. The lip guard also watches the floors near an open side. Needs the grids' table of open sides
+    /// ([`crate::v026g::bots::tuning::Tuning::needs_open_sides`]); a grid without it is [`Self::Client`]. Not the default: in
+    /// A269's bench (160 pairs) falls off the route went -28 % (past open sides -46 %), but the guard changed the keys on 9.5 % of the
+    /// ticks (0.5 % with [`Self::Client`]) in runs of 1-2 ticks, flipping 3 times a second, and stuck cases went +48 %, kills -13 %:
+    /// it waits for a guard that holds its brake.
+    ClientWalksOff,
+}
+
+/// [POCKETS (b)] Where the reckoned body ([`Edge::Client`]) comes down when it goes off a ledge whose drop is an off-mesh walk-off
+/// (`GapDrop`, `gap::Takeoff::WalkOff`): a flight kept only where bodies at every one of `gap::WALK_OFF_SPEEDS` (3.0-5.1 m/s, PROVEN
+/// J0 g2a) come down on its landing, which lies cells out from the edge.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum WalkOffLanding {
+    /// On the link's landing at any speed. A body that slips off slowly falls almost straight down, onto another floor: Vector
+    /// Laboratory's 20.6 m lip, whose walk-off lands 2.5 m out on the 17.80 floor, put two fighting bots there at 0.03-0.12 m/s
+    /// while their bodies fell onto the 16.22 ledge under the edge; believing they stood 2 m away, they walked off the ledge into
+    /// the shut pit (`fx-smoke-pockets.md` §1, from their FALL lines in the bench's stand-in game: the walker mesh has a 0.97 m
+    /// parapet along that edge and a plate over the ledge, so the client's body does neither, A247). Wrong by the client, so the
+    /// all-off arm keeps the default (`KEPT_RIGHT`).
+    Link,
+    /// On the link's landing only at the slowest of `gap::WALK_OFF_SPEEDS` or more; slower, on the highest floor under the body
+    /// (within its radius and half a cell, lower than a step) open above the edge (A247: no slab, plate or overhang between
+    /// them, `WalkGrid::open_to`), else held at the edge until a world shows where it is. The default (A93's final sweep: the five A93 candidates on against the defaults, both teams, 576 pairs: stuck -5.2 %, kills +1.5 %, every guard level but A123's gap_failed_above, +45 % at paired z +1.8, in a few Vector Laboratory and Chemical Plant matches).
+    #[default]
+    BySpeed,
+}
+
+/// Where the stop forecast's margin (`body::stays_up`: the same stop from [`super::body::RECKONING_M`] further on along the body's
+/// way, for a body not exactly where it is reckoned) falls off a ledge.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum MarginEdge {
+    /// At the grid's cell boundary ([`Edge::Lattice`]) whatever [`Kinematics::edge`] is: with [`Edge::Client`] the forecast moves
+    /// the body up to [`super::body::SUPPORT_M`] past its floor's centre, past the cell's boundary, and the margin from there falls at
+    /// once, whichever way the body goes. A body walking along a lip on its last floor is held by the full lip guard's sides
+    /// (`Feel::lip_guard_full`: the same walk [`super::body::RECKONING_M`] to the side) every tick, and by its own margin once it is
+    /// reckoned past the boundary: of the 3,705 ticks the guard held a walk in the bench's stuck episodes at lips, 2,031 (55 %) were
+    /// held for a side only, the rest for the walk itself; with `edge = lattice` and no sides, 680, all for the walk (A205, 16 runs).
+    Lattice,
+    /// As the body itself ([`Kinematics::edge`]): the margin is the forecast's body a little further on, so it falls where that
+    /// body would. The default (A93's final sweep: the five A93 candidates on against the defaults, both teams, 576 pairs: stuck -5.2 %, kills +1.5 %, every guard level but A123's gap_failed_above, +45 % at paired z +1.8, in a few Vector Laboratory and Chemical Plant matches).
+    #[default]
+    Body,
+}
+
+/// Which floor of the walk grid the reckoning puts a world's feet on (`body::BodyTrack::fixed`), the floor it moves the body on from.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum FixFloor {
+    /// The nearest floor from 1 m over the feet to 2.5 m under them (`WalkGrid::locate`): a world that shows the body in the air
+    /// in front of a wall puts it on the floor over the wall's top when that is nearer than its own. School, the r1 stuck spot
+    /// (A196, live): a jump against the facade, shown 0.68 m up, put the reckoned body on the top behind it, 0.59 m over the feet;
+    /// with [`Edge::Client`] it walked on there for a second (2-3 m off) while the body fell back.
+    Nearest,
+    /// The nearest floor at most [`FIX_ABOVE_M`] over the feet, else the nearest: feet are on their floor or over it.
+    Under,
+    /// [`Self::Under`] while the body's own jump is in the air (its jump key held at a decided tick within
+    /// [`super::body::JUMP_AIR_MS`] before the world's), else [`Self::Nearest`]. A world shows a body between floors in a jump
+    /// (School r1: rising at the facade, its own floor under it) and in a fall (Tarakanovsky Fort (-54, 8, 12): walked off a
+    /// ledge, 0.5 m under the top it left and over a lower top 0.6-0.8 m aside that it falls past); only the jump's floor is
+    /// under it. Over every differing fix of the rev 38+ live recordings (14,097, A204), the mean error of the reckoning at the
+    /// next world is 0.638 m with this rule, 1.380 with [`Self::Nearest`] and 0.944 with [`Self::Under`], and no map is worse
+    /// than with [`Self::Nearest`] (Under alone was worse on four: Tarakanovsky Fort 1.644 against 0.691). The default: its by-side
+    /// bench could not reach the case (47 such fixes in 256 matches: the stand-in's bodies stay on the grid's floors) and showed no
+    /// cost (score +0.3 %, z +0.6, no guard flagged; #944).
+    #[default]
+    UnderInJump,
+}
+
+/// How far over a world's feet [`FixFloor::Under`] takes a floor, metres: a floor's height is its cell centre's, which on the
+/// steepest walkable slope (55 degrees, `impassable_slope` 0x7DE10, PROVEN) lies up to 0.25 m over feet at the cell's edge (half
+/// the diagonal of a 0.25 m cell, 0.18 m, times tan 55); a little over that.
+pub const FIX_ABOVE_M: f32 = 0.3;
 
 impl Default for Kinematics {
     fn default() -> Self {
@@ -64,6 +238,15 @@ impl Default for Kinematics {
             crouch_aim: [2.0, 1.5, 1.5],
             sprint: 5.0,
             blend_ticks: 6,
+            jump_snap: JumpSnap::ByKeys,
+            edge: Edge::Client,
+            open_edge_cost: 0.0,
+            walk_off_landing: WalkOffLanding::BySpeed,
+            margin_edge: MarginEdge::Body,
+            fix_floor: FixFloor::UnderInJump,
+            pitch_scale: PitchScale::Client,
+            slope_speed: SlopeSpeed::RampsGrade,
+            ramp_min_deg: 35.0,
         }
     }
 }
@@ -250,6 +433,29 @@ mod tests {
         assert!(close(at(key::LEFT)[0], -2.5));
         assert!(close(at(key::RIGHT)[0], 2.5));
         assert!(close(k.target_velocity(key::FORWARD, 0.0, 0.95)[1], 3.325));
+    }
+
+    #[test]
+    fn a_step_up_a_marked_ramp_covers_its_grades_cosine_and_any_other_step_all_of_it() {
+        let close = |a: f32, b: f32| (a - b).abs() < 1e-3;
+        let cos45 = std::f32::consts::FRAC_1_SQRT_2;
+        // A 45 degree ramp with its mark: a step of 0.25 m that rises 0.25 m covers cos 45 of the run.
+        let up = SlopeSpeed::RampsGrade.share(0.25, 0.25, Some(45.0));
+        assert!(close(up, cos45), "{up}");
+        // The sprint's ground speed there: 5.1 x 0.707 = 3.6 m/s, the client's on Cologne's stairs.
+        assert!(close(5.1 * up, 3.606), "{}", 5.1 * up);
+        // Across a ramp: the step's own grade, not the face's.
+        assert!(close(SlopeSpeed::RampsGrade.share(0.25, 0.1, Some(45.0)), 0.25 / 0.25f32.hypot(0.1)));
+        assert_eq!(SlopeSpeed::RampsGrade.share(0.25, 0.25, None), 1.0, "no mark (real stairs): full speed");
+        assert_eq!(SlopeSpeed::RampsGrade.share(0.25, -0.25, Some(45.0)), 1.0, "down a ramp: all of it");
+        assert_eq!(SlopeSpeed::RampsGrade.share(0.25, 0.0, Some(45.0)), 1.0, "a flat step on a marked floor");
+        assert_eq!(SlopeSpeed::RampsGrade.share(0.0, 0.3, Some(45.0)), 1.0, "no run: nothing to shorten");
+        assert!(close(SlopeSpeed::Up.share(0.25, 0.25, None), cos45), "up: any rising step, mark or none");
+        assert_eq!(SlopeSpeed::Up.share(0.25, -0.25, None), 1.0);
+        assert_eq!(SlopeSpeed::Planar.share(0.25, 0.25, Some(45.0)), 1.0, "planar: as it was");
+        // The defaults: the ramp rule, from 35 degree marks.
+        let kin = Kinematics::default();
+        assert_eq!((kin.slope_speed, kin.ramp_min_deg), (SlopeSpeed::RampsGrade, 35.0));
     }
 
     #[test]

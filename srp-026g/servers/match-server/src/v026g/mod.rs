@@ -146,7 +146,9 @@ pub use registry::{
     static_id,
 };
 pub use replay::{replays_from_env, replays_of};
-pub use server::{run, run_on, run_on_with_replays};
+pub use bots::tuning::LiveTuning;
+pub use bots::tuning::LoadedTuning;
+pub use server::{bot_tuning_from_env, run, run_on, run_on_with_replays};
 pub use survarium::v026g::match_msgs::static_info::MatchProfile;
 
 /// What becomes of an input that comes after its tick is final for the
@@ -265,6 +267,9 @@ pub(crate) struct Settings {
     pub pack: Duration,
     /// `SRP_MAPDATA_DIR`: the bots' maps, shared by every match.
     pub maps: Option<Arc<bots::maps::Maps>>,
+    /// `SRP_BOT_TUNING` and the admin page's changes: what each match's bots run on, taken when the match starts
+    /// ([`bots::tuning::LiveTuning::for_match`]); the maps are made with the tuning the server started on.
+    pub bot_tuning: Arc<bots::tuning::LiveTuning>,
     pub timing: Timing,
 }
 
@@ -281,6 +286,7 @@ impl Default for Settings {
             record: None,
             pack: Config::for_table(Table::Match).gather,
             maps: None,
+            bot_tuning: Arc::default(),
             timing: Timing::default(),
         }
     }
@@ -291,7 +297,9 @@ impl Default for Settings {
 const SNAPSHOT_DIR: &str = "logs/snapshots";
 
 impl Settings {
-    pub fn from_env() -> Self {
+    /// The environment's settings, with the bots' tuning parsed by the caller at the start
+    /// ([`bots::tuning::LiveTuning::from_env`]).
+    pub fn from_env(bot_tuning: Arc<bots::tuning::LiveTuning>) -> Self {
         let var = |name: &str| std::env::var(name).ok();
         Self {
             late_inputs: parse_late_inputs(var("SRP_LATE_INPUTS").as_deref()),
@@ -331,7 +339,9 @@ impl Settings {
                     session::v026g::pvb::max_matches(),
                 ) as u32,
                 var("SRP_MAPDATA_BUILT").as_deref(),
+                bot_tuning.at_start(),
             ),
+            bot_tuning,
             timing: {
                 let client_timeout = Duration::from_secs(u64::from(
                     parse_number(
@@ -424,12 +434,14 @@ fn parse_snapshot_dir(value: Option<&str>) -> Option<PathBuf> {
 /// `SRP_MAPDATA_DIR`: unset, empty or `off` for none; `keep` built worlds
 /// kept (`SRP_MAPDATA_KEEP`), `at_once` in memory at most
 /// (`SRP_MAPDATA_AT_ONCE`); the built files in `built`
-/// (`SRP_MAPDATA_BUILT`: unset or empty for `<dir>/built`, `off` for none).
-fn parse_mapdata_dir(
+/// (`SRP_MAPDATA_BUILT`: unset or empty for `<dir>/built`, `off` for none); the grids as the server's `tuning` says
+/// ([`bot_maps`]).
+pub(crate) fn parse_mapdata_dir(
     value: Option<&str>,
     keep: u32,
     at_once: u32,
     built: Option<&str>,
+    tuning: &bots::tuning::Tuning,
 ) -> Option<Arc<bots::maps::Maps>> {
     let dir = value
         .map(str::trim)
@@ -452,10 +464,19 @@ fn parse_mapdata_dir(
     } else {
         log::warn!("SRP_MAPDATA_DIR is `{dir}`, which is no directory; bots will have no maps");
     }
-    Some(bots::maps::Maps::configured(
-        Some(dir.into()),
-        keep as usize,
-        at_once as usize,
-        built,
-    ))
+    Some(bot_maps(dir.into(), keep as usize, at_once as usize, built, tuning))
+}
+
+/// The bots' map store of a server whose tuning is `tuning` (`SRP_BOT_TUNING`, loaded once at its start): its grids'
+/// body and off-mesh links, and their table of wall clearances when the tuning needs it. The one way a store is made for
+/// the server ([`parse_mapdata_dir`]) and for the maps built ahead of a release (`srp-build-maps`), so the files the one
+/// writes have the keys the other looks for.
+pub fn bot_maps(
+    dir: std::path::PathBuf,
+    keep: usize,
+    at_once: usize,
+    built: Option<std::path::PathBuf>,
+    tuning: &bots::tuning::Tuning,
+) -> Arc<bots::maps::Maps> {
+    bots::maps::Maps::configured_for(Some(dir), keep, at_once, built, tuning.grid.clone(), tuning.needs_wall_clearance(), tuning.needs_open_sides())
 }

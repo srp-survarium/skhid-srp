@@ -1,0 +1,165 @@
+shot heights (view over the chest line by burst position and target stance): first: later:
+{
+  "shot_heights": {
+    "first": {
+      "air": {
+        "0-20": {
+          "high_shots": 0,
+          "high_sum": 0.0,
+          "hits": 0,
+          "line_shots": 0,
+          "line_vertical_sum": 0.0,
+          "shots": 0
+        },
+        "20-40": {
+          "high_shots": 0,
+          "high_sum": 0.0,
+          "hits": 0,
+          "line_shots": 1,
+          "line_vertical_sum": -1.1500000953674316,
+          "shots": 1
+        },
+        "40+": {
+          "high_shots": 0,
+          "high_sum": 0.0,
+          "hits": 1,
+          "line_shots": 4,
+          "line_vertical_sum": 0.19999969005584717,
+          "shots": 4
+        }
+      },
+      "crouch": {
+        "0-20": {
+          "high_shots": 0,
+          "high_sum": 0.0,
+          "hits": 8,
+          "line_shots": 15,
+          "line_vertical_sum": -6.150000810623169,
+          "shots": 16
+        },
+        "20-40": {
+          "high_shots": 0,
+          "high_sum": 0.0,
+          "hits": 4,
+          "line_shots": 13,
+          "line_vertical_sum": 3.5499993562698364,
+          "shots": 13
+        },
+        "40+": {
+          "high_shots": 0,
+          "high_sum": 0.0,
+          "hits": 11,
+          "line_shots": 38,
+          "line_vertical_sum": 0.9999980926513672,
+          "shots": 40
+        }
+      },
+      "stand": {
+        "0-20": {
+          "high_shots": 0,
+          "high_sum": 0.0,
+          "hits": 12,
+          "line_shots": 40,
+          "line_vertical_sum": -7.200001955032349,
+          "shots": 43
+        },
+        "20-40": {
+          "high_shots": 0,
+          "high_sum": 0.0,
+          "hits": 19,
+          "line_shots": 54,
+          "line_vertical_sum": -2.5000025033950806,
+          "shots": 57
+        },
+        "40+": {
+          "high_shots": 0,
+          "high_sum": 0.0,
+          "hits": 60,
+          "line_shots": 163,
+          "line_vertical_sum": -3.2500081062316895,
+          "shots": 169
+        }
+      }
+    },
+    "later": {
+      "air": {
+        "0-20": {
+          "high_shots": 0,
+          "high_sum": 0.0,
+          "hits": 0,
+          "line_shots": 0,
+          "line_vertical_sum": 0.0,
+          "shots": 0
+        },
+        "20-40": {
+          "high_shots": 0,
+          "high_sum": 0.0,
+          "hits": 0,
+          "line_shots": 0,
+          "line_vertical_sum": 0.0,
+          "shots": 0
+        },
+        "40+": {
+          "high_shots": 0,
+          "high_sum": 0.0,
+          "hits": 0,
+          "line_shots": 0,
+          "line_vertical_sum": 0.0,
+          "shots": 0
+        }
+      },
+      "crouch": {
+        "0-20": {
+          "high_shots": 0,
+          "high_sum": 0.0,
+          "hits": 0,
+          "line_shots": 0,
+          "line_vertical_sum": 0.0,
+          "shots": 0
+        },
+        "20-40": {
+          "high_shots": 0,
+          "high_sum": 0.0,
+          "hits": 0,
+          "line_shots": 0,
+          "line_vertical_sum": 0.0,
+          "shots": 0
+        },
+        "40+": {
+          "high_shots": 0,
+          "high_sum": 0.0,
+          "hits": 0,
+          "line_shots": 0,
+          "line_vertical_sum": 0.0,
+          "shots": 0
+        }
+      },
+      "stand": {
+        "0-20": {
+          "high_shots": 0,
+          "high_sum": 0.0,
+          "hits": 0,
+          "line_shots": 0,
+          "line_vertical_sum": 0.0,
+          "shots": 0
+        },
+        "20-40": {
+          "high_shots": 0,
+          "high_sum": 0.0,
+          "hits": 0,
+          "line_shots": 0,
+          "line_vertical_sum": 0.0,
+          "shots": 0
+        },
+        "40+": {
+          "high_shots": 0,
+          "high_sum": 0.0,
+          "hits": 0,
+          "line_shots": 0,
+          "line_vertical_sum": 0.0,
+          "shots": 0
+        }
+      }
+    }
+  }
+}

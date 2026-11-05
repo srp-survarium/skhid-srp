@@ -1,0 +1,235 @@
+{
+  "aim": {
+    "class_aim": {
+      "bolt": [1.0, 1.0, 1.0],
+      "marksman": [1.0, 1.0, 1.0],
+      "mg": [1.0, 1.0, 1.0],
+      "pistol": [1.0, 1.0, 1.0],
+      "rifle": [1.0, 1.0, 1.0],
+      "shotgun": [1.0, 1.0, 1.0],
+      "smg": [1.0, 1.0, 1.0]
+    },
+    "combat": {
+      "aim_sway_counter": false,
+      "fire": {
+        "burst_pause": null,
+        "weapon_class_by_data": false
+      },
+      "fire_through_ms": 0,
+      "grenade_at_held": null,
+      "grenade_chance": 0.15,
+      "grenade_claim": false,
+      "grenade_friend_m": 6.0,
+      "grenade_held_reach": false,
+      "grenade_held_recheck": false,
+      "grenade_land_m": 12.0,
+      "grenade_lead_s": 4.0,
+      "grenade_push_tracks": true,
+      "grenade_repick": false,
+      "grenade_commit": false,
+      "grenade_search": false,
+      "grenade_track_chance": 0.08,
+      "grenade_tracks": false,
+      "grenade_wall_m": 18.0,
+      "settle": "off",
+      "settle_k_low": 1.0,
+      "zoom_error": "off"
+    },
+    "skill_curve": "linear"
+  },
+  "avoid": {
+    "bot_pockets": false,
+    "grenade_avoid": false,
+    "kit_in_use": false
+  },
+  "cheats": {
+    "sight_hold_ms": 0
+  },
+  "commit": {
+    "crossfire_apart_mates": false,
+    "crossfire_point": false,
+    "cut_given_crowd": false,
+    "held_in_pass": false,
+    "hold_to_arrival": false
+  },
+  "cover": {
+    "hold_exposure": null,
+    "spot_cost": null
+  },
+  "feel": {
+    "band_from_grid": false,
+    "band_jump_gate": false,
+    "carrier_jump_m": null,
+    "drop_aim": false,
+    "drop_truth": "height",
+    "drop_walk": false,
+    "landing_cancel_deg": 0.0,
+    "landing_cancel_drops": false,
+    "lip_guard_full": false,
+    "lip_guard_ticks": 0,
+    "lip_look_ahead_m": 0.0,
+    "sprint_gaps": false,
+    "sprint_through": false,
+    "sprint_turns": null,
+    "unclear_aim": false,
+    "zone_lines": false
+  },
+  "grid": {
+    "crouch_floors": false,
+    "drop_room_walk_faces": false,
+    "exact_erosion": false,
+    "floor_paths": false,
+    "gap_links": false,
+    "honest_drops": false,
+    "jump_cap_m": 1.05,
+    "landing_carry": false,
+    "ramp_faces": false,
+    "walk_off_lips": false
+  },
+  "hazard": {
+    "artefact_know": false,
+    "escort_dry_post": false,
+    "escort_reach": false,
+    "hurt_by_shape": false,
+    "live_zones": false,
+    "price_way_out": false,
+    "route_crossing": "off",
+    "run_out": false
+  },
+  "heal": {
+    "bandages": false,
+    "on": false
+  },
+  "kin": {
+    "edge": "lattice",
+    "margin_edge": "lattice",
+    "slope_speed": "planar"
+  },
+  "kit": {
+    "frags": "off",
+    "pocket_store": false,
+    "smoke": "off"
+  },
+  "pace": {
+    "calm_sprint": false,
+    "goal_clause": false,
+    "leave_m": 34.0,
+    "old_rule_plays": ["collect"],
+    "reserve": null,
+    "ring_m": 30.0,
+    "track_age_ms": 20000
+  },
+  "spacing": {
+    "apart": false,
+    "apart_tie": false,
+    "lane": null,
+    "queue": null
+  },
+  "sense": {
+    "sight_refresh": false
+  },
+  "skill": {
+    "tiers": {
+      "13-15": {
+        "max": 1.0,
+        "min": 0.65,
+        "start": 0.85
+      },
+      "4-5": {
+        "max": 1.0,
+        "min": 0.3,
+        "start": 0.6
+      },
+      "9-10": {
+        "max": 1.0,
+        "min": 0.5,
+        "start": 0.75
+      }
+    }
+  },
+  "smoke": {
+    "anti_sniper": false,
+    "cross_lane": false,
+    "forming_client": false,
+    "react_watch": false,
+    "shooter_spot": null,
+    "spot_rules": false,
+    "throw_keeps_route": false,
+    "wait_for_cloud": null
+  },
+  "take": {
+    "zone_look": null,
+    "zone_take": null
+  },
+  "tdm": {
+    "behind_holds": null
+  },
+  "threat": {
+    "area": false,
+    "concede": null,
+    "crossfire_out_of_lines": false,
+    "gang_up": null,
+    "job": false,
+    "job_line_by_id": false,
+    "job_objective": false,
+    "job_open_staffed": false,
+    "lane_weighted": false,
+    "lanes_pierce": false,
+    "pair_up_hidden": false,
+    "recast": false,
+    "sniper_memory": null,
+    "trade_out_of_lines": false,
+    "whole_route": false,
+    "whole_route_booked": false
+  },
+  "think": {
+    "fall_lock": false,
+    "rest_off_lip": false,
+    "search_queue": "first_come",
+    "shut_in_gate": false,
+    "stamina": false,
+    "stranded_start": false,
+    "wall_clear_corners": false
+  },
+  "traps": {
+    "chance": 0.35,
+    "enemy_near_m": 50.0,
+    "enemy_quiet_s": 4.0,
+    "min_score": 0.2,
+    "on_the_pass": null,
+    "press_landing_m": null,
+    "ring_m": 0.0,
+    "react": {
+      "defuse": false,
+      "hear": false,
+      "jump": false,
+      "on": false,
+      "pass": false,
+      "shot": false
+    }
+  },
+  "unstick": {
+    "blind_stop_ms": null,
+    "drop_shut": null,
+    "home_gate_max_ms": null,
+    "home_no_way_ms": null,
+    "progress_ms": null,
+    "suicide_after_ms": null,
+    "suicide_loud": null,
+    "unknown_meant_needs_keys": false
+  },
+  "plays": {
+    "roam": {
+      "numbers": {
+        "fresh_claims": 0,
+        "join_ahead": 0,
+        "leader_eases": 0
+      }
+    },
+    "buddy": {
+      "numbers": {
+        "respawn_rule": 0
+      }
+    }
+  }
+}

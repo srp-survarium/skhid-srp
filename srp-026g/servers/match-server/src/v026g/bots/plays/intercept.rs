@@ -34,6 +34,7 @@
 //!   when he is lost, gets into his base, or after a time drawn per run.
 
 use super::*;
+use crate::v026g::bots::path::RouteHeight;
 use crate::v026g::bots::reflex::WeaponKind;
 use crate::v026g::bots::view::BatteryState;
 
@@ -77,6 +78,19 @@ pub const NUMBERS: &[(&str, f32)] = &[
     ("reach_in_band", 1.0),
     ("reach_closing", 0.8),
     ("reach_late", 0.5),
+    // A camping carrier (audit #6: the owner's match 0x4da3b51d, a carrier
+    // 8 m from his container for 4 minutes, 29 lone intercepts, 8 dead):
+    // the team's senses placed him for `camp_s` all within their error and
+    // `camp_m` of one point, past `camp_half` of the way from our container
+    // to his. He is no alarm and no commitment, and two bots are sent
+    // (`camp_pair` 1: both of the carry's slots offered), not one at a
+    // time. His score times `camp_cut` (1: off) was measured and left off
+    // (player_bots_behaviour.md §2.7).
+    ("camp_s", 20.0),
+    ("camp_m", 3.0),
+    ("camp_half", 0.5),
+    ("camp_cut", 1.0),
+    ("camp_pair", 1.0),
 ];
 
 pub fn tuning() -> PlayTuning {
@@ -225,10 +239,37 @@ impl Ctx<'_> {
         sensed || theft_recent
     }
 
-    /// The top of the bot's weapon's band, metres (play 11's; its role's
-    /// weapon 1, the support's for a tuning's own personality).
+    /// Whether the carrier of `carry` camps deep in his ground (the
+    /// numbers `camp_*`): the team's senses ([`TeamKnowledge::carrier_still`])
+    /// have him still, past `camp_half` of the way from our container to
+    /// his.
+    fn intercept_camping(&self, carry: &Carry) -> bool {
+        let num = |name| self.num(PlayKind::Intercept, name);
+        let Some(who) = carry.carrier else {
+            return false;
+        };
+        let Some(at) = self.team.carrier_still(
+            who,
+            self.now,
+            (num("camp_s") * 1000.0) as u32,
+            num("camp_m"),
+        ) else {
+            return false;
+        };
+        let (Some(ours), Some(his)) = (self.view.container_of(self.me.team), self.intercept_home(carry))
+        else {
+            return false;
+        };
+        let ours = ours.at;
+        let (dx, dz) = (his.x - ours.x, his.z - ours.z);
+        let length = dx * dx + dz * dz;
+        length >= 1.0 && ((at.x - ours.x) * dx + (at.z - ours.z) * dz) / length >= num("camp_half")
+    }
+
+    /// The top of the bot's weapon's band, metres (play 11's; its weapon 1,
+    /// the rifle's where it is not known).
     fn intercept_band_top(&self) -> f32 {
-        let kind = WeaponKind::of_role(&self.bot.personality.name).unwrap_or(WeaponKind::Rifle);
+        let kind = self.bot.weapon.unwrap_or(WeaponKind::Rifle);
         self.tuning.aim.combat.band(kind).1
     }
 
@@ -292,7 +333,10 @@ impl Ctx<'_> {
             None
         };
         let points = match route {
-            Some(route) => along(route.length(), &|s| (s, route.point_at(s))),
+            Some(route) => {
+                let height = if self.tuning.feel.floor_height_clear { RouteHeight::Floor } else { RouteHeight::Chord };
+                along(route.length(), &|s| (s, route.at(s, height)))
+            }
             None => {
                 // No route known: the straight way, with a detour factor.
                 let length = him.distance_xz(home);
@@ -312,7 +356,7 @@ impl Ctx<'_> {
 }
 
 pub fn candidates(cx: &Ctx, out: &mut Vec<Candidate>) {
-    if !cx.view.mode.has_batteries() || cx.me.carrying.is_some() {
+    if !cx.view.objective().has_homes() || cx.view.objective().is_actor(cx.me) {
         return;
     }
     let recent = (cx.num(PlayKind::Intercept, "theft_recent_s") * 1000.0) as u32;
@@ -343,10 +387,16 @@ pub fn candidates(cx: &Ctx, out: &mut Vec<Candidate>) {
             .filter(|t| t.battery == battery && t.time + recent >= cx.now)
             .max_by_key(|t| t.time);
         let key = battery as u32 * 2;
+        // A camping carrier: no alarm, no commitment, a pair sent.
+        let camp_cut = cx.num(PlayKind::Intercept, "camp_cut");
+        let camp_pair = cx.num(PlayKind::Intercept, "camp_pair") >= 0.5;
+        let camping = (camp_cut < 1.0 || camp_pair) && cx.intercept_camping(&Carry { carrier });
+        let cut = if camping { camp_cut } else { 1.0 };
         // Its running intercept of this carry, committed: kept at its
         // target (a theft's spot does not turn into his place and back) in
         // the alarm band, on either of the carry's slots.
         if let Some(target) = running
+            && !camping
             && cx.intercept_battery(target) == Some(battery)
             && cx.intercept_committed(target, theft.is_some())
         {
@@ -377,13 +427,18 @@ pub fn candidates(cx: &Ctx, out: &mut Vec<Candidate>) {
         if cx.intercept_fails_at_once(target) {
             continue;
         }
-        let reach = cx.intercept_reach(target);
-        if theft.is_some() && reach >= cx.num(PlayKind::Intercept, "reach_closing") {
+        let reach = cx.intercept_reach(target) * cut;
+        if !camping && theft.is_some() && reach >= cx.num(PlayKind::Intercept, "reach_closing") {
             for slot in [key, key + 1] {
                 if let Some(mut candidate) = scored(target, slot, reach) {
                     candidate.rank = Rank::Alarm;
                     out.push(candidate);
                 }
+            }
+        } else if camping && camp_pair {
+            // Two at once, not one after another into his ground.
+            for slot in [key, key + 1] {
+                out.extend(scored(target, slot, reach));
             }
         } else {
             out.extend(scored(target, key, reach));
@@ -554,7 +609,7 @@ mod tests {
         let found = intercepts(&scene(false), 0);
         assert_eq!(found.len(), 1);
         assert_eq!(found[0].rank, Rank::Objective);
-        // Far behind him, near his home (the flanker's band 25 m): it
+        // Far behind him, near his home (the flanker's band 35 m): it
         // would be in its band only after he is home; no alarm, and its
         // score is cut to the reach.
         let mut s = scene(true);
@@ -614,6 +669,61 @@ mod tests {
         assert_eq!(intercepts(&s, 0).len(), 1);
     }
 
+    /// Audit #6 (the owner's match 0x4da3b51d: a carrier 8 m from his
+    /// container for 4 minutes, 29 lone intercepts, 8 dead): a carrier the
+    /// team's senses have had still for 20 s (the thief cheat's places, 7 m
+    /// off) past the middle, in his ground, is no alarm and is offered on
+    /// both of the carry's slots (a pair; `camp_pair`), his score times
+    /// `camp_cut`; one on the move, or still on our side, is as before.
+    #[test]
+    fn a_carrier_camping_in_his_ground_is_no_alarm_and_gets_a_pair() {
+        let offsets = [(7.0f32, 0.0f32), (-5.0, 5.0), (0.0, -7.0), (4.0, 4.0), (-6.0, -3.0)];
+        // (the bot, his places over 24 s from `from` to `to`, a theft, the
+        // cut, the pair).
+        let run = |me: Vec3, from: Vec3, to: Vec3, theft: bool, cut: f32, pair: f32| {
+            let mut s = scene(theft);
+            s.bot(0, 0, me);
+            s.enemy(1, 1, to, Some(Source::Cheat(CheatKind::Thief)));
+            let numbers = &mut s
+                .tuning
+                .plays
+                .entry(PlayKind::Intercept)
+                .or_insert_with(|| default_tuning(PlayKind::Intercept))
+                .numbers;
+            numbers.insert("camp_cut".into(), cut);
+            numbers.insert("camp_pair".into(), pair);
+            for k in 0..9u32 {
+                let (dx, dz) = offsets[k as usize % offsets.len()];
+                let at = from + (to - from) * (k as f32 / 8.0) + Vec3::new(dx, 0.0, dz);
+                let time = s.view.clock - 24_000 + k * 3_000;
+                s.team.carrier_at(1, at, 10.0, time, |_| true);
+            }
+            let found = intercepts(&s, 0);
+            assert!(!found.is_empty(), "{found:#?}");
+            (found[0].rank, found[0].score.get(), found.len())
+        };
+        // Within its band of him.
+        let me = Vec3::new(30.0, 0.0, 36.0);
+        let camper = Vec3::new(50.0, 0.0, 33.0);
+        // Both off: the theft's alarm on both slots.
+        let (rank, full, n) = run(me, camper, camper, true, 1.0, 0.0);
+        assert_eq!((rank, n), (Rank::Alarm, 2));
+        // The pair (the default): both slots, no alarm, the score whole.
+        assert_eq!(run(me, camper, camper, true, 1.0, 1.0), (Rank::Objective, full, 2));
+        // The cut alone: one slot, the score cut.
+        let (rank, cut, n) = run(me, camper, camper, true, 0.25, 0.0);
+        assert_eq!((rank, n), (Rank::Objective, 1));
+        assert!((cut - full * 0.25).abs() < 1e-4, "{cut} {full}");
+        // On the move (30 m in 24 s): as before.
+        let walking = run(me, Vec3::new(20.0, 0.0, 33.0), camper, true, 0.25, 1.0);
+        assert_eq!(walking, (Rank::Alarm, full, 2));
+        // Still, on our side of the middle: as before (one slot, no theft).
+        let (me, ours) = (Vec3::new(4.0, 0.0, 31.0), Vec3::new(32.0, 0.0, 36.0));
+        let near = run(me, ours, ours, false, 1.0, 0.0);
+        assert_eq!(near.2, 1);
+        assert_eq!(run(me, ours, ours, false, 0.25, 1.0), near);
+    }
+
     #[test]
     fn at_most_two_bots_answer_a_theft() {
         let mut s = scene(true);
@@ -625,6 +735,7 @@ mod tests {
                 place,
                 candidates: intercepts(&s, place),
                 current: None,
+                committed: false,
             })
             .collect();
         let out = assign(asking, s.view.clock);
@@ -676,6 +787,7 @@ mod tests {
                 place: 0,
                 candidates: all,
                 current: Some(&current),
+                committed: false,
             }],
             s.view.clock,
         );
@@ -750,14 +862,14 @@ mod tests {
         );
     }
 
-    /// The reach by weapon: behind him at 30 m a flanker's Uzi (band top
-    /// 25 m) must close in, a support's AK-74U (45 m) has him in its band;
+    /// The reach by weapon: behind him at 39 m a flanker's Uzi (band top
+    /// 35 m) must close in, a support's AK-74U (50 m) has him in its band;
     /// a bot ahead of him on his way cuts him off whatever it carries.
     #[test]
     fn the_reach_reads_the_weapons_band_and_the_cut_off() {
         let mut s = scene(false);
         s.enemy(1, 1, Vec3::new(40.0, 0.0, 31.0), Some(Source::Seen));
-        s.bot(0, 0, Vec3::new(10.0, 0.0, 31.0));
+        s.bot(0, 0, Vec3::new(1.0, 0.0, 31.0));
         let reach = |s: &Scenario| s.cx(0).intercept_reach(TargetRef::Place(1));
         s.personality = 0;
         assert_eq!(s.tuning.personalities[0].name, "flanker");
@@ -774,6 +886,28 @@ mod tests {
         s.enemy(1, 1, Vec3::new(40.0, 0.0, 31.0), Some(Source::Seen));
         s.bot(0, 0, Vec3::new(52.0, 0.0, 31.0));
         assert!((reach(&s) - 1.0).abs() < 1e-6);
+    }
+
+    /// The band follows the weapon the bot holds, not its role's name: a
+    /// rusher with an SMG (tiers 9-10 and 13-15) reaches like the SMG, a
+    /// rusher with its shotgun like the shotgun.
+    #[test]
+    fn the_reach_follows_the_weapon_held_not_the_personality() {
+        let mut s = scene(false);
+        s.enemy(1, 1, Vec3::new(40.0, 0.0, 31.0), Some(Source::Seen));
+        s.bot(0, 0, Vec3::new(1.0, 0.0, 31.0));
+        let reach = |s: &Scenario| s.cx(0).intercept_reach(TargetRef::Place(1));
+        s.personality = 2;
+        assert_eq!(s.tuning.personalities[2].name, "rusher");
+        s.weapon = Some(WeaponKind::Smg);
+        let smg = reach(&s);
+        s.personality = 0;
+        s.weapon = None;
+        assert_eq!(s.tuning.personalities[0].name, "flanker");
+        assert!((smg - reach(&s)).abs() < 1e-6, "{smg}");
+        s.personality = 2;
+        s.weapon = Some(WeaponKind::Shotgun);
+        assert!(reach(&s) < smg, "the shotgun's band is shorter");
     }
 
     #[test]

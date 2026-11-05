@@ -24,9 +24,8 @@
 //! to it, and last the whole grid is searched.
 
 use std::cell::RefCell;
-use std::collections::BinaryHeap;
 
-use crate::grid::{Entry, LinkKind, NodeId, Search, SlicedSearch, WalkGrid};
+use crate::grid::{Entry, LinkKind, NodeId, Open, Search, SlicedSearch, WalkGrid};
 use crate::math::Vec3;
 
 /// A block's side, in cells (8 m at 0.25 m cells).
@@ -128,21 +127,16 @@ impl Regions {
             let ra = of[a as usize];
             for (b, kind) in grid.links(a) {
                 let rb = of[b as usize];
-                if ra != rb {
+                if ra != rb && grid.plans(a, b) {
                     pairs.push((ra, rb, kind as u8));
                 }
             }
         }
         pairs.sort_unstable();
         pairs.dedup_by(|later, first| later.0 == first.0 && later.1 == first.1);
-        let penalty = |kind: u8| {
-            match kind {
-                0 => LinkKind::Walk,
-                1 => LinkKind::Drop,
-                _ => LinkKind::Jump,
-            }
-            .penalty()
-        };
+        // The kind's penalty only: a lower bound of any link's cost over
+        // its length (an off-mesh link's gap cost is on top).
+        let penalty = |kind: u8| LinkKind::from_u8(kind).map_or(0.0, LinkKind::penalty);
         let mut out_start = Vec::with_capacity(regions + 1);
         let mut out = Vec::with_capacity(pairs.len());
         let mut k = 0;
@@ -374,7 +368,7 @@ struct Marks {
     cost: Vec<f32>,
     parent: Vec<u32>,
     search: u32,
-    open: BinaryHeap<Entry>,
+    open: Open,
 }
 
 impl Marks {
@@ -414,7 +408,7 @@ pub(crate) fn marks_bytes() -> usize {
             m.mark.capacity() * 4
                 + m.cost.capacity() * 4
                 + m.parent.capacity() * 4
-                + m.open.capacity() * std::mem::size_of::<Entry>()
+                + m.open.capacity() * std::mem::size_of::<u64>()
         })
         .unwrap_or(0)
 }
@@ -454,7 +448,7 @@ impl Regions {
             Ok(mut search) => {
                 let mut iters = usize::MAX;
                 search
-                    .step(self, grid, &allowed, &region_ok, &mut iters)
+                    .step(self, grid, &allowed, &region_ok, |_| 1.0, &mut iters)
                     .expect("an unbounded step ends the search")
             }
             Err(done) => done,
@@ -473,6 +467,24 @@ impl Regions {
         allowed: impl Fn(NodeId) -> bool,
         region_ok: impl Fn(u32) -> bool,
         budget: usize,
+    ) -> Result<RouteSearch, (Search, Stage)> {
+        self.start_route_search_reaching(grid, from, to, allowed, region_ok, budget, None)
+    }
+
+    /// [`Self::start_route_search`] for a body whose jumps rise at most
+    /// `max_rise` metres ([`WalkGrid::start_search_reaching`]). The regions'
+    /// own search knows no heights: a corridor that needs a higher jump
+    /// finds no way, and the search goes on widening to the whole grid.
+    #[allow(clippy::too_many_arguments)]
+    pub fn start_route_search_reaching(
+        &self,
+        grid: &WalkGrid,
+        from: NodeId,
+        to: NodeId,
+        allowed: impl Fn(NodeId) -> bool,
+        region_ok: impl Fn(u32) -> bool,
+        budget: usize,
+        max_rise: Option<f32>,
     ) -> Result<RouteSearch, (Search, Stage)> {
         let n = grid.len();
         if from as usize >= n || to as usize >= n || !grid.may_reach(from, to) {
@@ -502,6 +514,7 @@ impl Regions {
             inside: vec![0; self.len().div_ceil(64)],
             search: None,
             expanded: 0,
+            max_rise,
         };
         search.widen(self, grid, CORRIDOR_RINGS, &region_ok)?;
         Ok(search)
@@ -524,19 +537,24 @@ pub struct RouteSearch {
     search: Option<SlicedSearch>,
     /// Floors expanded by the stages done.
     expanded: usize,
+    /// The highest jump link the body takes.
+    max_rise: Option<f32>,
 }
 
 impl RouteSearch {
     /// Goes on for at most `iters` floors expanded (taken off it): the
     /// answer and the stage that gave it once the search ends, `None`
     /// while it goes on. `allowed` and `region_ok` must be the ones it was
-    /// started with.
+    /// started with, and `weight` too: each stage's floors are searched
+    /// with it ([`SlicedSearch::step`]; the regions' corridor is the coarse
+    /// pass, the floors' search inside it the fine one, as HPA*'s).
     pub fn step(
         &mut self,
         regions: &Regions,
         grid: &WalkGrid,
         allowed: impl Fn(NodeId) -> bool,
         region_ok: impl Fn(u32) -> bool,
+        weight: impl Fn(NodeId) -> f32,
         iters: &mut usize,
     ) -> Option<(Search, Stage)> {
         loop {
@@ -544,7 +562,7 @@ impl RouteSearch {
                 return Some((Search::NoWay, self.stage));
             };
             let found = if self.stage == Stage::Whole {
-                search.step(grid, &allowed, iters)?
+                search.step(grid, &allowed, &weight, iters)?
             } else {
                 let inside = &self.inside;
                 search.step(
@@ -553,6 +571,7 @@ impl RouteSearch {
                         let r = regions.of(v) as usize;
                         inside[r / 64] & (1 << (r % 64)) != 0 && allowed(v)
                     },
+                    &weight,
                     iters,
                 )?
             };
@@ -568,7 +587,7 @@ impl RouteSearch {
             } else {
                 self.stage = Stage::Whole;
                 self.search = None;
-                grid.start_search(self.from, self.to, self.budget)
+                grid.start_search_reaching(self.from, self.to, self.budget, self.max_rise)
                     .map(|search| self.search = Some(search))
                     .map_err(|done| (done, Stage::Whole))
             };
@@ -629,7 +648,7 @@ impl RouteSearch {
         }
         self.search = None;
         let search = grid
-            .start_search(self.from, self.to, usize::MAX)
+            .start_search_reaching(self.from, self.to, usize::MAX, self.max_rise)
             .map_err(|done| (done, self.stage))?;
         self.search = Some(search);
         Ok(())
@@ -639,6 +658,30 @@ impl RouteSearch {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// The regions' search keeps a body to its jump reach too: a 1.0 m ledge
+    /// is no way for a body that jumps 0.998 m at most, the walker finds
+    /// it, and a ramp round is the reaching body's way in every stage.
+    #[test]
+    fn a_route_search_keeps_to_a_bodys_jump_reach() {
+        use crate::grid::STANDING_JUMP_M;
+        let reaching = |rise: f32, ramp: Option<f32>| {
+            let grid = crate::grid::tests::ledge_yard(rise, ramp);
+            let regions = Regions::build(&grid, None);
+            let from = grid.locate(Vec3::new(9.0, 0.0, 1.0), 0.3).unwrap();
+            let to = grid.locate(Vec3::new(11.5, rise, 1.0), 0.3).unwrap();
+            let mut search = regions
+                .start_route_search_reaching(&grid, from, to, |_| true, |_| true, usize::MAX, Some(STANDING_JUMP_M))
+                .unwrap();
+            let mut iters = usize::MAX;
+            let (found, _) = search.step(&regions, &grid, |_| true, |_| true, |_| 1.0, &mut iters).unwrap();
+            let walker = regions.route_search(&grid, from, to, |_| true, |_| true, usize::MAX).0;
+            (matches!(walker, Search::Found(_)), matches!(found, Search::Found(_)))
+        };
+        assert_eq!(reaching(1.0, None), (true, false));
+        assert_eq!(reaching(0.9, None), (true, true));
+        assert_eq!(reaching(1.0, Some(7.0)), (true, true));
+    }
 
     /// A goal no let-through floor links into has no way, answered before
     /// any search, and the answer is the whole grid's.
@@ -729,7 +772,7 @@ mod tests {
             let mut slices = 0;
             let found = loop {
                 let mut iters = 7;
-                if let Some(found) = sliced.step(&regions, &grid, allowed, |_| true, &mut iters) {
+                if let Some(found) = sliced.step(&regions, &grid, allowed, |_| true, |_| 1.0, &mut iters) {
                     break found;
                 }
                 slices += 1;
