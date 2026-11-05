@@ -89,6 +89,13 @@ pub(crate) struct CamperOptions {
     pub(crate) start: CamperStart,
     /// Where the standing camper goes after a death ([`ReturnRule`]).
     pub(crate) returns: ReturnRule,
+    /// [A302 calibration] `SRP_BENCH_CAMPER_HOLD_FIRE=1`: a hit does not send him to hide (`Reflex::bench_open_cover`); he
+    /// answers from his spot, as the owner does (`fx-fights-a302-camper-calibration.md`: the hide held his legs and
+    /// blocked his sights for up to 4 s, 15.2 % of his shots).
+    pub(crate) hold_fire: bool,
+    /// [A302 calibration] `SRP_BENCH_CAMPER_SCOPED=1`: the scope he holds on his lane (`Watch::Lane`) counts toward his aim-in
+    /// (`Reflex::bench_scoped`), as the client counts a held scope; without it every far first shot waits the aim time again.
+    pub(crate) scoped: bool,
 }
 
 /// Where the standing camper (no [`MoveOptions`]) goes after a death (`SRP_BENCH_CAMPER_RETURN`).
@@ -124,6 +131,8 @@ impl CamperOptions {
         side: CamperSide::Given,
         start: CamperStart::Spawn,
         returns: ReturnRule::Always,
+        hold_fire: false,
+        scoped: false,
     };
 
     /// The environment's ([`bench_settings`]); a value it does not know refuses the run.
@@ -144,6 +153,11 @@ impl CamperOptions {
             Some("1") => true,
             Some(other) => return Err(format!("SRP_BENCH_CAMPER_CROUCH={other:?}: 1 or unset")),
         };
+        let flag = |name: &str| match get(name).as_deref() {
+            None | Some("0") => Ok(false),
+            Some("1") => Ok(true),
+            Some(other) => Err(format!("{name}={other:?}: 1 or unset")),
+        };
         let long_gun = match get("SRP_BENCH_CAMPER_GUN").as_deref() {
             None => false,
             Some("long") => true,
@@ -163,6 +177,8 @@ impl CamperOptions {
             side: CamperSide::parse(get("SRP_BENCH_CAMPER_SIDE").as_deref())?,
             start: CamperStart::parse(get("SRP_BENCH_CAMPER_START").as_deref(), get("SRP_BENCH_CAMPER_ARRIVE").as_deref())?,
             returns: ReturnRule::parse(get("SRP_BENCH_CAMPER_RETURN").as_deref())?,
+            hold_fire: flag("SRP_BENCH_CAMPER_HOLD_FIRE")?,
+            scoped: flag("SRP_BENCH_CAMPER_SCOPED")?,
         })
     }
 }
