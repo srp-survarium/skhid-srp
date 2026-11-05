@@ -168,11 +168,17 @@ mod tests {
             assert!(page.body.contains("data-skill=\"101\""));
             let files: Vec<&str> = page
                 .body
-                .match_indices("\"/skills/")
-                .map(|(at, _)| page.body[at + 1..].split_once("?v=").unwrap().0)
+                .match_indices("/skills/")
+                .filter(|&(at, _)| page.body[..at].ends_with(['"', '\'']))
+                .map(|(at, _)| page.body[at..].split_once("?v=").unwrap().0)
                 .collect();
             assert!(files.iter().any(|file| file.starts_with("/skills/icons/")));
             assert!(files.contains(&"/skills/skills.js"));
+            assert!(
+                files
+                    .iter()
+                    .any(|file| file.starts_with("/skills/icons/branch-"))
+            );
             for file in files {
                 let (content_type, bytes) = skills::file(file).unwrap_or_else(|| panic!("{file}"));
                 let kind = if file.ends_with(".js") {

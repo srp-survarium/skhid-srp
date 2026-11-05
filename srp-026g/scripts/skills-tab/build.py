@@ -12,13 +12,16 @@ in their order, as the game does. Nothing about a skill is written here: of
 as the exe's fill_skills_properties 0x223a70 makes it), place in the tree
 (`ui.position`: column, tier), threshold (`preconditions.branch_points`),
 exclusions (`preconditions.antiskills`), ranks (`levels_amount`), name and
-description (`ui.name`, `ui.description`), and the tooltip as the lobby
-shows it to a player without the skill: the exe's text for rank 0, from
-`ui.skill_descriptions` and `ui.postfix` (per rank r, description + d[r][0] +
-postfix + d[r][2], and below the last rank + "Current value:" + d[r][1] +
-postfix + d[r][3]), laid out as PerkTipRenderer lays it out. `ui.invert_sign`
-is read by nothing in the exe: the strings carry their signs. The texts are the English and Ukrainian localization; a branch's
-name is the label the exe gives its tab (BRANCHES).
+description (`ui.name`, `ui.description`), and the tooltip as the lobby writes
+it (`ui.skill_descriptions` and `ui.postfix`: per rank r, description +
+d[r][0] + postfix + d[r][2], and below the last rank + "Current value:" +
+d[r][1] + postfix + d[r][3]): its per-rank line (rank 0's, without "Current
+value": the page has no player) and the full rank's value, laid out as
+PerkTipRenderer lays it out. A branch's card has its tab's icon
+(SrvCharWindow's tab renderer, its `icon` at the frame CharWindow gives the
+tab of that index). `ui.invert_sign` is read by nothing in the exe: the
+strings carry their signs. The texts are the English and Ukrainian
+localization; a branch's name is the label the exe gives its tab (BRANCHES).
 
 The icons are the lobby's, from flash_movies/lobby_menu.swf through FFDec,
 drawn as its skill renderer (SrvSkillRendererCh) draws them: what lies under
@@ -79,6 +82,7 @@ WORDS = {
     "title": ("Skills", "Навички"),
     "wiki": ("Wiki", "Вікі"),
     "or": ("or", "або"),
+    "max": ("Maximum:", "Максимум:"),
 }
 # The lobby's skill renderer, and its sprites for the states: hovered, locked (its tier not
 # reached), excluded (another skill excluding it is hovered).
@@ -88,7 +92,7 @@ SVG, FFDEC = "http://www.w3.org/2000/svg", "https://www.free-decompiler.com/flas
 SHAPES = {2, 22, 32, 83}
 # The movie's scripts read: the medical icons, the rank indicator, the skill renderer.
 SCRIPTS = ("survarium.char.MedicalSkillIcon", "survarium.char.SkillProgressIndicator",
-           "survarium.buttons.SkillListRenderer")
+           "survarium.buttons.SkillListRenderer", "survarium.char.CharWindow", "SrvCharWindow")
 ZOOM = 2
 PLACE_OBJECT2, PLACE_OBJECT3, REMOVE_OBJECT, REMOVE_OBJECT2, SHOW_FRAME, DEFINE_SPRITE = 26, 70, 5, 28, 1, 39
 
@@ -204,9 +208,19 @@ def icons(args, raw, work, tree, out):
 
     sets = [only_child(ids["PerkIconContainer"], f) for f in range(len(sprite_frames(tags, ids["PerkIconContainer"])))]
     # The renderer: what lies under its iconContainer, over it, and the states' sprites.
-    subprocess.run(ffdec + ["-format", "sprite:svg", "-selectid", str(ids[RENDERER]), "-export", "sprite",
+    # The branches' tabs: SrvCharWindow's skillsTabPage renderer, whose `icon` goes to frame
+    # `icon` of CharWindow's tab of that index (ButtonIconCenter).
+    tab_class, = found(r'skillsTabPage\.itemRendererName = "(\w+)"', script(work, SCRIPTS[4]), "no skill tab renderer")
+    tab_icons = {int(i): int(f) for i, f in re.findall(r'"index":(\d+),\s*"icon":(\d+)', script(work, SCRIPTS[3]))}
+    if tab_class not in ids or not tab_icons:
+        die("lobby_menu.swf: no skill tabs")
+    subprocess.run(ffdec + ["-format", "sprite:svg", "-selectid", f"{ids[RENDERER]},{ids[tab_class]}", "-export", "sprite",
                             str(work / "renderer"), str(movie)], check=True, capture_output=True)
-    layers = renderer_layers(next((work / "renderer").glob("*/1.svg")).read_text())
+    svg_of = lambda cid: next(d / "1.svg" for d in (work / "renderer").iterdir() if re.fullmatch(rf"DefineSprite_{cid}(_.*)?", d.name))
+    tab_icon = next((cid for cid, name, *_ in renderer_layers(svg_of(ids[tab_class]).read_text()) if name == "icon"), None)
+    if tab_icon is None:
+        die(f"lobby_menu.swf: {tab_class} has no icon")
+    layers = renderer_layers(svg_of(ids[RENDERER]).read_text())
     named = {name: (cid, centre, origin) for cid, name, centre, origin in layers if name}
     for name in ("background", "iconContainer", "skillProgressIndicator", *OVERLAYS.values()):
         if name not in named:
@@ -232,7 +246,7 @@ def icons(args, raw, work, tree, out):
         else:
             die(f"skill {s['id']}: no icon (MedicalSkillIcon has none, PerkIconContainer no frame {s['branch'] + 1})")
     chars = {cid for _, cid, _ in wanted.values()} | set(under) | set(over) | {tint, named["iconContainer"][0]}
-    chars |= {named[n][0] for n in OVERLAYS.values()} | set(sets) | {ids[pip_class]}
+    chars |= {named[n][0] for n in OVERLAYS.values()} | set(sets) | {ids[pip_class], tab_icon}
     subprocess.run(ffdec + ["-format", "sprite:png,shape:png,image:png", "-zoom", str(ZOOM),
                             "-selectid", ",".join(map(str, sorted(chars))), "-export", "sprite,shape,image",
                             str(work / "art"), str(movie)], check=True, capture_output=True)
@@ -307,19 +321,33 @@ def icons(args, raw, work, tree, out):
         for x, y in pips(n):
             canvas = centred(pip, canvas, (x * ZOOM, y * ZOOM))
         overlays[f"pips-{n}"] = save(canvas, f"pips-{n}")
-    return urls, overlays, side / plate
+    # Each branch's tab icon, cut to its picture: a light glyph the page tints in its heading's
+    # colour (the wiki's .glyph, as its modification icons).
+    branch_icons = {}
+    for branch in sorted({s["branch"] for s in tree}):
+        if branch not in tab_icons:
+            die(f"lobby_menu.swf: CharWindow has no tab {branch}")
+        im = art(tab_icon, tab_icons[branch])
+        im = im.crop(im.getbbox())
+        path = out / "icons" / f"branch-{branch}.webp"
+        im.save(path, "WEBP", quality=90, method=6)
+        branch_icons[branch] = f"{SITE}/icons/branch-{branch}.webp?v={version(path.read_bytes())}"
+    return urls, overlays, side / plate, branch_icons
 
 
-def tooltip(skill, text, rank=0):
-    """The lobby's tooltip text of `skill` at `rank` as fill_skills_properties writes it, as
-    HTML: description + d[r][0] + postfix + d[r][2], below the last rank + st_current_value +
-    d[r][1] + postfix + d[r][3]; the markup (<green>) as the movie's stylesheet draws it."""
+def tooltip(skill, text, maximum):
+    """The tooltip's text as HTML: the lobby's line for a rank as fill_skills_properties writes
+    it (description + d[0][0] + postfix + d[0][2]; no "Current value": the page has no player),
+    then, for a skill of several ranks, its value at the last rank (d[last][0] + postfix +
+    d[last][2], the lobby's text at full rank) after `maximum`; the markup (<green>) as the
+    movie's stylesheet draws it."""
     said = text(skill["description"])
     if skill["postfix"]:
-        d, postfix = [str(part) for part in skill["rows"][rank]], text(skill["postfix"])
-        said += d[0] + postfix + d[2]
-        if rank < skill["ranks"]:
-            said += text("st_current_value") + d[1] + postfix + d[3]
+        postfix = text(skill["postfix"])
+        line = lambda d: str(d[0]) + postfix + str(d[2])
+        said += line(skill["rows"][0])
+        if skill["ranks"] > 1:
+            said += "\n" + maximum + line(skill["rows"][-1])
     said = html.escape(said.strip())
     said = said.replace("&lt;green&gt;", '<span class="skill-value">').replace("&lt;/green&gt;", "</span>")
     said = re.sub(r"&lt;/?\w+&gt;", "", said).replace("\n", "<br>")
@@ -349,7 +377,7 @@ def skills_of(raw):
     return tree
 
 
-def page(lang, tree, texts, urls, overlays, disc, script_url):
+def page(lang, tree, texts, urls, overlays, disc, script_url, branch_icons):
     """The wiki page's body in `lang`."""
     i = 0 if lang == "en" else 1
 
@@ -381,7 +409,7 @@ def page(lang, tree, texts, urls, overlays, disc, script_url):
         # A tier's threshold: the least any of its skills needs; a skill that
         # needs more than the branch's other ranks add up to is out of reach.
         needs = {t: min(s["needs"] for s in skills if s["tier"] == t) for t in tiers}
-        out.append(f'<section class="skill-branch"><h2>{esc(text(BRANCHES[branch]))}</h2>'
+        out.append(f'<section class="skill-branch"><h2><span class="glyph" style="--icon:url(\'{branch_icons[branch]}\')" aria-hidden="true"></span>{esc(text(BRANCHES[branch]))}</h2>'
                    f'<div class="skill-grid" style="--columns:{columns}">')
         for t in tiers:
             out.append(f'<div class="skill-tier" style="grid-row:{t}"><b>{NUMERALS[t - 1]}</b> · {points(lang, needs[t])}</div>')
@@ -391,7 +419,7 @@ def page(lang, tree, texts, urls, overlays, disc, script_url):
             locked = s["needs"] > reach
             # PerkTipRenderer: the name, a line, the text; one line unless the skill has one rank.
             wrap = " wrap" if s["ranks"] <= 1 else ""
-            tip = f'<div class="skill-tip{wrap}"><b>{esc(name)}</b><p>{tooltip(s, text)}</p></div>'
+            tip = f'<div class="skill-tip{wrap}"><b>{esc(name)}</b><p>{tooltip(s, text, word("max"))}</p></div>'
             badge = f'<span class="skill-or">{word("or")}</span>' if s["excludes"] else ""
             out.append(
                 f'<div class="skill{" locked" if locked else ""}" tabindex="0" data-skill="{s["id"]}" '
@@ -432,11 +460,11 @@ def main():
         texts = {lang: load(raw, f"localization/{name}/localization")["strings"] for lang, name in LANGS.items()}
         shutil.rmtree(out, ignore_errors=True)
         out.mkdir(parents=True)
-        urls, overlays, disc = icons(args, raw, work, tree, out)
+        urls, overlays, disc, branch_icons = icons(args, raw, work, tree, out)
     shutil.copy(HERE / "skills.js", out / "skills.js")
     script_url = f"{SITE}/skills.js?v={version((out / 'skills.js').read_bytes())}"
     for lang in LANGS:
-        (out / f"skills.{lang}.html").write_text(page(lang, tree, texts, urls, overlays, disc, script_url))
+        (out / f"skills.{lang}.html").write_text(page(lang, tree, texts, urls, overlays, disc, script_url, branch_icons))
     served = ["skills.js"] + [f"icons/{f.name}" for f in sorted((out / "icons").iterdir())]
     (out / "files.rs").write_text(
         "// Built by srp-026g/scripts/skills-tab/build.py; do not edit. The files the skills page names.\n"

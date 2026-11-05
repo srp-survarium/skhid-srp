@@ -3,15 +3,17 @@
 The website's `/wiki/skills`, a page of the wiki (`srp-026g/servers/web-server/src/skills.rs`):
 every branch of the skill tree as the lobby draws it.
 
-- One card per branch the tree has (the wiki's card look), named as the game names its tab.
+- One card per branch the tree has (the wiki's card look), named and iconed as the game's tab
+  (its tab icon tinted like the wiki's other glyphs).
 - Each skill at its column and tier, its icon drawn as the lobby's skill renderer draws it (plate,
   branch tint, rim) with its rank indicator (the lobby's pips on the disc's lower arc, empty).
 - Each tier's numeral and threshold on one line at its left.
 - Either/or skills marked "or"; hovering one shows the renderer's red lock on what it excludes,
   as the lobby does; hovering any shows its hover rim.
 - A skill that needs more points than its branch can hold carries the renderer's lock.
-- The tooltip is the lobby's: the name, a line, the text the exe writes for a player without the
-  skill (the next rank's value in the game's green, "Current value"). It follows a mouse's hover;
+- The tooltip is the lobby's: the name, a line, the text the exe writes for a rank (its value in
+  the game's green), and for a skill of several ranks its maximum (the lobby's text at full
+  rank); no "Current value", as the page has no player. It follows a mouse's hover;
   a tap opens it, a tap or a scroll closes it; it opens below the skill, or above when there is
   no room, and never moves the page.
 - A tree is never squeezed: a card that does not fit goes to the next row; on a phone the whole
