@@ -144,6 +144,7 @@ given), LIKELY or GUESS.
 | [rooms.md](rooms.md) | Rooms |
 | [serbia-flag.md](serbia-flag.md) | The Flag of Serbia decal |
 | [snapshot_rules.md](snapshot_rules.md) | The snapshot's game rules and statistics blobs |
+| [subtick_bullet_hits.md](subtick_bullet_hits.md) | Bullets hit players where they stood when crossed (the owner, 2026-11-05; exe patch 103, unreleased): each player near a bullet's ray is tested at the ms the bullet reached him, put back along his controller's move in the 50 ms step; translation only; the level as before; nothing of the physics world moved; in the match simulation (`simulation_changes.tsv`) |
 | [tab-list-left-places.md](tab-list-left-places.md) | The Tab list shows the places in the match (patches 39, 43) |
 | [vegetation-runtime.md](vegetation-runtime.md) | Runtime vegetation |
 | [../DEPLOY.md](../DEPLOY.md) | The Docker files for the 0.26g server beside the live 0.21d one (ports table), certificates, the players' overlay |

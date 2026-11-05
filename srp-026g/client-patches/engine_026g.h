@@ -9,13 +9,19 @@
 #define ENGINE_026G_H
 
 struct artefact;
+struct bt_broadphase_proxy;
+struct bt_collision_object;
+struct bt_collision_shape;
+struct bt_transform;
 struct buffer_string;
 struct buffer_writer;
+struct bullet;
 struct bullet_manager;
 struct bullet_physics_world;
 struct cc_bool;
 struct cc_float;
 struct cc_string;
+struct closest_ray_result_callback;
 struct core_world;
 struct critical_section;
 struct di_command_queue;
@@ -508,6 +514,15 @@ const struct sound_options *engine_sound_options(const struct sound_propagator_e
 
 /* 0x7ab70 vostok::network_core::mutable_buffer::reallocate: buffer ESI, capacity EDI; pops 0 */
 void engine_buffer_reallocate(void *buffer, unsigned int capacity);
+
+/* 0x75b40 vostok::physics::closest_ray_result_callback::closest_ray_result_callback: callback EAX, from ESI, to EDX, group ESP+4, mask ESP+8, requester ESP+12; pops 12 */
+void engine_ray_callback(struct closest_ray_result_callback *callback, const float *from, const float *to, unsigned int group, unsigned int mask, struct bullet *requester);
+
+/* 0x75bd0 vostok::physics::closest_ray_result_callback::needsCollision: callback ECX, proxy ESP+4; pops 4; AL */
+unsigned char engine_ray_needs_collision(struct closest_ray_result_callback *callback, struct bt_broadphase_proxy *proxy);
+
+/* 0xa02d0 btCollisionWorld::rayTestSingle: from ESP+4, to ESP+8, object ESP+12, shape ESP+16, transform ESP+20, callback ESP+24; pops 0; cdecl, called directly */
+void __attribute__((cdecl)) engine_ray_test_single(struct bt_transform *from, struct bt_transform *to, struct bt_collision_object *object, struct bt_collision_shape *shape, struct bt_transform *transform, struct closest_ray_result_callback *callback);
 
 /* 0x3b9c00 vostok::input::platform::keyboard::get_dik_name: keyboard ECX, key ESP+4, name ESP+8, size ESP+12; pops 12; AL; thiscall, called directly */
 unsigned char __attribute__((thiscall)) engine_key_name(struct keyboard *keyboard, unsigned int key, char *name, unsigned int size);

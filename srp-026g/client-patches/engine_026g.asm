@@ -144,6 +144,9 @@ global engine_create_sound_voice
 global engine_detach_voice
 global engine_sound_options
 global engine_buffer_reallocate
+global engine_ray_callback
+global engine_ray_needs_collision
+global engine_ray_test_single
 global engine_key_name
 global engine_activate_keyboard_layout
 global engine_get_module_handle_a
@@ -191,6 +194,7 @@ engine_heap_alloc equ 0x87004c   ; the IAT slot 0x87004c (an import, stdcall)
 engine_get_process_heap equ 0x870050   ; the IAT slot 0x870050 (an import, stdcall)
 engine_heap_free equ 0x870054   ; the IAT slot 0x870054 (an import, stdcall)
 engine_detach_voice equ 0x5cb80   ; 0x5cb80 vostok::sound::new_sound_propagator::detach_voice: propagator ESP+4; pops 4; stdcall, called directly
+engine_ray_test_single equ 0xa02d0   ; 0xa02d0 btCollisionWorld::rayTestSingle: from ESP+4, to ESP+8, object ESP+12, shape ESP+16, transform ESP+20, callback ESP+24; pops 0; cdecl, called directly
 engine_key_name equ 0x3b9c00   ; 0x3b9c00 vostok::input::platform::keyboard::get_dik_name: keyboard ECX, key ESP+4, name ESP+8, size ESP+12; pops 12; AL; thiscall, called directly
 engine_activate_keyboard_layout equ 0xaeff20   ; the IAT slot 0xaeff20 (an import, stdcall)
 engine_get_module_handle_a equ 0x87003c   ; the IAT slot 0x87003c (an import, stdcall)
@@ -1849,6 +1853,43 @@ engine_buffer_reallocate:
     mov esi, [esp + 20]   ; buffer
     mov edi, [esp + 24]   ; capacity
     call 0x7ab70
+    pop edi
+    pop esi
+    pop ebx
+    pop ebp
+    ret
+
+    align 16, db 0xCC
+engine_ray_callback:
+    ; 0x75b40 vostok::physics::closest_ray_result_callback::closest_ray_result_callback: callback EAX, from ESI, to EDX, group ESP+4, mask ESP+8, requester ESP+12; pops 12
+    push ebp
+    push ebx
+    push esi
+    push edi
+    push dword [esp + 40]   ; requester -> 12
+    push dword [esp + 40]   ; mask -> 8
+    push dword [esp + 40]   ; group -> 4
+    mov eax, [esp + 32]   ; callback
+    mov esi, [esp + 36]   ; from
+    mov edx, [esp + 40]   ; to
+    call 0x75b40
+    pop edi
+    pop esi
+    pop ebx
+    pop ebp
+    ret
+
+    align 16, db 0xCC
+engine_ray_needs_collision:
+    ; 0x75bd0 vostok::physics::closest_ray_result_callback::needsCollision: callback ECX, proxy ESP+4; pops 4; AL
+    push ebp
+    push ebx
+    push esi
+    push edi
+    push dword [esp + 24]   ; proxy -> 4
+    mov ecx, [esp + 24]   ; callback
+    call 0x75bd0
+    movzx eax, al
     pop edi
     pop esi
     pop ebx

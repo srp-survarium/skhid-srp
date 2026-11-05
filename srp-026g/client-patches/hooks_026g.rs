@@ -1031,6 +1031,21 @@ pub extern "C" fn hook_medical_skills_on_listener(frame: &mut Frame) -> u32 {
     }
 }
 
+// ---- subtick_hits (patch 103) ----
+
+/// The entry `subtick_hits_on_ray` (0x32d627, check_collision after the bullet's ray_test (movq of its result; EAX the result, EDI the bullet)) calls this with the saved machine.
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_subtick_hits_on_ray(frame: &mut Frame) -> u32 {
+    // SAFETY: only the entry `subtick_hits_on_ray` calls this, from the game's jump at 0x32d627,
+    // on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::new(frame) };
+    match crate::subtick_hits::on_ray(&mut ctx) {
+        Flow::Continue => 0,
+        Flow::Skip => 1,
+        Flow::Exit(e) => match e {},
+    }
+}
+
 // ---- ragdoll (patch 76) ----
 
 /// The entry `ragdoll_on_ray` (0x32d627, check_collision after the bullet's ray_test (movq of its result; EAX the result, EDI the bullet)) calls this with the saved machine.
@@ -2699,7 +2714,9 @@ pub extern "C" fn hook_ragdoll_on_step_chain(frame: &mut Frame) -> u32 {
 }
 
 #[unsafe(no_mangle)]
-pub extern "C" fn hook_ragdoll_on_ray_chain(frame: &mut Frame) -> u32 {
+pub extern "C" fn hook_subtick_hits_on_ray_chain(frame: &mut Frame) -> u32 {
+    let flow = hook_subtick_hits_on_ray(frame);
+    if flow != 0 { return flow; }
     let flow = hook_ragdoll_on_ray(frame);
     if flow != 0 { return flow; }
     let flow = hook_lamps_on_ray(frame);
