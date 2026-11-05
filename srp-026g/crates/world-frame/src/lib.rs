@@ -22,14 +22,19 @@
 //!
 //! A game reads it with no check of its own (0x324D80), so [`Frame::parse`]
 //! takes only a body that:
+//! - is at most [`MAX_BODY`] bytes: the game hashes every world it holds
+//!   (`game_state_history_item::hash` 0x325150) in a buffer of that size;
 //! - walks from the front to exactly its end: a length past the body reads
 //!   past the game's buffer;
 //! - has no mask bit at or past the match's [`Places`]: bit k goes into
 //!   slot k with no bound, and the history item has 20;
-//! - has no section over its buffer ([`Section::cap`]) and no player state
-//!   over [`PLAYER_STATE_CAP`]: a longer one reaches
-//!   `mutable_buffer::reallocate` 0x7AB70, which has no allocator (the fatal
-//!   "mutable buffer overflow", then a call through null).
+//! - has no player state over [`PLAYER_STATE_CAP`]: a longer one reaches
+//!   `mutable_buffer::reallocate` 0x7AB70, which has no allocator for it
+//!   (the fatal "mutable buffer overflow", then a call through null).
+//!
+//! The six sections have no buffer of their own to fit: patch 98 gives each
+//! the game's multithreaded allocator, so they grow (a section is under
+//! [`MAX_BODY`] with the body).
 //!
 //! Each is a length or a bit against a hard limit of the game's, so a world
 //! a game made can never be refused: it serializes into the same buffers.
@@ -61,6 +66,12 @@ use core::fmt;
 /// match has at most this many places.
 pub const MAX_PLAYERS: u8 = 20;
 
+/// The bytes of a body: `game_state_history_item::hash` (0x325150)
+/// serializes the world into a stack buffer of this size, with no allocator
+/// (0x8000 in the original exe; patch 98's 0xF000, which the snapshot
+/// upload's u16 total holds). A longer world asserts there.
+pub const MAX_BODY: usize = 0xF000;
+
 /// The buffer of a player's state (`player_history_item` 0x3247D0, read by
 /// 0x33FD80). Real states have at most 0x3A8 bytes.
 pub const PLAYER_STATE_CAP: usize = 0x1000;
@@ -86,20 +97,6 @@ impl Section {
         Section::Rules,
         Section::Effects,
     ];
-
-    /// The bytes after its u16 length that its buffer in a game's history
-    /// item holds (0x324523..0x324680, 0x3246D0). Real worlds have at most
-    /// 0x230, 0x45C, 0x3EC, 0, 0x76B and 0x57.
-    pub const fn cap(self) -> usize {
-        match self {
-            Section::Bullets => 0x2400,
-            Section::Statistics => 0xC00,
-            Section::Objects => 0x2000,
-            Section::Physics => 0x4000,
-            Section::Rules => 0x800,
-            Section::Effects => 0xC00,
-        }
-    }
 
     pub const fn name(self) -> &'static str {
         match self {
@@ -173,7 +170,7 @@ impl Slots {
     }
 }
 
-/// A section of a body that fits its buffer.
+/// A section of a body.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct SectionBytes<'a> {
     /// Where its bytes start in the body (after the u16 length).
@@ -195,6 +192,9 @@ pub struct Frame<'a> {
 impl<'a> Frame<'a> {
     /// `body` (from the mask on) read from the front.
     pub fn parse(body: &'a [u8], places: Places) -> Result<Frame<'a>, Refusal> {
+        if body.len() > MAX_BODY {
+            return Err(Refusal::OverBuffer { len: body.len() });
+        }
         let mut reader = Reader::new(body);
         let mask = reader.u32().ok_or(Refusal::Short {
             part: Part::Mask,
@@ -232,9 +232,6 @@ impl<'a> Frame<'a> {
             };
             let len = usize::from(reader.u16().ok_or(short(reader.at))?);
             let at = reader.at;
-            if len > section.cap() {
-                return Err(Refusal::SectionOverCap { section, at, len });
-            }
             let bytes = reader.take(len).ok_or(short(at))?;
             *place = SectionBytes { at, bytes };
         }
@@ -279,6 +276,8 @@ impl<'a> Frame<'a> {
 /// Where in a body a refusal is.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Part {
+    /// The body as a whole.
+    Body,
     /// The world's time, before the body (a game's state only).
     Time,
     Mask,
@@ -292,6 +291,7 @@ impl Part {
     /// Its words, without a player's slot.
     pub const fn name(self) -> &'static str {
         match self {
+            Part::Body => "body",
             Part::Time => "time",
             Part::Mask => "mask",
             Part::Player(_) => "player",
@@ -315,18 +315,14 @@ impl fmt::Display for Part {
 pub enum Refusal {
     /// The state is shorter than the world's time.
     NoTime,
+    /// A body of `len` bytes, over [`MAX_BODY`].
+    OverBuffer { len: usize },
     /// The bytes end inside `part`, at `at`.
     Short { part: Part, at: usize },
     /// The mask has bit `bit`, at or past the places.
     SlotPastPlaces { bit: u8, places: Places },
     /// A player state of `len` bytes, over [`PLAYER_STATE_CAP`].
     StateOverCap { slot: Slot, at: usize, len: usize },
-    /// A section of `len` bytes, over its [`Section::cap`].
-    SectionOverCap {
-        section: Section,
-        at: usize,
-        len: usize,
-    },
     /// `len` bytes after the effects.
     Trailing { at: usize, len: usize },
 }
@@ -335,10 +331,10 @@ impl Refusal {
     pub const fn part(self) -> Part {
         match self {
             Refusal::NoTime => Part::Time,
+            Refusal::OverBuffer { .. } => Part::Body,
             Refusal::Short { part, .. } => part,
             Refusal::SlotPastPlaces { .. } => Part::Mask,
             Refusal::StateOverCap { slot, .. } => Part::Player(slot),
-            Refusal::SectionOverCap { section, .. } => Part::Section(section),
             Refusal::Trailing { .. } => Part::End,
         }
     }
@@ -346,10 +342,9 @@ impl Refusal {
     /// Its offset in the body.
     pub const fn at(self) -> usize {
         match self {
-            Refusal::NoTime | Refusal::SlotPastPlaces { .. } => 0,
+            Refusal::NoTime | Refusal::OverBuffer { .. } | Refusal::SlotPastPlaces { .. } => 0,
             Refusal::Short { at, .. }
             | Refusal::StateOverCap { at, .. }
-            | Refusal::SectionOverCap { at, .. }
             | Refusal::Trailing { at, .. } => at,
         }
     }
@@ -358,10 +353,10 @@ impl Refusal {
     pub const fn reason(self) -> &'static str {
         match self {
             Refusal::NoTime => "shorter than a time",
+            Refusal::OverBuffer { .. } => "over the game's world buffer",
             Refusal::Short { .. } => "the bytes end inside it",
             Refusal::SlotPastPlaces { .. } => "a player past the places",
             Refusal::StateOverCap { .. } => "a state over its buffer",
-            Refusal::SectionOverCap { .. } => "over its buffer",
             Refusal::Trailing { .. } => "bytes after the effects",
         }
     }
@@ -380,9 +375,7 @@ impl fmt::Display for Refusal {
             Refusal::StateOverCap { len, .. } => {
                 write!(f, "a state of {len:#x} bytes, over {PLAYER_STATE_CAP:#x}")
             }
-            Refusal::SectionOverCap { section, len, .. } => {
-                write!(f, "{len:#x} bytes, over {:#x}", section.cap())
-            }
+            Refusal::OverBuffer { len } => write!(f, "{len:#x} bytes, over {MAX_BODY:#x}"),
             Refusal::Trailing { len, .. } => write!(f, "{len} bytes after the effects"),
             refusal => f.write_str(refusal.reason()),
         }

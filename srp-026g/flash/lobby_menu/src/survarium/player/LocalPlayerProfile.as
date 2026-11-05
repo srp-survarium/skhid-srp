@@ -400,11 +400,11 @@ package survarium.player
          return new MatchEffects(_kitModifiers,kit);
       }
 
-      // The selected kit's effects while Alt is held over a weapon's card; null otherwise (the
-      // card shows the weapon's own stats).
+      // The selected kit's effects while Alt is held over a weapon's or a medicine's card; null otherwise (the
+      // card shows the item's own stats).
       public static function heldMatchEffects(item:Object) : MatchEffects
       {
-         return MainScene.isAlt && me != null && item != null && item.isWeapon ? me.matchEffects() : null;
+         return MainScene.isAlt && me != null && MatchEffects.covers(item) ? me.matchEffects() : null;
       }
 
       public function enableSecondWeapon(value:Boolean) : void
