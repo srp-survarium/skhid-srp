@@ -1482,11 +1482,11 @@ st_microphone_sensitivity_option	Czułość mikrofonu
 st_military_medkit_description	W pełni leczy ręce i nogi. Przywraca 60% zdrowia tułowia i głowy oraz 50% bólu.
 st_military_medkit_name	Apteczka wojskowa
 st_minimap	Minimapa
-st_minimap_bottom	Dolny lewy róg
+st_minimap_bottom	Minimapa lewa dolna
 st_minimap_off	Minimapa ukryta
 st_minimap_position	Pozycja minimapy
 st_minimap_rotable_option	Ustal pozycję minimapy
-st_minimap_top	Górny lewy róg
+st_minimap_top	Minimapa lewa górna
 st_missile_weapon_action	Granat
 st_missions	Misje
 st_mm_button_back	Wstecz
@@ -2476,6 +2476,7 @@ st_srp_map_cologne	Most w Kolonii
 st_srp_map_london	Londyn
 st_srp_map_mamayev_kurgan	Kurhan Mamaja
 st_srp_map_mamayev_kurgan_v021	Kurhan Mamaja (v0.21)
+st_srp_map_names_option	Nicki na mapie
 st_srp_map_rudnya	Rudnia
 st_srp_map_rudnya_v069	Rudnia (v0.69)
 st_srp_map_school	Szkoła

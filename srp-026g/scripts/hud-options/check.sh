@@ -7,7 +7,8 @@
 #   pending until Apply, Cancel, the tabs, every dictionary's labels (inside the panel, their glyphs)
 #   and its crosshair and minimap position choices (inside their lists);
 # - HudHarness.as: the crosshair's hit marker shown off and hidden on; the Tab list off as today,
-#   on names only, each team by clan tag then name (clanless next, bots last; case-insensitive).
+#   on names only, each team by clan tag then name (clanless next, bots last; case-insensitive);
+#   the Tab map's names with Alt, and "Names on map" reversing Alt.
 # Screenshots into the work dir: settings.png (at rest), settings-checked.png (a toggle, Apply
 # enabled), settings-crosshair-open.png, settings-minimap-open.png, list-scores.png, list-names.png. Exits 0 when both say pass. No game, no server.
 set -euo pipefail
@@ -30,7 +31,8 @@ sys.path.insert(0, sys.argv[1])
 from localization_026g import CATALOG, LANGUAGES, read_translations
 keys = ('st_srp_hide_hit_markers_option', 'st_srp_hide_scores_option', 'st_srp_options_hud', 'st_srp_language_option',
         'st_srp_language_restart', 'st_srp_hide_quests_option', 'st_srp_crosshair_dynamic', 'st_srp_crosshair_static',
-        'st_srp_crosshair_hidden', 'st_srp_static_minimap_option', 'st_minimap_off', 'st_minimap_bottom', 'st_minimap_top')
+        'st_srp_crosshair_hidden', 'st_srp_static_minimap_option', 'st_minimap_off', 'st_minimap_bottom', 'st_minimap_top',
+        'st_srp_map_names_option')
 print(json.dumps([[read_translations(CATALOG / f'{name}.tsv')[k] for k in keys] for name, *_ in LANGUAGES],
                  ensure_ascii=False, separators=(',', ':')))
 PY
