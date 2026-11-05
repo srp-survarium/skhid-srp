@@ -175,6 +175,29 @@ fn a_spectator_that_leaves_the_match_leaves_the_queue() {
     assert!(sent_to_match(&world.take(carol)).is_none());
 }
 
+/// Its game's word to the lobby (`31 .. 1`, back from its match) may come
+/// before the match server's: it leaves the queue all the same, and is
+/// never sent back to the match.
+#[test]
+fn a_spectator_back_in_the_lobby_by_its_own_word_leaves_the_queue() {
+    let mut world = World::new();
+    let (key, ticket, _) = full_room_playing(&mut world);
+    let carol = world.connect("Carol");
+    rows(&mut world, carol, ROOM_WATCH_BASE + key, 1);
+    world.advance(Duration::from_secs(1));
+    assert!(sent_to_match(&world.take(carol)).is_some());
+    world.ask(carol, request::leave(1, true));
+    world.advance(Duration::from_secs(2));
+    assert!(sent_to_match(&world.take(carol)).is_none());
+    assert_eq!(watched(&world, carol), None);
+    assert_eq!(world.core.rooms.queue_place(world.ids[carol].0), None);
+    // The match server's word, later: nothing more.
+    let session = session_of(&world, carol);
+    world.core.store.matchmaking().watcher_left(session, ticket);
+    world.advance(Duration::from_secs(1));
+    assert!(sent_to_match(&world.take(carol)).is_none());
+}
+
 #[test]
 fn a_spectator_stays_queued_past_the_match_and_watches_the_next() {
     let mut world = World::new();

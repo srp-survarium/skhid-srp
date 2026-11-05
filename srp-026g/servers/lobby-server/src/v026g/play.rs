@@ -819,6 +819,13 @@ impl Core<'_> {
             player.in_match = None;
             player.connect = None;
         }
+        // A spectator back from the match it watched left it by itself,
+        // whichever word comes first, this or the match server's
+        // (`room_watchers` takes it out of the queue): never sent back.
+        let matchmaking = self.store.matchmaking();
+        if left_match && let Some(watcher) = matchmaking.watched(who.session_id) {
+            matchmaking.watcher_left(who.session_id, watcher.ticket);
+        }
         if !left_match {
             // A clan team it waited with does not wait any more.
             self.clan_left_queue(who.account_id);
