@@ -36,9 +36,10 @@ const SERVERS: [&str; 5] = ["login", "lobby", "match", "web", "srp"];
 const LOG_DIR_VAR: &str = "SRP_LOG_DIR";
 const DEFAULT_LOG_DIR: &str = "logs";
 /// A server's file is rotated before it grows past this.
-const MAX_FILE_BYTES: u64 = 4 << 20;
-/// Files per server: `<server>.log` and `<server>.log.1` to `.7`.
-const KEPT_FILES: u32 = 8;
+const MAX_FILE_BYTES: u64 = 8 << 20;
+/// Files per server: `<server>.log` and `<server>.log.1` to `.15` (128 MB:
+/// a day of the match server at its heaviest seen, 2026-11-01).
+const KEPT_FILES: u32 = 16;
 /// The buffer of a file is written out at a line this long after the last.
 const FLUSH_AFTER: Duration = Duration::from_secs(1);
 const SECONDS_PER_DAY: u64 = 86_400;

@@ -100,8 +100,8 @@ services:
       # The server's log, <server>.log for each of login, lobby, match, web
       # and srp, in the data volume: it outlives the container, which an
       # update makes anew (the container's own output, `docker compose logs`,
-      # is gone then). At 4 MB a file is rotated (lobby.log.1, .2, ...); 8
-      # files of each server are kept, 160 MB at most for the five.
+      # is gone then). At 8 MB a file is rotated (lobby.log.1, .2, ...); 16
+      # files of each server are kept, 640 MB at most for the five.
       - SRP_LOG_DIR=/srv/srp/data/logs
       - RUST_LOG=${RUST_LOG:-info}
       # Passed on only when set in the shell or in `.env` (unset: srp's own

@@ -204,9 +204,10 @@ the new one, and recreate the container.
   `logs/`.
 - `logs/<server>.log` (login, lobby, match, web, srp): each server's lines,
   dated (`2026-11-05T10:00:00.000Z [INFO] ...`), added to across restarts
-  and container recreates. At 4 MB a file becomes `<server>.log.1` (`.1`
-  becomes `.2`, ...); 8 files per server are kept, so at most 32 MB a
-  server and 160 MB for the five. All the servers made about 0.3 MB a day
+  and container recreates. At 8 MB a file becomes `<server>.log.1` (`.1`
+  becomes `.2`, ...); 16 files per server are kept, so at most 128 MB a
+  server and 640 MB for the five (a day of the heaviest logging seen,
+  2026-11-01, 40-130 MB a day). All the servers made about 0.3 MB a day
   of 14 matches at `RUST_LOG=info`. Lines reach the file through an 8 KiB
   buffer: at once for a warning or an error, else with the first line a
   second after the last write, and at a stop (SIGTERM). A process killed
