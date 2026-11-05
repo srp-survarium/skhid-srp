@@ -118,11 +118,12 @@ every model.
 
 The reported 9A-91 example matches the Cobra EKP-8 fitted model:
 `models/weapons/a9_91/a9_91_cobra_ekp_8.skinned_model`. Its geometry reproduces
-the upward displacement (14.5 px at 720 lines). An offline centering is not
-sufficient to claim the screenshot's precise pixel offset is fixed.
+the upward displacement (14.5 px at 720 lines).
 `../content-edit/sight-alignment-1.json` is `plan` and `export` on the players'
-files through patch 47 (`../../docs/notes/sight-alignment.md`): 24 models, the
-9A-91's among them. It replaces the first rotation-only candidate for the
+files through patch 47, cut to that one model (the owner's choice; the note
+`../../docs/notes/sight-alignment.md` lists the other 23 the plan finds off).
+The owner saw its dot centred in the game (2026-11-05). It replaces the first
+rotation-only candidate for the
 9A-91 (aim rotation x 0.009 -> -0.0101 at the same position, which centres the
 dot too but leaves the eye 3.8 mm above the optic's axis).
 

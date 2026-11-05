@@ -465,9 +465,10 @@ and a dictionary entry), or none.
 
 | change | why |
 |---|---|
-| The `aim` locator (`set_entry` of `locators` where `name` is `aim`: position and rotation) of 24 collimator weapon models, 23 of base patch 19's fitted variants and the Kriss Vector's own model (its stock Walther). Each eye now looks along the optic's own axis (the gun's posed frame at `scope_point`: unturned on most guns, the item idle pose on the 9A-91, Val, Vepr, SR-2M, UMP45, Saiga, Valmet, Fort-17, Remington 870), moved across it onto the dot's line (0.6 to 4.6 mm) | the dot showed 2.2 to 14.5 px off the screen's centre at 720 lines (the 9A-91's Cobra 14.5 px high, the Ash-12's 9.7, the UMP45's EOTech 9.3 low), where the bullets go. The fault is in retail 0.29a3's data, which patch 19 shipped as it was: those eyes kept the iron sights' turn, or none where the idle pose turns the gun |
+| The `aim` locator (`set_entry` of `locators` where `name` is `aim`: position and rotation) of `weapons/a9_91/a9_91_cobra_ekp_8`, the 9A-91's Cobra EKP-8 variant model: rotation (0.009, 0, -0.006) -> (-0.01476, 0, -0.00607), the turn its idle pose gives the gun; position 3.8 mm down and 0.5 mm aside, onto the dot's line | the dot showed 14.5 px above the screen's centre at 720 lines, where the bullets go (the owner's report). The fault is in retail 0.29a3's data, which base patch 19 shipped as it was: the eye kept the iron sights' turn where the idle pose turns the gun the other way. Checked in the game by the owner (2026-11-05): centred |
 
 Made by `../sight-alignment/align.py plan` and `export` (`../../docs/notes/sight-alignment.md`) on the
-players' files (the stock db and patches 12 to 47 of release/patches.tsv; revision 48 is live). `content_edit.py --check` on them: 24 files edited, 0 unexpected
-differences. Collimators within 1.5 px (the AK family's 1 px, the IZh-27's, SR-3M's 1.1) stay. View
-only: no simulation change.
+players' files (the stock db and patches 12 to 47 of release/patches.tsv; revision 48 is live), then
+cut to this one entry. `content_edit.py --check` on them: 1 file edited, 0 unexpected differences.
+The other collimators the plan found off stay as they are, by the owner's choice (the note lists
+them). View only: no simulation change.
