@@ -3198,3 +3198,10 @@ va	status	ref_021d	name
 0x00063140	inferred-high	0x00046be8	vostok::sound::sound_voice::sound_voice
 0x0005a470	inferred-medium		vostok::sound::sound_voice::~sound_voice
 0x0005dde0	inferred-high	0x00043729	vostok::sound::voice_bridge::OnBufferEnd
+0x00025f30	inferred-high	0x0001e2f6	vostok::math::curve_line_points<float,0>::evaluate
+0x00062a80	inferred-high	0x0004674f	vostok::math::curve_line_points<float,0>::load<vostok::configs::binary_config_value>
+0x00062930	inferred-medium		vostok::sound::sound_spl::sound_spl
+0x0005c1f0	inferred-medium	0x00042245	vostok::sound::sound_instance_proxy_internal::get_position
+0x00057560	inferred-medium	0x0003eaef	vostok::sound::sound_scene::get_listenet_position
+0x00063d60	inferred-high	0x000474fb	vostok::sound::composite_sound::emit_sound_propagators
+0x000633f0	inferred-medium	0x00043646	vostok::sound::voice_bridge::set_volume_impl
