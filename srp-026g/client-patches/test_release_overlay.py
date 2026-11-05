@@ -86,7 +86,7 @@ class ReleaseTests(unittest.TestCase):
         self.updater.write_bytes(updater + b"<requestedExecutionLevel level='asInvoker' uiAccess='false'/>")
         # DXVK's release archive, a stand-in with its two DLLs, and its pins
         # (build() gives the builder these in place of the real ones).
-        self.dxvk_dlls = {'d3d11.dll': b'MZ dxvk d3d11 fixture', 'dxgi.dll': b'MZ dxvk dxgi fixture'}
+        self.dxvk_dlls = {name: b'MZ dxvk fixture ' + name.encode() for name in overlay.DXVK_DLLS}
         self.dxvk = self.root / f'dxvk-{overlay.DXVK_VERSION}.tar.gz'
         with tarfile.open(self.dxvk, 'w:gz') as archive:
             for name, data in self.dxvk_dlls.items():
@@ -101,7 +101,8 @@ class ReleaseTests(unittest.TestCase):
             'game/resources/ssl/survarium_login_server.crt'}
         self.names = self.without_launcher | {
             'game/binaries/x86/launcher_skhid.exe', 'game/binaries/x86/updater_skhid.exe',
-            'game/binaries/x86/7zr.exe', 'game/binaries/x86/dxvk/d3d11.dll', 'game/binaries/x86/dxvk/dxgi.dll',
+            'game/binaries/x86/7zr.exe',
+            *(f'game/binaries/x86/dxvk/{name}' for name in ('d3d8.dll', 'd3d9.dll', 'd3d10core.dll', 'd3d11.dll', 'dxgi.dll')),
             'game/binaries/x86/updater_skhid.url', 'Skhid.bat', 'Skhid-without-updater.bat', 'Skhid.sh',
             'VPN.txt', 'Skhid-network-setup.cmd', 'Skhid-defender-setup.cmd', 'Skhid-collect-logs.cmd',
         } | {f'game/binaries/x86/launcher_skhid/index-{blank}{code}.html'
@@ -338,11 +339,14 @@ class ReleaseTests(unittest.TestCase):
         # among them, and the archive's dxvk folder the pinned DLLs.
         rust = Path(overlay.HERE, '..', '..', 'client', 'updater', 'logic', 'src', 'dxvk.rs').read_text(encoding='utf-8')
         # its rows: a release each, its DLLs in the order of DLLS
-        ours = re.search(r'pub const OURS: \[\[&str; 2\]; \d+\] = \[(.*?)\];', rust, re.S).group(1)
+        ours = re.search(r'pub const OURS: \[\[&str; N\]; \d+\] = \[(.*?)\];', rust, re.S).group(1)
         rows = [re.findall(r'"([0-9a-f]{64})"', row) for row in re.findall(r"\[([^\]]*)\]", ours)]
         self.assertIn(list(overlay.DXVK_DLLS.values()), rows)
-        self.assertIn('pub const DLLS: [&str; 2] = ["d3d11.dll", "dxgi.dll"];', rust)
-        self.assertEqual(list(overlay.DXVK_DLLS), ['d3d11.dll', 'dxgi.dll'])
+        # winetricks dxvk's set, in the updater's order
+        names = ['d3d8.dll', 'd3d9.dll', 'd3d10core.dll', 'd3d11.dll', 'dxgi.dll']
+        self.assertEqual(re.findall(r'"([a-z0-9]+\.dll)"', re.search(r'pub const DLLS: \[&str; N\] = \[(.*?)\];', rust, re.S).group(1)),
+                         names)
+        self.assertEqual(list(overlay.DXVK_DLLS), names)
         archive = self.root / 'dxvk.zip'
         self.build(archive, '--pack-zip')
         with zipfile.ZipFile(archive) as z:

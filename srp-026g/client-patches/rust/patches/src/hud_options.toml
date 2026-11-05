@@ -14,6 +14,12 @@ site = "configs.start"
 handler = "on_configs"
 order = 2
 
+# the process's start, before any Direct3D DLL is loaded: the DXVK marker
+# written when a d3d11.dll is beside the game (docs/notes/dxvk-option.md)
+[[hook]]
+site = "memory.allocate_arenas"
+handler = "on_process_start"
+
 [[hook]]
 site = "options.callback"
 handler = "on_options_call"

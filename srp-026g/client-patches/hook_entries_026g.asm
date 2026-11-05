@@ -1551,6 +1551,45 @@ language_on_configs_start_replay:
     db 0x55, 0x8b, 0xec, 0x83, 0xe4, 0xf8
     jmp 0x1ea216
 
+; 0xe9580 memory::platform::allocate_arenas' start (mov eax,11A8h before its stack probe 0x429F20): once, at the process's start (memory::allocate_region, 0xE11F9), before the VRAM check's get_local_video_memory_size 0x106300 (Direct3DCreate9) at 0xE9C3F and the render device: lohook -> hud_options_on_process_start
+global hud_options_on_process_start
+extern hook_hud_options_on_process_start
+hud_options_on_process_start:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_hud_options_on_process_start
+    mov edx, hud_options_on_process_start_replay
+    cmp eax, 0
+    je hud_options_on_process_start_go
+    mov edx, 0xe9585
+    cmp eax, 1
+    je hud_options_on_process_start_go
+    ud2
+hud_options_on_process_start_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+hud_options_on_process_start_replay:
+    db 0xb8, 0xa8, 0x11, 0x00, 0x00
+    jmp 0xe9585
+
 ; 0x1ff5d0 game_options::scaleform_callback's start (push ebp / push esi / mov esi,[esp+10h]): ECX the options' interface, the site's ESP+4 the movie, +8 the method's name, +0Ch the arguments, +10h their count; done is its `ret 10h`: lohook -> language_on_options_call
 global language_on_options_call
 extern hook_language_on_options_call_chain

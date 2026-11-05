@@ -19,10 +19,11 @@
 //!   (`root.srp_hud_options(hide hit markers, hide scores, hide crosshair,
 //!   map names)`),
 //!   once for each change of the movie or of a setting;
-//! - at `configs.start` too, once a process: with a `d3d11.dll` beside the
-//!   game (Windows takes it before its own: DXVK's, or the player's) the
-//!   marker `dxvk.pending` is written, before the renderer is made (d3d11 and
-//!   dxgi are delay-loaded: nothing of theirs has run yet);
+//! - the process's start (`memory.allocate_arenas`, the engine's first
+//!   memory set-up, before the VRAM check's Direct3DCreate9 0xE9C3F and the
+//!   render device; every Direct3D DLL is a delayed import, so none has run
+//!   yet): with a `d3d11.dll` beside the game (Windows takes it before its
+//!   own: DXVK's, or the player's) the marker `dxvk.pending` is written;
 //! - the login screen shown (`login_menu.activated`, after patch 88): the
 //!   renderer works, the marker goes (docs/notes/dxvk-option.md; the
 //!   updater turns DXVK off when it finds the marker with its DLLs);
@@ -80,15 +81,6 @@ pub const DXVK_MARKER: &CStr = c"dxvk.pending";
 /// The DLL Windows takes from the game's folder before its own.
 const D3D11: &CStr = c"d3d11.dll";
 
-/// Whether this process looked for a `d3d11.dll` beside it yet (configs.start
-/// may run again).
-#[derive(Clone, Copy, PartialEq, Eq)]
-enum RendererCheck {
-    NotYet,
-    Done,
-}
-
-static RENDERER_CHECK: GameCell<RendererCheck> = GameCell::new(RendererCheck::NotYet);
 
 /// Every setting of this patch, as the Settings call them.
 pub static SETTINGS: [&Setting; 5] = [&HIDE_HIT_MARKERS, &HIDE_SCORES, &MAP_NAMES, &HIDE_CROSSHAIR, &DXVK];
@@ -147,15 +139,19 @@ struct Told {
 static TOLD: GameCell<Option<Told>> = GameCell::new(None);
 
 pub fn on_configs(ctx: &mut Context<'_>) -> Flow<NoExit> {
-    let thread = ctx.thread();
     for setting in SETTINGS {
-        setting.value.register(thread, setting.name);
+        setting.value.register(ctx.thread(), setting.name);
     }
-    if RENDERER_CHECK.get(thread) == RendererCheck::NotYet {
-        RENDERER_CHECK.set(thread, RendererCheck::Done);
-        if file_exists(thread, D3D11) {
-            create_file(thread, DXVK_MARKER);
-        }
+    Flow::Continue
+}
+
+/// The process's start (memory::platform::allocate_arenas 0xE9580, once):
+/// a start with a `d3d11.dll` beside the game leaves the marker until its
+/// login screen shows.
+pub fn on_process_start(ctx: &mut Context<'_>) -> Flow<NoExit> {
+    let thread = ctx.thread();
+    if file_exists(thread, D3D11) {
+        create_file(thread, DXVK_MARKER);
     }
     Flow::Continue
 }

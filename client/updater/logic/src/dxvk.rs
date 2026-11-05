@@ -1,6 +1,6 @@
 //! The opt-in Vulkan renderer (`srp-026g/docs/notes/dxvk-option.md`): the
-//! game imports `d3d11.dll` and `dxgi.dll`, and Windows takes them from the
-//! game's own folder first. The Skhid ZIP ships DXVK's two in
+//! game's Direct3D DLLs (d3d9, dxgi, d3d11, delay-loaded) are taken from its
+//! own folder first. The Skhid ZIP ships DXVK's (all of [`DLLS`]) in
 //! `binaries\x86\dxvk\`; at every update the updater puts them beside the game
 //! when the player's Settings ask for it (user.cfg's `srp_dxvk on`) and a
 //! Vulkan device can run DXVK, and takes them away otherwise. Only a file
@@ -22,20 +22,33 @@ use crate::sha256::from_hex;
 /// The folder beside the updater that holds DXVK's DLLs (the ZIP's
 /// `game/binaries/x86/dxvk/`).
 pub const FOLDER: &str = "dxvk";
-/// DXVK's DLLs the game loads, in the order of [`decide`]'s arrays.
-pub const DLLS: [&str; 2] = ["d3d11.dll", "dxgi.dll"];
+/// DXVK's DLLs, the ones `winetricks dxvk` puts into a Wine prefix (the
+/// setup the local clients run): all of them beside the game or none, so that
+/// none of Windows' own Direct3D DLLs runs beside DXVK's (the VRAM check's
+/// Direct3DCreate9 at the start takes DXVK's d3d9 then, as under Wine).
+pub const DLLS: [&str; N] = [
+    "d3d8.dll",
+    "d3d9.dll",
+    "d3d10core.dll",
+    "d3d11.dll",
+    "dxgi.dll",
+];
+pub const N: usize = 5;
 /// The user.cfg variable of the Settings' checkbox (exe patch 83).
 pub const SETTING: &[u8] = b"srp_dxvk";
 /// Beside the game and the updater: written by the game at its start with a
 /// `d3d11.dll` beside it, deleted once its login screen shows.
 pub const MARKER: &str = "dxvk.pending";
 
-/// The SHA-256 of every DXVK release a Skhid ZIP has shipped, its two DLLs
-/// in the order of [`DLLS`]: DXVK 3.1.1's x32 `d3d11.dll` and `dxgi.dll`
-/// (`dxvk-3.1.1.tar.gz`, sha256 `40565b4a…`, `make_client_026g.py`'s
-/// `DXVK_DLLS`). A later DXVK adds its row and keeps these, so that the copies
-/// an earlier ZIP put beside the game are known.
-pub const OURS: [[&str; 2]; 1] = [[
+/// The SHA-256 of every DXVK release a Skhid ZIP has shipped, its DLLs in
+/// the order of [`DLLS`]: DXVK 3.1.1's x32 ones (`dxvk-3.1.1.tar.gz`, sha256
+/// `40565b4a…`, `make_client_026g.py`'s `DXVK_DLLS`). A later DXVK adds its
+/// row and keeps these, so that the copies an earlier ZIP put beside the game
+/// are known.
+pub const OURS: [[&str; N]; 1] = [[
+    "9152ba43386e756790a66f61cdcee01b3287d156d4161c7456d816faa82fc364",
+    "265888c31ca78dffa290c39cb7e50bfb02762590e41927906e46fb32f01497fa",
+    "110c41a5f67a0ab6d4eea586708883ce05aede204a0df6665e6362669079c2ba",
     "f44543cbe5c40202915a02ed6e9ac8140c3524e846ae67b01f6faa79485d1fd3",
     "abd1449dc28d536a4289c256ae7f4b6bbd15fa552792b7170c2ddece473c8bda",
 ]];
@@ -203,8 +216,8 @@ pub struct Found {
     /// [`MARKER`] is there.
     pub marker: bool,
     /// Beside the game, and in [`FOLDER`], in the order of [`DLLS`].
-    pub beside: [File; 2],
-    pub source: [File; 2],
+    pub beside: [File; N],
+    pub source: [File; N],
 }
 
 /// Where DXVK stands at the start of a run.
@@ -245,7 +258,7 @@ pub enum Unused {
     /// No Vulkan device can run it.
     Vulkan(Probe),
     /// [`FOLDER`] lacks this DLL of a release of ours (gone, unreadable,
-    /// other bytes), or its two are not of one release.
+    /// other bytes), or it is not of the same release as the first.
     NoSource(usize),
     /// This DLL beside the game is the player's own: it stays.
     Foreign(usize),
@@ -266,7 +279,8 @@ pub enum Plan {
 }
 
 /// The run's plan from what it found. `vulkan` is asked only when DXVK may
-/// be used (the setting on, the last start not failed).
+/// be used (the setting on, the last start not failed). All of [`DLLS`] or
+/// none: one of them missing or not ours is plain DirectX.
 pub fn step(found: &Found, vulkan: impl FnOnce() -> Probe) -> Plan {
     let which =
         |pick: &dyn Fn(usize) -> bool| (0..DLLS.len()).filter(|&i| pick(i)).collect::<Vec<usize>>();
@@ -281,15 +295,12 @@ pub fn step(found: &Found, vulkan: impl FnOnce() -> Probe) -> Plan {
             remove: ours.clone(),
         },
         State::NotStarted | State::Confirmed => {
-            let releases = [0, 1].map(|i| match found.source[i] {
+            let releases: [Option<usize>; N] = core::array::from_fn(|i| match found.source[i] {
                 File::Ours(hash) => release(i, &hash),
                 File::Missing | File::Other => None,
             });
-            if let Some(i) = (0..DLLS.len()).find(|&i| releases[i].is_none()) {
+            if let Some(i) = (0..N).find(|&i| releases[i].is_none() || releases[i] != releases[0]) {
                 return unused(Unused::NoSource(i));
-            }
-            if releases[0] != releases[1] {
-                return unused(Unused::NoSource(1));
             }
             if let Some(i) = (0..DLLS.len()).find(|&i| found.beside[i] == File::Other) {
                 return unused(Unused::Foreign(i));
@@ -314,14 +325,25 @@ mod tests {
         File::Ours(from_hex(OURS[0][i].as_bytes()).unwrap())
     }
 
-    const BOTH: [File; 2] = [File::Missing; 2];
+    fn all() -> [File; N] {
+        core::array::from_fn(ours)
+    }
 
-    fn found(asked: bool, marker: bool, beside: [File; 2]) -> Found {
+    const NONE: [File; N] = [File::Missing; N];
+    const EVERY: [usize; N] = [0, 1, 2, 3, 4];
+
+    /// `files` with the one of DLL `i` replaced.
+    fn with(mut files: [File; N], i: usize, file: File) -> [File; N] {
+        files[i] = file;
+        files
+    }
+
+    fn found(asked: bool, marker: bool, beside: [File; N]) -> Found {
         Found {
             asked,
             marker,
             beside,
-            source: [ours(0), ours(1)],
+            source: all(),
         }
     }
 
@@ -348,12 +370,13 @@ mod tests {
 
     #[test]
     fn ours_are_the_pinned_hashes_each_for_its_dll() {
+        assert_eq!(DLLS.len(), N);
         for (i, hash) in OURS[0].iter().enumerate() {
             let hash = from_hex(hash.as_bytes()).unwrap();
-            assert!(is_ours(i, &hash));
-            assert!(!is_ours(1 - i, &hash));
             assert_eq!(File::of_hash(i, hash), ours(i));
-            assert_eq!(File::of_hash(1 - i, hash), File::Other);
+            for other in (0..N).filter(|&j| j != i) {
+                assert_eq!(File::of_hash(other, hash), File::Other);
+            }
         }
         assert_eq!(File::of_hash(0, [0; 32]), File::Other);
     }
@@ -428,62 +451,66 @@ mod tests {
     fn off_removes_ours_only_and_asks_no_vulkan() {
         let plan = |beside| step(&found(false, false, beside), unasked);
         assert_eq!(
-            plan([ours(0), ours(1)]),
+            plan(all()),
             Plan::Unused {
-                remove: vec![0, 1],
+                remove: EVERY.to_vec(),
                 why: Unused::Off
             }
         );
         assert_eq!(
-            plan([File::Other, ours(1)]),
+            plan(with(all(), 3, File::Other)),
             Plan::Unused {
-                remove: vec![1],
+                remove: vec![0, 1, 2, 4],
                 why: Unused::Off
             }
         );
         assert_eq!(
-            plan([File::Other; 2]),
+            plan([File::Other; N]),
             Plan::Unused {
                 remove: vec![],
                 why: Unused::Off
             }
         );
-        assert_eq!(
-            State::of(&found(false, true, [ours(0), ours(1)])),
-            State::Off
-        );
+        assert_eq!(State::of(&found(false, true, all())), State::Off);
     }
 
     #[test]
-    fn on_and_not_started_copies_both() {
-        let first = found(true, false, BOTH);
+    fn on_and_not_started_copies_them_all() {
+        let first = found(true, false, NONE);
         assert_eq!(State::of(&first), State::NotStarted);
-        assert_eq!(step(&first, good), Plan::Use { copy: vec![0, 1] });
+        assert_eq!(
+            step(&first, good),
+            Plan::Use {
+                copy: EVERY.to_vec()
+            }
+        );
         // a marker of a start without ours (a d3d11.dll of the player's own): not a failure
         assert_eq!(
-            step(&found(true, true, BOTH), good),
-            Plan::Use { copy: vec![0, 1] }
+            step(&found(true, true, NONE), good),
+            Plan::Use {
+                copy: EVERY.to_vec()
+            }
         );
     }
 
     #[test]
     fn on_and_confirmed_keeps_them() {
-        let confirmed = found(true, false, [ours(0), ours(1)]);
+        let confirmed = found(true, false, all());
         assert_eq!(State::of(&confirmed), State::Confirmed);
         assert_eq!(step(&confirmed, good), Plan::Use { copy: vec![] });
         // the launcher started again without PLAY: still confirmed (the updater writes no marker)
         assert_eq!(step(&confirmed, good), Plan::Use { copy: vec![] });
-        // a release's copy of another hash is replaced
+        // one gone (an earlier ZIP's set, a player's tidying) is put back
         assert_eq!(
-            step(&found(true, false, [ours(1), ours(1)]), good),
-            Plan::Use { copy: vec![0] }
+            step(&found(true, false, with(all(), 2, File::Missing)), good),
+            Plan::Use { copy: vec![2] }
         );
         // the driver no longer suffices: plain DirectX
         let old = Probe::Device(Version::new(1, 3, 280));
         assert_eq!(
             step(&confirmed, || old),
             Plan::Unused {
-                remove: vec![0, 1],
+                remove: EVERY.to_vec(),
                 why: Unused::Vulkan(old)
             }
         );
@@ -491,11 +518,16 @@ mod tests {
 
     #[test]
     fn on_and_pending_is_a_failed_start_turned_off() {
-        let failed = found(true, true, [ours(0), ours(1)]);
+        let failed = found(true, true, all());
         assert_eq!(State::of(&failed), State::Failed);
-        assert_eq!(step(&failed, unasked), Plan::TurnOff { remove: vec![0, 1] });
         assert_eq!(
-            step(&found(true, true, [File::Missing, ours(1)]), unasked),
+            step(&failed, unasked),
+            Plan::TurnOff {
+                remove: EVERY.to_vec()
+            }
+        );
+        assert_eq!(
+            step(&found(true, true, with(NONE, 1, ours(1))), unasked),
             Plan::TurnOff { remove: vec![1] }
         );
     }
@@ -509,7 +541,7 @@ mod tests {
             Probe::Failed(5),
         ] {
             assert_eq!(
-                step(&found(true, false, BOTH), || probe),
+                step(&found(true, false, NONE), || probe),
                 Plan::Unused {
                     remove: vec![],
                     why: Unused::Vulkan(probe)
@@ -519,29 +551,22 @@ mod tests {
     }
 
     #[test]
-    fn on_without_ours_in_the_folder_is_plain_directx() {
-        // gone, unreadable, other bytes
+    fn on_without_all_of_ours_in_the_folder_is_plain_directx() {
+        // gone, unreadable, other bytes; another DLL's hash in a DLL's place
         for (source, i) in [
-            ([File::Missing, ours(1)], 0),
-            ([ours(0), File::Other], 1),
-            ([File::Other, File::Other], 0),
-            // the two of one release only: d3d11's hash in dxgi's place
-            (
-                [
-                    ours(0),
-                    File::Ours(from_hex(OURS[0][0].as_bytes()).unwrap()),
-                ],
-                1,
-            ),
+            (with(all(), 0, File::Missing), 0),
+            (with(all(), 4, File::Other), 4),
+            ([File::Other; N], 0),
+            (with(all(), 1, ours(0)), 1),
         ] {
             let found = Found {
                 source,
-                ..found(true, false, [ours(0), ours(1)])
+                ..found(true, false, all())
             };
             assert_eq!(
                 step(&found, unasked),
                 Plan::Unused {
-                    remove: vec![0, 1],
+                    remove: EVERY.to_vec(),
                     why: Unused::NoSource(i)
                 }
             );
@@ -551,16 +576,16 @@ mod tests {
     #[test]
     fn on_never_replaces_a_dll_of_the_players() {
         assert_eq!(
-            step(&found(true, false, [File::Other, File::Missing]), unasked),
+            step(&found(true, false, with(NONE, 3, File::Other)), unasked),
             Plan::Unused {
                 remove: vec![],
-                why: Unused::Foreign(0)
+                why: Unused::Foreign(3)
             }
         );
         assert_eq!(
-            step(&found(true, false, [ours(0), File::Other]), unasked),
+            step(&found(true, false, with(all(), 1, File::Other)), unasked),
             Plan::Unused {
-                remove: vec![0],
+                remove: vec![0, 2, 3, 4],
                 why: Unused::Foreign(1)
             }
         );

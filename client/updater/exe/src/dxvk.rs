@@ -32,7 +32,7 @@ use crate::win;
 pub const PROBE_WORD: &str = "vulkan";
 /// How long the Vulkan check may take before it is ended.
 const PROBE_MS: u64 = 10_000;
-/// Larger than either DLL (8 MB, 6 MB).
+/// Larger than any of the DLLs (d3d11.dll, 8 MB).
 const MAX_DLL: usize = 64 << 20;
 /// A file while it is written beside its place (the overlay's name: the
 /// next start's clean-up deletes one left over).
@@ -45,8 +45,8 @@ pub fn run(session: &mut Session, layout: &Layout) {
     let found = Found {
         asked: user_cfg.as_ref().is_some_and(|(_, text)| asked(text)),
         marker: win::exists(&marker),
-        beside: [0, 1].map(|i| look(i, &format!("{}\\{}", layout.exe_dir, DLLS[i]))),
-        source: [0, 1].map(|i| look(i, &source_path(layout, DLLS[i]))),
+        beside: core::array::from_fn(|i| look(i, &format!("{}\\{}", layout.exe_dir, DLLS[i]))),
+        source: core::array::from_fn(|i| look(i, &source_path(layout, DLLS[i]))),
     };
     let plan = step(&found, || run_probe(session, layout));
     match plan {
@@ -54,7 +54,7 @@ pub fn run(session: &mut Session, layout: &Layout) {
             for &i in &which {
                 if let Err(why) = copy(layout, i, found.source[i]) {
                     log!("dxvk: {why}; plain DirectX this time");
-                    remove_ours(layout, &[0, 1]);
+                    remove_ours(layout, &(0..DLLS.len()).collect::<alloc::vec::Vec<usize>>());
                     break;
                 }
                 log!("dxvk: {} put beside the game", DLLS[i]);

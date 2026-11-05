@@ -16,10 +16,13 @@ Scaleform's Invoke 0x511600 a stub that records each call; translate_text
   `srp_hide_scores`, `srp_map_names`, `srp_hide_crosshair` and `srp_dxvk` registered once, after patch 79's `localization`, with
   the game's own cc_value<bool>::cc_value (a cc_bool, saved, kind 2: user.cfg's
   lines set them), off; the game's own cc_bool::execute sets each from a
-  user.cfg line's value; registers and stack as the original's; once a
-  process, with a `d3d11.dll` beside the game (CreateFileA stubbed: it opens
-  or not), `dxvk.pending` made (CREATE_ALWAYS), without one nothing made, the
-  original opens nothing;
+  user.cfg line's value; registers and stack as the original's, no file
+  opened;
+- the process's start (memory::platform::allocate_arenas 0xE9580 to past its
+  first instruction, `mov eax,11A8h`): with a `d3d11.dll` beside the game
+  (CreateFileA stubbed: it opens or not) `dxvk.pending` made (CREATE_ALWAYS),
+  without one nothing made; registers (EAX the probe's size) and stack as the
+  original's, which opens nothing;
 - the Settings' call (game_options::scaleform_callback 0x1FF5D0 to its
   return, through patch 79's hook at its start): a setting's name with "1" or
   "0" sets that variable alone and writes user.cfg once, with another value
@@ -68,7 +71,8 @@ OTHER_HUD = 0x20076800                  # another hud movie (a new game world's)
 MATCH_OPTIONS, MATCH_WORK = 0x31000000, 0x31100000
 
 
-CREATE_FILE_SLOT = 0x870048           # CreateFileA: patch 83 looks for d3d11.dll, makes dxvk.pending
+CREATE_FILE_SLOT, CLOSE_SLOT = 0x870048, 0x870040   # CreateFileA, CloseHandle: d3d11.dll looked for, dxvk.pending made
+ARENAS, ARENAS_PAST = 0xE9580, 0xE9585                # allocate_arenas' start, past its `mov eax,11A8h`
 
 
 class Run(language.Run):
@@ -81,8 +85,20 @@ class Run(language.Run):
         self.emu.mem_write(stub, b"\xC2\x1C\x00")
         self.word(CREATE_FILE_SLOT, stub)
         self.emu.hook_add(UC_HOOK_CODE, self.create_file, begin=stub, end=stub)
+        # CloseHandle (stdcall 1)
+        self.emu.mem_write(stub + 0x40, b"\xB8\x01\x00\x00\x00\xC2\x04\x00")
+        self.word(CLOSE_SLOT, stub + 0x40)
         self.emu.mem_map(MATCH_OPTIONS, 0x60000, UC_PROT_ALL)
         self.emu.mem_map(MATCH_WORK, 0x10000, UC_PROT_ALL)
+
+    def process_start(self):
+        """allocate_arenas' start to past its first instruction: the registers, ESP, the files opened."""
+        self.opened = []
+        sp = hide.STACK + 0x9000
+        after, esp = self.run(ARENAS, (ARENAS_PAST,), sp, hide.GAME)
+        assert self.stopped == ARENAS_PAST
+        kept = esp == sp and after == {**hide.GAME, UC_X86_REG_EAX: 0x11A8}
+        return kept, list(self.opened)
 
     def create_file(self, emu, *_):
         sp = emu.reg_read(UC_X86_REG_ESP)
@@ -187,16 +203,20 @@ def main():
     _, _, again = ours.start()
     again_nodes = [node for node in registered(ours, again, head_before) if ours.text(ours.read(node + 0x10)) != b"srp_lobby"]
     expect(again_nodes == nodes, "configs.start again: each registered once")
-    expect(ours.opened == [("d3d11.dll", 3)], f"configs.start without a d3d11.dll beside the game: looked for once, "
-           f"no marker made ({ours.opened})")
-    stock.start()
-    expect(stock.opened == [], "the original opens no file there")
+    expect(ours.opened == [], f"configs.start opens no file ({ours.opened})")
+
+    # the process's start: the DXVK marker
+    for which, run in (("the original", Run(original, d3d11=True)), ("the build", ours)):
+        kept, opened = run.process_start()
+        expect(kept and (opened == [("d3d11.dll", 3)] if which == "the build" else opened == []),
+               f"{which} at the process's start without a d3d11.dll beside the game: "
+               f"{'looked for, ' if which == 'the build' else ''}no marker made ({opened}); registers and stack as the "
+               "original's (EAX 11A8h)")
     with_dll = Run(patched, d3d11=True)
-    with_dll.start()
-    with_dll.start()
-    expect(with_dll.opened == [("d3d11.dll", 3), ("dxvk.pending", 2)],
-           f"configs.start with a d3d11.dll beside the game: dxvk.pending made (CREATE_ALWAYS), once a process "
-           f"({with_dll.opened})")
+    kept, opened = with_dll.process_start()
+    expect(kept and opened == [("d3d11.dll", 3), ("dxvk.pending", 2)],
+           f"the process's start with a d3d11.dll beside the game: dxvk.pending made (CREATE_ALWAYS) ({opened}); "
+           "registers and stack as the original's")
     value = {name: variables[name][3] for name in SETTINGS}
     for name, node in zip(names, nodes):
         if name not in SETTINGS:

@@ -88,10 +88,10 @@ WHAT IT WRITES (the overlay mirrors the game's layout)
         compiled into the updater. This tool refuses another file.
     <output>/game/binaries/x86/updater_skhid.url
         the server it asks: --site.
-    <output>/game/binaries/x86/dxvk/d3d11.dll, dxgi.dll
+    <output>/game/binaries/x86/dxvk/d3d8.dll, d3d9.dll, d3d10core.dll, d3d11.dll, dxgi.dll
         DXVK's 32-bit DLLs, unchanged (DXVK_VERSION, pinned): the updater puts
-        them beside the game when the Settings' "Vulkan renderer (DXVK)" is
-        on (../docs/notes/dxvk-option.md).
+        them beside the game when the Settings' Renderer is Vulkan/DXVK
+        (../docs/notes/dxvk-option.md).
     <output>/game/binaries/x86/launcher_skhid/index-*.html
         what the launcher shows while and when the server's page does not
         load (launcher/launcher_pages.py).
@@ -177,14 +177,18 @@ EXTRACTOR_NAME = "7zr.exe"
 EXTRACTOR_EXE = os.path.abspath(os.path.join(HERE, "..", "..", "client", "updater", "extractor", EXTRACTOR_NAME))
 EXTRACTOR_SIZE = 602624
 EXTRACTOR_SHA256 = "256feca8e274e5da655e2a284fabafd9f554365eb164862089dacd4e8276d282"
-# DXVK (../docs/notes/dxvk-option.md): the release archive and its two x32
-# DLLs, pinned. The DLLs' sha256 are the updater's too (OURS in
+# DXVK (../docs/notes/dxvk-option.md): the release archive and its x32 DLLs,
+# the ones `winetricks dxvk` installs (d3d8, d3d9, d3d10core, d3d11, dxgi),
+# pinned. The DLLs' sha256 are the updater's too (OURS in
 # client/updater/logic/src/dxvk.rs, which only replaces or removes a DLL of
-# these; a test here compares). A new DXVK adds its DLLs' hashes there.
+# these; a test here compares). A new DXVK adds its row there.
 DXVK_VERSION = "3.1.1"
 DXVK_URL = f"https://github.com/doitsujin/dxvk/releases/download/v{DXVK_VERSION}/dxvk-{DXVK_VERSION}.tar.gz"
 DXVK_SHA256 = "40565b4a724aadc4433fa4e010b4b23916d9b1f1baeee64e17186db94f54e608"
 DXVK_DLLS = {
+    "d3d8.dll": "9152ba43386e756790a66f61cdcee01b3287d156d4161c7456d816faa82fc364",
+    "d3d9.dll": "265888c31ca78dffa290c39cb7e50bfb02762590e41927906e46fb32f01497fa",
+    "d3d10core.dll": "110c41a5f67a0ab6d4eea586708883ce05aede204a0df6665e6362669079c2ba",
     "d3d11.dll": "f44543cbe5c40202915a02ed6e9ac8140c3524e846ae67b01f6faa79485d1fd3",
     "dxgi.dll": "abd1449dc28d536a4289c256ae7f4b6bbd15fa552792b7170c2ddece473c8bda",
 }
