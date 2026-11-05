@@ -584,6 +584,8 @@ survarium::medical_pool	previous_health	0xB4	f32	health at last hit
 survarium::medical_protect_frame	hit	0x4	ptr<survarium::medical_hit>	hit_info argument at entry
 survarium::medical_protect_frame	damage	0x8	ptr<f32>	damage output argument at entry
 survarium::medical_damage_frame	amount	0x8	f32	local invulnerability adjusted damage at 0x2E50C7
+survarium::regeneration_frame	rate	0x10	f32	body_part::regenerate's rate after kit modifier 2 and the pool's own regeneration modifiers (the site's ESP+10h at 0x32A53F)
+survarium::regeneration_frame	limit	0x18	f32	its limit, the fraction of the maximum regeneration stops at (ESP+18h, read at 0x32A573)
 survarium::medical_artefact	vtable	0x0	ptr<survarium::medical_vtable>	Medical hook typed object boundary; medical-skills.md
 survarium::medical_artefact	removes	0x360	ptr<survarium::medical_remove>	configured removed-affect records begin
 survarium::medical_artefact	removes_end	0x364	ptr<survarium::medical_remove>	configured removed-affect records end
@@ -683,3 +685,7 @@ survarium::image	onyx_active	0x3128C0	u32	artefact_onyx_core::enable_active_effe
 survarium::player	stamina	0x6C0	obj<survarium::player_stamina>	the embedded stamina (ctor 0x2D6E5C, tick 0x2D8FBC lea eax,[edi+6C0h])
 survarium::player_stamina	maximum	0x0	f32	the most stamina: player_stamina::regenerate clamps current to it (0x329925 movss xmm1,[edi])
 survarium::player_stamina	current	0x6C	f32	the stamina now, 0..maximum (regenerate writes it at 0x329938 / 0x32994F)
+survarium::spring_reload_frame	spring	0x4	ptr<survarium::skill_spring>	artefact.spring_reload's argument (by the site ESP, the return address at +0): the Spring whose passive is linked
+survarium::skill_spring	item	0x0	obj<survarium::item>	the Spring's inventory item (its inventory +250h, holder +174h)
+survarium::skill_spring	passive_reload	0x3E4	f32	Spring II's passive reload node's value (patch 54's node at +3D8h, list 13; the object grown to 3F8h)
+survarium::skill_spring	active_reload	0x3F4	f32	Spring II's active reload node's value (patch 54's node at +3E8h, list 13)

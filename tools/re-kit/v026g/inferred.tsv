@@ -2273,6 +2273,8 @@ va	status	ref_021d	name
 0x0033b780	inferred-medium		survarium::artefact_onyx_core::config::config
 0x0033f3a0	inferred-medium		survarium::armor::add_modifiers
 0x0033f4e0	inferred-medium	0x0020baad	vostok::buffer_vector<survarium::armor::body_part_params>::push_back
+0x0033f690	inferred-medium		survarium::booster::booster
+0x0033f990	inferred-medium		survarium::booster::add_modifiers
 0x0033fd00	inferred-medium		survarium::player_serialized_state::serialize
 0x003402c0	inferred-medium		survarium::hit_player_game_effect_presenter::serialize
 0x00340930	inferred-high	0x0020c3b8	survarium::hit_animations_selector::hit_body_part::hit_body_part
@@ -3212,3 +3214,7 @@ va	status	ref_021d	name
 0x003198d0	inferred-high		survarium::damage_zone_core::on_objects_entered
 0x00332810	inferred-high		survarium::body_part_parameters::apply_hit_modifiers
 0x00332890	inferred-high		survarium::body_part_parameters::apply_anomaly_damage_modifier
+0x0030a250	inferred-medium		survarium::grenade_set_core::throw_grenade
+0x0030a350	inferred-medium		survarium::grenade_set_core::splash_hit_params
+0x00304a40	inferred-medium		survarium::booby_trap_core::hit_victim
+0x003055f0	inferred-medium		survarium::booby_trap_core::splash_hit_params

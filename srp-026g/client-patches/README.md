@@ -125,7 +125,7 @@ release's. The "Result" row is the build of the revision named in it.
 | `check_mouse_buttons_026g.py` | Patch 102 (`MOUSE_BUTTONS` in `patch_026g.py`): a side mouse button (mouse4..mouse8) is no left click in the lobby, login, options and match menus; its check runs the five handlers in both exes (needs Unicorn) |
 | `rust/patches/src/footsteps.rs`, `src/footsteps.toml`, `src/vostok/footstep.rs`, `check_footsteps_026g.py` | Patch 101: a footstep that only a re-simulation makes (another player's late input) is heard instead of dropped; one lohook in on_player_sound_event's time test; its check runs the handler in both exes (needs Unicorn) |
 | `rust/patches/src/keyboard_layout.rs`, `src/keyboard_layout.toml`, `src/vostok/keyboard_layout.rs`, `check_keyboard_layout_026g.py` | Patch 107: chat text follows the keyboard layout the window was last told of (under Wine the engine's logic thread never got it); three lohooks, in message_processor's two layout messages and after translate_text's GetKeyboardLayout(0); its check runs both functions in both exes (needs Unicorn) |
-| `rust/patches/src/artefact_skills.rs`, `src/artefact_skills.toml`, `src/vostok/artefact_skills.rs`, `check_artefact_skills_026g.py` | Patch 109: the artefact tree's skills the exe computes (`../docs/notes/artefact-skills.md`), their ranks packed in kit modifier 40; Resistance: +0.05 armour a rank against the four anomalous hit types, one lohook in body_part_parameters::hit_by_type (0x32A083); its check runs the game's armour slice (needs Unicorn) |
+| `rust/patches/src/artefact_skills.rs`, `src/artefact_skills.toml`, `src/vostok/artefact_skills.rs`, `check_artefact_skills_026g.py` | Patch 109: the artefact tree's skills the exe computes (`../docs/notes/artefact-skills.md`), their ranks packed in kit modifier 40; Resistance (+0.05 armour a rank against the anomalous hit types, 0x32A083), Onyx II (the landing 0x2D8220), Larkspur II (the activation 0x313333), Spring II (patch 54's reload nodes, its entry); its check runs the game's code for each (needs Unicorn) |
 | `audio_device_026g.c`, `audio_device_026g.h`, `audio_device_engine_026g.c`, `test_audio_device_026g.c` | Patch 100: the sound follows the audio output device (XAudio2's engine and voices proxied, made again on the default device after a lost device or a new default); the test runs the core on i686 under the sanitizers against a made-up XAudio2 that keeps its rules (no Unicorn) |
 | `rust/patches/src/sound_voices.rs`, `src/sound_voices.toml`, `src/vostok/voices.rs`, `check_sound_voices_026g.py` | Patch 96: shots no longer go silent under heavy fire (`../docs/notes/sound_voices.md`): the game world's sound scene has 1024 sound instances and propagators (`SOUND_POOLS`, game_world::load 0x1F8DB6/0x1F8DBD), and a sound refused a voice takes the voice of the quietest one playing when that one is less than half as loud (a lohook after create_sound_voice, 0x5CAB0), and the source voice walk is bounded to one pass (`sound_voices_026g.asm`, 0x5E5E7, 0x631D9, 0x59F8E); the check runs the voice loop from that site on made-up scenes with a model of the world's voice pool, and the self-test's `test_sound_pools` (needs Unicorn) |
 | `check_stage_focus_026g.py` | Runs the original's and patch 52's Stage focus getter (Scaleform's `stage.focus`, 0x771FA0) on a made-up movie: focused objects of each kind, none, one without its ActionScript object (the lobby's crash of 2026-10-22) (needs Unicorn) |
@@ -669,11 +669,13 @@ From revision 25 to 2026-11-01 a buy on an owned item was not asked "This
 item is already purchased by you. Would you like to buy anyway?":
 `LobbyMenu.try_buy_item`, which every buy goes through, asked it only for a
 buy from the shop's list (`sourceSlot == 200`), not from an owned item's own
-slot (100 or less). Since 2026-11-01 (the owner: "it should only skip from rmb
-on item in your inventory, since there it is a voluntary action") it asks for
-every buy but a bundle's (`sourceSlot != 300`), camouflages included, except
-the right-click menu's Buy on an owned item (`ItemCard.buyFromOwnMenu`, the
-`ownItemMenu` argument; `docs/notes/items.md` §6).
+slot (100 or less). From 2026-11-01 it asked for every buy but a bundle's
+(`sourceSlot != 300`), camouflages included, except the right-click menu's Buy
+on an owned item. Since 2026-11-05 (the owner: buying through the upgrade
+window or from the inventory should not ask) every caller says where the buy
+was started (`try_buy_item`'s `origin`, a `BuyOrigin`: `SHOP`, `OWN`,
+`UPGRADE`) and only a buy started in the shop asks, camouflages included, a
+bundle never (`docs/notes/items.md` §6).
 
 ## The craft window: Buy and Sell, Continue and Exit
 
@@ -4451,4 +4453,11 @@ kit modifier 40 (`artefact_power`, read by nothing of 0.26g), parsed once (`arte
 Resistance (502, 5 ranks): a hit of type 4..7 (toxic, radiation, fire, shock) on a part takes
 its summed armour + 0.05 a rank (+5 isolation points) at `artefact.isolation` (0x32A083, after
 `movss xmm0,[eax+8]`), before the piercing's subtraction and the clamp. Other types unchanged.
+Onyx II: `artefact.landing` (0x2D8220, the landing's start: all it does is the fall damage) exits at its
+`ret 4` (0x2D84AE) for a player with the skill and an Onyx of its containers in state 4. Larkspur II:
+at `medical.artefact` (0x313333, the actual activation; after Medic's handler) a Larkspur's holder
+with the skill gets its stamina's maximum (+6C0h, current +6Ch). Spring II: patch 54 gives each
+Spring two reload nodes (list 13, +3D8h and +3E8h; the object 3F8h), the first linked with the
+passive (new hooks at 0x311AD0 / 0x311D10), the second with the active; patch 109's entry
+`artefact.spring_reload` sets their values at the passive's link (+0.05 / +0.10 with the skill, else 0).
 Checked with `check_artefact_skills_026g.py`; not run in a game.

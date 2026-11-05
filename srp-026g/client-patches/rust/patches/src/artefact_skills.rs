@@ -40,22 +40,31 @@ impl HitKind {
     }
 }
 
-/// An artefact kind, as srp rolls Keeper of the Artifacts' (modifier 40 bits 9..10).
+/// Keeper of the Artifacts' draw, 1..=6, as srp rolls it once a match (modifier 40 bits 9..11);
+/// the kind is the draw over the kinds the map has.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub enum Artefact {
-    Larkspur,
-    Onyx,
-    Spring,
+pub struct Draw(u8);
+
+impl Draw {
+    pub const MOST: u8 = 6;
+
+    pub fn parse(draw: u8) -> Option<Self> {
+        (1..=Self::MOST).contains(&draw).then_some(Self(draw))
+    }
+
+    pub fn get(self) -> u8 {
+        self.0
+    }
 }
 
 /// Keeper of the Artifacts: not taken, taken (the lobby's kits), or taken with the match's
-/// kind (the static info's kits, srp writes it).
+/// draw (the static info's kits, srp writes it).
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub enum Keeper {
     #[default]
     No,
     Taken,
-    Rolled(Artefact),
+    Drawn(Draw),
 }
 
 /// Resistance's rank, 0..=5.
@@ -82,10 +91,11 @@ pub struct Skills {
 
 impl Skills {
     /// Bits: 0..2 Resistance, 3 Keeper, 4 Resonance, 5 Spring II, 6 Onyx II, 7 Larkspur II,
-    /// 8 Resonance Cascade, 9..10 Keeper's kind (only with bit 3). Anything else (a fraction,
-    /// a negative, a rank past 5, a kind without the skill, a bit past 10) is no skill at all.
+    /// 8 Resonance Cascade, 9..11 Keeper's draw 1..6 (only with bit 3). Anything else (a
+    /// fraction, a negative, a rank past 5, a draw of 7 or without the skill, a bit past 11) is
+    /// no skill at all.
     pub fn parse(value: f32) -> Option<Self> {
-        if !(0.0..2048.0).contains(&value) || value != (value as u32) as f32 {
+        if !(0.0..4096.0).contains(&value) || value != (value as u32) as f32 {
             return None;
         }
         let bits = value as u32;
@@ -94,12 +104,10 @@ impl Skills {
             return None;
         }
         let bit = |n: u32| bits & (1 << n) != 0;
-        let keeper = match (bit(3), (bits >> 9) & 3) {
+        let keeper = match (bit(3), ((bits >> 9) & 7) as u8) {
             (false, 0) => Keeper::No,
             (true, 0) => Keeper::Taken,
-            (true, 1) => Keeper::Rolled(Artefact::Larkspur),
-            (true, 2) => Keeper::Rolled(Artefact::Onyx),
-            (true, _) => Keeper::Rolled(Artefact::Spring),
+            (true, draw) => Keeper::Drawn(Draw::parse(draw)?),
             (false, _) => return None,
         };
         Some(Self {
@@ -113,9 +121,21 @@ impl Skills {
         })
     }
 
+    /// Keeper of the Artifacts: not taken, taken, or taken with the match's draw.
+    pub fn keeper(self) -> Keeper {
+        self.keeper
+    }
+
     /// Onyx II: no fall damage while one of the player's Onyx is active.
     pub fn onyx(self) -> bool {
         self.onyx
+    }
+
+    /// Spring II (the owner, 2026-11-05): each carried Spring's reload speed (modifier 13),
+    /// +5% while its passive is on and +10% more while its active is, as its other nodes:
+    /// (passive, active) node values, 0 without the skill.
+    pub fn spring_reload(self) -> (f32, f32) {
+        if self.spring { (0.05, 0.10) } else { (0.0, 0.0) }
     }
 
     /// Larkspur II: a Larkspur's activation restores all energy.
@@ -156,13 +176,19 @@ pub fn on_larkspur(ctx: &mut Context<'_>) -> Flow<NoExit> {
     Flow::Continue
 }
 
+/// Spring II, patch 54's entry at a Spring's passive link: its reload nodes' values.
+pub fn on_spring_reload(ctx: &mut Context<'_>) -> Flow<NoExit> {
+    artefact_skills::spring_reload(ctx);
+    Flow::Continue
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
 
     #[test]
     fn parses_the_packed_ranks_only_exactly() {
-        for bad in [-1.0, 0.5, 6.0, 7.0, 512.0, 1024.0, 2048.0, f32::INFINITY, f32::NAN] {
+        for bad in [-1.0, 0.5, 6.0, 7.0, 512.0, 1024.0, 8.0 + 7.0 * 512.0, 4096.0, f32::INFINITY, f32::NAN] {
             assert_eq!(Skills::parse(bad), None, "{bad}");
         }
         assert_eq!(Skills::parse(0.0), Some(Skills::default()));
@@ -170,9 +196,11 @@ mod tests {
         assert_eq!(full.resistance, Resistance(5));
         assert_eq!(full.keeper, Keeper::Taken);
         assert!(full.resonance && full.spring && full.onyx && full.larkspur && full.cascade);
-        assert_eq!(Skills::parse(8.0 + 512.0).unwrap().keeper, Keeper::Rolled(Artefact::Larkspur));
-        assert_eq!(Skills::parse(8.0 + 1024.0).unwrap().keeper, Keeper::Rolled(Artefact::Onyx));
-        assert_eq!(Skills::parse(8.0 + 1536.0).unwrap().keeper, Keeper::Rolled(Artefact::Spring));
+        for draw in 1..=6u8 {
+            let skills = Skills::parse(8.0 + f32::from(draw) * 512.0).unwrap();
+            assert_eq!(skills.keeper, Keeper::Drawn(Draw(draw)));
+        }
+        assert!(Skills::parse(509.0 + 6.0 * 512.0).is_some());
     }
 
     #[test]

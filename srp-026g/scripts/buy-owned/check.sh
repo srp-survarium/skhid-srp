@@ -1,8 +1,9 @@
 #!/usr/bin/env bash
-# check.sh <lobby_menu.swf> [work dir]: the shop asks before buying an item owned already, a
-# camouflage too (docs/notes/items.md §6), in Ruffle (CPU only: lavapipe on its own virtual X display,
-# never the GPU). BuyOwnedHarness.as calls the lobby movie's own root (try_buy_item): an owned
-# camouflage, one not owned and an owned helmet.
+# check.sh <lobby_menu.swf> [work dir]: only the shop asks before buying an item owned already, a
+# camouflage too; the player's own items and the craft window do not (docs/notes/items.md §6), in
+# Ruffle (CPU only: lavapipe on its own virtual X display, never the GPU). BuyOwnedHarness.as calls
+# the lobby movie's own root (try_buy_item): an owned camouflage, one not owned, an owned helmet
+# and an owned scope.
 # Exits 0 when it says pass; prints its lines. A work dir given is kept (the harness, Ruffle's log).
 # Java and Flex from private/actionscript/tools.json (tools/actionscript/README.md), or SRP_AS_TOOLS.
 set -euo pipefail

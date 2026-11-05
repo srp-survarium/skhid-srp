@@ -5,8 +5,10 @@ Resistance: body_part_parameters::hit_by_type's armour slice (0x32A083 .. 0x32A0
 game's own clamp and multiply) for every hit type, Resistance 0..5 and refused payloads, on
 two kits. Onyx II: the landing (0x2D8220) with and without the skill, an Onyx active, passive,
 none, or another artefact active. Larkspur II: the real detoured action entry (0x313300) of a
-Larkspur, a press, a repeated press and a key-up, and another kind's activation. A constructed
-player, not a played match.
+Larkspur, a press, a repeated press and a key-up, and another kind's activation. Spring II: the
+game's Spring loader and its passive and active links and unlinks (0x311AD0, 0x311BC0, 0x311DA0,
+0x311D10) through patch 54, the reload modifier (13) by the game's getter, one and two Springs,
+the skill taken away between two links. A constructed player, not a played match.
 Usage: python check_artefact_skills_026g.py ORIGINAL_EXE
 """
 import struct
@@ -14,7 +16,8 @@ import sys
 from unicorn.x86_const import *  # noqa: F403
 import patch_026g as base
 from unicorn import UC_HOOK_CODE
-from check_artefacts_026g import PLAYER, STACK, STOP, HOLDER_VT, DM, ENABLE_ACTIVE
+from check_artefacts_026g import PLAYER, STACK, STOP, HOLDER_VT, DM, ENABLE_ACTIVE, KITS, SPRING, Game, \
+    PASSIVE_LINK, PASSIVE_UNLINK, ACTIVE_LINK, ACTIVE_UNLINK
 from check_medical_skills_026g import MedicalGame, bits, close
 
 ARMOUR_AT = 0x32A083   # after `movss xmm0,[eax+8]` (the part's armour for the type), the hook
@@ -42,7 +45,7 @@ def hit(g, kind, armour, piercing, damage, pool):
 def check_resistance(data, kit):
     outcomes = []
     for payload, rank in [(0, 0), (1, 1), (2, 2), (3, 3), (4, 4), (5, 5), (5 + 8 + 256, 5),
-                          (6, 0), (7, 0), (2.5, 0), (-1, 0), (2048, 0), (512 + 1, 0)]:
+                          (6, 0), (7, 0), (2.5, 0), (-1, 0), (4096, 0), (512 + 1, 0), (8 + 7 * 512 + 5, 0), (8 + 6 * 512 + 5, 5)]:
         g = MedicalGame(data)
         g.emu.mem_write(PLAYER + 0x115, bytes([kit]))
         g.ranks(payload, RANKS)
@@ -56,7 +59,7 @@ def check_resistance(data, kit):
                     close(have, want)
                     outcomes.append((payload, name, kind, armour, piercing, round(have, 4)))
     print(f'Resistance kit {kit}: anomalous hits (4..7) A + 0.05 a rank 0..5 before piercing and the clamp, '
-          'other types and refused payloads (6, 7, 2.5, -1, 2048, a kind without Keeper) unchanged: PASS')
+          'other types and refused payloads (6, 7, 2.5, -1, 4096, a draw without Keeper or of 7) unchanged: PASS')
     return outcomes
 
 
@@ -152,6 +155,51 @@ def check_larkspur(data, kit):
     return outcomes
 
 
+SPRING_II = 32
+RELOAD = 13
+
+
+def check_spring(data):
+    outcomes = []
+    for payload, skill in [(0, False), (SPRING_II, True), (SPRING_II + 5 + 8, True), (SPRING_II + 0.5, False)]:
+        g = Game(data)
+        # The holder as the game's base_player embeds it (+108h), its getter the made-up one.
+        g.word(PLAYER + 0x108, HOLDER_VT)
+        g.word(g.inventory() + 0x174, PLAYER + 0x108)
+        g.word(KITS + 0xF4 + RANKS * 4, bits(payload))
+        k = 1 if skill else 0
+        a, b = g.spring(SPRING), g.spring(SPRING)
+        close(g.modifier(RELOAD, 1.0), 1.0)
+        g.call(PASSIVE_LINK, eax=a)
+        close(g.modifier(RELOAD, 1.0), 1 + 0.05 * k)
+        g.call(ACTIVE_LINK, eax=a)
+        close(g.modifier(RELOAD, 1.0), 1 + 0.15 * k)
+        g.call(PASSIVE_LINK, eax=b)
+        g.call(ACTIVE_LINK, eax=b)
+        close(g.modifier(RELOAD, 1.0), 1 + 0.30 * k)
+        g.call(ACTIVE_UNLINK, (b,))
+        close(g.modifier(RELOAD, 1.0), 1 + 0.20 * k)
+        g.call(ACTIVE_UNLINK, (a,))
+        close(g.modifier(RELOAD, 1.0), 1 + 0.10 * k)
+        g.call(PASSIVE_UNLINK, (b,))
+        g.call(PASSIVE_UNLINK, (a,))
+        close(g.modifier(RELOAD, 1.0), 1.0)
+        assert g.count(RELOAD) == 0, "every reload node out"
+        # Linked again (a world load, a transfer) after the skill is gone: the values follow.
+        g.word(KITS + 0xF4 + RANKS * 4, bits(0))
+        g.call(PASSIVE_LINK, eax=a)
+        g.call(ACTIVE_LINK, eax=a)
+        close(g.modifier(RELOAD, 1.0), 1.0)
+        g.call(ACTIVE_UNLINK, (a,))
+        g.call(PASSIVE_UNLINK, (a,))
+        assert g.count(RELOAD) == 0
+        outcomes.append((payload, skill))
+    print("Spring II: each Spring's reload speed +5% passive, +15% while active (two Springs +10%/+30%), "
+          "linked and unlinked with the game's own, values from the holder's skill at each link; "
+          "no skill or a refused payload: none: PASS")
+    return outcomes
+
+
 def main():
     original = open(sys.argv[1], 'rb').read()
     patched, _ = base.build(original, 'section', open(base.default_bin('section'), 'rb').read(), None,
@@ -159,6 +207,7 @@ def main():
     assert check_resistance(patched, 0) == check_resistance(patched, 2)
     assert check_onyx(patched, 0) == check_onyx(patched, 2)
     assert check_larkspur(patched, 0) == check_larkspur(patched, 2)
+    check_spring(patched)
     print('Artefact skills: identical outcomes on two kits: PASS')
 
 

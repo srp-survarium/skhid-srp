@@ -11412,6 +11412,39 @@ impl MedicalDamageFrame {
     }
 }
 
+/// A survarium::regeneration_frame (fields_026g.tsv): a pointer to one, never 0. Made only here: by a typed field,
+/// a function's typed result or a site's typed register (sites_026g.tsv `holds`).
+#[repr(transparent)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct RegenerationFrame(NonNull<c_void>);
+
+#[allow(dead_code)]
+impl RegenerationFrame {
+    /// Its address as a value (an id, a compare): never read through.
+    #[inline(always)]
+    pub fn address(self) -> u32 {
+        self.0.as_ptr() as usize as u32
+    }
+
+    /// +0x10 (f32): body_part::regenerate's rate after kit modifier 2 and the pool's own regeneration modifiers (the site's ESP+10h at 0x32A53F)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn rate(self) -> *mut f32 {
+        unsafe { self.0.byte_add(0x10).cast::<f32>().as_ptr() }
+    }
+
+    /// +0x18 (f32): its limit, the fraction of the maximum regeneration stops at (ESP+18h, read at 0x32A573)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn limit(self) -> *mut f32 {
+        unsafe { self.0.byte_add(0x18).cast::<f32>().as_ptr() }
+    }
+}
+
 /// A survarium::medical_artefact (fields_026g.tsv): a pointer to one, never 0. Made only here: by a typed field,
 /// a function's typed result or a site's typed register (sites_026g.tsv `holds`).
 #[repr(transparent)]
@@ -13026,6 +13059,81 @@ impl MessageFrame {
     #[inline(always)]
     pub unsafe fn lparam(self) -> *mut u32 {
         unsafe { self.0.byte_add(0x1c).cast::<u32>().as_ptr() }
+    }
+}
+
+/// A survarium::spring_reload_frame (fields_026g.tsv): a pointer to one, never 0. Made only here: by a typed field,
+/// a function's typed result or a site's typed register (sites_026g.tsv `holds`).
+#[repr(transparent)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct SpringReloadFrame(NonNull<c_void>);
+
+#[allow(dead_code)]
+impl SpringReloadFrame {
+    /// Its address as a value (an id, a compare): never read through.
+    #[inline(always)]
+    pub fn address(self) -> u32 {
+        self.0.as_ptr() as usize as u32
+    }
+
+    /// +0x4 (ptr<survarium::skill_spring>): artefact.spring_reload's argument (by the site ESP, the return address at +0): the Spring whose passive is linked
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn spring(self) -> Option<SkillSpring> {
+        unsafe { self.0.byte_add(0x4).cast::<Option<SkillSpring>>().read_volatile() }
+    }
+
+    /// +0x4 (ptr<survarium::skill_spring>): artefact.spring_reload's argument (by the site ESP, the return address at +0): the Spring whose passive is linked
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn set_spring(self, value: Option<SkillSpring>) {
+        unsafe { self.0.byte_add(0x4).cast::<Option<SkillSpring>>().write_volatile(value) }
+    }
+}
+
+/// A survarium::skill_spring (fields_026g.tsv): a pointer to one, never 0. Made only here: by a typed field,
+/// a function's typed result or a site's typed register (sites_026g.tsv `holds`).
+#[repr(transparent)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct SkillSpring(NonNull<c_void>);
+
+#[allow(dead_code)]
+impl SkillSpring {
+    /// Its address as a value (an id, a compare): never read through.
+    #[inline(always)]
+    pub fn address(self) -> u32 {
+        self.0.as_ptr() as usize as u32
+    }
+
+    /// +0x0 (obj<survarium::item>): the Spring's inventory item (its inventory +250h, holder +174h)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn item(self) -> Item {
+        Item(unsafe { self.0.byte_add(0x0) })
+    }
+
+    /// +0x3e4 (f32): Spring II's passive reload node's value (patch 54's node at +3D8h, list 13; the object grown to 3F8h)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn passive_reload(self) -> *mut f32 {
+        unsafe { self.0.byte_add(0x3e4).cast::<f32>().as_ptr() }
+    }
+
+    /// +0x3f4 (f32): Spring II's active reload node's value (patch 54's node at +3E8h, list 13)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn active_reload(self) -> *mut f32 {
+        unsafe { self.0.byte_add(0x3f4).cast::<f32>().as_ptr() }
     }
 }
 
@@ -15602,6 +15710,30 @@ pub mod site {
         }
     }
 
+    /// medical.regenerate (0x32a53f): body_part::regenerate where both paths of its regeneration-modifier loop join (mov ebp,[esp+24h] / test eax,eax): EDI the pool, EAX the delay (ms) the rest reads (its local copy ESP+14h is not read again), frame ESP+10h rate, +18h limit
+    pub mod medical_regenerate {
+        #[allow(unused_imports)]
+        use super::*;
+
+        /// EDI: a survarium::medical_pool (None for 0).
+        ///
+        /// # Safety
+        /// `machine` is at this site.
+        #[inline(always)]
+        pub unsafe fn pool(machine: &impl Machine) -> Option<MedicalPool> {
+            NonNull::new(machine.register(Register::Edi) as usize as *mut c_void).map(MedicalPool)
+        }
+
+        /// the site's ESP: a survarium::regeneration_frame (None for 0).
+        ///
+        /// # Safety
+        /// `machine` is at this site.
+        #[inline(always)]
+        pub unsafe fn frame(machine: &impl Machine) -> Option<RegenerationFrame> {
+            NonNull::new(machine.site_esp() as usize as *mut c_void).map(RegenerationFrame)
+        }
+    }
+
     /// animations.id_missing (0x2d65ee): the animations registry's lookup (0x2D6590, called only by base_player::animation_id_resolver 0x2D7C26) found no entry for the pair and is about to return 0FFFFh (pop edi / pop esi / mov eax,0FFFFh; reached by the three misses at 0x2D65D3, 0x2D65DA, 0x2D65E2): EDI the pair asked for, ESP+10h the registry, EBP the resolver's frame
     pub mod animations_id_missing {
         #[allow(unused_imports)]
@@ -15911,6 +16043,21 @@ pub mod site {
         #[inline(always)]
         pub unsafe fn player(machine: &impl Machine) -> Option<Player> {
             NonNull::new(machine.register(Register::Ecx) as usize as *mut c_void).map(Player)
+        }
+    }
+
+    /// artefact.spring_reload (our entry): patch 54's Spring passive link (artefacts_026g.asm link_passive, 0x311AD0) before it links the passive's reload node: cdecl, the Spring; the caller keeps every register and pops the one
+    pub mod artefact_spring_reload {
+        #[allow(unused_imports)]
+        use super::*;
+
+        /// the site's ESP: a survarium::spring_reload_frame (None for 0).
+        ///
+        /// # Safety
+        /// `machine` is at this site.
+        #[inline(always)]
+        pub unsafe fn frame(machine: &impl Machine) -> Option<SpringReloadFrame> {
+            NonNull::new(machine.site_esp() as usize as *mut c_void).map(SpringReloadFrame)
         }
     }
 }

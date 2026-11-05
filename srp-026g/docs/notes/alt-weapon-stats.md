@@ -91,6 +91,27 @@ floats 43 and 45 (packed, `docs/notes/medical-skills.md`), parsed as the exe's `
 Left out: S34 (`drug_activity_time`, the duration's weight): no skill or item gives it. No skill
 gives S33 or S58 either; they are there as the exe applies them.
 
+## Grenades and traps
+
+The owner, 2026-11-05: "let's add them, let's also make sure alt modifies things (I think throw
+speed?)". Held Alt over a grenade's or a trap's card (categories 24 and 11: the RGD-5, the RDG-M
+smoke, the trap), each bar a modifier changes reads "original -> current", as the medicines'. The
+cards' bars are `throwable-cards-1` (presentation only): damage is on each body hit (the RGD-5's
+`splash_max_damage` at the centre on each of its six splash bodies, the trap's on the foot), so
+prop 1's scale (150) stays the weapons'. Every rule is the exe's (`apply_modifier` 0x2D5AE0;
+none of the three indices is on the additive list 0x927E08):
+
+| card line | in a match |
+|---|---|
+| Throw speed (169, `data/throw_power`, m/s) | the grenade's velocity: the throw's forward axis x throw_power x max(0, 1 + S27) (`grenade_set_core::throw_grenade` 0x30A250, call 0x30A2DE; to `set_linear_velocity`): skill 203 Grenadier +0.1 a rank, 2 ranks (17 -> 18.7 -> 20.4 m/s) |
+| Damage (1), stopping power (132), stamina damage (167) | the grenade's splash min and max damage, stamina damage and stopping power x max(0, 1 + S11) (`grenade_set_core::splash_hit_params` 0x30A350); the trap's hit x max(0, 1 + S11) (`booby_trap_core::hit_victim` 0x304A40) |
+| Radius (23) | x max(0, 1 + S12) (0x30A350; the trap's splash 0x3055F0, unused: `is_explosive` 0) |
+
+Unchanged in a match: armour penetration (`splash_pierce`, the trap's `armor_piercing`), the fuse
+(`ttl_ms`), the trap's defuse time (no `apply_modifier` reads S9 `engineer_use_time`). Only S27 has
+a source today (Grenadier); S11 and S12 are there as the exe applies them (no skill, roll or item
+gives them). Pocket counts (S15, S17, `pocket_units` 166) are the paper doll's, not a card bar.
+
 ## How
 
 - **Exe** (`weight_ui_026g.c`): before each weight callback (`update_player_items_weight`
@@ -106,4 +127,6 @@ gives S33 or S58 either; they are there as the exe applies them.
   match computes: no `simulation_changes.tsv` row.
 - **Checked:** `scripts/weapon-details/WeaponDetailsHarness.as` (Ruffle; the medicines in
   `medicineChecks`: the seven live cards, no skill, each skill alone and all at their most ranks, refused ranks,
-  no floats, Alt pressed over an open card), `check_weight_ui_026g.py` (Unicorn). Not run in a game.
+  no floats, Alt pressed over an open card; the grenades and the trap in `throwableChecks`: the three
+  live cards, Grenadier ranks 1 and 2, S11 and S12, a sum below -1, no floats, Alt pressed over an
+  open grenade card), `check_weight_ui_026g.py` (Unicorn). Not run in a game.

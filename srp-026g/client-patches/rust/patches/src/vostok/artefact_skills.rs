@@ -88,3 +88,22 @@ pub fn larkspur(ctx: &Context<'_>) {
         }
     }
 }
+
+/// Spring II at a Spring's passive link (patch 54's entry): its two reload nodes' values from
+/// its holder's skills, before the passive's goes in.
+pub fn spring_reload(ctx: &Context<'_>) {
+    use raw::site::artefact_spring_reload as site;
+    // SAFETY: the linking Spring, its inventory and holder are live for the link; the two
+    // nodes are its own (patch 54 grew the object to 3F8h).
+    unsafe {
+        let Some(spring) = site::frame(ctx).and_then(|frame| frame.spring()) else {
+            return;
+        };
+        let Some(holder) = spring.item().inventory().and_then(|inventory| inventory.holder()) else {
+            return;
+        };
+        let (passive, active) = skills(holder.player()).spring_reload();
+        *spring.passive_reload() = passive;
+        *spring.active_reload() = active;
+    }
+}
