@@ -2630,9 +2630,11 @@ st_srp_rooms_pool_hint	Голосование берёт 3 карточки из
 st_srp_rooms_private_room	Приватная комната: до 20 игроков; команды и старт за вами.
 st_srp_rooms_queue	Очередь
 st_srp_rooms_queue_room	Очередь в комнату
+st_srp_rooms_queue_spectate	В очередь и смотреть
 st_srp_rooms_room	Комната
 st_srp_rooms_room_chat	Чат комнаты
 st_srp_rooms_servers	Комнаты
+st_srp_rooms_spectators	Зрители:
 st_srp_rooms_start_hint	Нажмите «Начать», когда все зайдут.
 st_srp_rooms_start_match	Начать
 st_srp_rooms_starts	Матч начнётся через

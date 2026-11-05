@@ -2630,9 +2630,11 @@ st_srp_rooms_pool_hint	The vote draws 3 cards from these.
 st_srp_rooms_private_room	Private room: up to 20 players; you set the teams and start.
 st_srp_rooms_queue	Queue
 st_srp_rooms_queue_room	Queue for room
+st_srp_rooms_queue_spectate	Queue and spectate
 st_srp_rooms_room	Room
 st_srp_rooms_room_chat	Room Chat
 st_srp_rooms_servers	Rooms
+st_srp_rooms_spectators	Spectators:
 st_srp_rooms_start_hint	Press Start when everyone is in.
 st_srp_rooms_start_match	Start
 st_srp_rooms_starts	Match starts in

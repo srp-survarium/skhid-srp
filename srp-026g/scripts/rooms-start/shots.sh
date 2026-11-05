@@ -3,7 +3,8 @@
 # as the lobby movie draws it (RoomsShots.as) in Ruffle (CPU only: lavapipe on its own virtual X
 # display, never the GPU), at the game's resolutions (default 1920x1080 and 1280x720): 1, 3, 10 and
 # 20 members, as the room's owner and as a member, the owner's room playing its match, and 10 with
-# squads marked. One PNG a case, <out>/<w>x<h>-<case>.png. Java and Flex from
+# squads marked; the owner's room playing with spectators, and the list with a full room playing
+# chosen (its Queue and spectate), with and without spectators. One PNG a case, <out>/<w>x<h>-<case>.png. Java and Flex from
 # private/actionscript/tools.json, or SRP_AS_TOOLS.
 set -euo pipefail
 here=$(dirname "$(readlink -f "$0")")
@@ -39,7 +40,8 @@ xwd=$(grep -- '-xwd-' <<<"$paths")/bin/xwd
 magick=$(grep -- '-imagemagick-' <<<"$paths" | head -1)/bin/magick
 lvp=$mesa/share/vulkan/icd.d/lvp_icd.x86_64.json
 
-# case: <name> <members> <owner> <teams> <phase> [<squads' marks>]
+# case: <name> <members> <owner> <teams> <phase> [<squads' marks> [<spectators> [<view>]]] ("-": none;
+# spectators "," between them; view "list": the rooms list, a full room playing chosen)
 cases=(
     "owner-1 1 1 0 0"
     "member-1-of-3 3 0 010 0"
@@ -50,6 +52,9 @@ cases=(
     "member-20 20 0 01010101010101010101 0"
     "owner-10-playing 10 1 0101010101 2"
     "owner-10-squads 10 1 0011001100 0 1122003300"
+    "owner-10-playing-spectators 10 1 0101010101 2 - Frank,Grace,Heidi"
+    "list-full-playing 20 0 - 2 - - list"
+    "list-full-playing-spectators 20 0 - 2 - Frank,Grace,Heidi list"
 )
 for size in "${sizes[@]}"; do
     w=${size%x*}
@@ -59,7 +64,10 @@ for size in "${sizes[@]}"; do
     xvfb_pid=$!
     sleep 1
     for case in "${cases[@]}"; do
-        read -r name members owner teams phase squads <<<"$case"
+        read -r name members owner teams phase squads spectators view <<<"$case"
+        [[ ${squads:-} != - ]] || squads=
+        [[ ${spectators:-} != - ]] || spectators=
+        [[ ${teams:-} != - ]] || teams=
         log=$work/$size-$name.log
         (
             cd "$work"
@@ -67,7 +75,8 @@ for size in "${sizes[@]}"; do
             DISPLAY=$display VK_ICD_FILENAMES=$lvp VK_DRIVER_FILES=$lvp RUST_LOG=info \
                 exec timeout 120 "$ruffle/bin/ruffle" -g vulkan -p low --storage memory --scale no-scale \
                 --width "$w" --height "$h" -Pmovie=lobby_menu.swf -Pmembers="$members" -Powner="$owner" \
-                -Pteams="$teams" -Pphase="$phase" -Psquads="${squads:-}" RoomsShots.swf
+                -Pteams="$teams" -Pphase="$phase" -Psquads="${squads:-}" \
+                -Pspectators="${spectators:-}" -Pview="${view:-}" RoomsShots.swf
         ) >"$log" 2>&1 &
         ruffle_pid=$!
         for _ in $(seq 900); do grep -q 'SHOT ' "$log" && break; sleep 0.1; done

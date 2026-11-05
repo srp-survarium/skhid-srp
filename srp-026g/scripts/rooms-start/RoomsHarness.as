@@ -135,6 +135,7 @@ package
          checkSquads();
          checkSoldier();
          checkInSquad();
+         checkSpectators();
          checkFit();
          finish(failures.length == 0 ? "pass" : "fail: " + failures.join("; "));
       }
@@ -169,7 +170,9 @@ package
                ["open, gear unfit", 1003, false, false, 0, null, 2, []],
                ["open, squads", 1003, false, false, 0, null, 0, ["S;01122"]],
                ["open, squads, in match", 1003, false, false, 2, null, 0, ["S;01122"]],
-               ["private, owner, squads", 1001, true, true, 0, "01010", 0, ["S;11220"]]];
+               ["private, owner, squads", 1001, true, true, 0, "01010", 0, ["S;11220"]],
+               ["open, in match, spectators", 1003, false, false, 2, null, 0, ["V;Frank","V;Grace","V;Heidi"]],
+               ["private, owner, in match, spectators", 1001, true, true, 2, "01010", 0, ["V;Frank","V;Grace"]]];
             for(var why:int = 1; why <= 7; why++)
                states.push(["open, in match, why " + why, 1003, false, false, 2, null, 0, ["J;-1;" + why]]);
             for each(var s:Array in states)
@@ -181,6 +184,15 @@ package
             tell(["S1;N;0;0;0"]);
             tell(["S1;L;3;0","1001;15;0;10;20;2;754;61;0;Bob","1002;15;15;10;3;3;12;62;0;Carol","1003;10;0;10;5;0;0;63;1;Erin"]);
             misses = misses.concat(overlaps(language + ", list"));
+            // A full room in its match, not queued: New room, Queue, Queue and spectate; its
+            // members and spectators beside the list.
+            tell(["S1;L;1;0","1001;2;15;8;16;2;600;61;0;Bob"]);
+            selectRow("1001");
+            var watched:Array = ["S1;G;1001;5"];
+            for(var wi:int = 0; wi < WHO.length; wi++)
+               watched.push(["P",wi,15,wi == 0 ? 1 : 0,0,1,0,0,wi % 2 + 1,11 + wi,0].join(";"), WHO[wi]);
+            tell(watched.concat(["V;Frank","V;Grace","V;Heidi"]));
+            misses = misses.concat(overlaps(language + ", list, full, spectators"));
             // A full room's queue, ours: its Join is Leave queue.
             tell(["S1;L;1;0","1001;2;15;8;16;0;0;0;0;Bob"]);
             selectRow("1001");
@@ -387,6 +399,113 @@ package
          };
          plain = namePlaces(members([0,0,0,0,0]));
          checkTags("squads in the list's side panel", members([0,1,1,2,2]), plain, want);
+      }
+
+      // Queue and spectate (queue-spectate.md, the owner's of 2026-11-05): a playing room's
+      // spectators (`V` rows) on one quiet line under its members, in the room's view and the
+      // list's side panel; the members where they were without them (nothing moves as they come
+      // and go); no line without any; never a member's row.
+      private function checkSpectators() : void
+      {
+         tell(["S1;M;3;0","0;61;5;5;2;0","1;62;13;5;3;1","2;63;12;3;6;0"]);
+         var line:String = "Spectators: Frank, Grace, Heidi";
+         var shown:Function = function(what:String, texts:Array, want:Boolean):void
+         {
+            var lines:int = 0;
+            for each(var t:Object in texts)
+               if(String(t.text) == line)
+               {
+                  lines++;
+                  if(t.field.textColor != 0x5F707C)
+                     failures.push(what + ": the spectators' line is not dim");
+               }
+            if(lines != (want ? 1 : 0))
+               failures.push(what + ": " + lines + " spectators' lines, " + (want ? 1 : 0) + " wanted");
+            trace("ROOMS " + what + ": " + lines + " spectators' line(s)");
+         };
+         var same:Function = function(what:String, before:Object, after:Object):void
+         {
+            for each(var name:String in WHO)
+               if(before[name] == null || after[name] == null || before[name].x != after[name].x || before[name].y != after[name].y)
+                  failures.push(what + ": " + name + " moved");
+         };
+         // The room's own view, its match being played.
+         var texts:Array = [];
+         tellRoom(1003, false, false, 2, null, 0, []);
+         walk(win,[],texts,0,0,[]);
+         shown("room, in match, no spectators", texts, false);
+         var plain:Object = namePlaces(texts);
+         texts = [];
+         tellRoom(1003, false, false, 2, null, 0, ["V;Frank","V;Grace","V;Heidi"]);
+         walk(win,[],texts,0,0,[]);
+         shown("room, in match, three spectators", texts, true);
+         same("room, spectators come", plain, namePlaces(texts));
+         // A private room's two teams.
+         texts = [];
+         tellRoom(1001, true, true, 2, "01010", 0, []);
+         walk(win,[],texts,0,0,[]);
+         plain = namePlaces(texts);
+         texts = [];
+         tellRoom(1001, true, true, 2, "01010", 0, ["V;Frank","V;Grace","V;Heidi"]);
+         walk(win,[],texts,0,0,[]);
+         shown("private room, in match, three spectators", texts, true);
+         same("private room, spectators come", plain, namePlaces(texts));
+         // The list's side panel, a room in its match chosen (`S1;G` and its `V` rows).
+         tell(["S1;N;0;0;0"]);
+         tell(["S1;L;1;0","1003;2;15;8;5;2;600;61;0;Alice"]);
+         var rows:Array = [];
+         walk(win,[],[],0,0,[]);
+         findRows(win, rows);
+         for each(var row:Sprite in rows)
+            if(row.name == "1003")
+               row.dispatchEvent(new MouseEvent(MouseEvent.CLICK));
+         var members:Function = function(spectators:Array):Array
+         {
+            var names:Array = ["S1;G;1003;5"];
+            for(var i:int = 0; i < WHO.length; i++)
+            {
+               names.push(["P",i,15,i == 0 ? 1 : 0,0,1,0,0,i % 2 + 1,11 + i,0].join(";"));
+               names.push(WHO[i]);
+            }
+            for each(var s:String in spectators)
+               names.push("V;" + s);
+            tell(names);
+            var seen:Array = [];
+            walk(win,[],seen,0,0,[]);
+            return seen;
+         };
+         texts = members([]);
+         shown("list panel, in match, no spectators", texts, false);
+         plain = namePlaces(texts);
+         texts = members(["Frank","Grace","Heidi"]);
+         shown("list panel, in match, three spectators", texts, true);
+         same("list panel, spectators come", plain, namePlaces(texts));
+         // A spectator's name like a member's ("V;" in a name kept whole) never reads as a member.
+         var named:Boolean = false;
+         for each(var t:Object in members(["V;x"]))
+            if(String(t.text) == "Spectators: V;x")
+               named = true;
+         if(!named)
+            failures.push("list panel: a spectator named \"V;x\" not shown whole");
+         // A full room's footer: Queue and Queue and spectate; queued, the one Leave queue.
+         tell(["S1;N;0;0;0"]);
+         tell(["S1;L;1;0","1001;2;15;8;16;2;600;61;0;Bob"]);
+         selectRow("1001");
+         var labels:Function = function():Array
+         {
+            var buttons:Array = [];
+            walk(win,[],[],0,0,buttons);
+            return buttons.map(function(b:*, ... rest):String { return b.label; });
+         };
+         var footer:Array = labels();
+         if(footer.indexOf("Queue") < 0 || footer.indexOf("Queue and spectate") < 0)
+            failures.push("full room's footer: " + footer.join(", "));
+         tell(["S1;N;0;1001;1"]);
+         footer = labels();
+         if(footer.indexOf("Leave queue") < 0 || footer.indexOf("Queue and spectate") >= 0 || footer.indexOf("Queue") >= 0)
+            failures.push("queued footer: " + footer.join(", "));
+         trace("ROOMS queued footer: " + footer.join(", "));
+         tell(["S1;N;0;0;0"]);
       }
 
       // A squad's soldier goes into no room on its own (squads.md): Join and New room greyed in

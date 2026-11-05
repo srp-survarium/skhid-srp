@@ -2630,9 +2630,11 @@ st_srp_rooms_pool_hint	Ezek közül 3 kerül szavazásra.
 st_srp_rooms_private_room	Privát szoba: max. 20 játékos; te osztod a csapatokat és indítasz.
 st_srp_rooms_queue	Sor
 st_srp_rooms_queue_room	Sorba állás
+st_srp_rooms_queue_spectate	Sorba állás és nézés
 st_srp_rooms_room	Szoba
 st_srp_rooms_room_chat	Szobachat
 st_srp_rooms_servers	Szobák
+st_srp_rooms_spectators	Nézők:
 st_srp_rooms_start_hint	Ha mindenki bent van, nyomd meg az Indítás gombot.
 st_srp_rooms_start_match	Indítás
 st_srp_rooms_starts	A meccs kezdéséig

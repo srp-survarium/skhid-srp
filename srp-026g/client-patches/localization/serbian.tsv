@@ -2630,9 +2630,11 @@ st_srp_rooms_pool_hint	Za glasanje se biraju 3 od ovih.
 st_srp_rooms_private_room	Privatna soba: do 20 igrača; ti sastavljaš timove i pokrećeš meč.
 st_srp_rooms_queue	Red
 st_srp_rooms_queue_room	Stani u red za sobu
+st_srp_rooms_queue_spectate	Red i gledanje
 st_srp_rooms_room	Soba
 st_srp_rooms_room_chat	Čet sobe
 st_srp_rooms_servers	Sobe
+st_srp_rooms_spectators	Gledaoci:
 st_srp_rooms_start_hint	Pritisni Pokreni kada svi uđu.
 st_srp_rooms_start_match	Pokreni
 st_srp_rooms_starts	Meč počinje za
