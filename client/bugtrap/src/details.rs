@@ -158,6 +158,12 @@ pub fn write_offset(w: &mut dyn Write, minutes: i64) -> fmt::Result {
     write!(w, " (local {sign}{:02}:{:02})", m / 60, m % 60)
 }
 
+/// Whether `SKHID_CRASH_DUMP`'s value asks for full-memory dumps: `full`,
+/// in any case, with spaces or tabs around it.
+pub fn asks_full_dump(value: &str) -> bool {
+    value.trim_matches([' ', '\t']).eq_ignore_ascii_case("full")
+}
+
 /// The last `lines` lines of `text` (a file's tail), from the start of a
 /// whole line: a first line cut by the read is dropped unless `whole` (the
 /// read began at the file's start).

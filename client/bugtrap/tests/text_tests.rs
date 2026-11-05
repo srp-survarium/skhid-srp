@@ -287,3 +287,13 @@ fn a_wrapped_ring_lists_its_last_lines_and_counts_what_it_kept() {
     assert_eq!(out.as_str().lines().count(), 5);
     assert!(out.as_str().ends_with("  -0.000 s  player gone: place 0\r\n"));
 }
+
+#[test]
+fn full_dumps_are_asked_for_in_any_case_with_spaces() {
+    for value in ["full", "FULL", "Full", "full ", " full\t"] {
+        assert!(details::asks_full_dump(value), "{value:?}");
+    }
+    for value in ["", "small", "fu ll", "1", "fullx"] {
+        assert!(!details::asks_full_dump(value), "{value:?}");
+    }
+}
