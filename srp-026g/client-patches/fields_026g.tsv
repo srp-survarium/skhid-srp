@@ -607,3 +607,46 @@ survarium::medical_clock_result	interval	0	u32	interval zero while holding
 survarium::medical_clock_result	time	4	f32	hold at zero like native artefact clock
 survarium::medical_clock_result	ended	8	u8	end when activation duration elapses
 survarium::medical_artefact	item	0	obj<survarium::item>	owned inventory item at activation
+vostok::animation::registry_key	first	0x0	ptr<vostok::resources::managed_resource>	an animation pair's first resource, the registry's key (the 1st-view clip; animations_registry::register_animation 0x2EF130 keeps it at the entry's +0, the lookup 0x2D6590 compares it first)
+vostok::animation::registry_key	second	0x4	ptr<vostok::resources::managed_resource>	the pair's second resource (the 3rd-view clip, the one an id resolves to: 0x1F18B0 returns the entry's +4; the same resource as first for most pairs)
+survarium::animation_id_frame	registry	0x10	ptr<survarium::animations_registry>	ESP+10h at animations.id_missing: the lookup's registry argument (0x2D6590 pushed EBX, ESI, EDI after its return address)
+survarium::animation_id_resolver_frame	return_address	0x4	u32	the return address into the resolver's caller (EBP+4 of 0x2D7B90's push ebp / mov ebp,esp)
+survarium::animation_id_resolver_frame	above_0	0x14	u32	the stack word at EBP+14h, above the resolver's three arguments: its caller's (the boost invoker's) return address and frame among them, logged as they are
+survarium::animation_id_resolver_frame	above_1	0x18	u32	the stack word at EBP+18h, above the resolver's three arguments: its caller's (the boost invoker's) return address and frame among them, logged as they are
+survarium::animation_id_resolver_frame	above_2	0x1C	u32	the stack word at EBP+1Ch, above the resolver's three arguments: its caller's (the boost invoker's) return address and frame among them, logged as they are
+survarium::animation_id_resolver_frame	above_3	0x20	u32	the stack word at EBP+20h, above the resolver's three arguments: its caller's (the boost invoker's) return address and frame among them, logged as they are
+survarium::animation_id_resolver_frame	above_4	0x24	u32	the stack word at EBP+24h, above the resolver's three arguments: its caller's (the boost invoker's) return address and frame among them, logged as they are
+survarium::animation_id_resolver_frame	above_5	0x28	u32	the stack word at EBP+28h, above the resolver's three arguments: its caller's (the boost invoker's) return address and frame among them, logged as they are
+survarium::animations_registry	ids_begin	0xE044	u32	the ids' vector, an entry pointer per id (actualize 0x2EF280 sorts and numbers it; the id resolver 0x1F18B0 indexes it unchecked)
+survarium::animations_registry	ids_end	0xE048	u32	the ids' vector's end
+survarium::animations_registry	actualized	0x10050	u8	1 once actualize (0x2EF280) numbered the entries: the world load's, once (0x2CBFD7); 0 again at ~game_world (0x1F7153)
+vostok::resources::managed_resource	name_entry	0xB0	ptr<vostok::resources::name_registry_entry>	its name registry entry (resource_base::m_name_registry_entry; 0.10b resources_resource_base.h; every one of 221 registered animations of the 2026-11-03 full dump has one, its +4 the resource)
+vostok::resources::name_registry_entry	name	0x8	ptr<u8>	the resource's name, a C string (name_registry_entry::name, 0.10b resources_name_registry_entry.h: class_id, associated, name)
+survarium::change_input_frame	rotation	0x8	u32	game_world_core::change_input<player_input>'s input at its start (0x1FAB50, by the site's ESP): its rotation, math::half2 as it came (+8 the yaw's half, +0Ah the pitch's)
+survarium::change_input_frame	time	0x10	u32	the input's time (ms)
+survarium::change_input_frame	player	0x14	u8	the place whose input it is (0..19)
+survarium::core_world	maximum_time	0x18FC4	u32	the newest simulation time played once (prediction core; set to an item's time after its move 0x2D0FCB, 50 by clear 0x2D0776): a tick at or before it is a re-simulation (the time rule's 0x267AD2, the step guard 0x2A6488)
+survarium::player_equipment_sound_effect	player	0x3C	ptr<survarium::player>	its player (on_player_sound_event 0x2A6472; the player's +884h)
+survarium::player_equipment_sound_effect	feet	0x44	u8	the feet's positions are read (1 by 0x2A645A from the toe bones, 0 when the bone indices are taken again 0x2A63B3); on_player_sound_event plays no step without it
+vostok::animation::animation_callback_params	object	0x0	u32	the animated object (on_player_sound_event plays only for its own player, 0x2A6495): an address, compared only
+vostok::animation::animation_callback_params	time	0x10	u32	the event's simulation milliseconds (compared with core_world maximum_time at 0x2A6488)
+vostok::animation::animation_callback_params	domain	0x20	u8	the event channel's domain value: 0 and 1 a step of one foot or the other, 2..4 the rustles (on_player_sound_event's switch 0x2A64A2)
+vostok::sound::sound_instance_proxy	user	0x64	ptr<vostok::sound::world_user>	its world user (detach_voice 0x5CBBD, calculate_hdr_audio_frame 0x5CA9F)
+vostok::sound::sound_instance_proxy	scene	0x68	ptr<vostok::sound::sound_scene>	its scene (detach_voice 0x5CBBA, calculate_hdr_audio_frame 0x5CA9C)
+vostok::sound::world_user	world	0x118	ptr<vostok::sound::sound_world>	its sound world (detach_voice 0x5CBC3, calculate_hdr_audio_frame 0x5CAA2)
+vostok::sound::new_sound_propagator	voice	0x4	u32	its sound voice, 0 while it has none (create_sound_voice's result stored at 0x5CAB0; detach_voice 0x5CBF2 clears it)
+vostok::sound::new_sound_propagator	proxy	0x8	ptr<vostok::sound::sound_instance_proxy>	the proxy it plays for (the constructor 0x5CB10)
+vostok::sound::new_sound_propagator	emitter	0xC	ptr<vostok::sound::sound_propagator_emitter>	its propagator emitter, passed to create_sound_voice (0x5CA99; vtable +8 its sound's options: +11h can_be_displaced, 0x5CACD)
+vostok::sound::new_sound_propagator	master	0x14	ptr<vostok::sound::new_sound_propagator>	the propagator whose gain it takes, if any (amplitude 0x5C1C0 follows the chain to the last)
+vostok::sound::new_sound_propagator	reach	0x1C	u32	the ms the sound takes to reach the listener: audible from then (calculate_hdr_audio_frame 0x5C81D, 0x5C9BA, 0x5CA65)
+vostok::sound::new_sound_propagator	elapsed	0x24	u32	the ms since it was emitted (the proxy's tick 0x5B526)
+vostok::sound::new_sound_propagator	level	0x44	f32	its sample's amplitude at its playing offset this frame, 0.01 to 1 (0x5CD40, stored at 0x5C850)
+vostok::sound::new_sound_propagator	hold	0x48	u32	ms, set to 2000 when the HDR cull takes its voice (0x5CAD9), counted down by the proxy's tick (0x5B529)
+vostok::sound::new_sound_propagator	gain	0x4C	f32	its gain by distance this frame, 0 to 1 (calculate_hdr_audio_frame 0x5CA37); a voice is given above 0.01 (0x5CA87)
+vostok::sound::hdr_frame	propagators	0xC	ptr<vostok::sound::propagator_list>	calculate_hdr_audio_frame's second argument ([ebp+0Ch], 0x5C9A4): the scene's propagators this tick, notify_listener2's vector
+vostok::sound::propagator_list	begin	0x0	ptr<vostok::sound::propagator_slot>	the first (0x5CA4E)
+vostok::sound::propagator_list	end	0x4	ptr<vostok::sound::propagator_slot>	past the last (0x5C7F8)
+vostok::sound::propagator_slot	propagator	0x0	ptr<vostok::sound::new_sound_propagator>	one of the scene's propagators (0x5CA60)
+vostok::sound::propagator_slot	size	0x4	size	a pointer
+vostok::sound::sound_propagator_emitter	options	0x8	obj<vostok::sound::sound_options>	its sound's options, inline (vtable slot 2 0x38990 returns this + 8; calculate_hdr_audio_frame asks the slot, 0x5CAC3)
+vostok::sound::sound_options	can_be_displaced	0x11	u8	the HDR cull may take its voice (0x5CACD); single_sound_cook's default 1 (0x6129F), raw_options can_be_displaced false makes it 0

@@ -33,7 +33,7 @@ own fixed limits, which no world a game made can fail. Written 2026-10-31.
   stack buffer of that size (`game_state_history_item::hash` 0x325150, patch 98; 0x8000 in the
   original exe). **Every player state is at most 0x1000** (`player_history_item` 0x3247D0).
 - The sections have no buffer of their own to fit since patch 98 (2026-11-05,
-  `client_patch.md` section 3.62): their buffers in the history item (inline bullets 0x2400,
+  `client_patch.md` section 3.66): their buffers in the history item (inline bullets 0x2400,
   statistics 0xC00, objects 0x2000, physics 0x4000, rules 0x800, effects 0xC00 bytes, which this
   check held them to until then) have the game's multithreaded allocator and grow.
 - Nothing else: not the contents of a section or a state (PR #289's checks), not the match

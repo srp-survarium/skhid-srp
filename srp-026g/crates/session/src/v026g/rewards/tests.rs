@@ -3,6 +3,7 @@ use crate::v026g::MemoryGameRepository;
 use crate::v026g::account::QuestInstance;
 use crate::v026g::quests::QUEST_MESSAGE;
 use survarium::v026g::lobby::client_model::{Client, Decoded};
+use survarium::v026g::maps::RuleMode;
 use survarium::v026g::match_msgs::snapshot;
 use survarium::v026g::quests::Quests;
 
@@ -65,7 +66,7 @@ fn result(players: Vec<PlayerResult>) -> MatchResult {
     MatchResult {
         match_id: MATCH,
         map_id: 1,
-        game_mode: mode::BATTERIES,
+        mode: GameMode::Batteries,
         match_level: 0,
         end: MatchEnd::ModeRule,
         winner: Some(0),
@@ -77,7 +78,6 @@ fn result(players: Vec<PlayerResult>) -> MatchResult {
         players,
         vs_bots: false,
         private: false,
-        blackout: false,
     }
 }
 
@@ -254,7 +254,7 @@ fn the_winner_and_the_loser_are_paid_by_the_score() {
     assert_eq!(stats.winner_team, 0);
     assert_eq!(stats.team_scores, [3, 1]);
     assert_eq!(stats.team_params, [1, 1]);
-    assert_eq!(stats.game_mode, mode::BATTERIES);
+    assert_eq!(stats.game_mode, RuleMode::Batteries.number());
     assert_eq!(stats.best_player.name, "Alice");
     assert_eq!(stats.best_player_score, 35);
     // Nobody fired, helped or found anything the counters show.
@@ -1038,14 +1038,14 @@ fn the_quest_numbers_come_from_the_counters() {
     assert_eq!(bob.team_batteries, 1);
     // Tickets are no batteries.
     let mut deathmatch = result.clone();
-    deathmatch.game_mode = mode::TEAM_DEATHMATCH;
+    deathmatch.mode = GameMode::TeamDeathmatch;
     let shared = Shared::of(&deathmatch, &terms);
     let alice = shared.quest_stats(&deathmatch.players[0]);
     assert_eq!(alice.team_batteries, 0);
     assert!(!alice.battery_mode);
     // Nor are Research's points, and no base is robbed there.
     let mut research = result.clone();
-    research.game_mode = mode::RESEARCH;
+    research.mode = GameMode::Research;
     let shared = Shared::of(&research, &terms);
     let alice = shared.quest_stats(&research.players[0]);
     assert_eq!(alice.team_batteries, 0);
@@ -1056,7 +1056,7 @@ fn the_quest_numbers_come_from_the_counters() {
 /// A Research match (mode 5) team 0 won 100 to 64: Alice captured units
 /// worth fifteen whole captures (more than a map has batteries),
 /// neutralised one and killed two invaders.
-fn research_match(game_mode: u8, weights: &[f32; EVENTS]) -> (GameAccounts, MatchResult) {
+fn research_match(mode: GameMode, weights: &[f32; EVENTS]) -> (GameAccounts, MatchResult) {
     let mut alice = player(
         0,
         0,
@@ -1074,16 +1074,16 @@ fn research_match(game_mode: u8, weights: &[f32; EVENTS]) -> (GameAccounts, Matc
     let players = vec![alice, player(1, 1, "Bob", PlayerStatistics::default())];
     let store = accounts(&players);
     let mut result = result(players);
-    result.game_mode = game_mode;
+    result.mode = mode;
     result.team_points = [100, 64];
     (store, result)
 }
 
 #[test]
 fn a_research_match_pays_its_captures_by_research_weights_uncapped() {
-    let research_weights = static_info::score_weights(mode::RESEARCH);
+    let research_weights = static_info::score_weights(RuleMode::Research);
     // The score the match server sent and counted: 15 × 30 + 30 + 2 × 10.
-    let (store, result) = research_match(mode::RESEARCH, &research_weights);
+    let (store, result) = research_match(GameMode::Research, &research_weights);
     assert_eq!(result.players[0].score, 500);
     let report = Results::new()
         .settle(&result, &store, &terms(), &mut Rng::new(1))
@@ -1091,7 +1091,7 @@ fn a_research_match_pays_its_captures_by_research_weights_uncapped() {
     let alice = &report.players[0];
     assert!(alice.reward.won);
     assert_eq!(alice.reward.score, 500);
-    assert_eq!(report.stats.game_mode, mode::RESEARCH);
+    assert_eq!(report.stats.game_mode, RuleMode::Research.number());
     assert_eq!(
         (report.stats.winner_team, report.stats.team_scores),
         (0, [100, 64])
@@ -1101,7 +1101,7 @@ fn a_research_match_pays_its_captures_by_research_weights_uncapped() {
     assert_eq!(activity.0, 20.0);
     // As a match whose terms weigh so pays it: all fifteen captures, at
     // Research's weights and not the batteries'.
-    let (store, plain) = research_match(mode::BATTERIES, &research_weights);
+    let (store, plain) = research_match(GameMode::Batteries, &research_weights);
     let weighed = Terms {
         score_weights: research_weights,
         ..terms()
@@ -1110,7 +1110,7 @@ fn a_research_match_pays_its_captures_by_research_weights_uncapped() {
         .settle(&plain, &store, &weighed, &mut Rng::new(1))
         .unwrap();
     assert_eq!(columns(&as_weighed.players[0].full, 2), activity);
-    let (store, batteries) = research_match(mode::BATTERIES, &SCORE_WEIGHTS);
+    let (store, batteries) = research_match(GameMode::Batteries, &SCORE_WEIGHTS);
     let at_battery_weights = Results::new()
         .settle(&batteries, &store, &terms(), &mut Rng::new(1))
         .unwrap();
@@ -1972,7 +1972,7 @@ fn the_client_takes_every_players_pushes() {
         let mut result = result(players.clone());
         result.match_level = (seed % 21) as u16;
         if seed % 5 == 0 {
-            result.game_mode = mode::TEAM_DEATHMATCH;
+            result.mode = GameMode::TeamDeathmatch;
             result.team_points = [40, 0];
         }
         let report = results
@@ -2072,7 +2072,7 @@ fn the_client_takes_every_players_pushes() {
         assert_eq!(bob.full.components[0].columns[2].0, 1.0);
         assert_eq!(columns(&bob.full, 2).0, 1.0);
         assert!(bob.reward.drop.is_some());
-        if result.game_mode == mode::TEAM_DEATHMATCH {
+        if result.mode == GameMode::TeamDeathmatch {
             assert_eq!(report.stats.team_scores, [40, 0]);
         }
     }
@@ -3547,7 +3547,7 @@ fn a_blackout_match_pays_its_points_twice() {
     let players = alice_and_bob();
     let plain = result(players.clone());
     let mut blackout = result(players.clone());
-    blackout.blackout = true;
+    blackout.mode = GameMode::Blackout;
     let once = Results::new()
         .settle(&plain, &accounts(&players), &terms(), &mut Rng::new(1))
         .unwrap();

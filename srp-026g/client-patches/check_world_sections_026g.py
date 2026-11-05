@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """Run patch 98 (a world up to 0xF000 bytes is hashed, the history item's six
-world sections grow on the heap; ../docs/notes/client_patch.md section 3.62)
+world sections grow on the heap; ../docs/notes/client_patch.md section 3.66)
 in the default build, the original beside it.
 
     python check_world_sections_026g.py <original survarium.exe>

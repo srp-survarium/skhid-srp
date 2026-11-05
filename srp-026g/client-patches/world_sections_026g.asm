@@ -4,7 +4,7 @@ section .text
 global world_sections_construct
 
 ; The world's six sections in a history item grow on the heap
-; (../docs/notes/client_patch.md section 3.62).
+; (../docs/notes/client_patch.md section 3.66).
 ;
 ; game_state_history_item::construct (0x324510, ESI the item, EBX 0) gives
 ; each section an inline buffer and a mutable_buffer {+0 allocator 0,

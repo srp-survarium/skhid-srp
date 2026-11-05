@@ -990,7 +990,7 @@ def test_hash_interval(original, image, mode):
 
 def test_world_buffer(original, image, mode):
     """hash()'s world buffer and the 0xE8 handler's unpack buffer are 0xF000
-    bytes (patch 98, client_patch.md section 3.62): each its stack allocation
+    bytes (patch 98, client_patch.md section 3.66): each its stack allocation
     and its capacity, two immediates; the rest of both the original's."""
     stock = Image(original)
     start, end = 0x325150, 0x325270
@@ -1228,6 +1228,31 @@ def test_memory_defaults(original, image, before):
     for va, length in ((0xE0FF0, 31), (0xE1015, 20), (0xE9956, 47), (0xE998A, 15)):
         check(image.read(va, length) == stock.read(va, length),
               f"{va:#x}: option parsing, explicit-value branch and units remain unchanged")
+
+
+def test_sound_pools(original, image, before):
+    """The game world's sound scene has 1024 sound instances and 1024
+    propagators (patch 96, SOUND_POOLS): two immediates of game_world::load's
+    sound_scene_creation_params; the build without the late join keeps 512
+    and 196."""
+    stock = Image(original)
+    start, end = 0x1F8DA6, 0x1F8E9D
+    original_at = {address: text for address, _, text in ndisasm(stock.read(start, end - start), start)}
+    rows = {address: text for address, _, text in ndisasm(image.read(start, end - start), start)}
+    check(original_at.get(0x1F8DB6) == "mov dword [ebp-0x10],0x200" and original_at.get(0x1F8DBD) == "mov dword [ebp-0xc],0xc4"
+          and original_at.get(0x1F8E68) == "movq xmm0,[ebp-0x10]" and original_at.get(0x1F8E72) == "movq [eax],xmm0"
+          and original_at.get(0x1F8E79) == "mov dword [esi],0x9fc7c0",
+          "the original: proxies 0x200 at [ebp-10h], propagators 0xc4 at [ebp-0Ch], copied as one qword into the "
+          "variant of sound_scene_creation_params (helper 0x9fc7c0)")
+    for va, old, new in P.SOUND_POOLS:
+        check(stock.read(va, len(old)) == old and before.read(va, len(old)) == old and image.read(va, len(new)) == new,
+              f"{va:#x}: the original's `{old.hex()}`, kept by the build without the late join, `{new.hex()}` in this one")
+        relocated = [rva for kind, rva in stock.relocations().values() if kind == 3 and rva + 4 > va and rva < va + len(old)]
+        check(not relocated, f"{va:#x}: no base relocation under the number")
+    check(rows.get(0x1F8DB6) == f"mov dword [ebp-0x10],{P.SOUND_INSTANCES:#x}"
+          and rows.get(0x1F8DBD) == f"mov dword [ebp-0xc],{P.SOUND_INSTANCES:#x}"
+          and all(rows.get(a) == original_at.get(a) for a in (0x1F8DC4, 0x1F8E68, 0x1F8E72, 0x1F8E79)),
+          "the build: both numbers 0x400, the rest of the block the original's")
 
 
 def test_start_up_folder(original, image, mode):
@@ -1612,6 +1637,7 @@ def late_join_sites():
         [(P.BAKED_TEXTURE_MISSING[0], len(P.BAKED_TEXTURE_MISSING[1]))] + \
         [(P.AI_ARENA_VA, len(P.AI_ARENA[1]))] + \
         [(va, len(old)) for va, old, _ in P.MEMORY_DEFAULTS] + \
+        [(va, len(old)) for va, old, _ in P.SOUND_POOLS] + \
         [(va, len(old)) for va, old, _, _ in P.WEAPON_PREVIEW_HOOKS] + \
         [(P.WEAPON_DRAW_HOOK[0], len(P.WEAPON_DRAW_HOOK[1]))] + [(va, len(old)) for va, old, _, _ in P.RUST_HOOKS] + \
         [(va, len(old)) for va, old, _, _ in P.TAB_LIST_HOOKS] + [(P.TAB_LIST_LOOP_VA, len(P.TAB_LIST_LOOP[1]))] + \
@@ -1625,6 +1651,7 @@ def late_join_sites():
         [(va, len(old)) for va, old, _, _ in P.RESEARCH_HOOKS] + \
         [(va, len(old)) for va, old, _, _ in P.ARTEFACTS_HOOKS] + \
         [(va, len(old)) for va, old, _ in P.ARTEFACTS_SIZES] + \
+        [(va, len(old)) for va, old, _ in P.MOUSE_BUTTONS] + \
         [(va, len(old)) for va, old, _, _ in P.MATCH_KEYS_HOOKS] + \
         [(va, len(old)) for va, old, _, _ in P.HIDE_UI_HOOKS] + \
         [(va, len(old)) for va, old, _, _ in P.HIDE_UI_TABLE_REFS] + \
@@ -1635,8 +1662,11 @@ def late_join_sites():
         [(va, len(old)) for va, old, _, _ in P.BAKE_CACHE_HOOKS] + \
         [(va, len(old)) for va, old, _, _ in P.WEIGHT_UI_HOOKS] + \
         [(va, len(old)) for va, old, _, _ in P.BULLET_BOUNDS_HOOKS] + \
+        [(va, len(old)) for va, old, _, _ in P.MATCH_STAT_MAP_HOOKS] + \
+        [(va, len(old)) for va, old, _, _ in P.AUDIO_DEVICE_HOOKS] + \
         [(va, len(old)) for va, old, _, _ in P.WORLD_SECTIONS_HOOKS] + \
-        [(P.BAKE_CACHE_KEEP[0], len(P.BAKE_CACHE_KEEP[1]))]
+        [(P.BAKE_CACHE_KEEP[0], len(P.BAKE_CACHE_KEEP[1]))] + \
+        [(P.EXPAND_TEXT_UNBOUND[0], len(P.EXPAND_TEXT_UNBOUND[1]))]
 
 
 def pickup_sites():
@@ -6970,6 +7000,7 @@ def test_late_join(original, without, server, source):
     test_baked_texture_missing(original, image, before)
     test_ai_arena(original, image, before)
     test_memory_defaults(original, image, before)
+    test_sound_pools(original, image, before)
     test_weapon_preview(original, image, before)
     test_weapon_table(original, image, before)
     test_weapon_decals(original, image, before)
