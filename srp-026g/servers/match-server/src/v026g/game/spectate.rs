@@ -22,9 +22,11 @@
 //!   only after its world is loaded: the client's 0xEA handler reads the
 //!   match's view, `Game::roster_change`).
 //!
-//! What it sends is heard only for its own handshake: inputs, kit choices,
-//! hash reports and uploads are dropped (it would have no inputs anyway; a
-//! world of its own is no witness). Its own 0xE0, or its link gone, is its
+//! What it sends is heard only for its own handshake and its own step:
+//! inputs, kit choices and uploads are dropped (it would have no inputs
+//! anyway; a world of its own is no witness), and its hash reports are judged
+//! against the players' alone, never one of theirs (`judge_spectators`). Its
+//! own 0xE0, or its link gone, is its
 //! game leaving by itself: reported (`take_spectators_left`), so the lobby
 //! takes it out of its queue.
 //!
@@ -43,10 +45,10 @@
 //! `match.md` section 34). A game of its session seated meanwhile (its place
 //! came) connects again from that address as a player (`Server::receive`).
 //!
-//! A world it may be out of step with is not looked for (its reports are not
-//! heard): a relay or roster change of a place it has not installed puts it
-//! back to wait for a world, from which it starts again. A world not loaded
-//! in [`WORLD_WAIT`], or an 0xE5 not answered in [`TIMING_WAIT`], the same.
+//! It starts again from a world (back to wait for one) when its reports say
+//! it is out of step, as rarely as a player is resynced; when a relay or
+//! roster change of a place it has not installed comes; when a world is not
+//! loaded in [`WORLD_WAIT`] or an 0xE5 not answered in [`TIMING_WAIT`].
 
 use survarium::v026g::match_msgs::static_info::NO_LOCAL_PLACE;
 
@@ -67,6 +69,12 @@ const SILENCE: Duration = Duration::from_secs(7);
 const FAREWELL_GOES: Duration = Duration::from_millis(250);
 /// A place's install is asked again after this.
 const PREPARE_RETRY: Duration = Duration::from_secs(1);
+/// A spectator's hash reports kept for judging, at most.
+const REPORTS_KEPT: usize = 64;
+/// Its reports in a row the players' majority contradicts before it is
+/// started anew from a world: one alone may be a tick it played before its
+/// world was in.
+const DRIFT_REPORTS: u32 = 2;
 
 /// Where a spectator's game is.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -91,8 +99,10 @@ enum Watch {
         time: u32,
         since: Instant,
     },
-    /// It has the world: gets every relay and roster change.
-    Live,
+    /// It has the world (the snapshot at `from`): gets every relay and roster
+    /// change. `wrong`: its reports in a row that the players' majority
+    /// contradicts ([`Game::judge_spectators`]).
+    Live { from: u32, wrong: u32 },
     /// Let go by the server: its farewell sent, silent until `until`, then
     /// forgotten.
     Leaving { quiet_from: Instant, until: Instant },
@@ -123,6 +133,12 @@ pub(crate) struct Spectator {
     /// The places its game has: the static info's, then each it installed.
     installed_roster: usize,
     installing: Option<Installing>,
+    /// Its hash reports not judged yet, while it is live: tick time, CRC
+    /// ([`REPORTS_KEPT`] at most).
+    reports: VecDeque<(u32, u32)>,
+    /// When it was started anew for drifting, the latest
+    /// [`RESYNCS_PER_MINUTE`].
+    restarts: VecDeque<Instant>,
 }
 
 impl Game {
@@ -160,6 +176,8 @@ impl Game {
             generation: Generation::AT_READY,
             installed_roster: 0,
             installing: None,
+            reports: VecDeque::new(),
+            restarts: VecDeque::new(),
         });
     }
 
@@ -283,11 +301,27 @@ impl Game {
                 );
                 self.spectator_gone(at);
             }
+            // Heard only to find it out of step (`judge_spectators`): never
+            // one of the match's reports.
+            ClientMessage::Hash { tick, crc } => {
+                let clock = self.clock(now);
+                let spectator = &mut self.spectators[at];
+                if let Watch::Live { from, .. } = spectator.stage
+                    && crc != FORCED_MISMATCH
+                    && let Some(time) = tick_time(tick, clock)
+                    && time > from
+                    && time <= clock + HASH_MAX_AHEAD_MS
+                {
+                    if spectator.reports.len() == REPORTS_KEPT {
+                        spectator.reports.pop_front();
+                    }
+                    spectator.reports.push_back((time, crc));
+                }
+            }
             // Not heard from a spectator: it is no player and no witness.
             ClientMessage::Connect { .. }
             | ClientMessage::Input(_)
             | ClientMessage::ProfileInput { .. }
-            | ClientMessage::Hash { .. }
             | ClientMessage::Chunk(_)
             | ClientMessage::KeepAlive => {}
         }
@@ -442,10 +476,12 @@ impl Game {
         let clock = self.clock(now);
         for spectator in &mut self.spectators {
             match spectator.stage {
-                Watch::Live | Watch::Syncing { .. } if from >= spectator.installed_roster => {
+                Watch::Live { .. } | Watch::Syncing { .. }
+                    if from >= spectator.installed_roster =>
+                {
                     spectator.wait_again();
                 }
-                Watch::Live => {
+                Watch::Live { .. } => {
                     let until = relay_deadline(0, clock, time, now);
                     let _ = spectator
                         .transport
@@ -473,10 +509,12 @@ impl Game {
     ) {
         for spectator in &mut self.spectators {
             match spectator.stage {
-                Watch::Live | Watch::Syncing { .. } if index >= spectator.installed_roster => {
+                Watch::Live { .. } | Watch::Syncing { .. }
+                    if index >= spectator.installed_roster =>
+                {
                     spectator.wait_again();
                 }
-                Watch::Live => {
+                Watch::Live { .. } => {
                     let _ = spectator.transport.send(message.id(), &message.payload());
                 }
                 Watch::Syncing { time, .. } if entered && at > time => {
@@ -508,6 +546,7 @@ impl Game {
         if self.finished_at.is_none() && self.over_unfinished(now) {
             self.spectators_finish(now);
         }
+        self.judge_spectators(now);
         let mut gone = Vec::new();
         for at in 0..self.spectators.len() {
             let stage = self.spectators[at].stage;
@@ -580,12 +619,19 @@ impl Game {
                         };
                     }
                 }
-                Watch::Syncing { serial, since, .. } => {
+                Watch::Syncing {
+                    serial,
+                    time,
+                    since,
+                } => {
                     if spectator.transport.is_delivered(serial) {
                         for message in &leaves {
                             let _ = spectator.transport.send(message.id(), &message.payload());
                         }
-                        spectator.stage = Watch::Live;
+                        spectator.stage = Watch::Live {
+                            from: time,
+                            wrong: 0,
+                        };
                         log::info!(
                             "Match {:#x}: spectator {:#x} watches",
                             self.id,
@@ -595,7 +641,8 @@ impl Game {
                         spectator.wait_again();
                     }
                 }
-                Watch::Connecting | Watch::Loading | Watch::Live | Watch::Leaving { .. } => {}
+                Watch::Connecting | Watch::Loading | Watch::Live { .. } | Watch::Leaving { .. } => {
+                }
             }
         }
         for at in gone.into_iter().rev() {
@@ -620,6 +667,70 @@ impl Game {
             |spectator| !matches!(spectator.stage, Watch::Leaving { until, .. } if now >= until),
         );
         datagrams
+    }
+
+    /// Each live spectator's reports against the players': a tick the match
+    /// has judged (`hashes_checked_until`) and its players' majority names
+    /// is right or wrong; one with no majority, or gone from the reports
+    /// kept, decides nothing. [`DRIFT_REPORTS`] wrong in a row: it is
+    /// started anew from a world (its next generation), as a player out of
+    /// step is resynced, and no more often: [`RESYNCS_PER_MINUTE`] in
+    /// [`RESYNC_WINDOW`], `Timing::resync_interval` apart. Its reports never
+    /// go into `Game::hashes`: nothing of the match reads them.
+    fn judge_spectators(&mut self, now: Instant) {
+        let checked = self.hashes_checked_until;
+        let keep_from = self.clock(now).saturating_sub(HASH_KEEP_MS);
+        let interval = self.settings.timing.resync_interval;
+        for at in 0..self.spectators.len() {
+            let Watch::Live { from, mut wrong } = self.spectators[at].stage else {
+                continue;
+            };
+            let reports = std::mem::take(&mut self.spectators[at].reports);
+            let mut kept = VecDeque::new();
+            for (time, crc) in reports {
+                if time < keep_from {
+                    continue;
+                }
+                if time >= checked {
+                    kept.push_back((time, crc));
+                    continue;
+                }
+                match self.majority(time) {
+                    Some(right) if right == crc => wrong = 0,
+                    Some(_) => wrong += 1,
+                    None => {}
+                }
+            }
+            let id = self.id;
+            let spectator = &mut self.spectators[at];
+            spectator.reports = kept;
+            spectator.stage = Watch::Live { from, wrong };
+            if wrong < DRIFT_REPORTS {
+                continue;
+            }
+            while spectator
+                .restarts
+                .front()
+                .is_some_and(|at| now.saturating_duration_since(*at) >= RESYNC_WINDOW)
+            {
+                spectator.restarts.pop_front();
+            }
+            let busy = spectator.restarts.len() >= RESYNCS_PER_MINUTE
+                || spectator
+                    .restarts
+                    .back()
+                    .is_some_and(|at| now.saturating_duration_since(*at) < interval);
+            if busy {
+                continue;
+            }
+            log::info!(
+                "Match {id:#x}: spectator {:#x} is out of step ({wrong} reports in a row); it \
+                 starts again from a world",
+                spectator.session_id
+            );
+            spectator.restarts.push_back(now);
+            spectator.wait_again();
+        }
     }
 
     /// The next place the spectator's game lacks, asked as every game is
@@ -674,10 +785,18 @@ impl Game {
     }
 
     #[cfg(test)]
-    pub(crate) fn spectator_watches(&self, session_id: u32) -> bool {
+    pub(crate) fn spectator_generation(&self, session_id: u32) -> Option<u8> {
         self.spectators
             .iter()
-            .any(|spectator| spectator.session_id == session_id && spectator.stage == Watch::Live)
+            .find(|spectator| spectator.session_id == session_id)
+            .map(|spectator| spectator.generation.0)
+    }
+
+    #[cfg(test)]
+    pub(crate) fn spectator_watches(&self, session_id: u32) -> bool {
+        self.spectators.iter().any(|spectator| {
+            spectator.session_id == session_id && matches!(spectator.stage, Watch::Live { .. })
+        })
     }
 }
 
@@ -706,6 +825,7 @@ impl Spectator {
     /// Back to wait for a world: its next start is of a new generation.
     fn wait_again(&mut self) {
         self.stage = Watch::Waiting;
+        self.reports.clear();
     }
 
     /// The server lets it go: an 0xEA naming no place, its game's end, sent

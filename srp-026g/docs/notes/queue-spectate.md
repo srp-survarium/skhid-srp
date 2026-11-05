@@ -45,8 +45,11 @@ dynamic game". Rooms: [rooms.md](rooms.md) (Queue, Late joins). Wire: `lobby.md`
   line of the lobby to the match's players, an exe hook in `process_incoming_text_message`
   (0x26B6F0, beside `#mstats`), and a muted line in hud.swf's `PlayerList` while Tab is held.
   Left for the owner to decide.
-- **Out of step:** a spectator's hash reports are not heard, so a spectator whose world drifts
-  is not found; it starts again only when it lacks a place or its sync stalls.
+- **Out of step:** a spectator's hash reports are heard only to judge it: two in a row that the
+  players' majority contradicts and it starts again from a fresh world, no more often than a
+  player is resynced. They never count for the match (`match.md` section 36).
+- **No cap on spectators:** each costs about one more player (its relays and worlds); add one if
+  the host struggles.
 
 ## How
 
