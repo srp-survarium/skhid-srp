@@ -62,8 +62,24 @@ after a feel test. The code: `client-patches/rust/patches/src/past_poses.rs`, th
 - The world re-simulates that past, as today: the tested pose changes and no longer equals what
   was drawn; every game still computes the same hit from the same inputs (the vote is
   unchanged). What was drawn was predicted for the part beyond the age.
-- Measured on the recordings (`private/prediction-data`, the fitting worker's, read only; see the
-  PR for the numbers).
+- Measured on the recordings (`private/prediction-data`, the fitting worker's, read only): 60
+  matches of 4 or more humans, 40 M (receiver, input) pairs; an input's lateness at a receiver =
+  its server receipt after its game time + the receiver's median round trip / 2 (median 73 ms,
+  p90 124, p99 187). This patch's estimator and sender rule replayed on them:
+
+  | Age from | Mean age | At the cap | Inputs after the age | Excess then (median, p90) | Unconfirmed draw time vs today |
+  |---|---|---|---|---|---|
+  | v1, the latest place (built) | 135 ms | 50 % | 4.0 % | 16, 61 ms | 1.5 % |
+  | v1, all places' samples' p90 | 125 ms | 33 % | 4.4 % | | 1.6 % |
+  | v1, the places' median | 106 ms | 8 % | 10.0 % | | 3.5 % |
+  | per place (a later version's pairs) | 101 ms | 12 % | 4.6 % | 15, 60 ms | 1.6 % |
+
+  So about 1 input in 25 of another player still reaches you after the age: for 16 ms (median)
+  he is drawn from a prediction, and a shot in that time is tested against where he really was.
+  Today every input is: the time drawn from predictions falls to about 1.5 % of today's.
+- The cost of v1's one value: it is the latest place's, so one far player ages everyone (half
+  the time at 150 ms). A target can be hit about that much longer after reaching cover. The pair
+  form (per place) gives the same confirmation at a mean of 101 ms.
 
 ## Composing with patch 104 (remote smoothing, PR #1279)
 
