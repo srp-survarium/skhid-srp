@@ -40,6 +40,7 @@ mod hud_input;
 mod input;
 pub mod inventory;
 mod keyboard;
+pub mod keyboard_layout;
 pub mod language;
 pub mod lobby;
 pub mod lobby_camera;

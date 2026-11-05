@@ -654,3 +654,4 @@ vostok::sound::propagator_slot	propagator	0x0	ptr<vostok::sound::new_sound_propa
 vostok::sound::propagator_slot	size	0x4	size	a pointer
 vostok::sound::sound_propagator_emitter	options	0x8	obj<vostok::sound::sound_options>	its sound's options, inline (vtable slot 2 0x38990 returns this + 8; calculate_hdr_audio_frame asks the slot, 0x5CAC3)
 vostok::sound::sound_options	can_be_displaced	0x11	u8	the HDR cull may take its voice (0x5CACD); single_sound_cook's default 1 (0x6129F), raw_options can_be_displaced false makes it 0
+vostok::engine::message_frame	lparam	0x1C	u32	message_processor's lParam (0x181E0; by the site's ESP inside it, EBX ESI EDI pushed: mov ecx,[esp+1Ch] 0x183AC, mov esi,[esp+1Ch] 0x183F0); an HKL for WM_INPUTLANGCHANGEREQUEST and WM_INPUTLANGCHANGE
