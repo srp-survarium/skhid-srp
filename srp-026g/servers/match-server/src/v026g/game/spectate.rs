@@ -36,13 +36,13 @@
 //! server ends nothing in the game (0xFD reaches `close_current_match` as
 //! reason 4, its return, `match.md` section 24), and an 0xEA ends a game's
 //! match only for its own place (0x27C72C: with no local place the handler
-//! returns). A stock game takes this 0xEA harmlessly: `leave_match`
-//! 0x2D18A0 tests bit `0xFF & 31` of the entered mask, never set, and drops
-//! it (0x2D1B8D..0x2D1B9D), and so does a game with the spectator patch (103)
-//! as it stands; one that takes it as its end would end at once. What ends
-//! the game's match today is the silence: its match link ends after 5 s of
-//! it (`close_current_match(0)`: the world ended, no results screen,
-//! `match.md` section 34). A game of its session seated meanwhile (its place
+//! returns), so the spectator patch (103, `player_left.local`) takes an 0xEA
+//! naming 0xFF as its game's end: `close_current_match(0)`, the world
+//! ended, no results screen. The silence after it is for a game whose 0xEA
+//! was lost: its match link ends after 5 s of it, the same way (`match.md`
+//! section 34). A game without the patch takes the 0xEA harmlessly
+//! (`leave_match` 0x2D18A0 tests bit `0xFF & 31` of the entered mask, never
+//! set, and drops it, 0x2D1B8D..0x2D1B9D) and ends by the silence. A game of its session seated meanwhile (its place
 //! came) connects again from that address as a player (`Server::receive`).
 //!
 //! It starts again from a world (back to wait for one) when its reports say
