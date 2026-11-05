@@ -15,6 +15,9 @@ assembled or revision reserved. A `next` simulation row invalidates older replay
   best-ammo curve matters. This is an explicit armour-specialist decision, not a claim
   that retail 0.69 used these penetration units. At 42 damage it needs two helmet hits
   with either SP-5 or SP-6; 44 damage would accidentally give SP-5 a one-shot helmet kill.
+  Retune (the owner, 2026-11-05: "a bit too strong", keep it high-pierce): damage 42 -> 38 and
+  top kick 1.2–1.5 -> 1.5–1.8. Against Zubr +8 the torso still takes 4 hits to 30 m; one more
+  from 50 m (12 and 14), the head 3 at 40 m (was 2). Its pierce stays.
 - L85A2: equipment **12 -> 10**, matchmaking level **12 -> 10**, damage stays 48,
   penetration stays 32; 725 rpm, 25/60 m falloff, much softer kick and sideways variation.
   It trades close-range damage output for control and reach. Price/faction are unchanged.
@@ -169,7 +172,7 @@ No single scalar here is a simulated hit rate. Binary value types are preserved.
 | Gun | Power | Up kick | Signed side kick | Side SD | Screen shake |
 |---|---:|---:|---:|---:|---:|
 | AK-12 | 0.5 | 1.5–1.5 | -0.40…0.40 | 0.163 | 0.8–1 |
-| Groza | 0.65 | 1.2–1.5 | -0.50…0.50 | 0.204 | 0.4–1 |
+| Groza | 0.65 | 1.5–1.8 | -0.50…0.50 | 0.204 | 0.4–1 |
 | SCAR-H | 0.7 | 1.7–2 | -0.60…0.60 | 0.245 | 0.5–1 |
 | VHS-2 | 0.55 | 1.3–1.6 | -0.30…0.30 | 0.122 | 0.3–1 |
 | Minimi | 0.8 | 1.7–2 | -0.40…0.40 | 0.163 | 0.5–1 |
