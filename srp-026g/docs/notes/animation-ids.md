@@ -1,7 +1,8 @@
 # Animation ids the registry does not have (the rev47 crash at 0x1F18C8)
 
 What is known of the crash, and the diagnostic (patch 95) that names the missing clip the next
-time it happens. The root cause is **not proven**: no dump of the crash has the heap.
+time it happens. The cause (2026-11-05, "The cause" below): a picked-up gun's copy that is not
+the recipe's gun, the bug `fix/pickup-state-length` (#1246) fixes; no separate registry bug.
 
 ## The crash
 
@@ -83,6 +84,29 @@ time it happens. The root cause is **not proven**: no dump of the crash has the 
 So a missing pair needs a clip pointer that is in no registered table: a resource the load
 never registered, held by an object the load never saw. Not found statically; the names the
 diagnostic logs will say which.
+
+## The cause (2026-11-05)
+
+- **The live crash** (the owner's 15:42 match): place 17's pick at 601 750 ms installed copy
+  0x7CD3F7C8, which the owner's `srp_patches.log` shows cooked in the match before (line
+  86 178, "the gun of place 2 kit 1 slot 7" of that match) and handed out again by recipe
+  alone. That match's gun need not be in this one; when no kit of this match carries it, its
+  clips were never registered here (the registry is emptied at each `~game_world`) and every
+  lookup of them is 0FFFFh. #1246's "a copy is its match's" frees the copies of the match
+  before; a copy of this match is a kit gun of this match, registered at its load.
+- **The replay repro** (School 0x71A7A62A, key frame 789 800, #1246's build, full dump
+  `SRP-crash-20261105-043142-405`): `convert_to_object_matrices` 0x3B336C reads past a clip's
+  bone table. The clip is id 278, `ots14/item/stand/3rd_view/idle`, in the element of place
+  6's tree (player +77ACh, 0B0h each, node at +0A8h, its target +30h) whose target is the
+  picked VHS-2 copy 0x7CB0D110: an OTs-14 clip on a VHS-2 skeleton. Place 6 has no OTs-14 (its
+  guns: the 9A-91, its own SVD parked, the VHS-2). The registry's numbering is the same on
+  every client: each kit player's new pairs appended in roster order (the 0x2CBF9B call goes to
+  the late join's `register_animations`, which appends and numbers; actualize then finds it
+  done), checked on the dump's 545 entries kit player by kit player, and the other held guns'
+  elements decode right at high ids (place 10's PKP, 472; place 15's SV-98, 456). So the
+  recording's writer, a rev47 game, had an OTs-14 under that pick: a copy holding another gun
+  (#1246's "every client installs the recipe's gun"). The reader then puts the writer's tree
+  on its own, right, gun. Replays recorded before #1246's simulation change are refused.
 
 ## The diagnostic (patch 95)
 

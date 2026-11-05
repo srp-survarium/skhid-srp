@@ -185,6 +185,9 @@ struct Request {
     exception: MINIDUMP_EXCEPTION_INFORMATION,
     crash: bool,
     saved: bool,
+    /// QueryPerformanceCounter as the capture began: the game's
+    /// breadcrumbs are dated from it (report.rs).
+    counter: i64,
 }
 struct Slot(UnsafeCell<Request>);
 // Only the PHASE owner accesses this slot, and it joins the worker before releasing it.
@@ -197,6 +200,7 @@ static REQUEST: Slot = Slot(UnsafeCell::new(Request {
     },
     crash: false,
     saved: false,
+    counter: 0,
 }));
 
 type WriteDump = unsafe extern "system" fn(
@@ -239,6 +243,7 @@ pub unsafe fn capture(exception: *mut EXCEPTION_POINTERS, crash: bool) -> bool {
     }
     OWNER.store(caller, Ordering::Release);
     let request = REQUEST.0.get();
+    windows_sys::Win32::System::Performance::QueryPerformanceCounter(&mut (*request).counter);
     (*request).exception.ThreadId = caller;
     (*request).exception.ExceptionPointers = exception;
     (*request).crash = crash;
@@ -477,17 +482,30 @@ unsafe extern "system" fn worker(parameter: *mut c_void) -> u32 {
             &mut report,
             request.exception.ExceptionPointers,
             request.exception.ThreadId,
+            request.counter as u64,
         );
     }
     crate::report::finish(&mut report, request.saved, partial, error, capture);
     // The text report beside the dump (or, with none, beside the exe or in
     // the temporary folder, and the dialog names it in the dump's place);
     // when neither takes it, the dialog still shows it.
-    crate::report::save(&report, kept, &mut path, request.exception.ThreadId);
+    let reported = crate::report::save(&report, kept, &mut path, request.exception.ThreadId);
+    // A full-memory dump is kept for the developer, never posted (also one
+    // saved only in part): the dialog names its report to send (beside it,
+    // the same name), or with none says so.
+    let full = (kept && Kind::get() == Kind::Full).then_some(if reported {
+        crate::ui::FullDump::WithReport
+    } else {
+        crate::ui::FullDump::WithoutReport
+    });
     // Zip the dump only now that it is flushed and closed: on any failure, or
     // a crash or exit while zipping, the dump stays and the dialog names it.
     if kept && Kind::get() == Kind::Small {
-        let _ = crate::archive::zip(&mut path, &report.text.buf[..report.text.len]);
+        let _ = crate::archive::zip(
+            &mut path,
+            &report.text.buf[..report.text.len],
+            crate::report::crumbs_text(&report),
+        );
     }
     // Publish only after save() has flushed/closed its file and it is zipped
     // (or all attempts failed). Contending crashes need not wait for callbacks
@@ -506,7 +524,11 @@ unsafe extern "system" fn worker(parameter: *mut c_void) -> u32 {
             // Both callbacks and UI occur only after the persistent dump is closed.
             api::callback(&api::PRE, &api::PRE_PARAM);
             if api::ACTIVITY.load(Ordering::Relaxed) == 1 {
-                crate::ui::show(&path, request.saved, partial, error, capture, &report);
+                if full == Some(crate::ui::FullDump::WithReport) {
+                    let n = path.len;
+                    path.buf[n - 3..n].copy_from_slice(&[b't' as u16, b'x' as u16, b't' as u16]);
+                }
+                crate::ui::show(&path, full, request.saved, partial, error, capture, &report);
             }
             api::callback(&api::POST, &api::POST_PARAM);
         }

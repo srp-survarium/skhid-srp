@@ -947,7 +947,7 @@ class ReleaseTests(unittest.TestCase):
         top_windows = x86.rsplit('\\game\\', 1)[0]
         dry = [f'[dry-run] logs: Documents\\Survarium, "{x86}", "{top_windows}\\game", "{top_windows}", '
                f'"{top_windows}\\temp"',
-               f'[dry-run] crash reports: SRP-crash-*.txt in "{x86}" and the temporary folder',
+               f'[dry-run] crash reports: SRP-crash-*.txt in "{x86}" and the temporary folder, the text of the newest 5 SRP-crash-*.zip',
                '[dry-run] sha256: game\\binaries\\x86 programs, the certificate, game\\resources.db, '
                'game\\resources.db.patch_*',
                "[dry-run] servers: updater_skhid.url's (else https://skhid.link) /api/client-files, /patches, /game "
@@ -1034,7 +1034,12 @@ class ReleaseTests(unittest.TestCase):
         (x86 / 'srp_patches.log').write_bytes(b'pid 7 pickup: refused, no drop to take\r\n')
         (x86 / 'SRP-crash-20261102-1.txt').write_bytes(b'Exception: 0xC0000005\r\n')
         (x86 / 'SRP-crash-20261102-1.dmp').write_bytes(b'MDMP dump-secret')
-        (x86 / 'SRP-crash-20261102-1.zip').write_bytes(b'PK dump-secret')
+        # A crash ZIP as the reporter writes it: its dump stays out, its text is taken.
+        with zipfile.ZipFile(x86 / 'SRP-crash-20261102-1.zip', 'w') as crash_zip:
+            crash_zip.writestr('SRP-crash-20261102-1.dmp', b'MDMP dump-secret')
+            crash_zip.writestr('crash.txt', b'Match:     id 4242, map 12\r\n')
+            crash_zip.writestr('breadcrumbs.txt', b'  -1.500 s  death: place 4\r\n')
+        (x86 / 'SRP-crash-20261101-0.zip').write_bytes(b'PK not a zip')
         (temp / 'SRP-crash-20261101-2.txt').write_bytes(b'Exception: 0x80000003\r\n')
         (temp / 'unrelated.log').write_bytes(b'not the game')
         (top / 'skhid-download.log').write_bytes(b'2026-11-02 09:00:00 skhid-game  ok  here: done\r\n')
@@ -1127,6 +1132,7 @@ class ReleaseTests(unittest.TestCase):
                     'logs/game-x86/updater_skhid.log', 'logs/game-x86/srp_patches.log',
                     'logs/game/Survarium_big.log', 'logs/game-folder/skhid-download.log',
                     'crash/game-x86/SRP-crash-20261102-1.txt', 'crash/temp/SRP-crash-20261101-2.txt',
+                    'crash/game-x86/SRP-crash-20261102-1/crash.txt', 'crash/game-x86/SRP-crash-20261102-1/breadcrumbs.txt',
                     'state/game-x86/updater_skhid.url', 'state/game-x86/play_skhid.bat'})
                 for secret in (b'hunter2', b'hunter3', b'pa55', b'secretdigest', b'engine-secret', b'dump-secret',
                                b'my-taxes', b'match.sur', b'not the game', b'user.cfg'):
@@ -1140,6 +1146,9 @@ class ReleaseTests(unittest.TestCase):
                 self.assertEqual(entries['logs/game-x86/updater_skhid.log'],
                                  removed + b'2026-11-02 10:00:01 ok\n')
                 self.assertEqual(entries['logs/game-x86/srp_patches.log'], (x86 / 'srp_patches.log').read_bytes())
+                self.assertEqual(entries['crash/game-x86/SRP-crash-20261102-1/crash.txt'], b'Match:     id 4242, map 12\r\n')
+                self.assertEqual(entries['crash/game-x86/SRP-crash-20261102-1/breadcrumbs.txt'],
+                                 b'  -1.500 s  death: place 4\r\n')
                 tail = entries['logs/game/Survarium_big.log']
                 self.assertLessEqual(len(tail), 8 * 1024 * 1024)
                 self.assertTrue(big.endswith(tail) and tail.startswith(b'core <info>\t['), tail[:80])
@@ -1151,6 +1160,7 @@ class ReleaseTests(unittest.TestCase):
                              '  game/resources.db.patch_3: in the list, MISSING here',
                              '  not taken: game-x86/SRP-crash-20261102-1.dmp',
                              '  not taken: game-x86/SRP-crash-20261102-1.zip',
+                             '  crash/game-x86/SRP-crash-20261101-0.zip: its text not read: ',
                              '  not taken: documents/engine.dmp',
                              'logs/documents/Survarium.journal'):
                     self.assertIn(line, report, report)

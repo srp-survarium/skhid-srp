@@ -7,6 +7,7 @@ compile_error!(
 
 mod api;
 mod archive;
+mod breadcrumbs;
 mod crash_text;
 mod details;
 mod dump;

@@ -5497,3 +5497,10 @@ va	name	location	role	basis
 0x002d18a0	survarium::game_world_core::leave_match	entry ESP+8	the place (byte): a name lookup bounded by 14h (0x1F66A0, the log), its entered bit `shl edx,cl` (0x2D1B8D..0x2D1B9D; CL masked to 31 by the CPU), so place 0xFF tests bit 31, which no entered mask of the history has: it returns 1 (0x2D1CC6) and writes nothing (run with Unicorn, check_spectator_026g.py)	observed
 0x002717e0	survarium::lobby_client::discard_playing_order	entry ESP+8	left_match (byte, sent 00 or FF): `31 <u32 order +1E57A8h> <byte>` to the lobby; nothing of the client changed	observed
 0x002717e0	survarium::lobby_client::discard_playing_order	entry ESP+4	the lobby client (the network client's vtable+3Ch, +1E0h)	observed
+0x001f0e70	survarium::match_options::deserialize	entry ESP+4	the options it fills, in wire order: 20 profiles (0x45FC bytes each), then u8 map (maps_dict id) +577B4h (0x1F0EAD), u8 places +577B5h, u32 seed/match id +577B0h (0x1F0ECD), u16 level +577B6h (0x1F0EDC), 28 f32 +577BCh, 20 u8 squads +5782Ch; the crash breadcrumbs (vostok/breadcrumbs.rs) read map, places, seed and level after it	observed
+0x002ff930	survarium::weapon_controller_core::serialize	ECX	controller	observed
+0x002ff930	survarium::weapon_controller_core::serialize	entry ESP+4	writer	observed
+0x002ff970	survarium::weapon_controller_core::deserialize	ECX	controller	observed
+0x002ff970	survarium::weapon_controller_core::deserialize	entry ESP+4	reader	observed
+0x00330a20	survarium::hit_animations_selector::hit_body_part::deserialize	ECX	hit body parts	observed
+0x00330a20	survarium::hit_animations_selector::hit_body_part::deserialize	EAX	reader	observed
