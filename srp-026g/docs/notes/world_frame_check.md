@@ -29,9 +29,13 @@ own fixed limits, which no world a game made can fail. Written 2026-10-31.
 - **Every mask bit is below the places:** the match's roster on the server (`snapshot_players`,
   20 in the growing-roster dialect), all 20 slots in the game (it does not know a late join's
   roster).
-- **Every section fits its buffer:** bullets 0x2400, statistics 0xC00, objects 0x2000, physics
-  0x4000, rules 0x800, effects 0xC00 bytes after the length; **every player state is at most
-  0x1000** (`player_history_item` 0x3247D0).
+- **The body is at most 0xF000 bytes** (`MAX_BODY`): every world a game holds is hashed into a
+  stack buffer of that size (`game_state_history_item::hash` 0x325150, patch 98; 0x8000 in the
+  original exe). **Every player state is at most 0x1000** (`player_history_item` 0x3247D0).
+- The sections have no buffer of their own to fit since patch 98 (2026-11-05,
+  `client_patch.md` section 3.62): their buffers in the history item (inline bullets 0x2400,
+  statistics 0xC00, objects 0x2000, physics 0x4000, rules 0x800, effects 0xC00 bytes, which this
+  check held them to until then) have the game's multithreaded allocator and grow.
 - Nothing else: not the contents of a section or a state (PR #289's checks), not the match
   messages 0xE3..0xF6, not the game objects.
 - A refusal is one enum (`Refusal`), written `<part> at <offset>: <reason>`.

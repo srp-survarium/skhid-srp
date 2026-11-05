@@ -126,7 +126,8 @@ release's. The "Result" row is the build of the revision named in it.
 | `rust/patches/src/music.rs`, `src/music.toml`, `src/vostok/sound.rs`, `src/vostok/resources.rs`, `check_music_026g.py` | Patch 88: the music (`../docs/notes/music.md`): the menus' and the maps' themes in a sound scene of its own, kept active and faded by the sound thread; its query callback the framework's first `callback` hook (handed to query_resources at run time, no site rewritten). The check runs its seven lohooks and the callback through the game's own boost invoker, bind, config lookups and add_scene_to_active (needs Unicorn) |
 | `rust/patches/src/hud_options.rs`, `src/hud_options.toml`, `src/vostok/settings.rs`, `check_hud_options_026g.py` | Patch 83: the Settings' HUD group ("Hide hit markers", "Hide player scores", the crosshair list's Hidden), settings kept in user.cfg (Settings, Gameplay; `../docs/notes/hide-hit-markers-scores.md`): five lohooks, each after patch 79's or 65's at its site; `vostok::settings` is the Settings' call, the save of user.cfg and a saved bool, shared with patch 79; its check runs each hook from the game's code on made-up objects, the original beside (needs Unicorn); the movies' harness is `../scripts/hud-options/check.sh` |
 | `rust/patches/src/tab_cursor.rs`, `src/tab_cursor.toml`, `src/vostok/hud_input.rs`, `src/vostok/keyboard.rs`, `src/vostok/lobby.rs`, `check_tab_cursor_026g.py` | Patch 86: Ctrl on the Tab list shows a cursor, and its rows' menu sends the lobby's friend request and chat mute (`../docs/notes/tab-cursor-friends.md`, `chat-mute.md`): two lohooks (`sites_026g.tsv`); its check runs both from the game's code on made-up objects, the original beside (needs Unicorn); the menu's harness is `../scripts/tab-row-menu/check.sh` |
-| `rust/patches/src/world_check.rs`, `src/world_check.toml`, `src/vostok/world_load.rs`, `../crates/world-frame`, `check_world_check_026g.py` | Patch 87: a game parses every world it is sent (0xE8) before it loads it, with the match server's own parse (crate `world-frame`: the frame to its end, no slot past 20, no section or state over the game's buffer); a refused one is never loaded and the game leaves the match (`../docs/notes/world_frame_check.md`): two lohooks (`sites_026g.tsv`); its check runs both loads beside the original and, with `--drift`, kept worlds and mutated copies through the arena's build against the host's (needs Unicorn) |
+| `world_sections_026g.asm`, `check_world_sections_026g.py` | Patch 98: hash()'s world buffer and the upload's are 0xF000 bytes (two immediates), and the history item's six world sections grow on the heap (one jump at the end of its constructor, the arena's block `world_sections.code`); its check runs the constructor, the sections' writers, hash, deserialize and destroy of the game's own code on made-up items, the original beside (needs Unicorn) |
+| `rust/patches/src/world_check.rs`, `src/world_check.toml`, `src/vostok/world_load.rs`, `../crates/world-frame`, `check_world_check_026g.py` | Patch 87: a game parses every world it is sent (0xE8) before it loads it, with the match server's own parse (crate `world-frame`: the frame to its end, no slot past 20, no state over the game's buffer, no body over 0xF000 bytes); a refused one is never loaded and the game leaves the match (`../docs/notes/world_frame_check.md`): two lohooks (`sites_026g.tsv`); its check runs both loads beside the original and, with `--drift`, kept worlds and mutated copies through the arena's build against the host's (needs Unicorn) |
 | `check_world_roundtrip_026g.py`, `worlds_026g/` | A resync always converges: a late joiner and a resynced game load each recorded world (`worlds_026g/`, 8 dumps of rev41's match 0x1c0ebd31; or any `SRP_SNAPSHOT_DIR` dumps) and save it at once, through every patch hook inside the world's load and save (the 0xE8 preparation, patch 85's record, patch 78's carry); each must write back the bytes it read. Every patch site in a `::serialize` or `::deserialize` function is run there or named with its own check (`../docs/notes/client_patch.md`, "World round trip"; needs Unicorn) |
 | `rust/patches/src/drug_interrupt.rs`, `src/drug_interrupt.toml`, `src/vostok/drug.rs`, `check_drug_interrupt_026g.py` | Patch 84: a bullet that hits a player stops the healing drug he is using (`../docs/notes/drug-interrupt.md`): one lohook (`sites_026g.tsv` `player.hit_applied`), the game's own `medkit::set_active(0)` through the engine library; its check runs the hook in the patched exe and the game's set_active(0) in the original (needs Unicorn) |
 | `rust/patches/src/text_input.rs`, `check_text_input_026g.py` | Patch 52: ignore a character event whose Scaleform text field has lost its AS3 receiver; reproduces the PIN-entry crash and checks native register/stack behavior (needs Unicorn) |
@@ -3909,8 +3910,10 @@ with the parse the match server runs on every upload: the crate
 `../crates/world-frame` (`Frame::parse`, no_std, no alloc), a path
 dependency of `rust/patches` and a member of srp-026g's workspace
 (`../docs/notes/world_frame_check.md`). The frame must walk from the front
-to exactly its end, no mask bit may be at or past the game's 20 slots, and
-no section nor player state may be over the game's buffer for it. Each of
+to exactly its end, no mask bit may be at or past the game's 20 slots, no
+player state may be over the game's buffer for it, and the body may not be
+over the 0xF000 bytes hash() serializes it into (patch 98, which also lets
+the sections grow, so they have no cap of their own). Each of
 these would kill the game in `game_state_history_item::deserialize`
 (0x324D80) or `mutable_buffer::reallocate` (0x7AB70), and no world a game
 made fails one.
@@ -4138,3 +4141,43 @@ past its own removal, the game's Release and RemoveCaptureNotify, on made-up con
 none, a dying queue, a queue destroyed while the walk is at the one before (the original reaches
 the freed queue), and the walk's own reference the last; the lock never held across a call, every
 list read made with it, the references and registers as they were. **Not run in a game.**
+
+## A world up to 0xF000 bytes, its sections on the heap (patch 98, unreleased)
+
+A 10v10 bot match of revision 47 stopped every game in it: twenty players
+and some 93 buckshot pellets in flight made a world of 33.3 KB, and
+`game_state_history_item::hash` (0x325150), which serializes the world into
+0x8000 bytes of its stack with no allocator for every hash report, asserted
+in `mutable_buffer::reallocate` (0x7AB70, "mutable buffer overflow"). Behind
+it, the history item's bullets section holds 0x2400 bytes inline (about 133
+bullets in flight), so two full-auto buckshot shotguns overflow it in
+game_world_core::serialize.
+
+- hash(): 0x325176 `mov eax,8000h` and 0x32519D `mov dword [ebp-0Ch],8000h`
+  (the stack allocation and the buffer's capacity) become 0xF000 (every full
+  build): what the upload's u16 total holds, 128 chunks. The upload's own
+  buffer (`snapshot_upload_026g.asm` `BUFFER_SIZE`) is 0xF000 too. The game
+  thread's stack is 8 MiB; on_hash_mismatch takes 0x10000 bytes of it.
+- The sections (with the late join): a jump at the end of
+  `game_state_history_item::construct` (0x3246C0, its last store) to
+  `world_sections_026g.asm`, which gives each of the six world sections'
+  buffers (bullets, statistics, objects, physics, rules, effects) the global
+  multithreaded allocator (0xA8001C) and a block of its inline capacity
+  (through reallocate). They then grow as any buffer with an allocator does;
+  the item's destructor already frees such a buffer. Nothing reads the
+  inline bytes but through the buffer's data pointer, so the item's layout
+  stays.
+- Patch 87 (crate `world-frame`) refuses a body over 0xF000 bytes instead
+  of a section over its inline buffer; the match server reassembles uploads
+  of up to 0xF000 bytes (`upload::MAX_TOTAL`, the transport's
+  `MAX_SNAPSHOT_TOTAL`).
+
+Worlds are byte-identical: nothing a match computes changes, no row in
+`../crates/session/src/v026g/simulation_changes.tsv`. What stays: a world
+over 0xF000 bytes (some 550 bullets with twenty players), a player state
+over its inline 0x1000 (none past 0x3A8 seen), and a packed 0xE8 world over
+0x8000 (the server sends such a world raw). `../docs/notes/client_patch.md`
+section 3.62 has the evidence. `check_world_sections_026g.py` runs the
+constructor, the sections' writers, hash, deserialize and destroy of both
+exes on made-up items: the rev47 world (0x818A bytes), 300 bullets with
+twenty players, and a world over 0xF000. **Not run in a game.**

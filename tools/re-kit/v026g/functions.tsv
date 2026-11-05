@@ -185,6 +185,8 @@ va	status	ref_021d	name
 0x000e5120	reviewed	0x000b0979	vostok::memory::doug_lea_allocator::call_malloc
 0x000e5140	reviewed	0x000b098d	vostok::memory::doug_lea_allocator::call_realloc
 0x000e5160	reviewed	0x000b09a3	vostok::memory::doug_lea_allocator::call_free
+0x000eb590	observed		vostok::memory::mt_allocator::call_realloc
+0x000eb5b0	observed		vostok::memory::mt_allocator::call_free
 0x000e51a0	reviewed	0x000b09b3	vostok::memory::doug_lea_allocator::total_size
 0x000e5270	reviewed	0x000b0a10	vostok::memory::doug_lea_allocator::allocated_size
 0x000e7d20	reviewed	0x000b2c8f	vostok::resources::mount_by_config_helper::mount_by_config_helper
@@ -1272,6 +1274,9 @@ va	status	ref_021d	name
 0x00323bf0	reviewed	0x001ff89e	survarium::animation_analysis_result::animation_analysis_result
 0x00323f10	reviewed	0x001fd951	survarium::player_serialized_state::clear
 0x00324010	reviewed	0x001fd9ac	survarium::bullet_manager_history_item::clear
+0x00323f90	observed		survarium::bullet_manager_history_item::serialize
+0x00324090	observed		survarium::statistics_history_item::serialize
+0x003247d0	observed		survarium::player_history_item::construct
 0x00324390	reviewed	0x001fda07	survarium::statistics_history_item::clear
 0x00324510	observed		survarium::game_state_history_item::construct
 0x00324910	observed		survarium::game_state_history_item::destroy

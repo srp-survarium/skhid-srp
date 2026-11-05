@@ -10,10 +10,11 @@ use survarium::v026g::match_msgs::client_model::Skip;
 use survarium::v026g::match_msgs::players::{self, PlayerState};
 use survarium::v026g::match_msgs::rules::state;
 use survarium::v026g::match_msgs::snapshot::{Sections, event};
+use survarium::v026g::match_msgs::upload;
 use survarium::v026g::match_msgs::{PlayerInput, ServerMessage, WireTime, id};
 use udp_transport::wire::{self, low_level};
 use udp_transport::{Direction, Table};
-use world_frame::{Frame, PLAYER_STATE_CAP, Places, Section};
+use world_frame::{Frame, MAX_BODY, PLAYER_STATE_CAP, Places};
 
 use super::client::{Client, HORIZON_MS, INITIAL_MS};
 use super::{Bench, MAP_BATTERIES, MAP_TDM, session_of};
@@ -2059,8 +2060,6 @@ fn unloadable_worlds(world: &[u8]) -> Vec<Vec<u8>> {
     let real = Sections::walk(world).expect("a world that walks");
     let block = players::block_bytes(&[0xAB; 33], None);
     let big_state = players::block_bytes(&[0xAB; PLAYER_STATE_CAP + 1], None);
-    let over = Section::ALL.map(|section| vec![0; section.cap() + 1]);
-    let [bullets, statistics, objects, physics, rules, effects] = &over;
     let worlds = [
         // A place past the roster of two.
         Sections {
@@ -2079,12 +2078,6 @@ fn unloadable_worlds(world: &[u8]) -> Vec<Vec<u8>> {
             players: &big_state,
             ..real
         },
-        Sections { bullets, ..real },
-        Sections { statistics, ..real },
-        Sections { objects, ..real },
-        Sections { physics, ..real },
-        Sections { rules, ..real },
-        Sections { effects, ..real },
     ];
     let mut bodies = vec![vec![0xEE; 777]];
     bodies.extend(worlds.iter().map(|world| world.to_body().unwrap()));
@@ -2102,16 +2095,28 @@ fn a_world_no_game_could_load_goes_to_nobody() {
     bench.clients[0].connect();
     assert!(bench.until(1_000, |bench| bench.clients[0].model.options.is_some()));
     let world = bench.clients[0].sim.world(INITIAL_MS);
-    // At its caps a world goes, as a real one does.
+    // A world of the game's whole buffer goes, its bullets past the
+    // original's inline 0x2400 bytes (patch 98 grows them).
     let real = Sections::walk(&world).unwrap();
-    let full = vec![0; Section::Bullets.cap()];
+    let full = vec![0; MAX_BODY - real.to_body().unwrap().len() + real.bullets.len()];
     let at_cap = Sections {
         bullets: &full,
         ..real
     }
     .to_body()
     .unwrap();
+    assert_eq!(at_cap.len(), MAX_BODY);
     assert!(Frame::parse(&at_cap, Places::of(2)).is_ok());
+    // One byte more no game could hash, and no game can upload.
+    let over = vec![0; full.len() + 1];
+    let over = Sections {
+        bullets: &over,
+        ..real
+    }
+    .to_body()
+    .unwrap();
+    assert!(Frame::parse(&over, Places::of(2)).is_err());
+    assert_eq!(upload::split(INITIAL_MS, &over), None);
     let bodies = unloadable_worlds(&world);
     for (count, body) in bodies.iter().enumerate() {
         assert!(Frame::parse(body, Places::of(2)).is_err(), "world {count}");

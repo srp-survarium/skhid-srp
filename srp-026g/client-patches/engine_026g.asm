@@ -134,6 +134,7 @@ global engine_di_queue_next_capture
 global engine_di_queue_release
 global engine_remove_affect
 global engine_effect_resource_emit
+global engine_buffer_reallocate
 engine_action_present equ 0x242460   ; 0x242460 survarium::player_input_handler::action_present: handler ESP+4, action ESP+8, state ESP+12; pops 12; AL; stdcall, called directly
 engine_create_file_a equ 0x870048   ; the IAT slot 0x870048 (an import, stdcall)
 engine_write_file equ 0x870108   ; the IAT slot 0x870108 (an import, stdcall)
@@ -434,7 +435,7 @@ engine_increase_health:
 
     align 16, db 0xCC
 engine_artefact_effect:
-    ; 0x313350 (unnamed): artefact ESP+4, time ESP+8; pops 8
+    ; 0x313350 survarium::artefact_base::effect: artefact ESP+4, time ESP+8; pops 8
     push ebp
     push ebx
     push esi
@@ -1774,6 +1775,22 @@ engine_effect_resource_emit:
     mov esi, [esp + 20]   ; resource
     mov edi, [esp + 24]   ; out
     call 0x329050
+    pop edi
+    pop esi
+    pop ebx
+    pop ebp
+    ret
+
+    align 16, db 0xCC
+engine_buffer_reallocate:
+    ; 0x7ab70 vostok::network_core::mutable_buffer::reallocate: buffer ESI, capacity EDI; pops 0
+    push ebp
+    push ebx
+    push esi
+    push edi
+    mov esi, [esp + 20]   ; buffer
+    mov edi, [esp + 24]   ; capacity
+    call 0x7ab70
     pop edi
     pop esi
     pop ebx

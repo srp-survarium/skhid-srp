@@ -29,7 +29,6 @@ use survarium::v026g::match_msgs::{
 use udp_transport::seq::{Recorded, Window};
 use udp_transport::wire::{self, low_level};
 use udp_transport::{Class, Direction, Table, ack};
-use world_frame::Section;
 
 /// The client's event horizon: `max_ping_time_in_ms` + 250.
 pub const HORIZON_MS: u32 = 500;
@@ -62,9 +61,9 @@ pub struct Sim {
     pub events_from: Vec<(u32, usize, usize, u16)>,
     /// From a tick on the world differs from the others' by this byte.
     pub salt_from: Option<(u32, u8)>,
-    /// Extra bytes in every world (a bigger upload): in the bullets, and
-    /// what is over their buffer in the physics, each under its cap
-    /// (`world_frame::Section::cap`), as a real game's world would be.
+    /// Extra bytes in every world (a bigger upload): in the bullets, as
+    /// pellets in flight make them (the sections grow, patch 98; the body
+    /// stays under `world_frame::MAX_BODY`).
     pub ballast: usize,
     /// From a tick on the world's game objects have this many bytes: the
     /// grenades and traps of a place this game installed, or started with.
@@ -304,14 +303,7 @@ impl Sim {
                 .map_or([true, true], |(_, teams)| teams),
         }
         .to_bytes();
-        // One byte of the bullets' left for the salt.
-        let in_bullets = self.ballast.min(Section::Bullets.cap() - 1);
-        let mut bullets = vec![0xB0; in_bullets];
-        let physics = vec![0xB0; self.ballast - in_bullets];
-        assert!(
-            physics.len() <= Section::Physics.cap(),
-            "more ballast than a world holds"
-        );
+        let mut bullets = vec![0xB0; self.ballast];
         if let Some((_, salt)) = self.salt_from.filter(|(from, _)| since(*from)) {
             bullets.push(salt);
         }
@@ -348,7 +340,7 @@ impl Sim {
             bullets: &bullets,
             statistics: &statistics,
             objects: &objects,
-            physics: &physics,
+            physics: &[],
             rules: &rules,
             effects: &[],
         }

@@ -146,6 +146,12 @@ Patches:
   tick, and the match server then cannot compare their worlds (match.md
   section 14). With 50 every client reports every tick. The key on the
   command line still overrides it;
+- a world up to 0xF000 bytes is hashed (patch 98, client_patch.md section
+  3.62): game_state_history_item::hash (0x325150) serializes it into a stack
+  buffer of 0x8000 bytes with no allocator (0x325176, 0x32519D), and a
+  10v10 match's world passed it; and, with the late join, the history item's
+  six world sections (inline 0x800 to 0x4000 bytes, the bullets' 0x2400) grow
+  on the heap (world_sections_026g.asm, the block world_sections.code);
 - the patch revision in the sign-in (sign_in_on_connected 0x3807D0). The
   first login message has a 12-byte version field: "0.26g0" and six zero
   bytes. `mov cl,[9DAE9Eh]` at 0x380862 (it reads the string's own zero,
@@ -621,6 +627,21 @@ HASH_INTERVAL_VA = 0x27CC4F
 HASH_INTERVAL = (HASH_INTERVAL_VA, bytes.fromhex("c744241864000000"), bytes.fromhex("c744241832000000"))
 HASH_INTERVAL_BYTE_VA = HASH_INTERVAL_VA + 4  # the one byte that differs
 HASH_INTERVAL_MS = 50                         # = one tick
+
+# game_state_history_item::hash (0x325150) serializes the world into a stack
+# buffer with no allocator: `mov eax,8000h` / call _alloca_probe_16 at
+# 0x325176, the mutable_buffer {0, esp, capacity, 0} with `mov [ebp-0Ch],
+# 8000h` at 0x32519D. A world past it asserts in mutable_buffer::reallocate
+# (0x7AB70, "mutable buffer overflow"): a 10v10 match's world reached 33.3 KB
+# (rev47's dump). Both 0xF000 (patch 98, client_patch.md section 3.62): what the
+# upload's u16 total holds, 128 chunks of 480 (under the packet pool's guard);
+# on_hash_mismatch takes 0x10000 bytes of the same thread's stack (0x325DE5).
+# Numbers, no relocation under them.
+WORLD_BUFFER_SIZE = 0xF000
+WORLD_BUFFER = (
+    (0x325176, bytes.fromhex("b800800000"), b"\xb8" + struct.pack("<I", WORLD_BUFFER_SIZE)),
+    (0x32519D, bytes.fromhex("c745f400800000"), bytes.fromhex("c745f4") + struct.pack("<I", WORLD_BUFFER_SIZE)),
+)
 
 # sign_in_on_connected 0x3807D0 builds the 12-byte version field of the first
 # login message on the stack at [esp+20h]: eight zero bytes, "0.26" at +0,
@@ -2461,6 +2482,17 @@ BULLET_BOUNDS_HOOKS = (
 )
 INSTALLS[0x758E1] = (JUMP, "static level bounds after body insertion; transient bodies skip bounds growth, all bodies still update their AABB", None, None)
 
+# Patch 98 (client_patch.md section 3.62): game_state_history_item::construct
+# (0x324510) ends `mov [esi+0C0BC8h],ebx` / `mov eax,esi` / `pop ebx` /
+# `ret`; the hook takes the first (ESI the item, EBX 0) and gives the six
+# world sections' buffers the global multithreaded allocator and a heap block
+# of their inline capacity (world_sections_026g.asm), then goes on at 0x3246C6.
+WORLD_SECTIONS_HOOKS = (
+    (0x3246C0, bytes.fromhex("899ec80b0c00"), "world_sections_construct", 0xE9),
+)
+INSTALLS[0x3246C0] = (JUMP, "game_state_history_item::construct's last store: the six world sections' buffers "
+                            "get the multithreaded allocator and a block each; back at 0x3246C6", None, None)
+
 # The bodies a patch replaces in place, at a function's entry: {VA: size}.
 BODIES = {READ_ORDER_VA: READ_ORDER_SIZE}
 # A vtable our code builds and installs at run time (a rule's, a cook's):
@@ -2673,6 +2705,8 @@ ARENA = (
     # (rust/patches/src/ragdoll.rs; vostok's Lock and GameCell)
     ArenaBlock("patches.data", "data", 0x1000, ("rust/patches/Cargo.toml",)),
     ArenaBlock("patches.state", "state", 0x1000, ("rust/patches/Cargo.toml",)),
+    # patch 98: the history item's six world sections on the heap
+    ArenaBlock("world_sections.code", "code", 0x1000, ("world_sections_026g.asm",)),
 )
 
 
@@ -3225,6 +3259,9 @@ def build_image(original, mode, code=None, server=None, late_join=None, revision
     patch(data, *HASH_INTERVAL)
     rewritten = [(HASH_INTERVAL_BYTE_VA, HASH_INTERVAL_BYTE_VA + 1),
                  (MEMORY_CHECK[0], MEMORY_CHECK[0] + 1)]
+    for site in WORLD_BUFFER:
+        patch(data, *site)
+        rewritten.append((site[0], site[0] + len(site[1])))
     patch(data, *revision_site(revision))
     rewritten.append((REVISION_VA, REVISION_VA + len(REVISION_ORIGINAL)))
     upload_size = len(cave)
@@ -3725,7 +3762,8 @@ def build_image(original, mode, code=None, server=None, late_join=None, revision
             # hook's target taken from the link by its symbol.
             if linked is not None:
                 for va, expected, symbol, opcode in RESEARCH_HOOKS + ARTEFACTS_HOOKS + MATCH_KEYS_HOOKS + HIDE_UI_HOOKS \
-                        + KILL_FEED_HOOKS + BAKE_CACHE_HOOKS + WEIGHT_UI_HOOKS + BULLET_BOUNDS_HOOKS + rust_hooks(original):
+                        + KILL_FEED_HOOKS + BAKE_CACHE_HOOKS + WEIGHT_UI_HOOKS + BULLET_BOUNDS_HOOKS + WORLD_SECTIONS_HOOKS \
+                        + rust_hooks(original):
                     patch(data, va, expected, hook_bytes(arena_target(linked, symbol), va, expected, 0, opcode))
                     if neutralize_relocs(data, [(va, va + len(expected))]):
                         sys.exit(f"{va:#x}: a base relocation under the hook to {symbol}")
@@ -3749,6 +3787,7 @@ def build_image(original, mode, code=None, server=None, late_join=None, revision
     headers = Headers(data)
     struct.pack_into("<I", data, headers.checksum_at, pe_checksum(data, headers.checksum_at))
     return data, (f"certificate check, mutex, minimum VRAM check, hash interval {HASH_INTERVAL_MS} ms, "
+                  f"a world of {WORLD_BUFFER_SIZE:#x} bytes hashed, "
                   f"patch revision {revision}, battery rule, mount without a root, no journal by default, "
                   "stage.focus null for a focused object without its ActionScript object, "
                   f"{upload_size} bytes of upload code {where} "
@@ -3777,6 +3816,7 @@ def build_image(original, mode, code=None, server=None, late_join=None, revision
                      "a drag turns the warmup camera and the wheel moves it while the kits are shown, "
                      "the archive reads' order is a strict weak ordering, "
                      f"the ai arena is {AI_ARENA_SIZE >> 20} MiB, "
+                     "a history item's six world sections grow on the heap, "
                      "a weapon's upgrade window shows the weapon, "
                      "the commit_suicide key (K) kills one's own player, "
                      "a killed player falls as a ragdoll (drawn only) that bullets push and bloody, the death screen's camera on its head, "

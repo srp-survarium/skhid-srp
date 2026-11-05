@@ -115,6 +115,13 @@ use survarium::v026g::match_msgs::{
 use udp_transport::{Event, SendError, Transport};
 use world_frame::{Frame, Places};
 
+// One bound for a world: what the client hashes and uploads (patch 98), what
+// the server reassembles and the transport takes, what a game may be sent.
+const _: () = assert!(
+    survarium::v026g::match_msgs::upload::MAX_TOTAL == world_frame::MAX_BODY
+        && udp_transport::wire::MAX_SNAPSHOT_TOTAL == world_frame::MAX_BODY
+);
+
 use super::battery_cap;
 use super::kill_cap;
 use super::record::{Recorder, Recording};
