@@ -381,6 +381,131 @@ pub extern "C" fn hook_artefact_score_on_transfer(frame: &mut Frame) -> u32 {
     }
 }
 
+// ---- bake_async (patch 111) ----
+
+/// The named exits of bake_async::on_issue (the order the shim's Flow code
+/// follows, 2 upward).
+#[repr(u32)]
+#[allow(dead_code)]
+pub enum BakeAsyncOnIssueExit { Issued }
+/// The entry `bake_async_on_issue` (0x12eea7, process_compression with the bake's target of the type in [esp+1Ch], before the staging's create (mov esi,[esp+24h] / push 0); issued its epilogue 0x12F561 (releases [esp+10h] and [esp+1Ch], ret 28h)) calls this with the saved machine.
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_bake_async_on_issue(frame: &mut Frame) -> u32 {
+    // SAFETY: only the entry `bake_async_on_issue` calls this, from the game's jump at 0x12eea7,
+    // on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::new(frame) };
+    match crate::bake_async::on_issue(&mut ctx) {
+        Flow::Continue => 0,
+        Flow::Skip => 1,
+        Flow::Exit(e) => 2 + e as u32,
+    }
+}
+
+// ---- bake_async (patch 111) ----
+
+/// The named exits of bake_async::on_resume (the order the shim's Flow code
+/// follows, 2 upward).
+#[repr(u32)]
+#[allow(dead_code)]
+pub enum BakeAsyncOnResumeExit { Tail }
+/// The entry `bake_async_on_resume` (0x12ec57, process_compression after its prologue (mov esi,eax / lea eax,[esp+40h]); tail 0x12F00B: the compress timed (ESI the timer [esp+50h]), then the texture made from [esp+18h], shared, saved, recorded, freed if EBX, the query finished, the log (EBP the type, EDI the DDS)) calls this with the saved machine.
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_bake_async_on_resume(frame: &mut Frame) -> u32 {
+    // SAFETY: only the entry `bake_async_on_resume` calls this, from the game's jump at 0x12ec57,
+    // on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::new(frame) };
+    match crate::bake_async::on_resume(&mut ctx) {
+        Flow::Continue => 0,
+        Flow::Skip => 1,
+        Flow::Exit(e) => 2 + e as u32,
+    }
+}
+
+// ---- bake_async (patch 111) ----
+
+/// The named exits of bake_async::on_save (the order the shim's Flow code
+/// follows, 2 upward).
+#[repr(u32)]
+#[allow(dead_code)]
+pub enum BakeAsyncOnSaveExit { Made }
+/// The entry `bake_async_on_save` (0x12f2d8, process_compression before make_save_descriptor (mov byte [esp+5F8h],2Fh; then mov [esp+2Ch],ebx, the bytes' data, EBX the DDS; then call 0x109ED0: ECX the physical path, EAX the virtual, [esp] the bytes; cdecl, add esp,4 after); made past the call, EAX the descriptor) calls this with the saved machine.
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_bake_async_on_save(frame: &mut Frame) -> u32 {
+    // SAFETY: only the entry `bake_async_on_save` calls this, from the game's jump at 0x12f2d8,
+    // on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::new(frame) };
+    match crate::bake_async::on_save(&mut ctx) {
+        Flow::Continue => 0,
+        Flow::Skip => 1,
+        Flow::Exit(e) => 2 + e as u32,
+    }
+}
+
+// ---- bake_async (patch 111) ----
+
+/// The entry `bake_async_on_free` (0x12f3f7, process_compression after the record's push_back (mov ecx,[esp+188h]); EBX the DDS buffer until 0x12F40A, which frees it to the render allocator (0x12F41B) when not 0) calls this with the saved machine.
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_bake_async_on_free(frame: &mut Frame) -> u32 {
+    // SAFETY: only the entry `bake_async_on_free` calls this, from the game's jump at 0x12f3f7,
+    // on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::new(frame) };
+    match crate::bake_async::on_free(&mut ctx) {
+        Flow::Continue => 0,
+        Flow::Skip => 1,
+        Flow::Exit(e) => match e {},
+    }
+}
+
+// ---- bake_async (patch 111) ----
+
+/// The named exits of bake_async::on_readback (the order the shim's Flow code
+/// follows, 2 upward).
+#[repr(u32)]
+#[allow(dead_code)]
+pub enum BakeAsyncOnReadbackExit { Kept }
+/// The entry `bake_async_on_readback` (0x11f754, compress_mip after the level's copy to its staging (push 0 / lea ecx,[esp+48h], then map2D 0x11F763 and the memcpy); kept past the Unmap: ESI's staging released, the target released, ret 20h; EBX the level's blocks wide) calls this with the saved machine.
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_bake_async_on_readback(frame: &mut Frame) -> u32 {
+    // SAFETY: only the entry `bake_async_on_readback` calls this, from the game's jump at 0x11f754,
+    // on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::new(frame) };
+    match crate::bake_async::on_readback(&mut ctx) {
+        Flow::Continue => 0,
+        Flow::Skip => 1,
+        Flow::Exit(e) => 2 + e as u32,
+    }
+}
+
+// ---- bake_async (patch 111) ----
+
+/// The entry `bake_async_on_dispatched` (0x1024fa, resources_manager::dispatch_callbacks' common end (pop edi / pop esi / pop ebx / mov esp,ebp, then pop ebp / ret 4): the thread's callbacks dispatched) calls this with the saved machine.
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_bake_async_on_dispatched(frame: &mut Frame) -> u32 {
+    // SAFETY: only the entry `bake_async_on_dispatched` calls this, from the game's jump at 0x1024fa,
+    // on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::new(frame) };
+    match crate::bake_async::on_dispatched(&mut ctx) {
+        Flow::Continue => 0,
+        Flow::Skip => 1,
+        Flow::Exit(e) => match e {},
+    }
+}
+
+// ---- bake_async (patch 111) ----
+
+/// The entry `bake_async_on_exit` (0x1ec82b, game::exit before its delete of user_data/streamed_textures (lea eax,[esp+358h]; the call after is patch 70's nop)) calls this with the saved machine.
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_bake_async_on_exit(frame: &mut Frame) -> u32 {
+    // SAFETY: only the entry `bake_async_on_exit` calls this, from the game's jump at 0x1ec82b,
+    // on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::new(frame) };
+    match crate::bake_async::on_exit(&mut ctx) {
+        Flow::Continue => 0,
+        Flow::Skip => 1,
+        Flow::Exit(e) => match e {},
+    }
+}
+
 // ---- bake_cache (patch 70) ----
 
 /// The named exits of bake_cache::on_game_start (the order the shim's Flow code
