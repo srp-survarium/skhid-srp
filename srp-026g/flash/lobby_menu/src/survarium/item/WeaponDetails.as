@@ -67,13 +67,14 @@ package survarium.item
       }
       // The native bars of damage (card line 1) and armour piercing (3) take the weapon's best round:
       // its value times the highest of its rounds' k_damage x pellets (21) or k_arp (22), as a match
-      // multiplies them (bullet::bullet 0x32BA60); 1 for another line, a weapon without rounds, or a
-      // shotgun of both kinds (its detail rows give them by kind).
+      // multiplies them (bullet::bullet 0x32BA60); a shotgun of both kinds its best slug's (its
+      // detail rows give both kinds; against another gun the slug is what compares); 1 for another
+      // line or a weapon without rounds.
       public static function bestRoundFactor(item:Object, id:int) : Number
       {
          if(item == null || !item.isWeapon || id != DAMAGE && id != ARP) return 1;
-         var rounds:Array = roundsOf(item.dictId);
-         if(kindsOf(rounds) != null) return 1;
+         var rounds:Array = roundsOf(item.dictId), kinds:Object = kindsOf(rounds);
+         if(kinds != null) rounds = kinds.slug;
          var best:Number = NaN;
          for each(var round:Object in rounds)
          {
@@ -81,11 +82,6 @@ package survarium.item
             if(!isNaN(k) && (isNaN(best) || k > best)) best = k;
          }
          return isNaN(best) ? 1 : best;
-      }
-      // A shotgun of both kinds of round (kindsOf): its stats by kind, not one best.
-      public static function splitByKind(item:Object) : Boolean
-      {
-         return item != null && item.isWeapon && kindsOf(roundsOf(item.dictId)) != null;
       }
       private static function copy(from:Object) : Object
       {
@@ -222,27 +218,39 @@ package survarium.item
          for each(var round:Object in rounds) if(stat[2](round) && (best == null || stat[4](round) > stat[4](best))) best = round;
          return best;
       }
-      // A row of `round`'s value of `stat`, compared as the card's other rows; a dash, neutral, without one.
-      private static function statRow(result:Array, id:String, label:String, stat:Array, round:Object, child:Boolean = false) : void
+      // The best of `rounds`' scores at `stat`, NaN for none.
+      private static function scoreOf(rounds:Array, stat:Array) : Number
+      {
+         var best:Object = bestOf(rounds,stat);
+         return best == null ? NaN : stat[4](best);
+      }
+      // A row of `round`'s value of `stat`, compared with the score `against` (NaN: nothing to compare
+      // with, neutral); a dash, neutral, without a round.
+      private static function statRow(result:Array, id:String, label:String, stat:Array, round:Object, against:Number,
+         child:Boolean = false) : void
       {
          result.push(round == null ? {kind:"stat",id:id,label:label,value:"–",child:child,comparison:{kind:"neutral"}}
-            : {kind:"stat",id:id,label:label,value:stat[3](round),child:child,comparison:{kind:"higher",value:stat[4](round)}});
+            : {kind:"stat",id:id,label:label,value:stat[3](round),child:child,
+               comparison:isNaN(against) ? {kind:"neutral"} : {kind:"higher",value:stat[4](round),against:against}});
       }
-      // The card's row of a stat a round changes (roundStats), its best round's; none when neither
-      // compared card has it. A shotgun of both kinds of round (kinds) instead: the stat's label
-      // alone over its best Buckshot and best Slug, each a child row compared with the other card's
-      // same kind (a weapon of one kind has none: no colour between them).
+      // The card's row of a stat a round changes (roundStats): its best round's, against the other
+      // card's best (a shotgun's slug: buckshot does not compare with a single bullet); none when
+      // neither card has it. A shotgun of both kinds of round (kinds) instead: the stat's label alone
+      // over its best Buckshot and best Slug, each against the other shotgun's same kind; against any
+      // other weapon its Slug against that weapon's best, its Buckshot against nothing.
       private function roundStat(result:Array, other:WeaponDetails, stat:Array) : void
       {
-         var mine:Object = kinds(), theirs:Array = other == null ? [] : other.rounds;
+         var mine:Object = kinds(), theirs:Object = other == null ? null : other.kinds();
+         var best:Number = other == null ? NaN : scoreOf(theirs == null ? other.rounds : theirs.slug,stat);
          if(mine == null)
          {
-            if(bestOf(rounds,stat) != null || bestOf(theirs,stat) != null) statRow(result,String(stat[0]),stat[1],stat,bestOf(rounds,stat));
+            if(bestOf(rounds,stat) != null || !isNaN(best)) statRow(result,String(stat[0]),stat[1],stat,bestOf(rounds,stat),best);
             return;
          }
          result.push({kind:"stat",id:String(stat[0]),label:stat[1],value:"",comparison:{kind:"neutral"}});
-         statRow(result,stat[0] + "/buckshot","• " + LocalizationData.getName("st_srp_ammo_buckshot"),stat,bestOf(mine.buckshot,stat),true);
-         statRow(result,stat[0] + "/slug","• " + LocalizationData.getName("st_srp_ammo_slug"),stat,bestOf(mine.slug,stat),true);
+         statRow(result,stat[0] + "/buckshot","• " + LocalizationData.getName("st_srp_ammo_buckshot"),stat,bestOf(mine.buckshot,stat),
+            theirs == null ? NaN : scoreOf(theirs.buckshot,stat),true);
+         statRow(result,stat[0] + "/slug","• " + LocalizationData.getName("st_srp_ammo_slug"),stat,bestOf(mine.slug,stat),best,true);
       }
       // A shotgun's rounds by kind, {buckshot: its rounds of more than one pellet (card line 165),
       // slug: the others}, when it has both kinds; null for every other weapon.

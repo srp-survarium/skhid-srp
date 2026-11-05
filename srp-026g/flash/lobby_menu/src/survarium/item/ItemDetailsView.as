@@ -91,8 +91,10 @@ package survarium.item
             {
                row.direction = entry.comparison.kind == "higher";
                row.value = entry.comparison.value;
-               // A dash (no such stat) compares with nothing.
-               row.compare = compared == null || compared.comparison.kind != entry.comparison.kind ? entry.comparison.value : compared.comparison.value;
+               // A dash (no such stat) compares with nothing; a row may name what it compares with
+               // (against: a shotgun's Buckshot against the other weapon's best).
+               if(entry.comparison.against !== undefined) row.compare = entry.comparison.against;
+               else row.compare = compared == null || compared.comparison.kind != entry.comparison.kind ? entry.comparison.value : compared.comparison.value;
             }
             else row.value = row.compare = 0;
             row.setDetailText(entry.label,entry.value,entry.verdict);

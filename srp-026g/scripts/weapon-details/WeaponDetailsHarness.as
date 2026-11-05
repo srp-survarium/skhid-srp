@@ -91,7 +91,7 @@ package {
    [907,"12.7x54 PT",100,100,320,0,"2500:5:st_srp_pierce_concrete:100"],
    [908,"12mm buck",200,60,400,8,"2600:0:st_srp_pierce_glass:100 2700:0:st_srp_pierce_glass:100"],
    [910,"12mm buck2",240,50,380,10,"2600:0:st_srp_pierce_glass:100"],
-   [909,"12mm slug",100,100,450,0,"2600:2:st_srp_pierce_plywood:19 2700:2:st_srp_pierce_plywood:5 2800:2:st_srp_pierce_plywood:30"]];
+   [909,"12mm slug",120,100,450,0,"2600:2:st_srp_pierce_plywood:19 2700:2:st_srp_pierce_plywood:5 2800:2:st_srp_pierce_plywood:30"]];
   private static const ROUND_PAIRS:Array=[[3,901],[902,3],[3,905],[2300,901],[2300,902],[2229,903],[2400,904],[2500,906],[2500,907],
    [2600,908],[2600,910],[2600,909],[2700,908],[2700,909],[2800,909]].map(function(p:Array,...rest):Object{return {first_item_dict_id:p[0],second_item_dict_id:p[1]};});
   private function roundDescriptors():Array {
@@ -154,7 +154,7 @@ package {
     shows(weapon(2600,"Benelli M4"),weapon(2700,"Remington 870"));
     card=text(cards[0]);
     var B:String="• "+t.st_srp_ammo_buckshot,L:String="• "+t.st_srp_ammo_slug;
-    var kinds:String="Minimum damage: 60%\nDamage: \n"+B+": 82\n"+L+": 34\nArmor penetration: \n"+B+": 21\n"+L+": 35\n"+
+    var kinds:String="Minimum damage: 60%\nDamage: \n"+B+": 82\n"+L+": 41\nArmor penetration: \n"+B+": 21\n"+L+": 35\n"+
      t.st_srp_inv_bullet_speed+": \n"+B+": "+mps(t,400)+"\n"+L+": "+mps(t,450)+"\n"+
      t.st_srp_inv_material_pierce+": \n"+B+": "+pierceText(t,"glass",100)+"\n"+L+": "+pierceText(t,"plywood",19)+"\n";
     require(card.indexOf(kinds.substr(kinds.indexOf("\n")+1))>0,"a shotgun's stats by kind: "+language+" "+card.split("\n").join("|"));
@@ -165,12 +165,12 @@ package {
    Loc.setData(texts("english"));
    // The native bars take the best round: the AK-74M's armour piercing 35 x 1.2 (7N22), its damage
    // x1 (every round); the VSSK's damage 34 x 1.2 and piercing 35 x 1.2 (VPS, PT x1); a shotgun of
-   // both kinds its own (its kinds are its detail rows).
+   // both kinds its best slug's (34 x 1.2, piercing x1).
    shows(item(false),weapon(2500,"VSSK"));
    require(nativeText(cards[0],"Damage")=="34" && nativeText(cards[0],"Armor penetration")=="42","best-round bars: "+nativeText(cards[0],"Damage")+" "+nativeText(cards[0],"Armor penetration"));
    require(nativeText(cards[1],"Damage")=="41" && nativeText(cards[1],"Armor penetration")=="42","the best round's damage, whole (34 x 1.2): "+nativeText(cards[1],"Damage"));
    shows(weapon(2600,"Benelli M4"),item(false));
-   require(nativeText(cards[0],"Damage")=="34" && nativeText(cards[0],"Armor penetration")=="35","a shotgun's own bars: "+nativeText(cards[0],"Damage"));
+   require(nativeText(cards[0],"Damage")=="41" && nativeText(cards[0],"Armor penetration")=="35","a shotgun's slug bars: "+nativeText(cards[0],"Damage"));
    // Shotgun against shotgun: each kind against the same kind (the slugs: plywood 19 % against 5 %).
    shows(weapon(2600,"Benelli M4"),weapon(2700,"Remington 870"));
    require(colours(cards[0],"• Slug").join()==[NEUTRAL,NEUTRAL,NEUTRAL,GREEN].join() && colours(cards[1],"• Slug").join()==[NEUTRAL,NEUTRAL,NEUTRAL,RED].join(),
@@ -178,11 +178,17 @@ package {
    require(colours(cards[0],"• Buckshot").join()==[GREEN,NEUTRAL,NEUTRAL,NEUTRAL].join() && colours(cards[1],"• Buckshot").join()==[RED,NEUTRAL,NEUTRAL,NEUTRAL].join(),
     "buckshot against buckshot: "+colours(cards[0],"• Buckshot")+" / "+colours(cards[1],"• Buckshot"));
    require(colours(cards[0],"Pierces").join()==[NEUTRAL].join() && colours(cards[0],"Damage").join()==[NEUTRAL].join(),"a header has no value and no colour");
-   // Shotgun against any other: no colour on the four stats, bars included; no rows padded.
+   // Shotgun against any other weapon: its Slug against the other's best (an MP-443 stand-in, Para:
+   // damage 34, piercing 35, 360 m/s, Tinplate · 89%), its Buckshot against nothing; the other's best
+   // against the shotgun's Slug (41, 450 m/s, Plywood · 19%); no rows padded.
    shows(weapon(2600,"Benelli M4"),weapon(2400,"MP-443"));
-   require(colours(cards[0],"• Slug").concat(colours(cards[0],"• Buckshot"),colours(cards[1],S),colours(cards[1],M)).every(function(c:uint,...rest):Boolean{return c==NEUTRAL;}),"shotgun against another: neutral");
-   require(nativeBoth("Damage")==[NEUTRAL,NEUTRAL].join() && nativeBoth("Armor penetration")==[NEUTRAL,NEUTRAL].join(),"shotgun against another: neutral bars "+nativeBoth("Damage")+" "+nativeBoth("Armor penetration"));
+   require(colours(cards[0],"• Buckshot").join()==[NEUTRAL,NEUTRAL,NEUTRAL,NEUTRAL].join(),"buckshot against another gun: nothing: "+colours(cards[0],"• Buckshot"));
+   require(colours(cards[0],"• Slug").join()==[GREEN,NEUTRAL,GREEN,RED].join(),"slug against the other's best: "+colours(cards[0],"• Slug"));
+   require(colours(cards[1],S).join()==[RED].join() && colours(cards[1],M).join()==[GREEN].join(),"the best against the shotgun's slug: "+colours(cards[1],S)+" "+colours(cards[1],M));
    require(text(cards[1]).indexOf("•")<0 && text(cards[1]).indexOf("–")<0,"no rows padded on the other card");
+   // The bars compare as any: the shotgun's slug damage 41 and piercing 35 against the AK-74M's best round's 34 and 42.
+   shows(weapon(2600,"Benelli M4"),item(false));
+   require(nativeBoth("Armor penetration")==[RED,GREEN].join() && nativeBoth("Damage")==[GREEN,RED].join(),"a shotgun's bars compare: "+nativeBoth("Armor penetration"));
    // A shotgun of one kind is any weapon: its best.
    shows(weapon(2800,"Slugger"),weapon(2700,"Remington 870"));
    require(line(cards[0],M)=="Pierces: Plywood · 30%" && text(cards[0]).indexOf("•")<0,"one kind: the best");
@@ -225,7 +231,7 @@ package {
   // For a capture (-P pierce=compare|shotgun|details): the cards of a before|after pair, no checks.
   private function pierceCapture(what:String):void {
    Scene.isShift=what=="details";
-   if(what=="shotgun")shows(weapon(2600,"Benelli M4"),weapon(2700,"Remington 870"));
+   if(what=="shotgun")shows(weapon(2600,"Benelli M4"),item(false));
    else shows(item(false),item(true));
    removeEventListener(Event.ENTER_FRAME,tick);trace("DETAILS RESULT capture "+what+" heights "+[cards[0].height/cards[0].scaleY,cards[1].height/cards[1].scaleY].join());
   }

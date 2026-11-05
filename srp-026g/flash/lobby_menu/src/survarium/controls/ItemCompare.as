@@ -382,7 +382,6 @@ package survarium.controls
             }
             index++;
          }
-         var splitPair:Boolean = WeaponDetails.splitByKind(this._primary) || WeaponDetails.splitByKind(this._secondary);
          for each(s in this._secondary.properties)
          {
             if(ammoDetails || weaponDetails && s.prop_id == 24) continue;
@@ -407,9 +406,7 @@ package survarium.controls
                   }
                   else if(_diff.id == propDescription.prop_id)
                   {
-                     // A shotgun of both kinds of round has its damage and armour piercing by kind: no colour on
-                     // those bars, on its card nor the other.
-                     _diff.indicator.compare = splitPair && (propDescription.prop_id == 1 || propDescription.prop_id == 3) ? _diff.indicator.value : _value;
+                     _diff.indicator.compare = _value;
                      _diff.indicator.extra = 0;
                      break;
                   }

@@ -29,10 +29,12 @@ kind, Buckshot and Slug (its players switch between them).
   penetration, Bullet speed and Pierces each its label alone over two rows, `• Buckshot <the best of
   its pellet rounds>` and `• Slug <the best of the others>`, the words alone (no calibre or shot
   size), bulleted and stepped in 16 px under the stat, at 0.8 of a row; the same held Shift. Its
-  native Damage and Armor penetration bars keep the weapon's own number. A kind compares with the
-  other shotgun's same kind; a shotgun beside any other weapon gets no colour on these four stats
-  (bars included), and no rows are padded. A shotgun of one kind (the KS-23M: buckshot only) is any
-  weapon: its best round.
+  native Damage and Armor penetration bars show its best slug's. Every value takes the usual
+  colours (equal, Ctrl and a missing side neutral): two shotguns compare kind against kind;
+  beside any other gun a shotgun compares by its Slug alone ("buckshot doesn't make sense" against
+  a rifle): its Slug row and its bars against that gun's best, that gun's best against its Slug, its
+  Buckshot row neutral. No rows are padded. A shotgun of one kind (the KS-23M: buckshot only) is
+  any weapon: its best round.
 - English and Ukrainian, and every other dictionary.
 
 ## The words
@@ -92,14 +94,15 @@ with `Concrete · 52%` beside it does not fit the card's line). The value `st_sr
   (damage and armour piercing the weapon's card number x the round's, whole). Bullet speed and
   Pierces are its detail rows, after Minimum damage: the best round's, compared by value
   (`PierceLine.score` = rank x 1000 + percent). A shotgun of both kinds (`kindsOf`) has the four as
-  a value-less row over a Buckshot and a Slug `child` row each (ids `<stat>/buckshot`, `/slug`: the
-  other card's same kind compares, nothing else), which `ItemDetailsView` steps in by
+  a value-less row over a Buckshot and a Slug `child` row each, which `ItemDetailsView` steps in by
   `SUBROW_INDENT` 16 after the row's first layout (configUI puts the label at the native column)
-  and gives `SUBROW_STRIDE` 0.8 of a row. `ItemCompare` gives the native Damage and Armor
-  penetration bars the weapon's best round (`WeaponDetails.bestRoundFactor`; 1 for such a
-  shotgun), whole numbers as the card shows them (`Util.getNumberString` cuts a fraction's float
-  tail: 34 x 1.2 read 40.79), and no colour when either card is such a shotgun
-  (`WeaponDetails.splitByKind`).
+  and gives `SUBROW_STRIDE` 0.8 of a row. Each row names the score it compares with
+  (`comparison.against`, `roundStat`): the other card's best, a shotgun's Slug, or between two
+  shotguns the same kind; NaN, neutral, for a shotgun's Buckshot beside another gun. `ItemCompare`
+  gives the native Damage and Armor penetration bars the weapon's best round
+  (`WeaponDetails.bestRoundFactor`; such a shotgun's best slug), whole numbers as the card shows
+  them (`Util.getNumberString` cuts a fraction's float tail: 34 x 1.2 read 40.79), compared as any
+  bar.
 - Pellets come from the round's card line 165, which ammo-cards-1.json gives the three smallshot
   rounds (12mm buck, buck2, 23 mm) and ammo.tsv writes from `data/buck_shot`: a pellet round added
   later needs its line there, as that list says, or it counts as a slug.
@@ -132,9 +135,10 @@ premium, SPAS-12, TOZ-34, TOZ-66, Vepr-12 and its premium); the KS-23M fires buc
   buckshot and slugs, each stat a value-less row over its best `• Buckshot` and `• Slug`, stepped in
   (its label column checked at +16, its spacing at 0.8 of a row), fitting their line; in English
   the bars with the best round (armour piercing 35 x 1.2 = 42, damage 34 x 1.2 = 41) and a
-  shotgun's own; kind against kind between two shotguns (more damage of buck2, more of the slug's
-  damage kept), a shotgun beside another weapon neutral on the four stats and the bars, nothing
-  padded; a shotgun of one kind its best; a harder material over more damage kept (VPS Stone · 36%
+  shotgun's slug's; kind against kind between two shotguns (more damage of buck2, more of the slug's
+  damage kept); a shotgun beside another gun: its Buckshot neutral, its Slug against the gun's best
+  (damage 41 green, speed and material red), the gun's best against its Slug, the bars compared
+  with the slug's, nothing padded; a shotgun of one kind its best; a harder material over more damage kept (VPS Stone · 36%
   over PT Concrete · 100%), the same material by percent, equal and Ctrl neutral, a missing side a
   dash, no row without the data, no row on the ammo card, no bar.
 - `content-edit/test_content_edit.py`: the lines by weapon, P = A not through (0.2 x 1.0 at brick's
