@@ -254,6 +254,7 @@ impl JumpArc {
 type Root = [[f32; 3]; 25];
 
 /// `on_site`.
+#[allow(clippy::approx_constant)] // the clip's numbers, not the constants
 const SHORT_NONE: Root = [
     [0.0, 0.0, 0.0],
     [0.0, 0.0, 0.0],
@@ -283,6 +284,7 @@ const SHORT_NONE: Root = [
 ];
 
 /// `on_site_fwd`.
+#[allow(clippy::approx_constant)] // the clip's numbers, not the constants
 const SHORT_F: Root = [
     [0.0, 0.0, 0.0],
     [0.0, 0.1111, 0.0],
@@ -312,6 +314,7 @@ const SHORT_F: Root = [
 ];
 
 /// `on_site_fwd_right`.
+#[allow(clippy::approx_constant)] // the clip's numbers, not the constants
 const SHORT_FR: Root = [
     [0.0, 0.0, 0.0],
     [0.0, 0.0786, 0.0786],
@@ -341,6 +344,7 @@ const SHORT_FR: Root = [
 ];
 
 /// `on_site_right`.
+#[allow(clippy::approx_constant)] // the clip's numbers, not the constants
 const SHORT_R: Root = [
     [0.0, 0.0, 0.0],
     [0.0, 0.0, 0.0833],
@@ -370,6 +374,7 @@ const SHORT_R: Root = [
 ];
 
 /// `on_site_back_right`.
+#[allow(clippy::approx_constant)] // the clip's numbers, not the constants
 const SHORT_BR: Root = [
     [0.0, 0.0, 0.0],
     [0.0, -0.0786, 0.0786],
@@ -399,6 +404,7 @@ const SHORT_BR: Root = [
 ];
 
 /// `on_site_back`.
+#[allow(clippy::approx_constant)] // the clip's numbers, not the constants
 const SHORT_B: Root = [
     [0.0, 0.0, 0.0],
     [0.0, -0.1111, 0.0],
@@ -428,6 +434,7 @@ const SHORT_B: Root = [
 ];
 
 /// `on_site_back_left`.
+#[allow(clippy::approx_constant)] // the clip's numbers, not the constants
 const SHORT_BL: Root = [
     [0.0, 0.0, 0.0],
     [0.0, -0.0786, -0.0786],
@@ -457,6 +464,7 @@ const SHORT_BL: Root = [
 ];
 
 /// `on_site_left`.
+#[allow(clippy::approx_constant)] // the clip's numbers, not the constants
 const SHORT_L: Root = [
     [0.0, 0.0, 0.0],
     [0.0, 0.0, -0.0068],
@@ -486,6 +494,7 @@ const SHORT_L: Root = [
 ];
 
 /// `on_site_fwd_left`.
+#[allow(clippy::approx_constant)] // the clip's numbers, not the constants
 const SHORT_FL: Root = [
     [0.0, 0.0, 0.0],
     [0.0, 0.0786, -0.0786],
@@ -515,6 +524,7 @@ const SHORT_FL: Root = [
 ];
 
 /// `sprint/sprint_from_left_leg`.
+#[allow(clippy::approx_constant)] // the clip's numbers, not the constants
 const SPRINT_F: Root = [
     [0.0, 0.0, 0.0],
     [0.0, 0.1909, 0.0],
@@ -544,6 +554,7 @@ const SPRINT_F: Root = [
 ];
 
 /// `sprint/sprint_right_from_left_leg`.
+#[allow(clippy::approx_constant)] // the clip's numbers, not the constants
 const SPRINT_FR: Root = [
     [0.0, 0.0, 0.0],
     [0.0, 0.1350, 0.1350],
@@ -573,6 +584,7 @@ const SPRINT_FR: Root = [
 ];
 
 /// `sprint/sprint_left_from_left_leg`.
+#[allow(clippy::approx_constant)] // the clip's numbers, not the constants
 const SPRINT_FL: Root = [
     [0.0, 0.0, 0.0],
     [0.0, 0.1350, -0.1350],
@@ -662,7 +674,7 @@ mod tests {
         let arc = JumpArc::pressed(0, key::FORWARD, 3.0, 0.0);
         let (at, node, t) = step_all(&arc, &grid, Vec3::ZERO, key::FORWARD);
         assert!(node.is_some() && at.y.abs() < 1e-3, "{at:?}");
-        assert!(t >= 800 && t <= 850, "{t}");
+        assert!((800..=850).contains(&t), "{t}");
         let ahead = at.x.hypot(at.z);
         assert!((ahead - (2.67 + 0.6)).abs() < 0.15, "{ahead}");
     }
