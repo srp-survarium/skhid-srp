@@ -425,6 +425,21 @@ mod tests {
     }
 
     #[test]
+    fn a_step_up_a_slope_covers_the_grades_cosine_and_a_flat_or_falling_one_all_of_it() {
+        let close = |a: f32, b: f32| (a - b).abs() < 1e-3;
+        // A 45 degree ramp: a step of 0.25 m that rises 0.25 m covers cos 45 of the run.
+        let up = SlopeSpeed::Up.share(0.25, 0.25);
+        assert!(close(up, std::f32::consts::FRAC_1_SQRT_2), "{up}");
+        // The sprint's ground speed there: 5.1 x 0.707 = 3.6 m/s, the client's on the stairs.
+        assert!(close(5.1 * up, 3.606), "{}", 5.1 * up);
+        assert_eq!(SlopeSpeed::Up.share(0.25, 0.0), 1.0, "the flat");
+        assert_eq!(SlopeSpeed::Up.share(0.25, -0.25), 1.0, "down a slope: all of it");
+        assert!(close(SlopeSpeed::Both.share(0.25, -0.25), std::f32::consts::FRAC_1_SQRT_2), "both: down too");
+        assert_eq!(SlopeSpeed::Planar.share(0.25, 0.25), 1.0, "planar: as it was");
+        assert_eq!(SlopeSpeed::Up.share(0.0, 0.3), 1.0, "no run: nothing to shorten");
+    }
+
+    #[test]
     fn a_new_velocity_is_blended_in_over_six_ticks() {
         let k = Kinematics::default();
         let mut blend = Blend::default();
