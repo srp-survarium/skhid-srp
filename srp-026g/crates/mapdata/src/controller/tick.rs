@@ -731,8 +731,15 @@ mod tests {
             quad(Vec3::new(2.0, 0.0, -10.0), Vec3::new(2.0, rise, -10.0), Vec3::new(2.0, rise, 10.0), Vec3::new(2.0, 0.0, 10.0), &mut tris);
             let world = Collision::build(&tris);
             let c = walk(&world, Vec3::ZERO, 30);
+            let mut log = String::new();
+            let mut d = Controller::standing_at(Vec3::ZERO);
+            for _ in 0..14 {
+                d.walk = Vec3::new(3.5 * 0.05, 0.0, 0.0);
+                let n = d.step(&world, 0.05, &Settings::LIVE);
+                log += &format!("\n{:.3},{:.3} {:?}", d.feet().x, d.feet().y, n);
+            }
             if climbed {
-                assert!(c.feet().x > 4.0 && (c.feet().y - rise).abs() < 0.01, "rise {rise}: {:?}", c.feet());
+                assert!(c.feet().x > 4.0 && (c.feet().y - rise).abs() < 0.01, "rise {rise}: {:?}{log}", c.feet());
             } else {
                 assert!(c.feet().x < 2.0 && c.feet().y.abs() < 0.01, "rise {rise}: {:?}", c.feet());
             }
