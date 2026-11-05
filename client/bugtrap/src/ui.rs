@@ -434,13 +434,23 @@ unsafe fn copy(window: HWND, text: &[u16]) -> bool {
     ok
 }
 
+/// A kept full-memory dump (`SKHID_CRASH_DUMP=full`): the player keeps it
+/// for the developer and does not post it.
+#[derive(Clone, Copy, PartialEq, Eq)]
+pub enum FullDump {
+    /// Its text report beside it, of the same name: `path` names the report.
+    WithReport,
+    /// No report could be written: `path` names the dump, not shown as a
+    /// file to send.
+    WithoutReport,
+}
+
 /// `path`: the kept dump (ZIP or `.dmp`), or with none the text report, or
-/// empty; with `full`, the text report beside a kept full-memory dump of the
-/// same name (`SKHID_CRASH_DUMP=full`), which the player keeps and does not
-/// post. `capture`: the last dump error came from the capture itself.
+/// empty; with `full`, as [`FullDump`] says. `capture`: the last dump error
+/// came from the capture itself.
 pub unsafe fn show(
     path: &Wide<32768>,
-    full: bool,
+    full: Option<FullDump>,
     saved: bool,
     partial: bool,
     error: u32,
@@ -458,8 +468,8 @@ pub unsafe fn show(
     let mut folder = Wide::<32768>::new();
     let _ = folder.wide(&path.buf[..split]);
     let failure = details::failure(capture, error);
-    if full {
-        // The report's name, its `.txt` the dump's `.dmp`.
+    if full.is_some() {
+        // The dump's name: the report's, its `.txt` the dump's `.dmp`.
         let name = &path.buf[split..path.len];
         let _ = write!(message, "{}\r\n", text.full_saved);
         let _ = message.wide(&name[..name.len().saturating_sub(4)]);
@@ -476,9 +486,11 @@ pub unsafe fn show(
         let _ = details::write_code(&mut message, error);
         let _ = write!(message, ")");
     }
-    let have_file = path.len > 0;
-    let instructions = if full {
+    let have_file = path.len > 0 && full != Some(FullDump::WithoutReport);
+    let instructions = if full == Some(FullDump::WithReport) {
         text.full_instructions
+    } else if full == Some(FullDump::WithoutReport) {
+        text.full_no_file
     } else if have_file {
         text.instructions
     } else {

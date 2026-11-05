@@ -490,9 +490,14 @@ unsafe extern "system" fn worker(parameter: *mut c_void) -> u32 {
     // the temporary folder, and the dialog names it in the dump's place);
     // when neither takes it, the dialog still shows it.
     let reported = crate::report::save(&report, kept, &mut path, request.exception.ThreadId);
-    // A full-memory dump is kept for the developer, never posted: the
-    // dialog names its report to send (beside it, the same name).
-    let full = request.saved && reported && Kind::get() == Kind::Full;
+    // A full-memory dump is kept for the developer, never posted (also one
+    // saved only in part): the dialog names its report to send (beside it,
+    // the same name), or with none says so.
+    let full = (kept && Kind::get() == Kind::Full).then_some(if reported {
+        crate::ui::FullDump::WithReport
+    } else {
+        crate::ui::FullDump::WithoutReport
+    });
     // Zip the dump only now that it is flushed and closed: on any failure, or
     // a crash or exit while zipping, the dump stays and the dialog names it.
     if kept && Kind::get() == Kind::Small {
@@ -519,7 +524,7 @@ unsafe extern "system" fn worker(parameter: *mut c_void) -> u32 {
             // Both callbacks and UI occur only after the persistent dump is closed.
             api::callback(&api::PRE, &api::PRE_PARAM);
             if api::ACTIVITY.load(Ordering::Relaxed) == 1 {
-                if full {
+                if full == Some(crate::ui::FullDump::WithReport) {
                     let n = path.len;
                     path.buf[n - 3..n].copy_from_slice(&[b't' as u16, b'x' as u16, b't' as u16]);
                 }

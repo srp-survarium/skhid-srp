@@ -24,11 +24,11 @@ LANGUAGES = {
 
 # A full-memory dump (SKHID_CRASH_DUMP=full): the status line as it starts.
 FULL = {
-    "english": "Crash report saved. The full-memory dump is kept beside it, for the developer:",
-    "russian": "Отчёт о сбое сохранён. Полный дамп памяти оставлен рядом, для разработчика:",
-    "polish": "Raport o awarii został zapisany. Pełny zrzut pamięci zostaje obok, dla programisty:",
-    "ukrainian": "Звіт про збій збережено. Повний дамп пам'яті залишено поруч, для розробника:",
-    "german": "Absturzbericht gespeichert. Der vollständige Speicher-Dump bleibt daneben, für die Entwickler:",
+    "english": "The full-memory crash dump is kept here, for the developer:",
+    "russian": "Полный дамп памяти сохранён здесь, для разработчика:",
+    "ukrainian": "Повний дамп пам'яті збережено тут, для розробника:",
+    "german": "Der vollständige Speicher-Dump bleibt hier, für den Entwickler:",
+    "polish": "Pełny zrzut pamięci zostaje tutaj, dla programisty:",
 }
 
 
@@ -63,7 +63,7 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("build", type=Path)
     parser.add_argument("screenshots", type=Path, nargs="?")
-    parser.add_argument("--states", nargs="+", default=["success", "full", "raw", "partial", "failure", "blocked", "unicode", "browser-failure", "dialog-failure"])
+    parser.add_argument("--states", nargs="+", default=["success", "full", "full-partial", "full-no-report", "raw", "partial", "failure", "blocked", "unicode", "browser-failure", "dialog-failure"])
     options = parser.parse_args()
     build = options.build.resolve()
     screenshots = options.screenshots.resolve() if options.screenshots else None
@@ -89,7 +89,7 @@ def main():
             before = set(root.glob("SRP-crash-*"))
             env = os.environ.copy()
             env.pop("SKHID_CRASH_DUMP", None)
-            if state == "full":
+            if state.startswith("full"):
                 env["SKHID_CRASH_DUMP"] = "full"
             if screenshots and state in ("success", "blocked", "failure", "unicode") and args:
                 env["SRP_UI_SCREENSHOT"] = "Z:" + str(screenshots / f"{language}-{state}.bmp")
@@ -124,16 +124,24 @@ def main():
                 assert 1042 not in controls and "Paths:" not in clips[0], (controls, clips)
             assert "#bugreports" in controls[1036] and button in controls[1036] and copy in controls[1036], controls
             # Not a dump to post: only a full one's instructions name the .dmp.
-            assert (".dmp" in controls[1036]) == (state == "full"), controls
+            assert (".dmp" in controls[1036]) == state.startswith("full"), controls
             [clip] = clips
             check_details(controls, clip)
-            if state in ("partial", "failure", "blocked"):
+            if state in ("partial", "full-partial", "failure", "blocked"):
                 assert error in controls[1031], controls
             if state == "failure":
                 # Neither a dump nor a text report could be written: shown only.
                 assert not new and all(i not in controls for i in (1034, 1035, 1037, 1038)), controls
                 assert "|Dump:      not saved, the file could not be written, error 5" in clip, clip
                 assert "#bugreports" not in controls[1031], controls
+            elif state == "full-no-report":
+                # The dump kept, no report beside it: no file to send, the
+                # dump named as one to keep, the details still to copy.
+                [dump] = new
+                assert dump.suffix == ".dmp" and dump.read_bytes()[:4] == b"MDMP", new
+                assert all(i not in controls for i in (1034, 1035, 1037, 1038)), controls
+                assert controls[1031] == FULL[language] + "  " + dump.name, controls
+                dump.unlink()
             elif state == "blocked":
                 # The capture was refused: the antivirus message and the text report.
                 assert "0x8007001F" in controls[1031] and "#bugreports" in controls[1031], controls
@@ -147,17 +155,19 @@ def main():
                 assert controls[1037] == file_label and controls[1038] == folder_label, controls
                 [text] = texts
                 [report] = new - {text}
-                shown = text if state == "full" else report
+                shown = text if state.startswith("full") else report
                 assert controls[1034] == shown.name and str(root).replace("/", "\\") in controls[1035], controls
                 assert text.stem == report.stem, (text, report)
                 content = text.read_bytes()
                 assert content.startswith(b"Skhid crash report") and b"\r\nDump:      saved" in content
-                if state == "full":
-                    # The report to send is named; the dump stays, named in the status.
+                if state.startswith("full"):
+                    # The report to send is named; the dump stays, named in the
+                    # status (a partial one too, its error after it).
                     [dump] = new - {text}
                     report = dump
                     assert controls[1034] == text.name and dump.suffix == ".dmp", controls
-                    assert controls[1031] == FULL[language] + "  " + dump.name, controls
+                    assert controls[1031].startswith(FULL[language] + "  " + dump.name), controls
+                    assert (controls[1031] == FULL[language] + "  " + dump.name) == (state == "full"), controls
                     assert dump.read_bytes()[:4] == b"MDMP"
                     assert b"full-memory dumps (SKHID_CRASH_DUMP=full)" in content
                 elif state in ("raw", "partial"):
