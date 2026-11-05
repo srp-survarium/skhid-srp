@@ -100,6 +100,9 @@ pub enum SlopeSpeed {
     RampsUp,
     /// [`Self::RampsUp`] for a rising or a falling step.
     Ramps,
+    /// [`Self::Up`] on floors with a ramp mark only: a rising step there is shortened to the cosine of its own grade (the rise
+    /// along the walk, not the face's slope: a walk across a ramp climbs little and keeps most of its speed).
+    RampsGrade,
 }
 
 impl SlopeSpeed {
@@ -125,6 +128,8 @@ impl SlopeSpeed {
             Self::Both if rise != 0.0 => run / run.hypot(rise),
             Self::Up | Self::Both => 1.0,
             Self::RampsUp => ramp(rise > 0.0),
+            Self::RampsGrade if rise > 0.0 && ramp_deg.is_some() => run / run.hypot(rise),
+            Self::RampsGrade => 1.0,
             Self::Ramps => ramp(rise != 0.0),
         }
     }
@@ -465,6 +470,9 @@ mod tests {
         assert_eq!(SlopeSpeed::RampsUp.share_on(0.25, -0.25, Some(45.0)), 1.0, "ramps_up: down a ramp, full speed");
         assert!(close(SlopeSpeed::Ramps.share_on(0.25, -0.25, Some(45.0)), cos45), "ramps: down a ramp too");
         assert_eq!(SlopeSpeed::Ramps.share_on(0.25, 0.0, Some(45.0)), 1.0, "a flat step on a marked floor");
+        // ramps_grade: the step's own grade, on a marked floor only.
+        assert!(close(SlopeSpeed::RampsGrade.share_on(0.25, 0.1, Some(45.0)), 0.25 / 0.25f32.hypot(0.1)), "across a ramp: its grade");
+        assert_eq!(SlopeSpeed::RampsGrade.share_on(0.25, 0.25, None), 1.0, "real stairs: no mark");
     }
 
     #[test]
