@@ -1,7 +1,7 @@
 //! Patch 83: the Settings' "HUD:" group (docs/notes/hide-hit-markers-scores.md):
 //! four settings of the match hud kept in user.cfg, "Hide hit markers", "Hide
 //! player scores", "Names on map" and the crosshair list's "Hidden crosshair"; and the
-//! Graphics tab's "Vulkan renderer (DXVK)" (docs/notes/dxvk-option.md), which only the
+//! Graphics tab's Renderer list (docs/notes/dxvk-option.md), which only the
 //! updater reads, at the next start. The hooks are
 //! `hud_options.toml`'s, each a `lohook` after another patch's at the same site:
 //!
@@ -69,10 +69,10 @@ pub static MAP_NAMES: Setting = Setting::new(c"srp_map_names", c"st_srp_map_name
 /// are the stock static crosshair setting's two states).
 pub static HIDE_CROSSHAIR: Setting = Setting::new(c"srp_hide_crosshair", c"st_srp_crosshair_hidden");
 
-/// The Graphics tab's "Vulkan renderer (DXVK)": nothing here reads it; the
-/// updater puts DXVK's DLLs beside the game at the next start when it is on
-/// (client/updater/logic/src/dxvk.rs, `SETTING`).
-pub static DXVK: Setting = Setting::new(c"srp_dxvk", c"st_srp_dxvk_option");
+/// The Graphics tab's Renderer list, Vulkan (DXVK) on: nothing here reads it;
+/// the updater puts DXVK's DLLs beside the game at the next start when it is
+/// on (client/updater/logic/src/dxvk.rs, `SETTING`).
+pub static DXVK: Setting = Setting::new(c"srp_dxvk", c"st_srp_renderer_option");
 
 /// The marker of a start with a `d3d11.dll` beside the game that has not
 /// shown its login screen (client/updater/logic/src/dxvk.rs, `MARKER`).
@@ -96,9 +96,11 @@ pub static SETTINGS: [&Setting; 5] = [&HIDE_HIT_MARKERS, &HIDE_SCORES, &MAP_NAME
 /// The Settings' "HUD:" group's own texts (dictionary keys), in the order
 /// `root.srp_hud_texts` gives them: the heading, the stock quest progress
 /// checkbox's label as the group shows it (inverted), the crosshair list's
-/// three choices, the stock fixed minimap checkbox's label.
-pub const TEXTS: [&CStr; 6] = [c"st_srp_options_hud", c"st_srp_hide_quests_option", c"st_srp_crosshair_dynamic",
-                               c"st_srp_crosshair_static", c"st_srp_crosshair_hidden", c"st_srp_static_minimap_option"];
+/// three choices, the stock fixed minimap checkbox's label; then the
+/// Graphics tab's Renderer list's two choices.
+pub const TEXTS: [&CStr; 8] = [c"st_srp_options_hud", c"st_srp_hide_quests_option", c"st_srp_crosshair_dynamic",
+                               c"st_srp_crosshair_static", c"st_srp_crosshair_hidden", c"st_srp_static_minimap_option",
+                               c"st_srp_renderer_dx11", c"st_srp_renderer_dxvk"];
 
 /// The setting the Settings' call names.
 pub fn setting(name: &CStr) -> Option<&'static Setting> {

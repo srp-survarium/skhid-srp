@@ -6,18 +6,18 @@ package
     import survarium.menu.Settings;
 
     // srp's rows of the Graphics tab's left column: the FOV slider under gamma
-    // and the "Vulkan renderer (DXVK)" checkbox under Vertical sync.
+    // and the Renderer list under Monitor.
     //
     // The native video options send a slider for index 7 (Settings maps it to
     // settings_content._slider_fov), but the stock timeline never places one.
     // create_content calls apply first, so the slider exists when the options
     // are bound (label, range and value come from the native option), and
-    // finish last, after the label is set. The DXVK checkbox is Settings'
-    // (an SrpCheckOption of the Graphics frame); finish places it.
+    // finish last, after the label is set. The Renderer list is Settings'
+    // (SrpRendererChoice); finish places it.
     //
-    // To make room, the rows under Vertical sync move down one checkbox step
-    // and the preset panel's top moves down by that and the slider's row; its
-    // two buttons go side by side in it.
+    // To make room, the rows under Monitor move down one of its steps and the
+    // preset panel's top moves down by that and the slider's row; its two
+    // buttons go side by side in it.
     public class SrpVideoTab
     {
         private static const VIDEO_FRAME:int = 3;
@@ -29,6 +29,8 @@ package
         // The timeline recreates frame 3 children on each visit; move each
         // set once.
         private static var moved:DisplayObject;
+        // Monitor's step to the row under it, read from the set before it moved.
+        private static var step:Number = 0;
 
         public static function apply(settings:Settings):void
         {
@@ -58,9 +60,9 @@ package
             slider.visible = false;
         }
 
-        // `dxvk`: the DXVK checkbox (Settings shows it on this frame once the
-        // exe has answered).
-        public static function finish(settings:Settings, dxvk:DisplayObject):void
+        // `renderer`: the Renderer list (Settings shows it on this frame once
+        // the exe has answered).
+        public static function finish(settings:Settings, renderer:SrpRendererChoice):void
         {
             var content:MovieClip = settings.settings_content;
             if (content == null)
@@ -70,21 +72,22 @@ package
             var tabs:Object = content;
             var slider:SrvOptionSlider = tabs._slider_fov as SrvOptionSlider;
             var gamma:DisplayObject = tabs.slider_gamma;
-            var fullscreen:DisplayObject = tabs._fullscreen;
-            var vsync:DisplayObject = tabs._vsync;
-            if (slider == null || content.currentFrame != VIDEO_FRAME || gamma == null || fullscreen == null
-                || vsync == null)
+            var monitor:DisplayObject = tabs._select_monitor;
+            var resolution:DisplayObject = tabs._fscr_resolution;
+            if (slider == null || content.currentFrame != VIDEO_FRAME || gamma == null || monitor == null
+                || resolution == null)
             {
                 return;
             }
-            var step:Number = vsync.y - fullscreen.y;
             var optimal:DisplayObject = tabs.button_optimal_video;
             var standard:DisplayObject = tabs.button_default_video;
             var panel:DisplayObject = tabs.bottomContainer;
             if (optimal != null && standard != null && panel != null && optimal != moved)
             {
                 moved = optimal;
-                for each (var row:DisplayObject in [tabs._antialias, tabs._filtering, gamma])
+                step = resolution.y - monitor.y;
+                for each (var row:DisplayObject in [resolution, tabs._fullscreen, tabs._vsync, tabs._antialias,
+                    tabs._filtering, gamma])
                 {
                     if (row != null)
                     {
@@ -98,8 +101,7 @@ package
                 standard.x = optimal.x + width + GAP;
                 optimal.y = standard.y = panel.y + (panel.height - optimal.height) / 2;
             }
-            dxvk.x = vsync.x;
-            dxvk.y = vsync.y + step;
+            renderer.layout(monitor, monitor.y + step);
             slider.visible = true;
             // Scaleform leaves the script-created slider fully transparent.
             slider.alpha = 1;

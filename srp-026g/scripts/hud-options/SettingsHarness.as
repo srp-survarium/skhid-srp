@@ -38,7 +38,7 @@ package
 
         private var loader:Loader = new Loader();
         private var frames:int = 0;
-        // The texts of check.sh (texts[n][14]: "Vulkan renderer (DXVK)").
+        // The texts of check.sh (texts[n][14..16]: "Renderer", "DirectX 11", "Vulkan/DXVK").
         private var texts:Array;
         // The gameplay tab's settings and values as check() gave them.
         private var gameplay:Array;
@@ -299,7 +299,8 @@ package
             return [cross.selectedIndex, Object(content)._setter_static_cross.selected];
         }
 
-        // The Graphics tab as the exe makes it: its 19 options, then the DXVK checkbox's answer (`saved`).
+        // The Graphics tab as the exe makes it: its 19 options (English labels, values as a game's), then
+        // the Renderer list's answers (`saved`: "1" Vulkan).
         private function graphicsTab(settings:*, saved:String):void
         {
             var root:* = loader.content;
@@ -310,10 +311,13 @@ package
             for (var i:int = 0; i < labels.length; ++i)
             {
                 var option:Object = {label: labels[i], setter: function(value:*):* { return value; }};
-                if (i < 2) option.dataProvider = ["1920x1080", "1280x720"];
+                if (i == 0) option.dataProvider = ["Generic PnP Monitor"];
+                else if (i == 1) option.dataProvider = ["1920x1080", "1280x720"];
+                else if (i == 4) option.dataProvider = ["Off", "2x", "4x"];
+                else if (i == 5) option.dataProvider = ["Bilinear", "Trilinear", "Anisotropic"];
                 else if (i != 2 && i != 3 && i != 6 && i != 7) option.dataProvider = ["Low", "Medium", "High"];
                 list.push(option);
-                values.push({id: i, value: 0});
+                values.push({id: i, value: i < 2 || i == 3 ? 0 : i == 2 ? 1 : i == 6 || i == 7 ? 0 : 2});
             }
             try
             {
@@ -326,32 +330,42 @@ package
             settings.settings_content.gotoAndStop(3);
             root.set_settings(2, list);
             root.set_values(2, values);
+            root.srp_hud_texts(texts[0][2], texts[0][5], texts[0][6], texts[0][7], texts[0][8], texts[0][9], texts[0][15],
+                texts[0][16]);
             root.srp_check_option("srp_dxvk", texts[0][14], saved);
+            // the gamma slider's label, which the game sets through the timeline's alias (its FLA text otherwise)
+            settings.settings_content.slider_gamma.textField.text = "Gamma:";
         }
 
-        // The Graphics tab's "Vulkan renderer (DXVK)" (patch 83's srp_dxvk, docs/notes/dxvk-option.md): shown
-        // there only, once the exe answers; under Vertical sync, the rows under it one checkbox step down, in
-        // order without overlaps, the preset buttons side by side inside their panel, above the window's
-        // bottom; every dictionary's label inside the left column; a toggle pending until Apply, Cancel
-        // dropping it. Ends back on the gameplay tab.
+        // The Graphics tab's Renderer list (patch 83's srp_dxvk, docs/notes/dxvk-option.md): shown there
+        // only, once the exe answers, built as Monitor's (its label on its left, the same size), one of
+        // Monitor's steps under it; the rows under it one step down, in order without overlaps, the preset
+        // buttons side by side inside their panel, its bottom kept; every dictionary's label and choices
+        // inside the list's fields; a pick pending until Apply, Cancel dropping it. Ends back on the
+        // gameplay tab.
         private function checkGraphics(settings:*, content:MovieClip, gameplay:Array, gameplayValues:Array):void
         {
             var root:* = loader.content;
-            var box:* = content.getChildByName("_srp_dxvk");
-            require(box != null && !box.visible, "DXVK: not on the gameplay tab");
+            var list:* = content.getChildByName("_srp_renderer");
+            require(list != null && !list.visible, "Renderer: not on the gameplay tab");
             var fresh:* = new (Object(content).constructor as Class)();
             fresh.gotoAndStop(3);
             graphicsTab(settings, "0");
             var c:* = content;
-            require(c.currentFrame == 3 && box.visible && box.alpha == 1 && box.label == texts[0][14] && !box.selected
-                && !settings.btn_accept.enabled, "DXVK: on the Graphics tab, the exe's label, off, nothing pending");
-            var step:Number = fresh._vsync.y - fresh._fullscreen.y;
-            require(near(box.x, c._vsync.x) && near(box.y, c._vsync.y + step), "DXVK: one checkbox step under Vertical sync");
-            for each (var moved:String in ["_antialias", "_filtering", "slider_gamma"])
+            require(c.currentFrame == 3 && list.visible && list.alpha == 1 && list.textFieldLabel.text == texts[0][14]
+                && list.selectedIndex == 0 && list.dataProvider.length == 2 && list.dataProvider[0] == texts[0][15]
+                && list.dataProvider[1] == texts[0][16] && !settings.btn_accept.enabled,
+                "Renderer: on the Graphics tab, the exe's label and choices, DirectX 11, nothing pending");
+            var step:Number = fresh._fscr_resolution.y - fresh._select_monitor.y;
+            var monitor:* = c._select_monitor;
+            require(near(list.x, monitor.x) && near(list.y, monitor.y + step) && Math.abs(list.width - monitor.width) < 1
+                && Math.abs(list.height - monitor.height) < 1, "Renderer: Monitor's size, one of its steps under it ("
+                + list.width + "x" + list.height + " at " + list.y + ")");
+            for each (var moved:String in ["_fscr_resolution", "_fullscreen", "_vsync", "_antialias", "_filtering", "slider_gamma"])
             {
-                require(near(c[moved].y, fresh[moved].y + step), "DXVK: " + moved + " one step down");
+                require(near(c[moved].y, fresh[moved].y + step), "Renderer: " + moved + " one step down");
             }
-            var column:Array = [c._select_monitor, c._fscr_resolution, c._fullscreen, c._vsync, box, c._antialias, c._filtering,
+            var column:Array = [c._select_monitor, list, c._fscr_resolution, c._fullscreen, c._vsync, c._antialias, c._filtering,
                 c.slider_gamma, c._slider_fov];
             var panel:Rectangle = c.bottomContainer.getBounds(content);
             for (var i:int = 0; i < column.length; ++i)
@@ -370,41 +384,55 @@ package
                 && near(optimal.y, standard.y), "Graphics: the preset buttons side by side inside their panel (" + optimal
                 + ", " + standard + " in " + panel + ")");
             require(near(panel.bottom, fresh.bottomContainer.getBounds(fresh).bottom), "Graphics: the panel's bottom kept");
-            var end:Number = c._fscr_resolution.x + c._fscr_resolution.width;
-            var shown:String = box.label;
-            var widest:Number = 0;
+            var labelEnd:Number = list.x + list.textFieldLabel.x + list.textFieldLabel.width;
+            var widestLabel:Number = 0, widestChoice:Number = 0;
+            var choices:Object = list.dataProvider;
             for each (var row:Array in texts)
             {
-                box.label = row[14];
-                box.validateNow();
-                var right:Number = box.x + box.textField.x + box.textField.textWidth;
-                require(right < end, "DXVK: " + row[14] + " ends in the left column (" + end + "): " + right);
-                widest = Math.max(widest, right);
+                list.textFieldLabel.text = row[14];
+                require(list.textFieldLabel.textWidth + 4 < list.textFieldLabel.width, "Renderer: " + row[14]
+                    + " fits its label (" + list.textFieldLabel.textWidth + " of " + list.textFieldLabel.width + ")");
+                widestLabel = Math.max(widestLabel, list.textFieldLabel.textWidth);
+                list.dataProvider = new (loader.contentLoaderInfo.applicationDomain.getDefinition("scaleform.clik.data.DataProvider")
+                    as Class)([row[15], row[16]]);
+                for (var choice:int = 0; choice < 2; ++choice)
+                {
+                    list.selectedIndex = choice;
+                    list.validateNow();
+                    // Monitor's list leaves its field a little room: within half its 2-pixel gutters the
+                    // text is drawn whole (the screenshot's "Vulkan/DXVK")
+                    require(list.textField.textWidth + 2 < list.textField.width * list.scaleX, "Renderer: " + row[15 + choice]
+                        + " fits the list (" + list.textField.textWidth + " of " + list.textField.width * list.scaleX + ")");
+                    widestChoice = Math.max(widestChoice, list.textField.textWidth);
+                }
             }
-            box.label = shown;
-            box.validateNow();
-            trace("SETTINGS Graphics: DXVK at " + box.y + " under Vertical sync " + c._vsync.y + ", FOV to " + span(c._slider_fov)[1]
-                + ", panel " + panel.top + "-" + panel.bottom + "; the widest label ends at " + widest + " of " + end);
-            box.selected = true;
-            require(settings.btn_accept.enabled, "DXVK: a toggle enables Apply");
+            list.textFieldLabel.text = texts[0][14];
+            list.dataProvider = choices;
+            list.selectedIndex = 0;
+            list.validateNow();
+            require(!settings.btn_accept.enabled, "Renderer: nothing pending after the texts' check");
+            trace("SETTINGS Graphics: Renderer at " + list.y + " under Monitor " + monitor.y + ", FOV to " + span(c._slider_fov)[1]
+                + ", panel " + panel.top + "-" + panel.bottom + "; widest label " + widestLabel + ", widest choice " + widestChoice);
+            pick(list, 1);
+            require(settings.btn_accept.enabled, "Renderer: picking Vulkan enables Apply");
             click(settings.btn_cancel);
-            require(!box.selected && !settings.btn_accept.enabled, "DXVK: Cancel puts the saved state back");
-            box.selected = true;
+            require(list.selectedIndex == 0 && !settings.btn_accept.enabled, "Renderer: Cancel puts DirectX 11 back");
+            pick(list, 1);
             click(settings.btn_accept);
-            require(box.selected && !settings.btn_accept.enabled, "DXVK: Apply saves it");
+            require(list.selectedIndex == 1 && !settings.btn_accept.enabled, "Renderer: Apply saves Vulkan");
             root.srp_check_option("srp_dxvk", texts[0][14], "1");
-            require(box.selected && !settings.btn_accept.enabled, "DXVK: the exe's answer (on) keeps it");
-            box.selected = false;
-            require(settings.btn_accept.enabled, "DXVK: unchecking a saved on is a change");
+            require(list.selectedIndex == 1 && !settings.btn_accept.enabled, "Renderer: the exe's answer (on) keeps it");
+            pick(list, 0);
+            require(settings.btn_accept.enabled, "Renderer: DirectX 11 over a saved Vulkan is a change");
             click(settings.btn_cancel);
-            require(box.selected, "DXVK: Cancel: on again");
+            require(list.selectedIndex == 1, "Renderer: Cancel: Vulkan again");
             root.srp_check_option("srp_dxvk", texts[0][14], "0");
-            require(!box.selected && !settings.btn_accept.enabled, "DXVK: the exe's answer sets the saved state");
+            require(list.selectedIndex == 0 && !settings.btn_accept.enabled, "Renderer: the exe's answer sets the saved choice");
             graphicsTab(settings, "0");
-            require(box.visible && near(box.y, c._vsync.y + step) && near(c._antialias.y, fresh._antialias.y + step),
-                "DXVK: the tab bound again, every row moved once");
-            require(!settings.btn_accept.enabled, "DXVK: nothing pending after the checks");
-            trace("SETTINGS Graphics: DXVK pass");
+            require(list.visible && near(list.y, monitor.y + step) && near(c._fscr_resolution.y, fresh._fscr_resolution.y + step),
+                "Renderer: the tab bound again, every row moved once");
+            require(!settings.btn_accept.enabled, "Renderer: nothing pending after the checks");
+            trace("SETTINGS Graphics: Renderer pass");
             try
             {
                 settings.selectIndex(0);
@@ -415,7 +443,7 @@ package
             content.gotoAndStop(1);
             root.set_settings(0, gameplay);
             root.set_values(0, gameplayValues);
-            require(!box.visible && !settings.btn_accept.enabled, "DXVK: not on the gameplay tab again, nothing pending");
+            require(!list.visible && !settings.btn_accept.enabled, "Renderer: not on the gameplay tab again, nothing pending");
         }
 
         private function check():void
@@ -485,7 +513,7 @@ package
             }
             root.srp_check_option("srp_hide_crosshair", texts[0][8], "0");
             require(!cross.visible, "the crosshair list waits for its texts");
-            root.srp_hud_texts(texts[0][2], texts[0][5], texts[0][6], texts[0][7], texts[0][8], texts[0][9]);
+            root.srp_hud_texts(texts[0][2], texts[0][5], texts[0][6], texts[0][7], texts[0][8], texts[0][9], texts[0][15], texts[0][16]);
             require(!settings.btn_accept.enabled, "nothing to apply after the answers");
             var heading:TextField = content.getChildByName("_srp_check_group") as TextField;
             require(heading != null && heading.visible && heading.text == texts[0][2], "the group's heading is the exe's: " + (heading ? heading.text : null));
@@ -551,7 +579,7 @@ package
             position.dataProvider = positions;
             position.selectedIndex = shownPosition;
             position.validateNow();
-            root.srp_hud_texts(texts[0][2], texts[0][5], texts[0][6], texts[0][7], texts[0][8], texts[0][9]);
+            root.srp_hud_texts(texts[0][2], texts[0][5], texts[0][6], texts[0][7], texts[0][8], texts[0][9], texts[0][15], texts[0][16]);
             root.set_values(0, values);
             root.srp_check_option("srp_hide_crosshair", texts[0][8], "0");
             require(!settings.btn_accept.enabled, "nothing pending after the texts' check");

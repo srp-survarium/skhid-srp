@@ -4,12 +4,15 @@ The owner (2026-11-05): let Windows players try DXVK; off by default.
 
 ## The option
 
-- **Where:** Settings, Graphics, left column, under Vertical sync: a checkbox "Vulkan renderer
-  (DXVK), after restart" (`st_srp_dxvk_option`, ten languages). The rows under it move down one
-  checkbox step; the Optimal and Default buttons go side by side in their panel
-  (`flash/main_menu/src/SrpVideoTab.as`, with the FOV slider).
-- **Off by default.** Apply saves it as `srp_dxvk on|off` in `Documents\survarium\user.cfg`
-  (exe patch 83's saved bools, `hide-hit-markers-scores.md`); Cancel puts the saved state back.
+- **Where:** Settings, Graphics, left column, right under Monitor: a "Renderer" list built as
+  Monitor's (its label on its left, the same size), "DirectX 11" (the default) or "Vulkan/DXVK"
+  (`st_srp_renderer_option`, `_dx11`, `_dxvk`, ten languages; "Vulkan (DXVK)" does not fit Monitor's
+  field). The rows under it move down one of Monitor's steps; the Optimal and Default buttons go
+  side by side in their panel (`flash/main_menu/src/SrpRendererChoice.as`, `SrpVideoTab.as` with the
+  FOV slider). No restart hint: the tab says none for its other settings either.
+- **DirectX 11 by default.** Apply saves it as `srp_dxvk on|off` (on: Vulkan) in
+  `Documents\survarium\user.cfg`, as the HUD crosshair list keeps its Hidden choice (exe patch 83's
+  saved bools, `hide-hit-markers-scores.md`); Cancel puts the saved choice back.
 - **At the next start:** the game imports `d3d11.dll` and `dxgi.dll`, which Windows takes from the
   game's folder first, so only the updater, before PLAY, can switch them. Nothing changes in a
   running game.
@@ -38,7 +41,7 @@ The owner (2026-11-05): let Windows players try DXVK; off by default.
   game writes `dxvk.pending`; its login screen deletes it (`login_menu.activated`). The updater
   never writes it: one it finds with ours beside the game is a start with DXVK that never showed a
   screen. It then sets `srp_dxvk off` in user.cfg (that line only, every other byte kept), removes
-  ours, and logs it; the checkbox shows off, and ticking it again tries once more. It deletes a
+  ours, and logs it; the list shows DirectX 11, and picking Vulkan again tries once more. It deletes a
   marker it finds in any case. Never starting the game, opening the launcher again, closing at the
   login screen or a server that is down keep DXVK on. One enum and one transition (`State`, `step`
   in `logic/src/dxvk.rs`): off; on and not started; on and confirmed; on and failed (turned off).
@@ -52,7 +55,7 @@ The owner (2026-11-05): let Windows players try DXVK; off by default.
 
 - A start that fails with DXVK costs one more launcher start: that run turns it off. A start that
   dies before its login screen for another reason (a crash of the game's own, the window closed
-  while loading) turns it off too; ticking it again is the way back.
+  while loading) turns it off too; picking Vulkan again is the way back.
 - "Before its renderer is made" is read from the engine's order (user.cfg runs at configs.start,
   the renderer takes its settings from it), not traced in the code.
 - Antivirus: DXVK's 3.1.1 release notes say some antivirus programs flag its 32-bit builds. A

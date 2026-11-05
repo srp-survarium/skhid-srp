@@ -41,7 +41,7 @@ package
             content.addChild(heading);
             for each (var name:String in names)
             {
-                options.push(new SrpCheckOption(content, name, GAMEPLAY_FRAME));
+                options.push(new SrpCheckOption(content, name, 0, 0));
             }
         }
 
@@ -78,6 +78,16 @@ package
                 catch (error:Error)
                 {
                 }
+            }
+        }
+
+        // The exe's answer for one option: name, label, saved.
+        public function answer(values:Array):void
+        {
+            var each:SrpCheckOption = values.length > 0 ? option(values[0]) : null;
+            if (each != null)
+            {
+                each.answer(values.slice(1, 3));
             }
         }
 

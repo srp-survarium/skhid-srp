@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Run patch 83 (rust/patches/src/hud_options.rs, its lohooks of
 hud_options.toml: the Settings' "Hide hit markers" and "Hide player scores", kept in
-user.cfg, and the Graphics tab's "Vulkan renderer (DXVK)", `srp_dxvk`, which only the updater reads) in the default build on made-up game objects, each from the game's
+user.cfg, and the Graphics tab's Renderer list, `srp_dxvk`, which only the updater reads) in the default build on made-up game objects, each from the game's
 own code before its site to past it, the original beside it.
 
     python check_hud_options_026g.py <original survarium.exe>
@@ -52,15 +52,16 @@ import check_language_026g as language
 EXECUTE_BOOL, CC_BOOL_VTABLE = 0xECA30, 0x9E7C4C
 SETTINGS = {"srp_hide_hit_markers": "Hide hit markers", "srp_hide_scores": "Hide player scores",
             "srp_map_names": "Names on map", "srp_hide_crosshair": "Hidden crosshair",
-            "srp_dxvk": "Vulkan renderer (DXVK), after restart"}
+            "srp_dxvk": "Renderer"}
 # the group's own texts, in root.srp_hud_texts' order
 TEXTS = {"st_srp_options_hud": "HUD:", "st_srp_hide_quests_option": "Hide quests", "st_srp_crosshair_dynamic": "Dynamic crosshair",
          "st_srp_crosshair_static": "Static crosshair", "st_srp_crosshair_hidden": "Hidden crosshair",
-         "st_srp_static_minimap_option": "Static minimap"}
+         "st_srp_static_minimap_option": "Static minimap", "st_srp_renderer_dx11": "DirectX 11",
+         "st_srp_renderer_dxvk": "Vulkan/DXVK"}
 language.ENGLISH.update({key: text.encode() for key, text in TEXTS.items()})
 language.ENGLISH.update({"st_srp_hide_hit_markers_option": b"Hide hit markers", "st_srp_hide_scores_option": b"Hide player scores",
                          "st_srp_map_names_option": b"Names on map",
-                         "st_srp_dxvk_option": b"Vulkan renderer (DXVK), after restart"})
+                         "st_srp_renderer_option": b"Renderer"})
 OTHER_HUD = 0x20076800                  # another hud movie (a new game world's)
 # a match's options and the message they are read from (check_blackout_026g.py's OPTIONS and WORK
 # lie in check_language_026g.py's DATA: these are their own)
@@ -230,7 +231,8 @@ def main():
     before = state()
     invokes, count = ours.callback("srp_hud_texts")
     expect(invokes == [(language.MOVIE, "root.srp_hud_texts", tuple(TEXTS.values()))] and count == 0 and state() == before,
-           "srp_hud_texts: the group's texts (heading, Hide quests, the crosshair list's three choices, Static minimap), "
+           "srp_hud_texts: the group's texts (heading, Hide quests, the crosshair list's three choices, Static minimap) "
+           "and the Renderer list's two, "
            "nothing set or saved")
     stock_invokes, _ = stock.callback("srp_hud_texts")
     expect(stock_invokes == [], "the original ignores srp_hud_texts")

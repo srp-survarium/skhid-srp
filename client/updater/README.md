@@ -713,8 +713,8 @@ after a new overlay until the step has run with the server's list.
 
 ## Vulkan renderer (DXVK)
 
-Settings, Graphics, "Vulkan renderer (DXVK)" (`srp-026g/docs/notes/dxvk-option.md`): off by
-default, saved as `srp_dxvk on|off` in user.cfg. The ZIP ships DXVK's 32-bit `d3d11.dll` and
+Settings, Graphics, "Renderer": DirectX 11 (the default) or Vulkan/DXVK
+(`srp-026g/docs/notes/dxvk-option.md`), saved as `srp_dxvk on|off` in user.cfg. The ZIP ships DXVK's 32-bit `d3d11.dll` and
 `dxgi.dll` in `dxvk\` beside the updater; the game takes the two from its own folder when they
 are there. After the overlay and the restore, at every run (`exe/src/dxvk.rs`,
 `logic/src/dxvk.rs`):
