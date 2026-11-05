@@ -20,7 +20,8 @@
 //!   (1 - |x|^p)`, with `T`, `R`, `L` uniform in the weapon's config ranges
 //!   (degrees, `T / 63.735`, `R` and `L / 21.48`: [`TOP_DEG_PER_UNIT`],
 //!   [`SIDE_DEG_PER_UNIT`]), `p` its `recoil_power`, each times
-//!   `max(0, 1 + recoil_modifier)` (0 for the bots' kit), clamped to ±1.
+//!   `max(0, 1 + recoil_modifier)` (the kit's: its skills' `recoil` and its worn items' `recoil_modifier`,
+//!   `ren_gloves_1` -8 % since revision 38; [`Recoil::scaled`], A307), clamped to ±1.
 //!   The kick does not jump: the shot sets a speed that takes it to the
 //!   new value over the shot interval `60 / rounds_per_minute` (0x331F82).
 //!   PROVEN.
@@ -191,6 +192,8 @@ pub struct Recoil {
     last_shot: Option<f32>,
     /// The last weapon tick, ms.
     ticked: Option<u32>,
+    /// [A307] What every shot's kick is multiplied by: the kit's `max(0, 1 + recoil_modifier)` ([`Self::scaled`]); 1 alone.
+    scale: f32,
 }
 
 impl Default for Recoil {
@@ -227,7 +230,13 @@ impl Recoil {
             integral: [0.0; 2],
             last_shot: None,
             ticked: None,
+            scale: 1.0,
         }
+    }
+
+    /// [A307] Every shot's kick from now times `scale` (the kit's `max(0, 1 + recoil_modifier)`, `Gun::recoil_scale`).
+    pub fn scaled(&mut self, scale: f32) {
+        self.scale = scale;
     }
 
     /// The weapon in hand the model is for.
@@ -310,6 +319,7 @@ impl Recoil {
         self.error = [0.0; 2];
         self.integral = [0.0; 2];
         let p = self.kick.power;
+        let (top, side) = (top * self.scale, side * self.scale);
         let [x, y] = self.at;
         let to = [
             (x + side * (1.0 - x.abs().powf(p))).clamp(-1.0, 1.0),
