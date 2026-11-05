@@ -129,7 +129,7 @@ struct medical_pool *engine_find_pool(struct medical_pools *pools, const char *c
 /* 0x32a420 survarium::body_part::increase_health: pool ESI, time ESP+4, amount ESP+8; pops 8 */
 void engine_increase_health(struct medical_pool *pool, unsigned int time, float amount);
 
-/* 0x313350 (unnamed): artefact ESP+4, time ESP+8; pops 8 */
+/* 0x313350 survarium::artefact_base::effect: artefact ESP+4, time ESP+8; pops 8 */
 void engine_artefact_effect(void *artefact, unsigned int time);
 
 /* 0x2d5ae0 survarium::player_params_modifiers_container::apply_modifier: modifiers EAX, index ESI, value ESP+4, weight ESP+8; pops 8; XMM0 */

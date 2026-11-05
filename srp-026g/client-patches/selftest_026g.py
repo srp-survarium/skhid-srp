@@ -1562,6 +1562,7 @@ def late_join_sites():
         [(va, len(old)) for va, old, _, _ in P.RESEARCH_HOOKS] + \
         [(va, len(old)) for va, old, _, _ in P.ARTEFACTS_HOOKS] + \
         [(va, len(old)) for va, old, _ in P.ARTEFACTS_SIZES] + \
+        [(va, len(old)) for va, old, _ in P.MOUSE_BUTTONS] + \
         [(va, len(old)) for va, old, _, _ in P.MATCH_KEYS_HOOKS] + \
         [(va, len(old)) for va, old, _, _ in P.HIDE_UI_HOOKS] + \
         [(va, len(old)) for va, old, _, _ in P.HIDE_UI_TABLE_REFS] + \
@@ -1572,7 +1573,9 @@ def late_join_sites():
         [(va, len(old)) for va, old, _, _ in P.BAKE_CACHE_HOOKS] + \
         [(va, len(old)) for va, old, _, _ in P.WEIGHT_UI_HOOKS] + \
         [(va, len(old)) for va, old, _, _ in P.BULLET_BOUNDS_HOOKS] + \
-        [(P.BAKE_CACHE_KEEP[0], len(P.BAKE_CACHE_KEEP[1]))]
+        [(va, len(old)) for va, old, _, _ in P.MATCH_STAT_MAP_HOOKS] + \
+        [(P.BAKE_CACHE_KEEP[0], len(P.BAKE_CACHE_KEEP[1]))] + \
+        [(P.EXPAND_TEXT_UNBOUND[0], len(P.EXPAND_TEXT_UNBOUND[1]))]
 
 
 def pickup_sites():
