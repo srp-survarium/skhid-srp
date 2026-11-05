@@ -396,7 +396,7 @@ pub extern "C" fn hook_battery_progress_on_carrier_tick(frame: &mut Frame) -> u3
     }
 }
 
-// ---- forest_glow (patch 110) ----
+// ---- forest_glow (patch 111) ----
 
 /// The entry `forest_glow_on_tick` (0x2daad3, base_player::tick after the held object's tick (call [vtbl+28h] at 0x2DAAD1, or the je at 0x2DAAC9 with nothing held), before the movement (mov ecx,[esp+10h] / push edi): EBX the player, every simulation tick) calls this with the saved machine.
 #[unsafe(no_mangle)]
@@ -746,7 +746,7 @@ pub extern "C" fn hook_footsteps_on_step_guard(frame: &mut Frame) -> u32 {
     }
 }
 
-// ---- forest_glow (patch 110) ----
+// ---- forest_glow (patch 111) ----
 
 /// The convention of engine_store_first_resource (0x14730), a callback's: a marker for
 /// the callback entries made in it (no function of the game is called through it).
@@ -782,7 +782,7 @@ pub extern "C" fn hook_medical_skills_on_effect_capacity(frame: &mut Frame) -> u
     }
 }
 
-// ---- forest_glow (patch 110) ----
+// ---- forest_glow (patch 111) ----
 
 /// The entry `forest_glow_on_capacity` (0x2ec81e, game effect resource cook: ESI concurrent instances, EBX named query; after count read, before callback copies it) calls this with the saved machine.
 #[unsafe(no_mangle)]
@@ -817,7 +817,7 @@ pub extern "C" fn hook_medical_skills_on_effect_clock(frame: &mut Frame) -> u32 
     }
 }
 
-// ---- forest_glow (patch 110) ----
+// ---- forest_glow (patch 111) ----
 
 /// The named exits of forest_glow::on_clock (the order the shim's Flow code
 /// follows, 2 upward).

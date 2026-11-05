@@ -7,7 +7,7 @@ patch = 92
 [[hook]]
 site = "battery.carrier_tick"
 handler = "on_carrier_tick"
-# before Forest Protection's glow (patch 110, order 2)
+# before Forest Protection's glow (patch 111, order 2)
 order = 1
 
 [[hook]]

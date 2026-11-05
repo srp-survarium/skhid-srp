@@ -27,7 +27,7 @@ artefact's effect_calculator: the effect ends when the artefact leaves its activ
   view_cone.py measures each emitter against the middle of the first-person view.
 
 Version 5 adds Forest Protection's glow (docs/notes/artefact-skills.md, "Forest Protection"; exe
-patch 110 plays it while the skill protects a player): gameplay/effects/effect_forest_protection,
+patch 111 plays it while the skill protects a player): gameplay/effects/effect_forest_protection,
 a particle effect (the stock Onyx glow's effect, `view` 2: everyone's view and the player's own)
 playing fx/artifacts/human_forest_protection, the stock Onyx glow (its emitters, sizes, rates and
 haze) grey and on the legs only:

@@ -1,4 +1,4 @@
-//! Forest Protection's glow (patch 110; docs/notes/artefact-skills.md,
+//! Forest Protection's glow (patch 111; docs/notes/artefact-skills.md,
 //! "Forest Protection"): while the skill protects a player (its kit's
 //! modifier 41 makes the anomaly hit's factor below 1, and it is inside a
 //! damage zone: the native rule of 0x332810), a grey glow plays on its legs,

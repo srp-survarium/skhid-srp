@@ -7,7 +7,7 @@
 //! callback is a generated entry ([`CallbackEntry`], the `callback` site
 //! `resources.query_done`); its handler gets [`QueryResults`] and the tag,
 //! and takes what it asked for with [`QueryResults::arrived`]. The music
-//! (patch 88) asks its bus and tracks, Forest Protection's glow (patch 110)
+//! (patch 88) asks its bus and tracks, Forest Protection's glow (patch 111)
 //! its game effect.
 
 use core::ffi::CStr;

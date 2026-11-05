@@ -77,7 +77,7 @@ class Run(hide.Run):
         self.counted = []
         self.emu.hook_add(UC_HOOK_CODE, self.count, begin=0x2E55B0, end=0x2E55B0)
         # query_resources (cdecl, 0xE5B60): returns, nothing loads (Forest
-        # Protection's glow, patch 110, asks its effect at the first tick)
+        # Protection's glow, patch 111, asks its effect at the first tick)
         self.emu.hook_add(UC_HOOK_CODE, self.no_query, begin=0xE5B60, end=0xE5B60)
 
     def no_query(self, emu, *_):

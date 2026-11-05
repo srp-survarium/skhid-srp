@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Forest Protection's glow (patch 110, rust/patches/src/forest_glow.rs;
+"""Forest Protection's glow (patch 111, rust/patches/src/forest_glow.rs;
 docs/notes/artefact-skills.md, "Forest Protection") run in the built exe.
 
     python check_forest_glow_026g.py <original survarium.exe>

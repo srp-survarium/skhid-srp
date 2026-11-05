@@ -1,8 +1,8 @@
-# Patch 110: Forest Protection's glow (docs/notes/artefact-skills.md, "Forest
+# Patch 111: Forest Protection's glow (docs/notes/artefact-skills.md, "Forest
 # Protection"). Only the decisions: which sites, and the handlers. The sites
 # are sites_026g.tsv's; the logic is forest_glow.rs.
 name = "forest_glow"
-patch = 110
+patch = 111
 
 # every player's simulation tick (after the battery carrier's): the glow
 # played when the player shows it; the effect asked for at the first one
