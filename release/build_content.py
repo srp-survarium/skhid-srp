@@ -492,6 +492,48 @@ def lamp_check(world):
     print(f'lamps: every binding of {len(projects)} made project(s) names its own model or light')
 
 
+def pierce_check(rows, tree, base, base_files, game, world):
+    """Every pierce line (an add_entry with `pierce_line`, content_edit.pierce_lines) is what the final
+    files make: a row after the list's that retunes a weapon's or a round's piercing, a material's
+    armour or what fires what, or adds a gun or a round, leaves a line stale or missing (and a
+    weapon the list's _inputs does not declare, a line computed without it), and is a Problem."""
+    ce = own_content_edit()
+    known = set(base_files) | set(world.bytes)
+    # Every item config the dictionary can pair, read once.
+    needed = sorted(p for p in known if p.startswith('gameplay/items/') and p.endswith('.options'))
+    needed += [ce.GAME_MATERIALS, ce.DICTIONARY]
+    files = game.get(base, [p for p in needed if p not in world.bytes])
+    files.update({p: world.bytes[p] for p in needed if p in world.bytes})
+    files = {p: bytearray(b) for p, b in files.items()}
+    problems, checked = [], 0
+    for kind, name, source, _, _ in rows:
+        if kind != 'edit' or source != '-' or not name.endswith('.json'):
+            continue
+        for entry in json.loads((edits_dir(tree) / name).read_text(encoding='utf-8')).get('add_entry', []):
+            if 'pierce_line' not in entry:
+                continue
+            try:
+                want = ce.pierce_lines(files.__getitem__, set(files), entry['pierce_line'])
+            except ValueError as why:
+                raise Problem(f'{name}: {why}') from None
+            prop_id = entry['values']['prop_id']
+            paths = set(fnmatch.filter(files, entry['files']))
+            problems += [f'{path}: a pierce line, but not one of {entry["files"]} ({name})'
+                         for path in sorted(set(want) - paths)]
+            for path in sorted(paths):
+                have = ce.prop_text(files[path], prop_id)
+                if have != want.get(path):
+                    problems.append(f'{path}: line {prop_id} says {have!r}, its data makes {want.get(path)!r} '
+                                    f'({name}: a row after it changes what it is computed from)')
+            checked += len(want)
+    if problems:
+        print()
+        for problem in problems:
+            print(f'PIERCE: {problem}')
+        raise Problem(f'{len(problems)} pierce line(s) the final data does not make: no patch made')
+    print(f'pierce lines: each of {checked} round(s) what its final data makes')
+
+
 def clothing_check(base, base_files, game, world):
     """Reject low boot shafts selecting the variants for medium/tall boots.
     Measure the stock classes, then check the final composed meshes/configs,
@@ -567,6 +609,7 @@ def main():
         # uses a type 0.26g files already use at that path or is allowlisted.
         type_check(rows, args.tree, base, base_files, game, world)
         lamp_check(world)
+        pierce_check(rows, args.tree, base, base_files, game, world)
         clothing_check(base, base_files, game, world)
 
         # What the sources make, against what players have.

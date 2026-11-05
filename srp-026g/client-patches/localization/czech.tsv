@@ -2185,8 +2185,10 @@ st_sr3m_description	Popis zatím není k dispozici.
 st_sr3m_name	SR-3M "Vikhr"
 st_srp_ammo069_23mm_r_desc	Náboj ráže 23 mm s broky pro KS-23M. Způsobuje vysoké poškození neobrněným cílům.
 st_srp_ammo069_23mm_r_name	23x75R, broky
+st_srp_ammo_buckshot	Broky
 st_srp_ammo_scar_ap_desc	Průbojné náboje 7,62x51 pro FN SCAR-H. Každá sumka pojme 20 nábojů.
 st_srp_ammo_scar_ap_name	7,62x51 AP SCAR-H, 20 nábojů
+st_srp_ammo_slug	Kulka
 st_srp_ammo_stats	Statistiky střeliva
 st_srp_attachments	Příslušenství
 st_srp_crosshair_dynamic	Dynamický zaměřovač
@@ -2451,6 +2453,7 @@ st_srp_inv_ammo_range	Dostřel
 st_srp_inv_bullet_speed	Rychlost střely
 st_srp_inv_defuse_time	Doba zneškodnění
 st_srp_inv_fuse_time	Doba zápalníku
+st_srp_inv_material_pierce	Prorazí
 st_srp_inv_pellets	Broky
 st_srp_inv_pocket_units	Místa v kapse
 st_srp_inv_stamina_damage	Poškození výdrže
@@ -2526,6 +2529,14 @@ st_srp_mouse_lock_option	Zamknout svislou citlivost
 st_srp_mouse_vertical_option	Svislá citlivost
 st_srp_optics	Optika
 st_srp_options_hud	HUD:
+st_srp_pierce_brick	Cihla, ocel
+st_srp_pierce_car	Auto
+st_srp_pierce_concrete	Beton
+st_srp_pierce_glass	Sklo
+st_srp_pierce_plywood	Překližka
+st_srp_pierce_stone	Kámen
+st_srp_pierce_tinplate	Plech
+st_srp_pierce_value	%1$s · %2$s
 st_srp_play_in_squad	V četě
 st_srp_pvb_at_limit	Už běží maximální počet zápasů s boty, zkus to za minutu
 st_srp_pvb_at_limit_count	Už běží maximální počet zápasů s boty (%1$s/%2$s), zkus to za minutu
@@ -2702,7 +2713,6 @@ st_srp_weapon069_mauser_m712_name	Mauser M.712
 st_srp_weapon069_ppsh_drum_desc	Špaginův samopal s bubnovým zásobníkem na 71 nábojů, náboje 7.62x25. Střílí jednotlivě i automaticky.
 st_srp_weapon069_ppsh_drum_name	PPSH-41 „Buben“
 st_srp_weapon_aim_zoom	Základní zvětšení
-st_srp_weapon_bullet_speed_varies	Proměnlivá
 st_srp_weapon_chamber	Nabití do komory
 st_srp_weapon_draw_time	Doba tasení
 st_srp_weapon_full_damage	Plné poškození do
