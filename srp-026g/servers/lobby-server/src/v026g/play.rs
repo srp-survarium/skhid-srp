@@ -40,6 +40,7 @@ use survarium::v026g::match_msgs::static_info::{
 };
 
 use super::core::{Core, Who};
+use super::rooms::{RoomKind, RoomLaunch};
 
 /// A match seated (a room's, a clan match, one against bots) is made at the
 /// match server by the first of its players the lobby looks at; one not
@@ -291,8 +292,9 @@ pub(super) struct Running {
     pub names: Vec<String>,
     /// When the log last had what the sides count for.
     pub predicted_at: Option<Instant>,
-    /// One player against the server's own bots (`pvb`).
-    pub vs_bots: bool,
+    /// The server's bots play in it (against bots, or a room's with bots):
+    /// one of `pvb::Config::max_matches`.
+    pub server_bots: bool,
 }
 
 /// One player as the log's "sides" and "late join" lines have it: what it
@@ -1006,10 +1008,10 @@ impl Core<'_> {
             return false;
         };
         let pvb = self.pvb_launching.get(&match_id).copied();
-        // A room's match: the map its vote chose, the room's minimum and
-        // whether it has a PIN (`rooms`).
+        // A room's match: the map its vote chose, the room's minimum,
+        // whether it has a PIN and its bots (`rooms`).
         let room = self.room_launching.get(&match_id).copied();
-        let room_map = room.map(|(map_id, ..)| map_id);
+        let room_map = room.map(|room| room.map_id);
         let unix = quests::now();
         // Its players' levels, and their equipment levels (the bots').
         let mut levels = Vec::with_capacity(formed.seats.len());
@@ -1059,12 +1061,29 @@ impl Core<'_> {
             })
             .collect();
         // The match server's own bots, after the players: against bots,
-        // 2N - 1 of them; none in any other match.
+        // 2N - 1 of them; a room's with bots, as many on each team as it
+        // says; none in any other match.
         let seat_teams: Vec<u8> = formed.seats.iter().map(|seat| seat.team).collect();
-        let bots = pvb.map_or(0, |choice| {
-            (2 * usize::from(choice.size)).saturating_sub(formed.seats.len())
-        });
-        let bot_teams = server_bot_teams(&seat_teams, [sides[0].0, sides[1].0], bots);
+        let bot_teams: Vec<u8> = match (pvb, room) {
+            (Some(choice), _) => {
+                let bots = (2 * usize::from(choice.size)).saturating_sub(formed.seats.len());
+                server_bot_teams(&seat_teams, [sides[0].0, sides[1].0], bots)
+            }
+            (
+                None,
+                Some(RoomLaunch {
+                    kind: RoomKind::WithBots { bots: [first, second] },
+                    ..
+                }),
+            ) => std::iter::repeat_n(0, first)
+                .chain(std::iter::repeat_n(1, second))
+                .take(session::MAX_PLAYERS_PER_MATCH.saturating_sub(seat_teams.len()))
+                .collect(),
+            (None, _) => Vec::new(),
+        };
+        // Against bots, a room's with bots too: paid as against bots.
+        let vs_bots = pvb.is_some()
+            || room.is_some_and(|room| matches!(room.kind, RoomKind::WithBots { .. }));
         let bot_roles = server_bot_roles(&bot_teams);
         // Their kits: of the players' equipment level, the top players'.
         let bot_level = bots_gear_level(&gear_levels);
@@ -1124,9 +1143,9 @@ impl Core<'_> {
                     map,
                     match_level,
                     players,
-                    vs_bots: pvb.is_some(),
-                    private: room.is_some_and(|(.., private)| private),
-                    room_minimum: room.map(|(_, minimum, _)| minimum),
+                    vs_bots,
+                    private: room.is_some_and(|room| room.kind == RoomKind::Private),
+                    room_minimum: room.map(|room| room.minimum),
                 })
                 .map(|ticket| (ticket, map)),
             (None, _) => {
@@ -1195,8 +1214,9 @@ impl Core<'_> {
                     );
                 }
                 // The map is one more that each of them has played; a
-                // match against bots counts towards no map rotation.
-                for seat in formed.seats.iter().filter(|_| pvb.is_none()) {
+                // match against bots (a room's with bots too) counts towards
+                // no map rotation.
+                for seat in formed.seats.iter().filter(|_| !vs_bots) {
                     let account_id = seat.player.account_id;
                     if let Some(account) = self.accounts.get(account_id) {
                         matchmaking::count_map_play(&mut account.locked(), map);
@@ -1227,7 +1247,7 @@ impl Core<'_> {
                             .chain((1..=bot_teams.len()).map(server_bot_name))
                             .collect(),
                         predicted_at: None,
-                        vs_bots: pvb.is_some(),
+                        server_bots: !bot_teams.is_empty(),
                     },
                 );
                 true

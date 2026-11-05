@@ -2579,6 +2579,7 @@ st_srp_rooms_all	Kaikki
 st_srp_rooms_all_rooms	Kaikki huoneet
 st_srp_rooms_any	Ei rajaa
 st_srp_rooms_back	Takaisin
+st_srp_rooms_bots	Boteilla
 st_srp_rooms_code_10	Omistaja poisti sinut huoneesta.
 st_srp_rooms_code_11	Poistu ensin klaanijoukkueesta.
 st_srp_rooms_code_12	Varusteesi ylittävät enimmäistason.
