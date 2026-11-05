@@ -10,7 +10,7 @@ use core::sync::atomic::{AtomicU32, Ordering};
 
 use crate::vostok::sound::{self, OnceCaller, OncePoint, Source, VoiceVolume, WeaponSound, WeaponSoundKind};
 use crate::vostok::types::Place;
-use crate::vostok::effect::{self, Clock};
+use crate::vostok::effect;
 use crate::vostok::{Context, Flow, NoExit, medical};
 
 /// What the kit's items add to passive regeneration (the Regeneration
@@ -388,7 +388,7 @@ pub fn on_effect_capacity(ctx: &mut Context<'_>) -> Flow<NoExit> {
 
 /// Medic's shared actives end at their activation's length.
 pub fn on_effect_clock(ctx: &mut Context<'_>) -> Flow<crate::vostok::MedicalSkillsOnEffectClockExit> {
-    if effect::effect_clock(ctx, Clock::Timed) {
+    if effect::timed_clock(ctx) {
         Flow::Exit(crate::vostok::MedicalSkillsOnEffectClockExit::Returned)
     } else {
         Flow::Continue

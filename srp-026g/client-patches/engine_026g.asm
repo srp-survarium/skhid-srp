@@ -144,7 +144,6 @@ global engine_create_sound_voice
 global engine_detach_voice
 global engine_sound_options
 global engine_buffer_reallocate
-global engine_effect_remove
 engine_action_present equ 0x242460   ; 0x242460 survarium::player_input_handler::action_present: handler ESP+4, action ESP+8, state ESP+12; pops 12; AL; stdcall, called directly
 engine_create_file_a equ 0x870048   ; the IAT slot 0x870048 (an import, stdcall)
 engine_write_file equ 0x870108   ; the IAT slot 0x870108 (an import, stdcall)
@@ -1842,22 +1841,6 @@ engine_buffer_reallocate:
     mov esi, [esp + 20]   ; buffer
     mov edi, [esp + 24]   ; capacity
     call 0x7ab70
-    pop edi
-    pop esi
-    pop ebx
-    pop ebp
-    ret
-
-    align 16, db 0xCC
-engine_effect_remove:
-    ; 0x2de350 survarium::game_effect_player::remove: player EAX, effect ECX; pops 0
-    push ebp
-    push ebx
-    push esi
-    push edi
-    mov eax, [esp + 20]   ; player
-    mov ecx, [esp + 24]   ; effect
-    call 0x2de350
     pop edi
     pop esi
     pop ebx

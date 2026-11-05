@@ -7,16 +7,19 @@
 //! both views). Every game shows it on every player, from what it has: the
 //! kit in the static info and the zone count of its world.
 //!
-//! Presentation only: nothing a match computes reads an effect. No state of
-//! its own but the resource: whether a player glows is read from its world
-//! every frame, and whether it plays the glow from its effect list.
+//! In the simulation, as the artefacts' own glow: at a player's tick the
+//! effect is played when the player shows it and plays none (so it is in
+//! the world's history, and a rollback keeps it); the player's own
+//! calculator ends it when the player no longer shows it. Presentation only:
+//! nothing a match computes reads an effect. No state of its own but the
+//! resource.
 
 #![forbid(unsafe_code)]
 
-use crate::vostok::effect::{self, Clock, KeptEffect};
+use crate::vostok::effect::{self, KeptEffect};
 use crate::vostok::log::{self, Piece::Text};
 use crate::vostok::resources::{self, Arrived, QueryResults, QueryTag};
-use crate::vostok::world::GameWorld;
+use crate::vostok::world::Player;
 use crate::vostok::{Context, Flow, GameCell, NoExit};
 
 /// The effect's name: gameplay/effects/effect_forest_protection.options.
@@ -40,9 +43,8 @@ impl Glow {
     }
 }
 
-/// The effect's resource: asked for at the first frame of a match (a world
-/// with its network client), kept for the process once it came. `E` the
-/// kept resource.
+/// The effect's resource: asked for at the first player tick of a match,
+/// kept for the process once it came. `E` the kept resource.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 enum Load<E> {
     Unasked,
@@ -85,24 +87,23 @@ impl<E: Copy> Load<E> {
 
 static LOAD: GameCell<Load<KeptEffect>> = GameCell::new(Load::Unasked);
 
-/// After the simulation's move: each player's glow on or off.
-pub fn on_frame(ctx: &mut Context<'_>) -> Flow<NoExit> {
-    let Some(world) = GameWorld::at_after_move(ctx) else { return Flow::Continue };
-    let Some(client) = world.network_client() else { return Flow::Continue };
+/// Whether `player` shows the glow.
+fn glow(player: &Player<'_>) -> Glow {
+    Glow::of(player.alive(), player.damage_zones(), player.weapon_damage_in_anomaly())
+}
+
+/// A player's simulation tick: the glow played when it shows and none
+/// plays; the effect asked for at the first tick.
+pub fn on_tick(ctx: &mut Context<'_>) -> Flow<NoExit> {
+    let Some(player) = Player::at_tick(ctx) else { return Flow::Continue };
     let thread = ctx.thread();
     let (load, action) = LOAD.get(thread).step(Event::Frame);
     LOAD.set(thread, load);
     match action {
         Action::Ask => resources::query_effect(thread, EFFECT, crate::vostok::forest_glow_on_loaded_entry()),
         Action::Show(kept) => {
-            for place in 0..client.places() {
-                let Some(player) = client.player(place) else { continue };
-                let glow = Glow::of(player.alive(), player.damage_zones(), player.weapon_damage_in_anomaly());
-                match (glow, player.held_effect(kept)) {
-                    (Glow::On, None) => player.hold_effect(kept),
-                    (Glow::Off, Some(held)) => held.remove(),
-                    (Glow::On, Some(_)) | (Glow::Off, None) => {}
-                }
+            if glow(&player) == Glow::On && !player.plays_effect(kept) {
+                player.hold_effect(kept);
             }
         }
         Action::Nothing | Action::Report => {}
@@ -131,9 +132,10 @@ pub fn on_capacity(ctx: &mut Context<'_>) -> Flow<NoExit> {
     Flow::Continue
 }
 
-/// The default clock: the glow's held clock, which never ends on its own.
+/// The default clock: the glow ends when its player no longer shows it.
 pub fn on_clock(ctx: &mut Context<'_>) -> Flow<crate::vostok::ForestGlowOnClockExit> {
-    if effect::effect_clock(ctx, Clock::Held) {
+    let Load::Ready(kept) = LOAD.get(ctx.thread()) else { return Flow::Continue };
+    if effect::kept_clock(ctx, kept, |player| glow(player) == Glow::On) {
         Flow::Exit(crate::vostok::ForestGlowOnClockExit::Returned)
     } else {
         Flow::Continue

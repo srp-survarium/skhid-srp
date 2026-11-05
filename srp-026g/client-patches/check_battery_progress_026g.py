@@ -76,6 +76,14 @@ class Run(hide.Run):
             self.emu.hook_add(UC_HOOK_CODE, self.write, begin=at, end=at)
         self.counted = []
         self.emu.hook_add(UC_HOOK_CODE, self.count, begin=0x2E55B0, end=0x2E55B0)
+        # query_resources (cdecl, 0xE5B60): returns, nothing loads (Forest
+        # Protection's glow, patch 110, asks its effect at the first tick)
+        self.emu.hook_add(UC_HOOK_CODE, self.no_query, begin=0xE5B60, end=0xE5B60)
+
+    def no_query(self, emu, *_):
+        sp = emu.reg_read(UC_X86_REG_ESP)
+        emu.reg_write(UC_X86_REG_EIP, self.read(sp))
+        emu.reg_write(UC_X86_REG_ESP, sp + 4)
 
     def count(self, emu, *_):
         """The statistics callback endpoint; the event-26 decision is native."""

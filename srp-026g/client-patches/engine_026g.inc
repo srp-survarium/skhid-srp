@@ -465,6 +465,3 @@ extern engine_sound_options
 ; void engine_buffer_reallocate(void *buffer, unsigned int capacity)
 ; 0x7ab70 vostok::network_core::mutable_buffer::reallocate: buffer ESI, capacity EDI; pops 0
 extern engine_buffer_reallocate
-; void engine_effect_remove(struct game_effect_player *player, struct game_effect *effect)
-; 0x2de350 survarium::game_effect_player::remove: player EAX, effect ECX; pops 0
-extern engine_effect_remove

@@ -5,7 +5,7 @@ use crate::{
     medical_skills::{Opponents, Painkiller, Regeneration, Skills, Stance},
     raw,
 };
-use super::effect::{Clock, OwnedEffect};
+use super::effect::OwnedEffect;
 use core::{
     ffi::CStr,
     sync::atomic::{AtomicU32, Ordering},
@@ -511,7 +511,7 @@ pub fn share_larkspur(ctx: &mut Context<'_>) {
             }
             if let Some(resource) = item.active_resource() {
                 OwnedEffect::emit(ctx.thread(), resource, Some(*item.active_remaining()))
-                    .play_on(ctx.thread(), target.0.at, time, Clock::Timed);
+                    .play_timed(ctx.thread(), target.0.at, time);
             }
         }
     }

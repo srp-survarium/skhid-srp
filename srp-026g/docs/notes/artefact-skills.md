@@ -108,10 +108,13 @@ preferred-image VAs; `apply_modifier` is the kit-modifier getter 0x2D5AE0.
     left out (the hands' strokes, the chest's rays), the materials' grey copies
     (fx/artifacts/rays_grey, stroke_scroll_grey, up_grey: the stock material, constant_emissive
     0.5 grey) and the point light grey (scripts/artefact-glow/make_pack.py);
-  - the trigger, every frame after the move, each player: alive, its damage-zone count above 0
-    and its current kit's modifier 41 factor below 1 (the native getter): the effect played with
-    a held clock (never ends on its own); otherwise the one it plays removed. Nothing kept but the
-    loaded resource; the player's effect list says whether it plays.
+  - the trigger, in each player's simulation tick (so the effect is in the world's history, as
+    the artefacts' glow): alive, its damage-zone count above 0 and its current kit's modifier 41
+    factor below 1 (the native getter): the effect played when none plays, with the player's own
+    calculator, which ends it when the condition ends. Nothing kept but the loaded resource; the
+    player's effect list says whether it plays.
+  - The point light of the glow (the stock `up_light`, grey) also lights the player's body and
+    the ground near it (the renders); a lighter version would leave it out.
 
 ## Artifact Container (534)
 

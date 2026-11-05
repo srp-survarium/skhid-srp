@@ -1,15 +1,22 @@
 //! The game effects our patches play on players, through the player's own
 //! game_effect_player (+358h): `add` 0x2DE090 takes a reference to an effect
 //! a game effect resource emitted (0x329050) and plays it with a time
-//! calculator; `remove` 0x2DE350 stops one it plays, as damage zones stop
-//! their inside effect (0x31A255). The effects it plays are a list (+2Ch the
-//! first, each +4Ch the next); each is read where it is used, never kept.
+//! calculator, until the calculator says it ended. The effects it plays are
+//! a list (+2Ch the first, each +4Ch the next); each is read where it is
+//! used, never kept. An effect played in a simulation tick is in the world's
+//! history (the local visual stream), so a rollback restores it and its
+//! re-simulation plays it again; one played outside the simulation is lost
+//! at the next restore.
 //!
-//! The calculators are ours, one static each ([`Clock`]): native default
-//! clocks (vtable 0xA11398) with no registry index, which the local visual
-//! stream writes as the pointer they are (they are never moved or freed).
+//! Two calculators, both default clocks (vtable 0xA11398) that
 //! `effect_clock` (default_game_effect_time_calculator::calculate 0x2E5D80)
-//! answers for them and lets every native clock through.
+//! answers for:
+//! - [`timed_clock`]: a static of ours with no registry index, which the
+//!   local visual stream writes as the pointer it is (never moved or freed):
+//!   it ends an effect at the effect's own length (Medic's shared actives);
+//! - [`kept_clock`]: the player's own calculator (+394h, its hit effects'),
+//!   for the effects of a kept resource: it ends one when the patch says
+//!   the player no longer shows it (Forest Protection's glow).
 
 use core::cell::UnsafeCell;
 use core::ffi::CStr;
@@ -21,47 +28,16 @@ use super::hook::Thread;
 use super::world::{Player, read};
 use crate::raw;
 
-/// The time calculators of ours.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub enum Clock {
-    /// Ends when the effect's own length (its serialized +24h, seconds) has
-    /// passed since its start: Medic's shared Larkspur actives.
-    Timed,
-    /// Never ends on its own: the patch that holds it removes it (the
-    /// artefact's own calculator holds its glow the same way, at time 0,
-    /// while the artefact is active).
-    Held,
-}
-
-impl Clock {
-    const ALL: [Clock; 2] = [Clock::Timed, Clock::Held];
-
-    fn cell(self) -> &'static ClockCell {
-        &CLOCKS[self as usize]
-    }
-
-    fn listener(self, thread: &Thread) -> raw::GameEffectListener {
-        self.cell().listener(thread)
-    }
-
-    /// Which of ours a calculator is, if it is one.
-    fn of(calculator: Option<raw::GameEffectListener>, thread: &Thread) -> Option<Clock> {
-        Clock::ALL.into_iter().find(|clock| calculator == Some(clock.listener(thread)))
-    }
-}
-
-/// A process-lifetime, stateless native calculator: only each effect's
-/// serialized start and length carry its timing; no player or item pointer.
-struct ClockCell(UnsafeCell<raw::MedicalTimedClockStorage>);
+/// Medic's timed clock: a process-lifetime, stateless native calculator;
+/// only each effect's serialized start and length carry its timing, no
+/// player or item pointer.
+struct TimedClock(UnsafeCell<raw::MedicalTimedClockStorage>);
 // SAFETY: touched only on the simulation thread (a Thread); no borrow
 // survives a native call, and the static is never moved or destroyed.
-unsafe impl Sync for ClockCell {}
-static CLOCKS: [ClockCell; 2] = [
-    ClockCell(UnsafeCell::new(raw::MedicalTimedClockStorage::zeroed())),
-    ClockCell(UnsafeCell::new(raw::MedicalTimedClockStorage::zeroed())),
-];
+unsafe impl Sync for TimedClock {}
+static TIMED: TimedClock = TimedClock(UnsafeCell::new(raw::MedicalTimedClockStorage::zeroed()));
 
-impl ClockCell {
+impl TimedClock {
     fn listener(&self, _: &Thread) -> raw::GameEffectListener {
         // SAFETY: the static owns this exact native layout for the process.
         unsafe {
@@ -73,31 +49,61 @@ impl ClockCell {
     }
 }
 
-/// The default clock's call (`medical.effect_clock`), for `clock`: true when
-/// the calculator was it and the answer is written (the hook then returns
-/// what the native would); false for any other calculator, which goes on
-/// through the native calculation unchanged.
-pub fn effect_clock(ctx: &mut Context<'_>, clock: Clock) -> bool {
+/// The default clock's answer: interval 0, time 0 (the artefact's frozen
+/// glow), ended or not; EAX the result as the native returns it.
+///
+/// # Safety
+/// `out` is the clock call's live result record.
+unsafe fn answer(ctx: &mut Context<'_>, out: raw::MedicalClockResult, ended: bool) {
+    // SAFETY: the caller's record.
+    unsafe {
+        *out.interval() = 0;
+        *out.time() = 0.0;
+        *out.ended() = u8::from(ended);
+    }
+    ctx.set_reg(Reg::Eax, out.address());
+}
+
+/// The default clock's call (`medical.effect_clock`) for the timed clock:
+/// true when the calculator was it and the answer is written (the hook then
+/// returns what the native would); false for any other calculator, which
+/// goes on through the native calculation unchanged.
+pub fn timed_clock(ctx: &mut Context<'_>) -> bool {
     use raw::site::medical_effect_clock as site;
     // SAFETY: this callback receives a live effect node and output record.
     unsafe {
-        if Clock::of(site::calculator(ctx), ctx.thread()) != Some(clock) {
+        if site::calculator(ctx) != Some(TIMED.listener(ctx.thread())) {
             return false;
         }
         let Some(frame) = site::frame(ctx) else { return false };
         let (Some(out), Some(node)) = (frame.result(), frame.node()) else { return false };
         let Some(effect) = node.effect() else { return false };
-        let ended = match clock {
-            Clock::Timed => {
-                let elapsed = frame.now().read().wrapping_sub(*node.start());
-                elapsed as f32 / 1000.0 >= *effect.length()
-            }
-            Clock::Held => false,
-        };
-        *out.interval() = 0;
-        *out.time() = 0.0;
-        *out.ended() = u8::from(ended);
-        ctx.set_reg(Reg::Eax, out.address());
+        let elapsed = frame.now().read().wrapping_sub(*node.start());
+        answer(ctx, out, elapsed as f32 / 1000.0 >= *effect.length());
+        true
+    }
+}
+
+/// The default clock's call (`medical.effect_clock`) for an effect of
+/// `kept`, which is only ever played with its player's own calculator
+/// ([`Player::hold_effect`]): ended unless `shows` says the player still
+/// shows it. False for any other effect, which goes on unchanged.
+pub fn kept_clock(ctx: &mut Context<'_>, kept: KeptEffect, shows: impl FnOnce(&Player<'_>) -> bool) -> bool {
+    use raw::site::medical_effect_clock as site;
+    // SAFETY: this callback receives a live effect node and output record;
+    // an effect of the kept resource is played only with a player's own
+    // calculator (+394h), so that calculator's owner is a live player (the
+    // effect player ticking it is the player's +358h).
+    unsafe {
+        let Some(frame) = site::frame(ctx) else { return false };
+        let (Some(out), Some(node)) = (frame.result(), frame.node()) else { return false };
+        if node.effect().and_then(|effect| effect.resource()) != Some(kept.0) {
+            return false;
+        }
+        let Some(calculator) = site::calculator(ctx) else { return false };
+        let player = Player { this: calculator.owner(), thread: ctx.thread() };
+        let ended = !shows(&player);
+        answer(ctx, out, ended);
         true
     }
 }
@@ -151,8 +157,8 @@ pub(super) struct OwnedEffect<'t> {
 }
 
 impl<'t> OwnedEffect<'t> {
-    /// An effect of `resource`, its length `length_ms` (what [`Clock::Timed`]
-    /// ends it at; None leaves the resource's).
+    /// An effect of `resource`, its length `length_ms` (what the timed
+    /// clock ends it at; None leaves the resource's).
     ///
     /// # Safety
     /// `resource` is alive for the hook (an artefact's own, or kept).
@@ -172,20 +178,18 @@ impl<'t> OwnedEffect<'t> {
         }
     }
 
-    /// Plays it on `target` from `time` (simulation milliseconds) with `clock`.
-    pub(super) fn play_on(&mut self, thread: &Thread, target: raw::Player, time: u32, clock: Clock) {
+    /// Plays it on `target` from `time` (simulation milliseconds) with the
+    /// timed clock (Medic's shared actives).
+    pub(super) fn play_timed(&mut self, thread: &Thread, target: raw::Player, time: u32) {
+        self.play(target, time, TIMED.listener(thread));
+    }
+
+    fn play(&mut self, target: raw::Player, time: u32, calculator: raw::GameEffectListener) {
         // SAFETY: the target and resource live for this hook. Native add takes
         // its own reference; Drop releases only our temporary emit reference.
         unsafe {
             if self.slot.handle().effect().is_some() {
-                raw::engine_effect_play(
-                    Some(target.effects()),
-                    Some(self.slot.handle()),
-                    time,
-                    0,
-                    2,
-                    Some(clock.listener(thread)),
-                );
+                raw::engine_effect_play(Some(target.effects()), Some(self.slot.handle()), time, 0, 2, Some(calculator));
             }
         }
     }
@@ -206,23 +210,16 @@ impl Drop for OwnedEffect<'_> {
     }
 }
 
-/// An effect of a kept resource that a player plays with the held clock.
-pub struct HeldEffect<'t> {
-    player: raw::Player,
-    effect: raw::GameEffect,
-    _thread: PhantomData<&'t Thread>,
-}
-
-impl HeldEffect<'_> {
-    /// Stops it (the player's effect player removes it from its list).
-    pub fn remove(self) {
-        // SAFETY: the effect is one the player's effect player plays (found
-        // in its list in this hook), which remove requires.
-        unsafe { raw::engine_effect_remove(Some(self.player.effects()), Some(self.effect)) };
-    }
-}
-
 impl<'t> Player<'t> {
+    /// The player base_player::tick ticks (`battery.carrier_tick`): every
+    /// player of the world, every simulation tick (a re-simulation's too).
+    pub fn at_tick(ctx: &'t Context<'_>) -> Option<Player<'t>> {
+        // SAFETY: the context is this site's: the player base_player::tick
+        // ticks, alive on the game's thread.
+        let this = unsafe { raw::site::battery_carrier_tick::player(ctx) }?;
+        Some(Player { this, thread: ctx.thread() })
+    }
+
     /// The damage zones it is inside (+2E4h): what the anomaly hit reads.
     pub fn damage_zones(&self) -> u8 {
         // SAFETY: the live player's byte, on the hook's thread.
@@ -242,34 +239,31 @@ impl<'t> Player<'t> {
         }
     }
 
-    /// The effect of `kept` it plays with the held clock, if it plays one.
-    pub fn held_effect(&self, kept: KeptEffect) -> Option<HeldEffect<'t>> {
-        let held = Clock::Held.listener(self.thread());
+    /// Whether it plays an effect of `kept`.
+    pub fn plays_effect(&self, kept: KeptEffect) -> bool {
         // SAFETY: the player's effect list, walked on the simulation thread
-        // that changes it (as remove walks it); each node and its effect are
-        // the list's own while it plays them.
+        // that changes it (as remove 0x2DE350 walks it); each node and its
+        // effect are the list's own while it plays them.
         unsafe {
             let mut node = self.this.effects().first();
             while let Some(at) = node {
-                if at.calculator() == Some(held)
-                    && let Some(effect) = at.effect()
-                    && effect.resource() == Some(kept.0)
-                {
-                    return Some(HeldEffect { player: self.this, effect, _thread: PhantomData });
+                if at.effect().and_then(|effect| effect.resource()) == Some(kept.0) {
+                    return true;
                 }
                 node = at.next();
             }
         }
-        None
+        false
     }
 
-    /// Plays an effect of `kept` with the held clock, from its own time.
+    /// Plays an effect of `kept` from its own time, with its own calculator
+    /// (+394h): [`kept_clock`] ends it.
     pub fn hold_effect(&self, kept: KeptEffect) {
         // SAFETY: a kept resource lives for the process; the player's
-        // simulation time is its own field.
+        // simulation time and its calculator are its own.
         unsafe {
             let time = read(self.this.time());
-            OwnedEffect::emit(self.thread(), kept.0, None).play_on(self.thread(), self.this, time, Clock::Held);
+            OwnedEffect::emit(self.thread(), kept.0, None).play(self.this, time, self.this.effect_calculator());
         }
     }
 }
