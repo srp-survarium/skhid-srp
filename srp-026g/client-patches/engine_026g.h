@@ -76,6 +76,8 @@ struct scene_renderer;
 struct simple_game_project;
 struct sound_emitter;
 struct sound_instance_proxy;
+struct sound_options;
+struct sound_propagator_emitter;
 struct sound_scene;
 struct sound_voice;
 struct sound_world;
@@ -481,5 +483,8 @@ struct sound_voice *engine_create_sound_voice(struct sound_world *world, struct 
 
 /* 0x5cb80 vostok::sound::new_sound_propagator::detach_voice: propagator ESP+4; pops 4; stdcall, called directly */
 void __attribute__((stdcall)) engine_detach_voice(struct new_sound_propagator *propagator);
+
+/* virtual vostok::sound::sound_propagator_emitter+0x8 (1 vtables of vtables.tsv: 0x38990): emitter ECX; pops 0; EAX */
+const struct sound_options *engine_sound_options(const struct sound_propagator_emitter *emitter);
 
 #endif

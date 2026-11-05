@@ -4122,12 +4122,17 @@ silent until the tails end (the tails a fresh shot hears at an offset when a voi
   allocation instead of 89 KiB).
 - The Rust patch `sound_voices`, a lohook at `sound_scene.voice_made` (0x5CAB0, after
   calculate_hdr_audio_frame's call of create_sound_voice; the sound thread): a propagator refused a
-  voice takes the voice of the quietest voiced propagator of the scene when that one's loudness
+  voice takes the voice of the quietest voiced and displaceable propagator of the scene (its sound's
+  options' can_be_displaced, +11h, asked of the emitter's slot 2 as the HDR cull asks it,
+  0x5CAC3..0x5CACD; true by default, 0x6129F) when that one's loudness
   (its gain by distance, its master's when it has one, times its sample's amplitude now) is under
   half its own. The voice is let go as the HDR cull lets one go (detach_voice 0x5CB80, +48h 2000
   ms) and the world asked again. Tails late in their decay give their voices to new shots; two
   sounds of about one loudness never take a voice back and forth; a quiet sound never takes a loud
-  one's.
+  one's; a sound whose raw_options say `can_be_displaced` false never loses its voice (in the
+  shipped content: the walk and crouch steps of most materials, the metal, mud, rubber and
+  squeaky-wood impacts, and many first-person shot layers, the AK family's 4.2 s forest echo among
+  them; the ported guns' first-person tails have no options of their own and are displaceable).
 
 - The bound (`sound_voices_026g.asm`, three `code` hooks): voice_factory::new_voice (0x5E5C0)
   walks its mono or stereo source voices round-robin until one has no owner and never stops
@@ -4157,7 +4162,7 @@ Not taken from retail, and why:
   the game's end anyway.
 
 Nothing a match computes (sounds only). Checked: `check_sound_voices_026g.py` (nine scenes, the
-original never takes a voice; new_voice with a free voice and with all owned, the original never
+original never takes a voice; a sound not displaceable keeps its voice; new_voice with a free voice and with all owned, the original never
 returning; create_sound_voice whole on a made-up world, with a source voice and without), the
 self-test's `test_sound_pools`, `cargo test` and clippy of `rust/`. **Not run in a game.**
 

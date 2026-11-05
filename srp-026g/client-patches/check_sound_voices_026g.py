@@ -51,14 +51,15 @@ CREATE, DETACH = 0x59E70, 0x5CB80
 OBJ, STACK = 0x20000000, 0x21000000
 WORLD, SCENE, USER, VOICES = OBJ + 0x100, OBJ + 0x400, OBJ + 0x800, OBJ + 0x1000
 PROXIES, PROPS, LIST, SLOTS = OBJ + 0x2000, OBJ + 0x4000, OBJ + 0x8000, OBJ + 0x8100
-EMITTER = 0x0BADF00D
+EMITTERS, EMIT_VTABLE, OPTIONS_SLOT = OBJ + 0x3000, OBJ + 0x3F00, 0x38990   # slot 2: lea eax,[ecx+8] / ret
 GAME = {UC_X86_REG_EBX: 0x7D0, UC_X86_REG_EDI: 0x44444444}
 VOICE, PROXY, EMIT, MASTER, LEVEL, HOLD, GAIN = 0x4, 0x8, 0xC, 0x14, 0x44, 0x48, 0x4C
 HELD = 0x1234
 
-# (what, sounds [(gain, level, voiced, master index)], the asking one's
-# index, free voices, expected: voices taken back by index, the asking one
-# voiced)
+# (what, sounds [(gain, level, voiced, master index[, displaceable])], the
+# asking one's index, free voices, expected: voices taken back by index, the
+# asking one voiced). A sound's emitter has the single sound's slot 2
+# (0x38990, the game's own code) and its options' can_be_displaced (+11h).
 CASES = [
     ("a free voice: the world's answer stands", [(1.0, 1.0, False, None), (0.5, 0.1, True, None)], 0, 1, [], True),
     ("all taken, a tail at a tenth: it gives its voice",
@@ -74,6 +75,11 @@ CASES = [
     ("a voiced sound's master counts too",
      [(1.0, 1.0, False, None), (1.0, 1.0, True, 2), (0.01, 1.0, False, None), (0.9, 0.9, True, None)], 0, 0, [1], True),
     ("nothing voiced: nothing to take", [(1.0, 1.0, False, None), (0.2, 0.2, False, None)], 0, 0, [], False),
+    ("the quietest is not displaceable: it keeps its voice, the next quietest gives",
+     [(1.0, 0.9, False, None), (1.0, 0.02, True, None, False), (1.0, 0.1, True, None), (1.0, 0.8, True, None)],
+     0, 0, [2], True),
+    ("only sounds not displaceable are quieter: nothing is taken",
+     [(1.0, 0.9, False, None), (1.0, 0.02, True, None, False), (1.0, 0.8, True, None)], 0, 0, [], False),
 ]
 
 
@@ -111,7 +117,7 @@ class Run:
         if address == CREATE:
             scene, prop, emitter = (self.read(sp + 4 * i) for i in (1, 2, 3))
             ok = (emu.reg_read(UC_X86_REG_EAX) == WORLD and scene == SCENE and prop == self.asking
-                  and emitter == EMITTER)
+                  and emitter == self.read(self.asking + EMIT))
             self.calls.append(("create", ok))
             voice = self.free.pop() if self.free and ok else 0
             self.ret(voice, 12)
@@ -132,13 +138,17 @@ class Run:
         self.free = [VOICES + 0x40 * (16 + i) for i in range(free)]
         props = [PROPS + 0x80 * i for i in range(len(sounds))]
         self.asking = props[asking]
-        for i, (gain, level, voiced, master) in enumerate(sounds):
+        self.word(EMIT_VTABLE + 8, OPTIONS_SLOT)
+        self.emitters = [EMITTERS + 0x40 * i for i in range(len(sounds))]
+        for i, (gain, level, voiced, master, *rest) in enumerate(sounds):
             p, proxy = props[i], PROXIES + 0x80 * i
+            self.word(self.emitters[i], EMIT_VTABLE)
+            emu.mem_write(self.emitters[i] + 8 + 0x11, bytes([1 if not rest or rest[0] else 0]))
             self.word(proxy + 0x64, USER)
             self.word(proxy + 0x68, SCENE)
             self.word(p + VOICE, VOICES + 0x40 * i if voiced else 0)
             self.word(p + PROXY, proxy)
-            self.word(p + EMIT, EMITTER)
+            self.word(p + EMIT, self.emitters[i])
             self.word(p + MASTER, props[master] if master is not None else 0)
             self.float(p + LEVEL, level)
             self.word(p + HOLD, HELD)

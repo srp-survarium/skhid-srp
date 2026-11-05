@@ -201,6 +201,8 @@ unsafe extern "C" {
     pub fn engine_effect_resource_emit(resource: *mut c_void, out: *mut c_void) -> *mut c_void;
     /// 0x59e70 vostok::sound::sound_world::create_sound_voice: world EAX, scene ESP+4, propagator ESP+8, emitter ESP+12; pops 12; EAX
     pub fn engine_create_sound_voice(world: *mut c_void, scene: *mut c_void, propagator: *mut c_void, emitter: *const c_void) -> *mut c_void;
+    /// virtual vostok::sound::sound_propagator_emitter+0x8 (1 vtables of vtables.tsv: 0x38990): emitter ECX; pops 0; EAX
+    pub fn engine_sound_options(emitter: *const c_void) -> *const c_void;
 }
 
 #[allow(dead_code)]

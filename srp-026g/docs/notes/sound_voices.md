@@ -13,7 +13,8 @@ The owner (2026-11-05): "too many bullets shooting break sound, and the sound di
   (XAudio2's mono and stereo pools are 64 each).
 - **Voices on demand:** a sound refused a voice takes the voice of the quietest playing sound of
   its scene when that one is under half as loud now (gain by distance x the sample's amplitude at
-  its offset). The taken one is let go as the engine's own HDR cull does it.
+  its offset). The taken one is let go as the engine's own HDR cull does it, and only from a
+  sound the cull may take one from (`can_be_displaced`, true unless its raw_options say false).
 - **Never a frozen sound thread:** the engine's search for a free XAudio2 voice (0x5E5C0) looks
   once round and gives up, as retail 0.46c2 does; the voice is then not made (silent, not stuck).
 - **Not copied from retail:** its loudness sort and 128+128 voices (0.26g's grant loudness is

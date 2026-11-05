@@ -207,6 +207,8 @@ unsafe extern "C" {
     pub fn engine_effect_resource_emit(resource: Option<MedicalEffectResource>, out: Option<GameEffectSlot>) -> Option<GameEffectSlot>;
     /// 0x59e70 vostok::sound::sound_world::create_sound_voice: world EAX, scene ESP+4, propagator ESP+8, emitter ESP+12; pops 12; EAX
     pub fn engine_create_sound_voice(world: Option<SoundWorld>, scene: Option<SoundScene>, propagator: Option<NewSoundPropagator>, emitter: *const c_void) -> *mut c_void;
+    /// virtual vostok::sound::sound_propagator_emitter+0x8 (1 vtables of vtables.tsv: 0x38990): emitter ECX; pops 0; EAX
+    pub fn engine_sound_options(emitter: Option<SoundPropagatorEmitter>) -> Option<SoundOptions>;
 }
 
 #[allow(dead_code)]
@@ -11847,13 +11849,22 @@ impl NewSoundPropagator {
         unsafe { self.0.byte_add(0x8).cast::<Option<SoundInstanceProxy>>().write_volatile(value) }
     }
 
-    /// +0xc (u32): its propagator emitter, passed to create_sound_voice (0x5CA99; vtable +8 its sound's options: +11h can_be_displaced, 0x5CACD)
+    /// +0xc (ptr<vostok::sound::sound_propagator_emitter>): its propagator emitter, passed to create_sound_voice (0x5CA99; vtable +8 its sound's options: +11h can_be_displaced, 0x5CACD)
     ///
     /// # Safety
     /// `self` is alive (its fields are its kind's: the type says so).
     #[inline(always)]
-    pub unsafe fn emitter(self) -> *mut u32 {
-        unsafe { self.0.byte_add(0xc).cast::<u32>().as_ptr() }
+    pub unsafe fn emitter(self) -> Option<SoundPropagatorEmitter> {
+        unsafe { self.0.byte_add(0xc).cast::<Option<SoundPropagatorEmitter>>().read_volatile() }
+    }
+
+    /// +0xc (ptr<vostok::sound::sound_propagator_emitter>): its propagator emitter, passed to create_sound_voice (0x5CA99; vtable +8 its sound's options: +11h can_be_displaced, 0x5CACD)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn set_emitter(self, value: Option<SoundPropagatorEmitter>) {
+        unsafe { self.0.byte_add(0xc).cast::<Option<SoundPropagatorEmitter>>().write_volatile(value) }
     }
 
     /// +0x14 (ptr<vostok::sound::new_sound_propagator>): the propagator whose gain it takes, if any (amplitude 0x5C1C0 follows the chain to the last)
@@ -12077,6 +12088,54 @@ impl PropagatorSlotStorage {
     #[inline(always)]
     pub fn first(rooms: &mut [Self]) -> Option<PropagatorSlot> {
         (!rooms.is_empty()).then(|| PropagatorSlot(NonNull::from(rooms).cast()))
+    }
+}
+
+/// A vostok::sound::sound_propagator_emitter (fields_026g.tsv): a pointer to one, never 0. Made only here: by a typed field,
+/// a function's typed result or a site's typed register (sites_026g.tsv `holds`).
+#[repr(transparent)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct SoundPropagatorEmitter(NonNull<c_void>);
+
+#[allow(dead_code)]
+impl SoundPropagatorEmitter {
+    /// Its address as a value (an id, a compare): never read through.
+    #[inline(always)]
+    pub fn address(self) -> u32 {
+        self.0.as_ptr() as usize as u32
+    }
+
+    /// +0x8 (obj<vostok::sound::sound_options>): its sound's options, inline (vtable slot 2 0x38990 returns this + 8; calculate_hdr_audio_frame asks the slot, 0x5CAC3)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn options(self) -> SoundOptions {
+        SoundOptions(unsafe { self.0.byte_add(0x8) })
+    }
+}
+
+/// A vostok::sound::sound_options (fields_026g.tsv): a pointer to one, never 0. Made only here: by a typed field,
+/// a function's typed result or a site's typed register (sites_026g.tsv `holds`).
+#[repr(transparent)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct SoundOptions(NonNull<c_void>);
+
+#[allow(dead_code)]
+impl SoundOptions {
+    /// Its address as a value (an id, a compare): never read through.
+    #[inline(always)]
+    pub fn address(self) -> u32 {
+        self.0.as_ptr() as usize as u32
+    }
+
+    /// +0x11 (u8): the HDR cull may take its voice (0x5CACD); single_sound_cook's default 1 (0x6129F), raw_options can_be_displaced false makes it 0
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn can_be_displaced(self) -> *mut u8 {
+        unsafe { self.0.byte_add(0x11).cast::<u8>().as_ptr() }
     }
 }
 

@@ -435,3 +435,6 @@ extern engine_create_sound_voice
 ; 0x5cb80 vostok::sound::new_sound_propagator::detach_voice: propagator ESP+4; pops 4; stdcall, called directly
 ; stdcall: push (and ECX for thiscall) as that convention says
 extern engine_detach_voice
+; const struct sound_options *engine_sound_options(const struct sound_propagator_emitter *emitter)
+; virtual vostok::sound::sound_propagator_emitter+0x8 (1 vtables of vtables.tsv: 0x38990): emitter ECX; pops 0; EAX
+extern engine_sound_options

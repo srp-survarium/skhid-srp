@@ -2302,3 +2302,4 @@ va	name	source	ret_cleanup	result
 0x00313640	survarium::artefact_base::active_effect_time_calculator::calculate	thiscall	16	EAX: output; time stays zero until artefact state is no longer active
 0x00059e70	vostok::sound::sound_world::create_sound_voice	manual	12	EAX
 0x0005cb80	vostok::sound::new_sound_propagator::detach_voice	manual	4	
+0x00038990	vostok::sound::sound_propagator_emitter::get_options	thiscall	0	EAX: this + 8, the sound's options (single_sound_cook 0x615D8 copies them; +11h can_be_displaced, default 1 at 0x6129F)

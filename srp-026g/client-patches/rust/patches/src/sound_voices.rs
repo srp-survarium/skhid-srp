@@ -7,8 +7,9 @@
 //! 9.9 s, the AKs' forest echo 4.2 s), so a few seconds of automatic fire
 //! hold every voice with tails and the next shots, impacts and steps get
 //! none: silent until the tails end. At `sound_scene.voice_made`, a sound
-//! refused a voice takes the one of the quietest sound playing now, when
-//! that one is less than half as loud.
+//! refused a voice takes the one of the quietest displaceable sound playing
+//! now (its options' can_be_displaced, as the engine's own HDR cull asks),
+//! when that one is less than half as loud.
 
 #![forbid(unsafe_code)]
 
@@ -34,7 +35,7 @@ pub fn on_voice_made(ctx: &mut Context<'_>) -> Flow<NoExit> {
     let asking = request.asking().loudness();
     let quietest = request
         .playing()
-        .filter(|sound| sound.voiced())
+        .filter(|sound| sound.voiced() && sound.displaceable())
         .min_by(|a, b| a.loudness().0.total_cmp(&b.loudness().0))
         .filter(|victim| takes(asking, victim.loudness()))
         .map(|victim| victim.claim());

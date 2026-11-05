@@ -44,6 +44,19 @@ impl Playing<'_> {
         unsafe { read(self.propagator.voice()) != 0 }
     }
 
+    /// Whether the engine may take its voice: its sound's options'
+    /// can_be_displaced (+11h), asked of its emitter's slot 2 as the HDR cull
+    /// asks it (0x5CAC3..0x5CACD). raw_options can set it false: a sound that
+    /// must never lose its voice (single_sound_cook's default is true).
+    pub fn displaceable(&self) -> bool {
+        // SAFETY: as voiced; the emitter is its proxy's sound's, alive while
+        // the proxy plays, and its slot 2 only returns its options (0x38990).
+        unsafe {
+            let Some(emitter) = self.propagator.emitter() else { return false };
+            raw::engine_sound_options(Some(emitter)).is_some_and(|options| read(options.can_be_displaced()) != 0)
+        }
+    }
+
     /// Its loudness this tick: the gain its chain's last propagator was
     /// given (as amplitude 0x5C1C0 reads it) times its own amplitude.
     pub fn loudness(&self) -> Loudness {
@@ -121,7 +134,7 @@ impl<'c, 'a> VoiceRequest<'c, 'a> {
     /// the asking propagator has a voice now.
     pub fn take_from(&mut self, victim: Victim) -> bool {
         let victim = Playing { propagator: victim.0, _tick: PhantomData };
-        if self.granted() || !victim.voiced() || victim.propagator == self.asking {
+        if self.granted() || !victim.voiced() || !victim.displaceable() || victim.propagator == self.asking {
             return self.granted();
         }
         // SAFETY: the sound thread's own calls on its own objects, as
@@ -136,7 +149,7 @@ impl<'c, 'a> VoiceRequest<'c, 'a> {
             };
             raw::engine_detach_voice(Some(victim.propagator));
             *victim.propagator.hold() = CULL_HOLD_MS;
-            let emitter = read(self.asking.emitter()) as usize as *const c_void;
+            let emitter = self.asking.emitter().map_or(core::ptr::null(), |e| e.address() as usize as *const c_void);
             let voice = raw::engine_create_sound_voice(Some(world), Some(scene), Some(self.asking), emitter);
             self.ctx.set_reg(Reg::Eax, voice as usize as u32);
         }
