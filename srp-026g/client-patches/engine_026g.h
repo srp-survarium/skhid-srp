@@ -478,6 +478,24 @@ void engine_remove_affect(struct medical_pool *pool, unsigned int time, unsigned
 /* 0x329050 survarium::game_effect_resource::emit: resource ESI, out EDI; pops 0; EAX */
 struct game_effect_slot *engine_effect_resource_emit(struct medical_effect_resource *resource, struct game_effect_slot *out);
 
+/* 0x5a640 XAudio2Create: engine ESP+4, flags ESP+8; pops 0; EAX; cdecl, called directly */
+unsigned int __attribute__((cdecl)) engine_xaudio2_create(void **engine, unsigned int flags);
+
+/* 0x59dd0 vostok::sound::sound_world::process_orders: world ESP+4; pops 4; stdcall, called directly */
+void __attribute__((stdcall)) engine_process_sound_orders(struct sound_world *world);
+
+/* the IAT slot 0xaf0064 (an import, stdcall) */
+extern unsigned int (__attribute__((stdcall)) *const engine_co_create_instance)(const void * clsid, void * outer, unsigned int context, const void * iid, void ** object);
+
+/* the IAT slot 0x87004c (an import, stdcall) */
+extern void * (__attribute__((stdcall)) *const engine_heap_alloc)(void * heap, unsigned int flags, unsigned int size);
+
+/* the IAT slot 0x870050 (an import, stdcall) */
+extern void * (__attribute__((stdcall)) *const engine_get_process_heap)(void);
+
+/* the IAT slot 0x870054 (an import, stdcall) */
+extern unsigned int (__attribute__((stdcall)) *const engine_heap_free)(void * heap, unsigned int flags, void * memory);
+
 /* 0x59e70 vostok::sound::sound_world::create_sound_voice: world EAX, scene ESP+4, propagator ESP+8, emitter ESP+12; pops 12; EAX */
 struct sound_voice *engine_create_sound_voice(struct sound_world *world, struct sound_scene *scene, struct new_sound_propagator *propagator, const void *emitter);
 

@@ -65,7 +65,11 @@ pub mod weapon_kit;
 pub mod music;
 pub mod sound_voices;
 pub mod drug_interrupt;
+pub mod footsteps;
 
 pub mod weapon_pickup;
 
 pub mod medical_skills;
+
+pub mod animation_id_log;
+pub mod input_check;

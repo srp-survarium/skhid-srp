@@ -242,7 +242,6 @@ va	status	ref_021d	name
 0x00058940	inferred-medium	0x0003f96f	vostok::sound::sound_scene::add_active_voice
 0x00058990	inferred-medium	0x0003f9ad	vostok::sound::sound_scene::remove_active_voice
 0x00058cf0	inferred-medium	0x0003fba0	vostok::sound::sound_world::sound_world
-0x00059080	inferred-medium	0x0003febd	vostok::sound::sound_world::initialize_xaudio
 0x00059910	inferred-medium	0x00040470	vostok::sound::sound_world::~sound_world
 0x00059a60	inferred-medium	0x00040549	vostok::sound::sound_world::tick
 0x00059b80	inferred-medium	0x0004061e	vostok::sound::sound_world::create_submix_voice
@@ -1120,7 +1119,6 @@ va	status	ref_021d	name
 0x001fa650	inferred-medium	0x0015c76e	vostok::detail::concrete_type_helper<vostok::render::scene_configuration>::copy_helper
 0x001fa690	inferred-medium	0x0015c789	vostok::detail::concrete_type_helper<vostok::sound::sound_scene_creation_params>::copy_helper
 0x001fa960	inferred-medium	0x0015c91f	vostok::variant<32>::try_get<vostok::configs::binary_config_value const *>
-0x001fab50	inferred-medium		survarium::game_world_core::change_input<struct survarium::client_update<struct survarium::player_input,220,235,221,236>>
 0x001fb730	inferred-medium		survarium::game_world_core::change_input<struct survarium::client_update<struct survarium::profile_input,222,243,222,243>>
 0x001fc2e0	inferred-medium		survarium::composite_game_effect_emitter_cook<class survarium::composite_game_effect_emitter>::finish_query
 0x001fc6b0	inferred-medium	0x0015cbbb	vostok::buffer_vector<vostok::resources::resource_ptr<survarium::pure_game_effect_emitter,vostok::resources::unmanaged_intrusive_base> >::push_back
@@ -1133,6 +1131,7 @@ va	status	ref_021d	name
 0x001fded0	inferred-medium	0x0015d2f8	survarium::swf_input_translator::get_bind
 0x001fdf20	inferred-medium	0x0015d33b	survarium::swf_input_translator::initialize
 0x001fec90	inferred-medium	0x0015d8d9	stlp_std::priv::_Rb_tree<enum vostok::input::enum_keyboard,stlp_std::less<enum vostok::input::enum_keyboard>,stlp_std::pair<enum vostok::input::enum_keyboard const ,survarium::dik_to_swf_bind>,stlp_std::priv::_Select1st<stlp_std::pair<enum vostok::input::enum_keyboard const ,survarium::dik_to_swf_bind> >,stlp_std::priv::_MapTraitsT<stlp_std::pair<enum vostok::input::enum_keyboard const ,survarium::dik_to_swf_bind> >,survarium::std_allocator<stlp_std::pair<enum vostok::input::enum_keyboard,survarium::dik_to_swf_bind> > >::_M_insert
+0x001fef90	inferred-medium		survarium::text_translator::expand_text
 0x001ff410	inferred-medium	0x0015dc55	boost::detail::function::functor_manager<boost::_bi::bind_t<void,boost::_mfi::mf1<void,survarium::text_translator,vostok::resources::queries_result &>,boost::_bi::list2<boost::_bi::value<survarium::text_translator *>,boost::arg<1> > > >::manager
 0x001ff460	inferred-medium	0x0015dc9e	survarium::game_options::apply_default_graphic
 0x001ff5d0	inferred-medium	0x0015dd31	survarium::game_options::scaleform_callback
@@ -1163,6 +1162,7 @@ va	status	ref_021d	name
 0x00205cb0	inferred-medium	0x00162397	vostok::detail::concrete_type_helper<survarium::inventory_cooker_data *>::copy_helper
 0x00205d10	inferred-medium	0x00162400	vostok::detail::concrete_type_helper<vostok::collision::animated_object_cook_data>::copy_helper
 0x002078a0	inferred-medium	0x00155843	survarium::key_binder::set_default_controls
+0x00207bf0	inferred-medium		survarium::key_binder::keycode_to_ptr
 0x00207d50	inferred-medium	0x00155bcf	survarium::key_binder::get_binded_action
 0x00207dc0	inferred-medium	0x00155c1b	survarium::key_binder::bind_key
 0x002080c0	inferred-medium	0x00017949	survarium::game_options::input_priority
@@ -1775,6 +1775,8 @@ va	status	ref_021d	name
 0x0029a9d0	inferred-medium		survarium::lobby_menu::process_default_drop_upgrade_item
 0x002a2fd0	inferred-medium		survarium::game_quest_progress_calculator::refresh_quest_ui_data
 0x002a61f0	inferred-medium	0x001b3bf9	survarium::load_transform
+0x002a63c0	inferred-medium		survarium::player_equipment_sound_effect::update_feet
+0x002a6410	inferred-medium		survarium::player_equipment_sound_effect::set_feet
 0x002a9660	inferred-medium	0x001ae6df	survarium::hud_game_effect_presenter::`scalar deleting destructor'
 0x002a9690	inferred-medium	0x001ae6fb	survarium::hud_game_effect_presenter::clear
 0x002a9900	inferred-medium		survarium::hud_game_effect_presenter::serialize
@@ -2903,6 +2905,7 @@ va	status	ref_021d	name
 0x003b95b0	inferred-medium	0x0026563e	vostok::input::platform::mouse::on_activate
 0x003b95e0	inferred-medium	0x00265662	vostok::input::platform::mouse::on_deactivate
 0x003b9680	inferred-medium	0x002656b5	vostok::input::platform::mouse::execute
+0x003b9920	inferred-medium		vostok::input::world::dispatch_mouse_buttons
 0x003b9c00	inferred-medium	0x00265b8a	vostok::input::platform::keyboard::get_dik_name
 0x003b9d90	inferred-medium	0x00265c5e	vostok::input::platform::mouse::process
 0x003bab70	inferred-medium	0x00266888	vostok::render::print_feature_level_str
@@ -3180,6 +3183,11 @@ va	status	ref_021d	name
 0x0033aa40	inferred-medium		survarium::weapon_core_fire_state_base::finalize
 0x00391c40	inferred-medium		vostok::animation::animation_player::subscribe_event_channel
 0x003921a0	inferred-medium		vostok::animation::animation_player::unsubscribe_event_channel
+0x001f18b0	inferred-medium		survarium::game_world::animation_resolver
+0x002d6590	inferred-medium		survarium::animations_registry::animation_id
+0x002ef130	inferred-medium		survarium::animations_registry::register_animation
+0x002ef280	inferred-medium		survarium::animations_registry::actualize
+0x00059dd0	inferred-medium		vostok::sound::sound_world::process_orders
 0x0005c7a0	inferred-high	0x000425cd	vostok::sound::sound_scene::calculate_hdr_audio_frame
 0x0005c280	inferred-high	0x0004228a	vostok::sound::sound_scene::notify_listener2
 0x0005b470	inferred-high	0x000416db	vostok::sound::sound_instance_proxy_internal::tick

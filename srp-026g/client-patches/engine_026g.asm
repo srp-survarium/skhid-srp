@@ -134,6 +134,12 @@ global engine_di_queue_next_capture
 global engine_di_queue_release
 global engine_remove_affect
 global engine_effect_resource_emit
+global engine_xaudio2_create
+global engine_process_sound_orders
+global engine_co_create_instance
+global engine_heap_alloc
+global engine_get_process_heap
+global engine_heap_free
 global engine_create_sound_voice
 global engine_detach_voice
 global engine_sound_options
@@ -173,6 +179,12 @@ engine_leave_critical_section equ 0x8700cc   ; the IAT slot 0x8700cc (an import,
 engine_di_capture_remove equ 0x5726f0   ; 0x5726f0 Scaleform::Render::DrawableImageContext::RemoveCaptureNotify: context ECX, queue ESP+4; pops 4; thiscall, called directly
 engine_di_queue_next_capture equ 0x5ee080   ; 0x5ee080 Scaleform::Render::DICommandQueue::OnNextCapture: queue ECX, notify ESP+4; pops 4; thiscall, called directly
 engine_di_queue_release equ 0x505cb0   ; 0x505cb0 Scaleform::RefCountImpl::Release: queue ECX; pops 0; thiscall, called directly
+engine_xaudio2_create equ 0x5a640   ; 0x5a640 XAudio2Create: engine ESP+4, flags ESP+8; pops 0; EAX; cdecl, called directly
+engine_process_sound_orders equ 0x59dd0   ; 0x59dd0 vostok::sound::sound_world::process_orders: world ESP+4; pops 4; stdcall, called directly
+engine_co_create_instance equ 0xaf0064   ; the IAT slot 0xaf0064 (an import, stdcall)
+engine_heap_alloc equ 0x87004c   ; the IAT slot 0x87004c (an import, stdcall)
+engine_get_process_heap equ 0x870050   ; the IAT slot 0x870050 (an import, stdcall)
+engine_heap_free equ 0x870054   ; the IAT slot 0x870054 (an import, stdcall)
 engine_detach_voice equ 0x5cb80   ; 0x5cb80 vostok::sound::new_sound_propagator::detach_voice: propagator ESP+4; pops 4; stdcall, called directly
 
 engine_cfg_child:

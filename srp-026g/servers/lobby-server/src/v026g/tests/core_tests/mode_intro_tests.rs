@@ -2,6 +2,11 @@
 use super::*;
 use session::v026g::mode_intro::Mode;
 
+/// Rudnya's Blackout map (`blackout-mode-1.json`).
+fn blackout_map() -> u8 {
+    maps::find(1, maps::weather::DAY, maps::GameMode::Blackout).unwrap().id
+}
+
 fn ask_intro(world: &mut World, player: usize, body: &str) -> Vec<String> {
     world.take(player);
     world.ask(player, request::chat(0, "", channel::ROOM, body));
@@ -44,7 +49,7 @@ fn mode_introduction_is_private_and_counts_distinct_matches() {
             .values_mut()
             .find(|running| running.ticket.match_id == id)
             .unwrap();
-        running.blackout = false;
+        running.map = maps::MatchMap::of(61).unwrap();
         assert!(ask_intro(&mut world, alice, "#mode-intro:blackout:abc").is_empty());
         world
             .core
@@ -52,7 +57,7 @@ fn mode_introduction_is_private_and_counts_distinct_matches() {
             .values_mut()
             .find(|running| running.ticket.match_id == id)
             .unwrap()
-            .blackout = true;
+            .map = maps::MatchMap::of(blackout_map()).unwrap();
         assert!(ask_intro(&mut world, alice, "#mode-intro:scarcity:abc").is_empty());
         assert!(ask_intro(&mut world, alice, "#mode-intro:blackout:bad-token").is_empty());
         assert!(ask_intro(&mut world, carol, "#mode-intro:blackout:abc").is_empty());

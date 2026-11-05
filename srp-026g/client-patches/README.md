@@ -120,6 +120,10 @@ release's. The "Result" row is the build of the revision named in it.
 | `check_tab_self_026g.py` | Runs the original's and patch 43's end of game_world::on_activate, where the hud gets its player's name (the Tab list's own row gold), on a made-up world with the journal off, recording and played back (needs Unicorn) |
 | `check_weapon_show_026g.py` | Runs the original's and patch 91's weapon::on_show and the next weapon::draw's scope (add and remove of the aimed sight, the game's own) on made-up weapons, aimed and not, first person and not, no optic, a red dot and a full-screen scope, with the renderer's in-scene byte kept (needs Unicorn) |
 | `rust/patches/src/scaleform_capture.rs`, `src/scaleform_capture.toml`, `src/vostok/drawable_image.rs`, `check_scaleform_capture_026g.py` | Patch 93: the render thread's walk of a Scaleform DrawableImageContext's command queues (OnNextCapture 0x572660) never reaches a queue being destroyed (the rev-40 crash at a match's end): two lohooks; its check runs OnNextCapture and the queue's destructor on made-up contexts, the original beside (needs Unicorn) |
+| `rust/patches/src/input_check.rs`, `src/input_check.toml`, `src/vostok/input.rs`, `check_input_check_026g.py` | Patch 99: a world takes no player input whose rotation no client makes (a NaN, an infinity, 1024 radians or more), as 0.27d's change_input refuses one: a lohook at change_input<player_input>'s start (0x1FAB50); its check runs that start on made-up inputs, the original beside (needs Unicorn) |
+| `check_mouse_buttons_026g.py` | Patch 102 (`MOUSE_BUTTONS` in `patch_026g.py`): a side mouse button (mouse4..mouse8) is no left click in the lobby, login, options and match menus; its check runs the five handlers in both exes (needs Unicorn) |
+| `rust/patches/src/footsteps.rs`, `src/footsteps.toml`, `src/vostok/footstep.rs`, `check_footsteps_026g.py` | Patch 101: a footstep that only a re-simulation makes (another player's late input) is heard instead of dropped; one lohook in on_player_sound_event's time test; its check runs the handler in both exes (needs Unicorn) |
+| `audio_device_026g.c`, `audio_device_026g.h`, `audio_device_engine_026g.c`, `test_audio_device_026g.c` | Patch 100: the sound follows the audio output device (XAudio2's engine and voices proxied, made again on the default device after a lost device or a new default); the test runs the core on i686 under the sanitizers against a made-up XAudio2 that keeps its rules (no Unicorn) |
 | `rust/patches/src/sound_voices.rs`, `src/sound_voices.toml`, `src/vostok/voices.rs`, `check_sound_voices_026g.py` | Patch 96: shots no longer go silent under heavy fire (`../docs/notes/sound_voices.md`): the game world's sound scene has 1024 sound instances and propagators (`SOUND_POOLS`, game_world::load 0x1F8DB6/0x1F8DBD), and a sound refused a voice takes the voice of the quietest one playing when that one is less than half as loud (a lohook after create_sound_voice, 0x5CAB0), and the source voice walk is bounded to one pass (`sound_voices_026g.asm`, 0x5E5E7, 0x631D9, 0x59F8E); the check runs the voice loop from that site on made-up scenes with a model of the world's voice pool, and the self-test's `test_sound_pools` (needs Unicorn) |
 | `check_stage_focus_026g.py` | Runs the original's and patch 52's Stage focus getter (Scaleform's `stage.focus`, 0x771FA0) on a made-up movie: focused objects of each kind, none, one without its ActionScript object (the lobby's crash of 2026-10-22) (needs Unicorn) |
 | `rust/patches/src/language.rs`, `src/language.toml`, `src/vostok/language.rs`, `languages_026g.rs`, `check_language_026g.py` | Patch 79: the game language is a setting kept in user.cfg (Settings, Gameplay, Language; `../docs/notes/language-option.md`): three lohooks (`sites_026g.tsv`); `languages_026g.rs` is generated from `localization_026g.py`'s registry; its check runs each hook from the game's code on made-up objects, the original beside (needs Unicorn); the movie's harness is `../scripts/language-option/check.sh` |
@@ -129,6 +133,7 @@ release's. The "Result" row is the build of the revision named in it.
 | `rust/patches/src/tab_cursor.rs`, `src/tab_cursor.toml`, `src/vostok/hud_input.rs`, `src/vostok/keyboard.rs`, `src/vostok/lobby.rs`, `check_tab_cursor_026g.py` | Patch 86: Ctrl on the Tab list shows a cursor, and its rows' menu sends the lobby's friend request and chat mute (`../docs/notes/tab-cursor-friends.md`, `chat-mute.md`): two lohooks (`sites_026g.tsv`); its check runs both from the game's code on made-up objects, the original beside (needs Unicorn); the menu's harness is `../scripts/tab-row-menu/check.sh` |
 | `rust/patches/src/world_check.rs`, `src/world_check.toml`, `src/vostok/world_load.rs`, `../crates/world-frame`, `check_world_check_026g.py` | Patch 87: a game parses every world it is sent (0xE8) before it loads it, with the match server's own parse (crate `world-frame`: the frame to its end, no slot past 20, no section or state over the game's buffer); a refused one is never loaded and the game leaves the match (`../docs/notes/world_frame_check.md`): two lohooks (`sites_026g.tsv`); its check runs both loads beside the original and, with `--drift`, kept worlds and mutated copies through the arena's build against the host's (needs Unicorn) |
 | `check_world_roundtrip_026g.py`, `worlds_026g/` | A resync always converges: a late joiner and a resynced game load each recorded world (`worlds_026g/`, 8 dumps of rev41's match 0x1c0ebd31; or any `SRP_SNAPSHOT_DIR` dumps) and save it at once, through every patch hook inside the world's load and save (the 0xE8 preparation, patch 85's record, patch 78's carry); each must write back the bytes it read. Every patch site in a `::serialize` or `::deserialize` function is run there or named with its own check (`../docs/notes/client_patch.md`, "World round trip"; needs Unicorn) |
+| `rust/patches/src/animation_id_log.rs`, `src/animation_id_log.toml`, `src/vostok/animation_id.rs`, `check_animation_id_log_026g.py` | Patch 95: a diagnostic (`../docs/notes/animation-ids.md`): an animation pair the registry has no id for (the lookup 0x2D6590 returns 0FFFFh, the rev47 crashes at 0x1F18C8) is logged to srp_patches.log once, with the clips' names, the registry's size and who asked; one lohook (`sites_026g.tsv` `animations.id_missing`); its check runs the lookup in the original and the patched exe (needs Unicorn) |
 | `rust/patches/src/drug_interrupt.rs`, `src/drug_interrupt.toml`, `src/vostok/drug.rs`, `check_drug_interrupt_026g.py` | Patch 84: a bullet that hits a player stops the healing drug he is using (`../docs/notes/drug-interrupt.md`): one lohook (`sites_026g.tsv` `player.hit_applied`), the game's own `medkit::set_active(0)` through the engine library; its check runs the hook in the patched exe and the game's set_active(0) in the original (needs Unicorn) |
 | `rust/patches/src/text_input.rs`, `check_text_input_026g.py` | Patch 52: ignore a character event whose Scaleform text field has lost its AS3 receiver; reproduces the PIN-entry crash and checks native register/stack behavior (needs Unicorn) |
 | `weapon_camo_026g.asm`, `weapon_camo_026g.section.bin` | The source of patch 44's code (a weapon wears the camouflage its item holds) and that code assembled for `.srpw`, its own section on the page after `.srpc` (0xA42A000), which `patch_026g.py` reads. Assembling the source again gives the same bytes |
@@ -3795,6 +3800,26 @@ which a weapon card adds while Alt is held (`docs/notes/alt-weapon-stats.md`). S
 `docs/notes/data.md`, `check_weight_ui_026g.py`, and
 `scripts/weight-ui/check_ui.sh` for evidence and targeted checks.
 
+## Results screen without a loaded match (unreleased)
+
+A match's results (0x97) reaching a game that has loaded no match (one started
+anew and reseated into a match that then ended) crashed it: the screen's map
+name, lobby_menu+313Ch, is NULL until a match is loaded, and translate_text
+read it (0xF6C47). `match_stat_map_026g.asm` (the arena block
+`match_stat_map.code`, a jump at 0x29ABE1) reads a NULL name as "": the screen
+shows no map name. See `docs/notes/results.md` section 6, hazard 10, and
+`check_match_stat_map_026g.py`.
+
+The same NULL came from expand_text (0x1FEF90): a text's `{USE}` whose
+action has no key bound (the key table 0x207BF0 finds no entry) translated
+NULL at 0x1FF09D. `EXPAND_TEXT_UNBOUND` retargets its branch (0x1FF073,
+`je 1FF090` to `je 1FF0AB`) to the path of an unknown placeholder, which
+appends nothing: "Pick up ()". Later builds (0.31a2 on) translate
+`st_key_use_not_assigned` there; 0.26g's dictionary has no such key, and
+translating "" would give the same empty text. translate_text's 0x200 is
+only a log line ("Too long localization string"), it truncates nothing; the
+catalog check already keeps every text under 512 bytes, so it stays.
+
 ## Knowledge database link (unreleased)
 
 The lobby's Knowledge database button opens `https://026g.skhid.link/wiki`
@@ -4204,3 +4229,121 @@ past its own removal, the game's Release and RemoveCaptureNotify, on made-up con
 none, a dying queue, a queue destroyed while the walk is at the one before (the original reaches
 the freed queue), and the walk's own reference the last; the lock never held across a call, every
 list read made with it, the references and registers as they were. **Not run in a game.**
+
+### 95. A missing animation id is logged (a diagnostic; the next release's revision)
+
+The rev47 crashes at 0x1F18C8 (drawing a player's held weapon) read the animations registry's
+ids' vector at 0FFFFh: the registry's lookup (0x2D6590) had no entry for a clip pair, and its
+0FFFFh went into the player's animation tree. Which clip, and why nobody registered it, the
+dumps cannot say (no heap). `../docs/notes/animation-ids.md` has what is known: the registry,
+who registers (`player::register_animations` 0x2D8100 and the match rules, at the world's load,
+and a late join's install), the full dump's 221 entries, the owner's crash and the pickup just before it.
+
+**The patch** (the Rust patch `animation_id_log`, one lohook, `sites_026g.tsv`
+`animations.id_missing`, 0x2D65EE: the lookup's 0FFFFh exit, its `pop edi / pop esi / mov
+eax,0FFFFh` replayed): each distinct missing pair, at most eight a run, is written to
+srp_patches.log: the clips' addresses and names (the resource's name registry entry, +B0h, its
+name +8), the registry's id count, the resolver's return address and the six stack words above
+its arguments. The lookup still returns 0FFFFh: nothing a match computes changes, no row in
+`../crates/session/src/v026g/simulation_changes.tsv`.
+
+Checked: `check_animation_id_log_026g.py` runs the lookup from its entry on a made-up registry
+in both exes: a registered pair (its id, no line), a missing one (0FFFFh, the registers kept, the
+lines), the same again (no line), a pair of two resources, a resource without a name, a ninth
+pair (no line). **Not run in a game.**
+
+## A world takes no input whose rotation no client makes (patch 99, unreleased)
+
+0.26i fixed "crashes of all clients in the game associated with sending 'bad' input of one of the
+clients": from 0.27d, `game_world_core::change_input<player_input>` refuses an input whose
+rotation (two half floats) is a NaN or an infinity before it touches the world ("change input
+(client %s) request REJECTED, reason: input is invalid", event action 6). 0.26g's (0x1FAB50) takes
+any, and every world then adds it to that player's angles for good. The match server already
+refuses such inputs (`PlayerInput::rotation_is_sane`); this is the client's twin.
+
+**The patch** (the Rust patch `input_check`, one lohook, `sites_026g.tsv`): `change_input.player`
+(0x1FAB50, the function's start; every input a world takes comes through it: local, relayed,
+moved, a replay's). An input whose two halves are each a number under 1024 radians goes on; any
+other is refused as 0.27d refuses it: EAX 6, the exit `refused` (0x1FAC4E, its `ret 24h`), nothing
+of the world written, a line to `srp_patches.log`. A refused local input is never sent. The bound
+is the server's (a superset of 0.27d's): the server never relays an input it refuses, so no
+relayed or replayed input is refused here that the server took.
+
+Every world refuses the same inputs, so they stay the same, but a world given one now plays on
+without it: a row `next` in `../crates/session/src/v026g/simulation_changes.tsv`.
+`../docs/notes/client_patch.md` section 3.62 has the evidence.
+
+Checked: `check_input_check_026g.py` runs change_input's start on rotations a mouse makes (the
+build at 0x1FAB56 as the original, every register the same) and on NaNs, infinities, 65504 and
+±1024 as either half (the original keeps them; the build returns 6 with its arguments popped, the
+callee-saved registers kept, nothing written, the line logged). **Not run in a game.**
+
+## A side mouse button is no left click in the menus (patch 102, unreleased)
+
+The mouse gives every listener the key 151h + its button. The five handlers that pass a mouse key
+to their Flash movie (the lobby, the login screen, the options, the match's menus and the swf
+input translator) turn 151h/152h/153h into the movie's left/right/middle and every other key into
+the left button: the side buttons clicked whatever was under the cursor (0.60's "pressing
+additional mouse buttons in the lobby counted as pressing LMB"). `MOUSE_BUTTONS` retargets each
+mapping's `jne` past 153h to the handler's own return after the movie's call (five 2-byte writes):
+the key is taken, the movie gets nothing. Nothing a match computes. Addresses: `client_patch.md`
+3.63; checked with `check_mouse_buttons_026g.py`; not run in a game.
+
+## A step first made by a re-simulation is heard (patch 101, unreleased)
+
+The players' "footsteps randomly drop out" (B20). `on_player_sound_event` (0x2A6470) plays a
+step only when its time is past the newest tick simulated once (`maximum_time`, core +18FC4h,
+compared at 0x2A6488). A game re-simulates another player's ticks when his input comes late, and
+a step that only the re-simulation has (he started, stopped or changed pace) falls at a played time
+and is never heard. 0.27d0 dropped the test (its effect plays each foot's newest step time at the
+next frame).
+
+**The patch** (the Rust patch `footsteps`, one lohook, `player_sound.step_guard` at 0x2A6485):
+a step past the played time plays as before; a re-simulated one plays when it is less than 250 ms
+before the played time and the same foot of the same player object played nothing in the 250 ms
+before it (a copy of a played step, moved by the correction, stays single; a long re-simulated
+window plays each foot's newest step at most). Rustles and the other tests are the game's. Nothing a match computes.
+The rules and the 0.27d0 code: `../docs/notes/footsteps.md`; the addresses: `client_patch.md` 3.64.
+Checked with `check_footsteps_026g.py`; not run in a game.
+
+## The sound follows the audio output device (patch 100, unreleased)
+
+Players' report (B43): when the audio output device goes or changes (a headset unplugged, a
+Bluetooth headset connecting, the default device switched), the game has no sound until it
+restarts. 0.26g makes its XAudio2 2.7 engine and mastering voice once, on the default device of
+that moment (`sound_world::initialize_xaudio` 0x59080), registers no engine callback and watches
+no device; after XAudio2's critical error (its device gone) the engine is stopped for good, and a
+new default device is never used. XAudio2's only way back is a new engine, and a mastering voice
+goes only after every other voice, so 0.69 (`stop_mastering_voice` / `restart_mastering_voice`)
+makes every voice again; this patch does the same for 0.26g.
+
+**The patch** (`audio_device_026g.c`, `audio_device_engine_026g.c`; the arena's blocks
+`audio_device.code` and `.state`; `AUDIO_DEVICE_HOOKS`):
+
+- initialize_xaudio's two XAudio2Create calls (`call 0x5A640`, 0x59187 and 0x591C8):
+  `audio_device_create` makes the engine and gives the game our proxy of it; each voice made
+  through it is a proxy of ours that forwards every call and keeps what it set (sends, effect
+  chain and parameters, volumes, matrices, filters; a source's format, callback, frequency ratio,
+  started state and the buffers whose OnBufferEnd has not come). An engine callback of ours
+  (OnCriticalError) and an IMMNotificationClient (OnDefaultDeviceChanged, render, not
+  communications) raise event bits.
+- sound_world::tick's process_orders (`call 0x59DD0`, 0x59AAC, the sound thread):
+  `audio_device_orders`, then process_orders. After an event (a default change only when the
+  default device's id is another), a rebuild: a new engine and a mastering voice on the device the
+  game's rule picks first (on failure nothing changes, tried again 2 s later, quietly); then the
+  old voices, master and engine go, and every voice is made again from what was kept, the pending
+  buffers queued again in order (a flushed one, which the game makes at every detach_voice and a
+  dead or stopped engine never ends, is ended by the rebuild itself and never played again), the
+  game's pointers unchanged.
+
+New engine-function rows: `engine_xaudio2_create` (0x5A640, cdecl), `engine_process_sound_orders`
+(0x59DD0, stdcall), the imports `engine_co_create_instance` (the delay-loaded slot 0xAF0064),
+`engine_heap_alloc`, `engine_get_process_heap`, `engine_heap_free`. Sound only: no row in
+`../crates/session/src/v026g/simulation_changes.tsv`. The evidence and the spec:
+`../docs/notes/audio_device.md`.
+
+Checked: `test_audio_device_026g.c` (its header has the command; i686 gcc, ASan/UBSan) runs the
+core against a made-up XAudio2 that keeps XAudio2's rules: the game's graph rebuilt the same after
+a lost device and a new default, nothing on the same default or a communications one, kept and
+retried with no device or no engine, every buffer ending once, everything given back at the end.
+The exe built and its three sites disassembled. **Not run in a game.**

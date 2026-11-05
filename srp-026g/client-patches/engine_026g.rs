@@ -211,6 +211,8 @@ unsafe extern "stdcall" {
     pub fn engine_action_present(handler: *mut c_void, action: u32, state: *mut u32) -> u8;
     /// 0x3222f0 survarium::bullet_manager::play_sound: manager ESP+4, sound ESP+8, position ESP+12; pops 12; stdcall, called directly
     pub fn engine_play_sound(manager: *mut c_void, sound: *const u32, position: *const f32);
+    /// 0x59dd0 vostok::sound::sound_world::process_orders: world ESP+4; pops 4; stdcall, called directly
+    pub fn engine_process_sound_orders(world: *mut c_void);
     /// 0x5cb80 vostok::sound::new_sound_propagator::detach_voice: propagator ESP+4; pops 4; stdcall, called directly
     pub fn engine_detach_voice(propagator: *mut c_void);
 }
@@ -223,6 +225,8 @@ unsafe extern "cdecl" {
     pub fn engine_save_user_config();
     /// 0x14730 vostok::resources::store_first_unmanaged_resource: result ESP+4, value ESP+8; pops 0; cdecl, called directly
     pub fn engine_store_first_resource(result: *mut c_void, value: *mut c_void);
+    /// 0x5a640 XAudio2Create: engine ESP+4, flags ESP+8; pops 0; EAX; cdecl, called directly
+    pub fn engine_xaudio2_create(engine: *mut *mut c_void, flags: u32) -> u32;
 }
 
 #[allow(dead_code)]
@@ -293,4 +297,12 @@ unsafe extern "C" {
     pub static engine_enter_critical_section: unsafe extern "stdcall" fn(*mut c_void);
     /// the IAT slot 0x8700cc (an import, stdcall): void engine_leave_critical_section(struct critical_section *section)
     pub static engine_leave_critical_section: unsafe extern "stdcall" fn(*mut c_void);
+    /// the IAT slot 0xaf0064 (an import, stdcall): unsigned int engine_co_create_instance(const void *clsid, void *outer, unsigned int context, const void *iid, void **object)
+    pub static engine_co_create_instance: unsafe extern "stdcall" fn(*const c_void, *mut c_void, u32, *const c_void, *mut *mut c_void) -> u32;
+    /// the IAT slot 0x87004c (an import, stdcall): void *engine_heap_alloc(void *heap, unsigned int flags, unsigned int size)
+    pub static engine_heap_alloc: unsafe extern "stdcall" fn(*mut c_void, u32, u32) -> *mut c_void;
+    /// the IAT slot 0x870050 (an import, stdcall): void *engine_get_process_heap(void)
+    pub static engine_get_process_heap: unsafe extern "stdcall" fn() -> *mut c_void;
+    /// the IAT slot 0x870054 (an import, stdcall): unsigned int engine_heap_free(void *heap, unsigned int flags, void *memory)
+    pub static engine_heap_free: unsafe extern "stdcall" fn(*mut c_void, u32, *mut c_void) -> u32;
 }
