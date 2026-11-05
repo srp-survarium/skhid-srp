@@ -12,7 +12,7 @@
 //! translates gets no closer than its speed allows, so no contact is stepped over.
 pub mod gjk;
 
-use crate::Triangle;
+use crate::{Triangle, WalkerBehaviour};
 use crate::math::Vec3;
 
 /// The gap at which a sweep counts as touching, m.
@@ -25,11 +25,75 @@ const ADVANCE_STEPS: usize = 64;
 /// Triangles a leaf of the tree holds at most.
 const LEAF: usize = 4;
 
-/// One triangle of the collision: its corners and unit normal (zero for a degenerate one).
+/// One triangle of the collision: its corners, unit normal (zero for a degenerate one) and walker behaviour (the down sweep
+/// reads it: a `walk` face counts as flat, a `dont_walk` one as steep).
 #[derive(Clone, Copy, Debug)]
 pub struct Face {
     pub v: [Vec3; 3],
     pub normal: Vec3,
+    pub walker: WalkerBehaviour,
+}
+
+/// A body swept against the collision: a convex core and the margin around it (Bullet's rounded shapes).
+#[derive(Clone, Copy, Debug)]
+pub enum Shape {
+    /// A capsule: the segment between its sphere centres, the radius as the margin.
+    Capsule(Capsule),
+    /// An upright cylinder's core (centre, half height, radius) and its margin.
+    Cylinder { centre: Vec3, half: f32, radius: f32, margin: f32 },
+    /// A sphere: its centre and radius.
+    Sphere { centre: Vec3, radius: f32 },
+}
+
+impl Shape {
+    pub fn moved(self, by: Vec3) -> Self {
+        match self {
+            Shape::Capsule(c) => Shape::Capsule(c.moved(by)),
+            Shape::Cylinder { centre, half, radius, margin } => Shape::Cylinder { centre: centre + by, half, radius, margin },
+            Shape::Sphere { centre, radius } => Shape::Sphere { centre: centre + by, radius },
+        }
+    }
+
+    /// The distance from the shape's surface to the triangle (negative inside the margin), the closest points on the core and
+    /// on the triangle, and the direction from the triangle to the shape.
+    pub fn gap(&self, v: &[Vec3; 3], normal: Vec3) -> (f32, Vec3, Vec3, Vec3) {
+        let (d, on_core, on_face, margin) = match *self {
+            Shape::Capsule(c) => {
+                let (d, s, f) = segment_triangle(c.low, c.high, v);
+                (d, s, f, c.radius)
+            }
+            Shape::Sphere { centre, radius } => {
+                let f = point_triangle(centre, v);
+                ((centre - f).length(), centre, f, radius)
+            }
+            Shape::Cylinder { centre, half, radius, margin } => {
+                let core = gjk::Cylinder { centre, half, radius };
+                let guess = centre - (v[0] + v[1] + v[2]) * (1.0 / 3.0);
+                let (d, a, b) = gjk::distance(&core, v, guess);
+                (d, a, b, margin)
+            }
+        };
+        let dir = if d > 1e-6 { (on_core - on_face) * (1.0 / d) } else { normal };
+        (d - margin, on_core, on_face, dir)
+    }
+
+    /// The shape's box.
+    fn aabb(&self) -> (Vec3, Vec3) {
+        match *self {
+            Shape::Capsule(c) => {
+                let r = Vec3::new(c.radius, c.radius, c.radius);
+                (c.low.min(c.high) - r, c.low.max(c.high) + r)
+            }
+            Shape::Cylinder { centre, half, radius, margin } => {
+                let e = Vec3::new(radius + margin, half + margin, radius + margin);
+                (centre - e, centre + e)
+            }
+            Shape::Sphere { centre, radius } => {
+                let e = Vec3::new(radius, radius, radius);
+                (centre - e, centre + e)
+            }
+        }
+    }
 }
 
 #[derive(Clone, Copy, Debug)]
@@ -105,7 +169,7 @@ impl Collision {
             .map(|t| {
                 let n = (t.v[1] - t.v[0]).cross(t.v[2] - t.v[0]);
                 let l = n.length();
-                Face { v: t.v, normal: if l > 1e-12 { n * (1.0 / l) } else { Vec3::ZERO } }
+                Face { v: t.v, normal: if l > 1e-12 { n * (1.0 / l) } else { Vec3::ZERO }, walker: t.walker }
             })
             .collect();
         let mut nodes = Vec::with_capacity(2 * faces.len() / LEAF + 1);
@@ -175,21 +239,31 @@ impl Collision {
     /// The first contact of `capsule` moved by `by`, against faces `keep` accepts. A face the capsule already overlaps at the
     /// start is met only when the move goes into it (against its normal at the start).
     pub fn sweep(&self, capsule: Capsule, by: Vec3, keep: impl Fn(&Face) -> bool) -> Option<Contact> {
-        let r = capsule.radius;
-        let pad = Vec3::new(r, r, r);
-        let (lo, hi) = aabb([capsule.low, capsule.high, capsule.low + by, capsule.high + by]);
         let mut best: Option<Contact> = None;
-        self.faces_in(lo - pad, hi + pad, |f| {
-            let face = &self.faces[f];
-            if face.normal == Vec3::ZERO || !keep(face) {
-                return;
-            }
-            let limit = best.map_or(1.0, |b| b.t);
-            if let Some(c) = advance(capsule, by, face, limit) {
-                best = Some(Contact { face: f, ..c });
+        self.sweep_each(Shape::Capsule(capsule), by, |c| {
+            if keep(&self.faces[c.face]) && best.is_none_or(|b| c.t < b.t) {
+                best = Some(c);
             }
         });
         best
+    }
+
+    /// Every face's first contact with `shape` moved by `by` (Bullet's per-triangle convex cast: what the client's sweep
+    /// callbacks are handed, in no order). A face the shape already touches at the start is reported at 0 only when the move
+    /// goes into it.
+    pub fn sweep_each(&self, shape: Shape, by: Vec3, mut each: impl FnMut(Contact)) {
+        let (lo0, hi0) = shape.aabb();
+        let (lo1, hi1) = shape.moved(by).aabb();
+        let pad = Vec3::new(CONTACT_M, CONTACT_M, CONTACT_M);
+        self.faces_in(lo0.min(lo1) - pad, hi0.max(hi1) + pad, |f| {
+            let face = &self.faces[f];
+            if face.normal == Vec3::ZERO {
+                return;
+            }
+            if let Some(c) = advance(shape, by, face) {
+                each(Contact { face: f, ..c });
+            }
+        });
     }
 
     /// The smallest distance from the capsule's surface to a face `keep` accepts within `reach` (negative when it overlaps
@@ -203,10 +277,8 @@ impl Collision {
             if face.normal == Vec3::ZERO || !keep(face) {
                 return;
             }
-            let (d, on_seg, on_face) = segment_triangle(capsule.low, capsule.high, &face.v);
-            let gap = d - capsule.radius;
+            let (gap, _, on_face, dir) = Shape::Capsule(capsule).gap(&face.v, face.normal);
             if gap <= reach && best.is_none_or(|b| gap < b.0) {
-                let dir = if d > 1e-6 { (on_seg - on_face) * (1.0 / d) } else { face.normal };
                 best = Some((gap, on_face, dir, f));
             }
         });
@@ -214,30 +286,25 @@ impl Collision {
     }
 }
 
-/// The conservative advancement of `capsule` moved by `by` against one face, up to share `limit` of the move.
-fn advance(capsule: Capsule, by: Vec3, face: &Face, limit: f32) -> Option<Contact> {
+/// The conservative advancement of `shape` moved by `by` against one face.
+fn advance(shape: Shape, by: Vec3, face: &Face) -> Option<Contact> {
     let speed = by.length();
-    let r = capsule.radius;
-    let (d0, s0, f0) = segment_triangle(capsule.low, capsule.high, &face.v);
-    if d0 - r <= CONTACT_M {
+    let (g0, _, f0, n0) = shape.gap(&face.v, face.normal);
+    if g0 <= CONTACT_M {
         // Touching or overlapping at the start: a contact only when the move goes in.
-        let n = if d0 > 1e-6 { (s0 - f0) * (1.0 / d0) } else { face.normal };
-        return (by.dot(n) < -GOING_IN * speed).then_some(Contact { t: 0.0, point: f0, normal: n, face: 0 });
+        return (by.dot(n0) < -GOING_IN * speed).then_some(Contact { t: 0.0, point: f0, normal: n0, face: 0 });
     }
     if speed <= 0.0 {
         return None;
     }
     let mut t = 0.0f32;
     for _ in 0..ADVANCE_STEPS {
-        let c = capsule.moved(by * t);
-        let (d, s, f) = segment_triangle(c.low, c.high, &face.v);
-        let gap = d - r;
+        let (gap, _, f, n) = shape.moved(by * t).gap(&face.v, face.normal);
         if gap <= CONTACT_M {
-            let n = if d > 1e-6 { (s - f) * (1.0 / d) } else { face.normal };
             return Some(Contact { t, point: f, normal: n, face: 0 });
         }
         t += gap / speed;
-        if t > limit {
+        if t > 1.0 {
             return None;
         }
     }
@@ -348,7 +415,6 @@ pub fn segment_triangle(p: Vec3, q: Vec3, v: &[Vec3; 3]) -> (f32, Vec3, Vec3) {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::WalkerBehaviour;
 
     fn tri(a: Vec3, b: Vec3, c: Vec3) -> Triangle {
         Triangle { v: [a, b, c], walker: WalkerBehaviour::BySlope }
