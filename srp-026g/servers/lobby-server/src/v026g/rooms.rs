@@ -217,9 +217,7 @@ struct Ready {
 
 impl Core<'_> {
     /// The maps a pool may hold, in the order their bits name them: the
-    /// match pool, then the experimental maps, then
-    /// Blackout's: each plain battery map of those once more, as mode 6 by
-    /// its lobby id (its tile the same map and weather).
+    /// match pool (Blackout's maps too, mode 6), then the experimental maps.
     pub(super) fn room_entries(&self) -> Vec<PoolEntry> {
         let pool = &self.settings.maps;
         let extra = self
@@ -228,7 +226,7 @@ impl Core<'_> {
             .extra_maps
             .iter()
             .filter(|id| !pool.contains(id));
-        let entries = pool
+        pool
             .iter()
             .map(|id| (*id, false))
             .chain(extra.map(|id| (*id, true)))
@@ -238,25 +236,10 @@ impl Core<'_> {
                     map_id: id,
                     level: map.level,
                     weather: map.weather,
-                    mode: map.mode,
+                    mode: map.mode.lobby_number(),
                     extra,
                 })
             })
-            .collect::<Vec<_>>();
-        let blackout: Vec<PoolEntry> = entries
-            .iter()
-            .filter(|entry| entry.mode == maps::BLACKOUT_RULES)
-            .filter_map(|entry| {
-                Some(PoolEntry {
-                    map_id: maps::blackout_id(entry.map_id)?,
-                    mode: maps::mode::BLACKOUT,
-                    ..*entry
-                })
-            })
-            .collect();
-        entries
-            .into_iter()
-            .chain(blackout)
             // A create names its entries by bit: no more than the bits.
             .take(wire::POOL_BITS)
             .collect()
@@ -799,8 +782,8 @@ impl Core<'_> {
             .iter()
             .map(|entry| entry.map_id)
             .collect();
-        // The whole pool but the experimental maps: the match pool and
-        // its Blackout twins (the owner's of 2026-10-25: Blackout
+        // The whole pool but the experimental maps: the match pool,
+        // Blackout's maps with it (the owner's of 2026-10-25: Blackout
         // is part of the standard pool).
         let default: Vec<u8> = self
             .room_entries()

@@ -102,7 +102,7 @@ use std::sync::{Arc, OnceLock};
 use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 
 use survarium::v026g::dictionary::Dictionary;
-use survarium::v026g::maps::mode;
+use survarium::v026g::maps::RuleMode;
 use survarium::v026g::match_msgs::client_model::EVENT_HORIZON_MS;
 use survarium::v026g::match_msgs::players::{self, Supplies};
 use survarium::v026g::match_msgs::rules::{self, TimelimitParams, TimelimitRule, Transition};
@@ -973,7 +973,7 @@ impl Game {
     /// A match whose clients connect to `port`.
     pub fn new(formed: Arc<Formed>, port: u16, settings: Settings, now: Instant) -> Self {
         let players = formed.places.len();
-        let rule = TimelimitRule::new(TimelimitParams::of(formed.map, players as u8));
+        let rule = TimelimitRule::new(TimelimitParams::of(formed.played.map(), players as u8));
         let walkers = driven::Walkers::new(&formed, &settings);
         Self {
             id: formed.match_id,
@@ -1029,12 +1029,12 @@ impl Game {
 
     /// Records this match from now on (`SRP_RECORD_DIR`): its header first.
     pub(crate) fn start_recording(&mut self, recorder: &Recorder, now: Instant) {
-        let map = self.formed.map;
+        let map = self.formed.played.map();
         let header = serde_json::json!({
             "match_id": format!("{:#x}", self.id),
             "map_id": map.id,
             "map": map.name,
-            "mode": map.mode,
+            "mode": map.mode.rules().number(),
             "match_level": self.formed.match_level,
             "growing_roster": self.formed.growing_roster,
             "vs_bots": self.formed.vs_bots,
@@ -1122,8 +1122,8 @@ impl Game {
         self.formed.places.len()
     }
 
-    fn game_mode(&self) -> u8 {
-        self.formed.map.mode
+    fn game_mode(&self) -> RuleMode {
+        self.formed.played.mode().rules()
     }
 
     /// Whether the place is a test bot's (`SRP_BOT_ACCOUNTS`) or the
@@ -1139,8 +1139,8 @@ impl Game {
     /// The batteries of modes 2 and 3; none in Team Deathmatch and
     /// Research.
     fn batteries(&self) -> usize {
-        if mode::WITH_BATTERIES.contains(&self.game_mode()) {
-            self.formed.map.victory_items_count as usize
+        if self.game_mode().has_batteries() {
+            self.formed.played.map().victory_items_count as usize
         } else {
             0
         }
@@ -1876,10 +1876,10 @@ impl Game {
     /// ([`snapshot::Decoded::first_load_loses_the_standing`], a defect of
     /// the 0.26g client; match.md section 21).
     fn first_load_loses_the_standing(&self, snapshot: &Snapshot) -> bool {
-        if self.game_mode() != mode::TEAM_DEATHMATCH {
+        if self.game_mode() != RuleMode::TeamDeathmatch {
             return false;
         }
-        let tickets = u16::try_from(self.formed.map.tickets_count).unwrap_or(u16::MAX);
+        let tickets = u16::try_from(self.formed.played.map().tickets_count).unwrap_or(u16::MAX);
         snapshot::decode(
             snapshot.time,
             &snapshot.body,
@@ -3902,7 +3902,7 @@ impl Game {
         if let Some(read) = &decoded.rules {
             // The map's respawn points are known from its project: a rule
             // read with another number was read wrong, or the data is.
-            let expected = Some(self.formed.map.respawn_points);
+            let expected = Some(self.formed.played.map().respawn_points);
             let points = read.respawn.as_ref().map(|respawn| respawn.points.len());
             if points != expected && !self.respawn_points_logged {
                 self.respawn_points_logged = true;
@@ -3946,12 +3946,12 @@ impl Game {
             .as_ref()
             .and_then(|read| read.research.as_ref())
             .filter(|research| {
-                rules::research_finished(research.points, self.formed.map.resources_count)
+                rules::research_finished(research.points, self.formed.played.map().resources_count)
             })
             .and_then(|research| research.end);
         let over = playing
             && match self.game_mode() {
-                mode::TEAM_DEATHMATCH => decoded
+                RuleMode::TeamDeathmatch => decoded
                     .rules
                     .as_ref()
                     .and_then(|read| read.tdm)
@@ -3961,7 +3961,7 @@ impl Game {
                             rules::alive_by_team(tdm.alive_players_mask, &teams),
                         )
                     }),
-                mode::RESEARCH => research_end.is_some(),
+                RuleMode::Research => research_end.is_some(),
                 _ => standing.is_some_and(|standing| {
                     rules::gather_finished(standing.points, self.batteries() as u32)
                 }),
@@ -4017,8 +4017,8 @@ impl Game {
     ) -> Result<(), String> {
         let played = time.saturating_sub(self.first_entered.unwrap_or(0));
         if let Some(standing) = standing {
-            if self.game_mode() == mode::TEAM_DEATHMATCH {
-                let tickets = self.formed.map.tickets_count;
+            if self.game_mode() == RuleMode::TeamDeathmatch {
+                let tickets = self.formed.played.map().tickets_count;
                 if standing
                     .points
                     .iter()
@@ -4026,8 +4026,8 @@ impl Game {
                 {
                     return Err(format!("tickets {:?} of {tickets}", standing.points));
                 }
-            } else if self.game_mode() == mode::RESEARCH {
-                let goal = self.formed.map.resources_count;
+            } else if self.game_mode() == RuleMode::Research {
+                let goal = self.formed.played.map().resources_count;
                 let most = goal.min(1 + played / MIN_MS_PER_RESEARCH_POINT);
                 if standing.points.iter().any(|team| u32::from(*team) > most) {
                     return Err(format!(
@@ -4917,8 +4917,8 @@ impl Game {
             .collect();
         MatchResult {
             match_id: self.id,
-            map_id: self.formed.map.id,
-            game_mode: self.game_mode(),
+            map_id: self.formed.played.map().id,
+            mode: self.formed.played.mode(),
             match_level: self.formed.match_level,
             end,
             winner: standing.map(|standing| standing.winner),
@@ -4933,7 +4933,6 @@ impl Game {
             players,
             vs_bots: self.formed.vs_bots,
             private: self.formed.private,
-            blackout: self.formed.blackout,
         }
     }
 
