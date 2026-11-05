@@ -4,6 +4,7 @@ package
     import flash.display.MovieClip;
     import flash.external.ExternalInterface;
     import scaleform.clik.data.DataProvider;
+    import scaleform.clik.utils.Padding;
 
     // The Graphics tab's "Renderer" list (docs/notes/dxvk-option.md): DirectX 11
     // or Vulkan/DXVK, built as the tab's Monitor list (a list with its label
@@ -38,8 +39,11 @@ package
             menu.itemRenderer = "OptionsListRenderer";
             menu.menuDirection = "down";
             menu.menuMargin = 0;
-            menu.inspectableMenuOffset = {"top": 4, "right": 0, "bottom": 0, "left": 162};
-            menu.inspectableMenuPadding = {"top": 5, "right": 1, "bottom": 5, "left": 1};
+            // Set directly: CLIK's inspectableMenu* setters only take a value
+            // from the Flash editor, so from code they do nothing and the list
+            // opened under the label, not under its box.
+            menu.menuOffset = new Padding(4, 0, 0, 162);
+            menu.menuPadding = new Padding(5, 1, 5, 1);
             menu.menuRowCount = 2;
             menu.menuRowsFixed = false;
             menu.menuWidth = 184;
