@@ -1385,8 +1385,41 @@ pub fn candidates(cx: &Ctx, out: &mut Vec<Candidate>) {
     answer::candidates(cx, out);
     breach::candidates(cx, out);
     behind_holds(cx, out);
+    squad_holds(cx, out);
     #[cfg(test)]
     super::bench_work::add(super::bench_work::Work::Plays, (out.len() - scored_before) as u64);
+}
+
+/// [A310 `tdm.squad` S2] A squad member's holds: within the radius of its living leader `with_anchor` times, farther `away`
+/// times (the leader's own are left as they are).
+fn squad_holds(cx: &Ctx, out: &mut [Candidate]) {
+    let Some(rule) = cx.tuning.tdm.squad else {
+        return;
+    };
+    let Some(leader) = cx
+        .team
+        .squad_leaders
+        .iter()
+        .find(|(member, _)| *member == cx.me.place)
+        .and_then(|&(_, leader)| cx.view.place(leader).filter(|p| p.alive))
+    else {
+        return;
+    };
+    for c in out.iter_mut().filter(|c| super::group::holds(c.kind)) {
+        if let Some(at) = hold_point(cx, c.target) {
+            let factor = if at.distance_xz(leader.feet) <= rule.radius_m.get() { rule.with_anchor } else { rule.away };
+            c.score = Score::new(c.score.get() * factor);
+        }
+    }
+}
+
+/// Where a hold candidate's target lies: its point, or the enemy base's exit.
+fn hold_point(cx: &Ctx, target: TargetRef) -> Option<Vec3> {
+    match target {
+        TargetRef::Point(at) => Some(at),
+        TargetRef::Exit(i) => cx.bot.side.and_then(|side| cx.enemy_side(side)).and_then(|enemy| cx.tactics.exits(enemy).get(i).copied()),
+        _ => None,
+    }
 }
 
 /// [A297 item 2 `tdm.behind_holds`] In TDM, a team behind on points weighs Crossfire and HoldExit up and Cut down.

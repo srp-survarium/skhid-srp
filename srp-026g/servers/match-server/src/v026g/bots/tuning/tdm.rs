@@ -145,7 +145,8 @@ impl BehindHolds {
 
 /// [A310] The squad layer in TDM (`bots/squad.rs`, `traces-20261028/fx-team-a310-squad.md`): squads of 2-3 formed at spawn,
 /// a leader each, and the radius the members keep round him. S1: a moving member farther than `radius_m` walks to `close_m`
-/// beside the leader.
+/// beside the leader. S2: a member's hold candidates (`group::holds`) within `radius_m` of its leader count `with_anchor`
+/// times, farther ones `away` times (the squad holds together: two angles on one lane).
 #[derive(Clone, Copy, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(default, deny_unknown_fields)]
 pub struct Squad {
@@ -153,11 +154,14 @@ pub struct Squad {
     pub radius_m: Metres,
     /// ... walking back to this beside him, m.
     pub close_m: Metres,
+    /// [S2] A member's hold candidates near its leader, and far from him, times these. GUESS.
+    pub with_anchor: f32,
+    pub away: f32,
 }
 
 impl Default for Squad {
     fn default() -> Self {
-        Self { radius_m: Metres::of(20.0), close_m: Metres::of(6.0) }
+        Self { radius_m: Metres::of(20.0), close_m: Metres::of(6.0), with_anchor: 1.5, away: 0.5 }
     }
 }
 
@@ -188,6 +192,11 @@ impl TdmTuning {
             && (!(0.0..=4.0).contains(&b.hold_gain) || !(0.0..=1.0).contains(&b.cut_cut) || !(1.0..=60.0).contains(&b.full_tickets))
         {
             return Err("tdm.behind_holds".into());
+        }
+        if let Some(q) = self.squad
+            && (q.close_m.get() > q.radius_m.get() || !(0.0..=4.0).contains(&q.with_anchor) || !(0.0..=4.0).contains(&q.away))
+        {
+            return Err("tdm.squad".into());
         }
         Ok(())
     }
