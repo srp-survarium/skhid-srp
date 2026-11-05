@@ -263,7 +263,7 @@ st_army_026_mask_desc	Sturmhaube mit einem breiten Augenschlitz aus dem eingeste
 st_army_026_mask_name	Armee-Sturmhaube
 st_artcontainer_time_corr_perc_name	Zeit zum Sammeln der Artefakte
 st_artefact_activated_message	Artefakt ist aktiviert
-st_artefact_booster_description	Die zweite Version des Gerätes, das von Enthusiasten für die Extraktion der Artefakte erfunden wurde. Dank  dem eingebauten Löscher der  anomalen Aktivität des Artefaktes lässt sie, den Prozess der Extraktion beschleunigen.
+st_artefact_booster_description	Die zweite Version des Gerätes, das von Enthusiasten für die Extraktion der Artefakte erfunden wurde. Dank  dem eingebauten Löscher der  anomalen Aktivität des Artefaktes lässt sie, den Prozess der Extraktion beschleunigen.\nArtefakte laden sich 20 % schneller auf.
 st_artefact_booster_name	Artefakten-Master
 st_artefact_no_free_slots	Es gibt kein Platz für Artefakten!
 st_artefact_search_failed	Artefakt ist nicht gefunden

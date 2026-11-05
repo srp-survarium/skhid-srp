@@ -243,7 +243,7 @@ package
          var PlayerInfo:Object = domain.getDefinition("survarium.controls.PlayerInfo");
          PlayerInfo.genericMoney = c.money;
          PlayerInfo.premiumMoney = 0;
-         lobby.try_buy_item(1,0,c.dictId,constant("ItemPlace","SHOP"),c.target,c.count,c.price,c.seller);
+         lobby.try_buy_item(1,0,c.dictId,constant("ItemPlace","SHOP"),c.target,c.count,c.price,domain.getDefinition("survarium.constants.BuyOrigin").SHOP,c.seller);
       }
 
       private function check(c:Object) : void
