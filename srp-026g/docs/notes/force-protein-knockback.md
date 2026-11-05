@@ -29,7 +29,7 @@
 - **Every client the same:** each reads the killer's kit, which every game has (the static info);
   the ragdoll is drawn by each game alone, never in the simulation: no `next` row.
 - **Checked:** `cargo test -p ragdoll` (the protein's throw as far as the played build, a plain
-  gun stock and a rifle round not thrown, no bullet heavy), the patches' `cargo test`/Clippy,
+  gun stock not thrown, no bullet's push heavy), the patches' `cargo test`/Clippy,
   `check_ragdoll_026g.py`, `release/build-content` (the first version's; the edit list is
   unchanged). The first version was played by the owner (2026-11-05, "fine"); this one is not.
 - **In game:** with the booster in a pocket, kill a player with a gun-stock hit: the body flies a

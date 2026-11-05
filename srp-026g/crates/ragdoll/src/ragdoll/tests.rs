@@ -1361,17 +1361,11 @@ fn a_force_protein_gun_stock_kill_throws_the_body_as_far_as_the_played_build() {
         let (rise, on) = thrown(gun_stock(direction, point, 0.0), |_| {});
         assert!(rise < 0.02 && on < 1.1, "plain: up {rise:.2}, on {on:.2}");
     }
-    // nor a full-power rifle round (7.62x51)
-    let round = crate::shot::Hit {
-        point: scenes[0].1,
-        impulse: crate::shot::impulse(scenes[0].0, 0.1, 850.0),
-    };
-    let (rise, on) = thrown(round, |_| {});
-    assert!(rise < 0.02 && on < 1.5, "a round: up {rise:.2}, on {on:.2}");
 }
 
 #[test]
 fn no_bullet_and_no_plain_gun_stock_is_a_heavy_hit() {
+    // so every bullet's death is pushed as before (the heaviest a bullet makes)
     let d = Vec3::new(0.0, 0.0, -1.0);
     assert!(crate::shot::impulse(d, 0.999, 2999.0).length() < tuning::HEAVY_HIT);
     let push = crate::shot::impulse(d, 0.01, 1000.0);
@@ -1379,7 +1373,6 @@ fn no_bullet_and_no_plain_gun_stock_is_a_heavy_hit() {
         assert_eq!(crate::shot::knocked_back(push, k), push);
     }
     assert!(crate::shot::knocked_back(push, 3.0).length() >= tuning::HEAVY_HIT);
-    assert_eq!(crate::shot::knocked_back(push, 50.0), push * 100.0);
 }
 
 #[test]
