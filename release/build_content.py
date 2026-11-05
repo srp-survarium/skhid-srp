@@ -492,6 +492,29 @@ def lamp_check(world):
     print(f'lamps: every binding of {len(projects)} made project(s) names its own model or light')
 
 
+KEEPER_EDIT = 'artefact-keeper-1.json'
+KEEPER_POOL = b'srp/artefact_keeper/pool'
+
+
+def keeper_check(rows, base_files, world):
+    """With Keeper's edit list in the manifest, every map project (every client_project but the
+    lobby scenes') has its hidden pool (the anomaly `srp/artefact_keeper/pool`): the list names
+    its maps one by one, so a map added later without it would give Keepers nothing there."""
+    if ('edit', KEEPER_EDIT) not in {(kind, name) for kind, name, *_ in rows}:
+        return
+    projects = sorted(p for p in set(base_files) | set(world.bytes)
+                      if p.startswith('projects/') and p.endswith('/client_project')
+                      and not p.startswith('projects/lobby_scene/'))
+    missing = [p for p in projects if KEEPER_POOL not in world.bytes.get(p, b'')]
+    if missing:
+        print()
+        for project in missing:
+            print(f'KEEPER: {project}: no {KEEPER_POOL.decode()} (add the map to {KEEPER_EDIT}: '
+                  'srp-026g/scripts/artefact-keeper/make_edit.py)')
+        raise Problem(f'{len(missing)} map project(s) without the Keeper pool: no patch made')
+    print(f'keeper: every one of {len(projects)} map project(s) has its pool')
+
+
 def clothing_check(base, base_files, game, world):
     """Reject low boot shafts selecting the variants for medium/tall boots.
     Measure the stock classes, then check the final composed meshes/configs,
@@ -567,6 +590,7 @@ def main():
         # uses a type 0.26g files already use at that path or is allowlisted.
         type_check(rows, args.tree, base, base_files, game, world)
         lamp_check(world)
+        keeper_check(rows, base_files, world)
         clothing_check(base, base_files, game, world)
 
         # What the sources make, against what players have.

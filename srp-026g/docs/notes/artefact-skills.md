@@ -173,7 +173,9 @@ preferred-image VAs; `apply_modifier` is the kit-modifier getter 0x2D5AE0.
 - Costs: every world about 735 bytes more (the 60 dormant artefacts and the core, about +13 % of
   a 5-6 KB world); 60 more artefact objects a match, the three kinds' models loaded on every
   map; the edit list pins each project's client_objects count (a map change in between: run
-  `make_edit.py` again).
+  `make_edit.py` again). It names its maps one by one, so `release/build-content` refuses a
+  build in which a map project (every client_project but the lobby scenes') lacks
+  `srp/artefact_keeper/pool`, naming it: a map added later never silently gives Keepers nothing.
 - Checks: `client-patches/check_artefact_keeper_026g.py` (Unicorn: registration, the gift, the
   refusals, a new load, a late joiner's ids and container read), `crates/mapdata/tests/
   artefact_keeper.rs` (the edit list against the table, the anomaly as a map object),
