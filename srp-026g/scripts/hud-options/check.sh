@@ -12,7 +12,8 @@
 #   on names only, each team by clan tag then name (clanless next, bots last; case-insensitive);
 #   the Tab map's names with Alt, and "Names on map" reversing Alt.
 # - SettingsHarness.as also: the controls tab's "Lock vertical sensitivity" and its slider (exe
-#   patch 112, docs/notes/mouse-pitch.md): locked it follows the main slider x 0.5625, unlocked it is its own.
+#   patch 112, docs/notes/mouse-pitch.md): locked it follows the main slider x 0.5625, unlocked it is its own;
+#   both sliders at their borders (0.01, 10), Apply and the exe's answers there.
 # Screenshots into the work dir: settings.png (at rest), settings-checked.png (a toggle, Apply
 # enabled), settings-crosshair-open.png, settings-minimap-open.png, settings-graphics.png (Vulkan picked),
 # settings-controls-off.png, settings-controls-on.png, list-scores.png, list-names.png. Exits 0 when both say
@@ -108,4 +109,5 @@ done
 grep -ho 'SETTINGS .*\|HUD .*' "$work/SettingsHarness.log" "$work/HudHarness.log" || true
 ! grep -q "RESULT fail" "$work/SettingsHarness.log" "$work/HudHarness.log" \
     && grep -q "SETTINGS RESULT pass" "$work/SettingsHarness.log" && grep -q "SETTINGS controls pass" "$work/SettingsHarness.log" \
+    && grep -q "SETTINGS borders pass" "$work/SettingsHarness.log" \
     && grep -q "HUD RESULT pass" "$work/HudHarness.log"

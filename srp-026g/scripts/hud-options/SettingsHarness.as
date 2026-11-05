@@ -140,7 +140,11 @@ package
                 if (frames == 300) trace("SETTINGS SHOT graphics");
                 if (frames == 330)
                 {
-                    click(settings.btn_cancel);              // the Graphics shot's pick dropped
+                    // Cancel, as a player would, what the earlier tabs left pending: checkGraphics leaves the
+                    // Graphics tab in the frame it bound it (a player cannot), and that tab's stock lists and
+                    // steppers tell their bound values a frame later, on the gameplay tab, as changes. With
+                    // nothing pending Cancel is Exit, which would close Settings.
+                    if (settings.btn_accept.enabled) click(settings.btn_cancel);
                     var domain:ApplicationDomain = loader.contentLoaderInfo.applicationDomain;
                     var texts:Array = JSON.parse(loaderInfo.parameters.texts) as Array;
                     // the controls tab, after the gameplay tab's screenshots (its stock stepper takes a
@@ -1044,7 +1048,8 @@ package
         // The two sliders at their borders (the stock mouse_sensitivity's 0.01 to 10, from its console
         // variable): locked, the greyed slider shows the main one x 0.5625 within its own range; unlocking at
         // either end starts from that value; unlocked, either slider at either end leaves the other; Apply,
-        // the exe's answers and a new visit of the tab (Settings reopened) keep each value.
+        // the exe's answers and a new visit of the tab (Settings reopened) keep each value; after an Apply
+        // unlocked, the lock's answer alone shows the vertical value Apply saved (what it gave the exe).
         private function checkBorders(root:*, settings:*, texts:Array, domain:ApplicationDomain):void
         {
             var c:* = settings.settings_content;
@@ -1052,10 +1057,10 @@ package
             var main:* = null;
             // Settings opened again: the exe's settings and answers bound anew (a test player's tab bar
             // cannot change the frame and bind in one go)
-            var reopen:Function = function(value:Number, locked:String, vertical:String):void {
+            var reopen:Function = function(value:Number, locked:String, vertical:String = null):void {
                 controls(root, settings, domain, value);
                 root.srp_check_option(LOCKED, texts[0][17], locked);
-                root.srp_slider_option("srp_mouse_vertical", texts[0][18], vertical);
+                if (vertical != null) root.srp_slider_option("srp_mouse_vertical", texts[0][18], vertical);
                 main = c._slider_mouse_sens;               // the tab's new instance at each visit
             };
             reopen(1.25, "1", "100");
@@ -1074,9 +1079,12 @@ package
                     "borders: unlocked at main " + end + ": it starts from " + vertical.selectedIndex);
                 click(settings.btn_accept);
                 var saved:String = String(Math.round(shown * 100));
-                reopen(end, "0", saved);
+                reopen(end, "0");
                 require(!box.selected && close(main.selectedIndex, end) && close(vertical.selectedIndex, shown) && !settings.btn_accept.enabled,
-                    "borders: Apply and reopen at main " + end + ": unlocked at " + vertical.selectedIndex + " (saved " + saved + ")");
+                    "borders: Apply and reopen at main " + end + ": unlocked at the saved " + vertical.selectedIndex + " (" + shown + ")");
+                reopen(end, "0", saved);
+                require(!box.selected && close(vertical.selectedIndex, shown) && !settings.btn_accept.enabled,
+                    "borders: the exe's answer " + saved + " at main " + end + ": unlocked at " + vertical.selectedIndex);
                 box.selected = true;
                 click(settings.btn_accept);
                 reopen(end, "1", saved);
