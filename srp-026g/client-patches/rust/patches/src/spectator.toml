@@ -1,0 +1,25 @@
+# Patch 103: a game sent to a match with no place of its own (the 0xE4 names
+# none: the rooms' queue) watches it (spectator.rs; docs/notes/queue-spectate.md).
+# Only the decisions: the sites are sites_026g.tsv's, the logic spectator.rs.
+name = "spectator"
+patch = 103
+
+# After a world: the camera to the local place, or a spectator's player.
+[[hook]]
+site = "world_load.camera"
+handler = "on_world_camera"
+
+# F6 / F5 (next_player, prev_player) for a spectator.
+[[hook]]
+site = "keyboard.spectate"
+handler = "on_key"
+
+# A match line's team colour, by the local place's player.
+[[hook]]
+site = "chat.match_team"
+handler = "on_match_line"
+
+# The hud at the followed player's death: no kits for a spectator.
+[[hook]]
+site = "hud.followed_alive"
+handler = "on_followed_alive"

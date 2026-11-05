@@ -3669,6 +3669,171 @@ sound_voices_on_voice_made_replay:
     db 0x89, 0x46, 0x04, 0x85, 0xc0
     jmp 0x5cab5
 
+; 0x27c116 process_dynamic_match_info after a world's load (or its skip: 0x27C0E3, 0x27C0E7, 0x27C0FD jump here): mov eax,[edi+4] / test eax,eax, then the camera back to the local place (get_player(+1F1C44h), set_followed_player, the warmup or player camera); done is the join 0x27C1B9 after it. EDI the network client: lohook -> spectator_on_world_camera
+global spectator_on_world_camera
+extern hook_spectator_on_world_camera
+spectator_on_world_camera:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_spectator_on_world_camera
+    mov edx, spectator_on_world_camera_replay
+    cmp eax, 0
+    je spectator_on_world_camera_go
+    mov edx, 0x27c11b
+    cmp eax, 1
+    je spectator_on_world_camera_go
+    mov edx, 0x27c1b9
+    cmp eax, 2
+    je spectator_on_world_camera_go
+    ud2
+spectator_on_world_camera_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+spectator_on_world_camera_replay:
+    db 0x8b, 0x47, 0x04, 0x85, 0xc0
+    jmp 0x27c11b
+
+; 0x25cdbd game_world::on_keyboard_action at a key down's action (mov esi,[ebx+53ACh]; EBX the game, EDI the binder's action for the key, 0x25CD64): next/prev player (17h/18h) call spectate_next/previous_player only with the client's +0Dh (0x25CEA1); taken is their return (xor al,al and the epilogue, 0x25CEAE): lohook -> spectator_on_key
+global spectator_on_key
+extern hook_spectator_on_key
+spectator_on_key:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_spectator_on_key
+    mov edx, spectator_on_key_replay
+    cmp eax, 0
+    je spectator_on_key_go
+    mov edx, 0x25cdc3
+    cmp eax, 1
+    je spectator_on_key_go
+    mov edx, 0x25ceae
+    cmp eax, 2
+    je spectator_on_key_go
+    ud2
+spectator_on_key_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+spectator_on_key_replay:
+    db 0x8b, 0xb3, 0xac, 0x53, 0x00, 0x00
+    jmp 0x25cdc3
+
+; 0x208d77 chat_handler::add_message, a match line in a match, before it asks for the local place's player (movzx eax,byte [esi+1F1C44h]; ESI the game's network client, EDI the sender's team): plain is the line of one's own team or of no team (0x208DE2), which releases [esp+48h] when not 0: lohook -> spectator_on_match_line
+global spectator_on_match_line
+extern hook_spectator_on_match_line
+spectator_on_match_line:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_spectator_on_match_line
+    mov edx, spectator_on_match_line_replay
+    cmp eax, 0
+    je spectator_on_match_line_go
+    mov edx, 0x208d7e
+    cmp eax, 1
+    je spectator_on_match_line_go
+    mov edx, 0x208de2
+    cmp eax, 2
+    je spectator_on_match_line_go
+    ud2
+spectator_on_match_line_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+spectator_on_match_line_replay:
+    db 0x0f, 0xb6, 0x86, 0x44, 0x1c, 0x1f, 0x00
+    jmp 0x208d7e
+
+; 0x23b7b9 update_local_player_state's read of the followed player's alive byte (mov al,[ebp+33Ch]; ESI the hud, EBP the player, CL the hud's last +2DEh): at a change the quick slots, the stamina and the kits (0x23B7C5..0x23B7F7): lohook -> spectator_on_followed_alive
+global spectator_on_followed_alive
+extern hook_spectator_on_followed_alive
+spectator_on_followed_alive:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_spectator_on_followed_alive
+    mov edx, spectator_on_followed_alive_replay
+    cmp eax, 0
+    je spectator_on_followed_alive_go
+    mov edx, 0x23b7bf
+    cmp eax, 1
+    je spectator_on_followed_alive_go
+    ud2
+spectator_on_followed_alive_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+spectator_on_followed_alive_replay:
+    db 0x8a, 0x85, 0x3c, 0x03, 0x00, 0x00
+    jmp 0x23b7bf
+
 ; 0x242196 the input builder's last action query (spot): call -> suicide_key_on_spot (wraps engine_action_present 0x242460)
 global suicide_key_on_spot
 suicide_key_on_spot:
