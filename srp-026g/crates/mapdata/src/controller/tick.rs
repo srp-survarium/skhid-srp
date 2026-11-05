@@ -762,22 +762,37 @@ mod tests {
             quad(Vec3::new(2.0, 0.0, -10.0), Vec3::new(2.0, rise, -10.0), Vec3::new(2.0, rise, 10.0), Vec3::new(2.0, 0.0, 10.0), &mut tris);
             let world = Collision::build(&tris);
             let c = walk(&world, Vec3::ZERO, 30);
-            let mut log = String::new();
-            let mut d = Controller::standing_at(Vec3::ZERO);
-            for _ in 0..14 {
-                d.walk = Vec3::new(3.5 * 0.05, 0.0, 0.0);
-                let n = d.step(&world, 0.05, &Settings::LIVE);
-                log += &format!("\n{:.3},{:.3} {:?}", d.feet().x, d.feet().y, n);
-            }
             if climbed {
-                assert!(c.feet().x > 4.0 && (c.feet().y - rise).abs() < 0.01, "rise {rise}: {:?}{log}", c.feet());
+                assert!(c.feet().x > 4.0 && (c.feet().y - rise).abs() < 0.01, "rise {rise}: {:?}", c.feet());
             } else {
                 assert!(c.feet().x < 2.0 && c.feet().y.abs() < 0.01, "rise {rise}: {:?}", c.feet());
             }
         }
     }
 
-    /// A wall stops the body with its side 0.42 m off it (the cylinder 0.38 m plus the 0.04 m margin), LIKELY.
+    /// The exe's own player_step run in Unicorn on this world (private/grid/controller/unicorn, 2026-11-05) climbs the 0.5 m step
+    /// through these feet at ticks 10, 11, 12 and 13; the port agrees within its contact tolerance.
+    #[test]
+    fn the_step_climb_is_the_exes() {
+        let mut tris = Vec::new();
+        ground(0.0, -10.0, 2.0, &mut tris);
+        ground(0.5, 2.0, 10.0, &mut tris);
+        quad(Vec3::new(2.0, 0.0, -10.0), Vec3::new(2.0, 0.5, -10.0), Vec3::new(2.0, 0.5, 10.0), Vec3::new(2.0, 0.0, 10.0), &mut tris);
+        let world = Collision::build(&tris);
+        let exe = [(1.644244f32, 0.253557f32), (1.759254, 0.414009), (1.918323, 0.491118), (2.093098, 0.5)];
+        let mut c = Controller::standing_at(Vec3::ZERO);
+        for tick in 1..=13 {
+            c.walk = Vec3::new(3.5 * 0.05, 0.0, 0.0);
+            c.step(&world, 0.05, &Settings::LIVE);
+            if tick >= 10 {
+                let (x, y) = exe[tick - 10];
+                let f = c.feet();
+                assert!((f.x - x).abs() < 5e-4 && (f.y - y).abs() < 5e-4, "tick {tick}: {f:?} vs exe ({x}, {y})");
+            }
+        }
+    }
+
+    /// A wall stops the body with its side 0.42 m off it (the cylinder 0.38 m plus the 0.04 m margin): the exe's too (Unicorn).
     #[test]
     fn a_wall_stops_the_body_at_the_cylinder_and_margin() {
         let mut tris = Vec::new();
