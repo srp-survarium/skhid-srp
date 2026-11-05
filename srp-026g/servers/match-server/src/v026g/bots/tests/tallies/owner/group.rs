@@ -24,6 +24,10 @@ const FILE_M: f32 = 6.0;
 const FILE_DEG: f32 = 12.0;
 /// The answer windows, ms.
 const FAST_MS: u32 = 1_000;
+/// [A297 item 4 measure] A death's life age buckets, ms: under 20 s, 20-45 s, 45-90 s, 90 s and over.
+const AGE_MS: [u32; 3] = [20_000, 45_000, 90_000];
+/// ... and "alone": no living mate within this of the dead at the death, m.
+const ALONE_M: f32 = 20.0;
 const SLOW_MS: u32 = 3_000;
 
 pub(super) struct GroupCounts {
@@ -146,6 +150,9 @@ struct Side {
     fed: u32,
     fed_same: u32,
     file: u32,
+    /// [A297 item 4 measure] Deaths by the dead's life age ([`AGE_MS`]), and of them with no living mate within [`ALONE_M`].
+    life_age: [u32; 4],
+    life_age_alone: [u32; 4],
 }
 
 impl Side {
@@ -165,6 +172,8 @@ impl Side {
             "group_fed": self.fed,
             "group_fed_same_killer_2s": self.fed_same,
             "in_file": self.file,
+            "deaths_by_life_age_20_45_90": self.life_age,
+            "alone_deaths_by_life_age_20_45_90": self.life_age_alone,
         })
     }
 
@@ -197,6 +206,18 @@ impl GroupCounts {
     fn feet(run: &Run, place: Place, tick: u32) -> Option<Vec3> {
         let recs = run.recs.get(place)?;
         recs.get(run.index(tick).min(recs.len().checked_sub(1)?)).map(|r| r.feet)
+    }
+
+    /// How long `place` had been alive at `tick` (its last world before it, walked back over its living records), ms.
+    fn life_ms(run: &Run, place: Place, tick: u32) -> u32 {
+        let Some(recs) = run.recs.get(place) else {
+            return 0;
+        };
+        let Some(end) = run.index(tick).min(recs.len()).checked_sub(1) else {
+            return 0;
+        };
+        let start = (0..=end).rev().take_while(|&k| recs[k].alive).last().unwrap_or(end);
+        (end - start) as u32 * TICK_MS
     }
 
     fn alive(run: &Run, place: Place, tick: u32) -> bool {
@@ -238,6 +259,13 @@ impl GroupCounts {
             s.on_killer[(on as usize).min(2)] += 1;
             s.attackers[(attackers as usize).min(3) - 1] += 1;
             if let Some(at) = Self::feet(run, victim, t) {
+                let age = Self::life_ms(run, victim, t);
+                let bucket = AGE_MS.iter().filter(|&&b| age >= b).count();
+                s.life_age[bucket] += 1;
+                let alone = !(0..run.recs.len()).any(|p| {
+                    p != victim && team(p) == vt && Self::alive(run, p, t) && Self::feet(run, p, t).is_some_and(|f| f.distance_xz(at) <= ALONE_M)
+                });
+                s.life_age_alone[bucket] += u32::from(alone);
                 s.fed = u32::from(run.kills.iter().any(|&(t2, _, v2)| {
                     v2 != victim && team(v2) == vt && t2 < t && t - t2 <= FED_MS && Self::feet(run, v2, t2).is_some_and(|f| f.distance_xz(at) <= FED_M)
                 }));
@@ -269,6 +297,10 @@ impl GroupCounts {
                     into.attackers[i] += s.attackers[i];
                 }
                 into.fed += s.fed;
+                for i in 0..4 {
+                    into.life_age[i] += s.life_age[i];
+                    into.life_age_alone[i] += s.life_age_alone[i];
+                }
                 into.fed_same += s.fed_same;
                 into.file += s.file;
             };
