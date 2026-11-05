@@ -34,12 +34,12 @@ fn main() {
             continue;
         };
         let body = std::fs::read(format!("{dir}/{name}")).unwrap();
-        let batteries = if map.mode == 4 {
+        let batteries = if map.mode.rules() == survarium::v026g::maps::RuleMode::TeamDeathmatch {
             0
         } else {
             map.victory_items_count as usize
         };
-        let Some(decoded) = snapshot::decode(time, &body, players, map.mode, batteries) else {
+        let Some(decoded) = snapshot::decode(time, &body, players, map.mode.rules(), batteries) else {
             unread += 1;
             continue;
         };
@@ -67,7 +67,7 @@ fn main() {
             .collect();
         println!(
             "{id}\t{time}\t{}\t{}\t{}\t{}\t{}\t{}",
-            map.mode,
+            map.mode.lobby_number(),
             points[0],
             points[1],
             tickets[0],

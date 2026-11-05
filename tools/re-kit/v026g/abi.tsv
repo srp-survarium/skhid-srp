@@ -182,6 +182,8 @@ va	name	source	ret_cleanup	result
 0x0007a390	vostok::physics::create_primitive_shape	manual	0	EAX: the bt_collision_shape (118h bytes, vtable 0x9E31EC; +108h the btCollisionShape, +110h the u16 material, +0D0h reference count), from the physics allocator [0x1F1D384]
 0x0007ab30	vostok::network_core::mutable_buffer::resize	manual	4	
 0x0007ab70	vostok::network_core::mutable_buffer::reallocate	manual	0	
+0x000eb590	vostok::memory::mt_allocator::call_realloc	manual	24	EAX: the block, or 0
+0x000eb5b0	vostok::memory::mt_allocator::call_free	manual	16	
 0x0007ac10	vostok::network_core::buffer_writer::w	manual	8	
 0x0007ef90	vostok::physics::bullet_character_controller::on_ground	manual	0	EAX low byte: 1 when |velocity.up| < 4.0 (0xA7AB10) and the last hit normal.up >= the walkable-slope dot (0x21E51D8); 0 if +0x203 is set
 0x0007f050	vostok::physics::bullet_character_controller::end_jump	manual	0	clears the jump flag +0x2C70C; velocity +0x2C770 := up x min(velocity.up, 0)
@@ -919,6 +921,7 @@ va	name	source	ret_cleanup	result
 0x001f9740	survarium::game_world::set_match	manual	0	
 0x001f97d0	survarium::game_world::on_resync	manual	4	
 0x001f9800	survarium::game_world::demo_play	manual	4	
+0x001fab50	survarium::game_world_core::change_input<struct survarium::client_update<struct survarium::player_input,220,235,221,236>>	manual	36	EAX: survarium::event_action_enum (1 a duplicate, 0x1FAC43; 6 refused: older than the last resync 0x1FAD10, or patch 99's rotation); no caller reads it (0x27C326, 0x27C5C6, 0x27D802, 0x1EE2BF, 0x1F7928)
 0x001feed0	survarium::text_translator::load_text_localization	manual	4	
 0x001ff0f0	survarium::text_translator::translate_text	manual	8	
 0x001ff240	survarium::text_translator::on_texts_ready	manual	4	
@@ -1368,6 +1371,9 @@ va	name	source	ret_cleanup	result
 0x00323bf0	survarium::animation_analysis_result::animation_analysis_result	manual	4	EAX: incoming EDI object receiver
 0x00323f10	survarium::player_serialized_state::clear	manual	0	
 0x00324010	survarium::bullet_manager_history_item::clear	manual	0	
+0x00323f90	survarium::bullet_manager_history_item::serialize	manual	0	
+0x00324090	survarium::statistics_history_item::serialize	manual	0	
+0x003247d0	survarium::player_history_item::construct	manual	0	EAX: the item (ECX)
 0x00324390	survarium::statistics_history_item::clear	manual	0	
 0x00324510	survarium::game_state_history_item::construct	manual	0	ESI record; EAX returns record; initializes 20 player records and self-relative section buffers; pool checkout 2D3FEF and in-place rebuild 3252AC
 0x00324910	survarium::game_state_history_item::destroy	manual	4	stack+4 record; releases owned sections/player animation refs without freeing record allocation; pool return 2D4034 and in-place rebuild 3252A7
@@ -2300,3 +2306,13 @@ va	name	source	ret_cleanup	result
 0x0025a540	survarium::particle_game_effect_emitter_cook::translate_query	manual	4	void; preloads one independent particle resource per requested instance
 0x002e5d80	survarium::default_game_effect_time_calculator::calculate	thiscall	16	EAX: output interval/time/ended record
 0x00313640	survarium::artefact_base::active_effect_time_calculator::calculate	thiscall	16	EAX: output; time stays zero until artefact state is no longer active
+0x002d6590	survarium::animations_registry::animation_id	manual	4	AX: the pair's id; 0FFFFh when the map has no entry for it (0x2D65EE)
+0x002ef130	survarium::animations_registry::register_animation	manual	12	
+0x002ef280	survarium::animations_registry::actualize	manual	4	
+0x001f18b0	survarium::game_world::animation_resolver	manual	8	EAX: the out resource_ptr, the id's entry's second resource (the ids' vector indexed unchecked)
+0x00059080	vostok::sound::sound_world::initialize_xaudio	manual	4	AL: 1 a mastering voice made (sound_world+0C4h), 0 none (no device, or CreateMasteringVoice failed)
+0x0005a640	XAudio2Create	manual	0	EAX: HRESULT; the engine written to *engine only on success (Initialize failed: released)
+0x00059dd0	vostok::sound::sound_world::process_orders	manual	4	
+0x00059e70	vostok::sound::sound_world::create_sound_voice	manual	12	EAX
+0x0005cb80	vostok::sound::new_sound_propagator::detach_voice	manual	4	
+0x00038990	vostok::sound::sound_propagator_emitter::get_options	thiscall	0	EAX: this + 8, the sound's options (single_sound_cook 0x615D8 copies them; +11h can_be_displaced, default 1 at 0x6129F)

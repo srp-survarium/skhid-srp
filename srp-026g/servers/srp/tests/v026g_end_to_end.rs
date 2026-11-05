@@ -614,7 +614,7 @@ fn two_new_players_sign_in_shop_play_a_match_and_are_paid() {
         let options = client.model.options.as_ref().unwrap();
         // Not the lobby's match id: `registry::static_id`.
         assert_eq!(
-            (options.map_id, options.match_id),
+            (options.map.map().id, options.match_id),
             (MAP, static_id(match_id))
         );
         assert_eq!(options.players.len(), 2);
@@ -1736,7 +1736,7 @@ fn a_player_against_the_servers_bots_plays_a_match_to_the_results() {
         reserved_rows(games[0], PVB_STATUS_START).is_some()
     });
     let rows = reserved_rows(&solo, PVB_STATUS_START).unwrap();
-    // The starter kits' highest level (`tutorial`; 4, the third's MP-153):
+    // The starter kits' highest level (`tutorial`; 7, the first's AK-74N):
     // every level plays (15, the default).
     let gear = {
         let account = stack.accounts.get(account_id(&stack, "E2ePvb")).unwrap();
@@ -1744,7 +1744,7 @@ fn a_player_against_the_servers_bots_plays_a_match_to_the_results() {
         let level = |kit| session::v026g::matchmaking::kit_level(&account, kit);
         account.kits.iter().map(level).max().unwrap()
     };
-    assert_eq!(gear, 4);
+    assert_eq!(gear, 7);
     assert_eq!(rows[0].0, format!("B1;0;{gear};15;6.8.10;8;61;0;5"));
     assert_eq!(rows.len(), 17);
     assert!(rows.iter().any(|row| row.0 == "117;1;4;5"), "{rows:?}");
