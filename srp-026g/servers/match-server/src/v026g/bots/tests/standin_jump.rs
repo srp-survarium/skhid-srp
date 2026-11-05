@@ -131,7 +131,7 @@ pub(crate) fn stand_in_bridges() -> body::Bridges {
 /// client-test recordings); `frozen` moves it as before.
 pub(crate) fn stand_in_mixer() -> crate::v026g::bots::kin::Mixer {
     static FROZEN: std::sync::OnceLock<bool> = std::sync::OnceLock::new();
-    if *FROZEN.get_or_init(|| bench_settings().var("SRP_BENCH_STAND_IN_MIXER").is_some_and(|v| v == "frozen")) {
+    if *FROZEN.get_or_init(|| bench_settings().var("SRP_BENCH_STAND_IN_MIXER").is_ok_and(|v| v == "frozen")) {
         crate::v026g::bots::kin::Mixer::Frozen
     } else {
         crate::v026g::bots::kin::Mixer::Layers
