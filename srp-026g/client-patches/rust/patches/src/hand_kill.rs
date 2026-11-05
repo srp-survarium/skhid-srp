@@ -7,7 +7,7 @@
 //! - A hand is a zone whose blunt hits go to a hand's pool (hit_params:
 //!   the arms and the forearms, into right_hand or left_hand, and 5 % into
 //!   pain); stock, such a hit only breaks the hand at 0.
-//! - The carrier: the attacker's kit sums `spot_enemy_traps` above
+//! - The carrier: the attacker's kit sums `stamina_boost_interval` above
 //!   0, which the booster's parameter gives while it is in a pocket.
 //! - Lethal: the hit deals [`LETHAL`] from here, through the zone's armour
 //!   and the victim's drugs as any hit; its 5 % reaches pain, whose empty

@@ -4032,11 +4032,11 @@ only, through patch 77's hook and the hud's QuickSlots; `check_consumable_activi
 
 With the Anomalous Force Protein in a pocket, a melee hit to a hand kills (the
 owner, 2026-11-05; `../docs/notes/force-protein-hand-kill.md`). The booster's
-parameter `spot_enemy_traps_modifier` 1 (player modifier 47, which no
+parameter `stamina_boost_interval_modifier` 1 (player modifier 29, which no
 0.26g code reads) is in its carrier's kit while carried. The Rust `hand_kill`
 hook is in `damage_model::hit_body_part` once invulnerability is applied
 (0x2E50C7, patch 94's `medical.hit`, ours first): a blunt hit on an arm or
-forearm zone whose attacker's current kit sums modifier 47 above 0 (the game's
+forearm zone whose attacker's current kit sums modifier 29 above 0 (the game's
 `apply_modifier`) deals 1000 from there, so its 5 % into pain empties it, the
 game's own pain death. A match's computation changes: every client of a match
 needs it. `check_hand_kill_026g.py` runs the chain from the game's site in the

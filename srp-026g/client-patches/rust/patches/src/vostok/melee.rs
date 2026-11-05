@@ -18,11 +18,11 @@ use crate::raw;
 pub struct ModifierIndex(u32);
 
 impl ModifierIndex {
-    /// `spot_enemy_traps` (47): no 0.26g code reads it (no apply_modifier
-    /// call names it) and no 0.26g item or skill sets it; additive
-    /// (0x927E08's list). srp's: a booster that sets it
+    /// `stamina_boost_interval` (29): no 0.26g code reads it (no
+    /// apply_modifier or apply_modifiers call names it) and nothing sets it
+    /// but skill 205's 0; additive (0x927E08's list). srp's: a booster that sets it
     /// makes its carrier's gun-stock hits on a hand lethal.
-    pub const MELEE_HAND_KILL: ModifierIndex = ModifierIndex(47);
+    pub const MELEE_HAND_KILL: ModifierIndex = ModifierIndex(29);
 }
 
 /// The hit at `medical.hit`, before armour.

@@ -14,15 +14,16 @@
   affect 0 of an empty `body`, `head` (below 0.5 a concussion first), `pain` or `infection` pool
   (`on_affect` 0x2DA480 sets the dying flag). So a gun-stock hit to a hand breaks it; a stock melee
   hit's 5 % into pain never empties it.
-- **The carrier:** the booster's own parameter `spot_enemy_traps_modifier` 1 (player
-  modifier 47: no 0.26g code reads it and no 0.26g item or skill sets it; additive).
+- **The carrier:** the booster's own parameter `stamina_boost_interval_modifier` 1 (player
+  modifier 29: no 0.26g code reads it, no getter call names it, and nothing sets it but skill 205,
+  to 0; additive).
   A booster in a pocket adds each non-zero parameter to its carrier's kit at every spawn
   (`survarium::booster` 0x33F690 / 0x33F990, data.md), so the kit sums it above 0 exactly while the
   booster is carried. Data: `force-protein-hand-kill-1.json`.
 - **The change** (exe patch 108, Rust `hand_kill`): a lohook at `medical.hit` (0x2E50C7, in
   hit_body_part once invulnerability is applied, before armour; patch 94's site, ours first in its
   chain). A blunt hit on a hand zone whose attacker (hit +44h, the place; its current kit's player,
-  not the victim) sums modifier 47 above 0 deals 1000 from there. Its 5 % (50) empties pain through
+  not the victim) sums modifier 29 above 0 deals 1000 from there. Its 5 % (50) empties pain through
   any armour short of full, so the victim dies the game's own pain death in the same hit, as a limb
   shot kills; the kill feed shows the pain mark. A fall (blunt, no attacker) and every other hit are
   unchanged; the hit's own damage (+34h, which hit_impl's listeners get) is left as it was.

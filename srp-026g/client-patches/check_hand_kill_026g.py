@@ -8,7 +8,7 @@ The installed chain at hit_body_part's `medical.hit` (0x2E50C7: patch 108,
 then patch 94) run in the patched exe to the end of its replayed span
 (0x2E50CC), on made-up objects, with the game's own apply_modifier
 (0x2D5AE0) reading the attacker's kit: a blunt hit on each of the four hand
-zones by an attacker whose current kit sums modifier 47 above 0 deals 1000
+zones by an attacker whose current kit sums modifier 29 above 0 deals 1000
 (the frame's local, [esp+8]); nothing for any other zone, any other hit
 type, an attacker with 0 or below, no attacker (0FFh), a place past the
 places' end, the victim's own place, a place's other kit; patch 94's rule
@@ -72,7 +72,7 @@ class Hook:
 
     def setup(self, zone=b"right_forearm", kind=BLUNT, attacker=1, places=3, kits=((0.0,), (0.0, 1.0), (0.0,)),
               current=None, victim_place=0):
-        """`kits`: per place, its kits' sums of modifier 47 (a player each); `current`: per place, its
+        """`kits`: per place, its kits' sums of modifier 29 (a player each); `current`: per place, its
         current kit (0 by default); the victim is the place `victim_place`'s kit 0 player."""
         self.emu.mem_write(DATA, bytes(DATA_SIZE))
         self.emu.mem_write(THREAD, bytes.fromhex("b801000000c3"))     # GetCurrentThreadId: mov eax,1 / ret
@@ -90,8 +90,8 @@ class Hook:
                 self.word(player + 0x6B8, profile)
                 self.word(player + 0x120, CORE)
                 modifiers = profile + 0xF4 + 0x704 * kit
-                self.emu.mem_write(modifiers + 4 * 47, struct.pack("<f", value))
-                self.emu.mem_write(modifiers + 0x120 + 20 * 47, b"\x01")   # its list summed: no refresh
+                self.emu.mem_write(modifiers + 4 * 29, struct.pack("<f", value))
+                self.emu.mem_write(modifiers + 0x120 + 20 * 29, b"\x01")   # its list summed: no refresh
             self.emu.mem_write(entry + 0xC, bytes([current[place]]))
         victim = self.read(PLACES + 0x30 * victim_place)
         self.word(MODEL + 0x3B0, victim)
