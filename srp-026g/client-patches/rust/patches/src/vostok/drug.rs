@@ -96,10 +96,29 @@ impl<'t> AppliedHit<'t> {
 
     /// The victim's drugs in use, in its inventory slots' order.
     pub fn drugs_in_use(&self) -> DrugsInUse<'_> {
-        // SAFETY: the victim is alive for the hook; its inventory and the
-        // 23 slots' array are its own (inventory::update_weight's loop).
+        // SAFETY: the victim is alive for the hook, on its thread.
+        unsafe { DrugsInUse::of(self.thread, self.victim) }
+    }
+}
+
+/// A player's drugs in use, one slot after another.
+pub struct DrugsInUse<'h> {
+    first: Option<raw::InventorySlot>,
+    count: usize,
+    next: usize,
+    thread: &'h Thread,
+}
+
+impl<'h> DrugsInUse<'h> {
+    /// A player's drugs in use, in its inventory slots' order.
+    ///
+    /// # Safety
+    /// The player is alive for the hook running on `thread`.
+    pub(super) unsafe fn of(thread: &'h Thread, player: raw::Player) -> DrugsInUse<'h> {
+        // SAFETY: the caller's live player owns its inventory and the 23
+        // slots' array (inventory::update_weight's loop).
         let slots = unsafe {
-            self.victim.inventory().map(|inventory| {
+            player.inventory().map(|inventory| {
                 let first = inventory.slots();
                 (first, inventory.slots_end().index_from(first).unwrap_or(0))
             })
@@ -108,16 +127,8 @@ impl<'t> AppliedHit<'t> {
             Some((first, count)) => (Some(first), count),
             None => (None, 0),
         };
-        DrugsInUse { first, count, next: 0, thread: self.thread }
+        DrugsInUse { first, count, next: 0, thread }
     }
-}
-
-/// The victim's drugs in use, one slot after another.
-pub struct DrugsInUse<'h> {
-    first: Option<raw::InventorySlot>,
-    count: usize,
-    next: usize,
-    thread: &'h Thread,
 }
 
 impl<'h> Iterator for DrugsInUse<'h> {
@@ -178,6 +189,12 @@ static STOPPING: Lock<()> = Lock::new(());
 impl DrugInUse<'_> {
     pub fn effect(&self) -> Effect {
         self.effect
+    }
+
+    /// The drug's item, for reading its records; `stop` is the one way to
+    /// end it.
+    pub(super) fn medkit(&self) -> raw::Medkit {
+        self.medkit
     }
 
     /// Ends it as medkit::tick does once the active time is spent:

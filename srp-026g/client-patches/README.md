@@ -3566,7 +3566,8 @@ land beside it unchanged:
 - **Tab.** `keyboard.tab_state` (0x25CD2C, BL Tab down): Tab's state; in a Blackout match BL
   cleared, so the key goes on as with Tab up (the game's Tab test at 0x25CD39; patch 58's kit keys
   at 0x25CD41). `input_builder.end` (0x2421B0, EBX the handler): while Tab is held the input's
-  actions mask (+33Ch) blocks acts immediately and movement after 200 ms, and an act held through Tab stays out until let go.
+  actions mask (+33Ch) blocks acts immediately (Use is none: a search held through Tab goes on) and
+  movement after 200 ms, and an act held through Tab stays out until let go.
   The input is filtered before it is applied and sent: every game plays what was sent.
 - **Teammate names.** `player_names.visibility` (0x1F2F10) keeps the native Alt/crosshair
   decision, except that Tab in Blackout shows names for the local team (teams 0 and 1).

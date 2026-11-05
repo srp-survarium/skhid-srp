@@ -1,12 +1,12 @@
 {
-  "_about": "The lobby learns what one unit of an item takes of a pocket: property 166 carries parameters/pocket_units (srp's key, set by throwables.tsv: the RGD-5's 2) to the lobby's item descriptors, which the exe fills from a fixed set of parameters (fill_items_dictionary_impl 0x286410: fills_whole_pocket, not pocket_units). Not comparable, so no card shows it as a stat. The server reads parameters/pocket_units itself (item_params::PocketShare). No simulation change: a match plays the kit's counts (srp-026g/docs/notes/one-pocket-a-type.md).",
+  "_about": "The lobby learns what one unit of an item takes of a pocket: property 166 carries parameters/pocket_units (srp's key, set by throwables.tsv: the RGD-5's 2) to the lobby's item descriptors, which the exe fills from a fixed set of parameters (fill_items_dictionary_impl 0x286410: fills_whole_pocket, not pocket_units). Not comparable, so no card shows it as a stat (QuickSlotSize reads it: the pocket holds half); named st_srp_inv_pocket_units, made like the clip size line (16), without a unit. The server reads parameters/pocket_units itself (item_params::PocketShare). No simulation change: a match plays the kit's counts (srp-026g/docs/notes/one-pocket-a-type.md).",
   "add_entry": [
     {
       "files": "gameplay/static_game_parameters.options",
       "list": "ui_properties",
       "after": {"prop_id": 165},
-      "like": {"prop_id": 133},
-      "values": {"prop_id": 166, "comparable": false}
+      "like": {"prop_id": 16},
+      "values": {"prop_id": 166, "prop_name": "st_srp_inv_pocket_units", "comparable": false}
     },
     {
       "files": "gameplay/items/*.options",

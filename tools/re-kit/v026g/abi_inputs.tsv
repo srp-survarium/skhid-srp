@@ -3206,6 +3206,10 @@ va	name	location	role	basis
 0x0032a4b0	survarium::body_part::regenerate	EDI	the pool: +9Ch max health, +A0h health, +A4h regeneration_speed (per s), +A8h regeneration_threshold (x max), +ACh timeout ms, +B0h last hit ms, +2ECh regeneration_modifiers subscribers (0x329DF0); speed = getter 0x2D5AE0 index 2 (health_regeneration_speed) on +A4h, k 1	observed
 0x0032a4b0	survarium::body_part::regenerate	entry ESP+4	elapsed ms	observed
 0x0032a4b0	survarium::body_part::regenerate	entry ESP+8	now ms	observed
+0x0032a4b0	survarium::body_part::regenerate	ESP+10h at 0x32A53F	float rate: +A4h x apply_modifier(2 health_regeneration_speed), then each +2ECh regeneration modifier (0x329DF0 over {rate, delay, limit} at ESP+10h)	observed
+0x0032a4b0	survarium::body_part::regenerate	EAX at 0x32A53F	delay ms (+ACh past the regeneration modifiers): 0 regenerates at once, else not until now > +B0h + delay; its copy ESP+14h is not read again	observed
+0x0032a4b0	survarium::body_part::regenerate	ESP+18h at 0x32A53F	float limit (+A8h regeneration_threshold past the regeneration modifiers): heals to max x limit (0x32A56B..0x32A581); +A8h itself is also the HUD doll's break point (0x23712C)	observed
+0x002d5ae0	survarium::player_params_modifiers_container::apply_modifier	ESI	9 engineer_use_time and 10 engineer_success_chance: none of the 93 calls passes either index (76 an immediate ESI, the rest a computed or earlier one: 14, 15, 4/20, apply_kit_parameter 5 and 14..17); srp's regeneration indices (client patch 94, regeneration-booster.md)	observed
 0x0032ae00	survarium::body_part_parameters::serialize	ECX	body_part_parameters	inferred
 0x0032ae00	survarium::body_part_parameters::serialize	stack+4	writer	inferred
 0x0032afe0	survarium::body_part_parameters::deserialize	ECX	body_part_parameters	inferred
@@ -5455,6 +5459,12 @@ va	name	location	role	basis
 0x001f2ad0	survarium::player::render_name	at 0x1F2D7E: ESI, EDI	target player and game_world_ui: [player+10Ch]+178h non-null sets carried-battery modifier; compares HUD row +388h and ORs dirty bit 40h at +389h only on change (0x1F2D98..0x1F2DAB); row is player +114h index times 24 bytes	observed
 0x0023aa10	survarium::game_world_ui::update_player_icons	at 0x23B0B7: BL, ESI	dirty bit 40h emits row +10h as modifier_visible (string 0xA03A38, call 0x23B11C); row +11h dirty flags cleared at 0x23B12B before root.set_player_icons_props (0x23B1C4), including updates with visible false; Flash must consume modifier changes while hidden	observed
 0x001f2ad0	survarium::player::render_name	at 0x1F2B7C / 0x1F2BE8	life/visibility failure goes to 0x1F302C; projection failure hides/returns at 0x1F2C0C, before carry check 0x1F2D7E; successful projection first sets row visible at 0x1F2C25. Ordinary off-screen/drop/reveal does not prove a combined hidden+modifier update reaches Flash	observed
+0x0007f1a0	vostok::physics::bullet_character_controller::setup_crouch_state	EDI	the Bullet controller (its effective crouch +201h, can stand +202h, crouched shape +203h)	observed
+0x0007f1a0	vostok::physics::bullet_character_controller::setup_crouch_state	entry ESP+4	crouch selector byte: 1 crouched capsule, 0 standing (player_step 0x7BDC1/0x7BDDB)	observed
+0x0007bda0	vostok::physics::bullet_character_controller::player_step	EAX	the Bullet controller: crouches its capsule while +201h and stands it once +201h is clear and +202h allows	observed
+0x00337810	survarium::player_logic_crouch_state::request_effective_crouch	ECX	the crouch logic state: its player at +1Ch, the player's controller wrapper [player+494h], the Bullet controller its +0	observed
+0x00337830	survarium::player_logic_crouch_state::release_effective_crouch_if_clear	ECX	the crouch logic state (as request_effective_crouch)	observed
+0x00329a70	survarium::player_stamina::sprint	EDI	the stamina, embedded at base_player+6C0h (ctor 0x2D6E5C, tick 0x2D8FBC): XMM0 after 0x329AA5 is the sprint cost a second with modifiers 19 and 67	observed
 0x002d6590	survarium::animations_registry::animation_id	EAX	the pair: two resource pointers {first, second}	observed
 0x002d6590	survarium::animations_registry::animation_id	stack+4	the registry (map at +E030h)	observed
 0x002ef130	survarium::animations_registry::register_animation	stack+4	the registry	observed
@@ -5485,6 +5495,50 @@ va	name	location	role	basis
 0x002ff970	survarium::weapon_controller_core::deserialize	entry ESP+4	reader	observed
 0x00330a20	survarium::hit_animations_selector::hit_body_part::deserialize	ECX	hit body parts	observed
 0x00330a20	survarium::hit_animations_selector::hit_body_part::deserialize	EAX	reader	observed
+0x00057b80	vostok::sound::sound_scene::tick	entry ESP+4	the sound scene (one of the world's active scenes, +48E4h, next +108h)	observed
+0x00057b80	vostok::sound::sound_scene::tick	entry ESP+8	the ms since the world's last tick (sound_world::tick's EBX, 0x59AC0): the sound thread	observed
+0x00057d70	vostok::sound::sound_scene::calculate_3d_pan	entry ESP+4	the sound scene	observed
+0x00057d70	vostok::sound::sound_scene::calculate_3d_pan	entry ESP+8	the panning table (the scene's world +11Ch, then +0CCh)	observed
+0x00057d70	vostok::sound::sound_scene::calculate_3d_pan	entry ESP+0Ch	the sound_instance_proxy_internal (+80h its sound_type: 0 point, 1 cone/spot, 2 volumetric, 3 hud)	observed
+0x00057d70	vostok::sound::sound_scene::calculate_3d_pan	entry ESP+10h	the proxy's position (float3*, get_position 0x5C1F0)	observed
+0x00057d70	vostok::sound::sound_scene::calculate_3d_pan	entry ESP+14h	the listener distance, float, at least 1 (the propagator's +38h)	observed
+0x00057d70	vostok::sound::sound_scene::calculate_3d_pan	entry ESP+18h	the output matrix (float[2..4] out)	observed
+0x00057d70	vostok::sound::sound_scene::calculate_3d_pan	entry ESP+1Ch	the low-pass coefficient (float* out)	observed
+0x0005c1c0	vostok::sound::new_sound_propagator::amplitude	ECX	the propagator	observed
+0x0005c1f0	vostok::sound::sound_instance_proxy_internal::get_position	EAX	the proxy (its position an atomic half3 at +40h, read with lock cmpxchg8b)	observed
+0x0005c1f0	vostok::sound::sound_instance_proxy_internal::get_position	ESI	the float3 out	observed
+0x0005c280	vostok::sound::sound_scene::notify_listener2	entry ESP+4	the sound scene (its listener +120h; only when +2FAh is set, sound_scene::tick 0x57C9C)	observed
+0x0005c280	vostok::sound::sound_scene::notify_listener2	entry ESP+8	the ms since the last tick (passed to calculate_hdr_audio_frame 0x5C7A0 in EAX): the sound thread	observed
+0x000633f0	vostok::sound::voice_bridge::set_volume_impl	EAX	the sound_voice (not the bridge: +24h its not-started byte, +14h its voice_bridge: +10h the IXAudio2SourceVoice, +2Ch the volume set)	observed
+0x000633f0	vostok::sound::voice_bridge::set_volume_impl	entry ESP+4	the volume, float (notify_listener2: options volume_k x amplitude, 0x5C73A..0x5C73E)	observed
+0x00064f80	vostok::sound::sound_scene::new_point_sound_instance_proxy	EDI	the sound scene (its proxy allocator +188h, new_helper 0x65450)	observed
+0x00064f80	vostok::sound::sound_scene::new_point_sound_instance_proxy	entry ESP+4	the out slot (sound_instance_proxy*)	observed
+0x00064f80	vostok::sound::sound_scene::new_point_sound_instance_proxy	entry ESP+8	the sound emitter's slot (its reference taken for the proxy, +6Ch)	observed
+0x00064f80	vostok::sound::sound_scene::new_point_sound_instance_proxy	entry ESP+0Ch	the propagator emitter (the emitter's vtable +1Ch for the world user; the proxy's +70h)	observed
+0x00064f80	vostok::sound::sound_scene::new_point_sound_instance_proxy	entry ESP+10h	the world user (the proxy's +64h)	observed
+0x00065670	vostok::sound::sound_emitter::emit_point_sound	EAX	the scene slot (ptr to the sound_scene pointer: a game object's +94h)	observed
+0x00065670	vostok::sound::sound_emitter::emit_point_sound	ECX	the sound emitter (a reference held for the call)	observed
+0x00065670	vostok::sound::sound_emitter::emit_point_sound	entry ESP+4	the out slot (sound_instance_proxy*)	observed
+0x00065670	vostok::sound::sound_emitter::emit_point_sound	entry ESP+8	the world user (the sound world's logic user, its vtable slot 2)	observed
+0x000657c0	vostok::sound::sound_emitter::emit_and_play_once	ECX	the scene slot (ptr to the sound_scene pointer: a game object's +94h)	observed
+0x000657c0	vostok::sound::sound_emitter::emit_and_play_once	EAX	the world user	observed
+0x000657c0	vostok::sound::sound_emitter::emit_and_play_once	entry ESP+4	the sound emitter	observed
+0x000657c0	vostok::sound::sound_emitter::emit_and_play_once	entry ESP+8	the position (float3*)	observed
+0x000657c0	vostok::sound::sound_emitter::emit_and_play_once	entry ESP+0Ch	bool: nonzero a hud sound, 0 a point sound (0x657C9)	observed
+0x0025b940	survarium::game_world::play_sound	ECX	the game world (+94h its scene slot, +9Ch the game)	observed
+0x0025b940	survarium::game_world::play_sound	entry ESP+4	the emitter's slot (ptr<sound_emitter>*; an empty slot plays nothing)	observed
+0x0025b940	survarium::game_world::play_sound	entry ESP+8	the position (float3*)	observed
+0x00297c50	survarium::weapon_sound_effect::on_sound_event	ECX	the effect, embedded in its state's sound handler (weapon_sound_events_handler_state<S> +158h..+170h by S): +0/+4 first-view and +18h/+1Ch third-view sounds, +30h its weapon, +34h the game object whose scene slot (+94h) it plays in, +39h the variant index	observed
+0x00297c50	survarium::weapon_sound_effect::on_sound_event	entry ESP+4	the animation_callback_params (+20h the variant, 0FFh the next in turn)	observed
+0x0005c280	vostok::sound::sound_scene::notify_listener2	at 0x5C73E	XMM1 a voice's volume (volume_k x amplitude, or the propagator's gain) before set_volume_impl's argument store; EDI the propagator (+8 its proxy, +4 its voice); the push of the argument slot already done (0x5C739)	observed
+0x00065450	vostok::memory::new_helper<vostok::sound::sound_instance_proxy_internal>::call<vostok::memory::single_size_buffer_allocator<144,vostok::threading::multi_threading_policy> >	at 0x65484	EAX the record popped from the scene's proxy free list (144 bytes, 0x654E0), or 0 when every one is taken; EDI the allocator's count (+30h), lock xadd next: before any constructor (0x5A6B0, 0x5A840, 0x5A9C0, which write no further than +88h)	observed
+0x000657c0	vostok::sound::sound_emitter::emit_and_play_once	at 0x6587F	EAX the new point proxy (not 0: the je at 0x6587D), not yet played (vtable +0 at 0x658FD); EBP its frame, [ebp+4] the caller's return address	observed
+0x001f3b30	survarium::player::on_landing	EDI (from 0x1F3B3D)	the player: at 0x1F3B97 its step manager found ([ECX+0F474h] vtable +34h), before 0x23FBE0, the landing step (which calls step_manager::on_step at 0x23FC2C only past its speed and 50 ms tests); 0x1F3BBB is the return of both paths	observed
+0x00294930	survarium::object_sound::insert	at 0x294A6F	ESI its new proxy (kept at +160h): a spot (emit_spot_sound 0x294981, for +158h = 1) or a point (emit_point_sound 0x294A1A) one, played looped next (vtable +0, mode 1, 0x294A7B)	observed
+0x00297e20	survarium::weapon_sound_effect::play_sound_callback	ECX	the effect (kept at [esp+24h], 0x297E32): a member of its handler state at +158h..+170h (the fire states' +168h and +170h); [ebp+14h] 0 plays nothing; EAX at 0x297F7E the out slot of the hud (0x297F5E) or point (0x297F79) proxy	observed
+0x00298cc0	survarium::damage_zone::emit_sound	EAX	the zone (+414h its game object: +94h the scene slot, +9Ch the game)	observed
+0x00298cc0	survarium::damage_zone::emit_sound	EDX	the emitter's slot	observed
+0x00298cc0	survarium::damage_zone::emit_sound	entry ESP+4	the zone's proxy slot (the new point proxy replaces it, 0x298D0A; the result of emit_point_sound read at 0x298CF8)	observed
 0x00303890	survarium::grenade_core::load	ECX	the grenade_core	observed
 0x00303890	survarium::grenade_core::load	entry ESP+4	its config (game_material_settings/default/game_material_id, read through 0xF6B10 into +210h as a u16)	observed
 0x00303c10	survarium::grenade_core::throw_grenade	ECX	the grenade_core	observed
@@ -5502,3 +5556,8 @@ va	name	location	role	basis
 0x000181e0	message_processor	ESP+1Ch at 0x1835F	WM_INPUTLANGCHANGEREQUEST's HKL: passed to DefWindowProc (0x18377) only when survarium::game slot 44h (0x1EE7C0) says a text input is focused, else dropped (return 0, 0x18272); patch 107's site window.lang_request	observed
 0x000181e0	message_processor	ESP+1Ch at 0x183E3	WM_INPUTLANGCHANGE's HKL: ActivateKeyboardLayout(hkl, KLF_SETFORPROCESS) at 0x183FE when a text input is focused, then DefWindowProc; patch 107's site window.lang_change	observed
 0x001ee7c0	survarium::game::is_text_input_focused	ECX	the game (its slot 44h, called through engine_world+2D0h at 0x18359 and 0x183DD); +586Ch set to 1 by game::game 0x1E935D, switch_to_lobby 0x1ED256 and switch_to_login 0x1ED2E6, 0 by game::unload 0x1ED1D8, +1/-1 by chat_handler::focus 0x209BF8/0x209C10	observed
+0x0033f690	survarium::booster::booster	EDI	the booster (vtable 0xA1CA34) after inventory_item 0x2FFB80: its 68 modifier floats at +108h, one node {0, 0, index, value} at +268h for each that is not 0, their count +26Ch	observed
+0x0033f990	survarium::booster::add_modifiers	EDI	the booster: +250h its inventory (+174h the holder, vtable +0Ch the player); links its +268h nodes at the tail of the kit list +6B8h + kit x 704h + 204h + index x 14h	observed
+0x00313530	survarium::artefact_base::end_active	EDI	the artefact: +274h cooldown_sec x 1000; +28Ch = round(+274h x apply_modifier index 38 artefact_cooldown, k 1: x max(0, 1 + S)) on the holder kit container; +280h = 3	observed
+0x002d86e0	survarium::base_player::apply_new_input	at 0x2D88B1..0x2D88DF	a use starts only with none going ([player+134h] 0) on Use's edge: bit 21 clear in the actions before ([esp+24h]) and set in the new +330h; then detect_usable_object 0x2D84C0, its can_use (vtable+30h) and its use start (vtable+3Ch). A Use held from before starts nothing	observed
+0x0031c780	survarium::artefact_container_core::use_execute	at 0x31C783..0x31C7A2	called every tick of a use (0x2D86C6, base_player tick 0x2DAB0D while [player+134h] is set): 0 (the use ends, vtable+40h at 0x2D86D4) when the detected object (stack+12) is not this container or the user's actions [[stack+4]]+330h lack bit 21 (Use); else the search time, then the transfer or the progress	observed
