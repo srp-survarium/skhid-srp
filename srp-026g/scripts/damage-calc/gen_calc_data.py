@@ -322,6 +322,28 @@ for table in (weapons, armour):
              "available_defects_mask": item.pop("available_defects_mask")},
             item["default_modifications"], table is weapons)
 
+# Walls a bullet goes through (survarium::bullet::try_pierce 0x32D960): the
+# player's picks, each a group of materials of game_materials/game.materials
+# that share one `armor`, in its order; named as retail names materials where
+# they fit. The armour is the game's; a group whose materials differ stops the build.
+WALL_GROUPS = (
+    ("Glass, foliage", "Скло, листя", ("glass", "glass_car", "foliage_deciduous", "foliage_coniferous", "cloth", "plastic", "paper")),
+    ("Car", "Автомобіль", ("metal_car", "metal_gas_tank")),
+    ("Plywood", "Фанера", ("wood_thin", "glass_hard", "rubber")),
+    ("Tinplate", "Бляха", ("metall_thin", "schiefer")),
+    ("Brick, steel", "Цегла, сталь", ("brick", "metall_thick", "wood_tree")),
+    ("Concrete", "Бетон", ("concrete",)),
+    ("Stone", "Камінь", ("stone",)),
+)
+materials = {m["name"]: m for m in load("game_materials__game.materials.json")["materials"] if not m.get("deleted")}
+walls = []
+for name, name_uk, members in WALL_GROUPS:
+    armor = {r(materials[m]["physic"]["armor"]) for m in members}
+    if len(armor) != 1:
+        sys.exit(f"wall {name!r}: its materials' armor differs: {sorted(armor)}")
+    walls.append({"name": name, "name_uk": name_uk, "armor": armor.pop(), "materials": list(members)})
+walls.sort(key=lambda w: w["armor"])
+
 # Map names (st_<level>_name), for the map picker.
 level_names = {k.removeprefix("st_").removesuffix("_name"): {"en": v.strip(), "uk": text_uk(k)}
                for k, v in strings.items() if k.startswith("st_level_") and k.endswith("_name")}
@@ -338,6 +360,7 @@ out = {
     "mods": mods,
     "drugs": drugs,
     "artefacts": artefacts,
+    "walls": walls,
     "compat": compat,
     "default_ammo": default_ammo,
     "weapons": weapons,
