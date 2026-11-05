@@ -1785,6 +1785,8 @@ st_refill_ammo_btn	Käytä
 st_refill_ammo_label	Ammukset
 st_regen_booster_description	Vanhoja armeijan muona-annoksia. IVY-maiden armeijoiden käytössä ennen kriisiä. Kiihdyttävät aineenvaihduntaa ja maistuvat yhä melko hyviltä.
 st_regen_booster_name	Muona-annos
+st_regen_delay_name	Palautumisen viive
+st_regen_limit_name	Palautumisen raja
 st_registration_str	Luo tili
 st_regular_fix	Korjaa
 st_regular_money	Hopea

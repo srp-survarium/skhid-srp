@@ -1785,6 +1785,8 @@ st_refill_ammo_btn	Zastosuj
 st_refill_ammo_label	Amunicja
 st_regen_booster_description	Stare, wojskowe racje żywnościowe. Stosowane z powodzeniem w armiach krajów WNP w czasach przed kryzysem. Pobudzają metabolizm i są całkiem smaczne.
 st_regen_booster_name	Racje
+st_regen_delay_name	Opóźnienie regeneracji
+st_regen_limit_name	Limit regeneracji
 st_registration_str	Utwórz konto
 st_regular_fix	Naprawa
 st_regular_money	Srebro

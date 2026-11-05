@@ -3206,6 +3206,10 @@ va	name	location	role	basis
 0x0032a4b0	survarium::body_part::regenerate	EDI	the pool: +9Ch max health, +A0h health, +A4h regeneration_speed (per s), +A8h regeneration_threshold (x max), +ACh timeout ms, +B0h last hit ms, +2ECh regeneration_modifiers subscribers (0x329DF0); speed = getter 0x2D5AE0 index 2 (health_regeneration_speed) on +A4h, k 1	observed
 0x0032a4b0	survarium::body_part::regenerate	entry ESP+4	elapsed ms	observed
 0x0032a4b0	survarium::body_part::regenerate	entry ESP+8	now ms	observed
+0x0032a4b0	survarium::body_part::regenerate	ESP+10h at 0x32A53F	float rate: +A4h x apply_modifier(2 health_regeneration_speed), then each +2ECh regeneration modifier (0x329DF0 over {rate, delay, limit} at ESP+10h)	observed
+0x0032a4b0	survarium::body_part::regenerate	EAX at 0x32A53F	delay ms (+ACh past the regeneration modifiers): 0 regenerates at once, else not until now > +B0h + delay; its copy ESP+14h is not read again	observed
+0x0032a4b0	survarium::body_part::regenerate	ESP+18h at 0x32A53F	float limit (+A8h regeneration_threshold past the regeneration modifiers): heals to max x limit (0x32A56B..0x32A581); +A8h itself is also the HUD doll's break point (0x23712C)	observed
+0x002d5ae0	survarium::player_params_modifiers_container::apply_modifier	ESI	9 engineer_use_time and 10 engineer_success_chance: none of the 93 calls passes either index (76 an immediate ESI, the rest a computed or earlier one: 14, 15, 4/20, apply_kit_parameter 5 and 14..17); srp's regeneration indices (client patch 94, regeneration-booster.md)	observed
 0x0032ae00	survarium::body_part_parameters::serialize	ECX	body_part_parameters	inferred
 0x0032ae00	survarium::body_part_parameters::serialize	stack+4	writer	inferred
 0x0032afe0	survarium::body_part_parameters::deserialize	ECX	body_part_parameters	inferred

@@ -1195,9 +1195,14 @@ STATS = {
             'artefact_search': default_modification(113),
             'sway': default_modification(121),
             'respawn': default_modification(122),
+            # srp's player modifiers 10 and 9, which the exe never read (regeneration-booster-1.json):
+            # body_part::regenerate (exe patch 94, 0x32A53F) adds them to a regenerating pool's delay
+            # after a hit (seconds) and to its limit (a fraction of the maximum, at most all of it)
+            'regen_delay': default_modification(129),
+            'regen_limit': default_modification(130),
         },
         'add': {'artefact_cooldown'},
-        'match': {'weight', 'artefact_cooldown', 'health_regen', 'stamina_regen', 'movement', 'max_weight',
+        'match': {'weight', 'artefact_cooldown', 'regen_delay', 'regen_limit', 'health_regen', 'stamina_regen', 'movement', 'max_weight',
                   'artefact_search', 'sway', 'respawn'},
     },
     'character': {'configs': 'gameplay/players/default.player', 'match': {'player'}},

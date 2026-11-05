@@ -1785,6 +1785,8 @@ st_refill_ammo_btn	Umbenennen
 st_refill_ammo_label	Ausrüstung
 st_regen_booster_description	Alte armee- Ration wurde Erfolgreich von den Armeen der GUS-Staaten in der Vorkrisenperiode verwendet. Erhöht den Metabolismus, dabei ziemlich lecker.
 st_regen_booster_name	Ration
+st_regen_delay_name	Regenerationsverzögerung
+st_regen_limit_name	Regenerationsgrenze
 st_registration_str	Konto registrieren
 st_regular_fix	Reparatur
 st_regular_money	Silber

@@ -1,8 +1,8 @@
 //! Medical hooks over generated typed native handles. A borrowed player lives
 //! for the paused hook; a core lookup owns one reference until its guard drops.
-use super::{Context, Thread, drug::DrugsInUse, types::Place};
+use super::{Context, Reg, Thread, drug::DrugsInUse, types::Place};
 use crate::{
-    medical_skills::{Opponents, Painkiller, Skills, Stance},
+    medical_skills::{Opponents, Painkiller, Regeneration, Skills, Stance},
     raw,
 };
 use core::{
@@ -323,6 +323,43 @@ pub fn initialize(ctx: &mut Context<'_>) {
             }
         }
     }
+}
+/// Kit modifiers the exe never reads (no getter call, no code reference, no
+/// retail config), srp's regeneration ones, made from items' built-in
+/// modifications as any modifier (docs/notes/regeneration-booster.md):
+/// 10 engineer_success_chance, additive in the getter (table 0x927E08):
+/// seconds added to the delay after a hit; 9 engineer_use_time,
+/// multiplicative (the getter gives max(0, 1 + S)): the fraction of the
+/// maximum added to the limit regeneration stops at.
+const REGENERATION_DELAY: u32 = 10;
+const REGENERATION_LIMIT: u32 = 9;
+
+pub fn regenerate(ctx: &mut Context<'_>) {
+    use raw::site::medical_regenerate as site;
+    let delay = ctx.reg(Reg::Eax);
+    // SAFETY: body_part::regenerate's pool, its model's owner (bound at the
+    // constructor) and the frame's locals live for this hook.
+    let delay = unsafe {
+        let (Some(pool), Some(frame)) = (site::pool(ctx), site::frame(ctx)) else {
+            return;
+        };
+        let Some(at) = pool.model().and_then(|m| m.owner()) else {
+            return;
+        };
+        let modifiers = Player::new(ctx.thread(), at).modifiers();
+        if modifiers.is_none() {
+            return;
+        }
+        let regeneration = Regeneration::parse(
+            raw::engine_apply_modifier(modifiers, REGENERATION_DELAY, 0.0, 1.0),
+            raw::engine_apply_modifier(modifiers, REGENERATION_LIMIT, 1.0, 1.0) - 1.0,
+        )
+        .unwrap_or_default();
+        let (delay, limit) = regeneration.apply(*frame.rate(), delay, *frame.limit());
+        *frame.limit() = limit;
+        delay
+    };
+    ctx.set_reg(Reg::Eax, delay);
 }
 pub fn movement(ctx: &mut Context<'_>) {
     // SAFETY: the movement epilogue retains the player and final speed.

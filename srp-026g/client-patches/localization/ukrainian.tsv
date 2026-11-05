@@ -1785,6 +1785,8 @@ st_refill_ammo_btn	Підтвердити
 st_refill_ammo_label	Боєзапас
 st_regen_booster_description	Старий армійський сухпайок. Успішно застосовувався арміями країн СНД в докризовий період. Підвищує метаболізм, при цьому досить смачний.
 st_regen_booster_name	Сухпайок
+st_regen_delay_name	Затримка регенерації
+st_regen_limit_name	Межа регенерації
 st_registration_str	Створити новий акаунт
 st_regular_fix	Ремонт
 st_regular_money	Срібло
