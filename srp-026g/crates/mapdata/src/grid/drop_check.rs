@@ -15,6 +15,7 @@
 //! height of it.
 
 use super::{DIRS, LinkKind, NONE, SEED_M, SPAWN_M, Triangle, Vec3, WalkGrid, Wide};
+use super::controlled::{STARTS, out_of_walls, parallel};
 use crate::controller::Collision;
 use crate::controller::tick::{Controller, Settings};
 
@@ -70,18 +71,8 @@ impl WalkGrid {
         }
         let world = Collision::build(triangles);
         let s = Settings::LIVE;
-        let threads = std::thread::available_parallelism().map_or(1, |t| t.get()).clamp(1, 8);
-        let chunk = links.len().div_ceil(threads);
-        std::thread::scope(|scope| {
-            let handles: Vec<_> = links
-                .chunks(chunk)
-                .map(|part| {
-                    let (world, s) = (&world, &s);
-                    scope.spawn(move || part.iter().filter(|l| !follows(world, s, l.2, l.3)).map(|l| (l.0, l.1, 0.0)).collect::<Vec<_>>())
-                })
-                .collect();
-            handles.into_iter().flat_map(|h| h.join().expect("a drop check thread")).collect()
-        })
+        let follow = parallel(&links, |l| follows(&world, &s, l.2, l.3));
+        links.iter().zip(follow).filter(|(_, ok)| !ok).map(|(l, _)| (l.0, l.1, 0.0)).collect()
     }
 }
 
@@ -89,8 +80,18 @@ fn flat(a: Vec3, b: Vec3) -> f32 {
     (a.x - b.x).hypot(a.z - b.z)
 }
 
-/// Whether the client's walk tick takes a body walking off `from` down to `to` (module documentation).
+/// Whether the client's walk tick takes a body walking off `from` down to `to` (module documentation): on any of the
+/// controller pass's [`STARTS`] lines (across the link), each start moved out of the walls the body would overlap there
+/// ([`out_of_walls`]: the grid keeps floors 0.3175 m from a wall, the body's move test 0.42 m). A link is unfollowed only when
+/// every line fails, so one line's corner does not decide it (the controller pass's rule, learnt on Cologne's mossy log).
 pub(super) fn follows(world: &Collision, s: &Settings, from: Vec3, to: Vec3) -> bool {
+    let len = flat(from, to).max(1e-3);
+    let side = Vec3::new(-(to.z - from.z) / len, 0.0, (to.x - from.x) / len);
+    STARTS.iter().any(|&off| follows_line(world, s, out_of_walls(world, from + side * off), to + side * off))
+}
+
+/// One line of [`follows`]: the body set standing on `from`, steered at `to`, then on along the line.
+fn follows_line(world: &Collision, s: &Settings, from: Vec3, to: Vec3) -> bool {
     let mut body = Controller::standing_at(from);
     let landed = |feet: Vec3| (feet.y - to.y).abs() <= LAND_DY_M;
     // Steered at the landing; over it, on to the walk.
