@@ -165,7 +165,7 @@ impl Admission {
         self.catchup_hashes.clear();
     }
 
-    fn failed(&self) -> bool {
+    pub(super) fn failed(&self) -> bool {
         matches!(
             self.phase,
             AdmissionPhase::Failed | AdmissionPhase::Rejected
