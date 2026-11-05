@@ -1023,6 +1023,8 @@ pub struct TeamKnowledge {
     pub approaching: Vec<Fighting>,
     /// [A297 v4] The movers holding short now, and the enemy's place each knows (it looks there).
     pub holding: Vec<(Place, mapdata::Vec3)>,
+    /// [A310 `tdm.squad`] Each living squad member's leader now, (member, leader); empty with the switch off.
+    pub squad_leaders: Vec<(Place, Place)>,
     /// The team's deaths of the last [`LOSS_KEEP_MS`].
     pub losses: Vec<Loss>,
     /// The places enemies that held them were killed at, kept `TrapTuning::at_defeated`'s `keep_s` ([`Self::defeat`]).

@@ -84,6 +84,7 @@ pub mod sense;
 pub mod shot_reach;
 pub mod signals;
 pub mod smoke;
+pub mod squad;
 pub mod stamina;
 pub mod stock;
 pub mod stuck;
@@ -994,6 +995,7 @@ impl Bots {
             signals: MatchSignals::default(),
             next_commander: 0,
             features: TeamFeatures::default(),
+            squads: None,
         };
         let bots = teams
             .iter()

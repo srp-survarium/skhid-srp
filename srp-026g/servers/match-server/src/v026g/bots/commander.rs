@@ -11,6 +11,8 @@ pub(super) struct TeamState {
     pub(super) next_commander: u32,
     /// What each feature keeps of the team ([`features`]).
     pub(super) features: TeamFeatures,
+    /// [A310 `tdm.squad`] The team's squads, formed once at the first commander tick with every bot alive (`squad::form`).
+    pub(super) squads: Option<Vec<Vec<Place>>>,
 }
 
 /// [threat.breach] The team's Breaches at its commander tick (`breach.rs`): the due spots (its Flanks' failures) tried, the
@@ -737,6 +739,26 @@ impl Bots {
                 }
                 _ => {}
             }
+        }
+        // [A310 `tdm.squad`] Squads formed at spawn by position, kept for the match; each living member's leader now.
+        if tuning.tdm.squad.is_some() && !view.objective().has_homes() {
+            let alive_feet = |place: Place| view.place(place).filter(|p| p.alive).map(|p| (place, p.feet));
+            let skills: Vec<(Place, f32)> = mates
+                .iter()
+                .filter_map(|&p| self.bots.get(p).and_then(Option::as_ref).map(|b| (p, b.skill)))
+                .collect();
+            let state = &mut self.teams[usize::from(team)];
+            if state.squads.is_none() {
+                let members: Vec<(Place, Vec3)> = mates.iter().filter_map(|&p| alive_feet(p)).collect();
+                if !members.is_empty() && members.len() == mates.len() {
+                    state.squads = Some(squad::form(&members));
+                }
+            }
+            state.knowledge.squad_leaders = state.squads.as_ref().map_or_else(Vec::new, |squads| {
+                squad::leaders(squads, |p| {
+                    alive_feet(p).and_then(|_| skills.iter().find(|s| s.0 == p).map(|s| s.1))
+                })
+            });
         }
         // The bots checking spawners' spots now, and where (no more of
         // them than batteries missing, and apart, `plays::collect`).

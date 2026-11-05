@@ -1451,12 +1451,25 @@ pub fn start(
 /// enemy alone, its answerer not yet by it) stays, its view on his place, instead of its play's walk (`group::moves`).
 pub fn step(running: &mut Running, target: TargetRef, cx: &Ctx, rng: &mut Rng) -> Step {
     let step = step_play(running, target, cx, rng);
+    let moves = super::group::moves(Some(running.kind()));
     match (step, cx.team.holding.iter().find(|(bot, _)| *bot == cx.me.place)) {
-        (Step::Continue(_), Some(&(_, enemy))) if super::group::moves(Some(running.kind())) => {
-            Step::Continue(Intent::stay().looking(Look::At(enemy)))
-        }
+        (Step::Continue(_), Some(&(_, enemy))) if moves => Step::Continue(Intent::stay().looking(Look::At(enemy))),
+        (Step::Continue(intent), None) if moves => Step::Continue(squad_return(cx).map_or(intent, |at| Intent::to(at, Pace::Cruise))),
         (step, _) => step,
     }
+}
+
+/// [A310 `tdm.squad`] Where a moving squad member farther than the radius from its living leader walks back to: beside him
+/// (`squad::beside`); `None` when the switch is off, it leads, its leader is dead, or it is within the radius.
+fn squad_return(cx: &Ctx) -> Option<Vec3> {
+    let rule = cx.tuning.tdm.squad?;
+    let &(_, leader) = cx.team.squad_leaders.iter().find(|(member, _)| *member == cx.me.place)?;
+    let leader = cx.view.place(leader).filter(|p| p.alive)?;
+    if leader.feet.distance_xz(cx.me.feet) <= rule.radius_m.get() {
+        return None;
+    }
+    super::group::count(super::group::Count::SquadReturn);
+    Some(super::squad::beside(leader.feet, cx.me.feet, rule.close_m.get()))
 }
 
 fn step_play(running: &mut Running, target: TargetRef, cx: &Ctx, rng: &mut Rng) -> Step {
