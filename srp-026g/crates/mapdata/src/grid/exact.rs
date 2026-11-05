@@ -570,6 +570,37 @@ mod tests {
         assert_eq!(room.len(), plain.len());
     }
 
+    /// `Body::drop_room_walk_faces`: the same bracket with `walk` sides (a parapet of `walk` material, as level 7's deck has) is no
+    /// wall to `drop_room` alone, so the drop past it stays; with the switch the drop goes, and the floors (the erosion's walls) are
+    /// as without it.
+    #[test]
+    fn a_walk_faced_wall_beside_the_way_off_an_edge_takes_the_drop_with_drop_room_walk_faces() {
+        let mut tris = floor(0.0, 0.0, 5.0, 10.0, 0.0).to_vec();
+        tris.extend(floor(5.0, 0.0, 10.0, 10.0, 2.0));
+        let (a, b, c, d) = (Vec3::new(5.0, 0.0, 0.0), Vec3::new(5.0, 0.0, 10.0), Vec3::new(5.0, 2.0, 10.0), Vec3::new(5.0, 2.0, 0.0));
+        tris.extend([Triangle { v: [a, b, c], walker: WalkerBehaviour::BySlope }, Triangle { v: [a, c, d], walker: WalkerBehaviour::BySlope }]);
+        // The bracket's upright sides are `walk` faces; its top and bottom stay `dont_walk` (no floor on it).
+        tris.extend(block(4.6, 4.79, 4.8, 4.95, 2.7, 3.0).into_iter().map(|t| {
+            let normal = (t.v[1] - t.v[0]).cross(t.v[2] - t.v[0]);
+            let up = normal.y.abs() / normal.length();
+            Triangle { walker: if up < 0.5 { WalkerBehaviour::Walk } else { t.walker }, ..t }
+        }));
+        let build = |drop_room_walk_faces| {
+            let body = Body { erosion: Erosion::Exact, drop_room: true, drop_room_walk_faces, ..Body::default() };
+            WalkGrid::build_with_stats(&tris, AREA, 0.25, body)
+        };
+        let straight = |grid: &WalkGrid| {
+            let node = grid.locate(Vec3::new(5.125, 2.0, 5.125), 0.05).expect("the take-off is a floor");
+            grid.links(node).any(|(to, kind)| kind == LinkKind::Drop && grid.position(to).distance_xz(Vec3::new(4.625, 0.0, 5.125)) < 0.05)
+        };
+        let (room, room_stats) = build(false);
+        let (walk, walk_stats) = build(true);
+        assert!(straight(&room), "drop_room alone does not see the walk-faced bracket");
+        assert!(!straight(&walk), "the switch does");
+        assert!(walk_stats.drops_blocked > room_stats.drops_blocked);
+        assert_eq!(walk.len(), room.len(), "the floors are as without it");
+    }
+
     /// Stairs (`walk` faces) and floors are no walls: a staircase beside a floor takes no floors.
     #[test]
     fn stairs_and_floors_are_no_walls() {
