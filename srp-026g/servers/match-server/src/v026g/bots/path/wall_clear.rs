@@ -11,7 +11,8 @@
 //!    inset by the radius, done after the pull).
 //!
 //! Corners of a jump, a drop, a low floor, an edge floor (a lip, near a fall), a door gate or any point the route's records are
-//! keyed by stay where they are; a leg of those is left as it is. A grid without the clearance table changes nothing.
+//! keyed by stay where they are; a leg of those is left as it is. So does a jump's or a drop's run-up: the corner before its
+//! take-off and the leg into it (the press is aimed along that line; a turned run-up made Rudnya's 0.94 m step jump fail). A grid without the clearance table changes nothing.
 
 use super::*;
 
@@ -347,5 +348,28 @@ mod tests {
         assert_ne!(route.clone().wall_cleared(&grid).points()[1].at, low.at, "moves as a plain corner");
         let gated = route.with_gate(low.at);
         assert_eq!(gated.wall_cleared(&grid).points()[1].at, low.at);
+    }
+
+    /// The run-up into a jump stays as planned: the corner before the take-off is not moved and the leg into the take-off
+    /// gets no corner, where the same route with no jump after it changes (Rudnya's 0.94 m step: a turned run-up fails).
+    #[test]
+    fn a_jump_run_up_stays() {
+        let mut tris = floor();
+        tris.extend(block(5.0, 0.0, 5.5, 10.0));
+        let grid = grid_of(&tris);
+        let low = waypoint(&grid, 4.625, 5.125);
+        let landing = Waypoint { jump: Some(Leap::Ledge), ..waypoint(&grid, 1.125, 9.125) };
+        let walk = vec![waypoint(&grid, 1.125, 2.125), low, waypoint(&grid, 1.125, 8.125), waypoint(&grid, 1.125, 9.125)];
+        assert_ne!(Route::new(walk.clone()).wall_cleared(&grid).points()[1].at, low.at, "moves before a walk");
+        let mut jump = walk;
+        jump[3] = landing;
+        assert_eq!(Route::new(jump).wall_cleared(&grid).points()[1].at, low.at, "stays before a take-off");
+
+        let mut tris = floor();
+        tris.extend(block(5.0, 5.0, 5.5, 5.5));
+        let grid = grid_of(&tris);
+        let landing = Waypoint { jump: Some(Leap::Ledge), ..waypoint(&grid, 9.125, 4.625) };
+        let route = Route::new(vec![waypoint(&grid, 2.125, 4.625), waypoint(&grid, 8.125, 4.625), landing]);
+        assert_eq!(route.wall_cleared(&grid).points().len(), 3, "no corner in the run-up");
     }
 }
