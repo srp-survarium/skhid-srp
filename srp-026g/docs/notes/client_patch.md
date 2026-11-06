@@ -3199,7 +3199,7 @@ What it is for and the owner's rules: [dxvk-option.md](dxvk-option.md). Here: wh
 
 The owner's ask (2026-10-23, answers 2026-10-25, the mute and the list as 0.69's 2026-11-06). Team
 push-to-talk through `skhid_voice.dll` (`../../client-voice`) and srp's voice relay on the match
-port + 1. The Rust patch `voice.rs` (`voice.toml`, eight lohooks; its boundary `vostok/voice.rs`):
+port + 1. The Rust patch `voice.rs` (`voice.toml`, seven lohooks; its boundary `vostok/voice.rs`):
 
 - **The variables** (`configs.start`, before user.cfg): the sound tab's stock controls are bound by
   name to `s_chat_volume`, `s_use_microphone`, `s_mic_sens` (0x262DE8..0x262EC9) and nothing

@@ -250,7 +250,7 @@ Little-endian. Every datagram starts with `56 01 <type>`: the magic, the version
 Where the build differs from or adds to the design above:
 
 - **The exe patch is 66**, the safe Rust module `client-patches/rust/patches/src/voice.rs` over
-  its boundary `vostok/voice.rs`. Its names-only `voice.toml` chains eight lohooks of
+  its boundary `vostok/voice.rs`. Its names-only `voice.toml` chains seven lohooks of
   `sites_026g.tsv`: `configs.start` (the variables, before user.cfg), `match_client.connect`
   (`sv_start(host, match port + 1, session)`), `game_world.finish` and `game_world.deactivate`
   (`sv_stop`), `game_world.after_move` (every frame), `tab_cursor.key` (the keys) and

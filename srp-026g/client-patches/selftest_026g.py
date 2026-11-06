@@ -4683,7 +4683,7 @@ def test_match_keys(original, image, before):
 
 
 def test_voice(original, image, before):
-    """Check 66: voice chat (patch 66: voice.toml's eight lohooks, the action
+    """Check 66: voice chat (patch 66: voice.toml's seven lohooks, the action
     entry VOICE_ACTION; its Controls row is test_hide_ui's), the movies' side."""
     print("voice chat (patch 66)")
     stock = Image(original)
@@ -4708,10 +4708,10 @@ def test_voice(original, image, before):
     declarations = {h["entry"]: h for h in P.hooks_026g.hooks(exe=P.hooks_026g.original_reader(original))
                     if any(m["patch"] == "voice" for m in h.get("chain", [h]))}
     hooks = [h for h in P.rust_hooks(original) if h[2] in declarations]
-    check(len(hooks) == 8 and {h[0] for h in hooks} == {0x1EA210, 0x27A1B0, 0x1F96F0, 0x1F9520, 0x1F7C3C, 0x25CD00,
-                                                       0x200F50, 0x1FF5D0},
-          "voice.toml's eight lohooks: configs.start, match_client.connect, game_world.finish and .deactivate, "
-          "game_world.after_move, tab_cursor.key, options.activate, options.callback")
+    check(len(hooks) == 7 and {h[0] for h in hooks} == {0x1EA210, 0x27A1B0, 0x1F96F0, 0x1F9520, 0x1F7C3C, 0x25CD00,
+                                                       0x233D30},
+          "voice.toml's seven lohooks: configs.start, match_client.connect, game_world.finish and .deactivate, "
+          "game_world.after_move, tab_cursor.key, hud.callback")
     for va, old, symbol, opcode in hooks:
         target = linked.symbols[symbol]
         hook = P.hook_bytes(target, va, old, 0, opcode)
