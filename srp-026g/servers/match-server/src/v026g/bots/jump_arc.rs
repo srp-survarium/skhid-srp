@@ -53,9 +53,10 @@ const PREPARE_MS: f32 = 75.0;
 const PREPARE_M: f32 = 0.82;
 /// A body falling after its clip, m/s^2 (the bench stand-in's).
 const GRAVITY: f32 = 9.81;
-/// The heights over the feet whose rays a wall holds a body in the air at, m (the stand-in's `AIR_RAYS`: the feet a little over,
-/// the middle, the head).
-const AIR_RAYS: [f32; 3] = [0.1, 0.9, 1.7];
+/// The heights over the feet whose rays a wall holds a body in the air at, m: the capsule from the feet (a little over) to the head
+/// every 0.2 m. The stand-in's three (`AIR_RAYS` 0.1 / 0.9 / 1.7) let a body through the gaps of a railing (Vector Laboratory's
+/// bars at 0.43 / 0.70 m and top rail at 1.02-1.09 m over the platform), which the client's solid capsule cannot pass.
+const AIR_RAYS: [f32; 9] = [0.1, 0.3, 0.5, 0.7, 0.9, 1.1, 1.3, 1.5, 1.7];
 /// How deep under the arc's feet a floor still makes a cell open air rather than a wall (a drop off a ledge), m.
 const OPEN_BELOW_M: f32 = 10.0;
 /// How many cells round a target the floorless test looks (a ledge lip's eroded band is crossed, a wall's is not): GUESS 1.5.
