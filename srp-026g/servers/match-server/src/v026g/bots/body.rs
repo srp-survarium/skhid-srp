@@ -713,8 +713,9 @@ impl BodyTrack {
             fall: Fall::Ground,
         };
         // [A318] A world that has the body more than a step over its floor, out of its own jump, has it falling
-        // ([`DropFall::Gravity`]): at the speed the reckoning had it fall at, else from rest (a world has no vertical speed).
-        if let (DropFall::Gravity, Some(grid), Some(node), 0) = (kin.drop_fall, grid, node, air_until)
+        // ([`DropFall::Gravity`]): at the speed the reckoning had it fall at, else from rest (a world has no vertical speed). A body in
+        // the client's jump (`kin.jump_arc`: the arc runs past the old 800 ms air window, a sprint clip 955 ms) is the arc's.
+        if let (DropFall::Gravity, Some(grid), Some(node), 0, None) = (kin.drop_fall, grid, node, air_until, estimate.arc)
             && feet.y - grid.position(node).y > grid.body().step
         {
             let speed = match self.estimate.map(|e| e.fall) {
@@ -832,7 +833,7 @@ fn advance(
     for step in 1..=steps {
         // [A318] A falling body moves across from its floor; its height is played after the step.
         let top = at.feet.y;
-        if let (Some(grid), Fall::Falling { .. }, Some(node)) = (grid, at.fall, at.node) {
+        if let (Some(grid), Fall::Falling { .. }, Some(node), None) = (grid, at.fall, at.node, at.arc) {
             at.feet.y = grid.position(node).y;
         }
         let local = at.blend.tick_mixed(target, kin.blend_ticks, kin.mixer);
@@ -859,6 +860,7 @@ fn advance(
                     at.feet = feet;
                     at.node = landed.or_else(|| grid.locate(feet, LOCATE_M)).or(Some(node));
                     at.arc = None;
+                    at.fall = Fall::Ground;
                 }
             }
             continue;
@@ -910,12 +912,14 @@ fn advance(
         }
     }
     if kin.jump_arc {
-        // [A318] A press starts the client's jump when it may (`on_ground` 0x7EF90: standing, uncrouched; none under way).
+        // [A318] A press starts the client's jump when it may (`on_ground` 0x7EF90: standing, uncrouched, not falling; none under
+        // way).
         if tick.keys & key::JUMP != 0
             && at.keys & key::JUMP == 0
             && tick.keys & key::CROUCH == 0
             && tick.jump == JumpGate::Open
             && at.arc.is_none()
+            && at.fall == Fall::Ground
             && at.node.is_some()
         {
             at.arc = Some(JumpArc::pressed(tick.time, tick.keys, at.velocity[0].hypot(at.velocity[1]), at.feet, at.yaw));
@@ -2010,6 +2014,44 @@ pub(super) mod tests {
         }
         let at = track.estimate().unwrap();
         assert!(at.feet.x < 19.8 && at.feet.z > 13.0, "{at:?}");
+    }
+
+    /// [A318] The jump arc and drop_fall's fall do not overlap (fx-zones' review): a world 900 ms into a sprint jump (past the old
+    /// 800 ms air window) with the body 1 m over its floor keeps the arc and no fall, and its feet follow the arc, not the floor; a
+    /// press while the body falls starts no jump (`on_ground`).
+    #[test]
+    fn a_jump_arc_and_a_fall_do_not_overlap() {
+        let grid = walled();
+        let kin = Kinematics { jump_arc: true, ..Kinematics::default() };
+        assert_eq!(kin.drop_fall, DropFall::Gravity);
+        let run = key::FORWARD | key::SPRINT;
+        let mut track = BodyTrack::default();
+        track.fixed(fix(0, Vec3::new(5.0, 0.0, 5.0), 0.0), &kin, Some(&grid));
+        for time in (50..=300).step_by(50) {
+            track.decided(time, run, (0.0, 0.0), 0.0, &kin, Some(&grid));
+        }
+        track.decided(350, run | key::JUMP, (0.0, 0.0), 0.0, &kin, Some(&grid));
+        for time in (400..=1_250).step_by(50) {
+            track.decided(time, run, (0.0, 0.0), 0.0, &kin, Some(&grid));
+        }
+        track.fixed(fix(1_250, Vec3::new(5.0, 1.0, 9.0), 0.0), &kin, Some(&grid));
+        let at = *track.estimate().unwrap();
+        assert!(at.arc.is_some() && at.fall == Fall::Ground, "the arc's, not a fall: {at:?}");
+        track.decided(1_300, run, (0.0, 0.0), 0.0, &kin, Some(&grid));
+        let next = *track.estimate().unwrap();
+        assert!(next.feet.y > 0.5, "the feet follow the arc, not the floor: {next:?}");
+        // A press while falling starts nothing.
+        let falling = Estimate { fall: Fall::Falling { speed: 1.0 }, arc: None, ..at };
+        let pressed = advance(
+            falling,
+            Tick { time: at.time + TICK_MS, keys: key::JUMP, turn: (0.0, 0.0), kick: 0.0, jump: JumpGate::Open },
+            &kin,
+            1.0,
+            Some(&grid),
+            None,
+            Role::Reckoning,
+        );
+        assert!(pressed.arc.is_none(), "{pressed:?}");
     }
 
     /// [A318] With `kin.jump_arc` a press in place starts the client's jump (the body rises, then stands where it was at the
