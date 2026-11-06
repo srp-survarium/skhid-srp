@@ -60,7 +60,7 @@ import model as posing  # noqa: E402
 from scopes_lib import ce  # noqa: E402
 
 PACK_ID = 'rifle-scopes'
-VERSION = '8'
+VERSION = '9'
 LANGUAGES = ('english', 'german', 'original', 'polish', 'russian', 'ukrainian')
 FIRST_VARIANT = 2701
 CATEGORY = 22
@@ -341,24 +341,6 @@ def build(args, work):
             if mount['rails']:
                 idle_parts.append((ref['idle_dir'], np.zeros(3), mount['rails']))
             compose(args.compose, idle_parts, renames, idle_out)
-            if kind == 'C':
-                own = [s for s in lib.surfaces(aim_src) if not s.startswith('scope_lense')]
-                aim_parts = [(aim_src, t, own)]
-                rails = [s for s in mount['rails'] if s in (lib.surfaces(ref['aim_dir']) if ref['aim_dir'] else [])]
-                if rails:
-                    aim_parts.append((ref['aim_dir'], np.zeros(3), rails))
-                aim_parts.append((reticle, t + np.array([eye[0], eye[1], DOT_DISTANCE]), []))
-            else:
-                ref_aim = ref['aim_dir']
-                here = lib.bbox_centre(ref_aim, lib.REDDOT)
-                there = lib.bbox_centre(aim_src, lib.REDDOT)
-                aim_parts = [(ref_aim, np.zeros(3), [lib.BACKGROUND, lib.EYEPIECE_LENS]),
-                             (aim_src, here - there, [lib.GRID, lib.REDDOT])]
-            compose(args.compose, aim_parts, renames, aim_out)
-            wrap_uv(idle_out)
-            wrap_uv(aim_out)
-            files.update(files_of(idle_out, work))
-            files.update(files_of(aim_out, work))
             # the weapon's model: its eye at the optic's
             # (a variant's weapon model may differ from the weapon's own beyond its eye: the Kedr's
             # adds its scope_point; a new one is made from the mount variant's)
@@ -368,6 +350,32 @@ def build(args, work):
             found = lib.locator(lib.leaves(from_dir / 'render/export_properties'), 'scope_point')
             if found is None:
                 sys.exit(f'{w}: its model {from_model} has no scope_point')
+            if kind == 'C':
+                own = [s for s in lib.surfaces(aim_src) if not s.startswith('scope_lense')]
+                aim_parts = [(aim_src, t, own)]
+                rails = [s for s in mount['rails'] if s in (lib.surfaces(ref['aim_dir']) if ref['aim_dir'] else [])]
+                if rails:
+                    aim_parts.append((ref['aim_dir'], np.zeros(3), rails))
+                aim_parts.append((reticle, t + np.array([eye[0], eye[1], DOT_DISTANCE]), []))
+            else:
+                # the mount variant's eyepiece (background, lens) with the scope's reticle, its red dot
+                # (on the optic's own eye line, 0.69d0's) where that eyepiece's is, both moved so the dot
+                # is before the weapon's eye, the gun posed by its idle clip (the eyepiece as the mount
+                # variant has it put the A-545's TA01 143 px low, @7)
+                ref_aim = ref['aim_dir']
+                here = lib.bbox_centre(ref_aim, lib.REDDOT)
+                there = lib.bbox_centre(aim_src, lib.REDDOT)
+                frame = posed_frame(args.live, cfg, from_dir)
+                aim_xy = np.array(lib.locator(lib.leaves(from_dir / 'render/export_properties'), 'aim')[1][:2])
+                move = np.zeros(3)
+                move[:2] = (aim_xy - posing.transform(here, frame)[:2]) @ np.linalg.inv(frame[:2, :2])
+                aim_parts = [(ref_aim, move, [lib.BACKGROUND, lib.EYEPIECE_LENS]),
+                             (aim_src, move + here - there, [lib.GRID, lib.REDDOT])]
+            compose(args.compose, aim_parts, renames, aim_out)
+            wrap_uv(idle_out)
+            wrap_uv(aim_out)
+            files.update(files_of(idle_out, work))
+            files.update(files_of(aim_out, work))
             base_dir = lib.model_dir(args.live, base_model)
             needed = eye_on_dot(args.live, cfg, from_dir, t + np.array([eye[0], eye[1], DOT_DISTANCE]))
             # the weapon's own model only where the mount variant keeps it (the M4A1's mount variants
