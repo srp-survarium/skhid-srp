@@ -440,11 +440,12 @@ U<=1023 -- are self-bounded and are not in this list.)
 ```
 
 `animation_len` (crate `world-frame`) covers the length only and is proven on
-every kept world. Sealing 1-5 is the full structural tree parse: decode the
-tree as above with a node/recursion cap, require it to end exactly at `T` and
-the pops to stay within the table counts, and refuse the block otherwise. The
-tree pop counts (the `+ pop` notes) are confirmed exactly by that parser's
-tests; the bit reads above are from the 0.26g bodies.
+every kept world. `animation_validate` beside it seals 1-5: it decodes the
+tree as above with a node cap, requires it to end exactly at `T` and the pops
+to stay within the table counts, and `Frame::parse` refuses the block
+otherwise (`Refusal::Animation`). The bit reads above are from the 0.26g
+bodies; the `+ pop` counts and the node cap still need the kept-world corpus
+run to confirm no real stream is refused before a release leans on it.
 
 ### 7.3 The state's head — `game_world_core_client::serialize` 0x3218E0, `base_player::serialize` 0x2DAF60 (reader 0x2DB490)
 
