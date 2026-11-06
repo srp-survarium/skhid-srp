@@ -87,7 +87,7 @@ fn a_trap_let_go_by_the_plane_rule_lies_nowhere_this_often() {
                     match on_bullet {
                         Err(Why::Slope) => c.refused_slope += 1,
                         Err(_) => c.refused_floor += 1,
-                        Ok(at) if at.distance(plane) > 0.5 => c.moved += 1,
+                        Ok(at) if (at - plane).length() > 0.5 => c.moved += 1,
                         Ok(_) => {}
                     }
                 }
