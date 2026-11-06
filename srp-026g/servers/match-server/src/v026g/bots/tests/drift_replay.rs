@@ -205,7 +205,12 @@ fn drift_on_a_real_match() {
     if let Some(path) = var("SRP_A304_LEVELS") {
         let levels = kit_levels(&path);
         for (&place, levels) in levels.iter().filter(|(place, _)| !humans.contains(place)) {
-            tracks.entry(place).or_default().set_prior_level(levels.first().copied());
+            let track = tracks.entry(place).or_default();
+            track.set_prior_level(levels.first().copied());
+            // [A331] The computed level picks among the kit's values ([`super::super::kin::LevelSource::Computed`]).
+            if kin.level_source == super::super::kin::LevelSource::Computed {
+                track.set_speed_candidates(levels.clone());
+            }
         }
         eprintln!("A332 levels: {} places from {path}", levels.len());
     }
