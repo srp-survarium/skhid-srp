@@ -106,7 +106,7 @@ impl SpotSight<'_> {
     fn seen(&self, n: NodeId) -> bool {
         *self.seen.borrow_mut().entry(n).or_insert_with(|| {
             let top = self.world.grid.position(n) + Vec3::new(0.0, EXPOSED_TOP_M, 0.0);
-            self.eyes.iter().any(|&eye| eye.distance(top) <= 120.0 && visible(&self.world.sight, eye, top))
+            self.eyes.iter().any(|&eye| (top - eye).length() <= 120.0 && visible(&self.world.sight, eye, top))
         })
     }
 
@@ -147,7 +147,7 @@ fn ending_at_fire(grid: &WalkGrid, sight: &SpotSight, mut floors: Vec<NodeId>) -
     floors.truncate(first + 1);
     let (mut length_m, mut seen_m) = (0.0, 0.0);
     for w in floors.windows(2) {
-        let d = grid.position(w[0]).distance(grid.position(w[1]));
+        let d = (grid.position(w[1]) - grid.position(w[0])).length();
         length_m += d;
         if sight.seen(w[1]) {
             seen_m += d;
@@ -168,7 +168,7 @@ fn seen_leap(grid: &WalkGrid, sight: &SpotSight, floors: &[NodeId]) -> Option<us
 fn spread(grid: &WalkGrid, floors: impl Iterator<Item = NodeId>, gap: f32, n: usize, keep: impl Fn(NodeId) -> bool) -> Vec<NodeId> {
     let mut out: Vec<NodeId> = Vec::new();
     for f in floors.filter(|&f| keep(f)) {
-        if out.iter().all(|&o| grid.position(o).distance(grid.position(f)) >= gap) {
+        if out.iter().all(|&o| (grid.position(f) - grid.position(o)).length() >= gap) {
             out.push(f);
             if out.len() == n {
                 break;
@@ -302,7 +302,7 @@ fn routes_of(world: &World, spot: &InSpot, camper_side: i32) -> (Vec<serde_json:
     found.sort_by(|a, b| a.score().total_cmp(&b.score()));
     for r in found.iter().take(KEEP) {
         let fire_at = grid.position(*r.floors.last().unwrap());
-        let origin = if wins_fire.iter().any(|w| w.distance(fire_at) <= NEAR_WIN_M) { Origin::AstarNearWin } else { Origin::Astar };
+        let origin = if wins_fire.iter().any(|&w| (fire_at - w).length() <= NEAR_WIN_M) { Origin::AstarNearWin } else { Origin::Astar };
         rows.push(row(grid, origin, r));
     }
     let note = format!(
