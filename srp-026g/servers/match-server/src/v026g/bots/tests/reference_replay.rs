@@ -83,6 +83,7 @@ fn reference_replay() {
     // `SRP_A325_TURN_FIRST=1`: each tick's velocity turned by that tick's own turn first (the reckoning moves, then turns).
     let turn_first = var("SRP_A325_TURN_FIRST").is_some();
     let exe_order = var("SRP_A325_EXE_ORDER").is_some();
+    let pos_lag1 = var("SRP_A325_POS_LAG1").is_some();
     // `SRP_A325_WORLD_BLEND=k`: the velocity kept in the world frame, each tick k of the way toward the intended (a turn does not
     // swing the momentum round with the yaw at once). A hypothesis test, not a client rule.
     let world_blend: Option<f32> = var("SRP_A325_WORLD_BLEND").and_then(|v| v.parse().ok());
@@ -179,8 +180,17 @@ fn reference_replay() {
         // t is moved by the state AFTER tick t's input, which is the reckoning's next step (it moves t -> t + 50 with tick t's keys
         // and yaw); the trail keeps the ticks past the world (decided up to WORLD_LATE_MS), so the next one is there.
         let ahead: Vec<&(u32, Vec3, [f32; 2], bool)> = trail.iter().filter(|r| r.0 > t0).collect();
+        // `SRP_A325_POS_LAG1=1`: the world's position one tick behind its yaw/keys (hypothesis: the world block written after
+        // the tick's input, before physics moves the body): the move ending at t uses the previous step's velocity.
+        let before_first = trail.iter().rev().find(|r| r.0 <= t0).map(|r| r.2);
         for (i, &&(t, _, v_own, _)) in ahead.iter().enumerate().take_while(|(_, r)| r.0 <= w.time) {
-            let v = if exe_order { ahead.get(i + 1).map_or(v_own, |r| r.2) } else { v_own };
+            let v = if exe_order {
+                ahead.get(i + 1).map_or(v_own, |r| r.2)
+            } else if pos_lag1 {
+                if i == 0 { before_first.unwrap_or(v_own) } else { ahead[i - 1].2 }
+            } else {
+                v_own
+            };
             let sub = (((t - last_t) as f32 / 1000.0) / TICK_S).round().max(1.0) as usize;
             for _ in 0..sub {
                 tick_n += 1;
