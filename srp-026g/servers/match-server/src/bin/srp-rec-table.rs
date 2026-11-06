@@ -49,6 +49,13 @@ fn main() -> ExitCode {
         eprintln!("usage: srp-rec-table <file.srprec> <out dir>");
         return ExitCode::from(2);
     };
+    // The players' dictionary of the recording's revision (`SRP_GAME_DATA`), as `srp-recording-to-sur` loads it: without it
+    // `Dictionary::shared()` is the test archive's, and the 0xE4 of a match whose kits hold items newer than it (every live match
+    // since the ported weapons) does not parse, so the rosters, and `rec_levels.csv`, come out empty.
+    if let Err(error) = survarium::v026g::game_data::init() {
+        eprintln!("{error}");
+        return ExitCode::from(2);
+    }
     match run(Path::new(input), Path::new(out)) {
         Ok(()) => ExitCode::SUCCESS,
         Err(error) => {
