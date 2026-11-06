@@ -214,3 +214,50 @@ mod tests {
         assert_eq!(hold(20.0, WalkerBehaviour::DontWalk), Hold::SlidesMoving);
     }
 }
+
+#[cfg(test)]
+mod probe {
+    use super::*;
+
+    /// How far a still body on a plane of each slope goes in 1 s and 3 s (feet across, down), and the contact normal's slope.
+    #[test]
+    #[ignore = "a probe: prints, asserts nothing"]
+    fn print_still_body_slides() {
+        for (deg, walker) in [
+            (40.0f32, WalkerBehaviour::BySlope),
+            (45.0, WalkerBehaviour::BySlope),
+            (48.0, WalkerBehaviour::BySlope),
+            (50.0, WalkerBehaviour::BySlope),
+            (53.0, WalkerBehaviour::BySlope),
+            (56.0, WalkerBehaviour::BySlope),
+            (58.0, WalkerBehaviour::BySlope),
+            (65.0, WalkerBehaviour::BySlope),
+            (20.0, WalkerBehaviour::DontWalk),
+        ] {
+            let rise = 8.0 * deg.to_radians().tan();
+            let mut tris = Vec::new();
+            let (a, b, c, d) = (Vec3::new(0.0, 0.0, 0.0), Vec3::new(0.0, 0.0, 8.0), Vec3::new(8.0, rise, 8.0), Vec3::new(8.0, rise, 0.0));
+            tris.push(Triangle { v: [a, b, c], walker });
+            tris.push(Triangle { v: [a, c, d], walker });
+            let world = Collision::build(&tris);
+            let feet = Vec3::new(5.0, 5.0 * deg.to_radians().tan(), 4.0);
+            let mut c = Controller::standing_at(feet);
+            let mut line = format!("{deg:>4} deg {walker:?}:");
+            for t in 1..=60 {
+                c.walk = Vec3::ZERO;
+                c.step(&world, 0.05, &Settings::LIVE);
+                if t == 20 || t == 60 {
+                    let e = c.feet();
+                    line += &format!(
+                        " {}s across {:.2} down {:.2} n.y {:.3};",
+                        t / 20,
+                        Vec3::new(e.x - feet.x, 0.0, e.z - feet.z).length(),
+                        feet.y - e.y,
+                        c.contact_normal.y
+                    );
+                }
+            }
+            eprintln!("{line}");
+        }
+    }
+}
