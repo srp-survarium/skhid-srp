@@ -321,8 +321,13 @@ impl Sim {
         .to_bytes();
         // Keep the large-world transport tests large with valid current
         // records: fixed-size bullets, not bytes in the empty physics
-        // section. The salt changes a free header field.
-        let bullet_count = self.ballast.div_ceil(69);
+        // section. The salt changes a free header field. Place 0 shoots
+        // them once it has entered (an initial world has none).
+        let bullet_count = if rule.mask & 1 != 0 {
+            self.ballast.div_ceil(69)
+        } else {
+            0
+        };
         let mut bullets = vec![0; 16];
         bullets[12..16].copy_from_slice(&(bullet_count as u32).to_le_bytes());
         for number in 0..bullet_count {
@@ -362,11 +367,14 @@ impl Sim {
         let header = valid_empty_inventory();
         let mut effects = vec![0; 12];
         effects.extend([0, 0, 0x80, 0x3f, 0, 0, 0, 0]);
-        // The player blocks: a state, and an animation state after it.
+        // The player blocks: a state, and an animation state after it, of
+        // each place that has entered (a game's world has no other: its
+        // initial one none).
         let mut mask = 0u32;
         let mut blocks = Vec::new();
         for (place, head) in states.iter().enumerate() {
-            if let Some(head) = head {
+            let entered = rule.mask & 1u32.checked_shl(place as u32).unwrap_or(0) != 0;
+            if let Some(head) = head.as_ref().filter(|_| entered) {
                 mask |= 1 << place;
                 let mut inventory = header.clone();
                 if let Some(items) = self

@@ -145,6 +145,30 @@ recording's own 0xE4). Before the artefact cores 85 of the first sample's
 24,749 were refused, all at an active artefact. The client's world check still
 has no object list: its native guards stay its bound.
 
+## Which worlds reach another game, and the animation streams
+
+The semantic check reads every section of an upload but each player block's
+animation stream, which only the frame's walk measures. A world reaches another
+game only as (`game.rs`, `usable_snapshot`):
+
+- the snapshot, once its CRC (`game_state_history_item::hash` 0x325150, over
+  the whole body, animation streams too) is the majority of the clients' hash
+  reports for its tick (`check_candidates`);
+- the newest upload, once another game reported its CRC as well (two
+  vouchers), or when one game alone simulates;
+- the initial world, the first upload, which no other game vouches for.
+
+So one client can put an animation stream of its own into another game's world
+only through the initial world, or as the one game a newcomer joins. The
+initial world has no player block: every player enters with 0xE9 after the
+clock starts on it. Its active mask is 0 in all 46 kept initial worlds and in
+the first uploads of the 118 live matches (539 uploads), and `not_initial` now
+refuses one with a player in it (`SRP_CHECK_INITIAL_WORLD`, on by default).
+Scripted worlds write a place's block only once it has entered, as games do.
+
+Still open: a game that joins a match where one other game simulates loads
+that game's world with no second source for its animation streams.
+
 ## Player states to their exact end on the server
 
 Each player's state is read to its block's exact end
