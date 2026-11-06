@@ -118,6 +118,21 @@ fn reference_replay() {
     // root is re-based on the body each tick (0x39F450, REFERENCE-RULES 'Root re-base', PROVEN for the walk): only the tick's root
     // delta moves the body. The A/B of the two readings.
     let jump_chase = var("SRP_A325_JUMP_CHASE").is_some();
+    // The client's own jump flag per world (rec_motion.csv `jumping` beside the worlds: the body's jump flag in the world block,
+    // nonzero exactly with m_jump_type, sprint-jump-re FINDINGS 1.7): a jump pressed before b is under way at b only when the
+    // client's world b says so.
+    let jumping_at: HashMap<(usize, u32), bool> = {
+        let path = worlds.replace("rec_worlds.csv", "rec_motion.csv");
+        if jump_mode && path != worlds && std::path::Path::new(&path).exists() {
+            read_csv(&path)
+                .iter()
+                .filter(|r| r.get("upload").is_some_and(|u| u == "0"))
+                .filter_map(|r| Some(((r.get("place")?.parse().ok()?, r.get("time")?.parse().ok()?), r.get("jumping")? == "1")))
+                .collect()
+        } else {
+            HashMap::new()
+        }
+    };
     // `SRP_A325_ROWS_NEAR_JUMP=1`: the per-tick rows only of intervals within 2.5 s after a press (the checks stay whole): a
     // small output for the jump rows.
     let rows_near_jump = var("SRP_A325_ROWS_NEAR_JUMP").is_some();
@@ -325,8 +340,11 @@ fn reference_replay() {
         };
         let mut jump: Option<RefJump> = None;
         let mut iv = String::new();
-        if jump_mode && let Some(&p) = presses.iter().rev().find(|&&p| p < t0) {
-            let mut j = RefJump::new(p, keys_in(p), walk_speed(p.saturating_sub(50)), from, jump_chase);
+        if jump_mode
+            && jumping_at.get(&(w.place, t0)) != Some(&false)
+            && let Some(&p) = presses.iter().rev().find(|&&p| p < t0)
+        {
+            let mut j = RefJump::new(p, keys_in(p), walk_speed(p.saturating_sub(50)) / level, from, jump_chase);
             if j.frame(t0) < END_FRAME {
                 if j.frame(t0) >= TAKEOFF_FRAME {
                     j.phase = RefPhase::Air;
@@ -412,7 +430,7 @@ fn reference_replay() {
                 if jump_mode {
                     let k = t0 + 50 * (tick_n - 1);
                     if jump.is_none() && presses.contains(&k) && body.on_ground(&s) {
-                        jump = Some(RefJump::new(k, keys_in(k), v[0].hypot(v[1]), body.feet(), jump_chase));
+                        jump = Some(RefJump::new(k, keys_in(k), v[0].hypot(v[1]) / level, body.feet(), jump_chase));
                     }
                     if let Some(j) = jump.as_mut() {
                         // The flat walk's cap applies on the floor (no jump flag yet), as the keys mode's.
@@ -532,6 +550,8 @@ struct RefJump {
 }
 
 impl RefJump {
+    /// `speed`: the body's speed over its level (the sprint jump's bar 0x2DC010 is the walk's desired speed x (1 + Σ modifier 4),
+    /// the same factor as the level: so the test is on the speed at level 1, `Clip::of`'s 3.5).
     fn new(press: u32, keys: u32, speed: f32, feet: Vec3, chase: bool) -> Self {
         Self { clip: Clip::of(keys, speed), press, target: feet, phase: RefPhase::Floor, chase }
     }
