@@ -139,6 +139,8 @@ fn drift_on_a_real_match() {
     // `SRP_A304_HOLD=1` [A318]: each 'faster' world the grid held the reckoning in (the client walked 1 m+ more than the keys meant):
     // the floor it was held on against the floor under the client's feet, and the grid's links between them.
     let hold_probe = var("SRP_A304_HOLD").is_some();
+    // `SRP_A304_HOLD=all`: every held world's sample line, not the first three of each kind.
+    let hold_all = var("SRP_A304_HOLD").is_some_and(|v| v == "all");
     let mut hold_kinds: HashMap<&str, u32> = HashMap::new();
     for w in rows {
         while k < ticks.len() && ticks[k].0 <= w.time + WORLD_LATE_MS {
@@ -205,7 +207,7 @@ fn drift_on_a_real_match() {
             };
             let seen = hold_kinds.entry(kind).or_insert(0);
             *seen += 1;
-            if *seen <= 3 {
+            if *seen <= 3 || hold_all {
                 eprintln!(
                     "A318 hold sample: {kind}: client ({:.2}, {:.2}, {:.2}), held ({:.2}, {:.2}, {:.2})",
                     feet.x, feet.y, feet.z, reckoned.x, reckoned.y, reckoned.z
