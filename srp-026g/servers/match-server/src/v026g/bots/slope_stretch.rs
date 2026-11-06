@@ -1,26 +1,27 @@
 //! [A322] The reckoned body's speed up stairs and ramps by the grade of the stretch ahead (`kin.slope_speed: stretch`).
 //!
-//! The client slows going up, on every map and every kind of climb, and not going down (15 client-test recordings, steady keys,
-//! 1 s pairs; fx-smoke a322/climb_speed.py). Its forward walk over the ground is 0.95x the flat speed at a grade of 0.15-0.3,
-//! 0.90x at 0.3-0.5 and 0.79x over 0.5 (a sprint 0.96 / 0.90 / 0.83). Down it keeps 0.95-0.99x. The fit
-//! `1 - 0.3 x grade` gives 0.93, 0.88 and 0.79 there.
+//! The client's walk tick (`mapdata::controller::tick`, proven against the exe in Unicorn) keeps a walk's length and turns it
+//! along what the body climbs: up a ramp the move goes along the face (`corrected_walk` / `get_wall_slide_vector` 0x7AC50), up
+//! stairs the step-up lifts the body inside the same move. So its ground speed going up is the walk speed times the cosine of
+//! the climb's grade, and going down (`step_down`) the whole of it. Probe (fx-smoke a322, climb_tick):
+//! - ramps of grade 0.1-1.2: up = cos(atan(grade)) to three decimals (0.894 at 0.5, 0.707 at 1.0);
+//! - stairs: the cosine of the stair's mean grade (riser / tread; 0.800 at 0.15 / 0.20, where cos is 0.800);
+//! - down: 1.000 on all of them;
+//! - real ground (the 15 client-test recordings' steady forward climbs, the tick walked from each world's feet): 0.958 / 0.909
+//!   / 0.835 at grades 0.15-0.3 / 0.3-0.5 / 0.5+, against the client's 0.951 / 0.895 / 0.792.
 //!
 //! The grade is the walk's over a stretch ahead, not one tick's rise. A 50 ms tick over a stair crosses a riser (a cliff) or a
 //! tread (flat), so a per-tick rule (`SlopeSpeed::Up`) slowed stairs in jerks, and the lab found it worse on Vostok Radar
-//! Station's and Chemical Plant's stairs. Yet the client slows on those maps too (0.90x and 0.83x at 0.3-0.5).
+//! Station's and Chemical Plant's stairs. Yet the client slows on those maps too.
 
 use mapdata::{LinkKind, NodeId, Vec3, WalkGrid};
 
 /// How far ahead along the walk the grade is taken, m.
 pub const STRETCH_M: f32 = 1.0;
-/// The client's slow-down per unit of grade going up.
-pub const SLOW_PER_GRADE: f32 = 0.3;
-/// The least share of the ground step covered (a grade of 1.67 and steeper).
-pub const MIN_SHARE: f32 = 0.5;
 
 /// The share of a ground step the body covers walking along `dir` (the walk's ground direction, any length) from `feet` on
 /// `node`: the grid's walk links followed from `node` toward `dir` for [`STRETCH_M`], and the rise to the floor reached over
-/// that run gives the grade. 1 where the stretch does not rise (or no walk link leads on).
+/// that run gives the grade; the share is its cosine. 1 where the stretch does not rise (or no walk link leads on).
 pub fn share(grid: &WalkGrid, node: NodeId, feet: Vec3, dir: [f32; 2]) -> f32 {
     let len = dir[0].hypot(dir[1]);
     if len < 1e-4 {
@@ -53,7 +54,7 @@ pub fn share(grid: &WalkGrid, node: NodeId, feet: Vec3, dir: [f32; 2]) -> f32 {
     if run < 0.25 || rise <= 0.0 {
         return 1.0;
     }
-    (1.0 - SLOW_PER_GRADE * rise / run).max(MIN_SHARE)
+    run / run.hypot(rise)
 }
 
 #[cfg(test)]
@@ -82,7 +83,7 @@ mod tests {
         let height = |x: f32| ((x - 4.0) * 0.5).clamp(0.0, 2.0);
         let on = |x: f32| g.locate(Vec3::new(x, height(x) + 0.3, 0.1), 0.3).expect("a floor");
         let up = share(&g, on(5.0), g.position(on(5.0)), [1.0, 0.0]);
-        assert!((up - (1.0 - 0.3 * 0.5)).abs() < 0.03, "up the 0.5 grade: {up}");
+        assert!((up - 0.5f32.atan().cos()).abs() < 0.02, "up the 0.5 grade: its cosine, {up}");
         assert_eq!(share(&g, on(1.0), g.position(on(1.0)), [1.0, 0.0]), 1.0, "flat ahead");
         assert_eq!(share(&g, on(6.0), g.position(on(6.0)), [-1.0, 0.0]), 1.0, "down the ramp");
         assert_eq!(share(&g, on(5.0), g.position(on(5.0)), [0.0, 0.0]), 1.0, "no walk");

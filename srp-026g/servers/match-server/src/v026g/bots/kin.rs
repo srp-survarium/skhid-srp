@@ -138,9 +138,10 @@ pub enum SlopeSpeed {
     #[default]
     RampsGrade,
     /// [A322] Every rising step on any floor is shortened by the grade of the stretch ahead (`super::slope_stretch`): the grid's
-    /// walk links followed 1 m along the walk, the share `1 - 0.3 x grade`, the client's fit on all 15 client-test recordings
-    /// (uphill 0.95x at a grade of 0.15-0.3, 0.90x at 0.3-0.5, 0.79x over 0.5, on every map; downhill full speed). A stretch, not
-    /// the tick: a per-tick rise on stairs is a cliff or a tread (why [`Self::Up`] made stairs worse).
+    /// walk links followed 1 m along the walk, the share the cosine of its grade: the client's walk tick keeps the walk's length
+    /// along the climb, on ramps and stairs alike, and all of it going down (proven on the ported tick: ramps to three decimals,
+    /// stairs by riser / tread; on the recordings' climbs 0.958 / 0.909 / 0.835x vs the client's 0.951 / 0.895 / 0.792x). A
+    /// stretch, not the tick: a per-tick rise on stairs is a cliff or a tread (why [`Self::Up`] made stairs worse).
     Stretch,
 }
 
