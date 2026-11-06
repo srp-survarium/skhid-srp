@@ -209,6 +209,13 @@ fn job_line<'a>(cx: &Ctx<'a>, target: TargetRef) -> Option<&'a crate::v026g::bot
 const ROUTE_PASS_M: f32 = 2.0;
 /// [A320] The way point is the first route floor this far ahead at least, m.
 const ROUTE_LEAD_M: f32 = 5.0;
+/// [A320] A route is not taken when a floor of it lies this near (and a storey) of another enemy the team knows, m.
+const ROUTE_ENEMY_M: f32 = 18.0;
+/// [A320] Nor when a floor of it this near another known enemy is in his sight, m.
+const ROUTE_ENEMY_SIGHT_M: f32 = 40.0;
+/// [A320] Every this many floors of a route are tested against the known enemies (0.25-0.75 m apart).
+const ROUTE_ENEMY_STEP: usize = 4;
+
 /// [A320] The route's time: its length at this pace, m/s, and this more, ms (a walk is about 3.5 m/s).
 const ROUTE_PACE_MPS: f32 = 2.0;
 const ROUTE_SPARE_MS: u32 = 15_000;
@@ -228,8 +235,38 @@ fn camp_spot_of(cx: &Ctx, line: &crate::v026g::bots::threat::HeldLine) -> Option
     })
 }
 
+/// [A320] Whether a route's floors keep clear of the other enemies the team knows: none of them (the camper aside) sensed
+/// or called out within the fairness window (`smoke::FAIR_SENSED_MS`, the team's own senses only, `Track::own`) has a floor
+/// of it within [`ROUTE_ENEMY_M`], or in his sight within [`ROUTE_ENEMY_SIGHT_M`].
+fn route_clear(cx: &Ctx, floors: &[mapdata::NodeId], camper: Place) -> bool {
+    let grid = &cx.tactics.world.grid;
+    let known: Vec<Vec3> = cx
+        .memory
+        .tracks()
+        .iter()
+        .filter(|t| t.who != camper)
+        .filter_map(|t| t.own)
+        .filter(|&(_, time)| cx.now.saturating_sub(time) <= crate::v026g::bots::smoke::FAIR_SENSED_MS)
+        .map(|(at, _)| at)
+        .collect();
+    if known.is_empty() {
+        return true;
+    }
+    floors.iter().step_by(ROUTE_ENEMY_STEP).all(|&n| {
+        let p = grid.position(n);
+        known.iter().all(|&e| {
+            let d = e.distance_xz(p);
+            let near = d <= ROUTE_ENEMY_M && (e.y - p.y).abs() <= 4.0;
+            let seen = d <= ROUTE_ENEMY_SIGHT_M
+                && cx.tactics.sees(crate::v026g::bots::view::still_eye(e, false), p + Vec3::new(0.0, crate::v026g::bots::view::CHEST, 0.0));
+            !near && !seen
+        })
+    })
+}
+
 /// [A320] The job flanker's route round the known camp spot `line` is on: the human ones first, then those near a human
-/// win, then the rest, each by the bot's distance to its start; the job's n-th flanker (`Job::passed_count`) takes the
+/// win, then the rest, each by the bot's distance to its start, of those clear of the other enemies the team knows
+/// ([`route_clear`]; none clear: none, and the flank as before); the job's n-th flanker (`Job::passed_count`) takes the
 /// n-th, so a route a flanker died on is not the next one's.
 fn camp_route(cx: &Ctx, line: &crate::v026g::bots::threat::HeldLine) -> Option<State> {
     use crate::v026g::bots::camp_flank::Origin;
@@ -246,6 +283,12 @@ fn camp_route(cx: &Ctx, line: &crate::v026g::bots::threat::HeldLine) -> Option<S
     order.sort_by(|&a, &b| {
         rank(camp.routes[a].origin).cmp(&rank(camp.routes[b].origin)).then(start_m(a).total_cmp(&start_m(b)))
     });
+    order.retain(|&k| route_clear(cx, &camp.routes[k].floors, line.shooter));
+    if order.is_empty() {
+        #[cfg(test)]
+        eprintln!("A320 camp_flank routes all blocked: t {} place {} spot {spot}", cx.now, cx.me.place);
+        return None;
+    }
     let passed = cx.team.threat.job_of(cx.me.place).map_or(0, |(job, _, _)| job.passed_count());
     let route = order[passed % order.len()];
     let floors = &camp.routes[route].floors;
@@ -734,6 +777,11 @@ mod tests {
         );
         let at = s.view.places[0].feet;
         assert!(at.distance_xz(fire_at) <= 3.0, "at the route's firing floor: {at:?}");
+        // Another enemy the team sees by the route (not the camper): the route is not taken, the flank as before.
+        s.view.places[0].feet = me;
+        s.enemy(12, 1, Vec3::new(40.0, 0.0, 34.0), Some(crate::v026g::bots::know::Source::Seen));
+        let blocked = start(target, &s.cx(0), &mut rng);
+        assert!(!matches!(blocked, State::Route { .. }), "an enemy on the route: {blocked:?}");
     }
 
     #[test]
