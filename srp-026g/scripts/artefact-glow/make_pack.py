@@ -43,18 +43,25 @@ effect, `view` 2) playing fx/artifacts/human_<kind>_leg_<n>: the kind's stock gl
 with only quarter n's body parts on (QUARTERS: 1 the left lower leg and foot, 2 the right ones, 3
 the left thigh, 4 the right one), the emitters with none of them left out, and the point light's
 emitter (up_light) too.
+
+Version 7: each kept emitter's Rate (its curve and its data source) and MaxParticles (rounded up,
+at least 1) times the share of the stock emitter's body parts it keeps. Version 6 kept the stock
+rate on fewer parts, so a quarter was several times as dense as the stock glow on that leg (the
+owner, 2026-11-06: they looked different from the activation glow); now a quarter is the stock
+glow's own density on its parts, and four quarters are the stock emitters' leg share.
 """
 import argparse
 import copy
 import hashlib
 import json
+import math
 from pathlib import Path
 import struct
 import sys
 import zlib
 
 PACK_ID = 'artefact-glow'
-VERSION = '6'
+VERSION = '7'
 # kind -> (effect config, particle system); the stock files, by sha256.
 KINDS = {
     'lifebone': 'fx/artifacts/human_zhivokost',
@@ -276,17 +283,74 @@ def forest_particle(stock):
     return keep_emitters(greyed(parts_only(copy.deepcopy(stock), LEGS)), domain_parts)
 
 
+def f32(x):
+    return struct.unpack('<f', struct.pack('<f', x))[0]
+
+
+def rate_scaled(node, k):
+    """A Rate curve (its source) with every key's value (a vector's second number: the key's
+    position and both tangents) times `k`, as f32."""
+    t, v = node
+    if t == T_NAMED:
+        return (t, [(n, rate_scaled(c, k)) for n, c in v])
+    if t == T_INDEXED:
+        return (t, [rate_scaled(c, k) for c in v])
+    if t == 6:
+        return (t, [v[0], f32(v[1] * k)])
+    return node
+
+
+def share(emitter, stock_emitter):
+    """The share of the stock emitter's body parts a quarter's emitter keeps."""
+    return len(domain_parts(emitter)) / len(domain_parts(stock_emitter))
+
+
+def scaled_maximum(maximum, k):
+    return max(1, math.ceil(maximum * k))
+
+
 def quarter_particle(stock, parts):
     """A kind's leg quarter (artefact-skills.md, "Leg quarters"): the kind's stock glow, its
     colours as they are, with only the quarter's `parts` on; the emitters with none of them left
-    out, and the point light's emitter (up_light) too: up to twelve quarters light one player."""
-    return keep_emitters(parts_only(copy.deepcopy(stock), parts),
+    out, and the point light's emitter (up_light) too: up to twelve quarters light one player.
+    Each kept emitter's Rate (its curve and its data source) and MaxParticles (rounded up, at least
+    1) times its kept share of the stock emitter's parts: a quarter is as dense on its parts as the
+    stock glow is, and the four quarters together are the stock emitters' leg share."""
+    tree = keep_emitters(parts_only(copy.deepcopy(stock), parts),
                          lambda e: domain_parts(e) and emitter_name(e) != LIGHT_EMITTER)
+    stock_emitters = dict(dict(dict(stock[1])['LOD 0'][1])['children'][1])
+    lod = dict(tree[1])['LOD 0']
+    sources = {}
+    emitters = []
+    for guid, emitter in dict(lod[1])['children'][1]:
+        k = share(emitter, stock_emitters[guid])
+        props = []
+        for name, value in dict(emitter[1])['properties'][1]:
+            if name == 'Rate':
+                rate = dict(value[1])
+                sources[rate['selected_source'][1]] = k
+                value = (T_NAMED, [(n, rate_scaled(c, k) if n == 'source' else c) for n, c in value[1]])
+            elif name == 'MaxParticles':
+                value = (value[0], scaled_maximum(value[1], k))
+            props.append((name, value))
+        emitters.append((guid, (T_NAMED, [(n, (T_NAMED, props) if n == 'properties' else c) for n, c in emitter[1]])))
+    lod = (T_NAMED, [(n, (T_NAMED, emitters) if n == 'children' else c) for n, c in lod[1]])
+
+    def source(name, value):
+        if name not in sources:
+            return value
+        return (T_NAMED, [(n, rate_scaled(c, sources[name]) if n == 'source' else c) for n, c in value[1]])
+    data = dict(tree[1])['data_sources']
+    data = (T_NAMED, [(n, (T_NAMED, [(f, source(f, c)) for f, c in kinds[1]]) if n == 'float' else kinds)
+                      for n, kinds in data[1]])
+    return (T_NAMED, [(n, lod if n == 'LOD 0' else data if n == 'data_sources' else c) for n, c in tree[1]])
 
 
 def check_quarter(tree, stock, parts):
-    """A quarter is the stock system but for its body parts (the quarter's alone on) and the
-    emitters left out (those with none of them, and the light's): every other value the stock's."""
+    """A quarter is the stock system but for its body parts (the quarter's alone on), the emitters
+    left out (those with none of them, and the light's), and each kept emitter's Rate values and
+    MaxParticles scaled by its kept share of the stock emitter's parts (in its curve and its data
+    source alike): every other value the stock's."""
     lod, stock_lod = dict(tree[1])['LOD 0'], dict(stock[1])['LOD 0']
     emitters, stock_emitters = dict(dict(lod[1])['children'][1]), dict(dict(stock_lod[1])['children'][1])
     dropped = {g for g, e in stock_emitters.items()
@@ -294,9 +358,25 @@ def check_quarter(tree, stock, parts):
     assert set(emitters) == set(stock_emitters) - dropped and emitters, sorted(dropped)
     for guid, emitter in emitters.items():
         assert domain_parts(emitter) == domain_parts(stock_emitters[guid]) & set(parts), guid
+    scaled = {}
+    for guid, emitter in emitters.items():
+        stock_props = dict(dict(stock_emitters[guid][1])['properties'][1])
+        props = dict(dict(emitter[1])['properties'][1])
+        k = share(emitter, stock_emitters[guid])
+        assert props['MaxParticles'][1] == scaled_maximum(stock_props['MaxParticles'][1], k), guid
+        rate, stock_rate = dict(props['Rate'][1]), dict(stock_props['Rate'][1])
+        assert rate['source'] == rate_scaled(stock_rate['source'], k), guid
+        scaled[rate['selected_source'][1]] = k
+    stock_floats = dict(dict(dict(stock[1])['data_sources'][1])['float'][1])
+    for name, value in dict(dict(dict(tree[1])['data_sources'][1])['float'][1]).items():
+        expected = stock_floats[name] if name not in scaled else \
+            (T_NAMED, [(n, rate_scaled(c, scaled[name]) if n == 'source' else c) for n, c in stock_floats[name][1]])
+        assert sort_key(value) == sort_key(expected), name
     for d in differences(tree, stock):
         last = d.rsplit('/', 1)[-1]
-        assert (last in BODY_PARTS and '/properties/' in d) or last in dropped or d.endswith('/children_order'), d
+        assert (last in BODY_PARTS and '/properties/' in d) or last in dropped or d.endswith('/children_order') or \
+            '/properties/Rate/source/' in d or last == 'MaxParticles' or \
+            (d.startswith('/data_sources/float/') and d.split('/')[3] in scaled), d
 
 
 def grey_material(stock):

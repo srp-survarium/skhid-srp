@@ -104,6 +104,8 @@ down) when you use artifact? Note that your vision should still be clear")
 - Version 6 adds the leg quarters (artefact-skills.md, "Leg quarters"):
   effect_artefact_leg_<kind>_<1..4>, each kind's stock glow on one quarter of the legs, without
   its point light.
+- Version 7: the quarters' emitters at the stock glow's density on their parts (Rate and
+  MaxParticles times the kept share of each stock emitter's parts).
 - History: version 1 (a lighter copy) and version 2 (with `up_light`'s lights at x0.35) showed
   too little in the first person; version 3, the stock glow without the head, was tested by the
   owner and approved (2026-10-25: "this version is good"). Version 4 is the same files.
