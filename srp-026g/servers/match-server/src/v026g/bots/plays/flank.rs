@@ -283,8 +283,9 @@ fn route_risk(cx: &Ctx, floors: &[mapdata::NodeId], camper: Place) -> Option<f32
     Some(risk)
 }
 
-/// [A320] The job flanker's route round the known camp spot `line` is on: the human ones first, then those near a human
-/// win, then the rest, each by the bot's distance to its start, of those with the least risk from the other enemies the
+/// [A320] The job flanker's route round the known camp spot `line` is on: the first to arrive first (the bot's walk to its
+/// start and its length; B3d: the camper died before 18 of 24 flankers arrived), then the human ones, those near a human
+/// win, the rest, of those with the least risk from the other enemies the
 /// team knows ([`route_risk`]; every route skipped: none, and the flank as before); the job's n-th flanker
 /// (`Job::passed_count`) takes the n-th, so a route a flanker died on is not the next one's.
 fn camp_route(cx: &Ctx, line: &crate::v026g::bots::threat::HeldLine) -> Option<State> {
@@ -299,8 +300,14 @@ fn camp_route(cx: &Ctx, line: &crate::v026g::bots::threat::HeldLine) -> Option<S
     };
     let start_m = |k: usize| grid.position(camp.routes[k].floors[0]).distance_xz(cx.me.feet);
     let mut order: Vec<usize> = (0..camp.routes.len()).collect();
+    // [A320 B3d] The first to arrive first (the bot's walk to the start and the route's length), then by what backs it: his
+    // lives last ~30 s, and a flank that comes after his death is no flank.
+    let length_m = |k: usize| -> f32 {
+        camp.routes[k].floors.windows(2).map(|w| (grid.position(w[1]) - grid.position(w[0])).length()).sum()
+    };
+    let arrival_m: Vec<f32> = (0..camp.routes.len()).map(|k| start_m(k) + length_m(k)).collect();
     order.sort_by(|&a, &b| {
-        rank(camp.routes[a].origin).cmp(&rank(camp.routes[b].origin)).then(start_m(a).total_cmp(&start_m(b)))
+        arrival_m[a].total_cmp(&arrival_m[b]).then(rank(camp.routes[a].origin).cmp(&rank(camp.routes[b].origin)))
     });
     // The other enemies the team knows: a route with one on its next stretch is skipped, the rest ranked by risk; those
     // within the tie band of the least are taken in the order above, the job's n-th flanker the n-th.
