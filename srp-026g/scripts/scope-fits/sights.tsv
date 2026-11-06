@@ -8,6 +8,9 @@
 #   keep                                   it stays (it is below every optic's line of sight)
 #   fold <surface> <up module> <folded>    the up module the port baked into <surface> (found in it
 #                                          whole) made the folded one (models/weapons/modules/...)
+#   turn <surface> <up module> <folded>    the up module found in <surface> turned down whole, with the
+#                                          port's own vectors, as 0.69d0 turns it into the folded one
+#                                          (a sight the port raised itself: the SVU's, weapons-046@13)
 #   cut <surface>                          the whole surface left out
 #   cut <surface> <x0,y0,z0,x1,y1,z1>      the surface's mesh islands wholly inside the box (the
 #                                          locators' frame, metres) taken out
@@ -20,13 +23,14 @@ scar_h	front, flip-up	scar_h_sightsg: scarh_front_ironsight_on, whole (618 trian
 vhs_2	rear, flip-up	vhs_2_sights_s: vhs2_rear_ironsight_on, whole (959 triangles)	vhs2_rear_ironsight: folded (vhs2_rear_ironsight_off)	no	fold vhs_2_sights_s ironsights/vhs2_rear_ironsight_on ironsights/vhs2_rear_ironsight_off
 vhs_2	front, flip-up	vhs_2_sights_s: 0.31a2's vhs2_front_ironsight_on, whole (497 triangles; its post 2.3 mm lower than 0.69d0's)	vhs2_front_ironsight: folded (vhs2_front_ironsight_off)	DeltaPoint, PK-01VI, RSAS, Walther (0.51 m), Mk4 (0.30 m)	fold vhs_2_sights_s ironsights/vhs2_front_ironsight_on ironsights/vhs2_front_ironsight_off
 fn_minimi	rear (aperture, on the feed cover)	part of kolya_lp_receiver01sg	its own mesh: stays	no	keep
-fn_minimi	front post (on the gas block)	part of kolya_lp_receiver02sg: two islands (310 triangles)	its own mesh: stays	PK-01VI, RSAS, Walther (0.65 m)	cut kolya_lp_receiver02sg -0.011,0.064,-0.481,0.011,0.115,-0.456
+fn_minimi	front post (on the gas block)	part of kolya_lp_receiver02sg: two islands (310 triangles)	its own mesh: stays	PK-01VI, RSAS, Walther (0.65 m); kept as 0.69d0 (its own mesh), the owner 2026-11-06	keep
 mp5a1	rear drum, front hood	part of mp5a1_s	its own mesh: stays	no	keep
-svu_a	rear, front	part of svu_a_handguard_s (0.46c2's own: not 0.69d0's modules)	svu_a_rear_ironsight, svu_a_front_ironsight: folded (their _off); our mesh has no 0.69d0 module to fold	no	keep
+svu_a	rear diopter, flip-up	part of svu_a_handguard_s: 0.69d0's svu_a_rear_ironsight_on, whole (weapons-046@13 raised it)	svu_a_rear_ironsight: folded (svu_a_rear_ironsight_off)	-	turn svu_a_handguard_s ironsights/svu_a_rear_ironsight_on ironsights/svu_a_rear_ironsight_off
+svu_a	front post, flip-up	part of muzzle_svu_a_handguard_s: svu_a_front_ironsight_on, whole (weapons-046@13)	svu_a_front_ironsight: folded (svu_a_front_ironsight_off)	-	turn muzzle_svu_a_handguard_s ironsights/svu_a_front_ironsight_on ironsights/svu_a_front_ironsight_off
 l85a2	carry handle with the rear sight, front post	scope_enfield_l85a2_ironsight_s (0.46c2's rear sight module: both)	enfieldl85a2_rear_ironsight, on picatinny_scope_medium (the optic's slot): taken off	cut since scope-fits@1	cut scope_enfield_l85a2_ironsight_s
 fort_401	rear	scope_fort_401_ironsight_s (0.46c2's module)	fort401_ironsight, on picatinny_scope_medium (the optic's slot): taken off	cut since scope-fits@1	cut scope_fort_401_ironsight_s
-fort_401	front post (between the front block's ears)	part of fort_401_part2_s: two islands (218 triangles)	its own mesh: stays	every collimator (0.60 m)	cut fort_401_part2_s -0.008,0.09,-0.358,0.008,0.114,-0.34
-fort_401	front sight's ears (either side of the post)	part of fort_401_part2_s: the top of its front block's island, 1.1 to 2.5 cm above the block	its own mesh: stays	EOTech 552 with the post cut (0.59 m)	lower fort_401_part2_s -0.02,0.0912,-0.365,0.02,0.12,-0.33 0.0912
+fort_401	front post (between the front block's ears)	part of fort_401_part2_s: two islands (218 triangles)	its own mesh: stays	every collimator (0.60 m); kept as 0.69d0 (its own mesh), the owner 2026-11-06	keep
+fort_401	front sight's ears (either side of the post)	part of fort_401_part2_s: the top of its front block's island, 1.1 to 2.5 cm above the block	its own mesh: stays	EOTech 552 with the post cut (0.59 m); kept as 0.69d0 (its own mesh), the owner 2026-11-06	keep
 jackhammer	none (a rail on the carry handle)	-	-	no	keep
 cz_75	rear notch, front blade	part of cz_75b_s	its own mesh: stays	no	keep
 mp443	rear notch, front blade	part of mp_443_s	its own mesh: stays	no	keep

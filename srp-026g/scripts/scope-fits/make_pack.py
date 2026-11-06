@@ -76,7 +76,7 @@ occlusion = _load('scope_fits_occlusion', HERE / 'occlusion.py')
 sights = _load('scope_fits_sights', HERE / 'sights.py')
 
 PACK_ID = 'scope-fits'
-VERSION = '3'
+VERSION = '4'
 FIRST_VARIANT = 2901
 LAST_VARIANT = 3299
 CATEGORY = 22
@@ -385,6 +385,7 @@ def build(args, work):
             sys.exit(f'{gun}: no {cfg} in --guns')
         weapons[gun] = (cfg, lib.leaves(roots.file(cfg))['/object/model'])
     changes = sight_changes()
+    kept_sights_ = kept_sights()
     new_guns = {g for g, *_ in survey.rows('guns.tsv')}
     variants = our_variants(args.live)
     refs = references(args, work, donor, optics, fits, variants, weapons, roots)
@@ -509,6 +510,8 @@ def build(args, work):
             ok, wmin, wmax, clear, hit = occlusion.variant_check(
                 eye_model, idle_out, aim_out, kind, ref['own'], [s for s in lib.surfaces(idle_out) if s not in ref['own']])
             result = 'pass' if ok and wmax > 0 else 'FAIL' if gun in new_guns else 'live'  # a shut window checks nothing
+            if result == 'FAIL' and hit and set(hit) <= kept_sights_.get(gun, set()):
+                result = 'retail'  # only a sight of the gun's own mesh, which 0.69d0 leaves standing too
             seen.append(f'{vname}\t{kind}\t{result}\t{wmin:.1f}\t{wmax:.1f}\t{clear:.1f}\t{occlusion.describe(hit)}')
             if result == 'FAIL':
                 sys.exit(f'{vname}: the gun stands in its line of sight: {occlusion.describe(hit)} (clear {clear:.1f} of its '
@@ -529,7 +532,7 @@ def build(args, work):
         '# from its weapon model\'s eye (the optic\'s body bounds it), a scope\'s, its eyepiece\'s radius in mm (rays along its\n'
         '# axis); clear: the fraction of the window nothing of the gun or its rails stands in (1.0 none in 0.9); hits inside\n'
         '# CLEAR, each where it is from the eye (metres); result pass, FAIL (a release-41 gun: the build stops) or live (a live\n'
-        '# weapon: as its live variants are)\n# variant\tkind\tresult\twindow min\twindow max\tclear\tsurfaces hit\n'
+        '# weapon: as its live variants are) or retail (only a sight of the gun\'s own mesh, sights.tsv keep: 0.69d0 leaves it standing)\n# variant\tkind\tresult\twindow min\twindow max\tclear\tsurfaces hit\n'
         + '\n'.join(seen) + '\n', encoding='utf-8')
     write_pack(args, files, entries, report, icons)
     write_edit_list(args.live, compat, weapons, placeholders, roots)
@@ -589,6 +592,16 @@ def leave_out(model, surfaces):
         sys.exit(f'{model}: a surface left out is still listed')
 
 
+def kept_sights():
+    """Per gun, the surfaces that hold a sight sights.tsv keeps (0.69d0 leaves a sight of the gun's own
+    mesh standing under an optic): a variant whose line of sight only these cross is as retail's."""
+    out = {}
+    for row in survey.rows('sights.tsv'):
+        if row[-1].split()[0] == 'keep':
+            out.setdefault(row[0], set()).update(w.strip(',:;()') for w in row[2].split())
+    return out
+
+
 def sight_changes():
     """sights.tsv's changes under an optic, per gun: (how, surface, the rest), `keep` left out."""
     out = {}
@@ -596,8 +609,8 @@ def sight_changes():
         how = row[-1].split()
         if how[0] == 'keep':
             continue
-        if len(how) not in {'fold': (4,), 'cut': (2, 3), 'lower': (4,)}.get(how[0], ()):
-            sys.exit(f'sights.tsv: {row[0]}: {row[-1]!r} is not keep, fold <surface> <up> <folded>, cut <surface> [box] '
+        if len(how) not in {'fold': (4,), 'turn': (4,), 'cut': (2, 3), 'lower': (4,)}.get(how[0], ()):
+            sys.exit(f'sights.tsv: {row[0]}: {row[-1]!r} is not keep, fold|turn <surface> <up> <folded>, cut <surface> [box] '
                      'or lower <surface> <box> <height>')
         out.setdefault(row[0], []).append(how)
     return out
@@ -606,7 +619,8 @@ def sight_changes():
 def under_optic(model, changes, donor, gun):
     """A copied weapon model's sights as sights.tsv has them under an optic: folded (sights.fold: the
     up module the port baked in made 0.69d0's folded one), cut (sights.cut: a surface's islands
-    inside a box; leave_out: a whole surface), lowered (sights.lower: a part of an island cut flat)."""
+    inside a box; leave_out: a whole surface), lowered (sights.lower: a part of an island cut flat),
+    turned (sights.turn: an up sight the port raised itself, turned down whole with its own vectors)."""
     for how, surface, *rest in changes:
         if how == 'cut' and not rest:
             leave_out(model, [surface])
@@ -622,8 +636,9 @@ def under_optic(model, changes, donor, gun):
             names = lib.surfaces(up)
             if len(names) != 1 or lib.surfaces(folded) != names:
                 sys.exit(f'{gun}: {rest}: not one surface each, the same')
-            done = sights.fold(model / 'render' / surface, up / 'render' / names[0] / 'converted_model',
-                               folded / 'render' / names[0] / 'converted_model')
+            mover = sights.turn if how == 'turn' else sights.fold
+            done = mover(model / 'render' / surface, up / 'render' / names[0] / 'converted_model',
+                         folded / 'render' / names[0] / 'converted_model')
         print(f'{gun}: {model.name}: {how} {surface} {" ".join(rest)}: {done}')
 
 

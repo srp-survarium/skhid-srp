@@ -334,6 +334,41 @@ def fold(surface_dir, up_path, folded_path):
     return {'how': how, 't': t, 'out': int(hit.sum()), 'in': len(down.tris), 'step': step, 'w': alphas}
 
 
+def turn(surface_dir, up_path, folded_path):
+    """The up module found in the surface turned into the folded one's place as one rigid piece, its
+    positions and the port's own vectors with it: a sight the port raised itself from its donor's
+    folded mesh (the SVU's, weapons-046@13, 0.46c2's vectors), which 0.69d0's packed vectors do not
+    match. 0.69d0's folded module is the up one turned (one rigid motion, the same vertices). Returns
+    what was done: the translation, the vertices turned, the motion's largest residual."""
+    gun = Skinned(surface_dir / 'converted_model')
+    up, down = Static(up_path), Static(folded_path)
+    if len(up.pos) != len(down.pos) or not np.array_equal(up.uvh, down.uvh):
+        sys.exit(f'{folded_path}: not {up_path} folded (other vertices or texture coordinates)')
+    cu, cd = up.pos.mean(axis=0), down.pos.mean(axis=0)
+    u, _, vt = np.linalg.svd((up.pos - cu).T @ (down.pos - cd))
+    rot = (u @ vt).T
+    if np.linalg.det(rot) < 0:
+        sys.exit(f'{folded_path}: folding {up_path} mirrors it')
+    residual = float(np.abs((up.pos - cu) @ rot.T + cd - down.pos).max())
+    if residual > 1e-5:
+        sys.exit(f'{folded_path}: not {up_path} turned as one piece ({residual * 1000:.3f} mm)')
+    exact = found_exactly(gun, gun.positions(), up)
+    if not exact:
+        sys.exit(f'{surface_dir}: {up_path.parent.parent.name} is not in it exactly')
+    t, hit, _ = exact
+    moved = np.unique(gun.tris[hit])
+    if np.isin(moved, gun.tris[~hit]).any():
+        sys.exit(f'{surface_dir}: the up sight shares vertices with the rest of the surface')
+    pos = gun.positions()[moved]
+    gun.raw[moved, 0:12] = (((pos - t - cu) @ rot.T + cd + t).astype('<f4')).view(np.uint8).reshape(-1, 12)
+    for word in (0, 4, 8):  # bytes x, y, z, w; 127 is 0
+        at = gun.basis_at + word
+        v = (gun.raw[moved, at:at + 3].astype(np.float64) - 127) / 127
+        gun.raw[moved, at:at + 3] = np.clip(np.rint(v @ rot.T * 127 + 127), 0, 254).astype(np.uint8)
+    gun.write()
+    return {'t': t, 'turned': len(moved), 'residual': residual}
+
+
 def cut(surface_dir, box):
     """The mesh islands of the surface wholly inside `box` (x0, y0, z0, x1, y1, z1, the locators'
     frame: a skinned weapon's vertices turned half about Y) taken out: a sight that is islands of its
