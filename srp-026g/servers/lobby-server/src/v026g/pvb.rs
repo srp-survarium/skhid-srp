@@ -61,6 +61,7 @@
 //! | `SRP_PVB_RUSHER_KIT` | `9-10=alt,13-15=smg` | what the rusher bots of tiers 9-10 and 13-15 wear: the owner's `9-10=alt,13-15=smg` when unset; `control` (the old kit: the SPAS-12 with buckshot), `smg` (the tier's SMG: `sr2m`, `fn_p90`), `alt` (`ump45`, `kriss_vector`), `slug` / `helmet` (the SPAS-12 with slugs / buckshot and the SMG kit's helmet); one word for both tiers or `9-10=alt,13-15=smg`; a kit whose items the game data lacks is the old kit (`loadouts::RusherKit`) | the lobby |
 //! | `SRP_PVB_PAY` | 0.25 | the share of a match's silver and experience it pays, 0 to 1; only a match played to its own end pays | the rewards (`session::v026g::pvb`) |
 //! | `SRP_PVB_STALL_S` | 60 | a match whose only player uploads no world it is asked for this long is over, 10 to 3600 | the match server |
+//! | `SRP_PVB_WORLD_MS` | 2000 | while the bots play, a world is asked for this often, ms, 250 to 2000 (client-test plays: denser worlds in the recording) | the match server |
 //!
 //! [`SRP_PVB_PAY`]: session::v026g::pvb::pay
 

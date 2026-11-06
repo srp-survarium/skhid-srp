@@ -194,7 +194,7 @@ pub(crate) const SETTINGS: &[Setting] = &[
     s("SRP_BENCH_START", "0,0", "**model** batteries already in team 0's and team 1's containers: `a,b`"),
     s("SRP_BENCH_LIVE_FIELDS", "off", "**model** `<n>`: the generator of anomaly fields makes the release's rule, at most n alive at once (the release: 16): charging 20 s, damaging 4 s, then holding; they hurt the bodies whatever the bots know (`standin_fields.rs`)"),
     s("SRP_BENCH_FIELD_TAKER", "none", "**model** `scripted`: a field's artefact is taken 30 s into its holding (the field goes, its place rests 60 s); `none`: nobody takes one, as in a bot match"),
-    s("SRP_BENCH_WORLD_MS", "1000", "**model** how often a world reaches the bots, ms (the live worlds of a match with one client: 2000, `game/driven.rs` `PLAYING_REFRESH`)"),
+    s("SRP_BENCH_WORLD_MS", "1000", "**model** how often a world reaches the bots, ms (the live worlds of a match with one client: 2000, `SRP_PVB_WORLD_MS`, `game/driven.rs`)"),
     s("SRP_BENCH_FIELD_WORLD_MS", "1000", "**model** how often a world lists the fields to the bots, ms (a lag arm: 5000)"),
     s("SRP_BENCH_FIELD_PLACES", "spread", "**model** `lanes`: the generator's places lie on the walks between the containers and the battery spawners, where the bots go"),
     s("SRP_BENCH_FIELD_PACE", "release", "**model** `fast`: the first try at 5 s, then every 4-8 s (a stress arm)"),
