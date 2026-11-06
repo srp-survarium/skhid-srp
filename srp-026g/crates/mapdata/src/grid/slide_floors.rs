@@ -9,8 +9,8 @@
 //!
 //! The test reads the face the standing capsule rests on by the client's own numbers ([`Settings::LIVE`]; [`hold_at`]), on the
 //! floors where a face no body walks on lies within [`NEAR_M`] of the standing capsule (the controller pass's test):
-//! - the capsule is stood on the floor (out of walls, as the controller pass does) at its centre and 0.1 m either side, and the
-//!   face it rests on is read; the floor's verdict is the mildest of the three (one stand that holds holds the floor);
+//! - the floor is stood on (out of walls, as the controller pass does) at its centre and 0.25 m either side along x and z, and the
+//!   face under each stand is read; the floor's verdict is the mildest of the five (one stand that holds holds the floor);
 //! - a floor whose ground is past the walk limit (a by-slope face over 55 deg, or a `dont_walk` face) is one a **moving** body
 //!   does not hold: its ways in go ([`WalkGrid::cut_slide_floors`]), unless that leaves floors that are not slide floors out of
 //!   reach;
@@ -94,10 +94,11 @@ pub const PROBE_R: f32 = 0.02;
 /// A contact whose normal (face to capsule) has at least this up share holds the body up: not an edge met from the side.
 pub const RESTS_ON_Y: f32 = 0.5;
 
-/// A floor's verdict from three stands, its centre and [`START_OFF_M`] either side of it along x: a slide only when every stand
-/// slid (one that holds, or a boxed-in body that cannot move, says the floor holds), moving only when every one did.
+/// A floor's verdict from five stands, its centre and [`START_OFF_M`] either side of it along x and along z: a slide only when every
+/// stand slid (one that holds says the floor holds), moving only when every one did.
 pub fn hold_floor(world: &Collision, feet: Vec3, s: &Settings) -> Hold {
-    let holds = [0.0, -START_OFF_M, START_OFF_M].map(|dx| hold_at(world, feet + Vec3::new(dx, 0.0, 0.0), s));
+    let o = START_OFF_M;
+    let holds = [(0.0, 0.0), (-o, 0.0), (o, 0.0), (0.0, -o), (0.0, o)].map(|(dx, dz)| hold_at(world, feet + Vec3::new(dx, 0.0, dz), s));
     if holds.contains(&Hold::Holds) {
         Hold::Holds
     } else if holds.iter().all(|&h| h == Hold::SlidesMoving) {
@@ -107,8 +108,10 @@ pub fn hold_floor(world: &Collision, feet: Vec3, s: &Settings) -> Hold {
     }
 }
 
-/// The side stands of [`hold_floor`], m (the controller pass's [`super::controlled::STARTS`]).
-pub const START_OFF_M: f32 = 0.1;
+/// The side stands of [`hold_floor`], m: the body's 0.76 m width stands on the ground this far either side of a seam too (NAV-FIRST
+/// of 0f23a06d: a one-cell row of floors on level_05 (14.9-16.4, 10.1, -40.09) read as slide floors, a steep seam under their
+/// centres, while the client walked over it on the flat either side).
+pub const START_OFF_M: f32 = 0.25;
 
 impl WalkGrid {
     /// The slide-floors pass ([`Body::slide_floors`], module documentation): the floors a moving body cannot hold lose every way
