@@ -9,7 +9,7 @@
 //! `required_bags`), and `item_level` came here from the dictionary.
 
 use binary_config_parser::tree::{ConfigError, ConfigValue};
-use srp_validate::world::{Artefact, GunState};
+use srp_validate::world::{Artefact, Chamber, GunState};
 
 use super::dictionary::Dictionary;
 use super::game_data::{GameData, GameDataError};
@@ -81,8 +81,8 @@ pub struct ItemParams {
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct GunStates {
     pub states: &'static [GunState],
-    /// It has a `chamber_a_round` state.
-    pub chamber: bool,
+    /// [`Chamber::Saved`] when it has a `chamber_a_round` state.
+    pub chamber: Chamber,
 }
 
 impl GunStates {
@@ -103,7 +103,10 @@ impl GunStates {
         let Some(table) = config.get("states") else {
             return Ok(None);
         };
-        let chamber = table.get("chamber_a_round").is_some();
+        let chamber = match table.get("chamber_a_round") {
+            Some(_) => Chamber::Saved,
+            None => Chamber::NotSaved,
+        };
         let mut states = Vec::new();
         for name in Self::ORDER {
             let Some(state) = table.get(name) else {

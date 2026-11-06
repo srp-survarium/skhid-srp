@@ -57,10 +57,17 @@ pub struct Inventory<'a> {
 pub struct Item<'a> {
     /// Its slot, 0..22.
     pub slot: u8,
-    /// The dictionary's `is_stack`: a `u16` amount, else an `f32`
-    /// condition.
-    pub stack: bool,
+    pub measure: Measure,
     pub body: Body<'a>,
+}
+
+/// What an item's header saves of it, by the dictionary's `is_stack`.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Measure {
+    /// A stack's `u16` amount.
+    Amount,
+    /// Any other item's `f32` condition.
+    Condition,
 }
 
 /// What an item saves after its header, by its class.
@@ -80,12 +87,27 @@ pub struct Gun<'a> {
     /// Its state machine's states in the cook's order (show, hide, idle,
     /// reload, fire, the chamber's if it has one, throw grenade, melee).
     pub states: &'a [GunState],
-    /// It has a `chamber_a_round` state: the chambered flag is saved.
-    pub chamber: bool,
-    /// Its ammo list's length (`weapon_core+0x5B0`: the kit's ammo slots
-    /// holding a compatible stack, at most 8). `None` for a picked gun,
-    /// whose list the picker's game made of its own slots.
-    pub ammo: Option<u8>,
+    pub chamber: Chamber,
+    pub ammo: Ammo,
+}
+
+/// Whether a weapon saves its chambered flag.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Chamber {
+    /// It has a `chamber_a_round` state.
+    Saved,
+    NotSaved,
+}
+
+/// A weapon's ammo list (`weapon_core+0x5B0`).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Ammo {
+    /// Its kit's: this many entries, the kit's ammo slots holding a
+    /// compatible stack (at most 8).
+    Kit(u8),
+    /// A picked gun's: the picker's game made it of its own slots, live
+    /// state the stream does not say.
+    Picked,
 }
 
 /// A weapon state's class (`states.<name>.state_type` of the weapon's
@@ -169,21 +191,23 @@ pub(super) struct Owner<'a> {
     pub usable: &'a dyn Fn(u8, u8) -> bool,
 }
 
-/// An object the walk expects in a slot: one the state has (`optional`
-/// false), or one it may have (an ammo slot of a picker: patch 85 moves the
-/// borrowed gun's stacks into them, live state the stream does not say).
+/// An object the walk expects in a slot.
 #[derive(Clone, Copy)]
-pub(super) struct Slot<'a> {
-    pub item: Item<'a>,
-    pub optional: bool,
+pub(super) enum Slot<'a> {
+    /// One the state has.
+    Held(Item<'a>),
+    /// One it may have: an ammo slot of a picker (patch 85 moves the
+    /// borrowed gun's stacks into them, live state the stream does not say).
+    Maybe(Item<'a>),
 }
 
 /// The items past the inventory header, then the rest of the state, to its
-/// exact end. `items` are the kit's objects in slot order with the slots
-/// the header's artefacts took left out; `alive` the head's `m_is_alive`.
+/// exact end. `items` are the kit's slots in order, each with the object the
+/// walk expects there (the slots the header's artefacts took have none);
+/// `alive` the head's `m_is_alive`.
 pub(super) fn items_and_rest(
     reader: &Reader,
-    items: &[Slot],
+    items: &[Option<Slot>],
     alive: bool,
     inventory: &Inventory,
     owner: &Owner,
@@ -207,13 +231,13 @@ fn keep(furthest: &mut Option<Fault>, fault: Fault) {
 /// its exact end.
 fn walk(
     reader: Reader,
-    items: &[Slot],
+    items: &[Option<Slot>],
     alive: bool,
     inventory: &Inventory,
     owner: &Owner,
     furthest: &mut Option<Fault>,
 ) -> Option<()> {
-    let Some((&Slot { item, optional }, rest)) = items.split_first() else {
+    let Some((&slot, rest)) = items.split_first() else {
         return match after_items(reader, alive, inventory.body_parts) {
             Ok(()) => Some(()),
             Err(fault) => {
@@ -222,23 +246,34 @@ fn walk(
             }
         };
     };
-    if optional && walk(reader, rest, alive, inventory, owner, furthest).is_some() {
-        return Some(());
-    }
+    let item = match slot {
+        None => return walk(reader, rest, alive, inventory, owner, furthest),
+        Some(Slot::Held(item)) => item,
+        Some(Slot::Maybe(item)) => {
+            if walk(reader, rest, alive, inventory, owner, furthest).is_some() {
+                return Some(());
+            }
+            item
+        }
+    };
     let item = &item;
     let mut reader = reader;
     if let Err(fault) = header(&mut reader, item, owner) {
         keep(furthest, fault);
         return None;
     }
-    let shapes: &[Shape] = match item.body {
-        Body::Weapon(Gun { ammo: Some(_), .. }) => &[Shape::User, Shape::NoUser],
-        Body::Weapon(Gun { ammo: None, .. }) => {
-            &[Shape::PickedShortList, Shape::PickedLongList, Shape::NoUser]
+    let shapes = match item.body {
+        Body::Weapon(Gun { ammo: Ammo::Kit(list), .. }) => {
+            [Some(Shape::User { list }), Some(Shape::NoUser), None]
         }
-        _ => &[Shape::NoUser],
+        Body::Weapon(Gun { ammo: Ammo::Picked, .. }) => [
+            Some(Shape::User { list: 1 }),
+            Some(Shape::User { list: MAX_AMMO }),
+            Some(Shape::NoUser),
+        ],
+        _ => [Some(Shape::NoUser), None, None],
     };
-    for &shape in shapes {
+    for shape in shapes.into_iter().flatten() {
         let mut tried = reader;
         match body(&mut tried, item.body, shape) {
             Ok(()) => {
@@ -252,21 +287,19 @@ fn walk(
     None
 }
 
-/// The two shapes of a weapon (with a user or not), and a picked gun's
-/// ammo-list layouts (under two entries, or two and more).
+/// The two shapes of a weapon: with a user, and the length of the ammo list
+/// it reads with (a picked gun's is under two entries or two and more), or
+/// without.
 #[derive(Clone, Copy)]
 enum Shape {
-    User,
+    User { list: u8 },
     NoUser,
-    PickedShortList,
-    PickedLongList,
 }
 
 fn header(reader: &mut Reader, item: &Item, owner: &Owner) -> Result<(), Fault> {
-    if item.stack {
-        reader.skip(2).map_err(short)?;
-    } else {
-        float(reader)?;
+    match item.measure {
+        Measure::Amount => reader.skip(2).map_err(short)?,
+        Measure::Condition => float(reader)?,
     }
     let at = reader.at();
     let place = reader.u8().map_err(short)?;
@@ -314,22 +347,20 @@ fn weapon(reader: &mut Reader, gun: Gun, shape: Shape) -> Result<(), Fault> {
     reader.skip(8).map_err(short)?;
     flag(reader)?;
     reader.skip(2).map_err(short)?;
-    let list = match shape {
-        Shape::PickedShortList => Some(1),
-        Shape::PickedLongList => Some(MAX_AMMO),
-        _ => gun.ammo,
-    };
     // A picked gun's list is the picker's: its ids bounded by the most a
     // list holds.
-    let bound = gun.ammo.unwrap_or(MAX_AMMO);
+    let bound = match gun.ammo {
+        Ammo::Kit(list) => list,
+        Ammo::Picked => MAX_AMMO,
+    };
     ammo_id(reader, bound)?;
-    if gun.chamber {
+    if gun.chamber == Chamber::Saved {
         flag(reader)?;
     }
-    if matches!(shape, Shape::NoUser) {
+    let Shape::User { list } = shape else {
         return Ok(());
-    }
-    if list.unwrap_or(0) >= 2 && reader.u32().map_err(short)? != u32::MAX {
+    };
+    if list >= 2 && reader.u32().map_err(short)? != u32::MAX {
         ammo_id(reader, bound)?;
     }
     // The recoil: a u32, and when its second is set 48 more bytes.

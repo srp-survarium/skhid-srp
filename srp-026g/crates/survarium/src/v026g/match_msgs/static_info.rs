@@ -34,7 +34,7 @@ use super::super::loadouts::Loadout;
 use super::super::skills::{MODIFIERS, write_modifier_block};
 use super::super::item_params::{self, ItemClass};
 use super::super::{lzma2, maps};
-use srp_validate::world::{AMMO_SLOTS, Body, Gun, Held, Item, WEAPON_SLOTS};
+use srp_validate::world::{AMMO_SLOTS, Ammo, Body, Gun, Held, Item, Measure, WEAPON_SLOTS};
 use super::snapshot::event;
 use super::{MAX_PLAYERS, ServerMessage};
 
@@ -402,7 +402,7 @@ impl MatchProfile {
                 Body::Weapon(Gun {
                     states: gun.states,
                     chamber: gun.chamber,
-                    ammo: Some(ammo),
+                    ammo: Ammo::Kit(ammo),
                 })
             } else if AMMO_SLOTS.contains(&slot) {
                 if count == 0 {
@@ -430,7 +430,11 @@ impl MatchProfile {
             };
             objects.push(Item {
                 slot,
-                stack: dictionary.is_stack(item.dict_id),
+                measure: if dictionary.is_stack(item.dict_id) {
+                    Measure::Amount
+                } else {
+                    Measure::Condition
+                },
                 body,
             });
         }
@@ -1065,6 +1069,7 @@ mod tests {
     use super::super::super::loadouts;
     use super::super::super::skills::modifier_index;
     use super::*;
+    use srp_validate::world::Chamber;
 
     fn dictionary() -> &'static Dictionary {
         Dictionary::shared()
@@ -1751,10 +1756,12 @@ mod tests {
         let Body::Weapon(gun) = items[1].body else {
             panic!("{:?}", items[1]);
         };
-        assert_eq!(gun.ammo, Some(2));
-        assert_eq!(gun.states.len(), if gun.chamber { 8 } else { 7 });
+        assert_eq!(gun.ammo, Ammo::Kit(2));
+        let chamber = usize::from(gun.chamber == Chamber::Saved);
+        assert_eq!(gun.states.len(), 7 + chamber);
         assert!(matches!(items[5].body, Body::Medkit { influences: 7 }));
-        assert!(items[2].stack && !items[1].stack && !items[0].stack);
+        let measures: Vec<Measure> = items[..3].iter().map(|item| item.measure).collect();
+        assert_eq!(measures, [Measure::Condition, Measure::Condition, Measure::Amount]);
         // No kit 1: nothing.
         assert_eq!(profile.inventory(1, dictionary).unwrap(), []);
     }

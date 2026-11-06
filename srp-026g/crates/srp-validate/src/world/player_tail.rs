@@ -45,7 +45,7 @@
 //!
 //! Without the kits (a tool) the walk stops at the inventory header.
 
-use super::inventory::{self, Body, Gun, Item, Owner, SLOTS, Slot, items_and_rest};
+use super::inventory::{self, Ammo, Body, Gun, Item, Measure, Owner, SLOTS, Slot, items_and_rest};
 use super::AMMO_SLOTS;
 use super::{Block, Context, PLAYER_FIELDS_AT};
 use weapon_pickup::WeaponSlot;
@@ -314,7 +314,7 @@ fn walk(state: &[u8], items: usize, place: Option<u8>, context: &Context) -> Res
     let mut slots: [Option<Slot>; SLOTS as usize] = [None; SLOTS as usize];
     for item in own.iter() {
         if let Some(slot) = slots.get_mut(usize::from(item.slot)) {
-            *slot = Some(Slot { item: *item, optional: false });
+            *slot = Some(Slot::Held(*item));
         }
     }
     // A pick moves the borrowed gun's stacks into the picker's ammo slots
@@ -322,8 +322,8 @@ fn walk(state: &[u8], items: usize, place: Option<u8>, context: &Context) -> Res
     if record.picks.iter().any(Option::is_some) {
         for ammo in AMMO_SLOTS {
             if let Some(slot) = slots.get_mut(usize::from(ammo)) {
-                let item = Item { slot: ammo, stack: true, body: Body::None };
-                *slot = Some(Slot { item, optional: true });
+                let item = Item { slot: ammo, measure: Measure::Amount, body: Body::None };
+                *slot = Some(Slot::Maybe(item));
             }
         }
     }
@@ -344,28 +344,16 @@ fn walk(state: &[u8], items: usize, place: Option<u8>, context: &Context) -> Res
             .get(usize::from(recipe.place.get()))
             .and_then(|kits| kits.get(usize::from(recipe.kit.get())))
             .and_then(|items| items.iter().find(|item| item.slot == recipe.slot.slot()));
-        let Some(Item { stack, body: Body::Weapon(gun), .. }) = gun.copied() else {
+        let Some(Item { measure, body: Body::Weapon(gun), .. }) = gun.copied() else {
             return Err((2, Reason::PickupRecord));
         };
         if let Some(slot) = slots.get_mut(usize::from(weapon.slot())) {
             let item = Item {
                 slot: weapon.slot(),
-                stack,
-                body: Body::Weapon(Gun { ammo: None, ..gun }),
+                measure,
+                body: Body::Weapon(Gun { ammo: Ammo::Picked, ..gun }),
             };
-            *slot = Some(Slot { item, optional: false });
-        }
-    }
-    let empty = Slot {
-        item: Item { slot: 0, stack: false, body: Body::None },
-        optional: false,
-    };
-    let mut walked = [empty; SLOTS as usize];
-    let mut count = 0usize;
-    for item in slots.into_iter().flatten() {
-        if let Some(entry) = walked.get_mut(count) {
-            *entry = item;
-            count = count.saturating_add(1);
+            *slot = Some(Slot::Held(item));
         }
     }
     let usable = |place: u8, kit: u8| {
@@ -379,7 +367,7 @@ fn walk(state: &[u8], items: usize, place: Option<u8>, context: &Context) -> Res
         places: context.places,
         usable: &usable,
     };
-    items_and_rest(&reader, walked.get(..count).unwrap_or(&[]), alive, inventory, &owner)
+    items_and_rest(&reader, &slots, alive, inventory, &owner)
 }
 
 /// A carried battery (0x301660, writer 0x301470): its spotted mask, its
@@ -463,7 +451,7 @@ fn artefact_index(index: u8, context: &Context, at: usize) -> Result<(), Fault> 
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::world::inventory::GunState;
+    use crate::world::inventory::{Chamber, GunState};
     use crate::world::{Inventory, Profile};
     use std::vec::Vec;
 
@@ -761,13 +749,13 @@ mod tests {
     fn gun(ammo: u8) -> Body<'static> {
         Body::Weapon(Gun {
             states: &SHOW_FIRE,
-            chamber: false,
-            ammo: Some(ammo),
+            chamber: Chamber::NotSaved,
+            ammo: Ammo::Kit(ammo),
         })
     }
 
     fn item(slot: u8, body: Body<'static>) -> Item<'static> {
-        Item { slot, stack: false, body }
+        Item { slot, measure: Measure::Condition, body }
     }
 
     /// The state checked with the match's inventory known: `kit0` is the
@@ -842,7 +830,7 @@ mod tests {
     fn a_medkit_saves_its_influences_when_active() {
         let medkit = [Item {
             slot: 13,
-            stack: true,
+            measure: Measure::Amount,
             body: Body::Medkit { influences: 2 },
         }];
         let state = |active: bool| {
