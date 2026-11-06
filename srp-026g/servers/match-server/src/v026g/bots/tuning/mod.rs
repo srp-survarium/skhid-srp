@@ -203,6 +203,7 @@ pub use team::WatchKnown;
 pub use team::WatchNear;
 pub use teams::TeamTunings;
 pub use traps::AfterPress;
+pub use traps::CamperJob;
 pub use traps::DefeatedTuning;
 pub use traps::Forward;
 pub use traps::FreshRing;
