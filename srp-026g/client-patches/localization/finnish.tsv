@@ -2548,6 +2548,33 @@ st_srp_matches_starting	alkaa
 st_srp_matches_title	Ottelut
 st_srp_matches_versus	vs
 st_srp_matches_waiting	odottaa
+st_srp_medical_301_description	Lisätään kipulääkkeen kipusuojaan ja vaikutusaikaan:
+st_srp_medical_301_name	Tehokas kipulääke
+st_srp_medical_302_description	Ensiapupakkausten ja siteiden käyttöajan lyhennys:
+st_srp_medical_302_name	Nopea sitominen
+st_srp_medical_303_description	Kipulääkkeen vaikuttaessa kestävyyden kulutuksen vähennys sprintatessa:
+st_srp_medical_303_name	Turtuneet jalat
+st_srp_medical_311_description	Terveyden palautuminen alkaa näin monta sekuntia aiemmin:
+st_srp_medical_311_name	Aineenvaihdunta
+st_srp_medical_312_description	Lisäys ensiapupakkausten ja siteiden palauttamaan terveyteen:
+st_srp_medical_312_name	Lääkintäkoulutus
+st_srp_medical_313_description	Lisäys ensiapupakkausten ja siteiden palauttamaan terveyteen kyykyssä:
+st_srp_medical_313_name	Suojaan
+st_srp_medical_321_description	Liikkumisnopeuden lisäys, kun terveys on alle 30:
+st_srp_medical_321_name	Adrenaliini
+st_srp_medical_322_description	Jokaiseen lääkkeitä sisältävään taskuun mahtuu yksi esine lisää.
+st_srp_medical_322_name	Lisälääkkeet
+st_srp_medical_323_description	Kipulääkkeen vaikuttaessa vihollisen osumien pysäytysvoiman vähennys:
+st_srp_medical_323_name	Horjumaton
+st_srp_medical_331_description	Korvaa toissijaisen aseen paikan ylimääräisellä tarviketaskulla.
+st_srp_medical_331_name	Tarviketasku
+st_srp_medical_332_description	Lisäys käsien ja jalkojen enimmäisterveyteen:
+st_srp_medical_332_name	Vahvat luut
+st_srp_medical_333_description	Kipulääkkeen vaikuttaessa ympäristön äänet ovat hiljaisempia ja vihollisten äänet (paitsi laukaukset) kovempia:
+st_srp_medical_333_name	Keskittyminen
+st_srp_medical_342_description	Liittolaisilta saadun vahingon vähennys:
+st_srp_medical_342_name	Aseveljet
+st_srp_medical_seconds	 s
 st_srp_medicine_ambient_sounds	Ympäristön äänet
 st_srp_medicine_crouched_healing	Parannus kyykyssä
 st_srp_medicine_enemy_sounds	Vihollisten äänet

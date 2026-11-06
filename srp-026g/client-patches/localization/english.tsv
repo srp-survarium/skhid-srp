@@ -2548,6 +2548,33 @@ st_srp_matches_starting	starting
 st_srp_matches_title	Matches
 st_srp_matches_versus	v
 st_srp_matches_waiting	waiting
+st_srp_medical_301_description	Adds to the painkiller's pain protection and duration:
+st_srp_medical_301_name	Potent Painkiller
+st_srp_medical_302_description	Reduction in activation time of first-aid kits and bandages:
+st_srp_medical_302_name	Fast Bandaging
+st_srp_medical_303_description	While a painkiller is active, reduction in sprint stamina use:
+st_srp_medical_303_name	Numb Legs
+st_srp_medical_311_description	Health regeneration starts this many seconds sooner:
+st_srp_medical_311_name	Metabolism
+st_srp_medical_312_description	Bonus to health restored by first-aid kits and bandages:
+st_srp_medical_312_name	Medical Training
+st_srp_medical_313_description	Bonus to health restored by first-aid kits and bandages while crouched:
+st_srp_medical_313_name	Take Cover
+st_srp_medical_321_description	Bonus to movement speed while health is below 30:
+st_srp_medical_321_name	Adrenalin
+st_srp_medical_322_description	Each pocket containing medicine holds one extra item.
+st_srp_medical_322_name	Additional Medicine
+st_srp_medical_323_description	While a painkiller is active, reduction in the stopping power of enemy hits:
+st_srp_medical_323_name	Unflinching
+st_srp_medical_331_description	Replaces the secondary weapon slot with an additional supply pocket.
+st_srp_medical_331_name	Supply Pocket
+st_srp_medical_332_description	Bonus to maximum health of arms and legs:
+st_srp_medical_332_name	Strong Bones
+st_srp_medical_333_description	While a painkiller is active, environment sounds are quieter and enemy sounds (except shots) louder by:
+st_srp_medical_333_name	Concentration
+st_srp_medical_342_description	Reduction in damage received from allies:
+st_srp_medical_342_name	Brothers in Arms
+st_srp_medical_seconds	 s
 st_srp_medicine_ambient_sounds	Ambient sounds
 st_srp_medicine_crouched_healing	Healing crouched
 st_srp_medicine_enemy_sounds	Enemy sounds
