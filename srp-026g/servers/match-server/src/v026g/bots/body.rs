@@ -371,6 +371,13 @@ impl BodyTrack {
         self.trail.iter().find(|r| r.time == time).map(|r| r.feet)
     }
 
+    /// The bench only (A325 first divergence): the reckoned ticks after `after` up to and with `until`, ms: their time, feet and
+    /// whether the walk grid held the body on them.
+    #[cfg(test)]
+    pub fn trail_between(&self, after: u32, until: u32) -> Vec<(u32, Vec3, bool)> {
+        self.trail.iter().filter(|r| r.time > after && r.time <= until).map(|r| (r.time, r.feet, r.held)).collect()
+    }
+
     /// The decided ticks between the last two worlds of this life ([`Interval`]); none where [`Self::last_meant`] is none.
     pub fn last_interval(&self) -> Option<Interval> {
         self.last_interval
