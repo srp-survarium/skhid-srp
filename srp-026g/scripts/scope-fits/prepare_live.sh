@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 # The players' files make_pack.py builds on (../rifle-scopes/prepare_live.sh's, and every weapon
-# attachment's model and material: the HK416's stock Walther is the Walther Competition II's reference):
+# attachment's model and material: the HK416's stock Walther is the Walther Competition II's reference;
+# the weapons' skeletons and own clips: eyes are placed on the gun as its idle clip poses it):
 #   prepare_live.sh <srp-game-data> <out folder> --db <resources.db> --patch <patch> ...
 set -euo pipefail
 tool=$1 out=$2
@@ -9,7 +10,7 @@ shift 2
 list=$(mktemp)
 trap 'rm -f "$list" "$list.all"' EXIT
 "$tool" files "$@" > "$list.all"
-cut -f1 "$list.all" | grep -E '^(gameplay/items/scopes/|gameplay/items/weapons/wpn_[^/]*\.options$|gameplay/db_static_dictionaries$|models/weapons/attach/|models/weapons/.*\.skinned_model/|material_instances/weapons/|textures/weapons/attach/)' > "$list"
+cut -f1 "$list.all" | grep -E '^(gameplay/items/scopes/|gameplay/items/weapons/wpn_[^/]*\.options$|gameplay/db_static_dictionaries$|models/weapons/attach/|animations/single/weapons/[^/]*/item/|animations/skeletons/weapons/|models/weapons/.*\.skinned_model/|material_instances/weapons/|textures/weapons/attach/)' > "$list"
 "$tool" get "$@" --out "$out" --paths "$list" >/dev/null
 cut -f1 "$list.all" > "$out/paths.txt"
 echo "$out: $(wc -l < "$list") files"

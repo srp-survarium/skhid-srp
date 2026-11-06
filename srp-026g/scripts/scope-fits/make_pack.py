@@ -48,6 +48,7 @@ import argparse
 import hashlib
 import importlib.util
 import json
+import os
 import shutil
 import sys
 import tempfile
@@ -76,7 +77,7 @@ occlusion = _load('scope_fits_occlusion', HERE / 'occlusion.py')
 sights = _load('scope_fits_sights', HERE / 'sights.py')
 
 PACK_ID = 'scope-fits'
-VERSION = '4'
+VERSION = '5'
 FIRST_VARIANT = 2901
 LAST_VARIANT = 3299
 CATEGORY = 22
@@ -137,21 +138,31 @@ def translation(model, module_dir):
 EYE_AXIS = 0.0002
 
 
-def reticle_offset(weapon_model, aimed_model, shift, level=False):
-    """(x, y) of an aimed model's reticle (its red dot, else its grid) from the weapon model's eye, in
-    the locators' frame (the aimed model drawn at scope_point turned half about Y); None where it has
-    no reticle, or (with `level`) the model's eye is turned (the view tilted off that line)."""
-    locs = survey.locators(weapon_model)
-    sp, aim = locs['scope_point'][0], locs['aim'][0]
-    rot = locs['aim'][1] or [0.0, 0.0, 0.0]
-    if sp is None or aim is None or (level and max(abs(x) for x in rot) > 1e-6):
-        return None
+def reticle_centre(aimed_model):
+    """An aimed model's reticle (its red dot, else its grid): its box's centre; None without one."""
     names = lib.surfaces(aimed_model)
     for surface in (lib.REDDOT, lib.DOT, 'collimator_glowing_dot_green_s', lib.GRID):
         if surface in names:
-            c = lib.bbox_centre(aimed_model, surface) + shift
-            return (sp + c * np.array([-1.0, 1.0, -1.0]) - aim)[:2]
+            return lib.bbox_centre(aimed_model, surface)
     return None
+
+
+def wanted_offset(ref):
+    """Where a variant's reticle goes from its eye: a collimator's red dot on the eye; a scope's reticle
+    as its reference has it (its red dot is no aiming point: the PSO-1's and the 1P69's light the
+    chevron, whose tip is the eye's line, 14 px above the dot's box at x4)."""
+    return np.zeros(2) if ref['kind'] == 'C' else ref['off']
+
+
+def reticle_offset(roots, cfg, weapon_model, aimed_model, level=False):
+    """(x, y) of an aimed model's reticle from the weapon model's eye, the gun posed by its idle clip
+    (rifle scopes' eye_on_dot; `cfg` the gun's config); None where it has no reticle, or (with
+    `level`) the model's eye is turned (the view tilted off that line)."""
+    _, aim, rot = lib.locator(lib.leaves(weapon_model / 'render/export_properties'), 'aim')
+    centre = reticle_centre(aimed_model)
+    if centre is None or (level and rot is not None and max(abs(x) for x in rot) > 1e-6):
+        return None
+    return np.array(rs.eye_on_dot(roots.layered(), cfg, weapon_model, centre)) - np.array(aim[:2])
 
 
 def scope_frame_eye(model_dir):
@@ -182,6 +193,25 @@ class Roots:
 
     def model(self, model):
         return next((d for d in (lib.model_dir(r, model) for r in self.roots) if d), None)
+
+    def layered(self, path=''):
+        """`path` in the first root that has it, as the posing code reads files (`/`, a path, read_bytes):
+        a gun pack's gun may hang on a stock skeleton."""
+        return Layered(self.roots, path)
+
+
+class Layered(os.PathLike):
+    def __init__(self, roots, path):
+        self.roots, self.path = roots, path
+
+    def __truediv__(self, more):
+        return Layered(self.roots, f'{self.path}/{more}' if self.path else str(more))
+
+    def __fspath__(self):
+        return str(next((r / self.path for r in self.roots if (r / self.path).exists()), self.roots[-1] / self.path))
+
+    def read_bytes(self):
+        return Path(self).read_bytes()
 
 
 def model_change(d):
@@ -235,8 +265,8 @@ def references(args, work, donor, optics, fits, variants, weapons, roots):
             e = eye[0]
             rank = (bool(rails), PREFERRED.index(v['weapon']) if v['weapon'] in PREFERRED else len(PREFERRED), v['name'])
             rec = {'idle': idle, 'aim': aim, 'own': own, 'aim_own': [s for s in lib.surfaces(aim) if s not in rails],
-                   't': t, 'd': e - t, 'e': e, 'kind': v['kind'], 'leaves': v['leaves'], 'variant': v,
-                   'off': reticle_offset(roots.model(v['change'] or weapons[v['weapon']][1]), aim, np.zeros(3))}
+                   't': t, 'e': e, 'kind': v['kind'], 'leaves': v['leaves'], 'variant': v,
+                   'off': reticle_offset(roots, weapons[v['weapon']][0], roots.model(v['change'] or weapons[v['weapon']][1]), aim)}
             if rec['off'] is None:
                 continue
             if best is None or rank < best[0]:
@@ -272,7 +302,7 @@ def new_reference(args, work, mdir, variants):
                renames, aim)
     stock = lib.leaves(Path(args.live) / f'gameplay/items/scopes/{STOCK_WALTHER}.options')
     return {'idle': idle, 'aim': aim, 'own': lib.surfaces(idle), 'aim_own': lib.surfaces(aim), 't': np.zeros(3),
-            'd': np.array([eye[0], eye[1], 0.0]), 'e': None, 'kind': 'C', 'leaves': stock, 'variant': None,
+            'e': None, 'kind': 'C', 'leaves': stock, 'variant': None,
             'off': np.zeros(2), 'renames': renames}
 
 
@@ -418,7 +448,7 @@ def build(args, work):
             from_dir = base_dir
             if scope_frame_eye(base_dir) is None:
                 sys.exit(f'{gun}: its scope_point or aim hangs on a bone turned otherwise')
-            e_gun, sp, aim_bone = scope_frame_eye(base_dir)
+            e_gun, sp, _ = scope_frame_eye(base_dir)
             if (gun, link) in new_mounts:
                 origin, rails = new_mounts[(gun, link)]
                 t = mount_translation(sp, origin)
@@ -435,25 +465,32 @@ def build(args, work):
                 from_dir = roots.model(mv['change'] or base_model)
                 if scope_frame_eye(from_dir) is None:
                     sys.exit(f'{gun}: its scope_point or aim hangs on a bone turned otherwise')
-                e_gun, sp, aim_bone = scope_frame_eye(from_dir)
+                e_gun, sp, _ = scope_frame_eye(from_dir)
             shift = t - ref['t']
             vname = f'fitn_{short}_{gun}'
             idle_out = work / f'models/weapons/attach/fit5/{vname}.model'
             aim_out = work / f'models/weapons/attach/fit5/{vname}_aim.model'
             rs.compose(args.compose, [(ref['idle'], shift, ref['own'])] + rail_parts, renames, idle_out)
+            sighted = changes.get(gun, [])
             if kind == 'C':
-                eye = t + ref['d']
                 aim_parts = [(ref['aim'], shift, ref['aim_own'])] + aim_rail_parts
             else:
-                eye = e_gun
-                aim_parts = [(ref['aim'], eye - ref['e'], ref['aim_own'])]
+                # the eyepiece before the eye as the reference's, the gun posed as the game draws it
+                # (read unposed, the SVU's PSO-1 sat 23 mm aside, @4): the gun's model the variant
+                # draws (below: the mount variant's levelled, else the gun's own)
+                drawn = from_dir if sighted or aim_turned(from_dir) else base_dir
+                frame = rs.posed_frame(roots.layered(), cfg, drawn)
+                move = e_gun - ref['e']
+                aim_xy = np.array(lib.locator(lib.leaves(drawn / 'render/export_properties'), 'aim')[1][:2])
+                got = rs.posing.transform(reticle_centre(ref['aim']) + move, frame)[:2] - aim_xy
+                move[:2] += (wanted_offset(ref) - got) @ np.linalg.inv(frame[:2, :2])
+                aim_parts = [(ref['aim'], move, ref['aim_own'])]
             rs.compose(args.compose, aim_parts, renames, aim_out)
             rs.wrap_uv(idle_out)  # the aperture sight's texture coordinates past 1 (the rifle scopes' @3)
             rs.wrap_uv(aim_out)
             files.update(rs.files_of(idle_out, work))
             files.update(rs.files_of(aim_out, work))
             change = None
-            sighted = changes.get(gun, [])
             if kind == 'S' and (sighted or aim_turned(from_dir)):
                 # the gun's model with its sights as under an optic (sights.tsv) and its eye looking
                 # straight along the bore (an aim locator turned about x tilts the view: the eyepiece,
@@ -467,8 +504,9 @@ def build(args, work):
                     under_optic(target, sighted, donor, gun)
                     files.update(rs.files_of(target, work))
             if kind == 'C':
-                # the aim locator's own position: the eye less its bone's origin
-                needed = (sp[0] - eye[0] - aim_bone[0], sp[1] + eye[1] - aim_bone[1])
+                # the eye before the red dot, the gun posed as the game draws it (read unposed, the
+                # UMP-45's Walther showed 25 px right of the screen's centre, @4)
+                needed = rs.eye_on_dot(roots.layered(), cfg, from_dir, reticle_centre(aim_out))
                 has_point = lib.locator(lib.leaves(base_dir / 'render/export_properties'), 'scope_point')
                 candidates = ([(base_model, base_dir)] if has_point and not sighted else []) + eyes.get(gun, [])
                 candidates += [(v['change'], lib.model_dir(args.live, v['change'])) for v in live_variants.values()
@@ -498,13 +536,14 @@ def build(args, work):
             path = f'gameplay/items/scopes/{vname}.options'
             files[path] = variant_config(template, source, name, gun, dict_id, vname, change, scope_fov, icon)
             check_variant(files[path], name, gun, dict_id, vname, change, kind)
-            # the eye on the scope's axis: the reticle before the weapon model's eye as before the reference's
+            # the eye on the scope's axis: the reticle where wanted_offset puts it
             eye_model = work / 'models' / (change + '.skinned_model') if change and (work / 'models' / (change + '.skinned_model')).exists() \
                 else roots.model(change or base_model)
-            off = reticle_offset(eye_model, aim_out, np.zeros(3), level=True)
-            if off is None or np.abs(off - ref['off']).max() > EYE_AXIS:
-                sys.exit(f'{vname}: its reticle is {off} from the eye, the reference\'s {ref["off"]}')
-            axis.append(f'{vname}\t{off[0] * 1000:+.2f}\t{off[1] * 1000:+.2f}\t{ref["off"][0] * 1000:+.2f}\t{ref["off"][1] * 1000:+.2f}')
+            off = reticle_offset(roots, cfg, eye_model, aim_out, level=True)
+            want, within = wanted_offset(ref), (rs.EYE_TOLERANCE if kind == 'C' else EYE_AXIS)
+            if off is None or np.abs(off - want).max() > within:
+                sys.exit(f'{vname}: its reticle is {off} from the eye, not {want}')
+            axis.append(f'{vname}\t{off[0] * 1000:+.2f}\t{off[1] * 1000:+.2f}\t{want[0] * 1000:+.2f}\t{want[1] * 1000:+.2f}')
             # nothing of the gun or its rails in the line of sight (occlusion.py): a release-41 gun's
             # variant must pass; a live weapon's (the Walther's) is as its live variants are (recorded)
             ok, wmin, wmax, clear, hit = occlusion.variant_check(
@@ -525,7 +564,8 @@ def build(args, work):
             icons.append(shop_item(args, files, entries, name, int(new_id), int(price), icon, scope_fov, first,
                                    ref['leaves'], ref['idle'], args.donor / 'icons' / f'{link}.png', ref['renames']))
     (HERE / 'eyes.tsv').write_text('# made by make_pack.py: each variant\'s reticle (red dot, else grid) from its weapon model\'s eye, '
-                                   'mm (x, y), and its reference\'s: equal within EYE_AXIS\n# variant\tx\ty\treference x\treference y\n'
+                                   'mm (x, y), the gun posed by its idle clip, and where it is wanted: a collimator\'s on the eye '
+                                   '(within rifle scopes\' EYE_TOLERANCE), a scope\'s as wanted_offset says (EYE_AXIS)\n# variant\tx\ty\twanted x\twanted y\n'
                                    + '\n'.join(axis) + '\n', encoding='utf-8')
     (HERE / 'occlusion.tsv').write_text(
         '# made by make_pack.py (occlusion.py): each variant\'s line of sight; window: a collimator\'s, degrees about its red dot\n'
