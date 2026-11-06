@@ -2459,6 +2459,19 @@ st_srp_inv_pocket_units	Miejsca w kieszeni
 st_srp_inv_stamina_damage	Obrażenia wytrzymałości
 st_srp_inv_throw_speed	Prędkość rzutu
 st_srp_inventory_search	Szukaj
+st_srp_inventory_search_examples	+kieszeń +włóczędzy, +miejsca, +ładownice, +10
+st_srp_inventory_search_tip_bonus	ma każdy podany bonus
+st_srp_inventory_search_tip_bonus_example	+ładownice +kieszeni
+st_srp_inventory_search_tip_bonus_list	wszystkie bonusy
+st_srp_inventory_search_tip_faction	sprzedaje ta frakcja (kilka: dowolna)
+st_srp_inventory_search_tip_faction_example	+armia
+st_srp_inventory_search_tip_first	bonus i frakcja, oba naraz
+st_srp_inventory_search_tip_first_example	+kieszeń +włóczędzy
+st_srp_inventory_search_tip_kind	dowolny z tych rodzajów
+st_srp_inventory_search_tip_kind_example	+helmet +boots
+st_srp_inventory_search_tip_kind_list	wszystkie rodzaje
+st_srp_inventory_search_tip_level	dowolnego z tych poziomów
+st_srp_inventory_search_tip_level_example	+10 +11
 st_srp_item_props_mps	m/s
 st_srp_language_option	Język:
 st_srp_language_restart	Zadziała po ponownym uruchomieniu.

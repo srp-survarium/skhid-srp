@@ -40,6 +40,17 @@ package survarium.data
          }
       }
       
+      // every property's description (the item search's bonus words: InventoryList.searchBonuses)
+      public function descriptions() : Array
+      {
+         var all:Array = [];
+         for each(var description:Object in this._propertyDescriptors)
+         {
+            all.push(description);
+         }
+         return all;
+      }
+
       public function getPropertyDescription(propId:uint) : Object
       {
          if(this._propertyDescriptors[propId] == null)
