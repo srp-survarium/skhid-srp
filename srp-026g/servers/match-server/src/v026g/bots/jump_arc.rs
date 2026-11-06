@@ -28,6 +28,8 @@
 //! `release/content.tsv` names those clips) as clamped cubic B-splines and writes this file; its README names how to get them.
 
 use mapdata::{NodeId, RayTree, Vec3, WalkGrid};
+#[cfg(test)]
+use std::sync::atomic::{AtomicU64, Ordering};
 
 use super::kin::{Local, TICK_S, to_world};
 use crate::v026g::drive::key;
@@ -370,6 +372,17 @@ impl JumpArc {
     }
 }
 
+/// The bench only: rays the arc has cast on the walker mesh (its cost per jumping tick, `tests/drift_replay.rs`).
+#[cfg(test)]
+pub static RAYS: AtomicU64 = AtomicU64::new(0);
+
+/// A ray on the walker mesh (counted for the bench).
+fn cast(walls: &RayTree, from: Vec3, dir: Vec3, reach: f32) -> Option<f32> {
+    #[cfg(test)]
+    RAYS.fetch_add(1, Ordering::Relaxed);
+    walls.ray_cast(from, dir, reach)
+}
+
 /// The highest top of the walker mesh `walls` that feet coming down from `from_y` to `at` meet within the body's radius, m: rays
 /// straight down from the catch over `from_y` at the centre and at [`PERCH_RING`] of the radius on four sides.
 fn perch(walls: &RayTree, at: Vec3, from_y: f32, radius: f32) -> Option<f32> {
@@ -379,11 +392,14 @@ fn perch(walls: &RayTree, at: Vec3, from_y: f32, radius: f32) -> Option<f32> {
         return None;
     }
     let k = radius * PERCH_RING;
+    if !walls.any_in_box(Vec3::new(at.x - k, at.y, at.z - k), Vec3::new(at.x + k, top, at.z + k)) {
+        return None;
+    }
     [(0.0, 0.0), (k, 0.0), (-k, 0.0), (0.0, k), (0.0, -k)]
         .into_iter()
         .filter_map(|(dx, dz)| {
             let from = Vec3::new(at.x + dx, top, at.z + dz);
-            walls.ray_cast(from, Vec3::new(0.0, -1.0, 0.0), reach).map(|t| top - t)
+            cast(walls, from, Vec3::new(0.0, -1.0, 0.0), reach).map(|t| top - t)
         })
         .reduce(f32::max)
 }
@@ -407,17 +423,32 @@ fn rays_blocked(walls: &RayTree, feet: Vec3, to: (f32, f32), y: f32, radius: f32
     if len <= 1e-6 {
         return false;
     }
+    // Nothing of the mesh in the box the body sweeps (the move and the radius past it, from the lowest ray to the highest): no ray.
+    let (ex, ez) = (to.0 + dx / len * radius, to.1 + dz / len * radius);
+    let lo = Vec3::new(feet.x.min(ex), y + AIR_RAY_LOW, feet.z.min(ez));
+    let hi = Vec3::new(feet.x.max(ex), y + AIR_RAY_HIGH, feet.z.max(ez));
+    if !walls.any_in_box(lo, hi) {
+        return false;
+    }
     let dir = Vec3::new(dx / len, 0.0, dz / len);
     let n = ((AIR_RAY_HIGH - AIR_RAY_LOW) / AIR_RAY_STEP).round() as u32;
     (0..=n).any(|i| {
         let h = AIR_RAY_LOW + i as f32 * AIR_RAY_STEP;
-        walls.ray_cast(Vec3::new(feet.x, y + h, feet.z), dir, len + radius).is_some()
+        cast(walls, Vec3::new(feet.x, y + h, feet.z), dir, len + radius).is_some()
     })
 }
 
 /// The first top of [`perch_over`] along the move from `feet` to `at` (every [`PERCH_STEP_M`]), as the client's capsule sweeps a
 /// tick's move: where the feet stand on it, and the grid's floor there if any.
 fn perch_along(grid: &WalkGrid, walls: Option<&RayTree>, feet: Vec3, at: Vec3, radius: f32) -> Option<(Vec3, Option<NodeId>)> {
+    // Nothing of the mesh in the column under the whole move (the ring round it, from the catch over the higher feet down to the
+    // arc's): no top to come down on, no ray.
+    let k = radius * PERCH_RING;
+    let lo = Vec3::new(feet.x.min(at.x) - k, at.y, feet.z.min(at.z) - k);
+    let hi = Vec3::new(feet.x.max(at.x) + k, feet.y.max(at.y) + CATCH_M, feet.z.max(at.z) + k);
+    if !walls?.any_in_box(lo, hi) {
+        return None;
+    }
     let (dx, dz) = (at.x - feet.x, at.z - feet.z);
     let steps = (dx.hypot(dz) / PERCH_STEP_M).ceil().max(1.0) as u32;
     (1..=steps).find_map(|i| {

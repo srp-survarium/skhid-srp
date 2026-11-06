@@ -141,6 +141,7 @@ fn drift_on_a_real_match() {
     // `SRP_A304_HOLD=1` [A318]: each 'faster' world the grid held the reckoning in (the client walked 1 m+ more than the keys meant):
     // the floor it was held on against the floor under the client's feet, and the grid's links between them.
     let hold_probe = var("SRP_A304_HOLD").is_some();
+    let mut arc_rays: Vec<u64> = Vec::new();
     let trace: Option<(usize, u32, u32)> = var("SRP_A318_TRACE").and_then(|v| {
         let mut it = v.split(',').map(|s| s.trim().parse::<u32>().ok());
         Some((it.next()?? as usize, it.next()??, it.next()??))
@@ -151,7 +152,12 @@ fn drift_on_a_real_match() {
             let (time, place, keys, turn) = ticks[k];
             let track = tracks.entry(place).or_default();
             track.set_walls(arc_walls.clone());
+            let rays_before = super::super::jump_arc::RAYS.load(std::sync::atomic::Ordering::Relaxed);
             track.decided(time, keys, turn, 0.0, &kin, grid);
+            // [A318] The jump arc's rays on this tick, while a jump is under way (its cost per jumping tick).
+            if track.estimate().is_some_and(|e| e.arc.is_some()) {
+                arc_rays.push(super::super::jump_arc::RAYS.load(std::sync::atomic::Ordering::Relaxed) - rays_before);
+            }
             // `SRP_A318_TRACE=place,from,to` [A318]: that place's reckoned body after each of its ticks in the window.
             if let Some((p, from, to)) = trace
                 && place == p
@@ -274,6 +280,16 @@ fn drift_on_a_real_match() {
     }
     if let Some(path) = var("SRP_A304_OUT") {
         std::fs::write(&path, out).unwrap_or_else(|e| panic!("{path}: {e}"));
+    }
+    if !arc_rays.is_empty() {
+        arc_rays.sort_unstable();
+        let mean = arc_rays.iter().sum::<u64>() as f64 / arc_rays.len() as f64;
+        let p99 = arc_rays[(arc_rays.len() * 99 / 100).min(arc_rays.len() - 1)];
+        eprintln!(
+            "A318 rays {project}: {} jumping ticks, rays a tick mean {mean:.1} p99 {p99} max {}",
+            arc_rays.len(),
+            arc_rays[arc_rays.len() - 1]
+        );
     }
     eprintln!(
         "A304 replay {project}: {n} worlds of bots compared, {over} drifting (1 m+), {:.1} %",
