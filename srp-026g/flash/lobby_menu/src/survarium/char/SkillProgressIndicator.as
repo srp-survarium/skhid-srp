@@ -59,13 +59,10 @@ package survarium.char
             return;
          }
          var angle:int = -90 - count / 2 * angleStep + angleStep / 2;
-         var i:uint = count;
-         while(i < this._renderers.length)
+         // A renderer shows skills of 1 to 5 ranks in turn: drop the pips past this one's ranks.
+         while(this._renderers.length > count)
          {
-            renderer = this._renderers[i];
-            renderer.gotoAndStop(1);
-            removeChild(renderer);
-            i++;
+            removeChild(this._renderers.pop());
          }
          var j:uint = 0;
          var radians:Number;

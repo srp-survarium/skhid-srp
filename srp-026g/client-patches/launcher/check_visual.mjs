@@ -75,7 +75,7 @@ try {
             const issues=[];
             if(document.documentElement.scrollWidth>899||document.documentElement.scrollHeight>335) issues.push('page overflow');
             const discord=document.querySelector('a.discord');
-            if(!discord || discord.href!=='https://discord.gg/Pxa4prXfwu' || discord.target!=='_blank') issues.push('missing external Discord link');
+            if(!discord || discord.href!=='https://discord.gg/QUmJg3gBhg' || discord.target!=='_blank') issues.push('missing external Discord link');
             if(discord && (discord.getBoundingClientRect().width===0 || discord.getBoundingClientRect().right>883)) issues.push('Discord link clipped');
             const left=document.querySelector('#left'), cap=left.querySelector('.cap');
             // The board and the matches are two tabs: the one that is not shown has no size.

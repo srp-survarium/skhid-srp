@@ -110,7 +110,7 @@ fn web(replays: Option<Arc<Replays>>) -> Web {
             accounts: Arc::new(GameAccounts::new()),
             lobby: Arc::new(Quiet),
             matches: Arc::new(Quiet),
-            patches: Vec::new(),
+            downloads: Arc::new(crate::Downloads::new(Vec::new(), None, None)),
             min_patch_revision: 0,
             replays,
         }),

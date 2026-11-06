@@ -62,6 +62,10 @@ fn full_account(id: u32) -> Account {
         .set(13, Some(crate::chat_mutes::ChatMuteMode::Placeholder));
     account.active_profile = Some(2);
     account.notices = vec![(3, "#ru[1:2]".into()), (4, "quest done".into())];
+    account.chat_ban = Some(crate::Ban {
+        until: Some(1_900_000_000),
+        reason: "spam, Ш".into(),
+    });
     let game = &mut account.game;
     game.generic_money = 12_345;
     game.premium_money = 77;
@@ -851,4 +855,48 @@ fn old_sessions_migrate_to_the_stock_client_revision() {
     assert_eq!(sessions.len(), 1);
     assert_eq!(sessions[0].session_id, 12345);
     assert_eq!(sessions[0].client_revision, 0);
+}
+
+#[test]
+fn a_chat_mute_survives_a_restart_and_a_version_5_database_gains_it() {
+    let dir = TempDir::new("chat-mute");
+    let connection = version_1_fixture(&dir.db());
+    migrate(&connection, 5).unwrap();
+    drop(connection);
+    let open = || {
+        let repository = SqliteRepository::open(&dir.db()).unwrap();
+        SessionStore::with_repository(GATHER, Box::new(repository)).unwrap()
+    };
+    let store = open();
+    assert_eq!(store.account(4).unwrap().locked().chat_ban, None);
+    let ban = crate::Ban {
+        until: None,
+        reason: "spam".into(),
+    };
+    assert!(store.mute_chat(4, ban.clone()));
+    assert!(!store.mute_chat(99, ban.clone()));
+    drop(store);
+
+    let store = open();
+    assert_eq!(store.chat_ban(4), Some(ban));
+    assert_eq!(store.chat_bans().len(), 1);
+    // One that ran out holds no more, and is no mute to lift.
+    let ran_out = crate::Ban {
+        until: Some(1),
+        reason: "old".into(),
+    };
+    assert!(store.mute_chat(4, ran_out));
+    assert_eq!(store.chat_ban(4), None);
+    assert!(store.chat_bans().is_empty());
+    assert!(!store.unmute_chat(4));
+    assert!(store.mute_chat(
+        4,
+        crate::Ban {
+            until: None,
+            reason: "again".into(),
+        }
+    ));
+    assert!(store.unmute_chat(4));
+    drop(store);
+    assert_eq!(open().account(4).unwrap().locked().chat_ban, None);
 }

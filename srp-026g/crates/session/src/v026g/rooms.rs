@@ -10,7 +10,7 @@
 //! - Once two players are in it who can play (a kit with a weapon and its
 //!   ammo, equipment within the max level; one who cannot is marked red in
 //!   the room, counts for nothing, and is taken out of the room when the
-//!   match starts without it), the vote runs for 15 s ([`VOTE`]) and the
+//!   match starts without it), the vote runs for 15 s (`RoomRules::vote`) and the
 //!   room's own wait together, always whole, a full room too: its players
 //!   may still be changing their equipment (the owner's of 2026-10-17). The
 //!   vote stays open until the match starts, and its winner then is the
@@ -20,7 +20,8 @@
 //!   soon as a match starts (its players vote during it); a member may
 //!   change its vote. Each card is a map with its weather and mode
 //!   (a `maps_dict` id); the card with the most votes is played, a tie and no
-//!   vote at all are drawn at random.
+//!   vote at all are drawn at random. The third card is Blackout while the
+//!   pool has it (the owner's of 2026-11-02, `Rooms::draw`).
 //! - There are no teams in the room: the sides are drawn when the match
 //!   starts (squads together, the sides as even as they can be).
 //! - A squad (two at most) comes together, by its commander alone: a join
@@ -47,6 +48,10 @@
 //!   level either (the owner's of 2026-10-26: "private room shouldn't have
 //!   max level too"): whoever has its PIN comes in with any equipment, and
 //!   nothing takes a member out of it for its equipment ([`Door::Pin`]).
+//! - A private room may be made with bots (the owner's of 2026-11-05): its
+//!   pool holds only maps the server's bots play, the room shows no bots,
+//!   and its match fills each team with them, its members on a team in
+//!   bots' places ([`Room::bots_for`]).
 //!
 //! This module keeps the rooms and their rules. The lobby asks it, does
 //! what it says (sends players to a match, tells the clients) and tells it
@@ -55,12 +60,17 @@
 use std::collections::{BTreeMap, HashMap, HashSet, VecDeque};
 use std::time::{Duration, Instant};
 
+use survarium::v026g::drops::Rng;
+use survarium::v026g::lobby::rooms::rules;
+use survarium::v026g::maps;
+
+use super::level_stats;
+use crate::Strength;
+
 /// How long a pool sent in pieces before a create waits for that create.
 pub const DRAFT_LIFE: Duration = Duration::from_secs(120);
 /// How long a PIN given before a JOIN waits for that JOIN.
 pub const PIN_LIFE: Duration = Duration::from_secs(60);
-/// The fewest players an open room's vote (and so its match) starts with.
-pub const START_PLAYERS: usize = 2;
 /// A private room's team size: the most a match has, 10 v 10 (the owner's
 /// of 2026-10-26: no size to choose).
 pub const PRIVATE_SIZE: u8 = (crate::MAX_PLAYERS_PER_MATCH / 2) as u8;
@@ -95,8 +105,9 @@ pub enum Door {
     /// (0: any).
     Open { max_level: u8 },
     /// A private room: whoever gives its PIN, with any equipment (the
-    /// owner's of 2026-10-26: no max level).
-    Pin(u16),
+    /// owner's of 2026-10-26: no max level). `bots`: its matches are
+    /// filled with the server's bots ([`Room::bots_for`]).
+    Pin { pin: u16, bots: bool },
 }
 
 impl Door {
@@ -104,7 +115,7 @@ impl Door {
     pub fn lets_in(self, gear: u8) -> bool {
         match self {
             Door::Open { max_level } => max_level == 0 || gear <= max_level,
-            Door::Pin(_) => true,
+            Door::Pin { .. } => true,
         }
     }
 
@@ -114,7 +125,7 @@ impl Door {
     pub fn max_level(self) -> u8 {
         match self {
             Door::Open { max_level } => max_level,
-            Door::Pin(_) => 0,
+            Door::Pin { .. } => 0,
         }
     }
 
@@ -122,17 +133,10 @@ impl Door {
     fn opens(self, given: Option<u16>) -> bool {
         match self {
             Door::Open { .. } => true,
-            Door::Pin(pin) => given == Some(pin),
+            Door::Pin { pin, .. } => given == Some(pin),
         }
     }
 }
-
-/// The vote's own time before each match: always this long, whatever the
-/// room's wait (the owner's of 2026-10-17).
-pub const VOTE: Duration = Duration::from_secs(15);
-/// What the vote after a match has more: its players come back from the
-/// results screen first (the owner's of 2026-10-17).
-pub const AFTER_MATCH: Duration = Duration::from_secs(10);
 
 /// Where a room is.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -140,7 +144,7 @@ pub enum Stage {
     /// Fewer than its `min_players` who can play: nothing runs.
     Waiting,
     /// The vote on the cards runs until `until`, when the match starts on
-    /// its winner: [`VOTE`] and the room's own wait together (the owner's
+    /// its winner: `RoomRules::vote` and the room's own wait together (the owner's
     /// of 2026-10-19: the vote goes on until the match starts, its time
     /// added to the wait).
     Vote { until: Instant },
@@ -180,7 +184,7 @@ pub struct Room {
     pub votes: HashMap<u32, u8>,
     /// The map of its last match; 0: none yet.
     pub last_map: u8,
-    /// Its match just ended: the next vote is [`AFTER_MATCH`] longer.
+    /// Its match just ended: the next vote is `RoomRules::after_match` longer.
     pub after_match: bool,
     /// The members in its match now.
     pub in_match: HashSet<u32>,
@@ -221,11 +225,11 @@ impl Room {
     }
 
     /// The players its match needs: an open room's before its vote begins
-    /// (two at least); a private room's one, its owner starting it with
+    /// (its min side a side: two at least); a private room's one, its owner starting it with
     /// whoever is in ([`Rooms::start`]).
     pub fn needs(&self) -> usize {
         if self.is_open() {
-            usize::from(self.spec.min_players).max(START_PLAYERS)
+            usize::from(self.spec.min_players)
         } else {
             1
         }
@@ -268,7 +272,7 @@ impl Room {
         if self.is_open() {
             return true;
         }
-        let free = |side: u8| usize::from(PRIVATE_SIZE).saturating_sub(self.side_count(side));
+        let free = |side: u8| usize::from(self.spec.size).saturating_sub(self.side_count(side));
         match beside.and_then(|mate| self.sides.get(&mate).copied()) {
             Some(side) => free(side) >= comers,
             None => free(0).max(free(1)) >= comers,
@@ -291,7 +295,7 @@ impl Room {
             let fewer = u8::from(self.side_count(1) < self.side_count(0));
             let side = beside
                 .and_then(|mate| self.sides.get(&mate).copied())
-                .filter(|&side| self.side_count(side) < usize::from(PRIVATE_SIZE))
+                .filter(|&side| self.side_count(side) < usize::from(self.spec.size))
                 .unwrap_or(fewer);
             self.sides.insert(account_id, side);
         }
@@ -319,6 +323,22 @@ impl Room {
 
     pub fn is_open(&self) -> bool {
         matches!(self.spec.door, Door::Open { .. })
+    }
+
+    /// A private room made with bots ([`Door::Pin`]).
+    pub fn with_bots(&self) -> bool {
+        matches!(self.spec.door, Door::Pin { bots: true, .. })
+    }
+
+    /// The server's bots each team of its match takes when `seated` play on
+    /// it: a room with bots fills each team up to its size (`pvb/default_size`,
+    /// always 8 v 8), its players in bots' places (the owner's of 2026-11-05);
+    /// none in any other room.
+    pub fn bots_for(&self, seated: [usize; 2]) -> [usize; 2] {
+        if !self.with_bots() {
+            return [0, 0];
+        }
+        seated.map(|on| usize::from(self.spec.size).saturating_sub(on))
     }
 
     /// Whether a player of equipment level `gear` is let in, and may play
@@ -399,7 +419,7 @@ pub enum MoveRefused {
     Playing,
     /// No member at that place.
     NoMember,
-    /// The other side has its [`PRIVATE_SIZE`].
+    /// The other side has its room's size (`Spec::size`).
     Full,
 }
 
@@ -593,7 +613,8 @@ impl Rooms {
     /// the account's draft of them, or the `default` pool with none. The
     /// owner's equipment level `gear` must be within an open room's max
     /// level. A private one (a PIN) is [`PRIVATE_SIZE`] a side, whatever `spec`
-    /// says.
+    /// says; one with bots `pvb/default_size` (8: always 8 v 8), and it keeps
+    /// only the maps of its pool in `bot_maps` (those the server's bots play).
     #[allow(clippy::too_many_arguments)]
     pub fn create(
         &mut self,
@@ -602,18 +623,25 @@ impl Rooms {
         mut spec: Spec,
         entries: &[u8],
         default: &[u8],
+        bot_maps: &[u8],
         most_rooms: usize,
         now: Instant,
         below: &mut impl FnMut(usize) -> usize,
     ) -> Result<u32, Refused> {
-        let pool = self
+        let mut pool = self
             .take_draft(owner, entries, now)
             .unwrap_or_else(|| default.to_vec());
+        if let Door::Pin { bots, .. } = spec.door {
+            spec.size = PRIVATE_SIZE;
+            if bots {
+                // Always 8 v 8 (the owner's of 2026-11-05): bots fill each
+                // team to its size, a team takes no more.
+                spec.size = rules().pvb.default_size;
+                pool.retain(|id| bot_maps.contains(id));
+            }
+        }
         if pool.is_empty() || spec.size == 0 {
             return Err(Refused::Bad);
-        }
-        if let Door::Pin(_) = spec.door {
-            spec.size = PRIVATE_SIZE;
         }
         if !spec.door.lets_in(gear) {
             return Err(Refused::GearTooHigh);
@@ -1242,13 +1270,40 @@ impl Rooms {
         })
     }
 
-    /// Three cards from the pool, all different while the pool has as many.
+    /// The vote's cards from the pool, all different while the pool has as
+    /// many, each drawn at random: the third a Blackout map (the owner's of
+    /// 2026-11-02: "offers blackout in voting always as a third choice"),
+    /// on a map the first two are not while the pool's Blackout has one;
+    /// the first two of the rest of the pool. A pool without Blackout (a
+    /// private room's maker left it out) or of Blackout alone: three of it.
     fn draw(pool: &[u8], below: &mut impl FnMut(usize) -> usize) -> Vec<u8> {
         let mut left: Vec<u8> = pool.to_vec();
         left.sort_unstable();
         left.dedup();
+        let (blackout, rest): (Vec<u8>, Vec<u8>) = left
+            .iter()
+            .partition(|&&id| is_blackout(id));
+        if blackout.is_empty() || rest.is_empty() {
+            return Self::pick(left, CARDS, below);
+        }
+        let mut cards = Self::pick(rest, CARDS - 1, below);
+        let shown: Vec<Option<u8>> = cards.iter().map(|&id| location(id)).collect();
+        let (elsewhere, same): (Vec<u8>, Vec<u8>) = blackout
+            .into_iter()
+            .partition(|&id| !shown.contains(&location(id)));
+        let third = if elsewhere.is_empty() {
+            same
+        } else {
+            elsewhere
+        };
+        cards.extend(Self::pick(third, 1, below));
+        cards
+    }
+
+    /// `count` of `left` at random, all different while it has as many.
+    fn pick(mut left: Vec<u8>, count: usize, below: &mut impl FnMut(usize) -> usize) -> Vec<u8> {
         let mut cards = Vec::new();
-        while cards.len() < CARDS && !left.is_empty() {
+        while cards.len() < count && !left.is_empty() {
             let pick = below(left.len()).min(left.len() - 1);
             cards.push(left.swap_remove(pick));
         }
@@ -1256,7 +1311,7 @@ impl Rooms {
     }
 
     /// The pass of the lobby's tick. Two members who count begin the vote,
-    /// which runs [`VOTE`] and the room's own wait together; when it is
+    /// which runs `RoomRules::vote` and the room's own wait together; when it is
     /// over, with two who count, the room is due to start its match on the
     /// vote's winner then ([`Due::Start`]), which the lobby answers with
     /// [`Rooms::started`] or [`Rooms::not_started`]. Fewer than two members stop it; a member who
@@ -1292,13 +1347,16 @@ impl Rooms {
             match room.stage {
                 Stage::Waiting if enough && room.is_open() => {
                     let extra = if room.after_match {
-                        AFTER_MATCH
+                        rules().after_match
                     } else {
                         Duration::ZERO
                     };
                     room.after_match = false;
                     room.stage = Stage::Vote {
-                        until: now + VOTE + extra + Duration::from_secs(room.spec.wait.into()),
+                        until: now
+                            + rules().vote
+                            + extra
+                            + Duration::from_secs(room.spec.wait.into()),
                     };
                 }
                 Stage::Vote { .. } if !present => {
@@ -1334,13 +1392,13 @@ impl Rooms {
     }
 
     /// The room's match could not be made: its vote and wait run again,
-    /// whole ([`VOTE`] and the wait: the 30 s at the least hold), its votes
+    /// whole (`RoomRules::vote` and the wait: the 30 s at the least hold), its votes
     /// kept.
     pub fn not_started(&mut self, key: u32, now: Instant) {
         if let Some(room) = self.rooms.get_mut(&key) {
             room.stage = match room.stage {
                 Stage::Vote { .. } => Stage::Vote {
-                    until: now + VOTE + Duration::from_secs(room.spec.wait.into()),
+                    until: now + rules().vote + Duration::from_secs(room.spec.wait.into()),
                 },
                 _ => Stage::Waiting,
             };
@@ -1360,8 +1418,8 @@ impl Rooms {
 
     /// A member went into the room's running match late, on side `team`:
     /// in a private room its side in the arrangement from now on, as it
-    /// plays, while that team has a place (never more than
-    /// [`PRIVATE_SIZE`]); one on its own team keeps it.
+    /// plays, while that team has a place (never more than the room's size);
+    /// one on its own team keeps it.
     pub fn seated_late(&mut self, key: u32, account_id: u32, team: u8) {
         if let Some(room) = self.rooms.get_mut(&key) {
             room.in_match.insert(account_id);
@@ -1370,7 +1428,7 @@ impl Rooms {
                 .sides
                 .get(&account_id)
                 .is_some_and(|&side| side != team)
-                && room.side_count(team) < usize::from(PRIVATE_SIZE)
+                && room.side_count(team) < usize::from(room.spec.size)
             {
                 room.sides.insert(account_id, team);
             }
@@ -1380,7 +1438,7 @@ impl Rooms {
     /// The owner of a private room moves the member at `place` of its
     /// list (itself too) to the other side (the owner's of 2026-10-26: "a
     /// button to move the player into any team"), while the room waits;
-    /// never onto a side of [`PRIVATE_SIZE`] already. Its side now.
+    /// never onto a side of the room's size already. Its side now.
     pub fn move_member(&mut self, owner: u32, place: usize) -> Result<u8, MoveRefused> {
         let key = *self.of_account.get(&owner).ok_or(MoveRefused::NoRoom)?;
         let room = self.rooms.get_mut(&key).ok_or(MoveRefused::NoRoom)?;
@@ -1395,7 +1453,7 @@ impl Rooms {
         }
         let member = *room.members.get(place).ok_or(MoveRefused::NoMember)?;
         let to = 1 - room.sides.get(&member).copied().unwrap_or(0).min(1);
-        if room.side_count(to) >= usize::from(PRIVATE_SIZE) {
+        if room.side_count(to) >= usize::from(room.spec.size) {
             return Err(MoveRefused::Full);
         }
         room.sides.insert(member, to);
@@ -1442,43 +1500,100 @@ impl Rooms {
     }
 }
 
-/// The sides of a match of a room: `parties` (a squad, or one player, each
-/// with what it counts for beside being there) on two sides of at most
-/// `size`, a party too large for a side split into parts that fit. Of the
-/// ways to put the parties whole, the one that fits the sizes, then whose
-/// sides are the fewest players apart past one, then that count the most
-/// alike (`player_value` a player, and the strengths: so with an odd count
-/// the stronger players are the side of fewer). The largest party (the
-/// first of those) is on side 0. When no way fits, the larger parties go
-/// first, each to the side with fewer players, split where it must be.
-pub fn sides(parties: &[(Vec<u32>, i64)], size: usize, player_value: i64) -> [Vec<u32>; 2] {
-    let parties: Vec<(Vec<u32>, i64)> = parties
+/// One of the parties the sides of a room's match are drawn with: a player
+/// alone, or a squad, which plays on one side; and what it counts for,
+/// its members' K/Ds at the match's equipment level (`super::level_stats`;
+/// `docs/notes/kd-balance.md`).
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct Party {
+    members: Vec<u32>,
+    strength: Strength,
+}
+
+impl Party {
+    /// The party of `members` (each account with its K/D), in their
+    /// order: one is a player alone, two or more a squad, each of whose
+    /// members counts [`level_stats::SQUAD_FACTOR`] times its K/D (the owner's of
+    /// 2026-11-01: "squads have their kd multiplied by 1.3").
+    pub fn new(members: Vec<(u32, Strength)>) -> Self {
+        let squad = members.len() > 1;
+        let strength = members
+            .iter()
+            .map(|&(_, each)| {
+                if squad {
+                    level_stats::in_squad(each)
+                } else {
+                    each
+                }
+            })
+            .sum();
+        Self {
+            members: members
+                .into_iter()
+                .map(|(account_id, _)| account_id)
+                .collect(),
+            strength,
+        }
+    }
+
+    pub fn members(&self) -> &[u32] {
+        &self.members
+    }
+
+    /// What it counts for, beside its players being there.
+    pub fn strength(&self) -> Strength {
+        self.strength
+    }
+}
+
+/// How far each party's strength is shaken before the sides are made,
+/// either way, in thousandths: 50 is a factor drawn from 0.95 to 1.05 (the
+/// owner's of 2026-11-01: "we can add small noise", so the same players
+/// do not always play together).
+pub const NOISE_MILLI: u32 = 50;
+
+/// The sides of a match of a room: `parties` on two sides of at most
+/// `size`, a party too large for a side split into parts that fit (each
+/// part counting its share). Each party's strength is first shaken by a
+/// factor drawn by `seed` within [`NOISE_MILLI`], so the same parties and
+/// seed always make the same sides. Of the ways to put the parties whole,
+/// every one is tried: of those that fit the sizes and whose sides are
+/// the fewest players apart past one, the one whose sides count the most
+/// alike (`player` a player, and the shaken strengths: the owner's "k/d
+/// equalizer", so with an odd count the stronger players are the side of
+/// fewer). The largest party (the first of those) is on side 0. When no
+/// way fits, the larger parties go first, each to the side with fewer
+/// players, split where it must be.
+pub fn sides(parties: &[Party], size: usize, player: Strength, seed: u32) -> [Vec<u32>; 2] {
+    let mut rng = Rng::new(u64::from(seed) ^ 0x9E37_79B9_7F4A_7C15);
+    let parties: Vec<(Vec<u32>, Strength)> = parties
         .iter()
-        .flat_map(|(members, strength)| {
-            let each = strength / members.len().max(1) as i64;
-            members
+        .flat_map(|party| {
+            let factor = 1000 - NOISE_MILLI + rng.below(2 * NOISE_MILLI + 1);
+            let each = party
+                .strength
+                .ratio(i64::from(factor), 1000 * party.members.len().max(1) as i64);
+            party
+                .members
                 .chunks(size.max(1))
-                .map(move |chunk| (chunk.to_vec(), each * chunk.len() as i64))
+                .map(move |chunk| (chunk.to_vec(), each.times(chunk.len())))
         })
         .collect();
     let count = parties.len();
     // What a way is worth, the less the better. Bit `i` of `mask`: party
     // `i` is on side 1.
     let score = |mask: u32| {
-        let mut players = [0_i64; 2];
-        let mut strength = [0_i64; 2];
+        let mut players = [0_usize; 2];
+        let mut strength = [Strength::ZERO; 2];
         for (index, (members, each)) in parties.iter().enumerate() {
             let side = (mask >> index & 1) as usize;
-            players[side] += members.len() as i64;
-            strength[side] += each;
+            players[side] += members.len();
+            strength[side] += *each;
         }
-        let over: i64 = players
-            .iter()
-            .map(|&side| (side - size as i64).max(0))
-            .sum();
-        let apart = (players[0] - players[1]).abs();
-        let worth = |side: usize| player_value * players[side] + strength[side];
-        (over, (apart - 1).max(0), (worth(0) - worth(1)).abs())
+        let over: usize = players.iter().map(|&side| side.saturating_sub(size)).sum();
+        let apart = players[0].abs_diff(players[1]);
+        let worth = |side: usize| player.times(players[side]) + strength[side];
+        (over, apart.saturating_sub(1), worth(0).abs_diff(worth(1)))
     };
     let fixed = (0..count).max_by_key(|&index| (parties[index].0.len(), std::cmp::Reverse(index)));
     // A room has at most 20 members, so at most 20 parties.
@@ -1511,18 +1626,18 @@ pub fn sides(parties: &[(Vec<u32>, i64)], size: usize, player_value: i64) -> [Ve
 /// one that counts for less); one too large for either side has its
 /// members go one by one to the side with fewer players, while there is
 /// room.
-fn fill(mut parties: Vec<(Vec<u32>, i64)>, size: usize) -> [Vec<u32>; 2] {
+fn fill(mut parties: Vec<(Vec<u32>, Strength)>, size: usize) -> [Vec<u32>; 2] {
     parties.sort_by(|a, b| b.0.len().cmp(&a.0.len()).then(b.1.cmp(&a.1)));
-    let mut sides: [(Vec<u32>, i64); 2] = Default::default();
+    let mut sides: [(Vec<u32>, Strength); 2] = Default::default();
     for (members, strength) in parties {
-        let fits = |side: &(Vec<u32>, i64)| side.0.len() + members.len() <= size;
+        let fits = |side: &(Vec<u32>, Strength)| side.0.len() + members.len() <= size;
         let order = if (sides[0].0.len(), sides[0].1) <= (sides[1].0.len(), sides[1].1) {
             [0, 1]
         } else {
             [1, 0]
         };
         let Some(side) = order.into_iter().find(|&side| fits(&sides[side])) else {
-            let each = strength / members.len().max(1) as i64;
+            let each = strength.ratio(1, members.len().max(1) as i64);
             for member in members {
                 let side = usize::from(sides[1].0.len() < sides[0].0.len());
                 if sides[side].0.len() < size {
@@ -1539,6 +1654,17 @@ fn fill(mut parties: Vec<(Vec<u32>, i64)>, size: usize) -> [Vec<u32>; 2] {
     [a, b]
 }
 
+/// The map (`maps::MapMode::level`) a card is played on, whatever its
+/// weather and mode.
+fn location(id: u8) -> Option<u8> {
+    maps::map_mode(id).map(|map| map.level)
+}
+
+/// Whether a card is a Blackout map.
+fn is_blackout(id: u8) -> bool {
+    maps::map_mode(id).is_some_and(|map| map.mode == maps::GameMode::Blackout)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -1547,7 +1673,10 @@ mod tests {
         Spec {
             size,
             wait: 30,
-            door: pin.map_or(Door::Open { max_level: 0 }, Door::Pin),
+            door: pin.map_or(Door::Open { max_level: 0 }, |pin| Door::Pin {
+                pin,
+                bots: false,
+            }),
             min_players: 2,
         }
     }
@@ -1561,7 +1690,17 @@ mod tests {
 
     fn room_of(rooms: &mut Rooms, owner: u32, size: u8, pin: Option<u16>, now: Instant) -> u32 {
         rooms
-            .create(owner, 0, spec(size, pin), &POOL, &POOL, 50, now, &mut first)
+            .create(
+                owner,
+                0,
+                spec(size, pin),
+                &POOL,
+                &POOL,
+                &[],
+                50,
+                now,
+                &mut first,
+            )
             .unwrap()
     }
 
@@ -1582,7 +1721,7 @@ mod tests {
         assert_eq!(
             room.stage,
             Stage::Vote {
-                until: now + VOTE + wait
+                until: now + rules().vote + wait
             }
         );
         assert_eq!(room.cards.len(), 3);
@@ -1594,7 +1733,7 @@ mod tests {
         assert!(!rooms.vote(2, 3));
         // Past its 15 s the vote is still open (the owner's of 2026-10-19):
         // both change to card 0.
-        let voted = now + VOTE;
+        let voted = now + rules().vote;
         assert!(rooms.tick(voted, &mut first, |_| true).is_empty());
         assert!(matches!(rooms.get(key).unwrap().stage, Stage::Vote { .. }));
         assert!(rooms.vote(1, 0));
@@ -1630,7 +1769,7 @@ mod tests {
         assert_eq!(
             room.stage,
             Stage::Vote {
-                until: back + VOTE + AFTER_MATCH + wait
+                until: back + rules().vote + rules().after_match + wait
             }
         );
         assert_eq!(room.votes.get(&2), Some(&1));
@@ -1759,7 +1898,7 @@ mod tests {
         rooms.tick(now, &mut first, |_| true);
         assert!(matches!(rooms.get(key).unwrap().stage, Stage::Vote { .. }));
         // Its kit is being changed: the vote and the wait run on.
-        rooms.tick(now + VOTE, &mut first, |member| member != 2);
+        rooms.tick(now + rules().vote, &mut first, |member| member != 2);
         let Stage::Vote { until } = rooms.get(key).unwrap().stage else {
             panic!("no vote");
         };
@@ -1783,7 +1922,7 @@ mod tests {
             panic!("no vote");
         };
         // Changing its kit in the middle of the vote: it runs on.
-        let middle = now + VOTE;
+        let middle = now + rules().vote;
         assert!(
             rooms
                 .tick(middle, &mut first, |member| member != 2)
@@ -1822,7 +1961,7 @@ mod tests {
         let cards = rooms.get(key).unwrap().cards.clone();
         assert!(rooms.vote(2, 1));
         let wait = Duration::from_secs(rooms.get(key).unwrap().spec.wait.into());
-        let due = now + VOTE + wait;
+        let due = now + rules().vote + wait;
         let first_due = rooms.tick(due, &mut first, |_| true);
         assert_eq!(
             first_due,
@@ -1838,15 +1977,19 @@ mod tests {
         assert_eq!(
             room.stage,
             Stage::Vote {
-                until: due + VOTE + wait
+                until: due + rules().vote + wait
             }
         );
         assert_eq!(room.votes.get(&2), Some(&1));
-        assert!(rooms.tick(due + VOTE, &mut first, |_| true).is_empty());
+        assert!(
+            rooms
+                .tick(due + rules().vote, &mut first, |_| true)
+                .is_empty()
+        );
         // A vote changed meanwhile changes the map.
         assert!(rooms.vote(2, 2));
         assert_eq!(
-            rooms.tick(due + VOTE + wait, &mut first, |_| true),
+            rooms.tick(due + rules().vote + wait, &mut first, |_| true),
             vec![Due::Start {
                 key,
                 map_id: cards[2]
@@ -1873,15 +2016,24 @@ mod tests {
         }
         assert_eq!(rooms.join(13, 0, key, now), Err(Refused::Full));
         rooms.tick(now, &mut first, |_| true);
-        rooms.tick(now + VOTE, &mut first, |_| true);
+        rooms.tick(now + rules().vote, &mut first, |_| true);
         // Full, but its players may still be changing their equipment.
         assert!(
             rooms
-                .tick(now + VOTE + Duration::from_secs(1), &mut first, |_| true)
+                .tick(
+                    now + rules().vote + Duration::from_secs(1),
+                    &mut first,
+                    |_| true
+                )
                 .is_empty()
         );
         let wait = Duration::from_secs(rooms.get(key).unwrap().spec.wait.into());
-        assert_eq!(rooms.tick(now + VOTE + wait, &mut first, |_| true).len(), 1);
+        assert_eq!(
+            rooms
+                .tick(now + rules().vote + wait, &mut first, |_| true)
+                .len(),
+            1
+        );
     }
 
     #[test]
@@ -1898,6 +2050,7 @@ mod tests {
                 },
                 &POOL,
                 &POOL,
+                &[],
                 50,
                 now,
                 &mut first,
@@ -1941,14 +2094,17 @@ mod tests {
         rooms.started(pair, 10, POOL[0], &[10, 11], now);
         assert_eq!(rooms.match_over(10), Some(pair));
         assert_eq!(rooms.get(pair).unwrap().members, [10, 11]);
-        assert_eq!((rooms.key_of(10), rooms.key_of(11)), (Some(pair), Some(pair)));
+        assert_eq!(
+            (rooms.key_of(10), rooms.key_of(11)),
+            (Some(pair), Some(pair))
+        );
     }
 
     #[test]
     fn a_room_of_one_squad_plays_it_on_both_sides() {
-        let [a, b] = sides(&[(vec![1, 2, 3, 4], 40)], 6, 10);
+        let [a, b] = sides(&[party(&[1, 2, 3, 4], 1000)], 6, KD, 0);
         assert_eq!((a.len(), b.len()), (2, 2));
-        let [a, b] = sides(&[(vec![1, 2], 20)], 8, 10);
+        let [a, b] = sides(&[party(&[1, 2], 1000)], 8, KD, 0);
         assert_eq!((a.len(), b.len()), (1, 1));
     }
 
@@ -2015,7 +2171,17 @@ mod tests {
         rooms.enqueue_play(2, 0, key, now).unwrap();
         // Leaving this room would not free a room slot: its queue keeps it.
         assert_eq!(
-            rooms.create(1, 0, spec(8, Some(42)), &[61], &[61], 1, now, &mut first),
+            rooms.create(
+                1,
+                0,
+                spec(8, Some(42)),
+                &[61],
+                &[61],
+                &[],
+                1,
+                now,
+                &mut first
+            ),
             Err(Refused::TooMany)
         );
         assert_eq!(rooms.key_of(1), Some(key));
@@ -2078,7 +2244,17 @@ mod tests {
         assert_eq!(rooms.draft(1, 0, 0b101, now), 2);
         assert_eq!(rooms.draft(1, 1, 0b1, now), 3);
         let key = rooms
-            .create(1, 0, spec(8, None), &entries, &[99], 50, now, &mut first)
+            .create(
+                1,
+                0,
+                spec(8, None),
+                &entries,
+                &[99],
+                &[],
+                50,
+                now,
+                &mut first,
+            )
             .unwrap();
         assert_eq!(rooms.get(key).unwrap().pool, vec![0, 2, 20]);
         // Too old: the default.
@@ -2090,6 +2266,7 @@ mod tests {
                 spec(8, None),
                 &entries,
                 &[99],
+                &[],
                 50,
                 now + DRAFT_LIFE + Duration::from_secs(1),
                 &mut first,
@@ -2099,8 +2276,118 @@ mod tests {
         // Nothing at all is no room.
         rooms.draft(3, 0, 0, now);
         assert_eq!(
-            rooms.create(3, 0, spec(8, None), &entries, &[99], 50, now, &mut first),
+            rooms.create(
+                3,
+                0,
+                spec(8, None),
+                &entries,
+                &[99],
+                &[],
+                50,
+                now,
+                &mut first
+            ),
             Err(Refused::Bad)
+        );
+    }
+
+    /// Three battery maps of three different places, by id, and their
+    /// Blackout twins.
+    fn battery_maps() -> ([u8; 3], [u8; 3]) {
+        let mut places = Vec::new();
+        let mut plain = Vec::new();
+        for map in maps::playable_in(maps::GameMode::Batteries) {
+            if !places.contains(&map.level) && plain.len() < 3 {
+                places.push(map.level);
+                plain.push(map.id);
+            }
+        }
+        let plain: [u8; 3] = plain.try_into().expect("three battery places");
+        let twin = |id| {
+            let map = maps::map_mode(id).unwrap();
+            maps::find(map.level, map.weather, maps::GameMode::Blackout).unwrap().id
+        };
+        (plain, plain.map(twin))
+    }
+
+    /// The owner's of 2026-11-02 ("offers blackout in voting always as a
+    /// third choice"): the first two cards of the rest of the pool, the
+    /// third Blackout, on a map the first two are not while there is one.
+    #[test]
+    fn the_third_card_is_blackout_on_another_map() {
+        let (plain, blackout) = battery_maps();
+        let pool: Vec<u8> = plain.iter().chain(&blackout).copied().collect();
+        // The first choice each time: the lowest plain id, then the highest
+        // (the draw takes out what it picks); Blackout of the third map only
+        // is elsewhere.
+        assert_eq!(
+            Rooms::draw(&pool, &mut first),
+            vec![plain[0], plain[2], blackout[1]]
+        );
+        // Whatever is drawn.
+        for seed in 0..32 {
+            let mut turn = seed;
+            let mut below = |bound: usize| {
+                turn = turn * 7 + 3;
+                turn % bound
+            };
+            let cards = Rooms::draw(&pool, &mut below);
+            assert_eq!(cards.len(), CARDS);
+            assert!(cards[..2].iter().all(|id| plain.contains(id)), "{cards:?}");
+            assert!(blackout.contains(&cards[2]), "{cards:?}");
+            assert!(
+                !cards[..2]
+                    .iter()
+                    .any(|&id| location(id) == location(cards[2]))
+            );
+        }
+        // No other map left: Blackout of one shown.
+        let pool = [plain[0], plain[1], blackout[0]];
+        assert_eq!(
+            Rooms::draw(&pool, &mut first),
+            vec![plain[0], plain[1], blackout[0]]
+        );
+    }
+
+    /// A pool without Blackout (a private room's maker left it out) draws
+    /// as before; so does one of Blackout alone.
+    #[test]
+    fn a_pool_without_blackout_or_of_it_alone_draws_three_of_it() {
+        assert_eq!(Rooms::draw(&POOL, &mut first), vec![61, 118, 117]);
+        let (plain, blackout) = battery_maps();
+        assert_eq!(
+            Rooms::draw(&plain, &mut first),
+            vec![plain[0], plain[2], plain[1]]
+        );
+        let mut alone = blackout.to_vec();
+        alone.sort_unstable();
+        assert_eq!(
+            Rooms::draw(&blackout, &mut first),
+            vec![alone[0], alone[2], alone[1]]
+        );
+    }
+
+    /// A room's vote won by its third card starts its match on that
+    /// Blackout map.
+    #[test]
+    fn the_third_card_won_starts_the_blackout_match() {
+        let now = Instant::now();
+        let mut rooms = Rooms::default();
+        let (plain, blackout) = battery_maps();
+        let pool: Vec<u8> = plain.iter().chain(&blackout).copied().collect();
+        let key = rooms
+            .create(1, 0, spec(6, None), &pool, &pool, &[], 50, now, &mut first)
+            .unwrap();
+        rooms.join(2, 0, key, now).unwrap();
+        let third = rooms.get(key).unwrap().cards[2];
+        assert!(is_blackout(third));
+        rooms.vote(1, 2);
+        rooms.vote(2, 2);
+        rooms.tick(now, &mut first, |_| true);
+        let wait = Duration::from_secs(30);
+        assert_eq!(
+            rooms.tick(now + rules().vote + wait, &mut first, |_| true),
+            vec![Due::Start { key, map_id: third }]
         );
     }
 
@@ -2111,14 +2398,14 @@ mod tests {
         let mut keys = 0..;
         let mut next = |_: usize| keys.next().unwrap();
         rooms
-            .create(1, 0, spec(8, None), &POOL, &POOL, 1, now, &mut next)
+            .create(1, 0, spec(8, None), &POOL, &POOL, &[], 1, now, &mut next)
             .unwrap();
         assert_eq!(
-            rooms.create(2, 0, spec(8, None), &POOL, &POOL, 1, now, &mut next),
+            rooms.create(2, 0, spec(8, None), &POOL, &POOL, &[], 1, now, &mut next),
             Err(Refused::TooMany)
         );
         rooms
-            .create(1, 0, spec(6, None), &POOL, &POOL, 1, now, &mut next)
+            .create(1, 0, spec(6, None), &POOL, &POOL, &[], 1, now, &mut next)
             .unwrap();
         assert_eq!(rooms.len(), 1);
     }
@@ -2133,11 +2420,11 @@ mod tests {
         };
         // Not under its maker's own equipment level.
         assert_eq!(
-            rooms.create(1, 6, capped, &POOL, &POOL, 50, now, &mut first),
+            rooms.create(1, 6, capped, &POOL, &POOL, &[], 50, now, &mut first),
             Err(Refused::GearTooHigh)
         );
         let key = rooms
-            .create(1, 5, capped, &POOL, &POOL, 50, now, &mut first)
+            .create(1, 5, capped, &POOL, &POOL, &[], 50, now, &mut first)
             .unwrap();
         assert_eq!(rooms.join(2, 6, key, now), Err(Refused::GearTooHigh));
         assert!(rooms.open_rooms(2, 6, 1).next().is_none());
@@ -2154,7 +2441,17 @@ mod tests {
         let now = Instant::now();
         let mut rooms = Rooms::default();
         let key = rooms
-            .create(1, 15, spec(8, Some(42)), &POOL, &POOL, 50, now, &mut first)
+            .create(
+                1,
+                15,
+                spec(8, Some(42)),
+                &POOL,
+                &POOL,
+                &[],
+                50,
+                now,
+                &mut first,
+            )
             .unwrap();
         let room = rooms.get(key).unwrap();
         assert!(room.lets_in(15) && room.lets_in(0));
@@ -2188,50 +2485,185 @@ mod tests {
     #[test]
     fn the_sides_keep_squads_together_and_even() {
         let parties = vec![
-            (vec![1, 2, 3], 30),
-            (vec![4], 20),
-            (vec![5], 5),
-            (vec![6], 10),
-            (vec![7], 10),
+            party(&[1, 2, 3], 1000),
+            party(&[4], 2000),
+            party(&[5], 500),
+            party(&[6], 1000),
+            party(&[7], 1000),
         ];
-        let [a, b] = sides(&parties, 6, 10);
+        let [a, b] = sides(&parties, 6, KD, 0);
         assert!(a.len().abs_diff(b.len()) <= 1);
         let together = |side: &Vec<u32>| [1, 2, 3].iter().all(|m| side.contains(m));
         assert!(together(&a) || together(&b));
         assert_eq!(a.len() + b.len(), 7);
         // A squad larger than a side is split.
-        let [a, b] = sides(&[((1..=8).collect(), 80)], 6, 10);
+        let eight: Vec<u32> = (1..=8).collect();
+        let [a, b] = sides(&[party(&eight, 1000)], 6, KD, 0);
         assert_eq!((a.len(), b.len()), (6, 2));
         // Two squads of 5 and one of 2 in a 6 v 6: the 2 are split, not left out.
         let [a, b] = sides(
             &[
-                ((1..=5).collect(), 50),
-                ((6..=10).collect(), 50),
-                (vec![11, 12], 20),
+                party(&[1, 2, 3, 4, 5], 1000),
+                party(&[6, 7, 8, 9, 10], 1000),
+                party(&[11, 12], 1000),
             ],
             6,
-            10,
+            KD,
+            0,
         );
         assert_eq!((a.len(), b.len()), (6, 6));
     }
 
     #[test]
     fn the_sides_count_alike_and_an_odd_count_puts_the_stronger_on_the_side_of_fewer() {
-        // Five alone, two of them worth six more each, a player 12: the
-        // two strong ones are the two.
-        let parties: Vec<(Vec<u32>, i64)> = [0, 0, 6, 0, 6]
+        // Five alone, two of them of K/D 1.5, the others 1, a player 1:
+        // the two strong ones are the two.
+        let parties: Vec<Party> = [1000, 1000, 1500, 1000, 1500]
             .into_iter()
             .enumerate()
-            .map(|(index, strength)| (vec![index as u32 + 1], strength))
+            .map(|(index, kd)| party(&[index as u32 + 1], kd))
             .collect();
-        let [a, b] = sides(&parties, 8, 12);
+        let [a, b] = sides(&parties, 8, KD, 0);
         let (mut fewer, more) = if a.len() < b.len() { (a, b) } else { (b, a) };
         fewer.sort_unstable();
         assert_eq!((fewer, more.len()), (vec![3, 5], 3));
         // Four alone: two a side, the strong ones apart.
-        let [a, b] = sides(&parties[1..], 8, 12);
+        let [a, b] = sides(&parties[1..], 8, KD, 0);
         assert_eq!((a.len(), b.len()), (2, 2));
         assert!(a.contains(&3) != a.contains(&5));
+    }
+
+    /// An average player's strength, one a player.
+    const KD: Strength = level_stats::DEFAULT_KD;
+
+    /// A party whose members are each of strength `milli` thousandths.
+    fn party(members: &[u32], milli: i64) -> Party {
+        Party::new(
+            members
+                .iter()
+                .map(|&member| (member, Strength::from_milli(milli)))
+                .collect(),
+        )
+    }
+
+    /// What a side of [`sides`] counts, of these members' strengths.
+    fn strength_of(side: &[u32], strengths: &[(u32, i64)]) -> i64 {
+        side.iter()
+            .map(|member| strengths.iter().find(|(each, _)| each == member).unwrap().1)
+            .sum()
+    }
+
+    /// The owner's of 2026-11-01, "k/d equalizer": players that can be
+    /// split even are, whatever the seed, when no other way is near.
+    #[test]
+    fn the_sides_are_as_even_as_they_can_be() {
+        // 24 in all: 12 a side, the two strongest apart (every other way
+        // is 6 or more apart, past twice what the noise can move: 1.2).
+        let strengths = [
+            (1, 7000),
+            (2, 1000),
+            (3, 4000),
+            (4, 7000),
+            (5, 1000),
+            (6, 4000),
+        ];
+        let parties: Vec<Party> = strengths.iter().map(|&(id, s)| party(&[id], s)).collect();
+        for seed in 0..50 {
+            let [a, b] = sides(&parties, 8, KD, seed);
+            assert_eq!((a.len(), b.len()), (3, 3));
+            assert_eq!(
+                (strength_of(&a, &strengths), strength_of(&b, &strengths)),
+                (12000, 12000)
+            );
+            assert!(a.contains(&1) != a.contains(&4));
+        }
+        // Eight players of 1 and two of 5 in a 5 v 5: one 5 a side.
+        let mut strengths: Vec<(u32, i64)> = (1..=8).map(|id| (id, 1000)).collect();
+        strengths.extend([(9, 5000), (10, 5000)]);
+        let parties: Vec<Party> = strengths.iter().map(|&(id, s)| party(&[id], s)).collect();
+        for seed in 0..50 {
+            let [a, b] = sides(&parties, 5, KD, seed);
+            assert_eq!((a.len(), b.len()), (5, 5));
+            assert!(a.contains(&9) != a.contains(&10));
+            assert_eq!(strength_of(&a, &strengths), strength_of(&b, &strengths));
+        }
+    }
+
+    /// The owner's of 2026-11-01: a squad's members count 1.3 times, and
+    /// the sides are made even with that.
+    #[test]
+    fn a_squad_counts_one_and_three_tenths() {
+        let squad = party(&[1, 2], 1000);
+        assert_eq!(squad.strength(), Strength::from_milli(2600));
+        assert_eq!(party(&[3], 1000).strength(), Strength::from_milli(1000));
+        // A squad of two of 5 (13) and four alone (0.5, 3.5, 5, 6) in a
+        // 3 v 3: the squad's third is the one of 0.5 (13.5 against 14.5).
+        // Without the 1.3 (10) it would be the one of 3.5 (13.5 against
+        // 11.5, where 0.5 makes 10.5 against 14.5).
+        let alone = [(3, 500), (4, 3500), (5, 5000), (6, 6000)];
+        let mut parties = vec![party(&[1, 2], 5000)];
+        parties.extend(alone.iter().map(|&(id, s)| party(&[id], s)));
+        for seed in 0..50 {
+            let [a, b] = sides(&parties, 3, KD, seed);
+            let mut with_squad = if a.contains(&1) { a } else { b };
+            with_squad.sort_unstable();
+            assert_eq!(with_squad, [1, 2, 3]);
+        }
+    }
+
+    /// The owner's of 2026-11-01, "we can add small noise": players alike
+    /// are put apart otherwise by each seed, so the same players do not
+    /// always play together; the same seed always makes the same sides.
+    #[test]
+    fn the_noise_varies_the_sides_and_a_seed_always_makes_the_same() {
+        let parties: Vec<Party> = (1..=8).map(|id| party(&[id], 1000)).collect();
+        let drawn: HashSet<[Vec<u32>; 2]> = (0..40)
+            .map(|seed| {
+                let made = sides(&parties, 4, KD, seed);
+                assert_eq!(made, sides(&parties, 4, KD, seed));
+                assert_eq!((made[0].len(), made[1].len()), (4, 4));
+                made
+            })
+            .collect();
+        assert!(drawn.len() > 5, "{drawn:?}");
+    }
+
+    /// A squad is never split while the sizes let it be whole, whatever
+    /// the strengths and the seed; and the same parties and seed always
+    /// make the same sides.
+    #[test]
+    fn squads_are_never_split_and_a_seed_always_makes_the_same_sides() {
+        let mut state = 0x2545_f491_u32;
+        let mut next = || {
+            state ^= state << 13;
+            state ^= state >> 17;
+            state ^= state << 5;
+            state
+        };
+        for _ in 0..200 {
+            let players = 4 + next() % 17;
+            let mut parties = Vec::new();
+            let mut id = 1;
+            while id <= players {
+                let squad = id < players && next() % 3 == 0;
+                let members: Vec<(u32, Strength)> = (id..id + 1 + u32::from(squad))
+                    .map(|member| (member, Strength::from_milli(i64::from(next() % 4000))))
+                    .collect();
+                id += members.len() as u32;
+                parties.push(Party::new(members));
+            }
+            // A place a side more than half: five pairs are 6 v 4.
+            let size = players.div_ceil(2) as usize + 1;
+            let seed = next();
+            let made = sides(&parties, size, KD, seed);
+            assert_eq!(made, sides(&parties, size, KD, seed));
+            assert_eq!(made[0].len() + made[1].len(), players as usize);
+            assert!(made[0].len().abs_diff(made[1].len()) <= 2, "{made:?}");
+            for party in parties.iter().filter(|party| party.members().len() > 1) {
+                let on = |side: &Vec<u32>| party.members().iter().all(|m| side.contains(m));
+                assert!(on(&made[0]) || on(&made[1]), "{made:?} split {party:?}");
+            }
+        }
     }
 
     /// A room's chat keeps its last [`CHAT_KEPT`] lines and goes with it:
@@ -2307,6 +2739,7 @@ mod tests {
                 },
                 &POOL,
                 &POOL,
+                &[],
                 50,
                 now,
                 &mut first,
@@ -2449,5 +2882,46 @@ mod tests {
         assert!(!room.has_places(1, Some(30)));
         assert!(room.has_places(1, None));
         assert!(!room.has_places(2, None));
+    }
+
+    /// A private room made with bots keeps only the bots' maps of its pool
+    /// and fills each team with them; no other room has any.
+    #[test]
+    fn a_room_with_bots_keeps_their_maps_and_fills_its_teams() {
+        let now = Instant::now();
+        let mut rooms = Rooms::default();
+        let with_bots = Spec {
+            door: Door::Pin {
+                pin: 42,
+                bots: true,
+            },
+            ..spec(8, None)
+        };
+        let key = rooms
+            .create(
+                1,
+                0,
+                with_bots,
+                &POOL,
+                &POOL,
+                &[61, 117],
+                50,
+                now,
+                &mut first,
+            )
+            .unwrap();
+        let room = rooms.get(key).unwrap();
+        assert!(room.with_bots());
+        assert_eq!(room.pool, [61, 117]);
+        assert_eq!(room.spec.size, rules().pvb.default_size);
+        assert_eq!(room.bots_for([1, 0]), [7, 8]);
+        assert_eq!(room.bots_for([8, 3]), [0, 5]);
+        // None of the bots' maps in its pool: no room.
+        assert_eq!(
+            rooms.create(2, 0, with_bots, &POOL, &[63], &[61], 50, now, &mut first),
+            Err(Refused::Bad)
+        );
+        let plain = room_of(&mut rooms, 3, 8, Some(42), now);
+        assert_eq!(rooms.get(plain).unwrap().bots_for([1, 0]), [0, 0]);
     }
 }

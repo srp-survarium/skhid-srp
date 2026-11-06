@@ -1,0 +1,5 @@
+#!/usr/bin/env bash
+# The checks your change affects, skipping those already passed on the same inputs (tools/check.py).
+here=$(dirname "$(readlink -f "$0")")
+if command -v python3 >/dev/null; then exec python3 -I "$here/check.py" "$@"; fi
+exec nix shell nixpkgs#python3 -c python3 -I "$here/check.py" "$@"

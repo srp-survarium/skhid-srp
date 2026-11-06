@@ -122,7 +122,7 @@ analysis, 2026-10-30).
 - **Premium**: Bandit's jacket "MK II" (1863), a premium copy of the Bandit's
   jacket (351, level 3) with its own model: the plain piece's combat values and
   default, +5 % experience and +5 % Black Market reputation as its first two
-  modifications (`srp_premium`, the lobby's `Equipment046.as`), drop 0,
+  modifications (`items.tsv` `like` and `start`, the lobby's `Equipment046.as`), drop 0,
   500 gold: premium gold prices follow level (the owner, "proportional",
   2026-10-30: level 3 -> 500, 6 -> 1,100, 9 -> 1,400, 12 -> 1,700, 14 ->
   1,900; the stock level-3 premium jacket is 500 too).

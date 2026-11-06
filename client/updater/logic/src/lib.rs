@@ -7,6 +7,7 @@ extern crate alloc;
 
 pub mod args;
 pub mod checked;
+pub mod download;
 pub mod file_error;
 pub mod game;
 pub mod inflate;
@@ -14,6 +15,7 @@ pub mod manifest;
 pub mod network;
 pub mod patches;
 pub mod pipe;
+pub mod problem;
 pub mod replay;
 pub mod resources;
 pub mod revision;

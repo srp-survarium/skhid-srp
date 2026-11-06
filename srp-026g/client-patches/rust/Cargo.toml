@@ -27,6 +27,11 @@ publish = false
 [workspace.lints.rust]
 unsafe_op_in_unsafe_fn = "deny"
 
+# The patches keep their state in fixed static tables (no heap, so no Box):
+# a state enum's largest variant is its table row's size, never a copy cost.
+[workspace.lints.clippy]
+large_enum_variant = "allow"
+
 # The game's build aborts on a panic (link_026g.py); cargo's tests unwind.
 [profile.dev]
 panic = "abort"

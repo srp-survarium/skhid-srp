@@ -6,6 +6,7 @@ package survarium.paperdoll
    import scaleform.clik.events.DragEvent;
    import scaleform.clik.events.SliderEvent;
    import survarium.data.Relocation;
+   import survarium.constants.BuyOrigin;
    import survarium.constants.Events;
    import survarium.data.ItemData;
    import survarium.interfaces.ILocalPaperDoll;
@@ -141,7 +142,7 @@ package survarium.paperdoll
                trace_relocate(_relocateArray);
             }
             trace("descriptors::",event.dragTarget.descriptor,event.dropTarget.descriptor,item.descriptor);
-            MainScene.buyFunction(playerProfile.profileId,item.itemId,item.dictId,item.descriptor,event.dropTarget.descriptor,buyCount,item.cost,item.factionId);
+            MainScene.buyFunction(playerProfile.profileId,item.itemId,item.dictId,item.descriptor,event.dropTarget.descriptor,buyCount,item.cost,BuyOrigin.SHOP,item.factionId);
             dispatchEvent(new Event(Events.DROP_IN));
             return false;
          }

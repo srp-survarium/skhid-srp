@@ -256,33 +256,6 @@ pub fn level_reward(level: u8) -> LevelReward {
     }
 }
 
-/// The drop chance each battery the player's own team has at the end adds
-/// (LIKELY: the wiki of February 2015; SHOT1's 90 % does not come out of
-/// it).
-pub const DROP_CHANCE_PER_BATTERY: f32 = 0.025;
-/// The drop chance a premium account adds (LIKELY, the same source).
-pub const DROP_CHANCE_PREMIUM: f32 = 0.25;
-
-/// The condition a weapon or an armour piece a match dropped arrives in,
-/// in percent, when `SRP_DROP_CONDITION` is unset. That it arrives worn is
-/// PROVEN for 0.24a and never taken back (patch note 0.24a: "all the
-/// items found after a match will be in poor condition with critical
-/// malfunctions"); the 40 is the owner's choice (2026-10-12).
-pub const DEFAULT_DROP_CONDITION: u32 = 40;
-
-/// `SRP_DROP_CONDITION`: that condition, 1 to 100 percent. Read once.
-pub fn drop_condition() -> u32 {
-    static PERCENT: std::sync::OnceLock<u32> = std::sync::OnceLock::new();
-    *PERCENT.get_or_init(|| setting("SRP_DROP_CONDITION", DEFAULT_DROP_CONDITION, 100))
-}
-
-/// `SRP_DROP_DEFECT`: whether such an item arrives with one defect (the
-/// same patch note); on unless `off`, `0`, `no` or `false`. Read once.
-pub fn drop_defect() -> bool {
-    static ENABLED: std::sync::OnceLock<bool> = std::sync::OnceLock::new();
-    *ENABLED.get_or_init(|| crate::switch("SRP_DROP_DEFECT", true))
-}
-
 /// `SRP_ITEM_WEAR`: whether a match wears the weapons and armour of the
 /// kits played (the items' `degrade_per_match` and `degrade_per_use`), and
 /// with it whether a worn item may get a defect. Off unless `on`: the
@@ -291,18 +264,6 @@ pub fn drop_defect() -> bool {
 pub fn item_wear() -> bool {
     static ENABLED: std::sync::OnceLock<bool> = std::sync::OnceLock::new();
     *ENABLED.get_or_init(|| crate::switch("SRP_ITEM_WEAR", false))
-}
-
-/// `SRP_DROP_PLAYTIME_BONUS`: whether the first games of a play period
-/// raise the chance of a drop (`drops.options`, `playtime_dependence`: 100,
-/// 75, 50 and 25 for games 1 to 4). Off unless `on`: the owner's choice
-/// (2026-10-13). How the original applied those numbers is not known
-/// (GUESS: srp multiplied the table's chance by `1 + bonus / 100`); with
-/// it, 73 % of the players who finished a match on the live server found
-/// something, against the table's 40 %. Read once.
-pub fn drop_playtime_bonus() -> bool {
-    static ENABLED: std::sync::OnceLock<bool> = std::sync::OnceLock::new();
-    *ENABLED.get_or_init(|| crate::switch("SRP_DROP_PLAYTIME_BONUS", false))
 }
 
 #[cfg(test)]

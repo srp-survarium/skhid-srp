@@ -11,7 +11,7 @@ fn main() {
     let time: u32 = args.next().unwrap().parse().unwrap();
     let count: usize = args.next().unwrap().parse().unwrap();
     let body = std::fs::read(file).unwrap();
-    let decoded = snapshot::decode(time, &body, count, map.mode, 0).expect("decode");
+    let decoded = snapshot::decode(time, &body, count, map.mode.rules(), 0).expect("decode");
     let tdm = decoded
         .rules
         .as_ref()

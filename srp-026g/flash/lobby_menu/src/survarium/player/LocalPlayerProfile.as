@@ -13,7 +13,6 @@ package survarium.player
    import flash.external.*;
    import flash.text.TextField;
    import flash.text.TextFormat;
-   import flash.text.TextFieldAutoSize;
    import flash.utils.getDefinitionByName;
    import flash.utils.Timer;
    import flash.utils.getTimer;
@@ -27,6 +26,7 @@ package survarium.player
    import survarium.Util;
    import survarium.controls.Message;
    import survarium.controls.Transient;
+   import survarium.controls.UnfocusedCheckBox;
    import survarium.controls.PlayerProfileBase;
    import survarium.controls.PlayerInfo;
    import survarium.data.ItemData;
@@ -70,12 +70,6 @@ package survarium.player
       private var _weightIndicator:WeightIndicator;
 
       private var _weightC:Number = 0;
-      
-      // autobuy_changed's state: whether the autobuy (ammo) box is ticked
-      // (bit 1 was the auto-repair box, gone).
-      private static const AUTOBUY_NONE:uint = 0;
-      
-      private static const AUTOBUY_AMMO:uint = 1;
       
       private var _weightM:Number = 0;
       
@@ -389,6 +383,30 @@ package survarium.player
          this._playerPaperDoll.ammoControl.update(null,"player_profile");
       }
       
+      // The selected kit's own player modifiers (the skills), from the exe; null until it sends them.
+      private var _kitModifiers:KitModifiers;
+
+      public function setKitModifiers(kit:KitModifiers) : void
+      {
+         _kitModifiers = kit;
+      }
+
+      // What a match adds to a weapon's stats in the selected kit: its skills and its armour.
+      public function matchEffects() : MatchEffects
+      {
+         var items:DataProvider = profileItems.dataProvider as DataProvider;
+         var kit:Array = [];
+         for(var i:uint = 0; items != null && i < items.length; i++) kit.push(items[i]);
+         return new MatchEffects(_kitModifiers,kit);
+      }
+
+      // The selected kit's effects while Alt is held over a weapon's, a medicine's, a grenade's or a trap's card; null otherwise (the
+      // card shows the item's own stats).
+      public static function heldMatchEffects(item:Object) : MatchEffects
+      {
+         return MainScene.isAlt && me != null && MatchEffects.covers(item) ? me.matchEffects() : null;
+      }
+
       public function enableSecondWeapon(value:Boolean) : void
       {
          this._playerPaperDoll.enableSecondWeapon(value);
@@ -516,13 +534,17 @@ package survarium.player
                // A pocket's booster has the effect's own icon (the shop's consumables
                // filter icon is a thin stroke that suits none of them); armour its group's.
                var group:Object = armour ? item.category : null;
-               if(propOf(item,105) != 0) kit.speed.push({name:item.name,value:propOf(item,105),category:group});
-               if(propOf(item,106) != 0) kit.limit.push({name:item.name,value:propOf(item,106),category:group});
-               if(propOf(item,116) != 0) kit.stamina.push({name:item.name,value:propOf(item,116),category:group});
+               if(propOf(item,105) != 0) kit.speed.push({name:item.name,value:propOf(item,105),category:group,slot:item.slotId});
+               if(propOf(item,106) != 0) kit.limit.push({name:item.name,value:propOf(item,106),category:group,slot:item.slotId});
+               if(propOf(item,116) != 0) kit.stamina.push({name:item.name,value:propOf(item,116),category:group,slot:item.slotId});
             }
             else if(item.slotId == ProfileSlot.WEAPON_1 && propOf(item,105) != 0)
                kit.weapon = {name:item.name,value:propOf(item,105),category:item.category,killIcon:killIconOf(item)};
          }
+         // Armour head to boots, then the pockets: the tooltips list them so.
+         kit.speed.sortOn("slot",Array.NUMERIC);
+         kit.limit.sortOn("slot",Array.NUMERIC);
+         kit.stamina.sortOn("slot",Array.NUMERIC);
          return effects.withItems(kit);
       }
       
@@ -674,10 +696,8 @@ package survarium.player
          // its place at the row's start, no gap left.
          this.checkbox_autorepair.visible = false;
          this.checkbox_autobuy.x = this.checkbox_autorepair.x;
-         // Its label as long as its text: the symbol's fixed width cut longer ones
-         // ("Automatikus vásá…"); the row has room up to the speed and weight.
-         this.checkbox_autobuy.textField.wordWrap = false;
-         this.checkbox_autobuy.textField.autoSize = TextFieldAutoSize.LEFT;
+         // Its label as long as its text; the row has room up to the speed and weight.
+         (this.checkbox_autobuy as UnfocusedCheckBox).fitLabel();
          this.checkbox_autobuy.addEventListener(ButtonEvent.CLICK,this.onAutoBuy);
          trace("PlayerProfileInit2",this._ammo_share,this.ammoContainer,this.ammoContainer.labelCostR,this.ammoContainer.labelCostP,this.btnShowAmmo);
          this._ammo_share.autoBuyCheckBox = this.checkbox_autobuy;
@@ -697,7 +717,11 @@ package survarium.player
       
       private function onAutoBuy(e:Event) : void
       {
-         ExternalInterface.call("autobuy_changed",this.checkbox_autobuy.selected ? AUTOBUY_AMMO : AUTOBUY_NONE);
+         // 0x288CD0 reads the first byte of the GFx value's union, without
+         // converting a Number to an integer. Send the Boolean itself:
+         // true has byte 1; the double representation of 1 has byte 0.
+         // The auto-repair control is gone, so only the autobuy bit is sent.
+         ExternalInterface.call("autobuy_changed",this.checkbox_autobuy.selected);
       }
       
       private function onAmmoButtonSwitch(e:Event) : void

@@ -60,6 +60,10 @@ class Match:
         emu.mem_map(MEMORY, 0x80000, UC_PROT_ALL)
         emu.mem_map(0x21000000, 0x10000, UC_PROT_ALL)
         emu.mem_map(STOP, 0x10000, UC_PROT_ALL)
+        # The chained Rust input hook asks for its thread, even when there
+        # is no inventory/use action. The original IAT is not loaded here.
+        self.word(0x870118, STUB + 0x70)          # GetCurrentThreadId
+        emu.mem_write(STUB + 0x70, b"\xB8\x01\x00\x00\x00\xC3")
         self.next = MEMORY
         for at, value in ((PHYS, VT), (VT + 0x4C, RAY), (VT + 0x100, GROUP),
                           (VT + 0x204, OWNER_GEOMETRY), (VT + 0x208, OWNER_PLAYER),

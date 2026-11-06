@@ -2,7 +2,7 @@
 
 The owner's rule and what it changes. Data: `gameplay/players/default.player`
 `player.fall_params`; the change ships as a resources.db patch
-(`scripts/content-edit/fall-damage-1.json`, one `set`).
+(`scripts/content-edit/character.tsv`, `player/fall_params/fatal_damage`).
 
 - **Decision (the owner, 2026-10-19):** `fatal_damage` 1.0 as in 0.27: the
   0.27d0 value, kept by every later build (0.28a2, 0.28d0, 0.31a2, 0.46c2,
@@ -42,7 +42,7 @@ The owner's rule and what it changes. Data: `gameplay/players/default.player`
 - **Bots:** their map data takes a drop of at most `harmless_height` (5 m),
   unchanged.
 - **Release:** the resources.db patch, made by `scripts/content-edit/content_edit.py`
-  from `scripts/content-edit/fall-damage-1.json` (with `default.player` from the
+  from `scripts/content-edit/character.tsv` (with `default.player` from the
   live server game data) and `release/build-patch`; the server game data built
   again with that patch (srp reads `default.player` for the carry limits, and the
   server data must be the one the players' patches make); and a `next` row of

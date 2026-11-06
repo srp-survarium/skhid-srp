@@ -22,8 +22,9 @@
 //!    cosmetics that can drop are the ones of type `drp_camo` / `drp_decl`,
 //!    and exactly those have a drop weight; premium copies of weapons have
 //!    0]. A camouflage or decal ([`COSMETIC_CATEGORIES`]) the player
-//!    already has is left out, unless the player has every one of the
-//!    category [srp's choice, the owner's of 2026-10-31].
+//!    already has is left out, and a group with nothing left to
+//!    give is not rolled [srp's choice, the owner's of 2026-10-31 and
+//!    2026-11-04: no repeats].
 //! 3. Unless the category is in `item_level_independent_categories`: an
 //!    item level from the row of the match's level (21 rows, as the 21 match
 //!    levels of `match_levels_dict`; 16 columns, item levels 0..=15), and
@@ -360,10 +361,18 @@ pub fn roll(
     if unit(rng) >= chance {
         return None;
     }
+    // [srp] A camouflage or decal the player has is never given (the
+    // owner's of 2026-11-04). A group with no category left to give is not
+    // rolled, so a player who has them all finds gear instead.
+    let new_to_player = |params: &&ItemParams| !owned.contains(&params.dict_id);
+    let gives = |category: &u8| {
+        !COSMETIC_CATEGORIES.contains(category)
+            || droppable(dictionary, *category).any(|params| new_to_player(&params))
+    };
     let groups: Vec<&CategoryGroup> = table
         .categories
         .iter()
-        .filter(|group| group.categories != [NOTHING])
+        .filter(|group| group.categories != [NOTHING] && group.categories.iter().any(gives))
         .collect();
     let weights: Vec<u32> = groups.iter().map(|group| group.weight).collect();
     let row = table
@@ -381,10 +390,8 @@ pub fn roll(
         } else {
             table.candidates(dictionary, category, level)
         };
-        if COSMETIC_CATEGORIES.contains(&category)
-            && candidates.iter().any(|p| !owned.contains(&p.dict_id))
-        {
-            candidates.retain(|p| !owned.contains(&p.dict_id));
+        if COSMETIC_CATEGORIES.contains(&category) {
+            candidates.retain(new_to_player);
         }
         let item_weights: Vec<u32> = candidates.iter().map(|p| p.drop_weight).collect();
         rng.pick(&item_weights).map(|index| candidates[index])
@@ -669,7 +676,7 @@ mod tests {
     }
 
     #[test]
-    fn a_cosmetic_the_player_has_drops_only_once_it_has_them_all() {
+    fn a_cosmetic_the_player_has_never_drops_again() {
         let dictionary = Dictionary::shared();
         let mut table = Drops::shared().drop_card.clone();
         table.categories = vec![CategoryGroup {
@@ -683,18 +690,18 @@ mod tests {
             .collect();
         let (missing, owned) = cosmetics.split_last().unwrap();
         let mut rng = Rng::new(5);
-        let mut gave_missing = 0;
         for _ in 0..300 {
-            // Every decal and camouflage but one: the one missing, or (when
-            // the category picked is the other) any of that category.
             let drop = roll(&table, dictionary, owned, 20, 0, &mut rng).unwrap();
-            assert!(cosmetics.contains(&drop.dict_id));
-            gave_missing += u32::from(drop.dict_id == *missing);
-            // Every one: they drop again.
-            let drop = roll(&table, dictionary, &cosmetics, 20, 0, &mut rng).unwrap();
-            assert!(cosmetics.contains(&drop.dict_id));
+            assert_eq!(drop.dict_id, *missing);
+            // Every one owned: a table of cosmetics alone gives nothing.
+            assert_eq!(roll(&table, dictionary, &cosmetics, 20, 0, &mut rng), None);
         }
-        assert!(gave_missing > 100, "{gave_missing}");
+        // The drop card's own table: a player with every cosmetic finds gear.
+        let card = &Drops::shared().drop_card;
+        for _ in 0..300 {
+            let drop = roll(card, dictionary, &cosmetics, 20, 0, &mut rng).unwrap();
+            assert!(!cosmetics.contains(&drop.dict_id), "{drop:?}");
+        }
     }
 
     #[test]

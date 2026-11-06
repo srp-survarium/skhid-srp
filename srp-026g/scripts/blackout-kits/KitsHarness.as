@@ -30,6 +30,8 @@ package
    // - the body's state kept inside HUDPlayerInfo with ammo stays where it
    //   was, shown, and takes the body parts' state (partHP) there;
    // - death and respawn with Tab held switch between the kits and body without another Tab event.
+   // - the use prompt (SrvContextInfo, root.set_context) kept while forced, where it was, its progress
+   //   (frame 2) filled there; given back to the root when the match is no longer forced;
    // Prints "KITS ..." lines (trace) and ends with "KITS RESULT pass" or "KITS RESULT fail: ...".
    public class KitsHarness extends Sprite
    {
@@ -59,6 +61,8 @@ package
       private var doll:MovieClip;
 
       private var chat:MovieClip;
+
+      private var context:MovieClip;
 
       private var view:Object;
 
@@ -129,11 +133,16 @@ package
          chat.x = 2000;                  // off the window: the kits are clicked
          chat.y = 0;
          face.addChild(chat);
+         var Context:Class = domain.getDefinition("SrvContextInfo") as Class;
+         context = new Context() as MovieClip;
+         context.x = 500;
+         context.y = 40;                 // above the kits: their click lands on them
+         face.addChild(context);
          var View:Class = domain.getDefinition("survarium.controls.ForcedView") as Class;
          // The hud's lists (HUD.keptWhenForced, keptOnTab, keptWhileTyping).
          view = new View(kept,function():Array
          {
-            return [];
+            return [context];
          },function():Array
          {
             return panel.visible ? [panel,chat] : [info,chat];
@@ -206,8 +215,10 @@ package
          {
             picks = 0;  // the setup's own selection of kit 1 is no pick
             var before:Point = panel.localToGlobal(new Point(0,0));
+            var contextAt:Point = context.localToGlobal(new Point(0,0));
             face.visible = false;
             view.forced = true;
+            expectContext(contextAt);
             message("forced, nothing typed, no Tab: a new message");
             expectChat("forced, nothing typed, no Tab, a new message came",false,false);
             view.typing = true;
@@ -342,6 +353,16 @@ package
          {
             failures.push("given back: the panel at " + panel.x + "," + panel.y + ", in the root " + (panel.parent == face));
          }
+         // the match no longer forced (force_interface_hidden(false)): the use prompt back in the root
+         call(function():void
+         {
+            view.forced = false;
+         });
+         trace("KITS unforced: the use prompt in the root " + (context.parent == face) + " at " + context.x + "," + context.y);
+         if(context.parent != face || context.x != 500 || context.y != 40)
+         {
+            failures.push("unforced: the use prompt at " + context.x + "," + context.y + ", in the root " + (context.parent == face));
+         }
          finish(failures.length ? "fail: " + failures.join("; ") : "pass");
       }
 
@@ -356,6 +377,31 @@ package
             }
          }
          return part.stage != null;
+      }
+
+      // Forced: the use prompt kept where it was in the root, shown, its text and progress set there
+      // (HUD.refresh_context: frame 2 for a progress, ArtifactStatusIndicatorLine.set_progress).
+      private function expectContext(at:Point) : void
+      {
+         var set:Boolean = true;
+         try
+         {
+            context.gotoAndStop(2);
+            context.contextText.text = "Searching";
+            context.progress_indicator.width = context.contextText.textWidth + 10;
+            context.progress_indicator.set_progress(40);
+         }
+         catch(err:Error)
+         {
+            set = false;
+            trace("KITS the use prompt: " + err.message);
+         }
+         var now:Point = context.localToGlobal(new Point(0,0));
+         trace("KITS forced: the use prompt at " + at + " in the root, " + now + " kept, shown " + shown(context) + ", its progress set " + set);
+         if(context.parent != kept || !shown(context) || Point.distance(at,now) > 0.5 || !set)
+         {
+            failures.push("forced: the use prompt kept " + (context.parent == kept) + ", shown " + shown(context) + ", from " + at + " to " + now + ", progress set " + set);
+         }
       }
 
       private function expectChat(what:String, visible:Boolean, input:Boolean) : void

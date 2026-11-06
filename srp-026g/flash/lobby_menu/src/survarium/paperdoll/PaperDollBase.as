@@ -1,5 +1,6 @@
 package survarium.paperdoll
 {
+   import survarium.constants.ProfileSlot;
    import flash.events.Event;
    import flash.events.MouseEvent;
    import scaleform.clik.constants.InvalidationType;
@@ -95,8 +96,8 @@ package survarium.paperdoll
       
       public function openSlots(slotsN:int, slotsA:int) : void
       {
-         _slotsN = slotsN;
-         _slotsA = slotsA;
+         _slotsN = ProfileSlot.pocketCount(slotsN);
+         _slotsA = ProfileSlot.artifactCount(_slotsN,slotsA);
          invalidateData();
       }
       

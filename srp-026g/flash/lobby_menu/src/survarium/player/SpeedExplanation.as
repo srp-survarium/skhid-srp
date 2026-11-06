@@ -4,8 +4,8 @@ package survarium.player
    import survarium.data.LocalizationData;
 
    // The speed's own tooltip: the total in the heading, then each thing that
-   // changes it by its own name (the weight, the skill, every item and the
-   // weapon), biggest speed-up first, biggest slow-down last, none at 0; green
+   // changes it by its own name: the weapon, the armour head to boots, the
+   // boosters in the pockets, the skill, the weight; none at 0; green
    // speeds the player up and red slows them down, as the item cards' rows
    // (ModificationRolls.style) (WeightEffects, SpeedParts; docs/notes/data.md
    // "The kit's movement speed").

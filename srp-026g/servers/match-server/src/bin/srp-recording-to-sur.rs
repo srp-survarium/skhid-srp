@@ -37,6 +37,13 @@ fn main() -> ExitCode {
         eprintln!("--game-modes <dir> is needed: the game's gameplay/game_modes/*.options files");
         return ExitCode::from(2);
     };
+    // The players' dictionary of the recording's revision: without it the
+    // 0xE4 of a match whose kits hold items newer than the test archive's
+    // (every live match since the ported weapons) does not parse.
+    if let Err(error) = survarium::v026g::game_data::init() {
+        eprintln!("{error}");
+        return ExitCode::from(2);
+    }
     let mut settings = Settings::default();
     if args.iter().any(|arg| arg == "--stored") {
         settings.coding = Coding::Stored;
@@ -45,6 +52,13 @@ fn main() -> ExitCode {
         settings.key_frame_every_ms = every;
     }
     settings.first_key_frame_only = args.iter().any(|arg| arg == "--first-key-frame-only");
+    if let Some(list) = value("--keep-key-frames") {
+        settings.keep_key_frames = Some(
+            list.split(',')
+                .filter_map(|t| t.trim().parse().ok())
+                .collect(),
+        );
+    }
     if let Some(list) = value("--drop-key-frames") {
         settings.drop_key_frames = list
             .split(',')
@@ -135,6 +149,7 @@ fn main() -> ExitCode {
         report.body_bytes,
         report.decoded_bytes
     );
+    println!("key frame times (ms): {:?}", report.key_frames);
     let roster: Vec<String> = report
         .roster_events
         .iter()

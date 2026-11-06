@@ -20,7 +20,7 @@ parts in the game's classes (`TopMenu`'s tab, `StatusPanel`'s Play, `LobbyMenu`'
     the same queue position.
   - Six ready Play users waiting across that bracket's queues open another room;
     up to 16 transfer together, oldest first. This repeats with demand: no fixed
-    three-plus-one limit. The operator's existing `SRP_ROOMS_MAX` still applies;
+    three-plus-one limit. The rooms table's `rooms_most` still applies;
     at that limit, or if creation fails, everyone keeps waiting.
   - Explicitly chosen queues do not count toward expansion and never move with it.
     Disconnected games, restarted games not yet told their queue, and unplayable
@@ -80,8 +80,9 @@ parts in the game's classes (`TopMenu`'s tab, `StatusPanel`'s Play, `LobbyMenu`'
   the room for its next vote. This replaces the rule of 2026-10-20 (#254: who came by Play
   left after its match). A room with no members or queue is gone.
 - **Lost (game crashed, killed, link silent; or started anew):** the place is kept for about 90 s (the link's
-  30 s + the session's 60 s), the member shown grey (`away`); Play within it goes back to the
-  same seat, state kept (Play stays usable while their row says they play the match). After
+  30 s + the session's 60 s), the member shown grey (`away`); within it the room's own way in
+  goes back to the same seat, state kept, as Play does (Play stays usable while their row says
+  they play the match): see Late joins. After
   it the place is lost: they may join again as a new member. A game quit from its menu leaves
   the room at once.
   - **Started anew** (the owner's of 2026-10-20: "i was in that weird state where the game was
@@ -90,10 +91,15 @@ parts in the game's classes (`TopMenu`'s tab, `StatusPanel`'s Play, `LobbyMenu`'
     until its new game is told the room: its movie asks where it is (at once, again every 2 s
     until answered, then every 5 s outside a room), or it presses Play or Join match. Then it
     plays as any member; one who comes while the match is played sees the room 15 s first. A
-    seat it had in the room's match stays its own: Play goes back to it. A new game not told
-    within 90 s of its sign-in loses the place.
+    seat it had in the room's match stays its own: it goes back to it after the 15 s, or at
+    once by Join match or Play. A new game not told within 90 s of its sign-in loses the place.
 - **Leave match (its own word, 0xE0; the owner's of 2026-10-19):** takes the player out of
-  its room as Leave does (not kicked; it may join again). Joining again while that match is
+  its room as Leave does (not kicked; it may join again). It is the only way to leave a match
+  on purpose (the owner's of 2026-11-01: "someone can leave on purpose only through leave
+  match button in menu", "and that should just kick the player out of the room"): its seat
+  is given up at once, so the room's 15 s never take it back, whichever of its words, the
+  lobby's or the match's, comes first. Any other way back to the lobby (a crash, a game
+  started anew, a dropped link) keeps the member and its seat (Late joins). Joining again while that match is
   played puts it into the same match as a late join (15 s or "Join match") as a new place,
   fresh (new index, zero stats), never its old one; only an account's latest place in a match
   counts (results, rewards, ratings, quests, map plays), the place it left for nothing.
@@ -115,6 +121,10 @@ parts in the game's classes (`TopMenu`'s tab, `StatusPanel`'s Play, `LobbyMenu`'
   on the card with most votes then, a tie or none drawn at random. Fewer members than the
   minimum stop it; a member changing kit stops nothing. A match that could not be made
   gives the room its wait again, the vote open, its votes kept.
+  - **The third card is Blackout** (the owner's of 2026-11-02: "offers blackout in voting
+    always as a third choice"): cards 1 and 2 drawn from the rest of the pool, card 3 one of
+    its Blackout maps, on another map than theirs while there is one; a pool without
+    Blackout or of Blackout alone draws its three as before (`blackout.md`).
 - **The match starts at the room's minimum** (the owner's of 2026-10-20: "threshold is 2
   players though, not 4"; "just let people play, since rules are in rooms"; live, room 5209
   sat in "Awaiting other players" with 2 of 5): the game itself waits for 80 % of the
@@ -179,6 +189,36 @@ parts in the game's classes (`TopMenu`'s tab, `StatusPanel`'s Play, `LobbyMenu`'
     the next open room); the room's info line, its list row and the facts beside the list
     show no max level (the server tells 0). On the server a private room's settings have no
     max level at all (`rooms::Door::Pin`).
+  - **With bots** (the owner's of 2026-11-05: "private room should receive a with bots
+    toggle", "the room doesn't show bots", "when you enter the game, whoever is in which team
+    replaces bots"):
+    - The create window always has "With bots" under the private room's line (the owner's of
+      2026-11-05: "it should always be there, if you click it, all maps regimes are
+      unclicked"). Turned on, it unticks every mode and map the bots play none of; they are
+      greyed and cannot be chosen while it is on, and the pool's count is of the rest. Turned
+      off, they can be chosen again and stay unticked until ticked.
+    - The bots play batteries, timed batteries and Team Deathmatch (not Research, which the
+      match server refuses them, nor Blackout, which Play vs Bots never offered) on a map with a
+      bots' map file in `SRP_MAPDATA_DIR`, and only with Player vs Bots on (`SRP_PVB`). The
+      server keeps only those maps of the pool sent; none of them: refused (code 8).
+    - The room shows no bots: its list, teams, moves and Start are a private room's. The list
+      and its info line say "BOT" where a PIN room's say "PIN" (the owner's of 2026-11-05:
+      "PIN * should be replaced with BOT *").
+    - Always 8 v 8 (the owner's of 2026-11-05: "i wish matches were always 8vs8", "let's keep
+      it simple for now"): a team takes 8 members at most (`pvb/default_size`, the room's
+      size: 16 members, "TEAM 1 k / 8"), and Start fills each team with bots up to 8, the
+      members on it in bots' places (5 members split 3 v 2: 5 and 6 bots). Its match takes no
+      late joiner: a newcomer waits in the room, told the match is full (`J;-1;4`), and takes a
+      bot's place at the next Start. No bot leaves a match being played (a match's 20 places
+      are never used twice).
+    - Its matches count towards `SRP_PVB_MAX_MATCHES` with Play vs Bots'; at that many (or the
+      mode off), Start does nothing (logged).
+    - It pays as Player vs Bots (the owner's of 2026-11-05: "this should still give bot
+      rewards"), not as a PIN room: `SRP_PVB_PAY` of silver and experience, rewards at level 7
+      at most, no quest, daily bonus or rating (`MatchSetup::vs_bots`). No kill caps, as against
+      bots. With more than one player, the match server's stall rule of Play vs Bots (its one
+      player uploads no world) does not apply: the others upload.
+    - Its settings are not kept for the next create window (its pool is the bots' maps only).
   - Open rooms and Play keep their size, players to start, max level and countdown.
 - **The chosen room beside the list** (the owner's of 2026-10-29: it flipped between two layouts):
   one layout through the vote. Before the vote, and while no card leads alone (the server then
@@ -206,6 +246,11 @@ parts in the game's classes (`TopMenu`'s tab, `StatusPanel`'s Play, `LobbyMenu`'
   owner's of 2026-10-19: players, then the previous team, then the balance; after a 4 v 8
   by strength), from its countdown on (the first seconds too) until 30 s (`LOAD_MARGIN`) are
   left of it; one who comes later waits in the same room and plays its next match.
+  - **One with a seat in the match** (its game started anew, or back from the match it
+    closed; the owner's of 2026-11-01: "player should just be able to rejoin through the
+    room"): the same 15 s and Join match take it back to its own seat, as Play does, whatever
+    the match takes now (none of the reasons below holds it). Live, rev40: such a member saw
+    no Join match, only the late-join hint, and got in by Play alone.
 - **A side's places in a match being played** (the owner's of 2026-10-31: "we never fully
   delete players"): the side the joiner goes to must stay within the room's size counting
   its players in the match **and** the places kept for players who are not in it now (a game
@@ -269,6 +314,8 @@ parts in the game's classes (`TopMenu`'s tab, `StatusPanel`'s Play, `LobbyMenu`'
   - The window, closed and opened again, shows My room.
 - **Kit presets** (the owner's of 2026-10-23): a join from the list or Play may first offer one of
   the player's kit presets, "Enter anyway" / "Exit" or "Switch and enter" (it makes that preset active) ([presets.md](presets.md)).
+  A full room's Queue offers what its Join would, "Queue" in place of "Enter anyway"
+  (the owner's of 2026-11-01).
   Play that would queue offers the other bracket's room with a place in the same way, with
   "Queue" for its first button (the owner's of 2026-10-30; presets.md, "Play that would queue").
 - **Joining from the list:** the Join button, a double-click on a room, or Enter with one chosen

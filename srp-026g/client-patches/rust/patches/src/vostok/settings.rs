@@ -19,6 +19,47 @@ pub fn save_user_config(_: &Thread) {
     unsafe { raw::engine_save_user_config() }
 }
 
+// A file of the game's working folder (`binaries\x86`, where its certificate
+// and srp_patches.log are found too), by name: kernel32's CreateFileA,
+// CloseHandle and DeleteFileA through the exe's import slots, which the loader
+// filled before the game ran; NUL-terminated names.
+const OPEN_EXISTING: u32 = 3;
+const CREATE_ALWAYS: u32 = 2;
+const SHARE_ALL: u32 = 7;
+const NORMAL: u32 = 0x80;
+
+fn open(name: &CStr, access: u32, disposition: u32) -> bool {
+    let null = core::ptr::null_mut();
+    // SAFETY: see above; the handle is closed at once.
+    unsafe {
+        let file = (raw::engine_create_file_a)(name.as_ptr().cast(), access, SHARE_ALL, null, disposition, NORMAL, null);
+        if file as isize == -1 {
+            return false;
+        }
+        (raw::engine_close_handle)(file);
+    }
+    true
+}
+
+/// Whether the file is there.
+pub fn file_exists(_: &Thread, name: &CStr) -> bool {
+    open(name, 0, OPEN_EXISTING)
+}
+
+/// Makes the file, empty (or empties it).
+pub fn create_file(_: &Thread, name: &CStr) {
+    const GENERIC_WRITE: u32 = 1 << 30;
+    open(name, GENERIC_WRITE, CREATE_ALWAYS);
+}
+
+/// Deletes the file when it is there.
+pub fn delete_file(_: &Thread, name: &CStr) {
+    // SAFETY: see above.
+    unsafe {
+        (raw::engine_delete_file_a)(name.as_ptr().cast());
+    }
+}
+
 /// The console variable object, a cc_bool (cc_value<bool>::cc_value 0x1DDB0),
 /// and its value.
 #[repr(C)]
@@ -43,7 +84,7 @@ const USER_CFG: u32 = 2;
 /// A console variable on or off that the engine saves in user.cfg and sets
 /// from it (`<name> on|off`, a line game::on_configs_loaded runs). The engine
 /// writes the value itself (executing the line); a patch reads and writes it
-/// inside a hook. Off until the file says otherwise.
+/// inside a hook. Its default (off for `new`) until the file says otherwise.
 pub struct ConsoleBool {
     storage: UnsafeCell<BoolStorage>,
     registration: UnsafeCell<Registration>,
@@ -55,8 +96,14 @@ unsafe impl Sync for ConsoleBool {}
 
 impl ConsoleBool {
     pub const fn new() -> ConsoleBool {
+        ConsoleBool::with(false)
+    }
+
+    /// On or off until the file says otherwise (the engine's constructor
+    /// keeps the value it is given).
+    pub const fn with(default: bool) -> ConsoleBool {
         ConsoleBool {
-            storage: UnsafeCell::new(BoolStorage { object: raw::CcBoolStorage::zeroed(), value: 0 }),
+            storage: UnsafeCell::new(BoolStorage { object: raw::CcBoolStorage::zeroed(), value: default as u8 }),
             registration: UnsafeCell::new(Registration::Unregistered),
         }
     }
@@ -159,6 +206,13 @@ impl ConsoleFloat {
     pub fn get(&self, _: &Thread) -> f32 {
         // SAFETY: on the game's thread, the value's only user while it runs.
         unsafe { (*self.storage.get()).value }
+    }
+
+    /// A value within the range (the caller's type keeps it there), as the
+    /// console's setter would store it.
+    pub fn set(&self, _: &Thread, value: f32) {
+        // SAFETY: as get.
+        unsafe { (*self.storage.get()).value = value }
     }
 }
 

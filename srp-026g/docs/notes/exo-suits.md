@@ -5,7 +5,7 @@ configs; worn in the back slot they cover the six others). Their built-in bonuse
 `default_modifications`: the client adds them from the config, and the server counts them as held,
 so a suit never rolls a kind it comes with (`Modifications::candidates`).
 
-The owner's rules (2026-10-29, content-edit `exo-suits-buff-1.json`, after
+The owner's rules (2026-10-29; the bonus cells of content-edit `armor.tsv`, once `exo-suits-buff-1.json`, after
 `built-in-bonuses-1.json`, docs/notes/built-in-bonuses.md, which already sets Freedom's movement
 and energy costs to their second-strongest rows):
 

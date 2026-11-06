@@ -1,0 +1,31 @@
+# The checks tools/check runs (tools/check --help). One row per check, tab-separated:
+#   name     unique; `{crate}` makes one check per crate of the srp-026g workspace
+#   inputs   space-separated repo paths with globs (`**` any depth, `dir/**` everything under dir,
+#            `*` within a name, `!glob` leaves files out); `{crate_inputs}` a crate's own folder,
+#            its path dependencies' folders (transitively) and the files outside them its sources
+#            include (include_str!/include_bytes!, CARGO_MANIFEST_DIR paths); `{main}/...` a file
+#            of the main checkout (private/: not in the diff, but in the key), e.g. a toolchain pin
+#   command  bash, run from the repo root; $CHECK_WORK is a new folder (kept when the check fails),
+#            python3 and $PYTHON are tools/check's Python; the dev shell is `nix develop ./srp-026g`
+#   notes    optional
+# A check runs when a file its inputs match differs from the merge-base with origin/main, unless it
+# passed on exactly these inputs (and this row) before. The inputs are everything the check reads:
+# a file left out is a change the cache will not see.
+# A row whose command is `-` adds inputs to the check of that name (what a scan cannot see).
+# The `ignore` row: changed files no check needs to cover (they are not reported as not covered).
+# Not covered yet: the exe patches' self-tests and Unicorn checks (srp-026g/client-patches: they
+# need the original exe and a patch-by-patch map of inputs), the other Ruffle harnesses of
+# srp-026g/scripts/*/check.sh, the map editor and the resource porter.
+name	inputs	command	notes
+ignore	**/*.md **/*.txt docs/** srp-026g/docs/** LICENSE .claude/** .gitignore tools/checks.tsv	-
+check-runner	tools/check tools/check.py tools/test_check.py	python3 tools/test_check.py	tools/check itself, on a temporary repository
+content-edit	srp-026g/scripts/content-edit/** srp-026g/client-patches/localization_026g.py srp-026g/client-patches/build_localization_026g.py	cd srp-026g/scripts/content-edit && python3 -m unittest discover -p 'test_*.py'	the edit lists' tool (content_edit.py) and its unit tests
+localization	srp-026g/client-patches/localization/** srp-026g/client-patches/*localization*.py srp-026g/client-patches/languages_026g.rs srp-026g/client-patches/launcher/launcher_languages_026g.inc srp-026g/flash/**/*.as release/content.tsv release/build_content.py srp-026g/scripts/content-edit/*.json	cd srp-026g/client-patches && python3 check_localization_026g.py && python3 -m unittest test_localization	the dictionaries, the movies' text keys, the edit lists' keys
+localization-harness	srp-026g/flash/lobby_menu/** srp-026g/scripts/localization-check/** srp-026g/client-patches/localization/** srp-026g/client-patches/localization_026g.py tools/actionscript/*.py tools/checks/lobby_menu.sh {main}/private/actionscript/tools.json	tools/checks/lobby_menu.sh "$CHECK_WORK/lobby_menu.swf" && bash srp-026g/scripts/localization-check/check.sh "$CHECK_WORK/lobby_menu.swf" "$CHECK_WORK/harness"	Ruffle: srp's menu texts in every language in the lobby movie
+weapon-details	srp-026g/flash/lobby_menu/** srp-026g/flash/hud/bitmaps/** srp-026g/scripts/weapon-details/** srp-026g/scripts/weight-ui/check_ui.sh srp-026g/scripts/localization-check/harness_text.py srp-026g/scripts/medical-cards/ruffle_movie.py srp-026g/scripts/kill-feed-icons/make_lobby_weapon_icons.py srp-026g/client-patches/localization/** srp-026g/client-patches/localization_026g.py tools/actionscript/*.py tools/checks/lobby_menu.sh {main}/private/actionscript/tools.json	tools/checks/lobby_menu.sh "$CHECK_WORK/lobby_menu.swf" && bash srp-026g/scripts/weight-ui/check_ui.sh "$CHECK_WORK/lobby_menu.swf" "$CHECK_WORK/harness" srp-026g/scripts/weapon-details/WeaponDetailsHarness.as DETAILS	Ruffle: WeaponDetailsHarness (item cards, Alt/Shift/Ctrl, every language)
+actionscript-tools	tools/actionscript/**	cd tools/actionscript && python3 -m unittest discover	flash_tree.py / swf.py unit tests (no compiler run)
+build-content	release/content.tsv release/patches.tsv release/build-content release/build_content.py release/build-patch release/lib.sh srp-026g/scripts/content-edit/** srp-026g/flash/** srp-026g/client-patches/localization/** srp-026g/client-patches/*localization*.py tools/actionscript/*.py tools/checks/build_content.sh {main}/private/actionscript/tools.json {main}/private/release/release.env	tools/checks/build_content.sh	the next content patch from release/content.tsv (minutes; content packs from $SKHID_PACKS_DIR are not in the key)
+release-scripts	release/** !release/content.tsv !release/patches.tsv !release/patches-test.tsv !release/game.tsv !release/bot-data.tsv	nix shell nixpkgs#python3 nixpkgs#shellcheck -c release/test.sh	the release scripts against stand-ins (release/test.sh)
+cargo:{crate}	{crate_inputs} srp-026g/Cargo.toml srp-026g/Cargo.lock srp-026g/flake.nix srp-026g/flake.lock	nix develop ./srp-026g --command bash -c 'cd srp-026g && cargo test -p {crate} && cargo clippy -p {crate} --all-targets -- -D warnings'	cargo test + clippy (no warnings) of one crate
+cargo:web-server	srp-026g/scripts/damage-calc/**	-	the calculator's pages it serves are built by damage-calc
+cargo:survarium	srp-026g/scripts/content-edit/armor.tsv	-	modifications/tests.rs reads it at run time

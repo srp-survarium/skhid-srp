@@ -157,8 +157,8 @@ fn the_pockets_hold_what_the_kits_level_lets_in() {
     .unwrap();
     assert_eq!(low.gear_level(), 1);
     assert_eq!(name(&low, 13), Some(("bandages", 1)));
-    // The fixed kits' pocket gear: three pockets of two, a medkit, the
-    // grenades and the radio.
+    // The fixed kits' pocket gear: three pockets of two, a medkit, a
+    // grenade (it takes two units) and the radio.
     let ak = dict("ak_74u");
     let kit = bot_kit_of(
         &[(3, dict("bm_back_1")), (4, dict("bm_legs_5"))],
@@ -169,7 +169,7 @@ fn the_pockets_hold_what_the_kits_level_lets_in() {
     .unwrap();
     assert_eq!(pockets(&kit), (3, 2));
     assert_eq!(name(&kit, 13), Some(("medkit", 2)));
-    assert_eq!(name(&kit, 14), Some(("rgd-5", 2)));
+    assert_eq!(name(&kit, 14), Some(("rgd-5", 1)));
     assert_eq!(name(&kit, 15), Some(("respawn_booster", 1)));
     assert_eq!(kit.slot(8).unwrap().count, 200);
 }
@@ -352,5 +352,50 @@ fn the_kit_rules_say_what_is_wrong() {
             .filter(|&&value| value != 0.0)
             .count(),
         1
+    );
+}
+
+#[test]
+fn explicit_reload_timing_requires_a_valid_pair_and_two_clip_state() {
+    use binary_config_parser::tree::ConfigValue as V;
+    let parameters = |empty| {
+        V::Named(vec![
+            ("reload_time".into(), V::Float(2.4)),
+            ("reload_empty_time".into(), empty),
+        ])
+    };
+    let states = |state| {
+        V::Named(vec![(
+            "reload".into(),
+            V::Named(vec![("state_type".into(), V::Integer(state))]),
+        )])
+    };
+    assert_eq!(
+        super::reload_timing(&parameters(V::Float(3.4)), &states(314)),
+        Some(super::ReloadTiming::Tactical {
+            seconds: 2.4,
+            empty_seconds: 3.4
+        })
+    );
+    assert_eq!(
+        super::reload_timing(&parameters(V::Float(3.4)), &states(303)),
+        None
+    );
+    for empty in [
+        V::Float(0.0),
+        V::Float(-1.0),
+        V::Float(f32::NAN),
+        V::Float(f32::INFINITY),
+        V::String("3.4".into()),
+    ] {
+        assert_eq!(super::reload_timing(&parameters(empty), &states(314)), None);
+    }
+    let legacy = V::Named(vec![("reload_time".into(), V::Float(2.4))]);
+    assert_eq!(
+        super::reload_timing(&legacy, &states(303)),
+        Some(super::ReloadTiming::Animation {
+            seconds: 2.4,
+            state: 303
+        })
     );
 }

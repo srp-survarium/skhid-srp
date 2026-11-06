@@ -1,0 +1,125 @@
+name = "medical_skills"
+patch = 94
+
+[[hook]]
+site = "medical.duration_start"
+handler = "on_duration_start"
+
+[[hook]]
+site = "medical.duration_tick"
+handler = "on_duration_tick"
+
+[[hook]]
+site = "medical.duration_restore"
+handler = "on_duration_restore"
+
+[[hook]]
+site = "medical.use_time"
+handler = "on_use_time"
+
+[[hook]]
+site = "medical.initialize"
+handler = "on_initialize"
+
+[[hook]]
+site = "medical.movement"
+handler = "on_movement"
+
+[[hook]]
+site = "medical.hit"
+handler = "on_hit"
+order = 1
+
+[[hook]]
+site = "medical.heal"
+handler = "on_heal"
+
+[[hook]]
+site = "medical.wound"
+handler = "on_wound"
+
+[[hook]]
+site = "medical.artefact"
+handler = "on_artefact"
+
+[[hook]]
+site = "medical.protection"
+handler = "on_protection"
+
+[[hook]]
+site = "medical.pocket_count"
+handler = "on_pocket_count"
+
+[[hook]]
+site = "medical.effect_capacity"
+handler = "on_effect_capacity"
+
+[[hook]]
+site = "medical.effect_clock"
+handler = "on_effect_clock"
+
+[[hook]]
+site = "medical.sprint"
+handler = "on_sprint"
+
+[[hook]]
+site = "medical.medicine_heal"
+handler = "on_medicine_heal"
+
+# Patch 54's stagger (artefacts_026g.asm) calls this generated entry after
+# Spring's factor, at its one hook on 0x2DBD89.
+[[hook]]
+site = "medical.stopping"
+handler = "on_stopping"
+
+# Concentration (the local player's hearing while its painkiller is active):
+# the frame's hearing and opponents, published after the simulation's move
+# and cleared when the lobby is shown again.
+[[hook]]
+site = "game_world.after_move"
+handler = "on_listener"
+order = 2
+[[hook]]
+site = "lobby_menu.activate"
+handler = "on_lobby"
+order = 1
+
+# The sound thread at each voice's volume (set_volume_impl's argument).
+[[hook]]
+site = "sound_voice.gain"
+handler = "on_voice_gain"
+
+# A proxy's tag (its +8Ch): cleared at allocation, set where it is made.
+[[hook]]
+site = "sound_proxy.allocated"
+handler = "on_proxy_allocated"
+[[hook]]
+site = "object_sound.play"
+handler = "on_object_sound"
+[[hook]]
+site = "damage_zone.sound"
+handler = "on_zone_sound"
+[[hook]]
+site = "weapon_sound.made"
+handler = "on_weapon_sound"
+[[hook]]
+site = "sound_emitter.once_point"
+handler = "on_once_point"
+
+# An opponent's step: this thread's point sounds between these pairs.
+[[hook]]
+site = "player_sound.foot_step"
+handler = "on_foot_step"
+[[hook]]
+site = "player_sound.foot_stepped"
+handler = "on_foot_stepped"
+[[hook]]
+site = "player.landing_step"
+handler = "on_landing_step"
+[[hook]]
+site = "player.landing_stepped"
+handler = "on_landing_stepped"
+
+[[hook]]
+site = "medical.regenerate"
+handler = "on_regenerate"

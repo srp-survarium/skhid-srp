@@ -89,6 +89,14 @@ impl<'t> BulletRay<'t> {
         unsafe { self.bullet.ammo().map_or(f32::NAN, |ammo| read(ammo.mass())) }
     }
 
+    /// Its ammo is a weapon's melee/data (damage type blunt): a gun-stock
+    /// hit's bullet; a round's is ranged.
+    pub fn gun_stock(&self) -> bool {
+        // SAFETY: as ammo_mass.
+        let kind = unsafe { self.bullet.ammo().map(|ammo| read(ammo.damage_type())) };
+        kind.and_then(super::drug::HitType::parse) == Some(super::drug::HitType::Blunt)
+    }
+
     /// The ammo config's `muzzle_speed`, m/s (NaN without ammo data): with
     /// the mass, which ammo it is (one or two configs a pair).
     pub fn muzzle_speed(&self) -> f32 {

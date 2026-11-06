@@ -230,6 +230,31 @@ package survarium.chat
          this.messageContainer.addMessage(value + _nline);
       }
       
+      public function introductionReady() : Boolean
+      {
+         return this.messageContainer != null && this.send_function != null &&
+            this._data.tabs[this._activeMode] && this._data.tabs[this._activeMode].length > 0;
+      }
+
+      // Local system line in every current match tab, retained when the player switches tabs.
+      public function addIntroduction(text:String) : void
+      {
+         // The timeline initially leaves the input visible until native chat is first closed.
+         // A notice is read-only; never change focus or close an input the player is using.
+         if(!this._isTyping)
+         {
+            this.text_inpput.visible = false;
+            this.textFieldName.visible = false;
+         }
+         // Match the 15 px sender style so every translation fits the log's 90 px area.
+         // Keep this markup in tab history too, otherwise switching tabs can discard the line.
+         var escaped:String = text.split("&").join("&amp;").split("<").join("&lt;");
+         var line:String = "<font size='15' color='#F2F2F2'><b>System:</b> " + escaped + "</font>";
+         for each(var tab:Object in this._data.tabs[this._activeMode])
+            this._messages[tab.id] += line + this._nline;
+         this.messageContainer.addText(line + this._nline);
+      }
+
       public function test_message(value:Object) : void
       {
          var _finalText:String = this.get_styled_text(value);

@@ -1,0 +1,10 @@
+{
+ "_about": "The physical tree (skills 201..214) without the two stock skills nothing can learn (the owner, 2026-11-06), as the original developers did by 0.46c2: Sledgehammer (206, st_meele_hit_ultimate_name, 3 ranks, meele_hit_ultimate_modifier, ui.position [4, 2]) and Jump with a knife (210, st_meele_hit_range_name, 0 ranks, meele_hit_range_modifier, ui.position [4, 3]). Both ask for branch_points 50, past the 25 the skills window's walk unlocks (CharWindow.getBranchUnlockedLevel, SKILL_LEVELS 25), so no account ever held a point in them; their two modifiers are not among the exe's 68 (table 0x928448). Both are in 0.31a2's skills_tree, absent from 0.46c2's; 0.69 keeps only their strings. Their localization strings stay. Removed (remove_entry, by id). With them gone column 4 of the physical tree would be empty, so Packrat (202, st_overweight_penalty_name, overweight_penalty, branch_points 10, row 3) moves from column 3 to column 4 of its own row (ui.position [column, row]: [3, 3] -> [4, 3], Jump with a knife's place): its row, threshold, ranks and modifiers are as before. Athlete (209, max_carried_weight) is unchanged. Presentation only: no point of an account changes.",
+ "set_entry": [
+  {"file": "gameplay/skills/skills_tree.options", "list": "skills_tree", "where": {"id": 202}, "from": {"ui/position[0]": 3, "ui/position[1]": 3}, "to": {"ui/position[0]": 4}}
+ ],
+ "remove_entry": [
+  {"file": "gameplay/skills/skills_tree.options", "list": "skills_tree", "where": {"id": 206}},
+  {"file": "gameplay/skills/skills_tree.options", "list": "skills_tree", "where": {"id": 210}}
+ ]
+}

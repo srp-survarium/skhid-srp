@@ -1,0 +1,36 @@
+{
+  "_about": "Sight alignment (scripts/sight-alignment, align.py export): aim locator changes only, visual, no ballistics changes; the 9A-91's Cobra EKP-8 (fit_a9_91_cobra_ekp_8), its dot 14.5 px above the centre at 720 lines in retail's data: its eye on the optic's axis.",
+  "set_entry": [
+    {
+      "file": "models/weapons/a9_91/a9_91_cobra_ekp_8.skinned_model/render/export_properties",
+      "list": "locators",
+      "where": {
+        "name": "aim"
+      },
+      "from": {
+        "position": [
+          0.00800000037997961,
+          0.16929863393306732,
+          0.1459999978542328
+        ],
+        "rotation": [
+          0.008999999612569809,
+          0.0,
+          -0.006000000052154064
+        ]
+      },
+      "to": {
+        "position": [
+          0.007484292702007033,
+          0.16546650343882388,
+          0.14594348928663256
+        ],
+        "rotation": [
+          -0.014759435318410398,
+          -1.5608734408548044e-05,
+          -0.006065288558602333
+        ]
+      }
+    }
+  ]
+}

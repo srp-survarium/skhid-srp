@@ -29,6 +29,11 @@ pub struct Item {
     pub base_cost: u32,
     /// The item's own config, e.g. `gameplay/items/weapons/wpn_spas_12.options`.
     pub cfg_name: String,
+    /// The plain item a golden or premium copy is (`srp_like`, by its name):
+    /// another item of its category that is no copy itself.
+    pub like: Option<u16>,
+    /// The modifications of its own a new item comes with (`srp_start`).
+    pub start: Vec<u32>,
 }
 
 /// A row of `shop_bundles_dict`. The bundle's config has only its name,
@@ -140,8 +145,25 @@ impl Dictionary {
     pub fn parse(dictionaries: &[u8]) -> Result<Self, ConfigError> {
         let root = ConfigValue::parse(dictionaries)?;
 
-        let mut items = rows(&root, "items_dict", |item| {
-            Ok(Item {
+        let mut entries = rows(&root, "items_dict", |item| {
+            let like = item.get("srp_like").map(|name| {
+                name.as_str()
+                    .map(str::to_owned)
+                    .ok_or_else(|| ConfigError("`srp_like` is not a name".into()))
+            });
+            let start = item.get("srp_start").map_or(Ok(Vec::new()), |ids| {
+                let ConfigValue::Indexed(ids) = ids else {
+                    return Err(ConfigError("`srp_start` is not a list of ids".into()));
+                };
+                ids.iter()
+                    .map(|id| {
+                        id.as_i32()
+                            .and_then(|id| u32::try_from(id).ok())
+                            .ok_or_else(|| ConfigError("`srp_start` holds no id".into()))
+                    })
+                    .collect()
+            })?;
+            let entry = Item {
                 dict_id: int(item, "dict_id")?,
                 name: item.str_at("name")?.to_owned(),
                 category: int(item, "item_category")?,
@@ -149,9 +171,40 @@ impl Dictionary {
                 is_premium: flag(item, "is_premium")?,
                 base_cost: int(item, "base_cost")?,
                 cfg_name: item.str_at("cfg_name")?.to_owned(),
-            })
+                like: None,
+                start,
+            };
+            Ok((entry, like.transpose()?))
         })?;
-        items.sort_by_key(|item| item.dict_id);
+        entries.sort_by_key(|(item, _)| item.dict_id);
+        let plain = |item: &Item, name: &str| {
+            let refuse = |why: &str| {
+                ConfigError(format!(
+                    "item {} `{}`: srp_like `{name}` {why}",
+                    item.dict_id, item.name
+                ))
+            };
+            let mut named = entries.iter().filter(|(other, _)| other.name == name);
+            match (named.next(), named.next()) {
+                (Some((plain, None)), None)
+                    if plain.dict_id != item.dict_id && plain.category == item.category =>
+                {
+                    Ok(plain.dict_id)
+                }
+                (Some(_), None) => Err(refuse("is not another plain item of its category")),
+                (None, _) => Err(refuse("is no item")),
+                _ => Err(refuse("names two items")),
+            }
+        };
+        let likes = entries
+            .iter()
+            .map(|(item, like)| like.as_deref().map(|name| plain(item, name)).transpose())
+            .collect::<Result<Vec<_>, _>>()?;
+        let items: Vec<Item> = entries
+            .into_iter()
+            .zip(likes)
+            .map(|((item, _), like)| Item { like, ..item })
+            .collect();
 
         let pairs = rows(&root, "items_compatibility", |pair| {
             Ok((
@@ -318,7 +371,8 @@ mod tests {
         assert_eq!(dictionary.slot_restrictions.len(), 77);
         assert_eq!(dictionary.factions.len(), 6);
         assert_eq!(dictionary.bundles.len(), 14);
-        assert_eq!(dictionary.maps.len(), 89);
+        // 0.26g's 89 and Blackout's 24 (`game_data::test_archive`).
+        assert_eq!(dictionary.maps.len(), 89 + 24);
         assert_eq!(dictionary.match_levels.len(), 21);
         assert_eq!(dictionary.items.last().unwrap().dict_id, 1810);
         assert_eq!(dictionary.items[383].dict_id, 737);
@@ -484,5 +538,82 @@ mod tests {
         assert_eq!(dictionary.match_levels[1].money_k, 1.47);
         assert_eq!(dictionary.match_level(20).unwrap().money_k, 13.59);
         assert_eq!(dictionary.match_level(99).unwrap().reputation_k, 1.95);
+    }
+
+    #[test]
+    fn starting_modifications_require_an_indexed_list_of_ids() {
+        let parse = |start| {
+            let mut root = ConfigValue::parse(super::super::game_data::file(PATH)).unwrap();
+            let ConfigValue::Named(sections) = &mut root else {
+                panic!("a table")
+            };
+            let (_, ConfigValue::Indexed(items)) = sections
+                .iter_mut()
+                .find(|(name, _)| name == "items_dict")
+                .unwrap()
+            else {
+                panic!("items")
+            };
+            let Some(ConfigValue::Named(keys)) = items
+                .iter_mut()
+                .find(|item| item.i32_at("dict_id") == Ok(3))
+            else {
+                panic!("AK-74M")
+            };
+            keys.push(("srp_start".into(), start));
+            Dictionary::parse(&root.to_bytes().unwrap()).map(|d| d.item(3).unwrap().start.clone())
+        };
+        assert_eq!(
+            parse(ConfigValue::Indexed(vec![ConfigValue::Integer(1230)])),
+            Ok(vec![1230])
+        );
+        assert_eq!(parse(ConfigValue::Indexed(vec![])), Ok(vec![]));
+        for value in [
+            ConfigValue::Integer(1230),
+            ConfigValue::String("1230".into()),
+            ConfigValue::Named(vec![]),
+            ConfigValue::Indexed(vec![ConfigValue::Integer(-1)]),
+        ] {
+            assert!(parse(value).is_err());
+        }
+    }
+
+    #[test]
+    fn a_copy_names_another_plain_item_of_its_category() {
+        // The AK-74M (3, a rifle) said to be a copy of `like`.
+        let copy_of = |like: &str| {
+            let mut root = ConfigValue::parse(super::super::game_data::file(PATH)).unwrap();
+            let ConfigValue::Named(sections) = &mut root else {
+                panic!("a named table")
+            };
+            let (_, items) = sections
+                .iter_mut()
+                .find(|(n, _)| n == "items_dict")
+                .unwrap();
+            let ConfigValue::Indexed(items) = items else {
+                panic!("a list")
+            };
+            let entry = items.iter_mut().find(|e| e.i32_at("dict_id") == Ok(3));
+            let Some(ConfigValue::Named(keys)) = entry else {
+                panic!("the AK-74M")
+            };
+            keys.push(("srp_like".into(), ConfigValue::String(like.into())));
+            Dictionary::parse(&root.to_bytes().unwrap()).map(|d| d.item(3).unwrap().like)
+        };
+        assert_eq!(copy_of("ak_74n"), Ok(Some(306)));
+        for (like, why) in [
+            ("ak_74m", "is not another plain item of its category"),
+            ("scav_torso_4", "is not another plain item of its category"),
+            (
+                "ak_74n_premium",
+                "is not another plain item of its category",
+            ),
+            ("no_such_item", "is no item"),
+        ] {
+            let error = copy_of(like).unwrap_err().0;
+            assert!(error.contains(why), "{like}: {error}");
+        }
+        assert_eq!(Dictionary::shared().item(338).unwrap().like, Some(306));
+        assert_eq!(Dictionary::shared().item(3).unwrap().like, None);
     }
 }

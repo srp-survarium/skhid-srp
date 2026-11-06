@@ -3,6 +3,8 @@ package survarium.item
    import survarium.Util;
    import survarium.constants.ModifierType;
    import survarium.constants.PropertyDirection;
+   import survarium.constants.QuickSlotSize;
+   import survarium.data.ItemData;
    import survarium.data.PropertiesDescriptor;
 
    // A bonus at the best value its modifications roll shows gold, not green; the reroll window shows
@@ -97,12 +99,33 @@ package survarium.item
       // The style of a bonus line's value: red for a loss, gold at the best roll, green below it.
       public static function style(description:Object, propId:uint, value:Number) : String
       {
+         return styleOf(description,value,isBest(propId,value));
+      }
+
+      // The style of a bonus line on an item's card (its modifications' lines and their sums, which
+      // Alt keeps): a booster's bonus is gold, any other by its value (style). A booster's bonuses
+      // are all built-in (its config's default_modifications: no roll, no defect, nothing to
+      // better), so each is the most it gives (the owner, 2026-11-06), whether its property rolls
+      // on other items (the regeneration +15 %) or not (the artefact cooldown -20 %).
+      public static function styleOn(item:ItemData, description:Object, propId:uint, value:Number) : String
+      {
+         return styleOf(description,value,isBooster(item) || isBest(propId,value));
+      }
+
+      // A booster fills a whole pocket (fills_whole_pocket), as no other item does.
+      private static function isBooster(item:ItemData) : Boolean
+      {
+         return item.quickSlotItemSize == QuickSlotSize.WHOLE;
+      }
+
+      private static function styleOf(description:Object, value:Number, best:Boolean) : String
+      {
          var good:Boolean = description.direction == PropertyDirection.LOWER_IS_BETTER && value < 0 || description.direction == PropertyDirection.HIGHER_IS_BETTER && value > 0;
          if(!good)
          {
             return "red";
          }
-         return isBest(propId,value) ? "gold" : "green";
+         return best ? "gold" : "green";
       }
 
       // A value as the cards show it: "+5%", or "+8" with the property's postfix.

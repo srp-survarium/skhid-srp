@@ -53,7 +53,7 @@ ENV SRP_BIND_HOST=0.0.0.0 \
     SRP_LOCAL_PEERS=off \
     SRP_WEB_BIND=0.0.0.0 \
     SRP_WEB_PORT=8088 \
-    SRP_LOG_FILES=off \
+    SRP_LOG_DIR=off \
     SRP_SNAPSHOT_DIR=off \
     SRP_DATA_DIR=/srv/srp/data
 VOLUME /srv/srp/data

@@ -1,7 +1,8 @@
 package survarium.player
 {
    // What a native-card tooltip of the weight row explains: its heading and rows
-   // ({icon, label}, with `group` for an item's row: its shop filter icon; or
+   // ({icon, label, value}: `value` the row's number, right-aligned, none on a row that is
+   // only a label; with `group` for an item's row: its shop filter icon; or
    // {heading} for a section's heading, the title's divider),
    // drawn by WeightTipRenderer.
    public interface IEffectRows

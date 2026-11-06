@@ -3,9 +3,10 @@
 //! The modifiers ([`crate::modifiers`]) and the equipment
 //! ([`crate::equipment`]) come from the server's game data.
 //! The calculator ([`crate::damage`]) and the maps ([`crate::maps`]) are its
-//! sections too, each a page of its own look.
+//! sections too, each a page of its own look; the skills ([`crate::skills`])
+//! are built like them, from the released game, into a page of the wiki's.
 
-use crate::{ContentType, Lang, Response, damage, equipment, escape, maps, modifiers};
+use crate::{ContentType, Lang, Response, damage, equipment, escape, maps, modifiers, skills};
 
 pub(crate) const PATH: &str = "/wiki";
 pub(crate) const WEAPONS: &str = "/wiki/weapons";
@@ -49,6 +50,8 @@ pub(crate) fn page(path: &str, query: &str, lang: Lang, header: &str) -> Respons
             Lang::Uk => include_str!("../wiki/weapons.uk.html"),
         };
         (lang.tr("Weapons", "Зброя"), body.to_owned())
+    } else if path == skills::PATH {
+        (lang.tr("Skills", "Навички"), skills::body(lang).to_owned())
     } else if path == EQUIPMENT {
         (lang.tr("Equipment", "Спорядження"), equipment::body(lang))
     } else if path == MODIFIERS {
@@ -60,7 +63,7 @@ pub(crate) fn page(path: &str, query: &str, lang: Lang, header: &str) -> Respons
         (
             lang.tr("Wiki", "Вікі"),
             format!(
-                "<div class=wiki-heading><h1>{}</h1></div><div class=wiki-sections>{}{}{}{}{}</div>",
+                "<div class=wiki-heading><h1>{}</h1></div><div class=wiki-sections>{}{}{}{}{}{}</div>",
                 lang.tr("Wiki", "Вікі"),
                 section(
                     lang,
@@ -82,6 +85,13 @@ pub(crate) fn page(path: &str, query: &str, lang: Lang, header: &str) -> Respons
                     &lang.tr("Modifiers", "Модифікатори"),
                     &lang.tr("Every modifier, its strengths and the items that can get it.",
                         "Усі модифікатори, їхня сила та предмети, на які вони випадають."),
+                ),
+                section(
+                    lang,
+                    skills::PATH,
+                    &lang.tr("Skills", "Навички"),
+                    &lang.tr("Every skill tree: thresholds, ranks and what each rank gives.",
+                        "Усі гілки навичок: пороги, ранги й що дає кожен ранг."),
                 ),
                 section(
                     lang,
@@ -145,6 +155,40 @@ mod tests {
             assert!(page.body.contains("id=\"compare-a\""));
             assert!(page.body.contains("class=\"sim-vertical\""));
             assert!(page.body.contains("id=\"recoil-template\""));
+        }
+    }
+
+    #[test]
+    fn the_skills_page_names_only_files_it_serves() {
+        for lang in [Lang::En, Lang::Uk] {
+            let page = page(skills::PATH, "", lang, "site header");
+            assert!(page.body.contains("site header"));
+            assert!(page.body.contains(&format!("lang=\"{}\"", lang.code())));
+            assert!(page.body.contains("class=\"skill-branch\""));
+            assert!(page.body.contains("data-skill=\"101\""));
+            let files: Vec<&str> = page
+                .body
+                .match_indices("/skills/")
+                .filter(|&(at, _)| page.body[..at].ends_with(['"', '\'']))
+                .map(|(at, _)| page.body[at..].split_once("?v=").unwrap().0)
+                .collect();
+            assert!(files.iter().any(|file| file.starts_with("/skills/icons/")));
+            assert!(files.contains(&"/skills/skills.js"));
+            assert!(
+                files
+                    .iter()
+                    .any(|file| file.starts_with("/skills/icons/branch-"))
+            );
+            for file in files {
+                let (content_type, bytes) = skills::file(file).unwrap_or_else(|| panic!("{file}"));
+                let kind = if file.ends_with(".js") {
+                    "text/javascript; charset=utf-8"
+                } else {
+                    "image/webp"
+                };
+                assert_eq!(content_type, kind, "{file}");
+                assert!(!bytes.is_empty(), "{file}");
+            }
         }
     }
 }

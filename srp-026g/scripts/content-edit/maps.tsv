@@ -1,0 +1,16 @@
+maps	spawn_protection_s	spawn_zone_ms	spawn_zone_fade_ms	resupply_ms	artefact_search_s	artefact_cooldown_s
+level_01	6	2000	2000	3000	6	80
+level_02	6	2000	2000	3000	6	80
+level_03	6	2000	2000	3000	6	80
+level_04	6	2000	2000	3000	6	80
+level_05	6	2000	2000	3000	6	80
+level_06	6	2000	3000	3000	6	80
+level_07	6	3000	0	3000	6	80
+level_08	6	3000	0	3000		
+level_09	6			3000		
+lobby_scene						
+v011e_level_03	6			3000	6	80
+v011e_level_04	6			3000	6	80
+v021d_level_03	6	2000	2000	3000	5	80
+v021d_level_06	6			3000	5	80
+v069d_level_01	6	2000	2000	3000	6	80

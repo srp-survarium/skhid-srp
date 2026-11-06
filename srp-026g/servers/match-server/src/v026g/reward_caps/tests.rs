@@ -21,7 +21,7 @@ fn feeder() -> (Statistics, kill_cap::Pairs) {
 #[test]
 fn unpaid_feeding_kills_do_not_buy_objective_allowance_and_originals_survive() {
     let (played, pairs) = feeder();
-    let payment = Payment::of(&played, &pairs, mode::RESEARCH, false);
+    let payment = Payment::of(&played, &pairs, RuleMode::Research, false);
     assert_eq!(payment.kills[0].paid, 10);
     assert_eq!(payment.objectives[0].paid, 600); // 200 + 40 * 10, not 1120.
     assert_eq!(played.players[0].total(event::KILL), 23);
@@ -31,7 +31,7 @@ fn unpaid_feeding_kills_do_not_buy_objective_allowance_and_originals_survive() {
 #[test]
 fn bot_matches_keep_their_existing_payment_counters() {
     let (played, pairs) = feeder();
-    let payment = Payment::of(&played, &pairs, mode::RESEARCH, true);
+    let payment = Payment::of(&played, &pairs, RuleMode::Research, true);
     assert!(payment.kills.is_empty());
     assert!(payment.objectives.is_empty());
     assert_eq!(payment.statistics, played);
@@ -40,7 +40,7 @@ fn bot_matches_keep_their_existing_payment_counters() {
 #[test]
 fn objectives_in_other_modes_are_not_reinterpreted_as_research() {
     let (played, pairs) = feeder();
-    let payment = Payment::of(&played, &pairs, mode::BATTERIES, false);
+    let payment = Payment::of(&played, &pairs, RuleMode::Batteries, false);
     assert_eq!(payment.kills[0].paid, 10);
     assert!(payment.objectives.is_empty());
     assert_eq!(

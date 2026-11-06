@@ -38,7 +38,10 @@ movies' source (`srp-026g/flash`) and the engine (2026-10-21); not yet seen in a
     in their container's units); the context menu (`SrvContextMenu`, every right-click menu:
     inventory, friends, squad, chat, clan, results, rooms) is scaled, placed from the mouse in its
     own units, its submenu goes left at the screen's right edge, and the menu is kept 4 units in
-    from every edge; the sync clip is scaled and centred.
+    from every edge; the sync clip is scaled and centred. An item tip (`ItemTipRenderer`: an
+    other player's gear, a list's rewards) is drawn at `scaleFactor / overlayScale` in that
+    container, so as the lobby is, the inventory's card's size (it took `scaleFactor` again on top
+    of the container's: 1.78 at 1440p, 4 at 4K, until 2026-11-06).
 - **Still 1:1:** `player_icons` (markers and names over players): the engine gives the position in
   pixels (`base_game_scene::point_to_screen` 0x23DEC0) and a scale of 1 to 3 by distance
   (`game_world_ui::update_player_icons` 0x23AA10), never by the screen size; a fix is in the exe.

@@ -11,7 +11,8 @@ The owner (2026-10-30, for release 40): "allow hiding hit markers (UI change) an
 - **Where:** Settings, Gameplay, a group of its own, "HUD:", at the top of the right column
   (`../images/hide-options-settings.png`), in this order: the crosshair list (Dynamic crosshair,
   Static crosshair, Hidden crosshair), "Hide hit markers", "Hide player scores", "Hide quests",
-  "Static minimap", the minimap position list. The tab's own look: the heading as "Friends:" is,
+  then the map's rows: "Names on map" (the Tab map's names without Alt, Alt hiding them:
+  `tab-map-names.md`), "Static minimap", the minimap position list. The tab's own look: the heading as "Friends:" is,
   plain checkboxes and the stock list, the same spacing.
 - **The tab's groups** (the owner, 2026-10-31: "quest progress I think is part of the HUD too",
   "and map"; the crosshair a list in HUD; "Language:" under Friends): left "Friends:", then
@@ -34,11 +35,13 @@ The owner (2026-10-30, for release 40): "allow hiding hit markers (UI change) an
     the minimap does not turn with the view (north up; the hud's `set_rotable(false)`, the player
     arrow turns instead). Its value and behaviour are the stock ones.
   - **The minimap position list** (`_setter_static_minimap_position`: off, lower left, upper left)
-    as it was, its off choice named "Hidden minimap" as the crosshair list's "Hidden crosshair"
-    (the owner, 2026-10-31: "minimap off and hidden crosshair are inconsistent"; the stock key
-    `st_minimap_off`, which only this list uses, in every dictionary;
-    `../images/hide-options-minimap.png`). These two are the game's only map settings (no other
-    tab has any).
+    as it was, its choices named for the minimap (the owner, 2026-11-05: a bare "Upper left corner"
+    says nothing): "Hidden minimap", "Minimap lower left", "Minimap upper left" (the stock keys
+    `st_minimap_off`, `st_minimap_bottom`, `st_minimap_top`, which only this list uses); the off
+    choice named as the crosshair list's "Hidden crosshair" (the owner, 2026-10-31: "minimap off
+    and hidden crosshair are inconsistent"; `../images/hide-options-minimap.png`). Russian,
+    Ukrainian and Belarusian say only up or down ("Миникарта вверху"): with "left" they do not fit
+    the list. With "Names on map" these are the game's only map settings (no other tab has any).
 - **The crosshair list:** Dynamic and Static are the stock static crosshair setting
   (`_setter_static_cross`: unchecked Dynamic, checked Static), so the stock values carry over; a
   pick of either sets it, which reaches the exe as the tab's own change. Hidden is patch 83's
@@ -49,7 +52,7 @@ The owner (2026-10-30, for release 40): "allow hiding hit markers (UI change) an
 - **Texts:** dictionary keys in all ten languages: the heading `st_srp_options_hud` ("HUD:";
   Russian, Ukrainian, Belarusian "Интерфейс боя:"/"Інтерфейс бою:"/"Інтэрфейс бою:", not
   "Interface", which the Interface level selector may take), `st_srp_hide_hit_markers_option`,
-  `st_srp_hide_scores_option`, `st_srp_hide_quests_option`, `st_srp_static_minimap_option` (each
+  `st_srp_hide_scores_option`, `st_srp_map_names_option`, `st_srp_hide_quests_option`, `st_srp_static_minimap_option` (each
   language's word for "static" from its "Static crosshair"), `st_srp_crosshair_dynamic`,
   `st_srp_crosshair_static` (the stock "Static crosshair" texts), `st_srp_crosshair_hidden`. The
   exe gives the checkboxes' labels with their answers and the group's other texts with
@@ -60,15 +63,17 @@ The owner (2026-10-30, for release 40): "allow hiding hit markers (UI change) an
   saves it, Cancel or leaving without Apply puts the saved state back.
 - **At once:** the hud takes a change in its next frame, in a match too (no next-match wait).
 - **Stored in user.cfg** (`Documents\survarium\user.cfg`): `srp_hide_hit_markers on|off`,
-  `srp_hide_scores on|off`, `srp_hide_crosshair on|off` (saved bools, as the game's own options;
+  `srp_hide_scores on|off`, `srp_map_names on|off`, `srp_hide_crosshair on|off` (saved bools, as the game's own options;
   the file is written at Apply). An older game ignores the lines.
 - **Per player, on this computer:** nothing is sent; other players see what they chose.
 
 ## Hidden crosshair
 
-- No crosshair is drawn in a match: the hud's whole crosshair is hidden, its hit marker with it
-  (the marker is part of it), whatever "Hide hit markers" says. Back on Dynamic or Static, the
-  marker follows its own option again.
+- Only the aiming lines are hidden. Hit and kill markers remain visible unless "Hide hit
+  markers" is checked separately. The existing saved `srp_hide_crosshair` choice applies.
+- Weapon/spread updates and respawning keep the cross hidden. Changing back to Dynamic or
+  Static respects the game's current aiming/death visibility; it cannot reveal a cross that
+  the game currently suppresses. F11 and Blackout still hide the complete HUD.
 
 ## Hide hit markers
 
@@ -108,15 +113,15 @@ The owner (2026-10-30, for release 40): "allow hiding hit markers (UI change) an
 
 - **Exe** (Rust, five lohooks of `hud_options.toml`, order 2, each after another patch's hook at
   the same site):
-  - `configs.start` (game::on_configs_loaded's start, after patch 79): registers the three saved
-    bools (cc_value<bool>::cc_value 0x1DDB0, then cc_bool's vtable 0x9E7C4C) before user.cfg runs;
+  - `configs.start` (game::on_configs_loaded's start, after patch 79): registers the four saved
+    bools (cc_value<bool>::cc_value 0x1DDB0, then cc_bool's vtable 0x9E7C4C) before user.cfg runs (and `srp_dxvk`, `dxvk-option.md`, the same way);
   - `options.callback` (game_options::scaleform_callback's start, after patch 79): a call named
-    `srp_hide_hit_markers`, `srp_hide_scores` or `srp_hide_crosshair` answers
+    `srp_hide_hit_markers`, `srp_hide_scores`, `srp_map_names` or `srp_hide_crosshair` answers
     `root.srp_check_option(name, label, "1"|"0")`; with "1" or "0" it saves that first (user.cfg at
     once); `srp_hud_texts` answers `root.srp_hud_texts(heading, Hide quests, Dynamic, Static,
     Hidden, Static minimap)`;
   - `player_icons.update_start` (update_player_icons' start, every frame of a match, after patch
-    65): `root.srp_hud_options(hide hit markers, hide scores, hide crosshair)` to the hud movie,
+    65): `root.srp_hud_options(hide hit markers, hide scores, hide crosshair, map names)` to the hud movie,
     once for each new hud movie or change;
   - `static_info.options_read`, `replay.options_read` (a match's or a replay's options read,
     after patch 65): the hud is told again, since a new match can make its hud movie at the last
@@ -124,7 +129,9 @@ The owner (2026-10-30, for release 40): "allow hiding hit markers (UI change) an
 - **Settings code:** `vostok::settings` (the Settings' call, the save of user.cfg, `ConsoleBool`),
   shared with patch 79's Language choice.
 - **Hud:** `HUD.srp_hud_options` sets `Crosshair.hitMarkersHidden`, the Tab list's
-  `PlayerList.namesOnly` and the crosshair's visibility.
+  `PlayerList.namesOnly`, `Crosshair.crosshairHidden` and the Tab map's names (with patch 82's Alt). `Crosshair` combines the saved choice
+  with `HUD.show_crosshair`'s game visibility request; only `crosshair_mc` is hidden, leaving
+  the sibling hit/kill feedback under its independent setting.
 - **Main menu:** `SrpCheckOption` (one checkbox the exe keeps by its name), two in an
   `SrpCheckGroup` (the heading, the texts asked); `SrpCrosshairChoice` (the list over the stock
   checkbox and `srp_hide_crosshair`); `Settings.layoutGameplay` places them with `SrpLanguage` and
@@ -136,5 +143,6 @@ The owner (2026-10-30, for release 40): "allow hiding hit markers (UI change) an
   overlaps, nothing below the window, every language's texts fitting (the crosshair and minimap
   lists' choices too), with the note shown and hidden; each pending change, Apply, Cancel; Hide
   quests' inversion through the stock setter and its default; the crosshair list's mapping, Hidden
-  keeping the stock value, closing on a press outside; the hit marker shown off, hidden on, none with the crosshair hidden; the Tab list as
+  keeping the stock value, closing on a press outside; hit and kill feedback independent of the
+  hidden crosshair through weapon updates, aiming/death and respawn; the Tab list as
   today off, names only on, by clan and name). Not yet run in the game.

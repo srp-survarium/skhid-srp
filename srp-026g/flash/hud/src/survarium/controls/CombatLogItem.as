@@ -7,6 +7,7 @@ package survarium.controls
    import flash.display.PixelSnapping;
    import flash.text.TextField;
    import flash.text.TextFieldAutoSize;
+   import flash.utils.getDefinitionByName;
    import survarium.constants.Colors;
    import survarium.constants.CombatAction;
    
@@ -35,11 +36,10 @@ package survarium.controls
       private var _painIcon:Bitmap = new Bitmap(PAIN,PixelSnapping.ALWAYS);
       
       // A weapon's icon is its config's ui_desc/combat_log_icon: frame (icon + 1) of object_icon, whose
-      // 53 frames end at icon 52. The builds the ported weapons come from number theirs on from 53
-      // (0.27d0 to 0.31a2 alike): those icons are these bitmaps, icon 53 first, shown in the frame's place.
-      private static const MORE_WEAPONS:Array = [CombatLogWeapon53,CombatLogWeapon54,CombatLogWeapon55,CombatLogWeapon56,CombatLogWeapon57,CombatLogWeapon58,CombatLogWeapon59,CombatLogWeapon60,CombatLogWeapon61,CombatLogWeapon62,CombatLogWeapon63,CombatLogWeapon64,CombatLogWeapon65,CombatLogWeapon66,CombatLogWeapon67,CombatLogWeapon68];
-      
-      private static var _moreWeapons:Array = [];
+      // 53 frames end at icon 52. The builds the ported weapons come from number theirs on from 53:
+      // icon n past the clip is the bitmap class CombatLogWeapon<n> (bitmaps/, src/), when the movie has
+      // one, shown in the frame's place. A ported weapon's icon is one bitmap and its class, no list here.
+      private static var _moreWeapons:Object = {};
       
       private var _weaponIcon:Bitmap = new Bitmap(null,PixelSnapping.ALWAYS);
       
@@ -81,7 +81,7 @@ package survarium.controls
             this.object_icon.gotoAndStop(data.object_icon + 1);
             if(_action_id == CombatAction.KILL)
             {
-               weapon = moreWeapon(data.object_icon - this.object_icon.totalFrames);
+               weapon = data.object_icon >= this.object_icon.totalFrames ? moreWeapon(data.object_icon) : null;
             }
             this.object_icon.visible = weapon == null;
          }
@@ -103,18 +103,23 @@ package survarium.controls
          this.makeLayout();
       }
       
-      // The bitmap of icon (53 + i), made once; null past the last.
-      private static function moreWeapon(i:int) : BitmapData
+      // The bitmap of icon `icon` (CombatLogWeapon<icon>), made once; null when the movie has none.
+      private static function moreWeapon(icon:int) : BitmapData
       {
-         if(i < 0 || i >= MORE_WEAPONS.length)
+         if(!(icon in _moreWeapons))
          {
-            return null;
+            var made:BitmapData = null;
+            try
+            {
+               made = new (getDefinitionByName("CombatLogWeapon" + icon) as Class)() as BitmapData;
+            }
+            catch(error:Error)
+            {
+               made = null;
+            }
+            _moreWeapons[icon] = made;
          }
-         if(!_moreWeapons[i])
-         {
-            _moreWeapons[i] = new MORE_WEAPONS[i]();
-         }
-         return _moreWeapons[i];
+         return _moreWeapons[icon];
       }
       
       // What shows the weapon: object_icon, or the bitmap in its place; null on a suicide row.

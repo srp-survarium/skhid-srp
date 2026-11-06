@@ -1,0 +1,34 @@
+# Patch 68: a weapon's upgrades in at most three records, the weapon kit
+# (docs/notes/weapon-kit.md). Only the decisions: which sites, and the
+# handlers. The sites (VAs, kinds, spans, what their registers hold) are
+# sites_026g.tsv's; the logic is weapon_kit.rs over the weapon-kit crate.
+# query_room is the one hand-written cave: it makes translate_query's call
+# and takes room on the cook's own stack, which no typed hook can (a
+# lohook's entry restores ESP), for query_records to fill.
+name = "weapon_kit"
+patch = 68
+
+[[hook]]
+site = "weapon_kit.query_room"
+source = "weapon_kit_026g.asm"
+symbol = "weapon_kit_query_room"
+limit = 16
+
+[[hook]]
+site = "weapon_kit.query_records"
+handler = "on_query"
+
+[[hook]]
+site = "weapon_kit.flash_upgrade"
+handler = "on_flash_upgrade"
+
+[[hook]]
+site = "weapon_kit.attached_pair"
+handler = "on_attached_pair"
+
+# Patch 48's apply calls this through the dword +23h of its code, which the
+# build writes (patch_026g.py, with_kit_apply): a generated entry, aligned as
+# a lohook's, never a hand-made export.
+[[hook]]
+site = "weapon_kit.preview_apply"
+handler = "on_preview_apply"
