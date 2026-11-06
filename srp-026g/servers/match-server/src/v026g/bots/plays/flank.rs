@@ -252,6 +252,12 @@ fn camp_route(cx: &Ctx, line: &crate::v026g::bots::threat::HeldLine) -> Option<S
     let length: f32 = floors.windows(2).map(|w| (grid.position(w[1]) - grid.position(w[0])).length()).sum::<f32>()
         + start_m(route);
     let give_up_at = cx.now + (length / ROUTE_PACE_MPS * 1000.0) as u32 + ROUTE_SPARE_MS;
+    // The bench's count of the routes walked (only with the switch on, so an OFF run prints nothing new).
+    #[cfg(test)]
+    eprintln!(
+        "A320 camp_flank route start: t {} place {} spot {spot} route {route} ({:?}, {:.0} m, passed {passed})",
+        cx.now, cx.me.place, camp.routes[route].origin, length
+    );
     Some(State::Route { spot, route, next: 0, give_up_at })
 }
 
@@ -477,6 +483,10 @@ pub fn step(state: &mut State, target: TargetRef, cx: &Ctx, rng: &mut Rng) -> St
     if let Some((_, _, started)) = cx.bot.current
         && cx.now > route_until.unwrap_or(started + (num("give_up_s") * 1000.0) as u32)
     {
+        #[cfg(test)]
+        if route_until.is_some() {
+            eprintln!("A320 camp_flank route gave up: t {} place {}", cx.now, cx.me.place);
+        }
         return Step::Failed("flanked too long");
     }
     let Some(him) = cx.point_of(target) else {
@@ -509,6 +519,8 @@ pub fn step(state: &mut State, target: TargetRef, cx: &Ctx, rng: &mut Rng) -> St
                 *next = k + 1;
             }
             if *next > fire {
+                #[cfg(test)]
+                eprintln!("A320 camp_flank route fire: t {} place {} spot {spot} route {route}", cx.now, cx.me.place);
                 let s = rng.range(num("peek_min_s"), num("peek_max_s"));
                 *state = State::Peek { until: cx.now + (s * 1000.0) as u32 };
                 return Step::Continue(Intent::stay().crouched().looking(Look::At(him)));
