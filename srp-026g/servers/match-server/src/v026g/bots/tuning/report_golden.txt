@@ -42,7 +42,7 @@ switch values cover: hold_exposure={"anchor_deg":45.0,"far_m":60.0,"near_m":20.0
 switch values feel: drop_truth=links past_drop=landed
 switch values hazard: escape=under_start_zone route_crossing=total zone_pools=routed
 switch values heal: amounts=course_total drug_stops=known
-switch values kin: edge=client fix_blend=replayed fix_floor=under_in_jump jump_snap=by_keys margin_edge=body mixer=layers pitch_scale=client slope_speed=ramps_grade speed_terms=legs walk_off_landing=by_speed
+switch values kin: edge=client fix_blend=replayed fix_floor=under_in_jump jump_snap=by_keys margin_edge=body mixer=layers pitch_scale=client slope_speed=ramps_grade speed_terms=legs walk_off_landing=by_speed wall_slide=diagonal
 switch values kit: frags=support_and_camper smoke=radio_place
 switch values pace: reserve={"gap":[15.0,30.0],"stop":[10.0,25.0]}
 switch values smoke: shooter_spot={"rest_within_m":4.0} wait_for_cloud={"close_m":15.0,"close_sensed_ms":2000,"margin_ms":500,"who":"crossers"}

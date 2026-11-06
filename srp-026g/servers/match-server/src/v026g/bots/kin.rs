@@ -58,6 +58,8 @@ pub struct Kinematics {
     pub mixer: Mixer,
     /// [A318] The blend a world's fix starts the body's reckoning with ([`FixBlend`]).
     pub fix_blend: FixBlend,
+    /// [A318] Along what a step the grid stops goes on ([`WallSlide`]).
+    pub wall_slide: WallSlide,
     /// Which jump links the reckoned body (`body.rs`) takes up after a jump press ([`JumpSnap`]).
     pub jump_snap: JumpSnap,
     /// Where the reckoned body falls off a ledge ([`Edge`]).
@@ -278,6 +280,7 @@ impl Default for Kinematics {
             blend_ticks: 6,
             mixer: Mixer::Layers,
             fix_blend: FixBlend::Replayed,
+            wall_slide: WallSlide::Diagonal,
             jump_snap: JumpSnap::ByKeys,
             edge: Edge::Client,
             open_edge_cost: 0.0,
@@ -341,6 +344,21 @@ pub enum Mixer {
     /// blends are interrupted all the time (`scripts/kin_mixer_fit.py`, fx-zones).
     #[default]
     Layers,
+}
+
+/// [A318] Along what a step of the reckoned body the walk grid stops goes on (`body::slide_supported_by`).
+///
+/// The client's capsule slides along what it meets: the walk is projected on the wall (`get_wall_slide_vector`, the controller tick
+/// ported in A313). The grid's cells see a wall as a row of cells, along an axis or as a 45 degree staircase.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum WallSlide {
+    /// The step's x part, else its z part (as it was): a wall along an axis.
+    Axes,
+    /// Those, then the step along each 45 degree diagonal at its projection (cos 45 of it): a wall the grid's cells draw as a 45
+    /// degree staircase, which holds both axes.
+    #[default]
+    Diagonal,
 }
 
 /// [A318] The blend a world's fix starts the reckoning with.

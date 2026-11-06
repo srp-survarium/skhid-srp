@@ -128,6 +128,18 @@ fn drift_on_a_real_match() {
     let mut out = String::from("place,time,gap,flat,height,meant,moved,ticks,walk,held,rx,ry,rz,wx,wy,wz\n");
     let (mut k, mut n, mut over) = (0usize, 0u32, 0u32);
     let mut held_kinds: HashMap<(&str, &str), u32> = HashMap::new();
+    // `SRP_A304_SLOPE=1` [A318]: each drifting world's ground under the client's feet, at it and at the world before, by the client's
+    // slide rule (`standin_slide::Ground::slides`): what of the drift a slide in the reckoning could take.
+    let grounds = var("SRP_A304_SLOPE").map(|_| {
+        let triangles = world.map.walker_triangles();
+        let all = Arc::new(mapdata::RayTree::from_corners(triangles.iter().map(|t| t.v)));
+        super::standin_slide::Grounds::new(&triangles, all)
+    });
+    let mut slope_kinds: HashMap<&str, u32> = HashMap::new();
+    // `SRP_A304_HOLD=1` [A318]: each 'faster' world the grid held the reckoning in (the client walked 1 m+ more than the keys meant):
+    // the floor it was held on against the floor under the client's feet, and the grid's links between them.
+    let hold_probe = var("SRP_A304_HOLD").is_some();
+    let mut hold_kinds: HashMap<&str, u32> = HashMap::new();
     for w in rows {
         while k < ticks.len() && ticks[k].0 <= w.time + WORLD_LATE_MS {
             let (time, place, keys, turn) = ticks[k];
@@ -140,6 +152,7 @@ fn drift_on_a_real_match() {
         let before = track.fix().filter(|f| f.alive && f.inserted == w.fix.inserted).and_then(|f| f.feet);
         let reckoned = track.reckoned_at(w.time);
         let feet = w.fix.feet;
+        let speed = w.fix.speed;
         let new_life = track.fixed(w.fix, &kin, grid);
         let (Some(feet), Some(reckoned), Some(from), false) = (feet, reckoned, before, new_life) else {
             continue;
@@ -148,8 +161,59 @@ fn drift_on_a_real_match() {
         let height = reckoned.y - feet.y;
         n += 1;
         over += u32::from(flat >= 1.0 || height.abs() >= 1.0);
+        if let (Some(g), true) = (&grounds, flat >= 1.0 || height.abs() >= 1.0) {
+            use super::standin_slide::Ground;
+            let still = speed.is_some_and(|s| s < 0.1);
+            let (at, was) = (g.under(feet), g.under(from));
+            let kind = if [at, was].iter().flatten().any(|ground| ground.slides(false)) {
+                "the client's ground slides a body moving or not (by_slope over 55 deg, or dont_walk)"
+            } else if [at, was].iter().flatten().any(|ground| ground.slides(true)) {
+                if still { "still on by_slope ground of 45-55 deg (slides a body standing)" } else { "moving on by_slope ground of 45-55 deg (holds a moving body)" }
+            } else if [at, was].iter().flatten().any(|ground| matches!(ground, Ground::Walk(deg) | Ground::Slope(deg) if *deg >= 30.0)) {
+                "ground of 30 deg or more the client holds (walk face, or by_slope under 45)"
+            } else if at.is_none() {
+                "no face under the client's feet"
+            } else {
+                "ground under 30 deg"
+            };
+            // Whether the walk grid has a floor where the client stands (a floor the client cannot hold is a grid matter).
+            let floored = world.grid.locate(feet, 0.5).is_some_and(|node| (world.grid.position(node).y - feet.y).abs() < 0.5);
+            let kind: &str = match (kind.starts_with("the client's ground slides") || kind.starts_with("still on"), floored) {
+                (true, true) => if kind.starts_with("still") { "still slide, the grid has a floor there" } else { "slide, the grid has a floor there" },
+                (true, false) => if kind.starts_with("still") { "still slide, no grid floor there" } else { "slide, no grid floor there" },
+                _ => kind,
+            };
+            let seen = slope_kinds.entry(kind).or_insert(0);
+            *seen += 1;
+            if kind.ends_with("the grid has a floor there") && *seen <= 4 {
+                eprintln!("A318 slope sample: {kind} at ({:.2}, {:.2}, {:.2}) ground {at:?} before {was:?}", feet.x, feet.y, feet.z);
+            }
+        }
         let iv = track.last_interval().unwrap_or_default();
         // What the grid has where a held reckoning stopped and where the client's feet are (A304: what kind of hold).
+        if hold_probe && iv.held_ticks > 0 && flat >= 1.0 && track.last_meant().is_some_and(|m| from.distance_xz(feet) - m >= 1.0) {
+            let g = &*world.grid;
+            let held = g.locate(reckoned, 1.0);
+            let at = g.locate(feet, 0.5).filter(|&node| (g.position(node).y - feet.y).abs() < 0.5);
+            let kind = match (held, at) {
+                (None, _) => "the reckoning held off the grid",
+                (_, None) => "no grid floor under the client's feet (the grid lacks the client's floor)",
+                (Some(h), Some(a)) if h == a => "the client's floor is the held floor",
+                (Some(h), Some(a)) => match (way_within(g, h, a, 12, true), way_within(g, h, a, 12, false)) {
+                    (true, _) => "linked by walk links within 12 (the reckoning did not follow)",
+                    (false, true) => "linked within 12 only through a drop or a jump",
+                    (false, false) => "no way within 12 links (the grid lacks the link)",
+                },
+            };
+            let seen = hold_kinds.entry(kind).or_insert(0);
+            *seen += 1;
+            if *seen <= 3 {
+                eprintln!(
+                    "A318 hold sample: {kind}: client ({:.2}, {:.2}, {:.2}), held ({:.2}, {:.2}, {:.2})",
+                    feet.x, feet.y, feet.z, reckoned.x, reckoned.y, reckoned.z
+                );
+            }
+        }
         if iv.held_ticks > 0 && flat >= 1.0 {
             let g = &*world.grid;
             let floor = |p: Vec3| g.locate(p, 2.0).map(|node| (node, g.position(node).distance_xz(p), (g.position(node).y - p.y).abs()));
@@ -192,9 +256,43 @@ fn drift_on_a_real_match() {
         "A304 replay {project}: {n} worlds of bots compared, {over} drifting (1 m+), {:.1} %",
         100.0 * over as f64 / n.max(1) as f64
     );
+    let mut holds: Vec<_> = hold_kinds.into_iter().collect();
+    holds.sort_by_key(|(_, n)| std::cmp::Reverse(*n));
+    for (kind, count) in holds {
+        eprintln!("A318 hold drift: {count} {kind}");
+    }
+    let mut slopes: Vec<_> = slope_kinds.into_iter().collect();
+    slopes.sort_by_key(|(_, n)| std::cmp::Reverse(*n));
+    for (kind, count) in slopes {
+        eprintln!("A318 slope drift: {count} {kind}");
+    }
     let mut kinds: Vec<_> = held_kinds.into_iter().collect();
     kinds.sort_by_key(|(_, n)| std::cmp::Reverse(*n));
     for ((held, world), count) in kinds {
         eprintln!("A304 held drift: {count} {held}; {world}");
     }
+}
+
+/// [A318] Whether the walk grid has a way from `from` to `to` within `steps` links (only walk links with `walk_only`).
+fn way_within(grid: &mapdata::WalkGrid, from: NodeId, to: NodeId, steps: usize, walk_only: bool) -> bool {
+    let mut seen = std::collections::HashSet::from([from]);
+    let mut front = vec![from];
+    for _ in 0..steps {
+        let mut next = Vec::new();
+        for node in front {
+            for (n, kind) in grid.links(node) {
+                if walk_only && kind != mapdata::LinkKind::Walk {
+                    continue;
+                }
+                if n == to {
+                    return true;
+                }
+                if seen.insert(n) {
+                    next.push(n);
+                }
+            }
+        }
+        front = next;
+    }
+    false
 }
