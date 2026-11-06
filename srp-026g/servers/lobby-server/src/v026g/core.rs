@@ -241,9 +241,6 @@ pub(super) struct Core<'a> {
     /// When a member who came while its room's match is played goes into
     /// it (`RoomRules::late_join_wait` after it came, or at once on its ask).
     pub room_join_at: HashMap<u32, Instant>,
-    /// Each member's room at the last tick: who came and went is said in
-    /// the room's chat (`room_chat`).
-    pub room_seen: HashMap<u32, u32>,
     /// A member (or one queued) whose game started anew, until its new
     /// game is told the room: by then, or it loses the place (`rooms`).
     pub room_unseen: HashMap<u32, Instant>,
@@ -297,7 +294,6 @@ impl<'a> Core<'a> {
             room_launching: HashMap::new(),
             room_codes: HashMap::new(),
             room_join_at: HashMap::new(),
-            room_seen: HashMap::new(),
             room_unseen: HashMap::new(),
         }
     }

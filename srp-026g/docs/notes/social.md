@@ -610,13 +610,15 @@ one", "there should be to the right of [General Chat] [Room Chat]" (the rules:
   and clan tag, channel 10, to every other member whose movie asked and who is
   in no match, but those who ignore the sender. The flood allowance is the
   other channels'. A line from a player in no room reaches nobody. The room
-  keeps its last 20 lines (`session::v026g::rooms::CHAT_KEPT`), given to the
+  keeps its last 50 lines (`session::v026g::rooms::CHAT_KEPT`), given to the
   asker (but an ignored sender's) before the answer; they go with the room.
-- **The room's own lines:** `<name> joined the room` / `<name> left the room`,
-  an `A2` of sender type 5, id 0, an empty name, no tag, channel 10, said on
-  the tick after the change whatever made it, kept with the other lines (no
-  join for a player alone in its room). The empty name is the queue chat's
-  (§9.7), which ran on the players' server so.
+- **A match's all-chat:** a `4C` on channel 5 from a player in a match goes to
+  its match as before and is also kept in the sender's room's chat as a channel-10 line
+  of its own (sent at once to the members in the lobby whose movie asked), so
+  the tab shows it after the match. Team channels (6, 7) are not kept.
+- **No lines of the room's own** (since 2026-11-06): who joined or left is not
+  said. The movie still puts a line with no sender in blue and in the
+  player's language (`RoomsText.notice`); the lobby sends none.
 - **Not checked in the game.**
 
 ## Correction (2026-10-12): the order of an accepted squad invite

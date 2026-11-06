@@ -83,8 +83,9 @@ const SHORT_KEYS: std::ops::RangeInclusive<u32> = 1000..=9999;
 /// The largest key.
 const KEY_MAX: u32 = 99_999;
 /// The lines a room's chat keeps: what a member's "Room Chat" tab is
-/// given when it comes, and again after its match (`social.md` §9.8).
-pub const CHAT_KEPT: usize = 20;
+/// given when it comes, and again after its match, the match's all-chat
+/// among them (`social.md` §9.8).
+pub const CHAT_KEPT: usize = 50;
 
 /// What a room is made with.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -208,8 +209,8 @@ pub struct Room {
     pub came_in_match: HashSet<u32>,
 }
 
-/// A line of a room's chat: a member's, or the room's own (a member came
-/// or went), whose sender is account 0 with no name.
+/// A line of a room's chat: a member's, said in the room or in its match's
+/// all-chat.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct ChatLine {
     pub from: u32,

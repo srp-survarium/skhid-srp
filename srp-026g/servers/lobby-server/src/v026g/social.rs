@@ -403,6 +403,11 @@ impl Core<'_> {
             "Chat from {} on channel {channel} reached {reached} player(s)",
             who.name
         );
+        // A match's all-chat is kept in the sender's room's chat too
+        // (`room_chat`).
+        if channel == channel::MATCH && in_match.is_some() {
+            self.room_keep_match_line(who, body);
+        }
     }
 
     // ------------------------------------------------- important messages
