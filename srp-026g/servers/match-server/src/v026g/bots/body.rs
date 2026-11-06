@@ -30,7 +30,8 @@
 use std::collections::VecDeque;
 use std::sync::Arc;
 
-use mapdata::{LinkKind, NodeId, RayTree, Vec3, WalkGrid};
+use mapdata::controller::Collision;
+use mapdata::{LinkKind, NodeId, Vec3, WalkGrid};
 use survarium::v026g::match_msgs::TICK_MS;
 
 use super::jump_arc::{ArcStep, JumpArc};
@@ -204,9 +205,9 @@ struct Tick {
     jump: JumpGate,
 }
 
-/// [A318] The map's walls for a jump in the air ([`BodyTrack::set_walls`]): its walker mesh's rays, shared.
+/// [A318] The map's walls for a jump in the air ([`BodyTrack::set_walls`]): its walker collision, shared.
 #[derive(Clone)]
-struct Walls(Arc<RayTree>);
+struct Walls(Arc<Collision>);
 
 impl std::fmt::Debug for Walls {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
@@ -214,15 +215,10 @@ impl std::fmt::Debug for Walls {
     }
 }
 
-/// [A318] Rays on `world`'s walker mesh (what the walking body bumps into; a map without walker triangles: its sight tree), as
-/// the bench's stand-in casts its walls: the jump arc's walls. Built from the map's triangles (once a match: the view keeps it).
-pub fn walker_walls(world: &mapdata::World) -> Arc<RayTree> {
-    let walker = world.map.walker_triangles();
-    if walker.is_empty() {
-        world.sight.clone()
-    } else {
-        Arc::new(RayTree::build(&walker))
-    }
+/// [A318] `world`'s walker collision (what the walking body bumps into, as the client's controller sweeps its capsule against
+/// it): the jump arc's walls. Built from the map's triangles, once a match (the view keeps it).
+pub fn walker_collision(world: &mapdata::World) -> Arc<Collision> {
+    Arc::new(Collision::build(&world.map.walker_triangles()))
 }
 
 /// [A318] The client's jump gate for a press, past what the reckoned body itself knows (standing, uncrouched, no jump under
@@ -410,7 +406,7 @@ impl BodyTrack {
     }
 
     /// [A318] The map's walls a jump in the air is held by (`kin.jump_arc`): its walker mesh's rays, kept from the first world on.
-    pub fn set_walls(&mut self, walls: Option<Arc<RayTree>>) {
+    pub fn set_walls(&mut self, walls: Option<Arc<Collision>>) {
         if self.walls.is_none() {
             self.walls = walls.map(Walls);
         }
@@ -753,7 +749,7 @@ fn advance_held(
     kin: &Kinematics,
     level: f32,
     grid: Option<&WalkGrid>,
-    walls: Option<&RayTree>,
+    walls: Option<&Collision>,
 ) -> (Estimate, bool) {
     let meant = kin.target_local(at.keys, level);
     let next = advance(at, tick, kin, level, grid, walls);
@@ -771,7 +767,7 @@ fn advance(
     kin: &Kinematics,
     level: f32,
     grid: Option<&WalkGrid>,
-    walls: Option<&RayTree>,
+    walls: Option<&Collision>,
 ) -> Estimate {
     let steps = (tick.time.saturating_sub(at.time) / TICK_MS).max(1);
     let target = kin.target_local(at.keys, level);

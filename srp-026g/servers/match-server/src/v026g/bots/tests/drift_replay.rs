@@ -89,7 +89,7 @@ fn drift_on_a_real_match() {
     // `SRP_A304_FREE=1`: the reckoning with no walk grid (free space), to weigh what the grid adds.
     let grid: Option<&mapdata::WalkGrid> = var("SRP_A304_FREE").is_none().then_some(&*world.grid);
     // [A318] The jump arc's walls, as a match's view keeps them (`Tracker::arc_walls`): the walker mesh, while the switch is on.
-    let arc_walls = (grid.is_some() && kin.jump_arc).then(|| body::walker_walls(&world));
+    let arc_walls = (grid.is_some() && kin.jump_arc).then(|| body::walker_collision(&world));
     // The inputs, by time; the worlds, by the time they reach the bots.
     let mut ticks: Vec<(u32, usize, u32, (f32, f32))> = read_csv(&inputs)
         .iter()
@@ -141,7 +141,8 @@ fn drift_on_a_real_match() {
     // `SRP_A304_HOLD=1` [A318]: each 'faster' world the grid held the reckoning in (the client walked 1 m+ more than the keys meant):
     // the floor it was held on against the floor under the client's feet, and the grid's links between them.
     let hold_probe = var("SRP_A304_HOLD").is_some();
-    let mut arc_rays: Vec<u64> = Vec::new();
+    // [A318] The time of each tick's reckoning (`decided`), with a jump under way and without: the arc's cost per jumping tick.
+    let (mut jump_us, mut other_us): (Vec<f64>, Vec<f64>) = (Vec::new(), Vec::new());
     let trace: Option<(usize, u32, u32)> = var("SRP_A318_TRACE").and_then(|v| {
         let mut it = v.split(',').map(|s| s.trim().parse::<u32>().ok());
         Some((it.next()?? as usize, it.next()??, it.next()??))
@@ -152,12 +153,10 @@ fn drift_on_a_real_match() {
             let (time, place, keys, turn) = ticks[k];
             let track = tracks.entry(place).or_default();
             track.set_walls(arc_walls.clone());
-            let rays_before = super::super::jump_arc::RAYS.load(std::sync::atomic::Ordering::Relaxed);
+            let started = std::time::Instant::now();
             track.decided(time, keys, turn, 0.0, &kin, grid);
-            // [A318] The jump arc's rays on this tick, while a jump is under way (its cost per jumping tick).
-            if track.estimate().is_some_and(|e| e.arc.is_some()) {
-                arc_rays.push(super::super::jump_arc::RAYS.load(std::sync::atomic::Ordering::Relaxed) - rays_before);
-            }
+            let us = started.elapsed().as_secs_f64() * 1e6;
+            if track.estimate().is_some_and(|e| e.arc.is_some()) { jump_us.push(us) } else { other_us.push(us) }
             // `SRP_A318_TRACE=place,from,to` [A318]: that place's reckoned body after each of its ticks in the window.
             if let Some((p, from, to)) = trace
                 && place == p
@@ -281,16 +280,15 @@ fn drift_on_a_real_match() {
     if let Some(path) = var("SRP_A304_OUT") {
         std::fs::write(&path, out).unwrap_or_else(|e| panic!("{path}: {e}"));
     }
-    if !arc_rays.is_empty() {
-        arc_rays.sort_unstable();
-        let mean = arc_rays.iter().sum::<u64>() as f64 / arc_rays.len() as f64;
-        let p99 = arc_rays[(arc_rays.len() * 99 / 100).min(arc_rays.len() - 1)];
-        eprintln!(
-            "A318 rays {project}: {} jumping ticks, rays a tick mean {mean:.1} p99 {p99} max {}",
-            arc_rays.len(),
-            arc_rays[arc_rays.len() - 1]
-        );
-    }
+    let stats = |v: &mut Vec<f64>| {
+        v.sort_by(f64::total_cmp);
+        let mean = v.iter().sum::<f64>() / v.len().max(1) as f64;
+        (v.len(), mean, v.get((v.len() * 99 / 100).min(v.len().saturating_sub(1))).copied().unwrap_or(0.0))
+    };
+    let ((nj, mj, pj), (no, mo, po)) = (stats(&mut jump_us), stats(&mut other_us));
+    eprintln!(
+        "A318 cost {project}: {nj} jumping ticks, decided us mean {mj:.1} p99 {pj:.1}; {no} other ticks mean {mo:.1} p99 {po:.1}"
+    );
     eprintln!(
         "A304 replay {project}: {n} worlds of bots compared, {over} drifting (1 m+), {:.1} %",
         100.0 * over as f64 / n.max(1) as f64

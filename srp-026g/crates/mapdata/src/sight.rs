@@ -521,55 +521,6 @@ impl RayTree {
         best
     }
 
-    /// Whether a triangle's bounding box meets the box from `min` to `max` (inclusive): a coarse test, true near geometry
-    /// that rays may still miss, false only where there is nothing at all (so rays there can be skipped).
-    pub fn any_in_box(&self, min: Vec3, max: Vec3) -> bool {
-        self.find_in_box(min, max, &mut |_| true)
-    }
-
-    /// Whether a capsule (the segment from `bottom` to `top`, `radius` round it) overlaps a triangle: nearer to the segment than
-    /// `radius` (a character's body against the walker mesh). Only the triangles whose boxes meet the capsule's box are tested.
-    pub fn capsule_overlaps(&self, bottom: Vec3, top: Vec3, radius: f32) -> bool {
-        let pad = Vec3::new(radius, radius, radius);
-        let (min, max) = (bottom.min(top) - pad, bottom.max(top) + pad);
-        let r2 = radius * radius;
-        self.find_in_box(min, max, &mut |tri| segment_triangle_distance2(bottom, top, tri) < r2)
-    }
-
-    /// Walks the triangles whose bounding boxes meet the box from `min` to `max`; true at the first `found` takes.
-    fn find_in_box(&self, min: Vec3, max: Vec3, found: &mut dyn FnMut(&Prepared) -> bool) -> bool {
-        if self.nodes.is_empty() {
-            return false;
-        }
-        let overlaps = |lo: Vec3, hi: Vec3| {
-            lo.x <= max.x && hi.x >= min.x && lo.y <= max.y && hi.y >= min.y && lo.z <= max.z && hi.z >= min.z
-        };
-        let mut stack = [0u32; STACK];
-        let mut top = 1;
-        while top > 0 {
-            top -= 1;
-            let index = stack[top] as usize;
-            let node = &self.nodes[index];
-            if !overlaps(node.min, node.max) {
-                continue;
-            }
-            if node.count > 0 {
-                let first = node.first_or_right as usize;
-                for tri in &self.triangles[first..first + node.count as usize] {
-                    let (b, c) = (tri.a + tri.e1, tri.a + tri.e2);
-                    if overlaps(tri.a.min(b).min(c), tri.a.max(b).max(c)) && found(tri) {
-                        return true;
-                    }
-                }
-            } else if top + 2 <= STACK {
-                stack[top] = index as u32 + 1;
-                stack[top + 1] = node.right() as u32;
-                top += 2;
-            }
-        }
-        false
-    }
-
     /// [`Self::visible`] by testing every triangle (for tests).
     #[doc(hidden)]
     pub fn visible_every_triangle(&self, a: Vec3, b: Vec3) -> bool {
@@ -790,88 +741,6 @@ fn slab(origin: Vec3, inv: Vec3, min: Vec3, max: Vec3, min_t: f32, max_t: f32) -
 }
 
 /// Möller-Trumbore; both faces count.
-/// The squared distance from the segment `p`-`q` to a triangle: 0 when the segment crosses it, else the least of its ends'
-/// distances to the triangle and its distances to the triangle's three edges (Ericson, Real-Time Collision Detection 5.1).
-fn segment_triangle_distance2(p: Vec3, q: Vec3, tri: &Prepared) -> f32 {
-    let d = q - p;
-    if let Some(t) = ray_triangle(p, d, tri)
-        && (0.0..=1.0).contains(&t)
-    {
-        return 0.0;
-    }
-    let (a, b, c) = (tri.a, tri.a + tri.e1, tri.a + tri.e2);
-    let to = |x: Vec3| {
-        let v = x - closest_on_triangle(x, a, b, c);
-        v.dot(v)
-    };
-    to(p).min(to(q)).min(segment_distance2(p, q, a, b)).min(segment_distance2(p, q, b, c)).min(segment_distance2(p, q, c, a))
-}
-
-/// The point of the triangle `a b c` nearest `p` (Ericson 5.1.5).
-fn closest_on_triangle(p: Vec3, a: Vec3, b: Vec3, c: Vec3) -> Vec3 {
-    let (ab, ac, ap) = (b - a, c - a, p - a);
-    let (d1, d2) = (ab.dot(ap), ac.dot(ap));
-    if d1 <= 0.0 && d2 <= 0.0 {
-        return a;
-    }
-    let bp = p - b;
-    let (d3, d4) = (ab.dot(bp), ac.dot(bp));
-    if d3 >= 0.0 && d4 <= d3 {
-        return b;
-    }
-    let vc = d1 * d4 - d3 * d2;
-    if vc <= 0.0 && d1 >= 0.0 && d3 <= 0.0 {
-        return a + ab * (d1 / (d1 - d3));
-    }
-    let cp = p - c;
-    let (d5, d6) = (ab.dot(cp), ac.dot(cp));
-    if d6 >= 0.0 && d5 <= d6 {
-        return c;
-    }
-    let vb = d5 * d2 - d1 * d6;
-    if vb <= 0.0 && d2 >= 0.0 && d6 <= 0.0 {
-        return a + ac * (d2 / (d2 - d6));
-    }
-    let va = d3 * d6 - d5 * d4;
-    if va <= 0.0 && (d4 - d3) >= 0.0 && (d5 - d6) >= 0.0 {
-        return b + (c - b) * ((d4 - d3) / ((d4 - d3) + (d5 - d6)));
-    }
-    let denom = 1.0 / (va + vb + vc);
-    a + ab * (vb * denom) + ac * (vc * denom)
-}
-
-/// The squared distance between the segments `p1`-`q1` and `p2`-`q2` (Ericson 5.1.9).
-fn segment_distance2(p1: Vec3, q1: Vec3, p2: Vec3, q2: Vec3) -> f32 {
-    let (d1, d2, r) = (q1 - p1, q2 - p2, p1 - p2);
-    let (a, e, f) = (d1.dot(d1), d2.dot(d2), d2.dot(r));
-    let eps = 1e-12;
-    let (s, t) = if a <= eps && e <= eps {
-        (0.0, 0.0)
-    } else if a <= eps {
-        (0.0, (f / e).clamp(0.0, 1.0))
-    } else {
-        let c = d1.dot(r);
-        if e <= eps {
-            ((-c / a).clamp(0.0, 1.0), 0.0)
-        } else {
-            let b = d1.dot(d2);
-            let denom = a * e - b * b;
-            let mut s = if denom > eps { ((b * f - c * e) / denom).clamp(0.0, 1.0) } else { 0.0 };
-            let mut t = (b * s + f) / e;
-            if t < 0.0 {
-                t = 0.0;
-                s = (-c / a).clamp(0.0, 1.0);
-            } else if t > 1.0 {
-                t = 1.0;
-                s = ((b - c) / a).clamp(0.0, 1.0);
-            }
-            (s, t)
-        }
-    };
-    let v = (p1 + d1 * s) - (p2 + d2 * t);
-    v.dot(v)
-}
-
 fn ray_triangle(origin: Vec3, dir: Vec3, tri: &Prepared) -> Option<f32> {
     let p = dir.cross(tri.e2);
     let det = tri.e1.dot(p);
@@ -916,36 +785,6 @@ mod tests {
         let t = tree.ray_cast(eye, Vec3::new(0.0, 0.0, 1.0), 100.0).unwrap();
         assert!((t - 5.0).abs() < 1e-5);
         assert_eq!(tree.ray_cast(eye, Vec3::new(0.0, 0.0, 1.0), 4.0), None);
-    }
-
-    /// A capsule overlaps the wall only when its segment comes nearer than the radius: through it, beside it, over its top edge.
-    #[test]
-    fn a_capsule_overlaps_the_wall_only_within_its_radius() {
-        let tree = RayTree::from_corners(wall());
-        let up = |x: f32, y: f32, z: f32| (Vec3::new(x, y, z), Vec3::new(x, y + 1.0, z));
-        let (b, t) = up(0.0, 0.5, -0.3);
-        assert!(tree.capsule_overlaps(b, t, 0.38), "0.3 m in front, radius 0.38");
-        let (b, t) = up(0.0, 0.5, -0.5);
-        assert!(!tree.capsule_overlaps(b, t, 0.38), "0.5 m in front");
-        let (b, t) = up(1.3, 0.5, 0.0);
-        assert!(tree.capsule_overlaps(b, t, 0.38), "0.3 m past the wall's end, level with it");
-        let (b, t) = up(0.0, 2.3, -0.1);
-        assert!(tree.capsule_overlaps(b, t, 0.38), "the lower end 0.3 m over the top edge");
-        let (b, t) = up(0.0, 2.5, -0.1);
-        assert!(!tree.capsule_overlaps(b, t, 0.38), "0.5 m over it");
-        // A segment crossing the wall's plane inside it.
-        assert!(tree.capsule_overlaps(Vec3::new(0.0, 1.0, -1.0), Vec3::new(0.0, 1.0, 1.0), 0.01));
-    }
-
-    /// A box meets the wall's triangles only where the wall is.
-    #[test]
-    fn a_box_query_finds_the_wall_only_where_it_is() {
-        let tree = RayTree::from_corners(wall());
-        assert!(tree.any_in_box(Vec3::new(-0.2, 0.5, -0.1), Vec3::new(0.2, 0.8, 0.1)));
-        assert!(!tree.any_in_box(Vec3::new(-0.2, 0.5, 0.2), Vec3::new(0.2, 0.8, 0.6)));
-        assert!(!tree.any_in_box(Vec3::new(1.5, 0.5, -0.1), Vec3::new(2.0, 0.8, 0.1)));
-        assert!(!tree.any_in_box(Vec3::new(-0.2, 2.5, -0.1), Vec3::new(0.2, 3.0, 0.1)));
-        assert!(!RayTree::from_corners([]).any_in_box(Vec3::new(-1.0, -1.0, -1.0), Vec3::new(1.0, 1.0, 1.0)));
     }
 
     /// The build gives the same tree every time, and the digest is pinned
