@@ -979,7 +979,7 @@ mod tests {
             (first, state, s)
         };
         let (off, _, _) = run(None);
-        assert_eq!(off, Step::Done("the spot is no longer held"), "no hold: as before");
+        assert_eq!(off, Step::Done("he is gone from the memory"), "no hold: as before (the held spot gone ends the flank)");
         let (on, state, mut s) = run(Some(20_000));
         assert!(matches!(on, Step::Continue(_)), "the hold goes on: {on:?}");
         assert!(matches!(state, State::Route { orphan: Some(_), .. }), "{state:?}");
