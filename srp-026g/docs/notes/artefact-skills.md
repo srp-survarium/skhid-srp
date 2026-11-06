@@ -119,15 +119,19 @@ preferred-image VAs; `apply_modifier` is the kit-modifier getter 0x2D5AE0.
     player's effect list says whether it plays.
   - The point light of the glow (the stock `up_light`, grey) also lights the player's body and
     the ground near it (the renders); a lighter version would leave it out.
-- On the hands since pack artefact-glow@9 (the owner, 2026-11-06): the stock Onyx glow, grey,
+- On the hands in pack artefact-glow@9 (the owner, 2026-11-06; replaced in @10): the stock Onyx glow, grey,
   made as a leg quarter is (`quarter_particle`) with both forearms and hands (LeftForeArm,
   LeftHand, RightForeArm, RightHand) for its parts: the emitters with none of them left out (the
   hands' strokes and the point light now kept), each kept emitter's Rate and MaxParticles times
   its kept share of the stock emitter's parts. Everyone sees it, both views: the carrier too, on
   its own hands in the first person. It no longer lies on the leg quarters.
-- On the whole arms since @10 (the owner, 2026-11-06: the hands alone barely showed in the third
-  person): ARMS (both upper arms, forearms and hands), the same kept-share scaling (rays keep 4
-  of their 8 parts).
+- Since @10 (the owner, 2026-11-06: the grey cloudy puffs @8 showed around the legs are what
+  Forest Protection should look like; on the hands @9 lost them, those emitters have no arm
+  part): the legs' system of @5..@8 value for value (its puffs and strokes, rays, haze and light,
+  the same emitters, rates and sizes) with each animated domain's leg parts moved to the arm
+  parts: upper leg to upper arm, lower leg to forearm, foot to hand. No rescaling (one part for
+  one). `check_forest` proves the legs' system is the file @5..@8 shipped and that only those
+  flags moved.
 - First person since @10 (the owner, 2026-11-06: the carrier's own view washed white/grey): its
   effect and each leg quarter's are made as effect_artefact_<kind> is, a composite (type 110) of
   the system with no `view` (everyone else's third person, unchanged: its point light and haze)

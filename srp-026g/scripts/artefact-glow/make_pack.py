@@ -60,8 +60,10 @@ hands) for its parts: the hands' strokes and the point light kept, every kept em
 density on its parts. It no longer lies on the leg quarters; everyone sees it, the carrier too in
 the first person (its own hands).
 
-Version 10 (the owner, 2026-11-06): Forest Protection's glow on the whole arms (ARMS, the upper
-arms too), as a quarter is made; and it and the leg quarters made as effect_artefact_<kind> is: a
+Version 10 (the owner, 2026-11-06): Forest Protection's glow is the legs' system of versions 5 to 8
+(its grey puffs and strokes, rays, haze and light, value for value) with its leg parts moved to the
+arms (LEG_TO_ARM: upper leg to upper arm, lower leg to forearm, foot to hand); and it and the leg
+quarters made as effect_artefact_<kind> is: a
 composite of the system with no `view` (everyone else's third person, unchanged: its light and
 haze) and a first-person twin (`view` 0, <system>_fp) without the point light's emitter and the
 haze (FIRST_PERSON_LEFT_OUT), which washed the carrier's own view grey.
@@ -101,10 +103,13 @@ FOREST_EFFECT = 'gameplay/effects/effect_forest_protection.options'
 FOREST_SYSTEM = 'fx/artifacts/human_forest_protection'
 ORANGE_MATERIALS = ('rays', 'stroke_scroll', 'up')
 LEGS = ('LeftUpLeg', 'LeftLeg', 'LeftFoot', 'RightUpLeg', 'RightLeg', 'RightFoot')
-# Forest Protection's glow since version 9 (the owner, 2026-11-06): on the forearms and hands.
-HANDS = ('LeftForeArm', 'LeftHand', 'RightForeArm', 'RightHand')
-# ... and on the whole arms since version 10 (the owner, 2026-11-06: the hands alone barely showed).
-ARMS = ('LeftArm', 'LeftForeArm', 'LeftHand', 'RightArm', 'RightForeArm', 'RightHand')
+# ... and since version 10 the legs' system of versions 5 to 8 moved to the arms (the owner,
+# 2026-11-06: the grey cloud around the legs is what Forest Protection should show), each leg part
+# to its arm part.
+LEG_TO_ARM = {'LeftUpLeg': 'LeftArm', 'LeftLeg': 'LeftForeArm', 'LeftFoot': 'LeftHand',
+              'RightUpLeg': 'RightArm', 'RightLeg': 'RightForeArm', 'RightFoot': 'RightHand'}
+ARM_FROM_LEG = {arm: leg for leg, arm in LEG_TO_ARM.items()}
+LEGS_SYSTEM_SHA256 = 'b461c2d9346d9fee0916d7ebbfd1a63122ddb5a54d4d2b159ddaa8fcda895623'
 # What a first-person twin of Forest Protection's glow or a leg quarter leaves out (version 10).
 FIRST_PERSON_LEFT_OUT = ('up_light', 'distortion')
 BODY_PARTS = LEGS + ('BackChest', 'BackSpin', 'Face', 'FrontChest', 'FrontSpin', 'Head', 'LeftArm',
@@ -298,11 +303,41 @@ def greyed(tree, path=''):
     return tree
 
 
+def legs_system(stock):
+    """human_forest_protection of versions 5 to 8: the stock Onyx glow, grey, its legs only; the
+    emitters with no leg part left out (and from children_order)."""
+    return keep_emitters(greyed(parts_only(copy.deepcopy(stock), LEGS)), domain_parts)
+
+
+def legs_to_arms(tree):
+    """`tree` with each animated domain's leg parts moved to the matching arm parts (LEG_TO_ARM):
+    the arm part takes the leg part's value, the leg part goes off; every other value kept."""
+    t, v = tree
+    if t == T_NAMED:
+        if dict(v).get('particle_entity_type') == (T_STR, DOMAIN):
+            def moved(props):
+                values = dict(props)
+                out = []
+                for n, c in props:
+                    if n in LEG_TO_ARM:
+                        out.append((n, (T_BOOL, 0)))
+                    elif n in ARM_FROM_LEG:
+                        out.append((n, values[ARM_FROM_LEG[n]]))
+                    else:
+                        out.append((n, c))
+                return out
+            return (t, [(k, (T_NAMED, moved(c[1])) if k == 'properties' else c) for k, c in v])
+        return (t, [(k, legs_to_arms(c)) for k, c in v])
+    if t == T_INDEXED:
+        return (t, [legs_to_arms(c) for c in v])
+    return tree
+
+
 def forest_particle(stock):
-    """human_forest_protection (version 9): the stock Onyx glow, grey, on the hands (HANDS) as a
-    quarter is made (`quarter_particle`: the emitters with none of those parts left out, each
-    kept one, the point light's too, at the stock density on its parts)."""
-    return greyed(quarter_particle(stock, ARMS))
+    """human_forest_protection (version 10): the system of versions 5 to 8 (the stock Onyx glow,
+    grey, on the legs: its puffs, strokes, rays, haze and light, value for value) with its leg
+    parts moved to the arms (LEG_TO_ARM), so the same cloud and light sit on the arms."""
+    return legs_to_arms(legs_system(stock))
 
 
 def f32(x):
@@ -439,23 +474,29 @@ def check_twin(twin, tree):
 
 
 def check_forest(tree, stock):
-    """The forest system is the stock one made grey (its materials' grey copies, its light's and
-    colour sources' colours grey: nothing else) and cut to the hands as `check_quarter` allows."""
-    grey = greyed(copy.deepcopy(stock))
-    for d in differences(grey, stock):
-        last = d.rsplit('/', 1)[-1]
-        assert last == 'Material' or \
-            (('/LightColor/' in d or d.startswith('/data_sources/color/')) and last == 'value'), d
-    check_quarter(tree, grey, ARMS)
+    """The forest system is the system of versions 5 to 8 (`legs_system`, byte for byte the file
+    they shipped, LEGS_SYSTEM_SHA256) with only its domains' leg flags moved to the arm flags."""
+    legs = legs_system(stock)
+    assert sha256(serialize(legs)) == LEGS_SYSTEM_SHA256, 'not the legs system versions 5 to 8 shipped'
+    moved = set(LEG_TO_ARM) | set(ARM_FROM_LEG)
+    for d in differences(tree, legs):
+        assert d.rsplit('/', 1)[-1] in moved and '/properties/' in d, d
 
-    def strings(node):
+    def domains(node, path=''):
         t, v = node
-        if t in (T_NAMED, T_INDEXED):
-            for c in v:
-                yield from strings(c[1] if t == T_NAMED else c)
-        elif t == T_STR:
-            yield v
-    assert not [m for m in strings(tree) if m.endswith('_orange')], 'an orange material left'
+        if t == T_NAMED:
+            if dict(v).get('particle_entity_type') == (T_STR, DOMAIN):
+                yield path, dict(dict(v)['properties'][1])
+            for k, c in v:
+                yield from domains(c, f'{path}/{k}')
+        elif t == T_INDEXED:
+            for i, c in enumerate(v):
+                yield from domains(c, f'{path}[{i}]')
+    ours, theirs = dict(domains(tree)), dict(domains(legs))
+    assert ours.keys() == theirs.keys() and ours
+    for path, props in ours.items():
+        for leg, arm in LEG_TO_ARM.items():
+            assert props[arm] == theirs[path][leg] and props[leg] == (T_BOOL, 0), (path, leg)
 
 
 def composite_effect(tree, fp_system):
@@ -629,7 +670,7 @@ def main():
                        'fx/artifacts/human_<kind>_fp: the stock particle system, its point lights and haze '
                        'included, with Head, Face and Neck off in every emitter\'s animated domain; and '
                        'Forest Protection\'s glow, effect_forest_protection (a composite: third person, and a first-person twin without the light and haze) playing '
-                       'fx/artifacts/human_forest_protection: the stock Onyx glow, grey, on the arms; '
+                       'fx/artifacts/human_forest_protection: the stock Onyx glow\'s leg system, grey, moved to the arms; '
                        'and the leg quarters, effect_artefact_leg_<kind>_<1..4> (composites likewise) playing '
                        'fx/artifacts/human_<kind>_leg_<1..4>: each kind\'s stock glow on one quarter of the '
                        'legs (left lower, right lower, left upper, right upper), each emitter, its point '

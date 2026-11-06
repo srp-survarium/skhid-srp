@@ -108,7 +108,7 @@ down) when you use artifact? Note that your vision should still be clear")
   MaxParticles times the kept share of each stock emitter's parts).
 - Version 8: the point light's emitter (up_light) back in every quarter, at the same share.
 - Version 9: Forest Protection's glow on the forearms and hands, made as a quarter is.
-- Version 10: Forest Protection's glow on the whole arms; it and the leg quarters composites with a
+- Version 10: Forest Protection's glow the legs' system of 5..8 moved to the arms; it and the leg quarters composites with a
   first-person twin (view 0) without the point light and the haze, as the kinds' own glows are.
 - History: version 1 (a lighter copy) and version 2 (with `up_light`'s lights at x0.35) showed
   too little in the first person; version 3, the stock glow without the head, was tested by the
