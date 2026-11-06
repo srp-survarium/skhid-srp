@@ -212,6 +212,7 @@ pub use traps::ReactTuning;
 pub use traps::SensedNear;
 pub use traps::Stayer;
 pub use traps::TrapLanes;
+pub use traps::TrapRelease;
 pub use traps::TrapTuning;
 pub use unstick::DropShut;
 pub use unstick::SUICIDE_AFTER_OWNER_MS;
@@ -776,20 +777,24 @@ mod tests {
             "/grid/client_numbers",
             "/grid/drop_check",
             "/grid/drop_room",
+            "/grid/exe_collision",
             "/grid/gap_no_vaults",
             "/grid/narrow_doors",
             "/grid/pocket_exits_walled",
             "/grid/run_ups_after_erosion",
             "/grid/slip_landings",
             "/grid/steep_walk_base",
+            "/grid/wall_give_back",
             "/hazard/leave_islands",
             "/hazard/zone_intensity",
             "/hazard/zone_pools",
             "/heal/amounts",
             "/heal/drug_stops",
+            "/kin/drop_fall",
             "/kin/fix_floor",
             "/kin/jump_snap",
             "/kin/pitch_scale",
+            "/kin/speed_cap",
             "/kin/speed_terms",
             "/kin/walk_off_landing",
             "/sense/ranges",
@@ -801,6 +806,7 @@ mod tests {
             "/take/pitch",
             "/think/goal_off_floor_no_way",
             "/think/stamina_rates",
+            "/traps/release",
             "/traps/sensed_near",
             "/unstick/drop_shut_from_top",
             "/unstick/drop_shut_last_resort",

@@ -55,6 +55,14 @@ pub struct TrapTuning {
     /// 41 % of cases within 120 s (he himself 21.5 %, a median 46 s after his death), and the clearing team as often (38 %):
     /// hence the guard. `at_defeated` stays the fallback for the spots this does not cover. Off by default.
     pub at_cleared: Option<ClearedTuning>,
+    /// [A324] Where the habit counts a released trap as lying, and so when it lets the key go. The client places a trap on
+    /// the key's release where a ray from the head along the view meets the walk geometry within 2.0 m, on flat ground only
+    /// (normal.y at least cos 30 deg), not on another trap's sensor (`try_to_place_trap` 0x305EA0, `docs/notes/bear_traps.md`,
+    /// PROVEN); otherwise nothing is placed and the trap stays in the pocket. `plane` (the old value) met the flat plane at the
+    /// planned spot's height: on the farming-camper bench 15 of 54 releases (28 %) put no trap down while the bot counted its
+    /// life's trap spent and the team kept a promise of it for 20 s (A324). That is wrong by the client, so `client` is the
+    /// default and the all-off patch keeps it (`KEPT_RIGHT`).
+    pub release: TrapRelease,
     /// The ring round a standing own trap the team's searches keep out as a preference (soft: a way round where
     /// that is not much longer, else through), metres from its centre; a route that runs within it is searched
     /// again once for each change of the traps. The hard field (0.75 m) is not enough: of the mates' bodies that
@@ -243,6 +251,19 @@ impl Default for PressMoving {
     fn default() -> Self {
         Self { min_speed_ms: 2.0 }
     }
+}
+
+/// [A324] How the habit reckons where a released trap lies (`TrapTuning::release`).
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum TrapRelease {
+    /// The head ray meets the flat plane at the planned spot's height: the old guess, which releases where the client
+    /// places nothing.
+    Plane,
+    /// The client's rule on the map's mesh: the head ray within 2.0 m, flat ground, no known trap's sensor; the key is held
+    /// back (the look goes on) where the client would refuse.
+    #[default]
+    Client,
 }
 
 /// [A292 S4c] Whether a bot that stays puts a trap down (`TrapTuning::stayer`).
@@ -464,6 +485,7 @@ impl Default for TrapTuning {
             on_the_pass: Some(PassTuning::default()),
             at_defeated: None,
             at_cleared: None,
+            release: TrapRelease::Client,
             ring_m: 1.3,
             friend_m: 2.5,
             near_own_m: 4.0,

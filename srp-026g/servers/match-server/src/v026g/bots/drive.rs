@@ -511,7 +511,7 @@ fn drive_tick_inner(
         && !using
         && bot.reflex.target().is_none();
     let reacts = bot.control.reacts();
-    let trap = if reacts { traps::drive(bot, me, time, calm, intent.crouch, &tuning.traps) } else { None };
+    let trap = if reacts { traps::drive(bot, me, time, calm, intent.crouch, &tuning.traps, Some(&tactics.world.sight)) } else { None };
     let aim = match trap.and_then(|trap| trap.look) {
         Some(traps::LookAt::Point(point)) => Some(aim_at(point)),
         Some(traps::LookAt::Angles { yaw, pitch }) => Some((yaw, pitch)),

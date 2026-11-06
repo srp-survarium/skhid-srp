@@ -28,11 +28,13 @@
 //! world's. A human's kick is not known: 0.
 
 use std::collections::VecDeque;
+use std::sync::Arc;
 
-use mapdata::{LinkKind, NodeId, Vec3, WalkGrid};
+use mapdata::{LinkKind, NodeId, RayTree, Vec3, WalkGrid};
 use survarium::v026g::match_msgs::TICK_MS;
 
-use super::kin::{Blend, DropFall, Edge, FIX_ABOVE_M, FixBlend, FixFloor, WallSlide, JumpSnap, Kinematics, MarginEdge, TICK_S, WalkOffLanding, to_world, wrap};
+use super::jump_arc::{ArcStep, JumpArc};
+use super::kin::{Blend, DropFall, Edge, FIX_ABOVE_M, FixBlend, FixFloor, LevelRead, WallSlide, JumpSnap, Kinematics, MarginEdge, TICK_S, WalkOffLanding, to_world, wrap};
 use super::pitch::{Pitch, PitchScale};
 use crate::v026g::drive::key;
 
@@ -81,6 +83,9 @@ pub struct Estimate {
     pub air_until: u32,
     /// The highest rise (m) the jump in the air can make ([`Kinematics::jump_snap`]; infinite: any).
     pub air_cap: f32,
+    /// [A318] The client's jump under way ([`Kinematics::jump_arc`]): the clip's arc moves the body until it lands; none on the
+    /// ground and with the switch off.
+    pub arc: Option<JumpArc>,
     /// How the pitch unit relates to the elevation ([`Kinematics::pitch_scale`]).
     pub scale: PitchScale,
     /// [A318] In the air over its floor after a drop ([`DropFall::Gravity`]): `feet.y` is the falling height, `node` the floor it
@@ -137,6 +142,9 @@ const PLANNED_LANDING_M: f32 = 1.0;
 /// The keys that move the body on the ground.
 const MOVE_KEYS: u32 = key::FORWARD | key::BACK | key::LEFT | key::RIGHT | key::SPRINT;
 
+/// [A318] The keys that set the desired speed ([`Kinematics::target_local`]): a [`LevelRead::Settled`] read needs them unchanged.
+const LEVEL_KEYS: u32 = MOVE_KEYS | key::CROUCH | key::AIM | key::FIRE;
+
 impl Estimate {
     /// The body as the view has it now (`me`), on the floor `node`, its velocity already blended in: what
     /// [`stays_up`] plays forward from.
@@ -158,6 +166,7 @@ impl Estimate {
             node,
             air_until: 0,
             air_cap: f32::INFINITY,
+            arc: None,
             scale: PitchScale::Radian,
             fall: Fall::Ground,
         }
@@ -186,7 +195,7 @@ pub fn stays_up(at: &Estimate, keys: u32, turn: f32, stop: &Stop) -> bool {
     for k in 0..kin.blend_ticks + hold + 2 {
         // The keys count a tick more than the model's one-tick lag (the game may take them at once).
         let (held, turn) = if k < hold { (keys, if k == 0 { turn } else { 0.0 }) } else { (keys & !MOVE_KEYS, 0.0) };
-        at = advance(at, Tick { time: at.time + TICK_MS, keys: held, turn: (turn, 0.0), kick: 0.0 }, kin, level, Some(grid), Role::Forecast);
+        at = advance(at, Tick { time: at.time + TICK_MS, keys: held, turn: (turn, 0.0), kick: 0.0, jump: JumpGate::Open }, kin, level, Some(grid), None, Role::Forecast);
         // A fall that lands where the route drops is the route's.
         let falls = |feet: Vec3| top - feet.y >= mapdata::grid::LIP_DROP_M && !planned.iter().any(|landing| landing.distance_xz(feet) <= PLANNED_LANDING_M);
         if falls(at.feet) {
@@ -227,6 +236,46 @@ struct Tick {
     keys: u32,
     turn: (f32, f32),
     kick: f32,
+    /// [A318] Whether a jump pressed in this tick goes ([`JumpGate`]).
+    jump: JumpGate,
+}
+
+/// [A318] The map's walls for a jump in the air ([`BodyTrack::set_walls`]): its walker mesh's rays, shared.
+#[derive(Clone)]
+struct Walls(Arc<RayTree>);
+
+impl std::fmt::Debug for Walls {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str("Walls")
+    }
+}
+
+/// [A318] Rays on `world`'s walker mesh (what the walking body bumps into; a map without walker triangles: its sight tree), as
+/// the bench's stand-in casts its walls: the jump arc's walls. Built from the map's triangles (once a match: the view keeps it).
+pub fn walker_walls(world: &mapdata::World) -> Arc<RayTree> {
+    let walker = world.map.walker_triangles();
+    if walker.is_empty() {
+        world.sight.clone()
+    } else {
+        Arc::new(RayTree::build(&walker))
+    }
+}
+
+/// [A318] The client's jump gate for a press, past what the reckoned body itself knows (standing, uncrouched, no jump under
+/// way): `player_logic_jump_state` starts only with the bar at the jump's cost and not low (`player_stamina`, 0x2FC230), no
+/// battery carried (`can_sprint`'s item test, LIKELY) and legs that may jump (`motor::Hurt::may_jump`). A bot's is its own
+/// reckoning's ([`super::stamina::Reckoning::may_jump`]); a human's is not known: open.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub enum JumpGate {
+    #[default]
+    Open,
+    Shut,
+}
+
+impl JumpGate {
+    pub fn of(may: bool) -> Self {
+        if may { Self::Open } else { Self::Shut }
+    }
 }
 
 /// Ticks kept to be played again from a world: worlds come at most a few
@@ -325,6 +374,10 @@ pub struct BodyTrack {
     /// [A313] The legs' term of the speed factor (`Kinematics::speed_terms`); none is 1. Kept out of the level: a world's level is
     /// read without it and the body moves by both.
     legs: Option<f32>,
+    /// [A318] Whether the next press goes ([`Self::set_may_jump`]).
+    jump_gate: JumpGate,
+    /// [A318] The map's walls a jump in the air is held by ([`Self::set_walls`]; none: the grid's floors alone).
+    walls: Option<Walls>,
     /// The lives the worlds showed, the present one counted.
     lives: u32,
     /// Where the body was last reckoned alive, and which life that was:
@@ -406,6 +459,18 @@ impl BodyTrack {
         self.legs = factor.filter(|f| f.is_finite() && *f > 0.0 && *f != 1.0);
     }
 
+    /// [A318] Whether a jump the body presses next would go ([`JumpGate`]): a bot's own reckoning sets it before each tick.
+    pub fn set_may_jump(&mut self, may: bool) {
+        self.jump_gate = JumpGate::of(may);
+    }
+
+    /// [A318] The map's walls a jump in the air is held by (`kin.jump_arc`): its walker mesh's rays, kept from the first world on.
+    pub fn set_walls(&mut self, walls: Option<Arc<RayTree>>) {
+        if self.walls.is_none() {
+            self.walls = walls.map(Walls);
+        }
+    }
+
     /// The speed level the body is moved at: this life's from a world, else
     /// its profile's, else the nominal 1; times the legs' term.
     pub fn level(&self) -> f32 {
@@ -446,8 +511,9 @@ impl BodyTrack {
             keys: estimate.keys,
             turn: (0.0, 0.0),
             kick: estimate.kick,
+            jump: JumpGate::Open,
         };
-        Some(advance(estimate, tick, kin, self.level(), grid, Role::Reckoning))
+        Some(advance(estimate, tick, kin, self.level(), grid, self.walls.as_ref().map(|w| &*w.0), Role::Reckoning))
     }
 
     /// Where the body is, or was last reckoned alive, and in which of its
@@ -483,6 +549,7 @@ impl BodyTrack {
             keys,
             turn,
             kick,
+            jump: self.jump_gate,
         };
         self.ticks.push_back(tick);
         while self
@@ -495,7 +562,7 @@ impl BodyTrack {
         let level = self.level();
         if let Some(estimate) = self.estimate.as_mut() {
             let held;
-            (*estimate, held) = advance_held(*estimate, tick, kin, level, grid);
+            (*estimate, held) = advance_held(*estimate, tick, kin, level, grid, self.walls.as_ref().map(|w| &*w.0));
             self.trail.push_back(Reckoned { time, feet: estimate.feet, held, velocity: LAST_INTENT.with(|c| c.get()) });
             while self
                 .trail
@@ -549,7 +616,16 @@ impl BodyTrack {
             self.lives += 1;
         }
         // The world's speed with the legs' term taken out: the level is the rest of the factor.
-        if let Some(level) = fix.speed.and_then(|speed| kin.level_of(fix.keys, speed / self.legs.unwrap_or(1.0))) {
+        // [A318] [`LevelRead::Settled`]: only once the keys moving the world's last ticks have settled, by those keys.
+        let read_keys = match kin.level_read {
+            LevelRead::Any => Some(fix.keys),
+            LevelRead::Settled => {
+                let n = kin.blend_ticks as usize;
+                let last: Vec<u32> = self.ticks.iter().rev().filter(|tick| tick.time < fix.time).take(n).map(|tick| tick.keys & LEVEL_KEYS).collect();
+                (last.len() == n && last.iter().all(|&k| k == last[0])).then(|| last[0])
+            }
+        };
+        if let Some(level) = read_keys.zip(fix.speed).and_then(|(keys, speed)| kin.level_of(keys, speed / self.legs.unwrap_or(1.0))) {
             self.level = Some(level);
         }
         let level = self.level();
@@ -638,6 +714,7 @@ impl BodyTrack {
         };
         let local = blend.now(kin.blend_ticks);
         let (air_until, air_cap) = self.air_at(fix.time, kin);
+        let arc = if kin.jump_arc { self.arc_at(fix.time, feet, fix.yaw) } else { None };
         let mut estimate = Estimate {
             time: fix.time,
             feet,
@@ -653,14 +730,17 @@ impl BodyTrack {
                 .map_or(0.0, |tick| tick.kick),
             keys: held,
             node,
-            air_until,
+            air_until: if kin.jump_arc { 0 } else { air_until },
             air_cap,
+            arc,
             scale: kin.pitch_scale,
             fall: Fall::Ground,
         };
         // [A318] A world that has the body more than a step over its floor, out of its own jump, has it falling
-        // ([`DropFall::Gravity`]): at the speed the reckoning had it fall at, else from rest (a world has no vertical speed).
-        if let (DropFall::Gravity, Some(grid), Some(node), 0) = (kin.drop_fall, grid, node, air_until)
+        // ([`DropFall::Gravity`], [`DropFall::Client`]): at the speed the reckoning had it fall at, else from rest (a world has no
+        // vertical speed). A body in the client's jump (`kin.jump_arc`: the arc runs past the old 800 ms air window, a sprint clip
+        // 955 ms) is the arc's.
+        if let (true, Some(grid), Some(node), 0, None) = (kin.drop_fall != DropFall::Snap, grid, node, air_until, estimate.arc)
             && feet.y - grid.position(node).y > grid.body().step
         {
             let speed = match self.estimate.map(|e| e.fall) {
@@ -673,7 +753,7 @@ impl BodyTrack {
         // The ticks after the world's, again from where the world has it.
         for tick in self.ticks.iter().filter(|tick| tick.time > fix.time) {
             let held;
-            (estimate, held) = advance_held(estimate, *tick, kin, level, grid);
+            (estimate, held) = advance_held(estimate, *tick, kin, level, grid, self.walls.as_ref().map(|w| &*w.0));
             self.trail.push_back(Reckoned { time: tick.time, feet: estimate.feet, held, velocity: LAST_INTENT.with(|c| c.get()) });
         }
         // A world newer than every decided tick: the body is as it shows.
@@ -721,14 +801,40 @@ impl BodyTrack {
             .filter(|&(until, _)| until > time)
             .unwrap_or((0, f32::INFINITY))
     }
+
+    /// [A318] The client's jump a world at `time` with its feet at `feet` and its yaw `yaw` is in ([`Kinematics::jump_arc`]): the last press at
+    /// or before it, uncrouched, whose clip has not ended; the press's speed as the ticks show it (forward held long enough for
+    /// the walk cap).
+    fn arc_at(&self, time: u32, feet: Vec3, yaw: f32) -> Option<JumpArc> {
+        let mut held = false;
+        let mut pressed = None;
+        let mut forward = 0u32;
+        for tick in self.ticks.iter().take_while(|tick| tick.time <= time) {
+            let jump = tick.keys & key::JUMP != 0;
+            if jump && !held && tick.keys & key::CROUCH == 0 && tick.jump == JumpGate::Open {
+                let speed = if forward >= MOVING_TICKS { WALK_CAP_MS } else { 0.0 };
+                pressed = Some((tick.time, tick.keys, speed));
+            }
+            held = jump;
+            forward = if tick.keys & key::FORWARD != 0 { forward + 1 } else { 0 };
+        }
+        pressed.and_then(|(at, keys, speed)| JumpArc::seen(at, keys, speed, time, feet, wrap(yaw)))
+    }
 }
 
 /// [`advance`], and whether the walk grid held the body on that tick ([`Reckoned::held`]): the keys it moved by meant a move
 /// ([`Kinematics::target_local`]) and the reckoning ends the tick at rest, which only a slide stopped short does (a blend from rest
 /// toward a move is under way after its first tick).
-fn advance_held(at: Estimate, tick: Tick, kin: &Kinematics, level: f32, grid: Option<&WalkGrid>) -> (Estimate, bool) {
+fn advance_held(
+    at: Estimate,
+    tick: Tick,
+    kin: &Kinematics,
+    level: f32,
+    grid: Option<&WalkGrid>,
+    walls: Option<&RayTree>,
+) -> (Estimate, bool) {
     let meant = kin.target_local(at.keys, level);
-    let next = advance(at, tick, kin, level, grid, Role::Reckoning);
+    let next = advance(at, tick, kin, level, grid, walls, Role::Reckoning);
     let held = grid.is_some() && meant[0].hypot(meant[1]) > 1e-3 && next.velocity == [0.0, 0.0];
     (next, held)
 }
@@ -743,18 +849,50 @@ fn advance(
     kin: &Kinematics,
     level: f32,
     grid: Option<&WalkGrid>,
+    walls: Option<&RayTree>,
     role: Role,
 ) -> Estimate {
     let steps = (tick.time.saturating_sub(at.time) / TICK_MS).max(1);
-    let falls = role == Role::Reckoning && kin.drop_fall == DropFall::Gravity;
+    let falls = role == Role::Reckoning && kin.drop_fall != DropFall::Snap;
     let target = kin.target_local(at.keys, level);
     for step in 1..=steps {
         // [A318] A falling body moves across from its floor; its height is played after the step.
         let top = at.feet.y;
-        if let (Some(grid), Fall::Falling { .. }, Some(node)) = (grid, at.fall, at.node) {
+        if let (Some(grid), Fall::Falling { .. }, Some(node), None) = (grid, at.fall, at.node, at.arc) {
             at.feet.y = grid.position(node).y;
         }
         let local = at.blend.tick_mixed(target, kin.blend_ticks, kin.mixer);
+        // [A318] The client's jump: the clip's arc moves the body, the blend ticks on under it so the landing resumes from the
+        // client's mix (fx-zones' `kin.mixer`).
+        if let (Some(mut arc), Some(grid), Some(node)) = (at.arc, grid, at.node) {
+            let out = arc.step(grid, walls, at.feet, at.yaw, at.keys, at.time + step * TICK_MS);
+            at.arc = Some(arc);
+            match out {
+                ArcStep::Ground(travel) => {
+                    let to = Vec3::new(at.feet.x + travel[0], at.feet.y, at.feet.z + travel[1]);
+                    let offs = WalkOffs::of(kin.walk_off_landing, travel[0].hypot(travel[1]) / TICK_S);
+                    let (next, feet, _) = slide_edge(kin, grid, node, at.feet, to, offs);
+                    at.velocity = [(feet.x - at.feet.x) / TICK_S, (feet.z - at.feet.z) / TICK_S];
+                    at.node = Some(next);
+                    at.feet = feet;
+                }
+                ArcStep::Air(feet) => {
+                    at.velocity = [(feet.x - at.feet.x) / TICK_S, (feet.z - at.feet.z) / TICK_S];
+                    at.feet = feet;
+                }
+                ArcStep::Landed(feet, landed) => {
+                    at.velocity = [(feet.x - at.feet.x) / TICK_S, (feet.z - at.feet.z) / TICK_S];
+                    at.feet = feet;
+                    at.node = landed.or_else(|| grid.locate(feet, LOCATE_M)).or(Some(node));
+                    at.arc = None;
+                    at.fall = Fall::Ground;
+                }
+            }
+            continue;
+        }
+        // [A318] The client's step cap (`max_speed` 0x2DC010 in 0x2D9060) on the blend's speed, by the keys moving it; not in a jump.
+        let jumping = at.time + step * TICK_MS <= at.air_until;
+        let local = if jumping { local } else { kin.speed_cap.capped(local, at.keys, level) };
         at.velocity = to_world(local, at.yaw);
         LAST_INTENT.with(|c| c.set(at.velocity));
         let to = Vec3::new(
@@ -797,12 +935,25 @@ fn advance(
                 if stopped {
                     at.velocity = [0.0, 0.0];
                 }
-                at.fall = if falls && !in_air { fall_step(at.fall, top, &mut at.feet, grid.body().step) } else { Fall::Ground };
+                at.fall = if falls && !in_air { fall_step(at.fall, top, &mut at.feet, grid.body().step, kin.drop_fall) } else { Fall::Ground };
             }
             _ => at.feet = to,
         }
     }
-    if tick.keys & key::JUMP != 0 && at.keys & key::JUMP == 0 {
+    if kin.jump_arc {
+        // [A318] A press starts the client's jump when it may (`on_ground` 0x7EF90: standing, uncrouched, not falling; none under
+        // way).
+        if tick.keys & key::JUMP != 0
+            && at.keys & key::JUMP == 0
+            && tick.keys & key::CROUCH == 0
+            && tick.jump == JumpGate::Open
+            && at.arc.is_none()
+            && at.fall == Fall::Ground
+            && at.node.is_some()
+        {
+            at.arc = Some(JumpArc::pressed(tick.time, tick.keys, at.velocity[0].hypot(at.velocity[1]), at.feet, at.yaw));
+        }
+    } else if tick.keys & key::JUMP != 0 && at.keys & key::JUMP == 0 {
         at.air_until = tick.time + JUMP_AIR_MS;
         at.air_cap = press_cap(kin, tick.keys, at.velocity[0].hypot(at.velocity[1]) >= WALK_CAP_MS);
     } else if tick.time > at.air_until {
@@ -820,24 +971,46 @@ fn advance(
 /// the height it had before: falling, it goes down by the speed it had and gains `g` a step (`step_down` 0x7E1B0) until it is on the
 /// floor; on the ground, a floor more than `step` under where it was starts the fall from there (the capsule finds no ground within
 /// its step: the first step only takes the speed).
-fn fall_step(fall: Fall, top: f32, feet: &mut Vec3, step: f32) -> Fall {
+fn fall_step(fall: Fall, top: f32, feet: &mut Vec3, step: f32, rule: DropFall) -> Fall {
     let floor = feet.y;
-    match fall {
-        Fall::Falling { speed } => {
-            let y = top - speed * TICK_S;
-            if y <= floor {
-                Fall::Ground
-            } else {
-                feet.y = y;
-                Fall::Falling { speed: speed + GRAVITY * TICK_S }
+    let speed = match fall {
+        Fall::Falling { speed } => speed,
+        Fall::Ground if top - floor > step => match rule {
+            // [`DropFall::Client`]: the edge tick is the fall's first (no ground within the step: airborne at once, from rest).
+            DropFall::Client => 0.0,
+            _ => {
+                feet.y = top;
+                return Fall::Falling { speed: GRAVITY * TICK_S };
             }
-        }
-        Fall::Ground if top - floor > step => {
-            feet.y = top;
-            Fall::Falling { speed: GRAVITY * TICK_S }
-        }
-        Fall::Ground => Fall::Ground,
+        },
+        Fall::Ground => return Fall::Ground,
+    };
+    let (after, down) = match rule {
+        DropFall::Client => client_fall_tick(speed),
+        _ => (speed + GRAVITY * TICK_S, speed * TICK_S),
+    };
+    let y = top - down;
+    if y <= floor {
+        Fall::Ground
+    } else {
+        feet.y = y;
+        Fall::Falling { speed: after }
     }
+}
+
+/// [A318] The live client's controller settings (`startup.cfg`): [`DropFall::Client`]'s slow start.
+pub(super) const CLIENT: mapdata::controller::tick::Settings = mapdata::controller::tick::Settings::LIVE;
+
+/// [A318] One tick of the client's airborne capsule falling at `speed` (m/s down at the tick's start): its speed after the tick and
+/// how far it goes down in it. `step_down` 0x7E1B0 (PROVEN, port `mapdata::controller::tick`): slow while the speed at the tick's
+/// start is under `on_ground_max_vertical_speed` (2.0 m/s, `startup.cfg`, port tick.rs:267-269), then down by
+/// `additional_down_speed` (0.05 m); else by the speed at its start (`(v + a dt).y * tick`, `a` the slope's slide: none in the air,
+/// tick.rs:357-359); `g * tick` goes into the speed after the move (`fall_params.gravity`, tick.rs:924-926). From rest: 5 slow ticks,
+/// then 2.45, 2.94 m/s (fx-gear-2's probe). The reckoning's [`DropFall::Client`], the jump arc's fall after its clip and the bench
+/// stand-in's fall play it.
+pub(crate) fn client_fall_tick(speed: f32) -> (f32, f32) {
+    let down = if speed < CLIENT.on_ground_max_vertical_speed { CLIENT.additional_down_speed } else { speed * TICK_S };
+    (speed + GRAVITY * TICK_S, down)
 }
 
 /// [`slide`] with the reckoned body's edge ([`Kinematics::edge`]): the lattice's, the client's held to [`SUPPORT_M`], or that and
@@ -1846,7 +2019,8 @@ pub(super) mod tests {
     /// moves by both: a leg under 20 % (0.9) and a world showing it walk at 0.9 of the walk is a level of 1; at 0.81 a level of 0.9.
     #[test]
     fn a_hurt_legs_term_is_kept_out_of_the_level_and_moves_the_body() {
-        let kin = Kinematics { blend_ticks: 1, ..Kinematics::default() };
+        // Worlds with no decided ticks before them: read as they come ([`LevelRead::Any`]; the settled read is tested apart).
+        let kin = Kinematics { blend_ticks: 1, level_read: LevelRead::Any, ..Kinematics::default() };
         let mut track = BodyTrack::default();
         track.set_legs(Some(0.9));
         assert!((track.level() - 0.9).abs() < 1e-6);
@@ -1860,6 +2034,28 @@ pub(super) mod tests {
         assert!((track.level() - 0.9).abs() < 1e-5);
         track.set_legs(None);
         assert!((track.level() - 0.9).abs() < 1e-5);
+    }
+
+    /// [A318] [`LevelRead::Settled`]: a world in the fade after a key change (its speed between the two keys') leaves the level as it
+    /// was; once the last `blend_ticks` ticks held the same keys, the world's speed over those keys' sets it.
+    #[test]
+    fn the_level_is_read_only_from_a_settled_world() {
+        let kin = Kinematics::default();
+        let mut track = BodyTrack::default();
+        track.fixed(fix(0, Vec3::ZERO, 0.0), &kin, None);
+        let world = |time: u32, speed: f32| Fix { keys: key::FORWARD, speed: Some(speed), ..fix(time, Vec3::ZERO, 0.0) };
+        // Two ticks into a walk from rest: in the fade (3.0 m/s of 3.5 would read 0.857).
+        for k in 1..=2u32 {
+            track.decided(k * 50, key::FORWARD, (0.0, 0.0), 0.0, &kin, None);
+        }
+        track.fixed(world(150, 3.0), &kin, None);
+        assert!((track.level() - 1.0).abs() < 1e-6, "a fade's speed is no level: {}", track.level());
+        // Settled: six ticks of the same keys before the world.
+        for k in 3..=9u32 {
+            track.decided(k * 50, key::FORWARD, (0.0, 0.0), 0.0, &kin, None);
+        }
+        track.fixed(world(500, 3.5 * 0.95), &kin, None);
+        assert!((track.level() - 0.95).abs() < 1e-5, "settled: {}", track.level());
     }
 
     #[test]
@@ -1892,6 +2088,72 @@ pub(super) mod tests {
         }
         let at = track.estimate().unwrap();
         assert!(at.feet.x < 19.8 && at.feet.z > 13.0, "{at:?}");
+    }
+
+    /// [A318] The jump arc and drop_fall's fall do not overlap (fx-zones' review): a world 900 ms into a sprint jump (past the old
+    /// 800 ms air window) with the body 1 m over its floor keeps the arc and no fall, and its feet follow the arc, not the floor; a
+    /// press while the body falls starts no jump (`on_ground`).
+    #[test]
+    fn a_jump_arc_and_a_fall_do_not_overlap() {
+        let grid = walled();
+        let kin = Kinematics { jump_arc: true, ..Kinematics::default() };
+        assert_ne!(kin.drop_fall, DropFall::Snap);
+        let run = key::FORWARD | key::SPRINT;
+        let mut track = BodyTrack::default();
+        track.fixed(fix(0, Vec3::new(5.0, 0.0, 5.0), 0.0), &kin, Some(&grid));
+        for time in (50..=300).step_by(50) {
+            track.decided(time, run, (0.0, 0.0), 0.0, &kin, Some(&grid));
+        }
+        track.decided(350, run | key::JUMP, (0.0, 0.0), 0.0, &kin, Some(&grid));
+        for time in (400..=1_250).step_by(50) {
+            track.decided(time, run, (0.0, 0.0), 0.0, &kin, Some(&grid));
+        }
+        track.fixed(fix(1_250, Vec3::new(5.0, 1.0, 9.0), 0.0), &kin, Some(&grid));
+        let at = *track.estimate().unwrap();
+        assert!(at.arc.is_some() && at.fall == Fall::Ground, "the arc's, not a fall: {at:?}");
+        track.decided(1_300, run, (0.0, 0.0), 0.0, &kin, Some(&grid));
+        let next = *track.estimate().unwrap();
+        assert!(next.feet.y > 0.5, "the feet follow the arc, not the floor: {next:?}");
+        // A press while falling starts nothing.
+        let falling = Estimate { fall: Fall::Falling { speed: 1.0 }, arc: None, ..at };
+        let pressed = advance(
+            falling,
+            Tick { time: at.time + TICK_MS, keys: key::JUMP, turn: (0.0, 0.0), kick: 0.0, jump: JumpGate::Open },
+            &kin,
+            1.0,
+            Some(&grid),
+            None,
+            Role::Reckoning,
+        );
+        assert!(pressed.arc.is_none(), "{pressed:?}");
+    }
+
+    /// [A318] With `kin.jump_arc` a press in place starts the client's jump (the body rises, then stands where it was at the
+    /// clip's end) unless the gate is shut (a carrier, a low bar): then the press does nothing; with the switch off, no arc.
+    #[test]
+    fn a_jump_arc_starts_only_through_the_gate() {
+        let grid = walled();
+        let on = Kinematics { jump_arc: true, ..Kinematics::default() };
+        let run = |kin: &Kinematics, may: bool| {
+            let mut track = BodyTrack::default();
+            track.fixed(fix(0, Vec3::new(10.0, 0.0, 10.0), 0.0), kin, Some(&grid));
+            track.set_may_jump(may);
+            track.decided(50, key::JUMP, (0.0, 0.0), 0.0, kin, Some(&grid));
+            let mut top = 0.0f32;
+            for time in (100..=1_000).step_by(50) {
+                track.decided(time, 0, (0.0, 0.0), 0.0, kin, Some(&grid));
+                top = top.max(track.estimate().unwrap().feet.y);
+            }
+            (top, *track.estimate().unwrap())
+        };
+        let (top, at) = run(&on, true);
+        assert!(top > 0.9, "the clip's rise: {top}");
+        assert!(at.arc.is_none() && at.feet.y.abs() < 1e-3 && at.node.is_some(), "{at:?}");
+        assert!(at.feet.distance_xz(Vec3::new(10.0, 0.0, 10.0)) < 0.05, "no keys: no travel, {at:?}");
+        let (top, at) = run(&on, false);
+        assert!(top.abs() < 1e-3 && at.arc.is_none(), "shut gate: {top} {at:?}");
+        let (top, _) = run(&Kinematics::default(), true);
+        assert!(top.abs() < 1e-3, "switch off: {top}");
     }
 
     /// A body that walks off a ledge lands on the floor below, though the
@@ -2010,6 +2272,61 @@ pub(super) mod tests {
         assert!(client > lattice + 0.1 && client <= SUPPORT_M, "the client edge holds it to the support, a tick short of the fall: {client}");
     }
 
+    /// [A318] [`DropFall::Client`]: a body going over a 3 m drop sinks 0.05 m a tick for five ticks (the speed at each tick's start
+    /// under 2 m/s: 0, 0.49, 0.98, 1.47, 1.96), then by the speed at the tick's start (2.45, 2.94 m/s, ...), as fx-gear-2's probe of
+    /// the port's `step_down` 0x7E1B0 shows; it lands on the floor and stays.
+    #[test]
+    fn the_client_fall_starts_with_five_slow_ticks() {
+        let (top0, floor) = (3.0f32, 0.0f32);
+        let mut fall = Fall::Ground;
+        let mut top = top0;
+        let mut drops = Vec::new();
+        for _ in 0..40 {
+            let mut feet = Vec3::new(0.0, floor, 0.0);
+            fall = fall_step(fall, top, &mut feet, 0.8, DropFall::Client);
+            drops.push(top - feet.y);
+            top = feet.y;
+            if fall == Fall::Ground {
+                break;
+            }
+        }
+        for d in &drops[..5] {
+            assert!((d - 0.05).abs() < 1e-5, "slow: {drops:?}");
+        }
+        assert!((drops[5] - 2.45 * TICK_S).abs() < 1e-4 && (drops[6] - 2.94 * TICK_S).abs() < 1e-4, "then the start speed * dt: {drops:?}");
+        assert_eq!(fall, Fall::Ground);
+        assert!(top.abs() < 1e-6, "on the floor: {top}");
+        // A walk across a floor no lower than the step stays on the ground.
+        let mut feet = Vec3::new(0.0, 0.5, 0.0);
+        assert_eq!(fall_step(Fall::Ground, 1.0, &mut feet, 0.8, DropFall::Client), Fall::Ground);
+    }
+
+    /// [A318] [`SpeedCap::Client`]: a sprint released moves at the walk's cap (3.5 m/s) on its first tick, the client's `max_speed`
+    /// 0x2DC010, while the blend still carries the sprint's speed; with the cap off it carries it (4.75 m/s); a sprint is not cut.
+    #[test]
+    fn a_released_sprint_drops_to_the_walk_cap_at_once() {
+        use super::super::kin::SpeedCap;
+        let run = |speed_cap: SpeedCap| {
+            let kin = Kinematics { speed_cap, ..Kinematics::default() };
+            let mut track = BodyTrack::default();
+            track.fixed(fix(0, Vec3::new(0.0, 0.0, 0.0), 0.0), &kin, None);
+            let mut speeds = Vec::new();
+            for k in 1..=30u32 {
+                let keys = if k <= 20 { key::FORWARD | key::SPRINT } else { key::FORWARD };
+                track.decided(k * 50, keys, (0.0, 0.0), 0.0, &kin, None);
+                let v = track.estimate().unwrap().velocity;
+                speeds.push(v[0].hypot(v[1]));
+            }
+            speeds
+        };
+        let (on, off) = (run(SpeedCap::Client), run(SpeedCap::Off));
+        // Tick 21 releases the sprint; the move into tick 22 is the first by its keys (speeds[21]).
+        assert!((on[19] - 5.0).abs() < 1e-3 && (off[19] - 5.0).abs() < 1e-3, "sprinting: {on:?}");
+        assert!((on[21] - 3.5).abs() < 1e-3, "the walk cap at once: {on:?}");
+        assert!(off[21] > 4.5, "the blend alone carries the sprint: {off:?}");
+        assert!(on.iter().all(|v| *v <= 5.0 + 1e-3));
+    }
+
     /// [A318] [`DropFall::Gravity`]: the reckoned body walking off a 2 m ledge comes down as the client's capsule falls (from rest,
     /// `g` = 9.8: on the floor about 0.64 s after it goes over, at 1 m after about 0.45 s), where [`DropFall::Snap`] has it on the
     /// floor below in the step it goes over; across it goes the same way. The stop forecast plays a falling body from its floor.
@@ -2062,7 +2379,7 @@ pub(super) mod tests {
             stays_up(&falling.landed(&grid), key::FORWARD, 0.0, &stop),
             "the forecast plays it from its floor"
         );
-        assert_eq!(Kinematics::default().drop_fall, DropFall::Gravity);
+        assert_eq!(Kinematics::default().drop_fall, DropFall::Client, "the client fall start is the default");
     }
 
     /// [`Edge::ClientWalksOff`] (A269): a ledge 6 m high, deeper than the harmless drop, has no link off it. The reckoned body walking

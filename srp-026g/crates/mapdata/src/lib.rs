@@ -159,6 +159,9 @@ pub const NARROW_DOORS_ALGO: u32 = 0x5313_0101;
 /// The same for the Drop links the client's walk tick does not take a body down ([`Body::drop_check`], A313), in
 /// [`grid_key_with_links`] only for a body that asks for it. A value of its own.
 pub const DROP_CHECK_ALGO: u32 = 0x5313_0201;
+/// The same for the floors given back beside walls the body clears ([`Body::wall_give_back`], A318), in [`grid_key_with_links`]
+/// only for a body that asks for it. A value of its own.
+pub const WALL_GIVE_BACK_ALGO: u32 = 0x5318_0102;
 /// The same for the walk-tick passes with the exe's collision rules ([`Body::exe_collision`], A325), in
 /// [`grid_key_with_links`] only for a body that asks for it. A value of its own.
 pub const EXE_COLLISION_ALGO: u32 = 0x5325_0101;
@@ -338,6 +341,10 @@ pub fn grid_key_with_links(
     // And the walk tick's check of the Drop links.
     if body.drop_check {
         digest.u32(DROP_CHECK_ALGO);
+    }
+    // And the floors given back beside walls.
+    if body.wall_give_back {
+        digest.u32(WALL_GIVE_BACK_ALGO);
     }
     // And the walk tick's collision rules.
     if body.exe_collision {

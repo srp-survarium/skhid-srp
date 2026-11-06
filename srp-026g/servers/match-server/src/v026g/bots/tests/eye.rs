@@ -363,6 +363,9 @@ fn pre_eye_pin_tuning() -> Tuning {
         old.kin.fix_blend = kin::FixBlend::Measured;
         // A318: the slide before the round one; the pin has it.
         old.kin.wall_slide = kin::WallSlide::Diagonal;
+        // A318: the step cap and the settled level read (KEPT_RIGHT / default ON); the pin has neither.
+        old.kin.speed_cap = kin::SpeedCap::Off;
+        old.kin.level_read = kin::LevelRead::Any;
         old.sense.ranges = tuning::HearingRanges::Flat;
         old.sense.shots = tuning::ShotRanges::Flat;
         old.sense.sprint_body_mps = None;
