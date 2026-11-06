@@ -73,7 +73,7 @@ fn run(dir: &Path, built: &Path, named: &[String]) -> Result<(), String> {
     }
     println!("{} maps from {} into {}; {} (hash {:08x})", projects.len(), dir.display(), built.display(), loaded.data_line(), tuning.hash());
     let (dir, built_dir): (PathBuf, PathBuf) = (dir.into(), built.into());
-    let store = || bot_maps(dir.clone(), maps::KEEP, maps::AT_ONCE, Some(built_dir.clone()), &tuning);
+    let store = || bot_maps(dir.clone(), maps::AT_ONCE, Some(built_dir.clone()), &tuning);
     let done = maps::prebuild(store, &projects, LIMIT)?;
     for map in &done {
         let Made { grid, sight, tactics } = map.made;

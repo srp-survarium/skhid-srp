@@ -6,9 +6,9 @@
 //! asks early ([`Maps::request`]) and looks again each tick
 //! ([`Maps::get`]) until the map is [`MapState::Ready`].
 //!
-//! Every match on a map shares its world and its tactics (for the default
-//! hazard margin; a match tuned with another builds its own tactics on the
-//! shared world). Projects built from the same geometry (the weather
+//! Every match on a map shares its world, and every match on it with the same
+//! hazard margin its tactics (A326: one copy per map and margin; the default
+//! margin's tactics are also kept as a built file). Projects built from the same geometry (the weather
 //! variants of most levels: 72 projects, 29 walk grids, 30 sight trees)
 //! share one grid and one tree: they are found by the key of what they are
 //! built from ([`mapdata::grid_key`], [`mapdata::sight_key`]), which builds
@@ -24,19 +24,25 @@
 //! server itself, on the host, from the same `.mapdata` files.
 //!
 //! A world holds 63-149 MB (a build peaks near twice that) and the 0.26g
-//! host has under 1 GB, so the store keeps only the last [`KEEP`] used
-//! (`SRP_MAPDATA_KEEP`) and builds one map at a time. A match holds its
-//! map by its `Arc`; one dropped from the store while a match still has
-//! it is taken back without a new build. A file that is missing or fails
-//! to load is reported once and stays absent until the server restarts.
+//! host has under 1 GB, so the store builds one map at a time and **keeps
+//! no map that no running match uses** (the owner's rule, A326). A match
+//! asks for its map by a [`MapClaim`] ([`Maps::claim`]): the store holds a
+//! map it built only till the first claim on it takes it ([`MapClaim::get`]);
+//! from then on only the matches hold it (the store keeps a `Weak`), and it
+//! is freed with the last of them. A claim dropped (the match ended) lets go
+//! of a map built for it and never taken, and when that was the map's last
+//! holder the freed memory is handed back to the system
+//! ([`mapdata::trim_freed_memory`]: after the match's bots and world are
+//! gone, as [`MapClaim`] is the last thing a match drops). A file that is
+//! missing or fails to load is reported once and stays absent until the
+//! server restarts.
 //!
 //! At most [`AT_ONCE`] maps are in memory (`SRP_MAPDATA_AT_ONCE`; the host
 //! has room for one: `player_bots_mapdata.md`, "On host-like limits"). A
 //! match on a map in memory has it at once. One that needs another map
 //! while the maps in memory are all held by matches (or loading) waits
 //! ([`MapState::Waiting`]): its bots run the stage 0 script, as while a
-//! map loads, and take the map when it is loaded. A map no match holds is
-//! dropped to make room, and the memory it freed handed back.
+//! map loads, and take the map when it is loaded.
 
 use std::collections::HashMap;
 use std::fmt;
@@ -50,13 +56,8 @@ use mapdata::{MapData, RayTree, WalkGrid, World};
 use super::tactics::TacticsBase;
 use super::tuning::{GridTuning, Tuning};
 
-/// How many built maps the store keeps by default, beyond those running
-/// matches hold. With 72 projects the next match is rarely on the last
-/// map, and a rebuild costs 0.3-0.8 s off the match thread.
-pub const KEEP: usize = 1;
-
-/// How many maps may be in memory at once by default, held by matches,
-/// loading or kept.
+/// How many maps may be in memory at once by default, held by matches or
+/// loading.
 pub const AT_ONCE: usize = 1;
 
 /// The folder under `SRP_MAPDATA_DIR` of the built grids and trees.
@@ -73,7 +74,7 @@ pub enum MapState {
     /// Not loaded while the maps in memory are held by other matches
     /// ([`AT_ONCE`]); look again later. The reason is for the log.
     Waiting(String),
-    /// Its world and its tactics for the default hazard margin.
+    /// Its world and its tactics for the claim's hazard margin.
     Ready(Arc<TacticsBase>),
 }
 
@@ -139,7 +140,6 @@ pub struct Maps {
     /// Where built grids, trees and tactics are kept; `None`: built at
     /// each load.
     built: Option<PathBuf>,
-    keep: usize,
     /// The grids' body and off-mesh links: the server's tuning (`SRP_BOT_TUNING`, read once at its start), which
     /// every match of the server runs on. A grid is the map's, shared by every match on it.
     grid: GridTuning,
@@ -153,34 +153,95 @@ pub struct Maps {
     /// Held by the build under way: one at a time, for memory and the one
     /// core of the host.
     builds: Arc<Mutex<()>>,
+    /// The maps' bushes, grass and human routes, one copy per map while a match holds it ([`MapFiles`]).
+    files: MapFiles,
     /// The build threads, to say in a test what one that does not finish is doing.
     #[cfg(test)]
     builders: Mutex<HashMap<String, std::thread::JoinHandle<()>>>,
 }
 
+/// A hazard margin as the tactics are keyed by: its bits (the tuning's `hazard.margin_m`, an `f32`).
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+struct Margin(u32);
+
+impl Margin {
+    fn of(margin_m: f32) -> Self {
+        Self(margin_m.to_bits())
+    }
+
+    fn metres(self) -> f32 {
+        f32::from_bits(self.0)
+    }
+}
+
 #[derive(Default)]
 struct Cache {
     entries: HashMap<String, Entry>,
-    /// Counts uses, for the least recently used.
-    clock: u64,
+    /// The live claims by project and margin: a map built for a claim is held by the store till one takes it.
+    claims: HashMap<(String, Margin), usize>,
     /// Every grid and tree built, by the key of what it is built from,
     /// while something holds it.
     grids: HashMap<u64, Weak<WalkGrid>>,
     sights: HashMap<u64, Weak<RayTree>>,
-    /// By project: how the build that made its map made it (a map taken back from the dropped is that build's).
+    /// By project: how the build that made its map made it.
     made: HashMap<String, Made>,
 }
 
+/// One project in the store.
 enum Entry {
+    /// Its world is being read or built (with the tactics of the margin that asked first).
     Loading,
-    Ready {
-        base: Arc<TacticsBase>,
-        used: u64,
-    },
-    /// Dropped from the store; a match may still hold it (its tactics, or
-    /// only its world when it built tactics of its own).
-    Dropped(Weak<TacticsBase>, Weak<World>),
+    /// Its world was made: held by its tactics and the matches, never by the store itself.
+    Loaded(Loaded),
+    /// The file is missing or would not load: absent till a restart.
     Failed(String),
+}
+
+/// A project whose world was made.
+struct Loaded {
+    world: Weak<World>,
+    /// What its tactics are keyed by ([`TacticsBase::key`]).
+    map_file: u64,
+    grid_key: u64,
+    /// Its tactics by hazard margin.
+    tactics: HashMap<Margin, Tactic>,
+}
+
+/// One margin's tactics of a loaded project.
+enum Tactic {
+    /// Being built on the project's world (held by the build).
+    Loading,
+    /// Built for a claim that has not taken it yet: the store holds it till one does, or the last claim on it goes.
+    Fresh(Arc<TacticsBase>),
+    /// Taken by matches: gone with the last of them.
+    Held(Weak<TacticsBase>),
+}
+
+/// A match's ask for its map: what [`MapClaim::get`] answers, and (dropped) the end of the match's hold on the map. A
+/// match drops its claim last (`game/driven.rs`: its last field), after its bots and world, so a map it was the last to
+/// hold is gone by then and its memory handed back.
+pub struct MapClaim {
+    maps: Arc<Maps>,
+    project: String,
+    margin: Margin,
+}
+
+impl MapClaim {
+    /// Where the claimed map stands; starts its build (or its tactics' on a world in memory) as needed. Never blocks on
+    /// a build.
+    pub fn get(&self) -> MapState {
+        self.maps.get(&self.project, self.margin)
+    }
+
+    pub fn project(&self) -> &str {
+        &self.project
+    }
+}
+
+impl Drop for MapClaim {
+    fn drop(&mut self) {
+        self.maps.unclaim(&self.project, self.margin);
+    }
 }
 
 impl Maps {
@@ -189,34 +250,26 @@ impl Maps {
     #[cfg(test)]
     pub fn new(dir: Option<PathBuf>) -> Arc<Self> {
         let built = dir.as_ref().map(|dir| dir.join(BUILT_DIR));
-        Self::configured(dir, KEEP, AT_ONCE, built, GridTuning::default())
+        Self::configured(dir, AT_ONCE, built, GridTuning::default())
     }
 
-    /// As [`Maps::new`], keeping `keep` maps (at least one), with no bound
-    /// on the maps in memory at once.
+    /// As [`Maps::new`], with no bound on the maps in memory at once.
     #[cfg(test)]
-    pub fn with_keep(dir: Option<PathBuf>, keep: usize) -> Arc<Self> {
+    pub fn unbounded(dir: Option<PathBuf>) -> Arc<Self> {
         let built = dir.as_ref().map(|dir| dir.join(BUILT_DIR));
-        Self::configured(dir, keep, usize::MAX, built, GridTuning::default())
+        Self::configured(dir, usize::MAX, built, GridTuning::default())
     }
 
-    /// As [`Maps::with_keep`], at most `at_once` maps in memory (at least
-    /// one), the built files in `built` (none: built at each load), the grids made as `grid` says.
-    pub fn configured(
-        dir: Option<PathBuf>,
-        keep: usize,
-        at_once: usize,
-        built: Option<PathBuf>,
-        grid: GridTuning,
-    ) -> Arc<Self> {
-        Self::configured_for(dir, keep, at_once, built, grid, false, None)
+    /// At most `at_once` maps in memory (at least one), the built files in `built` (none: built at each load), the grids
+    /// made as `grid` says.
+    pub fn configured(dir: Option<PathBuf>, at_once: usize, built: Option<PathBuf>, grid: GridTuning) -> Arc<Self> {
+        Self::configured_for(dir, at_once, built, grid, false, None)
     }
 
     /// [`Maps::configured`], with the grids' table of wall clearances when `wall_clearance` and their table of open sides for the
     /// support `open_sides` (the server derives both from its tuning: [`Tuning::needs_wall_clearance`], [`Tuning::needs_open_sides`]).
     pub fn configured_for(
         dir: Option<PathBuf>,
-        keep: usize,
         at_once: usize,
         built: Option<PathBuf>,
         grid: GridTuning,
@@ -229,10 +282,10 @@ impl Maps {
             grid,
             wall_clearance,
             open_sides,
-            keep: keep.max(1),
             at_once: at_once.max(1),
             cache: Arc::default(),
             builds: Arc::default(),
+            files: MapFiles::default(),
             #[cfg(test)]
             builders: Mutex::default(),
         })
@@ -242,45 +295,70 @@ impl Maps {
         self.dir.as_deref()
     }
 
+    /// The maps' bushes, grass and human routes, shared per map ([`MapFiles`]).
+    pub fn files(&self) -> &MapFiles {
+        &self.files
+    }
+
     /// How `project`'s map was made by the build that made it, once one has.
     pub fn made(&self, project: &str) -> Option<Made> {
         lock(&self.cache).made.get(project).copied()
     }
 
-    /// The hazard margin the shared tactics are built for: the tuning's
-    /// default. A match tuned otherwise builds its own.
+    /// The hazard margin whose tactics are kept as built files: the tuning's default. Tactics for another margin are
+    /// built at load, once per map and margin.
     pub fn margin() -> f32 {
         Tuning::default().hazard.margin_m.get()
     }
 
-    /// Starts building `project`'s map (`level_01/day_4`) unless it is
-    /// built, being built or known to be absent.
-    pub fn request(&self, project: &str) {
-        self.get(project);
+    /// A match's claim on `project`'s map (`level_01/day_4`) and its tactics for `margin_m`; its build starts now
+    /// unless the map is built, being built or known to be absent.
+    pub fn claim(self: &Arc<Self>, project: &str, margin_m: f32) -> MapClaim {
+        let margin = Margin::of(margin_m);
+        *lock(&self.cache).claims.entry((project.to_owned(), margin)).or_default() += 1;
+        let claim = MapClaim { maps: self.clone(), project: project.to_owned(), margin };
+        claim.get();
+        claim
     }
 
-    /// Where `project`'s map stands; starts building it as
-    /// [`Maps::request`] does. Never blocks on a build.
-    pub fn get(&self, project: &str) -> MapState {
+    /// Where `project`'s map stands for `margin`; starts what it needs.
+    fn get(&self, project: &str, margin: Margin) -> MapState {
         let Some(dir) = &self.dir else {
             return MapState::Absent("SRP_MAPDATA_DIR is not set".into());
         };
         let mut cache = lock(&self.cache);
-        cache.clock += 1;
-        let clock = cache.clock;
-        let revived = match cache.entries.get_mut(project) {
+        match cache.entries.get_mut(project) {
             Some(Entry::Loading) => return MapState::Loading,
             Some(Entry::Failed(reason)) => return MapState::Absent(reason.clone()),
-            Some(Entry::Ready { base, used }) => {
-                *used = clock;
-                return MapState::Ready(base.clone());
+            Some(Entry::Loaded(loaded)) => {
+                match loaded.tactics.get_mut(&margin) {
+                    Some(Tactic::Loading) => return MapState::Loading,
+                    Some(tactic @ Tactic::Fresh(_)) => {
+                        let Tactic::Fresh(base) = std::mem::replace(tactic, Tactic::Loading) else {
+                            unreachable!("matched as fresh");
+                        };
+                        // Taken: from now on the matches hold it.
+                        *tactic = Tactic::Held(Arc::downgrade(&base));
+                        return MapState::Ready(base);
+                    }
+                    Some(Tactic::Held(base)) => {
+                        if let Some(base) = base.upgrade() {
+                            return MapState::Ready(base);
+                        }
+                    }
+                    None => {}
+                }
+                if let Some(world) = loaded.world.upgrade() {
+                    // The world is in memory (another margin's matches hold it): only this margin's tactics are made, on it.
+                    let (map_file, grid_key) = (loaded.map_file, loaded.grid_key);
+                    loaded.tactics.insert(margin, Tactic::Loading);
+                    drop(cache);
+                    self.spawn_tactics(project, world, map_file, grid_key, margin);
+                    return MapState::Loading;
+                }
+                // Nothing holds the world any more: it is read again, below.
             }
-            Some(Entry::Dropped(base, _)) => base.upgrade(),
-            None => None,
-        };
-        if let Some(base) = revived {
-            cache.insert_ready(project, base.clone(), self.keep);
-            return MapState::Ready(base);
+            None => {}
         }
         // A new map in memory: only with room for it.
         let held = cache.held_except(project);
@@ -292,49 +370,78 @@ impl Maps {
                 if self.at_once == 1 { "" } else { "s" }
             ));
         }
-        if cache.drop_idle(project, self.at_once - held.len() - 1) {
-            // What the dropped maps freed back to the system before the
-            // next is read.
-            mapdata::trim_freed_memory();
-        }
         let path = dir.join(mapdata::format::file_name(project));
         if !path.is_file() {
             let reason = format!("no map file {}", path.display());
             log::warn!("Bot map {project}: {reason}; bots on it keep their script");
-            cache
-                .entries
-                .insert(project.to_owned(), Entry::Failed(reason.clone()));
+            cache.entries.insert(project.to_owned(), Entry::Failed(reason.clone()));
             return MapState::Absent(reason);
         }
         cache.entries.insert(project.to_owned(), Entry::Loading);
         drop(cache);
-        self.spawn_build(project, path);
+        self.spawn_build(project, path, margin);
         MapState::Loading
     }
 
-    fn spawn_build(&self, project: &str, path: PathBuf) {
+    /// The end of a claim: a map built for its project and margin and never taken goes once no claim is left on it,
+    /// and when nothing holds the project's world any more the freed memory is handed back.
+    fn unclaim(&self, project: &str, margin: Margin) {
+        let mut cache = lock(&self.cache);
+        let key = (project.to_owned(), margin);
+        let left = cache.claims.get_mut(&key).map(|count| {
+            *count = count.saturating_sub(1);
+            *count
+        });
+        if left == Some(0) {
+            cache.claims.remove(&key);
+            if let Some(Entry::Loaded(loaded)) = cache.entries.get_mut(project)
+                && let Some(tactic @ Tactic::Fresh(_)) = loaded.tactics.get_mut(&margin)
+                && let Tactic::Fresh(base) = std::mem::replace(tactic, Tactic::Loading)
+            {
+                *tactic = Tactic::Held(Arc::downgrade(&base));
+                drop(base);
+            }
+        }
+        if cache.unload_if_freed(project) {
+            drop(cache);
+            trim(project);
+        }
+    }
+
+    fn spawn_build(&self, project: &str, path: PathBuf, margin: Margin) {
         let (cache, builds) = (self.cache.clone(), self.builds.clone());
-        let (keep, name) = (self.keep, project.to_owned());
+        let name = project.to_owned();
         let (built, grid, wall_clearance, open_sides) = (self.built.clone(), self.grid.clone(), self.wall_clearance, self.open_sides);
         let spawned = std::thread::Builder::new()
             .name(format!("map {project}"))
             .spawn(move || {
                 let result = {
                     let _turn = builds.lock().unwrap_or_else(|p| p.into_inner());
-                    build(&path, built.as_deref(), &cache, &grid, wall_clearance, open_sides)
+                    build(&path, built.as_deref(), &cache, &grid, wall_clearance, open_sides, margin)
                 };
                 stage::set("putting the map in the store");
                 let mut cache = lock(&cache);
                 match result {
-                    Ok((base, built)) => {
+                    Ok(made) => {
                         log::info!(
                             "Bot map {name} ready in {:.2} s ({}), {} MB with its tactics",
-                            built.seconds,
-                            built.how(),
-                            (world_bytes(&base.world) + base.memory_bytes()) >> 20
+                            made.how.seconds,
+                            made.how.how(),
+                            (world_bytes(&made.base.world) + made.base.memory_bytes()) >> 20
                         );
-                        cache.made.insert(name.clone(), built.made());
-                        cache.insert_ready(&name, Arc::new(base), keep);
+                        cache.made.insert(name.clone(), made.how.made());
+                        let world = Arc::downgrade(&made.base.world);
+                        let mut tactics = HashMap::new();
+                        tactics.insert(margin, cache.tactic(&name, margin, made.base));
+                        cache.entries.insert(
+                            name.clone(),
+                            Entry::Loaded(Loaded { world, map_file: made.map_file, grid_key: made.grid_key, tactics }),
+                        );
+                        cache.forget_freed();
+                        if cache.unload_if_freed(&name) {
+                            drop(cache);
+                            trim(&name);
+                        }
                     }
                     Err(reason) => {
                         log::warn!("Bot map {name}: {reason}; bots on it keep their script");
@@ -357,36 +464,76 @@ impl Maps {
                 .insert(project.to_owned(), Entry::Failed(reason));
         }
     }
+
+    /// Builds `margin`'s tactics on `project`'s world in memory, on a thread of its own (the build turn, as a map's).
+    /// The default margin's are read from (or written to) the built files; another margin's are built.
+    fn spawn_tactics(&self, project: &str, world: Arc<World>, map_file: u64, grid_key: u64, margin: Margin) {
+        let (cache, builds) = (self.cache.clone(), self.builds.clone());
+        let name = project.to_owned();
+        let built = self.built.clone().filter(|_| margin == Margin::of(Self::margin()));
+        let spawned = std::thread::Builder::new()
+            .name(format!("tactics {project}"))
+            .spawn(move || {
+                let started = Instant::now();
+                let result = {
+                    let _turn = builds.lock().unwrap_or_else(|p| p.into_inner());
+                    catch_unwind(AssertUnwindSafe(|| tactics_on(world, map_file, grid_key, margin, built.as_deref())))
+                };
+                let mut cache = lock(&cache);
+                match result {
+                    Ok((base, source)) => {
+                        log::info!(
+                            "Bot map {name}: tactics for margin {} {} in {:.2} s",
+                            margin.metres(),
+                            source.word(),
+                            started.elapsed().as_secs_f32()
+                        );
+                        let tactic = cache.tactic(&name, margin, base);
+                        if let Some(Entry::Loaded(loaded)) = cache.entries.get_mut(&name) {
+                            loaded.tactics.insert(margin, tactic);
+                        }
+                        if cache.unload_if_freed(&name) {
+                            drop(cache);
+                            trim(&name);
+                        }
+                    }
+                    Err(_) => {
+                        let reason = format!("its tactics for margin {} panicked", margin.metres());
+                        log::warn!("Bot map {name}: {reason}; bots on it keep their script");
+                        cache.entries.insert(name, Entry::Failed(reason));
+                    }
+                }
+            });
+        if let Err(error) = spawned {
+            let reason = format!("can't start its tactics build: {error}");
+            log::warn!("Bot map {project}: {reason}");
+            lock(&self.cache).entries.insert(project.to_owned(), Entry::Failed(reason));
+        }
+    }
 }
 
 impl Cache {
-    /// Puts `base` in as the latest used, and drops the least recently
-    /// used ready maps over `keep`.
-    fn insert_ready(&mut self, project: &str, base: Arc<TacticsBase>, keep: usize) {
-        self.clock += 1;
-        let used = self.clock;
-        self.entries
-            .insert(project.to_owned(), Entry::Ready { base, used });
-        loop {
-            let ready = self.entries.iter().filter_map(|(name, entry)| match entry {
-                Entry::Ready { used, .. } => Some((*used, name)),
-                _ => None,
-            });
-            if ready.clone().count() <= keep {
-                break;
-            }
-            let Some((_, oldest)) = ready.min() else {
-                break;
-            };
-            let oldest = oldest.clone();
-            if let Some(Entry::Ready { base, .. }) = self.entries.remove(&oldest) {
-                log::info!("Bot map {oldest} dropped from the store (kept {keep})");
-                let world = Arc::downgrade(&base.world);
-                self.entries
-                    .insert(oldest, Entry::Dropped(Arc::downgrade(&base), world));
-            }
+    /// What the store keeps of tactics just built: the tactics while a claim waits for them, else only a `Weak` (no
+    /// match asks for them any more: they go now).
+    fn tactic(&self, project: &str, margin: Margin, base: TacticsBase) -> Tactic {
+        let base = Arc::new(base);
+        if self.claims.get(&(project.to_owned(), margin)).is_some_and(|&count| count > 0) {
+            Tactic::Fresh(base)
+        } else {
+            log::info!("Bot map {project}: built after its match ended; not kept");
+            Tactic::Held(Arc::downgrade(&base))
         }
-        self.forget_freed();
+    }
+
+    /// Forgets `project` if nothing holds its world any more (its last match ended, or it was built for none); whether
+    /// it did.
+    fn unload_if_freed(&mut self, project: &str) -> bool {
+        let freed = matches!(self.entries.get(project), Some(Entry::Loaded(loaded)) if loaded.world.strong_count() == 0);
+        if freed {
+            self.entries.remove(project);
+            self.forget_freed();
+        }
+        freed
     }
 
     /// Keys of grids and trees nothing holds any more.
@@ -395,8 +542,7 @@ impl Cache {
         self.sights.retain(|_, sight| sight.strong_count() > 0);
     }
 
-    /// The maps other than `project` in memory that the store cannot drop:
-    /// loading, or held by a match.
+    /// The maps other than `project` in memory: loading, or a world something holds.
     fn held_except(&self, project: &str) -> Vec<String> {
         let mut held: Vec<String> = self
             .entries
@@ -404,10 +550,7 @@ impl Cache {
             .filter(|(name, _)| name.as_str() != project)
             .filter(|(_, entry)| match entry {
                 Entry::Loading => true,
-                Entry::Ready { base, .. } => {
-                    Arc::strong_count(base) > 1 || Arc::strong_count(&base.world) > 1
-                }
-                Entry::Dropped(base, world) => base.strong_count() > 0 || world.strong_count() > 0,
+                Entry::Loaded(loaded) => loaded.world.strong_count() > 0,
                 Entry::Failed(_) => false,
             })
             .map(|(name, _)| name.clone())
@@ -415,38 +558,13 @@ impl Cache {
         held.sort_unstable();
         held
     }
+}
 
-    /// Drops the ready maps other than `project` that no match holds, the
-    /// least recently used first, till `room` of them are left; whether
-    /// any was dropped.
-    fn drop_idle(&mut self, project: &str, room: usize) -> bool {
-        let mut idle: Vec<(u64, String)> = self
-            .entries
-            .iter()
-            .filter_map(|(name, entry)| match entry {
-                Entry::Ready { base, used }
-                    if name.as_str() != project
-                        && Arc::strong_count(base) == 1
-                        && Arc::strong_count(&base.world) == 1 =>
-                {
-                    Some((*used, name.clone()))
-                }
-                _ => None,
-            })
-            .collect();
-        idle.sort_unstable();
-        let over = idle.len().saturating_sub(room);
-        for (_, name) in idle.into_iter().take(over) {
-            if let Some(Entry::Ready { base, .. }) = self.entries.remove(&name) {
-                log::info!("Bot map {name} dropped from the store to make room for {project}");
-                let world = Arc::downgrade(&base.world);
-                self.entries
-                    .insert(name, Entry::Dropped(Arc::downgrade(&base), world));
-            }
-        }
-        self.forget_freed();
-        over > 0
-    }
+/// After a map's last holder let it go: what its world and tactics freed, back to the system (glibc keeps freed heap
+/// blocks in the process till trimmed: `fx-review-a326-research.md`).
+fn trim(project: &str) {
+    log::info!("Bot map {project}: no match uses it; unloaded");
+    mapdata::trim_freed_memory();
 }
 
 /// Where a grid, tree or tactics came from: for the log, and for the pre-build's check ([`prebuild`]).
@@ -489,18 +607,27 @@ impl Built {
     }
 
     fn how(&self) -> String {
-        let word = |source: Source| match source {
-            Source::Shared => "shared",
-            Source::Read => "read",
-            Source::Built => "built",
-        };
-        format!(
-            "grid {}, sight tree {}, tactics {}",
-            word(self.grid),
-            word(self.sight),
-            word(self.tactics)
-        )
+        format!("grid {}, sight tree {}, tactics {}", self.grid.word(), self.sight.word(), self.tactics.word())
     }
+}
+
+impl Source {
+    fn word(self) -> &'static str {
+        match self {
+            Self::Shared => "shared",
+            Self::Read => "read",
+            Self::Built => "built",
+        }
+    }
+}
+
+/// A map one build made: its tactics (holding its world) for the margin it was built for, what tactics of its are keyed
+/// by, and how it was made.
+struct MadeMap {
+    base: TacticsBase,
+    map_file: u64,
+    grid_key: u64,
+    how: Built,
 }
 
 /// The structure of `key` from its file in `built` if that reads back,
@@ -537,7 +664,7 @@ fn read_or_build<T>(
 }
 
 /// Reads one map, takes or builds its grid and tree, and builds its
-/// tactics for the default margin.
+/// tactics for `margin` (read from or written to the built files only for the default margin).
 fn build(
     path: &Path,
     built: Option<&Path>,
@@ -545,7 +672,8 @@ fn build(
     grid_tuning: &GridTuning,
     wall_clearance: bool,
     open_sides: Option<f32>,
-) -> Result<(TacticsBase, Built), String> {
+    margin: Margin,
+) -> Result<MadeMap, String> {
     let started = Instant::now();
     stage::set("reading the map file");
     let bytes = std::fs::read(path).map_err(|error| format!("{}: {error}", path.display()))?;
@@ -620,28 +748,31 @@ fn build(
         stage::set("assembling the world");
         let world = Arc::new(World::assemble(map, grid, sight));
         stage::set("the tactics");
-        let margin = Maps::margin();
-        let key = TacticsBase::key(map_file, grid_key, margin);
-        let (base, tactics_source) = read_or_build(
-            built,
-            mapdata::built::tactics_file_name(key),
-            |path| TacticsBase::read(path, key, world.clone(), margin),
-            || TacticsBase::build(world.clone(), margin),
-            |base, path| base.write(path, key),
-        );
-        (base, grid_source, sight_source, tactics_source)
+        let files = built.filter(|_| margin == Margin::of(Maps::margin()));
+        let (base, tactics_source) = tactics_on(world, map_file, grid_key, margin, files);
+        (base, grid_key, grid_source, sight_source, tactics_source)
     }))
     .map_err(|_| format!("{}: the build panicked", path.display()))?;
-    let (base, grid, sight, tactics) = built;
-    Ok((
+    let (base, grid_key, grid, sight, tactics) = built;
+    Ok(MadeMap {
         base,
-        Built {
-            seconds: started.elapsed().as_secs_f32(),
-            grid,
-            sight,
-            tactics,
-        },
-    ))
+        map_file,
+        grid_key,
+        how: Built { seconds: started.elapsed().as_secs_f32(), grid, sight, tactics },
+    })
+}
+
+/// `margin`'s tactics on `world`: from the built file in `built` when it reads back, else built (and written there).
+fn tactics_on(world: Arc<World>, map_file: u64, grid_key: u64, margin: Margin, built: Option<&Path>) -> (TacticsBase, Source) {
+    let margin = margin.metres();
+    let key = TacticsBase::key(map_file, grid_key, margin);
+    read_or_build(
+        built,
+        mapdata::built::tactics_file_name(key),
+        |path| TacticsBase::read(path, key, world.clone(), margin),
+        || TacticsBase::build(world.clone(), margin),
+        |base, path| base.write(path, key),
+    )
 }
 
 /// One map of a pre-build ([`prebuild`]): how the first store made it and in how long, and its digests (grid, sight tree,
@@ -655,10 +786,11 @@ pub struct Prebuilt {
 }
 
 /// `project`'s map from `maps`, waiting up to `limit` for its build.
-fn ready(maps: &Maps, project: &str, limit: std::time::Duration) -> Result<Arc<TacticsBase>, String> {
+fn ready(maps: &Arc<Maps>, project: &str, limit: std::time::Duration) -> Result<Arc<TacticsBase>, String> {
     let started = Instant::now();
+    let claim = maps.claim(project, Maps::margin());
     loop {
-        match maps.get(project) {
+        match claim.get() {
             MapState::Ready(base) => return Ok(base),
             MapState::Absent(why) => return Err(format!("{project}: {why}")),
             MapState::Loading | MapState::Waiting(_) if started.elapsed() < limit => {
@@ -727,19 +859,18 @@ fn lock(cache: &Mutex<Cache>) -> MutexGuard<'_, Cache> {
 impl fmt::Debug for Maps {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         let cache = lock(&self.cache);
-        let mut ready: Vec<&str> = cache
+        let mut loaded: Vec<&str> = cache
             .entries
             .iter()
-            .filter(|(_, entry)| matches!(entry, Entry::Ready { .. }))
+            .filter(|(_, entry)| matches!(entry, Entry::Loaded(loaded) if loaded.world.strong_count() > 0))
             .map(|(name, _)| name.as_str())
             .collect();
-        ready.sort_unstable();
+        loaded.sort_unstable();
         f.debug_struct("Maps")
             .field("dir", &self.dir)
             .field("built", &self.built)
-            .field("keep", &self.keep)
             .field("at_once", &self.at_once)
-            .field("ready", &ready)
+            .field("loaded", &loaded)
             .finish()
     }
 }
@@ -840,10 +971,18 @@ mod tests {
         report
     }
 
-    fn wait_ready(maps: &Maps, project: &str, limit: Duration) -> Arc<TacticsBase> {
+    /// Where `project`'s map stands for the default margin, to a claim made and dropped at once (it starts no build:
+    /// for absent, waiting and held maps).
+    fn look(maps: &Arc<Maps>, project: &str) -> MapState {
+        maps.claim(project, Maps::margin()).get()
+    }
+
+    /// `project`'s map once built, as a match takes it (its claim gone after, the map held by the caller).
+    fn wait_ready(maps: &Arc<Maps>, project: &str, limit: Duration) -> Arc<TacticsBase> {
         let started = Instant::now();
+        let claim = maps.claim(project, Maps::margin());
         loop {
-            match maps.get(project) {
+            match claim.get() {
                 MapState::Ready(base) => return base,
                 MapState::Loading if started.elapsed() < limit => {
                     std::thread::sleep(Duration::from_millis(5))
@@ -868,12 +1007,14 @@ mod tests {
         let maps = Maps::new(Some(dir.clone()));
         // Holding the build turn keeps the thread from starting its work: it waits, with no step yet.
         let turn = maps.builds.lock().unwrap();
-        assert!(matches!(maps.get(project), MapState::Loading));
+        let claim = maps.claim(project, Maps::margin());
+        assert!(matches!(claim.get(), MapState::Loading));
         std::thread::sleep(Duration::from_millis(50));
         let report = build_report(&maps, project);
         assert!(report.contains("still running"), "{report}");
         drop(turn);
         let _ = wait_ready(&maps, project, Duration::from_secs(10));
+        drop(claim);
         // In the store: the thread ended cleanly, and its last step is on record.
         let report = build_report(&maps, project);
         assert!(report.contains("ended without a result"), "{report}");
@@ -884,20 +1025,19 @@ mod tests {
     #[test]
     fn no_directory_means_no_map() {
         let maps = Maps::new(None);
-        maps.request("level_01/day_4");
-        assert!(matches!(maps.get("level_01/day_4"), MapState::Absent(_)));
+        assert!(matches!(look(&maps, "level_01/day_4"), MapState::Absent(_)));
     }
 
     #[test]
     fn a_missing_file_is_absent_with_its_name() {
         let dir = temp_dir("missing");
         let maps = Maps::new(Some(dir.clone()));
-        let MapState::Absent(reason) = maps.get("level_09/day_4") else {
+        let MapState::Absent(reason) = look(&maps, "level_09/day_4") else {
             panic!("a missing file must be absent");
         };
         assert!(reason.contains("level_09_day_4.mapdata"), "{reason}");
         // Remembered: still absent, nothing started.
-        assert!(matches!(maps.get("level_09/day_4"), MapState::Absent(_)));
+        assert!(matches!(look(&maps, "level_09/day_4"), MapState::Absent(_)));
         let _ = std::fs::remove_dir_all(dir);
     }
 
@@ -907,8 +1047,9 @@ mod tests {
         std::fs::write(dir.join("broken_day_4.mapdata"), b"SRPMAPD\0nonsense").unwrap();
         let maps = Maps::new(Some(dir.clone()));
         let started = Instant::now();
+        let claim = maps.claim("broken/day_4", Maps::margin());
         let reason = loop {
-            match maps.get("broken/day_4") {
+            match claim.get() {
                 MapState::Absent(reason) => break reason,
                 MapState::Loading if started.elapsed() < Duration::from_secs(10) => {
                     std::thread::sleep(Duration::from_millis(5))
@@ -928,14 +1069,15 @@ mod tests {
             .write(&dir.join(mapdata::format::file_name(project)))
             .unwrap();
         let maps = Maps::new(Some(dir.clone()));
-        maps.request(project);
+        let claim = maps.claim(project, Maps::margin());
         // The build is on its own thread: the first look finds it loading
         // or (on a fast machine, rarely) done.
         assert!(matches!(
-            maps.get(project),
+            claim.get(),
             MapState::Loading | MapState::Ready(_)
         ));
         let base = wait_ready(&maps, project, Duration::from_secs(10));
+        drop(claim);
         let world = base.world.clone();
         assert_eq!(world.map.project, project);
         assert_eq!(base.margin(), Maps::margin());
@@ -944,8 +1086,8 @@ mod tests {
         let a = world.grid.locate(Vec3::new(-5.0, 0.0, 0.0), 1.0).unwrap();
         let b = world.grid.locate(Vec3::new(5.0, 0.0, 0.0), 1.0).unwrap();
         assert!(world.grid.path(a, b).is_some());
-        let MapState::Ready(again) = maps.get(project) else {
-            panic!("a built world stays ready");
+        let MapState::Ready(again) = look(&maps, project) else {
+            panic!("a built world stays ready while held");
         };
         assert!(Arc::ptr_eq(&base, &again));
         assert!(format!("{maps:?}").contains(project));
@@ -1010,13 +1152,12 @@ mod tests {
         let project = "tiny/day_4";
         tiny_map(project).write(&dir.join(mapdata::format::file_name(project))).unwrap();
         let tuning = crate::v026g::bots::tuning::Tuning::default();
-        let store = || crate::v026g::bot_maps(dir.clone(), KEEP, AT_ONCE, Some(built.clone()), &tuning);
+        let store = || crate::v026g::bot_maps(dir.clone(), AT_ONCE, Some(built.clone()), &tuning);
         let done = prebuild(store, &[project.to_owned()], Duration::from_secs(10)).unwrap();
         assert_eq!(done.len(), 1);
         assert!(done[0].made.grid == Source::Built && done[0].made.sight == Source::Built && done[0].made.tactics == Source::Built);
         let server = crate::v026g::parse_mapdata_dir(
             dir.to_str(),
-            KEEP as u32,
             AT_ONCE as u32,
             built.to_str(),
             &tuning,
@@ -1034,7 +1175,7 @@ mod tests {
         let dir = temp_dir("prebuilt-none");
         let project = "tiny/day_4";
         tiny_map(project).write(&dir.join(mapdata::format::file_name(project))).unwrap();
-        let store = || Maps::configured(Some(dir.clone()), KEEP, AT_ONCE, None, GridTuning::default());
+        let store = || Maps::configured(Some(dir.clone()), AT_ONCE, None, GridTuning::default());
         let why = prebuild(store, &[project.to_owned()], Duration::from_secs(10)).unwrap_err();
         assert!(why.starts_with("tiny/day_4: a restart built it again"), "{why}");
         let _ = std::fs::remove_dir_all(dir);
@@ -1049,13 +1190,13 @@ mod tests {
         let project = "tiny/day_4";
         tiny_map(project).write(&dir.join(mapdata::format::file_name(project))).unwrap();
         let tuning = crate::v026g::bots::tuning::Tuning::default();
-        let store = || crate::v026g::bot_maps(dir.clone(), KEEP, AT_ONCE, Some(built.clone()), &tuning);
+        let store = || crate::v026g::bot_maps(dir.clone(), AT_ONCE, Some(built.clone()), &tuning);
         prebuild(store, &[project.to_owned()], Duration::from_secs(10)).unwrap();
         let other = crate::v026g::bots::tuning::Tuning {
             grid: GridTuning { client_numbers: false, gap_links: false, ..GridTuning::default() },
             ..Default::default()
         };
-        let server = crate::v026g::parse_mapdata_dir(dir.to_str(), KEEP as u32, AT_ONCE as u32, built.to_str(), &other).unwrap();
+        let server = crate::v026g::parse_mapdata_dir(dir.to_str(), AT_ONCE as u32, built.to_str(), &other).unwrap();
         wait_ready(&server, project, Duration::from_secs(10));
         assert_eq!(server.made(project).map(|made| made.grid), Some(Source::Built));
         let _ = std::fs::remove_dir_all(dir);
@@ -1074,7 +1215,7 @@ mod tests {
         let mut raised = tiny_map("tiny/evening_4");
         raised.placements[0].position = Vec3::new(0.0, 0.5, 0.0);
         write("tiny/evening_4", raised);
-        let maps = Maps::with_keep(Some(dir.clone()), 3);
+        let maps = Maps::unbounded(Some(dir.clone()));
         let wait = Duration::from_secs(10);
         let day = wait_ready(&maps, "tiny/day_4", wait);
         let rain = wait_ready(&maps, "tiny/rain_4", wait);
@@ -1111,7 +1252,7 @@ mod tests {
         assert_ne!(grid_tuning, GridTuning::default());
         let wait = Duration::from_secs(10);
         let tuned = wait_ready(
-            &Maps::configured(Some(dir.clone()), KEEP, AT_ONCE, None, grid_tuning.clone()),
+            &Maps::configured(Some(dir.clone()), AT_ONCE, None, grid_tuning.clone()),
             "tiny/day_4",
             wait,
         );
@@ -1122,101 +1263,134 @@ mod tests {
             grid_tuning.off_mesh_links(),
         );
         assert_eq!(tuned.world.grid.digest(), alone.grid.digest());
-        let default = wait_ready(&Maps::configured(Some(dir.clone()), KEEP, AT_ONCE, None, GridTuning::default()), "tiny/day_4", wait);
+        let default = wait_ready(&Maps::configured(Some(dir.clone()), AT_ONCE, None, GridTuning::default()), "tiny/day_4", wait);
         assert_ne!(tuned.world.grid.digest(), default.world.grid.digest(), "the body is in the grid");
         let _ = std::fs::remove_dir_all(dir);
     }
 
+    /// A326, the owner's rule: a map no running match uses is not kept. Held, a later match shares it; once its last
+    /// match lets it go, the store holds nothing of it (no world, no grid or tree key), and the next match reads it again.
     #[test]
-    fn the_least_recently_used_world_is_dropped_but_kept_while_held() {
-        let dir = temp_dir("lru");
-        let projects = ["a/day_4", "b/day_4", "c/day_4"];
-        for project in projects {
-            tiny_map(project)
-                .write(&dir.join(mapdata::format::file_name(project)))
-                .unwrap();
-        }
-        let maps = Maps::with_keep(Some(dir.clone()), 2);
+    fn a_map_no_match_uses_is_unloaded() {
+        let dir = temp_dir("unload");
+        let project = "a/day_4";
+        tiny_map(project).write(&dir.join(mapdata::format::file_name(project))).unwrap();
+        let maps = Maps::new(Some(dir.clone()));
         let wait = Duration::from_secs(10);
-        let a = wait_ready(&maps, "a/day_4", wait);
-        let b = wait_ready(&maps, "b/day_4", wait);
-        drop(b);
-        // a used again after b: b is the oldest when c comes.
-        wait_ready(&maps, "a/day_4", wait);
-        wait_ready(&maps, "c/day_4", wait);
+        let a = wait_ready(&maps, project, wait);
+        let MapState::Ready(again) = look(&maps, project) else {
+            panic!("a held map is ready at once");
+        };
+        assert!(Arc::ptr_eq(&a, &again));
+        drop(again);
+        let world = Arc::downgrade(&a.world);
+        let claim = maps.claim(project, Maps::margin());
+        drop(a);
+        assert!(world.upgrade().is_none(), "the store holds no map nobody uses");
+        drop(claim);
+        {
+            let cache = lock(&maps.cache);
+            assert!(!cache.entries.contains_key(project), "forgotten once its last claim went");
+            assert!(cache.grids.is_empty() && cache.sights.is_empty());
+        }
+        let b = wait_ready(&maps, project, wait);
+        assert_eq!(b.world.map.project, project, "read again for the next match");
+        let _ = std::fs::remove_dir_all(dir);
+    }
+
+    /// A map built for a match that ended before it was ready is not kept either.
+    #[test]
+    fn a_map_built_after_its_match_ended_is_not_kept() {
+        let dir = temp_dir("orphan");
+        let project = "a/day_4";
+        tiny_map(project).write(&dir.join(mapdata::format::file_name(project))).unwrap();
+        let maps = Maps::new(Some(dir.clone()));
+        let turn = maps.builds.lock().unwrap();
+        let claim = maps.claim(project, Maps::margin());
+        assert!(matches!(claim.get(), MapState::Loading));
+        drop(claim);
+        drop(turn);
+        let handle = maps.builders.lock().unwrap().remove(project).unwrap();
+        handle.join().unwrap();
         let cache = lock(&maps.cache);
-        assert!(matches!(cache.entries["a/day_4"], Entry::Ready { .. }));
-        assert!(matches!(cache.entries["c/day_4"], Entry::Ready { .. }));
-        let Entry::Dropped(b, _) = &cache.entries["b/day_4"] else {
-            panic!("b must be dropped");
-        };
-        assert!(b.upgrade().is_none(), "nothing holds b");
+        assert!(!cache.entries.contains_key(project), "built for nobody: not kept");
+        assert!(cache.grids.is_empty() && cache.sights.is_empty());
         drop(cache);
-        // a dropped while held comes back without a build.
-        wait_ready(&maps, "b/day_4", wait);
-        let cache = lock(&maps.cache);
-        let Entry::Dropped(dropped, _) = &cache.entries["a/day_4"] else {
-            panic!("a must be dropped now");
+        let _ = std::fs::remove_dir_all(dir);
+    }
+
+    /// A326 items 3 and 6: matches tuned to another hazard margin share one copy of that margin's tactics, on the one
+    /// world of the map (not read again while it is held); the default margin's and another's are not the same tactics.
+    #[test]
+    fn matches_with_one_margin_share_its_tactics_on_the_one_world() {
+        let dir = temp_dir("margins");
+        let project = "a/day_4";
+        tiny_map(project).write(&dir.join(mapdata::format::file_name(project))).unwrap();
+        let maps = Maps::new(Some(dir.clone()));
+        let wait = Duration::from_secs(10);
+        let ready = |margin: f32| {
+            let claim = maps.claim(project, margin);
+            let started = Instant::now();
+            loop {
+                match claim.get() {
+                    MapState::Ready(base) => return base,
+                    MapState::Loading if started.elapsed() < wait => std::thread::sleep(Duration::from_millis(5)),
+                    other => panic!("{other:?}"),
+                }
+            }
         };
-        assert!(Arc::ptr_eq(&dropped.upgrade().unwrap(), &a));
-        drop(cache);
-        let MapState::Ready(back) = maps.get("a/day_4") else {
-            panic!("a is held, so it is ready at once");
-        };
-        assert!(Arc::ptr_eq(&back, &a));
+        let other = Maps::margin() + 0.5;
+        let first = ready(other);
+        let second = ready(other);
+        assert!(Arc::ptr_eq(&first, &second), "one copy for the margin");
+        assert_eq!(first.margin(), other);
+        let default = ready(Maps::margin());
+        assert!(Arc::ptr_eq(&default.world, &first.world), "the world held is not read again");
+        assert!(!Arc::ptr_eq(&default, &first));
+        assert_eq!(default.margin(), Maps::margin());
+        // The margin's tactics are the ones a match would build on its own.
+        assert_eq!(first.digest(), TacticsBase::build(first.world.clone(), other).digest());
         let _ = std::fs::remove_dir_all(dir);
     }
 
     /// One map in memory at a time: a match on another map waits while
-    /// one holds the first (its tactics or only its world), and the map
-    /// no match holds any more is dropped to make room; a match on the map
-    /// in memory has it at once.
+    /// one holds the first (its tactics or only its world), and gets room
+    /// once nothing holds it; a match on the map in memory has it at once.
     #[test]
-    fn one_map_at_a_time_waits_for_room_and_drops_the_idle_one() {
+    fn one_map_at_a_time_waits_for_room() {
         let dir = temp_dir("at-once");
         for project in ["a/day_4", "b/day_4", "c/day_4"] {
             tiny_map(project)
                 .write(&dir.join(mapdata::format::file_name(project)))
                 .unwrap();
         }
-        let maps = Maps::configured(Some(dir.clone()), 1, 1, None, GridTuning::default());
+        let maps = Maps::configured(Some(dir.clone()), 1, None, GridTuning::default());
         let wait = Duration::from_secs(10);
         let a = wait_ready(&maps, "a/day_4", wait);
         // A match holds a: b waits, and so does it again.
         for _ in 0..2 {
-            let MapState::Waiting(why) = maps.get("b/day_4") else {
+            let MapState::Waiting(why) = look(&maps, "b/day_4") else {
                 panic!("b must wait while a is held");
             };
             assert!(why.contains("a/day_4"), "{why}");
         }
         // Another match on a has it at once.
-        let MapState::Ready(again) = maps.get("a/day_4") else {
+        let MapState::Ready(again) = look(&maps, "a/day_4") else {
             panic!("a is in memory");
         };
         assert!(Arc::ptr_eq(&again, &a));
         drop(again);
-        // Held by its world only (tactics of a match's own margin): still
-        // held.
+        // Held by its world only: still held.
         let world = a.world.clone();
         drop(a);
-        assert!(matches!(maps.get("b/day_4"), MapState::Waiting(_)));
+        assert!(matches!(look(&maps, "b/day_4"), MapState::Waiting(_)));
         drop(world);
-        // a is free: dropped for b, and nothing holds it.
+        // a is free: b gets in, and nothing of a is left.
         let b = wait_ready(&maps, "b/day_4", wait);
-        {
-            let cache = lock(&maps.cache);
-            let Entry::Dropped(a, world) = &cache.entries["a/day_4"] else {
-                panic!("a must be dropped for b");
-            };
-            assert!(a.upgrade().is_none() && world.upgrade().is_none());
-        }
-        // b is kept after its match: c drops it, it is not waited for.
+        assert!(!lock(&maps.cache).entries.contains_key("a/day_4"));
+        // b's match ends: c needs no room made.
         drop(b);
         wait_ready(&maps, "c/day_4", wait);
-        let cache = lock(&maps.cache);
-        assert!(matches!(cache.entries["b/day_4"], Entry::Dropped(..)));
-        assert!(matches!(cache.entries["c/day_4"], Entry::Ready { .. }));
-        drop(cache);
         let _ = std::fs::remove_dir_all(dir);
     }
 
@@ -1237,7 +1411,7 @@ mod tests {
         }
         let at_once = session::v026g::pvb::maps_at_once(AT_ONCE, true, 5);
         assert_eq!(at_once, 5);
-        let maps = Maps::configured(Some(dir.clone()), KEEP, at_once, None, GridTuning::default());
+        let maps = Maps::configured(Some(dir.clone()), at_once, None, GridTuning::default());
         let wait = Duration::from_secs(10);
         let mut held: Vec<Arc<TacticsBase>> = projects[..5]
             .iter()
@@ -1245,12 +1419,12 @@ mod tests {
             .collect();
         // All five still there, each its own.
         for (project, base) in projects.iter().zip(&held) {
-            let MapState::Ready(again) = maps.get(project) else {
+            let MapState::Ready(again) = look(&maps, project) else {
                 panic!("{project} is in memory");
             };
             assert!(Arc::ptr_eq(&again, base));
         }
-        let MapState::Waiting(why) = maps.get("f/day_4") else {
+        let MapState::Waiting(why) = look(&maps, "f/day_4") else {
             panic!("a sixth map waits while five are held");
         };
         assert!(why.contains("at most 5"), "{why}");
@@ -1291,7 +1465,6 @@ mod tests {
         projects.dedup();
         let maps = Maps::configured(
             Some(dir),
-            KEEP,
             session::v026g::pvb::maps_at_once(AT_ONCE, true, projects.len()),
             built,
             GridTuning::default(),
@@ -1381,11 +1554,11 @@ mod tests {
                 base.digest(),
             )
         };
-        let first = Maps::configured(Some(dir.clone()), 1, AT_ONCE, Some(built.clone()), GridTuning::default());
+        let first = Maps::configured(Some(dir.clone()), AT_ONCE, Some(built.clone()), GridTuning::default());
         let started = Instant::now();
         let written: Vec<_> = projects.iter().map(|p| digests(&first, p)).collect();
         let build_s = started.elapsed().as_secs_f32();
-        let second = Maps::configured(Some(dir.clone()), 1, AT_ONCE, Some(built.clone()), GridTuning::default());
+        let second = Maps::configured(Some(dir.clone()), AT_ONCE, Some(built.clone()), GridTuning::default());
         let started = Instant::now();
         for (project, written) in projects.iter().zip(&written) {
             assert_eq!(&digests(&second, project), written, "{project}");
@@ -1410,7 +1583,7 @@ mod tests {
     #[ignore = "a measurement; needs SRP_MAPDATA_DIR"]
     fn real_map_sizes() {
         let Some(dir) = real_dir() else { return };
-        let maps = Maps::with_keep(Some(dir), 1);
+        let maps = Maps::new(Some(dir));
         for project in [
             "level_01/day_4",
             "level_02/day_4",

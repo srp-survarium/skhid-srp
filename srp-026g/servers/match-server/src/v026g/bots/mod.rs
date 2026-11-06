@@ -63,6 +63,7 @@ pub mod lane_ahead;
 pub mod link_time;
 pub mod live_grenades;
 pub mod live_zones;
+pub mod map_files;
 pub mod maps;
 pub mod motor;
 pub mod nav_drift;
@@ -1253,19 +1254,25 @@ impl Bots {
     /// The human routes of the match's map and mode (play 17), from
     /// `SRP_BOT_ROUTES`; before [`Self::map_ready`].
     pub fn set_routes(&mut self, table: &routes::RouteTable) {
-        self.layers.routes = table.for_map(self.level, self.mode.rules());
-        self.layers.perches = table.perches_for(self.level);
-        self.layers.perch_share = table.perch_share(self.level, self.mode.id());
+        self.set_map_routes(&map_files::MapRoutes::of(table, self.level, self.mode));
     }
 
-    /// The map's bushes (`bot-foliage.json`); before [`Self::map_ready`].
-    pub fn set_foliage(&mut self, foliage: foliage::Foliage) {
-        self.layers.foliage = foliage;
+    /// The map and mode's rows of the route table ([`map_files::MapRoutes`]), as [`Self::set_routes`] takes them.
+    pub fn set_map_routes(&mut self, rows: &map_files::MapRoutes) {
+        self.layers.routes = rows.routes.clone();
+        self.layers.perches = rows.perches.clone();
+        self.layers.perch_share = rows.perch_share;
     }
 
-    /// The map's grass (`bot-grass.json`); before [`Self::map_ready`].
-    pub fn set_grass(&mut self, grass: grass::Grass) {
-        self.layers.grass = grass;
+    /// The map's bushes (`bot-foliage.json`): the copy shared by the matches on it, or one of its own; before
+    /// [`Self::map_ready`].
+    pub fn set_foliage(&mut self, foliage: impl Into<Arc<foliage::Foliage>>) {
+        self.layers.foliage = foliage.into();
+    }
+
+    /// The map's grass (`bot-grass.json`), likewise; before [`Self::map_ready`].
+    pub fn set_grass(&mut self, grass: impl Into<Arc<grass::Grass>>) {
+        self.layers.grass = grass.into();
     }
 
     pub fn has_map(&self) -> bool {

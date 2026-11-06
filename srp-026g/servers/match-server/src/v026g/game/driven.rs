@@ -38,7 +38,6 @@
 //! - without it, the stage 0 script (`super::super::drive`).
 
 use std::sync::Arc;
-use std::sync::mpsc::{Receiver, TryRecvError};
 
 use mapdata::{Vec3, World};
 use survarium::v026g::match_msgs::motion::Motion;
@@ -47,7 +46,8 @@ use survarium::v026g::match_msgs::snapshot::{Battery, Decoded};
 
 use super::*;
 use crate::v026g::bots::body::Fix;
-use crate::v026g::bots::maps::{MapState, Maps};
+use crate::v026g::bots::map_files::{MapFiles, MapRoutes};
+use crate::v026g::bots::maps::{MapClaim, MapState};
 use crate::v026g::bots::motor::Hurt;
 use crate::v026g::bots::objective::Mode;
 use crate::v026g::bots::pools::Pools;
@@ -73,14 +73,10 @@ pub(super) struct Walkers {
     pub(super) bots: Bots,
     /// The worlds name the kit each place is in (`AvoidTuning::kit_in_use`).
     kit_in_use: bool,
-    maps: Arc<Maps>,
-    project: &'static str,
-    /// Held once built, so the store may drop it while the match runs.
+    /// The map's world once the bots have it.
     world: Option<Arc<World>>,
-    /// The bots' tactics being built on a thread of their own (0.4-0.8 s
-    /// on the host for a big map, which the match loop, the server's one
-    /// thread, must not wait for).
-    tactics: Option<Receiver<Tactics>>,
+    /// The map and mode's human routes, held for the match so the next match on them shares this copy (`map_files.rs`).
+    _routes: Option<Arc<MapRoutes>>,
     /// The map has no walk grid: the stage 0 script drives them.
     absent: bool,
     /// Since when the map waits for room in the store
@@ -88,6 +84,10 @@ pub(super) struct Walkers {
     waiting: Option<std::time::Instant>,
     /// The roster events handed to the bots so far.
     events_seen: usize,
+    /// The match's claim on its map and its tactics (built or read off the match loop, the server's one thread).
+    /// **The last field**: dropped after the bots and the world, so when this match was the map's last user the map is
+    /// gone by then, and the claim hands its memory back (A326, `bots/maps.rs`).
+    claim: MapClaim,
 }
 
 impl Walkers {
@@ -140,7 +140,9 @@ impl Walkers {
         );
         log::info!("Match {id:#x}: {}", switch_log::env_switches());
         let project = formed.played.map().project;
-        maps.request(project);
+        // The tactics are the map's for this margin: every match on the map with the same margin shares them.
+        let claim = maps.claim(project, tuning.hazard.margin_m.get());
+        let level = formed.played.map().level;
         let teams: Vec<u8> = formed.places.iter().map(|place| place.team).collect();
         let bots: Vec<_> = formed
             .profiles
@@ -202,14 +204,13 @@ impl Walkers {
             // [A241] The players' clients sway the bots' aimed automatic shots as their own.
             .with_client_sway(crate::v026g::bots::recoil::ClientSway::Live)
             .with_tiers(&equipments),
-            maps,
-            project,
             world: None,
-            tactics: None,
+            _routes: None,
             absent: false,
             waiting: None,
             events_seen: 0,
             kit_in_use: all_kits,
+            claim,
         })
         .map(|mut walkers| {
             walkers.bots.set_weapons(weapons);
@@ -222,106 +223,56 @@ impl Walkers {
             walkers.bots.set_speed_levels(&speed_levels);
             // Play 17: the routes humans took (a private table; without it
             // the bots roam to the exits).
+            // Each file is parsed once per map while a match holds what it gave (`map_files.rs`).
+            let (files, dir) = (maps.files(), maps.dir());
             let var = std::env::var_os("SRP_BOT_ROUTES");
-            if let Some(table) = route_table(id, var.as_deref(), walkers.maps.dir()) {
-                walkers.bots.set_routes(&table);
+            if let Some(rows) = routes_of(id, files, level, mode, var.as_deref(), dir) {
+                walkers.bots.set_map_routes(&rows);
+                walkers._routes = Some(rows);
             }
             // The bushes a sight line crosses (a private file; without it no bush hides anyone).
             let var = std::env::var_os("SRP_BOT_FOLIAGE");
-            if let Some(foliage) = foliage_of(id, project, var.as_deref(), walkers.maps.dir()) {
+            if let Some(foliage) = foliage_of(id, files, project, var.as_deref(), dir) {
                 walkers.bots.set_foliage(foliage);
             }
             // The grass a sight line crosses (the same: a private file, none without it).
             let var = std::env::var_os("SRP_BOT_GRASS");
-            if let Some(grass) = grass_of(id, project, var.as_deref(), walkers.maps.dir()) {
+            if let Some(grass) = grass_of(id, files, project, var.as_deref(), dir) {
                 walkers.bots.set_grass(grass);
             }
             walkers
         })
     }
 
-    /// The map's walk grid, once built, and the bots' tactics on it (built
-    /// on a thread, handed to the bots once); `absent` set if there is
-    /// none.
+    /// The map's walk grid, once built, and the bots' tactics on it (the map's for the match's margin, shared by
+    /// every match on it with that margin; built off the match loop); `absent` set if there is none.
     fn world(&mut self, id: u32) -> Option<Arc<World>> {
-        if let Some(built) = self.tactics.as_ref() {
-            match built.try_recv() {
-                Ok(tactics) => {
-                    self.tactics = None;
-                    let floors = tactics.world.grid.len();
-                    let summary = self.bots.tactics_ready(tactics);
-                    log::info!(
-                        "Match {id:#x}: the bots have the map {} ({floors} floors; {summary})",
-                        self.project,
-                    );
-                }
-                Err(TryRecvError::Empty) => {}
-                Err(TryRecvError::Disconnected) => {
-                    log::warn!(
-                        "Match {id:#x}: the bots' tactics for {} were not built; the server's \
-                         bots run the stage 0 script",
-                        self.project
-                    );
-                    self.tactics = None;
-                    self.absent = true;
-                }
-            }
-        }
         if self.world.is_none() && !self.absent {
-            match self.maps.get(self.project) {
+            match self.claim.get() {
                 MapState::Ready(base) => {
                     if let Some(since) = self.waiting.take() {
                         log::info!(
                             "Match {id:#x}: the bots' map {} is loaded, {:.0} s after it began to wait",
-                            self.project,
+                            self.claim.project(),
                             since.elapsed().as_secs_f32()
                         );
                     }
                     let world = base.world.clone();
-                    let margin = self.bots.match_wide_tuning().hazard.margin_m.get();
-                    if margin.to_bits() == base.margin().to_bits() {
-                        // The map's own tactics, shared by every match on it.
-                        let floors = world.grid.len();
-                        let summary = self.bots.tactics_ready(Tactics::of(base));
-                        log::info!(
-                            "Match {id:#x}: the bots have the map {} ({floors} floors; {summary})",
-                            self.project,
-                        );
-                    } else {
-                        // Tuned to another margin: tactics of its own.
-                        let (send, built) = std::sync::mpsc::channel();
-                        let for_tactics = world.clone();
-                        let spawned = std::thread::Builder::new()
-                            .name(format!("bot tactics {id:#x}"))
-                            .spawn(move || {
-                                let started = std::time::Instant::now();
-                                let tactics = Tactics::new(for_tactics, margin);
-                                log::info!(
-                                    "Match {id:#x}: the bots' tactics for margin {margin} built \
-                                     in {:.2} s",
-                                    started.elapsed().as_secs_f32()
-                                );
-                                let _ = send.send(tactics);
-                            });
-                        match spawned {
-                            Ok(_) => self.tactics = Some(built),
-                            Err(error) => {
-                                log::warn!(
-                                    "Match {id:#x}: can't start the bots' tactics build \
-                                     ({error}); the server's bots run the stage 0 script"
-                                );
-                                self.absent = true;
-                            }
-                        }
-                    }
+                    let floors = world.grid.len();
+                    let summary = self.bots.tactics_ready(Tactics::of(base));
+                    log::info!(
+                        "Match {id:#x}: the bots have the map {} ({floors} floors; {summary})",
+                        self.claim.project(),
+                    );
                     self.world = Some(world);
                 }
                 MapState::Loading => {}
                 MapState::Waiting(why) => {
                     if self.waiting.is_none() {
                         log::info!(
-                            "Match {id:#x}: the bots' map {} waits ({why}); the server's bots                              run the stage 0 script till it is loaded",
-                            self.project
+                            "Match {id:#x}: the bots' map {} waits ({why}); the server's bots run the stage 0 script till \
+                             it is loaded",
+                            self.claim.project()
                         );
                         self.waiting = Some(std::time::Instant::now());
                     }
@@ -330,7 +281,7 @@ impl Walkers {
                     log::warn!(
                         "Match {id:#x}: no walk grid for {} ({why}); the server's bots run the \
                          stage 0 script",
-                        self.project
+                        self.claim.project()
                     );
                     self.absent = true;
                 }
@@ -814,14 +765,17 @@ impl Game {
     }
 }
 
-/// The route table a match's bots get (play 17): `var` is `SRP_BOT_ROUTES`,
-/// `mapdata` the mapdata folder ([`routes::Source::choose`]). A file that
-/// fails to load: a warning; no file: one info line until a restart.
-fn route_table(
+/// The rows of the route table a match's bots get for its `level` and `mode` (play 17), shared by the matches on them
+/// (`files`): `var` is `SRP_BOT_ROUTES`, `mapdata` the mapdata folder ([`routes::Source::choose`]). A file that fails to
+/// load: a warning; no file: one info line until a restart.
+fn routes_of(
     id: u32,
+    files: &MapFiles,
+    level: u8,
+    mode: Mode,
     var: Option<&std::ffi::OsStr>,
     mapdata: Option<&std::path::Path>,
-) -> Option<RouteTable> {
+) -> Option<Arc<MapRoutes>> {
     let (path, named) = match routes::Source::choose(var, mapdata) {
         routes::Source::Set(path) => (path, "SRP_BOT_ROUTES"),
         routes::Source::Default(path) => (path, "bot routes"),
@@ -837,8 +791,8 @@ fn route_table(
             return None;
         }
     };
-    match RouteTable::load(&path) {
-        Ok(table) => Some(table),
+    match files.routes(&path, level, mode) {
+        Ok(rows) => Some(rows),
         Err(why) => {
             log::warn!("Match {id:#x}: {named} not used ({why})");
             None
@@ -850,15 +804,16 @@ fn route_table(
 /// `SRP_BOT_FOLIAGE`, `mapdata` the mapdata folder. A file that fails to load: a warning.
 fn foliage_of(
     id: u32,
+    files: &MapFiles,
     project: &str,
     var: Option<&std::ffi::OsStr>,
     mapdata: Option<&std::path::Path>,
-) -> Option<Foliage> {
+) -> Option<Arc<Foliage>> {
     let path = match foliage::Source::choose(var, mapdata) {
         foliage::Source::Set(path) | foliage::Source::Default(path) => path,
         foliage::Source::None => return None,
     };
-    match Foliage::load(&path, project) {
+    match files.foliage(&path, project) {
         Ok(foliage) => Some(foliage),
         Err(why) => {
             log::warn!("Match {id:#x}: the bot foliage not used ({why})");
@@ -871,15 +826,16 @@ fn foliage_of(
 /// `SRP_BOT_GRASS`, `mapdata` the mapdata folder. A file that fails to load: a warning.
 fn grass_of(
     id: u32,
+    files: &MapFiles,
     project: &str,
     var: Option<&std::ffi::OsStr>,
     mapdata: Option<&std::path::Path>,
-) -> Option<Grass> {
+) -> Option<Arc<Grass>> {
     let path = match grass::Source::choose_file(var, mapdata, grass::DEFAULT_FILE) {
         grass::Source::Set(path) | grass::Source::Default(path) => path,
         grass::Source::None => return None,
     };
-    match Grass::load(&path, project) {
+    match files.grass(&path, project) {
         Ok(grass) => Some(grass),
         Err(why) => {
             log::warn!("Match {id:#x}: the bot grass not used ({why})");

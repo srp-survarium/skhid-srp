@@ -82,7 +82,7 @@ impl Grass {
 
     /// The level of `project` (`level_01/day_2`): every weather of a level
     /// has the same grass.
-    fn level_of(project: &str) -> &str {
+    pub fn level_of(project: &str) -> &str {
         project.split('/').next().unwrap_or(project)
     }
 

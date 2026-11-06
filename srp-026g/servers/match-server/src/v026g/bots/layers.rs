@@ -10,10 +10,10 @@ use super::*;
 pub(super) struct MapLayers {
     /// The human routes of this map and mode (play 17), till the map is built and they are put on its floors.
     pub(super) routes: Vec<routes::HumanRoute>,
-    /// The map's bushes a sight line crosses (`foliage.rs`).
-    pub(super) foliage: foliage::Foliage,
-    /// The map's grass a sight line crosses (`grass.rs`).
-    pub(super) grass: grass::Grass,
+    /// The map's bushes a sight line crosses (`foliage.rs`): the copy every match on the map shares (`map_files.rs`).
+    pub(super) foliage: Arc<foliage::Foliage>,
+    /// The map's grass a sight line crosses (`grass.rs`), likewise shared.
+    pub(super) grass: Arc<grass::Grass>,
     /// The places humans spend time high on this map and their share of alive time (V-S2b).
     pub(super) perches: Vec<routes::Perch>,
     pub(super) perch_share: Option<routes::PerchShare>,
@@ -24,7 +24,7 @@ impl MapLayers {
     pub(super) fn attach(self, tactics: &mut Tactics) {
         tactics.set_routes(self.routes);
         tactics.set_perches(self.perches, self.perch_share);
-        tactics.foliage = Arc::new(self.foliage);
-        tactics.grass = Arc::new(self.grass);
+        tactics.foliage = self.foliage;
+        tactics.grass = self.grass;
     }
 }

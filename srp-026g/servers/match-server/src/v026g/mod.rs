@@ -86,8 +86,8 @@
 //! - `SRP_MAPDATA_DIR=<dir>` (default off): the `<project>.mapdata` files
 //!   (`mapdata-dump`) the server's own bots path on ([`bots::maps`]); a
 //!   map is built on a thread of its own the first time a match asks for
-//!   it, and `SRP_MAPDATA_KEEP` (default 1) built maps are kept besides
-//!   those running matches hold; `SRP_MAPDATA_AT_ONCE` (default 1) maps
+//!   it, and unloaded when no running match uses it any more (A326; the
+//!   old `SRP_MAPDATA_KEEP` is no longer read); `SRP_MAPDATA_AT_ONCE` (default 1) maps
 //!   at most are in memory, and a match on another map waits for room
 //!   with its bots on their script. Without it, or without the map's
 //!   file, bots keep their script. `SRP_MAPDATA_BUILT=<dir>` (default
@@ -331,11 +331,6 @@ impl Settings {
             },
             maps: parse_mapdata_dir(
                 var("SRP_MAPDATA_DIR").as_deref(),
-                parse_number(
-                    "SRP_MAPDATA_KEEP",
-                    var("SRP_MAPDATA_KEEP").as_deref(),
-                    bots::maps::KEEP as u32,
-                ),
                 // With "Player vs Bots" on, one map for each match against
                 // bots that may run at once (`SRP_PVB_MAX_MATCHES`).
                 session::v026g::pvb::maps_at_once(
@@ -449,14 +444,12 @@ fn parse_snapshot_dir(value: Option<&str>) -> Option<PathBuf> {
     }
 }
 
-/// `SRP_MAPDATA_DIR`: unset, empty or `off` for none; `keep` built worlds
-/// kept (`SRP_MAPDATA_KEEP`), `at_once` in memory at most
+/// `SRP_MAPDATA_DIR`: unset, empty or `off` for none; `at_once` maps in memory at most
 /// (`SRP_MAPDATA_AT_ONCE`); the built files in `built`
 /// (`SRP_MAPDATA_BUILT`: unset or empty for `<dir>/built`, `off` for none); the grids as the server's `tuning` says
 /// ([`bot_maps`]).
 pub(crate) fn parse_mapdata_dir(
     value: Option<&str>,
-    keep: u32,
     at_once: u32,
     built: Option<&str>,
     tuning: &bots::tuning::Tuning,
@@ -475,14 +468,16 @@ pub(crate) fn parse_mapdata_dir(
             None => "none (built at each load)".into(),
         };
         log::info!(
-            "Bot maps from {dir}, {} kept built, {} in memory at most; built files in {files}",
-            keep.max(1),
+            "Bot maps from {dir}, {} in memory at most, each unloaded once no match uses it; built files in {files}",
             at_once.max(1)
         );
+        if std::env::var_os("SRP_MAPDATA_KEEP").is_some() {
+            log::warn!("SRP_MAPDATA_KEEP is set but no longer read: a map no match uses is unloaded (A326)");
+        }
     } else {
         log::warn!("SRP_MAPDATA_DIR is `{dir}`, which is no directory; bots will have no maps");
     }
-    Some(bot_maps(dir.into(), keep as usize, at_once as usize, built, tuning))
+    Some(bot_maps(dir.into(), at_once as usize, built, tuning))
 }
 
 /// The bots' map store of a server whose tuning is `tuning` (`SRP_BOT_TUNING`, loaded once at its start): its grids'
@@ -491,10 +486,9 @@ pub(crate) fn parse_mapdata_dir(
 /// writes have the keys the other looks for.
 pub fn bot_maps(
     dir: std::path::PathBuf,
-    keep: usize,
     at_once: usize,
     built: Option<std::path::PathBuf>,
     tuning: &bots::tuning::Tuning,
 ) -> Arc<bots::maps::Maps> {
-    bots::maps::Maps::configured_for(Some(dir), keep, at_once, built, tuning.grid.clone(), tuning.needs_wall_clearance(), tuning.needs_open_sides())
+    bots::maps::Maps::configured_for(Some(dir), at_once, built, tuning.grid.clone(), tuning.needs_wall_clearance(), tuning.needs_open_sides())
 }

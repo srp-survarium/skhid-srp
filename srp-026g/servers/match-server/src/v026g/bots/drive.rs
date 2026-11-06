@@ -1680,7 +1680,11 @@ fn drive_tick_inner(
                     }
                     // Pressing against something while walking the route: counted, nothing is decided from it.
                     let counted = bot.contact.tick(time, walks_the_route && walked == Walked::OnTheWay, decision.keys, me.speed());
+                    // The bench's tally only (`contact::contacts`, tests only).
+                    #[cfg(test)]
                     contact::contacts::count(counted, me.feet);
+                    #[cfg(not(test))]
+                    let _ = counted;
                     if walked != Walked::OnTheWay {
                         // Fallen off it: the spot it fell from (`Stuck::fell`).
                         if let Walked::Off(off) = walked

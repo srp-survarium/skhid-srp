@@ -68,7 +68,10 @@ impl ContactWatch {
     }
 }
 
-/// The bench's counts of contacts: the contacts, the milliseconds spent in them, and where they happened.
+/// The bench's counts of contacts: the contacts, the milliseconds spent in them, and where they happened. Tests only
+/// (A326): process-wide tables, all maps mixed, that nothing in a match reads; in the server they grew for as long as it
+/// ran.
+#[cfg(test)]
 pub mod contacts {
     use std::collections::BTreeMap;
     use std::sync::Mutex;
