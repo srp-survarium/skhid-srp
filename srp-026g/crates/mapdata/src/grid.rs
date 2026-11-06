@@ -81,6 +81,7 @@ mod clearance;
 pub use clearance::{CLEARANCE_MAX_M, CLEARANCE_STEP_M};
 mod doors;
 mod drop_check;
+mod wall_give_back;
 mod exact;
 mod open;
 /// g, m/s^2 (`fall_params.gravity` 9.8, PROVEN).
@@ -240,6 +241,10 @@ pub struct Body {
     /// landing (the drops census, A313). A link that is the only way to a floor or back from it is kept. A build input: in the key when
     /// set.
     pub drop_check: bool,
+    /// [A318] Whether the floors the erosion rounds took beside a wall the body clears are given back (`grid::wall_give_back`):
+    /// the exact pass keeps them, a wall face (not a rise of the ground) stands within 0.6 m, and the client's walk tick stands a
+    /// body there. Needs [`Erosion::Exact`]. A build input: in the key when set.
+    pub wall_give_back: bool,
 }
 
 /// How the floors a body's radius from walls are taken away.
@@ -297,6 +302,7 @@ impl Body {
             drop_room_walk_faces: false,
             narrow_doors: false,
             drop_check: false,
+            wall_give_back: false,
         }
     }
 }
@@ -370,6 +376,7 @@ impl Default for Body {
             drop_room_walk_faces: false,
             narrow_doors: false,
             drop_check: false,
+            wall_give_back: false,
         }
     }
 }
@@ -874,6 +881,8 @@ pub struct BuildStats {
     /// kept because they are the only way to a floor or back from it.
     pub drops_unfollowed: usize,
     pub drops_unfollowed_kept: usize,
+    /// The floors given back beside walls the body clears ([`Body::wall_give_back`]).
+    pub wall_given_back: usize,
     /// The gap pass ([`gap`]).
     pub gaps: gap::GapStats,
 }
@@ -1044,7 +1053,8 @@ impl WalkGrid {
             .then(|| RayTree::from_corners(triangles.iter().filter(|t| t.walker != WalkerBehaviour::DontWalk).map(|t| t.v)));
         let cut = grid.cut_steep_climbs(&mut wide, &forced, &steep_face, ground.as_ref());
         let walls = (body.erosion == Erosion::Exact || body.drop_room).then(|| exact::Walls::new(triangles, x0, z0, cell, nx, nz));
-        stats.exact_eroded = grid.erode(&mut wide, &cut, &solids, walls.as_ref().filter(|_| body.erosion == Erosion::Exact));
+        (stats.exact_eroded, stats.wall_given_back) =
+            grid.erode(&mut wide, &cut, &solids, walls.as_ref().filter(|_| body.erosion == Erosion::Exact), triangles);
         if body.run_ups_after_erosion {
             (stats.sprint_cut, stats.capped_no_run_up) = grid.drop_short_run_ups(&mut wide, RunUp::Metres(SPRINT_RUN_UP_M));
         }
@@ -1646,9 +1656,16 @@ impl WalkGrid {
     /// rounds of erosion past it: a body that drops beside a wall lands
     /// clear of it.
     ///
-    /// With `walls` ([`Erosion::Exact`]) the floors still within the radius of a wall go after the rounds; how
-    /// many.
-    fn erode(&mut self, wide: &mut Wide, cut: &[u8], solids: &Solids, walls: Option<&exact::Walls>) -> usize {
+    /// With `walls` ([`Erosion::Exact`]) the floors still within the radius of a wall go after the rounds. Returns how many, and
+    /// how many [`Body::wall_give_back`] gave back after the rounds (from `triangles`, the client's collision).
+    fn erode(
+        &mut self,
+        wide: &mut Wide,
+        cut: &[u8],
+        solids: &Solids,
+        walls: Option<&exact::Walls>,
+        triangles: &[Triangle],
+    ) -> (usize, usize) {
         let n = self.height.len();
         let mut alive = vec![true; n];
         let rounds = erosion_rounds(self.body.radius, self.cell);
@@ -1684,6 +1701,10 @@ impl WalkGrid {
         if self.body.narrow_doors && let Some(walls) = walls {
             self.open_narrow_doors(wide, &mut alive, walls);
         }
+        let given_back = match walls {
+            Some(walls) if self.body.wall_give_back => self.give_back_by_walls(&mut alive, walls, triangles),
+            _ => 0,
+        };
         let furthest = rounds as i32 + 1;
         for a in 0..n {
             if !alive[a] {
@@ -1758,7 +1779,7 @@ impl WalkGrid {
             })
             .collect();
         self.compact(wide, &alive);
-        exact
+        (exact, given_back)
     }
 
     /// Whether the side of `a` along `d`, with no link, is a wall for

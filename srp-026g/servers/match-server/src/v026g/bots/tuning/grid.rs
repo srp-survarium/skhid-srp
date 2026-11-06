@@ -151,6 +151,11 @@ pub struct GridTuning {
     /// score on all maps: drift 4.02 -> 4.01 %, level_04 -0.11, no map worse; coverage, path and raised stalls the same. A grid is
     /// the map's (see `gap_links`).
     pub drop_check: bool,
+    /// [A318] Whether the floors the erosion rounds took beside a wall the body clears are given back in the maps' walk grids
+    /// (`mapdata::Body::wall_give_back`): the exact pass keeps them, a wall face stands within 0.6 m, and the client's walk tick
+    /// stands a body there (A318: the rounds took the floor under the client in 376 of the drift lab's grid holds, the exact
+    /// pass alone keeps 346). OFF until benched. A grid is the map's (see `gap_links`).
+    pub wall_give_back: bool,
 }
 
 impl Default for GridTuning {
@@ -178,6 +183,7 @@ impl Default for GridTuning {
             drop_room_walk_faces: true,
             narrow_doors: true,
             drop_check: true,
+            wall_give_back: false,
         }
     }
 }
@@ -213,6 +219,7 @@ impl GridTuning {
             drop_room_walk_faces: self.drop_room_walk_faces,
             narrow_doors: self.narrow_doors,
             drop_check: self.drop_check,
+            wall_give_back: self.wall_give_back,
             ..body
         }
     }
