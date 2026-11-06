@@ -129,7 +129,8 @@ done
 # restarting and logs that file's line (why), backing srp.db up first only
 # when the accounts are the reason. `exec` runs in the running container
 # (the volume is $TEST_DIR/volume); `run` is refused (no other container is
-# ever run on a release's hosts). A build fails with $TEST_DIR/build-fails.
+# ever run on a release's hosts). `load` (of an image built here) names a
+# new ID srp-026g:latest; it fails with $TEST_DIR/load-fails.
 cat >"$T/bin/docker" <<'EOF'
 #!/usr/bin/env bash
 printf 'docker %s\n' "$*" >>"$TEST_LOG"
@@ -168,9 +169,6 @@ started() { # the container runs: what srp does at a start
 case $1 in
 compose)
     case " $* " in
-    *" build "*)
-        if [[ -e $TEST_DIR/build-fails ]]; then echo "build: cargo failed" >&2; exit 1; fi
-        echo "sha256:$(date +%s%N | sha256sum | cut -c1-64)" >"$state/latest" ;;
     *" ps "*) echo c0ffee ;;
     *" stop "*) echo stopped >"$state/state" ;;
     *" start "*) started ;;
@@ -216,12 +214,32 @@ image)
 tag)
     if [[ $3 == srp-026g:latest ]]; then echo "$2" >"$state/tags/latest"; cp "$state/tags/latest" "$state/latest"; else echo "$2" >"$state/tags/${3//[:\/]/_}"; fi ;;
 rmi) rm -f "$state/tags/${2//[:\/]/_}" ;;
+load)
+    cat >/dev/null
+    if [[ -e $TEST_DIR/load-fails ]]; then echo "Error: unexpected EOF" >&2; exit 1; fi
+    echo "sha256:$(date +%s%N | sha256sum | cut -c1-64)" >"$state/latest"
+    echo "Loaded image: srp-026g:latest" ;;
 exec) # exec <id> <command> <path in /srv/srp/data>...: a running container only
     [[ $(cat "$state/state") == running ]] || { echo "Error response from daemon: container is not running" >&2; exit 1; }
     shift 2
     exec "${@//\/srv\/srp\/data/$TEST_DIR/volume}" ;;
 run) echo "docker run: not on a release's hosts" >&2; exit 1 ;;
 esac
+EOF
+# The image built here (lib.sh's build_image): its bytes are the source's
+# listing; it fails with $TEST_DIR/build-fails. zstd -dc: cat.
+cat >"$T/bin/build-image" <<'EOF'
+#!/usr/bin/env bash
+printf 'build-image %s\n' "$*" >>"$TEST_LOG"
+if [[ -e $TEST_DIR/build-fails ]]; then echo "build: cargo failed" >&2; exit 1; fi
+find "$1" -type f | sort >"$2"
+EOF
+export SKHID_BUILD_IMAGE_BIN=$T/bin/build-image
+cat >"$T/bin/zstd" <<'EOF'
+#!/usr/bin/env bash
+[[ $1 == -dc ]] && exec cat "$2"
+echo "zstd $*: not in the stand-in" >&2
+exit 1
 EOF
 chmod +x "$T/bin/"*
 export PATH="$T/bin:$PATH" TEST_LOG=$T/log TEST_ARGS=$T/args TEST_DIR=$T
@@ -1232,7 +1250,7 @@ run() { # <how: yes | no | wait | quiet> release.sh <args...>: its output into $
 }
 admin_log() { tr '\n' ' ' <"$T/state/admin.log" | sed 's/ $//'; }
 offers() { "$bin" info "$T/live/download/server-game-data.db" 2>/dev/null | grep -q "resources.db.$1 "; }
-nothing_staged() { ! ls "$T/live/download/".*.new "$T"/live/release-rev*/*.part "$T"/live/release-rev*/src >/dev/null 2>&1 && ! grep -qxE 'staging|swapping' "$T"/live/release-rev*/state; }
+nothing_staged() { ! ls "$T/live/download/".*.new "$T"/live/release-rev*/*.part "$T"/live/release-rev*/image.tar.zst >/dev/null 2>&1 && ! grep -qxE 'staging|swapping' "$T"/live/release-rev*/state; }
 first_line() { grep -n -- "$1" "$T/args" | tail -n +"${2:-1}" | head -n 1 | cut -d: -f1; }
 
 # The players' launcher is built from the original one in SKHID_GAME: none
@@ -1417,7 +1435,8 @@ check "release --resources: ... it shipped what was merged since the tag of 12 (
 check "release --resources: ... the rows in revision order" test "$(on_main srp-026g/client-patches/README.md | sed -n 's/^| Revision \([0-9]*\) .*/\1/p' | tr '\n' ' ')" = "10 11 12 13 4 "
 check "release: finds the changed server code" has "$out" "CHANGED   crates/a/src/lib.rs"
 check "release: tags the running image by its ID" grep -q "docker tag $running_before srp-026g:before-rev13-[0-9-]*-b" "$T/log"
-check "release: builds main's source, staged in the folder" grep -q "docker compose --env-file $T/live/.env -f release-rev13-[0-9-]*-b/src/docker-compose.yml build srp26" "$T/log"
+check "release: builds main's source here" grep -q "^build-image .*/src .*/image.tar.zst$" "$T/log"
+check "release: loads that image on the host, its upload removed" bash -c "grep -qx 'docker load -q' $T/log && test ! -e $(folder 13 b)/image.tar.zst"
 check "release: runs the new image" test "$(cat "$T/docker/running")" != "$running_before"
 check "release: the source is in place after" grep -qx "crates 2" "$T/live/crates/a/src/lib.rs"
 check "release: the old source is kept in the folder" bash -c "tar -xzOf $(folder 13 b)/old-src.tgz crates/a/src/lib.rs | grep -qx 'crates/a/src/lib.rs 1'"
@@ -1603,7 +1622,8 @@ check "release --dry-run: takes no lock" test ! -e "$T/lock"
 check "release --dry-run: shows the POST, not its secrets" has "$out" "POST http://127.0.0.1:$site_port/<SRP_ADMIN_PATH> token=<SRP_ADMIN_TOKEN> tab=maint minutes=2"
 check "release --dry-run: shows what /patches will offer" has "$out" "  patch_14 [0-9a-f]* $P/resources.db.patch_14"
 check "release --dry-run: shows the swap and the restart" has "$out" "docker compose up -d --no-deps --force-recreate srp26"
-check "release --dry-run: shows the build" has "$out" "build srp26"
+check "release --dry-run: shows the image built here and loaded" bash -c "grep -q \"server's image of main's source\" <<<\"\$1\" && grep -q 'docker load' <<<\"\$1\"" _ "$out"
+check "release --dry-run: ... builds none" bash -c "! grep -q '^build-image' $T/log"
 check "release --dry-run: says so" has "$out" "dry run: nothing was planned, uploaded or changed"
 check "release --dry-run: prints the rebuild of the site's pages with the new patch" has "$out" \
     "^  \[dry run\] would rebuild the Maps tab and the calculator (about 2 min; .*) in a worktree of [0-9a-f]*: $T/build-site --tree $T/tmp/skhid-release\.[^ ]*/site --with $T/r14/resources.db.patch_14\$"
@@ -1612,7 +1632,7 @@ check "release --dry-run: ... and the record it would make commits them" has "$o
 check "release --dry-run: ... and step 4 makes the item tables, before staging" has "$out" \
     '^\[dry run\]    then the checks of release/deploy on both, the item tables of the server data (srp-item-tables: a failure stops here), and the release folder:'
 check "release --dry-run: ... its server-code report has them changed, as the real run's" bash -c \
-    "grep -q '^             CHANGED   servers/web-server/maps/ (a real run rebuilds it)\$' <<<\"\$1\" && grep -q '^             CHANGED   servers/web-server/damage/ (a real run rebuilds it)\$' <<<\"\$1\" && grep -q '^  server code: built before the swap' <<<\"\$1\"" _ "$out"
+    "grep -q '^             CHANGED   servers/web-server/maps/ (a real run rebuilds it)\$' <<<\"\$1\" && grep -q '^             CHANGED   servers/web-server/damage/ (a real run rebuilds it)\$' <<<\"\$1\" && grep -q '^  server code: its image built here and loaded on the host before the swap' <<<\"\$1\"" _ "$out"
 check "release --dry-run: a GRID_ALGO of the live tree other than main's is warned about" has "$out" \
     "^  WARNING  the built maps (mapdata/built, [0-9]* file(s) now): pub const GRID_ALGO: u32 = 2; pub const SIGHT_ALGO: u32 = 1; on the live tree, pub const GRID_ALGO: u32 = 3; pub const SIGHT_ALGO: u32 = 1; on main: the first match on each map after the swap builds its grid and tree again"
 sed -i 's/^pub const GRID_ALGO: u32 = 2;$/pub const GRID_ALGO: u32 = 3;/' "$T/live/crates/mapdata/src/lib.rs"
@@ -1759,11 +1779,17 @@ check "release: a mirror that is a web page is a problem" has "$out" \
     "resources.db.patch_3: $M/page/resources.db.patch_3 answers with a web page"
 SKHID_RELEASE_ENV=$T/release.env
 
-# A failure before the swap: the build of the image.
+# A failure before the swap: the build of the image here stops before
+# anything is written on the host; its load there, after the tag moved.
 touch "$T/build-fails"
 run yes --minutes 2 --label c || true
 rm "$T/build-fails"
-check "release: a failed build stops before the swap" has "$out" "STOPPED before the swap"
+check "release: a failed build here stops before the swap" has "$out" "STOPPED before the swap"
+check "release: ... with no image tagged or loaded on the host" bash -c "! grep -qE '^docker (tag|load)' $T/log"
+touch "$T/load-fails"
+run yes --minutes 2 --label c || true
+rm "$T/load-fails"
+check "release: a failed load stops before the swap" has "$out" "STOPPED before the swap"
 check "release: ... before the go: plans no maintenance" test -z "$(admin_log)" -a ! -e "$T/state/maint"
 check "release: ... removes the staged files" nothing_staged
 check "release: ... puts the image tag back" grep -q "docker tag $(cat "$T/docker/running") srp-026g:latest" "$T/log"
