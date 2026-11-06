@@ -815,7 +815,12 @@ pub(super) fn camper_tick(
                 done.push(i);
             } else if !alive || now.saturating_sub(since) > give_up_ms {
                 #[cfg(test)]
-                camper::count(team, camper::GAVE_UP);
+                {
+                    camper::count(team, camper::GAVE_UP);
+                    let playing = bot_of(placer).and_then(|b| b.assignment.as_ref()).is_some_and(|a| a.kind == PlayKind::TrapSpot);
+                    let near = view.place(placer).is_some_and(|b| b.feet.distance_xz(c.at) <= j.within_m + t.reach_m + 1.0);
+                    camper::count(team, if !playing { camper::GAVE_UP_NOT_PLAYING } else if near { camper::GAVE_UP_AT } else { camper::GAVE_UP_FAR });
+                }
                 c.state = CamperTrapState::Open;
             }
         }
@@ -878,8 +883,26 @@ pub mod camper {
     pub const SENT: usize = 4;
     pub const GAVE_UP: usize = 5;
     pub const PLACED: usize = 6;
-    pub const NAMES: [&str; 7] = ["noted_approach", "noted_death", "no_way", "no_placer_ticks", "sent", "gave_up", "placed"];
-    static TEAM: [[AtomicU64; 7]; 2] = [const { [const { AtomicU64::new(0) }; 7] }; 2];
+    /// Let go: its play was not `TrapSpot` then; it was farther from the point than it places from; it was at the point.
+    pub const GAVE_UP_NOT_PLAYING: usize = 7;
+    pub const GAVE_UP_FAR: usize = 8;
+    pub const GAVE_UP_AT: usize = 9;
+    /// Thinks of a sent bot: on its way; at the point refused by the gate; no look; no spot by the point; waited for it; a trap
+    /// planned by the point; one planned elsewhere; a `TrapSpot` play whose job is over (nothing planned).
+    pub const THINK_WALKING: usize = 10;
+    pub const THINK_GATE: usize = 11;
+    pub const THINK_NO_LOOK: usize = 12;
+    pub const THINK_NO_SPOT: usize = 13;
+    pub const THINK_WAITED: usize = 14;
+    pub const THINK_PLANNED: usize = 15;
+    pub const THINK_PLANNED_ELSE: usize = 16;
+    pub const THINK_JOB_OVER: usize = 17;
+    pub const NAMES: [&str; 18] = [
+        "noted_approach", "noted_death", "no_way", "no_placer_ticks", "sent", "gave_up", "placed", "gave_up_not_playing", "gave_up_far",
+        "gave_up_at", "think_walking", "think_gate", "think_no_look", "think_no_spot", "think_waited", "think_planned",
+        "think_planned_else", "think_job_over",
+    ];
+    static TEAM: [[AtomicU64; 18]; 2] = [const { [const { AtomicU64::new(0) }; 18] }; 2];
 
     pub fn count(team: u8, kind: usize) {
         TEAM[usize::from(team & 1)][kind].fetch_add(1, Ordering::Relaxed);
@@ -1509,6 +1532,14 @@ pub(super) fn think(bot: &mut Bot, due: &Due, state: &mut TeamState, notes: &mut
     if let Some((at, j)) = job
         && me.feet.distance_xz(at) > j.within_m + t.reach_m + 1.0
     {
+        #[cfg(test)]
+        camper::count(me.team, camper::THINK_WALKING);
+        return;
+    }
+    // A job's play whose job is over (placed, let go, its time out): no trap on the rest of its way.
+    if job.is_none() && bot.assignment.as_ref().is_some_and(|a| a.kind == PlayKind::TrapSpot) {
+        #[cfg(test)]
+        camper::count(me.team, camper::THINK_JOB_OVER);
         return;
     }
     #[cfg(test)]
@@ -1538,6 +1569,9 @@ pub(super) fn think(bot: &mut Bot, due: &Due, state: &mut TeamState, notes: &mut
             gates::count(gates::of(refusal));
             if waiting {
                 onpass::count(me.team, onpass::LOST_GATE);
+            }
+            if job.is_some() {
+                camper::count(me.team, camper::THINK_GATE);
             }
         }
         return;
@@ -1589,7 +1623,12 @@ pub(super) fn think(bot: &mut Bot, due: &Due, state: &mut TeamState, notes: &mut
             None => {
                 bot.features.traps.tally.no_look();
                 #[cfg(test)]
-                gates::count(gates::NO_LOOK);
+                {
+                    gates::count(gates::NO_LOOK);
+                    if job.is_some() {
+                        camper::count(me.team, camper::THINK_NO_LOOK);
+                    }
+                }
                 return;
             }
         },
@@ -1709,6 +1748,10 @@ pub(super) fn think(bot: &mut Bot, due: &Due, state: &mut TeamState, notes: &mut
                 defeated::count_team(me.team, defeated::WAITED);
             }
             bot.features.traps.tally.waited_wish();
+            #[cfg(test)]
+            if job.is_some() {
+                camper::count(me.team, camper::THINK_WAITED);
+            }
             return;
         }
     }
@@ -1748,6 +1791,17 @@ pub(super) fn think(bot: &mut Bot, due: &Due, state: &mut TeamState, notes: &mut
     }
     #[cfg(test)]
     gates::count(if chosen.is_some() { gates::PLANNED } else { gates::NO_SPOT });
+    #[cfg(test)]
+    if job.is_some() {
+        camper::count(
+            me.team,
+            match chosen {
+                Some(c) if c.wished => camper::THINK_PLANNED,
+                Some(_) => camper::THINK_PLANNED_ELSE,
+                None => camper::THINK_NO_SPOT,
+            },
+        );
+    }
     if let Some(chosen) = chosen {
         #[cfg(test)]
         if chosen.wished && on_cleared {
