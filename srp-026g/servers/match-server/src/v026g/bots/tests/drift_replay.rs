@@ -187,7 +187,10 @@ fn drift_on_a_real_match() {
             .collect()
     });
     let ticks_out = var("SRP_A304_TICKS");
-    let mut tick_rows = String::from("place,world_t,tick,t,x,y,z,vx,vy,vz,node,held\n");
+    // Columns: rec (`SRP_A304_REC`), the feet and the velocity over the tick, the grid node within 0.5 m (-1 none), its floor height
+    // (empty for none) and whether the grid held the step. The intended velocity is the reference's (`ivx,ivz`: the same kin both sides).
+    let tick_rec = var("SRP_A304_REC").unwrap_or_default();
+    let mut tick_rows = String::from("rec,place,world_t,tick,t,x,y,z,vx,vy,vz,node,floor_y,held\n");
     for w in rows {
         while k < ticks.len() && ticks[k].0 <= w.time + WORLD_LATE_MS {
             let (time, place, keys, turn) = ticks[k];
@@ -205,9 +208,11 @@ fn drift_on_a_real_match() {
                 for (i, (t, feet, held)) in track.trail_between(was, w.time).into_iter().enumerate() {
                     let dt = (t.saturating_sub(last.0)).max(1) as f32 / 1000.0;
                     let v = (feet - last.1) * (1.0 / dt);
-                    let node = world.grid.locate(feet, 0.5).map_or(-1, i64::from);
+                    let located = world.grid.locate(feet, 0.5);
+                    let node = located.map_or(-1, i64::from);
+                    let floor_y = located.map_or(String::new(), |n| format!("{:.3}", world.grid.position(n).y));
                     tick_rows.push_str(&format!(
-                        "{},{was},{},{t},{:.3},{:.3},{:.3},{:.3},{:.3},{:.3},{node},{}\n",
+                        "{tick_rec},{},{was},{},{t},{:.3},{:.3},{:.3},{:.3},{:.3},{:.3},{node},{floor_y},{}\n",
                         w.place,
                         i + 1,
                         feet.x,
