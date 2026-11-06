@@ -115,7 +115,7 @@ def check(pack, inputs):
     assert len(entries) == len(rows) == 8 and not any(row['is_premium'] for row in entries)
     native = bcw.loads((base / DICTIONARY).read_bytes())['items_dict']
     e046_manifest = json.loads((inputs / 'equipment046' / E046_MANIFEST).read_text())
-    assert (e046_manifest['id'], e046_manifest['version']) == ('equipment-046', '4'), 'not equipment-046@4'
+    assert (e046_manifest['id'], e046_manifest['version']) == ('equipment-046', '8'), 'not equipment-046@8'
     e046_rows = e046_entries(e046_manifest)
     by_id = {row['dict_id']: row for row in native + entries}
     assert len(by_id) == len(native) + len(entries), 'dictionary id collision'

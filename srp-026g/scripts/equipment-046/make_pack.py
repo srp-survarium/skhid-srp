@@ -30,10 +30,11 @@ from donors import equipment029  # noqa: E402
 e029 = equipment029()
 bcw, atlas, cell, png = e029.bcw, e029.atlas, e029.cell, e029.png
 drawable_material = e029.drawable_material
-from prepare_inputs import LATER_STAGE_KEYS, sound_file, specs  # noqa: E402
+from prepare_inputs import (LATER_STAGE_KEYS, NATIVE_HEAD, made_on_stand_in, sound_file, specs,  # noqa: E402
+                            worn)
 
 PACK = 'equipment-046'
-VERSION = '4'
+VERSION = '8'
 DICTIONARY = 'gameplay/db_static_dictionaries'
 GAME_OPTIONS = 'gameplay/game.options'
 MODIFICATIONS = 'gameplay/items/modifications/modifications.options'
@@ -112,6 +113,118 @@ def surface_chunks(raw):
     if [struct.unpack_from('<I', out, 0)[0], struct.unpack_from('<I', out, 8 + struct.unpack_from('<I', out, 4)[0])[0]] != [3, 4]:
         raise ValueError('surface without its vertex and index chunks')
     return bytes(out)
+
+
+def surface_mesh(raw):
+    """(positions as float64 n x 3, triangles, vertex stride) of a skinned surface."""
+    import numpy as np
+    kind, size, count = struct.unpack_from('<III', raw, 0)
+    stride = (size - 4) // count
+    if kind != 3 or 4 + count * stride != size:
+        raise ValueError('not a skinned surface')
+    vertices = np.frombuffer(raw, np.uint8, count * stride, 12).reshape(count, stride)
+    positions = vertices.copy().view('<f4').reshape(count, stride // 4)[:, :3].astype(float)
+    _, _, indices = struct.unpack_from('<III', raw, 8 + size)
+    return positions, np.frombuffer(raw, '<u2', indices, 8 + size + 12).reshape(-1, 3).astype(int), stride
+
+
+def farthest_hits(origin, directions, positions, triangles):
+    """For each unit direction from origin, the farthest distance at which it leaves the mesh
+    (and the triangle and its barycentric weights there), or nan."""
+    import numpy as np
+    a, b, c = (positions[triangles[:, k]] for k in range(3))
+    e1, e2 = b - a, c - a
+    p = np.cross(directions[:, None, :], e2[None])
+    det = (e1[None] * p).sum(-1)
+    ok = np.abs(det) > 1e-12
+    inv = np.where(ok, 1 / np.where(ok, det, 1), 0)
+    t0 = origin - a
+    u = (t0[None] * p).sum(-1) * inv
+    q = np.cross(t0, e1)
+    v = (directions @ q.T) * inv
+    t = (e2 * q).sum(-1)[None] * inv
+    hit = ok & (u >= -1e-6) & (v >= -1e-6) & (u + v <= 1 + 1e-6) & (t > 0)
+    t = np.where(hit, t, -np.inf)
+    best = t.argmax(1)
+    rows = np.arange(len(directions))
+    far = t[rows, best]
+    weights = np.stack([1 - u[rows, best] - v[rows, best], u[rows, best], v[rows, best]], 1)
+    return np.where(np.isfinite(far), far, np.nan), best, weights
+
+
+# Gap kept between the native head and a fitted mask (resource-porter mask_fit's CLEARANCE).
+HEAD_CLEARANCE = 0.004
+
+
+def outward(positions, triangles, centre):
+    """Whether each vertex's surface faces away from centre, whatever the winding: the native
+    head (a closed outer skin) gives the sign of an outward face's normal."""
+    import numpy as np
+    tri = positions[triangles]
+    normals = np.zeros_like(positions)
+    for corner in range(3):
+        np.add.at(normals, triangles[:, corner], np.cross(tri[:, 1] - tri[:, 0], tri[:, 2] - tri[:, 0]))
+    d = positions - centre
+    return (normals * d).sum(1) / np.maximum(np.linalg.norm(normals, axis=1) * np.linalg.norm(d, axis=1), 1e-12)
+
+
+def fit_to_native_head(raw, head_raw):
+    """A mask surface made on a stand-in head, pushed out wherever the native head would show
+    through it, by resource-porter mask_fit's outward push (rays from inside the skull, 4 mm
+    clearance, each push spread to the neighbours so the straps stay smooth). Only what can
+    be seen moves: the mask's outer surface inside the head (a strap sunk in the skull) and
+    the head showing through the mask's outermost surface. The inner rim a respirator seals
+    on the face with lies in the native face as it lay in the stand-in's, unseen; pushing it
+    would swell the shell over it. The mask keeps its place: its donor's stand-in head is on
+    the native skeleton, so there are no eye holes to move and no hem to tuck. Returns the
+    surface and (pushed vertices, largest push)."""
+    import numpy as np
+    positions, triangles, stride = surface_mesh(raw)
+    head, head_triangles, _ = surface_mesh(head_raw)
+    lo, hi = head.min(0), head.max(0)
+    # Rays start at eye height on the skull's axis; the neck (the lowest 9 cm) casts none and
+    # takes none: its rays run steeply down and would drag the chin part.
+    centre = np.array([(lo[0] + hi[0]) / 2, lo[1] + 0.62 * (hi[1] - lo[1]), (lo[2] + hi[2]) / 2])
+    floor = lo[1] + 0.09
+    skull = head[head[:, 1] > floor]
+    keys = {}
+    weld = np.array([keys.setdefault(tuple(np.round(p * 1e5).astype(int)), len(keys)) for p in positions])
+    neighbours = [set() for _ in keys]
+    for tri in triangles:
+        for x, y in ((tri[0], tri[1]), (tri[1], tri[2]), (tri[2], tri[0])):
+            neighbours[weld[x]].add(weld[y])
+            neighbours[weld[y]].add(weld[x])
+    start = positions.copy()
+    sign = np.sign(np.median(outward(head, head_triangles, centre)))
+    facing = sign * outward(positions, triangles, centre) > 0.2
+    for _ in range(30):
+        need = np.zeros(len(keys))
+        d = positions - centre
+        r = np.linalg.norm(d, axis=1)
+        far, _, _ = farthest_hits(centre, d / r[:, None], head, head_triangles)
+        inside = (positions[:, 1] > floor) & np.isfinite(far) & facing
+        np.maximum.at(need, weld[inside], np.maximum(far[inside] + HEAD_CLEARANCE - r[inside], 0))
+        d = skull - centre
+        r = np.linalg.norm(d, axis=1)
+        far, tri, weights = farthest_hits(centre, d / r[:, None], positions, triangles)
+        poke = np.isfinite(far) & (r + HEAD_CLEARANCE - far > 0)
+        for depth, corners, w in zip((r + HEAD_CLEARANCE - far)[poke], triangles[tri[poke]], weights[poke]):
+            for corner, b in zip(corners, w):
+                need[weld[corner]] = max(need[weld[corner]], depth * min(0.3 + b * 1.4, 1.0))
+        if need.max() < 0.0003:
+            break
+        for _ in range(4):
+            need = np.array([max(need[v], 0.6 * np.mean([need[u] for u in n])) if n else need[v]
+                             for v, n in enumerate(neighbours)])
+        d = positions - centre
+        positions += d / np.linalg.norm(d, axis=1)[:, None] * need[weld][:, None]
+    else:
+        raise ValueError('mask did not clear the native head after 30 passes')
+    out = bytearray(raw)
+    for i, p in enumerate(positions):
+        struct.pack_into('<3f', out, 12 + i * stride, *p)
+    push = np.linalg.norm(positions - start, axis=1)
+    return bytes(out), (int((push > 1e-4).sum()), float(push.max()))
 
 
 def lod0_settings(settings):
@@ -243,12 +356,10 @@ def convert(source, template, spec, released, plain=None):
         result['hit_params'] = copy.deepcopy(plain['hit_params'])
     for section in data_sections(result):
         section.pop('damage_protection', None)  # 0.31's; 0.26g reads hit_params
-        # Masks are worn over the player's native head (owner's rule for ported headwear),
-        # but a closed shell over the whole head (covers_head) takes the head's place, as
-        # in its donor: the native skull pokes through it (the Spectrum-M, 2026-10-30).
-        if spec['covers_head'] and section.get('remove_head_model') is True:
-            continue
-        section.pop('remove_head_model', None)
+    # Masks are worn over the player's native head (owner's rule for ported headwear),
+    # but a closed shell over the whole head (covers_head) takes the head's place, as
+    # in its donor: the native skull pokes through it (the Spectrum-M, 2026-10-30).
+    worn(result, spec['covers_head'])
     if result['data']['type'] != 5:
         raise ValueError(f"{spec['id']}: unsupported donor equipment data type {result['data']['type']}")
     result['data']['type'] = DATA_TYPE
@@ -330,9 +441,17 @@ def write_pack(inputs, out):
     renamed = {material_name(path): material_name(path) + OWN_MATERIAL
                for paths in asset_paths.values() for path in paths
                if path.endswith('.material') and path in base_files}
+    # Masks made on a donor's stand-in head (the Veles Mask) are fitted onto the native head.
+    fitted = set().union(*(made_on_stand_in(source_of(spec), spec['covers_head']) for spec in rows))
+    native_head = inputs.read('base', NATIVE_HEAD) if fitted else None
     for group, paths in asset_paths.items():
         for path in paths:
             raw = asset(path, inputs.read(group, path), shipped, textures, renamed)
+            model = path.removeprefix('models/').split('.skinned_model/', 1)[0]
+            if path.endswith('/converted_model') and model in fitted:
+                raw, (moved, push) = fit_to_native_head(raw, native_head)
+                print(f'{path}: fitted on the native head, {moved} vertices moved, at most {push * 100:.1f} cm',
+                      file=sys.stderr)
             if path.endswith('/settings'):
                 model = path.removeprefix('models/').removesuffix('.skinned_model/settings')
                 surfaces[model] = bcw.loads(raw)['lod_hierrarchy']['LOD0']['surfaces']

@@ -2381,6 +2381,8 @@ st_srp_equipment046_edge_back_6_desc	Description not available yet.
 st_srp_equipment046_edge_back_6_name	Stalker's backpack
 st_srp_equipment046_edge_back_7_desc	Description not available yet.
 st_srp_equipment046_edge_back_7_name	Token
+st_srp_equipment046_edge_boots_6_desc	Description not available yet.
+st_srp_equipment046_edge_boots_6_name	Stalker's laced boots
 st_srp_equipment046_edge_boots_7_desc	Description not available yet.
 st_srp_equipment046_edge_boots_7_name	Sorcerer Boots
 st_srp_equipment046_edge_gloves_5_desc	Description not available yet.
@@ -2395,6 +2397,8 @@ st_srp_equipment046_edge_legs_7_desc	Description not available yet.
 st_srp_equipment046_edge_legs_7_name	Veles Pants
 st_srp_equipment046_edge_mask_6_desc	Description not available yet.
 st_srp_equipment046_edge_mask_6_name	NVD
+st_srp_equipment046_edge_mask_7_desc	Description not available yet.
+st_srp_equipment046_edge_mask_7_name	Veles Mask
 st_srp_equipment046_edge_torso_7_desc	Description not available yet.
 st_srp_equipment046_edge_torso_7_name	Veles Vest
 st_srp_equipment046_renesanse_boots_3_desc	Description not available yet.
@@ -2405,6 +2409,8 @@ st_srp_equipment046_renesanse_gloves_3_desc	Description not available yet.
 st_srp_equipment046_renesanse_gloves_3_name	OZK-UV Gloves
 st_srp_equipment046_renesanse_gloves_5_desc	Description not available yet.
 st_srp_equipment046_renesanse_gloves_5_name	Scout's gloves
+st_srp_equipment046_renesanse_gloves_6_desc	Description not available yet.
+st_srp_equipment046_renesanse_gloves_6_name	"Shturm" gloves
 st_srp_equipment046_renesanse_gloves_7_desc	Description not available yet.
 st_srp_equipment046_renesanse_gloves_7_name	Sniper gloves
 st_srp_equipment046_renesanse_helmet_7_desc	Description not available yet.
@@ -2421,6 +2427,8 @@ st_srp_equipment046_renesanse_torso_7_desc	Description not available yet.
 st_srp_equipment046_renesanse_torso_7_name	Sniper Vest
 st_srp_equipment046_scavenger_boots_5_desc	Description not available yet.
 st_srp_equipment046_scavenger_boots_5_name	Saboteur boots
+st_srp_equipment046_scavenger_boots_6_desc	Description not available yet.
+st_srp_equipment046_scavenger_boots_6_name	Reinforced padded boots
 st_srp_equipment046_scavenger_boots_7_desc	Description not available yet.
 st_srp_equipment046_scavenger_boots_7_name	Pathfinder boots
 st_srp_equipment069_league_shadow_mask_desc	Description not available yet.

@@ -8,7 +8,9 @@
 - `equipment-069@2` adds the owner's pick of 2026-11-05: the Snow-20 vest, pants,
   gloves, boots and helmet, and the Delta mask (below, "Snow-20 and the Delta
   mask"); `@3` (2026-11-06, the owner after seeing it in game) makes the Delta
-  mask a light, aim-speed mask.
+  mask a light, aim-speed mask; `@4` draws metal without diffuse (the Snow-20
+  vest's plates were white; below, "Metal") and copies the Sniper set of
+  equipment-046@8 (level 12).
 
 Every number here is a proposal. Balance is the owner's call.
 
@@ -35,7 +37,14 @@ Every number here is a proposal. Balance is the owner's call.
   - Both are switch combinations a released character draws.
   - The ranges come from seven backpacks that both builds ship: they are the
     medians of per-texel fits of the native maps against 0.69d's.
-    0.69d's albedo is as bright as 0.26g's diffuse, so it is used as it is.
+    0.69d's albedo is as bright as 0.26g's diffuse where it is not metal.
+  - Metal (since @4): 0.69d draws a metallic texel's albedo as the colour of
+    its reflection and gives it no diffuse light, so the diffuse map is
+    albedo x (1 - metalness) (ImageMagick composites it; the albedo's alpha
+    left out). Before @4 the albedo was the diffuse as it is, and metal drew as
+    bright as its albedo: the Snow-20 vest's chest plates white where 0.69d and
+    its icon show them dark. The bags' buckles and the rucksack's axe blade
+    darken the same way (`private/renders/equipment-069-snow-delta/`).
 - Textures: 2048 down to the native 1024, using the maps' own mips. The bag's
   DXT5 albedo becomes DXT1 with the same colours (0.26g's character colour
   maps carry no alpha, and its material uses none). Each map gets the native
@@ -130,7 +139,7 @@ Every number here is a proposal. Balance is the owner's call.
 
 - The levels, weights, prices and drop weights above.
 
-## Snow-20 and the Delta mask (equipment-069@2, @3)
+## Snow-20 and the Delta mask (equipment-069@2 to @4)
 
 The owner's pick of 2026-11-05 ("make sure they fit properly and are well
 balanced with their quirks"): the Snow-20 vest, pants, gloves, boots and helmet
@@ -161,10 +170,19 @@ balanced with their quirks"): the Snow-20 vest, pants, gloves, boots and helmet
   `two_sided`); its template is the combat torso's material. 0.26g has no
   character material with an alpha test, both sides and all four maps whose
   textures ship (the Stalker backpack's are placeholders), and the live Sniper
-  ghillie draws without an alpha test too.
+  ghillie draws without an alpha test too (0.69d's own snow ghillie has no
+  clear texels; it is dark, mean 24/255).
+- The vest's plates are metal: since @4 they draw dark as in 0.69d (backpacks'
+  "Metal" above). The three lengths of the vest and of the pants draw the same
+  two materials each (torso or legs, and the ghillie).
+- The pants end where the Sniper pants do (the same mesh): lowest vertex at
+  8.4-8.9 cm, the native combat pants' at 10.7-11.0 cm; the Snow-20 boots (and
+  the Sniper's) pick the medium length, which goes into the boot (its top at
+  27.5 cm). Nothing cut.
 - Config: the equipment-046 Sniper piece's whole (`template`
-  `equipment-046:<id>`: parameters, protection, regions, models' parts, sounds,
-  card, price, level 10, Renaissance Army, drop weight 60), drawn with the snow
+  `equipment-046:<id>`, equipment-046@8: parameters, protection, regions,
+  models' parts, sounds, card, price, level 12, Renaissance Army, drop weight
+  40), drawn with the snow
   models, with the row's built-ins: the piece's own built-in bonus becomes the
   winter isolation, +20 % on every region (1023, the second-strongest of its
   kind, as built-in-bonuses-1 sets them). The live Sniper pieces carry 0.31a2's
@@ -173,8 +191,11 @@ balanced with their quirks"): the Snow-20 vest, pants, gloves, boots and helmet
   energy costs -8 %) for the isolation. The Sniper helmet has no built-in
   bonus, so the Snow-20 helmet has none either: an isolation bonus added to it
   would make it strictly better than the Sniper helmet.
-- `balance_audit.py` compares each Snow-20 piece with its Sniper twin (the only
-  piece of the same level, kind, regions and slots in its inputs): none is
+- The numbers (equipment-046@8's Sniper set, the owner, 2026-11-06): vest
+  75 / 5, 6 kg, 73,500; pants 75 / 5, 1.5 kg, 36,750; helmet 55 / 5, 1 kg,
+  45,500; gloves 75 / 2, 0.2 kg, 18,380; boots 75 / 2, 0.5 kg, 18,380.
+- `balance_audit.py` compares each Snow-20 piece with the level-12 pieces of
+  the same kind, regions and slots, its Sniper twin among them: none is
   strictly better or worse; the helmets are equal.
 
 ### The Delta mask
@@ -213,7 +234,10 @@ balanced with their quirks"): the Snow-20 vest, pants, gloves, boots and helmet
 `private/renders/equipment-069-snow-delta/` (README.txt there): the Delta mask
 on the three native heads and under eight live helmets, and a close-up of its
 mount under the helmets; the Sniper set (before) and the Snow-20 (after); the
-Snow-20 with a backpack and masks.
+Snow-20 with a backpack and masks. Since @4 also: 0.69d's own look (its icons,
+its model drawn with its maps) beside ours @3 | @4; the vest on its three
+lengths; the set; the pants' ends with and without boots beside native pants;
+the backpacks' and the Delta mask's metal @3 | @4.
 
 ### Decisions (the owner, 2026-11-05)
 
@@ -228,7 +252,8 @@ Snow-20 with a backpack and masks.
 
 - The snow materials (gloss and Fresnel from the fitted ranges), the dark
   ghillie (0.69d's own albedo is dark, mean 24/255; drawn without an alpha
-  test like the live Sniper's).
+  test like the live Sniper's), the metal now without diffuse (the vest's
+  plates, the bags' buckles: their shine is the Fresnel map's).
 - The six icons in the lobby (0.69d's, cells column 8 rows 20-22, column 9
   rows 14-16).
 

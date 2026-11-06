@@ -1,6 +1,6 @@
 # Armour from 0.69d
 
-`equipment-069@3` adds 0.69d-only armour: the two backpacks that equipment-046 left out,
+`equipment-069@4` adds 0.69d-only armour: the two backpacks that equipment-046 left out,
 the Medic's bag (1357) and the Soldier's backpack (1359), the Snow-20 vest, pants, gloves,
 boots and helmet (1878-1881, 1883) and the Delta mask (1882). What ships, the balance
 proposals and the open questions are in
@@ -47,16 +47,16 @@ python srp-026g/scripts/equipment-069/prepare_inputs.py --bundle <bundle> \
   --source069 <0.69d files> --stock /path/to/stock-026g/resources.db \
   --patches ~/.cache/skhid-release/patches \
   --game-data-bin srp-026g/target/release/srp-game-data \
-  --equipment046 private/content-packs/equipment-046-4 --out <inputs folder>
+  --equipment046 private/content-packs/equipment-046-8 --out <inputs folder>
 python srp-026g/scripts/equipment-069/make_pack.py \
-  --inputs <inputs folder> --out private/content-packs/equipment-069-3
+  --inputs <inputs folder> --out private/content-packs/equipment-069-4
 python srp-026g/scripts/equipment-069/check_pack.py \
-  private/content-packs/equipment-069-3 <inputs folder>
+  private/content-packs/equipment-069-4 <inputs folder>
 python srp-026g/scripts/equipment-069/balance_audit.py \
-  private/content-packs/equipment-069-3 <inputs folder> --out <report.json>
+  private/content-packs/equipment-069-4 <inputs folder> --out <report.json>
 ```
 
-`--equipment046` is equipment-046@4's built pack (its make_pack.py's folder): the configs
+`--equipment046` is equipment-046@8's built pack (its make_pack.py's folder): the configs
 of the pieces copied whole and the surfaces they draw are inputs. `prepare_inputs.py --pin`
 computes the inputs from `items.tsv` and the bundle instead, and writes `inputs.sha256`.
 Output folders must be new. A changed pack is a new version: its folder, `VERSION` in
