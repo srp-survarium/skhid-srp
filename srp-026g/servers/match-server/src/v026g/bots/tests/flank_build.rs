@@ -21,7 +21,7 @@
 //! - a route ends at the first floor of its last run of floors from which the spot is seen (where it fires from).
 //!
 //! The routes kept: the human ones and the [`KEEP`] best of the searched, by length plus [`SEEN_WEIGHT`] times the seen
-//! metres, each written as its floors' feet points and checked by reading it back onto the same grid.
+//! metres, each written as feet points about 0.75 m apart and checked by reading it back onto the same grid.
 
 use std::cell::RefCell;
 use std::collections::HashMap;
@@ -31,12 +31,14 @@ use serde::Deserialize;
 use survarium::v026g::maps::RuleMode;
 
 use super::*;
-use crate::v026g::bots::camp_flank::{FlankTable, Origin};
+use crate::v026g::bots::camp_flank::{FlankTable, Origin, one_walk};
 use crate::v026g::bots::rays::visible;
 use crate::v026g::bots::view::{CHEST, still_eye};
 
 /// The height over a floor that the spot's eyes are tested against: a crouched flanker's top (fx-grid's review), m.
 const EXPOSED_TOP_M: f32 = 1.04;
+/// A written route point about every this, m (the loader walks straight between two).
+const POINT_GAP_M: f32 = 0.75;
 /// A seen floor's cost per metre over a hidden one's.
 const SEEN_WEIGHT: f32 = 20.0;
 /// What a floor of a route already kept costs over its own, for the next search (diversity).
@@ -180,7 +182,27 @@ fn spread(grid: &WalkGrid, floors: impl Iterator<Item = NodeId>, gap: f32, n: us
     out
 }
 
-/// The feet points of a route: each floor's (the loader puts each back on its floor).
+/// The floors of a route that are written: one about every [`POINT_GAP_M`], both ends of each link that is not a step on
+/// the level, and the last; a floor is kept too wherever leaving it out would leave two written floors in a row that are
+/// not one walk apart for the loader ([`one_walk`]).
+fn written(grid: &WalkGrid, floors: &[NodeId]) -> Vec<NodeId> {
+    let Some(&first) = floors.first() else { return Vec::new() };
+    let level = |a: NodeId, b: NodeId| grid.links(a).any(|(n, k)| n == b && k == LinkKind::Walk);
+    let mut out = vec![first];
+    for i in 1..floors.len() {
+        let (prev, here) = (*out.last().unwrap(), floors[i]);
+        let last = i + 1 == floors.len();
+        let far = grid.position(here).distance_xz(grid.position(prev)) >= POINT_GAP_M;
+        let leap = !level(floors[i - 1], here) || floors.get(i + 1).is_some_and(|&next| !level(here, next));
+        let broken = floors.get(i + 1).is_some_and(|&next| !one_walk(grid, prev, next));
+        if last || far || leap || broken {
+            out.push(here);
+        }
+    }
+    out
+}
+
+/// The feet points of floors (the loader puts each back on its floor).
 fn points(grid: &WalkGrid, floors: &[NodeId]) -> Vec<[f32; 3]> {
     floors
         .iter()
@@ -328,6 +350,7 @@ fn routes_of(world: &World, spot: &InSpot, camper_side: i32) -> (Vec<serde_json:
 }
 
 fn row(grid: &WalkGrid, origin: Origin, r: &Found) -> serde_json::Value {
+    let kept = written(grid, &r.floors);
     let origin = match origin {
         Origin::Human => "human",
         Origin::AstarNearWin => "astar_near_win",
@@ -335,8 +358,8 @@ fn row(grid: &WalkGrid, origin: Origin, r: &Found) -> serde_json::Value {
     };
     serde_json::json!({
         "origin": origin,
-        "points": points(grid, &r.floors),
-        "fire": r.floors.len() - 1,
+        "points": points(grid, &kept),
+        "fire": kept.len() - 1,
         "exposed_m": (r.seen_m * 10.0).round() / 10.0,
     })
 }

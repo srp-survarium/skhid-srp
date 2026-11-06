@@ -285,7 +285,7 @@ impl RouteRow {
 }
 
 /// Whether `b` is one walk from `a`: the same floor, a link of `a`'s (a step, a drop, a jump), or a straight walk.
-fn one_walk(grid: &WalkGrid, a: NodeId, b: NodeId) -> bool {
+pub(crate) fn one_walk(grid: &WalkGrid, a: NodeId, b: NodeId) -> bool {
     a == b || grid.links(a).any(|(n, _)| n == b) || grid.walks_straight(a, b, MAX_STEP_M, |_| true)
 }
 
