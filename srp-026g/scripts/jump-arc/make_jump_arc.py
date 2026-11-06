@@ -90,7 +90,9 @@ const PREPARE_M: f32 = 0.82;
 /// `step_down` 0x7E1B0 falls by it outside the jump).
 const GRAVITY: f32 = 9.8;
 /// `step_down` 0x7E1B0 (port `controller/tick.rs`): under `on_ground_max_vertical_speed` 2.0 m/s (`startup.cfg`) an airborne tick
-/// sinks only `additional_down_speed` 0.05 m while the speed still gains g dt; over it, the speed times the tick (fx-gear-2's read).
+/// sinks only `additional_down_speed` 0.05 m while the speed still gains g dt; over it, the new speed times the tick ((v + a dt).y
+/// * tick). The test is on the tick's starting speed (tick.rs:267-269): from rest 5 slow ticks, then 2.45, 2.94 m/s (fx-gear-2's
+/// corrected probe: -1.00 x5, then -2.45, -2.94, -3.43).
 const SLOW_FALL_MS: f32 = 2.0;
 const SLOW_FALL_STEP_M: f32 = 0.05;
 /// The lowest and highest heights over the feet whose rays a wall holds a body in the air at, m (the stand-in's lowest and
@@ -333,8 +335,8 @@ impl JumpArc {
         let body = grid.body();
         let (radius, height) = (body.radius, body.stand_height);
         if let Phase::Fall { speed } = self.phase {
-            let speed = speed + GRAVITY * dt;
-            let y = feet.y - if speed < SLOW_FALL_MS { SLOW_FALL_STEP_M } else { speed * dt };
+            let (speed, drop) = fall_tick(speed, dt);
+            let y = feet.y - drop;
             if let Some((top, node)) = perch_over(grid, walls, Vec3::new(feet.x, y, feet.z), feet.y, radius) {
                 return ArcStep::Landed(Vec3::new(feet.x, top, feet.z), node);
             }
@@ -504,6 +506,15 @@ fn perch_along(grid: &WalkGrid, walls: Option<&RayTree>, feet: Vec3, at: Vec3, r
     })
 }
 
+/// One tick of a fall at `speed` m/s (down positive): the new speed and the drop, m. The slow test reads the tick's starting speed,
+/// before this tick's g (port `controller/tick.rs:267-269`); a fast tick moves the new speed times the tick (`step_down` 0x7E1B0:
+/// (v + a dt).y * tick).
+fn fall_tick(speed: f32, dt: f32) -> (f32, f32) {
+    let slow = speed < SLOW_FALL_MS;
+    let speed = speed + GRAVITY * dt;
+    (speed, if slow { SLOW_FALL_STEP_M } else { speed * dt })
+}
+
 /// The floor a body in the air at `at` comes down on (`tests/standin_jump.rs` `air_floor`): the highest whose cell holds it at or
 /// below `top`, else the highest within the body's radius (the nearest of them); its floor and where the feet stand.
 fn air_floor(grid: &WalkGrid, at: Vec3, top: f32) -> Option<(NodeId, Vec3)> {
@@ -636,6 +647,21 @@ mod tests {
         let v = Clip::Short(Direction::Forward).end_descent();
         assert!((6.0..8.0).contains(&v), "{v}");
         assert!(v > SLOW_FALL_MS);
+    }
+
+    /// A fall from rest: 5 slow ticks of 0.05 m (the test on the tick's starting speed 0, 0.49, 0.98, 1.47, 1.96), then the new
+    /// speed times the tick: 2.45, 2.94 m/s (fx-gear-2's corrected probe: -1.00 x5, then -2.45, -2.94).
+    #[test]
+    fn a_fall_from_rest_sinks_five_slow_ticks() {
+        let mut speed = 0.0;
+        let mut drops = Vec::new();
+        for _ in 0..7 {
+            let (next, drop) = fall_tick(speed, TICK_S);
+            drops.push(drop);
+            speed = next;
+        }
+        assert!(drops[..5].iter().all(|d| (d - SLOW_FALL_STEP_M).abs() < 1e-6), "{drops:?}");
+        assert!((drops[5] / TICK_S - 2.45).abs() < 1e-3 && (drops[6] / TICK_S - 2.94).abs() < 1e-3, "{drops:?}");
     }
 
     /// The air control: the keys at 1 m/s, none for forward alone in a sprint jump.
