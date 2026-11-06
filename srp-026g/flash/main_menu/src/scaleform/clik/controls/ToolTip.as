@@ -15,7 +15,8 @@ package scaleform.clik.controls
    public class ToolTip extends UIComponent implements IToolTip
    {
       
-      protected static var _tip_interval:Timer = new Timer(300);
+      // Hover listens for TIMER_COMPLETE, so the delay must be one-shot (as the lobby movie's copy has it).
+      protected static var _tip_interval:Timer = new Timer(300,1);
       
       protected static var _lastTarget:ToolTip;
       
@@ -169,6 +170,10 @@ package scaleform.clik.controls
             this._tip_content.mouseEnabled = false;
             this._tip_content.mouseChildren = false;
          }
+         // Adding the tip to the stage puts PopUpManager's canvas back on top
+         // (its stage ADDED listener): a tip over a popup (the Vulkan options
+         // panel) would be drawn under it. Raising the tip adds nothing.
+         stage.setChildIndex(this._tip_content,stage.numChildren - 1);
          this._tip_content.x = stage.mouseX + 20;
          this._tip_content.y = stage.mouseY + 20;
          if(this._tip_content.y < 0)

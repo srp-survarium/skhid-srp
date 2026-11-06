@@ -2,7 +2,6 @@ package
 {
     import flash.display.DisplayObject;
     import flash.display.MovieClip;
-    import flash.display.Shape;
     import flash.display.Sprite;
     import flash.events.Event;
     import flash.events.MouseEvent;
@@ -41,9 +40,8 @@ package
         // Over the panel's first row and under its last; out of the column on its left and right.
         private static const PADDING:Number = 8;
         private static const MARGIN:Number = 6;
-        // The tab's own panel (the preset buttons' band, as drawn): its fill and its edge's line.
-        private static const FILL:uint = 0x1A1C1E;
-        private static const EDGE:uint = 0x353637;
+        // The game's tooltip (SrvProfileTipRenderer, the lobby's bottom buttons'): each option's hint on hover.
+        private static const TIP:String = "SrvProfileTipRenderer";
         // The last row's (a checkbox's) drawn height: its box.
         private static const LAST_ROW:Number = 26;
 
@@ -52,7 +50,9 @@ package
         // The panel and the controls in it, by name.
         public var panel:Sprite;
         private var body:Sprite;
-        private var background:Shape;
+        // The game's own drop-down list's art (OptionScrollingList's: its one shape, nine-sliced by the list's
+        // grid), in a frame of ours that keeps that grid.
+        private var frame:Sprite;
         private var controls:Object = {};
         // Each option's saved and running value ("1"/"0" or the list's index); "" until the exe answers.
         private var saved:Object = {};
@@ -74,8 +74,17 @@ package
             content.addChild(button);
             panel = new Sprite();
             panel.name = "_srp_vulkan_panel";
-            background = new Shape();
-            panel.addChild(background);
+            // the stock list's art: the Renderer and Monitor lists' open list is an OptionScrollingList, a clip
+            // whose one shape is its background and border, nine-sliced by its scale9Grid. The list itself is a
+            // CLIK ScrollingList (it would draw rows and take presses), so its shape goes into a frame with the
+            // same grid; nine-slicing takes a container's own shapes, as the list's own clip has it.
+            var stock:MovieClip = new OptionScrollingList();
+            frame = new Sprite();
+            var art:DisplayObject = stock.getChildAt(0);
+            stock.removeChild(art);
+            frame.addChild(art);
+            frame.scale9Grid = stock.scale9Grid;
+            panel.addChild(frame);
             // the controls one Sprite under the panel (press routing: memory note, the lobby's rooms)
             body = new Sprite();
             panel.addChild(body);
@@ -110,10 +119,18 @@ package
         }
 
         // The button's text (the exe's root.srp_hud_texts).
-        public function texts(label:String):void
+        // The button's text and each option's hint (the exe's root.srp_hud_texts), in NAMES' order: the game's
+        // tooltip on hover (CLIK's ToolTip, every control's base: its delay, kept on the stage).
+        public function texts(label:String, hints:Array):void
         {
             button.label = label;
             size();
+            for (var i:int = 0; i < NAMES.length && i < hints.length; i++)
+            {
+                var control:Object = controls[NAMES[i]];
+                control.tooltipRendererName = TIP;
+                control.tipData = {name: hints[i]};
+            }
         }
 
         // Whether the button can be shown: its text and every option's answer there.
@@ -351,13 +368,10 @@ package
                     control.width = renderer.width;
                 }
             }
-            background.graphics.clear();
-            // the tab's own panel's look (the preset buttons' band): its dark fill and its edge's line, opaque, so
-            // the rows under it never show and a press on it is the panel's
-            background.graphics.lineStyle(1, EDGE);
-            background.graphics.beginFill(FILL, 1);
-            background.graphics.drawRect(0, 0, width, height);
-            background.graphics.endFill();
+            // the list's art at the panel's size: opaque, so the rows under it never show and a press on it is
+            // the panel's
+            frame.width = width;
+            frame.height = height;
         }
 
         // Shown on the Graphics frame once ready; disabled (no panel) while `enabled` is false.

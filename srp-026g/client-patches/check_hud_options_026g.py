@@ -95,7 +95,12 @@ TEXTS = {"st_srp_options_hud": "HUD:", "st_srp_hide_quests_option": "Hide quests
          "st_srp_crosshair_static": "Static crosshair", "st_srp_crosshair_hidden": "Hidden crosshair",
          "st_srp_static_minimap_option": "Static minimap", "st_srp_renderer_dx11": "DirectX 11",
          "st_srp_renderer_dxvk": "Vulkan/DXVK", "st_srp_language_restart": "Applies after restart.",
-         "st_srp_vulkan_options": "Vulkan options..."}
+         "st_srp_vulkan_options": "Vulkan options...",
+         "st_srp_vulkan_frame_limit_hint": "Caps how many frames per second the game draws.\n+ PC runs cooler and quieter\n- No more frames than the limit",
+         "st_srp_vulkan_overlay_hint": "Shows the game's speed on screen.\n+ See how smoothly the game runs\n- Covers a corner of the screen",
+         "st_srp_vulkan_low_latency_hint": "Makes the game react sooner to your mouse.\n+ Aim reacts faster\n- Can cost a few frames",
+         "st_srp_vulkan_tear_free_hint": "Keeps the picture whole when vertical sync is off.\n+ No torn lines when turning fast\n- PC works a bit harder",
+         "st_srp_vulkan_dedicated_gpu_hint": "Picks the stronger graphics card on laptops.\n+ Better performance on laptops\n- Uses more battery"}
 language.ENGLISH.update({key: text.encode() for key, text in TEXTS.items()})
 language.ENGLISH.update({"st_srp_hide_hit_markers_option": b"Hide hit markers", "st_srp_hide_scores_option": b"Hide player scores",
                          "st_srp_map_names_option": b"Names on map",
@@ -439,9 +444,11 @@ def main():
             expect(stock_invokes == [] and stock_saves == 0, f"the original ignores {name} ({case})")
     before = state()
     invokes, count = ours.callback("srp_hud_texts")
-    expect(invokes == [(language.MOVIE, "root.srp_hud_texts", tuple(TEXTS.values()))] and count == 0 and state() == before,
+    # (the harness reads a string's first 64 bytes: a hint's first line and some)
+    expect(invokes == [(language.MOVIE, "root.srp_hud_texts", tuple(t[:64] for t in TEXTS.values()))] and count == 0
+           and state() == before,
            "srp_hud_texts: the group's texts (heading, Hide quests, the crosshair list's three choices, Static minimap) "
-           "and the Renderer list's two, its note, the Vulkan options' button, "
+           "and the Renderer list's two, its note, the Vulkan options' button and its five hints, "
            "nothing set or saved")
     stock_invokes, _ = stock.callback("srp_hud_texts")
     expect(stock_invokes == [], "the original ignores srp_hud_texts")

@@ -2701,15 +2701,20 @@ st_srp_unit_percent	%1$s%
 st_srp_unit_seconds	%1$ss
 st_srp_unit_times	%1$sx
 st_srp_vulkan_dedicated_gpu	Suosi erillistä näytönohjainta
+st_srp_vulkan_dedicated_gpu_hint	Valitsee kannettavissa tehokkaamman näytönohjaimen.\n+ Parempi suorituskyky kannettavissa\n- Kuluttaa enemmän akkua
 st_srp_vulkan_frame_limit	Kuvataajuusraja
+st_srp_vulkan_frame_limit_hint	Rajoittaa, montako kuvaa sekunnissa peli piirtää.\n+ Kone pysyy viileämpänä ja hiljaisempana\n- Ei enempää kuvia kuin raja
 st_srp_vulkan_low_latency	Vähennä syöteviivettä
+st_srp_vulkan_low_latency_hint	Peli reagoi hiireen nopeammin.\n+ Tähtäys reagoi nopeammin\n- Voi maksaa muutaman kuvan
 st_srp_vulkan_off	Pois
 st_srp_vulkan_options	Vulkan-asetukset...
 st_srp_vulkan_overlay	Suorituskykynäyttö
 st_srp_vulkan_overlay_fps	FPS
 st_srp_vulkan_overlay_frametimes	FPS+kuvaaja
 st_srp_vulkan_overlay_full	Täysi
+st_srp_vulkan_overlay_hint	Näyttää pelin nopeuden ruudulla.\n+ Näet, kuinka sulavasti peli pyörii\n- Peittää ruudun kulman
 st_srp_vulkan_tear_free	Repeilytön ilman V-Synciä
+st_srp_vulkan_tear_free_hint	Pitää kuvan ehjänä, kun pystytahdistus on pois päältä.\n+ Ei repeäviä viivoja nopeissa käännöksissä\n- Kone tekee hieman enemmän töitä
 st_srp_weapon069_akmsu_desc	Lyhennetty taittoperäinen AKMS, kaliiperi 7.62x39. Kerta- ja sarjatuli.
 st_srp_weapon069_akmsu_name	AKMSU
 st_srp_weapon069_famas_desc	Ranskalainen bullpup-rynnäkkökivääri, kaliiperi 5.56x45. Kertatuli, kolmen laukauksen sarja ja sarjatuli.

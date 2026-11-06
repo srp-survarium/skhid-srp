@@ -36,14 +36,22 @@ window keeping its size.
   wider only for a text that would not fit it); the owner, 2026-11-06: a button, not a drop-down box that
   says "Open", "it should look less ugly". A press opens a panel flush under it, the button held pressed
   (its "down" frames) while it is open; the panel is a popup over the column, a little wider than it on
-  both sides, in the look of the tab's own panel (the preset buttons' band: its dark fill and edge line),
-  its rows on the column's grid (each list at the Renderer list's place and width, so its label and box
+  both sides, in the look of the lists' own popup (the owner, 2026-11-06: the Renderer list's art, not a
+  drawn box): OptionScrollingList's frame, its one shape taken out of the symbol into a scale9 sprite
+  (the symbol as a component throws outside a list; its art alone stretches as the list's does), its rows on the column's grid (each list at the Renderer list's place and width, so its label and box
   are at the column's; each checkbox at Fullscreen's x, its text on its box as Fullscreen's), one line
   each, on one step (Monitor's list step, grown as little as
   ending in a gap of the column's rows takes: no row shows half below it), the same padding over
   the first and under the last. A press outside it or Esc closes it (Esc closes the
   window only when no panel is open). The button is disabled (greyed as the stock buttons, not hidden) while the Renderer list shows
   DirectX 11, following the list's pick before Apply; picking DirectX 11 closes an open panel.
+- **Hints:** each of the five shows a hint when the pointer rests on it, the game's own tooltip (CLIK's
+  ToolTip with the menu's tip, SrvProfileTipRenderer, 300 ms after the pointer comes over it, 20 px right
+  and down of the pointer, kept inside the window), three lines (`st_srp_vulkan_*_hint`, ten languages):
+  what it does, "+" what it gives, "-" what it costs. Three fixes of the main menu's copy make it show:
+  its delay timer repeated forever, so the tip never came (`Timer(300,1)`, the lobby copy's); a tip is
+  raised over the popups (PopUpManager puts its canvas back on top of whatever the stage gets, so the
+  tip lay under the panel); the tip takes several lines, left-aligned, as tall as its text.
 - **The five** (each kept in user.cfg, `st_srp_vulkan_*` texts in ten languages):
   - Frame rate limit: Off, 60, 120, 144, 165, 240 (`srp_dxvk_frame_limit 0|60|...`) ->
     `dxvk.maxFrameRate = <n>`.
@@ -157,5 +165,6 @@ window keeping its size.
 - The Vulkan options: DXVK 3.1.1's taking of `DXVK_CONFIG` set in-process was checked under Wine
   11.8 with `../../scripts/dxvk-loader/run.sh <x32> <work> "<value>"` (all five set: DXVK's log has
   `Found config env: ...`, then each of them in `Effective configuration`), not with the game
-  itself; the panel in Ruffle only (Scaleform's presses and Esc are the game's to show).
+  itself; the panel and its hints in Ruffle only (Scaleform's presses, Esc, the tip's place and
+  font metrics are the game's to show).
 - Not checked on Windows; not played.

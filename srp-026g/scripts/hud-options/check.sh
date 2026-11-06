@@ -19,7 +19,8 @@
 #   both sliders at their borders (0.01, 10), Apply and the exe's answers there.
 # Screenshots into the work dir: settings.png (at rest), settings-checked.png (a toggle, Apply
 # enabled), settings-crosshair-open.png, settings-minimap-open.png, settings-graphics.png (Vulkan picked),
-# settings-vulkan.png (its options' panel open),
+# settings-vulkan.png (its options' panel open), settings-hint.png (an option's hint),
+# settings-renderer-open.png (the Renderer list open),
 # settings-controls-off.png, settings-controls-on.png, list-scores.png, list-names.png. Exits 0 when both say
 # pass. No game, no server.
 set -euo pipefail
@@ -47,7 +48,9 @@ keys = ('st_srp_hide_hit_markers_option', 'st_srp_hide_scores_option', 'st_srp_o
         'st_srp_mouse_lock_option', 'st_srp_mouse_vertical_option', 'st_srp_vulkan_options',
         'st_srp_vulkan_frame_limit', 'st_srp_vulkan_off', 'st_srp_vulkan_low_latency', 'st_srp_vulkan_tear_free',
         'st_srp_vulkan_dedicated_gpu', 'st_srp_vulkan_overlay', 'st_srp_vulkan_overlay_fps',
-        'st_srp_vulkan_overlay_frametimes', 'st_srp_vulkan_overlay_full', 'st_fov_option')
+        'st_srp_vulkan_overlay_frametimes', 'st_srp_vulkan_overlay_full', 'st_fov_option',
+        'st_srp_vulkan_frame_limit_hint', 'st_srp_vulkan_overlay_hint', 'st_srp_vulkan_low_latency_hint',
+        'st_srp_vulkan_tear_free_hint', 'st_srp_vulkan_dedicated_gpu_hint')
 print(json.dumps([[read_translations(CATALOG / f'{name}.tsv')[k] for k in keys] for name, *_ in LANGUAGES],
                  ensure_ascii=False, separators=(',', ':')))
 PY
@@ -101,6 +104,8 @@ wait_for SettingsHarness 'SETTINGS SHOT open' && shot settings-crosshair-open.pn
 wait_for SettingsHarness 'SETTINGS SHOT minimap' && shot settings-minimap-open.png
 wait_for SettingsHarness 'SETTINGS SHOT graphics' && shot settings-graphics.png
 wait_for SettingsHarness 'SETTINGS SHOT vulkan' && shot settings-vulkan.png
+wait_for SettingsHarness 'SETTINGS SHOT hint' && shot settings-hint.png
+wait_for SettingsHarness 'SETTINGS SHOT renderer-open' && shot settings-renderer-open.png
 wait_for SettingsHarness 'SETTINGS SHOT controls-off' && shot settings-controls-off.png
 wait_for SettingsHarness 'SETTINGS SHOT controls-on' && shot settings-controls-on.png
 kill $ruffle_pid 2>/dev/null || true

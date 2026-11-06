@@ -142,8 +142,40 @@ package
                 // the Vulkan options' panel open (Vulkan picked), for its screenshot
                 if (frames == 350) click(settings.settings_content.getChildByName("_srp_vulkan"));
                 if (frames == 365) trace("SETTINGS SHOT vulkan");
-                if (frames == 405) settings.closePanel();
+                // one option's hint shown (the game's tooltip, CLIK's 300 ms after the pointer comes over it), at the
+                // place its own rule gives a pointer on the checkbox (20 px right and down of it): a test player's
+                // pointer is not there
+                if (frames == 380)
+                {
+                    var hinted:* = vulkanControl(settings, "_srp_dxvk_low_latency");
+                    hinted.dispatchEvent(new MouseEvent(MouseEvent.MOUSE_OVER, true));
+                }
                 if (frames == 410)
+                {
+                    var tip:DisplayObject = named(stage, "_tip") || tipOf(stage);
+                    var at:Rectangle = vulkanControl(settings, "_srp_dxvk_low_latency").getBounds(stage);
+                    if (tip == null) trace("SETTINGS RESULT fail: Vulkan options: no hint shown over an option");
+                    else
+                    {
+                        // over the panel, not under it (the popups' canvas comes back on top of what the stage gets)
+                        var canvas:DisplayObject = named(stage, "_srp_vulkan_panel").parent;
+                        if (stage.getChildIndex(tip) < stage.getChildIndex(canvas))
+                            trace("SETTINGS RESULT fail: Vulkan options: the hint is drawn under the panel");
+                        tip.x = at.left + 60;
+                        tip.y = at.top + 20;
+                    }
+                    trace("SETTINGS SHOT hint" + (tip == null ? " (no tip shown)" : ""));
+                }
+                if (frames == 480)
+                {
+                    vulkanControl(settings, "_srp_dxvk_low_latency").dispatchEvent(new MouseEvent(MouseEvent.ROLL_OUT, false));
+                    settings.closePanel();
+                    // the Renderer list open, for the comparison with the panel's art
+                    settings.settings_content.getChildByName("_srp_renderer").open();
+                }
+                if (frames == 500) trace("SETTINGS SHOT renderer-open");
+                if (frames == 540) settings.settings_content.getChildByName("_srp_renderer").close();
+                if (frames == 550)
                 {
                     // Cancel, as a player would, what the earlier tabs left pending: checkGraphics leaves the
                     // Graphics tab in the frame it bound it (a player cannot), and that tab's stock lists and
@@ -171,13 +203,13 @@ package
                     Object(loader.content).srp_check_option("srp_mouse_vertical_locked", texts[0][17], "1");
                     Object(loader.content).srp_slider_option("srp_mouse_vertical", texts[0][18], "100");
                 }
-                if (frames == 440) trace("SETTINGS SHOT controls-off");
-                if (frames == 450)
+                if (frames == 580) trace("SETTINGS SHOT controls-off");
+                if (frames == 590)
                 {
                     settings.settings_content.getChildByName("_srp_mouse_vertical_locked").selected = false;
                     settings.settings_content.getChildByName("_srp_mouse_vertical").slider.value = 2.35;
                 }
-                if (frames == 480) trace("SETTINGS SHOT controls-on");
+                if (frames == 620) trace("SETTINGS SHOT controls-on");
             });
         }
 
@@ -374,7 +406,7 @@ package
         private function hudTexts(root:*):void
         {
             root.srp_hud_texts(texts[0][2], texts[0][5], texts[0][6], texts[0][7], texts[0][8], texts[0][9], texts[0][15],
-                texts[0][16], texts[0][4], texts[0][19]);
+                texts[0][16], texts[0][4], texts[0][19], texts[0][30], texts[0][31], texts[0][32], texts[0][33], texts[0][34]);
         }
 
         // The Vulkan options as patch 83 names them, in the panel's order, and their values without a user.cfg
@@ -680,6 +712,24 @@ package
         // it, one outside, the button again or Esc closes it (the window stays),
         // DirectX 11 picked closes it; a change pending until Apply, Cancel dropping it; the note while a
         // saved value is not the running one.
+        // A control of the Vulkan options' panel (a popup's: found on the stage once it has been open).
+        private function vulkanControl(settings:*, name:String):*
+        {
+            var panel:* = named(settings.stage, "_srp_vulkan_panel");
+            return panel != null ? panel.getChildAt(1).getChildByName(name) : null;
+        }
+
+        // The tooltip shown on the stage (a TipRenderer's), or null.
+        private function tipOf(at:DisplayObjectContainer):DisplayObject
+        {
+            for (var i:int = 0; i < at.numChildren; ++i)
+            {
+                var child:DisplayObject = at.getChildAt(i);
+                if (child.visible && getQualifiedClassName(child).indexOf("TipRenderer") >= 0) return child;
+            }
+            return null;
+        }
+
         private function checkVulkan(settings:*, content:MovieClip, step:Number):void
         {
             var root:* = loader.content;
@@ -713,6 +763,13 @@ package
             var body:* = panel.getChildAt(1);
             var controls:Array = VULKAN.map(function(name:String, ...rest):* { return body.getChildByName("_" + name); });
             for each (var control:* in controls) control.validateNow();
+            // each option's hint: the game's tooltip (SrvProfileTipRenderer) with the exe's text, three lines
+            for (var h:int = 0; h < controls.length; ++h)
+            {
+                require(controls[h].tipData != null
+                    && controls[h].tipData.name == texts[0][30 + h] && texts[0][30 + h].split("\n").length == 3,
+                    "Vulkan options: " + VULKAN[h] + " has its hint (" + (controls[h].tipData ? controls[h].tipData.name : null) + ")");
+            }
             var Point:Class = loader.contentLoaderInfo.applicationDomain.getDefinition("flash.geom.Point") as Class;
             // the panel as drawn: its background, less the half pixel its border adds on each side (a checkbox's
             // empty room may reach further, unseen)
@@ -807,7 +864,7 @@ package
                     widest = Math.max(widest, end);
                 }
                 // the exe's texts in that dictionary: the button sized to its text (the preset buttons' width at least)
-                root.srp_hud_texts(t[2], t[5], t[6], t[7], t[8], t[9], t[15], t[16], t[4], t[19]);
+                root.srp_hud_texts(t[2], t[5], t[6], t[7], t[8], t[9], t[15], t[16], t[4], t[19], t[30], t[31], t[32], t[33], t[34]);
                 row.validateNow();
                 require(row.label == t[19] && row.textField.textWidth + 4 <= row.textField.width * row.scaleX
                     && row.width >= optimal.width - 0.5 && row.width <= list.width, "Vulkan options: " + t[19]
@@ -1184,7 +1241,7 @@ package
                     for (i = 0; i < text.length; ++i)
                     {
                         var letter:String = text.charAt(i);
-                        if (letter != " " && !font.hasGlyphs(letter) && missing.indexOf(letter) < 0) missing += letter;
+                        if (letter != " " && letter != "\n" && !font.hasGlyphs(letter) && missing.indexOf(letter) < 0) missing += letter;
                     }
                 }
             }
