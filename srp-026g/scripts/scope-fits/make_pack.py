@@ -77,7 +77,7 @@ occlusion = _load('scope_fits_occlusion', HERE / 'occlusion.py')
 sights = _load('scope_fits_sights', HERE / 'sights.py')
 
 PACK_ID = 'scope-fits'
-VERSION = '6'
+VERSION = '7'
 FIRST_VARIANT = 2901
 LAST_VARIANT = 3299
 CATEGORY = 22
