@@ -13,7 +13,7 @@ package {
    333:"MedicalSkill069333",341:"MedicalSkill069341",342:"MedicalSkill069342",
    501:"ArtefactSkill069501",502:"ArtefactSkill069502",511:"ArtefactSkill069511",512:"ArtefactSkill069512",
    521:"ArtefactSkill069521",522:"ArtefactSkill069522",531:"ArtefactSkill069531",532:"ArtefactSkill069532",
-   533:"ArtefactSkill069533",541:"ArtefactSkill069541",542:"MedicalSkill069341"};
+   533:"ArtefactSkill069533",541:"ArtefactSkill069541",542:"ArtefactSkill069542"};
   private var loader:Loader = new Loader();
   private var failures:Array = [];
   private var icons:Object;
