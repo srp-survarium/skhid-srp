@@ -119,11 +119,14 @@ impl<'t> Player<'t> {
     }
     /// The player at `place` of `core`'s active roster (core_active_player: a departed place,
     /// one past the places or a place without a player is none).
+    /// The active player at `place` of `core`'s world; none without a world core (a lobby's
+    /// player: core_active_player reads through it unchecked, 0x2D0B12).
     pub(super) fn in_core(thread: &'t Thread, core: Option<raw::CoreWorld>, place: u8) -> Option<OwnedPlayer<'t>> {
+        let core = core?;
         let mut out = None;
         // SAFETY: native lookup in this simulation world adds one reference.
         unsafe {
-            raw::engine_core_active_player(core, u32::from(place), &mut out);
+            raw::engine_core_active_player(Some(core), u32::from(place), &mut out);
         }
         out.map(|at| OwnedPlayer(Self::new(thread, at)))
     }

@@ -284,13 +284,20 @@ def check_quarters(data):
     lit({"onyx": 4, "spring": 1})
     g.word(slot_of(PLAYER, onyx[0]), 0)
     lit({"onyx": 3, "spring": 1})
+    # A player without a world core (the lobby's character): nothing lit, no lookup (core_active_player
+    # reads through the core unchecked, 0x2D0B12).
+    core = g.read(PLAYER + 0x120)
+    g.word(PLAYER + 0x120, 0)
+    lit({})
+    g.word(PLAYER + 0x120, core)
+    lit({"onyx": 3, "spring": 1})
     # Death: nothing lit, every quarter ended.
     g.emu.mem_write(PLAYER + 0x33C, b"\0")
     lit({})
     assert own_spring
     print("Leg quarters: a kind's passive copies (own 0..4, own and Resonance's shared, two kinds, an active "
           "Onyx, an enemy's and the cap of 4) light that many of its quarters from the first; the count "
-          "dropping and death end them through the player's calculator: PASS")
+          "dropping and death end them through the player's calculator; a player without a world core lights none: PASS")
 
 
 def main():
