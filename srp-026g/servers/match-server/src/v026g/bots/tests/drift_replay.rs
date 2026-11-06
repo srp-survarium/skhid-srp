@@ -15,6 +15,8 @@
 //! built through the server's map store (which drops the map's meshes, as live); `SRP_A304_BUILT=<dir>` [A325] adds the store's built
 //! files, so a run with the same grid rules reads the grid back instead of building it. `SRP_A304_WORLD=meshes` (or `SRP_A304_SLOPE`,
 //! which needs the walker triangles) builds the old test world that keeps the meshes instead: not the live world.
+//! `SRP_A304_LEVELS=<rec_levels.csv>` [A332]: each place's speed level from its match profile (`srp-rec-table`'s table), the body's
+//! prior until a world shows the life's own, as the server sets it; without it the prior is 1.
 
 use std::collections::HashMap;
 use std::sync::Arc;
@@ -40,6 +42,40 @@ fn read_csv(path: &str) -> Vec<HashMap<String, String>> {
     lines
         .map(|line| head.iter().cloned().zip(line.split(',').map(str::to_owned)).collect())
         .collect()
+}
+
+/// [A332] Each place's speed factors from its match profile (`srp-rec-table`'s `rec_levels.csv`, fx-review's A332 writer): the
+/// first kit's (the server's `game/driven.rs` takes kit 0 until a world names the kit in use) level with no weapon term
+/// (`bot_skills::profile_movement_level_in(.., false)`) plus each weapon slot's own `movement_speed_modifier` (the weapon in hands'
+/// term, `weapon_core::initialize` 0x2E2C9C), the primary (slot 7) first, then the kit's other weapons, then none. The place's
+/// latest roster counts. The loaded rounds are not in the table's weight.
+fn kit_levels(path: &str) -> HashMap<usize, Vec<f32>> {
+    let mut latest: HashMap<usize, (u32, Vec<f32>)> = HashMap::new();
+    for r in read_csv(path) {
+        let num = |k: &str| r.get(k).and_then(|v| v.parse::<f32>().ok()).filter(|v| v.is_finite());
+        let (Some(roster), Some(place), Some(level)) =
+            (r.get("roster").and_then(|v| v.parse::<u32>().ok()), r.get("place").and_then(|v| v.parse::<usize>().ok()), num("level_none"))
+        else {
+            continue;
+        };
+        if r.get("kit").map(String::as_str) != Some("0") || latest.get(&place).is_some_and(|(seen, _)| *seen > roster) {
+            continue;
+        }
+        let mut weapons: Vec<(bool, f32)> = r
+            .get("weapons")
+            .map_or("", String::as_str)
+            .split(';')
+            .filter_map(|w| {
+                let (slot, modifier) = w.split_once(':')?;
+                Some((slot == "7", modifier.parse::<f32>().ok()?))
+            })
+            .collect();
+        weapons.sort_by_key(|&(primary, _)| !primary);
+        let mut levels: Vec<f32> = weapons.iter().map(|&(_, modifier)| (level + modifier).max(0.0)).collect();
+        levels.push(level);
+        latest.insert(place, (roster, levels));
+    }
+    latest.into_iter().map(|(place, (_, levels))| (place, levels)).collect()
 }
 
 fn hex(s: &str) -> u32 {
@@ -163,6 +199,16 @@ fn drift_on_a_real_match() {
         .collect();
     rows.sort_by_key(|w| (w.time, w.place));
     let mut tracks: HashMap<usize, BodyTrack> = HashMap::new();
+    // `SRP_A304_LEVELS=<rec_levels.csv>` [A332]: each reckoned place's profile level, the primary in hands
+    // ([`BodyTrack::set_prior_level`], as the server's `game/driven.rs` sets it), until a world shows the life's own. Without it the
+    // prior is 1.
+    if let Some(path) = var("SRP_A304_LEVELS") {
+        let levels = kit_levels(&path);
+        for (&place, levels) in levels.iter().filter(|(place, _)| !humans.contains(place)) {
+            tracks.entry(place).or_default().set_prior_level(levels.first().copied());
+        }
+        eprintln!("A332 levels: {} places from {path}", levels.len());
+    }
     let mut out = String::from("place,time,gap,flat,height,meant,moved,ticks,walk,held,rx,ry,rz,wx,wy,wz\n");
     let (mut k, mut n, mut over) = (0usize, 0u32, 0u32);
     let mut held_kinds: HashMap<(&str, &str), u32> = HashMap::new();
@@ -436,4 +482,24 @@ fn way_within(grid: &mapdata::WalkGrid, from: NodeId, to: NodeId, steps: usize, 
         front = next;
     }
     false
+}
+
+/// [A332] [`kit_levels`]: kit 0 of the place's latest roster, the primary in hands first, the kit's other weapons, then none.
+#[test]
+fn kit_levels_take_kit_zero_of_the_latest_roster() {
+    let path = std::env::temp_dir().join(format!("a332-levels-{}.csv", std::process::id()));
+    std::fs::write(
+        &path,
+        "match,roster,place,team,kit,level_none,weight,weapons\n\
+         m,1,0,0,0,0.9000,30.000,7:0.000\n\
+         m,2,0,0,0,0.9500,30.000,3:-0.020;7:0.010\n\
+         m,2,0,0,1,0.8000,40.000,7:0.000\n\
+         m,1,1,1,0,0.9700,20.000,\n",
+    )
+    .unwrap();
+    let levels = kit_levels(path.to_str().unwrap());
+    std::fs::remove_file(&path).ok();
+    let near = |a: &[f32], b: &[f32]| a.len() == b.len() && a.iter().zip(b).all(|(x, y)| (x - y).abs() < 1e-5);
+    assert!(near(&levels[&0], &[0.96, 0.93, 0.95]), "{:?}", levels[&0]);
+    assert!(near(&levels[&1], &[0.97]), "{:?}", levels[&1]);
 }
