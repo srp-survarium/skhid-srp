@@ -253,7 +253,7 @@ preferred-image VAs; `apply_modifier` is the kit-modifier getter 0x2D5AE0.
   each 4 less the recipient's own carried copies of the kind (in their passive or active).
   Larkspur's active heal is Medic's, which has no cap: a full heal twice is one.
 
-### Leg quarters (patch 111, pack artefact-glow@7)
+### Leg quarters (patch 111, pack artefact-glow@8)
 
 - The owner (2026-11-06): each passive artefact copy that counts for a player lights a quarter
   of its legs in that artefact's colour; everyone sees it (how stacked a player is).
@@ -270,14 +270,18 @@ preferred-image VAs; `apply_modifier` is the kit-modifier getter 0x2D5AE0.
   two kinds meet on a quarter their glows layer (the sprites are additive, so the colours mix,
   as two kinds' stock glows already do). No slot sharing between kinds.
 - Effects: `artefact_leg_<kind>_<n>` (n 1..4), view 2: the kind's stock glow with only the
-  quarter's parts on, its emitters with none of them left out, and its point light (`up_light`)
-  too: up to twelve quarters on one player, and the stock lights are what lit the whole body in
-  Forest Protection's renders. Forest Protection's grey glow plays beside them, unchanged.
+  quarter's parts on, its emitters with none of them left out. Forest Protection's grey glow
+  plays beside them, unchanged.
 - Density (the owner, 2026-11-06: @6's quarters looked unlike the activation glow): each kept
   emitter's Rate (curve and data source) and MaxParticles (rounded up, at least 1) are the
   stock's times the share of the stock emitter's body parts it keeps (distortion 1 of 11, rays
   1 of 8, ...). A quarter is then the stock glow's own density on its parts, and four quarters
   together are the stock emitters' leg share (pack artefact-glow@7).
+- The point light (the owner, 2026-11-06: yes, put it back): @6 and @7 left the stock
+  `up_light` emitter out, and next to the activation glow the quarters read dark (that light is
+  most of its look). @8 keeps it in every quarter as the other emitters: its domain cut to the
+  quarter's parts, its Rate and MaxParticles times its kept share (19 parts in the stock glow: a
+  shin quarter 2/19 of its rate 20, a thigh 1/19), its intensity, colour and range the stock's.
 - Played as Forest Protection's glow: at the player's tick each quarter it shows and plays none
   of is played with the player's own calculator, which ends it when the count drops below it
   (or at death); nothing new serialized, no `next` row. The thirteen effects come in one query.

@@ -49,6 +49,10 @@ at least 1) times the share of the stock emitter's body parts it keeps. Version 
 rate on fewer parts, so a quarter was several times as dense as the stock glow on that leg (the
 owner, 2026-11-06: they looked different from the activation glow); now a quarter is the stock
 glow's own density on its parts, and four quarters are the stock emitters' leg share.
+
+Version 8: the point light's emitter (up_light) is back in every quarter (the owner, 2026-11-06),
+like the others: its domain cut to the quarter's parts, its Rate and MaxParticles times its kept
+share (a shin quarter one light), its intensity, colour and range the stock's.
 """
 import argparse
 import copy
@@ -61,7 +65,7 @@ import sys
 import zlib
 
 PACK_ID = 'artefact-glow'
-VERSION = '7'
+VERSION = '8'
 # kind -> (effect config, particle system); the stock files, by sha256.
 KINDS = {
     'lifebone': 'fx/artifacts/human_zhivokost',
@@ -92,7 +96,6 @@ BOTH_VIEWS = 2
 # The leg quarters (version 6): a kind's carried copies counting for a player light this many
 # quarters, in this order (lower legs first, left then right, then the thighs).
 QUARTERS = (('LeftLeg', 'LeftFoot'), ('RightLeg', 'RightFoot'), ('LeftUpLeg',), ('RightUpLeg',))
-LIGHT_EMITTER = 'up_light'
 
 
 def quarter_names(kind, n):
@@ -312,12 +315,11 @@ def scaled_maximum(maximum, k):
 def quarter_particle(stock, parts):
     """A kind's leg quarter (artefact-skills.md, "Leg quarters"): the kind's stock glow, its
     colours as they are, with only the quarter's `parts` on; the emitters with none of them left
-    out, and the point light's emitter (up_light) too: up to twelve quarters light one player.
-    Each kept emitter's Rate (its curve and its data source) and MaxParticles (rounded up, at least
+    out (the point light's, up_light, kept like the others since version 8). Each kept emitter's Rate (its curve and its data source) and MaxParticles (rounded up, at least
     1) times its kept share of the stock emitter's parts: a quarter is as dense on its parts as the
     stock glow is, and the four quarters together are the stock emitters' leg share."""
     tree = keep_emitters(parts_only(copy.deepcopy(stock), parts),
-                         lambda e: domain_parts(e) and emitter_name(e) != LIGHT_EMITTER)
+                         domain_parts)
     stock_emitters = dict(dict(dict(stock[1])['LOD 0'][1])['children'][1])
     lod = dict(tree[1])['LOD 0']
     sources = {}
@@ -348,13 +350,13 @@ def quarter_particle(stock, parts):
 
 def check_quarter(tree, stock, parts):
     """A quarter is the stock system but for its body parts (the quarter's alone on), the emitters
-    left out (those with none of them, and the light's), and each kept emitter's Rate values and
+    left out (those with none of them), and each kept emitter's Rate values and
     MaxParticles scaled by its kept share of the stock emitter's parts (in its curve and its data
     source alike): every other value the stock's."""
     lod, stock_lod = dict(tree[1])['LOD 0'], dict(stock[1])['LOD 0']
     emitters, stock_emitters = dict(dict(lod[1])['children'][1]), dict(dict(stock_lod[1])['children'][1])
     dropped = {g for g, e in stock_emitters.items()
-               if not domain_parts(e) & set(parts) or emitter_name(e) == LIGHT_EMITTER}
+               if not domain_parts(e) & set(parts)}
     assert set(emitters) == set(stock_emitters) - dropped and emitters, sorted(dropped)
     for guid, emitter in emitters.items():
         assert domain_parts(emitter) == domain_parts(stock_emitters[guid]) & set(parts), guid
@@ -593,7 +595,8 @@ def main():
                        'fx/artifacts/human_forest_protection: the stock Onyx glow, grey, on the legs only; '
                        'and the leg quarters, effect_artefact_leg_<kind>_<1..4> (both views) playing '
                        'fx/artifacts/human_<kind>_leg_<1..4>: each kind\'s stock glow on one quarter of the '
-                       'legs (left lower, right lower, left upper, right upper), without its point light',
+                       'legs (left lower, right lower, left upper, right upper), each emitter, its point '
+                       'light\'s too, at the stock density on the quarter\'s parts',
         'operations': operations,
         'notes': ['made by srp-026g/scripts/artefact-glow/make_pack.py from the stock resources.db\'s '
                   'artefact effects and particle systems (docs/notes/artefacts.md)'],
