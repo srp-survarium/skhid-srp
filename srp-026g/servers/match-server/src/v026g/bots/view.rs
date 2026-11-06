@@ -30,8 +30,7 @@
 use std::collections::VecDeque;
 use std::sync::Arc;
 
-use mapdata::controller::Collision;
-use mapdata::{Vec3, World};
+use mapdata::{RayTree, Vec3, World};
 
 use super::arc::{self, Flight, Grenade, Mesh};
 use super::body::{self, BodyTrack, Fix};
@@ -549,9 +548,9 @@ pub struct Tracker {
     shot_reach: Vec<Option<f32>>,
     deaths: VecDeque<Death>,
     world_time: u32,
-    /// [A318] The map's walker collision for the jump arc ([`body::walker_collision`]), built the first time `kin.jump_arc` needs
+    /// [A318] The map's walker-mesh walls for the jump arc ([`body::walker_walls`]), built the first time `kin.jump_arc` needs
     /// them: one per match.
-    walker: Option<Arc<Collision>>,
+    walker: Option<Arc<RayTree>>,
     /// What the sprint-sound rule and the use ray did, by team (a carrier guess reads them through `&self`).
     activity: std::cell::Cell<[SenseActivity; 2]>,
     /// The bench only: by place, a bot seen as a human is, its body known
@@ -633,9 +632,9 @@ impl Tracker {
     }
 
     /// [A318] The jump arc's walls for `world` while `kin.jump_arc` is on (none while off: nothing is built).
-    fn arc_walls(&mut self, kin: &Kinematics, world: Option<&World>) -> Option<Arc<Collision>> {
+    fn arc_walls(&mut self, kin: &Kinematics, world: Option<&World>) -> Option<Arc<RayTree>> {
         let world = world.filter(|_| kin.jump_arc)?;
-        Some(self.walker.get_or_insert_with(|| body::walker_collision(world)).clone())
+        Some(self.walker.get_or_insert_with(|| body::walker_walls(world)).clone())
     }
 
     /// The map's containers: by id, (team, place).
