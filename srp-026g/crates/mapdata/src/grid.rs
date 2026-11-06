@@ -810,9 +810,18 @@ struct Wide {
     /// [`Body::slip_landings`]: each walk-off take-off and the floor a slip off it comes down on, by take-off; floods of the
     /// reach only, not links ([`Wide::out`] leaves them out).
     slips: Vec<(u32, u32)>,
-    /// [`Body::wall_give_back`]: the floors it gave back (empty without it). The reach keeps them only where a reached floor
-    /// leads in, and never lets them open a way to a floor the grid without them did not reach ([`WalkGrid::keep_reached`]).
+    /// [`Body::wall_give_back`]: the floors it gave back (empty without it, and until [`WalkGrid::give_back_aside`]).
     given: Vec<bool>,
+    /// [`Body::wall_give_back`]: the floors the erosion would give back, put aside while the grid is built as without them
+    /// ([`WalkGrid::erode`]); they come back after the reach ([`WalkGrid::give_back_aside`]).
+    aside: Vec<Aside>,
+}
+
+/// A floor put aside by [`Body::wall_give_back`] ([`Wide::aside`]): where it is and its room.
+struct Aside {
+    cell: u32,
+    height: f32,
+    ceiling: f32,
 }
 
 impl Wide {
@@ -1068,13 +1077,6 @@ impl WalkGrid {
         if body.slip_landings {
             wide.slips = grid.slip_landings(&wide, &solids);
         }
-        if wide.given.iter().any(|&g| g) {
-            // A given-back floor starts or ends no gap link and no slip ([`Body::wall_give_back`]: walks only).
-            let given = std::mem::take(&mut wide.given);
-            wide.off.retain(|l| !given[l.from as usize] && !given[l.to as usize]);
-            wide.slips.retain(|&(a, b)| !given[a as usize] && !given[b as usize]);
-            wide.given = given;
-        }
         if body.client_controller {
             let (controlled, failing) = grid.controlled_links(&mut wide, triangles);
             stats.controlled = controlled;
@@ -1099,6 +1101,9 @@ impl WalkGrid {
         }
         stats.floors_after_erosion = grid.len();
         grid.keep_reached(&mut wide, seeds);
+        if body.wall_give_back {
+            stats.wall_given_back = grid.give_back_aside(&mut wide);
+        }
         grid.pieces(&wide);
         grid.mark_pockets(&wide, spawns);
         let fall = std::mem::take(&mut wide.fall);
@@ -1165,6 +1170,7 @@ impl WalkGrid {
             off: Vec::new(),
             slips: Vec::new(),
             given: Vec::new(),
+            aside: Vec::new(),
         }
     }
 
@@ -1712,40 +1718,28 @@ impl WalkGrid {
         if self.body.narrow_doors && let Some(walls) = walls {
             self.open_narrow_doors(wide, &mut alive, walls);
         }
-        let given_back = match walls {
+        // [`Body::wall_give_back`]: the floors it gives back are put aside (`given`) and the grid is built on as without it: they
+        // come back, with walks only, after the reach ([`Self::give_back_aside`]). A318: given-back floors seen by the passes
+        // after the rounds moved bot stalls (level_02: a jump up a 1 m ledge from a given-back strip) and cut ways (level_07:
+        // 8,007 kept floors, then a gap link the grid without them has).
+        let (given_back, mut given) = match walls {
             Some(walls) if self.body.wall_give_back => {
-                let before = alive.clone();
-                let back = self.give_back_by_walls(&mut alive, walls, triangles);
-                wide.given = (0..n).map(|a| alive[a] && !before[a]).collect();
-                back
+                let mut back = alive.clone();
+                let count = self.give_back_by_walls(&mut back, walls, triangles);
+                (count, (0..n).map(|a| back[a] && !alive[a]).collect())
             }
-            _ => 0,
+            _ => (0, Vec::new()),
         };
         let furthest = rounds as i32 + 1;
-        // [`Body::wall_give_back`]: the other floors' links are made as without it (a given-back floor counts as gone for
-        // them: a ledge's jump still starts a step back from it), and a given-back floor keeps only its walks to standing
-        // floors: it starts no jump, drop or climb (A318: on level_02 a jump up a 1 m ledge from a given-back 45 deg strip at
-        // the wall's foot moved bot stalls there; on level_07 the way on through given-back floors lost 8,007 kept floors).
-        let given = |a: usize| wide.given.get(a).copied().unwrap_or(false);
-        let standing: Vec<bool> = (0..n).map(|a| alive[a] && !given(a)).collect();
+        let standing = alive.clone();
         for a in 0..n {
             if !alive[a] {
-                continue;
-            }
-            if given(a) {
                 continue;
             }
             let (i, k) = self.cell_xz(self.cell_of[a] as usize);
             for (d, &(di, dk)) in DIRS.iter().enumerate() {
                 let b = wide.links[a][d];
                 if b == NONE || standing[b as usize] {
-                    continue;
-                }
-                // A walk onto a given-back floor stays unless the jump past it is the way on (as without it, below).
-                if alive[b as usize]
-                    && wide.kinds[a][d] == LinkKind::Walk
-                    && !(wide.links[b as usize][d] != NONE && wide.kinds[b as usize][d] == LinkKind::Jump)
-                {
                     continue;
                 }
                 // A walk to a floor that went: a jump past it, if one
@@ -1777,17 +1771,18 @@ impl WalkGrid {
                 }
             }
         }
-        // A given-back floor: its walks to standing floors only (after the loop above, which reads its jumps).
-        for a in (0..n).filter(|&a| alive[a] && given(a)) {
-            for d in 0..DIRS.len() {
-                let b = wide.links[a][d];
-                if b != NONE && !(wide.kinds[a][d] == LinkKind::Walk && alive[b as usize]) {
-                    wide.links[a][d] = NONE;
+        let exact = walls.map_or(0, |walls| {
+            // The given-back floors go through the exact erosion with the others (a floor's own test: the others' are as without
+            // them); the count is the standing floors'.
+            let mut all: Vec<bool> = (0..n).map(|a| alive[a] || given.get(a).copied().unwrap_or(false)).collect();
+            let (_, crouch_only) = self.erode_exact(&mut all, walls);
+            let removed = (0..n).filter(|&a| alive[a] && !all[a]).count();
+            for a in 0..n {
+                alive[a] &= all[a];
+                if let Some(g) = given.get_mut(a) {
+                    *g &= all[a];
                 }
             }
-        }
-        let exact = walls.map_or(0, |walls| {
-            let (removed, crouch_only) = self.erode_exact(&mut alive, walls);
             // Under a wall only a standing capsule meets: walked crouched, and no jump starts or lands there (a jump needs room to
             // stand, `ledge`): the links it made before the floor was found low go.
             let mut low = vec![false; n];
@@ -1819,8 +1814,155 @@ impl WalkGrid {
                     })
             })
             .collect();
+        wide.aside = (0..n)
+            .filter(|&a| given.get(a).copied().unwrap_or(false))
+            .map(|a| Aside { cell: self.cell_of[a], height: self.height[a], ceiling: self.ceiling[a] })
+            .collect();
         self.compact(wide, &alive);
         (exact, given_back)
+    }
+
+    /// [`Body::wall_give_back`]: the floors [`Self::erode`] put aside come back after the reach, each where a kept floor walks
+    /// into it, or on from such a floor through given-back floors only: none opens a region the grid without them did not reach
+    /// (A318: on level_01 an opening into the terrain past the play area's edge would have kept 170k floors no human stands on).
+    /// A given-back floor has walks only (a step up or down, the room to crouch), to and from its neighbours of the 8 directions;
+    /// a kept floor walks into one only on a side it has no link on (a jump past it stays the way on). Returns how many came back.
+    fn give_back_aside(&mut self, wide: &mut Wide) -> usize {
+        let aside = std::mem::take(&mut wide.aside);
+        if aside.is_empty() {
+            return 0;
+        }
+        // The floors, the kept and the given back, in the grid's order: by cell, then by height.
+        let old = self.len();
+        let mut order: Vec<(u32, f32, Option<usize>)> = (0..old).map(|a| (self.cell_of[a], self.height[a], Some(a))).collect();
+        order.extend(aside.iter().map(|g| (g.cell, g.height, None)));
+        let mut slot = 0usize;
+        let mut order: Vec<(u32, f32, Result<usize, usize>)> = order
+            .into_iter()
+            .map(|(c, h, a)| {
+                (
+                    c,
+                    h,
+                    a.ok_or_else(|| {
+                        slot += 1;
+                        slot - 1
+                    }),
+                )
+            })
+            .collect();
+        order.sort_by(|p, q| p.0.cmp(&q.0).then(p.1.total_cmp(&q.1)).then(p.2.is_err().cmp(&q.2.is_err())));
+        let total = order.len();
+        let mut new_id = vec![NONE; old];
+        let (mut cell_of, mut height, mut ceiling) = (Vec::with_capacity(total), Vec::with_capacity(total), Vec::with_capacity(total));
+        let mut given = vec![false; total];
+        for (id, &(c, h, from)) in order.iter().enumerate() {
+            cell_of.push(c);
+            height.push(h);
+            match from {
+                Ok(a) => {
+                    new_id[a] = id as u32;
+                    ceiling.push(self.ceiling[a]);
+                }
+                Err(g) => {
+                    ceiling.push(aside[g].ceiling);
+                    given[id] = true;
+                }
+            }
+        }
+        order.clear();
+        let mut links = vec![[NONE; 8]; total];
+        let mut kinds = vec![[LinkKind::Walk; 8]; total];
+        let mut fall = vec![false; total];
+        for a in 0..old {
+            let id = new_id[a] as usize;
+            for d in 0..8 {
+                let b = wide.links[a][d];
+                links[id][d] = if b == NONE { NONE } else { new_id[b as usize] };
+            }
+            kinds[id] = wide.kinds[a];
+            fall[id] = wide.fall[a];
+        }
+        for l in &mut wide.off {
+            l.from = new_id[l.from as usize];
+            l.to = new_id[l.to as usize];
+        }
+        for (a, s) in &mut wide.slips {
+            *a = new_id[*a as usize];
+            *s = new_id[*s as usize];
+        }
+        self.cell_of = cell_of;
+        self.height = height;
+        self.ceiling = ceiling;
+        let mut start = Vec::with_capacity(self.start.len());
+        let mut node = 0usize;
+        for c in 0..self.nx * self.nz {
+            start.push(node as u32);
+            while node < total && self.cell_of[node] as usize == c {
+                node += 1;
+            }
+        }
+        start.push(node as u32);
+        self.start = start;
+        // The walks of each given-back floor: in each direction the nearest floor in height a step away with the room to crouch.
+        for a in (0..total).filter(|&a| given[a]) {
+            let (i, k) = self.cell_xz(self.cell_of[a] as usize);
+            for (d, &(di, dk)) in DIRS.iter().enumerate() {
+                let Some(c2) = self.cell_index(i + di, k + dk) else {
+                    continue;
+                };
+                let (ha, ca) = (self.height[a], self.ceiling[a]);
+                let mut best = (NONE, f32::MAX);
+                for b in self.start[c2]..self.start[c2 + 1] {
+                    let (hb, cb) = (self.height[b as usize], self.ceiling[b as usize]);
+                    let rise = (hb - ha).abs();
+                    if rise <= self.body.step && ca.min(cb) - ha.max(hb) >= self.body.crouch_height && rise < best.1 {
+                        best = (b, rise);
+                    }
+                }
+                let b = best.0;
+                if b == NONE {
+                    continue;
+                }
+                links[a][d] = b;
+                kinds[a][d] = LinkKind::Walk;
+                // The way back, on a kept floor's side with no link.
+                let back = DIRS.iter().position(|&(ei, ek)| (ei, ek) == (-di, -dk)).expect("each direction has its opposite");
+                if !given[b as usize] && links[b as usize][back] == NONE {
+                    links[b as usize][back] = a as u32;
+                    kinds[b as usize][back] = LinkKind::Walk;
+                }
+            }
+        }
+        wide.links = links;
+        wide.kinds = kinds;
+        wide.fall = fall;
+        // Each comes back where a kept floor walks into it, and on through given-back floors.
+        let mut kept: Vec<bool> = given.iter().map(|&g| !g).collect();
+        let mut queue: Vec<u32> = Vec::new();
+        for a in (0..total).filter(|&a| !given[a]) {
+            for d in 0..8 {
+                let b = wide.links[a][d];
+                if b != NONE && wide.kinds[a][d] == LinkKind::Walk && given[b as usize] && !kept[b as usize] {
+                    kept[b as usize] = true;
+                    queue.push(b);
+                }
+            }
+        }
+        while let Some(a) = queue.pop() {
+            for d in 0..8 {
+                let b = wide.links[a as usize][d];
+                if b != NONE && given[b as usize] && !kept[b as usize] {
+                    kept[b as usize] = true;
+                    queue.push(b);
+                }
+            }
+        }
+        let back = (0..total).filter(|&a| given[a] && kept[a]).count();
+        wide.given = given;
+        if back < aside.len() {
+            self.compact(wide, &kept);
+        }
+        back
     }
 
     /// Whether the side of `a` along `d`, with no link, is a wall for
@@ -1903,14 +2045,11 @@ impl WalkGrid {
         if queue.is_empty() {
             return;
         }
-        // A floor [`Body::wall_give_back`] gave back is not passed through here: the reach is the grid's without them, and they
-        // are added after it where a reached floor leads into them.
-        let given = |b: u32| wide.given.get(b as usize).copied().unwrap_or(false);
         let forward = |kept: &mut Vec<bool>, queue: &mut Vec<u32>| {
             while let Some(a) = queue.pop() {
                 // A floor a slip comes down on is got to as well ([`Body::slip_landings`]).
                 for b in wide.out(a as usize).chain(wide.slips_from(a)) {
-                    if !kept[b as usize] && !given(b) {
+                    if !kept[b as usize] {
                         kept[b as usize] = true;
                         queue.push(b);
                     }
@@ -1934,7 +2073,7 @@ impl WalkGrid {
                         break;
                     };
                     for a in self.start[cell]..self.start[cell + 1] {
-                        if !kept[a as usize] && !given(a) && wide.links[a as usize][d] == b {
+                        if !kept[a as usize] && wide.links[a as usize][d] == b {
                             kept[a as usize] = true;
                             back.push(a);
                             added.push(a);
@@ -1944,7 +2083,7 @@ impl WalkGrid {
             }
             let first = off_in.partition_point(|&(to, _)| to < b);
             for &(_, a) in off_in[first..].iter().take_while(|&&(to, _)| to == b) {
-                if !kept[a as usize] && !given(a) {
+                if !kept[a as usize] {
                     kept[a as usize] = true;
                     back.push(a);
                     added.push(a);
@@ -1953,30 +2092,6 @@ impl WalkGrid {
         }
         // And where those lead (a roof's drop into a yard with no way out).
         forward(&mut kept, &mut added);
-        // The given-back floors a kept floor leads into, and on from them only to given-back floors: each comes back where the
-        // grid already went, and none opens a region (A318: on level_01 an opening into the terrain past the play area's edge
-        // would have kept 170k floors no human stands on).
-        if wide.given.iter().any(|&g| g) {
-            let mut queue: Vec<u32> = Vec::new();
-            for a in 0..n {
-                if kept[a] {
-                    for b in wide.out(a) {
-                        if given(b) && !kept[b as usize] {
-                            kept[b as usize] = true;
-                            queue.push(b);
-                        }
-                    }
-                }
-            }
-            while let Some(a) = queue.pop() {
-                for b in wide.out(a as usize) {
-                    if given(b) && !kept[b as usize] {
-                        kept[b as usize] = true;
-                        queue.push(b);
-                    }
-                }
-            }
-        }
         if kept.iter().all(|&k| k) {
             return;
         }
