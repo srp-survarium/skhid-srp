@@ -34,7 +34,7 @@ use mapdata::{LinkKind, NodeId, RayTree, Vec3, WalkGrid};
 use survarium::v026g::match_msgs::TICK_MS;
 
 use super::jump_arc::{ArcStep, JumpArc};
-use super::kin::{Blend, DropFall, Edge, FIX_ABOVE_M, FixBlend, FixFloor, WallSlide, JumpSnap, Kinematics, MarginEdge, TICK_S, WalkOffLanding, to_world, wrap};
+use super::kin::{Blend, DropFall, Edge, FIX_ABOVE_M, FixBlend, FixFloor, LevelRead, WallSlide, JumpSnap, Kinematics, MarginEdge, TICK_S, WalkOffLanding, to_world, wrap};
 use super::pitch::{Pitch, PitchScale};
 use crate::v026g::drive::key;
 
@@ -141,6 +141,9 @@ const PLANNED_LANDING_M: f32 = 1.0;
 
 /// The keys that move the body on the ground.
 const MOVE_KEYS: u32 = key::FORWARD | key::BACK | key::LEFT | key::RIGHT | key::SPRINT;
+
+/// [A318] The keys that set the desired speed ([`Kinematics::target_local`]): a [`LevelRead::Settled`] read needs them unchanged.
+const LEVEL_KEYS: u32 = MOVE_KEYS | key::CROUCH | key::AIM | key::FIRE;
 
 impl Estimate {
     /// The body as the view has it now (`me`), on the floor `node`, its velocity already blended in: what
@@ -601,7 +604,16 @@ impl BodyTrack {
             self.lives += 1;
         }
         // The world's speed with the legs' term taken out: the level is the rest of the factor.
-        if let Some(level) = fix.speed.and_then(|speed| kin.level_of(fix.keys, speed / self.legs.unwrap_or(1.0))) {
+        // [A318] [`LevelRead::Settled`]: only once the keys moving the world's last ticks have settled, by those keys.
+        let read_keys = match kin.level_read {
+            LevelRead::Any => Some(fix.keys),
+            LevelRead::Settled => {
+                let n = kin.blend_ticks as usize;
+                let last: Vec<u32> = self.ticks.iter().rev().filter(|tick| tick.time < fix.time).take(n).map(|tick| tick.keys & LEVEL_KEYS).collect();
+                (last.len() == n && last.iter().all(|&k| k == last[0])).then(|| last[0])
+            }
+        };
+        if let Some(level) = read_keys.zip(fix.speed).and_then(|(keys, speed)| kin.level_of(keys, speed / self.legs.unwrap_or(1.0))) {
             self.level = Some(level);
         }
         let level = self.level();
@@ -866,6 +878,9 @@ fn advance(
             }
             continue;
         }
+        // [A318] The client's step cap (`max_speed` 0x2DC010 in 0x2D9060) on the blend's speed, by the keys moving it; not in a jump.
+        let jumping = at.time + step * TICK_MS <= at.air_until;
+        let local = if jumping { local } else { kin.speed_cap.capped(local, at.keys, level) };
         at.velocity = to_world(local, at.yaw);
         let to = Vec3::new(
             at.feet.x + at.velocity[0] * TICK_S,
@@ -1991,7 +2006,8 @@ pub(super) mod tests {
     /// moves by both: a leg under 20 % (0.9) and a world showing it walk at 0.9 of the walk is a level of 1; at 0.81 a level of 0.9.
     #[test]
     fn a_hurt_legs_term_is_kept_out_of_the_level_and_moves_the_body() {
-        let kin = Kinematics { blend_ticks: 1, ..Kinematics::default() };
+        // Worlds with no decided ticks before them: read as they come ([`LevelRead::Any`]; the settled read is tested apart).
+        let kin = Kinematics { blend_ticks: 1, level_read: LevelRead::Any, ..Kinematics::default() };
         let mut track = BodyTrack::default();
         track.set_legs(Some(0.9));
         assert!((track.level() - 0.9).abs() < 1e-6);
@@ -2005,6 +2021,28 @@ pub(super) mod tests {
         assert!((track.level() - 0.9).abs() < 1e-5);
         track.set_legs(None);
         assert!((track.level() - 0.9).abs() < 1e-5);
+    }
+
+    /// [A318] [`LevelRead::Settled`]: a world in the fade after a key change (its speed between the two keys') leaves the level as it
+    /// was; once the last `blend_ticks` ticks held the same keys, the world's speed over those keys' sets it.
+    #[test]
+    fn the_level_is_read_only_from_a_settled_world() {
+        let kin = Kinematics::default();
+        let mut track = BodyTrack::default();
+        track.fixed(fix(0, Vec3::ZERO, 0.0), &kin, None);
+        let world = |time: u32, speed: f32| Fix { keys: key::FORWARD, speed: Some(speed), ..fix(time, Vec3::ZERO, 0.0) };
+        // Two ticks into a walk from rest: in the fade (3.0 m/s of 3.5 would read 0.857).
+        for k in 1..=2u32 {
+            track.decided(k * 50, key::FORWARD, (0.0, 0.0), 0.0, &kin, None);
+        }
+        track.fixed(world(150, 3.0), &kin, None);
+        assert!((track.level() - 1.0).abs() < 1e-6, "a fade's speed is no level: {}", track.level());
+        // Settled: six ticks of the same keys before the world.
+        for k in 3..=9u32 {
+            track.decided(k * 50, key::FORWARD, (0.0, 0.0), 0.0, &kin, None);
+        }
+        track.fixed(world(500, 3.5 * 0.95), &kin, None);
+        assert!((track.level() - 0.95).abs() < 1e-5, "settled: {}", track.level());
     }
 
     #[test]
@@ -2248,6 +2286,32 @@ pub(super) mod tests {
         // A walk across a floor no lower than the step stays on the ground.
         let mut feet = Vec3::new(0.0, 0.5, 0.0);
         assert_eq!(fall_step(Fall::Ground, 1.0, &mut feet, 0.8, DropFall::Client), Fall::Ground);
+    }
+
+    /// [A318] [`SpeedCap::Client`]: a sprint released moves at the walk's cap (3.5 m/s) on its first tick, the client's `max_speed`
+    /// 0x2DC010, while the blend still carries the sprint's speed; with the cap off it carries it (4.75 m/s); a sprint is not cut.
+    #[test]
+    fn a_released_sprint_drops_to_the_walk_cap_at_once() {
+        use super::super::kin::SpeedCap;
+        let run = |speed_cap: SpeedCap| {
+            let kin = Kinematics { speed_cap, ..Kinematics::default() };
+            let mut track = BodyTrack::default();
+            track.fixed(fix(0, Vec3::new(0.0, 0.0, 0.0), 0.0), &kin, None);
+            let mut speeds = Vec::new();
+            for k in 1..=30u32 {
+                let keys = if k <= 20 { key::FORWARD | key::SPRINT } else { key::FORWARD };
+                track.decided(k * 50, keys, (0.0, 0.0), 0.0, &kin, None);
+                let v = track.estimate().unwrap().velocity;
+                speeds.push(v[0].hypot(v[1]));
+            }
+            speeds
+        };
+        let (on, off) = (run(SpeedCap::Client), run(SpeedCap::Off));
+        // Tick 21 releases the sprint; the move into tick 22 is the first by its keys (speeds[21]).
+        assert!((on[19] - 5.0).abs() < 1e-3 && (off[19] - 5.0).abs() < 1e-3, "sprinting: {on:?}");
+        assert!((on[21] - 3.5).abs() < 1e-3, "the walk cap at once: {on:?}");
+        assert!(off[21] > 4.5, "the blend alone carries the sprint: {off:?}");
+        assert!(on.iter().all(|v| *v <= 5.0 + 1e-3));
     }
 
     /// [A318] [`DropFall::Gravity`]: the reckoned body walking off a 2 m ledge comes down as the client's capsule falls (from rest,
