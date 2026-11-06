@@ -84,6 +84,7 @@ pub mod routes;
 pub mod sense;
 pub mod shot_reach;
 pub mod signals;
+pub mod slope_stretch;
 pub mod smoke;
 pub mod squad;
 pub mod stamina;

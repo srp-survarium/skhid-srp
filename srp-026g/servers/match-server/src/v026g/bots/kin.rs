@@ -137,6 +137,11 @@ pub enum SlopeSpeed {
     /// ramp, in the lab).
     #[default]
     RampsGrade,
+    /// [A322] Every rising step on any floor is shortened by the grade of the stretch ahead (`super::slope_stretch`): the grid's
+    /// walk links followed 1 m along the walk, the share `1 - 0.3 x grade`, the client's fit on all 15 client-test recordings
+    /// (uphill 0.95x at a grade of 0.15-0.3, 0.90x at 0.3-0.5, 0.79x over 0.5, on every map; downhill full speed). A stretch, not
+    /// the tick: a per-tick rise on stairs is a cliff or a tread (why [`Self::Up`] made stairs worse).
+    Stretch,
 }
 
 impl SlopeSpeed {
@@ -148,6 +153,8 @@ impl SlopeSpeed {
             Self::Planar => false,
             Self::Up => rise > 0.0,
             Self::RampsGrade => rise > 0.0 && ramp_deg.is_some(),
+            // Shortened by the stretch ahead in the body's step (`super::slope_stretch::share`), not by the step's own rise.
+            Self::Stretch => false,
         };
         if shortened && run > 1e-4 { run / run.hypot(rise) } else { 1.0 }
     }

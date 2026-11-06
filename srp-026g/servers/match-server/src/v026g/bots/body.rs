@@ -700,8 +700,14 @@ fn advance(
                     .ramp_slope_deg(node)
                     .or_else(|| at.node.and_then(|start| grid.ramp_slope_deg(start)))
                     .filter(|&deg| deg >= kin.ramp_min_deg);
-                let share =
-                    if in_air { 1.0 } else { kin.slope_speed.share(at.feet.distance_xz(feet), feet.y - at.feet.y, ramp_deg) };
+                let share = if in_air {
+                    1.0
+                } else if kin.slope_speed == super::kin::SlopeSpeed::Stretch {
+                    // [A322] The grade of the stretch ahead along the walk.
+                    super::slope_stretch::share(grid, at.node.unwrap_or(node), at.feet, at.velocity)
+                } else {
+                    kin.slope_speed.share(at.feet.distance_xz(feet), feet.y - at.feet.y, ramp_deg)
+                };
                 if share < 1.0 {
                     let short = Vec3::new(
                         at.feet.x + (to.x - at.feet.x) * share,
