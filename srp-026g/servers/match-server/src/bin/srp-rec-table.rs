@@ -84,6 +84,8 @@ fn run(input: &Path, out: &Path, fallback: Option<u16>) -> Result<(), Box<dyn st
     let notes = record::read_notes(input)?;
     let mut kinds: BTreeMap<String, usize> = BTreeMap::new();
     let mut head = String::new();
+    // A332: the mode and the place count, for the statistics' battery records.
+    let (mut mode_num, mut places_n) = (0u8, 0usize);
     // Each place's client patch revision, from its `revision` note (game.rs).
     let mut revisions: BTreeMap<u8, u16> = BTreeMap::new();
     let mut notes_out: Vec<String> = Vec::new();
@@ -93,6 +95,8 @@ fn run(input: &Path, out: &Path, fallback: Option<u16>) -> Result<(), Box<dyn st
             continue;
         };
         if k == 0 {
+            mode_num = value["mode"].as_u64().unwrap_or(0) as u8;
+            places_n = value["places"].as_array().map_or(0, Vec::len);
             head = format!(
                 "header: match {} map {} mode {} places {}",
                 value["match_id"],
@@ -163,6 +167,63 @@ fn run(input: &Path, out: &Path, fallback: Option<u16>) -> Result<(), Box<dyn st
         }
     }
     kits.flush()?;
+    // A332 (fx-review, local): each roster place's kits' speed level as the server reckons it
+    // (`bot_skills::profile_movement_level_in`, no weapon term), the kit's weight, and every weapon slot's own
+    // `movement_speed_modifier`: `rec_levels.csv`: `match,roster,place,team,kit,level_none,weight,weapons` (weapons:
+    // `slot:modifier` joined by `;`).
+    let mut levels = std::io::BufWriter::new(std::fs::File::create(out.join("rec_levels.csv"))?);
+    writeln!(levels, "match,roster,place,team,kit,level_none,weight,weapons")?;
+    for (&roster, (_, options)) in &tables.rosters {
+        for (place, profile) in options.players.iter().enumerate() {
+            for (k, kit) in profile.kits.iter().enumerate() {
+                let Some(level) = survarium::v026g::bot_skills::profile_movement_level_in(profile, k, false) else { continue };
+                let mut weight = 0.0f32;
+                let mut weapons: Vec<String> = Vec::new();
+                for (slot, entry) in kit.slots.iter().enumerate() {
+                    let Some((index, count)) = entry else { continue };
+                    let Some(item) = profile.items.get(usize::from(*index)) else { continue };
+                    weight += survarium::v026g::bot_skills::item_weight(item.dict_id, u32::from(*count), &item.modifications);
+                    if let Some(w) = survarium::v026g::weapons::weapon(item.dict_id) {
+                        weapons.push(format!("{slot}:{:.3}", w.movement_speed_modifier));
+                    }
+                }
+                writeln!(levels, "{id},{roster},{place},{},{k},{level:.4},{weight:.3},{}", profile.team, weapons.join(";"))?;
+            }
+        }
+    }
+    levels.flush()?;
+    // A332: who carries a battery: a player whose `carried_distances[kit][player]` grew since the last world read
+    // (statistics 0x334DC0, modes 2 and 3): `rec_carry.csv`: `match,time,battery,place,kit,distance`.
+    let mut carry = std::io::BufWriter::new(std::fs::File::create(out.join("rec_carry.csv"))?);
+    writeln!(carry, "match,time,battery,place,kit,distance")?;
+    let mut carried_last: BTreeMap<(usize, usize, usize), f32> = BTreeMap::new();
+    let (mut decoded_n, mut stats_n, mut items_n) = (0usize, 0usize, 0usize);
+    let players_n = tables.rosters.values().map(|(_, o)| o.players.len()).max().unwrap_or(places_n);
+    for (&time, bodies) in &tables.worlds {
+        let Some(body) = bodies.first() else { continue };
+        // The live server passes its own player count and the map's battery count (game.rs); here: the first that reads.
+        let tries = [places_n, players_n, 20].into_iter().flat_map(|p| (0..=5usize).rev().map(move |b| (p, b)));
+        let found = tries
+            .filter_map(|(p, b)| survarium::v026g::match_msgs::snapshot::decode(time, body, p, mode_num, b))
+            .find(|d| d.statistics.as_ref().is_some_and(|s| !s.victory_items.is_empty()));
+        let Some(decoded) = found else { continue };
+        decoded_n += 1;
+        let Some(statistics) = decoded.statistics else { continue };
+        stats_n += 1;
+        items_n = items_n.max(statistics.victory_items.len());
+        for (b, item) in statistics.victory_items.iter().enumerate() {
+            for (kit, row) in item.carried_distances.iter().enumerate() {
+                for (place, &d) in row.iter().enumerate() {
+                    let before = carried_last.insert((b, kit, place), d).unwrap_or(0.0);
+                    if d > before + 1e-3 {
+                        writeln!(carry, "{id},{time},{b},{place},{kit},{d:.2}")?;
+                    }
+                }
+            }
+        }
+    }
+    carry.flush()?;
+    eprintln!("a332 carry: mode {mode_num} places {places_n} players {players_n}: worlds decoded {decoded_n}, with statistics {stats_n}, victory items {items_n}");
     let mut worlds = std::io::BufWriter::new(std::fs::File::create(out.join("rec_worlds.csv"))?);
     writeln!(worlds, "match,time,upload,uploads,same,place,alive,cx,cy,cz,fx,fy,fz,yaw,pitch,keys,speed,inserted")?;
     let mut motions = std::io::BufWriter::new(std::fs::File::create(out.join("rec_motion.csv"))?);
