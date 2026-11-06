@@ -5,3 +5,5 @@
 # cut <surface> <box>, lower <surface> <box> <height>; boxes in the locators' frame, metres).
 # gun	sight	our model	0.69d0 under an optic	under an optic
 m4a1	front sight tower (on the gas block)	part of m4a1_s: the tower and its post, standing on the gas block (top 0.078 m)	m4a1_front_ironsight: model_param1 is weapons/modules/gasblocks/m4a1_gasblock (no sight)	lower m4a1_s -0.013,0.078,-0.385,0.013,0.14,-0.3355 0.078
+ump45	front sight hood and post (on the receiver's front)	part of ump_45_mat_s: hood and post above the top rail (0.1078 m)	its own mesh: stays (no sight module); cut flat here by the owner's word (2026-11-07: it crowds the PK-01VI's, RSA-S's and Walther's dot)	lower ump_45_mat_s -0.02,0.1078,-0.345,0.02,0.14,-0.285 0.1078
+rpd	front sight ears and post (on the barrel)	part of rpd_s: ears and post above their base (0.06 m)	its own mesh: stays (no sight module); cut flat here by the owner's word (2026-11-07: it crowds the PK-01VI's, RSA-S's and Walther's dot)	lower rpd_s -0.016,0.06,-0.77,0.016,0.13,-0.715 0.06
