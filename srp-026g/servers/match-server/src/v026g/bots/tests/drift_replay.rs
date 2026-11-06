@@ -128,6 +128,14 @@ fn drift_on_a_real_match() {
     let mut out = String::from("place,time,gap,flat,height,meant,moved,ticks,walk,held,rx,ry,rz,wx,wy,wz\n");
     let (mut k, mut n, mut over) = (0usize, 0u32, 0u32);
     let mut held_kinds: HashMap<(&str, &str), u32> = HashMap::new();
+    // `SRP_A304_SLOPE=1` [A318]: each drifting world's ground under the client's feet, at it and at the world before, by the client's
+    // slide rule (`standin_slide::Ground::slides`): what of the drift a slide in the reckoning could take.
+    let grounds = var("SRP_A304_SLOPE").map(|_| {
+        let triangles = world.map.walker_triangles();
+        let all = Arc::new(mapdata::RayTree::from_corners(triangles.iter().map(|t| t.v)));
+        super::standin_slide::Grounds::new(&triangles, all)
+    });
+    let mut slope_kinds: HashMap<&str, u32> = HashMap::new();
     for w in rows {
         while k < ticks.len() && ticks[k].0 <= w.time + WORLD_LATE_MS {
             let (time, place, keys, turn) = ticks[k];
@@ -138,6 +146,7 @@ fn drift_on_a_real_match() {
         let before = track.fix().filter(|f| f.alive && f.inserted == w.fix.inserted).and_then(|f| f.feet);
         let reckoned = track.reckoned_at(w.time);
         let feet = w.fix.feet;
+        let speed = w.fix.speed;
         let new_life = track.fixed(w.fix, &kin, grid);
         let (Some(feet), Some(reckoned), Some(from), false) = (feet, reckoned, before, new_life) else {
             continue;
@@ -146,6 +155,23 @@ fn drift_on_a_real_match() {
         let height = reckoned.y - feet.y;
         n += 1;
         over += u32::from(flat >= 1.0 || height.abs() >= 1.0);
+        if let (Some(g), true) = (&grounds, flat >= 1.0 || height.abs() >= 1.0) {
+            use super::standin_slide::Ground;
+            let still = speed.is_some_and(|s| s < 0.1);
+            let (at, was) = (g.under(feet), g.under(from));
+            let kind = if [at, was].iter().flatten().any(|ground| ground.slides(false)) {
+                "the client's ground slides a body moving or not (by_slope over 55 deg, or dont_walk)"
+            } else if [at, was].iter().flatten().any(|ground| ground.slides(true)) {
+                if still { "still on by_slope ground of 45-55 deg (slides a body standing)" } else { "moving on by_slope ground of 45-55 deg (holds a moving body)" }
+            } else if [at, was].iter().flatten().any(|ground| matches!(ground, Ground::Walk(deg) | Ground::Slope(deg) if *deg >= 30.0)) {
+                "ground of 30 deg or more the client holds (walk face, or by_slope under 45)"
+            } else if at.is_none() {
+                "no face under the client's feet"
+            } else {
+                "ground under 30 deg"
+            };
+            *slope_kinds.entry(kind).or_insert(0) += 1;
+        }
         let iv = track.last_interval().unwrap_or_default();
         // What the grid has where a held reckoning stopped and where the client's feet are (A304: what kind of hold).
         if iv.held_ticks > 0 && flat >= 1.0 {
@@ -190,6 +216,11 @@ fn drift_on_a_real_match() {
         "A304 replay {project}: {n} worlds of bots compared, {over} drifting (1 m+), {:.1} %",
         100.0 * over as f64 / n.max(1) as f64
     );
+    let mut slopes: Vec<_> = slope_kinds.into_iter().collect();
+    slopes.sort_by_key(|(_, n)| std::cmp::Reverse(*n));
+    for (kind, count) in slopes {
+        eprintln!("A318 slope drift: {count} {kind}");
+    }
     let mut kinds: Vec<_> = held_kinds.into_iter().collect();
     kinds.sort_by_key(|(_, n)| std::cmp::Reverse(*n));
     for ((held, world), count) in kinds {
