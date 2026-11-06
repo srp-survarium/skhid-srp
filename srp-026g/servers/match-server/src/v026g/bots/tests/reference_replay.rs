@@ -430,7 +430,7 @@ fn reference_replay() {
                 // L08's Cologne corner equals the exe). On while the sprint state is on: is_sprinting 0x2F1220 and no aim.
                 let sprinting = sprint_capsule && sprint_input(kk) && kk & key::AIM == 0;
                 let tick_settings = if sprinting { Settings { stand_move_complex_test: false, ..s } } else { s };
-                                let notes = body.step(&collision, TICK_S, &tick_settings);
+                let notes = body.step(&collision, TICK_S, &tick_settings);
                 if ended {
                     jump = None;
                 }
