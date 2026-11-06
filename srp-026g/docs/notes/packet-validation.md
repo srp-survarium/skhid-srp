@@ -147,9 +147,13 @@ has no object list: its native guards stay its bound.
 
 ## Which worlds reach another game, and the animation streams
 
-The semantic check reads every section of an upload but each player block's
-animation stream, which only the frame's walk measures. A world reaches another
-game only as (`game.rs`, `usable_snapshot`):
+The semantic check reads every section of an upload; each player block's
+animation stream is read by the frame's walk, which since `animation_validate`
+(`world-frame`, `snapshot_rules.md` 7.2.1) does not only measure it but bounds
+every count and index a native client decodes from it (the times/floats table
+indices, the channel picks, the expression-tree recursion, the tree's length
+and its table pops). A world reaches another game only as (`game.rs`,
+`usable_snapshot`):
 
 - the snapshot, once its CRC (`game_state_history_item::hash` 0x325150, over
   the whole body, animation streams too) is the majority of the clients' hash
@@ -166,8 +170,12 @@ the first uploads of the 118 live matches (539 uploads), and `not_initial` now
 refuses one with a player in it (`SRP_CHECK_INITIAL_WORLD`, on by default).
 Scripted worlds write a place's block only once it has entered, as games do.
 
-Still open: a game that joins a match where one other game simulates loads
-that game's world with no second source for its animation streams.
+That single-source path (the one game a newcomer joins, and the initial world)
+is why the frame walk now validates the animation stream and not only measures
+its length: those streams reach another game with no second source to vouch for
+them, and `animation_validate` runs in the walk on every upload the server
+checks and every world patch 87 loads. All 177,672 animated player blocks of
+the 20,668 kept worlds in `private/live-worlds-*` pass it.
 
 ## Player states to their exact end on the server
 
