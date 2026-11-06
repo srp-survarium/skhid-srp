@@ -61,7 +61,7 @@ import align  # noqa: E402
 from scopes_lib import ce  # noqa: E402
 
 PACK_ID = 'rifle-scopes'
-VERSION = '11'
+VERSION = '12'
 LANGUAGES = ('english', 'german', 'original', 'polish', 'russian', 'ukrainian')
 FIRST_VARIANT = 2701
 CATEGORY = 22
@@ -69,7 +69,7 @@ ICON_ATLAS = 'LobbyMenu_AmmoIcons'
 DOT_DISTANCE = 0.6
 EYE_TOLERANCE = 0.0003
 EYE_TURN = 0.0002  # rad
-EYE_RELIEF = 0.025  # m from a collimator's rear to the eye, at least (most of ours have 0.025 to 0.2)
+EYE_RELIEF = 0.045  # m from a collimator's rear to the camera, at least (the AKMN's PK-01VI 0.049, most 0.06 to 0.2)
 # the red dot every collimator of ours has (patch 21), as a model of its own centred at its origin
 RETICLE_FROM = ('fitn_aimpoint_compm4_m4a1', lib.DOT)
 COMPM4 = 'shop_scope_aimpoint_compm4'
