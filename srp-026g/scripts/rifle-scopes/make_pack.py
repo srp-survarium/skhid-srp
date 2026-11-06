@@ -61,7 +61,7 @@ import align  # noqa: E402
 from scopes_lib import ce  # noqa: E402
 
 PACK_ID = 'rifle-scopes'
-VERSION = '10'
+VERSION = '11'
 LANGUAGES = ('english', 'german', 'original', 'polish', 'russian', 'ukrainian')
 FIRST_VARIANT = 2701
 CATEGORY = 22
@@ -69,6 +69,7 @@ ICON_ATLAS = 'LobbyMenu_AmmoIcons'
 DOT_DISTANCE = 0.6
 EYE_TOLERANCE = 0.0003
 EYE_TURN = 0.0002  # rad
+EYE_RELIEF = 0.025  # m from a collimator's rear to the eye, at least (most of ours have 0.025 to 0.2)
 # the red dot every collimator of ours has (patch 21), as a model of its own centred at its origin
 RETICLE_FROM = ('fitn_aimpoint_compm4_m4a1', lib.DOT)
 COMPM4 = 'shop_scope_aimpoint_compm4'
@@ -176,18 +177,30 @@ def posed_frame(root, cfg, directory):
     return frame
 
 
-def collimator_eye(root, cfg, directory, dot):
+def collimator_eye(root, cfg, directory, aimed):
     """The aim locator (position, rotation) of the weapon model `directory` that looks along the
-    optic's axis at `dot` (a point of the optic, its frame; posed_frame), as the sight-alignment
-    tool's on_axis puts it (the 9A-91's Cobra). A clip may turn the optic's bone off the eye's too
-    (the RPD, the Vepr, the Magnum): an eye only moved onto the dot then looks across the optic, the
-    dot centred but the optic beside it (@9)."""
+    optic's axis at the red dot of the aimed model `aimed` (posed_frame), as the sight-alignment
+    tool's on_axis puts it (the 9A-91's Cobra), and at least EYE_RELIEF behind the optic. A clip may
+    turn the optic's bone off the eye's too (the RPD, the Vepr, the Magnum): an eye only moved onto
+    the dot then looked across the optic, the dot centred but the optic beside it (@9); the RPD's eye
+    sat inside the PK-01VI."""
     frame = posed_frame(root, cfg, directory)
     aim = posing.locator(directory, 'aim')
     offset = posing.config(root / cfg)['parameters'].get('aim_offset', 0)
-    loc = align.on_axis({'id': str(directory), 'mount': frame, 'marker': posing.transform(np.asarray(dot, float), frame),
+    names = lib.surfaces(aimed)
+    dot = posing.transform(lib.bbox_centre(aimed, next(n for n in names if align.emitter(n))), frame)
+    loc = align.on_axis({'id': str(directory), 'mount': frame, 'marker': dot,
                          'locator': {'position': aim.position, 'rotation': aim.rotation}, 'offset': offset})
-    return np.array(loc['position']), np.array(loc['rotation'])
+    position = np.array(loc['position'])
+    # the camera: aim_offset on from the locator (the RPD's 0.1 m), as model.weapon draws it
+    camera = (posing.matrix((0, 0, offset)) @ posing.HALF @ posing.matrix(position, loc['rotation']))[3, :3]
+    ahead = (dot - camera) / np.linalg.norm(dot - camera)
+    optic = posing.transform(np.concatenate([lib.positions(aimed / 'render' / n / 'converted_model')
+                                             for n in names if not align.emitter(n)]), frame)
+    rear = ((optic - camera) @ ahead).min()
+    if rear < EYE_RELIEF:
+        position -= ahead * (EYE_RELIEF - rear)
+    return position, np.array(loc['rotation'])
 
 
 def moved_eye(model, needed):
@@ -413,7 +426,7 @@ def build(args, work):
                         level_eye(target)
                         files.update(files_of(target, work))
             else:
-                needed = collimator_eye(args.live, cfg, from_dir, t + np.array([eye[0], eye[1], DOT_DISTANCE]))
+                needed = collimator_eye(args.live, cfg, from_dir, aim_out)
                 change = eye_model(candidates, base_model, needed)
                 if change is False:
                     change = f'{base_model}_n_{short}'
