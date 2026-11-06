@@ -11,6 +11,7 @@
   release/moderate mute <name> <hours | forever> --reason R         the player is told the reason
   release/moderate unmute <name>
   release/moderate signups [open | closed]                          no argument: the current state
+  release/moderate reset-password <name>                            its next sign-in sets the new one
 
 Lines are plain text, one row each, times in UTC; --json gives one JSON object a line. A sign-up
 or sign-in that looks like a banned player back starts with "!! <why> !!" (red on a terminal,
@@ -515,9 +516,10 @@ def quoted(value):
     return value.replace("\\", "\\\\").replace('"', '\\"')
 
 
-def admin(args, fields, what):
+def admin(args, fields, what, direct=False):
     """POSTs `fields` (name, value) to the admin page from the jump host;
-    the page's answer line. --dry-run: shows the request, sends nothing."""
+    the page's answer line. `direct`: a script's request, answered by one
+    line of text, not the page. --dry-run: shows the request, sends nothing."""
     site = need("SKHID_SITE").rstrip("/")
     fields = list(fields) + [("lang", "en")]
     if args.dry_run:
@@ -538,8 +540,15 @@ def admin(args, fields, what):
         capture_output=True,
         text=True,
     )
-    # The page puts the token back in its form: the body is never printed.
     body, _, status = done.stdout.rpartition("\n")
+    if direct:
+        # One line of text (password_reset.rs); "pending" (202) is done too.
+        said = body.strip()[:300] if status.strip() in ("200", "202", "404", "400") else ""
+        if done.returncode != 0 or status.strip() not in ("200", "202"):
+            sys.exit("moderate: the admin page answered HTTP %s %s %s" % (
+                status.strip() or "none", said, done.stderr.strip()[-500:]))
+        return {"what": what, "answer": said}
+    # The page puts the token back in its form: the body is never printed.
     if done.returncode != 0 or status.strip() != "200":
         sys.exit(
             "moderate: the admin page answered HTTP %s (404: wrong SRP_ADMIN_PATH or the jump host not in "
@@ -611,6 +620,25 @@ def signups(args):
     answered(args, row)
 
 
+def reset_password(args):
+    """Clears the password (srp-026g/docs/notes/password-reset.md): the
+    player's next sign-in, with any password, sets the new one, so reset
+    when the player is ready to sign in. The page takes the user name; a
+    character name is looked up first."""
+    accounts = remote({"kind": "who", "target": args.target})["accounts"]
+    key = args.target.strip().lower()
+    # A user name outranks another account's character name.
+    named = [a for a in accounts if a["login"].lower() == key] or [
+        a for a in accounts if key in ((a["name"] or "").lower(), (a["character"] or "").lower())]
+    if len(named) != 1:
+        found = ", ".join("#%d %s" % (a["id"], a["login"]) for a in (named or accounts)[:10]) or "none"
+        sys.exit("moderate: %r must name exactly one account (user or character name); matched: %s" % (args.target, found))
+    acc = named[0]
+    print("moderate: %s: its next sign-in, with any password, sets the new one; tell the player to sign in now"
+          % account_line(acc), file=sys.stderr)
+    answered(args, admin(args, [("tab", "reset_password"), ("login", acc["login"])], "reset-password", direct=True))
+
+
 def answered(args, row):
     if row is None:
         return
@@ -667,6 +695,9 @@ def main():
     p = change("signups", "close or open the registration of new accounts")
     p.add_argument("state", nargs="?", choices=("open", "closed"))
     p.set_defaults(run=signups)
+    p = change("reset-password", "clear an account's password: its next sign-in sets the new one")
+    p.add_argument("target", help="user name or character name")
+    p.set_defaults(run=reset_password)
 
     args = parser.parse_args()
     if hasattr(signal, "SIGPIPE"):
