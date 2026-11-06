@@ -339,7 +339,7 @@ The order, as it runs:
    `build-zip` (of the commit checked in step 1); then the **exe patches'
    self-test** of that commit (`srp-026g/client-patches/selftest_026g.py`,
    its Linux part, on `$SKHID_GAME`'s `survarium.exe`, in the commit's dev
-   shell with nixpkgs' Python unicorn, about 15 min, ~1.3 GB; log
+   shell with nixpkgs' Python unicorn, about 15 min, ~0.4 GB; log
    `selftest.log` in the run's work folder): a failed check stops the
    release here, before anything is staged (the patch's fix is a PR, then a
    new run). It is the release's check of the exe's general rules (no byte

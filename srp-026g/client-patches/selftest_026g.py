@@ -884,7 +884,8 @@ def known_targets(original):
     abi.tsv) and the engine-function library's (engine_026g.tsv); each
     install row's way back, the end of the bytes it replaces, and the
     branches of those bytes, which its code replays (patch_026g.py's install
-    tables, the Rust hooks); the sites' named exits (sites_026g.tsv); and
+    tables, the Rust hooks), and its start, where the build's own bytes go on;
+    the sites' named exits (sites_026g.tsv); and
     patch_026g.py's named ways back (*_BACKS, *_EXITS, *_RETURN, *_END)."""
     key = hashlib.sha256(original).hexdigest()
     if key in _KNOWN:
@@ -897,7 +898,7 @@ def known_targets(original):
     rows = [row for name, value in vars(P).items() if name.isupper() for row in P._install_rows(value)]
     rows += [(va, old) for va, old, _, _ in P.rust_hooks(original)]
     for va, old, *_ in rows:
-        known.add(va + len(old))
+        known.update((va, va + len(old)))
         known.update(t for _, _, text in ndisasm(bytes(old), va) if (t := branch_target(text)) is not None)
     known.update(addr for site in P.hooks_026g.read_sites().values() for _, addr in site["exits"])
     for name, value in vars(P).items():
@@ -1093,9 +1094,17 @@ def test_upgrade_preview(original, image, before):
     stash_find = P.weapon_camo_va(late_join) + P.WEAPON_STASH_OFFSET + P.WEAPON_STASH_FIND
     state = P.late_join_state_va(late_join) + P.UPGRADE_PREVIEW_STATE_OFFSET
     preview_state = P.late_join_state_va(late_join) + P.WEAPON_PREVIEW_STATE_OFFSET
-    code = P.with_kit_apply(open(P.upgrade_preview_bin(), "rb").read(), P.arena())
-    check_piece(original, image, "the upgrade preview", code_va, code, code.index(b"srp_scope_fit\0"),
-                P.UPGRADE_PREVIEW_ENTRIES)
+    code = open(P.upgrade_preview_bin(), "rb").read()
+    listing = ndisasm(code[:code.index(b"srp_scope_fit\0")], code_va)
+    starts = {a for a, _, _ in listing}
+    inner = [t for _, _, text in listing if (t := branch_target(text)) is not None
+             and code_va <= t < code_va + len(code) and t not in starts]
+    unknown = unknown_targets(original, image.data, listing)
+    check(image.read(code_va, len(code)) == P.with_kit_apply(code, P.arena()) and not inner and not unknown
+          and all(code_va + at in starts for at in P.UPGRADE_PREVIEW_ENTRIES),
+          f"the upgrade preview at {code_va:#x} ({len(code)} bytes, its kit_apply dword the build's): every branch "
+          "inside it lands on an instruction, every one out of it is a known target, its entries start "
+          "instructions" + "".join(f"; {t:#x}" for t in inner + unknown))
     check(image.read(code_va + P.UPGRADE_PREVIEW_KIT_APPLY, 4)
           == struct.pack("<I", P.arena_target(P.arena(), P.WEAPON_KIT_PREVIEW_APPLY))
           and P.upgrade_preview_targets(code, code_va) == (stash_find, state, preview_state),
@@ -1133,7 +1142,8 @@ def test_research(original, image, before):
     thunks = {linked.symbols[f["symbol"]]: f["symbol"] for f in engine_026g.functions()
               if f["symbol"] in linked.symbols}
     called = sorted({thunks[t] for text in c_listing if (t := branch_target(text)) in thunks})
-    raw = [f["symbol"] for f in engine_026g.functions() if struct.pack("<I", f["va"]) in c_code]
+    raw = [f["symbol"] for f in engine_026g.functions()
+           if isinstance(f["va"], int) and struct.pack("<I", f["va"]) in c_code]
     check(called and not raw, f"the Rust code calls the library's thunks ({', '.join(called)}), never a library "
           "function's own address" + "".join(f"; {r}" for r in raw))
     read32 = lambda img, va: struct.unpack("<I", img.read(va, 4))[0]
@@ -1942,7 +1952,8 @@ def test_read_order(original, image, before):
     targets = {branch_target(text) for _, _, text in listing if branch_target(text) is not None}
     outside = {t for t in targets if not va <= t < va + size}
     starts = {address for address, _, _ in listing}
-    check(not unknown_targets(original, image.data, listing) and all(t in starts for t in targets - outside)
+    unknown = [t for t in unknown_targets(original, image.data, listing) if not va <= t < va + size]
+    check(not unknown and all(t in starts for t in targets - outside)
           and [t for _, _, t in listing if t.startswith("ret")] == ["ret 0x4"] and set(code[end - va:]) == {0xCC}
           and not [t for _, _, t in listing if re.search(r"call (?:dword )?\[|jmp (?:dword )?\[|\[(?:dword )?0x", t)],
           "the new code's calls are known targets; it "
