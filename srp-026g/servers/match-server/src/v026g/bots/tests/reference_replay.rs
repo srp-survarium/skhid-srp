@@ -97,6 +97,33 @@ fn reference_replay() {
     let replay_start = var("SRP_A325_REPLAY_START").is_some();
     let yaw_before = var("SRP_A325_YAW_BEFORE").is_some();
     let speed_cap = var("SRP_A325_CAP").is_some();
+    let sprint_capsule = var("SRP_A325_SPRINT_CAPSULE").is_some();
+    // Per place: level_none + the first weapon's modifier of kit 0 in the latest roster.
+    let mut kit_level: HashMap<usize, f32> = HashMap::new();
+    if let Some(path) = var("SRP_A325_KIT_LEVELS") {
+        let mut best: HashMap<usize, u32> = HashMap::new();
+        for r in read_csv(&path) {
+            let (Some(place), Some(roster), Some(kit), Some(none)) = (
+                r.get("place").and_then(|v| v.parse::<usize>().ok()),
+                r.get("roster").and_then(|v| v.parse::<u32>().ok()),
+                r.get("kit").and_then(|v| v.parse::<u32>().ok()),
+                r.get("level_none").and_then(|v| v.parse::<f32>().ok()),
+            ) else {
+                continue;
+            };
+            if kit != 0 || best.get(&place).is_some_and(|&b| b > roster) {
+                continue;
+            }
+            let weapon = r
+                .get("weapons")
+                .and_then(|w| w.split(';').next())
+                .and_then(|w| w.split(':').nth(1))
+                .and_then(|m| m.parse::<f32>().ok())
+                .unwrap_or(0.0);
+            best.insert(place, roster);
+            kit_level.insert(place, (none + weapon).max(0.0));
+        }
+    }
     let mut last_level: HashMap<usize, Vec<f32>> = HashMap::new();
     // `SRP_A325_LEVEL_MEDIAN=1`: the level is the median of the player's last 5 steady-world reads, not the last one: a world
     // whose body was held by a wall or a player reads low (one read of 0.756 left a body walking 2.65 m/s for a whole life).
@@ -327,6 +354,10 @@ fn reference_replay() {
         } else {
             1.0
         };
+        // `SRP_A325_KIT_LEVELS=<rec_levels.csv>`: the level from the player's kit by the exe's formula (F = max(0, 1 + S4),
+        // 0x2D5AE0; fx-review A331, rec_levels.csv of #1418): kit 0, the latest roster, the first weapon in hands; the measured
+        // level only for a place the file lacks. Not a measurement of the client at all.
+        let level = kit_level.get(&w.place).copied().unwrap_or(level);
         // `SRP_A325_YAW_BEFORE=1`: the walk of tick k turned by the yaw BEFORE input k's turn (the model's base transform from the
         // tick before), else after it (fx-grid's reading of 0x2D9060). The A/B of the two readings, until the exe read settles it.
         let turn_at = |k: u32| turn_of.get(&(w.place, k)).copied().unwrap_or(0.0);
@@ -442,7 +473,12 @@ fn reference_replay() {
                         ended = j.tick(&mut body, k, kyaw, kk, cap);
                     }
                 }
-                let notes = body.step(&collision, TICK_S, &s);
+                // `SRP_A325_SPRINT_CAPSULE=1`: the sprint state's controller byte +0x204 (set by 0x336A10, cleared by 0x336A50)
+                // takes the capsule branch 0x86490 = the port's stand_move_complex_test off (fx-grid: with it the step_up on
+                // L08's Cologne corner equals the exe). On while the sprint state is on: is_sprinting 0x2F1220 and no aim.
+                let sprinting = sprint_capsule && sprint_input(kk) && kk & key::AIM == 0;
+                let tick_settings = if sprinting { Settings { stand_move_complex_test: false, ..s } } else { s };
+                let notes = body.step(&collision, TICK_S, &tick_settings);
                 if ended {
                     jump = None;
                 }
@@ -468,7 +504,7 @@ fn reference_replay() {
                 was_air = branch == "air";
                 let normal = if notes.airborne { String::new() } else { format!("{:.3}", body.contact_normal.y) };
                 iv.push_str(&format!(
-                    "{rec_id},{},{t0},{tick_n},{},{:.3},{:.3},{:.3},{:.3},{:.3},{:.3},{},{normal},{branch},0x{kk:x},{:.3},{:.3},{:.5},{:.5}\n",
+                    "{rec_id},{},{t0},{tick_n},{},{:.3},{:.3},{:.3},{:.3},{:.3},{:.3},{},{normal},{branch},0x{kk:x},{:.6},{:.6},{:.5},{:.5}\n",
                     w.place,
                     t0 + 50 * tick_n,
                     now.x,
