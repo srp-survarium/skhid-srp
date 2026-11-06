@@ -479,6 +479,9 @@ pub(crate) const STAND_IN_LEG_SHARE: u32 = 4;
 
 pub(crate) const STAND_IN_LEG_HIT: f32 = 0.25;
 
+/// How long a broken leg lasts: game data, `gameplay/hit_params/human_hit_params.options` `affect_duration_sec/leg_damage`
+/// = 8 (s; the affect `leg_damage` 4 of `hit_affects_type_enum`). The live worlds agree (141 broken-leg stretches, most 8.0-8.1 s,
+/// sprint-jump RE `FINDINGS.md` §1.8): a check, not the source.
 pub(crate) const STAND_IN_LEG_BROKEN_MS: u32 = 8_000;
 
 /// After a hit the stand-in walks at this share of its speed for

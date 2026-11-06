@@ -614,8 +614,10 @@ pub(crate) fn the_grids_gap_links_fly_this_short_clip() {
 }
 
 /// Before the sprint clip, the prepare phase finishes the run's step: 0 to
-/// 0.15 s and 0 to 1.64 m, by the gait's phase at the press (PROVEN; the
-/// phase is drawn uniform, LIKELY).
+/// 0.15 s and 0 to 1.64 m, by the gait's phase at the press (EXE + clip data, PROVEN: `jump_logic_state_prepare::initialize`
+/// 0x342540 waits for the run clip's next `anim_intervals` mark, `on_interval_end` 0x342A50 starts the jump; the rate
+/// `get_prepare_time_factor` 0x3375A0 makes the wait 0-0.15 s; the sprint clips' root runs 5.455 m/s of clip time over the
+/// 0.30 s step, 0-1.636 m; sprint-jump RE `FINDINGS.md` §3.2, `re-sprint-prepare.md`. The phase is drawn uniform, LIKELY).
 pub(crate) const SPRINT_PREPARE_MS: f32 = 150.0;
 
 pub(crate) const SPRINT_PREPARE_M: f32 = 1.64;
@@ -781,7 +783,8 @@ pub(crate) struct Landing {
 }
 
 /// The client's fall damage at a landing speed `v` m/s with `fatal_damage` 1.0 (the resources.db patch): none up to `harmless_height` 5 m
-/// (9.9 m/s), `(v - 9.9) / (14 - 9.9)` up to `fatal_height` 10 m (14 m/s), 1.0 beyond (PROVEN, `docs/notes/fall_damage.md`).
+/// (9.9 m/s), `(v - 9.9) / (14 - 9.9)` up to `fatal_height` 10 m (14 m/s), 1.0 beyond (EXE + DATA, PROVEN, `docs/notes/fall_damage.md`:
+/// the law 0x2d8220, its loader 0x2d6600 reading `gameplay/players/default.player` `fall_params`).
 pub(crate) fn fall_damage(v: f32) -> f32 {
     ((v - HARMLESS_V) / (FATAL_V - HARMLESS_V)).clamp(0.0, 1.0)
 }
