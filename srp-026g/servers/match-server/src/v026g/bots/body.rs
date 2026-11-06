@@ -1493,7 +1493,7 @@ pub(super) mod tests {
             (node, feet, _) = slide_supported_by(&square, node, feet, to, f32::INFINITY, SUPPORT_M, WalkOffs::Landings, Bridges::Leap, WallSlide::Diagonal);
         }
         assert!((feet.x - 5.1).abs() < 0.05, "square into an axis wall: no slide, at {feet:?}");
-        assert_eq!(Kinematics::default().wall_slide, WallSlide::Diagonal);
+        assert_eq!(Kinematics::default().wall_slide, WallSlide::Round);
     }
 
     /// [A313, `kin.walk_bridges`] Up a 0.75 m riser the pass walks off (the client's tick climbs it in a stride over the riser
