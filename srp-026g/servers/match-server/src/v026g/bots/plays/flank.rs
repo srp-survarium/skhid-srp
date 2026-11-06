@@ -119,10 +119,12 @@ pub fn candidates(cx: &Ctx, out: &mut Vec<Candidate>) {
         let walking = ROUTE_SEEN.with(|m| m.borrow().contains_key(&cx.me.place));
         if walking {
             let why = match cx.bot.current {
+                // Still on this flank: with camp_flank on, a walk goes on past its job's end by design (not a leave).
                 Some((PlayKind::Flank, TargetRef::ThreatSpot(id), _)) => {
                     let line = cx.team.threat.line(id).is_some();
                     let role = matches!(cx.team.threat.job_of(cx.me.place), Some((_, Role::Flanker, l)) if l.id == id);
-                    (!role).then(|| format!("job role gone (held spot {})", if line { "still held" } else { "gone" }))
+                    (!role && cx.tuning.threat.camp_flank.is_none())
+                        .then(|| format!("job role gone (held spot {})", if line { "still held" } else { "gone" }))
                 }
                 Some((kind, _, _)) => Some(format!("another play {kind:?}")),
                 None => Some("no play".to_string()),
@@ -706,7 +708,18 @@ pub fn step(state: &mut State, target: TargetRef, cx: &Ctx, rng: &mut Rng) -> St
                 #[cfg(test)]
                 {
                     let (steps, seen) = ROUTE_SEEN.with(|m| m.borrow_mut().remove(&cx.me.place)).unwrap_or((0, 0));
-                    eprintln!("A320 camp_flank route fire: t {} place {} spot {spot} route {route} seen {seen} of {steps} steps", cx.now, cx.me.place);
+                    // At the firing floor (bench truth): does it see him, and how far.
+                    let sees = cx.view.place(*camper).filter(|p| p.alive).map(|p| {
+                        let eye = crate::v026g::bots::view::still_eye(cx.me.feet, true);
+                        let his = crate::v026g::bots::view::still_eye(p.feet, p.keys & key::CROUCH != 0);
+                        (cx.tactics.sees(eye, his), p.feet.distance_xz(cx.me.feet))
+                    });
+                    let at = match sees {
+                        Some((true, d)) => format!("sees him at {d:.0} m"),
+                        Some((false, d)) => format!("no line to him at {d:.0} m"),
+                        None => "he is dead".to_string(),
+                    };
+                    eprintln!("A320 camp_flank route fire: t {} place {} spot {spot} route {route} seen {seen} of {steps} steps, {at}", cx.now, cx.me.place);
                 }
                 let s = rng.range(num("peek_min_s"), num("peek_max_s"));
                 let until = cx.now + (s * 1000.0) as u32;
