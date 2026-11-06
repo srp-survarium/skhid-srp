@@ -126,15 +126,19 @@ pub(crate) fn stand_in_bridges() -> body::Bridges {
     }
 }
 
-/// [A318] Along what the stand-in body's step the grid stops goes on (`SRP_BENCH_STAND_IN_WALLS`, `diagonal` unless `axes`): the
-/// client's capsule slides along a wall the grid draws as a 45 degree staircase too ([`crate::v026g::bots::kin::WallSlide`]).
+/// [A318] Along what the stand-in body's step the grid stops goes on (`SRP_BENCH_STAND_IN_WALLS`, `round` unless `axes` or
+/// `diagonal`): the client's capsule slides along walls, corners and thin posts too ([`crate::v026g::bots::kin::WallSlide`]).
 pub(crate) fn stand_in_walls() -> crate::v026g::bots::kin::WallSlide {
-    static AXES: std::sync::OnceLock<bool> = std::sync::OnceLock::new();
-    if *AXES.get_or_init(|| bench_settings().var("SRP_BENCH_STAND_IN_WALLS").is_ok_and(|v| v == "axes")) {
-        crate::v026g::bots::kin::WallSlide::Axes
-    } else {
-        crate::v026g::bots::kin::WallSlide::Diagonal
+    use crate::v026g::bots::kin::WallSlide;
+    static WALLS: std::sync::OnceLock<WallSlide> = std::sync::OnceLock::new();
+    if OLD_WALLS.get() {
+        return WallSlide::Diagonal;
     }
+    *WALLS.get_or_init(|| match bench_settings().var("SRP_BENCH_STAND_IN_WALLS").as_deref() {
+        Ok("axes") => WallSlide::Axes,
+        Ok("diagonal") => WallSlide::Diagonal,
+        _ => WallSlide::Round,
+    })
 }
 
 /// [A318] How the stand-in body's blend goes on when its keys change again before it is over (`SRP_BENCH_STAND_IN_MIXER`,
@@ -151,6 +155,24 @@ pub(crate) fn stand_in_mixer() -> crate::v026g::bots::kin::Mixer {
 
 thread_local! {
     static OLD_MIXER: std::cell::Cell<bool> = const { std::cell::Cell::new(false) };
+    static OLD_WALLS: std::cell::Cell<bool> = const { std::cell::Cell::new(false) };
+}
+
+/// The stand-in's slide before the round one ([`crate::v026g::bots::kin::WallSlide::Diagonal`]) for this thread while it lives
+/// (tests whose pinned numbers predate it).
+pub(crate) struct OldWalls(());
+
+impl OldWalls {
+    pub(crate) fn scope() -> Self {
+        OLD_WALLS.set(true);
+        Self(())
+    }
+}
+
+impl Drop for OldWalls {
+    fn drop(&mut self) {
+        OLD_WALLS.set(false);
+    }
 }
 
 /// The stand-in's old blend ([`crate::v026g::bots::kin::Mixer::Frozen`]) for this thread while it lives (tests whose pinned
