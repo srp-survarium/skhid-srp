@@ -8,8 +8,10 @@ nice to have".
 Code, in `flash/lobby_menu/src` ([lobby-source.md](lobby-source.md)):
 
 - `survarium/controls/InventoryList`: the box (`makeSearch`, `onSearchKey`, `closeSearch`,
-  `applySearch`) and the matching (`searchItems`, `searchForm`, `wordScore`, `spreadSpan`,
-  `typoCount`);
+  `applySearch`), its tip (`showSearchTip`, `SEARCH_TIP`) and the matching (`searchItems`,
+  `searchQuery` into a `SearchQuery`, `searchAdmits`, `searchFactions`, `searchBonuses` with
+  `SEARCH_BONUSES`, `searchForm`, `wordScore`, `spreadSpan`, `typoCount`);
+- `survarium/data/PropertiesDescriptor.descriptions`: every bonus's card name;
 - `LobbyMenu`: Esc (`close_active_window`), the window keys (`windowKeysOff`), the Ctrl keys
   (`onKeyDownStage`, `onKeyUpStage`);
 - `KeyCode` (`F`, `LEFT_CONTROL`, `RIGHT_CONTROL`) and `MainScene.isCtrl`.
@@ -22,7 +24,7 @@ Code, in `flash/lobby_menu/src` ([lobby-source.md](lobby-source.md)):
   opening or closing it.
 - **Typing goes to it:** a letter or a digit typed over an open item list gives the box the keys,
   and that character goes on at the end of its text. The keys of other layouts' letters
-  (`; , . [ ] '` …) count too.
+  (`; , . [ ] '` …) count too, and "+" (the row's and the pad's: a "+" word).
 - **Ctrl+F** gives the box the keys with its text selected.
 - **A click** on the box or its magnifier gives it the keys.
 - **When typing and Ctrl+F do nothing:**
@@ -37,10 +39,27 @@ Code, in `flash/lobby_menu/src` ([lobby-source.md](lobby-source.md)):
   - the friends window's name box, 1.25 times as wide and 4 px taller with a 4 px bigger font
     (332 × 32), with a magnifier at its right (drawn: the friends search's is part of its
     window's art). No × (owner 2026-10-22): Esc empties it;
-  - when empty and without the keys, it reads Search / Пошук / Поиск / Suche / Szukaj, upright:
+  - when empty and without the keys, it reads "Search" and three "+" examples, two bonuses and
+    a level (owner 2026-11-06: the box telegraphs the syntax, bonuses first): "Search: +ammo,
+    +pocket, +10" / "Поиск: +патрон, +карман, +10" / "Пошук: +набої, +кишень, +10" …, each
+    language's own words for bonuses its cards name, on one line inside the box (the box is not
+    wider for it); upright:
     every CLIK text box's hint is upright now (`TextInput.initialize`), as the lobby's Calibri
     has no italic and the game takes "Calibri Bold Italic" from the system's fonts, so under Wine
     without Calibri the hints (the friends search's too) showed as squares.
+- **The tip** (owner 2026-11-06): while the box is empty, hovering it or its magnifier shows the
+  game's tooltip (the one of the shop's "Hide owned", a line each, `ReasonsTip`) of all the
+  search takes, one short line each with an example, bonuses first:
+  - `+ammo +pocket`: has each bonus named;
+  - `+10 +11`: of any of these levels;
+  - `+army`: sold by that faction (several: any);
+  - `ak 74`: in the name, typos forgiven;
+  - `helmet, boots`: that kind of item;
+  - `ak +10 +ammo`: all of these at once.
+
+  Once something is typed there is no tip; a click on the empty box is a click on the box. Each
+  line is a dictionary key (`st_srp_inventory_search_tip_*`), its examples the language's own
+  words that find what they say.
 - **Every resolution:** the box is part of the list, and the lobby scales the list (4K: #279).
 
 ## What it finds
@@ -80,6 +99,41 @@ Code, in `flash/lobby_menu/src` ([lobby-source.md](lobby-source.md)):
   level, the name) hides every item that needs a loose match.
 - **The item you chose** stays chosen while it is still listed. The list scrolls back to the top
   each time the search changes.
+
+## "+" words: levels, factions, bonuses
+
+Players, 2026-11-06: "filter by tier level, faction, and perk", "+ammo, +pocket, +slot, +artifact";
+the owner: "levels should also become +1 +10". A word starting with "+" (to the next space or "+":
+`+10+11` is two) is a filter. The text is read once into levels, factions, bonuses and the name's
+words (`SearchQuery`).
+
+- **`+<number>` is an item level** (the card's equipment level), anywhere in the text.
+- **`+<word>` names a faction** when a seller tab's name (as the lobby shows it) has a word starting
+  with it: `+army`, `+black`, `+scav`, `+independent`. A word naming a faction is a faction, never a
+  bonus.
+- **Any other `+<word>` names a bonus** (owner 2026-11-06: what players search for most), when a
+  word of the bonus starts with it, letters compared as in names (case, accents, Cyrillic as Latin):
+  - by its name as the card shows it, in the game's language (`+патрон`: Подсумки для патронов);
+  - and in every language by English words: the bonus's English name and the words players use
+    (`SEARCH_BONUSES`): `+ammo`, `+pocket`, `+slot`, `+artifact` and `+artefact`, `+weight`,
+    `+stamina`, `+aim`, `+recoil`, `+armor` and `+armour`, `+reload`, `+regen`, `+xp`, …;
+  - every bonus the card lists: rolled, built-in, the default modifications, the shop's items'
+    (theirs are built-in only). A defect (the card's red line) is no bonus.
+- **Several of a kind:**
+  - levels: any of them (`+10 +11` lists both);
+  - factions: any of them (an item has one seller);
+  - bonuses: all of them (`+ammo +pocket`: both on the item);
+  - name words: all of them, as before.
+- **The kinds combine with "and":** `ak +10 +11 +ammo` is a name matching ak, of level 10 or 11, with
+  an ammo bonus.
+- **A "+" word is a filter, never fuzzy:** no loose or typo match (`+amo` is not ammo). A `+word`
+  naming nothing lists nothing. A "+" alone is nothing typed.
+- **The rest stays:** the name words rank as before (a plain number first is a level first), the
+  list's own filters, tabs and seller still apply, and with filters only the list keeps its own
+  order.
+- **Checked** by `scripts/item-search/check.sh <lobby_menu.swf>` (Ruffle, the movie's own list):
+  the rules above, and in every language the hint on one line in the box and each of its and the
+  tip's examples finding what they name.
 
 ## Closing, Esc, Enter, the other keys
 
@@ -136,3 +190,5 @@ Code, in `flash/lobby_menu/src` ([lobby-source.md](lobby-source.md)):
   - the box's look and place;
   - that no "f" is typed;
   - the speed of typing over the full shop.
+  - the "+" words over the live shop and inventory (the real bonus names and sellers);
+  - the hint's fit with the game's font, and the tip over the box.

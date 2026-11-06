@@ -2458,7 +2458,13 @@ st_srp_inv_pellets	Дробин
 st_srp_inv_pocket_units	Место в кармане
 st_srp_inv_stamina_damage	Урон выносливости
 st_srp_inv_throw_speed	Скорость броска
-st_srp_inventory_search	Поиск
+st_srp_inventory_search	Поиск: +патрон, +карман, +10
+st_srp_inventory_search_tip_all	ак +10 +патрон: всё сразу
+st_srp_inventory_search_tip_bonus	+патрон +карман: есть каждый названный бонус
+st_srp_inventory_search_tip_faction	+армия: продаёт эта фракция (несколько: любая)
+st_srp_inventory_search_tip_kind	шлем, ботинки: такой вид предмета
+st_srp_inventory_search_tip_level	+10 +11: любого из этих уровней
+st_srp_inventory_search_tip_name	ак 74: в названии, опечатки прощаются
 st_srp_item_props_mps	м/с
 st_srp_language_option	Язык:
 st_srp_language_restart	Применится после перезапуска.

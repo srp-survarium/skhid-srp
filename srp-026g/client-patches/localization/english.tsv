@@ -2458,7 +2458,13 @@ st_srp_inv_pellets	Pellets
 st_srp_inv_pocket_units	Pocket slots
 st_srp_inv_stamina_damage	Stamina damage
 st_srp_inv_throw_speed	Throw speed
-st_srp_inventory_search	Search
+st_srp_inventory_search	Search: +ammo, +pocket, +10
+st_srp_inventory_search_tip_all	ak +10 +ammo: all of these at once
+st_srp_inventory_search_tip_bonus	+ammo +pocket: has each bonus named
+st_srp_inventory_search_tip_faction	+army: sold by that faction (several: any)
+st_srp_inventory_search_tip_kind	helmet, boots: that kind of item
+st_srp_inventory_search_tip_level	+10 +11: of any of these levels
+st_srp_inventory_search_tip_name	ak 74: in the name, typos forgiven
 st_srp_item_props_mps	m/s
 st_srp_language_option	Language:
 st_srp_language_restart	Applies after restart.

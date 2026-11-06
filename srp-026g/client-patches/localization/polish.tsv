@@ -2458,7 +2458,13 @@ st_srp_inv_pellets	Śruciny
 st_srp_inv_pocket_units	Miejsca w kieszeni
 st_srp_inv_stamina_damage	Obrażenia wytrzymałości
 st_srp_inv_throw_speed	Prędkość rzutu
-st_srp_inventory_search	Szukaj
+st_srp_inventory_search	Szukaj: +ładownice, +odrzut, +10
+st_srp_inventory_search_tip_all	ak +10 +ładownice: wszystko naraz
+st_srp_inventory_search_tip_bonus	+ładownice +kieszeni: ma każdy podany bonus
+st_srp_inventory_search_tip_faction	+armia: sprzedaje ta frakcja (kilka: dowolna)
+st_srp_inventory_search_tip_kind	helmet, boots: taki rodzaj przedmiotu
+st_srp_inventory_search_tip_level	+10 +11: dowolnego z tych poziomów
+st_srp_inventory_search_tip_name	ak 74: w nazwie, literówki wybaczone
 st_srp_item_props_mps	m/s
 st_srp_language_option	Język:
 st_srp_language_restart	Zadziała po ponownym uruchomieniu.

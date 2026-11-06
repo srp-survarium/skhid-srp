@@ -2458,7 +2458,13 @@ st_srp_inv_pellets	Sačme
 st_srp_inv_pocket_units	Mesta u džepu
 st_srp_inv_stamina_damage	Šteta izdržljivosti
 st_srp_inv_throw_speed	Brzina bacanja
-st_srp_inventory_search	Pretraga
+st_srp_inventory_search	Pretraga: +torbice, +džep, +10
+st_srp_inventory_search_tip_all	ak +10 +torbice: sve odjednom
+st_srp_inventory_search_tip_bonus	+torbice +džep: ima svaki naveden bonus
+st_srp_inventory_search_tip_faction	+vojska: prodaje ta frakcija (više: bilo koja)
+st_srp_inventory_search_tip_kind	šlem, čizme: ta vrsta predmeta
+st_srp_inventory_search_tip_level	+10 +11: bilo kog od ovih nivoa
+st_srp_inventory_search_tip_name	ak 74: u nazivu, greške se opraštaju
 st_srp_item_props_mps	m/s
 st_srp_language_option	Jezik:
 st_srp_language_restart	Primenjuje se posle ponovnog pokretanja.
