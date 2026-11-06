@@ -369,7 +369,13 @@ fn reference_replay() {
                         jump = Some(RefJump::new(k, keys_in(k), v[0].hypot(v[1]), body.feet()));
                     }
                     if let Some(j) = jump.as_mut() {
-                        ended = j.tick(&mut body, k, kyaw, keys_in(k));
+                        // The flat walk's cap applies on the floor (no jump flag yet), as the keys mode's.
+                        let kk = keys_in(k);
+                        let cap = speed_cap.then(|| {
+                            let gait = if sprint_input(kk) && kk & key::AIM == 0 { Gait::Sprint } else { Gait::Move { stance: Stance::Stand, heading: Heading::Forward, aiming: false } };
+                            speed::cap(gait, level)
+                        });
+                        ended = j.tick(&mut body, k, kyaw, kk, cap);
                     }
                 }
                 let notes = body.step(&collision, TICK_S, &s);
@@ -491,7 +497,9 @@ impl RefJump {
     }
 
     /// Sets the body's walk for input tick `k` (yaw `yaw`, keys `keys`); true when the clip ends with this tick (`end_jump` done).
-    fn tick(&mut self, body: &mut Controller, k: u32, yaw: f32, keys: u32) -> bool {
+    /// `cap` (m/s): the walk vector's flat cap (0x2D9060, `max_speed` 0x2DC010), skipped while the controller's jump flag is set
+    /// ([[player+0x494]]+0x2C70C, fx-review A328), so it holds only on the floor.
+    fn tick(&mut self, body: &mut Controller, k: u32, yaw: f32, keys: u32, cap: Option<f32>) -> bool {
         let (f0, f1) = (self.frame(k), self.frame(k + 50));
         if f0 <= 0.0 {
             // The clip starts from where the body is (the prepare phase walks as the run).
@@ -517,7 +525,14 @@ impl RefJump {
             let a = super::super::kin::to_world(self.clip.air_control(keys), yaw);
             body.air_control = Vec3::new(a[0], 0.0, a[1]);
         } else {
-            body.walk = Vec3::new(to.x, 0.0, to.z);
+            let (mut x, mut z) = (to.x, to.z);
+            if let Some(cap) = cap {
+                let (len, most) = (x.hypot(z), cap * TICK_S);
+                if len > most {
+                    (x, z) = (x * most / len, z * most / len);
+                }
+            }
+            body.walk = Vec3::new(x, 0.0, z);
             body.air_control = Vec3::ZERO;
         }
         ended
