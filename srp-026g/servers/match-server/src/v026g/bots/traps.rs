@@ -1115,7 +1115,7 @@ pub fn press_look(crouched: bool, run_m: f32, drop_m: f32) -> Option<PressLook> 
 }
 
 /// The distance the look aims the landing at: `reach_m` or the landing the tuning asks, with the margin.
-fn wanted_m(t: &TrapTuning, min_m: f32) -> f32 {
+pub(crate) fn wanted_m(t: &TrapTuning, min_m: f32) -> f32 {
     t.reach_m.max(min_m + LANDING_MARGIN_M)
 }
 
