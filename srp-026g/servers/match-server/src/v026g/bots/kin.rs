@@ -86,6 +86,10 @@ pub struct Kinematics {
     pub slope_speed: SlopeSpeed,
     /// [A313] Which of the client's speed factor terms the reckoned body moves by ([`SpeedTerms`]).
     pub speed_terms: SpeedTerms,
+    /// [A318] Whether the reckoned body's step is capped at the client's `max_speed` ([`SpeedCap`]).
+    pub speed_cap: SpeedCap,
+    /// [A318] Which worlds the body's speed level is read from ([`LevelRead`]).
+    pub level_read: LevelRead,
     /// [A304] The flattest ramp face (degrees, the grid's ramp mark) [`SlopeSpeed::RampsGrade`] slows on: a floor whose mark is
     /// flatter counts as unmarked. 35 (the lab, 2026-11-05: Vostok Radar Station's and Chemical Plant's stairs carry 20-39 degree
     /// marks and the client climbs them at full speed; Cologne's slowing stairs are 45; 35 was better than 40 and 44). 20: every
@@ -110,6 +114,56 @@ pub struct Kinematics {
 /// (`mapdata::controller::speed`, read from the 0.26g exe: skill 208, the weapon, the weight, each leg's wound, a hit's
 /// stagger, a carried battery, the spring artefact). The body's level (`Kinematics::level_of`) holds what a world shows of the
 /// rest; the terms here are the ones that change within a life faster than the level follows.
+/// [A318] The cap on the reckoned body's flat step. The client's `set_physics_controller_walk_vector` 0x2D9060 caps the step it
+/// hands the controller at `max_speed` 0x2DC010 (PROVEN, `mapdata::controller::speed::cap`): the sprint's 5.0 x F while the sprint
+/// state is on (its `initialize` 0x336A10 sets the controller's +0x204, `finalize` 0x336A50 clears it, at once), else the walk's
+/// 3.5 x F. The animation's blend toward the new keys goes on under it, so a released sprint moves at the walk cap on its own tick
+/// while the blend still carries the sprint's speed (the client's recorded speeds: 3.62 m/s at the release tick, fx-smoke A325).
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum SpeedCap {
+    /// The blend's speed as it is (as it was).
+    Off,
+    /// Capped at the client's `max_speed` (`max(desired x F, minimal)`, the floor included) by the sprint state's keys
+    /// ([`Kinematics::sprint_state`]) and the level; not in a jump (the cap is skipped while `+0x2C70C` is set, 0x2D915E, which
+    /// `end_jump` 0x7F050 clears: LIKELY the jump's flag).
+    #[default]
+    Client,
+}
+
+impl SpeedCap {
+    /// `local` (body frame) capped for a body moving by `keys` at `level`.
+    pub fn capped(self, local: Local, keys: u32, level: f32) -> Local {
+        use mapdata::controller::speed::{Gait, Heading, Stance, cap};
+        if self == Self::Off {
+            return local;
+        }
+        let gait = if Kinematics::sprint_state(keys) {
+            Gait::Sprint
+        } else {
+            Gait::Move { stance: Stance::Stand, heading: Heading::Forward, aiming: false }
+        };
+        let cap = cap(gait, level);
+        let len = local[0].hypot(local[1]);
+        if len > cap { [local[0] * cap / len, local[1] * cap / len] } else { local }
+    }
+}
+
+/// [A318] Which worlds the reckoned body's speed level ([`Kinematics::level_of`]) is read from. The client's ground speed is the
+/// keys' desired speed times its movement factor once the animation's cross-fade toward them has settled (0.3 s, linear: fx-grid's
+/// read of 0x3B0CD0 / 0x395360, PROVEN); in the fade it is between two keys' speeds. A world's speed is its body's move of the tick
+/// before it (the world holds the body after that tick, `player_step` 0x7BDA0), so by that tick's keys.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum LevelRead {
+    /// Any world, by its own keys (as it was): a world in a fade gives a level off by the fade (a start's 0.85 passes).
+    Any,
+    /// A world whose last [`Kinematics::blend_ticks`] decided ticks before it held the same keys, read by those keys: the fade has
+    /// settled and the speed is the keys' times the factor.
+    #[default]
+    Settled,
+}
+
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum SpeedTerms {
@@ -296,6 +350,8 @@ impl Default for Kinematics {
             walk_bridges: true,
             jump_arc: false,
             speed_terms: SpeedTerms::Legs,
+            speed_cap: SpeedCap::Client,
+            level_read: LevelRead::Settled,
         }
     }
 }
@@ -498,6 +554,16 @@ impl Kinematics {
         keys & key::SPRINT != 0
             && keys & key::FORWARD != 0
             && keys & (key::BACK | key::FIRE | key::CROUCH | key::AIM) == 0
+    }
+
+    /// [A318] Whether the keys hold the client's sprint state: [`Self::sprints`]. The start predicates (`sprint_predicate` 0x2FBC90,
+    /// `is_trying_to_sprint` 0x2FC1F0) test SPRINT and FORWARD with none of `0x122` (BACK, FIRE, CROUCH); AIM ends the state through
+    /// its own exits (PROVEN, static, fx-review A328 on the movement FSM built in 0x2FAB70): 0x2FBD50 (to stand_run) and 0x2FBCE0 (to
+    /// stand_on_site) leave when `sprint_predicate` fails or AIM (keys +0x330 bit 0x80, 0x2FBD65 / 0x2FBCF5) is held with the hands'
+    /// item byte +0x389 != 2 (which items are 2 is not read). The live game agrees: humans holding SPRINT + FORWARD + AIM move at a
+    /// median 3.69 m/s (89 worlds), 5.59 without AIM. The state ends on the release tick (fx-smoke: the client's flag, 2,524 worlds).
+    pub fn sprint_state(keys: u32) -> bool {
+        Self::sprints(keys)
     }
 
     /// The velocity the keys ask for, in the body's frame, for a body at
