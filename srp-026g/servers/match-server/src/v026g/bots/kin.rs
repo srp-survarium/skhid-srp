@@ -372,8 +372,14 @@ pub enum DropFall {
     /// As the client's capsule: its height falls from where it left under gravity (`step_down` 0x7E1B0, PROVEN: with no ground
     /// within the step under it, the velocity takes `g * min(dt, tick)` down each step and moves it by the speed it had, g = 9.8,
     /// `fall_params.gravity`) until it is on the floor below. Its floor and its way across are as with [`Self::Snap`].
-    #[default]
     Gravity,
+    /// [A318] [`Self::Gravity`] with the client's slow start (`step_down` 0x7E1B0, PROVEN by fx-gear-2's read and probe; port
+    /// `mapdata::controller::tick`, `player_step` reads the speed at the tick's start, then `step_down`): while the speed down at
+    /// the tick's start is under `on_ground_max_vertical_speed` (2.0 m/s, `startup.cfg`) the body goes down by
+    /// `additional_down_speed` (0.05 m a tick, `startup.cfg`), else by the speed after the tick's `g` (`(v + a dt).y * tick`);
+    /// the speed takes `g * tick` each tick either way. From rest: five ticks of 0.05 m, then 2.45 m/s, 2.94 m/s, ...
+    #[default]
+    Client,
 }
 
 /// [A318] The blend a world's fix starts the reckoning with.

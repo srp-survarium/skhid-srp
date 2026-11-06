@@ -647,8 +647,9 @@ impl BodyTrack {
             fall: Fall::Ground,
         };
         // [A318] A world that has the body more than a step over its floor, out of its own jump, has it falling
-        // ([`DropFall::Gravity`]): at the speed the reckoning had it fall at, else from rest (a world has no vertical speed).
-        if let (DropFall::Gravity, Some(grid), Some(node), 0) = (kin.drop_fall, grid, node, air_until)
+        // ([`DropFall::Gravity`], [`DropFall::Client`]): at the speed the reckoning had it fall at, else from rest (a world has no
+        // vertical speed).
+        if let (true, Some(grid), Some(node), 0) = (kin.drop_fall != DropFall::Snap, grid, node, air_until)
             && feet.y - grid.position(node).y > grid.body().step
         {
             let speed = match self.estimate.map(|e| e.fall) {
@@ -734,7 +735,7 @@ fn advance(
     role: Role,
 ) -> Estimate {
     let steps = (tick.time.saturating_sub(at.time) / TICK_MS).max(1);
-    let falls = role == Role::Reckoning && kin.drop_fall == DropFall::Gravity;
+    let falls = role == Role::Reckoning && kin.drop_fall != DropFall::Snap;
     let target = kin.target_local(at.keys, level);
     for step in 1..=steps {
         // [A318] A falling body moves across from its floor; its height is played after the step.
@@ -784,7 +785,7 @@ fn advance(
                 if stopped {
                     at.velocity = [0.0, 0.0];
                 }
-                at.fall = if falls && !in_air { fall_step(at.fall, top, &mut at.feet, grid.body().step) } else { Fall::Ground };
+                at.fall = if falls && !in_air { fall_step(at.fall, top, &mut at.feet, grid.body().step, kin.drop_fall) } else { Fall::Ground };
             }
             _ => at.feet = to,
         }
@@ -807,25 +808,38 @@ fn advance(
 /// the height it had before: falling, it goes down by the speed it had and gains `g` a step (`step_down` 0x7E1B0) until it is on the
 /// floor; on the ground, a floor more than `step` under where it was starts the fall from there (the capsule finds no ground within
 /// its step: the first step only takes the speed).
-fn fall_step(fall: Fall, top: f32, feet: &mut Vec3, step: f32) -> Fall {
+fn fall_step(fall: Fall, top: f32, feet: &mut Vec3, step: f32, rule: DropFall) -> Fall {
     let floor = feet.y;
-    match fall {
-        Fall::Falling { speed } => {
-            let y = top - speed * TICK_S;
-            if y <= floor {
-                Fall::Ground
-            } else {
-                feet.y = y;
-                Fall::Falling { speed: speed + GRAVITY * TICK_S }
+    let speed = match fall {
+        Fall::Falling { speed } => speed,
+        Fall::Ground if top - floor > step => match rule {
+            // [`DropFall::Client`]: the edge tick is the fall's first (no ground within the step: airborne at once, from rest).
+            DropFall::Client => 0.0,
+            _ => {
+                feet.y = top;
+                return Fall::Falling { speed: GRAVITY * TICK_S };
             }
-        }
-        Fall::Ground if top - floor > step => {
-            feet.y = top;
-            Fall::Falling { speed: GRAVITY * TICK_S }
-        }
-        Fall::Ground => Fall::Ground,
+        },
+        Fall::Ground => return Fall::Ground,
+    };
+    let after = speed + GRAVITY * TICK_S;
+    let down = match rule {
+        // [`DropFall::Client`]: `step_down` 0x7E1B0's slow test on the speed at the tick's start.
+        DropFall::Client if speed < CLIENT.on_ground_max_vertical_speed => CLIENT.additional_down_speed,
+        DropFall::Client => after * TICK_S,
+        _ => speed * TICK_S,
+    };
+    let y = top - down;
+    if y <= floor {
+        Fall::Ground
+    } else {
+        feet.y = y;
+        Fall::Falling { speed: after }
     }
 }
+
+/// [A318] The live client's controller settings (`startup.cfg`): [`DropFall::Client`]'s slow start.
+const CLIENT: mapdata::controller::tick::Settings = mapdata::controller::tick::Settings::LIVE;
 
 /// [`slide`] with the reckoned body's edge ([`Kinematics::edge`]): the lattice's, the client's held to [`SUPPORT_M`], or that and
 /// the client's walk off an open side ([`walk_off_open`]).
@@ -1995,6 +2009,35 @@ pub(super) mod tests {
         let (lattice, client) = (first_down(Edge::Lattice).expect("falls"), first_down(Edge::Client).expect("falls"));
         assert!(lattice < 0.3, "the lattice drops the reckoned body at the boundary: {lattice}");
         assert!(client > lattice + 0.1 && client <= SUPPORT_M, "the client edge holds it to the support, a tick short of the fall: {client}");
+    }
+
+    /// [A318] [`DropFall::Client`]: a body going over a 3 m drop sinks 0.05 m a tick for five ticks (the speed at each tick's start
+    /// under 2 m/s: 0, 0.49, 0.98, 1.47, 1.96), then by the speed after the tick's `g` (2.45, 2.94 m/s, ...), as fx-gear-2's probe of
+    /// the port's `step_down` 0x7E1B0 shows; it lands on the floor and stays.
+    #[test]
+    fn the_client_fall_starts_with_five_slow_ticks() {
+        let (top0, floor) = (3.0f32, 0.0f32);
+        let mut fall = Fall::Ground;
+        let mut top = top0;
+        let mut drops = Vec::new();
+        for _ in 0..40 {
+            let mut feet = Vec3::new(0.0, floor, 0.0);
+            fall = fall_step(fall, top, &mut feet, 0.8, DropFall::Client);
+            drops.push(top - feet.y);
+            top = feet.y;
+            if fall == Fall::Ground {
+                break;
+            }
+        }
+        for d in &drops[..5] {
+            assert!((d - 0.05).abs() < 1e-5, "slow: {drops:?}");
+        }
+        assert!((drops[5] - 2.45 * TICK_S).abs() < 1e-4 && (drops[6] - 2.94 * TICK_S).abs() < 1e-4, "then (v + g dt) dt: {drops:?}");
+        assert_eq!(fall, Fall::Ground);
+        assert!(top.abs() < 1e-6, "on the floor: {top}");
+        // A walk across a floor no lower than the step stays on the ground.
+        let mut feet = Vec3::new(0.0, 0.5, 0.0);
+        assert_eq!(fall_step(Fall::Ground, 1.0, &mut feet, 0.8, DropFall::Client), Fall::Ground);
     }
 
     /// [A318] [`DropFall::Gravity`]: the reckoned body walking off a 2 m ledge comes down as the client's capsule falls (from rest,
