@@ -3609,7 +3609,8 @@ mod tests {
         };
         let flat = mapdata::RayTree::from_corners(quad(0.0, 0.0));
         let eye = Vec3::new(0.0, 1.6, 0.0);
-        let pitch = -0.9;
+        // 1.0 rad down from 1.6 m: the ray meets the floor 1.90 m out along it (0.9 rad would need 2.04 m, past the reach).
+        let pitch = -1.0;
         let at = client_landing(&flat, eye, 0.0, pitch, &[]).expect("flat ground within reach");
         assert!(at.y.abs() < 1e-3, "{at:?}");
         let run = 1.6 / pitch.tan().abs();
