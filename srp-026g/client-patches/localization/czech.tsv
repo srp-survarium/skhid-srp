@@ -2714,7 +2714,7 @@ st_srp_vulkan_overlay_frametimes	FPS+graf
 st_srp_vulkan_overlay_full	Úplný
 st_srp_vulkan_overlay_hint	Ukazuje rychlost hry na obrazovce.\n+ Vidíte, jak plynule hra běží\n- Zakrývá roh obrazovky
 st_srp_vulkan_tear_free	Bez trhání obrazu bez V-Sync
-st_srp_vulkan_tear_free_hint	Obraz se netrhá, když je vertikální synchronizace vypnutá.\n+ Žádné roztržené čáry při rychlém otáčení\n- Víc tepla a hluku ventilátorů
+st_srp_vulkan_tear_free_hint	Obraz se netrhá, když je vertikální synchronizace vypnutá.\n+ Žádné roztržené čáry při rychlém otáčení\n- O něco větší zpoždění než jen vypnutá VSync
 st_srp_weapon069_akmsu_desc	Zkrácený AKMS se sklopnou pažbou na náboje 7.62x39. Střílí jednotlivě i automaticky.
 st_srp_weapon069_akmsu_name	AKMSU
 st_srp_weapon069_famas_desc	Francouzská útočná puška bullpup na náboje 5.56x45. Střílí jednotlivě, dávkou po třech i automaticky.

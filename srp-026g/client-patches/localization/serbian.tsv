@@ -2714,7 +2714,7 @@ st_srp_vulkan_overlay_frametimes	FPS+grafik
 st_srp_vulkan_overlay_full	Potpun
 st_srp_vulkan_overlay_hint	Prikazuje brzinu igre na ekranu.\n+ Vidi koliko glatko igra radi\n- Prekriva ugao ekrana
 st_srp_vulkan_tear_free	Bez cepanja slike bez V-Sync
-st_srp_vulkan_tear_free_hint	Slika ostaje cela kada je vertikalna sinhronizacija isključena.\n+ Bez pocepanih linija pri brzom okretanju\n- Više toplote i buke ventilatora
+st_srp_vulkan_tear_free_hint	Slika ostaje cela kada je vertikalna sinhronizacija isključena.\n+ Bez pocepanih linija pri brzom okretanju\n- Malo veće kašnjenje nego samo isključen VSync
 st_srp_weapon069_akmsu_desc	Skraćeni AKMS sa preklopnim kundakom, municija 7,62x39. Podržava pojedinačnu i automatsku paljbu.
 st_srp_weapon069_akmsu_name	AKMSU
 st_srp_weapon069_famas_desc	Francuska jurišna puška bulpap konstrukcije, municija 5,56x45. Podržava pojedinačnu paljbu, rafal od tri metka i automatsku paljbu.

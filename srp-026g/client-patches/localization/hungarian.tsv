@@ -2714,7 +2714,7 @@ st_srp_vulkan_overlay_frametimes	FPS+ábra
 st_srp_vulkan_overlay_full	Teljes
 st_srp_vulkan_overlay_hint	Kiírja a képernyőre a játék sebességét.\n+ Látod, milyen simán fut a játék\n- Eltakarja a képernyő egyik sarkát
 st_srp_vulkan_tear_free	Szakadásmentes V-Sync nélkül
-st_srp_vulkan_tear_free_hint	Egészben tartja a képet, ha a függőleges szinkron ki van kapcsolva.\n+ Nincsenek szakadt vonalak gyors forduláskor\n- Több hő és ventilátorzaj
+st_srp_vulkan_tear_free_hint	Egészben tartja a képet, ha a függőleges szinkron ki van kapcsolva.\n+ Nincsenek szakadt vonalak gyors forduláskor\n- Kicsit több késés, mint sima kikapcsolt VSync esetén
 st_srp_weapon069_akmsu_desc	Rövidített, behajtható tusás AKMS, 7.62x39 lőszerrel. Egyes és sorozatlövésre képes.
 st_srp_weapon069_akmsu_name	AKMSU
 st_srp_weapon069_famas_desc	Francia bullpup gépkarabély, 5.56x45 lőszerrel. Egyes, hármas sorozat és sorozatlövésre képes.

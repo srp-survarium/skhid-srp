@@ -705,10 +705,16 @@ pub fn on_process_start(ctx: &mut Context<'_>) -> Flow<NoExit> {
 /// the Renderer and the Vulkan options answer the value this process runs
 /// after it (for their note), a list its choices' texts after that.
 /// `srp_hud_texts` answers the groups' texts (`root.srp_hud_texts`).
+/// `srp_log` writes its text to `srp_patches.log` (`srp: menu: <text>`): the
+/// movie's own trace reaches no log in the game.
 pub fn on_options_call(ctx: &mut Context<'_>) -> Flow<HudOptionsOnOptionsCallExit> {
     let Some(call) = OptionsCall::at(ctx) else { return Flow::Continue };
     let thread = ctx.thread();
     let method = call.method();
+    if method == c"srp_log" {
+        line(&[Text("menu: "), Text(menu_log_text(call.string_argument(0)))]);
+        return Flow::Exit(HudOptionsOnOptionsCallExit::Done);
+    }
     if method == c"srp_hud_texts" {
         let mut rooms = [[0; 0x200]; TEXTS.len()];
         let mut texts: [&CStr; TEXTS.len()] = [c""; TEXTS.len()];
@@ -817,9 +823,24 @@ pub fn on_update_icons(ctx: &mut Context<'_>) -> Flow<NoExit> {
     Flow::Continue
 }
 
+/// The movie's log text as a line takes it: its UTF-8, or a mark of what it was not.
+fn menu_log_text(text: Option<&CStr>) -> &str {
+    match text {
+        Some(text) => text.to_str().unwrap_or("(not UTF-8)"),
+        None => "(no text)",
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn the_menu_log_takes_its_text_or_says_what_it_was_not() {
+        assert_eq!(menu_log_text(Some(c"vulkan: press")), "vulkan: press");
+        assert_eq!(menu_log_text(Some(c"\xff")), "(not UTF-8)");
+        assert_eq!(menu_log_text(None), "(no text)");
+    }
 
     #[test]
     fn the_settings_value_is_one_or_zero() {

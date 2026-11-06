@@ -61,6 +61,8 @@ package
         // background art where it lies under the panel; its shadow on the tab under it.
         private var frame:Shape;
         private var shadow:Shape;
+        // The panel's own rectangle, under its controls: where a press is the panel's.
+        private var hit:Shape;
         // The window's border, outside in: its light line, then its dark band.
         private static const EDGE_LIGHT:uint = 0x585A5D;
         private static const EDGE_DARK:Array = [0x1A1A18, 0x131311, 0x0B0B0B];
@@ -99,6 +101,9 @@ package
             button.alpha = 1;
             button.visible = false;
             button.addEventListener(ButtonEvent.CLICK, onPress);
+            button.addEventListener(MouseEvent.MOUSE_DOWN, onButtonMouse);
+            button.addEventListener(MouseEvent.MOUSE_UP, onButtonMouse);
+            button.addEventListener(MouseEvent.CLICK, onButtonMouse);
             content.addChild(button);
             arrow = arrowArt();
             arrow.visible = false;
@@ -107,13 +112,19 @@ package
             panel.name = "_srp_vulkan_panel";
             // the shadow under everything, taking no press: its outline is filled (hidden by its knock-out) over
             // the button too, and a press there is the button's
-            var shade:Sprite = new Sprite();
-            shade.mouseEnabled = shade.mouseChildren = false;
+            // the panel's art (its shadow, frame and surface) takes no presses: the outline is filled over the button
+            // too, and its frame's bands are rings (one fill of two outlines), which hit tests need not take as
+            // drawn; a plain rectangle over the panel (`hit`, all but transparent: a fill of alpha 0 is not hit) is
+            // what a press on the panel lands on
+            var art:Sprite = new Sprite();
+            art.mouseEnabled = art.mouseChildren = false;
             shadow = new Shape();
-            shade.addChild(shadow);
-            panel.addChild(shade);
+            art.addChild(shadow);
             frame = new Shape();
-            panel.addChild(frame);
+            art.addChild(frame);
+            panel.addChild(art);
+            hit = new Shape();
+            panel.addChild(hit);
             // the controls one Sprite under the panel (press routing: memory note, the lobby's rooms)
             body = new Sprite();
             panel.addChild(body);
@@ -298,6 +309,7 @@ package
                     list.close();
                 }
             }
+            log("close");
             var stage:Stage = panel.stage;
             stage.removeEventListener(MouseEvent.MOUSE_DOWN, onStagePress);
             button.removeEventListener(Event.RENDER, hold);
@@ -308,6 +320,7 @@ package
             button.validateNow();
             button.gotoAndPlay(button.hitTestPoint(stage.mouseX, stage.mouseY, true) ? "over" : "up");
             arrow.scaleY = Math.abs(arrow.scaleY);
+            log("closed: button frame " + button.currentFrame + " (" + button.currentLabel + ")");
             return true;
         }
 
@@ -316,10 +329,12 @@ package
         // (hold).
         private function onPress(event:Event):void
         {
+            log("button click: open " + open + ", enabled " + button.enabled + ", frame " + button.currentFrame);
             if (close() || !button.enabled)
             {
                 return;
             }
+            log("open");
             PopUpManager.show(panel, panelX, button.y + button.height, button.parent);
             // as the stock lists find a press outside them (DropdownMenu.handleStageClick): the stage's
             // MOUSE_DOWN
@@ -328,19 +343,60 @@ package
             // render), the held frames again
             button.addEventListener(Event.RENDER, hold, false, -1);
             button.addEventListener(Event.ENTER_FRAME, hold);
+            downFrame = 0;
+            holds = 0;
             hold(null);
             arrow.scaleY = -Math.abs(arrow.scaleY);
             draw();
+            log("opened: button frame " + button.currentFrame + " (" + button.currentLabel + ")");
         }
 
-        // The button held pressed while the panel is open: its "down" frames, whatever state it drew.
+        // The "down" frames' first (found the first time the button goes there while open; 0 until then): the
+        // frames up to the next state's (every state of the button has ten).
+        private var downFrame:int = 0;
+        // Holds logged while open (the first twenty).
+        private var holds:int = 0;
+
+        // The button held pressed while the panel is open: its "down" frames, whatever state it drew. By frame
+        // number, not label (a frame inside a labelled run need not tell its label).
         private function hold(event:Event):void
         {
-            if (button.currentLabel != "down")
+            if (downFrame > 0 && button.currentFrame >= downFrame && button.currentFrame < downFrame + 10)
             {
-                button.validateNow();
-                button.gotoAndPlay("down");
+                return;
             }
+            var was:int = button.currentFrame;
+            button.validateNow();
+            button.gotoAndPlay("down");
+            if (downFrame == 0)
+            {
+                downFrame = button.currentFrame;
+            }
+            if (++holds <= 20) log("hold: button frame " + was + " to " + button.currentFrame + (event != null ? " on " + event.type : ""));
+        }
+
+        // The button's pointer events, logged (the path of a press in the game).
+        private function onButtonMouse(event:MouseEvent):void
+        {
+            log("button " + event.type + " target " + path(event.target as DisplayObject) + " at " + event.stageX + ","
+                + event.stageY + ", open " + open + ", frame " + button.currentFrame);
+        }
+
+        // A display object and its parents, by name (for the log).
+        private static function path(at:DisplayObject):String
+        {
+            var names:Array = [];
+            for (var n:int = 0; at != null && n < 4; at = at.parent, n++)
+            {
+                names.push(at.name);
+            }
+            return names.join("<");
+        }
+
+        // A line of srp_patches.log (`srp: menu: vulkan: <text>`).
+        private static function log(text:String):void
+        {
+            SrpExe.log("vulkan: " + text);
         }
 
         // A press on the stage: outside the panel and the button, it closes the panel. Where the press lands
@@ -351,17 +407,19 @@ package
         private function onStagePress(event:MouseEvent):void
         {
             var target:DisplayObject = event.target as DisplayObject;
-            if (frame.hitTestPoint(event.stageX, event.stageY, true) || button.hitTestPoint(event.stageX, event.stageY, true)
-                || target != null && (panel.contains(target) || button.contains(target)))
-            {
-                return;
-            }
+            var onPanel:Boolean = hit.hitTestPoint(event.stageX, event.stageY, true);
+            var onButton:Boolean = button.hitTestPoint(event.stageX, event.stageY, true);
+            var inside:Boolean = target != null && (panel.contains(target) || button.contains(target));
+            var lists:Boolean = false;
             for (var i:int = 0; i < LISTS; i++)
             {
-                if (DropdownMenu(controls[NAMES[i]]).selected)
-                {
-                    return;
-                }
+                lists = lists || DropdownMenu(controls[NAMES[i]]).selected;
+            }
+            log("stage down target " + path(target) + " at " + event.stageX + "," + event.stageY + ": on panel " + onPanel
+                + ", on button " + onButton + ", target inside " + inside + ", a list open " + lists);
+            if (onPanel || onButton || inside || lists)
+            {
+                return;
             }
             close();
         }
@@ -548,6 +606,10 @@ package
             outline(sg, 0);
             sg.endFill();
             shadow.filters = [new DropShadowFilter(6, 90, 0x000000, 0.9, 16, 16, 1, 2, false, true)];
+            hit.graphics.clear();
+            hit.graphics.beginFill(0x000000, 0.01);
+            hit.graphics.drawRect(0, 0, panelWidth, panelHeight);
+            hit.graphics.endFill();
         }
 
         // The panel's surface fill: the window's art, or (off the stage) the border's darkest.

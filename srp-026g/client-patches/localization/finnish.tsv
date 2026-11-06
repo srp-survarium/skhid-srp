@@ -2714,7 +2714,7 @@ st_srp_vulkan_overlay_frametimes	FPS+kuvaaja
 st_srp_vulkan_overlay_full	Täysi
 st_srp_vulkan_overlay_hint	Näyttää pelin nopeuden ruudulla.\n+ Näet, kuinka sulavasti peli pyörii\n- Peittää ruudun kulman
 st_srp_vulkan_tear_free	Repeilytön ilman V-Synciä
-st_srp_vulkan_tear_free_hint	Pitää kuvan ehjänä, kun pystytahdistus on pois päältä.\n+ Ei repeäviä viivoja nopeissa käännöksissä\n- Enemmän lämpöä ja tuulettimen ääntä
+st_srp_vulkan_tear_free_hint	Pitää kuvan ehjänä, kun pystytahdistus on pois päältä.\n+ Ei repeäviä viivoja nopeissa käännöksissä\n- Hieman enemmän viivettä kuin pelkkä VSync pois
 st_srp_weapon069_akmsu_desc	Lyhennetty taittoperäinen AKMS, kaliiperi 7.62x39. Kerta- ja sarjatuli.
 st_srp_weapon069_akmsu_name	AKMSU
 st_srp_weapon069_famas_desc	Ranskalainen bullpup-rynnäkkökivääri, kaliiperi 5.56x45. Kertatuli, kolmen laukauksen sarja ja sarjatuli.

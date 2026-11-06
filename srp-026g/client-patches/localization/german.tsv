@@ -2714,7 +2714,7 @@ st_srp_vulkan_overlay_frametimes	FPS+Graph
 st_srp_vulkan_overlay_full	Vollständig
 st_srp_vulkan_overlay_hint	Zeigt die Geschwindigkeit des Spiels am Bildschirm.\n+ Sieh, wie flüssig das Spiel läuft\n- Verdeckt eine Ecke des Bildschirms
 st_srp_vulkan_tear_free	Kein Tearing ohne VSync
-st_srp_vulkan_tear_free_hint	Hält das Bild ganz, wenn die vertikale Synchronisierung aus ist.\n+ Keine Risse beim schnellen Drehen\n- Mehr Wärme und Lüftergeräusch
+st_srp_vulkan_tear_free_hint	Hält das Bild ganz, wenn die vertikale Synchronisierung aus ist.\n+ Keine Risse beim schnellen Drehen\n- Etwas mehr Eingabeverzögerung als nur VSync aus
 st_srp_weapon069_akmsu_desc	Verkürzte AKMS mit Klappschaft, Munition: 7,62x39. Einzel- und Dauerfeuer.
 st_srp_weapon069_akmsu_name	AKMSU
 st_srp_weapon069_famas_desc	Französisches Bullpup-Sturmgewehr, Munition: 5,56x45. Einzelfeuer, Dreischussfeuerstöße und Dauerfeuer.

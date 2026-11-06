@@ -2714,7 +2714,7 @@ st_srp_vulkan_overlay_frametimes	FPS+graph
 st_srp_vulkan_overlay_full	Full
 st_srp_vulkan_overlay_hint	Shows the game's speed on screen.\n+ See how smoothly the game runs\n- Covers a corner of the screen
 st_srp_vulkan_tear_free	Tear-free with vsync off
-st_srp_vulkan_tear_free_hint	Keeps the picture whole when vertical sync is off.\n+ No torn lines when turning fast\n- More heat and fan noise
+st_srp_vulkan_tear_free_hint	Keeps the picture whole when vertical sync is off.\n+ No torn lines when turning fast\n- A bit more input delay than plain vsync off
 st_srp_weapon069_akmsu_desc	Shortened AKMS with a folding stock, ammo: 7.62x39. Supports single shot and automatic fire modes.
 st_srp_weapon069_akmsu_name	AKMSU
 st_srp_weapon069_famas_desc	French bullpup assault rifle, ammo: 5.56x45. Supports single shot, three-round burst and automatic fire modes.

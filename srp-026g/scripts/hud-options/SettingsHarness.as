@@ -928,8 +928,8 @@ package
             // the panel as drawn: its frame (the tab round the button joined to it: the panel from its own top,
             // the button's bottom), less the half pixel its border adds on each side (a checkbox's empty room
             // may reach further, unseen)
-            var bounds:Rectangle = panel.getChildAt(1).getBounds(content.stage);
-            var tabAt:Rectangle = bounds.clone();
+            var bounds:Rectangle = panel.getChildAt(1).getBounds(content.stage); // its hit rectangle: the panel's own
+            var tabAt:Rectangle = panel.getChildAt(0).getChildAt(1).getBounds(content.stage); // its frame
             bounds.inflate(-0.5, -0.5);
             bounds.top = panel.localToGlobal(new Point(0, 0)).y + 0.5;
             var rowBounds:Rectangle = row.getBounds(content.stage);

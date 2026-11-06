@@ -45,8 +45,15 @@ window keeping its size.
   stage's render) the frames are set again; on closing it shows "over" or "up" as the pointer is. A
   press outside closes the panel: a stage MOUSE_DOWN listener (the stock lists' way), outside meaning
   neither the panel's frame nor the button under the point nor a target in them (Scaleform may make a
-  container the target); while a list of the panel is open a press is that list's. The panel's
-  shadow takes no presses (its filled outline runs over the button).
+  container the target); while a list of the panel is open a press is that list's. The panel's art
+  (shadow, frame, surface) takes no presses: the shadow's outline is filled over the button and the
+  frame's bands are rings (one fill of two outlines) that a hit test need not take as drawn; a plain
+  rectangle of alpha 0.01 over the panel (not the tab) is what a press on the panel lands on.
+- **Its log:** every step of the button's path goes to `srp_patches.log` as `srp: menu: vulkan: ...`
+  (the movie's `srp_log` call, which patch 83 writes; the movie's trace reaches no log in the game):
+  the button's MOUSE_DOWN, MOUSE_UP and CLICK with their target and point, its click (open or not),
+  open, close and the button's frame after, the held frames re-set (the first twenty while open), and
+  each stage press with its target and whether it lands on the panel or the button.
 - **The panel:** a popup over the column, a little wider than it on both sides, and one piece with the
   button, a tab that drops down: the Settings window's own border (its 1 px light line, then its dark
   band) runs round the panel and round the button above it, 4 px out, the band under the button left
