@@ -60,6 +60,12 @@ const AIR_RAYS: [f32; 3] = [0.1, 0.9, 1.7];
 const OPEN_BELOW_M: f32 = 10.0;
 /// How many cells round a target the floorless test looks (a ledge lip's eroded band is crossed, a wall's is not): GUESS 1.5.
 const FLOORLESS_CELLS: f32 = 1.5;
+/// Where round the feet, as a share of the body's radius, the rays down for a top to come down on are cast (the capsule's lower
+/// sphere rests on an edge within its radius): GUESS 0.7.
+const PERCH_RING: f32 = 0.7;
+/// How far over the grid's floor a top of the walker mesh must be to land on it rather than on the floor (a rail, a sill, a lip
+/// too narrow for the grid), m.
+const PERCH_OVER_M: f32 = 0.1;
 
 /// `get_move_direction` 0x2D6510: the keys' direction, forward and back cancelling, left and right cancelling.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -274,6 +280,9 @@ impl JumpArc {
         if let Phase::Fall { speed } = self.phase {
             let speed = speed + GRAVITY * dt;
             let y = feet.y - speed * dt;
+            if let Some(top) = perch_over(grid, walls, Vec3::new(feet.x, y, feet.z), feet.y, radius) {
+                return ArcStep::Landed(Vec3::new(feet.x, top, feet.z), None);
+            }
             return match air_floor(grid, feet, feet.y + CATCH_M) {
                 Some((node, on)) if on.y >= y => ArcStep::Landed(on, Some(node)),
                 Some(_) => {
@@ -339,17 +348,49 @@ impl JumpArc {
             .unwrap_or((feet.x, feet.z));
         let at = Vec3::new(x, y, z);
         let over = frame >= END_FRAME;
-        if (frame >= self.clip.apex_frame() || over)
-            && let Some((node, on)) = air_floor(grid, at, feet.y.max(y) + CATCH_M)
-            && on.y >= y - 1e-4
-        {
-            return ArcStep::Landed(on, Some(node));
+        if frame >= self.clip.apex_frame() || over {
+            // Down on a top of the walker mesh the grid has no floor for (the client stands on a railing's top rail), else on the
+            // grid's floor.
+            if let Some(top) = perch_over(grid, walls, at, feet.y.max(y), radius) {
+                return ArcStep::Landed(Vec3::new(x, top, z), None);
+            }
+            if let Some((node, on)) = air_floor(grid, at, feet.y.max(y) + CATCH_M)
+                && on.y >= y - 1e-4
+            {
+                return ArcStep::Landed(on, Some(node));
+            }
         }
         if over {
             self.phase = Phase::Fall { speed: 0.0 };
         }
         ArcStep::Air(at)
     }
+}
+
+/// The highest top of the walker mesh `walls` that feet coming down from `from_y` to `at` meet within the body's radius, m: rays
+/// straight down from the catch over `from_y` at the centre and at [`PERCH_RING`] of the radius on four sides.
+fn perch(walls: &RayTree, at: Vec3, from_y: f32, radius: f32) -> Option<f32> {
+    let top = from_y + CATCH_M;
+    let reach = top - at.y;
+    if reach <= 0.0 {
+        return None;
+    }
+    let k = radius * PERCH_RING;
+    [(0.0, 0.0), (k, 0.0), (-k, 0.0), (0.0, k), (0.0, -k)]
+        .into_iter()
+        .filter_map(|(dx, dz)| {
+            let from = Vec3::new(at.x + dx, top, at.z + dz);
+            walls.ray_cast(from, Vec3::new(0.0, -1.0, 0.0), reach).map(|t| top - t)
+        })
+        .reduce(f32::max)
+}
+
+/// [`perch`]'s top where the grid has no floor that high under `at` (by more than [`PERCH_OVER_M`]): a rail, a sill or a lip the
+/// grid's cells are too coarse for, which the client's capsule comes down on.
+fn perch_over(grid: &WalkGrid, walls: Option<&RayTree>, at: Vec3, from_y: f32, radius: f32) -> Option<f32> {
+    let top = perch(walls?, at, from_y, radius)?;
+    let floor = air_floor(grid, at, top + CATCH_M).map(|(_, on)| on.y);
+    floor.is_none_or(|y| top > y + PERCH_OVER_M).then_some(top)
 }
 
 /// The floor a body in the air at `at` comes down on (`tests/standin_jump.rs` `air_floor`): the highest whose cell holds it at or
@@ -747,6 +788,23 @@ const SPRINT_FL: Root = [
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// A railing's top rail (3 cm wide, 1.05 m up) under one side of the feet on the way down is landed on; with the rail out of
+    /// reach, or the feet still above the catch over it, nothing is.
+    #[test]
+    fn the_feet_come_down_on_a_rail_the_grid_has_no_floor_for() {
+        let rail = |y: f32| {
+            let (a, b) = (Vec3::new(-5.0, y, 0.0), Vec3::new(5.0, y, 0.0));
+            let (c, d) = (Vec3::new(5.0, y, 0.03), Vec3::new(-5.0, y, 0.03));
+            RayTree::from_corners([[a, b, c], [a, c, d]])
+        };
+        let walls = rail(1.05);
+        let r = 0.35;
+        let on = perch(&walls, Vec3::new(0.0, 1.0, 0.25), 1.06, r).expect("the rail under the ring");
+        assert!((on - 1.05).abs() < 1e-3, "{on}");
+        assert_eq!(perch(&walls, Vec3::new(0.0, 1.0, 0.6), 1.06, r), None, "the rail out of reach");
+        assert_eq!(perch(&walls, Vec3::new(0.0, 1.2, 0.25), 1.25, r), None, "still above it");
+    }
 
     /// The keys pick the client's jump: forward with sprint at the walk cap is the sprint jump; slower, or with fire, the short one.
     #[test]
