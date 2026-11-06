@@ -3,7 +3,8 @@
 # item, slot, modification or faction the data lacks, stops it, naming it. Only new accounts get it.
 # An item is its `items_dict` name; a slot a kit's (0..6 the armour, 7 weapon 1 and 8 its first
 # ammo, 13.. the pockets).
-#   level                     the level it starts at (the experience where that level starts)
+#   level                     the level it starts at, one point short of the next (its first
+#                             match reaches it); accounts below that are raised to it at load
 #   skills/<id>               the points of a skill (skills_tree.options' id), within the level
 #   silver, gold              its money
 #   premium_days              premium from its making

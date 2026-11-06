@@ -52,7 +52,7 @@ impl TryFrom<u8> for QuestFaction {
 /// pockets take what they are given is [`Self::check`]'s, at start.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct NewAccount {
-    /// The level it starts at: the experience where that level starts.
+    /// The level it starts at, one point short of the next.
     pub level: u8,
     /// `(skill id, points)`, each with points; the tree allows them at
     /// [`Self::level`] ([`Self::check`]).

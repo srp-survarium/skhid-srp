@@ -12,8 +12,9 @@ The owner's of 2026-10-19. Code: `session::v026g::tutorial`; the client's side: 
   before its client hears of it: no window, no notice; `tutorial::signup_grant`) nothing but
   what `scripts/content-edit/new-account.tsv` says (`gameplay/srp/new_account.options`, read
   by srp from its game data; its header says each key):
-  - level 15 (the owner's of 2026-11-06; before, the steps' 250 experience): the
-    experience where it starts, the levels below it paying nothing; its 15 points spent:
+  - level 15 (the owner's of 2026-11-06; before, the steps' 250 experience): one point
+    short of level 16 (37 999), so its first match brings it to 16; the levels below it pay
+    nothing; its 15 points spent:
     Quick Response 5 (101), Battle Stance 2 (102), Potent Painkiller 1 (301), Fast
     Bandaging 2 (302), Metabolism 5 (311);
   - 15 000 silver and 150 gold (the owner's of 2026-10-24; before, 10 000 and 500);
@@ -62,11 +63,10 @@ The owner's of 2026-10-19. Code: `session::v026g::tutorial`; the client's side: 
   the backpack; the whole kit on released data:
   `SRP_TEST_GAME_DATA=<server-game-data.db> cargo test -p session --test starter_kit --
   --ignored`.
-- **Its first match brings it to level 16** (`pay::MATCH_LEVEL`): a match that pays (not a
-  room with a PIN's) leaves every account at level 16 at least, whatever it earned (no row of the screen; the level's
-  reward is paid). Accounts made before below 16 get it too.
-- **Accounts made before:** keep what they have and get no tutorial; steps they had not done
-  are not paid.
+- **Accounts made before:** raised to where a new one starts (37 999 experience, level 15)
+  when srp loads them (`tutorial::raise_to_start`; the owner's of 2026-11-06), the levels
+  passed paying nothing, their points theirs to spend; they get no tutorial; steps they had
+  not done are not paid.
 - **No switch:** `SRP_TUTORIAL` is gone.
 - **Release:** the server, and the content patch that carries `new_account.options` (srp
   refuses data without it); no exe change.

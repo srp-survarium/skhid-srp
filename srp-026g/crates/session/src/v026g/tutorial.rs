@@ -133,6 +133,23 @@ pub fn starter_ammo_bags(dictionary: &Dictionary, kit: usize) -> u32 {
     ammo_bags(defaults.chain(own))
 }
 
+/// The experience an account starts with: one point short of the level
+/// after the table's (the owner's of 2026-11-06: the last point of level
+/// 15, so its first match brings it to 16).
+pub fn start_experience() -> u32 {
+    level_start(new_account().level.saturating_add(1)) - 1
+}
+
+/// An account below [`start_experience`] raised to it, the levels it
+/// passes paying nothing: every new one, and once every account made
+/// before (`GameAccounts::with_repository`). `true` if raised.
+pub fn raise_to_start(account: &mut Account) -> bool {
+    let start = start_experience();
+    let raised = account.exp_total < start;
+    account.exp_total = account.exp_total.max(start);
+    raised
+}
+
 /// A new account's start, before its client first hears of it
 /// ([`new_account`]): its level and skills, its money, the rounds of every
 /// ammo, the faction's reputation level and its quests (the tutorial ended
@@ -165,9 +182,8 @@ pub fn signup_grant_with(account: &mut Account, starter_kit: bool, now: u64) {
     account.premium_money = grant.gold;
     if starter_kit {
         super::premium::add_premium(account, u64::from(grant.premium_days) * 86_400, now);
-        // Where its level starts; the levels below it pay nothing. Before
-        // the kits: they carry the skills' modifiers.
-        account.exp_total = account.exp_total.max(level_start(grant.level));
+        // Before the kits: they carry the skills' modifiers.
+        raise_to_start(account);
         account.skills = grant.skills.clone();
     }
     for dict_id in starter_ammo(dictionary) {
@@ -322,7 +338,7 @@ mod tests {
         assert!(!account.is_premium(NOW + 30 * 86_400));
         assert_eq!(account.premium_hours(NOW), Some(720));
         assert_eq!(account.level(), grant.level);
-        assert_eq!(account.exp_total, level_start(grant.level));
+        assert_eq!(account.exp_total, level_start(16) - 1);
         assert_eq!(account.skills, grant.skills);
         assert_eq!(account.free_skill_points(), 0);
         assert_eq!(account.quest_faction, grant.faction.id());

@@ -218,11 +218,6 @@ pub fn reputation_rate() -> u32 {
     *RATE.get_or_init(|| setting("SRP_REPUTATION_RATE", DEFAULT_REPUTATION_RATE, 1000))
 }
 
-/// The owner's of 2026-11-06: a match that pays leaves an account at this
-/// level at least (a new one starts at 15, `new_account.options`, so its
-/// first match brings it to 16).
-pub const MATCH_LEVEL: u8 = 16;
-
 /// The rating a new 0.26g account has (LIKELY: SHOT1 shows 118 on an
 /// account of level 3, and the data's `elo_modifiers` begin at `elo_min`
 /// 100). 0.21d's accounts start at 1000.
