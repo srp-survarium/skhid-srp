@@ -1361,7 +1361,7 @@ impl Game {
                     // The rise a walk climbs is the client's step ([`client_step`]), not the grid's: with `capsule_steps` the grid walks
                     // 0.96 m ledges the client's body is held at (A286).
                     let (mut node, mut feet, _) = if stand_in_edge() {
-                        let slid = body::slide_supported_with(grid, node, body.feet, target, client_step(grid), body::SUPPORT_M, stand_in_bridges());
+                        let slid = body::slide_supported_with(grid, node, body.feet, target, client_step(grid), body::SUPPORT_M, stand_in_bridges(), stand_in_walls());
                         // Past a ledge's edge with no drop link ahead: on, or down, as the client's capsule (`stand_in_fall`).
                         let walls = self.walls.as_deref().filter(|_| stand_in_fall());
                         match walls.and_then(|walls| past_edge(grid, walls, slid.0, slid.1, target)) {
