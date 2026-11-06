@@ -284,7 +284,7 @@ fn reference_replay() {
                 // +0x204, finalize 0x336A50 clears it), else the walk's 3.5 x F (mapdata::controller::speed::cap). So a released
                 // sprint drops to the walk cap on its own tick while the clip blend still carries the sprint's speed.
                 if speed_cap {
-                    let gait = if sprint_input(keys_in(k)) { Gait::Sprint } else { Gait::Move { stance: Stance::Stand, heading: Heading::Forward, aiming: false } };
+                    let gait = if sprint_input(keys_in(k)) && keys_in(k) & key::AIM == 0 { Gait::Sprint } else { Gait::Move { stance: Stance::Stand, heading: Heading::Forward, aiming: false } };
                     let cap = speed::cap(gait, level);
                     let len = local[0].hypot(local[1]);
                     if len > cap {
@@ -394,7 +394,8 @@ fn reference_replay() {
 const CLIP_KEYS: u32 = key::FORWARD | key::BACK | key::LEFT | key::RIGHT | key::AIM | key::CROUCH | key::SPRINT | key::FIRE;
 
 /// `player_input::is_sprinting` 0x2F1220 (sprint_jump_re FINDINGS §1.3, PROVEN): sprint and forward, none of back, fire,
-/// crouch (strafe allowed). `can_sprint` 0x2DBF40's other gates (aim key, weapon idle, stamina, stagger, legs) are not here.
+/// crouch (strafe allowed). `can_sprint` 0x2DBF40 refuses the aim key too (its hands vcall +0x60 = weapon_core::can_sprint 0x2E3A10 ->
+/// is_going_to_aim 0x2FC2A0 reads keys +0x330 bit 0x80): callers test it. Weapon idle, aim_time, stamina, stagger, legs: not here.
 fn sprint_input(keys: u32) -> bool {
     keys & (key::SPRINT | key::FORWARD) == key::SPRINT | key::FORWARD && keys & (key::BACK | key::FIRE | key::CROUCH) == 0
 }
