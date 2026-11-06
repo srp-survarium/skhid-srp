@@ -822,13 +822,9 @@ fn fall_step(fall: Fall, top: f32, feet: &mut Vec3, step: f32, rule: DropFall) -
         },
         Fall::Ground => return Fall::Ground,
     };
-    let after = speed + GRAVITY * TICK_S;
-    let down = match rule {
-        // [`DropFall::Client`]: `step_down` 0x7E1B0's slow test on the speed at the tick's start.
-        // Else by the speed at its start (`(v + a dt).y * tick` with `a` the slope's slide, none in the air; `g` goes into the
-        // speed after the move, port tick.rs `step_down`'s airborne arm), as [`DropFall::Gravity`].
-        DropFall::Client if speed < CLIENT.on_ground_max_vertical_speed => CLIENT.additional_down_speed,
-        _ => speed * TICK_S,
+    let (after, down) = match rule {
+        DropFall::Client => client_fall_tick(speed),
+        _ => (speed + GRAVITY * TICK_S, speed * TICK_S),
     };
     let y = top - down;
     if y <= floor {
@@ -841,6 +837,16 @@ fn fall_step(fall: Fall, top: f32, feet: &mut Vec3, step: f32, rule: DropFall) -
 
 /// [A318] The live client's controller settings (`startup.cfg`): [`DropFall::Client`]'s slow start.
 const CLIENT: mapdata::controller::tick::Settings = mapdata::controller::tick::Settings::LIVE;
+
+/// [A318] One tick of the client's airborne capsule falling at `speed` (m/s down at the tick's start): its speed after the tick and
+/// how far it goes down in it. `step_down` 0x7E1B0 (PROVEN, port `mapdata::controller::tick`): slow while the speed at the tick's
+/// start is under `on_ground_max_vertical_speed` (2.0 m/s, `startup.cfg`), then down by `additional_down_speed` (0.05 m); else by
+/// the speed at its start (`(v + a dt).y * tick`, `a` the slope's slide: none in the air); `g * tick` goes into the speed after the
+/// move (`fall_params.gravity`). The reckoning's [`DropFall::Client`] and the bench stand-in's fall play it.
+pub(crate) fn client_fall_tick(speed: f32) -> (f32, f32) {
+    let down = if speed < CLIENT.on_ground_max_vertical_speed { CLIENT.additional_down_speed } else { speed * TICK_S };
+    (speed + GRAVITY * TICK_S, down)
+}
 
 /// [`slide`] with the reckoned body's edge ([`Kinematics::edge`]): the lattice's, the client's held to [`SUPPORT_M`], or that and
 /// the client's walk off an open side ([`walk_off_open`]).
