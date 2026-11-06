@@ -2351,6 +2351,8 @@ HIDE_UI_BACKS = (0x25CEDB, 0x25CF0D, 0x26CCAE, 0x26CDD2)
 VOICE_ACTION = 0xA74E10
 VOICE_ACTION_OLD = struct.pack("<5I", 0x9FDDF8, 0x37, 5, 0, 0x9FDDF4)
 VOICE_ACTION_KINDS = 8
+# The entry as an install row (the build's write index names its owner by it).
+VOICE_ACTION_ENTRY = (VOICE_ACTION, VOICE_ACTION_OLD)
 
 
 def voice_action_write(linked):

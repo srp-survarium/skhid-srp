@@ -1,9 +1,8 @@
-# Voice chat (being built: PR #357)
+# Voice chat (PR #357: built, not played, not released)
 
 The owner asked for voice chat in matches (2026-10-23). This note is the design and what the
-0.26g exe and the later builds already have. Nothing here is built yet: 0.26g has no capture
-path and no codec, so the work is about two weeks (estimate at the end), and it waits for the
-owner's go on the open points below.
+0.26g exe and the later builds already have; "As built" below says where the build differs
+(ported to main's named hook sites 2026-11-06).
 
 ## What 0.26g already has
 
@@ -108,8 +107,8 @@ All of it is the unused front end of a feature the 0.26g engine never had. PROVE
   - "Use microphone" (`s_use_microphone`, default on): the off switch for talking;
   - "Microphone sensitivity" (`s_mic_sens`, 0..1, default 0.5): the mic gain.
   - The "PTT" checkbox (`s_ptt_button`, open mic when off) stays disabled: v1 is push-to-talk only.
-- **Speaking indicator.** On the HUD, a short list of who is talking: a speaker mark and the name,
-  above the chat on the left. Your own name shows while you transmit.
+- **Speaking indicator.** On the HUD, a short list of who is talking, as 0.69's (below, "As
+  built").
 - **Who can talk.** Dead players talk to their team too (0.69's rule is not known). Bots never
   talk. Players who join late are heard from the moment their client says hello.
 - **Never kept.** The server only forwards audio (Privacy, below).
@@ -136,8 +135,9 @@ All of it is the unused front end of a feature the 0.26g engine never had. PROVE
   - 0.69 kept voice apart too (`voice_chat_client`).
 - **Who a datagram is from.** The `u32 session` of the client's 0xD8 connect (match.md),
   checked two ways: the session holds a seat in a running match, and the datagram's IP is the
-  IP of that seat's match connection. A datagram that fails either is dropped silently. Ports
-  may differ (NAT).
+  IP of that seat's match connection. A datagram that fails either, or is malformed, is dropped
+  and logged (a line per source IP at most every 10 s, with its count; "As built"). Ports may
+  differ (NAT).
 
 ## The wire (voice port)
 
@@ -207,8 +207,9 @@ Little-endian. Every datagram starts with `56 01 <type>`: the magic, the version
     `voice_seat(session)`: match, place, team, IP; bots' places have none;
   - a released seat (left by 0xE0, the match's result) neither talks nor hears from the next
     second on;
-  - tests: `cargo test -p match-server --lib voice` (17: team-only, mutes, IP and seat checks,
-    malformed and large datagrams, lost START, timeout, the 30 s cut, the rate limit, the tap's
+  - tests: `cargo test -p match-server --lib voice` (34: team-only, mutes, IP and seat checks,
+    every malformed shape with its reason, frames not 20 ms of Opus, a flood not delaying a good
+    sender, the drop log's bounds, lost START, timeout, the 30 s cut, the rate limit, the tap's
     text, real sockets over the registry, the 0xD8 setting the IP).
 
 ## The client
@@ -244,31 +245,37 @@ Little-endian. Every datagram starts with `56 01 <type>`: the magic, the version
 - **HUD movie:** `flash/hud/src/HUD.as` gets `srp_voice_talking(names:Array)`: a list of names
   with a speaker mark, under the minimap or above the chat, and nothing when empty.
 
-## As built (2026-10-25)
+## As built (2026-10-25; ported 2026-11-06)
 
 Where the build differs from or adds to the design above:
 
-- **The exe patch is 66**, implemented by the safe Rust module
-  `client-patches/rust/patches/src/voice.rs`, over typed Vostok accessors. Its names-only
-  `voice.toml` declares the hooks; the build generates and verifies their entries from the raw
-  function, site and field tables. The old voice C and assembly implementations are removed.
-  The sites: game::game (the variables), match_client::connect
-  (`sv_start(host, match port + 1, session)`), on_finish_match and on_deactivate (`sv_stop`),
-  game_world::tick (every frame), on_keyboard_action's Tab-test call (the keys), the Esc menu.
+- **The exe patch is 66**, the safe Rust module `client-patches/rust/patches/src/voice.rs` over
+  its boundary `vostok/voice.rs`. Its names-only `voice.toml` chains eight lohooks of
+  `sites_026g.tsv`: `configs.start` (the variables, before user.cfg), `match_client.connect`
+  (`sv_start(host, match port + 1, session)`), `game_world.finish` and `game_world.deactivate`
+  (`sv_stop`), `game_world.after_move` (every frame), `tab_cursor.key` (the keys) and
+  `hud.callback` (the Tab menu's voice entries). README patch 66, client_patch.md 3.71.
 - **Options:** `s_chat_volume` and `s_mic_sens` are 0..100 (the game's float slider steps by 1),
   defaults 100 and 50; `s_use_microphone` default on. **"Disable voice chat"** is the gameplay
-  tab's dead option 5 (`g_hide_spam`, "Hide spam"), relabelled by `voice-chat-1.json`, next to
+  tab's dead option 5 (`g_hide_spam`, "Hide spam"), relabelled in `localization/*.tsv`, next to
   "Hide chat in match" (patch 58's dead option 4, the same way).
 - **Keys:** PTT is the stock `ptt` (P, the chat keys' group; relabelled "Push to talk"). **"Mute
-  the last speaker"** is the action table's dead entry 37h renamed `mute_last_speaker`, a 42nd
-  Controls row, **no default key**: M is `set_next_ammo_type` in 0.26g, so it waits for the owner's
-  pick (free in every group: B, H, J, U, Y, Z, 9, 0, F4, F7-F10, F12, Caps Lock).
-- **The Esc menu's "Voice" panel** (`main_menu`: `VoicePanel`, beside the menu's buttons): the
-  teammates whose voice id is known, a mute checkbox each, "Mute all". Empty and hidden in the
-  lobby. It works in Blackout (the Esc menu frees the cursor; the Tab list is not used).
-- **The HUD list** (`hud`: `VoiceSpeakers`, left of the screen above the middle): the player's own
-  name in gold while transmitting, then each teammate talking; a dimmed speaker mark for the radio.
-  Muted players are left out. The mute key shows "Muted: name" / "Unmuted: name" under it for 3 s.
+  the last speaker"** is the action table's dead entry 37h renamed `mute_last_speaker`, the 43rd
+  Controls row (patch 62's table, after patch 78's), **no default key**: M is
+  `set_next_ammo_type` in 0.26g (free in every group: B, J, U, Y, Z, 9, 0, F4, F7-F10, F12, Caps
+  Lock; H is patch 78's now). A held PTT is let go when its key is up (user32's GetAsyncKeyState,
+  so a release the chat box took is seen) or the game loses the keyboard.
+- **Muting** (the owner, 2026-11-06: in the Tab list's player menu): a right-click on a teammate's
+  row (Ctrl for the cursor, patch 86) offers "Mute voice" or "Unmute voice" after the chat mute's
+  entries, for a teammate whose voice id the relay sent; the menu shows "Voice muted", "Voice
+  unmuted" or "Voice chat unavailable". 0.69 had a team panel with the chat input instead (its
+  `VoiceChatEditPanel`: a text-mute and a voice-mute button per row, mutes for the match only).
+- **Who is talking** (the owner, 2026-11-06: as 0.69's `VoiceChatTalkingPanel`): `hud`'s
+  `VoiceSpeakers` at the left, mid-height (0.69's (20,370) of 1280x720): a row per teammate
+  talking, a light-blue speaker (0x73B9FF) and the name, 25 px apart, the newest on top; a name
+  fades over 1 s, 0.5 s after its player stops. Neither the player's own name nor the muted show
+  (0.69's own-microphone icon and its speaker over heads were not picked). The mute key shows
+  "Voice muted: name" / "Voice unmuted: name" under it for 3 s.
 - **The radio** (the DLL): a teammate farther than 25 m, or either player dead, through a filter
   fitted to 0.69's `_radio` quick-command recordings (high-pass 405 Hz, peaks and dips up to 6.3
   kHz), retail static under it (`tutorial_interference_02`, -44 dBFS), and retail's squelch at the
@@ -281,11 +288,6 @@ Where the build differs from or adds to the design above:
   against it. All exports and the ABI version must match before the game enables voice. A
   missing or incompatible DLL leaves voice off. Capture opens when PTT starts and closes on
   release. One press transmits 30 s at most, then requires release before another starts.
-- **The controls table is shared Rust code** (`vostok/controls.rs`). Startup copies the stock
-  descriptors and relocates their editable buffers, then adds F11 and mute-last-speaker from
-  one list. PTT already has a stock row: it stays in the chat group, with P as its default and
-  a localized label in all six language tables. The game handles rebind, accept and user.cfg
-  save/reload for every row. Initializing again preserves pending edits.
 - **Build and packaging:** `nix develop ./srp-026g -c bash srp-026g/client-voice/build.sh` builds
   the Windows x86 DLL with the pinned Rust/MSVC toolchain and checks its ABI. `release/build-zip`
   runs that build and includes the DLL through `make_client_026g.py --voice`; the updater installs
@@ -293,6 +295,16 @@ Where the build differs from or adds to the design above:
 - **Push-to-talk never outlives a match:** the exe releases it at every stop and before every
   start, and the DLL starts and stops released (a key held when a match ended once opened the
   microphone in the next: the review of 7b653ac9).
+- **Malformed input** (the owner, 2026-11-06: "dropped and logged", never stopping the game for
+  those who receive it): the relay and the DLL read each datagram once into a typed message; a
+  truncated, oversized, extended or unknown one, an AUDIO of more than 8 frames or with a frame
+  that is not 20 ms of Opus (its TOC byte, RFC 6716 3.1), a session with no seat or from another
+  IP, or a talker over its rate is dropped, never forwarded, and counted: the relay logs a line
+  per source IP at most every 10 s (1024 sources apart, the rest summed), the DLL one line at most
+  every 10 s (its first drop at once). A frame the decoder still refuses is concealed. A receive
+  error no longer ends the DLL's tick; `sv_start` reads the host within 256 bytes. The saved
+  mutes (`srp_voice_mutes`) are read once a match: a record not 8 hex digits is left out and
+  logged.
 
 ## Bandwidth
 
@@ -338,8 +350,8 @@ Where the build differs from or adds to the design above:
 
 ## Added by the owner (2026-10-25)
 
-- **Muting**, without the Tab list (Tab frees no cursor; Blackout hides the list):
-  - the Esc menu gets a "Voice" panel: the teammates, a mute toggle each, and "Mute all";
+- **Muting** (moved to the Tab list's player menu 2026-11-06, above; the Esc menu's panel of
+  2026-10-25 is gone):
   - a key "mute the last speaker" in Controls (default M only if M is free in every group);
   - mutes are per account, kept across matches; the HUD list leaves the muted out;
   - kept by a **voice id**, not the name (accounts can be renamed; the owner, 2026-10-25): srp's
@@ -362,14 +374,19 @@ Where the build differs from or adds to the design above:
   codec participates. Relay tests also cover team isolation, mutes, authentication, rate limits,
   released seats, immediate reseats, stale utterances and process restarts in the same slot
   while the listener misses the new START packet.
-- Unicorn runs the game's original code around the Rust hooks. The controls harness covers the
-  single PTT row, P default, rebinding to F8, accept, the binder's save and loading the saved
-  command, alongside the existing F11 cases.
+- `check_hide_ui_026g.py` (Unicorn) runs the options' own functions over the 43 rows: the mute
+  row sent to the movie, its empty key, alongside F11's and patch 78's cases.
+- `scripts/tab-row-menu/check.sh` (Ruffle) runs the Tab menu with the voice entries: offered,
+  muted, unmuted, not done, none without the exe's answer.
+- `cargo test` in `client-patches/rust/`: the saved mutes' text (malformed records), the radio's
+  25 m and the dead. The old `check_voice_026g.py` (Unicorn over the 2026-10-25 hooks) went with
+  those hooks; the lohooks' handlers are not run in Unicorn.
 - The Windows/Wine DLL smoke test covers loading, the ABI, relay handshake, mute/volume updates,
   and stopping/restarting with PTT held. It uses a fake relay; the Rust integration above uses
   the real relay.
 
 Real microphone capture and audible playback still require an in-game test with two games, a
-microphone on one, and both near and beyond 25 m. Also check Esc mutes, disable voice chat,
+microphone on one, and both near and beyond 25 m. Also check the Tab menu's voice mute, the
+talking list's fade, disable voice chat,
 PTT rebinding after restarting, death/respawn and crossing a match boundary while PTT is held.
 This PR is kept out of v35 and the following port-only release.
