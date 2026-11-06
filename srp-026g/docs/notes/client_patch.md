@@ -727,8 +727,7 @@ repository); everything below was read again in 0.26g's code for the patch.
   `scene_time` binding (0x1498A6..0x14990F) with the same stubs and three
   made-up name counts: the same calls, the name `scene_slomo`, the value
   1.0 in `.srp`, the same alignment at the call, every register and
-  [esp+2Ch] after the hook as the original's. With `--rev12=` the build is
-  compared byte by byte with revision 12 (README, Revision 13).
+  [esp+2Ch] after the hook as the original's.
 - **Checked** (`selftest_026g.py` check 28, `test_forward_scroll`): the
   sites, the original's instructions around them, the configuration's
   accesses in compile, g_stage's code, the fill function's bit, the
