@@ -357,6 +357,8 @@ fn camp_route(cx: &Ctx, line: &crate::v026g::bots::threat::HeldLine) -> Option<S
     let give_up_at = cx.now + (length / ROUTE_PACE_MPS * 1000.0) as u32 + ROUTE_SPARE_MS;
     // The bench's count of the routes walked (only with the switch on, so an OFF run prints nothing new).
     #[cfg(test)]
+    ROUTE_SEEN.with(|m| m.borrow_mut().insert(cx.me.place, (0, 0)));
+    #[cfg(test)]
     eprintln!(
         "A320 camp_flank route start: t {} place {} spot {spot} route {route} ({:?}, {:.0} m, passed {passed})",
         cx.now, cx.me.place, camp.routes[route].origin, length
@@ -577,8 +579,26 @@ fn round(cx: &Ctx, him: Vec3, facing: [f32; 2], spots: &[Vec3], rng: &mut Rng) -
     }
 }
 
+#[cfg(test)]
+thread_local! {
+    /// [A320 bench] The job flankers' last step, by place (`SRP_BENCH_CAMPER_FLANK_ONLY`: only they hurt the camper).
+    static FLANKING: std::cell::RefCell<std::collections::HashMap<Place, u32>> = std::cell::RefCell::new(std::collections::HashMap::new());
+    /// [A320 bench] Per route walker: the steps of its walk and those the camper had a line to it (bench truth).
+    static ROUTE_SEEN: std::cell::RefCell<std::collections::HashMap<Place, (u32, u32)>> = std::cell::RefCell::new(std::collections::HashMap::new());
+}
+
+/// [A320 bench] Whether `place` stepped a job's flank within the last 1.5 s of `now` (the bench's isolated flank test).
+#[cfg(test)]
+pub fn flanking(place: Place, now: u32) -> bool {
+    FLANKING.with(|m| m.borrow().get(&place).is_some_and(|&t| now.saturating_sub(t) <= 1_500))
+}
+
 pub fn step(state: &mut State, target: TargetRef, cx: &Ctx, rng: &mut Rng) -> Step {
     let num = |name| cx.num(PlayKind::Flank, name);
+    #[cfg(test)]
+    if matches!(target, TargetRef::ThreatSpot(_)) {
+        FLANKING.with(|m| m.borrow_mut().insert(cx.me.place, cx.now));
+    }
     let route_until = match state {
         State::Route { give_up_at, .. } => Some(*give_up_at),
         _ => None,
@@ -647,9 +667,24 @@ pub fn step(state: &mut State, target: TargetRef, cx: &Ctx, rng: &mut Rng) -> St
             if let Some(k) = (*next..=fire).rev().find(|&i| at(i).distance_xz(cx.me.feet) <= ROUTE_PASS_M) {
                 *next = k + 1;
             }
+            // [A320 bench] Whether the camper (bench truth: the world's place of the held spot's shooter) has a line to it.
+            #[cfg(test)]
+            {
+                let seen = cx.view.place(*camper).filter(|p| p.alive).is_some_and(|p| {
+                    cx.tactics.sees(crate::v026g::bots::view::still_eye(p.feet, p.keys & key::CROUCH != 0), crate::v026g::bots::view::still_eye(cx.me.feet, false))
+                });
+                ROUTE_SEEN.with(|m| {
+                    let e = m.borrow_mut().entry(cx.me.place).or_insert((0, 0));
+                    e.0 += 1;
+                    e.1 += u32::from(seen);
+                });
+            }
             if *next > fire {
                 #[cfg(test)]
-                eprintln!("A320 camp_flank route fire: t {} place {} spot {spot} route {route}", cx.now, cx.me.place);
+                {
+                    let (steps, seen) = ROUTE_SEEN.with(|m| m.borrow_mut().remove(&cx.me.place)).unwrap_or((0, 0));
+                    eprintln!("A320 camp_flank route fire: t {} place {} spot {spot} route {route} seen {seen} of {steps} steps", cx.now, cx.me.place);
+                }
                 let s = rng.range(num("peek_min_s"), num("peek_max_s"));
                 let until = cx.now + (s * 1000.0) as u32;
                 *state = if hold_ms.is_some() {

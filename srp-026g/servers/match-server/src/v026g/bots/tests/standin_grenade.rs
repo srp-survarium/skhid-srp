@@ -151,6 +151,9 @@ pub(crate) fn explode(game: &mut Game, thrower: Place, at: Vec3, tick: u32) -> V
         let Some(amount) = splash.amount_at(distance) else {
             continue;
         };
+        if !game.hurts(thrower, place, tick) {
+            continue;
+        }
         game.metric_rays += splash.affected.len() as u64;
         let hits: Vec<(usize, f32)> = splash
             .affected

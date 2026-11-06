@@ -455,7 +455,9 @@ impl Game {
                     );
                     da.total_cmp(&db)
                 });
-            if let Some(victim) = caught {
+            if let Some(victim) = caught
+                && self.flank_only != Some(victim)
+            {
                 self.traps.list[t].phase = Phase::Fired { at: tick };
                 let kind = if victim == trap.placer {
                     Kill::Own

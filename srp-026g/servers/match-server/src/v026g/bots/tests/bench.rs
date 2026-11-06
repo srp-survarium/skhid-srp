@@ -1283,6 +1283,10 @@ pub(crate) fn real_bot_cost() {
                 .map(|place| BenchCamper::new(camper_options.side.place(place, per_team, seed), camper_options, seed, camper_plays_by));
             let camper_place = bots.bench_camper.as_ref().map(BenchCamper::place);
             owner.set_camper(camper_place);
+            // [A320 B3g] The isolated flank test: only the job flankers hurt the stand-in camper.
+            if bench_settings().flag("SRP_BENCH_CAMPER_FLANK_ONLY") {
+                game.flank_only = camper_place;
+            }
             // [A290] `SRP_BENCH_HUMAN_PLAY=hunter`: the stand-in human hunts sights-up by his own fixed tuning, on the camper's hooks
             // (`standin_hunter.rs`); he is no camper to the tallies.
             if HumanPlay::from_env() == HumanPlay::Hunter {
