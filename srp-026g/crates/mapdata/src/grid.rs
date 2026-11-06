@@ -80,6 +80,7 @@ use crate::sight::RayTree;
 mod clearance;
 pub use clearance::{CLEARANCE_MAX_M, CLEARANCE_STEP_M};
 mod doors;
+mod slide_floors;
 mod exact;
 mod open;
 /// g, m/s^2 (`fall_params.gravity` 9.8, PROVEN).
@@ -233,6 +234,10 @@ pub struct Body {
     /// rounds take a floor beside any wall cell, so a doorway 0.8-1.2 m wide closes though the capsule passes (Vector
     /// Laboratory's strip). Needs [`Erosion::Exact`]. A build input: in the key when set.
     pub narrow_doors: bool,
+    /// [A316/A318] Whether the floors the client's body cannot hold are taken out (`grid::slide_floors`): a still body stood on a
+    /// floor with a face no body walks on near it, run 1 s in the client's walk tick, slides off ground past the walk limit (55 deg,
+    /// or a `dont_walk` face): its ways in go, unless it is the way through to floors that are not. A build input: in the key when set.
+    pub slide_floors: bool,
 }
 
 /// How the floors a body's radius from walls are taken away.
@@ -289,6 +294,7 @@ impl Body {
             client_controller: false,
             drop_room_walk_faces: false,
             narrow_doors: false,
+            slide_floors: false,
         }
     }
 }
@@ -361,6 +367,7 @@ impl Default for Body {
             client_controller: false,
             drop_room_walk_faces: false,
             narrow_doors: false,
+            slide_floors: false,
         }
     }
 }
@@ -843,6 +850,8 @@ pub struct BuildStats {
     pub ramp_floors: usize,
     /// [A313] The controller pass ([`Body::client_controller`]).
     pub controlled: controlled::ControlledStats,
+    /// [A316/A318] The slide-floors pass ([`Body::slide_floors`]).
+    pub slide: slide_floors::SlideStats,
     /// The floors the exact pass took after the rounds ([`Erosion::Exact`]).
     pub exact_eroded: usize,
     /// The Drop links the honest drops took away ([`Body::drop_flight_mps`]): for a fall deeper than the harmless one
@@ -1048,6 +1057,9 @@ impl WalkGrid {
             // The walk links the client's body does not walk go, but none that is a floor's only way in from the seeds and spawns
             // or its only way back (a 39 deg log on Cologne humans jump onto and stand on: ~70 floors lost with its two ends).
             (stats.controlled.checks_dropped, stats.controlled.checks_kept) = grid.cut_keeping_reach(&mut wide, failing, seeds, spawns, true);
+        }
+        if body.slide_floors {
+            stats.slide = grid.cut_slide_floors(&mut wide, triangles, seeds, spawns);
         }
         drop(solids);
         if body.drop_room && body.drop_room_walk_faces {

@@ -144,6 +144,12 @@ pub struct GridTuning {
     /// A313 NAV FIRST, fx-bench's score on all maps: drift 4.02 -> 3.98 %, lower on every map, coverage +0.02, path equal;
     /// level_01 day_2's one raised-stall cell is real ground. A grid is the map's (see `gap_links`).
     pub narrow_doors: bool,
+    /// [A316/A318] Whether the floors the client's body cannot hold are taken out of the maps' walk grids
+    /// (`mapdata::Body::slide_floors`): a still body stood there in the client's walk tick slides off ground past the walk limit
+    /// (55 deg, or a `dont_walk` face), so a bot planned to stand or walk there slides (A313's census: 224 raised stalls on faces
+    /// past 55 deg; fx-zones' A318 slope samples). Off until its NAV FIRST score and harm check. A grid is the map's (see
+    /// `gap_links`).
+    pub slide_floors: bool,
 }
 
 impl Default for GridTuning {
@@ -170,6 +176,7 @@ impl Default for GridTuning {
             client_controller: true,
             drop_room_walk_faces: true,
             narrow_doors: true,
+            slide_floors: false,
         }
     }
 }
@@ -204,6 +211,7 @@ impl GridTuning {
             client_controller: self.client_controller,
             drop_room_walk_faces: self.drop_room_walk_faces,
             narrow_doors: self.narrow_doors,
+            slide_floors: self.slide_floors,
             ..body
         }
     }
