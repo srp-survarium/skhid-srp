@@ -171,6 +171,8 @@ fn reference_replay() {
         let mut wv: Option<[f32; 2]> = None;
         // The yaw after each tick: the world's at b plus the inputs' turns (fx-zones: exact for bots), not wrapped.
         let mut yaw = yaw_b;
+        // `land` only on the tick after an airborne one (the tick's `landed` note is set on most ground ticks).
+        let mut was_air = false;
         for &(t, _, v, _) in trail.iter().filter(|r| r.0 > t0 && r.0 <= w.time) {
             let sub = (((t - last_t) as f32 / 1000.0) / TICK_S).round().max(1.0) as usize;
             for _ in 0..sub {
@@ -198,7 +200,7 @@ fn reference_replay() {
                 let ground = body.on_ground(&s);
                 let branch = if notes.airborne || (!ground && body.velocity.y < -0.5) {
                     "air"
-                } else if notes.landed {
+                } else if was_air {
                     "land"
                 } else if notes.side_slide || notes.down_slide {
                     "slide"
@@ -211,6 +213,7 @@ fn reference_replay() {
                 } else {
                     "walk"
                 };
+                was_air = branch == "air";
                 let normal = if notes.airborne { String::new() } else { format!("{:.3}", body.contact_normal.y) };
                 out.push_str(&format!(
                     "{rec_id},{},{t0},{tick_n},{},{:.3},{:.3},{:.3},{:.3},{:.3},{:.3},{},{normal},{branch},0x{kk:x},{:.3},{:.3},{:.5},{:.5}\n",
