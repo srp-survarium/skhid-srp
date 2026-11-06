@@ -131,6 +131,9 @@ pub(crate) fn stand_in_bridges() -> body::Bridges {
 pub(crate) fn stand_in_walls() -> crate::v026g::bots::kin::WallSlide {
     use crate::v026g::bots::kin::WallSlide;
     static WALLS: std::sync::OnceLock<WallSlide> = std::sync::OnceLock::new();
+    if OLD_WALLS.get() {
+        return WallSlide::Diagonal;
+    }
     *WALLS.get_or_init(|| match bench_settings().var("SRP_BENCH_STAND_IN_WALLS").as_deref() {
         Ok("axes") => WallSlide::Axes,
         Ok("diagonal") => WallSlide::Diagonal,
@@ -152,6 +155,24 @@ pub(crate) fn stand_in_mixer() -> crate::v026g::bots::kin::Mixer {
 
 thread_local! {
     static OLD_MIXER: std::cell::Cell<bool> = const { std::cell::Cell::new(false) };
+    static OLD_WALLS: std::cell::Cell<bool> = const { std::cell::Cell::new(false) };
+}
+
+/// The stand-in's slide before the round one ([`crate::v026g::bots::kin::WallSlide::Diagonal`]) for this thread while it lives
+/// (tests whose pinned numbers predate it).
+pub(crate) struct OldWalls(());
+
+impl OldWalls {
+    pub(crate) fn scope() -> Self {
+        OLD_WALLS.set(true);
+        Self(())
+    }
+}
+
+impl Drop for OldWalls {
+    fn drop(&mut self) {
+        OLD_WALLS.set(false);
+    }
 }
 
 /// The stand-in's old blend ([`crate::v026g::bots::kin::Mixer::Frozen`]) for this thread while it lives (tests whose pinned
