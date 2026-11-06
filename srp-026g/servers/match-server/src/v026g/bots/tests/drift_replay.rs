@@ -11,7 +11,9 @@
 //! data; `SRP_BENCH_TUNING`: the tuning patch (the server's file); `SRP_A304_HUMANS`: the human places (default `0`);
 //! `SRP_A304_OUT`: the CSV written, one row a world of a bot life after its first. Ignored; it prints a summary.
 //! `SRP_A304_TICKS` (with `SRP_A304_ROWS` and `SRP_A304_REC`) [A325]: the reckoning tick by tick over chosen intervals, for the
-//! first-divergence classifier against the reference body (the client's movement code on the same keys).
+//! first-divergence classifier against the reference body (the client's movement code on the same keys). `SRP_A304_BUILT=<dir>` [A325]:
+//! the world through the server's map store and its built files, so a run with the same grid rules reads the grid back instead of
+//! building it (`SRP_A304_SLOPE` needs the meshes the store drops: not with it).
 
 use std::collections::HashMap;
 use std::sync::Arc;
@@ -56,16 +58,43 @@ fn drift_on_a_real_match() {
     let humans: Vec<usize> = var("SRP_A304_HUMANS").unwrap_or_else(|| "0".into()).split(',').filter_map(|p| p.parse().ok()).collect();
     let tuning = bench_tuning();
     let kin = tuning.kin.clone();
-    let file = std::path::Path::new(&dir).join(mapdata::format::file_name(&project));
-    let map = mapdata::MapData::read(&file).unwrap_or_else(|e| panic!("{}: {e}", file.display()));
-    let world = Arc::new(World::build_with(
-        map,
-        mapdata::CELL,
-        tuning.grid_body(),
-        tuning.off_mesh_links(),
-        tuning.needs_wall_clearance(),
-        tuning.needs_open_sides(),
-    ));
+    let loading = std::time::Instant::now();
+    // `SRP_A304_BUILT=<dir>` [A325, the fast case bench]: the world through the server's own map store and its built files (grid,
+    // sight tree, tactics keyed by the map file and the grid rules, `maps::read_or_build`): a run whose grid rules are the last
+    // run's reads the grid back in seconds; only a grid-rule change builds it again (and writes it for the next run).
+    let world = match var("SRP_A304_BUILT") {
+        Some(built) => {
+            let maps = super::super::maps::Maps::configured_for(
+                Some(std::path::PathBuf::from(&dir)),
+                1,
+                1,
+                Some(std::path::PathBuf::from(built)),
+                tuning.grid.clone(),
+                tuning.needs_wall_clearance(),
+                tuning.needs_open_sides(),
+            );
+            loop {
+                match maps.get(&project) {
+                    super::super::maps::MapState::Ready(base) => break base.world.clone(),
+                    super::super::maps::MapState::Absent(why) => panic!("{project}: {why}"),
+                    _ => std::thread::sleep(std::time::Duration::from_millis(20)),
+                }
+            }
+        }
+        None => {
+            let file = std::path::Path::new(&dir).join(mapdata::format::file_name(&project));
+            let map = mapdata::MapData::read(&file).unwrap_or_else(|e| panic!("{}: {e}", file.display()));
+            Arc::new(World::build_with(
+                map,
+                mapdata::CELL,
+                tuning.grid_body(),
+                tuning.off_mesh_links(),
+                tuning.needs_wall_clearance(),
+                tuning.needs_open_sides(),
+            ))
+        }
+    };
+    eprintln!("A325 world of {project} in {:.1} s", loading.elapsed().as_secs_f32());
     // `SRP_A304_RAMP_AT=x,z;x,z`: the ramp marks (`grid.ramp_faces`) of the floors within 2 m of each point, then nothing else.
     if let Some(points) = var("SRP_A304_RAMP_AT") {
         let g = &*world.grid;
