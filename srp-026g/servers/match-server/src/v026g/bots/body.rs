@@ -1932,7 +1932,7 @@ pub(super) mod tests {
         track.fixed(fix(0, Vec3::new(last - 0.3, 6.0, 5.0), yaw), &kin, Some(&open));
         let at = track.estimate().unwrap();
         let stop = Stop { kin: &kin, level: 1.0, grid: &open, planned: &[], hold: 4 };
-        assert!(stays_up(&at, key::FORWARD, 0.0, &stop), "the guard's forecast still holds it on the top, as the client edge");
+        assert!(stays_up(at, key::FORWARD, 0.0, &stop), "the guard's forecast still holds it on the top, as the client edge");
     }
 
     /// [`FixFloor::Under`]: a world that shows the body in the air at a ledge's face (a jump against it) puts it on the floor
