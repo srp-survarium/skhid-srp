@@ -56,18 +56,15 @@ Code, in `flash/lobby_menu/src` ([lobby-source.md](lobby-source.md)):
     Calibri has no italic and the game takes "Calibri Bold Italic" from the system's fonts, so
     under Wine without Calibri the hints (the friends search's too) showed as squares.
 - **The tip** (owner 2026-11-06): while the box is empty, hovering it or its magnifier shows the
-  game's tooltip (the one of the shop's "Hide owned", `ReasonsTip`) of the "+" filters, a row
-  each:
+  game's tooltip (the one of the shop's "Hide owned", `ReasonsTip`) of the "+" filters, a group
+  each (an example and its meaning; under the meaning, dimmer, the list of its words):
 
-  | example | meaning |
+  | example | meaning, and its list |
   | --- | --- |
-  | `+army +black` | sold by any of these factions |
-  | every faction | the items' factions, a word each: `+independent +scavengers +black +renaissance +fringe` |
-  | `+ammo +pocket` | has each bonus named |
-  | every bonus | the items' bonus words by type: the gear's `+ammo +slot +pocket +artifact …`, then the weapons' `+aim +recoil …` |
+  | `+ammo +pocket` | has each bonus named<br>the items' bonus words by type: the gear's `+ammo +slot +pocket +artifact …`, then the weapons' `+aim +recoil …` |
   | `+10 +11` | of any of these levels |
-  | `+helmet +boots` | any of these kinds |
-  | every kind | the items' kind words: `+gear +helmet +body +rig +boots …` |
+  | `+army +black` | sold by any of these factions<br>the items' factions, a word each: `+independent +scavengers +black +renaissance +fringe` |
+  | `+helmet +boots` | any of these kinds<br>the items' kind words: `+gear +helmet +body +rig +boots …` |
 
   - **The lists** (owner 2026-11-06: "there should be a list of +slot +artifact too, this is not
     obvious"; "many return nothing and as such should not be mentioned"): the words of what the
@@ -80,30 +77,36 @@ Code, in `flash/lobby_menu/src` ([lobby-source.md](lobby-source.md)):
       table's order (the most searched first). No counts: an item listed twice (the shop lists
       one once a seller) changes nothing;
     - each kind some item is (its `SEARCH_KINDS` row's first word), in the table's order;
-    - the factions first (owner 2026-11-06: "there should be every faction which then lists those
-      factions", "that is the most important"): each faction selling some item (the items'
+    - the factions, in the middle (owner 2026-11-06: "there should be every faction which then
+      lists those factions", "faction is the least interesting one, so it should be in the
+      middle"): each faction selling some item (the items'
       sellers, the independent traders too), in the seller tabs' order, a word each in the
       player's language: the first word of its tab's name, from 3 letters on, that names it
       alone as a "+" word (no level, no kind, no other faction: "The Renaissance Army" is
       `+renaissance`, "Армия Возрождения" `+армия`), lower case. Made again when the seller
       tabs come;
-    - a bonus or kind no item has still matches; it is not listed. A list with no word is no row.
-    - wrapped in the right column (at least 400 px); the bonus and kind words English, as they
-      work in every language; only the rows' labels are dictionary keys.
+    - a bonus or kind no item has still matches; it is not listed. A list with no word is not
+      shown.
+    - each under its row's meaning, wrapped in the right column (at least 400 px), in the search
+      box's dimmer grey (0x696969, its examples'), with no label (owner 2026-11-06: "+army +black
+      and every faction mean different things but are on the same level"): a row and its list
+      read as one group, one pixel apart, half a line between the groups. The bonus and kind
+      words English, as they work in every language.
   - **Two columns** (owner 2026-11-06: "it could have been aligned way better"): the examples on
     the left, the meanings on the right, all starting at one x; no colons; the same gap between
-    rows, the padding the same on every side. Each cell is a text field of the tooltip's own font,
+    the groups, the padding the same on every side. Each cell is a text field of the tooltip's own font,
     laid out in the game's tooltip (`ReasonsTip`, `tipData.rows`).
   - **Where:** just above the box (it is under the item grid), its left edge on the box's left
     edge, never over the item panel's buttons (Buy, Hide owned); it does not follow the pointer.
     On the screen at every resolution (the lobby scales its tips with it).
-  - **Only the "+" filters** (owner 2026-11-06: "since this only shows bonuses"): the faction,
-    bonus, level and kind rows (the bonus row's `+ammo +pocket` shows them combining); no row for
+  - **Only the "+" filters** (owner 2026-11-06: "since this only shows bonuses"): the bonus,
+    level, faction and kind rows (the bonus row's `+ammo +pocket` shows them combining); no row for
     names (a plain word still searches them, typos forgiven). The three "any" rows read alike
     (owner 2026-11-06: no "(several: any)").
   - Once something is typed there is no tip; a click on the empty box is a click on the box.
   - Each cell a dictionary key (`st_srp_inventory_search_tip_<row>_example`,
-    `st_srp_inventory_search_tip_<row>`, the lists' `st_srp_inventory_search_tip_<row>_list`), its examples the language's own words that find what they say.
+    `st_srp_inventory_search_tip_<row>`; the lists have none), its examples the language's own
+    words that find what they say.
 - **Every resolution:** the box is part of the list, and the lobby scales the list (4K: #279).
 
 ## What it finds
@@ -192,8 +195,9 @@ levels, kinds, factions, bonuses and the name's words (`SearchQuery`).
   the rules above; in every language the hint on one line in the box (its two greys), each of its
   and the tip's examples finding what they name, the Armor bonus by its card name a bonus, not a
   kind; the tip's rows, its lists (only what the fixture's items have, by type; no penalty),
-  place and columns, each faction word listing that faction's items in every language;
-  Shift+= without its character over the list typing "+".
+  place, columns and groups (a list dim, under its meaning, closer than the groups), each
+  faction word listing that faction's items in every language; Shift+= without its character
+  over the list typing "+".
 
 ## Closing, Esc, Enter, the other keys
 

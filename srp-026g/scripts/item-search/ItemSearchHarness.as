@@ -459,9 +459,9 @@ package
          var rows:Array = tip().tipData.rows as Array;
          var key:String = "st_srp_inventory_search_tip_";
          var want:Array = [];
-         for each(var k:String in ["faction","faction_list","bonus","bonus_list","level","kind","kind_list"])
+         for each(var k:String in ["bonus","bonus_list","level","faction","faction_list","kind","kind_list"])
          {
-            want.push(k.indexOf("_list") != -1 ? ui[key + k] + " / (list)" : ui[key + k + "_example"] + " / " + ui[key + k]);
+            want.push(k.indexOf("_list") != -1 ? " / (list)" : ui[key + k + "_example"] + " / " + ui[key + k]);
          }
          var got:Array = rows == null ? [] : rows.map(function(r:Array, i:int, a:Array):String
          {
@@ -472,16 +472,16 @@ package
          {
             return;
          }
-         var bonuses:Array = String(rows[3][1]).split(" ");
+         var bonuses:Array = String(rows[1][1]).split(" ");
          var kinds:Array = String(rows[6][1]).split(" ");
-         trace("ITEMSEARCH tip bonus words (" + bonuses.length + "): " + rows[3][1]);
+         trace("ITEMSEARCH tip bonus words (" + bonuses.length + "): " + rows[1][1]);
          trace("ITEMSEARCH tip kind words (" + kinds.length + "): " + rows[6][1]);
          // the bonuses the items have, by type (owner 2026-11-06): the gear's (the rigs' ammo and
          // pocket, the hood's slot and armor, the vest's artifact), then the weapons' (the Mosin's
          // aim, the AK's recoil), each group in SEARCH_BONUSES' order; the vest's armour is a
          // defect, the rig's +2 kg and the Mosin's movement -5 % penalties, and no item has xp or
          // use: not listed, still matched
-         require(rows[3][1] == "+ammo +slot +pocket +artifact +armor +aim +recoil","the tip lists the items' bonuses by type: " + rows[3][1]);
+         require(rows[1][1] == "+ammo +slot +pocket +artifact +armor +aim +recoil","the tip lists the items' bonuses by type: " + rows[1][1]);
          // the kinds some item is, in SEARCH_KINDS' order (no mask, gloves, pants or items)
          require(rows[6][1] == "+gear +helmet +body +rig +boots","the tip lists the items' kinds: " + rows[6][1]);
          expect("+weight",[],false,"a penalty (the rig's +2 kg) is no bonus");
@@ -489,7 +489,7 @@ package
          expect("+xp",[],false,"a bonus no item has");
          expect("+mask",[],false,"a kind no item is");
          // the factions selling an item, in the seller tabs' order, a word each naming it alone
-         require(rows[1][1] == "+independent +scavengers +black +renaissance +fringe","the tip lists the items' factions: " + rows[1][1]);
+         require(rows[4][1] == "+independent +scavengers +black +renaissance +fringe","the tip lists the items' factions: " + rows[4][1]);
          // every listed kind word names its kind: the inventory's of that kind
          expect("+helmet +boots",["Hood","Shoes"],false,"tip kinds");
       }
@@ -499,7 +499,7 @@ package
       private function checkFactionList(language:String) : void
       {
          var rows:Array = tip().tipData.rows as Array;
-         var words:Array = rows != null && rows.length > 1 ? String(rows[1][1]).split(" ") : [];
+         var words:Array = rows != null && rows.length > 4 ? String(rows[4][1]).split(" ") : [];
          trace("ITEMSEARCH " + language + " tip faction words: " + words.join(" "));
          // the tabs' order: the independent traders, then the factions 1 to 4
          var sold:Array = [["Mosin","Shoes"],["Rig A"],["Rig B"],["AK-74M","Vest"],["Hood"]];
@@ -511,8 +511,10 @@ package
       }
 
       // The tip shown (in tipLayer, ToolTip's container): the game's renderer, just above the box,
-      // their left edges together; its rows two columns, the right one's at one x, the same gap
-      // between rows, the padding the same on every side.
+      // their left edges together; its rows two columns, the right one's at one x; each list
+      // (a row [left, right, true]) under its row's meaning, dim (0x696969), no label, closer to
+      // its row than the groups are to each other (the same gaps each); the padding the same on
+      // every side.
       private function checkTipLayout() : void
       {
          require(tipLayer.numChildren == 1,"the tip shows over the empty box (" + tipLayer.numChildren + " shown)");
@@ -527,15 +529,15 @@ package
          require(Math.abs(shape.left - at.left) <= 1,"the tip's left edge (" + shape.left + ") on the box's (" + at.left + ")");
          require(shape.bottom <= at.top,"the tip (to " + shape.bottom + ") above the box (from " + at.top + ")");
          require(shape.top >= 0,"the tip (from " + shape.top + ") on the screen");
+         var rows:Array = tip().tipData.rows as Array;
          var cells:Array = [];
          find(renderer,TextField,cells);
          cells = cells.filter(function(c:TextField, i:int, a:Array):Boolean
          {
-            return c.visible && c.text != "";
+            return c.visible;
          });
-         var count:int = tip().tipData.rows.length;
-         require(cells.length == count * 2,"the tip has " + count + " rows of 2 cells (" + cells.length + " cells)");
-         if(cells.length != count * 2)
+         require(cells.length == rows.length * 2,"the tip has " + rows.length + " rows of 2 cells (" + cells.length + " cells)");
+         if(cells.length != rows.length * 2)
          {
             return;
          }
@@ -554,19 +556,39 @@ package
             rights.push(text[i + 1]);
          }
          var widest:Number = 0;
-         var gap:Number = NaN;
-         for(i = 0; i < count; i++)
+         var inner:Array = [];
+         var between:Array = [];
+         for(i = 0; i < rows.length; i++)
          {
-            require(Math.abs(lefts[i][0] - lefts[0][0]) <= 0.5,"the examples start at one x (" + lefts[i][0] + ", " + lefts[0][0] + ")");
-            require(Math.abs(rights[i][0] - rights[0][0]) <= 0.5,"the meanings start at one x (" + rights[i][0] + ", " + rights[0][0] + ")");
-            require(Math.abs(rights[i][1] - lefts[i][1]) <= 0.5,"row " + i + "'s cells on one line");
-            widest = Math.max(widest,lefts[i][2]);
+            var list:Boolean = rows[i][2] === true;
+            var colour:uint = uint(cells[i * 2 + 1].getTextFormat(0,1).color) & 0xFFFFFF;
+            require(Math.abs(rights[i][0] - rights[0][0]) <= 0.5,"the meanings and lists start at one x (" + rights[i][0] + ", " + rights[0][0] + ")");
+            if(list)
+            {
+               require(cells[i * 2].text == "","a list has no label (\"" + cells[i * 2].text + "\")");
+               require(colour == 0x696969,"a list is dim (" + colour.toString(16) + ")");
+            }
+            else
+            {
+               require(Math.abs(lefts[i][0] - lefts[0][0]) <= 0.5,"the examples start at one x (" + lefts[i][0] + ", " + lefts[0][0] + ")");
+               require(Math.abs(rights[i][1] - lefts[i][1]) <= 0.5,"row " + i + "'s cells on one line");
+               require(colour != 0x696969,"a meaning is not dim");
+               widest = Math.max(widest,lefts[i][2]);
+            }
             if(i > 0)
             {
-               var between:Number = lefts[i][1] - Math.max(lefts[i - 1][3],rights[i - 1][3]);
-               gap = isNaN(gap) ? between : gap;
-               require(Math.abs(between - gap) <= 0.5,"the same gap between rows (" + between + ", " + gap + ")");
+               (list ? inner : between).push(rights[i][1] - Math.max(lefts[i - 1][3],rights[i - 1][3]));
             }
+         }
+         trace("ITEMSEARCH tip gaps inside a group: " + inner.join(", ") + "; between the groups: " + between.join(", "));
+         require(inner.length == 3 && between.length == 3,"three groups with a list each (" + inner.length + " lists, " + between.length + " gaps between groups)");
+         for each(var g:Number in inner)
+         {
+            require(Math.abs(g - inner[0]) <= 0.5,"the same gap inside every group (" + inner.join(", ") + ")");
+         }
+         for each(g in between)
+         {
+            require(Math.abs(g - between[0]) <= 0.5 && g > inner[0] + 4,"the same gap between the groups, larger than inside one (" + between.join(", ") + " against " + inner[0] + ")");
          }
          require(rights[0][0] > widest + 8,"the meanings (from " + rights[0][0] + ") clear of the widest example (to " + widest + ")");
          var right:Number = 0;
@@ -574,7 +596,8 @@ package
          {
             right = Math.max(right,r[2]);
          }
-         var bottom:Number = Math.max(lefts[count - 1][3],rights[count - 1][3]);
+         var last:int = rows.length - 1;
+         var bottom:Number = Math.max(lefts[last][3],rights[last][3]);
          var pads:Array = [lefts[0][0] - shape.left,lefts[0][1] - shape.top,shape.right - right,shape.bottom - bottom];
          trace("ITEMSEARCH tip " + shape.width.toFixed(0) + " x " + shape.height.toFixed(0) + ", padding left, top, right, bottom: " + pads.map(function(p:Number, i:int, a:Array):String
          {

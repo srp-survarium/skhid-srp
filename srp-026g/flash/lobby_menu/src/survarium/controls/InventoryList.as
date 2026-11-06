@@ -301,7 +301,7 @@ package survarium.controls
 
       private var _searchTipArea:ReasonsTip;
 
-      private static const SEARCH_TIP:Array = ["st_srp_inventory_search_tip_faction","st_srp_inventory_search_tip_bonus","st_srp_inventory_search_tip_level","st_srp_inventory_search_tip_kind"];
+      private static const SEARCH_TIP:Array = ["st_srp_inventory_search_tip_bonus","st_srp_inventory_search_tip_level","st_srp_inventory_search_tip_faction","st_srp_inventory_search_tip_kind"];
 
       // the text typed, read once (searchQuery); null: no search
       private var _search:SearchQuery;
@@ -2908,9 +2908,10 @@ package survarium.controls
 
       private var _searchFactionWords:String = "";
 
-      // The tip's rows (SEARCH_TIP: the faction's first, owner 2026-11-06: "that is the most
-      // important"), with the lists (listSearchWords) wrapped under the faction, the bonus and the
-      // kind rows, each when it has a word.
+      // The tip's rows (SEARCH_TIP: the bonus's first, the faction's in the middle, owner
+      // 2026-11-06: "faction is the least interesting one"), each with its list (listSearchWords)
+      // under its meaning, dim, no label (owner 2026-11-06: a row and its list read as one), when
+      // the list has a word.
       private function fillSearchTip() : void
       {
          if(this._searchTipArea == null)
@@ -2931,7 +2932,7 @@ package survarium.controls
          {
             if(list[1] != "")
             {
-               rows.splice(SEARCH_TIP.indexOf(list[0]) + 1,0,[LocalizationData.getName(list[0] + "_list"),list[1],true]);
+               rows.splice(SEARCH_TIP.indexOf(list[0]) + 1,0,["",list[1],true]);
             }
          }
          // name: the renderer's own text (TextTipRenderer.invalidateData), none beside the rows

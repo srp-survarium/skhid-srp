@@ -2462,13 +2462,10 @@ st_srp_inventory_search	Suche
 st_srp_inventory_search_examples	+Tasche, +Zelle, +Patronen, +10
 st_srp_inventory_search_tip_bonus	hat jeden genannten Bonus
 st_srp_inventory_search_tip_bonus_example	+Patronen +Tasche
-st_srp_inventory_search_tip_bonus_list	alle Boni
 st_srp_inventory_search_tip_faction	von einer dieser Fraktionen verkauft
 st_srp_inventory_search_tip_faction_example	+Arme +Schwarzer
-st_srp_inventory_search_tip_faction_list	alle Fraktionen
 st_srp_inventory_search_tip_kind	eine dieser Arten
 st_srp_inventory_search_tip_kind_example	+helmet +boots
-st_srp_inventory_search_tip_kind_list	alle Arten
 st_srp_inventory_search_tip_level	in einer dieser Stufen
 st_srp_inventory_search_tip_level_example	+10 +11
 st_srp_item_props_mps	m/s

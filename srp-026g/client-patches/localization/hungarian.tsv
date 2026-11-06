@@ -2462,13 +2462,10 @@ st_srp_inventory_search	Keresés
 st_srp_inventory_search_examples	+zseb, +slot, +lőszer, +10
 st_srp_inventory_search_tip_bonus	minden megnevezett bónusza megvan
 st_srp_inventory_search_tip_bonus_example	+lőszer +zseb
-st_srp_inventory_search_tip_bonus_list	minden bónusz
 st_srp_inventory_search_tip_faction	ezen frakciók bármelyike árulja
 st_srp_inventory_search_tip_faction_example	+hadsereg +fekete
-st_srp_inventory_search_tip_faction_list	minden frakció
 st_srp_inventory_search_tip_kind	ezen fajták bármelyike
 st_srp_inventory_search_tip_kind_example	+sisak +bakancs
-st_srp_inventory_search_tip_kind_list	minden fajta
 st_srp_inventory_search_tip_level	ezen szintek bármelyike
 st_srp_inventory_search_tip_level_example	+10 +11
 st_srp_item_props_mps	m/s
