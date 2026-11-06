@@ -101,6 +101,9 @@ down) when you use artifact? Note that your vision should still be clear")
 - Version 5 of the pack adds Forest Protection's grey leg glow (artefact-skills.md, "Forest
   Protection"): the same files of the three kinds, and effect_forest_protection with its own
   particle system and grey materials.
+- Version 6 adds the leg quarters (artefact-skills.md, "Leg quarters"):
+  effect_artefact_leg_<kind>_<1..4>, each kind's stock glow on one quarter of the legs, without
+  its point light.
 - History: version 1 (a lighter copy) and version 2 (with `up_light`'s lights at x0.35) showed
   too little in the first person; version 3, the stock glow without the head, was tested by the
   owner and approved (2026-10-25: "this version is good"). Version 4 is the same files.

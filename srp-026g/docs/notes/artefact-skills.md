@@ -240,10 +240,38 @@ preferred-image VAs; `apply_modifier` is the kit-modifier getter 0x2D5AE0.
 - Larkspur's active is a heal at the activation: Cascade heals the recipients within 5 m then,
   with the glow, by Medic's retained code (medical-skills.md "Medic").
 - Glow: Larkspur's recipients glow (Medic's); Spring's and Onyx's shared actives show no glow
-  on the recipient (my pick: a cosmetic gap).
+  on the recipient (my pick: a cosmetic gap). The shared passives show in the leg quarters.
 - The cap per phase (my pick): at most 4 copies' passives and 4 copies' actives of a kind,
   each 4 less the recipient's own carried copies of the kind (in their passive or active).
   Larkspur's active heal is Medic's, which has no cap: a full heal twice is one.
+
+### Leg quarters (patch 111, pack artefact-glow@6)
+
+- The owner (2026-11-06): each passive artefact copy that counts for a player lights a quarter
+  of its legs in that artefact's colour; everyone sees it (how stacked a player is).
+- The count, per kind: the player's own carried copies giving their passive (`Kind::gives`:
+  Spring and Lifebone in 3 and 4, Onyx in 3 only) plus the passives Resonance shares with it
+  (`shared`, the sharing's own code and cap), at most 4 (own copies past 4 count as 4). A dead
+  player counts none. Counted at the player's simulation tick in its world as it is then.
+- Quarters (my pick), in the order they light: 1 the left lower leg (LeftLeg, LeftFoot), 2 the
+  right lower leg, 3 the left thigh (LeftUpLeg), 4 the right thigh: one copy one shin, two both
+  shins, four both legs (filling upward, symmetric at even counts).
+- Colours: each kind's stock glow's own (its materials `*_<colour>` and the haze): Spring blue,
+  Lifebone (Larkspur) green, Onyx orange.
+- Several kinds (my pick, the simplest): each kind lights its own quarters from the first; where
+  two kinds meet on a quarter their glows layer (the sprites are additive, so the colours mix,
+  as two kinds' stock glows already do). No slot sharing between kinds.
+- Effects: `artefact_leg_<kind>_<n>` (n 1..4), view 2: the kind's stock glow with only the
+  quarter's parts on, its emitters with none of them left out, and its point light (`up_light`)
+  too: up to twelve quarters on one player, and the stock lights are what lit the whole body in
+  Forest Protection's renders. Forest Protection's grey glow plays beside them, unchanged.
+- Played as Forest Protection's glow: at the player's tick each quarter it shows and plays none
+  of is played with the player's own calculator, which ends it when the count drops below it
+  (or at death); nothing new serialized, no `next` row. The thirteen effects come in one query.
+- Timing: the sharing's own effects read the roster where they are used (`apply_modifier`, the
+  hit, the regeneration); the quarters read it at the player's tick, the same function on the
+  same world, so a quarter and the effect agree but for a carrier crossing the 8 m line within
+  that tick.
 
 ### How it is built (patch 109)
 
