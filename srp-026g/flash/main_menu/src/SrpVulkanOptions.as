@@ -1,36 +1,31 @@
 package
 {
+    import flash.display.BitmapData;
     import flash.display.DisplayObject;
-    import flash.display.GradientType;
     import flash.display.Graphics;
     import flash.display.MovieClip;
-    import flash.display.Shape;
     import flash.display.Sprite;
     import flash.events.Event;
-    import flash.events.MouseEvent;
     import flash.geom.Matrix;
     import flash.geom.Rectangle;
     import scaleform.clik.controls.DropdownMenu;
-    import scaleform.clik.core.UIComponent;
     import scaleform.clik.data.DataProvider;
-    import scaleform.clik.events.ButtonEvent;
     import scaleform.clik.events.ListEvent;
-    import scaleform.clik.managers.PopUpManager;
+    import scaleform.clik.utils.Padding;
 
-    // The Graphics tab's "Vulkan options..." (docs/notes/dxvk-option.md): a button on the row under the
-    // Renderer list, the tab's own (the Optimal and Default buttons' SetingsButton, at their width), whose
-    // press opens a panel flush under it (the button held pressed), over the column (a popup, as a list's),
-    // its rows on the column's grid,
-    // holding the five options exe patch 83 keeps in user.cfg and gives DXVK at the next start with
-    // Vulkan/DXVK: the frame rate limit and the performance overlay (lists, the exe's index), Reduce
-    // input lag, Tear-free with vsync off and Prefer the dedicated GPU (checkboxes, "1" or "0"). A press
-    // outside the panel (and outside a list of its own while that is open) or Esc closes it; the button
-    // again too. SrpRendererChoice owns it: the button is disabled while the Renderer list shows
-    // DirectX 11, and its options are the Renderer's pending
-    // change of the tab (Apply saves them, Cancel puts the saved ones back). The exe answers
-    // ExternalInterface.call(name[, value]) with root.srp_check_option(name, label, saved, running[,
-    // the list's choices' texts]), running the value this process runs (DXVK's of the start, without
-    // DXVK the saved one).
+    // The Graphics tab's "Vulkan options" (docs/notes/dxvk-option.md): a row of the column under the Renderer
+    // list, built as it is (its label, a stock drop-down box showing "Default" while the five are at their
+    // defaults, else "Custom"), whose box opens a panel under it where the Renderer's opens its list (the
+    // box in its open state meanwhile), over the column, its rows on the column's grid, holding the five
+    // options exe patch 83 keeps in user.cfg and gives DXVK at the next start with Vulkan/DXVK: the frame
+    // rate limit and the performance overlay (lists, the exe's index), Reduce input lag, Tear-free with
+    // vsync off and Prefer the dedicated GPU (checkboxes, "1" or "0"). The panel is the box's drop-down
+    // (DropdownMenu's ready popup): a press outside it (and outside a list of its own while that is open),
+    // on the box again, or Esc closes it. SrpRendererChoice owns it: the box is disabled while the Renderer
+    // list shows DirectX 11, and its options are the Renderer's pending change of the tab (Apply saves
+    // them, Cancel puts the saved ones back). The exe answers ExternalInterface.call(name[, value]) with
+    // root.srp_check_option(name, label, saved, running[, the list's choices' texts]), running the value
+    // this process runs (DXVK's of the start, without DXVK the saved one).
     public class SrpVulkanOptions
     {
         public static const FRAME_LIMIT:String = "srp_dxvk_frame_limit";
@@ -40,6 +35,8 @@ package
         public static const DEDICATED_GPU:String = "srp_dxvk_dedicated_gpu";
         // In the panel's order: the two lists, then the three checkboxes.
         public static const NAMES:Array = [FRAME_LIMIT, OVERLAY, LOW_LATENCY, TEAR_FREE, DEDICATED_GPU];
+        // Each option's default (exe patch 83's): the lists' first choice, Prefer the dedicated GPU on.
+        private static const DEFAULTS:Array = ["0", "0", "0", "0", "1"];
         private static const LISTS:int = 2;
         // Over the panel's first row and under its last; out of the column on its left and right.
         private static const PADDING:Number = 8;
@@ -48,48 +45,52 @@ package
         private static const TIP:String = "SrvProfileTipRenderer";
         // The last row's (a checkbox's) drawn height: its box.
         private static const LAST_ROW:Number = 26;
-
-        // The button that opens the panel.
-        public var button:SetingsButton;
-        // The panel and the controls in it, by name.
-        public var panel:Sprite;
-        private var body:Sprite;
-        // The panel's frame and ground (draw): the Settings window's own border on its four sides, and inside
-        // it the column's ground, so the controls in it look as the same controls outside it do.
-        private var frame:Shape;
         // The window's border, outside in: its light line, then its dark band.
         private static const EDGE_LIGHT:uint = 0x585A5D;
         private static const EDGE_DARK:Array = [0x1A1A18, 0x131311, 0x0B0B0B];
-        // The column's ground across the panel (left to right, the window's darker left edge to its middle):
-        // its colours and their places (0-255 across the panel).
-        private static const GROUND:Array = [0x131517, 0x15171A, 0x1C2023, 0x282C2E, 0x2D3134, 0x2A2D30];
-        private static const GROUND_AT:Array = [0, 26, 84, 145, 168, 255];
+
+        // The row: its label and the box that opens the panel.
+        public var box:DropdownMenuSkinnedLabel;
+        // The panel (the box's drop-down) and the controls in it, by name.
+        public var panel:MovieClip;
+        private var body:Sprite;
+        // The panel's surface: the Settings window's border on its four sides, inside it the window's own
+        // background art where it lies under the panel (draw), so only the border tells inside from outside.
+        private var frame:Sprite;
+        private var content:MovieClip;
         private var controls:Object = {};
+        // The box's two values (all five at their defaults, or not); "" until the exe answers.
+        private var standard:String = "";
+        private var custom:String = "";
         // Each option's saved and running value ("1"/"0" or the list's index); "" until the exe answers.
         private var saved:Object = {};
         private var running:Object = {};
         // Settings' handler of a change (listen).
         private var changed:Function = null;
+        // The panel's size (layout).
+        private var panelWidth:Number = 0;
+        private var panelHeight:Number = 0;
 
         public function SrpVulkanOptions(content:MovieClip)
         {
-            button = new SetingsButton();
-            button.name = "_srp_vulkan";
-            button.autoSize = "none";
-            button.focusable = true;
-            button.toggle = false;
-            // Scaleform leaves a script-created control fully transparent.
-            button.alpha = 1;
-            button.visible = false;
-            button.addEventListener(ButtonEvent.CLICK, onPress);
-            content.addChild(button);
-            panel = new Sprite();
+            this.content = content;
+            panel = new MovieClip();
             panel.name = "_srp_vulkan_panel";
-            frame = new Shape();
+            frame = new Sprite();
             panel.addChild(frame);
             // the controls one Sprite under the panel (press routing: memory note, the lobby's rooms)
             body = new Sprite();
             panel.addChild(body);
+            box = new DropdownMenuSkinnedLabel();
+            box.name = "_srp_vulkan";
+            SrpRendererChoice.style(box);
+            box.dropdown = panel;
+            // a press on it keeps the focus where it is: a press in the panel is no change of focus that closes it
+            box.focusable = false;
+            // Scaleform leaves a script-created control fully transparent.
+            box.alpha = 1;
+            box.visible = false;
+            content.addChild(box);
             for (var i:int = 0; i < NAMES.length; i++)
             {
                 var name:String = NAMES[i];
@@ -103,13 +104,13 @@ package
                 }
                 else
                 {
-                    var box:CheckBoxSkinned = new CheckBoxSkinned();
-                    box.autoSize = "none";
-                    box.enableInitCallback = false;
-                    box.focusable = true;
-                    box.selected = false;
-                    box.addEventListener(Event.SELECT, onChange);
-                    control = box;
+                    var check:CheckBoxSkinned = new CheckBoxSkinned();
+                    check.autoSize = "none";
+                    check.enableInitCallback = false;
+                    check.focusable = true;
+                    check.selected = false;
+                    check.addEventListener(Event.SELECT, onChange);
+                    control = check;
                 }
                 control.name = "_" + name;
                 // Scaleform leaves a script-created control fully transparent.
@@ -118,27 +119,30 @@ package
                 controls[name] = control;
                 saved[name] = running[name] = "";
             }
+            panel.addEventListener(Event.ADDED_TO_STAGE, onOpen);
+            panel.addEventListener(Event.REMOVED_FROM_STAGE, onClose);
         }
 
-        // The button's text (the exe's root.srp_hud_texts).
-        // The button's text and each option's hint (the exe's root.srp_hud_texts), in NAMES' order: the game's
-        // tooltip on hover (CLIK's ToolTip, every control's base: its delay, kept on the stage).
-        public function texts(label:String, hints:Array):void
+        // The exe's texts (root.srp_hud_texts): the row's label, each option's hint in NAMES' order (the game's
+        // tooltip on hover: CLIK's ToolTip, every control's base), the box's two values.
+        public function texts(label:String, hints:Array, standard:String, custom:String):void
         {
-            button.label = label;
-            size();
+            box.label = label;
+            this.standard = standard;
+            this.custom = custom;
             for (var i:int = 0; i < NAMES.length && i < hints.length; i++)
             {
                 var control:Object = controls[NAMES[i]];
                 control.tooltipRendererName = TIP;
                 control.tipData = {name: hints[i]};
             }
+            value();
         }
 
-        // Whether the button can be shown: its text and every option's answer there.
+        // Whether the row can be shown: its texts and every option's answer there.
         public function get ready():Boolean
         {
-            if (button.label == null || button.label == "")
+            if (box.textFieldLabel.text == "" || standard == "")
             {
                 return false;
             }
@@ -196,7 +200,7 @@ package
         {
             for each (var name:String in NAMES)
             {
-                if (saved[name] != "" && value(name) != saved[name])
+                if (saved[name] != "" && state(name) != saved[name])
                 {
                     return true;
                 }
@@ -222,9 +226,9 @@ package
         {
             for each (var name:String in NAMES)
             {
-                if (saved[name] != "" && value(name) != saved[name])
+                if (saved[name] != "" && state(name) != saved[name])
                 {
-                    saved[name] = value(name);
+                    saved[name] = state(name);
                     SrpExe.call(name, saved[name]);
                 }
             }
@@ -254,112 +258,49 @@ package
             return panel.stage != null;
         }
 
-        // The panel closed (a tab change, the window closed, Esc); whether it was open. The button back as
-        // the pointer has it.
+        // The panel closed (a tab change, the window closed, Esc); whether it was open.
         public function close():Boolean
         {
             if (!open)
             {
                 return false;
             }
-            // a list of its own open: its list is a popup of its own, closed with it
-            for (var i:int = 0; i < LISTS; i++)
-            {
-                var list:DropdownMenu = controls[NAMES[i]] as DropdownMenu;
-                if (list.selected)
-                {
-                    list.close();
-                }
-            }
-            panel.stage.removeEventListener(MouseEvent.MOUSE_DOWN, onStagePress);
-            panel.parent.removeChild(panel);
-            button.mouseEnabled = true;
-            button.gotoAndPlay("up");
+            box.close();
             return true;
         }
 
-        // A press of the button: the panel opened right under it (a popup over the column), the button held
-        // pressed while it is open (its "down" frames; it takes no pointer then, so a press on it is outside
-        // the panel and closes it).
-        private function onPress(event:Event):void
+        // The row one step under the Renderer list (`renderer`), built as it is: `y` its row, the box at the
+        // Renderer's place and width. The panel where the Renderer opens its list (`menuOffset`: right under the
+        // box), out by MARGIN on both sides of the column, its rows on the column's grid: each list at the
+        // Renderer list's place and width (its label at the labels' x, its box at the boxes'), each checkbox at
+        // the column's (`rows[1]`, Fullscreen's) x. Its five rows on one step, the lists' (`step`, Monitor's),
+        // the padding the same over the first and under the last. `rows`: the column's rows under it, which the
+        // open panel lies over: it ends in a gap between two of them, none showing half below its edge; the
+        // step grows as much as that takes.
+        public function layout(renderer:DropdownMenuSkinnedLabel, y:Number, step:Number, rows:Array):void
         {
-            if (close() || !button.enabled)
-            {
-                return;
-            }
-            PopUpManager.show(panel, panelX, button.y + button.height, button.parent);
-            panel.stage.addEventListener(MouseEvent.MOUSE_DOWN, onStagePress);
-            button.validateNow();
-            button.mouseEnabled = false;
-            button.gotoAndPlay("down");
-        }
-
-        // A press outside the panel and an open list of the panel closes it.
-        private function onStagePress(event:MouseEvent):void
-        {
-            for (var at:DisplayObject = event.target as DisplayObject; at != null; at = at.parent)
-            {
-                if (at == panel || at is UIComponent && UIComponent(at).focusTarget != null
-                    && panel.contains(UIComponent(at).focusTarget))
-                {
-                    return;
-                }
-            }
-            close();
-        }
-
-        // The panel's left edge in the tab's coordinates.
-        private var panelX:Number = 0;
-        // The tab's preset buttons' width (Optimal's), the button's own.
-        private var presetWidth:Number = 0;
-
-        // The button at the preset buttons' width, wider only for a text that would not fit it.
-        private function size():void
-        {
-            if (presetWidth <= 0)
-            {
-                return;
-            }
-            button.width = presetWidth;
-            button.validateNow();
-            var room:Number = button.textField != null ? button.textField.width * button.scaleX : presetWidth;
-            var needed:Number = button.textField != null ? button.textField.textWidth + 8 : 0;
-            if (needed > room)
-            {
-                button.width = presetWidth + needed - room;
-            }
-        }
-
-        // The button at the column's left edge (the Renderer list's), `y` its row, at the tab's preset buttons'
-        // width (`preset`: Optimal); the panel right under it, out by MARGIN on both sides of the column, its
-        // rows on the column's grid: each list at the Renderer list's place and width (its label at the
-        // labels' x, its box at the boxes'), each checkbox at the column's (`rows[1]`, Fullscreen's) x. Its five
-        // rows on one step, the lists' (`step`, Monitor's), the padding the same over the first and under the
-        // last. `rows`: the column's rows under it, which the open panel lies over: it ends in a gap between
-        // two of them, none showing half below its edge; the step grows as much as that takes.
-        public function layout(renderer:DisplayObject, y:Number, step:Number, rows:Array, preset:DisplayObject):void
-        {
-            presetWidth = preset.width;
-            size();
-            button.x = renderer.x;
-            button.y = y + (renderer.height - button.height) / 2;
-            panelX = renderer.x - MARGIN;
+            box.x = renderer.x;
+            box.y = y;
+            box.width = renderer.width;
+            var offset:Padding = renderer.menuOffset;
+            box.menuOffset = new Padding(offset.top, 0, 0, -MARGIN);
+            var panelX:Number = box.x - MARGIN;
             var gaps:int = NAMES.length - 1;
             var height:Number = 2 * PADDING + gaps * step + LAST_ROW;
-            // in the tab's coordinates: where the panel opens (right under the button) and ends
-            var top:Number = button.y + button.height;
+            // in the tab's coordinates: where the panel opens and ends
+            var top:Number = box.y + box.height + offset.top;
             var bottom:Number = top + height;
             for each (var under:DisplayObject in rows)
             {
-                var span:Rectangle = under != null ? under.getBounds(button.parent) : null;
+                var span:Rectangle = under != null ? under.getBounds(box.parent) : null;
                 if (span != null && span.top < bottom && span.bottom > bottom)
                 {
                     bottom = span.bottom + 2;
                 }
             }
             step += (bottom - top - height) / gaps;
-            height = bottom - top;
-            var width:Number = renderer.width + 2 * MARGIN;
+            panelHeight = bottom - top;
+            panelWidth = renderer.width + 2 * MARGIN;
             for (var i:int = 0; i < NAMES.length; i++)
             {
                 var control:DisplayObject = controls[NAMES[i]];
@@ -370,42 +311,97 @@ package
                     control.width = renderer.width;
                 }
             }
-            draw(width, height);
-        }
-
-        // The panel's frame and ground at its size: opaque, so the rows under it never show and a press on it
-        // is the panel's.
-        private function draw(width:Number, height:Number):void
-        {
-            var g:Graphics = frame.graphics;
-            g.clear();
-            g.beginFill(EDGE_LIGHT);
-            g.drawRect(0, 0, width, height);
-            for (var i:int = 0; i < EDGE_DARK.length; i++)
+            if (open)
             {
-                g.beginFill(EDGE_DARK[i]);
-                g.drawRect(1 + i, 1 + i, width - 2 * (1 + i), height - 2 * (1 + i));
+                draw();
             }
-            var inset:Number = 1 + EDGE_DARK.length;
-            var across:Matrix = new Matrix();
-            across.createGradientBox(width - 2 * inset, height - 2 * inset, 0, inset, inset);
-            g.beginGradientFill(GradientType.LINEAR, GROUND, [1, 1, 1, 1, 1, 1], GROUND_AT, across);
-            g.drawRect(inset, inset, width - 2 * inset, height - 2 * inset);
-            g.endFill();
         }
 
-        // Shown on the Graphics frame once ready; disabled (no panel) while `enabled` is false.
+        // Shown on the Graphics frame once ready; disabled (greyed as a stock list, no panel) while `enabled` is
+        // false.
         public function show(visible:Boolean, enabled:Boolean):void
         {
-            button.visible = visible && ready;
-            button.enabled = enabled;
-            if (!button.visible || !enabled)
+            box.visible = visible && ready;
+            box.enabled = enabled;
+            if (!box.visible || !enabled)
             {
                 close();
             }
         }
 
-        private function value(name:String):String
+        // The panel's surface at its size, from where it lies on the window: opaque, so the rows under it never
+        // show and a press on it is the panel's. The window's background art is its first child (SrvSettingsWndow's
+        // shape, which fills itself with that bitmap over its bounds).
+        private function draw():void
+        {
+            var g:Graphics = frame.graphics;
+            g.clear();
+            g.beginFill(EDGE_LIGHT);
+            g.drawRect(0, 0, panelWidth, panelHeight);
+            for (var i:int = 0; i < EDGE_DARK.length; i++)
+            {
+                g.beginFill(EDGE_DARK[i]);
+                g.drawRect(1 + i, 1 + i, panelWidth - 2 * (1 + i), panelHeight - 2 * (1 + i));
+            }
+            var inset:Number = 1 + EDGE_DARK.length;
+            var window:DisplayObject = content.parent != null ? content.parent.getChildAt(0) : null;
+            if (window != null && frame.stage != null)
+            {
+                var art:BitmapData = new SrpSettingsGround();
+                var spread:Rectangle = window.getBounds(window);
+                // the art in the window's shape, then on the stage, then in the panel
+                var place:Matrix = new Matrix(spread.width / art.width, 0, 0, spread.height / art.height, spread.x, spread.y);
+                place.concat(window.transform.concatenatedMatrix);
+                var back:Matrix = frame.transform.concatenatedMatrix;
+                back.invert();
+                place.concat(back);
+                g.beginBitmapFill(art, place, false, true);
+            }
+            else
+            {
+                g.beginFill(EDGE_DARK[EDGE_DARK.length - 1]);
+            }
+            g.drawRect(inset, inset, panelWidth - 2 * inset, panelHeight - 2 * inset);
+            g.endFill();
+        }
+
+        // The panel shown (the box opened it): its surface where it now lies.
+        private function onOpen(event:Event):void
+        {
+            draw();
+        }
+
+        // The panel gone (the box closed it): a list of its own open closes with it.
+        private function onClose(event:Event):void
+        {
+            for (var i:int = 0; i < LISTS; i++)
+            {
+                var list:DropdownMenu = controls[NAMES[i]] as DropdownMenu;
+                if (list.selected)
+                {
+                    list.close();
+                }
+            }
+        }
+
+        // The box's value: "Default" while every option is at its default, else "Custom".
+        private function value():void
+        {
+            if (standard == "")
+            {
+                return;
+            }
+            var all:Boolean = true;
+            for (var i:int = 0; i < NAMES.length; i++)
+            {
+                all = all && state(NAMES[i]) == DEFAULTS[i];
+            }
+            box.dataProvider = new DataProvider([all ? standard : custom]);
+            box.selectedIndex = 0;
+            box.invalidateSelectedIndex();
+        }
+
+        private function state(name:String):String
         {
             var control:Object = controls[name];
             return control is DropdownMenu ? String(control.selectedIndex) : control.selected ? "1" : "0";
@@ -422,10 +418,12 @@ package
             {
                 control.selected = state == "1";
             }
+            value();
         }
 
         private function onChange(event:Event):void
         {
+            value();
             if (changed != null)
             {
                 changed(event);
@@ -433,4 +431,3 @@ package
         }
     }
 }
-

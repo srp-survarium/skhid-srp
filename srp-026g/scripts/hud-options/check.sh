@@ -51,7 +51,8 @@ keys = ('st_srp_hide_hit_markers_option', 'st_srp_hide_scores_option', 'st_srp_o
         'st_srp_vulkan_dedicated_gpu', 'st_srp_vulkan_overlay', 'st_srp_vulkan_overlay_fps',
         'st_srp_vulkan_overlay_frametimes', 'st_srp_vulkan_overlay_full', 'st_fov_option',
         'st_srp_vulkan_frame_limit_hint', 'st_srp_vulkan_overlay_hint', 'st_srp_vulkan_low_latency_hint',
-        'st_srp_vulkan_tear_free_hint', 'st_srp_vulkan_dedicated_gpu_hint')
+        'st_srp_vulkan_tear_free_hint', 'st_srp_vulkan_dedicated_gpu_hint', 'st_srp_vulkan_default',
+        'st_srp_vulkan_custom')
 print(json.dumps([[read_translations(CATALOG / f'{name}.tsv')[k] for k in keys] for name, *_ in LANGUAGES],
                  ensure_ascii=False, separators=(',', ':')))
 PY

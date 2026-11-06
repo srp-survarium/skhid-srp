@@ -2700,14 +2700,16 @@ st_srp_unit_mps	%1$s m/s
 st_srp_unit_percent	%1$s%
 st_srp_unit_seconds	%1$ss
 st_srp_unit_times	%1$sx
+st_srp_vulkan_custom	Egyéni
 st_srp_vulkan_dedicated_gpu	Dedikált GPU előnyben
 st_srp_vulkan_dedicated_gpu_hint	Laptopokon az erősebb videokártyát választja.\n+ Jobb teljesítmény laptopokon\n- Több akkut fogyaszt
+st_srp_vulkan_default	Alap
 st_srp_vulkan_frame_limit	FPS-korlát
 st_srp_vulkan_frame_limit_hint	Korlátozza, hány képkockát rajzol a játék másodpercenként.\n+ A gép hűvösebb és csendesebb\n- Nem lesz több kép a korlátnál
 st_srp_vulkan_low_latency	Kisebb beviteli késés
 st_srp_vulkan_low_latency_hint	A játék gyorsabban reagál az egérre.\n+ Gyorsabban reagál a célzás\n- Néhány képkockába kerülhet
 st_srp_vulkan_off	Ki
-st_srp_vulkan_options	Vulkan-beállítások...
+st_srp_vulkan_options	Vulkan-beállítások
 st_srp_vulkan_overlay	Teljesítményjelző
 st_srp_vulkan_overlay_fps	FPS
 st_srp_vulkan_overlay_frametimes	FPS+ábra
