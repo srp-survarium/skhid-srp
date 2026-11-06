@@ -19,18 +19,12 @@ login_tree=$(readlink -f "$1")
 login_original=$(readlink -f "$2")
 main_tree=$(readlink -f "$3")
 main_original=$(readlink -f "$4")
-main=$(git -C "$here" worktree list --porcelain | sed -n '1s/^worktree //p')
-tools=${SRP_AS_TOOLS:-$main/private/actionscript/tools.json}
-if [[ $# -ge 5 ]]; then
-    work=$(readlink -f "$5")
-    mkdir -p "$work"
-else
-    work=$(mktemp -d)
-fi
+. "$here/../ruffle_harness.sh"
+harness_work "${5:-}"
 
 # The test copies: the model for the stub, the recorder for ExternalInterface; the login root starts the driver.
 copy() {
-    rm -rf "$work/$1" "$work/$1.built.swf"
+    rm -rf "${work:?}/$1" "$work/$1.built.swf"
     cp -r "$2" "$work/$1"
     cp "$here/scaleform/gfx/FocusManager.as" "$work/$1/src/scaleform/gfx/FocusManager.as"
     cp "$here/HarnessExternal.as" "$work/$1/src/HarnessExternal.as"
@@ -50,34 +44,9 @@ build login_menu "$login_original"
 copy main_menu "$main_tree"
 build main_menu "$main_original"
 
-
-paths=$(nix build nixpkgs#ruffle nixpkgs#mesa nixpkgs#xorg.xorgserver --no-link --print-out-paths)
-ruffle=$(grep -- '-ruffle-' <<<"$paths")
-mesa=$(grep -- '-mesa-' <<<"$paths")
-xvfb=$(grep -- '-xorg-server-' <<<"$paths")/bin/Xvfb
-lvp=$mesa/share/vulkan/icd.d/lvp_icd.x86_64.json
-# Xvfb chooses an unused display without touching the owner's desktop.
-"$xvfb" -displayfd 3 -screen 0 1280x720x24 -nolisten tcp 3>"$work/display" >"$work/xvfb.log" 2>&1 &
-xvfb_pid=$!
-ruffle_pid=
-cleanup() { kill $ruffle_pid "$xvfb_pid" 2>/dev/null || true; }
-trap 'cleanup; [[ $# -ge 5 ]] || rm -rf "$work"' EXIT
-for _ in $(seq 100); do [[ -s $work/display ]] && break; sleep 0.1; done
-[[ -s $work/display ]] || { cat "$work/xvfb.log"; exit 1; }
-
-(
-    cd "$work"
-    unset WAYLAND_DISPLAY XDG_SESSION_TYPE
-    DISPLAY=:$(cat display) VK_ICD_FILENAMES=$lvp VK_DRIVER_FILES=$lvp RUST_LOG=info \
-        exec timeout 120 "$ruffle/bin/ruffle" -g vulkan -p low --storage memory --scale no-scale \
-        --width 1280 --height 720 login_menu.swf
-) >"$work/MessageFocusHarness.log" 2>&1 &
-ruffle_pid=$!
-for _ in $(seq 1200); do grep -q 'FOCUS RESULT' "$work/MessageFocusHarness.log" && break; sleep 0.1; done
-cleanup
-
-if ! grep -q 'graphics API vulkan on llvmpipe' "$work/MessageFocusHarness.log"; then
-    echo "Ruffle did not run on lavapipe (CPU): see $work/MessageFocusHarness.log" >&2
-fi
-grep -ho 'FOCUS .*' "$work/MessageFocusHarness.log" || true
+harness_display 1280x720
+HARNESS_TIMEOUT=120 harness_run MessageFocusHarness.log -p low --width 1280 --height 720 login_menu.swf
+wait_for MessageFocusHarness.log 'FOCUS RESULT' 1200 || true
+harness_stop
+harness_report 'FOCUS .*' MessageFocusHarness.log
 grep -q 'FOCUS RESULT pass' "$work/MessageFocusHarness.log"

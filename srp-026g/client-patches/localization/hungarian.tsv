@@ -2381,6 +2381,8 @@ st_srp_equipment046_edge_back_6_desc	A leírás még nem érhető el.
 st_srp_equipment046_edge_back_6_name	Sztalkerhátizsák
 st_srp_equipment046_edge_back_7_desc	A leírás még nem érhető el.
 st_srp_equipment046_edge_back_7_name	Talizmán
+st_srp_equipment046_edge_boots_6_desc	A leírás még nem érhető el.
+st_srp_equipment046_edge_boots_6_name	Fűzős sztalkercsizma
 st_srp_equipment046_edge_boots_7_desc	A leírás még nem érhető el.
 st_srp_equipment046_edge_boots_7_name	Varázslócsizma
 st_srp_equipment046_edge_gloves_5_desc	A leírás még nem érhető el.
@@ -2395,6 +2397,8 @@ st_srp_equipment046_edge_legs_7_desc	A leírás még nem érhető el.
 st_srp_equipment046_edge_legs_7_name	Veles nadrág
 st_srp_equipment046_edge_mask_6_desc	A leírás még nem érhető el.
 st_srp_equipment046_edge_mask_6_name	Éjjellátó
+st_srp_equipment046_edge_mask_7_desc	A leírás még nem érhető el.
+st_srp_equipment046_edge_mask_7_name	Veles gázálarc
 st_srp_equipment046_edge_torso_7_desc	A leírás még nem érhető el.
 st_srp_equipment046_edge_torso_7_name	Veles golyóálló mellény
 st_srp_equipment046_renesanse_boots_3_desc	A leírás még nem érhető el.
@@ -2405,6 +2409,8 @@ st_srp_equipment046_renesanse_gloves_3_desc	A leírás még nem érhető el.
 st_srp_equipment046_renesanse_gloves_3_name	OZK-UV kesztyű
 st_srp_equipment046_renesanse_gloves_5_desc	A leírás még nem érhető el.
 st_srp_equipment046_renesanse_gloves_5_name	Felderítőkesztyű
+st_srp_equipment046_renesanse_gloves_6_desc	A leírás még nem érhető el.
+st_srp_equipment046_renesanse_gloves_6_name	Sturm kesztyű
 st_srp_equipment046_renesanse_gloves_7_desc	A leírás még nem érhető el.
 st_srp_equipment046_renesanse_gloves_7_name	Mesterlövész kesztyű
 st_srp_equipment046_renesanse_helmet_7_desc	A leírás még nem érhető el.
@@ -2421,12 +2427,26 @@ st_srp_equipment046_renesanse_torso_7_desc	A leírás még nem érhető el.
 st_srp_equipment046_renesanse_torso_7_name	Mesterlövész golyóálló mellény
 st_srp_equipment046_scavenger_boots_5_desc	A leírás még nem érhető el.
 st_srp_equipment046_scavenger_boots_5_name	Szabotőrcsizma
+st_srp_equipment046_scavenger_boots_6_desc	A leírás még nem érhető el.
+st_srp_equipment046_scavenger_boots_6_name	Megerősített bakancs
 st_srp_equipment046_scavenger_boots_7_desc	A leírás még nem érhető el.
 st_srp_equipment046_scavenger_boots_7_name	Nyomkereső csizma
+st_srp_equipment069_league_shadow_mask_desc	A leírás még nem érhető el.
+st_srp_equipment069_league_shadow_mask_name	„Delta” maszk
 st_srp_equipment069_leagues_back_2_desc	A leírás még nem érhető el.
 st_srp_equipment069_leagues_back_2_name	Szanitéctáska
 st_srp_equipment069_leagues_back_5_desc	A leírás még nem érhető el.
 st_srp_equipment069_leagues_back_5_name	Katonahátizsák
+st_srp_equipment069_snow_20_boots_7_desc	A leírás még nem érhető el.
+st_srp_equipment069_snow_20_boots_7_name	„Hó-20” csizma
+st_srp_equipment069_snow_20_gloves_7_desc	A leírás még nem érhető el.
+st_srp_equipment069_snow_20_gloves_7_name	„Hó-20” kesztyű
+st_srp_equipment069_snow_20_helmet_7_desc	A leírás még nem érhető el.
+st_srp_equipment069_snow_20_helmet_7_name	„Hó-20” sisak
+st_srp_equipment069_snow_20_legs_7_desc	A leírás még nem érhető el.
+st_srp_equipment069_snow_20_legs_7_name	„Hó-20” nadrág
+st_srp_equipment069_snow_20_torso_7_desc	A leírás még nem érhető el.
+st_srp_equipment069_snow_20_torso_7_name	„Hó-20” golyóálló mellény
 st_srp_exchange_balance	Egyenleg
 st_srp_exchange_button	Átváltás
 st_srp_exchange_gold	Arany
@@ -2528,6 +2548,33 @@ st_srp_matches_starting	indul
 st_srp_matches_title	Meccsek
 st_srp_matches_versus	vs
 st_srp_matches_waiting	várakozás
+st_srp_medical_301_description	Hozzáadódik a fájdalomcsillapító fájdalom elleni védelméhez és hatásidejéhez:
+st_srp_medical_301_name	Erős fájdalomcsillapító
+st_srp_medical_302_description	Az elsősegélycsomagok és kötszerek használati idejének csökkenése:
+st_srp_medical_302_name	Gyors kötözés
+st_srp_medical_303_description	Fájdalomcsillapító hatása alatt a sprintelés állóképesség-fogyasztásának csökkenése:
+st_srp_medical_303_name	Zsibbadt lábak
+st_srp_medical_311_description	Az életerő regenerálódása ennyi másodperccel korábban kezdődik:
+st_srp_medical_311_name	Anyagcsere
+st_srp_medical_312_description	Az elsősegélycsomagok és kötszerek által visszaállított életerő bónusza:
+st_srp_medical_312_name	Egészségügyi képzés
+st_srp_medical_313_description	Az elsősegélycsomagok és kötszerek által visszaállított életerő bónusza guggolás közben:
+st_srp_medical_313_name	Fedezékbe
+st_srp_medical_321_description	Mozgási sebesség bónusza 30 alatti életerőnél:
+st_srp_medical_321_name	Adrenalin
+st_srp_medical_322_description	Minden gyógyszert tartalmazó zsebben eggyel több tárgy fér el.
+st_srp_medical_322_name	Több gyógyszer
+st_srp_medical_323_description	Fájdalomcsillapító hatása alatt az ellenséges találatok megállítóerejének csökkenése:
+st_srp_medical_323_name	Rendíthetetlen
+st_srp_medical_331_description	A másodlagos fegyver helyét egy további felszerelészsebre cseréli.
+st_srp_medical_331_name	Felszerelészseb
+st_srp_medical_332_description	A karok és lábak maximális életerejének bónusza:
+st_srp_medical_332_name	Erős csontok
+st_srp_medical_333_description	Fájdalomcsillapító hatása alatt a környezet hangjai halkabbak, az ellenség hangjai (a lövések kivételével) hangosabbak:
+st_srp_medical_333_name	Összpontosítás
+st_srp_medical_342_description	A szövetségesektől kapott sebzés csökkenése:
+st_srp_medical_342_name	Fegyvertársak
+st_srp_medical_seconds	 mp
 st_srp_medicine_ambient_sounds	Környezet hangjai
 st_srp_medicine_crouched_healing	Gyógyulás guggolva
 st_srp_medicine_enemy_sounds	Ellenség hangjai
@@ -2714,6 +2761,21 @@ st_srp_unit_mps	%1$s m/s
 st_srp_unit_percent	%1$s%
 st_srp_unit_seconds	%1$ss
 st_srp_unit_times	%1$sx
+st_srp_vulkan_dedicated_gpu	Dedikált GPU előnyben
+st_srp_vulkan_dedicated_gpu_hint	Laptopokon az erősebb videokártyát választja.\n+ Jobb teljesítmény laptopokon\n- Több akkut fogyaszt
+st_srp_vulkan_frame_limit	FPS-korlát
+st_srp_vulkan_frame_limit_hint	Korlátozza, hány képkockát rajzol a játék másodpercenként.
+st_srp_vulkan_low_latency	Kisebb beviteli késés
+st_srp_vulkan_low_latency_hint	A játék gyorsabban reagál az egérre.\n+ Gyorsabban reagál a célzás\n- Egyes gépeken kevésbé lehet gördülékeny
+st_srp_vulkan_off	Ki
+st_srp_vulkan_options	Vulkan-beállítások
+st_srp_vulkan_overlay	Teljesítményjelző
+st_srp_vulkan_overlay_fps	FPS
+st_srp_vulkan_overlay_frametimes	FPS+ábra
+st_srp_vulkan_overlay_full	Teljes
+st_srp_vulkan_overlay_hint	Kiírja a képernyőre a játék sebességét.
+st_srp_vulkan_tear_free	Szakadásmentes V-Sync nélkül
+st_srp_vulkan_tear_free_hint	Egészben tartja a képet, ha a függőleges szinkron ki van kapcsolva.\n+ Nincsenek szakadt vonalak gyors forduláskor\n- Kicsit több késés, mint sima kikapcsolt VSync esetén
 st_srp_weapon069_akmsu_desc	Rövidített, behajtható tusás AKMS, 7.62x39 lőszerrel. Egyes és sorozatlövésre képes.
 st_srp_weapon069_akmsu_name	AKMSU
 st_srp_weapon069_famas_desc	Francia bullpup gépkarabély, 5.56x45 lőszerrel. Egyes, hármas sorozat és sorozatlövésre képes.

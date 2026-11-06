@@ -2170,4 +2170,7 @@ va	status	ref_021d	name
 0x000f66d0	reviewed		vostok::math::half_to_float
 0x003b9c00	verified	0x00265b8a	vostok::input::platform::keyboard::get_dik_name
 0x003b8d20	verified	0x00265091	vostok::input::platform::keyboard::execute
+0x002614e0	observed	0x00196bf4	survarium::options_item_float::initialize
+0x002616e0	observed	0x00196cdf	survarium::options_item_float::apply
 0x002d1070	reviewed	0x001dcbe6	survarium::game_world_core::is_there_event_horizon_item
+0x0085adf0	observed		survarium::`dynamic initializer for 'uro_fov''

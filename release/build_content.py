@@ -706,6 +706,13 @@ def pierce_check(rows, tree, base, base_files, game, world):
     armour or what fires what, or adds a gun or a round, leaves a line stale or missing (and a
     weapon the list's _inputs does not declare, a line computed without it), and is a Problem."""
     ce = own_content_edit()
+    lines = [(name, entry) for kind, name, source, _, _ in rows
+             if kind == 'edit' and source == '-' and name.endswith('.json')
+             for entry in json.loads((edits_dir(tree) / name).read_text(encoding='utf-8')).get('add_entry', [])
+             if 'pierce_line' in entry]
+    if not lines:
+        print('pierce lines: none listed')
+        return
     known = set(base_files) | set(world.bytes)
     # Every item config the dictionary can pair, read once.
     needed = sorted(p for p in known if p.startswith('gameplay/items/') and p.endswith('.options'))
@@ -714,26 +721,21 @@ def pierce_check(rows, tree, base, base_files, game, world):
     files.update({p: world.bytes[p] for p in needed if p in world.bytes})
     files = {p: bytearray(b) for p, b in files.items()}
     problems, checked = [], 0
-    for kind, name, source, _, _ in rows:
-        if kind != 'edit' or source != '-' or not name.endswith('.json'):
-            continue
-        for entry in json.loads((edits_dir(tree) / name).read_text(encoding='utf-8')).get('add_entry', []):
-            if 'pierce_line' not in entry:
-                continue
-            try:
-                want = ce.pierce_lines(files.__getitem__, set(files), entry['pierce_line'])
-            except ValueError as why:
-                raise Problem(f'{name}: {why}') from None
-            prop_id = entry['values']['prop_id']
-            paths = set(fnmatch.filter(files, entry['files']))
-            problems += [f'{path}: a pierce line, but not one of {entry["files"]} ({name})'
-                         for path in sorted(set(want) - paths)]
-            for path in sorted(paths):
-                have = ce.prop_text(files[path], prop_id)
-                if have != want.get(path):
-                    problems.append(f'{path}: line {prop_id} says {have!r}, its data makes {want.get(path)!r} '
-                                    f'({name}: a row after it changes what it is computed from)')
-            checked += len(want)
+    for name, entry in lines:
+        try:
+            want = ce.pierce_lines(files.__getitem__, set(files), entry['pierce_line'])
+        except ValueError as why:
+            raise Problem(f'{name}: {why}') from None
+        prop_id = entry['values']['prop_id']
+        paths = set(fnmatch.filter(files, entry['files']))
+        problems += [f'{path}: a pierce line, but not one of {entry["files"]} ({name})'
+                     for path in sorted(set(want) - paths)]
+        for path in sorted(paths):
+            have = ce.prop_text(files[path], prop_id)
+            if have != want.get(path):
+                problems.append(f'{path}: line {prop_id} says {have!r}, its data makes {want.get(path)!r} '
+                                f'({name}: a row after it changes what it is computed from)')
+        checked += len(want)
     if problems:
         print()
         for problem in problems:

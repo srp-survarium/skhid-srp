@@ -728,8 +728,8 @@ WORLD_UNPACK = (
 # server reads never ended before the time limit. What a match computes
 # changes at the first death after a team is out: a game of 11 and an
 # older one part there, so a server asks for 11. With it, a field-of-view
-# setting (FOV_PATCHES and FOV_PROJECTION_HOOK below): the video options'
-# slider is bound to uro_fov, from 50 to 100, which the camera's angle
+# setting (FOV_PATCHES and FOV_PROJECTION_HOOK below): uro_fov, from 50 to
+# 100 (the Settings' Gameplay slider, patch 83), which the camera's angle
 # follows unaimed; through a scope the angle is the original's. A camera is
 # not in what a match computes. And a battery under the floor one stands
 # on can be picked up (PICKUP_* below): a use is in what a match computes,
@@ -1906,10 +1906,11 @@ PREGAME_PROGRESS = (PREGAME_PROGRESS_VA, bytes.fromhex("e9f4000000"),
 # menu has no instance of it either: fov_slider_026g.py adds one to
 # main_menu.swf). `uro_fov` (float at 0xA6FA28, 65.0, saved in user.cfg; the
 # console variable at 0xAA6510, its name "uro_fov" at 0xA281D0) is
-# registered with the range 0 to 100 and read by nothing. The option now
-# names it: the instruction's relocation (0x262931) stays active, an
-# address for an address.
-FOV_OPTION_NAME = (0x262930, bytes.fromhex("b89c65a000"), b"\xb8" + struct.pack("<I", 0xA281D0))
+# registered with the range 0 to 100 and read by nothing. Option 7 stays the
+# original's, dead: the Gameplay tab's slider (exe patch 83, `uro_fov` in
+# the Settings' call) sets uro_fov, its one owner in the menu (a video
+# option named it would write the value it read at the window's opening at
+# the video tab's every Apply: options_item_float::apply 0x2616E0).
 FOV_VALUE = 0xA6FA28
 # The camera's projection (FOV_PROJECTION_HOOK above; 0x242900, slot 0 of
 # the vtables of game_camera, lobby_camera, free_fly_camera, demo_camera and
@@ -1937,7 +1938,7 @@ FOV_MIN = 50.0
 FOV_MINIMUM = (0x85AE06, bytes.fromhex("0f57c0f30f11055465aa00"),
                bytes.fromhex("c7055465aa00") + struct.pack("<f", FOV_MIN) + b"\x90")
 FOV_MINIMUM_RELOC = 0x85AE0D
-FOV_PATCHES = (FOV_OPTION_NAME, FOV_MINIMUM)
+FOV_PATCHES = (FOV_MINIMUM,)
 # The high-FOV LOD compensation (patch 40; client_patch.md section 3.37,
 # ../docs/notes/fov_lod.md). The game measures a model by its size on the
 # screen, through the projection the camera gave: a static model's LOD
@@ -3499,8 +3500,7 @@ def build_image(original, mode, code=None, server=None, late_join=None, revision
             sys.exit("a base relocation under time_floating_factor's value")
         for va, expected, new in FOV_PATCHES:
             patch(data, va, expected, new)
-        # The option's name stays an address the loader adds to; the least's
-        # one replaced address must not be added to.
+        # The least's one replaced address must not be added to.
         va, expected, _ = FOV_MINIMUM
         if neutralize_relocs(data, [(va, va + len(expected))]) != [FOV_MINIMUM_RELOC]:
             sys.exit(f"{va:#x}: the base relocation under uro_fov's least is not where it was read")

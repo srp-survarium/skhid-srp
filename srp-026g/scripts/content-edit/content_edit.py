@@ -1260,10 +1260,12 @@ STATS = {
             'experience': default_modification(124),
             'rep_scav': default_modification(125),
             'rep_bm': default_modification(126),
+            # scope sway (breath vibration), the NVD's alone among the gear (the aiming booster has 1210)
+            'sway': default_modification(121),
         },
         'match': {'armor', 'ano', 'arms', 'back', 'weight', 'oxygen_s', 'pockets', 'artefact_slots', 'ammo_bags',
                   'accuracy', 'aim', 'max_weight', 'health_regen', 'stamina_regen', 'movement', 'artefact_search',
-                  'reload_speed', 'recoil', 'stamina_spend', 'slot_size'},
+                  'reload_speed', 'recoil', 'stamina_spend', 'slot_size', 'sway'},
         'cards': armour_card,
     },
     'medicines': {

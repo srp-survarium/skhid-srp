@@ -96,7 +96,8 @@ package survarium.menu
       protected var _crosshair:SrpCrosshairChoice;
       
       // The Graphics tab's Renderer list (patch 83's `srp_dxvk`, which the game reads at its next
-      // start: docs/notes/dxvk-option.md), under Monitor (SrpVideoTab). A pick is a change of the tab.
+      // start: docs/notes/dxvk-option.md) and its Vulkan options' button, under Monitor (SrpVideoTab). A
+      // pick or an option changed is a change of the tab.
       protected var _renderer:SrpRendererChoice;
       
       // The HUD group's own texts (setHudTexts); null until the exe answers.
@@ -106,6 +107,10 @@ package survarium.menu
       // the stock Mouse sensitivity slider (layoutControls). A change of either is a change of the
       // tab, saved by Apply.
       protected var _mouse:SrpMouseVertical;
+
+      // The gameplay tab's "Field of view" slider (patch 22's uro_fov, kept by exe patch 83), a group
+      // of the right column under the HUD group (layoutGameplay). A move is a change of the tab, saved by Apply.
+      protected var _fov:SrpFieldOfView;
       
       // The controls tab's places, read from its timeline the first time it is laid out
       // (layoutControls); null until then.
@@ -142,6 +147,10 @@ package survarium.menu
             return;
          }
          var control:* = this.settings_content[this._element_map[tabIndex][elementId]];
+         if(!control)
+         {
+            return;
+         }
          control.dataProvider = new DataProvider(items);
       }
       
@@ -265,9 +274,9 @@ package survarium.menu
             this.crosshairChanged(null);
             return;
          }
-         if(values.length > 0 && values[0] == SrpRendererChoice.NAME)
+         if(values.length > 0 && SrpRendererChoice.named(values[0]))
          {
-            this._renderer.answer(values.slice(1));
+            this._renderer.answer(values);
             this.rendererChanged(null);
             return;
          }
@@ -283,20 +292,28 @@ package survarium.menu
       // label and saved hundredths.
       public function setSliderOption(values:Array) : void
       {
+         if(values.length > 0 && values[0] == SrpFieldOfView.NAME)
+         {
+            this._fov.answer(values);
+            this.fovChanged(null);
+            this.layoutGameplay();
+            return;
+         }
          this._mouse.answerVertical(values);
          this.mouseChanged(null);
          this.layoutControls();
       }
       
       // The HUD group's own texts (root.srp_hud_texts): the heading, "Hide quests", the crosshair
-      // list's three choices, "Static minimap"; then the Renderer list's two choices and its note.
+      // list's three choices, "Static minimap"; then the Renderer list's two choices, its note, and
+      // the Vulkan options' button and its five options' hints.
       public function setHudTexts(values:Array) : void
       {
-         if(values.length >= 9)
+         if(values.length >= 15)
          {
             _hudTexts = values;
             this.applyHudTexts();
-            this._renderer.texts(values[6],values[7],values[8]);
+            this._renderer.texts(values[6],values[7],values[8],values[9],values.slice(10,15));
          }
       }
       
@@ -344,6 +361,7 @@ package survarium.menu
       public function hide() : void
       {
          var messageData:Object;
+         this._renderer.close();
          if(this.btn_accept.enabled)
          {
             messageData = {
@@ -510,6 +528,10 @@ package survarium.menu
                {
                   this._crosshair.save();
                }
+               else if(control == this._fov.slider)
+               {
+                  this._fov.save();
+               }
                else if(control == this._mouse.check.box || control == this._mouse.slider)
                {
                   this._mouse.save();
@@ -572,6 +594,7 @@ package survarium.menu
          }
          this._crosshair.revert();
          this._mouse.revert();
+         this._fov.revert();
          this._renderer.revert();
          this.btn_accept.enabled = false;
          this.btn_cancel.label = this._exitLabel;
@@ -604,7 +627,9 @@ package survarium.menu
          this.btn_accept.addEventListener(ButtonEvent.CLICK,this.onAccept);
          this._element_map[0] = ["_setter_invite","_setter_message","_set_censure","_only_friends","_no_in_batle","_hide_spam","theCross","_setter_static_cross","_setter_static_minimap","_setter_static_minimap_position","_setter_static_show_quests","_slider_quest_alpha","_setter_static_use_seed","_upload_speed","_setter_kill_cross","_setter_static_allow_statistics"];
          this._element_map[1] = ["_setter_inverse_mouse","_slider_mouse_sens","_default_button","keysLobby","keysChat","keysGame"];
-         this._element_map[2] = ["_select_monitor","_fscr_resolution","_fullscreen","_vsync","_antialias","_filtering","gamma_option","_slider_fov","_overall_graphics","_texture_q","_geometry_q","_shadow_q","_lighting_q","_water_q","_decorations","_post_process","_ao_q","_particples_q","_motion_blur"];
+         // index 7, the video options' "FOV" (the original's dead "fov" again): no control; the field of
+         // view is the gameplay tab's (SrpFieldOfView, patch 83's uro_fov)
+         this._element_map[2] = ["_select_monitor","_fscr_resolution","_fullscreen","_vsync","_antialias","_filtering","gamma_option","","_overall_graphics","_texture_q","_geometry_q","_shadow_q","_lighting_q","_water_q","_decorations","_post_process","_ao_q","_particples_q","_motion_blur"];
          this._element_map[3] = ["_total_volume","_game_volume","_sound_volume","_sound_сhat","_use_mik","_mic_sens","_ptt"];
          this._hudGroup = new SrpCheckGroup(this.settings_content,this.settings_content.s_friends,HUD_OPTIONS);
          for each(var option:SrpCheckOption in this._hudGroup.options)
@@ -618,11 +643,14 @@ package survarium.menu
          this._mouse = new SrpMouseVertical(this.settings_content);
          this._changed[this._mouse.check.box] = 0;
          this._changed[this._mouse.slider] = 0;
+         this._fov = new SrpFieldOfView(this.settings_content);
+         this._changed[this._fov.slider] = 0;
+         this._fov.slider.addEventListener(IndexEvent.INDEX_CHANGE,this.fovChanged);
          this._mouse.check.box.addEventListener(Event.SELECT,this.mouseChanged);
          this._mouse.slider.addEventListener(IndexEvent.INDEX_CHANGE,this.mouseChanged);
          this._renderer = new SrpRendererChoice(this.settings_content);
          this._changed[this._renderer.menu] = 0;
-         this._renderer.menu.addEventListener(ListEvent.INDEX_CHANGE,this.rendererChanged);
+         this._renderer.listen(this.rendererChanged);
          this._language = new SrpLanguage(this.settings_content,this.settings_content.s_friends);
          this._changed[this._language.menu] = 0;
          this._language.menu.addEventListener(ListEvent.INDEX_CHANGE,this.languageChanged);
@@ -631,9 +659,9 @@ package survarium.menu
       
       protected function create_content(settings:Array) : void
       {
-         SrpVideoTab.apply(this);
          this._hudGroup.place();
          this._mouse.place();
+         this._fov.place();
          this._renderer.place();
          this._language.place();
          var key:Object;
@@ -824,14 +852,26 @@ package survarium.menu
          this.listChanged(this._language.menu,this._language.pending);
       }
       
-      // A Renderer pick, the same way.
+      // Esc: the Vulkan options' panel closed, when it is open (MainMenu closes the window otherwise).
+      public function closePanel() : Boolean
+      {
+         return this._renderer.close();
+      }
+      
+      // A Renderer pick or a Vulkan option changed, the same way.
       protected function rendererChanged(event:Event) : void
       {
          this.listChanged(this._renderer.menu,this._renderer.pending);
       }
       
-      // One of srp's lists counts as a changed option while `pending`.
-      protected function listChanged(menu:DropdownMenu, pending:Boolean) : void
+      // A move of the field of view slider, the same way.
+      protected function fovChanged(event:Event) : void
+      {
+         this.listChanged(this._fov.slider,this._fov.pending);
+      }
+
+      // One of srp's lists (or the field of view slider) counts as a changed option while `pending`.
+      protected function listChanged(menu:Object, pending:Boolean) : void
       {
          if(pending)
          {
@@ -912,6 +952,9 @@ package survarium.menu
             rows[i].x = space.rightControl + (list ? space.dropdownX : 0);
             rows[i].y = y;
          }
+         // then the field of view, a group of its own: its label a heading as the others (their
+         // look), at the column's headings' x the tab's gap under the minimap list, the slider under it
+         this._fov.layout(c.s_friends,space.rightHeading,c._setter_static_minimap_position.y + space.gap);
          c.s_cross.visible = c._setter_static_cross.visible = false;
          c.s_quest_propgress.visible = c._slider_quest_alpha.visible = false;
          c.bottomContainer.visible = false;
@@ -1126,6 +1169,8 @@ package survarium.menu
          this._changed[this._mouse.check.box] = 0;
          this._changed[this._mouse.slider] = 0;
          this._mouse.revert();
+         this._changed[this._fov.slider] = 0;
+         this._fov.revert();
          this._changed[this._renderer.menu] = 0;
          this._renderer.revert();
          this.checkButtons();

@@ -409,6 +409,8 @@ unsafe extern "C" {
     pub static engine_activate_keyboard_layout: unsafe extern "stdcall" fn(u32, u32) -> u32;
     /// the IAT slot 0x87003c (an import, stdcall): void *engine_get_module_handle_a(const char *name)
     pub static engine_get_module_handle_a: unsafe extern "stdcall" fn(*const u8) -> *mut c_void;
+    /// the IAT slot 0x87029c (an import, stdcall): unsigned int engine_set_environment_variable_a(const char *name, const char *value)
+    pub static engine_set_environment_variable_a: unsafe extern "stdcall" fn(*const u8, *const u8) -> u32;
 }
 
 /// A survarium::player_input_handler (fields_026g.tsv): a pointer to one, never 0. Made only here: by a typed field,
@@ -9941,6 +9943,24 @@ impl CcFloat {
         unsafe { self.0.byte_add(0x48).cast::<f32>().as_ptr() }
     }
 
+    /// +0x40 (ptr<f32>): the value's address (the registration's; uro_fov's 0xA6FA28)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn value(self) -> *mut f32 {
+        unsafe { self.0.byte_add(0x40).cast::<*mut f32>().read_volatile() }
+    }
+
+    /// +0x40 (ptr<f32>): the value's address (the registration's; uro_fov's 0xA6FA28)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn set_value(self, value: *mut f32) {
+        unsafe { self.0.byte_add(0x40).cast::<*mut f32>().write_volatile(value) }
+    }
+
     /// 0x4c bytes: a cc_float console variable's object (s_general_volume's at 0xA7D3C8, made by its static initializer 0x84D440: cc_value<bool>::cc_value's base fields, +40h the value's address, +44h the least, +48h the most)
     pub const SIZE: usize = 0x4c;
 
@@ -15282,6 +15302,13 @@ pub mod image {
 
     /// 0x9e7c6c (u32, vostok::console_commands::image): cc_float's vtable (s_general_volume 0x84D48D, uro_fov; its setter 0xECB70: sscanf "%f", stored within [+44h, +48h])
     pub const CC_FLOAT_VTABLE: u32 = 0x9e7c6c;
+
+    /// 0xaa6510 (obj<vostok::console_commands::cc_float>, vostok::console_commands::image): uro_fov's console variable, saved in user.cfg (its static initializer 0x85ADF0: the value 0xA6FA28, 65.0; the least 50.0 by patch 22, the most 100): patch 22's projection reads the value, patch 83's Gameplay slider sets it
+    #[inline(always)]
+    pub fn uro_fov() -> CcFloat {
+        // SAFETY: an image VA, not 0.
+        CcFloat(unsafe { NonNull::new_unchecked(0xaa6510 as *mut c_void) })
+    }
 
     /// 0x9fd55c (u32, survarium::image): "inventory", the path of the player cook's inventory request (class 41h, 0x2028ED)
     pub const INVENTORY_REQUEST: u32 = 0x9fd55c;

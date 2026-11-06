@@ -77,12 +77,40 @@ def render(data, code, script_url):
         return name + (tr(" (premium)", " (преміум)") if w.get("premium") else "")
 
     esc = html.escape
+
+    def round_name(key):
+        ammo = data["ammo"][key]
+        return (ammo.get("name_uk") if code == "uk" else None) or ammo["name"]
+
+    def rounds(key):
+        """The weapon's rounds, its default first, each with the rows it
+        changes from the default's (weapons.js swaps them in)."""
+        default = data["default_ammo"][key]
+        keys = data["compat"][key]
+        assert default in keys, f"{key}: default ammo {default} not among {keys}"
+        keys = [default] + [k for k in keys if k != default]
+        base = {row["id"]: row for section in sections(data["weapons"][key], data["ammo"][default], code) for row in section["rows"]}
+        out = []
+        for k in keys:
+            rows = {row["id"]: {"values": row["values"], "text": row["text"]}
+                    for section in sections(data["weapons"][key], data["ammo"][k], code) for row in section["rows"]
+                    if row["text"] != base[row["id"]]["text"]}
+            out.append({"id": k, "name": round_name(k), "spread": data["ammo"][k]["dispersion"], "rows": rows})
+        return out
+
+    def round_pick(name, fires=()):
+        """A round chooser: its label, the chooser picker.js fills, and the
+        hidden select that holds the choice."""
+        options = "".join(f'<option value="{esc(r["id"])}">{esc(r["name"])}</option>' for r in fires)
+        return (f'<div class="round-pick"><label id="{name}-label" for="{name}-btn">{tr("Round", "Набій")}</label>'
+                f'<div class="wpick" id="{name}-picker"></div><select id="{name}" class="round-select" autocomplete="off" hidden>{options}</select></div>')
+
     classes = sorted({CLASSES[w["category"]][code == "uk"] for w in data["weapons"].values()})
     out = [f'<p class="breadcrumb"><a href="/wiki?lang={code}">{tr("Wiki", "Вікі")}</a> / {tr("Weapons", "Зброя")}</p>',
            f'<div class="wiki-heading"><div><p class="eyebrow">{tr("Equipment reference", "Довідник спорядження")}</p><h1>{tr("Weapons", "Зброя")}</h1></div>',
            f'<span class="catalogue-count" role="status" aria-live="polite" data-count data-label="{tr("weapons", "од. зброї")}">{len(data["weapons"])} {tr("weapons", "од. зброї")}</span></div>',
            f'<p class="wiki-intro">{tr("Compare weapons or expand a row for damage, handling, accuracy, recoil and aim sway.", "Порівнюйте зброю або розгортайте рядки, щоб побачити ушкодження, поводження, точність, відбій і хитання прицілу.")}</p>',
-           f'<p class="wiki-note">{tr("Base weapon values. Ammunition, upgrades and character bonuses are not included.", "Базові характеристики зброї. Набої, модифікації та бонуси персонажа не враховано.")}</p>',
+           f'<p class="wiki-note">{tr("Values with the chosen round, the weapon’s standard one first. Upgrades and character bonuses are not included. The game’s card shows the highest damage and the highest penetration among all the weapon’s rounds.", "Характеристики з вибраним набоєм, спершу зі стандартним для зброї. Модифікації та бонуси персонажа не враховано. Картка в грі показує найбільші ушкодження й найбільшу бронебійність серед усіх набоїв зброї.")}</p>',
            '<div class="catalogue-tools" hidden>',
            f'<label>{tr("Find a weapon", "Знайти зброю")}<input type="search" id="weapon-search" placeholder="{tr("Search by name…", "Пошук за назвою…")}" autocomplete="off"></label>',
            f'<label>{tr("Weapon class", "Клас зброї")}<select id="weapon-class"><option value="">{tr("All classes", "Усі класи")}</option>',
@@ -102,7 +130,7 @@ def render(data, code, script_url):
         for key, w in sorted(data["weapons"].items(), key=lambda kv: title(kv[1])):
             name = title(w)
             out.append(f'<option value="{esc(key)}">{esc(name)}</option>')
-        out.append('</select></div>')
+        out.append('</select>' + round_pick(f"compare-{side}-round") + '</div>')
     out.append(f'</div><div class="compare-options"><label class="check"><input type="checkbox" id="only-differences">{tr("Only differences", "Лише відмінності")}</label><label class="check"><input type="checkbox" id="compare-colors" checked>{tr("Color better / worse values", "Позначати кращі / гірші значення")}</label><button type="button" id="clear-comparison">{tr("Clear", "Очистити")}</button><a href="#recoil-sim">{tr("Recoil simulation ↓", "Моделювання відбою ↓")}</a></div>')
     out.append(f'<p id="compare-empty">{tr("Choose two weapons to compare; one is enough for its recoil simulation. Equal values and neutral traits keep their normal color.", "Виберіть дві одиниці зброї для порівняння; для моделювання відбою досить однієї. Однакові значення та нейтральні властивості зберігають звичайний колір.")}</p>')
     out.append(f'<p id="compare-same" hidden>{tr("No differences in the displayed stats.", "Відмінностей у показаних характеристиках немає.")}</p><div id="compare-table"></div>')
@@ -110,6 +138,14 @@ def render(data, code, script_url):
     # Each weapon card's own simulation is made from this when the card opens.
     out.append(doll())
     out.append(f'<template id="recoil-template"><h2>{tr("Recoil simulation", "Моделювання відбою")}</h2>{simulation(tr)}</template>')
+    # Every round once, for the round choosers (picker.js), with its lobby icon.
+    out.append('<div id="round-options" hidden>')
+    for key in sorted({k for keys in data["compat"].values() for k in keys}):
+        ammo = data["ammo"][key]
+        icon = data.get("icons", {}).get(key)
+        out.append(f'<div id="{esc(key)}" data-class="{tr("Rounds", "Набої")}" data-level="{ammo["item_level"]}" data-title="{esc(round_name(key))}" data-search-name="{esc(ammo["name"])}">'
+                   + (f'<img src="{esc(icon)}" alt="">' if icon else '') + '</div>')
+    out.append('</div>')
     out.append('<div id="weapon-list">')
 
     def stat(label, value, unit=""):
@@ -118,8 +154,12 @@ def render(data, code, script_url):
     for key, w in sorted(data["weapons"].items(), key=lambda kv: (kv[1]["item_level"], title(kv[1]).casefold())):
         name = title(w)
         cls = CLASSES[w["category"]][code == "uk"]
+        fired = sections(w, data["ammo"][data["default_ammo"][key]], code)
+        damage = next(row for section in fired for row in section["rows"] if row["id"] == "bullet_damage")
         attrs = {"name": name.casefold(), "search-name": w["name"], "premium": int(bool(w.get("premium"))), "class": cls, "level": w["item_level"],
-                 "damage": w["bullet_damage"], "rpm": w["rounds_per_minute"], "weight": w["weight"]}
+                 "damage": damage["values"][0], "rpm": w["rounds_per_minute"], "weight": w["weight"]}
+        fires = rounds(key)
+        attrs["rounds"] = json.dumps(fires, ensure_ascii=False)
         attrs["recoil"] = json.dumps({"rpm": w["rounds_per_minute"], "magazine": w["magazine_capacity"], **w.get("recoil", {}),
                                       "dispersion": w.get("dispersion", {}), "stance": data.get("character_dispersion", {})})
         out.append(f'<details class="weapon" id="{esc(key)}" ' + " ".join(f'data-{k}="{esc(str(v))}"' for k, v in attrs.items()) + '>')
@@ -130,13 +170,14 @@ def render(data, code, script_url):
         else:
             out.append('<span class="weapon-image" aria-hidden="true"></span>')
         out.append(f'<span class="weapon-title"><strong>{esc(name)}</strong><span>{esc(cls)} · {tr("Level", "Рівень")} {number(w["item_level"])}</span></span>')
-        out.append('<dl class="quick-stats">' + stat(tr("Damage", "Ушкодження"), w["bullet_damage"] * 100)
+        out.append('<dl class="quick-stats">' + f'<div><dt>{tr("Damage", "Ушкодження")}</dt><dd>{esc(damage["text"])}</dd></div>'
                    + stat(tr("Fire rate", "Темп стрільби"), w["rounds_per_minute"], tr("rpm", "постр./хв"))
                    + stat(tr("Magazine", "Магазин"), w["magazine_capacity"])
                    + stat(tr("Weight", "Вага"), w["weight"], tr("kg", "кг")) + '</dl>')
         out.append(f'<span class="expand-label">{tr("Details", "Докладніше")} <span aria-hidden="true">+</span></span></summary>')
         out.append('<div class="weapon-details">')
-        for section in sections(w, code):
+        out.append(round_pick(f"{key}-round", fires))
+        for section in fired:
             out.append(f'<section data-section="{section["id"]}"><h2>{esc(section["title"])}</h2>')
             if section.get("note"):
                 out.append(f'<p class="stat-note">{esc(section["note"])}</p>')

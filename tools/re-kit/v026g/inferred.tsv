@@ -1563,10 +1563,8 @@ va	status	ref_021d	name
 0x002612a0	inferred-medium	0x00196a7a	survarium::options_item_int::apply
 0x00261300	inferred-medium	0x00196ac3	survarium::options_item_int::revert
 0x00261310	inferred-medium	0x00196ace	survarium::options_item_int::scaleform_call
-0x002614e0	inferred-medium	0x00196bf4	survarium::options_item_float::initialize
 0x00261510	inferred-medium	0x00196c14	survarium::options_item_float::fill_data
 0x00261690	inferred-medium	0x00196cca	survarium::options_item_float::fill_value
-0x002616e0	inferred-medium	0x00196cdf	survarium::options_item_float::apply
 0x00261750	inferred-medium	0x00196d33	survarium::options_item_float::revert
 0x00261760	inferred-medium	0x00196d3e	survarium::options_item_float::scaleform_call
 0x002617c0	inferred-medium	0x00196d8d	survarium::options_item_bool::initialize

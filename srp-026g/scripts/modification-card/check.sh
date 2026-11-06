@@ -12,14 +12,8 @@ set -euo pipefail
 here=$(dirname "$(readlink -f "$0")")
 tree=$(readlink -f "$1")
 original=$(readlink -f "$2")
-main=$(git -C "$here" worktree list --porcelain | sed -n '1s/^worktree //p')
-tools=${SRP_AS_TOOLS:-$main/private/actionscript/tools.json}
-if [[ $# -ge 3 ]]; then
-    work=$(readlink -f "$3")
-    mkdir -p "$work"
-else
-    work=$(mktemp -d)
-fi
+. "$here/../ruffle_harness.sh"
+harness_work "${3:-}"
 
 # The test copy: the recorder for ExternalInterface.
 rm -rf "$work/lobby_menu" "$work/lobby_menu.built.swf"
@@ -30,44 +24,12 @@ grep -rlZ "ExternalInterface" "$work/lobby_menu/src" | xargs -0 perl -pi -e 's/^
     "$work/lobby_menu.built.swf" >"$work/lobby_menu.build.log" 2>&1 || { cat "$work/lobby_menu.build.log"; exit 1; }
 lobby=$work/lobby_menu.built.swf
 
-java=$(sed -n 's/.*"java": *"\([^"]*\)".*/\1/p' "$tools")
-flex=$(sed -n 's/.*"flex": *"\([^"]*\)".*/\1/p' "$tools")
-"$java" -Xmx1g -Djava.awt.headless=true -jar "$flex/lib/mxmlc.jar" \
-    +flexlib="$flex/frameworks" +playerglobalHome="$flex/frameworks/libs/player" -library-path= \
-    -external-library-path="$flex/frameworks/libs/player/32.0/playerglobal.swc" -source-path="$here" \
-    -omit-trace-statements=false -default-frame-rate=60 -default-size=2560,1440 \
-    -output="$work/ModificationCardHarness.swf" "$here/ModificationCardHarness.as" >"$work/ModificationCardHarness.mxmlc.log" 2>&1 \
-    || { cat "$work/ModificationCardHarness.mxmlc.log"; exit 1; }
+harness_compile "$here/ModificationCardHarness.as" 2560,1440
 # The native Scaleform placements Ruffle refuses, and the sliders' labels, so the root sets up its cards.
 "${PYTHON:-python3}" "$here/../medical-cards/ruffle_movie.py" "$lobby" "$work/lobby_menu.swf" --slider-labels
-
-paths=$(nix build nixpkgs#ruffle nixpkgs#mesa nixpkgs#xorg.xorgserver --no-link --print-out-paths)
-ruffle=$(grep -- '-ruffle-' <<<"$paths")
-mesa=$(grep -- '-mesa-' <<<"$paths")
-xvfb=$(grep -- '-xorg-server-' <<<"$paths")/bin/Xvfb
-lvp=$mesa/share/vulkan/icd.d/lvp_icd.x86_64.json
-# Xvfb chooses an unused display without touching the owner's desktop.
-"$xvfb" -displayfd 3 -screen 0 2560x1440x24 -nolisten tcp 3>"$work/display" >"$work/xvfb.log" 2>&1 &
-xvfb_pid=$!
-ruffle_pid=
-cleanup() { kill $ruffle_pid "$xvfb_pid" 2>/dev/null || true; }
-trap 'cleanup; [[ $# -ge 3 ]] || rm -rf "$work"' EXIT
-for _ in $(seq 100); do [[ -s $work/display ]] && break; sleep 0.1; done
-[[ -s $work/display ]] || { cat "$work/xvfb.log"; exit 1; }
-
-(
-    cd "$work"
-    unset WAYLAND_DISPLAY XDG_SESSION_TYPE
-    DISPLAY=:$(cat display) VK_ICD_FILENAMES=$lvp VK_DRIVER_FILES=$lvp RUST_LOG=info \
-        exec timeout 120 "$ruffle/bin/ruffle" -g vulkan -p low --storage memory --scale no-scale \
-        --width 2560 --height 1440 ModificationCardHarness.swf
-) >"$work/ModificationCardHarness.log" 2>&1 &
-ruffle_pid=$!
-for _ in $(seq 1200); do grep -q 'MODCARD RESULT' "$work/ModificationCardHarness.log" && break; sleep 0.1; done
-cleanup
-
-if ! grep -q 'graphics API vulkan on llvmpipe' "$work/ModificationCardHarness.log"; then
-    echo "Ruffle did not run on lavapipe (CPU): see $work/ModificationCardHarness.log" >&2
-fi
-grep -ho 'MODCARD .*' "$work/ModificationCardHarness.log" || true
+harness_display 2560x1440
+HARNESS_TIMEOUT=120 harness_run ModificationCardHarness.log -p low --width 2560 --height 1440 ModificationCardHarness.swf
+wait_for ModificationCardHarness.log 'MODCARD RESULT' 1200 || true
+harness_stop
+harness_report 'MODCARD .*' ModificationCardHarness.log
 grep -q 'MODCARD RESULT pass' "$work/ModificationCardHarness.log"

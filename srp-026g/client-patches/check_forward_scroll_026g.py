@@ -2,7 +2,7 @@
 """Run patch 28, UV scrolling for the transparent effects
 (forward_scroll_026g.asm), in the default build on made-up materials.
 
-    python check_forward_scroll_026g.py <original survarium.exe> [--rev12=<exe> [--server=host:port]]
+    python check_forward_scroll_026g.py <original survarium.exe> [--server=host:port]
 
 Requires Python `unicorn`. The exe's sections are loaded as they are and
 again 1 MiB higher with its base relocations applied (a rebased image).
@@ -33,12 +33,8 @@ scene_slomo with the game's own calls for scene_time: the shared string of
 the name, held while register_constant_binding is given {&value, 4, name,
 0, 4} and the resource manager, then let go (destroyed at a count of 0),
 the value being a 1.0 in `.srp`, the stack's alignment at the call the
-game's, every register after the hook as the original's.
-
-With --rev12 (the revision 12 exe that the tool of revision 12 made from the
-same original, with the same --server if any) the build is compared with it
-byte by byte: only the three sites, patch 28's bytes in `.srp`, the revision
-byte and the PE checksum may differ. Says nothing about what the GPU does.
+game's, every register after the hook as the original's. Says nothing about
+what the GPU does.
 """
 import hashlib
 import struct
@@ -328,7 +324,7 @@ def f32(value):
 def main():
     args = [a for a in sys.argv[1:] if not a.startswith("--")]
     options = dict(a[2:].split("=", 1) for a in sys.argv[1:] if a.startswith("--") and "=" in a)
-    if len(args) != 1 or set(options) - {"rev12", "server"}:
+    if len(args) != 1 or set(options) - {"server"}:
         sys.exit(__doc__)
     original = open(args[0], "rb").read()
     upload = open(base.default_bin("section"), "rb").read()
@@ -428,29 +424,6 @@ def main():
 
     sha = hashlib.sha256(data).hexdigest()
     print(f"     the build{' with ' + server if server else ''}: {len(data)} bytes, sha256 {sha}")
-    if "rev12" in options:
-        old = open(options["rev12"], "rb").read()
-        headers = base.Headers(data)
-        srp_raw = next(raw for name, _, _, raw, _, _ in headers.sections(data) if name == base.SECTION_NAME)
-        allowed = [(headers.checksum_at, 4), (base.file_offset(base.REVISION_VA) + 4, 1),
-                   (srp_raw + base.FORWARD_SCROLL_OFFSET, len(code))]
-        allowed += [(base.file_offset(va), len(expected)) for va, expected, _, _ in base.FORWARD_SCROLL_HOOKS]
-        mask = bytearray(len(data))
-        for at, size in allowed:
-            mask[at:at + size] = b"\1" * size
-        changed = [i for i in range(len(data)) if i >= len(old) or old[i] != data[i]]
-        stray = [i for i in changed if not mask[i]]
-        runs = []
-        for i in changed:
-            if runs and i == runs[-1][1] + 1:
-                runs[-1][1] = i
-            else:
-                runs.append([i, i])
-        say(len(old) == len(data) and not stray and old[base.file_offset(base.REVISION_VA) + 4] == 12,
-            f"against revision 12 (sha256 {hashlib.sha256(old).hexdigest()}): {len(changed)} bytes differ, in "
-            + ", ".join(f"file {a:#x}+{b - a + 1}" for a, b in runs)
-            + "; all in the PE checksum, the revision byte, the three sites and patch 28's bytes in .srp"
-            + "".join(f"\n     stray file {i:#x}" for i in stray[:8]))
     sys.exit(1 if failed else 0)
 
 

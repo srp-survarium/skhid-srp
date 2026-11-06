@@ -52,6 +52,7 @@ main.wiki { max-width: 1160px; gap: 0; margin-top: 28px }
 .wpick { position:relative; margin-top:7px; font:400 .95rem var(--body) }
 .wpick-btn { display:flex; align-items:center; gap:8px; width:100%; min-height:35px; margin:0; padding:3px 8px; font:inherit; color:var(--ink); background:var(--bg); border:1px solid var(--rule); border-radius:2px; cursor:pointer; text-align:left; text-transform:none; letter-spacing:normal }
 .wpick-btn .n { flex:1; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap }
+.wpick-btn small { font:.75rem var(--data); color:var(--ink-3); white-space:nowrap }
 .wpick-btn::after { content:"▾"; color:var(--ink-3); font-size:.8rem }
 .wpick img,.wpick .noimg { width:54px; height:26px; object-fit:contain; flex:none }
 .wpick-pop { position:absolute; z-index:20; left:0; top:calc(100% + 2px); width:min(max(100%,360px),calc(100vw - 32px)); background:var(--panel); border:1px solid var(--rule); box-shadow:0 8px 28px rgba(0,0,0,.28) }
@@ -81,6 +82,7 @@ main.wiki { max-width: 1160px; gap: 0; margin-top: 28px }
 .weapon-comparison thead th:first-child { width:40%; text-align:left }
 .weapon-comparison thead img { margin:auto; width:120px; max-width:100%; height:60px; object-fit:contain }
 .weapon-comparison thead span { display:block }
+.weapon-comparison thead small { display:block; font:400 .78rem var(--body); color:var(--ink-2) }
 .weapon-comparison .compare-section th { background:var(--bg); padding-block:18px 10px; text-align:left; font:700 1rem var(--display); color:var(--ink) }
 .compare-section small { display:block; font:400 .75rem/1.5 var(--body); margin-top:5px; max-width:70ch }
 .weapon-comparison .better { color:#397438 }
@@ -126,7 +128,12 @@ main.wiki { max-width: 1160px; gap: 0; margin-top: 28px }
 .sim-hit.series-1 { stroke:#3684bd }
 .sim-spread { fill:var(--accent); fill-opacity:.08; stroke:var(--accent); stroke-opacity:.5; stroke-dasharray:3 3 }
 .sim-spread.series-1 { fill:#3684bd; stroke:#3684bd }
-.sim-target-pick { display:flex; align-items:center; gap:10px; margin:8px 0 0; font-size:.7rem }
+.sim-target-pick,.round-pick { display:flex; align-items:center; gap:10px; margin:8px 0 0; font-size:.7rem }
+.round-pick label { margin:0 }
+.round-pick .wpick { flex:1; min-width:0; margin-top:0 }
+.weapon-details>.round-pick { grid-column:1 / -1; margin:0; max-width:420px }
+.compare-field .round-pick { display:block; margin-top:10px }
+.compare-field .round-pick .wpick { margin-top:7px }
 .sim-target-pick select { flex:1; padding:6px 8px; background:var(--panel); color:var(--ink); border:1px solid var(--rule); font:400 .85rem var(--body); text-transform:none; letter-spacing:normal }
 .doll-source { position:absolute; width:0; height:0; overflow:hidden }
 .sim-trail { fill:none; stroke:var(--accent); stroke-width:1.3; opacity:.55 }
@@ -186,6 +193,7 @@ main.wiki { max-width: 1160px; gap: 0; margin-top: 28px }
 }
 @media(max-width:560px) {
  .wiki-heading h1 { font-size:2.1rem }
+ .wpick-btn small { display:none }
  .wiki-sections { grid-template-columns:1fr }
  .catalogue-tools { grid-template-columns:1fr 1fr; gap:12px }
  .catalogue-tools label:first-child { grid-column:1 / -1 }

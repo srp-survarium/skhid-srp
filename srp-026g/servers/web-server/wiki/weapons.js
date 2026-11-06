@@ -128,7 +128,8 @@ globalThis.CAMERA_SHAKE = {"period_frames":225,"pitch":[-0.252,-0.238,-0.189,-0.
 // punctuation-insensitive search and arrow/Enter/Escape keyboard controls.
 // The hidden select owns the selection, including URL and catalogue updates.
 // `weapons` are the elements offered (the weapons page's rows, or the
-// modifiers page's item entries, which carry their name in data-title).
+// modifiers page's item entries and the weapons page's rounds, which carry
+// their name in data-title); `offer(ids)` narrows them to those ids.
 function WikiWeaponPicker(select, weapons, tr, collator, words = {
   search: tr('Search weapons', 'Пошук зброї'), none: tr('No weapons match.', 'Зброю не знайдено.')}) {
   const host = document.getElementById(`${select.id}-picker`);
@@ -144,6 +145,7 @@ function WikiWeaponPicker(select, weapons, tr, collator, words = {
     const source = weapon?.querySelector('img');
     return source ? make('img', {src: source.src, alt: '', width: 54, height: 26, loading: 'lazy'}) : make('span', {class: 'noimg'});
   };
+  const level = weapon => make('small', {}, tr(`lvl ${weapon.dataset.level}`, `рів. ${weapon.dataset.level}`));
   const button = make('button', {type: 'button', class: 'wpick-btn', id: `${select.id}-btn`,
     'aria-haspopup': 'listbox', 'aria-expanded': 'false', 'aria-controls': `${select.id}-list`,
     'aria-labelledby': `${select.id}-label ${select.id}-value`});
@@ -155,7 +157,7 @@ function WikiWeaponPicker(select, weapons, tr, collator, words = {
   const popup = make('div', {class: 'wpick-pop', hidden: ''}, search, list, empty);
   host.append(button, popup);
   const options = [], groups = new Map();
-  let active = null;
+  let active = null, offered = new Set(weapons.map(weapon => weapon.id));
   function activate(option, scroll = true) {
     active?.element.classList.remove('active');
     active = option || null;
@@ -175,8 +177,7 @@ function WikiWeaponPicker(select, weapons, tr, collator, words = {
     list.append(group);
     for (const weapon of items.sort((a, b) => Number(a.dataset.level) - Number(b.dataset.level) || collator.compare(title(a), title(b)))) {
       const element = make('div', {class: 'wpick-opt', role: 'option', id: `${select.id}-${weapon.id}`, 'aria-selected': 'false'},
-        icon(weapon), make('span', {class: 'n'}, title(weapon)),
-        make('small', {}, tr(`lvl ${weapon.dataset.level}`, `рів. ${weapon.dataset.level}`)));
+        icon(weapon), make('span', {class: 'n'}, title(weapon)), level(weapon));
       const option = {element, group, weapon, text: [title(weapon), weapon.dataset.searchName].map(bare).join(' ')};
       element.addEventListener('mousemove', () => { if (active !== option) activate(option, false); });
       element.addEventListener('mousedown', event => event.preventDefault());
@@ -187,7 +188,7 @@ function WikiWeaponPicker(select, weapons, tr, collator, words = {
   const visible = () => options.filter(option => !option.element.hidden);
   function filter() {
     const query = bare(search.value);
-    for (const option of options) option.element.hidden = !option.text.includes(query);
+    for (const option of options) option.element.hidden = !offered.has(option.weapon.id) || !option.text.includes(query);
     for (const group of list.children) group.hidden = !options.some(option => option.group === group && !option.element.hidden);
     const matches = visible();
     empty.hidden = matches.length !== 0;
@@ -228,10 +229,12 @@ function WikiWeaponPicker(select, weapons, tr, collator, words = {
   document.addEventListener('mousedown', event => { if (!host.contains(event.target)) close(); });
   host.addEventListener('focusout', event => { if (!host.contains(event.relatedTarget)) close(); });
   return {
+    offer(ids) { offered = new Set(ids); },
     paint() {
       const selected = weapons.find(weapon => weapon.id === select.value);
       button.replaceChildren(...(selected ? [icon(selected)] : []),
-        make('span', {class: 'n', id: `${select.id}-value`}, selected ? title(selected) : select.options[0].textContent));
+        make('span', {class: 'n', id: `${select.id}-value`}, selected ? title(selected) : select.options[0].textContent),
+        ...(selected ? [level(selected)] : []));
       for (const option of options) option.element.setAttribute('aria-selected', String(option.weapon.id === select.value));
     }
   };
@@ -255,7 +258,32 @@ function WikiWeaponPicker(select, weapons, tr, collator, words = {
   const differenceOnly = document.querySelector('#only-differences'), colors = document.querySelector('#compare-colors');
   const tableHost = document.querySelector('#compare-table');
   const comparison = document.querySelector('#comparison');
-  const models = new Map(weapons.map(element => [element.id, WeaponRecoil.parse(JSON.parse(element.dataset.recoil))]));
+  const roundPickers = [document.querySelector('#compare-a-round'), document.querySelector('#compare-b-round')];
+  // Every round's chooser entry (its icon, name and level).
+  const roundEntries = [...document.querySelectorAll('#round-options > div')];
+  const roundWords = {search: tr('Search rounds', 'Пошук набоїв'), none: tr('No rounds match.', 'Набоїв не знайдено.')};
+  const roundChoosers = roundPickers.map(select => WikiWeaponPicker(select, roundEntries, tr, collator, roundWords));
+  // Each weapon's rounds, its default first: [{id, name, spread, rows}], `rows`
+  // the stats that differ from the default round's (build.py).
+  const roundsOf = new Map(weapons.map(element => [element.id, JSON.parse(element.dataset.rounds)]));
+  function roundOf(id, roundId) {
+    const rounds = roundsOf.get(id);
+    return rounds.find(round => round.id === roundId) || rounds[0];
+  }
+  // The recoil model of a weapon firing a round: the spread's base times the
+  // round's `dispersion` (get_static_dispersion 0x331220).
+  const raws = new Map(weapons.map(element => [element.id, JSON.parse(element.dataset.recoil)]));
+  const models = new Map();
+  function model(id, roundId) {
+    const round = roundOf(id, roundId), key = `${id} ${round.id}`;
+    if (!models.has(key)) {
+      const raw = raws.get(id), spread = raw.dispersion;
+      models.set(key, WeaponRecoil.parse(typeof spread.base_dispersion === 'number'
+        ? {...raw, dispersion: {...spread, base_dispersion: spread.base_dispersion * round.spread}} : raw));
+    }
+    return models.get(key);
+  }
+  // The default round's stats, as the page was built.
   const stats = new Map(weapons.map(element => [element.id,
     [...element.querySelectorAll('[data-section]')].map(section => ({
       title: section.querySelector('h2').textContent, note: section.querySelector('.stat-note')?.textContent,
@@ -265,6 +293,10 @@ function WikiWeaponPicker(select, weapons, tr, collator, words = {
       }))
     }))
   ]));
+  function statsFor(id, roundId) {
+    const rows = roundOf(id, roundId).rows;
+    return stats.get(id).map(section => ({...section, rows: section.rows.map(row => rows[row.id] ? {...row, ...rows[row.id]} : row)}));
+  }
   function node(tag, text, cls) {
     const element = document.createElement(tag);
     if (text !== undefined) element.textContent = text;
@@ -284,24 +316,24 @@ function WikiWeaponPicker(select, weapons, tr, collator, words = {
   }
   function renderComparison() {
     tableHost.replaceChildren();
-    const a = pickerA.value, b = pickerB.value;
+    const a = pickerA.value, b = pickerB.value, [roundA, roundB] = roundPickers.map(select => select.value);
     document.querySelector('#compare-empty').hidden = !!(a && b);
     document.querySelector('#compare-same').hidden = true;
     if (!a || !b) return;
     const table = node('table', undefined, 'weapon-comparison');
     const head = node('thead'), header = node('tr');
     const corner = node('th', tr('Stat', 'Характеристика')); corner.scope = 'col'; header.append(corner);
-    for (const [id, side] of [[a, 'A'], [b, 'B']]) {
+    for (const [id, round, side] of [[a, roundA, 'A'], [b, roundB, 'B']]) {
       const cell = node('th'); cell.scope = 'col';
       const image = byId.get(id).querySelector('img');
       if (image) { const copy = image.cloneNode(); copy.loading = 'eager'; cell.append(copy); }
-      cell.append(node('span', `${side} · ${name(id)}`)); header.append(cell);
+      cell.append(node('span', `${side} · ${name(id)}`), node('small', roundOf(id, round).name)); header.append(cell);
     }
     head.append(header); table.append(head);
     const body = node('tbody');
-    const peers = new Map(stats.get(b).flatMap(section => section.rows).map(row => [row.id, row]));
+    const peers = new Map(statsFor(b, roundB).flatMap(section => section.rows).map(row => [row.id, row]));
     let rowCount = 0;
-    for (const section of stats.get(a)) {
+    for (const section of statsFor(a, roundA)) {
       const rows = section.rows.filter(row => !differenceOnly.checked || row.text !== peers.get(row.id).text);
       if (!rows.length) continue;
       const heading = node('tr', undefined, 'compare-section'), cell = node('th'); cell.colSpan = 3;
@@ -370,7 +402,7 @@ function WikiWeaponPicker(select, weapons, tr, collator, words = {
   }
   // One recoil simulation in `root` (the comparison's, or a weapon card's):
   // its own controls, plots and crosshair view, every lookup inside `root`.
-  // `show(sides)` runs it for [{id, side}] (side 0 is A's colour, 1 B's).
+  // `show(sides)` runs it for [{id, round, side}] (side 0 is A's colour, 1 B's).
   function RecoilSim(root) {
     const find = selector => root.querySelector(selector);
     const timeInput = find('.sim-time'), seedInput = find('.sim-seed'), playButton = find('.sim-play');
@@ -512,9 +544,8 @@ function WikiWeaponPicker(select, weapons, tr, collator, words = {
       simulation.time = time; draw();
     }
     function rebuild(time = 0) {
-      const ids = sides.map(({id}) => id);
       stop(); simulation = {kind:'empty'};
-      const valid = ids.length > 0 && ids.every(id => models.get(id));
+      const valid = sides.length > 0 && sides.every(({id, round}) => model(id, round));
       for (const element of root.querySelectorAll('input,select,button')) element.disabled = !valid;
       find('.sim-plots').hidden = !valid;
       find('.sim-sight').hidden = !valid;
@@ -522,9 +553,9 @@ function WikiWeaponPicker(select, weapons, tr, collator, words = {
       if (!valid) { find('.sim-legend').replaceChildren(); return; }
       seedInput.value = Math.max(1, Math.min(999999, Math.floor(Number(seedInput.value) || 1)));
       // A full magazine; with two weapons, the smaller one's from each.
-      const shots = Math.min(...ids.map(id => models.get(id).magazine));
-      const series = sides.map(({id, side}) => {
-        const result = WeaponRecoil.simulate(models.get(id), shots, Number(seedInput.value), find('.sim-stance').value === 'hip',
+      const shots = Math.min(...sides.map(({id, round}) => model(id, round).magazine));
+      const series = sides.map(({id, round, side}) => {
+        const result = WeaponRecoil.simulate(model(id, round), shots, Number(seedInput.value), find('.sim-stance').value === 'hip',
           Number(find('.sim-trigger').value));
         // An initial un-fired frame makes Reset/Next shot unambiguous in the UI.
         result.frames.forEach(frame => {frame.time += .05;});
@@ -555,38 +586,63 @@ function WikiWeaponPicker(select, weapons, tr, collator, words = {
   // its side's colour.
   const sim = document.querySelector('#recoil-sim'), comparisonSim = RecoilSim(sim);
   function rebuildSimulation() {
-    const sides = [pickerA.value, pickerB.value].map((id, side) => ({id, side})).filter(({id}) => id);
+    const sides = [pickerA.value, pickerB.value].map((id, side) => ({id, round: roundPickers[side].value, side})).filter(({id}) => id);
     sim.hidden = sides.length === 0;
     comparisonSim.show(sides);
   }
-  // A weapon's own simulation, in its card, made when the card first opens.
+  // A weapon's own simulation, in its card, made when the card first opens;
+  // its round picker sets the card's stats and simulation.
   const template = document.querySelector('#recoil-template');
   for (const weapon of weapons) {
+    const select = weapon.querySelector('.round-select');
+    let cardSim = null, chooser = null;
+    const showSim = () => cardSim?.show([{id: weapon.id, round: select.value, side: 0}]);
     weapon.addEventListener('toggle', () => {
       const host = weapon.querySelector('.weapon-recoil');
-      if (!weapon.open || !host || host.childElementCount) return;
+      if (!weapon.open || !host || cardSim) return;
+      chooser = WikiWeaponPicker(select, roundEntries, tr, collator, roundWords);
+      chooser.offer(roundsOf.get(weapon.id).map(round => round.id)); chooser.paint();
       host.append(template.content.cloneNode(true));
-      RecoilSim(host).show([{id: weapon.id, side: 0}]);
+      cardSim = RecoilSim(host); showSim();
+    });
+    select.addEventListener('change', () => {
+      const rows = new Map(statsFor(weapon.id, select.value).flatMap(section => section.rows).map(row => [row.id, row]));
+      for (const row of weapon.querySelectorAll('.weapon-details [data-stat]')) {
+        const stat = rows.get(row.dataset.stat);
+        row.querySelector('dd').textContent = stat.text; row.dataset.values = JSON.stringify(stat.values);
+      }
+      chooser?.paint(); showSim();
     });
   }
+  // A comparison slot's rounds: its weapon's, keeping the chosen round when
+  // the new weapon fires it too; a dash without a weapon.
+  function fillRounds(side, id, chosen) {
+    const select = roundPickers[side], rounds = id ? roundsOf.get(id) : [];
+    select.replaceChildren(...(rounds.length ? rounds.map(round => new Option(round.name, round.id)) : [new Option('—', '')]));
+    select.value = rounds.some(round => round.id === chosen) ? chosen : rounds[0]?.id ?? '';
+    roundChoosers[side].offer(rounds.map(round => round.id));
+  }
   function selectionChanged() {
-    for (const chooser of choosers) chooser.paint();
+    [pickerA, pickerB].forEach((picker, side) => fillRounds(side, picker.value, roundPickers[side].value));
+    for (const chooser of [...choosers, ...roundChoosers]) chooser.paint();
     renderComparison(); rebuildSimulation();
     const url = new URL(location.href);
-    for (const [key, value] of [['a', pickerA.value], ['b', pickerB.value]]) {
+    // A slot's round is in the address when it is not its weapon's default (the first).
+    const round = side => roundPickers[side].selectedIndex > 0 ? roundPickers[side].value : '';
+    for (const [key, value] of [['a', pickerA.value], ['b', pickerB.value], ['ra', round(0)], ['rb', round(1)]]) {
       if (value) url.searchParams.set(key, value); else url.searchParams.delete(key);
     }
     history.replaceState(null, '', url);
     const language = document.querySelector('a.lang');
     if (language) {
       const next = new URL(language.href);
-      for (const key of ['a', 'b']) {
+      for (const key of ['a', 'b', 'ra', 'rb']) {
         if (url.searchParams.has(key)) next.searchParams.set(key, url.searchParams.get(key)); else next.searchParams.delete(key);
       }
       language.href = next;
     }
   }
-  pickerA.addEventListener('change', selectionChanged); pickerB.addEventListener('change', selectionChanged);
+  for (const select of [pickerA, pickerB, ...roundPickers]) select.addEventListener('change', selectionChanged);
   differenceOnly.addEventListener('change', renderComparison); colors.addEventListener('change', renderComparison);
   document.querySelector('#clear-comparison').addEventListener('click', () => {pickerA.value=''; pickerB.value=''; selectionChanged();});
   for (const button of document.querySelectorAll('[data-compare-side]')) {
@@ -597,7 +653,10 @@ function WikiWeaponPicker(select, weapons, tr, collator, words = {
     });
   }
   const query = new URLSearchParams(location.search);
-  for (const [key, picker] of [['a', pickerA], ['b', pickerB]]) if (byId.has(query.get(key))) picker.value = query.get(key);
+  [[pickerA, 'a', 'ra'], [pickerB, 'b', 'rb']].forEach(([picker, key, round], side) => {
+    if (byId.has(query.get(key))) picker.value = query.get(key);
+    fillRounds(side, picker.value, query.get(round));
+  });
   comparison.hidden = false; selectionChanged();
   function update() {
     const query = normalize(search.value);

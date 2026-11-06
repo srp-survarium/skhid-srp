@@ -2381,6 +2381,8 @@ st_srp_equipment046_edge_back_6_desc	Описание пока недоступ�
 st_srp_equipment046_edge_back_6_name	Рюкзак сталкера
 st_srp_equipment046_edge_back_7_desc	Описание пока недоступно.
 st_srp_equipment046_edge_back_7_name	Оберег
+st_srp_equipment046_edge_boots_6_desc	Описание пока недоступно.
+st_srp_equipment046_edge_boots_6_name	Шнурованные сапоги сталкера
 st_srp_equipment046_edge_boots_7_desc	Описание пока недоступно.
 st_srp_equipment046_edge_boots_7_name	Ботинки волхва
 st_srp_equipment046_edge_gloves_5_desc	Описание пока недоступно.
@@ -2395,6 +2397,8 @@ st_srp_equipment046_edge_legs_7_desc	Описание пока недоступ�
 st_srp_equipment046_edge_legs_7_name	Штаны "Велес"
 st_srp_equipment046_edge_mask_6_desc	Описание пока недоступно.
 st_srp_equipment046_edge_mask_6_name	ПНВ
+st_srp_equipment046_edge_mask_7_desc	Описание пока недоступно.
+st_srp_equipment046_edge_mask_7_name	Противогаз "Велес"
 st_srp_equipment046_edge_torso_7_desc	Описание пока недоступно.
 st_srp_equipment046_edge_torso_7_name	Бронежилет "Велес"
 st_srp_equipment046_renesanse_boots_3_desc	Описание пока недоступно.
@@ -2405,6 +2409,8 @@ st_srp_equipment046_renesanse_gloves_3_desc	Описание пока недос
 st_srp_equipment046_renesanse_gloves_3_name	Перчатки ОЗК-УВ
 st_srp_equipment046_renesanse_gloves_5_desc	Описание пока недоступно.
 st_srp_equipment046_renesanse_gloves_5_name	Перчатки разведчика
+st_srp_equipment046_renesanse_gloves_6_desc	Описание пока недоступно.
+st_srp_equipment046_renesanse_gloves_6_name	Перчатки "Штурм"
 st_srp_equipment046_renesanse_gloves_7_desc	Описание пока недоступно.
 st_srp_equipment046_renesanse_gloves_7_name	Перчатки снайпера
 st_srp_equipment046_renesanse_helmet_7_desc	Описание пока недоступно.
@@ -2421,12 +2427,26 @@ st_srp_equipment046_renesanse_torso_7_desc	Описание пока недос�
 st_srp_equipment046_renesanse_torso_7_name	Бронежилет снайпера
 st_srp_equipment046_scavenger_boots_5_desc	Описание пока недоступно.
 st_srp_equipment046_scavenger_boots_5_name	Ботинки диверсанта
+st_srp_equipment046_scavenger_boots_6_desc	Описание пока недоступно.
+st_srp_equipment046_scavenger_boots_6_name	Укрепленные ботинки
 st_srp_equipment046_scavenger_boots_7_desc	Описание пока недоступно.
 st_srp_equipment046_scavenger_boots_7_name	Ботинки следопыта
+st_srp_equipment069_league_shadow_mask_desc	Описание пока недоступно.
+st_srp_equipment069_league_shadow_mask_name	Маска "Дельта"
 st_srp_equipment069_leagues_back_2_desc	Описание пока недоступно.
 st_srp_equipment069_leagues_back_2_name	Сумка лекаря
 st_srp_equipment069_leagues_back_5_desc	Описание пока недоступно.
 st_srp_equipment069_leagues_back_5_name	Рюкзак солдата
+st_srp_equipment069_snow_20_boots_7_desc	Описание пока недоступно.
+st_srp_equipment069_snow_20_boots_7_name	Ботинки "Снег-20"
+st_srp_equipment069_snow_20_gloves_7_desc	Описание пока недоступно.
+st_srp_equipment069_snow_20_gloves_7_name	Перчатки "Снег-20"
+st_srp_equipment069_snow_20_helmet_7_desc	Описание пока недоступно.
+st_srp_equipment069_snow_20_helmet_7_name	Шлем "Снег-20"
+st_srp_equipment069_snow_20_legs_7_desc	Описание пока недоступно.
+st_srp_equipment069_snow_20_legs_7_name	Штаны "Снег-20"
+st_srp_equipment069_snow_20_torso_7_desc	Описание пока недоступно.
+st_srp_equipment069_snow_20_torso_7_name	Бронежилет "Снег-20"
 st_srp_exchange_balance	Баланс
 st_srp_exchange_button	Обменять
 st_srp_exchange_gold	Золото
@@ -2528,6 +2548,33 @@ st_srp_matches_starting	старт
 st_srp_matches_title	Матчи
 st_srp_matches_versus	на
 st_srp_matches_waiting	ожидание
+st_srp_medical_301_description	Прибавляется к защите от боли и длительности действия обезболивающего:
+st_srp_medical_301_name	Сильное обезболивающее
+st_srp_medical_302_description	Сокращение времени применения аптечек и бинтов:
+st_srp_medical_302_name	Быстрая перевязка
+st_srp_medical_303_description	Пока действует обезболивающее, снижение затрат энергии на спринт:
+st_srp_medical_303_name	Онемевшие ноги
+st_srp_medical_311_description	Регенерация здоровья начинается на столько секунд раньше:
+st_srp_medical_311_name	Метаболизм
+st_srp_medical_312_description	Бонус к здоровью, восстанавливаемому аптечками и бинтами:
+st_srp_medical_312_name	Медицинская подготовка
+st_srp_medical_313_description	Бонус к здоровью, восстанавливаемому аптечками и бинтами в приседе:
+st_srp_medical_313_name	В укрытие
+st_srp_medical_321_description	Бонус к скорости передвижения при здоровье ниже 30:
+st_srp_medical_321_name	Адреналин
+st_srp_medical_322_description	Каждый карман с медикаментами вмещает ещё один предмет.
+st_srp_medical_322_name	Дополнительные медикаменты
+st_srp_medical_323_description	Пока действует обезболивающее, снижение останавливающей силы вражеских попаданий:
+st_srp_medical_323_name	Непоколебимый
+st_srp_medical_331_description	Заменяет ячейку дополнительного оружия дополнительным карманом для припасов.
+st_srp_medical_331_name	Карман для припасов
+st_srp_medical_332_description	Бонус к максимальному здоровью рук и ног:
+st_srp_medical_332_name	Крепкие кости
+st_srp_medical_333_description	Пока действует обезболивающее, звуки окружения тише, а звуки противников (кроме выстрелов) громче на:
+st_srp_medical_333_name	Концентрация
+st_srp_medical_342_description	Снижение урона, получаемого от союзников:
+st_srp_medical_342_name	Братья по оружию
+st_srp_medical_seconds	 s
 st_srp_medicine_ambient_sounds	Звуки окружения
 st_srp_medicine_crouched_healing	Лечение в приседе
 st_srp_medicine_enemy_sounds	Звуки противников
@@ -2714,6 +2761,21 @@ st_srp_unit_mps	%1$s м/с
 st_srp_unit_percent	%1$s%
 st_srp_unit_seconds	%1$sс
 st_srp_unit_times	%1$sx
+st_srp_vulkan_dedicated_gpu	Приоритет дискретной GPU
+st_srp_vulkan_dedicated_gpu_hint	Выбирает более мощную видеокарту на ноутбуках.\n+ Выше производительность на ноутбуках\n- Тратит больше батареи
+st_srp_vulkan_frame_limit	Ограничение FPS
+st_srp_vulkan_frame_limit_hint	Ограничивает, сколько кадров в секунду рисует игра.
+st_srp_vulkan_low_latency	Снизить задержку ввода
+st_srp_vulkan_low_latency_hint	Игра быстрее отзывается на мышь.\n+ Прицел реагирует быстрее\n- На некоторых ПК может идти менее плавно
+st_srp_vulkan_off	Выкл.
+st_srp_vulkan_options	Настройки Vulkan
+st_srp_vulkan_overlay	Оверлей
+st_srp_vulkan_overlay_fps	FPS
+st_srp_vulkan_overlay_frametimes	FPS+график
+st_srp_vulkan_overlay_full	Полный
+st_srp_vulkan_overlay_hint	Показывает скорость игры на экране.
+st_srp_vulkan_tear_free	Без разрывов без V-Sync
+st_srp_vulkan_tear_free_hint	Картинка не рвётся при выключенной вертикальной синхронизации.\n+ Нет рваных полос при быстром повороте\n- Задержка чуть больше, чем просто без VSync
 st_srp_weapon069_akmsu_desc	Укороченный АКМС со складным прикладом под патрон 7.62×39. Поддерживает одиночный и автоматический режим стрельбы.
 st_srp_weapon069_akmsu_name	АКМСУ
 st_srp_weapon069_famas_desc	Французская штурмовая винтовка схемы булл-пап под боеприпас 5.56х45. Поддерживает одиночный режим, очередь по три выстрела и автоматический режим стрельбы.
