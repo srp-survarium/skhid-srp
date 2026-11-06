@@ -170,6 +170,13 @@ fn drift_on_a_real_match() {
             } else {
                 "ground under 30 deg"
             };
+            // Whether the walk grid has a floor where the client stands (a floor the client cannot hold is a grid matter).
+            let floored = world.grid.locate(feet, 0.5).is_some_and(|node| (world.grid.position(node).y - feet.y).abs() < 0.5);
+            let kind: &str = match (kind.starts_with("the client's ground slides") || kind.starts_with("still on"), floored) {
+                (true, true) => if kind.starts_with("still") { "still slide, the grid has a floor there" } else { "slide, the grid has a floor there" },
+                (true, false) => if kind.starts_with("still") { "still slide, no grid floor there" } else { "slide, no grid floor there" },
+                _ => kind,
+            };
             *slope_kinds.entry(kind).or_insert(0) += 1;
         }
         let iv = track.last_interval().unwrap_or_default();
