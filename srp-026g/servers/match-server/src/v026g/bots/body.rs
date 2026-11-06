@@ -1926,8 +1926,8 @@ pub(super) mod tests {
         // [A318] The reckoning alone walks off with the client edge; the stop forecast at the rim does not fall.
         assert_eq!(first_down_by(Edge::Client, ReckonWalkOff::OpenSides, &open), Some(walks_off), "the reckoning walks off");
         assert_eq!(first_down_by(Edge::Client, ReckonWalkOff::OpenSides, &bare), None, "no table: held");
-        let kin = Kinematics { blend_ticks: 1, ..Kinematics::default() };
-        assert_eq!(kin.reckon_walk_off, ReckonWalkOff::OpenSides);
+        assert_eq!(Kinematics::default().reckon_walk_off, ReckonWalkOff::Held, "not the default");
+        let kin = Kinematics { blend_ticks: 1, reckon_walk_off: ReckonWalkOff::OpenSides, ..Kinematics::default() };
         let mut track = BodyTrack::default();
         track.fixed(fix(0, Vec3::new(last - 0.3, 6.0, 5.0), yaw), &kin, Some(&open));
         let at = track.estimate().unwrap();

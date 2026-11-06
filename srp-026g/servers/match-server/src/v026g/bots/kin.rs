@@ -279,7 +279,7 @@ impl Default for Kinematics {
             wall_slide: WallSlide::Diagonal,
             jump_snap: JumpSnap::ByKeys,
             edge: Edge::Client,
-            reckon_walk_off: ReckonWalkOff::OpenSides,
+            reckon_walk_off: ReckonWalkOff::Held,
             open_edge_cost: 0.0,
             walk_off_landing: WalkOffLanding::BySpeed,
             margin_edge: MarginEdge::Body,
@@ -363,10 +363,14 @@ pub enum WallSlide {
 #[serde(rename_all = "snake_case")]
 pub enum ReckonWalkOff {
     /// Held there as at a wall (as it was): the client's capsule walks on and the reckoning stands on top.
+    #[default]
     Held,
     /// On as the client's capsule ([`Edge::ClientWalksOff`]'s walk, `body::walk_off_open`, `step_down` 0x7E1B0, PROVEN), the
-    /// stop forecast kept as [`Kinematics::edge`] says: A269's guard over open sides is not part of it.
-    #[default]
+    /// stop forecast kept as [`Kinematics::edge`] says: A269's guard over open sides is not part of it. Not the default: in the
+    /// drift lab (15 client-test recordings) it drifts 3.78 % of the worlds against 3.72 % held, every map a little worse. The
+    /// walk is the client's, but the grid's table of open sides calls sides open where the client stands held (after two fixes
+    /// to it, walk-faced parapets and diagonals beside a held square side), and the held edge also catches the reckoning's
+    /// own overshoot along it.
     OpenSides,
 }
 
