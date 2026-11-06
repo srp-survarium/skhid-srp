@@ -1309,7 +1309,7 @@ pub fn tables_of_file(path: &Path, notes: &[Record]) -> Result<Tables, ConvertEr
 
 /// The start of the tick a time is in; here for the CLI's summary.
 pub fn tick_of(time: u32) -> u32 {
-    time / TICK_MS
+    time / super::sur::TICK_MS
 }
 
 #[cfg(test)]
