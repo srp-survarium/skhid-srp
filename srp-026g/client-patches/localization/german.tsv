@@ -2532,6 +2532,11 @@ st_srp_matches_starting	Start
 st_srp_matches_title	Matches
 st_srp_matches_versus	gegen
 st_srp_matches_waiting	Warten
+st_srp_medicine_ambient_sounds	Umgebungsgeräusche
+st_srp_medicine_crouched_healing	Heilung in der Hocke
+st_srp_medicine_enemy_sounds	Feindgeräusche
+st_srp_medicine_hit_slow	Trefferverlangsamung
+st_srp_medicine_sprint_stamina	Sprint-Energie
 st_srp_melee_knockback	Kolbenschlag-Wucht
 st_srp_mode_blackout	Schutzeinrichtung: Blackout
 st_srp_mode_chargers	Schutzeinrichtung: Ladestationen

@@ -2532,6 +2532,11 @@ st_srp_matches_starting	starting
 st_srp_matches_title	Matches
 st_srp_matches_versus	v
 st_srp_matches_waiting	waiting
+st_srp_medicine_ambient_sounds	Ambient sounds
+st_srp_medicine_crouched_healing	Healing crouched
+st_srp_medicine_enemy_sounds	Enemy sounds
+st_srp_medicine_hit_slow	Slow from bullets
+st_srp_medicine_sprint_stamina	Sprint stamina
 st_srp_melee_knockback	Melee knockback
 st_srp_mode_blackout	Protective device: blackout
 st_srp_mode_chargers	Protective device: chargers

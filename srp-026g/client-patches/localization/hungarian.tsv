@@ -2532,6 +2532,11 @@ st_srp_matches_starting	indul
 st_srp_matches_title	Meccsek
 st_srp_matches_versus	vs
 st_srp_matches_waiting	várakozás
+st_srp_medicine_ambient_sounds	Környezet hangjai
+st_srp_medicine_crouched_healing	Gyógyulás guggolva
+st_srp_medicine_enemy_sounds	Ellenség hangjai
+st_srp_medicine_hit_slow	Lassítás golyóktól
+st_srp_medicine_sprint_stamina	Sprint állóképesség
 st_srp_melee_knockback	Tusütés lökőereje
 st_srp_mode_blackout	Védelmi berendezés: áramszünet
 st_srp_mode_chargers	Védelmi berendezés: töltők
