@@ -226,7 +226,7 @@ pub(crate) fn force_fall(on: Option<bool>) {
 /// [A318] Whether a stand-in body falling (after a jump's clip, a walk off an edge) falls as the client's capsule does
 /// (`SRP_BENCH_STAND_IN_SLOW_FALL`, on unless `off`; [`super::body::client_fall_tick`]: `step_down` 0x7E1B0's slow start,
 /// 0.05 m a tick while the speed at the tick's start is under 2.0 m/s, then the speed at the tick's start, `g` 9.8 after the move,
-/// PROVEN). Off: as before (the speed after the tick's `g` 9.81 from the first tick; benches before A318's fall start).
+/// PROVEN). Off: as before (the speed after the tick's `g` from the first tick; benches before A318's fall start).
 pub(crate) fn stand_in_slow_fall() -> bool {
     static ON: std::sync::OnceLock<bool> = std::sync::OnceLock::new();
     *ON.get_or_init(|| bench_settings().var("SRP_BENCH_STAND_IN_SLOW_FALL").map_or(true, |v| v != "off"))
