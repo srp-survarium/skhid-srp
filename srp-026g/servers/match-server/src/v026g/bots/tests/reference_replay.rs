@@ -60,7 +60,11 @@ fn reference_replay() {
     let kin = tuning.kin.clone();
     let file = std::path::Path::new(&dir).join(mapdata::format::file_name(&project));
     let map = mapdata::MapData::read(&file).unwrap_or_else(|e| panic!("{}: {e}", file.display()));
-    let collision = Collision::build(&map.walker_triangles());
+    // `SRP_A325_EXE_COLLISION=1`: the exe's collision rules (#1387, `mapdata::Body::controller` with exe_collision): its Bullet
+    // caster 0xB9320 and the wall normal by rays 0x89B80 (fx-grid: the tail stalls p4/p7/p9 then match the exe within 1 mm).
+    let exe_collision = var("SRP_A325_EXE_COLLISION").is_some();
+    let (caster, live) = mapdata::Body { exe_collision, ..mapdata::Body::default() }.controller();
+    let collision = Collision::build(&map.walker_triangles()).with_caster(caster);
     let world = Arc::new(World::build_with(
         map,
         mapdata::CELL,
@@ -70,7 +74,7 @@ fn reference_replay() {
         tuning.needs_open_sides(),
     ));
     let grid = &*world.grid;
-    let s = Settings::LIVE;
+    let s: Settings = live;
     let mut ticks: Vec<(u32, usize, u32, (f32, f32))> = read_csv(&inputs)
         .iter()
         .filter_map(|r| {
@@ -86,6 +90,7 @@ fn reference_replay() {
     let exe_order = var("SRP_A325_EXE_ORDER").is_some();
     let pos_lag1 = var("SRP_A325_POS_LAG1").is_some();
     let keys_mode = var("SRP_A325_KEYS").is_some();
+    let level_from_world = var("SRP_A325_LEVEL_FROM_WORLD").is_some();
     // `SRP_A325_WORLD_BLEND=k`: the velocity kept in the world frame, each tick k of the way toward the intended (a turn does not
     // swing the momentum round with the yaw at once). A hypothesis test, not a client rule.
     let world_blend: Option<f32> = var("SRP_A325_WORLD_BLEND").and_then(|v| v.parse().ok());
@@ -155,12 +160,12 @@ fn reference_replay() {
             k += 1;
         }
         let track = tracks.entry(w.place).or_default();
-        let before = track.fix().filter(|f| f.alive && f.inserted == w.fix.inserted).map(|f| (f.time, f.feet, f.yaw));
+        let before = track.fix().filter(|f| f.alive && f.inserted == w.fix.inserted).map(|f| (f.time, f.feet, f.yaw, f.speed, f.keys));
         let trail = track.trail_ticks();
         let reckoned = track.reckoned_at(w.time);
         let feet = w.fix.feet;
         let new_life = track.fixed(w.fix, &kin, Some(grid));
-        let (Some(feet), Some((t0, Some(from), yaw_b)), false) = (feet, before, new_life) else {
+        let (Some(feet), Some((t0, Some(from), yaw_b, speed_b, keys_b)), false) = (feet, before, new_life) else {
             continue;
         };
         if !wanted(w.place, w.time) {
@@ -191,6 +196,21 @@ fn reference_replay() {
         // without normalisation, each older clip keeping what the newer leave. World B's position is the body after tick B-1
         // (m_last_pos, 0x7BE7C) and its yaw is after input B, so the ticks run k = t0 .. t - 50 with input k, turn from t0 + 50.
         let mut layers: Vec<(Local, u32, u32)> = vec![(key_clip(keys_in(t0.saturating_sub(50))), 0, keys_in(t0.saturating_sub(50)) & CLIP_KEYS)];
+        // `SRP_A325_LEVEL_FROM_WORLD=1`: the speed factor's modifiers (skill, weapon, kit) measured from the client's own state:
+        // world B's recorded speed (m_linear_horizontal_speed) over its clip's speed, when B's keys equal the input before
+        // (a steady walk); else 1. A measurement of the client at B, not a model rule (the factor's own read: LIKELY, open).
+        let level = if level_from_world {
+            let clip = key_clip(keys_b & CLIP_KEYS);
+            let clip_speed = clip[0].hypot(clip[1]);
+            match speed_b {
+                Some(v) if clip_speed > 0.5 && v > 0.5 && keys_b & CLIP_KEYS == keys_in(t0.saturating_sub(50)) & CLIP_KEYS => {
+                    (v / clip_speed).clamp(0.7, 1.3)
+                }
+                _ => 1.0,
+            }
+        } else {
+            1.0
+        };
         let mut kyaw = yaw_b;
         for (i, &&(t, _, v_own, _)) in ahead.iter().enumerate().take_while(|(_, r)| r.0 <= w.time) {
             let v_keys = keys_mode.then(|| {
@@ -217,7 +237,7 @@ fn reference_replay() {
                 }
                 let drop = layers.len() - keep;
                 layers.drain(..drop);
-                super::super::kin::to_world(sum, kyaw)
+                super::super::kin::to_world([sum[0] * level, sum[1] * level], kyaw)
             });
             let v = if let Some(v) = v_keys {
                 v
