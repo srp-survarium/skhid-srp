@@ -223,6 +223,15 @@ pub(crate) fn force_fall(on: Option<bool>) {
     FALL_FORCED.with(|f| f.set(on));
 }
 
+/// [A318] Whether a stand-in body falling (after a jump's clip, a walk off an edge) falls as the client's capsule does
+/// (`SRP_BENCH_STAND_IN_SLOW_FALL`, on unless `off`; [`super::body::client_fall_tick`]: `step_down` 0x7E1B0's slow start,
+/// 0.05 m a tick while the speed at the tick's start is under 2.0 m/s, then the speed at the tick's start, `g` 9.8 after the move,
+/// PROVEN). Off: as before (the speed after the tick's `g` 9.81 from the first tick; benches before A318's fall start).
+pub(crate) fn stand_in_slow_fall() -> bool {
+    static ON: std::sync::OnceLock<bool> = std::sync::OnceLock::new();
+    *ON.get_or_init(|| bench_settings().var("SRP_BENCH_STAND_IN_SLOW_FALL").map_or(true, |v| v != "off"))
+}
+
 /// Whether a stand-in body that walks off an edge falls from it keeping the walk's speed across (`SRP_BENCH_STAND_IN_WALKOFF`, on
 /// unless `off`): the client's capsule leaves the edge at its walk speed and comes down along a ballistic arc, so a walk off a 1.2 m ledge
 /// lands on a walkway 1.5 m ahead of it (J0 g2a at Chemical Plant's pedestrian bridge: 7 of 7 walk-offs on the walkway, PROVEN), where the
@@ -826,8 +835,14 @@ pub(crate) fn fly(
         })
     };
     if let Some(v) = f.fall {
-        let v = v + GRAVITY * TICK_S;
-        let y = body.feet.y - v * TICK_S;
+        // [A318] The client's fall ([`stand_in_slow_fall`]): the slow start, then the speed at the tick's start; else as before.
+        let (v, down) = if stand_in_slow_fall() {
+            super::body::client_fall_tick(v)
+        } else {
+            let v = v + GRAVITY * TICK_S;
+            (v, v * TICK_S)
+        };
+        let y = body.feet.y - down;
         // A walk off an edge goes on across at its speed, held by the walls as a jump is ([`air_move`]).
         let (x, z) = if f.carry == [0.0, 0.0] {
             (body.feet.x, body.feet.z)
