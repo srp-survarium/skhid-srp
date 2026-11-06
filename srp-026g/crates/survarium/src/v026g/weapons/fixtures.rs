@@ -34,6 +34,26 @@ fn entry<'a>(table: &'a mut ConfigValue, key: &str) -> &'a mut ConfigValue {
         .unwrap_or_else(|| panic!("the config has no `{key}`"))
 }
 
+/// Adds the entry at `path` (`["parameters", "reload_empty_time"]`) to
+/// `config` with `value`, as a content patch adds a key the stock config
+/// lacks. Its parents must be there and the key must not: a key the config
+/// has is [`set`].
+pub fn add(config: &mut ConfigValue, path: &[&str], value: ConfigValue) {
+    let (last, parents) = path.split_last().expect("a path names a key");
+    let mut table = config;
+    for key in parents {
+        table = entry(table, key);
+    }
+    let ConfigValue::Named(entries) = table else {
+        panic!("`{last}`: its parent is not a named table");
+    };
+    assert!(
+        entries.iter().all(|(name, _)| name != last),
+        "the config has `{last}` already: set it"
+    );
+    entries.push(((*last).to_owned(), value));
+}
+
 /// A copy of `data` in which the config of the item `item` has each of
 /// `edits` applied (a path and the value to put there).
 pub fn patched_item(
@@ -42,6 +62,19 @@ pub fn patched_item(
     item: &str,
     edits: &[(&[&str], ConfigValue)],
 ) -> GameData {
+    patched_item_adding(data, dictionary, item, edits, &[])
+}
+
+/// As [`patched_item`], with the keys of `added` added to the config first
+/// (keys the stock config lacks, as the content patch's
+/// `parameters/reload_empty_time`).
+pub fn patched_item_adding(
+    data: &GameData,
+    dictionary: &Dictionary,
+    item: &str,
+    edits: &[(&[&str], ConfigValue)],
+    added: &[(&[&str], ConfigValue)],
+) -> GameData {
     let row = dictionary
         .item_named(item)
         .unwrap_or_else(|| panic!("{item} is in the dictionary"));
@@ -49,6 +82,9 @@ pub fn patched_item(
         .file(&row.cfg_name)
         .unwrap_or_else(|| panic!("{item}: the data has {}", row.cfg_name));
     let mut config = ConfigValue::parse(bytes).expect("the item's config reads");
+    for (path, value) in added {
+        add(&mut config, path, value.clone());
+    }
     for (path, value) in edits {
         set(&mut config, path, value.clone());
     }

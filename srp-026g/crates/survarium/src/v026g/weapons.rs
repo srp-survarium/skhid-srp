@@ -1037,18 +1037,17 @@ mod tests {
     /// from that over `reload_time`, before the clips and without them; a magazine reload ignores the key.
     #[test]
     fn an_authored_empty_reload_time_sets_the_share() {
-        use super::fixtures::patched_item;
+        use super::fixtures::patched_item_adding;
         let dictionary = Dictionary::shared();
         let tt = *weapon_named("tt_33").unwrap();
         assert_eq!(tt.reload_state, STATE_RELOAD_EMPTY);
-        let data = patched_item(
+        // The stock configs (the test data) have no `reload_empty_time`: the content patch adds it.
+        let data = patched_item_adding(
             crate::v026g::game_data::shared(),
             dictionary,
             "tt_33",
-            &[
-                (&["parameters", "reload_time"], ConfigValue::Float(2.4)),
-                (&["parameters", "reload_empty_time"], ConfigValue::Float(3.4)),
-            ],
+            &[(&["parameters", "reload_time"], ConfigValue::Float(2.4))],
+            &[(&["parameters", "reload_empty_time"], ConfigValue::Float(3.4))],
         );
         // Without clip lengths, and with clips of another ratio: the authored pair wins.
         let table = derive(&data, dictionary).unwrap();
@@ -1063,10 +1062,11 @@ mod tests {
         let share = table.iter().find(|w| w.name == "tt_33").unwrap().reload_share.unwrap();
         assert!((share - 3.4 / 2.4).abs() < 1e-6, "{share}");
         // A magazine reload (state 303) has no share, the key or not.
-        let uzi = patched_item(
+        let uzi = patched_item_adding(
             crate::v026g::game_data::shared(),
             dictionary,
             "uzi",
+            &[],
             &[(&["parameters", "reload_empty_time"], ConfigValue::Float(3.0))],
         );
         let table = derive(&uzi, dictionary).unwrap();
