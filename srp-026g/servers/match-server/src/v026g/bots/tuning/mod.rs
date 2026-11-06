@@ -784,6 +784,7 @@ mod tests {
             "/grid/run_ups_after_erosion",
             "/grid/slip_landings",
             "/grid/steep_walk_base",
+            "/grid/wall_give_back",
             "/hazard/leave_islands",
             "/hazard/zone_intensity",
             "/hazard/zone_pools",
