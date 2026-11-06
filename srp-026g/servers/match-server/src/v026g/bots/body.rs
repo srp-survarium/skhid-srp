@@ -2033,7 +2033,8 @@ pub(super) mod tests {
         let yaw = -std::f32::consts::FRAC_PI_2;
         // The overhang past the last centre the tick before the feet are down (None: never), walking out +x.
         let first_down = |edge: Edge, grid: &WalkGrid| {
-            let kin = Kinematics { blend_ticks: 1, edge, ..Kinematics::default() };
+            // Where it goes over, not when it is down: the floor below at once.
+            let kin = Kinematics { blend_ticks: 1, edge, drop_fall: DropFall::Snap, ..Kinematics::default() };
             let mut track = BodyTrack::default();
             track.fixed(fix(0, Vec3::new(8.0, 6.0, 5.0), yaw), &kin, Some(grid));
             let mut before = 8.0;
