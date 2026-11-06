@@ -1805,11 +1805,11 @@ check "release: ... leaves the live files as they were" test "$(tree)" = "$befor
 # While it waits for the planned time it looks at /api/stats every quarter
 # of a minute: once "matches":0 has held 30 s (the plan's margin), the swap
 # comes at once, before the planned time; a match running to the planned
-# time is waited for as before. A minute is 8 s here, the 30 s are real;
-# the no at the y/N ends each run before anything is swapped.
+# time is waited for as before. A minute is 4 s here (the 30 s 2 s); the no
+# at the y/N ends each run before anything is swapped.
 : >"$T/state/admin.log"
 printf '1\n1\n0\n' >"$T/state/matches"
-SKHID_TEST_SECONDS_PER_MINUTE=8 run no --minutes 10 --label early || true
+SKHID_TEST_SECONDS_PER_MINUTE=4 run no --minutes 10 --label early || true
 rm -f "$T/state/matches"
 check "release: no match for 30 s before the planned time: the swap at once" bash -c \
     "grep -qE '\\] 5. no match has run for 30 s: swapping now, [0-9]+ min before the planned time\$' <<<\"\$1\"" _ "$out"
@@ -1822,7 +1822,7 @@ check "release: ... swaps nothing" has "$out" "nothing was swapped"
 check "release: ... leaves the live files as they were" test "$(tree)" = "$before"
 : >"$T/state/admin.log"
 { for _ in $(seq 25); do echo 1; done; echo 0; } >"$T/state/matches"
-SKHID_TEST_SECONDS_PER_MINUTE=8 run no --minutes 5 --label latem || true
+SKHID_TEST_SECONDS_PER_MINUTE=4 run no --minutes 5 --label latem || true
 rm -f "$T/state/matches"
 check "release: a match running to the planned time: no early swap" bash -c \
     "! grep -q 'swapping now' <<<\"\$1\" && grep -q '5. waiting for the planned time (.*): 1 match(es) running' <<<\"\$1\"" _ "$out"
