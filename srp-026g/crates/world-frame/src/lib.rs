@@ -538,9 +538,12 @@ pub enum AnimFault {
 /// without recursing, so validating cannot itself overflow the stack.
 pub fn animation_validate(bytes: &[u8]) -> Result<(), AnimFault> {
     use AnimFault::Short;
-    /// Live animation trees are a handful of nodes; this is far above any real
-    /// one and still cannot grow a stack. Confirm against the kept worlds.
-    const MAX_EXPR_NODES: u32 = 4096;
+    /// The whole tree is `T` <= 65535 bits and each expression node costs at
+    /// least 2 bits, so a valid forest holds under 32768 nodes; more than this
+    /// is malformed. The counter below is O(1) memory, so the cap only bounds
+    /// work and gives a clear reason -- above 32768 it never refuses a real
+    /// stream (none of the 177,672 animated blocks of the kept worlds is close).
+    const MAX_EXPR_NODES: u32 = 1 << 16;
 
     let mut b = Bits { bytes, at: 0 };
     let tree = b.read(16).ok_or(Short)? as usize;
@@ -554,13 +557,18 @@ pub fn animation_validate(bytes: &[u8]) -> Result<(), AnimFault> {
     b.read(1).ok_or(Short)?; // the matrix count (1 or 2); not needed here
     let channels = b.read(4).ok_or(Short)?.count_ones();
 
-    // Base tracks, one per node (anim_read_node_base_tracks 0x3A8C10).
+    // Base tracks (anim_read_node_base_tracks 0x3A8C10): two passes over the
+    // nodes, not one interleaved pass. First pass: four bits and two popped
+    // floats a node.
     for _ in 0..nodes {
         for _ in 0..4 {
             b.read(1).ok_or(Short)?;
         }
         pops_floats = pops_floats.saturating_add(2);
-        // Time track (0x3A8AF0): a 6-bit count, then a record when it is set.
+    }
+    // Second pass: a time track (0x3A8AF0) and a flag track (0x3A8BA0) a node.
+    for _ in 0..nodes {
+        // Time track: a 6-bit count, then a record when it is set.
         if b.read(6).ok_or(Short)? != 0 {
             b.read(1).ok_or(Short)?;
             b.read(8).ok_or(Short)?;
@@ -568,7 +576,7 @@ pub fn animation_validate(bytes: &[u8]) -> Result<(), AnimFault> {
             pops_times = pops_times.saturating_add(1);
             pops_floats = pops_floats.saturating_add(1);
         }
-        // Flag track (0x3A8BA0): two bits, a time when either is set.
+        // Flag track: two bits, a time when either is set.
         let f0 = b.read(1).ok_or(Short)?;
         let f1 = b.read(1).ok_or(Short)?;
         if f0 != 0 || f1 != 0 {

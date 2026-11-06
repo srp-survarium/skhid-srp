@@ -308,8 +308,8 @@ fn animation_validate_rejects_runaway_recursion() {
         w.put(0, width);
     }
     w.put(1, 2); // exprs = 1
-    for _ in 0..5000 {
-        w.put(2, 2); // op 2: two children, forever
+    for _ in 0..70_000 {
+        w.put(2, 2); // op 2: two children, forever -- past the node cap
     }
     assert_eq!(animation_validate(w.bytes()), Err(AnimFault::Recursion));
 }

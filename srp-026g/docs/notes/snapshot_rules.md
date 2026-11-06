@@ -439,13 +439,14 @@ U<=1023 -- are self-bounded and are not in this list.)
    floats popped <= N_floats.
 ```
 
-`animation_len` (crate `world-frame`) covers the length only and is proven on
-every kept world. `animation_validate` beside it seals 1-5: it decodes the
-tree as above with a node cap, requires it to end exactly at `T` and the pops
+`animation_len` (crate `world-frame`) covers the length only. `animation_validate`
+beside it seals 1-5: it decodes the tree as above (the base tracks in two
+passes over the nodes, not one), requires it to end exactly at `T` and the pops
 to stay within the table counts, and `Frame::parse` refuses the block
-otherwise (`Refusal::Animation`). The bit reads above are from the 0.26g
-bodies; the `+ pop` counts and the node cap still need the kept-world corpus
-run to confirm no real stream is refused before a release leans on it.
+otherwise (`Refusal::Animation`). Proven on the kept worlds: all 177,672
+animated blocks of the 20,668 worlds in `private/live-worlds-*` pass, none near
+the expression-node cap (which is above the 32768 a `T` <= 65535 tree can
+hold, so a valid stream is never refused for it).
 
 ### 7.3 The state's head — `game_world_core_client::serialize` 0x3218E0, `base_player::serialize` 0x2DAF60 (reader 0x2DB490)
 
