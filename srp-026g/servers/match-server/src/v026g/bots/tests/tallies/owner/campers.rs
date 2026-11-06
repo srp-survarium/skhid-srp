@@ -605,7 +605,7 @@ impl CamperCounts {
         // [A320 B3c] The stand-in camper's kills and deaths in time, each death with its shooter (stderr; the bench's reader
         // matches them to the flank routes' lines).
         if let Some(c) = run.camper {
-            let kills: Vec<String> = self.kills.iter().filter(|k| k.shooter == c).map(|k| k.t.to_string()).collect();
+            let kills: Vec<String> = self.kills.iter().filter(|k| k.shooter == c).map(|k| format!("{}:{}", k.t, k.victim)).collect();
             let deaths: Vec<String> =
                 self.kills.iter().filter(|k| k.victim == c).map(|k| format!("{}:{}", k.t, k.shooter)).collect();
             eprintln!("A320 camper timeline: kills {} deaths {}", kills.join(","), deaths.join(","));

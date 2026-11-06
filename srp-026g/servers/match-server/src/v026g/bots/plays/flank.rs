@@ -571,6 +571,10 @@ pub fn step(state: &mut State, target: TargetRef, cx: &Ctx, rng: &mut Rng) -> St
     };
     // The team's job ended: the spot is no longer held.
     if matches!(target, TargetRef::ThreatSpot(_)) && job_line(cx, target).is_none() {
+        #[cfg(test)]
+        if let State::Route { next, .. } = state {
+            eprintln!("A320 camp_flank route end: t {} place {} job over at floor {next}", cx.now, cx.me.place);
+        }
         return Step::Done("the spot is no longer held");
     }
     // Seen up and moving: he no longer holds the angle.
