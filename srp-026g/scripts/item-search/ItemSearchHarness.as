@@ -422,6 +422,10 @@ package
          trace("ITEMSEARCH " + language + " hint \"" + field.text + "\" " + used.toFixed(1) + " of " + room.toFixed(1) + " px (" + field.getTextFormat().size + " pt)");
          require(field.text == hint,language + ": the empty box shows the hint (" + field.text + ")");
          require(field.numLines == 1 && used <= room,language + ": the hint \"" + hint + "\" needs " + used.toFixed(1) + " of " + room.toFixed(1) + " px");
+         // the box (a child of the list: the lobby scales them together, every resolution alike)
+         // inside the list's own width
+         var list:Number = inventory.background.width;
+         require(box.x >= 0 && box.x + box.width <= list,"the box (" + box.x + " to " + (box.x + box.width) + ") inside the list (" + list + ")");
       }
 
       private function require(ok:Boolean, why:String) : void

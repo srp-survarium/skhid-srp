@@ -36,14 +36,16 @@ Code, in `flash/lobby_menu/src` ([lobby-source.md](lobby-source.md)):
   - centred on the list;
   - the grid is 40 px shorter for that row, and the fade at its foot moves up with it.
 - **What it looks like:**
-  - the friends window's name box, 1.25 times as wide and 4 px taller with a 4 px bigger font
-    (332 × 32), with a magnifier at its right (drawn: the friends search's is part of its
-    window's art). No × (owner 2026-10-22): Esc empties it;
-  - when empty and without the keys, it reads "Search" and three "+" examples, two bonuses and
-    a level (owner 2026-11-06: the box telegraphs the syntax, bonuses first): "Search: +ammo,
-    +pocket, +10" / "Поиск: +патрон, +карман, +10" / "Пошук: +набої, +кишень, +10" …, each
-    language's own words for bonuses its cards name, on one line inside the box (the box is not
-    wider for it); upright:
+  - the friends window's name box, 1.6 times as wide and 4 px taller with a 4 px bigger font
+    (425 × 32; 1.25 times until 2026-11-06, widened for the hint), with a magnifier at its right
+    (drawn: the friends search's is part of its window's art). No × (owner 2026-10-22): Esc
+    empties it;
+  - when empty and without the keys, it shows the syntax itself (owner 2026-11-06: the tip alone
+    is not enough): "Search", a name, then three "+" examples, two bonuses first and a level:
+    "Search: name, +ammo, +pocket, +10" / "Поиск: название, +патрон, +карман, +10" / "Пошук:
+    назва, +набої, +кишень, +10" …, each language's own words for bonuses its cards name. The
+    whole hint on one line inside the box in every language (the longest, Russian: 342 of 377 px
+    in Ruffle); the lobby scales the box with the list, so every resolution alike; upright:
     every CLIK text box's hint is upright now (`TextInput.initialize`), as the lobby's Calibri
     has no italic and the game takes "Calibri Bold Italic" from the system's fonts, so under Wine
     without Calibri the hints (the friends search's too) showed as squares.

@@ -2458,7 +2458,7 @@ st_srp_inv_pellets	Schrotkugeln
 st_srp_inv_pocket_units	Taschenplätze
 st_srp_inv_stamina_damage	Ausdauerschaden
 st_srp_inv_throw_speed	Wurfgeschwindigkeit
-st_srp_inventory_search	Suche: +Patronen, +Tasche, +10
+st_srp_inventory_search	Suche: Name, +Patronen, +Tasche, +10
 st_srp_inventory_search_tip_all	ak +10 +Patronen: alles zugleich
 st_srp_inventory_search_tip_bonus	+Patronen +Tasche: hat jeden genannten Bonus
 st_srp_inventory_search_tip_faction	+Arme: von dieser Fraktion verkauft (mehrere: eine davon)

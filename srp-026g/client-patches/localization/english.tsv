@@ -2458,7 +2458,7 @@ st_srp_inv_pellets	Pellets
 st_srp_inv_pocket_units	Pocket slots
 st_srp_inv_stamina_damage	Stamina damage
 st_srp_inv_throw_speed	Throw speed
-st_srp_inventory_search	Search: +ammo, +pocket, +10
+st_srp_inventory_search	Search: name, +ammo, +pocket, +10
 st_srp_inventory_search_tip_all	ak +10 +ammo: all of these at once
 st_srp_inventory_search_tip_bonus	+ammo +pocket: has each bonus named
 st_srp_inventory_search_tip_faction	+army: sold by that faction (several: any)

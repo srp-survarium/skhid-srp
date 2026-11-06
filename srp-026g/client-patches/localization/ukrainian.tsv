@@ -2458,7 +2458,7 @@ st_srp_inv_pellets	Дробин
 st_srp_inv_pocket_units	Місце в кишені
 st_srp_inv_stamina_damage	Шкода витривалості
 st_srp_inv_throw_speed	Швидкість кидка
-st_srp_inventory_search	Пошук: +набої, +кишень, +10
+st_srp_inventory_search	Пошук: назва, +набої, +кишень, +10
 st_srp_inventory_search_tip_all	ак +10 +набої: усе разом
 st_srp_inventory_search_tip_bonus	+набої +кишень: є кожен названий бонус
 st_srp_inventory_search_tip_faction	+армія: продає ця фракція (кілька: будь-яка)

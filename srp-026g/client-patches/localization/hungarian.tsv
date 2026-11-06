@@ -2458,7 +2458,7 @@ st_srp_inv_pellets	Sörétek
 st_srp_inv_pocket_units	Zsebhelyek
 st_srp_inv_stamina_damage	Állóképesség-sebzés
 st_srp_inv_throw_speed	Dobási sebesség
-st_srp_inventory_search	Keresés: +lőszer, +zseb, +10
+st_srp_inventory_search	Keresés: név, +lőszer, +zseb, +10
 st_srp_inventory_search_tip_all	ak +10 +lőszer: mind egyszerre
 st_srp_inventory_search_tip_bonus	+lőszer +zseb: minden megnevezett bónusza megvan
 st_srp_inventory_search_tip_faction	+hadsereg: ez a frakció árulja (több: bármelyik)

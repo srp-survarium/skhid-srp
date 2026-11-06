@@ -171,7 +171,9 @@ package survarium.controls
       // panel's bounds reach higher than what shows)
       private static const SEARCH_PANEL_TOP:int = 19;
       
-      private static const SEARCH_WIDE:Number = 1.25;
+      // wide enough for the empty box's hint, its "+" examples whole in every language (owner
+      // 2026-11-06; the longest, Russian, 342 of 377 px in Ruffle: scripts/item-search/check.sh)
+      private static const SEARCH_WIDE:Number = 1.6;
       
       private static const SEARCH_GROW:int = 4;
       

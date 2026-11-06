@@ -2458,7 +2458,7 @@ st_srp_inv_pellets	Broky
 st_srp_inv_pocket_units	Místa v kapse
 st_srp_inv_stamina_damage	Poškození výdrže
 st_srp_inv_throw_speed	Rychlost hodu
-st_srp_inventory_search	Hledat: +sumky, +kapes, +10
+st_srp_inventory_search	Hledat: název, +sumky, +kapes, +10
 st_srp_inventory_search_tip_all	ak +10 +sumky: vše najednou
 st_srp_inventory_search_tip_bonus	+sumky +kapes: má každý uvedený bonus
 st_srp_inventory_search_tip_faction	+armáda: prodává ta frakce (více: kterákoli)

@@ -2458,7 +2458,7 @@ st_srp_inv_pellets	Шрацін
 st_srp_inv_pocket_units	Месца ў кішэні
 st_srp_inv_stamina_damage	Шкода вынослівасці
 st_srp_inv_throw_speed	Хуткасць кідка
-st_srp_inventory_search	Пошук: +патрон, +аддача, +10
+st_srp_inventory_search	Пошук: назва, +патрон, +аддача, +10
 st_srp_inventory_search_tip_all	ак +10 +патрон: усё адразу
 st_srp_inventory_search_tip_bonus	+патрон +артэфакт: ёсць кожны названы бонус
 st_srp_inventory_search_tip_faction	+армія: прадае гэтая фракцыя (некалькі: любая)

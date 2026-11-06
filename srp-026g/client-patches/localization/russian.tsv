@@ -2458,7 +2458,7 @@ st_srp_inv_pellets	Дробин
 st_srp_inv_pocket_units	Место в кармане
 st_srp_inv_stamina_damage	Урон выносливости
 st_srp_inv_throw_speed	Скорость броска
-st_srp_inventory_search	Поиск: +патрон, +карман, +10
+st_srp_inventory_search	Поиск: название, +патрон, +карман, +10
 st_srp_inventory_search_tip_all	ак +10 +патрон: всё сразу
 st_srp_inventory_search_tip_bonus	+патрон +карман: есть каждый названный бонус
 st_srp_inventory_search_tip_faction	+армия: продаёт эта фракция (несколько: любая)

@@ -2458,7 +2458,7 @@ st_srp_inv_pellets	Śruciny
 st_srp_inv_pocket_units	Miejsca w kieszeni
 st_srp_inv_stamina_damage	Obrażenia wytrzymałości
 st_srp_inv_throw_speed	Prędkość rzutu
-st_srp_inventory_search	Szukaj: +ładownice, +odrzut, +10
+st_srp_inventory_search	Szukaj: nazwa, +ładownice, +odrzut, +10
 st_srp_inventory_search_tip_all	ak +10 +ładownice: wszystko naraz
 st_srp_inventory_search_tip_bonus	+ładownice +kieszeni: ma każdy podany bonus
 st_srp_inventory_search_tip_faction	+armia: sprzedaje ta frakcja (kilka: dowolna)

@@ -2458,7 +2458,7 @@ st_srp_inv_pellets	Haulit
 st_srp_inv_pocket_units	Taskupaikat
 st_srp_inv_stamina_damage	Kestävyysvahinko
 st_srp_inv_throw_speed	Heittonopeus
-st_srp_inventory_search	Hae: +ammus, +tasku, +10
+st_srp_inventory_search	Hae: nimi, +ammus, +tasku, +10
 st_srp_inventory_search_tip_all	ak +10 +ammus: kaikki kerralla
 st_srp_inventory_search_tip_bonus	+ammus +tasku: on jokainen mainittu bonus
 st_srp_inventory_search_tip_faction	+armeija: tämän ryhmittymän myymä (monta: mikä tahansa)
