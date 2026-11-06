@@ -1,0 +1,20 @@
+{
+  "_about": "A rarely taken skill carried by a gun (the owner, 2026-11-06; docs/notes/weapon-skill-bonuses.md): modification 2120, hip-fire spread -10 % (skill 106's five ranks), on the gun's own dispersion/from_the_hip_multiplier (type 2: the cook multiplies it by 0.9), since a weapon registers no player modifier. Its card line is property 101 (Dispersion off the hip), as the gear's 1070..1074 show theirs. A type of its own (42, never rolled: drop weight 0). weapon-stats.tsv makes it the SV-1367 Dusk's built-in (column hip_bonus), modifications.tsv holds its row.",
+  "append_entry": [
+    {
+      "file": "gameplay/items/modifications/modifications.options",
+      "list": "modifications",
+      "expected_count": 162,
+      "unique_key": "id",
+      "value": {
+        "drop_weight": 0,
+        "lobby_info": {"from_the_hip_multiplier": -0.1},
+        "ui_desc": {"name": "st_dispersion_correction_perc_name", "icon": 7, "props_list": [{"prop_value": "-0.10", "prop_id": 101}]},
+        "type_mask": "0000000000000000000000000000000000000000001",
+        "type_requirements_mask": "0000000000000000000000000000000000000000001",
+        "id": 2120,
+        "modifiers": [{"path": ["dispersion", "from_the_hip_multiplier"], "value": -0.1, "type": 2}]
+      }
+    }
+  ]
+}

@@ -733,7 +733,7 @@ items	name	base_cost	gold	like	start
 2247	sks_premium_2	1000	true	sks	1230
 2248	vsk_94_premium	2500	true	vsk_94	1230
 2249	rem_700_premium	1000	true	rem_700	1230
-2250	vssk_camo	330000	false		
+2250	vssk_camo	165000	false		
 2251	izh_27_lancaster_premium_2	500	true	izh_27_lancaster	1230
 2252	uzi_premium_2	500	true	uzi	1230
 2253	ammo_23mm_r	10	false		

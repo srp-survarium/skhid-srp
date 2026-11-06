@@ -161,3 +161,4 @@ modifications	kind	value	op	drop_weight
 2112	parameters/bullet_pierce	0.03	2	6.4
 2113	parameters/bullet_pierce	0.04	2	5.12
 2114	parameters/bullet_pierce	0.05	2	4.096
+2120	dispersion/from_the_hip_multiplier	-0.1	2	0
