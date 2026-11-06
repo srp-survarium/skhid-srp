@@ -1656,8 +1656,9 @@ else
     # The planned time is the latest: once no match has run for
     # LAST_MATCH_MARGIN s (the plan's own margin after the last match),
     # while Play is locked (the countdown's last 30 min), the swap comes
-    # at once.
-    said=- idle_since=''
+    # at once (the margin as long as the minute is: 30 s, or half of a
+    # test's minute).
+    said=- idle_since='' margin=$((LAST_MATCH_MARGIN * MINUTE / 60))
     while (($(date +%s) < end)); do
         matches=$(matches_now)
         if [[ $matches != "$said" ]]; then
@@ -1667,7 +1668,7 @@ else
         now_s=$(date +%s)
         if [[ $matches != 0 ]] || ((end - now_s > 30 * MINUTE)); then
             idle_since=''
-        elif ((now_s - ${idle_since:=$now_s} >= LAST_MATCH_MARGIN)); then
+        elif ((now_s - ${idle_since:=$now_s} >= margin)); then
             progress "5. no match has run for $LAST_MATCH_MARGIN s: swapping now, $(((end - now_s + MINUTE - 1) / MINUTE)) min before the planned time"
             break
         fi
