@@ -32,13 +32,16 @@ pub mod account;
 pub mod autobuy;
 pub mod balance;
 pub mod bonus;
+pub mod bot_kits;
 pub mod bots;
 pub mod clans;
 pub mod extras;
 pub mod items_rules;
 pub mod known;
+pub mod level_stats;
 pub mod matches_now;
 pub mod matchmaking;
+pub mod mode_intro;
 pub mod moderation;
 pub mod names;
 pub mod notices;
@@ -275,8 +278,7 @@ impl GameAccounts {
     /// ([`pay::item_wear`], the default) every weapon and armour piece in
     /// it is made whole ([`Self::mend_gear`]): what matches wore before the
     /// switch would stay worn for ever. Once in the database's life
-    /// (`persist::GEAR_MENDED`), so an item found later, which arrives worn
-    /// ([`pay::drop_condition`]), stays as found until its owner repairs it.
+    /// (`persist::GEAR_MENDED`).
     ///
     /// The first time a database is opened by an srp with the golden-weapons
     /// rule, every golden weapon in it gets the silver bonus as its own
@@ -521,7 +523,7 @@ impl GameAccounts {
         self.accounts.locked().get(&account_id).cloned()
     }
 
-    /// The account with this id; made with the game's starting state
+    /// The account with this id; made with the stock state
     /// ([`Account::new`]) under `name` if it has none (a sign-in makes it
     /// with [`Self::sign_up`]).
     pub fn get_or_create(&self, account_id: u32, name: &str) -> Arc<Mutex<Account>> {
@@ -536,24 +538,35 @@ impl GameAccounts {
         account
     }
 
-    /// The account with this id; at its first 0.26g sign-in it is made, as
-    /// [`Self::get_or_create`] makes it, and given what the tutorial it no
-    /// longer has paid ([`tutorial::signup_grant`]). Whether it was made
-    /// now.
+    /// The account with this id; at its first 0.26g sign-in it is made
+    /// with nothing but what a new account is given
+    /// ([`tutorial::signup_grant`], the game data's table). Whether it was
+    /// made now.
     pub fn sign_up(&self, account_id: u32, name: &str) -> (Arc<Mutex<Account>>, bool) {
-        let made = !self.accounts.locked().contains_key(&account_id);
-        let account = self.get_or_create(account_id, name);
-        if made {
-            let wear_kit = self.starter_kit.load(Ordering::Relaxed);
-            tutorial::signup_grant_with(&mut account.locked(), wear_kit, quests::now());
+        let mut accounts = self.accounts.locked();
+        if let Some(account) = accounts.get(&account_id) {
+            return (account.clone(), false);
         }
-        (account, made)
+        let wear_kit = self.starter_kit.load(Ordering::Relaxed);
+        let mut account = if wear_kit {
+            let nothing = survarium::v026g::loadouts::Loadout { items: Vec::new() };
+            Account::with_loadout(name, &nothing)
+        } else {
+            Account::new(name)
+        };
+        tutorial::signup_grant_with(&mut account, wear_kit, quests::now());
+        let account = Arc::new(Mutex::new(account));
+        accounts.insert(account_id, account.clone());
+        drop(accounts);
+        self.mark_dirty(account_id);
+        (account, true)
     }
 
-    /// **Testing only**: whether a new account wears the starter kits and
-    /// has the starter premium (on by default). Off, its first kit is the
-    /// stock one (the TT-33), it has no premium, and the rest of the grant
-    /// is the same: the lobby's tests, written against such an account.
+    /// **Testing only**: whether a new account is made with what it is
+    /// given, the starter kits and premium too (on by default). Off, it is
+    /// the stock account ([`Account::new`]: the TT-33 worn, the Mosin and
+    /// the PPSh-41 owned) with the grant's money, rounds and reputation, no
+    /// premium: the lobby's tests, written against such an account.
     #[cfg(any(test, feature = "test-support"))]
     pub fn set_starter_kit(&self, on: bool) {
         self.starter_kit.store(on, Ordering::Relaxed);
@@ -682,6 +695,27 @@ impl GameAccounts {
             top: rows.into_iter().map(|(_, row)| row).collect(),
             battles,
         }
+    }
+
+    /// The server's bots' kits of every level from the accounts' kits and
+    /// presets ([`bot_kits`]); test bots ([`bots`]) are not counted. Locks
+    /// each account in turn: call it with none locked.
+    pub fn bot_kits(&self, now: u64) -> bot_kits::BotKits {
+        let accounts: Vec<(u32, Arc<Mutex<Account>>)> = self
+            .accounts
+            .locked()
+            .iter()
+            .map(|(&id, account)| (id, account.clone()))
+            .collect();
+        let bots = self.bots.locked().clone();
+        let mut gathering = bot_kits::Gathering::default();
+        for (id, account) in accounts {
+            let account = account.locked();
+            if !bots.contains(&account.name.to_ascii_lowercase()) {
+                gathering.add(id, &account, now);
+            }
+        }
+        gathering.finish()
     }
 
     /// The account changed: it is written on the next pass. Never waits on

@@ -1,0 +1,31 @@
+From: Survarium local-client maintenance
+Subject: [PATCH] winex11: Detect the same XKB group used for scan-code mapping.
+
+init_keycode_mappings reads group zero through XLookupString (state zero),
+XLookupKeysym and XkbKeycodeToKeysym. Detecting the active group instead can
+select a Cyrillic comparison table for Latin group-zero symbols. Unmatched
+letter keys then receive arbitrary scan codes, which persist after switching
+back to English. Detect group zero consistently; event text translation still
+uses the event's actual group.
+
+--- a/dlls/winex11.drv/keyboard.c
++++ b/dlls/winex11.drv/keyboard.c
+@@ -2014,7 +2014,7 @@
+             if (find_xkb_layout_variant( names[i], &layout, &variant ))
+             {
+                 lang = langid_from_xkb_layout( layout );
+-                if (i == xkb_group) xkb_lang = lang;
++                if (i == 0) xkb_lang = lang;
+ 
+                 TRACE( "Found group %u with name %s -> layout %s:%s, lang %04x\n", i, debugstr_a(names[i]),
+                        debugstr_a(layout), debugstr_a(variant), lang );
+@@ -2024,7 +2024,8 @@
+         XkbFreeKeyboard( xkb_desc, 0, True );
+     }
+ 
+-    detect_keyboard_layout( display, mmp, xkb_group );
++    /* init_keycode_mappings reads group zero, independently of the active group. */
++    detect_keyboard_layout( display, mmp, 0 );
+     XFreeModifiermap( mmp );
+ 
+     if (xkb_lang && xkb_lang != main_key_tab[kbd_layout].lcid)

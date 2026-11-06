@@ -801,11 +801,11 @@ fn soak_tuned(
     let driven = vec![true; teams.len()];
     let roles: Vec<Option<&str>> = vec![None; teams.len()];
     let mode = if timed_s.is_some() {
-        survarium::v026g::maps::mode::TIMED_BATTERIES
+        survarium::v026g::maps::RuleMode::TimedBatteries
     } else if win > 0 {
-        survarium::v026g::maps::mode::BATTERIES
+        survarium::v026g::maps::RuleMode::Batteries
     } else {
-        survarium::v026g::maps::mode::TEAM_DEATHMATCH
+        survarium::v026g::maps::RuleMode::TeamDeathmatch
     };
     let mut bots = Bots::new(
         0x50AC + seed as u32,
@@ -1014,7 +1014,7 @@ fn the_bots_rest_through_the_start_countdown() {
     let teams: Vec<u8> = (0..4).map(|p| u8::from(p >= 2)).collect();
     let mut bots = Bots::new(
         0x50AC,
-        survarium::v026g::maps::mode::BATTERIES,
+        survarium::v026g::maps::RuleMode::Batteries,
         0,
         &teams,
         &[true; 4],
@@ -1278,7 +1278,7 @@ fn a_bot_standing_on_a_battery_steps_off_and_takes_it() {
     let teams = [0u8, 1];
     let mut bots = Bots::new(
         0x7A6E,
-        survarium::v026g::maps::mode::BATTERIES,
+        survarium::v026g::maps::RuleMode::Batteries,
         0,
         &teams,
         &[true, false],
@@ -1353,7 +1353,7 @@ fn a_bot_takes_a_battery_from_round_a_wall_its_use_cannot_pass() {
     let teams = [0u8, 1];
     let mut bots = Bots::new(
         0x7A6F,
-        survarium::v026g::maps::mode::BATTERIES,
+        survarium::v026g::maps::RuleMode::Batteries,
         0,
         &teams,
         &[true, false],
@@ -1465,7 +1465,7 @@ fn lost_battery_run(look_weight: Option<f32>, limit: u32) -> LostBattery {
     let teams = [0u8, 1];
     let mut bots = Bots::new(
         0x15AA,
-        survarium::v026g::maps::mode::BATTERIES,
+        survarium::v026g::maps::RuleMode::Batteries,
         0,
         &teams,
         &[true, false],
@@ -1618,7 +1618,7 @@ fn theft_drop_run(weight: Option<f32>, drop_at: Vec3, drop_ms: u32, limit: u32) 
     let teams = [0u8, 1];
     let mut bots = Bots::new(
         0xF2,
-        survarium::v026g::maps::mode::BATTERIES,
+        survarium::v026g::maps::RuleMode::Batteries,
         0,
         &teams,
         &[true, false],
@@ -1951,21 +1951,21 @@ fn real_bot_cost() {
         .ok()
         .and_then(|s| s.parse().ok())
         .unwrap_or(0);
-    use survarium::v026g::maps::mode;
-    let maps: Vec<(u8, u8)> = std::env::var("SRP_BENCH_MAPS")
+    use survarium::v026g::maps::RuleMode;
+    let maps: Vec<(u8, RuleMode)> = std::env::var("SRP_BENCH_MAPS")
         .ok()
         .map(|s| {
             s.split(',')
                 .filter_map(|m| {
                     let (level, mode) = m.split_once('/')?;
-                    Some((level.parse().ok()?, mode.parse().ok()?))
+                    Some((level.parse().ok()?, RuleMode::of_config(mode.parse().ok()?)?))
                 })
                 .collect()
         })
         .unwrap_or(vec![
-            (6, mode::BATTERIES),
-            (1, mode::TEAM_DEATHMATCH),
-            (3, mode::TIMED_BATTERIES),
+            (6, RuleMode::Batteries),
+            (1, RuleMode::TeamDeathmatch),
+            (3, RuleMode::TimedBatteries),
         ]);
     for (level, mode) in maps {
         let project = format!("level_{level:02}/day_{mode}");
@@ -2013,8 +2013,8 @@ fn real_bot_cost() {
             let ready_mb = memory_mb().map(|(now, _)| now);
             reset_peak_memory();
             let (tickets, timed) = match mode {
-                mode::TEAM_DEATHMATCH => (Some(60), None),
-                mode::TIMED_BATTERIES => (None, Some(20_000)),
+                RuleMode::TeamDeathmatch => (Some(60), None),
+                RuleMode::TimedBatteries => (None, Some(20_000)),
                 _ => (None, None),
             };
             let mut game = Game::new(
@@ -2032,7 +2032,7 @@ fn real_bot_cost() {
                 .ok()
                 .and_then(|n| n.parse::<usize>().ok())
                 && timed.is_none()
-                && mode != mode::TEAM_DEATHMATCH
+                && mode != RuleMode::TeamDeathmatch
             {
                 let mut items: Vec<Vec3> =
                     world.map.battery_spawners.iter().map(|s| s.item).collect();
@@ -2053,7 +2053,7 @@ fn real_bot_cost() {
                     let (a, b) = s.split_once(',')?;
                     Some([a.trim().parse().ok()?, b.trim().parse().ok()?])
                 })
-                .filter(|_| mode != mode::TEAM_DEATHMATCH)
+                .filter(|_| mode != RuleMode::TeamDeathmatch)
                 .unwrap_or([0, 0]);
             let mut lying = 0..game.batteries.len();
             for team in 0..2u8 {
@@ -2541,13 +2541,13 @@ fn standing(time: u32, x: f32, alive: bool) -> Fix {
 /// A bot that left is forgotten by the others.
 #[test]
 fn a_bot_that_left_is_forgotten() {
-    use survarium::v026g::maps::mode;
+    use survarium::v026g::maps::RuleMode;
     // A human of team 0 at x = 0; team 1's bots at 5, 40 and 30 m.
     let teams = [0, 1, 1, 1];
     let driven = [false, true, true, true];
     let mut bots = Bots::new(
         0x6A7E,
-        mode::BATTERIES,
+        RuleMode::Batteries,
         0,
         &teams,
         &driven,
@@ -2600,7 +2600,7 @@ fn a_dropped_battery_put_back_after_a_fall_stays_on_its_teams_hud() {
     let teams = [0, 1];
     let mut bots = Bots::new(
         0xF1,
-        survarium::v026g::maps::mode::BATTERIES,
+        survarium::v026g::maps::RuleMode::Batteries,
         0,
         &teams,
         &[true, true],
@@ -2648,7 +2648,7 @@ fn a_dropped_battery_put_back_after_a_fall_stays_on_its_teams_hud() {
 fn a_bot_spent_of_its_first_kit_picks_its_second_for_the_next_life() {
     let mut bots = Bots::new(
         0x417,
-        survarium::v026g::maps::mode::BATTERIES,
+        survarium::v026g::maps::RuleMode::Batteries,
         0,
         &[0, 1],
         &[true, true],
@@ -2688,6 +2688,45 @@ fn a_bot_spent_of_its_first_kit_picks_its_second_for_the_next_life() {
     assert_eq!(rusher.kits[1].0.primary.0.item, "uzi");
 }
 
+/// A bot of the lobby wears its profile's kits (its match's equipment
+/// level, `session::v026g::bot_kits`): their weapons, rounds and pockets
+/// from its first life, in place of its role's fixed ones; a place that is
+/// no bot, or kits of no known weapon, change nothing.
+#[test]
+fn a_bot_wears_the_kits_of_its_profile() {
+    use survarium::v026g::loadouts::BotRole;
+    use survarium::v026g::loadouts::bot_gear::bot_kit_of;
+    let dictionary = survarium::v026g::dictionary::Dictionary::shared();
+    let dict = |name: &str| dictionary.item_named(name).unwrap().dict_id;
+    let mut bots = Bots::new(
+        0x418,
+        survarium::v026g::maps::RuleMode::Batteries,
+        0,
+        &[0, 1],
+        &[true, false],
+        &[Some("camper"), None],
+        Arc::new(Tuning::default()),
+        Trace::none(0),
+    );
+    let svd = bot_kit_of(&[], dict("svd"), dict("ammo_7.62x54_7n1"), BotRole::Camper).unwrap();
+    let ak = bot_kit_of(&[], dict("ak_12"), dict("ammo_6.5x39"), BotRole::Support).unwrap();
+    let kits: Vec<Arms> = [&svd, &ak].into_iter().filter_map(Arms::of_kit).collect();
+    bots.wear(0, kits.clone());
+    bots.wear(1, kits);
+    bots.wear(0, Vec::new());
+    assert!(bots.bots[1].is_none());
+    let bot = bots.bots[0].as_mut().unwrap();
+    assert_eq!(bot.kits.len(), 2);
+    assert_eq!(bot.reflex.held_gun().item, "svd");
+    assert_eq!(bot.reflex.left(), 120);
+    assert_eq!(bot.kits[1].0.primary.0.item, "ak_12");
+    // Bare kits: one pocket, a medkit, no grenade.
+    assert_eq!((bot.kits[0].0.medkits, bot.kits[0].0.grenades), (1, 0));
+    // Its next life is still in the SVD's kit.
+    bot.new_life(0.5, None, Vec3::ZERO);
+    assert_eq!((bot.kit, bot.reflex.held_gun().item), (0, "svd"));
+}
+
 /// Match 0x5402a730 (2026-10-16): the client's world has a dead body
 /// without feet, and `game::driven` hands the bots its bodies before its
 /// statistics, so the death the statistics show came with no spot: no
@@ -2700,7 +2739,7 @@ fn a_partners_death_the_world_shows_without_feet_is_traded_by_both_teammates() {
     let teams = [0, 0, 0, 1, 1, 1];
     let mut bots = Bots::new(
         0x5402,
-        survarium::v026g::maps::mode::BATTERIES,
+        survarium::v026g::maps::RuleMode::Batteries,
         0,
         &teams,
         &[true; 6],

@@ -65,16 +65,36 @@ the site and its callee (section 3), and checked against the exe.
 A patch never touches a raw address or an `unsafe` block. Everything is in
 one crate, `client-patches/rust/patches`, in three layers:
 
-- **`raw`** (generated, unsafe, no logic): `extern` declarations for every
-  game function and the address of every object field. engine_026g.py writes
-  it (`engine_026g.rs`) from `engine_026g.tsv` (the functions) and
-  `fields_026g.tsv` (the fields). A function Rust can call directly (stdcall,
-  cdecl, thiscall) is declared in that convention at its VA; one the game
-  takes in registers keeps its cdecl thunk (block `engine.code`). kernel32's
-  imports are declarations over their IAT slots. Only `vostok` names `raw`.
-- **`vostok`** (the engine, safe and typed): handles (`InputHandler`),
-  enums and newtypes (`Action`, `ActionState`, `ActionMask`), and the hook
-  system. It is the only place with `unsafe`, each block with its invariant.
+- **`raw`** (generated, unsafe, no logic): the only layer that knows the
+  game's memory. engine_026g.py writes it (`raw_026g.rs`) from
+  `engine_026g.tsv` (the functions), `fields_026g.tsv` (the kinds and their
+  fields) and `sites_026g.tsv`'s `holds` (what a site's registers hold):
+  - a handle per kind, a `#[repr(transparent)]` pointer that is never 0
+    (`Player`, `MovieHolder`, `GfxMovie`, ...), with an unsafe accessor
+    per field of its own. A field's `type` says what it is: a plain value
+    (`u8` .. `f32`: its place), `ptr<kind>` (read: `Option<Kind>`),
+    `ptr<u8>`/`ptr<f32>` (plain data: a C string, matrices), `obj<kind>`
+    (one inside it, at the offset) or `size` (the kind's size: `at(i)`
+    and `index_from` over an array of them, and `<Kind>Storage`, room of
+    ours for one);
+  - every game function, its prototype's `struct <kind> *` that kind's
+    handle (`Option`, as C may pass or return 0). A function Rust can call
+    directly (stdcall, cdecl, thiscall) is declared in that convention at its
+    VA; one the game takes in registers keeps its cdecl thunk (block
+    `engine.code`). kernel32's imports are declarations over their IAT slots;
+  - `raw::site::<site>::<name>(machine)`: the handle a site's register (or
+    its frame, by ESP or EBP) holds, as the site's `holds` declares it.
+
+  A handle is made there alone: from a typed field, a function's typed
+  result or a site's typed register; there is no constructor from a number.
+  Only `vostok` names `raw`. (`engine_026g.rs` is the same functions with
+  C's types, for research_arena.)
+- **`vostok`** (the engine, safe and typed): what the handles mean -- its
+  own handles borrowing the hook's thread (`InputHandler`, `Player`,
+  `Movie`), enums and newtypes (`Action`, `ActionState`, `ActionMask`),
+  and the hook system. It is the only place with `unsafe`: calls of
+  `raw`'s accessors, each saying why the object is alive on that thread,
+  never an address or an offset.
   The runtime lives here too (the log, the panic handler, `memcpy`/`memset`,
   `c_u32`), in `vostok::rt`/`vostok::log`.
 - **The patches** (`patches::<patch>`, one module each): safe logic over
@@ -129,6 +149,7 @@ NH3API's HiHook/LoHook applied at build time:
 | `callback` | a function the game is handed | its typed arguments |
 | `write` | a `byte`, `word`, `dword`, `float`, `bytes` or pointer, with its expected original | nothing |
 | `code` | hand-written NASM with a byte limit, where nothing above fits | -- |
+| `entry` | a Rust handler our own NASM calls (cdecl; a site row with VA `-`, its arguments the frame at ESP in `holds`), installed nowhere: the build writes its address where our code calls it | `&mut Context`, returning `Flow::Continue` |
 
 **`Context` (`lohook`)**: the registers (`reg`/`set_reg`, `set_reg8` for
 `al`/`bl`/..), the flags (`set_flag` for a following `jcc`), xmm0..7
@@ -146,9 +167,14 @@ written into the saved state (or `st0` loaded) on the way out. A `call`/
 `eax`/`ecx`/`edx`/xmm as clobbered, so it only aligns the stack, passes the
 arguments and cleans up as the function did; it adds no `fxsave`.
 
-**Chains**: several hooks on the same site declare an `order`; a partial
-overlap fails the build. In a `call`/`splice` chain each handler's `Original`
-is the next; in a `lohook` chain the first non-`Continue` flow ends it.
+**`entry`**: the way from our own NASM into Rust (patch 48's preview apply calls patch 68's). Its generated entry saves the machine and aligns the stack as a lohook's does, so the Context's site ESP is the caller's (the return address, then the arguments), and returns with `ret`; the caller pops its arguments. Never a hand-written `#[no_mangle]` export called from NASM: rustc's i686 code keeps 16-byte locals with movaps and assumes 16 at every call, and the game's stack (our NASM's too) is aligned to 4 only, a #GP on a real CPU that Unicorn does not raise (#893's review). `check_hooks_026g.py` runs the entry from each of the four skews.
+
+**Lohook chains**: handlers sharing an exact named site declare distinct
+integer `order`s. A single entry saves/restores the machine; handlers observe
+earlier Context writes and the first non-`Continue` ends the chain. A partial
+overlap, mismatched site/span/exits, absent order or duplicate order fails the
+build. Lamps and ragdolls share their frame/ray sites this way. `call`/`splice`
+chains remain unsupported.
 **Cross-patch**: a patch names another in `uses` and calls its `pub fn`s.
 State shared between hooks is a `vostok::GameCell<T>`, reachable only inside
 a hook (a `Thread` token), so patch code stays safe and single-threaded.
@@ -157,6 +183,10 @@ bullet manager's) is a `vostok::Lock<T>` instead: a spin lock, its value
 `&mut` inside `with`, a lock taken again on its own thread a panic. A
 static that is not all zeros goes to `patches.data`, a zero one to
 `patches.state` (ARENA).
+The crash report's breadcrumbs are `vostok::breadcrumbs::record(thread,
+Crumb::...)`: a hook at a notable event (never a frame) records one into a
+ring of 1024 in `patches.state`, which the crash reporter reads after a
+crash (`client/bugtrap/src/breadcrumbs.rs`, README "Crash details").
 
 The declaration is names only; the facts are in the tables:
 
@@ -218,17 +248,47 @@ kept, the right bytes cleaned):
   types.
 
 `write` is the design above; a register-ABI `call` still needs its reverse
-thunk. `call` (the suicide-key example) and `lohook` (patch 76, the ragdoll's
-five; patch 65, Blackout's five) ship; the other kinds' generators are proven by check_hooks_026g.py and
-wait for their first patch to wire the install into patch_026g.py. A span
+thunk. `call`, `lohook`, runtime `vtable` copies and runtime `callback`s ship.
+Other pointer installs remain refused. The convention entries themselves are
+exercised by `check_hooks_026g.py`.
+
+A **runtime callback** is a `callback` site whose callee is a game function of
+the convention the game calls it in (`resources.query_done`: 0x14730, the cdecl
+`f(queries_result&, value)` a boost function of 0x176D0 calls). No site is
+rewritten: the generator writes the entry (`RUST_CDECL`/`RUST_THISCALL`), a
+marker type for the convention (no `Original`: the callee only names it, so the
+handler gets the typed arguments alone, each a binding, never a fallible one),
+and `<patch>_<handler>_entry() -> CallbackEntry<Marker>`, which vostok hands the
+game (`vostok::resources::query_track`). Patch 88's query callback is the first.
+
+A runtime vtable declaration names its source in `fields_026g.tsv`:
+
+```toml
+[[vtable]]
+name = "visual"
+source = "visual_methods"
+check = "check_lamps_026g.py"
+```
+
+The source is an image `obj<methods>` row. Its kind supplies the size and RTTI
+field at -4. Individual `[[hook]]` rows name vtable sites whose callees carry
+the native and Vostok signatures; their `proof` labels identify native dispatch
+checks. Generation copies RTTI and untouched slots from the original exe,
+checks every replaced slot's native callee, and returns an opaque
+`NativeVtable<T>` handle. Only the project registry installs it on resolved
+objects. The same declarations generate `INSTALLED_VTABLES` audit rows.
+A missing, ambiguous, unproved or incorrectly typed copy fails the build. A span
 hook's bytes come from the original exe: patch_026g.py's `rust_hooks()`
 reads them from the exe it builds from (hooks_026g.py and the checks take
 `SRP_026G_EXE`), and INSTALLS declares every lohook a JUMP from its site row.
-Which register or frame slot a site holds is said once, in vostok's view of
-that site (`vostok::draw`, `vostok::bullet`, ...); the site row's `what`
-says it for the reader. A frame local is a `fields_026g.tsv` row with a
-negative offset (by EBP); a data VA the code compares with (a vtable) is a
-row of the kind `<...>::image`, generated as a constant.
+Which kind a site's register or frame holds is said once, in the site row's
+`holds` (`player=EBX:survarium::player frame=EBP:survarium::mt_draw_frame`;
+ESP is the site's own), from which `raw::site` is generated; vostok's view
+of the site (`vostok::draw`, `vostok::bullet`, ...) says what it means. A
+frame is a kind of `fields_026g.tsv` whose rows are its locals (a negative
+offset by EBP); a data VA the code compares with (a vtable) is a row of the
+kind `<...>::image`, generated as a constant (an object there, `obj<kind>`,
+as its handle). A slot whose kind is not known stays a plain `u32`.
 
 **fxsave on `lohook`/`splice`, not `call`/`pointer`/`callback` (the owner's
 rule, kept).** A `lohook` and a `splice` are true detours: the game does not
@@ -269,8 +329,7 @@ bit when the key went down.
    bit, and asks the game's own function for the spot the site wanted.
 3. **The declaration** (names only): `rust/patches/src/suicide_key.toml` with
    `[[hook]] site = "input_builder.spot_query"`, `handler = "on_spot"`;
-   `pub mod suicide_key` in `lib.rs`, `"suicide_key"` in `RUST_PATCHES`
-   (patch_026g.py).
+   `pub mod suicide_key` in `lib.rs`.
 4. **Build**: `python engine_026g.py --write` (if the TSVs changed),
    `python hooks_026g.py --write`, `python link_026g.py --write` (the lock).
 5. **Check** (section 5).
@@ -278,7 +337,7 @@ bit when the key went down.
 ## 5. The build and the checks
 
 - **Generators**: engine_026g.py (`--write`/`--check`) writes the `raw`
-  layer; hooks_026g.py (`--write`/`--check`) writes the entries and shims
+  layer (`raw_026g.rs`); hooks_026g.py (`--write`/`--check`) writes the entries and shims
   from the TOML and lists the installs (with their owning patch) for
   patch_026g.py. link_026g.py links the arena and writes the lock; it builds
   the crate and runs the layer check first.
@@ -297,10 +356,11 @@ bit when the key went down.
   without the bit, the consumer and its one caller, the site, the generated
   entry's shape, the blocks and the lock) plus the engine, hooks-staleness
   and layer checks.
+- **The alignment probe** (`align_probe_026g.py`): Unicorn does not fault on a misaligned aligned-SSE operand. A check that imports it and calls `install()` has every Unicorn machine check each aligned-SSE memory operand our code runs (`.srp` to the arena's end) and reports the misaligned ones; `python align_probe_026g.py check_<patch>_026g.py <exe>` runs any check under it unchanged. `check_weapon_kit_026g.py` and `check_upgrade_preview_026g.py` have it built in.
 - **Not run in a game** until the owner plays it.
 
 The generator regressions can also run alone in the dev shell, from
-`client-patches`: `python -m unittest test_hooks_026g port.test_equiv_026g`.
+`client-patches`: `python -m unittest test_hooks_026g test_runtime_hooks_026g port.test_equiv_026g`.
 They check forward/backward/wrapping calls, span decoding, multiple generated
 Originals compiled and run on i686, and both equivalence-build subprocesses.
 The self-test runs them too; `check_hooks_026g.py` also checks incoming flags

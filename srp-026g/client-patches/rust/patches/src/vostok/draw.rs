@@ -2,16 +2,17 @@
 //! cull (`player_draw.cull`) and the bones made (`player_draw.bones`).
 //! What each site's registers hold is said here, once.
 
-use core::ffi::c_void;
-
 use super::context::{Context, Flag, Flow, NoExit, Reg};
-use super::world::{Player, floats};
+use super::world::{Player, Skeleton, floats, read};
 use crate::raw;
 
-/// The player at `player_draw.held_item` (EBX), when it holds nothing:
-/// mt_draw then skips every bone update (the `je 0x24781E` after the span).
+/// The player at `player_draw.held_item`, when it holds nothing: mt_draw
+/// then skips every bone update (the `je 0x24781E` after the span).
 pub fn unheld_player<'t>(ctx: &'t Context<'_>) -> Option<Player<'t>> {
-    Player::at(ctx, Reg::Ebx).filter(|p| p.held() == super::world::Held::Nothing)
+    // SAFETY: the context is this site's: the player mt_draw draws, alive
+    // while it does, on its thread.
+    Player::of(ctx, unsafe { raw::site::player_draw_held_item::player(ctx) })
+        .filter(|p| p.held() == super::world::Held::Nothing)
 }
 
 /// The bones of a player mt_draw made none for, given to the renderer as
@@ -23,12 +24,25 @@ pub fn post_bones(player: &Player<'_>, bones: &[[f32; 16]]) -> bool {
     let Some((scene, instance)) = player.renderer() else { return false };
     let count = bones.len().min(MAX_BONES);
     // SAFETY: the scene renderer and the render instance mt_draw passes
-    // (read through the same fields); our matrices, `count` of them, which
-    // update_skeleton copies into its command.
+    // (read through the same fields), alive for the draw; our matrices,
+    // `count` of them, which update_skeleton copies into its command.
     unsafe {
-        raw::engine_update_skeleton(scene, instance, bones.as_ptr().cast(), bones.as_ptr().cast(), count as u32)
+        raw::engine_update_skeleton(Some(scene), Some(instance), bones.as_ptr().cast(), bones.as_ptr().cast(),
+                                    count as u32)
     };
     true
+}
+
+/// A command owning copies of all 69 animation matrices and the separate
+/// render bone. update_skeleton copies both arrays before returning.
+pub fn post_headwear(player: &Player<'_>, bones: &[[f32; 16]], extra: Option<[f32; 16]>) -> bool {
+    if bones.len() != super::headwear::BONE || super::headwear::of_player(player).is_none() {
+        return false;
+    }
+    let mut extended = [[0.0; 16]; super::headwear::COUNT];
+    extended[..bones.len()].copy_from_slice(bones);
+    extended[super::headwear::BONE] = extra.unwrap_or(bones[super::headwear::HEAD]);
+    post_bones(player, &extended)
 }
 
 /// The most matrices update_skeleton takes (its abi row: at most 80).
@@ -40,9 +54,11 @@ pub fn no_held_item(ctx: &mut Context<'_>) {
     ctx.set_reg(Reg::Esi, 0);
 }
 
-/// The player mt_draw culls (EBX at `player_draw.cull`).
+/// The player mt_draw culls (at `player_draw.cull`).
 pub fn culled_player<'t>(ctx: &'t Context<'_>) -> Option<Player<'t>> {
-    Player::at(ctx, Reg::Ebx)
+    // SAFETY: the context is this site's: the player mt_draw draws, alive
+    // while it does, on its thread.
+    Player::of(ctx, unsafe { raw::site::player_draw_cull::player(ctx) })
 }
 
 /// The cull's way for a player drawn whatever its model was last seen as:
@@ -52,11 +68,16 @@ pub fn draw_anyway(ctx: &mut Context<'_>) -> Flow<NoExit> {
     Flow::Skip
 }
 
-/// mt_draw's bones at `player_draw.bones` (EBX the player, EBP its frame):
+/// mt_draw's bones at `player_draw.bones` (the player and mt_draw's frame):
 /// the skeleton's model-space matrices, the game's order (the root,
 /// object_movement, has none: matrix `i` is bone `i + 1`'s). Only the draw
 /// reads them (its stack array); writing one changes what is drawn alone.
+#[derive(Clone, Copy)]
+enum BonePass { Render, Damage }
+impl BonePass { fn layer(self) -> u8 { match self { Self::Render => 1, Self::Damage => 2 } } }
 pub struct DrawnBones<'t> {
+    pass: BonePass,
+    skeleton: Skeleton<'t>,
     player: Player<'t>,
     bones: *mut [f32; 16],
     count: u32,
@@ -64,14 +85,44 @@ pub struct DrawnBones<'t> {
 
 impl<'t> DrawnBones<'t> {
     pub fn at(ctx: &'t Context<'_>) -> Option<DrawnBones<'t>> {
-        let player = Player::at(ctx, Reg::Ebx)?;
-        let frame = ctx.reg(Reg::Ebp) as usize as *mut c_void;
-        // SAFETY: mt_draw's frame at the site (EBP): its locals, the bones'
-        // array and its count.
-        let (bones, count) =
-            unsafe { (super::world::read(raw::mt_draw_frame::bones(frame)), super::world::read(raw::mt_draw_frame::bone_count(frame))) };
-        (bones != 0).then_some(DrawnBones { player, bones: bones as usize as *mut [f32; 16], count })
+        use raw::site::player_draw_bones as site;
+        // SAFETY: the context is this site's: the player mt_draw draws and
+        // its frame, alive while it draws, on its thread.
+        let (player, frame) = unsafe { (site::player(ctx), site::frame(ctx)) };
+        Self::of(ctx, player, frame)
     }
+
+    /// The same bones at `player_draw.post_bones` (mt_draw's frame and
+    /// player, before update_skeleton's arguments are pushed).
+    pub fn at_post_bones(ctx: &'t Context<'_>) -> Option<DrawnBones<'t>> {
+        use raw::site::player_draw_post_bones as site;
+        // SAFETY: as `at`, this site's player and frame.
+        let (player, frame) = unsafe { (site::player(ctx), site::frame(ctx)) };
+        Self::of(ctx, player, frame)
+    }
+
+    fn of(ctx: &'t Context<'_>, player: Option<raw::Player>, frame: Option<raw::MtDrawFrame>) -> Option<DrawnBones<'t>> {
+        // SAFETY: mt_draw's frame, whose locals are the bones' array and its
+        // count, alive while it draws.
+        let (bones, count) = unsafe {
+            let frame = frame?;
+            (frame.bones(), read(frame.bone_count()))
+        };
+        let player = Player::of(ctx, player)?;
+        (!bones.is_null()).then_some(DrawnBones { pass: BonePass::Render, skeleton: player.skeleton()?, player, bones: bones.cast(), count })
+    }
+
+    pub fn at_damage(ctx: &'t Context<'_>) -> Option<Self> {
+        // SAFETY: documented live player at the hit-model update site.
+        let player = Player::of(ctx, unsafe { raw::site::carry_damage_bones::player(ctx) })?;
+        // SAFETY: the same site's typed registers: the bones and their count.
+        let (bones, count) = unsafe { (raw::site::carry_damage_bones::bones(ctx)?, raw::site::carry_damage_bones::count(ctx)) };
+        // SAFETY: a bone matrix's 16 f32 start at its value.
+        Some(Self { pass: BonePass::Damage, skeleton: player.core_skeleton()?,
+            player, bones: unsafe { bones.value() }.cast(), count })
+    }
+    pub fn computed(&self, index: u32) -> bool { self.skeleton.bone_computed(index + 1, self.pass.layer()) }
+    pub fn skeleton(&self) -> &Skeleton<'t> { &self.skeleton }
 
     pub fn player(&self) -> Player<'t> {
         self.player
@@ -93,5 +144,17 @@ impl<'t> DrawnBones<'t> {
             // SAFETY: as get; the draw's own array.
             unsafe { self.bones.add(index as usize).write_volatile(matrix) }
         }
+    }
+
+    pub fn post_headwear(&self, extra: Option<[f32; 16]>) -> bool {
+        if self.count as usize != super::headwear::BONE {
+            return false;
+        }
+        let mut matrices = [[0.0; 16]; super::headwear::BONE];
+        for (i, matrix) in matrices.iter_mut().enumerate() {
+            let Some(value) = self.get(i as u32) else { return false };
+            *matrix = value;
+        }
+        post_headwear(&self.player, &matrices, extra)
     }
 }

@@ -51,21 +51,21 @@ fn sender_flushes_odd_frame_and_wraps_utterance() {
     let mut sender = Sender::new(123, u16::MAX);
     assert!(matches!(
         wire::parse(&sender.start(9)),
-        Some(Message::Start { utt: u16::MAX, .. })
+        Ok(Message::Start { utt: u16::MAX, .. })
     ));
     assert!(sender.frame(&[1, 2]).is_none());
     assert!(
-        matches!(wire::parse(&sender.flush().unwrap()),Some(Message::Audio{seq:0,frames,..})if frames==vec![vec![1,2]])
+        matches!(wire::parse(&sender.flush().unwrap()),Ok(Message::Audio{seq:0,frames,..})if frames==vec![vec![1,2]])
     );
     assert!(matches!(
         wire::parse(&sender.end().unwrap()),
-        Some(Message::End { frames: 1, .. })
+        Ok(Message::End { frames: 1, .. })
     ));
     assert!(sender.end().is_none());
     assert!(sender.frame(&[1]).is_none());
     assert!(matches!(
         wire::parse(&sender.start(10)),
-        Some(Message::Start { utt: 0, .. })
+        Ok(Message::Start { utt: 0, .. })
     ));
 }
 #[test]
@@ -262,4 +262,297 @@ fn roster_replacement_resets_only_departed_speaker() {
     core.reset_slot(3);
     core.receive(&packet(1, &frames[2..]), 40);
     assert_eq!(core.talking(40), 1 << 4);
+}
+/// One well-formed datagram of each type the relay sends.
+fn relayed() -> Vec<Vec<u8>> {
+    [
+        Message::Welcome { slot: 4 },
+        Message::Roster {
+            entries: vec![(0, 7), (4, 9)],
+        },
+        Message::RelayStart {
+            slot: 4,
+            utt: 2,
+            ms: 9,
+        },
+        packet(0, &encoded(2)),
+        Message::RelayEnd {
+            slot: 4,
+            utt: 2,
+            reason: 0,
+        },
+    ]
+    .iter()
+    .map(|message| message.encode().unwrap())
+    .collect()
+}
+#[test]
+fn truncated_or_extended_datagrams_are_malformed() {
+    use wire::Malformed;
+    for bytes in relayed() {
+        assert!(wire::parse(&bytes).is_ok());
+        for len in 0..bytes.len() {
+            assert!(wire::parse(&bytes[..len]).is_err(), "{:?}", &bytes[..len]);
+        }
+        let mut longer = bytes.clone();
+        longer.push(0);
+        assert!(wire::parse(&longer).is_err(), "{longer:?}");
+    }
+    assert_eq!(wire::parse(&[]), Err(Malformed::Short));
+    assert_eq!(wire::parse(&[0x56, 1]), Err(Malformed::Short));
+    assert_eq!(wire::parse(&[0x56, 1, 0x81]), Err(Malformed::Length));
+    assert_eq!(wire::parse(&[0x56, 1, 0x81, 3, 0]), Err(Malformed::Length));
+}
+#[test]
+fn oversize_bad_version_type_and_slot_are_malformed() {
+    use wire::Malformed;
+    let mut large = relayed().swap_remove(3);
+    large.resize(wire::MAX_DATAGRAM + 1, 0);
+    assert_eq!(wire::parse(&large), Err(Malformed::TooLarge));
+    assert_eq!(wire::parse(&[0x57, 1, 0x81, 0]), Err(Malformed::NotVoice));
+    assert_eq!(wire::parse(&[0x56, 2, 0x81, 0]), Err(Malformed::Version(2)));
+    for kind in [0x00, 0x05, 0x85, 0x8F, 0xFF] {
+        assert_eq!(wire::parse(&[0x56, 1, kind, 0]), Err(Malformed::Kind(kind)));
+    }
+    // Every relayed type's slot, out of range.
+    for mut bytes in relayed() {
+        let at = if bytes[2] == 0x90 { 4 } else { 3 };
+        for slot in [SLOTS as u8, 31, 32, u8::MAX] {
+            bytes[at] = slot;
+            assert_eq!(wire::parse(&bytes), Err(Malformed::Slot(slot)));
+        }
+    }
+    let roster = |entries: &[u8]| {
+        let mut bytes = vec![0x56, 1, 0x90, (entries.len() / 5) as u8];
+        bytes.extend_from_slice(entries);
+        bytes
+    };
+    assert_eq!(
+        wire::parse(&roster(&[3, 1, 0, 0, 0, 3, 2, 0, 0, 0])),
+        Err(Malformed::Roster)
+    );
+    let mut many = roster(&[]);
+    many[3] = SLOTS as u8 + 1;
+    assert_eq!(wire::parse(&many), Err(Malformed::Length));
+    // A slot out of range that reached the core anyway is ignored.
+    let mut core = Core::new().unwrap();
+    for slot in [SLOTS as u8, u8::MAX] {
+        core.receive(
+            &Message::RelayStart {
+                slot,
+                utt: 1,
+                ms: 0,
+            },
+            0,
+        );
+        core.receive(
+            &Message::RelayAudio {
+                slot,
+                utt: 1,
+                seq: 0,
+                frames: encoded(2),
+            },
+            0,
+        );
+    }
+    assert_eq!(core.talking(0), 0);
+    assert_eq!(core.last_speaker(), None);
+}
+#[test]
+fn audio_frames_must_be_twenty_ms_of_opus() {
+    use wire::Malformed;
+    let audio = |frames: &[&[u8]]| {
+        let mut bytes = vec![0x56, 1, 0x83, 3, 1, 0, 0, 0, frames.len() as u8];
+        for frame in frames {
+            bytes.push(frame.len() as u8);
+            bytes.extend_from_slice(frame);
+        }
+        bytes
+    };
+    let frame: &[u8] = &[0x48, 1, 2];
+    assert!(wire::parse(&audio(&[frame; wire::MAX_FRAMES])).is_ok());
+    assert_eq!(wire::parse(&audio(&[])), Err(Malformed::Frames));
+    assert_eq!(
+        wire::parse(&audio(&[frame; wire::MAX_FRAMES + 1])),
+        Err(Malformed::Frames)
+    );
+    assert_eq!(wire::parse(&audio(&[&[]])), Err(Malformed::NotOpus));
+    // 10 ms SILK, 2.5 ms CELT, 60 ms SILK, code 3 with no count.
+    for garbage in [&[0x00, 1][..], &[0x80, 1], &[0x18, 1], &[0x4B]] {
+        assert_eq!(wire::parse(&audio(&[garbage])), Err(Malformed::NotOpus));
+    }
+    // The encoder's frames are 20 ms of Opus, and the sender refuses others.
+    assert!(encoded(4).iter().all(|frame| wire::opus_20ms(frame)));
+    let mut sender = Sender::new(1, 1);
+    sender.start(0);
+    assert!(sender.frame(&[0x00, 1]).is_none());
+    assert!(sender.frame(&[0x00, 1]).is_none());
+    assert_eq!(sender.end().map(|bytes| bytes[9]), Some(0));
+}
+#[test]
+fn opus_check_agrees_with_the_decoder() {
+    let mut decoder = Decoder::new().unwrap();
+    for toc in 0..=255u8 {
+        // The shortest well-formed packet of each frame-count code (RFC 6716
+        // 3.2): frames of no bytes, which the decoder conceals.
+        let packets: Vec<Vec<u8>> = match toc & 3 {
+            0 | 1 => vec![vec![toc]],
+            2 => vec![vec![toc, 0]],
+            _ => (0..=4).map(|count| vec![toc, count]).collect(),
+        };
+        for packet in packets {
+            assert_eq!(
+                wire::opus_20ms(&packet),
+                decoder.decode(Some(&packet)).is_ok(),
+                "{packet:?}"
+            );
+            decoder.reset();
+        }
+    }
+}
+#[test]
+fn undecodable_opus_is_concealed_and_does_not_stop_another_speaker() {
+    // 20 ms by its TOC, but code 3 with padding and no padding length.
+    let garbage = vec![0x4B, 0x41];
+    assert!(wire::opus_20ms(&garbage));
+    assert!(Decoder::new().unwrap().decode(Some(&garbage)).is_err());
+    let good = encoded(20);
+    let mut core = Core::new().unwrap();
+    for seq in 0..10u16 {
+        let at = usize::from(seq) * 2;
+        core.receive(&packet(seq, &good[at..at + 2]), 0);
+        core.receive(
+            &Message::RelayAudio {
+                slot: 5,
+                utt: 1,
+                seq,
+                frames: vec![garbage.clone(); 2],
+            },
+            0,
+        );
+    }
+    for slot in [3, 5] {
+        core.receive(
+            &Message::RelayEnd {
+                slot,
+                utt: 1,
+                reason: 0,
+            },
+            0,
+        );
+    }
+    let mut energy = 0.;
+    for tick in 0..24 {
+        let pcm = core.mix(1., 0, tick * 20);
+        energy += pcm.iter().map(|&x| f32::from(x).powi(2)).sum::<f32>();
+    }
+    assert_eq!(core.stats().decoded, 20);
+    assert_eq!(core.stats().undecodable, 20);
+    assert!(energy > 0.);
+    assert_eq!(core.talking(1000), 0);
+}
+#[test]
+fn a_flood_of_random_datagrams_does_not_delay_a_good_speaker() {
+    let good = encoded(20);
+    let mut core = Core::new().unwrap();
+    let mut random = 0x2468_ace1u32;
+    let mut next = move || {
+        random = random.wrapping_mul(1_664_525).wrapping_add(1_013_904_223);
+        random
+    };
+    for seq in 0..10u16 {
+        // A thousand datagrams of junk between each of the good ones: some
+        // pure noise, most of a valid header, any of them well formed.
+        for _ in 0..1000 {
+            let len = (next() % 480) as usize;
+            let mut bytes: Vec<u8> = (0..len).map(|_| next() as u8).collect();
+            if next() % 4 != 0 && len >= 3 {
+                bytes[0] = 0x56;
+                bytes[1] = 1;
+                bytes[2] = [0x81, 0x82, 0x83, 0x84, 0x90][(next() % 5) as usize];
+            }
+            if let Ok(message) = wire::parse(&bytes) {
+                // Junk that parses as another speaker's is that speaker's.
+                let speaker = match &message {
+                    Message::RelayStart { slot, .. }
+                    | Message::RelayAudio { slot, .. }
+                    | Message::RelayEnd { slot, .. } => Some(*slot),
+                    _ => None,
+                };
+                if speaker != Some(3) {
+                    core.receive(&message, 0);
+                }
+            }
+        }
+        let at = usize::from(seq) * 2;
+        core.receive(&packet(seq, &good[at..at + 2]), 0);
+    }
+    core.receive(
+        &Message::RelayEnd {
+            slot: 3,
+            utt: 1,
+            reason: 0,
+        },
+        0,
+    );
+    let before = core.stats().decoded;
+    for tick in 0..24 {
+        core.mix(1., 0, tick * 20);
+    }
+    // All twenty of the good speaker's frames played (others' may add).
+    assert!(core.stats().decoded - before >= 20, "{:?}", core.stats());
+}
+#[test]
+fn the_drop_log_is_one_line_at_most_every_ten_seconds() {
+    use wire::Malformed;
+    let mut log = runtime::DropLog::default();
+    assert_eq!(log.line(0, 0), None);
+    log.drop(Some(Malformed::Short));
+    for _ in 0..9_999 {
+        log.drop(Some(Malformed::Kind(0x40)));
+    }
+    assert_eq!(
+        log.line(5, 0).as_deref(),
+        Some("dropped 10000 datagrams (the first: truncated header)")
+    );
+    log.drop(None);
+    assert_eq!(log.line(5 + runtime::DROP_LOG_MS - 1, 3), None);
+    assert_eq!(
+        log.line(5 + runtime::DROP_LOG_MS, 3).as_deref(),
+        Some("dropped 1 datagrams (the first: a receive error); 3 frames the decoder refused")
+    );
+    // Nothing new: nothing written, however long.
+    assert_eq!(log.line(100_000, 3), None);
+    // The millisecond clock wraps.
+    log.drop(Some(Malformed::NotOpus));
+    assert!(log.line(u32::MAX, 3).is_some());
+    log.drop(Some(Malformed::NotOpus));
+    assert_eq!(log.line(5, 3), None);
+    assert!(log.line(runtime::DROP_LOG_MS, 3).is_some());
+}
+#[test]
+fn the_host_argument_is_read_no_further_than_its_bound() {
+    use std::ffi::c_char;
+    // SAFETY: each pointer is null or to a buffer of MAX_HOST + 1 bytes or
+    // more, or NUL-terminated within it.
+    unsafe {
+        assert_eq!(runtime::host_arg(std::ptr::null()), None);
+        assert_eq!(runtime::host_arg(c"127.0.0.1".as_ptr()), Some("127.0.0.1"));
+        assert_eq!(runtime::host_arg(c"".as_ptr()), None);
+        assert_eq!(runtime::host_arg(c"\xFF\xFE".as_ptr()), None);
+        let mut longest = [b'a' as c_char; runtime::MAX_HOST + 1];
+        longest[runtime::MAX_HOST] = 0;
+        assert_eq!(
+            runtime::host_arg(longest.as_ptr()).map(str::len),
+            Some(runtime::MAX_HOST)
+        );
+        // No NUL in the first MAX_HOST + 1 bytes: refused, nothing past them read.
+        let unterminated = [b'a' as c_char; runtime::MAX_HOST + 1];
+        assert_eq!(runtime::host_arg(unterminated.as_ptr()), None);
+    }
+    // The game's settings: NaN and infinities are bounded.
+    assert_eq!(radio::unit(f32::NAN), 0.);
+    assert_eq!(radio::unit(f32::INFINITY), 1.);
+    assert_eq!(radio::unit(f32::NEG_INFINITY), 0.);
+    assert!(mic_gain(f32::INFINITY).is_finite());
 }

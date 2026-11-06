@@ -101,6 +101,7 @@ for file in files("gameplay__items__weapons__wpn_"):
     p = cfg["parameters"]
     weapons[key_of(file)] = {
         **ui(cfg),
+        "category": by_cfg[cfg_of(file)]["item_category"],
         "type": p["type"],
         "premium": key_of(file).endswith("_premium"),
         "item_level": p.get("item_level", 0),
@@ -117,6 +118,13 @@ for file in files("gameplay__items__weapons__wpn_"):
         "stamina_damage": r(p.get("stamina_damage", 0)),
         "reload_time": r(p.get("reload_time", 0)),
         "weight": r(p.get("weight", 0)),
+        # The wiki uses the same source data, including the detailed weapon card.
+        # Missing optional parameters stay absent; native defaults are applied
+        # by the presentation schema, never by substituting arbitrary zeroes.
+        **{k: r(p[k]) for k in ("aim_time", "show_time", "hide_time", "aim_zoom_factor",
+                                "movement_speed_modifier") if k in p},
+        **{section: {k: r(v) for k, v in cfg.get(section, {}).items()}
+           for section in ("dispersion", "recoil", "breath_vibration")},
         "modifiers": nonzero_modifiers(p),
         "default_modifications": cfg.get("default_modifications", []),
         "available_modifications_mask": p.get("available_modifications_mask", ""),
@@ -137,8 +145,6 @@ for file in files("gameplay__items__weapons__ammo__"):
         **ui(cfg),
         "item_level": p.get("item_level", 0),
         "clip_size": p.get("clip_size", 0),
-        "ui_damage": r(p.get("damage", 0)),
-        "ui_arp": r(p.get("arp", 0)),
         **{k: r(d[k]) for k in AMMO_DATA if k in d},
     }
 
@@ -160,8 +166,6 @@ for file in files("gameplay__items__armour__"):
         "premium": key_of(file).endswith("_premium"),
         "item_level": p.get("item_level", 0),
         "faction": p.get("faction", 0),
-        "armor": r(p.get("armor", 0)),
-        "ano_armor": r(p.get("ano_armor", 0)),
         "weight": r(p.get("weight", 0)),
         "hit_params": parts,
         "modifiers": nonzero_modifiers(p),
@@ -239,7 +243,8 @@ for file in files("gameplay__items__artefacts__"):
 # Drugs: protection while active (0x33db30: D = 0 below threshold, else
 # (D - threshold) * hit_coeff on that pool and type), healing, injuries cleared.
 drugs = {}
-for file in files("gameplay__items__drugs__"):
+# The medicines are made whole at gameplay/items/medicines/ (docs/notes/medicines.md).
+for file in files("gameplay__items__drugs__") + files("gameplay__items__medicines__"):
     cfg = load(file)
     d = cfg["data"]
     drugs[key_of(file)] = {
@@ -250,7 +255,10 @@ for file in files("gameplay__items__drugs__"):
             {"pool": p["body_part"], "hit_type": p["hit_type"], "hit_coeff": r(p["hit_coeff"]), "threshold": r(p["threshold"])}
             for p in rows(d.get("damage_protection") or [])
         ],
-        "heal_per_s": {p["body_part"]: r(p["amount"]) for p in rows(d.get("influences") or []) if p["amount"]},
+        # Native medkit construction divides each course total by duration.
+        "heal_total": {p["body_part"]: r(p["amount"]) for p in rows(d.get("influences") or []) if p["amount"]},
+        "heal_per_s": {p["body_part"]: r(p["amount"] / max(d.get("activity_time_sec", 0), 0.001))
+                       for p in rows(d.get("influences") or []) if p["amount"]},
         "remove_affects": [[p["body_part"], p["affect"]] for p in rows(d.get("remove_affects") or [])],
     }
 
@@ -314,16 +322,45 @@ for table in (weapons, armour):
              "available_defects_mask": item.pop("available_defects_mask")},
             item["default_modifications"], table is weapons)
 
+# Walls a bullet goes through (survarium::bullet::try_pierce 0x32D960): the
+# player's picks, each a group of materials of game_materials/game.materials
+# that share one `armor`, in its order; named as retail names materials where
+# they fit. The armour is the game's; a group whose materials differ stops the build.
+WALL_GROUPS = (
+    ("Glass", "Скло", ("glass", "glass_car", "foliage_deciduous", "foliage_coniferous", "cloth", "plastic", "paper")),
+    ("Car", "Автомобіль", ("metal_car", "metal_gas_tank")),
+    ("Plywood", "Фанера", ("wood_thin", "glass_hard", "rubber")),
+    ("Tinplate", "Бляха", ("metall_thin", "schiefer")),
+    ("Brick, steel", "Цегла, сталь", ("brick", "metall_thick", "wood_tree")),
+    ("Concrete", "Бетон", ("concrete",)),
+    ("Stone", "Камінь", ("stone",)),
+)
+materials = {m["name"]: m for m in load("game_materials__game.materials.json")["materials"] if not m.get("deleted")}
+walls = []
+for name, name_uk, members in WALL_GROUPS:
+    armor = {r(materials[m]["physic"]["armor"]) for m in members}
+    if len(armor) != 1:
+        sys.exit(f"wall {name!r}: its materials' armor differs: {sorted(armor)}")
+    walls.append({"name": name, "name_uk": name_uk, "armor": armor.pop(), "materials": list(members)})
+walls.sort(key=lambda w: w["armor"])
+
 # Map names (st_<level>_name), for the map picker.
 level_names = {k.removeprefix("st_").removesuffix("_name"): {"en": v.strip(), "uk": text_uk(k)}
                for k, v in strings.items() if k.startswith("st_level_") and k.endswith("_name")}
 
+# The player's stance spread (character_dispersion_params): the wiki's spread
+# model takes the standing still values, aimed and from the hip.
+stance = load("gameplay__players__default.player.json")["player"]["character_dispersion_params"]
+character_dispersion = {k: r(stance[k]) for k in ("idle_dispersion", "idle_aim_dispersion")}
+
 out = {
     "source": "Survarium 0.26g resources.db (build 0.26g0)",
+    "character_dispersion": character_dispersion,
     "level_names": level_names,
     "mods": mods,
     "drugs": drugs,
     "artefacts": artefacts,
+    "walls": walls,
     "compat": compat,
     "default_ammo": default_ammo,
     "weapons": weapons,

@@ -2,13 +2,17 @@
 # Put beside survarium_skhid.exe, then run: bash play_skhid.sh
 # With the Skhid launcher beside it too: bash play_skhid.sh launcher
 # (it looks for newer Skhid files, and its PLAY button starts the game).
+# SKHID_CRASH_DUMP=full: a crash writes the game's whole memory (a .dmp of
+# 1-3 GB beside the game, for a developer to investigate); this script waits
+# for the game and prints the crash files it wrote. Unset: players' dumps.
 set -euo pipefail
 
-# Game language; server is empty when the executable has an embedded default.
-localization=english
+# The game's language is chosen in its Settings. Server: empty when the
+# executable has an embedded default.
 server=
 
 die() { echo "Error: $*" >&2; exit 1; }
+require_command() { command -v "$1" >/dev/null || die "Install $1 first."; }
 
 detect_resolution() {
     local resolution output status
@@ -43,102 +47,236 @@ detect_resolution() {
     echo 1920x1080
 }
 
-for command in wine winetricks wineserver; do
-    command -v "$command" >/dev/null || die "Install $command first."
-done
-cd -- "$(dirname -- "${BASH_SOURCE[0]}")"
-exe=survarium_skhid.exe
-[[ -f "$exe" && ! -L "$exe" ]] || die "Put this script beside $exe."
-mode=${1-}
-[[ $# -le 1 && ( -z $mode || $mode == launcher ) ]] || die 'Usage: bash play_skhid.sh [launcher]'
-if [[ $mode == launcher ]]; then
-    for file in launcher_skhid.exe updater_skhid.exe; do
-        [[ -f "$file" && ! -L "$file" ]] || die "Put $file beside this script to use the launcher."
-    done
-fi
-exec 9>.skhid-launcher.lock
-flock -n 9 || die 'This launcher is already running.'
+configure_wine() {
+    local version
+    require_command wine
+    require_command wineserver
+    export WINEPREFIX="$PWD/wineprefix" WINEDEBUG=-all
+    WINE=$(command -v wine)
+    WINESERVER=$(command -v wineserver)
+    export WINE WINESERVER
+    # Keep HTML enabled; install Gecko explicitly instead of Wine's addon dialogs.
+    # qwave remains disabled for the lobby-entry crash workaround.
+    export WINEDLLOVERRIDES='mscoree,qwave=;mshtml=b;appwiz.cpl=d;winemenubuilder.exe=d'
+    # Wine 11 supports forcing the new WoW64 loader even in a mixed installation.
+    # win64 alone selects a prefix architecture, not the loader used for 32-bit EXEs.
+    export WINEARCH=wow64
+    unset WINELOADER
+    log="$PWD/skhid-wine.log"
 
-# Check the memory-test code, not the whole EXE: other Skhid code may be updated.
-bytes() { dd if="$1" bs=1 skip="$2" count="$3" status=none | od -An -tx1 | tr -d ' \n'; }
-offset=$((0xf5811))
-original=85ff7719720881fb00000014730f6840010000
-patched=85ff7719720881fb00000014eb0f6840010000
-[[ "$(bytes "$exe" 0 2)" == 4d5a ]] || die 'Not a Windows executable.'
-[[ "$(bytes "$exe" $((offset + 17)) 11)" == 8bd75f5e8bc35b83c408c3 ]] || die 'Memory-check code changed. EXE left unchanged.'
-case "$(bytes "$exe" $((offset - 12)) 19)" in
-    "$original")
-        backup="$exe.before-memory-patch"
-        if [[ -e "$backup" || -L "$backup" ]]; then
-            [[ -f "$backup" && ! -L "$backup" ]] || die 'Backup path is not a regular file.'
-        fi
-        # Keep previous backups too when a newer Skhid EXE is installed.
-        cp --backup=numbered -p -- "$exe" "$backup"
-        temporary="$(mktemp .skhid-memory-XXXXXX)"
-        trap 'rm -f -- "$temporary"' EXIT
-        cp -p -- "$exe" "$temporary"
-        printf '\xeb' | dd of="$temporary" bs=1 seek="$offset" conv=notrunc status=none
-        [[ "$(bytes "$temporary" "$offset" 1)" == eb ]] || die 'Patch verification failed.'
-        cmp -s -n "$offset" "$exe" "$temporary" && \
-            cmp -s -i "$((offset + 1))" "$exe" "$temporary" || die 'Unexpected changes outside the memory patch.'
-        mv -- "$temporary" "$exe"
-        trap - EXIT
-        echo 'Memory check patched; original EXE backed up.' ;;
-    "$patched") echo 'Memory patch already applied.' ;;
-    *) die 'Memory-check code changed. EXE left unchanged; launcher needs updating.' ;;
-esac
+    version=$(LC_ALL=C "$WINE" --version 2>&1) || die "Cannot query Wine: $version
+Install Wine 11.0 or newer with modern WoW64 support (tested: 11.8 Staging WoW64).
+See LINUX.txt."
+    [[ $version =~ ^wine-([0-9]+)\.([0-9]+)([^0-9].*)?$ ]] || die "Unrecognized Wine version: $version
+Use Wine 11.0 or newer with modern WoW64 support; see LINUX.txt."
+    (( 10#${BASH_REMATCH[1]} >= 11 )) || die "Unsupported Wine: $version
+Wine 11.0 or newer with modern WoW64 is required (tested: 11.8 Staging WoW64).
+Select its wine and wineserver in PATH; see LINUX.txt."
 
-export WINEPREFIX="$PWD/wineprefix" WINEDEBUG=-all
-export WINE="$(command -v wine)" WINESERVER="$(command -v wineserver)"
-# Disable Wine's broken optional QoS support and unwanted installer dialogs.
-export WINEDLLOVERRIDES='mscoree,mshtml,qwave=;winemenubuilder.exe=d'
-unset WINEARCH WINELOADER
-log="$PWD/skhid-wine.log"
+    if [[ ! -e /dev/ntsync ]] && command -v modinfo >/dev/null && modinfo ntsync >/dev/null 2>&1; then
+        die "Load ntsync before starting Wine: sudo modprobe ntsync
+Then run this script again. See LINUX.txt to enable it at boot."
+    fi
 
-if [[ ! -f "$WINEPREFIX/.skhid-ready" || ! -f "$WINEPREFIX/system.reg" ]]; then
-    rm -f -- "$WINEPREFIX/.skhid-dxvk"
-    echo 'Initializing Wine prefix...'
-    timeout 180 "$WINE" wineboot.exe --init >>"$log" 2>&1 || die "Wine setup failed. See $log"
-    timeout 180 "$WINESERVER" -w >>"$log" 2>&1 || die "Wine setup timed out. See $log"
-    [[ -f "$WINEPREFIX/system.reg" ]] || die "Wine registry missing. See $log"
-    # Keep game settings inside this prefix instead of the user's real Documents.
+    printf 'Wine runtime: %s; required mode: WINEARCH=wow64\n' "$version" >>"$log"
+}
+
+verify_prefix_arch() {
+    local prefix_arch
+    prefix_arch=$(awk '/^#arch=/ { sub(/^#arch=/, ""); sub(/\r$/, ""); print; exit }' "$WINEPREFIX/system.reg")
+    [[ $prefix_arch == win64 ]] || die "This Wine prefix is not a supported 64-bit prefix for modern WoW64.
+Close the game and launcher, rename wineprefix to an unused backup name, and run again.
+Your existing prefix has been kept. See LINUX.txt for preserving game settings."
+}
+
+prepare_prefix() {
+    if [[ -f "$WINEPREFIX/system.reg" ]]; then
+        verify_prefix_arch
+    fi
+    if [[ ! -f "$WINEPREFIX/.skhid-ready" || ! -f "$WINEPREFIX/system.reg" ]]; then
+        rm -f -- "$WINEPREFIX/.skhid-dxvk"
+        echo 'Initializing Wine prefix...'
+        timeout 180 "$WINE" wineboot.exe --init >>"$log" 2>&1 || die "Wine setup failed in modern WoW64 mode. See LINUX.txt and $log"
+        timeout 180 "$WINESERVER" -w >>"$log" 2>&1 || die "Wine setup timed out. See $log"
+        [[ -f "$WINEPREFIX/system.reg" ]] || die "Wine registry missing. See $log"
+        verify_prefix_arch
+        touch "$WINEPREFIX/.skhid-ready"
+    fi
+    select_graphics
+    # Exercise a 32-bit PE under the forced modern loader. A 64-bit cmd.exe would
+    # not prove the mode needed by the game. Refuse failures without an old-mode retry.
+    timeout 60 "$WINE" 'C:\windows\syswow64\cmd.exe' /d /c 'exit 0' >>"$log" 2>&1 || die "Modern WoW64 could not run a 32-bit Windows program.
+Use Wine 11.0 or newer with modern WoW64 support and matching wineserver.
+For an old prefix, keep it as a backup and create a fresh one; see LINUX.txt and $log."
+}
+
+select_graphics() {
+    local chosen=0
+    # Under niri (xwayland-satellite) Wine's X11 driver leaves the game's
+    # mouselook stuck; its Wayland driver locks the pointer itself, with X11
+    # as the fallback. Elsewhere Wine chooses its own driver.
+    grep -qsF '"Graphics"="wayland,x11"' "$WINEPREFIX/user.reg" && chosen=1
+    if [[ -n ${NIRI_SOCKET-} && -n ${WAYLAND_DISPLAY-} ]]; then
+        (( chosen )) || "$WINE" reg add 'HKCU\Software\Wine\Drivers' /v Graphics /d wayland,x11 /f >>"$log" 2>&1 \
+            || echo "Warning: could not select Wine's Wayland driver. See $log" >&2
+    elif (( chosen )); then
+        "$WINE" reg delete 'HKCU\Software\Wine\Drivers' /v Graphics /f >>"$log" 2>&1 \
+            || echo "Warning: could not reset Wine's graphics driver. See $log" >&2
+    fi
+}
+
+prepare_settings() {
+    local config_home=${XDG_CONFIG_HOME:-$HOME/.config} settings config documents resolution
+    # XDG paths must be absolute; ignore invalid overrides.
+    [[ $config_home == /* ]] || config_home="$HOME/.config"
+    config="$config_home/skhid/user.cfg"
     documents="$WINEPREFIX/drive_c/users/$(id -un)/Documents"
     [[ ! -L "$documents" ]] || rm -- "$documents"
-    mkdir -p "$documents/Survarium"
-    if [[ ! -f "$documents/Survarium/user.cfg" ]]; then
+    mkdir -p -- "$documents/Survarium" "$config_home/skhid"
+    settings="$documents/Survarium/user.cfg"
+    if [[ ! -e "$config" && ! -L "$config" ]]; then
         resolution=$(detect_resolution)
-        printf 'r_fullscreen on\r\nr_resolution %s\r\n' "$resolution" > "$documents/Survarium/user.cfg"
+        printf 'r_fullscreen on\r\nr_resolution %s\r\n' "$resolution" > "$config"
         echo "Fullscreen resolution: $resolution"
     fi
-    touch "$WINEPREFIX/.skhid-ready"
-fi
-if [[ ! -f "$WINEPREFIX/.skhid-dxvk" ]]; then
-    echo 'Installing DXVK...'
-    winetricks -q dxvk >>"$log" 2>&1 || die "DXVK installation failed. See $log"
-    touch "$WINEPREFIX/.skhid-dxvk"
-fi
+    [[ -f "$config" && -w "$config" ]] || die "Settings file is not writable: $config"
+    ln -sfnT -- "$config" "$settings"
+}
 
-export WINEDLLOVERRIDES="$WINEDLLOVERRIDES;d3d11,dxgi=n,b"
-if [[ $mode == launcher ]]; then
-    # The game it starts inherits this Wine environment; the language is the
-    # one chosen in the launcher, not the one above.
-    echo "Starting the Skhid launcher. Log: $log"
-    "$WINE" launcher_skhid.exe >>"$log" 2>&1 \
-        || die "Launcher exited with an error. See $log"
-    exit 0
-fi
-# resources.db's patches, the ones the server lists, must be in place first:
-# the exe of a release needs the content of its patches. The updater checks
-# them (it reads only); no updater beside this script, as without the
-# launcher: no check.
-if [[ -f updater_skhid.exe && ! -L updater_skhid.exe ]] \
-    && ! "$WINE" updater_skhid.exe ready quiet >>"$log" 2>&1; then
-    die "Skhid has not finished updating the game's files (game/resources.db.patch_*), so the game is not started.
+install_dxvk() {
+    if [[ ! -f "$WINEPREFIX/.skhid-dxvk" ]]; then
+        require_command winetricks
+        echo 'Installing DXVK...'
+        winetricks -q dxvk >>"$log" 2>&1 || die "DXVK installation failed. See $log"
+        touch "$WINEPREFIX/.skhid-dxvk"
+    fi
+
+    export WINEDLLOVERRIDES="$WINEDLLOVERRIDES;d3d11,dxgi=n,b"
+}
+
+install_calibri() {
+    # The game's UI asks Windows for the font Calibri for some text (item
+    # levels); without it Wine draws boxes. Winetricks takes it, once, from
+    # Microsoft's PowerPoint Viewer (60 MB, kept in its download cache).
+    # The game is playable without it, so a failure warns and the game starts.
+    local font="$WINEPREFIX/drive_c/windows/Fonts/calibri.ttf"
+    if [[ ! -f "$font" ]]; then
+        require_command winetricks
+        echo 'Installing the font Calibri (60 MB download, first launch only)...'
+        winetricks -q calibri >>"$log" 2>&1 || true
+        [[ -f "$font" ]] || echo "Warning: the font Calibri could not be installed (see $log)." \
+            'Some UI text, such as the item levels on item cards, may show as boxes.' \
+            'The next start tries again.' >&2
+    fi
+}
+
+install_gecko() (
+    local version=2.47.4 checksum=26cecc47706b091908f7f814bddb074c61beb8063318e9efc5a7f789857793d6
+    local gecko="$WINEPREFIX/drive_c/windows/syswow64/gecko/$version/wine_gecko" temporary
+    # The launcher is 32-bit; Wine's own MSHTML declares the Gecko version it needs.
+    LC_ALL=C grep -aqF "Wine Gecko $version" "$WINEPREFIX/drive_c/windows/syswow64/mshtml.dll" \
+        || die "This Wine needs another Gecko version; update the Skhid setup script. See $log"
+    if [[ -f "$gecko/xul.dll" && -f "$gecko/VERSION" && $(<"$gecko/VERSION") == "Wine Gecko $version" ]]; then
+        return
+    fi
+    require_command curl
+    require_command sha256sum
+    temporary=$(mktemp -d "$WINEPREFIX/drive_c/skhid-gecko.XXXXXX")
+    trap 'rm -rf -- "$temporary"' EXIT
+    echo 'Installing Wine Gecko for the launcher...'
+    curl --fail --location --proto '=https' --proto-redir '=https' \
+        --connect-timeout 15 --max-time 300 --retry 2 --output "$temporary/gecko.msi" \
+        "https://dl.winehq.org/wine/wine-gecko/$version/wine-gecko-$version-x86.msi" >>"$log" 2>&1 \
+        || die "Gecko download failed. Run again to retry; see $log"
+    printf '%s  %s\n' "$checksum" "$temporary/gecko.msi" | sha256sum -c - >>"$log" 2>&1 \
+        || die "Gecko download checksum failed. Run again to retry; see $log"
+    WINEDLLOVERRIDES="$WINEDLLOVERRIDES;winedbg.exe=d" \
+        timeout 180 "$WINE" msiexec /i "C:\\${temporary##*/}\\gecko.msi" /qn /norestart >>"$log" 2>&1 \
+        || die "Gecko installation failed. Run again to retry; see $log"
+    [[ -f "$gecko/xul.dll" && -f "$gecko/VERSION" && $(<"$gecko/VERSION") == "Wine Gecko $version" ]] \
+        || die "Gecko installation is incomplete. Run again to retry; see $log"
+)
+
+start_game() {
+    local -a args
+    # resources.db's patches, the ones the server lists, must be in place first:
+    # the exe of a release needs the content of its patches. The updater checks
+    # them (it reads only); no updater beside this script, as without the
+    # launcher: no check.
+    if [[ -f updater_skhid.exe && ! -L updater_skhid.exe ]] \
+        && ! "$WINE" updater_skhid.exe ready quiet >>"$log" 2>&1; then
+        die "Skhid has not finished updating the game's files (game/resources.db.patch_*), so the game is not started.
 Start the launcher (bash Skhid.sh launcher, or bash play_skhid.sh launcher): it finishes the update.
 Details: game/binaries/x86/updater_skhid.log"
-fi
-echo "Starting Survarium. Log: $log"
-args=("-localization=$localization" -mt_allocator=768 -minimum_resources_memory_size=768)
-[[ -z "$server" ]] || args+=("-server=$server")
-"$WINE" "$exe" "${args[@]}" >>"$log" 2>&1 \
-    || die "Game exited with an error. See $log"
+    fi
+    echo "Starting Survarium. Log: $log"
+    args=(-mt_allocator=768 -minimum_resources_memory_size=768)
+    [[ -z "$server" ]] || args+=("-server=$server")
+    "$WINE" "$exe" "${args[@]}" >>"$log" 2>&1 \
+        || die "Game exited with an error. See $log"
+}
+
+# The crash files a game started since $1 (seconds since the epoch) wrote:
+# beside the exe, or in Windows' temporary folder when that is not writable.
+# The launcher has closed by now; the game may still run, so wait for it.
+print_crashes() {
+    local started=$1 temp file
+    local -a found
+    "$WINESERVER" -w || true
+    temp="$WINEPREFIX/drive_c/users/$(id -un)/AppData/Local/Temp"
+    mapfile -t found < <(find "$PWD" "$temp" -maxdepth 1 -type f -name 'SRP-crash-*' \
+        ! -name '*.part' -newermt "@$started" 2>/dev/null | sort)
+    if ((${#found[@]})); then
+        echo 'Crash reports and full-memory dumps of this run:'
+        for file in "${found[@]}"; do
+            case $file in
+                *.zip) echo "    $file  (a crash ZIP: send this to a new post in #bugreports)" ;;
+                *.dmp) echo "    $file  (the whole memory: keep it, do not post it; give its path when asked)" ;;
+                *.txt) echo "    $file  (the crash report: send this to a new post in #bugreports)" ;;
+                *) echo "    $file" ;;
+            esac
+        done
+    else
+        echo 'No crash in this run.'
+    fi
+}
+
+main() {
+    local exe=survarium_skhid.exe mode=${1-} log file
+    cd -- "$(dirname -- "${BASH_SOURCE[0]}")"
+    [[ -f "$exe" && ! -L "$exe" ]] || die "Put this script beside $exe."
+    [[ $# -le 1 && ( -z $mode || $mode == launcher ) ]] || die 'Usage: bash play_skhid.sh [launcher]'
+    case ${SKHID_CRASH_DUMP-} in
+        '') unset SKHID_CRASH_DUMP ;;
+        full) export SKHID_CRASH_DUMP ;;
+        *) die "SKHID_CRASH_DUMP=$SKHID_CRASH_DUMP: the one value is full (whole-memory crash dumps); leave it unset for players' dumps." ;;
+    esac
+    if [[ $mode == launcher ]]; then
+        for file in launcher_skhid.exe updater_skhid.exe; do
+            [[ -f "$file" && ! -L "$file" ]] || die "Put $file beside this script to use the launcher."
+        done
+    fi
+    exec 9>.skhid-launcher.lock
+    flock -n 9 || die 'This launcher is already running.'
+
+    configure_wine
+    if [[ ${SKHID_CRASH_DUMP-} == full ]]; then
+        echo 'SKHID_CRASH_DUMP=full: a crash writes a full-memory dump beside the game.'
+        # shellcheck disable=SC2064 # the start time, now
+        trap "print_crashes $(date +%s)" EXIT
+    fi
+    prepare_prefix
+    prepare_settings
+    install_dxvk
+    install_calibri
+    if [[ $mode == launcher ]]; then
+        install_gecko
+        echo "Starting the Skhid launcher. Log: $log"
+        "$WINE" launcher_skhid.exe >>"$log" 2>&1 \
+            || die "Launcher exited with an error. See $log"
+    else
+        start_game
+    fi
+}
+
+main "$@"

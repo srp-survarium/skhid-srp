@@ -111,6 +111,7 @@ fn start<'a>(
         up: Vec3::Y,
         cause,
         gun,
+        headwear: None,
         stood_on: Some((Vec3::ZERO, Vec3::Y)),
         hits: &[],
         load: [0.0; PARTS],
@@ -124,6 +125,66 @@ const SHOT: Cause = Cause::Body {
     heavy: false,
 };
 const GUN: GunShape = GunShape::RIFLE;
+
+#[test]
+fn headwear_starts_on_the_head_then_falls_separately_and_settles_above_ground() {
+    let now = standing(Quat::IDENTITY, Vec3::ZERO);
+    let before = driver_bones(&now);
+    let mut input = start(&now, &before, Cause::Unknown, None);
+    assert!(Ragdoll::new(&input).unwrap().headwear_pose().is_none());
+    input.headwear = Some(HeadwearShape);
+    let mut body = Ragdoll::new(&input).unwrap();
+    assert!((body.headwear_pose().unwrap().position - now[HEAD.index()].position).length() < 1e-5);
+    let mut ground = Ground::flat();
+    run(&mut body, &mut ground, None, |r| {
+        let hat = r.headwear.unwrap();
+        assert!(hat.body.pose.is_finite());
+        for end in [
+            hat.body.shape.ends(hat.body.pose).0,
+            hat.body.shape.ends(hat.body.pose).1,
+        ] {
+            assert!(
+                end.y >= hat.body.shape.radius - 0.02,
+                "helmet penetrated the floor"
+            );
+        }
+    });
+    let mut drawn = now;
+    let (parts, gun) = body.poses();
+    body.rig().draw(&parts, gun, &mut drawn);
+    assert!(
+        (body.headwear_pose().unwrap().position - drawn[HEAD.index()].position).length() > 0.15
+    );
+    assert!(body.headwear.unwrap().body.pose.position.y < 0.2);
+}
+
+#[test]
+fn a_headshot_body_stays_down_while_its_muscles_fade() {
+    // The headshot's muscles fade fastest; a body still creeping when their
+    // strength's exponent passed 50 was flung metres up (exp_neg grew there).
+    let hits = [looks5()[2].1];
+    let now = standing(Quat::IDENTITY, Vec3::ZERO);
+    let before = driver_bones(&now);
+    let mut input = start(&now, &before, Cause::Unknown, Some(GUN));
+    input.hits = &hits;
+    let mut body = Ragdoll::new(&input).unwrap();
+    let mut ground = Ground::flat();
+    let mut t = 0.0;
+    while t < 8.0 {
+        if body.step(1.0 / 60.0, None, &mut ground) == Motion::Settled {
+            break;
+        }
+        t += 1.0 / 60.0;
+        if t > 1.5 {
+            let top = body
+                .bodies
+                .iter()
+                .map(|b| b.pose.position.y)
+                .fold(0.0, f32::max);
+            assert!(top < 0.6, "a part {top:.2} m up at {t:.2} s");
+        }
+    }
+}
 
 /// Runs at 60 frames a second until settled; the seconds it took.
 fn run(
@@ -1129,4 +1190,235 @@ fn no_single_hit_reaches_a_cap() {
         crate::shot::impulse(back, 0.1, 850.0).length()
             > 2.0 * crate::shot::impulse(back, 0.02, 800.0).length()
     );
+}
+
+/// How far under Rudnya's drawn ground each settled body's axis lies (its
+/// two ends and its centre, the deepest; under 0 when above it), the gun's
+/// first, on the level made of `meshes` (`rudnya_floor`).
+fn under_rudnya_drawn_ground(
+    meshes: &[&'static [super::rudnya_floor::Triangle]],
+) -> std::vec::Vec<(f32, f32)> {
+    use super::rudnya_floor::{DRAWN, Floor};
+    let mut out = std::vec::Vec::new();
+    for (turn, cause) in [
+        (0.0, SHOT),
+        (1.3, SHOT),
+        (
+            2.5,
+            Cause::Body {
+                part: Part::LeftThigh,
+                direction: Vec3::X,
+                heavy: true,
+            },
+        ),
+        (
+            0.4,
+            Cause::Head {
+                direction: Vec3::new(0.0, 0.0, 1.0),
+            },
+        ),
+        (-2.0, SHOT),
+    ] {
+        let now = standing(Quat::from_axis_angle(Vec3::Y, turn), Vec3::ZERO);
+        let before = driver_bones(&now);
+        let mut ragdoll = Ragdoll::new(&start(&now, &before, cause, Some(GUN))).unwrap();
+        let mut floor = Floor {
+            meshes: meshes.to_vec(),
+        };
+        let mut t = 0.0;
+        while ragdoll.step(1.0 / 60.0, None, &mut floor) != Motion::Settled {
+            t += 1.0 / 60.0;
+            assert!(t < 10.0, "{cause:?}: never settled");
+        }
+        let under = |b: &Body| {
+            let (a, c) = b.shape.ends(b.pose);
+            [a, b.pose.position, c]
+                .iter()
+                .map(|p| {
+                    let drawn = Floor::height(&DRAWN, p.x, p.z)
+                        .unwrap_or_else(|| panic!("{cause:?}: off the piece of ground at {p:?}"));
+                    drawn - p.y
+                })
+                .fold(f32::MIN, f32::max)
+        };
+        let gun = under(ragdoll.gun.as_ref().expect("the gun dropped"));
+        let body = ragdoll.bodies.iter().map(under).fold(f32::MIN, f32::max);
+        out.push((gun, body));
+    }
+    out
+}
+
+#[test]
+fn on_rudnya_a_dropped_gun_lies_on_the_drawn_ground_not_in_it() {
+    use super::rudnya_floor::{HITTABLE, WALKER};
+    // the owner: "on Rudnya, weapons quite often fall under the textures".
+    // On the walker mesh alone (patch 76's rays before) the gun's axis lay
+    // 6 cm under the drawn ground, deeper than its radius: all of it hidden
+    let walker = under_rudnya_drawn_ground(&[&WALKER]);
+    std::println!("walker mesh alone (gun, body): {walker:?}");
+    assert!(
+        walker.iter().all(|&(gun, _)| gun > GUN.radius),
+        "{walker:?}"
+    );
+    // with the collision bullets hit (what the rays meet now) the gun's
+    // axis lies 3 cm above it (the collision is 1 cm under it here), every
+    // body's 4 cm
+    let both = under_rudnya_drawn_ground(&[&WALKER, &HITTABLE]);
+    std::println!("walker and hittable collision (gun, body): {both:?}");
+    assert!(
+        both.iter().all(|&(gun, body)| gun < -0.02 && body < -0.03),
+        "{both:?}"
+    );
+}
+
+/// A lone gun (its body gone: the player respawned) stepped at 60 frames a
+/// second until it rests: the frames it took and the highest its capsule's
+/// bottom went under the floor (m, positive below).
+fn lone_until_rest(gun: &mut LoneGun, ground: &mut Ground) -> (usize, f32) {
+    let mut sunk = 0.0f32;
+    for n in 1..=600 {
+        let motion = gun.step(1.0 / 60.0, Vec3::Y, ground);
+        let (a, b) = gun.body.shape.ends(gun.body.pose);
+        sunk = sunk.max(gun.body.shape.radius - a.y.min(b.y));
+        if motion == Motion::Settled {
+            return (n, sunk);
+        }
+    }
+    panic!("a lone gun never rested");
+}
+
+#[test]
+fn a_lone_gun_sliding_on_the_ground_stops() {
+    let now = standing(Quat::IDENTITY, Vec3::ZERO);
+    let before = driver_bones(&now);
+    let ragdoll = Ragdoll::new(&start(&now, &before, SHOT, Some(GUN))).unwrap();
+    let mut gun = ragdoll.lone_gun().unwrap();
+    // lying flat on the floor, sliding at 3 m/s along its length's side
+    let radius = gun.body.shape.radius;
+    gun.body.pose = Pose::new(Quat::IDENTITY, Vec3::new(0.0, radius + 0.002, 0.0));
+    gun.body.previous = gun.body.pose;
+    gun.body.velocity = Vec3::new(0.0, 0.0, 3.0);
+    gun.body.contacts = [Contact::Plane { point: Vec3::ZERO, normal: Vec3::Y }; 2];
+    let mut ground = Ground::flat();
+    let (frames, sunk) = lone_until_rest(&mut gun, &mut ground);
+    let at = gun.body.pose.position;
+    assert!(at.z > 0.05, "it slid on: {at:?}");
+    assert!(sunk < 0.02 && (at.y - radius).abs() < 0.03, "on the ground: {at:?}, sunk {sunk}");
+    assert!(gun.body.end_speed() < SLOW && frames < 300, "{frames} frames");
+}
+
+/// A gun-stock hit (the weapon's melee/data: mass 0.01, 1000 m/s) by a
+/// shooter whose kit sums `knockback` (the Force Protein's 15).
+fn gun_stock(direction: Vec3, point: Vec3, knockback: f32) -> crate::shot::Hit {
+    let push = crate::shot::impulse(direction, 0.01, 1000.0);
+    crate::shot::Hit {
+        point,
+        impulse: crate::shot::knocked_back(push, knockback),
+    }
+}
+
+/// A standing body killed by `hit`, 300 frames at 60 a second, `each`
+/// frame's ragdoll seen: how high its centre of mass went and how far on
+/// (level) it ended, m, and when it first settled, s.
+fn thrown(hit: crate::shot::Hit, mut each: impl FnMut(&Ragdoll)) -> (f32, f32, Option<f32>) {
+    let now = standing(Quat::IDENTITY, Vec3::ZERO);
+    let before = driver_bones(&now);
+    let hits = [hit];
+    let mut s = start(&now, &before, Cause::Unknown, Some(GUN));
+    s.hits = &hits;
+    let mut r = Ragdoll::new(&s).unwrap();
+    let centre = |r: &Ragdoll| {
+        let m: f32 = r.bodies.iter().map(|b| 1.0 / b.inverse_mass).sum();
+        r.bodies.iter().fold(Vec3::ZERO, |c, b| {
+            c + b.pose.position * (1.0 / (b.inverse_mass * m))
+        })
+    };
+    let (from, mut rise, mut settled) = (centre(&r), 0.0f32, None);
+    let mut ground = Ground::flat();
+    for frame in 0..300 {
+        each(&r);
+        if r.step(1.0 / 60.0, None, &mut ground) == Motion::Settled {
+            settled = settled.or(Some(frame as f32 / 60.0));
+        }
+        rise = rise.max(centre(&r).y - from.y);
+    }
+    (rise, (centre(&r) - from).reject(Vec3::Y).length(), settled)
+}
+
+#[test]
+fn a_force_protein_gun_stock_kill_flies_on_and_rests_by_friction() {
+    // nothing holds a body near where it died (no wall at 2.5 m, the old
+    // cap): the throw goes on past it and the ground's friction stops it,
+    // the rest rules settle it before the age cap; a plain gun stock falls
+    // about where it stood
+    let scenes = [
+        (Vec3::new(0.0, 0.0, -1.0), Vec3::new(0.0, 1.3, 0.12)),
+        (Vec3::new(1.0, 0.0, 0.0), Vec3::new(-0.15, 1.3, 0.0)),
+    ];
+    let rested = |settled: Option<f32>| settled.is_some_and(|t| t < MAX_AGE - 0.5);
+    for (direction, point) in scenes {
+        let (rise, on, settled) = thrown(gun_stock(direction, point, 15.0), |_| {});
+        let seen = std::format!("up {rise:.2}, on {on:.2}, settled {settled:?}");
+        assert!(rise > 0.15 && on > 3.0 && rested(settled), "thrown: {seen}");
+        let (rise, on, settled) = thrown(gun_stock(direction, point, 0.0), |_| {});
+        let seen = std::format!("up {rise:.2}, on {on:.2}, settled {settled:?}");
+        assert!(rise < 0.02 && on < 1.1 && rested(settled), "plain: {seen}");
+    }
+}
+
+#[test]
+fn no_bullet_and_no_plain_gun_stock_is_a_heavy_hit() {
+    // so every bullet's death is pushed as before (the heaviest a bullet makes)
+    let d = Vec3::new(0.0, 0.0, -1.0);
+    assert!(crate::shot::impulse(d, 0.999, 2999.0).length() < tuning::HEAVY_HIT);
+    let push = crate::shot::impulse(d, 0.01, 1000.0);
+    for k in [0.0, -1.0, f32::NAN] {
+        assert_eq!(crate::shot::knocked_back(push, k), push);
+    }
+    assert_eq!(crate::shot::knocked_back(push, 15.0), push * 16.0);
+    assert!((push * 16.0).length() >= tuning::HEAVY_HIT);
+}
+
+#[test]
+#[ignore = "render dump: RAGDOLL_DUMP=<file> cargo test -p ragdoll render_knockback -- --ignored"]
+fn render_knockback() {
+    use std::io::Write;
+    let out = std::env::var("RAGDOLL_DUMP").unwrap();
+    let mut file = std::fs::File::create(out).unwrap();
+    let scenes = [
+        (
+            "front",
+            Vec3::new(0.0, 0.0, -1.0),
+            Vec3::new(0.0, 1.3, 0.12),
+        ),
+        ("side", Vec3::new(1.0, 0.0, 0.0), Vec3::new(-0.15, 1.3, 0.0)),
+    ];
+    for (name, direction, point) in scenes {
+        for k in [0.0, 15.0] {
+            let mut frames = std::vec::Vec::new();
+            thrown(gun_stock(direction, point, k), |r| {
+                let mut caps = std::vec::Vec::new();
+                for b in r.bodies.iter().chain(r.gun.iter()) {
+                    let (a, c) = b.shape.ends(b.pose);
+                    caps.push(std::format!(
+                        "[{:.4},{:.4},{:.4},{:.4},{:.4},{:.4},{:.3}]",
+                        a.x,
+                        a.y,
+                        a.z,
+                        c.x,
+                        c.y,
+                        c.z,
+                        b.shape.radius
+                    ));
+                }
+                frames.push(std::format!("[{}]", caps.join(",")));
+            });
+            writeln!(
+                file,
+                "{{\"name\":\"{name}\",\"k\":{k},\"frames\":[{}]}}",
+                frames.join(",")
+            )
+            .unwrap();
+        }
+    }
 }

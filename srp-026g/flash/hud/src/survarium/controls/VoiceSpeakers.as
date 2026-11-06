@@ -1,5 +1,6 @@
 package survarium.controls
 {
+   import com.greensock.TweenLite;
    import flash.display.Graphics;
    import flash.display.Shape;
    import flash.display.Sprite;
@@ -9,36 +10,35 @@ package survarium.controls
    import flash.utils.Timer;
    import scaleform.clik.core.UIComponent;
 
-   // Voice chat: who of the team is talking now (exe patch 66 calls HUD.srp_voice_talking on
-   // every change; docs/notes/voice-chat.md). A row each: a speaker mark and the name. The
-   // player's own row while it transmits is gold; a teammate heard through the radio (farther
-   // than 25 m) has the mark's waves dimmed. Muted players never show (the exe leaves them out).
-   // Nothing when nobody talks. Not clickable.
+   // Voice chat: which teammates are talking (exe patch 66 calls HUD.srp_voice_talking with their
+   // names on every change; docs/notes/voice-chat.md), as 0.69's VoiceChatTalkingPanel shows it:
+   // a row each, a light-blue speaker and the name, 25 px apart, the newest talker on top; a
+   // name stays while its player talks and fades out over 1 s, 0.5 s after the player stops.
+   // Muted players never show (the exe leaves them out), nor the player's own. Not clickable.
    public class VoiceSpeakers extends UIComponent
    {
 
-      public static const ROW_HEIGHT:Number = 26;
+      public static const ROW_HEIGHT:Number = 25;
 
-      // The most rows shown; the exe sends at most a team.
+      // The most rows; the exe sends at most a team.
       public static const MAX_ROWS:uint = 10;
 
-      // srp_voice_talking's flags, per name.
-      public static const FLAG_SELF:uint = 1;
+      // 0.69's fade: after FADE_DELAY s, over FADE_S s.
+      public static const FADE_DELAY:Number = 0.5;
 
-      public static const FLAG_RADIO:uint = 2;
+      public static const FADE_S:Number = 1;
 
       protected static const TEXT_SCALE:Number = 0.6;
 
-      protected static const OWN:uint = 0xE8C268;
+      // 0.69's speaker (HudVoicePanelTalkingPlayer's)
+      protected static const SPEAKER:uint = 0x73B9FF;
 
-      protected static const TEAM:uint = 0xFFFFFF;
+      protected static const NAME:uint = 0xFFFFFF;
 
+      // The rows, top first: {sprite, name, talking}.
       protected var _rows:Array = [];
 
-      // The names and flags shown, to redraw on a change only.
-      protected var _shown:String = "";
-
-      // A short line under the rows ("Muted: name"), for NOTICE_MS.
+      // A short line under the rows ("Voice muted: name"), for NOTICE_MS.
       public static const NOTICE_MS:uint = 3000;
 
       protected var _notice:DefaultLabel3;
@@ -52,49 +52,56 @@ package survarium.controls
          mouseChildren = false;
       }
 
-      // pairs: name, flags (FLAG_SELF, FLAG_RADIO), in the order to show.
-      public function update(pairs:Array) : void
+      // names: the teammates talking now.
+      public function update(names:Array) : void
       {
-         var key:String = pairs.join("\n");
-         if(key == this._shown)
+         var talking:Array = names.slice(0,MAX_ROWS);
+         var now:Object = {};
+         var name:String;
+         for each(name in talking)
          {
-            return;
+            now[name] = true;
          }
-         _shown = key;
-         var count:uint = Math.min(uint(pairs.length / 2),MAX_ROWS);
-         while(this._rows.length < count)
+         var row:Object;
+         for each(row in this._rows)
          {
-            this._rows.push(this.makeRow());
-         }
-         var i:uint = 0;
-         var row:Sprite;
-         while(i < this._rows.length)
-         {
-            row = this._rows[i];
-            if(i < count)
+            if(row.talking && !now[row.name])
             {
-               this.fillRow(row,String(pairs[2 * i]),uint(pairs[2 * i + 1]));
-               row.y = i * ROW_HEIGHT;
-               if(row.parent != this)
-               {
-                  addChild(row);
-               }
+               row.talking = false;
+               this.fade(row);
             }
-            else if(row.parent == this)
-            {
-               removeChild(row);
-            }
-            i++;
          }
-         if(this._notice)
+         for each(name in talking)
          {
-            this._notice.y = count * ROW_HEIGHT;
+            row = this.rowOf(name);
+            if(row != null && row.talking)
+            {
+               continue;
+            }
+            if(row != null)
+            {
+               this._rows.splice(this._rows.indexOf(row),1);
+            }
+            else
+            {
+               row = this.makeRow(name);
+            }
+            row.talking = true;
+            TweenLite.killTweensOf(row.sprite);
+            row.sprite.alpha = 1;
+            this._rows.unshift(row);
          }
+         this.place();
       }
 
       public function clear() : void
       {
-         this.update([]);
+         for each(var row:Object in this._rows)
+         {
+            TweenLite.killTweensOf(row.sprite);
+            removeChild(row.sprite);
+         }
+         this._rows = [];
          if(this._notice)
          {
             this._notice.visible = false;
@@ -111,14 +118,14 @@ package survarium.controls
             this._notice.textField.multiline = false;
             this._notice.autoSize = TextFieldAutoSize.LEFT;
             this._notice.scaleX = this._notice.scaleY = TEXT_SCALE;
-            this._notice.transform.colorTransform = new ColorTransform(((OWN >> 16) & 0xFF) / 255,((OWN >> 8) & 0xFF) / 255,(OWN & 0xFF) / 255);
+            this._notice.transform.colorTransform = tint(SPEAKER);
             addChild(this._notice);
             _noticeTimer = new Timer(NOTICE_MS,1);
             this._noticeTimer.addEventListener(TimerEvent.TIMER_COMPLETE,this.onNoticeOver);
          }
          this._notice.text = text;
-         this._notice.y = this.rowsShown() * ROW_HEIGHT;
          this._notice.visible = true;
+         this.place();
          this._noticeTimer.reset();
          this._noticeTimer.start();
       }
@@ -128,65 +135,96 @@ package survarium.controls
          this._notice.visible = false;
       }
 
-      protected function rowsShown() : uint
+      protected function rowOf(name:String) : Object
       {
-         var n:uint = 0;
-         for each(var row:Sprite in this._rows)
+         for each(var row:Object in this._rows)
          {
-            if(row.parent == this)
+            if(row.name == name)
             {
-               n++;
+               return row;
             }
          }
-         return n;
+         return null;
       }
 
-      protected function makeRow() : Sprite
+      protected function fade(row:Object) : void
       {
-         var row:Sprite = new Sprite();
+         TweenLite.killTweensOf(row.sprite);
+         TweenLite.to(row.sprite,FADE_S,{
+            "delay":FADE_DELAY,
+            "alpha":0,
+            "onComplete":this.drop,
+            "onCompleteParams":[row]
+         });
+      }
+
+      // A faded row goes (unless its player talks again meanwhile).
+      protected function drop(row:Object) : void
+      {
+         var at:int = this._rows.indexOf(row);
+         if(at >= 0 && !row.talking)
+         {
+            this._rows.splice(at,1);
+            removeChild(row.sprite);
+            this.place();
+         }
+      }
+
+      protected function place() : void
+      {
+         for(var i:int = 0; i < this._rows.length; i++)
+         {
+            this._rows[i].sprite.y = i * ROW_HEIGHT;
+         }
+         if(this._notice)
+         {
+            this._notice.y = this._rows.length * ROW_HEIGHT;
+         }
+      }
+
+      protected function makeRow(name:String) : Object
+      {
+         var sprite:Sprite = new Sprite();
          var mark:Shape = new Shape();
-         mark.name = "mark";
-         row.addChild(mark);
+         drawSpeaker(mark.graphics);
+         sprite.addChild(mark);
          var label:DefaultLabel3 = new DefaultLabel3();
-         label.name = "label";
          label.textField.wordWrap = false;
          label.textField.multiline = false;
          label.autoSize = TextFieldAutoSize.LEFT;
          label.scaleX = label.scaleY = TEXT_SCALE;
          label.x = 26;
          label.y = -3;
-         row.addChild(label);
-         return row;
-      }
-
-      protected function fillRow(row:Sprite, name:String, flags:uint) : void
-      {
-         var colour:uint = (flags & FLAG_SELF) != 0 ? OWN : TEAM;
-         var label:DefaultLabel3 = row.getChildByName("label") as DefaultLabel3;
          label.text = name;
          // Tinted, not recoloured: the label's frame script and its redraws reset the text's own
          // format to the symbol's (white).
-         label.transform.colorTransform = new ColorTransform(((colour >> 16) & 0xFF) / 255,((colour >> 8) & 0xFF) / 255,(colour & 0xFF) / 255);
-         drawMark(Shape(row.getChildByName("mark")).graphics,colour,(flags & FLAG_RADIO) != 0);
+         label.transform.colorTransform = tint(NAME);
+         sprite.addChild(label);
+         addChild(sprite);
+         return {sprite:sprite, name:name, talking:false};
       }
 
-      // A loudspeaker: a box, a cone, two waves (lines, no circles: a circle after lineStyle
-      // draws a stray line from the pen).
-      protected static function drawMark(g:Graphics, colour:uint, radio:Boolean) : void
+      protected static function tint(colour:uint) : ColorTransform
       {
-         g.clear();
+         return new ColorTransform(((colour >> 16) & 0xFF) / 255,((colour >> 8) & 0xFF) / 255,(colour & 0xFF) / 255);
+      }
+
+      // 0.69's speaker: a box, a cone, two waves (lines, no circles: a circle after lineStyle
+      // draws a stray line from the pen).
+      protected static function drawSpeaker(g:Graphics) : void
+      {
          g.lineStyle();
-         g.beginFill(colour,1);
+         g.beginFill(SPEAKER,1);
          g.drawRect(2,9,5,8);
          g.endFill();
-         g.beginFill(colour,1);
+         g.beginFill(SPEAKER,1);
          g.moveTo(7,9);
          g.lineTo(13,4);
          g.lineTo(13,22);
          g.lineTo(7,17);
          g.lineTo(7,9);
          g.endFill();
-         g.lineStyle(2,colour,radio ? 0.35 : 1);
+         g.lineStyle(2,SPEAKER,1);
          g.moveTo(16,9);
          g.curveTo(18,13,16,17);
          g.moveTo(19,6);

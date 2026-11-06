@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
-# usage: release/build-content <revision> [--out <folder>] [--tree <checkout>] [--manifest <file>]
+# usage: release/build-content <revision> [--out <folder>] [--tree <checkout>] [--site] [--manifest <file>]
+#                              [--no-cache]
 #
 # The next content patch, from the manifest of everything that should be
 # live in players' resources.db (release/content.tsv: the base patches, the
@@ -14,42 +15,72 @@
 #      every listed patch, mounted in order) and prints each one, why it is
 #      made (the rows) and whether players have it so already; a file a
 #      listed patch gives that is neither in a base row nor made by the
-#      manifest is a problem (what made it?), and nothing is written;
+#      manifest is a problem (what made it?), and nothing is written, but
+#      one an earlier version of a pack row added (its folder <id>-<n> in
+#      SKHID_PACKS_DIR, n below the row's: add_file, the live bytes) is
+#      listed as left from it, not packed;
 #   4. packs the files that differ into resources.db.patch_<revision>
 #      (release/build-patch), then builds the server game data of the stock
 #      db, the list's patches and it (srp-game-data build, the new patch at
 #      $SKHID_PATCHES_URL/<its name>, where release/upload-patch puts it),
-#      and checks that players' files with it over them are the manifest's.
+#      and checks that players' files with it over them are the manifest's;
+#   5. what else the game data makes, from the same patches: the item
+#      tables (srp-item-tables on the new server data) into <--out>/item-tables/,
+#      the tables of <tree>'s srp-026g/docs/data/ rewritten only where an
+#      item changed, each change said (the release's record commits them);
+#      with --site, the site's pages in <tree> too (release/build-site
+#      --with the new patch: the calculator, the maps, the wiki's icons; its
+#      built-from.tsv names exactly the list's patches and the new one), so
+#      a preview runs with SRP_GAME_DATA=<--out>/server-game-data.db in it.
+#      Without --site, no checkout is written. With nothing to ship, the
+#      site (--site) is built of the list alone, and no tables.
 #
 #   <revision>          the release's revision (the live exe's + 1), above
 #                       every listed patch
 #   --out <folder>      a new folder for resources.db.patch_<revision>,
-#                       server-game-data.db and files.tsv (every file made:
+#                       server-game-data.db, files.tsv (every file made:
 #                       its status, path, why, the archive players have it
-#                       from); default ./content-rev<revision>
+#                       from) and item-tables/; default ./content-rev<revision>
 #   --tree <checkout>   the sources (edit lists, content_edit.py, Flash
 #                       trees, the manifest) of another checkout; default
 #                       this one
+#   --site              also builds the site's pages in <tree> (a preview;
+#                       git shows what changed there, never for a PR)
 #   --manifest <file>   another manifest; default <tree>/release/content.tsv
+#   --no-cache          runs every step; by default a step (a movie, the
+#                       packs, an edit list, a check) whose inputs are the same
+#                       bytes as in an earlier build takes what it made then
+#                       from ~/.cache/skhid-release/build-content/ (the same
+#                       files: release/test.sh checks it; delete it any time)
 #
 # Settings (release.env): SKHID_STOCK_DB, SKHID_PATCHES_URL (the list's
 # server); SKHID_FLASH_TOOLS, the tools.json naming java and Flex 4.16.1
 # (default private/actionscript/tools.json of the main checkout); with packs
 # to compose, SKHID_VOSTOK_PORT (resource-porter's vostok-port) and
 # SKHID_PACKS_DIR (the packs' folders, <id>-<version>).
-# Writes only --out (and the cache). Next: release/release.sh --resources
-# <folder>/resources.db.patch_<revision>.
+# Writes --out (and the caches), with --site <tree>'s site pages. A failure
+# after the patch is made leaves --out: remove it to run again. Next:
+# release/release.sh --resources <folder>/resources.db.patch_<revision>.
 . "$(dirname "$0")/lib.sh"
 here=$(cd "$(dirname "$0")" && pwd)
 STOCK_SHA=${SKHID_TEST_STOCK_SHA256:-$STOCK_DB_SHA256}
+# `time: <step> <s> s` in the log: how long each step took since the last.
+step_start=$EPOCHREALTIME
+took() {
+    say "time: $1 $(awk -v a="$step_start" -v b="$EPOCHREALTIME" 'BEGIN { printf "%.1f", b - a }') s"
+    step_start=$EPOCHREALTIME
+}
+BUILD_SITE=${SKHID_TEST_BUILD_SITE:-$here/build-site}
 
-revision='' out='' tree=$ROOT manifest=''
+revision='' out='' tree=$ROOT site=0 manifest='' cached=1
 while (($#)); do
     case $1 in
     -h | --help) usage ;;
     --out) (($# >= 2)) || usage 1; out=$2; shift 2 ;;
     --tree) (($# >= 2)) || usage 1; tree=$2; shift 2 ;;
+    --site) site=1; shift ;;
     --manifest) (($# >= 2)) || usage 1; manifest=$2; shift 2 ;;
+    --no-cache) cached=0; shift ;;
     -*) die "unknown option $1 (--help)" ;;
     *) [[ -z $revision ]] || usage 1; revision=$1; shift ;;
     esac
@@ -68,12 +99,15 @@ lower_priority
 load_env SKHID_STOCK_DB
 use_patches live
 [[ -f $SKHID_STOCK_DB ]] || die "SKHID_STOCK_DB: $SKHID_STOCK_DB: no such file"
-[[ $(stock_sha256 "$SKHID_STOCK_DB") == "$STOCK_SHA" ]] ||
+[[ $(cached_sha256 "$SKHID_STOCK_DB") == "$STOCK_SHA" ]] ||
     die "SKHID_STOCK_DB: $SKHID_STOCK_DB is not the stock 0.26g resources.db (sha256 $STOCK_SHA)"
 read_patch_list
 ((revision > LIST_TOP)) || die "$name: the list has patches up to $LIST_TOP; the next is above them"
 cache_patches
+took "the offered patches"
 bin=$(game_data_bin)
+tables_bin=$(item_tables_bin)
+took "the tools (srp-game-data, srp-item-tables)"
 common=$(dirname "$(git -C "$ROOT" rev-parse --path-format=absolute --git-common-dir)")
 tools=${SKHID_FLASH_TOOLS:-$common/private/actionscript/tools.json}
 mkdir -p "$out"
@@ -83,6 +117,11 @@ trap 'rm -rf "$work"' EXIT
 
 args=(--stock "$SKHID_STOCK_DB" --patches "$PATCH_CACHE" --list "$PATCH_LIST" --bin "$bin"
     --tree "$tree" --manifest "$manifest" --work "$work/build" --tools "$tools")
+args+=(--stock-sha256 "$STOCK_SHA")
+# srp-game-data built here is known to the cache by its sources (another checkout's build of them
+# reads the same), one named by SRP_GAME_DATA_BIN by its bytes.
+[[ -n ${SRP_GAME_DATA_BIN:-} ]] || args+=(--bin-source "$ROOT/srp-026g")
+((!cached)) || args+=(--cache "${XDG_CACHE_HOME:-$HOME/.cache}/skhid-release/build-content")
 [[ -z ${SKHID_VOSTOK_PORT:-} ]] || args+=(--vostok-port "$SKHID_VOSTOK_PORT")
 [[ -z ${SKHID_PACKS_DIR:-} ]] || args+=(--packs "$SKHID_PACKS_DIR")
 say "building $(basename "$manifest") of $tree ($(git -C "$tree" rev-parse --short HEAD 2>/dev/null || echo 'no git'))"
@@ -91,13 +130,34 @@ if ! python -I "$here/build_content.py" "${args[@]}"; then
     die "no patch made"
 fi
 cp "$work/build/files.tsv" "$out/files.tsv"
+took "the manifest (build_content.py)"
+
+# 5. The site's pages of the list's patches and <with> (if any), in --tree:
+# only with --site (never a checkout unasked: a content PR would carry them).
+site_pages() { # [<with>]
+    local log=$out/build-site.log args=(--tree "$tree")
+    if ((!site)); then
+        say "the site's pages: not built (--site builds them in --tree, for a preview)"
+        return
+    fi
+    [[ -z ${1:-} ]] || args+=(--with "$1")
+    say "the site's pages in $tree (release/build-site; its log: $log) ..."
+    "$BUILD_SITE" "${args[@]}" </dev/null >"$log" 2>&1 ||
+        die "the site's build failed (its log: $log): $(tail -n 3 "$log" | tr '\n' ' ')— $rerun"
+    say "the site's pages: built from the list's patches${1:+ and ${1##*/}} (built-from.tsv)"
+}
 if [[ ! -d $work/build/patch ]]; then
     say "files.tsv: $out/files.tsv; no patch, no server game data (release/build-server-db makes the list's)"
+    say
+    rerun="to run it again: rm -rf $(q "$out")"
+    site_pages
+    say "the item tables: as they are (no new server data)"
     exit 0
 fi
 
 say
-"$here/build-patch" "$work/build/patch" "$revision" --out "$out/$name" | grep -v "^next: "
+SRP_GAME_DATA_BIN=$bin "$here/build-patch" "$work/build/patch" "$revision" --out "$out/$name" | grep -v "^next: "
+took "the patch (build-patch)"
 say
 patches=()
 layers=(--db "$SKHID_STOCK_DB")
@@ -109,6 +169,7 @@ done <<<"$LIST"
 url="$PATCHES_URL/$name"
 "$bin" build --db "$SKHID_STOCK_DB" "${patches[@]}" --patch "$out/$name=$url" --out "$out/$DATA_NAME" |
     sed -n '/^resources\.db\.patch_[0-9]*: /p;/server-game-data\.db: /p'
+took "the server game data"
 info=$("$bin" info "$out/$DATA_NAME")
 [[ $(offered_in "$info") == "$(offered_of_list "$name $(sha256_of "$out/$name") $(size_of "$out/$name") $url")" ]] ||
     die "$out/$DATA_NAME does not offer exactly the list's patches and $name"
@@ -117,6 +178,22 @@ compared=$("$bin" compare "${layers[@]}" --patch "$out/$name" --dir "$work/build
 others=$(grep -v '^same ' <<<"$compared" || true)
 [[ -z $others ]] || die "players' files with $name are not the manifest's: $others"
 say "with $name over players' files, all $(grep -c . <<<"$compared") files the manifest makes are as it makes them"
+took "players' files with the patch"
 say "$out/$name: $(size_of "$out/$name") bytes, sha256 $(sha256_of "$out/$name")"
 say "$out/$DATA_NAME: sha256 $(sha256_of "$out/$DATA_NAME") (offers the list's patches and $name at $url)"
+say
+rerun="the patch and the server data in $out are made; to run it all again: rm -rf $(q "$out")"
+site_pages "$out/$name"
+# The item tables of the new server data, in --out: the tree's as they are,
+# rewritten where an item changed (the release's record commits them).
+mkdir -p "$out/item-tables"
+for file in "$tree/$ITEM_TABLES_DIR"/*.tsv; do
+    [[ ! -f $file ]] || cp "$file" "$out/item-tables/"
+done
+tables=$("$tables_bin" "$out/$DATA_NAME" --dir "$out/item-tables" 2>&1) ||
+    die "the item tables: $tables — $rerun"
+took "the item tables"
+say "the item tables ($out/item-tables, against $ITEM_TABLES_DIR of $tree):"
+say "  ${tables//$'\n'/$'\n'  }"
+if ((site)); then say "a preview of it all: SRP_GAME_DATA=$out/$DATA_NAME in $tree (scripts/wiki/README.md)"; fi
 say "next: release/release.sh --resources $out/$name"

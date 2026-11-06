@@ -210,12 +210,27 @@ the new one, and recreate the container.
   0.26g tables), `backups/` (a copy of the database at every start),
   `snapshots/` (worlds the match server accepted, kept to compare) and
   `logs/`.
-- `logs/srp-YYYY-MM-DD.log`: every line srp prints, one file per UTC day,
-  added to across restarts, deleted after `SRP_LOG_KEEP_DAYS` (14). A line
-  has the time of day only; the date is the file's name. About 0.3 MB for a
-  day of 14 matches at `RUST_LOG=info`.
-- `docker compose logs srp26` is the running container's output only; an
-  update makes the container anew.
+- `logs/<server>.log` (login, lobby, match, web, srp): each server's lines,
+  dated (`2026-11-05T10:00:00.000Z [INFO] ...`), added to across restarts
+  and container recreates. A file is rotated to `<server>.log.1` (`.1`
+  becomes `.2`, ...) at its server's size, and a number of files is kept,
+  each server about two days at the heaviest logging seen (2026-11-01/02:
+  116-127 MB a day, about 95 % of it the match server's), the lobby about
+  12 days (the balance refit's input): match 32 x 8 MB, lobby 16 x 4 MB,
+  srp 4 x 4 MB, login 4 x 2 MB, web 2 x 2 MB, 348 MB in all (`SERVERS` in `servers/srp/src/logger.rs`). A crash's logs: crash.txt's
+  first line is the crash in UTC, as these lines are, and its `Match:` line
+  names the match as `match.log` does (`Match 0x...`). Lines reach the file through an 8 KiB
+  buffer: at once for a warning or an error, else with the first line a
+  second after the last write, and at a stop (SIGTERM). A process killed
+  outright loses the buffered info lines of the file (up to 8 KiB a
+  server); `docker logs` has them until the container goes. The day files
+  of before (`logs/srp-YYYY-MM-DD.log`) are no longer written or deleted:
+  remove them by hand when done with them.
+- The container's own output is capped by Docker (`json-file`, 5 files of
+  20 MB, in the compose file) and goes with the container.
+- `docker compose logs srp26` is the running container's output only (all
+  the servers in one stream, the time of day only); an update makes the
+  container anew.
 - The logs and the database are in one volume: a full disk stops both.
   Nothing copies them off the host. Do that yourself.
 - Passwords and their digests are in no log line.

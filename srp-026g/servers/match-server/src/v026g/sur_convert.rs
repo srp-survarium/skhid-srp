@@ -35,9 +35,9 @@ use survarium::v026g::match_msgs::{mask_bytes, tick_time};
 use udp_transport::table::{Direction, Table};
 use udp_transport::wire;
 
-use super::record::{self, IN, NOTE, OUT, Record, RecordRef};
+use super::record::{self, ACCEPTED_INPUT, ACCEPTED_PROFILE, IN, NOTE, OUT, Record, RecordRef};
 use super::sur::{
-    self, Coding, Event, InputValue, KeyFrame, MAX_KEY_FRAMES, MAX_PLAYERS, Parts, TICK_MS, Writer,
+    self, Coding, Event, InputValue, KeyFrame, MAX_KEY_FRAMES, MAX_PLAYERS, Parts, Writer,
 };
 
 /// An event the clock puts this far ahead of the recording is dropped: the
@@ -89,6 +89,9 @@ pub struct Settings {
     /// Key frames at these times are left out (for finding what the
     /// client chokes on).
     pub drop_key_frames: Vec<u32>,
+    /// Only these key frames (and the first): for a replay that must reach
+    /// one world without loading the worlds before it (a crash repro).
+    pub keep_key_frames: Option<Vec<u32>>,
     /// Only the first world as a key frame (the replay is never put
     /// right).
     pub first_key_frame_only: bool,
@@ -100,6 +103,7 @@ impl Default for Settings {
             coding: Coding::Packed,
             key_frame_every_ms: DEFAULT_KEY_FRAME_EVERY_MS,
             drop_key_frames: Vec::new(),
+            keep_key_frames: None,
             first_key_frame_only: false,
         }
     }
@@ -339,6 +343,9 @@ struct Gather {
     /// Every copy in the recording's order: `(ms, place, message)`.
     copies: Pieces<(u32, u8, u32)>,
     worlds: BTreeMap<u32, Vec<Vec<u8>>>,
+    /// Authoritative human actions for PvE, including actions with no relay.
+    accepted_inputs: BTreeMap<(u32, u8), [u8; 8]>,
+    accepted_profiles: BTreeMap<(u32, u8), u8>,
     /// The 0xE4 streams (without the index byte), by roster.
     options: BTreeMap<u8, Vec<u8>>,
     /// The options of each roster, and when a 0xE4 of it first went out.
@@ -367,6 +374,8 @@ impl Gather {
             counts: Vec::new(),
             copies: Pieces::default(),
             worlds: BTreeMap::new(),
+            accepted_inputs: BTreeMap::new(),
+            accepted_profiles: BTreeMap::new(),
             options: BTreeMap::new(),
             rosters: BTreeMap::new(),
         })
@@ -374,6 +383,28 @@ impl Gather {
 
     /// One record of the recording, in order.
     fn push(&mut self, record: RecordRef<'_>) {
+        if matches!(record.kind, ACCEPTED_INPUT | ACCEPTED_PROFILE) {
+            if record.place >= MAX_PLAYERS as u8 {
+                self.report.unparsed += 1;
+                return;
+            }
+            match (record.kind, record.bytes) {
+                (ACCEPTED_INPUT, bytes) if bytes.len() == 12 => {
+                    let time = u32::from_le_bytes(bytes[..4].try_into().unwrap());
+                    self.accepted_inputs
+                        .entry((time, record.place))
+                        .or_insert(bytes[4..].try_into().unwrap());
+                }
+                (ACCEPTED_PROFILE, bytes) if bytes.len() == 5 => {
+                    let time = u32::from_le_bytes(bytes[..4].try_into().unwrap());
+                    self.accepted_profiles
+                        .entry((time, record.place))
+                        .or_insert(bytes[4]);
+                }
+                _ => self.report.unparsed += 1,
+            }
+            return;
+        }
         if record.kind != IN && record.kind != OUT {
             return;
         }
@@ -506,6 +537,8 @@ fn finish(
         counts,
         copies,
         worlds,
+        accepted_inputs,
+        accepted_profiles,
         options,
         rosters,
     } = gathered;
@@ -535,7 +568,12 @@ fn finish(
     let times_of = |id: usize| &sent[starts[id]..starts[id + 1]];
     // Events by (time, player), the first copy kept.
     let mut inputs: BTreeMap<(u32, u8), InputValue> = BTreeMap::new();
-    let mut profiles: BTreeMap<(u32, u8), u8> = BTreeMap::new();
+    let mut profiles = accepted_profiles;
+    // Accepted actions take precedence over any relayed copy. Old files
+    // have no such records and continue to use their network relays alone.
+    for ((time, player), bytes) in accepted_inputs {
+        keep_input(&mut inputs, &mut report, time, player, &bytes);
+    }
     let mut entered: BTreeMap<(u32, u8), ()> = BTreeMap::new();
     let mut left: BTreeMap<(u32, u8), ()> = BTreeMap::new();
 
@@ -767,6 +805,9 @@ fn finish(
     times.dedup();
     times.truncate(MAX_KEY_FRAMES);
     times.retain(|time| !settings.drop_key_frames.contains(time));
+    if let Some(keep) = &settings.keep_key_frames {
+        times.retain(|time| *time == first_world || keep.contains(time));
+    }
     if settings.first_key_frame_only {
         times.truncate(1);
     }
@@ -1150,11 +1191,6 @@ fn keep_input(
     }
 }
 
-/// The start of the tick a time is in; here for the CLI's summary.
-pub fn tick_of(time: u32) -> u32 {
-    time / TICK_MS
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -1210,11 +1246,10 @@ mod tests {
         let map = survarium::v026g::maps::playable().next().unwrap();
         let options = MatchOptions {
             players: vec![profile("a", 0), profile("b", 1)],
-            map_id: map.id,
+            map: survarium::v026g::maps::MatchMap::of(map.id).unwrap(),
             match_id: 1,
             match_level: 1,
             score_weights: [0.0; SCORE_EVENTS],
-            blackout: false,
         };
         let info = StaticInfo::new(&options, Dictionary::shared()).unwrap();
         let mut records = vec![
@@ -1222,7 +1257,7 @@ mod tests {
                 0,
                 &format!(
                     r#"{{"note":"header","map":"{}","map_id":{},"mode":{},"match_id":"0x1","places":[{{"place":0}},{{"place":1}}]}}"#,
-                    map.name, map.id, map.mode
+                    map.name, map.id, map.mode.rules()
                 ),
             ),
             note(1350, r#"{"note":"clock","match_ms":50}"#),
@@ -1287,6 +1322,106 @@ mod tests {
     }
 
     #[test]
+    fn solo_pve_keeps_the_humans_accepted_actions_and_kit_without_another_client() {
+        let mut records = recording();
+        // Only place 0 has a client. Its own action at 1050 had only been
+        // relayed to place 1; the bot's actions to place 0 remain available.
+        records.retain(|r| r.kind != OUT || r.place == 0);
+        let mut accepted = 1057u32.to_le_bytes().to_vec();
+        accepted.extend([5, 6, 7, 8]);
+        accepted.extend(0x8000_0020u32.to_le_bytes());
+        records.push(Record {
+            kind: ACCEPTED_INPUT,
+            place: 0,
+            at_ms: 2420,
+            bytes: accepted,
+        });
+        let mut kit = 1100u32.to_le_bytes().to_vec();
+        kit.push(2);
+        records.push(Record {
+            kind: ACCEPTED_PROFILE,
+            place: 0,
+            at_ms: 2500,
+            bytes: kit,
+        });
+        // Raw incoming actions are not an acceptance record (may be late,
+        // invalid or discarded). They must not manufacture replay actions.
+        records.push(datagram(
+            IN,
+            0,
+            2500,
+            0xDB,
+            None,
+            &[22, 1, 2, 3, 4, 99, 0, 0, 0],
+        ));
+        let (file, report) = convert(&records, b"config", Settings::default()).unwrap();
+        assert_eq!(report.inputs, 3);
+        let chunks = sur::chunks(&file).unwrap();
+        let events = sur::read_body(&lzma2::unpack(chunks[2].1, 1 << 20).unwrap()).unwrap();
+        let inputs: Vec<_> = events
+            .iter()
+            .flat_map(|r| {
+                r.event
+                    .inputs
+                    .iter()
+                    .map(move |(place, input)| (r.event.time, *place, input.actions))
+            })
+            .collect();
+        assert_eq!(inputs, [(1000, 1, 0x10), (1007, 1, 0x30), (1057, 0, 0x20)]);
+        let kits: Vec<_> = events
+            .iter()
+            .flat_map(|r| r.event.profiles.clone())
+            .collect();
+        assert!(kits.contains(&(0, 2)));
+    }
+
+    #[test]
+    fn accepted_actions_and_network_copies_become_one_replay_action() {
+        let mut records = recording();
+        let mut bytes = 1050u32.to_le_bytes().to_vec();
+        bytes.extend([5, 6, 7, 8]);
+        bytes.extend(0x20u32.to_le_bytes());
+        records.push(Record {
+            kind: ACCEPTED_INPUT,
+            place: 0,
+            at_ms: 2420,
+            bytes,
+        });
+        let (_, report) = convert(&records, b"config", Settings::default()).unwrap();
+        assert_eq!(report.inputs, 3);
+        assert_eq!(report.input_conflicts, 0);
+        assert_eq!(report.input_copies, 2);
+    }
+
+    #[test]
+    fn malformed_accepted_actions_are_not_played() {
+        let mut records = recording();
+        records.extend([
+            Record {
+                kind: ACCEPTED_INPUT,
+                place: 0,
+                at_ms: 2420,
+                bytes: vec![0; 11],
+            },
+            Record {
+                kind: ACCEPTED_INPUT,
+                place: 255,
+                at_ms: 2420,
+                bytes: vec![0; 12],
+            },
+            Record {
+                kind: ACCEPTED_PROFILE,
+                place: 0,
+                at_ms: 2420,
+                bytes: vec![0; 6],
+            },
+        ]);
+        let (_, report) = convert(&records, b"config", Settings::default()).unwrap();
+        assert_eq!(report.inputs, 3);
+        assert_eq!(report.unparsed, 3);
+    }
+
+    #[test]
     fn a_recording_becomes_a_checked_file() {
         let records = recording();
         let config = b"config bytes";
@@ -1295,6 +1430,7 @@ mod tests {
                 coding,
                 key_frame_every_ms: 10_000,
                 drop_key_frames: Vec::new(),
+                keep_key_frames: None,
                 first_key_frame_only: false,
             };
             let (file, report) = convert(&records, config, settings).unwrap();
@@ -1519,11 +1655,10 @@ mod tests {
         let map = survarium::v026g::maps::playable().next().unwrap();
         let options = MatchOptions {
             players: vec![profile("a", 0), profile("b", 1), armed("c", 0)],
-            map_id: map.id,
+            map: survarium::v026g::maps::MatchMap::of(map.id).unwrap(),
             match_id: 1,
             match_level: 1,
             score_weights: [0.0; SCORE_EVENTS],
-            blackout: false,
         };
         let info = StaticInfo::new(&options, Dictionary::shared()).unwrap();
         for place in 0..3u8 {

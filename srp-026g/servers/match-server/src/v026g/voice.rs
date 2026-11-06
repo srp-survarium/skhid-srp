@@ -11,6 +11,12 @@
 //! logs (counts only, per match). The simulation never sees any of it, so no
 //! replay or recording has voice.
 //!
+//! A datagram is read once into a typed value ([`parse`]); one that is
+//! malformed (an AUDIO's frames included: [`opus_20ms`]), not a seat's, or
+//! over its talker's rate is dropped, never forwarded, and counted in the
+//! drop log: a line a source IP with its count, at most every
+//! [`DROP_LOG_EVERY`], so a flood cannot fill the log.
+//!
 //! Every utterance goes past an [`UtteranceTap`] ([`NoTap`] by default): the
 //! seam for subtitles and translation later. What a tap says goes back to the
 //! team through [`RelayOut`] as a TEXT datagram (type 85h).
@@ -54,7 +60,7 @@
 
 use std::collections::HashMap;
 use std::io;
-use std::net::{SocketAddr, UdpSocket};
+use std::net::{IpAddr, SocketAddr, UdpSocket};
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::time::{Duration, Instant};
 
@@ -266,8 +272,8 @@ enum Datagram<'a> {
         session: u32,
         utt: u16,
         seq: u16,
-        /// From `utt` to the end: the relayed AUDIO's body.
-        body: &'a [u8],
+        /// From `seq` to the end: the relayed AUDIO's body behind its utt.
+        relayed: &'a [u8],
         frames: Vec<&'a [u8]>,
     },
     End {
@@ -276,64 +282,236 @@ enum Datagram<'a> {
     },
 }
 
-fn u16_at(bytes: &[u8], at: usize) -> Option<u16> {
-    Some(u16::from_le_bytes(bytes.get(at..at + 2)?.try_into().ok()?))
+/// The most frames an AUDIO may carry: the games drop a datagram with more
+/// (`client-voice/src/wire.rs`), so the relay never forwards one.
+pub const MAX_FRAMES: usize = 8;
+
+/// Why the relay dropped a datagram: the drop log's words.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Dropped {
+    /// Over [`MAX_DATAGRAM`].
+    TooLarge,
+    /// Shorter than the magic, version, type and session.
+    Short,
+    /// Not the magic: not voice.
+    NotVoice,
+    /// Another version of the wire.
+    Version(u8),
+    /// Not a type a client sends.
+    Kind(u8),
+    /// A body not of its type's length.
+    Length,
+    /// AUDIO not of 1 to [`MAX_FRAMES`] frames that fill it exactly.
+    Frames,
+    /// A frame that is not one 20 ms Opus packet ([`opus_20ms`]).
+    NotOpus,
+    /// A session with no seat.
+    NoSeat,
+    /// From another IP than its seat's match connection.
+    WrongIp,
+    /// A talker over [`MAX_PER_SECOND`].
+    RateLimit,
 }
 
-fn u32_at(bytes: &[u8], at: usize) -> Option<u32> {
-    Some(u32::from_le_bytes(bytes.get(at..at + 4)?.try_into().ok()?))
+impl std::fmt::Display for Dropped {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::TooLarge => write!(f, "over {MAX_DATAGRAM} bytes"),
+            Self::Short => write!(f, "truncated header"),
+            Self::NotVoice => write!(f, "not voice"),
+            Self::Version(version) => write!(f, "version {version}"),
+            Self::Kind(kind) => write!(f, "type {kind:#04x}"),
+            Self::Length => write!(f, "wrong length"),
+            Self::Frames => write!(f, "malformed frames"),
+            Self::NotOpus => write!(f, "a frame not 20 ms of Opus"),
+            Self::NoSeat => write!(f, "no seat"),
+            Self::WrongIp => write!(f, "not its seat's IP"),
+            Self::RateLimit => write!(f, "over {MAX_PER_SECOND} a second"),
+        }
+    }
 }
 
-/// `None` for anything malformed, of another version, or of a type a
-/// client does not send.
-fn parse(datagram: &[u8]) -> Option<Datagram<'_>> {
-    let (&[MAGIC, VERSION, kind], rest) = datagram.split_first_chunk::<3>()? else {
-        return None;
+/// Whether `frame` is one 20 ms Opus packet, what the games play in each
+/// frame's place: its TOC byte's configuration and frame count (RFC 6716
+/// 3.1) say 20 ms. The rest of it is the decoder's to check.
+pub fn opus_20ms(frame: &[u8]) -> bool {
+    let Some((&toc, rest)) = frame.split_first() else {
+        return false;
     };
-    let session = u32_at(rest, 0)?;
-    let body = &rest[4..];
+    let config = toc >> 3;
+    // A frame's length in 2.5 ms.
+    let length: u32 = match config {
+        // SILK: 10, 20, 40 and 60 ms.
+        0..=11 => [4, 8, 16, 24][usize::from(config & 3)],
+        // Hybrid: 10 and 20 ms.
+        12..=15 => [4, 8][usize::from(config & 1)],
+        // CELT: 2.5, 5, 10 and 20 ms.
+        _ => [1, 2, 4, 8][usize::from(config & 3)],
+    };
+    let count = match toc & 3 {
+        0 => 1,
+        1 | 2 => 2,
+        // Code 3: the count is in the next byte.
+        _ => rest.first().map_or(0, |&count| u32::from(count & 0x3F)),
+    };
+    length * count == 8
+}
+
+/// Anything malformed, of another version, or of a type a client does not
+/// send is an `Err` saying why.
+fn parse(datagram: &[u8]) -> Result<Datagram<'_>, Dropped> {
+    if datagram.len() > MAX_DATAGRAM {
+        return Err(Dropped::TooLarge);
+    }
+    let Some((&[magic, version, kind], rest)) = datagram.split_first_chunk::<3>() else {
+        return Err(Dropped::Short);
+    };
+    if magic != MAGIC {
+        return Err(Dropped::NotVoice);
+    }
+    if version != VERSION {
+        return Err(Dropped::Version(version));
+    }
+    let Some((&session, body)) = rest.split_first_chunk::<4>() else {
+        return Err(Dropped::Short);
+    };
+    let session = u32::from_le_bytes(session);
     match kind {
-        // The mask may be left out (none muted).
-        kind::HELLO if body.len() == 1 || body.len() == 5 => Some(Datagram::Hello {
+        kind::HELLO => match *body {
+            // The mask may be left out (none muted).
+            [flags] => Ok((flags, 0)),
+            [flags, a, b, c, d] => Ok((flags, u32::from_le_bytes([a, b, c, d]))),
+            _ => Err(Dropped::Length),
+        }
+        .map(|(flags, muted)| Datagram::Hello {
             session,
-            hears: body[0] & 1 != 0,
-            muted: u32_at(body, 1).unwrap_or(0),
+            hears: flags & 1 != 0,
+            muted,
         }),
-        kind::START if body.len() == 6 => Some(Datagram::Start {
-            session,
-            utt: u16_at(body, 0)?,
-        }),
+        kind::START => match *body {
+            [a, b, _, _, _, _] => Ok(Datagram::Start {
+                session,
+                utt: u16::from_le_bytes([a, b]),
+            }),
+            _ => Err(Dropped::Length),
+        },
         kind::AUDIO => {
-            let utt = u16_at(body, 0)?;
-            let seq = u16_at(body, 2)?;
-            let count = *body.get(4)?;
-            if count == 0 {
-                return None;
+            let Some((&utt, relayed)) = body.split_first_chunk::<2>() else {
+                return Err(Dropped::Length);
+            };
+            let Some((&[seq_low, seq_high, count], mut rest)) = relayed.split_first_chunk::<3>()
+            else {
+                return Err(Dropped::Length);
+            };
+            let count = usize::from(count);
+            if !(1..=MAX_FRAMES).contains(&count) {
+                return Err(Dropped::Frames);
             }
-            let mut frames = Vec::with_capacity(usize::from(count));
-            let mut at = 5;
+            let mut frames = Vec::with_capacity(count);
             for _ in 0..count {
-                let len = usize::from(*body.get(at)?);
-                let frame = body.get(at + 1..at + 1 + len)?;
-                if frame.is_empty() {
-                    return None;
+                let Some((&len, after)) = rest.split_first() else {
+                    return Err(Dropped::Frames);
+                };
+                let Some((frame, after)) = after.split_at_checked(usize::from(len)) else {
+                    return Err(Dropped::Frames);
+                };
+                if !opus_20ms(frame) {
+                    return Err(Dropped::NotOpus);
                 }
                 frames.push(frame);
-                at += 1 + len;
+                rest = after;
             }
-            (at == body.len()).then_some(Datagram::Audio {
+            if !rest.is_empty() {
+                return Err(Dropped::Frames);
+            }
+            Ok(Datagram::Audio {
                 session,
-                utt,
-                seq,
-                body,
+                utt: u16::from_le_bytes(utt),
+                seq: u16::from_le_bytes([seq_low, seq_high]),
+                relayed,
                 frames,
             })
         }
-        kind::END if body.len() == 4 => Some(Datagram::End {
-            session,
-            utt: u16_at(body, 0)?,
-        }),
-        _ => None,
+        kind::END => match *body {
+            [a, b, _, _] => Ok(Datagram::End {
+                session,
+                utt: u16::from_le_bytes([a, b]),
+            }),
+            _ => Err(Dropped::Length),
+        },
+        _ => Err(Dropped::Kind(kind)),
+    }
+}
+
+/// How often the drop log writes, and the most sources it names a time.
+pub const DROP_LOG_EVERY: Duration = Duration::from_secs(10);
+const DROP_LOG_SOURCES: usize = 8;
+/// The sources the drop log counts apart at once; a flood from more (a
+/// spoofed one) is summed, so its memory stays bounded.
+const DROP_SOURCES: usize = 1024;
+
+/// One source's drops since the drop log last wrote.
+#[derive(Clone, Copy)]
+struct SourceDrops {
+    count: u32,
+    first: Dropped,
+}
+
+/// The datagrams dropped as malformed, not a seat's or over the rate, by
+/// source IP, written at most every [`DROP_LOG_EVERY`]: a flood is a line
+/// a source with its count, never a line a datagram.
+#[derive(Default)]
+struct DropLog {
+    sources: HashMap<IpAddr, SourceDrops>,
+    /// Drops of sources past [`DROP_SOURCES`].
+    others: u64,
+}
+
+impl DropLog {
+    fn record(&mut self, source: IpAddr, reason: Dropped) {
+        let full = self.sources.len() >= DROP_SOURCES;
+        match self.sources.get_mut(&source) {
+            Some(drops) => drops.count = drops.count.saturating_add(1),
+            None if full => self.others = self.others.saturating_add(1),
+            None => {
+                self.sources.insert(
+                    source,
+                    SourceDrops {
+                        count: 1,
+                        first: reason,
+                    },
+                );
+            }
+        }
+    }
+
+    /// The lines for the drops so far (the most dropping sources first, at
+    /// most [`DROP_LOG_SOURCES`] and a sum of the rest), then forgotten.
+    fn lines(&mut self) -> Vec<String> {
+        let mut sources: Vec<(IpAddr, SourceDrops)> = self.sources.drain().collect();
+        sources.sort_unstable_by(|a, b| b.1.count.cmp(&a.1.count).then(a.0.cmp(&b.0)));
+        let mut lines: Vec<String> = sources
+            .iter()
+            .take(DROP_LOG_SOURCES)
+            .map(|(source, drops)| {
+                format!(
+                    "Voice: dropped {} datagrams from {source} (the first: {})",
+                    drops.count, drops.first
+                )
+            })
+            .collect();
+        let rest = sources
+            .iter()
+            .skip(DROP_LOG_SOURCES)
+            .map(|(_, drops)| u64::from(drops.count))
+            .sum::<u64>()
+            .saturating_add(std::mem::take(&mut self.others));
+        if rest > 0 {
+            lines.push(format!(
+                "Voice: dropped {rest} more datagrams from other sources"
+            ));
+        }
+        lines
     }
 }
 
@@ -400,9 +578,11 @@ pub struct Relay<S: Seats> {
     counts: HashMap<u32, MatchCounts>,
     /// Datagrams dropped before a session was known (too large, malformed).
     pub dropped_unknown: u64,
+    drops: DropLog,
     /// The voice ids' key ([`voice_id`]).
     id_key: [u8; 32],
     next_housekeeping: Instant,
+    next_drop_log: Instant,
 }
 
 impl<S: Seats> Relay<S> {
@@ -420,8 +600,10 @@ impl<S: Seats> Relay<S> {
             output_utterances: HashMap::new(),
             counts: HashMap::new(),
             dropped_unknown: 0,
+            drops: DropLog::default(),
             id_key: [0; 32],
             next_housekeeping: now + HOUSEKEEPING,
+            next_drop_log: now,
         }
     }
 
@@ -442,9 +624,32 @@ impl<S: Seats> Relay<S> {
 
     fn drop_for(&mut self, match_id: Option<u32>) {
         match match_id {
-            Some(match_id) => self.counts.entry(match_id).or_default().dropped += 1,
-            None => self.dropped_unknown += 1,
+            Some(match_id) => {
+                let counts = self.counts.entry(match_id).or_default();
+                counts.dropped = counts.dropped.saturating_add(1);
+            }
+            None => self.dropped_unknown = self.dropped_unknown.saturating_add(1),
         }
+    }
+
+    /// A datagram from `source` dropped for `reason`: counted for its match
+    /// (when its seat is known) and in the drop log.
+    fn reject(&mut self, source: IpAddr, match_id: Option<u32>, reason: Dropped) {
+        self.drop_for(match_id);
+        self.drops.record(source, reason);
+    }
+
+    /// The drop log's lines when they are due (every [`DROP_LOG_EVERY`]):
+    /// what [`Relay::poll`] writes to the log.
+    fn drop_lines(&mut self, now: Instant) -> Vec<String> {
+        if now < self.next_drop_log {
+            return Vec::new();
+        }
+        let lines = self.drops.lines();
+        if !lines.is_empty() {
+            self.next_drop_log = now + DROP_LOG_EVERY;
+        }
+        lines
     }
 
     /// One datagram from `addr`: what to send, and where.
@@ -455,13 +660,13 @@ impl<S: Seats> Relay<S> {
         now: Instant,
     ) -> Vec<(SocketAddr, Vec<u8>)> {
         let mut out = Vec::new();
-        if datagram.len() > MAX_DATAGRAM {
-            self.drop_for(None);
-            return out;
-        }
-        let Some(parsed) = parse(datagram) else {
-            self.drop_for(None);
-            return out;
+        let source = addr.ip().to_canonical();
+        let parsed = match parse(datagram) {
+            Ok(parsed) => parsed,
+            Err(reason) => {
+                self.reject(source, None, reason);
+                return out;
+            }
         };
         let session = match &parsed {
             Datagram::Hello { session, .. }
@@ -470,14 +675,15 @@ impl<S: Seats> Relay<S> {
             | Datagram::End { session, .. } => *session,
         };
         // The session holds a seat, and the datagram comes from the IP its
-        // game connected to the match from. Anything else: dropped, silently.
+        // game connected to the match from. Anything else: dropped (and in
+        // the drop log, by its source).
         let Some(seat) = self.seats.voice_seat(session) else {
             self.listeners.remove(&session);
-            self.drop_for(None);
+            self.reject(source, None, Dropped::NoSeat);
             return out;
         };
-        if seat.ip != Some(addr.ip().to_canonical()) {
-            self.drop_for(Some(seat.match_id));
+        if seat.ip != Some(source) {
+            self.reject(source, Some(seat.match_id), Dropped::WrongIp);
             return out;
         }
         // A session may acquire a new place before housekeeping runs. An
@@ -505,9 +711,9 @@ impl<S: Seats> Relay<S> {
             talker.window = now;
             talker.in_window = 0;
         }
-        talker.in_window += 1;
+        talker.in_window = talker.in_window.saturating_add(1);
         if talker.in_window > MAX_PER_SECOND {
-            self.drop_for(Some(seat.match_id));
+            self.reject(source, Some(seat.match_id), Dropped::RateLimit);
             return out;
         }
         match parsed {
@@ -538,11 +744,13 @@ impl<S: Seats> Relay<S> {
             Datagram::Audio {
                 utt,
                 seq,
-                body,
+                relayed: body,
                 frames,
                 ..
             } => {
-                let talker = &self.talkers[&session];
+                let Some(talker) = self.talkers.get(&session) else {
+                    return out;
+                };
                 let fresh = match &talker.open {
                     Some(open) => open.client_utt != utt,
                     None => true,
@@ -573,16 +781,17 @@ impl<S: Seats> Relay<S> {
                 let mut relayed = header(kind::RELAYED_AUDIO);
                 relayed.push(seat.place);
                 relayed.extend_from_slice(&utterance.utt.to_le_bytes());
-                relayed.extend_from_slice(&body[2..]);
+                relayed.extend_from_slice(body);
                 self.to_team(&utterance, session, &relayed, now, &mut out);
                 let mut tap_out = RelayOut::default();
                 self.tap.audio(&utterance, seq, &frames, &mut tap_out);
                 self.send_texts(tap_out, now, &mut out);
             }
             Datagram::End { utt, .. } => {
-                let open = self.talkers[&session]
-                    .open
-                    .as_ref()
+                let open = self
+                    .talkers
+                    .get(&session)
+                    .and_then(|talker| talker.open.as_ref())
                     .is_some_and(|open| open.client_utt == utt);
                 if open {
                     self.close(session, EndReason::Released, now, &mut out);
@@ -600,7 +809,9 @@ impl<S: Seats> Relay<S> {
         now: Instant,
         out: &mut Vec<(SocketAddr, Vec<u8>)>,
     ) {
-        let talker = &self.talkers[&session];
+        let Some(talker) = self.talkers.get(&session) else {
+            return;
+        };
         if let Some(open) = &talker.open {
             if open.client_utt == utt {
                 return;
@@ -612,8 +823,10 @@ impl<S: Seats> Relay<S> {
             // One open utterance a talker: a new one ends the last.
             self.close(session, EndReason::Released, now, out);
         }
-        if self.talkers[&session]
-            .closed
+        if self
+            .talkers
+            .get(&session)
+            .and_then(|talker| talker.closed)
             .is_some_and(|closed| !newer_utterance(utt, closed))
         {
             self.drop_for(Some(seat.match_id));
@@ -731,7 +944,8 @@ impl<S: Seats> Relay<S> {
     }
 
     /// The time-outs and cuts due at `now`, and once a second the seats
-    /// checked again and each match that is over logged and forgotten.
+    /// checked again, each match that is over logged and forgotten, and
+    /// the drop log written when due.
     pub fn poll(&mut self, now: Instant) -> Vec<(SocketAddr, Vec<u8>)> {
         let mut out = Vec::new();
         if now >= self.next_housekeeping {
@@ -796,16 +1010,15 @@ impl<S: Seats> Relay<S> {
                 );
             }
         }
+        for line in self.drop_lines(now) {
+            log::info!("{line}");
+        }
     }
 }
 
 /// Whether srp runs the voice relay (`SRP_VOICE`, default on).
 pub fn enabled_from_env() -> bool {
-    super::parse_switch(
-        "SRP_VOICE",
-        std::env::var("SRP_VOICE").ok().as_deref(),
-        true,
-    )
+    session::switch("SRP_VOICE", true)
 }
 
 /// The voice port of a match server on `match_port`: the next one. The
@@ -833,7 +1046,11 @@ pub fn run(
                     error.kind(),
                     io::ErrorKind::WouldBlock
                         | io::ErrorKind::TimedOut
+                        | io::ErrorKind::Interrupted
+                        // An ICMP answer to an earlier send (a game gone):
+                        // not this socket's failure.
                         | io::ErrorKind::ConnectionReset
+                        | io::ErrorKind::ConnectionRefused
                 ) =>
             {
                 Vec::new()

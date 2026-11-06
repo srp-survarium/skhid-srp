@@ -224,6 +224,13 @@ match). A build of before refuses the file once the step is made.
 
 ## 8. The sides: what a player counts for — choice (2026-10-13)
 
+**Replaced on 2026-11-01** (the owner's): a player now counts for its K/D at the match's
+equipment level, a squad's members 1.3 times, with a small noise
+([kd-balance.md](kd-balance.md)). §8.2's weights of gear level, account level and the overall
+balance rating are no longer counted; the overall rating (§8.3) is still moved and logged, and the
+late-join rule (§9) and the lead are as they were, in K/Ds. Kept below for the record and the
+refit.
+
 Code: `crates/session/src/v026g/balance.rs` (the weights, the balance rating),
 `crates/session/src/matchmaking.rs` (`seat_balanced`, `set_strengths`,
 `set_player_value`), `servers/lobby-server/src/v026g/play.rs` (`strength_of`, the
@@ -363,10 +370,10 @@ With the "settled" line (the winner) it is what a later fit needs.
 
 ### 8.5 Squads
 
-`SRP_SQUADS=off`: no invite is passed on and nobody is added
-(`social.md` §9.4). Squads were in 57 of 106 matches and are what kept the
-sides from being made even; with them on, a squad is still one side and
-the rule above works around it.
+Squads were in 57 of 106 matches and are what kept the sides from being
+made even (they were off from 2026-10-13, `SRP_SQUADS`, removed 2026-10-31);
+a squad, now of two (`squads.md`), is still one side and the rule above
+works around it.
 
 ### 8.6 Not done
 
@@ -409,7 +416,6 @@ thrown (§3.14).
   **The sides are made as the standard queue makes them** (§8.2,
   `seat_balanced`): by what each player counts for.
 - Players left over wait a new window, or join the match just made.
-- The home page ("How matches start") tells these rules, and the running-match rules of §9.2, when every game that can press Play is of this queue: `SRP_MIN_PATCH_REVISION` is 5 or more (`web-server`'s `only_growing_games`). Otherwise it still tells the standard queue's (§3), whose games are then the other queue.
 
 ### 9.2 A match being played: who joins, and where
 
@@ -551,8 +557,9 @@ at a time. A player who waits in the queue does not see JOIN on.
 
 ### 9.8 A match against the server's bots ("Player vs Bots", 2026-10-16)
 
-The owner's decisions of 2026-10-16. A player of equipment level 5 or
-lower (`SRP_PVB_MAX_GEAR`), alone (no squad), not searching, not in a
+The owner's decisions of 2026-10-16 (and of 2026-10-26: every equipment
+level). A player of any equipment level (at most `pvb/max_gear` of `rooms.tsv`, 15;
+5 until 2026-10-26), alone (no squad), not searching, not in a
 match, chooses a size (6, 8 or 10 a side) and a map in the changed lobby
 movie (`lobby.md` §2.16.2); its Play then makes the match at once:
 
@@ -560,10 +567,13 @@ movie (`lobby.md` §2.16.2); its Play then makes the match at once:
   `Matchmaking::seat_solo` seats it alone on team 0, the teams fixed;
 - the lobby adds 2N − 1 of the server's bots after it
   (`play::server_bot_teams`, each to the side with fewer places: N − 1 on
-  the player's side, N on the other), on the map chosen (not
+  the player's side, N on the other), wearing kits of the player's
+  equipment level (`player_bots.md` §8), on the map chosen (not
   `choose_map`); the play is no map play of the player's (the rotation
   of §5 is the PvP queue's);
-- the match's level is the player's own (§4, a match of one level);
+- the match's level is the player's own (§4, a match of one level); in
+  the sides' counts (§9.2's predictions) a bot counts for its gear
+  level, as a player of level 0 with no rating;
 - fixed teams: it takes no late joiner (§9.2's `late_admission` is
   `None`, the list says code 7), and nobody of the queue goes into it;
 - at most `SRP_PVB_MAX_MATCHES` (5) run at once, counting the choices held

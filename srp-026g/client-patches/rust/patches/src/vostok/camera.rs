@@ -1,16 +1,19 @@
-//! player::update_camera 0x1F3480 at `camera.eye` (sites_026g.tsv): EBX
-//! the camera's player, EAX the eye transform the view is given (the
-//! player's +44Ch in the first person).
+//! player::update_camera 0x1F3480 at `camera.eye` (sites_026g.tsv): the
+//! camera's player, EAX the eye transform the view is given (the player's
+//! +44Ch in the first person).
 
 use core::cell::UnsafeCell;
 
 use super::context::{Context, Reg};
 use super::world::Player;
+use crate::raw;
 
 /// The camera's player, and whether the view is given its own eye (the
 /// first person).
 pub fn eye_player<'t>(ctx: &'t Context<'_>) -> Option<(Player<'t>, bool)> {
-    let player = Player::at(ctx, Reg::Ebx)?;
+    // SAFETY: the context is this site's: the camera's player, alive while
+    // update_camera runs on its thread.
+    let player = Player::of(ctx, unsafe { raw::site::camera_eye::player(ctx) })?;
     Some((player, ctx.reg(Reg::Eax) == player.eye_address()))
 }
 

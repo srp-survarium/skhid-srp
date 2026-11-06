@@ -10,18 +10,8 @@
 
 use super::hook::{Regs, Thread};
 
-/// A general-purpose register.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub enum Reg {
-    Eax,
-    Ecx,
-    Edx,
-    Ebx,
-    Esp,
-    Ebp,
-    Esi,
-    Edi,
-}
+/// A general-purpose register (raw's: a site's typed registers are read by it).
+pub use crate::raw::Register as Reg;
 
 /// A flag a handler may set for the code after the detour.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -100,8 +90,7 @@ impl<'t> Context<'t> {
             Reg::Ecx => r.ecx,
             Reg::Edx => r.edx,
             Reg::Ebx => r.ebx,
-            // pushfd and the dispatch slot precede pushad. Expose the game ESP.
-            Reg::Esp => r.esp.wrapping_add(8),
+            Reg::Esp => r.esp,
             Reg::Ebp => r.ebp,
             Reg::Esi => r.esi,
             Reg::Edi => r.edi,
@@ -154,6 +143,19 @@ impl<'t> Context<'t> {
     pub fn set_xmm_f64(&mut self, index: usize, value: f64) {
         // SAFETY: as xmm_f32.
         unsafe { self.xmm(index).cast::<f64>().write_unaligned(value) }
+    }
+}
+
+/// What a site's typed registers (sites_026g.tsv `holds`, raw's `site`) are read from.
+impl crate::raw::Machine for Context<'_> {
+    fn register(&self, register: Reg) -> u32 {
+        self.reg(register)
+    }
+
+    /// The entry pushed its dispatch slot and the flags before `pushad` saved
+    /// ESP (hooks_026g.lohook_entry): the site's ESP is 8 above it.
+    fn site_esp(&self) -> u32 {
+        self.reg(Reg::Esp).wrapping_add(8)
     }
 }
 
@@ -210,7 +212,6 @@ mod tests {
         assert!(!ctx.flag(Flag::Zf));
         ctx.set_xmm_f32(3, 1.5);
         assert_eq!(ctx.xmm_f32(3), 1.5);
-        assert_eq!(ctx.reg(Reg::Esp), 8);
         assert_eq!(regs.eax, 0x1234_5601);
         // xmm3 lives at fxsave + 160 + 48
         assert_eq!(f32::from_le_bytes(fxsave[208..212].try_into().unwrap()), 1.5);

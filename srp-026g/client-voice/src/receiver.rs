@@ -9,6 +9,8 @@ const RING: usize = 32;
 pub struct Stats {
     pub decoded: u32,
     pub concealed: u32,
+    /// Frames the decoder refused (concealed in their place).
+    pub undecodable: u32,
     pub late: u32,
     pub underruns: u32,
     pub closed: u32,
@@ -185,14 +187,24 @@ impl Speaker {
             .as_ref()
             .filter(|(index, _)| *index == u.next)
             .map(|(_, bytes)| bytes.as_slice());
-        let pcm = self.decoder.decode(packet).ok();
-        if pcm.is_some() {
-            if packet.is_some() {
-                stats.decoded += 1;
-            } else {
-                stats.concealed += 1;
+        let pcm = match (packet, self.decoder.decode(packet)) {
+            (Some(_), Ok(pcm)) => {
+                stats.decoded = stats.decoded.saturating_add(1);
+                Some(pcm)
             }
-        }
+            // A frame the decoder refuses is lost: concealed like one.
+            (Some(_), Err(_)) => {
+                stats.undecodable = stats.undecodable.saturating_add(1);
+                self.decoder.decode(None).ok()
+            }
+            (None, pcm) => {
+                let pcm = pcm.ok();
+                if pcm.is_some() {
+                    stats.concealed = stats.concealed.saturating_add(1);
+                }
+                pcm
+            }
+        };
         u.next += 1;
         let ended = u.reception == Reception::Ended && u.next >= u.top;
         if ended {
@@ -287,7 +299,7 @@ impl Core {
             }
             Message::RelayAudio { seq, frames, .. } => {
                 if !s.take(id, slot, &mut self.stats) {
-                    self.stats.late += frames.len() as u32;
+                    self.stats.late = self.stats.late.saturating_add(frames.len() as u32);
                     return;
                 }
                 s.heard = Some(now);

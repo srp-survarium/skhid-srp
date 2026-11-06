@@ -10,15 +10,14 @@
 > test server is test.skhid.link, `srp-026g/deploy/test-server/README.md`). A
 > real client first signed in that morning, and matches
 > between real players have run since 08:13 UTC. What they showed and what was
-> fixed is in `srp-026g/WORK.md` (newest at the top) and OPEN-ISSUES.md. Until
+> fixed is in `srp-026g/WORK.md` (newest at the top). Until
 > that day everything was from disassembly, the game's data, scripted clients
 > and tests, and much of it still is: where a line below says LIKELY, or "not
 > seen with a real client", it means that. A local test with one game and a
 > bot: "Run locally" below.
 
 `srp-026g` began as a copy of `srp-021d`; the 0.26g code was added beside the
-0.21d code. The work order is
-PLAN-026G.md; the client facts are in CLIENT-FACTS-026G.md; how a match
+0.21d code. The client facts are in CLIENT-FACTS-026G.md; how a match
 stays in step is in MATCH-SYNC-026G.md; the research is in
 `srp-026g/docs/notes/` (start with its `README.md`).
 
@@ -139,8 +138,9 @@ limits, and the modification, craft, reroll, drop, quest, skill, award and
 test-profile files (`tables.rs` checks them against each other). So it
 cannot know an item, a map, or a value of one, the players' game does not.
 What the game's files do not say stays in code: the shop's exceptions
-(`prices.rs`), the bundles, and the maps offered against bots (`pvb.rs`
-`MAPS`, the maps the bots' map files exist for).
+(`prices.rs`), the bundles, a new account's gear (`tutorial.rs`), and the
+maps offered against bots (`pvb.rs` `MAPS`, the maps the bots' map files
+exist for).
 
 | Variable | Default | What |
 |---|---|---|
@@ -180,13 +180,11 @@ that rule is mended when the accounts load, and never plays.
 |---|---|---|
 | `SRP_DATA_DIR` | `./data` | `srp.db` (accounts, sessions, and the 0.26g `g26_*` tables; since 2026-10-12 also the finished matches' results screens not shown yet and each account's play period, `g26_results`; since 2026-10-20 the admin's audit trail, `g26_admin_actions`, and the matches each account used a drop card on, `g26_drop_cards`), `backups/` (a copy at every start) |
 | `SRP_DB` | on | `off`: everything in memory only |
-| `SRP_LOG_FILES` | on | `off`: no `logs/<server>.log`, stdout only |
-| `SRP_LOG_DIR` | unset | A folder: every line srp prints, in one file per UTC day (`srp-YYYY-MM-DD.log`), added to across restarts. The compose file sets `/srv/srp/data/logs` (the data volume): a container's own output is gone at every update |
-| `SRP_LOG_KEEP_DAYS` | 14 | Files of `SRP_LOG_DIR` older than this are deleted (at least 1) |
+| `SRP_LOG_DIR` | `logs` | Each server's lines in `<server>.log` (login, lobby, match, web, srp), dated, added to across restarts; rotated to `.1` (`.1` becomes `.2`, ...) at a size of its server's, about two days of each kept, the lobby about 12 (match 32 x 8 MB, lobby 16 x 4 MB, srp 4 x 4 MB, login 4 x 2 MB, web 2 x 2 MB: 348 MB). `off`: stdout only (the image's default). The compose file sets `/srv/srp/data/logs` (the data volume): a container's own output is gone at every update |
 | `RUST_LOG` | `info` | The log level |
 | `SRP_SNAPSHOT_DIR` | `logs/snapshots` | Where the match server keeps accepted worlds; `off`: nowhere |
 | `SRP_RECORD_DIR` | unset (off; the compose file sets `/srv/srp/data/recordings`) | Match recordings: every datagram of a match in and out (no addresses), one LZMA2-packed file per match (`servers/match-server/src/v026g/record.rs` has the format); read with `srp-recording` |
-| `SRP_RECORD_MIN_PLAYERS` | `6` | A recording is kept once this many players (test bots not counted) have entered its match, late joiners included; the others are deleted when their match ends |
+| `SRP_RECORD_MIN_PLAYERS` | `6` | PvP recordings are kept after this many human players enter, including late joiners. PvE recordings need one human regardless of this setting. Empty matches are discarded |
 | `SRP_RECORD_MAX_MB` | `5000` | Kept recordings over this together: the oldest are deleted |
 | `SRP_REPLAY_DIR` | unset (off; the compose file sets `/srv/srp/data/replays`) | "Watch replay" (`docs/notes/replay_watch.md`): a kept recording is made into the game's replay file here (`<match id>.sur` and its sidecar `.json`) when a player first asks for it (never at a match's end; one at a time, 20 waiting at most, at nice 19 on Linux), kept for later asks, served only at `/replays/<token>`. Must be a folder of its own: not `SRP_RECORD_DIR`, inside it or around it (then replays are off, said in the log). Off without `SRP_RECORD_DIR` or `SRP_GAME_MODES_DIR` (the lobby answers `off`) |
 | `SRP_GAME_MODES_DIR` | unset (off; the compose file sets `/srv/srp/data/game_modes`) | The game's `gameplay/game_modes/*.options` files, every patch's included (game data: never in the repository): copy them into the data volume's folder. `off` or empty in `.env`: replays off |
@@ -206,19 +204,13 @@ that rule is mended when the accounts load, and never plays.
 
 | Variable | Default | What |
 |---|---|---|
-| `SRP_BALANCE_PLAYER` | 12 | What a player counts for by being there when the sides are made, in gear levels: with an odd count the side with a player more has this much more, so the stronger players are the side of fewer. 0: only the strengths are made even (`matchmaking.md` §8) |
-| `SRP_BALANCE_PLAYER_LEVEL` | 1.5 | What a level of the account counts for, in gear levels |
-| `SRP_BALANCE_RATING` | 4 | What a point of the balance rating counts for, fully trusted, in gear levels |
-| `SRP_BALANCE_TRUST_MATCHES` | 5 | The matches after which a balance rating counts for half; one of no match counts for nothing |
+| `SRP_BALANCE_PLAYER_KD` | 1 | What a player counts for by being there when the sides are made, in K/Ds, beside its K/D at the match's equipment level: with an odd count the side with a player more has this much more, so the stronger players are the side of fewer. 0: only the K/Ds are made even (`notes/kd-balance.md`). `SRP_BALANCE_PLAYER`, `_PLAYER_LEVEL`, `_RATING` and `_TRUST_MATCHES` (in gear levels, before 2026-11-01) are no longer read |
 | `SRP_BALANCE_RATED_PLAYERS` | 4 | The fewest players a match must have had in it to move the balance rating, 1 to 20: the players who were in it for half of the longest stay or more. With 4, one against one and two against one move none; 1: every match does (`matchmaking.md` §8.3). The ranking's rating and the pay do not depend on it |
 | `SRP_BALANCE_BATTERY_LEAD` | 0.55 | In a match being played (modes 2, 3): what a battery of lead counts for, in players, for the side that leads. Used where a player who comes into a room while its match is played goes, and in the log's prediction (`matchmaking.md` §9) |
 | `SRP_BALANCE_TICKET_LEAD` | 0.2 | The same for a ticket of lead in a Team Deathmatch, or a point in Research |
-| `SRP_SQUADS` | on | `off`: nobody is invited to a squad or added to one; the one who invites is told in a message box. Clan teams are not squads |
-| `SRP_SQUADS_OFF_TEXT` | `Squads are switched off on this server.` | What that message box shows: a text key of the game or a sentence of up to 255 bytes, shown as it is (the game has no text of its own for this) |
 | `SRP_MIN_PATCH_REVISION` | none | A game whose exe says a patch revision under this one is refused at its sign-in with the game's own "You're using an outdated version of the game." (login answer 0x22), and a lobby sign-in with a session it had before the restart is refused and the session ended, so a game that reconnects goes to its login screen within about half a minute and is refused there. It never gets the lobby's sign-in, which names items (the price list) its game may lack (`patch_check.rs`). The test bots are never refused. Left out or 0: every game is let in; not a number from 0 to 255 stops srp at start, and so does a number under the newest patch of the server's game data (`resources.db.patch_<n>` is released with revision n: an older game lacks its items), with a line that says what to set. The web page says it to the players' updater (`/api/client-files`, `min-revision`), which keeps PLAY off for an older game exe |
-| `SRP_MATCH_MODES` | `2,3,4,5` | The modes played (5: Research, on data with its maps) |
+| `SRP_MATCH_MODES` | `2,3,4,5,6` | The modes played, by their lobby numbers (5: Research, 6: Blackout; each on data with its maps) |
 | `SRP_MATCH_MAPS` | every playable map of those modes | `maps_dict` ids, e.g. `117` (Team Deathmatch on level_01) for a first test: a room's pool by default, and what a clan team's match is drawn from |
-| `SRP_ROOMS_MAX` | 50 | The most rooms at once, 1 to 1000 |
 | `SRP_ROOMS_EXTRA_MAPS` | none | Playable `maps_dict` ids a room's maker may add to its pool besides `SRP_MATCH_MAPS` (the experimental maps) |
 | `SRP_LOBBY_LINK_TIMEOUT_SECONDS` | 30 | A client silent this long loses its lobby link: offline for its friends (its room keeps its place while its session waits) |
 | `SRP_LOBBY_MATCH_LINK_TIMEOUT_SECONDS` | 120 | The same for a player in a match that runs (its level may be loading); never less than the one above |
@@ -231,7 +223,6 @@ One player against the server's own bots, chosen in srp's changed lobby movie (`
 | Variable | Default | What |
 |---|---|---|
 | `SRP_PVB` | off (the compose file sets `on`) | `on`: the mode is offered |
-| `SRP_PVB_MAX_GEAR` | 5 | The highest equipment level let in (the client's own, of the kits that can be played), 0 to 15 |
 | `SRP_PVB_MAX_MATCHES` | 5 | The most matches against bots at once, 1 to 20 (choices held for a Play count too). With `SRP_PVB=on` the match server keeps up to this many bots' maps in memory (or `SRP_MAPDATA_AT_ONCE` if more): about 35-70 MB each |
 | `SRP_PVB_PAY` | 0.5 | The share of a match's silver and experience such a match pays, 0 to 1. It counts for no quest and no daily bonus, and moves no rating |
 | `SRP_PVB_STALL_S` | 60 | A match against bots whose player has been asked for its world this long and uploaded none while it plays is over (as deserted), 10 to 3600 |
@@ -249,7 +240,6 @@ Each is an escape hatch for one thing not proven against a live client.
 | `SRP_RESYNC_WORLD_ONLY` | off | `on`: a playing client is resynced with 0xE8 alone |
 | `SRP_RESTORE_LIMIT` | 0 | Resyncs in a row without agreement after which a client is disconnected; 0: no limit |
 | `SRP_COMPRESS_STATE` | on | `off`: the world (0xE8) goes to the clients as it is, not as LZMA2 (since 2026-10-13; `docs/notes/match.md` section 27) |
-| `SRP_BLACKOUT` | off | `on`: the rooms offer Blackout ("Protective device: blackout", a prototype; `docs/notes/blackout.md`, exe patch 65): each plain battery map of the pool once more as mode 6, by a lobby id of its own; a match of it is the battery map with the static info's Blackout flag (tag 2). Another value is logged and read as `off` |
 | `SRP_MAPDATA_DIR` | unset (off; the compose file sets `/srv/srp/data/mapdata`) | The bots' maps: the `<project>.mapdata` files (`docs/notes/player_bots_mapdata.md` section 6; game data, copied into the data volume by hand). A folder that is not there, or a project with no file: bots without maps (a warning) |
 | `SRP_MAPDATA_BUILT` | `<SRP_MAPDATA_DIR>/built` | Where the server writes the grids and trees it builds of the maps and reads them the next time; `off`: built at each load |
 | `SRP_MAPDATA_KEEP` | 1 | Built maps kept that no match holds |
@@ -299,9 +289,6 @@ name belongs to whoever registers it first, as any name does.
 | `SRP_MONEY_RATE` | unset: by match level | The percent of the original's silver a match's three rows pay; premium's half follows. Unset, it goes by the match's level (the owner's choice of 2026-10-14): 150 at levels 0 to 5, ten more each level, 220 from level 12. Set (1 to 1000), it is that percent at every level (it was 120 from 2026-10-13, 80 before) |
 | `SRP_REPUTATION_RATE` | 120 | The percent of the original's reputation a match's rows and the quests completed in it pay (1 to 1000). 120 is the owner's choice of 2026-10-14 |
 | `SRP_ITEM_WEAR` | off | `on`: a match wears the weapons and armour of the kits played, as the game's data says, and a worn item may get a defect. Off is the owner's choice (2026-10-13): an item stays as it is. The first start of a database with it off makes every worn weapon and armour piece whole, once |
-| `SRP_DROP_PLAYTIME_BONUS` | off | `on`: the first four games of an hour of play raise the chance of a drop by 100, 75, 50 and 25 % (the numbers are the game's data; how they were applied is a guess). Off is the owner's choice (2026-10-13): with it on, 73 % of the players who finished a match found something |
-| `SRP_DROP_CONDITION` | 40 | The condition, in percent, a weapon or armour piece found after a match arrives in (1 to 100; the owner's choice) |
-| `SRP_DROP_DEFECT` | on | `off`: such an item arrives without a defect |
 | `SRP_DAILY_BONUS` | on | `off`: no doubled victories, no seven-day reward, and no daily bonus message to the client |
 | `SRP_DAILY_BONUS_RESET_HOUR` | 0 | The hour of UTC (0 to 23) a daily bonus day starts at |
 | `SRP_PREMIUM_PRICES` | `100,200,400,1000,2500,4500,8000` | Gold for premium time, shortest first: a day, 3 days, a week, a month, 90 days, 180 days, a year. 90 days = 2,500 is from a January 2015 sale notice; the rest is the owner's choice (2026-10-12). |
@@ -441,8 +428,7 @@ servers only, so a switch would have nothing to switch.
 
 ## What is implemented, and what is refused
 
-Implemented (coded and tested; what live play has shown so far is in
-OPEN-ISSUES.md, "0.26g"):
+Implemented (coded and tested):
 
 | Area | State |
 |---|---|
@@ -457,8 +443,7 @@ OPEN-ISSUES.md, "0.26g"):
 | Operator | The web page above; the operator's text |
 
 Coded on 2026-10-12 and tested; most of it not looked at with a real client
-yet (`WORK.md` has each one's entry; what each message gets is in
-`srp-026g/docs/notes/coverage.md`):
+yet (`WORK.md` has each one's entry):
 
 | Area | Notes |
 |---|---|
@@ -529,15 +514,13 @@ with it `value << 20`), and `-minimum_resources_memory_size=<MiB>` is the
 floor of the resources arenas (option object 0xA83080, a float read at
 0xE9966, default 0x150 = 336 MiB). Neither covers the other. Upstream
 (`origin/feature/server-026g`, live under Wine) ran out of the 376 MiB arena
-while loading a map and fixed it with `-mt_allocator=768`
-(`upstream_compare.md` §10). Both keys together are what the players' start
+while loading a map and fixed it with `-mt_allocator=768`. Both keys together are what the players' start
 file and the shortcuts use, and maps load with them (live since 2026-10-12).
 
 Start the game from its `game\binaries\x86` folder (the client finds its
 login certificate by a path relative to the working directory). The game
 folder needs the patched exe and srp's certificate
-(`client-patches/README.md`). What to watch in a first session, step by
-step: `srp-026g/docs/notes/README.md`. For a quick first match:
+(`client-patches/README.md`). For a quick first match:
 `SRP_MATCH_GATHER_SECONDS=5 SRP_MATCH_MAPS=117 SRP_PACKET_LOG=logs/packets`.
 
 ### A match alone: the test bot (added 2026-10-12)
@@ -626,33 +609,3 @@ The compose file's defaults are another block of ports (2234/tcp, 2235/udp,
 beside a 0.21d server on one host without sharing a name, a volume or a port
 with it; that way was not taken. Both ways, and what each needs, are in
 `srp-026g/docs/DEPLOY.md`.
-
-## The cross-check: upstream's 0.26g branch
-
-Upstream has its own 0.26g work: branch `origin/feature/server-026g` of the
-`srp` repo (`srp`, commit `8204c88b7`). It is a **dev match
-server with a fixed roster**: no lobby service, no matchmaking, no accounts.
-But it was **live-tested with real 0.26g clients, under Wine** (Linux; never
-on Windows), before ours had met a real client.
-
-`srp-026g/docs/notes/upstream_compare.md` sets their findings
-against our notes and code, topic by topic, with the strength of each piece
-of evidence (live, oracle, static) and a list of recommended changes. The
-points it raised before our first live session:
-
-- the launch line needs `-mt_allocator=768` (done in `make_client_026g.py`,
-  the web page, the docs and the shortcuts);
-- the client joins messages into one datagram by default (our transport
-  note said it does not);
-- after a resync, a client's own inputs must not be replayed to it;
-- an unfocused client can stall for close to a minute (Wine evidence), and
-  our match server drops a silent client after 10 s. The lobby link is
-  ticked by the client in every state, focus or not (transport.md §6.1);
-  the lobby drops a silent link after 30 s (120 s in a match) and keeps
-  the session a minute more for the client's own reconnect
-  (`SRP_LOBBY_LINK_TIMEOUT_SECONDS`, `SRP_LOBBY_MATCH_LINK_TIMEOUT_SECONDS`,
-  `SRP_LOBBY_SESSION_GRACE_SECONDS`);
-- under Wine only, the client dies in `qwave.dll` when it connects to the
-  lobby.
-
-The match server points were applied on 2026-10-12 (`WORK.md`).

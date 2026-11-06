@@ -1,6 +1,9 @@
-//! Bounded version-one UDP protocol. Raw bytes become one typed message here.
+//! Bounded version-one UDP protocol. Raw bytes become one typed message here,
+//! or a [`Malformed`] saying why they do not.
 use crate::SLOTS;
 pub const MAX_DATAGRAM: usize = 400;
+/// The most frames an AUDIO carries; the relay forwards no more.
+pub const MAX_FRAMES: usize = 8;
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum Message {
     Hello {
@@ -47,50 +50,135 @@ pub enum Message {
         reason: u8,
     },
 }
-struct Reader<'a>(&'a [u8]);
-impl Reader<'_> {
-    fn take<const N: usize>(&mut self) -> Option<[u8; N]> {
-        let out = self.0.get(..N)?.try_into().ok()?;
-        self.0 = &self.0[N..];
-        Some(out)
-    }
-    fn byte(&mut self) -> Option<u8> {
-        Some(self.take::<1>()?[0])
-    }
-    fn u16(&mut self) -> Option<u16> {
-        Some(u16::from_le_bytes(self.take()?))
-    }
-    fn u32(&mut self) -> Option<u32> {
-        Some(u32::from_le_bytes(self.take()?))
-    }
-    fn slot(&mut self) -> Option<u8> {
-        let slot = self.byte()?;
-        (usize::from(slot) < SLOTS).then_some(slot)
-    }
-    fn frames(&mut self) -> Option<Vec<Vec<u8>>> {
-        let count = self.byte()?;
-        if !(1..=8).contains(&count) {
-            return None;
+/// Why a datagram is not a [`Message`] (the drop log's words).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Malformed {
+    /// Over [`MAX_DATAGRAM`].
+    TooLarge,
+    /// Shorter than the magic, version and type.
+    Short,
+    NotVoice,
+    Version(u8),
+    /// A type this version does not have.
+    Kind(u8),
+    /// A body shorter or longer than its type's.
+    Length,
+    /// A slot of no player ([`SLOTS`] or more).
+    Slot(u8),
+    /// AUDIO not of 1 to [`MAX_FRAMES`] frames that fill it exactly.
+    Frames,
+    /// A frame that is not one 20 ms Opus packet ([`opus_20ms`]).
+    NotOpus,
+    /// A ROSTER naming a slot twice.
+    Roster,
+    /// A client's type from the relay.
+    FromClient,
+}
+impl std::fmt::Display for Malformed {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::TooLarge => write!(f, "over {MAX_DATAGRAM} bytes"),
+            Self::Short => write!(f, "truncated header"),
+            Self::NotVoice => write!(f, "not voice"),
+            Self::Version(version) => write!(f, "version {version}"),
+            Self::Kind(kind) => write!(f, "type {kind:#04x}"),
+            Self::Length => write!(f, "wrong length"),
+            Self::Slot(slot) => write!(f, "slot {slot}"),
+            Self::Frames => write!(f, "malformed frames"),
+            Self::NotOpus => write!(f, "a frame not 20 ms of Opus"),
+            Self::Roster => write!(f, "a slot twice in the roster"),
+            Self::FromClient => write!(f, "a client's type"),
         }
-        let mut frames = Vec::with_capacity(count.into());
-        for _ in 0..count {
-            let len = usize::from(self.byte()?);
-            if len == 0 {
-                return None;
-            }
-            frames.push(self.0.get(..len)?.to_vec());
-            self.0 = &self.0[len..];
-        }
-        self.0.is_empty().then_some(frames)
     }
 }
-pub fn parse(bytes: &[u8]) -> Option<Message> {
-    if bytes.len() > MAX_DATAGRAM || bytes.get(..2) != Some(&[0x56, 1]) {
-        return None;
+/// Whether `frame` is one 20 ms Opus packet, what [`crate::Core`] plays in
+/// each frame's place: its TOC byte's configuration and frame count (RFC
+/// 6716 3.1) say 20 ms. The rest of it is the decoder's to check. The relay
+/// checks the same (`match-server`'s `voice::opus_20ms`).
+pub fn opus_20ms(frame: &[u8]) -> bool {
+    let Some((&toc, rest)) = frame.split_first() else {
+        return false;
+    };
+    let config = toc >> 3;
+    // A frame's length in 2.5 ms.
+    let length: u32 = match config {
+        // SILK: 10, 20, 40 and 60 ms.
+        0..=11 => [4, 8, 16, 24][usize::from(config & 3)],
+        // Hybrid: 10 and 20 ms.
+        12..=15 => [4, 8][usize::from(config & 1)],
+        // CELT: 2.5, 5, 10 and 20 ms.
+        _ => [1, 2, 4, 8][usize::from(config & 3)],
+    };
+    let count = match toc & 3 {
+        0 => 1,
+        1 | 2 => 2,
+        // Code 3: the count is in the next byte.
+        _ => rest.first().map_or(0, |&count| u32::from(count & 0x3F)),
+    };
+    length * count == 8
+}
+struct Reader<'a>(&'a [u8]);
+impl Reader<'_> {
+    fn take<const N: usize>(&mut self) -> Result<[u8; N], Malformed> {
+        let (out, rest) = self.0.split_first_chunk::<N>().ok_or(Malformed::Length)?;
+        self.0 = rest;
+        Ok(*out)
     }
-    let kind = *bytes.get(2)?;
-    let mut r = Reader(&bytes[3..]);
-    Some(match kind {
+    fn byte(&mut self) -> Result<u8, Malformed> {
+        let [byte] = self.take::<1>()?;
+        Ok(byte)
+    }
+    fn u16(&mut self) -> Result<u16, Malformed> {
+        Ok(u16::from_le_bytes(self.take()?))
+    }
+    fn u32(&mut self) -> Result<u32, Malformed> {
+        Ok(u32::from_le_bytes(self.take()?))
+    }
+    fn slot(&mut self) -> Result<u8, Malformed> {
+        let slot = self.byte()?;
+        if usize::from(slot) < SLOTS {
+            Ok(slot)
+        } else {
+            Err(Malformed::Slot(slot))
+        }
+    }
+    fn frames(&mut self) -> Result<Vec<Vec<u8>>, Malformed> {
+        let count = usize::from(self.byte()?);
+        if !(1..=MAX_FRAMES).contains(&count) {
+            return Err(Malformed::Frames);
+        }
+        let mut frames = Vec::with_capacity(count);
+        for _ in 0..count {
+            let len = usize::from(self.byte().map_err(|_| Malformed::Frames)?);
+            let (frame, rest) = self.0.split_at_checked(len).ok_or(Malformed::Frames)?;
+            if !opus_20ms(frame) {
+                return Err(Malformed::NotOpus);
+            }
+            frames.push(frame.to_vec());
+            self.0 = rest;
+        }
+        if self.0.is_empty() {
+            Ok(frames)
+        } else {
+            Err(Malformed::Frames)
+        }
+    }
+}
+pub fn parse(bytes: &[u8]) -> Result<Message, Malformed> {
+    if bytes.len() > MAX_DATAGRAM {
+        return Err(Malformed::TooLarge);
+    }
+    let Some((&[magic, version, kind], body)) = bytes.split_first_chunk::<3>() else {
+        return Err(Malformed::Short);
+    };
+    if magic != 0x56 {
+        return Err(Malformed::NotVoice);
+    }
+    if version != 1 {
+        return Err(Malformed::Version(version));
+    }
+    let mut r = Reader(body);
+    let message = match kind {
         1 => {
             let session = r.u32()?;
             let hears = r.byte()? & 1 != 0;
@@ -137,22 +225,28 @@ pub fn parse(bytes: &[u8]) -> Option<Message> {
         0x90 => {
             let count = usize::from(r.byte()?);
             if count > SLOTS {
-                return None;
+                return Err(Malformed::Length);
             }
             let mut entries = Vec::with_capacity(count);
             let mut seen = 0u32;
             for _ in 0..count {
                 let slot = r.slot()?;
                 if seen & (1 << slot) != 0 {
-                    return None;
+                    return Err(Malformed::Roster);
                 }
                 seen |= 1 << slot;
                 entries.push((slot, r.u32()?));
             }
             Message::Roster { entries }
         }
-        _ => return None,
-    })
+        _ => return Err(Malformed::Kind(kind)),
+    };
+    // Nothing may follow a message.
+    if r.0.is_empty() {
+        Ok(message)
+    } else {
+        Err(Malformed::Length)
+    }
 }
 impl Message {
     pub fn encode(&self) -> Option<Vec<u8>> {
@@ -246,14 +340,14 @@ impl Message {
     }
 }
 fn audio(b: &mut Vec<u8>, utt: u16, seq: u16, frames: &[Vec<u8>]) -> Option<()> {
-    if frames.is_empty() || frames.len() > 8 {
+    if frames.is_empty() || frames.len() > MAX_FRAMES {
         return None;
     }
     b.extend(utt.to_le_bytes());
     b.extend(seq.to_le_bytes());
     b.push(frames.len() as u8);
     for f in frames {
-        if f.is_empty() || f.len() > 255 {
+        if f.len() > 255 || !opus_20ms(f) {
             return None;
         }
         b.push(f.len() as u8);
@@ -279,17 +373,17 @@ mod tests {
             slot: 3,
             utt: 65535,
             seq: 2,
-            frames: vec![vec![1, 2, 3], vec![4]],
+            frames: vec![vec![1, 2, 3], vec![0x48]],
         };
         let b = m.encode().unwrap();
-        assert_eq!(parse(&b), Some(m));
+        assert_eq!(parse(&b), Ok(m));
         for n in 0..b.len() {
-            assert!(parse(&b[..n]).is_none());
+            assert!(parse(&b[..n]).is_err());
         }
         let mut extra = b.clone();
         extra.push(0);
-        assert!(parse(&extra).is_none());
-        assert!(parse(&[0x56, 1, 0x81, 20]).is_none());
+        assert_eq!(parse(&extra), Err(Malformed::Frames));
+        assert_eq!(parse(&[0x56, 1, 0x81, 20]), Err(Malformed::Slot(20)));
     }
     #[test]
     fn oversized_audio_rejected() {

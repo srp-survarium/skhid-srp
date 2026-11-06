@@ -8,6 +8,7 @@ package
    import flash.events.MouseEvent;
    import flash.events.UncaughtErrorEvent;
    import flash.geom.Point;
+   import flash.geom.Rectangle;
    import flash.net.URLRequest;
    import flash.system.ApplicationDomain;
    import flash.system.LoaderContext;
@@ -26,16 +27,22 @@ package
    //   (the tabs' index change, onProfileSelected's profile_changed);
    // - a real mouse click (check.sh's xdotool on the Ruffle window) on kit 3's tab picks it;
    // - given back (Tab up), the panel is in the root where it was;
-   // - the body's state (HUDPlayerInfo's criticalInd, alive Tab's doll) kept the same way stays where it
+   // - the body's state kept inside HUDPlayerInfo with ammo stays where it
    //   was, shown, and takes the body parts' state (partHP) there;
    // - death and respawn with Tab held switch between the kits and body without another Tab event.
+   // - the use prompt (SrvContextInfo, root.set_context) kept while forced, where it was, its progress
+   //   (frame 2) filled there; given back to the root when the match is no longer forced;
    // Prints "KITS ..." lines (trace) and ends with "KITS RESULT pass" or "KITS RESULT fail: ...".
    public class KitsHarness extends Sprite
    {
       private var loader:Loader = new Loader();
 
       // the hud's root
-      private var face:Sprite = new Sprite();
+      private var face:MovieClip = new MovieClip();
+
+      private var info:MovieClip;
+
+      private var layout:Object;
 
       private var kept:Object;
 
@@ -54,6 +61,8 @@ package
       private var doll:MovieClip;
 
       private var chat:MovieClip;
+
+      private var context:MovieClip;
 
       private var view:Object;
 
@@ -91,7 +100,11 @@ package
          face.scaleX = face.scaleY = 0.8;
          face.x = 20;
          addChild(face);
-         kept = new Kept(face);
+         kept = new Kept(face,function(part:DisplayObject):void
+         {
+            if(part is Sprite && Sprite(part)["layoutData"] != null)
+               layout.manage(Sprite(part));
+         });
          addChild(DisplayObject(kept));
          panel = new Panel() as MovieClip;
          panel.x = 60;
@@ -99,24 +112,40 @@ package
          panel.visible = false;         // alive at first
          face.addChild(panel);
          var Info:Class = domain.getDefinition("HUDPlayerInfo") as Class;
-         var info:MovieClip = new Info() as MovieClip;
+         info = new Info() as MovieClip;
          info.x = 700;
          info.y = 380;
          face.addChild(info);
          doll = info.criticalInd;
+         var Data:Class = domain.getDefinition("scaleform.clik.layout.LayoutData") as Class;
+         info.layoutData = new Data();
+         info.layoutData.alignH = "right";
+         info.layoutData.alignV = "bottom";
+         info.layoutData.offsetH = -20;
+         info.layoutData.offsetV = -51;
+         var Layout:Class = domain.getDefinition("scaleform.clik.layout.Layout") as Class;
+         layout = new Layout();
+         layout.rect = new Rectangle(0,0,1280,720);
+         face.addChild(DisplayObject(layout));
+         layout.manage(info);
          var Chat:Class = domain.getDefinition("SrvGameChat") as Class;
          chat = new Chat() as MovieClip;
          chat.x = 2000;                  // off the window: the kits are clicked
          chat.y = 0;
          face.addChild(chat);
+         var Context:Class = domain.getDefinition("SrvContextInfo") as Class;
+         context = new Context() as MovieClip;
+         context.x = 500;
+         context.y = 40;                 // above the kits: their click lands on them
+         face.addChild(context);
          var View:Class = domain.getDefinition("survarium.controls.ForcedView") as Class;
          // The hud's lists (HUD.keptWhenForced, keptOnTab, keptWhileTyping).
          view = new View(kept,function():Array
          {
-            return [];
+            return [context];
          },function():Array
          {
-            return panel.visible ? [panel,chat] : [doll,chat];
+            return panel.visible ? [panel,chat] : [info,chat];
          },function():Array
          {
             return [chat];
@@ -186,8 +215,10 @@ package
          {
             picks = 0;  // the setup's own selection of kit 1 is no pick
             var before:Point = panel.localToGlobal(new Point(0,0));
+            var contextAt:Point = context.localToGlobal(new Point(0,0));
             face.visible = false;
             view.forced = true;
+            expectContext(contextAt);
             message("forced, nothing typed, no Tab: a new message");
             expectChat("forced, nothing typed, no Tab, a new message came",false,false);
             view.typing = true;
@@ -222,23 +253,35 @@ package
                hp = false;
             }
             trace("KITS the body's state kept: at " + dollAt + " in the root, " + dollNow + " kept, shown " + doll.visible + ", its parts set " + hp);
-            if(doll.parent != kept || Point.distance(dollAt,dollNow) > 0.5 || !doll.visible || !hp)
+            if(info.parent != kept || Point.distance(dollAt,dollNow) > 0.5 || !doll.visible || !hp)
             {
                failures.push("the body's state kept: from " + dollAt + " to " + dollNow + ", parts set " + hp);
             }
+            // Reflow repeatedly with the same native bottom-right layout. Both
+            // children must retain their owner and remain within the viewport.
+            for each(var size:Point in [new Point(1024,768),new Point(2560,1080),new Point(1280,720)])
+            {
+               layout.rect = new Rectangle(0,0,size.x,size.y);
+               layout.reflow();
+               kept.place();
+               var bounds:Rectangle = doll.getBounds(this);
+               if(doll.parent != info || info.ammoInd.parent != info || bounds.right > 20 + size.x * 0.8 + 1 || bounds.bottom > size.y * 0.8 + 1)
+                  failures.push("body outside viewport after reflow " + size + ": " + bounds);
+            }
+            trace("KITS body and ammo stay together and on screen across reflows");
             // show_profiles_selector changes visibility, then refreshes the view. Tab is held
             // throughout these changes: no setter of forced/tab/typing is called again.
             if("refresh" in view)
             {
                panel.visible = true;
                view.refresh();
-               if(!shown(panel) || shown(doll) || panel.parent != kept || doll.parent == kept)
+               if(!shown(panel) || shown(doll) || panel.parent != kept || info.parent == kept)
                {
                   failures.push("death while Tab held: the kits must replace the body");
                }
                panel.visible = false;
                view.refresh();
-               if(shown(panel) || !shown(doll) || panel.parent != face || doll.parent != kept)
+               if(shown(panel) || !shown(doll) || panel.parent != face || info.parent != kept)
                {
                   failures.push("respawn while Tab held: the body must replace the kits");
                }
@@ -302,13 +345,23 @@ package
             failures.push("Tab let go: the history " + history.join());
          }
          expectChat("Tab let go",false,false);
-         if(doll.parent == kept)
+         if(info.parent == kept)
          {
             failures.push("given back: the body's state still kept");
          }
          if(panel.parent != face || panel.x != 60 || panel.y != 300)
          {
             failures.push("given back: the panel at " + panel.x + "," + panel.y + ", in the root " + (panel.parent == face));
+         }
+         // the match no longer forced (force_interface_hidden(false)): the use prompt back in the root
+         call(function():void
+         {
+            view.forced = false;
+         });
+         trace("KITS unforced: the use prompt in the root " + (context.parent == face) + " at " + context.x + "," + context.y);
+         if(context.parent != face || context.x != 500 || context.y != 40)
+         {
+            failures.push("unforced: the use prompt at " + context.x + "," + context.y + ", in the root " + (context.parent == face));
          }
          finish(failures.length ? "fail: " + failures.join("; ") : "pass");
       }
@@ -324,6 +377,31 @@ package
             }
          }
          return part.stage != null;
+      }
+
+      // Forced: the use prompt kept where it was in the root, shown, its text and progress set there
+      // (HUD.refresh_context: frame 2 for a progress, ArtifactStatusIndicatorLine.set_progress).
+      private function expectContext(at:Point) : void
+      {
+         var set:Boolean = true;
+         try
+         {
+            context.gotoAndStop(2);
+            context.contextText.text = "Searching";
+            context.progress_indicator.width = context.contextText.textWidth + 10;
+            context.progress_indicator.set_progress(40);
+         }
+         catch(err:Error)
+         {
+            set = false;
+            trace("KITS the use prompt: " + err.message);
+         }
+         var now:Point = context.localToGlobal(new Point(0,0));
+         trace("KITS forced: the use prompt at " + at + " in the root, " + now + " kept, shown " + shown(context) + ", its progress set " + set);
+         if(context.parent != kept || !shown(context) || Point.distance(at,now) > 0.5 || !set)
+         {
+            failures.push("forced: the use prompt kept " + (context.parent == kept) + ", shown " + shown(context) + ", from " + at + " to " + now + ", progress set " + set);
+         }
       }
 
       private function expectChat(what:String, visible:Boolean, input:Boolean) : void

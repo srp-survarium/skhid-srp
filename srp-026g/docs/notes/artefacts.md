@@ -1,7 +1,7 @@
 # Artefacts (the owner, 2026-10-22)
 
-Client patch 54 (README section 54, client_patch.md section 3.51) and the edit list
-`scripts/content-edit/artefacts-1.json`. The stock code and numbers:
+Client patch 54 (README section 54, client_patch.md section 3.51) and the table
+`scripts/content-edit/artefacts.tsv`. The stock code and numbers:
 `tools/re-kit/v026g` and the decoded retail configs (`gameplay/items/artefacts/*.options`).
 
 ## The idea
@@ -39,7 +39,7 @@ Client patch 54 (README section 54, client_patch.md section 3.51) and the edit l
 - Active (3 s, cooldown 45 s): hand and leg injuries removed as before, and pain, body and head full
   at once.
 - Cooldown 45 s, was 15 s (the owner, 2026-10-23): since its active is a full heal, 15 s was too
-  often (Spring 40 s, Onyx 60 s). `data/cooldown_sec` 15 -> 45 in `artefacts-1.json`.
+  often (Spring 40 s, Onyx 60 s). `data/cooldown_sec` 15 -> 45 in `artefacts.tsv`.
 - Nothing hard-codes it: artefact_base's constructor (0x312FD0) reads `cooldown_sec` x 1000 into
   +274h, the active's end (0x3135EC) starts the cooldown from it (times the holder's modifier 38),
   and the HUD slot's fill (0x313880) is 100 - time left x 100 / it. Patch 54 only reads the time
@@ -128,10 +128,33 @@ should mix them just as retail does")
 - So nothing changes in the third person; the first-person glows overlap the same way (each
   kind its own additive effect).
 
+## Artifact-master (the owner, 2026-11-05: "should also make artefacts recharge 20% faster")
+
+- The booster (`artefact_booster`, item 344) in a pocket: artefact search time -25 % as before
+  (built-in 1134, modifier 7: the container's `artefacts_search_time_sec` x max(0, 1 + S),
+  0x31C7EF; 6 s -> 4.5 s), and now every artefact's cooldown -20 % (Spring 40 -> 32 s, Lifebone
+  45 -> 36 s, Onyx 60 -> 48 s).
+- Data only, no exe change: a built-in bonus like 1134. Modification 1310
+  (`artefact-cooldown-bonus-1.json`, `modifications.tsv`): `parameters/artefact_cooldown_modifier`
+  -0.2, type 1, drop weight 0, a type of its own (41: never rolled), card property 173 "Artifact
+  recharge time" (made like 108, the search time: a percentage, lower is better), the search
+  time's icon (13). `boosters.tsv` makes it the booster's second built-in; the booster's config
+  carries the key at 0, as the other boosters carry theirs (the item cook skips a modifier whose
+  key the config lacks, weapon-rolls.md).
+- A booster (0x33F690) makes a player modifier of each of its 68 parameters that is not 0
+  (player_bots.md), and the active's end (0x313530) starts the cooldown at `cooldown_sec` x 1000 x
+  max(0, 1 + S38) (38 is multiplicative: not in the additive list 0x927E08). No skill, other item
+  or modification of the data gives it.
+- The card: "Artifact recharge time -20%" under the search time's line, green (no roll reaches
+  it, so not the gold of a best roll as 1134's -25 %). The lobby's Alt values leave boosters and
+  artefacts out (alt-weapon-stats.md): nothing to show.
+- The HUD slot's fill (0x313880) still divides the time left by the unmodified cooldown: with
+  the booster a cooling artefact's fill starts at 20 % instead of 0 and ends full on time.
+
 ## Texts
 
 - The only texts: each artefact's pickup hint (the passive) and activation hint (the active), fixed
-  sentences in the six localization tables; no lobby card. `artefact-texts-1.json` makes them say
+  sentences in all language TSVs; no lobby card. `client-patches/localization/*.tsv` makes them say
   the numbers above (Onyx's stock 10 % and 95 % were wrong too; its active 75 % for `%s` s since
   2026-10-25).
 
@@ -147,8 +170,9 @@ should mix them just as retail does")
 - The aim-time modifiers add up: the getter 0x2D5AE0 (index 49) gives the weapon's `aim_time` x
   max(0, 1 + the sum), floored at 0 by the game itself; scope-in 0x2E1B50 and scope-out 0x2E1BF0
   use it. Sources on real data: Spring -0.05 passive / -0.10 active each (artefact slots 13..18),
-  the skill tree up to -0.10, gloves (modifications 1080..1084) and weapons (2070..2074) up to
-  -0.10 each.
+  the skill tree up to -0.10 and gloves (modifications 1080..1084) up to -0.10. A weapon's own
+  aim-time roll (2070..2074, up to -0.10) is not in this sum: since weapon-rolls-1 (now modifications.tsv) it scales the
+  weapon's `aim_time` in the item cook, so it multiplies the result (weapon-rolls.md).
 - The sum reaches -100 % only with five or six Springs all active and the other sources; the
   passives alone stop at -0.30 (-0.60 with all others). At 0 the scope is instant for those
   seconds; nothing faults (the timer 0x32FE40 snaps to the end; SSE exceptions masked) and every

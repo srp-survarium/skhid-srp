@@ -2,9 +2,10 @@
 # check.sh <hud.swf> <player_icons.swf> [work dir]: Blackout's Tab view (docs/notes/blackout.md) in
 # Ruffle (CPU only: lavapipe on its own virtual X display, never the GPU):
 # - KitsHarness.as: the hud's own kit panel and body doll kept by its own KeptLayer beside the hidden
-#   root, then a kit key and a real mouse click (xdotool) pick kits there;
-# - IconsHarness.as: the player icons movie itself told the forced and Tab states: the players'
-#   markers only while Tab is held, the objects' never.
+#   root, then a kit key and a real mouse click (xdotool) pick kits there; the use prompt
+#   (SrvContextInfo) kept with its progress while forced, given back after;
+# - IconsHarness.as: the player icons movie itself told the forced state: the teammates' markers
+#   always, an enemy's never, the objects' not while forced.
 # Exits 0 when both say pass; prints their lines. A work dir given is kept (the harnesses, Ruffle's
 # logs). Java and Flex from private/actionscript/tools.json (tools/actionscript/README.md), or
 # SRP_AS_TOOLS.

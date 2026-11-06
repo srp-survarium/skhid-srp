@@ -61,7 +61,8 @@ pub mod key {
     pub const SPOT: u32 = 0x1000_0000;
     /// Bits a bot never sends: the suicide (24: a hit on the player's own
     /// head, 0x2D8BC1; client patch 34 sends it for the K key), the wheel's
-    /// weapon switch (25, 26) and the unused 29, 30, 31.
+    /// weapon switch (25, 26), 29 (client patch 78's carry chord: with one
+    /// quick bit it raises that artefact) and the unused 30, 31.
     pub const NEVER: u32 = 0x0100_0000 | 0x0600_0000 | 0xE000_0000;
 }
 

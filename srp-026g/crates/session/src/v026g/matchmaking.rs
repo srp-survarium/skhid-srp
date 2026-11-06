@@ -23,7 +23,7 @@
 //! client).
 
 use survarium::v026g::dictionary::Dictionary;
-use survarium::v026g::item_params::item_params;
+use survarium::v026g::loadouts;
 
 use super::account::{Account, Kit};
 use super::rules;
@@ -31,28 +31,17 @@ use crate::Level;
 
 /// The level of a kit: see the module, step 1.
 pub fn kit_level(account: &Account, kit: &Kit) -> u8 {
-    let dictionary = Dictionary::shared();
-    let weights = &dictionary.match_maker.slots_weight;
-    let highest = kit
-        .slots
-        .iter()
-        .enumerate()
-        .filter_map(|(slot, held)| {
-            let held = held.as_ref()?;
-            let item = account.item(held.item_id)?;
-            // A stack with nothing in the slot or left of it is no gear
-            // (0x2F7A26..0x2F7A3A).
-            if dictionary.is_stack(item.dict_id)
-                && (held.count == 0 || item.condition_or_stack == 0)
-            {
-                return None;
-            }
-            let level = item_params(item.dict_id)?.match_making_level;
-            Some(f32::from(level) * weights.get(slot).copied().unwrap_or(1.0))
-        })
-        .fold(0.0_f32, f32::max);
-    // The client adds 0.5 and floors (0x2F7A9E).
-    (highest + 0.5).floor().clamp(0.0, 255.0) as u8
+    // A stack with nothing in the slot or left of it is no gear
+    // (0x2F7A26..0x2F7A3A): its units are the fewer of the two.
+    loadouts::gear_level(kit.slots.iter().enumerate().filter_map(|(slot, held)| {
+        let held = held.as_ref()?;
+        let item = account.item(held.item_id)?;
+        Some((
+            slot as u8,
+            item.dict_id,
+            held.count.min(item.condition_or_stack),
+        ))
+    }))
 }
 
 /// The highest level of the account's kits that can be played at `now`
@@ -135,6 +124,7 @@ pub fn count_map_play(account: &mut Account, level: u8) {
 mod tests {
     use super::*;
     use crate::v026g::account::KitSlot;
+    use survarium::v026g::item_params::item_params;
 
     /// A dictionary item by its name.
     fn dict_id(name: &str) -> u16 {

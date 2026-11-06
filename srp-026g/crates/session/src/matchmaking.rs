@@ -101,9 +101,91 @@ pub struct Level {
     pub min: u8,
 }
 
-/// One level, as a player's strength counts it: strengths are whole
-/// numbers, so a part of a level can be told.
-pub const STRENGTH_SCALE: i32 = 100;
+/// What a player, a party or a side counts for when the sides of a match
+/// are made: thousandths of a K/D (`crate::v026g::level_stats`,
+/// `docs/notes/kd-balance.md`). A whole number, so every sum and
+/// comparison is exact and the same on every run: never NaN, never
+/// infinite.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub struct Strength(i64);
+
+impl Strength {
+    /// The thousandths of one K/D (a player who kills as often as it dies).
+    pub const UNIT: i64 = 1000;
+    pub const ZERO: Self = Self(0);
+
+    pub const fn from_milli(milli: i64) -> Self {
+        Self(milli)
+    }
+
+    pub const fn milli(self) -> i64 {
+        self.0
+    }
+
+    /// `kds` K/Ds, rounded to a thousandth; a weight that is no number
+    /// counts for none.
+    pub fn of_kd(kds: f64) -> Self {
+        if kds.is_finite() {
+            Self((kds * Self::UNIT as f64).round().clamp(-1e15, 1e15) as i64)
+        } else {
+            Self::ZERO
+        }
+    }
+
+    /// In K/Ds, for the log.
+    pub fn as_kd(self) -> f64 {
+        self.0 as f64 / Self::UNIT as f64
+    }
+
+    /// `count` times this.
+    pub fn times(self, count: usize) -> Self {
+        Self(
+            self.0
+                .saturating_mul(i64::try_from(count).unwrap_or(i64::MAX)),
+        )
+    }
+
+    /// This times `numerator / denominator`, rounded to the nearest
+    /// thousandth (a half up); a denominator of 0 is 1.
+    pub fn ratio(self, numerator: i64, denominator: i64) -> Self {
+        let denominator = denominator.max(1);
+        let product = i128::from(self.0) * i128::from(numerator);
+        let rounded =
+            (2 * product + i128::from(denominator)).div_euclid(2 * i128::from(denominator));
+        Self(rounded.clamp(i128::from(i64::MIN), i128::from(i64::MAX)) as i64)
+    }
+
+    /// How far apart two strengths are, either way.
+    pub fn abs_diff(self, other: Self) -> Self {
+        Self(self.0.saturating_sub(other.0).saturating_abs())
+    }
+}
+
+impl std::ops::Add for Strength {
+    type Output = Self;
+    fn add(self, other: Self) -> Self {
+        Self(self.0.saturating_add(other.0))
+    }
+}
+
+impl std::ops::AddAssign for Strength {
+    fn add_assign(&mut self, other: Self) {
+        *self = *self + other;
+    }
+}
+
+impl std::ops::Sub for Strength {
+    type Output = Self;
+    fn sub(self, other: Self) -> Self {
+        Self(self.0.saturating_sub(other.0))
+    }
+}
+
+impl std::iter::Sum for Strength {
+    fn sum<I: Iterator<Item = Self>>(iter: I) -> Self {
+        iter.fold(Self::ZERO, |sum, each| sum + each)
+    }
+}
 
 /// Clients from different pools never share a match: a 0.26g game that
 /// takes late joiners (`GrowingRoster`, patch revision 5 on) or not.
@@ -247,16 +329,31 @@ impl Matchmaking {
         team: u8,
         reserve: impl FnOnce(usize, &[Seat]) -> bool,
     ) -> bool {
+        self.append_players(match_id, &[(player, team)], reserve)
+    }
+
+    /// [`Self::append_player`] for players who go in together (a squad,
+    /// each on its team): all seated, on places one after the other, or
+    /// none; `reserve` reserves them all at once.
+    pub fn append_players(
+        &self,
+        match_id: u32,
+        players: &[(Player, u8)],
+        reserve: impl FnOnce(usize, &[Seat]) -> bool,
+    ) -> bool {
         let mut inner = self.inner.locked();
         let queued = inner.queue.iter().any(|group| {
             group.players.iter().any(|waiting| {
-                waiting.account_id == player.account_id || waiting.session_id == player.session_id
+                players.iter().any(|(player, _)| {
+                    waiting.account_id == player.account_id
+                        || waiting.session_id == player.session_id
+                })
             })
         });
         if queued {
             return false;
         }
-        let Some((first, seats)) = inner.late_seat(match_id, player, team) else {
+        let Some((first, seats)) = inner.late_seats(match_id, players) else {
             return false;
         };
         if !reserve(first, &seats) {
@@ -524,6 +621,23 @@ impl Matchmaking {
             .map(|(match_id, index, _)| (match_id, index))
     }
 
+    /// The places of a match being played whose seats are kept, with
+    /// their accounts: not given up, so their players may still come back
+    /// ([`Self::back_to_seat`]) though they are not in it now. A place
+    /// given up (left by its own word, a failed join) is not.
+    pub fn held_places(&self, match_id: u32) -> Vec<(usize, u32)> {
+        let inner = self.inner.locked();
+        let Some(seats) = inner.matches.get(&match_id) else {
+            return Vec::new();
+        };
+        seats
+            .iter()
+            .enumerate()
+            .filter(|(index, _)| !inner.given_up.contains(&(match_id, *index)))
+            .map(|(index, seat)| (index, seat.player.account_id))
+            .collect()
+    }
+
     /// A match being played, as it was formed.
     pub fn formed_match(&self, match_id: u32) -> Option<FormedMatch> {
         let inner = self.inner.locked();
@@ -593,29 +707,40 @@ impl Inner {
     }
 
     /// The roster place `player` would take on `team` in a match being
-    /// played, and its index; `None` when the match takes nobody: it is no
-    /// match of growing rosters, its teams are fixed, `team` is over 1, the
-    /// player has a place in a match (one it gave up aside: it comes again
-    /// as a new place), or there is no room.
-    fn late_seat(&self, match_id: u32, player: Player, team: u8) -> Option<(usize, Vec<Seat>)> {
-        if team > 1
+    /// played, and the first's index; `None` when the match takes not all
+    /// of them: it is no match of growing rosters, its teams are fixed, a
+    /// `team` is over 1, a player has a place in a match (one it gave up
+    /// aside: it comes again as a new place) or comes twice, or there are
+    /// not places enough.
+    fn late_seats(&self, match_id: u32, players: &[(Player, u8)]) -> Option<(usize, Vec<Seat>)> {
+        let accounts: HashSet<u32> = players
+            .iter()
+            .map(|(player, _)| player.account_id)
+            .collect();
+        if players.is_empty()
+            || accounts.len() != players.len()
             || self.fixed_teams.contains(&match_id)
             || self.match_pools.get(&match_id) != Some(&QueuePool::GrowingRoster)
-            || self.live_seat_of_account(player.account_id).is_some()
+            || players.iter().any(|(player, team)| {
+                *team > 1 || self.live_seat_of_account(player.account_id).is_some()
+            })
         {
             return None;
         }
         let roster = self.matches.get(&match_id)?;
         let first = roster.len();
-        if first >= MAX_PLAYERS_PER_MATCH {
+        if first + players.len() > MAX_PLAYERS_PER_MATCH {
             return None;
         }
-        let seat = Seat {
-            player,
-            team,
-            squad: 0,
-        };
-        Some((first, vec![seat]))
+        let seats = players
+            .iter()
+            .map(|&(player, team)| Seat {
+                player,
+                team,
+                squad: 0,
+            })
+            .collect();
+        Some((first, seats))
     }
 
     /// The account's seat, unless it was given up.

@@ -18,6 +18,10 @@
 //! - `on_held_item` (mt_draw, before the held item is read): a corpse of
 //!   ours holding nothing (a battery carrier's once the battery drops: the
 //!   game then updates no bone) is posed from its ragdoll alone.
+//! - `on_post_bones`: the content's extra render bone follows Head while
+//!   worn, and the cosmetic headwear body after death;
+//! - `on_render_bones`: ordinary 69-bone commands initialize the extra
+//!   render bone for the lobby, baking and other renderer callers.
 //!
 //! The world is read once a frame into the crate's types (the places seen
 //! alive or dead with their death's key, the bones' matrices as world
@@ -31,25 +35,35 @@ use core::sync::atomic::{AtomicBool, Ordering};
 
 use ::ragdoll::corpse::{Corpse, CorpseHit, Corpses, Death, DeathKey, Drawn, Frame, MAX_PLACES, Seen, SlotId};
 use ::ragdoll::math::{Pose, Quat, Vec3, abs};
-use ::ragdoll::ragdoll::{Cause, GunShape, Knock, Level, Skeleton, StartReport, Sweep};
-use ::ragdoll::shot::{Hit, Recent, Shot, ShotKey, ShotLog, impulse};
+use ::ragdoll::ragdoll::{Cause, GunShape, HeadwearShape, Knock, Level, Skeleton, StartReport, Sweep};
+use ::ragdoll::shot::{Hit, Recent, Shot, ShotKey, ShotLog, impulse, knocked_back};
 use ::ragdoll::skeleton::{BONE_COUNT, BONES, PARTS, Part};
 
 use crate::vostok::bullet::BulletRay;
 use crate::vostok::draw::{self, DrawnBones};
 use crate::vostok::trace::{self, TraceFile};
-use crate::vostok::world::{BodyId, GameWorld, Held, NetworkClient, PhysicsWorld, Player, PlayerId, SkeletonId};
-use crate::vostok::{Context, Flow, Lock, NoExit, RagdollOnHeldItemExit, Thread, camera, clock};
+use crate::vostok::world::{BodyId, GameWorld, Held, ModifierIndex, NetworkClient, PhysicsWorld, Player, PlayerId, SkeletonId,
+                           WorldKey};
+use crate::vostok::{Context, Flow, Lock, NoExit, RagdollOnHeldItemExit, RagdollOnPostBonesExit, Thread, camera, clock, headwear};
 
 /// ray_test's filter (an object is hit when its mask has a bit of the
 /// group and its group a bit of the mask): the foot IK's level (group 24h,
-/// mask 2: walkable geometry, no players 824h/3, hit models 40h/11h or
-/// grenades 818h/8), and the batteries (group 0A18h, mask 418h, put in by
-/// victory_item_core 0x301CB0, lying or just dropped): bits 400h and 200h,
-/// which no other object of the world has. The ray only reads the world:
-/// a body rests on a battery, the battery is never moved.
-const LEVEL_GROUP: u32 = 0x24 | 0x400;
-const LEVEL_MASK: u32 = 0x02 | 0x200;
+/// mask 2: the walker collision, cgroup 2 / cmask 4), the level's collision
+/// that bullets hit (group 10h, mask 8: cgroup 8 / cmask 16, as the lobby's
+/// camera ray), and the batteries (group 0A18h, mask 418h, put in by
+/// victory_item_core 0x301CB0, lying or just dropped: bits 400h and 200h).
+/// Nothing else: players 824h/3, hit models 40h/11h, grenades 818h/8 (their
+/// group has 8h, their mask none of 434h), the lobby's 800h/800h and 20h/20h,
+/// the client objects' 80h/100h and 1/20h. The walker mesh alone is coarse
+/// and lies under the drawn ground on some maps (Rudnya: a median 4 cm, 10
+/// cm at the 90th percentile, deeper than the gun's radius); the collision
+/// follows the drawn ground, and the nearer of the two is the one met. The
+/// ray only reads the world: a body rests on a battery, the battery is
+/// never moved.
+const LEVEL_GROUP: u32 = 0x24 | 0x10 | 0x400;
+const LEVEL_MASK: u32 = 0x02 | 0x08 | 0x200;
+// ray_test takes them as u16
+const _: () = assert!(LEVEL_GROUP <= 0xFFFF && LEVEL_MASK <= 0xFFFF);
 /// The level's rays a frame, for all ragdolls (a ray is a few microseconds).
 const RAYS_A_FRAME: u32 = 160;
 const UP: Vec3 = Vec3::Y;
@@ -70,7 +84,7 @@ const SPIKE_SPEED: f32 = 7.0;
 /// A row-vector affine matrix (vostok's float4x4: rows i, j, k the axes,
 /// row c the place) as a rigid pose; `None` when it is not one (a scale, a
 /// mirror, NaN): such a skeleton is left as the game draws it.
-fn pose_of(m: &[f32; 16]) -> Option<Pose> {
+pub(crate) fn pose_of(m: &[f32; 16]) -> Option<Pose> {
     let i = Vec3::new(m[0], m[1], m[2]);
     let j = Vec3::new(m[4], m[5], m[6]);
     let k = Vec3::new(m[8], m[9], m[10]);
@@ -82,7 +96,7 @@ fn pose_of(m: &[f32; 16]) -> Option<Pose> {
 }
 
 /// The pose as a row-vector affine matrix.
-fn matrix_of(p: Pose) -> [f32; 16] {
+pub(crate) fn matrix_of(p: Pose) -> [f32; 16] {
     let i = p.rotation.rotate(Vec3::X);
     let j = p.rotation.rotate(Vec3::Y);
     let k = p.rotation.rotate(Vec3::Z);
@@ -167,7 +181,8 @@ enum Clock {
 }
 
 /// A bullet's round as the trace says it: the ammo's mass and muzzle speed
-/// (its identity), its speed at the hit, its segment, its id and shooter.
+/// (its identity), its speed at the hit, its segment, its id and shooter,
+/// and whether it is a gun-stock hit.
 #[derive(Clone, Copy)]
 struct Round {
     mass: f32,
@@ -176,6 +191,7 @@ struct Round {
     segment: u32,
     bullet: u32,
     shooter: u8,
+    gun_stock: bool,
 }
 
 /// A shot's push on a corpse, for the next step.
@@ -224,6 +240,9 @@ enum TraceState {
 }
 
 struct State {
+    /// The match the corpses are of: another one starts them all afresh
+    /// (their deaths' keys are its times).
+    world: Option<WorldKey>,
     corpses: Corpses,
     draws: [Draw; MAX_PLACES],
     eye: EyeView,
@@ -237,6 +256,8 @@ struct State {
     moving: [Moving; MAX_PLACES],
     /// Each place's last living hit's round (the trace's spike of its death).
     rounds: [Option<Round>; MAX_PLACES],
+    /// Native killing-hit classification, scoped to each place's current life.
+    deaths: [Option<(DeathKey, headwear::FatalHit)>; MAX_PLACES],
     trace: TraceState,
     shots: Shots,
 }
@@ -245,6 +266,7 @@ struct State {
 /// draws (one a place, maybe at once on several threads) and the bullets
 /// (256 a task) take the lock in turn.
 static STATE: Lock<State> = Lock::new(State {
+    world: None,
     corpses: Corpses::new(),
     draws: [Draw::Off; MAX_PLACES],
     eye: EyeView::Off,
@@ -254,6 +276,7 @@ static STATE: Lock<State> = Lock::new(State {
     recent: [Recent::new(); MAX_PLACES],
     moving: [Moving { at: Vec3::ZERO, velocity: Vec3::ZERO, known: false }; MAX_PLACES],
     rounds: [None; MAX_PLACES],
+    deaths: [None; MAX_PLACES],
     trace: TraceState::Closed,
     shots: Shots { log: ShotLog::new(), pushes: [None; PUSHES], living: [None; LIVING_HITS] },
 });
@@ -360,9 +383,11 @@ fn load_of(player: &Player<'_>) -> [f32; PARTS] {
 /// skeleton, is `Alive` here: nothing of ours is drawn.
 fn seen(
     player: &Player<'_>,
+    thread: &Thread,
     mappings: &mut [Mapping; 4],
     recent: &Recent,
     moving: &Moving,
+    fatal: Option<(DeathKey, headwear::FatalHit)>,
     now: f32,
 ) -> (Seen, Option<BoneIndex>) {
     if !player.inserted() || player.alive() {
@@ -371,21 +396,66 @@ fn seen(
     let Some(skeleton) = player.skeleton() else { return (Seen::Alive, None) };
     let Some(index) = mapping(mappings, &skeleton) else { return (Seen::Alive, None) };
     let stood_on = pose_of(&player.transform()).map(|p| (p.position, UP));
-    // a held item drops as a gun; a battery does not (the simulation drops
-    // the battery itself, 0x300E50)
-    let gun = (player.held() == Held::Item).then_some(GunShape::RIFLE);
+    // a gun drops only from the hands that held it: not a battery (the
+    // simulation drops the battery itself, 0x300E50), nor a carrier's
+    // lowered gun (the artefact in hand drops instead)
+    let gun = (player.held() == Held::Item && crate::artefact_carry::gun_in_hands_at_death(player, thread))
+        .then_some(GunShape::RIFLE);
     let mut death = Death::new(DeathKey(player.spawned()), Cause::Unknown, gun, stood_on);
+    if fatal == Some((death.key, headwear::FatalHit::Headshot)) {
+        death.headwear = headwear::of_player(player).map(|_| HeadwearShape);
+    }
     (death.hits, death.hit_count) = recent.of_death(now);
     death.load = load_of(player);
     death.velocity = if moving.known { moving.velocity } else { Vec3::ZERO };
     (Seen::Dead(death), Some(index))
 }
 
+/// A living hit as its death takes it: a gun-stock hit is knocked back by
+/// its shooter's kit (MELEE_KNOCKBACK: the Anomalous Force Protein in a
+/// pocket, its built-in modification 1330, +15); every other hit as it came.
+/// Every client knows every kit, so each draws the same.
+fn pushed(living: &Living, client: &NetworkClient<'_>) -> Hit {
+    let Living { hit, round, .. } = *living;
+    if !round.gun_stock || round.shooter == u8::MAX {
+        return hit;
+    }
+    let shooter = client.player(u32::from(round.shooter));
+    let knockback = shooter.and_then(|p| p.kit_modifier(ModifierIndex::MELEE_KNOCKBACK));
+    knockback.map_or(hit, |k| Hit { impulse: knocked_back(hit.impulse, k), ..hit })
+}
+
+/// Record the native death event without changing simulation state.
+pub fn on_killed(ctx: &mut Context<'_>) -> Flow<NoExit> {
+    if let Some((place, life, hit)) = headwear::killed(ctx) {
+        STATE.with(ctx.thread(), |state| {
+            if let Some(death) = state.deaths.get_mut(usize::from(place)) {
+                *death = Some((life, hit));
+            }
+        });
+    }
+    Flow::Continue
+}
+
 /// The step: once a frame on the logic thread, after the simulation's move.
 pub fn on_step(ctx: &mut Context<'_>) -> Flow<NoExit> {
+    // patch 85's frame step (one detour at this address)
+    crate::weapon_pickup::after_move(ctx);
     let thread = ctx.thread();
-    let client = GameWorld::at_after_move(ctx).and_then(|world| world.network_client());
-    STATE.with(thread, |state| step(state, client.as_ref(), thread));
+    let world = GameWorld::at_after_move(ctx);
+    let key = world.as_ref().and_then(crate::vostok::gun_cook::world_key);
+    let client = world.and_then(|world| world.network_client());
+    let guns = STATE.with(thread, |state| {
+        if state.world != key {
+            state.world = key;
+            state.corpses.reset();
+        }
+        step(state, client.as_ref(), thread);
+        // each place's dropped gun, for patch 85's drops drawn as their copies
+        core::array::from_fn(|place| state.corpses.gun(place)
+            .map(|(death, pose)| crate::weapon_pickup::DroppedGun { life: death.0, transform: matrix_of(pose) }))
+    });
+    crate::weapon_pickup::draw_drops(ctx, &guns);
     Flow::Continue
 }
 
@@ -412,19 +482,26 @@ fn step(state: &mut State, client: Option<&NetworkClient<'_>>, thread: &Thread) 
         count = (client.places() as usize).min(MAX_PLACES);
         let local_place = client.local_place().map(usize::from);
         for place in 0..count {
-            let Some(player) = client.player(place as u32) else { continue };
+            let Some(player) = client.player(place as u32) else {
+                state.deaths[place] = None;
+                continue;
+            };
+            if !player.inserted() || player.alive() {
+                state.deaths[place] = None;
+            }
             physics = physics.or(player.physics_world());
             // this frame's bullets in this player (its hit model's body)
             let body = player.hit_body();
             for l in living.iter().flatten() {
                 if body == Some(l.body) {
-                    state.recent[place].record(state.time, l.hit);
+                    let hit = pushed(l, client);
+                    state.recent[place].record(state.time, hit);
                     state.rounds[place] = Some(l.round);
                     let r = &l.round;
                     trace_line(&mut state.trace, thread, |w| {
                         w.text("hit,");
                         w.fields(&[(state.time, 3), (place as f32, 0), (r.mass, 4), (r.speed, 1),
-                                   (l.hit.impulse.length(), 2), (r.muzzle, 0), (r.segment as f32, 0),
+                                   (hit.impulse.length(), 2), (r.muzzle, 0), (r.segment as f32, 0),
                                    (r.bullet as f32, 0), (f32::from(r.shooter), 0)]);
                     });
                 }
@@ -443,7 +520,8 @@ fn step(state: &mut State, client: Option<&NetworkClient<'_>>, thread: &Thread) 
                 m.at = at;
                 m.known = at.is_finite();
             }
-            let (s, index) = seen(&player, &mut state.mappings, &state.recent[place], &state.moving[place], state.time);
+            let (s, index) = seen(&player, thread, &mut state.mappings, &state.recent[place], &state.moving[place],
+                                  state.deaths[place], state.time);
             seen_places[place] = s;
             players[place] = Some((player, index));
             if local_place == Some(place) {
@@ -451,6 +529,7 @@ fn step(state: &mut State, client: Option<&NetworkClient<'_>>, thread: &Thread) 
             }
         }
     }
+    state.deaths[count..].fill(None);
     let frame = Frame { dt, up: UP, places: &seen_places[..count], local: local.map(|(p, _)| p) };
     let mut level = GameLevel { world: physics, rays: RAYS_A_FRAME };
     state.corpses.step(&frame, &mut level);
@@ -497,7 +576,8 @@ fn step(state: &mut State, client: Option<&NetworkClient<'_>>, thread: &Thread) 
 fn spike_of_death(file: &mut TraceState, thread: &Thread, time: f32, place: usize, round: Option<&Round>,
                   r: &StartReport) {
     let body: f32 = Part::ALL.iter().map(|p| p.mass()).sum();
-    let none = Round { mass: f32::NAN, muzzle: f32::NAN, speed: f32::NAN, segment: 0, bullet: 0, shooter: 0 };
+    let none = Round { mass: f32::NAN, muzzle: f32::NAN, speed: f32::NAN, segment: 0, bullet: 0, shooter: 0,
+                       gun_stock: false };
     let round = round.unwrap_or(&none);
     trace_line(file, thread, |w| {
         w.text("spike,");
@@ -672,6 +752,7 @@ fn bullet(ray: &BulletRay<'_>, thread: &Thread) {
         segment: ray.segment(),
         bullet: ray.id(),
         shooter: shooter.unwrap_or(u8::MAX),
+        gun_stock: ray.gun_stock(),
     };
     let push = |direction: Vec3| impulse(direction, round.mass, round.speed);
     // a living player hit: kept for its death's push, once a bullet
@@ -748,6 +829,7 @@ fn draw_of(state: &State, player: &Player<'_>) -> Option<(DeathKey, SlotId, Bone
 /// mt_draw's cull: a corpse of ours is drawn even when its model was not
 /// seen the last frame (its bones move).
 pub fn on_cull(ctx: &mut Context<'_>) -> Flow<NoExit> {
+    if let Flow::Skip = crate::artefact_carry::on_cull(ctx) { return Flow::Skip; }
     let ours = match draw::culled_player(ctx) {
         Some(player) => STATE.with(ctx.thread(), |state| draw_of(state, &player).is_some()),
         None => false,
@@ -758,9 +840,35 @@ pub fn on_cull(ctx: &mut Context<'_>) -> Flow<NoExit> {
 /// mt_draw's bones: the model-space matrices of the skeleton. The clip is
 /// captured; a ragdoll's bones are written over it.
 pub fn on_bones(ctx: &mut Context<'_>) -> Flow<NoExit> {
+    crate::artefact_carry::on_bones(ctx);
     if let Some(bones) = DrawnBones::at(ctx) {
         STATE.with(ctx.thread(), |state| apply(state, &bones));
     }
+    Flow::Continue
+}
+
+/// The rendered accessory pose of the same death, in the player's model space.
+fn headwear_pose(state: &State, player: &Player<'_>) -> Option<[f32; 16]> {
+    let (key, slot, _) = draw_of(state, player)?;
+    if *state.deaths.get(usize::from(player.place()))? != Some((key, headwear::FatalHit::Headshot)) {
+        return None;
+    }
+    let pose = state.corpses.slot(slot).body()?.headwear_pose()?;
+    Some(matrix_of(pose_of(&player.transform())?.inverse().then(pose)))
+}
+
+/// mt_draw's render command, after its weapon draw and before any arguments
+/// have been pushed. Alive/canned bodies use Head; a ragdoll uses its own pose.
+pub fn on_post_bones(ctx: &mut Context<'_>) -> Flow<RagdollOnPostBonesExit> {
+    let posted = DrawnBones::at_post_bones(ctx).is_some_and(|bones| {
+        let extra = STATE.with(ctx.thread(), |state| headwear_pose(state, &bones.player()));
+        bones.post_headwear(extra)
+    });
+    if posted { Flow::Exit(RagdollOnPostBonesExit::Posted) } else { Flow::Continue }
+}
+
+pub fn on_render_bones(ctx: &mut Context<'_>) -> Flow<NoExit> {
+    headwear::finish_update(ctx);
     Flow::Continue
 }
 
@@ -791,7 +899,11 @@ fn apply(state: &mut State, bones: &DrawnBones<'_>) {
 pub fn on_held_item(ctx: &mut Context<'_>) -> Flow<RagdollOnHeldItemExit> {
     // the bones made under the lock, given to the renderer after it
     let posed = draw::unheld_player(ctx).is_some_and(|player| {
-        STATE.with(ctx.thread(), |state| pose_unheld(state, &player)).is_some_and(|b| draw::post_bones(&player, &b))
+        STATE.with(ctx.thread(), |state| {
+            pose_unheld(state, &player).map(|b| (b, headwear_pose(state, &player)))
+        }).is_some_and(|(b, extra)| {
+            draw::post_headwear(&player, &b, extra) || draw::post_bones(&player, &b)
+        })
     });
     if posed {
         draw::no_held_item(ctx);
@@ -841,3 +953,27 @@ pub fn on_eye(ctx: &mut Context<'_>) -> Flow<NoExit> {
 }
 
 const _: () = assert!(BONE_COUNT < u8::MAX as usize);
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// Bullet's filter as the game's needsCollision (0x75BD0) applies it.
+    fn meets(group: u32, mask: u32) -> bool {
+        group & LEVEL_MASK != 0 && mask & LEVEL_GROUP != 0
+    }
+
+    #[test]
+    fn the_level_filter_meets_the_level_and_the_batteries_alone() {
+        // a project's collision_objects (cgroup, cmask): the walker
+        // collision, the collision bullets hit, one used for both
+        assert!(meets(2, 4) && meets(8, 16) && meets(10, 20));
+        // the batteries (victory_item_core 0x301CB0)
+        assert!(meets(0xA18, 0x418));
+        // players' controllers, hit models, grenades, the lobby's, the
+        // client objects' geometries
+        for (group, mask) in [(0x824, 3), (0x40, 0x11), (0x818, 8), (0x800, 0x800), (0x20, 0x20), (0x80, 0x100), (1, 0x20)] {
+            assert!(!meets(group, mask), "{group:#x}/{mask:#x}");
+        }
+    }
+}

@@ -1,8 +1,8 @@
-# Blackout (prototype)
+# Blackout
 
 The owner (2026-10-24): "make a game with all ui disabled and players having color bands to
-distinguish teams… this is the new battery mode". A prototype to try locally; the owner's
-changes of 2026-10-25 and 2026-10-26 are in. Nothing here ships until the owner says so.
+distinguish teams… this is the new battery mode". The owner's changes of 2026-10-25 and
+2026-10-26 are in. Since 2026-10-28 it is a normal mode, with no server feature toggle.
 
 - **No bands for now** (the owner, 2026-10-26: "bands are fine, but we will do release without
   them, instead player markers should still be visible"): the painted team bands are parked on
@@ -16,32 +16,55 @@ changes of 2026-10-25 and 2026-10-26 are in. Nothing here ships until the owner 
   writes "Protective device: chargers"): a tick of the rooms' create window, a card of the vote, a
   row of the room and match lists. Listed with the protective device's kinds: plain, chargers,
   blackout, then team deathmatch and Research (the owner, 2026-10-26).
-- **Offered** while the server runs with `SRP_BLACKOUT=on` (off by default): the rooms' pool then
-  holds each plain battery map of the match pool once more as Blackout.
+- **Always offered:** each plain battery map has a Blackout map of its own (below), in the
+  match pool and the rooms' pool as every playable map.
 - **Rules:** the plain battery mode (mode 2, "Protective device": batteries from the spawners,
   no chargers), on its maps; the battery rules unchanged. Not the chargers' mode (3).
 - **Part of the standard pool** (the owner, 2026-10-25): in the create window's defaults, in every
   room Play makes; Play puts players into rooms that offer it; a room's maker may untick it.
-- **How often:** each Blackout map is one more entry of the pool, as any map; the vote's three cards
-  are drawn from the pool's entries alike. With the live pool (100 entries, 25 of them plain
-  battery maps) Blackout adds 25 of 125: a card is Blackout 1 time in 5, and about half of the
-  votes (49 %) offer at least one Blackout card; the vote picks.
+- **Always the vote's third card** (the owner, 2026-11-02: "offers blackout in voting always as a
+  third choice"; before, each Blackout map was one more entry the three cards were drawn from
+  alike, so about half of the votes had a Blackout card, anywhere): every vote, public or
+  private, of a room whose pool has Blackout.
+  - Cards 1 and 2: drawn from the rest of the pool, as before; never Blackout.
+  - Card 3: one of the pool's Blackout maps at random, on a map cards 1 and 2 are not while
+    there is one; won, its match is Blackout (as any Blackout card's).
+  - No switch: Blackout is a mode like the others. A pool without it (a private room's maker
+    unticked it, or ticked no battery map) or of Blackout alone: its three cards drawn as
+    before. A public room's pool always has it (the live pool has 25 battery maps).
 - **Bots:** not offered (Play vs Bots lists its own maps).
 
 ## In the match
 
-- **The players' markers on Tab** (the owner, 2026-10-26: shown only while Tab is held): the markers
-  and names over players as a plain battery match shows them (teammates' as the game shows them; an
-  enemy's name never, the game's own rule), alive or dead, while Tab is held; hidden otherwise. The
-  match's objects' markers (the batteries and the like) are always hidden; no Research markers.
+- **The teammates' markers, always** (the owner, 2026-10-31, release 40: "in hardcore mode let's
+  show markers of teammates"; before, 2026-10-26, only while Tab was held): the marker over each
+  teammate's head as a plain battery match shows it, the whole match, alive or dead, Tab or not.
+  - **Enemies:** never a marker (the game's own rule, as in a plain match).
+  - **Names:** part of the same marker, so as a plain match shows them: an Alt key held or the
+    crosshair on the teammate; and, as before, every eligible teammate's while Tab is held. An
+    enemy's name never.
+  - **Still hidden:** the minimap (its teammates' dots too: the minimap is the hud's, not a
+    marker), the match's objects' markers (the batteries and the like), Research markers, and
+    everything else below.
 - **No interface:** the rest of what F11 hides (patch 62) for the whole match, from its first
   frame: ammo, health, score, crosshair, minimap, kill feed, chat (but while typed in and on Tab), Tab list, the match clock (but on Tab), the
   kits and the death screen with its respawn timer.
 - **One exception, the pre-match countdown** ("… 00:15"): shown while it runs, hidden with the
-  rest when play starts.
+  rest when play starts. A localized Blackout explanation appears above the native countdown.
+- **Introduction:** immediately show a localized **System:** chat explanation once in each
+  account's first three Blackout matches, temporarily revealing chat for 20 seconds without
+  opening the input. It explains batteries, the hidden HUD and hitmarkers, and Tab's controls.
+  The allowance persists across logins; retries and reconnects do not spend it again in the
+  same match. See [mode introductions](mode_introductions.md) for copy, protocol and checks.
+- **The use prompt and its progress, always** (the owner, 2026-11-02: "picking up artifact and
+  refilling ammo should have ui in blackout"): the prompt at what the player can use (an artefact
+  container, an ammo stash) and the bar filling while it is used (the search, the refill), as in a
+  plain match. It is the one prompt of every use, so the battery's take and put, a dropped gun's
+  pick-up and a teammate's held artefact show theirs too; the rest stays hidden (the quick-use
+  slots the artefact goes to and the ammo count but on Tab).
 - **Tab held:** the chat's history, the ammo (in the weapon and carried), the quick-use slots with their counts, the
-  body's state (the doll: the body parts, bleeding, radiation, toxins; the owner, 2026-10-26), the
-  players' markers and the time left until the match ends (the hud's own match timer, in its normal place at the top of the
+  body's state (the doll: the body parts, bleeding, radiation, toxins; the owner, 2026-10-26), all
+  teammates' names over their markers and the time left until the match ends (the hud's own match timer, in its normal place at the top of the
   screen, the rest of the bar hidden; the owner, 2026-10-26); hidden again when Tab is let go.
   Never the player list or the score (the owner, 2026-10-25).
 - **The chat** (the owner, 2026-10-26: "should be seen when typing and tab should show history"):
@@ -51,16 +74,21 @@ changes of 2026-10-25 and 2026-10-26 are in. Nothing here ships until the owner 
   otherwise hidden, and a new message does not pop up.
 - **Tab held while dead** (the owner, 2026-10-26: "pressing tab when dying should show kits"): the
   kits, as a plain match shows them on the death screen and before the start, to pick by a click
-  or 1 to 3 (shown chosen as in a plain match), the players' markers (a plain death screen shows
-  them) and the time left; hidden again when Tab is let go.
+  or 1 to 3 (shown chosen as in a plain match), the teammates' names (the markers are always
+  shown) and the time left; hidden again when Tab is let go.
   Keys 1 to 3 pick a kit with or without Tab. A death or a respawn while Tab is held switches
   between the kits and the alive player's view immediately.
-- **Keys while Tab is held** go on as with Tab up (a plain match's Tab list takes every key while it
-  is up; Blackout has no list): the kits' 1 to 3, the replay's keys; the moves and acts stay
-  stopped by the input's filter.
-- **Tab held stops the player:** no walking, sprinting or jumping (a crouch stays, it does not
-  move); no fire, aim, reload, held breath, grenade, melee, use, drop or quick use. The mouse
-  look, the weapon keys, the fire mode, spot and the suicide key stay.
+- **Keys while Tab is held** go on as with Tab up (a plain match's Tab list keeps the game world's
+  own keys, the kits' and the chat's, while it is up, and the player's go on; Blackout has no
+  list): the kits' 1 to 3, the replay's keys; acts are filtered, and movement is filtered after
+  the 200 ms grace.
+- **Tab held stops the player after 200 ms:** a quick tap keeps walking and sprinting;
+  holding longer stops them. Actions, including jumping, are blocked immediately (a crouch stays, it does not
+  move); no fire, aim, reload, held breath, grenade, melee, drop or quick use. The mouse
+  look, the weapon keys, the fire mode, spot, the suicide key and Use stay.
+- **Use is never stopped by Tab** (the owner, 2026-11-05: "Tab shouldn't affect the collection at
+  all"): an artefact search or an ammo refill held through Tab keeps filling and ends as without
+  Tab; Use pressed with Tab held uses as it would without it.
 - **On Tab's release:** the moves come back at once; an act whose key was held through Tab acts
   again only after it is let go and pressed again (nothing fires on the release).
 - **In step for everyone:** the local input is filtered before it is sent, as if those keys were
@@ -80,34 +108,49 @@ changes of 2026-10-25 and 2026-10-26 are in. Nothing here ships until the owner 
   Blackout match are twice a plain match's; the counts shown (kills, help) and the player's
   statistics, quests and rating are as played; the team's points and the win are the match's.
 - **The end:** the lobby and its results screen as always.
-- **Replays and late joiners** see the match as it was (no interface but the players' markers).
+- **Replays and late joiners** see the match as it was (no interface but the teammates' markers and the use prompt).
 - **Not a simulation change:** what is drawn only; no `simulation_changes.tsv` row.
 
 ## How
 
-- **Lobby (srp):** Blackout's maps are named by ids of the lobby's own (`maps::blackout_pairs`:
-  ids `maps_dict` does not use, from 255 down), mode 6 in the rooms' pool, cards and rows. A
-  room's match on such a card is made on the battery map with `MatchSetup::blackout`.
-- **Rewards (srp):** the match server's result carries `blackout`; the rewards' score and each
-  line's pay are times `rewards::BLACKOUT_FACTOR` (2) before rounding; nothing in the match
+- **Its own maps (content):** a mode of its own maps, as every mode is: each playable battery
+  config once more under `gameplay/game_modes/blackout/`, with `mode/srp_variant` "blackout"
+  and the name `st_srp_mode_blackout`, and a `maps_dict` row each (ids 219 to 248; the edit list
+  `scripts/content-edit/blackout-mode-1.json`). The client loads one as the battery map it
+  copies (the same rules and project).
+- **One mode a map (srp):** `maps::GameMode` is read from the config once
+  (`GameMode::of_config`: the rules of `mode.mode` or a variant of srp's, `maps::VARIANTS`; an
+  unknown variant, or one on other rules, stops the server). The lobby, the match server, the
+  results and replays know a Blackout match by its map's id alone (`maps::MatchMap`). In the
+  lobby its maps are mode 6 (`GameMode::lobby_number`) of the rooms' pool, cards and rows, and of
+  `SRP_MATCH_MODES`; with that unset they are in the match pool as every playable map.
+- **A new variant** of a mode's rules: a row of `maps::VARIANTS` (and its `GameMode`), and its
+  configs by an edit list. New rules (a `mode.mode` of their own) still need the exe's support,
+  as Research's did (patch 53).
+- **Rewards (srp):** the match server's result carries `GameMode::Blackout`; the rewards' score
+  and each line's pay are times `rewards::BLACKOUT_FACTOR` (2) before rounding; nothing in the match
   computes otherwise (the hud's score is hidden).
-- **Static info:** the flag is tag 2 (one byte, 1) of srp's block after the squads, on battery
-  maps only; a late joiner's static info keeps it.
+- **Static info:** tag 2 (one byte, 1) of srp's block after the squads, written for a Blackout
+  map's options and only for them (`static_info::MatchOptions` carries the `MatchMap`; read back,
+  the entry and the map's mode must agree); a late joiner's static info keeps it.
 - **Exe, patch 65:** the Rust module `patches::blackout` (`client-patches/rust/patches/src/
-  blackout.rs`, its hooks `blackout.toml`; `client_patch.md` 3.58, `rust_patches.md`), five
+  blackout.rs`, its hooks `blackout.toml`; `client_patch.md` 3.58, `rust_patches.md`), six
   `lohook`s at sites of its own (`sites_026g.tsv`), no other patch touched:
   - `static_info.options_read` (0x27B92D) and `replay.options_read` (0x1F0971), after the two
     calls of `match_options::deserialize` (the 0xE4's and a replay's chunk 1): srp's block is read
     from the reader's cursor (where the options end), the options keep the mark (+57870h) and the
     patch the match's flag;
   - `player_icons.update_start` (0x23AA10, each frame): the hud movie told
-    `root.force_interface_hidden(flag)`, the player icons `root.force_interface_hidden(flag)` and
-    `root.force_interface_tab(Tab held)`, at a change of the movie (the game world's own) or of the
-    state, and again at the next frame while a movie does not take it;
+    `root.force_interface_hidden(flag)` and the player icons `root.force_interface_hidden(flag)`,
+    each at a change of the movie (the game world's own) or of the state, and again at the next
+    frame while a movie does not take it (Tab's state is not told: the markers do not depend on it);
   - `keyboard.tab_state` (0x25CD2C): Tab's state; in a Blackout match the key goes on as with Tab
     up (bl cleared: the game's Tab test at 0x25CD39 no longer sends it to the function's end, so
     patch 58's kit keys at 0x25CD41 get it);
-  - `input_builder.end` (0x2421B0): the moves and acts out of the actions mask while Tab is held.
+  - `player_names.visibility` (0x1F2F10): while Tab is held, show all eligible teammate
+    names as with Alt. Keep the native enemy/spectator decisions and earlier visibility checks;
+    releasing Tab restores the native Alt/crosshair decision.
+  - `input_builder.end` (0x2421B0): acts out while Tab is held; moves out after a 200 ms grace, reset by release or a new match.
   - **Beside the other patches:** patch 63 (team damage, #370) reads srp's block at
     `match_options::deserialize`'s end (0x1F0F30), Research's markers (#367) wrap update_ui's call
     of update_player_icons (0x23B207), patch 62 (F11) keeps its reset (0x234AE8) and key: each owns
@@ -117,7 +160,9 @@ changes of 2026-10-25 and 2026-10-26 are in. Nothing here ships until the owner 
   `ForcedView`'s (`survarium/controls/ForcedView.as`: the parts by the forced state, Tab held and the
   chat typed in, `focus_chat`; the chat kept while typed in or on Tab, its history held on for Tab):
   the countdown
-  (`pregameInfo`) in a layer over it (`KeptLayer`: the layer takes no mouse, its parts do, so the
+  (`pregameInfo`) and the use prompt with its progress (`contextInfo`, `root.set_context`: the game's
+  only prompt, 0x23A560 the hint of what is in reach, 0x23A430 `st_using_progress_message` with the
+  use's progress, both from 0x246F50 each frame) in a layer over it (`KeptLayer`: the layer takes no mouse, its parts do, so the
   kits are clicked there; the first build made the whole layer mouse-blind, the owner's
   2026-10-26 "I cannot switch between profiles"), placed as the root (and still placed by the hud's own
   layout there, `Layout.manage`: centred as in any match, at every resolution and interface
@@ -131,11 +176,14 @@ changes of 2026-10-25 and 2026-10-26 are in. Nothing here ships until the owner 
   Blackout: `force_interface_hidden(false)` at its first frame, which puts every kept part back).
 - **The player icons' movie:** forced (`force_interface_hidden`), it hides the match's objects'
   icons (ids from 37, `HUDIconLayer.FIRST_OBJECT`: the game gives a player's icon his index and its
-  objects' from 25h) and shows the players' only while Tab is held (`force_interface_tab`: the icon
-  layer shown); forced, `hide_interface` (F11, a match's reset) does nothing.
+  objects' from 25h) and keeps the players' as in a plain match (the teammates'; an enemy's never,
+  `HUDIconLayer.canShow` with the game's `set_enemy_icon_ids`); forced, `hide_interface` (F11, a
+  match's reset) does nothing.
 - **Checks in Ruffle:** `scripts/blackout-kits/check.sh <hud.swf> <player_icons.swf>`: the hud's kit
-  panel and body doll in its `KeptLayer` (a kit key, a real click), the player icons movie told each
-  state (and F11 doing nothing while forced).
+  panel and body doll in its `KeptLayer` (a kit key, a real click), the use prompt kept there with its
+  progress and given back when unforced, the player icons movie told each
+  state: the teammate's marker shown, forced or not, the enemy's never, the object's not while
+  forced (and F11 doing nothing while forced).
 - **The lobby movie:** `GameMode.BLACKOUT`, its names; the create window ticks the modes the pool
   offers; a mode's colour on the vote card from one table.
 - **With the interface levels** (`feat/interface-level`, its own patch 64): Blackout's telling the
@@ -148,3 +196,6 @@ changes of 2026-10-25 and 2026-10-26 are in. Nothing here ships until the owner 
   have it ticked, as the defaults do; no schema step is needed.
 - A game without patch 65 would show the interface: refuse it by revision before a
   release (`SRP_MIN_PATCH_REVISION`).
+- Ships with its content patch: a game without `blackout-mode-1.json`'s maps_dict rows cannot
+  load maps 219 to 248 ("Wrong map config"), and a server on game data without them offers no
+  Blackout. Both are the same release.

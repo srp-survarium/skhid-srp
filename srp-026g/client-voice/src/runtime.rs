@@ -60,17 +60,117 @@ impl BufferOrder {
     }
 }
 
+/// How often the drop log writes at most.
+pub(crate) const DROP_LOG_MS: u32 = 10_000;
+
+/// What the worker dropped since the log last said so.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+struct Dropped {
+    datagrams: u32,
+    /// The first dropped datagram's reason; `None` for a receive error.
+    first: Option<crate::wire::Malformed>,
+}
+
+/// The datagrams the worker drops (malformed, or a receive error) and the
+/// frames its decoder refuses, for the log: the first at once, then a line
+/// at most every [`DROP_LOG_MS`] with the counts, so a flood is one line.
+#[derive(Default)]
+pub(crate) struct DropLog {
+    dropped: Option<Dropped>,
+    /// The decoder's refusals ([`crate::Stats::undecodable`]) last logged.
+    undecodable: u32,
+    last_line: Option<u32>,
+}
+impl DropLog {
+    pub(crate) fn drop(&mut self, reason: Option<crate::wire::Malformed>) {
+        self.dropped = Some(match self.dropped {
+            Some(dropped) => Dropped {
+                datagrams: dropped.datagrams.saturating_add(1),
+                ..dropped
+            },
+            None => Dropped {
+                datagrams: 1,
+                first: reason,
+            },
+        });
+    }
+    /// The line to log at `now`, if one is due; `undecodable` is the
+    /// receiver's count so far.
+    pub(crate) fn line(&mut self, now: u32, undecodable: u32) -> Option<String> {
+        if self
+            .last_line
+            .is_some_and(|last| now.wrapping_sub(last) < DROP_LOG_MS)
+        {
+            return None;
+        }
+        let frames = undecodable.wrapping_sub(self.undecodable);
+        if self.dropped.is_none() && frames == 0 {
+            return None;
+        }
+        self.undecodable = undecodable;
+        self.last_line = Some(now);
+        let mut line = match self.dropped.take() {
+            Some(Dropped {
+                datagrams,
+                first: Some(reason),
+            }) => format!("dropped {datagrams} datagrams (the first: {reason})"),
+            Some(Dropped {
+                datagrams,
+                first: None,
+            }) => format!("dropped {datagrams} datagrams (the first: a receive error)"),
+            None => String::new(),
+        };
+        if frames > 0 {
+            if !line.is_empty() {
+                line.push_str("; ");
+            }
+            line.push_str(&format!("{frames} frames the decoder refused"));
+        }
+        Some(line)
+    }
+}
+
+/// The longest host `sv_start` takes, its NUL not counted.
+pub(crate) const MAX_HOST: usize = 255;
+
+/// `sv_start`'s host: UTF-8 of 1 to [`MAX_HOST`] bytes before its NUL. A
+/// string with no NUL in its first `MAX_HOST + 1` bytes is refused without
+/// reading further.
+///
+/// # Safety
+/// `host` is null, or readable up to its NUL or `MAX_HOST + 1` bytes,
+/// whichever comes first.
+pub(crate) unsafe fn host_arg<'a>(host: *const std::ffi::c_char) -> Option<&'a str> {
+    if host.is_null() {
+        return None;
+    }
+    let mut len = 0;
+    // SAFETY: each byte read is at most the NUL or MAX_HOST + 1 bytes in.
+    while unsafe { *host.add(len) } != 0 {
+        len += 1;
+        if len > MAX_HOST {
+            return None;
+        }
+    }
+    if len == 0 {
+        return None;
+    }
+    // SAFETY: the `len` bytes before the NUL were just read.
+    let bytes = unsafe { std::slice::from_raw_parts(host.cast::<u8>(), len) };
+    std::str::from_utf8(bytes).ok()
+}
+
 #[cfg(windows)]
 mod platform {
-    use super::{TalkAction, TalkState};
+    use super::{DropLog, TalkAction, TalkState, host_arg};
     use crate::{
         Core, Encoder, SLOTS, Sender,
-        radio::mic_gain,
+        radio::{mic_gain, unit},
         windows::{Input, Output},
         wire::{self, Message},
     };
     use std::{
-        ffi::{CStr, c_char},
+        ffi::c_char,
         io,
         net::{ToSocketAddrs, UdpSocket},
         sync::{
@@ -108,13 +208,6 @@ mod platform {
     };
     fn volume() -> f32 {
         f32::from_bits(CONTROL.volume.load(SeqCst))
-    }
-    fn unit(value: f32) -> f32 {
-        if value.is_nan() {
-            0.0
-        } else {
-            value.clamp(0.0, 1.0)
-        }
     }
 
     struct Status {
@@ -210,6 +303,7 @@ mod platform {
         let mut ending: Option<(Vec<u8>, u8, u32)> = None;
         let mut applied_mute = u32::MAX;
         let mut receiving = true;
+        let mut drops = DropLog::default();
         let mut bytes = [0_u8; 464];
         while !status.stop.load(SeqCst) {
             let now = clock.elapsed().as_millis() as u32;
@@ -222,38 +316,58 @@ mod platform {
             }
             // Bound each poll even if the peer floods the socket, so capture,
             // playback and stop cannot be starved by network traffic.
+            // The socket is connected to the relay: the system passes on no
+            // datagram from another address. What the relay sends is still
+            // parsed once here; anything malformed is dropped and logged.
             for _ in 0..64 {
-                match socket.recv(&mut bytes) {
-                    Ok(count) => {
-                        if let Some(message) = wire::parse(&bytes[..count]) {
-                            match &message {
-                                Message::Welcome { slot } if usize::from(*slot) < SLOTS => {
-                                    status.slot.store(i32::from(*slot), SeqCst)
-                                }
-                                Message::Roster { entries } => {
-                                    let mut roster = [0_u32; SLOTS];
-                                    for &(slot, id) in entries {
-                                        if let Some(place) = roster.get_mut(usize::from(slot)) {
-                                            *place = id;
-                                        }
-                                    }
-                                    for (slot, id) in roster.into_iter().enumerate() {
-                                        let previous = status.ids[slot].swap(id, SeqCst);
-                                        if previous != 0 && previous != id {
-                                            // Decoder history and utterance tombstones belong
-                                            // to an account, not the place a late joiner reused.
-                                            core.reset_slot(slot as u8);
-                                        }
-                                    }
-                                }
-                                _ if hears => core.receive(&message, now),
-                                _ => (),
+                let received = match socket.recv(&mut bytes) {
+                    Ok(count) => bytes.get(..count).unwrap_or(&[]),
+                    Err(error) if error.kind() == io::ErrorKind::WouldBlock => break,
+                    // A datagram larger than the buffer, or an ICMP answer:
+                    // that one is gone, the next may be good.
+                    Err(_) => {
+                        drops.drop(None);
+                        continue;
+                    }
+                };
+                match wire::parse(received) {
+                    Ok(Message::Welcome { slot }) => status.slot.store(i32::from(slot), SeqCst),
+                    Ok(Message::Roster { entries }) => {
+                        let mut roster = [0_u32; SLOTS];
+                        for (slot, id) in entries {
+                            if let Some(place) = roster.get_mut(usize::from(slot)) {
+                                *place = id;
+                            }
+                        }
+                        for ((slot, id), known) in roster.into_iter().enumerate().zip(&status.ids) {
+                            let previous = known.swap(id, SeqCst);
+                            if previous != 0 && previous != id {
+                                // Decoder history and utterance tombstones belong
+                                // to an account, not the place a late joiner reused.
+                                core.reset_slot(slot as u8);
                             }
                         }
                     }
-                    Err(error) if error.kind() == io::ErrorKind::WouldBlock => break,
-                    Err(_) => break,
+                    Ok(
+                        message @ (Message::RelayStart { .. }
+                        | Message::RelayAudio { .. }
+                        | Message::RelayEnd { .. }),
+                    ) => {
+                        if hears {
+                            core.receive(&message, now);
+                        }
+                    }
+                    Ok(
+                        Message::Hello { .. }
+                        | Message::Start { .. }
+                        | Message::Audio { .. }
+                        | Message::End { .. },
+                    ) => drops.drop(Some(wire::Malformed::FromClient)),
+                    Err(reason) => drops.drop(Some(reason)),
                 }
+            }
+            if let Some(line) = drops.line(now, core.stats().undecodable) {
+                say(&line);
             }
             if CONTROL.hello.swap(false, SeqCst)
                 || last_hello.is_none_or(|last| now.wrapping_sub(last) >= 2_000)
@@ -387,16 +501,14 @@ mod platform {
     /// for this call, as required by the shared voice ABI.
     #[unsafe(no_mangle)]
     pub unsafe extern "C" fn sv_start(host: *const c_char, port: u32, session: u32) -> i32 {
-        if host.is_null() || port == 0 || port > u32::from(u16::MAX) {
+        if port == 0 || port > u32::from(u16::MAX) {
             return 1;
         }
-        // SAFETY: caller supplies a readable NUL-terminated host string.
-        let Ok(host) = unsafe { CStr::from_ptr(host) }.to_str() else {
+        // SAFETY: the caller supplies null or a readable NUL-terminated
+        // string; host_arg reads no further than its NUL or 256 bytes.
+        let Some(host) = (unsafe { host_arg(host) }) else {
             return 1;
         };
-        if host.is_empty() || host.len() >= 256 {
-            return 1;
-        }
         let mut state = SESSION.lock().unwrap_or_else(|error| error.into_inner());
         if matches!(*state, Lifecycle::Broken) {
             return 8;

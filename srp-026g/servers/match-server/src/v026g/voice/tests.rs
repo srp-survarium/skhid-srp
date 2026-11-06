@@ -100,7 +100,11 @@ fn audio(session: u32, utt: u16, seq: u16) -> Vec<u8> {
     datagram.extend_from_slice(&utt.to_le_bytes());
     datagram.extend_from_slice(&seq.to_le_bytes());
     datagram.push(2);
-    for frame in [[0xA1u8; 3].as_slice(), [0xB2u8; 5].as_slice()] {
+    // 0x48: the TOC of one 20 ms SILK frame (wide band).
+    for frame in [
+        [0x48, 0xA1, 0xA1].as_slice(),
+        [0x48, 0xB2, 0xB2, 0xB2, 0xB2].as_slice(),
+    ] {
         datagram.push(frame.len() as u8);
         datagram.extend_from_slice(frame);
     }
@@ -800,4 +804,323 @@ fn restarted_process_keeps_the_same_account_but_gets_a_new_relay_utterance() {
     }
     assert_eq!(core.stats().decoded, 4);
     assert_eq!(core.stats().late, 0);
+}
+
+/// An AUDIO of session 1, utt 1 carrying `frames` as they are.
+fn audio_of(frames: &[&[u8]]) -> Vec<u8> {
+    let mut datagram = vec![MAGIC, VERSION, kind::AUDIO];
+    datagram.extend_from_slice(&1u32.to_le_bytes());
+    datagram.extend_from_slice(&[1, 0, 0, 0, frames.len() as u8]);
+    for frame in frames {
+        datagram.push(frame.len() as u8);
+        datagram.extend_from_slice(frame);
+    }
+    datagram
+}
+
+#[test]
+fn every_truncation_and_extension_is_dropped_with_its_reason() {
+    for datagram in [hello(1, true), start(1, 1), audio(1, 1, 0), end(1, 1)] {
+        assert!(parse(&datagram).is_ok());
+        for len in 0..datagram.len() {
+            // A HELLO without its mask is the old one, and taken.
+            if datagram[2] == kind::HELLO && len == 8 {
+                continue;
+            }
+            assert!(parse(&datagram[..len]).is_err(), "{:?}", &datagram[..len]);
+        }
+        let mut longer = datagram.clone();
+        longer.push(0);
+        assert!(parse(&longer).is_err(), "{longer:?}");
+    }
+    assert_eq!(parse(&[]), Err(Dropped::Short));
+    assert_eq!(parse(&[MAGIC, VERSION]), Err(Dropped::Short));
+    assert_eq!(
+        parse(&[MAGIC, VERSION, kind::HELLO, 1, 0, 0]),
+        Err(Dropped::Short)
+    );
+    assert_eq!(
+        parse(&[MAGIC, VERSION, kind::HELLO, 1, 0, 0, 0, 1, 0]),
+        Err(Dropped::Length)
+    );
+    assert_eq!(parse(&start(1, 1)[..12]), Err(Dropped::Length));
+    assert_eq!(parse(&audio(1, 1, 0)[..12]), Err(Dropped::Frames));
+}
+
+#[test]
+fn oversize_wrong_version_and_types_are_dropped_with_their_reason() {
+    let mut large = audio(1, 1, 0);
+    large.resize(MAX_DATAGRAM + 1, 0);
+    assert_eq!(parse(&large), Err(Dropped::TooLarge));
+    assert_eq!(parse(&[0; 2048]), Err(Dropped::TooLarge));
+    let mut bad = start(1, 1);
+    bad[0] = 0x57;
+    assert_eq!(parse(&bad), Err(Dropped::NotVoice));
+    bad[0] = MAGIC;
+    bad[1] = 2;
+    assert_eq!(parse(&bad), Err(Dropped::Version(2)));
+    bad[1] = VERSION;
+    for kind in [
+        0x00,
+        0x05,
+        kind::WELCOME,
+        kind::RELAYED_AUDIO,
+        kind::ROSTER,
+        0xFF,
+    ] {
+        bad[2] = kind;
+        assert_eq!(parse(&bad), Err(Dropped::Kind(kind)));
+    }
+    // None of it reaches a teammate.
+    let mut bench = Bench::new();
+    bench.all_hello();
+    for datagram in [large, bad] {
+        assert!(bench.send(1, &datagram).is_empty());
+    }
+}
+
+#[test]
+fn audio_frames_must_be_twenty_ms_of_opus_and_at_most_eight() {
+    let frame: &[u8] = &[0x48, 1, 2];
+    assert!(matches!(
+        parse(&audio_of(&[frame; 8])),
+        Ok(Datagram::Audio { .. })
+    ));
+    assert_eq!(parse(&audio_of(&[])), Err(Dropped::Frames));
+    assert_eq!(parse(&audio_of(&[frame; 9])), Err(Dropped::Frames));
+    assert_eq!(parse(&audio_of(&[&[]])), Err(Dropped::NotOpus));
+    // 10 ms SILK, 2.5 ms CELT, 60 ms SILK: no game plays them in a 20 ms place.
+    for toc in [0x00, 0x80, 0x18] {
+        assert_eq!(parse(&audio_of(&[&[toc, 1]])), Err(Dropped::NotOpus));
+    }
+    // A frame said longer than what follows.
+    let mut cut = audio_of(&[frame]);
+    cut.pop();
+    assert_eq!(parse(&cut), Err(Dropped::Frames));
+    // Garbage Opus from a seated teammate is not forwarded, only counted.
+    let mut bench = Bench::new();
+    bench.all_hello();
+    assert!(bench.send(1, &audio_of(&[&[0x00, 0xFF, 0xFF]])).is_empty());
+    assert_eq!(bench.relay.counts(MATCH), None);
+    assert_eq!(
+        sent_to(&bench.send(1, &audio_of(&[frame, frame]))),
+        vec![(2, 0x82), (2, 0x83), (3, 0x82), (3, 0x83)]
+    );
+}
+
+#[test]
+fn the_opus_check_is_the_games_and_agrees_with_its_decoder() {
+    use skhid_voice::{Decoder, wire};
+    assert_eq!(MAX_FRAMES, wire::MAX_FRAMES);
+    assert_eq!(MAX_DATAGRAM, wire::MAX_DATAGRAM);
+    let mut decoder = Decoder::new().unwrap();
+    for toc in 0..=255u8 {
+        // The shortest well-formed packet of each frame-count code (RFC 6716
+        // 3.2): frames of no bytes, which the decoder conceals.
+        let packets: Vec<Vec<u8>> = match toc & 3 {
+            0 | 1 => vec![vec![toc]],
+            2 => vec![vec![toc, 0]],
+            _ => (0..=4).map(|count| vec![toc, count]).collect(),
+        };
+        for packet in packets {
+            assert_eq!(opus_20ms(&packet), wire::opus_20ms(&packet), "{packet:?}");
+            assert_eq!(
+                opus_20ms(&packet),
+                decoder.decode(Some(&packet)).is_ok(),
+                "{packet:?}"
+            );
+            decoder.reset();
+        }
+    }
+}
+
+#[test]
+fn a_slot_past_the_mute_mask_is_never_muted() {
+    assert!(muted(u32::MAX, 31));
+    assert!(!muted(u32::MAX, 32));
+    assert!(!muted(u32::MAX, u8::MAX));
+    let mut bench = Bench::new();
+    bench.table.seat(5, MATCH, 40, 0);
+    bench.send(2, &hello_muting(2, true, u32::MAX));
+    assert_eq!(sent_to(&bench.send(5, &start(5, 1))), vec![(2, 0x82)]);
+}
+
+#[test]
+fn a_flood_from_one_source_does_not_delay_a_good_sender() {
+    let mut bench = Bench::new();
+    bench.all_hello();
+    let flood = SocketAddr::new(ip("10.9.9.9"), 4000);
+    let mut junk = 0x1234_5678u32;
+    for n in 0..10_000u32 {
+        junk = junk.wrapping_mul(1_664_525).wrapping_add(1_013_904_223);
+        let datagram = match n % 5 {
+            // Session 1's number from another IP: the talker's rate is not
+            // spent by it.
+            0 => audio(1, 1, n as u16),
+            1 => start(1, n as u16),
+            // Sessions with no seat.
+            2 => hello(junk, true),
+            3 => junk.to_le_bytes().repeat(1 + (junk % 120) as usize),
+            _ => {
+                let mut datagram = audio(1, 1, 0);
+                let at = junk as usize % datagram.len();
+                datagram[at] ^= 0xFF;
+                datagram
+            }
+        };
+        assert!(bench.send_from(flood, &datagram).is_empty());
+    }
+    // The good sender, the same second: all of its datagrams are relayed
+    // (its HELLO, START and AUDIO: its whole rate).
+    assert_eq!(
+        sent_to(&bench.send(1, &start(1, 1))),
+        vec![(2, 0x82), (3, 0x82)]
+    );
+    for seq in 0..MAX_PER_SECOND as u16 - 2 {
+        assert_eq!(bench.send(1, &audio(1, 1, seq)).len(), 2);
+    }
+    // The flood is one line in the log.
+    let lines = bench.relay.drop_lines(bench.now);
+    assert_eq!(lines.len(), 1, "{lines:?}");
+    assert!(
+        lines[0].starts_with("Voice: dropped 10000 datagrams from 10.9.9.9"),
+        "{lines:?}"
+    );
+}
+
+#[test]
+fn the_drop_log_is_a_line_a_source_at_most_every_ten_seconds() {
+    let mut bench = Bench::new();
+    let flood = SocketAddr::new(ip("10.9.9.9"), 4000);
+    for _ in 0..50 {
+        bench.send_from(flood, &[MAGIC]);
+    }
+    // A spoofed flood from 2000 addresses: counted, its memory bounded.
+    for n in 0..2000u32 {
+        let from = SocketAddr::new(std::net::Ipv4Addr::from(0x0A01_0000 + n).into(), 4000);
+        bench.send_from(from, &[0; 3]);
+    }
+    assert_eq!(bench.relay.drops.sources.len(), DROP_SOURCES);
+    let lines = bench.relay.drop_lines(bench.now);
+    assert_eq!(lines.len(), DROP_LOG_SOURCES + 1, "{lines:?}");
+    assert_eq!(
+        lines[0],
+        "Voice: dropped 50 datagrams from 10.9.9.9 (the first: truncated header)"
+    );
+    assert_eq!(
+        lines[1],
+        "Voice: dropped 1 datagrams from 10.1.0.0 (the first: not voice)"
+    );
+    assert_eq!(
+        lines[DROP_LOG_SOURCES],
+        format!(
+            "Voice: dropped {} more datagrams from other sources",
+            2000 - (DROP_LOG_SOURCES - 1)
+        )
+    );
+    // More within ten seconds: no line until they are up.
+    bench.send_from(flood, &[MAGIC]);
+    bench.at(9_999);
+    assert!(bench.relay.drop_lines(bench.now).is_empty());
+    bench.send_from(flood, &start(77, 1));
+    bench.at(10_000);
+    assert_eq!(
+        bench.relay.drop_lines(bench.now),
+        vec!["Voice: dropped 2 datagrams from 10.9.9.9 (the first: truncated header)"]
+    );
+    // Nothing dropped: nothing written.
+    bench.at(30_000);
+    assert!(bench.relay.drop_lines(bench.now).is_empty());
+    assert!(bench.relay.drops.sources.is_empty());
+}
+
+#[test]
+fn a_flood_over_the_socket_does_not_delay_a_good_sender() {
+    use super::super::tests::{MAP_TDM, session_of as session};
+    let registry = Arc::new(MatchRegistry::new("127.0.0.1", 1));
+    let ticket = registry
+        .create(super::super::tests::setup(4, MAP_TDM))
+        .unwrap();
+    for place in [0, 2] {
+        registry.set_connection(
+            Seat {
+                match_id: ticket.match_id,
+                place,
+            },
+            ip("127.0.0.1"),
+        );
+    }
+    let server = UdpSocket::bind("127.0.0.1:0").unwrap();
+    let server_addr = server.local_addr().unwrap();
+    let stop = Arc::new(AtomicBool::new(false));
+    let relay = {
+        let (registry, stop) = (registry.clone(), stop.clone());
+        std::thread::spawn(move || run(&server, registry, [7; 32], &stop))
+    };
+    let game = |place: usize| {
+        let socket = UdpSocket::bind("127.0.0.1:0").unwrap();
+        socket
+            .set_read_timeout(Some(Duration::from_millis(50)))
+            .unwrap();
+        socket
+            .send_to(&hello(session(place), true), server_addr)
+            .unwrap();
+        socket
+    };
+    let (talker, listener) = (game(0), game(2));
+    // Another address of the loopback floods: junk, and session 0's number.
+    let flooding = Arc::new(AtomicBool::new(true));
+    let flooded = Arc::new(std::sync::atomic::AtomicU32::new(0));
+    let flood = {
+        let (flooding, flooded) = (flooding.clone(), flooded.clone());
+        let spoofed = [audio(session(0), 9, 0), start(session(0), 9)];
+        std::thread::spawn(move || {
+            let socket = UdpSocket::bind("127.0.0.2:0").unwrap();
+            let mut sent = 0u32;
+            while flooding.load(Ordering::Relaxed) && sent < 2_000_000 {
+                let datagram: &[u8] = match sent % 3 {
+                    0 => &[MAGIC, VERSION, kind::AUDIO, 1],
+                    1 => &spoofed[0],
+                    _ => &spoofed[1],
+                };
+                let _ = socket.send_to(datagram, server_addr);
+                sent += 1;
+                flooded.store(sent, Ordering::Relaxed);
+            }
+            sent
+        })
+    };
+    // The flood is on before the good talker starts.
+    while flooded.load(Ordering::Relaxed) < 20_000 {
+        std::thread::yield_now();
+    }
+    // The good talker's START gets to its teammate within a second, under
+    // the flood (sent again while it does not: the system may drop one when
+    // the socket's queue is full).
+    let deadline = std::time::Instant::now() + Duration::from_secs(1);
+    let mut buffer = [0; 512];
+    let mut heard = false;
+    let mut utt = 10;
+    while !heard && std::time::Instant::now() < deadline {
+        listener
+            .send_to(&hello(session(2), true), server_addr)
+            .unwrap();
+        // A new utterance each time: a repeated START is not relayed again.
+        talker
+            .send_to(&start(session(0), utt), server_addr)
+            .unwrap();
+        utt += 1;
+        while let Ok(len) = listener.recv(&mut buffer) {
+            if buffer[..len].get(2) == Some(&kind::RELAYED_START) {
+                heard = true;
+                break;
+            }
+        }
+    }
+    flooding.store(false, Ordering::Relaxed);
+    let sent = flood.join().unwrap();
+    stop.store(true, Ordering::Relaxed);
+    relay.join().unwrap().unwrap();
+    assert!(sent > 20_000, "the flood sent only {sent}");
+    assert!(heard, "the good START was not relayed under the flood");
 }

@@ -1,0 +1,25 @@
+# Patch 92: a battery's carrier scores a point for each 10 m the battery comes
+# nearer its team's container than ever in its life. The sites are
+# sites_026g.tsv's; the logic is battery_progress.rs.
+name = "battery_progress"
+patch = 92
+
+[[hook]]
+site = "battery.carrier_tick"
+handler = "on_carrier_tick"
+
+[[hook]]
+site = "battery.match_start"
+handler = "on_match_start"
+
+[[hook]]
+site = "battery.delivered"
+handler = "on_delivered"
+
+[[hook]]
+site = "battery.save"
+handler = "on_save"
+
+[[hook]]
+site = "battery.load"
+handler = "on_load"

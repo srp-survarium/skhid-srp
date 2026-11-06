@@ -49,6 +49,8 @@ package
          try
          {
             var domain:ApplicationDomain = loader.contentLoaderInfo.applicationDomain;
+            // The English texts, as the exe gives them (set_localization_data).
+            domain.getDefinition("survarium.data.LocalizationData").setData(HarnessText.DATA.english);
             var Scene:* = domain.getDefinition("MainScene");
             Scene.stage = this;
             var Win:* = domain.getDefinition("survarium.rooms.RoomsWindow");
@@ -71,6 +73,9 @@ package
                }
             }
             names.push("A;" + teams);
+            // Squads' marks (`S;<marks>`), a character a member.
+            if(p.squads)
+               names.push("S;" + p.squads);
             names.push("L;0");
             var rows:Array = [];
             for(var r:int = 0; r < names.length; r++)

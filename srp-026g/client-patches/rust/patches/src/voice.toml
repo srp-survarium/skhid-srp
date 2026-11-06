@@ -1,34 +1,40 @@
+# Patch 66: team voice chat (docs/notes/voice-chat.md). Only the decisions:
+# which sites, and the handlers; the logic is voice.rs. configs.start after
+# patches 79, 83, 81, 88 and 112 (orders 1 to 5), options.callback after
+# 79, 83 and 112 (1 to 3), game_world.after_move after patches 76, 87 and
+# the medical skills (0 to 2); the game world's keys before patch 86's (it
+# may take a key), the main menu after patch 113's cursor.
 name = "voice"
 patch = 66
 
 [[hook]]
-site = "game.world_created"
-handler = "register"
+site = "configs.start"
+handler = "on_configs"
+order = 6
 
 [[hook]]
 site = "match_client.connect"
-handler = "connect"
+handler = "on_connect"
 
 [[hook]]
 site = "game_world.finish"
-handler = "finish"
+handler = "on_finish"
 
 [[hook]]
 site = "game_world.deactivate"
-handler = "deactivate"
+handler = "on_deactivate"
 
 [[hook]]
-site = "keyboard.player_list"
-handler = "key"
+site = "game_world.after_move"
+handler = "on_frame"
+order = 3
 
 [[hook]]
-site = "game_options.activate"
-handler = "menu"
+site = "tab_cursor.key"
+handler = "on_key"
+order = 1
 
 [[hook]]
-site = "game_world.tick_slot"
-handler = "tick"
-
-[[hook]]
-site = "game_options.callback_slot"
-handler = "menu_call"
+site = "hud.callback"
+handler = "on_hud_call"
+order = 2

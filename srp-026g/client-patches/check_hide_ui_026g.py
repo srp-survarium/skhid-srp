@@ -40,9 +40,10 @@ answers root.interface_hidden with a bool:
   object (its movie, the game, the binder above), GFx objects, the strings'
   look-up, buffer_string's printf and the CRT's sscanf_s stubbed: the rows
   sent to the movie (0x2019E0) are the original's 40, a 41st (19h,
-  st_hide_interface_action, group 2, type 1) and patch 66's 42nd (37h,
-  st_mute_last_speaker_action, group 1, type 0); the keys read from the binder
-  (0x201CF0) the original's 40, (19h, kF11) and (37h, none); a key kF9 set for 19h
+  st_hide_interface_action, group 2, type 1), patch 78's 42nd (23h,
+  st_hold_artifact_action) and patch 66's 43rd (37h, st_mute_last_speaker_action,
+  group 1, type 0); the keys read from the binder (0x201CF0) the
+  original's 40, (19h, kF11), (23h, kH, its new default) and 37h's (none); a key kF9 set for 19h
   (0x2013A0) is kept in the 41st row and in no row of the original; the
   accept (0x201F20) runs `bind toggle_replay_ui kF9` through the console (the
   original nothing); the binder's own bind (0x207DC0) binds 19h to kF9, its
@@ -67,6 +68,13 @@ ACTIONS = 0xA74AF0                     # the action table: 20-byte {name, id, ki
 HANDLER, WORLD, HUD, LOBBY = 0x20000000, 0x20010000, 0x20020000, 0x20030000
 HOLDER, UI, MOVIE, BINDER, KEYS = 0x20040000, 0x20041000, 0x20042000, 0x20050000, 0x20060000
 STACK, SENTINEL = 0x21000000, 0x22000000
+# kernel32's imports the patches' shared code reaches at a hook (the Lock's
+# GetCurrentThreadId; patch 88's clock, QueryPerformanceCounter / -Frequency):
+# one thread, the counter 0 at 10 MHz; a harness of its own sets them anew
+IMPORTS = 0x3E000000
+IMPORT_STUBS = ((0x870118, b"\xB8\x01\x00\x00\x00\xC3"),
+                (0x870158, b"\x8B\x44\x24\x04\xC7\x00\x00\x00\x00\x00\xC7\x40\x04\x00\x00\x00\x00\xB0\x01\xC2\x04\x00"),
+                (0x870150, b"\x8B\x44\x24\x04\xC7\x00\x80\x96\x98\x00\xC7\x40\x04\x00\x00\x00\x00\xB0\x01\xC2\x04\x00"))
 REGS = (UC_X86_REG_EAX, UC_X86_REG_ECX, UC_X86_REG_EDX, UC_X86_REG_EBX, UC_X86_REG_ESI, UC_X86_REG_EDI,
         UC_X86_REG_EBP)
 GAME = dict(zip(REGS, (0x0A0A0A0A, 0x0C0C0C0C, 0x0D0D0D0D, 0x0B0B0B0B, 0x05050505, 0x0E0E0E0E, 0x0019FF00)))
@@ -75,9 +83,10 @@ ICONS_HOLDER, ICONS_UI, ICONS_MOVIE = 0x20073000, 0x20074000, 0x20075000
 # The keys bound (DIK code: action id), as the defaults have them: F11
 # toggle_replay_ui (kinds 5), C character (2) and crouch_toggle (5), F friends
 # (2) and melee (5), W forward (5), F6 next_player (5; the lobby's Play at
-# 0x26CDA2); H and Enter nothing.
+# 0x26CDA2), H artefact (5; patch 78's default, nothing in the lobby); Enter
+# nothing.
 F11, C, F, W, H, F6, ENTER = 0x57, 0x2E, 0x21, 0x11, 0x23, 0x40, 0x1C
-BOUND = {0x19: F11, 0x40: C, 0x06: C, 0x44: F, 0x21: F, 0x0B: W, 0x17: F6, 0x47: 0x19}
+BOUND = {0x19: F11, 0x40: C, 0x06: C, 0x44: F, 0x21: F, 0x0B: W, 0x17: F6, 0x23: H}
 
 
 KEY_NAMES = 0xA74FA0                   # the key names: 88h-byte {name, DIK code, ...}, to a null name
@@ -115,6 +124,10 @@ class Run:
             emu.mem_write(start, bytes(data[raw:raw + min(rsize, vsize or rsize)]))
         for at in (HANDLER, WORLD, HUD, LOBBY, HOLDER, BINDER, KEYS, HUD_HOLDER, STACK, SENTINEL):
             emu.mem_map(at, 0x10000, UC_PROT_ALL)
+        emu.mem_map(IMPORTS, 0x1000, UC_PROT_ALL)
+        for i, (slot, code) in enumerate(IMPORT_STUBS):
+            emu.mem_write(IMPORTS + 0x40 * i, code)
+            emu.mem_write(slot, struct.pack("<I", IMPORTS + 0x40 * i))
         self.calls = []
         self.invoked = []
         self.hidden = 0
@@ -281,9 +294,6 @@ class Options(Run):
                      CREATE_ARRAY, ASSIGN, SCANF):
             emu.hook_add(UC_HOOK_CODE, self.gfx, begin=stub, end=stub)
         self.objects, self.rows, self.lines, self.handles, self.heap = {}, [], [], 0x100, OUT + 0x1000
-        # The Rust startup hook initializes the shared controls before menus.
-        if self.read(0x201151) != base.HIDE_UI_TABLE:
-            self.call(base.arena().symbols["srp_controls_initialize"], [])
 
     def gfx(self, emu, address, size, _):
         sp = emu.reg_read(UC_X86_REG_ESP)
@@ -341,18 +351,6 @@ class Options(Run):
         self.calls, self.invoked = [], []
         out, esp = self.run(start, (until,), sp, {**GAME, **(regs or {})})
         return out, esp - sp
-
-    def saved_bindings(self):
-        command, saved, allocator = CONSOLE + 0x600, OUT + 0x2000, OUT + 0x3000
-        self.word(command + 0x10, CONSOLE + 0x800)
-        self.word(command + 0x60, 0)
-        self.word(command + 0x64, BINDER)
-        self.word(allocator, allocator + 0x20)
-        self.word(allocator + 0x20 + 0x10, STUBS + 0x40)
-        for field, value in ((0, OUT + 0x2100), (4, OUT + 0x2100), (0xC, OUT + 0x2400), (0x10, allocator)):
-            self.word(saved + field, value)
-        self.call(BIND_SAVE, [saved], {UC_X86_REG_ECX: command})
-        return [self.text(self.read(at)) for at in range(OUT + 0x2100, self.read(saved + 4), 4)]
 
     def table(self):
         """The rows of the options' controls as 0x2019E0 sends them (root.set_keybindings)."""
@@ -450,20 +448,18 @@ def main():
     s_opt, p_opt = Options(original), Options(bytes(built))
     a_rows, _ = s_opt.table()
     b_rows, b_calls = p_opt.table()
-    new = {"action_id": 0x19, "group_id": 2, "type": 1, "label": "st_hide_interface_action"}
-    # patch 66's 42nd: mute_last_speaker, in the chat keys' group as ptt's row
-    mute = {"action_id": 0x37, "group_id": 1, "type": 0, "label": "st_mute_last_speaker_action"}
-    report(len(a_rows) == 40 and len(b_rows) == 42 and b_rows[:40] == a_rows and b_rows[40] == new
-           and b_rows[41] == mute
+    new = [{"action_id": 0x19, "group_id": 2, "type": 1, "label": "st_hide_interface_action"},
+           {"action_id": 0x23, "group_id": 2, "type": 1, "label": "st_hold_artifact_action"},
+           {"action_id": 0x37, "group_id": 1, "type": 0, "label": "st_mute_last_speaker_action"}]
+    report(len(a_rows) == 40 and len(b_rows) == 43 and b_rows[:40] == a_rows and b_rows[40:] == new
            and [c[2] for c in b_calls] == [b"root.set_keybindings"],
            f"the list sent to the movie (root.set_keybindings): the original's {len(a_rows)} rows, then "
            f"{b_rows[40:]}")
     s_opt.call(KEYS_FROM_BINDER, [OPTIONS, 1])
     p_opt.call(KEYS_FROM_BINDER, [OPTIONS, 1])
     a_keys, b_keys = s_opt.set_keybind_calls(), p_opt.set_keybind_calls()
-    report(len(a_keys) == 40 and b_keys[:40] == a_keys and b_keys[40:] == [(0x19, "kF11", 1), (0x37, "", 1)],
-           f"the keys from the binder (root.set_keybind): the original's 40, then {b_keys[40:]} (patch 66's "
-           "mute_last_speaker: no key)")
+    report(len(a_keys) == 40 and b_keys[:40] == a_keys and b_keys[40:] == [(0x19, "kF11", 1), (0x23, "kH", 1), (0x37, "", 1)],
+           f"the keys from the binder (root.set_keybind): the original's 40, then {b_keys[40:]}")
     for run in (s_opt, p_opt):
         run.emu.mem_write(OUT, b"kF9\0")
         run.call(KEY_SET, [OPTIONS, 0x19], {UC_X86_REG_EAX: OUT})
@@ -502,35 +498,6 @@ def main():
     report(bound == f9 and line == b"bind toggle_replay_ui kF9" and p_opt.read(slot) == f9,
            f"the binder's bind (0x207DC0) binds 19h to kF9; its save (0x207450) writes {line!r} among "
            f"{len(lines)} lines; read back (bind, after F11 again) it binds kF9")
-
-    # PTT is already a stock row: one row only, in the chat group. It uses
-    # exactly the same apply/save path as F11, with the stock default P.
-    voice = Options(bytes(built))
-    voice_rows, _ = voice.table()
-    report([r for r in voice_rows if r["action_id"] == 0x47] == [
-        {"action_id": 0x47, "group_id": 1, "type": 0, "label": "st_ptt_action"}],
-        "PTT has exactly one controls row, in the chat group")
-    voice.call(KEYS_FROM_BINDER, [OPTIONS, 1])
-    report((0x47, "kP", 1) in voice.set_keybind_calls(), "PTT starts bound to P")
-    voice.emu.mem_write(OUT, b"kF8\0")
-    voice.call(KEY_SET, [OPTIONS, 0x47], {UC_X86_REG_EAX: OUT})
-    report(voice.set_keybind_calls() == [(0x47, "kF8", 0)], "PTT key changes to F8 in the options movie")
-    # Initializing again must preserve edited strings.
-    voice.call(linked.symbols["srp_controls_initialize"], [])
-    voice.lines = []
-    voice.call(APPLY, [])
-    report(voice.lines == [(b"bind", b"ptt kF8")], "accept applies PTT's binding after repeated startup")
-    voice.emu.mem_write(OUT + 0x100, b"ptt kF8\0")
-    voice.call(BIND_KEY, [OUT + 0x100, 0], {UC_X86_REG_ECX: BINDER})
-    ptt_slot = BINDER + 12 * 0x47 + 4
-    f8 = key_entry(original, name=b"kF8")
-    report(voice.read(ptt_slot) == f8, "the binder binds PTT to F8")
-    saved_ptt = next((line for line in voice.saved_bindings() if line.startswith(b"bind ptt ")), b"")
-    voice.word(ptt_slot, key_entry(original, name=b"kP"))
-    voice.emu.mem_write(OUT + 0x200, saved_ptt[len(b"bind "):] + b"\0")
-    voice.call(BIND_KEY, [OUT + 0x200, 0], {UC_X86_REG_ECX: BINDER})
-    report(saved_ptt == b"bind ptt kF8" and voice.read(ptt_slot) == f8,
-        "PTT is saved to user.cfg and restored through the game's bind command")
 
     if failed:
         sys.exit(f"{failed} case(s) failed")

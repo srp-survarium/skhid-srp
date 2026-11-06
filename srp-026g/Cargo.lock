@@ -80,6 +80,10 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "76a2e8124351fda1ef8aaaa3bbd7ebbcb486bbcd4225aca0aa0d84bb2db8fecb"
 
 [[package]]
+name = "artefact-carry"
+version = "0.1.0"
+
+[[package]]
 name = "autocfg"
 version = "1.5.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -146,10 +150,6 @@ checksum = "cdeb9d870516001442e364c5220d3574d2da8dc765554b4a617230d33fa58ef5"
 dependencies = [
  "objc2",
 ]
-
-[[package]]
-name = "build-engine-structure"
-version = "0.1.0"
 
 [[package]]
 name = "bytemuck"
@@ -413,15 +413,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "9b112acc8b3adf4b107a8ec20977da0273a8c386765a3ec0229bd500a1443f9f"
 
 [[package]]
-name = "iced-x86"
-version = "1.21.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "7c447cff8c7f384a7d4f741cfcff32f75f3ad02b406432e8d6c878d56b1edf6b"
-dependencies = [
- "lazy_static",
-]
-
-[[package]]
 name = "is-terminal"
 version = "0.4.16"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -443,12 +434,6 @@ name = "itoa"
 version = "1.0.15"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "4a5f13b858c8d314ee3e8f639011f7ccefe71f97f96e50151fb991f267928e2c"
-
-[[package]]
-name = "lazy_static"
-version = "1.5.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "bbd2bcb4c963f2ddae06a2efc7e9f3591312473c50c6685e1f298068316e66fe"
 
 [[package]]
 name = "libc"
@@ -474,6 +459,7 @@ dependencies = [
  "bytemuck",
  "env_logger",
  "log",
+ "mapdata",
  "openssl",
  "session",
  "survarium",
@@ -532,6 +518,8 @@ dependencies = [
  "survarium",
  "udp-transport",
  "vostok",
+ "weapon-pickup",
+ "world-frame",
 ]
 
 [[package]]
@@ -539,14 +527,6 @@ name = "memchr"
 version = "2.7.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "32a282da65faaf38286cf3be983213fcf1d2e2a58700e808f83f4ea9a4804bc0"
-
-[[package]]
-name = "nasm-decompiler"
-version = "0.1.0"
-dependencies = [
- "clap",
- "iced-x86",
-]
 
 [[package]]
 name = "nix"
@@ -646,15 +626,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "parse-journal-file"
-version = "0.1.0"
-dependencies = [
- "bytemuck",
- "survarium",
- "vostok",
-]
-
-[[package]]
 name = "password-hash"
 version = "0.5.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -730,6 +701,10 @@ name = "regex-syntax"
 version = "0.8.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "2b15c43186be67a4fd63bee50d0303afffcef381492ebe2c5d87f324e1b8815c"
+
+[[package]]
+name = "research-rule"
+version = "0.1.0"
 
 [[package]]
 name = "resources-db"
@@ -888,6 +863,7 @@ checksum = "13c2bddecc57b384dee18652358fb23172facb8a2c51ccc10d74c157bdea3292"
 name = "survarium"
 version = "0.1.0"
 dependencies = [
+ "artefact-carry",
  "binary-config-parser",
  "encoding_rs",
  "log",
@@ -895,6 +871,9 @@ dependencies = [
  "resources-db 0.1.0",
  "serde",
  "serde_json",
+ "udp-transport",
+ "weapon-kit",
+ "weapon-pickup",
 ]
 
 [[package]]
@@ -994,11 +973,20 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "ccf3ec651a847eb01de73ccad15eb7d99f80485de043efb2f370cd654f4ea44b"
 
 [[package]]
+name = "weapon-kit"
+version = "0.1.0"
+
+[[package]]
+name = "weapon-pickup"
+version = "0.1.0"
+
+[[package]]
 name = "web-server"
 version = "0.1.0"
 dependencies = [
  "log",
  "openssl",
+ "resources-db 0.1.0",
  "session",
  "survarium",
  "vostok",
@@ -1189,3 +1177,7 @@ name = "windows_x86_64_msvc"
 version = "0.53.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "271414315aff87387382ec3d271b52d7ae78726f5d44ac98b4f4030c91880486"
+
+[[package]]
+name = "world-frame"
+version = "0.1.0"

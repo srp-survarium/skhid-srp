@@ -6,6 +6,7 @@ package survarium.controls
    import scaleform.clik.events.ButtonEvent;
    import scaleform.clik.events.ListEvent;
    import survarium.Util;
+   import survarium.constants.BuyOrigin;
    import survarium.constants.Events;
    import survarium.core.Icon;
    import survarium.data.IconContainer;
@@ -13,15 +14,14 @@ package survarium.controls
    import survarium.data.LocalizationData;
    import survarium.data.PropertiesDescriptor;
    import survarium.interfaces.IPlayerProfile;
-   import survarium.messages.MessageMoneyExchange;
    import survarium.upgrade.UpgradeWindow;
+   import survarium.constants.Faction;
    import survarium.constants.ItemCategory;
    import survarium.constants.ItemCondition;
    import survarium.constants.ItemPlace;
    import survarium.constants.ItemPrice;
    import survarium.constants.ModificationState;
    import survarium.constants.ModifierType;
-   import survarium.constants.MoneyType;
    import survarium.constants.ProfileSlot;
    import survarium.item.ModificationRolls;
    import survarium.constants.VoucherType;
@@ -42,8 +42,6 @@ package survarium.controls
       protected var isQuickSlot:Boolean;
       
       protected var isStack:Boolean;
-      
-      protected var _money_type:int = MoneyType.REGULAR;
       
       protected var _step:int = 0;
       
@@ -170,18 +168,26 @@ package survarium.controls
       {
       }
       
+      // The card's Buy (its button, the list's double click, the right-click menu's Buy): started
+      // in the shop for a shop entry or a bundle; from the player's own items for an owned item (an
+      // inventory row, a kit slot), which is not asked about first (LobbyMenu.try_buy_item;
+      // docs/notes/items.md §6).
       public function onBtnClick1() : void
       {
          var item:Object;
          var profile:IPlayerProfile;
          var price:int;
+         var origin:BuyOrigin;
          trace("IemCard::onBtnClick1",this._data);
          if(this._data)
          {
             item = this._data;
             profile = parent["player_profile"];
             price = item.category == ItemCategory.BUNDLE ? (item.cost) : (GangShop.getInstance().getItemPrice(item.dictId));
-            GangShop.buyFunction(profile.profileId,item.itemId,item.dictId,item.descriptor,ItemPlace.INVENTORY,item.count,price,item.seller,!item.isStack ? this.onItemBuyAccept : null);
+            origin = item.descriptor <= ItemPlace.INVENTORY ? BuyOrigin.OWN : BuyOrigin.SHOP;
+            // No seller: the exe fills in the first price record's (lobby_requests.md, 47 00). It
+            // read item.seller, which ItemData does not have: Scaleform gave undefined, so 0.
+            GangShop.buyFunction(profile.profileId,item.itemId,item.dictId,item.descriptor,ItemPlace.INVENTORY,item.count,price,origin,Faction.NONE,!item.isStack ? this.onItemBuyAccept : null);
          }
       }
       
@@ -303,13 +309,6 @@ package survarium.controls
          dispatchEvent(new Event(Events.BUY));
       }
       
-      protected function buyCurrentItem() : void
-      {
-         trace("buyCurrentItem");
-         dispatchEvent(new Event(Events.BUY));
-         ExternalInterface.call("buy_ok_clicked",this._data.dictId,uint(1),uint(this._data.factionId),this._money_type);
-      }
-      
       public function onBtnClick4(event:Event = null) : void
       {
          if(this.isShopItems)
@@ -320,62 +319,6 @@ package survarium.controls
          {
             this.onBtnClick2();
          }
-      }
-      
-      public function acceptAction(event:Event = null) : void
-      {
-         trace("acceptAction");
-         if(this.isShopItems)
-         {
-            if(!this._data.isStack)
-            {
-               if(this._data.isPremium)
-               {
-                  if(PlayerInfo.premiumMoney < this._data.cost)
-                  {
-                     this.onNoMoneyEnought();
-                     return;
-                  }
-               }
-               if(this._inventory && !this._inventory.hasItem(this._data.dictId))
-               {
-                  dispatchEvent(new Event(Events.BUY));
-                  ExternalInterface.call("buy_ok_clicked",this._data.dictId,uint(1),uint(this._data.factionId),this._money_type);
-               }
-               else
-               {
-                  Message.showMessage("apply",{
-                     text:LocalizationData.getName("already_in_inventory"),
-                     onYes:this.buyCurrentItem
-                  });
-               }
-            }
-            else
-            {
-               dispatchEvent(new Event(Events.BUY));
-               ExternalInterface.call("buy_ok_clicked",this._data.dictId,uint(1),uint(this._data.factionId),this._money_type);
-            }
-         }
-         else
-         {
-            this.onBtnClick2();
-         }
-      }
-      
-      protected function onNoMoneyEnought() : void
-      {
-         var messageData:Object = {
-            text:LocalizationData.getName("cant_buy_premium_message"),
-            onYes:this.goToStore,
-            label_ok:LocalizationData.getName("btn_add_premium_message"),
-            label_cancel:LocalizationData.getName("cancel")
-         };
-         Message.showMessage("apply",messageData,true);
-      }
-      
-      protected function goToStore() : void
-      {
-         MessageMoneyExchange.buyGold();
       }
       
       public function checkButtonEnabled(event:Event = null) : void

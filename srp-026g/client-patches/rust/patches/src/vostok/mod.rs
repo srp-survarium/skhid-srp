@@ -22,25 +22,54 @@
 //!
 //! It grows with what the patches need, and no further.
 
+pub mod baker;
+pub mod breadcrumbs;
 pub mod bullet;
+pub mod explosion;
+pub mod files;
+pub mod footstep;
 pub mod camera;
+pub mod carry_runtime;
+pub mod carry_ground;
+pub mod carry_flower;
 mod cell;
 pub mod clock;
+pub mod crc32;
 mod context;
-pub mod controls;
 pub mod draw;
+pub mod headwear;
 mod hook;
+mod hud_input;
 mod input;
+pub mod inventory;
 mod keyboard;
+pub mod keyboard_layout;
+pub mod language;
+pub mod lobby;
+pub mod lobby_camera;
+pub mod lobby_menu;
+pub mod mouse;
 pub mod log;
+pub mod melee;
 mod options;
 pub mod parse;
+pub mod resources;
+pub mod renderer;
+pub mod gun_cook;
+pub mod pickup;
+pub mod ray_test;
 mod rt;
+pub mod sound;
+pub mod system;
+pub mod voices;
+pub mod voice;
+pub mod settings;
 mod sync;
 pub mod trace;
 pub mod types;
+mod upgrades;
 pub mod world;
-pub mod voice;
+mod world_load;
 mod ui;
 
 /// The generated hook glue (link_026g.py from the patches' TOML): each
@@ -58,7 +87,11 @@ mod generated {
     #[allow(unused_imports)]
     use crate::raw;
     #[allow(unused_imports)]
-    use super::voice::{VoiceWorld, VoiceOptions, VoiceText, VoiceValues, VoiceObject};
+    use super::{RenderVisual, ObjectLight, GameScene};
+    #[allow(unused_imports)]
+    use super::resources::{QueryResults, QueryTag};
+    #[allow(unused_imports)]
+    use core::ffi::c_void;
     include!("../../../../hooks_026g.rs");
 }
 
@@ -66,9 +99,36 @@ pub use cell::GameCell;
 pub use sync::Lock;
 pub use context::{Context, Exit, Flag, Flow, NoExit, Reg, Ret};
 pub use generated::*;
-pub use hook::{Handle, Out, Regs, Thread};
-pub use input::{Action, ActionMask, ActionState, InputHandler, UnknownActionState};
-pub use keyboard::TabTest;
+pub use hook::{CallbackEntry, Handle, Out, Regs, Thread};
+pub use input::{Action, ActionMask, ActionState, InputChange, InputHandler, KeyboardAction, Rotation, UnknownActionState};
+pub use keyboard::{Dik, GameWorldKey, GameWorldKeys, KeyEvents, KeyKind, KeyMoves, KeyName, TabTest};
+pub use hud_input::{Hud, HudCall, HudView, MainMenu, MatchCursor};
+pub use lobby::{Lobby, MuteChoice, Muted, NotConnected};
 pub use options::OptionsRead;
+pub use world_load::WorldLoad;
+pub use upgrades::{AttachedPairs, CookQuery, FlashUpgrade, PreviewApply, PreviewChange, Records};
 pub use rt::c_u32;
-pub use ui::{GameWorldUi, Movie};
+pub use ui::{GameWorldUi, Movie, NameVisibility, DetachedTextInput};
+
+pub mod consumable;
+pub mod drawable_image;
+pub use consumable::QuickSlotActivity;
+
+pub mod config;
+pub mod collection;
+
+pub mod geometry;
+pub mod presentation;
+
+pub mod project;
+pub use project::{RenderVisual, ObjectLight, GameScene};
+
+pub mod history;
+pub mod drug;
+mod artefact;
+pub use artefact::{ArtefactPickup, Slots};
+pub mod statistics;
+pub use statistics::{Band, Batteries, Battery, BatteryCarry, Cell, Delivery, Held, Life, Progress, Saving, ScoreEvent, Team, BATTERIES};
+
+pub mod medical;
+pub mod animation_id;

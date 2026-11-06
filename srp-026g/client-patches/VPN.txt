@@ -11,9 +11,10 @@ game\binaries\x86\ of the game:
 
 If nothing connects (in Russia too), allow the game in your firewall: run
 Skhid-network-setup.cmd (beside Skhid.bat). It adds Windows Firewall rules
-that let these three programs out and, if you say yes, a Microsoft Defender
-exclusion of their folder, game\binaries\x86 (our patched files can be
-flagged by mistake). It turns nothing off. Skhid-network-setup.cmd --undo removes what it added.
+that let these three programs out. It turns nothing off. It asks for
+administrator rights: answer Yes when Windows asks. Its messages are in
+Russian.
+Skhid-network-setup.cmd --undo removes what it added.
 
 HAPP (Windows)
   Settings > App proxy settings > "Proxy only for selected apps" > Add...
@@ -36,6 +37,17 @@ AmneziaVPN
   Settings > Split tunnelling > applications, "only these apps use the VPN":
   add the three programs. A version without split tunnelling by app: turn
   the VPN on for everything while you play.
+  In the "only these sites" mode (a white list of addresses): Settings >
+  Split tunnelling > Sites: add the game server's IP or subnet, for example
+  64.176.67.220/32, and the patch server's (below). ping skhid.link in a
+  console or terminal shows the game server's IP.
+
+Zapret
+  Set zapret up with service.bat (beside its other .bat files). Turn on
+  "Game Filter -> enabled (TCP and UDP)" and "IPSet Filter -> any".
+  If the game still does not connect, change "Replace Active Fakes": try
+  other combinations of "Fake Types" (scroll up in that window for how to
+  use it).
 
 Hosts and ports (all outgoing; nothing comes in). Rules by program, above,
 are the better way: they need none of this.
@@ -66,9 +78,8 @@ SKHID - НЕТ СВЯЗИ С СЕРВЕРОМ?
 Если ничего не подключается (и в России тоже), разрешите игру в
 брандмауэре: запустите Skhid-network-setup.cmd (рядом со Skhid.bat). Он добавляет
 правила брандмауэра Windows, разрешающие этим трём программам исходящие
-соединения, и, если вы согласитесь, исключение Microsoft Defender для их
-папки, game\binaries\x86 (наши изменённые файлы могут ошибочно считаться
-угрозой). Он ничего не отключает.
+соединения. Он ничего не отключает. Ему нужны права администратора: когда
+Windows спросит, нажмите «Да».
 Skhid-network-setup.cmd --undo удаляет то, что он добавил.
 
 HAPP (Windows)
@@ -94,6 +105,19 @@ AmneziaVPN
   Настройки > Раздельное туннелирование > приложения, «только эти
   приложения через VPN»: добавьте три программы. Если в вашей версии нет
   туннелирования по приложениям, включайте VPN для всего на время игры.
+  Если используется режим «белых списков» (через VPN идут только адреса
+  из списка): Настройки > Раздельное туннелирование > Сайты — добавьте IP
+  или подсеть игрового сервера (например, 64.176.67.220/32) и сервера
+  патчей (см. ниже). IP игрового сервера покажет команда ping skhid.link
+  в консоли/терминале.
+
+Zapret
+  Zapret настраивается через service.bat (лежит рядом с другими его
+  .bat-файлами). Включите опции «Game Filter -> enabled (TCP and UDP)» и
+  «IPSet Filter -> any».
+  Если связи всё ещё нет, измените настройку «Replace Active Fakes»:
+  пробуйте разные комбинации «Fake Types» (если пролистать окно вверх,
+  там есть инструкция).
 
 Адреса и порты (все исходящие, входящих нет). Правила по программам, выше,
 лучше: с ними это не нужно.

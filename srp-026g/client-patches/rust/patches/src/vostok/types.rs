@@ -37,6 +37,12 @@ impl GameTime {
         self.0.wrapping_sub(earlier.0)
     }
 
+    /// Whether this time is at or before `later`: one of a match's times
+    /// against another (they are less than half the wrap apart).
+    pub fn not_after(self, later: GameTime) -> bool {
+        later.since(self) < 1 << 31
+    }
+
     /// The tick this time is in.
     pub fn tick(self) -> Tick {
         Tick(self.0 / Tick::MS)
@@ -72,6 +78,15 @@ impl Place {
         (raw < Self::COUNT as u32).then_some(Place(raw as u8))
     }
 
+    /// The place a movie names in decimal (the Tab list row's `id`); None for
+    /// anything else.
+    pub fn parse(text: &[u8]) -> Option<Place> {
+        if text.is_empty() || text.len() > 2 || !text.iter().all(u8::is_ascii_digit) {
+            return None;
+        }
+        Place::new(text.iter().fold(0, |n, digit| n * 10 + u32::from(digit - b'0')))
+    }
+
     pub fn get(self) -> u8 {
         self.0
     }
@@ -97,6 +112,9 @@ mod tests {
         assert_eq!(GameTime::to_raw(None), u32::MAX);
         assert_eq!(GameTime(u32::MAX - 9).after(20), GameTime(10));
         assert_eq!(GameTime(10).since(GameTime(u32::MAX - 9)), 20);
+        assert!(GameTime(10).not_after(GameTime(10)) && GameTime(10).not_after(GameTime(11)));
+        assert!(!GameTime(11).not_after(GameTime(10)));
+        assert!(GameTime(u32::MAX - 9).not_after(GameTime(10)), "across the wrap");
         assert_eq!(GameTime(149).tick(), Tick(2));
         assert_eq!(Tick(3).start(), GameTime(150));
     }
@@ -106,5 +124,10 @@ mod tests {
         assert_eq!(Place::new(19).map(Place::get), Some(19));
         assert_eq!(Place::new(20), None);
         assert_eq!(Place::all().count(), 20);
+        assert_eq!(Place::parse(b"0").map(Place::get), Some(0));
+        assert_eq!(Place::parse(b"19").map(Place::get), Some(19));
+        for bad in [&b""[..], b"20", b"-1", b"1a", b" 1", b"100"] {
+            assert_eq!(Place::parse(bad), None, "{bad:?}");
+        }
     }
 }

@@ -9,8 +9,8 @@
 //! in the log beside its dump. A loud stop, never a world computed wrong and
 //! never undefined behaviour; nothing goes on with a half-done change.
 //!
-//! **memcpy, memmove and memset**: LLVM calls them for a large copy, move
-//! or fill, and the game gives none to the arena (one crate: one copy); `rep
+//! **memcpy, memmove, memset, memcmp and bcmp**: LLVM calls them for a large copy, move
+//! or fill, or a comparison, and the game gives none to the arena (one crate: one copy); `rep
 //! movsb` (backward for a move onto its own tail) and `rep stosb`, which
 //! LLVM cannot turn back into a call of themselves. Not in `cargo test`'s
 //! binaries (std has its own).
@@ -74,23 +74,31 @@ mod game {
     }
 
     /// # Safety
-    /// Both byte ranges are readable for size bytes. Volatile reads prevent
-    /// LLVM turning the implementation back into a libc call.
+    /// As C's: `a` and `b` valid for `size` bytes. A byte loop, which LLVM
+    /// does not turn back into a call of itself (it forms memcpy and memset
+    /// from loops, never memcmp).
     #[unsafe(no_mangle)]
     #[linkage = "weak"]
     pub unsafe extern "C" fn memcmp(a: *const u8, b: *const u8, size: usize) -> i32 {
-        for i in 0..size {
-            let (a, b) = unsafe { (a.add(i).read_volatile(), b.add(i).read_volatile()) };
-            if a != b { return i32::from(a) - i32::from(b); }
+        let mut i = 0;
+        while i < size {
+            // SAFETY: the caller's: both valid for `size` bytes.
+            let (x, y) = unsafe { (*a.add(i), *b.add(i)) };
+            if x != y {
+                return i32::from(x) - i32::from(y);
+            }
+            i += 1;
         }
         0
     }
 
     /// # Safety
-    /// As memcmp; bcmp only promises zero for equal bytes.
+    /// As memcmp's; LLVM calls it for a slice's `==` (only zero or not
+    /// matters).
     #[unsafe(no_mangle)]
     #[linkage = "weak"]
     pub unsafe extern "C" fn bcmp(a: *const u8, b: *const u8, size: usize) -> i32 {
+        // SAFETY: the caller's contract is memcmp's.
         unsafe { memcmp(a, b, size) }
     }
 

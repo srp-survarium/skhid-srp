@@ -48,12 +48,29 @@
 //! - Within a tick: the weapon's update, then the input's turn, then the
 //!   tick's shots. The update before the shots is PROVEN; where the turn
 //!   falls against them is not traced.
-//! - The pitch's unit: the bots take it for a radian. The client's is
-//!   LIKELY 60-64° (its aim animation is sampled at `(pitch + 1) / 2`, and
-//!   a unit of kick is 63.735° of the config), UNKNOWN; left as it is.
-//! - The side kick `x` is kept but turns nothing: it drives an animation
-//!   (`recoil_horiz`) whose turn of the view is UNKNOWN, and its middle is
-//!   0 for every bot weapon. The shake (`camerashake`) is not kept.
+//! - The pitch's unit: the bots take it for a radian. The client's is 60°
+//!   up and 67.5° down. The first-person view is bone `Item`
+//!   (`computed_head_transform` 0x2DA4B0; `update_camera` hands it to
+//!   `update_inverted_view` as is), whose parent is `Root`; the look pitch
+//!   (kick included, `weapon_core::look_pitch` 0x2E0F60) scrubs the look
+//!   clips at `(pitch + 1) / 2` (`look_time_factor_calculator` 0x2FBF90),
+//!   and the camera's own, `on_site_camera_look`, turns `Item` +67.5° at
+//!   its start, 0 at its middle and −60.0° at its end, linear on each side
+//!   (decoded from 0.26g's clip). PROVEN; the input agrees (a pitch unit
+//!   is π/3 rad of mouse turn, `on_mouse_move` 0x240200). A unit of kick is
+//!   so 60° of view up, and a config "degree" of top kick 60/63.735 =
+//!   0.941° (63.735 is the clip's half range, (67.5 + 60) / 2). Left as it
+//!   is for the bots.
+//! - The side kick `x` is kept but turns nothing: it scrubs `recoil_horiz`
+//!   at `0.5 − 0.5 x` (`computed_backward_recoil_time` 0x2E3840, lexeme 1
+//!   of `get_recoil_expression`; the breath sway adds to it), which turns
+//!   `Item` −2.22° at its start (x = +1) and +2.44° at its end (x = −1):
+//!   about 2.3° of view a unit, 0.108° a config "degree" of side kick
+//!   (21.48 a unit). LIKELY: the lexeme's index taken as the place in the
+//!   weapon's `recoil_animations` (`recoil_vert`, `recoil_horiz`,
+//!   `camerashake_v2` for every weapon); which way on screen is not
+//!   traced. Its middle is 0 for every bot weapon. `recoil_vert` takes the
+//!   sway only (0x2E3900), no kick. The shake (`camerashake`) is not kept.
 
 use survarium::v026g::match_msgs::TICK_MS;
 

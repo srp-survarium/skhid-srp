@@ -90,15 +90,6 @@ impl Default for Settings {
     }
 }
 
-/// `on` / `off` (also `1` / `0`, `true` / `false`).
-fn switch(value: &str) -> Option<bool> {
-    match value.trim().to_ascii_lowercase().as_str() {
-        "on" | "1" | "true" | "yes" => Some(true),
-        "off" | "0" | "false" | "no" => Some(false),
-        _ => None,
-    }
-}
-
 /// `SRP_PREMIUM_PRICES`: seven prices over 0, shortest time first.
 fn parse_prices(value: &str) -> Option<[u32; 7]> {
     let prices: Vec<u32> = value
@@ -154,14 +145,9 @@ impl Settings {
                 ),
             }
         }
-        for (name, field) in [("SRP_AMMO_USE", &mut settings.ammo_use)] {
-            if let Some(value) = var(name) {
-                match switch(&value) {
-                    Some(on) => *field = on,
-                    None => log::error!("{name} is `{value}`; it must be `on` or `off`. Using on"),
-                }
-            }
-        }
+        let ammo_use = var("SRP_AMMO_USE");
+        settings.ammo_use =
+            crate::switch_value("SRP_AMMO_USE", ammo_use.as_deref(), settings.ammo_use);
         settings
     }
 
@@ -694,7 +680,7 @@ mod tests {
         assert_eq!(account, before);
     }
 
-    /// `prices::NOT_SOLD` (2026-10-18): the Russian and Belarusian flags
+    /// `prices::is_not_sold` (2026-10-18): the Russian and Belarusian flags
     /// and coats of arms, the flag of the USSR and the red star are bought
     /// neither for gold nor for silver.
     #[test]

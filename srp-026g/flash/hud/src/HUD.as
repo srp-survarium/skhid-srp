@@ -1,6 +1,5 @@
 package
 {
-   import com.greensock.TweenLite;
    import flash.display.Bitmap;
    import flash.display.BitmapData;
    import flash.display.BlendMode;
@@ -38,20 +37,23 @@ package
    import survarium.constants.CombatAction;
    import survarium.constants.CombatLogTeam;
    import survarium.constants.Faction;
-   import survarium.constants.ItemDictId;
    import survarium.constants.MinimapPosition;
    import survarium.constants.ProfileState;
-   import survarium.constants.Reward;
    import survarium.constants.SquadState;
    import survarium.constants.Team;
    import survarium.constants.TeamSide;
-   import survarium.constants.UiSound;
    import survarium.controls.DeathEyes;
    import survarium.controls.Minimap;
    import survarium.controls.PlayerProfileBase;
+   import survarium.controls.PlayerRowMenu;
    import survarium.controls.ForcedView;
+   import survarium.modes.ModeNotice;
+   import survarium.modes.ModeIntroText;
+   import flash.utils.getTimer;
    import survarium.controls.KeptLayer;
+   import survarium.controls.QuickSlots;
    import survarium.controls.ResearchUnits;
+   import survarium.controls.ResearchCountdownLayout;
    import survarium.controls.VoiceSpeakers;
    import survarium.core.Icon;
    import survarium.data.IconContainer;
@@ -105,6 +107,9 @@ package
       public var contextInfo:SrvContextInfo;
       
       public var player_list:SrvPlayerList;
+
+      // A player's menu on the Tab list's rows (Ctrl's cursor, exe patch 86).
+      private var _rowMenu:PlayerRowMenu;
       
       public var critInd:SrvCriticalIndicator;
       
@@ -121,6 +126,38 @@ package
       // Whether the player is typing in the chat: focus_chat(true) to focus_chat(false). Not the
       // input's `visible`, which the chat's timeline starts true until the chat is first closed.
       private var _chatTyping:Boolean = false;
+
+      private var _artefactOfferKey:String = "";
+      // The offer text's value (%1$s): the dropped gun's name for patch 85's pickup.
+      private var _artefactOfferValue:String = "";
+      private var _nativeContext:Object = {text:"",value:0,visible:true};
+
+      // One owner for the existing collection widget. Native context updates
+      // may arrive after the carry hint; retain them without erasing its text.
+      public function show_artefact_offer(key:String, value:String = "") : void
+      {
+         this._artefactOfferKey = key == null ? "" : key;
+         this._artefactOfferValue = value == null ? "" : value;
+         this.refresh_context();
+      }
+
+      private function refresh_context() : void
+      {
+         if(!this.contextInfo) return;
+         var offer:Boolean = this._artefactOfferKey.length != 0;
+         this.contextInfo.visible = offer ? !this._chatTyping && !this._profilePanel.visible : this._nativeContext.visible;
+         if(!this.contextInfo.visible) return;
+         var value:int = offer ? 0 : this._nativeContext.value;
+         var frame:int = value == 0 ? 1 : 2;
+         if(this.contextInfo.currentFrame != frame) this.contextInfo.gotoAndStop(frame);
+         if(offer) this.contextInfo.contextText.text = LocalizationData.format(this._artefactOfferKey, this._artefactOfferValue);
+         else this.contextInfo.contextText.text = this._nativeContext.text;
+         if(value != 0)
+         {
+            this.contextInfo.progress_indicator.width = this.contextInfo.contextText.textWidth + 10;
+            this.contextInfo.progress_indicator.set_progress(value);
+         }
+      }
       
       private var _itemFactory:IItemFactory = new ItemFactory();
       
@@ -176,23 +213,6 @@ package
       
       protected var _gameType:uint = 0;
       
-      private var _tutor:MovieClip = new SrvTutorialSliders();
-      
-      // The tutorial panel: not shown, or slid in (onTutorialAdded).
-      private static const TUTOR_HIDDEN:int = 0;
-      
-      private static const TUTOR_SHOWN:int = 1;
-      
-      private var _tutorState:int = TUTOR_HIDDEN;
-      
-      private var _tutorVisible:Boolean = false;
-      
-      private var _tutorFrame:int = 0;
-      
-      private var _tutorRewards:Array;
-      
-      private var _tutorRewardAmount:int;
-      
       private var textIndex:int = 0;
       
       private var _fps:uint;
@@ -217,7 +237,9 @@ package
       
       public var researchUnits:ResearchUnits;
 
-      // Voice chat: who of the team talks now (srp_voice_talking).
+      private var _researchCountdowns:ResearchCountdownLayout;
+
+      // Voice chat: the teammates talking now (srp_voice_talking).
       public var voiceSpeakers:VoiceSpeakers;
 
       // The units' place in the indicator's own space (placeResearchUnits).
@@ -245,98 +267,9 @@ package
          addEventListener(Event.RENDER,this.onInitRender);
       }
       
-      private function addTutorial() : void
-      {
-         this._tutor.x = 0;
-         this._tutor.y = 273;
-         this._tutor.alpha = 1;
-         TweenLite.killTweensOf(this._tutor);
-         TweenLite.from(this._tutor,0.2,{
-            x:-this._tutor.width,
-            alpha:0,
-            onComplete:this.onTutorialAdded
-         });
-      }
-      
-      private function onTutorialAdded() : void
-      {
-         _tutorState = TUTOR_SHOWN;
-      }
-      
-      private function removeTutorial() : void
-      {
-         TweenLite.to(this._tutor,0.2,{
-            x:-this._tutor.width,
-            alpha:0,
-            onComplete:this.onTutorialRemoved
-         });
-      }
-      
-      private function onTutorialRemoved() : void
-      {
-         trace("onTutorialRemoved",this._tutorVisible);
-         if(!this._tutorVisible)
-         {
-            if(this.contains(this._tutor))
-            {
-               removeChild(this._tutor);
-               _tutorState = TUTOR_HIDDEN;
-            }
-         }
-         else
-         {
-            this.addTutorial();
-            this.setTutorData();
-         }
-      }
-      
-      private function setTutorData() : void
-      {
-         this._tutor.gotoAndStop(this._tutorFrame + 1);
-         this._tutor.textField1.text = LocalizationData.getName("hud_tutorial_frame_" + String(this._tutorFrame) + "_text_1");
-         this._tutor.textField2.text = LocalizationData.getName("hud_tutorial_frame_" + String(this._tutorFrame) + "_text_2");
-         if(this._tutor.textField3)
-         {
-            this._tutor.textField3.text = LocalizationData.getName("hud_tutorial_frame_" + String(this._tutorFrame) + "_text_3");
-            if(this._tutor.textField4)
-            {
-               this._tutor.textField4.text = Util.getMoneyString(this._tutorRewardAmount);
-            }
-         }
-      }
-      
+      // The match's own tutorial: the exe hides it at each match's start (0x27AE59).
       public function show_tutorial_slide(bool:Boolean, index:uint) : void
       {
-         trace("show_tutorial_slide",bool,index,this._tutor,this._tutorState);
-         _tutorVisible = bool;
-         _tutorFrame = index;
-         if(bool)
-         {
-            addChild(this._tutor);
-            if(this._tutorState == TUTOR_HIDDEN)
-            {
-               this.setTutorData();
-               this.addTutorial();
-            }
-         }
-         else
-         {
-            if(this.contains(this._tutor))
-            {
-               if(this._tutor.currentFrame != this._tutor.totalFrames)
-               {
-                  ExternalInterface.call("sound_play",UiSound.TUTORIAL_SUCCESS);
-               }
-               this.removeTutorial();
-            }
-            return;
-         }
-         trace("_tutor",this._tutor.x,this._tutor.y,this._tutor.parent);
-      }
-      
-      public function set_tutorial_rewards(value:Array) : void
-      {
-         _tutorRewardAmount = value[0] && value[0].reward ? (value[0].reward[0].amount) : 0;
       }
       
       public function create_bitmap_data() : void
@@ -410,6 +343,7 @@ package
          _keptLayer = new KeptLayer(this,this.keepLaidOut);
          _forcedView = new ForcedView(this._keptLayer,this.keptWhenForced,this.keptOnTab,this.keptWhileTyping,
                                       this.holdChatHistory);
+         this.addEventListener(Event.ENTER_FRAME,this.onIntroductionFrame);
          stage.addChildAt(this._keptLayer,stage.getChildIndex(this) + 1);
          _stageLayer = new Sprite();
          this._stageLayer.name = "stageLayer";
@@ -458,6 +392,8 @@ package
          pregameInfo = new SrvContextInfoPregame();
          addChild(this.pregameInfo);
          this.pregameInfo.premiumMembers.visible = false;
+         this._modeNotice = new ModeNotice(this.pregameInfo.contextText);
+         addChild(this._modeNotice);
          damageDebug = new SrvDebugDamage();
          addChild(this.damageDebug);
          this.damageDebug.visible = false;
@@ -473,6 +409,8 @@ package
          addChild(this.contextInfo);
          player_list = new SrvPlayerList();
          addChild(this.player_list);
+         _rowMenu = new PlayerRowMenu(this.player_list.players);
+         this.player_list.addChild(this._rowMenu);
          gameInfo = new GameInfo();
          this._stageLayer.addChild(this.gameInfo);
          this.gameInfo.x = 20;
@@ -507,7 +445,8 @@ package
             trace("createGray::",i,newIcon,index);
             grayBitmaps[index] = newIcon;
          }
-         for(i = 28; i < 30; i++)
+         // the exoskeletons' backs and srp's quick-slot items (QuickSlots.SRP_HUD_ICONS) gray when used up
+         for(i = 28; i < QuickSlots.SRP_FIRST_CELL + QuickSlots.SRP_HUD_ICONS.length; i++)
          {
             index = i;
             icon = _iconContainer.getIcon(index);
@@ -757,23 +696,8 @@ package
          this.update_objects(m_objects);
       }
       
-      private function test_all_tut() : void
-      {
-         this.show_tutorial_slide(false,2);
-         this.show_tutorial_slide(true,3);
-      }
-      
       private function test_all() : void
       {
-         this.set_tutorial_rewards([{
-            name:"tutorial_completed",
-            reward:[{
-               type:Reward.MONEY,
-               param:ItemDictId.GENERIC_MONEY,
-               amount:77
-            }]
-         }]);
-         this.show_tutorial_slide(true,2);
          this.quick_slots.visible = true;
          this.fill_slots([{
             slot_id:1,
@@ -893,10 +817,12 @@ package
 
       // Forced hidden for a whole match (Blackout, exe patch 65; docs/notes/blackout.md): the interface
       // hidden as by the key, except what a forced match keeps (ForcedView): always the pre-match
-      // countdown (keptWhenForced: the game shows it while it runs and hides it when play starts); while
+      // countdown (keptWhenForced: the game shows it while it runs and hides it when play starts) and
+      // the use prompt with its progress (contextInfo, root.set_context: the game shows it at what the
+      // player can use, an artefact container or an ammo stash, and fills it while used); while
       // the Tab list is asked for (show_player_list) the match's time left, the chat with its history and,
-      // alive, the ammo, the quick-use slots and the body's state (critInd: the parts, bleeding,
-      // radiation, toxins) or, while the game shows the kits (the death screen, before the start), the
+      // alive, the intact player-info panel (ammo and body state) and quick-use slots;
+      // while the game shows the kits (the death screen, before the start), the
       // kits to pick from (keptOnTab), never the list; while the player types in the chat (focus_chat),
       // the chat (keptWhileTyping). A kept part is in _keptLayer (KeptLayer: on the stage over the root,
       // placed as the root is), so the hidden root leaves it, and works there as in the root; back at its
@@ -904,11 +830,30 @@ package
       private var _keptLayer:KeptLayer;
 
       private var _forcedView:ForcedView;
+      private var _modeNotice:ModeNotice;
+      private var _pregameText:String = "";
+
+      private function onIntroductionFrame(event:Event) : void
+      {
+         this._modeNotice.update(getTimer(),false,
+            this.pregameInfo != null && this.pregameInfo.visible);
+         var bottom:Number = this.pregameInfo != null && this.pregameInfo.visible ?
+            this.pregameInfo.getBounds(this).bottom : 0;
+         var timer:DisplayObject = this.matchTime() as DisplayObject;
+         if(timer != null)
+            bottom = Math.max(bottom,timer.getBounds(this).bottom);
+         this._modeNotice.place(this.stageWidth,bottom);
+      }
 
       public function force_interface_hidden(forced:Boolean) : void
       {
          this._forcedView.forced = forced;
          this.setInterfaceHidden(forced);
+         if(forced)
+            this._modeNotice.begin("blackout");
+         else
+            this._modeNotice.reset();
+         this.set_pregame(this._pregameText);
       }
 
       public function interface_forced() : Boolean
@@ -918,7 +863,7 @@ package
 
       private function keptWhenForced() : Array
       {
-         return [this.pregameInfo];
+         return [this.pregameInfo,this.contextInfo,this._modeNotice];
       }
 
       private function keptOnTab() : Array
@@ -927,7 +872,10 @@ package
          {
             return [this._profilePanel,this.matchTime(),this.chat];
          }
-         return [this.ammoInd,this.quick_slots,this.critInd,this.matchTime(),this.chat];
+         // Ammo and the body doll share a size-dependent, bottom-right layout.
+         // Keep their owner intact: removing either child changes its bounds
+         // and a reflow can push the other child beyond the viewport.
+         return [this.playerInfo,this.quick_slots,this.matchTime(),this.chat];
       }
 
       private function keptWhileTyping() : Array
@@ -1187,6 +1135,7 @@ package
       public function set_localization_data(value:Object) : void
       {
          LocalizationData.setData(value);
+         this.set_pregame(this._pregameText);
       }
       
       public function show_profiles_selector(value:Boolean) : void
@@ -1429,11 +1378,12 @@ package
          this.contextInfo3.layoutData.alignH = "center";
          this.contextInfo3.layoutData.offsetV = this.stageHeight / 3;
          this.contextInfo3.layoutData.offsetH = 0;
-         // On the left, above the middle: clear of the minimap, the chat and the kill feed.
+         // On the left, at mid-height, as 0.69's (its 1280x720 hud's (20,370)): clear of the
+         // minimap, the chat and the kill feed.
          this.voiceSpeakers.layoutData = new LayoutData();
          this.voiceSpeakers.layoutData.alignV = "center";
          this.voiceSpeakers.layoutData.alignH = "left";
-         this.voiceSpeakers.layoutData.offsetV = -120;
+         this.voiceSpeakers.layoutData.offsetV = 10;
          this.voiceSpeakers.layoutData.offsetH = borderOffset + 22;
          this.chat.layoutData = new LayoutData();
          this.chat.layoutData.alignV = "bottom";
@@ -1674,6 +1624,15 @@ package
       {
       }
       
+      public function set_quick_slot_activity(slot:uint, phase:uint, remaining:uint, duration:uint) : void
+      {
+         if(this.quick_slots.setActivity(slot,phase,remaining,duration) && !this._reflow)
+         {
+            _reflow = true;
+            addEventListener(Event.RENDER,this.onRender);
+         }
+      }
+
       public function fill_slot(_p:Object) : void
       {
          if(this.quick_slots.fillSlot(_p) && !this._reflow)
@@ -1782,6 +1741,19 @@ package
          this.crosshair.setDamage(size,delay,killed,debug);
       }
       
+      // The Settings' "Hide hit markers", "Hide player scores", "Hidden crosshair" and "Names on map" (exe
+      // patch 83, told at once and again at each change; docs/notes/hide-hit-markers-scores.md): the
+      // crosshair shows no hit marker; the Tab list shows the players' names only; no aiming cross; the
+      // Tab map's names shown, Alt hiding them.
+      public function srp_hud_options(hideHitMarkers:Boolean, hideScores:Boolean, hideCrosshair:Boolean, mapNames:Boolean) : void
+      {
+         this.crosshair.hitMarkersHidden = hideHitMarkers;
+         this.player_list.players.namesOnly = hideScores;
+         this.crosshair.crosshairHidden = hideCrosshair;
+         this._mapNamesAlways = mapNames;
+         this.showMapNames();
+      }
+      
       public function show_oxygen(bool:Boolean) : void
       {
          this.oxygen_count.visible = false;
@@ -1801,6 +1773,26 @@ package
       public function list_set_players(_players:Array) : void
       {
          this.player_list.players.addPlayersList(_players);
+         this.tabMinimap.setPlayerNames(_players);
+      }
+
+      // The Tab map's names over the player icons, shown while Alt is held (the exe's patch 82 tells
+      // the movie each change; docs/notes/tab-map-names.md), or with "Names on map" shown unless it is.
+      // The map is the Tab list's, so they show only with it: never in Blackout, whose Tab keeps the
+      // list hidden.
+      public function show_map_names(altHeld:Boolean) : void
+      {
+         this._mapNamesAlt = altHeld;
+         this.showMapNames();
+      }
+
+      // Alt held (patch 82) and "Names on map" (patch 83), as last told.
+      private var _mapNamesAlt:Boolean = false;
+      private var _mapNamesAlways:Boolean = false;
+
+      private function showMapNames() : void
+      {
+         this.player_list.minimap.namesShown = this._mapNamesAlt != this._mapNamesAlways;
       }
       
       public function list_update_player(_player:Object) : void
@@ -1810,6 +1802,10 @@ package
       
       public function show_player_list(bool:Boolean) : void
       {
+         if(!bool)
+         {
+            this._rowMenu.close();
+         }
          // Forced (Blackout): Tab shows its view (keptOnTab), never the list.
          this._forcedView.tab = bool;
          if(this._forcedView.forced)
@@ -1820,6 +1816,23 @@ package
          this.questTaskList.visible = bool && this.questList.visible;
       }
       
+      // The exe's answers to the Tab list's player menu (exe patch 86): what a place offers, and a friend
+      // request or a chat mute sent or not.
+      public function srp_player_menu(place:uint, addFriend:uint, mute:uint, muted:uint) : void
+      {
+         this._rowMenu.offered(place,addFriend != 0,mute != 0,muted);
+      }
+
+      public function srp_friend_request(place:uint, sent:uint) : void
+      {
+         this._rowMenu.requested(place,sent != 0);
+      }
+
+      public function srp_chat_mute(place:uint, sent:uint) : void
+      {
+         this._rowMenu.muted(place,sent != 0);
+      }
+
       public function show_debug_damage(bool:Boolean) : void
       {
          if(!bool)
@@ -1859,16 +1872,19 @@ package
       public function show_pregame(bool:Boolean) : void
       {
          this.pregameInfo.visible = bool;
+         this._modeNotice.update(getTimer(),true,bool);
          if(bool == false)
          {
             this.pregameInfo.premiumMembers.visible = false;
          }
+         this.placeResearchCountdowns();
       }
       
       public function set_pregame(value:String) : void
       {
-         this.pregameInfo.contextText.autoSize = TextFieldAutoSize.LEFT;
-         this.pregameInfo.contextText.text = value;
+         this._pregameText = value;
+         ModeIntroText.pregame(this.pregameInfo.contextText,
+            null,value);
          if(this.pregameInfo.contextText.width > 400)
          {
             this.pregameInfo.contextText.x = 0;
@@ -1879,6 +1895,7 @@ package
             this.pregameInfo.contextText.x = (400 - this.pregameInfo.contextText.textWidth) / 2;
             this.pregameInfo.premiumMembers.x = 55;
          }
+         this.placeResearchCountdowns();
       }
       
       public function show_game_info(bool:Boolean) : void
@@ -1888,16 +1905,9 @@ package
       
       public function show_crosshair(bool:Boolean) : void
       {
-         if(bool)
+         if(this.crosshair)
          {
-            if(this.crosshair)
-            {
-               this.crosshair.crosshair_mc.visible = true;
-            }
-         }
-         else if(this.crosshair)
-         {
-            this.crosshair.crosshair_mc.visible = false;
+            this.crosshair.setCrosshairVisible(bool);
          }
          stage.invalidate();
       }
@@ -1993,6 +2003,11 @@ package
       public function reset() : void
       {
          trace("HUD::reset");
+         this._artefactOfferKey = "";
+         this._artefactOfferValue = "";
+         this._nativeContext = {text:"",value:0,visible:true};
+         this._modeNotice.reset();
+         this._pregameText = "";
          // a new match starts with the interface shown (the movie is the last match's; the exe's
          // patch 62 shows the player icons' with it); a forced one stays forced until patch 65
          // tells the movie the new match's state
@@ -2005,6 +2020,9 @@ package
          this.show_game_info(false);
          this.show_crosshair(false);
          this.show_player_list(false);
+         // the kits too: the exe's patch 113 puts its own kits state away at the same start, so
+         // the match's first showing of them tells the movie its kit
+         this.show_profiles_selector(false);
          this.show_oxygen(false);
          this.show_stamina(false);
          this.combatLog.clear();
@@ -2024,18 +2042,29 @@ package
          }
       }
       
-      // Voice chat (exe patch 66, docs/notes/voice-chat.md): who of the team talks now, as pairs
-      // of the name and its flags (VoiceSpeakers.FLAG_SELF: the player's own, while it transmits;
-      // FLAG_RADIO: heard through the radio). None: nobody. Called on a change only.
-      public function srp_voice_talking(... pairs) : void
+      // Voice chat (exe patch 66, docs/notes/voice-chat.md): the names of the teammates talking now
+      // (none: nobody). Called on a change only.
+      public function srp_voice_talking(... names) : void
       {
-         this.voiceSpeakers.update(pairs);
+         this.voiceSpeakers.update(names);
       }
 
       // The "mute the last speaker" key's answer: the text (the exe's, translated) and the name.
       public function srp_voice_notice(text:String, name:String) : void
       {
-         this.voiceSpeakers.notice(text + " " + name);
+         this.voiceSpeakers.notice(text + ": " + name);
+      }
+
+      // The exe's answers to the Tab list's player menu's voice entries (exe patch 66): whether a
+      // place's voice can be muted and is, and a voice mute done or not.
+      public function srp_voice_menu(place:uint, offered:uint, muted:uint) : void
+      {
+         this._rowMenu.voiceOffered(place,offered != 0,muted != 0);
+      }
+
+      public function srp_voice_mute(place:uint, done:uint) : void
+      {
+         this._rowMenu.voiceMuted(place,done != 0);
       }
 
       public function clear_minimap() : void
@@ -2095,10 +2124,26 @@ package
       
       public function set_game_type(type:uint) : void
       {
+         if(this._gameType == this.GAME_MODE_RESEARCH && this.progress_indicator.layoutData)
+         {
+            this.progress_indicator.layoutData.alignH = "center";
+         }
+         if(this._researchCountdowns != null)
+         {
+            this._researchCountdowns.restore();
+            this._researchCountdowns = null;
+         }
          _gameType = type;
          this.researchUnits.visible = type == this.GAME_MODE_RESEARCH;
          if(type == this.GAME_MODE_RESEARCH)
          {
+            // Research centres the visible score bars on the actual viewport.
+            // Timeline labels can change width after generic layout offsets
+            // were measured; Research must not wait for a resize to settle.
+            if(this.progress_indicator.layoutData)
+            {
+               this.progress_indicator.layoutData.alignH = "none";
+            }
             this.progress_indicator.gotoAndStop(this.GAME_MODE_TEAMDEATHMATCH + 1);
             if(this.progress_indicator.team1LastPlayers)
             {
@@ -2118,6 +2163,7 @@ package
       public function set_match_time(time:String) : void
       {
          this.matchTime().text = time;
+         this._modeNotice.update(getTimer(),true,this.pregameInfo.visible);
       }
 
       // The match's time left as the mode shows it: Team Deathmatch's and Research's label, or the
@@ -2133,7 +2179,8 @@ package
       
       public function show_context(bool:Boolean) : void
       {
-         this.contextInfo.visible = bool;
+         this._nativeContext.visible = bool;
+         this.refresh_context();
       }
       
       public function show_context_message(bool:Boolean) : void
@@ -2246,7 +2293,7 @@ package
       
       public function add_points(text:String, value:int) : void
       {
-         this.contextInfo.visible = true;
+         this.show_context(true);
          this._pointsTimer.reset();
          this._pointsTimer.start();
          var textField:TextField = this.contextInfo.textPoints;
@@ -2285,30 +2332,14 @@ package
       
       public function set_context(text:String, value:int = 0, time:int = 1000) : void
       {
-         this.contextInfo.visible = true;
-         this.contextInfo.contextText.text = text;
-         if(value != 0)
-         {
-            if(this.contextInfo.currentFrame != 2)
-            {
-               this.contextInfo.gotoAndStop(2);
-            }
-            this.contextInfo.progress_indicator.width = this.contextInfo.contextText.textWidth + 10;
-            this.contextInfo.progress_indicator.set_progress(value);
-         }
-         else if(this.contextInfo.currentFrame != 1)
-         {
-            this.contextInfo.gotoAndStop(1);
-         }
-         if(this._contextTimeout2)
-         {
-            clearTimeout(this._contextTimeout2);
-         }
+         this._nativeContext = {text:text,value:value,visible:true};
+         if(this._contextTimeout2) clearTimeout(this._contextTimeout2);
+         this.refresh_context();
       }
       
       public function hide_context() : void
       {
-         this.contextInfo.visible = false;
+         this.show_context(false);
       }
       
       public function set_tickets_required(value:uint) : void
@@ -2396,7 +2427,7 @@ package
       }
       
       // Research (mode 5), every frame the state changes and every second
-      // (research_native_026g.c rn_hud): the game's own team, the teams'
+      // (research_arena::research_update_hud): the game's own team, the teams'
       // points, the points to win, the number of units, then nine numbers a
       // unit: cp_id, x, -z (the minimap's pos_x, pos_y), owner, the team
       // taking it, its capture 0..100, the players of team 0 and 1 inside,
@@ -2421,7 +2452,8 @@ package
                "progress":Number(values[at + 5]),
                "inside_0":uint(values[at + 6]),
                "inside_1":uint(values[at + 7]),
-               "local":uint(values[at + 8]) != 0
+               "local":uint(values[at + 8]) != 0,
+               "left":5 + 9 * count + i < values.length ? Number(values[5 + 9 * count + i]) : 0
             });
             i++;
          }
@@ -2441,8 +2473,8 @@ package
       }
       
       // The units centred under Team Deathmatch's bars and the timer, measured
-      // in the indicator's own space (its origin is its centre). The respawn
-      // countdown may overlap them (owner: less screen space).
+      // in the indicator's own space (its origin is its centre). Research's
+      // respawn and pre-match countdowns get a separate row below the units.
       private function placeResearchUnits() : void
       {
          var space:DisplayObject = this.progress_indicator;
@@ -2466,15 +2498,11 @@ package
          this.followIndicator();
       }
 
-      // The units where the indicator is now: its x and y as the layout last
-      // put them, plus the units' place in its space. Rev 30 converted the
-      // bars' bounds with getBounds(this) at research_update only: early in a
-      // match that gave the indicator's own space, and the units sat in the
-      // screen's top-left corner until a later update.
+      // Centre Research on the live viewport, including before the first
+      // resize. Layout owns the vertical position; the points follow the bars.
       private function followIndicator() : void
       {
-         this.researchUnits.x = Math.round(this.progress_indicator.x + this._researchX * this.progress_indicator.scaleX);
-         this.researchUnits.y = Math.round(this.progress_indicator.y + this._researchY * this.progress_indicator.scaleY);
+         this.researchUnits.followIndicator(this.progress_indicator,this._researchX,this._researchY);
       }
 
       // Every frame of a Research match: the layout moves the indicator at
@@ -2484,7 +2512,22 @@ package
          if(this.researchUnits.visible)
          {
             this.followIndicator();
+            this.placeResearchCountdowns();
          }
+      }
+
+      private function placeResearchCountdowns() : void
+      {
+         if(this._gameType != this.GAME_MODE_RESEARCH || !this.progress_indicator.respawn_time ||
+            !this.progress_indicator.respawn_time.textField || !this.pregameInfo.layoutData)
+         {
+            return;
+         }
+         if(this._researchCountdowns == null)
+         {
+            this._researchCountdowns = new ResearchCountdownLayout(this.progress_indicator.respawn_time,this.pregameInfo);
+         }
+         this._researchCountdowns.place(this.researchUnits);
       }
 
       public function set_artifacts_progress(team:uint, value:uint) : void
@@ -2506,6 +2549,7 @@ package
       {
          this.deathEyes.countdown(time);
          this.progress_indicator.respawn_time.text = time;
+         this.placeResearchCountdowns();
       }
       
       public function set_capture_progress(team:uint, text:String, value:uint) : void

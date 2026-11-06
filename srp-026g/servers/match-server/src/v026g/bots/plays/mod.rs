@@ -389,6 +389,8 @@ pub struct BotFacts<'a> {
     /// Whether the partner has it for partner too (a pair, play 25); a
     /// team's odd bot partners one way, for its trades only.
     pub paired: bool,
+    /// Medkits its kit carries a life (`guns::Arms::medkits`).
+    pub medkits: u8,
     /// Medkits it used this life (quick use 1 pressed).
     pub medkits_used: u8,
     /// Goals its searches proved no way to lately, and until when.

@@ -37,8 +37,9 @@
 //! that data:
 //!
 //! - A modification's `type_mask` has one character set: its **type**
-//!   (1..=40), five strengths of a type sharing it with `drop_weight`
-//!   10, 8, 6.4, 5.12, 4.096. An item may get the types its
+//!   (1..=40 in the stock data; 41 srp's Artifact-master cooldown), five
+//!   strengths of a type sharing it with `drop_weight` 10, 8, 6.4, 5.12,
+//!   4.096. An item may get the types its
 //!   `available_modifications_mask` names; the item's mask is one character
 //!   shorter, its character `j` standing for type `j + 1` [PROVEN by the
 //!   data: only so do bolt-action rifles get "chamber a round" and automatic
@@ -92,15 +93,15 @@ pub const PRICE_LEVELS: usize = 16;
 /// The modifications a reroll offers (`83 46 07`).
 pub const REROLL_CHOICES: usize = 3;
 /// The upgrade slots of an item: decals in 0 and 1 (the lobby shows two
-/// for `decal_available`, 0x28779F; a weapon one, [`WEAPON_DECAL_SLOTS`]), the camouflage in 3
+/// for `decal_available`, 0x28779F; a weapon's, [`WEAPON_DECAL_SLOTS`]), the camouflage in 3
 /// (`DragRegion.as`: `relocate_upgrade_item(item, camo, 3)`).
 pub const DECAL_SLOTS: [u8; 2] = [0, 1];
-/// [srp] A weapon's one decal slot ([`WEAPON_DECAL_SLOTS`]): the client
-/// keeps at most three upgrade records an item (`limits::UPGRADES`, an
-/// inline array of the item record; past it a fatal assert), and a scoped
-/// weapon holds its scope (3) and camouflage (2) besides. The owner,
-/// 2026-10-21: one decal on weapons for now. Patch 47 bakes it.
-pub const WEAPON_DECAL_SLOTS: [u8; 1] = [0];
+/// [srp] A weapon's two decal slots, as armour's: a weapon holds up to six
+/// upgrades in logical slots (decals 0 and 1, camouflage 2, scope 3, muzzle
+/// 4, grip 5, [`super::weapon_kit`]), which go to the client packed into at
+/// most three records (the client keeps three an item, `limits::UPGRADES`;
+/// client patch 68 reads the kit). Patch 47 bakes both decals.
+pub const WEAPON_DECAL_SLOTS: [u8; 2] = [0, 1];
 pub const CAMO_SLOT: u8 = 3;
 /// [srp] The camouflage's slot on a weapon (one whose config has
 /// `camo_available`, `srp-026g/scripts/weapon-camo`): 2, since a weapon's 3
@@ -154,7 +155,7 @@ pub struct Modifier {
 #[derive(Clone, Debug, PartialEq)]
 pub struct Modification {
     pub id: u32,
-    /// The character of `type_mask` that is set, 1..=40.
+    /// The character of `type_mask` that is set, 1..=41.
     pub kind: u8,
     pub drop_weight: f32,
     /// The localization key of its name (`ui_desc.name`).
@@ -162,6 +163,18 @@ pub struct Modification {
     pub modifiers: Vec<Modifier>,
     /// `lobby_info`: what the lobby shows it changes, by its own names.
     pub lobby_info: Vec<(String, f32)>,
+    /// What the lobby prints for it.
+    pub shown: Shown,
+}
+
+/// A modification's line in the lobby: `ui_desc.props_list`'s one row, a
+/// property of [`super::ui_properties`] and the value printed beside it,
+/// and its icon (`ui_desc.icon`, a cell of the lobby's `modifiers` atlas).
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct Shown {
+    pub property: u32,
+    pub value: f32,
+    pub icon: u32,
 }
 
 /// The item parameters of its wear: what a "reliability" modification
@@ -407,6 +420,28 @@ fn modifiers(row: &ConfigValue) -> Result<Vec<Modifier>, ConfigError> {
 
 fn name_of(row: &ConfigValue) -> Result<String, ConfigError> {
     Ok(row.req("ui_desc")?.str_at("name")?.to_owned())
+}
+
+/// `ui_desc.props_list`: one row, its `prop_value` a number as text.
+fn shown_of(row: &ConfigValue) -> Result<Shown, ConfigError> {
+    let props = row.req("ui_desc")?.req("props_list")?.children();
+    let [prop] = props[..] else {
+        return Err(ConfigError(format!(
+            "`ui_desc.props_list` has {} rows, not one",
+            props.len()
+        )));
+    };
+    let value = prop.req("prop_value")?;
+    let value = value
+        .as_str()
+        .and_then(|text| text.trim().parse::<f32>().ok())
+        .or_else(|| value.as_f32())
+        .ok_or_else(|| ConfigError("`prop_value` is not a number".into()))?;
+    Ok(Shown {
+        property: number(prop.req("prop_id")?)?,
+        value,
+        icon: number(row.req("ui_desc")?.req("icon")?)?,
+    })
 }
 
 fn prices(root: &ConfigValue, key: &str) -> Result<[u16; PRICE_LEVELS], ConfigError> {
@@ -677,6 +712,7 @@ impl Modifications {
                         .iter()
                         .filter_map(|(name, value)| Some((name.clone(), value.as_f32()?)))
                         .collect(),
+                    shown: shown_of(row)?,
                 })
             })
             .collect::<Result<_, ConfigError>>()?;
@@ -844,7 +880,7 @@ impl Modifications {
     /// three modifications to offer [srp: the lobby's window shows three]:
     /// an item whose types besides reliability are all held has none for its
     /// reliability (reliability never rolls, [`Modification::rolls`]). On
-    /// live data every item rolls three types or more (`third-mod-1.json`),
+    /// live data every item rolls three types or more (`armor.tsv`'s masks),
     /// so a full item always has one.
     pub fn reroll_choices(
         &self,

@@ -19,18 +19,23 @@ records each call. The original runs the same way and must do what it did:
   another value or length, a short block or another magic; the original
   leaves it; esi, edi, ebp and the stack as the game's code leaves them;
 - the markers' feed: update_ui's `push edi / call 0x23AA10` (0x23B206) to
-  update_player_icons' prologue's end (0x23AA16): the hud movie told
-  root.force_interface_hidden and the icons movie root.force_interface_hidden
-  and root.force_interface_tab exactly at a change of the movie or the state
-  (and again at the next frame while the movie refuses, Invoke answering 0);
-  the original invokes nothing;
+  update_player_icons' prologue's end (0x23AA16): the hud movie and the icons
+  movie told root.force_interface_hidden exactly at a change of the movie or
+  the state (and again at the next frame while the movie refuses, Invoke
+  answering 0), never Tab's state: the allies' markers are the icons movie's
+  as in a plain match, Tab or not (the movie hides only the objects' and,
+  as always, an enemy's); the original invokes nothing;
 - Tab: on_keyboard_action from 0x25CD26 (bl Tab down) past show_player_list
   (a stub given the byte) and the game's Tab test: in a Blackout match the
   key goes on (0x25CD41, patch 58's kit keys), in another, and in the
   original, to the end (0x25CF0D) while Tab is down;
+- names: the native Alt/crosshair result through its HUD cache; Tab forces
+  same-team names only in Blackout (an enemy's never), preserving other decisions, registers and
+  stack; a new match resets the held key;
 - the input: process_first_person_mode's epilogue 0x2421B0 to its `ret 8`:
   while Tab is held in a Blackout match the action mask has no move and no
-  act, an act held through Tab stays out until let go; the original and a
+  act but Use (a search held through Tab goes on), an act held through Tab
+  stays out until let go; the original and a
   match without send what is pressed.
 """
 import struct
@@ -48,10 +53,14 @@ OPTIONS_BLACKOUT, MAGIC = 0x57870, b"SRBO"
 STATIC_START, STATIC_PAST = 0x27B917, 0x27B932       # process_static_match_info: before the pushes, past the site
 REPLAY_START, REPLAY_RET = 0x1F094C, 0x1F0976        # the replay's chunk 1: its reader made, its `ret 8`
 ICONS_SITE, ICONS_PAST, PLAYER_ICONS = 0x23B206, 0x23AA16, 0x23AA10
+# The same site's other hooks' Invokes, which their own checks cover (patch 83, after this
+# patch's in the chain: check_hud_options_026g.py).
+OTHER_PATCHES_INVOKES = ("root.srp_hud_options",)
 TAB_START, SHOW_PLAYER_LIST = 0x25CD26, 0x2384C0
 KEY_ON, KEY_END = 0x25CD41, 0x25CF0D   # on_keyboard_action after its Tab test: the key's way (patch 58's), its end
 INPUT_SITE, INPUT_MASK = 0x2421B0, 0x33C
 OTHER_ICONS = 0x20076000               # another icons' movie (a new game world's)
+NAME_SITE, NAME_PAST = 0x1F2F10, 0x1F2F33
 PLACE_COUNT = 4
 # the input's bits
 FORWARD, BACK, LEFT, RIGHT, JUMP, FIRE, RELOAD, AIM = 0x1, 0x2, 0x4, 0x8, 0x10, 0x20, 0x40, 0x80
@@ -76,9 +85,38 @@ def srpx(*entries):
 class Run(hide.Run):
     def __init__(self, data):
         super().__init__(data)
-        for at, size in ((OPTIONS, 0x60000), (WORK, 0x10000)):
+        for at, size in ((OPTIONS, 0x60000), (WORK, 0x10000), (0x30200000, 0x1000)):
             self.emu.mem_map(at, size, UC_PROT_ALL)
         self.refused, self.refusing = (), ()
+        self.ticks = 0
+        for slot, stub in ((0x870158, 0x30200000), (0x870150, 0x30200010)):
+            self.word(slot, stub)
+            self.emu.mem_write(stub, b"\xc2\x04\x00")
+            self.emu.hook_add(hide.UC_HOOK_CODE, self.clock, begin=stub, end=stub)
+
+    def clock(self, emu, address, *_):
+        out = self.read(emu.reg_read(UC_X86_REG_ESP) + 4)
+        emu.mem_write(out, struct.pack("<Q", self.ticks if address == 0x30200000 else 1000))
+        emu.reg_write(UC_X86_REG_EAX, 1)
+
+
+    def name_visible(self, local_team, player_team, normal, cached=0):
+        """The original Alt/crosshair decision through the name's cached flag."""
+        player, profile, place = WORK + 0x2000, WORK + 0x4000, 3
+        self.word(player + 0x6B8, profile)
+        self.word(profile + 0x45EC, player_team)
+        self.emu.mem_write(player + 0x114, bytes([place]))
+        row = hide.HUD + place * 24
+        self.emu.mem_write(row + 0x387, bytes([cached, 0, 0]))
+        sp = hide.STACK + 0x8000
+        self.word(sp + 0x14, local_team)
+        given = {**hide.GAME, UC_X86_REG_EAX: 0x12345600 | normal,
+                 UC_X86_REG_ESI: player, UC_X86_REG_EDI: hide.HUD}
+        regs, esp = self.run(NAME_SITE, (NAME_PAST,), sp, given)
+        kept = esp == sp and self.stopped == NAME_PAST and regs[UC_X86_REG_ECX] == row \
+            and regs[UC_X86_REG_EAX] & 0xFFFFFF00 == 0x12345600 \
+            and all(regs[r] == v for r, v in given.items() if r not in (UC_X86_REG_EAX, UC_X86_REG_ECX))
+        return self.read(row + 0x387) & 0xFF, self.read(row + 0x389) & 0xFF, kept
 
     # the harness's stubs; a movie that refuses a method (no root yet): its Invoke answers 0
     def stub(self, emu, address, size, _):
@@ -131,17 +169,29 @@ class Run(hide.Run):
 
     # update_ui's `push edi / call` of update_player_icons (0x23B206), the hud in edi, its icons'
     # movie `icons` (0: none), to past update_player_icons' prologue: the Invokes.
-    def icons_fed(self, icons=hide.ICONS_MOVIE):
+    def icons_fed(self, icons=hide.ICONS_MOVIE, others=False):
+        """The site run as the game runs it: whether it went on as the game's,
+        and the Invokes (without the other patches' of the same site unless
+        `others`: patch 83's root.srp_hud_options, check_hud_options_026g.py's)."""
         self.movies(hide.HUD, 1, icons != 0)
         self.word(hide.ICONS_UI + 4, icons or hide.ICONS_MOVIE)
         sp = hide.STACK + 0x8000
         regs, esp = self.run(ICONS_SITE, (ICONS_PAST,), sp, {**hide.GAME, UC_X86_REG_EDI: hide.HUD})
         # past the prologue: [ebp] the caller's ebp, [ebp+4] the return, [ebp+8] the ui
         frame = regs[UC_X86_REG_EBP]
-        kept = self.read(frame) == hide.GAME[UC_X86_REG_EBP] and self.read(frame + 4) == ICONS_SITE + 6 \
+        back = self.read(frame + 4)
+        direct = back == ICONS_SITE + 6
+        # Research wraps this call, forwarding the same UI. Check both
+        # frames and the inner call's target; its return is covered by the
+        # Research check, which continues past the wrapper to update_ui.
+        call = bytes(self.emu.mem_read(back - 5, 5))
+        wrapped = call[0] == 0xE8 and back + struct.unpack("<i", call[1:])[0] == PLAYER_ICONS \
+            and self.read(frame + 12) == ICONS_SITE + 6 and self.read(frame + 16) == hide.HUD
+        kept = self.read(frame) == hide.GAME[UC_X86_REG_EBP] and (direct or wrapped) \
             and self.read(frame + 8) == hide.HUD and esp & 7 == 0 and esp <= frame \
             and all(regs[r] == v for r, v in {**hide.GAME, UC_X86_REG_EDI: hide.HUD}.items() if r != UC_X86_REG_EBP)
-        return self.stopped == ICONS_PAST and kept, self.invokes()
+        invoked = [c for c in self.invokes() if others or c[1] not in OTHER_PATCHES_INVOKES]
+        return self.stopped == ICONS_PAST and kept, invoked
 
     # on_keyboard_action from its Tab byte (al, 0x25CD26) through show_player_list (a stub) and the
     # game's Tab test: where the key goes, or None when the run was not as the game's.
@@ -166,10 +216,28 @@ class Run(hide.Run):
 
     # process_first_person_mode's epilogue (0x2421B0) on a handler whose mask is `mask`: the
     # mask after it, and whether it returned as the function (`ret 8`, edi esi ebx ebp popped).
-    def input(self, mask):
+    def input(self, mask, held=None):
         handler = hide.HANDLER
         self.emu.mem_write(handler, bytes(0x400))
         self.word(handler + INPUT_MASK, mask)
+        # `held`: the state of the action `artefact` (23h, patch 78's carry key,
+        # default H) this tick, pushed into the handler's event buffer (+98h)
+        # by the game's own push_back (0x242580), as on_keyboard_action does.
+        if held is not None:
+            pair, sp = WORK + 0x6000, hide.STACK + 0x8000
+            self.word(pair, 0x23)
+            self.word(pair + 4, held)
+            self.word(sp, hide.SENTINEL)
+            self.run(0x242580, (hide.SENTINEL,), sp, {**hide.GAME, UC_X86_REG_ECX: handler + 0x98,
+                                                      UC_X86_REG_EDX: pair})
+            # The carry takes H's events where on_keyboard_action has its
+            # action (site carry.key 0x23FE42: EDI the action, the key's state
+            # at ebp+10h as input::enum_keyboard_action, 1 down / 2 up / 3 hold,
+            # one more than the pushed state), down and up alike.
+            frame = hide.STACK + 0xA000
+            self.word(frame + 0x10, held + 1)
+            self.run(0x23FE42, (0x23FE48,), sp, {**hide.GAME, UC_X86_REG_EDI: 0x23, UC_X86_REG_EBP: frame})
+            assert self.stopped == 0x23FE48, hex(self.stopped)
         ebp = hide.STACK + 0x9000
         for i, value in enumerate((0x0BADEBB0, hide.SENTINEL, handler, 1)):
             self.word(ebp + 4 * i, value)
@@ -220,33 +288,32 @@ def main():
                        "as its code leaves them")
 
     print("the markers' feed (update_player_icons' start 0x23AA10)")
-    told = lambda movie, flag, tab: [(movie, "root.force_interface_hidden", (flag,)),
-                                     (movie, "root.force_interface_tab", (tab,))]
+    told = lambda movie, flag: [(movie, "root.force_interface_hidden", (flag,))]
     hud = lambda flag: [(hide.HUD_MOVIE, "root.force_interface_hidden", (flag,))]
     M, OTHER = hide.ICONS_MOVIE, OTHER_ICONS
     frames = [
         # (what, the static info read first (None: as it is), Tab down (1), up (0) or as it is (None), the
         # icons' movie, it refuses, the Invokes wanted)
-        ("a match without, its first frame", b"", None, M, False, hud(0) + told(M, 0, 0)),
+        ("a match without, its first frame", b"", None, M, False, hud(0) + told(M, 0)),
         ("its next frame", None, None, M, False, []),
-        ("Tab down in it", None, 1, M, False, told(M, 0, 1)),
-        ("Tab up", None, 0, M, False, told(M, 0, 0)),
-        ("a Blackout match, its first frame: the hud forced, no players' markers", on, None, M, False,
-         hud(1) + told(M, 1, 0)),
+        ("Tab down in it", None, 1, M, False, []),
+        ("Tab up", None, 0, M, False, []),
+        ("a Blackout match, its first frame: the hud forced, the icons forced (the allies' markers kept)", on,
+         None, M, False, hud(1) + told(M, 1)),
         ("its next frame", None, None, M, False, []),
-        ("Tab down: the players' markers", None, 1, M, False, told(M, 1, 1)),
+        ("Tab down: nothing (the allies' markers stay as they are)", None, 1, M, False, []),
         ("Tab still held", None, 1, M, False, []),
-        ("Tab up: none again", None, 0, M, False, told(M, 1, 0)),
+        ("Tab up: nothing", None, 0, M, False, []),
         ("another Blackout match reusing both movie addresses", on, None, M, False,
-         hud(1) + told(M, 1, 0)),
-        ("the hud holding another icons' movie (a new game world's)", None, None, OTHER, False, told(OTHER, 1, 0)),
+         hud(1) + told(M, 1)),
+        ("the hud holding another icons' movie (a new game world's)", None, None, OTHER, False, told(OTHER, 1)),
         ("its next frame", None, None, OTHER, False, []),
         ("a Blackout match again, its icons movie without a root yet (Invoke answers 0)", on, None, M, True,
-         hud(1) + told(M, 1, 0)[:1]),
-        ("the next frame, the movie taking it", None, None, M, False, told(M, 1, 0)),
+         hud(1) + told(M, 1)),
+        ("the next frame, the movie taking it", None, None, M, False, told(M, 1)),
         ("the frame after", None, None, M, False, []),
         ("no icons' movie", None, None, 0, False, []),
-        ("the next match without", b"", None, M, False, hud(0) + told(M, 0, 0)),
+        ("the next match without", b"", None, M, False, hud(0) + told(M, 0)),
     ]
     for name, block, tab, icons, refuses, want in frames:
         if block is not None:
@@ -269,10 +336,11 @@ def main():
         ("Tab up: moving, sprinting, firing and aiming, crouched", 0, moving, moving),
         ("Tab down: no move, no fire, no aim; the crouch and the weapon key stay", 1, moving,
          CROUCH | WEAPON_1),
-        ("Tab held, fire still held: a grenade, melee, use, quick use 1, jump, reload pressed: none of them; "
-         "spot stays", 1, FIRE | GRENADE | MELEE | USE | QUICK_1 | JUMP | RELOAD | SPOT, SPOT),
-        ("Tab up, fire and the grenade still held: they stay out, the moves come back", 0,
-         FORWARD | LEFT | FIRE | GRENADE, FORWARD | LEFT),
+        ("Tab held, fire still held: a grenade, melee, quick use 1, jump, reload pressed: none of them; "
+         "spot and use (a search goes on) stay", 1, FIRE | GRENADE | MELEE | USE | QUICK_1 | JUMP | RELOAD | SPOT,
+         SPOT | USE),
+        ("Tab up, fire, the grenade and use still held: fire and the grenade stay out, use goes on, the moves "
+         "come back", 0, FORWARD | LEFT | FIRE | GRENADE | USE, FORWARD | LEFT | USE),
         ("fire let go, the grenade still held", 0, FORWARD | GRENADE, FORWARD),
         ("fire pressed again: it fires; the grenade let go", 0, FORWARD | FIRE, FORWARD | FIRE),
         ("the grenade pressed again", 0, GRENADE, GRENADE),
@@ -281,17 +349,21 @@ def main():
         run.static_info(empty_options(on))
     for name, down, mask, want in steps:
         a_tab, b_tab = stock.tab(down), patched.tab(down)
+        stock.ticks += 200
+        patched.ticks += 200
         a, b = stock.input(mask), patched.input(mask)
         ok = a_tab == (KEY_END if down else KEY_ON) and b_tab == KEY_ON and a == (mask, True) and b == (want, True)
         report(ok, f"{name}: {b[0]:#x} sent (pressed {mask:#x}); the original sends what is pressed; "
                    "show_player_list given the byte; the key goes on (0x25cd41: the kits' keys 1 to 3)"
                    + (", the original's to the end (0x25cf0d: its Tab list)" if down else ""))
     patched.tab(1)
+    patched.ticks += 200
     blocked = FORWARD | BACK | LEFT | RIGHT | SPRINT | JUMP | FIRE | RELOAD | AIM | 0xFC000 | 0x100000 \
-        | USE | 0x400000 | GRENADE | MELEE
+        | 0x400000 | GRENADE | MELEE
     b = patched.input(0xFFFFFFFF)
+    blocked |= 1 << 29  # the carry chord's marker is produced only by a valid chord
     report(b == (0xFFFFFFFF & ~blocked, True), f"Tab down, every bit pressed: {b[0]:#x} sent, all but the moves "
-           "and acts")
+           "and acts (use is none)")
     patched.tab(0)
     patched.input(0)
     patched.static_info(empty_options(b""))
@@ -302,6 +374,48 @@ def main():
     patched.static_info(empty_options(on))
     b = patched.input(moving)
     report(b == (moving, True), "a new Blackout match's static info forgets a Tab of before: all that is pressed")
+
+    print("Tab movement grace: immediate names, 200 ms before stopping movement")
+    patched.static_info(empty_options(on))
+    patched.ticks = 1000
+    patched.tab(1)
+    for now in (1000, 1199, 1200, 1250):
+        patched.ticks = now
+        patched.tab(1)
+        visible, _, kept = patched.name_visible(0, 0, 0)
+        expected = moving & ~(FIRE | AIM) if now < 1200 else CROUCH | WEAPON_1
+        report(patched.input(moving) == (expected, True) and visible == 1 and kept,
+               f"Tab at {now - 1000} ms: movement {'kept' if now < 1200 else 'blocked'}, names shown")
+    patched.tab(0)
+    report(patched.input(FORWARD | FIRE) == (FORWARD, True), "release restores movement; held fire stays suppressed")
+    patched.ticks = 1300
+    patched.tab(1)
+    patched.ticks = 1399
+    patched.tab(0)
+    report(patched.input(FORWARD) == (FORWARD, True), "a short Tab tap never stops movement")
+    patched.tab(1)
+    patched.static_info(empty_options(on))
+    patched.ticks += 500
+    report(patched.input(moving) == (moving, True), "new match clears the grace and held actions")
+
+    print("teammate names: the Alt/crosshair result, after visibility and projection")
+    for blackout in (False, True):
+        patched.static_info(empty_options(on if blackout else b""))
+        for tab in (0, 1):
+            patched.tab(tab)
+            for local, team in ((0, 0), (1, 1), (0, 1), (1, 0), (2, 0), (2, 2), (3, 3)):
+                for normal in (0, 1):
+                    wanted = int(bool(normal or (blackout and tab and local in (0, 1) and local == team)))
+                    for cached in (0, 1):
+                        a = stock.name_visible(local, team, normal, cached)
+                        b = patched.name_visible(local, team, normal, cached)
+                        report(a == (normal, 0x20 if normal != cached else 0, True)
+                               and b == (wanted, 0x20 if wanted != cached else 0, True),
+                               f"Blackout={blackout}, Tab={tab}, teams={local}/{team}, native={normal}, "
+                               f"cached={cached}: name={b[0]}, dirty={b[1]:#x}; registers/stack preserved")
+    patched.static_info(empty_options(on))
+    report(patched.name_visible(0, 0, 0, 1) == (0, 0x20, True),
+           "a new match resets Tab: no stale forced teammate name")
 
     if failed:
         sys.exit(f"{failed} case(s) failed")

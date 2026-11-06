@@ -57,6 +57,7 @@ pub mod view;
 use std::sync::Arc;
 
 use mapdata::{NodeId, Vec3, World};
+use survarium::v026g::maps::RuleMode;
 use survarium::v026g::match_msgs::PlayerInput;
 
 use crate::v026g::drive::{half_value, key};
@@ -199,11 +200,12 @@ pub struct Bot {
     /// ([`Pending`]): the goal and the route, or none. Taken at its next
     /// tick, and used if it still heads there.
     found: Option<(Vec3, Option<Route>)>,
-    /// Its kits by index (the profile's: its role's, then its backup's,
-    /// `survarium::v026g::loadouts::bot_kits`) and the rounds of weapon 1
-    /// each has left: a place's ammo lasts the match, a spawn does not
-    /// refill it. Empty for a bot of no role.
-    kits: Vec<(&'static guns::Arms, u32)>,
+    /// Its kits by index (its profile's, [`Bots::wear`]: its role's, then
+    /// the backup's weapon, `session::v026g::bot_kits`; until then its
+    /// role's fixed kits) and the rounds of weapon 1 each has left: a
+    /// place's ammo lasts the match, a spawn does not refill it. Empty for
+    /// a bot of no role.
+    kits: Vec<(guns::Arms, u32)>,
     /// Plays that failed at once at a target, and until when they are not
     /// taken there again (`plays::SET_ASIDE_MS`).
     set_aside: Vec<(PlayKind, plays::TargetRef, u32)>,
@@ -238,7 +240,7 @@ impl Bot {
             });
         // What it carries: its role's gear, else its personality's name as
         // a role (the tests' bots), else the fallback.
-        let kits: Vec<(&'static guns::Arms, u32)> = role
+        let kits: Vec<(guns::Arms, u32)> = role
             .and_then(|role| {
                 let role = survarium::v026g::loadouts::BotRole::ALL
                     .into_iter()
@@ -248,7 +250,7 @@ impl Bot {
             .into_iter()
             .flatten()
             .filter_map(|role| guns::Arms::of_role(role.name()))
-            .map(|arms| (arms, arms.primary.1))
+            .map(|arms| (*arms, arms.primary.1))
             .collect();
         let arms = role.and_then(guns::Arms::of_role).or_else(|| {
             tuning
@@ -262,7 +264,7 @@ impl Bot {
             rng,
             encoder: Encoder::default(),
             motor,
-            reflex: Reflex::armed(arms),
+            reflex: Reflex::armed(arms.copied()),
             memory: Memory::default(),
             stuck: Stuck::default(),
             personality,
@@ -454,8 +456,7 @@ fn near_any(spots: &[Vec3], point: Vec3) -> bool {
 /// A match's bots.
 pub struct Bots {
     level: u8,
-    /// The mode's id (2 batteries, 3 timed batteries, 4 TDM).
-    mode: u8,
+    mode: RuleMode,
     /// Whose the battery containers are, by id, as the server's game
     /// data has the map (`MapMode::container_teams`); without it, as the
     /// built map has them ([`Self::with_container_teams`]).
@@ -493,7 +494,7 @@ impl Bots {
     #[allow(clippy::too_many_arguments)]
     pub fn new(
         match_id: u32,
-        mode: u8,
+        mode: RuleMode,
         level: u8,
         teams: &[u8],
         driven: &[bool],
@@ -561,6 +562,25 @@ impl Bots {
     /// Every place's weapon 1 kind (the matchup, play 11).
     pub fn set_weapons(&mut self, weapons: Vec<Option<reflex::WeaponKind>>) {
         self.weapons = weapons;
+    }
+
+    /// The bot at `place` wears the kits its profile has (each kit's weapon
+    /// 1 and rounds, `guns::Arms::of_kit`), in place of its role's fixed
+    /// ones: from its first life. Nothing for a place that is no bot, or
+    /// none of whose kits has a weapon the bots know.
+    pub fn wear(&mut self, place: usize, kits: Vec<guns::Arms>) {
+        let Some(Some(bot)) = self.bots.get_mut(place) else {
+            return;
+        };
+        if let Some(&arms) = kits.first() {
+            bot.reflex = Reflex::armed(Some(arms));
+            bot.kits = kits
+                .into_iter()
+                .map(|arms| (arms, arms.primary.1))
+                .collect();
+            bot.kit = 0;
+            bot.kit_chosen = 0;
+        }
     }
 
     /// A lying battery's position from a world, in the map's frame: its
@@ -703,13 +723,6 @@ impl Bots {
         for team in &mut self.teams {
             team.knowledge.forget(place);
         }
-    }
-
-    pub fn has_entered(&self, place: Place) -> bool {
-        self.bots
-            .get(place)
-            .and_then(Option::as_ref)
-            .is_some_and(|bot| bot.entered.is_some())
     }
 
     /// Whether a bot waits to see its body in a world (just entered, or
@@ -1409,6 +1422,11 @@ impl Bots {
                     last_ran: &bot.last_ran,
                     partner: bot.partner,
                     paired: bot.paired,
+                    medkits: bot
+                        .reflex
+                        .arms()
+                        .unwrap_or_else(|| *guns::Arms::fallback())
+                        .medkits,
                     medkits_used: bot.medkits_used,
                     no_way_to: &no_way,
                     set_aside: &bot.set_aside,
@@ -1464,6 +1482,11 @@ impl Bots {
                     last_ran: &bot.last_ran,
                     partner: bot.partner,
                     paired: bot.paired,
+                    medkits: bot
+                        .reflex
+                        .arms()
+                        .unwrap_or_else(|| *guns::Arms::fallback())
+                        .medkits,
                     medkits_used: bot.medkits_used,
                     no_way_to: &no_way,
                     set_aside: &bot.set_aside,
@@ -1684,6 +1707,11 @@ impl Bots {
                 last_ran: &bot.last_ran,
                 partner: bot.partner,
                 paired: bot.paired,
+                medkits: bot
+                    .reflex
+                    .arms()
+                    .unwrap_or_else(|| *guns::Arms::fallback())
+                    .medkits,
                 medkits_used: bot.medkits_used,
                 no_way_to: &bot.no_way_to,
                 set_aside: &bot.set_aside,

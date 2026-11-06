@@ -112,7 +112,7 @@ package survarium.player
          {
             return 1;
          }
-         var size:int = item.quickSlotItemSize == QuickSlotSize.WHOLE ? 1 : PlayerInfo.pocketSize;
+         var size:int = PlayerInfo.pocketUnits(item.category,item.quickSlotItemSize);
          return int(Math.max(1,Math.min(held.value + 1,size)));
       }
       

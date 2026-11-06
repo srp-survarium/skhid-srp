@@ -57,10 +57,9 @@ package survarium.controls
                      relocate(relocations);
                      trace("bbb");
                   }
-                  else
-                  {
-                     MainScene.buyFunction(localProfile.profileId,item.itemId,item.dictId,ItemPlace.SHOP,slot,1,item.cost);
-                  }
+                  // A shop item is bought only by Buy, a double click, or a
+                  // drop on the slot it goes in (ItemPaperDollSlot), never
+                  // into a slot picked for it here.
                }
                else
                {

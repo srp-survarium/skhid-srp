@@ -21,6 +21,7 @@
 //!   callback the game is handed;
 //! - `write`, `code`: bytes the build writes.
 
+use core::ffi::c_void;
 use core::marker::PhantomData;
 
 /// The registers at a `lohook` entry, as `pushfd` then `pushad` left them;
@@ -94,15 +95,51 @@ impl<'t, T: Copy> Out<'t, T> {
     }
 }
 
-/// A game object a hooked function's argument points to, built by the
-/// generated shim (an unsafe step a patch cannot take). A patch receives
-/// the handle; it cannot conjure one, because every way to make one is
-/// `unsafe` and a patch module forbids `unsafe`.
-pub trait Handle<'t>: Sized {
+/// A generated entry that a patch hands the game as a callback (a `callback`
+/// site's, in the convention its marker `F` names). Only the generated glue
+/// makes one (`<patch>_<handler>_entry()`), so a callback the game calls is
+/// always an entry of ours in the convention the game calls it in.
+pub struct CallbackEntry<F> {
+    entry: *const c_void,
+    convention: PhantomData<fn() -> F>,
+}
+
+impl<F> Clone for CallbackEntry<F> {
+    fn clone(&self) -> Self {
+        *self
+    }
+}
+
+impl<F> Copy for CallbackEntry<F> {}
+
+impl<F> CallbackEntry<F> {
     /// # Safety
-    /// `raw` is the kind this handle wraps, as the hook's row says: a
-    /// pointer to such an object, or null.
-    unsafe fn from_raw(thread: &'t Thread, raw: u32) -> Option<Self>;
+    /// `entry` is a generated entry in `F`'s convention, alive as long as
+    /// the executable.
+    pub unsafe fn from_entry(entry: *const c_void) -> CallbackEntry<F> {
+        CallbackEntry { entry, convention: PhantomData }
+    }
+
+    /// The entry, for the game function it is handed to.
+    pub(in crate::vostok) fn entry(self) -> *const c_void {
+        self.entry
+    }
+}
+
+/// A game object a hooked function's argument points to, built by the
+/// generated shim from the argument's raw handle (typed by the function's
+/// row; an unsafe step a patch cannot take). A patch receives the handle; it
+/// cannot conjure one, because every way to make one is `unsafe` and a
+/// patch module forbids `unsafe`.
+pub trait Handle<'t>: Sized {
+    /// The raw layer's handle this one wraps.
+    type Raw;
+
+    /// None for a null argument.
+    ///
+    /// # Safety
+    /// `raw` is alive while the hook runs, on its thread.
+    unsafe fn from_raw(thread: &'t Thread, raw: Option<Self::Raw>) -> Option<Self>;
 }
 
 #[cfg(test)]

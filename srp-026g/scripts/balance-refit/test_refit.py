@@ -69,6 +69,51 @@ class Refit(unittest.TestCase):
             self.assertEqual(len(list(refit.read_matches([d], "2026-10-13T12:35", ""))), 1)
             self.assertEqual(len(list(refit.read_matches([d, log], "", ""))), 2)
 
+    def test_server_files_rotated_and_dated(self):
+        """lobby.log and srp.log with their rotated files: dated lines, read
+        oldest file first, beside an old day file."""
+        sides = lambda t, mid: line(t, f"Match {mid} sides: team 0 counts 1.0: " + player("A", 0, 0, 0, 0)
+                                    + " | team 1 counts 1.0: " + player("B", 0, 0, 0, 0)) + "\n"
+        minute = "Match 0xc at 60 s: team 0 counts 1.0 (1 in, lead 0.0), team 1 counts 1.0 (1 in, lead 0.0); " \
+                 "points [0, 0], kills [0, 0]; team 0 expected at 50 %"
+        with tempfile.TemporaryDirectory() as d:
+            d = Path(d)
+            (d / "srp-2026-11-04.log").write_text(
+                sides("23:00:00.000", "0xa")
+                + "23:30:00.000Z [srp] [INFO] Match 0xa settled (TimeLimit, winner Some(0), 2 players): x\n")
+            (d / "lobby.log.1").write_text(sides("2026-11-05T10:00:00.000", "0xc"))
+            (d / "lobby.log").write_text(line("2026-11-05T10:01:00.000", minute) + "\n"
+                                         + sides("2026-11-06T09:00:00.000", "0xd"))
+            (d / "srp.log.1").write_text(
+                "2026-11-05T10:30:00.000Z [INFO] Match 0xc settled (TimeLimit, winner Some(1), 2 players): x\n")
+            (d / "srp.log").write_text(
+                "2026-11-06T09:30:00.000Z [INFO] Match 0xd settled (TimeLimit, winner Some(0), 2 players): x\n")
+            ms = {m["id"]: m for m in refit.read_matches([d], "", "")}
+            self.assertEqual(sorted(ms), ["0xa", "0xc", "0xd"])
+            self.assertEqual([kind for kind, _ in ms["0xc"]["events"]], ["minute"])
+            self.assertEqual(ms["0xc"]["winner"], 1)
+            since = [m["id"] for m in refit.read_matches([d], "2026-11-05T09:00", "2026-11-05T23:00")]
+            self.assertEqual(since, ["0xc"])
+
+    def test_lines_since_k_d_balance(self):
+        # Since 2026-11-01 the "sides" line names the match's equipment level
+        # and each player's parts go on with its K/D there.
+        parts = "(gear 3, level 2, rating +0.50 of 4 matches, at 6: kd 1.25 of 40/31)"
+        ms = read("\n".join([
+            line("12:00:00.000", f"Match 0xc sides (equipment level 6): team 0 counts 4.20: A, B 2.25 {parts}"
+                 + f", C 1.95 {parts} | team 1 counts 2.00: D 2.00 {parts}"),
+            line("12:05:00.000", f"Match 0xc late join: E 2.10 {parts} to team 1; with them team 0 counts "
+                 "4.20 (2 in, lead 0.00), team 1 counts 4.10 (2 in, lead 0.00); the sides were 2.20 apart"),
+            settled("0xc", 0, 4),
+        ]))
+        self.assertEqual(len(ms), 1)
+        sides = ms[0]["sides"]
+        self.assertEqual([p["name"] for p in sides[0]], ["A, B", "C"])
+        self.assertEqual((sides[0][0]["gear"], sides[0][0]["matches"]), (3, 4))
+        self.assertEqual([p["name"] for p in sides[1]], ["D"])
+        self.assertEqual(ms[0]["events"][0], ("join", [dict(name="E", value=2.1, team=1, gear=3, level=2,
+                                                           rating=0.5, matches=4)]))
+
     def test_features_and_trust(self):
         side = [dict(value=0, gear=3, level=2, rating=1.0, matches=5), dict(value=0, gear=1, level=1, rating=-1.0, matches=0)]
         self.assertEqual(refit.side_features(side, 5.0), (2, 4, 3, 0.5))

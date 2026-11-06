@@ -243,6 +243,7 @@ impl Scenario {
                 last_ran: &self.last_ran,
                 partner: self.partner,
                 paired: self.paired,
+                medkits: 2,
                 medkits_used: self.medkits_used,
                 no_way_to: &self.no_way_to,
                 set_aside: &[],

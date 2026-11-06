@@ -150,28 +150,12 @@ pub fn server_length(id: u8) -> Option<Length> {
     })
 }
 
-/// The bytes of a player mask for a roster of `roster` places:
-/// `(roster - 1) / 8 + 1` (0x279610).
-pub fn mask_bytes(roster: u8) -> usize {
-    (usize::from(roster).max(1) - 1) / 8 + 1
-}
+pub use udp_transport::table::mask_bytes;
 
-/// The length of a 0xED / 0xEE payload that starts `bytes`, as the client's
-/// length getter works it out (0x27975B): it wants `head + mask + 16` bytes
-/// there (two players' inputs) before it looks, then takes
-/// `head + mask + 8 × popcount(mask)`. `None`: the client would drop the
-/// whole datagram.
+/// The length of a 0xED / 0xEE payload that starts `bytes` for a roster of
+/// `roster` places (`udp_transport::table::player_inputs_len`).
 pub fn player_inputs_len(head: usize, roster: u8, bytes: &[u8]) -> Option<usize> {
-    let mask_len = mask_bytes(roster);
-    if bytes.len() < head + mask_len + 16 {
-        return None;
-    }
-    let players: u32 = bytes[head..head + mask_len]
-        .iter()
-        .map(|byte| byte.count_ones())
-        .sum();
-    let len = head + mask_len + 8 * players as usize;
-    (len <= bytes.len()).then_some(len)
+    udp_transport::table::player_inputs_len(head, mask_bytes(roster), bytes)
 }
 
 /// The signed distance from `b` to `a` in 8-bit sequence arithmetic
@@ -257,8 +241,9 @@ impl PlayerInput {
     /// Whether the rotation is one a client's mouse can make: both halves
     /// numbers, and each under 1024 radians.
     ///
-    /// The client checks nothing of a relayed input (the reader 0x318400
-    /// stores the four bytes as they came), and every client then adds the
+    /// The stock client checks nothing of a relayed input (the reader 0x318400
+    /// stores the four bytes as they came; exe patch 99 now refuses one by
+    /// this same rule at change_input, as 0.27d does), and every client then adds the
     /// two to that player's angles (`base_player`, 0x2D89A4 → 0x2D8AD0:
     /// `yaw += dx`, the rotation built from it handed to the physics
     /// world; `dy` to the item in its hands). An infinity or a NaN stays
@@ -270,9 +255,9 @@ impl PlayerInput {
     /// the rotations of two inputs it merges into one node, as halves
     /// (0x2C5B60 → 0x2C6640 → 0xF67B0), and a half ends at 65 504.
     pub fn rotation_is_sane(&self) -> bool {
-        self.rotation.chunks_exact(2).all(|half| {
-            u16::from_le_bytes([half[0], half[1]]) & HALF_EXPONENT < HALF_EXPONENT_1024
-        })
+        self.rotation
+            .chunks_exact(2)
+            .all(|half| u16::from_le_bytes([half[0], half[1]]) & HALF_EXPONENT < HALF_EXPONENT_1024)
     }
 }
 
@@ -592,7 +577,7 @@ impl ServerMessage {
             } => {
                 out.reserve(6 + body.len());
                 out.push(*generation);
-                // The client unpacks into 0x8000 bytes on its stack and
+                // The client unpacks into 0xF000 bytes on its stack and
                 // does not check the result (0x27C059): a state over that
                 // goes as it is, and so does one that would not shrink.
                 let stream = (*packed && 4 + body.len() <= COMPRESSED_SNAPSHOT_BUFFER)
@@ -1151,16 +1136,6 @@ mod tests {
     }
 
     #[test]
-    fn mask_bytes_follow_the_roster() {
-        assert_eq!(mask_bytes(1), 1);
-        assert_eq!(mask_bytes(8), 1);
-        assert_eq!(mask_bytes(9), 2);
-        assert_eq!(mask_bytes(16), 2);
-        assert_eq!(mask_bytes(17), 3);
-        assert_eq!(mask_bytes(20), 3);
-    }
-
-    #[test]
     fn roster_changes_and_input_corrections() {
         // E9 / EA: `u8 tick, u8 player`.
         assert_eq!(
@@ -1376,7 +1351,15 @@ mod tests {
         let mut state = 539_650u32.to_le_bytes().to_vec();
         state.extend(&body);
         assert_eq!(lzma2::unpack(&payload[2..], 0x8000), Some(state));
-        // The client unpacks into 0x8000 bytes: the largest state that
+        // A world past the original's 0x8000 bytes (twenty players and many
+        // pellets) stays packed, a few parts instead of some 70.
+        let big: Vec<u8> = (0..0xA000u32).map(|i| (i % 97) as u8).collect();
+        let payload = ServerMessage::packed_snapshot(7, 50, &big).payload();
+        assert_eq!(payload[1], 1);
+        let mut state = 50u32.to_le_bytes().to_vec();
+        state.extend(&big);
+        assert_eq!(lzma2::unpack(&payload[2..], COMPRESSED_SNAPSHOT_BUFFER), Some(state));
+        // The client unpacks into 0xF000 bytes: the largest state that
         // fits is packed, one byte more goes as it is.
         let fits = vec![0; COMPRESSED_SNAPSHOT_BUFFER - 4];
         assert_eq!(ServerMessage::packed_snapshot(7, 50, &fits).payload()[1], 1);
