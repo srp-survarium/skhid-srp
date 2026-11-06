@@ -844,19 +844,16 @@ pub(super) fn camper_tick(
                 (d <= j.max_walk_m).then_some((b, d))
             })
             .min_by(|a, b| a.1.total_cmp(&b.1));
-        match pick {
-            Some((b, d)) => {
-                c.state = CamperTrapState::Sent { placer: b.place, since: now, placed_before: b.features.traps.habit.placed_this_life() };
-                taken.push(b.place);
-                #[cfg(test)]
-                camper::count(team, camper::SENT);
-                said.push(format!("team {team}: bot {} sent to trap spot {}'s {:?} point, {d:.1} m off", b.place, c.spot, c.kind));
-            }
-            None => {
-                #[cfg(test)]
-                camper::count(team, camper::NO_PLACER);
-            }
-        }
+        let Some((b, d)) = pick else {
+            #[cfg(test)]
+            camper::count(team, camper::NO_PLACER);
+            continue;
+        };
+        c.state = CamperTrapState::Sent { placer: b.place, since: now, placed_before: b.features.traps.habit.placed_this_life() };
+        taken.push(b.place);
+        #[cfg(test)]
+        camper::count(team, camper::SENT);
+        said.push(format!("team {team}: bot {} sent to trap spot {}'s {:?} point, {d:.1} m off", b.place, c.spot, c.kind));
     }
     for text in said {
         notes.push(super::Note { place: usize::MAX, time: now, text });
@@ -3841,5 +3838,23 @@ mod tests {
         // A look too flat for the 2.0 m ray to reach the floor: nothing.
         assert_eq!(client_landing(&flat, eye, 0.0, -0.3, &[]), Err(Why::NoFloor));
         assert_eq!(landing(eye, 0.0, -0.3, 0.0), None);
+    }
+
+    /// [A324, from fx-gear-2's A318] The way back to a spot: on an open field the way from home is about straight, so the points
+    /// lie 6, 9, ... 18 m before the spot, on the side of home; a way shorter than `near_m` gives none.
+    #[test]
+    fn the_way_back_to_a_spot_is_the_stretch_before_it() {
+        let s = Scenario::field(Mode::TeamDeathmatch);
+        let j = crate::v026g::bots::tuning::CamperJob::default();
+        let (home, spot) = (Vec3::new(10.0, 0.0, 10.0), Vec3::new(50.0, 0.0, 10.0));
+        let points = approach_points(&s.tactics, home, spot, &j, 1_000);
+        assert_eq!(points.len(), 5, "{points:?}");
+        for (k, at) in points.iter().enumerate() {
+            let d = at.distance_xz(spot);
+            let want = j.near_m + j.step_m * k as f32;
+            assert!((d - want).abs() < 1.5, "point {k} {at:?}: {d} m from the spot, want about {want}");
+            assert!(at.x < spot.x, "on home's side: {at:?}");
+        }
+        assert!(approach_points(&s.tactics, Vec3::new(46.0, 0.0, 10.0), spot, &j, 1_000).is_empty());
     }
 }
