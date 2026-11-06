@@ -12,6 +12,13 @@ traps of 402 live matches of 12+ humans. The full record with scripts is outside
 - Ray from the head along the view, **2.0 m**, the static walk geometry (group 0x404, mask 0x202), flat ground only (normal.y >=
   cos 30 deg), the surface must allow it (`material_can_place_test`), not on another trap's sensor. Armed at once; `armed_life_time` 0:
   it stands for ever. Fired 8 s then gone; disarmed (use 5 s or a ranged hit) 8 s then gone.
+  - Where the numbers come from (2026-11-07, A328/A324): both are the item's config, not constants in the code
+    (`scripts/content-edit/throwables.tsv`, row `blackmarket_trap`: `deploy_m` 2 = `data/max_deploy_distance`, `slope_deg` 30 =
+    `data/max_slope_angle`). The item loader stores `max_deploy_distance` at `[set+0x284]` (0x305A7F..0x305AA7) and
+    cos(`max_slope_angle` x 1/180 x pi) at `[set+0x280]` (0x305AA0..0x305ADF: constants 0xA2D7E8 = 1/180, 0x9CC970 = pi, cos 0x39000).
+    The placing path loads `[set+0x284]` as the ray length (0x306401) for `get_visible_place_transform` 0x306490, which casts
+    with group 0x404 / mask 0x202 (0x3064B6), refuses a hit whose object is in group 0x200 (a trap's sensor: 0x306598..0x3065A0)
+    and a hit whose normal y is under `[set+0x280]` (0x3065C3..0x3065D0), then the material tests (0x306618..0x306638).
 - Amount per life = the pocket's count; the trap objects = the profile's whole stack; with all out the next placement
   **recycles the oldest**. A death or a respawn removes nothing.
 
