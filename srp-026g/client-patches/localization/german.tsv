@@ -2703,7 +2703,7 @@ st_srp_unit_times	%1$sx
 st_srp_vulkan_dedicated_gpu	Dedizierte GPU bevorzugen
 st_srp_vulkan_dedicated_gpu_hint	Wählt auf Laptops die stärkere Grafikkarte.\n+ Bessere Leistung auf Laptops\n- Braucht mehr Akku
 st_srp_vulkan_frame_limit	Bildratenlimit
-st_srp_vulkan_frame_limit_hint	Begrenzt, wie viele Bilder pro Sekunde das Spiel zeichnet.\n+ PC bleibt kühler und leiser\n- Nicht mehr Bilder als das Limit
+st_srp_vulkan_frame_limit_hint	Begrenzt, wie viele Bilder pro Sekunde das Spiel zeichnet.
 st_srp_vulkan_low_latency	Eingabeverzögerung senken
 st_srp_vulkan_low_latency_hint	Das Spiel reagiert schneller auf die Maus.\n+ Zielen reagiert schneller\n- Kann auf manchen PCs weniger flüssig wirken
 st_srp_vulkan_off	Aus
@@ -2712,7 +2712,7 @@ st_srp_vulkan_overlay	Leistungsanzeige
 st_srp_vulkan_overlay_fps	FPS
 st_srp_vulkan_overlay_frametimes	FPS+Graph
 st_srp_vulkan_overlay_full	Vollständig
-st_srp_vulkan_overlay_hint	Zeigt die Geschwindigkeit des Spiels am Bildschirm.\n+ Sieh, wie flüssig das Spiel läuft\n- Verdeckt eine Ecke des Bildschirms
+st_srp_vulkan_overlay_hint	Zeigt die Geschwindigkeit des Spiels am Bildschirm.
 st_srp_vulkan_tear_free	Kein Tearing ohne VSync
 st_srp_vulkan_tear_free_hint	Hält das Bild ganz, wenn die vertikale Synchronisierung aus ist.\n+ Keine Risse beim schnellen Drehen\n- Etwas mehr Eingabeverzögerung als nur VSync aus
 st_srp_weapon069_akmsu_desc	Verkürzte AKMS mit Klappschaft, Munition: 7,62x39. Einzel- und Dauerfeuer.

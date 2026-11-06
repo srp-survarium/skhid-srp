@@ -2703,7 +2703,7 @@ st_srp_unit_times	%1$sx
 st_srp_vulkan_dedicated_gpu	Prefer the dedicated GPU
 st_srp_vulkan_dedicated_gpu_hint	Picks the stronger graphics card on laptops.\n+ Better performance on laptops\n- Uses more battery
 st_srp_vulkan_frame_limit	Frame rate limit
-st_srp_vulkan_frame_limit_hint	Caps how many frames per second the game draws.\n+ PC runs cooler and quieter\n- No more frames than the limit
+st_srp_vulkan_frame_limit_hint	Caps how many frames per second the game draws.
 st_srp_vulkan_low_latency	Reduce input lag
 st_srp_vulkan_low_latency_hint	Makes the game react sooner to your mouse.\n+ Aim reacts faster\n- May feel less smooth on some PCs
 st_srp_vulkan_off	Off
@@ -2712,7 +2712,7 @@ st_srp_vulkan_overlay	Performance overlay
 st_srp_vulkan_overlay_fps	FPS
 st_srp_vulkan_overlay_frametimes	FPS+graph
 st_srp_vulkan_overlay_full	Full
-st_srp_vulkan_overlay_hint	Shows the game's speed on screen.\n+ See how smoothly the game runs\n- Covers a corner of the screen
+st_srp_vulkan_overlay_hint	Shows the game's speed on screen.
 st_srp_vulkan_tear_free	Tear-free with vsync off
 st_srp_vulkan_tear_free_hint	Keeps the picture whole when vertical sync is off.\n+ No torn lines when turning fast\n- A bit more input delay than plain vsync off
 st_srp_weapon069_akmsu_desc	Shortened AKMS with a folding stock, ammo: 7.62x39. Supports single shot and automatic fire modes.

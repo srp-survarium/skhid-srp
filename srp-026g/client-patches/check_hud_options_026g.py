@@ -96,8 +96,8 @@ TEXTS = {"st_srp_options_hud": "HUD:", "st_srp_hide_quests_option": "Hide quests
          "st_srp_static_minimap_option": "Static minimap", "st_srp_renderer_dx11": "DirectX 11",
          "st_srp_renderer_dxvk": "Vulkan/DXVK", "st_srp_language_restart": "Applies after restart.",
          "st_srp_vulkan_options": "Vulkan options",
-         "st_srp_vulkan_frame_limit_hint": "Caps how many frames per second the game draws.\n+ PC runs cooler and quieter\n- No more frames than the limit",
-         "st_srp_vulkan_overlay_hint": "Shows the game's speed on screen.\n+ See how smoothly the game runs\n- Covers a corner of the screen",
+         "st_srp_vulkan_frame_limit_hint": "Caps how many frames per second the game draws.",
+         "st_srp_vulkan_overlay_hint": "Shows the game's speed on screen.",
          "st_srp_vulkan_low_latency_hint": "Makes the game react sooner to your mouse.\n+ Aim reacts faster\n- May feel less smooth on some PCs",
          "st_srp_vulkan_tear_free_hint": "Keeps the picture whole when vertical sync is off.\n+ No torn lines when turning fast\n- A bit more input delay than plain vsync off",
          "st_srp_vulkan_dedicated_gpu_hint": "Picks the stronger graphics card on laptops.\n+ Better performance on laptops\n- Uses more battery"}

@@ -81,8 +81,9 @@ window keeping its size.
   while the Renderer list shows DirectX 11, following the list's pick before Apply; picking DirectX 11
   closes an open panel.
 - **Hints:** each of the five shows a hint when the pointer rests on it, the game's own tooltip (CLIK's
-  ToolTip with the menu's tip, SrvProfileTipRenderer, 300 ms after the pointer comes over it), three
-  lines (`st_srp_vulkan_*_hint`, ten languages): what it does, "+" what it gives, "-" what it costs.
+  ToolTip with the menu's tip, SrvProfileTipRenderer, 300 ms after the pointer comes over it): the
+  lists' one line (what it does), the checkboxes' three (`st_srp_vulkan_*_hint`, ten languages): what it
+  does, "+" what it gives, "-" what it costs (the owner: no pros and cons for the two lists).
   The tip lies 4 px under the option the pointer is on, never over it (above it when the window ends
   first), from 16 px right of the pointer, inside the window, at the menu's own scale (2 at 4K). It is
   opaque (the symbol's look: a 1 px grey edge round a near-black fill; the symbol's own fill let the

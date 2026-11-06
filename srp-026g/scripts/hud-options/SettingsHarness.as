@@ -919,11 +919,13 @@ package
             var body:* = panel.getChildAt(panel.numChildren - 1);
             var controls:Array = VULKAN.map(function(name:String, ...rest):* { return body.getChildByName("_" + name); });
             for each (var control:* in controls) control.validateNow();
-            // each option's hint: the game's tooltip (SrvProfileTipRenderer) with the exe's text, three lines
+            // each option's hint: the game's tooltip (SrvProfileTipRenderer) with the exe's text: a list's one line, a
+            // checkbox's three (what it does, "+", "-"), in every dictionary
             for (var h:int = 0; h < controls.length; ++h)
             {
                 require(controls[h].tipData != null
-                    && controls[h].tipData.name == texts[0][30 + h] && texts[0][30 + h].split("\n").length == 3,
+                    && controls[h].tipData.name == texts[0][30 + h]
+                    && texts.every(function(t:Array, ...rest):Boolean { return t[30 + h].split("\n").length == (h < 2 ? 1 : 3); }),
                     "Vulkan options: " + VULKAN[h] + " has its hint (" + (controls[h].tipData ? controls[h].tipData.name : null) + ")");
             }
             var Point:Class = loader.contentLoaderInfo.applicationDomain.getDefinition("flash.geom.Point") as Class;

@@ -2703,7 +2703,7 @@ st_srp_unit_times	%1$sx
 st_srp_vulkan_dedicated_gpu	Dedikált GPU előnyben
 st_srp_vulkan_dedicated_gpu_hint	Laptopokon az erősebb videokártyát választja.\n+ Jobb teljesítmény laptopokon\n- Több akkut fogyaszt
 st_srp_vulkan_frame_limit	FPS-korlát
-st_srp_vulkan_frame_limit_hint	Korlátozza, hány képkockát rajzol a játék másodpercenként.\n+ A gép hűvösebb és csendesebb\n- Nem lesz több kép a korlátnál
+st_srp_vulkan_frame_limit_hint	Korlátozza, hány képkockát rajzol a játék másodpercenként.
 st_srp_vulkan_low_latency	Kisebb beviteli késés
 st_srp_vulkan_low_latency_hint	A játék gyorsabban reagál az egérre.\n+ Gyorsabban reagál a célzás\n- Egyes gépeken kevésbé lehet gördülékeny
 st_srp_vulkan_off	Ki
@@ -2712,7 +2712,7 @@ st_srp_vulkan_overlay	Teljesítményjelző
 st_srp_vulkan_overlay_fps	FPS
 st_srp_vulkan_overlay_frametimes	FPS+ábra
 st_srp_vulkan_overlay_full	Teljes
-st_srp_vulkan_overlay_hint	Kiírja a képernyőre a játék sebességét.\n+ Látod, milyen simán fut a játék\n- Eltakarja a képernyő egyik sarkát
+st_srp_vulkan_overlay_hint	Kiírja a képernyőre a játék sebességét.
 st_srp_vulkan_tear_free	Szakadásmentes V-Sync nélkül
 st_srp_vulkan_tear_free_hint	Egészben tartja a képet, ha a függőleges szinkron ki van kapcsolva.\n+ Nincsenek szakadt vonalak gyors forduláskor\n- Kicsit több késés, mint sima kikapcsolt VSync esetén
 st_srp_weapon069_akmsu_desc	Rövidített, behajtható tusás AKMS, 7.62x39 lőszerrel. Egyes és sorozatlövésre képes.

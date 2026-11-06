@@ -2703,7 +2703,7 @@ st_srp_unit_times	%1$sx
 st_srp_vulkan_dedicated_gpu	Prednost namenskoj GPU
 st_srp_vulkan_dedicated_gpu_hint	Na laptopovima bira jaču grafičku karticu.\n+ Bolje performanse na laptopovima\n- Troši više baterije
 st_srp_vulkan_frame_limit	Ograničenje FPS
-st_srp_vulkan_frame_limit_hint	Ograničava koliko slika u sekundi igra crta.\n+ Računar je hladniji i tiši\n- Ne više slika od granice
+st_srp_vulkan_frame_limit_hint	Ograničava koliko slika u sekundi igra crta.
 st_srp_vulkan_low_latency	Smanji kašnjenje unosa
 st_srp_vulkan_low_latency_hint	Igra brže reaguje na miš.\n+ Nišan reaguje brže\n- Na nekim računarima može biti manje glatko
 st_srp_vulkan_off	Isključeno
@@ -2712,7 +2712,7 @@ st_srp_vulkan_overlay	Prikaz performansi
 st_srp_vulkan_overlay_fps	FPS
 st_srp_vulkan_overlay_frametimes	FPS+grafik
 st_srp_vulkan_overlay_full	Potpun
-st_srp_vulkan_overlay_hint	Prikazuje brzinu igre na ekranu.\n+ Vidi koliko glatko igra radi\n- Prekriva ugao ekrana
+st_srp_vulkan_overlay_hint	Prikazuje brzinu igre na ekranu.
 st_srp_vulkan_tear_free	Bez cepanja slike bez V-Sync
 st_srp_vulkan_tear_free_hint	Slika ostaje cela kada je vertikalna sinhronizacija isključena.\n+ Bez pocepanih linija pri brzom okretanju\n- Malo veće kašnjenje nego samo isključen VSync
 st_srp_weapon069_akmsu_desc	Skraćeni AKMS sa preklopnim kundakom, municija 7,62x39. Podržava pojedinačnu i automatsku paljbu.
