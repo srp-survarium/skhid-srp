@@ -32,7 +32,7 @@ use std::collections::VecDeque;
 use mapdata::{LinkKind, NodeId, Vec3, WalkGrid};
 use survarium::v026g::match_msgs::TICK_MS;
 
-use super::kin::{Blend, DropFall, Edge, FIX_ABOVE_M, FixBlend, FixFloor, WallSlide, JumpSnap, Kinematics, MarginEdge, TICK_S, WalkOffLanding, to_world, wrap};
+use super::kin::{LevelRead, Blend, DropFall, Edge, FIX_ABOVE_M, FixBlend, FixFloor, WallSlide, JumpSnap, Kinematics, MarginEdge, TICK_S, WalkOffLanding, to_world, wrap};
 use super::pitch::{Pitch, PitchScale};
 use crate::v026g::drive::key;
 
@@ -136,6 +136,9 @@ const PLANNED_LANDING_M: f32 = 1.0;
 
 /// The keys that move the body on the ground.
 const MOVE_KEYS: u32 = key::FORWARD | key::BACK | key::LEFT | key::RIGHT | key::SPRINT;
+
+/// [A318] The keys that set the desired speed ([`Kinematics::target_local`]): a [`LevelRead::Settled`] read needs them unchanged.
+const LEVEL_KEYS: u32 = MOVE_KEYS | key::CROUCH | key::AIM | key::FIRE;
 
 impl Estimate {
     /// The body as the view has it now (`me`), on the floor `node`, its velocity already blended in: what
@@ -537,7 +540,16 @@ impl BodyTrack {
             self.lives += 1;
         }
         // The world's speed with the legs' term taken out: the level is the rest of the factor.
-        if let Some(level) = fix.speed.and_then(|speed| kin.level_of(fix.keys, speed / self.legs.unwrap_or(1.0))) {
+        // [A318] [`LevelRead::Settled`]: only once the keys moving the world's last ticks have settled, by those keys.
+        let read_keys = match kin.level_read {
+            LevelRead::Any => Some(fix.keys),
+            LevelRead::Settled => {
+                let n = kin.blend_ticks as usize;
+                let last: Vec<u32> = self.ticks.iter().rev().filter(|tick| tick.time < fix.time).take(n).map(|tick| tick.keys & LEVEL_KEYS).collect();
+                (last.len() == n && last.iter().all(|&k| k == last[0])).then(|| last[0])
+            }
+        };
+        if let Some(level) = read_keys.zip(fix.speed).and_then(|(keys, speed)| kin.level_of(keys, speed / self.legs.unwrap_or(1.0))) {
             self.level = Some(level);
         }
         let level = self.level();

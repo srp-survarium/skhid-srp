@@ -88,6 +88,8 @@ pub struct Kinematics {
     pub speed_terms: SpeedTerms,
     /// [A318] Whether the reckoned body's step is capped at the client's `max_speed` ([`SpeedCap`]).
     pub speed_cap: SpeedCap,
+    /// [A318] Which worlds the body's speed level is read from ([`LevelRead`]).
+    pub level_read: LevelRead,
     /// [A304] The flattest ramp face (degrees, the grid's ramp mark) [`SlopeSpeed::RampsGrade`] slows on: a floor whose mark is
     /// flatter counts as unmarked. 35 (the lab, 2026-11-05: Vostok Radar Station's and Chemical Plant's stairs carry 20-39 degree
     /// marks and the client climbs them at full speed; Cologne's slowing stairs are 45; 35 was better than 40 and 44). 20: every
@@ -137,6 +139,21 @@ impl SpeedCap {
         let len = local[0].hypot(local[1]);
         if len > cap { [local[0] * cap / len, local[1] * cap / len] } else { local }
     }
+}
+
+/// [A318] Which worlds the reckoned body's speed level ([`Kinematics::level_of`]) is read from. The client's ground speed is the
+/// keys' desired speed times its movement factor once the animation's cross-fade toward them has settled (0.3 s, linear: fx-grid's
+/// read of 0x3B0CD0 / 0x395360, PROVEN); in the fade it is between two keys' speeds. A world's speed is its body's move of the tick
+/// before it (the world holds the body after that tick, `player_step` 0x7BDA0), so by that tick's keys.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum LevelRead {
+    /// Any world, by its own keys (as it was): a world in a fade gives a level off by the fade (a start's 0.85 passes).
+    Any,
+    /// A world whose last [`Kinematics::blend_ticks`] decided ticks before it held the same keys, read by those keys: the fade has
+    /// settled and the speed is the keys' times the factor.
+    #[default]
+    Settled,
 }
 
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
@@ -325,6 +342,7 @@ impl Default for Kinematics {
             walk_bridges: true,
             speed_terms: SpeedTerms::Legs,
             speed_cap: SpeedCap::Client,
+            level_read: LevelRead::Settled,
         }
     }
 }
