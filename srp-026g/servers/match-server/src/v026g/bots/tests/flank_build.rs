@@ -8,7 +8,8 @@
 //!
 //! Per spot and the side it covers:
 //! - the camper's map side is the spawn team whose spawns' middle is nearest the read's spawn centroid of his side;
-//! - a floor is seen when the spot's standing or crouched eye sees a point [`EXPOSED_TOP_M`] over it (a flanker crouched
+//! - a floor is seen when the spot's standing or crouched eye sees a crouched flanker's eye over it (`view::still_eye`,
+//!   the game's bullet origin: the head matrix `player+0x44C`, `weapon_core::instant_fire` 0x2E23A0; a flanker crouched
 //!   through the exposed metres: fx-grid's review);
 //! - starts: floors 40-90 m from the spot on the covered side's way from its spawns to the spot (a spawn nearer than that:
 //!   the spawn itself), 15 m apart, at most [`STARTS`];
@@ -33,10 +34,8 @@ use survarium::v026g::maps::RuleMode;
 use super::*;
 use crate::v026g::bots::camp_flank::{FlankTable, Origin, one_walk};
 use crate::v026g::bots::rays::visible;
-use crate::v026g::bots::view::{CHEST, still_eye};
+use crate::v026g::bots::view::still_eye;
 
-/// The height over a floor that the spot's eyes are tested against: a crouched flanker's top (fx-grid's review), m.
-const EXPOSED_TOP_M: f32 = 1.04;
 /// A written route point about every this, m (the loader walks straight between two).
 const POINT_GAP_M: f32 = 0.75;
 /// A seen floor's cost per metre over a hidden one's.
@@ -107,7 +106,8 @@ struct SpotSight<'w> {
 impl SpotSight<'_> {
     fn seen(&self, n: NodeId) -> bool {
         *self.seen.borrow_mut().entry(n).or_insert_with(|| {
-            let top = self.world.grid.position(n) + Vec3::new(0.0, EXPOSED_TOP_M, 0.0);
+            // A crouched flanker's eye there (the exe's head matrix, `view::eye_height`; 1.04 m still).
+            let top = still_eye(self.world.grid.position(n), true);
             self.eyes.iter().any(|&eye| (top - eye).length() <= 120.0 && visible(&self.world.sight, eye, top))
         })
     }
@@ -222,7 +222,8 @@ fn routes_of(world: &World, spot: &InSpot, camper_side: i32) -> (Vec<serde_json:
     let sight = SpotSight {
         world,
         eyes: [still_eye(feet, false), still_eye(feet, true)],
-        chest: feet + Vec3::new(0.0, CHEST, 0.0),
+        // What a flanker must see to fire on him: his standing eye (the exe's head matrix, `view::still_eye`).
+        chest: still_eye(feet, false),
         seen: RefCell::new(HashMap::new()),
     };
     let weight = |n: NodeId, extra: &HashMap<NodeId, f32>| {

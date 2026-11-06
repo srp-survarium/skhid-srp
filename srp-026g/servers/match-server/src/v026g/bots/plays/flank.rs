@@ -262,7 +262,7 @@ fn camp_spot_of(cx: &Ctx, line: &crate::v026g::bots::threat::HeldLine) -> Option
 /// ([`ROUTE_ON_M`]): `None` (skipped); else its risk, the metres of it within [`ROUTE_ENEMY_M`] of one of them or in his
 /// sight within [`ROUTE_ENEMY_SIGHT_M`], each weighed by how fresh the most recent such knowledge is.
 fn route_risk(cx: &Ctx, floors: &[mapdata::NodeId], camper: Place) -> Option<f32> {
-    use crate::v026g::bots::view::{CHEST, still_eye};
+    use crate::v026g::bots::view::still_eye;
     let grid = &cx.tactics.world.grid;
     let known: Vec<(Vec3, f32)> = cx
         .memory
@@ -293,7 +293,7 @@ fn route_risk(cx: &Ctx, floors: &[mapdata::NodeId], camper: Place) -> Option<f32
             .filter(|&&(e, _)| {
                 let d = e.distance_xz(p);
                 (d <= ROUTE_ENEMY_M && (e.y - p.y).abs() <= 4.0)
-                    || (d <= ROUTE_ENEMY_SIGHT_M && cx.tactics.sees(still_eye(e, false), p + Vec3::new(0.0, CHEST, 0.0)))
+                    || (d <= ROUTE_ENEMY_SIGHT_M && cx.tactics.sees(still_eye(e, false), still_eye(p, false)))
             })
             .map(|&(_, w)| w)
             .fold(0.0_f32, f32::max);
