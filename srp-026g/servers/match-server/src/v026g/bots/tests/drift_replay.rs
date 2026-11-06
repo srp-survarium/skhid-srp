@@ -141,6 +141,10 @@ fn drift_on_a_real_match() {
     // `SRP_A304_HOLD=1` [A318]: each 'faster' world the grid held the reckoning in (the client walked 1 m+ more than the keys meant):
     // the floor it was held on against the floor under the client's feet, and the grid's links between them.
     let hold_probe = var("SRP_A304_HOLD").is_some();
+    let trace: Option<(usize, u32, u32)> = var("SRP_A318_TRACE").and_then(|v| {
+        let mut it = v.split(',').map(|s| s.trim().parse::<u32>().ok());
+        Some((it.next()?? as usize, it.next()??, it.next()??))
+    });
     let mut hold_kinds: HashMap<&str, u32> = HashMap::new();
     for w in rows {
         while k < ticks.len() && ticks[k].0 <= w.time + WORLD_LATE_MS {
@@ -148,6 +152,17 @@ fn drift_on_a_real_match() {
             let track = tracks.entry(place).or_default();
             track.set_walls(arc_walls.clone());
             track.decided(time, keys, turn, 0.0, &kin, grid);
+            // `SRP_A318_TRACE=place,from,to` [A318]: that place's reckoned body after each of its ticks in the window.
+            if let Some((p, from, to)) = trace
+                && place == p
+                && (from..=to).contains(&time)
+                && let Some(e) = track.estimate()
+            {
+                eprintln!(
+                    "A318 trace {time} keys {keys:#x} feet ({:.2},{:.2},{:.2}) v ({:.2},{:.2}) node {:?} arc {:?}",
+                    e.feet.x, e.feet.y, e.feet.z, e.velocity[0], e.velocity[1], e.node, e.arc
+                );
+            }
             k += 1;
         }
         let track = tracks.entry(w.place).or_default();
@@ -156,6 +171,12 @@ fn drift_on_a_real_match() {
         let feet = w.fix.feet;
         let speed = w.fix.speed;
         let new_life = track.fixed(w.fix, &kin, grid);
+        if let Some((p, from, to)) = trace
+            && w.place == p
+            && (from..=to).contains(&w.time)
+        {
+            eprintln!("A318 trace {} WORLD feet {feet:?} reckoned {reckoned:?} arc after fix {:?}", w.time, track.estimate().map(|e| e.arc));
+        }
         let (Some(feet), Some(reckoned), Some(from), false) = (feet, reckoned, before, new_life) else {
             continue;
         };
