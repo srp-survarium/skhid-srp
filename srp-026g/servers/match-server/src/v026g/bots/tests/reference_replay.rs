@@ -114,6 +114,10 @@ fn reference_replay() {
     let world_blend: Option<f32> = var("SRP_A325_WORLD_BLEND").and_then(|v| v.parse().ok());
     // `SRP_A325_JUMP=1` (keys mode, fx-team): the client's jump played through the controller's air branch (see `RefJump`).
     let jump_mode = keys_mode && var("SRP_A325_JUMP").is_some();
+    // `SRP_A325_JUMP_CHASE=1`: the target keeps the clip's whole travel and the body chases it (JUMP-FINDINGS 1's reading); else the
+    // root is re-based on the body each tick (0x39F450, REFERENCE-RULES 'Root re-base', PROVEN for the walk): only the tick's root
+    // delta moves the body. The A/B of the two readings.
+    let jump_chase = var("SRP_A325_JUMP_CHASE").is_some();
     // `SRP_A325_ROWS_NEAR_JUMP=1`: the per-tick rows only of intervals within 2.5 s after a press (the checks stay whole): a
     // small output for the jump rows.
     let rows_near_jump = var("SRP_A325_ROWS_NEAR_JUMP").is_some();
@@ -280,7 +284,7 @@ fn reference_replay() {
         let mut jump: Option<RefJump> = None;
         let mut iv = String::new();
         if jump_mode && let Some(&p) = presses.iter().rev().find(|&&p| p < t0) {
-            let mut j = RefJump::new(p, keys_in(p), walk_speed(p.saturating_sub(50)), from);
+            let mut j = RefJump::new(p, keys_in(p), walk_speed(p.saturating_sub(50)), from, jump_chase);
             if j.frame(t0) < END_FRAME {
                 if j.frame(t0) >= TAKEOFF_FRAME {
                     j.phase = RefPhase::Air;
@@ -366,7 +370,7 @@ fn reference_replay() {
                 if jump_mode {
                     let k = t0 + 50 * (tick_n - 1);
                     if jump.is_none() && presses.contains(&k) && body.on_ground(&s) {
-                        jump = Some(RefJump::new(k, keys_in(k), v[0].hypot(v[1]), body.feet()));
+                        jump = Some(RefJump::new(k, keys_in(k), v[0].hypot(v[1]), body.feet(), jump_chase));
                     }
                     if let Some(j) = jump.as_mut() {
                         // The flat walk's cap applies on the floor (no jump flag yet), as the keys mode's.
@@ -464,7 +468,8 @@ enum RefPhase {
 /// - the clip: `Clip::of` (jump codes, `player_logic_jump_state::initialize` 0x337040) by the keys at the press and the speed;
 /// - the clip's time from the press: the sprint jump's prepare phase first (`PREPARE_MS`, LIKELY), then 30 frames a second times
 ///   its time scale (0x343C60, PROVEN);
-/// - the walk vector each tick: the target (the mixer's object transform, 0x39F360) minus the body
+/// - the walk vector each tick: the tick's root delta (the root re-based on the body each tick, 0x39F450; `chase`: the target, the
+///   mixer's object transform 0x39F360 with the clip's whole travel, minus the body)
 ///   (`set_physics_controller_walk_vector` 0x2D9060); the target moves by the clip's root delta of the tick, turned by the walk's
 ///   yaw (the old-yaw bake, `apply_rotation` 0x2D8AD0, as the keys mode); all three axes in the jump (0x2D91AC), the flat part
 ///   before;
@@ -480,11 +485,13 @@ struct RefJump {
     press: u32,
     target: Vec3,
     phase: RefPhase,
+    /// The target keeps the clip's whole travel (a body held back catches up); else it is re-based on the body each tick.
+    chase: bool,
 }
 
 impl RefJump {
-    fn new(press: u32, keys: u32, speed: f32, feet: Vec3) -> Self {
-        Self { clip: Clip::of(keys, speed), press, target: feet, phase: RefPhase::Floor }
+    fn new(press: u32, keys: u32, speed: f32, feet: Vec3, chase: bool) -> Self {
+        Self { clip: Clip::of(keys, speed), press, target: feet, phase: RefPhase::Floor, chase }
     }
 
     /// The clip's frame at `time` (ms), clamped to its end.
@@ -507,6 +514,9 @@ impl RefJump {
         }
         if f1 <= 0.0 {
             return false;
+        }
+        if !self.chase {
+            self.target = body.feet();
         }
         let (a, b) = (self.clip.root(f0), self.clip.root(f1));
         let d = super::super::kin::to_world([b[1] - a[1], -(b[2] - a[2])], yaw);
