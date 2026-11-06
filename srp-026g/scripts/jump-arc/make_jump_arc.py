@@ -356,8 +356,6 @@ impl JumpArc {
         // A wall: a ray at one of the heights meets the map within the move and the radius, or a floor top within the radius above
         // the feet by more than the catch and under the head.
         let blocked = |x: f32, z: f32| {
-            let (dx, dz) = (x - feet.x, z - feet.z);
-            let len = dx.hypot(dz);
             let rays = walls.is_some_and(|walls| rays_blocked(walls, feet, (x, z), y, radius));
             // The walker mesh's walls are the grid's floorless ground (the erosion round a wall): ground with no floor from the feet
             // (and the catch) down to `OPEN_BELOW_M` in any cell within `FLOORLESS_CELLS` of the target is a wall too. A ledge's lip
@@ -392,6 +390,10 @@ impl JumpArc {
             {
                 return ArcStep::Landed(on, Some(node));
             }
+        } else if let Some(on) = perch_along(grid, walls, feet, at, radius).filter(|on| on.y > y + 1e-3) {
+            // On the way up, an edge whose top is over the feet but within the catch cannot be passed over (the axis crosses an
+            // edge only with the feet at or over its top: JUMP-FINDINGS 1, ledge reach); the body comes to rest on it.
+            return ArcStep::Landed(on, None);
         }
         if over {
             self.phase = Phase::Fall { speed: 0.0 };
