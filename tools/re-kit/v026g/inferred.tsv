@@ -3225,3 +3225,11 @@ va	status	ref_021d	name
 0x00332cb0	inferred-medium		survarium::damage_model::pain_after_hit_listener
 0x0033fa80	inferred-medium		survarium::body_part_parameters::route_damage
 0x00201040	inferred-medium		survarium::game_options::deactivate
+0x00424ca0	inferred-high		_alloca_probe_16
+0x002d4850	inferred-high		survarium::timed_list::insert_before
+0x00245c50	inferred-high		survarium::delayed_callbacks_queue::destroy_range
+0x00018190	inferred-high		vostok::fs::native_path::format
+0x000dfe30	inferred-high		vostok::resources::queue_unmount
+0x000e0b50	inferred-high		vostok::shared_string::create
+0x000e0ae0	inferred-high		vostok::shared_string::destroy
+0x002d5d00	inferred-high		vostok::intrusive_list::unlink

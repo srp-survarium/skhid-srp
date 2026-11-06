@@ -98,6 +98,22 @@ done
 EOF
 chmod +x "$T/bin/srp-item-tables"
 export SRP_ITEM_TABLES_BIN=$T/bin/srp-item-tables
+# The exe patches' self-test (release.sh, step 2, after build-zip): its
+# arguments (the commit's checkout, the original exe) a line of
+# $TEST_DIR/selftest.args; $TEST_DIR/selftest-fails: a check fails.
+cat >"$T/bin/selftest" <<'EOF'
+#!/usr/bin/env bash
+printf '%s\n' "$*" >>"$TEST_DIR/selftest.args"
+echo "  ok    the PE parses"
+if [[ -e $TEST_DIR/selftest-fails ]]; then
+    echo "  FAIL  the default build: nothing of the original aims inside the bytes a write changed in .text; 0x265e73 -> (0x2845bf, 0x2845c3)"
+    printf '\n1 FAILED\n'
+    exit 1
+fi
+printf '\nall checks passed\n'
+EOF
+chmod +x "$T/bin/selftest"
+export SKHID_SELFTEST_BIN=$T/bin/selftest
 cat >"$T/bin/ssh" <<'EOF'
 #!/usr/bin/env bash
 # ssh [-o <option>]... <host> <command>: runs the command here.
@@ -1363,6 +1379,10 @@ check "release: ... made once in step 2 too, in its work folder" \
     grep -qE 'server-game-data\.db --dir .*/skhid-release\.[^/]*/item-tables$' "$T/item-tables.args"
 check "release: ... before anything is staged" bash -c \
     "t=\$(grep -n 'the item tables of it: made' <<<\"\$1\" | head -n 1 | cut -d: -f1); s=\$(grep -n '2. staging in the release folder' <<<\"\$1\" | head -n 1 | cut -d: -f1); test -n \"\$t\" -a -n \"\$s\" && ((t < s))" _ "$out"
+check "release: runs the exe patches' self-test once, of the commit built, on SKHID_GAME's survarium.exe" bash -c \
+    "test \$(wc -l <$T/selftest.args) = 1 && grep -qE '/zip/src $T/game/(game/)?binaries/x86/survarium\\.exe\$' $T/selftest.args"
+check "release: ... after build-zip, before anything is staged" bash -c \
+    "z=\$(grep -n '2. building the ZIP' <<<\"\$1\" | head -n 1 | cut -d: -f1); t=\$(grep -n 'the exe patches. self-test: all checks passed' <<<\"\$1\" | head -n 1 | cut -d: -f1); s=\$(grep -n '2. staging in the release folder' <<<\"\$1\" | head -n 1 | cut -d: -f1); test -n \"\$z\" -a -n \"\$t\" -a -n \"\$s\" && ((z < t && t < s))" _ "$out"
 check "release: ... says it all, and ends 0" bash -c "grep -q 'done     the PR merged (a merge commit): main has REVISION 12' <<<\"\$1\" && ! grep -q 'NOT COMPLETE' <<<\"\$1\"" _ "$out"
 check "release: no change of what a match computes: said, the replays' list as it was" bash -c \
     "grep -q 'replays: no change of what a match computes is marked (.*): recordings from revision 11 on stay watchable' <<<\"\$1\" && git -C $T/origin.git show main:srp-026g/crates/session/src/v026g/simulation_changes.tsv | grep -qx \$'11\tthe TDM end'" _ "$out"
@@ -1807,6 +1827,19 @@ run yes --minutes 2 --label it || true
 rm "$T/item-tables-panics"
 check "release: the item tables' tool failing on the server data stops before the swap" bash -c \
     "grep -q 'the item tables (srp-item-tables) of .*server-game-data.db: thread .main. panicked' <<<\"\$1\" && grep -q 'STOPPED before the swap' <<<\"\$1\"" _ "$out"
+check "release: ... before the go: plans no maintenance" test -z "$(admin_log)"
+check "release: ... stages nothing" nothing_staged
+check "release: ... leaves the live files as they were" test "$(tree)" = "$before"
+check "release: ... and makes no record" no_record 14
+
+# A check of the exe patches' self-test failing: stopped in step 2, before
+# anything is staged and before the go.
+: >"$T/state/admin.log"
+touch "$T/selftest-fails"
+run yes --minutes 2 --label st || true
+rm "$T/selftest-fails"
+check "release: a failed check of the exe patches' self-test stops before the swap" bash -c \
+    "grep -q \"the exe patches' self-test failed: 1 check(s), the first: the default build: nothing of the original aims inside\" <<<\"\$1\" && grep -q 'STOPPED before the swap' <<<\"\$1\"" _ "$out"
 check "release: ... before the go: plans no maintenance" test -z "$(admin_log)"
 check "release: ... stages nothing" nothing_staged
 check "release: ... leaves the live files as they were" test "$(tree)" = "$before"

@@ -80,7 +80,11 @@
 #      release/build-server-db (of the list), release/build-zip (--ref: the
 #      commit checked in step 1; --revision: the release's; --patches: the
 #      list, with the new patch, whose every patch the exe requires at its
-#      start: patch 49); checks the two files as release/deploy does (live:
+#      start: patch 49), then the exe patches' self-test of that commit
+#      (srp-026g/client-patches/selftest_026g.py, its Linux part, on
+#      $SKHID_GAME's survarium.exe, about 15 min: a failed check stops the
+#      release here; release/test.sh: $SKHID_SELFTEST_BIN); checks the two
+#      files as release/deploy does (live:
 #      and makes the item tables of the server data, srp-item-tables, so a
 #      tool failing on it stops here, before the go); makes the release
 #      folder $TARGET_DIR/release-rev<rev>-<UTC YYYYMMDD-HHMM>[-<label>] and
@@ -1538,6 +1542,7 @@ if ((DRY_RUN)); then
     say "[dry run] 2. build here: release/build-server-db${step_flags[*]:+ ${step_flags[*]}} --out $data"
     say "[dry run]    and: ${build_zip[*]}"
     if ((build_code)); then say "[dry run]    and the server's image of main's source (podman): $image"; fi
+    say "[dry run]    then the exe patches' self-test (selftest_026g.py, its Linux part) of that commit on $SKHID_GAME's survarium.exe: a failed check stops here"
     say "[dry run]    then the checks of release/deploy on both$( ((test_server)) || printf ", the item tables of the server data (srp-item-tables: a failure stops here)"), and the release folder:"
     stage_begin
     write_on live "cat > $REL_DIR/changed.txt" "$work/changed.txt"
@@ -1549,7 +1554,18 @@ else
     "$here/build-server-db" "${step_flags[@]}" --out "$data" </dev/null || die "build-server-db failed"
     progress "2. building the ZIP of $(git -C "$REPO" log -1 --format=%h "$main_commit") (release/build-zip)"
     "${build_zip[@]}" </dev/null 2>&1 | tee "$work/build-zip.log" || die "build-zip failed"
+    # The exe patches' self-test of the commit built (build-zip's worktree)
+    # on the original exe: a failed check stops here, before anything is
+    # staged.
+    original_exe=$SKHID_GAME/binaries/x86/survarium.exe
+    [[ -f $original_exe ]] || original_exe=$SKHID_GAME/game/binaries/x86/survarium.exe
+    progress "2. the exe patches' self-test of $(git -C "$REPO" log -1 --format=%h "$main_commit") (selftest_026g.py, about 15 min; log: $work/selftest.log)"
+    selftest_ok=1
+    run_selftest "$work/zip/src" "$original_exe" "$work/selftest.log" "$work/selftest" </dev/null || selftest_ok=0
     if [[ -d $work/zip/src ]]; then git -C "$REPO" worktree remove --force "$work/zip/src"; fi
+    rm -rf "$work/selftest"
+    ((selftest_ok)) || die "the exe patches' self-test failed: $(grep -cE '^  FAIL' "$work/selftest.log" || true) check(s), the first: $(grep -m 1 -E '^  FAIL' "$work/selftest.log" | sed 's/^  FAIL  *//' || true) (log: $work/selftest.log)"
+    say "the exe patches' self-test: $(tail -n 1 "$work/selftest.log")"
     planned_offer=$OFFERED
     check_release_files "$zip" "$data" "$rev" "$work"
     [[ $OFFERED == "$planned_offer" ]] ||

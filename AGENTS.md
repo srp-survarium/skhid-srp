@@ -108,7 +108,8 @@ TSV (one line per name, no bulk JSON). The client patches' own addresses and rea
   `tools/checks.tsv` with every input it reads; a changed file it reports as `not covered` has no
   check yet (docs need none).
 - Where it has no row yet, use the patch's own self-tests and Unicorn check or the movie's
-  Ruffle harness. Shell/docs/page-copy changes do not need game builds, Unicorn or unrelated
+  Ruffle harness (`selftest_026g.py` runs at a release, in `release/release.sh`: not during
+  development). Shell/docs/page-copy changes do not need game builds, Unicorn or unrelated
   server tests. World save/load changes also need `check_world_roundtrip_026g.py`. Reserve full
   suites for shared infrastructure changes that affect them or release validation.
 - Broaden checks only for a concrete dependency or failure; do not repeat passing checks without
