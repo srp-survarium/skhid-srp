@@ -1260,8 +1260,10 @@ pub(crate) fn real_bot_cost() {
                 game.set_speed_levels(&levels);
                 bots.set_speed_levels(&levels);
                 // [A331] The kit's computed speed factors, as the server hands them (`game/driven.rs`); the stand-in human has its own.
+                let computed = bots.tunings.match_wide().kin.level_source == super::kin::LevelSource::Computed;
                 for (place, profile) in roster.profiles.iter().enumerate() {
-                    if Some(place) != bots.bench_human
+                    if computed
+                        && Some(place) != bots.bench_human
                         && let Some(candidates) = survarium::v026g::bot_skills::profile_movement_candidates(profile, 0)
                     {
                         bots.set_speed_candidates(place, candidates);

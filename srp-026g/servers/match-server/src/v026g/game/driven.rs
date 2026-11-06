@@ -195,6 +195,10 @@ impl Walkers {
             .iter()
             .map(|profile| survarium::v026g::bot_skills::profile_movement_candidates(profile, 0))
             .collect();
+        // Only for the computed level ([`crate::v026g::bots::kin::LevelSource::Computed`]); else the measured one, as it was.
+        let computed_levels = tuning.kin.level_source == crate::v026g::bots::kin::LevelSource::Computed;
+        let speed_candidates: Vec<Option<Vec<f32>>> =
+            speed_candidates.into_iter().map(|c| c.filter(|_| computed_levels)).collect();
         let speed_kits = speed_candidates.iter().map(|c| c.as_ref().map(|_| 0u8)).collect();
         Some(Self {
             bots: Bots::new_with(

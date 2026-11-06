@@ -92,6 +92,8 @@ pub struct Kinematics {
     pub level_read: LevelRead,
     /// [A331] Whether the body's speed level is the one computed from its kit ([`LevelSource`]).
     pub level_source: LevelSource,
+    /// [A331] Whether a battery carrier sprints ([`CarrierSprint`]).
+    pub carrier_sprint: CarrierSprint,
     /// [A304] The flattest ramp face (degrees, the grid's ramp mark) [`SlopeSpeed::RampsGrade`] slows on: a floor whose mark is
     /// flatter counts as unmarked. 35 (the lab, 2026-11-05: Vostok Radar Station's and Chemical Plant's stairs carry 20-39 degree
     /// marks and the client climbs them at full speed; Cologne's slowing stairs are 45; 35 was better than 40 and 44). 20: every
@@ -167,6 +169,20 @@ pub enum LevelSource {
     /// [`LEVEL_REACH`] of the kit's values instead of 0.85..1.15. A body with no profile: [`Self::Measured`].
     #[default]
     Computed,
+}
+
+/// [A331] Whether a battery carrier sprints. The owner: "battery cariers cant sprint"; `can_sprint` 0x2DBF40 and the jump
+/// predicate 0x2FC230 refuse while the hands' item byte +0x388 != 0 (fx-review A332; that the take sets it for the battery was not
+/// found: LIKELY by the exe). A carrier then walks at the run's 3.5 x F x 0.95 where a sprinter went 5.0 x F.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum CarrierSprint {
+    /// As it was: a carrying bot may ask for a sprint, and a believed carrier's world keys sprint its reckoned body.
+    Allowed,
+    /// A carrying bot never asks for a sprint, and a believed carrier's world keys lose SPRINT (its body is run, its level read
+    /// against the run).
+    #[default]
+    Refused,
 }
 
 /// [A331] How near a world's speed level must be to one of the kit's computed values to be taken as that value: the A332 check's
@@ -381,6 +397,7 @@ impl Default for Kinematics {
             speed_cap: SpeedCap::Client,
             level_read: LevelRead::Settled,
             level_source: LevelSource::Computed,
+            carrier_sprint: CarrierSprint::Refused,
         }
     }
 }
