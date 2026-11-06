@@ -6,6 +6,9 @@ package
    import flash.display.MovieClip;
    import flash.display.Sprite;
    import flash.events.Event;
+   import flash.events.MouseEvent;
+   import flash.geom.Point;
+   import flash.geom.Rectangle;
    import flash.events.UncaughtErrorEvent;
    import flash.net.URLRequest;
    import flash.system.ApplicationDomain;
@@ -34,6 +37,9 @@ package
       private var inventory:*;
 
       private var box:*;
+
+      // ToolTip's container (the lobby's tipContainer)
+      private var tipLayer:Sprite;
 
       private var shop:*;
 
@@ -240,12 +246,16 @@ package
                   var all:Array = ["AK-74M","Rig A","Rig B","Vest","Mosin","Hood","Shoes"];
                   expect("",all,false);
                   require(tipShown(),"the tip is on the empty box");
-                  var lines:Array = String(tip().tipData.name).split("\n");
+                  var rows:Array = tip().tipData.rows as Array;
                   var keys:Array = ["bonus","level","faction","name","kind","all"];
-                  require(lines.join("|") == keys.map(function(k:String, i:int, a:Array):String
+                  require(rows != null && rows.map(function(r:Array, i:int, a:Array):String
                   {
-                     return ItemSearchText.DATA.english.ui["st_srp_inventory_search_tip_" + k];
-                  }).join("|"),"the tip's lines are the dictionary's: " + lines.join(" | "));
+                     return r.join(" / ");
+                  }).join("|") == keys.map(function(k:String, i:int, a:Array):String
+                  {
+                     var ui:Object = ItemSearchText.DATA.english.ui;
+                     return ui["st_srp_inventory_search_tip_" + k + "_example"] + " / " + ui["st_srp_inventory_search_tip_" + k];
+                  }).join("|"),"the tip's rows are the dictionary's: " + (rows == null ? "none" : rows.join(" | ")));
                   type("a");
                   require(!tipShown(),"no tip once something is typed");
                   type("");
@@ -280,8 +290,20 @@ package
                   expect("mosin",["Mosin"],false);
                   expect("mosni",["Mosin"],false);
                   expect("helmet",["Hood"],true);
+                  // a plain number is a part of a name, never a level (owner 2026-11-06)
+                  expect("10",[],false);
+                  expect("74",["AK-74M"],false);
+                  expect("+11 74",[],false);
+                  // the pointer over the empty box: the tip after the game's delay (300 ms)
+                  type("");
+                  tipLayer = new Sprite();
+                  addChild(tipLayer);
+                  domain.getDefinition("scaleform.clik.controls.ToolTip").tipContainer = tipLayer;
+                  tip().dispatchEvent(new MouseEvent(MouseEvent.MOUSE_OVER,true));
+                  wait = 40;
                   break;
                case 2:
+                  checkTipLayout();
                   // the shop: its items with their built-in modifications only
                   inventory.toggleShopMode(true);
                   inventory.filterItems(null);
@@ -307,16 +329,16 @@ package
                   expect(hint[1],null,false,name + " hint");
                   expect(hint[2],["AK-74M","Rig A","Hood"],false,name + " hint");
                   // the tip's examples
-                  var bonus:Array = plusWords(t.st_srp_inventory_search_tip_bonus);
+                  var bonus:Array = plusWords(t.st_srp_inventory_search_tip_bonus_example);
                   for each(var w:String in bonus)
                   {
                      expect(w,null,false,name + " tip");
                   }
-                  expect(plusWords(t.st_srp_inventory_search_tip_faction)[0],["AK-74M","Vest"],false,name + " tip");
-                  var kinds:Array = String(t.st_srp_inventory_search_tip_kind).split(":")[0].split(", ");
+                  expect(plusWords(t.st_srp_inventory_search_tip_faction_example)[0],["AK-74M","Vest"],false,name + " tip");
+                  var kinds:Array = String(t.st_srp_inventory_search_tip_kind_example).split(", ");
                   expect(kinds[0],["Hood"],true,name + " tip");
                   expect(kinds[1],["Shoes"],true,name + " tip");
-                  var every:String = String(t.st_srp_inventory_search_tip_all).split(":")[0];
+                  var every:String = String(t.st_srp_inventory_search_tip_all_example);
                   expect(every,[],false,name + " tip");
                   // the English words in every language
                   expect("+ammo +pocket",["Rig B"],false,name);
@@ -370,18 +392,23 @@ package
          require(ok,what + " \"" + text + "\" lists " + shown.join(", ") + ", not " + (names == null ? "something" : names.join(", ")));
       }
 
-      private static function find(c:*, type:Class) : *
+      // The first child (at any depth) of a type; with `all`, every one put in it.
+      private static function find(c:*, type:Class, all:Array = null) : *
       {
          for(var i:int = 0; i < c.numChildren; i++)
          {
             var child:* = c.getChildAt(i);
             if(child is type)
             {
-               return child;
+               if(all == null)
+               {
+                  return child;
+               }
+               all.push(child);
             }
             if(child is flash.display.DisplayObjectContainer)
             {
-               var found:* = find(child,type);
+               var found:* = find(child,type,all);
                if(found != null)
                {
                   return found;
@@ -389,6 +416,77 @@ package
             }
          }
          return null;
+      }
+
+      // The tip shown (in tipLayer, ToolTip's container): the game's renderer, just above the box,
+      // their left edges together; its rows two columns, the right one's at one x, evenly spaced,
+      // the padding the same on every side.
+      private function checkTipLayout() : void
+      {
+         require(tipLayer.numChildren == 1,"the tip shows over the empty box (" + tipLayer.numChildren + " shown)");
+         if(tipLayer.numChildren != 1)
+         {
+            return;
+         }
+         var renderer:* = tipLayer.getChildAt(0);
+         var shape:Rectangle = renderer.getBounds(tipLayer);
+         var at:Rectangle = box.getBounds(tipLayer);
+         trace("ITEMSEARCH tip at " + shape + ", the box at " + at);
+         require(Math.abs(shape.left - at.left) <= 1,"the tip's left edge (" + shape.left + ") on the box's (" + at.left + ")");
+         require(shape.bottom <= at.top,"the tip (to " + shape.bottom + ") above the box (from " + at.top + ")");
+         var cells:Array = [];
+         find(renderer,TextField,cells);
+         cells = cells.filter(function(c:TextField, i:int, a:Array):Boolean
+         {
+            return c.visible && c.text != "";
+         });
+         require(cells.length == 12,"the tip has 6 rows of 2 cells (" + cells.length + " cells)");
+         if(cells.length != 12)
+         {
+            return;
+         }
+         // each cell's text in the layer: [left, top, right, bottom] (a field's text starts 2 in)
+         var text:Array = cells.map(function(c:TextField, i:int, a:Array):Array
+         {
+            var p:Point = tipLayer.globalToLocal(c.localToGlobal(new Point(2,2)));
+            var q:Point = tipLayer.globalToLocal(c.localToGlobal(new Point(2 + c.textWidth,2 + c.textHeight)));
+            return [p.x,p.y,q.x,q.y];
+         });
+         var lefts:Array = [];
+         var rights:Array = [];
+         for(var i:int = 0; i < 12; i += 2)
+         {
+            lefts.push(text[i]);
+            rights.push(text[i + 1]);
+         }
+         var widest:Number = 0;
+         for(i = 0; i < 6; i++)
+         {
+            require(Math.abs(lefts[i][0] - lefts[0][0]) <= 0.5,"the examples start at one x (" + lefts[i][0] + ", " + lefts[0][0] + ")");
+            require(Math.abs(rights[i][0] - rights[0][0]) <= 0.5,"the meanings start at one x (" + rights[i][0] + ", " + rights[0][0] + ")");
+            require(Math.abs(rights[i][1] - lefts[i][1]) <= 0.5,"row " + i + "'s cells on one line");
+            widest = Math.max(widest,lefts[i][2]);
+            if(i > 0)
+            {
+               var step:Number = lefts[i][1] - lefts[i - 1][1];
+               require(Math.abs(step - (lefts[1][1] - lefts[0][1])) <= 0.5,"the rows evenly spaced (" + step + ")");
+            }
+         }
+         require(rights[0][0] > widest + 8,"the meanings (from " + rights[0][0] + ") clear of the widest example (to " + widest + ")");
+         var right:Number = 0;
+         for each(var r:Array in rights)
+         {
+            right = Math.max(right,r[2]);
+         }
+         var pads:Array = [lefts[0][0] - shape.left,lefts[0][1] - shape.top,shape.right - right,shape.bottom - lefts[5][3]];
+         trace("ITEMSEARCH tip padding left, top, right, bottom: " + pads.map(function(p:Number, i:int, a:Array):String
+         {
+            return p.toFixed(1);
+         }).join(", "));
+         for each(var pad:Number in pads)
+         {
+            require(Math.abs(pad - pads[0]) <= 1,"the tip's padding even on every side (" + pads.join(", ") + ")");
+         }
       }
 
       private function tip() : *

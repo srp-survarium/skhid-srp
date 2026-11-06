@@ -2459,12 +2459,18 @@ st_srp_inv_pocket_units	Taskupaikat
 st_srp_inv_stamina_damage	Kestävyysvahinko
 st_srp_inv_throw_speed	Heittonopeus
 st_srp_inventory_search	Hae: nimi, +ammus, +tasku, +10
-st_srp_inventory_search_tip_all	ak +10 +ammus: kaikki kerralla
-st_srp_inventory_search_tip_bonus	+ammus +tasku: on jokainen mainittu bonus
-st_srp_inventory_search_tip_faction	+armeija: tämän ryhmittymän myymä (monta: mikä tahansa)
-st_srp_inventory_search_tip_kind	kypärä, saappaat: tämän tyyppinen esine
-st_srp_inventory_search_tip_level	+10 +11: jokin näistä tasoista
-st_srp_inventory_search_tip_name	ak 74: nimessä, kirjoitusvirheet sallitaan
+st_srp_inventory_search_tip_all	kaikki kerralla
+st_srp_inventory_search_tip_all_example	ak +10 +ammus
+st_srp_inventory_search_tip_bonus	on jokainen mainittu bonus
+st_srp_inventory_search_tip_bonus_example	+ammus +tasku
+st_srp_inventory_search_tip_faction	tämän ryhmittymän myymä (monta: mikä tahansa)
+st_srp_inventory_search_tip_faction_example	+armeija
+st_srp_inventory_search_tip_kind	tämän tyyppinen esine
+st_srp_inventory_search_tip_kind_example	kypärä, saappaat
+st_srp_inventory_search_tip_level	jokin näistä tasoista
+st_srp_inventory_search_tip_level_example	+10 +11
+st_srp_inventory_search_tip_name	nimessä, kirjoitusvirheet sallitaan
+st_srp_inventory_search_tip_name_example	ak 74
 st_srp_item_props_mps	m/s
 st_srp_language_option	Kieli:
 st_srp_language_restart	Vaatii uudelleenkäynnistyksen.

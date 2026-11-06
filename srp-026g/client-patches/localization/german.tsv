@@ -2459,12 +2459,18 @@ st_srp_inv_pocket_units	Taschenplätze
 st_srp_inv_stamina_damage	Ausdauerschaden
 st_srp_inv_throw_speed	Wurfgeschwindigkeit
 st_srp_inventory_search	Suche: Name, +Patronen, +Tasche, +10
-st_srp_inventory_search_tip_all	ak +10 +Patronen: alles zugleich
-st_srp_inventory_search_tip_bonus	+Patronen +Tasche: hat jeden genannten Bonus
-st_srp_inventory_search_tip_faction	+Arme: von dieser Fraktion verkauft (mehrere: eine davon)
-st_srp_inventory_search_tip_kind	helmet, boots: diese Art Gegenstand
-st_srp_inventory_search_tip_level	+10 +11: in einer dieser Stufen
-st_srp_inventory_search_tip_name	ak 74: im Namen, Tippfehler verziehen
+st_srp_inventory_search_tip_all	alles zugleich
+st_srp_inventory_search_tip_all_example	ak +10 +Patronen
+st_srp_inventory_search_tip_bonus	hat jeden genannten Bonus
+st_srp_inventory_search_tip_bonus_example	+Patronen +Tasche
+st_srp_inventory_search_tip_faction	von dieser Fraktion verkauft (mehrere: eine davon)
+st_srp_inventory_search_tip_faction_example	+Arme
+st_srp_inventory_search_tip_kind	diese Art Gegenstand
+st_srp_inventory_search_tip_kind_example	helmet, boots
+st_srp_inventory_search_tip_level	in einer dieser Stufen
+st_srp_inventory_search_tip_level_example	+10 +11
+st_srp_inventory_search_tip_name	im Namen, Tippfehler verziehen
+st_srp_inventory_search_tip_name_example	ak 74
 st_srp_item_props_mps	m/s
 st_srp_language_option	Sprache:
 st_srp_language_restart	Gilt nach einem Neustart.

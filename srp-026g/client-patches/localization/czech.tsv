@@ -2459,12 +2459,18 @@ st_srp_inv_pocket_units	Místa v kapse
 st_srp_inv_stamina_damage	Poškození výdrže
 st_srp_inv_throw_speed	Rychlost hodu
 st_srp_inventory_search	Hledat: název, +sumky, +kapes, +10
-st_srp_inventory_search_tip_all	ak +10 +sumky: vše najednou
-st_srp_inventory_search_tip_bonus	+sumky +kapes: má každý uvedený bonus
-st_srp_inventory_search_tip_faction	+armáda: prodává ta frakce (více: kterákoli)
-st_srp_inventory_search_tip_kind	helma, boty: tento druh předmětu
-st_srp_inventory_search_tip_level	+10 +11: jakékoli z těchto úrovní
-st_srp_inventory_search_tip_name	ak 74: v názvu, překlepy se odpouštějí
+st_srp_inventory_search_tip_all	vše najednou
+st_srp_inventory_search_tip_all_example	ak +10 +sumky
+st_srp_inventory_search_tip_bonus	má každý uvedený bonus
+st_srp_inventory_search_tip_bonus_example	+sumky +kapes
+st_srp_inventory_search_tip_faction	prodává ta frakce (více: kterákoli)
+st_srp_inventory_search_tip_faction_example	+armáda
+st_srp_inventory_search_tip_kind	tento druh předmětu
+st_srp_inventory_search_tip_kind_example	helma, boty
+st_srp_inventory_search_tip_level	jakékoli z těchto úrovní
+st_srp_inventory_search_tip_level_example	+10 +11
+st_srp_inventory_search_tip_name	v názvu, překlepy se odpouštějí
+st_srp_inventory_search_tip_name_example	ak 74
 st_srp_item_props_mps	m/s
 st_srp_language_option	Jazyk:
 st_srp_language_restart	Projeví se po restartu.

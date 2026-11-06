@@ -50,18 +50,28 @@ Code, in `flash/lobby_menu/src` ([lobby-source.md](lobby-source.md)):
     has no italic and the game takes "Calibri Bold Italic" from the system's fonts, so under Wine
     without Calibri the hints (the friends search's too) showed as squares.
 - **The tip** (owner 2026-11-06): while the box is empty, hovering it or its magnifier shows the
-  game's tooltip (the one of the shop's "Hide owned", a line each, `ReasonsTip`) of all the
-  search takes, one short line each with an example, bonuses first:
-  - `+ammo +pocket`: has each bonus named;
-  - `+10 +11`: of any of these levels;
-  - `+army`: sold by that faction (several: any);
-  - `ak 74`: in the name, typos forgiven;
-  - `helmet, boots`: that kind of item;
-  - `ak +10 +ammo`: all of these at once.
+  game's tooltip (the one of the shop's "Hide owned", `ReasonsTip`) of all the search takes, a row
+  each, bonuses first:
 
-  Once something is typed there is no tip; a click on the empty box is a click on the box. Each
-  line is a dictionary key (`st_srp_inventory_search_tip_*`), its examples the language's own
-  words that find what they say.
+  | example | meaning |
+  | --- | --- |
+  | `+ammo +pocket` | has each bonus named |
+  | `+10 +11` | of any of these levels |
+  | `+army` | sold by that faction (several: any) |
+  | `ak 74` | in the name, typos forgiven |
+  | `helmet, boots` | that kind of item |
+  | `ak +10 +ammo` | all of these at once |
+
+  - **Two columns** (owner 2026-11-06: "it could have been aligned way better"): the examples on
+    the left, the meanings on the right, all starting at one x; no colons; the rows evenly spaced,
+    the padding the same on every side. Each cell is a text field of the tooltip's own font, laid
+    out in the game's tooltip (`ReasonsTip`, `tipData.rows`).
+  - **Where:** just above the box (it is under the item grid), its left edge on the box's left
+    edge, never over the item panel's buttons (Buy, Hide owned); it does not follow the pointer.
+  - Once something is typed there is no tip; a click on the empty box is a click on the box.
+  - Each cell is a dictionary key (`st_srp_inventory_search_tip_<row>_example`,
+    `st_srp_inventory_search_tip_<row>`), its examples the language's own words that find what they
+    say.
 - **Every resolution:** the box is part of the list, and the lobby scales the list (4K: #279).
 
 ## What it finds
@@ -80,9 +90,8 @@ Code, in `flash/lobby_menu/src` ([lobby-source.md](lobby-source.md)):
   - Cyrillic counts as Latin letters, so "ak" finds АК-74М, "мосин" finds Mosin-Nagant, and a
     Ukrainian name finds its Russian spelling;
   - spaces and punctuation do not count, so "ak74" finds AK-74M.
-- **A number first is a level** (owner 2026-10-22): "15" or "15 ak" lists the items of
-  equipment level 15 first, then the names with 15 in them ("74" still finds the AK-74). Only the
-  first word; a number later is a part of the name.
+- **A number is a part of the name** ("74" finds the AK-74; owner 2026-11-06: until then a number
+  first listed that level first). A level is only `+<number>`.
 - **A word naming a kind** (owner 2026-10-22), or its start from 3 letters on, lists the items of
   that kind first, whatever their names: gear / equipment (all equipment), items, helmet, mask,
   body / armour / vest, rig, gloves, pants / trousers, boots; in Ukrainian and Russian too
@@ -109,7 +118,8 @@ the owner: "levels should also become +1 +10". A word starting with "+" (to the 
 `+10+11` is two) is a filter. The text is read once into levels, factions, bonuses and the name's
 words (`SearchQuery`).
 
-- **`+<number>` is an item level** (the card's equipment level), anywhere in the text.
+- **`+<number>` is an item level** (the card's equipment level), anywhere in the text: the only
+  level filter (`+14`; a plain `14` is a part of a name).
 - **`+<word>` names a faction** when a seller tab's name (as the lobby shows it) has a word starting
   with it: `+army`, `+black`, `+scav`, `+independent`. A word naming a faction is a faction, never a
   bonus.
@@ -130,12 +140,12 @@ words (`SearchQuery`).
   an ammo bonus.
 - **A "+" word is a filter, never fuzzy:** no loose or typo match (`+amo` is not ammo). A `+word`
   naming nothing lists nothing. A "+" alone is nothing typed.
-- **The rest stays:** the name words rank as before (a plain number first is a level first), the
+- **The rest stays:** the name words rank as before (a plain number is a part of the name), the
   list's own filters, tabs and seller still apply, and with filters only the list keeps its own
   order.
 - **Checked** by `scripts/item-search/check.sh <lobby_menu.swf>` (Ruffle, the movie's own list):
   the rules above, and in every language the hint on one line in the box and each of its and the
-  tip's examples finding what they name.
+  tip's examples finding what they name. The tip's place and columns are measured too.
 
 ## Closing, Esc, Enter, the other keys
 

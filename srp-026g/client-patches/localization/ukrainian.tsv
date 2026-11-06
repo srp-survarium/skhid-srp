@@ -2459,12 +2459,18 @@ st_srp_inv_pocket_units	Місце в кишені
 st_srp_inv_stamina_damage	Шкода витривалості
 st_srp_inv_throw_speed	Швидкість кидка
 st_srp_inventory_search	Пошук: назва, +набої, +кишень, +10
-st_srp_inventory_search_tip_all	ак +10 +набої: усе разом
-st_srp_inventory_search_tip_bonus	+набої +кишень: є кожен названий бонус
-st_srp_inventory_search_tip_faction	+армія: продає ця фракція (кілька: будь-яка)
-st_srp_inventory_search_tip_kind	шолом, черевики: такий вид предмета
-st_srp_inventory_search_tip_level	+10 +11: будь-якого з цих рівнів
-st_srp_inventory_search_tip_name	ак 74: у назві, помилки прощаються
+st_srp_inventory_search_tip_all	усе разом
+st_srp_inventory_search_tip_all_example	ак +10 +набої
+st_srp_inventory_search_tip_bonus	є кожен названий бонус
+st_srp_inventory_search_tip_bonus_example	+набої +кишень
+st_srp_inventory_search_tip_faction	продає ця фракція (кілька: будь-яка)
+st_srp_inventory_search_tip_faction_example	+армія
+st_srp_inventory_search_tip_kind	такий вид предмета
+st_srp_inventory_search_tip_kind_example	шолом, черевики
+st_srp_inventory_search_tip_level	будь-якого з цих рівнів
+st_srp_inventory_search_tip_level_example	+10 +11
+st_srp_inventory_search_tip_name	у назві, помилки прощаються
+st_srp_inventory_search_tip_name_example	ак 74
 st_srp_item_props_mps	м/с
 st_srp_language_option	Мова:
 st_srp_language_restart	Застосується після перезапуску.

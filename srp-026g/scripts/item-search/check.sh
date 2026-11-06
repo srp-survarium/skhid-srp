@@ -31,8 +31,9 @@ import json, sys
 from pathlib import Path
 sys.path.insert(0, sys.argv[1])
 from localization_026g import CATALOG, LANGUAGES, read_translations
-SEARCH = ['st_srp_inventory_search'] + [f'st_srp_inventory_search_tip_{part}'
-                                         for part in ('bonus', 'level', 'faction', 'name', 'kind', 'all')]
+SEARCH = ['st_srp_inventory_search'] + [f'st_srp_inventory_search_tip_{part}{suffix}'
+                                         for part in ('bonus', 'level', 'faction', 'name', 'kind', 'all')
+                                         for suffix in ('', '_example')]
 FACTIONS = {1: 'st_scavengers_faction', 2: 'st_black_market_faction', 3: 'st_renaissance_faction',
             4: 'st_border_faction'}
 PROPS = {3: 'st_inv_arp', 6: 'st_inv_armor', 9: 'st_inv_artefact_slots', 10: 'st_inv_device_slots',

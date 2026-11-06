@@ -204,11 +204,6 @@ package survarium.controls
       // letters in order (less the further apart), with typos (less for each).
       private static const MATCH_START:int = 400;
       
-      // A number as the first word is the item's level first (owner 2026-10-22): an item of that
-      // level matches it above any name, so "15" lists the level 15 items first (then the names
-      // with 15 in them, as "74" still finds the AK-74).
-      private static const MATCH_LEVEL:int = 1000;
-      
       // A word naming a kind of item (owner 2026-10-22), or its start from 3 letters on, matches
       // the items of that kind above any name: [the words, the category, or with group the super
       // category]. The words of every language match, whatever the game's language (search words,
@@ -295,8 +290,9 @@ package survarium.controls
       
       private var _searchIcon:Sprite;
 
-      // While the box is empty, the game's tooltip over the box and its magnifier: what the search
-      // takes, a line each (SEARCH_TIP). Off the list once something is typed (showSearchTip).
+      // While the box is empty, the game's tooltip over the box and its magnifier, just above the
+      // box: what the search takes, a row each (SEARCH_TIP: <key>_example and <key>, two columns).
+      // Off the list once something is typed (showSearchTip).
       private var _searchTip:Sprite;
 
       private var _searchTipArea:ReasonsTip;
@@ -2304,10 +2300,11 @@ package survarium.controls
          this.checkboxCompareItems.tipData = {name:LocalizationData.getName("checkbox_compare_items_hint")};
          this.shopTab.dataProvider = new DataProvider([LocalizationData.getName("filter_shop_and_inventory"),LocalizationData.getName("filter_shop"),LocalizationData.getName("filter_inventory")]);
          this._searchBox.defaultText = LocalizationData.getName("st_srp_inventory_search");
-         this._searchTipArea.tipData = {name:SEARCH_TIP.map(function(key:String, i:int, a:Array):String
+         // name: the renderer's own text (TextTipRenderer.invalidateData), none beside the rows
+         this._searchTipArea.tipData = {name:"",rows:SEARCH_TIP.map(function(key:String, i:int, a:Array):Array
          {
-            return LocalizationData.getName(key);
-         }).join("\n")};
+            return [LocalizationData.getName(key + "_example"),LocalizationData.getName(key)];
+         })};
          this._ownedToggle.tipData = {name:LocalizationData.getName("st_srp_shop_not_owned_hint")};
          this.placeOwnedToggle();
       }
@@ -2341,6 +2338,8 @@ package survarium.controls
          this._searchTipArea.graphics.drawRect(0,0,w,h);
          this._searchTipArea.graphics.endFill();
          this._searchTipArea.focusable = false;
+         // just above the box, its left edge on the box's: off the item panel's buttons below
+         this._searchTipArea.anchor = this._searchBox;
          this._searchTip.addChild(this._searchTipArea);
          this._searchTip.addEventListener(MouseEvent.CLICK,this.onSearchIcon);
          addChild(this._searchTip);
@@ -2722,8 +2721,8 @@ package survarium.controls
       private var _searchLoose:Boolean;
       
       // An item against the text typed: 0 when a "+" word leaves it out (searchAdmits) or a word of
-      // the name does not match; else 1 and each name word's match (its name's; a number first,
-      // its level's too).
+      // the name does not match; else 1 and each name word's match (a kind's, else its name's: a
+      // number is a part of the name, a level only as "+<number>", owner 2026-11-06).
       private function searchScore(item:Object) : int
       {
          _searchLoose = false;
@@ -2743,7 +2742,7 @@ package survarium.controls
          for(var i:int = 0; i < words.length; i++)
          {
             var word:String = words[i];
-            var score:int = i == 0 && /^[0-9]+$/.test(word) && item.itemLevel != null && int(item.itemLevel) == int(word) ? MATCH_LEVEL : (kindOf(word,item) ? MATCH_KIND : wordScore(word,form[0],form[1]));
+            var score:int = kindOf(word,item) ? MATCH_KIND : wordScore(word,form[0],form[1]);
             if(score == 0)
             {
                return 0;
