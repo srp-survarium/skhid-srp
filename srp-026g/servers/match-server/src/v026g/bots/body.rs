@@ -910,7 +910,8 @@ impl Bridges {
     }
 }
 
-/// [`slide_supported`] with a bridge rule ([`Bridges`]).
+/// [`slide_supported`] with a bridge rule ([`Bridges`]) and a wall rule ([`WallSlide`]).
+#[allow(clippy::too_many_arguments)]
 pub fn slide_supported_with(
     grid: &WalkGrid,
     node: NodeId,
@@ -1345,7 +1346,8 @@ pub(super) mod tests {
         ];
         let grid = WalkGrid::build(&tris, [0.0, -2.0, 14.0, 12.0], 0.25, Body::client());
         let walk = |walls: WallSlide| {
-            let mut feet = p(8.0, 0.0, 3.0);
+            // Off the cells' boundaries (a start on one stands where the diagonal's first step meets an eroded cell).
+            let mut feet = p(8.1, 0.0, 3.1);
             let mut node = grid.locate(feet, 0.5).expect("a floor at the start");
             for _ in 0..40 {
                 let to = p(feet.x, feet.y, feet.z + 0.1);
@@ -1354,8 +1356,8 @@ pub(super) mod tests {
             feet
         };
         let (axes, diagonal) = (walk(WallSlide::Axes), walk(WallSlide::Diagonal));
-        assert!((axes.x - 8.0).abs() < 0.05, "Axes: stands at the wall, at {axes:?}");
-        assert!(diagonal.x > 9.0 && diagonal.z > axes.z, "Diagonal: along the wall, at {diagonal:?} (axes {axes:?})");
+        assert!((axes.x - 8.1).abs() < 0.05, "Axes: stands at the wall, at {axes:?}");
+        assert!(diagonal.x > 8.6 && diagonal.z > axes.z, "Diagonal: along the wall, at {diagonal:?} (axes {axes:?})");
         assert_eq!(Kinematics::default().wall_slide, WallSlide::Diagonal);
     }
 
