@@ -54,7 +54,10 @@ window keeping its size.
   - Prefer the dedicated GPU, on by default: no line in user.cfg is on (`srp_dxvk_dedicated_gpu`) ->
     `dxvk.hideIntegratedGraphics = True`. DXVK 3.1.1 hides the integrated GPUs only when it finds a
     dedicated one too (`dxvk_instance.cpp`: `numDGPU > 0 && numIGPU > 0`), so a PC with an
-    integrated GPU alone keeps it; nothing to check on our side.
+    integrated GPU alone keeps it; nothing to check on our side. It counts only the devices it can
+    use: one under Vulkan 1.4 is skipped before (`dxvk_device_filter.cpp` testAdapter,
+    `dxvk_device_info.cpp` checkDeviceCompatibility), so an integrated GPU of 1.4 beside a dedicated one
+    of 1.3 is kept too.
   - An option off is DXVK's default, not named. The game's own anisotropic filtering, FXAA and
     vsync settings stay the game's.
 - **Settings:** the five and the Renderer list are one change of the tab: a change is pending
@@ -67,7 +70,8 @@ window keeping its size.
   first device; a value of 260 characters or more reads as none (all five: 158). The variable is
   set (empty with every option off) whatever the player's own environment has; a `dxvk.conf` in
   `binaries\x86` and `DXVK_HUD` still add to it, as DXVK reads them.
-- `srp_patches.log` says what was given: `dxvk: DXVK_CONFIG "<value>"`. Nothing changes in a running
+- `srp_patches.log` says what was given: `dxvk: DXVK_CONFIG "<value>"` (an option is written whole or
+  not at all; one left out for want of room, none ever with these five, is counted on the line). Nothing changes in a running
   game; DirectX 11 runs ignore the five.
 
 ## The files

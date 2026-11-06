@@ -839,6 +839,13 @@ package
             require(settings.closePanel() && panel.stage == null && settings.visible,
                 "Vulkan options: Esc closes the panel, the window stays");
             require(!settings.closePanel(), "Vulkan options: Esc with no panel open is the window's");
+            // a list of the panel open: closing the panel (Esc, the window hidden, DirectX 11 picked) closes it too
+            click(row);
+            controls[1].open();
+            require(openList(content.stage) != null, "Vulkan options: the overlay list opens");
+            settings.closePanel();
+            require(panel.stage == null && openList(content.stage) == null && !controls[1].selected,
+                "Vulkan options: Esc with a list of the panel open closes the list with the panel");
             // DirectX 11 picked while it is open: closed, greyed
             click(row);
             pick(list, 0);

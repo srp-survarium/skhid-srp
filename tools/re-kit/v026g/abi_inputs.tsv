@@ -5623,3 +5623,5 @@ va	name	location	role	basis
 0x0033fa80	survarium::body_part_parameters::route_damage	entry ESP+8	the damage after the zone's armour and listeners (hit_by_type's frame value, not hit_info +34h)	observed
 0x001f3c70	survarium::player::generate_hit_event	entry ESP+14h	the pain the victim lost in the hit: the hit marker adds it over pain's maximum to the inflicted_damage_collector (+8), at most 1	observed
 0x00332940	survarium::damage_model::second_chance	EDI	the damage model +3B8h: +0 the model, +4 the armed flag (only ever cleared in 0.26g), a hit past modifier 54 of the maximum and the health leaves modifier 55	observed
+0x002614e0	survarium::options_item_float::initialize	ECX	the float option item (vtable 0xA06728: the video options' option 7, "fov")	observed
+0x002616e0	survarium::options_item_float::apply	ECX	the float option item (vtable 0xA06728)	observed

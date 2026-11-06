@@ -58,7 +58,8 @@ use crate::vostok::language::ConsoleString;
 use crate::vostok::log::{Piece::*, line};
 use crate::vostok::renderer::{DelayedImport, Vulkan, VulkanVersion, best_vulkan, bind_delayed_import, exists_beside_exe,
                               is_loaded, load_beside_exe, set_environment, with_user_cfg};
-use crate::vostok::settings::{ConsoleBool, FieldOfView, OptionsCall, create_file, delete_file, file_exists, save_user_config};
+use crate::vostok::settings::{ConsoleBool, FieldOfView, OptionsCall, SliderSteps, create_file, delete_file, file_exists,
+                              save_user_config};
 use crate::vostok::{Context, Flow, GameCell, GameWorldUi, HudOptionsOnOptionsCallExit, NoExit, Thread};
 
 /// A Settings checkbox kept in user.cfg as `<name> on|off`: the Settings ask
@@ -67,7 +68,6 @@ use crate::vostok::{Context, Flow, GameCell, GameWorldUi, HudOptionsOnOptionsCal
 pub struct Setting {
     pub name: &'static CStr,
     pub label: &'static CStr,
-    default: bool,
     value: ConsoleBool,
 }
 
@@ -77,7 +77,7 @@ impl Setting {
     }
 
     const fn with(name: &'static CStr, label: &'static CStr, default: bool) -> Setting {
-        Setting { name, label, default, value: ConsoleBool::with(default) }
+        Setting { name, label, value: ConsoleBool::with(default) }
     }
 
     fn on(&self, thread: &Thread) -> bool {
@@ -90,7 +90,7 @@ impl Setting {
         match user_cfg_word(text, self.name) {
             Some(b"on") => true,
             Some(b"off") => false,
-            _ => self.default,
+            _ => self.value.initial(),
         }
     }
 }
@@ -130,12 +130,12 @@ static OVERLAY_SAVED: ConsoleString<16> = ConsoleString::new();
 
 /// A list choice's text: a dictionary key, or the text itself (a number).
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub enum Text {
+pub enum ChoiceText {
     Key(&'static CStr),
     Plain(&'static CStr),
 }
 
-const OFF: Text = Text::Key(c"st_srp_vulkan_off");
+const OFF: ChoiceText = ChoiceText::Key(c"st_srp_vulkan_off");
 
 /// A list's choices: each one's word in user.cfg and its text. The first is
 /// the default (no line, another word).
@@ -145,7 +145,7 @@ pub trait ListChoice: Copy + Eq + 'static {
 
     fn word(self) -> &'static CStr;
 
-    fn text(self) -> Text;
+    fn text(self) -> ChoiceText;
 
     fn of_word(word: Option<&[u8]>) -> Self {
         Self::ALL.iter().copied().find(|c| Some(c.word().to_bytes()) == word).unwrap_or(Self::ALL[0])
@@ -191,10 +191,10 @@ impl ListChoice for FrameLimit {
         }
     }
 
-    fn text(self) -> Text {
+    fn text(self) -> ChoiceText {
         match self {
             FrameLimit::Off => OFF,
-            limit => Text::Plain(limit.word()),
+            limit => ChoiceText::Plain(limit.word()),
         }
     }
 }
@@ -220,12 +220,12 @@ impl ListChoice for Overlay {
         }
     }
 
-    fn text(self) -> Text {
+    fn text(self) -> ChoiceText {
         match self {
             Overlay::Off => OFF,
-            Overlay::Fps => Text::Key(c"st_srp_vulkan_overlay_fps"),
-            Overlay::FrameTimes => Text::Key(c"st_srp_vulkan_overlay_frametimes"),
-            Overlay::Full => Text::Key(c"st_srp_vulkan_overlay_full"),
+            Overlay::Fps => ChoiceText::Key(c"st_srp_vulkan_overlay_fps"),
+            Overlay::FrameTimes => ChoiceText::Key(c"st_srp_vulkan_overlay_frametimes"),
+            Overlay::Full => ChoiceText::Key(c"st_srp_vulkan_overlay_full"),
         }
     }
 }
@@ -276,7 +276,7 @@ impl VulkanList {
     }
 
     /// Its choices' texts, in the list's order (at most [`MAX_CHOICES`]).
-    fn texts(self) -> impl Iterator<Item = Text> {
+    fn texts(self) -> impl Iterator<Item = ChoiceText> {
         let (limits, overlays): (&[FrameLimit], &[Overlay]) = match self {
             VulkanList::FrameLimit => (FrameLimit::ALL, &[]),
             VulkanList::Overlay => (&[], Overlay::ALL),
@@ -294,42 +294,10 @@ const MAX_CHOICES: usize = 6;
 pub const FIELD_OF_VIEW: &CStr = c"uro_fov";
 const FIELD_OF_VIEW_LABEL: &CStr = c"st_fov_option";
 
-/// Whole degrees, as the slider snaps them (the stock option's snap 1).
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub struct Degrees(u8);
-
-impl Degrees {
-    /// The Settings' text of one: one to three decimal digits.
-    pub fn parse(text: &CStr) -> Option<Degrees> {
-        let digits = text.to_bytes();
-        if digits.is_empty() || digits.len() > 3 || !digits.iter().all(u8::is_ascii_digit) {
-            return None;
-        }
-        u8::try_from(digits.iter().fold(0u32, |n, d| n * 10 + u32::from(d - b'0'))).ok().map(Degrees)
-    }
-
-    /// The nearest whole degrees to a value of the variable (user.cfg may
-    /// hold a fraction).
-    pub fn nearest(degrees: f32) -> Degrees {
-        Degrees((degrees + 0.5).clamp(0.0, 255.0) as u8)
-    }
-
-    pub fn get(self) -> f32 {
-        f32::from(self.0)
-    }
-
-    /// Its digits into `out`, with the zero.
-    pub fn text(self, out: &mut [u8; 4]) -> &CStr {
-        let n = self.0;
-        let digits = [n / 100, n / 10 % 10, n % 10];
-        let first = if n >= 100 { 0 } else if n >= 10 { 1 } else { 2 };
-        let len = 3 - first;
-        for (room, digit) in out.iter_mut().zip(&digits[first..]) {
-            *room = b'0' + digit;
-        }
-        out[len] = 0;
-        CStr::from_bytes_until_nul(&out[..=len]).unwrap_or(c"")
-    }
+/// The nearest whole degrees to the variable's value (user.cfg may hold a
+/// fraction).
+fn whole_degrees(degrees: f32) -> SliderSteps {
+    SliderSteps::nearest(degrees, 1.0, SliderSteps::new(0), SliderSteps::new(u16::MAX))
 }
 
 /// The Vulkan options, read once: at the process's start from user.cfg's
@@ -405,7 +373,7 @@ impl VulkanOptions {
     /// finds both a dedicated GPU and an integrated one (dxvk_instance.cpp):
     /// a PC with an integrated GPU alone keeps it.
     pub fn config(&self) -> DxvkConfig {
-        let mut config = DxvkConfig { bytes: [0; DxvkConfig::ROOM], len: 0 };
+        let mut config = DxvkConfig { bytes: [0; DxvkConfig::ROOM], len: 0, left_out: 0 };
         if self.frame_limit != FrameLimit::Off {
             config.option("dxvk.maxFrameRate", self.frame_limit.word());
         }
@@ -435,6 +403,7 @@ impl VulkanOptions {
 pub struct DxvkConfig {
     bytes: [u8; DxvkConfig::ROOM],
     len: usize,
+    left_out: u32,
 }
 
 impl DxvkConfig {
@@ -442,15 +411,25 @@ impl DxvkConfig {
     /// every option at once fits (a test).
     const ROOM: usize = 256;
 
+    /// An option whole, or (no room for it with its NUL) none of it: then
+    /// counted as left out.
     fn option(&mut self, key: &str, value: &CStr) {
         let separator: &[u8] = if self.len == 0 { b"" } else { b"; " };
-        for part in [separator, key.as_bytes(), b" = ", value.to_bytes()] {
-            let end = self.len + part.len();
-            if end < Self::ROOM {
-                self.bytes[self.len..end].copy_from_slice(part);
-                self.len = end;
-            }
+        let parts = [separator, key.as_bytes(), b" = ", value.to_bytes()];
+        let end = self.len + parts.iter().map(|part| part.len()).sum::<usize>();
+        if end >= Self::ROOM {
+            self.left_out += 1;
+            return;
         }
+        for part in parts {
+            self.bytes[self.len..self.len + part.len()].copy_from_slice(part);
+            self.len += part.len();
+        }
+    }
+
+    /// The options that did not fit (none: every option at once fits, a test).
+    pub fn left_out(&self) -> u32 {
+        self.left_out
     }
 
     pub fn as_c_str(&self) -> &CStr {
@@ -581,7 +560,12 @@ fn drive(thread: &Thread, event: Event) {
                 // before DXVK's DLLs: DXVK reads it when the game makes its first device
                 let config = options.config();
                 if set_environment(thread, c"DXVK_CONFIG", config.as_c_str()) {
-                    line(&[Text("dxvk: DXVK_CONFIG \""), Text(config.as_str()), Text("\"")]);
+                    if config.left_out() == 0 {
+                        line(&[Text("dxvk: DXVK_CONFIG \""), Text(config.as_str()), Text("\"")]);
+                    } else {
+                        line(&[Text("dxvk: DXVK_CONFIG \""), Text(config.as_str()), Text("\" ("), Dec(config.left_out()),
+                               Text(" option(s) left out: no room)")]);
+                    }
                 } else {
                     line(&[Text("dxvk: DXVK_CONFIG not set")]);
                 }
@@ -734,16 +718,17 @@ pub fn on_options_call(ctx: &mut Context<'_>) -> Flow<HudOptionsOnOptionsCallExi
     let mut label = [0; 0x200];
     if method == FIELD_OF_VIEW {
         let Some(now) = FieldOfView::now(thread) else { return Flow::Continue };
-        if let Some(degrees) = call.string_argument(0).and_then(Degrees::parse)
-            && FieldOfView::set(thread, degrees.get())
+        // whole degrees: the slider's snap (the stock option's 1)
+        if let Some(degrees) = call.string_argument(0).and_then(SliderSteps::parse)
+            && FieldOfView::set(thread, f32::from(degrees.get()))
         {
             save_user_config(thread);
         }
         let saved = FieldOfView::now(thread).map_or(now.degrees, |then| then.degrees);
-        let (mut value, mut least, mut most) = ([0; 4], [0; 4], [0; 4]);
+        let (mut value, mut least, mut most) = ([0; 8], [0; 8], [0; 8]);
         let values = [FIELD_OF_VIEW, call.translate(FIELD_OF_VIEW_LABEL, &mut label),
-                      Degrees::nearest(saved).text(&mut value), Degrees::nearest(now.least).text(&mut least),
-                      Degrees::nearest(now.most).text(&mut most)];
+                      whole_degrees(saved).text(&mut value), whole_degrees(now.least).text(&mut least),
+                      whole_degrees(now.most).text(&mut most)];
         call.answer(c"root.srp_slider_option", &values);
         return Flow::Exit(HudOptionsOnOptionsCallExit::Done);
     }
@@ -779,8 +764,8 @@ pub fn on_options_call(ctx: &mut Context<'_>) -> Flow<HudOptionsOnOptionsCallExi
     let mut count = 4;
     for (text, room) in list.texts().zip(rooms.iter_mut()) {
         values[count] = match text {
-            Text::Key(key) => call.translate(key, room),
-            Text::Plain(plain) => plain,
+            ChoiceText::Key(key) => call.translate(key, room),
+            ChoiceText::Plain(plain) => plain,
         };
         count += 1;
     }
@@ -928,6 +913,26 @@ mod tests {
     }
 
     #[test]
+    fn an_option_that_does_not_fit_is_left_out_whole() {
+        let mut config = DxvkConfig { bytes: [0; DxvkConfig::ROOM], len: 0, left_out: 0 };
+        for _ in 0..10 {
+            config.option("dxvk.hud", c"fps,frametimes,gpuload,compiler,memory");
+        }
+        let text = config.as_str();
+        // only whole options, each `key = value`, and the NUL in its room
+        assert!(text.len() < DxvkConfig::ROOM && config.left_out() > 0);
+        assert!(text.split("; ").all(|option| option == "dxvk.hud = fps,frametimes,gpuload,compiler,memory"));
+        assert_eq!(text.split("; ").count() as u32 + config.left_out(), 10);
+        assert_eq!(config.as_c_str().to_bytes(), text.as_bytes());
+    }
+
+    #[test]
+    fn a_settings_default_is_its_console_variables() {
+        assert!(DEDICATED_GPU.of_user_cfg(b"") && !LOW_LATENCY.of_user_cfg(b""));
+        assert!(DEDICATED_GPU.value.initial() && !TEAR_FREE.value.initial());
+    }
+
+    #[test]
     fn the_settings_index_is_the_lists_order() {
         assert_eq!(FrameLimit::of_index(c"0"), Some(FrameLimit::Off));
         assert_eq!(FrameLimit::of_index(c"3"), Some(FrameLimit::Fps144));
@@ -942,7 +947,7 @@ mod tests {
             assert!(list.texts().count() <= MAX_CHOICES && list.texts().next() == Some(OFF));
             assert_eq!(VulkanList::named(list.name()), Some(list));
         }
-        assert_eq!(VulkanList::FrameLimit.texts().nth(3), Some(Text::Plain(c"144")));
+        assert_eq!(VulkanList::FrameLimit.texts().nth(3), Some(ChoiceText::Plain(c"144")));
         assert!(DEFAULTS.shown(c"srp_dxvk_dedicated_gpu") == Some(c"1") && DEFAULTS.shown(c"srp_dxvk_tear_free") == Some(c"0"));
         let options = VulkanOptions { frame_limit: FrameLimit::Fps165, overlay: Overlay::FrameTimes, ..DEFAULTS };
         assert!(options.shown(c"srp_dxvk_frame_limit") == Some(c"4") && options.shown(c"srp_dxvk_overlay") == Some(c"2"));
@@ -951,17 +956,16 @@ mod tests {
 
     #[test]
     fn the_field_of_view_is_whole_degrees() {
-        assert_eq!(Degrees::parse(c"50"), Some(Degrees(50)));
-        assert_eq!(Degrees::parse(c"100"), Some(Degrees(100)));
-        for text in [c"", c"-5", c"65.5", c"1000", c"256", c"fov"] {
-            assert_eq!(Degrees::parse(text), None, "{text:?}");
+        assert_eq!(SliderSteps::parse(c"50"), Some(SliderSteps::new(50)));
+        assert_eq!(SliderSteps::parse(c"100"), Some(SliderSteps::new(100)));
+        for text in [c"", c"-5", c"65.5", c"10000", c"fov"] {
+            assert_eq!(SliderSteps::parse(text), None, "{text:?}");
         }
-        assert_eq!(Degrees::nearest(74.5), Degrees(75));
-        assert_eq!(Degrees::nearest(65.0), Degrees(65));
-        let mut room = [0; 4];
-        assert_eq!(Degrees(100).text(&mut room), c"100");
-        assert_eq!(Degrees(65).text(&mut room), c"65");
-        assert_eq!(Degrees(7).text(&mut room), c"7");
+        assert_eq!(whole_degrees(74.5), SliderSteps::new(75));
+        assert_eq!(whole_degrees(65.0), SliderSteps::new(65));
+        let mut room = [0; 8];
+        assert_eq!(SliderSteps::new(100).text(&mut room), c"100");
+        assert_eq!(SliderSteps::new(7).text(&mut room), c"7");
         assert!(setting(FIELD_OF_VIEW).is_none() && VulkanList::named(FIELD_OF_VIEW).is_none());
     }
 

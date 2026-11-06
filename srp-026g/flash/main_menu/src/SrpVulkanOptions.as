@@ -243,6 +243,15 @@ package
             {
                 return false;
             }
+            // a list of its own open: its list is a popup of its own, closed with it
+            for (var i:int = 0; i < LISTS; i++)
+            {
+                var list:DropdownMenu = controls[NAMES[i]] as DropdownMenu;
+                if (list.selected)
+                {
+                    list.close();
+                }
+            }
             panel.stage.removeEventListener(MouseEvent.MOUSE_DOWN, onStagePress);
             panel.parent.removeChild(panel);
             button.mouseEnabled = true;
