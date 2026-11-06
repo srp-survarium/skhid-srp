@@ -946,11 +946,24 @@ pub fn slide_supported_by(
     let mut at = from;
     for _ in 0..steps {
         // The step, its axes, and with [`WallSlide::Diagonal`] its projection on each 45 degree diagonal (the step's dot with the
-        // diagonal, along it).
+        // diagonal, along it); where the cell a diagonal step ahead is a floor of this level (a wall the cells draw as a 45 degree
+        // staircase), the projection's axis parts too, so the body climbs the staircase as the capsule slides along the wall. An
+        // axis-aligned wall has no such cell: a push square into it stays.
         let (p, q) = ((sx + sz) * 0.5, (sx - sz) * 0.5);
-        let tries = match walls {
-            WallSlide::Axes => [(sx, sz), (sx, 0.0), (0.0, sz), (0.0, 0.0), (0.0, 0.0)],
-            WallSlide::Diagonal => [(sx, sz), (sx, 0.0), (0.0, sz), (p, p), (q, -q)],
+        let cell = grid.cell_size();
+        let level = grid.position(node).y;
+        let stair = |(dx, dz): (f32, f32)| {
+            let ahead = Vec3::new(at.x + cell * dx.signum(), at.y, at.z + cell * dz.signum());
+            (dx != 0.0 && dz != 0.0)
+                && grid.locate(ahead, half).is_some_and(|n| (grid.position(n).y - level).abs() <= grid.body().step)
+        };
+        let parts = |d: (f32, f32)| if stair(d) { [(d.0, 0.0), (0.0, d.1)] } else { [(0.0, 0.0); 2] };
+        let tries: [(f32, f32); 9] = match walls {
+            WallSlide::Axes => [(sx, sz), (sx, 0.0), (0.0, sz), (0.0, 0.0), (0.0, 0.0), (0.0, 0.0), (0.0, 0.0), (0.0, 0.0), (0.0, 0.0)],
+            WallSlide::Diagonal => {
+                let ([a, b], [c, d]) = (parts((p, p)), parts((q, -q)));
+                [(sx, sz), (sx, 0.0), (0.0, sz), (p, p), (q, -q), a, b, c, d]
+            }
         };
         let moved = tries.iter().find_map(|&(mx, mz)| {
             if mx == 0.0 && mz == 0.0 {
@@ -1358,6 +1371,24 @@ pub(super) mod tests {
         let (axes, diagonal) = (walk(WallSlide::Axes), walk(WallSlide::Diagonal));
         assert!((axes.x - 8.1).abs() < 0.05, "Axes: stands at the wall, at {axes:?}");
         assert!(diagonal.x > 8.6 && diagonal.z > axes.z, "Diagonal: along the wall, at {diagonal:?} (axes {axes:?})");
+        // Square into a wall along an axis, Diagonal stays as Axes does (the capsule's projection on that wall is nil).
+        let square = WalkGrid::build(
+            &[floor(0.0, 0.0, 10.0, 5.0, 0.0).as_slice(), &[
+                Triangle { v: [p(0.0, 0.0, 5.0), p(10.0, 0.0, 5.0), p(10.0, 3.0, 5.0)], walker: WalkerBehaviour::BySlope },
+                Triangle { v: [p(0.0, 0.0, 5.0), p(10.0, 3.0, 5.0), p(0.0, 3.0, 5.0)], walker: WalkerBehaviour::BySlope },
+            ]]
+            .concat(),
+            [0.0, 0.0, 10.0, 5.0],
+            0.25,
+            Body::client(),
+        );
+        let mut feet = p(5.1, 0.0, 3.1);
+        let mut node = square.locate(feet, 0.5).expect("a floor at the start");
+        for _ in 0..40 {
+            let to = p(feet.x, feet.y, feet.z + 0.1);
+            (node, feet, _) = slide_supported_by(&square, node, feet, to, f32::INFINITY, SUPPORT_M, WalkOffs::Landings, Bridges::Leap, WallSlide::Diagonal);
+        }
+        assert!((feet.x - 5.1).abs() < 0.05, "square into an axis wall: no slide, at {feet:?}");
         assert_eq!(Kinematics::default().wall_slide, WallSlide::Diagonal);
     }
 
