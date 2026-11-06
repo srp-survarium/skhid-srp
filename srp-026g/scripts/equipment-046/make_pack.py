@@ -34,7 +34,7 @@ from prepare_inputs import (LATER_STAGE_KEYS, NATIVE_HEAD, made_on_stand_in, sou
                             worn)
 
 PACK = 'equipment-046'
-VERSION = '7'
+VERSION = '8'
 DICTIONARY = 'gameplay/db_static_dictionaries'
 GAME_OPTIONS = 'gameplay/game.options'
 MODIFICATIONS = 'gameplay/items/modifications/modifications.options'
