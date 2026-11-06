@@ -140,16 +140,6 @@ pub fn start_experience() -> u32 {
     level_start(new_account().level.saturating_add(1)) - 1
 }
 
-/// An account below [`start_experience`] raised to it, the levels it
-/// passes paying nothing: every new one, and once every account made
-/// before (`GameAccounts::with_repository`). `true` if raised.
-pub fn raise_to_start(account: &mut Account) -> bool {
-    let start = start_experience();
-    let raised = account.exp_total < start;
-    account.exp_total = account.exp_total.max(start);
-    raised
-}
-
 /// A new account's start, before its client first hears of it
 /// ([`new_account`]): its level and skills, its money, the rounds of every
 /// ammo, the faction's reputation level and its quests (the tutorial ended
@@ -182,8 +172,9 @@ pub fn signup_grant_with(account: &mut Account, starter_kit: bool, now: u64) {
     account.premium_money = grant.gold;
     if starter_kit {
         super::premium::add_premium(account, u64::from(grant.premium_days) * 86_400, now);
-        // Before the kits: they carry the skills' modifiers.
-        raise_to_start(account);
+        // The levels below it pay nothing. Before the kits: they carry the
+        // skills' modifiers.
+        account.exp_total = start_experience();
         account.skills = grant.skills.clone();
     }
     for dict_id in starter_ammo(dictionary) {

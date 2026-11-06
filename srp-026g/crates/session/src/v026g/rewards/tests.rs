@@ -103,10 +103,8 @@ fn alice_and_bob() -> Vec<PlayerResult> {
     ]
 }
 
-/// Experience of an account that has played: where level 16 starts, past
-/// what every account is raised to at load (`tutorial::raise_to_start`),
-/// short of level 17.
-const PLAYED: u32 = 38_000;
+/// Experience of an account that has played: past level 0, short of level 1.
+const PLAYED: u32 = 251;
 
 /// The accounts of the players, none of them a new player.
 fn accounts(players: &[PlayerResult]) -> GameAccounts {

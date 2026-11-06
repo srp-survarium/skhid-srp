@@ -63,9 +63,10 @@ The owner's of 2026-10-19. Code: `session::v026g::tutorial`; the client's side: 
   the backpack; the whole kit on released data:
   `SRP_TEST_GAME_DATA=<server-game-data.db> cargo test -p session --test starter_kit --
   --ignored`.
-- **Accounts made before:** raised to where a new one starts (37 999 experience, level 15)
-  when srp loads them (`tutorial::raise_to_start`; the owner's of 2026-11-06), the levels
-  passed paying nothing, their points theirs to spend; they get no tutorial; steps they had
+- **Accounts made before:** raised once to where a new one starts (37 999 experience, level
+  15; the owner's of 2026-11-06) by the release that ships it, in the database with srp
+  stopped (`UPDATE g26_accounts SET exp_total = 37999 WHERE exp_total < 37999`): the levels
+  passed pay nothing, their points are theirs to spend. They get no tutorial; steps they had
   not done are not paid.
 - **No switch:** `SRP_TUTORIAL` is gone.
 - **Release:** the server, and the content patch that carries `new_account.options` (srp

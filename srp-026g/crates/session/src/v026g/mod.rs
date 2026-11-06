@@ -227,12 +227,6 @@ impl GameAccounts {
                      pocket of their kit held; merged into that pocket"
                 );
             }
-            // Accounts made before new ones started at level 15 (the
-            // owner's of 2026-11-06): raised to where a new one starts.
-            if tutorial::raise_to_start(&mut account) {
-                log::info!("0.26g account {account_id}: raised to the start's experience");
-                dirty.insert(account_id);
-            }
             if account.repair() || uncovered > 0 || merged > 0 {
                 log::warn!("0.26g account {account_id} was not consistent; repaired");
                 for (host, record, why) in items_rules::upgrades_taken_off(&kept, &account) {
@@ -1248,8 +1242,6 @@ mod tests {
         let repository = MemoryGameRepository::default();
         let store = GameAccounts::with_repository(Box::new(repository.clone())).unwrap();
         let account = store.get_or_create(5, "Alice");
-        // Where every account is at load (`tutorial::raise_to_start`).
-        account.locked().exp_total = tutorial::start_experience();
         assert!(store.is_dirty(5));
         assert_eq!(store.flush(), 1);
         assert_eq!(repository.saves(), 1);
@@ -1269,29 +1261,6 @@ mod tests {
         let store = GameAccounts::with_repository(Box::new(repository.clone())).unwrap();
         assert_eq!(store.get(5).unwrap().locked().generic_money, 77);
         assert!(!store.is_dirty(5));
-    }
-
-    /// Accounts made before new ones started at level 15 (the owner's of
-    /// 2026-11-06): one below a new account's start is raised to it at
-    /// load, the levels passed paying nothing, and written; one past it is
-    /// as it was.
-    #[test]
-    fn an_account_below_the_start_is_raised_at_load() {
-        let mut repository = MemoryGameRepository::default();
-        let mut low = Account::new("Alice");
-        low.add_experience(1300);
-        let mut high = Account::new("Bob");
-        high.add_experience(50_000);
-        repository.save(5, &low).unwrap();
-        repository.save(6, &high).unwrap();
-        let store = GameAccounts::with_repository(Box::new(repository.clone())).unwrap();
-        let alice = store.get(5).unwrap().locked().clone();
-        assert_eq!(alice.exp_total, tutorial::start_experience());
-        assert_eq!((alice.level(), alice.free_skill_points()), (15, 15));
-        assert_eq!(alice.generic_money, low.generic_money);
-        assert!(store.is_dirty(5));
-        assert_eq!(store.get(6).unwrap().locked().exp_total, 50_000);
-        assert!(!store.is_dirty(6));
     }
 
     #[test]
