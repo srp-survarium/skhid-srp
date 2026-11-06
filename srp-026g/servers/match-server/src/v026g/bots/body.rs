@@ -959,7 +959,6 @@ fn fall_step(fall: Fall, top: f32, feet: &mut Vec3, step: f32, rule: DropFall) -
     };
     let (after, down) = match rule {
         DropFall::Client => client_fall_tick(speed),
-        // By the speed at its start, `g` after the move, without the slow start.
         _ => (speed + GRAVITY * TICK_S, speed * TICK_S),
     };
     let y = top - down;
@@ -971,18 +970,20 @@ fn fall_step(fall: Fall, top: f32, feet: &mut Vec3, step: f32, rule: DropFall) -
     }
 }
 
-/// [A318] One airborne tick of the client's fall at `speed` m/s (down positive), the one rule for the reckoning's
-/// [`DropFall::Client`] and the jump arc's fall after its clip: the speed after the tick and the drop, m. `step_down` 0x7E1B0's slow
-/// test reads the speed at the tick's start (port tick.rs:267-269); a fast tick moves by that speed (`(v + a dt).y * tick` with `a`
-/// the slope's slide, none in the air, tick.rs:357-359); `g` goes into the speed after the move (tick.rs:924-926). From rest: 5 slow
-/// ticks of 0.05 m, then 2.45, 2.94 m/s (fx-gear-2's probe).
-pub(super) fn client_fall_tick(speed: f32) -> (f32, f32) {
+/// [A318] The live client's controller settings (`startup.cfg`): [`DropFall::Client`]'s slow start.
+pub(super) const CLIENT: mapdata::controller::tick::Settings = mapdata::controller::tick::Settings::LIVE;
+
+/// [A318] One tick of the client's airborne capsule falling at `speed` (m/s down at the tick's start): its speed after the tick and
+/// how far it goes down in it. `step_down` 0x7E1B0 (PROVEN, port `mapdata::controller::tick`): slow while the speed at the tick's
+/// start is under `on_ground_max_vertical_speed` (2.0 m/s, `startup.cfg`, port tick.rs:267-269), then down by
+/// `additional_down_speed` (0.05 m); else by the speed at its start (`(v + a dt).y * tick`, `a` the slope's slide: none in the air,
+/// tick.rs:357-359); `g * tick` goes into the speed after the move (`fall_params.gravity`, tick.rs:924-926). From rest: 5 slow ticks,
+/// then 2.45, 2.94 m/s (fx-gear-2's probe). The reckoning's [`DropFall::Client`], the jump arc's fall after its clip and the bench
+/// stand-in's fall play it.
+pub(crate) fn client_fall_tick(speed: f32) -> (f32, f32) {
     let down = if speed < CLIENT.on_ground_max_vertical_speed { CLIENT.additional_down_speed } else { speed * TICK_S };
     (speed + GRAVITY * TICK_S, down)
 }
-
-/// [A318] The live client's controller settings (`startup.cfg`): [`DropFall::Client`]'s slow start.
-pub(super) const CLIENT: mapdata::controller::tick::Settings = mapdata::controller::tick::Settings::LIVE;
 
 /// [`slide`] with the reckoned body's edge ([`Kinematics::edge`]): the lattice's, the client's held to [`SUPPORT_M`], or that and
 /// the client's walk off an open side ([`walk_off_open`]).
