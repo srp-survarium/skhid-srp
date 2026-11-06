@@ -239,6 +239,8 @@ struct Reckoned {
     /// The keys meant a move and the reckoning ended the tick standing: the slide stopped it short (a wall, an edge, a lip the
     /// reckoning does not pass; a step that slides along a wall still moves). [`advance_held`].
     held: bool,
+    /// PROBE (A325): the ground velocity the tick moved by.
+    velocity: [f32; 2],
 }
 
 /// The decided ticks from the world before to the last one of a life (A302: what the drift line reports of them).
@@ -334,6 +336,11 @@ impl BodyTrack {
     }
 
     /// The reckoned feet at the decided tick `time`, if the trail still has it (A285: the model's place for a world's tick).
+    /// PROBE (A325): the trail's ticks: time, feet, the velocity moved by, held.
+    pub fn trail_ticks(&self) -> Vec<(u32, Vec3, [f32; 2], bool)> {
+        self.trail.iter().map(|r| (r.time, r.feet, r.velocity, r.held)).collect()
+    }
+
     pub fn reckoned_at(&self, time: u32) -> Option<Vec3> {
         self.trail.iter().find(|r| r.time == time).map(|r| r.feet)
     }
@@ -444,7 +451,7 @@ impl BodyTrack {
         if let Some(estimate) = self.estimate.as_mut() {
             let held;
             (*estimate, held) = advance_held(*estimate, tick, kin, level, grid);
-            self.trail.push_back(Reckoned { time, feet: estimate.feet, held });
+            self.trail.push_back(Reckoned { time, feet: estimate.feet, held, velocity: estimate.velocity });
             while self
                 .trail
                 .front()
@@ -610,7 +617,7 @@ impl BodyTrack {
         for tick in self.ticks.iter().filter(|tick| tick.time > fix.time) {
             let held;
             (estimate, held) = advance_held(estimate, *tick, kin, level, grid);
-            self.trail.push_back(Reckoned { time: tick.time, feet: estimate.feet, held });
+            self.trail.push_back(Reckoned { time: tick.time, feet: estimate.feet, held, velocity: estimate.velocity });
         }
         // A world newer than every decided tick: the body is as it shows.
         self.estimate = Some(estimate);
