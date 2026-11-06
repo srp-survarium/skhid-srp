@@ -346,6 +346,9 @@ impl Collision {
 
 /// The conservative advancement of `shape` moved by `by` against one face.
 fn advance(shape: Shape, by: Vec3, face: &Face) -> Option<Contact> {
+    if std::env::var_os("SRP_PROBE_BULLET_CAST").is_some() {
+        return advance_bullet(shape, by, face);
+    }
     let speed = by.length();
     let (g0, _, f0, n0) = shape.gap(&face.v, face.normal);
     if g0 <= CONTACT_M {
@@ -367,6 +370,37 @@ fn advance(shape: Shape, by: Vec3, face: &Face) -> Option<Contact> {
         }
     }
     None
+}
+
+/// PROBE (A325 P1): the exe's caster 0xB9320, stock btContinuousConvexCollision::calcTimeOfImpact: no hit when the move's
+/// part along the normal (toward the face) is <= FLT_EPSILON; advance by gap / that part while the gap is over 0.001 m; at
+/// most 64 steps, then no hit.
+fn advance_bullet(shape: Shape, by: Vec3, face: &Face) -> Option<Contact> {
+    const TOL: f32 = 0.001;
+    const VEL_EPS: f32 = f32::EPSILON;
+    let (mut gap, _, mut f, mut n) = shape.gap(&face.v, face.normal);
+    let mut proj = -by.dot(n);
+    if proj <= VEL_EPS {
+        return None;
+    }
+    let mut t = 0.0f32;
+    let mut steps = 0;
+    while gap > TOL {
+        steps += 1;
+        if steps > ADVANCE_STEPS {
+            return None;
+        }
+        t += gap / proj;
+        if !(0.0..=1.0).contains(&t) {
+            return None;
+        }
+        (gap, _, f, n) = shape.moved(by * t).gap(&face.v, face.normal);
+        proj = -by.dot(n);
+        if proj <= VEL_EPS {
+            return None;
+        }
+    }
+    Some(Contact { t, point: f, normal: n, face: 0 })
 }
 
 /// The closest points of point `p` on triangle `v` (Ericson, Real-Time Collision Detection 5.1.5).
