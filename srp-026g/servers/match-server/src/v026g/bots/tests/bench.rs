@@ -789,6 +789,12 @@ pub(crate) fn real_bot_cost() {
     say_the_switches();
     let table = bench_settings().var_os("SRP_BOT_ROUTES")
         .map(|path| super::routes::RouteTable::load(std::path::Path::new(&path)).unwrap());
+    let flank_table = match super::camp_flank::Source::choose(bench_settings().var_os(super::camp_flank::VARIABLE).as_deref(), Some(&dir)) {
+        super::camp_flank::Source::Set(path) | super::camp_flank::Source::Default(path) => {
+            Some(super::camp_flank::FlankTable::load(&path).unwrap_or_else(|e| panic!("{e}")))
+        }
+        super::camp_flank::Source::Off | super::camp_flank::Source::Missing => None,
+    };
     let limit_s: u32 = bench_settings().number("SRP_BENCH_SECONDS")
         .unwrap_or(240);
     let sizes: Vec<usize> = bench_settings().var("SRP_BENCH_SIDES")
@@ -974,6 +980,11 @@ pub(crate) fn real_bot_cost() {
             let mut fight = fight_tally::FightTally::default();
             if let Some(table) = &table {
                 bots.set_routes(table);
+            }
+            // [A320] The known camp spots and their flank routes (`SRP_BOT_FLANK_ROUTES`, else `bot-flank-routes.json` of
+            // the mapdata folder).
+            if let Some(flank) = &flank_table {
+                bots.set_flank_table(flank);
             }
             // The bushes a sight line crosses (`SRP_BOT_FOLIAGE`, else `bot-foliage.json` of the mapdata folder).
             if let super::foliage::Source::Set(path) | super::foliage::Source::Default(path) = super::foliage::Source::choose(
