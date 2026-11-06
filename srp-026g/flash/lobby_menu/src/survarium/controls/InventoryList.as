@@ -1021,7 +1021,7 @@ package survarium.controls
                {
                   propPostFix = propDescription.modifier_type == ModifierType.ADD ? propDescription.postfix : "%";
                   propPrefix = modifierProp.prop_value >= 0 ? "+" : "";
-                  style = ModificationRolls.style(propDescription,modifierProp.prop_id,ModificationRolls.value(modifierProp));
+                  style = ModificationRolls.styleOn(value,propDescription,modifierProp.prop_id,ModificationRolls.value(modifierProp));
                   propValue = propDescription.modifier_type == ModifierType.ADD ? modifierProp.prop_value : modifierProp.prop_value * 100;
                   propHintTx = propDescription.prop_name + ": " + Util.styledChar(propPrefix + propValue + ((propPostFix) ? propPostFix : ""),style);
                   modifiers[i].textValue += propHintTx + "\n";
@@ -1046,7 +1046,7 @@ package survarium.controls
                }
                propValue = propDescription.modifier_type == ModifierType.ADD ? modifierProp.prop_value : modifierProp.prop_value * 100;
                propValue = Math.round(propValue / 0.01) * 0.01;
-               style = ModificationRolls.style(propDescription,modifierProp.prop_id,ModificationRolls.value(modifierProp));
+               style = ModificationRolls.styleOn(value,propDescription,modifierProp.prop_id,ModificationRolls.value(modifierProp));
                propHint = propDescription.prop_name + ": " + Util.styledChar(propPrefix + propValue + propPostFix,style);
                if(!modifierProp.modifier.textValue)
                {
