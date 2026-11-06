@@ -284,6 +284,24 @@ fn aim_part_moving(
     sight: &RayTree,
     veil: Veil<'_>,
 ) -> (Option<Part>, PartsLook) {
+    aim_part_moving_in(&Part::AIM_ORDER, eye, body, then, sight, veil)
+}
+
+/// [A302 camper calibration, bench only] The aim's order with the head first: the stand-in camper's head-first targets
+/// (`SRP_BENCH_CAMPER_HEAD`).
+#[cfg(test)]
+const HEAD_FIRST_ORDER: [Part; 8] =
+    [Part::Head, Part::Chest, Part::Belly, Part::LeftEdge, Part::RightEdge, Part::Pelvis, Part::Thighs, Part::Shins];
+
+/// [`aim_part_moving`] in the aim's `order`.
+fn aim_part_moving_in(
+    order: &[Part],
+    eye: Vec3,
+    body: &PlaceView,
+    then: Vec3,
+    sight: &RayTree,
+    veil: Veil<'_>,
+) -> (Option<Part>, PartsLook) {
     let moves = then.distance_xz(body.feet) > 0.05;
     let crouched = body.crouched();
     let mut shown = false;
@@ -295,7 +313,7 @@ fn aim_part_moving(
         }
         visible(sight, eye, point)
     };
-    let part = Part::AIM_ORDER.into_iter().find(|part| {
+    let part = order.iter().copied().find(|part| {
         let now = seen(part.point(body, eye));
         shown |= now && *part != Part::Pelvis;
         now && (!moves || seen(part.point_of(then, crouched, eye)))
@@ -401,6 +419,14 @@ pub struct Sight {
     /// The target just went into smoke: the spray at the last part seen of him is open (`SmokeTuning::
     /// spray_ms` from that sight), for this target.
     spray: Option<Place>,
+    /// [A302 camper calibration, bench only] The share of his targets the stand-in camper aims at the head first
+    /// (`SRP_BENCH_CAMPER_HEAD`), the draw's state, and the last target drawn for and its draw.
+    #[cfg(test)]
+    head_share: Option<f32>,
+    #[cfg(test)]
+    head_draws: u64,
+    #[cfg(test)]
+    head_pick: Option<(Place, bool)>,
 }
 
 impl std::fmt::Debug for Sight {
@@ -415,6 +441,34 @@ impl std::fmt::Debug for Sight {
 }
 
 impl Sight {
+    /// [A302 camper calibration, bench only] The share of targets aimed at the head first (`SRP_BENCH_CAMPER_HEAD`).
+    #[cfg(test)]
+    pub(crate) fn set_head_share(&mut self, share: Option<f32>) {
+        self.head_share = share;
+    }
+
+    /// [A302 camper calibration, bench only] Whether `who` is aimed at the head first: drawn once a target taken,
+    /// with the share, from a fixed sequence (the same run, the same draws).
+    #[cfg(test)]
+    fn head_first(&mut self, who: Place) -> bool {
+        let Some(share) = self.head_share else {
+            return false;
+        };
+        if let Some((w, head)) = self.head_pick
+            && w == who
+        {
+            return head;
+        }
+        self.head_draws = self.head_draws.wrapping_add(0x9E37_79B9_7F4A_7C15);
+        let mut x = self.head_draws ^ (who as u64).wrapping_mul(0xBF58_476D_1CE4_E5B9);
+        x = (x ^ (x >> 30)).wrapping_mul(0xBF58_476D_1CE4_E5B9);
+        x = (x ^ (x >> 27)).wrapping_mul(0x94D0_49BB_1331_11EB);
+        x ^= x >> 31;
+        let head = ((x >> 11) as f64 / (1u64 << 53) as f64) < f64::from(share);
+        self.head_pick = Some((who, head));
+        head
+    }
+
     /// Before a tick: the parts of `target` (the reflex's) that show from
     /// `me`'s eyes on `world`'s bullet mesh, looked at again when due.
     /// What the look found, if there is a target alive. The match's smoke,
@@ -460,6 +514,13 @@ impl Sight {
                 || (live_eye() && (l.eye - eye).length() > LOOK_EYE_MOVED_M)
         });
         if due {
+            #[cfg(test)]
+            let (part, look) = if self.head_first(who) {
+                aim_part_moving_in(&HEAD_FIRST_ORDER, eye, body, then, sight, veil)
+            } else {
+                aim_part_moving(eye, body, then, sight, veil)
+            };
+            #[cfg(not(test))]
             let (part, look) = aim_part_moving(eye, body, then, sight, veil);
             self.looked = Some(Looked {
                 who,
@@ -596,6 +657,18 @@ impl Sight {
 
 #[cfg(test)]
 mod tests {
+    /// [A302 camper calibration] The head-first draw keeps its pick for a target and takes about the share over many.
+    #[test]
+    fn the_head_first_draw_keeps_its_pick_and_takes_the_share() {
+        let mut sight = super::Sight::default();
+        assert!(!sight.head_first(3), "no share: never");
+        sight.set_head_share(Some(0.25));
+        let first = sight.head_first(3);
+        assert_eq!(sight.head_first(3), first, "the same target keeps its draw");
+        let heads = (0..4000).filter(|&k| sight.head_first(k % 2 + 10 * (k / 2))).count();
+        assert!((800..=1200).contains(&heads), "{heads} of 4000");
+    }
+
     use super::*;
     use crate::v026g::bots::know::{Memory, Percept, Source};
     use crate::v026g::bots::reflex::{CombatTuning, Reflex};
