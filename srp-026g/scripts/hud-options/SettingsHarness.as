@@ -73,13 +73,6 @@ package
 
         // A click of Apply or Cancel. Outside the game the exe calls after it
         // may throw; what the buttons did before them is what is checked.
-        // A press and release of a drop-down's box (a mouse click: what opens and closes it).
-        private function press(box:*):void
-        {
-            box.dispatchEvent(new MouseEvent(MouseEvent.MOUSE_DOWN, true));
-            box.dispatchEvent(new MouseEvent(MouseEvent.CLICK, true));
-        }
-
         private function click(button:*):void
         {
             var buttonEvent:Class = loader.contentLoaderInfo.applicationDomain.getDefinition("scaleform.clik.events.ButtonEvent") as Class;
@@ -153,7 +146,7 @@ package
                 if (frames == 270) graphicsTab(settings, "1");
                 if (frames == 300) trace("SETTINGS SHOT graphics");
                 // the Vulkan options' panel open (Vulkan picked), for its screenshot
-                if (frames == 350) press(settings.settings_content.getChildByName("_srp_vulkan"));
+                if (frames == 350) click(settings.settings_content.getChildByName("_srp_vulkan"));
                 if (frames == 365) trace("SETTINGS SHOT vulkan");
                 // the panel's controls are the column's: each in the look of the same control outside it
                 if (frames == 366)
@@ -467,8 +460,7 @@ package
         private function hudTexts(root:*):void
         {
             root.srp_hud_texts(texts[0][2], texts[0][5], texts[0][6], texts[0][7], texts[0][8], texts[0][9], texts[0][15],
-                texts[0][16], texts[0][4], texts[0][19], texts[0][30], texts[0][31], texts[0][32], texts[0][33], texts[0][34],
-                texts[0][35], texts[0][36]);
+                texts[0][16], texts[0][4], texts[0][19], texts[0][30], texts[0][31], texts[0][32], texts[0][33], texts[0][34]);
         }
 
         // The Vulkan options as patch 83 names them, in the panel's order, and their values without a user.cfg
@@ -865,7 +857,7 @@ package
         private function vulkanControl(settings:*, name:String):*
         {
             var panel:* = named(settings.stage, "_srp_vulkan_panel");
-            return panel != null ? panel.getChildAt(1).getChildByName(name) : null;
+            return panel != null ? panel.getChildAt(panel.numChildren - 1).getChildByName(name) : null;
         }
 
         // The tooltip shown on the stage (a TipRenderer's), or null.
@@ -888,29 +880,41 @@ package
             var note:* = c.getChildByName("_srp_renderer_note");
             graphicsTab(settings, "0");
             row.validateNow();
-            // the row built as the Renderer's: the same component, its label the exe's, its box showing "Default"
-            // (every option at its default), greyed as a disabled stock list while the Renderer shows DirectX 11
-            require(row.visible && row.textFieldLabel.text == texts[0][19] && getQualifiedClassName(row) == getQualifiedClassName(list)
-                && row.dataProvider.length == 1 && row.dataProvider[0] == texts[0][35] && row.textField.text == texts[0][35]
-                && !row.enabled && row.alpha < 1 && row.currentLabel == "disabled" && !settings.btn_accept.enabled,
-                "Vulkan options: the row (" + getQualifiedClassName(row) + ", the Renderer's " + getQualifiedClassName(list)
-                + ") with the exe's label, \"" + texts[0][35] + "\" in its box (" + row.textField.text + "), greyed while the "
-                + "Renderer shows DirectX 11 (" + row.alpha + ", " + row.currentLabel + "), nothing pending");
-            require(near(row.x, list.x) && near(row.width, list.width) && near(row.height, list.height)
-                && near(row.y, list.y + step) && near(row.textFieldLabel.x, list.textFieldLabel.x),
-                "Vulkan options: the row at the Renderer's place and size, one step under it (" + row.x + "," + row.y + " "
+            var optimal:* = c.button_optimal_video;
+            require(row.visible && row.label == texts[0][19] && getQualifiedClassName(row) == getQualifiedClassName(optimal)
+                && !row.enabled && !settings.btn_accept.enabled,
+                "Vulkan options: the button (" + getQualifiedClassName(row) + ", the preset buttons' " + getQualifiedClassName(optimal)
+                + ") with the exe's text, disabled while the Renderer shows DirectX 11, nothing pending");
+            optimal.validateNow();
+            require(near(row.x, list.x) && row.width >= optimal.width - 0.5 && row.width <= list.width
+                && near(row.height, optimal.height) && near(row.y + row.height / 2, list.y + step + list.height / 2),
+                "Vulkan options: the button at the column's left edge, the preset buttons' size (" + optimal.width + "x"
+                + optimal.height + "), centred on the row one step under the Renderer (" + row.x + "," + row.y + " "
                 + row.width + "x" + row.height + ")");
-            press(row);
-            require(named(content.stage, "_srp_vulkan_panel") == null, "Vulkan options: a press of the disabled box opens nothing");
+            // the drop-down's arrow at the button's right end, after its text, greyed with it
+            var arrow:* = c.getChildByName("_srp_vulkan_arrow");
+            // drawn where its mask (its second child) cuts the art: the art's own bounds run on unmasked
+            var arrowAt:Rectangle = arrow.getChildAt(1).getBounds(content);
+            var buttonAt:Rectangle = row.getBounds(content);
+            var textAt:Rectangle = row.textField.getBounds(content);
+            require(arrow.visible && arrow.alpha < 1 && arrow.scaleY > 0 && arrowAt.right < buttonAt.right - 2
+                && arrowAt.left > buttonAt.left + buttonAt.width / 2 && arrowAt.left >= textAt.left + row.textField.textWidth
+                && Math.abs((arrowAt.top + arrowAt.bottom) / 2 - (buttonAt.top + buttonAt.bottom) / 2) < 2,
+                "Vulkan options: the arrow pointing down at the button's right end, after its text, greyed with it ("
+                + arrowAt + " on " + buttonAt + ", text from " + textAt.left + " " + row.textField.textWidth + " wide, alpha "
+                + arrow.alpha + ")");
+            click(row);
+            require(named(content.stage, "_srp_vulkan_panel") == null, "Vulkan options: a press of the disabled button opens nothing");
             pick(list, 1);
             row.validateNow();
-            require(row.enabled && row.alpha == 1 && settings.btn_accept.enabled, "Vulkan options: enabled by a Vulkan pick before Apply");
-            press(row);
+            require(row.enabled && settings.btn_accept.enabled, "Vulkan options: enabled by a Vulkan pick before Apply");
+            click(row);
             var panel:* = named(content.stage, "_srp_vulkan_panel");
-            require(panel != null && panel.stage != null, "Vulkan options: the box opens the panel");
-            require(row.selected && String(row.currentLabel).indexOf("selected") == 0,
-                "Vulkan options: the box in its open state while the panel is open (" + row.currentLabel + ")");
-            var body:* = panel.getChildAt(1);
+            require(panel != null && panel.stage != null, "Vulkan options: the button opens the panel");
+            require(row.currentFrame >= 21 && row.currentFrame <= 30 && !row.mouseEnabled && arrow.scaleY < 0 && arrow.alpha == 1,
+                "Vulkan options: the button held pressed (its down frames), its arrow turned up, while the panel is open (frame "
+                + row.currentFrame + ")");
+            var body:* = panel.getChildAt(panel.numChildren - 1);
             var controls:Array = VULKAN.map(function(name:String, ...rest):* { return body.getChildByName("_" + name); });
             for each (var control:* in controls) control.validateNow();
             // each option's hint: the game's tooltip (SrvProfileTipRenderer) with the exe's text, three lines
@@ -921,17 +925,23 @@ package
                     "Vulkan options: " + VULKAN[h] + " has its hint (" + (controls[h].tipData ? controls[h].tipData.name : null) + ")");
             }
             var Point:Class = loader.contentLoaderInfo.applicationDomain.getDefinition("flash.geom.Point") as Class;
-            // the panel as drawn: its background, less the half pixel its border adds on each side (a checkbox's
-            // empty room may reach further, unseen)
-            var bounds:Rectangle = panel.getChildAt(0).getBounds(content.stage);
+            // the panel as drawn: its frame (the tab round the button joined to it: the panel from its own top,
+            // the button's bottom), less the half pixel its border adds on each side (a checkbox's empty room
+            // may reach further, unseen)
+            var bounds:Rectangle = panel.getChildAt(1).getBounds(content.stage);
+            var tabAt:Rectangle = bounds.clone();
             bounds.inflate(-0.5, -0.5);
+            bounds.top = panel.localToGlobal(new Point(0, 0)).y + 0.5;
             var rowBounds:Rectangle = row.getBounds(content.stage);
             var divider:Number = content.localToGlobal(new Point(c._overall_graphics.x - 20, 0)).x;
             var listBounds:Rectangle = list.getBounds(content.stage);
-            require(Math.abs(bounds.top - (rowBounds.bottom + list.menuOffset.top)) < 1 && bounds.left < rowBounds.left
-                && bounds.left < listBounds.left && bounds.right > listBounds.right && bounds.right < divider,
-                "Vulkan options: the panel under the box where the Renderer opens its list, a little wider than the column on both sides, over it ("
+            require(Math.abs(bounds.top - rowBounds.bottom) < 1 && bounds.left < rowBounds.left && bounds.left < listBounds.left
+                && bounds.right > listBounds.right && bounds.right < divider,
+                "Vulkan options: the panel flush under the button, a little wider than the column on both sides, over it ("
                 + bounds + " under " + rowBounds + ", the column " + listBounds + ", the right column at " + divider + ")");
+            // its frame one piece with the button: round it, from the panel's left to past its right, over its top
+            require(tabAt.left < rowBounds.left && tabAt.top < rowBounds.top && near(tabAt.left, bounds.left - 0.5),
+                "Vulkan options: the panel's frame round the button too (" + tabAt + ", the button " + rowBounds + ")");
             // the column's grid: each list at the Renderer list's place and width (its label and box at theirs), each
             // checkbox at Fullscreen's x, its text where Fullscreen's is on its box
             var origin:* = content.globalToLocal(body.localToGlobal(new Point(0, 0)));
@@ -976,7 +986,7 @@ package
                     + VULKAN[i] + ": " + (controls[i].y - controls[i - 1].y) + ", " + rhythm + ")");
             }
             // the background as drawn (its 1-pixel border adds half a pixel on each side)
-            var under:Number = panel.getChildAt(0).height - 1 - (controls[4].y + 26);
+            var under:Number = bounds.height - (controls[4].y + 26);
             require(rhythm >= step - 0.1 && rhythm <= step + 3 && Math.abs(controls[0].width - list.width) < 1
                 && Math.abs(under - controls[0].y) < 1.5,
                 "Vulkan options: the rows a list's step apart (or a little more, to end on a row's edge), the lists the "
@@ -1013,24 +1023,13 @@ package
                         + " on one line inside the panel (to " + end + " of " + panel.width + ")");
                     widest = Math.max(widest, end);
                 }
-                // the exe's texts in that dictionary: the row's label and its box's two values fit
-                root.srp_hud_texts(t[2], t[5], t[6], t[7], t[8], t[9], t[15], t[16], t[4], t[19], t[30], t[31], t[32], t[33], t[34],
-                    t[35], t[36]);
+                // the exe's texts in that dictionary: the button sized to its text (the preset buttons' width at least)
+                root.srp_hud_texts(t[2], t[5], t[6], t[7], t[8], t[9], t[15], t[16], t[4], t[19], t[30], t[31], t[32], t[33], t[34]);
                 row.validateNow();
-                require(row.textFieldLabel.text == t[19] && row.textFieldLabel.textWidth + 4 < row.textFieldLabel.width,
-                    "Vulkan options: " + t[19] + " fits its label (" + row.textFieldLabel.textWidth + " of " + row.textFieldLabel.width + ")");
-                require(row.textField.text == t[35], "Vulkan options: \"" + t[35] + "\" with every option at its default ("
-                    + row.textField.text + ")");
-                controls[2].selected = true;
-                row.validateNow();
-                require(row.textField.text == t[36], "Vulkan options: \"" + t[36] + "\" with an option changed (" + row.textField.text + ")");
-                for each (var shown:String in [t[35], t[36]])
-                {
-                    controls[2].selected = shown == t[36];
-                    row.validateNow();
-                    require(row.textField.text == shown && row.textField.textWidth + 2 < row.textField.width * row.scaleX,
-                        "Vulkan options: " + shown + " fits its box (" + row.textField.textWidth + ")");
-                }
+                require(row.label == t[19] && row.textField.textWidth + 4 <= row.textField.width * row.scaleX
+                    && row.width >= optimal.width - 0.5 && row.width <= list.width, "Vulkan options: " + t[19]
+                    + " fits its button (" + row.textField.textWidth + " of " + row.textField.width * row.scaleX + ", "
+                    + row.width + " wide)");
             }
             // Vulkan saved and running (DXVK at the start), so only an option makes the note
             graphicsTab(settings, "1", "1");
@@ -1047,24 +1046,25 @@ package
             controls[0].close();
             c.slider_gamma.dispatchEvent(new MouseEvent(MouseEvent.MOUSE_DOWN, true));
             require(panel.stage == null, "Vulkan options: a press outside closes the panel");
-            press(row);
-            press(row);
-            require(panel.stage == null && !row.selected, "Vulkan options: a press on the box again closes it, the box back");
+            click(row);
+            row.dispatchEvent(new MouseEvent(MouseEvent.MOUSE_DOWN, true));
+            require(panel.stage == null && row.mouseEnabled && arrow.scaleY > 0, "Vulkan options: a press on the button again "
+                + "closes it, the button back, its arrow down");
             // Esc (MainMenu's key handler asks Settings.closePanel first; a test player's stage takes no
             // key event dispatched to it): the panel closes, the window stays; with no panel open nothing
-            press(row);
+            click(row);
             require(settings.closePanel() && panel.stage == null && settings.visible,
                 "Vulkan options: Esc closes the panel, the window stays");
             require(!settings.closePanel(), "Vulkan options: Esc with no panel open is the window's");
             // a list of the panel open: closing the panel (Esc, the window hidden, DirectX 11 picked) closes it too
-            press(row);
+            click(row);
             controls[1].open();
             require(openList(content.stage) != null, "Vulkan options: the overlay list opens");
             settings.closePanel();
             require(panel.stage == null && openList(content.stage) == null && !controls[1].selected,
                 "Vulkan options: Esc with a list of the panel open closes the list with the panel");
             // DirectX 11 picked while it is open: closed, greyed
-            press(row);
+            click(row);
             pick(list, 0);
             row.validateNow();
             require(panel.stage == null && !row.enabled, "Vulkan options: DirectX 11 picked closes the panel and greys the row");
@@ -1076,7 +1076,7 @@ package
             click(settings.btn_cancel);
             require(!controls[2].selected && !settings.btn_accept.enabled, "Vulkan options: Cancel unchecks it");
             // in the open panel (a list opens on the stage only)
-            press(row);
+            click(row);
             pick(controls[0], 3);
             controls[4].selected = false;
             settings.closePanel();

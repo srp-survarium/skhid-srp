@@ -9,7 +9,7 @@ package
 
     // The Graphics tab's "Renderer" list (docs/notes/dxvk-option.md): DirectX 11
     // or Vulkan/DXVK, built as the tab's Monitor list (a list with its label
-    // on its left), and the "Vulkan options" row under it (SrpVulkanOptions),
+    // on its left), and the "Vulkan options..." button under it (SrpVulkanOptions),
     // greyed while the list shows DirectX 11. The list is exe patch 83's
     // `srp_dxvk`, kept in user.cfg, which the game reads at its next start, with
     // the Vulkan options. Settings owns them as one change of the tab: a pick or
@@ -36,7 +36,7 @@ package
         // "0", as the exe answers it.
         private var running:String = "";
         // "Applies after restart." (the Language choice's), under the Vulkan
-        // options' row while a saved value (the choice or an option) is not the
+        // options' button while a saved value (the choice or an option) is not the
         // one this process runs, in the room SrpVideoTab keeps for it (the rows
         // under it never move).
         private var note:TextField;
@@ -54,7 +54,7 @@ package
             menu.alpha = 1;
             menu.visible = false;
             content.addChild(menu);
-            // the Vulkan options' row is disabled and enabled again as the list's pick changes, before Apply
+            // the button is disabled and enabled again as the list's pick changes, before Apply
             menu.addEventListener(ListEvent.INDEX_CHANGE, onPick);
             vulkan = new SrpVulkanOptions(content);
             note = SrpLanguage.text(SrpLanguage.noteFormat(content), 280, NOTE_ROOM);
@@ -95,15 +95,14 @@ package
         }
 
         // The texts of the root.srp_hud_texts: the two choices, the note, the
-        // Vulkan options' row label, its five options' hints and its box's two values.
-        public function texts(directx:String, dxvk:String, restart:String, options:String, hints:Array,
-            standard:String, custom:String):void
+        // Vulkan options' button and its five options' hints.
+        public function texts(directx:String, dxvk:String, restart:String, options:String, hints:Array):void
         {
             var index:int = menu.selectedIndex;
             menu.dataProvider = new DataProvider([directx, dxvk]);
             menu.selectedIndex = index;
             note.text = restart;
-            vulkan.texts(options, hints, standard, custom);
+            vulkan.texts(options, hints);
             show();
         }
 
@@ -113,7 +112,8 @@ package
         public function place():void
         {
             content.setChildIndex(note, content.numChildren - 1);
-            content.setChildIndex(vulkan.box, content.numChildren - 1);
+            content.setChildIndex(vulkan.button, content.numChildren - 1);
+            content.setChildIndex(vulkan.arrow, content.numChildren - 1);
             content.setChildIndex(menu, content.numChildren - 1);
             show();
             if (content.currentFrame == VIDEO_FRAME)
@@ -125,15 +125,15 @@ package
         }
 
         // At the place and size of the tab's Monitor list, a row under it; the
-        // Vulkan options' row a row under that, its panel's rows on one step
-        // over the column's `rows`; the note
+        // Vulkan options' button a row under that, the panel's rows on one step
+        // over the column's `rows`, the button at the preset buttons' width (`preset`); the note
         // under them at the labels' left edge, in the column's width.
-        public function layout(monitor:DisplayObject, y:Number, step:Number, rows:Array):void
+        public function layout(monitor:DisplayObject, y:Number, step:Number, rows:Array, preset:DisplayObject):void
         {
             menu.x = monitor.x;
             menu.y = y;
             menu.width = monitor.width;
-            vulkan.layout(menu, y + step, step, rows);
+            vulkan.layout(menu, y + step, step, rows, preset);
             note.x = menu.x + (menu.textFieldLabel != null ? menu.textFieldLabel.x : 0);
             note.y = y + step + menu.height;
             note.width = monitor.x + monitor.width - note.x;

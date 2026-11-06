@@ -7,7 +7,7 @@ The owner (2026-11-05): let Windows players try DXVK; off by default.
 - **Where:** Settings, Graphics, left column, right under Monitor: a "Renderer" list built as
   Monitor's (its label on its left, the same size), "DirectX 11" (the default) or "Vulkan/DXVK"
   (`st_srp_renderer_option`, `_dx11`, `_dxvk`, ten languages; "Vulkan (DXVK)" does not fit Monitor's
-  field), and the "Vulkan options" row under it (below). The rows under them move down two of
+  field), and the "Vulkan options" button under it (below). The rows under them move down two of
   Monitor's steps and the hint's room; the preset panel (Optimal, Default side by side) stays where
   it was. The room is the field of view slider's, which went to the Gameplay tab, a group of the
   right column under the HUD group, its "FOV:" heading in the headings' look (the owner, 2026-11-06:
@@ -31,26 +31,33 @@ The owner (2026-11-05): let Windows players try DXVK; off by default.
 The owner (2026-11-05): all five, clearly integrated; (2026-11-06) one row that opens a panel, the
 window keeping its size.
 
-- **Where:** a row right under the Renderer list, built as it is (the owner, 2026-11-06: it must look
-  like a drop-down): the label "Vulkan options" (`st_srp_vulkan_options`) and a stock drop-down box at the
-  Renderer's place and width showing "Default" while all five are at their defaults, else "Custom"
-  (`st_srp_vulkan_default`, `st_srp_vulkan_custom`). A press on the box opens the panel where the Renderer
-  opens its list (the list's offset under its box), the box in its open state meanwhile; the panel is the
-  box's drop-down (CLIK's DropdownMenu takes a ready popup as its `dropdown` as well as a list's class: it
-  shows and hides it as the list, a press on a popup of a control in it, a list of the panel, keeps it).
-  The panel is a popup over the column, a little wider than it on both sides, framed by the Settings
-  window's own border on its four sides (its 1 px light line, then its dark band); its surface is the
-  window's own background art (SrvSettingsWndow's shape's bitmap, character 273, added to the movie as
-  `SrpSettingsGround`), placed where the window draws it, so the texture inside continues what is
-  behind it and only the border tells inside from outside. The owner, 2026-11-06: everything inside it
-  looking as the same control outside does. Its controls are the column's components, unchanged (the
+- **Where:** a "Vulkan options" button (`st_srp_vulkan_options`) on the row right under the Renderer
+  list, at the column's left edge, the tab's own (the Optimal and Default buttons' SetingsButton, at
+  their width; wider only for a text that would not fit), with a drop-down's arrow at its right end and
+  its text left of it (the owner, 2026-11-06: a button that clearly opens a menu; a drop-down row was
+  worse). The arrow is the Renderer box's own art (DropdownMenuSkinnedLabel's shape, masked to its
+  triangle) at 1.5 times its size, over the button (beside it in the tab, since a CLIK button sizes
+  itself by its children's bounds); it turns up while the panel is open and greys with the button.
+  A press opens the panel under it, the button held pressed (its "down" frames).
+- **The panel:** a popup over the column, a little wider than it on both sides, and one piece with the
+  button, a tab that drops down: the Settings window's own border (its 1 px light line, then its dark
+  band) runs round the panel and round the button above it, 4 px out, the band under the button left
+  out, so the button opens into the panel. Its surface is the window's own background art
+  (SrvSettingsWndow's shape's bitmap, character 273, added to the movie as `SrpSettingsGround`), placed
+  where the window draws it, so the texture inside continues what is behind it. A shadow (a knocked-out
+  DropShadowFilter of the outline: distance 6 down, blur 16, 0.9 black) lies outside the whole outline,
+  so it sits above the tab. The owner, 2026-11-06: the panel a separate floating window, joined to its
+  button, everything inside it looking as the same control outside does. Chosen from renders of: the
+  border alone, with a shadow, a stronger shadow, a lighter surface, the tab, a notch pointing at the
+  button; the menu's message backgrounds (MessageThinBackground and the others) are other surfaces
+  (scratched metal, blue), not the tab's, so the window's own art stays. Its controls are the column's components, unchanged (the
   harness compares each with its twin: class, scale, size, colour, filters, frame, parts and text
   formats). Its rows on the column's grid (each list at the Renderer list's place and width, so its label and box
   are at the column's; each checkbox at Fullscreen's x, its text on its box as Fullscreen's), one line
   each, on one step (Monitor's list step, grown as little as
   ending in a gap of the column's rows takes: no row shows half below it), the same padding over
-  the first and under the last. A press outside it, on the box again or Esc closes it (Esc closes the
-  window only when no panel is open). The box is disabled (greyed as a disabled stock list, not hidden)
+  the first and under the last. A press outside it, on the button again or Esc closes it (Esc closes the
+  window only when no panel is open). The button is disabled (greyed as the stock buttons, not hidden)
   while the Renderer list shows DirectX 11, following the list's pick before Apply; picking DirectX 11
   closes an open panel.
 - **Hints:** each of the five shows a hint when the pointer rests on it, the game's own tooltip (CLIK's

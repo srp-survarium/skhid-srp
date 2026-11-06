@@ -100,8 +100,7 @@ TEXTS = {"st_srp_options_hud": "HUD:", "st_srp_hide_quests_option": "Hide quests
          "st_srp_vulkan_overlay_hint": "Shows the game's speed on screen.\n+ See how smoothly the game runs\n- Covers a corner of the screen",
          "st_srp_vulkan_low_latency_hint": "Makes the game react sooner to your mouse.\n+ Aim reacts faster\n- Can cost a few frames",
          "st_srp_vulkan_tear_free_hint": "Keeps the picture whole when vertical sync is off.\n+ No torn lines when turning fast\n- PC works a bit harder",
-         "st_srp_vulkan_dedicated_gpu_hint": "Picks the stronger graphics card on laptops.\n+ Better performance on laptops\n- Uses more battery",
-         "st_srp_vulkan_default": "Default", "st_srp_vulkan_custom": "Custom"}
+         "st_srp_vulkan_dedicated_gpu_hint": "Picks the stronger graphics card on laptops.\n+ Better performance on laptops\n- Uses more battery"}
 language.ENGLISH.update({key: text.encode() for key, text in TEXTS.items()})
 language.ENGLISH.update({"st_srp_hide_hit_markers_option": b"Hide hit markers", "st_srp_hide_scores_option": b"Hide player scores",
                          "st_srp_map_names_option": b"Names on map",

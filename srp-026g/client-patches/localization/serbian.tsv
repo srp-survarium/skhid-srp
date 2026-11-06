@@ -2700,10 +2700,8 @@ st_srp_unit_mps	%1$s m/s
 st_srp_unit_percent	%1$s%
 st_srp_unit_seconds	%1$ss
 st_srp_unit_times	%1$sx
-st_srp_vulkan_custom	Svoje
 st_srp_vulkan_dedicated_gpu	Prednost namenskoj GPU
 st_srp_vulkan_dedicated_gpu_hint	Na laptopovima bira jaču grafičku karticu.\n+ Bolje performanse na laptopovima\n- Troši više baterije
-st_srp_vulkan_default	Standardno
 st_srp_vulkan_frame_limit	Ograničenje FPS
 st_srp_vulkan_frame_limit_hint	Ograničava koliko slika u sekundi igra crta.\n+ Računar je hladniji i tiši\n- Ne više slika od granice
 st_srp_vulkan_low_latency	Smanji kašnjenje unosa

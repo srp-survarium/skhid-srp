@@ -551,7 +551,7 @@ The bytecode builder that made it (`login_hint_026g.py`) is in git history only.
 
 Settings → Gameplay, a group of the right column under the HUD group: its heading "FOV:" in the headings' look (`st_fov_option`, with the colon
 gamma has, as "Friends:" and "HUD:" are), the stock slider under it, 50 to 100 (`../flash/main_menu/src/SrpFieldOfView.as`; 2026-11-06, the owner: "we can move fov
-to game maybe?", for the Graphics tab's Vulkan options' row). Exe patch 83 keeps it: `uro_fov` in the
+to game maybe?", for the Graphics tab's Vulkan options' button). Exe patch 83 keeps it: `uro_fov` in the
 Settings' call answers `root.srp_slider_option(name, label, degrees, least, most)` and sets whole degrees
 within uro_fov's range, user.cfg at once (`rust/patches/src/hud_options.rs`, `vostok::settings::FieldOfView`).
 The game's own video option 7 (a "FOV" slider) names "fov" again, no variable's, and the movie binds nothing to it:

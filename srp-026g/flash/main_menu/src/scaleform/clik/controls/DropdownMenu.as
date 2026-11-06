@@ -8,7 +8,6 @@ package scaleform.clik.controls
    import scaleform.clik.constants.InputValue;
    import scaleform.clik.constants.InvalidationType;
    import scaleform.clik.constants.NavigationCode;
-   import scaleform.clik.core.UIComponent;
    import scaleform.clik.data.DataProvider;
    import scaleform.clik.events.InputEvent;
    import scaleform.clik.events.ListEvent;
@@ -21,8 +20,6 @@ package scaleform.clik.controls
    public class DropdownMenu extends Button
    {
       
-      // srp: the list's class name, or a ready popup (a MovieClip, not a list: the Settings' Vulkan options'
-      // panel) shown and hidden as the list would be, where the list would open.
       [Inspectable(type="String",defaultValue="CLIKScrollingList")]
       public var dropdown:Object = "CLIKScrollingList";
       
@@ -187,7 +184,7 @@ package scaleform.clik.controls
          }
          _selectedIndex = value;
          this.invalidateSelectedIndex();
-         if(this._dropdownRef is CoreList)
+         if(this._dropdownRef != null)
          {
             list = this._dropdownRef as CoreList;
             scrollOffset = list is ScrollingList ? ((list as ScrollingList).scrollPosition) : 0;
@@ -293,9 +290,9 @@ package scaleform.clik.controls
          {
             return;
          }
-         if(this._dropdownRef is CoreList && this.selected)
+         if(this._dropdownRef != null && this.selected)
          {
-            CoreList(this._dropdownRef).handleInput(event);
+            this._dropdownRef.handleInput(event);
             if(event.handled)
             {
                return;
@@ -383,30 +380,15 @@ package scaleform.clik.controls
          {
             return;
          }
-         // srp: a press on a popup of a control in the drop-down (a list of the Vulkan options' panel, open)
-         for(var at:DisplayObject = event.target as DisplayObject; at != null; at = at.parent)
-         {
-            var owned:UIComponent = at as UIComponent;
-            if(owned != null && owned.focusTarget != null && this._dropdownRef.contains(owned.focusTarget))
-            {
-               return;
-            }
-         }
          this.close();
       }
-
+      
       protected function showDropdown() : void
       {
          var menu:MovieClip;
          var classRef:Class;
          if(this.dropdown == null)
          {
-            return;
-         }
-         if(this.dropdown is MovieClip && !(this.dropdown is CoreList))
-         {
-            _dropdownRef = this.dropdown as MovieClip;
-            PopUpManager.show(this._dropdownRef,x + this.menuOffset.left,y + height + this.menuOffset.top,parent);
             return;
          }
          if(this.dropdown is String && this.dropdown != "")
