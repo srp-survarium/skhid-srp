@@ -77,7 +77,7 @@ occlusion = _load('scope_fits_occlusion', HERE / 'occlusion.py')
 sights = _load('scope_fits_sights', HERE / 'sights.py')
 
 PACK_ID = 'scope-fits'
-VERSION = '5'
+VERSION = '6'
 FIRST_VARIANT = 2901
 LAST_VARIANT = 3299
 CATEGORY = 22
@@ -148,7 +148,8 @@ def reticle_centre(aimed_model):
 
 
 def wanted_offset(ref):
-    """Where a variant's reticle goes from its eye: a collimator's red dot on the eye; a scope's reticle
+    """Where a variant's reticle goes from its eye: a collimator's red dot on the eye (the eye on the
+    optic's axis, looking along it: eyes.tsv has the eye's miss of that axis); a scope's reticle
     as its reference has it (its red dot is no aiming point: the PSO-1's and the 1P69's light the
     chevron, whose tip is the eye's line, 14 px above the dot's box at x4)."""
     return np.zeros(2) if ref['kind'] == 'C' else ref['off']
@@ -162,7 +163,8 @@ def reticle_offset(roots, cfg, weapon_model, aimed_model, level=False):
     centre = reticle_centre(aimed_model)
     if centre is None or (level and rot is not None and max(abs(x) for x in rot) > 1e-6):
         return None
-    return np.array(rs.eye_on_dot(roots.layered(), cfg, weapon_model, centre)) - np.array(aim[:2])
+    frame = rs.posed_frame(roots.layered(), cfg, weapon_model)
+    return rs.posing.transform(np.asarray(centre, float), frame)[:2] - np.array(aim[:2])
 
 
 def scope_frame_eye(model_dir):
@@ -506,12 +508,12 @@ def build(args, work):
             if kind == 'C':
                 # the eye before the red dot, the gun posed as the game draws it (read unposed, the
                 # UMP-45's Walther showed 25 px right of the screen's centre, @4)
-                needed = rs.eye_on_dot(roots.layered(), cfg, from_dir, reticle_centre(aim_out))
+                needed = rs.collimator_eye(roots.layered(), cfg, from_dir, aim_out)
                 has_point = lib.locator(lib.leaves(base_dir / 'render/export_properties'), 'scope_point')
                 candidates = ([(base_model, base_dir)] if has_point and not sighted else []) + eyes.get(gun, [])
                 candidates += [(v['change'], lib.model_dir(args.live, v['change'])) for v in live_variants.values()
                                if v['weapons'] == [gun] and v['change'] and not sighted]
-                candidates = [(m, d) for m, d in candidates if d and not aim_turned(d)]
+                candidates = [(m, d) for m, d in candidates if d]
                 change = rs.eye_model(candidates, base_model, needed)
                 if change is False:
                     change = f'{base_model}_n_{short}'
@@ -539,10 +541,18 @@ def build(args, work):
             # the eye on the scope's axis: the reticle where wanted_offset puts it
             eye_model = work / 'models' / (change + '.skinned_model') if change and (work / 'models' / (change + '.skinned_model')).exists() \
                 else roots.model(change or base_model)
-            off = reticle_offset(roots, cfg, eye_model, aim_out, level=True)
-            want, within = wanted_offset(ref), (rs.EYE_TOLERANCE if kind == 'C' else EYE_AXIS)
-            if off is None or np.abs(off - want).max() > within:
-                sys.exit(f'{vname}: its reticle is {off} from the eye, not {want}')
+            want = wanted_offset(ref)
+            if kind == 'C':
+                # its eye on the optic's axis, looking along it (rifle scopes' collimator_eye)
+                position, rotation = rs.collimator_eye(roots.layered(), cfg, eye_model, aim_out)
+                _, at, turn = lib.locator(lib.leaves(eye_model / 'render/export_properties'), 'aim')
+                off = (np.array(at) - position)[:2]
+                if np.abs(np.array(at) - position).max() > rs.EYE_TOLERANCE or np.abs(np.array(turn or [0.0] * 3) - rotation).max() > rs.EYE_TURN:
+                    sys.exit(f'{vname}: its eye is {at}, {turn}, not on the optic\'s axis {position}, {rotation}')
+            else:
+                off = reticle_offset(roots, cfg, eye_model, aim_out, level=True)
+                if off is None or np.abs(off - want).max() > EYE_AXIS:
+                    sys.exit(f'{vname}: its reticle is {off} from the eye, not {want}')
             axis.append(f'{vname}\t{off[0] * 1000:+.2f}\t{off[1] * 1000:+.2f}\t{want[0] * 1000:+.2f}\t{want[1] * 1000:+.2f}')
             # nothing of the gun or its rails in the line of sight (occlusion.py): a release-41 gun's
             # variant must pass; a live weapon's (the Walther's) is as its live variants are (recorded)

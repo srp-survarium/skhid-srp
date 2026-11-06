@@ -56,7 +56,7 @@ fitn_leupold_deltapoint_glock_17	C	pass	0.6	1.2	1.0	-
 fitn_leupold_deltapoint_colt_m1911	C	pass	0.6	1.2	1.0	-
 fitn_leupold_deltapoint_akmsu	C	pass	1.0	1.6	1.0	-
 fitn_leupold_deltapoint_famas	C	pass	0.8	1.6	1.0	-
-fitn_leupold_deltapoint_g3sg1	C	pass	2.0	3.8	1.0	-
+fitn_leupold_deltapoint_g3sg1	C	pass	2.2	3.8	1.0	-
 fitn_leupold_deltapoint_ks_23m	C	pass	1.6	2.8	1.0	-
 fitn_leupold_deltapoint_ppsh_drum	C	pass	0.6	1.0	1.0	-
 fitn_ncstar_4_scar_h	C	pass	1.8	2.8	1.0	-
@@ -100,7 +100,7 @@ fitn_belomo_pk01_fort_401	C	retail	2.4	2.4	0.2	fort_401_part2_s@+0.000,-0.013,-0
 fitn_belomo_pk01_jackhammer	C	pass	1.6	1.6	1.0	-
 fitn_belomo_pk01_akmsu	C	pass	1.8	1.8	1.0	-
 fitn_belomo_pk01_famas	C	pass	1.6	1.6	1.0	-
-fitn_belomo_pk01_g3sg1	C	pass	3.4	3.6	1.0	-
+fitn_belomo_pk01_g3sg1	C	pass	3.6	3.6	1.0	-
 fitn_belomo_pk01_ks_23m	C	pass	2.8	2.8	1.0	-
 fitn_belomo_pk01_ppsh_drum	C	pass	1.0	1.0	1.0	-
 fitn_hensoldt_rsas_scar_h	C	pass	1.2	1.4	1.0	-
@@ -151,14 +151,14 @@ fitn_walther_comp2_mp_153	C	pass	1.4	2.8	1.0	-
 fitn_walther_comp2_neostead	C	pass	2.0	3.4	1.0	-
 fitn_walther_comp2_pp2000	C	pass	1.8	3.4	1.0	-
 fitn_walther_comp2_rem_870	C	live	2.2	20.0	0.0	lp002sg@+0.005,-0.008,-0.083
-fitn_walther_comp2_rpd	C	live	0.0	8.6	0.3	rpd_s@+0.026,+0.002,-0.808
+fitn_walther_comp2_rpd	C	live	0.0	8.2	0.1	rpd_s@+0.029,-0.019,-0.807
 fitn_walther_comp2_socom16	C	pass	1.6	3.0	1.0	-
 fitn_walther_comp2_spas_12	C	pass	1.4	2.6	1.0	-
-fitn_walther_comp2_sr2m	C	live	0.0	0.0	1.0	-
+fitn_walther_comp2_sr2m	C	pass	1.2	3.6	1.0	-
 fitn_walther_comp2_toz_122	C	live	2.6	4.2	0.5	lpsg4@+0.004,-0.017,-0.765
 fitn_walther_comp2_toz_34	C	pass	2.2	3.8	1.0	-
-fitn_walther_comp2_ump45	C	live	0.6	20.0	0.2	ump_45_mat_s@+0.010,-0.045,-0.286
-fitn_walther_comp2_valmet	C	live	1.8	3.0	0.5	valmetrk62_reciever_s@+0.002,-0.012,-0.550
+fitn_walther_comp2_ump45	C	live	0.6	20.0	0.2	ump_45_mat_s@+0.011,-0.046,-0.293
+fitn_walther_comp2_valmet	C	live	1.4	3.0	0.5	valmetrk62_reciever_s@+0.002,-0.007,-0.550
 fitn_walther_comp2_vepr_12	C	pass	3.4	5.2	0.7	-
 fitn_walther_comp2_vepr_12_premium	C	pass	3.4	5.2	0.7	-
 fitn_acog_ta31_scar_h	S	pass	11.2	11.2	1.0	-
