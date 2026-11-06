@@ -5,5 +5,5 @@ id	id_069	name	model	template	faction	level	armour	isolation	drop_weight	price	i
 1879	snow_20_legs_7	Snow-20 Pants	character/human/newyears_2020/renesanse_sniper_07_snow_legs_s1	equipment-046:1001	3	10	57	28	60	29750	21	8	1.8	1023	1001	89,12
 1880	snow_20_gloves_7	Snow-20 Gloves	character/human/newyears_2020/renesanse_sniper_07_snow_hand_hud	equipment-046:1000	3	10	60	28	60	14880	22	8	0.25	1023	1000	87,12
 1881	snow_20_boots_7	Snow-20 Boots	character/human/newyears_2020/renesanse_sniper_07_snow_boot	equipment-046:999	3	10	60	22	60	15300	14	9	1.1	1023	999	86,12
-1882	league_shadow_mask	Delta mask	character/human/special_items/league_shadow/league_shadow_mask	native:941	0	14	45	15	20	23630	15	9	0.5	1183	941	85,12
+1882	league_shadow_mask	Delta mask	character/human/special_items/league_shadow/league_shadow_mask	native:941	0	14	15	5	20	23630	15	9	0.5	1083	941	85,12
 1883	snow_20_helmet_7	Snow-20 Helmet	character/human/newyears_2020/renesanse_sniper_07_snow_helmet	equipment-046:1003	3	10	35	28	60	35580	16	9	1.5		1003	88,12

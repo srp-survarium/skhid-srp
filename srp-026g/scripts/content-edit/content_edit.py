@@ -1258,13 +1258,12 @@ STATS = {
             'experience': default_modification(124),
             'rep_scav': default_modification(125),
             'rep_bm': default_modification(126),
-            # the Snow-20's winter isolation (every region) and the Delta mask's (the face)
+            # the Snow-20's winter isolation (every region)
             'isolation': default_modification(102),
-            'mask_isolation': default_modification(118),
         },
         'match': {'armor', 'ano', 'arms', 'back', 'weight', 'oxygen_s', 'pockets', 'artefact_slots', 'ammo_bags',
                   'accuracy', 'aim', 'max_weight', 'health_regen', 'stamina_regen', 'movement', 'artefact_search',
-                  'reload_speed', 'recoil', 'stamina_spend', 'slot_size', 'isolation', 'mask_isolation'},
+                  'reload_speed', 'recoil', 'stamina_spend', 'slot_size', 'isolation'},
         'cards': armour_card,
     },
     'medicines': {

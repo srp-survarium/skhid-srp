@@ -7,7 +7,8 @@
   (`leagues_back_5`).
 - `equipment-069@2` adds the owner's pick of 2026-11-05: the Snow-20 vest, pants,
   gloves, boots and helmet, and the Delta mask (below, "Snow-20 and the Delta
-  mask").
+  mask"); `@3` (2026-11-06, the owner after seeing it in game) makes the Delta
+  mask a light, aim-speed mask.
 
 Every number here is a proposal. Balance is the owner's call.
 
@@ -129,7 +130,7 @@ Every number here is a proposal. Balance is the owner's call.
 
 - The levels, weights, prices and drop weights above.
 
-## Snow-20 and the Delta mask (equipment-069@2)
+## Snow-20 and the Delta mask (equipment-069@2, @3)
 
 The owner's pick of 2026-11-05 ("make sure they fit properly and are well
 balanced with their quirks"): the Snow-20 vest, pants, gloves, boots and helmet
@@ -181,16 +182,19 @@ balanced with their quirks"): the Snow-20 vest, pants, gloves, boots and helmet
 - 0.69d's Delta mask (league item, no faction): light armour, face armour 45,
   isolation 2, 0.5 kg, a built-in isolation bonus, tier 5. 0.69d's tier 5 is
   Skhid's level 14 (the backpacks' level mapping above).
-- Proposed: level 14, no faction (sold by everyone at no rank, as the STK2
-  items), armour 45, isolation 15, 0.5 kg, the mask isolation +20 (1183, the
-  second-strongest of its kind), 23,630 (the level-14 masks' median), drop
-  weight 20 (theirs). The config starts from the level-14 Scavenger mask
-  (`scav_mask_9`, 941): its parameters, face region and card, the row's numbers.
-- Against the three live level-14 masks: the lightest and the only one with a
-  built-in bonus; more armour than ren_mask_5 (35 / 70, 1.2 kg)
-  and scav_mask_9 (30 / 70, 0.8 kg), less than edge_mask_5
-  (50 / 25, 2 kg); the least isolation of the four. None is strictly
-  better or worse (`balance_audit.py`).
+- Level 14, no faction (sold by everyone at no rank, as the STK2 items), a
+  light mask that speeds aiming (the owner, 2026-11-06, after seeing @2 in
+  game: weak protection, an aiming bonus in place of the isolation one):
+  armour 15, isolation 5, 0.5 kg, aim time -8 % (1083, the second-strongest of
+  its kind; the aim bonus the Sniper gloves carry), 23,630 (the level-14
+  masks' median), drop weight 20 (theirs). The config starts from the level-14
+  Scavenger mask (`scav_mask_9`, 941): its parameters, face region and card,
+  the row's numbers. (@2 had armour 45, isolation 15 and mask isolation +20,
+  1183.)
+- Against the three live level-14 masks (ren_mask_5 35 / 70, 1.2 kg;
+  scav_mask_9 30 / 70, 0.8 kg; edge_mask_5 50 / 25, 2 kg): the least armour
+  and isolation of the four, the lightest, and the only one with a built-in
+  bonus. None is strictly better or worse (`balance_audit.py`).
 - Fit: resource-porter's mask fitting of the face-wear masks
   (`face_items_069d::fit_surface`, the `mask` pieces of the manifest): over the
   native head (no `remove_head_model`: a harness and a face guard, not a closed
@@ -217,6 +221,8 @@ Snow-20 with a backpack and masks.
   the brim of scavengers_05, edge_assault_05, scavenger_scout_07 and
   edge_researcher_03; the mask stays in the mask slot only (a helmet goes on
   over it).
+- 2026-11-06, after seeing it in game: the Delta mask's isolation bonus goes;
+  its protection is low and it speeds aiming instead (above).
 
 ### Needs a look in game
 
@@ -230,4 +236,4 @@ Snow-20 with a backpack and masks.
 
 - The Snow-20's bonus swap (each piece loses its Sniper twin's bonus for the
   isolation; the helmet without one), and the Delta mask's level, faction,
-  numbers and price above.
+  exact numbers and price above.

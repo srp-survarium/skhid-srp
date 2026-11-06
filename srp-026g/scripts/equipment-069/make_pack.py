@@ -18,7 +18,7 @@ from pathlib import Path
 from common import (DICTIONARY, DONOR_ICONS, E046_MANIFEST, MODIFICATIONS, MOVIE, PACK, Inputs, bcw, e046_entries,
                     equipment046, model_parts, sha, specs, template, text_keys)
 
-VERSION = '2'
+VERSION = '3'
 DATA_TYPE = 4  # the native equipment data type
 
 
