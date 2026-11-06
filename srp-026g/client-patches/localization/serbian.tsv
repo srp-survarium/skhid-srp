@@ -2704,11 +2704,10 @@ st_srp_vulkan_dedicated_gpu	Prednost namenskoj GPU
 st_srp_vulkan_frame_limit	Ograničenje FPS
 st_srp_vulkan_low_latency	Smanji kašnjenje unosa
 st_srp_vulkan_off	Isključeno
-st_srp_vulkan_options	Vulkan opcije
-st_srp_vulkan_options_open	Otvori
+st_srp_vulkan_options	Vulkan opcije...
 st_srp_vulkan_overlay	Prikaz performansi
 st_srp_vulkan_overlay_fps	FPS
-st_srp_vulkan_overlay_frametimes	FPS + grafik
+st_srp_vulkan_overlay_frametimes	FPS+grafik
 st_srp_vulkan_overlay_full	Potpun
 st_srp_vulkan_tear_free	Bez cepanja slike bez V-Sync
 st_srp_weapon069_akmsu_desc	Skraćeni AKMS sa preklopnim kundakom, municija 7,62x39. Podržava pojedinačnu i automatsku paljbu.

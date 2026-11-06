@@ -9,7 +9,7 @@ package
 
     // The Graphics tab's "Renderer" list (docs/notes/dxvk-option.md): DirectX 11
     // or Vulkan/DXVK, built as the tab's Monitor list (a list with its label
-    // on its left), and the "Vulkan options" row under it (SrpVulkanOptions),
+    // on its left), and the "Vulkan options..." button under it (SrpVulkanOptions),
     // greyed while the list shows DirectX 11. The list is exe patch 83's
     // `srp_dxvk`, kept in user.cfg, which the game reads at its next start, with
     // the Vulkan options. Settings owns them as one change of the tab: a pick or
@@ -36,7 +36,7 @@ package
         // "0", as the exe answers it.
         private var running:String = "";
         // "Applies after restart." (the Language choice's), under the Vulkan
-        // options' row while a saved value (the choice or an option) is not the
+        // options' button while a saved value (the choice or an option) is not the
         // one this process runs, in the room SrpVideoTab keeps for it (the rows
         // under it never move).
         private var note:TextField;
@@ -54,7 +54,7 @@ package
             menu.alpha = 1;
             menu.visible = false;
             content.addChild(menu);
-            // the row greys and lights up as the list's pick changes, before Apply
+            // the button is disabled and enabled again as the list's pick changes, before Apply
             menu.addEventListener(ListEvent.INDEX_CHANGE, onPick);
             vulkan = new SrpVulkanOptions(content);
             note = SrpLanguage.text(SrpLanguage.noteFormat(content), 280, NOTE_ROOM);
@@ -63,6 +63,9 @@ package
             note.visible = false;
             content.addChild(note);
         }
+
+        // Where a list's open list starts from its left edge: under its box, at the Monitor list's width.
+        public static const MENU_LEFT:Number = 162;
 
         // The Monitor list's settings (settingsTabs_15), for a list built as it is.
         public static function style(list:DropdownMenuSkinnedLabel):void
@@ -75,7 +78,7 @@ package
             // Set directly: CLIK's inspectableMenu* setters only take a value
             // from the Flash editor, so from code they do nothing and the list
             // opened under the label, not under its box.
-            list.menuOffset = new Padding(4, 0, 0, 162);
+            list.menuOffset = new Padding(4, 0, 0, MENU_LEFT);
             list.menuPadding = new Padding(5, 1, 5, 1);
             list.menuRowsFixed = false;
             list.menuWidth = 184;
@@ -92,14 +95,14 @@ package
         }
 
         // The texts of the root.srp_hud_texts: the two choices, the note, the
-        // Vulkan options' row's label and its box.
-        public function texts(directx:String, dxvk:String, restart:String, options:String, open:String):void
+        // Vulkan options' button.
+        public function texts(directx:String, dxvk:String, restart:String, options:String):void
         {
             var index:int = menu.selectedIndex;
             menu.dataProvider = new DataProvider([directx, dxvk]);
             menu.selectedIndex = index;
             note.text = restart;
-            vulkan.texts(options, open);
+            vulkan.texts(options);
             show();
         }
 
@@ -109,7 +112,7 @@ package
         public function place():void
         {
             content.setChildIndex(note, content.numChildren - 1);
-            content.setChildIndex(vulkan.row, content.numChildren - 1);
+            content.setChildIndex(vulkan.button, content.numChildren - 1);
             content.setChildIndex(menu, content.numChildren - 1);
             show();
             if (content.currentFrame == VIDEO_FRAME)
@@ -121,7 +124,7 @@ package
         }
 
         // At the place and size of the tab's Monitor list, a row under it; the
-        // Vulkan options' row a row under that, the panel's rows on one step
+        // Vulkan options' button a row under that, the panel's rows on one step
         // over the column's `rows`; the note
         // under them at the labels' left edge, in the column's width.
         public function layout(monitor:DisplayObject, y:Number, step:Number, rows:Array):void
@@ -131,7 +134,7 @@ package
             menu.width = monitor.width;
             vulkan.layout(menu, y + step, step, rows);
             note.x = menu.x + (menu.textFieldLabel != null ? menu.textFieldLabel.x : 0);
-            note.y = vulkan.row.y + vulkan.row.height;
+            note.y = y + step + menu.height;
             note.width = monitor.x + monitor.width - note.x;
         }
 

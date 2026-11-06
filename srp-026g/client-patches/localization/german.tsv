@@ -2704,11 +2704,10 @@ st_srp_vulkan_dedicated_gpu	Dedizierte GPU bevorzugen
 st_srp_vulkan_frame_limit	Bildratenlimit
 st_srp_vulkan_low_latency	Eingabeverzögerung senken
 st_srp_vulkan_off	Aus
-st_srp_vulkan_options	Vulkan-Optionen
-st_srp_vulkan_options_open	Öffnen
+st_srp_vulkan_options	Vulkan-Optionen...
 st_srp_vulkan_overlay	Leistungsanzeige
 st_srp_vulkan_overlay_fps	FPS
-st_srp_vulkan_overlay_frametimes	FPS + Graph
+st_srp_vulkan_overlay_frametimes	FPS+Graph
 st_srp_vulkan_overlay_full	Vollständig
 st_srp_vulkan_tear_free	Kein Tearing ohne VSync
 st_srp_weapon069_akmsu_desc	Verkürzte AKMS mit Klappschaft, Munition: 7,62x39. Einzel- und Dauerfeuer.

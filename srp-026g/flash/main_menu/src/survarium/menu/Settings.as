@@ -96,7 +96,7 @@ package survarium.menu
       protected var _crosshair:SrpCrosshairChoice;
       
       // The Graphics tab's Renderer list (patch 83's `srp_dxvk`, which the game reads at its next
-      // start: docs/notes/dxvk-option.md) and its Vulkan options' row, under Monitor (SrpVideoTab). A
+      // start: docs/notes/dxvk-option.md) and its Vulkan options' button, under Monitor (SrpVideoTab). A
       // pick or an option changed is a change of the tab.
       protected var _renderer:SrpRendererChoice;
       
@@ -306,14 +306,14 @@ package survarium.menu
       
       // The HUD group's own texts (root.srp_hud_texts): the heading, "Hide quests", the crosshair
       // list's three choices, "Static minimap"; then the Renderer list's two choices, its note, and
-      // the Vulkan options' row's label and box.
+      // the Vulkan options' button.
       public function setHudTexts(values:Array) : void
       {
-         if(values.length >= 11)
+         if(values.length >= 10)
          {
             _hudTexts = values;
             this.applyHudTexts();
-            this._renderer.texts(values[6],values[7],values[8],values[9],values[10]);
+            this._renderer.texts(values[6],values[7],values[8],values[9]);
          }
       }
       

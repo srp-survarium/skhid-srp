@@ -5,19 +5,25 @@ package
     import flash.display.Shape;
     import flash.display.Sprite;
     import flash.events.Event;
+    import flash.events.MouseEvent;
     import flash.geom.Rectangle;
     import scaleform.clik.controls.DropdownMenu;
+    import scaleform.clik.core.UIComponent;
     import scaleform.clik.data.DataProvider;
+    import scaleform.clik.events.ButtonEvent;
     import scaleform.clik.events.ListEvent;
+    import scaleform.clik.managers.PopUpManager;
     import scaleform.clik.utils.Padding;
 
-    // The Graphics tab's "Vulkan options" (docs/notes/dxvk-option.md): a row under the Renderer list,
-    // built as it is (its label on its left, a box), whose box opens a panel over the column the way a
-    // list's popup opens, holding the five options exe patch 83 keeps in user.cfg and gives DXVK at the
-    // next start with Vulkan/DXVK: the frame rate limit and the performance overlay (lists, the exe's
-    // index), Reduce input lag, Tear-free with vsync off and Prefer the dedicated GPU (checkboxes, "1"
-    // or "0"). A click outside the panel or Esc closes it. SrpRendererChoice owns it: the row is
-    // greyed while the Renderer list shows DirectX 11, and its options are the Renderer's pending
+    // The Graphics tab's "Vulkan options..." (docs/notes/dxvk-option.md): a button across the column's
+    // row under the Renderer list, the tab's own (the Optimal and Default buttons' SetingsButton), whose
+    // press opens a panel right under it, its edges the button's, over the column (a popup, as a list's),
+    // holding the five options exe patch 83 keeps in user.cfg and gives DXVK at the next start with
+    // Vulkan/DXVK: the frame rate limit and the performance overlay (lists, the exe's index), Reduce
+    // input lag, Tear-free with vsync off and Prefer the dedicated GPU (checkboxes, "1" or "0"). A press
+    // outside the panel (and outside a list of its own while that is open) or Esc closes it; the button
+    // again too. SrpRendererChoice owns it: the button is disabled while the Renderer list shows
+    // DirectX 11, and its options are the Renderer's pending
     // change of the tab (Apply saves them, Cancel puts the saved ones back). The exe answers
     // ExternalInterface.call(name[, value]) with root.srp_check_option(name, label, saved, running[,
     // the list's choices' texts]), running the value this process runs (DXVK's of the start, without
@@ -34,11 +40,13 @@ package
         private static const LISTS:int = 2;
         // Over the panel's first row and under its last.
         private static const PADDING:Number = 8;
+        // Left of the rows (a list's box ends at the panel's right edge, its field as wide as it can).
+        private static const INSET:Number = 4;
         // The last row's (a checkbox's) drawn height: its box.
         private static const LAST_ROW:Number = 26;
 
-        // The row: its label, and a box that opens the panel (DropdownMenu's `panel`).
-        public var row:DropdownMenuSkinnedLabel;
+        // The button that opens the panel.
+        public var button:SetingsButton;
         // The panel and the controls in it, by name.
         public var panel:Sprite;
         private var body:Sprite;
@@ -52,13 +60,16 @@ package
 
         public function SrpVulkanOptions(content:MovieClip)
         {
-            row = new DropdownMenuSkinnedLabel();
-            row.name = "_srp_vulkan";
-            SrpRendererChoice.style(row);
-            row.menuRowCount = 1;
-            row.alpha = 1;
-            row.visible = false;
-            content.addChild(row);
+            button = new SetingsButton();
+            button.name = "_srp_vulkan";
+            button.autoSize = "none";
+            button.focusable = true;
+            button.toggle = false;
+            // Scaleform leaves a script-created control fully transparent.
+            button.alpha = 1;
+            button.visible = false;
+            button.addEventListener(ButtonEvent.CLICK, onPress);
+            content.addChild(button);
             panel = new Sprite();
             panel.name = "_srp_vulkan_panel";
             background = new Shape();
@@ -66,8 +77,6 @@ package
             // the controls one Sprite under the panel (press routing: memory note, the lobby's rooms)
             body = new Sprite();
             panel.addChild(body);
-            row.panel = panel;
-            row.menuOffset = new Padding(4, 0, 0, -PADDING);
             for (var i:int = 0; i < NAMES.length; i++)
             {
                 var name:String = NAMES[i];
@@ -98,18 +107,16 @@ package
             }
         }
 
-        // The row's label and its box's text (the exe's root.srp_hud_texts).
-        public function texts(label:String, open:String):void
+        // The button's text (the exe's root.srp_hud_texts).
+        public function texts(label:String):void
         {
-            row.dataProvider = new DataProvider([open]);
-            row.selectedIndex = 0;
-            row.label = label;
+            button.label = label;
         }
 
-        // Whether the row can be shown: its texts and every option's answer there.
+        // Whether the button can be shown: its text and every option's answer there.
         public function get ready():Boolean
         {
-            if (row.dataProvider == null || row.dataProvider.length != 1)
+            if (button.label == null || button.label == "")
             {
                 return false;
             }
@@ -219,34 +226,66 @@ package
             changed = handler;
         }
 
+        // Whether the panel is open.
+        public function get open():Boolean
+        {
+            return panel.stage != null;
+        }
+
         // The panel closed (a tab change, the window closed, Esc); whether it was open.
         public function close():Boolean
         {
-            var open:Boolean = row.selected;
-            if (open)
+            if (!open)
             {
-                row.close();
+                return false;
             }
-            return open;
+            panel.stage.removeEventListener(MouseEvent.MOUSE_DOWN, onStagePress);
+            panel.parent.removeChild(panel);
+            return true;
         }
 
-        // At the Renderer list's place and size, `y` under it. The panel's five rows on one step, the
-        // lists' (`step`, Monitor's), the padding the same over the first and under the last.
+        // A press of the button: the panel opened under it (a popup over the column), or closed.
+        private function onPress(event:Event):void
+        {
+            if (close() || !button.enabled)
+            {
+                return;
+            }
+            PopUpManager.show(panel, button.x, button.y + button.height, button.parent);
+            panel.stage.addEventListener(MouseEvent.MOUSE_DOWN, onStagePress);
+        }
+
+        // A press outside the button, the panel and an open list of the panel closes it.
+        private function onStagePress(event:MouseEvent):void
+        {
+            for (var at:DisplayObject = event.target as DisplayObject; at != null; at = at.parent)
+            {
+                if (at == button || at == panel
+                    || at is UIComponent && UIComponent(at).focusTarget != null && panel.contains(UIComponent(at).focusTarget))
+                {
+                    return;
+                }
+            }
+            close();
+        }
+
+        // Across the Renderer list's row, `y` under it; the panel the button's width. Its five rows on one
+        // step, the lists' (`step`, Monitor's), the padding the same over the first and under the last.
         // `rows`: the column's rows under it, which the open panel lies over: it ends in a gap between
         // two of them, none showing half below its edge; the step grows as much as that takes.
         public function layout(renderer:DisplayObject, y:Number, step:Number, rows:Array):void
         {
-            row.x = renderer.x;
-            row.y = y;
-            row.width = renderer.width;
+            button.x = renderer.x;
+            button.y = y + (renderer.height - button.height) / 2;
+            button.width = renderer.width;
             var gaps:int = NAMES.length - 1;
             var height:Number = 2 * PADDING + gaps * step + LAST_ROW;
-            // in the tab's coordinates: where the popup opens (under the box, its offset's top) and ends
-            var top:Number = y + row.height + row.menuOffset.top;
+            // in the tab's coordinates: where the panel opens (right under the button) and ends
+            var top:Number = button.y + button.height;
             var bottom:Number = top + height;
             for each (var under:DisplayObject in rows)
             {
-                var span:Rectangle = under != null ? under.getBounds(row.parent) : null;
+                var span:Rectangle = under != null ? under.getBounds(button.parent) : null;
                 if (span != null && span.top < bottom && span.bottom > bottom)
                 {
                     bottom = span.bottom + 2;
@@ -254,17 +293,20 @@ package
             }
             step += (bottom - top - height) / gaps;
             height = bottom - top;
+            var width:Number = button.width;
             for (var i:int = 0; i < NAMES.length; i++)
             {
                 var control:DisplayObject = controls[NAMES[i]];
-                control.x = PADDING;
+                control.x = INSET;
                 control.y = PADDING + i * step;
                 if (i < LISTS)
                 {
-                    control.width = renderer.width;
+                    var list:DropdownMenuSkinnedLabel = control as DropdownMenuSkinnedLabel;
+                    list.width = width - INSET;
+                    // its list under its box, which keeps to the right as the Renderer's
+                    list.menuOffset = new Padding(4, 0, 0, SrpRendererChoice.MENU_LEFT - (renderer.width - list.width));
                 }
             }
-            var width:Number = renderer.width + 2 * PADDING;
             background.graphics.clear();
             // the lists' popup look (OptionScrollingList): black, a thin border; opaque, so a press on
             // it is the panel's, never a row's under it
@@ -274,12 +316,12 @@ package
             background.graphics.endFill();
         }
 
-        // Shown on the Graphics frame once ready; greyed (no panel) while `enabled` is false.
+        // Shown on the Graphics frame once ready; disabled (no panel) while `enabled` is false.
         public function show(visible:Boolean, enabled:Boolean):void
         {
-            row.visible = visible && ready;
-            row.enabled = enabled;
-            if (!row.visible || !enabled)
+            button.visible = visible && ready;
+            button.enabled = enabled;
+            if (!button.visible || !enabled)
             {
                 close();
             }

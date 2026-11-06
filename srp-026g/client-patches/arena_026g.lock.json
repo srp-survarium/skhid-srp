@@ -2,7 +2,7 @@
   "generated": "by link_026g.py --write from patch_026g.py's ARENA and its sources: do not edit",
   "va": "0xa42d000",
   "size": 893044,
-  "sha256": "26de647e361337fa8a9e0e071dfc1d34173f83667bea916fb4c48048f84058c3",
+  "sha256": "ccdc8ca1cb7f13dfa082d4045adc1297d3e01d9d8067c3b940f555dc9a8486a8",
   "blocks": {
     "bullet_bounds.code": {
       "kind": "code",
@@ -82,7 +82,7 @@
     "patches.code": {
       "kind": "code",
       "va": "0xa442000",
-      "size": 297660
+      "size": 297628
     },
     "patches.data": {
       "kind": "data",
@@ -479,7 +479,7 @@
     "kill_feed_row": "0xa43c09f",
     "kit_keys": "0xa43804a",
     "kit_keys_since": "0xa43804c",
-    "lamps_light_vtable": "0xa48aa90",
+    "lamps_light_vtable": "0xa48aa70",
     "lamps_on_bind": "0xa480cdc",
     "lamps_on_decal_enter": "0xa480fb4",
     "lamps_on_decal_leave": "0xa48101b",
@@ -494,7 +494,7 @@
     "lamps_on_save": "0xa480eae",
     "lamps_on_visual_insert": "0xa480f66",
     "lamps_on_visual_remove": "0xa480f7c",
-    "lamps_visual_vtable": "0xa48aa84",
+    "lamps_visual_vtable": "0xa48aa64",
     "language_on_configs_start": "0xa48098d",
     "language_on_configs_texts": "0xa4811ac",
     "language_on_options_call": "0xa480a44",

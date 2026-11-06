@@ -5,13 +5,13 @@ package
     import survarium.menu.Settings;
 
     // srp's rows of the Graphics tab's left column: the Renderer list and its
-    // Vulkan options' row under Monitor (Settings' SrpRendererChoice; finish
+    // Vulkan options' button under Monitor (Settings' SrpRendererChoice; finish
     // places them). The field of view is the Gameplay tab's (SrpFieldOfView):
     // the video options' own option 7 names no variable, and Settings binds
     // no control to it.
     //
     // To make room, the rows under Monitor move down two of its steps (the
-    // Renderer's and the Vulkan options' rows) and the note's room (kept
+    // Renderer's and the Vulkan options' button's rows) and the note's room (kept
     // whether it shows or not: the rows never move with it). The preset panel
     // stays where it was with the FOV slider under gamma (that row's room is
     // the Vulkan options' now), its two buttons side by side in it.

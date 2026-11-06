@@ -7,7 +7,7 @@ The owner (2026-11-05): let Windows players try DXVK; off by default.
 - **Where:** Settings, Graphics, left column, right under Monitor: a "Renderer" list built as
   Monitor's (its label on its left, the same size), "DirectX 11" (the default) or "Vulkan/DXVK"
   (`st_srp_renderer_option`, `_dx11`, `_dxvk`, ten languages; "Vulkan (DXVK)" does not fit Monitor's
-  field), and the "Vulkan options" row under it (below). The rows under them move down two of
+  field), and the "Vulkan options..." button under it (below). The rows under them move down two of
   Monitor's steps and the hint's room; the preset panel (Optimal, Default side by side) stays where
   it was. The room is the field of view slider's, which went to the Gameplay tab, a group of the
   right column under the HUD group, its "FOV:" heading in the headings' look (the owner, 2026-11-06:
@@ -15,7 +15,7 @@ The owner (2026-11-05): let Windows players try DXVK; off by default.
   "Field-of-view slider") (`flash/main_menu/src/SrpRendererChoice.as`, `SrpVulkanOptions.as`,
   `SrpVideoTab.as`).
 - **Restart hint:** the Language choice's "Applies after restart." (`st_srp_language_restart`, its
-  style) under the Vulkan options' row at the labels' left edge, while a saved value (the choice
+  style) under the Vulkan options' button at the labels' left edge, while a saved value (the choice
   or a Vulkan option) is not what this process runs (the exe's answers say it: DXVK loaded at the
   start or not, the options DXVK was given). Its room is kept whether it shows or not, so nothing
   moves when it appears; the lists' open popups lie over it.
@@ -31,17 +31,19 @@ The owner (2026-11-05): let Windows players try DXVK; off by default.
 The owner (2026-11-05): all five, clearly integrated; (2026-11-06) one row that opens a panel, the
 window keeping its size.
 
-- **Where:** a "Vulkan options" row right under the Renderer list, built as it is (label, a box
-  "Open"); the box opens a panel over the column the way a list's popup opens (black, a thin
+- **Where:** a "Vulkan options..." button (`st_srp_vulkan_options`) across the column's row right under the
+  Renderer list, the tab's own (the Optimal and Default buttons' art and text); the owner, 2026-11-06: a
+  button, not a drop-down box that says "Open". A press opens a panel right under it, its left and right
+  edges the button's, over the column, as a popup (a list's popup look: black, a thin
   border), holding the five, one line each, on one step (Monitor's list step, grown as little as
   ending in a gap of the column's rows takes: no row shows half below it), the same padding over
   the first and under the last. A press outside it or Esc closes it (Esc closes the
-  window only when no panel is open). The row is greyed (not hidden) while the Renderer list shows
+  window only when no panel is open). The button is disabled (greyed as the stock buttons, not hidden) while the Renderer list shows
   DirectX 11, following the list's pick before Apply; picking DirectX 11 closes an open panel.
 - **The five** (each kept in user.cfg, `st_srp_vulkan_*` texts in ten languages):
   - Frame rate limit: Off, 60, 120, 144, 165, 240 (`srp_dxvk_frame_limit 0|60|...`) ->
     `dxvk.maxFrameRate = <n>`.
-  - Performance overlay: Off, FPS, FPS + graph, Full (`srp_dxvk_overlay off|fps|frametimes|full`) ->
+  - Performance overlay: Off, FPS, FPS+graph, Full (`srp_dxvk_overlay off|fps|frametimes|full`) ->
     `dxvk.hud = fps`, `fps,frametimes`, `fps,frametimes,gpuload,compiler,memory`.
   - Reduce input lag, off by default (`srp_dxvk_low_latency`) -> `dxvk.latencySleep = True`.
   - Tear-free with vsync off, off by default (`srp_dxvk_tear_free`) -> `dxvk.tearFree = True`.

@@ -8,7 +8,7 @@
 #   and the field of view group under the HUD group (patch 83's uro_fov: the stock slider, its heading in the headings' look, Apply, Cancel);
 #   and its crosshair and minimap position choices (inside their lists); the Graphics tab's
 #   Renderer list (docs/notes/dxvk-option.md: under Monitor, the rows under it
-#   moved, every dictionary's label in the column, Apply, Cancel) and its Vulkan options' row under it: greyed
+#   moved, every dictionary's label in the column, Apply, Cancel) and its Vulkan options... button under it: disabled
 #   while the list shows DirectX 11, its panel over the column (the five options, every dictionary's texts
 #   inside it), closed by a press outside it or Esc, each option pending until Apply, Cancel, the note;
 # - HudHarness.as: the crosshair's hit marker shown off and hidden on; the Tab list off as today,
@@ -44,7 +44,7 @@ keys = ('st_srp_hide_hit_markers_option', 'st_srp_hide_scores_option', 'st_srp_o
         'st_srp_language_restart', 'st_srp_hide_quests_option', 'st_srp_crosshair_dynamic', 'st_srp_crosshair_static',
         'st_srp_crosshair_hidden', 'st_srp_static_minimap_option', 'st_minimap_off', 'st_minimap_bottom', 'st_minimap_top',
         'st_srp_map_names_option', 'st_srp_renderer_option', 'st_srp_renderer_dx11', 'st_srp_renderer_dxvk',
-        'st_srp_mouse_lock_option', 'st_srp_mouse_vertical_option', 'st_srp_vulkan_options', 'st_srp_vulkan_options_open',
+        'st_srp_mouse_lock_option', 'st_srp_mouse_vertical_option', 'st_srp_vulkan_options',
         'st_srp_vulkan_frame_limit', 'st_srp_vulkan_off', 'st_srp_vulkan_low_latency', 'st_srp_vulkan_tear_free',
         'st_srp_vulkan_dedicated_gpu', 'st_srp_vulkan_overlay', 'st_srp_vulkan_overlay_fps',
         'st_srp_vulkan_overlay_frametimes', 'st_srp_vulkan_overlay_full', 'st_fov_option')
