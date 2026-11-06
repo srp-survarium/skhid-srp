@@ -90,6 +90,8 @@ pub struct Kinematics {
     pub speed_cap: SpeedCap,
     /// [A318] Which worlds the body's speed level is read from ([`LevelRead`]).
     pub level_read: LevelRead,
+    /// [A331] Whether the body's speed level is the one computed from its kit ([`LevelSource`]).
+    pub level_source: LevelSource,
     /// [A304] The flattest ramp face (degrees, the grid's ramp mark) [`SlopeSpeed::RampsGrade`] slows on: a floor whose mark is
     /// flatter counts as unmarked. 35 (the lab, 2026-11-05: Vostok Radar Station's and Chemical Plant's stairs carry 20-39 degree
     /// marks and the client climbs them at full speed; Cologne's slowing stairs are 45; 35 was better than 40 and 44). 20: every
@@ -148,6 +150,32 @@ impl SpeedCap {
         if len > cap { [local[0] * cap / len, local[1] * cap / len] } else { local }
     }
 }
+
+/// [A331] Where the reckoned body's speed level comes from. The client's factor is `F = max(0, 1 + S4)` (`apply_modifier`
+/// 0x2D5AE0, enum 4; `max_speed` 0x2DC010), S4 summing the skills, the items' and modifications' `movement_speed_modifier`, the
+/// carried weight's term (0x329B20, up to -0.2) and the weapon in hands (+-0.05); `survarium::v026g::bot_skills` computes it from a
+/// match profile's kit (`profile_movement_candidates`), and fx-review's A332 check found it equal to the humans' measured level to
+/// about 0.01 on 16 live matches.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum LevelSource {
+    /// A settled world's speed level within 0.85..1.15 ([`Kinematics::level_of`]), else the profile's prior (as it was).
+    Measured,
+    /// The kit in use's computed F for each weapon it could have in hands ([`LEVEL_SNAP`]): a settled world's reading picks the
+    /// nearest when within [`LEVEL_SNAP`] (the server has no reader of the weapon in hands), else stands (a battery's -0.05,
+    /// stagger, Adrenalin: terms the kit does not give); before any reading, the primary's. A reading is taken within
+    /// [`LEVEL_REACH`] of the kit's values instead of 0.85..1.15. A body with no profile: [`Self::Measured`].
+    #[default]
+    Computed,
+}
+
+/// [A331] How near a world's speed level must be to one of the kit's computed values to be taken as that value: the A332 check's
+/// spread (93 of 103 player-kits within 0.02) with room for the loaded rounds spent.
+pub const LEVEL_SNAP: f32 = 0.03;
+
+/// [A331] How far outside the kit's computed values a world's speed level is still taken: the terms the kit does not give, a
+/// battery's -0.05 (`victory_item_core::set_user` 0x300B00) and Adrenalin's +0.05 a rank (patch 94), with room.
+pub const LEVEL_REACH: f32 = 0.1;
 
 /// [A318] Which worlds the reckoned body's speed level ([`Kinematics::level_of`]) is read from. The client's ground speed is the
 /// keys' desired speed times its movement factor once the animation's cross-fade toward them has settled (0.3 s, linear: fx-grid's
@@ -352,6 +380,7 @@ impl Default for Kinematics {
             speed_terms: SpeedTerms::Legs,
             speed_cap: SpeedCap::Client,
             level_read: LevelRead::Settled,
+            level_source: LevelSource::Computed,
         }
     }
 }
@@ -602,13 +631,14 @@ impl Kinematics {
     /// The body's speed level from a world: its speed over the desired one
     /// of its keys, if it moved steadily under keys that have one.
     pub fn level_of(&self, keys: u32, speed: f32) -> Option<f32> {
+        self.level_raw(keys, speed).filter(|level| (0.85..=1.15).contains(level))
+    }
+
+    /// [A331] A world's speed over the desired one of its keys, with no band: none for keys with no desired speed.
+    pub fn level_raw(&self, keys: u32, speed: f32) -> Option<f32> {
         let [a, l] = self.target_local(keys, 1.0);
         let nominal = a.hypot(l);
-        if nominal < 0.5 {
-            return None;
-        }
-        let level = speed / nominal;
-        (0.85..=1.15).contains(&level).then_some(level)
+        (nominal >= 0.5).then(|| speed / nominal)
     }
 }
 

@@ -73,6 +73,8 @@ pub(super) struct Walkers {
     pub(super) bots: Bots,
     /// The worlds name the kit each place is in (`AvoidTuning::kit_in_use`).
     kit_in_use: bool,
+    /// [A331] The kit each place's speed candidates were last computed for (`bot_skills::profile_movement_candidates`), by place.
+    speed_kits: Vec<Option<u8>>,
     maps: Arc<Maps>,
     project: &'static str,
     /// Held once built, so the store may drop it while the match runs.
@@ -187,6 +189,13 @@ impl Walkers {
             .iter()
             .map(|profile| survarium::v026g::bot_skills::profile_movement_level(profile, 0))
             .collect();
+        // [A331] The first kit's computed speed factor for each weapon in hands, until a world names the kit in use.
+        let speed_candidates: Vec<Option<Vec<f32>>> = formed
+            .profiles
+            .iter()
+            .map(|profile| survarium::v026g::bot_skills::profile_movement_candidates(profile, 0))
+            .collect();
+        let speed_kits = speed_candidates.iter().map(|c| c.as_ref().map(|_| 0u8)).collect();
         Some(Self {
             bots: Bots::new_with(
                 id,
@@ -210,6 +219,7 @@ impl Walkers {
             waiting: None,
             events_seen: 0,
             kit_in_use: all_kits,
+            speed_kits,
         })
         .map(|mut walkers| {
             walkers.bots.set_weapons(weapons);
@@ -220,6 +230,11 @@ impl Walkers {
                 walkers.bots.set_zone_armour(place, armour);
             }
             walkers.bots.set_speed_levels(&speed_levels);
+            for (place, candidates) in speed_candidates.into_iter().enumerate() {
+                if let Some(candidates) = candidates {
+                    walkers.bots.set_speed_candidates(place, candidates);
+                }
+            }
             // Play 17: the routes humans took (a private table; without it
             // the bots roam to the exits).
             let var = std::env::var_os("SRP_BOT_ROUTES");
@@ -681,6 +696,14 @@ impl Game {
             // The kit a place is in, for its throw keys' pockets: a human's too.
             if let (Some(supplies), true) = (supplies, walkers.kit_in_use) {
                 walkers.bots.kit_in_use(place, usize::from(supplies.kit));
+            }
+            // [A331] A new kit in use: its speed factors.
+            if let (Some(supplies), Some(profile)) = (supplies, self.formed.profiles.get(place))
+                && walkers.speed_kits.get(place).is_some_and(|&kit| kit != Some(supplies.kit))
+                && let Some(candidates) = survarium::v026g::bot_skills::profile_movement_candidates(profile, usize::from(supplies.kit))
+            {
+                walkers.speed_kits[place] = Some(supplies.kit);
+                walkers.bots.set_speed_candidates(place, candidates);
             }
             let driven = self.formed.places.get(place).is_some_and(|p| p.driven);
             if let (true, Some(supplies), Some(profile)) =

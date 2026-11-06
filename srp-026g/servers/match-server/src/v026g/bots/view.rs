@@ -746,6 +746,13 @@ impl Tracker {
         }
     }
 
+    /// [A331] `place`'s kit in use's computed speed factors ([`BodyTrack::set_speed_candidates`]).
+    pub fn set_speed_candidates(&mut self, place: Place, candidates: Vec<f32>) {
+        if let Some(state) = self.places.get_mut(place) {
+            state.body.set_speed_candidates(candidates);
+        }
+    }
+
     /// [A313] The legs' term of the speed factor `place`'s body moves by ([`BodyTrack::set_legs`]).
     pub fn set_legs(&mut self, place: Place, factor: Option<f32>) {
         if let Some(state) = self.places.get_mut(place) {
