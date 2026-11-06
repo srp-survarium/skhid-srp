@@ -91,6 +91,9 @@ fn reference_replay() {
     let pos_lag1 = var("SRP_A325_POS_LAG1").is_some();
     let keys_mode = var("SRP_A325_KEYS").is_some();
     let level_from_world = var("SRP_A325_LEVEL_FROM_WORLD").is_some();
+    // `SRP_A325_REPLAY_START=1`: the keys mode starts from the clip stack the keys before B leave (else one layer at full weight).
+    let replay_start = var("SRP_A325_REPLAY_START").is_some();
+    let mut last_level: HashMap<usize, f32> = HashMap::new();
     // `SRP_A325_WORLD_BLEND=k`: the velocity kept in the world frame, each tick k of the way toward the intended (a turn does not
     // swing the momentum round with the yaw at once). A hypothesis test, not a client rule.
     let world_blend: Option<f32> = var("SRP_A325_WORLD_BLEND").and_then(|v| v.parse().ok());
@@ -195,7 +198,21 @@ fn reference_replay() {
         // then walks by R(yaw) x the clips' weighted root velocities, the newest ramping 1/6 a tick (0.3 s, 0x921804), Σ w_i v_i
         // without normalisation, each older clip keeping what the newer leave. World B's position is the body after tick B-1
         // (m_last_pos, 0x7BE7C) and its yaw is after input B, so the ticks run k = t0 .. t - 50 with input k, turn from t0 + 50.
-        let mut layers: Vec<(Local, u32, u32)> = vec![(key_clip(keys_in(t0.saturating_sub(50))), 0, keys_in(t0.saturating_sub(50)) & CLIP_KEYS)];
+        // The client is mid-blend at most worlds: its clip stack at B is the keys of the ticks before B played through the same
+        // ramp from the keys 8 ticks before (an older clip is hidden by then, so the stack is exact).
+        let k0 = t0.saturating_sub(50 * 8);
+        let mut layers: Vec<(Local, u32, u32)> = vec![(key_clip(keys_in(k0) & CLIP_KEYS), 0, keys_in(k0) & CLIP_KEYS)];
+        if replay_start {
+            for k in (k0 + 50..t0).step_by(50) {
+                let kk = keys_in(k) & CLIP_KEYS;
+                if layers.last().is_some_and(|l| l.2 != kk) {
+                    layers.push((key_clip(kk), k, kk));
+                }
+            }
+        } else {
+            let kb = keys_in(t0.saturating_sub(50)) & CLIP_KEYS;
+            layers = vec![(key_clip(kb), 0, kb)];
+        }
         // `SRP_A325_LEVEL_FROM_WORLD=1`: the speed factor's modifiers (skill, weapon, kit) measured from the client's own state:
         // world B's recorded speed (m_linear_horizontal_speed) over its clip's speed, when B's keys equal the input before
         // (a steady walk); else 1. A measurement of the client at B, not a model rule (the factor's own read: LIKELY, open).
@@ -203,10 +220,13 @@ fn reference_replay() {
             let clip = key_clip(keys_b & CLIP_KEYS);
             let clip_speed = clip[0].hypot(clip[1]);
             match speed_b {
-                Some(v) if clip_speed > 0.5 && v > 0.5 && keys_b & CLIP_KEYS == keys_in(t0.saturating_sub(50)) & CLIP_KEYS => {
-                    (v / clip_speed).clamp(0.7, 1.3)
+                Some(v) if clip_speed > 0.5 && v > 0.5 && (k0 + 50..=t0).step_by(50).all(|k| keys_in(k) & CLIP_KEYS == keys_b & CLIP_KEYS) => {
+                    let l = (v / clip_speed).clamp(0.7, 1.3);
+                    last_level.insert(w.place, l);
+                    l
                 }
-                _ => 1.0,
+                // Not steady at B: the player's last measured level (the modifiers change only with the kit).
+                _ => last_level.get(&w.place).copied().unwrap_or(1.0),
             }
         } else {
             1.0
