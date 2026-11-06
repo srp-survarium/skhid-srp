@@ -2191,7 +2191,7 @@ st_srp_ammo_scar_ap_name	7.62x51 AP SCAR-H, 20 patruunaa
 st_srp_ammo_slug	Täyteisluoti
 st_srp_ammo_stats	Ammustilastot
 st_srp_artefact_501_description	Artefaktin keräämiseen kuluva aika:
-st_srp_artefact_501_name	Keskittyminen
+st_srp_artefact_501_name	Nopeat kädet
 st_srp_artefact_502_description	Eristys anomalioita vastaan:
 st_srp_artefact_502_name	Vastustuskyky
 st_srp_artefact_511_description	Luotien ja sirpaleiden vahinko anomalian sisällä:
@@ -2200,18 +2200,18 @@ st_srp_artefact_512_description	Artefaktien aktiivisen vaikutuksen kesto:
 st_srp_artefact_512_name	Artefaktien tuntemus
 st_srp_artefact_521_description	Ottelu alkaa satunnaisella artefaktilla säiliössä; sama laji kaikille ottelussa.
 st_srp_artefact_521_name	Artefaktien vartija
-st_srp_artefact_522_description	Artefaktiesi passiiviset vaikutukset koskevat myös eläviä joukkuetovereita 8 m:n säteellä, enintään 4 samaa lajia heidän omansa mukaan lukien.
-st_srp_artefact_522_name	Resonanssi
+st_srp_artefact_522_description	Yksi tasku muuttuu artefaktisäiliöksi.
+st_srp_artefact_522_name	Artefaktisäiliö
 st_srp_artefact_531_description	Jokainen Jousi nopeuttaa myös latausta: +5% passiivisesti, +15% aktiivisena.
 st_srp_artefact_531_name	Jousi II
 st_srp_artefact_532_description	Ei putoamisvahinkoa, kun Onyksi on aktiivinen.
 st_srp_artefact_532_name	Onyksi II
 st_srp_artefact_533_description	Ritarinkannuksen aktivointi palauttaa kaiken kestävyyden.
 st_srp_artefact_533_name	Ritarinkannus II
-st_srp_artefact_534_description	Yksi tasku muuttuu artefaktisäiliöksi.
-st_srp_artefact_534_name	Artefaktisäiliö
-st_srp_artefact_541_description	Aktivoidut artefaktit vaikuttavat myös eläviin joukkuetovereihin 5 m:n säteellä. "He hehkuvat, sinä loistat"
-st_srp_artefact_541_name	Resonanssikaskadi
+st_srp_artefact_541_description	Artefaktiesi passiiviset vaikutukset koskevat myös eläviä joukkuetovereita 8 m:n säteellä, enintään 4 samaa lajia heidän omansa mukaan lukien.
+st_srp_artefact_541_name	Resonanssi
+st_srp_artefact_542_description	Aktivoidut artefaktit vaikuttavat myös eläviin joukkuetovereihin 5 m:n säteellä. "He hehkuvat, sinä loistat"
+st_srp_artefact_542_name	Kaskadi
 st_srp_artefact_points	 pistettä
 st_srp_attachments	Lisävarusteet
 st_srp_crosshair_dynamic	Dynaaminen tähtäin

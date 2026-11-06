@@ -2191,7 +2191,7 @@ st_srp_ammo_scar_ap_name	7,62x51 AP SCAR-H, 20 nábojů
 st_srp_ammo_slug	Kulka
 st_srp_ammo_stats	Statistiky střeliva
 st_srp_artefact_501_description	Doba sbírání artefaktu:
-st_srp_artefact_501_name	Soustředění
+st_srp_artefact_501_name	Rychlé ruce
 st_srp_artefact_502_description	Izolace proti anomáliím:
 st_srp_artefact_502_name	Odolnost
 st_srp_artefact_511_description	Poškození od kulek a střepin uvnitř anomálie:
@@ -2200,18 +2200,18 @@ st_srp_artefact_512_description	Doba trvání aktivního účinku artefaktů:
 st_srp_artefact_512_name	Znalost artefaktů
 st_srp_artefact_521_description	Zápas začíná s náhodným artefaktem v kontejneru; jeden druh pro všechny v zápase.
 st_srp_artefact_521_name	Strážce artefaktů
-st_srp_artefact_522_description	Pasivní účinky tvých artefaktů působí i na živé spoluhráče do 8 m, nejvýše 4 jednoho druhu včetně jejich vlastních.
-st_srp_artefact_522_name	Rezonance
+st_srp_artefact_522_description	Jedna kapsa se změní v kontejner na artefakt.
+st_srp_artefact_522_name	Kontejner na artefakt
 st_srp_artefact_531_description	Každá Pružina také zrychluje přebíjení: +5% pasivně, +15% během aktivace.
 st_srp_artefact_531_name	Pružina II
 st_srp_artefact_532_description	Žádné poškození pádem, dokud je Onyx aktivní.
 st_srp_artefact_532_name	Onyx II
 st_srp_artefact_533_description	Aktivace Ostrožky obnoví všechnu výdrž.
 st_srp_artefact_533_name	Ostrožka II
-st_srp_artefact_534_description	Jedna kapsa se změní v kontejner na artefakt.
-st_srp_artefact_534_name	Kontejner na artefakt
-st_srp_artefact_541_description	Aktivované artefakty působí i na živé spoluhráče do 5 m. "Oni září, ty zazáříš"
-st_srp_artefact_541_name	Rezonanční kaskáda
+st_srp_artefact_541_description	Pasivní účinky tvých artefaktů působí i na živé spoluhráče do 8 m, nejvýše 4 jednoho druhu včetně jejich vlastních.
+st_srp_artefact_541_name	Rezonance
+st_srp_artefact_542_description	Aktivované artefakty působí i na živé spoluhráče do 5 m. "Oni září, ty zazáříš"
+st_srp_artefact_542_name	Kaskáda
 st_srp_artefact_points	 bodů
 st_srp_attachments	Příslušenství
 st_srp_crosshair_dynamic	Dynamický zaměřovač

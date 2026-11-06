@@ -1,5 +1,5 @@
 //! Patch 109: the artefact tree's skills the exe computes (docs/notes/artefact-skills.md).
-//! The data skills (Concentration, Forest Protection, Knowledge of Artifacts) are native
+//! The data skills (Quick Hands, Forest Protection, Knowledge of Artifacts) are native
 //! modifiers 7, 41 and 39; the others travel packed in modifier 40 (`artefact_power`), parsed
 //! once here.
 #![forbid(unsafe_code)]
@@ -86,7 +86,7 @@ pub struct Skills {
 
 impl Skills {
     /// Bits: 0..2 Resistance, 3 Keeper, 4 Resonance, 5 Spring II, 6 Onyx II, 7 Larkspur II,
-    /// 8 Resonance Cascade, 9..11 the match's Keeper draw 1..6 (0 none; with the skill or not).
+    /// 8 Cascade, 9..11 the match's Keeper draw 1..6 (0 none; with the skill or not).
     /// Anything else (a fraction, a negative, a rank past 5, a draw of 7, a bit past 11) is no
     /// skill at all.
     pub fn parse(value: f32) -> Option<Self> {
@@ -143,7 +143,7 @@ impl Skills {
     }
 
     /// How far (squared metres) this carrier's artefacts give their `phase` to its teammates:
-    /// Resonance its passives within 8 m, Resonance Cascade its actives within 5 m.
+    /// Resonance its passives within 8 m, Cascade its actives within 5 m.
     pub fn reach(self, phase: Phase) -> Option<f32> {
         match phase {
             Phase::Passive => self.resonance.then_some(8.0 * 8.0),
