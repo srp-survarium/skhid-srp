@@ -1110,12 +1110,10 @@ STATS = {
             'reload_bonus': default_modification(204), 'chamber_bonus': default_modification(205),
             'aim_bonus': default_modification(207), 'recoil_bonus': default_modification(208),
             'reliability_bonus': default_modification(209),
-            # a skill's effect carried by the gun (weapon-skill-bonuses.md): 111 the gear's movement
-            # speed (Bear Arms: +5 % takes a -5 % gun's own penalty off), 212 hip-fire spread
-            'movement_bonus': default_modification(111), 'hip_bonus': default_modification(212),
         },
-        # a bonus column of a gun with no built-in list makes its default_modifications
-        'add': {'reload_empty', 'movement_bonus', 'hip_bonus'},
+        # a bonus cell of a gun with no built-in list makes its default_modifications
+        'add': {'reload_empty', 'silver_bonus', 'damage_bonus', 'spread_bonus', 'rpm_bonus', 'reload_bonus',
+                'chamber_bonus', 'aim_bonus', 'recoil_bonus', 'reliability_bonus'},
         'match': {'damage', 'pierce', 'rpm', 'magazine', 'reload', 'reload_empty', 'reload_start', 'reload_end', 'chamber',
                   'aim_time', 'show_time', 'hide_time', 'weight', 'movement', 'stopping', 'stamina_damage',
                   'near_m', 'far_m', 'far_damage', 'spread', 'shot_spread', 'max_spread', 'spread_growth',
@@ -1123,7 +1121,7 @@ STATS = {
                   'left_min', 'left_max', 'right_min', 'right_max', 'pid_p', 'pid_i', 'pid_d', 'shake_min',
                   'shake_max', 'shake_time', 'sway_h', 'sway_v', 'sway_period', 'melee', 'damage_bonus',
                   'spread_bonus', 'rpm_bonus', 'reload_bonus', 'chamber_bonus', 'aim_bonus', 'recoil_bonus',
-                  'reliability_bonus', 'movement_bonus', 'hip_bonus'},
+                  'reliability_bonus'},
         'cards': weapon_card,
     },
     'ammo': {
