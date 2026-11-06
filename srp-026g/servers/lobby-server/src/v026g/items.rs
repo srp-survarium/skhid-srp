@@ -6,8 +6,8 @@
 //!
 //! | request | done | refused |
 //! |---|---|---|
-//! | `46 01` attach | `83 46 01`, then the inventory and the account | `84 46` `st_cannot_upgrade_item`, then the inventory and the account (the window showed the cosmetic in its slot already) |
-//! | `46 02` detach | `83 46 02`, then the same (also for a cosmetic that is gone: sold, Flash's `on_item_sold` asks after the sale) | the same |
+//! | `46 01` attach | `83 46 01`, then the inventory and the account; on a weapon the inventory and the account alone | `84 46` `st_cannot_upgrade_item`, then the inventory and the account (the window showed the cosmetic in its slot already) |
+//! | `46 02` detach | `83 46 02`, then the same (also for a cosmetic that is gone: sold, Flash's `on_item_sold` asks after the sale); on a weapon the inventory and the account alone | the same |
 //! | `46 05` place a decal | nothing: the client wrote the value itself and has no handler for an answer; on a weapon the inventory and the account (patch 47: the lobby builds the weapon again with it) | `84 46`, then the inventory and the account |
 //! | `46 06` window opened | `83 46 06`, and `83 46 07` again for a change not chosen yet | `84 46` `st_cannot_select_rerolled_modification` |
 //! | `46 07` reroll | `83 46 07` and the money | `84 46`, then `83 46 06`: the window is locked until it is filled again |
@@ -17,6 +17,15 @@
 //!
 //! A repair paid in silver for an item with defects takes time: when it is
 //! over the client is told with an important message, `#ir[<item>]`.
+//!
+//! A weapon's upgrades are the weapon kit's (`items_rules`,
+//! `survarium::v026g::weapon_kit`): up to six, sent packed into three
+//! records. The client's own copy of an attach or a detach (`83 46 01`,
+//! `83 46 02`) would write a record of a logical slot into its item, a
+//! fourth beside the decals and the kit (the client's fatal assert), or
+//! take the kit off for its own; so a weapon's change is answered with the
+//! inventory and the account alone, which the client takes as they are
+//! (patch 48's preview waits for the account).
 
 use session::LockExt;
 use session::v026g::items_rules::{self, Detached, ItemError, RerollWindow};
@@ -39,13 +48,24 @@ impl Core<'_> {
         self.squads_dirty = true;
     }
 
+    /// `host` is a weapon of the account: its upgrades are the weapon
+    /// kit's, answered with the inventory and the account alone.
+    fn is_weapon(&self, who: &Who, host: u32) -> bool {
+        who.account
+            .locked()
+            .item(host)
+            .is_some_and(|item| items_rules::is_weapon(item.dict_id))
+    }
+
     // ------------------------------------------------------- cosmetics
 
     /// `46 01 <kit> <host> <upgrade> <slot> <u64 0>`.
     pub(super) fn attach_upgrade(&mut self, who: &Who, host: u32, upgrade: u32, slot: u8) {
         let attached =
             items_rules::attach_upgrade(&mut who.account.locked(), host, upgrade, slot);
+        let weapon = self.is_weapon(who, host);
         match attached {
+            Ok(_) if weapon => None,
             Ok(attached) => self.send(
                 who.addr,
                 lobby::permitted_upgrade_attached(
@@ -66,8 +86,10 @@ impl Core<'_> {
 
     /// `46 02 <kit> <upgrade> <host>` (the host is patch 30's).
     pub(super) fn detach_upgrade(&mut self, who: &Who, host: u32, upgrade: u32) {
+        let weapon = self.is_weapon(who, host);
         let detached = items_rules::detach_upgrade(&mut who.account.locked(), host, upgrade);
         match detached {
+            Ok(_) if weapon => {}
             // Gone: Flash's on_item_sold, after the sale's answer (the
             // cosmetic came off every item with it). It is off: a refusal
             // would show the player an error for the sale.

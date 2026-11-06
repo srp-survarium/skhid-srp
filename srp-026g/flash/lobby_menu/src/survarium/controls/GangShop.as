@@ -771,7 +771,7 @@ package survarium.controls
                obj.ammoText = descrData.ammo_text;
             }
          }
-         obj.quickSlotItemSize = (descrData.fills_whole_pocket) ? QuickSlotSize.WHOLE : QuickSlotSize.HALF;
+         obj.quickSlotItemSize = QuickSlotSize.of(descrData);
          this._itemsDict[value] = obj;
          return obj;
       }

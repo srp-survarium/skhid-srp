@@ -47,6 +47,9 @@ package
    import survarium.controls.PlayerProfileBase;
    import survarium.controls.PlayerRowMenu;
    import survarium.controls.ForcedView;
+   import survarium.modes.ModeNotice;
+   import survarium.modes.ModeIntroText;
+   import flash.utils.getTimer;
    import survarium.controls.KeptLayer;
    import survarium.controls.QuickSlots;
    import survarium.controls.ResearchUnits;
@@ -124,13 +127,16 @@ package
       private var _chatTyping:Boolean = false;
 
       private var _artefactOfferKey:String = "";
+      // The offer text's value (%1$s): the dropped gun's name for patch 85's pickup.
+      private var _artefactOfferValue:String = "";
       private var _nativeContext:Object = {text:"",value:0,visible:true};
 
       // One owner for the existing collection widget. Native context updates
       // may arrive after the carry hint; retain them without erasing its text.
-      public function show_artefact_offer(key:String) : void
+      public function show_artefact_offer(key:String, value:String = "") : void
       {
          this._artefactOfferKey = key == null ? "" : key;
+         this._artefactOfferValue = value == null ? "" : value;
          this.refresh_context();
       }
 
@@ -143,7 +149,7 @@ package
          var value:int = offer ? 0 : this._nativeContext.value;
          var frame:int = value == 0 ? 1 : 2;
          if(this.contextInfo.currentFrame != frame) this.contextInfo.gotoAndStop(frame);
-         if(offer) this.contextInfo.contextText.text = LocalizationData.getName(this._artefactOfferKey);
+         if(offer) this.contextInfo.contextText.text = LocalizationData.format(this._artefactOfferKey, this._artefactOfferValue);
          else this.contextInfo.contextText.text = this._nativeContext.text;
          if(value != 0)
          {
@@ -333,6 +339,7 @@ package
          _keptLayer = new KeptLayer(this,this.keepLaidOut);
          _forcedView = new ForcedView(this._keptLayer,this.keptWhenForced,this.keptOnTab,this.keptWhileTyping,
                                       this.holdChatHistory);
+         this.addEventListener(Event.ENTER_FRAME,this.onIntroductionFrame);
          stage.addChildAt(this._keptLayer,stage.getChildIndex(this) + 1);
          _stageLayer = new Sprite();
          this._stageLayer.name = "stageLayer";
@@ -379,6 +386,8 @@ package
          pregameInfo = new SrvContextInfoPregame();
          addChild(this.pregameInfo);
          this.pregameInfo.premiumMembers.visible = false;
+         this._modeNotice = new ModeNotice(this.pregameInfo.contextText);
+         addChild(this._modeNotice);
          damageDebug = new SrvDebugDamage();
          addChild(this.damageDebug);
          this.damageDebug.visible = false;
@@ -802,7 +811,9 @@ package
 
       // Forced hidden for a whole match (Blackout, exe patch 65; docs/notes/blackout.md): the interface
       // hidden as by the key, except what a forced match keeps (ForcedView): always the pre-match
-      // countdown (keptWhenForced: the game shows it while it runs and hides it when play starts); while
+      // countdown (keptWhenForced: the game shows it while it runs and hides it when play starts) and
+      // the use prompt with its progress (contextInfo, root.set_context: the game shows it at what the
+      // player can use, an artefact container or an ammo stash, and fills it while used); while
       // the Tab list is asked for (show_player_list) the match's time left, the chat with its history and,
       // alive, the intact player-info panel (ammo and body state) and quick-use slots;
       // while the game shows the kits (the death screen, before the start), the
@@ -813,11 +824,30 @@ package
       private var _keptLayer:KeptLayer;
 
       private var _forcedView:ForcedView;
+      private var _modeNotice:ModeNotice;
+      private var _pregameText:String = "";
+
+      private function onIntroductionFrame(event:Event) : void
+      {
+         this._modeNotice.update(getTimer(),false,
+            this.pregameInfo != null && this.pregameInfo.visible);
+         var bottom:Number = this.pregameInfo != null && this.pregameInfo.visible ?
+            this.pregameInfo.getBounds(this).bottom : 0;
+         var timer:DisplayObject = this.matchTime() as DisplayObject;
+         if(timer != null)
+            bottom = Math.max(bottom,timer.getBounds(this).bottom);
+         this._modeNotice.place(this.stageWidth,bottom);
+      }
 
       public function force_interface_hidden(forced:Boolean) : void
       {
          this._forcedView.forced = forced;
          this.setInterfaceHidden(forced);
+         if(forced)
+            this._modeNotice.begin("blackout");
+         else
+            this._modeNotice.reset();
+         this.set_pregame(this._pregameText);
       }
 
       public function interface_forced() : Boolean
@@ -827,7 +857,7 @@ package
 
       private function keptWhenForced() : Array
       {
-         return [this.pregameInfo];
+         return [this.pregameInfo,this.contextInfo,this._modeNotice];
       }
 
       private function keptOnTab() : Array
@@ -1099,6 +1129,7 @@ package
       public function set_localization_data(value:Object) : void
       {
          LocalizationData.setData(value);
+         this.set_pregame(this._pregameText);
       }
       
       public function show_profiles_selector(value:Boolean) : void
@@ -1697,15 +1728,17 @@ package
          this.crosshair.setDamage(size,delay,killed,debug);
       }
       
-      // The Settings' "Hide hit markers", "Hide player scores" and "Hidden crosshair" (exe patch 83, told at
-      // once and again at each change; docs/notes/hide-hit-markers-scores.md): the crosshair shows no hit
-      // marker; the Tab list shows the players' names only; no crosshair at all.
-      public function srp_hud_options(hideHitMarkers:Boolean, hideScores:Boolean, hideCrosshair:Boolean) : void
+      // The Settings' "Hide hit markers", "Hide player scores", "Hidden crosshair" and "Names on map" (exe
+      // patch 83, told at once and again at each change; docs/notes/hide-hit-markers-scores.md): the
+      // crosshair shows no hit marker; the Tab list shows the players' names only; no aiming cross; the
+      // Tab map's names shown, Alt hiding them.
+      public function srp_hud_options(hideHitMarkers:Boolean, hideScores:Boolean, hideCrosshair:Boolean, mapNames:Boolean) : void
       {
          this.crosshair.hitMarkersHidden = hideHitMarkers;
          this.player_list.players.namesOnly = hideScores;
-         // the whole crosshair, its hit marker with it (show_crosshair shows and hides its lines)
-         this.crosshair.visible = !hideCrosshair;
+         this.crosshair.crosshairHidden = hideCrosshair;
+         this._mapNamesAlways = mapNames;
+         this.showMapNames();
       }
       
       public function show_oxygen(bool:Boolean) : void
@@ -1731,11 +1764,22 @@ package
       }
 
       // The Tab map's names over the player icons, shown while Alt is held (the exe's patch 82 tells
-      // the movie each change; docs/notes/tab-map-names.md). The map is the Tab list's, so they show
-      // only with it: never in Blackout, whose Tab keeps the list hidden.
-      public function show_map_names(shown:Boolean) : void
+      // the movie each change; docs/notes/tab-map-names.md), or with "Names on map" shown unless it is.
+      // The map is the Tab list's, so they show only with it: never in Blackout, whose Tab keeps the
+      // list hidden.
+      public function show_map_names(altHeld:Boolean) : void
       {
-         this.tabMinimap.namesShown = shown;
+         this._mapNamesAlt = altHeld;
+         this.showMapNames();
+      }
+
+      // Alt held (patch 82) and "Names on map" (patch 83), as last told.
+      private var _mapNamesAlt:Boolean = false;
+      private var _mapNamesAlways:Boolean = false;
+
+      private function showMapNames() : void
+      {
+         this.player_list.minimap.namesShown = this._mapNamesAlt != this._mapNamesAlways;
       }
       
       public function list_update_player(_player:Object) : void
@@ -1815,6 +1859,7 @@ package
       public function show_pregame(bool:Boolean) : void
       {
          this.pregameInfo.visible = bool;
+         this._modeNotice.update(getTimer(),true,bool);
          if(bool == false)
          {
             this.pregameInfo.premiumMembers.visible = false;
@@ -1824,8 +1869,9 @@ package
       
       public function set_pregame(value:String) : void
       {
-         this.pregameInfo.contextText.autoSize = TextFieldAutoSize.LEFT;
-         this.pregameInfo.contextText.text = value;
+         this._pregameText = value;
+         ModeIntroText.pregame(this.pregameInfo.contextText,
+            null,value);
          if(this.pregameInfo.contextText.width > 400)
          {
             this.pregameInfo.contextText.x = 0;
@@ -1846,16 +1892,9 @@ package
       
       public function show_crosshair(bool:Boolean) : void
       {
-         if(bool)
+         if(this.crosshair)
          {
-            if(this.crosshair)
-            {
-               this.crosshair.crosshair_mc.visible = true;
-            }
-         }
-         else if(this.crosshair)
-         {
-            this.crosshair.crosshair_mc.visible = false;
+            this.crosshair.setCrosshairVisible(bool);
          }
          stage.invalidate();
       }
@@ -1952,7 +1991,10 @@ package
       {
          trace("HUD::reset");
          this._artefactOfferKey = "";
+         this._artefactOfferValue = "";
          this._nativeContext = {text:"",value:0,visible:true};
+         this._modeNotice.reset();
+         this._pregameText = "";
          // a new match starts with the interface shown (the movie is the last match's; the exe's
          // patch 62 shows the player icons' with it); a forced one stays forced until patch 65
          // tells the movie the new match's state
@@ -1964,6 +2006,9 @@ package
          this.show_game_info(false);
          this.show_crosshair(false);
          this.show_player_list(false);
+         // the kits too: the exe's patch 113 puts its own kits state away at the same start, so
+         // the match's first showing of them tells the movie its kit
+         this.show_profiles_selector(false);
          this.show_oxygen(false);
          this.show_stamina(false);
          this.combatLog.clear();
@@ -2079,6 +2124,7 @@ package
       public function set_match_time(time:String) : void
       {
          this.matchTime().text = time;
+         this._modeNotice.update(getTimer(),true,this.pregameInfo.visible);
       }
 
       // The match's time left as the mode shows it: Team Deathmatch's and Research's label, or the

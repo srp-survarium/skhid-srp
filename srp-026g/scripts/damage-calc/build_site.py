@@ -31,7 +31,8 @@ from released import LIST, extract, offered, revision, write_built_from  # noqa:
 
 # What the calculator reads of the game.
 WANTED = ["gameplay/", "localization/english/localization", "localization/ukrainian/localization",
-          "localization/flash_movies_localizations.options", "flash_movies/lobby_menu.swf"]
+          "localization/flash_movies_localizations.options", "flash_movies/lobby_menu.swf",
+          "game_materials/game.materials"]
 SITE = SRP / "servers" / "web-server" / "damage"
 
 

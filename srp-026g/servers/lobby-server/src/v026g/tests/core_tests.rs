@@ -973,7 +973,7 @@ fn two_players_meet_in_a_room_and_go_to_one_match() {
     assert_eq!(made.len(), 1);
     let (match_id, setup) = &made[0];
     assert_eq!(*match_id, alice_match);
-    assert!(maps::map_mode(setup.map_id).unwrap().is_playable());
+    assert!(setup.map.map().is_playable());
     assert_eq!(setup.players.len(), 2);
     assert_eq!(setup.players[0].session_id, world.ids[alice].1);
     assert_eq!(setup.players[0].account_id, world.ids[alice].0);
@@ -2179,8 +2179,8 @@ impl World {
             .collect();
         let result = MatchResult {
             match_id,
-            map_id: setup.map_id,
-            game_mode: maps::map_mode(setup.map_id).unwrap().mode,
+            map_id: setup.map.map().id,
+            mode: setup.map.mode(),
             match_level: setup.match_level,
             end: MatchEnd::ModeRule,
             winner: Some(winner),
@@ -2192,7 +2192,6 @@ impl World {
             players,
             vs_bots: setup.vs_bots,
             private: setup.private,
-            blackout: setup.blackout,
         };
         let terms = Terms::at(session::v026g::quests::now());
         let report = self
@@ -2250,8 +2249,8 @@ impl World {
             .collect();
         let result = MatchResult {
             match_id,
-            map_id: setup.map_id,
-            game_mode: maps::map_mode(setup.map_id).unwrap().mode,
+            map_id: setup.map.map().id,
+            mode: setup.map.mode(),
             match_level: setup.match_level,
             end: MatchEnd::NotMade,
             winner: None,
@@ -2263,7 +2262,6 @@ impl World {
             players,
             vs_bots: setup.vs_bots,
             private: setup.private,
-            blackout: setup.blackout,
         };
         let terms = Terms::at(session::v026g::quests::now());
         let report = self
@@ -2750,6 +2748,7 @@ fn the_operators_text_reaches_everyone_and_who_signs_in_later() {
     world.assert_clean();
 }
 
+mod admin_mute_tests;
 mod away_tests;
 mod balance_tests;
 mod chat_mute_tests;
@@ -2757,6 +2756,7 @@ mod clan_tests;
 mod feedback_tests;
 mod gear_tests;
 mod items_tests;
+mod mode_intro_tests;
 mod patch_check_tests;
 mod presets_tests;
 mod pvb_tests;
@@ -3014,7 +3014,7 @@ fn a_bundle_and_a_premium_item_are_bought_for_gold() {
     world.assert_clean();
 }
 
-/// The owner's choice of 2026-10-18 (`prices::NOT_SOLD`): the Russian and
+/// The owner's choice of 2026-10-18 (`prices::is_not_sold`): the Russian and
 /// Belarusian flags and coats of arms, the flag of the USSR and the red
 /// star are in no price record the lobby is
 /// sent and a buy of one is refused, for gold as for silver; one already
@@ -3422,7 +3422,7 @@ fn a_nickname_is_checked_and_changed() {
 
 /// No tutorial (`session::v026g::tutorial`): a new account is told every
 /// step is done, so its client runs none of it, and starts with 15 000
-/// silver, 150 gold, the steps' experience, the ammo and the starter kit
+/// silver, 150 gold, level 15, the ammo and the starter kit
 /// (`tutorial::tests`); a step a client sends anyway is not answered.
 #[test]
 fn a_new_account_has_no_tutorial_and_what_it_paid() {
@@ -3458,7 +3458,7 @@ fn a_new_account_has_no_tutorial_and_what_it_paid() {
         (account.generic_money, account.premium_money),
         (15_000, 150)
     );
-    assert_eq!(account.exp_total, 250);
+    assert_eq!(account.level(), 15);
     // The Scavengers' quests, never neutral, at their level 5.
     assert_eq!(account.quest_faction, 1);
     assert_eq!(account.reputation_level(1), 5);
@@ -3469,7 +3469,8 @@ fn a_new_account_has_no_tutorial_and_what_it_paid() {
             .filter(|item| item.dict_id == dict_id)
             .map(|item| item.condition_or_stack)
             .sum();
-        assert_eq!(owned, session::v026g::tutorial::SIGNUP_ROUNDS, "{dict_id}");
+        let rounds = session::v026g::tutorial::new_account().rounds;
+        assert_eq!(owned, rounds, "{dict_id}");
     }
     drop(account);
     // Given once: the next sign-in gives nothing more.

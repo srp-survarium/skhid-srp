@@ -14,6 +14,7 @@
 
 use world_frame::{Frame, Part, Places, Refusal};
 
+use crate::vostok::breadcrumbs::{self, Crumb, Reading};
 use crate::vostok::log::{line, Piece};
 use crate::vostok::{Context, Flow, WorldCheckOnRawExit, WorldCheckOnUnpackedExit, WorldLoad};
 
@@ -41,13 +42,28 @@ pub fn on_raw(ctx: &mut Context<'_>) -> Flow<WorldCheckOnRawExit> {
 }
 
 /// A world the site could not read (no client, a reader outside its bytes:
-/// never seen) goes on to the game's load as before.
+/// never seen) goes on to the game's load as before. A world that parses is
+/// loaded, patch 85's guns its records name made first
+/// (`weapon_pickup::before_world_load`: outside any tick, before the load).
 fn check(load: Option<WorldLoad<'_>>) -> Verdict {
     let Some(load) = load else {
         return Verdict::Load;
     };
-    match verdict(load.state()) {
-        Ok(()) => Verdict::Load,
+    let parsed = Frame::parse_state(load.state(), Places::ALL);
+    let state = load.state();
+    breadcrumbs::record(load.thread(), Crumb::World {
+        time: state.get(..4).map_or(0, |t| u32::from_le_bytes([t[0], t[1], t[2], t[3]])),
+        bytes: state.len() as u32,
+        packed: load.packed(),
+        local: load.network_client().local_profile(),
+        loaded: parsed.is_ok(),
+    });
+    breadcrumbs::reading(load.thread(), Reading::World);
+    match parsed {
+        Ok(frame) => {
+            crate::weapon_pickup::before_world_load(&load, &frame);
+            Verdict::Load
+        }
         Err(refusal) => {
             log(refusal, load.state().len());
             load.leave();

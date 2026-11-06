@@ -411,6 +411,14 @@ without the late join, as patch revision 4 was, which check 15 builds on):
     its remove_affects, artefact_base::action's entry, the player's
     stagger, Onyx's hit callback's state test) and the two sizes of a Spring, the hooks and sizes in the
     build, the code, its exits and calls, its data. check_artefacts_026g.py runs it.
+91. every full build: a held weapon shown while its player aims keeps its
+    body (patch 91, WEAPON_SHOW): weapon::on_show's `jz near 0x243EC7` at
+    0x243E32 is `jmp 0x243EC7` / nop (the idle sight and the body always),
+    the aimed branch and the body's test on +181Dh as the original's,
+    weapon::draw's scope test and add_aimed_rifle_scope_to_scene as the
+    original's, no write of +181Eh in on_show, draw or the scope's add and
+    remove, no relocation under the six bytes, nothing aims inside them;
+    cert-only keeps the original. check_weapon_show_026g.py runs it.
 The engine-function library (engine_026g.py, the arena's block engine.code;
 client_patch.md section 0.5): its files are what engine_026g.tsv and the
 re-kit's ABI rows give, and engine_026g.py refuses a spec row whose
@@ -817,6 +825,9 @@ def allowed_ranges(original, mode, cave_size, server=None):
     rewritten.extend((va, va + len(old)) for va, old, _ in P.KNOWLEDGE_BASE[1:])
     ranges.append((P.file_offset(P.HASH_INTERVAL_BYTE_VA), 1))
     rewritten.append((P.HASH_INTERVAL_BYTE_VA, P.HASH_INTERVAL_BYTE_VA + 1))
+    for va, old, _ in P.WORLD_BUFFER + P.WORLD_UNPACK:
+        ranges.append((P.file_offset(va), len(old)))
+        rewritten.append((va, va + len(old)))
     for va, old, _ in P.GATHER:
         ranges.append((P.file_offset(va), len(old)))
         rewritten.append((va, va + len(old)))
@@ -830,6 +841,9 @@ def allowed_ranges(original, mode, cave_size, server=None):
     # Patch 43 gives back what that default withheld (test_tab_self).
     ranges.append((P.file_offset(P.TAB_SELF[0]), len(P.TAB_SELF[1])))
     rewritten.append((P.TAB_SELF[0], P.TAB_SELF[0] + len(P.TAB_SELF[1])))
+    # Patch 91: on_show's aimed branch's six bytes (test_weapon_show).
+    ranges.append((P.file_offset(P.WEAPON_SHOW[0]), len(P.WEAPON_SHOW[1])))
+    rewritten.append((P.WEAPON_SHOW[0], P.WEAPON_SHOW[0] + len(P.WEAPON_SHOW[1])))
     # Patch 52: the Stage focus getter's 46 bytes (test_stage_focus).
     ranges.append((P.file_offset(P.STAGE_FOCUS[0]), len(P.STAGE_FOCUS[1])))
     rewritten.append((P.STAGE_FOCUS[0], P.STAGE_FOCUS[0] + len(P.STAGE_FOCUS[1])))
@@ -972,6 +986,66 @@ def test_hash_interval(original, image, mode):
     hits = [f"{address:#x}: {text}" for address, _, text in ndisasm(Image(original).read(0x27CC45, 0x30B), 0x27CC45)
             if branch_target(text) in inside]
     check(not hits, "no branch of try_send_all lands inside that instruction")
+
+
+def test_world_buffer(original, image, mode):
+    """hash()'s world buffer and the 0xE8 handler's unpack buffer are 0xF000
+    bytes (patch 98, client_patch.md section 3.66): each its stack allocation
+    and its capacity, two immediates; the rest of both the original's."""
+    stock = Image(original)
+    start, end = 0x325150, 0x325270
+    original_rows = {address: text for address, _, text in ndisasm(stock.read(start, end - start), start)}
+    rows = {address: text for address, _, text in ndisasm(image.read(start, end - start), start)}
+    (alloc, alloc_old, alloc_new), (capacity, capacity_old, capacity_new) = P.WORLD_BUFFER
+    check(stock.read(alloc, len(alloc_old)) == alloc_old and stock.read(capacity, len(capacity_old)) == capacity_old
+          and original_rows.get(alloc) == "mov eax,0x8000" and original_rows.get(0x32517B) == "mov byte [esi+0xc0bb8],0x1"
+          and original_rows.get(0x325182) == "call 0x424ca0" and original_rows.get(0x32518A) == "mov eax,esp"
+          and original_rows.get(capacity) == "mov dword [ebp-0xc],0x8000"
+          and original_rows.get(0x32518E) == "mov [ebp-0x10],eax" and original_rows.get(0x32519A) == "mov [ebp-0x14],edi",
+          "the original hash(): 0x8000 bytes of the stack (0x325176, _alloca_probe_16 0x424ca0), the buffer "
+          "{[ebp-0x14] allocator 0, [ebp-0x10] esp, [ebp-0xc] 0x8000}")
+    size = f"{P.WORLD_BUFFER_SIZE:#x}"
+    if mode == "cert-only":
+        check(image.read(alloc, len(alloc_old)) == alloc_old and image.read(capacity, len(capacity_old)) == capacity_old,
+              "cert-only: hash()'s buffer is the original's 0x8000 bytes")
+    else:
+        check(image.read(alloc, len(alloc_new)) == alloc_new and image.read(capacity, len(capacity_new)) == capacity_new
+              and rows.get(alloc) == f"mov eax,{size}" and rows.get(capacity) == f"mov dword [ebp-0xc],{size}",
+              f"{alloc:#x} `mov eax,{size}` and {capacity:#x} `mov dword [ebp-0xc],{size}`")
+        changed = [a for a in range(start, end) if image.read(a, 1) != stock.read(a, 1)]
+        check(changed == [alloc + 2, capacity + 4], "nothing else in hash() 0x325150..0x325270 differs: "
+              + ", ".join(f"{a:#x}" for a in changed))
+    relocated = [rva for kind, rva in stock.relocations().values()
+                 if kind == 3 and any(rva + 4 > va and rva < va + len(old) for va, old, _ in P.WORLD_BUFFER)]
+    check(not relocated, "no base relocation of the original is under the two instructions")
+    inside = [a for va, old, _ in P.WORLD_BUFFER for a in range(va + 1, va + len(old))]
+    hits = [f"{address:#x}: {text}" for address, text in original_rows.items() if branch_target(text) in inside]
+    check(not hits, "no branch of hash() lands inside them")
+    # The 0xE8 handler's unpack buffer, the same two immediates.
+    start, end = 0x27BFF0, 0x27C1F0
+    original_rows = {address: text for address, _, text in ndisasm(stock.read(start, end - start), start)}
+    rows = {address: text for address, _, text in ndisasm(image.read(start, end - start), start)}
+    (alloc, alloc_old, alloc_new), (capacity, capacity_old, capacity_new) = P.WORLD_UNPACK
+    check(original_rows.get(alloc) == "mov eax,0x8000" and original_rows.get(0x27C05E) == "call 0x424ca0"
+          and original_rows.get(0x27C069) == "mov eax,esp" and original_rows.get(capacity) == "mov eax,0x8000"
+          and original_rows.get(0x27C081) == "mov [ebp-0xc],eax" and original_rows.get(0x27C084) == "mov [ebp-0x1c],eax"
+          and original_rows.get(0x27C09F) == "call edx" and original_rows.get(0x27C036) == "lea esp,[ebp-0x30]",
+          "the original 0xE8 handler: 0x8000 bytes of the stack (0x27C059), the capacity 0x8000 (0x27C07C) to "
+          "[ebp-0xc] (the codec's) and [ebp-0x1c] (the buffer's); its exits restore esp from ebp")
+    if mode == "cert-only":
+        check(all(image.read(va, len(old)) == old for va, old, _ in P.WORLD_UNPACK),
+              "cert-only: the 0xE8 handler's buffer is the original's")
+        return
+    check(all(image.read(va, len(new)) == new and rows.get(va) == f"mov eax,{size}" for va, _, new in P.WORLD_UNPACK),
+          f"{alloc:#x} and {capacity:#x} `mov eax,{size}`")
+    changed = [a for a in range(start, 0x27C0D0) if image.read(a, 1) != stock.read(a, 1)]
+    check(changed == [alloc + 2, capacity + 2], "nothing else in the handler before its first hook (0x27C0D0) "
+          "differs: " + ", ".join(f"{a:#x}" for a in changed))
+    inside = [a for va, old, _ in P.WORLD_UNPACK for a in range(va + 1, va + len(old))]
+    relocated = [rva for kind, rva in stock.relocations().values()
+                 if kind == 3 and any(rva + 4 > va and rva < va + len(old) for va, old, _ in P.WORLD_UNPACK)]
+    hits = [a for a, text in original_rows.items() if branch_target(text) in inside]
+    check(not relocated and not hits, "no relocation under them, no branch of the handler into them")
 
 
 def test_gather(original, image, mode):
@@ -1156,6 +1230,31 @@ def test_memory_defaults(original, image, before):
               f"{va:#x}: option parsing, explicit-value branch and units remain unchanged")
 
 
+def test_sound_pools(original, image, before):
+    """The game world's sound scene has 1024 sound instances and 1024
+    propagators (patch 96, SOUND_POOLS): two immediates of game_world::load's
+    sound_scene_creation_params; the build without the late join keeps 512
+    and 196."""
+    stock = Image(original)
+    start, end = 0x1F8DA6, 0x1F8E9D
+    original_at = {address: text for address, _, text in ndisasm(stock.read(start, end - start), start)}
+    rows = {address: text for address, _, text in ndisasm(image.read(start, end - start), start)}
+    check(original_at.get(0x1F8DB6) == "mov dword [ebp-0x10],0x200" and original_at.get(0x1F8DBD) == "mov dword [ebp-0xc],0xc4"
+          and original_at.get(0x1F8E68) == "movq xmm0,[ebp-0x10]" and original_at.get(0x1F8E72) == "movq [eax],xmm0"
+          and original_at.get(0x1F8E79) == "mov dword [esi],0x9fc7c0",
+          "the original: proxies 0x200 at [ebp-10h], propagators 0xc4 at [ebp-0Ch], copied as one qword into the "
+          "variant of sound_scene_creation_params (helper 0x9fc7c0)")
+    for va, old, new in P.SOUND_POOLS:
+        check(stock.read(va, len(old)) == old and before.read(va, len(old)) == old and image.read(va, len(new)) == new,
+              f"{va:#x}: the original's `{old.hex()}`, kept by the build without the late join, `{new.hex()}` in this one")
+        relocated = [rva for kind, rva in stock.relocations().values() if kind == 3 and rva + 4 > va and rva < va + len(old)]
+        check(not relocated, f"{va:#x}: no base relocation under the number")
+    check(rows.get(0x1F8DB6) == f"mov dword [ebp-0x10],{P.SOUND_INSTANCES:#x}"
+          and rows.get(0x1F8DBD) == f"mov dword [ebp-0xc],{P.SOUND_INSTANCES:#x}"
+          and all(rows.get(a) == original_at.get(a) for a in (0x1F8DC4, 0x1F8E68, 0x1F8E72, 0x1F8E79)),
+          "the build: both numbers 0x400, the rest of the block the original's")
+
+
 def test_start_up_folder(original, image, mode):
     """A Documents folder the game may not write to (client_patch.md
     section 3.10): the mount without a root, and no journal by default."""
@@ -1169,12 +1268,16 @@ def test_start_up_folder(original, image, mode):
               "original's")
         check(image.read(P.STAGE_FOCUS[0], len(P.STAGE_FOCUS[1])) == P.STAGE_FOCUS[1],
               "cert-only: the Stage focus getter (patch 52) is the original's")
+        check(image.read(P.WEAPON_SHOW[0], len(P.WEAPON_SHOW[1])) == P.WEAPON_SHOW[1],
+              "cert-only: weapon::on_show (patch 91) is the original's")
         return
     check(image.read(P.TAB_SELF[0], len(P.TAB_SELF[2])) == P.TAB_SELF[2],
           f"{P.TAB_SELF[0]:#x}: patch 43's `jmp short` with the journal off by default: on_activate gives the hud "
           "its player's name (test_tab_self)")
     check(image.read(P.STAGE_FOCUS[0], len(P.STAGE_FOCUS[2])) == P.STAGE_FOCUS[2],
           f"{P.STAGE_FOCUS[0]:#x}: patch 52's tests in the Stage focus getter (test_stage_focus)")
+    check(image.read(P.WEAPON_SHOW[0], len(P.WEAPON_SHOW[2])) == P.WEAPON_SHOW[2],
+          f"{P.WEAPON_SHOW[0]:#x}: patch 91's `jmp` in weapon::on_show (test_weapon_show)")
     # mounter::finish from the read of the mount's root to its `ret 0Ch`.
     start, end = 0x46B04, 0x46B3D
     tail = ["mov eax,[eax+0x34]", "test eax,eax", "jnz 0x46b0f", "xor ecx,ecx", "jmp short 0x46b12",
@@ -1237,10 +1340,10 @@ def test_start_up_folder(original, image, mode):
 
 
 def test_memory_check(original, image, mode):
-    """The launcher's 73 -> EB patch skips only the fatal 320 MiB gate."""
+    """The 73 -> EB patch skips only the fatal 320 MiB gate."""
     va, old, new = P.MEMORY_CHECK
     found = image.read(va, len(old))
-    check(P.file_offset(va) == 0xF5811, "VRAM patch uses the Linux launcher's file offset 0xF5811")
+    check(P.file_offset(va) == 0xF5811, "VRAM patch is at file offset 0xF5811")
     if mode == "cert-only":
         check(found == old, "cert-only keeps the original minimum VRAM check")
         return
@@ -1534,6 +1637,7 @@ def late_join_sites():
         [(P.BAKED_TEXTURE_MISSING[0], len(P.BAKED_TEXTURE_MISSING[1]))] + \
         [(P.AI_ARENA_VA, len(P.AI_ARENA[1]))] + \
         [(va, len(old)) for va, old, _ in P.MEMORY_DEFAULTS] + \
+        [(va, len(old)) for va, old, _ in P.SOUND_POOLS] + \
         [(va, len(old)) for va, old, _, _ in P.WEAPON_PREVIEW_HOOKS] + \
         [(P.WEAPON_DRAW_HOOK[0], len(P.WEAPON_DRAW_HOOK[1]))] + [(va, len(old)) for va, old, _, _ in P.RUST_HOOKS] + \
         [(va, len(old)) for va, old, _, _ in P.TAB_LIST_HOOKS] + [(P.TAB_LIST_LOOP_VA, len(P.TAB_LIST_LOOP[1]))] + \
@@ -1547,6 +1651,7 @@ def late_join_sites():
         [(va, len(old)) for va, old, _, _ in P.RESEARCH_HOOKS] + \
         [(va, len(old)) for va, old, _, _ in P.ARTEFACTS_HOOKS] + \
         [(va, len(old)) for va, old, _ in P.ARTEFACTS_SIZES] + \
+        [(va, len(old)) for va, old, _ in P.MOUSE_BUTTONS] + \
         [(va, len(old)) for va, old, _, _ in P.MATCH_KEYS_HOOKS] + \
         [(va, len(old)) for va, old, _, _ in P.HIDE_UI_HOOKS] + \
         [(va, len(old)) for va, old, _, _ in P.HIDE_UI_TABLE_REFS] + \
@@ -1554,9 +1659,14 @@ def late_join_sites():
         [(va, len(old)) for va, old, _, _ in P.KILL_FEED_HOOKS] + \
         [(P.KILL_FEED_ARGUMENT[0], len(P.KILL_FEED_ARGUMENT[1]))] + \
         [(va, len(old)) for va, old, _ in P.FALL_GRAVITY] + \
-        [(va, len(old)) for va, old, _, _ in P.BAKE_CACHE_HOOKS] + \
+        [(P.GRENADE_CCD[0], len(P.GRENADE_CCD[1]))] + \
         [(va, len(old)) for va, old, _, _ in P.WEIGHT_UI_HOOKS] + \
-        [(P.BAKE_CACHE_KEEP[0], len(P.BAKE_CACHE_KEEP[1]))]
+        [(va, len(old)) for va, old, _, _ in P.BULLET_BOUNDS_HOOKS] + \
+        [(va, len(old)) for va, old, _, _ in P.MATCH_STAT_MAP_HOOKS] + \
+        [(va, len(old)) for va, old, _, _ in P.AUDIO_DEVICE_HOOKS] + \
+        [(va, len(old)) for va, old, _, _ in P.WORLD_SECTIONS_HOOKS] + \
+        [(P.BAKE_CACHE_KEEP[0], len(P.BAKE_CACHE_KEEP[1]))] + \
+        [(P.EXPAND_TEXT_UNBOUND[0], len(P.EXPAND_TEXT_UNBOUND[1]))]
 
 
 def pickup_sites():
@@ -2043,15 +2153,20 @@ def test_upgrade_preview(original, image, before):
                       0x0E4F90, 0x420789, 0x111ED0, 0x111860, stash_find}
           and all(t in starts for t in targets - outside)
           and all(code_va + at in starts and image.read(code_va + at, 1) == b"\xE9" for at in P.UPGRADE_PREVIEW_ENTRIES)
-          and not [t for _, _, t in listing if re.search(r"call (?:dword )?\[|jmp (?:dword )?\[", t)]
-          and image.read(code_va, len(code)) == code
+          and [t for _, _, t in listing if re.search(r"call (?:dword )?\[|jmp (?:dword )?\[", t)]
+          == [f"call [dword {code_va + P.UPGRADE_PREVIEW_KIT_APPLY:#x}]"]
+          and image.read(code_va, len(code)) == P.with_kit_apply(code, P.arena())
+          and image.read(code_va + P.UPGRADE_PREVIEW_KIT_APPLY, 4)
+          == struct.pack("<I", P.arena_target(P.arena(), P.WEAPON_KIT_PREVIEW_APPLY))
           and P.upgrade_preview_targets(code, code_va) == (stash_find, state, preview_state),
           f"the upgrade preview at {code_va:#x} (.srpw+{P.UPGRADE_PREVIEW_OFFSET:#x}) is "
           f"upgrade_preview_026g.section.bin ({len(code)} bytes), its state at 0x{P.UPGRADE_PREVIEW_STATE_OFFSET:X} "
           "of .srpd, patch 32's read; it begins with seven `jmp near`, calls only setup_profile, the inventory's "
           "find, item_by_id, the config's has_key and child, the profile's ctor and copy, the allocator, the "
           "log and the stash's find_kit_or_show, jumps only to setup_profile's end and the 0x87 reader's last "
-          "call outside itself, and every branch inside it lands on an instruction")
+          "call outside itself, and every branch inside it lands on an instruction; its one indirect call is "
+          f"apply's through its kit_apply dword (+{P.UPGRADE_PREVIEW_KIT_APPLY:#x}), which the build filled with "
+          "patch 68's weapon_kit_preview_apply")
 
 
 def test_research(original, image, before):
@@ -3813,12 +3928,16 @@ def test_death_camera(original, image, before):
     identity_at = (data_at + 24 + 15) // 16 * 16
     identity = struct.pack("<16f", 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1)
     limits = [round(math.degrees(a), 4) for a in (yaw_max, yaw_min, pitch_up, pitch_down)] == [70, -70, 60, -40]
-    parts = ((0, data_at, ["call [eax+0x30]", "call [eax+0x1c]", f"call {drag_end:#x}"], ["ret 0x10"],
-              {P.WARMUP_LOOK_VA}, {0xA74AEC, 0x1F1D9D3, state, state + 4}
+    pitch_slot = death_va + P.DEATH_CAMERA_PITCH
+    parts = ((0, data_at, ["call [eax+0x30]", f"call [dword {pitch_slot:#x}]", f"call {drag_end:#x}"], ["ret 0x10"],
+              {P.WARMUP_LOOK_VA}, {0xA74AEC, 0x1F1D9D3, 0xA2D79C, pitch_slot, state, state + 4}
               | {death_va + data_at + 4 * i for i in range(6)}),
              (P.DEATH_VIEW_OFFSET, len(code), None, ["ret 0x8"], {P.DEATH_UPDATE_VA, P.DEATH_THIRD_VA},
               {state, state + 4}))
-    good = image.read(death_va, len(code)) == code and limits \
+    built = image.read(death_va, len(code))
+    pitch_entry = struct.unpack_from("<I", built, P.DEATH_CAMERA_PITCH)[0]
+    good = built[:P.DEATH_CAMERA_PITCH] + bytes(4) + built[P.DEATH_CAMERA_PITCH + 4:] == code and limits \
+        and code[P.DEATH_CAMERA_PITCH:P.DEATH_CAMERA_PITCH + 4] == bytes(4) and P.ARENA_VA <= pitch_entry < P.ARENA_VA + P.ARENA_LIMIT \
         and code[identity_at:identity_at + 64] == identity \
         and set(code[data_at + 24:identity_at] + code[identity_at + 64:P.DEATH_VIEW_OFFSET]) <= {0xCC}
     for begin, end, calls, rets, exits, absolute in parts:
@@ -3846,13 +3965,15 @@ def test_death_camera(original, image, before):
         == ["mulps xmm1,xmm4", "mulps xmm2,xmm5", "addps xmm1,xmm2", "mulps xmm0,xmm6", "addps xmm1,xmm0"] * 3
     check(good and P.FOV_LOD_STATE_OFFSET + P.FOV_LOD_STATE_SIZE <= P.DEATH_CAMERA_STATE_OFFSET
           and P.DEATH_CAMERA_STATE_OFFSET + P.DEATH_CAMERA_STATE_SIZE <= P.LATE_JOIN_STATE_SIZE
-          and abs(step_value - math.pi / 180 * 0.1) < 1e-9 and abs(aspect - 0.95492965) < 1e-7,
+          and abs(step_value - math.pi / 180 * 0.1) < 1e-9 and abs(aspect - 0.95492965) < 1e-7
+          and struct.unpack("<f", stock.read(0xA2D79C, 4))[0] == 0.5625 and 0x870000 <= 0xA2D79C < 0x870000 + 2021888,
           f"the code at {death_va:#x} (.srpc) is death_camera_026g.section.bin ({len(code)} bytes): death_look "
           f"begins with warmup_look's test of the kits, leaves to warmup_look ({P.WARMUP_LOOK_VA:#x}) alone, "
-          "calls the hud's pointer (vtable+30h), the window's size (vtable+1Ch) and the end of a drag, keeps the "
+          "calls the hud's pointer (vtable+30h), patch 112's pitch entry through its dword (the build's, in .srpx) "
+          "and the end of a drag (not the window's size), keeps the "
           f"drag in warmup_look's state ({look_state:#x}) and the turn at {state:#x} (the late join's page "
-          f"+{P.DEATH_CAMERA_STATE_OFFSET:#x}), reads the options sensitivity, mouse_invertion and its two constants (pi/180 "
-          "x 0.1, 0.9549) and the turn's limits (70 degrees either side, 60 up, 40 down); death_view leaves to "
+          f"+{P.DEATH_CAMERA_STATE_OFFSET:#x}), reads the options sensitivity, mouse_invertion, its two constants "
+          "(pi/180 x 0.1, 0.9549), .rdata's 0.5625 (0xA2D79C: patch 112's locked 16:9) and the turn's limits (70 degrees either side, 60 up, 40 down); death_view leaves to "
           "the view's update or its third-person step after the update's own start, which it gives the "
           "identity, then multiplies the turn by the eyes' three rows; every branch inside lands on an "
           "instruction; `ret 10h` and `ret 8`")
@@ -4022,6 +4143,70 @@ def test_language(original, image, before):
               and block.va <= entry < block.va + block.size and not under and not branches,
               f"{va:#x} ({h['site_name']}): {old.hex()} in the original and the build without the late join, "
               f"`jmp {entry:#x}` ({h['entry']}, patches.code) here; no branch into it, no relocation under it")
+
+
+def test_weapon_kit(original, image, before):
+    """Check 68: a weapon's upgrades in at most three records, the weapon kit
+    (patch 68, the Rust patch `weapon_kit`, weapon_kit.toml: one code hook and
+    three lohooks; ../docs/notes/weapon-kit.md). check_weapon_kit_026g.py runs
+    each from the game's code on made-up objects, the original beside."""
+    stock = Image(original)
+    rows = lambda va, size: [text for _, _, text in ndisasm(stock.read(va, size), va)]
+    loop = {a: t for a, _, t in ndisasm(stock.read(0x2F1771, 0x8E0), 0x2F1771)}
+    check(rows(0x2F1771, 0xB) == ["call 0x2f2060", "mov ecx,[ebp+0x38]", "mov eax,[ebp+0x44]"]
+          and loop.get(0x2F1799) == "mov eax,[ebp+0x40]" and loop.get(0x2F18D0) == "mov eax,[ebp+0x40]"
+          and [a for a, t in loop.items() if "[ebp+0x40]" in t] == [0x2F1799, 0x2F18D0, 0x2F1F1F, 0x2F1F29]
+          and loop.get(0x2F1F1F) == "mov [ebp+0x40],ebx"
+          and rows(0x2F2041, 0x12) == ["lea esp,[ebp-0xa0]", "pop edi", "pop esi", "pop ebx", "add ebp,byte +0x74",
+                                       "mov esp,ebp", "pop ebp", "ret 0x4"],
+          "translate_query reads [ebp+40h] (the item's records) at 0x2F1799 and 0x2F18D0 alone after its call "
+          "of 0x2F2060 (0x2F1771) (0x2F1F1F writes the local anew, for its own use), and its epilogue takes esp "
+          "from ebp (0x2F2041): the room below its frame goes with it")
+    check(rows(0x2882E3, 6) == ["mov ecx,[esp+0x48]", "mov eax,[ecx]"]
+          and rows(0x2882D6, 0xD) == ["mov edx,[ecx]", "mov edx,[edx+0x14]", "push dword 0xa023dc", "push eax",
+                                      "call edx"]
+          and rows(0x2885C9, 0xA) == ["call 0x28b0f0", "mov al,[ebp-0x5]", "inc al"]
+          and stock.read(0x8FC288 + 0x14, 4) == struct.pack("<I", 0x7C6A20)
+          and original.count(struct.pack("<I", 0x8FC288)) == 1,
+          "the upgrades to Flash set an object's `param` through its interface's vtable +14h (0x2882D6) and go "
+          "on at 0x2882E3; setup_inventory_data pushes a record's pair at 0x2885C9; the AS3 object interface's "
+          "vtable 0x8FC288 (written once, the AS3 movie root's 0x7AB0CB) holds SetMember 0x7C6A20 at +14h")
+    import hooks_026g
+    hooks = [h for h in hooks_026g.hooks() if h["patch"] == "weapon_kit"]
+    linked = P.arena()
+    block = linked.blocks["patches.code"]
+    check(sorted((h["site_name"], h["kind"]) for h in hooks)
+          == [("weapon_kit.attached_pair", "lohook"), ("weapon_kit.flash_upgrade", "lohook"),
+              ("weapon_kit.preview_apply", "entry"), ("weapon_kit.query_records", "lohook"),
+              ("weapon_kit.query_room", "code")],
+          "weapon_kit.toml's hooks: the code hook query_room, the lohooks query_records, flash_upgrade and "
+          "attached_pair, and the entry preview_apply (patch 48's call, check 48)")
+    for h in (h for h in hooks if h["kind"] != "entry"):
+        va, old = h["site"], h["original"]
+        entry = linked.symbols[h["entry"]]
+        new = P.hook_bytes(entry, va, old, 0, 0xE9)
+        spelled = [va + i for i in range(1, len(old)) if original.find(struct.pack("<I", va + i)) != -1]
+        branches = [x for x in aimed_inside(original, va, len(old), 0x82)
+                    if x not in spelled and starts_instruction(stock, x)]
+        under = [v for kind, v in stock.relocations().values() if kind == 3 and va - 4 < v < va + len(old)]
+        check(stock.read(va, len(old)) == old == before.read(va, len(old)) and image.read(va, len(new)) == new
+              and block.va <= entry < block.va + block.size and not under and not branches,
+              f"{va:#x} ({h['site_name']}): {old.hex()} in the original and the build without the late join, "
+              f"`jmp {entry:#x}` ({h['entry']}, patches.code) here; no branch into it, no relocation under it")
+    entry = linked.symbols[P.WEAPON_KIT_PREVIEW_APPLY]
+    listing = [t for _, _, t in ndisasm(image.read(entry, 0x50), entry)]
+    shim = linked.symbols["hook_weapon_kit_on_preview_apply"]
+    calls = [i for i, t in enumerate(listing) if t.startswith("call ")]
+    aligned = [i for i, t in enumerate(listing) if t == "and esp,byte -0x10"]
+    check(calls and listing[calls[0]] == f"call {shim:#x}" and aligned and aligned[-1] < calls[0]
+          and listing[0] == "lea esp,[esp-0x4]" and "ret" in listing,
+          f"patch 48's call goes to the generated entry {P.WEAPON_KIT_PREVIEW_APPLY} ({entry:#x}), which aligns "
+          "the stack to 16 before it calls the Rust shim and returns with `ret`")
+    room = linked.symbols["weapon_kit_query_room"]
+    cave = [t for _, _, t in ndisasm(image.read(room, 16), room)]
+    check(cave == ["call 0x2f2060", "sub esp,0xa0", "jmp 0x2f1776"],
+          "the code hook's cave makes the site's call, takes A0h (the room, survarium::weapon_kit_room) and goes "
+          "on at 0x2F1776")
 
 
 def test_lobby_scene(original, image, before):
@@ -4867,20 +5052,93 @@ def test_fall_gravity(original, image, before):
     check(not hits, "no branch aims inside the sites" + "".join(f", {h:#x}" for h in hits))
 
 
+def test_grenade_ccd(original, image, before):
+    """Check 105: a grenade's continuous collision sweeps a sphere inside its
+    capsule (patch 105, GRENADE_CCD; ../docs/notes/grenade_ccd.md)."""
+    stock = Image(original)
+    rows = lambda source, va, size: [text for _, _, text in ndisasm(source.read(va, size), va)]
+    f32 = lambda source, va: struct.unpack("<f", source.read(va, 4))[0]
+    check(rows(stock, 0x3038DB, 8) == ["movss xmm0,dword [dword 0x9cc878]"] and abs(f32(stock, 0x9CC878) - 0.05) < 1e-7
+          and rows(stock, 0x3038FC, 5) == ["mov edx,0x3"] and rows(stock, 0x303914, 5) == ["call 0x7a390"]
+          and rows(stock, 0x3039F2, 5) == ["call 0x357100"],
+          "grenade_core::load makes its shape with create_primitive_shape (0x7A390), type 3 (a capsule), "
+          "radius the 0.05 of 0x9CC878, then its rigid body (0x357100)")
+    check(rows(stock, 0x3039F7, 0x34) == [
+              "movss xmm0,dword [dword 0xa2d744]", "mov [esi+0x18c],eax", "mov eax,[eax+0x14]", "add esp,byte +0x10",
+              "movss dword [eax+0x104],xmm0", "movss xmm0,dword [dword 0xa2d774]", "pop edi",
+              "movss dword [eax+0x100],xmm0", "pop esi", "mov esp,ebp", "pop ebp", "ret 0x4"]
+          and abs(f32(stock, 0xA2D744) - 0.03) < 1e-7 and abs(f32(stock, 0xA2D774) - 0.01) < 1e-7,
+          "the original: btCollisionObject +104h (m_ccdMotionThreshold) 0.03, +100h (m_ccdSweptSphereRadius) 0.01")
+    va, old, new = P.GRENADE_CCD
+    check(stock.read(va, len(old)) == old == before.read(va, len(old)) and image.read(va, len(new)) == new
+          and rows(image, va, len(new)) == ["movss xmm0,dword [dword 0xa2d7dc]"],
+          f"{va:#x}: the original's load of 0.01 in the original and the build without the late join, the 0.04's here")
+    check(abs(f32(stock, 0xA2D7DC) - 0.04) < 1e-7 and f32(image, 0xA2D7DC) == f32(stock, 0xA2D7DC)
+          and 0x870000 <= 0xA2D7DC < 0x870000 + 2021888,
+          "0xA2D7DC is a 0.04 of .rdata (read-only), the same in the build")
+    relocated = sorted(v for kind, v in stock.relocations().values() if kind == 3 and va <= v < va + len(old))
+    built = sorted(v for kind, v in image.relocations().values() if kind == 3 and va <= v < va + len(old))
+    check(relocated == [va + 4] == built, "the operand's base relocation (0x303A17) is the original's and stays")
+    hits = [h for h in aimed_inside(original, va, len(old), 0x82) if not va <= h < va + len(old)
+            and starts_instruction(stock, h)]
+    check(not hits, "no branch aims inside the site" + "".join(f", {h:#x}" for h in hits))
+
+
+def test_mouse_pitch(original, image, before):
+    """Check 112: the mouse look's pitch is 16:9's at every window, locked; with
+    "Lock vertical sensitivity" unticked, 1:1 (patch 112, the Rust patch mouse_pitch;
+    ../docs/notes/mouse-pitch.md).
+    check_mouse_pitch_026g.py runs on_mouse_move at 4:3, 16:9 and 21:9."""
+    stock = Image(original)
+    rows = lambda source, va, size: [text for _, _, text in ndisasm(source.read(va, size), va)]
+    f32 = lambda source, va: struct.unpack("<f", source.read(va, 4))[0]
+    check(rows(stock, 0x2402B0, 0x240319 - 0x2402B0) == [
+              "mov eax,ecx", "mov ecx,[eax+0x334]", "mov edx,[ecx+0x9c]", "mov esi,[edx+0x5348]", "mov eax,[esi]",
+              "mov edx,[eax+0x1c]", "lea ecx,[esp+0x1e8]", "push ecx", "mov ecx,esi", "call edx", "lea edi,[eax+0x4]",
+              "mov eax,[esi]", "mov edx,[eax+0x1c]", "lea ecx,[esp+0x1f8]", "push ecx", "mov ecx,esi", "call edx",
+              "movss xmm1,dword [edi]", "divss xmm1,dword [eax]", "movss xmm2,dword [esp+0x28]", "mulss xmm1,xmm2",
+              "mulss xmm1,dword [esp+0x1c]", "mulss xmm1,dword [dword 0xa2dac4]", "mov edi,[esp+0x18]",
+              "mov eax,[edi+0x338]", "movss dword [esp+0x1c],xmm1"]
+          and abs(f32(stock, 0xA2DAC4) - 3 / math.pi) < 1e-7,
+          "player_input_handler::on_mouse_move: the pitch's step is the render window's height (+4) over its width "
+          "(game+5348h, vtable+1Ch, floats) x the yaw's step x the invert x 3/pi (0xA2DAC4)")
+    va, size = 0x2402E9, 18
+    hooks = [(at, old, symbol, opcode) for at, old, symbol, opcode in P.rust_hooks(original) if at == va]
+    check(len(hooks) == 1 and hooks[0][2] == "mouse_pitch_on_pitch_step" and hooks[0][3] == 0xE9
+          and hooks[0][1] == stock.read(va, size) == before.read(va, size)
+          and rows(stock, va, size) == ["movss xmm1,dword [edi]", "divss xmm1,dword [eax]",
+                                        "movss xmm2,dword [esp+0x28]", "mulss xmm1,xmm2"],
+          f"{va:#x}: the site of patch 112's lohook mouse.pitch_step (18 bytes: h / w, the yaw's step, their "
+          "product) in the original and the build without the late join")
+    jump = rows(image, va, 5)
+    target = branch_target(jump[0]) if jump else None
+    check(target is not None and jump[0].startswith("jmp") and P.ARENA_VA <= target < P.ARENA_VA + P.ARENA_LIMIT,
+          f"{va:#x}: a jump into the arena (.srpx) here")
+    under = lambda source: [v for kind, v in source.relocations().values() if kind == 3 and va - 3 <= v < va + size]
+    check(not under(stock) and not under(image), "no base relocation is under the site, in the original or the build")
+    hits = [h for h in aimed_inside(original, va, size, 0x82) if not va <= h < va + size
+            and starts_instruction(stock, h)]
+    check(not hits, "no branch aims inside the site" + "".join(f", {h:#x}" for h in hits))
+
+
 def test_bake_cache(original, image, before):
-    """Check 70: the baked textures kept and made once (patch 70,
-    BAKE_CACHE_HOOKS, BAKE_CACHE_KEEP). check_bake_cache_026g.py runs the
-    sites from the game's code on a made-up baker, folder and queries."""
+    """Check 70: the baked textures kept and made once (patch 70, the Rust
+    patch bake_cache, seven lohooks; BAKE_CACHE_KEEP). check_bake_cache_026g.py
+    runs the sites from the game's code on a made-up baker, folder and
+    queries."""
+    import hooks_026g
     stock = Image(original)
     rows = lambda source, va, size: [text for _, _, text in ndisasm(source.read(va, size), va)]
     cstr = lambda va: stock.read(va, 60).split(b"\0")[0]
     check(rows(stock, 0x1E944E, 0xC) == ["lea eax,[esp+0x470]", "call 0x1e8da0"]
+          and rows(stock, 0x1E945A, 7) == ["test byte [dword 0xa2b4090],0x1"]
           and rows(stock, 0x1EC82B, 0xC) == ["lea eax,[esp+0x358]", "call 0x1e8da0"]
           and stock.read(0x1E8DCF, 7) == bytes.fromhex("c745e403000000") and stock.read(0x1E8DF4, 5) == bytes.fromhex("b814040000")
           and stock.read(0x1E8E01, 6) == bytes.fromhex("ff1578feae00")
           and cstr(0x9EE470) == b"user_data/streamed_textures",
-          "game::game (0x1E9455) and game::exit (0x1EC832) delete user_data/streamed_textures: 0x1E8DA0 is "
-          "SHFileOperationA (delay import 0xAEFE78) with FO_DELETE (3) and flags 414h")
+          "game::game (0x1E944E: the folder's path at [esp+470h], then its delete) and game::exit (0x1EC832) "
+          "delete user_data/streamed_textures: 0x1E8DA0 is SHFileOperationA (delay import 0xAEFE78) with "
+          "FO_DELETE (3) and flags 414h; 0x1E945A reads no register before it writes it")
     check(rows(stock, 0x131C88, 0x14) == ["mov eax,[esp+0x18]", "mov [esp+0x44],edi", "cmp eax,[edi+0x114]",
                                           "jz near 0x131dc2"]
           and rows(stock, 0x12D4BE, 0x16) == ["mov eax,[esp+0x58]", "add esp,byte +0xc", "lea edx,[esp+0x1b8]",
@@ -4892,44 +5150,63 @@ def test_bake_cache(original, image, before):
           and rows(stock, 0x12D45F, 9) == ["pop edi", "pop esi", "pop ebx", "mov esp,ebp", "pop ebp", "ret 0x4"]
           and rows(stock, 0x12DA56, 9) == ["pop edi", "pop esi", "pop ebx", "mov esp,ebp", "pop ebp", "ret 0x4"]
           and rows(stock, 0x12D2F7, 0x14)[:2] == ["mov edi,eax", "mov [esp+0x48],edi"]
-          and rows(stock, 0x12F184, 0x10) == ["mov esi,[dword 0x1f1d960]", "mov ecx,0xac3334", "call 0x420789"]
-          and rows(stock, 0x12DDA9, 0x10) == ["mov esi,[dword 0x1f1d960]", "mov ecx,0xac3334", "call 0x420789"]
+          and rows(stock, 0x12F184, 0x16) == ["mov esi,[dword 0x1f1d960]", "mov ecx,0xac3334", "call 0x420789",
+                                              "push eax", "mov eax,0x108"]
+          and rows(stock, 0x12DDA9, 0x16) == ["mov esi,[dword 0x1f1d960]", "mov ecx,0xac3334", "call 0x420789",
+                                              "push eax", "mov eax,0x108"]
           and stock.read(0x420789, 4) == bytes.fromhex("8d4108c3")
           and rows(stock, 0x12F0E0, 0xD) == ["mov edx,[esp+0x610]", "mov ecx,eax", "mov eax,[edx]", "mov [edx],ecx"]
-          and stock.read(0xF0D00, 6) == bytes.fromhex("558bec83e4f8") and popped(stock, 0xF0D00, 0xF0F90) == 0x10,
-          "check_loaded's CRC compare (0x131C90), translate_query's look-up (0x12D4CD) and its end after a refused "
-          "query (0x12D42D: the surfaces emptied, edi's model instance released, `ret 4`), the texture's slot "
-          "set before `call 0x420789` (`lea eax,[ecx+8]`) in process_compression (0x12F18F) and "
-          "on_baked_texture_loaded (0x12DDB4), finish_query's entry (0xF0D00, `ret 10h`)")
+          and stock.read(0xF0D00, 6) == bytes.fromhex("558bec83e4f8") and popped(stock, 0xF0D00, 0xF0F90) == 0x10
+          and rows(stock, 0xF0E66, 9) == ["pop edi", "pop esi", "pop ebx", "mov esp,ebp", "pop ebp", "ret 0x10"],
+          "check_loaded's CRC compare (0x131C90), translate_query before its look-up (0x12D4C5) and its end after "
+          "a refused query (0x12D42D: the surfaces emptied, edi's model instance released, `ret 4`), the "
+          "texture's slot set, then `mov ecx,0AC3334h / call 0x420789` (`lea eax,[ecx+8]`; a relocated immediate) and "
+          "`push eax / mov eax,108h` in process_compression (0x12F194) and on_baked_texture_loaded (0x12DDB9), finish_query's entry "
+          "(0xF0D00) and its `ret 10h` (0xF0E6C)")
     check(stock.read(0x42050, 0x31) == bytes.fromhex("8b4c2404" "57" "8d3c0a" "3bd7" "7321" "56" "8d4900" "8a08" "320a"
                                                      "c12808" "8b30" "0fb6c9" "8b0c8d68fd2502" "33ce" "42" "8908"
                                                      "3bd7" "72e4" "5e" "5f" "c20400")
           and stock.read(0x1C235, 5) == bytes.fromhex("35b71dc104") and stock.read(0x1C210, 7) == bytes.fromhex("803d64fd250200"),
-          "the CRC-32 step 0x42050 (eax &the CRC, edx the bytes, [esp+4] the count; `ret 4`): a byte a step, "
-          "crc = T[(crc ^ byte) & 0xFF] ^ (crc >> 8), T at 0x225FD68 made by 0x1C210 from the polynomial 04C11DB7h "
-          "reflected (EDB88320h, bake_cache_026g.c's tables)")
+          "the CRC-32 step 0x42050 (eax &the CRC, edx the bytes, [esp+4] the count; `ret 4` at 0x4207E): a byte a "
+          "step, crc = T[(crc ^ byte) & 0xFF] ^ (crc >> 8), T at 0x225FD68 made by 0x1C210 from the polynomial "
+          "04C11DB7h reflected (EDB88320h, bake_cache.rs's tables)")
     linked = P.arena()
-    block = linked.blocks["bake_cache.code"]
-    for va, old, symbol, opcode in P.BAKE_CACHE_HOOKS:
-        target = linked.symbols[symbol]
-        hook = P.hook_bytes(target, va, old, 0, opcode)
-        check(stock.read(va, len(old)) == old == before.read(va, len(old)) and image.read(va, len(hook)) == hook
-              and block.va <= target < block.va + block.size,
-              f"{va:#x}: {old.hex()} in the original and the build without the late join, "
-              f"`{'call' if opcode == 0xE8 else 'jmp'} {target:#x}` ({symbol}, an entry of bake_cache.code) here")
+    block = linked.blocks["patches.code"]
+    want = {0x1E944E: ("bake.game_start", {"kept": 0x1E945A}), 0x131C90: ("bake.check_crc", {}),
+            0x12D4C5: ("bake.lookup", {"not_baked": 0x12D42D}), 0x12F194: ("bake.baked", {}),
+            0x12DDB9: ("bake.loaded", {}), 0xF0D00: ("bake.finish", {"done": 0xF0E6C}),
+            0x42050: ("crc32.step", {"done": 0x4207E})}
+    found = {}
+    for hook in hooks_026g.hooks(exe=hooks_026g.original_reader(original)):
+        owners = [member["patch"] for member in hook.get("chain", [hook])]
+        if "bake_cache" not in owners:
+            continue
+        va, old = hook["site"], hook["original"]
+        found[va] = (hook["site_name"], dict(hook["exits"]))
+        target = linked.symbols[hook["entry"]]
+        expected = P.hook_bytes(target, va, old, 0, 0xE9)
+        check(hook["kind"] == "lohook" and owners == ["bake_cache"]
+              and stock.read(va, len(old)) == old == before.read(va, len(old))
+              and image.read(va, len(old)) == expected and block.va <= target < block.va + block.size,
+              f"{va:#x} ({hook['site_name']}): {old.hex()} in the original and the build without the late join, "
+              f"`jmp {target:#x}` ({hook['entry']}, a generated lohook entry of patches.code) here")
+        hits = [h for h in aimed_inside(original, va, len(old), 0x82)
+                if not va <= h < va + len(old) and starts_instruction(stock, h)]
+        under = [v for kind, v in stock.relocations().values() if kind == 3 and va - 4 < v < va + len(old)]
+        check(not hits and not under,
+              f"{hook['site_name']}: no branch enters the displaced instructions and no base relocation is under "
+              "them" + "".join(f", {h:#x}" for h in hits + under))
+    check(found == want, f"bake_cache's seven lohooks at their sites with their exits: {sorted(f'{va:#x}' for va in found)}")
     va, old, new = P.BAKE_CACHE_KEEP
     check(stock.read(va, len(old)) == old == before.read(va, len(old)) and image.read(va, len(new)) == new,
           f"{va:#x}: game::exit's delete is a 5-byte nop")
-    sites = [(s, o) for s, o, _, _ in P.BAKE_CACHE_HOOKS] + [(va, old)]
-    under = [v for kind, v in stock.relocations().values() if kind == 3
-             and any(s - 4 < v < s + len(o) for s, o in sites)]
-    hits = [h for s, o in sites for h in aimed_inside(original, s, len(o), 0x82)
-            if not s <= h < s + len(o) and starts_instruction(stock, h)]
-    check(not under and not hits, "no base relocation under the sites, and no branch aims inside one"
+    under = [v for kind, v in stock.relocations().values() if kind == 3 and va - 4 < v < va + len(old)]
+    hits = [h for h in aimed_inside(original, va, len(old), 0x82) if not va <= h < va + len(old)
+            and starts_instruction(stock, h)]
+    check(not under and not hits, "no base relocation under game::exit's delete, and no branch aims inside it"
           + "".join(f", {h:#x}" for h in hits + under))
-    code = P.linker.block_bytes(linked, "bake_cache.code")
-    check(image.read(block.va, len(code)) == code and "bake_cache.state" in linked.blocks,
-          f"the code at {block.va:#x} is the link's bake_cache.code ({len(code)} bytes), its tables bake_cache.state")
+    check("bake_cache.code" not in linked.blocks and "bake_cache.state" not in linked.blocks,
+          "the old asm/C blocks bake_cache.code and .state are gone (the patch is patches.code's)")
 
 
 def test_lamps(original, image, before):
@@ -5041,13 +5318,11 @@ def test_ragdoll(original, image, before):
     check(not under and not hits, "no base relocation under the sites, and no branch aims inside one"
           + "".join(f", {h:#x}" for h in hits + under))
     code = P.linker.block_bytes(linked, "patches.code")
-    # These blocks now contain every Rust patch's statics: the corpse pool,
-    # lamp bindings and carry snapshots/resource owners. Keep a shared
-    # 256 KiB budget (202,464 bytes with all three); test_arena separately
-    # enforces the whole arena's limit and exact linked layout.
-    check(image.read(block.va, len(code)) == code and sum(d.size for d in data) <= 0x40000,
+    # patches.data and .state hold every Rust patch's statics; their size is
+    # the arena's to bound (ARENA_LIMIT, the link and test_arena)
+    check(image.read(block.va, len(code)) == code,
           f"the code at {block.va:#x} is the link's patches.code ({len(code)} bytes: the Rust crate and the "
-          f"generated entries), its statics patches.data and .state ({sum(d.size for d in data)} bytes)")
+          f"generated entries)")
     # each entry: hooks_026g.lohook_entry's (the machine saved, the shim
     # called, its Flow taken), its replay the site's own bytes, then back
     for va, old, symbol, _ in hooks:
@@ -5066,15 +5341,19 @@ def test_ragdoll(original, image, before):
                if f["call"] != "import" and (f["symbol"] in sym or f["call"] not in engine_026g.THUNKED)}
     backs = {va + len(old) for va, old, _, _ in P.rust_hooks(original)} \
         | {addr for site in P.hooks_026g.read_sites().values() for _, addr in site["exits"]}
+    # the branches in the bytes a hook replaces, which its entry or cave replays
+    # (patch 68's query_room: the site's `call 0x2F2060`)
+    replays = {branch_target(t) for va, old, _, _ in P.rust_hooks(original)
+               for _, _, t in ndisasm(old, va) if branch_target(t) is not None}
     # arena_rt exports weak intrinsics so multiple Rust arena crates share
     # them. The final ELF's full symbol map includes the selected weak
     # definitions; the public map intentionally contains strong globals only.
     runtime = {va for name, va, _, _ in linked.every if name in ("memcpy", "memmove", "memset")}
-    allowed = library | backs | runtime
+    allowed = library | backs | replays | runtime
     check(outside and set(outside) <= allowed,
           "the crate's direct branches out of the block: the engine library's functions (raw), the arena's "
-          "memcpy, memmove and memset, and each hook's way back past its site or to its named exit (the imports "
-          "go by pointer)"
+          "memcpy, memmove and memset, each hook's way back past its site or to its named exit, and the "
+          "branches of the bytes a hook replays (the imports go by pointer)"
           + "".join(f"; {t:#x}" for t in sorted(set(outside) - allowed)))
     stores = [t for t in texts if re.match(r"(mov|add|sub|and|or|xor|inc|dec)\w* (byte |word |dword |qword )?\[(dword )?0x", t)]
     absolute = [int(m, 16) for t in stores for m in re.findall(r"\[(?:dword )?(0x[0-9a-f]+)\]", t)]
@@ -5088,6 +5367,12 @@ def test_ragdoll(original, image, before):
     # adaptation (stage_postprocess's byte, which the render thread reads and clears; lobby-scenes.md)
     game_flags = {x["offset"]: f'{x["field"]}' for x in engine_026g.fields() if x["module"] == "image"
                   and x["field"] in ("postprocess",)}
+    # patch 70's records of kept files pushed onto the baker's list as its push_back does (0x132640):
+    # the list's end and bytes, the records' ages' counter (baked-textures.md)
+    for x in engine_026g.fields():
+        if x["module"] == "image" and x["field"] in ("baker", "baker_ages"):
+            game_flags.update({x["offset"] + f["offset"]: f'{x["field"]}.{f["field"]}' for f in engine_026g.fields()
+                               if f["kind"] == x["target"] and f["of"] != "size"})
     inside = lambda a: any(d.va <= a < d.va + d.size for d in data) or a in shared_fields or a in game_flags
     check(all(inside(a) for a in absolute),
           f"its stores to absolute addresses ({len(absolute)}) are all in patches.data and .state, or fields of "
@@ -5364,6 +5649,68 @@ def test_tab_self(original, image, before):
                                                if kind == 3 and 0x1F9473 <= v < 0x1F9487) == [0x1F9474, 0x1F947E],
           "no base relocation under the two bytes (the two addresses' are at 0x1F9474 and 0x1F947E) and nothing "
           "aims at the second byte" + "".join(f", {h:#x}" for h in found + under))
+
+
+def test_weapon_show(original, image, before):
+    """Check 91: a held weapon shown while its player aims keeps its body
+    (patch 91, WEAPON_SHOW): weapon::on_show always takes its idle branch
+    (the idle sight and the body), and the next weapon::draw aims.
+    check_weapon_show_026g.py runs it. Every full build, as patch 43."""
+    stock = Image(original)
+    rows = lambda blob, at, size: [text for _, _, text in ndisasm(blob.read(at, size), at)]
+    va, old, new = P.WEAPON_SHOW
+    check(stock.read(va, len(old)) == old and before.read(va, len(new)) == new == image.read(va, len(new)),
+          f"{va:#x}: the original's `{old.hex()}` (jz near), `{new.hex()}` (jmp, nop) here and in the build without "
+          "the late join")
+    head = ["cmp byte [esi+0x181e],0x0"]
+    aimed = ["mov eax,esi", "call 0x243940", "test al,al", "jz near 0x243ec7"]
+    check(rows(stock, 0x243E2B, 0x1C) == head + ["jz near 0x243ec7"] + aimed,
+          "the original: on_show takes its aimed branch when +181Eh is set and 0x243940 (the local player's, in "
+          "first person) says so")
+    check(rows(image, 0x243E2B, 0x1C) == head + ["jmp 0x243ec7", "nop"] + aimed,
+          "here `jmp 0x243ec7`: the idle branch always; the aimed branch's bytes stay, unreached")
+    branch = rows(stock, 0x243E47, 0x243EC7 - 0x243E47)
+    idle = rows(stock, 0x243EC7, 0x243F3C - 0x243EC7)
+    check(branch[:12] == ["mov edx,[esi+0x180c]", "lea eax,[esi+0x9bc]", "push eax", "push eax", "mov eax,[edi+0x10c]",
+                          "lea ecx,[esp+0x14]", "push ecx", "mov ecx,[edx+0x9c]", "mov edx,[ecx+0x5360]",
+                          "mov ecx,[edx+0x200064]", "add eax,0x108", "push ecx"]
+          and branch[12] == "call 0x21cd0" and branch[-2:] == ["mov byte [esi+0x181d],0x1", "jmp short 0x243efd"]
+          and "mov eax,[edi+0x108]" in idle and idle[idle.index("cmp byte [esi+0x181d],0x0") + 1] == "jnz 0x243f3c"
+          and "mov eax,[esi+0x1810]" in idle and idle[-1] == "call 0x21cd0",
+          "the aimed branch adds the optic's aimed model (+10Ch) and sets +181Dh; the idle one adds the idle model "
+          "(+108h); then the body (+1810h) is added only while +181Dh is 0 (0x243EFD)")
+    # draw's scope: the local player's in first person with +181Eh and not
+    # +181Dh aims (add_aimed_rifle_scope_to_scene); +181Dh without +181Eh
+    # (or not in first person) goes back (remove_aimed_rifle_scope_from_scene).
+    check(rows(stock, 0x244F80, 0x244FBF - 0x244F80) == [
+              "mov eax,ebx", "call 0x243940", "test al,al", "jz 0x244fad", "mov al,[ebx+0x181e]", "test al,al",
+              "jz 0x244fad", "cmp byte [ebx+0x181d],0x0", "jnz 0x244fa9", "lea edi,[esp+0x10]", "call 0x244b60",
+              "jmp short 0x244fbf", "test al,al", "jnz 0x244fbf", "cmp byte [ebx+0x181d],0x0", "jz 0x244fbf",
+              "lea edi,[esp+0x10]", "call 0x244c50"],
+          "weapon::draw (0x244F80) aims when the weapon is the local player's in first person, +181Eh is set and "
+          "+181Dh is not, and goes back when +181Dh is set otherwise")
+    add = rows(stock, 0x244B60, 0x244C48 - 0x244B60)
+    check(add.count("call 0x21f40") == 2 and add.count("call 0x21cd0") == 1
+          and add.index("mov eax,[eax+0x108]") < add.index("call 0x21f40") < add.index("call 0x21cd0")
+          and add[add.index("cmp byte [eax+0x11c],0x0") + 1:add.index("cmp byte [eax+0x11c],0x0") + 5]
+          == ["jz 0x244c3f", "mov eax,esi", "call 0x243940", "test al,al"]
+          and "mov eax,[esi+0x1810]" in add and add[-3:] == ["mov byte [esi+0x181d],0x1", "pop ecx", "ret"],
+          "add_aimed_rifle_scope_to_scene (0x244B60) takes the idle model out, adds the aimed one, takes the body "
+          "out only for hide_weapon_on_aim (+11Ch) in first person, and sets +181Dh")
+    # Nothing on_show, draw or the two scope functions run writes +181Eh.
+    writes = [r for at, size in ((0x243DD0, 0x243F94 - 0x243DD0), (0x244B60, 0x244D35 - 0x244B60),
+                                 (0x244E10, 0x245241 - 0x244E10)) for r in rows(image, at, size)
+              if "+0x181e]" in r.split(",")[0] and not r.startswith(("cmp ", "test "))]
+    # weapon::deserialize's three writes, read the same way (the filter sees a write).
+    known = [r for r in rows(stock, 0x244A40, 0x244AA4 - 0x244A40)
+             if "+0x181e]" in r.split(",")[0] and not r.startswith(("cmp ", "test "))]
+    check(not writes and known == ["mov [edi+0x181e],dl", "mov [edi+0x181e],al", "mov [edi+0x181e],al"],
+          "on_show, draw and the scope's add and remove never write +181Eh (the world's; weapon::deserialize "
+          "0x244A40 writes it three times)")
+    under = [v for kind, v in stock.relocations().values() if kind == 3 and va - 4 < v < va + len(old)]
+    found = aimed_inside(original, va, len(old), 0x82)
+    check(not under and not found, "no base relocation under the six bytes and nothing aims inside them"
+          + "".join(f", {h:#x}" for h in found + under))
 
 
 def test_replay_link(original, image, before):
@@ -6568,14 +6915,17 @@ def test_late_join(original, without, server, source):
     check(name_c == P.DEATH_CAMERA_NAME and flags_c == P.DEATH_CAMERA_CHARACTERISTICS
           and rva_c == state_rva + state_size and P.IMAGE_BASE + rva_c == P.death_camera_va(code)
           and vsize_c == len(death) and raw_c == raw + rsize and rsize_c == align(vsize_c, headers.file_alignment)
-          and bytes(data[raw_c:raw_c + vsize_c]) == death and set(data[raw_c + vsize_c:raw_c + rsize_c]) <= {0xCC},
-          f".srpc at VA {P.IMAGE_BASE + rva_c:#x}: death_camera_026g.section.bin ({len(death)} bytes) and int3 "
-          "padding, code | execute | read, on the page after .srpd, its file bytes right after .srp's")
+          and bytes(data[raw_c:raw_c + vsize_c]) == P.with_death_pitch(death, P.arena())
+          and set(data[raw_c + vsize_c:raw_c + rsize_c]) <= {0xCC},
+          f".srpc at VA {P.IMAGE_BASE + rva_c:#x}: death_camera_026g.section.bin ({len(death)} bytes, its pitch_entry "
+          "dword patch 112's entry of the arena) and int3 padding, code | execute | read, on the page after .srpd, its "
+          "file bytes right after .srp's")
     camo = open(P.weapon_camo_bin(), "rb").read()
     camo = camo + b"\xCC" * (P.WEAPON_STASH_OFFSET - len(camo)) + open(P.weapon_stash_bin(), "rb").read()
     camo = camo + b"\xCC" * (P.WEAPON_TABLE_OFFSET - len(camo)) + open(P.weapon_table_bin(), "rb").read()
     camo = camo + b"\xCC" * (P.WEAPON_DECALS_OFFSET - len(camo)) + open(P.weapon_decals_bin(), "rb").read()
-    camo = camo + b"\xCC" * (P.UPGRADE_PREVIEW_OFFSET - len(camo)) + open(P.upgrade_preview_bin(), "rb").read()
+    camo = camo + b"\xCC" * (P.UPGRADE_PREVIEW_OFFSET - len(camo)) \
+        + P.with_kit_apply(open(P.upgrade_preview_bin(), "rb").read(), P.arena())
     name_w, rva_w, vsize_w, raw_w, rsize_w, flags_w = sections[-2]
     check(name_w == P.WEAPON_CAMO_NAME and flags_w == P.WEAPON_CAMO_CHARACTERISTICS
           and rva_w == align(rva_c + vsize_c, headers.section_alignment) and P.IMAGE_BASE + rva_w == P.weapon_camo_va(code)
@@ -6705,7 +7055,8 @@ def test_late_join(original, without, server, source):
     with_address = {P.REMOVE_MODEL_VA, P.PICKUP_HOOKS[0][0]} | fov_sites | \
         {va for va, old, _, _ in P.WEAPON_PREVIEW_HOOKS if old[:3] == b"\xf3\x0f\x10"} | \
         {va for va, _, _, _ in P.FOV_LOD_HOOKS} | \
-        {va for va, _, _, _ in P.HIDE_UI_TABLE_REFS}   # the options' table, now the arena's (relocated alike)
+        {va for va, _, _, _ in P.HIDE_UI_TABLE_REFS} | \
+        {P.GRENADE_CCD[0]}   # the options' table, now the arena's (relocated alike); the grenade's 0.04
     kept = [(lo, hi) for lo, hi in sites if lo not in with_address]
     under_kept = [va for kind, va in Image(original).relocations().values()
                   if kind == 3 and any(va + 4 > lo and va < hi for lo, hi in kept)]
@@ -6725,6 +7076,7 @@ def test_late_join(original, without, server, source):
           f"({', '.join(f'{va:#x}' for va in P.FOV_LOD_RELOCS)}), which are disabled, "
           "and of the options' controls table's six readers (patch 62: their address is the arena's, kept "
           "relocatable) "
+          f"and of the grenade's swept sphere ({P.GRENADE_CCD[0] + 4:#x}, patch 105: an .rdata constant for another) "
           f"and of the field-of-view option's name "
           f"({option:#x}, an address for an address), which stays; the rest of the table is the build's without it")
 
@@ -6756,6 +7108,7 @@ def test_late_join(original, without, server, source):
     test_baked_texture_missing(original, image, before)
     test_ai_arena(original, image, before)
     test_memory_defaults(original, image, before)
+    test_sound_pools(original, image, before)
     test_weapon_preview(original, image, before)
     test_weapon_table(original, image, before)
     test_weapon_decals(original, image, before)
@@ -6765,16 +7118,20 @@ def test_late_join(original, without, server, source):
     test_blackout(original, image, before)
     test_tab_list(original, image, before)
     test_tab_self(original, image, before)
+    test_weapon_show(original, image, before)
     test_spot(original, image, before)
     test_artefacts(original, image, before)
     test_match_keys(original, image, before)
     test_hide_ui(original, image, before)
     test_kill_feed(original, image, before)
     test_fall_gravity(original, image, before)
+    test_grenade_ccd(original, image, before)
+    test_mouse_pitch(original, image, before)
     test_bake_cache(original, image, before)
     test_ragdoll(original, image, before)
     test_lamps(original, image, before)
     test_language(original, image, before)
+    test_weapon_kit(original, image, before)
     test_lobby_scene(original, image, before)
     test_weapon_flight(original, image, before)
     test_stage_focus(original, image, before)
@@ -6782,6 +7139,7 @@ def test_late_join(original, without, server, source):
     test_revision_override(original, data, server)
     test_required_patches(original, data, server)
     test_hash_interval(original, image, "section")
+    test_world_buffer(original, image, "section")
     test_memory_check(original, image, "section")
     test_default_server(original, image, "section", server)
     test_gather(original, image, "section")
@@ -6875,6 +7233,7 @@ def main():
         test_pe(original, image, mode)
         test_bytes(original, image, mode, payload, server)
         test_hash_interval(original, image, mode)
+        test_world_buffer(original, image, mode)
         test_memory_check(original, image, mode)
         test_default_server(original, image, mode, server)
         test_revision(original, image, mode, P.REVISION_WITHOUT_LATE_JOIN)

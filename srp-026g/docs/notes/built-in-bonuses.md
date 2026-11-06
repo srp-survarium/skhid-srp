@@ -4,7 +4,7 @@ An item's built-in bonuses are its `default_modifications`: the client adds them
 config, the server counts them as held (a piece never rolls a kind it comes with,
 `Modifications::candidates`).
 
-The owner's rule (2026-10-29, content-edit `built-in-bonuses-1.json`):
+The owner's rule (2026-10-29; the bonus cells of content-edit `armor.tsv`, once `built-in-bonuses-1.json`):
 
 - Equipment only (items_dict categories 1-7: helmet, mask, body armour, back, pants, gloves,
   boots; premium copies too). Weapons keep their presets.
@@ -17,8 +17,9 @@ The owner's rule (2026-10-29, content-edit `built-in-bonuses-1.json`):
   nobody wore those pieces.
 - Kinds that never roll (item slots, ammo bags, artefact container, pocket size and capacity,
   boosters) and wear-only ones (reliability) stay.
-- Computed from modifications.options and the item configs at build time (`content_edit.py`
-  `promote_rolled_defaults`), so new items follow it.
+- Held in `scripts/content-edit/armor.tsv` (a bonus cell is the modification's id); the content-edit
+  test `test_each_built_in_bonus_that_rolls_is_one_of_its_kinds_two_strongest` checks every cell
+  against `modifications.tsv`, so a new item's cell must follow it.
 - The exoskeleton suits come after it (docs/notes/exo-suits.md): the Duty suit gets the weight
   limit +5 kg and regeneration +15 %, the kinds' top rows.
 - Owned pieces get it at once (defaults come from the config).

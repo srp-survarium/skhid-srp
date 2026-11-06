@@ -54,7 +54,6 @@ use survarium::v026g::lobby::ClientState;
 use survarium::v026g::lobby::client_model::Decoded;
 use survarium::v026g::lobby::requests::id as lobby_id;
 use survarium::v026g::lobby::rooms::ROOM_STATE;
-use survarium::v026g::maps;
 use survarium::v026g::match_msgs::ServerMessage;
 
 /// The version a 0.26g client signs in with.
@@ -815,14 +814,13 @@ impl Bot {
             say(&format!("{} left the match", player(place)));
         }
         let loaded = client.model.options.as_ref().map(|options| {
-            let map = maps::map_mode(options.map_id).map_or(String::new(), |map| {
-                format!(" ({}, mode {})", map.name, map.mode)
-            });
+            let map = options.map.map();
+            let map = format!(" ({}, mode {})", map.name, map.mode.lobby_number());
             format!(
                 "took the static info (0xE4): match {:#x}, map {}{map}, {} players, its place \
                  {}; says it has loaded (0xDA)",
                 options.match_id,
-                options.map_id,
+                options.map.map().id,
                 options.players.len(),
                 own.map_or("?".to_owned(), |place| place.to_string())
             )

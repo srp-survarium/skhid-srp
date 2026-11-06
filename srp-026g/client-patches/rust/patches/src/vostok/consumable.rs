@@ -119,10 +119,12 @@ impl<'t> QuickSlotActivity<'t> {
                     let duration = if active && remaining != 0 {
                         if delay != 0 {
                             // Native set_active uses drug_use_time (33), weight 1.
-                            raw::engine_apply_modifier(modifiers, 33, *medkit.use_delay() as f32, 1.0) as u32
+                            super::medical::adjusted_use_time(ctx.thread(), player, medkit,
+                                raw::engine_apply_modifier(modifiers, 33, *medkit.use_delay() as f32, 1.0)) as u32
                         } else {
-                            raw::engine_apply_modifier(modifiers, 34, *medkit.duration() as f32,
-                                                       *medkit.skill_weight()) as u32
+                            super::medical::adjusted_duration(ctx.thread(), player, medkit,
+                                raw::engine_apply_modifier(modifiers, 34, *medkit.duration() as f32,
+                                                       *medkit.skill_weight())) as u32
                         }
                     } else { 0 };
                     Observed::parse(DrugId(medkit.address()), active, delay, remaining, duration)

@@ -2,6 +2,7 @@ package survarium.messages
 {
    import flash.display.MovieClip;
    import flash.events.Event;
+   import flash.events.MouseEvent;
    import flash.external.ExternalInterface;
    import flash.text.TextField;
    import flash.utils.getDefinitionByName;
@@ -29,6 +30,12 @@ package survarium.messages
 
    public class MessageRerollItem extends MessageAccept
    {
+
+      // The item's picture hovered and left: the lobby shows cardItem's card, the inventory's
+      // (LobbyMenu.showRerollItemHint), and takes it away.
+      public static const SHOW_CARD:String = "rerollShowCard";
+
+      public static const HIDE_CARD:String = "rerollHideCard";
 
       // The original movie places the game's lock hint (one modification an item) on this window;
       // since any modification may be changed it is not used (configUI hides it).
@@ -98,10 +105,31 @@ package survarium.messages
       
       override protected function cleanUp(event:Event = null) : void
       {
+         // closed under the pointer (Enter, Esc): its card goes with it
+         dispatchEvent(new Event(HIDE_CARD,true));
          this.itemRenderer.data = null;
          super.cleanUp();
       }
-      
+
+      // The item the window shows, null before it is filled.
+      public function get cardItem() : Object
+      {
+         return this.itemRenderer.data;
+      }
+
+      private function onItemOver(e:MouseEvent) : void
+      {
+         if(this.itemRenderer.data != null)
+         {
+            dispatchEvent(new Event(SHOW_CARD,true));
+         }
+      }
+
+      private function onItemOut(e:MouseEvent) : void
+      {
+         dispatchEvent(new Event(HIDE_CARD,true));
+      }
+
       override protected function configUI() : void
       {
          var rendererClass:Class = getDefinitionByName("SrvItemRendererFull") as Class;
@@ -116,10 +144,11 @@ package survarium.messages
          itemRenderer = new rendererClass();
          this.itemRenderer.x = 10;
          this.itemRenderer.y = 42;
-         // Hovering the item's picture shows its stats tip, the lobby's item tip (as on a profile's
-         // items), its modifications applied (the owner, 2026-10-23). The picture's own back is a
-         // fill of alpha 0, which takes no hover: a 0.01 one over it.
-         this.itemRenderer.tooltipRendererName = "SrvItemHintRednerer";
+         // Hovering the item's picture shows its card, the inventory's, its modifications applied
+         // (the owner, 2026-10-23; at the inventory's size, 2026-11-06). The picture's own back is
+         // a fill of alpha 0, which takes no hover: a 0.01 one over it.
+         this.itemRenderer.addEventListener(MouseEvent.ROLL_OVER,this.onItemOver);
+         this.itemRenderer.addEventListener(MouseEvent.ROLL_OUT,this.onItemOut);
          this.itemRenderer.graphics.beginFill(0,0.01);
          this.itemRenderer.graphics.drawRect(this.itemRenderer.iconRenderer.x,this.itemRenderer.iconRenderer.y,this.itemRenderer.iconRenderer.width,this.itemRenderer.iconRenderer.height);
          this.itemRenderer.graphics.endFill();
@@ -252,7 +281,7 @@ package survarium.messages
          this.checkBoxPremiumCost.value = this._rerollCostGold;
          if(modifiers)
          {
-            // The stats tip's item: its modifications as the server has them now (after a choice
+            // The card's item: its modifications as the server has them now (after a choice
             // too), with the item kind's own, as the inventory composes them.
             _data.modifiers = modifiers.concat(_data.modifiersDefault ? _data.modifiersDefault : []);
             modifierCount = modifiers.length;

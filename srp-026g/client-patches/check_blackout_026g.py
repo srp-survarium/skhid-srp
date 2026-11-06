@@ -34,7 +34,8 @@ records each call. The original runs the same way and must do what it did:
   stack; a new match resets the held key;
 - the input: process_first_person_mode's epilogue 0x2421B0 to its `ret 8`:
   while Tab is held in a Blackout match the action mask has no move and no
-  act, an act held through Tab stays out until let go; the original and a
+  act but Use (a search held through Tab goes on), an act held through Tab
+  stays out until let go; the original and a
   match without send what is pressed.
 """
 import struct
@@ -335,10 +336,11 @@ def main():
         ("Tab up: moving, sprinting, firing and aiming, crouched", 0, moving, moving),
         ("Tab down: no move, no fire, no aim; the crouch and the weapon key stay", 1, moving,
          CROUCH | WEAPON_1),
-        ("Tab held, fire still held: a grenade, melee, use, quick use 1, jump, reload pressed: none of them; "
-         "spot stays", 1, FIRE | GRENADE | MELEE | USE | QUICK_1 | JUMP | RELOAD | SPOT, SPOT),
-        ("Tab up, fire and the grenade still held: they stay out, the moves come back", 0,
-         FORWARD | LEFT | FIRE | GRENADE, FORWARD | LEFT),
+        ("Tab held, fire still held: a grenade, melee, quick use 1, jump, reload pressed: none of them; "
+         "spot and use (a search goes on) stay", 1, FIRE | GRENADE | MELEE | USE | QUICK_1 | JUMP | RELOAD | SPOT,
+         SPOT | USE),
+        ("Tab up, fire, the grenade and use still held: fire and the grenade stay out, use goes on, the moves "
+         "come back", 0, FORWARD | LEFT | FIRE | GRENADE | USE, FORWARD | LEFT | USE),
         ("fire let go, the grenade still held", 0, FORWARD | GRENADE, FORWARD),
         ("fire pressed again: it fires; the grenade let go", 0, FORWARD | FIRE, FORWARD | FIRE),
         ("the grenade pressed again", 0, GRENADE, GRENADE),
@@ -357,11 +359,11 @@ def main():
     patched.tab(1)
     patched.ticks += 200
     blocked = FORWARD | BACK | LEFT | RIGHT | SPRINT | JUMP | FIRE | RELOAD | AIM | 0xFC000 | 0x100000 \
-        | USE | 0x400000 | GRENADE | MELEE
+        | 0x400000 | GRENADE | MELEE
     b = patched.input(0xFFFFFFFF)
     blocked |= 1 << 29  # the carry chord's marker is produced only by a valid chord
     report(b == (0xFFFFFFFF & ~blocked, True), f"Tab down, every bit pressed: {b[0]:#x} sent, all but the moves "
-           "and acts")
+           "and acts (use is none)")
     patched.tab(0)
     patched.input(0)
     patched.static_info(empty_options(b""))

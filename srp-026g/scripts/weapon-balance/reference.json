@@ -1,0 +1,1597 @@
+{
+  "weapons": {
+    "wpn_ak_12": {
+      "name": "AK-12",
+      "fire_queue_types": [
+        -1,
+        1,
+        3
+      ],
+      "reload_time": 2.8
+    },
+    "wpn_pkp_pecheneg": {
+      "name": "PKP \"Pecheneg\"",
+      "fire_queue_types": [
+        -1,
+        1
+      ],
+      "reload_time": 10.0
+    },
+    "wpn_fn_minimi": {
+      "reload_time": 8,
+      "fire_queue_types": [
+        -1,
+        1
+      ],
+      "name": "wpn_fn_minimi"
+    },
+    "wpn_scar_h": {
+      "reload_time": 3.5,
+      "fire_queue_types": [
+        -1,
+        1
+      ],
+      "name": "wpn_scar_h"
+    },
+    "wpn_ots14": {
+      "reload_time": 3.1700000762939453,
+      "fire_queue_types": [
+        -1,
+        1
+      ],
+      "name": "wpn_ots14"
+    },
+    "wpn_vhs_2": {
+      "reload_time": 3.0,
+      "fire_queue_types": [
+        -1,
+        1
+      ],
+      "name": "wpn_vhs_2"
+    },
+    "wpn_beretta93r": {
+      "reload_time": 1.0,
+      "chamber_a_round_time": 0,
+      "fire_queue_types": [
+        3,
+        1
+      ],
+      "name": "wpn_beretta93r"
+    },
+    "wpn_jackhammer": {
+      "reload_time": 2.559999942779541,
+      "chamber_a_round_time": 0,
+      "fire_queue_types": [
+        -1
+      ],
+      "name": "wpn_jackhammer"
+    },
+    "wpn_svu_a": {
+      "reload_time": 3.0999999046325684,
+      "chamber_a_round_time": 0,
+      "fire_queue_types": [
+        1
+      ],
+      "name": "wpn_svu_a"
+    },
+    "wpn_colt_m1911": {
+      "reload_time": 1.399999976158142,
+      "chamber_a_round_time": 0,
+      "fire_queue_types": [
+        1
+      ],
+      "name": "wpn_colt_m1911"
+    },
+    "wpn_l85a2": {
+      "reload_time": 3.0,
+      "chamber_a_round_time": 0,
+      "fire_queue_types": [
+        -1,
+        1,
+        3
+      ],
+      "name": "wpn_l85a2"
+    },
+    "wpn_cz_75": {
+      "reload_time": 1.399999976158142,
+      "chamber_a_round_time": 0,
+      "fire_queue_types": [
+        1
+      ],
+      "name": "wpn_cz_75"
+    },
+    "wpn_fort_401": {
+      "reload_time": 6.900000095367432,
+      "chamber_a_round_time": 0,
+      "fire_queue_types": [
+        -1,
+        1
+      ],
+      "name": "wpn_fort_401"
+    },
+    "wpn_mp5a1": {
+      "reload_time": 3.369999885559082,
+      "chamber_a_round_time": 0,
+      "fire_queue_types": [
+        -1,
+        1
+      ],
+      "name": "wpn_mp5a1"
+    },
+    "wpn_glock_17": {
+      "reload_time": 1.25,
+      "chamber_a_round_time": 0,
+      "fire_queue_types": [
+        -1,
+        1
+      ],
+      "name": "wpn_glock_17"
+    },
+    "wpn_mp443": {
+      "reload_time": 1.399999976158142,
+      "chamber_a_round_time": 0,
+      "fire_queue_types": [
+        1
+      ],
+      "name": "wpn_mp443"
+    },
+    "wpn_famas": {
+      "reload_time": 4.0,
+      "fire_queue_types": [
+        -1,
+        1,
+        3
+      ],
+      "name": "wpn_famas"
+    },
+    "wpn_g3sg1": {
+      "reload_time": 3.200000047683716,
+      "fire_queue_types": [
+        1,
+        3
+      ],
+      "name": "wpn_g3sg1"
+    },
+    "wpn_mauser_m712": {
+      "reload_time": 1.5,
+      "fire_queue_types": [
+        -1,
+        1
+      ],
+      "name": "wpn_mauser_m712"
+    },
+    "wpn_ppsh_drum": {
+      "reload_time": 4.599999904632568,
+      "fire_queue_types": [
+        -1,
+        1
+      ],
+      "name": "wpn_ppsh_drum"
+    },
+    "wpn_akmsu": {
+      "reload_time": 3.200000047683716,
+      "fire_queue_types": [
+        -1,
+        1
+      ],
+      "name": "wpn_akmsu"
+    },
+    "wpn_ks_23m": {
+      "reload_time": 1.7000000476837158,
+      "chamber_a_round_time": 0.75,
+      "fire_queue_types": [
+        1
+      ],
+      "name": "wpn_ks_23m"
+    }
+  },
+  "ammo": {
+    "ammo_12mm_buck2": {
+      "name": "12x70, smallshot",
+      "air_resistance": 1.0,
+      "distance": 1000.0
+    },
+    "ammo_12mm_slug": {
+      "name": "12x70, slug",
+      "air_resistance": 1.0,
+      "distance": 1000.0
+    },
+    "ammo_45acp": {
+      "name": ".45 ACP",
+      "air_resistance": 1.0,
+      "distance": 1000.0
+    },
+    "ammo_5.56x45": {
+      "name": "5.56x45",
+      "air_resistance": 1.0,
+      "distance": 1000.0
+    },
+    "ammo_6.5x39": {
+      "name": "6.5x39 Grendel",
+      "air_resistance": 1.0,
+      "distance": 1000.0
+    },
+    "ammo_7.62x25": {
+      "name": "7.62x25",
+      "air_resistance": 1.0,
+      "distance": 1000.0
+    },
+    "ammo_7.62x39": {
+      "name": "7.62x39",
+      "air_resistance": 1.0,
+      "distance": 1000.0
+    },
+    "ammo_7.62x39_7n23": {
+      "name": "7.62x39 7N23",
+      "air_resistance": 1.0,
+      "distance": 1000.0
+    },
+    "ammo_7.62x51": {
+      "name": "7.62x51",
+      "air_resistance": 1.0,
+      "distance": 1000.0
+    },
+    "ammo_7.62x51_ap": {
+      "name": "7.62x51 M59",
+      "air_resistance": 1.0,
+      "distance": 1000.0
+    },
+    "ammo_7.62x54_7n1": {
+      "name": "7.62х54 7N1",
+      "air_resistance": 1.0,
+      "distance": 1000.0
+    },
+    "ammo_7.62x54_7n13": {
+      "name": "7.62x54 7N13",
+      "air_resistance": 1.0,
+      "distance": 1000.0
+    },
+    "ammo_9x19p_7n21": {
+      "name": "9x19 7N21",
+      "air_resistance": 1.0,
+      "distance": 1000.0
+    },
+    "ammo_9x19p_7n31": {
+      "name": "9x19 7N31",
+      "air_resistance": 1.0,
+      "distance": 1000.0
+    },
+    "ammo_9x19p_para": {
+      "name": "9x19 Parabellum",
+      "air_resistance": 1.0,
+      "distance": 1000.0
+    },
+    "ammo_pab9": {
+      "name": "9x39 PAB-9",
+      "air_resistance": 1.0,
+      "distance": 1000.0
+    },
+    "ammo_sp5": {
+      "name": "9x39 SP-5",
+      "air_resistance": 1.0,
+      "distance": 1000.0
+    },
+    "ammo_sp6": {
+      "name": "9x39 SP-6",
+      "air_resistance": 1.0,
+      "distance": 1000.0
+    },
+    "ammo_5.56x45_belt": {
+      "distance": 1000,
+      "air_resistance": 1,
+      "name": "ammo_5.56x45_belt"
+    },
+    "ammo_7.62x51_20": {
+      "distance": 1000,
+      "air_resistance": 1,
+      "name": "ammo_7.62x51_20"
+    },
+    "ammo_7.62x51_belt": {
+      "distance": 1000,
+      "air_resistance": 1,
+      "name": "ammo_7.62x51_belt"
+    },
+    "ammo_23mm_r": {
+      "distance": 1000,
+      "air_resistance": 1,
+      "name": "ammo_23mm_r"
+    }
+  },
+  "armour": {
+    "renesanse_boots_6": {
+      "name": "\"Zubr UM-4\" Boots",
+      "name_uk": "Чоботи \"Зубр УМ-4\"",
+      "description": "ОПИСАНИЕ НЕ ГОТОВО!!!",
+      "icon": [
+        4,
+        5
+      ],
+      "slot": "boots",
+      "takes_slots": [],
+      "type": "arm_boot",
+      "premium": false,
+      "item_level": 15,
+      "faction": 3,
+      "weight": 3.0,
+      "hit_params": {
+        "right_foot": {
+          "slash": 0.9,
+          "radiation": 0.5,
+          "shock": 0.5,
+          "fire": 0.5,
+          "explosive": 0.9,
+          "toxic": 0.5,
+          "ranged": 0.9
+        },
+        "left_foot": {
+          "slash": 0.9,
+          "radiation": 0.5,
+          "shock": 0.5,
+          "fire": 0.5,
+          "explosive": 0.9,
+          "toxic": 0.5,
+          "ranged": 0.9
+        }
+      },
+      "modifiers": {},
+      "default_modifications": [],
+      "mod_types": {
+        "mod": [
+          13
+        ],
+        "defect": [
+          8
+        ],
+        "default": []
+      }
+    },
+    "renesanse_gloves_6": {
+      "name": "\"Zubr UM-4\" Gloves",
+      "name_uk": "Рукавички \"Зубр УМ-4\"",
+      "description": "ОПИСАНИЕ НЕ ГОТОВО!!!",
+      "icon": [
+        5,
+        5
+      ],
+      "slot": "gloves",
+      "takes_slots": [],
+      "type": "arm_hand",
+      "premium": false,
+      "item_level": 15,
+      "faction": 3,
+      "weight": 0.6,
+      "hit_params": {
+        "left_arm": {
+          "slash": 0.9,
+          "radiation": 0.5,
+          "shock": 0.5,
+          "fire": 0.5,
+          "explosive": 0.9,
+          "toxic": 0.5,
+          "ranged": 0.9
+        },
+        "right_arm": {
+          "slash": 0.9,
+          "radiation": 0.5,
+          "shock": 0.5,
+          "fire": 0.5,
+          "explosive": 0.9,
+          "toxic": 0.5,
+          "ranged": 0.9
+        }
+      },
+      "modifiers": {},
+      "default_modifications": [],
+      "mod_types": {
+        "mod": [
+          13
+        ],
+        "defect": [
+          8
+        ],
+        "default": []
+      }
+    },
+    "renesanse_helmet_6": {
+      "name": "\"Zubr UM-4\" helmet",
+      "name_uk": "Шолом \"Зубр УМ-4\"",
+      "description": "ОПИСАНИЕ НЕ ГОТОВО!!!",
+      "icon": [
+        6,
+        5
+      ],
+      "slot": "helmet",
+      "takes_slots": [
+        "mask"
+      ],
+      "type": "arm_hlmt",
+      "premium": false,
+      "item_level": 15,
+      "faction": 3,
+      "weight": 6.0,
+      "hit_params": {
+        "face": {
+          "slash": 0.75,
+          "radiation": 0.5,
+          "shock": 0.5,
+          "fire": 0.5,
+          "explosive": 0.75,
+          "toxic": 0.5,
+          "ranged": 0.75
+        },
+        "brain": {
+          "slash": 0.75,
+          "radiation": 0.5,
+          "shock": 0.5,
+          "fire": 0.5,
+          "explosive": 0.75,
+          "toxic": 0.5,
+          "ranged": 0.75
+        }
+      },
+      "modifiers": {},
+      "default_modifications": [],
+      "mod_types": {
+        "mod": [
+          13
+        ],
+        "defect": [
+          8
+        ],
+        "default": []
+      }
+    },
+    "renesanse_legs_6": {
+      "name": "\"Zubr UM-4\" pants",
+      "name_uk": "Штани \"Зубр УМ-4\"",
+      "description": "ОПИСАНИЕ НЕ ГОТОВО!!!",
+      "icon": [
+        7,
+        5
+      ],
+      "slot": "legs",
+      "takes_slots": [],
+      "type": "arm_legs",
+      "premium": false,
+      "item_level": 15,
+      "faction": 3,
+      "weight": 5.0,
+      "hit_params": {
+        "right_hip": {
+          "slash": 0.9,
+          "radiation": 0.5,
+          "shock": 0.5,
+          "fire": 0.5,
+          "explosive": 0.9,
+          "toxic": 0.5,
+          "ranged": 0.9
+        },
+        "left_hip": {
+          "slash": 0.9,
+          "radiation": 0.5,
+          "shock": 0.5,
+          "fire": 0.5,
+          "explosive": 0.9,
+          "toxic": 0.5,
+          "ranged": 0.9
+        }
+      },
+      "modifiers": {},
+      "default_modifications": [
+        1030,
+        1050
+      ],
+      "mod_types": {
+        "mod": [
+          13
+        ],
+        "defect": [
+          8
+        ],
+        "default": []
+      }
+    },
+    "renesanse_torso_6": {
+      "name": "\"Zubr UM-4\" bulletproof vest",
+      "name_uk": "Бронежилет \"Зубр УМ-4\"",
+      "description": "ОПИСАНИЕ НЕ ГОТОВО!!!",
+      "icon": [
+        8,
+        5
+      ],
+      "slot": "torso",
+      "takes_slots": [],
+      "type": "arm_tors",
+      "premium": false,
+      "item_level": 15,
+      "faction": 3,
+      "weight": 20.0,
+      "hit_params": {
+        "right_forearm": {
+          "slash": 0.9,
+          "radiation": 0.5,
+          "shock": 0.5,
+          "fire": 0.5,
+          "explosive": 0.9,
+          "toxic": 0.5,
+          "ranged": 0.9
+        },
+        "back": {
+          "slash": 0.9,
+          "radiation": 0.5,
+          "shock": 0.5,
+          "fire": 0.5,
+          "explosive": 0.9,
+          "toxic": 0.5,
+          "ranged": 0.9
+        },
+        "left_forearm": {
+          "slash": 0.9,
+          "radiation": 0.5,
+          "shock": 0.5,
+          "fire": 0.5,
+          "explosive": 0.9,
+          "toxic": 0.5,
+          "ranged": 0.9
+        },
+        "front": {
+          "slash": 0.9,
+          "radiation": 0.5,
+          "shock": 0.5,
+          "fire": 0.5,
+          "explosive": 0.9,
+          "toxic": 0.5,
+          "ranged": 0.9
+        }
+      },
+      "modifiers": {},
+      "default_modifications": [
+        1051,
+        1170
+      ],
+      "mod_types": {
+        "mod": [
+          13
+        ],
+        "defect": [
+          8
+        ],
+        "default": []
+      }
+    }
+  },
+  "body": [
+    {
+      "name": "body",
+      "health": 1.0,
+      "regeneration_timeout": 8.0,
+      "regeneration_speed": 0.03,
+      "regeneration_threshold": 0.5,
+      "thresholds": [
+        {
+          "value": 0,
+          "affects": [
+            0
+          ]
+        }
+      ],
+      "ranged_routes": {},
+      "routes": {
+        "slash": {},
+        "radiation": {},
+        "shock": {},
+        "fire": {},
+        "explosive": {},
+        "toxic": {},
+        "ranged": {},
+        "blunt": {}
+      },
+      "invulnerable": [
+        "radiation"
+      ]
+    },
+    {
+      "name": "back",
+      "health": 0.0,
+      "regeneration_timeout": 0.0,
+      "regeneration_speed": 0.0,
+      "regeneration_threshold": 0.0,
+      "thresholds": [],
+      "ranged_routes": {
+        "pain": 1.0,
+        "body": 1.0
+      },
+      "routes": {
+        "slash": {
+          "pain": 1.0,
+          "body": 1.0
+        },
+        "radiation": {
+          "infection": 1.0
+        },
+        "shock": {
+          "pain": 1.0,
+          "body": 1.0
+        },
+        "fire": {
+          "pain": 1.0,
+          "body": 1.0
+        },
+        "explosive": {
+          "pain": 1.0,
+          "body": 1.0
+        },
+        "toxic": {
+          "infection": 1.0
+        },
+        "ranged": {
+          "pain": 1.0,
+          "body": 1.0
+        },
+        "blunt": {
+          "pain": 1.0,
+          "body": 1.0
+        }
+      },
+      "invulnerable": [
+        "radiation"
+      ]
+    },
+    {
+      "name": "front",
+      "health": 0.0,
+      "regeneration_timeout": 0.0,
+      "regeneration_speed": 0.0,
+      "regeneration_threshold": 0.0,
+      "thresholds": [],
+      "ranged_routes": {
+        "pain": 1.0,
+        "body": 1.0
+      },
+      "routes": {
+        "slash": {
+          "pain": 1.0,
+          "body": 1.0
+        },
+        "radiation": {
+          "infection": 1.0
+        },
+        "shock": {
+          "pain": 1.0,
+          "body": 1.0
+        },
+        "fire": {
+          "pain": 1.0,
+          "body": 1.0
+        },
+        "explosive": {
+          "pain": 1.0,
+          "body": 1.0
+        },
+        "toxic": {
+          "infection": 1.0
+        },
+        "ranged": {
+          "pain": 1.0,
+          "body": 1.0
+        },
+        "blunt": {
+          "pain": 1.0,
+          "body": 1.0
+        }
+      },
+      "invulnerable": [
+        "radiation"
+      ]
+    },
+    {
+      "name": "head",
+      "health": 0.4,
+      "regeneration_timeout": 8.0,
+      "regeneration_speed": 0.03,
+      "regeneration_threshold": 0.5,
+      "thresholds": [
+        {
+          "value": 0.5,
+          "affects": [
+            2
+          ]
+        },
+        {
+          "value": 0,
+          "affects": [
+            0
+          ]
+        }
+      ],
+      "ranged_routes": {},
+      "routes": {
+        "slash": {},
+        "radiation": {},
+        "shock": {},
+        "fire": {},
+        "explosive": {},
+        "toxic": {},
+        "ranged": {},
+        "blunt": {}
+      },
+      "invulnerable": [
+        "radiation",
+        "toxic"
+      ]
+    },
+    {
+      "name": "brain",
+      "health": 0.0,
+      "regeneration_timeout": 0.0,
+      "regeneration_speed": 0.0,
+      "regeneration_threshold": 0.0,
+      "thresholds": [],
+      "ranged_routes": {
+        "pain": 1.0,
+        "head": 1.0
+      },
+      "routes": {
+        "slash": {
+          "pain": 1.0,
+          "head": 1.0
+        },
+        "radiation": {
+          "infection": 1.0
+        },
+        "shock": {
+          "pain": 1.0,
+          "head": 1.0
+        },
+        "fire": {
+          "pain": 1.0,
+          "head": 1.0
+        },
+        "explosive": {},
+        "toxic": {
+          "infection": 1.0
+        },
+        "ranged": {
+          "pain": 1.0,
+          "head": 1.0
+        },
+        "blunt": {
+          "pain": 1.0,
+          "head": 1.0
+        }
+      },
+      "invulnerable": [
+        "radiation",
+        "toxic"
+      ]
+    },
+    {
+      "name": "face",
+      "health": 0.0,
+      "regeneration_timeout": 0.0,
+      "regeneration_speed": 0.0,
+      "regeneration_threshold": 0.0,
+      "thresholds": [],
+      "ranged_routes": {
+        "pain": 1.0,
+        "head": 1.0
+      },
+      "routes": {
+        "slash": {
+          "pain": 1.0,
+          "head": 1.0
+        },
+        "radiation": {
+          "infection": 1.0
+        },
+        "shock": {
+          "pain": 1.0,
+          "head": 1.0
+        },
+        "fire": {
+          "pain": 1.0,
+          "head": 1.0
+        },
+        "explosive": {
+          "pain": 1.0,
+          "head": 1.0
+        },
+        "toxic": {
+          "infection": 1.0
+        },
+        "ranged": {
+          "pain": 1.0,
+          "head": 1.0
+        },
+        "blunt": {
+          "pain": 1.0,
+          "head": 1.0
+        }
+      },
+      "invulnerable": [
+        "radiation",
+        "toxic"
+      ]
+    },
+    {
+      "name": "right_leg",
+      "health": 0.5,
+      "regeneration_timeout": 8.0,
+      "regeneration_speed": 0.03,
+      "regeneration_threshold": 0.2,
+      "thresholds": [
+        {
+          "movement_speed_modifier": -0.10000000149011612,
+          "value": 0.20000000298023224
+        },
+        {
+          "movement_speed_modifier": -0.20000000298023224,
+          "value": 0,
+          "affects": [
+            4
+          ]
+        }
+      ],
+      "ranged_routes": {},
+      "routes": {
+        "slash": {},
+        "radiation": {},
+        "shock": {},
+        "fire": {},
+        "explosive": {},
+        "toxic": {},
+        "ranged": {},
+        "blunt": {}
+      },
+      "invulnerable": [
+        "radiation"
+      ]
+    },
+    {
+      "name": "left_leg",
+      "health": 0.5,
+      "regeneration_timeout": 8.0,
+      "regeneration_speed": 0.03,
+      "regeneration_threshold": 0.2,
+      "thresholds": [
+        {
+          "movement_speed_modifier": -0.10000000149011612,
+          "value": 0.20000000298023224
+        },
+        {
+          "movement_speed_modifier": -0.20000000298023224,
+          "value": 0,
+          "affects": [
+            4
+          ]
+        }
+      ],
+      "ranged_routes": {},
+      "routes": {
+        "slash": {},
+        "radiation": {},
+        "shock": {},
+        "fire": {},
+        "explosive": {},
+        "toxic": {},
+        "ranged": {},
+        "blunt": {}
+      },
+      "invulnerable": [
+        "radiation"
+      ]
+    },
+    {
+      "name": "right_hip",
+      "health": 0.0,
+      "regeneration_timeout": 0.0,
+      "regeneration_speed": 0.0,
+      "regeneration_threshold": 0.0,
+      "thresholds": [],
+      "ranged_routes": {
+        "pain": 0.9,
+        "right_leg": 1.0
+      },
+      "routes": {
+        "slash": {
+          "pain": 0.9,
+          "right_leg": 1.0
+        },
+        "radiation": {
+          "infection": 1.0
+        },
+        "shock": {
+          "pain": 0.9,
+          "right_leg": 1.0
+        },
+        "fire": {
+          "pain": 0.9,
+          "right_leg": 1.0
+        },
+        "explosive": {
+          "pain": 0.9,
+          "right_leg": 1.0
+        },
+        "toxic": {
+          "infection": 1.0
+        },
+        "ranged": {
+          "pain": 0.9,
+          "right_leg": 1.0
+        },
+        "blunt": {
+          "pain": 0.05,
+          "right_leg": 1.0
+        }
+      },
+      "invulnerable": []
+    },
+    {
+      "name": "left_hip",
+      "health": 0.0,
+      "regeneration_timeout": 0.0,
+      "regeneration_speed": 0.0,
+      "regeneration_threshold": 0.0,
+      "thresholds": [],
+      "ranged_routes": {
+        "pain": 0.9,
+        "left_leg": 1.0
+      },
+      "routes": {
+        "slash": {
+          "pain": 0.9,
+          "left_leg": 1.0
+        },
+        "radiation": {
+          "infection": 1.0
+        },
+        "shock": {
+          "pain": 0.9,
+          "left_leg": 1.0
+        },
+        "fire": {
+          "pain": 0.9,
+          "left_leg": 1.0
+        },
+        "explosive": {
+          "pain": 0.9,
+          "left_leg": 1.0
+        },
+        "toxic": {
+          "infection": 1.0
+        },
+        "ranged": {
+          "pain": 0.9,
+          "left_leg": 1.0
+        },
+        "blunt": {
+          "pain": 0.05,
+          "left_leg": 1.0
+        }
+      },
+      "invulnerable": []
+    },
+    {
+      "name": "right_foot",
+      "health": 0.0,
+      "regeneration_timeout": 0.0,
+      "regeneration_speed": 0.0,
+      "regeneration_threshold": 0.0,
+      "thresholds": [],
+      "ranged_routes": {
+        "pain": 0.8,
+        "right_leg": 1.0
+      },
+      "routes": {
+        "slash": {
+          "pain": 0.5,
+          "right_leg": 1.0
+        },
+        "radiation": {
+          "infection": 1.0
+        },
+        "shock": {
+          "pain": 0.8,
+          "right_leg": 1.0
+        },
+        "fire": {
+          "pain": 0.8,
+          "right_leg": 1.0
+        },
+        "explosive": {
+          "pain": 0.8,
+          "right_leg": 1.0
+        },
+        "toxic": {
+          "infection": 1.0
+        },
+        "ranged": {
+          "pain": 0.8,
+          "right_leg": 1.0
+        },
+        "blunt": {
+          "pain": 0.8,
+          "right_leg": 1.0
+        }
+      },
+      "invulnerable": [
+        "radiation"
+      ]
+    },
+    {
+      "name": "left_foot",
+      "health": 0.0,
+      "regeneration_timeout": 0.0,
+      "regeneration_speed": 0.0,
+      "regeneration_threshold": 0.0,
+      "thresholds": [],
+      "ranged_routes": {
+        "pain": 0.8,
+        "left_leg": 1.0
+      },
+      "routes": {
+        "slash": {
+          "pain": 0.5,
+          "left_leg": 1.0
+        },
+        "radiation": {
+          "infection": 1.0
+        },
+        "shock": {
+          "pain": 0.8,
+          "left_leg": 1.0
+        },
+        "fire": {
+          "pain": 0.8,
+          "left_leg": 1.0
+        },
+        "explosive": {
+          "pain": 0.8,
+          "left_leg": 1.0
+        },
+        "toxic": {
+          "infection": 1.0
+        },
+        "ranged": {
+          "pain": 0.8,
+          "left_leg": 1.0
+        },
+        "blunt": {
+          "pain": 0.8,
+          "left_leg": 1.0
+        }
+      },
+      "invulnerable": [
+        "radiation"
+      ]
+    },
+    {
+      "name": "right_arm",
+      "health": 0.0,
+      "regeneration_timeout": 0.0,
+      "regeneration_speed": 0.0,
+      "regeneration_threshold": 0.0,
+      "thresholds": [],
+      "ranged_routes": {
+        "pain": 0.8,
+        "right_hand": 1.0
+      },
+      "routes": {
+        "slash": {
+          "pain": 0.8,
+          "right_hand": 1.0
+        },
+        "radiation": {
+          "infection": 1.0
+        },
+        "shock": {
+          "pain": 0.8,
+          "right_hand": 1.0
+        },
+        "fire": {
+          "pain": 0.8,
+          "right_hand": 1.0
+        },
+        "explosive": {
+          "pain": 0.8,
+          "right_hand": 1.0
+        },
+        "toxic": {
+          "infection": 1.0
+        },
+        "ranged": {
+          "pain": 0.8,
+          "right_hand": 1.0
+        },
+        "blunt": {
+          "pain": 0.05,
+          "right_hand": 1.0
+        }
+      },
+      "invulnerable": [
+        "radiation"
+      ]
+    },
+    {
+      "name": "left_arm",
+      "health": 0.0,
+      "regeneration_timeout": 0.0,
+      "regeneration_speed": 0.0,
+      "regeneration_threshold": 0.0,
+      "thresholds": [],
+      "ranged_routes": {
+        "left_hand": 1.0,
+        "pain": 0.8
+      },
+      "routes": {
+        "slash": {
+          "left_hand": 1.0,
+          "pain": 0.8
+        },
+        "radiation": {
+          "infection": 1.0
+        },
+        "shock": {
+          "left_hand": 1.0,
+          "pain": 0.8
+        },
+        "fire": {
+          "left_hand": 1.0,
+          "pain": 0.8
+        },
+        "explosive": {
+          "left_hand": 1.0,
+          "pain": 0.8
+        },
+        "toxic": {
+          "infection": 1.0
+        },
+        "ranged": {
+          "left_hand": 1.0,
+          "pain": 0.8
+        },
+        "blunt": {
+          "left_hand": 1.0,
+          "pain": 0.05
+        }
+      },
+      "invulnerable": [
+        "radiation"
+      ]
+    },
+    {
+      "name": "right_forearm",
+      "health": 0.0,
+      "regeneration_timeout": 0.0,
+      "regeneration_speed": 0.0,
+      "regeneration_threshold": 0.0,
+      "thresholds": [],
+      "ranged_routes": {
+        "pain": 1.0,
+        "right_hand": 1.0
+      },
+      "routes": {
+        "slash": {
+          "pain": 1.0,
+          "right_hand": 1.0
+        },
+        "radiation": {
+          "infection": 1.0
+        },
+        "shock": {
+          "pain": 1.0,
+          "right_hand": 1.0
+        },
+        "fire": {
+          "pain": 1.0,
+          "right_hand": 1.0
+        },
+        "explosive": {
+          "pain": 1.0,
+          "right_hand": 1.0
+        },
+        "toxic": {
+          "infection": 1.0
+        },
+        "ranged": {
+          "pain": 1.0,
+          "right_hand": 1.0
+        },
+        "blunt": {
+          "pain": 0.05,
+          "right_hand": 1.0
+        }
+      },
+      "invulnerable": [
+        "radiation"
+      ]
+    },
+    {
+      "name": "left_forearm",
+      "health": 0.0,
+      "regeneration_timeout": 0.0,
+      "regeneration_speed": 0.0,
+      "regeneration_threshold": 0.0,
+      "thresholds": [],
+      "ranged_routes": {
+        "left_hand": 1.0,
+        "pain": 1.0
+      },
+      "routes": {
+        "slash": {
+          "left_hand": 1.0,
+          "pain": 1.0
+        },
+        "radiation": {
+          "infection": 1.0
+        },
+        "shock": {
+          "left_hand": 1.0,
+          "pain": 1.0
+        },
+        "fire": {
+          "left_hand": 1.0,
+          "pain": 1.0
+        },
+        "explosive": {
+          "left_hand": 1.0,
+          "pain": 1.0
+        },
+        "toxic": {
+          "infection": 1.0
+        },
+        "ranged": {
+          "left_hand": 1.0,
+          "pain": 1.0
+        },
+        "blunt": {
+          "left_hand": 1.0,
+          "pain": 0.05
+        }
+      },
+      "invulnerable": [
+        "radiation"
+      ]
+    },
+    {
+      "name": "right_hand",
+      "health": 0.5,
+      "regeneration_timeout": 8.0,
+      "regeneration_speed": 0.03,
+      "regeneration_threshold": 0.2,
+      "thresholds": [
+        {
+          "value": 0,
+          "affects": [
+            3
+          ]
+        }
+      ],
+      "ranged_routes": {},
+      "routes": {
+        "slash": {},
+        "radiation": {},
+        "shock": {},
+        "fire": {},
+        "explosive": {},
+        "toxic": {},
+        "ranged": {},
+        "blunt": {}
+      },
+      "invulnerable": [
+        "radiation"
+      ]
+    },
+    {
+      "name": "left_hand",
+      "health": 0.5,
+      "regeneration_timeout": 8.0,
+      "regeneration_speed": 0.03,
+      "regeneration_threshold": 0.2,
+      "thresholds": [
+        {
+          "value": 0,
+          "affects": [
+            3
+          ]
+        }
+      ],
+      "ranged_routes": {},
+      "routes": {
+        "slash": {},
+        "radiation": {},
+        "shock": {},
+        "fire": {},
+        "explosive": {},
+        "toxic": {},
+        "ranged": {},
+        "blunt": {}
+      },
+      "invulnerable": [
+        "radiation"
+      ]
+    },
+    {
+      "name": "pain",
+      "health": 1.0,
+      "regeneration_timeout": 8.0,
+      "regeneration_speed": 0.1,
+      "regeneration_threshold": 1.0,
+      "thresholds": [
+        {
+          "value": 0.75,
+          "affects": {}
+        },
+        {
+          "value": 0.5,
+          "affects": {}
+        },
+        {
+          "value": 0.25,
+          "affects": {}
+        },
+        {
+          "value": 0,
+          "affects": [
+            0
+          ]
+        }
+      ],
+      "ranged_routes": {},
+      "routes": {
+        "slash": {},
+        "shock": {},
+        "fire": {},
+        "explosive": {},
+        "ranged": {},
+        "blunt": {}
+      },
+      "invulnerable": []
+    },
+    {
+      "name": "infection",
+      "health": 1.0,
+      "regeneration_timeout": 0.0,
+      "regeneration_speed": 0.0,
+      "regeneration_threshold": 0.0,
+      "thresholds": [
+        {
+          "value": 1,
+          "affects": [
+            6
+          ]
+        },
+        {
+          "value": 0,
+          "affects": [
+            0
+          ]
+        }
+      ],
+      "ranged_routes": {},
+      "routes": {
+        "radiation": {},
+        "toxic": {}
+      },
+      "invulnerable": []
+    }
+  ],
+  "compat": {
+    "wpn_pkp_pecheneg": [
+      "ammo_7.62x54_7n13"
+    ],
+    "wpn_ak_12": [
+      "ammo_6.5x39"
+    ],
+    "wpn_ots14": [
+      "ammo_pab9",
+      "ammo_sp5",
+      "ammo_sp6"
+    ],
+    "wpn_scar_h": [
+      "ammo_7.62x51_20",
+      "ammo_7.62x51",
+      "ammo_7.62x51_ap"
+    ],
+    "wpn_vhs_2": [
+      "ammo_5.56x45"
+    ],
+    "wpn_fn_minimi": [
+      "ammo_5.56x45_belt"
+    ],
+    "wpn_mp5a1": [
+      "ammo_9x19p_7n31",
+      "ammo_9x19p_para",
+      "ammo_9x19p_7n21"
+    ],
+    "wpn_svu_a": [
+      "ammo_7.62x54_7n1"
+    ],
+    "wpn_l85a2": [
+      "ammo_5.56x45"
+    ],
+    "wpn_fort_401": [
+      "ammo_7.62x51_belt"
+    ],
+    "wpn_jackhammer": [
+      "ammo_12mm_buck2",
+      "ammo_12mm_slug"
+    ],
+    "wpn_cz_75": [
+      "ammo_9x19p_7n31",
+      "ammo_9x19p_para",
+      "ammo_9x19p_7n21"
+    ],
+    "wpn_mp443": [
+      "ammo_9x19p_7n31",
+      "ammo_9x19p_para",
+      "ammo_9x19p_7n21"
+    ],
+    "wpn_beretta93r": [
+      "ammo_9x19p_7n31",
+      "ammo_9x19p_para",
+      "ammo_9x19p_7n21"
+    ],
+    "wpn_glock_17": [
+      "ammo_9x19p_7n31",
+      "ammo_9x19p_para",
+      "ammo_9x19p_7n21"
+    ],
+    "wpn_colt_m1911": [
+      "ammo_45acp"
+    ],
+    "wpn_akmsu": [
+      "ammo_7.62x39_7n23",
+      "ammo_7.62x39"
+    ],
+    "wpn_famas": [
+      "ammo_5.56x45"
+    ],
+    "wpn_g3sg1": [
+      "ammo_7.62x51_20"
+    ],
+    "wpn_mauser_m712": [
+      "ammo_7.62x25"
+    ],
+    "wpn_ks_23m": [
+      "ammo_23mm_r"
+    ],
+    "wpn_ppsh_drum": [
+      "ammo_7.62x25"
+    ]
+  },
+  "mods": {
+    "1004": {
+      "kind": "mod",
+      "type": 13,
+      "effects": [
+        {
+          "path": "hit_params/body/hit_types/ranged/armor",
+          "op": "add",
+          "value": 0.08
+        },
+        {
+          "path": "hit_params/back/hit_types/ranged/armor",
+          "op": "add",
+          "value": 0.08
+        },
+        {
+          "path": "hit_params/front/hit_types/ranged/armor",
+          "op": "add",
+          "value": 0.08
+        },
+        {
+          "path": "hit_params/head/hit_types/ranged/armor",
+          "op": "add",
+          "value": 0.08
+        },
+        {
+          "path": "hit_params/brain/hit_types/ranged/armor",
+          "op": "add",
+          "value": 0.08
+        },
+        {
+          "path": "hit_params/face/hit_types/ranged/armor",
+          "op": "add",
+          "value": 0.08
+        },
+        {
+          "path": "hit_params/right_leg/hit_types/ranged/armor",
+          "op": "add",
+          "value": 0.08
+        },
+        {
+          "path": "hit_params/left_leg/hit_types/ranged/armor",
+          "op": "add",
+          "value": 0.08
+        },
+        {
+          "path": "hit_params/right_hip/hit_types/ranged/armor",
+          "op": "add",
+          "value": 0.08
+        },
+        {
+          "path": "hit_params/left_hip/hit_types/ranged/armor",
+          "op": "add",
+          "value": 0.08
+        },
+        {
+          "path": "hit_params/right_foot/hit_types/ranged/armor",
+          "op": "add",
+          "value": 0.08
+        },
+        {
+          "path": "hit_params/left_foot/hit_types/ranged/armor",
+          "op": "add",
+          "value": 0.08
+        },
+        {
+          "path": "hit_params/right_arm/hit_types/ranged/armor",
+          "op": "add",
+          "value": 0.08
+        },
+        {
+          "path": "hit_params/left_arm/hit_types/ranged/armor",
+          "op": "add",
+          "value": 0.08
+        },
+        {
+          "path": "hit_params/right_forearm/hit_types/ranged/armor",
+          "op": "add",
+          "value": 0.08
+        },
+        {
+          "path": "hit_params/left_forearm/hit_types/ranged/armor",
+          "op": "add",
+          "value": 0.08
+        },
+        {
+          "path": "hit_params/right_hand/hit_types/ranged/armor",
+          "op": "add",
+          "value": 0.08
+        },
+        {
+          "path": "hit_params/left_hand/hit_types/ranged/armor",
+          "op": "add",
+          "value": 0.08
+        },
+        {
+          "path": "hit_params/pain/hit_types/ranged/armor",
+          "op": "add",
+          "value": 0.08
+        }
+      ],
+      "icon": 0,
+      "props": [
+        {
+          "label": "Armor",
+          "label_uk": "Броня",
+          "mod_type": 1,
+          "direction": 1,
+          "postfix": "",
+          "value": 8.0
+        }
+      ]
+    }
+  },
+  "provenance": {
+    "base_commit": "009b2dabe",
+    "calculator_sha256": "d3a3df473ec9838b9d432be47c360609dab48f1e7030e5cbec9dd92ab9738a24",
+    "packs": [
+      {
+        "pack": "weapons-031-7",
+        "sha256": "1d9d18d4b81d4bf43a1a551322a26cf8bbf8af5b79b9512896e0d67e4977f120"
+      },
+      {
+        "pack": "weapons-046-10",
+        "sha256": "92344359e1176267258e2b7f451ba54e79c8749928e29b875f5700fb8d60d804"
+      },
+      {
+        "pack": "weapons-069-11",
+        "sha256": "27bd3f4a959762c31d7c21670e3467833365c9471a1f721cb34723f83209fe8e"
+      }
+    ],
+    "dictionary_leaves_sha256": "b3f43da782e3fc6c244effb8c862d1367abf312e7382ced554dc4426eb69e8ea",
+    "donor_leaves_sha256": "f1c745537742534e2c55ff3ed6810f5ea9bc1a26a3f8e594d72b148fecc9a436"
+  }
+}

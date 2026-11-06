@@ -38,7 +38,7 @@ fn main() {
         };
         let body = std::fs::read(format!("{dir}/{name}")).unwrap();
         let read = (1..=20).find_map(|players| {
-            let decoded = snapshot::decode(time, &body, players, map.mode, 0)?;
+            let decoded = snapshot::decode(time, &body, players, map.mode.rules(), 0)?;
             let tdm = decoded.rules.as_ref()?.tdm?;
             Some((players, decoded, tdm))
         });

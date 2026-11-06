@@ -435,6 +435,7 @@ site_port=$(cat "$T/site.port")
 P=http://127.0.0.1:$patches_port
 
 # The lists start empty (their comment lines only), whatever the real ones hold.
+grep "^#" "$here/game.tsv" >"$T/game.tsv"
 grep "^#" "$here/patches.tsv" >"$T/patches.tsv"
 grep "^#" "$here/patches-test.tsv" >"$T/patches-test.tsv"
 cat >"$T/release.env" <<EOF
@@ -448,6 +449,7 @@ SKHID_PATCHES_URL=$P
 SKHID_PATCHES_CADDYFILE=$T/Caddyfile
 SKHID_PATCH_LIST=$T/patches.tsv
 SKHID_TEST_PATCH_LIST=$T/patches-test.tsv
+SKHID_GAME_LIST=$T/game.tsv
 SKHID_STOCK_DB=$T/resources.db
 SKHID_RELEASE_LOCK=$T/lock
 SKHID_BACKUP_DIR=$T/backups
@@ -508,14 +510,14 @@ else
     echo "skip patch_026g.py in the dev shell (SRP_026G_EXE names no original survarium.exe)"
 fi
 
-# The stock db: an archive of a dictionary and a project.
+# The stock db: an archive of a dictionary and a project, each of nothing: a
+# binary config of an empty table (srp-game-data keeps a project cut to its
+# server objects, and refuses one that is not a config; build-content reads
+# the dictionary's items).
 mkdir -p "$T/stock/gameplay/items" "$T/stock/projects/p/day"
-echo "dictionary" >"$T/stock/gameplay/db_static_dictionaries"
-echo "old item" >"$T/stock/gameplay/items/a.txt"
-# A project of nothing: a binary config of an empty table (srp-game-data
-# keeps a project cut to its server objects, and refuses one that is not a
-# config).
 printf '\x18\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\x03\0\0\0' >"$T/stock/projects/p/day/client_project"
+cp "$T/stock/projects/p/day/client_project" "$T/stock/gameplay/db_static_dictionaries"
+echo "old item" >"$T/stock/gameplay/items/a.txt"
 "$bin" pack --dir "$T/stock" --out "$T/resources.db" >/dev/null
 
 # build-patch
@@ -624,7 +626,7 @@ expect_refused "build-server-db: valid cache cannot hide an unavailable primary 
     "$here/build-server-db" --out "$T/work/sgd-missing-primary.db"
 mv "$T/patches/resources.db.patch_3.saved" "$T/patches/resources.db.patch_3"
 expect_refused "build-server-db never overwrites" "never overwritten" "$here/build-server-db" --out "$T/work/sgd.db"
-expect_refused "build-server-db refuses another server's list" "is not http://127.0.0.1:$site_port/resources.db.patch_3" \
+expect_refused "build-server-db refuses another server's list" "no URL is http://127.0.0.1:$site_port/resources.db.patch_3" \
     env SKHID_RELEASE_ENV="$(changed_env "s|^SKHID_PATCHES_URL=.*|SKHID_PATCHES_URL=http://127.0.0.1:$site_port|")" "$here/build-server-db" --out "$T/work/sgd2.db"
 printf 'resources.db.patch_7\t%s\t5\t%s\n' "$sha3" "$P/resources.db.patch_7" >"$T/bad.tsv"
 expect_refused "build-server-db needs each listed patch at 200" "answered 404, not 200" \
@@ -646,24 +648,26 @@ check "build-server-db: no file left by a refused check" test ! -e "$T/work/sgd2
 out=$("$here/build-server-db" --test --out "$T/work/sgd-test.db" 2>&1) || fail "build-server-db --test: $out"
 check "build-server-db --test: the test list, the test URLs" has "$out" "  patch_12 sha256 $sha12 urls http://127.0.0.1:$test_patches_port/resources.db.patch_12"
 
-# Mirrors: add-mirror, a row of several URLs, build-server-db of it. On a
-# copy of the list (the live one stays that of sgd.db, which deploy takes).
+# Mirrors: add-mirror puts a row into srp's mirrors.tsv (the stand-in
+# volume) at once; a list of several URLs, build-server-db of it (on a copy
+# of the list: the live one stays that of sgd.db, which deploy takes).
 size3=$(stat -c %s "$patch")
 cp "$patch" "$T/mirror/resources.db.patch_3"
 # The patch's size, other bytes: an older file under the mirror's name.
 { head -c $((size3 - 1)) "$patch"; printf '\377'; } >"$T/mirror/wrong_3"
 wrong3=$(sha256sum <"$T/mirror/wrong_3" | cut -d' ' -f1)
-cp "$T/patches.tsv" "$T/mirrored.tsv"
-menv=$(changed_env "s|^SKHID_PATCH_LIST=.*|SKHID_PATCH_LIST=$T/mirrored.tsv|")
-am=(env SKHID_RELEASE_ENV="$menv" "$here/add-mirror")
+cp "$T/patches.tsv" "$T/list.before"
+am=("$here/add-mirror")
 check "--help is the usage" has "$("$here/add-mirror" --help)" "usage: release/add-mirror"
-expect_refused "add-mirror: a patch not in the list" "is not in $T/mirrored.tsv" "${am[@]}" resources.db.patch_5 "$M/files/x"
-expect_refused "add-mirror: not a patch's name" "a patch's name is resources.db.patch_<n>" "${am[@]}" patch_3 "$M/files/x"
+expect_refused "add-mirror: a patch not in the list" "is not in $T/patches.tsv" "${am[@]}" resources.db.patch_5 "$M/files/x"
+expect_refused "add-mirror: not a file's name" "a file of the list is resources.db.patch_<n>" "${am[@]}" patch_3 "$M/files/x"
+expect_refused "add-mirror: the game's archive when the list has none" "survarium-026g.7z is not in $T/game.tsv" \
+    "${am[@]}" survarium-026g.7z "$M/files/g.7z"
 for bad in "ftp://127.0.0.1/x" "http://user:pw@127.0.0.1/x" "http://127.0.0.1/a b" "http://127.0.0.1/a#b" "http://127.0.0.1/" "127.0.0.1/x"; do
     expect_refused "add-mirror: a URL the updater does not take ($bad)" "is not a URL the players' updater takes" \
         "${am[@]}" resources.db.patch_3 "$bad"
 done
-expect_refused "add-mirror: a URL the row has" "is in the row of resources.db.patch_3 already" \
+expect_refused "add-mirror: a URL of the list's row" "is a URL of resources.db.patch_3 in $T/patches.tsv already" \
     "${am[@]}" resources.db.patch_3 "$P/resources.db.patch_3"
 expect_refused "add-mirror: a web page in the place of the file" "answers with a web page (text/html; charset=utf-8)" \
     "${am[@]}" resources.db.patch_3 "$M/page/resources.db.patch_3"
@@ -671,37 +675,99 @@ expect_refused "add-mirror: other bytes" "gave sha256 $wrong3, not $sha3" "${am[
 expect_refused "add-mirror: no such file" "answers 404, not 200" "${am[@]}" resources.db.patch_3 "$M/files/none"
 expect_refused "add-mirror: six redirects, as the updater refuses them" "hop/6/resources.db.patch_3 answers" \
     "${am[@]}" resources.db.patch_3 "$M/hop/6/resources.db.patch_3"
-check "add-mirror: a refusal changes no row" cmp -s "$T/patches.tsv" "$T/mirrored.tsv"
+check "add-mirror: a refusal writes no mirrors.tsv" test ! -e "$T/volume/mirrors.tsv"
 check "add-mirror: a refusal is not in the cache" bash -c "! grep -q 127.0.0.1:${M##*:}/ $T/cache/skhid-release/patch-urls.checked 2>/dev/null"
-out=$("${am[@]}" resources.db.patch_3 "$M/hop/5/resources.db.patch_3" 2>&1) || fail "add-mirror: $out"
-check "add-mirror: five redirects are followed, the URL added to the row" grep -qxF \
-    "$(printf 'resources.db.patch_3\t%s\t%s\t%s %s' "$sha3" "$size3" "$P/resources.db.patch_3" "$M/hop/5/resources.db.patch_3")" "$T/mirrored.tsv"
-check "add-mirror: every other line as it was" test "$(grep -v '^resources.db.patch_3' "$T/mirrored.tsv")" = "$(grep -v '^resources.db.patch_3' "$T/patches.tsv")"
+out=$(yes_to "${am[@]}" resources.db.patch_3 "$M/hop/5/resources.db.patch_3") || fail "add-mirror: $out"
+check "add-mirror: five redirects are followed, the row put into srp's mirrors.tsv" test \
+    "$(cat "$T/volume/mirrors.tsv")" = "$(printf 'resources.db.patch_3\t%s' "$M/hop/5/resources.db.patch_3")"
+check "add-mirror: asked first, on the live host" has "$out" "On the live host (live through jump), about to run:"
+check "add-mirror: the list is as it was" cmp -s "$T/patches.tsv" "$T/list.before"
 check "add-mirror: the URL is in the cache" grep -qxF "$sha3 $size3 $M/hop/5/resources.db.patch_3" "$T/cache/skhid-release/patch-urls.checked"
-out=$("${am[@]}" resources.db.patch_3 "$M/files/resources.db.patch_3" 2>&1) || fail "add-mirror: $out"
-check "add-mirror: says the order" has "$out" "now has 3 URLs, tried in this order"
-check "add-mirror: says to commit, and the next release" has "$out" "commit it; players get it with the next release"
+check "add-mirror: says so when the site does not list it" has "$out" "does not list $M/hop/5/resources.db.patch_3"
+check "add-mirror: the release lock is free after" test ! -e "$T/lock"
+out=$(yes_to "${am[@]}" --first resources.db.patch_3 "$M/files/resources.db.patch_3") || fail "add-mirror --first: $out"
+check "add-mirror --first: a row of place 1, the first of all the file's URLs" test "$(cat "$T/volume/mirrors.tsv")" = \
+    "$(printf 'resources.db.patch_3\t%s\nresources.db.patch_3\t%s\t1' "$M/hop/5/resources.db.patch_3" "$M/files/resources.db.patch_3")"
+expect_refused "add-mirror: a row there already" "is a row of resources.db.patch_3 in the live host's mirrors.tsv already" \
+    "${am[@]}" resources.db.patch_3 "$M/files/resources.db.patch_3"
+expect_refused "add-mirror --remove: no such row" "is not a row of resources.db.patch_3" \
+    "${am[@]}" --remove resources.db.patch_3 "$M/files/none"
+expect_refused "add-mirror --remove: a URL of the list" "take it out of the list's row in a PR" \
+    "${am[@]}" --remove resources.db.patch_3 "$P/resources.db.patch_3"
+out=$(yes_to "${am[@]}" --remove resources.db.patch_3 "$M/files/resources.db.patch_3") || fail "add-mirror --remove: $out"
+check "add-mirror --remove: the row is out, the other kept" test \
+    "$(cat "$T/volume/mirrors.tsv")" = "$(printf 'resources.db.patch_3\t%s' "$M/hop/5/resources.db.patch_3")"
+out=$("${am[@]}" --dry-run --at 1 resources.db.patch_3 "$M/files/resources.db.patch_3" 2>&1) || fail "add-mirror --dry-run: $out"
+check "add-mirror --dry-run: writes nothing" test "$(cut -f2 "$T/volume/mirrors.tsv")" = "$M/hop/5/resources.db.patch_3"
+rm "$T/volume/mirrors.tsv"
+# The list with mirrors, as a PR writes it.
+printf 'resources.db.patch_3\t%s\t%s\t%s %s %s\nresources.db.patch_12\t%s\t%s\t%s\n' "$sha3" "$size3" \
+    "$P/resources.db.patch_3" "$M/hop/5/resources.db.patch_3" "$M/files/resources.db.patch_3" \
+    "$sha12" "$(stat -c %s "$T/r12/resources.db.patch_12")" "$P/resources.db.patch_12" >"$T/mirrored.tsv"
+menv=$(changed_env "s|^SKHID_PATCH_LIST=.*|SKHID_PATCH_LIST=$T/mirrored.tsv|")
 : >"$T/mirror.log"
 out=$(env SKHID_RELEASE_ENV="$menv" "$here/build-server-db" --out "$T/work/sgd-mirrors.db" 2>&1) || fail "build-server-db, mirrors: $out"
 check "build-server-db: the data offers the mirrors in their order" has "$out" \
     "  patch_3 sha256 $sha3 urls $P/resources.db.patch_3 $M/hop/5/resources.db.patch_3 $M/files/resources.db.patch_3"
 check "build-server-db: a mirror checked before is asked for its first bytes only" \
     bash -c "test -s $T/mirror.log && ! grep -v ' bytes=0-12\$' $T/mirror.log"
-check "build-server-db: says so" has "$out" "mirror $M/files/resources.db.patch_3: as checked before"
+check "build-server-db: says so" has "$out" "ok       resources.db.patch_3 at $M/files/resources.db.patch_3: as checked before"
 check "the data is made of the list with its mirrors" quiet "$bin" check "$T/work/sgd-mirrors.db" --db "$T/resources.db" \
     --patch "$patch=$P/resources.db.patch_3 $M/hop/5/resources.db.patch_3 $M/files/resources.db.patch_3" \
     --patch "$T/r12/resources.db.patch_12=$P/resources.db.patch_12"
 mv "$T/mirror/resources.db.patch_3" "$T/mirror/kept_3"
-expect_refused "build-server-db: a mirror that no longer gives the patch" \
-    "resources.db.patch_3: $M/hop/5/resources.db.patch_3 answers 404 now (it gave the file before)" \
-    env SKHID_RELEASE_ENV="$menv" "$here/build-server-db" --out "$T/work/sgd-m2.db"
+out=$(env SKHID_RELEASE_ENV="$menv" "$here/build-server-db" --out "$T/work/sgd-m2.db" 2>&1) || fail "build-server-db, a mirror down: $out"
+check "build-server-db: a mirror that no longer gives the patch is a warning" has "$out" \
+    "WARNING  resources.db.patch_3: $M/hop/5/resources.db.patch_3 answers 404 now (it gave the file before)"
+mv "$T/patches/resources.db.patch_3" "$T/patches/kept_3"
+expect_refused "build-server-db: ... the patches server's copy is needed" \
+    "resources.db.patch_3: $P/resources.db.patch_3 answers 404 now" \
+    env SKHID_RELEASE_ENV="$menv" "$here/build-server-db" --out "$T/work/sgd-m3.db"
+mv "$T/patches/kept_3" "$T/patches/resources.db.patch_3"
 mv "$T/mirror/kept_3" "$T/mirror/resources.db.patch_3"
+# The game's archive: a row of the list, its URLs asked for their first
+# bytes alone at build time, named in the data, offered at /game; add-mirror
+# takes it too (here a small stand-in that starts as a 7z archive does).
+{ printf '7z\274\257\047\034'; head -c 4000 /dev/urandom; } >"$T/mirror/g.7z"
+cp "$T/mirror/g.7z" "$T/mirror/g2.7z"
+gsha=$(sha256sum <"$T/mirror/g.7z" | cut -d' ' -f1) gsize=$(stat -c %s "$T/mirror/g.7z")
+printf 'survarium-026g.7z\t%s\t%s\t%s\n' "$gsha" "$gsize" "$M/files/g.7z" >"$T/gamed.tsv"
+genv=$(changed_env "s|^SKHID_PATCH_LIST=.*|SKHID_PATCH_LIST=$T/mirrored.tsv|; s|^SKHID_GAME_LIST=.*|SKHID_GAME_LIST=$T/gamed.tsv|")
+: >"$T/mirror.log"
+out=$(env SKHID_RELEASE_ENV="$genv" "$here/build-server-db" --out "$T/work/sgd-game.db" 2>&1) || fail "build-server-db, the game's archive: $out"
+check "build-server-db: the game's archive by its first bytes alone" bash -c "grep -qx '/files/g.7z bytes=0-12' $T/mirror.log && ! grep -q '^/files/g.7z -' $T/mirror.log"
+check "build-server-db: the data names the game's archive" bash -c \
+    "'$bin' info $T/work/sgd-game.db | grep -qxF '  game survarium-026g.7z $gsize bytes sha256 $gsha urls $M/files/g.7z'"
+check "build-server-db: says what /game offers" has "$out" "/game will offer: {\"sha256\":\"$gsha\",\"size\":$gsize,\"urls\":\[\"$M/files/g.7z\"\]}"
+check "lib: /game as the data says it" test "$(bash -c ". $(printf '%q' "$here/lib.sh") && offered_game_in \"\$('$bin' info $T/work/sgd-game.db)\"")" = \
+    "survarium-026g.7z $gsha $gsize $M/files/g.7z"
+printf 'survarium-026g.7z\t%s\t%s\t%s\n' "$gsha" "$gsize" "$M/files/none.7z" >"$T/bad.tsv"
+expect_refused "build-server-db: no URL of the game's archive gives it" \
+    "survarium-026g.7z: none of its URLs gives it (the last: $M/files/none.7z answers 404 now)" \
+    env SKHID_RELEASE_ENV="$(changed_env "s|^SKHID_GAME_LIST=.*|SKHID_GAME_LIST=$T/bad.tsv|")" "$here/build-server-db" --out "$T/work/sgd2.db"
+printf 'survarium-026g.7z\t%s\t%s\t%s %s\n' "$gsha" "$gsize" "$M/files/none.7z" "$M/files/g.7z" >"$T/bad.tsv"
+out=$(env SKHID_RELEASE_ENV="$(changed_env "s|^SKHID_GAME_LIST=.*|SKHID_GAME_LIST=$T/bad.tsv|")" "$here/build-server-db" --out "$T/work/sgd-g2.db" 2>&1) ||
+    fail "build-server-db, one URL of the game's archive down: $out"
+check "build-server-db: one URL of the game's archive down is a warning" has "$out" "WARNING  survarium-026g.7z: $M/files/none.7z answers 404 now"
+printf 'resources.db.patch_3\t%s\t%s\t%s\n' "$gsha" "$gsize" "$M/files/g.7z" >"$T/bad.tsv"
+expect_refused "the game's list: its one row is the game's archive" "one row, of survarium-026g.7z" \
+    env SKHID_RELEASE_ENV="$(changed_env "s|^SKHID_GAME_LIST=.*|SKHID_GAME_LIST=$T/bad.tsv|")" "$here/build-server-db" --out "$T/work/sgd2.db"
+# (changed_env runs in a subshell: each call writes the same file.)
+genv=$(changed_env "s|^SKHID_PATCH_LIST=.*|SKHID_PATCH_LIST=$T/mirrored.tsv|; s|^SKHID_GAME_LIST=.*|SKHID_GAME_LIST=$T/gamed.tsv|")
+out=$(SKHID_RELEASE_ENV="$genv" yes_to "$here/add-mirror" survarium-026g.7z "$M/files/g2.7z") || fail "add-mirror, the game's archive: $out"
+check "add-mirror: the game's archive, downloaded whole, its row in mirrors.tsv" test \
+    "$(cat "$T/volume/mirrors.tsv")" = "$(printf 'survarium-026g.7z\t%s' "$M/files/g2.7z")"
+rm "$T/volume/mirrors.tsv"
+check "lib: /patches with mirrors after the release's URLs is as the data says" bash -c \
+    ". $(printf '%q' "$here/lib.sh") && served_as '{\"patch_3\":{\"sha256\":\"a\",\"urls\":[\"u1\",\"m1\"]}}' '{\"patch_3\":{\"sha256\":\"a\",\"urls\":[\"u1\"]}}'"
+check "lib: ... or before them (add-mirror --first), but not without one of them, or another file" bash -c \
+    ". $(printf '%q' "$here/lib.sh") && served_as '{\"patch_3\":{\"sha256\":\"a\",\"urls\":[\"m1\",\"u1\",\"u2\"]}}' '{\"patch_3\":{\"sha256\":\"a\",\"urls\":[\"u1\",\"u2\"]}}' && ! served_as '{\"patch_3\":{\"sha256\":\"a\",\"urls\":[\"m1\",\"u2\"]}}' '{\"patch_3\":{\"sha256\":\"a\",\"urls\":[\"u1\",\"u2\"]}}' && ! served_as '{\"patch_4\":{\"sha256\":\"a\",\"urls\":[\"u1\"]}}' '{\"patch_3\":{\"sha256\":\"a\",\"urls\":[\"u1\"]}}'"
 # The list's own rules for a row's URLs.
 nine=$(for n in 1 2 3 4 5 6 7 8; do printf ' %s/files/m%s' "$M" "$n"; done)
 for case in "$P/resources.db.patch_3  $M/x|one space apart" "$P/resources.db.patch_3 $M/x $M/x|is there twice" \
     "$P/resources.db.patch_3$nine|9 URLs; the players' updater takes at most 8" \
     "$P/resources.db.patch_3 ftp://127.0.0.1/x|ftp://127.0.0.1/x is not a URL the players' updater takes" \
-    "$M/x $P/resources.db.patch_3|$M/x is not $P/resources.db.patch_3"; do
+    "$M/x|no URL is $P/resources.db.patch_3"; do
     printf 'resources.db.patch_3\t%s\t%s\t%s\n' "$sha3" "$size3" "${case%%|*}" >"$T/bad.tsv"
     expect_refused "the list refuses a row: ${case#*|}" "${case#*|}" \
         env SKHID_RELEASE_ENV="$(changed_env "s|^SKHID_PATCH_LIST=.*|SKHID_PATCH_LIST=$T/bad.tsv|")" "$here/build-server-db" --out "$T/work/sgd2.db"
@@ -1040,7 +1106,7 @@ if [[ -e $TEST_DIR/build-site-fails ]]; then echo "build.py: the Maps tab's buil
 . "$SKHID_RELEASE_ENV"
 rows=$(grep -v '^#' "$SKHID_PATCH_LIST" | cut -f1,2)
 if [[ -n $with && ! -e $TEST_DIR/build-site-wrong ]]; then rows+=$'\n'"${with##*/}"$'\t'"$(sha256sum <"$with" | cut -c1-64)"; fi
-for dir in maps damage; do
+for dir in maps damage skills; do
     mkdir -p "$tree/srp-026g/servers/web-server/$dir"
     { echo "# The patches the $dir page was built from: name, sha256."; grep . <<<"$rows"; } >"$tree/srp-026g/servers/web-server/$dir/built-from.tsv"
     printf 'built from %s\n' "$(cut -f1 <<<"$rows" | tr '\n' ' ')" >"$tree/srp-026g/servers/web-server/$dir/page.js"
@@ -1301,7 +1367,7 @@ echo "item 13" >"$T/p13/gameplay/items/d.txt"
 "$bin" pack --dir "$T/p13" --out "$T/r13/resources.db.patch_13" >/dev/null
 # The site's pages on main, built from the list (patch_3, patch_12): the
 # release of new content rebuilds them (build-site's stand-in).
-for dir in maps damage; do
+for dir in maps damage skills; do
     mkdir -p "$src/servers/web-server/$dir"
     grep -v '^#' "$T/patches.tsv" | cut -f1,2 >"$src/servers/web-server/$dir/built-from.tsv"
     echo "built by hand" >"$src/servers/web-server/$dir/page.js"
@@ -1326,9 +1392,9 @@ check "release --resources: ... in the preflight, before the maintenance" bash -
 check "release --resources: ... the server's source carries them" bash -c \
     "grep -qx \$'resources.db.patch_13\t'\$(sha256sum <$T/r13/resources.db.patch_13 | cut -c1-64) $T/live/servers/web-server/maps/built-from.tsv && grep -qx 'built from resources.db.patch_3 resources.db.patch_12 resources.db.patch_13 ' $T/live/servers/web-server/damage/page.js"
 check "release --resources: ... the record commits them: main's pages built from main's list" bash -c \
-    "for d in maps damage; do cmp -s <(git -C $T/origin.git show main:srp-026g/servers/web-server/\$d/built-from.tsv | grep -v '^#') <(git -C $T/origin.git show main:release/patches.tsv | grep -v '^#' | cut -f1,2) || exit 1; done"
+    "for d in maps damage skills; do cmp -s <(git -C $T/origin.git show main:srp-026g/servers/web-server/\$d/built-from.tsv | grep -v '^#') <(git -C $T/origin.git show main:release/patches.tsv | grep -v '^#' | cut -f1,2) || exit 1; done"
 check "release --resources: ... the record's commit: the pages, the list and its own files, and says so" bash -c \
-    "test \"\$(git -C $T/origin.git diff --name-only $pages_commit 'main^2' | tr '\n' ' ')\" = 'CHANGELOG-SKHID-026G.md release/patches.tsv srp-026g/client-patches/README.md srp-026g/client-patches/patch_026g.py srp-026g/crates/session/src/v026g/simulation_changes.tsv srp-026g/docs/data/equipment.tsv srp-026g/servers/web-server/damage/built-from.tsv srp-026g/servers/web-server/damage/page.js srp-026g/servers/web-server/maps/built-from.tsv srp-026g/servers/web-server/maps/page.js srp-026g/servers/web-server/wiki/page.js ' && git -C $T/origin.git log -1 --format=%B 'main^2' | grep -q '^The Maps tab and the calculator (srp-026g/servers/web-server/maps/ and'"
+    "test \"\$(git -C $T/origin.git diff --name-only $pages_commit 'main^2' | tr '\n' ' ')\" = 'CHANGELOG-SKHID-026G.md release/patches.tsv srp-026g/client-patches/README.md srp-026g/client-patches/patch_026g.py srp-026g/crates/session/src/v026g/simulation_changes.tsv srp-026g/docs/data/equipment.tsv srp-026g/servers/web-server/damage/built-from.tsv srp-026g/servers/web-server/damage/page.js srp-026g/servers/web-server/maps/built-from.tsv srp-026g/servers/web-server/maps/page.js srp-026g/servers/web-server/skills/built-from.tsv srp-026g/servers/web-server/skills/page.js srp-026g/servers/web-server/wiki/page.js ' && git -C $T/origin.git log -1 --format=%B 'main^2' | grep -q '^The Maps tab and the calculator (srp-026g/servers/web-server/maps/ and'"
 check "release --resources: ... the changed item table in the record, its change said" bash -c \
     "git -C $T/origin.git show 'main:srp-026g/docs/data/equipment.tsv' | grep -qx \$'item_a\t2.5' && git -C $T/origin.git log -1 --format=%B 'main^2' | grep -q '^The item tables (srp-026g/docs/data/) of the server data it ships:' && git -C $T/origin.git log -1 --format=%B 'main^2' | grep -q 'item_a: weight_kg 3 -> 2.5'"
 check "release --resources: ... the message (the PR's body) shows the first lines of the changes, the rest counted" bash -c \
@@ -1592,8 +1658,8 @@ develop)
 esac
 STANDIN
 chmod +x "$T/sb/bin/nix"
-sb_repo() { # <dir> <main.rs>: a checkout whose commit has dbgrab's sources and the two builds
-    mkdir -p "$1/tools/re-kit/common/dbgrab/src" "$1/srp-026g/scripts/maps-tab" "$1/srp-026g/scripts/damage-calc"
+sb_repo() { # <dir> <main.rs>: a checkout whose commit has dbgrab's sources and the three builds
+    mkdir -p "$1/tools/re-kit/common/dbgrab/src" "$1/srp-026g/scripts/maps-tab" "$1/srp-026g/scripts/damage-calc" "$1/srp-026g/scripts/skills-tab"
     echo '[package]' >"$1/tools/re-kit/common/dbgrab/Cargo.toml"
     echo "$2" >"$1/tools/re-kit/common/dbgrab/src/main.rs"
     cat >"$1/srp-026g/scripts/maps-tab/build.py" <<'PY'
@@ -1606,12 +1672,13 @@ rows = [line.split("\t")[:2] for line in pathlib.Path(opts["--list"]).read_text(
 if "--with" in opts and not os.path.exists(os.environ["TEST_DIR"] + "/sb/drop-with"):
     rows.append([pathlib.Path(opts["--with"]).name, hashlib.sha256(pathlib.Path(opts["--with"]).read_bytes()).hexdigest()])
 rows.sort(key=lambda row: int(row[0].rsplit("_", 1)[1]))
-out = pathlib.Path("srp-026g/servers/web-server", "maps" if sys.argv[0].endswith("/build.py") else "damage")
+out = pathlib.Path("srp-026g/servers/web-server", {"maps-tab": "maps", "damage-calc": "damage", "skills-tab": "skills"}[pathlib.Path(sys.argv[0]).parent.name])
 out.mkdir(parents=True, exist_ok=True)
 (out / "built-from.tsv").write_text("# The patches it was built from: name, sha256.\n" + "".join(f"{n}\t{s}\n" for n, s in rows))
 (out / "dbgrab.txt").write_text(subprocess.run([opts["--dbgrab"]], capture_output=True, text=True, check=True).stdout)
 PY
     cp "$1/srp-026g/scripts/maps-tab/build.py" "$1/srp-026g/scripts/damage-calc/build_site.py"
+    cp "$1/srp-026g/scripts/maps-tab/build.py" "$1/srp-026g/scripts/skills-tab/build.py"
     git_t -C "$1" init -q && git_t -C "$1" add -A && git_t -C "$1" commit -q -m "$2"
 }
 sb_repo "$T/sb/root" "the operator's dbgrab"
@@ -1631,9 +1698,9 @@ sb_run() { # <args...>: build-site in $T, its output into $out
 sb_run --with r5/resources.db.patch_5 || fail "build-site: $out"
 sb_rows=$( { grep -v '^#' "$T/patches.tsv" | cut -f1,2; printf 'resources.db.patch_5\t%s\n' "$(sha256sum <"$T/r5/resources.db.patch_5" | cut -c1-64)"; } | sort -V)
 check "build-site: relative --with, SKHID_STOCK_DB and SKHID_PATCH_LIST: the builds (in the tree) find them" bash -c \
-    "for d in maps damage; do test \"\$(grep -v '^#' $T/sb/tree/srp-026g/servers/web-server/\$d/built-from.tsv | sort -V)\" = \"\$1\" || exit 1; done" _ "$sb_rows"
+    "for d in maps damage skills; do test \"\$(grep -v '^#' $T/sb/tree/srp-026g/servers/web-server/\$d/built-from.tsv | sort -V)\" = \"\$1\" || exit 1; done" _ "$sb_rows"
 check "build-site: a --with patch below the list's top, the pages naming it in another order: passes" has "$out" \
-    "^the Maps tab and the calculator: built in $T/sb/tree/srp-026g/servers/web-server/ from the stock resources.db and $(grep -c . <<<"$sb_rows") patch(es):"
+    "^the Maps tab, the calculator and the skills: built in $T/sb/tree/srp-026g/servers/web-server/ from the stock resources.db and $(grep -c . <<<"$sb_rows") patch(es):"
 check "build-site: dbgrab built from the tree's commit, not the checkout running it" grep -qx "the tree's dbgrab" "$T/sb/tree/srp-026g/servers/web-server/maps/dbgrab.txt"
 check "build-site: ... from a source folder made anew (an earlier one's file gone)" test "$(cat "$T/sb/dbgrab-src")" = "./Cargo.toml ./src/main.rs "
 check "build-site: ... its target kept" test -f "$T/sb/cache/skhid-release/dbgrab-target/kept"
@@ -1663,19 +1730,19 @@ check "release: the next run asks the mirrors for their first bytes only" \
     bash -c "test -s $T/mirror.log && ! grep -v ' bytes=0-12\$' $T/mirror.log"
 mv "$T/mirror/resources.db.patch_3" "$T/mirror/kept_3"
 run quiet --dry-run --minutes 2 || true
-check "release: a mirror that no longer gives the patch is a problem" has "$out" \
-    "  - $T/mirrored.tsv: resources.db.patch_3: $M/files/resources.db.patch_3 answers 404 now (it gave the file before)"
+check "release: a mirror that no longer gives the patch is a warning" has "$out" \
+    "  WARNING  resources.db.patch_3: $M/files/resources.db.patch_3 answers 404 now (it gave the file before)"
 # Replaced since by a file of another size that starts as a patch does:
 # seen by the size the answer gives, a 200's Content-Length or a 206's
 # Content-Range.
 head -c $((size3 - 1)) "$T/mirror/kept_3" >"$T/mirror/resources.db.patch_3"
 run quiet --dry-run --minutes 2 || true
-check "release: a mirror whose file is now of another size is a problem (200)" has "$out" \
-    "  - $T/mirrored.tsv: resources.db.patch_3: $M/files/resources.db.patch_3 says the file is $((size3 - 1)) bytes now, not $size3 (it gave the file before)"
+check "release: a mirror whose file is now of another size is a warning (200)" has "$out" \
+    "  WARNING  resources.db.patch_3: $M/files/resources.db.patch_3 says the file is $((size3 - 1)) bytes now, not $size3 (it gave the file before)"
 touch "$T/mirror.ranges"
 run quiet --dry-run --minutes 2 || true
-check "release: a mirror whose file is now of another size is a problem (206)" has "$out" \
-    "  - $T/mirrored.tsv: resources.db.patch_3: $M/files/resources.db.patch_3 says the file is $((size3 - 1)) bytes now, not $size3 (it gave the file before)"
+check "release: a mirror whose file is now of another size is a warning (206)" has "$out" \
+    "  WARNING  resources.db.patch_3: $M/files/resources.db.patch_3 says the file is $((size3 - 1)) bytes now, not $size3 (it gave the file before)"
 mv "$T/mirror/kept_3" "$T/mirror/resources.db.patch_3"
 : >"$T/mirror.log"
 run quiet --dry-run --minutes 2 || fail "release.sh --dry-run, mirrors with ranges: $out"
@@ -1733,6 +1800,35 @@ SKHID_SWAP_ANSWER_MINUTES=2 run wait --minutes 1 --label h || true
 check "release: no answer at the swap is a no" has "$out" "no answer in 2 min is a no"
 check "release: ... swaps nothing" has "$out" "nothing was swapped"
 check "release: ... cancels the maintenance" test "$(admin_log)" = "plan 1 cancel"
+check "release: ... leaves the live files as they were" test "$(tree)" = "$before"
+
+# While it waits for the planned time it looks at /api/stats every quarter
+# of a minute: once "matches":0 has held 30 s (the plan's margin), the swap
+# comes at once, before the planned time; a match running to the planned
+# time is waited for as before. A minute is 8 s here, the 30 s are real;
+# the no at the y/N ends each run before anything is swapped.
+: >"$T/state/admin.log"
+printf '1\n1\n0\n' >"$T/state/matches"
+SKHID_TEST_SECONDS_PER_MINUTE=8 run no --minutes 10 --label early || true
+rm -f "$T/state/matches"
+check "release: no match for 30 s before the planned time: the swap at once" bash -c \
+    "grep -qE '\\] 5. no match has run for 30 s: swapping now, [0-9]+ min before the planned time\$' <<<\"\$1\"" _ "$out"
+check "release: ... its y/N before the planned time" bash -c \
+    "grep -E '5. no match is running\$' <<<\"\$1\" | grep -q ' to the planned time\\]'" _ "$out"
+check "release: ... without waiting for the launcher page to say down" bash -c \
+    "! grep -q 'still says' <<<\"\$1\"" _ "$out"
+check "release: ... the no cancels the maintenance" test "$(admin_log)" = "plan 10 cancel"
+check "release: ... swaps nothing" has "$out" "nothing was swapped"
+check "release: ... leaves the live files as they were" test "$(tree)" = "$before"
+: >"$T/state/admin.log"
+{ for _ in $(seq 25); do echo 1; done; echo 0; } >"$T/state/matches"
+SKHID_TEST_SECONDS_PER_MINUTE=8 run no --minutes 5 --label latem || true
+rm -f "$T/state/matches"
+check "release: a match running to the planned time: no early swap" bash -c \
+    "! grep -q 'swapping now' <<<\"\$1\" && grep -q '5. waiting for the planned time (.*): 1 match(es) running' <<<\"\$1\"" _ "$out"
+check "release: ... waited for after the planned time, then the y/N" bash -c \
+    "grep -q 'past the planned time\\] 5. 1 match(es) still running; waiting' <<<\"\$1\" && grep -E '5. no match is running\$' <<<\"\$1\" | grep -q ' past the planned time\\]'" _ "$out"
+check "release: ... the no cancels the maintenance" test "$(admin_log)" = "plan 5 cancel"
 check "release: ... leaves the live files as they were" test "$(tree)" = "$before"
 
 # The swap file answers the question before the swap without a terminal
@@ -1839,9 +1935,10 @@ check "release: ... the volume's routes table as it was" test "$(sha256sum <"$T/
 check "release: ... the map untouched" test "$(sha256sum <"$T/volume/mapdata/level_t_day_2.mapdata")" = "$map_before"
 check "release: ... said by the rollback" has "$out" "bot data: the files of the release put back or removed"
 
-# A match that ends a little after the planned time (patch_14 listed now).
+# A match that ends a little after the planned time (patch_14 listed now):
+# /api/stats is asked every quarter of a minute while it waits for it.
 : >"$T/state/admin.log"
-echo 3 >"$T/state/busy"
+echo 12 >"$T/state/busy"
 run yes --minutes 1 --label d || fail "release.sh with a match: $out"
 rm -f "$T/state/busy"
 check "release: waits while a match runs" has "$out" "1 match(es) still running; waiting"
@@ -2049,16 +2146,29 @@ check "release: ... leaves the live files as they were" test "$(tree)" = "$befor
 check "release: ... before the go: nothing planned" test -z "$(admin_log)" -a ! -e "$T/state/maint"
 : >"$T/state/admin.log"
 
+# The signals below reach release.sh as a terminal's would. A background job
+# of a non-interactive shell (test.sh run with `&`, from a script or an
+# agent's tool) starts with SIGINT ignored, and bash can neither trap nor
+# reset a signal ignored when it started: release.sh would never see the
+# Ctrl-C. Each one these tests signal starts with INT, TERM and HUP at their
+# defaults (env execs release.sh: $! is its pid).
+signalable=(env '--default-signal=INT,TERM,HUP')
+
 # Ctrl-C while it waits for the planned time (to bash only, as a trap during
-# a sleep of a minute once waited for the sleep): cleaned up in a few
-# seconds. A minute is 20 s here, so each wait is 20 s.
+# a sleep once waited for the sleep): cleaned up in a few seconds. A
+# minute is 80 s here, so each wait (a quarter of a minute, between two
+# looks at /api/stats) is 20 s; the Ctrl-C comes once it is in that wait
+# (its sleep running), so a stop that waited for the sleep would take some
+# 20 s, and one that does not well under 10.
 : >"$T/state/admin.log"
 set -m
-SKHID_TEST_SECONDS_PER_MINUTE=20 "$here/release.sh" --yes --i-know --minutes 3 --label int >"$T/int.out" 2>&1 </dev/null &
+SKHID_TEST_SECONDS_PER_MINUTE=80 "${signalable[@]}" "$here/release.sh" --yes --i-know --minutes 3 --label int >"$T/int.out" 2>&1 </dev/null &
 int_pid=$!
 set +m
-for _ in $(seq 300); do grep -q '5. waiting for the planned time' "$T/int.out" && break; sleep 0.1; done
-sleep 1
+for _ in $(seq 300); do
+    grep -q '5. waiting for the planned time' "$T/int.out" && pgrep -P "$int_pid" -x sleep >/dev/null && break
+    sleep 0.1
+done
 kill -INT "$int_pid"
 int_at=$SECONDS
 for _ in $(seq 150); do kill -0 "$int_pid" 2>/dev/null || break; sleep 0.1; done
@@ -2067,7 +2177,7 @@ if kill -0 "$int_pid" 2>/dev/null; then kill -9 "$int_pid"; fi
 wait "$int_pid" 2>/dev/null || true
 out=$(cat "$T/int.out")
 printf '%s\n' "$out" >>"$T/outputs"
-check "release: Ctrl-C in the wait for the planned time ends it in a few seconds (${int_took} s)" test "$int_took" -le 4
+check "release: Ctrl-C in the wait for the planned time ends it in a few seconds (${int_took} s)" test "$int_took" -lt 10
 check "release: ... it was waiting, the maintenance planned" bash -c "grep -q 'maintenance planned' <<<\"\$1\" && grep -q 'interrupted' <<<\"\$1\"" _ "$out"
 check "release: ... cancels the maintenance" test "$(admin_log)" = "plan 3 cancel" -a ! -e "$T/state/maint"
 check "release: ... removes the staged files" nothing_staged
@@ -2080,7 +2190,7 @@ check "release: ... frees the lock" test ! -e "$T/lock"
 : >"$T/state/admin.log"
 echo 30 >"$T/build-zip-sleep"
 set -m
-"$here/release.sh" --yes --i-know --minutes 60 --label stg >"$T/stg.out" 2>&1 </dev/null &
+"${signalable[@]}" "$here/release.sh" --yes --i-know --minutes 60 --label stg >"$T/stg.out" 2>&1 </dev/null &
 stg_pid=$!
 set +m
 for _ in $(seq 300); do grep -q '2. building the ZIP' "$T/stg.out" && break; sleep 0.1; done
@@ -2108,7 +2218,7 @@ for how in hup twice; do
     : >"$T/state/admin.log"
     echo 30 >"$T/build-zip-sleep"
     set -m
-    "$here/release.sh" --yes --i-know --minutes 60 --label "$how" >"$T/$how.out" 2>&1 </dev/null &
+    "${signalable[@]}" "$here/release.sh" --yes --i-know --minutes 60 --label "$how" >"$T/$how.out" 2>&1 </dev/null &
     sig_pid=$!
     set +m
     for _ in $(seq 300); do grep -q '2. building the ZIP' "$T/$how.out" && break; sleep 0.1; done
@@ -2139,7 +2249,7 @@ done
 : >"$T/state/admin-seen.log"
 echo 300 >"$T/state/ends-in"
 set -m
-SKHID_RELEASE_GO='' SKHID_TEST_SECONDS_PER_MINUTE=20 "$here/release.sh" --yes --i-know --label go >"$T/go.out" 2>&1 </dev/null &
+SKHID_RELEASE_GO='' SKHID_TEST_SECONDS_PER_MINUTE=20 "${signalable[@]}" "$here/release.sh" --yes --i-know --label go >"$T/go.out" 2>&1 </dev/null &
 go_pid=$!
 set +m
 for _ in $(seq 600); do grep -q "waiting for the go" "$T/go.out" && break; sleep 0.1; done
@@ -2172,7 +2282,7 @@ before=$(tree)
 : >"$T/state/admin.log"
 : >"$T/state/admin-seen.log"
 set -m
-SKHID_RELEASE_GO='' "$here/release.sh" --yes --i-know --label nogo >"$T/nogo.out" 2>&1 </dev/null &
+SKHID_RELEASE_GO='' "${signalable[@]}" "$here/release.sh" --yes --i-know --label nogo >"$T/nogo.out" 2>&1 </dev/null &
 nogo_pid=$!
 set +m
 for _ in $(seq 600); do grep -q "waiting for the go" "$T/nogo.out" && break; sleep 0.1; done
@@ -2329,6 +2439,19 @@ else:
 open(sys.argv[1], 'wb').write(buf)
 EOF
 python3 "$T/mkcfg.py" "$T/b40/gameplay/items/vec.options" vector
+# mkgun <file> <damage> <card damage>: a weapon config; mkgun <weapon-stats.tsv> [damage]: its table.
+cat >"$T/mkgun.py" <<'EOF'
+import os, sys
+sys.path.insert(0, sys.argv[1])
+from test_content_edit import weapon, table, cells_of
+os.makedirs(os.path.dirname(sys.argv[2]), exist_ok=True)
+if sys.argv[2].endswith('.tsv'):
+    open(sys.argv[2], 'w').write(table({'wpn_t': cells_of(sys.argv[3])} if sys.argv[3:] else {}))
+else:
+    open(sys.argv[2], 'wb').write(weapon(float(sys.argv[3]), sys.argv[4]))
+EOF
+mkgun() { python3 "$T/mkgun.py" "$here/../srp-026g/scripts/content-edit" "$@"; }
+mkgun "$T/b40/gameplay/items/weapons/wpn_t.options" 0.5 50
 quiet "$bin" pack --dir "$T/b40" --out "$T/patches/resources.db.patch_40"
 printf '{"schema": 2, "movie": "flash_movies/m.swf", "archive": "resources.db.patch_40", "movie_sha256": "%s"}\n' \
     "$(sha256sum <"$T/b40/flash_movies/m.swf" | cut -c1-64)" >"$C/srp-026g/flash/m/movie.json"
@@ -2336,6 +2459,8 @@ echo 1 >"$C/srp-026g/flash/m/src/version"
 cat >"$C/srp-026g/scripts/content-edit/content_edit.py" <<'EOF'
 import json, os, sys
 edits, live, out = sys.argv[1:4]
+if edits.endswith(".tsv"):
+    sys.exit(print("a stats table: nothing written"))
 for e in json.load(open(edits)).get("add_value", []):
     for f in e["files"]:
         os.makedirs(os.path.dirname(os.path.join(out, f)), exist_ok=True)
@@ -2398,6 +2523,23 @@ check "build-content: ... no site pages without --site: said, the tree as it was
 check "build-content: ... the item tables of its server data, in --out; unchanged: said, the tree's untouched" bash -c \
     "tail -n 1 $T/item-tables.args | grep -qx -- '$T/work/content-rev41/server-game-data.db --dir $T/work/content-rev41/item-tables' && grep -q '  equipment.tsv: unchanged' <<<\"\$1\" && test ! -e $C/srp-026g/docs/data" _ "$out"
 check "build-content: ... says what is next" has "$out" "next: release/release.sh --resources $T/work/content-rev41/resources.db.patch_41"
+check "build-content: ... how long each step took" has "$out" "^time: the manifest (build_content.py) [0-9.]* s$"
+# The cache ($XDG_CACHE_HOME/skhid-release/build-content): the same tree again takes each step's
+# result from it, and makes the same files as a build without it (--no-cache).
+from_cache='made it: the cache\|composed them: the cache'
+out=$("$bc" 41 --out "$T/work/c41c" 2>&1) || fail "build-content, again: $out"
+check "build-content: again: the movie and the edit list from the cache" bash -c \
+    "grep -q '  movie m: .*made it: the cache' <<<\"\$1\" && grep -q '  edit e1.json: .*made it: the cache' <<<\"\$1\"" _ "$out"
+out=$("$bc" 41 --out "$T/work/c41n" --no-cache 2>&1) || fail "build-content --no-cache: $out"
+check "build-content --no-cache: every step runs" bash -c "! grep -q '$from_cache' <<<\"\$1\"" _ "$out"
+for file in resources.db.patch_41 server-game-data.db files.tsv; do
+    check "build-content: the first build, again from the cache and with --no-cache: the same $file" bash -c \
+        "cmp -s $T/work/content-rev41/$file $T/work/c41c/$file && cmp -s $T/work/c41c/$file $T/work/c41n/$file"
+done
+rm -rf "$T/cache/skhid-release/build-content"
+out=$("$bc" 41 --out "$T/work/c41d" 2>&1) || fail "build-content, the cache deleted: $out"
+check "build-content: the cache deleted: every step runs, the same patch" bash -c \
+    "! grep -q '$from_cache' <<<\"\$1\" && cmp -s $T/work/content-rev41/resources.db.patch_41 $T/work/c41d/resources.db.patch_41" _ "$out"
 expect_refused "build-content never overwrites" "already there" "$bc" 41 --out "$T/work/content-rev41"
 out=$("$bc" 41 --out "$T/work/c41site" --site 2>&1) || fail "build-content --site: $out"
 check "build-content --site: the site's pages in its tree, of the list and the new patch" bash -c \
@@ -2463,6 +2605,40 @@ expect_refused "build-content: a pack writing a vector as an indexed table" \
     "gameplay/items/vec.options: /position was float3, now indexed table" \
     env SKHID_VOSTOK_PORT="$T/vostok-port" SKHID_PACKS_DIR="$T/packs" "$bc" 42 --out "$T/work/c42t"
 check "build-content: ... and no patch" test ! -e "$T/work/c42t"
+
+gun_pack() { # <version> <damage> <card> [edit rows]: the pack gun@<version> rewriting wpn_t; its manifest
+    mkgun "$T/packs/gun-$1/files/gameplay/items/weapons/wpn_t.options" "$2" "$3"
+    printf '{"id": "gun", "version": "%s"}\n' "$1" >"$T/packs/gun-$1/pack.json"
+    manifest "base|resources.db.patch_40|$sha40" "movie|m|-" "pack|gun@$1|$(sha256sum <"$T/packs/gun-$1/pack.json" | cut -c1-64)" "edit|e1.json|-" "${@:4}"
+}
+gun_pack 1 0.5 40
+expect_refused "build-content: a weapon card that says another number than its config" \
+    "gameplay/items/weapons/wpn_t.options: card line 1 says '40', its config '50'" \
+    env SKHID_VOSTOK_PORT="$T/vostok-port" SKHID_PACKS_DIR="$T/packs" "$bc" 42 --out "$T/work/c42w"
+gun_pack 2 0.4 40
+expect_refused "build-content: a weapon's damage players have otherwise, without the next row" \
+    "simulation_changes.tsv has no \`next\` row" \
+    env SKHID_VOSTOK_PORT="$T/vostok-port" SKHID_PACKS_DIR="$T/packs" "$bc" 42 --out "$T/work/c42x"
+mkdir -p "$C/srp-026g/crates/session/src/v026g"
+printf '# revision\twhat\nnext\tthe test gun\n' >"$C/srp-026g/crates/session/src/v026g/simulation_changes.tsv"
+out=$(SKHID_VOSTOK_PORT=$T/vostok-port SKHID_PACKS_DIR=$T/packs "$bc" 42 --out "$T/work/c42y" 2>&1) ||
+    fail "build-content with a retuned gun and the next row: $out"
+check "build-content: ... with it, the value said" has "$out" "match value: gameplay/items/weapons/wpn_t.options parameters/bullet_damage"
+# The stand-in content_edit.py writes no stats table, so the pack's damage 0.4 stays.
+stats=$C/srp-026g/scripts/content-edit/weapon-stats.tsv
+mkgun "$stats" 0.5
+gun_pack 2 0.4 40 "edit|weapon-stats.tsv|-"
+expect_refused "build-content: a weapon config that is not its stats row" \
+    "wpn_t.options: damage (parameters/bullet_damage) is 0.4, its row says 0.5" \
+    env SKHID_VOSTOK_PORT="$T/vostok-port" SKHID_PACKS_DIR="$T/packs" "$bc" 42 --out "$T/work/c42z"
+mkgun "$stats"
+expect_refused "build-content: a weapon config without a row" "wpn_t.options: no row in weapon-stats.tsv" \
+    env SKHID_VOSTOK_PORT="$T/vostok-port" SKHID_PACKS_DIR="$T/packs" "$bc" 42 --out "$T/work/c42z"
+mkgun "$stats" 0.4
+out=$(SKHID_VOSTOK_PORT=$T/vostok-port SKHID_PACKS_DIR=$T/packs "$bc" 42 --out "$T/work/c42s2" 2>&1) ||
+    fail "build-content with a weapon stats table: $out"
+check "build-content: ... each its row, said" has "$out" "weapon-stats: 1 row(s), each its row of weapon-stats.tsv"
+rm -r "$C/srp-026g/crates" "$stats"
 manifest "base|resources.db.patch_40|$sha40" "movie|m|-" "pack|hat@1|$hat_sha" "edit|e1.json|-"
 
 # An edit list whose `files` is a list of paths (content_edit.py's add_value), not a glob.
@@ -2494,6 +2670,31 @@ manifest "movie|m|-" "edit|e1.json|-"
 expect_refused "build-content: a movie's original in no base archive" "neither the stock resources.db nor a base row" "$bc" 42 --out "$T/work/c42k"
 manifest "base|resources.db.patch_40|$sha40" "edit|e1.json|-"
 expect_refused "build-content: a Flash tree without a row" "srp-026g/flash/m has no movie row" "$bc" 42 --out "$T/work/c42l"
+
+# A pack's new version that no longer makes a file its live, earlier version
+# added: left as players have it, listed, not packed; unless that version's
+# folder does not add it so (what made it?) or has no pack.json.
+printf '{"id": "hat", "version": "1", "operations": [{"op": "add_file", "path": "gameplay/items/hat.txt"}]}\n' >"$T/packs/hat-1/pack.json"
+mkdir -p "$T/packs/hat-2/files/gameplay/items"
+echo "pack scarf" >"$T/packs/hat-2/files/gameplay/items/scarf.txt"
+printf '{"id": "hat", "version": "2", "operations": [{"op": "add_file", "path": "gameplay/items/scarf.txt"}]}\n' >"$T/packs/hat-2/pack.json"
+pbc=(env SKHID_VOSTOK_PORT="$T/vostok-port" SKHID_PACKS_DIR="$T/packs" "$bc")
+manifest "base|resources.db.patch_40|$sha40" "movie|m|-" "pack|hat@1|$(sha256sum <"$T/packs/hat-1/pack.json" | cut -c1-64)" "edit|e1.json|-"
+out=$("${pbc[@]}" 42 --out "$T/work/c42p" 2>&1) || fail "build-content with hat@1: $out"
+cp "$T/work/c42p/resources.db.patch_42" "$T/patches/"
+list_row_of "$T/patches/resources.db.patch_42" >>"$T/content-list.tsv"
+manifest "base|resources.db.patch_40|$sha40" "movie|m|-" "pack|hat@2|$(sha256sum <"$T/packs/hat-2/pack.json" | cut -c1-64)" "edit|e1.json|-"
+out=$("${pbc[@]}" 43 --out "$T/work/c43" 2>&1) || fail "build-content with hat@2: $out"
+check "build-content: a file of a pack's live, earlier version: left, said, not packed" bash -c \
+    "grep -q 'left      gameplay/items/hat.txt: pack hat@1; live in resources.db.patch_42' <<<\"\$1\" && grep -q 'NEW       gameplay/items/scarf.txt: pack hat@2' <<<\"\$1\" && grep -q 'the next patch: 1 file(s)' <<<\"\$1\"" _ "$out"
+echo "another hat" >"$T/packs/hat-1/files/gameplay/items/hat.txt"
+expect_refused "build-content: ... not when the earlier version's folder adds other bytes" \
+    "gameplay/items/hat.txt: live from resources.db.patch_42, which is no base row" "${pbc[@]}" 43 --out "$T/work/c43b"
+echo "pack item" >"$T/packs/hat-1/files/gameplay/items/hat.txt"
+mv "$T/packs/hat-1/pack.json" "$T/hat-1.json"
+expect_refused "build-content: ... nor without the earlier version's pack.json" "hat-1, an earlier version, has no pack.json" \
+    "${pbc[@]}" 43 --out "$T/work/c43c"
+mv "$T/hat-1.json" "$T/packs/hat-1/pack.json"
 check "--help is build-content's usage" has "$("$here/build-content" --help)" "usage: release/build-content"
 
 # The value-type check (content_type_check.py), on real binary configs, value
@@ -2502,6 +2703,9 @@ check "--help is build-content's usage" has "$("$here/build-content" --help)" "u
 # where the previous version already mixed types at that path), a colour
 # ramp's new key of another type than its keys, an allowlist row lets a new
 # key through but never a changed one, and a config walk refuses is reported.
+# A list an edit list keys (append_entry's unique_key) is weighed entry by
+# key: entries taken out and the rest moved up pass, a real change of a
+# same-key entry is refused, and so are an entry without its key or two with one.
 python3 - "$here/content_type_check.py" "$here/../srp-026g/scripts/content-edit" "$T/tc.log" <<'EOF'
 import importlib.util, struct, sys, zlib
 ctc_path, ce_dir, logp = sys.argv[1:4]
@@ -2528,6 +2732,9 @@ def build(root, sort=True):  # ('named', [(name, node)]) | ('indexed', [node]) |
         elif kind == 'f3':
             while len(buf) % 8: buf.append(0)
             d = len(buf); buf.extend(struct.pack('<fff', *v)); REC.pack_into(buf, at, d, off, crc, 7, 3)
+        elif kind == 'i': REC.pack_into(buf, at, v & 0xffffffff, off, crc, 1, 4)
+        elif kind == 's':
+            d = len(buf); buf.extend(v.encode() + b'\0'); REC.pack_into(buf, at, d, off, crc, 5, len(v) + 1)
         else: REC.pack_into(buf, at, struct.unpack('<I', struct.pack('<f', v))[0], off, crc, 2, 4)
     write(0, None, root)
     return bytes(buf)
@@ -2543,6 +2750,30 @@ cases = [('identity', ctc.violations(walk, lvl(vec), lvl(vec), 'a', corp, {})),
          ('ramp_new_key_table', ctc.violations(walk, ramp(3, vec), ramp(4, tab), 'r', {}, {})),
          ('new_file_allowlisted', ctc.violations(walk, None, lvl(tab), 'b', corp, {('b', '/objects[]/position'): 'ok'})),
          ('changed_allowlisted', ctc.violations(walk, lvl(vec), lvl(tab), 'a', corp, {('a', '/objects[]/position'): 'ok'}))]
+num = lambda x: build(('named', [('k', ('f', x) if isinstance(x, float) else ('i', x))]))
+both = ctc.corpus_with(walk, {'n1': num(1.5), 'n2': num(2)})
+cases += [('number_where_both', ctc.violations(walk, num(2), num(1.5), 'n', both, {})),
+          ('number_where_float_only', ctc.violations(walk, num(2), num(1.5), 'n', ctc.corpus_with(walk, {'n1': num(1.5)}), {})),
+          ('vector_to_float_where_both', ctc.violations(walk, lvl(vec), lvl(('f', 1.0)), 'a', ctc.corpus_with(walk, {'x': lvl(vec), 'y': lvl(('f', 2.0))}), {}))]
+# skills_tree as main's physical-skills (206, 210 taken out) and the medical skills (302 appended,
+# an int in a row where 211 has a text) leave it: the entry now at 211's old index is another skill.
+skill = lambda i, d: ('named', [('id', ('i', i)), ('ui', ('named', [('descriptions', ('indexed', [d]))]))])
+tree = lambda *es: build(('named', [('skills_tree', ('indexed', [skill(i, d) for i, d in es]))]))
+txt, zero = ('s', ' +5'), ('i', 0)
+keys = ctc.list_keys([{'append_entry': [{'file': 'skills', 'list': 'skills_tree', 'unique_key': 'id'}]}])['skills']
+skills_corp = ctc.corpus_with(walk, {'other': tree((1, txt), (2, zero))})
+was = tree((206, txt), (210, txt), (211, txt))
+cases += [('keyed_reordered_removed', ctc.violations(walk, was, tree((211, txt), (302, zero)), 'skills', skills_corp, {}, keys)),
+          ('unkeyed_reordered_removed', ctc.violations(walk, was, tree((211, txt), (302, zero)), 'skills', skills_corp, {})),
+          ('keyed_same_key_changed', ctc.violations(walk, was, tree((302, txt), (211, zero)), 'skills', skills_corp, {}, keys)),
+          ('keyed_shared_key', ctc.violations(walk, was, tree((211, txt), (211, txt)), 'skills', skills_corp, {}, keys)),
+          ('keyed_entry_without_key', ctc.violations(walk, was, build(('named', [('skills_tree', ('indexed', [skill(211, txt), ('named', [('ui', ('named', []))])]))])), 'skills', skills_corp, {}, keys))]
+try:
+    ctc.list_keys([{'append_entry': [{'file': 'f', 'list': 'l', 'unique_key': 'id'}]},
+                   {'append_entry': [{'file': 'f', 'list': 'l', 'unique_key': 'name'}]}])
+    two_keys = 'accepted'
+except ValueError as error:
+    two_keys = 'refused: ' + str(error)
 try:
     ctc.parse(walk, build(('named', [('a', vec), ('b', vec)]), sort=False))  # crc32 a > b
     unsorted = 'parsed'
@@ -2552,6 +2783,7 @@ with open(logp, 'w') as f:
     for name, v in cases:
         f.write('%s\t%d\t%s\n' % (name, len(v), ' | '.join(v)))
     f.write('unsorted\t%s\n' % unsorted)
+    f.write('two_keys\t%s\n' % two_keys)
 EOF
 tc() { grep -P "^$1\t" "$T/tc.log" | cut -f2-; }
 check "type check: a file unchanged has no violation" test "$(tc identity | cut -f1)" = 0
@@ -2568,8 +2800,23 @@ check "type check: a colour ramp's new key of another type than the ramp's keys 
 check "type check: an allowlisted new key passes" test "$(tc new_file_allowlisted | cut -f1)" = 0
 check "type check: ... but an allowlist row never lets a key that exists change its type" \
     test "$(tc changed_allowlisted | cut -f1)" = 1
+check "type check: a number may turn float where the base configs have it int and float" test "$(tc number_where_both | cut -f1)" = 0
+check "type check: ... but not where they have it only one way" test "$(tc number_where_float_only | cut -f1)" = 1
+check "type check: ... and never a vector, even where the base mixes vectors and numbers" test "$(tc vector_to_float_where_both | cut -f1)" = 1
 check "type check: a config whose table is not sorted by CRC is refused, not skipped" \
     bash -c "grep -P '^unsorted\trefused: ' '$T/tc.log' | grep -q 'not sorted'"
+check "type check: a keyed list's entries taken out and moved up keep their types (known by id, not index)" \
+    test "$(tc keyed_reordered_removed | cut -f1)" = 0
+check "type check: ... where by index the entry now at 211's old place would be taken for it" \
+    bash -c "grep -P '^unkeyed_reordered_removed\t1\t' '$T/tc.log' | grep -q 'skills_tree\[1\]/ui/descriptions\[0\] was string, now int'"
+check "type check: ... but a same-id entry whose value changes type is refused, wherever it moved" \
+    bash -c "grep -P '^keyed_same_key_changed\t1\t' '$T/tc.log' | grep -q 'skills_tree\[id=211\]/ui/descriptions\[0\] was string, now int'"
+check "type check: two entries of a keyed list with one key are refused" \
+    bash -c "grep -P '^keyed_shared_key\t1\t' '$T/tc.log' | grep -q 'share id=211'"
+check "type check: an entry of a keyed list without its key is refused" \
+    bash -c "grep -P '^keyed_entry_without_key\t1\t' '$T/tc.log' | grep -q 'skills_tree\[1\] has no id'"
+check "type check: two edit lists keying one list by two keys are refused" \
+    bash -c "grep -P '^two_keys\trefused: ' '$T/tc.log' | grep -q 'keyed by id and by name'"
 
 echo
 if ((failures)); then

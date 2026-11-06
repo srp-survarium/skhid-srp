@@ -1,0 +1,63 @@
+{
+  "_about": "SCAR-H uses only AP in 20-round packs (owner, 2026-11-03). New ammo 2266 copies shared AP 52 ballistics; ammo.tsv sets 20 rounds and 0.5 kg. Remove SCAR compatibility with 51, 52 and 2254. Shared ammo, G3 and inventory rounds remain unchanged. Id 2266 was used only by an unreleased weapons-031 pack, then freed in @5.",
+  "copy": [
+    {
+      "files": "gameplay/items/weapons/ammo/ammo_7.62x51_ap.options",
+      "from": "gameplay/items/weapons/ammo/ammo_7.62x51_ap.options",
+      "to": "gameplay/items/weapons/ammo/ammo_7.62x51_scar_ap.options"
+    }
+  ],
+  "replace_string": [
+    {
+      "files": "gameplay/items/weapons/ammo/ammo_7.62x51_scar_ap.options",
+      "from": "st_ammo_762x51_M59_name",
+      "to": "st_srp_ammo_scar_ap_name"
+    },
+    {
+      "files": "gameplay/items/weapons/ammo/ammo_7.62x51_scar_ap.options",
+      "from": "st_ammo_762x51_M59_description",
+      "to": "st_srp_ammo_scar_ap_desc"
+    }
+  ],
+  "add_entry": [
+    {
+      "files": "gameplay/db_static_dictionaries",
+      "list": "items_dict",
+      "after": {
+        "dict_id": 2265
+      },
+      "like": {
+        "dict_id": 52
+      },
+      "values": {
+        "dict_id": 2266,
+        "name": "ammo_7.62x51_scar_ap",
+        "cfg_name": "gameplay/items/weapons/ammo/ammo_7.62x51_scar_ap.options",
+        "base_cost": 200
+      }
+    }
+  ],
+  "remove_key": [
+    {
+      "files": "gameplay/db_static_dictionaries",
+      "keys": [
+        "items_compatibility/compatibility_2262_51",
+        "items_compatibility/compatibility_2262_52",
+        "items_compatibility/compatibility_2262_2254"
+      ]
+    }
+  ],
+  "add_value": [
+    {
+      "files": [
+        "gameplay/db_static_dictionaries"
+      ],
+      "table": "items_compatibility",
+      "key": "compatibility_2262_2266",
+      "value": {
+        "first_item": 2262,
+        "second_item": 2266
+      }
+    }
+  ]
+}

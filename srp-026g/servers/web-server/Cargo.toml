@@ -10,6 +10,8 @@ workspace = true
 log = { workspace = true }
 # SHA-1: the digest the 0.26g client gives for a password.
 openssl = { workspace = true }
+# The URLs the players' updater takes (`server::is_url`), for `mirrors.tsv`.
+resources-db = { workspace = true }
 
 session = { workspace = true }
 survarium = { workspace = true }

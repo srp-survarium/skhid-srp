@@ -72,7 +72,7 @@ def sections(weapon, code):
         {"id": "spread", "title": tr("Accuracy & spread", "Точність і розкид"),
          "note": tr("Spread values use the game's own units. Growth and recovery parameters are shown without a better/worse rating.",
                     "Значення розкиду наведено в одиницях гри. Параметри зростання й відновлення показано без оцінки «краще/гірше»."), "rows": [
-            stat("base_dispersion", "Base dispersion", "Базовий розкид", "lower"),
+            stat("dispersion.base_dispersion", "Base dispersion", "Базовий розкид", "lower"),
             stat("hip_multiplier", "Hip-fire spread multiplier", "Множник розкиду від стегна", "lower", "×", values=[hip]),
             stat("dispersion.one_shoot_dispersion_amount", "Spread added per shot", "Розкид від пострілу", "lower"),
             stat("dispersion.max_dispersion", "Spread limit", "Межа розкиду", "lower"),

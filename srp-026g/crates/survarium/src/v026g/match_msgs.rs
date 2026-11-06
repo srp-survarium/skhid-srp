@@ -241,8 +241,9 @@ impl PlayerInput {
     /// Whether the rotation is one a client's mouse can make: both halves
     /// numbers, and each under 1024 radians.
     ///
-    /// The client checks nothing of a relayed input (the reader 0x318400
-    /// stores the four bytes as they came), and every client then adds the
+    /// The stock client checks nothing of a relayed input (the reader 0x318400
+    /// stores the four bytes as they came; exe patch 99 now refuses one by
+    /// this same rule at change_input, as 0.27d does), and every client then adds the
     /// two to that player's angles (`base_player`, 0x2D89A4 → 0x2D8AD0:
     /// `yaw += dx`, the rotation built from it handed to the physics
     /// world; `dy` to the item in its hands). An infinity or a NaN stays
@@ -576,7 +577,7 @@ impl ServerMessage {
             } => {
                 out.reserve(6 + body.len());
                 out.push(*generation);
-                // The client unpacks into 0x8000 bytes on its stack and
+                // The client unpacks into 0xF000 bytes on its stack and
                 // does not check the result (0x27C059): a state over that
                 // goes as it is, and so does one that would not shrink.
                 let stream = (*packed && 4 + body.len() <= COMPRESSED_SNAPSHOT_BUFFER)
@@ -1350,7 +1351,15 @@ mod tests {
         let mut state = 539_650u32.to_le_bytes().to_vec();
         state.extend(&body);
         assert_eq!(lzma2::unpack(&payload[2..], 0x8000), Some(state));
-        // The client unpacks into 0x8000 bytes: the largest state that
+        // A world past the original's 0x8000 bytes (twenty players and many
+        // pellets) stays packed, a few parts instead of some 70.
+        let big: Vec<u8> = (0..0xA000u32).map(|i| (i % 97) as u8).collect();
+        let payload = ServerMessage::packed_snapshot(7, 50, &big).payload();
+        assert_eq!(payload[1], 1);
+        let mut state = 50u32.to_le_bytes().to_vec();
+        state.extend(&big);
+        assert_eq!(lzma2::unpack(&payload[2..], COMPRESSED_SNAPSHOT_BUFFER), Some(state));
+        // The client unpacks into 0xF000 bytes: the largest state that
         // fits is packed, one byte more goes as it is.
         let fits = vec![0; COMPRESSED_SNAPSHOT_BUFFER - 4];
         assert_eq!(ServerMessage::packed_snapshot(7, 50, &fits).payload()[1], 1);

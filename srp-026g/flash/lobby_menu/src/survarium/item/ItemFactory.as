@@ -406,7 +406,7 @@ package survarium.item
          item.upgradesAvailable = description.upgrades_available;
          item.weight = description.weight;
          item.clipSize = description.clip_size;
-         item.quickSlotItemSize = description.fills_whole_pocket ? QuickSlotSize.WHOLE : QuickSlotSize.HALF;
+         item.quickSlotItemSize = QuickSlotSize.of(description);
          item.clipsInBag = description.clips_in_bag;
          if(description.required_bags != undefined)
          {

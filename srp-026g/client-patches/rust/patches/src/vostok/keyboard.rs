@@ -6,6 +6,10 @@
 //! takes the keyboard); with BL clear the key goes on, to patch 58's kit keys
 //! (0x25CD41) and the binder's actions. Before that ask, at `keyboard.key_state`
 //! (0x25CD1C), the input world's keyboard: its keys' state.
+//!
+//! The platform keyboard's own poll, keyboard::execute (0x3B8D20): at
+//! `keyboard.events` (0x3B914B) the events GetDeviceData buffered ([`KeyEvents`]),
+//! which a desktop's moved keys ([`KeyMoves`]) can move before anything reads them.
 
 use core::marker::PhantomData;
 
@@ -163,5 +167,212 @@ impl<'t> GameWorldKeys<'t> {
     /// The hud the game world's input handler has.
     pub fn hud(&self) -> &Hud<'t> {
         &self.hud
+    }
+}
+
+/// The keys a desktop's keyboard options move (xkb's caps:swapescape,
+/// caps:escape, ctrl:nocaps, ctrl:swapcaps, altwin:swap_alt_win, ...), each
+/// with the X keysym Wine's Wayland driver names it by: its layouts' key
+/// names are the keysyms of each physical key's first level
+/// (wayland_keyboard.c add_xkb_layout, xkb_keysym_get_name). Windows' own
+/// names ("Esc", "Caps Lock") and the X11 driver's ("Control" for both
+/// Ctrl keys) are none of these.
+const FUNCTION_KEYS: [(Dik, &[u8]); 14] = [
+    (Dik(0x01), b"Escape"),
+    (Dik(0x0E), b"BackSpace"),
+    (Dik(0x0F), b"Tab"),
+    (Dik(0x1C), b"Return"),
+    (Dik::LEFT_CONTROL, b"Control_L"),
+    (Dik(0x2A), b"Shift_L"),
+    (Dik(0x36), b"Shift_R"),
+    (Dik::LEFT_ALT, b"Alt_L"),
+    (Dik(0x3A), b"Caps_Lock"),
+    (Dik::RIGHT_CONTROL, b"Control_R"),
+    (Dik::RIGHT_ALT, b"Alt_R"),
+    (Dik(0xDB), b"Super_L"),
+    (Dik(0xDC), b"Super_R"),
+    (Dik(0xDD), b"Menu"),
+];
+
+/// The function key a key's name is (`FUNCTION_KEYS`), if any.
+fn function_key(name: &[u8]) -> Option<Dik> {
+    FUNCTION_KEYS.iter().find(|(_, keysym)| *keysym == name).map(|&(dik, _)| dik)
+}
+
+/// Which function key each function key acts as: the one its name says.
+/// Wine's Wayland driver gives DirectInput the physical keys' codes, and
+/// moves nothing a desktop's options move but the keys' names (and the text):
+/// with caps:swapescape the Caps Lock key is named Escape, and DirectInput
+/// still says Caps Lock.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct KeyMoves([Dik; FUNCTION_KEYS.len()]);
+
+impl KeyMoves {
+    /// Every key is itself.
+    pub const NONE: KeyMoves = {
+        let mut keys = [Dik(0); FUNCTION_KEYS.len()];
+        let mut i = 0;
+        while i < keys.len() {
+            keys[i] = FUNCTION_KEYS[i].0;
+            i += 1;
+        }
+        KeyMoves(keys)
+    };
+
+    /// Each function key as `name_of` names it: a key named another
+    /// function key acts as that one; a key named otherwise, or not at all,
+    /// stays itself.
+    pub fn named(mut name_of: impl FnMut(Dik) -> Option<KeyName>) -> KeyMoves {
+        let mut moves = KeyMoves::NONE;
+        for (slot, &(key, _)) in moves.0.iter_mut().zip(FUNCTION_KEYS.iter()) {
+            *slot = name_of(key).and_then(|name| function_key(name.bytes())).unwrap_or(key);
+        }
+        moves
+    }
+
+    /// The key `key` acts as.
+    pub fn key(&self, key: Dik) -> Dik {
+        FUNCTION_KEYS.iter().position(|&(k, _)| k == key).map_or(key, |i| self.0[i])
+    }
+}
+
+/// A key's name as DirectInput gives it (DIPROP_KEYNAME, multibyte): at most
+/// `KeyName::ROOM - 1` bytes.
+#[derive(Clone, Copy)]
+pub struct KeyName {
+    bytes: [u8; KeyName::ROOM],
+    len: usize,
+}
+
+impl KeyName {
+    const ROOM: usize = 64;
+
+    /// The name in a NUL-terminated buffer; None for an empty one.
+    fn of(buffer: [u8; KeyName::ROOM]) -> Option<KeyName> {
+        let len = buffer.iter().position(|&b| b == 0)?;
+        (len > 0).then_some(KeyName { bytes: buffer, len })
+    }
+
+    pub fn bytes(&self) -> &[u8] {
+        &self.bytes[..self.len]
+    }
+}
+
+/// The events of this poll in keyboard::execute (0x3B8D20) at
+/// `keyboard.events` (0x3B914B): what GetDeviceData buffered, before the
+/// loop that sets the keys' states and modifier flags from them and before
+/// process (0x3B9AF0) hands each to the handlers. A key moved here is moved
+/// for all of them.
+pub struct KeyEvents<'t> {
+    keyboard: raw::Keyboard,
+    count: usize,
+    thread: PhantomData<&'t Thread>,
+}
+
+impl<'t> KeyEvents<'t> {
+    /// GetDeviceData's buffer: at most 40h events (execute's
+    /// DIPROP_BUFFERSIZE is 100h, its read 40h, 0x3B8D48).
+    const MOST: usize = 0x40;
+
+    /// None when the keyboard is not the platform one (its vtable) or the
+    /// count is past the buffer.
+    pub fn at(ctx: &'t Context<'_>) -> Option<KeyEvents<'t>> {
+        use raw::site::keyboard_events as site;
+        // SAFETY: the context is this site's, inside execute on the game's
+        // thread: EDI its keyboard (`this`), EAX GetDeviceData's count. The
+        // vtable is read only to check it is the platform keyboard.
+        let (keyboard, count) = unsafe {
+            let keyboard = site::keyboard(ctx)?;
+            if *keyboard.vtable() != raw::image::KEYBOARD_VTABLE {
+                return None;
+            }
+            (keyboard, site::count(ctx))
+        };
+        let count = usize::try_from(count).ok().filter(|&n| n <= Self::MOST)?;
+        Some(KeyEvents { keyboard, count, thread: PhantomData })
+    }
+
+    /// The name DirectInput gives `key`: GetKeyNameTextW of its scan code in
+    /// the calling thread's layout under Wine (dinput's keyboard objects),
+    /// read by the game's own get_dik_name (0x3B9C00).
+    pub fn name(&self, key: Dik) -> Option<KeyName> {
+        let mut buffer = [0u8; KeyName::ROOM];
+        // SAFETY: the platform keyboard of this poll (its DirectInput device
+        // at +914h, alive while it polls), on its thread; the buffer is ours,
+        // its size given.
+        let named = unsafe {
+            raw::engine_key_name(Some(self.keyboard), u32::from(key.0), buffer.as_mut_ptr(), KeyName::ROOM as u32)
+        };
+        if named == 0 {
+            return None;
+        }
+        KeyName::of(buffer)
+    }
+
+    /// Every event's key becomes the one `moves` says it acts as.
+    pub fn apply(&mut self, moves: &KeyMoves) {
+        // SAFETY: the keyboard's buffer, `count` events of it filled by this
+        // poll's GetDeviceData (at most its 40h), on its thread; each key
+        // read once and written back.
+        let events = unsafe { self.keyboard.events() };
+        for i in 0..self.count {
+            // SAFETY: as above, the event `i` < count.
+            let key = unsafe { events.at(i).key() };
+            // SAFETY: as above.
+            if let Some(dik) = Dik::of(unsafe { *key }) {
+                let moved = moves.key(dik);
+                // SAFETY: as above.
+                unsafe { *key = u32::from(moved.0) };
+            }
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn named(names: &[(u8, &[u8])]) -> KeyMoves {
+        KeyMoves::named(|key| {
+            let (_, name) = names.iter().find(|(k, _)| *k == key.0)?;
+            let mut buffer = [0u8; KeyName::ROOM];
+            buffer[..name.len()].copy_from_slice(name);
+            KeyName::of(buffer)
+        })
+    }
+
+    #[test]
+    fn swapped_escape_and_caps_lock() {
+        // caps:swapescape: the Caps Lock key's keysym is Escape, Escape's Caps_Lock.
+        let moves = named(&[(0x01, b"Caps_Lock"), (0x3A, b"Escape"), (0x1D, b"Control_L"), (0x11, b"w")]);
+        assert_eq!(moves.key(Dik(0x3A)), Dik(0x01));
+        assert_eq!(moves.key(Dik(0x01)), Dik(0x3A));
+        assert_eq!(moves.key(Dik(0x1D)), Dik(0x1D));
+        assert_eq!(moves.key(Dik(0x11)), Dik(0x11), "a letter is never moved");
+    }
+
+    #[test]
+    fn caps_lock_as_control() {
+        // ctrl:nocaps: both keys are Control_L.
+        let moves = named(&[(0x3A, b"Control_L"), (0x1D, b"Control_L")]);
+        assert_eq!(moves.key(Dik(0x3A)), Dik::LEFT_CONTROL);
+        assert_eq!(moves.key(Dik(0x1D)), Dik::LEFT_CONTROL);
+    }
+
+    #[test]
+    fn windows_and_unknown_names_move_nothing() {
+        // Windows' names, the X11 driver's stripped ones, AltGr's keysym, none.
+        let moves = named(&[(0x01, b"Esc"), (0x3A, b"Caps Lock"), (0x1D, b"Control"), (0xB8, b"ISO_Level3_Shift")]);
+        assert_eq!(moves, KeyMoves::NONE);
+        assert_eq!(KeyMoves::named(|_| None), KeyMoves::NONE);
+    }
+
+    #[test]
+    fn a_name_is_its_bytes_to_the_nul() {
+        assert!(KeyName::of([0u8; KeyName::ROOM]).is_none());
+        assert!(KeyName::of([b'x'; KeyName::ROOM]).is_none(), "no NUL: no name");
+        let mut buffer = [0u8; KeyName::ROOM];
+        buffer[..6].copy_from_slice(b"Escape");
+        assert_eq!(KeyName::of(buffer).unwrap().bytes(), b"Escape");
     }
 }

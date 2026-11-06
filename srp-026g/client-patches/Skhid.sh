@@ -5,6 +5,9 @@
 #     bash Skhid.sh             starts the game
 #     bash Skhid.sh launcher    starts the Skhid launcher, which looks for
 #                               newer Skhid files first (see LINUX.txt)
+#     SKHID_CRASH_DUMP=full bash Skhid.sh launcher
+#                               the same, a crash writing the game's whole
+#                               memory, and the crash files listed at the end
 #
 # It only runs game/binaries/x86/play_skhid.sh, which does the work.
 here=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd) || exit 1

@@ -52,8 +52,6 @@ package
             menu.itemRenderer = "OptionsListRenderer";
             menu.menuDirection = "up";
             menu.menuMargin = 0;
-            menu.inspectableMenuOffset = {"top": 0, "right": 0, "bottom": 4, "left": 0};
-            menu.inspectableMenuPadding = {"top": 5, "right": 1, "bottom": 5, "left": 1};
             menu.menuRowsFixed = false;
             menu.menuWidth = MENU_WIDTH;
             menu.menuWrapping = "normal";
@@ -172,8 +170,9 @@ package
         }
 
         // The note's style: an option's label, the "Limit upload speed:"
-        // stepper's (the stepper is hidden), left aligned.
-        private static function noteFormat(content:MovieClip):TextFormat
+        // stepper's (the stepper is hidden), left aligned. The Renderer
+        // list's note is the same.
+        public static function noteFormat(content:MovieClip):TextFormat
         {
             var stepper:OptionStepperCyclic2 = content.getChildByName("_upload_speed") as OptionStepperCyclic2;
             var format:TextFormat = stepper != null && stepper.textField != null
@@ -183,7 +182,7 @@ package
             return format;
         }
 
-        private static function text(format:TextFormat, width:Number, height:Number):TextField
+        public static function text(format:TextFormat, width:Number, height:Number):TextField
         {
             var field:TextField = new TextField();
             field.embedFonts = true;

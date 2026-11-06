@@ -232,15 +232,14 @@ pub(super) struct Core<'a> {
     pub replays: Option<&'a Replays>,
     /// The rooms (`rooms`).
     pub rooms: session::v026g::rooms::Rooms,
-    /// The room matches being made, by the queue's match id: the map their
-    /// vote chose, the room's minimum of players and whether the room has a
-    /// PIN (its match pays nothing) (`rooms`, `play::launch`).
-    pub room_launching: HashMap<u32, (u8, u8, bool)>,
+    /// The room matches being made, by the queue's match id (`rooms`,
+    /// `play::launch`).
+    pub room_launching: HashMap<u32, super::rooms::RoomLaunch>,
     /// Why a request or a Play left the account outside a room, said once
     /// with its next room state (`rooms`).
     pub room_codes: HashMap<u32, survarium::v026g::lobby::rooms::RoomCode>,
     /// When a member who came while its room's match is played goes into
-    /// it (`rooms::LATE_JOIN_WAIT` after it came, or at once on its ask).
+    /// it (`RoomRules::late_join_wait` after it came, or at once on its ask).
     pub room_join_at: HashMap<u32, Instant>,
     /// Each member's room at the last tick: who came and went is said in
     /// the room's chat (`room_chat`).

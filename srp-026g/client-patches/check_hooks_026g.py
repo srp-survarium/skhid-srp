@@ -58,7 +58,7 @@ def run_checks(original):
     ORIGINAL = original
     QUIET = True
     RESULTS.clear()
-    for fn in (test_pointer, test_callback, test_vtable, test_splice, test_code, test_lohook):
+    for fn in (test_pointer, test_callback, test_vtable, test_splice, test_code, test_lohook, test_entry):
         fn()
     return list(RESULTS)
 
@@ -338,6 +338,47 @@ def test_lohook():
     check(out["eflags"] == 0x207, "lohook: applies a Context flag edit (set CF, clear ZF)")
 
 
+def test_entry():
+    # an entry (our own NASM's call into Rust, cdecl; patch 68's preview
+    # apply): called from a stack aligned to 4 only, it calls the shim with
+    # the stack aligned to 16, hands it a Context whose site ESP is the
+    # caller's (the return address, then the arguments), and returns to the
+    # caller with every register and the flags as they were.
+    h = dict(patch="fix", patch_no=0, kind="entry", site=None, site_name="x.entry", handler="h",
+             entry="fix_h", shim="hook_fix_h", what="x", exits=[], original=b"", install=("entry", None))
+    seen = STACK + 0x100                                # the stub writes: esp at its call, its first argument
+    stub = ("global hook_fix_h\nhook_fix_h:\n"
+            f"    lea eax, [esp+4]\n    mov [{seen:#x}], eax\n"          # esp before the call's return address
+            "    mov eax, [esp+4]\n    mov eax, [eax]\n"                 # the Frame's Regs
+            "    mov eax, [eax+12]\n    add eax, 8\n"                    # Regs.esp + 8: the site's ESP
+            f"    mov ecx, [eax+4]\n    mov [{seen + 4:#x}], ecx\n"      # its first argument
+            "    xor eax, eax\n    ret\n")
+    blob, labels = assemble("\n".join(hooks_026g.entry_template(h)) + "\n", stub)
+    for skew in (0, 4, 8, 12):
+        m = Machine(bytes(ORIGINAL), blob, TEST_VA)
+        uc = m.uc
+        for name, reg in GP.items():
+            uc.reg_write(reg, SENTINELS.get(name, 0))
+        uc.reg_write(UC_X86_REG_EFLAGS, 0x203)
+        esp = STACK + 0x80000 - skew
+        for a in (0x33, 0x22, 0x11):
+            esp -= 4
+            uc.mem_write(esp, struct.pack("<I", a))
+        esp -= 4
+        uc.mem_write(esp, struct.pack("<I", 0xDEAD0000))
+        uc.reg_write(UC_X86_REG_ESP, esp)
+        uc.emu_start(labels["fix_h"], 0xDEAD0000, count=200000)
+        at_call, first = struct.unpack("<II", bytes(uc.mem_read(seen, 8)))
+        out = {r: uc.reg_read(GP[r]) for r in GP}
+        check(uc.reg_read(UC_X86_REG_EIP) == 0xDEAD0000 and uc.reg_read(UC_X86_REG_ESP) == esp + 4
+              and at_call % 16 == 0 and first == 0x11 and uc.reg_read(UC_X86_REG_EFLAGS) & 0xFFF == 0x203
+              and all(out[r] == SENTINELS.get(r, 0) for r in GP),
+              f"entry from a stack {skew} past 16: the shim called aligned to 16 ({at_call:#x}), its Context's "
+              f"site ESP the caller's (first argument {first:#x}), back at the caller with esp, the registers "
+              "and the flags as they were")
+
+
+
 ORIGINAL = b""
 
 
@@ -345,7 +386,7 @@ def main():
     global ORIGINAL
     ORIGINAL = open(sys.argv[1], "rb").read()
     print("hook entry kinds against the original exe")
-    for fn in (test_pointer, test_callback, test_vtable, test_splice, test_code, test_lohook):
+    for fn in (test_pointer, test_callback, test_vtable, test_splice, test_code, test_lohook, test_entry):
         fn()
     print(f"\n{passed} ok, {failed} failed")
     raise SystemExit(1 if failed else 0)

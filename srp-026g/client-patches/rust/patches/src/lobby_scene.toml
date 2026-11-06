@@ -33,6 +33,7 @@ handler = "on_deactivate"
 [[hook]]
 site = "lobby_menu.activate"
 handler = "on_activate"
+order = 0
 
 [[hook]]
 site = "game.clear_resources"

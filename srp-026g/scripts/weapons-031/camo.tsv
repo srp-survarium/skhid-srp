@@ -1,0 +1,25 @@
+# The 0.31a2 guns' textures that get an _aoac (../weapon-camo/weapon_camo.py, its guns.tsv format:
+# texture, donors (none: no premium copies), the model surfaces whose UVs use it). Made from the pack's
+# models (weapons-031); the sights left out, as guns.tsv leaves them.
+weapons/ots144a_groza/ots144a_groza_grip		weapons/ots14/ots14:ots144a_groza_gripsg
+weapons/ots144a_groza/ots144a_groza_mag		weapons/ots14/ots14:ots144a_groza_magsg
+weapons/ots144a_groza/ots144a_groza_reciever		weapons/ots14/ots14:ots144a_groza_recieversg
+weapons/scar-h/scar-h_grip		weapons/scar_h/scar_h:scar_h_gripsg
+weapons/scar-h/scar-h_handguard		weapons/scar_h/scar_h:scar_h_handguardsg
+weapons/scar-h/scar-h_mag		weapons/scar_h/scar_h:scar_h_magsg
+weapons/scar-h/scar-h_receiver		weapons/scar_h/scar_h:scar_h_receiversg
+weapons/scar-h/scar-h_stock		weapons/scar_h/scar_h:scar_h_stocksg
+weapons/vhs_2/vhs_2_body1		weapons/vhs_2/vhs_2:vhs_2_body1_s
+weapons/vhs_2/vhs_2_body2		weapons/vhs_2/vhs_2:vhs_2_body2_s
+weapons/vhs_2/vhs_2_mag		weapons/vhs_2/vhs_2:vhs_2_mag_s
+weapons/fn_minimi/fn_minimi_grip		weapons/fn_minimi/fn_minimi:kolya_lp_gripsg
+weapons/fn_minimi/fn_minimi_handguard_low		weapons/fn_minimi/fn_minimi:kolya_lp_handguard_lowsg
+weapons/fn_minimi/fn_minimi_handguard_top		weapons/fn_minimi/fn_minimi:kolya_lp_handguard_topsg
+weapons/fn_minimi/fn_minimi_mag		weapons/fn_minimi/fn_minimi:kolya_lp_magsg
+weapons/fn_minimi/fn_minimi_receiver01		weapons/fn_minimi/fn_minimi:kolya_lp_receiver01sg
+weapons/fn_minimi/fn_minimi_receiver02		weapons/fn_minimi/fn_minimi:kolya_lp_receiver02sg
+weapons/fn_minimi/fn_minimi_stock		weapons/fn_minimi/fn_minimi:kolya_lp_stocksg
+# The sights get a mask that paints nothing (parts.tsv: no part), so a camouflaged gun's bake finds every
+# surface's _aoac and the sights stay bare.
+weapons/scar-h/scar-h_sight		weapons/scar_h/scar_h:scar_h_sightsg
+weapons/vhs_2/vhs_2_sights		weapons/vhs_2/vhs_2:vhs_2_sights_s

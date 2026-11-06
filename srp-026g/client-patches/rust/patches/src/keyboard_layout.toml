@@ -1,0 +1,20 @@
+# Patch 107: chat text follows the keyboard layout the window was last told
+# of (docs/notes/keyboard_layout.md). The sites are sites_026g.tsv's; the
+# logic is keyboard_layout.rs and vostok/keyboard_layout.rs.
+name = "keyboard_layout"
+patch = 107
+
+# message_processor's WM_INPUTLANGCHANGEREQUEST, before the text-focus check.
+[[hook]]
+site = "window.lang_request"
+handler = "on_request"
+
+# message_processor's WM_INPUTLANGCHANGE, before the same check.
+[[hook]]
+site = "window.lang_change"
+handler = "on_change"
+
+# keyboard::translate_text after its GetKeyboardLayout(0).
+[[hook]]
+site = "keyboard.text_layout"
+handler = "on_text"

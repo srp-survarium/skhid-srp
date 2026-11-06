@@ -1,0 +1,11 @@
+# Patch 101: a step first made by a re-simulation is heard (the players'
+# random footstep drop-outs). The site is sites_026g.tsv's; the logic is
+# footsteps.rs and vostok/footstep.rs.
+name = "footsteps"
+patch = 101
+
+# on_player_sound_event's test of the event's time against the newest
+# played time (0x2A6485).
+[[hook]]
+site = "player_sound.step_guard"
+handler = "on_step_guard"

@@ -138,7 +138,7 @@ static int SyntheticMode(const char* mode)
 static HINSTANCE WINAPI BrowserProbe(HWND, LPCWSTR verb, LPCWSTR url,
                                     LPCWSTR parameters, LPCWSTR directory, INT)
 {
-    if (wcscmp(verb, L"open") || wcscmp(url, L"https://discord.gg/Pxa4prXfwu") ||
+    if (wcscmp(verb, L"open") || wcscmp(url, L"https://discord.gg/QUmJg3gBhg") ||
         parameters || directory) ExitProcess(95);
     InterlockedIncrement(&browserCalls);
     return (HINSTANCE)33;

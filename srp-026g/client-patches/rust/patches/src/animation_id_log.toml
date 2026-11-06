@@ -1,0 +1,13 @@
+# Patch 95: a diagnostic. The animations registry's lookup that finds no id
+# (it returns 0FFFFh, which the player's animation tree keeps and the held
+# weapon's draw then reads past the ids' vector: the rev47 crashes at
+# 0x1F18C8) is logged to srp_patches.log with the clips' names, the
+# registry's size and who asked (docs/notes/animation-ids.md). Nothing the
+# game does changes. The site is sites_026g.tsv's; the logic is
+# animation_id_log.rs.
+name = "animation_id_log"
+patch = 95
+
+[[hook]]
+site = "animations.id_missing"
+handler = "on_id_missing"

@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
 # usage: release/build-site --tree <checkout> [--with <resources.db.patch_<n>>]
 #
-# Builds the website's pages made from the game data, the wiki's maps (/wiki/maps)
-# and damage calculator (/wiki/calculator), in <checkout> (release/release.sh: a
+# Builds the website's pages made from the game data, the wiki's maps (/wiki/maps),
+# damage calculator (/wiki/calculator) and skills (/wiki/skills), in <checkout> (release/release.sh: a
 # worktree of the commit it releases; by hand: yours, for a preview), from
 # the stock resources.db ($SKHID_STOCK_DB) with exactly the patches of the
 # offered-patch list (release/patches.tsv) over it, and --with the
@@ -19,13 +19,14 @@
 #   3. the calculator's build (srp-026g/scripts/damage-calc/build_site.py:
 #      its lobby icons), the Maps tab's (srp-026g/scripts/maps-tab/build.py,
 #      with those icons), then the calculator's again (it takes the maps'
-#      names, order and minimaps from the Maps tab);
-#   4. both built-from.tsv must name exactly the list's patches (and
+#      names, order and minimaps from the Maps tab), and the skills'
+#      (srp-026g/scripts/skills-tab/build.py);
+#   4. each built-from.tsv must name exactly the list's patches (and
 #      --with's), in any order (release.sh compares them so too); else it
 #      fails.
 # Relative paths (--with, $SKHID_STOCK_DB, $SKHID_PATCH_LIST, $SKHID_DBGRAB)
 # are of the folder it is run in.
-# Writes srp-026g/servers/web-server/{maps,damage,wiki}/ of <checkout> (wiki:
+# Writes srp-026g/servers/web-server/{maps,damage,skills,wiki}/ of <checkout> (wiki:
 # the calculator's wiki pages and their icons) and the
 # cache, nothing else. About 2 minutes, at nice 10 (the downloads aside).
 . "$(dirname "$0")/lib.sh"
@@ -41,8 +42,9 @@ while (($#)); do
 done
 [[ -n $tree ]] || usage 1
 tree=$(cd "$tree" && pwd) || die "--tree: no such folder"
-[[ -f $tree/srp-026g/scripts/maps-tab/build.py && -f $tree/srp-026g/scripts/damage-calc/build_site.py ]] ||
-    die "$tree has no srp-026g/scripts/maps-tab/build.py and damage-calc/build_site.py"
+[[ -f $tree/srp-026g/scripts/maps-tab/build.py && -f $tree/srp-026g/scripts/damage-calc/build_site.py &&
+    -f $tree/srp-026g/scripts/skills-tab/build.py ]] ||
+    die "$tree has no srp-026g/scripts/maps-tab/build.py, damage-calc/build_site.py and skills-tab/build.py"
 [[ -z $with || -f $with ]] || die "--with $with: no such file"
 # The builds run in <checkout>: every path they are given is absolute.
 [[ -z $with ]] || with=$(realpath -s -- "$with")
@@ -108,7 +110,7 @@ else
 fi
 [[ -x $dbgrab ]] || die "dbgrab: $dbgrab is not a program"
 
-# 3. The pages: the calculator (its icons), the Maps tab, the calculator again.
+# 3. The pages: the calculator (its icons), the Maps tab, the calculator again, the skills.
 args=(--stock "$SKHID_STOCK_DB" --patches "$cache/patches" --list "$PATCH_LIST" --dbgrab "$dbgrab" --ffdec "$ffdec")
 [[ -z $with ]] || args+=(--with "$with")
 build() { (cd "$tree" && PATH=$py/bin:$PATH nix shell nixpkgs#jdk21 -c python3 -I "$@"); }
@@ -118,13 +120,15 @@ say "the Maps tab"
 build srp-026g/scripts/maps-tab/build.py "${args[@]}" --icons "$work/calc/icons/icons" --work "$work/maps" || die "the Maps tab's build failed"
 say "the calculator (the Maps tab's maps)"
 build srp-026g/scripts/damage-calc/build_site.py "${args[@]}" --work "$work/calc" || die "the calculator's build failed"
+say "the skills"
+build srp-026g/scripts/skills-tab/build.py "${args[@]}" --work "$work/skills" || die "the skills' build failed"
 
 # 4. What they were built from.
 want=$(site_wants "$with")
-for dir in maps damage; do
+for dir in maps damage skills; do
     built=$tree/srp-026g/servers/web-server/$dir/built-from.tsv
     [[ -f $built && $(built_from "$built") == "$want" ]] ||
         die "$built does not name exactly the patches of $PATCH_LIST${with:+ and ${with##*/}}"
 done
-say "the Maps tab and the calculator: built in $tree/srp-026g/servers/web-server/ from the stock resources.db and $(grep -c . <<<"$want") patch(es):"
+say "the Maps tab, the calculator and the skills: built in $tree/srp-026g/servers/web-server/ from the stock resources.db and $(grep -c . <<<"$want") patch(es):"
 while read -r name sha; do say "  $name $sha"; done <<<"$want"

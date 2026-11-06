@@ -2,9 +2,10 @@
 
 The owner's rule of 2026-10-22: give the premium armour the golden weapons' treatment
 ([golden_weapons.md](golden_weapons.md)), so that the Modification (reroll) button works on it. Code:
-`survarium::v026g::golden` (`PREMIUM_ARMOUR`), `session::v026g::items_rules`
+`survarium::v026g::golden`, `session::v026g::items_rules`
 (`give_premium_armour_bonuses`), `Account::add_item`; the data:
-`scripts/content-edit/premium-armour-1.json`; the lobby: `ItemDictId.PREMIUM_ARMOUR*`,
+`scripts/content-edit/armor.tsv` (rarity 0, no experience or reputation cell), `items.tsv` (`like`,
+`start`); the lobby: `ItemDictId.PREMIUM_ARMOUR*`,
 `ItemFactory` (`isGolden`, `plainOf`, `startingModifiers`, `BONUS_UI`).
 
 - **The items:** every armour piece with a base rarity in the game's data, the jackets and trousers
@@ -34,7 +35,7 @@ The owner's rule of 2026-10-22: give the premium armour the golden weapons' trea
   `scav_legs_4`.
 - **The other choice** (the owner may switch to it): keep only +5 % experience (1240, the bonus all
   four share, as the silver one all golden weapons share), the reputation bonus goes; rank 1, two
-  craft places. It changes the patch (1250 / 1260 removed, not granted), `PREMIUM_ARMOUR`'s bonuses
+  craft places. It changes the patch (1250 / 1260 removed, not granted), the pieces' `start` in `items.tsv`
   and the lobby's `PREMIUM_ARMOUR_BONUSES`; the one-time grant would then give 1240 only.
 - **Upgradable as the plain piece:** same item level, so the same craft and reroll prices and
   chances; the premium bonuses reroll as any modification (a failed craft takes none, owner

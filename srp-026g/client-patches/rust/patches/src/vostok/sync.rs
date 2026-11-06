@@ -53,13 +53,13 @@ impl<T> Lock<T> {
 
 /// The calling thread's id (kernel32's GetCurrentThreadId; never 0).
 #[cfg(not(test))]
-fn thread_id() -> u32 {
+pub(super) fn thread_id() -> u32 {
     // SAFETY: the exe's import, no arguments, no state.
     unsafe { crate::raw::engine_get_current_thread_id() }
 }
 
 #[cfg(test)]
-fn thread_id() -> u32 {
+pub(super) fn thread_id() -> u32 {
     static NEXT: AtomicU32 = AtomicU32::new(1);
     std::thread_local! { static ID: u32 = NEXT.fetch_add(1, Ordering::Relaxed); }
     ID.with(|id| *id)

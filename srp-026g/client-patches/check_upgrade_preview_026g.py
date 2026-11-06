@@ -11,7 +11,9 @@ the inventory vector after it, a lobby character with its three copies,
 the items dictionary (for a scope: variants whose config has
 `srp_scope_fit`).
     python check_upgrade_preview_026g.py <original survarium.exe>
-Requires Python `unicorn` (2.1.4). Stubs that write down how they were
+Requires Python `unicorn` (2.1.4) and `capstone` (the alignment probe,
+align_probe_026g.py: every aligned-SSE operand our code runs, patch 68's
+preview apply in Rust among it, is 16-byte aligned). Stubs that write down how they were
 called: the dictionary's item_by_id (0x1F0090), the game's allocator
 (0x420789, 0xE4F90), setup_profile's query (from 0x284BDF, after it copied
 the profile into the character's next copy: the query is "made", nothing
@@ -20,7 +22,7 @@ game's log (0x111ED0, 0x111860) and, for the armour shown worn,
 can_move_item_to_slot (0x2CA910: a vest in slot 2). What must hold:
 - a camouflage dropped on the window's weapon (a kit's, or one only in the
   stash): the character is made again at once from the scratch profile,
-  whose weapon record has {camouflage, its dict id, 0, slot} added, the
+  whose weapon records have the camouflage as the weapon kit (patch 68), the
   other upgrades kept, a kit revision no server sends; the account's
   profile and inventory are not written; the handler's registers are the
   original's (edx / ecx loaded as before), the stack kept;
@@ -29,8 +31,10 @@ can_move_item_to_slot (0x2CA910: a vest in slot 2). What must hold:
   made, a refresh returns at setup_profile's own early return;
 - a refusal (the account without it): the character goes back to the
   account's (a revision of its own again, a waiting setup_profile);
-- a camouflage in the slot of another: it replaces it; the record full:
-  nothing added; a take-off (drop_upgrade_item): the upgrade goes;
+- a camouflage in the slot of another: it replaces it; a scope beside two
+  decals and a camouflage: all four in three records, the weapon kit
+  (patch 68's weapon_kit_preview_apply through apply's slot); a take-off
+  (drop_upgrade_item): the upgrade goes;
 - a scope: its record holds the variant made for the weapon, found by
   `srp_scope_fit` (names, or dict ids); no variant: nothing previewed;
 - not the window's item, no weapon shown, a character without its window:
@@ -62,6 +66,7 @@ from unicorn import Uc, UC_ARCH_X86, UC_MODE_32, UC_PROT_ALL, UC_HOOK_CODE
 from unicorn.x86_const import UC_X86_REG_EAX, UC_X86_REG_ECX, UC_X86_REG_EDX, UC_X86_REG_EIP, \
     UC_X86_REG_ESP, UC_X86_REG_EBX, UC_X86_REG_ESI, UC_X86_REG_EDI, UC_X86_REG_EBP, UC_X86_REG_EFLAGS
 
+import align_probe_026g as align
 import patch_026g as base
 
 ITEM_BY_ID, ALLOCATION_NAME, ALLOCATE = 0x1F0090, 0x420789, 0x0E4F90
@@ -108,6 +113,10 @@ WEAPON_1, WEAPON_2 = 7, 10
 RIFLE, CAMO_CATEGORY, SCOPE_CATEGORY = 15, 25, 22
 COPY_SIZE = 0x4634
 KIT_WORD = 0xABCD0001                          # the profile's +4620h
+
+# A weapon kit record's value (patch 68, check_weapon_kit_026g.py): its own
+# logical slot, the dict ids it names or'ed in by the caller.
+KIT = lambda own: 0xA7 << 56 | own << 48
 
 SENTINELS = {UC_X86_REG_EBX: 0x11111111, UC_X86_REG_EBP: 0x22222222, UC_X86_REG_ESI: 0x33333333,
              UC_X86_REG_EDI: 0x44444444}
@@ -242,8 +251,8 @@ class Emu:
         self.u16(at + 4, dict_id)
         self.u32(at + 8, 1000000)
         begin = self.u32(at + 0x60)
-        for i, (up, up_dict, slot) in enumerate(upgrades):
-            self.emu.mem_write(begin + 0x18 * i, struct.pack("<IIQB7x", up, up_dict, 0, slot))
+        for i, (up, up_dict, slot, *value) in enumerate(upgrades):
+            self.emu.mem_write(begin + 0x18 * i, struct.pack("<IIQB7x", up, up_dict, value[0] if value else 0, slot))
         self.u32(at + 0x64, begin + 0x18 * len(upgrades))
 
     def upgrades(self, at):
@@ -487,6 +496,7 @@ class Emu:
 def main():
     if len(sys.argv) != 2:
         sys.exit(__doc__)
+    align.install()                 # every Uc from here: aligned-SSE operands checked
     original = open(sys.argv[1], "rb").read()
     late_join = open(base.late_join_bin(), "rb").read()
     build, _ = base.build(original, "section", open(base.default_bin("section"), "rb").read(),
@@ -527,19 +537,20 @@ def main():
     copy1 = e.copy(1)
     rec = e.table_record(copy1, AK)
     say(kept and queries == [("query", CHARACTER, 1, 0)] and rec is not None
-        and e.upgrades(rec) == [(DECAL, 603, 0), (CAMO, 601, 2)]
+        and e.upgrades(rec) == [(DECAL, 603, 0), (CAMO, 601, 3, KIT(2))]
         and e.u32(copy1 + REVISIONS) == 0x80000001 and e.u32(copy1 + REVISIONS + 4) == 4
         and account_before() == before and e.count() == 1
         and [c for c in e.calls if c[0] == "log"] == [("log", 0x9FA4E4, 4,
                                                        f"srp: upgrade preview: item {AK}, upgrade {CAMO}, slot 2")],
         "a camouflage dropped on kit 1's AK (chosen kit 2): the character is made again at once, from the "
-        "scratch: the AK's record with the camouflage added after its decal, kit 1's revision 0x80000001, the "
+        "scratch: the AK's record with the camouflage after its decal, as the weapon kit (patch 68: slot 3, its own "
+        "logical slot 2 in the value), kit 1's revision 0x80000001, the "
         "other kits' the account's; one log line; the account's profile and inventory untouched; the "
         "handler's registers and stack as the original leaves them")
 
     # 2. the server's account confirms it while the player is being made
     e.calls = []
-    e.record(e.table_record(PROFILE, AK), AK, 501, [(DECAL, 603, 0), (CAMO, 601, 2)])
+    e.record(e.table_record(PROFILE, AK), AK, 501, [(DECAL, 603, 0), (CAMO, 601, 3, KIT(2))])
     e.u32(PROFILE + REVISIONS, 4)
     kept = e.account()
     e.refresh()
@@ -559,7 +570,7 @@ def main():
     e.relocate(AK, CAMO2, 2)
     q = e.queries()
     rec = e.table_record(e.copy(2), AK)
-    ok1 = q == [("query", CHARACTER, 2, 0)] and e.upgrades(rec) == [(DECAL, 603, 0), (CAMO2, 602, 2)] \
+    ok1 = q == [("query", CHARACTER, 2, 0)] and e.upgrades(rec) == [(DECAL, 603, 0), (CAMO2, 602, 3, KIT(2))] \
         and e.u32(e.copy(2) + REVISIONS) == 0x80000002
     e.calls = []
     e.account()                                # refused: the account as it was
@@ -567,7 +578,7 @@ def main():
     waiting = e.u8(CHARACTER + 0xD2C8)
     copy_w = e.copy(0)                         # the shown copy is 1, the one made 2, the waiting one 0
     rec_w = e.table_record(copy_w, AK)
-    say(ok1 and not e.queries() and waiting == 1 and e.upgrades(rec_w) == [(DECAL, 603, 0), (CAMO, 601, 2)]
+    say(ok1 and not e.queries() and waiting == 1 and e.upgrades(rec_w) == [(DECAL, 603, 0), (CAMO, 601, 3, KIT(2))]
         and e.u32(copy_w + REVISIONS) == 0x80000003,
         "another camouflage into slot 2 replaces the first at once; refused, the account's refresh while it "
         "is being made waits for it with the account's upgrades and a revision of its own (on_player_ready "
@@ -581,27 +592,30 @@ def main():
     say(kept and e.queries() == [("query", CHARACTER, 1, 0)] and e.upgrades(rec) == [],
         "drop_upgrade_item(AK, decal): made again at once without the decal; the handler's registers (ecx "
         "loaded, eax kept for patch 30) and stack the original's")
-    full = [(AK, [(DECAL, 603, 0), (1606, 603, 1), (CAMO, 601, 2)]), (VEST, []), (SVD, [])]
+    full = [(AK, [(DECAL, 603, 0), (1606, 603, 1), (CAMO, 601, 3, KIT(2))]), (VEST, []), (SVD, [])]
     e.setup(kits, full, inventory, items, chosen=1, window=AK)
     e.relocate(AK, CAMO2, 2)
     rec = e.table_record(e.copy(1), AK)
-    replaced = e.upgrades(rec) == [(DECAL, 603, 0), (1606, 603, 1), (CAMO2, 602, 2)]
+    replaced = e.upgrades(rec) == [(DECAL, 603, 0), (1606, 603, 1), (CAMO2, 602, 3, KIT(2))]
     e.made()
     e.calls = []
     e.relocate(AK, SCOPE, 3)
-    say(replaced and not e.queries() and e.count() == 2,
-        "three upgrades held: a camouflage into slot 2 replaces the one there; a scope into slot 3 then finds "
-        "no room (the server refuses it): the same upgrades, the same revision, nothing made again")
+    rec = e.table_record(e.copy(2), AK)
+    say(replaced and e.queries() == [("query", CHARACTER, 2, 0)] and e.count() == 2
+        and e.upgrades(rec) == [(DECAL, 603, 0), (1606, 603, 1), (SCOPE, 2002, 3, KIT(3) | 602)],
+        "three records held (two decals, the kit): a camouflage into slot 2 replaces the one the kit holds; a "
+        "scope into slot 3 then goes in too, four upgrades in three records (the kit its own, the camouflage "
+        "named in its value), made again at once")
 
     # 5. scopes: the variant made for the weapon
     fresh()
     e.relocate(AK, SCOPE, 3)
     rec = e.table_record(e.copy(1), AK)
-    by_name = e.upgrades(rec) == [(DECAL, 603, 0), (SCOPE, 2002, 3)]
+    by_name = e.upgrades(rec) == [(DECAL, 603, 0), (SCOPE, 2002, 3, KIT(3))]
     fresh(window=STASH, chosen=0)
     e.relocate(STASH, SCOPE2, 3)
     rec = e.table_record(e.copy(1), STASH)
-    by_id = rec is not None and e.upgrades(rec) == [(SCOPE2, 2004, 3)] \
+    by_id = rec is not None and e.upgrades(rec) == [(SCOPE2, 2004, 3, KIT(3))] \
         and e.u16(e.copy(1) + KIT0 + SLOTS + 4 * WEAPON_1) == (rec - e.copy(1) - TABLE) // ITEM_SIZE
     fresh(window=SVD, chosen=0)
     e.relocate(SVD, SCOPE2, 3)
@@ -730,6 +744,7 @@ def main():
                    "character only while no player is being made, for a squad mate's as the original; every "
                    "register and the stack kept")
 
+    align.report(say)                # say counts a failure
     print(f"upgrade preview: {'all checks passed' if not failures else f'{failures} FAILED'}")
     sys.exit(1 if failures else 0)
 

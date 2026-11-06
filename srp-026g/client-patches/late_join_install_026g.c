@@ -56,7 +56,8 @@ void lj_native_animations(lj_u8 *table, void (*append)(void *, void *),
  * assembly). The states the game keeps to roll back to (core+0x2FBC the
  * oldest, item+0xC0BAC the next) were saved without them: their game-objects
  * bytes (the buffer at item+0xBDF30: +4 the bytes, +8 the room, +12 the
- * size; made by 0x3246D0 with room for 0x2000 and nothing to grow by) get
+ * size; made by 0x3246D0 with room for 0x2000, given the multithreaded
+ * allocator since patch 98, so it may grow, which this shift does not) get
  * the new nodes' bytes in front, so a state loaded later reads in step.
  * Such a node is a grenade or a trap that nobody has touched, and each
  * saves itself as one zero byte (grenade_core::serialize 0x303DA0,

@@ -47,7 +47,7 @@
 #      srp-game-data reads it, and it is not listed yet (published already
 #      with these same bytes: taken as it is, and kept at a stop);
 #      live: the site's pages made from the game data (the Maps tab, the
-#      calculator): built from other patches than the list (and the
+#      calculator, the skills): built from other patches than the list (and the
 #      --resources file) on main, they are rebuilt from those, last in the
 #      preflight and only when nothing else failed (release/build-site,
 #      about 2 min, in a worktree of the commit; a failure stops the run),
@@ -111,7 +111,9 @@
 #      --now: nothing is planned;
 #   5. at the planned time, once the launcher page says the server is
 #      down and $SKHID_SITE/api/stats says "matches":0 (waiting up to
-#      --match-wait more): shows what changes, y/N (or touch the swap file
+#      --match-wait more); sooner, once "matches":0 has held 30 s while
+#      Play is locked (polled every quarter of a minute while it waits for
+#      the planned time): shows what changes, y/N (or touch the swap file
 #      it names beside the go file; no answer in
 #      $SKHID_SWAP_ANSWER_MINUTES, default 10: no), then the swap of
 #      release/deploy. With --no-maintenance: once "matches":0 (waiting up
@@ -128,8 +130,9 @@
 #      srp26 is stopped, so the site never offers the old ZIP beside the new
 #      /patches and revision (an updater would enable PLAY for a game the
 #      login server refuses);
-#   6. checks the container, the log's game data line, /patches (exactly
-#      the list's patches) and /api/client-files (the new ZIP and, from an
+#   6. checks the container, the log's game data line, /patches and /game
+#      (the list's files; any rows of srp's mirrors.tsv after each one's
+#      URLs, release/add-mirror) and /api/client-files (the new ZIP and, from an
 #      srp that says it, min-revision <rev>). A failed check prints srp's log and runs the
 #      folder's rollback (srp.db, image, data, ZIP, setting, source: as
 #      before), with --now too. The run's output is the folder's release.log;
@@ -985,7 +988,7 @@ else
     okay "SKHID_GAME: $SKHID_GAME, with the original launcher"
 fi
 if [[ -f $SKHID_STOCK_DB ]]; then
-    stock=$(stock_sha256 "$SKHID_STOCK_DB")
+    stock=$(cached_sha256 "$SKHID_STOCK_DB")
     if [[ $stock == "$STOCK_SHA" ]]; then okay "SKHID_STOCK_DB: the stock resources.db (sha256 ${STOCK_SHA:0:12}…)"; else problem "SKHID_STOCK_DB: $SKHID_STOCK_DB has sha256 $stock, not the stock 0.26g one ($STOCK_SHA)"; fi
 else
     problem "SKHID_STOCK_DB: $SKHID_STOCK_DB: no such file (the stock 0.26g resources.db)"
@@ -1073,20 +1076,27 @@ if ((patches_ok && listed)); then
             problem "$PATCH_LIST: $name ($size bytes, sha256 ${sha:0:12}…) is not so on $PATCHES_LABEL: $(grep "^$name " <<<"$there" || echo "$there")"
             continue
         fi
-        read -r -a each <<<"$urls"
-        for url in "${each[@]}"; do
-            say "  ...      $name at $url"
-            if check_patch_url "$url" "$sha" "$size" "$work"; then
-                urls_checked=$((urls_checked + 1))
-            else
-                bad=1
-                problem "$PATCH_LIST: $name: $URL_PROBLEM"
-            fi
-        done
+        if check_file_urls "$name" "$sha" "$size" "$urls" "$work" '' "$PATCHES_URL/$name"; then
+            urls_checked=$((urls_checked + URLS_GOOD))
+        else
+            bad=1
+            problem "$PATCH_LIST: $name: $URL_PROBLEM"
+        fi
     done <<<"$LIST"
     ((bad)) || okay "the offered-patch list: $listed patch(es), each on $PATCHES_LABEL with its sha256, and its $urls_checked URL(s) giving it"
 elif ((patches_ok)); then
     okay "the offered-patch list ($PATCH_LIST) is empty"
+fi
+# The game's archive: each URL of its row, by its first bytes (the 2.9 GB
+# are downloaded whole by release/add-mirror only); one that fails is a
+# warning, none that works a problem.
+if ((patches_ok)) && [[ -n $GAME_ROW ]]; then
+    read -r name sha size urls <<<"$GAME_ROW"
+    if check_file_urls "$name" "$sha" "$size" "$urls" "$work" quick; then
+        okay "the game's archive ($name): $URLS_GOOD URL(s) giving it, by its first bytes"
+    else
+        problem "$GAME_LIST: $name: $URL_PROBLEM"
+    fi
 fi
 if [[ -n $rev ]] && ((LIST_TOP > rev)); then
     problem "$PATCH_LIST offers resources.db.patch_$LIST_TOP, above this release's revision $rev"
@@ -1132,21 +1142,22 @@ if [[ -n $rev ]] && ((rev >= MENUS_PATCH)) && [[ -z $(list_row "resources.db.pat
     ${resources##*/} != "resources.db.patch_$MENUS_PATCH" ]]; then
     problem "revision $rev needs resources.db.patch_$MENUS_PATCH (the menus) offered, and $PATCH_LIST has no row of it: release it (--resources) first"
 fi
-# The site's pages built from the game (the Maps tab, the calculator, and the
-# wiki's weapons and icons the calculator's build makes): each
+# The site's pages built from the game (the Maps tab, the calculator, the
+# skills, and the wiki's weapons and icons the calculator's build makes): each
 # from exactly the patches the release offers (with --resources, that one
 # too), so neither shows stale data. Built from others on main (a release
 # with new content always is): rebuilt below, at the end of the preflight
 # (release/build-site, in a worktree of the commit), nothing players see; the
 # server's source carries them (so the server code is built) and the record
 # commits them. A ref without them has nothing to build.
-SITE_PAGES=(srp-026g/servers/web-server/maps srp-026g/servers/web-server/damage srp-026g/servers/web-server/wiki)
+SITE_PAGES=(srp-026g/servers/web-server/maps srp-026g/servers/web-server/damage srp-026g/servers/web-server/skills
+    srp-026g/servers/web-server/wiki)
 site_tree='' site_stale=0 want=''
 if ((!test_server)) && [[ -n $main_commit ]]; then
     site_with=''
     if [[ -n $resources && -f $resources ]]; then site_with=$resources; fi
     want=$(site_wants "$site_with")
-    for page in "the Maps tab:maps" "the calculator:damage"; do
+    for page in "the Maps tab:maps" "the calculator:damage" "the skills:skills"; do
         IFS=: read -r what dir <<<"$page"
         built=srp-026g/servers/web-server/$dir/built-from.tsv
         if ! git -C "$REPO" cat-file -e "$main_commit:$built" 2>/dev/null; then
@@ -1324,7 +1335,7 @@ if ((site_stale)); then
             problem "the Maps tab and the calculator: the rebuild failed (release/build-site; its log: $work/build-site.log): $(tail -n 3 "$work/build-site.log" | tr '\n' ' ')"
         else
             site_tree=$work/site
-            for page in "the Maps tab:maps" "the calculator:damage"; do
+            for page in "the Maps tab:maps" "the calculator:damage" "the skills:skills"; do
                 IFS=: read -r what dir <<<"$page"
                 if [[ $(built_from "$site_tree/srp-026g/servers/web-server/$dir/built-from.tsv") != "$want" ]]; then
                     problem "$what, rebuilt: its built-from.tsv does not name the patches this release offers"
@@ -1484,9 +1495,9 @@ if ((now)); then
 elif ((no_maint)); then
     say "  maintenance: none (--no-maintenance)$scale; prepared and staged before the go, then at the go the swap as soon as $TARGET_SITE/api/stats says \"matches\":0 (up to $match_wait min, --match-wait); lobby players get a ~30 s \"server sync\" and reconnect"
 elif [[ -n $minutes ]]; then
-    say "  maintenance: in $minutes min (--minutes)$scale, planned right after the go; prepared and staged before the go; players see the countdown, Play is locked in its last 30 min; the swap at its end, once \"matches\":0"
+    say "  maintenance: in $minutes min (--minutes)$scale, planned right after the go; prepared and staged before the go; players see the countdown, Play is locked in its last 30 min; the swap at its end, once \"matches\":0, or sooner once \"matches\":0 has held 30 s while Play is locked"
 else
-    say "  maintenance: planned right after the go, to start 30 s after the last running match ends$scale; prepared and staged before the go; players see the countdown, Play is locked from then on; the swap at its end, once \"matches\":0"
+    say "  maintenance: planned right after the go, to start 30 s after the last running match ends$scale; prepared and staged before the go; players see the countdown, Play is locked from then on; the swap at its end, once \"matches\":0, or sooner once \"matches\":0 has held 30 s"
 fi
 # What comes right after the go.
 if ((now)); then
@@ -1539,6 +1550,8 @@ else
     check_release_files "$zip" "$data" "$rev" "$work"
     [[ $OFFERED == "$planned_offer" ]] ||
         die "$data does not offer what the preflight said (the list and the new patch): $(tr '\n' ' ' <<<"$OFFERED")"
+    [[ $OFFERED_GAME == "$GAME_ROW" ]] ||
+        die "$data does not name the game's archive of $GAME_LIST: ${OFFERED_GAME:-none}"
     check_exe_requires "$zip" "$work"
     # The record's item tables of this data: made once now, so a tool that
     # fails on it stops the release here, not after the swap.
@@ -1610,7 +1623,7 @@ else
         say "(up to $match_wait min), after one more y/N."
     else
         say "Next, at the go: the maintenance planned on $TARGET_SITE at once, $(if [[ -n $minutes ]]; then printf 'in %s min (--minutes)' "$minutes"; else printf 'to start 30 s after the last running match ends'; fi): Play locks;"
-        say "the swap at its end, once no match runs, after one more y/N. From the plan on, a stop cancels it."
+        say "the swap at its end, once no match runs (sooner once none has run for 30 s), after one more y/N. From the plan on, a stop cancels it."
     fi
     wait_for_go "$after_go"
     go_given=1
@@ -1623,8 +1636,8 @@ else
     fi
 fi
 
-# 5. The swap, at the planned time, once no match runs (--no-maintenance:
-# no planned time; --now: at once).
+# 5. The swap, at the planned time at the latest, once no match runs
+# (--no-maintenance: no planned time; --now: at once).
 if ((DRY_RUN && now)); then
     say "[dry run] 5. at the go: the swap at once, NO wait for matches (--now: the running ones end without results), y/N (no answer in $answer_wait min: no) and:"
     SWAP_BEFORE_STOP=count_ended_matches
@@ -1632,7 +1645,7 @@ elif ((DRY_RUN && no_maint)); then
     say "[dry run] 5. at the go: wait for \"matches\":0 on $TARGET_SITE/api/stats (up to $match_wait min), then y/N (no answer in $answer_wait min: no) and:"
     SWAP_BEFORE_STOP=match_check_before_stop
 elif ((DRY_RUN)); then
-    say "[dry run] 5. at the planned time: the launcher page saying the server is down, and \"matches\":0 on $TARGET_SITE/api/stats (up to $match_wait min more), then y/N (no answer in $answer_wait min: no) and:"
+    say "[dry run] 5. at the planned time: the launcher page saying the server is down, and \"matches\":0 on $TARGET_SITE/api/stats (up to $match_wait min more); sooner, polling $TARGET_SITE/api/stats while it waits: once \"matches\":0 has held $LAST_MATCH_MARGIN s while Play is locked (the countdown's last 30 min), the swap at once; then y/N (no answer in $answer_wait min: no) and:"
 elif ((now)); then
     progress "5. --now: the swap at once, NO wait for matches, NO notice was given"
 elif ((no_maint)); then
@@ -1640,13 +1653,31 @@ elif ((no_maint)); then
     limit=$(($(date +%s) + match_wait * MINUTE))
     wait_no_match "after $match_wait min of waiting (--match-wait)"
 else
+    # The planned time is the latest: once no match has run for
+    # LAST_MATCH_MARGIN s (the plan's own margin after the last match),
+    # while Play is locked (the countdown's last 30 min), the swap comes
+    # at once.
+    said=- idle_since=''
     while (($(date +%s) < end)); do
-        progress "5. waiting for the planned time ($(clock "$end") UTC)"
+        matches=$(matches_now)
+        if [[ $matches != "$said" ]]; then
+            progress "5. waiting for the planned time ($(clock "$end") UTC): ${matches:-? (no answer from /api/stats)} match(es) running"
+            said=$matches
+        fi
+        now_s=$(date +%s)
+        if [[ $matches != 0 ]] || ((end - now_s > 30 * MINUTE)); then
+            idle_since=''
+        elif ((now_s - ${idle_since:=$now_s} >= LAST_MATCH_MARGIN)); then
+            progress "5. no match has run for $LAST_MATCH_MARGIN s: swapping now, $(((end - now_s + MINUTE - 1) / MINUTE)) min before the planned time"
+            break
+        fi
         left=$((end - $(date +%s)))
-        if ((left > MINUTE)); then pause 1; elif ((left > 0)); then nap "$left"; fi
+        if ((left * 4 > MINUTE)); then pause 0.25; elif ((left > 0)); then nap "$left"; fi
     done
+    # The launcher page says the server is down from the planned time on
+    # (not before it, after an early swap).
     limit=$(($(date +%s) + 5 * MINUTE))
-    while :; do
+    while (($(date +%s) >= end)); do
         state=$(maintenance_state)
         [[ $state == down ]] && break
         [[ $state != none ]] || die "the maintenance is no longer planned on $TARGET_SITE (cancelled on the admin page, or srp restarted)"

@@ -6,7 +6,7 @@ fn args(text: &str) -> Vec<String> {
 }
 
 fn parsed(text: &str) -> Result<(PathBuf, Vec<PatchFile>, Option<PathBuf>), String> {
-    archives(&args(text))
+    archives(&args(text)).map(|archives| (archives.db, archives.patches, archives.out))
 }
 
 fn refused(text: &str) -> String {
@@ -80,7 +80,7 @@ fn a_patch_takes_its_urls_one_space_apart() {
     ]
     .map(str::to_owned)
     .to_vec();
-    let (_, patches, _) = archives(&options).unwrap();
+    let patches = archives(&options).unwrap().patches;
     assert_eq!(
         patches[0].urls,
         [
@@ -96,7 +96,7 @@ fn a_patch_takes_its_urls_one_space_apart() {
             .into_iter()
             .chain([format!("p/resources.db.patch_12={bad}")])
             .collect();
-        let (_, patches, _) = archives(&options).unwrap();
+        let patches = archives(&options).unwrap().patches;
         assert!(
             resources_db::server::check_urls(&patches[0].urls)
                 .unwrap_err()
@@ -104,6 +104,42 @@ fn a_patch_takes_its_urls_one_space_apart() {
             "{bad:?}"
         );
     }
+}
+
+/// The game's archive: the row of the release's list as one argument.
+#[test]
+fn the_games_archive_is_a_row_of_the_list() {
+    let sha = "ab".repeat(32);
+    let options: Vec<String> = [
+        "--db".into(),
+        "resources.db".into(),
+        "--game".into(),
+        format!("survarium-026g.7z {sha} 2906544103 http://h/g https://m.example/g"),
+    ]
+    .to_vec();
+    let game = archives(&options).unwrap().game.unwrap();
+    assert_eq!(
+        (
+            game.input.name.as_str(),
+            game.input.size,
+            game.urls.join(" ")
+        ),
+        (
+            "survarium-026g.7z",
+            2_906_544_103,
+            "http://h/g https://m.example/g".into()
+        )
+    );
+    assert_eq!(archives(&args("--db resources.db")).unwrap().game, None);
+    for bad in [
+        format!("survarium-026g.7z {sha} 2906544103"),
+        format!("survarium-026g.7z {sha} big http://h/g"),
+    ] {
+        let options = ["--db".into(), "resources.db".into(), "--game".into(), bad];
+        assert!(archives(&options).unwrap_err().starts_with("--game: "));
+    }
+    let twice = ["--game", "g", "--game", "g", "--db", "resources.db"].map(str::to_owned);
+    assert_eq!(archives(&twice).unwrap_err(), "--game is given twice");
 }
 
 #[test]

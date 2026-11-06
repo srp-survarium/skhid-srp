@@ -1,40 +1,61 @@
 #!/usr/bin/env bash
-# usage: release/add-mirror [--test] <resources.db.patch_<n>> <url>
+# usage: release/add-mirror [--test] [--first | --at <n>] [--dry-run] <file> <url>
+#        release/add-mirror [--test] [--dry-run] --remove <file> <url>
 #
-# Adds a mirror of a published patch: another URL the players' updater may
-# download it from when the URLs before it fail (it tries a patch's URLs in
-# their order). The row of <name> in the offered-patch list
-# release/patches.tsv gets <url> at its end:
-#   1. the row must be there, without <url>, with fewer than 8 URLs, and
-#      <url> must have the form the updater takes (http:// or https://, a
-#      host name or a bare IPv4 address, an optional port, a path; no
-#      credentials, no #, no space, quote or backslash);
+# Another URL players download a file of the release from, at once, without
+# a release: a row `<file> <url> [<n>]` of srp's mirrors.tsv, in its data
+# volume on the target. srp offers the release's URLs of the file (those of
+# the server data, release/patches.tsv) with the file's rows there added in
+# their order, each after the URLs so far or as the n-th (the players'
+# updater and Skhid-without-updater.bat try them so); it reads the file
+# again when it changes, no restart. <file> is a
+# file of the offered-patch list, resources.db.patch_<n>, or the game's
+# archive, survarium-026g.7z (release/game.tsv).
+#   1. the file must be in the list; <url> must have the form the updater
+#      takes (http:// or https://, a host name or a bare IPv4 address, an
+#      optional port, a path; no credentials, no #, no space, quote or
+#      backslash), be none of the file's URLs (the list's, the target's
+#      mirrors.tsv), and the file have fewer than 8 in all;
 #   2. GET <url> as the updater fetches it (up to 5 redirects, http and
-#      https only) must answer 200 with the file itself, not a web page,
-#      of the row's size and sha256 (a whole download, kept in the URL
-#      cache, ~/.cache/skhid-release/patch-urls.checked, so the release's
-#      preflight does not download it again);
-#   3. the URL is added to the row: commit the list. Players get it with
-#      the next release (release/build-server-db builds the server data of
-#      the list; srp's /patches offers what that data names).
+#      https only) must answer 200 with the file itself, not a web page, of
+#      the row's size and sha256 (a whole download: 2.9 GB for the game's
+#      archive; kept in the URL cache, ~/.cache/skhid-release/patch-urls.checked);
+#   3. under the release lock, the row into the target's mirrors.tsv (srp26's
+#      volume, found as a release finds it; written beside and renamed over
+#      it, owned as srp.db), asked y/N first, as its last row: the URL after
+#      all the file's, or the first of them all, the release's too (--first:
+#      a Google Drive link, the owner's rule), or the n-th (--at <n>, 1 to 8);
+#   4. GET <site>/patches or /game must list it now (a warning if not: an
+#      srp from before mirrors.tsv).
+# --remove takes the row out of mirrors.tsv (a URL of the list stays: take
+# it out of the list's row in a PR, for the next release).
 #
 # Google Drive: share the file with "anyone with the link" and give
 #   https://drive.usercontent.google.com/download?id=<id>&export=download&confirm=t
 # (the id of its link .../file/d/<id>/view). The drive.google.com/uc form
 # answers a large file with a "cannot scan for viruses" page, which the
-# updater and this script refuse.
+# updater and this script refuse. A Drive file has a daily download quota:
+# past it, a "Google Drive - Quota exceeded" page, which the updater logs
+# and moves on from.
 #
-# A mirror is taken out of a row by hand (the URLs are one space apart); the
-# first URL, on the patches server, stays.
+# To build a URL into the next release too (the updater's and
+# Skhid-without-updater.bat's addresses for when the server cannot be
+# reached), add it to the file's row of the list in a PR.
 #
-#   --test   the test environment's list, release/patches-test.tsv
+#   --test     the test environment: its list (release/patches-test.tsv),
+#              its srp26 (the game's archive: release/game.tsv all the same)
+#   --dry-run  prints the writes, runs none
 . "$(dirname "$0")/lib.sh"
 
-name='' url='' which=live
+name='' url='' which=live at='' remove=0
 while (($#)); do
     case $1 in
     -h | --help) usage ;;
     --test) which='test'; shift ;;
+    --first) at=1; shift ;;
+    --at) (($# >= 2)) && [[ $2 =~ ^[1-8]$ ]] || die "--at <n>: n from 1 to 8"; at=$2; shift 2 ;;
+    --remove) remove=1; shift ;;
+    --dry-run) DRY_RUN=1; shift ;;
     -*) die "unknown option $1 (--help)" ;;
     *)
         if [[ -z $name ]]; then name=$1; elif [[ -z $url ]]; then url=$1; else usage 1; fi
@@ -42,42 +63,109 @@ while (($#)); do
     esac
 done
 [[ -n $name && -n $url ]] || usage 1
-patch_number "$name" >/dev/null ||
-    die "$name: a patch's name is resources.db.patch_<n>, n from 1 to 255 without a leading zero"
-need_cmds curl sha256sum
+((!remove)) || [[ -z $at ]] || die "--remove takes no --first or --at"
+[[ $name == "$GAME_NAME" ]] || patch_number "$name" >/dev/null ||
+    die "$name: a file of the list is resources.db.patch_<n> (n from 1 to 255, no leading zero) or $GAME_NAME"
+need_cmds curl sha256sum ssh jq
 load_env
 use_patches "$which"
+use_target "$which"
 read_patch_list
 
-row=$(list_row "$name")
-[[ -n $row ]] || die "$name is not in $PATCH_LIST: publish it first (release/upload-patch)"
+if [[ $name == "$GAME_NAME" ]]; then row=$GAME_ROW page=/game list=$GAME_LIST; else row=$(list_row "$name") page=/patches list=$PATCH_LIST; fi
+[[ -n $row ]] || die "$name is not in $list: publish it first (release/upload-patch)"
 read -r _ sha size urls <<<"$row"
 read -r -a each <<<"$urls"
-is_patch_url "$url" || die "$url is not a URL the players' updater takes for a patch (http:// or https://, a host name or a bare IPv4 address, an optional port, a path; no credentials, no #, no space, quote or backslash)"
-for known in "${each[@]}"; do
-    [[ $known != "$url" ]] || die "$url is in the row of $name already"
-done
-((${#each[@]} < MAX_PATCH_URLS)) ||
-    die "$name has $MAX_PATCH_URLS URLs already: the players' updater takes no more"
+
+# The target's mirrors.tsv, as it is now: its folder (srp26's volume) in
+# VOLUME, its text in MIRRORS.
+VOLUME='' MIRRORS=''
+read_mirrors() {
+    if ((DRY_RUN)); then
+        VOLUME='<the volume of srp26>' MIRRORS=''
+        read_live "cat <the volume of srp26>/$MIRRORS_FILE"
+        return 0
+    fi
+    inspect_target || die "srp26 has no container on the $TARGET host (or docker inspect failed)"
+    VOLUME=$RUN_VOLUME_DIR
+    MIRRORS=$(on_target "cat $(q "$VOLUME/$MIRRORS_FILE") 2>/dev/null; true") ||
+        die "the $TARGET host: $MIRRORS_FILE cannot be read"
+}
+# The file's rows there: its URLs, in their order.
+rows_of() { awk -v n="$name" '$0 !~ /^[ \t]*#/ && (NF == 2 || NF == 3) && $1 == n { print $2 }' <<<"$MIRRORS"; }
+
+# <text> as the target's mirrors.tsv: beside it, owned as srp.db, mode 644,
+# renamed over it (srp reads the old file or the new, never half of one).
+write_mirrors() {
+    local file
+    file=$(mktemp)
+    printf '%s' "$1" >"$file"
+    write_on live "cd $(q "$VOLUME") && cat > .$MIRRORS_FILE.new && chown --reference=srp.db .$MIRRORS_FILE.new && chmod 644 .$MIRRORS_FILE.new && mv -f .$MIRRORS_FILE.new $MIRRORS_FILE" "$file"
+    rm -f "$file"
+}
+
+# Whether the site lists <url> for the file now (srp reads mirrors.tsv at
+# a request when it changed).
+served() {
+    local json key
+    json=$(curl -sS --max-time 20 "$TARGET_SITE$page" 2>/dev/null) || return 1
+    if [[ $page == /game ]]; then key='.'; else key=".\"${name#resources.db.}\""; fi
+    jq -e --arg url "$url" "$key.urls | index(\$url) != null" <<<"$json" >/dev/null 2>&1
+}
 
 work=$(mktemp -d)
-trap 'rm -rf "$work"' EXIT
+trap 'lock_drop; rm -rf "$work"' EXIT
+
+if ((remove)); then
+    ((DRY_RUN)) || lock_take
+    read_mirrors
+    if ((!DRY_RUN)) && ! grep -qxF -- "$url" <<<"$(rows_of)"; then
+        for known in "${each[@]}"; do
+            [[ $known != "$url" ]] || die "$url is a URL of $name in $list, not a row of $MIRRORS_FILE: take it out of the list's row in a PR (the next release)"
+        done
+        die "$url is not a row of $name in the $TARGET host's $MIRRORS_FILE"
+    fi
+    new=$(awk -v n="$name" -v u="$url" '!($0 !~ /^[ \t]*#/ && (NF == 2 || NF == 3) && $1 == n && $2 == u) { print }' <<<"$MIRRORS")
+    write_mirrors "${new:+$new$'\n'}"
+    ((!DRY_RUN)) || exit 0
+    if served; then say "WARNING: $TARGET_SITE$page still lists $url (an srp from before mirrors.tsv?)"; fi
+    say "removed: $name $url (the $TARGET host's $MIRRORS_FILE)"
+    exit 0
+fi
+
+is_patch_url "$url" || die "$url is not a URL the players' updater takes (http:// or https://, a host name or a bare IPv4 address, an optional port, a path; no credentials, no #, no space, quote or backslash)"
+for known in "${each[@]}"; do
+    [[ $known != "$url" ]] || die "$url is a URL of $name in $list already"
+done
+check_room() {
+    local rows count
+    rows=$(rows_of)
+    ! grep -qxF -- "$url" <<<"$rows" || die "$url is a row of $name in the $TARGET host's $MIRRORS_FILE already"
+    count=$((${#each[@]} + $(grep -c . <<<"$rows" || true)))
+    ((count < MAX_PATCH_URLS)) ||
+        die "$name has $count URLs already ($list and $MIRRORS_FILE): the players' updater takes no more (--remove one)"
+}
+read_mirrors
+check_room
+
 say "$name: $size bytes, sha256 $sha; downloading $url as the updater does ..."
-check_patch_url "$url" "$sha" "$size" "$work" full || die "$URL_PROBLEM; not added to $PATCH_LIST"
+check_patch_url "$url" "$sha" "$size" "$work" full || die "$URL_PROBLEM; not added"
 say "$url gives $name: 200, $size bytes, sha256 $sha"
 
-# The row, its URLs one more; every other line as it was.
-new=$PATCH_LIST.new.$$
-awk -v name="$name" -v url="$url" 'BEGIN { FS = OFS = "\t" }
-    { line = $0; sub(/\r$/, "", line) }
-    line !~ /^#/ && split(line, field, "\t") == 4 && field[1] == name && !done {
-        print field[1], field[2], field[3], field[4] " " url; done = 1; next }
-    { print }' "$PATCH_LIST" >"$new"
-[[ $(grep -c . "$new") == "$(grep -c . "$PATCH_LIST")" ]] || { rm -f "$new"; die "$PATCH_LIST: the row could not be changed"; }
-mv "$new" "$PATCH_LIST"
-read_patch_list
-[[ $(list_row "$name") == "$name $sha $size $urls $url" ]] || die "$PATCH_LIST: the row of $name is not what was meant now; look at it"
-say "added to $PATCH_LIST: $name now has $((${#each[@]} + 1)) URLs, tried in this order:"
-for known in "${each[@]}" "$url"; do say "  $known"; done
-if [[ $which == test ]]; then flag=' --test'; else flag=''; fi
-say "commit it; players get it with the next release (release/release.sh$flag; release/build-server-db$flag alone)"
+# Under the lock, as it is then.
+((DRY_RUN)) || lock_take
+read_mirrors
+check_room
+new=$(grep . <<<"$MIRRORS" || true)
+write_mirrors "${new:+$new$'\n'}$name"$'\t'"$url${at:+$'\t'$at}"$'\n'
+((!DRY_RUN)) || exit 0
+for _ in 1 2 3; do
+    if served; then
+        say "added: $TARGET_SITE$page lists $url for $name now${at:+, its URL $at}; the rows of $name in $MIRRORS_FILE, in their order:"
+        read_mirrors
+        rows_of | sed 's/^/  /'
+        exit 0
+    fi
+    sleep 2
+done
+say "WARNING: the row is in the $TARGET host's $MIRRORS_FILE, but $TARGET_SITE$page does not list $url: an srp from before mirrors.tsv? (srp's log says why a row is skipped)"

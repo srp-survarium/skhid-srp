@@ -5,8 +5,9 @@ use crate::v026g::{
     parse_snapshot_dir,
 };
 
-use super::{MAP_BATTERIES, MAP_TDM, session_of, setup};
+use super::{MAP_BATTERIES, session_of, setup};
 use survarium::v026g::dictionary::Dictionary;
+use survarium::v026g::maps::{self, GameMode, MatchMap};
 use survarium::v026g::match_msgs::static_info::parse_options;
 
 #[test]
@@ -102,8 +103,8 @@ fn what_the_clients_could_not_hold_is_refused_when_the_match_is_made() {
         registry.create(setup(21, MAP_BATTERIES)),
         Err(CreateError::Roster(21))
     );
-    // maps_dict id 11 is a test map the client cannot load.
-    assert_eq!(registry.create(setup(2, 11)), Err(CreateError::Map(11)));
+    // maps_dict id 11 is a test map the client cannot load: no match names it.
+    assert_eq!(MatchMap::of(11), None);
     let mut twice = setup(2, MAP_BATTERIES);
     twice.players[1].session_id = twice.players[0].session_id;
     assert_eq!(
@@ -124,22 +125,27 @@ fn what_the_clients_could_not_hold_is_refused_when_the_match_is_made() {
 }
 
 #[test]
-fn blackout_is_the_setup_flag_on_battery_maps_only() {
+fn blackout_is_the_static_info_entry_on_its_battery_map() {
     // maps_dict 61: Rudnya's batteries (mode 2); 62: its chargers (mode 3).
     let registry = MatchRegistry::new("127.0.0.1", 1236);
-    for (map_id, asked, expected) in [
-        (MAP_BATTERIES, true, true),
-        (62, true, true),
-        (MAP_TDM, true, false),
-        (MAP_BATTERIES, false, false),
+    // Rudnya's Blackout map: its battery map's twin (`blackout-mode-1.json`).
+    let twin = maps::find(1, maps::weather::DAY, GameMode::Blackout).unwrap();
+    let blackout = MatchMap::of(twin.id).unwrap();
+    assert_eq!(blackout.mode(), GameMode::Blackout);
+    for (played, expected) in [
+        (blackout, true),
+        (MatchMap::of(MAP_BATTERIES).unwrap(), false),
+        (MatchMap::of(62).unwrap(), false),
     ] {
-        let mut made = setup(2, map_id);
-        made.blackout = asked;
+        let mut made = setup(2, MAP_BATTERIES);
+        made.map = played;
         let ticket = registry.create(made).unwrap();
         let formed = registry.formed(ticket.match_id).unwrap();
-        assert_eq!(formed.blackout, expected, "map {map_id}");
+        assert_eq!(formed.played, played);
         let options = parse_options(formed.info.options(), Dictionary::shared()).unwrap();
-        assert_eq!(options.blackout, expected, "map {map_id}");
+        assert_eq!(options.map, played);
+        let entry = formed.info.options().ends_with(b"SRPX\x02\x01\x01");
+        assert_eq!(entry, expected, "{played:?}");
         registry.end(ticket.match_id);
     }
 }

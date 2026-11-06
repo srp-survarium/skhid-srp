@@ -30,7 +30,9 @@ pack `rudnya-069d@3`. The owner's asks: port it "with the same sharp look" (2026
   station's annex and the bus stop per area (`area_gains`). 0.26's atmosphere and the
   ambient sounds are native Rudnya's (the two maps share coordinates).
 - Spawns (team deathmatch): 0.69d's team-deathmatch points as they are, 405 (team 0: 313,
-  team 1: 92); each point's own invulnerability time and check radii.
+  team 1: 92); each point's own check radii; their invulnerability time 6 s as the rest of the
+  map (maps.tsv; 0.69d's 3 s until then). The owner may revisit it: these are free spawns, up to
+  20 m from enemies.
 - Names: `st_level_14_name` (the game's texts) and `st_srp_map_rudnya_v069` (the rooms and
   the Matches window), "Rudnya (v0.69)" in each language as the v0.11 ports name theirs.
 - Lobby: the rooms' tile and the loading picture are 0.69d's own loading image for its
@@ -72,7 +74,7 @@ own project and options, made by the porter from the manifest (`map.modes`):
     higher than native's, as in 0.69d's own battery project; Research unit C's props by the church
     on rubble that differs by up to 0.5 m (the props rest on one another); the six team-deathmatch
     covers near team 2's spawn (four half, two low), which native's battery modes do not have.
-- **Battery respawn** 10 s in both battery modes (`battery-respawn-1.json`, as every map).
+- **Battery respawn** 10 s in both battery modes (`modes.tsv`, as every map).
 
 ## What comes from 0.26g
 
@@ -94,6 +96,10 @@ port imports (the probes aside), 415 have a 0.26g file at the same path:
 - Models: 46 are 0.26g's own (same collision, render bounds within 5 cm); the 209 imported
   ones with a 0.26g namesake differ in render geometry (0.69d's are denser), and about 85 of those
   share its collision. Materials are 0.69d's converted onto 0.26 templates (224, 5 MiB).
+- Terrain collision: 0.69d's, the same as native Rudnya's. Its walker mesh lies a median 4 cm
+  under the drawn ground (10 cm at the 90th percentile); the collision bullets hit follows it
+  within 2 cm, and the ragdolls rest on that one (ragdoll.md section 17). East of the play area
+  a mud field is drawn 30 cm above both, as in 0.69d and native Rudnya.
 
 ## Building the pack
 

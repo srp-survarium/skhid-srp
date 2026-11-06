@@ -11,12 +11,12 @@ package
 
     // The match hud's "Hide hit markers" and "Hide player scores" (exe patch 83,
     // docs/notes/hide-hit-markers-scores.md) with the hud movie's own classes,
-    // as HUD.srp_hud_options sets them (the hud's own root cannot run outside
-    // the game): the crosshair's hitMarkersHidden and the Tab list's
+    // through HUD.srp_hud_options with real controls supplied to the root
+    // (its game-only initialization cannot finish here): hitMarkersHidden and the Tab list's
     // (SrvPlayerList.players) namesOnly.
     // - the hit marker (root.crosshair_enemy_hit: Crosshair.setDamage) shown
     //   while the option is off; hidden on, a shown one (a kill's too) cleared;
-    //   shown again off;
+    //   shown again off; Hidden crosshair preserves hit/kill feedback and survives game updates;
     // - the Tab list off: each team by score as the game sorts it, every
     //   column shown; on: each team (the board's two lists, as it groups them)
     //   by clan tag, then name (the clanless after the clans, the bots' "BOT" last), case-
@@ -31,6 +31,7 @@ package
         private var loader:Loader = new Loader();
         private var frames:int = 0;
         private var crosshair:MovieClip;
+        private var hud:MovieClip;
         private var board:MovieClip;
         private var list:*;
 
@@ -81,6 +82,13 @@ package
             board.y = 20 - 264 * 0.9;
             addChild(board);
             list = board.players;
+            // The loaded root's game-only initialization is incomplete in Ruffle.
+            // Supply its real controls so the public HUD methods are exercised too.
+            hud = loader.content as MovieClip;
+            addChild(loader);
+            loader.visible = false;
+            hud.crosshair = crosshair;
+            hud.player_list = board;
             addEventListener(Event.ENTER_FRAME, tick);
         }
 
@@ -95,6 +103,7 @@ package
             try
             {
                 if (frames == 10) hitMarker();
+                if (frames == 11) mapNames();
                 if (frames == 12) scores();
                 if (frames == 40) trace("HUD SHOT scores");
                 if (frames == 100) namesOnly();
@@ -141,13 +150,39 @@ package
             crosshair.hitMarkersHidden = false;
             crosshair.setDamage(0.5, 1000, false, false);
             require(markerShown(), "off: hits shown again");
-            // Hidden crosshair: HUD.srp_hud_options hides the whole crosshair, its hit marker with it
+            // Hidden crosshair affects only aiming lines. Weapon updates cannot restore
+            // them, and the separate hit-marker choice works in either crosshair mode.
+            hud.show_crosshair(true);
+            require(crosshair.crosshair_mc.visible, "normal crosshair shows aiming lines");
+            hud.srp_hud_options(false, false, true, false);
+            hud.crosshair_enemy_hit(0.5);
+            require(!crosshair.crosshair_mc.visible && crosshair.visible && crosshair.bars.visible && markerShown(),
+                "hidden crosshair keeps hit feedback visible");
+            hud.show_crosshair(true);
+            hud.set_crosshair_size(15);
+            require(!crosshair.crosshair_mc.visible, "weapon and spread updates keep aiming lines hidden");
+            hud.crosshair_enemy_hit(1, 1000, true);
+            require(markerShown() && crosshair.visible && !crosshair.crosshair_mc.visible,
+                "hidden crosshair keeps kill feedback visible");
+            hud.srp_hud_options(true, false, true, false);
+            require(!markerShown(), "separate hit-marker option clears feedback with a hidden crosshair");
             crosshair.setDamage(0.5, 1000, false, false);
-            crosshair.visible = false;
-            require(markerShown() && !crosshair.visible && !crosshair.hitTestPoint(crosshair.x, crosshair.y, true),
-                "a hidden crosshair draws nothing, its marker neither");
-            crosshair.visible = true;
-            trace("HUD hit marker: shown off, hidden on (a shown one cleared, a kill's too); none with the crosshair hidden");
+            require(!markerShown(), "both hidden options suppress both visuals");
+            hud.srp_hud_options(false, false, true, false);
+            crosshair.setDamage(0.5, 1000, false, false);
+            require(markerShown() && !crosshair.crosshair_mc.visible, "hit feedback can return independently");
+            hud.show_crosshair(false);
+            hud.srp_hud_options(false, false, false, false);
+            require(!crosshair.crosshair_mc.visible, "unhiding in ADS or on death respects the game's hidden state");
+            hud.show_crosshair(true);
+            require(crosshair.crosshair_mc.visible && markerShown(), "leaving ADS restores normal crosshair and feedback");
+            hud.show_crosshair(false);
+            hud.srp_hud_options(false, false, true, false);
+            hud.show_crosshair(true);
+            require(!crosshair.crosshair_mc.visible, "respawn cannot override saved Hidden");
+            hud.srp_hud_options(false, false, false, false);
+            require(crosshair.crosshair_mc.visible, "turning Hidden off restores the latest game request");
+            trace("HUD hit marker: independent of Hidden crosshair, including kills, weapon updates, aim/death and respawn");
         }
 
         private function names(team:*):Array
@@ -236,6 +271,26 @@ package
                 out.push(row);
             }
             return out;
+        }
+
+        // The Tab map's names: Alt shows them; with "Names on map" they show and Alt hides them.
+        private function mapNames():void
+        {
+            var map:* = board.minimap;
+            require(!map.namesShown, "map names: hidden by default");
+            hud.show_map_names(true);
+            require(map.namesShown, "map names: Alt shows them");
+            hud.show_map_names(false);
+            require(!map.namesShown, "map names: Alt let go hides them");
+            hud.srp_hud_options(false, false, false, true);
+            require(map.namesShown, "Names on map: shown without Alt");
+            hud.show_map_names(true);
+            require(!map.namesShown, "Names on map: Alt hides them");
+            hud.show_map_names(false);
+            require(map.namesShown, "Names on map: Alt let go shows them again");
+            hud.srp_hud_options(false, false, false, false);
+            require(!map.namesShown, "Names on map off: hidden again");
+            trace("HUD map names: Alt shows them; Names on map reverses Alt");
         }
 
         private function scores():void

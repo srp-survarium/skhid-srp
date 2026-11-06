@@ -6,9 +6,11 @@
 # never changed (a published patch is never replaced: a fix is the next
 # revision); one removed stops offering it, safe only while no player owns
 # its items. The urls are the patch's addresses, one space apart, tried by
-# the players' updater in this order: the patches server's first, then
-# mirrors (release/add-mirror adds one; 8 at most), each checked by the
-# release's preflight.
+# the players' updater in this order: Google Drive's first (the owner's
+# rule), then the patches server's (always there: the release builds from
+# it), then the rest; 8 at most, each checked by the release's preflight. More at
+# once, without a release: release/add-mirror (srp's mirrors.tsv). The
+# original game's archive is in release/game.tsv.
 # One patch a line, in revision order, tabs between:
 # name	sha256	size	urls
 resources.db.patch_12	2b771e4b2040707434bb17aa27b1965aacba2ca355eb38634f504b61d6c8fab3	86199749	http://2.28.121.133:8091/resources.db.patch_12

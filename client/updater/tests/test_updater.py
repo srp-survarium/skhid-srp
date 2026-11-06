@@ -630,18 +630,22 @@ class UpdaterTest(unittest.TestCase):
         launcher = self.launcher()
         # The server not reached is said in the updater's own box, in the
         # launcher's language (English here unless this PC's launcher keeps
-        # another): what failed and what to try. Retry runs it all again.
+        # another): its title (blocked on this network when Windows' own
+        # test site answers, else no connection), what happened, what to
+        # run, the log. Retry runs it all again.
         launcher.box_answers = [IDRETRY]
         launcher.wait_for(lambda l: len(l.boxes) == 2 and ERROR in l.states(), 90, "the updater's boxes")
         self.assertEqual(launcher.states(), ([CHECKING, CHECK_FAILED] * 2 + [CHECKING, ERROR]) * 2)
         for box in launcher.boxes:
-            self.assertEqual(len(box.splitlines()), 3, box)
-            self.assertIn("127.0.0.1", box.splitlines()[0])
-            for name in ("Skhid-network-setup.cmd", "VPN.txt", "launcher_skhid.exe", "survarium_skhid.exe",
-                         "updater_skhid.exe"):
-                self.assertIn(name, box)
-        if launcher.boxes[0].startswith("127.0.0.1"):
-            self.assertEqual(launcher.boxes[0].splitlines()[0], "127.0.0.1 refused the connection.")
+            lines = box.splitlines()
+            self.assertEqual(len(lines), 4, box)
+            self.assertTrue(lines[-1].endswith("updater_skhid.log"), box)
+        if launcher.boxes[0].startswith(("Blocked", "No connection")):
+            title = launcher.boxes[0].splitlines()[0]
+            self.assertIn(title, ("Blocked on this network: 127.0.0.1 did not answer (connection refused)",
+                                  "No connection: 127.0.0.1 did not answer (connection refused)"))
+            self.assertIn("VPN.txt" if title.startswith("Blocked") else "Skhid-network-setup.cmd",
+                          launcher.boxes[0])
         # The box said it: the launcher is not told again.
         self.assertEqual(launcher.texts(), [])
         self.assertEqual(launcher.finish(), 1)

@@ -6,6 +6,7 @@
 // every read of the game's memory goes through ReadProcessMemory, so a
 // damaged pointer gives no line, not a second crash.
 use crate::{
+    breadcrumbs,
     details::{self, Buffer},
     text::Wide,
     zip::Source,
@@ -23,7 +24,7 @@ use windows_sys::Win32::{
         Diagnostics::Debug::*,
         LibraryLoader::*,
         Memory::*,
-        SystemInformation::{GetLocalTime, OSVERSIONINFOW},
+        SystemInformation::{GetSystemTime, GetSystemTimeAsFileTime, OSVERSIONINFOW},
         Threading::GetCurrentProcess,
     },
 };
@@ -34,13 +35,21 @@ const STACK_BYTES: usize = 256 * 1024;
 /// The game log's tail: at most this many lines of its last bytes.
 const LOG_LINES: usize = 20;
 const LOG_BYTES: usize = 8 * 1024;
+/// srp_patches.log's tail (its lines are at most 200 bytes, vostok/log.rs).
+const PATCH_LINES: usize = 100;
+const PATCH_BYTES: usize = 24 * 1024;
+/// The largest tail read.
+const TAIL_BYTES: usize = PATCH_BYTES;
 
 pub struct Report {
     /// The whole report; `text[..head]` is what "Copy" copies.
-    pub text: Buffer<16384>,
+    pub text: Buffer<65536>,
     pub head: usize,
     /// The dialog's lines: the exception, and where.
     pub short: Buffer<512>,
+    /// The game's breadcrumbs (breadcrumbs.rs), when they were found: the
+    /// ring's address (copied to [`CRUMBS`]), and the counter at the crash.
+    ring: Option<(u32, u64)>,
 }
 impl Report {
     pub const fn new() -> Self {
@@ -48,6 +57,7 @@ impl Report {
             text: Buffer::new(),
             head: 0,
             short: Buffer::new(),
+            ring: None,
         }
     }
     pub fn is_empty(&self) -> bool {
@@ -340,7 +350,12 @@ unsafe fn windows(w: &mut dyn Write) {
 }
 
 /// The lines that do not depend on the dump.
-pub unsafe fn collect(report: &mut Report, exception: *const EXCEPTION_POINTERS, thread: u32) {
+pub unsafe fn collect(
+    report: &mut Report,
+    exception: *const EXCEPTION_POINTERS,
+    thread: u32,
+    counter: u64,
+) {
     if exception.is_null() || (*exception).ExceptionRecord.is_null() {
         return;
     }
@@ -356,13 +371,23 @@ pub unsafe fn collect(report: &mut Report, exception: *const EXCEPTION_POINTERS,
     location(short, address);
 
     let w = &mut report.text;
-    let mut now: SYSTEMTIME = zeroed();
-    GetLocalTime(&mut now);
+    // UTC, as the server's logs, and the PC's offset from it then (its
+    // zone's bias, daylight saving included).
+    let mut utc: SYSTEMTIME = zeroed();
+    GetSystemTime(&mut utc);
     let _ = write!(
         w,
-        "Skhid crash report, {:04}-{:02}-{:02} {:02}:{:02}:{:02}\r\nException: ",
-        now.wYear, now.wMonth, now.wDay, now.wHour, now.wMinute, now.wSecond
+        "Skhid crash report, {:04}-{:02}-{:02} {:02}:{:02}:{:02} UTC",
+        utc.wYear, utc.wMonth, utc.wDay, utc.wHour, utc.wMinute, utc.wSecond
     );
+    let (mut now, mut local) = (zeroed(), zeroed());
+    GetSystemTimeAsFileTime(&mut now);
+    if FileTimeToLocalFileTime(&now, &mut local) != 0 {
+        let ticks = |t: FILETIME| ((t.dwHighDateTime as u64) << 32 | t.dwLowDateTime as u64) as i64;
+        // 100 ns ticks to whole minutes.
+        let _ = details::write_offset(w, (ticks(local) - ticks(now)) / 600_000_000);
+    }
+    let _ = w.write_str("\r\nException: ");
     let _ = details::write_exception(w, record.ExceptionCode as u32, params, cpp);
     let _ = w.write_str("\r\nAddress:   ");
     location(w, address);
@@ -388,14 +413,28 @@ pub unsafe fn collect(report: &mut Report, exception: *const EXCEPTION_POINTERS,
     exe_hash(w);
     let _ = write!(
         w,
-        "\r\nReporter:  {}\r\nWindows:   ",
+        "\r\nReporter:  {}{}\r\nWindows:   ",
         match option_env!("SKHID_REVISION") {
             Some(r) if !r.is_empty() => r,
             _ => "local build",
+        },
+        match crate::dump::Kind::get() {
+            crate::dump::Kind::Small => "",
+            crate::dump::Kind::Full => ", full-memory dumps (SKHID_CRASH_DUMP=full)",
         }
     );
     windows(w);
     let _ = w.write_str("\r\n");
+    // The match it was in (the breadcrumbs' header), in what Copy copies.
+    report.ring = find_ring().map(|at| (at, counter));
+    let w = &mut report.text;
+    if let Some(ring) = report
+        .ring
+        .and_then(|(at, _)| breadcrumbs::Ring::parse(crumbs(), at))
+    {
+        let _ = breadcrumbs::write_context(w, &ring);
+        let _ = breadcrumbs::write_reading(w, &ring, counter);
+    }
     // Non-ASCII folders (a Cyrillic user name): the paths themselves stay
     // on the player's PC.
     let folder = crate::dump::folder();
@@ -499,6 +538,52 @@ unsafe fn log_tail(w: &mut dyn Write) {
         let _ = w.write_str("Game log:  none found\r\n");
         return;
     }
+    let _ = tail(
+        w,
+        &path,
+        "Game log:  ",
+        LOG_LINES,
+        LOG_BYTES,
+        format_args!(
+            "Game log:  last {LOG_LINES} lines of the newest Survarium*.log in Documents\\Survarium\r\n"
+        ),
+    );
+}
+
+/// `srp_patches.log` beside the exe (vostok/log.rs; the game's working
+/// folder is the exe's): what the client patches said last.
+unsafe fn patch_tail(w: &mut dyn Write) {
+    // The exe's folder from GetModuleFileNameW alone (logs::folders would
+    // ask the shell for Documents too).
+    let exe = crate::dump::folder();
+    let mut path = Wide::<1400>::new();
+    if exe.len == 0
+        || path.wide(&exe.buf[..exe.len]).is_err()
+        || write!(path, "{}", crate::logs::PATCH_LOG).is_err()
+    {
+        let _ = w.write_str("Patch log: no game folder\r\n");
+        return;
+    }
+    let _ = tail(
+        w,
+        &path,
+        "Patch log: ",
+        PATCH_LINES,
+        PATCH_BYTES,
+        format_args!("Patch log: last {PATCH_LINES} lines of srp_patches.log\r\n"),
+    );
+}
+
+/// The last `lines` lines of `path`'s last `bytes`, after `title` (a line
+/// of its own); `label` starts the line that says why there are none.
+unsafe fn tail(
+    w: &mut dyn Write,
+    path: &Wide<1400>,
+    label: &str,
+    lines: usize,
+    bytes: usize,
+    title: core::fmt::Arguments,
+) -> core::fmt::Result {
     let file = CreateFileW(
         path.ptr(),
         GENERIC_READ,
@@ -509,69 +594,149 @@ unsafe fn log_tail(w: &mut dyn Write) {
         null_mut(),
     );
     if file == INVALID_HANDLE_VALUE {
-        let _ = write!(w, "Game log:  unreadable (error {})\r\n", GetLastError());
-        return;
+        let error = GetLastError();
+        return if matches!(error, ERROR_FILE_NOT_FOUND | ERROR_PATH_NOT_FOUND) {
+            write!(w, "{label}none\r\n")
+        } else {
+            write!(w, "{label}unreadable (error {error})\r\n")
+        };
     }
+    let bytes = bytes.min(TAIL_BYTES);
     let mut size = 0i64;
-    let mut tail = [0u8; LOG_BYTES];
+    let mut buf = [0u8; TAIL_BYTES];
     let mut n = 0;
     let from = if GetFileSizeEx(file, &mut size) != 0 {
-        (size as u64).saturating_sub(LOG_BYTES as u64)
+        (size as u64).saturating_sub(bytes as u64)
     } else {
         u64::MAX
     };
     let ok = from != u64::MAX
         && SetFilePointerEx(file, from as i64, null_mut(), FILE_BEGIN) != 0
-        && ReadFile(
-            file,
-            tail.as_mut_ptr(),
-            LOG_BYTES as u32,
-            &mut n,
-            null_mut(),
-        ) != 0;
+        && ReadFile(file, buf.as_mut_ptr(), bytes as u32, &mut n, null_mut()) != 0;
     let error = GetLastError();
     CloseHandle(file);
     if !ok {
-        let _ = write!(w, "Game log:  unreadable (error {error})\r\n");
-        return;
+        return write!(w, "{label}unreadable (error {error})\r\n");
     }
-    let tail = &mut tail[..n as usize];
+    let text = &mut buf[..n as usize];
     // Non-UTF-8 text (a legacy code page) would make the filter refuse
     // the whole tail; its non-ASCII letters are not needed here.
-    if core::str::from_utf8(tail).is_err() {
-        for b in tail.iter_mut().filter(|b| **b >= 0x80) {
+    if core::str::from_utf8(text).is_err() {
+        for b in text.iter_mut().filter(|b| **b >= 0x80) {
             *b = b'?';
         }
     }
     // From a record's first line: the cut may fall inside the continuation
     // lines of a sensitive record, which a fresh filter would let through.
-    let lines = crate::sanitize::from_record(details::last_lines(tail, LOG_LINES, from == 0));
-    let _ = write!(
-        w,
-        "Game log:  last {LOG_LINES} lines of the newest Survarium*.log in Documents\\Survarium\r\n"
-    );
-    let mut source = Bytes(lines);
+    let text = crate::sanitize::from_record(details::last_lines(text, lines, from == 0));
+    w.write_fmt(title)?;
+    let mut source = Bytes(text);
     let mut filter = crate::sanitize::Filter::new(&mut source);
     let mut out = [0u8; 1024];
     loop {
         match filter.read(&mut out) {
-            Ok(0) => break,
+            Ok(0) => return Ok(()),
             Ok(n) => {
                 for chunk in out[..n].utf8_chunks() {
-                    if w.write_str(chunk.valid()).is_err() {
-                        return;
-                    }
+                    w.write_str(chunk.valid())?;
                 }
             }
-            Err(e) => {
-                let _ = write!(w, "[log tail omitted: not plain text (0x{e:08X})]\r\n");
-                return;
-            }
+            Err(e) => return write!(w, "[log tail omitted: not plain text (0x{e:08X})]\r\n"),
         }
     }
 }
 
-/// The dump's line, then the game log's tail.
+/// Breadcrumbs crash.txt lists (the ZIP's breadcrumbs.txt has them all).
+const CRUMB_LINES: usize = 200;
+
+/// The ring's copy, and the ZIP's text of it: captures are serialized
+/// (dump.rs), so one of each serves.
+struct Crumbs(core::cell::UnsafeCell<([u8; breadcrumbs::BYTES], Buffer<{ 160 * 1024 }>)>);
+unsafe impl Sync for Crumbs {}
+static CRUMBS: Crumbs = Crumbs(core::cell::UnsafeCell::new((
+    [0; breadcrumbs::BYTES],
+    Buffer::new(),
+)));
+
+fn crumbs() -> &'static [u8] {
+    // SAFETY: written only by find_ring, on the one capture's worker.
+    unsafe { &(*CRUMBS.0.get()).0 }
+}
+
+/// The game's breadcrumb ring (srp-026g vostok/breadcrumbs.rs), copied to
+/// [`CRUMBS`]: in the exe's `.srpx` section, the header that holds its own
+/// address and then that address xor [`breadcrumbs::CHECK`]. None in a game
+/// without it, or before its first record.
+unsafe fn find_ring() -> Option<u32> {
+    let base = GetModuleHandleW(null()) as usize;
+    let pe = base + read::<u32>(base + 0x3C)? as usize;
+    let sections = read::<u16>(pe + 6)? as usize;
+    let table = pe + 24 + read::<u16>(pe + 20)? as usize;
+    let (start, size) = (0..sections.min(96)).find_map(|i| {
+        let at = table + 40 * i;
+        (read::<[u8; 8]>(at)? == *b".srpx\0\0\0")
+            .then(|| {
+                Some((
+                    base + read::<u32>(at + 12)? as usize,
+                    read::<u32>(at + 8)? as usize,
+                ))
+            })
+            .flatten()
+    })?;
+    let mut chunk = [0u32; 16 * 1024 + 2];
+    let mut offset = 0;
+    while offset + 8 <= size {
+        let want = (size - offset).min(chunk.len() * 4) & !3;
+        let mut n = 0;
+        if ReadProcessMemory(
+            GetCurrentProcess(),
+            (start + offset) as *const c_void,
+            chunk.as_mut_ptr().cast(),
+            want,
+            &mut n,
+        ) == 0
+            || n < 8
+        {
+            return None;
+        }
+        let words = n / 4;
+        for i in 0..words - 1 {
+            let at = (start + offset + 4 * i) as u32;
+            if chunk[i] == at && chunk[i + 1] == at ^ breadcrumbs::CHECK {
+                let copy = &mut (*CRUMBS.0.get()).0;
+                let mut got = 0;
+                let ok = ReadProcessMemory(
+                    GetCurrentProcess(),
+                    at as usize as *const c_void,
+                    copy.as_mut_ptr().cast(),
+                    copy.len(),
+                    &mut got,
+                ) != 0
+                    && got == copy.len();
+                return ok.then_some(at);
+            }
+        }
+        // The last word again: a pair across two reads.
+        offset += 4 * (words - 1);
+    }
+    None
+}
+
+/// Every kept breadcrumb as text, for the ZIP (empty without a ring).
+pub unsafe fn crumbs_text(report: &Report) -> &'static [u8] {
+    let text = &mut (*CRUMBS.0.get()).1;
+    text.len = 0;
+    if let Some((at, now)) = report.ring
+        && let Some(ring) = breadcrumbs::Ring::parse(crumbs(), at)
+    {
+        let _ = breadcrumbs::write_context(text, &ring);
+        let _ = breadcrumbs::write_reading(text, &ring, now);
+        let _ = breadcrumbs::write_events(text, &ring, now, breadcrumbs::CAPACITY);
+    }
+    &text.buf[..text.len]
+}
+
+/// The dump's line, then the logs' tails.
 pub unsafe fn finish(report: &mut Report, saved: bool, partial: bool, error: u32, capture: bool) {
     if report.is_empty() {
         return;
@@ -592,7 +757,13 @@ pub unsafe fn finish(report: &mut Report, saved: bool, partial: bool, error: u32
     }
     let _ = w.write_str("\r\n");
     report.head = w.len;
+    if let Some((at, now)) = report.ring
+        && let Some(ring) = breadcrumbs::Ring::parse(crumbs(), at)
+    {
+        let _ = breadcrumbs::write_events(w, &ring, now, CRUMB_LINES);
+    }
     log_tail(w);
+    patch_tail(w);
 }
 
 /// Writes the report. `kept`: `path` names a kept dump, and the report goes

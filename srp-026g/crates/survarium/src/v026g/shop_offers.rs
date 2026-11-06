@@ -48,7 +48,7 @@
 //! PROVEN for the window. [choice] srp lists every premium item with a
 //! price that no bundle holds, at its `base_cost` in gold, under seller 0
 //! (sold to everyone): [`premium_price_list`]. The items of a bundle are
-//! sold by their bundle. The items of [`prices::NOT_SOLD`] (the Russian and
+//! sold by their bundle. The items no shop sells ([`prices::is_not_sold`]: the Russian and
 //! Belarusian flags and coats of arms, the flag of the USSR and the red
 //! star; the owner's choice of 2026-10-18)
 //! are sold neither way.
@@ -322,15 +322,17 @@ mod tests {
         }));
     }
 
-    /// `prices::NOT_SOLD` (2026-10-18): the gold list is every premium item
-    /// with a price that no bundle holds but those six, and neither list
+    /// The decals no shop sells (2026-10-18, `prices::is_not_sold`): the gold
+    /// list is every premium item with a price that no bundle holds but those six, and neither list
     /// the lobby is sent has them.
     #[test]
     fn the_gold_list_leaves_out_what_is_not_sold() {
         let dictionary = Dictionary::shared();
-        let excluded: Vec<u16> = prices::NOT_SOLD
+        let excluded: Vec<u16> = dictionary
+            .items
             .iter()
-            .map(|&(name, _)| dictionary.item_named(name).unwrap().dict_id)
+            .filter(|item| item.is_premium && prices::is_not_sold(item))
+            .map(|item| item.dict_id)
             .collect();
         assert_eq!(excluded.len(), 6);
         for &dict_id in &excluded {

@@ -1,0 +1,13 @@
+# The parts of weapons-046 textures that are painted, by a UV point on each (../weapon-camo/weapon_camo.py):
+# a texture with no points stays plain (its mask paints nothing). The others are suggested (their large parts).
+weapons/assault/enfield_l85a2/enfield_l85a2_muzzle_brake	
+weapons/assault/enfield_l85a2/enfield_l85a2_ironsight	
+weapons/lmg/fort_401/fort_401_ironsight	
+weapons/lmg/fort_401/fort_401_muzzle_brake	
+weapons/pistols/glock_17/glock_17_barrel	
+weapons/pistols/glock_17/glock_17_back_cap	
+weapons/pistols/glock_17/glock_17_ironsight	
+weapons/ammo/para_9x19/para_9x19	
+weapons/pistols/colt_m1911/colt_m1911_barrel	
+weapons/pistols/colt_m1911/colt_m1911_ironsight	
+weapons/ammo/acp_45/acp_45	

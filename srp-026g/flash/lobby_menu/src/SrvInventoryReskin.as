@@ -33,7 +33,6 @@ package
       {
          super();
          this.__setProp_sellersTabPage_SrvInventoryReskin_();
-         this.__setProp_sortTab_SrvInventoryReskin_content_0();
          this.__setProp_itemsTileList_SrvInventoryReskin_content_0();
          this.__setProp_scrollBar_SrvInventoryReskin_content_0();
          this.__setProp_inventoryTabPage_SrvInventoryReskin_content_0();
@@ -60,33 +59,6 @@ package
          try
          {
             sellersTabPage["componentInspectorSetting"] = false;
-         }
-         catch(e:Error)
-         {
-         }
-      }
-      
-      internal function __setProp_sortTab_SrvInventoryReskin_content_0() : *
-      {
-         try
-         {
-            sortTab["componentInspectorSetting"] = true;
-         }
-         catch(e:Error)
-         {
-         }
-         sortTab.autoSize = "left";
-         sortTab.buttonWidth = 0;
-         sortTab.direction = "horizontal";
-         sortTab.enabled = true;
-         sortTab.enableInitCallback = false;
-         sortTab.focusable = true;
-         sortTab.itemRendererName = "RadioSharedShort";
-         sortTab.spacing = 0;
-         sortTab.visible = true;
-         try
-         {
-            sortTab["componentInspectorSetting"] = false;
          }
          catch(e:Error)
          {

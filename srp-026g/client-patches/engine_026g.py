@@ -35,7 +35,12 @@ global symbol of its own, which the link resolves for every caller):
                arguments "-", no re-kit row), "virtual" (a virtual
                function, called through its object's vtable: va is
                `<class>+<slot>`, the class whose virtual it is and the slot's
-               byte offset; a cdecl thunk, below, that calls `[[this]+slot]`)
+               byte offset; a cdecl thunk, below, that calls `[[this]+slot]`),
+               "dynamic" (a function of a DLL the game does not import, whose
+               address a GetProcAddress gives at run time: va and arguments
+               "-", stdcall as its prototype says; the `raw` layer's
+               `<symbol>(function, ...)` calls it at that address; nothing in
+               the arena or the C and NASM files)
 
 fields_026g.tsv is the game's objects' fields Rust reads and writes (kind,
 field, offset, type, about): each kind a handle `raw::<Kind>` (a
@@ -97,7 +102,7 @@ FIELDS = HERE / "fields_026g.tsv"
 SITES = HERE / "sites_026g.tsv"
 HEADER, INCLUDE, ASM, RUST = (HERE / f"engine_026g{suffix}" for suffix in (".h", ".inc", ".asm", ".rs"))
 RAW = HERE / "raw_026g.rs"
-CALLS = ("thunk", "stdcall", "cdecl", "thiscall", "import", "virtual")
+CALLS = ("thunk", "stdcall", "cdecl", "thiscall", "import", "virtual", "dynamic")
 THUNKED = ("thunk", "virtual")                  # the calls made through a cdecl thunk of the library
 VIRTUAL = re.compile(r"((?:[a-z_][a-z0-9_]*::)+[a-z_][a-z0-9_]*)\+(0x[0-9A-Fa-f]+|[0-9][0-9A-Fa-f]*h)")
 REGISTERS = ("EAX", "ECX", "EDX", "EBX", "ESI", "EDI", "EBP")
@@ -260,6 +265,15 @@ def function(row, abi=None, inputs=None, vtables=None):
                               "rows (each must take its arguments where the others do and pop what they pop)")
             out = out or one
         return dict(out, va=None, call="virtual", name=f"{base}+{slot:#x}", virtual=(base, slot, found))
+    if call == "dynamic":
+        if row["va"].strip() != "-" or row["arguments"].strip() != "-":
+            raise Refused(f"{name}: a dynamic function's va and arguments are \"-\" (stdcall, its prototype's)")
+        if not re.fullmatch(r"engine_[a-z0-9_]+", name) or name != row["symbol"]:
+            raise Refused(f"{row['symbol']}: the prototype names {name}; a symbol is engine_<what>")
+        return {"symbol": name, "va": None, "args": [f"ESP+{4 * i + 4}" for i in range(len(params))],
+                "params": params, "ret": ret, "cleanup": 4 * len(params),
+                "result": None if return_kind(ret) is None else "EAX", "name": "a GetProcAddress result",
+                "prototype": row["prototype"].strip(), "call": call, "vostok": vostok}
     va = number(row["va"])
     if name != row["symbol"] or not re.fullmatch(r"engine_[a-z0-9_]+", name):
         raise Refused(f"{row['symbol']}: the prototype names {name}; a symbol is engine_<what>")
@@ -374,7 +388,7 @@ def fields(path=None):
         module = module_of(kind)
         offset = number(row["offset"])
         image = module == "image"
-        low, high = (IMAGE_LOW, IMAGE_HIGH) if image else (-0x1000, 0x400000)
+        low, high = (IMAGE_LOW, IMAGE_HIGH) if image else (-0x4000, 0x400000)
         typed = TYPED.fullmatch(kind_type)
         of, target = ("value", None) if kind_type in FIELD_TYPES else ("size", None) if kind_type == "size" \
             else (("data" if typed.group(2) in ("u8", "f32") else typed.group(1)), typed.group(2)) if typed else (None, None)
@@ -385,7 +399,7 @@ def fields(path=None):
                 or not low <= offset < high or offset % align or (module, field) in seen \
                 or (image and of not in ("value", "obj")) or (of == "size" and (offset <= 0 or module in sized)):
             raise Refused(f"fields_026g.tsv: {row}: a kind (a::b), a field (snake case, once), an offset "
-                          f"from -0x1000 to under 0x400000 (an image VA for ::image) aligned to its type, a type "
+                          f"from -0x4000 to under 0x400000 (an image VA for ::image) aligned to its type, a type "
                           f"of {', '.join(FIELD_TYPES)}, ptr<kind>, ptr<u8>, obj<kind> or size (a kind's, "
                           "once, not an image's)")
         seen.add((module, field))
@@ -437,7 +451,8 @@ def site_holds(kinds_, path=None):
                 raise Refused(f"sites_026g.tsv: {row['site']}: holds {token!r}: name=REGISTER:kind, a kind of "
                               "fields_026g.tsv, or name=REGISTER:u32 (not ESP), each name once")
             holds.append((match.group(1), match.group(2), None if value else module_of(match.group(3))))
-        out.append((row["site"].strip(), number(row["va"]), row["what"].strip(), holds))
+        out.append((row["site"].strip(), None if row["va"].strip() == "-" else number(row["va"]),
+                    row["what"].strip(), holds))
     return out
 
 
@@ -455,6 +470,8 @@ def raw_type(kind, tags, prefix=""):
 
 
 def describe(f):
+    if f["call"] == "dynamic":
+        return "a function at the address GetProcAddress gives (stdcall)"
     if f["call"] == "import":
         return f"the IAT slot {f['va']:#x} (an import, stdcall)"
     where = describe_args(f["params"], f["args"])
@@ -505,6 +522,7 @@ def thunk(f):
 def asm_text(fs):
     """`fs`: every row; a thunk for each called through one, the address of
     each other (a direct function's VA, an import's IAT slot)."""
+    fs = [f for f in fs if f["call"] != "dynamic"]
     thunks = [f for f in fs if f["call"] in THUNKED]
     lines = [f"; The engine-function library ({GENERATED}).",
              "; A thunk per function, each a global symbol: cdecl in, the engine's",
@@ -521,6 +539,7 @@ def asm_text(fs):
 
 
 def header_text(fs):
+    fs = [f for f in fs if f["call"] != "dynamic"]
     tags = sorted({t for f in fs for t in re.findall(r"\bstruct\s+(\w+)", f["prototype"])})
     lines = [f"/* The engine-function library ({GENERATED}).",
              " *",
@@ -545,6 +564,7 @@ def header_text(fs):
 
 
 def include_text(fs):
+    fs = [f for f in fs if f["call"] != "dynamic"]
     lines = [f"; The engine-function library's functions ({GENERATED}).",
              "; cdecl: push the arguments right to left, call, add esp, 4 x their count;",
              "; EBX, ESI, EDI and EBP are kept, EAX, ECX and EDX are not. The link gives",
@@ -602,6 +622,16 @@ def rust_functions(fs, tags=()):
                 params, ret = signature(f)
                 lines += [f"    /// {describe(f)}", f"    pub fn {f['symbol']}({params}){ret};"]
             lines.append("}")
+    for f in (f for f in fs if f["call"] == "dynamic"):
+        params, ret = signature(f)
+        types = ", ".join(raw_type(kind, tags) for kind, _ in f["params"])
+        names = ", ".join(f"{'r#' if name in RUST_KEYWORDS else ''}{name}" for _, name in f["params"])
+        lines += ["", f"/// {describe(f)}: {f['prototype']}", "///", "/// # Safety",
+                  "/// `function` is that function (a GetProcAddress result of its name).",
+                  "#[allow(dead_code)]", "#[inline(always)]",
+                  f"pub unsafe fn {f['symbol']}(function: NonNull<c_void>{', ' if params else ''}{params}){ret} {{",
+                  f'    let function = unsafe {{ core::mem::transmute::<*mut c_void, unsafe extern "stdcall" fn({types}){ret}>(function.as_ptr()) }};',
+                  f"    unsafe {{ function({names}) }}", "}"]
     imports = [f for f in fs if f["call"] == "import"]
     if imports:
         lines += ["", "#[allow(dead_code, non_upper_case_globals)]", 'unsafe extern "C" {']
@@ -627,7 +657,7 @@ def rust_text(fs):
              "",
              "#[allow(unused_imports)]",
              "use core::ffi::c_void;"]
-    return "\n".join(lines + rust_functions(fs)) + "\n"
+    return "\n".join(lines + rust_functions([f for f in fs if f["call"] != "dynamic"])) + "\n"
 
 
 SAFETY_ALIVE = "`self` is alive (its fields are its kind's: the type says so)."
@@ -659,9 +689,10 @@ def raw_kind(k, kinds_):
             value = f"*mut {x['target']}" if x["of"] == "data" else f"Option<{kinds_[module_of(x['target'])]['type']}>"
             lines += doc + [f"    pub unsafe fn {x['field']}(self) -> {value} {{",
                             f"        unsafe {{ {place}.cast::<{value}>().read_volatile() }}", "    }"]
-            if k["size"]:                              # a kind we have room for: one we fill
-                lines += doc + [f"    pub unsafe fn set_{x['field']}(self, value: {value}) {{",
-                                f"        unsafe {{ {place}.cast::<{value}>().write_volatile(value) }}", "    }"]
+            # a kind we have room for (one we fill), or a game object's pointer a patch
+            # rebinds (patch 85's install): written as its handle, never a bare number
+            lines += doc + [f"    pub unsafe fn set_{x['field']}(self, value: {value}) {{",
+                            f"        unsafe {{ {place}.cast::<{value}>().write_volatile(value) }}", "    }"]
     size = k["size"]
     if size:
         n = size["offset"]
@@ -747,7 +778,7 @@ def raw_text(fs, fields_, sites=None):
               "", "/// What each lohook site's registers hold (sites_026g.tsv's `holds`), as handles.",
               "#[allow(dead_code)]", "pub mod site {", "    #[allow(unused_imports)]", "    use super::*;"]
     for site, va, what, regs in holds:
-        lines += ["", f"    /// {site} ({va:#x}): {what}", f"    pub mod {site.replace('.', '_')} {{",
+        lines += ["", f"    /// {site} ({'our entry' if va is None else f'{va:#x}'}): {what}", f"    pub mod {site.replace('.', '_')} {{",
                   "        #[allow(unused_imports)]", "        use super::*;"]
         for name, location, module in regs:
             if module is None:

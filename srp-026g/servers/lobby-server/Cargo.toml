@@ -20,6 +20,8 @@ session = { workspace = true }
 vostok = { workspace = true }
 survarium = { workspace = true }
 udp-transport = { workspace = true }
+# The names of the bots' map files (`pvb::bot_maps`).
+mapdata = { path = "../../crates/mapdata" }
 
 [dev-dependencies]
 # Sessions without a sign-in, for the tests (`SessionStore::create_session`).
