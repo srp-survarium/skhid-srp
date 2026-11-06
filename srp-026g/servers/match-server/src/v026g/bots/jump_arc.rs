@@ -58,9 +58,9 @@ const PREPARE_M: f32 = 0.82;
 /// `step_down` 0x7E1B0 falls by it outside the jump).
 const GRAVITY: f32 = 9.8;
 /// `step_down` 0x7E1B0 (port `controller/tick.rs`): under `on_ground_max_vertical_speed` 2.0 m/s (`startup.cfg`) an airborne tick
-/// sinks only `additional_down_speed` 0.05 m while the speed still gains g dt; over it, the new speed times the tick ((v + a dt).y
-/// * tick). The test is on the tick's starting speed (tick.rs:267-269): from rest 5 slow ticks, then 2.45, 2.94 m/s (fx-gear-2's
-/// corrected probe: -1.00 x5, then -2.45, -2.94, -3.43).
+/// sinks only `additional_down_speed` 0.05 m while the speed still gains g dt; over it, it moves the tick's starting speed times
+/// the tick (tick.rs:267-269): from rest 5 slow ticks, then 2.45, 2.94 m/s (fx-gear-2's corrected probe: -1.00 x5, then -2.45,
+/// -2.94, -3.43). See `fall_tick`.
 const SLOW_FALL_MS: f32 = 2.0;
 const SLOW_FALL_STEP_M: f32 = 0.05;
 /// The lowest and highest heights over the feet whose rays a wall holds a body in the air at, m (the stand-in's lowest and
@@ -474,13 +474,13 @@ fn perch_along(grid: &WalkGrid, walls: Option<&RayTree>, feet: Vec3, at: Vec3, r
     })
 }
 
-/// One tick of a fall at `speed` m/s (down positive): the new speed and the drop, m. The slow test reads the tick's starting speed,
-/// before this tick's g (port `controller/tick.rs:267-269`); a fast tick moves the new speed times the tick (`step_down` 0x7E1B0:
-/// (v + a dt).y * tick).
+/// One tick of a fall at `speed` m/s (down positive): the new speed and the drop, m. The slow test and a fast tick's move both read
+/// the tick's starting speed, and this tick's g counts from the next tick (port `controller/tick.rs:267-269`, `step_down` 0x7E1B0).
+/// fx-gear-2's probe pins the order: from rest -1.00 m/s x5 (0.05 m a tick), then -2.45, -2.94, -3.43; moving by the new speed
+/// would give -2.94 on the sixth tick.
 fn fall_tick(speed: f32, dt: f32) -> (f32, f32) {
-    let slow = speed < SLOW_FALL_MS;
-    let speed = speed + GRAVITY * dt;
-    (speed, if slow { SLOW_FALL_STEP_M } else { speed * dt })
+    let drop = if speed < SLOW_FALL_MS { SLOW_FALL_STEP_M } else { speed * dt };
+    (speed + GRAVITY * dt, drop)
 }
 
 /// The floor a body in the air at `at` comes down on (`tests/standin_jump.rs` `air_floor`): the highest whose cell holds it at or
@@ -974,8 +974,8 @@ mod tests {
         assert!(v > SLOW_FALL_MS);
     }
 
-    /// A fall from rest: 5 slow ticks of 0.05 m (the test on the tick's starting speed 0, 0.49, 0.98, 1.47, 1.96), then the new
-    /// speed times the tick: 2.45, 2.94 m/s (fx-gear-2's corrected probe: -1.00 x5, then -2.45, -2.94).
+    /// A fall from rest: 5 slow ticks of 0.05 m (the tick's starting speed 0, 0.49, 0.98, 1.47, 1.96), then the starting speed
+    /// times the tick: 2.45, 2.94 m/s (fx-gear-2's corrected probe: -1.00 x5, then -2.45, -2.94).
     #[test]
     fn a_fall_from_rest_sinks_five_slow_ticks() {
         let mut speed = 0.0;
