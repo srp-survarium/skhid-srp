@@ -29,6 +29,8 @@ pub const NEAR_M: f32 = 0.15;
 pub const HOLD_TICKS: usize = 20;
 /// Feet that moved this far across or down in that time slid, m.
 pub const SLIDE_M: f32 = 0.3;
+/// The speed down the stood body starts with, m/s (it lands on the floor in the first tick).
+pub const ARRIVE_MPS: f32 = 0.5;
 
 /// What the pass found ([`BuildStats`]).
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
@@ -60,6 +62,9 @@ pub enum Hold {
 pub fn hold_at(world: &Collision, feet: Vec3, s: &Settings) -> Hold {
     let start = out_of_walls(world, feet);
     let mut c = Controller::standing_at(start);
+    // A body set down with no keys, no speed and a level contact is skipped by the tick (`can_skip_player_step`); one that
+    // arrives has met the ground: a small fall puts the ground's own normal in the contact, as a landing does.
+    c.velocity = Vec3::new(0.0, -ARRIVE_MPS, 0.0);
     let mut steep = false;
     for _ in 0..HOLD_TICKS {
         c.walk = Vec3::ZERO;
@@ -242,6 +247,7 @@ mod probe {
             let world = Collision::build(&tris);
             let feet = Vec3::new(5.0, 5.0 * deg.to_radians().tan(), 4.0);
             let mut c = Controller::standing_at(feet);
+            c.velocity = Vec3::new(0.0, -ARRIVE_MPS, 0.0);
             let mut line = format!("{deg:>4} deg {walker:?}:");
             for t in 1..=60 {
                 c.walk = Vec3::ZERO;
