@@ -204,6 +204,16 @@ struct Tick {
     jump: JumpGate,
 }
 
+/// [A318] The map's walls for a jump in the air ([`BodyTrack::set_walls`]): its sight tree, shared.
+#[derive(Clone)]
+struct Walls(Arc<RayTree>);
+
+impl std::fmt::Debug for Walls {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str("Walls")
+    }
+}
+
 /// [A318] The client's jump gate for a press, past what the reckoned body itself knows (standing, uncrouched, no jump under
 /// way): `player_logic_jump_state` starts only with the bar at the jump's cost and not low (`player_stamina`, 0x2FC230), no
 /// battery carried (`can_sprint`'s item test, LIKELY) and legs that may jump (`motor::Hurt::may_jump`). A bot's is its own
@@ -313,7 +323,7 @@ pub struct BodyTrack {
     /// [A318] Whether the next press goes ([`Self::set_may_jump`]).
     jump_gate: JumpGate,
     /// [A318] The map's walls a jump in the air is held by ([`Self::set_walls`]; none: the grid's floors alone).
-    walls: Option<Arc<RayTree>>,
+    walls: Option<Walls>,
     /// The lives the worlds showed, the present one counted.
     lives: u32,
     /// Where the body was last reckoned alive, and which life that was:
@@ -391,7 +401,7 @@ impl BodyTrack {
     /// [A318] The map's walls a jump in the air is held by (`kin.jump_arc`): its sight tree, kept from the first world on.
     pub fn set_walls(&mut self, walls: Option<Arc<RayTree>>) {
         if self.walls.is_none() {
-            self.walls = walls;
+            self.walls = walls.map(Walls);
         }
     }
 
@@ -437,7 +447,7 @@ impl BodyTrack {
             kick: estimate.kick,
             jump: JumpGate::Open,
         };
-        Some(advance(estimate, tick, kin, self.level(), grid, self.walls.as_deref()))
+        Some(advance(estimate, tick, kin, self.level(), grid, self.walls.as_ref().map(|w| &*w.0)))
     }
 
     /// Where the body is, or was last reckoned alive, and in which of its
@@ -486,7 +496,7 @@ impl BodyTrack {
         let level = self.level();
         if let Some(estimate) = self.estimate.as_mut() {
             let held;
-            (*estimate, held) = advance_held(*estimate, tick, kin, level, grid, self.walls.as_deref());
+            (*estimate, held) = advance_held(*estimate, tick, kin, level, grid, self.walls.as_ref().map(|w| &*w.0));
             self.trail.push_back(Reckoned { time, feet: estimate.feet, held });
             while self
                 .trail
@@ -654,7 +664,7 @@ impl BodyTrack {
         // The ticks after the world's, again from where the world has it.
         for tick in self.ticks.iter().filter(|tick| tick.time > fix.time) {
             let held;
-            (estimate, held) = advance_held(estimate, *tick, kin, level, grid, self.walls.as_deref());
+            (estimate, held) = advance_held(estimate, *tick, kin, level, grid, self.walls.as_ref().map(|w| &*w.0));
             self.trail.push_back(Reckoned { time: tick.time, feet: estimate.feet, held });
         }
         // A world newer than every decided tick: the body is as it shows.
