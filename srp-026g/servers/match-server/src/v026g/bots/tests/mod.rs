@@ -87,6 +87,7 @@ mod pace_gate;
 mod pocket_runs;
 mod settings;
 mod sight;
+mod slide_floors;
 mod soak;
 mod soaks;
 mod sorted;

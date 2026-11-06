@@ -65,7 +65,12 @@ pub enum Hold {
 pub fn hold_at(world: &Collision, feet: Vec3, s: &Settings) -> Hold {
     let at = out_of_walls(world, feet);
     let cap = Capsule::standing(at + Vec3::new(0.0, LIFT_M, 0.0), 1.8, 0.38);
-    let Some(contact) = world.sweep(cap, Vec3::new(0.0, -PROBE_M, 0.0), |_| true) else {
+    // Only a face that can be ground (the grid's floors go to 60 deg), met from above: a wall beside the capsule is not its ground
+    // (the first harm check counted walls, and cut ordinary floors along every wall: no way +650 %).
+    let Some(contact) = world
+        .sweep(cap, Vec3::new(0.0, -PROBE_M, 0.0), |f| f.normal.y.abs() >= STEEP_NORMAL_Y)
+        .filter(|c| c.normal.y >= RESTS_ON_Y)
+    else {
         return Hold::Holds;
     };
     let face = world.face(contact.face);
@@ -82,6 +87,8 @@ pub fn hold_at(world: &Collision, feet: Vec3, s: &Settings) -> Hold {
 /// The capsule is set this far over the floor's feet, and swept down this far to meet its ground, m.
 pub const LIFT_M: f32 = 0.1;
 pub const PROBE_M: f32 = 0.4;
+/// A contact whose normal (face to capsule) has at least this up share holds the body up: not an edge met from the side.
+pub const RESTS_ON_Y: f32 = 0.5;
 
 /// A floor's verdict from three stands, its centre and [`START_OFF_M`] either side of it along x: a slide only when every stand
 /// slid (one that holds, or a boxed-in body that cannot move, says the floor holds), moving only when every one did.
