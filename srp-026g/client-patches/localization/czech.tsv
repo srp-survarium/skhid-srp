@@ -2196,7 +2196,7 @@ st_srp_artefact_502_description	Izolace proti anomáliím:
 st_srp_artefact_502_name	Odolnost
 st_srp_artefact_511_description	Poškození od kulek a střepin uvnitř anomálie:
 st_srp_artefact_511_name	Ochrana Lesa
-st_srp_artefact_512_description	Pasivní artefakty ostatních hráčů vidíte jako záři na jejich nohách. Doba trvání aktivního účinku artefaktů:
+st_srp_artefact_512_description	Pasivní artefakty vidíte jako záři na nohách hráčů, včetně vašich. Doba trvání aktivního účinku artefaktů:
 st_srp_artefact_512_name	Znalost artefaktů
 st_srp_artefact_521_description	Zápas začíná s náhodným artefaktem v kontejneru; jeden druh pro všechny v zápase.
 st_srp_artefact_521_name	Strážce artefaktů
