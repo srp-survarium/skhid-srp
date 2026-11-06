@@ -1294,7 +1294,7 @@ impl Game {
             };
             let local = body
                 .blend
-                .tick(self.kin.target_local(keys, level), self.kin.blend_ticks);
+                .tick_mixed(self.kin.target_local(keys, level), self.kin.blend_ticks, super::standin_jump::stand_in_mixer());
             let v = to_world(local, body.yaw);
             let to = Vec3::new(
                 body.feet.x + v[0] * TICK_S,

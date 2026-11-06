@@ -1148,11 +1148,28 @@ mod tests {
                             assert_eq!(&bot.last_ran, last_ran, "last_ran stamped by a heal");
                             // A route the play plans in the same poll is its own (A217: place 4 at 26 s began one as it
                             // pressed); a route the press ends would be the heal's.
+                            // A route the play itself ends in that poll (got there, no goal left, off it, replanned)
+                            // is not the press's either (A318: the client's movement mixer moved place 7's route end, a
+                            // NoGoal, onto a press tick).
+                            use crate::v026g::bots::route_end::RouteEnd;
+                            let own_end = matches!(
+                                bot.route_end,
+                                Some((
+                                    RouteEnd::Arrived
+                                        | RouteEnd::NoGoal
+                                        | RouteEnd::Off
+                                        | RouteEnd::ReckoningError
+                                        | RouteEnd::Replanned
+                                        | RouteEnd::NoWay,
+                                    _
+                                ))
+                            );
                             assert!(
-                                bot.route.is_some() || !*routed,
-                                "route ended by a heal: tick {}, place {}",
+                                bot.route.is_some() || !*routed || own_end,
+                                "route ended by a heal: tick {}, place {}, how the route ended {:?}",
                                 game.tick,
-                                m.place
+                                m.place,
+                                bot.route_end
                             );
                             unchanged += 1;
                         }

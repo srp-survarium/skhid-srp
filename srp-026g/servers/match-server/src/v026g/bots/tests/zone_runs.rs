@@ -338,6 +338,7 @@ fn a_bot_deep_in_a_big_zone_walks_out() {
 /// clear point in the band and plans again every tick); on, it walks out.
 #[test]
 fn a_bot_pushed_into_a_zone_stands_there_with_zone_lines_off() {
+    let _mixer = super::standin_jump::OldMixer::scope();
     let small = zone("small", Vec3::new(30.0, 1.0, 20.0), Vec3::new(2.0, 1.0, 2.0));
     let pushed = |zone_lines: bool| {
         let mut pushed = run(field(&[], vec![small.clone()]), None);
@@ -348,6 +349,9 @@ fn a_bot_pushed_into_a_zone_stands_there_with_zone_lines_off() {
         pushed.tuning.feel.zone_lines = zone_lines;
         // The escape pace of a body in a hurting zone (`hazard.run_out`) is another fix: this one is A136's alone.
         pushed.tuning.hazard.run_out = false;
+        // So is the client's blend (A318): the stand of A136 was timed with the old one.
+        pushed.tuning.kin.mixer = crate::v026g::bots::kin::Mixer::Frozen;
+        pushed.tuning.kin.fix_blend = crate::v026g::bots::kin::FixBlend::Measured;
         drive(pushed)
     };
     // Off, the stand ends only when the unstick moves it (8.4 s here); on, it is out at once.

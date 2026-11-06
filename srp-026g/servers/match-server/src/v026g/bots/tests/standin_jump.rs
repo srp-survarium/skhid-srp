@@ -126,6 +126,39 @@ pub(crate) fn stand_in_bridges() -> body::Bridges {
     }
 }
 
+/// [A318] How the stand-in body's blend goes on when its keys change again before it is over (`SRP_BENCH_STAND_IN_MIXER`,
+/// `layers` unless `frozen`): the client's lexeme stack ([`kin::Mixer::Layers`], fitted on the client's speed at the worlds of 15
+/// client-test recordings); `frozen` moves it as before.
+pub(crate) fn stand_in_mixer() -> crate::v026g::bots::kin::Mixer {
+    static FROZEN: std::sync::OnceLock<bool> = std::sync::OnceLock::new();
+    if OLD_MIXER.get() || *FROZEN.get_or_init(|| bench_settings().var("SRP_BENCH_STAND_IN_MIXER").is_ok_and(|v| v == "frozen")) {
+        crate::v026g::bots::kin::Mixer::Frozen
+    } else {
+        crate::v026g::bots::kin::Mixer::Layers
+    }
+}
+
+thread_local! {
+    static OLD_MIXER: std::cell::Cell<bool> = const { std::cell::Cell::new(false) };
+}
+
+/// The stand-in's old blend ([`crate::v026g::bots::kin::Mixer::Frozen`]) for this thread while it lives (tests whose pinned
+/// numbers predate A318).
+pub(crate) struct OldMixer(());
+
+impl OldMixer {
+    pub(crate) fn scope() -> Self {
+        OLD_MIXER.set(true);
+        Self(())
+    }
+}
+
+impl Drop for OldMixer {
+    fn drop(&mut self) {
+        OLD_MIXER.set(false);
+    }
+}
+
 /// Whether the stand-in body is held at a ledge's edge as the client's capsule is (`SRP_BENCH_STAND_IN_EDGE`, on unless `off`): it falls
 /// [`body::SUPPORT_M`] past the last floor's centre, not at the lattice's cell boundary.
 pub(crate) fn stand_in_edge() -> bool {
