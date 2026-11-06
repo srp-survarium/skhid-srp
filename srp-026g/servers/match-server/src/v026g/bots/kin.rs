@@ -376,8 +376,9 @@ pub enum DropFall {
     /// [A318] [`Self::Gravity`] with the client's slow start (`step_down` 0x7E1B0, PROVEN by fx-gear-2's read and probe; port
     /// `mapdata::controller::tick`, `player_step` reads the speed at the tick's start, then `step_down`): while the speed down at
     /// the tick's start is under `on_ground_max_vertical_speed` (2.0 m/s, `startup.cfg`) the body goes down by
-    /// `additional_down_speed` (0.05 m a tick, `startup.cfg`), else by the speed after the tick's `g` (`(v + a dt).y * tick`);
-    /// the speed takes `g * tick` each tick either way. From rest: five ticks of 0.05 m, then 2.45 m/s, 2.94 m/s, ...
+    /// `additional_down_speed` (0.05 m a tick, `startup.cfg`), else by the speed at the tick's start (`(v + a dt).y * tick`, `a`
+    /// the slope's slide: none in the air); the speed takes `g * tick` after the move either way. From rest: five ticks of 0.05 m,
+    /// then 2.45 m/s, 2.94 m/s, ...
     #[default]
     Client,
 }

@@ -825,8 +825,9 @@ fn fall_step(fall: Fall, top: f32, feet: &mut Vec3, step: f32, rule: DropFall) -
     let after = speed + GRAVITY * TICK_S;
     let down = match rule {
         // [`DropFall::Client`]: `step_down` 0x7E1B0's slow test on the speed at the tick's start.
+        // Else by the speed at its start (`(v + a dt).y * tick` with `a` the slope's slide, none in the air; `g` goes into the
+        // speed after the move, port tick.rs `step_down`'s airborne arm), as [`DropFall::Gravity`].
         DropFall::Client if speed < CLIENT.on_ground_max_vertical_speed => CLIENT.additional_down_speed,
-        DropFall::Client => after * TICK_S,
         _ => speed * TICK_S,
     };
     let y = top - down;
@@ -2012,7 +2013,7 @@ pub(super) mod tests {
     }
 
     /// [A318] [`DropFall::Client`]: a body going over a 3 m drop sinks 0.05 m a tick for five ticks (the speed at each tick's start
-    /// under 2 m/s: 0, 0.49, 0.98, 1.47, 1.96), then by the speed after the tick's `g` (2.45, 2.94 m/s, ...), as fx-gear-2's probe of
+    /// under 2 m/s: 0, 0.49, 0.98, 1.47, 1.96), then by the speed at the tick's start (2.45, 2.94 m/s, ...), as fx-gear-2's probe of
     /// the port's `step_down` 0x7E1B0 shows; it lands on the floor and stays.
     #[test]
     fn the_client_fall_starts_with_five_slow_ticks() {
@@ -2032,7 +2033,7 @@ pub(super) mod tests {
         for d in &drops[..5] {
             assert!((d - 0.05).abs() < 1e-5, "slow: {drops:?}");
         }
-        assert!((drops[5] - 2.45 * TICK_S).abs() < 1e-4 && (drops[6] - 2.94 * TICK_S).abs() < 1e-4, "then (v + g dt) dt: {drops:?}");
+        assert!((drops[5] - 2.45 * TICK_S).abs() < 1e-4 && (drops[6] - 2.94 * TICK_S).abs() < 1e-4, "then the start speed * dt: {drops:?}");
         assert_eq!(fall, Fall::Ground);
         assert!(top.abs() < 1e-6, "on the floor: {top}");
         // A walk across a floor no lower than the step stays on the ground.
