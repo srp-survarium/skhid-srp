@@ -2285,8 +2285,9 @@ def instruction(image, va):
 def function_pops(image, entry, limit=20000):
     """The bytes the function at `entry` pops: every `ret n` reachable from
     its entry, its branches followed (a body split by the compiler, a tail
-    jump into the game too), its calls stepped over. ({n, ...}, [what could
-    not be followed])."""
+    jump into the game too; a jump to a generated lohook entry goes on where
+    the entry can send it, lohook_dispatch), its calls stepped over.
+    ({n, ...}, [what could not be followed])."""
     todo, seen, found, lost = [entry], set(), set(), []
     while todo and len(seen) < limit:
         va = todo.pop()
@@ -2311,6 +2312,10 @@ def function_pops(image, entry, limit=20000):
                 if target is None:
                     lost.append(f"{va:#x}: {text}")
                     break
+                ways = lohook_dispatch(image, target)
+                if ways is not None:                       # a generated lohook entry: its `ret` is a jump
+                    todo.extend(ways)
+                    break
                 va = target
                 continue
             if (op.startswith("j") or op.startswith("loop")) and target is not None:
@@ -2319,6 +2324,29 @@ def function_pops(image, entry, limit=20000):
     if todo or len(seen) >= limit:
         lost.append(f"{entry:#x}: more than {limit} instructions, not all followed")
     return found, lost
+
+
+def lohook_dispatch(image, va):
+    """Where a generated lohook entry at `va` (hooks_026g.lohook_entry) goes
+    on, or None for any other code. Its `lea esp,[esp-4]` makes a slot that
+    `mov [ebp+24h],edx` fills with one of its `mov edx,<address>` (the
+    replay, past the site, a named exit), and its last `ret` pops that slot
+    alone: a jump that leaves esp as the site had it, not a return of the
+    function the site is in (patch 54's artefact_base::action through the
+    medical skills' lohook at 0x313333)."""
+    prologue = ["lea esp,[esp-0x4]", "pushf", "pusha", "cld", "mov ebp,esp"]
+    epilogue = ["mov [ebp+0x24],edx", "fxrstor [edi]", "mov esp,ebp", "popa", "popf", "ret"]
+    texts, at = [], va
+    while len(texts) < 64 and (not texts or texts[-1] != "ret"):
+        got = instruction(image, at)
+        if got is None:
+            return None
+        texts.append(got[1])
+        at += got[0]
+    if texts[:5] != prologue or texts[-6:] != epilogue:
+        return None
+    ways = [int(t.split(",")[1], 16) for t in texts if re.fullmatch(r"mov edx,0x[0-9a-f]+", t)]
+    return ways or None
 
 
 def popped(image, start, end):
@@ -4219,7 +4247,8 @@ def test_lobby_scene(original, image, before):
     the squad commander's in a squad, 0xA1's srp bytes), the pick kept in
     user.cfg, a change swapped behind a fade at once (patch 81, the Rust
     patch `lobby_scene`, nine lohooks of lobby_scene.toml: configs.start in a
-    chain after patch 79's and 83's, lobby_camera.view after patch 45's flight and
+    chain after patch 79's and 83's and before 88's and 112's (mouse_pitch's),
+    lobby_camera.view after patch 45's flight and
     the diagnostics' sweep; ../docs/notes/lobby-scenes.md).
     check_lobby_scene_026g.py runs each from the game's code on made-up
     objects, the original beside."""
@@ -4307,14 +4336,15 @@ def test_lobby_scene(original, image, before):
                             "lobby_client.squad_read", "lobby_menu.activate", "lobby_menu.deactivate",
                             "lobby_menu.scene_request", "lobby_menu.scenes_ready"]
           and all(h["kind"] == "lohook" for h in hooks.values())
-          and [m["patch"] for m in heads["configs.start"]["chain"]] == ["language", "hud_options", "lobby_scene", "music"]
+          and [m["patch"] for m in heads["configs.start"]["chain"]] == ["language", "hud_options", "lobby_scene", "music",
+                                                                         "mouse_pitch"]
           and [m["patch"] for m in heads["game.clear_resources"]["chain"]] == ["music", "lobby_scene"]
           and heads["configs.start"]["chain"][2]["shim"] == hooks["configs.start"]["shim"]
           and [m["patch"] for m in heads["lobby_camera.view"]["chain"]] == ["weapon_flight", "camera_sweep", "lobby_scene"]
           and heads["lobby_camera.view"]["chain"][-1]["shim"] == hooks["lobby_camera.view"]["shim"],
           "lobby_scene.toml's nine hooks are lohooks; at configs.start in the chain after patch 79's and 83's handlers "
-          "and before 88's (one entry, language's, calls the shims); at game.clear_resources after patch 88's; at "
-          "lobby_camera.view the last of the chain after patch 45's flight and the diagnostics' sweep")
+          "and before 88's and 112's (one entry, language's, calls the shims); at game.clear_resources after patch "
+          "88's; at lobby_camera.view the last of the chain after patch 45's flight and the diagnostics' sweep")
     for site in ("lobby_client.squad_id", "lobby_client.squad_read", "lobby_menu.scene_request",
                  "lobby_menu.scenes_ready",
                  "lobby_menu.activate", "lobby_menu.deactivate", "game.clear_resources"):
@@ -4504,13 +4534,19 @@ def test_artefacts(original, image, before):
     texts = [text for _, _, text in listing]
     outside = sorted({branch_target(t) for t in texts if branch_target(t) is not None
                       and not artefacts_va <= branch_target(t) < artefacts_va + len(code)})
-    check(P.artefacts_backs(linked) == list(P.ARTEFACTS_BACKS)
-          and outside == sorted(set(P.ARTEFACTS_BACKS) | {0xF6B10, 0x2D5D00, 0x2D5AE0, 0x2E58B0, 0x32A420,
-                                                          0x313350, 0x25F9F8}),
+    # patch 94's generated entry (medical_skills.toml's on_stopping, cdecl: the player; patches.code),
+    # which Spring's stagger hook calls with the sum on the stack for Unflinching's factor
+    stopping = linked.symbols["medical_skills_on_stopping"]
+    allowed = set(P.ARTEFACTS_BACKS) | {0xF6B10, 0x2D5D00, 0x2D5AE0, 0x2E58B0, 0x32A420, 0x25F9F8, stopping}
+    check(P.artefacts_backs(linked) == list(P.ARTEFACTS_BACKS) and outside == sorted(allowed)
+          and f"call {stopping:#x}" in texts,
           "its eight entries go on where they came from (" + ", ".join(hex(a) for a in P.ARTEFACTS_BACKS)
           + "); it calls the config lookup 0xF6B10, the unlink 0x2D5D00, the getter 0x2D5AE0, the pool "
-          "lookup 0x2E58B0, increase_health 0x32A420 and the activation effect 0x313350, and nothing else "
-          "outside (and 0x25F9F8, the Onyx pop-up's way around set_parameterized_message)")
+          "lookup 0x2E58B0, increase_health 0x32A420 and patch 94's entry medical_skills_on_stopping "
+          f"({stopping:#x}), and nothing else outside (and 0x25F9F8, the Onyx pop-up's way around "
+          "set_parameterized_message); each of a kind fired activates through action's own body "
+          "(fire_kind.original, on at 0x31330A: its effect 0x313350 and the medical skills' hook)"
+          + "".join(f"; {t:#x}" for t in sorted(set(outside) ^ allowed)))
     heals = artefacts_va + names + 47
     check(code[names:] == b"aim_time_mod\0stopping_power_mod\0pain\0body\0head\0"
           + struct.pack("<III", *(artefacts_va + names + at for at in (32, 37, 42)))
