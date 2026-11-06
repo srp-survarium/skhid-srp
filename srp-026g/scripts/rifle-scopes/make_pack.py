@@ -22,10 +22,11 @@ survey.py):
   that variant's are. Materials as materials.tsv says (loc2: ours, else the donor's made again).
 - **the weapon's model**: a scope's variant takes its mount variant's (the aimed view is that
   variant's eyepiece, so its eye); a collimator's, when its eye line moves (the variant sets
-  `object/model`, as ours do), the weapon's `aim` locator on the optic's sight line (x and y of scope_point with the mount and the
-  optic's `aim` locator, turned as the weapon draws a scope), unrotated; a model of ours with that
-  eye already (within 0.3 mm) is taken as it is, else the mount variant's weapon model is copied
-  with only its export_properties changed (models/weapons/<..>_n_<scope>).
+  `object/model`, as ours do), the weapon's `aim` locator on the optic's red dot (the optic drawn at
+  scope_point turned half about Y, the gun posed by its idle clip as the game draws it), unrotated;
+  a model of ours with that eye already (within 0.3 mm) is taken as it is, else the mount
+  variant's weapon model is copied with only its export_properties changed
+  (models/weapons/<..>_n_<scope>).
 - **its item** (a variant, dict id from 2701): its config made from a variant of ours of its kind
   (with or without a weapon model change) by content_edit.py's edits, read back; its dictionary row.
 For each scope: its shop item (dict ids of scopes.tsv: 2113..2119) made from the CompM4's (a
@@ -54,10 +55,12 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 import pbr_026  # noqa: E402
 import render_icon  # noqa: E402
 import scopes_lib as lib  # noqa: E402
+sys.path.insert(0, str(Path(__file__).resolve().parents[1] / 'sight-alignment'))
+import model as posing  # noqa: E402
 from scopes_lib import ce  # noqa: E402
 
 PACK_ID = 'rifle-scopes'
-VERSION = '6'
+VERSION = '7'
 LANGUAGES = ('english', 'german', 'original', 'polish', 'russian', 'ukrainian')
 FIRST_VARIANT = 2701
 CATEGORY = 22
@@ -150,6 +153,23 @@ def eye_model(candidates, base_model, needed):
         if found and abs(found[1][0] - needed[0]) < EYE_TOLERANCE and abs(found[1][1] - needed[1]) < EYE_TOLERANCE:
             return None if model == base_model else model
     return False
+
+
+def eye_on_dot(root, cfg, directory, dot):
+    """(x, y) of the aim locator of the weapon model `directory` that looks along its bone at `dot` (a
+    point of the optic, its frame): the optic drawn at scope_point turned half about Y, the weapon
+    posed by its idle clip as the sight-alignment tool poses it (matched with the game; `root` has
+    the clip and the skeleton). The clip may move the bone scope_point hangs on off the aim
+    locator's: the UMP-45's 3 cm aside, the Rem 870's 6 cm down; read unposed, the variants' red dots
+    showed that far off the screen's centre (@6)."""
+    states = posing.config(root / cfg)['states']
+    animation = states.get('aimed_idle', {}).get('animations', states['idle']['animations'])[0]  # posing.weapon's
+    rig = posing.bones(root, directory, animation, 0)
+    aim = posing.locator(directory, 'aim')
+    frame = posing.HALF @ posing.locator_matrix(posing.locator(directory, 'scope_point'), rig)
+    if aim.bone is not None:
+        frame = frame @ np.linalg.inv(rig[aim.bone].pose)
+    return tuple(posing.transform(np.asarray(dot, float), frame)[:2])
 
 
 def moved_eye(model, needed):
@@ -338,11 +358,8 @@ def build(args, work):
             found = lib.locator(lib.leaves(from_dir / 'render/export_properties'), 'scope_point')
             if found is None:
                 sys.exit(f'{w}: its model {from_model} has no scope_point')
-            sp = found[1]
             base_dir = lib.model_dir(args.live, base_model)
-            # the weapon draws a scope at scope_point turned 180 degrees about Y (an optic's x and z
-            # mirrored: PROVEN by the MP7's and the Vepr-12's variants, whose eyes are centred so)
-            needed = (sp[0] - (t[0] + eye[0]), sp[1] + t[1] + eye[1])
+            needed = eye_on_dot(args.live, cfg, from_dir, t + np.array([eye[0], eye[1], DOT_DISTANCE]))
             # the weapon's own model only where the mount variant keeps it (the M4A1's mount variants
             # set a flat-top model, without the carry handle the stock one has: seen in the game, the
             # NcSTAR 4 under the handle, @1), and no model whose aim locator is turned
