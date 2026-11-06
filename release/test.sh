@@ -1489,9 +1489,11 @@ mkdir -p "$T/r16" && cp "$T/r14/resources.db.patch_14" "$T/r16/resources.db.patc
 expect_refused "release: a patch of another revision" "must be called resources.db.patch_14" \
     "$here/release.sh" --resources "$T/r16/resources.db.patch_16"
 mkdir -p "$T/r14q" && cp "$T/r14/resources.db.patch_14" "$T/r14q/" && echo "a quick build" >"$T/r14q/QUICK-BUILD"
-expect_refused "release: a quick build's patch (build-content --quick, QUICK-BUILD beside it)" \
-    "is a quick build (build-content --quick: QUICK-BUILD beside it)" "$here/release.sh" --resources "$T/r14q/resources.db.patch_14"
-expect_refused "upload-patch: a quick build's patch too" "is a quick build" "$here/upload-patch" "$T/r14q/resources.db.patch_14"
+expect_refused "release: a quick build's patch (build-content without --full, QUICK-BUILD beside it): rebuild with --full" \
+    "is a quick build (release/build-content without --full: QUICK-BUILD beside it).*build it again with release/build-content 14 --full" \
+    "$here/release.sh" --resources "$T/r14q/resources.db.patch_14"
+expect_refused "upload-patch: a quick build's patch too: rebuild with --full" \
+    "is a quick build.*build it again with release/build-content 14 --full" "$here/upload-patch" "$T/r14q/resources.db.patch_14"
 # A stop before the go (the ZIP's build fails) after the patch was
 # published: its row goes from the list (no server offered it), and the
 # file this run uploaded goes too (the revision can be made again); a file
@@ -2511,11 +2513,14 @@ manifest() { # the rows, `kind name source` a line ('|' for a tab), into $T/cont
 }
 manifest "base|resources.db.patch_40|$sha40" "movie|m|-" "edit|e1.json|-"
 bc_env=$(changed_env "s|^SKHID_PATCH_LIST=.*|SKHID_PATCH_LIST=$T/content-list.tsv|")
-cat >"$T/bc" <<EOF
+# $bc: the release's build (--full); $bcq: the plain command, a quick build.
+cat >"$T/bcq" <<EOF
 #!/usr/bin/env bash
 SKHID_RELEASE_ENV=$bc_env SKHID_TEST_BUILD_MOVIE=$T/build-movie SKHID_TEST_BUILD_SITE=$T/build-site TEST_DIR=$T exec "$here/build-content" "\$@" --tree "$C" --manifest "$T/content.tsv"
 EOF
-chmod +x "$T/bc"
+printf '#!/usr/bin/env bash\nexec %q "$@" --full\n' "$T/bcq" >"$T/bc"
+chmod +x "$T/bc" "$T/bcq"
+bcq=$T/bcq
 bc=$T/bc
 site_runs=$(grep -c . "$T/build-site.args" || true)
 out=$(cd "$T/work" && "$bc" 41 2>&1) || fail "build-content: $out"
@@ -2550,17 +2555,20 @@ rm -rf "$T/cache/skhid-release/build-content"
 out=$("$bc" 41 --out "$T/work/c41d" 2>&1) || fail "build-content, the cache deleted: $out"
 check "build-content: the cache deleted: every step runs, the same patch" bash -c \
     "! grep -q '$from_cache' <<<\"\$1\" && cmp -s $T/work/content-rev41/resources.db.patch_41 $T/work/c41d/resources.db.patch_41" _ "$out"
-# --quick: the same files, without the check of players' files with the patch and the item tables;
-# its folder says so (release.sh refuses it: above).
+# Without --full, a quick build: the same files, without the check of players' files with the patch
+# and the item tables; its folder says so (release.sh refuses it: above). --full leaves no mark.
+check "build-content --full: no QUICK-BUILD" test ! -e "$T/work/content-rev41/QUICK-BUILD"
 tables_runs=$(grep -c . "$T/item-tables.args")
-out=$("$bc" 41 --out "$T/work/c41q" --quick 2>&1) || fail "build-content --quick: $out"
+out=$("$bcq" 41 --out "$T/work/c41q" 2>&1) || fail "build-content (quick): $out"
 for file in resources.db.patch_41 server-game-data.db files.tsv; do
-    check "build-content --quick: the same $file as a full build" cmp -s "$T/work/content-rev41/$file" "$T/work/c41q/$file"
+    check "build-content (quick): the same $file as --full" cmp -s "$T/work/content-rev41/$file" "$T/work/c41q/$file"
 done
-check "build-content --quick: ... players' files with it not checked, no item tables, said" bash -c \
-    "grep -q 'over players. files: not checked (--quick)' <<<\"\$1\" && grep -q 'the item tables: not made (--quick)' <<<\"\$1\" && ! grep -q 'files the manifest makes are as it makes them' <<<\"\$1\" && test ! -e $T/work/c41q/item-tables && test \"\$(grep -c . $T/item-tables.args)\" = $tables_runs" _ "$out"
-check "build-content --quick: ... marked QUICK-BUILD, no release.sh next" bash -c \
-    "test -s $T/work/c41q/QUICK-BUILD && ! grep -q 'next: release/release.sh' <<<\"\$1\" && grep -q 'release.sh refuses it' <<<\"\$1\"" _ "$out"
+check "build-content (quick): ... players' files with it not checked, no item tables, said" bash -c \
+    "grep -q 'over players. files: not checked (a quick build; --full checks it)' <<<\"\$1\" && grep -q 'the item tables: not made (a quick build; --full makes them)' <<<\"\$1\" && ! grep -q 'files the manifest makes are as it makes them' <<<\"\$1\" && test ! -e $T/work/c41q/item-tables && test \"\$(grep -c . $T/item-tables.args)\" = $tables_runs" _ "$out"
+check "build-content (quick): ... marked QUICK-BUILD, no release.sh next" bash -c \
+    "test -s $T/work/c41q/QUICK-BUILD && ! grep -q 'next: release/release.sh' <<<\"\$1\" && grep -q 'release.sh refuses it (QUICK-BUILD): a release builds with --full' <<<\"\$1\"" _ "$out"
+expect_refused "build-content: --quick is no option (the plain command is the quick build)" "unknown option --quick" \
+    "$bcq" 41 --out "$T/work/c41qq" --quick
 expect_refused "build-content never overwrites" "already there" "$bc" 41 --out "$T/work/content-rev41"
 out=$("$bc" 41 --out "$T/work/c41site" --site 2>&1) || fail "build-content --site: $out"
 check "build-content --site: the site's pages in its tree, of the list and the new patch" bash -c \

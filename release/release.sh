@@ -43,8 +43,10 @@
 #      ~/.cache/skhid-release/patch-urls.checked), none above the release's
 #      revision, and patch_12 (the menus) in it from revision 12 on (or the
 #      --resources file); with
-#      --resources, the file is resources.db.patch_<the release's revision>,
-#      srp-game-data reads it, and it is not listed yet (published already
+#      --resources, the file is resources.db.patch_<the release's revision>
+#      of release/build-content <rev> --full (no QUICK-BUILD beside it: a
+#      quick build's players' files were never checked), srp-game-data reads
+#      it, and it is not listed yet (published already
 #      with these same bytes: taken as it is, and kept at a stop);
 #      live: the site's pages made from the game data (the Maps tab, the
 #      calculator, the skills): built from other patches than the list (and the
@@ -161,6 +163,7 @@
 # again with other bytes).
 #
 #   --resources <file>  new content: resources.db.patch_<rev>, published first
+#                       (made by release/build-content <rev> --full)
 #   --revision <n>      the release's revision instead of the target exe's + 1;
 #                       live: above it (one released once is never used again);
 #                       --test: any from REVISION up
@@ -1115,7 +1118,7 @@ if [[ -n $resources ]]; then
     elif [[ ! -f $resources ]]; then
         problem "--resources: $resources: no such file"
     elif [[ -e $(dirname -- "$resources")/$QUICK_MARK ]]; then
-        problem "--resources: $resources is a quick build (build-content --quick: $QUICK_MARK beside it), for local tests: players' files with it were never checked; build it again without --quick"
+        problem "--resources: $resources is a quick build (release/build-content without --full: $QUICK_MARK beside it), for local tests: players' files with it were never checked; build it again with release/build-content ${rev:-<revision>} --full"
     elif [[ $(head -c 13 "$resources") != little-endian ]]; then
         problem "--resources: $resources is not an archive of the game (no \"little-endian\" header)"
     elif [[ -n $bin && -f $SKHID_STOCK_DB ]]; then

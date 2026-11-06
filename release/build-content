@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # usage: release/build-content <revision> [--out <folder>] [--tree <checkout>] [--site] [--manifest <file>]
-#                              [--no-cache] [--quick]
+#                              [--no-cache] [--full]
 #
 # The next content patch, from the manifest of everything that should be
 # live in players' resources.db (release/content.tsv: the base patches, the
@@ -23,8 +23,9 @@
 #      (release/build-patch), then builds the server game data of the stock
 #      db, the list's patches and it (srp-game-data build, the new patch at
 #      $SKHID_PATCHES_URL/<its name>, where release/upload-patch puts it),
-#      and checks that players' files with it over them are the manifest's;
-#   5. what else the game data makes, from the same patches: the item
+#      and (--full) checks that players' files with it over them are the
+#      manifest's;
+#   5. (--full) what else the game data makes, from the same patches: the item
 #      tables (srp-item-tables on the new server data) into <--out>/item-tables/,
 #      the tables of <tree>'s srp-026g/docs/data/ rewritten only where an
 #      item changed, each change said (the release's record commits them);
@@ -52,11 +53,13 @@
 #                       bytes as in an earlier build takes what it made then
 #                       from ~/.cache/skhid-release/build-content/ (the same
 #                       files: release/test.sh checks it; delete it any time)
-#   --quick             for a local test only: the same patch and server game
-#                       data, without the check of players' files with the
-#                       patch (step 4's last) and without the item tables
-#                       (step 5); --out holds QUICK-BUILD, and release.sh
-#                       refuses a --resources beside it
+#   --full              the release's build: every check and the item tables.
+#                       Without it, a quick build for a local test: the same
+#                       patch, server game data and files.tsv, without the
+#                       check of players' files with the patch (step 4's
+#                       last) and without the item tables (step 5); --out
+#                       holds QUICK-BUILD, and release.sh and upload-patch
+#                       refuse a patch beside it
 #
 # Settings (release.env): SKHID_STOCK_DB, SKHID_PATCHES_URL (the list's
 # server); SKHID_FLASH_TOOLS, the tools.json naming java and Flex 4.16.1
@@ -64,8 +67,8 @@
 # to compose, SKHID_VOSTOK_PORT (resource-porter's vostok-port) and
 # SKHID_PACKS_DIR (the packs' folders, <id>-<version>).
 # Writes --out (and the caches), with --site <tree>'s site pages. A failure
-# after the patch is made leaves --out: remove it to run again. Next:
-# release/release.sh --resources <folder>/resources.db.patch_<revision>.
+# after the patch is made leaves --out: remove it to run again. Next (of a
+# --full build): release/release.sh --resources <folder>/resources.db.patch_<revision>.
 . "$(dirname "$0")/lib.sh"
 here=$(cd "$(dirname "$0")" && pwd)
 STOCK_SHA=${SKHID_TEST_STOCK_SHA256:-$STOCK_DB_SHA256}
@@ -77,7 +80,7 @@ took() {
 }
 BUILD_SITE=${SKHID_TEST_BUILD_SITE:-$here/build-site}
 
-revision='' out='' tree=$ROOT site=0 manifest='' cached=1 quick=0
+revision='' out='' tree=$ROOT site=0 manifest='' cached=1 full=0
 while (($#)); do
     case $1 in
     -h | --help) usage ;;
@@ -86,7 +89,7 @@ while (($#)); do
     --site) site=1; shift ;;
     --manifest) (($# >= 2)) || usage 1; manifest=$2; shift 2 ;;
     --no-cache) cached=0; shift ;;
-    --quick) quick=1; shift ;;
+    --full) full=1; shift ;;
     -*) die "unknown option $1 (--help)" ;;
     *) [[ -z $revision ]] || usage 1; revision=$1; shift ;;
     esac
@@ -112,15 +115,16 @@ read_patch_list
 cache_patches
 took "the offered patches"
 bin=$(game_data_bin)
-tables_bin=$(item_tables_bin)
-took "the tools (srp-game-data, srp-item-tables)"
+tables_bin=''
+((!full)) || tables_bin=$(item_tables_bin)
+took "the tools (srp-game-data$( ((!full)) || printf ', srp-item-tables'))"
 common=$(dirname "$(git -C "$ROOT" rev-parse --path-format=absolute --git-common-dir)")
 tools=${SKHID_FLASH_TOOLS:-$common/private/actionscript/tools.json}
 mkdir -p "$out"
 out=$(cd "$out" && pwd)
 # A quick build's folder says so before anything is in it (release.sh refuses a patch beside it).
-((!quick)) || printf '%s\n' "release/build-content --quick: players' files with the patch not checked, no item tables;" \
-    "for a local test only (release.sh refuses it); a release builds without --quick" >"$out/$QUICK_MARK"
+((full)) || printf '%s\n' "release/build-content without --full: players' files with the patch not checked, no item tables;" \
+    "for a local test only (release.sh refuses it); a release builds with --full" >"$out/$QUICK_MARK"
 work=$(mktemp -d)
 trap 'rm -rf "$work"' EXIT
 
@@ -131,7 +135,7 @@ args+=(--stock-sha256 "$STOCK_SHA")
 # reads the same), one named by SRP_GAME_DATA_BIN by its bytes.
 [[ -n ${SRP_GAME_DATA_BIN:-} ]] || args+=(--bin-source "$ROOT/srp-026g")
 ((!cached)) || args+=(--cache "${XDG_CACHE_HOME:-$HOME/.cache}/skhid-release/build-content")
-((!quick)) || args+=(--quick)
+((full)) || args+=(--quick)
 [[ -z ${SKHID_VOSTOK_PORT:-} ]] || args+=(--vostok-port "$SKHID_VOSTOK_PORT")
 [[ -z ${SKHID_PACKS_DIR:-} ]] || args+=(--packs "$SKHID_PACKS_DIR")
 say "building $(basename "$manifest") of $tree ($(git -C "$tree" rev-parse --short HEAD 2>/dev/null || echo 'no git'))"
@@ -184,9 +188,9 @@ took "the server game data"
 info=$("$bin" info "$out/$DATA_NAME")
 [[ $(offered_in "$info") == "$(offered_of_list "$name $(sha256_of "$out/$name") $(size_of "$out/$name") $url")" ]] ||
     die "$out/$DATA_NAME does not offer exactly the list's patches and $name"
-# Players' files with the new patch over them: every file made, as made (not with --quick).
-if ((quick)); then
-    say "with $name over players' files: not checked (--quick)"
+# Players' files with the new patch over them: every file made, as made (--full only).
+if ((!full)); then
+    say "with $name over players' files: not checked (a quick build; --full checks it)"
 else
     compared=$("$bin" compare "${layers[@]}" --patch "$out/$name" --dir "$work/build/world")
     others=$(grep -v '^same ' <<<"$compared" || true)
@@ -199,10 +203,10 @@ say "$out/$DATA_NAME: sha256 $(sha256_of "$out/$DATA_NAME") (offers the list's p
 say
 rerun="the patch and the server data in $out are made; to run it all again: rm -rf $(q "$out")"
 site_pages "$out/$name"
-if ((quick)); then
-    say "the item tables: not made (--quick)"
+if ((!full)); then
+    say "the item tables: not made (a quick build; --full makes them)"
     if ((site)); then say "a preview of it all: SRP_GAME_DATA=$out/$DATA_NAME in $tree (scripts/wiki/README.md)"; fi
-    say "a quick build, for a local test: $out/$name with SRP_GAME_DATA=$out/$DATA_NAME; release.sh refuses it ($QUICK_MARK): a release builds without --quick"
+    say "a quick build, for a local test: $out/$name with SRP_GAME_DATA=$out/$DATA_NAME; release.sh refuses it ($QUICK_MARK): a release builds with --full"
     exit 0
 fi
 # The item tables of the new server data, in --out: the tree's as they are,
