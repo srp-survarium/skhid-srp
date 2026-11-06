@@ -120,6 +120,7 @@ pub fn candidates(cx: &Ctx, out: &mut Vec<Candidate>) {
         && let Some((job, Role::Flanker, line)) = cx.team.threat.job_of(cx.me.place)
     {
         let has_spot = matches!(cx.bot.current, Some((PlayKind::Flank, TargetRef::ThreatSpot(id), _)) if id == line.id)
+            || camp_spot_of(cx, line).is_some()
             || !job_flank_spots(cx, line).is_empty();
         #[cfg(test)]
         if !has_spot {
@@ -150,6 +151,14 @@ pub enum State {
     },
     Approach {
         spot: Vec3,
+    },
+    /// [A320 `threat.camp_flank`] A route made ahead of time round a known camp spot: `spot` and `route` index
+    /// `Tactics::camp_spots`; `next` is the first of its floors not yet passed; the play gives up at `give_up_at`.
+    Route {
+        spot: usize,
+        route: usize,
+        next: usize,
+        give_up_at: u32,
     },
     /// At the spot, watching him.
     Peek {
@@ -196,9 +205,62 @@ fn job_line<'a>(cx: &Ctx<'a>, target: TargetRef) -> Option<&'a crate::v026g::bot
     cx.team.threat.line(id)
 }
 
+/// [A320] A route floor this near is passed, m.
+const ROUTE_PASS_M: f32 = 2.0;
+/// [A320] The way point is the first route floor this far ahead at least, m.
+const ROUTE_LEAD_M: f32 = 5.0;
+/// [A320] The route's time: its length at this pace, m/s, and this more, ms (a walk is about 3.5 m/s).
+const ROUTE_PACE_MPS: f32 = 2.0;
+const ROUTE_SPARE_MS: u32 = 15_000;
+
+/// [A320 `threat.camp_flank`] The known camp spot of the other side the job's held spot is on (within its match radius,
+/// a storey at most), with its routes; none with the switch off.
+fn camp_spot_of(cx: &Ctx, line: &crate::v026g::bots::threat::HeldLine) -> Option<usize> {
+    if !cx.tuning.threat.camp_flank {
+        return None;
+    }
+    let side = cx.bot.side?;
+    cx.tactics.camp_spots.iter().position(|c| {
+        c.camper_side != side
+            && !c.routes.is_empty()
+            && c.at.distance_xz(line.at) <= c.match_radius_m
+            && (c.at.y - line.at.y).abs() <= 3.0
+    })
+}
+
+/// [A320] The job flanker's route round the known camp spot `line` is on: the human ones first, then those near a human
+/// win, then the rest, each by the bot's distance to its start; the job's n-th flanker (`Job::passed_count`) takes the
+/// n-th, so a route a flanker died on is not the next one's.
+fn camp_route(cx: &Ctx, line: &crate::v026g::bots::threat::HeldLine) -> Option<State> {
+    use crate::v026g::bots::camp_flank::Origin;
+    let spot = camp_spot_of(cx, line)?;
+    let camp = &cx.tactics.camp_spots[spot];
+    let grid = &cx.tactics.world.grid;
+    let rank = |o: Origin| match o {
+        Origin::Human => 0,
+        Origin::AstarNearWin => 1,
+        Origin::Astar => 2,
+    };
+    let start_m = |k: usize| grid.position(camp.routes[k].floors[0]).distance_xz(cx.me.feet);
+    let mut order: Vec<usize> = (0..camp.routes.len()).collect();
+    order.sort_by(|&a, &b| {
+        rank(camp.routes[a].origin).cmp(&rank(camp.routes[b].origin)).then(start_m(a).total_cmp(&start_m(b)))
+    });
+    let passed = cx.team.threat.job_of(cx.me.place).map_or(0, |(job, _, _)| job.passed_count());
+    let route = order[passed % order.len()];
+    let floors = &camp.routes[route].floors;
+    let length: f32 = floors.windows(2).map(|w| (grid.position(w[1]) - grid.position(w[0])).length()).sum::<f32>()
+        + start_m(route);
+    let give_up_at = cx.now + (length / ROUTE_PACE_MPS * 1000.0) as u32 + ROUTE_SPARE_MS;
+    Some(State::Route { spot, route, next: 0, give_up_at })
+}
+
 pub fn start(target: TargetRef, cx: &Ctx, rng: &mut Rng) -> State {
     // The team's job (K2): him at the spot, facing down his death lanes.
     if let Some(line) = job_line(cx, target) {
+        if let Some(route) = camp_route(cx, line) {
+            return route;
+        }
         let spots = job_flank_spots(cx, line);
         return match round(cx, line.at, line.facing_dir(), &spots, rng) {
             State::Wait { .. } => State::NoSpot,
@@ -408,8 +470,12 @@ fn round(cx: &Ctx, him: Vec3, facing: [f32; 2], spots: &[Vec3], rng: &mut Rng) -
 
 pub fn step(state: &mut State, target: TargetRef, cx: &Ctx, rng: &mut Rng) -> Step {
     let num = |name| cx.num(PlayKind::Flank, name);
+    let route_until = match state {
+        State::Route { give_up_at, .. } => Some(*give_up_at),
+        _ => None,
+    };
     if let Some((_, _, started)) = cx.bot.current
-        && cx.now > started + (num("give_up_s") * 1000.0) as u32
+        && cx.now > route_until.unwrap_or(started + (num("give_up_s") * 1000.0) as u32)
     {
         return Step::Failed("flanked too long");
     }
@@ -431,6 +497,31 @@ pub fn step(state: &mut State, target: TargetRef, cx: &Ctx, rng: &mut Rng) -> St
     let reach = num("reach_m");
     match state {
         State::NoSpot => Step::Failed("no flank spot round the held spot"),
+        State::Route { spot, route, next, .. } => {
+            let Some(r) = cx.tactics.camp_spots.get(*spot).and_then(|c| c.routes.get(*route)) else {
+                return Step::Failed("the camp spot's route is gone");
+            };
+            let grid = &cx.tactics.world.grid;
+            let at = |i: usize| grid.position(r.floors[i]);
+            let fire = r.fire;
+            // Passed: every floor up to the last one within reach (the route is walked in order).
+            if let Some(k) = (*next..=fire).rev().find(|&i| at(i).distance_xz(cx.me.feet) <= ROUTE_PASS_M) {
+                *next = k + 1;
+            }
+            if *next > fire {
+                let s = rng.range(num("peek_min_s"), num("peek_max_s"));
+                *state = State::Peek { until: cx.now + (s * 1000.0) as u32 };
+                return Step::Continue(Intent::stay().crouched().looking(Look::At(him)));
+            }
+            let way = (*next..=fire).find(|&i| at(i).distance_xz(cx.me.feet) >= ROUTE_LEAD_M).unwrap_or(fire);
+            let to_fire = at(fire).distance_xz(cx.me.feet);
+            let pace = if to_fire < num("sneak_m") { Pace::Sneak } else { Pace::Walk };
+            let mut intent = Intent::to(at(way), pace).within(ROUTE_PASS_M * 0.7);
+            if to_fire < num("sneak_m") {
+                intent = intent.looking(Look::At(him));
+            }
+            Step::Continue(intent)
+        }
         State::Via { via, spot } => {
             let (via, spot) = (*via, *spot);
             if cx.me.feet.distance_xz(via) < reach * 1.5 {
@@ -593,6 +684,44 @@ mod tests {
             step(&mut state, TargetRef::Place(1), &s.cx(0), &mut rng),
             Step::Done("waited him out")
         );
+    }
+
+    /// [A320 `threat.camp_flank`] With the switch on, the job's flanker on a held spot at a known camp spot of the other
+    /// side walks the table's route to its firing floor and watches him there; off, the job's flank is as before.
+    #[test]
+    fn a_job_flanker_at_a_known_camp_spot_walks_its_route_with_camp_flank() {
+        use crate::v026g::bots::camp_flank::{CampSpot, FlankRoute, Origin};
+        use crate::v026g::bots::threat::{HeldLine, Holder, Job, Picture};
+        let mut s = Scenario::field(Mode::TeamDeathmatch);
+        let me = Vec3::new(20.0, 0.0, 35.0);
+        let him = Vec3::new(60.0, 0.0, 12.0);
+        s.bot(0, 0, me);
+        let now = s.view.clock;
+        let line = HeldLine::for_test(7, 15, him, &[Vec3::new(45.0, 0.0, 12.0)], Some(now));
+        let job = Job::of(7, 15, Some(Holder { place: 0, since: now }), None);
+        s.team.threat = std::sync::Arc::new(Picture { held: vec![line], jobs: vec![job], ..Picture::default() });
+        let grid = s.tactics.world.grid.clone();
+        let fire_at = Vec3::new(62.0, 0.0, 30.0);
+        let (a, b) = (grid.locate(me, 1.0).unwrap(), grid.locate(fire_at, 1.0).unwrap());
+        let floors = grid.path(a, b).unwrap().nodes;
+        let fire = floors.len() - 1;
+        let route = FlankRoute { origin: Origin::Astar, floors, fire, exposed_m: 0.0 };
+        let camp = CampSpot { camper_side: 1, at: him, match_radius_m: 5.0, follow_radius_m: 10.0, routes: vec![route] };
+        s.tactics.camp_spots = std::sync::Arc::new(vec![camp]);
+        let target = TargetRef::ThreatSpot(7);
+        let mut rng = Rng::new(3);
+        let off = start(target, &s.cx(0), &mut rng);
+        assert!(!matches!(off, State::Route { .. }), "off: as before, {off:?}");
+        s.tuning.threat.camp_flank = true;
+        let on = start(target, &s.cx(0), &mut rng);
+        assert!(matches!(on, State::Route { spot: 0, route: 0, next: 0, .. }), "{on:?}");
+        let steps = s.run(0, PlayKind::Flank, target, 200, 300, 3.5);
+        assert!(
+            steps.iter().any(|st| matches!(st, Step::Continue(i) if i.go == Go::Stay && i.crouch && i.look == Look::At(him))),
+            "it peeks at him: {steps:?}"
+        );
+        let at = s.view.places[0].feet;
+        assert!(at.distance_xz(fire_at) <= 3.0, "at the route's firing floor: {at:?}");
     }
 
     #[test]

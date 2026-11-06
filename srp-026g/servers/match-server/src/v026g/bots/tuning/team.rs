@@ -746,6 +746,12 @@ pub struct ThreatTuning {
     /// (z -2.4), enemy carriers killed -24 % (z -3.1), own carriers lost +32 % (z +3.1)
     /// (`traces-20261028/fx-threat-obj-a229-a231-note.md` §6).
     pub walk_watch: Option<WalkWatch>,
+    /// A320 (`traces-20261028/fx-fights-a320-flank-routes-design.md`, `camp_flank.rs`): the job's flanker on a held spot
+    /// within 5 m of a known camp spot of the other side walks one of the routes made ahead of time round it (hidden from
+    /// the spot's eyes, from the side's ways in to a firing floor 8-25 m off his lane; the human winning paths first), the
+    /// next flanker of the job the next route; no such spot or no table (`bot-flank-routes.json`): the flank as before.
+    /// OFF until its by-side bench against the calibrated farming camper.
+    pub camp_flank: bool,
 }
 
 /// A229 (`traces-20261028/fx-threat-obj-a229-a231-note.md`): a walk looks along its route, so a bot walks into a lane its
@@ -942,6 +948,7 @@ impl Default for ThreatTuning {
             breach: None,
             pair_target: None,
             walk_watch: None,
+            camp_flank: false,
         }
     }
 }

@@ -17,6 +17,8 @@ pub(super) struct MapLayers {
     /// The places humans spend time high on this map and their share of alive time (V-S2b).
     pub(super) perches: Vec<routes::Perch>,
     pub(super) perch_share: Option<routes::PerchShare>,
+    /// [A320] The known camp spots of this map and mode and their flank routes as points, till they are put on its floors.
+    pub(super) camp_spots: Vec<camp_flank::SpotRow>,
 }
 
 impl MapLayers {
@@ -24,6 +26,7 @@ impl MapLayers {
     pub(super) fn attach(self, tactics: &mut Tactics) {
         tactics.set_routes(self.routes);
         tactics.set_perches(self.perches, self.perch_share);
+        tactics.set_camp_spots(self.camp_spots);
         tactics.foliage = Arc::new(self.foliage);
         tactics.grass = Arc::new(self.grass);
     }

@@ -1259,6 +1259,12 @@ impl Bots {
         self.layers.perch_share = table.perch_share(self.level, self.mode.id());
     }
 
+    /// [A320 `threat.camp_flank`] The known camp spots of the match's map and mode and their flank routes
+    /// (`bot-flank-routes.json`); before [`Self::map_ready`].
+    pub fn set_flank_table(&mut self, table: &camp_flank::FlankTable) {
+        self.layers.camp_spots = table.for_map(self.level, self.mode.rules());
+    }
+
     /// The map's bushes (`bot-foliage.json`); before [`Self::map_ready`].
     pub fn set_foliage(&mut self, foliage: foliage::Foliage) {
         self.layers.foliage = foliage;

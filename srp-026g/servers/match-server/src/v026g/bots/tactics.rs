@@ -204,6 +204,9 @@ pub struct Tactics {
     /// their share of alive time (V-S2b); empty without the table's keys.
     pub perches: Vec<super::routes::Perch>,
     pub perch_share: Option<super::routes::PerchShare>,
+    /// [A320 `threat.camp_flank`] The known camp spots of this map and mode and their flank routes, on its floors
+    /// (`camp_flank.rs`); empty without the table.
+    pub camp_spots: Arc<Vec<super::camp_flank::CampSpot>>,
     /// [`Self::past_fixed_zones`]'s regions, and the zones it was made for
     /// ([`Hazards::fixed_zones`]): made again only when they change (at
     /// the anomalies' attach).
@@ -832,6 +835,7 @@ impl Tactics {
             routes: Vec::new(),
             perches: Vec::new(),
             perch_share: None,
+            camp_spots: Default::default(),
             past_fixed: Default::default(),
             walks: Default::default(),
             spot_lists: Default::default(),
@@ -892,6 +896,22 @@ impl Tactics {
             })
             .collect();
         self.perch_share = share;
+    }
+
+    /// [A320] The camp spots of this map and mode, their routes put on its floors (a route that does not fit is left
+    /// out, a spot left with none is dropped); the routes left out, for the map's line.
+    pub fn set_camp_spots(&mut self, rows: Vec<super::camp_flank::SpotRow>) -> usize {
+        let mut refused = 0;
+        let spots = rows
+            .iter()
+            .filter_map(|row| {
+                let (spot, out) = row.on_grid(&self.world.grid);
+                refused += out.len();
+                (!spot.routes.is_empty()).then_some(spot)
+            })
+            .collect();
+        self.camp_spots = Arc::new(spots);
+        refused
     }
 
     /// The human routes out of `side`'s base.

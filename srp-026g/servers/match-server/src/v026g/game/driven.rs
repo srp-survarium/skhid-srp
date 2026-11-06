@@ -55,6 +55,7 @@ use crate::v026g::bots::reflex::WeaponKind;
 use crate::v026g::bots::foliage::{self, Foliage};
 use crate::v026g::bots::grass::{self, Grass};
 use crate::v026g::bots::live_grenades::{Player, Throws};
+use crate::v026g::bots::camp_flank::{self, FlankTable};
 use crate::v026g::bots::routes::{self, RouteTable};
 use crate::v026g::bots::switch_log;
 use crate::v026g::bots::tactics::Tactics;
@@ -226,6 +227,12 @@ impl Walkers {
             let var = std::env::var_os("SRP_BOT_ROUTES");
             if let Some(table) = route_table(id, var.as_deref(), walkers.maps.dir()) {
                 walkers.bots.set_routes(&table);
+            }
+            // [A320] The known camp spots and their flank routes (a private file; without it, or with
+            // `threat.camp_flank` off, the bots flank as before).
+            let var = std::env::var_os(camp_flank::VARIABLE);
+            if let Some(table) = flank_table(id, var.as_deref(), walkers.maps.dir()) {
+                walkers.bots.set_flank_table(&table);
             }
             // The bushes a sight line crosses (a private file; without it no bush hides anyone).
             let var = std::env::var_os("SRP_BOT_FOLIAGE");
@@ -841,6 +848,22 @@ fn route_table(
         Ok(table) => Some(table),
         Err(why) => {
             log::warn!("Match {id:#x}: {named} not used ({why})");
+            None
+        }
+    }
+}
+
+/// [A320] The flank-route table a match's bots get: `var` is `SRP_BOT_FLANK_ROUTES`, `mapdata` the mapdata folder
+/// ([`camp_flank::Source::choose`]). A file that fails to load: a warning; none: nothing (the switch is off by default).
+fn flank_table(id: u32, var: Option<&std::ffi::OsStr>, mapdata: Option<&std::path::Path>) -> Option<FlankTable> {
+    let path = match camp_flank::Source::choose(var, mapdata) {
+        camp_flank::Source::Set(path) | camp_flank::Source::Default(path) => path,
+        camp_flank::Source::Off | camp_flank::Source::Missing => return None,
+    };
+    match FlankTable::load(&path) {
+        Ok(table) => Some(table),
+        Err(why) => {
+            log::warn!("Match {id:#x}: the bot flank routes not used ({why})");
             None
         }
     }
