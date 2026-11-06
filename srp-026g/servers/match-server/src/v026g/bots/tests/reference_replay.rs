@@ -93,6 +93,7 @@ fn reference_replay() {
     let level_from_world = var("SRP_A325_LEVEL_FROM_WORLD").is_some();
     // `SRP_A325_REPLAY_START=1`: the keys mode starts from the clip stack the keys before B leave (else one layer at full weight).
     let replay_start = var("SRP_A325_REPLAY_START").is_some();
+    let yaw_before = var("SRP_A325_YAW_BEFORE").is_some();
     let mut last_level: HashMap<usize, f32> = HashMap::new();
     // `SRP_A325_WORLD_BLEND=k`: the velocity kept in the world frame, each tick k of the way toward the intended (a turn does not
     // swing the momentum round with the yaw at once). A hypothesis test, not a client rule.
@@ -231,12 +232,19 @@ fn reference_replay() {
         } else {
             1.0
         };
-        let mut kyaw = yaw_b;
+        // `SRP_A325_YAW_BEFORE=1`: the walk of tick k turned by the yaw BEFORE input k's turn (the model's base transform from the
+        // tick before), else after it (fx-grid's reading of 0x2D9060). The A/B of the two readings, until the exe read settles it.
+        let turn_at = |k: u32| turn_of.get(&(w.place, k)).copied().unwrap_or(0.0);
+        let mut kyaw = if yaw_before { yaw_b - turn_at(t0) } else { yaw_b };
         for (i, &&(t, _, v_own, _)) in ahead.iter().enumerate().take_while(|(_, r)| r.0 <= w.time) {
             let v_keys = keys_mode.then(|| {
                 let k = t - 50;
-                if k > t0 {
-                    kyaw += turn_of.get(&(w.place, k)).copied().unwrap_or(0.0);
+                if yaw_before {
+                    if k > t0 {
+                        kyaw += turn_at(k - 50);
+                    }
+                } else if k > t0 {
+                    kyaw += turn_at(k);
                 }
                 let kk = keys_in(k) & CLIP_KEYS;
                 if layers.last().is_none_or(|l| l.2 != kk) {
