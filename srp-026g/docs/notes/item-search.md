@@ -61,10 +61,10 @@ Code, in `flash/lobby_menu/src` ([lobby-source.md](lobby-source.md)):
 
   | example | meaning, and its list |
   | --- | --- |
-  | `+ammo +pocket` | has each bonus named<br>the items' bonus words by type: the gear's `+ammo +slot +pocket +artifact …`, then the weapons' `+aim +recoil …` |
-  | `+10 +11` | of any of these levels |
-  | `+army +black` | sold by any of these factions<br>the items' factions, a word each: `+independent +scavengers +black +renaissance +fringe` |
-  | `+helmet +boots` | any of these kinds<br>the items' kind words: `+gear +helmet +body +rig +boots …` |
+  | `+ammo +pocket` | items with both the ammo and pocket bonus<br>the items' bonus words by type: the gear's `+ammo +slot +pocket +artifact …`, then the weapons' `+aim +recoil …` |
+  | `+10 +11` | items of level 10 or 11 |
+  | `+army +black` | items sold by the Army or the Black Market<br>the items' factions, a word each: `+independent +scavengers +black +renaissance +fringe` |
+  | `+helmet +boots` | helmets or boots<br>the items' kind words: `+gear +helmet +body +rig +boots …` |
 
   - **The lists** (owner 2026-11-06: "there should be a list of +slot +artifact too, this is not
     obvious"; "many return nothing and as such should not be mentioned"): the words of what the
@@ -101,8 +101,10 @@ Code, in `flash/lobby_menu/src` ([lobby-source.md](lobby-source.md)):
     On the screen at every resolution (the lobby scales its tips with it).
   - **Only the "+" filters** (owner 2026-11-06: "since this only shows bonuses"): the bonus,
     level, faction and kind rows (the bonus row's `+ammo +pocket` shows them combining); no row for
-    names (a plain word still searches them, typos forgiven). The three "any" rows read alike
-    (owner 2026-11-06: no "(several: any)").
+    names (a plain word still searches them, typos forgiven). Each meaning restates its own
+    example concretely (owner 2026-11-06: "hard to read without context"), in each language with
+    that language's example words and its seller tabs' faction names, short; on one line beside
+    the example (the tip grows wider for it).
   - Once something is typed there is no tip; a click on the empty box is a click on the box.
   - Each cell a dictionary key (`st_srp_inventory_search_tip_<row>_example`,
     `st_srp_inventory_search_tip_<row>`; the lists have none), its examples the language's own
@@ -195,7 +197,8 @@ levels, kinds, factions, bonuses and the name's words (`SearchQuery`).
   the rules above; in every language the hint on one line in the box (its two greys), each of its
   and the tip's examples finding what they name, the Armor bonus by its card name a bonus, not a
   kind; the tip's rows, its lists (only what the fixture's items have, by type; no penalty),
-  place, columns and groups (a list dim, under its meaning, closer than the groups), each
+  place, columns and groups (a list dim, under its meaning, closer than the groups) in every
+  language (each meaning on one line, the tip on the screen), each
   faction word listing that faction's items in every language; Shift+= without its character
   over the list typing "+".
 

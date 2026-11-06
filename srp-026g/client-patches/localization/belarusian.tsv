@@ -2460,13 +2460,13 @@ st_srp_inv_stamina_damage	Шкода вынослівасці
 st_srp_inv_throw_speed	Хуткасць кідка
 st_srp_inventory_search	Пошук
 st_srp_inventory_search_examples	+кішэня, +слот, +патрон, +10
-st_srp_inventory_search_tip_bonus	ёсць кожны названы бонус
+st_srp_inventory_search_tip_bonus	прадметы з бонусам і да патронаў, і да артэфактаў
 st_srp_inventory_search_tip_bonus_example	+патрон +артэфакт
-st_srp_inventory_search_tip_faction	прадае любая з гэтых фракцый
+st_srp_inventory_search_tip_faction	тавары Арміі або Чорнага Рынку
 st_srp_inventory_search_tip_faction_example	+армія +чорны
-st_srp_inventory_search_tip_kind	любы з гэтых відаў
+st_srp_inventory_search_tip_kind	шлемы або боты
 st_srp_inventory_search_tip_kind_example	+шлем +боты
-st_srp_inventory_search_tip_level	любога з гэтых узроўняў
+st_srp_inventory_search_tip_level	прадметы 10 або 11 узроўню
 st_srp_inventory_search_tip_level_example	+10 +11
 st_srp_item_props_mps	м/с
 st_srp_language_option	Мова:

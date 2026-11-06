@@ -314,7 +314,7 @@ package
                   wait = 40;
                   break;
                case 2:
-                  checkTipLayout();
+                  checkTipLayout("english");
                   // the shop: its items with their built-in modifications only
                   inventory.toggleShopMode(true);
                   inventory.filterItems(null);
@@ -344,7 +344,9 @@ package
                   var t:Object = ItemSearchText.DATA[name].ui;
                   props(name);
                   sellers(name);
-                  // the shop's data again: the tip's lists made with this language's seller tabs
+                  // the shop's data again: the tip's lists made with this language's seller tabs and
+                  // texts
+                  domain.getDefinition("survarium.data.LocalizationData").setData(t);
                   inventory.setupShopItems(offers);
                   type("");
                   checkFactionList(name);
@@ -376,9 +378,19 @@ package
                   expect("+ammo +pocket",["Rig A","Rig B"],false,name);
                   expect("+artefact",["Vest"],false,name);
                   expect("+helmet",["Hood"],false,name);
+                  // the pointer over the empty box: this language's tip
+                  type("");
+                  stage.focus = null;
+                  tip().dispatchEvent(new MouseEvent(MouseEvent.MOUSE_OVER,true));
+                  wait = 40;
+                  break;
+               case 5:
+                  name = ItemSearchText.LANGUAGES[language];
+                  checkTipLayout(name);
+                  checkTipRows(ItemSearchText.DATA[name].ui);
                   if(++language < ItemSearchText.LANGUAGES.length)
                   {
-                     step--;
+                     step -= 2;
                   }
                   break;
                default:
@@ -489,7 +501,7 @@ package
          expect("+xp",[],false,"a bonus no item has");
          expect("+mask",[],false,"a kind no item is");
          // the factions selling an item, in the seller tabs' order, a word each naming it alone
-         require(rows[4][1] == "+independent +scavengers +black +renaissance +fringe","the tip lists the items' factions: " + rows[4][1]);
+         require(ui != ItemSearchText.DATA.english.ui || rows[4][1] == "+independent +scavengers +black +renaissance +fringe","the tip lists the items' factions: " + rows[4][1]);
          // every listed kind word names its kind: the inventory's of that kind
          expect("+helmet +boots",["Hood","Shoes"],false,"tip kinds");
       }
@@ -515,7 +527,7 @@ package
       // (a row [left, right, true]) under its row's meaning, dim (0x696969), no label, closer to
       // its row than the groups are to each other (the same gaps each); the padding the same on
       // every side.
-      private function checkTipLayout() : void
+      private function checkTipLayout(language:String) : void
       {
          require(tipLayer.numChildren == 1,"the tip shows over the empty box (" + tipLayer.numChildren + " shown)");
          if(tipLayer.numChildren != 1)
@@ -525,7 +537,8 @@ package
          var renderer:* = tipLayer.getChildAt(0);
          var shape:Rectangle = renderer.getBounds(tipLayer);
          var at:Rectangle = box.getBounds(tipLayer);
-         trace("ITEMSEARCH tip at " + shape + ", the box at " + at);
+         trace("ITEMSEARCH " + language + " tip at " + shape + ", the box at " + at);
+         require(shape.right <= stage.stageWidth,language + ": the tip (to " + shape.right + ") on the screen (" + stage.stageWidth + ")");
          require(Math.abs(shape.left - at.left) <= 1,"the tip's left edge (" + shape.left + ") on the box's (" + at.left + ")");
          require(shape.bottom <= at.top,"the tip (to " + shape.bottom + ") above the box (from " + at.top + ")");
          require(shape.top >= 0,"the tip (from " + shape.top + ") on the screen");
@@ -573,6 +586,7 @@ package
                require(Math.abs(lefts[i][0] - lefts[0][0]) <= 0.5,"the examples start at one x (" + lefts[i][0] + ", " + lefts[0][0] + ")");
                require(Math.abs(rights[i][1] - lefts[i][1]) <= 0.5,"row " + i + "'s cells on one line");
                require(colour != 0x696969,"a meaning is not dim");
+               require(cells[i * 2 + 1].numLines == 1 && cells[i * 2].numLines == 1,language + ": \"" + cells[i * 2].text + "\" and \"" + cells[i * 2 + 1].text + "\" on one line");
                widest = Math.max(widest,lefts[i][2]);
             }
             if(i > 0)
@@ -599,7 +613,7 @@ package
          var last:int = rows.length - 1;
          var bottom:Number = Math.max(lefts[last][3],rights[last][3]);
          var pads:Array = [lefts[0][0] - shape.left,lefts[0][1] - shape.top,shape.right - right,shape.bottom - bottom];
-         trace("ITEMSEARCH tip " + shape.width.toFixed(0) + " x " + shape.height.toFixed(0) + ", padding left, top, right, bottom: " + pads.map(function(p:Number, i:int, a:Array):String
+         trace("ITEMSEARCH " + language + " tip " + shape.width.toFixed(0) + " x " + shape.height.toFixed(0) + ", padding left, top, right, bottom: " + pads.map(function(p:Number, i:int, a:Array):String
          {
             return p.toFixed(1);
          }).join(", "));
