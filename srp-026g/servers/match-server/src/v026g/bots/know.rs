@@ -817,6 +817,35 @@ pub struct Cleared {
     pub by: ClearedBy,
 }
 
+/// [A324, `TrapTuning::camper_job`] A point of a held spot the team wants a trap on, and how far its job has come.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct CamperTrap {
+    /// The held spot (`threat::Spot::id`) and its shooter.
+    pub spot: u32,
+    pub shooter: Place,
+    pub at: Vec3,
+    pub kind: CamperTrapKind,
+    pub state: CamperTrapState,
+}
+
+/// Which point of the spot it is.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum CamperTrapKind {
+    /// On his way back to the spot from his side's spawns, out of the spot's sight; wanted while the team's job on it runs.
+    Approach,
+    /// Where he died on it; wanted `death_keep_s` from `died`.
+    Death { died: u32 },
+}
+
+/// Its job.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum CamperTrapState {
+    /// No bot sent (none free with a trap within reach).
+    Open,
+    /// `placer` was sent at `since`; it had put `placed_before` traps down this life then (one more: done).
+    Sent { placer: Place, since: u32, placed_before: u8 },
+}
+
 /// The team job that killed him.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum ClearedBy {
@@ -1032,6 +1061,10 @@ pub struct TeamKnowledge {
     /// [A145] The death points of campers team jobs killed, kept `TrapTuning::at_cleared`'s `keep_s` (one taken off when its
     /// trap is placed).
     pub cleared: Vec<Cleared>,
+    /// [A324] The camper trap points the team wants a trap on, and their jobs (`traps::camper_tick`).
+    pub camper_traps: Vec<CamperTrap>,
+    /// [A324] Spots whose job runs and on which no way back out of the spot's sight was found (not searched again while it runs).
+    pub camper_no_way: Vec<u32>,
     /// Enemies seen carrying lately.
     pub carriers_seen: Vec<CarrierSeen>,
     /// Where enemy carriers died with a battery the team cannot see.
