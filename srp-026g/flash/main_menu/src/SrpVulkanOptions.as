@@ -1,10 +1,14 @@
 package
 {
     import flash.display.DisplayObject;
+    import flash.display.GradientType;
+    import flash.display.Graphics;
     import flash.display.MovieClip;
+    import flash.display.Shape;
     import flash.display.Sprite;
     import flash.events.Event;
     import flash.events.MouseEvent;
+    import flash.geom.Matrix;
     import flash.geom.Rectangle;
     import scaleform.clik.controls.DropdownMenu;
     import scaleform.clik.core.UIComponent;
@@ -50,9 +54,16 @@ package
         // The panel and the controls in it, by name.
         public var panel:Sprite;
         private var body:Sprite;
-        // The game's own drop-down list's art (OptionScrollingList's: its one shape, nine-sliced by the list's
-        // grid), in a frame of ours that keeps that grid.
-        private var frame:Sprite;
+        // The panel's frame and ground (draw): the Settings window's own border on its four sides, and inside
+        // it the column's ground, so the controls in it look as the same controls outside it do.
+        private var frame:Shape;
+        // The window's border, outside in: its light line, then its dark band.
+        private static const EDGE_LIGHT:uint = 0x585A5D;
+        private static const EDGE_DARK:Array = [0x1A1A18, 0x131311, 0x0B0B0B];
+        // The column's ground across the panel (left to right, the window's darker left edge to its middle):
+        // its colours and their places (0-255 across the panel).
+        private static const GROUND:Array = [0x131517, 0x15171A, 0x1C2023, 0x282C2E, 0x2D3134, 0x2A2D30];
+        private static const GROUND_AT:Array = [0, 26, 84, 145, 168, 255];
         private var controls:Object = {};
         // Each option's saved and running value ("1"/"0" or the list's index); "" until the exe answers.
         private var saved:Object = {};
@@ -74,16 +85,7 @@ package
             content.addChild(button);
             panel = new Sprite();
             panel.name = "_srp_vulkan_panel";
-            // the stock list's art: the Renderer and Monitor lists' open list is an OptionScrollingList, a clip
-            // whose one shape is its background and border, nine-sliced by its scale9Grid. The list itself is a
-            // CLIK ScrollingList (it would draw rows and take presses), so its shape goes into a frame with the
-            // same grid; nine-slicing takes a container's own shapes, as the list's own clip has it.
-            var stock:MovieClip = new OptionScrollingList();
-            frame = new Sprite();
-            var art:DisplayObject = stock.getChildAt(0);
-            stock.removeChild(art);
-            frame.addChild(art);
-            frame.scale9Grid = stock.scale9Grid;
+            frame = new Shape();
             panel.addChild(frame);
             // the controls one Sprite under the panel (press routing: memory note, the lobby's rooms)
             body = new Sprite();
@@ -368,10 +370,28 @@ package
                     control.width = renderer.width;
                 }
             }
-            // the list's art at the panel's size: opaque, so the rows under it never show and a press on it is
-            // the panel's
-            frame.width = width;
-            frame.height = height;
+            draw(width, height);
+        }
+
+        // The panel's frame and ground at its size: opaque, so the rows under it never show and a press on it
+        // is the panel's.
+        private function draw(width:Number, height:Number):void
+        {
+            var g:Graphics = frame.graphics;
+            g.clear();
+            g.beginFill(EDGE_LIGHT);
+            g.drawRect(0, 0, width, height);
+            for (var i:int = 0; i < EDGE_DARK.length; i++)
+            {
+                g.beginFill(EDGE_DARK[i]);
+                g.drawRect(1 + i, 1 + i, width - 2 * (1 + i), height - 2 * (1 + i));
+            }
+            var inset:Number = 1 + EDGE_DARK.length;
+            var across:Matrix = new Matrix();
+            across.createGradientBox(width - 2 * inset, height - 2 * inset, 0, inset, inset);
+            g.beginGradientFill(GradientType.LINEAR, GROUND, [1, 1, 1, 1, 1, 1], GROUND_AT, across);
+            g.drawRect(inset, inset, width - 2 * inset, height - 2 * inset);
+            g.endFill();
         }
 
         // Shown on the Graphics frame once ready; disabled (no panel) while `enabled` is false.

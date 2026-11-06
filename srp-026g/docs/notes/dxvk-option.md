@@ -36,9 +36,13 @@ window keeping its size.
   wider only for a text that would not fit it); the owner, 2026-11-06: a button, not a drop-down box that
   says "Open", "it should look less ugly". A press opens a panel flush under it, the button held pressed
   (its "down" frames) while it is open; the panel is a popup over the column, a little wider than it on
-  both sides, in the look of the lists' own popup (the owner, 2026-11-06: the Renderer list's art, not a
-  drawn box): OptionScrollingList's frame, its one shape taken out of the symbol into a scale9 sprite
-  (the symbol as a component throws outside a list; its art alone stretches as the list's does), its rows on the column's grid (each list at the Renderer list's place and width, so its label and box
+  both sides, framed by the Settings window's own border on its four sides (its 1 px light line, then
+  its dark band), on the column's own ground (its colours sampled across it, the window's darker left
+  edge to its middle). The owner, 2026-11-06: the panel clearly separated from the column, and
+  everything inside it looking as the same control outside does; the lists' popup art (near black)
+  barely showed and made the controls on it look other than the column's. Its controls are the column's
+  components, unchanged (the harness compares each with its twin: class, scale, size, colour, filters,
+  frame, parts and text formats). Its rows on the column's grid (each list at the Renderer list's place and width, so its label and box
   are at the column's; each checkbox at Fullscreen's x, its text on its box as Fullscreen's), one line
   each, on one step (Monitor's list step, grown as little as
   ending in a gap of the column's rows takes: no row shows half below it), the same padding over
@@ -51,7 +55,12 @@ window keeping its size.
   The tip lies 4 px under the option the pointer is on, never over it (above it when the window ends
   first), from 16 px right of the pointer, inside the window, at the menu's own scale (2 at 4K). It is
   opaque (the symbol's look: a 1 px grey edge round a near-black fill; the symbol's own fill let the
-  rows under it show through), the text 6 px from each of its four edges. The main menu's copy of
+  rows under it show through), the text 6 px from each of its four edges. Each line is a field of its
+  own in the tip's format; a line's leading "+ " or "- " goes into a column of its own, the sign centred
+  in it on its line's baseline, so the texts after "+" and "-" start at one x in every language. The
+  checkboxes' labels: Scaleform centres them on their box (CheckBoxMultiline's vertical align), as the
+  stock Fullscreen's in the game; Ruffle draws them high, so the harness moves them for its
+  screenshots. The main menu's copy of
   ToolTip needed: its delay timer repeated forever, so the tip never came (`Timer(300,1)`, the lobby
   copy's); a tip is raised over the popups (PopUpManager puts its canvas back on top of whatever the
   stage gets, so the tip lay under the panel); the placement above. The menu's tip is used by these

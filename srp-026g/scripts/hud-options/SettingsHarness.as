@@ -2,6 +2,7 @@ package
 {
     import flash.display.DisplayObject;
     import flash.display.DisplayObjectContainer;
+    import flash.utils.Dictionary;
     import flash.utils.getQualifiedClassName;
     import flash.display.Loader;
     import flash.display.MovieClip;
@@ -15,6 +16,7 @@ package
     import flash.system.LoaderContext;
     import flash.text.Font;
     import flash.text.TextField;
+    import flash.text.TextFormat;
 
     // The Settings' gameplay tab with its "HUD:" group (exe patch 83,
     // docs/notes/hide-hit-markers-scores.md) in the rebuilt main menu: the
@@ -100,6 +102,10 @@ package
             var settings:* = Object(loader.content).settings_window;
             addEventListener(Event.ENTER_FRAME, function(e:Event):void {
                 ++frames;
+                // the Graphics tab's screenshots with the checkboxes' labels as the game draws them (after the
+                // checks of the layout, which measure the fields where Ruffle has them)
+                if (frames > 255 && frames < 540) centreCheckboxTexts(stage, true);
+                if (frames == 540) centreCheckboxTexts(stage, false);
                 if (frames == 20)
                 {
                     if (settings.btn_accept.enabled) trace("SETTINGS RESULT fail: Apply enabled before the screenshot");
@@ -142,6 +148,18 @@ package
                 // the Vulkan options' panel open (Vulkan picked), for its screenshot
                 if (frames == 350) click(settings.settings_content.getChildByName("_srp_vulkan"));
                 if (frames == 365) trace("SETTINGS SHOT vulkan");
+                // the panel's controls are the column's: each in the look of the same control outside it
+                if (frames == 366)
+                {
+                    try
+                    {
+                        checkVulkanLook(settings);
+                    }
+                    catch (error:Error)
+                    {
+                        trace("SETTINGS RESULT fail: " + error.message);
+                    }
+                }
                 // one option's hint shown (the game's tooltip, CLIK's 300 ms after the pointer comes over it), under
                 // its option; its x moved to a pointer on the checkbox (a test player's pointer is not there)
                 if (frames == 380)
@@ -167,11 +185,34 @@ package
                         // the same padding on its four sides (the text's box: a TextField's 2 px gutter inside it)
                         var tc:* = tip;
                         var box:DisplayObject = tc.getChildAt(0);
-                        var pads:Array = [tc.textField.x + 2, tc.textField.y + 2,
-                            box.width - (tc.textField.x + 2 + tc.textField.textWidth),
-                            box.height - (tc.textField.y + 2 + tc.textField.textHeight)];
+                        var fields:Array = [];
+                        for (var fi:int = 0; fi < tc.numChildren; ++fi)
+                            if (tc.getChildAt(fi) is TextField && tc.getChildAt(fi).visible) fields.push(tc.getChildAt(fi));
+                        var textLeft:Number = 1e9, textTop:Number = 1e9, textRight:Number = 0, textBottom:Number = 0;
+                        for each (var tf:TextField in fields)
+                        {
+                            textLeft = Math.min(textLeft, tf.x + 2);
+                            textTop = Math.min(textTop, tf.y + 2);
+                            textRight = Math.max(textRight, tf.x + 2 + tf.textWidth);
+                            textBottom = Math.max(textBottom, tf.y + 2 + tf.textHeight);
+                        }
+                        var pads:Array = [textLeft, textTop, box.width - textRight, box.height - textBottom];
                         if (Math.max.apply(null, pads) - Math.min.apply(null, pads) > 1)
                             trace("SETTINGS RESULT fail: Vulkan options: the hint's padding differs by side (" + pads + ")");
+                        // "+" and "-" in a column of their own: both lines' texts start at one x, each sign on its
+                        // text's line (the same y: the same format, the same baseline)
+                        var signed:Array = [];
+                        for each (var sf:TextField in fields)
+                        {
+                            if (sf.text != "+" && sf.text != "-") continue;
+                            for each (var bf:TextField in fields)
+                                if (bf != sf && bf.y == sf.y) signed.push(bf);
+                        }
+                        if (signed.length != 2 || signed[0].x != signed[1].x)
+                            trace("SETTINGS RESULT fail: Vulkan options: the hint's \"+\" and \"-\" lines' texts start apart ("
+                                + signed.map(function (f:*, ...rest):String { return f.text + " at " + f.x; }) + ")");
+                        else
+                            trace("SETTINGS hint signed lines' texts at x " + signed[0].x + ": " + signed[0].text + " | " + signed[1].text);
                         trace("SETTINGS hint " + Math.round(placed.width) + "x" + Math.round(placed.height)
                             + " under its option (" + Math.round(placed.top - at.bottom) + " px), padding " + pads);
                         // the pointer's x a player's would have on the box (Ruffle's pointer is not on it)
@@ -701,6 +742,93 @@ package
             root.set_settings(0, gameplay);
             root.set_values(0, gameplayValues);
             require(!list.visible && !settings.btn_accept.enabled, "Renderer: not on the gameplay tab again, nothing pending");
+        }
+
+        // Scaleform centres a CheckBoxMultiline's label on its box (TextFieldEx.setVerticalAlign, VALIGN_CENTER:
+        // the game draws it so, the owner's screenshot of 2026-11-05 shows Fullscreen's), Ruffle draws it at its
+        // field's top. For the screenshots, each such label moved where the game draws it (`on`), or back.
+        private var centred:Dictionary = new Dictionary(true);
+
+        private function centreCheckboxTexts(at:DisplayObjectContainer, on:Boolean):void
+        {
+            var multiline:Class = loader.contentLoaderInfo.applicationDomain.getDefinition("survarium.buttons.CheckBoxMultiline") as Class;
+            for (var i:int = 0; i < at.numChildren; ++i)
+            {
+                var child:DisplayObject = at.getChildAt(i);
+                var label:TextField = child as TextField;
+                if (label != null && at is multiline)
+                {
+                    // [its own y, the y given here]: a y not given here is the timeline's anew
+                    var was:Array = centred[label];
+                    if (was == null || label.y != was[1])
+                    {
+                        was = [label.y, label.y];
+                        centred[label] = was;
+                    }
+                    label.y = on ? was[0] + Math.max(0, (label.height - label.textHeight - 4) / 2) : was[0];
+                    was[1] = label.y;
+                }
+                else if (child is DisplayObjectContainer)
+                {
+                    centreCheckboxTexts(DisplayObjectContainer(child), on);
+                }
+            }
+        }
+
+        // Each control of the Vulkan options' panel in the look of the same control in the column (the lists the
+        // Renderer list's, the checkboxes Vertical sync's off and Fullscreen's on): the same class, scale, size,
+        // alpha, colour, filters and frame, the same parts at the same places, each text in the same format.
+        private function checkVulkanLook(settings:*):void
+        {
+            var c:* = settings.settings_content;
+            var renderer:* = c.getChildByName("_srp_renderer");
+            var pairs:Array = [
+                [renderer, "_srp_dxvk_frame_limit"], [renderer, "_srp_dxvk_overlay"],
+                [named(c, "_vsync"), "_srp_dxvk_low_latency"], [named(c, "_vsync"), "_srp_dxvk_tear_free"],
+                [named(c, "_fullscreen"), "_srp_dxvk_dedicated_gpu"]];
+            for each (var pair:Array in pairs)
+            {
+                var stock:String = lookOf(pair[0]);
+                var ours:String = lookOf(vulkanControl(settings, pair[1]));
+                trace("SETTINGS look " + pair[0].name + " at " + pair[0].getBounds(stage) + ", " + pair[1] + " at "
+                    + vulkanControl(settings, pair[1]).getBounds(stage));
+                require(stock == ours, "Vulkan options: " + pair[1] + " looks unlike " + pair[0].name + ":\n  " + stock + "\n  " + ours);
+            }
+            trace("SETTINGS Vulkan options: each control in its column twin's look (" + lookOf(renderer).length + ", "
+                + lookOf(named(c, "_fullscreen")).length + " characters of look each)");
+        }
+
+        // A display object's look, without its place, name and text: its class, scale on the stage, size, alpha
+        // and colour on the stage, filters, frame, and its parts' (each at its place in it).
+        private function lookOf(at:DisplayObject):String
+        {
+            function round(n:Number):Number { return Math.round(n * 100) / 100; }
+            var look:String = getQualifiedClassName(at) + " scale " + round(at.transform.concatenatedMatrix.a) + ","
+                + round(at.transform.concatenatedMatrix.d) + " size " + round(at.width) + "x" + round(at.height)
+                + " colour " + at.transform.concatenatedColorTransform + " visible " + at.visible + " filters "
+                + at.filters.map(function (f:*, ...rest):String {
+                    return getQualifiedClassName(f) + "(" + [f.color, f.alpha, f.blurX, f.blurY, f.strength, f.distance, f.angle] + ")";
+                });
+            var label:TextField = at as TextField;
+            if (label != null)
+            {
+                var format:TextFormat = label.getTextFormat();
+                look += " text " + [format.font, format.size, format.color, format.bold, format.italic, label.embedFonts,
+                    label.antiAliasType, label.textColor];
+            }
+            if (at is MovieClip) look += " frame " + MovieClip(at).currentLabel;
+            var parts:DisplayObjectContainer = at as DisplayObjectContainer;
+            if (parts != null)
+            {
+                look += " [";
+                for (var i:int = 0; i < parts.numChildren; ++i)
+                {
+                    var part:DisplayObject = parts.getChildAt(i);
+                    look += (i > 0 ? "; " : "") + "at " + round(part.x) + "," + round(part.y) + " " + lookOf(part);
+                }
+                look += "]";
+            }
+            return look;
         }
 
         // The stage's display object of that name (a popup's: PopUpManager's canvas), or null.

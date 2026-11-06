@@ -20,7 +20,8 @@
 # Screenshots into the work dir: settings.png (at rest), settings-checked.png (a toggle, Apply
 # enabled), settings-crosshair-open.png, settings-minimap-open.png, settings-graphics.png (Vulkan picked),
 # settings-vulkan.png (its options' panel open), settings-hint.png (an option's hint),
-# settings-renderer-open.png (the Renderer list open),
+# settings-renderer-open.png (the Renderer list open); the Graphics shots draw checkbox labels centred on their
+# box, as Scaleform does (Ruffle draws them at their field's top),
 # settings-controls-off.png, settings-controls-on.png, list-scores.png, list-names.png. Exits 0 when both say
 # pass. No game, no server.
 set -euo pipefail

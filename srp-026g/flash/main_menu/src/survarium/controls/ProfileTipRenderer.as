@@ -35,6 +35,12 @@ package survarium.controls
 
       protected var frame:Shape;
 
+      // The fields this text added beside the symbol's (its other lines, its signs).
+      protected var parts:Array = [];
+
+      // Between the sign column and its lines' texts.
+      protected static const SIGN_GAP:Number = 4;
+
       public function ProfileTipRenderer()
       {
          super();
@@ -44,17 +50,50 @@ package survarium.controls
          this.frame = new Shape();
          addChildAt(this.frame,0);
          scale9Grid = null;
-         this.textField.multiline = true;
+         this.textField.multiline = false;
          this.textField.wordWrap = false;
          this.textField.autoSize = TextFieldAutoSize.LEFT;
       }
 
+      // A line of a hint: "+ text" or "- text" is a signed line (its sign in a column of its own, so the
+      // texts after "+" and "-" start at one x whatever the glyphs' widths), any other a plain one.
+      protected static function signOf(line:String) : String
+      {
+         var sign:String = line.charAt(0);
+         return (sign == "+" || sign == "-") && line.charAt(1) == " " ? sign : null;
+      }
+
+      // A one-line field in the symbol's text field's look.
+      protected function lineField(text:String) : TextField
+      {
+         var field:TextField = new TextField();
+         field.embedFonts = this.textField.embedFonts;
+         field.antiAliasType = this.textField.antiAliasType;
+         field.gridFitType = this.textField.gridFitType;
+         field.sharpness = this.textField.sharpness;
+         field.thickness = this.textField.thickness;
+         field.filters = this.textField.filters;
+         field.defaultTextFormat = this.textField.defaultTextFormat;
+         field.selectable = false;
+         field.mouseEnabled = false;
+         field.autoSize = TextFieldAutoSize.LEFT;
+         field.text = text;
+         addChild(field);
+         this.parts.push(field);
+         return field;
+      }
+
       override protected function invalidateData() : void
       {
-         this.textField.text = _data.name;
-         var lines:TextFormat = new TextFormat();
-         lines.align = TextFormatAlign.LEFT;
-         this.textField.setTextFormat(lines);
+         var part:TextField;
+         for each(part in this.parts)
+         {
+            removeChild(part);
+         }
+         this.parts = [];
+         var format:TextFormat = this.textField.defaultTextFormat;
+         format.align = TextFormatAlign.LEFT;
+         this.textField.defaultTextFormat = format;
          var icon:Boolean = _data.icon is Icon;
          if(icon)
          {
@@ -64,10 +103,48 @@ package survarium.controls
          this.spriteAnchor.x = PADDING;
          this.spriteAnchor.y = PADDING;
          var left:Number = PADDING + (icon ? this.spriteAnchor.width + PADDING : 0);
-         this.textField.x = left - GUTTER;
-         this.textField.y = PADDING - GUTTER;
-         var frameWidth:Number = Math.ceil(left + this.textField.textWidth + PADDING);
-         var frameHeight:Number = Math.ceil(this.textField.textHeight + 2 * PADDING);
+         // each line its own field (the first the symbol's), the signs first: their column's width
+         var lines:Array = String(_data.name).split("\n");
+         var signs:Array = [];
+         var column:Number = 0;
+         var i:int;
+         for(i = 0; i < lines.length; ++i)
+         {
+            var sign:String = signOf(lines[i]);
+            signs.push(sign == null ? null : this.lineField(sign));
+            if(sign != null)
+            {
+               lines[i] = String(lines[i]).substr(2);
+               column = Math.max(column,signs[i].textWidth);
+            }
+         }
+         if(column > 0)
+         {
+            column += SIGN_GAP;
+         }
+         var right:Number = left;
+         var y:Number = PADDING;
+         for(i = 0; i < lines.length; ++i)
+         {
+            var line:TextField = i == 0 ? this.textField : this.lineField(lines[i]);
+            if(i == 0)
+            {
+               this.textField.text = lines[0];
+            }
+            var at:Number = signs[i] == null ? left : left + column;
+            line.x = at - GUTTER;
+            line.y = y - GUTTER;
+            if(signs[i] != null)
+            {
+               // centred in its column, on its line's baseline (the same format, the same y)
+               signs[i].x = left + (column - SIGN_GAP - signs[i].textWidth) / 2 - GUTTER;
+               signs[i].y = line.y;
+            }
+            right = Math.max(right,at + line.textWidth);
+            y += line.textHeight;
+         }
+         var frameWidth:Number = Math.ceil(right + PADDING);
+         var frameHeight:Number = Math.ceil(y + PADDING);
          this.frame.graphics.clear();
          this.frame.graphics.beginFill(EDGE);
          this.frame.graphics.drawRect(0,0,frameWidth,frameHeight);
