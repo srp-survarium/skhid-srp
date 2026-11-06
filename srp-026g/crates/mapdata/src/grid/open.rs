@@ -196,9 +196,10 @@ mod tests {
     #[test]
     fn a_parapet_with_walk_faces_closes_the_edge_with_drop_room_walk_faces() {
         let mut tris: Vec<Triangle> = quad(0.0, 12.0, 0.0, 0.0, 10.0).to_vec();
+        // An overhanging ledge (no face to erode the ground at its foot), so the drop is seen in the cell beside, as on Level 7's deck.
         tris.extend(quad(0.0, 6.0, 6.0, 0.0, 10.0));
-        tris.extend(wall(6.0, 0.0, 6.0, 0.0, 10.0));
-        tris.extend(wall(6.05, 6.0, 7.0, 0.0, 10.0).map(|t| Triangle { walker: WalkerBehaviour::Walk, ..t }));
+        // The parapet within the capsule's reach of the last floor's centre, from the ledge's height to 1 m over it.
+        tris.extend(wall(6.6, 6.0, 7.0, 0.0, 10.0).map(|t| Triangle { walker: WalkerBehaviour::Walk, ..t }));
         let open_with = |walk_faces: bool| {
             let body = Body { erosion: Erosion::Exact, drop_room_walk_faces: walk_faces, ..Body::default() };
             let grid = WalkGrid::build(&tris, AREA, 0.25, body).with_open_sides(&tris, 0.435);
