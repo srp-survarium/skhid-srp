@@ -6,6 +6,8 @@ mod objects;
 pub use bullets::bullets;
 pub use effects::effects;
 pub use objects::{Anomaly, Artefact, Artefacts, Group, Held, Map, Objects, State, objects};
+mod inventory;
+pub use inventory::{Body, Gun, GunState, Inventory, Item};
 mod player_tail;
 pub use player_tail::player_tail;
 mod rules;
@@ -55,16 +57,10 @@ pub struct Context<'a> {
     /// known: the places' grenades and traps, then the map's objects. Without
     /// it the section is not checked (a guessed match).
     pub objects: Option<&'a Objects<'a>>,
-    /// By place, the serialized inventory items of each kit (ascending slot,
-    /// up to the first with a body), when known. With it the tail walks the
-    /// items past the inventory header, bounding each item's owner lookup
-    /// (`[core+0x18458]+(profile_id+player_id*12)*4`, 0x2FFF72) and a
-    /// weapon's `m_current_ammo_id` (0x2E350A), and stops at the first item
-    /// body. The game fills it from its live kits (it knows each item's
-    /// `is_stack` and ammo list); the server leaves it `None` for now (the
-    /// walk then stops at the inventory header, as before), like
-    /// [`Context::artefacts`]. See the player-tail checker.
-    pub inventory: Option<&'a [[&'a [Item]; KITS]]>,
+    /// The match's kits as the game makes their objects, when known: with
+    /// it a player's state is read to its exact end ([`Inventory`]);
+    /// without it the walk stops at the inventory header.
+    pub inventory: Option<&'a Inventory<'a>>,
 }
 
 /// What a world's player block is checked against.
@@ -103,32 +99,6 @@ impl Weapon {
     pub fn buckshot(&self, ammo: u8) -> bool {
         self.buckshot.checked_shr(u32::from(ammo)).unwrap_or(0) & 1 != 0
     }
-}
-
-/// One serialized inventory item, as a kit's object of a slot deserializes
-/// it after the inventory header (`inventory::deserialize` loop 0x2FE7A9,
-/// `inventory_item::deserialize` 0x2FFF10). The stream does not say which
-/// slots hold an item nor each item's shape -- the loop walks the live
-/// kit's slot array -- so the walk is given the kit's items as data. They
-/// are listed in ascending slot order, up to and including the first with a
-/// [`Item::body`] (the walk reads its header and stops; a weapon's FSM and
-/// the readers after the items have no static length). See
-/// the player-tail checker.
-#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
-pub struct Item {
-    /// The slot (0..22). Read, not used: the loop's own slot drives it.
-    pub slot: u8,
-    /// The dictionary entry's `is_stack` (0x2FFF16): a `u16 m_amount` when
-    /// set, else an `f32 m_condition` (2 or 4 bytes before the owner).
-    pub stack: bool,
-    /// A body follows the header (a weapon, a grenade, a medkit, ...): the
-    /// walk reads this item's header, bounds it, and stops, because the
-    /// body has no static length.
-    pub body: bool,
-    /// A weapon's ammo-list length (`Weapon::ammo`), which bounds the
-    /// weapon's `m_current_ammo_id` (0x2E350A). `Some` only for a weapon,
-    /// and a weapon always has [`Item::body`].
-    pub ammo: Option<u8>,
 }
 
 impl Profile {

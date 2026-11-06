@@ -9,7 +9,7 @@
 //! `required_bags`), and `item_level` came here from the dictionary.
 
 use binary_config_parser::tree::{ConfigError, ConfigValue};
-use srp_validate::world::Artefact;
+use srp_validate::world::{Artefact, GunState};
 
 use super::dictionary::Dictionary;
 use super::game_data::{GameData, GameDataError};
@@ -69,7 +69,77 @@ pub struct ItemParams {
     pub name_key: Option<&'static str>,
     /// What the game makes of it in a kit (`data.type`, [`ItemClass`]).
     pub class: ItemClass,
+    /// A weapon's state machine ([`GunStates`]); `None` for an item with
+    /// no `states`.
+    pub gun: Option<GunStates>,
 }
+
+/// A weapon's state machine as its cook makes it (0x30B9A0 into
+/// 0x2DF780): the classes of its `states.<name>.state_type` in the order
+/// show, hide, idle, reload, fire, `chamber_a_round` if it has one,
+/// throw grenade, melee.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct GunStates {
+    pub states: &'static [GunState],
+    /// It has a `chamber_a_round` state.
+    pub chamber: bool,
+}
+
+impl GunStates {
+    const ORDER: [&'static str; 8] = [
+        "show",
+        "hide",
+        "idle",
+        "reload",
+        "fire",
+        "chamber_a_round",
+        "throw_grenade",
+        "melee",
+    ];
+
+    /// The machine of an item's config, if it has `states`. Every state but
+    /// the chamber's must be there, each of a class the game has.
+    pub fn from_config(config: &ConfigValue) -> Result<Option<Self>, ConfigError> {
+        let Some(table) = config.get("states") else {
+            return Ok(None);
+        };
+        let chamber = table.get("chamber_a_round").is_some();
+        let mut states = Vec::new();
+        for name in Self::ORDER {
+            let Some(state) = table.get(name) else {
+                if name == "chamber_a_round" {
+                    continue;
+                }
+                return Err(ConfigError(format!("`states` has no `{name}`")));
+            };
+            let kind = state.i32_at("state_type")?;
+            let class = u32::try_from(kind)
+                .ok()
+                .and_then(GunState::of_type)
+                .ok_or_else(|| ConfigError(format!("`states.{name}.state_type` {kind} is no class")))?;
+            states.push(class);
+        }
+        Ok(Some(Self {
+            states: Box::leak(states.into_boxed_slice()),
+            chamber,
+        }))
+    }
+}
+
+/// The damage model's body parts: the entries of
+/// `gameplay/hit_params/human_hit_params.options`, the `hit_params` every
+/// character config names (0x138948..0x138994). A player state saves each.
+pub fn body_parts() -> usize {
+    static PARTS: std::sync::OnceLock<usize> = std::sync::OnceLock::new();
+    *PARTS.get_or_init(|| {
+        let config = ConfigValue::parse(super::game_data::file(HIT_PARAMS))
+            .expect("the hit params parse");
+        config.get("hit_params").map_or(0, |parts| parts.children().len())
+    })
+}
+
+/// Where [`body_parts`] are.
+pub const HIT_PARAMS: &str = "gameplay/hit_params/human_hit_params.options";
 
 /// An item's `data.type`: the object the game's inventory cook makes of it
 /// in a kit (`inventory_cook::on_subresources_loaded` 0x2C75B0, the items
@@ -407,6 +477,7 @@ impl ItemParams {
             double_handed: flag(p, "double_handed")?,
             pocket_share: PocketShare::from_config(p)?,
             class: ItemClass::from_config(config)?,
+            gun: GunStates::from_config(config)?,
             modification: int(p, "modification")?,
             default_modifications: leak(default_modifications),
             covered_slots: leak(covered_slots_of(config)?),

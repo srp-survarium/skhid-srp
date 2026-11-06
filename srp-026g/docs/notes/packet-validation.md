@@ -97,8 +97,7 @@ and real-match acceptance remain separate gates.
 The next part calls the shared validator before an upload can enter any snapshot
 cache, vote, resync or relay. A refused upload retains its outstanding request.
 The server supplies the current map, roster, usable kits and profile item counts,
-and the world's game objects (next section); inventory shapes remain unknown and
-are not invented.
+the world's game objects and every kit's items (next sections).
 
 Scripted clients now emit valid effects, inventory headers and large bullet
 sections. Result fixtures use ten total batteries on a ten-battery map. Tests
@@ -145,6 +144,43 @@ complete 0xE0 upload checked as `world_validation::check` does, with the
 recording's own 0xE4). Before the artefact cores 85 of the first sample's
 24,749 were refused, all at an active artefact. The client's world check still
 has no object list: its native guards stay its bound.
+
+## Player states to their exact end on the server
+
+Each player's state is read to its block's exact end
+(`srp_validate::world::inventory`, RE in its module doc): the head, the
+effects, the stamina, the inventory header (a carried battery's state too), the
+kit's items, and everything after them (the damage model's body parts, the
+usable-object data, the character controller of a living player, the spotting,
+the recent hits, patch 78's carry snapshot).
+
+- **The kits** come from the match's profiles (`MatchProfile::inventory`): a
+  weapon slot's gun with its state machine (its config's `states` classes) and
+  its ammo list (the kit's ammo slots holding a stack it takes), an ammo slot's
+  stack of a count over 0, any other slot's item by its `data.type`. A profile
+  holding an item the game makes no object of leaves that match's states read
+  to their inventories, with a warning.
+- **Live state the stream does not say** is tried both ways: a weapon with a user
+  (one put in a hand) saves more than one without; a picked gun (patch 85) is
+  its recipe's gun with the picker's ammo list, and a pick may fill the
+  picker's ammo slots. The world is refused only when no shape reads it to the
+  end.
+- **Refused:** an item owned by no kit with a player, or saving another slot; an
+  ammo id or next ammo id past its list; a state machine state past its states
+  (a weapon's, its sub-states, the breath's, the portable object's selector and
+  its jump, a battery's); a throw of a grenade slot past the inventory's; more
+  than 8 affects or 64 hits on a body part, an affect type past 9; recent hits
+  that cannot fit; a battery carried by another player or in a container past
+  the two; bools that are not 0x00/0xFF; floats that are not numbers; a carry
+  snapshot of another version; any byte left over.
+
+Evidence: with their matches' profiles, **3,919** of the 3,920 worlds of the
+2026-11-05 local tests pass the whole check, every player block read to its
+exact end, the 1,244 states carrying a battery included (the one refused has a
+late joiner whose profile its packet log lacks; the server has it). Of 125,440
+single-byte mutations of those worlds 28,959 are refused, against 18,726
+without the objects and kits: most bytes of a state are free values
+(positions, times, health) that no layout bounds.
 
 ## Native deserialization bounds
 
