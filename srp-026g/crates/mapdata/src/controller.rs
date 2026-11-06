@@ -48,6 +48,18 @@ pub enum Shape {
 }
 
 impl Shape {
+    /// A point of `v` (a face) where the shape overlaps it: for a cylinder whose core is inside the face (GJK gives no
+    /// points there), the face's point nearest the core's axis; else `point` (the gap's own).
+    pub fn witness_on(&self, v: &[Vec3; 3], point: Vec3) -> Vec3 {
+        match *self {
+            Shape::Cylinder { centre, half, .. } => {
+                let up = Vec3::new(0.0, half, 0.0);
+                segment_triangle(centre - up, centre + up, v).2
+            }
+            _ => point,
+        }
+    }
+
     pub fn moved(self, by: Vec3) -> Self {
         match self {
             Shape::Capsule(c) => Shape::Capsule(c.moved(by)),
@@ -426,6 +438,13 @@ fn advance_bullet(shape: Shape, by: Vec3, face: &Face) -> Option<Contact> {
         if toward <= f32::EPSILON {
             return None;
         }
+    }
+    // [A329] A contact met already overlapping at the start: the cylinder's core inside the face, where GJK gives no points (its
+    // `distance` returns zeros). Bullet's caster then takes the penetration solver's witness on the face, a point of the
+    // overlap; the move test's top check (0x85F50) reads its height. Here: the face's point nearest the core's axis. (L08
+    // Cologne corner: the zero point read as a hit at the feet blocked a walk under an overhang the exe walks under.)
+    if t == 0.0 && gap <= 0.0 {
+        f = shape.witness_on(&face.v, f);
     }
     Some(Contact { t, point: f, normal: n, face: 0 })
 }
