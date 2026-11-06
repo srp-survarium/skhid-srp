@@ -155,7 +155,7 @@ fn run(input: &Path, out: &Path) -> Result<(), Box<dyn std::error::Error>> {
                     .map_or(f32::NAN, |b| f32::from_le_bytes([b[0], b[1], b[2], b[3]]));
                 let flag = |b: bool| u8::from(b).to_string();
                 let (sprinting, jumping, colliding, can_stand, normal_y, fall_y) = motion.body.as_ref().map_or_else(
-                    || Default::default(),
+                    Default::default,
                     |b| {
                         (
                             flag(b.sprinting),
