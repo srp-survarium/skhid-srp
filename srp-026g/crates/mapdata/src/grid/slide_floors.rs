@@ -263,6 +263,23 @@ mod probe {
                     );
                 }
             }
+            // Walking across the slope (along z) at the walk speed for 1 s: how far down it went.
+            let mut w = Controller::standing_at(feet);
+            w.velocity = Vec3::new(0.0, -ARRIVE_MPS, 0.0);
+            let mut slid = 0;
+            for _ in 0..20 {
+                w.walk = Vec3::new(0.0, 0.0, super::super::controlled::WALK_MPS * 0.05);
+                let notes = w.step(&world, 0.05, &Settings::LIVE);
+                slid += usize::from(notes.down_slide || notes.side_slide);
+            }
+            let e = w.feet();
+            line += &format!(
+                " walking 1s: along {:.2} downhill {:.2} down {:.2} slide ticks {slid} n.y {:.3}",
+                e.z - feet.z,
+                feet.x - e.x,
+                feet.y - e.y,
+                w.contact_normal.y
+            );
             eprintln!("{line}");
         }
     }
