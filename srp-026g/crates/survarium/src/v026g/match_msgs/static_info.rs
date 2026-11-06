@@ -32,7 +32,9 @@
 use super::super::dictionary::{Dictionary, PROFILE_SLOTS};
 use super::super::loadouts::Loadout;
 use super::super::skills::{MODIFIERS, write_modifier_block};
+use super::super::item_params::{self, ItemClass};
 use super::super::{lzma2, maps};
+use srp_validate::world::Held;
 use super::snapshot::event;
 use super::{MAX_PLAYERS, ServerMessage};
 
@@ -323,6 +325,34 @@ impl MatchProfile {
             items,
             squad: 0,
         }
+    }
+
+    /// The place's grenades and traps in a world's game objects, in the
+    /// order the game binds them (`srp_validate::world::objects`): its
+    /// usable kits in order (each has a player object, 0x321820), each
+    /// kit's slots in order (0x2FC7D0), one object for each of the slot's
+    /// count of a grenade set or a trap set (0x309EC0, 0x3067A0). An item
+    /// the data does not have is no grenade and no trap.
+    pub fn held(&self) -> impl Iterator<Item = Held> + '_ {
+        self.kits
+            .iter()
+            .take(MAX_KITS)
+            .filter(|kit| kit.state == KIT_USABLE)
+            .flat_map(|kit| kit.slots.iter().flatten())
+            .flat_map(|&(index, count)| {
+                let class = self
+                    .items
+                    .get(usize::from(index))
+                    .and_then(|item| item_params::item_params(item.dict_id))
+                    .map(|params| params.class);
+                let held = match class {
+                    Some(ItemClass::GrenadeSet) => Some(Held::Grenade),
+                    Some(ItemClass::TrapSet) => Some(Held::Trap),
+                    _ => None,
+                };
+                held.into_iter()
+                    .flat_map(move |held| std::iter::repeat_n(held, usize::from(count)))
+            })
     }
 }
 
@@ -1545,5 +1575,40 @@ mod tests {
         let info = StaticInfo::new(&options(vec![player; 20]), dictionary()).unwrap();
         assert!(info.options().len() < OPTIONS_BUFFER);
         assert!(info.payload(19).unwrap().len() < MAX_MESSAGE);
+    }
+
+    #[test]
+    fn a_places_held_objects_are_its_usable_kits_grenades_and_traps_in_slot_order() {
+        let dictionary = dictionary();
+        let id = |name: &str| dictionary.item_named(name).expect(name).dict_id;
+        let item = |dict_id, count| MatchItem {
+            dict_id,
+            condition_or_stack: count,
+            ..MatchItem::default()
+        };
+        let mut kits = vec![
+            MatchKit::empty(1, ""),
+            MatchKit::empty(2, ""),
+            MatchKit::empty(3, ""),
+        ];
+        // Kit 0: a trap in pocket 14, two grenades in pocket 13, a pistol;
+        // kit 1 is locked; kit 2: one grenade.
+        kits[0].slots[7] = Some((0, 1));
+        kits[0].slots[13] = Some((1, 2));
+        kits[0].slots[14] = Some((2, 1));
+        kits[1].state = 2;
+        kits[1].slots[13] = Some((1, 2));
+        kits[2].slots[15] = Some((1, 1));
+        let profile = MatchProfile {
+            team: 0,
+            name: "held".into(),
+            clan_tag: String::new(),
+            protection: NO_PROTECTION,
+            kits,
+            items: vec![item(id("tt_33"), FULL_CONDITION), item(id("rgd-5"), 3), item(id("base_trap"), 1)],
+            squad: 0,
+        };
+        let held: Vec<Held> = profile.held().collect();
+        assert_eq!(held, [Held::Grenade, Held::Grenade, Held::Trap, Held::Grenade]);
     }
 }

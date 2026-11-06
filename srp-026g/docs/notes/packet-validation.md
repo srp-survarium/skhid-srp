@@ -92,14 +92,46 @@ and real-match acceptance remain separate gates.
 
 The next part calls the shared validator before an upload can enter any snapshot
 cache, vote, resync or relay. A refused upload retains its outstanding request.
-The server supplies the current map, roster, usable kits and profile item counts;
-map-object tables and inventory shapes remain unknown and are not invented.
+The server supplies the current map, roster, usable kits and profile item counts,
+and the world's game objects (next section); inventory shapes remain unknown and
+are not invented.
 
 Scripted clients now emit valid effects, inventory headers and large bullet
 sections. Result fixtures use ten total batteries on a ten-battery map. Tests
 cover framing-valid unsafe effects followed by a valid initial retry, late joins,
 lossy resync and the existing refusal paths. No match calculation or wire format
 changes; valid snapshots retain their existing policy.
+
+## The world's game objects on the server
+
+The game-objects section is the objects of one list, each its own bytes with no
+count, id or length (`srp_validate::world::objects`, RE in its module doc). The
+list is every bound place's grenades and traps, the newest place first, then the
+map's damage zones that no anomaly drives, its resupply zones and its anomalies,
+each anomaly with its zone groups, its artefact containers and its artefacts. A
+map's battery containers are the gather rule's (the rules section).
+
+- **The map's part** comes from the project's `client_objects`: the server game
+  data keeps those a world saves (`resources_db::server::objects_of`, data
+  format 4; data 3 is refused at start), and `maps::world_objects` reads them
+  once into the validator's types, the anomalies' states in the game's sorted
+  order (`state_prio` 0x33C400, insertion sort).
+- **The places' part** is each profile's usable kits, slot by slot, one object
+  for each of a grenade set's or trap set's count (`MatchProfile::held`, by the
+  item's `data.type`, `ItemClass`). The first roster is bound from the start
+  and each late joiner when a game installs it, so an upload is checked as a
+  game that installed any number of the late joiners, in join order.
+- **Refused:** a section that does not read to its exact end; a grenade or trap
+  float that is not a number; flags an object has not; more than 20 users, a
+  user past the roster or using two objects; an anomaly state past its states;
+  zone bits past a group's zones; a container's artefact past the map's; an
+  artefact owner that is no kit with a player; an artefact state over 5.
+
+Evidence: all **3,920** worlds of the 2026-11-05 local tests read to the exact
+end of the section with their match's own profiles (each match's 0xE4 from the
+packet logs, joined to its worlds by the players' ports) and the maps of server
+data built from the live patches up to 50. The client's world check still has
+no object list: its native guards stay its bound.
 
 ## Native deserialization bounds
 

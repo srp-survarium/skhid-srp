@@ -66,6 +66,77 @@ pub struct ItemParams {
     /// The localization key of its name (`ui_desc.text_descriptions.name`),
     /// if it has one.
     pub name_key: Option<&'static str>,
+    /// What the game makes of it in a kit (`data.type`, [`ItemClass`]).
+    pub class: ItemClass,
+}
+
+/// An item's `data.type`: the object the game's inventory cook makes of it
+/// in a kit (`inventory_cook::on_subresources_loaded` 0x2C75B0, the items
+/// cook's switch 0x31F660). PROVEN.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum ItemClass {
+    /// No `data.type`: a weapon (by its slot), a cosmetic, money.
+    Untyped,
+    /// 0: a medkit; its `data.influences` count is how many floats an
+    /// active one saves.
+    Medkit { influences: u8 },
+    /// 1.
+    OxygenTank,
+    /// 2: `booby_trap_set_core`: one trap object of a world's game objects
+    /// for each of the kit slot's count.
+    TrapSet,
+    /// 3, 6, 7.
+    Artefact,
+    /// 4.
+    Armor,
+    /// 5.
+    Scope,
+    /// 9: `grenade_set_core`: one grenade object of a world's game objects
+    /// for each of the kit slot's count.
+    GrenadeSet,
+    /// 10.
+    Ammunition,
+    /// 11.
+    Booster,
+}
+
+impl ItemClass {
+    /// The class of an item's config: its `data.type`. A type the game's
+    /// cook does not know stops the data: srp would read its worlds wrong.
+    pub fn from_config(config: &ConfigValue) -> Result<Self, ConfigError> {
+        let data = config.get("data");
+        let Some(kind) = data.and_then(|data| data.get("type")) else {
+            return Ok(Self::Untyped);
+        };
+        let kind = kind
+            .as_i32()
+            .ok_or_else(|| ConfigError("`data.type` is not a number".into()))?;
+        Ok(match kind {
+            0 => {
+                let influences = data
+                    .and_then(|data| data.get("influences"))
+                    .map_or(0, |list| list.children().len());
+                Self::Medkit {
+                    influences: u8::try_from(influences).map_err(|_| {
+                        ConfigError(format!("{influences} `data.influences`"))
+                    })?,
+                }
+            }
+            1 => Self::OxygenTank,
+            2 => Self::TrapSet,
+            3 | 6 | 7 => Self::Artefact,
+            4 => Self::Armor,
+            5 => Self::Scope,
+            9 => Self::GrenadeSet,
+            10 => Self::Ammunition,
+            11 => Self::Booster,
+            other => {
+                return Err(ConfigError(format!(
+                    "`data.type` {other} is no class the game's cook makes"
+                )));
+            }
+        })
+    }
 }
 
 /// What one unit of a pocket item takes of its pocket; a pocket of `size`
@@ -332,6 +403,7 @@ impl ItemParams {
             magazine_capacity: int(p, "magazine_capacity")?,
             double_handed: flag(p, "double_handed")?,
             pocket_share: PocketShare::from_config(p)?,
+            class: ItemClass::from_config(config)?,
             modification: int(p, "modification")?,
             default_modifications: leak(default_modifications),
             covered_slots: leak(covered_slots_of(config)?),

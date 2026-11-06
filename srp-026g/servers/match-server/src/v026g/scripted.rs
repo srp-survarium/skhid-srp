@@ -11,6 +11,7 @@
 use std::collections::{BTreeMap, VecDeque};
 
 use survarium::v026g::dictionary::Dictionary;
+use srp_validate::world::Held;
 use survarium::v026g::maps::{self, RuleMode};
 use survarium::v026g::match_msgs::client_model::{ClientModel, Skip, Taken};
 use survarium::v026g::match_msgs::late_join::{CONNECT_CAPABILITY, Prepare, Prepared, Status};
@@ -66,11 +67,13 @@ pub struct Sim {
     /// stays under `world_frame::MAX_BODY`).
     pub ballast: usize,
     profile_items: Vec<usize>,
-    /// From a tick on the world's game objects have this many bytes: the
-    /// grenades and traps of a place this game installed, or started with.
-    /// A loaded world does not take them away, as it does the salt: they
-    /// are this game's objects.
-    pub late_objects_from: Option<(u32, usize)>,
+    /// By place, the grenades and traps of each place this game has bound
+    /// (its options' places; a late joiner's from its install on): a
+    /// world's game objects begin with them, the newest place first.
+    held: Vec<Vec<Held>>,
+    /// From a tick on the world's game objects have this many zero bytes
+    /// more in front: objects no game of the match has.
+    pub stray_objects_from: Option<(u32, usize)>,
     /// By place: the head of its player's state, for a place whose player
     /// block is in every world (alive, and what it has in store of each
     /// item of its profile).
@@ -108,12 +111,18 @@ impl Sim {
             salt_from: None,
             ballast: 0,
             profile_items: Vec::new(),
-            late_objects_from: None,
+            held: Vec::new(),
+            stray_objects_from: None,
             player_states: vec![None; players],
             player_tails: vec![None; players],
             first_world: true,
             stale_tickets_from: None,
         }
+    }
+
+    /// The places this game has bound: its options' places.
+    pub fn bound(&self) -> usize {
+        self.held.len()
     }
 
     /// A team's tickets at the start (`tickets_count`).
@@ -320,12 +329,16 @@ impl Sim {
         if let Some((_, salt)) = self.salt_from.filter(|(from, _)| since(*from)) {
             bullets[0] = salt;
         }
-        let objects = vec![
-            0;
-            self.late_objects_from
-                .filter(|(from, _)| since(*from))
-                .map_or(0, |(_, bytes)| bytes)
-        ];
+        let stray = self
+            .stray_objects_from
+            .filter(|(from, _)| since(*from))
+            .map_or(0, |(_, bytes)| bytes);
+        let mut objects = vec![0; stray];
+        let map = maps::map_mode(self.map_id).map_or(&maps::NO_WORLD_OBJECTS, |map| map.world_objects);
+        objects.extend(maps::untouched_objects(
+            self.held.iter().rev().flatten().copied(),
+            map,
+        ));
         let mut states = self.player_states.clone();
         if bullet_count != 0 && states.first().is_some_and(Option::is_none) {
             states[0] = Some(PlayerState {
@@ -489,10 +502,6 @@ pub struct Client {
     pub prepares: Vec<Prepare>,
     /// Every prepare received, resends too.
     pub prepares_received: u32,
-    /// The bytes a place this game installs adds to its world's game
-    /// objects, from the tick of the install on (a newcomer whose kits
-    /// have grenades or traps).
-    pub late_objects: usize,
     /// The server disconnected it (FA or FD).
     pub disconnected: bool,
     last_words: Option<Vec<u8>>,
@@ -575,7 +584,6 @@ impl Client {
             faults: Vec::new(),
             dropped_leaves: Vec::new(),
             auto_prepare: true,
-            late_objects: 0,
             prepares: Vec::new(),
             prepares_received: 0,
             disconnected: false,
@@ -642,14 +650,12 @@ impl Client {
             if place == options.players.len() {
                 options.players.push(prepare.profile.clone());
                 self.sim.profile_items.push(prepare.profile.items.len());
+                self.sim.held.push(prepare.profile.held().collect());
                 self.sim.players = options.players.len();
                 self.sim.player_states.resize(self.sim.players, None);
                 self.sim.player_tails.resize(self.sim.players, None);
             } else {
                 assert_eq!(options.players.get(place), Some(&prepare.profile));
-            }
-            if self.late_objects > 0 && self.sim.late_objects_from.is_none() {
-                self.sim.late_objects_from = Some((self.clock(), self.late_objects));
             }
         }
         let bytes = Prepared {
@@ -1037,6 +1043,11 @@ impl Client {
                 .players
                 .iter()
                 .map(|profile| profile.items.len())
+                .collect();
+            self.sim.held = options
+                .players
+                .iter()
+                .map(|profile| profile.held().collect())
                 .collect();
         }
         match &taken.message {

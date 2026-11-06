@@ -216,41 +216,64 @@ pub enum Reason {
     },
 
     // The game objects.
-    /// The map's `objects` game objects do not read to the section's exact
-    /// end.
+    /// The section does not read as its objects to the exact end
+    /// (`objects`: the object it stopped in).
     ObjectsUnread {
         len: usize,
         objects: usize,
     },
-    /// A usable object or container names a user past the roster.
+    /// A usable object has more users than its buffer of 20.
+    ObjectsUsers {
+        object: usize,
+        count: u8,
+    },
+    /// A usable object names a user past the roster.
     ObjectsUserPast {
         object: usize,
         user: u8,
         places: usize,
     },
-    /// An artefact container names an artefact past the game's.
+    /// A user uses two objects (a player has one link node).
+    ObjectsUserTwice {
+        object: usize,
+        user: u8,
+    },
+    /// An artefact container names an artefact past the map's.
     ObjectsArtefactPast {
         object: usize,
         artefact: u8,
         artefacts: usize,
-    },
-    /// A victory container holds more batteries than the map has.
-    ObjectsBatteriesPast {
-        object: usize,
-        count: u32,
-        batteries: usize,
-    },
-    /// A victory container names a battery past the map's.
-    ObjectsBatteryPast {
-        object: usize,
-        battery: u8,
-        batteries: usize,
     },
     /// An anomaly names a state past its own.
     ObjectsStatePast {
         object: usize,
         state: u8,
         states: usize,
+    },
+    /// A zone group's bits name a zone past its own.
+    ObjectsZoneBits {
+        object: usize,
+        bits: u8,
+    },
+    /// An artefact's owner is no kit with a player.
+    ObjectsOwner {
+        object: usize,
+        place: u8,
+        kit: u8,
+    },
+    /// An artefact's state is none the game has.
+    ObjectsArtefactState {
+        object: usize,
+        state: u8,
+    },
+    /// A flags byte has a bit the object has not.
+    ObjectsFlags {
+        object: usize,
+        flags: u8,
+    },
+    /// A float of an object is not a number.
+    ObjectsNotNumber {
+        object: usize,
     },
 
     // The physics.
@@ -560,8 +583,11 @@ impl fmt::Display for Reason {
             ),
             Reason::ObjectsUnread { len, objects } => write!(
                 f,
-                "{len} bytes do not read as the map's {objects} game objects to the end"
+                "{len} bytes do not read as the objects to the end (stopped in object {objects})"
             ),
+            Reason::ObjectsUsers { object, count } => {
+                write!(f, "object {object} has {count} users, over 20")
+            }
             Reason::ObjectsUserPast {
                 object,
                 user,
@@ -570,29 +596,16 @@ impl fmt::Display for Reason {
                 f,
                 "object {object} names user {user}, past the {places} places"
             ),
+            Reason::ObjectsUserTwice { object, user } => {
+                write!(f, "object {object} names user {user}, who uses another")
+            }
             Reason::ObjectsArtefactPast {
                 object,
                 artefact,
                 artefacts,
             } => write!(
                 f,
-                "object {object} names artefact {artefact}, past the {artefacts} the game has"
-            ),
-            Reason::ObjectsBatteriesPast {
-                object,
-                count,
-                batteries,
-            } => write!(
-                f,
-                "object {object} holds {count} batteries, the map has {batteries}"
-            ),
-            Reason::ObjectsBatteryPast {
-                object,
-                battery,
-                batteries,
-            } => write!(
-                f,
-                "object {object} holds battery {battery}, past the map's {batteries}"
+                "object {object} names artefact {artefact}, past the map's {artefacts}"
             ),
             Reason::ObjectsStatePast {
                 object,
@@ -602,6 +615,22 @@ impl fmt::Display for Reason {
                 f,
                 "object {object} names state {state}, past the anomaly's {states}"
             ),
+            Reason::ObjectsZoneBits { object, bits } => {
+                write!(f, "object {object} turns on zones past its own ({bits:#04x})")
+            }
+            Reason::ObjectsOwner { object, place, kit } => write!(
+                f,
+                "object {object} names owner {place} kit {kit}, which has no player"
+            ),
+            Reason::ObjectsArtefactState { object, state } => {
+                write!(f, "object {object} has artefact state {state}")
+            }
+            Reason::ObjectsFlags { object, flags } => {
+                write!(f, "object {object} has flags {flags:#04x}")
+            }
+            Reason::ObjectsNotNumber { object } => {
+                write!(f, "object {object} has a float that is not a number")
+            }
             Reason::PhysicsBytes { len } => write!(f, "{len} bytes where a game writes none"),
             Reason::BulletsUnread { len, bullets } => write!(
                 f,

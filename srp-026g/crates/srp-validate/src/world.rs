@@ -5,7 +5,7 @@ mod frame;
 mod objects;
 pub use bullets::bullets;
 pub use effects::effects;
-pub use objects::objects;
+pub use objects::{Anomaly, Artefacts, Group, Held, Map, Objects, State, objects};
 mod player_tail;
 pub use player_tail::player_tail;
 mod rules;
@@ -21,30 +21,6 @@ pub const PLAYER_FIELDS_AT: usize = 2 + weapon_pickup::Record::BYTES;
 
 pub const WEAPON_SLOTS: [u8; 2] = [7, 10];
 pub const AMMO_SLOTS: [u8; 8] = [8, 9, 11, 12, 19, 20, 21, 22];
-
-/// One game object of a map, in the order `set_game_world_core` links them
-/// (the damage zones, the usable objects, then the anomalies). The server
-/// fills the list from the project's `client_objects`, a game from its
-/// loaded objects.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub enum Object {
-    /// `damage_zone_core`: a `u32` and a `u8`, 5 bytes.
-    DamageZone,
-    /// `usable_object` (a resupply point): `u8 N` then `N` user ids.
-    Usable,
-    /// `artefact_container_core`: the usable base, a `u8` artefact id and a
-    /// `u32`. `artefacts` is how many artefacts the game has (the id's
-    /// bound; the id may also be 0xFF, none).
-    ArtefactContainer { artefacts: usize },
-    /// `victory_items_container_core`: the usable base, a `u32` count and
-    /// that many battery indices. The count and the indices are bounded by
-    /// the map's batteries ([`Context::batteries`]).
-    VictoryContainer,
-    /// `generic_anomaly_core`: the scalar head with a state index bounded by
-    /// `states` (the anomaly's state count). `gated`: the object's `[+0x0C]`
-    /// is set, so the head opens with a `u8` and, if set, a `u32`.
-    Anomaly { gated: bool, states: usize },
-}
 
 /// What a world is checked against: the match it is of. The server fills
 /// it from its match, the game from its own objects
@@ -75,11 +51,10 @@ pub struct Context<'a> {
     /// each slot, so no u8 is a crash. See
     /// the player-tail checker.
     pub artefacts: Option<usize>,
-    /// The map's game objects, in the order the world serializes them, when
-    /// known: the server from the project's `client_objects`, a game from
-    /// its loaded objects. Without it the game-objects section is not
-    /// checked (a guessed match).
-    pub objects: Option<&'a [Object]>,
+    /// The objects of the world's game-objects section, in its order, when
+    /// known: the places' grenades and traps, then the map's objects. Without
+    /// it the section is not checked (a guessed match).
+    pub objects: Option<&'a Objects<'a>>,
     /// By place, the serialized inventory items of each kit (ascending slot,
     /// up to the first with a body), when known. With it the tail walks the
     /// items past the inventory header, bounding each item's owner lookup

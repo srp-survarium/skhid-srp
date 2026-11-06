@@ -3,8 +3,8 @@ use std::fmt;
 
 use super::registry::Formed;
 use srp_validate::{
-    KITS, MAX_PLAYERS, Refusal,
-    world::{self, Context, Profile},
+    KITS, MAX_PLAYERS, Part, Refusal,
+    world::{self, Context, Held, Objects, Profile},
 };
 use survarium::v026g::match_msgs::static_info::KIT_USABLE;
 
@@ -43,24 +43,51 @@ pub(super) fn check(body: &[u8], time: u32, places: usize, formed: &Formed) -> R
     }
     let known = formed.profiles.len().min(MAX_PLAYERS);
     let map = formed.played.map();
-    let context = Context {
-        time,
-        places,
+    let refused = |refusal| Refused {
+        refusal,
         game_mode: map.mode.rules().number(),
         batteries: map.victory_items_count as usize,
-        respawn_points: Some(map.respawn_points),
-        profiles: Some(&profiles[..known]),
-        // Current server game data does not expose these native tables. Do
-        // not invent bounds or reject valid data using an assumed layout.
-        artefacts: None,
-        objects: None,
-        inventory: None,
-    };
-    world::validate(body, &context).map_err(|refusal| Refused {
-        refusal,
-        game_mode: context.game_mode,
-        batteries: context.batteries,
         respawn_points: map.respawn_points,
         places,
-    })
+    };
+    // The world's game objects begin with the grenades and traps of every
+    // place its game has bound, the newest first (`world::objects`): the
+    // first roster's from the start, then each late joiner's once that
+    // game installed it, in the order they joined. Which of the late
+    // joiners the uploading game has installed the server does not know,
+    // so a world is one of a game that installed the first `bound` of them.
+    let mut first = None;
+    for bound in (formed.initial_players.min(known)..=known).rev() {
+        let held: Vec<Held> = formed.profiles[..bound]
+            .iter()
+            .rev()
+            .flat_map(|profile| profile.held())
+            .collect();
+        let objects = Objects {
+            held: &held,
+            map: map.world_objects,
+        };
+        let context = Context {
+            time,
+            places,
+            game_mode: map.mode.rules().number(),
+            batteries: map.victory_items_count as usize,
+            respawn_points: Some(map.respawn_points),
+            profiles: Some(&profiles[..known]),
+            // Current server game data does not expose these native tables. Do
+            // not invent bounds or reject valid data using an assumed layout.
+            artefacts: None,
+            objects: Some(&objects),
+            inventory: None,
+        };
+        match world::validate(body, &context) {
+            Ok(()) => return Ok(()),
+            // Another count of installed places changes the game objects only.
+            Err(refusal) if refusal.part == Part::Objects => {
+                first.get_or_insert(refusal);
+            }
+            Err(refusal) => return Err(refused(first.unwrap_or(refusal))),
+        }
+    }
+    Err(refused(first.expect("the first roster is no more than the known places")))
 }

@@ -64,11 +64,34 @@ fn player(place: usize) -> MatchPlayer {
     }
 }
 
+/// A newcomer whose kit holds six grenades: a game's world's game objects
+/// have one for each once that game has its place.
+fn grenadier(place: usize) -> MatchPlayer {
+    let mut player = player(place);
+    let grenade = Dictionary::shared()
+        .item_named("rgd-5")
+        .expect("the grenade of the 0.26g dictionary")
+        .dict_id;
+    let index = player.profile.items.len() as u16;
+    player.profile.items.push(MatchItem {
+        instance_id: 2,
+        dict_id: grenade,
+        condition_or_stack: 6,
+        ..MatchItem::default()
+    });
+    player.profile.kits[0].slots[13] = Some((index, 6));
+    player
+}
+
 fn reserve(bench: &mut Bench) -> usize {
+    reserve_as(bench, player)
+}
+
+fn reserve_as(bench: &mut Bench, newcomer: fn(usize) -> MatchPlayer) -> usize {
     let place = bench.clients.len();
     let ticket = bench
         .registry
-        .join_running(bench.match_id, player(place))
+        .join_running(bench.match_id, newcomer(place))
         .unwrap();
     assert_eq!(ticket.match_id, bench.match_id);
     let map_id = bench.clients[0].sim.map_id;
@@ -658,8 +681,8 @@ fn failed_catchup_times_out_without_entering_or_voting_against_existing_players(
     let place = reserve(&mut bench);
     bench.clients[place].no_hashes = true;
     bench.join(place);
-    // Its world has objects the others' have not, also after a load.
-    bench.clients[place].sim.late_objects_from = Some((0, 7));
+    // Its world has objects no game of the match has, also after a load.
+    bench.clients[place].sim.stray_objects_from = Some((0, 7));
     bench.clients[place].no_hashes = false;
     // Started once more, once only, with 30 s more to catch up in.
     bench.run_long(61_000);
@@ -1176,9 +1199,12 @@ fn running_three() -> Bench {
 
 /// A newcomer is reserved and loading; game 1 has not installed its place
 /// yet. Returns the place and what game 1 was asked to install.
-fn reserve_with_one_game_still_installing(bench: &mut Bench) -> (usize, Prepare) {
+fn reserve_with_one_game_still_installing(
+    bench: &mut Bench,
+    newcomer: fn(usize) -> MatchPlayer,
+) -> (usize, Prepare) {
     bench.clients[1].auto_prepare = false;
-    let place = reserve(bench);
+    let place = reserve_as(bench, newcomer);
     bench.clients[place].connect();
     assert!(bench.until(1_000, |b| b.clients[place].model.options.is_some()));
     bench.clients[place].ready();
@@ -1241,20 +1267,16 @@ fn a_roster_change_while_a_newcomers_world_is_on_its_way_reaches_it_after_the_wo
 fn games_that_install_a_place_seconds_apart_are_not_resynced_for_it() {
     let mut bench = running_three();
     // The newcomer's kits have six grenades. A game's world has a byte for
-    // each from the tick it has the place; the newcomer's own from its
-    // start.
-    for client in &mut bench.clients {
-        client.late_objects = 6;
-    }
-    let (place, prepare) = reserve_with_one_game_still_installing(&mut bench);
-    bench.clients[place].sim.late_objects_from = Some((0, 6));
+    // each once it has the place; the newcomer's own from its start.
+    let (place, prepare) = reserve_with_one_game_still_installing(&mut bench, grenadier);
+    assert_eq!(bench.clients[place].sim.bound(), place + 1);
     assert!(bench.until(1_000, |b| {
-        b.clients[0].sim.late_objects_from.is_some() && b.clients[2].sim.late_objects_from.is_some()
+        b.clients[0].sim.bound() == place + 1 && b.clients[2].sim.bound() == place + 1
     }));
     // Game 1 loads the newcomer's kits five seconds longer than the other
     // two: all that time its reports are the minority's, and it is right.
     bench.run(5_000);
-    assert!(bench.clients[1].sim.late_objects_from.is_none());
+    assert_eq!(bench.clients[1].sim.bound(), place);
     assert_eq!(bench.game().resyncs(1), 0);
     assert_eq!(&bench.stages()[..3], "LLL");
     bench.clients[1].prepared(&prepare, Status::Installed);
@@ -1275,7 +1297,7 @@ fn games_that_install_a_place_seconds_apart_are_not_resynced_for_it() {
 #[test]
 fn a_game_out_of_step_while_a_place_is_installed_is_resynced_afterwards() {
     let mut bench = running_three();
-    let (_, prepare) = reserve_with_one_game_still_installing(&mut bench);
+    let (_, prepare) = reserve_with_one_game_still_installing(&mut bench, player);
     // Game 2's world goes its own way while game 1 still loads the place.
     let from = bench.clients[2].clock();
     bench.clients[2].sim.salt_from = Some((from, 7));
@@ -1675,4 +1697,57 @@ fn a_private_rooms_result_says_so_with_its_late_joiner() {
     // Any other match's does not.
     let bench = Bench::growing(2, MAP_BATTERIES, Settings::default());
     assert!(!bench.registry.formed(bench.match_id).unwrap().private);
+}
+
+#[test]
+fn an_upload_is_one_of_a_game_that_has_installed_the_newcomers_or_not() {
+    let mut bench = running_three();
+    let (place, prepare) = reserve_with_one_game_still_installing(&mut bench, grenadier);
+    assert!(bench.until(1_000, |b| b.clients[0].sim.bound() == place + 1));
+    assert_eq!(bench.clients[1].sim.bound(), place);
+    let formed = bench.registry.formed(bench.match_id).unwrap();
+    let check = |body: &[u8], time| {
+        crate::v026g::world_validation::check(body, time, srp_validate::MAX_PLAYERS, &formed)
+    };
+    let time = bench.clients[0].clock();
+    // A game with the newcomer's six grenades, and one without them yet.
+    let installed = bench.clients[0].sim.world(time);
+    let installing = bench.clients[1].sim.world(time);
+    assert!(check(&installed, time).is_ok());
+    assert!(check(&installing, time).is_ok());
+    // Grenades no place has, or an artefact container holding an artefact
+    // past the map's: no game's world.
+    let objects = |body: &[u8]| {
+        let frame = srp_validate::world::frame(body, srp_validate::MAX_PLAYERS).unwrap();
+        let section = frame.objects();
+        (section.at, section.bytes.len())
+    };
+    let mut stray = bench.clients[0].sim.clone();
+    stray.stray_objects_from = Some((0, 1));
+    let refusal = check(&stray.world(time), time).unwrap_err().to_string();
+    assert!(refusal.contains("game objects"), "{refusal}");
+    // The first anomaly's first container, in an untouched world: after the
+    // six grenades, the map's zones and the anomalies before it, and the
+    // anomaly's pending byte, energy, no state, flags and u32.
+    let map = formed.played.map().world_objects;
+    let first = map
+        .anomalies
+        .iter()
+        .position(|anomaly| anomaly.artefacts.is_some_and(|a| a.containers > 0))
+        .expect("the map has a container");
+    let before = survarium::v026g::maps::untouched_objects(
+        std::iter::repeat_n(srp_validate::world::Held::Grenade, 6),
+        &srp_validate::world::Map {
+            anomalies: &map.anomalies[..first],
+            ..*map
+        },
+    );
+    let (at, len) = objects(&installed);
+    assert!(before.len() + 11 < len);
+    let mut forged = installed.clone();
+    forged[at + before.len() + 11 + 1] = 0xFE;
+    let refusal = check(&forged, time).unwrap_err().to_string();
+    assert!(refusal.contains("names artefact 254"), "{refusal}");
+    bench.clients[1].prepared(&prepare, Status::Installed);
+    bench.assert_no_faults();
 }
