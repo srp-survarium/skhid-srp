@@ -177,7 +177,11 @@ fn drift_on_a_real_match() {
                 (true, false) => if kind.starts_with("still") { "still slide, no grid floor there" } else { "slide, no grid floor there" },
                 _ => kind,
             };
-            *slope_kinds.entry(kind).or_insert(0) += 1;
+            let seen = slope_kinds.entry(kind).or_insert(0);
+            *seen += 1;
+            if kind.ends_with("the grid has a floor there") && *seen <= 4 {
+                eprintln!("A318 slope sample: {kind} at ({:.2}, {:.2}, {:.2}) ground {at:?} before {was:?}", feet.x, feet.y, feet.z);
+            }
         }
         let iv = track.last_interval().unwrap_or_default();
         // What the grid has where a held reckoning stopped and where the client's feet are (A304: what kind of hold).
