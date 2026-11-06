@@ -176,17 +176,27 @@ impl WalkGrid {
             .flat_map(|a| (0..8).map(move |d| (a, d)))
             .filter(|&(a, d)| {
                 let b = wide.links[a][d];
-                b != NONE && sliding[b as usize] && !sliding[a]
+                b != NONE && sliding[b as usize] && !sliding[a] && !self.down_into(a, b as usize)
             })
             .map(|(a, d)| (a as u32, d, 0.0))
             .collect();
         (stats.cut, stats.kept) = self.cut_keeping_reach(wide, failing, seeds, spawns, false);
         let off = wide.off.len();
-        wide.off.retain(|l| !(sliding[l.to as usize] && !sliding[l.from as usize]));
+        wide.off.retain(|l| !(sliding[l.to as usize] && !sliding[l.from as usize] && !self.down_into(l.from as usize, l.to as usize)));
         stats.cut += off - wide.off.len();
         stats
     }
+
+    /// Whether the way from floor `a` into the slide floor `b` goes down onto it by more than [`DOWN_INTO_M`]: kept, as the body
+    /// that walks or drops down onto a slope it cannot hold slides on down it, the way the route was going (the second harm check:
+    /// cutting those ways too sent the routes round the slopes along their rims, falls off the route +36 %).
+    fn down_into(&self, a: usize, b: usize) -> bool {
+        self.height[a] - self.height[b] > DOWN_INTO_M
+    }
 }
+
+/// A way that ends this much lower than it starts goes down onto the floor, m.
+pub const DOWN_INTO_M: f32 = 0.1;
 
 #[cfg(test)]
 mod tests {
