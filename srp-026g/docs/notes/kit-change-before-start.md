@@ -26,7 +26,9 @@ README patch 31, `client_patch.md` section 3.29; the server: `TimelimitRule::bef
   is applied before the start transition or not at all.
 - **HUD:** the kit selector shows at spawn before the start and stays open after a pick, the
   cursor where it was (another pick switches again); it hides at the start. It is shown for a
-  live player exactly while the camera is the pre-start one.
+  live player exactly while the camera is the pre-start one. A new match starts with it and the
+  cursor hidden, whatever the last match left (patch 113), so its tab is the kit the match gave;
+  while the main menu (Esc) is shown the hud's cursor is off the screen, back when it closes.
 - **Camera while the selector is open (before the start), as the lobby's character view**
   (the owner, 2026-10-18):
   - plain mouse moves move the cursor only; a left click (press and release with no more
