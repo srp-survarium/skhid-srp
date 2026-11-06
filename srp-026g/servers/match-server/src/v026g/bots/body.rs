@@ -2006,7 +2006,8 @@ pub(super) mod tests {
     /// moves by both: a leg under 20 % (0.9) and a world showing it walk at 0.9 of the walk is a level of 1; at 0.81 a level of 0.9.
     #[test]
     fn a_hurt_legs_term_is_kept_out_of_the_level_and_moves_the_body() {
-        let kin = Kinematics { blend_ticks: 1, ..Kinematics::default() };
+        // Worlds with no decided ticks before them: read as they come ([`LevelRead::Any`]; the settled read is tested apart).
+        let kin = Kinematics { blend_ticks: 1, level_read: LevelRead::Any, ..Kinematics::default() };
         let mut track = BodyTrack::default();
         track.set_legs(Some(0.9));
         assert!((track.level() - 0.9).abs() < 1e-6);
@@ -2020,6 +2021,28 @@ pub(super) mod tests {
         assert!((track.level() - 0.9).abs() < 1e-5);
         track.set_legs(None);
         assert!((track.level() - 0.9).abs() < 1e-5);
+    }
+
+    /// [A318] [`LevelRead::Settled`]: a world in the fade after a key change (its speed between the two keys') leaves the level as it
+    /// was; once the last `blend_ticks` ticks held the same keys, the world's speed over those keys' sets it.
+    #[test]
+    fn the_level_is_read_only_from_a_settled_world() {
+        let kin = Kinematics::default();
+        let mut track = BodyTrack::default();
+        track.fixed(fix(0, Vec3::ZERO, 0.0), &kin, None);
+        let world = |time: u32, speed: f32| Fix { keys: key::FORWARD, speed: Some(speed), ..fix(time, Vec3::ZERO, 0.0) };
+        // Two ticks into a walk from rest: in the fade (3.0 m/s of 3.5 would read 0.857).
+        for k in 1..=2u32 {
+            track.decided(k * 50, key::FORWARD, (0.0, 0.0), 0.0, &kin, None);
+        }
+        track.fixed(world(150, 3.0), &kin, None);
+        assert!((track.level() - 1.0).abs() < 1e-6, "a fade's speed is no level: {}", track.level());
+        // Settled: six ticks of the same keys before the world.
+        for k in 3..=9u32 {
+            track.decided(k * 50, key::FORWARD, (0.0, 0.0), 0.0, &kin, None);
+        }
+        track.fixed(world(500, 3.5 * 0.95), &kin, None);
+        assert!((track.level() - 0.95).abs() < 1e-5, "settled: {}", track.level());
     }
 
     #[test]
