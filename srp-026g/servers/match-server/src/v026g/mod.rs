@@ -99,7 +99,10 @@
 //! - `SRP_PVB_STALL_S` (default 60, 10 to 3600): a match against the
 //!   server's bots whose only player has been asked for its world this
 //!   long and uploaded none is over (as deserted): its bots see the world
-//!   only through that player's uploads.
+//!   only through that player's uploads;
+//! - `SRP_PVB_WORLD_MS` (default 2000, 250 to 2000): while the server's
+//!   bots play, a world is asked for this often (a client-test play sets
+//!   it lower so its recording carries denser worlds for the drift lab).
 
 /// A player's battery events pay at most N times per kind, N the map's
 /// batteries (the owner's rule against farming them).
@@ -220,6 +223,9 @@ pub(crate) struct Timing {
     /// is over (`SRP_PVB_STALL_S`): its bots see the world through that
     /// player's uploads alone.
     pub pvb_stall: Duration,
+    /// While the server's bots play, a world is asked for this often (`SRP_PVB_WORLD_MS`, 250 to 2000 ms;
+    /// `game/driven.rs`). A client-test play sets it lower so its recording carries denser worlds for the drift lab.
+    pub pvb_world: Duration,
 }
 
 impl Default for Timing {
@@ -239,12 +245,15 @@ impl Default for Timing {
             final_wait: Duration::from_secs(7),
             entry_state: Duration::from_secs(4),
             pvb_stall: Duration::from_secs(DEFAULT_PVB_STALL_S),
+            pvb_world: Duration::from_millis(u64::from(DEFAULT_PVB_WORLD_MS)),
         }
     }
 }
 
 /// `SRP_PVB_STALL_S` when unset.
 pub(crate) const DEFAULT_PVB_STALL_S: u64 = 60;
+/// `SRP_PVB_WORLD_MS` when unset: the bots' world every 2 s, as before the setting.
+pub(crate) const DEFAULT_PVB_WORLD_MS: u32 = 2_000;
 
 /// How the match server behaves.
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -387,6 +396,15 @@ impl Settings {
                             DEFAULT_PVB_STALL_S as u32,
                         )
                         .clamp(10, 3600),
+                    )),
+                    // Never under 250 ms (a world is 30 to 60 KB from the client) nor over the 2 s it was.
+                    pvb_world: Duration::from_millis(u64::from(
+                        parse_number(
+                            "SRP_PVB_WORLD_MS",
+                            var("SRP_PVB_WORLD_MS").as_deref(),
+                            DEFAULT_PVB_WORLD_MS,
+                        )
+                        .clamp(250, DEFAULT_PVB_WORLD_MS),
                     )),
                     ..Timing::default()
                 }
