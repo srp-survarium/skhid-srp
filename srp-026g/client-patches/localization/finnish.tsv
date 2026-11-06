@@ -2463,8 +2463,9 @@ st_srp_inventory_search_examples	+tasku, +slot, +ammus, +10
 st_srp_inventory_search_tip_bonus	on jokainen mainittu bonus
 st_srp_inventory_search_tip_bonus_example	+ammus +tasku
 st_srp_inventory_search_tip_bonus_list	kaikki bonukset
-st_srp_inventory_search_tip_faction	tämän ryhmittymän myymä (monta: mikä tahansa)
-st_srp_inventory_search_tip_faction_example	+armeija
+st_srp_inventory_search_tip_faction	jonkin näistä ryhmittymistä myymä
+st_srp_inventory_search_tip_faction_example	+armeija +musta
+st_srp_inventory_search_tip_faction_list	kaikki ryhmittymät
 st_srp_inventory_search_tip_kind	jokin näistä tyypeistä
 st_srp_inventory_search_tip_kind_example	+kypärä +saappaat
 st_srp_inventory_search_tip_kind_list	kaikki tyypit

@@ -2463,8 +2463,9 @@ st_srp_inventory_search_examples	+кішэня, +слот, +патрон, +10
 st_srp_inventory_search_tip_bonus	ёсць кожны названы бонус
 st_srp_inventory_search_tip_bonus_example	+патрон +артэфакт
 st_srp_inventory_search_tip_bonus_list	усе бонусы
-st_srp_inventory_search_tip_faction	прадае гэтая фракцыя (некалькі: любая)
-st_srp_inventory_search_tip_faction_example	+армія
+st_srp_inventory_search_tip_faction	прадае любая з гэтых фракцый
+st_srp_inventory_search_tip_faction_example	+армія +чорны
+st_srp_inventory_search_tip_faction_list	усе фракцыі
 st_srp_inventory_search_tip_kind	любы з гэтых відаў
 st_srp_inventory_search_tip_kind_example	+шлем +боты
 st_srp_inventory_search_tip_kind_list	усе віды

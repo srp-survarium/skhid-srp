@@ -301,7 +301,7 @@ package survarium.controls
 
       private var _searchTipArea:ReasonsTip;
 
-      private static const SEARCH_TIP:Array = ["st_srp_inventory_search_tip_bonus","st_srp_inventory_search_tip_level","st_srp_inventory_search_tip_faction","st_srp_inventory_search_tip_kind"];
+      private static const SEARCH_TIP:Array = ["st_srp_inventory_search_tip_faction","st_srp_inventory_search_tip_bonus","st_srp_inventory_search_tip_level","st_srp_inventory_search_tip_kind"];
 
       // the text typed, read once (searchQuery); null: no search
       private var _search:SearchQuery;
@@ -1481,6 +1481,7 @@ package survarium.controls
          {
             this.ApplyInventoryFilter(null,inventoryTabPage.selectedIndex,sellersTabPage.dataProvider[sellersTabPage.selectedIndex].faction_id);
          }
+         this.listSearchWords();
       }
       
       public function tryAutoFill(value:ItemData) : void
@@ -2825,10 +2826,15 @@ package survarium.controls
          // a word's group: the lowest SuperCategory of the items that have it
          var group:Object = {};
          var kinds:Array = [];
+         var sold:Object = {};
          for each(var items:Array in [this._shopItems,this._inventoryItems])
          {
             for each(var item:Object in items != null ? items : [])
             {
+               for each(var seller:Object in item.sellers is Array ? item.sellers : [])
+               {
+                  sold[int(seller.faction_id)] = true;
+               }
                for each(var prop:Object in bonusLines(item))
                {
                   var word:String = wordOf[prop.prop_id];
@@ -2863,16 +2869,48 @@ package survarium.controls
          {
             return "+" + SEARCH_KINDS[kind].words[0];
          }).join(" ");
+         var factions:Array = [];
+         var tabs:DataProvider = sellersTabPage.dataProvider as DataProvider;
+         for(var t:int = 0; tabs != null && t < tabs.length; t++)
+         {
+            if(sold[int(tabs[t].faction_id)] && tabs[t].name != null)
+            {
+               factions.push(this.factionWord(String(tabs[t].name),int(tabs[t].faction_id)));
+            }
+         }
+         _searchFactionWords = factions.join(" ");
          this.fillSearchTip();
       }
 
-      // the tip's lists (listSearchWords): "+word +word …"; "" until the items come
+      // A faction's "+" word for the tip (owner 2026-11-06: "there should be every faction"): the
+      // first word of its seller tab's name, from 3 letters on, that names it alone (as searchQuery
+      // reads a "+" word: no level, no kind, no other faction: "The Renaissance Army" is
+      // +renaissance), lower case.
+      private function factionWord(name:String, id:int) : String
+      {
+         var words:Array = name.split(/[\s"'«»„“”().,:;!?\/-]+/);
+         for each(var word:String in words)
+         {
+            var form:String = searchForm(word)[0];
+            if(form.length >= SEARCH_KIND_LEAST && !/^[0-9]+$/.test(form) && searchKinds(form).length == 0 && this.searchFactions(form).join() == String(id))
+            {
+               return "+" + word.toLowerCase();
+            }
+         }
+         return "+" + String(words[0]).toLowerCase();
+      }
+
+      // the tip's lists (listSearchWords): "+word +word …"; "" until the items (and the seller
+      // tabs) come
       private var _searchBonusWords:String = "";
 
       private var _searchKindWords:String = "";
 
-      // The tip's rows (SEARCH_TIP), with the lists (listSearchWords) wrapped under the bonus row
-      // and the kind row, each when it has a word.
+      private var _searchFactionWords:String = "";
+
+      // The tip's rows (SEARCH_TIP: the faction's first, owner 2026-11-06: "that is the most
+      // important"), with the lists (listSearchWords) wrapped under the faction, the bonus and the
+      // kind rows, each when it has a word.
       private function fillSearchTip() : void
       {
          if(this._searchTipArea == null)
@@ -2883,13 +2921,18 @@ package survarium.controls
          {
             return [LocalizationData.getName(key + "_example"),LocalizationData.getName(key)];
          });
-         if(this._searchKindWords != "")
+         // each list under its row, from the last row up (a splice moves the rows after it)
+         var lists:Array = [["st_srp_inventory_search_tip_faction",this._searchFactionWords],["st_srp_inventory_search_tip_bonus",this._searchBonusWords],["st_srp_inventory_search_tip_kind",this._searchKindWords]];
+         lists.sort(function(a:Array, b:Array):int
          {
-            rows.splice(SEARCH_TIP.indexOf("st_srp_inventory_search_tip_kind") + 1,0,[LocalizationData.getName("st_srp_inventory_search_tip_kind_list"),this._searchKindWords,true]);
-         }
-         if(this._searchBonusWords != "")
+            return SEARCH_TIP.indexOf(b[0]) - SEARCH_TIP.indexOf(a[0]);
+         });
+         for each(var list:Array in lists)
          {
-            rows.splice(SEARCH_TIP.indexOf("st_srp_inventory_search_tip_bonus") + 1,0,[LocalizationData.getName("st_srp_inventory_search_tip_bonus_list"),this._searchBonusWords,true]);
+            if(list[1] != "")
+            {
+               rows.splice(SEARCH_TIP.indexOf(list[0]) + 1,0,[LocalizationData.getName(list[0] + "_list"),list[1],true]);
+            }
          }
          // name: the renderer's own text (TextTipRenderer.invalidateData), none beside the rows
          this._searchTipArea.tipData = {name:"",rows:rows};

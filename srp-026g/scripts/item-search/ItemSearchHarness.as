@@ -44,6 +44,9 @@ package
 
       private var shop:*;
 
+      // the shop's entries as the exe gives them
+      private var offers:Array;
+
       private var failures:Array = [];
 
       private var frames:int = 0;
@@ -225,7 +228,7 @@ package
                   inventory.toggleShopMode(false);
                   inventory.filterItems(null);
                   inventory.optionControl.checkbox_all_traders.selected = true;
-                  var offers:Array = [];
+                  offers = [];
                   shop.forEachItem(function(entry:*):Boolean
                   {
                      offers.push(entry);
@@ -341,6 +344,10 @@ package
                   var t:Object = ItemSearchText.DATA[name].ui;
                   props(name);
                   sellers(name);
+                  // the shop's data again: the tip's lists made with this language's seller tabs
+                  inventory.setupShopItems(offers);
+                  type("");
+                  checkFactionList(name);
                   fits(name,t.st_srp_inventory_search,": " + t.st_srp_inventory_search_examples);
                   // the hint's examples (owner 2026-11-06): exactly the pocket, the slot, the ammo and
                   // a level, each finding what it names
@@ -356,7 +363,9 @@ package
                   {
                      expect(w,null,false,name + " tip");
                   }
-                  expect(plusWords(t.st_srp_inventory_search_tip_faction_example)[0],["AK-74M","Vest"],false,name + " tip");
+                  var factions:Array = plusWords(t.st_srp_inventory_search_tip_faction_example);
+                  expect(factions[0],["AK-74M","Vest"],false,name + " tip");
+                  expect(factions.join(" "),["AK-74M","Vest","Rig B"],false,name + " tip");
                   var kinds:Array = plusWords(t.st_srp_inventory_search_tip_kind_example);
                   expect(kinds[0],["Hood"],false,name + " tip");
                   expect(kinds[1],["Shoes"],false,name + " tip");
@@ -450,7 +459,7 @@ package
          var rows:Array = tip().tipData.rows as Array;
          var key:String = "st_srp_inventory_search_tip_";
          var want:Array = [];
-         for each(var k:String in ["bonus","bonus_list","level","faction","kind","kind_list"])
+         for each(var k:String in ["faction","faction_list","bonus","bonus_list","level","kind","kind_list"])
          {
             want.push(k.indexOf("_list") != -1 ? ui[key + k] + " / (list)" : ui[key + k + "_example"] + " / " + ui[key + k]);
          }
@@ -459,28 +468,46 @@ package
             return r[0] + " / " + (r[2] === true ? "(list)" : r[1]);
          });
          require(got.join("|") == want.join("|"),"the tip's rows: " + got.join(" | ") + ", not " + want.join(" | "));
-         if(rows == null || rows.length != 6)
+         if(rows == null || rows.length != 7)
          {
             return;
          }
-         var bonuses:Array = String(rows[1][1]).split(" ");
-         var kinds:Array = String(rows[5][1]).split(" ");
-         trace("ITEMSEARCH tip bonus words (" + bonuses.length + "): " + rows[1][1]);
-         trace("ITEMSEARCH tip kind words (" + kinds.length + "): " + rows[5][1]);
+         var bonuses:Array = String(rows[3][1]).split(" ");
+         var kinds:Array = String(rows[6][1]).split(" ");
+         trace("ITEMSEARCH tip bonus words (" + bonuses.length + "): " + rows[3][1]);
+         trace("ITEMSEARCH tip kind words (" + kinds.length + "): " + rows[6][1]);
          // the bonuses the items have, by type (owner 2026-11-06): the gear's (the rigs' ammo and
          // pocket, the hood's slot and armor, the vest's artifact), then the weapons' (the Mosin's
          // aim, the AK's recoil), each group in SEARCH_BONUSES' order; the vest's armour is a
          // defect, the rig's +2 kg and the Mosin's movement -5 % penalties, and no item has xp or
          // use: not listed, still matched
-         require(rows[1][1] == "+ammo +slot +pocket +artifact +armor +aim +recoil","the tip lists the items' bonuses by type: " + rows[1][1]);
+         require(rows[3][1] == "+ammo +slot +pocket +artifact +armor +aim +recoil","the tip lists the items' bonuses by type: " + rows[3][1]);
          // the kinds some item is, in SEARCH_KINDS' order (no mask, gloves, pants or items)
-         require(rows[5][1] == "+gear +helmet +body +rig +boots","the tip lists the items' kinds: " + rows[5][1]);
+         require(rows[6][1] == "+gear +helmet +body +rig +boots","the tip lists the items' kinds: " + rows[6][1]);
          expect("+weight",[],false,"a penalty (the rig's +2 kg) is no bonus");
          expect("+movement",[],false,"a penalty (the Mosin's built-in -5 %) is no bonus");
          expect("+xp",[],false,"a bonus no item has");
          expect("+mask",[],false,"a kind no item is");
+         // the factions selling an item, in the seller tabs' order, a word each naming it alone
+         require(rows[1][1] == "+independent +scavengers +black +renaissance +fringe","the tip lists the items' factions: " + rows[1][1]);
          // every listed kind word names its kind: the inventory's of that kind
          expect("+helmet +boots",["Hood","Shoes"],false,"tip kinds");
+      }
+
+      // The tip's faction list in a language (its seller tabs' names): every faction an item has,
+      // in the tabs' order, each word listing that faction's items, the independent traders too.
+      private function checkFactionList(language:String) : void
+      {
+         var rows:Array = tip().tipData.rows as Array;
+         var words:Array = rows != null && rows.length > 1 ? String(rows[1][1]).split(" ") : [];
+         trace("ITEMSEARCH " + language + " tip faction words: " + words.join(" "));
+         // the tabs' order: the independent traders, then the factions 1 to 4
+         var sold:Array = [["Mosin","Shoes"],["Rig A"],["Rig B"],["AK-74M","Vest"],["Hood"]];
+         require(words.length == sold.length,language + ": the tip lists " + sold.length + " factions (" + words.join(" ") + ")");
+         for(var i:int = 0; i < words.length && i < sold.length; i++)
+         {
+            expect(words[i],sold[i],false,language + " tip faction");
+         }
       }
 
       // The tip shown (in tipLayer, ToolTip's container): the game's renderer, just above the box,

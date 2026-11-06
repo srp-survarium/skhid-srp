@@ -2463,8 +2463,9 @@ st_srp_inventory_search_examples	+džep, +mesta, +torbice, +10
 st_srp_inventory_search_tip_bonus	ima svaki naveden bonus
 st_srp_inventory_search_tip_bonus_example	+torbice +džep
 st_srp_inventory_search_tip_bonus_list	svi bonusi
-st_srp_inventory_search_tip_faction	prodaje ta frakcija (više: bilo koja)
-st_srp_inventory_search_tip_faction_example	+vojska
+st_srp_inventory_search_tip_faction	prodaje bilo koja od ovih frakcija
+st_srp_inventory_search_tip_faction_example	+vojska +crno
+st_srp_inventory_search_tip_faction_list	sve frakcije
 st_srp_inventory_search_tip_kind	bilo koja od ovih vrsta
 st_srp_inventory_search_tip_kind_example	+šlem +čizme
 st_srp_inventory_search_tip_kind_list	sve vrste

@@ -32,10 +32,11 @@ from pathlib import Path
 sys.path.insert(0, sys.argv[1])
 from localization_026g import CATALOG, LANGUAGES, read_translations
 SEARCH = ['st_srp_inventory_search', 'st_srp_inventory_search_examples',
-          'st_srp_inventory_search_tip_bonus_list', 'st_srp_inventory_search_tip_kind_list'] + [f'st_srp_inventory_search_tip_{part}{suffix}'
+          'st_srp_inventory_search_tip_bonus_list', 'st_srp_inventory_search_tip_kind_list',
+          'st_srp_inventory_search_tip_faction_list'] + [f'st_srp_inventory_search_tip_{part}{suffix}'
                                          for part in ('bonus', 'level', 'faction', 'kind')
                                          for suffix in ('', '_example')]
-FACTIONS = {1: 'st_scavengers_faction', 2: 'st_black_market_faction', 3: 'st_renaissance_faction',
+FACTIONS = {0: 'st_non_faction_items', 1: 'st_scavengers_faction', 2: 'st_black_market_faction', 3: 'st_renaissance_faction',
             4: 'st_border_faction'}
 PROPS = {3: 'st_inv_arp', 6: 'st_inv_armor', 9: 'st_inv_artefact_slots', 10: 'st_inv_device_slots',
          15: 'st_inv_item_weight', 105: 'st_movement_speed_correction_perc_name',

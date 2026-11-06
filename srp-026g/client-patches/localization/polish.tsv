@@ -2463,8 +2463,9 @@ st_srp_inventory_search_examples	+kieszeń, +miejsca, +ładownice, +10
 st_srp_inventory_search_tip_bonus	ma każdy podany bonus
 st_srp_inventory_search_tip_bonus_example	+ładownice +kieszeni
 st_srp_inventory_search_tip_bonus_list	wszystkie bonusy
-st_srp_inventory_search_tip_faction	sprzedaje ta frakcja (kilka: dowolna)
-st_srp_inventory_search_tip_faction_example	+armia
+st_srp_inventory_search_tip_faction	sprzedaje dowolna z tych frakcji
+st_srp_inventory_search_tip_faction_example	+armia +czarny
+st_srp_inventory_search_tip_faction_list	wszystkie frakcje
 st_srp_inventory_search_tip_kind	dowolny z tych rodzajów
 st_srp_inventory_search_tip_kind_example	+helmet +boots
 st_srp_inventory_search_tip_kind_list	wszystkie rodzaje

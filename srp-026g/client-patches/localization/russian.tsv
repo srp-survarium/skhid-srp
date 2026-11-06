@@ -2463,8 +2463,9 @@ st_srp_inventory_search_examples	+карман, +слот, +патрон, +10
 st_srp_inventory_search_tip_bonus	есть каждый названный бонус
 st_srp_inventory_search_tip_bonus_example	+патрон +карман
 st_srp_inventory_search_tip_bonus_list	все бонусы
-st_srp_inventory_search_tip_faction	продаёт эта фракция (несколько: любая)
-st_srp_inventory_search_tip_faction_example	+армия
+st_srp_inventory_search_tip_faction	продаёт любая из этих фракций
+st_srp_inventory_search_tip_faction_example	+армия +чёрный
+st_srp_inventory_search_tip_faction_list	все фракции
 st_srp_inventory_search_tip_kind	любой из этих видов
 st_srp_inventory_search_tip_kind_example	+шлем +ботинки
 st_srp_inventory_search_tip_kind_list	все виды

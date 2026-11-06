@@ -2463,8 +2463,9 @@ st_srp_inventory_search_examples	+pocket, +slot, +ammo, +10
 st_srp_inventory_search_tip_bonus	has each bonus named
 st_srp_inventory_search_tip_bonus_example	+ammo +pocket
 st_srp_inventory_search_tip_bonus_list	every bonus
-st_srp_inventory_search_tip_faction	sold by that faction (several: any)
-st_srp_inventory_search_tip_faction_example	+army
+st_srp_inventory_search_tip_faction	sold by any of these factions
+st_srp_inventory_search_tip_faction_example	+army +black
+st_srp_inventory_search_tip_faction_list	every faction
 st_srp_inventory_search_tip_kind	any of these kinds
 st_srp_inventory_search_tip_kind_example	+helmet +boots
 st_srp_inventory_search_tip_kind_list	every kind
