@@ -104,28 +104,27 @@ mod tests {
         WalkGrid::build(tris, AREA, 0.25, Body { erosion: Erosion::Exact, wall_give_back: on, ..Body::default() })
     }
 
-    /// A wall at x = 5.10: the floor centred at x 4.875 (0.225 m off, under the clearance) stays taken; the one at 4.625 (0.475 m
-    /// off, past the 0.3175 m clearance) that the rounds took comes back; nothing comes back far from the wall.
+    /// A wall at x = 5.22: the floor centred at x 4.875 is 0.345 m off it, so the rounds take it (the wall is in the cell beside)
+    /// and the exact pass (0.3175 m) keeps it: it comes back; the one at 5.125 (0.095 m off) stays taken; away from the wall the
+    /// grid is the same.
     #[test]
     fn a_floor_the_rounds_took_beside_a_wall_the_body_clears_comes_back() {
         let mut tris = ground();
-        tris.extend(wall(5.10));
+        tris.extend(wall(5.22));
         let (off, on) = (floors(&tris, false), floors(&tris, true));
-        let at = |g: &WalkGrid, x: f32| g.locate(Vec3::new(x, 0.0, 5.0), 0.05).is_some();
-        assert!(!at(&off, 4.875) && !at(&on, 4.875), "under the clearance stays taken");
-        if !at(&off, 4.625) {
-            assert!(at(&on, 4.625), "past the clearance comes back");
-        }
-        let far = on.floors_in(AREA).map(|n| on.position(n)).filter(|p| (p.x - 5.10).abs() > 1.0).count();
-        let far_off = off.floors_in(AREA).map(|n| off.position(n)).filter(|p| (p.x - 5.10).abs() > 1.0).count();
-        assert_eq!(far, far_off, "no floor comes back away from the wall");
+        let at = |g: &WalkGrid, x: f32| g.locate(Vec3::new(x, 0.0, 5.125), 0.05).is_some();
+        assert!(!at(&off, 4.875), "the rounds take it");
+        assert!(at(&on, 4.875), "past the clearance comes back");
+        assert!(!at(&on, 5.125), "under the clearance stays taken");
+        let far = |g: &WalkGrid| g.floors_in(AREA).map(|n| g.position(n)).filter(|p| (p.x - 5.22).abs() > 1.0).count();
+        assert_eq!(far(&on), far(&off), "no floor comes back away from the wall");
     }
 
     /// Off, the grid is the one without the pass.
     #[test]
     fn off_is_the_old_grid() {
         let mut tris = ground();
-        tris.extend(wall(5.10));
+        tris.extend(wall(5.22));
         let a = floors(&tris, false);
         let b = WalkGrid::build(&tris, AREA, 0.25, Body { erosion: Erosion::Exact, ..Body::default() });
         assert_eq!(a.digest(), b.digest());

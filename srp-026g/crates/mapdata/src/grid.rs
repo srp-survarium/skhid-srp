@@ -81,9 +81,9 @@ mod clearance;
 pub use clearance::{CLEARANCE_MAX_M, CLEARANCE_STEP_M};
 mod doors;
 mod drop_check;
-mod wall_give_back;
 mod exact;
 mod open;
+mod wall_give_back;
 /// g, m/s^2 (`fall_params.gravity` 9.8, PROVEN).
 const GRAVITY: f32 = 9.8;
 /// A flight looks this many cells on for its landing ([`WalkGrid::flight_fall`]).
