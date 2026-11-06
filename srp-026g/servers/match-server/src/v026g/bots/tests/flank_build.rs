@@ -11,7 +11,7 @@
 //! - a floor is seen when the spot's standing or crouched eye sees a point [`EXPOSED_TOP_M`] over it (a flanker crouched
 //!   through the exposed metres: fx-grid's review);
 //! - starts: floors 40-90 m from the spot on the covered side's way from its spawns to the spot (a spawn nearer than that:
-//!   the spawn itself, 30 m off at least), 15 m apart, at most [`STARTS`];
+//!   the spawn itself), 15 m apart, at most [`STARTS`];
 //! - firing floors: 8-25 m from the spot (the human flank wins fired from 8-13 m), whose crouched eye sees the spot's
 //!   chest, 45 degrees or more off the victims' lane, spread by bearing, at most [`FIRES`];
 //! - an A* route from each start to each firing floor, a seen floor costing [`SEEN_WEIGHT`] times its length (the
@@ -47,8 +47,6 @@ const KEPT_WEIGHT: f32 = 3.0;
 const FIRE_RING_M: (f32, f32) = (8.0, 25.0);
 /// The starts' band, m from the spot.
 const START_BAND_M: (f32, f32) = (40.0, 90.0);
-/// A way that never reaches [`START_BAND_M`] starts at its spawn when that is this far from the spot at least, m.
-const NEAR_START_M: f32 = 30.0;
 /// Starts and firing floors per spot and side.
 const STARTS: usize = 3;
 const FIRES: usize = 4;
@@ -246,12 +244,11 @@ fn routes_of(world: &World, spot: &InSpot, camper_side: i32) -> (Vec<serde_json:
         let d = grid.position(n).distance_xz(feet);
         (START_BAND_M.0..=START_BAND_M.1).contains(&d)
     };
-    // A way whose spawn is nearer the spot than the band (the spots at spawn exits, 17-51 m off) starts at its spawn, when
-    // that is past the firing ring.
+    // A way whose spawn is nearer the spot than the band (the spots at spawn exits and in the spawn, 8-51 m off: Cologne's
+    // biggest, 1,376 kills, 22 m) starts at its spawn: the way out by another exit.
     let near_start = |w: &Vec<NodeId>| {
         let first = *w.first()?;
-        let d = grid.position(first).distance_xz(feet);
-        (!w.iter().any(|&n| in_band(n)) && d >= NEAR_START_M).then_some(first)
+        (!w.iter().any(|&n| in_band(n))).then_some(first)
     };
     let banded = ways.iter().flat_map(|w| w.iter().copied().filter(|&n| in_band(n)));
     let starts = spread(grid, ways.iter().filter_map(near_start).chain(banded), 15.0, STARTS, |_| true);
