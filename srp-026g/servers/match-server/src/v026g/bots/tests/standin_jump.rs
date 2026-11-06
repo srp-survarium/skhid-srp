@@ -898,9 +898,14 @@ pub(crate) fn fly(
                     }
                 }
             }
-            // The walk before the take-off is the stand-in's walk ([`super::standin::walk_slide`]): the same ledge support, bridge rule
-            // and wall slide as every other walking tick, so the two can't drift apart (it was the old supported slide, no round slide).
-            let (n, feet, _) = super::standin::walk_slide(grid, node, body.feet, target);
+            // The walk before the take-off keeps its own (older) slide: moving it onto the stand-in's walk raised jumps failed 62 -> 87 on
+            // the bench (2026-11-06, 16 pairs); that change is judged in T3 against the recordings (where the client took off and landed),
+            // not by bench counts.
+            let (n, feet, _) = if wall.as_ref().is_some_and(|w| w.hold) && stand_in_edge() {
+                super::body::slide_supported(grid, node, body.feet, target, super::standin::client_step(grid), super::body::SUPPORT_M)
+            } else {
+                super::body::slide_capped(grid, node, body.feet, target, super::standin::client_step(grid))
+            };
             body.node = Some(n);
             body.feet = feet;
         }
