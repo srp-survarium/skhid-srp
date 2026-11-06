@@ -129,6 +129,7 @@ release's. The "Result" row is the build of the revision named in it.
 | `rust/patches/src/footsteps.rs`, `src/footsteps.toml`, `src/vostok/footstep.rs`, `check_footsteps_026g.py` | Patch 101: a footstep that only a re-simulation makes (another player's late input) is heard instead of dropped; one lohook in on_player_sound_event's time test; its check runs the handler in both exes (needs Unicorn) |
 | `rust/patches/src/keyboard_layout.rs`, `src/keyboard_layout.toml`, `src/vostok/keyboard_layout.rs`, `check_keyboard_layout_026g.py` | Patch 107: chat text follows the keyboard layout the window was last told of (under Wine the engine's logic thread never got it); three lohooks, in message_processor's two layout messages and after translate_text's GetKeyboardLayout(0); its check runs both functions in both exes (needs Unicorn) |
 | `rust/patches/src/key_remap.rs`, `src/key_remap.toml`, `src/vostok/keyboard.rs` (`KeyEvents`, `KeyMoves`), `src/vostok/system.rs`, `check_key_remap_026g.py` | Patch 110: the keys a desktop moves (xkb `caps:swapescape`, `ctrl:nocaps`) are moved in the game under Wine's Wayland driver, whose DirectInput codes are the physical keys'; one lohook in keyboard::execute after GetDeviceData moves each event's function key to the one the told layout names it; its check runs execute whole in both exes (needs Unicorn) |
+| `rust/patches/src/hud_cursor.rs`, `src/hud_cursor.toml`, `src/vostok/hud_input.rs` (`MainMenu`, `MatchCursor`), `check_hud_cursor_026g.py` | Patch 113: the hud's kits and cursor start over at each match (the last match's pick stayed on the kits' tab), and the main menu covers the hud's cursor (Esc over the kits left it drawn under the menu's); four lohooks, at initialize_match's start, show_cursor's show and game_options' activate and deactivate; its check runs each from the game's code on a made-up game, the original beside (needs Unicorn) |
 | `audio_device_026g.c`, `audio_device_026g.h`, `audio_device_engine_026g.c`, `test_audio_device_026g.c` | Patch 100: the sound follows the audio output device (XAudio2's engine and voices proxied, made again on the default device after a lost device or a new default); the test runs the core on i686 under the sanitizers against a made-up XAudio2 that keeps its rules (no Unicorn) |
 | `rust/patches/src/sound_voices.rs`, `src/sound_voices.toml`, `src/vostok/voices.rs`, `check_sound_voices_026g.py` | Patch 96: shots no longer go silent under heavy fire (`../docs/notes/sound_voices.md`): the game world's sound scene has 1024 sound instances and propagators (`SOUND_POOLS`, game_world::load 0x1F8DB6/0x1F8DBD), and a sound refused a voice takes the voice of the quietest one playing when that one is less than half as loud (a lohook after create_sound_voice, 0x5CAB0), and the source voice walk is bounded to one pass (`sound_voices_026g.asm`, 0x5E5E7, 0x631D9, 0x59F8E); the check runs the voice loop from that site on made-up scenes with a model of the world's voice pool, and the self-test's `test_sound_pools` (needs Unicorn) |
 | `check_stage_focus_026g.py` | Runs the original's and patch 52's Stage focus getter (Scaleform's `stage.focus`, 0x771FA0) on a made-up movie: focused objects of each kind, none, one without its ActionScript object (the lobby's crash of 2026-10-22) (needs Unicorn) |
@@ -4551,3 +4552,39 @@ design (2026-11-05) in Settings, Controls, under Mouse sensitivity: "Lock vertic
 The rules and the decoded clip: `../docs/notes/mouse-pitch.md`; the addresses: `client_patch.md`
 3.70. Checked with `check_mouse_pitch_026g.py`, `check_death_camera_026g.py`, selftest checks 112
 and 46, `../scripts/hud-options/check.sh` and `cargo test`. Not run in a game.
+
+## The hud's kits and cursor (patch 113, unreleased)
+
+The owner's two reports (2026-11-06), both before a match's start, with the kits shown:
+
+- **The last match's kit on the tab.** A match where kit 2 was picked, then the next match: kit 2's
+  tab chosen, kit 1 played. The hud (`game_world_ui`, inside the game's one game world, game+18h+1FCh)
+  lives as long as the game, and its kits' state (+2DFh) and cursor (+2DCh) are written only by its
+  constructor, `show_profiles_selector` (0x2383B0) and `show_cursor` (0x23A930). Patch 31 keeps the
+  kits shown until play, so a match that ends with them shown (left before the start, dead at the
+  end) leaves +2DFh set. The next match's `show_profiles_selector(1)` then returned at once
+  (0x2383C7), and its `root.select_player_profile` with the place's next kit (0x238422, from
+  0x1F8120: the lowest loaded kit at a match's start, `../docs/notes/match.md` section 19) never ran;
+  the hud movie, the last match's too, kept that match's tab.
+- **Esc doubled the cursor.** Esc (`game::activate_main_menu`, 0x1EDBC0) shows the main menu
+  (`game_options`, game+57F4h, shown +44h) with a cursor movie of its own (+10h). The hud's cursor
+  movie (+0Ch, in the game world's scene) stayed drawn under it, still, where the mouse last was.
+
+**The patch** (the Rust patch `hud_cursor`, four lohooks, `sites_026g.tsv`):
+
+- `hud.initialize_match` (0x234880, once a match; the late join's rebuild enters at 0x234E71): the
+  cursor hidden (`show_cursor(0)`) and +2DFh 0, as the constructor leaves them. The hud movie's
+  `HUD.reset`, which initialize_match invokes at 0x234AE8, hides its kits too
+  (`show_profiles_selector(false)`, as its constructor). The match's first showing of the kits is
+  then a whole one, with the right tab.
+- `options.activate` (0x200F50): over a running match (the game world active, +D4h) with the hud's
+  cursor shown, its movie is taken off (base_game_scene::hide_movie 0x23DC70; the renderer takes
+  out every copy and does nothing with none).
+- `hud.cursor_movie` (0x23A992): while the menu is shown, `show_cursor(1)` (a death under the menu,
+  the kits again) writes its flag but does not show the movie.
+- `options.deactivate` (0x201040): a shown menu closing over a running match with the hud's cursor
+  shown puts the movie back (show_movie 0x23DC00). A match's end clears +D4h before it closes the
+  menu (0x1F952B, 0x1F956D), so nothing comes back then; the lobby's menu has no running match.
+
+The hud's flag is the game's throughout, so the mouse goes where it went. Nothing a match computes.
+Checked with `check_hud_cursor_026g.py`, `cargo test` and clippy. Not run in a game.
