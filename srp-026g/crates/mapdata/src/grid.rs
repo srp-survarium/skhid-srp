@@ -810,6 +810,9 @@ struct Wide {
     /// [`Body::slip_landings`]: each walk-off take-off and the floor a slip off it comes down on, by take-off; floods of the
     /// reach only, not links ([`Wide::out`] leaves them out).
     slips: Vec<(u32, u32)>,
+    /// [`Body::wall_give_back`]: the floors it gave back (empty without it). The reach keeps them only where a reached floor
+    /// leads in, and never lets them open a way to a floor the grid without them did not reach ([`WalkGrid::keep_reached`]).
+    given: Vec<bool>,
 }
 
 impl Wide {
@@ -1154,6 +1157,7 @@ impl WalkGrid {
             fall: vec![false; n],
             off: Vec::new(),
             slips: Vec::new(),
+            given: Vec::new(),
         }
     }
 
@@ -1702,7 +1706,12 @@ impl WalkGrid {
             self.open_narrow_doors(wide, &mut alive, walls);
         }
         let given_back = match walls {
-            Some(walls) if self.body.wall_give_back => self.give_back_by_walls(&mut alive, walls, triangles),
+            Some(walls) if self.body.wall_give_back => {
+                let before = alive.clone();
+                let back = self.give_back_by_walls(&mut alive, walls, triangles);
+                wide.given = (0..n).map(|a| alive[a] && !before[a]).collect();
+                back
+            }
             _ => 0,
         };
         let furthest = rounds as i32 + 1;
@@ -1862,11 +1871,14 @@ impl WalkGrid {
         if queue.is_empty() {
             return;
         }
+        // A floor [`Body::wall_give_back`] gave back is not passed through here: the reach is the grid's without them, and they
+        // are added after it where a reached floor leads into them.
+        let given = |b: u32| wide.given.get(b as usize).copied().unwrap_or(false);
         let forward = |kept: &mut Vec<bool>, queue: &mut Vec<u32>| {
             while let Some(a) = queue.pop() {
                 // A floor a slip comes down on is got to as well ([`Body::slip_landings`]).
                 for b in wide.out(a as usize).chain(wide.slips_from(a)) {
-                    if !kept[b as usize] {
+                    if !kept[b as usize] && !given(b) {
                         kept[b as usize] = true;
                         queue.push(b);
                     }
@@ -1890,7 +1902,7 @@ impl WalkGrid {
                         break;
                     };
                     for a in self.start[cell]..self.start[cell + 1] {
-                        if !kept[a as usize] && wide.links[a as usize][d] == b {
+                        if !kept[a as usize] && !given(a) && wide.links[a as usize][d] == b {
                             kept[a as usize] = true;
                             back.push(a);
                             added.push(a);
@@ -1900,7 +1912,7 @@ impl WalkGrid {
             }
             let first = off_in.partition_point(|&(to, _)| to < b);
             for &(_, a) in off_in[first..].iter().take_while(|&&(to, _)| to == b) {
-                if !kept[a as usize] {
+                if !kept[a as usize] && !given(a) {
                     kept[a as usize] = true;
                     back.push(a);
                     added.push(a);
@@ -1909,6 +1921,30 @@ impl WalkGrid {
         }
         // And where those lead (a roof's drop into a yard with no way out).
         forward(&mut kept, &mut added);
+        // The given-back floors a kept floor leads into, and on from them only to given-back floors: each comes back where the
+        // grid already went, and none opens a region (A318: on level_01 an opening into the terrain past the play area's edge
+        // would have kept 170k floors no human stands on).
+        if wide.given.iter().any(|&g| g) {
+            let mut queue: Vec<u32> = Vec::new();
+            for a in 0..n {
+                if kept[a] {
+                    for b in wide.out(a) {
+                        if given(b) && !kept[b as usize] {
+                            kept[b as usize] = true;
+                            queue.push(b);
+                        }
+                    }
+                }
+            }
+            while let Some(a) = queue.pop() {
+                for b in wide.out(a as usize) {
+                    if given(b) && !kept[b as usize] {
+                        kept[b as usize] = true;
+                        queue.push(b);
+                    }
+                }
+            }
+        }
         if kept.iter().all(|&k| k) {
             return;
         }
@@ -1973,6 +2009,13 @@ impl WalkGrid {
             k += 1;
             alive[k - 1]
         });
+        if !wide.given.is_empty() {
+            let mut k = 0;
+            wide.given.retain(|_| {
+                k += 1;
+                alive[k - 1]
+            });
+        }
         let mut start = Vec::with_capacity(self.start.len());
         let mut node = 0usize;
         for c in 0..self.nx * self.nz {
