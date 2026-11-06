@@ -345,7 +345,7 @@ fn reference_replay() {
                 was_air = branch == "air";
                 let normal = if notes.airborne { String::new() } else { format!("{:.3}", body.contact_normal.y) };
                 out.push_str(&format!(
-                    "{rec_id},{},{t0},{tick_n},{},{:.3},{:.3},{:.3},{:.3},{:.3},{:.3},{},{normal},{branch},0x{kk:x},{:.3},{:.3},{:.5},{:.5}\n",
+                    "{rec_id},{},{t0},{tick_n},{},{:.3},{:.3},{:.3},{:.3},{:.3},{:.3},{},{normal},{branch},0x{kk:x},{:.6},{:.6},{:.5},{:.5}\n",
                     w.place,
                     t0 + 50 * tick_n,
                     now.x,
