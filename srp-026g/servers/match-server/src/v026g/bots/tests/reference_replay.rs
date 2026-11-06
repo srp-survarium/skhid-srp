@@ -141,6 +141,7 @@ fn reference_replay() {
         let track = tracks.entry(w.place).or_default();
         let before = track.fix().filter(|f| f.alive && f.inserted == w.fix.inserted).map(|f| (f.time, f.feet));
         let trail = track.trail_ticks();
+        let reckoned = track.reckoned_at(w.time);
         let feet = w.fix.feet;
         let new_life = track.fixed(w.fix, &kin, Some(grid));
         let (Some(feet), Some((t0, Some(from))), false) = (feet, before, new_life) else {
@@ -207,10 +208,12 @@ fn reference_replay() {
         close += u32::from(dist < 0.25);
         far += u32::from(dist >= 0.5);
         checks.push_str(&format!(
-            "CHECK,{rec_id},{},{t0},{dist:.3},{:.3},{ang:.1},{}\n",
+            "CHECK,{rec_id},{},{t0},{dist:.3},{:.3},{ang:.1},{},{:.3},{}\n",
             w.place,
             la - lb,
-            if jumped { "jump" } else { "" }
+            if jumped { "jump" } else { "" },
+            reckoned.map_or(f32::NAN, |r| (r - feet).length()),
+            w.time
         ));
     }
     if let Some(path) = var("SRP_A325_OUT") {
