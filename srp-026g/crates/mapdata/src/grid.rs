@@ -245,6 +245,12 @@ pub struct Body {
     /// the exact pass keeps them, a wall face (not a rise of the ground) stands within 0.6 m, and the client's walk tick stands a
     /// body there. Needs [`Erosion::Exact`]. A build input: in the key when set.
     pub wall_give_back: bool,
+    /// [A325] Whether the grid's walk-tick passes ([`Self::client_controller`], [`Self::drop_check`]) run the controller with
+    /// the exe's own collision rules: its Bullet caster ([`crate::controller::Caster::Bullet`]) and its wall normal by rays
+    /// ([`crate::controller::tick::WallNormal::Rays`]), both read in the exe and run against it in Unicorn (A325 P1). Off: the
+    /// port's first rules, which miss grazing contacts at floor seams and take a head-on wall's normal from its face. A build
+    /// input: in the key when set.
+    pub exe_collision: bool,
 }
 
 /// How the floors a body's radius from walls are taken away.
@@ -262,6 +268,16 @@ pub enum Erosion {
 }
 
 impl Body {
+    /// The caster and the walk-tick settings the grid's controller passes use ([`Self::exe_collision`]).
+    pub fn controller(&self) -> (crate::controller::Caster, crate::controller::tick::Settings) {
+        use crate::controller::{Caster, tick::{Settings, WallNormal}};
+        if self.exe_collision {
+            (Caster::Bullet, Settings { wall_normal: WallNormal::Rays, ..Settings::LIVE })
+        } else {
+            (Caster::Conservative, Settings::LIVE)
+        }
+    }
+
     /// Its numbers in order, for digests and files.
     pub(crate) fn values(&self) -> [f32; 7] {
         [
@@ -303,6 +319,7 @@ impl Body {
             narrow_doors: false,
             drop_check: false,
             wall_give_back: false,
+            exe_collision: false,
         }
     }
 }
@@ -377,6 +394,7 @@ impl Default for Body {
             narrow_doors: false,
             drop_check: false,
             wall_give_back: false,
+            exe_collision: false,
         }
     }
 }

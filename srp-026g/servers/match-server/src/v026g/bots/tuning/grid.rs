@@ -158,6 +158,11 @@ pub struct GridTuning {
     /// 2026-11-05: correctness fixes go in). The reach guard keeps it from opening regions no player reaches. A grid is the
     /// map's (see `gap_links`).
     pub wall_give_back: bool,
+    /// [A325] Whether the grid's walk-tick passes (`client_controller`, `drop_check`) run the client's controller with the exe's
+    /// own collision rules (`mapdata::Body::exe_collision`): its Bullet caster and its wall normal by rays, both read in the exe
+    /// and proven closer to it in Unicorn (A325 P1 trust table: walk wall-slide divergences over 5 mm 11 -> 3 of 235 sampled
+    /// ticks, the floor-seam miss gone). OFF until its nav gate. A grid is the map's (see `gap_links`).
+    pub exe_collision: bool,
 }
 
 impl Default for GridTuning {
@@ -186,6 +191,7 @@ impl Default for GridTuning {
             narrow_doors: true,
             drop_check: true,
             wall_give_back: true,
+            exe_collision: false,
         }
     }
 }
@@ -222,6 +228,7 @@ impl GridTuning {
             narrow_doors: self.narrow_doors,
             drop_check: self.drop_check,
             wall_give_back: self.wall_give_back,
+            exe_collision: self.exe_collision,
             ..body
         }
     }
