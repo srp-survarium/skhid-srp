@@ -12,13 +12,12 @@ composes it.
 import argparse
 import copy
 import json
-import math
 from pathlib import Path
 
 from common import (DICTIONARY, DONOR_ICONS, E046_MANIFEST, MODIFICATIONS, MOVIE, PACK, Inputs, bcw, e046_entries,
                     equipment046, model_parts, sha, specs, template, text_keys)
 
-VERSION = '4'
+VERSION = '5'
 DATA_TYPE = 4  # the native equipment data type
 
 
@@ -84,25 +83,36 @@ def bundle_fits(inputs):
     return {piece['model']: piece for piece in json.loads(inputs.read('bundle', '.records/fit-report.json'))}
 
 
+def protect(config, spec):
+    """The row's protection and weight on a copied piece: its armour on every armour parameter
+    (a torso's arms and back too) and physical hit type of its regions, its isolation on the
+    others, and the card that shows them."""
+    params = config['parameters']
+    armour, isolation = protection(spec)
+    for name in ('armor', 'arms_armor', 'back_armor'):
+        if name in params:
+            params[name] = armour
+    params.update(ano_armor=isolation, weight=float(spec['weight']))
+    for region in config['hit_params'].values():
+        for kind, hit in region['hit_types'].items():
+            hit['armor'] = armour if kind in equipment046().PHYSICAL else isolation
+    config['ui_desc']['props_list'] = equipment046().card(params, params['type'])
+
+
 def copy_piece(source, spec, price, fits, inputs):
     """An equipment-046 piece's config whole, drawn with the bundle's recolours of its models (the
-    porter's `same_as`), with the row's built-in bonuses (the Snow-20's winter isolation in
-    place of the Sniper's own). The row states the copied piece's other numbers; any other is
-    refused."""
+    porter's `same_as`), with the row's protection, weight and built-in bonuses (the Snow-20:
+    the Sniper's twin, its one bonus on the vest). The row states the copied piece's faction,
+    level, drop weight and price; any other is refused."""
     result = copy.deepcopy(source)
     params = result['parameters']
-    armour, isolation = protection(spec)
     stated = {'faction': int(spec['faction']), 'item_level': int(spec['level']),
-              'drop_weight': int(spec['drop_weight']), 'weight': float(spec['weight']),
-              'armor': armour, 'ano_armor': isolation, 'price': int(spec['price'])}
-    # Floats are stored as f32.
-    copied = {key: stated[key] if isinstance(stated[key], float) and math.isclose(value, stated[key], abs_tol=1e-5)
-              else value
-              for key, value in (('faction', params['faction']), ('item_level', params['item_level']),
-                                 ('drop_weight', params['drop_weight']), ('weight', params['weight']),
-                                 ('armor', params['armor']), ('ano_armor', params['ano_armor']), ('price', price))}
+              'drop_weight': int(spec['drop_weight']), 'price': int(spec['price'])}
+    copied = {'faction': params['faction'], 'item_level': params['item_level'],
+              'drop_weight': params['drop_weight'], 'price': price}
     if stated != copied:
         raise ValueError(f"{spec['id']}: items.tsv {stated} is not the copied piece's {copied}")
+    protect(result, spec)
     recolours = {fit['fit']['model']: model for model, fit in fits.items() if fit['fit']['kind'] == 'same_as'}
     parts = model_parts(result)
     for part in parts:

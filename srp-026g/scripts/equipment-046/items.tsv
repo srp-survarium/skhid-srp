@@ -6,18 +6,18 @@ id	id_069	donor	name	template_id	faction	level	armour	isolation	drop_weight	pric
 1008	blackmarket_gloves_10	031	Armored gloves	320	2	15	88	20	10	25000		5	7	0.6	1153	320	Heavy armored	
 1007	blackmarket_boots_10	031	Armored boots	319	2	15	88	20	10	25000		6	7	1.8	1163	319	Heavy armored	
 1006	bm_back_10	031	Backpack for ammo	311	2	15	0	0	10	47500		7	7	4	1051,1030	311	Heavy armored	
-995	edge_torso_7	031	Veles Vest	141	4	12	78	15	40	73500		8	7	8	1050	141	Veles	
-994	edge_legs_7	031	Veles Pants	142	4	12	78	12	40	36750		9	7	2.8	1050	142	Veles	
-996	edge_helmet_7	031	Veles Helmet	744	4	12	60	10	40	45500		10	7	1.2		114	Veles	
-993	edge_gloves_7	031	Sorcerer Gloves	146	4	12	78	5	40	18380		11	7	0.7	1073	146	Veles	
-992	edge_boots_7	031	Sorcerer Boots	143	4	12	78	5	40	18380		12	7	1	1103	143	Veles	
-997	edge_back_7	031	Token	199	4	12	0	0	40	45985		13	7	3	1040,1170	832	Veles	
-1002	renesanse_torso_7	031	Sniper Vest	111	3	12	75	5	40	73500		14	7	6	1030	111	Sniper	
-1001	renesanse_legs_7	031	Sniper Pants	112	3	12	75	5	40	36750		15	7	1.5	1170	112	Sniper	
-1003	renesanse_helmet_7	031	Sniper Helmet	114	3	12	55	5	40	45500		16	7	1		114	Sniper	
-1000	renesanse_gloves_7	031	Sniper gloves	61	3	12	75	2	40	18380		17	7	0.2	1083	61	Sniper	
-999	renesanse_boots_7	031	Sniper Boots	62	3	12	75	2	40	18380		18	7	0.5	1163	62	Sniper	
-1004	renesanse_mask_7	046	Spectrum-M Thermal vision	113	3	12	27	37	40	18380		19	7	0.5		113	Sniper	yes
+995	edge_torso_7	031	Veles Vest	141	4	13	80	25	30	81750		8	7	10	1050	141	Veles	
+994	edge_legs_7	031	Veles Pants	142	4	13	80	25	30	40880		9	7	3		142	Veles	
+996	edge_helmet_7	031	Veles Helmet	744	4	13	60	20	30	45250		10	7	1.5		114	Veles	
+993	edge_gloves_7	031	Sorcerer Gloves	146	4	13	80	20	30	20440		11	7	0.7		146	Veles	
+992	edge_boots_7	031	Sorcerer Boots	143	4	13	80	20	30	20440		12	7	1.2		143	Veles	
+997	edge_back_7	031	Token	199	4	13	0	0	30	45490		13	7	3	1040	832	Veles	
+1002	renesanse_torso_7	031	Sniper Vest	111	3	11	72	20	50	66500		14	7	6		111	Sniper	
+1001	renesanse_legs_7	031	Sniper Pants	112	3	11	72	20	50	33250		15	7	1.5		112	Sniper	
+1003	renesanse_helmet_7	031	Sniper Helmet	114	3	11	50	20	50	39080		16	7	1		114	Sniper	
+1000	renesanse_gloves_7	031	Sniper gloves	61	3	11	70	20	50	16630		17	7	0.3	1083	61	Sniper	
+999	renesanse_boots_7	031	Sniper Boots	62	3	11	72	20	50	16630		18	7	0.5		62	Sniper	
+1004	renesanse_mask_7	046	Spectrum-M Thermal vision	113	3	11	30	37	50	16420		19	7	0.5		113	Sniper	yes
 991	renesanse_torso_3	031	OZK-UV Vest	34	3	3	25	40	130	9450		20	7	5.5	1170	34	OZK-UV	
 990	renesanse_legs_3	031	OZK-UV Pants	46	3	3	25	40	130	4730		21	7	2	1030	46	OZK-UV	
 989	renesanse_gloves_3	031	OZK-UV Gloves	42	3	3	25	40	130	1190		22	7	0.6	1133	42	OZK-UV	
@@ -33,7 +33,7 @@ id	id_069	donor	name	template_id	faction	level	armour	isolation	drop_weight	pric
 1100	blackmarket_helmet_7	046	Watchman helmet	744	2	9	30	35	70	26250		10	8	1.4		744	Watchman	
 1105	blackmarket_gloves_5	046	"Marodeur" gloves	40	2	4	40	30	120	2620		11	8	0.4	1143	40	Marodeur	
 1092	blackmarket_legs_4	046	Biker pants	329	2	5	55	5	110	8930		12	8	2	1113	329	Corsair	
-998	edge_mask_7	031	Veles Mask	121	4	12	30	65	40	18380		16	8	0.6		113	Veles	
+998	edge_mask_7	031	Veles Mask	121	4	13	35	65	30	21010		16	8	0.6		113	Veles	
 1098	edge_boots_6	046	Stalker's laced boots	143	4	9	45	25	70	13130		17	8	0.8	1163	143	Stalker	
 1108	renesanse_gloves_6	046	"Shturm" gloves	61	3	9	70	2	70	13130		18	8	0.5	1153	61	Shturm	
 1097	scavenger_boots_6	046	Reinforced padded boots	39	1	5	55	10	110	4460		19	8	1.3	1103	39	Reinforced	

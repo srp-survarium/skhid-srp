@@ -1,6 +1,6 @@
 # Armour from 0.69d
 
-`equipment-069@4` adds 0.69d-only armour: the two backpacks that equipment-046 left out,
+`equipment-069@5` adds 0.69d-only armour: the two backpacks that equipment-046 left out,
 the Medic's bag (1357) and the Soldier's backpack (1359), the Snow-20 vest, pants, gloves,
 boots and helmet (1878-1881, 1883) and the Delta mask (1882). What ships, the balance
 proposals and the open questions are in
@@ -14,8 +14,9 @@ A row's `template` is what its config starts from:
   defect and modification masks, repair, card layout, regions and sounds, with the row's
   level, faction, protection, weight, drop weight and built-in bonuses;
 - `equipment-046:<id>`: an equipment-046 piece's config whole (the Snow-20 copies the Sniper
-  set), drawn with the bundle's recolours of its models, with the row's built-in bonuses. The
-  row states the copied piece's other numbers, and the build refuses any other.
+  set), drawn with the bundle's recolours of its models, with the row's protection, weight and
+  built-in bonuses. The row states the copied piece's faction, level, drop weight and price, and
+  the build refuses any other.
 
 The models, materials and textures are resource-porter's: `vostok-port
 build-armour-069d` (`src/armour_069d.rs`, manifest
@@ -47,16 +48,16 @@ python srp-026g/scripts/equipment-069/prepare_inputs.py --bundle <bundle> \
   --source069 <0.69d files> --stock /path/to/stock-026g/resources.db \
   --patches ~/.cache/skhid-release/patches \
   --game-data-bin srp-026g/target/release/srp-game-data \
-  --equipment046 private/content-packs/equipment-046-8 --out <inputs folder>
+  --equipment046 private/content-packs/equipment-046-9 --out <inputs folder>
 python srp-026g/scripts/equipment-069/make_pack.py \
-  --inputs <inputs folder> --out private/content-packs/equipment-069-4
+  --inputs <inputs folder> --out private/content-packs/equipment-069-5
 python srp-026g/scripts/equipment-069/check_pack.py \
-  private/content-packs/equipment-069-4 <inputs folder>
+  private/content-packs/equipment-069-5 <inputs folder>
 python srp-026g/scripts/equipment-069/balance_audit.py \
-  private/content-packs/equipment-069-4 <inputs folder> --out <report.json>
+  private/content-packs/equipment-069-5 <inputs folder> --out <report.json>
 ```
 
-`--equipment046` is equipment-046@8's built pack (its make_pack.py's folder): the configs
+`--equipment046` is equipment-046@9's built pack (its make_pack.py's folder): the configs
 of the pieces copied whole and the surfaces they draw are inputs. `prepare_inputs.py --pin`
 computes the inputs from `items.tsv` and the bundle instead, and writes `inputs.sha256`.
 Output folders must be new. A changed pack is a new version: its folder, `VERSION` in
@@ -70,8 +71,8 @@ only by `release/build-content <revision>`.
     built-ins, the card, the surface names, the sounds, and that the built-in bonuses are at
     the promoted strength; a mask's protection on every hit type of its region, worn in the
     mask slot alone over the native head; a copy equal to the equipment-046 piece but for
-    its models, built-ins, icon and texts, each of its surfaces the copied piece's mesh
-    (positions and indices);
+    its models, protection, weight, built-ins, icon and texts, each of its surfaces the
+    copied piece's mesh (positions and indices);
   - ids, names and icon cells clear of the released game and of equipment-046;
   - the six dictionaries are the catalog's;
   - equipment-046's asset checks: surface chunks, LOD0 only, no 16-byte

@@ -10,9 +10,12 @@
   mask"); `@3` (2026-11-06, the owner after seeing it in game) makes the Delta
   mask a light, aim-speed mask; `@4` draws metal without diffuse (the Snow-20
   vest's plates were white; below, "Metal") and copies the Sniper set of
-  equipment-046@8 (level 12).
+  equipment-046@8 (level 12); `@5` (the owner's redesign, 2026-11-06) makes
+  the Snow-20 the level-11 Sniper's twin of equipment-046@9, its one bonus on
+  the vest.
 
-Every number here is a proposal. Balance is the owner's call.
+Every number here is a proposal, but the Snow-20's (the owner's, 2026-11-06).
+Balance is the owner's call.
 
 ## What ships (the backpacks)
 
@@ -139,7 +142,7 @@ Every number here is a proposal. Balance is the owner's call.
 
 - The levels, weights, prices and drop weights above.
 
-## Snow-20 and the Delta mask (equipment-069@2 to @4)
+## Snow-20 and the Delta mask (equipment-069@2 to @5)
 
 The owner's pick of 2026-11-05 ("make sure they fit properly and are well
 balanced with their quirks"): the Snow-20 vest, pants, gloves, boots and helmet
@@ -180,23 +183,32 @@ balanced with their quirks"): the Snow-20 vest, pants, gloves, boots and helmet
   the Sniper's) pick the medium length, which goes into the boot (its top at
   27.5 cm). Nothing cut.
 - Config: the equipment-046 Sniper piece's whole (`template`
-  `equipment-046:<id>`, equipment-046@8: parameters, protection, regions,
-  models' parts, sounds, card, price, level 12, Renaissance Army, drop weight
-  40), drawn with the snow
-  models, with the row's built-ins: the piece's own built-in bonus becomes the
-  winter isolation, +20 % on every region (1023, the second-strongest of its
-  kind, as built-in-bonuses-1 sets them). The live Sniper pieces carry 0.31a2's
-  bonuses, not 0.69d's recoil one, so the Snow-20 piece swaps its Sniper twin's
-  one bonus (vest: a pocket; pants: pocket size; gloves: aim time -8 %; boots:
-  energy costs -8 %) for the isolation. The Sniper helmet has no built-in
-  bonus, so the Snow-20 helmet has none either: an isolation bonus added to it
-  would make it strictly better than the Sniper helmet.
-- The numbers (equipment-046@8's Sniper set, the owner, 2026-11-06): vest
-  75 / 5, 6 kg, 73,500; pants 75 / 5, 1.5 kg, 36,750; helmet 55 / 5, 1 kg,
-  45,500; gloves 75 / 2, 0.2 kg, 18,380; boots 75 / 2, 0.5 kg, 18,380.
-- `balance_audit.py` compares each Snow-20 piece with the level-12 pieces of
-  the same kind, regions and slots, its Sniper twin among them: none is
-  strictly better or worse; the helmets are equal.
+  `equipment-046:<id>`, equipment-046@9: parameters, regions, models' parts,
+  sounds, price, level 11, Renaissance Army, drop weight 50), drawn with the
+  snow models, with the row's protection (every armour parameter and hit
+  type), weight, card and built-ins. The row states the copied faction, level,
+  drop weight and price; the build refuses any other.
+- The numbers (the owner's redesign, 2026-11-06: balanced on weight, armour
+  and bonuses, isolation an afterthought, bonuses on few pieces; equipment-046
+  notes): the Snow-20 is the level-11 Sniper's twin, with its one bonus on the
+  vest (+1 pocket, 1030) where the Sniper has it on the gloves (aim time -8 %).
+  Each twin's bonus piece pays in weight or armour, so neither set's piece
+  strictly beats the other's. The winter isolation +20 % (1023) of @2-@4 goes
+  from every piece, and with it `content-edit/armor.tsv`'s `isolation`
+  column (the Snow-20's alone).
+
+  | piece | @4 (not released): level, armour / iso, kg, bonus, price | @5 | its Sniper twin (equipment-046@9) |
+  |---|---|---|---|
+  | Snow-20 Vest | 12, 75 / 5, 6, isolation +20 %, 73,500 | 11, 70 / 20, 7, +1 pocket, 66,500 | 72 / 20, 6, none |
+  | Snow-20 Pants | 12, 75 / 5, 1.5, isolation +20 %, 36,750 | 11, 72 / 20, 1.5, none, 33,250 | the same |
+  | Snow-20 Helmet | 12, 55 / 5, 1, none, 45,500 | 11, 50 / 20, 1, none, 39,080 | the same |
+  | Snow-20 Gloves | 12, 75 / 2, 0.2, isolation +20 %, 18,380 | 11, 72 / 20, 0.2, none, 16,630 | 70 / 20, 0.3, aim time -8 % |
+  | Snow-20 Boots | 12, 75 / 2, 0.5, isolation +20 %, 18,380 | 11, 72 / 20, 0.5, none, 16,630 | the same |
+
+  Drop weight 50 (@4: 40); prices the Sniper's (level 11 of the kind).
+- `balance_audit.py` compares each Snow-20 piece with the level-11 pieces of
+  the same kind, regions and slots (its Sniper twin): none is strictly better
+  or worse; the pants, helmets and boots are equal (an appearance choice).
 
 ### The Delta mask
 
@@ -247,6 +259,8 @@ the backpacks' and the Delta mask's metal @3 | @4.
   over it).
 - 2026-11-06, after seeing it in game: the Delta mask's isolation bonus goes;
   its protection is low and it speeds aiming instead (above).
+- 2026-11-06, the armour redesign: the Snow-20 is the level-11 Sniper's twin,
+  its one bonus on the vest (+1 pocket), the winter isolation gone (above).
 
 ### Needs a look in game
 
@@ -259,6 +273,4 @@ the backpacks' and the Delta mask's metal @3 | @4.
 
 ### Open questions for the owner
 
-- The Snow-20's bonus swap (each piece loses its Sniper twin's bonus for the
-  isolation; the helmet without one), and the Delta mask's level, faction,
-  exact numbers and price above.
+- The Delta mask's level, faction, exact numbers and price above.

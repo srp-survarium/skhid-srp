@@ -76,8 +76,9 @@ def check_native(spec, item, template_item, row, by_id, fits):
 
 
 def check_copy(spec, item, source, row, e046_row, fits, pack, inputs):
-    """The equipment-046 piece whole but for its models (the bundle's recolours), its built-in
-    bonuses (the row's), its icon and texts; each surface it draws the copied piece's mesh."""
+    """The equipment-046 piece whole but for its models (the bundle's recolours), its protection,
+    weight and built-in bonuses (the row's), its icon and texts; each surface it draws the copied
+    piece's mesh."""
     ident = row['dict_id']
     assert row['base_cost'] == e046_row['base_cost'] == int(spec['price']), ident
     assert row['item_category'] == e046_row['item_category'], ident
@@ -85,6 +86,28 @@ def check_copy(spec, item, source, row, e046_row, fits, pack, inputs):
     expected['ui_desc']['icon'] = item['ui_desc']['icon']
     expected['ui_desc']['text_descriptions'] = text_keys(spec)
     expected['default_modifications'] = built_ins(spec)
+    # The row's protection: armour on every armour parameter and physical hit type, isolation
+    # on the others; its weight; the card of both.
+    armour, isolation = float(spec['armour']) / 100, float(spec['isolation']) / 100
+    stated = expected['parameters']
+    for name in ('armor', 'arms_armor', 'back_armor'):
+        if name in stated:
+            stated[name] = item['parameters'][name]
+            assert math.isclose(stated[name], armour, abs_tol=1e-5), (ident, name)
+    for name, value in (('ano_armor', isolation), ('weight', float(spec['weight']))):
+        stated[name] = item['parameters'][name]
+        assert math.isclose(stated[name], value, abs_tol=1e-5), (ident, name)
+    assert item['hit_params'].keys() == expected['hit_params'].keys(), ident
+    for region, values in item['hit_params'].items():
+        assert values['hit_types'].keys() == expected['hit_params'][region]['hit_types'].keys(), (ident, region)
+        for kind, hit in values['hit_types'].items():
+            want = armour if kind in ('ranged', 'slash', 'explosive') else isolation
+            assert math.isclose(hit['armor'], want, abs_tol=1e-5), (ident, region, kind)
+    expected['hit_params'] = copy.deepcopy(item['hit_params'])
+    props = [(p['prop_id'], p['prop_value']) for p in item['ui_desc']['props_list']]
+    assert props == [(6, f'{armour * 100:g}'), (8, f'{isolation * 100:g}'), (15, f"{float(spec['weight']):.1f}")], (
+        ident, props)
+    expected['ui_desc']['props_list'] = item['ui_desc']['props_list']
     for mine, theirs in zip(model_parts(item), model_parts(expected)):
         recoloured = fits[mine['base_model']]['fit']
         assert recoloured == {'kind': 'same_as', 'model': theirs['base_model']}, ident
@@ -115,7 +138,7 @@ def check(pack, inputs):
     assert len(entries) == len(rows) == 8 and not any(row['is_premium'] for row in entries)
     native = bcw.loads((base / DICTIONARY).read_bytes())['items_dict']
     e046_manifest = json.loads((inputs / 'equipment046' / E046_MANIFEST).read_text())
-    assert (e046_manifest['id'], e046_manifest['version']) == ('equipment-046', '8'), 'not equipment-046@8'
+    assert (e046_manifest['id'], e046_manifest['version']) == ('equipment-046', '9'), 'not equipment-046@9'
     e046_rows = e046_entries(e046_manifest)
     by_id = {row['dict_id']: row for row in native + entries}
     assert len(by_id) == len(native) + len(entries), 'dictionary id collision'

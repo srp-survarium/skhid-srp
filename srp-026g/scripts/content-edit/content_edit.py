@@ -1260,12 +1260,10 @@ STATS = {
             'rep_bm': default_modification(126),
             # scope sway (breath vibration), the NVD's alone among the gear (the aiming booster has 1210)
             'sway': default_modification(121),
-            # the Snow-20's winter isolation (every region)
-            'isolation': default_modification(102),
         },
         'match': {'armor', 'ano', 'arms', 'back', 'weight', 'oxygen_s', 'pockets', 'artefact_slots', 'ammo_bags',
                   'accuracy', 'aim', 'max_weight', 'health_regen', 'stamina_regen', 'movement', 'artefact_search',
-                  'reload_speed', 'recoil', 'stamina_spend', 'slot_size', 'sway', 'isolation'},
+                  'reload_speed', 'recoil', 'stamina_spend', 'slot_size', 'sway'},
         'cards': armour_card,
     },
     'medicines': {
