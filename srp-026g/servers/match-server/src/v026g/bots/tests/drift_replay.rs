@@ -56,6 +56,8 @@ fn drift_on_a_real_match() {
     let kin = tuning.kin.clone();
     let file = std::path::Path::new(&dir).join(mapdata::format::file_name(&project));
     let map = mapdata::MapData::read(&file).unwrap_or_else(|e| panic!("{}: {e}", file.display()));
+    // The walker's triangles for `SRP_A304_LINKS_AT`'s walls (taken before the map goes into the world).
+    let probe_walker = var("SRP_A304_LINKS_AT").map(|_| map.walker_triangles());
     let world = Arc::new(World::build_with(
         map,
         mapdata::CELL,
@@ -86,11 +88,11 @@ fn drift_on_a_real_match() {
         }
         return;
     }
-    // `SRP_A304_LINKS_AT=x,y,z;...` [A318]: the floor located at each point (within 1 m), its links (kind, where) and whether each of
+    // `SRP_A304_LINKS_AT=x,y,z;...` (or `_` between points) [A318]: the floor located at each point (within 1 m), its links (kind, where) and whether each of
     // 8 directions is an open side (`open_toward`), then nothing else.
     if let Some(points) = var("SRP_A304_LINKS_AT") {
         let g = &*world.grid;
-        for point in points.split(';') {
+        for point in points.split([';', '_']) {
             let v: Vec<f32> = point.split(',').filter_map(|s| s.parse().ok()).collect();
             let [x, y, z] = v[..] else { continue };
             let Some(node) = g.locate(Vec3::new(x, y, z), 1.0) else {
@@ -120,6 +122,15 @@ fn drift_on_a_real_match() {
                 links.join(" "),
                 open.join(" ")
             );
+            // The triangles within 1.2 m across with a part from the floor up to 2.2 m over it: what may hold the capsule.
+            for t in probe_walker.iter().flatten() {
+                let near = t.v.iter().any(|v| (v.x - p.x).hypot(v.z - p.z) <= 1.2);
+                let (lo, hi) = t.v.iter().fold((f32::MAX, f32::MIN), |(lo, hi), v| (lo.min(v.y), hi.max(v.y)));
+                if near && hi > p.y + 0.05 && lo < p.y + 2.2 {
+                    let v: Vec<String> = t.v.iter().map(|v| format!("({:.2},{:.2},{:.2})", v.x, v.y, v.z)).collect();
+                    eprintln!("A304 links   triangle {} {:?}", v.join(" "), t.walker);
+                }
+            }
         }
         return;
     }
