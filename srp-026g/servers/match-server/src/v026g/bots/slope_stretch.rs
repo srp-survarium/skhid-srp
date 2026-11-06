@@ -14,15 +14,15 @@
 //! tread (flat), so a per-tick rule (`SlopeSpeed::Up`) slowed stairs in jerks, and the lab found it worse on Vostok Radar
 //! Station's and Chemical Plant's stairs. Yet the client slows on those maps too.
 
-use mapdata::{LinkKind, NodeId, Vec3, WalkGrid};
+use mapdata::{LinkKind, NodeId, WalkGrid};
 
 /// How far ahead along the walk the grade is taken, m.
 pub const STRETCH_M: f32 = 1.0;
 
-/// The share of a ground step the body covers walking along `dir` (the walk's ground direction, any length) from `feet` on
-/// `node`: the grid's walk links followed from `node` toward `dir` for [`STRETCH_M`], and the rise to the floor reached over
+/// The share of a ground step the body covers walking along `dir` (the walk's ground direction, any length) from its floor
+/// `node` (heights from the grid's floors, never the body's feet, which a fall may hold above the floor): the grid's walk links followed from `node` toward `dir` for [`STRETCH_M`], and the rise to the floor reached over
 /// that run gives the grade; the share is its cosine. 1 where the stretch does not rise (or no walk link leads on).
-pub fn share(grid: &WalkGrid, node: NodeId, feet: Vec3, dir: [f32; 2]) -> f32 {
+pub fn share(grid: &WalkGrid, node: NodeId, dir: [f32; 2]) -> f32 {
     let len = dir[0].hypot(dir[1]);
     if len < 1e-4 {
         return 1.0;
@@ -50,7 +50,7 @@ pub fn share(grid: &WalkGrid, node: NodeId, feet: Vec3, dir: [f32; 2]) -> f32 {
         end = p;
         at = n;
     }
-    let rise = end.y - feet.y;
+    let rise = end.y - grid.position(node).y;
     if run < 0.25 || rise <= 0.0 {
         return 1.0;
     }
@@ -60,7 +60,7 @@ pub fn share(grid: &WalkGrid, node: NodeId, feet: Vec3, dir: [f32; 2]) -> f32 {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use mapdata::{Triangle, WalkerBehaviour};
+    use mapdata::{Triangle, Vec3, WalkerBehaviour};
 
     fn quad(tris: &mut Vec<Triangle>, a: Vec3, b: Vec3, c: Vec3, d: Vec3) {
         tris.push(Triangle { v: [a, b, c], walker: WalkerBehaviour::Walk });
@@ -82,10 +82,10 @@ mod tests {
         let g = ramp();
         let height = |x: f32| ((x - 4.0) * 0.5).clamp(0.0, 2.0);
         let on = |x: f32| g.locate(Vec3::new(x, height(x) + 0.3, 0.1), 0.3).expect("a floor");
-        let up = share(&g, on(5.0), g.position(on(5.0)), [1.0, 0.0]);
+        let up = share(&g, on(5.0), [1.0, 0.0]);
         assert!((up - 0.5f32.atan().cos()).abs() < 0.02, "up the 0.5 grade: its cosine, {up}");
-        assert_eq!(share(&g, on(1.0), g.position(on(1.0)), [1.0, 0.0]), 1.0, "flat ahead");
-        assert_eq!(share(&g, on(6.0), g.position(on(6.0)), [-1.0, 0.0]), 1.0, "down the ramp");
-        assert_eq!(share(&g, on(5.0), g.position(on(5.0)), [0.0, 0.0]), 1.0, "no walk");
+        assert_eq!(share(&g, on(1.0), [1.0, 0.0]), 1.0, "flat ahead");
+        assert_eq!(share(&g, on(6.0), [-1.0, 0.0]), 1.0, "down the ramp");
+        assert_eq!(share(&g, on(5.0), [0.0, 0.0]), 1.0, "no walk");
     }
 }

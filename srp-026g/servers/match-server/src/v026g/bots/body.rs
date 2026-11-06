@@ -704,7 +704,7 @@ fn advance(
                     1.0
                 } else if kin.slope_speed == super::kin::SlopeSpeed::Stretch {
                     // [A322] The grade of the stretch ahead along the walk.
-                    super::slope_stretch::share(grid, at.node.unwrap_or(node), at.feet, at.velocity)
+                    super::slope_stretch::share(grid, at.node.unwrap_or(node), at.velocity)
                 } else {
                     kin.slope_speed.share(at.feet.distance_xz(feet), feet.y - at.feet.y, ramp_deg)
                 };
