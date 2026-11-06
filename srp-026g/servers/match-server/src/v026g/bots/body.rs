@@ -2093,7 +2093,7 @@ pub(super) mod tests {
             stays_up(&falling.landed(&grid), key::FORWARD, 0.0, &stop),
             "the forecast plays it from its floor"
         );
-        assert_eq!(Kinematics::default().drop_fall, DropFall::Gravity);
+        assert_eq!(Kinematics::default().drop_fall, DropFall::Client, "the client fall start is the default");
     }
 
     /// [`Edge::ClientWalksOff`] (A269): a ledge 6 m high, deeper than the harmless drop, has no link off it. The reckoned body walking
