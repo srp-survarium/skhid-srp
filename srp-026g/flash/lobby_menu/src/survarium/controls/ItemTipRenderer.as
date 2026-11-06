@@ -15,7 +15,9 @@ package survarium.controls
       override protected function invalidateData() : void
       {
          this.itemInfo.data = _data;
-         this.itemInfo.scaleX = this.itemInfo.scaleY = MainScene.scaleFactor;
+         // Drawn as the lobby is, as the inventory's card: its container, the tooltips', is
+         // already at MainScene.overlayScale (the lobby's, never below 1).
+         this.itemInfo.scaleX = this.itemInfo.scaleY = MainScene.scaleFactor / MainScene.overlayScale;
       }
    }
 }

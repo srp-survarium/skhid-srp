@@ -1802,6 +1802,35 @@ check "release: ... swaps nothing" has "$out" "nothing was swapped"
 check "release: ... cancels the maintenance" test "$(admin_log)" = "plan 1 cancel"
 check "release: ... leaves the live files as they were" test "$(tree)" = "$before"
 
+# While it waits for the planned time it looks at /api/stats every quarter
+# of a minute: once "matches":0 has held 30 s (the plan's margin), the swap
+# comes at once, before the planned time; a match running to the planned
+# time is waited for as before. A minute is 8 s here, the 30 s are real;
+# the no at the y/N ends each run before anything is swapped.
+: >"$T/state/admin.log"
+printf '1\n1\n0\n' >"$T/state/matches"
+SKHID_TEST_SECONDS_PER_MINUTE=8 run no --minutes 10 --label early || true
+rm -f "$T/state/matches"
+check "release: no match for 30 s before the planned time: the swap at once" bash -c \
+    "grep -qE '\\] 5. no match has run for 30 s: swapping now, [0-9]+ min before the planned time\$' <<<\"\$1\"" _ "$out"
+check "release: ... its y/N before the planned time" bash -c \
+    "grep -E '5. no match is running\$' <<<\"\$1\" | grep -q ' to the planned time\\]'" _ "$out"
+check "release: ... without waiting for the launcher page to say down" bash -c \
+    "! grep -q 'still says' <<<\"\$1\"" _ "$out"
+check "release: ... the no cancels the maintenance" test "$(admin_log)" = "plan 10 cancel"
+check "release: ... swaps nothing" has "$out" "nothing was swapped"
+check "release: ... leaves the live files as they were" test "$(tree)" = "$before"
+: >"$T/state/admin.log"
+{ for _ in $(seq 25); do echo 1; done; echo 0; } >"$T/state/matches"
+SKHID_TEST_SECONDS_PER_MINUTE=8 run no --minutes 5 --label latem || true
+rm -f "$T/state/matches"
+check "release: a match running to the planned time: no early swap" bash -c \
+    "! grep -q 'swapping now' <<<\"\$1\" && grep -q '5. waiting for the planned time (.*): 1 match(es) running' <<<\"\$1\"" _ "$out"
+check "release: ... waited for after the planned time, then the y/N" bash -c \
+    "grep -q 'past the planned time\\] 5. 1 match(es) still running; waiting' <<<\"\$1\" && grep -E '5. no match is running\$' <<<\"\$1\" | grep -q ' past the planned time\\]'" _ "$out"
+check "release: ... the no cancels the maintenance" test "$(admin_log)" = "plan 5 cancel"
+check "release: ... leaves the live files as they were" test "$(tree)" = "$before"
+
 # The swap file answers the question before the swap without a terminal
 # (stdin at its end); one made before the question is no answer (removed as
 # it is asked). srp then makes no backup: rolled back (as below).
@@ -1906,9 +1935,10 @@ check "release: ... the volume's routes table as it was" test "$(sha256sum <"$T/
 check "release: ... the map untouched" test "$(sha256sum <"$T/volume/mapdata/level_t_day_2.mapdata")" = "$map_before"
 check "release: ... said by the rollback" has "$out" "bot data: the files of the release put back or removed"
 
-# A match that ends a little after the planned time (patch_14 listed now).
+# A match that ends a little after the planned time (patch_14 listed now):
+# /api/stats is asked every quarter of a minute while it waits for it.
 : >"$T/state/admin.log"
-echo 3 >"$T/state/busy"
+echo 12 >"$T/state/busy"
 run yes --minutes 1 --label d || fail "release.sh with a match: $out"
 rm -f "$T/state/busy"
 check "release: waits while a match runs" has "$out" "1 match(es) still running; waiting"
@@ -2125,13 +2155,14 @@ check "release: ... before the go: nothing planned" test -z "$(admin_log)" -a ! 
 signalable=(env '--default-signal=INT,TERM,HUP')
 
 # Ctrl-C while it waits for the planned time (to bash only, as a trap during
-# a sleep of a minute once waited for the sleep): cleaned up in a few
-# seconds. A minute is 20 s here, so each wait is 20 s; the Ctrl-C comes
-# once it is in that wait (its sleep running), so a stop that waited for
-# the sleep would take some 20 s, and one that does not well under 10.
+# a sleep once waited for the sleep): cleaned up in a few seconds. A
+# minute is 80 s here, so each wait (a quarter of a minute, between two
+# looks at /api/stats) is 20 s; the Ctrl-C comes once it is in that wait
+# (its sleep running), so a stop that waited for the sleep would take some
+# 20 s, and one that does not well under 10.
 : >"$T/state/admin.log"
 set -m
-SKHID_TEST_SECONDS_PER_MINUTE=20 "${signalable[@]}" "$here/release.sh" --yes --i-know --minutes 3 --label int >"$T/int.out" 2>&1 </dev/null &
+SKHID_TEST_SECONDS_PER_MINUTE=80 "${signalable[@]}" "$here/release.sh" --yes --i-know --minutes 3 --label int >"$T/int.out" 2>&1 </dev/null &
 int_pid=$!
 set +m
 for _ in $(seq 300); do

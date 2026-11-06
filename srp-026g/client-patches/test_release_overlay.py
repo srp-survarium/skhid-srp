@@ -338,7 +338,7 @@ class ReleaseTests(unittest.TestCase):
         # all of them are there: the builder ships those names, winetricks
         # dxvk's set, and the archive's dxvk folder holds the pinned DLLs.
         rust = Path(overlay.HERE, 'rust', 'patches', 'src', 'hud_options.rs').read_text(encoding='utf-8')
-        loads = re.search(r'pub const DXVK_DLLS: \[&CStr; 5\] =\s*\[(.*?)\];', rust, re.S).group(1)
+        loads = re.search(r'pub const DXVK_DLLS: \[DxvkDll; 5\] =\s*\[(.*?)\];', rust, re.S).group(1)
         names = ['d3d8.dll', 'd3d9.dll', 'd3d10core.dll', 'd3d11.dll', 'dxgi.dll']
         self.assertEqual(sorted(re.findall(r'dxvk\\\\([a-z0-9]+\.dll)', loads)), sorted(names))
         self.assertEqual(list(overlay.DXVK_DLLS), names)
