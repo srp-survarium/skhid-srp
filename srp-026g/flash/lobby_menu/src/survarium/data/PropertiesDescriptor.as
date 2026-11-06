@@ -51,6 +51,12 @@ package survarium.data
          return all;
       }
 
+      // whether a property is known (getPropertyDescription logs an unknown one)
+      public function knows(propId:uint) : Boolean
+      {
+         return this._propertyDescriptors != null && this._propertyDescriptors[propId] != null;
+      }
+
       public function getPropertyDescription(propId:uint) : Object
       {
          if(this._propertyDescriptors[propId] == null)

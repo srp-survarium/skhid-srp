@@ -2459,18 +2459,14 @@ st_srp_inv_pocket_units	Место в кармане
 st_srp_inv_stamina_damage	Урон выносливости
 st_srp_inv_throw_speed	Скорость броска
 st_srp_inventory_search	Поиск
-st_srp_inventory_search_examples	+карман +бродяги, +слот, +патрон, +10, название
-st_srp_inventory_search_tip_bonus	есть каждый названный бонус
+st_srp_inventory_search_examples	+карман, +слот, +патрон, +10
+st_srp_inventory_search_tip_bonus	предметы с бонусом и к патронам, и к карманам
 st_srp_inventory_search_tip_bonus_example	+патрон +карман
-st_srp_inventory_search_tip_bonus_list	все бонусы
-st_srp_inventory_search_tip_faction	продаёт эта фракция (несколько: любая)
-st_srp_inventory_search_tip_faction_example	+армия
-st_srp_inventory_search_tip_first	бонус и фракция, всё сразу
-st_srp_inventory_search_tip_first_example	+карман +бродяги
-st_srp_inventory_search_tip_kind	любой из этих видов
+st_srp_inventory_search_tip_faction	товары Армии или Чёрного Рынка
+st_srp_inventory_search_tip_faction_example	+армия +чёрный
+st_srp_inventory_search_tip_kind	шлемы или ботинки
 st_srp_inventory_search_tip_kind_example	+шлем +ботинки
-st_srp_inventory_search_tip_kind_list	все виды
-st_srp_inventory_search_tip_level	любого из этих уровней
+st_srp_inventory_search_tip_level	предметы 10 или 11 уровня
 st_srp_inventory_search_tip_level_example	+10 +11
 st_srp_item_props_mps	м/с
 st_srp_language_option	Язык:

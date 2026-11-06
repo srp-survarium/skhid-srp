@@ -2459,18 +2459,14 @@ st_srp_inv_pocket_units	Місце в кишені
 st_srp_inv_stamina_damage	Шкода витривалості
 st_srp_inv_throw_speed	Швидкість кидка
 st_srp_inventory_search	Пошук
-st_srp_inventory_search_examples	+кишень +бродяги, +слот, +набої, +10, назва
-st_srp_inventory_search_tip_bonus	є кожен названий бонус
+st_srp_inventory_search_examples	+кишень, +слот, +набої, +10
+st_srp_inventory_search_tip_bonus	предмети з бонусом і до набоїв, і до кишень
 st_srp_inventory_search_tip_bonus_example	+набої +кишень
-st_srp_inventory_search_tip_bonus_list	усі бонуси
-st_srp_inventory_search_tip_faction	продає ця фракція (кілька: будь-яка)
-st_srp_inventory_search_tip_faction_example	+армія
-st_srp_inventory_search_tip_first	бонус і фракція, усе разом
-st_srp_inventory_search_tip_first_example	+кишень +бродяги
-st_srp_inventory_search_tip_kind	будь-який з цих видів
+st_srp_inventory_search_tip_faction	товари Армії або Чорного Ринку
+st_srp_inventory_search_tip_faction_example	+армія +чорний
+st_srp_inventory_search_tip_kind	шоломи або черевики
 st_srp_inventory_search_tip_kind_example	+шолом +черевики
-st_srp_inventory_search_tip_kind_list	усі види
-st_srp_inventory_search_tip_level	будь-якого з цих рівнів
+st_srp_inventory_search_tip_level	предмети 10 або 11 рівня
 st_srp_inventory_search_tip_level_example	+10 +11
 st_srp_item_props_mps	м/с
 st_srp_language_option	Мова:

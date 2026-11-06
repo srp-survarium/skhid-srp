@@ -2459,18 +2459,14 @@ st_srp_inv_pocket_units	Místa v kapse
 st_srp_inv_stamina_damage	Poškození výdrže
 st_srp_inv_throw_speed	Rychlost hodu
 st_srp_inventory_search	Hledat
-st_srp_inventory_search_examples	+kapes +mrchožrouti, +sloty, +sumky, +10, název
-st_srp_inventory_search_tip_bonus	má každý uvedený bonus
+st_srp_inventory_search_examples	+kapes, +sloty, +sumky, +10
+st_srp_inventory_search_tip_bonus	předměty s bonusem k sumkám i ke kapsám
 st_srp_inventory_search_tip_bonus_example	+sumky +kapes
-st_srp_inventory_search_tip_bonus_list	všechny bonusy
-st_srp_inventory_search_tip_faction	prodává ta frakce (více: kterákoli)
-st_srp_inventory_search_tip_faction_example	+armáda
-st_srp_inventory_search_tip_first	bonus a frakce, obojí najednou
-st_srp_inventory_search_tip_first_example	+kapes +mrchožrouti
-st_srp_inventory_search_tip_kind	kterýkoli z těchto druhů
+st_srp_inventory_search_tip_faction	předměty Armády nebo Černého trhu
+st_srp_inventory_search_tip_faction_example	+armáda +černý
+st_srp_inventory_search_tip_kind	helmy nebo boty
 st_srp_inventory_search_tip_kind_example	+helma +boty
-st_srp_inventory_search_tip_kind_list	všechny druhy
-st_srp_inventory_search_tip_level	jakékoli z těchto úrovní
+st_srp_inventory_search_tip_level	předměty úrovně 10 nebo 11
 st_srp_inventory_search_tip_level_example	+10 +11
 st_srp_item_props_mps	m/s
 st_srp_language_option	Jazyk:
