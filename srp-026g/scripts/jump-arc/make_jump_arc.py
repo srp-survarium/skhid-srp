@@ -89,6 +89,8 @@ const GRAVITY: f32 = 9.81;
 const AIR_RAYS: [f32; 3] = [0.1, 0.9, 1.7];
 /// How deep under the arc's feet a floor still makes a cell open air rather than a wall (a drop off a ledge), m.
 const OPEN_BELOW_M: f32 = 10.0;
+/// How many cells round a target the floorless test looks (a ledge lip's eroded band is crossed, a wall's is not): GUESS 1.5.
+const FLOORLESS_CELLS: f32 = 1.5;
 
 /// `get_move_direction` 0x2D6510: the keys' direction, forward and back cancelling, left and right cancelling.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -346,10 +348,12 @@ impl JumpArc {
                         walls.ray_cast(Vec3::new(feet.x, y + h, feet.z), dir, len + radius).is_some()
                     })
             });
-            // The walker mesh's walls are the grid's floorless cells (the erosion round a wall): a cell with no floor from the feet
-            // (and the catch) down to `OPEN_BELOW_M` is a wall too; a jump off a ledge has the lower floor under it.
-            let half = grid.cell_size() * 0.5;
-            let floorless = !grid.floors_in([x - half, z - half, x + half, z + half]).any(|n| {
+            // The walker mesh's walls are the grid's floorless ground (the erosion round a wall): ground with no floor from the feet
+            // (and the catch) down to `OPEN_BELOW_M` in any cell within `FLOORLESS_CELLS` of the target is a wall too. A ledge's lip
+            // erodes a band of a cell or so on both levels, which the box reaches across; a wall's band (its thickness and the erosion
+            // on both sides) is wider; a jump off a ledge has the lower floor under it.
+            let reach = grid.cell_size() * FLOORLESS_CELLS;
+            let floorless = !grid.floors_in([x - reach, z - reach, x + reach, z + reach]).any(|n| {
                 let top = grid.position(n).y;
                 top <= y + CATCH_M && top >= y - OPEN_BELOW_M
             });
