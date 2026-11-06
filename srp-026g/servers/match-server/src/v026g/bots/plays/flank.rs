@@ -674,7 +674,8 @@ pub fn step(state: &mut State, target: TargetRef, cx: &Ctx, rng: &mut Rng) -> St
                     cx.tactics.sees(crate::v026g::bots::view::still_eye(p.feet, p.keys & key::CROUCH != 0), crate::v026g::bots::view::still_eye(cx.me.feet, false))
                 });
                 ROUTE_SEEN.with(|m| {
-                    let e = m.borrow_mut().entry(cx.me.place).or_insert((0, 0));
+                    let mut m = m.borrow_mut();
+                    let e = m.entry(cx.me.place).or_insert((0, 0));
                     e.0 += 1;
                     e.1 += u32::from(seen);
                 });
