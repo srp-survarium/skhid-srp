@@ -81,6 +81,11 @@ impl Grounds {
         }
     }
 
+    /// [A318] The ground under feet at `feet`, not kept (the drift lab's slope probe).
+    pub(crate) fn under(&self, feet: Vec3) -> Option<Ground> {
+        ground_under(&self.all, &self.slope, &self.dont, self.radius, feet)
+    }
+
     /// The ground of `node`, whose body's feet are at `feet` (none: no face under it).
     pub(crate) fn at(&mut self, node: NodeId, feet: Vec3) -> Option<Ground> {
         let (all, slope, dont, radius) = (&self.all, &self.slope, &self.dont, self.radius);

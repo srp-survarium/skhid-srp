@@ -80,6 +80,7 @@ use crate::sight::RayTree;
 mod clearance;
 pub use clearance::{CLEARANCE_MAX_M, CLEARANCE_STEP_M};
 mod doors;
+mod drop_check;
 mod slide_floors;
 mod exact;
 mod open;
@@ -234,9 +235,15 @@ pub struct Body {
     /// rounds take a floor beside any wall cell, so a doorway 0.8-1.2 m wide closes though the capsule passes (Vector
     /// Laboratory's strip). Needs [`Erosion::Exact`]. A build input: in the key when set.
     pub narrow_doors: bool,
-    /// [A316/A318] Whether the floors the client's body cannot hold are taken out (`grid::slide_floors`): a still body stood on a
-    /// floor with a face no body walks on near it, run 1 s in the client's walk tick, slides off ground past the walk limit (55 deg,
-    /// or a `dont_walk` face): its ways in go, unless it is the way through to floors that are not. A build input: in the key when set.
+    /// [A313] Whether a Drop link is kept only where the client's own walk tick (`controller::tick`, proven against the exe) takes
+    /// a body walking off it down to the landing (`grid::drop_check`): steered at the landing, then on along the link as a bot
+    /// walks on to its next node. Off: 18 % of the maps' Drop links leave the body on a ledge the grid does not have, or under the
+    /// landing (the drops census, A313). A link that is the only way to a floor or back from it is kept. A build input: in the key when
+    /// set.
+    pub drop_check: bool,
+    /// [A316/A318] Whether the floors the client's body cannot hold are taken out (`grid::slide_floors`): a floor whose ground (the
+    /// face under its centre) is past the client's walk limit (a by-slope face over 55 deg, or a `dont_walk` face) loses its level
+    /// and upward ways in, unless it is the way through to floors that are not. A build input: in the key when set.
     pub slide_floors: bool,
 }
 
@@ -294,6 +301,7 @@ impl Body {
             client_controller: false,
             drop_room_walk_faces: false,
             narrow_doors: false,
+            drop_check: false,
             slide_floors: false,
         }
     }
@@ -367,6 +375,7 @@ impl Default for Body {
             client_controller: false,
             drop_room_walk_faces: false,
             narrow_doors: false,
+            drop_check: false,
             slide_floors: false,
         }
     }
@@ -870,6 +879,10 @@ pub struct BuildStats {
     pub overshot_kept: usize,
     /// The walk-offs taken away for a wall in the way of the capsule ([`Body::drop_room`]).
     pub drops_blocked: usize,
+    /// The Drop links taken away because the client's walk tick does not take a body down them ([`Body::drop_check`]), and those
+    /// kept because they are the only way to a floor or back from it.
+    pub drops_unfollowed: usize,
+    pub drops_unfollowed_kept: usize,
     /// The gap pass ([`gap`]).
     pub gaps: gap::GapStats,
 }
@@ -1071,6 +1084,10 @@ impl WalkGrid {
         }
         if body.landing_carry {
             (stats.overshot_cut, stats.overshot_kept) = grid.drop_overshot_landings(&mut wide, seeds, spawns);
+        }
+        if body.drop_check {
+            let failing = grid.unfollowed_drops(&wide, triangles, seeds, spawns);
+            (stats.drops_unfollowed, stats.drops_unfollowed_kept) = grid.cut_keeping_reach(&mut wide, failing, seeds, spawns, true);
         }
         stats.floors_after_erosion = grid.len();
         grid.keep_reached(&mut wide, seeds);

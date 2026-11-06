@@ -126,6 +126,17 @@ pub(crate) fn stand_in_bridges() -> body::Bridges {
     }
 }
 
+/// [A318] Along what the stand-in body's step the grid stops goes on (`SRP_BENCH_STAND_IN_WALLS`, `diagonal` unless `axes`): the
+/// client's capsule slides along a wall the grid draws as a 45 degree staircase too ([`crate::v026g::bots::kin::WallSlide`]).
+pub(crate) fn stand_in_walls() -> crate::v026g::bots::kin::WallSlide {
+    static AXES: std::sync::OnceLock<bool> = std::sync::OnceLock::new();
+    if *AXES.get_or_init(|| bench_settings().var("SRP_BENCH_STAND_IN_WALLS").is_ok_and(|v| v == "axes")) {
+        crate::v026g::bots::kin::WallSlide::Axes
+    } else {
+        crate::v026g::bots::kin::WallSlide::Diagonal
+    }
+}
+
 /// [A318] How the stand-in body's blend goes on when its keys change again before it is over (`SRP_BENCH_STAND_IN_MIXER`,
 /// `layers` unless `frozen`): the client's lexeme stack ([`kin::Mixer::Layers`], fitted on the client's speed at the worlds of 15
 /// client-test recordings); `frozen` moves it as before.

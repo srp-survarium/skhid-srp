@@ -156,6 +156,9 @@ pub const DROP_ROOM_WALK_FACES_ALGO: u32 = 0x5304_0201;
 /// The same for the narrow doors' floors given back after the erosion rounds ([`Body::narrow_doors`], A313), in
 /// [`grid_key_with_links`] only for a body that asks for it. A value of its own.
 pub const NARROW_DOORS_ALGO: u32 = 0x5313_0101;
+/// The same for the Drop links the client's walk tick does not take a body down ([`Body::drop_check`], A313), in
+/// [`grid_key_with_links`] only for a body that asks for it. A value of its own.
+pub const DROP_CHECK_ALGO: u32 = 0x5313_0201;
 /// The same for the floors the client's body cannot hold taken out ([`Body::slide_floors`], A316/A318), in
 /// [`grid_key_with_links`] only for a body that asks for it. A value of its own.
 pub const SLIDE_FLOORS_ALGO: u32 = 0x5313_0301;
@@ -331,6 +334,10 @@ pub fn grid_key_with_links(
     // And the narrow doors' floors.
     if body.narrow_doors {
         digest.u32(NARROW_DOORS_ALGO);
+    }
+    // And the walk tick's check of the Drop links.
+    if body.drop_check {
+        digest.u32(DROP_CHECK_ALGO);
     }
     // And the slide floors taken out.
     if body.slide_floors {
