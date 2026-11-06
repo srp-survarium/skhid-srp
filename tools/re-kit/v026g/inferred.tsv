@@ -3267,3 +3267,13 @@ va	status	ref_021d	name
 0x00313970	inferred-medium	0x001fb7e6	survarium::gather_victory_items_rule_core::gather_victory_items_rule_core
 0x00338d20	inferred-medium	0x0020842d	survarium::victory_item_core_carry_state::`scalar deleting destructor'
 0x00338ab0	inferred-medium	0x002082a5	survarium::victory_item_core_take_state::`scalar deleting destructor'
+0x003a8a00	inferred-high		anim_fill_selected_channels
+0x003a8af0	inferred-high		anim_read_node_time_track
+0x003a8ba0	inferred-high		anim_read_node_flag_track
+0x003a8c10	inferred-high		anim_read_node_base_tracks
+0x003a8d30	inferred-high		anim_link_node_pointers
+0x003a8d60	inferred-high		anim_init_node_matrices
+0x003a8ef0	inferred-high		anim_pick_channel_value
+0x003a8f40	inferred-high		anim_read_node_record
+0x003a90c0	inferred-high		anim_read_expression
+0x003a9250	inferred-high		anim_build_node
