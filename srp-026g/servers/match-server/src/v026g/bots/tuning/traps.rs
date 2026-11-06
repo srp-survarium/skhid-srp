@@ -63,6 +63,14 @@ pub struct TrapTuning {
     /// life's trap spent and the team kept a promise of it for 20 s (A324). That is wrong by the client, so `client` is the
     /// default and the all-off patch keeps it (`KEPT_RIGHT`).
     pub release: TrapRelease,
+    /// [A324] The camper trap job: on a held spot the team has a K2 job on (the 2-kill cue), a bot with a trap is SENT to put
+    /// one on his way back to the spot (the way from his side's spawns, the stretch just before it, out of the spot's sight) and,
+    /// when he dies there, on his death point; it walks there in its own play (`TrapSpot`) and places with the job's own gate (an
+    /// enemy seen, not one only known near; no chance roll), instead of the calm habit's no-detour wish (`at_defeated`,
+    /// `at_cleared`), which near such a spot the enemy gate refuses first (A324 root cause). Live 6+ matches: a cleared camper or
+    /// a mate steps within 1 m of his death point in 41 % of cases within 120 s (`fx-gear-trap-payoff.md`). Off by default until
+    /// its by-side bench.
+    pub camper_job: Option<CamperJob>,
     /// The ring round a standing own trap the team's searches keep out as a preference (soft: a way round where
     /// that is not much longer, else through), metres from its centre; a route that runs within it is searched
     /// again once for each change of the traps. The hard field (0.75 m) is not enough: of the mates' bodies that
@@ -324,6 +332,33 @@ impl Default for ClearedTuning {
     }
 }
 
+/// [A324] The camper trap job's rule (`TrapTuning::camper_job`). The numbers are placement choices (the owner: only where to trap
+/// is tuned on benches); the trap's own values are the client's (`bear_traps.md`).
+#[derive(Clone, Copy, Debug, PartialEq, Serialize, Deserialize)]
+#[serde(default, deny_unknown_fields)]
+pub struct CamperJob {
+    /// His death point is wanted this long after his death, seconds: live, he is back within 10 m a median 31 s after it and
+    /// within 1 m a median 46 s (P75 77 s).
+    pub death_keep_s: f32,
+    /// The way back: points every `step_m` from `near_m` to `far_m` before the spot along the way from his side's spawns; the
+    /// first the spot's eye does not see is the one trapped.
+    pub near_m: f32,
+    pub far_m: f32,
+    pub step_m: f32,
+    /// The job's bot is the nearest with a trap within this of the point, metres on the ground.
+    pub max_walk_m: f32,
+    /// A bot sent and not done in this long is let go (another may be sent), seconds.
+    pub give_up_s: f32,
+    /// The trap lies within this of the point, metres.
+    pub within_m: f32,
+}
+
+impl Default for CamperJob {
+    fn default() -> Self {
+        Self { death_keep_s: 60.0, near_m: 6.0, far_m: 20.0, step_m: 3.0, max_walk_m: 30.0, give_up_s: 25.0, within_m: 1.5 }
+    }
+}
+
 /// The look along the route of the habit's place-on-the-pass rule (`TrapTuning::on_the_pass`).
 #[derive(Clone, Copy, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(default, deny_unknown_fields)]
@@ -486,6 +521,7 @@ impl Default for TrapTuning {
             at_defeated: None,
             at_cleared: None,
             release: TrapRelease::Client,
+            camper_job: None,
             ring_m: 1.3,
             friend_m: 2.5,
             near_own_m: 4.0,
@@ -548,6 +584,18 @@ impl Check for TrapTuning {
                 c.keep_s > 0.0 && c.within_m >= 1.0 && c.within_m <= 6.0 && c.friend_m >= self.friend_m && c.ahead_m >= 2.0 && c.ahead_m <= self.route_ahead_m
             }),
             "traps.at_cleared",
+        )?;
+        check(
+            self.camper_job.is_none_or(|j| {
+                j.death_keep_s > 0.0
+                    && j.step_m > 0.0
+                    && j.near_m >= 1.0
+                    && j.far_m >= j.near_m
+                    && j.max_walk_m > 0.0
+                    && j.give_up_s > 0.0
+                    && (1.0..=6.0).contains(&j.within_m)
+            }),
+            "traps.camper_job",
         )?;
         check(
             self.friend_m >= 0.0
