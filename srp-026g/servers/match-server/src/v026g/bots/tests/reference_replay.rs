@@ -177,6 +177,48 @@ fn reference_replay() {
         })
         .collect();
     rows.sort_by_key(|w| (w.time, w.place));
+    // The presses the client's stamina lets go (`player_stamina` 0x329790 / spend 0x329A20 / sprint 0x329A70, the jump's gate
+    // 0x2FC230: `stamina::Reckoning`, PROVEN; the light kit's rates, LIKELY: the tables carry no kit): a bar a place from each
+    // life's first world (a new `inserted`), ticked on its inputs; a press the bar refuses starts no jump (a body sprinting into a
+    // wall spends its bar and its press goes nowhere).
+    let mut spawns: HashMap<usize, Vec<u32>> = HashMap::new();
+    let mut life_of: HashMap<usize, u32> = HashMap::new();
+    for w in &rows {
+        if w.fix.alive && life_of.get(&w.place) != Some(&w.fix.inserted) {
+            life_of.insert(w.place, w.fix.inserted);
+            spawns.entry(w.place).or_default().push(w.time);
+        }
+    }
+    let mut refused = 0usize;
+    let presses_of: HashMap<usize, Vec<u32>> = presses_of
+        .into_iter()
+        .map(|(place, presses)| {
+            let lives = spawns.get(&place).cloned().unwrap_or_default();
+            let mut bar = super::super::stamina::Reckoning::default();
+            let mut next_life = 0usize;
+            let mut kept = Vec::new();
+            for &(t, k) in keys_of.get(&place).map_or(&[][..], Vec::as_slice) {
+                while next_life < lives.len() && lives[next_life] <= t {
+                    bar.spawn(lives[next_life]);
+                    next_life += 1;
+                }
+                if presses.contains(&t) {
+                    let mut probe = bar;
+                    probe.tick(t, k & !key::JUMP, false);
+                    if probe.may_jump() {
+                        kept.push(t);
+                    } else {
+                        refused += 1;
+                    }
+                }
+                bar.tick(t, k, false);
+            }
+            (place, kept)
+        })
+        .collect();
+    if jump_mode {
+        eprintln!("A325 jump: {refused} presses refused by the stamina bar");
+    }
     // `SRP_A325_WINDOWS`: fx-bench's rows file `rec,place,t0,t1[,note]`: only the worlds of those places in [t0, t1].
     let rec_id = var("SRP_A325_REC").unwrap_or_default();
     let windows: Option<Vec<(usize, u32, u32)>> = var("SRP_A325_WINDOWS").map(|path| {
