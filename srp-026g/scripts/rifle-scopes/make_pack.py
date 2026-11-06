@@ -60,7 +60,7 @@ import model as posing  # noqa: E402
 from scopes_lib import ce  # noqa: E402
 
 PACK_ID = 'rifle-scopes'
-VERSION = '7'
+VERSION = '8'
 LANGUAGES = ('english', 'german', 'original', 'polish', 'russian', 'ukrainian')
 FIRST_VARIANT = 2701
 CATEGORY = 22
@@ -234,9 +234,13 @@ def level_eye(model):
 
 
 def set_float3(buf, path, value):
+    """A float3 at `path` set to `value`, in three numbers of its own: the format keeps equal values
+    once (the Rem 870's aim locator turned as its scope_point is, the same 12 bytes), so an edit
+    in place changed both (@7: its scope_point's 0.008 rad roll gone with the eye's)."""
     off = ce.find(buf, path)
-    data = ce.rec(buf, off)[0]
-    struct.pack_into('<3f', buf, data, *value)
+    _, name, crc, kind, count = ce.rec(buf, off)
+    buf.extend(bytes(-len(buf) % 4))
+    ce.REC.pack_into(buf, off, ce.append(buf, struct.pack('<3f', *value)), name, crc, kind, count)
 
 
 def edited_config(template, values, strings):
