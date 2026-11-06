@@ -63,6 +63,7 @@ package survarium.controls
    import survarium.constants.WeaponHands;
    import survarium.constants.ProfileSlot;
    import survarium.player.LocalPaperDoll;
+   import survarium.player.ReasonsTip;
    
    public class InventoryList extends FiltersWindow implements IInventoryItemFactory
    {
@@ -170,7 +171,9 @@ package survarium.controls
       // panel's bounds reach higher than what shows)
       private static const SEARCH_PANEL_TOP:int = 19;
       
-      private static const SEARCH_WIDE:Number = 1.25;
+      // wide enough for the empty box's hint, its "+" examples whole in every language (owner
+      // 2026-11-06), the grid's width nearly: scripts/item-search/check.sh measures every language
+      private static const SEARCH_WIDE:Number = 1.75;
       
       private static const SEARCH_GROW:int = 4;
       
@@ -201,32 +204,54 @@ package survarium.controls
       // letters in order (less the further apart), with typos (less for each).
       private static const MATCH_START:int = 400;
       
-      // A number as the first word is the item's level first (owner 2026-10-22): an item of that
-      // level matches it above any name, so "15" lists the level 15 items first (then the names
-      // with 15 in them, as "74" still finds the AK-74).
-      private static const MATCH_LEVEL:int = 1000;
-      
-      // A word naming a kind of item (owner 2026-10-22), or its start from 3 letters on, matches
-      // the items of that kind above any name: [the words, the category, or with group the super
-      // category]. The words of every language match, whatever the game's language (search words,
-      // not texts shown: they are not in the dictionaries).
-      private static const MATCH_KIND:int = 450;
-      
+      // A "+" word naming a kind of item (owner 2026-11-06; a plain word until then, 2026-10-22), or
+      // its start from 3 letters on: [the words, the category, or with group the super category].
+      // The words of every language match, whatever the game's language (search words, not texts
+      // shown: they are not in the dictionaries). The tip lists the first word of each kind some
+      // item is (listSearchWords). No word that starts a bonus's name (armor, armour, páncél,
+      // panssari: the Armor bonus; a "+" word names a kind before a bonus, searchQuery).
       private static const SEARCH_KIND_LEAST:int = 3;
       
       private static const SEARCH_KINDS:Array = [
          {words:["gear","equipment","спорядження","снаряжение","экипировка", "oprema","výbava","vybaveni","felszerelés","felszereles","varusteet","рыштунак","экіпіроўка"],group:SuperCategory.EQUIPMENT},
          {words:["items","предмети","предметы","predmeti","předměty","predmety","tárgyak","targyak","esineet","прадметы"],group:SuperCategory.ITEMS},
-         {words:["helmet","шолом","шлем","šlem","helma","sisak","kypärä","kypara"],category:ItemCategory.HELMETS},
-         {words:["mask","маска","maska","maszk","naamari"],category:ItemCategory.MASKS},
-         {words:["body","armour","armor","vest","бронежилет","pancir","vesta","pancíř","páncél","pancel","liivi","panssari","бронекамізэлька"],category:ItemCategory.BODY_ARMOR},
-         {words:["rig","розвантаження","разгрузка","prsluk","nosný systém","taktikai mellény","taisteluliivi"],category:ItemCategory.RIGS},
+         {words:["helmet","helmets","шолом","шлем","šlem","helma","sisak","kypärä","kypara"],category:ItemCategory.HELMETS},
+         {words:["mask","masks","маска","maska","maszk","naamari"],category:ItemCategory.MASKS},
+         {words:["body","vest","vests","бронежилет","pancir","vesta","pancíř","liivi","бронекамізэлька"],category:ItemCategory.BODY_ARMOR},
+         {words:["rig","rigs","розвантаження","разгрузка","prsluk","nosný systém","taktikai mellény","taisteluliivi"],category:ItemCategory.RIGS},
          {words:["gloves","рукавички","перчатки","rukavice","kesztyű","kesztyu","käsineet","kasineet","пальчаткі"],category:ItemCategory.GLOVES},
          {words:["pants","trousers","штани","штаны","pantalone","kalhoty","nadrág","nadrag","housut"],category:ItemCategory.PANTS},
          {words:["boots","черевики","ботинки","čizme","boty","bakancs","saappaat","боты"],category:ItemCategory.BOOTS}];
       
       // SEARCH_KINDS' words as the search compares them (made once)
       private static var _kindForms:Array;
+
+      // A "+" word names a bonus by the card's text of it (the property's name, in the game's
+      // language) or by these English words, whatever the game's language (owner 2026-11-06: the
+      // words players use): [the property id (gameplay/static_game_parameters ui_properties), its
+      // words: the one players type first, then its English name and others]. Every property a
+      // modification has. The tip lists the first word of each row some item has (listSearchWords;
+      // ties in this order, the most searched first).
+      private static const SEARCH_BONUSES:Array = [
+         [20,"ammo bags pouches ammunition"],[10,"slot item slots device"],
+         [117,"pocket capacity pockets"],[9,"artifact artefact container"],[15,"weight"],
+         [104,"stamina regeneration regen energy"],[102,"aim aiming speed"],[115,"recoil weapon"],
+         [114,"reload speed"],[118,"reload speed"],[6,"armor armour protection"],
+         [103,"regen regeneration health"],[127,"xp experience received exp"],
+         [126,"silver received money"],[105,"movement speed move"],[106,"carry weight limit"],
+         [1,"damage dmg"],[3,"penetration armor armour piercing"],[4,"rpm rate fire firerate"],
+         [2,"spread dispersion accuracy"],[101,"hip dispersion spread accuracy"],
+         [24,"range distance"],[8,"isolation insulation"],[109,"anomaly damage"],
+         [11,"oxygen capacity air"],[12,"healing"],[13,"disinfect"],[17,"pain threshold"],
+         [107,"pain threshold"],[18,"duration"],[19,"activation"],[23,"explosion radius"],
+         [113,"explosion radius"],[112,"device damage"],[108,"collection time"],
+         [110,"use speed"],[111,"success probability chance"],[116,"energy costs stamina"],
+         [119,"chambering time bolt"],[123,"reliability jam"],[124,"respawn time"],
+         [125,"sway sight breath"],[128,"rep scavengers reputation"],
+         [129,"rep black market reputation"],[130,"rep renaissance army reputation"],
+         [131,"rep fringe settlers reputation"],[171,"delay regeneration regen"],
+         [172,"limit regeneration regen"],[173,"recharge artifact artefact time"],
+         [175,"knockback melee stock"]];
       
       private static const MATCH_WORD:int = 350;
       
@@ -267,9 +292,19 @@ package survarium.controls
       private var _searchBox:SrvTextInput;
       
       private var _searchIcon:Sprite;
-      
-      // the words typed, as the search compares them; null: no search
-      private var _searchWords:Array;
+
+      // While the box is empty, the game's tooltip over the box and its magnifier, just above the
+      // box: what the search takes, a row each (SEARCH_TIP: <key>_example and <key>, two columns),
+      // with the bonus and kind words the items have (listSearchWords) under their rows.
+      // Off the list once something is typed (showSearchTip).
+      private var _searchTip:Sprite;
+
+      private var _searchTipArea:ReasonsTip;
+
+      private static const SEARCH_TIP:Array = ["st_srp_inventory_search_tip_bonus","st_srp_inventory_search_tip_level","st_srp_inventory_search_tip_faction","st_srp_inventory_search_tip_kind"];
+
+      // the text typed, read once (searchQuery); null: no search
+      private var _search:SearchQuery;
       
       // an item name as the search compares it ([text, its words' starts]), by the name
       private var _searchNames:Dictionary = new Dictionary();
@@ -626,6 +661,7 @@ package survarium.controls
          var seller:int = sellersTabPage.selectedIndex != -1 ? (sellersTabPage.dataProvider[sellersTabPage.selectedIndex].faction_id) : Faction.NONE;
          var item:ItemData;
          this.ApplyInventoryFilter(supper,inventoryTabPage.selectedIndex,seller,filterOptions);
+         this.listSearchWords();
       }
       
       public function lockControls(value:Boolean) : void
@@ -985,7 +1021,7 @@ package survarium.controls
                {
                   propPostFix = propDescription.modifier_type == ModifierType.ADD ? propDescription.postfix : "%";
                   propPrefix = modifierProp.prop_value >= 0 ? "+" : "";
-                  style = ModificationRolls.style(propDescription,modifierProp.prop_id,ModificationRolls.value(modifierProp));
+                  style = ModificationRolls.styleOn(value,propDescription,modifierProp.prop_id,ModificationRolls.value(modifierProp));
                   propValue = propDescription.modifier_type == ModifierType.ADD ? modifierProp.prop_value : modifierProp.prop_value * 100;
                   propHintTx = propDescription.prop_name + ": " + Util.styledChar(propPrefix + propValue + ((propPostFix) ? propPostFix : ""),style);
                   modifiers[i].textValue += propHintTx + "\n";
@@ -1010,7 +1046,7 @@ package survarium.controls
                }
                propValue = propDescription.modifier_type == ModifierType.ADD ? modifierProp.prop_value : modifierProp.prop_value * 100;
                propValue = Math.round(propValue / 0.01) * 0.01;
-               style = ModificationRolls.style(propDescription,modifierProp.prop_id,ModificationRolls.value(modifierProp));
+               style = ModificationRolls.styleOn(value,propDescription,modifierProp.prop_id,ModificationRolls.value(modifierProp));
                propHint = propDescription.prop_name + ": " + Util.styledChar(propPrefix + propValue + propPostFix,style);
                if(!modifierProp.modifier.textValue)
                {
@@ -1400,6 +1436,7 @@ package survarium.controls
          var victory_screen:*;
          this.ApplyInventoryFilter(supper,inventoryTabPage.selectedIndex,sellersTabPage.dataProvider[sellersTabPage.selectedIndex].faction_id,filterOptions);
          dispatchEvent(new Event(Event.CHANGE));
+         this.listSearchWords();
          if((parent))
          {
             victory_screen = parent["victory_screen"];
@@ -1444,6 +1481,7 @@ package survarium.controls
          {
             this.ApplyInventoryFilter(null,inventoryTabPage.selectedIndex,sellersTabPage.dataProvider[sellersTabPage.selectedIndex].faction_id);
          }
+         this.listSearchWords();
       }
       
       public function tryAutoFill(value:ItemData) : void
@@ -2268,7 +2306,10 @@ package survarium.controls
          this.checkboxCompareItems.tooltipRendererName = "SrvProfileTipRenderer";
          this.checkboxCompareItems.tipData = {name:LocalizationData.getName("checkbox_compare_items_hint")};
          this.shopTab.dataProvider = new DataProvider([LocalizationData.getName("filter_shop_and_inventory"),LocalizationData.getName("filter_shop"),LocalizationData.getName("filter_inventory")]);
+         // the hint: the word at the hint's grey, the syntax's examples dimmer (owner 2026-11-06)
          this._searchBox.defaultText = LocalizationData.getName("st_srp_inventory_search");
+         this._searchBox.defaultTextMore = ": " + LocalizationData.getName("st_srp_inventory_search_examples");
+         this.fillSearchTip();
          this._ownedToggle.tipData = {name:LocalizationData.getName("st_srp_shop_not_owned_hint")};
          this.placeOwnedToggle();
       }
@@ -2293,6 +2334,22 @@ package survarium.controls
          this._searchIcon.x = this._searchBox.x + w - SEARCH_ICON_RIGHT - SEARCH_ICON_SIZE;
          this._searchIcon.addEventListener(MouseEvent.CLICK,this.onSearchIcon);
          addChild(this._searchIcon);
+         // the tip's area over both, nested a Sprite deeper (LocalPlayerProfile.reasonTip); a click
+         // on it is a click on the box
+         _searchTip = new Sprite();
+         this._searchTip.x = this._searchBox.x;
+         _searchTipArea = new ReasonsTip();
+         this._searchTipArea.graphics.beginFill(0,0.01);
+         this._searchTipArea.graphics.drawRect(0,0,w,h);
+         this._searchTipArea.graphics.endFill();
+         this._searchTipArea.focusable = false;
+         // just above the box, its left edge on the box's: off the item panel's buttons below
+         this._searchTipArea.anchor = this._searchBox;
+         this._searchTip.addChild(this._searchTipArea);
+         this._searchTip.addEventListener(MouseEvent.CLICK,this.onSearchIcon);
+         addChild(this._searchTip);
+         this._searchTipArea.validateNow();
+         this._searchTipArea.tooltipRendererName = "SrvProfileTipRendererStyled";
          black_gradient.y -= SEARCH_ROW;
          this.placeSearch();
       }
@@ -2306,6 +2363,7 @@ package survarium.controls
          var h:Number = this._searchBox.height;
          this._searchBox.y = Math.round(top + (bottom - top - h) / 2);
          this._searchIcon.y = this._searchBox.y + Math.round((h - SEARCH_ICON_SIZE) / 2);
+         this._searchTip.y = this._searchBox.y;
       }
       
       private function listenSearchKey(e:Event) : void
@@ -2366,7 +2424,7 @@ package survarium.controls
          }
          if(!find)
          {
-            _searchTyped += e.charCode > 32 ? String.fromCharCode(e.charCode) : keyLetter(e.keyCode);
+            _searchTyped += e.charCode > 32 ? String.fromCharCode(e.charCode) : keyLetter(e.keyCode,e.shiftKey);
             this._searchBox.addEventListener(Event.RENDER,this.focusTyped);
             stage.invalidate();
             return;
@@ -2378,10 +2436,10 @@ package survarium.controls
       }
       
       // A key that types a letter or a digit: A to Z, 0 to 9 (the row and the pad), and the keys
-      // other layouts put letters on (; = , - . / ` [ \ ] ').
+      // other layouts put letters on (; = , - . / ` [ \ ] '), and the pad's + (a "+" word starts).
       private static function typesSearch(code:uint) : Boolean
       {
-         return code >= 65 && code <= 90 || code >= 48 && code <= 57 || code >= 96 && code <= 105 || code >= 186 && code <= 192 || code >= 219 && code <= 222;
+         return code >= 65 && code <= 90 || code >= 48 && code <= 57 || code >= 96 && code <= 105 || code == 107 || code >= 186 && code <= 192 || code >= 219 && code <= 222;
       }
       
       // Whether typing over the list would go to its search (LobbyMenu.windowKeysOff: the exe's
@@ -2428,9 +2486,15 @@ package survarium.controls
       // the characters typed before the box had the keys (onSearchKey)
       private var _searchTyped:String = "";
       
-      // A letter key's lower case letter, a digit key's digit; "" for the others.
-      private static function keyLetter(code:uint) : String
+      // A letter key's lower case letter, a digit key's digit, the pad's + and Shift+= (the US
+      // layout's +: a key the exe sends without its character; other layouts' + comes as the
+      // exe's charCode); "" for the others.
+      private static function keyLetter(code:uint, shift:Boolean) : String
       {
+         if(code == 107 || code == 187 && shift)
+         {
+            return "+";
+         }
          if(code >= 65 && code <= 90)
          {
             return String.fromCharCode(code + 32);
@@ -2498,9 +2562,10 @@ package survarium.controls
          {
             this._searchBox.text = "";
          }
-         if(this._searchWords != null)
+         this.showSearchTip();
+         if(this._search != null)
          {
-            _searchWords = null;
+            _search = null;
             this.applySearch();
          }
       }
@@ -2554,13 +2619,29 @@ package survarium.controls
       
       private function onSearchChange(e:Event) : void
       {
-         var words:Array = searchWords(this._searchBox.text);
-         if(words == null && this._searchWords == null)
+         this.showSearchTip();
+         var query:SearchQuery = this.searchQuery(this._searchBox.text);
+         if(query == null && this._search == null)
          {
             return;
          }
-         _searchWords = words;
+         _search = query;
          this.applySearch();
+      }
+
+      // The tip's area on the list while the box is empty, off it (the tip gone with it: ToolTip's
+      // REMOVED_FROM_STAGE) once something is typed.
+      private function showSearchTip() : void
+      {
+         var empty:Boolean = this._searchBox.text == "";
+         if(empty && this._searchTip.parent != this)
+         {
+            addChild(this._searchTip);
+         }
+         else if(!empty && this._searchTip.parent == this)
+         {
+            removeChild(this._searchTip);
+         }
       }
       
       // The craft window's slots hold these items: its list leaves them out.
@@ -2597,12 +2678,13 @@ package survarium.controls
          itemsTileList.scrollBar.position = 0;
       }
       
-      // The items of a list whose name matches every word typed, best first, in the list's own order
-      // among equals; the whole list without a search. The loose matches (letters spread, typos)
+      // The items of a list the "+" words let through whose name matches every other word typed,
+      // best first, in the list's own order among equals; the whole list without a search. The
+      // loose matches of the name's words (letters spread, typos)
       // only when nothing matches otherwise (owner 2026-10-22: "mask" listed Master's gloves).
       private function searchItems(items:Array) : Array
       {
-         if(this._searchWords == null)
+         if(this._search == null)
          {
             return items;
          }
@@ -2645,11 +2727,17 @@ package survarium.controls
       // whether the last item searchScore matched took a loose match (spread letters, typos)
       private var _searchLoose:Boolean;
       
-      // An item against the words typed: the sum of each word's match (its name's; a number first,
-      // its level's too), 0 when one does not match.
+      // An item against the text typed: 0 when a "+" word leaves it out (searchAdmits) or a word of
+      // the name does not match; else 1 and each name word's match (only the name's, owner
+      // 2026-11-06: a number is a part of it, a level only "+<number>", a kind only "+<kind>").
       private function searchScore(item:Object) : int
       {
          _searchLoose = false;
+         if(!searchAdmits(this._search,item))
+         {
+            return 0;
+         }
+         var words:Array = this._search.words;
          var text:String = item.name == null ? "" : String(item.name);
          var form:Array = this._searchNames[text] as Array;
          if(form == null)
@@ -2657,11 +2745,11 @@ package survarium.controls
             form = searchForm(text);
             this._searchNames[text] = form;
          }
-         var total:int = 0;
-         for(var i:int = 0; i < this._searchWords.length; i++)
+         var total:int = 1;
+         for(var i:int = 0; i < words.length; i++)
          {
-            var word:String = this._searchWords[i];
-            var score:int = i == 0 && /^[0-9]+$/.test(word) && item.itemLevel != null && int(item.itemLevel) == int(word) ? MATCH_LEVEL : (kindOf(word,item) ? MATCH_KIND : wordScore(word,form[0],form[1]));
+            var word:String = words[i];
+            var score:int = wordScore(word,form[0],form[1]);
             if(score == 0)
             {
                return 0;
@@ -2672,12 +2760,13 @@ package survarium.controls
          return total;
       }
       
-      // Whether a word typed names the item's kind (SEARCH_KINDS).
-      private static function kindOf(word:String, item:Object) : Boolean
+      // The kinds a "+" word names (SEARCH_KINDS' indexes): a kind's word starts with it.
+      private static function searchKinds(word:String) : Array
       {
+         var kinds:Array = [];
          if(word.length < SEARCH_KIND_LEAST)
          {
-            return false;
+            return kinds;
          }
          if(_kindForms == null)
          {
@@ -2694,20 +2783,160 @@ package survarium.controls
          }
          for(var i:int = 0; i < SEARCH_KINDS.length; i++)
          {
-            var k:Object = SEARCH_KINDS[i];
-            if(k.group != null ? item.superCategory != k.group : item.category != k.category)
-            {
-               continue;
-            }
             for each(var f:String in _kindForms[i])
             {
                if(f.indexOf(word) == 0)
                {
-                  return true;
+                  kinds.push(i);
+                  break;
                }
             }
          }
-         return false;
+         return kinds;
+      }
+
+      // Whether the item is of a kind (an index of SEARCH_KINDS).
+      private static function isKind(kind:int, item:Object) : Boolean
+      {
+         var k:Object = SEARCH_KINDS[kind];
+         return k.group != null ? item.superCategory == k.group : item.category == k.category;
+      }
+
+      // The tip's lists from the list's own items (owner 2026-11-06: "many return nothing and as
+      // such should not be mentioned"; "bonuses should be sorted by type"): a word for each bonus
+      // some shop or inventory item has (bonusLines; its SEARCH_BONUSES row's first word, once), by
+      // the group of the first item group (SuperCategory: the shop's tab order) whose items have
+      // it, in the table's order within a group; and each kind some item is (its SEARCH_KINDS row's
+      // first word), in the table's order. Sets, not counts: an item listed twice (the shop's, once
+      // a seller) changes nothing. Made when the items come (setupShopItems, setupInventoryData),
+      // not as the player types. A bonus or kind no item has still matches; it is not listed.
+      private function listSearchWords() : void
+      {
+         var wordOf:Object = {};
+         var order:Array = [];
+         for each(var row:Array in SEARCH_BONUSES)
+         {
+            var first:String = String(row[1]).split(" ")[0];
+            wordOf[row[0]] = first;
+            if(order.indexOf(first) == -1)
+            {
+               order.push(first);
+            }
+         }
+         // a word's group: the lowest SuperCategory of the items that have it
+         var group:Object = {};
+         var kinds:Array = [];
+         var sold:Object = {};
+         for each(var items:Array in [this._shopItems,this._inventoryItems])
+         {
+            for each(var item:Object in items != null ? items : [])
+            {
+               for each(var seller:Object in item.sellers is Array ? item.sellers : [])
+               {
+                  sold[int(seller.faction_id)] = true;
+               }
+               for each(var prop:Object in bonusLines(item))
+               {
+                  var word:String = wordOf[prop.prop_id];
+                  if(word != null && (group[word] == null || int(item.superCategory) < group[word]))
+                  {
+                     group[word] = int(item.superCategory);
+                  }
+               }
+               for(var k:int = 0; k < SEARCH_KINDS.length; k++)
+               {
+                  if(kinds.indexOf(k) == -1 && isKind(k,item))
+                  {
+                     kinds.push(k);
+                  }
+               }
+            }
+         }
+         var bonuses:Array = order.filter(function(w:String, i:int, a:Array):Boolean
+         {
+            return group[w] != null;
+         });
+         bonuses.sort(function(a:String, b:String):int
+         {
+            return group[a] != group[b] ? group[a] - group[b] : order.indexOf(a) - order.indexOf(b);
+         });
+         kinds.sort(Array.NUMERIC);
+         _searchBonusWords = bonuses.map(function(w:String, i:int, a:Array):String
+         {
+            return "+" + w;
+         }).join(" ");
+         _searchKindWords = kinds.map(function(kind:int, i:int, a:Array):String
+         {
+            return "+" + SEARCH_KINDS[kind].words[0];
+         }).join(" ");
+         var factions:Array = [];
+         var tabs:DataProvider = sellersTabPage.dataProvider as DataProvider;
+         for(var t:int = 0; tabs != null && t < tabs.length; t++)
+         {
+            if(sold[int(tabs[t].faction_id)] && tabs[t].name != null)
+            {
+               factions.push(this.factionWord(String(tabs[t].name),int(tabs[t].faction_id)));
+            }
+         }
+         _searchFactionWords = factions.join(" ");
+         this.fillSearchTip();
+      }
+
+      // A faction's "+" word for the tip (owner 2026-11-06: "there should be every faction"): the
+      // first word of its seller tab's name, from 3 letters on, that names it alone (as searchQuery
+      // reads a "+" word: no level, no kind, no other faction: "The Renaissance Army" is
+      // +renaissance), lower case.
+      private function factionWord(name:String, id:int) : String
+      {
+         var words:Array = name.split(/[\s"'«»„“”().,:;!?\/-]+/);
+         for each(var word:String in words)
+         {
+            var form:String = searchForm(word)[0];
+            if(form.length >= SEARCH_KIND_LEAST && !/^[0-9]+$/.test(form) && searchKinds(form).length == 0 && this.searchFactions(form).join() == String(id))
+            {
+               return "+" + word.toLowerCase();
+            }
+         }
+         return "+" + String(words[0]).toLowerCase();
+      }
+
+      // the tip's lists (listSearchWords): "+word +word …"; "" until the items (and the seller
+      // tabs) come
+      private var _searchBonusWords:String = "";
+
+      private var _searchKindWords:String = "";
+
+      private var _searchFactionWords:String = "";
+
+      // The tip's rows (SEARCH_TIP: the bonus's first, the faction's in the middle, owner
+      // 2026-11-06: "faction is the least interesting one"), each with its list (listSearchWords)
+      // under its meaning, dim, no label (owner 2026-11-06: a row and its list read as one), when
+      // the list has a word.
+      private function fillSearchTip() : void
+      {
+         if(this._searchTipArea == null)
+         {
+            return;
+         }
+         var rows:Array = SEARCH_TIP.map(function(key:String, i:int, a:Array):Array
+         {
+            return [LocalizationData.getName(key + "_example"),LocalizationData.getName(key)];
+         });
+         // each list under its row, from the last row up (a splice moves the rows after it)
+         var lists:Array = [["st_srp_inventory_search_tip_faction",this._searchFactionWords],["st_srp_inventory_search_tip_bonus",this._searchBonusWords],["st_srp_inventory_search_tip_kind",this._searchKindWords]];
+         lists.sort(function(a:Array, b:Array):int
+         {
+            return SEARCH_TIP.indexOf(b[0]) - SEARCH_TIP.indexOf(a[0]);
+         });
+         for each(var list:Array in lists)
+         {
+            if(list[1] != "")
+            {
+               rows.splice(SEARCH_TIP.indexOf(list[0]) + 1,0,["",list[1],true]);
+            }
+         }
+         // name: the renderer's own text (TextTipRenderer.invalidateData), none beside the rows
+         this._searchTipArea.tipData = {name:"",rows:rows};
       }
       
       // The words typed as the search compares them; null when there are none.
@@ -2726,6 +2955,179 @@ package survarium.controls
             }
          }
          return words.length > 0 ? words : null;
+      }
+
+      // The text typed, read once (docs/notes/item-search.md): a "+" starts a filter word, up to the
+      // next space or "+", read in this order: +<number> an item level, +<the start of a kind's word>
+      // that kind (searchKinds), +<the start of a seller's name> that faction, any other +<word> a
+      // bonus (searchBonuses); the rest is the name's words (searchWords).
+      // null: nothing to search.
+      private function searchQuery(text:String) : SearchQuery
+      {
+         var query:SearchQuery = new SearchQuery();
+         var plain:Array = [];
+         for each(var token:String in (text == null ? "" : text).split(/\s+/))
+         {
+            var parts:Array = token.split("+");
+            plain.push(parts[0]);
+            for(var i:int = 1; i < parts.length; i++)
+            {
+               var word:String = searchForm(parts[i])[0];
+               if(word == "")
+               {
+                  continue;
+               }
+               if(/^[0-9]+$/.test(word))
+               {
+                  query.levels.push(int(word));
+                  continue;
+               }
+               var kinds:Array = searchKinds(word);
+               if(kinds.length > 0)
+               {
+                  query.kinds = query.kinds.concat(kinds);
+                  continue;
+               }
+               var factions:Array = this.searchFactions(word);
+               if(factions.length > 0)
+               {
+                  query.factions = query.factions.concat(factions);
+               }
+               else
+               {
+                  query.bonuses.push(searchBonuses(word));
+               }
+            }
+         }
+         query.words = searchWords(plain.join(" "));
+         if(query.words == null)
+         {
+            query.words = [];
+         }
+         return query.words.length + query.levels.length + query.kinds.length + query.factions.length + query.bonuses.length > 0 ? query : null;
+      }
+
+      // The factions whose name, as the seller tabs show it, has a word starting with the word.
+      private function searchFactions(word:String) : Array
+      {
+         var ids:Array = [];
+         var sellers:DataProvider = sellersTabPage.dataProvider as DataProvider;
+         for(var i:int = 0; sellers != null && i < sellers.length; i++)
+         {
+            if(sellers[i].name != null && startsWord(word,searchForm(String(sellers[i].name))))
+            {
+               ids.push(int(sellers[i].faction_id));
+            }
+         }
+         return ids;
+      }
+
+      // The bonuses a word names: the properties (by id, a set) whose card name (in the game's
+      // language) or English words (SEARCH_BONUSES) have a word starting with it.
+      private static function searchBonuses(word:String) : Object
+      {
+         var texts:Object = {};
+         var descriptor:PropertiesDescriptor = PropertiesDescriptor.getPropertiesDescriptor("properties");
+         for each(var description:Object in descriptor != null ? descriptor.descriptions() : [])
+         {
+            texts[description.prop_id] = description.prop_name != null ? String(description.prop_name) : "";
+         }
+         for each(var row:Array in SEARCH_BONUSES)
+         {
+            texts[row[0]] = (texts[row[0]] != null ? texts[row[0]] + " " : "") + row[1];
+         }
+         var ids:Object = {};
+         for(var id:String in texts)
+         {
+            if(startsWord(word,searchForm(texts[id])))
+            {
+               ids[id] = true;
+            }
+         }
+         return ids;
+      }
+
+      // Whether the item has what the "+" words ask: a level of theirs, a kind of theirs, a seller of
+      // theirs, and each bonus word's bonus among its bonus lines (bonusLines: rolled or built-in,
+      // no defect, no line worse than none).
+      private static function searchAdmits(query:SearchQuery, item:Object) : Boolean
+      {
+         if(query.levels.length > 0 && query.levels.indexOf(int(item.itemLevel)) == -1)
+         {
+            return false;
+         }
+         if(query.kinds.length > 0 && !query.kinds.some(function(kind:int, i:int, a:Array):Boolean
+         {
+            return isKind(kind,item);
+         }))
+         {
+            return false;
+         }
+         if(query.factions.length > 0 && !(item.sellers is Array && (item.sellers as Array).some(function(seller:Object, i:int, a:Array):Boolean
+         {
+            return query.factions.indexOf(int(seller.faction_id)) != -1;
+         })))
+         {
+            return false;
+         }
+         for each(var ids:Object in query.bonuses)
+         {
+            if(!hasBonus(item,ids))
+            {
+               return false;
+            }
+         }
+         return true;
+      }
+
+      private static function hasBonus(item:Object, ids:Object) : Boolean
+      {
+         for each(var prop:Object in bonusLines(item))
+         {
+            if(ids[prop.prop_id])
+            {
+               return true;
+            }
+         }
+         return false;
+      }
+
+      // An item's bonus lines: its modifications' (rolled, built-in, the defaults; no defect), each
+      // only when it helps: the card shows it green (ModificationRolls.style, not red: a value
+      // worse than none, as a weapon's built-in "Movement speed -5%" or a weight's +2 kg, is no
+      // bonus; owner 2026-11-06).
+      private static function bonusLines(item:Object) : Array
+      {
+         var lines:Array = [];
+         var descriptor:PropertiesDescriptor = PropertiesDescriptor.getPropertiesDescriptor("properties");
+         for each(var modifier:Object in item.modifiers is Array ? item.modifiers : [])
+         {
+            if(modifier.state == ModificationState.DEFECT)
+            {
+               continue;
+            }
+            for each(var prop:Object in modifier.props)
+            {
+               if(descriptor != null && descriptor.knows(prop.prop_id) && ModificationRolls.style(descriptor.getPropertyDescription(prop.prop_id),prop.prop_id,ModificationRolls.value(prop)) != "red")
+               {
+                  lines.push(prop);
+               }
+            }
+         }
+         return lines;
+      }
+
+      // Whether a word starts a word of a text as the search compares it (searchForm).
+      private static function startsWord(word:String, form:Array) : Boolean
+      {
+         for each(var at:int in form[1])
+         {
+            if(String(form[0]).substr(at,word.length) == word)
+            {
+               return true;
+            }
+         }
+         return false;
       }
       
       // A text as the search compares it: [its letters and digits (SEARCH_LETTERS), where each
@@ -3004,6 +3406,10 @@ package survarium.controls
             this.placeSearch();
             setChildIndex(this._searchBox,numChildren - 1);
             setChildIndex(this._searchIcon,numChildren - 1);
+            if(this._searchTip.parent == this)
+            {
+               setChildIndex(this._searchTip,numChildren - 1);
+            }
          }
          if(this._ownedToggle != null)
          {
@@ -3690,5 +4096,26 @@ package survarium.controls
          GangShop.buyFunction(profile.profileId,item.itemId,item.dictId,item.descriptor,ItemPlace.INVENTORY,1,price,BuyOrigin.UPGRADE,Faction.NONE);
       }
    }
+}
+
+// The text typed into an item list's search, read once (InventoryList.searchQuery,
+// docs/notes/item-search.md). An item is listed when it has one of the levels (when any), is sold by
+// one of the factions (when any) and a bonus of each set, is of one of the kinds (when any); then its name's words rank it.
+class SearchQuery
+{
+   // the name's words, as the search compares them (InventoryList.searchWords)
+   public var words:Array = [];
+
+   // +<number>: item levels, any of them
+   public var levels:Array = [];
+
+   // +<a kind's word>: SEARCH_KINDS' indexes, any of them (an item is one kind)
+   public var kinds:Array = [];
+
+   // +<a faction's name>: the faction ids named, any of them
+   public var factions:Array = [];
+
+   // +<a bonus>: for each word, the property ids it names (a set); the item has one of each
+   public var bonuses:Array = [];
 }
 

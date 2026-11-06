@@ -88,6 +88,7 @@ const USER_CFG: u32 = 2;
 pub struct ConsoleBool {
     storage: UnsafeCell<BoolStorage>,
     registration: UnsafeCell<Registration>,
+    initial: bool,
 }
 
 // SAFETY: the game drives every hook, and the console's reads and writes of
@@ -105,7 +106,13 @@ impl ConsoleBool {
         ConsoleBool {
             storage: UnsafeCell::new(BoolStorage { object: raw::CcBoolStorage::zeroed(), value: default as u8 }),
             registration: UnsafeCell::new(Registration::Unregistered),
+            initial: default,
         }
+    }
+
+    /// Its value until user.cfg says otherwise (`with`'s).
+    pub fn initial(&self) -> bool {
+        self.initial
     }
 
     /// Puts the variable in the engine's list once, saved in user.cfg, so the
@@ -274,5 +281,97 @@ impl<'c> OptionsCall<'c> {
         // hook's thread (the options' own Invoke reads it so, 0x1FF98F).
         let Some(movie) = (unsafe { movie_of(self.options.menu()) }) else { return false };
         movie.invoke_strings(method, values)
+    }
+}
+
+/// A Settings slider's value in its whole steps (the slider's snap: patch
+/// 112's hundredths, the field of view's degrees), as the movie sends it to
+/// the exe and the exe answers it: decimal digits.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]
+pub struct SliderSteps(u16);
+
+impl SliderSteps {
+    pub const fn new(steps: u16) -> SliderSteps {
+        SliderSteps(steps)
+    }
+
+    pub fn get(self) -> u16 {
+        self.0
+    }
+
+    /// The Settings' text of one: one to four decimal digits, nothing else.
+    pub fn parse(text: &CStr) -> Option<SliderSteps> {
+        let digits = text.to_bytes();
+        if digits.is_empty() || digits.len() > 4 || !digits.iter().all(u8::is_ascii_digit) {
+            return None;
+        }
+        Some(SliderSteps(digits.iter().fold(0, |n, d| n * 10 + u16::from(d - b'0'))))
+    }
+
+    /// The nearest whole steps to `value` (`per_unit` steps to a unit:
+    /// 100 for hundredths), within `least..=most`.
+    pub fn nearest(value: f32, per_unit: f64, least: SliderSteps, most: SliderSteps) -> SliderSteps {
+        let n = (f64::from(value) * per_unit + 0.5) as u32;
+        SliderSteps(n.clamp(u32::from(least.0), u32::from(most.0)) as u16)
+    }
+
+    /// Its digits into `out`, with the zero.
+    pub fn text(self, out: &mut [u8; 8]) -> &CStr {
+        let mut n = self.0;
+        let mut digits = [0u8; 5];
+        let mut len = 0;
+        loop {
+            digits[len] = b'0' + (n % 10) as u8;
+            len += 1;
+            n /= 10;
+            if n == 0 {
+                break;
+            }
+        }
+        for i in 0..len {
+            out[i] = digits[len - 1 - i];
+        }
+        out[len] = 0;
+        CStr::from_bytes_until_nul(&out[..=len]).unwrap_or(c"")
+    }
+}
+
+/// The game's field of view, `uro_fov` (patch 22: the camera's angle in
+/// degrees unaimed, read at every frame; saved in user.cfg), and the range its
+/// registration gives it (0x85ADF0: 50 by patch 22, 100).
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct FieldOfView {
+    pub degrees: f32,
+    pub least: f32,
+    pub most: f32,
+}
+
+impl FieldOfView {
+    /// The variable now; None before its static initializer ran (never at
+    /// the Settings).
+    pub fn now(_: &Thread) -> Option<FieldOfView> {
+        let variable = raw::image::uro_fov();
+        // SAFETY: the engine's own cc_float, a static of the image; its value
+        // is the float its registration points at, on the game's thread.
+        unsafe {
+            let value = variable.value();
+            if value.is_null() {
+                return None;
+            }
+            Some(FieldOfView { degrees: *value, least: *variable.least(), most: *variable.most() })
+        }
+    }
+
+    /// Sets the value when it is within the range, as the console's setter
+    /// (0xECB70) would store it; whether it did.
+    pub fn set(thread: &Thread, degrees: f32) -> bool {
+        let Some(now) = FieldOfView::now(thread) else { return false };
+        if !(now.least..=now.most).contains(&degrees) {
+            return false;
+        }
+        // SAFETY: as now; the value's writers are the console and this, on
+        // the game's thread.
+        unsafe { *raw::image::uro_fov().value() = degrees }
+        true
     }
 }

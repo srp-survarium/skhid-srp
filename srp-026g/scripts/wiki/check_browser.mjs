@@ -108,6 +108,29 @@ try {
   const response = await fetch(base + '/wiki/weapons');
   assert.ok(response.headers.get('content-security-policy').includes("script-src 'self'"));
   assert.equal((await fetch(base + '/wiki/unknown')).status, 404);
+  // Rounds: a card's round sets its rows, the list stays on the standard round,
+  // a comparison slot's round is in the address.
+  await navigate('/wiki/weapons#wpn_vityaz');
+  const vityaz = stat => evaluate(`document.querySelector('#wpn_vityaz .weapon-details [data-stat=${stat}] dd').textContent`);
+  assert.equal(await vityaz('bullet_damage'), '40');
+  assert.equal(await evaluate("document.querySelector('#wpn_vityaz-round-btn img').naturalWidth > 0"), true, 'the round chooser shows its icon');
+  await evaluate("document.querySelector('#wpn_vityaz-round-btn').click()");
+  assert.equal(await evaluate("[...document.querySelectorAll('#wpn_vityaz-round-list [role=option]')].filter(e => !e.hidden).length"), 3, 'only the weapon\'s rounds');
+  await evaluate("document.querySelector('#wpn_vityaz-round-ammo_9x19p_7n31').click()");
+  assert.equal(await evaluate("document.querySelector('#wpn_vityaz-round-value').textContent"), '9x19 7N31');
+  assert.deepEqual([await vityaz('bullet_damage'), await vityaz('bullet_pierce')], ['52', '26'], 'the round scales the card');
+  assert.equal(await evaluate("document.querySelector('#wpn_vityaz .quick-stats dd').textContent"), '40');
+  await screenshot('weapon-round');
+  assert.match(await evaluate("document.querySelector('#wpn_benelli_m4 [data-stat=bullet_damage] dd').textContent"), / × 10 pellets$/);
+  await navigate('/wiki/weapons?a=wpn_vityaz&ra=ammo_9x19p_7n31&b=wpn_vityaz');
+  assert.equal(await evaluate("document.querySelector('#compare-a-round').value"), 'ammo_9x19p_7n31', 'URL picks the round');
+  assert.equal(await evaluate("[...document.querySelectorAll('.weapon-comparison [data-stat=bullet_damage] td')].map(td => td.firstChild.textContent).join()"), '52,40');
+  assert.equal(await evaluate("document.querySelector('.weapon-comparison [data-stat=bullet_damage] td').className"), 'better');
+  await screenshot('comparison-round');
+  await evaluate("{const s=document.querySelector('#compare-b-round');s.value='ammo_9x19p_7n31';s.dispatchEvent(new Event('change'))}");
+  assert.equal(await evaluate("new URLSearchParams(location.search).get('rb')"), 'ammo_9x19p_7n31');
+  await evaluate("{const s=document.querySelector('#compare-a-round');s.selectedIndex=0;s.dispatchEvent(new Event('change'))}");
+  assert.equal(await evaluate("new URLSearchParams(location.search).has('ra')"), false, 'the standard round stays out of the address');
   await navigate('/wiki/weapons?a=wpn_ak_74m&b=wpn_pm');
   assert.equal(await evaluate("document.querySelector('#compare-a-value').textContent"), 'AK-74M', 'URL paints chooser');
   assert.ok(await evaluate("document.querySelectorAll('.weapon-comparison tr[data-stat]').length") >= 30, 'expanded stat coverage');

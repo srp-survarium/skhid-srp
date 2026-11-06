@@ -1563,10 +1563,8 @@ va	status	ref_021d	name
 0x002612a0	inferred-medium	0x00196a7a	survarium::options_item_int::apply
 0x00261300	inferred-medium	0x00196ac3	survarium::options_item_int::revert
 0x00261310	inferred-medium	0x00196ace	survarium::options_item_int::scaleform_call
-0x002614e0	inferred-medium	0x00196bf4	survarium::options_item_float::initialize
 0x00261510	inferred-medium	0x00196c14	survarium::options_item_float::fill_data
 0x00261690	inferred-medium	0x00196cca	survarium::options_item_float::fill_value
-0x002616e0	inferred-medium	0x00196cdf	survarium::options_item_float::apply
 0x00261750	inferred-medium	0x00196d33	survarium::options_item_float::revert
 0x00261760	inferred-medium	0x00196d3e	survarium::options_item_float::scaleform_call
 0x002617c0	inferred-medium	0x00196d8d	survarium::options_item_bool::initialize
@@ -3277,3 +3275,12 @@ va	status	ref_021d	name
 0x003a8f40	inferred-high		anim_read_node_record
 0x003a90c0	inferred-high		anim_read_expression
 0x003a9250	inferred-high		anim_build_node
+0x00201040	inferred-medium		survarium::game_options::deactivate
+0x00424ca0	inferred-high		_alloca_probe_16
+0x002d4850	inferred-high		survarium::timed_list::insert_before
+0x00245c50	inferred-high		survarium::delayed_callbacks_queue::destroy_range
+0x00018190	inferred-high		vostok::fs::native_path::format
+0x000dfe30	inferred-high		vostok::resources::queue_unmount
+0x000e0b50	inferred-high		vostok::shared_string::create
+0x000e0ae0	inferred-high		vostok::shared_string::destroy
+0x002d5d00	inferred-high		vostok::intrusive_list::unlink

@@ -46,7 +46,7 @@ impl Match {
         world::Context {
             time, places: MAX_PLAYERS, game_mode: self.game_mode,
             batteries: self.batteries, respawn_points: Some(self.respawn_points),
-            // The native per-item bounds remain at their readers (patch 113).
+            // The native per-item bounds remain at their readers (patch 115).
             // Do not guess profile, swapped inventory or authored map objects.
             profiles: None, artefacts: None, objects: None, inventory: None,
         }

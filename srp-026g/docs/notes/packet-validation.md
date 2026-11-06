@@ -216,7 +216,7 @@ without the objects and kits: most bytes of a state are free values
 
 ## Native deserialization bounds
 
-Patch 113 ports the FSM, anomaly and artefact guards to generated lohooks, typed
+Patch 115 ports the FSM, anomaly and artefact guards to generated lohooks, typed
 fields and the current `vostok` boundary. It is independent of runtime message
 and semantic-world enforcement. The checked stock instructions confirm the FSM's
 ESI/EDI and two stack inputs; the re-kit records that stronger ABI evidence.

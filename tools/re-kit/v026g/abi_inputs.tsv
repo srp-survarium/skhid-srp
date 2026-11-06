@@ -5629,3 +5629,13 @@ va	name	location	role	basis
 0x003a8980	anim_decode_read_bits	EAX	entry: number of bits to read (0..32)	observed
 0x003a8980	anim_decode_read_bits	EDI	the bit-stream state: +0x203c current byte ptr, +0x2048 bit position 0..7	observed
 0x00317d40	vostok::popcount	ECX	entry: the word whose set bits are counted	observed
+0x002614e0	survarium::options_item_float::initialize	ECX	the float option item (vtable 0xA06728: the video options' option 7, "fov")	observed
+0x002616e0	survarium::options_item_float::apply	ECX	the float option item (vtable 0xA06728)	observed
+0x00200f50	survarium::game_options::activate	EAX	the main menu (game_options, game+57F4h: +0Ch the menu movie, +10h its cursor movie, +30h the scene, +34h the game, +44h shown)	observed
+0x00200f50	survarium::game_options::activate	entry ESP+4	the scene it is shown over (game+539Ch from activate_main_menu 0x1EDBCF), kept at +30h	observed
+0x00201040	survarium::game_options::deactivate	ESI	the main menu (game_options); callers: its Resume 0x1FF66E, its key 0x20165A, game_world::on_deactivate 0x1F956D (after +D4h is 0), lobby_menu::on_deactivate 0x21D50E	observed
+0x00234880	survarium::game_world_ui::initialize_match	entry ESP+4	the hud (kept in EBP from 0x234888); the match's first, from 0x1F855D once a match; patch 113's site hud.initialize_match	observed
+0x00234880	survarium::game_world_ui::initialize_match	entry ESP+8	the match's options (kept in ESI from 0x234890)	observed
+0x001f8120	survarium::game_world::local_player_profiles	EDX	the game world (+9Ch the game, whose network client's local player +114h is the place; +4D4Ch the match, its places at +18650h)	observed
+0x001f8120	survarium::game_world::local_player_profiles	entry ESP+4	the kit in use, a byte written	observed
+0x001f8120	survarium::game_world::local_player_profiles	entry ESP+8	the next kit, a byte written: show_profiles_selector selects it on the hud's tabs (0x2383F3)	observed

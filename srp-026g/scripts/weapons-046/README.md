@@ -8,6 +8,7 @@ resource-porter's weapon core (`port-weapons`, branch `feat/weapons-046c2`) from
 |---|---|
 | `camo.tsv` | the guns' textures that get an `_aoac` (the camouflage masks, `../weapon-camo/guns.tsv`'s format), for the pack `weapons-046-camo` |
 | `parts.tsv` | the textures whose mask paints nothing (sights, barrels, muzzle brakes, rounds); the others are suggested |
+| `raise_svu_sights.py` | weapons-046@13 from @12: the SVU's folded iron sights raised as 0.69d0's, its eye on them |
 | `../kill-feed-icons/make_weapon_icons_046.py` | the hud's kill-feed icons 75, 77-80, 82-84 (0.46c2's), 95 (0.69d0's, the Glock 17) and 99 (the Colt M1911's, drawn from its lobby cell) |
 
 ## Rebuild
@@ -32,6 +33,8 @@ python3 -I srp-026g/scripts/kill-feed-icons/make_weapon_icons_046.py --log-046c2
   --log-069d0 <0.69d0 log icons> --cells $SKHID_PACKS_DIR/weapons-046-<n>/icons --out srp-026g/flash/hud
 python3 -I srp-026g/scripts/kill-feed-icons/make_lobby_weapon_icons.py --patches ~/.cache/skhid-release/patches \
   --ffdec <ffdec.jar> --hud-bitmaps srp-026g/flash/hud/bitmaps --lobby srp-026g/flash/lobby_menu
+# 4. the lobby icons (../weapon-icons/pack_icons.py, @11 -> @12), then the SVU's sights (@12 -> @13)
+python3 -I srp-026g/scripts/weapons-046/raise_svu_sights.py --packs $SKHID_PACKS_DIR
 ```
 
 Each pack's row in `release/content.tsv` names its version and its `pack.json`'s sha256; the release

@@ -1959,6 +1959,165 @@ hand_kill_on_hit_replay:
     db 0x8d, 0x4c, 0x24, 0x10, 0x51
     jmp 0x2e50cc
 
+; 0x234880 game_world_ui::initialize_match's start (sub esp,5D4h), once a match (from 0x1F855D; the late join's rebuild enters at 0x234E71): the site's ESP+4 the hud, whose kits (+2DFh) and cursor (+2DCh) are the last match's: lohook -> hud_cursor_on_match_start
+global hud_cursor_on_match_start
+extern hook_hud_cursor_on_match_start
+hud_cursor_on_match_start:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_hud_cursor_on_match_start
+    mov edx, hud_cursor_on_match_start_replay
+    cmp eax, 0
+    je hud_cursor_on_match_start_go
+    mov edx, 0x234886
+    cmp eax, 1
+    je hud_cursor_on_match_start_go
+    ud2
+hud_cursor_on_match_start_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+hud_cursor_on_match_start_replay:
+    db 0x81, 0xec, 0xd4, 0x05, 0x00, 0x00
+    jmp 0x234886
+
+; 0x23a992 show_cursor's show (mov eax,[edi+18h] / lea esi,[edi+0Ch], then the call of base_game_scene::show_movie 0x23DC00 at 0x23A998): kept skips the movie, the flag (+2DCh) still written at 0x23A9A1: lohook -> hud_cursor_on_cursor_shown
+global hud_cursor_on_cursor_shown
+extern hook_hud_cursor_on_cursor_shown
+hud_cursor_on_cursor_shown:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_hud_cursor_on_cursor_shown
+    mov edx, hud_cursor_on_cursor_shown_replay
+    cmp eax, 0
+    je hud_cursor_on_cursor_shown_go
+    mov edx, 0x23a998
+    cmp eax, 1
+    je hud_cursor_on_cursor_shown_go
+    mov edx, 0x23a99d
+    cmp eax, 2
+    je hud_cursor_on_cursor_shown_go
+    ud2
+hud_cursor_on_cursor_shown_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+hud_cursor_on_cursor_shown_replay:
+    db 0x8b, 0x47, 0x18, 0x8d, 0x77, 0x0c
+    jmp 0x23a998
+
+; 0x200f50 game_options::activate's start (push ebp / mov ebp,esp / and esp,-8): the main menu about to be shown, over a match by Esc (activate_main_menu 0x1EDBDC) or over the lobby (0x28C5C9): lohook -> hud_cursor_on_menu_show
+global hud_cursor_on_menu_show
+extern hook_hud_cursor_on_menu_show
+hud_cursor_on_menu_show:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_hud_cursor_on_menu_show
+    mov edx, hud_cursor_on_menu_show_replay
+    cmp eax, 0
+    je hud_cursor_on_menu_show_go
+    mov edx, 0x200f56
+    cmp eax, 1
+    je hud_cursor_on_menu_show_go
+    ud2
+hud_cursor_on_menu_show_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+hud_cursor_on_menu_show_replay:
+    db 0x55, 0x8b, 0xec, 0x83, 0xe4, 0xf8
+    jmp 0x200f56
+
+; 0x201040 game_options::deactivate's start (push ecx / cmp byte [esi+44h],0; the je after it returns when the menu is not shown): the menu's Resume (0x1FF66E), its key (0x20165A), a match's end (0x1F956D) and the lobby's (0x21D50E): lohook -> hud_cursor_on_menu_close
+global hud_cursor_on_menu_close
+extern hook_hud_cursor_on_menu_close
+hud_cursor_on_menu_close:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_hud_cursor_on_menu_close
+    mov edx, hud_cursor_on_menu_close_replay
+    cmp eax, 0
+    je hud_cursor_on_menu_close_go
+    mov edx, 0x201045
+    cmp eax, 1
+    je hud_cursor_on_menu_close_go
+    ud2
+hud_cursor_on_menu_close_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+hud_cursor_on_menu_close_replay:
+    db 0x51, 0x80, 0x7e, 0x44, 0x00
+    jmp 0x201045
+
 ; 0x1ea210 game::on_configs_loaded's start (push ebp / mov ebp,esp / and esp,-8), before it runs startup.cfg and user.cfg (load_cc_script 0x1EA2C2, 0x1EA301): lohook -> language_on_configs_start
 global language_on_configs_start
 extern hook_language_on_configs_start_chain

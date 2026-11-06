@@ -106,7 +106,7 @@ pub(super) fn check(body: &[u8], time: u32, places: usize, formed: &Formed) -> R
             respawn_points: Some(map.respawn_points),
             profiles: Some(&profiles[..known]),
             // The artefacts table is the game's live one; the inventory's
-            // artefact ids are bounded by its own check (patch 113).
+            // artefact ids are bounded by its own check (patch 115).
             artefacts: None,
             objects: Some(&objects),
             inventory: inventory.as_ref(),

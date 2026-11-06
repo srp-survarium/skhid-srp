@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Compare patch 113's actual native entries with stock, including absent ids.
+"""Compare patch 115's actual native entries with stock, including absent ids.
 
     python check_deserialize_guards_026g.py ORIGINAL_EXE
 

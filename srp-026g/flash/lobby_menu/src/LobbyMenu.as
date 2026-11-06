@@ -17,6 +17,7 @@ package
    import flash.events.TimerEvent;
    import flash.external.ExternalInterface;
    import flash.geom.Point;
+   import flash.geom.Rectangle;
    import flash.text.Font;
    import flash.text.StyleSheet;
    import flash.text.TextField;
@@ -142,6 +143,7 @@ package
    import survarium.messages.MessageNoClose;
    import survarium.messages.MessagePostPremium;
    import survarium.messages.MessageQuestInfo;
+   import survarium.messages.MessageRerollItem;
    import survarium.paperdoll.PaperDollBase;
    import survarium.player.LocalPlayerProfile;
    import survarium.player.WeightEffects;
@@ -1083,6 +1085,9 @@ package
          // The kit's ammo list: a round's card, the inventory's.
          this.player_profile.addEventListener(AmmoShareElement.SHOW_CARD,this.showAmmoItemHint);
          this.player_profile.addEventListener(AmmoShareElement.HIDE_CARD,this.hideItemHint);
+         // The modification window's item (a message): its card, the inventory's.
+         this._top_container.addEventListener(MessageRerollItem.SHOW_CARD,this.showRerollItemHint);
+         this._top_container.addEventListener(MessageRerollItem.HIDE_CARD,this.hideItemHint);
          this.player_profile.profileItems.addEventListener(PaperDollBase.PAPERDOLL_UPDATED,this.updateHintItem);
          shop_list = new SrvGangShop();
          this.shop_list.name = "inventory_list";
@@ -1373,6 +1378,25 @@ package
          this.hideItemHint(null);
          var at:Point = this._cards.globalToLocal(element.localToGlobal(new Point(element.width + 3,-5)));
          this.showKitCard(element.cardItem,at.x,at.y);
+      }
+
+      // The modification window's item: its card beside the window at its top, left of it as the
+      // craft window's, right of it when the left has no room.
+      private function showRerollItemHint(e:Event) : void
+      {
+         var reroll:MessageRerollItem = e.target as MessageRerollItem;
+         if(reroll == null || reroll.cardItem == null)
+         {
+            return;
+         }
+         this.hideItemHint(null);
+         var bounds:Rectangle = reroll.background.getBounds(this._cards);
+         this.showKitCard(reroll.cardItem,bounds.left,bounds.top);
+         this.itemHintRenderer.x = bounds.left - this.itemHintRenderer.width - 3;
+         if(this.itemHintRenderer.x < 0)
+         {
+            this.itemHintRenderer.x = bounds.right + 3;
+         }
       }
 
       // The item card (the inventory's) of a kit's item at (x, y) of the cards' layer, uncompared,

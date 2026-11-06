@@ -98,6 +98,22 @@ done
 EOF
 chmod +x "$T/bin/srp-item-tables"
 export SRP_ITEM_TABLES_BIN=$T/bin/srp-item-tables
+# The exe patches' self-test (release.sh, step 2, after build-zip): its
+# arguments (the commit's checkout, the original exe) a line of
+# $TEST_DIR/selftest.args; $TEST_DIR/selftest-fails: a check fails.
+cat >"$T/bin/selftest" <<'EOF'
+#!/usr/bin/env bash
+printf '%s\n' "$*" >>"$TEST_DIR/selftest.args"
+echo "  ok    the PE parses"
+if [[ -e $TEST_DIR/selftest-fails ]]; then
+    echo "  FAIL  the default build: nothing of the original aims inside the bytes a write changed in .text; 0x265e73 -> (0x2845bf, 0x2845c3)"
+    printf '\n1 FAILED\n'
+    exit 1
+fi
+printf '\nall checks passed\n'
+EOF
+chmod +x "$T/bin/selftest"
+export SKHID_SELFTEST_BIN=$T/bin/selftest
 cat >"$T/bin/ssh" <<'EOF'
 #!/usr/bin/env bash
 # ssh [-o <option>]... <host> <command>: runs the command here.
@@ -129,7 +145,8 @@ done
 # restarting and logs that file's line (why), backing srp.db up first only
 # when the accounts are the reason. `exec` runs in the running container
 # (the volume is $TEST_DIR/volume); `run` is refused (no other container is
-# ever run on a release's hosts). A build fails with $TEST_DIR/build-fails.
+# ever run on a release's hosts). `load` (of an image built here) names a
+# new ID srp-026g:latest; it fails with $TEST_DIR/load-fails.
 cat >"$T/bin/docker" <<'EOF'
 #!/usr/bin/env bash
 printf 'docker %s\n' "$*" >>"$TEST_LOG"
@@ -168,9 +185,6 @@ started() { # the container runs: what srp does at a start
 case $1 in
 compose)
     case " $* " in
-    *" build "*)
-        if [[ -e $TEST_DIR/build-fails ]]; then echo "build: cargo failed" >&2; exit 1; fi
-        echo "sha256:$(date +%s%N | sha256sum | cut -c1-64)" >"$state/latest" ;;
     *" ps "*) echo c0ffee ;;
     *" stop "*) echo stopped >"$state/state" ;;
     *" start "*) started ;;
@@ -216,12 +230,32 @@ image)
 tag)
     if [[ $3 == srp-026g:latest ]]; then echo "$2" >"$state/tags/latest"; cp "$state/tags/latest" "$state/latest"; else echo "$2" >"$state/tags/${3//[:\/]/_}"; fi ;;
 rmi) rm -f "$state/tags/${2//[:\/]/_}" ;;
+load)
+    cat >/dev/null
+    if [[ -e $TEST_DIR/load-fails ]]; then echo "Error: unexpected EOF" >&2; exit 1; fi
+    echo "sha256:$(date +%s%N | sha256sum | cut -c1-64)" >"$state/latest"
+    echo "Loaded image: srp-026g:latest" ;;
 exec) # exec <id> <command> <path in /srv/srp/data>...: a running container only
     [[ $(cat "$state/state") == running ]] || { echo "Error response from daemon: container is not running" >&2; exit 1; }
     shift 2
     exec "${@//\/srv\/srp\/data/$TEST_DIR/volume}" ;;
 run) echo "docker run: not on a release's hosts" >&2; exit 1 ;;
 esac
+EOF
+# The image built here (lib.sh's build_image): its bytes are the source's
+# listing; it fails with $TEST_DIR/build-fails. zstd -dc: cat.
+cat >"$T/bin/build-image" <<'EOF'
+#!/usr/bin/env bash
+printf 'build-image %s\n' "$*" >>"$TEST_LOG"
+if [[ -e $TEST_DIR/build-fails ]]; then echo "build: cargo failed" >&2; exit 1; fi
+find "$1" -type f | sort >"$2"
+EOF
+export SKHID_BUILD_IMAGE_BIN=$T/bin/build-image
+cat >"$T/bin/zstd" <<'EOF'
+#!/usr/bin/env bash
+[[ $1 == -dc ]] && exec cat "$2"
+echo "zstd $*: not in the stand-in" >&2
+exit 1
 EOF
 chmod +x "$T/bin/"*
 export PATH="$T/bin:$PATH" TEST_LOG=$T/log TEST_ARGS=$T/args TEST_DIR=$T
@@ -1232,7 +1266,7 @@ run() { # <how: yes | no | wait | quiet> release.sh <args...>: its output into $
 }
 admin_log() { tr '\n' ' ' <"$T/state/admin.log" | sed 's/ $//'; }
 offers() { "$bin" info "$T/live/download/server-game-data.db" 2>/dev/null | grep -q "resources.db.$1 "; }
-nothing_staged() { ! ls "$T/live/download/".*.new "$T"/live/release-rev*/*.part "$T"/live/release-rev*/src >/dev/null 2>&1 && ! grep -qxE 'staging|swapping' "$T"/live/release-rev*/state; }
+nothing_staged() { ! ls "$T/live/download/".*.new "$T"/live/release-rev*/*.part "$T"/live/release-rev*/image.tar.zst >/dev/null 2>&1 && ! grep -qxE 'staging|swapping' "$T"/live/release-rev*/state; }
 first_line() { grep -n -- "$1" "$T/args" | tail -n +"${2:-1}" | head -n 1 | cut -d: -f1; }
 
 # The players' launcher is built from the original one in SKHID_GAME: none
@@ -1345,6 +1379,10 @@ check "release: ... made once in step 2 too, in its work folder" \
     grep -qE 'server-game-data\.db --dir .*/skhid-release\.[^/]*/item-tables$' "$T/item-tables.args"
 check "release: ... before anything is staged" bash -c \
     "t=\$(grep -n 'the item tables of it: made' <<<\"\$1\" | head -n 1 | cut -d: -f1); s=\$(grep -n '2. staging in the release folder' <<<\"\$1\" | head -n 1 | cut -d: -f1); test -n \"\$t\" -a -n \"\$s\" && ((t < s))" _ "$out"
+check "release: runs the exe patches' self-test once, of the commit built, on SKHID_GAME's survarium.exe" bash -c \
+    "test \$(wc -l <$T/selftest.args) = 1 && grep -qE '/zip/src $T/game/(game/)?binaries/x86/survarium\\.exe\$' $T/selftest.args"
+check "release: ... after build-zip, before anything is staged" bash -c \
+    "z=\$(grep -n '2. building the ZIP' <<<\"\$1\" | head -n 1 | cut -d: -f1); t=\$(grep -n 'the exe patches. self-test: all checks passed' <<<\"\$1\" | head -n 1 | cut -d: -f1); s=\$(grep -n '2. staging in the release folder' <<<\"\$1\" | head -n 1 | cut -d: -f1); test -n \"\$z\" -a -n \"\$t\" -a -n \"\$s\" && ((z < t && t < s))" _ "$out"
 check "release: ... says it all, and ends 0" bash -c "grep -q 'done     the PR merged (a merge commit): main has REVISION 12' <<<\"\$1\" && ! grep -q 'NOT COMPLETE' <<<\"\$1\"" _ "$out"
 check "release: no change of what a match computes: said, the replays' list as it was" bash -c \
     "grep -q 'replays: no change of what a match computes is marked (.*): recordings from revision 11 on stay watchable' <<<\"\$1\" && git -C $T/origin.git show main:srp-026g/crates/session/src/v026g/simulation_changes.tsv | grep -qx \$'11\tthe TDM end'" _ "$out"
@@ -1417,7 +1455,8 @@ check "release --resources: ... it shipped what was merged since the tag of 12 (
 check "release --resources: ... the rows in revision order" test "$(on_main srp-026g/client-patches/README.md | sed -n 's/^| Revision \([0-9]*\) .*/\1/p' | tr '\n' ' ')" = "10 11 12 13 4 "
 check "release: finds the changed server code" has "$out" "CHANGED   crates/a/src/lib.rs"
 check "release: tags the running image by its ID" grep -q "docker tag $running_before srp-026g:before-rev13-[0-9-]*-b" "$T/log"
-check "release: builds main's source, staged in the folder" grep -q "docker compose --env-file $T/live/.env -f release-rev13-[0-9-]*-b/src/docker-compose.yml build srp26" "$T/log"
+check "release: builds main's source here" grep -q "^build-image .*/src .*/image.tar.zst$" "$T/log"
+check "release: loads that image on the host, its upload removed" bash -c "grep -qx 'docker load -q' $T/log && test ! -e $(folder 13 b)/image.tar.zst"
 check "release: runs the new image" test "$(cat "$T/docker/running")" != "$running_before"
 check "release: the source is in place after" grep -qx "crates 2" "$T/live/crates/a/src/lib.rs"
 check "release: the old source is kept in the folder" bash -c "tar -xzOf $(folder 13 b)/old-src.tgz crates/a/src/lib.rs | grep -qx 'crates/a/src/lib.rs 1'"
@@ -1488,6 +1527,12 @@ echo "item 14" >"$T/p14/gameplay/items/e.txt"
 mkdir -p "$T/r16" && cp "$T/r14/resources.db.patch_14" "$T/r16/resources.db.patch_16"
 expect_refused "release: a patch of another revision" "must be called resources.db.patch_14" \
     "$here/release.sh" --resources "$T/r16/resources.db.patch_16"
+mkdir -p "$T/r14q" && cp "$T/r14/resources.db.patch_14" "$T/r14q/" && echo "a quick build" >"$T/r14q/QUICK-BUILD"
+expect_refused "release: a quick build's patch (build-content without --full, QUICK-BUILD beside it): rebuild with --full" \
+    "is a quick build (release/build-content without --full: QUICK-BUILD beside it).*build it again with release/build-content 14 --full" \
+    "$here/release.sh" --resources "$T/r14q/resources.db.patch_14"
+expect_refused "upload-patch: a quick build's patch too: rebuild with --full" \
+    "is a quick build.*build it again with release/build-content 14 --full" "$here/upload-patch" "$T/r14q/resources.db.patch_14"
 # A stop before the go (the ZIP's build fails) after the patch was
 # published: its row goes from the list (no server offered it), and the
 # file this run uploaded goes too (the revision can be made again); a file
@@ -1603,7 +1648,8 @@ check "release --dry-run: takes no lock" test ! -e "$T/lock"
 check "release --dry-run: shows the POST, not its secrets" has "$out" "POST http://127.0.0.1:$site_port/<SRP_ADMIN_PATH> token=<SRP_ADMIN_TOKEN> tab=maint minutes=2"
 check "release --dry-run: shows what /patches will offer" has "$out" "  patch_14 [0-9a-f]* $P/resources.db.patch_14"
 check "release --dry-run: shows the swap and the restart" has "$out" "docker compose up -d --no-deps --force-recreate srp26"
-check "release --dry-run: shows the build" has "$out" "build srp26"
+check "release --dry-run: shows the image built here and loaded" bash -c "grep -q \"server's image of main's source\" <<<\"\$1\" && grep -q 'docker load' <<<\"\$1\"" _ "$out"
+check "release --dry-run: ... builds none" bash -c "! grep -q '^build-image' $T/log"
 check "release --dry-run: says so" has "$out" "dry run: nothing was planned, uploaded or changed"
 check "release --dry-run: prints the rebuild of the site's pages with the new patch" has "$out" \
     "^  \[dry run\] would rebuild the Maps tab and the calculator (about 2 min; .*) in a worktree of [0-9a-f]*: $T/build-site --tree $T/tmp/skhid-release\.[^ ]*/site --with $T/r14/resources.db.patch_14\$"
@@ -1612,7 +1658,7 @@ check "release --dry-run: ... and the record it would make commits them" has "$o
 check "release --dry-run: ... and step 4 makes the item tables, before staging" has "$out" \
     '^\[dry run\]    then the checks of release/deploy on both, the item tables of the server data (srp-item-tables: a failure stops here), and the release folder:'
 check "release --dry-run: ... its server-code report has them changed, as the real run's" bash -c \
-    "grep -q '^             CHANGED   servers/web-server/maps/ (a real run rebuilds it)\$' <<<\"\$1\" && grep -q '^             CHANGED   servers/web-server/damage/ (a real run rebuilds it)\$' <<<\"\$1\" && grep -q '^  server code: built before the swap' <<<\"\$1\"" _ "$out"
+    "grep -q '^             CHANGED   servers/web-server/maps/ (a real run rebuilds it)\$' <<<\"\$1\" && grep -q '^             CHANGED   servers/web-server/damage/ (a real run rebuilds it)\$' <<<\"\$1\" && grep -q '^  server code: its image built here and loaded on the host before the swap' <<<\"\$1\"" _ "$out"
 check "release --dry-run: a GRID_ALGO of the live tree other than main's is warned about" has "$out" \
     "^  WARNING  the built maps (mapdata/built, [0-9]* file(s) now): pub const GRID_ALGO: u32 = 2; pub const SIGHT_ALGO: u32 = 1; on the live tree, pub const GRID_ALGO: u32 = 3; pub const SIGHT_ALGO: u32 = 1; on main: the first match on each map after the swap builds its grid and tree again"
 sed -i 's/^pub const GRID_ALGO: u32 = 2;$/pub const GRID_ALGO: u32 = 3;/' "$T/live/crates/mapdata/src/lib.rs"
@@ -1759,11 +1805,17 @@ check "release: a mirror that is a web page is a problem" has "$out" \
     "resources.db.patch_3: $M/page/resources.db.patch_3 answers with a web page"
 SKHID_RELEASE_ENV=$T/release.env
 
-# A failure before the swap: the build of the image.
+# A failure before the swap: the build of the image here stops before
+# anything is written on the host; its load there, after the tag moved.
 touch "$T/build-fails"
 run yes --minutes 2 --label c || true
 rm "$T/build-fails"
-check "release: a failed build stops before the swap" has "$out" "STOPPED before the swap"
+check "release: a failed build here stops before the swap" has "$out" "STOPPED before the swap"
+check "release: ... with no image tagged or loaded on the host" bash -c "! grep -qE '^docker (tag|load)' $T/log"
+touch "$T/load-fails"
+run yes --minutes 2 --label c || true
+rm "$T/load-fails"
+check "release: a failed load stops before the swap" has "$out" "STOPPED before the swap"
 check "release: ... before the go: plans no maintenance" test -z "$(admin_log)" -a ! -e "$T/state/maint"
 check "release: ... removes the staged files" nothing_staged
 check "release: ... puts the image tag back" grep -q "docker tag $(cat "$T/docker/running") srp-026g:latest" "$T/log"
@@ -1781,6 +1833,19 @@ run yes --minutes 2 --label it || true
 rm "$T/item-tables-panics"
 check "release: the item tables' tool failing on the server data stops before the swap" bash -c \
     "grep -q 'the item tables (srp-item-tables) of .*server-game-data.db: thread .main. panicked' <<<\"\$1\" && grep -q 'STOPPED before the swap' <<<\"\$1\"" _ "$out"
+check "release: ... before the go: plans no maintenance" test -z "$(admin_log)"
+check "release: ... stages nothing" nothing_staged
+check "release: ... leaves the live files as they were" test "$(tree)" = "$before"
+check "release: ... and makes no record" no_record 14
+
+# A check of the exe patches' self-test failing: stopped in step 2, before
+# anything is staged and before the go.
+: >"$T/state/admin.log"
+touch "$T/selftest-fails"
+run yes --minutes 2 --label st || true
+rm "$T/selftest-fails"
+check "release: a failed check of the exe patches' self-test stops before the swap" bash -c \
+    "grep -q \"the exe patches' self-test failed: 1 check(s), the first: the default build: nothing of the original aims inside\" <<<\"\$1\" && grep -q 'STOPPED before the swap' <<<\"\$1\"" _ "$out"
 check "release: ... before the go: plans no maintenance" test -z "$(admin_log)"
 check "release: ... stages nothing" nothing_staged
 check "release: ... leaves the live files as they were" test "$(tree)" = "$before"
@@ -1805,11 +1870,11 @@ check "release: ... leaves the live files as they were" test "$(tree)" = "$befor
 # While it waits for the planned time it looks at /api/stats every quarter
 # of a minute: once "matches":0 has held 30 s (the plan's margin), the swap
 # comes at once, before the planned time; a match running to the planned
-# time is waited for as before. A minute is 8 s here, the 30 s are real;
-# the no at the y/N ends each run before anything is swapped.
+# time is waited for as before. A minute is 4 s here (the 30 s 2 s); the no
+# at the y/N ends each run before anything is swapped.
 : >"$T/state/admin.log"
 printf '1\n1\n0\n' >"$T/state/matches"
-SKHID_TEST_SECONDS_PER_MINUTE=8 run no --minutes 10 --label early || true
+SKHID_TEST_SECONDS_PER_MINUTE=4 run no --minutes 10 --label early || true
 rm -f "$T/state/matches"
 check "release: no match for 30 s before the planned time: the swap at once" bash -c \
     "grep -qE '\\] 5. no match has run for 30 s: swapping now, [0-9]+ min before the planned time\$' <<<\"\$1\"" _ "$out"
@@ -1822,7 +1887,7 @@ check "release: ... swaps nothing" has "$out" "nothing was swapped"
 check "release: ... leaves the live files as they were" test "$(tree)" = "$before"
 : >"$T/state/admin.log"
 { for _ in $(seq 25); do echo 1; done; echo 0; } >"$T/state/matches"
-SKHID_TEST_SECONDS_PER_MINUTE=8 run no --minutes 5 --label latem || true
+SKHID_TEST_SECONDS_PER_MINUTE=4 run no --minutes 5 --label latem || true
 rm -f "$T/state/matches"
 check "release: a match running to the planned time: no early swap" bash -c \
     "! grep -q 'swapping now' <<<\"\$1\" && grep -q '5. waiting for the planned time (.*): 1 match(es) running' <<<\"\$1\"" _ "$out"
@@ -2482,11 +2547,17 @@ echo "$1: built"
 EOF
 cat >"$T/vostok-port" <<'EOF'
 #!/usr/bin/env bash
-printf '%s\n' "$*" >"$TEST_DIR/vostok-port.args"
-out='' packs=()
-while (($#)); do case $1 in --out-dir) out=$2; shift 2 ;; --pack) packs+=("$2"); shift 2 ;; *) shift ;; esac; done
+printf '%s\n' "$*" >"$TEST_DIR/vostok-args"
+out='' packs=() replaced=()
+while (($#)); do case $1 in --out-dir) out=$2; shift 2 ;; --pack) packs+=("$2"); shift 2 ;; --replace) replaced+=("$2"); shift 2 ;; *) shift ;; esac; done
 mkdir -p "$out"
+# As vostok-port: each --replace file in the output as given, unless a pack edits it (its edits:
+# a path a line, the stand-in's own, appended to).
+for r in "${replaced[@]}"; do mkdir -p "$(dirname "$out/${r%%=*}")" && cp "${r#*=}" "$out/${r%%=*}"; done
 for p in "${packs[@]}"; do cp -r "$p/files/." "$out/"; done
+for p in "${packs[@]}"; do
+    [[ ! -f $p/edits ]] || while read -r path; do echo "edited by ${p##*/}" >>"$out/$path"; done <"$p/edits"
+done
 echo "pack patch: done"
 EOF
 chmod +x "$T/build-movie" "$T/vostok-port"
@@ -2501,11 +2572,14 @@ manifest() { # the rows, `kind name source` a line ('|' for a tab), into $T/cont
 }
 manifest "base|resources.db.patch_40|$sha40" "movie|m|-" "edit|e1.json|-"
 bc_env=$(changed_env "s|^SKHID_PATCH_LIST=.*|SKHID_PATCH_LIST=$T/content-list.tsv|")
-cat >"$T/bc" <<EOF
+# $bc: the release's build (--full); $bcq: the plain command, a quick build.
+cat >"$T/bcq" <<EOF
 #!/usr/bin/env bash
 SKHID_RELEASE_ENV=$bc_env SKHID_TEST_BUILD_MOVIE=$T/build-movie SKHID_TEST_BUILD_SITE=$T/build-site TEST_DIR=$T exec "$here/build-content" "\$@" --tree "$C" --manifest "$T/content.tsv"
 EOF
-chmod +x "$T/bc"
+printf '#!/usr/bin/env bash\nexec %q "$@" --full\n' "$T/bcq" >"$T/bc"
+chmod +x "$T/bc" "$T/bcq"
+bcq=$T/bcq
 bc=$T/bc
 site_runs=$(grep -c . "$T/build-site.args" || true)
 out=$(cd "$T/work" && "$bc" 41 2>&1) || fail "build-content: $out"
@@ -2540,6 +2614,20 @@ rm -rf "$T/cache/skhid-release/build-content"
 out=$("$bc" 41 --out "$T/work/c41d" 2>&1) || fail "build-content, the cache deleted: $out"
 check "build-content: the cache deleted: every step runs, the same patch" bash -c \
     "! grep -q '$from_cache' <<<\"\$1\" && cmp -s $T/work/content-rev41/resources.db.patch_41 $T/work/c41d/resources.db.patch_41" _ "$out"
+# Without --full, a quick build: the same files, without the check of players' files with the patch
+# and the item tables; its folder says so (release.sh refuses it: above). --full leaves no mark.
+check "build-content --full: no QUICK-BUILD" test ! -e "$T/work/content-rev41/QUICK-BUILD"
+tables_runs=$(grep -c . "$T/item-tables.args")
+out=$("$bcq" 41 --out "$T/work/c41q" 2>&1) || fail "build-content (quick): $out"
+for file in resources.db.patch_41 server-game-data.db files.tsv; do
+    check "build-content (quick): the same $file as --full" cmp -s "$T/work/content-rev41/$file" "$T/work/c41q/$file"
+done
+check "build-content (quick): ... players' files with it not checked, no item tables, said" bash -c \
+    "grep -q 'over players. files: not checked (a quick build; --full checks it)' <<<\"\$1\" && grep -q 'the item tables: not made (a quick build; --full makes them)' <<<\"\$1\" && ! grep -q 'files the manifest makes are as it makes them' <<<\"\$1\" && test ! -e $T/work/c41q/item-tables && test \"\$(grep -c . $T/item-tables.args)\" = $tables_runs" _ "$out"
+check "build-content (quick): ... marked QUICK-BUILD, no release.sh next" bash -c \
+    "test -s $T/work/c41q/QUICK-BUILD && ! grep -q 'next: release/release.sh' <<<\"\$1\" && grep -q 'release.sh refuses it (QUICK-BUILD): a release builds with --full' <<<\"\$1\"" _ "$out"
+expect_refused "build-content: --quick is no option (the plain command is the quick build)" "unknown option --quick" \
+    "$bcq" 41 --out "$T/work/c41qq" --quick
 expect_refused "build-content never overwrites" "already there" "$bc" 41 --out "$T/work/content-rev41"
 out=$("$bc" 41 --out "$T/work/c41site" --site 2>&1) || fail "build-content --site: $out"
 check "build-content --site: the site's pages in its tree, of the list and the new patch" bash -c \
@@ -2589,11 +2677,41 @@ expect_refused "build-content: a pack needs vostok-port" "SKHID_VOSTOK_PORT must
 out=$(SKHID_VOSTOK_PORT=$T/vostok-port SKHID_PACKS_DIR=$T/packs "$bc" 42 --out "$T/work/c42d" 2>&1) || fail "build-content with a pack: $out"
 check "build-content: a pack's new file, and why" has "$out" "NEW       gameplay/items/hat.txt: pack hat@1; not in players' files"
 check "build-content: ... over the base patches, the built movie in place of the base's" \
-    bash -c "grep -q -- '--base-patch $T/cache/skhid-release/patches/resources.db.patch_40' $T/vostok-port.args && grep -q -- '--replace flash_movies/m.swf=' $T/vostok-port.args"
+    bash -c "grep -q -- '--base-patch $T/cache/skhid-release/patches/resources.db.patch_40' $T/vostok-args && grep -q -- '--replace flash_movies/m.swf=' $T/vostok-args"
 printf '{"id": "hat", "version": "2"}\n' >"$T/packs/hat-1/pack.json"
 expect_refused "build-content: a pack whose pack.json is not the row's" "not $hat_sha" \
     env SKHID_VOSTOK_PORT="$T/vostok-port" SKHID_PACKS_DIR="$T/packs" "$bc" 42 --out "$T/work/c42e"
 printf '{"id": "hat", "version": "1"}\n' >"$T/packs/hat-1/pack.json"
+# The packs' cache: a movie no operation of theirs names is not in its key (vostok-port gives it
+# back as it was); one an operation edits is. (The pack.json just written again is new to the cache.)
+out=$(SKHID_VOSTOK_PORT=$T/vostok-port SKHID_PACKS_DIR=$T/packs "$bc" 42 --out "$T/work/c42m0" 2>&1) || fail "build-content with a pack: $out"
+echo 2 >"$C/srp-026g/flash/m/src/version"
+out=$(SKHID_VOSTOK_PORT=$T/vostok-port SKHID_PACKS_DIR=$T/packs "$bc" 42 --out "$T/work/c42m" 2>&1) || fail "build-content, a movie changed: $out"
+check "build-content: a movie no pack names changed: the packs from the cache, the new movie" bash -c \
+    "grep -q 'composed them: the cache' <<<\"\$1\" && grep -q 'CHANGED   flash_movies/m.swf: movie m (srp-026g/flash/m); live' <<<\"\$1\"" _ "$out"
+out=$(SKHID_VOSTOK_PORT=$T/vostok-port SKHID_PACKS_DIR=$T/packs "$bc" 42 --out "$T/work/c42mn" --no-cache 2>&1) || fail "build-content --no-cache, a movie changed: $out"
+check "build-content: ... the same patch as without the cache" \
+    cmp -s "$T/work/c42m/resources.db.patch_42" "$T/work/c42mn/resources.db.patch_42"
+mkdir -p "$T/packs/icons-1/files"
+printf '{"id": "icons", "version": "1", "operations": [{"op": "atlas_icons_add", "swf": "flash_movies/m.swf", "symbol": "S", "icons": []}]}\n' \
+    >"$T/packs/icons-1/pack.json"
+echo flash_movies/m.swf >"$T/packs/icons-1/edits"
+icons_row="pack|icons@1|$(sha256sum <"$T/packs/icons-1/pack.json" | cut -c1-64)"
+manifest "base|resources.db.patch_40|$sha40" "movie|m|-" "pack|hat@1|$hat_sha" "$icons_row" "edit|e1.json|-"
+out=$(SKHID_VOSTOK_PORT=$T/vostok-port SKHID_PACKS_DIR=$T/packs "$bc" 42 --out "$T/work/c42i1" 2>&1) || fail "build-content, a pack editing the movie: $out"
+check "build-content: a pack that edits a movie: over the built one, and why" bash -c \
+    "grep -q 'flash_movies/m.swf: movie m (srp-026g/flash/m), then pack hat@1, icons@1' <<<\"\$1\"" _ "$out"
+echo 1 >"$C/srp-026g/flash/m/src/version"
+out=$(SKHID_VOSTOK_PORT=$T/vostok-port SKHID_PACKS_DIR=$T/packs "$bc" 42 --out "$T/work/c42i2" 2>&1) || fail "build-content, the edited movie changed: $out"
+check "build-content: ... that movie changed: the packs composed again" bash -c "! grep -q 'composed them: the cache' <<<\"\$1\"" _ "$out"
+printf '{"id": "icons", "version": "1", "operations": [{"op": "add_file", "path": "gameplay/items/icon.txt"}]}\n' >"$T/packs/icons-1/pack.json"
+manifest "base|resources.db.patch_40|$sha40" "movie|m|-" "pack|hat@1|$hat_sha" \
+    "pack|icons@1|$(sha256sum <"$T/packs/icons-1/pack.json" | cut -c1-64)" "edit|e1.json|-"
+expect_refused "build-content: a movie vostok-port changed that no operation names" \
+    "vostok-port changed flash_movies/m.swf, which no operation of the packs names" \
+    env SKHID_VOSTOK_PORT="$T/vostok-port" SKHID_PACKS_DIR="$T/packs" "$bc" 42 --out "$T/work/c42i3"
+rm -r "$T/packs/icons-1"
+manifest "base|resources.db.patch_40|$sha40" "movie|m|-" "pack|hat@1|$hat_sha" "edit|e1.json|-"
 
 # A pack that rewrites a base config's vector as an indexed table: the value-
 # type check refuses it, naming the file, the path and both types.

@@ -639,7 +639,7 @@ fn handle_sign_in(
     store.signed_in_from(account_id, peer.ip());
     let (lobby_ip, lobby_port) = lobby.address_for(peer.ip(), reached);
     log::info!(
-        "Sign-in: account={account_id:#x} session={session_id:#x}, \
+        "Sign-in: account={account_id:#x} from {peer} session={session_id:#x}, \
          sent to the lobby at UDP {lobby_ip}:{lobby_port}"
     );
 

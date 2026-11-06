@@ -550,6 +550,13 @@ Patches:
   width (0x2402E9) is 0.5625 while locked, and unlocked the factor that
   makes a count's pitch radians the yaw's, up and down; the death camera's
   (patch 46) too. The input carries the turn: nothing a match computes;
+- the hud's kits and cursor start over at each match, and the main menu
+  covers the hud's cursor (patch 113, the Rust patch hud_cursor; README "The
+  hud's kits and cursor"): initialize_match's start (0x234880) hides the
+  cursor and clears the kits' state the last match left, so the first
+  showing tells the movie the match's kit; while game_options is shown the
+  hud's cursor movie is off the screen (0x200F50, 0x23A992, 0x201040).
+  Nothing a match computes;
 - the baked camouflage and decal textures are kept from game to game, and
   a texture asked for again while its bake or load is under way is made
   once (patch 70, with the late join; docs/notes/baked-textures.md). The
@@ -721,8 +728,8 @@ WORLD_UNPACK = (
 # server reads never ended before the time limit. What a match computes
 # changes at the first death after a team is out: a game of 11 and an
 # older one part there, so a server asks for 11. With it, a field-of-view
-# setting (FOV_PATCHES and FOV_PROJECTION_HOOK below): the video options'
-# slider is bound to uro_fov, from 50 to 100, which the camera's angle
+# setting (FOV_PATCHES and FOV_PROJECTION_HOOK below): uro_fov, from 50 to
+# 100 (the Settings' Gameplay slider, patch 83), which the camera's angle
 # follows unaimed; through a scope the angle is the original's. A camera is
 # not in what a match computes. And a battery under the floor one stands
 # on can be picked up (PICKUP_* below): a use is in what a match computes,
@@ -1899,10 +1906,11 @@ PREGAME_PROGRESS = (PREGAME_PROGRESS_VA, bytes.fromhex("e9f4000000"),
 # menu has no instance of it either: fov_slider_026g.py adds one to
 # main_menu.swf). `uro_fov` (float at 0xA6FA28, 65.0, saved in user.cfg; the
 # console variable at 0xAA6510, its name "uro_fov" at 0xA281D0) is
-# registered with the range 0 to 100 and read by nothing. The option now
-# names it: the instruction's relocation (0x262931) stays active, an
-# address for an address.
-FOV_OPTION_NAME = (0x262930, bytes.fromhex("b89c65a000"), b"\xb8" + struct.pack("<I", 0xA281D0))
+# registered with the range 0 to 100 and read by nothing. Option 7 stays the
+# original's, dead: the Gameplay tab's slider (exe patch 83, `uro_fov` in
+# the Settings' call) sets uro_fov, its one owner in the menu (a video
+# option named it would write the value it read at the window's opening at
+# the video tab's every Apply: options_item_float::apply 0x2616E0).
 FOV_VALUE = 0xA6FA28
 # The camera's projection (FOV_PROJECTION_HOOK above; 0x242900, slot 0 of
 # the vtables of game_camera, lobby_camera, free_fly_camera, demo_camera and
@@ -1930,7 +1938,7 @@ FOV_MIN = 50.0
 FOV_MINIMUM = (0x85AE06, bytes.fromhex("0f57c0f30f11055465aa00"),
                bytes.fromhex("c7055465aa00") + struct.pack("<f", FOV_MIN) + b"\x90")
 FOV_MINIMUM_RELOC = 0x85AE0D
-FOV_PATCHES = (FOV_OPTION_NAME, FOV_MINIMUM)
+FOV_PATCHES = (FOV_MINIMUM,)
 # The high-FOV LOD compensation (patch 40; client_patch.md section 3.37,
 # ../docs/notes/fov_lod.md). The game measures a model by its size on the
 # screen, through the projection the camera gave: a static model's LOD
@@ -1971,6 +1979,7 @@ PICKUP_HOOKS = (
 )
 # The one address in what is replaced: the distance's, in the reach hook.
 PICKUP_RELOC = 0x2D84EB
+PICKUP_EXITS = (0x2D85FC,)            # a rejected candidate: the scan's next object (`.reject`)
 
 RUN_UNFOCUSED_VA = 0x1A0E1
 RUN_UNFOCUSED_BRANCH_VA = 0x1A0EE
@@ -2100,6 +2109,7 @@ UPGRADE_PREVIEW_HOOKS = (
     (0x284F7F, bytes.fromhex("80bbc9d2000000"), 0x19, 0xE8),       # on_player_ready: made
     (0x284B7C, bytes.fromhex("80bbc8d2000000"), 0x1E, 0xE8),       # setup_profile's early return: early
 )
+UPGRADE_PREVIEW_EXITS = (0x284CF8,)   # setup_profile's epilogue (upgrade_preview_026g.asm SETUP_DONE)
 WEAPON_TABLE_HOOKS = (
     (0x284020, bytes.fromhex("f30f1083c8000000"), 0x5, 0xE8),        # the camera's tick: tick
     (0x247576, bytes.fromhex("807dff007516"), 0xA, 0xE8),            # mt_draw's culled player: cull
@@ -2192,6 +2202,7 @@ ARTEFACTS_HOOKS = (
 )
 ARTEFACTS_BACKS = (0x33AE1A, 0x311BCA, 0x311DA5, 0x3122B0, 0x31330A, 0x2DBD91, 0x312C0A,
                    0x25F9E8)                    # where each goes on (the pop-up's skip: 0x25F9F8)
+ARTEFACTS_EXITS = (0x25F9F8,)                   # the Onyx pop-up's skip past set_parameterized_message (POPUP_SKIP)
 ARTEFACTS_SPRING_SIZE = 0x3D8                  # the active's two nodes at +3B8h and +3C8h
 ARTEFACTS_SIZES = (
     (0x25E7A8, bytes.fromhex("b8b8030000"), b"\xB8" + struct.pack("<I", ARTEFACTS_SPRING_SIZE)),
@@ -2876,6 +2887,7 @@ RESEARCH_HOOKS = (
     (0x23B3DE, bytes.fromhex("837f20047518"), "research_hud", 0xE8),         # update_ui after the teams' points
     (0x23B351, bytes.fromhex("83f8047514"), "research_welcome", 0xE9),       # update_ui's first message
 )
+RESEARCH_EXITS = (0x23B35B,)          # update_ui's message (research_026g.asm WELCOME_SHOW)
 # The engine-function library (engine_026g.py, client_patch.md section 0.5):
 # a cdecl thunk per engine function our code calls, each the global symbol
 # `engine_...` in the arena's block engine.code. One copy for every patch, so
@@ -2918,6 +2930,7 @@ HOOKS = [
     # on_match_packet_received, case 0xF6: cmp byte [g_debug_hash_mismatches],0
     (0x27A505, bytes.fromhex("803d2cd3f10100")),
 ]
+HOOKS_EXITS = (0x27A5AB,)             # case 0xF6: skips the rest of the message (snapshot_upload REQUEST_DONE)
 
 
 def parse_server(text):
@@ -3487,8 +3500,7 @@ def build_image(original, mode, code=None, server=None, late_join=None, revision
             sys.exit("a base relocation under time_floating_factor's value")
         for va, expected, new in FOV_PATCHES:
             patch(data, va, expected, new)
-        # The option's name stays an address the loader adds to; the least's
-        # one replaced address must not be added to.
+        # The least's one replaced address must not be added to.
         va, expected, _ = FOV_MINIMUM
         if neutralize_relocs(data, [(va, va + len(expected))]) != [FOV_MINIMUM_RELOC]:
             sys.exit(f"{va:#x}: the base relocation under uro_fov's least is not where it was read")

@@ -1,6 +1,6 @@
 //! What `srp.db` and the code name of the game's data, checked against the
-//! server's game data at start: the kept state ([`Lacking`]) and the items,
-//! ids and awards the lobby's rules name ([`check_code`]).
+//! server's game data at start: the kept state ([`Lacking`]) and the items
+//! and ids the lobby's rules name ([`check_code`]).
 //!
 //! The accounts keep items by their dict id, their modifications and
 //! defects by id, the daily bonus's reward by dict id and quests by id; the
@@ -26,7 +26,6 @@
 use std::collections::{BTreeMap, BTreeSet};
 use std::fmt;
 
-use survarium::v026g::awards::Awards;
 use survarium::v026g::dictionary::Dictionary;
 use survarium::v026g::game_data::GameDataError;
 use survarium::v026g::lobby::ItemDescr;
@@ -204,9 +203,8 @@ pub fn named_items() -> Vec<Named> {
 /// What the code of the lobby's rules names of the game's data, all in
 /// the data of this process ([`survarium::v026g::game_data::shared`]):
 /// the items of [`named_items`], the dict ids of silver and gold the
-/// rewards and the daily bonus give, and the tutorial's awards a new
-/// account is given (what else a new account is given is checked by
-/// `game_data::init`, `survarium::v026g::new_account`). Else an error that
+/// rewards and the daily bonus give (what a new account is given is checked
+/// by `game_data::init`, `survarium::v026g::new_account`). Else an error that
 /// lists every one it lacks: srp does not start (`survarium`'s own names
 /// are checked by `game_data::init`, `tables::named_items`). Each is
 /// otherwise looked up when used, and one the data lacks would be
@@ -225,12 +223,6 @@ pub fn check_code() -> Result<(), GameDataError> {
     for (place, dict_id) in ids {
         if dictionary.item(dict_id).is_none() {
             missing.push(format!("{place} dict id {dict_id}"));
-        }
-    }
-    let awards = Awards::shared();
-    for name in super::tutorial::AWARDS {
-        if !awards.awards.iter().any(|(award, _)| award == name) {
-            missing.push(format!("tutorial award {name}"));
         }
     }
     if missing.is_empty() {

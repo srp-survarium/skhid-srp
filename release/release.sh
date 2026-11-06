@@ -10,15 +10,15 @@
 # is the live exe's + 1 (--test: the test exe's + 1; or --revision <n>),
 # built so without editing anything (build-zip --revision); after it went
 # out live, the release sets REVISION and tags itself (step 7). A feature PR
-# never changes REVISION or the revision table. After the preflight
-# everything is prepared and staged, which players do not see (a published
-# patch no list offers yet, a release folder, an image built at the lowest
-# priority); then it waits for the go; at the go players get a maintenance
-# countdown at once, to end 30 seconds after the last running match does (or
-# one of --minutes <n>), so Play locks and no match starts after it, and at
-# its end, once no match runs, it is all swapped in at once and srp is made
-# anew. With --no-maintenance there is no countdown: at the go, swapped as
-# soon as no match runs (the downtime is the recreate; lobby players
+# never changes REVISION or the revision table. After the preflight everything
+# is prepared and staged, which players do not see (a published patch no list
+# offers yet, a release folder, an image built here and loaded on the host);
+# then it waits for the go; at the go players get a maintenance countdown
+# at once, to end 30 seconds after the last running match does (or one of
+# --minutes <n>), so Play locks and no match starts after it, and at its
+# end, once no match runs, it is all swapped in at once and srp is made
+# anew. With --no-maintenance there is no countdown: at the go, swapped
+# as soon as no match runs (the downtime is the recreate; lobby players
 # reconnect). With --now there is no countdown either, and no wait: at the
 # go, swapped at once, matches running or not (they end without results):
 #   1. preflight, nothing players see: ssh to the jump host and through it to
@@ -43,8 +43,10 @@
 #      ~/.cache/skhid-release/patch-urls.checked), none above the release's
 #      revision, and patch_12 (the menus) in it from revision 12 on (or the
 #      --resources file); with
-#      --resources, the file is resources.db.patch_<the release's revision>,
-#      srp-game-data reads it, and it is not listed yet (published already
+#      --resources, the file is resources.db.patch_<the release's revision>
+#      of release/build-content <rev> --full (no QUICK-BUILD beside it: a
+#      quick build's players' files were never checked), srp-game-data reads
+#      it, and it is not listed yet (published already
 #      with these same bytes: taken as it is, and kept at a stop);
 #      live: the site's pages made from the game data (the Maps tab, the
 #      calculator, the skills): built from other patches than the list (and the
@@ -80,17 +82,23 @@
 #      release/build-server-db (of the list), release/build-zip (--ref: the
 #      commit checked in step 1; --revision: the release's; --patches: the
 #      list, with the new patch, whose every patch the exe requires at its
-#      start: patch 49); checks the two files as release/deploy does (live:
+#      start: patch 49), then the exe patches' self-test of that commit
+#      (srp-026g/client-patches/selftest_026g.py, its Linux part, on
+#      $SKHID_GAME's survarium.exe, about 15 min: a failed check stops the
+#      release here; release/test.sh: $SKHID_SELFTEST_BIN); checks the two
+#      files as release/deploy does (live:
 #      and makes the item tables of the server data, srp-item-tables, so a
 #      tool failing on it stops here, before the go); makes the release
 #      folder $TARGET_DIR/release-rev<rev>-<UTC YYYYMMDD-HHMM>[-<label>] and
 #      stages both in it (sha256 checked there, chmod 644), with
-#      changed.txt; with server code to build: tags the running image (by
-#      its ID) srp-026g:before-rev<rev>-<stamp>, unpacks main's source in the
-#      folder's src/ (with the rebuilt pages) and runs docker compose build
-#      srp26 there, its compilers reniced to 19 (the host has one core: the
-#      running matches keep it). A failure here stops before the go: the
-#      staged files removed, the image tag put back, nothing planned;
+#      changed.txt; with server code to build: builds its image HERE from
+#      main's source (with the rebuilt pages; rootless podman, lib.sh's
+#      build_image: the host's one core keeps the running matches), uploads
+#      the source and the image (sha256 checked there), tags the running
+#      image (by its ID) srp-026g:before-rev<rev>-<stamp> and docker loads
+#      the new one, which srp-026g:latest then names. A failure here stops
+#      before the go: the staged files removed, the image tag put back,
+#      nothing planned;
 #   3. waits for the go: the owner's word that players may feel the release
 #      from now on (y at its prompt, n stops; or touch the go file it names
 #      under ~/.cache/skhid-release/; --yes does not give it;
@@ -161,6 +169,7 @@
 # again with other bytes).
 #
 #   --resources <file>  new content: resources.db.patch_<rev>, published first
+#                       (made by release/build-content <rev> --full)
 #   --revision <n>      the release's revision instead of the target exe's + 1;
 #                       live: above it (one released once is never used again);
 #                       --test: any from REVISION up
@@ -1114,6 +1123,8 @@ if [[ -n $resources ]]; then
         problem "--resources: $name must be called resources.db.patch_$rev (this release's revision; the game mounts patch_<n> of revision n)"
     elif [[ ! -f $resources ]]; then
         problem "--resources: $resources: no such file"
+    elif [[ -e $(dirname -- "$resources")/$QUICK_MARK ]]; then
+        problem "--resources: $resources is a quick build (release/build-content without --full: $QUICK_MARK beside it), for local tests: players' files with it were never checked; build it again with release/build-content ${rev:-<revision>} --full"
     elif [[ $(head -c 13 "$resources") != little-endian ]]; then
         problem "--resources: $resources is not an archive of the game (no \"little-endian\" header)"
     elif [[ -n $bin && -f $SKHID_STOCK_DB ]]; then
@@ -1359,7 +1370,7 @@ fi
 
 # The server code: main's srp-026g build inputs against the live tree.
 build_code=0 code_report=''
-src_tar=$work/srp-026g-src.tar
+src_tar=$work/src.tar
 if [[ -n $main_commit ]]; then
     mapfile -t build_paths < <(build_inputs "$main_commit")
     if [[ " ${build_paths[*]} " == *" !unsupported "* ]]; then
@@ -1474,7 +1485,7 @@ say "the release: revision $live_rev -> $rev to the $TARGET server ($TARGET_SITE
 say "  new content: ${resources:-none}"
 say "  /patches will offer:"
 say_offered
-say "  server code: $(if ((build_code)); then say "built before the swap (docker compose build srp26)"; else say "not built"; fi)"
+say "  server code: $(if ((build_code)); then say "its image built here and loaded on the host before the swap"; else say "not built"; fi)"
 say "  the bots' data (release/bot-data.tsv): ${bd_line:-not checked (the preflight stopped before it)}"
 if ((${#BD_TODO[@]})); then printf '    %s\n' "${BD_REPORT[@]:-put in as listed}"; fi
 if [[ -n $built_note ]]; then say "  ${built_note#WARNING }"; fi
@@ -1509,8 +1520,8 @@ else
 fi
 
 # 2. The lock, then everything prepared and staged, which players do not
-# see (a patch no list offers yet, a release folder, an image built at the
-# lowest priority); a stop from here removes what is staged.
+# see (a patch no list offers yet, a release folder, an image built here and
+# loaded on the host); a stop from here removes what is staged.
 if ((DRY_RUN)); then
     say
     say "[dry run] 2. take the release lock on the jump host ($(lock_path)); then, nothing players see:"
@@ -1530,10 +1541,13 @@ if [[ -n $resources ]]; then
 fi
 data=$work/$DATA_NAME
 zip=$work/zip/$ZIP_NAME
+image=$work/image.tar.zst
 build_zip=("$BUILD_ZIP" --ref "$main_commit" --revision "$rev" --patches "$PATCH_LIST" --work "$work/zip" "${step_flags[@]}")
 if ((DRY_RUN)); then
     say "[dry run] 2. build here: release/build-server-db${step_flags[*]:+ ${step_flags[*]}} --out $data"
     say "[dry run]    and: ${build_zip[*]}"
+    if ((build_code)); then say "[dry run]    and the server's image of main's source (podman): $image"; fi
+    say "[dry run]    then the exe patches' self-test (selftest_026g.py, its Linux part) of that commit on $SKHID_GAME's survarium.exe: a failed check stops here"
     say "[dry run]    then the checks of release/deploy on both$( ((test_server)) || printf ", the item tables of the server data (srp-item-tables: a failure stops here)"), and the release folder:"
     stage_begin
     write_on live "cat > $REL_DIR/changed.txt" "$work/changed.txt"
@@ -1545,7 +1559,18 @@ else
     "$here/build-server-db" "${step_flags[@]}" --out "$data" </dev/null || die "build-server-db failed"
     progress "2. building the ZIP of $(git -C "$REPO" log -1 --format=%h "$main_commit") (release/build-zip)"
     "${build_zip[@]}" </dev/null 2>&1 | tee "$work/build-zip.log" || die "build-zip failed"
+    # The exe patches' self-test of the commit built (build-zip's worktree)
+    # on the original exe: a failed check stops here, before anything is
+    # staged.
+    original_exe=$SKHID_GAME/binaries/x86/survarium.exe
+    [[ -f $original_exe ]] || original_exe=$SKHID_GAME/game/binaries/x86/survarium.exe
+    progress "2. the exe patches' self-test of $(git -C "$REPO" log -1 --format=%h "$main_commit") (selftest_026g.py, about 15 min; log: $work/selftest.log)"
+    selftest_ok=1
+    run_selftest "$work/zip/src" "$original_exe" "$work/selftest.log" "$work/selftest" </dev/null || selftest_ok=0
     if [[ -d $work/zip/src ]]; then git -C "$REPO" worktree remove --force "$work/zip/src"; fi
+    rm -rf "$work/selftest"
+    ((selftest_ok)) || die "the exe patches' self-test failed: $(grep -cE '^  FAIL' "$work/selftest.log" || true) check(s), the first: $(grep -m 1 -E '^  FAIL' "$work/selftest.log" | sed 's/^  FAIL  *//' || true) (log: $work/selftest.log)"
+    say "the exe patches' self-test: $(tail -n 1 "$work/selftest.log")"
     planned_offer=$OFFERED
     check_release_files "$zip" "$data" "$rev" "$work"
     [[ $OFFERED == "$planned_offer" ]] ||
@@ -1553,6 +1578,12 @@ else
     [[ $OFFERED_GAME == "$GAME_ROW" ]] ||
         die "$data does not name the game's archive of $GAME_LIST: ${OFFERED_GAME:-none}"
     check_exe_requires "$zip" "$work"
+    if ((build_code)); then
+        progress "2. building the server's image here from main's source (podman)"
+        build_image "$work/src" "$image" >"$work/build-image.log" 2>&1 ||
+            die "the server's image did not build: $(tail -n 3 "$work/build-image.log" | tr '\n' ' ')"
+        say "image: $(size_of "$image") bytes, sha256 $(sha256_of "$image")"
+    fi
     # The record's item tables of this data: made once now, so a tool that
     # fails on it stops the release here, not after the swap.
     if ((!test_server)); then
@@ -1585,18 +1616,17 @@ else
     stage_bot_data "$bd_dir"
 fi
 if ((build_code)); then
-    progress "2. the server code: building the image from main's source"
-    write_on live "cat > $REL_DIR/src.tar" "$src_tar"
-    if ((!DRY_RUN)); then
-        there=$(on_target "sha256sum < $REL_DIR/src.tar")
-        [[ ${there%% *} == "$(sha256_of "$src_tar")" ]] || die "$REL/src.tar has sha256 ${there%% *} on the host, not the one here"
-    fi
-    write_on live "cd $REL_DIR && mkdir src && tar -xf src.tar -C src && docker tag $(q "$RUN_IMAGE") $BEFORE_TAG"
+    progress "2. the server code: main's source and its image to the host, the image loaded"
+    for f in "$src_tar" "$image"; do
+        write_on live "cat > $REL_DIR/${f##*/}" "$f"
+        if ((!DRY_RUN)); then
+            there=$(on_target "sha256sum < $REL_DIR/${f##*/}")
+            [[ ${there%% *} == "$(sha256_of "$f")" ]] || die "$REL/${f##*/} has sha256 ${there%% *} on the host, not the one here"
+        fi
+    done
+    write_on live "cd $REL_DIR && docker tag $(q "$RUN_IMAGE") $BEFORE_TAG"
     ((DRY_RUN)) || image_tagged=1
-    # The host's one core keeps the running matches: the build's compilers
-    # reniced to 19 while it runs, every thread (pgrep -w: renice -p
-    # changes one thread only).
-    write_on live "cd $D && { docker compose --env-file $D/.env -f $REL/src/docker-compose.yml build srp26 & b=\$!; while kill -0 \$b 2>/dev/null; do pgrep -w -x 'rustc|cargo|cc1|cc1plus|cc|ld|collect2|as' | xargs -r renice -n 19 -p >/dev/null 2>&1; sleep 1; done; wait \$b; }"
+    write_on live "cd $REL_DIR && zstd -dc image.tar.zst | docker load -q && rm image.tar.zst"
 fi
 
 
@@ -1656,8 +1686,9 @@ else
     # The planned time is the latest: once no match has run for
     # LAST_MATCH_MARGIN s (the plan's own margin after the last match),
     # while Play is locked (the countdown's last 30 min), the swap comes
-    # at once.
-    said=- idle_since=''
+    # at once (the margin as long as the minute is: 30 s, or half of a
+    # test's minute).
+    said=- idle_since='' margin=$((LAST_MATCH_MARGIN * MINUTE / 60))
     while (($(date +%s) < end)); do
         matches=$(matches_now)
         if [[ $matches != "$said" ]]; then
@@ -1667,7 +1698,7 @@ else
         now_s=$(date +%s)
         if [[ $matches != 0 ]] || ((end - now_s > 30 * MINUTE)); then
             idle_since=''
-        elif ((now_s - ${idle_since:=$now_s} >= LAST_MATCH_MARGIN)); then
+        elif ((now_s - ${idle_since:=$now_s} >= margin)); then
             progress "5. no match has run for $LAST_MATCH_MARGIN s: swapping now, $(((end - now_s + MINUTE - 1) / MINUTE)) min before the planned time"
             break
         fi
