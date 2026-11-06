@@ -1,7 +1,8 @@
-//! Tables of a match recording (local analysis tool, A187 reader validation; not for a PR):
+//! Tables of a match recording, for the bots' drift lab (`bots/tests/drift_replay.rs`) and its nav gate (a bench tool; the server never
+//! runs it):
 //!
 //! ```text
-//! srp-rec-table <file.srprec> <out dir>
+//! SRP_GAME_DATA=<server game data db> srp-rec-table <file.srprec> <out dir>
 //! ```
 //!
 //! Writes, read the way the replay converter reads them (`sur_convert::tables_of_file`):
@@ -15,6 +16,10 @@
 //!   last_recent_hit,stagger,health0`: the same blocks' controller flags (`m_is_sprinting` and the others), the support normal's
 //!   y and the fall velocity's y, the damage model's last hit time, the recent hits' count and latest time, the stagger float
 //!   before the hits' count, and part 0's health; empty where the block has none;
+//! - `rec_levels.csv` (A332): `match,roster,place,team,kit,level_none,weight,weapons`: each roster place's kits' speed level as the
+//!   server reckons it (`bot_skills::profile_movement_level_in`, no weapon term), the kit's weight (kg, no loaded rounds) and every
+//!   weapon slot's `movement_speed_modifier` (`slot:modifier` joined by `;`); a life's level is `level_none` + its held weapon's
+//!   modifier. Needs `SRP_GAME_DATA` (the patches' items);
 //! - `rec_head.txt`: the header's map, mode and place count, the note kinds, the report's counts. No account is written.
 
 use std::collections::BTreeMap;
@@ -94,6 +99,31 @@ fn run(input: &Path, out: &Path) -> Result<(), Box<dyn std::error::Error>> {
         )?;
     }
     inputs.flush()?;
+    // A332 (fx-review's probe bb5503dc, lifted): each roster place's kits' speed level as the server reckons it
+    // (`bot_skills::profile_movement_level_in`, no weapon term), the kit's weight, and every weapon slot's own
+    // `movement_speed_modifier`: `rec_levels.csv`: `match,roster,place,team,kit,level_none,weight,weapons` (weapons:
+    // `slot:modifier` joined by `;`). Needs SRP_GAME_DATA (the patches' items).
+    let mut levels = std::io::BufWriter::new(std::fs::File::create(out.join("rec_levels.csv"))?);
+    writeln!(levels, "match,roster,place,team,kit,level_none,weight,weapons")?;
+    for (&roster, (_, options)) in &tables.rosters {
+        for (place, profile) in options.players.iter().enumerate() {
+            for (k, kit) in profile.kits.iter().enumerate() {
+                let Some(level) = survarium::v026g::bot_skills::profile_movement_level_in(profile, k, false) else { continue };
+                let mut weight = 0.0f32;
+                let mut weapons: Vec<String> = Vec::new();
+                for (slot, entry) in kit.slots.iter().enumerate() {
+                    let Some((index, count)) = entry else { continue };
+                    let Some(item) = profile.items.get(usize::from(*index)) else { continue };
+                    weight += survarium::v026g::bot_skills::item_weight(item.dict_id, u32::from(*count), &item.modifications);
+                    if let Some(w) = survarium::v026g::weapons::weapon(item.dict_id) {
+                        weapons.push(format!("{slot}:{:.3}", w.movement_speed_modifier));
+                    }
+                }
+                writeln!(levels, "{id},{roster},{place},{},{k},{level:.4},{weight:.3},{}", profile.team, weapons.join(";"))?;
+            }
+        }
+    }
+    levels.flush()?;
     let mut worlds = std::io::BufWriter::new(std::fs::File::create(out.join("rec_worlds.csv"))?);
     writeln!(worlds, "match,time,upload,uploads,same,place,alive,cx,cy,cz,fx,fy,fz,yaw,pitch,keys,speed,inserted")?;
     let mut motions = std::io::BufWriter::new(std::fs::File::create(out.join("rec_motion.csv"))?);
