@@ -276,3 +276,43 @@ impl<'c> OptionsCall<'c> {
         movie.invoke_strings(method, values)
     }
 }
+
+/// The game's field of view, `uro_fov` (patch 22: the camera's angle in
+/// degrees unaimed, read at every frame; saved in user.cfg), and the range its
+/// registration gives it (0x85ADF0: 50 by patch 22, 100).
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct FieldOfView {
+    pub degrees: f32,
+    pub least: f32,
+    pub most: f32,
+}
+
+impl FieldOfView {
+    /// The variable now; None before its static initializer ran (never at
+    /// the Settings).
+    pub fn now(_: &Thread) -> Option<FieldOfView> {
+        let variable = raw::image::uro_fov();
+        // SAFETY: the engine's own cc_float, a static of the image; its value
+        // is the float its registration points at, on the game's thread.
+        unsafe {
+            let value = variable.value();
+            if value.is_null() {
+                return None;
+            }
+            Some(FieldOfView { degrees: *value, least: *variable.least(), most: *variable.most() })
+        }
+    }
+
+    /// Sets the value when it is within the range, as the console's setter
+    /// (0xECB70) would store it; whether it did.
+    pub fn set(thread: &Thread, degrees: f32) -> bool {
+        let Some(now) = FieldOfView::now(thread) else { return false };
+        if !(now.least..=now.most).contains(&degrees) {
+            return false;
+        }
+        // SAFETY: as now; the value's writers are the console and this, on
+        // the game's thread.
+        unsafe { *raw::image::uro_fov().value() = degrees }
+        true
+    }
+}

@@ -40,7 +40,10 @@ Scaleform's Invoke 0x511600 a stub that records each call; translate_text
   "1" in a process that loaded DXVK at its start, "0" otherwise; a Vulkan
   option's the value DXVK was given at the start (without DXVK the saved one);
   a list's index ("0", "1", ...) saves its choice's word, other values nothing,
-  and its answer is (name, label, saved index, running index, the choices' texts);
+  and its answer is (name, label, saved index, running index, the choices' texts); `uro_fov` (the
+  Gameplay tab's field of view) sets whole degrees within the variable's range (50 to 100), saves
+  user.cfg once, and answers root.srp_slider_option(name, label, degrees, least, most), the
+  nearest whole degrees for a fraction; other values set nothing; the original answers nothing;
 - the login screen (0x21EAC8, after patch 88's handler): after a failed DXVK
   start (a marker left) `srp_dxvk` off and user.cfg saved once, the marker
   deleted; after that, and after a start with DXVK, only the marker deleted;
@@ -101,7 +104,8 @@ language.ENGLISH.update({"st_srp_hide_hit_markers_option": b"Hide hit markers", 
                          "st_srp_vulkan_dedicated_gpu": b"Prefer the dedicated GPU",
                          "st_srp_vulkan_frame_limit": b"Frame rate limit", "st_srp_vulkan_overlay": b"Performance overlay",
                          "st_srp_vulkan_off": b"Off", "st_srp_vulkan_overlay_fps": b"FPS",
-                         "st_srp_vulkan_overlay_frametimes": b"FPS + graph", "st_srp_vulkan_overlay_full": b"Full"})
+                         "st_srp_vulkan_overlay_frametimes": b"FPS + graph", "st_srp_vulkan_overlay_full": b"Full",
+                         "st_fov_option": b"FOV"})
 OTHER_HUD = 0x20076800                  # another hud movie (a new game world's)
 # a match's options and the message they are read from (check_blackout_026g.py's OPTIONS and WORK
 # lie in check_language_026g.py's DATA: these are their own)
@@ -498,6 +502,7 @@ def main():
                f"{case}: " + (f"the hud told {want[0][2]}" if want else "nothing told")
                + ", after patch 65's Invokes; on into update_player_icons as the game's")
     renderer(original, patched, expect)
+    field_of_view(original, patched, expect)
     print("all cases passed")
 
 
@@ -602,6 +607,44 @@ def renderer(original, patched, expect):
         answer = [v[2:4] for _, m, v in invokes if m == "root.srp_check_option"]
         expect(answer == [want], f"{name} set to {argument} in a process that runs DXVK: saved {want[0]}, "
                f"running {want[1]}, what user.cfg had at the start ({invokes})")
+
+
+# uro_fov's console variable (0xAA6510) as its static initializer 0x85ADF0 leaves it in a running game (the
+# emulation runs no initializer): +40h its value 0xA6FA28 (65.0 in the image), +44h the least (patch 22's 50), +48h 100
+URO_FOV, URO_FOV_VALUE = 0xAA6510, 0xA6FA28
+
+
+def field_of_view(original, patched, expect):
+    """The Gameplay tab's field of view: `uro_fov` in the Settings' call sets whole degrees within the range,
+    saves user.cfg once, and answers root.srp_slider_option(name, label, degrees, least, most)."""
+    r, stock = Run(patched), Run(original)
+    for run in (r, stock):
+        run.word(URO_FOV + 0x40, URO_FOV_VALUE)
+        run.emu.mem_write(URO_FOV + 0x44, struct.pack("<ff", 50.0, 100.0))
+    value = lambda: struct.unpack("<f", bytes(r.emu.mem_read(URO_FOV_VALUE, 4)))[0]
+    expect(value() == 65.0, "uro_fov: 65 in the image")
+    for case, argument, want, saves in [
+        ("no value", None, 65.0, 0),
+        ("\"70\"", "70", 70.0, 1),
+        ("its most, \"100\"", "100", 100.0, 1),
+        ("its least, \"50\"", "50", 50.0, 1),
+        ("\"49\" (under the range)", "49", 50.0, 0),
+        ("\"101\" (over it)", "101", 50.0, 0),
+        ("\"65.5\" (not whole degrees)", "65.5", 50.0, 0),
+        ("\"fov\"", "fov", 50.0, 0),
+        ("\"80\"", "80", 80.0, 1),
+    ]:
+        invokes, count = r.callback("uro_fov", argument)
+        answer = ("uro_fov", "FOV", str(int(want)), "50", "100")
+        expect(invokes == [(language.MOVIE, "root.srp_slider_option", answer)] and count == saves and value() == want,
+               f"uro_fov with {case}: {want:g} degrees, user.cfg written {saves} time(s), the answer its degrees and range"
+               + ("" if invokes == [(language.MOVIE, "root.srp_slider_option", answer)] else f": {invokes}"))
+        stock_invokes, stock_saves = stock.callback("uro_fov", argument)
+        expect(stock_invokes == [] and stock_saves == 0, f"the original ignores uro_fov ({case})")
+    r.emu.mem_write(URO_FOV_VALUE, struct.pack("<f", 74.5))
+    invokes, _ = r.callback("uro_fov")
+    expect([v[2] for _, m, v in invokes if m == "root.srp_slider_option"] == ["75"],
+           f"uro_fov of 74.5 (user.cfg's): the answer the nearest whole degrees, 75 ({invokes})")
 
 
 if __name__ == "__main__":

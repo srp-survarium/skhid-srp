@@ -8,9 +8,11 @@ The owner (2026-11-05): let Windows players try DXVK; off by default.
   Monitor's (its label on its left, the same size), "DirectX 11" (the default) or "Vulkan/DXVK"
   (`st_srp_renderer_option`, `_dx11`, `_dxvk`, ten languages; "Vulkan (DXVK)" does not fit Monitor's
   field), and the "Vulkan options" row under it (below). The rows under them move down two of
-  Monitor's steps and the hint's room; the preset panel goes, and its Optimal and Default buttons
-  go side by side into the window's bottom bar, left of Apply (`flash/main_menu/src/SrpRendererChoice.as`,
-  `SrpVulkanOptions.as`, `SrpVideoTab.as` with the FOV slider).
+  Monitor's steps and the hint's room; the preset panel (Optimal, Default side by side) stays where
+  it was. The room is the field of view slider's, which went to the Gameplay tab, under the Language
+  choice (the owner, 2026-11-06: "we can move fov to game maybe?"; `client-patches/README.md`,
+  "Field-of-view slider") (`flash/main_menu/src/SrpRendererChoice.as`, `SrpVulkanOptions.as`,
+  `SrpVideoTab.as`).
 - **Restart hint:** the Language choice's "Applies after restart." (`st_srp_language_restart`, its
   style) under the Vulkan options' row at the labels' left edge, while a saved value (the choice
   or a Vulkan option) is not what this process runs (the exe's answers say it: DXVK loaded at the
@@ -30,7 +32,8 @@ window keeping its size.
 
 - **Where:** a "Vulkan options" row right under the Renderer list, built as it is (label, a box
   "Open"); the box opens a panel over the column the way a list's popup opens (black, a thin
-  border), holding the five, one line each. A press outside it or Esc closes it (Esc closes the
+  border), holding the five, one line each, ending under the last row of the column it reaches
+  (no row shows half below it). A press outside it or Esc closes it (Esc closes the
   window only when no panel is open). The row is greyed (not hidden) while the Renderer list shows
   DirectX 11, following the list's pick before Apply; picking DirectX 11 closes an open panel.
 - **The five** (each kept in user.cfg, `st_srp_vulkan_*` texts in ten languages):

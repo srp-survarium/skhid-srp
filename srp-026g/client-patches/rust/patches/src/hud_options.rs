@@ -14,7 +14,10 @@
 //!   name answers the main menu with `root.srp_check_option(name, label,
 //!   saved)`, and with "1" or "0" (a list: its index) saves that first
 //!   (user.cfg at once); the Renderer and the Vulkan options answer what this
-//!   process runs too, a list its choices' texts;
+//!   process runs too, a list its choices' texts; `uro_fov` (the Gameplay
+//!   tab's field of view, patch 22's variable) answers
+//!   `root.srp_slider_option(name, label, degrees, least, most)`, setting
+//!   whole degrees within the range first;
 //!   `srp_hud_texts` answers the group's own texts (`root.srp_hud_texts`:
 //!   the heading, "Hide quests", the crosshair list's three choices,
 //!   "Static minimap");
@@ -55,7 +58,7 @@ use crate::vostok::language::ConsoleString;
 use crate::vostok::log::{Piece::*, line};
 use crate::vostok::renderer::{DelayedImport, Vulkan, VulkanVersion, best_vulkan, bind_delayed_import, exists_beside_exe,
                               is_loaded, load_beside_exe, set_environment, with_user_cfg};
-use crate::vostok::settings::{ConsoleBool, OptionsCall, create_file, delete_file, file_exists, save_user_config};
+use crate::vostok::settings::{ConsoleBool, FieldOfView, OptionsCall, create_file, delete_file, file_exists, save_user_config};
 use crate::vostok::{Context, Flow, GameCell, GameWorldUi, HudOptionsOnOptionsCallExit, NoExit, Thread};
 
 /// A Settings checkbox kept in user.cfg as `<name> on|off`: the Settings ask
@@ -284,6 +287,50 @@ impl VulkanList {
 
 /// The longest list's choices.
 const MAX_CHOICES: usize = 6;
+
+/// The Gameplay tab's field of view slider: the engine's `uro_fov` (patch
+/// 22), which the Settings name by it; its label the video options' own key
+/// (their option 7 names no variable: the original's dead "fov").
+pub const FIELD_OF_VIEW: &CStr = c"uro_fov";
+const FIELD_OF_VIEW_LABEL: &CStr = c"st_fov_option";
+
+/// Whole degrees, as the slider snaps them (the stock option's snap 1).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct Degrees(u8);
+
+impl Degrees {
+    /// The Settings' text of one: one to three decimal digits.
+    pub fn parse(text: &CStr) -> Option<Degrees> {
+        let digits = text.to_bytes();
+        if digits.is_empty() || digits.len() > 3 || !digits.iter().all(u8::is_ascii_digit) {
+            return None;
+        }
+        u8::try_from(digits.iter().fold(0u32, |n, d| n * 10 + u32::from(d - b'0'))).ok().map(Degrees)
+    }
+
+    /// The nearest whole degrees to a value of the variable (user.cfg may
+    /// hold a fraction).
+    pub fn nearest(degrees: f32) -> Degrees {
+        Degrees((degrees + 0.5).clamp(0.0, 255.0) as u8)
+    }
+
+    pub fn get(self) -> f32 {
+        f32::from(self.0)
+    }
+
+    /// Its digits into `out`, with the zero.
+    pub fn text(self, out: &mut [u8; 4]) -> &CStr {
+        let n = self.0;
+        let digits = [n / 100, n / 10 % 10, n % 10];
+        let first = if n >= 100 { 0 } else if n >= 10 { 1 } else { 2 };
+        let len = 3 - first;
+        for (room, digit) in out.iter_mut().zip(&digits[first..]) {
+            *room = b'0' + digit;
+        }
+        out[len] = 0;
+        CStr::from_bytes_until_nul(&out[..=len]).unwrap_or(c"")
+    }
+}
 
 /// The Vulkan options, read once: at the process's start from user.cfg's
 /// text (a start with DXVK gives them to it), in the Settings from the
@@ -686,6 +733,21 @@ pub fn on_options_call(ctx: &mut Context<'_>) -> Flow<HudOptionsOnOptionsCallExi
         return Flow::Exit(HudOptionsOnOptionsCallExit::Done);
     }
     let mut label = [0; 0x200];
+    if method == FIELD_OF_VIEW {
+        let Some(now) = FieldOfView::now(thread) else { return Flow::Continue };
+        if let Some(degrees) = call.string_argument(0).and_then(Degrees::parse)
+            && FieldOfView::set(thread, degrees.get())
+        {
+            save_user_config(thread);
+        }
+        let saved = FieldOfView::now(thread).map_or(now.degrees, |then| then.degrees);
+        let (mut value, mut least, mut most) = ([0; 4], [0; 4], [0; 4]);
+        let values = [FIELD_OF_VIEW, call.translate(FIELD_OF_VIEW_LABEL, &mut label),
+                      Degrees::nearest(saved).text(&mut value), Degrees::nearest(now.least).text(&mut least),
+                      Degrees::nearest(now.most).text(&mut most)];
+        call.answer(c"root.srp_slider_option", &values);
+        return Flow::Exit(HudOptionsOnOptionsCallExit::Done);
+    }
     if let Some(setting) = setting(method) {
         if let Some(on) = call.string_argument(0).and_then(choice) {
             setting.value.set(thread, on);
@@ -886,6 +948,22 @@ mod tests {
         let options = VulkanOptions { frame_limit: FrameLimit::Fps165, overlay: Overlay::FrameTimes, ..DEFAULTS };
         assert!(options.shown(c"srp_dxvk_frame_limit") == Some(c"4") && options.shown(c"srp_dxvk_overlay") == Some(c"2"));
         assert!(options.shown(c"srp_dxvk").is_none() && options.shown(c"srp_hide_scores").is_none());
+    }
+
+    #[test]
+    fn the_field_of_view_is_whole_degrees() {
+        assert_eq!(Degrees::parse(c"50"), Some(Degrees(50)));
+        assert_eq!(Degrees::parse(c"100"), Some(Degrees(100)));
+        for text in [c"", c"-5", c"65.5", c"1000", c"256", c"fov"] {
+            assert_eq!(Degrees::parse(text), None, "{text:?}");
+        }
+        assert_eq!(Degrees::nearest(74.5), Degrees(75));
+        assert_eq!(Degrees::nearest(65.0), Degrees(65));
+        let mut room = [0; 4];
+        assert_eq!(Degrees(100).text(&mut room), c"100");
+        assert_eq!(Degrees(65).text(&mut room), c"65");
+        assert_eq!(Degrees(7).text(&mut room), c"7");
+        assert!(setting(FIELD_OF_VIEW).is_none() && VulkanList::named(FIELD_OF_VIEW).is_none());
     }
 
     const ENOUGH: Vulkan = Vulkan::Device(VulkanVersion::new(1, 4, 303));

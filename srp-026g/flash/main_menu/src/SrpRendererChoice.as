@@ -122,14 +122,14 @@ package
 
         // At the place and size of the tab's Monitor list, a row under it; the
         // Vulkan options' row a row under that, the panel's rows at the tab's
-        // steps (`boxStep`: a checkbox's); the note under them at the labels'
-        // left edge, in the column's width.
-        public function layout(monitor:DisplayObject, y:Number, step:Number, boxStep:Number):void
+        // steps (`boxStep`: a checkbox's) over the column's `rows`; the note
+        // under them at the labels' left edge, in the column's width.
+        public function layout(monitor:DisplayObject, y:Number, step:Number, boxStep:Number, rows:Array):void
         {
             menu.x = monitor.x;
             menu.y = y;
             menu.width = monitor.width;
-            vulkan.layout(menu, y + step, step, boxStep);
+            vulkan.layout(menu, y + step, step, boxStep, rows);
             note.x = menu.x + (menu.textFieldLabel != null ? menu.textFieldLabel.x : 0);
             note.y = vulkan.row.y + vulkan.row.height;
             note.width = monitor.x + monitor.width - note.x;

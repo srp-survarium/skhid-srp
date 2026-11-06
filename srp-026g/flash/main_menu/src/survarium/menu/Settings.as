@@ -1,5 +1,6 @@
 package survarium.menu
 {
+   import flash.display.DisplayObject;
    import flash.display.Graphics;
    import flash.display.MovieClip;
    import flash.events.Event;
@@ -107,6 +108,10 @@ package survarium.menu
       // the stock Mouse sensitivity slider (layoutControls). A change of either is a change of the
       // tab, saved by Apply.
       protected var _mouse:SrpMouseVertical;
+
+      // The gameplay tab's "Field of view" slider (patch 22's uro_fov, kept by exe patch 83), under the
+      // Language choice (layoutGameplay). A move is a change of the tab, saved by Apply.
+      protected var _fov:SrpFieldOfView;
       
       // The controls tab's places, read from its timeline the first time it is laid out
       // (layoutControls); null until then.
@@ -143,6 +148,10 @@ package survarium.menu
             return;
          }
          var control:* = this.settings_content[this._element_map[tabIndex][elementId]];
+         if(!control)
+         {
+            return;
+         }
          control.dataProvider = new DataProvider(items);
       }
       
@@ -284,6 +293,13 @@ package survarium.menu
       // label and saved hundredths.
       public function setSliderOption(values:Array) : void
       {
+         if(values.length > 0 && values[0] == SrpFieldOfView.NAME)
+         {
+            this._fov.answer(values);
+            this.fovChanged(null);
+            this.layoutGameplay();
+            return;
+         }
          this._mouse.answerVertical(values);
          this.mouseChanged(null);
          this.layoutControls();
@@ -513,6 +529,10 @@ package survarium.menu
                {
                   this._crosshair.save();
                }
+               else if(control == this._fov.slider)
+               {
+                  this._fov.save();
+               }
                else if(control == this._mouse.check.box || control == this._mouse.slider)
                {
                   this._mouse.save();
@@ -575,6 +595,7 @@ package survarium.menu
          }
          this._crosshair.revert();
          this._mouse.revert();
+         this._fov.revert();
          this._renderer.revert();
          this.btn_accept.enabled = false;
          this.btn_cancel.label = this._exitLabel;
@@ -607,7 +628,9 @@ package survarium.menu
          this.btn_accept.addEventListener(ButtonEvent.CLICK,this.onAccept);
          this._element_map[0] = ["_setter_invite","_setter_message","_set_censure","_only_friends","_no_in_batle","_hide_spam","theCross","_setter_static_cross","_setter_static_minimap","_setter_static_minimap_position","_setter_static_show_quests","_slider_quest_alpha","_setter_static_use_seed","_upload_speed","_setter_kill_cross","_setter_static_allow_statistics"];
          this._element_map[1] = ["_setter_inverse_mouse","_slider_mouse_sens","_default_button","keysLobby","keysChat","keysGame"];
-         this._element_map[2] = ["_select_monitor","_fscr_resolution","_fullscreen","_vsync","_antialias","_filtering","gamma_option","_slider_fov","_overall_graphics","_texture_q","_geometry_q","_shadow_q","_lighting_q","_water_q","_decorations","_post_process","_ao_q","_particples_q","_motion_blur"];
+         // index 7, the video options' "FOV" (the original's dead "fov" again): no control; the field of
+         // view is the gameplay tab's (SrpFieldOfView, patch 83's uro_fov)
+         this._element_map[2] = ["_select_monitor","_fscr_resolution","_fullscreen","_vsync","_antialias","_filtering","gamma_option","","_overall_graphics","_texture_q","_geometry_q","_shadow_q","_lighting_q","_water_q","_decorations","_post_process","_ao_q","_particples_q","_motion_blur"];
          this._element_map[3] = ["_total_volume","_game_volume","_sound_volume","_sound_сhat","_use_mik","_mic_sens","_ptt"];
          this._hudGroup = new SrpCheckGroup(this.settings_content,this.settings_content.s_friends,HUD_OPTIONS);
          for each(var option:SrpCheckOption in this._hudGroup.options)
@@ -621,6 +644,9 @@ package survarium.menu
          this._mouse = new SrpMouseVertical(this.settings_content);
          this._changed[this._mouse.check.box] = 0;
          this._changed[this._mouse.slider] = 0;
+         this._fov = new SrpFieldOfView(this.settings_content);
+         this._changed[this._fov.slider] = 0;
+         this._fov.slider.addEventListener(IndexEvent.INDEX_CHANGE,this.fovChanged);
          this._mouse.check.box.addEventListener(Event.SELECT,this.mouseChanged);
          this._mouse.slider.addEventListener(IndexEvent.INDEX_CHANGE,this.mouseChanged);
          this._renderer = new SrpRendererChoice(this.settings_content);
@@ -634,9 +660,9 @@ package survarium.menu
       
       protected function create_content(settings:Array) : void
       {
-         SrpVideoTab.apply(this);
          this._hudGroup.place();
          this._mouse.place();
+         this._fov.place();
          this._renderer.place();
          this._language.place();
          var key:Object;
@@ -839,8 +865,14 @@ package survarium.menu
          this.listChanged(this._renderer.menu,this._renderer.pending);
       }
       
-      // One of srp's lists counts as a changed option while `pending`.
-      protected function listChanged(menu:DropdownMenu, pending:Boolean) : void
+      // A move of the field of view slider, the same way.
+      protected function fovChanged(event:Event) : void
+      {
+         this.listChanged(this._fov.slider,this._fov.pending);
+      }
+
+      // One of srp's lists (or the field of view slider) counts as a changed option while `pending`.
+      protected function listChanged(menu:Object, pending:Boolean) : void
       {
          if(pending)
          {
@@ -872,11 +904,10 @@ package survarium.menu
          var c:MovieClip = this.settings_content;
          if(c.currentFrame != 1)
          {
-            // the other tabs keep their bottom panel (the timeline may keep one instance across frames),
-            // but Graphics, whose preset buttons SrpVideoTab moves into the window's bar
+            // the other tabs keep their bottom panel (the timeline may keep one instance across frames)
             if(c.bottomContainer != null)
             {
-               c.bottomContainer.visible = c.currentFrame != SrpVideoTab.VIDEO_FRAME;
+               c.bottomContainer.visible = true;
             }
             return;
          }
@@ -894,9 +925,13 @@ package survarium.menu
                "rightHeading":c.s_cross.x,"rightControl":c._setter_static_cross.x};
             _gameplaySpacing = space;
          }
-         // the left column: Friends (as the timeline has it), then Language
+         // the left column: Friends (as the timeline has it), then Language, then the field of view a
+         // group's gap under the Language note's place (shown or not: it never moves with the note),
+         // its label at the headings' left edge
          this._language.layout(c.s_friends,space.leftHeading,space.leftControl + space.dropdownX,
             c._hide_spam.y + space.gap,space.leftFirst);
+         var languageMenu:DisplayObject = this._language.menu;
+         this._fov.layout(space.leftHeading,languageMenu.y + languageMenu.height + 2 + space.gap);
          // the right column: the HUD group, each row a step under the last (a list under a checkbox
          // as the minimap's is), a list one further right as the timeline has them; the map's rows
          // (Names on map, Static minimap, the minimap position list) last
@@ -1136,6 +1171,8 @@ package survarium.menu
          this._changed[this._mouse.check.box] = 0;
          this._changed[this._mouse.slider] = 0;
          this._mouse.revert();
+         this._changed[this._fov.slider] = 0;
+         this._fov.revert();
          this._changed[this._renderer.menu] = 0;
          this._renderer.revert();
          this.checkButtons();

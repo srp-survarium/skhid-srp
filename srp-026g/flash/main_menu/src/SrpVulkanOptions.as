@@ -5,6 +5,7 @@ package
     import flash.display.Shape;
     import flash.display.Sprite;
     import flash.events.Event;
+    import flash.geom.Rectangle;
     import scaleform.clik.controls.DropdownMenu;
     import scaleform.clik.data.DataProvider;
     import scaleform.clik.events.ListEvent;
@@ -230,7 +231,9 @@ package
         }
 
         // At the Renderer list's place and size, `y` under it; the panel's rows at the tab's steps.
-        public function layout(renderer:DisplayObject, y:Number, listStep:Number, boxStep:Number):void
+        // `rows`: the column's rows under it, which the open panel lies over: it ends under the last one
+        // it reaches, none showing half below its edge.
+        public function layout(renderer:DisplayObject, y:Number, listStep:Number, boxStep:Number, rows:Array):void
         {
             row.x = renderer.x;
             row.y = y;
@@ -252,6 +255,18 @@ package
             }
             var width:Number = renderer.width + 2 * PADDING;
             var height:Number = at + boxStep + PADDING;
+            // in the tab's coordinates: where the popup opens (under the box, its offset's top) and ends
+            var top:Number = y + row.height + row.menuOffset.top;
+            var bottom:Number = top + height;
+            for each (var under:DisplayObject in rows)
+            {
+                var span:Rectangle = under != null ? under.getBounds(row.parent) : null;
+                if (span != null && span.top < bottom && span.bottom > bottom)
+                {
+                    bottom = span.bottom + 2;
+                }
+            }
+            height = bottom - top;
             background.graphics.clear();
             // the lists' popup look (OptionScrollingList): black, a thin border; opaque, so a press on
             // it is the panel's, never a row's under it

@@ -5,6 +5,7 @@
 # - SettingsHarness.as: the HUD group (its heading, the two checkboxes) from the exe's answers, the
 #   Gameplay tab's two columns (Friends, HUD; Crosshair, Language, Quest progress), a toggle of each
 #   pending until Apply, Cancel, the tabs, every dictionary's labels (inside the panel, their glyphs)
+#   and the field of view slider under Language (patch 83's uro_fov: the stock slider, Apply, Cancel);
 #   and its crosshair and minimap position choices (inside their lists); the Graphics tab's
 #   Renderer list (docs/notes/dxvk-option.md: under Monitor, the rows under it
 #   moved, every dictionary's label in the column, Apply, Cancel) and its Vulkan options' row under it: greyed
@@ -46,7 +47,7 @@ keys = ('st_srp_hide_hit_markers_option', 'st_srp_hide_scores_option', 'st_srp_o
         'st_srp_mouse_lock_option', 'st_srp_mouse_vertical_option', 'st_srp_vulkan_options', 'st_srp_vulkan_options_open',
         'st_srp_vulkan_frame_limit', 'st_srp_vulkan_off', 'st_srp_vulkan_low_latency', 'st_srp_vulkan_tear_free',
         'st_srp_vulkan_dedicated_gpu', 'st_srp_vulkan_overlay', 'st_srp_vulkan_overlay_fps',
-        'st_srp_vulkan_overlay_frametimes', 'st_srp_vulkan_overlay_full')
+        'st_srp_vulkan_overlay_frametimes', 'st_srp_vulkan_overlay_full', 'st_fov_option')
 print(json.dumps([[read_translations(CATALOG / f'{name}.tsv')[k] for k in keys] for name, *_ in LANGUAGES],
                  ensure_ascii=False, separators=(',', ':')))
 PY

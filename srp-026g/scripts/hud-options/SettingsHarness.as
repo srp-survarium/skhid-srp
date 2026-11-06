@@ -242,9 +242,11 @@ package
                 if (t != null && t.text == "Applies after restart.") note = t;
             }
             require(language != null && note != null && cross != null, when + ": the Language heading, its note and the crosshair list there");
+            var fov:* = content.getChildByName("_srp_fov");
             var left:Array = [c.s_friends, c._setter_invite, c._setter_message, c._set_censure, c._only_friends, c._no_in_batle,
                 c._hide_spam, language, menu];
             if (note.visible) left.push(note);
+            left.push(fov);
             // Names on map (the last box) with the map's rows, over Static minimap
             var right:Array = [heading, cross, boxes[0], boxes[1], c._setter_static_show_quests, boxes[2], c._setter_static_minimap,
                 c._setter_static_minimap_position];
@@ -278,6 +280,12 @@ package
             // spacing: as the tab's own
             require(near(language.y - c._hide_spam.y, stock.gap) && near(menu.y - language.y, stock.leftFirst),
                 when + ": Language the tab's gap under Friends, its list as Friends' first checkbox");
+            // the field of view: the stock slider (its size), its label at the headings' edge the tab's gap under
+            // the Language note's place, shown or not (it never moves with the note)
+            require(near(fov.x + fov.textField.x, c.s_friends.x) && near(fov.y + fov.textField.y, menu.y + menu.height + 2 + stock.gap)
+                && near(fov.slider.width, new (loader.contentLoaderInfo.applicationDomain.getDefinition("SrvOptionSlider") as Class)().slider.width)
+                && fov.scaleX == 1 && fov.scaleY == 1 && near(fov.slider.x, 17),
+                when + ": the field of view the stock slider, the tab's gap under the Language note's place (" + fov.y + ")");
             require(near(cross.y - heading.y, stock.rightFirst), when + ": the crosshair list under the heading as Crosshair's first control was");
             var steps:Array = [cross, boxes[0], boxes[1], c._setter_static_show_quests, boxes[2], c._setter_static_minimap];
             for (i = 1; i < steps.length; ++i)
@@ -314,6 +322,12 @@ package
                 language.text = row[3];
                 require(language.x + language.textWidth < leftEnd, when + ": " + row[3] + " ends in the left column");
                 language.text = was;
+                was = fov.textField.text;
+                fov.textField.text = row[30] + ":";
+                require(fov.x + fov.textField.x + fov.textField.textWidth + 4 <= fov.x + fov.textField.x + fov.textField.width
+                    && fov.x + fov.textFieldValue.x + fov.textFieldValue.width < leftEnd,
+                    when + ": " + row[30] + " fits the field of view's label, its value in the left column");
+                fov.textField.text = was;
                 if (note.visible)
                 {
                     was = note.text;
@@ -325,7 +339,8 @@ package
                 }
             }
             trace("SETTINGS layout " + when + ": left Friends " + c.s_friends.y + ", Language " + language.y + " (list " + menu.y
-                + (note.visible ? ", note " + note.y : "") + ", to " + span(left[left.length - 1])[1] + "); right HUD " + heading.y
+                + (note.visible ? ", note " + note.y : "") + ", field of view " + fov.y + ", to " + span(left[left.length - 1])[1]
+                + "); right HUD " + heading.y
                 + " (crosshair " + cross.y + ", " + boxes.map(function(b:*, ...rest):Number { return b.y; }).join(", ") + ", quests " + c._setter_static_show_quests.y
                 + ", minimap " + c._setter_static_minimap.y + ", position " + c._setter_static_minimap_position.y + ", to "
                 + span(right[right.length - 1])[1] + "); bottom " + bottom);
@@ -415,7 +430,8 @@ package
         // The Graphics tab's Renderer list (patch 83's srp_dxvk, docs/notes/dxvk-option.md): shown there
         // only, once the exe answers, built as Monitor's (its label on its left, the same size), one of
         // Monitor's steps under it, the Vulkan options' row a step under that; the rows under them two steps and
-        // the note's room down, in order without overlaps, the preset buttons side by side in the window's bar; every dictionary's label and choices
+        // the note's room down, in order without overlaps, no field of view (the Gameplay tab's), the preset
+        // buttons side by side inside their panel, as on main; every dictionary's label and choices
         // inside the list's fields; a pick pending until Apply, Cancel dropping it. Ends back on the
         // gameplay tab.
         // The Renderer note's room (SrpRendererChoice.NOTE_ROOM).
@@ -442,7 +458,7 @@ package
         {
             var c:* = content;
             var note:TextField = content.getChildByName("_srp_renderer_note") as TextField;
-            var rows:Array = [c._fscr_resolution, c._fullscreen, c._vsync, c._antialias, c._filtering, c.slider_gamma, c._slider_fov];
+            var rows:Array = [c._fscr_resolution, c._fullscreen, c._vsync, c._antialias, c._filtering, c.slider_gamma];
             var hidden:Array = rows.map(function(r:*, ...rest):Number { return r.y; });
             require(note != null && !note.visible, "note: hidden while the saved choice is the running one");
             graphicsTab(settings, "1", "0");
@@ -533,15 +549,18 @@ package
             }
             checkNote(settings, content, list, monitor);
             var column:Array = [c._select_monitor, list, c.getChildByName("_srp_vulkan"), c._fscr_resolution, c._fullscreen, c._vsync, c._antialias, c._filtering,
-                c.slider_gamma, c._slider_fov];
-            // the window's bottom bar (Apply, Cancel), in the tab's coordinates
-            var bar:Rectangle = settings.bottomContainer.getBounds(content);
-            var accept:Rectangle = settings.btn_accept.getBounds(content);
+                c.slider_gamma];
+            // the field of view is the Gameplay tab's: none here, and no control of the tab named for the video
+            // options' dead option 7
+            var fovHere:* = c.getChildByName("_srp_fov");
+            require(c.getChildByName("_slider_fov") == null && (fovHere == null || !fovHere.visible),
+                "Graphics: no field of view slider (the Gameplay tab's)");
+            var panel:Rectangle = c.bottomContainer.getBounds(content);
             for (var i:int = 0; i < column.length; ++i)
             {
                 var here:Array = span(column[i]);
                 require(column[i].visible, "Graphics: " + column[i].name + " shown");
-                var next:Number = i + 1 < column.length ? span(column[i + 1])[0] : bar.top;
+                var next:Number = i + 1 < column.length ? span(column[i + 1])[0] : panel.top;
                 require(here[1] <= next + 1, "Graphics: " + column[i].name + " (" + here + ") over the next (" + next + ")");
             }
             // the buttons draw at their new width in the next frame: now, for the measure
@@ -549,18 +568,13 @@ package
             c.button_default_video.validateNow();
             var optimal:Rectangle = c.button_optimal_video.getBounds(content);
             var standard:Rectangle = c.button_default_video.getBounds(content);
-            // the preset panel gone, its buttons side by side in the window's bar left of Apply, at its height,
-            // their labels whole
-            require(!c.bottomContainer.visible && bar.containsRect(optimal) && bar.containsRect(standard)
-                && optimal.right < standard.left && standard.right < accept.left && near(optimal.y, standard.y)
-                && Math.abs(optimal.y + optimal.height / 2 - (accept.y + accept.height / 2)) < 1,
-                "Graphics: the preset buttons side by side in the window's bar left of Apply (" + optimal + ", " + standard
-                + " in " + bar + ", Apply " + accept + ")");
-            for each (var button:* in [c.button_optimal_video, c.button_default_video])
-            {
-                require(button.textField.textWidth + 4 <= button.textField.width * button.scaleX, "Graphics: " + button.label
-                    + " fits its button (" + button.textField.textWidth + " of " + button.textField.width * button.scaleX + ")");
-            }
+            // the preset panel where it was before the Vulkan options (its top, size and buttons main's)
+            require(c.bottomContainer.visible && panel.containsRect(optimal) && panel.containsRect(standard)
+                && optimal.right < standard.left && near(optimal.y, standard.y), "Graphics: the preset buttons side by "
+                + "side inside their panel (" + optimal + ", " + standard + " in " + panel + ")");
+            require(near(panel.bottom, fresh.bottomContainer.getBounds(fresh).bottom)
+                && near(panel.top, fresh.bottomContainer.getBounds(fresh).top + 50 + step + NOTE_ROOM),
+                "Graphics: the panel's top and bottom main's (" + panel + ")");
             var labelEnd:Number = list.x + list.textFieldLabel.x + list.textFieldLabel.width;
             var widestLabel:Number = 0, widestChoice:Number = 0;
             var choices:Object = list.dataProvider;
@@ -588,8 +602,8 @@ package
             list.selectedIndex = 0;
             list.validateNow();
             require(!settings.btn_accept.enabled, "Renderer: nothing pending after the texts' check");
-            trace("SETTINGS Graphics: Renderer at " + list.y + " under Monitor " + monitor.y + ", FOV to " + span(c._slider_fov)[1]
-                + ", the bar from " + bar.top + ", the preset buttons " + optimal + " " + standard + "; widest label " + widestLabel + ", widest choice " + widestChoice);
+            trace("SETTINGS Graphics: Renderer at " + list.y + " under Monitor " + monitor.y + ", gamma to " + span(c.slider_gamma)[1]
+                + ", panel " + panel.top + "-" + panel.bottom + "; widest label " + widestLabel + ", widest choice " + widestChoice);
             pick(list, 1);
             require(settings.btn_accept.enabled, "Renderer: picking Vulkan enables Apply");
             click(settings.btn_cancel);
@@ -672,6 +686,13 @@ package
             require(bounds.top >= rowBounds.bottom - 0.1 && bounds.top <= rowBounds.bottom + 6 && bounds.left < rowBounds.left
                 && bounds.right > rowBounds.right && bounds.right < divider, "Vulkan options: the panel under the box, over the column ("
                 + bounds + " under " + rowBounds + ", the right column at " + divider + ")");
+            for each (var underRow:* in [c._fscr_resolution, c._fullscreen, c._vsync, c._antialias, c._filtering,
+                c.slider_gamma])
+            {
+                var rowSpan:Rectangle = underRow.getBounds(content.stage);
+                require(!(rowSpan.top < bounds.bottom && rowSpan.bottom > bounds.bottom), "Vulkan options: the panel ("
+                    + bounds + ") ends on a row's boundary, " + underRow.name + " (" + rowSpan + ") not half under it");
+            }
             var labels:Array = [texts[0][21], texts[0][26], texts[0][23], texts[0][24], texts[0][25]];
             var at:Number = -1;
             for (var i:int = 0; i < controls.length; ++i)
@@ -864,7 +885,29 @@ package
             require(!boxes.some(function(b:*, ...rest):Boolean { return b.selected; }) && !settings.btn_accept.enabled,
                 "another name changes nothing");
 
+            // the field of view (patch 83's uro_fov): shown once the exe answers, the stock slider in its range
+            var fovSlider:* = content.getChildByName("_srp_fov");
+            require(fovSlider != null && !fovSlider.visible, "the field of view waits for the exe's answer");
+            root.srp_slider_option("uro_fov", texts[0][30], "65", "50", "100");
+            require(fovSlider.visible && fovSlider.alpha == 1 && fovSlider.textField.text == texts[0][30] + ":"
+                && fovSlider.slider.minimum == 50 && fovSlider.slider.maximum == 100 && fovSlider.selectedIndex == 65
+                && !settings.btn_accept.enabled, "the field of view: the exe's label (a colon), range 50 to 100 and value 65, "
+                + "nothing pending (" + fovSlider.textField.text + ", " + fovSlider.selectedIndex + ")");
             checkLayout(content, boxes, texts, stockOf(content), "at rest");
+            fovSlider.slider.value = 90;
+            require(fovSlider.selectedIndex == 90 && settings.btn_accept.enabled, "the field of view moved to 90: a change");
+            click(settings.btn_cancel);
+            require(fovSlider.selectedIndex == 65 && !settings.btn_accept.enabled, "the field of view: Cancel puts 65 back");
+            fovSlider.slider.value = 90;
+            click(settings.btn_accept);
+            require(fovSlider.selectedIndex == 90 && !settings.btn_accept.enabled, "the field of view: Apply saves 90");
+            root.srp_slider_option("uro_fov", texts[0][30], "90", "50", "100");
+            require(fovSlider.selectedIndex == 90 && !settings.btn_accept.enabled, "the field of view: the exe's answer keeps 90");
+            root.srp_slider_option("uro_fov", texts[0][30], "65", "50", "100");
+            root.srp_slider_option("uro_fov", texts[0][30], "65", "100", "50");
+            require(fovSlider.selectedIndex == 65 && !settings.btn_accept.enabled, "the field of view: an answer with no range is "
+                + "ignored");
+            trace("SETTINGS field of view: Gameplay, the stock slider at " + fovSlider.x + "," + fovSlider.y + ", Apply and Cancel");
             // the restart note shown (a saved language not the running one)
             root.srp_language(texts[0][3], "Applies after restart.", "ukrainian", "english", "english", "English",
                 "ukrainian", "Українська");
