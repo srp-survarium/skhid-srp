@@ -53,6 +53,12 @@ glow's own density on its parts, and four quarters are the stock emitters' leg s
 Version 8: the point light's emitter (up_light) is back in every quarter (the owner, 2026-11-06),
 like the others: its domain cut to the quarter's parts, its Rate and MaxParticles times its kept
 share (a shin quarter one light), its intensity, colour and range the stock's.
+
+Version 9: Forest Protection's glow on the hands instead of the legs (the owner, 2026-11-06): the
+stock Onyx glow, grey, made as a quarter is (`quarter_particle`) with HANDS (both forearms and
+hands) for its parts: the hands' strokes and the point light kept, every kept emitter at the stock
+density on its parts. It no longer lies on the leg quarters; everyone sees it, the carrier too in
+the first person (its own hands).
 """
 import argparse
 import copy
@@ -65,7 +71,7 @@ import sys
 import zlib
 
 PACK_ID = 'artefact-glow'
-VERSION = '8'
+VERSION = '9'
 # kind -> (effect config, particle system); the stock files, by sha256.
 KINDS = {
     'lifebone': 'fx/artifacts/human_zhivokost',
@@ -89,6 +95,8 @@ FOREST_EFFECT = 'gameplay/effects/effect_forest_protection.options'
 FOREST_SYSTEM = 'fx/artifacts/human_forest_protection'
 ORANGE_MATERIALS = ('rays', 'stroke_scroll', 'up')
 LEGS = ('LeftUpLeg', 'LeftLeg', 'LeftFoot', 'RightUpLeg', 'RightLeg', 'RightFoot')
+# Forest Protection's glow since version 9 (the owner, 2026-11-06): on the forearms and hands.
+HANDS = ('LeftForeArm', 'LeftHand', 'RightForeArm', 'RightHand')
 BODY_PARTS = LEGS + ('BackChest', 'BackSpin', 'Face', 'FrontChest', 'FrontSpin', 'Head', 'LeftArm',
                      'LeftForeArm', 'LeftHand', 'Neck', 'RightArm', 'RightForeArm', 'RightHand')
 GREY = [0.5, 0.5, 0.5, 1.0]              # the materials' emissive and the light: a neutral grey (exact in f32)
@@ -281,9 +289,10 @@ def greyed(tree, path=''):
 
 
 def forest_particle(stock):
-    """human_forest_protection: the stock Onyx glow, grey, its legs only; the emitters with no leg
-    part left out (and from children_order)."""
-    return keep_emitters(greyed(parts_only(copy.deepcopy(stock), LEGS)), domain_parts)
+    """human_forest_protection (version 9): the stock Onyx glow, grey, on the hands (HANDS) as a
+    quarter is made (`quarter_particle`: the emitters with none of those parts left out, each
+    kept one, the point light's too, at the stock density on its parts)."""
+    return greyed(quarter_particle(stock, HANDS))
 
 
 def f32(x):
@@ -401,22 +410,15 @@ def forest_effect(stock_effect, system=FOREST_SYSTEM):
 
 
 def check_forest(tree, stock):
-    """The forest system is the stock one but for its body parts (the legs alone on), the dropped
-    emitters (those with no leg part), the materials (grey copies) and the light's colours (grey):
-    every other value the stock's, compared over the whole tree."""
-    lod, stock_lod = dict(tree[1])['LOD 0'], dict(stock[1])['LOD 0']
-    emitters, stock_emitters = dict(dict(lod[1])['children'][1]), dict(dict(stock_lod[1])['children'][1])
-    dropped = {g for g, e in stock_emitters.items() if not domain_parts(e) & set(LEGS)}
-    assert set(emitters) == set(stock_emitters) - dropped and emitters, sorted(dropped)
-    assert [c[1] for c in dict(lod[1])['children_order'][1]] == \
-        [c[1] for c in dict(stock_lod[1])['children_order'][1] if c[1] in emitters]
-    for guid, emitter in emitters.items():
-        assert domain_parts(emitter) == domain_parts(stock_emitters[guid]) & set(LEGS), guid
-    for d in differences(tree, stock):
+    """The forest system is the stock one made grey (its materials' grey copies, its light's and
+    colour sources' colours grey: nothing else) and cut to the hands as `check_quarter` allows."""
+    grey = greyed(copy.deepcopy(stock))
+    for d in differences(grey, stock):
         last = d.rsplit('/', 1)[-1]
-        assert (last in BODY_PARTS and '/properties/' in d) or last == 'Material' or \
-            (('/LightColor/' in d or d.startswith('/data_sources/color/')) and last == 'value') or \
-            last in dropped or d.endswith('/children_order'), d
+        assert last == 'Material' or \
+            (('/LightColor/' in d or d.startswith('/data_sources/color/')) and last == 'value'), d
+    check_quarter(tree, grey, HANDS)
+
     def strings(node):
         t, v = node
         if t in (T_NAMED, T_INDEXED):
@@ -592,7 +594,7 @@ def main():
                        'fx/artifacts/human_<kind>_fp: the stock particle system, its point lights and haze '
                        'included, with Head, Face and Neck off in every emitter\'s animated domain; and '
                        'Forest Protection\'s glow, effect_forest_protection (both views) playing '
-                       'fx/artifacts/human_forest_protection: the stock Onyx glow, grey, on the legs only; '
+                       'fx/artifacts/human_forest_protection: the stock Onyx glow, grey, on the forearms and hands; '
                        'and the leg quarters, effect_artefact_leg_<kind>_<1..4> (both views) playing '
                        'fx/artifacts/human_<kind>_leg_<1..4>: each kind\'s stock glow on one quarter of the '
                        'legs (left lower, right lower, left upper, right upper), each emitter, its point '

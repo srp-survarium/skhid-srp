@@ -107,6 +107,7 @@ down) when you use artifact? Note that your vision should still be clear")
 - Version 7: the quarters' emitters at the stock glow's density on their parts (Rate and
   MaxParticles times the kept share of each stock emitter's parts).
 - Version 8: the point light's emitter (up_light) back in every quarter, at the same share.
+- Version 9: Forest Protection's glow on the forearms and hands, made as a quarter is.
 - History: version 1 (a lighter copy) and version 2 (with `up_light`'s lights at x0.35) showed
   too little in the first person; version 3, the stock glow without the head, was tested by the
   owner and approved (2026-10-25: "this version is good"). Version 4 is the same files.

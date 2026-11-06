@@ -119,6 +119,12 @@ preferred-image VAs; `apply_modifier` is the kit-modifier getter 0x2D5AE0.
     player's effect list says whether it plays.
   - The point light of the glow (the stock `up_light`, grey) also lights the player's body and
     the ground near it (the renders); a lighter version would leave it out.
+- On the hands since pack artefact-glow@9 (the owner, 2026-11-06): the stock Onyx glow, grey,
+  made as a leg quarter is (`quarter_particle`) with both forearms and hands (LeftForeArm,
+  LeftHand, RightForeArm, RightHand) for its parts: the emitters with none of them left out (the
+  hands' strokes and the point light now kept), each kept emitter's Rate and MaxParticles times
+  its kept share of the stock emitter's parts. Everyone sees it, both views: the carrier too, on
+  its own hands in the first person. It no longer lies on the leg quarters.
 
 ## Artifact Container (522)
 
@@ -142,6 +148,8 @@ preferred-image VAs; `apply_modifier` is the kit-modifier getter 0x2D5AE0.
   Onyx and Lifebone 3 -> 3.75 s. Patch 54's +1 s for each extra Onyx fired together is added
   after it, unscaled.
 - The Sponge (#1280, not on main): its active time is checked when it lands.
+- Second effect (the owner, 2026-11-06): with it (any rank) in the current kit, the game shows the
+  leg quarters ("Leg quarters" below); its description's first line says so.
 
 ## Keeper of the Artifacts (521)
 
@@ -253,10 +261,17 @@ preferred-image VAs; `apply_modifier` is the kit-modifier getter 0x2D5AE0.
   each 4 less the recipient's own carried copies of the kind (in their passive or active).
   Larkspur's active heal is Medic's, which has no cap: a full heal twice is one.
 
-### Leg quarters (patch 111, pack artefact-glow@8)
+### Leg quarters (patch 111, pack artefact-glow@9)
 
 - The owner (2026-11-06): each passive artefact copy that counts for a player lights a quarter
-  of its legs in that artefact's colour; everyone sees it (how stacked a player is).
+  of its legs in that artefact's colour (how stacked a player is).
+- Who sees them (the owner, 2026-11-06, Knowledge of Artifacts' second effect): a game shows the
+  quarters, every player's and its local player's own alike, only while its local player's
+  current kit has Knowledge of Artifacts (modifier 39, the skill's own transport, above 0: the
+  native getter's factor above 1; it is a data skill, not in modifier 40's packed bits); a game
+  with no local player (a spectator's, a replay) shows them all. Read at each tick and in the
+  calculator, so a respawn in another kit switches them on or off. Forest Protection's glow and
+  the stock activation glow are everyone's as before.
 - The count, per kind: the player's own carried copies giving their passive (`Kind::gives`:
   Spring and Lifebone in 3 and 4, Onyx in 3 only) plus the passives Resonance shares with it
   (`shared`, the sharing's own code and cap), at most 4 (own copies past 4 count as 4). A dead

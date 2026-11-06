@@ -243,6 +243,26 @@ impl<'t> Player<'t> {
         }
     }
 
+    /// The local player of its game world (the one this game plays), none without one (a
+    /// spectator's game, a replay): the world's game's network client's.
+    pub fn local_player(&self) -> Option<Player<'t>> {
+        // SAFETY: the live player's game world (+F474h), alive while the player is.
+        let world = unsafe { self.this.game_world() }?;
+        super::world::GameWorld::of(world, self.thread).network_client()?.local_player()
+    }
+
+    /// The factor its current kit gives an artefact's active time: the native getter of
+    /// modifier 39 (artefact_duration, max(0, 1 + its sum)); above 1 with Knowledge of Artifacts.
+    pub fn active_duration_factor(&self) -> f32 {
+        // SAFETY: the player owns its profile and its current kit's modifiers; the getter only
+        // reads them.
+        unsafe {
+            let Some(profile) = self.this.profile() else { return 1.0 };
+            let modifiers = profile.kits().at(usize::from(read(self.this.kit()))).modifiers();
+            raw::engine_apply_modifier(Some(modifiers), 39, 1.0, 1.0)
+        }
+    }
+
     /// Whether it plays an effect of `kept`.
     pub fn plays_effect(&self, kept: KeptEffect) -> bool {
         // SAFETY: the player's effect list, walked on the simulation thread

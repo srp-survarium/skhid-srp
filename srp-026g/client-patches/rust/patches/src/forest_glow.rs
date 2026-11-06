@@ -1,26 +1,30 @@
-//! The legs' glows (patch 111; docs/notes/artefact-skills.md, "Forest
-//! Protection" and "Leg quarters"), every game showing them on every player
-//! from what it has (the kits in the static info, its world):
+//! The glows of patch 111 (docs/notes/artefact-skills.md, "Forest Protection"
+//! and "Leg quarters"), every game deciding them from what it has (the kits in
+//! the static info, its world):
 //!
 //! - Forest Protection's: while the skill protects a player (its kit's
 //!   modifier 41 makes the anomaly hit's factor below 1, and it is inside a
-//!   damage zone: the native rule of 0x332810), a grey glow on its legs, the
-//!   game effect `forest_protection` (content pack artefact-glow: the
-//!   artefacts' stock glow, grey, its legs only, both views);
+//!   damage zone: the native rule of 0x332810), a grey glow on its forearms
+//!   and hands, the game effect `forest_protection` (content pack
+//!   artefact-glow: the artefacts' stock glow, grey, both views); everyone
+//!   sees it;
 //! - the leg quarters: each passive artefact copy that counts for a player
 //!   (its own carried copies giving their passive and those Resonance
 //!   shares with it, at most 4 of a kind) lights a quarter of its legs in
 //!   that kind's colour: `artefact_leg_<kind>_<n>`, n = 1 the left lower leg,
 //!   2 the right lower leg, 3 the left thigh, 4 the right one. Each kind
 //!   lights its own quarters from the first up; two kinds on one quarter
-//!   layer (their sprites add, as the stock glows of two kinds do).
+//!   layer (their sprites add, as the stock glows of two kinds do). Shown
+//!   only by a game whose local player's current kit has Knowledge of
+//!   Artifacts (every player's quarters, its own too), or that has no local
+//!   player (a spectator, a replay).
 //!
 //! In the simulation, as the artefacts' own glow: at a player's tick each
-//! effect is played when the player shows it and plays none of it (so it is
-//! in the world's history, and a rollback keeps it); the player's own
-//! calculator ends one when the player no longer shows it. Presentation
-//! only: nothing a match computes reads an effect. No state of its own but
-//! the resources.
+//! effect is played when the game shows it and none of it plays (so it is in
+//! the world's history, and a rollback keeps it); the player's own
+//! calculator ends one when the game no longer shows it. Presentation only:
+//! nothing a match computes reads an effect. No state of its own but the
+//! resources.
 
 #![forbid(unsafe_code)]
 
@@ -78,10 +82,37 @@ const NAMES: [&CStr; 13] = [
     c"artefact_leg_onyx_4",
 ];
 
-/// What a player's legs show.
+/// Whether this game shows the leg quarters (the owner, 2026-11-06): only to a local player whose
+/// current kit has Knowledge of Artifacts (its own quarters too), to everyone's game without a
+/// local player (a spectator, a replay). Forest Protection's glow is everyone's regardless.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum Quarters {
+    Shown,
+    Hidden,
+}
+
+impl Quarters {
+    /// From the local player's active-time factor (modifier 39's getter: above 1 with Knowledge
+    /// of Artifacts), none without a local player.
+    fn of(viewer: Option<f32>) -> Quarters {
+        match viewer {
+            None => Quarters::Shown,
+            Some(factor) if factor > 1.0 => Quarters::Shown,
+            Some(_) => Quarters::Hidden,
+        }
+    }
+
+    /// For the game `player` is in: its local player, read now.
+    fn seen_in(player: &Player<'_>) -> Quarters {
+        Quarters::of(player.local_player().map(|viewer| viewer.active_duration_factor()))
+    }
+}
+
+/// What a player's legs and hands show in this game.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 struct Legs {
     forest: Glow,
+    quarters: Quarters,
     copies: Copies,
 }
 
@@ -89,7 +120,7 @@ impl LegEffect {
     fn shown(self, legs: Legs) -> bool {
         match self {
             LegEffect::Forest => legs.forest == Glow::On,
-            LegEffect::Quarter { kind, nth } => legs.copies.get(kind) >= nth,
+            LegEffect::Quarter { kind, nth } => legs.quarters == Quarters::Shown && legs.copies.get(kind) >= nth,
         }
     }
 }
@@ -163,7 +194,9 @@ fn glow(player: &Player<'_>) -> Glow {
 fn shows(effect: LegEffect, player: &Player<'_>) -> bool {
     match effect {
         LegEffect::Forest => glow(player) == Glow::On,
-        LegEffect::Quarter { kind, nth } => player.passive_copies().get(kind) >= nth,
+        LegEffect::Quarter { kind, nth } => {
+            Quarters::seen_in(player) == Quarters::Shown && player.passive_copies().get(kind) >= nth
+        }
     }
 }
 
@@ -177,7 +210,7 @@ pub fn on_tick(ctx: &mut Context<'_>) -> Flow<NoExit> {
     match action {
         Action::Ask => resources::query_effects(thread, &NAMES, crate::vostok::forest_glow_on_loaded_entry()),
         Action::Show(kept) => {
-            let legs = Legs { forest: glow(&player), copies: player.passive_copies() };
+            let legs = Legs { forest: glow(&player), quarters: Quarters::seen_in(&player), copies: player.passive_copies() };
             for (effect, kept) in EFFECTS.into_iter().zip(kept) {
                 if effect.shown(legs) && !player.plays_effect(kept) {
                     player.hold_effect(kept);
@@ -266,7 +299,7 @@ mod tests {
             Kind::Lifebone => (0, 0),
             Kind::Onyx => (4, 0),
         });
-        let legs = Legs { forest: Glow::Off, copies };
+        let legs = Legs { forest: Glow::Off, quarters: Quarters::Shown, copies };
         let lit: std::vec::Vec<_> = EFFECTS.into_iter().filter(|effect| effect.shown(legs)).collect();
         assert_eq!(lit, [
             LegEffect::Quarter { kind: Kind::Spring, nth: 1 },
@@ -276,8 +309,18 @@ mod tests {
             LegEffect::Quarter { kind: Kind::Onyx, nth: 3 },
             LegEffect::Quarter { kind: Kind::Onyx, nth: 4 },
         ]);
-        let none = Legs { forest: Glow::On, copies: Copies::default() };
+        let none = Legs { forest: Glow::On, quarters: Quarters::Shown, copies: Copies::default() };
+        let hidden = Legs { forest: Glow::On, quarters: Quarters::Hidden, copies };
+        assert_eq!(EFFECTS.into_iter().filter(|effect| effect.shown(hidden)).collect::<std::vec::Vec<_>>(), [LegEffect::Forest]);
         assert_eq!(EFFECTS.into_iter().filter(|effect| effect.shown(none)).collect::<std::vec::Vec<_>>(), [LegEffect::Forest]);
+    }
+
+    #[test]
+    fn quarters_show_to_knowledge_of_artifacts_or_without_a_local_player() {
+        assert_eq!(Quarters::of(None), Quarters::Shown);
+        assert_eq!(Quarters::of(Some(1.05)), Quarters::Shown);
+        assert_eq!(Quarters::of(Some(1.25)), Quarters::Shown);
+        assert_eq!(Quarters::of(Some(1.0)), Quarters::Hidden);
     }
 
     #[test]
