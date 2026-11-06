@@ -790,6 +790,7 @@ mod tests {
             "/hazard/zone_pools",
             "/heal/amounts",
             "/heal/drug_stops",
+            "/kin/drop_fall",
             "/kin/fix_floor",
             "/kin/jump_snap",
             "/kin/pitch_scale",

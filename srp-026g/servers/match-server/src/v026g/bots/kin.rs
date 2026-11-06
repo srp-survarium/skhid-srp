@@ -285,7 +285,7 @@ impl Default for Kinematics {
             wall_slide: WallSlide::Round,
             jump_snap: JumpSnap::ByKeys,
             edge: Edge::Client,
-            drop_fall: DropFall::Gravity,
+            drop_fall: DropFall::Client,
             open_edge_cost: 0.0,
             walk_off_landing: WalkOffLanding::BySpeed,
             margin_edge: MarginEdge::Body,
