@@ -98,6 +98,12 @@ pub struct Kinematics {
     /// cell over walk links and stalled at the face of each one up (the pass's 324-pair bench: missed jumps 11 -> 29, at bridges
     /// up 0.45-0.75 m). ON with `grid.client_controller` (A313 bench4: no guard FAIL); OFF: as it was.
     pub walk_bridges: bool,
+    /// [A318] Whether a jump pressed is reckoned as the client's ([`crate::v026g::bots::jump_arc`]): the jump clip's root rise and
+    /// travel, the 1 m/s air control, the grid's floors for the capsule's walls and landings, the end at the clip's end. OFF: the
+    /// snap onto a leap link the step crosses within [`crate::v026g::bots::body::JUMP_AIR_MS`] (`body::jumped_to`). Why: the
+    /// drift lab's jump-key worlds (f1d92378, 605 = 0.451 points of the 4.03 %) are 59 % a floor apart after the jump (the model
+    /// up a ledge the client missed, or the reverse) and the rest a distance in the air (the model walked on at the keys' speed).
+    pub jump_arc: bool,
 }
 
 /// [A313] The terms of the client's movement speed factor `F = max(0, 1 + S4)` the reckoned body moves by
@@ -288,6 +294,7 @@ impl Default for Kinematics {
             slope_speed: SlopeSpeed::RampsGrade,
             ramp_min_deg: 35.0,
             walk_bridges: true,
+            jump_arc: false,
             speed_terms: SpeedTerms::Legs,
         }
     }

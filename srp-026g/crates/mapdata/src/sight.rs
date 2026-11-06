@@ -521,6 +521,44 @@ impl RayTree {
         best
     }
 
+    /// Whether a triangle's bounding box meets the box from `min` to `max` (inclusive): a coarse test, true near geometry
+    /// that rays may still miss, false only where there is nothing at all (so rays there can be skipped).
+    pub fn any_in_box(&self, min: Vec3, max: Vec3) -> bool {
+        if self.nodes.is_empty() {
+            return false;
+        }
+        let overlaps = |lo: Vec3, hi: Vec3| {
+            lo.x <= max.x && hi.x >= min.x && lo.y <= max.y && hi.y >= min.y && lo.z <= max.z && hi.z >= min.z
+        };
+        let mut stack = [0u32; STACK];
+        let mut top = 1;
+        while top > 0 {
+            top -= 1;
+            let index = stack[top] as usize;
+            let node = &self.nodes[index];
+            if !overlaps(node.min, node.max) {
+                continue;
+            }
+            if node.count > 0 {
+                let first = node.first_or_right as usize;
+                if self.triangles[first..first + node.count as usize].iter().any(|tri| {
+                    let (b, c) = (tri.a + tri.e1, tri.a + tri.e2);
+                    overlaps(
+                        Vec3::new(tri.a.x.min(b.x).min(c.x), tri.a.y.min(b.y).min(c.y), tri.a.z.min(b.z).min(c.z)),
+                        Vec3::new(tri.a.x.max(b.x).max(c.x), tri.a.y.max(b.y).max(c.y), tri.a.z.max(b.z).max(c.z)),
+                    )
+                }) {
+                    return true;
+                }
+            } else if top + 2 <= STACK {
+                stack[top] = index as u32 + 1;
+                stack[top + 1] = node.right() as u32;
+                top += 2;
+            }
+        }
+        false
+    }
+
     /// [`Self::visible`] by testing every triangle (for tests).
     #[doc(hidden)]
     pub fn visible_every_triangle(&self, a: Vec3, b: Vec3) -> bool {
@@ -785,6 +823,17 @@ mod tests {
         let t = tree.ray_cast(eye, Vec3::new(0.0, 0.0, 1.0), 100.0).unwrap();
         assert!((t - 5.0).abs() < 1e-5);
         assert_eq!(tree.ray_cast(eye, Vec3::new(0.0, 0.0, 1.0), 4.0), None);
+    }
+
+    /// A box meets the wall's triangles only where the wall is.
+    #[test]
+    fn a_box_query_finds_the_wall_only_where_it_is() {
+        let tree = RayTree::from_corners(wall());
+        assert!(tree.any_in_box(Vec3::new(-0.2, 0.5, -0.1), Vec3::new(0.2, 0.8, 0.1)));
+        assert!(!tree.any_in_box(Vec3::new(-0.2, 0.5, 0.2), Vec3::new(0.2, 0.8, 0.6)));
+        assert!(!tree.any_in_box(Vec3::new(1.5, 0.5, -0.1), Vec3::new(2.0, 0.8, 0.1)));
+        assert!(!tree.any_in_box(Vec3::new(-0.2, 2.5, -0.1), Vec3::new(0.2, 3.0, 0.1)));
+        assert!(!RayTree::from_corners([]).any_in_box(Vec3::new(-1.0, -1.0, -1.0), Vec3::new(1.0, 1.0, 1.0)));
     }
 
     /// The build gives the same tree every time, and the digest is pinned
