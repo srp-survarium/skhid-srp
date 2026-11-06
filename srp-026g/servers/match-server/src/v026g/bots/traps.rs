@@ -2573,7 +2573,7 @@ pub mod tally {
         pressed_air: u32,
         called_away: u32,
         /// Looks given up, by the last [`Why`] ([`Why::index`]), and with nothing to name.
-        gave_up: [u32; 6],
+        gave_up: [u32; Why::ALL.len()],
         gave_up_unjudged: u32,
     }
 
