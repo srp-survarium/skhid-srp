@@ -11,9 +11,10 @@
 //! data; `SRP_BENCH_TUNING`: the tuning patch (the server's file); `SRP_A304_HUMANS`: the human places (default `0`);
 //! `SRP_A304_OUT`: the CSV written, one row a world of a bot life after its first. Ignored; it prints a summary.
 //! `SRP_A304_TICKS` (with `SRP_A304_ROWS` and `SRP_A304_REC`) [A325]: the reckoning tick by tick over chosen intervals, for the
-//! first-divergence classifier against the reference body (the client's movement code on the same keys). `SRP_A304_BUILT=<dir>` [A325]:
-//! the world through the server's map store and its built files, so a run with the same grid rules reads the grid back instead of
-//! building it (`SRP_A304_SLOPE` needs the meshes the store drops: not with it).
+//! first-divergence classifier against the reference body (the client's movement code on the same keys). The world is the live one:
+//! built through the server's map store (which drops the map's meshes, as live); `SRP_A304_BUILT=<dir>` [A325] adds the store's built
+//! files, so a run with the same grid rules reads the grid back instead of building it. `SRP_A304_WORLD=meshes` (or `SRP_A304_SLOPE`,
+//! which needs the walker triangles) builds the old test world that keeps the meshes instead: not the live world.
 
 use std::collections::HashMap;
 use std::sync::Arc;
@@ -62,13 +63,17 @@ fn drift_on_a_real_match() {
     // `SRP_A304_BUILT=<dir>` [A325, the fast case bench]: the world through the server's own map store and its built files (grid,
     // sight tree, tactics keyed by the map file and the grid rules, `maps::read_or_build`): a run whose grid rules are the last
     // run's reads the grid back in seconds; only a grid-rule change builds it again (and writes it for the next run).
-    let world = match var("SRP_A304_BUILT") {
-        Some(built) => {
+    // The world is the LIVE one by default: the map store builds it as the server does (and drops the map's meshes after the grid and
+    // the sight tree, as live: a rule that read the walker triangles would find none here either), with or without built files. Only
+    // `SRP_A304_WORLD=meshes` (and `SRP_A304_SLOPE`, which needs the walker triangles) builds the old test world that keeps them.
+    let meshes = var("SRP_A304_WORLD").as_deref() == Some("meshes") || var("SRP_A304_SLOPE").is_some();
+    let world = match (meshes, var("SRP_A304_BUILT")) {
+        (false, built) => {
             let maps = super::super::maps::Maps::configured_for(
                 Some(std::path::PathBuf::from(&dir)),
                 1,
                 1,
-                Some(std::path::PathBuf::from(built)),
+                built.map(std::path::PathBuf::from),
                 tuning.grid.clone(),
                 tuning.needs_wall_clearance(),
                 tuning.needs_open_sides(),
@@ -81,7 +86,7 @@ fn drift_on_a_real_match() {
                 }
             }
         }
-        None => {
+        (true, _) => {
             let file = std::path::Path::new(&dir).join(mapdata::format::file_name(&project));
             let map = mapdata::MapData::read(&file).unwrap_or_else(|e| panic!("{}: {e}", file.display()));
             Arc::new(World::build_with(
