@@ -24,6 +24,7 @@ use std::collections::HashMap;
 use std::sync::Arc;
 
 use mapdata::controller::Collision;
+use mapdata::controller::speed::{self, Gait, Heading, Stance};
 use mapdata::controller::tick::{Controller, Settings};
 use mapdata::{Vec3, World};
 
@@ -94,6 +95,7 @@ fn reference_replay() {
     // `SRP_A325_REPLAY_START=1`: the keys mode starts from the clip stack the keys before B leave (else one layer at full weight).
     let replay_start = var("SRP_A325_REPLAY_START").is_some();
     let yaw_before = var("SRP_A325_YAW_BEFORE").is_some();
+    let speed_cap = var("SRP_A325_CAP").is_some();
     let mut last_level: HashMap<usize, f32> = HashMap::new();
     // `SRP_A325_WORLD_BLEND=k`: the velocity kept in the world frame, each tick k of the way toward the intended (a turn does not
     // swing the momentum round with the yaw at once). A hypothesis test, not a client rule.
@@ -265,7 +267,20 @@ fn reference_replay() {
                 }
                 let drop = layers.len() - keep;
                 layers.drain(..drop);
-                super::super::kin::to_world([sum[0] * level, sum[1] * level], kyaw)
+                let mut local = [sum[0] * level, sum[1] * level];
+                // `SRP_A325_CAP=1`: `set_physics_controller_walk_vector` 0x2D9060 caps the flat step at `max_speed` 0x2DC010:
+                // the sprint's forward speed 5.0 x F while the sprint state is on (its initialize 0x336A10 sets the controller's
+                // +0x204, finalize 0x336A50 clears it), else the walk's 3.5 x F (mapdata::controller::speed::cap). So a released
+                // sprint drops to the walk cap on its own tick while the clip blend still carries the sprint's speed.
+                if speed_cap {
+                    let gait = if sprint_input(keys_in(k)) { Gait::Sprint } else { Gait::Move { stance: Stance::Stand, heading: Heading::Forward, aiming: false } };
+                    let cap = speed::cap(gait, level);
+                    let len = local[0].hypot(local[1]);
+                    if len > cap {
+                        local = [local[0] * cap / len, local[1] * cap / len];
+                    }
+                }
+                super::super::kin::to_world(local, kyaw)
             });
             let v = if let Some(v) = v_keys {
                 v
@@ -365,7 +380,13 @@ fn reference_replay() {
 }
 
 /// The keys a movement clip depends on: the moves, aim, crouch, sprint.
-const CLIP_KEYS: u32 = key::FORWARD | key::BACK | key::LEFT | key::RIGHT | key::AIM | key::CROUCH | key::SPRINT;
+const CLIP_KEYS: u32 = key::FORWARD | key::BACK | key::LEFT | key::RIGHT | key::AIM | key::CROUCH | key::SPRINT | key::FIRE;
+
+/// `player_input::is_sprinting` 0x2F1220 (sprint_jump_re FINDINGS §1.3, PROVEN): sprint and forward, none of back, fire,
+/// crouch (strafe allowed). `can_sprint` 0x2DBF40's other gates (aim key, weapon idle, stamina, stagger, legs) are not here.
+fn sprint_input(keys: u32) -> bool {
+    keys & (key::SPRINT | key::FORWARD) == key::SPRINT | key::FORWARD && keys & (key::BACK | key::FIRE | key::CROUCH) == 0
+}
 
 /// The client's movement clip for a key mask, as a body-frame velocity `[forward, left]` m/s, from the game data only:
 /// - the direction (0x2D6510's mapping: F, F+R, R, B+R, B, B+L, L, F+L; F+B or none = standing);
@@ -389,7 +410,7 @@ fn key_clip(keys: u32) -> Local {
         return [0.0, 0.0];
     }
     let (crouch, aim) = (keys & key::CROUCH != 0, keys & key::AIM != 0);
-    if keys & key::SPRINT != 0 && fwd && side == 0.0 && !crouch && !aim {
+    if sprint_input(keys) && side == 0.0 && !aim {
         return [5.455 * 5.0 / 5.5, 0.0];
     }
     // (root speed, desired, default) by class: forward-ish, back-ish, pure side.
