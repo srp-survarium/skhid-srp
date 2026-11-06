@@ -173,7 +173,7 @@ package survarium.controls
       
       // wide enough for the empty box's hint, its "+" examples whole in every language (owner
       // 2026-11-06), the grid's width nearly: scripts/item-search/check.sh measures every language
-      private static const SEARCH_WIDE:Number = 2.1;
+      private static const SEARCH_WIDE:Number = 1.75;
       
       private static const SEARCH_GROW:int = 4;
       

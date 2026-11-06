@@ -38,8 +38,8 @@ Code, in `flash/lobby_menu/src` ([lobby-source.md](lobby-source.md)):
   - centred on the list;
   - the grid is 40 px shorter for that row, and the fade at its foot moves up with it.
 - **What it looks like:**
-  - the friends window's name box, 2.1 times as wide and 4 px taller with a 4 px bigger font
-    (about the item grid's width; 1.25 times until 2026-11-06, widened for the hint), with a
+  - the friends window's name box, 1.75 times as wide and 4 px taller with a 4 px bigger font
+    (1.25 times until 2026-11-06, widened for the hint, 2.1 until the hint became four words), with a
     magnifier at its right (drawn: the friends search's is part of its window's art). No × (owner
     2026-10-22): Esc empties it;
   - when empty and without the keys, it shows the syntax itself (owner 2026-11-06: the tip alone
