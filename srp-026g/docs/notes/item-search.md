@@ -61,18 +61,23 @@ Code, in `flash/lobby_menu/src` ([lobby-source.md](lobby-source.md)):
   | --- | --- |
   | `+pocket +scavenger` | a bonus and a faction, both at once |
   | `+ammo +pocket` | has each bonus named |
-  | every bonus | `+ammo +slot +pocket +artifact +weight +stamina +aim +recoil +reload +armor +regen +xp …` |
+  | every bonus | the items' bonus words, the most items first: `+ammo +pocket +slot +artifact …` |
   | `+10 +11` | of any of these levels |
   | `+army` | sold by that faction (several: any) |
   | `ak 74` | in the name, typos forgiven |
   | `+helmet +boots` | any of these kinds |
-  | every kind | `+gear +items +helmet +mask +body +rig +gloves +pants +boots` |
+  | every kind | the items' kind words: `+gear +helmet +body +rig +boots …` |
 
   - **The lists** (owner 2026-11-06: "there should be a list of +slot +artifact too, this is not
-    obvious"): every bonus word and every kind word, made from the search's own tables
-    (`SEARCH_BONUSES`, `SEARCH_KINDS`: each row's first word, once, in the table's order, the most
-    searched first), so a new word shows by itself; wrapped in the right column (at least 400 px).
-    The English words, as they work in every language. Only the rows' labels are dictionary keys.
+    obvious"; "many return nothing and as such should not be mentioned"): the words of what the
+    items have, made from the shop's and the inventory's items when they come (not as one types):
+    - a word for each bonus some item has (the modifications a "+" word reads: rolled, built-in,
+      the defaults, no defect), its `SEARCH_BONUSES` row's first word, once; the most items first
+      (an item in the shop and the inventory counts twice), ties in the table's order;
+    - each kind some item is (its `SEARCH_KINDS` row's first word), in the table's order;
+    - a bonus or kind no item has still matches; it is not listed. A list with no word is no row.
+    - wrapped in the right column (at least 400 px); the English words, as they work in every
+      language; only the rows' labels are dictionary keys.
   - **Two columns** (owner 2026-11-06: "it could have been aligned way better"): the examples on
     the left, the meanings on the right, all starting at one x; no colons; the same gap between
     rows, the padding the same on every side. Each cell is a text field of the tooltip's own font,
@@ -167,7 +172,8 @@ levels, kinds, factions, bonuses and the name's words (`SearchQuery`).
 - **Checked** by `scripts/item-search/check.sh <lobby_menu.swf>` (Ruffle, the movie's own list):
   the rules above; in every language the hint on one line in the box (its two greys), each of its
   and the tip's examples finding what they name, the Armor bonus by its card name a bonus, not a
-  kind; the tip's rows, lists, place and columns.
+  kind; the tip's rows, its lists (only what the fixture's items have, in the counts' order),
+  place and columns.
 
 ## Closing, Esc, Enter, the other keys
 

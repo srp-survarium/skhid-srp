@@ -207,9 +207,9 @@ package survarium.controls
       // A "+" word naming a kind of item (owner 2026-11-06; a plain word until then, 2026-10-22), or
       // its start from 3 letters on: [the words, the category, or with group the super category].
       // The words of every language match, whatever the game's language (search words, not texts
-      // shown: they are not in the dictionaries). The tip lists each row's first word. No word that
-      // starts a bonus's name (armor, armour, páncél, panssari: the Armor bonus; a "+" word names a
-      // kind before a bonus, searchQuery).
+      // shown: they are not in the dictionaries). The tip lists the first word of each kind some
+      // item is (listSearchWords). No word that starts a bonus's name (armor, armour, páncél,
+      // panssari: the Armor bonus; a "+" word names a kind before a bonus, searchQuery).
       private static const SEARCH_KIND_LEAST:int = 3;
       
       private static const SEARCH_KINDS:Array = [
@@ -230,8 +230,8 @@ package survarium.controls
       // language) or by these English words, whatever the game's language (owner 2026-11-06: the
       // words players use): [the property id (gameplay/static_game_parameters ui_properties), its
       // words: the one players type first, then its English name and others]. Every property a
-      // modification has. The tip lists each row's first word, in this order (the most searched
-      // first), once (owner 2026-11-06: "there should be a list of +slot +artifact too").
+      // modification has. The tip lists the first word of each row some item has (listSearchWords;
+      // ties in this order, the most searched first).
       private static const SEARCH_BONUSES:Array = [
          [20,"ammo bags pouches ammunition"],[10,"slot item slots device"],
          [117,"pocket capacity pockets"],[9,"artifact artefact container"],[15,"weight"],
@@ -295,7 +295,7 @@ package survarium.controls
 
       // While the box is empty, the game's tooltip over the box and its magnifier, just above the
       // box: what the search takes, a row each (SEARCH_TIP: <key>_example and <key>, two columns),
-      // with every bonus word and every kind word (plusList) under their rows.
+      // with the bonus and kind words the items have (listSearchWords) under their rows.
       // Off the list once something is typed (showSearchTip).
       private var _searchTip:Sprite;
 
@@ -661,6 +661,7 @@ package survarium.controls
          var seller:int = sellersTabPage.selectedIndex != -1 ? (sellersTabPage.dataProvider[sellersTabPage.selectedIndex].faction_id) : Faction.NONE;
          var item:ItemData;
          this.ApplyInventoryFilter(supper,inventoryTabPage.selectedIndex,seller,filterOptions);
+         this.listSearchWords();
       }
       
       public function lockControls(value:Boolean) : void
@@ -1435,6 +1436,7 @@ package survarium.controls
          var victory_screen:*;
          this.ApplyInventoryFilter(supper,inventoryTabPage.selectedIndex,sellersTabPage.dataProvider[sellersTabPage.selectedIndex].faction_id,filterOptions);
          dispatchEvent(new Event(Event.CHANGE));
+         this.listSearchWords();
          if((parent))
          {
             victory_screen = parent["victory_screen"];
@@ -2306,21 +2308,7 @@ package survarium.controls
          // the hint: the word at the hint's grey, the syntax's examples dimmer (owner 2026-11-06)
          this._searchBox.defaultText = LocalizationData.getName("st_srp_inventory_search");
          this._searchBox.defaultTextMore = ": " + LocalizationData.getName("st_srp_inventory_search_examples");
-         // name: the renderer's own text (TextTipRenderer.invalidateData), none beside the rows
-         var rows:Array = SEARCH_TIP.map(function(key:String, i:int, a:Array):Array
-         {
-            return [LocalizationData.getName(key + "_example"),LocalizationData.getName(key)];
-         });
-         // every bonus word under the bonus row, every kind's under the kind row (wrapped)
-         rows.splice(SEARCH_TIP.indexOf("st_srp_inventory_search_tip_kind") + 1,0,[LocalizationData.getName("st_srp_inventory_search_tip_kind_list"),plusList(SEARCH_KINDS,function(kind:Object):String
-         {
-            return kind.words[0];
-         }),true]);
-         rows.splice(SEARCH_TIP.indexOf("st_srp_inventory_search_tip_bonus") + 1,0,[LocalizationData.getName("st_srp_inventory_search_tip_bonus_list"),plusList(SEARCH_BONUSES,function(row:Array):String
-         {
-            return row[1];
-         }),true]);
-         this._searchTipArea.tipData = {name:"",rows:rows};
+         this.fillSearchTip();
          this._ownedToggle.tipData = {name:LocalizationData.getName("st_srp_shop_not_owned_hint")};
          this.placeOwnedToggle();
       }
@@ -2811,20 +2799,107 @@ package survarium.controls
          return k.group != null ? item.superCategory == k.group : item.category == k.category;
       }
 
-      // The tip's lists (owner 2026-11-06: "this is not obvious"): each SEARCH_BONUSES row's
-      // first word, or each SEARCH_KINDS row's, once, with its "+".
-      private static function plusList(rows:Array, first:Function) : String
+      // The tip's lists from the list's own items (owner 2026-11-06: "many return nothing and as
+      // such should not be mentioned"): a word for each bonus some shop or inventory item has (the
+      // modifications searchAdmits reads: rolled, built-in, no defect; its SEARCH_BONUSES row's
+      // first word, once), the most items first, ties in the table's order; and each kind some item
+      // is (its SEARCH_KINDS row's first word), in the table's order. Made when the items come
+      // (setupShopItems, setupInventoryData), not as the player types. A bonus or kind no item has
+      // still matches; it is not listed.
+      private function listSearchWords() : void
       {
-         var words:Array = [];
-         for each(var row:* in rows)
+         var wordOf:Object = {};
+         var order:Array = [];
+         for each(var row:Array in SEARCH_BONUSES)
          {
-            var word:String = "+" + String(first(row)).split(" ")[0];
-            if(words.indexOf(word) == -1)
+            var first:String = String(row[1]).split(" ")[0];
+            wordOf[row[0]] = first;
+            if(order.indexOf(first) == -1)
             {
-               words.push(word);
+               order.push(first);
             }
          }
-         return words.join(" ");
+         var counts:Object = {};
+         var kinds:Array = [];
+         for each(var items:Array in [this._shopItems,this._inventoryItems])
+         {
+            for each(var item:Object in items != null ? items : [])
+            {
+               var has:Object = {};
+               for each(var modifier:Object in item.modifiers is Array ? item.modifiers : [])
+               {
+                  if(modifier.state == ModificationState.DEFECT)
+                  {
+                     continue;
+                  }
+                  for each(var prop:Object in modifier.props)
+                  {
+                     if(wordOf[prop.prop_id] != null)
+                     {
+                        has[wordOf[prop.prop_id]] = true;
+                     }
+                  }
+               }
+               for(var word:String in has)
+               {
+                  counts[word] = int(counts[word]) + 1;
+               }
+               for(var k:int = 0; k < SEARCH_KINDS.length; k++)
+               {
+                  if(kinds.indexOf(k) == -1 && isKind(k,item))
+                  {
+                     kinds.push(k);
+                  }
+               }
+            }
+         }
+         var bonuses:Array = order.filter(function(w:String, i:int, a:Array):Boolean
+         {
+            return counts[w] > 0;
+         });
+         bonuses.sort(function(a:String, b:String):int
+         {
+            return counts[a] != counts[b] ? counts[b] - counts[a] : order.indexOf(a) - order.indexOf(b);
+         });
+         kinds.sort(Array.NUMERIC);
+         _searchBonusWords = bonuses.map(function(w:String, i:int, a:Array):String
+         {
+            return "+" + w;
+         }).join(" ");
+         _searchKindWords = kinds.map(function(kind:int, i:int, a:Array):String
+         {
+            return "+" + SEARCH_KINDS[kind].words[0];
+         }).join(" ");
+         this.fillSearchTip();
+      }
+
+      // the tip's lists (listSearchWords): "+word +word …"; "" until the items come
+      private var _searchBonusWords:String = "";
+
+      private var _searchKindWords:String = "";
+
+      // The tip's rows (SEARCH_TIP), with the lists (listSearchWords) wrapped under the bonus row
+      // and the kind row, each when it has a word.
+      private function fillSearchTip() : void
+      {
+         if(this._searchTipArea == null)
+         {
+            return;
+         }
+         var rows:Array = SEARCH_TIP.map(function(key:String, i:int, a:Array):Array
+         {
+            return [LocalizationData.getName(key + "_example"),LocalizationData.getName(key)];
+         });
+         if(this._searchKindWords != "")
+         {
+            rows.splice(SEARCH_TIP.indexOf("st_srp_inventory_search_tip_kind") + 1,0,[LocalizationData.getName("st_srp_inventory_search_tip_kind_list"),this._searchKindWords,true]);
+         }
+         if(this._searchBonusWords != "")
+         {
+            rows.splice(SEARCH_TIP.indexOf("st_srp_inventory_search_tip_bonus") + 1,0,[LocalizationData.getName("st_srp_inventory_search_tip_bonus_list"),this._searchBonusWords,true]);
+         }
+         // name: the renderer's own text (TextTipRenderer.invalidateData), none beside the rows
+         this._searchTipArea.tipData = {name:"",rows:rows};
       }
       
       // The words typed as the search compares them; null when there are none.
