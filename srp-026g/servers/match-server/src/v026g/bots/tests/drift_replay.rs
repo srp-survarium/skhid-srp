@@ -131,7 +131,9 @@ fn drift_on_a_real_match() {
     for w in rows {
         while k < ticks.len() && ticks[k].0 <= w.time + WORLD_LATE_MS {
             let (time, place, keys, turn) = ticks[k];
-            tracks.entry(place).or_default().decided(time, keys, turn, 0.0, &kin, grid);
+            let track = tracks.entry(place).or_default();
+            track.set_walls(grid.is_some().then(|| world.sight.clone()));
+            track.decided(time, keys, turn, 0.0, &kin, grid);
             k += 1;
         }
         let track = tracks.entry(w.place).or_default();

@@ -28,8 +28,9 @@
 //! world's. A human's kick is not known: 0.
 
 use std::collections::VecDeque;
+use std::sync::Arc;
 
-use mapdata::{LinkKind, NodeId, Vec3, WalkGrid};
+use mapdata::{LinkKind, NodeId, RayTree, Vec3, WalkGrid};
 use survarium::v026g::match_msgs::TICK_MS;
 
 use super::jump_arc::{ArcStep, JumpArc};
@@ -158,7 +159,7 @@ pub fn stays_up(at: &Estimate, keys: u32, turn: f32, stop: &Stop) -> bool {
     for k in 0..kin.blend_ticks + hold + 2 {
         // The keys count a tick more than the model's one-tick lag (the game may take them at once).
         let (held, turn) = if k < hold { (keys, if k == 0 { turn } else { 0.0 }) } else { (keys & !MOVE_KEYS, 0.0) };
-        at = advance(at, Tick { time: at.time + TICK_MS, keys: held, turn: (turn, 0.0), kick: 0.0, jump: JumpGate::Open }, kin, level, Some(grid));
+        at = advance(at, Tick { time: at.time + TICK_MS, keys: held, turn: (turn, 0.0), kick: 0.0, jump: JumpGate::Open }, kin, level, Some(grid), None);
         // A fall that lands where the route drops is the route's.
         let falls = |feet: Vec3| top - feet.y >= mapdata::grid::LIP_DROP_M && !planned.iter().any(|landing| landing.distance_xz(feet) <= PLANNED_LANDING_M);
         if falls(at.feet) {
@@ -311,6 +312,8 @@ pub struct BodyTrack {
     legs: Option<f32>,
     /// [A318] Whether the next press goes ([`Self::set_may_jump`]).
     jump_gate: JumpGate,
+    /// [A318] The map's walls a jump in the air is held by ([`Self::set_walls`]; none: the grid's floors alone).
+    walls: Option<Arc<RayTree>>,
     /// The lives the worlds showed, the present one counted.
     lives: u32,
     /// Where the body was last reckoned alive, and which life that was:
@@ -385,6 +388,13 @@ impl BodyTrack {
         self.jump_gate = JumpGate::of(may);
     }
 
+    /// [A318] The map's walls a jump in the air is held by (`kin.jump_arc`): its sight tree, kept from the first world on.
+    pub fn set_walls(&mut self, walls: Option<Arc<RayTree>>) {
+        if self.walls.is_none() {
+            self.walls = walls;
+        }
+    }
+
     /// The speed level the body is moved at: this life's from a world, else
     /// its profile's, else the nominal 1; times the legs' term.
     pub fn level(&self) -> f32 {
@@ -427,7 +437,7 @@ impl BodyTrack {
             kick: estimate.kick,
             jump: JumpGate::Open,
         };
-        Some(advance(estimate, tick, kin, self.level(), grid))
+        Some(advance(estimate, tick, kin, self.level(), grid, self.walls.as_deref()))
     }
 
     /// Where the body is, or was last reckoned alive, and in which of its
@@ -476,7 +486,7 @@ impl BodyTrack {
         let level = self.level();
         if let Some(estimate) = self.estimate.as_mut() {
             let held;
-            (*estimate, held) = advance_held(*estimate, tick, kin, level, grid);
+            (*estimate, held) = advance_held(*estimate, tick, kin, level, grid, self.walls.as_deref());
             self.trail.push_back(Reckoned { time, feet: estimate.feet, held });
             while self
                 .trail
@@ -644,7 +654,7 @@ impl BodyTrack {
         // The ticks after the world's, again from where the world has it.
         for tick in self.ticks.iter().filter(|tick| tick.time > fix.time) {
             let held;
-            (estimate, held) = advance_held(estimate, *tick, kin, level, grid);
+            (estimate, held) = advance_held(estimate, *tick, kin, level, grid, self.walls.as_deref());
             self.trail.push_back(Reckoned { time: tick.time, feet: estimate.feet, held });
         }
         // A world newer than every decided tick: the body is as it shows.
@@ -716,9 +726,16 @@ impl BodyTrack {
 /// [`advance`], and whether the walk grid held the body on that tick ([`Reckoned::held`]): the keys it moved by meant a move
 /// ([`Kinematics::target_local`]) and the reckoning ends the tick at rest, which only a slide stopped short does (a blend from rest
 /// toward a move is under way after its first tick).
-fn advance_held(at: Estimate, tick: Tick, kin: &Kinematics, level: f32, grid: Option<&WalkGrid>) -> (Estimate, bool) {
+fn advance_held(
+    at: Estimate,
+    tick: Tick,
+    kin: &Kinematics,
+    level: f32,
+    grid: Option<&WalkGrid>,
+    walls: Option<&RayTree>,
+) -> (Estimate, bool) {
     let meant = kin.target_local(at.keys, level);
-    let next = advance(at, tick, kin, level, grid);
+    let next = advance(at, tick, kin, level, grid, walls);
     let held = grid.is_some() && meant[0].hypot(meant[1]) > 1e-3 && next.velocity == [0.0, 0.0];
     (next, held)
 }
@@ -733,6 +750,7 @@ fn advance(
     kin: &Kinematics,
     level: f32,
     grid: Option<&WalkGrid>,
+    walls: Option<&RayTree>,
 ) -> Estimate {
     let steps = (tick.time.saturating_sub(at.time) / TICK_MS).max(1);
     let target = kin.target_local(at.keys, level);
@@ -741,7 +759,7 @@ fn advance(
         // [A318] The client's jump: the clip's arc moves the body, the blend ticks on under it so the landing resumes from the
         // client's mix (fx-zones' `kin.mixer`).
         if let (Some(mut arc), Some(grid), Some(node)) = (at.arc, grid, at.node) {
-            let out = arc.step(grid, at.feet, at.yaw, at.keys, at.time + step * TICK_MS);
+            let out = arc.step(grid, walls, at.feet, at.yaw, at.keys, at.time + step * TICK_MS);
             at.arc = Some(arc);
             match out {
                 ArcStep::Ground(travel) => {

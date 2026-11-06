@@ -924,6 +924,7 @@ impl Tracker {
         state.last_input = Some(time);
         let pressed = keys & !state.keys;
         state.keys = keys;
+        state.body.set_walls(world.map(|world| world.sight.clone()));
         state
             .body
             .decided(time, keys, turn, kick, kin, world.map(|world| &*world.grid));
@@ -1299,6 +1300,7 @@ impl Tracker {
         if let Some(health) = health {
             state.health = health;
         }
+        state.body.set_walls(world.map(|world| world.sight.clone()));
         state.body.fixed(fix, kin, world.map(|world| &*world.grid))
     }
 
