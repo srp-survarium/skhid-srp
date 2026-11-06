@@ -376,6 +376,13 @@ impl Default for Blend {
 impl Blend {
     /// The velocity now: each layer from the top takes its ramp's share of what the layers above leave.
     pub fn now(&self, ticks: u32) -> Local {
+        // Two layers: the blend from the first to the second, in the arithmetic the frozen blend always had (its numbers stay
+        // bit for bit what they were).
+        if self.len == 2 {
+            let (from, to) = (self.layers[0].local, self.layers[1].local);
+            let t = if ticks == 0 { 1.0 } else { (self.layers[1].step as f32 / ticks as f32).min(1.0) };
+            return [from[0] + (to[0] - from[0]) * t, from[1] + (to[1] - from[1]) * t];
+        }
         let mut v = [0.0f32; 2];
         let mut rest = 1.0f32;
         for (i, layer) in self.layers[..self.len].iter().enumerate().rev() {
@@ -410,7 +417,10 @@ impl Blend {
         for layer in &mut self.layers[..self.len] {
             layer.step = layer.step.saturating_add(1);
         }
-        // A layer at full weight hides all the layers under it.
+        // A layer at full weight hides all the layers under it (the frozen blend keeps its two, as it always did).
+        if mixer == Mixer::Frozen {
+            return self.now(ticks);
+        }
         if let Some(top) = (0..self.len).rev().find(|&i| ticks == 0 || self.layers[i].step >= ticks) {
             self.layers.copy_within(top..self.len, 0);
             self.len -= top;
