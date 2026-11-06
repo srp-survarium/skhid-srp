@@ -204,7 +204,7 @@ struct Tick {
     jump: JumpGate,
 }
 
-/// [A318] The map's walls for a jump in the air ([`BodyTrack::set_walls`]): its sight tree, shared.
+/// [A318] The map's walls for a jump in the air ([`BodyTrack::set_walls`]): its walker mesh's rays, shared.
 #[derive(Clone)]
 struct Walls(Arc<RayTree>);
 
@@ -398,7 +398,7 @@ impl BodyTrack {
         self.jump_gate = JumpGate::of(may);
     }
 
-    /// [A318] The map's walls a jump in the air is held by (`kin.jump_arc`): its sight tree, kept from the first world on.
+    /// [A318] The map's walls a jump in the air is held by (`kin.jump_arc`): its walker mesh's rays, kept from the first world on.
     pub fn set_walls(&mut self, walls: Option<Arc<RayTree>>) {
         if self.walls.is_none() {
             self.walls = walls.map(Walls);

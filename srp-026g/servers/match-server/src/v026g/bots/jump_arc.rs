@@ -14,9 +14,10 @@
 //!   (`step_jump_down` 0x7D0F0).
 //! - The jump ends at the clip's end (`jump_logic_state_landing::initialize` 0x3440E0 calls `end_jump` 0x7F050).
 //!
-//! The reckoning has no capsule sweeps at run time: a wall is a ray of the map's sight tree (the bullet mesh; the stand-in casts
-//! on the walker mesh, LIKELY close) at [`AIR_RAYS`] within the move and the body's radius, or a floor within the radius above
-//! the arc's feet by more than [`CATCH_M`] and under its head; the arc lands on the highest floor under its feet on the way down.
+//! The reckoning has no capsule sweeps at run time: a wall is a ray of the map's walker mesh (`World::walker_tree`, as the stand-in
+//! casts; the bullet mesh misses walls the body bumps into) at [`AIR_RAYS`] within the move and the body's radius, or a floor
+//! within the radius above the arc's feet by more than [`CATCH_M`] and under its head; the arc lands on the highest floor under
+//! its feet on the way down.
 //! LIKELY: the sprint jump's leg (the right leg's clip rises 1.350 m, the left's 1.282 m: the left's is taken), the short jump's
 //! time scale 1, and the 0.1 m catch (the capsule's lower sphere on a lip). Also LIKELY: the clip's root alone from the press;
 //! the jump's animation lexeme is blended in over 0.3 s (the builder at 0x343CCF), so the client's first ~6 ticks mix the clip's
