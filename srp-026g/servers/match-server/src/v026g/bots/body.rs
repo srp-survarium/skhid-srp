@@ -243,6 +243,11 @@ struct Reckoned {
     velocity: [f32; 2],
 }
 
+thread_local! {
+    /// PROBE (A325): the last step's intended ground velocity (before the grid's slide stopped it).
+    static LAST_INTENT: std::cell::Cell<[f32; 2]> = const { std::cell::Cell::new([0.0, 0.0]) };
+}
+
 /// The decided ticks from the world before to the last one of a life (A302: what the drift line reports of them).
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub struct Interval {
@@ -451,7 +456,7 @@ impl BodyTrack {
         if let Some(estimate) = self.estimate.as_mut() {
             let held;
             (*estimate, held) = advance_held(*estimate, tick, kin, level, grid);
-            self.trail.push_back(Reckoned { time, feet: estimate.feet, held, velocity: estimate.velocity });
+            self.trail.push_back(Reckoned { time, feet: estimate.feet, held, velocity: LAST_INTENT.with(|c| c.get()) });
             while self
                 .trail
                 .front()
@@ -617,7 +622,7 @@ impl BodyTrack {
         for tick in self.ticks.iter().filter(|tick| tick.time > fix.time) {
             let held;
             (estimate, held) = advance_held(estimate, *tick, kin, level, grid);
-            self.trail.push_back(Reckoned { time: tick.time, feet: estimate.feet, held, velocity: estimate.velocity });
+            self.trail.push_back(Reckoned { time: tick.time, feet: estimate.feet, held, velocity: LAST_INTENT.with(|c| c.get()) });
         }
         // A world newer than every decided tick: the body is as it shows.
         self.estimate = Some(estimate);
@@ -692,6 +697,7 @@ fn advance(
     for step in 1..=steps {
         let local = at.blend.tick_mixed(target, kin.blend_ticks, kin.mixer);
         at.velocity = to_world(local, at.yaw);
+        LAST_INTENT.with(|c| c.set(at.velocity));
         let to = Vec3::new(
             at.feet.x + at.velocity[0] * TICK_S,
             at.feet.y,
