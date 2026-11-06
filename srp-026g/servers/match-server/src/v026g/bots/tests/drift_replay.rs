@@ -10,6 +10,11 @@
 //! `SRP_A304_WORLDS`, `SRP_A304_INPUTS`: the tables; `SRP_A304_MAP`: the project (`level_08/day_2`); `SRP_MAPDATA_DIR`: the map
 //! data; `SRP_BENCH_TUNING`: the tuning patch (the server's file); `SRP_A304_HUMANS`: the human places (default `0`);
 //! `SRP_A304_OUT`: the CSV written, one row a world of a bot life after its first. Ignored; it prints a summary.
+//! `SRP_A304_TICKS` (with `SRP_A304_ROWS` and `SRP_A304_REC`) [A325]: the reckoning tick by tick over chosen intervals, for the
+//! first-divergence classifier against the reference body (the client's movement code on the same keys). The world is the live one:
+//! built through the server's map store (which drops the map's meshes, as live); `SRP_A304_BUILT=<dir>` [A325] adds the store's built
+//! files, so a run with the same grid rules reads the grid back instead of building it. `SRP_A304_WORLD=meshes` (or `SRP_A304_SLOPE`,
+//! which needs the walker triangles) builds the old test world that keeps the meshes instead: not the live world.
 
 use std::collections::HashMap;
 use std::sync::Arc;
@@ -54,16 +59,47 @@ fn drift_on_a_real_match() {
     let humans: Vec<usize> = var("SRP_A304_HUMANS").unwrap_or_else(|| "0".into()).split(',').filter_map(|p| p.parse().ok()).collect();
     let tuning = bench_tuning();
     let kin = tuning.kin.clone();
-    let file = std::path::Path::new(&dir).join(mapdata::format::file_name(&project));
-    let map = mapdata::MapData::read(&file).unwrap_or_else(|e| panic!("{}: {e}", file.display()));
-    let world = Arc::new(World::build_with(
-        map,
-        mapdata::CELL,
-        tuning.grid_body(),
-        tuning.off_mesh_links(),
-        tuning.needs_wall_clearance(),
-        tuning.needs_open_sides(),
-    ));
+    let loading = std::time::Instant::now();
+    // `SRP_A304_BUILT=<dir>` [A325, the fast case bench]: the world through the server's own map store and its built files (grid,
+    // sight tree, tactics keyed by the map file and the grid rules, `maps::read_or_build`): a run whose grid rules are the last
+    // run's reads the grid back in seconds; only a grid-rule change builds it again (and writes it for the next run).
+    // The world is the LIVE one by default: the map store builds it as the server does (and drops the map's meshes after the grid and
+    // the sight tree, as live: a rule that read the walker triangles would find none here either), with or without built files. Only
+    // `SRP_A304_WORLD=meshes` (and `SRP_A304_SLOPE`, which needs the walker triangles) builds the old test world that keeps them.
+    let meshes = var("SRP_A304_WORLD").as_deref() == Some("meshes") || var("SRP_A304_SLOPE").is_some();
+    let world = match (meshes, var("SRP_A304_BUILT")) {
+        (false, built) => {
+            let maps = super::super::maps::Maps::configured_for(
+                Some(std::path::PathBuf::from(&dir)),
+                1,
+                1,
+                built.map(std::path::PathBuf::from),
+                tuning.grid.clone(),
+                tuning.needs_wall_clearance(),
+                tuning.needs_open_sides(),
+            );
+            loop {
+                match maps.get(&project) {
+                    super::super::maps::MapState::Ready(base) => break base.world.clone(),
+                    super::super::maps::MapState::Absent(why) => panic!("{project}: {why}"),
+                    _ => std::thread::sleep(std::time::Duration::from_millis(20)),
+                }
+            }
+        }
+        (true, _) => {
+            let file = std::path::Path::new(&dir).join(mapdata::format::file_name(&project));
+            let map = mapdata::MapData::read(&file).unwrap_or_else(|e| panic!("{}: {e}", file.display()));
+            Arc::new(World::build_with(
+                map,
+                mapdata::CELL,
+                tuning.grid_body(),
+                tuning.off_mesh_links(),
+                tuning.needs_wall_clearance(),
+                tuning.needs_open_sides(),
+            ))
+        }
+    };
+    eprintln!("A325 world of {project} in {:.1} s", loading.elapsed().as_secs_f32());
     // `SRP_A304_RAMP_AT=x,z;x,z`: the ramp marks (`grid.ramp_faces`) of the floors within 2 m of each point, then nothing else.
     if let Some(points) = var("SRP_A304_RAMP_AT") {
         let g = &*world.grid;
@@ -149,6 +185,26 @@ fn drift_on_a_real_match() {
         Some((it.next()?? as usize, it.next()??, it.next()??))
     });
     let mut hold_kinds: HashMap<&str, u32> = HashMap::new();
+    // `SRP_A304_TICKS=<csv>` [A325, the first-divergence classifier]: the reckoning tick by tick over each interval of the windows of
+    // `SRP_A304_ROWS` (lines `rec,place,t0,t1[,note]`, the rows of this recording `SRP_A304_REC`; every interval without it): the state
+    // after each decided tick, joined with the reference body's (the client's movement code on the same keys) by (place, world_t, tick).
+    let windows: Option<Vec<(usize, u32, u32)>> = var("SRP_A304_ROWS").map(|path| {
+        let rec = var("SRP_A304_REC").unwrap_or_default();
+        std::fs::read_to_string(&path)
+            .unwrap_or_else(|e| panic!("{path}: {e}"))
+            .lines()
+            .filter_map(|line| {
+                let f: Vec<&str> = line.split(',').map(str::trim).collect();
+                (f.len() >= 4 && f[0] == rec).then_some(())?;
+                Some((f[1].parse().ok()?, f[2].parse().ok()?, f[3].parse().ok()?))
+            })
+            .collect()
+    });
+    let ticks_out = var("SRP_A304_TICKS");
+    // Columns: rec (`SRP_A304_REC`), the feet and the velocity over the tick, the grid node within 0.5 m (-1 none), its floor height
+    // (empty for none) and whether the grid held the step. The intended velocity is the reference's (`ivx,ivz`: the same kin both sides).
+    let tick_rec = var("SRP_A304_REC").unwrap_or_default();
+    let mut tick_rows = String::from("rec,place,world_t,tick,t,x,y,z,vx,vy,vz,node,floor_y,held\n");
     for w in rows {
         while k < ticks.len() && ticks[k].0 <= w.time + WORLD_LATE_MS {
             let (time, place, keys, turn) = ticks[k];
@@ -181,6 +237,33 @@ fn drift_on_a_real_match() {
         let track = tracks.entry(w.place).or_default();
         let before = track.fix().filter(|f| f.alive && f.inserted == w.fix.inserted).and_then(|f| f.feet);
         let reckoned = track.reckoned_at(w.time);
+        // [A325] The interval's ticks, before this world puts the track right.
+        if let (Some(_), Some(start), Some(was)) = (&ticks_out, before, track.fix().map(|f| f.time)) {
+            let wanted = windows.as_ref().is_none_or(|ws| ws.iter().any(|&(p, t0, t1)| p == w.place && (t0..=t1).contains(&w.time)));
+            if wanted {
+                let mut last = (was, start);
+                for (i, (t, feet, held)) in track.trail_between(was, w.time).into_iter().enumerate() {
+                    let dt = (t.saturating_sub(last.0)).max(1) as f32 / 1000.0;
+                    let v = (feet - last.1) * (1.0 / dt);
+                    let located = world.grid.locate(feet, 0.5);
+                    let node = located.map_or(-1, i64::from);
+                    let floor_y = located.map_or(String::new(), |n| format!("{:.3}", world.grid.position(n).y));
+                    tick_rows.push_str(&format!(
+                        "{tick_rec},{},{was},{},{t},{:.3},{:.3},{:.3},{:.3},{:.3},{:.3},{node},{floor_y},{}\n",
+                        w.place,
+                        i + 1,
+                        feet.x,
+                        feet.y,
+                        feet.z,
+                        v.x,
+                        v.y,
+                        v.z,
+                        u8::from(held)
+                    ));
+                    last = (t, feet);
+                }
+            }
+        }
         let feet = w.fix.feet;
         let speed = w.fix.speed;
         let new_life = track.fixed(w.fix, &kin, grid);
@@ -307,6 +390,9 @@ fn drift_on_a_real_match() {
     eprintln!(
         "A318 cost {project}: {nj} jumping ticks, decided us mean {mj:.1} p99 {pj:.1}; {no} other ticks mean {mo:.1} p99 {po:.1}"
     );
+    if let Some(path) = &ticks_out {
+        std::fs::write(path, tick_rows).unwrap_or_else(|e| panic!("{path}: {e}"));
+    }
     eprintln!(
         "A304 replay {project}: {n} worlds of bots compared, {over} drifting (1 m+), {:.1} %",
         100.0 * over as f64 / n.max(1) as f64
