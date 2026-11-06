@@ -154,7 +154,9 @@ pub struct GridTuning {
     /// [A318] Whether the floors the erosion rounds took beside a wall the body clears are given back in the maps' walk grids
     /// (`mapdata::Body::wall_give_back`): the exact pass keeps them, a wall face stands within 0.6 m, and the client's walk tick
     /// stands a body there (A318: the rounds took the floor under the client in 376 of the drift lab's grid holds, the exact
-    /// pass alone keeps 346). OFF until benched. A grid is the map's (see `gap_links`).
+    /// pass alone keeps 346). Client-proven (the walk tick stands the body there), so ON and kept by `all_off` (the owner,
+    /// 2026-11-05: correctness fixes go in). The reach guard keeps it from opening regions no player reaches. A grid is the
+    /// map's (see `gap_links`).
     pub wall_give_back: bool,
 }
 
@@ -183,7 +185,7 @@ impl Default for GridTuning {
             drop_room_walk_faces: true,
             narrow_doors: true,
             drop_check: true,
-            wall_give_back: false,
+            wall_give_back: true,
         }
     }
 }
