@@ -2528,6 +2528,33 @@ st_srp_matches_starting	старт
 st_srp_matches_title	Матчы
 st_srp_matches_versus	на
 st_srp_matches_waiting	чаканне
+st_srp_medical_301_description	Дадаецца да абароны ад болю і працягласці дзеяння абязбольвальнага:
+st_srp_medical_301_name	Моцнае абязбольвальнае
+st_srp_medical_302_description	Скарачэнне часу выкарыстання аптэчак і бінтоў:
+st_srp_medical_302_name	Хуткая перавязка
+st_srp_medical_303_description	Пакуль дзейнічае абязбольвальнае, зніжэнне выдаткаў энергіі на спрынт:
+st_srp_medical_303_name	Анямелыя ногі
+st_srp_medical_311_description	Аднаўленне здароўя пачынаецца на столькі секунд раней:
+st_srp_medical_311_name	Метабалізм
+st_srp_medical_312_description	Бонус да здароўя, якое аднаўляюць аптэчкі і бінты:
+st_srp_medical_312_name	Медыцынская падрыхтоўка
+st_srp_medical_313_description	Бонус да здароўя, якое аднаўляюць аптэчкі і бінты, у прысядзе:
+st_srp_medical_313_name	У сховішча
+st_srp_medical_321_description	Бонус да хуткасці руху пры здароўі ніжэй за 30:
+st_srp_medical_321_name	Адрэналін
+st_srp_medical_322_description	Кожная кішэня з лекамі змяшчае на адзін прадмет больш.
+st_srp_medical_322_name	Дадатковыя лекі
+st_srp_medical_323_description	Пакуль дзейнічае абязбольвальнае, зніжэнне спыняльнай сілы варожых трапленняў:
+st_srp_medical_323_name	Непахісны
+st_srp_medical_331_description	Замяняе слот дадатковай зброі дадатковай кішэняй для прыпасаў.
+st_srp_medical_331_name	Кішэня для прыпасаў
+st_srp_medical_332_description	Бонус да максімальнага здароўя рук і ног:
+st_srp_medical_332_name	Моцныя косці
+st_srp_medical_333_description	Пакуль дзейнічае абязбольвальнае, гукі наваколля цішэйшыя, а гукі ворагаў (акрамя стрэлаў) гучнейшыя на:
+st_srp_medical_333_name	Канцэнтрацыя
+st_srp_medical_342_description	Зніжэнне шкоды ад саюзнікаў:
+st_srp_medical_342_name	Браты па зброі
+st_srp_medical_seconds	 с
 st_srp_medicine_ambient_sounds	Гукі наваколля
 st_srp_medicine_crouched_healing	Лячэнне ў прысядзе
 st_srp_medicine_enemy_sounds	Гукі ворагаў

@@ -2528,6 +2528,33 @@ st_srp_matches_starting	indul
 st_srp_matches_title	Meccsek
 st_srp_matches_versus	vs
 st_srp_matches_waiting	várakozás
+st_srp_medical_301_description	Hozzáadódik a fájdalomcsillapító fájdalom elleni védelméhez és hatásidejéhez:
+st_srp_medical_301_name	Erős fájdalomcsillapító
+st_srp_medical_302_description	Az elsősegélycsomagok és kötszerek használati idejének csökkenése:
+st_srp_medical_302_name	Gyors kötözés
+st_srp_medical_303_description	Fájdalomcsillapító hatása alatt a sprintelés állóképesség-fogyasztásának csökkenése:
+st_srp_medical_303_name	Zsibbadt lábak
+st_srp_medical_311_description	Az életerő regenerálódása ennyi másodperccel korábban kezdődik:
+st_srp_medical_311_name	Anyagcsere
+st_srp_medical_312_description	Az elsősegélycsomagok és kötszerek által visszaállított életerő bónusza:
+st_srp_medical_312_name	Egészségügyi képzés
+st_srp_medical_313_description	Az elsősegélycsomagok és kötszerek által visszaállított életerő bónusza guggolás közben:
+st_srp_medical_313_name	Fedezékbe
+st_srp_medical_321_description	Mozgási sebesség bónusza 30 alatti életerőnél:
+st_srp_medical_321_name	Adrenalin
+st_srp_medical_322_description	Minden gyógyszert tartalmazó zsebben eggyel több tárgy fér el.
+st_srp_medical_322_name	Több gyógyszer
+st_srp_medical_323_description	Fájdalomcsillapító hatása alatt az ellenséges találatok megállítóerejének csökkenése:
+st_srp_medical_323_name	Rendíthetetlen
+st_srp_medical_331_description	A másodlagos fegyver helyét egy további felszerelészsebre cseréli.
+st_srp_medical_331_name	Felszerelészseb
+st_srp_medical_332_description	A karok és lábak maximális életerejének bónusza:
+st_srp_medical_332_name	Erős csontok
+st_srp_medical_333_description	Fájdalomcsillapító hatása alatt a környezet hangjai halkabbak, az ellenség hangjai (a lövések kivételével) hangosabbak:
+st_srp_medical_333_name	Összpontosítás
+st_srp_medical_342_description	A szövetségesektől kapott sebzés csökkenése:
+st_srp_medical_342_name	Fegyvertársak
+st_srp_medical_seconds	 mp
 st_srp_medicine_ambient_sounds	Környezet hangjai
 st_srp_medicine_crouched_healing	Gyógyulás guggolva
 st_srp_medicine_enemy_sounds	Ellenség hangjai
