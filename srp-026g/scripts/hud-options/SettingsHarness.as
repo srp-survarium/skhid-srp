@@ -928,8 +928,11 @@ package
             // the panel as drawn: its frame (the tab round the button joined to it: the panel from its own top,
             // the button's bottom), less the half pixel its border adds on each side (a checkbox's empty room
             // may reach further, unseen)
-            var bounds:Rectangle = panel.getChildAt(1).getBounds(content.stage); // its hit rectangle: the panel's own
-            var tabAt:Rectangle = panel.getChildAt(0).getChildAt(1).getBounds(content.stage); // its frame
+            var bounds:Rectangle = panel.getChildByName("_srp_vulkan_hit").getBounds(content.stage);
+            var tabAt:Rectangle = c.getChildByName("_srp_vulkan_frame").getChildAt(1).getBounds(content.stage);
+            // the popup takes presses on its rectangle only; its art lies in the tab, under the button
+            require(!panel.mouseEnabled && c.getChildIndex(c.getChildByName("_srp_vulkan_frame")) < c.getChildIndex(row),
+                "Vulkan options: the popup takes no press but on its rectangle, its frame under the button");
             bounds.inflate(-0.5, -0.5);
             bounds.top = panel.localToGlobal(new Point(0, 0)).y + 0.5;
             var rowBounds:Rectangle = row.getBounds(content.stage);
@@ -1035,32 +1038,52 @@ package
             graphicsTab(settings, "1", "1");
             hudTexts(root);
             require(!settings.btn_accept.enabled && list.selectedIndex == 1 && row.enabled, "Vulkan options: the texts' check left nothing pending");
-            // presses: in the panel and on its open list keep it, outside closes it
-            controls[2].dispatchEvent(new MouseEvent(MouseEvent.MOUSE_DOWN, true));
+            // presses, decided by where they land, the panel container their target (what the game sends: a press
+            // anywhere over the popup has it): in the panel's rectangle and on its open list it stays, on the
+            // button it closes (and that press's own click opens nothing), anywhere else it closes
+            var pressAt:Function = function(target:*, x:Number, y:Number):void {
+                var local:* = target.globalToLocal(new Point(x, y));
+                target.dispatchEvent(new MouseEvent(MouseEvent.MOUSE_DOWN, true, false, local.x, local.y));
+            };
+            var spot:Rectangle = controls[2].getBounds(content.stage);
+            pressAt(panel, spot.left + 8, spot.top + 8);
             require(panel.stage != null, "Vulkan options: a press in the panel keeps it");
             controls[0].open();
             var open:DisplayObject = openList(content.stage);
             require(open != null, "Vulkan options: the frame rate list opens");
-            open.dispatchEvent(new MouseEvent(MouseEvent.MOUSE_DOWN, true));
+            spot = open.getBounds(content.stage);
+            pressAt(open, spot.left + 10, spot.bottom - 6);
             require(panel.stage != null, "Vulkan options: a press on the panel's open list keeps the panel");
             controls[0].close();
-            c.slider_gamma.dispatchEvent(new MouseEvent(MouseEvent.MOUSE_DOWN, true));
+            var onButton:Rectangle = row.getBounds(content.stage);
+            pressAt(panel, onButton.left + onButton.width / 2, onButton.top + onButton.height / 2);
+            require(panel.stage == null, "Vulkan options: a press on the button, the panel its target, closes the panel");
+            click(row);
+            require(panel.stage == null, "Vulkan options: that press's own click opens nothing");
+            click(row);
+            require(panel.stage != null, "Vulkan options: the next click of the button opens it");
+            pressAt(panel, onButton.right + 12, onButton.top + onButton.height / 2);
+            require(panel.stage == null, "Vulkan options: a press right of the button (the tab's frame, the panel its "
+                + "target) closes the panel");
+            click(row);
+            require(panel.stage != null, "Vulkan options: a click of the button after it opens it");
+            pressAt(c.slider_gamma, c.slider_gamma.getBounds(content.stage).left + 5, c.slider_gamma.getBounds(content.stage).bottom - 5);
             require(panel.stage == null, "Vulkan options: a press outside closes the panel");
             click(row);
-            // the button keeps its pointer and its held frames through its own roll-out and roll-over (states it
-            // draws on the stage's render); a press on it is no outside press, its own click closes the panel
+            // the button keeps its pointer and its held frames through its own roll-out (a state it draws on the
+            // stage's render)
             row.dispatchEvent(new MouseEvent(MouseEvent.ROLL_OUT));
             row.validateNow();
             row.dispatchEvent(new Event(Event.RENDER));
             require(panel.stage != null && row.mouseEnabled && row.currentLabel == "down",
                 "Vulkan options: the button held down while open, its roll-out too (" + row.currentLabel + ")");
-            row.dispatchEvent(new MouseEvent(MouseEvent.MOUSE_DOWN, true, false, row.width / 2, row.height / 2));
-            require(panel.stage != null, "Vulkan options: a press on the button is no press outside");
+            // the button's own press (its target the button): closed by it, its click opening nothing
+            pressAt(row, onButton.left + onButton.width / 2, onButton.top + onButton.height / 2);
             click(row);
             row.validateNow();
             require(panel.stage == null && row.mouseEnabled && arrow.scaleY > 0 && row.currentLabel != "down",
-                "Vulkan options: the button's own press closes it again, the button back (" + row.currentLabel + "), its "
-                + "arrow down");
+                "Vulkan options: the button's own press closes it, its click opening nothing, the button back ("
+                + row.currentLabel + "), its arrow down");
             // Esc (MainMenu's key handler asks Settings.closePanel first; a test player's stage takes no
             // key event dispatched to it): the panel closes, the window stays; with no panel open nothing
             click(row);

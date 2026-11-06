@@ -61,8 +61,13 @@ package
         // background art where it lies under the panel; its shadow on the tab under it.
         private var frame:Shape;
         private var shadow:Shape;
-        // The panel's own rectangle, under its controls: where a press is the panel's.
-        private var hit:Shape;
+        // The panel's art (its shadow, frame and surface): in the tab right under the button (so nothing of the
+        // panel lies over the button), shown while the panel is open, taking no presses.
+        private var art:Sprite;
+        // The panel's own rectangle, under its controls: the one part of the popup a press lands on.
+        private var hit:Sprite;
+        // A press on the button closed the panel: that press's own click is not a new open.
+        private var swallow:Boolean = false;
         // The window's border, outside in: its light line, then its dark band.
         private static const EDGE_LIGHT:uint = 0x585A5D;
         private static const EDGE_DARK:Array = [0x1A1A18, 0x131311, 0x0B0B0B];
@@ -112,18 +117,20 @@ package
             panel.name = "_srp_vulkan_panel";
             // the shadow under everything, taking no press: its outline is filled (hidden by its knock-out) over
             // the button too, and a press there is the button's
-            // the panel's art (its shadow, frame and surface) takes no presses: the outline is filled over the button
-            // too, and its frame's bands are rings (one fill of two outlines), which hit tests need not take as
-            // drawn; a plain rectangle over the panel (`hit`, all but transparent: a fill of alpha 0 is not hit) is
-            // what a press on the panel lands on
-            var art:Sprite = new Sprite();
+            // The popup is the panel's rectangle (`hit`, all but transparent: a fill of alpha 0 is not hit) and its
+            // controls, the popup itself taking no press. Its art lies in the tab under the button: a press on the
+            // button is the button's whatever Scaleform makes of the art (a child that takes no press still gives
+            // its parent a hit where it is drawn), and over the column rows it is the tab's, an outside press.
+            panel.mouseEnabled = false;
+            art = new Sprite();
+            art.name = "_srp_vulkan_frame";
             art.mouseEnabled = art.mouseChildren = false;
             shadow = new Shape();
             art.addChild(shadow);
             frame = new Shape();
             art.addChild(frame);
-            panel.addChild(art);
-            hit = new Shape();
+            hit = new Sprite();
+            hit.name = "_srp_vulkan_hit";
             panel.addChild(hit);
             // the controls one Sprite under the panel (press routing: memory note, the lobby's rooms)
             body = new Sprite();
@@ -313,8 +320,8 @@ package
             var stage:Stage = panel.stage;
             stage.removeEventListener(MouseEvent.MOUSE_DOWN, onStagePress);
             button.removeEventListener(Event.RENDER, hold);
-            button.removeEventListener(Event.ENTER_FRAME, hold);
             panel.parent.removeChild(panel);
+            art.parent.removeChild(art);
             // the button as the pointer leaves it: its state's frame now (a state the button set while it was held
             // is drawn first), then over or up
             button.validateNow();
@@ -329,55 +336,55 @@ package
         // (hold).
         private function onPress(event:Event):void
         {
-            log("button click: open " + open + ", enabled " + button.enabled + ", frame " + button.currentFrame);
+            log("button click: open " + open + ", enabled " + button.enabled + ", frame " + button.currentFrame
+                + (swallow ? ", the closing press's own: no open" : ""));
+            if (swallow)
+            {
+                swallow = false;
+                return;
+            }
             if (close() || !button.enabled)
             {
                 return;
             }
             log("open");
             PopUpManager.show(panel, panelX, button.y + button.height, button.parent);
+            content.addChildAt(art, content.getChildIndex(button));
+            art.x = panelX;
+            art.y = button.y + button.height;
             // as the stock lists find a press outside them (DropdownMenu.handleStageClick): the stage's
             // MOUSE_DOWN
             panel.stage.addEventListener(MouseEvent.MOUSE_DOWN, onStagePress);
             // after the button's own state changes (its roll-over and roll-out, which it draws on the stage's
             // render), the held frames again
             button.addEventListener(Event.RENDER, hold, false, -1);
-            button.addEventListener(Event.ENTER_FRAME, hold);
-            downFrame = 0;
-            holds = 0;
             hold(null);
             arrow.scaleY = -Math.abs(arrow.scaleY);
             draw();
             log("opened: button frame " + button.currentFrame + " (" + button.currentLabel + ")");
         }
 
-        // The "down" frames' first (found the first time the button goes there while open; 0 until then): the
-        // frames up to the next state's (every state of the button has ten).
-        private var downFrame:int = 0;
-        // Holds logged while open (the first twenty).
-        private var holds:int = 0;
-
-        // The button held pressed while the panel is open: its "down" frames, whatever state it drew. By frame
-        // number, not label (a frame inside a labelled run need not tell its label).
+        // The button held pressed while the panel is open: its "down" frames again after each state it draws.
         private function hold(event:Event):void
         {
-            if (downFrame > 0 && button.currentFrame >= downFrame && button.currentFrame < downFrame + 10)
+            if (button.currentLabel != "down")
             {
-                return;
+                var was:int = button.currentFrame;
+                button.validateNow();
+                button.gotoAndPlay("down");
+                log("hold: button frame " + was + " to " + button.currentFrame);
             }
-            var was:int = button.currentFrame;
-            button.validateNow();
-            button.gotoAndPlay("down");
-            if (downFrame == 0)
-            {
-                downFrame = button.currentFrame;
-            }
-            if (++holds <= 20) log("hold: button frame " + was + " to " + button.currentFrame + (event != null ? " on " + event.type : ""));
         }
 
         // The button's pointer events, logged (the path of a press in the game).
         private function onButtonMouse(event:MouseEvent):void
         {
+            // a new press on the button: no click of an earlier one is left to swallow (the stage's own handler,
+            // after this one, sets it again when this press closes the panel)
+            if (event.type == MouseEvent.MOUSE_DOWN)
+            {
+                swallow = false;
+            }
             log("button " + event.type + " target " + path(event.target as DisplayObject) + " at " + event.stageX + ","
                 + event.stageY + ", open " + open + ", frame " + button.currentFrame);
         }
@@ -399,29 +406,24 @@ package
             SrpExe.log("vulkan: " + text);
         }
 
-        // A press on the stage: outside the panel and the button, it closes the panel. Where the press lands
-        // counts, not only what Scaleform makes its target (it may give a container): the panel's frame (its
-        // surface and border) or the button under the point, or a target in either, is no outside press (the
-        // button's own click toggles it). While a list of the panel is open, a press is the list's (its own
-        // handler closes it).
+        // A press on the stage while the panel is open, decided by where it lands only (Scaleform's target may be
+        // any container over it): in the panel's rectangle (its lists open inside it) the panel stays; on the
+        // button it closes, and that press's own click of the button (Ruffle gives it; the game may not) opens
+        // nothing; anywhere else it closes.
         private function onStagePress(event:MouseEvent):void
         {
-            var target:DisplayObject = event.target as DisplayObject;
-            var onPanel:Boolean = hit.hitTestPoint(event.stageX, event.stageY, true);
-            var onButton:Boolean = button.hitTestPoint(event.stageX, event.stageY, true);
-            var inside:Boolean = target != null && (panel.contains(target) || button.contains(target));
-            var lists:Boolean = false;
-            for (var i:int = 0; i < LISTS; i++)
-            {
-                lists = lists || DropdownMenu(controls[NAMES[i]]).selected;
-            }
-            log("stage down target " + path(target) + " at " + event.stageX + "," + event.stageY + ": on panel " + onPanel
-                + ", on button " + onButton + ", target inside " + inside + ", a list open " + lists);
-            if (onPanel || onButton || inside || lists)
+            var at:Point = new Point(event.stageX, event.stageY);
+            var inPanel:Point = panel.globalToLocal(at);
+            var onPanel:Boolean = inPanel.x >= 0 && inPanel.y >= 0 && inPanel.x < panelWidth && inPanel.y < panelHeight;
+            var onButton:Boolean = button.getBounds(panel.stage).containsPoint(at);
+            log("stage down target " + path(event.target as DisplayObject) + " at " + at.x + "," + at.y + ": on panel "
+                + onPanel + ", on button " + onButton);
+            if (onPanel)
             {
                 return;
             }
             close();
+            swallow = onButton;
         }
 
         // The panel's left edge in the tab's coordinates.
@@ -540,6 +542,8 @@ package
             panelHeight = height;
             if (open)
             {
+                art.x = panelX;
+                art.y = button.y + button.height;
                 draw();
             }
         }

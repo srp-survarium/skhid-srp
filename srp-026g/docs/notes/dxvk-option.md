@@ -38,22 +38,27 @@ window keeping its size.
   worse). The arrow is the Renderer box's own art (DropdownMenuSkinnedLabel's shape, masked to its
   triangle) at 1.5 times its size, over the button (beside it in the tab, since a CLIK button sizes
   itself by its children's bounds); it turns up while the panel is open and greys with the button.
-  A press opens the panel under it and a press on it again closes it, both in the button's own click
-  handler (its pointer stays on: Scaleform routes presses otherwise than Ruffle, and a button without
-  its pointer could not be pressed closed in the game, the owner 2026-11-06). While the panel is open
-  the button is held on its "down" frames: after each state it draws (roll-over, roll-out, on the
-  stage's render) the frames are set again; on closing it shows "over" or "up" as the pointer is. A
-  press outside closes the panel: a stage MOUSE_DOWN listener (the stock lists' way), outside meaning
-  neither the panel's frame nor the button under the point nor a target in them (Scaleform may make a
-  container the target); while a list of the panel is open a press is that list's. The panel's art
-  (shadow, frame, surface) takes no presses: the shadow's outline is filled over the button and the
-  frame's bands are rings (one fill of two outlines) that a hit test need not take as drawn; a plain
-  rectangle of alpha 0.01 over the panel (not the tab) is what a press on the panel lands on.
-- **Its log:** every step of the button's path goes to `srp_patches.log` as `srp: menu: vulkan: ...`
-  (the movie's `srp_log` call, which patch 83 writes; the movie's trace reaches no log in the game):
-  the button's MOUSE_DOWN, MOUSE_UP and CLICK with their target and point, its click (open or not),
-  open, close and the button's frame after, the held frames re-set (the first twenty while open), and
-  each stage press with its target and whether it lands on the panel or the button.
+  A press on the button opens the panel under it (the button's own click). While the panel is open the
+  button is held on its "down" frames: CLIK draws its state on the stage's render (in the game it went
+  back to its first frame), so after each render the frames are set again; on closing it shows "over"
+  or "up" as the pointer is. A press on the stage while it is open (a stage MOUSE_DOWN listener, the
+  stock lists' way) is decided by where it lands only, never by its target: the game's log (build
+  6b2fb5d4b) showed every press over the popup with the panel container as its target, the button
+  getting none. In the panel's rectangle (its lists open inside it) the panel stays; on the button it
+  closes, and that press's own click of the button opens nothing (Ruffle gives the click; the button's
+  next MOUSE_DOWN clears it); anywhere else it closes. Esc and a DirectX 11 pick close it too.
+- **Presses on the popup:** a child that takes no presses still gives its parent a hit where it is
+  drawn (Flash's rule, the game's too), so the popup holds only the panel's rectangle (a Sprite filled
+  at alpha 0.01, its one part a press lands on) and the controls; the popup itself takes none. The
+  panel's art (shadow, frame round the button and the panel, surface) lies in the tab right under the
+  button while open, so nothing of it is over the button: a press there is the button's, and over the
+  column rows it is the tab's, an outside press.
+- **Its log (for the owner's retest only, to be removed):** every step of the button's path goes to
+  `srp_patches.log` as `srp: menu: vulkan: ...` (the movie's `srp_log` call, which patch 83 writes; the
+  movie's trace reaches no log in the game): the button's MOUSE_DOWN, MOUSE_UP and CLICK with their
+  target and point, its click (open or not, a swallowed one), open, close and the button's frame after,
+  the held frames set again, and each stage press with its target and whether it lands on the panel or
+  the button.
 - **The panel:** a popup over the column, a little wider than it on both sides, and one piece with the
   button, a tab that drops down: the Settings window's own border (its 1 px light line, then its dark
   band) runs round the panel and round the button above it, 4 px out, the band under the button left
