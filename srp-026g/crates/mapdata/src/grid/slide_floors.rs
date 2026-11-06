@@ -55,8 +55,8 @@ pub enum Hold {
     SlidesMoving,
 }
 
-/// How a body stood at `feet` fares on the face it rests on: the standing capsule (radius 0.38 m) set [`LIFT_M`] over the feet
-/// and swept down [`PROBE_M`], as the walk tick's ground probe meets the ground (`Controller::step`), and the face met read by
+/// How a body stood at `feet` fares on the face under it: a thin probe ([`PROBE_R`]) set [`LIFT_M`] over the feet and swept
+/// down [`PROBE_M`] meets the face under the centre, and the face met is read by
 /// the client's rules ([`Settings::LIVE`]): a `walk` face is ground at any slope; a `dont_walk` face is past the walk limit (the
 /// tick tilts its normal just past it: the controller walks a body across a 20 deg one and it slides 1.1 m down in 1 s); a
 /// by-slope face past `max_slope_cos` (55 deg) is not walked (`impassable_slope`); one past `idle_max_slope_cos` (45 deg) slides
@@ -64,11 +64,13 @@ pub enum Hold {
 /// a hole is the grid's own business).
 pub fn hold_at(world: &Collision, feet: Vec3, s: &Settings) -> Hold {
     let at = out_of_walls(world, feet);
-    let cap = Capsule::standing(at + Vec3::new(0.0, LIFT_M, 0.0), 1.8, 0.38);
-    // Only a face that can be ground (the grid's floors go to 60 deg), met from above: a wall beside the capsule is not its ground
-    // (the first harm check counted walls, and cut ordinary floors along every wall: no way +650 %).
+    // The face under the stand's centre: a thin probe straight down. The body's full capsule (0.38 m) meets the top edge of a steep
+    // face beside a flat floor first (NAV-FIRST of 65882e9b: level_03 (-2.3, 2.29, -46.05) is flat under its centre, the capsule met
+    // a 58 deg face's rim, and the floor went, though the client walks there). Only a face that can be ground (the grid's floors go
+    // to 60 deg), met from above: a wall is never ground (the first harm check counted walls: no way +650 %).
+    let probe = Capsule::standing(at + Vec3::new(0.0, LIFT_M, 0.0), 2.0 * PROBE_R, PROBE_R);
     let Some(contact) = world
-        .sweep(cap, Vec3::new(0.0, -PROBE_M, 0.0), |f| f.normal.y.abs() >= STEEP_NORMAL_Y)
+        .sweep(probe, Vec3::new(0.0, -PROBE_M, 0.0), |f| f.normal.y.abs() >= STEEP_NORMAL_Y)
         .filter(|c| c.normal.y >= RESTS_ON_Y)
     else {
         return Hold::Holds;
@@ -87,6 +89,8 @@ pub fn hold_at(world: &Collision, feet: Vec3, s: &Settings) -> Hold {
 /// The capsule is set this far over the floor's feet, and swept down this far to meet its ground, m.
 pub const LIFT_M: f32 = 0.1;
 pub const PROBE_M: f32 = 0.4;
+/// The radius of the probe that finds the face under a stand's centre, m.
+pub const PROBE_R: f32 = 0.02;
 /// A contact whose normal (face to capsule) has at least this up share holds the body up: not an edge met from the side.
 pub const RESTS_ON_Y: f32 = 0.5;
 
@@ -333,7 +337,7 @@ mod spot_probe {
                     if n.y.abs() >= 0.3 {
                         let feet = Vec3::new(x, y, z);
                         let at = out_of_walls(&world, feet);
-                        let cap = Capsule::standing(at + Vec3::new(0.0, LIFT_M, 0.0), 1.8, 0.38);
+                        let cap = Capsule::standing(at + Vec3::new(0.0, LIFT_M, 0.0), 2.0 * PROBE_R, PROBE_R);
                         let met = world
                             .sweep(cap, Vec3::new(0.0, -PROBE_M, 0.0), |f| f.normal.y.abs() >= STEEP_NORMAL_Y)
                             .map(|c| (c.normal.y, world.face(c.face).normal.y, world.face(c.face).walker));
