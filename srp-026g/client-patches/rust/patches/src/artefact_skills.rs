@@ -210,6 +210,36 @@ impl Kind {
     }
 }
 
+/// A player's passive copies of each kind that count for it (artefact-skills.md, "Leg quarters"):
+/// its own carried copies giving their passive and the copies Resonance shares with it, at most
+/// [`Room::MOST`] of a kind (the sharing's own cap; own copies past it count as 4).
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub struct Copies {
+    spring: u8,
+    lifebone: u8,
+    onyx: u8,
+}
+
+impl Copies {
+    /// From each kind's (own, shared) count.
+    pub fn of(mut count: impl FnMut(Kind) -> (usize, usize)) -> Self {
+        let mut of = |kind| {
+            let (own, shared) = count(kind);
+            own.saturating_add(shared).min(usize::from(Room::MOST)) as u8
+        };
+        Self { spring: of(Kind::Spring), lifebone: of(Kind::Lifebone), onyx: of(Kind::Onyx) }
+    }
+
+    /// The copies of `kind`: 0 to 4.
+    pub fn get(self, kind: Kind) -> u8 {
+        match kind {
+            Kind::Spring => self.spring,
+            Kind::Lifebone => self.lifebone,
+            Kind::Onyx => self.onyx,
+        }
+    }
+}
+
 /// The shared copies of one kind and phase a recipient still takes (the owner, 2026-11-05: at
 /// most 4 effects of one kind in all, its own included): 4 less its own carried copies of the
 /// kind; own copies past 4 stay (native), none shared.
@@ -483,6 +513,17 @@ mod tests {
         assert_eq!((resonance.reach(Phase::Passive), resonance.reach(Phase::Active)), (Some(64.0), None));
         assert_eq!((cascade.reach(Phase::Passive), cascade.reach(Phase::Active)), (None, Some(25.0)));
         assert_eq!((both.reach(Phase::Passive), both.reach(Phase::Active)), (Some(64.0), Some(25.0)));
+    }
+
+    #[test]
+    fn copies_count_own_and_shared_up_to_four() {
+        let copies = Copies::of(|kind| match kind {
+            Kind::Spring => (1, 0),
+            Kind::Lifebone => (2, 3),
+            Kind::Onyx => (6, 0),
+        });
+        assert_eq!((copies.get(Kind::Spring), copies.get(Kind::Lifebone), copies.get(Kind::Onyx)), (1, 4, 4));
+        assert_eq!(Copies::default().get(Kind::Spring), 0);
     }
 
     #[test]

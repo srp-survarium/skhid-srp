@@ -10530,6 +10530,24 @@ impl QueryResult {
         unsafe { self.0.byte_add(0x0).cast::<Option<Inventory>>().write_volatile(value) }
     }
 
+    /// +0x0 (ptr<survarium::medical_effect_resource>): the result's resource, a game effect resource for a class 109 request (damage_zone_core_cook::process_resources reads its own result there, 0x311396)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn effect(self) -> Option<MedicalEffectResource> {
+        unsafe { self.0.byte_add(0x0).cast::<Option<MedicalEffectResource>>().read_volatile() }
+    }
+
+    /// +0x0 (ptr<survarium::medical_effect_resource>): the result's resource, a game effect resource for a class 109 request (damage_zone_core_cook::process_resources reads its own result there, 0x311396)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn set_effect(self, value: Option<MedicalEffectResource>) {
+        unsafe { self.0.byte_add(0x0).cast::<Option<MedicalEffectResource>>().write_volatile(value) }
+    }
+
     /// 0x2e0 bytes: 2E0h bytes a result
     pub const SIZE: usize = 0x2e0;
 

@@ -15,8 +15,8 @@
 //!   local visual stream writes as the pointer it is (never moved or freed):
 //!   it ends an effect at the effect's own length (Medic's shared actives);
 //! - [`kept_clock`]: the player's own calculator (+394h, its hit effects'),
-//!   for the effects of a kept resource: it ends one when the patch says
-//!   the player no longer shows it (Forest Protection's glow).
+//!   for the effects of kept resources: it ends one when the patch says the
+//!   player no longer shows it (Forest Protection's glow, the leg quarters).
 
 use core::cell::UnsafeCell;
 use core::ffi::CStr;
@@ -84,25 +84,29 @@ pub fn timed_clock(ctx: &mut Context<'_>) -> bool {
     }
 }
 
-/// The default clock's call (`medical.effect_clock`) for an effect of
-/// `kept`, which is only ever played with its player's own calculator
+/// The default clock's call (`medical.effect_clock`) for an effect of one of
+/// `kept`, which are only ever played with their player's own calculator
 /// ([`Player::hold_effect`]): ended unless `shows` says the player still
-/// shows it. False for any other effect, which goes on unchanged.
-pub fn kept_clock(ctx: &mut Context<'_>, kept: KeptEffect, shows: impl FnOnce(&Player<'_>) -> bool) -> bool {
+/// shows that one (its index in `kept`). False for any other effect, which
+/// goes on unchanged.
+pub fn kept_clock<const N: usize>(
+    ctx: &mut Context<'_>,
+    kept: &[KeptEffect; N],
+    shows: impl FnOnce(usize, &Player<'_>) -> bool,
+) -> bool {
     use raw::site::medical_effect_clock as site;
     // SAFETY: this callback receives a live effect node and output record;
-    // an effect of the kept resource is played only with a player's own
+    // an effect of a kept resource is played only with a player's own
     // calculator (+394h), so that calculator's owner is a live player (the
     // effect player ticking it is the player's +358h).
     unsafe {
         let Some(frame) = site::frame(ctx) else { return false };
         let (Some(out), Some(node)) = (frame.result(), frame.node()) else { return false };
-        if node.effect().and_then(|effect| effect.resource()) != Some(kept.0) {
-            return false;
-        }
+        let Some(resource) = node.effect().and_then(|effect| effect.resource()) else { return false };
+        let Some(index) = kept.iter().position(|kept| kept.0 == resource) else { return false };
         let Some(calculator) = site::calculator(ctx) else { return false };
         let player = Player { this: calculator.owner(), thread: ctx.thread() };
-        let ended = !shows(&player);
+        let ended = !shows(index, &player);
         answer(ctx, out, ended);
         true
     }

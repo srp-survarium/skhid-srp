@@ -1,33 +1,37 @@
 #!/usr/bin/env python3
-"""Forest Protection's glow (patch 111, rust/patches/src/forest_glow.rs;
-docs/notes/artefact-skills.md, "Forest Protection") run in the built exe.
+"""The legs' glows (patch 111, rust/patches/src/forest_glow.rs;
+docs/notes/artefact-skills.md, "Forest Protection" and "Leg quarters") run in
+the built exe.
 
     python check_forest_glow_026g.py <original survarium.exe>
 
 Requires Python `unicorn`. On the medical checks' player fixture (players
-with profiles and kits, their world core), the player's simulation tick
-(`battery.carrier_tick` 0x2DAAD3, the whole chain: the battery carrier's
-handler, then the glow's) and the default clock (0x2E5D80, Medic's handler,
-then the glow's) are run as the game runs them, with the game's own
-query_resources stubbed (recorded) and its game effect player's add
-0x2DE090 stubbed (recorded); the rest native: the boost function bind, its
-invoker (the query's callback), the modifier getter, game_effect_resource::
-emit (its emitter stubbed). It checks:
+with profiles and kits, their world core; for the quarters the artefact
+checks' match around it, with containers and Resonance carriers), the
+player's simulation tick (`battery.carrier_tick` 0x2DAAD3, the whole chain)
+and the default clock (0x2E5D80, Medic's handler, then the glow's) are run as
+the game runs them, with the game's own query_resources stubbed (recorded)
+and its game effect player's add 0x2DE090 stubbed (recorded); the rest
+native: the boost function bind, its invoker (the query's callback), the
+modifier getter, game_effect_resource::emit (its emitter stubbed). It checks:
 
-- the first tick asks for the effect once: forest_protection, class 109, one
-  request, a boost function bound to the glow's callback and tag 1; until it
-  arrives nothing plays; when it arrives one reference is taken;
-- the trigger on both kits, on two places: a tick plays the glow (emitted
-  from the kept resource, at the player's time, kind 2, the player's own
-  calculator +394h) exactly when the player is alive, inside a damage zone
-  (+2E4h 1, 0 none) and its current kit's modifier 41 is a rank or more
-  (-0.05; 0 none; the other kits' ranks never count); a player that already
-  plays it is not given another;
-- the clock: an effect of the kept resource with the player's calculator
-  goes on while the player shows the glow and ends when it is out of the
-  zone, without ranks or dead; any other effect of that calculator goes on
-  through the native calculation unchanged;
-- the effect cook gives forest_protection 20 instances (and still
+- the first tick asks for the thirteen effects once, in one query
+  (forest_protection, then artefact_leg_<spring, lifebone, onyx>_<1..4>,
+  class 109 each, no user data, tag 1); until they arrive nothing plays;
+  when they arrive one reference is taken on each;
+- Forest Protection's glow on both kits, on two places: a tick plays it
+  (emitted from the kept resource, at the player's time, kind 2, the
+  player's own calculator +394h) exactly when the player is alive, inside a
+  damage zone (+2E4h 1, 0 none) and its current kit's modifier 41 is a rank
+  or more; a player that already plays it is not given another; the
+  calculator ends it when the condition ends; any other effect of that
+  calculator goes on through the native calculation unchanged;
+- the leg quarters: own passives 0 to 4, an active Onyx (no passive), own
+  and Resonance's shared copies of a second kind, an enemy's (none) and the
+  cap of 4: a tick lights each kind's quarters 1..copies; the count dropping
+  (shared copies leaving, the carrier dying, an own copy going) and the
+  player's death end the quarters above it through the calculator;
+- the effect cook gives each effect 20 instances (and still
   artefact_lifebone 20, any other effect its own count).
 
 Says nothing about how the glow looks; the renders and the owner's test do.
@@ -52,6 +56,43 @@ CAPACITY = 0x2EC81E
 MODIFIER_41 = 0xF4 + 41 * 4  # a kit's modifier 41 in its profile (kit n at +704h x n)
 
 
+NAMES = ["forest_protection"] + [f"artefact_leg_{kind}_{n}" for kind in ("spring", "lifebone", "onyx")
+                                  for n in (1, 2, 3, 4)]
+
+
+def on_query(g, emu):
+    """query_resources stubbed: its requests (path, class), its count, its function and user data."""
+    esp = emu.reg_read(UC_X86_REG_ESP)
+    requests, count = emu.reg_read(UC_X86_REG_EAX), emu.reg_read(UC_X86_REG_ECX)
+    paths = [(bytes(emu.mem_read(g.read(requests + 8 * i), 64)).split(b"\0")[0].decode(), g.read(requests + 8 * i + 4))
+             for i in range(count)]
+    g.queries.append((paths, count, bytes(emu.mem_read(g.read(esp + 4), 0x20)), g.read(esp + 12)))
+    emu.reg_write(UC_X86_REG_EIP, g.read(esp))
+    emu.reg_write(UC_X86_REG_ESP, esp + 4)
+
+
+def asked_and_kept(g):
+    """The one query: the thirteen effects, class 109 each, tag 1, no user data; its callback
+    through the game's invoker with a resource each (results 2E0h apart): one reference kept on
+    each. The resources, in the effects' order."""
+    assert len(g.queries) == 1, g.queries
+    paths, count, function, user = g.queries[0]
+    vtable, _entry, word = struct.unpack_from("<I4xII", function)
+    assert paths == [(name, 109) for name in NAMES] and count == 13 and user == 0, g.queries
+    assert (vtable, word) == (FUNCTION_VTABLE | 1, 1)
+    resources = [g.effect_resource() for _ in NAMES]
+    results = g.block(0x12C + 0x2E0 * len(NAMES))
+    g.word(results + 0x38, len(NAMES))
+    for i, resource in enumerate(resources):
+        g.word(resource + 0xD0, 1)
+        g.word(results + 0x12C + 0x2E0 * i, resource)
+    at_function = g.block(0x20)
+    g.emu.mem_write(at_function, function)
+    g.call(INVOKER, (at_function + 8, results))
+    assert all(g.read(resource + 0xD0) == 2 for resource in resources), "each kept: one reference of its own"
+    return resources
+
+
 class Glow(MedicalGame):
     def __init__(self, data):
         super().__init__(data)
@@ -62,13 +103,7 @@ class Glow(MedicalGame):
             self.word(at + 0x394, DEFAULT_CLOCK_VT)            # the player's own calculator
 
     def on_query(self, emu, address, size, _):
-        esp = emu.reg_read(UC_X86_REG_ESP)
-        requests = emu.reg_read(UC_X86_REG_EAX)
-        path = bytes(emu.mem_read(self.read(requests), 64)).split(b"\0")[0].decode()
-        self.queries.append((path, self.read(requests + 4), emu.reg_read(UC_X86_REG_ECX),
-                             bytes(emu.mem_read(self.read(esp + 4), 0x20))))
-        emu.reg_write(UC_X86_REG_EIP, self.read(esp))
-        emu.reg_write(UC_X86_REG_ESP, esp + 4)
+        on_query(self, emu)
 
     def effect(self, emu, address, size, _):
         esp = emu.reg_read(UC_X86_REG_ESP)
@@ -118,25 +153,12 @@ def check(data):
         g.state(at, 0, 1, 1)
         g.word(at + 0x324, time)                                # the player's simulation time
 
-    # The first tick asks for the effect; nothing plays before it arrives.
+    # The first tick asks for the effects; nothing plays before they arrive.
     assert g.tick(PLAYER) == []
-    assert len(g.queries) == 1, g.queries
-    path, cls, count, function = g.queries[0]
-    vtable, _entry, word = struct.unpack_from("<I4xII", function)
-    assert (path, cls, count, vtable, word) == ("forest_protection", 109, 1, FUNCTION_VTABLE | 1, 1), g.queries
     assert g.tick(g.other) == [] and len(g.queries) == 1, "asked once"
-
-    resource = g.effect_resource()
-    g.word(resource + 0xD0, 1)
-    results = g.block(0x400)
-    g.word(results + 0x38, 1)
-    g.word(results + 0x12C, resource)
-    at_function = g.block(0x20)
-    g.emu.mem_write(at_function, function)
-    g.call(INVOKER, (at_function + 8, results))
-    assert g.read(resource + 0xD0) == 2, "the arrived resource kept: one reference of its own"
-    print("Forest glow: the effect asked once at the first tick (forest_protection, class 109, tag 1), "
-          "kept when it arrives: PASS")
+    resource = asked_and_kept(g)[0]
+    print("Forest glow: the thirteen effects asked once at the first tick (forest_protection and the "
+          "leg quarters, class 109, tag 1), each kept when they arrive: PASS")
 
     # The trigger and the clock: both kits, two places, ranks 0 and 1, zones 0 and 1, alive or dead.
     cases = 0
@@ -185,12 +207,90 @@ def check(data):
     g.word(query + 0xF8, fallback)
     g.word(query + 0xFC, 0)
     for name, initial, expected in (("forest_protection", 1, 20), ("forest_protection", 30, 30),
-                                    ("artefact_lifebone", 1, 20), ("forest_protection_x", 1, 1),
+                                    ("artefact_lifebone", 1, 20), ("artefact_leg_onyx_3", 1, 20), ("forest_protection_x", 1, 1),
                                     ("forest", 1, 1), ("artefact_onyx", 1, 1)):
         g.emu.mem_write(fallback, name.encode() + b"\0")
         g.step(CAPACITY, 5, ebx=query, esi=initial)
         assert g.emu.reg_read(UC_X86_REG_ESI) == expected, (name, initial)
-    print("Forest glow: the cook gives forest_protection 20 instances, Larkspur still 20, others their own: PASS")
+    print("Forest glow: the cook gives forest_protection and each quarter 20 instances, Larkspur still 20, others their own: PASS")
+
+
+def check_quarters(data):
+    """The leg quarters: a kind's passive copies counting for the player (its own carried ones
+    giving their passive, Resonance's shared ones, at most 4) light that many of the kind's
+    quarters, from the first; the player's calculator ends a quarter when the count drops below
+    it, and every one at death."""
+    from check_artefact_skills_026g import Match, RESONANCE, SPRING_ACTIVE, ONYX_ACTIVE_
+    m = Match(data)
+    g = m.g
+    g.queries = []
+    g.emu.hook_add(UC_HOOK_CODE, lambda emu, *_: on_query(g, emu), begin=QUERY, end=QUERY)
+    g.word(PLAYER + 0x394, DEFAULT_CLOCK_VT)
+    g.word(PLAYER + 0x324, 9000)
+    g.emu.mem_write(PLAYER + 0x2E4, b"\0")                     # no zone: no Forest Protection
+    tick = lambda: (g.step(TICK, 5, stack=[0] * 8, ebx=PLAYER), [g.read(e + 0x10) for e in g.effect_instances])
+    g.effect_instances.clear()
+    tick()
+    resources = asked_and_kept(g)
+    quarter = {(kind, n): resources[1 + 4 * k + n - 1]
+               for k, kind in enumerate(("spring", "lifebone", "onyx")) for n in (1, 2, 3, 4)}
+
+    def lit(expected):
+        """A tick with no effect playing lights exactly `expected` {kind: copies}; each quarter's
+        clock goes on for those and ends for the others."""
+        g.word(PLAYER + 0x358 + 0x2C, 0)
+        g.effect_instances.clear()
+        _, played = tick()
+        want = sorted(quarter[(kind, n)] for kind, copies in expected.items() for n in range(1, copies + 1))
+        assert sorted(played) == want, (expected, played)
+        for (kind, n), resource in quarter.items():
+            effect, node, out = g.block(0x60), g.block(0x50), g.block(12)
+            g.word(effect + 0x10, resource)
+            g.word(node, effect)
+            g.call(g.read(DEFAULT_CLOCK_VT), (out, node, 1000, 5000), ecx=PLAYER + 0x394)
+            ended = g.emu.mem_read(out + 8, 1)[0]
+            assert ended == int(n > expected.get(kind, 0)), (expected, kind, n, ended)
+
+    def slot_of(player, item):
+        inv = m.inventory(player)
+        return next(inv + 0x10C + s * 4 for s in range(13, 19) if g.read(inv + 0x10C + s * 4) == item)
+
+    # Own Onyx passives, 0 to 4; one active Onyx gives no passive (its active instead).
+    onyx = []
+    lit({})
+    for n in range(1, 5):
+        onyx.append(m.artefact(PLAYER, ONYX_ACTIVE_, 3))
+        lit({"onyx": n})
+    g.word(onyx[3] + 0x280, 4)
+    lit({"onyx": 3})
+    g.word(onyx[3] + 0x280, 3)
+    # A second kind: one own Spring and two a Resonance teammate 3 m away carries.
+    own_spring = m.artefact(PLAYER, SPRING_ACTIVE, 3)
+    carrier = m.player(1, 0, (3.0, 0.0, 0.0), RESONANCE)
+    shared = [m.artefact(carrier, SPRING_ACTIVE, 3) for _ in range(2)]
+    lit({"onyx": 4, "spring": 3})
+    # An enemy's Springs count nothing.
+    enemy = m.player(2, 1, (2.0, 0.0, 0.0), RESONANCE)
+    m.artefact(enemy, SPRING_ACTIVE, 3)
+    lit({"onyx": 4, "spring": 3})
+    # Past 4: two more shared stop at the cap (the sharing's own room).
+    shared += [m.artefact(carrier, SPRING_ACTIVE, 3) for _ in range(2)]
+    lit({"onyx": 4, "spring": 4})
+    # The count drops: the carrier's copies leave, then the carrier dies, then an own Onyx goes.
+    for item in shared[2:]:
+        g.word(slot_of(carrier, item), 0)
+    lit({"onyx": 4, "spring": 3})
+    g.emu.mem_write(carrier + 0x33C, b"\0")
+    lit({"onyx": 4, "spring": 1})
+    g.word(slot_of(PLAYER, onyx[0]), 0)
+    lit({"onyx": 3, "spring": 1})
+    # Death: nothing lit, every quarter ended.
+    g.emu.mem_write(PLAYER + 0x33C, b"\0")
+    lit({})
+    assert own_spring
+    print("Leg quarters: a kind's passive copies (own 0..4, own and Resonance's shared, two kinds, an active "
+          "Onyx, an enemy's and the cap of 4) light that many of its quarters from the first; the count "
+          "dropping and death end them through the player's calculator: PASS")
 
 
 def main():
@@ -198,6 +298,7 @@ def main():
     patched, _ = base.build(original, "section", open(base.default_bin("section"), "rb").read(), None,
                             open(base.late_join_bin(), "rb").read())
     check(patched)
+    check_quarters(patched)
 
 
 if __name__ == "__main__":

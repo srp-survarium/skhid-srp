@@ -438,7 +438,7 @@ impl Glue {
                     Told::Arrived(Arrived::Bus(_)) => Event::Frame,
                     // the music asks no game effect (the glow's own callback
                     // gets its query)
-                    Told::Arrived(Arrived::Effect(_)) => Event::Frame,
+                    Told::Arrived(Arrived::Effects(_)) => Event::Frame,
                     Told::Unload => Event::Unload,
                 };
                 let mut game = Game { thread, now, sound, bus, serial: &mut serial, query };

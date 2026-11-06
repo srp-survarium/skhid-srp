@@ -36,6 +36,13 @@ haze) grey and on the legs only:
   (the hands' strokes and the chest's rays);
 - the orange materials' grey copies, fx/artifacts/<name>_grey (the stock material with its
   constant_emissive grey, as the stock kinds differ only there), and the point light's colour grey.
+
+Version 6 adds the leg quarters (docs/notes/artefact-skills.md, "Leg quarters"; exe patch 111 plays
+them): for each kind and n in 1..4, gameplay/effects/effect_artefact_leg_<kind>_<n> (the kind's stock
+effect, `view` 2) playing fx/artifacts/human_<kind>_leg_<n>: the kind's stock glow, its own colours,
+with only quarter n's body parts on (QUARTERS: 1 the left lower leg and foot, 2 the right ones, 3
+the left thigh, 4 the right one), the emitters with none of them left out, and the point light's
+emitter (up_light) too.
 """
 import argparse
 import copy
@@ -47,7 +54,7 @@ import sys
 import zlib
 
 PACK_ID = 'artefact-glow'
-VERSION = '5'
+VERSION = '6'
 # kind -> (effect config, particle system); the stock files, by sha256.
 KINDS = {
     'lifebone': 'fx/artifacts/human_zhivokost',
@@ -75,6 +82,15 @@ BODY_PARTS = LEGS + ('BackChest', 'BackSpin', 'Face', 'FrontChest', 'FrontSpin',
                      'LeftForeArm', 'LeftHand', 'Neck', 'RightArm', 'RightForeArm', 'RightHand')
 GREY = [0.5, 0.5, 0.5, 1.0]              # the materials' emissive and the light: a neutral grey (exact in f32)
 BOTH_VIEWS = 2
+# The leg quarters (version 6): a kind's carried copies counting for a player light this many
+# quarters, in this order (lower legs first, left then right, then the thighs).
+QUARTERS = (('LeftLeg', 'LeftFoot'), ('RightLeg', 'RightFoot'), ('LeftUpLeg',), ('RightUpLeg',))
+LIGHT_EMITTER = 'up_light'
+
+
+def quarter_names(kind, n):
+    """Quarter n (1..4) of `kind`: its effect config's path and its particle system."""
+    return (f'gameplay/effects/effect_artefact_leg_{kind}_{n}.options', f'{KINDS[kind]}_leg_{n}')
 COMPOSITE, PARTICLE = 110, 114
 FIRST_PERSON = 0
 NEAR_EYES = ('Head', 'Face', 'Neck')     # the body parts at the camera: off in the twin
@@ -200,18 +216,33 @@ def first_person_particle(tree):
     return domains_off(copy.deepcopy(tree))
 
 
-def legs_only(tree):
-    """`tree` with every body part but the legs off in each animated domain."""
+def parts_only(tree, parts):
+    """`tree` with every body part but `parts` off in each animated domain."""
     t, v = tree
     if t == T_NAMED:
         kids = dict(v)
         if kids.get('particle_entity_type') == (T_STR, DOMAIN):
-            return (t, [(k, (T_NAMED, [(n, (T_BOOL, 0) if n in BODY_PARTS and n not in LEGS else c)
+            return (t, [(k, (T_NAMED, [(n, (T_BOOL, 0) if n in BODY_PARTS and n not in parts else c)
                                        for n, c in c[1]]) if k == 'properties' else c) for k, c in v])
-        return (t, [(k, legs_only(c)) for k, c in v])
+        return (t, [(k, parts_only(c, parts)) for k, c in v])
     if t == T_INDEXED:
-        return (t, [legs_only(c) for c in v])
+        return (t, [parts_only(c, parts) for c in v])
     return tree
+
+
+def emitter_name(emitter):
+    return dict(dict(emitter[1])['properties'][1])['Name'][1]
+
+
+def keep_emitters(tree, keep):
+    """`tree` with only the emitters `keep(emitter)` says (and its children_order so)."""
+    lod = dict(tree[1])['LOD 0']
+    kept = [(g, e) for g, e in dict(lod[1])['children'][1] if keep(e)]
+    names = {g for g, _ in kept}
+    order = [c for c in dict(lod[1])['children_order'][1] if c[1] in names]
+    new_lod = (T_NAMED, [(k, (T_NAMED, kept) if k == 'children' else (T_INDEXED, order) if k == 'children_order'
+                          else c) for k, c in lod[1]])
+    return (T_NAMED, [(k, new_lod if k == 'LOD 0' else c) for k, c in tree[1]])
 
 
 def domain_parts(emitter):
@@ -242,14 +273,30 @@ def greyed(tree, path=''):
 def forest_particle(stock):
     """human_forest_protection: the stock Onyx glow, grey, its legs only; the emitters with no leg
     part left out (and from children_order)."""
-    tree = greyed(legs_only(copy.deepcopy(stock)))
-    lod = dict(tree[1])['LOD 0']
-    kept = [(g, e) for g, e in dict(lod[1])['children'][1] if domain_parts(e)]
-    names = {g for g, _ in kept}
-    order = [c for c in dict(lod[1])['children_order'][1] if c[1] in names]
-    new_lod = (T_NAMED, [(k, (T_NAMED, kept) if k == 'children' else (T_INDEXED, order) if k == 'children_order'
-                          else c) for k, c in lod[1]])
-    return (T_NAMED, [(k, new_lod if k == 'LOD 0' else c) for k, c in tree[1]])
+    return keep_emitters(greyed(parts_only(copy.deepcopy(stock), LEGS)), domain_parts)
+
+
+def quarter_particle(stock, parts):
+    """A kind's leg quarter (artefact-skills.md, "Leg quarters"): the kind's stock glow, its
+    colours as they are, with only the quarter's `parts` on; the emitters with none of them left
+    out, and the point light's emitter (up_light) too: up to twelve quarters light one player."""
+    return keep_emitters(parts_only(copy.deepcopy(stock), parts),
+                         lambda e: domain_parts(e) and emitter_name(e) != LIGHT_EMITTER)
+
+
+def check_quarter(tree, stock, parts):
+    """A quarter is the stock system but for its body parts (the quarter's alone on) and the
+    emitters left out (those with none of them, and the light's): every other value the stock's."""
+    lod, stock_lod = dict(tree[1])['LOD 0'], dict(stock[1])['LOD 0']
+    emitters, stock_emitters = dict(dict(lod[1])['children'][1]), dict(dict(stock_lod[1])['children'][1])
+    dropped = {g for g, e in stock_emitters.items()
+               if not domain_parts(e) & set(parts) or emitter_name(e) == LIGHT_EMITTER}
+    assert set(emitters) == set(stock_emitters) - dropped and emitters, sorted(dropped)
+    for guid, emitter in emitters.items():
+        assert domain_parts(emitter) == domain_parts(stock_emitters[guid]) & set(parts), guid
+    for d in differences(tree, stock):
+        last = d.rsplit('/', 1)[-1]
+        assert (last in BODY_PARTS and '/properties/' in d) or last in dropped or d.endswith('/children_order'), d
 
 
 def grey_material(stock):
@@ -261,11 +308,12 @@ def grey_material(stock):
     return out
 
 
-def forest_effect(stock_effect):
-    """effect_forest_protection: the stock artefact effect playing the forest system, in both views."""
+def forest_effect(stock_effect, system=FOREST_SYSTEM):
+    """effect_forest_protection (or a quarter's): the stock artefact effect playing `system`, in
+    both views."""
     stock = get(stock_effect, 'effect')
     assert get(stock, 'type') == (T_INT, PARTICLE) and not has(stock, 'view'), 'not the stock particle effect'
-    effect = [(k, (T_STR, FOREST_SYSTEM) if k == 'particle_system' else c) for k, c in stock[1]] + \
+    effect = [(k, (T_STR, system) if k == 'particle_system' else c) for k, c in stock[1]] + \
         [('view', (T_INT, BOTH_VIEWS))]
     return (T_NAMED, [(k, (T_NAMED, effect) if k == 'effect' else c) for k, c in stock_effect[1]])
 
@@ -434,6 +482,16 @@ def main():
         grey = grey_material(orange)
         assert differences(grey, orange) == ['/material/forward/effect/constant_emissive/value']
         forest_files[f'material_instances/fx/artifacts/{name}_grey.material'] = grey
+    # The leg quarters: each kind's stock glow, its colours, a quarter of the legs each.
+    for kind, system in KINDS.items():
+        kind_stock = parse(stock[f'particles/{system}.particle'])
+        kind_effect = parse(stock[f'gameplay/effects/effect_artefact_{kind}.options'])
+        for n, parts in enumerate(QUARTERS, 1):
+            effect_path, quarter_system = quarter_names(kind, n)
+            quarter = quarter_particle(kind_stock, parts)
+            check_quarter(quarter, kind_stock, parts)
+            forest_files[effect_path] = forest_effect(kind_effect, quarter_system)
+            forest_files[f'particles/{quarter_system}.particle'] = quarter
     for path, tree in forest_files.items():
         data = serialize(tree)
         assert sort_key(parse(data)) == sort_key(tree), path
@@ -452,7 +510,10 @@ def main():
                        'fx/artifacts/human_<kind>_fp: the stock particle system, its point lights and haze '
                        'included, with Head, Face and Neck off in every emitter\'s animated domain; and '
                        'Forest Protection\'s glow, effect_forest_protection (both views) playing '
-                       'fx/artifacts/human_forest_protection: the stock Onyx glow, grey, on the legs only',
+                       'fx/artifacts/human_forest_protection: the stock Onyx glow, grey, on the legs only; '
+                       'and the leg quarters, effect_artefact_leg_<kind>_<1..4> (both views) playing '
+                       'fx/artifacts/human_<kind>_leg_<1..4>: each kind\'s stock glow on one quarter of the '
+                       'legs (left lower, right lower, left upper, right upper), without its point light',
         'operations': operations,
         'notes': ['made by srp-026g/scripts/artefact-glow/make_pack.py from the stock resources.db\'s '
                   'artefact effects and particle systems (docs/notes/artefacts.md)'],

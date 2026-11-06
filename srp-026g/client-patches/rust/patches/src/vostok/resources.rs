@@ -85,14 +85,35 @@ impl QueryTag {
     }
 }
 
-/// What came back: the bus's scene, a track's single sound or a game
-/// effect resource, each with a reference of its own (None for a query that
+/// What came back: the bus's scene, a track's single sound or game effect
+/// resources, each with a reference of its own (None for a query that
 /// failed: a missing file).
 pub enum Arrived {
     Bus(Option<BusScene>),
     Track(Serial, Option<Emitter>),
     /// Kept for the process (a game effect is played until the game exits).
-    Effect(Option<KeptEffect>),
+    Effects(ArrivedEffects),
+}
+
+/// The most game effects one query asks for.
+pub const EFFECTS_MOST: usize = 16;
+
+/// The game effect resources a query asked for, in its order, each kept for
+/// the process (None: that one failed, or past the query's requests).
+#[derive(Clone, Copy)]
+pub struct ArrivedEffects {
+    kept: [Option<KeptEffect>; EFFECTS_MOST],
+}
+
+impl ArrivedEffects {
+    /// The first `N`, when every one of them came (a query of `N`).
+    pub fn all<const N: usize>(&self) -> Option<[KeptEffect; N]> {
+        let mut out = [None; N];
+        for (slot, kept) in out.iter_mut().zip(self.kept) {
+            *slot = kept;
+        }
+        out.iter().all(Option::is_some).then(|| out.map(|kept| kept.expect("every one checked")))
+    }
 }
 
 /// The results a query's callback is called with, for its call only.
@@ -115,7 +136,8 @@ impl<'t> QueryResults<'t> {
     }
 
     /// Takes what the query `tag` names asked for: a reference of ours to
-    /// its first result (the queries made here ask one resource).
+    /// its first result (a bus's or a track's query asks one resource), or
+    /// to each of its results (a game effects' query).
     pub fn arrived(&self, tag: QueryTag) -> Arrived {
         // SAFETY: the results are alive for the callback (from_raw); a
         // query of ours has one request, and the tag says which class it
@@ -135,9 +157,19 @@ impl<'t> QueryResults<'t> {
                     // SAFETY: the reference just taken is the Emitter's.
                     Emitter::owning(emitter)
                 })),
-                // SAFETY: a game effect resource for a class 109 request,
-                // alive for the callback (KeptEffect::keep takes its own).
-                QueryTag::Effect => Arrived::Effect(first.and_then(|r| r.effect()).map(|effect| KeptEffect::keep(effect))),
+                // SAFETY: a game effect resource for each class 109 request,
+                // alive for the callback (KeptEffect::keep takes its own);
+                // the results are 2E0h apart, as many as the requests.
+                QueryTag::Effect => {
+                    let mut kept = [None; EFFECTS_MOST];
+                    if let Some(results) = first {
+                        let count = (*results.count() as usize).min(EFFECTS_MOST);
+                        for (index, slot) in kept.iter_mut().enumerate().take(count) {
+                            *slot = results.results().at(index).effect().map(|effect| KeptEffect::keep(effect));
+                        }
+                    }
+                    Arrived::Effects(ArrivedEffects { kept })
+                }
             }
         }
     }
@@ -173,9 +205,28 @@ pub fn query_track(_: &Thread, path: &CStr, serial: Serial, callback: QueryCallb
     query(path, SINGLE_SOUND_CLASS, None, QueryTag::Track(serial), callback);
 }
 
-/// Asks for the game effect `name` (class 109: gameplay/effects/effect_<name>).
-pub fn query_effect(_: &Thread, name: &CStr, callback: QueryCallback) {
-    query(name, GAME_EFFECT_CLASS, None, QueryTag::Effect, callback);
+/// Asks for the game effects `names` in one query (class 109 each:
+/// gameplay/effects/effect_<name>); they arrive together, in this order.
+pub fn query_effects<const N: usize>(_: &Thread, names: &[&CStr; N], callback: QueryCallback) {
+    const { assert!(N >= 1 && N <= EFFECTS_MOST) };
+    let mut requests = [const { raw::ResourceRequestStorage::zeroed() }; N];
+    let mut function = raw::QueryFunctionStorage::zeroed();
+    // SAFETY: N contiguous requests {path, class} (8 bytes each, as the
+    // native cooks' arrays: the artefact's three, 0x25E91A) and no user data
+    // (the artefact cook passes none either), a boost function bound to the
+    // generated callback and the effects' tag, and the game's allocator, all
+    // copied by query_resources before it returns; no parent query.
+    unsafe {
+        for (request, name) in requests.iter_mut().zip(names) {
+            let r = request.handle();
+            r.set_path(name.as_ptr().cast_mut().cast());
+            *r.class() = GAME_EFFECT_CLASS;
+        }
+        let f = function.handle();
+        raw::engine_bind_query_callback(Some(f), callback.entry(), QueryTag::Effect.word());
+        let allocator = raw::image::game_allocator().allocator();
+        raw::engine_query_one(Some(requests[0].handle()), N as u32, Some(f), allocator, None, null(), ASYNCHRONOUS);
+    }
 }
 
 fn query(path: &CStr, class: u32, params: Option<raw::SceneParamsVariant>, tag: QueryTag, callback: QueryCallback) {

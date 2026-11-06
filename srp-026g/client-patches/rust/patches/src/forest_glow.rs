@@ -1,31 +1,98 @@
-//! Forest Protection's glow (patch 111; docs/notes/artefact-skills.md,
-//! "Forest Protection"): while the skill protects a player (its kit's
-//! modifier 41 makes the anomaly hit's factor below 1, and it is inside a
-//! damage zone: the native rule of 0x332810), a grey glow plays on its legs,
-//! the game effect `forest_protection` (content pack artefact-glow,
-//! effect_forest_protection: the artefacts' stock glow, grey, its legs only,
-//! both views). Every game shows it on every player, from what it has: the
-//! kit in the static info and the zone count of its world.
+//! The legs' glows (patch 111; docs/notes/artefact-skills.md, "Forest
+//! Protection" and "Leg quarters"), every game showing them on every player
+//! from what it has (the kits in the static info, its world):
 //!
-//! In the simulation, as the artefacts' own glow: at a player's tick the
-//! effect is played when the player shows it and plays none (so it is in
-//! the world's history, and a rollback keeps it); the player's own
-//! calculator ends it when the player no longer shows it. Presentation only:
-//! nothing a match computes reads an effect. No state of its own but the
-//! resource.
+//! - Forest Protection's: while the skill protects a player (its kit's
+//!   modifier 41 makes the anomaly hit's factor below 1, and it is inside a
+//!   damage zone: the native rule of 0x332810), a grey glow on its legs, the
+//!   game effect `forest_protection` (content pack artefact-glow: the
+//!   artefacts' stock glow, grey, its legs only, both views);
+//! - the leg quarters: each passive artefact copy that counts for a player
+//!   (its own carried copies giving their passive and those Resonance
+//!   shares with it, at most 4 of a kind) lights a quarter of its legs in
+//!   that kind's colour: `artefact_leg_<kind>_<n>`, n = 1 the left lower leg,
+//!   2 the right lower leg, 3 the left thigh, 4 the right one. Each kind
+//!   lights its own quarters from the first up; two kinds on one quarter
+//!   layer (their sprites add, as the stock glows of two kinds do).
+//!
+//! In the simulation, as the artefacts' own glow: at a player's tick each
+//! effect is played when the player shows it and plays none of it (so it is
+//! in the world's history, and a rollback keeps it); the player's own
+//! calculator ends one when the player no longer shows it. Presentation
+//! only: nothing a match computes reads an effect. No state of its own but
+//! the resources.
 
 #![forbid(unsafe_code)]
 
+use core::ffi::CStr;
+
+use crate::artefact_skills::{Copies, Kind};
 use crate::vostok::effect::{self, KeptEffect};
 use crate::vostok::log::{self, Piece::Text};
 use crate::vostok::resources::{self, Arrived, QueryResults, QueryTag};
 use crate::vostok::world::Player;
 use crate::vostok::{Context, Flow, GameCell, NoExit};
 
-/// The effect's name: gameplay/effects/effect_forest_protection.options.
-const EFFECT: &core::ffi::CStr = c"forest_protection";
-/// An instance for each place of a match (every player can glow at once).
+/// An instance of each effect for each place of a match (every player can
+/// glow at once).
 const INSTANCES: u32 = 20;
+
+/// One of the effects the patch plays.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum LegEffect {
+    Forest,
+    /// The `nth` (1 to 4) quarter of `kind`.
+    Quarter { kind: Kind, nth: u8 },
+}
+
+/// The effects, in the order they are asked for and kept; [`NAMES`] are
+/// their names (gameplay/effects/effect_<name>.options).
+const EFFECTS: [LegEffect; 13] = [
+    LegEffect::Forest,
+    LegEffect::Quarter { kind: Kind::Spring, nth: 1 },
+    LegEffect::Quarter { kind: Kind::Spring, nth: 2 },
+    LegEffect::Quarter { kind: Kind::Spring, nth: 3 },
+    LegEffect::Quarter { kind: Kind::Spring, nth: 4 },
+    LegEffect::Quarter { kind: Kind::Lifebone, nth: 1 },
+    LegEffect::Quarter { kind: Kind::Lifebone, nth: 2 },
+    LegEffect::Quarter { kind: Kind::Lifebone, nth: 3 },
+    LegEffect::Quarter { kind: Kind::Lifebone, nth: 4 },
+    LegEffect::Quarter { kind: Kind::Onyx, nth: 1 },
+    LegEffect::Quarter { kind: Kind::Onyx, nth: 2 },
+    LegEffect::Quarter { kind: Kind::Onyx, nth: 3 },
+    LegEffect::Quarter { kind: Kind::Onyx, nth: 4 },
+];
+const NAMES: [&CStr; 13] = [
+    c"forest_protection",
+    c"artefact_leg_spring_1",
+    c"artefact_leg_spring_2",
+    c"artefact_leg_spring_3",
+    c"artefact_leg_spring_4",
+    c"artefact_leg_lifebone_1",
+    c"artefact_leg_lifebone_2",
+    c"artefact_leg_lifebone_3",
+    c"artefact_leg_lifebone_4",
+    c"artefact_leg_onyx_1",
+    c"artefact_leg_onyx_2",
+    c"artefact_leg_onyx_3",
+    c"artefact_leg_onyx_4",
+];
+
+/// What a player's legs show.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+struct Legs {
+    forest: Glow,
+    copies: Copies,
+}
+
+impl LegEffect {
+    fn shown(self, legs: Legs) -> bool {
+        match self {
+            LegEffect::Forest => legs.forest == Glow::On,
+            LegEffect::Quarter { kind, nth } => legs.copies.get(kind) >= nth,
+        }
+    }
+}
 
 /// Whether a player shows the glow.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -85,25 +152,36 @@ impl<E: Copy> Load<E> {
     }
 }
 
-static LOAD: GameCell<Load<KeptEffect>> = GameCell::new(Load::Unasked);
+static LOAD: GameCell<Load<[KeptEffect; 13]>> = GameCell::new(Load::Unasked);
 
-/// Whether `player` shows the glow.
+/// Whether `player` shows Forest Protection's glow.
 fn glow(player: &Player<'_>) -> Glow {
     Glow::of(player.alive(), player.damage_zones(), player.weapon_damage_in_anomaly())
 }
 
-/// A player's simulation tick: the glow played when it shows and none
-/// plays; the effect asked for at the first tick.
+/// Whether `player` shows `effect` (the copies counted only for a quarter).
+fn shows(effect: LegEffect, player: &Player<'_>) -> bool {
+    match effect {
+        LegEffect::Forest => glow(player) == Glow::On,
+        LegEffect::Quarter { kind, nth } => player.passive_copies().get(kind) >= nth,
+    }
+}
+
+/// A player's simulation tick: each effect it shows played when none of it
+/// plays; the effects asked for at the first tick.
 pub fn on_tick(ctx: &mut Context<'_>) -> Flow<NoExit> {
     let Some(player) = Player::at_tick(ctx) else { return Flow::Continue };
     let thread = ctx.thread();
     let (load, action) = LOAD.get(thread).step(Event::Frame);
     LOAD.set(thread, load);
     match action {
-        Action::Ask => resources::query_effect(thread, EFFECT, crate::vostok::forest_glow_on_loaded_entry()),
+        Action::Ask => resources::query_effects(thread, &NAMES, crate::vostok::forest_glow_on_loaded_entry()),
         Action::Show(kept) => {
-            if glow(&player) == Glow::On && !player.plays_effect(kept) {
-                player.hold_effect(kept);
+            let legs = Legs { forest: glow(&player), copies: player.passive_copies() };
+            for (effect, kept) in EFFECTS.into_iter().zip(kept) {
+                if effect.shown(legs) && !player.plays_effect(kept) {
+                    player.hold_effect(kept);
+                }
             }
         }
         Action::Nothing | Action::Report => {}
@@ -115,27 +193,29 @@ pub fn on_tick(ctx: &mut Context<'_>) -> Flow<NoExit> {
 pub fn on_loaded(results: QueryResults<'_>, tag: QueryTag) {
     let thread = results.thread();
     let arrived = match results.arrived(tag) {
-        Arrived::Effect(kept) => kept,
+        Arrived::Effects(kept) => kept.all(),
         // this callback is only the glow's query's
         Arrived::Bus(_) | Arrived::Track(..) => return,
     };
     let (load, action) = LOAD.get(thread).step(Event::Arrived(arrived));
     LOAD.set(thread, load);
     if action == Action::Report {
-        log::line(&[Text("forest_glow: the game effect forest_protection did not load; no glow this session")]);
+        log::line(&[Text("forest_glow: a game effect of the legs' glows did not load; no leg glow this session")]);
     }
 }
 
-/// The game effect cook: an instance a place for the glow.
+/// The game effect cook: an instance a place for each of the effects.
 pub fn on_capacity(ctx: &mut Context<'_>) -> Flow<NoExit> {
-    effect::effect_capacity(ctx, EFFECT, INSTANCES);
+    for name in NAMES {
+        effect::effect_capacity(ctx, name, INSTANCES);
+    }
     Flow::Continue
 }
 
-/// The default clock: the glow ends when its player no longer shows it.
+/// The default clock: an effect ends when its player no longer shows it.
 pub fn on_clock(ctx: &mut Context<'_>) -> Flow<crate::vostok::ForestGlowOnClockExit> {
     let Load::Ready(kept) = LOAD.get(ctx.thread()) else { return Flow::Continue };
-    if effect::kept_clock(ctx, kept, |player| glow(player) == Glow::On) {
+    if effect::kept_clock(ctx, &kept, |index, player| shows(EFFECTS[index], player)) {
         Flow::Exit(crate::vostok::ForestGlowOnClockExit::Returned)
     } else {
         Flow::Continue
@@ -159,6 +239,45 @@ mod tests {
         }
         // a sum past -1: the getter's max(0, ...) is 0, still protected
         assert_eq!(Glow::of(true, 1, 0.0), Glow::On);
+    }
+
+    #[test]
+    fn names_follow_the_effects() {
+        for (effect, name) in EFFECTS.into_iter().zip(NAMES) {
+            let name = name.to_str().unwrap();
+            match effect {
+                LegEffect::Forest => assert_eq!(name, "forest_protection"),
+                LegEffect::Quarter { kind, nth } => {
+                    let kind = match kind {
+                        Kind::Spring => "spring",
+                        Kind::Lifebone => "lifebone",
+                        Kind::Onyx => "onyx",
+                    };
+                    assert_eq!(name, std::format!("artefact_leg_{kind}_{nth}"));
+                }
+            }
+        }
+    }
+
+    #[test]
+    fn copies_light_their_kinds_quarters_from_the_first() {
+        let copies = Copies::of(|kind| match kind {
+            Kind::Spring => (1, 1),
+            Kind::Lifebone => (0, 0),
+            Kind::Onyx => (4, 0),
+        });
+        let legs = Legs { forest: Glow::Off, copies };
+        let lit: std::vec::Vec<_> = EFFECTS.into_iter().filter(|effect| effect.shown(legs)).collect();
+        assert_eq!(lit, [
+            LegEffect::Quarter { kind: Kind::Spring, nth: 1 },
+            LegEffect::Quarter { kind: Kind::Spring, nth: 2 },
+            LegEffect::Quarter { kind: Kind::Onyx, nth: 1 },
+            LegEffect::Quarter { kind: Kind::Onyx, nth: 2 },
+            LegEffect::Quarter { kind: Kind::Onyx, nth: 3 },
+            LegEffect::Quarter { kind: Kind::Onyx, nth: 4 },
+        ]);
+        let none = Legs { forest: Glow::On, copies: Copies::default() };
+        assert_eq!(EFFECTS.into_iter().filter(|effect| effect.shown(none)).collect::<std::vec::Vec<_>>(), [LegEffect::Forest]);
     }
 
     #[test]

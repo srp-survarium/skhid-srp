@@ -9,7 +9,7 @@ use super::{
 };
 use crate::{
     artefact_skills::{
-        HitKind, Kind, LifeboneRegeneration, MOVEMENT_LIST, OnyxProtection, Phase, Regeneration, Room, SPRING_LISTS,
+        Copies, HitKind, Kind, LifeboneRegeneration, MOVEMENT_LIST, OnyxProtection, Phase, Regeneration, Room, SPRING_LISTS,
         Skills, State,
     },
     raw,
@@ -229,6 +229,27 @@ fn shared(roster: &Roster<'_>, recipient: Player<'_>, kind: Kind) -> (Shared, Sh
         }
     }
     (passives, actives)
+}
+
+impl super::world::Player<'_> {
+    /// Its passive copies of each kind that count for it (the leg quarters, patch 111): its own
+    /// carried copies giving their passive and the passives Resonance shares with it, counted
+    /// with Resonance's own sharing (`shared`), in its world's roster as it is now; none when it
+    /// is not in that roster or is dead.
+    pub fn passive_copies(&self) -> Copies {
+        // SAFETY: the live player's world core (0 when it has none).
+        let core = unsafe { self.this.world_core() };
+        let roster = Roster::of(self.thread, core);
+        let Some(recipient) = roster.iter().find(|player| player.get() == self.this).filter(|player| player.active())
+        else {
+            return Copies::default();
+        };
+        Copies::of(|kind| {
+            let own = carried(self.this).filter(|copy| copy.kind == kind && kind.gives(Phase::Passive, copy.state)).count();
+            let (passives, _) = shared(&roster, recipient, kind);
+            (own, passives.iter().count())
+        })
+    }
 }
 
 /// A shared Spring's nodes of the kit list `index` for `phase`, summed: its passive's +340h,
