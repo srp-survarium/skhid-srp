@@ -16,7 +16,7 @@ use survarium::v026g::item_params;
 use survarium::v026g::loadouts::{self, Loadout, POCKET_SLOTS};
 use survarium::v026g::lobby::{FULL_CONDITION, KIT_PREMIUM, KIT_READY, limits};
 use survarium::v026g::quests::FACTIONS;
-use survarium::v026g::skills::SkillsTree;
+use survarium::v026g::skills::{self, SkillsTree};
 
 /// The kits an account has: the client's array holds three.
 pub const KITS: usize = limits::KITS;
@@ -226,6 +226,29 @@ pub fn doubled_pockets(
         }
     }
     doubled
+}
+
+/// [`loadouts::narrowed`] put into a kit's or a preset's `slots`: `held`
+/// is each slot's dict id and units (`None` for an empty one, or one whose
+/// item is not known, which stays as it is), `modifications` its worn
+/// items', `units` a slot's units.
+fn narrow_into<S>(
+    slots: &mut [Option<S>; KIT_SLOTS],
+    held: &[Option<(u16, u32)>; KIT_SLOTS],
+    modifications: &[(u32, bool)],
+    (before, after): (&[f32; skills::MODIFIERS], &[f32; skills::MODIFIERS]),
+    units: fn(&mut S) -> &mut u32,
+) {
+    let kept = loadouts::narrowed(held, modifications, before, after);
+    for ((slot, held), kept) in slots.iter_mut().zip(held).zip(kept) {
+        if held.is_none() {
+            continue;
+        }
+        match (slot.as_mut(), kept) {
+            (Some(slot), Some((_, kept))) => *units(slot) = kept,
+            _ => *slot = None,
+        }
+    }
 }
 
 /// The level reached with `total` experience, where it starts and where
@@ -669,17 +692,65 @@ impl Account {
         if settled == self.skills {
             return false;
         }
-        self.skills = settled;
-        // The kits carry the skills' modifiers.
-        self.bump_kits();
+        self.change_skills(settled, tree);
         true
     }
 
-    /// Every kit gives other modifiers (the skills changed): new revisions.
-    pub fn bump_kits(&mut self) {
-        for kit in &mut self.kits {
+    /// The account's skills become `skills` (of `tree`). The kits carry the
+    /// skills' modifiers, so each gets a new revision, and what the slots
+    /// opened by a skill held before no longer allow is taken off every kit
+    /// and preset ([`loadouts::narrowed`]): the pocket Deep
+    /// Pockets or Supply Pocket opened, Additional Medicine's extra
+    /// medicine, a second weapon beside Deep Pockets or Supply Pocket, a
+    /// second double-handed one without Terminator. A slot names units of
+    /// the inventory's stack, so nothing leaves the inventory.
+    pub fn change_skills(&mut self, skills: Vec<(u16, u8)>, tree: &SkillsTree) {
+        let modifiers = (&tree.modifiers(&self.skills), &tree.modifiers(&skills));
+        self.skills = skills;
+        for index in 0..self.kits.len() {
+            let held = self.kits[index].slots.map(|slot| {
+                let held = slot?;
+                Some((self.item(held.item_id)?.dict_id, held.count))
+            });
+            let worn = self.worn_modifications(
+                self.kits[index]
+                    .slots
+                    .iter()
+                    .flatten()
+                    .map(|held| held.item_id),
+            );
+            let kit = &mut self.kits[index];
+            narrow_into(&mut kit.slots, &held, &worn, modifiers, |held| {
+                &mut held.count
+            });
             kit.revision = kit.revision.wrapping_add(1);
         }
+        let mut presets = self.presets;
+        for kit in presets
+            .iter_mut()
+            .flatten()
+            .flat_map(|preset| &mut preset.kits)
+        {
+            let held = kit.map(|slot| slot.map(|saved| (saved.dict_id, saved.count)));
+            let worn = self.worn_modifications(kit.iter().flatten().map(|saved| saved.item_id));
+            narrow_into(kit, &held, &worn, modifiers, |saved| &mut saved.count);
+        }
+        self.presets = presets;
+    }
+
+    /// The modifications of the owned items of `item_ids`: their defaults
+    /// and their own, defects too (an item's pockets count them all).
+    fn worn_modifications(&self, item_ids: impl IntoIterator<Item = u32>) -> Vec<(u32, bool)> {
+        item_ids
+            .into_iter()
+            .filter_map(|item_id| self.item(item_id))
+            .flat_map(|item| {
+                let own = item.modifications.iter().copied();
+                loadouts::default_modifications(item.dict_id)
+                    .into_iter()
+                    .chain(own)
+            })
+            .collect()
     }
 
     /// Make a loaded account consistent, so that what the lobby sends from

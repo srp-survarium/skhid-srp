@@ -80,6 +80,20 @@ pub const MODIFIER_NAMES: [&str; MODIFIERS] = [
     "stamina_spending_speed_skill",
 ];
 
+/// The modifiers that open or close a kit's slots, by index
+/// ([`MODIFIER_NAMES`]; `loadouts::KitLayout`).
+pub mod slot_modifier {
+    pub const POCKET_SLOTS: usize = 15;
+    pub const POCKET_SLOT_SIZE: usize = 17;
+    pub const USE_TWO_DOUBLE_HANDED_WEAPONS: usize = 25;
+    /// `armored_trap`: the medical skills' ranks, packed as an exact
+    /// integer below 2^24 (`docs/notes/medical-skills.md`).
+    pub const MEDICAL_RANKS: usize = 43;
+    /// The bit of [`MEDICAL_RANKS`] that is Additional Medicine (322).
+    pub const ADDITIONAL_MEDICINE_BIT: u32 = 15;
+    pub const DISABLE_SECOND_WEAPON: usize = 64;
+}
+
 /// The suffix every modifier's key has in the configs.
 const SUFFIX: &str = "_modifier";
 
@@ -526,6 +540,21 @@ mod tests {
         assert_eq!(two[index("disable_second_weapon")], 1.0);
         assert_eq!(two[index("pocket_slots")], 1.0);
         assert_eq!(modifier_mask(&two).count_ones(), 2);
+        for (name, at) in [
+            ("pocket_slots", slot_modifier::POCKET_SLOTS),
+            ("pocket_slot_size", slot_modifier::POCKET_SLOT_SIZE),
+            (
+                "use_two_double_handed_weapons",
+                slot_modifier::USE_TWO_DOUBLE_HANDED_WEAPONS,
+            ),
+            ("armored_trap", slot_modifier::MEDICAL_RANKS),
+            (
+                "disable_second_weapon",
+                slot_modifier::DISABLE_SECOND_WEAPON,
+            ),
+        ] {
+            assert_eq!(index(name), at);
+        }
         let boost = tree.modifiers(&[(205, 2)]);
         assert_eq!(boost[index("stamina_boost_time")], 200.0);
         assert_eq!(boost[index("stamina_boost_interval")], 0.0);
