@@ -2705,7 +2705,7 @@ st_srp_vulkan_dedicated_gpu_hint	Na noteboocích vybere silnější grafickou ka
 st_srp_vulkan_frame_limit	Omezení FPS
 st_srp_vulkan_frame_limit_hint	Omezuje, kolik snímků za sekundu hra kreslí.\n+ Počítač je chladnější a tišší\n- Ne víc snímků než limit
 st_srp_vulkan_low_latency	Snížit zpoždění vstupu
-st_srp_vulkan_low_latency_hint	Hra rychleji reaguje na myš.\n+ Míření reaguje rychleji\n- Může stát pár snímků
+st_srp_vulkan_low_latency_hint	Hra rychleji reaguje na myš.\n+ Míření reaguje rychleji\n- Na některých PC může běžet méně plynule
 st_srp_vulkan_off	Vyp.
 st_srp_vulkan_options	Možnosti Vulkanu
 st_srp_vulkan_overlay	Překryv výkonu
@@ -2714,7 +2714,7 @@ st_srp_vulkan_overlay_frametimes	FPS+graf
 st_srp_vulkan_overlay_full	Úplný
 st_srp_vulkan_overlay_hint	Ukazuje rychlost hry na obrazovce.\n+ Vidíte, jak plynule hra běží\n- Zakrývá roh obrazovky
 st_srp_vulkan_tear_free	Bez trhání obrazu bez V-Sync
-st_srp_vulkan_tear_free_hint	Obraz se netrhá, když je vertikální synchronizace vypnutá.\n+ Žádné roztržené čáry při rychlém otáčení\n- Počítač pracuje o trochu víc
+st_srp_vulkan_tear_free_hint	Obraz se netrhá, když je vertikální synchronizace vypnutá.\n+ Žádné roztržené čáry při rychlém otáčení\n- Víc tepla a hluku ventilátorů
 st_srp_weapon069_akmsu_desc	Zkrácený AKMS se sklopnou pažbou na náboje 7.62x39. Střílí jednotlivě i automaticky.
 st_srp_weapon069_akmsu_name	AKMSU
 st_srp_weapon069_famas_desc	Francouzská útočná puška bullpup na náboje 5.56x45. Střílí jednotlivě, dávkou po třech i automaticky.

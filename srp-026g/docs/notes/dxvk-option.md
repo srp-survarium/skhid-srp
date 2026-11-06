@@ -38,7 +38,15 @@ window keeping its size.
   worse). The arrow is the Renderer box's own art (DropdownMenuSkinnedLabel's shape, masked to its
   triangle) at 1.5 times its size, over the button (beside it in the tab, since a CLIK button sizes
   itself by its children's bounds); it turns up while the panel is open and greys with the button.
-  A press opens the panel under it, the button held pressed (its "down" frames).
+  A press opens the panel under it and a press on it again closes it, both in the button's own click
+  handler (its pointer stays on: Scaleform routes presses otherwise than Ruffle, and a button without
+  its pointer could not be pressed closed in the game, the owner 2026-11-06). While the panel is open
+  the button is held on its "down" frames: after each state it draws (roll-over, roll-out, on the
+  stage's render) the frames are set again; on closing it shows "over" or "up" as the pointer is. A
+  press outside closes the panel: a stage MOUSE_DOWN listener (the stock lists' way), outside meaning
+  neither the panel's frame nor the button under the point nor a target in them (Scaleform may make a
+  container the target); while a list of the panel is open a press is that list's. The panel's
+  shadow takes no presses (its filled outline runs over the button).
 - **The panel:** a popup over the column, a little wider than it on both sides, and one piece with the
   button, a tab that drops down: the Settings window's own border (its 1 px light line, then its dark
   band) runs round the panel and round the button above it, 4 px out, the band under the button left

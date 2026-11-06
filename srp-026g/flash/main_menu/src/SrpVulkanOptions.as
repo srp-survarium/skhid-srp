@@ -6,6 +6,7 @@ package
     import flash.display.MovieClip;
     import flash.display.Shape;
     import flash.display.Sprite;
+    import flash.display.Stage;
     import flash.events.Event;
     import flash.events.MouseEvent;
     import flash.filters.DropShadowFilter;
@@ -13,7 +14,6 @@ package
     import flash.geom.Point;
     import flash.geom.Rectangle;
     import scaleform.clik.controls.DropdownMenu;
-    import scaleform.clik.core.UIComponent;
     import scaleform.clik.data.DataProvider;
     import scaleform.clik.events.ButtonEvent;
     import scaleform.clik.events.ListEvent;
@@ -105,8 +105,13 @@ package
             content.addChild(arrow);
             panel = new Sprite();
             panel.name = "_srp_vulkan_panel";
+            // the shadow under everything, taking no press: its outline is filled (hidden by its knock-out) over
+            // the button too, and a press there is the button's
+            var shade:Sprite = new Sprite();
+            shade.mouseEnabled = shade.mouseChildren = false;
             shadow = new Shape();
-            panel.addChild(shadow);
+            shade.addChild(shadow);
+            panel.addChild(shade);
             frame = new Shape();
             panel.addChild(frame);
             // the controls one Sprite under the panel (press routing: memory note, the lobby's rooms)
@@ -293,17 +298,22 @@ package
                     list.close();
                 }
             }
-            panel.stage.removeEventListener(MouseEvent.MOUSE_DOWN, onStagePress);
+            var stage:Stage = panel.stage;
+            stage.removeEventListener(MouseEvent.MOUSE_DOWN, onStagePress);
+            button.removeEventListener(Event.RENDER, hold);
+            button.removeEventListener(Event.ENTER_FRAME, hold);
             panel.parent.removeChild(panel);
-            button.mouseEnabled = true;
-            button.gotoAndPlay("up");
+            // the button as the pointer leaves it: its state's frame now (a state the button set while it was held
+            // is drawn first), then over or up
+            button.validateNow();
+            button.gotoAndPlay(button.hitTestPoint(stage.mouseX, stage.mouseY, true) ? "over" : "up");
             arrow.scaleY = Math.abs(arrow.scaleY);
             return true;
         }
 
-        // A press of the button: the panel opened right under it (a popup over the column), the button held
-        // pressed while it is open (its "down" frames; it takes no pointer then, so a press on it is outside
-        // the panel and closes it).
+        // A press of the button (its own click, its pointer always on): the panel opened right under it (a popup
+        // over the column), or closed when it is open. While it is open the button is held on its "down" frames
+        // (hold).
         private function onPress(event:Event):void
         {
             if (close() || !button.enabled)
@@ -311,21 +321,44 @@ package
                 return;
             }
             PopUpManager.show(panel, panelX, button.y + button.height, button.parent);
+            // as the stock lists find a press outside them (DropdownMenu.handleStageClick): the stage's
+            // MOUSE_DOWN
             panel.stage.addEventListener(MouseEvent.MOUSE_DOWN, onStagePress);
-            button.validateNow();
-            button.mouseEnabled = false;
-            button.gotoAndPlay("down");
+            // after the button's own state changes (its roll-over and roll-out, which it draws on the stage's
+            // render), the held frames again
+            button.addEventListener(Event.RENDER, hold, false, -1);
+            button.addEventListener(Event.ENTER_FRAME, hold);
+            hold(null);
             arrow.scaleY = -Math.abs(arrow.scaleY);
             draw();
         }
 
-        // A press outside the panel and an open list of the panel closes it.
+        // The button held pressed while the panel is open: its "down" frames, whatever state it drew.
+        private function hold(event:Event):void
+        {
+            if (button.currentLabel != "down")
+            {
+                button.validateNow();
+                button.gotoAndPlay("down");
+            }
+        }
+
+        // A press on the stage: outside the panel and the button, it closes the panel. Where the press lands
+        // counts, not only what Scaleform makes its target (it may give a container): the panel's frame (its
+        // surface and border) or the button under the point, or a target in either, is no outside press (the
+        // button's own click toggles it). While a list of the panel is open, a press is the list's (its own
+        // handler closes it).
         private function onStagePress(event:MouseEvent):void
         {
-            for (var at:DisplayObject = event.target as DisplayObject; at != null; at = at.parent)
+            var target:DisplayObject = event.target as DisplayObject;
+            if (frame.hitTestPoint(event.stageX, event.stageY, true) || button.hitTestPoint(event.stageX, event.stageY, true)
+                || target != null && (panel.contains(target) || button.contains(target)))
             {
-                if (at == panel || at is UIComponent && UIComponent(at).focusTarget != null
-                    && panel.contains(UIComponent(at).focusTarget))
+                return;
+            }
+            for (var i:int = 0; i < LISTS; i++)
+            {
+                if (DropdownMenu(controls[NAMES[i]]).selected)
                 {
                     return;
                 }

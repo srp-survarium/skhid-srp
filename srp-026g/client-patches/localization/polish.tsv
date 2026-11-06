@@ -2705,7 +2705,7 @@ st_srp_vulkan_dedicated_gpu_hint	Na laptopach wybiera mocniejszą kartę graficz
 st_srp_vulkan_frame_limit	Limit klatek
 st_srp_vulkan_frame_limit_hint	Ogranicza, ile klatek na sekundę rysuje gra.\n+ Komputer chłodniejszy i cichszy\n- Nie więcej klatek niż limit
 st_srp_vulkan_low_latency	Zmniejsz opóźnienie sterowania
-st_srp_vulkan_low_latency_hint	Gra szybciej reaguje na mysz.\n+ Celowanie reaguje szybciej\n- Może kosztować kilka klatek
+st_srp_vulkan_low_latency_hint	Gra szybciej reaguje na mysz.\n+ Celowanie reaguje szybciej\n- Na niektórych PC może działać mniej płynnie
 st_srp_vulkan_off	Wył.
 st_srp_vulkan_options	Opcje Vulkan
 st_srp_vulkan_overlay	Nakładka wydajności
@@ -2714,7 +2714,7 @@ st_srp_vulkan_overlay_frametimes	FPS+wykres
 st_srp_vulkan_overlay_full	Pełna
 st_srp_vulkan_overlay_hint	Pokazuje na ekranie, jak szybko działa gra.\n+ Widać, jak płynnie działa gra\n- Zasłania róg ekranu
 st_srp_vulkan_tear_free	Bez rozrywania bez V-Sync
-st_srp_vulkan_tear_free_hint	Obraz się nie rwie, gdy synchronizacja pionowa jest wyłączona.\n+ Brak rozdartych linii przy szybkim obrocie\n- Komputer pracuje trochę więcej
+st_srp_vulkan_tear_free_hint	Obraz się nie rwie, gdy synchronizacja pionowa jest wyłączona.\n+ Brak rozdartych linii przy szybkim obrocie\n- Więcej ciepła i hałasu wentylatorów
 st_srp_weapon069_akmsu_desc	Skrócony AKMS ze składaną kolbą, amunicja: 7,62x39. Ogień pojedynczy i ciągły.
 st_srp_weapon069_akmsu_name	AKMSU
 st_srp_weapon069_famas_desc	Francuski karabinek automatyczny w układzie bullpup, amunicja: 5,56x45. Ogień pojedynczy, seriami po trzy strzały i ciągły.

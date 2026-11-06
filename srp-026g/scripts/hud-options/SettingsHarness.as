@@ -911,7 +911,7 @@ package
             click(row);
             var panel:* = named(content.stage, "_srp_vulkan_panel");
             require(panel != null && panel.stage != null, "Vulkan options: the button opens the panel");
-            require(row.currentFrame >= 21 && row.currentFrame <= 30 && !row.mouseEnabled && arrow.scaleY < 0 && arrow.alpha == 1,
+            require(row.currentLabel == "down" && row.mouseEnabled && arrow.scaleY < 0 && arrow.alpha == 1,
                 "Vulkan options: the button held pressed (its down frames), its arrow turned up, while the panel is open (frame "
                 + row.currentFrame + ")");
             var body:* = panel.getChildAt(panel.numChildren - 1);
@@ -1047,9 +1047,20 @@ package
             c.slider_gamma.dispatchEvent(new MouseEvent(MouseEvent.MOUSE_DOWN, true));
             require(panel.stage == null, "Vulkan options: a press outside closes the panel");
             click(row);
-            row.dispatchEvent(new MouseEvent(MouseEvent.MOUSE_DOWN, true));
-            require(panel.stage == null && row.mouseEnabled && arrow.scaleY > 0, "Vulkan options: a press on the button again "
-                + "closes it, the button back, its arrow down");
+            // the button keeps its pointer and its held frames through its own roll-out and roll-over (states it
+            // draws on the stage's render); a press on it is no outside press, its own click closes the panel
+            row.dispatchEvent(new MouseEvent(MouseEvent.ROLL_OUT));
+            row.validateNow();
+            row.dispatchEvent(new Event(Event.RENDER));
+            require(panel.stage != null && row.mouseEnabled && row.currentLabel == "down",
+                "Vulkan options: the button held down while open, its roll-out too (" + row.currentLabel + ")");
+            row.dispatchEvent(new MouseEvent(MouseEvent.MOUSE_DOWN, true, false, row.width / 2, row.height / 2));
+            require(panel.stage != null, "Vulkan options: a press on the button is no press outside");
+            click(row);
+            row.validateNow();
+            require(panel.stage == null && row.mouseEnabled && arrow.scaleY > 0 && row.currentLabel != "down",
+                "Vulkan options: the button's own press closes it again, the button back (" + row.currentLabel + "), its "
+                + "arrow down");
             // Esc (MainMenu's key handler asks Settings.closePanel first; a test player's stage takes no
             // key event dispatched to it): the panel closes, the window stays; with no panel open nothing
             click(row);
