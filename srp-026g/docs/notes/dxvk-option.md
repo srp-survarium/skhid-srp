@@ -46,12 +46,16 @@ window keeping its size.
   window only when no panel is open). The button is disabled (greyed as the stock buttons, not hidden) while the Renderer list shows
   DirectX 11, following the list's pick before Apply; picking DirectX 11 closes an open panel.
 - **Hints:** each of the five shows a hint when the pointer rests on it, the game's own tooltip (CLIK's
-  ToolTip with the menu's tip, SrvProfileTipRenderer, 300 ms after the pointer comes over it, 20 px right
-  and down of the pointer, kept inside the window), three lines (`st_srp_vulkan_*_hint`, ten languages):
-  what it does, "+" what it gives, "-" what it costs. Three fixes of the main menu's copy make it show:
-  its delay timer repeated forever, so the tip never came (`Timer(300,1)`, the lobby copy's); a tip is
-  raised over the popups (PopUpManager puts its canvas back on top of whatever the stage gets, so the
-  tip lay under the panel); the tip takes several lines, left-aligned, as tall as its text.
+  ToolTip with the menu's tip, SrvProfileTipRenderer, 300 ms after the pointer comes over it), three
+  lines (`st_srp_vulkan_*_hint`, ten languages): what it does, "+" what it gives, "-" what it costs.
+  The tip lies 4 px under the option the pointer is on, never over it (above it when the window ends
+  first), from 16 px right of the pointer, inside the window, at the menu's own scale (2 at 4K). It is
+  opaque (the symbol's look: a 1 px grey edge round a near-black fill; the symbol's own fill let the
+  rows under it show through), the text 6 px from each of its four edges. The main menu's copy of
+  ToolTip needed: its delay timer repeated forever, so the tip never came (`Timer(300,1)`, the lobby
+  copy's); a tip is raised over the popups (PopUpManager puts its canvas back on top of whatever the
+  stage gets, so the tip lay under the panel); the placement above. The menu's tip is used by these
+  hints only (every other control of the movie sets no tip renderer).
 - **The five** (each kept in user.cfg, `st_srp_vulkan_*` texts in ten languages):
   - Frame rate limit: Off, 60, 120, 144, 165, 240 (`srp_dxvk_frame_limit 0|60|...`) ->
     `dxvk.maxFrameRate = <n>`.

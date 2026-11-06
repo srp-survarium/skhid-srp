@@ -142,9 +142,8 @@ package
                 // the Vulkan options' panel open (Vulkan picked), for its screenshot
                 if (frames == 350) click(settings.settings_content.getChildByName("_srp_vulkan"));
                 if (frames == 365) trace("SETTINGS SHOT vulkan");
-                // one option's hint shown (the game's tooltip, CLIK's 300 ms after the pointer comes over it), at the
-                // place its own rule gives a pointer on the checkbox (20 px right and down of it): a test player's
-                // pointer is not there
+                // one option's hint shown (the game's tooltip, CLIK's 300 ms after the pointer comes over it), under
+                // its option; its x moved to a pointer on the checkbox (a test player's pointer is not there)
                 if (frames == 380)
                 {
                     var hinted:* = vulkanControl(settings, "_srp_dxvk_low_latency");
@@ -161,8 +160,22 @@ package
                         var canvas:DisplayObject = named(stage, "_srp_vulkan_panel").parent;
                         if (stage.getChildIndex(tip) < stage.getChildIndex(canvas))
                             trace("SETTINGS RESULT fail: Vulkan options: the hint is drawn under the panel");
-                        tip.x = at.left + 60;
-                        tip.y = at.top + 20;
+                        // under the option, not over it
+                        var placed:Rectangle = tip.getBounds(stage);
+                        if (placed.top < at.bottom)
+                            trace("SETTINGS RESULT fail: Vulkan options: the hint covers its option (" + placed + ", " + at + ")");
+                        // the same padding on its four sides (the text's box: a TextField's 2 px gutter inside it)
+                        var tc:* = tip;
+                        var box:DisplayObject = tc.getChildAt(0);
+                        var pads:Array = [tc.textField.x + 2, tc.textField.y + 2,
+                            box.width - (tc.textField.x + 2 + tc.textField.textWidth),
+                            box.height - (tc.textField.y + 2 + tc.textField.textHeight)];
+                        if (Math.max.apply(null, pads) - Math.min.apply(null, pads) > 1)
+                            trace("SETTINGS RESULT fail: Vulkan options: the hint's padding differs by side (" + pads + ")");
+                        trace("SETTINGS hint " + Math.round(placed.width) + "x" + Math.round(placed.height)
+                            + " under its option (" + Math.round(placed.top - at.bottom) + " px), padding " + pads);
+                        // the pointer's x a player's would have on the box (Ruffle's pointer is not on it)
+                        tip.x = at.left + 12 + 16;
                     }
                     trace("SETTINGS SHOT hint" + (tip == null ? " (no tip shown)" : ""));
                 }
