@@ -82,6 +82,7 @@ fn reference_replay() {
     let mut keys_of: HashMap<usize, Vec<(u32, u32)>> = HashMap::new();
     // `SRP_A325_TURN_FIRST=1`: each tick's velocity turned by that tick's own turn first (the reckoning moves, then turns).
     let turn_first = var("SRP_A325_TURN_FIRST").is_some();
+    let exe_order = var("SRP_A325_EXE_ORDER").is_some();
     // `SRP_A325_WORLD_BLEND=k`: the velocity kept in the world frame, each tick k of the way toward the intended (a turn does not
     // swing the momentum round with the yaw at once). A hypothesis test, not a client rule.
     let world_blend: Option<f32> = var("SRP_A325_WORLD_BLEND").and_then(|v| v.parse().ok());
@@ -173,7 +174,13 @@ fn reference_replay() {
         let mut yaw = yaw_b;
         // `land` only on the tick after an airborne one (the tick's `landed` note is set on most ground ticks).
         let mut was_air = false;
-        for &(t, _, v, _) in trail.iter().filter(|r| r.0 > t0 && r.0 <= w.time) {
+        // `SRP_A325_EXE_ORDER=1`: the exe's order inside a tick (fx-grid, tick list 2 at 0x2DA9A0, PROVEN): the tick's input
+        // (keys, turn) is applied, the animations advance in the new yaw's frame, then the walk is set. So the move ending at tick
+        // t is moved by the state AFTER tick t's input, which is the reckoning's next step (it moves t -> t + 50 with tick t's keys
+        // and yaw); the trail keeps the ticks past the world (decided up to WORLD_LATE_MS), so the next one is there.
+        let ahead: Vec<&(u32, Vec3, [f32; 2], bool)> = trail.iter().filter(|r| r.0 > t0).collect();
+        for (i, &&(t, _, v_own, _)) in ahead.iter().enumerate().take_while(|(_, r)| r.0 <= w.time) {
+            let v = if exe_order { ahead.get(i + 1).map_or(v_own, |r| r.2) } else { v_own };
             let sub = (((t - last_t) as f32 / 1000.0) / TICK_S).round().max(1.0) as usize;
             for _ in 0..sub {
                 tick_n += 1;
