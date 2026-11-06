@@ -15,6 +15,10 @@ DATA_NAME=server-game-data.db
 # Where a checkout keeps its item tables (srp-item-tables).
 # shellcheck disable=SC2034 # used by the scripts that source this
 ITEM_TABLES_DIR=srp-026g/docs/data
+# The file in the folder of a quick build (build-content --quick), which
+# release.sh refuses a patch beside.
+# shellcheck disable=SC2034 # used by the scripts that source this
+QUICK_MARK=QUICK-BUILD
 # The stock 0.26g resources.db (build 2777).
 # shellcheck disable=SC2034 # used by the scripts that source this
 STOCK_DB_SHA256=c74078be702d17113b9ca23f59aa2b0087238481e7f01fb793620d51d875492c

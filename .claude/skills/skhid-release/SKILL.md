@@ -32,9 +32,14 @@ Ask, in this order:
 1. **Does it include new content?** Content is whatever `release/content.tsv`
    (the manifest: base patches, Flash movies, content packs, edit lists; its
    header says how) makes that players do not have yet. Find out, and make
-   the patch, with **`release/build-content <revision>`** (the release's
+   the patch, with **`release/build-content <revision> --full`** (the release's
    revision, below; from a fresh worktree of `origin/main`, never `git
-   stash`). It builds every movie of `srp-026g/flash` from source (the lobby
+   stash`). **A release always builds with `--full`**: only it checks that
+   players' files with the new patch over them are exactly what the manifest
+   makes, and only it makes the item tables the release's record commits.
+   Without `--full` it is a quick build for local tests: the same patch and
+   server data, those two left out, `QUICK-BUILD` in its folder, and
+   `release.sh --resources` and `upload-patch` refuse it. It builds every movie of `srp-026g/flash` from source (the lobby
    by `build_lobby_026g.py`; seconds each; `private/actionscript/tools.json`),
    composes the packs (`vostok-port`, `$SKHID_PACKS_DIR`), applies the edit
    lists in order from the base, compares each file with the stock db and
@@ -637,7 +642,7 @@ shows the command, unless release.sh, already given the go-ahead, runs it):
 
 | Script | Does | Writes |
 |---|---|---|
-| `release/build-content <rev> [--out <folder>] [--tree] [--site] [--manifest] [--no-cache]` | the next content patch of `release/content.tsv`: what differs from players' files (the stock db, the listed patches), each file with why; `server-game-data.db` with it; then, from the same patches, the item tables (srp-item-tables; only changes, each said) and, with `--site`, the site's pages (build-site) | a local folder (with `item-tables/`), the patch cache, the steps' cache (`~/.cache/skhid-release/build-content`: unchanged movies, packs, edit lists and checks are taken from it, the same files; delete it any time; `--no-cache` runs every step); with `--site`, `--tree`'s site pages |
+| `release/build-content <rev> --full [--out <folder>] [--tree] [--site] [--manifest] [--no-cache]` | the next content patch of `release/content.tsv`: what differs from players' files (the stock db, the listed patches), each file with why; `server-game-data.db` with it; then, from the same patches, the item tables (srp-item-tables; only changes, each said) and, with `--site`, the site's pages (build-site) | a local folder (with `item-tables/`), the patch cache, the steps' cache (`~/.cache/skhid-release/build-content`: unchanged movies, packs, edit lists and checks are taken from it, the same files; delete it any time; `--no-cache` runs every step; without `--full`, a quick build for local tests: no check of players' files with the patch, no item tables, `QUICK-BUILD` in the folder, which `release.sh`/`upload-patch` refuse: a release always passes `--full`); with `--site`, `--tree`'s site pages |
 | `release/build-patch <folder> <rev> [--out <file>]` | packs a folder into `resources.db.patch_<rev>` (read back and compared) | a local file | (build-content's step; never by hand)
 | `release/upload-patch [--test] [--dry-run] <file>` | publishes one patch: `.tmp`, sha256 there, `chmod 644`, `mv -n`, GET must be 200 with the sha256, then its row in the list; never replaces one | the patches server, the list |
 | `release/add-mirror [--test] <name> <url>` | another URL of a listed patch: downloaded as the updater does, not a web page, the row's size and sha256, then appended to the row | the list (and the URL cache) |
