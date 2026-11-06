@@ -85,8 +85,9 @@ const WALK_CAP_MS: f32 = 3.5;
 /// The sprint jump's prepare phase, its mean (the run's step left at the press: 0-150 ms, 0-1.64 m, FINDINGS 3.2): LIKELY.
 const PREPARE_MS: f32 = 75.0;
 const PREPARE_M: f32 = 0.82;
-/// A body falling after its clip, m/s^2 (the bench stand-in's).
-const GRAVITY: f32 = 9.81;
+/// A body falling after its clip, m/s^2: `fall_params.gravity` in `gameplay/players/default.player` (JUMP-FINDINGS 1; the client's
+/// `step_down` 0x7E1B0 falls by it outside the jump).
+const GRAVITY: f32 = 9.8;
 /// The lowest and highest heights over the feet whose rays a wall holds a body in the air at, m (the stand-in's lowest and
 /// highest `AIR_RAYS`), and the spacing between them: 5 cm, so a thin horizontal bar cannot pass between two (the stand-in's three
 /// heights 0.1 / 0.9 / 1.7 let the arc through Vector Laboratory's railing: bars at 0.43 / 0.70 m, the top rail 7 cm thick at
