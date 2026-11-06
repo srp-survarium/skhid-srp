@@ -143,6 +143,13 @@ pub struct TrapTuning {
     /// stays by its trap and steps onto it. Over three A309 benches (835 presses) the presses under 2 m/s caught 8 enemies,
     /// their placer 10 times and a mate 6; those at 2 m/s or more 31 enemies, the placer 13 times, a mate 5. Off by default.
     pub press_moving: Option<PressMoving>,
+    /// [A324] The press waits until the landing clears the placer's own path over the next moment (its feet plus its velocity
+    /// times 0 to `sweep_s`) by `clear_m`. The client arms a trap at once and it takes any foot within 0.6 m, its placer's too
+    /// (`docs/notes/bear_traps.md`: `booby_trap_core::on_enter` 0x304BD0 lets a same-team body go only with the skill
+    /// `friendly_trap`, modifier 44, at 0x304CFE..0x304D58; no time test), while the bot's legs keep their course until its next
+    /// think (200-400 ms) puts the trap in its field. Without it a walker presses with the landing on its own way and steps on
+    /// it 0.1-0.6 s later. **On by default**, kept right (`KEPT_RIGHT`): pressing onto its own path is wrong by the client.
+    pub press_clear: Option<PressClear>,
 }
 
 /// The habit's rule for the spots of killed holders (`TrapTuning::at_defeated`). The numbers are GUESSES chosen from the K1 spots'
@@ -250,6 +257,23 @@ pub struct PressMoving {
 impl Default for PressMoving {
     fn default() -> Self {
         Self { min_speed_ms: 2.0 }
+    }
+}
+
+/// [A324] How far the landing must lie from the placer's own path at the press (`TrapTuning::press_clear`).
+#[derive(Clone, Copy, Debug, PartialEq, Serialize, Deserialize)]
+#[serde(default, deny_unknown_fields)]
+pub struct PressClear {
+    /// Metres from the swept path: the client's trigger reaches 0.6 m from a foot point (565 of 566 live samples,
+    /// `bear_traps.md`); the rest is a placement margin for the feet's spread and the body's drift (fx-gear-2's A292 value).
+    pub clear_m: f32,
+    /// How far ahead the path is swept, seconds: past the next think (at most 400 ms) and the legs' turn away (a placement choice).
+    pub sweep_s: f32,
+}
+
+impl Default for PressClear {
+    fn default() -> Self {
+        Self { clear_m: 1.0, sweep_s: 1.0 }
     }
 }
 
@@ -510,6 +534,7 @@ impl Default for TrapTuning {
             forward: None,
             fresh_ring: None,
             press_moving: None,
+            press_clear: Some(PressClear::default()),
         }
     }
 }
@@ -581,6 +606,10 @@ impl Check for TrapTuning {
         )?;
         check(self.fresh_ring.is_none_or(|f| f.for_ms <= 60_000), "traps.fresh_ring")?;
         check(self.press_moving.is_none_or(|p| (0.0..=8.0).contains(&p.min_speed_ms)), "traps.press_moving")?;
+        check(
+            self.press_clear.is_none_or(|c| (0.6..=3.0).contains(&c.clear_m) && (0.0..=3.0).contains(&c.sweep_s)),
+            "traps.press_clear",
+        )?;
         let r = &self.react;
         check(
             (0.0..=1.0).contains(&r.p0)
