@@ -5,8 +5,8 @@
 //!
 //! Each Drop link is walked as a bot walks it: the body set on the take-off (out of the walls), steered at the landing at
 //! [`WALK_MPS`], then on along the link up to [`WALK_ON_M`] past it (a bot walks on to its next node), then left to settle, on
-//! three lines across the link. The link is unfollowed when on every line the feet never leave the take-off's level
-//! ([`LEAVE_M`] down). Where the body goes down but lands elsewhere (past the landing, on a ledge partway) the link stays: the
+//! three lines across the link. The link is unfollowed when on every line the body walks on ([`MOVED_M`]) and the feet never
+//! leave the take-off's level ([`LEAVE_M`] down); a line whose body cannot move from its start says nothing and follows. Where the body goes down but lands elsewhere (past the landing, on a ledge partway) the link stays: the
 //! body did take the drop, and the reckoning needs the link to take it down with the client (a first rule that asked for the
 //! landing itself made fx-bench's drift score worse: drop-only landings 0.87 -> 0.99 points).
 //!
@@ -24,6 +24,8 @@ const DT: f32 = 1.0 / 30.0;
 const WALK_MPS: f32 = 3.5;
 /// How far under the take-off the feet must go to have left it, m (or half the drop, when less).
 const LEAVE_M: f32 = 0.4;
+/// How far from its start across a body must get for its line to say anything, m.
+const MOVED_M: f32 = 0.3;
 /// How far past the landing across the body walks on along the link, m.
 const WALK_ON_M: f32 = 1.5;
 /// The ticks of each phase: steering at the landing (3 s), walking on (2 s), settling (1 s).
@@ -91,18 +93,21 @@ pub(super) fn follows(world: &Collision, s: &Settings, from: Vec3, to: Vec3) -> 
 /// the take-off's level on the way down ([`left_take_off`]), wherever it then lands: a body that slides past the landing or
 /// stops on a ledge partway down still went down the drop, and the reckoning needs the link to take it down (fx-bench's drift
 /// score of the first rule, which asked for the landing itself: drop-only landings 0.87 -> 0.99 points, the body held up while
-/// the world fell). Unfollowed is a body that stays on the take-off's level: a landing under a deck that goes on, a rim the
-/// erosion took.
+/// the world fell). Unfollowed is a body that walks on ([`MOVED_M`] or more from its start) and stays on the take-off's level: a
+/// landing under a deck that goes on, a rim the erosion took. A body that cannot move from its start at all (a start boxed in by
+/// walls, every move refused) says nothing of the drop: that line follows (fx-bench's second score: level_07's shallow steps).
 fn follows_line(world: &Collision, s: &Settings, from: Vec3, to: Vec3) -> bool {
     let mut body = Controller::standing_at(from);
     let down = left_take_off(from.y, to.y);
     let gone = |feet: Vec3| feet.y <= down;
+    let mut moved = 0.0f32;
     // Steered at the landing; over it, on along the line.
     for _ in 0..STEER_TICKS {
         let feet = body.feet();
         if gone(feet) {
             return true;
         }
+        moved = moved.max(flat(feet, from));
         let d = flat(feet, to);
         if d <= 0.05 {
             break;
@@ -118,6 +123,7 @@ fn follows_line(world: &Collision, s: &Settings, from: Vec3, to: Vec3) -> bool {
         if gone(feet) {
             return true;
         }
+        moved = moved.max(flat(feet, from));
         if flat(feet, to) >= WALK_ON_M {
             break;
         }
@@ -133,7 +139,7 @@ fn follows_line(world: &Collision, s: &Settings, from: Vec3, to: Vec3) -> bool {
             break;
         }
     }
-    gone(body.feet())
+    gone(body.feet()) || moved.max(flat(body.feet(), from)) < MOVED_M
 }
 
 /// The height under which the feet have left a take-off at `from_y` for a landing at `to_y`: [`LEAVE_M`] down, or half the drop
@@ -180,5 +186,24 @@ mod tests {
         tris.extend(quad(-5.0, 0.0, -2.0, 2.0, 2.0));
         let world = Collision::build(&tris);
         assert!(follows(&world, &Settings::LIVE, Vec3::new(-0.25, 2.0, 0.0), Vec3::new(0.25, 1.0, 0.0)));
+    }
+
+    /// A take-off boxed in by walls (the body cannot move from it on any line) says nothing of the drop: the link is kept.
+    #[test]
+    fn a_boxed_in_take_off_keeps_its_drop() {
+        let wall = |a: Vec3, b: Vec3| {
+            let t = |v: [Vec3; 3]| Triangle { v, walker: WalkerBehaviour::BySlope };
+            let (a2, b2) = (a + Vec3::new(0.0, 3.0, 0.0), b + Vec3::new(0.0, 3.0, 0.0));
+            [t([a, b, b2]), t([a, b2, a2])]
+        };
+        let mut tris = Vec::new();
+        tris.extend(quad(-10.0, 10.0, -10.0, 10.0, 0.0));
+        tris.extend(quad(-5.0, 0.0, -2.0, 2.0, 2.0));
+        let y = 2.0;
+        for (a, b) in [((-0.6, -0.35), (0.1, -0.35)), ((0.1, -0.35), (0.1, 0.35)), ((0.1, 0.35), (-0.6, 0.35)), ((-0.6, 0.35), (-0.6, -0.35))] {
+            tris.extend(wall(Vec3::new(a.0, y, a.1), Vec3::new(b.0, y, b.1)));
+        }
+        let world = Collision::build(&tris);
+        assert!(follows(&world, &Settings::LIVE, Vec3::new(-0.25, 2.0, 0.0), Vec3::new(0.25, 0.0, 0.0)));
     }
 }
