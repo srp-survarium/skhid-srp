@@ -744,6 +744,8 @@ fn advance(
             at.feet.y = grid.position(node).y;
         }
         let local = at.blend.tick_mixed(target, kin.blend_ticks, kin.mixer);
+        // [A318] The client's step cap (`max_speed` 0x2DC010 in 0x2D9060) on the blend's speed, by the keys moving it.
+        let local = kin.speed_cap.capped(local, at.keys, level);
         at.velocity = to_world(local, at.yaw);
         let to = Vec3::new(
             at.feet.x + at.velocity[0] * TICK_S,
@@ -2039,6 +2041,32 @@ pub(super) mod tests {
         // A walk across a floor no lower than the step stays on the ground.
         let mut feet = Vec3::new(0.0, 0.5, 0.0);
         assert_eq!(fall_step(Fall::Ground, 1.0, &mut feet, 0.8, DropFall::Client), Fall::Ground);
+    }
+
+    /// [A318] [`SpeedCap::Client`]: a sprint released moves at the walk's cap (3.5 m/s) on its first tick, the client's `max_speed`
+    /// 0x2DC010, while the blend still carries the sprint's speed; with the cap off it carries it (4.75 m/s); a sprint is not cut.
+    #[test]
+    fn a_released_sprint_drops_to_the_walk_cap_at_once() {
+        use super::super::kin::SpeedCap;
+        let run = |speed_cap: SpeedCap| {
+            let kin = Kinematics { speed_cap, ..Kinematics::default() };
+            let mut track = BodyTrack::default();
+            track.fixed(fix(0, Vec3::new(0.0, 0.0, 0.0), 0.0), &kin, None);
+            let mut speeds = Vec::new();
+            for k in 1..=30u32 {
+                let keys = if k <= 20 { key::FORWARD | key::SPRINT } else { key::FORWARD };
+                track.decided(k * 50, keys, (0.0, 0.0), 0.0, &kin, None);
+                let v = track.estimate().unwrap().velocity;
+                speeds.push(v[0].hypot(v[1]));
+            }
+            speeds
+        };
+        let (on, off) = (run(SpeedCap::Client), run(SpeedCap::Off));
+        // The move into tick 21 is the first by tick 21's keys (the walk).
+        assert!((on[19] - 5.0).abs() < 1e-3 && (off[19] - 5.0).abs() < 1e-3, "sprinting: {on:?}");
+        assert!((on[21] - 3.5).abs() < 1e-3, "the walk cap at once: {on:?}");
+        assert!(off[21] > 4.5, "the blend alone carries the sprint: {off:?}");
+        assert!(on.iter().all(|v| *v <= 5.0 + 1e-3));
     }
 
     /// [A318] [`DropFall::Gravity`]: the reckoned body walking off a 2 m ledge comes down as the client's capsule falls (from rest,

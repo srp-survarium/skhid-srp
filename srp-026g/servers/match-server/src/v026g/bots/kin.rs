@@ -86,6 +86,8 @@ pub struct Kinematics {
     pub slope_speed: SlopeSpeed,
     /// [A313] Which of the client's speed factor terms the reckoned body moves by ([`SpeedTerms`]).
     pub speed_terms: SpeedTerms,
+    /// [A318] Whether the reckoned body's step is capped at the client's `max_speed` ([`SpeedCap`]).
+    pub speed_cap: SpeedCap,
     /// [A304] The flattest ramp face (degrees, the grid's ramp mark) [`SlopeSpeed::RampsGrade`] slows on: a floor whose mark is
     /// flatter counts as unmarked. 35 (the lab, 2026-11-05: Vostok Radar Station's and Chemical Plant's stairs carry 20-39 degree
     /// marks and the client climbs them at full speed; Cologne's slowing stairs are 45; 35 was better than 40 and 44). 20: every
@@ -104,6 +106,39 @@ pub struct Kinematics {
 /// (`mapdata::controller::speed`, read from the 0.26g exe: skill 208, the weapon, the weight, each leg's wound, a hit's
 /// stagger, a carried battery, the spring artefact). The body's level (`Kinematics::level_of`) holds what a world shows of the
 /// rest; the terms here are the ones that change within a life faster than the level follows.
+/// [A318] The cap on the reckoned body's flat step. The client's `set_physics_controller_walk_vector` 0x2D9060 caps the step it
+/// hands the controller at `max_speed` 0x2DC010 (PROVEN, `mapdata::controller::speed::cap`): the sprint's 5.0 x F while the sprint
+/// state is on (its `initialize` 0x336A10 sets the controller's +0x204, `finalize` 0x336A50 clears it, at once), else the walk's
+/// 3.5 x F. The animation's blend toward the new keys goes on under it, so a released sprint moves at the walk cap on its own tick
+/// while the blend still carries the sprint's speed (the client's recorded speeds: 3.62 m/s at the release tick, fx-smoke A325).
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum SpeedCap {
+    /// The blend's speed as it is (as it was).
+    Off,
+    /// Capped at the client's `max_speed` by the keys' sprint ([`Kinematics::sprints`]) and the level.
+    #[default]
+    Client,
+}
+
+impl SpeedCap {
+    /// `local` (body frame) capped for a body moving by `keys` at `level`.
+    pub fn capped(self, local: Local, keys: u32, level: f32) -> Local {
+        use mapdata::controller::speed::{Gait, Heading, Stance, cap};
+        if self == Self::Off {
+            return local;
+        }
+        let gait = if Kinematics::sprints(keys) {
+            Gait::Sprint
+        } else {
+            Gait::Move { stance: Stance::Stand, heading: Heading::Forward, aiming: false }
+        };
+        let cap = cap(gait, level);
+        let len = local[0].hypot(local[1]);
+        if len > cap { [local[0] * cap / len, local[1] * cap / len] } else { local }
+    }
+}
+
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum SpeedTerms {
@@ -289,6 +324,7 @@ impl Default for Kinematics {
             ramp_min_deg: 35.0,
             walk_bridges: true,
             speed_terms: SpeedTerms::Legs,
+            speed_cap: SpeedCap::Client,
         }
     }
 }
