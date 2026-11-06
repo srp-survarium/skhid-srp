@@ -2686,13 +2686,25 @@ mod tests {
         for (name, double) in [("ak_74u", true), ("mosin_nagant", true), ("tt_33", false)] {
             assert_eq!(item_params(dict(name)).unwrap().double_handed, double);
         }
+        // A torso with defect 4030: a pocket less (of the defects' table).
+        let row = survarium::v026g::modifications::Modifications::shared()
+            .defect(4030)
+            .unwrap();
+        assert_eq!(row.modifiers[0].path, "parameters/pocket_slots_modifier");
+        assert_eq!(row.modifiers[0].value, -1.0);
+        let torso = account.add_item(dict("edge_torso_5"), FULL_CONDITION);
+        account.item_mut(torso).unwrap().modifications = vec![(4030, true)];
         let inventory = account.inventory.clone();
 
-        // Deep Pockets (113): a second pocket, and no second weapon.
+        // Deep Pockets (113): a second pocket, and no second weapon. The
+        // torso's own pocket is taken by its defect: its kit keeps one.
         account.skills = vec![(113, 1)];
         put(&mut account, 0, 7, ak, 1);
         put(&mut account, 0, 13, medkit, 1);
         put(&mut account, 0, 14, grenade, 1);
+        put(&mut account, 2, 2, torso, 1);
+        put(&mut account, 2, 13, medkit, 1);
+        put(&mut account, 2, 14, grenade, 1);
         let saved = |item_id, dict_id| {
             Some(PresetSlot {
                 item_id,
@@ -2710,6 +2722,9 @@ mod tests {
         assert_eq!(reset_skills(&mut account, 0, reset_payment::SILVER), Ok(1));
         assert_eq!(account.kits[0].slots[13].unwrap().item_id, medkit);
         assert_eq!(account.kits[0].slots[14], None);
+        assert_eq!(account.kits[2].slots[13].unwrap().item_id, medkit);
+        assert_eq!(account.kits[2].slots[14], None);
+        assert_eq!(account.kits[2].slots[2].unwrap().item_id, torso);
         let preset = account.presets[1].unwrap();
         assert_eq!(preset.kits[2][13], saved(medkit, dict("medkit")));
         assert_eq!(preset.kits[2][14], None);
