@@ -7,35 +7,32 @@
 //! counted 224 raised stalls on faces past 55 deg, and fx-zones' A318 samples (`slope-samples-*.txt`) show the client sliding
 //! where the grid has a floor (a `Slope` past 55 deg or `DontWalk` under the feet).
 //!
-//! The test is the client's own walk tick ([`Controller::step`], [`Settings::LIVE`], proven against the exe in Unicorn), run on
-//! the floors where a face no body walks on lies within [`NEAR_M`] of the standing capsule (the controller pass's test):
-//! - the body is stood on the floor (out of walls, as the controller pass does), at its centre and 0.1 m either side, and run
-//!   [`HOLD_TICKS`] with no keys; the floor slides only when all three stands slide (a boxed-in body that cannot move holds);
-//! - it **slides** when its feet move [`SLIDE_M`] or more across or down;
-//! - a slide on ground past the walk limit (its last contact normal under `max_slope_cos`) is a floor a **moving** body does not
-//!   hold either: every link into it is handed to [`WalkGrid::cut_keeping_reach`], so it goes unless it is some floor's only way
-//!   in or back;
-//! - a slide on ground between the idle and the walk limits (45-55 deg) is a floor a body holds while it walks on: counted only
+//! The test reads the face the standing capsule rests on by the client's own numbers ([`Settings::LIVE`]; [`hold_at`]), on the
+//! floors where a face no body walks on lies within [`NEAR_M`] of the standing capsule (the controller pass's test):
+//! - the capsule is stood on the floor (out of walls, as the controller pass does) at its centre and 0.1 m either side, and the
+//!   face it rests on is read; the floor's verdict is the mildest of the three (one stand that holds holds the floor);
+//! - a floor whose ground is past the walk limit (a by-slope face over 55 deg, or a `dont_walk` face) is one a **moving** body
+//!   does not hold: its ways in go ([`WalkGrid::cut_slide_floors`]), unless that leaves floors that are not slide floors out of
+//!   reach;
+//! - a floor whose ground is between the idle and the walk limits (45-55 deg) holds a body while it walks on: counted only
 //!   ([`SlideStats::standing_only`]), a mark for where bots stop is a later step.
+//!
+//! The controller port bears the numbers out where it can be set on the ground (the probe below): a still body holds 40 deg and
+//! slides 45-53 deg; one walked across a `dont_walk` face slides down it. Set on a face past 55 deg it is refused every move
+//! (the stand overlaps the face), so there the pass reads the face, not a run of the tick.
 
 use super::controlled::{out_of_walls, parallel};
 use super::*;
-use crate::controller::tick::{Controller, Settings};
+use crate::controller::tick::Settings;
 use crate::controller::{Capsule, Collision};
 
 /// A face no body walks on within this of a floor's standing capsule makes the floor tested, m (the controller pass's reach).
 pub const NEAR_M: f32 = 0.15;
-/// The body is held still this many ticks of 50 ms (1 s).
-pub const HOLD_TICKS: usize = 20;
-/// Feet that moved this far across or down in that time slid, m.
-pub const SLIDE_M: f32 = 0.3;
-/// The speed down the stood body starts with, m/s (it lands on the floor in the first tick).
-pub const ARRIVE_MPS: f32 = 0.5;
 
 /// What the pass found ([`BuildStats`]).
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub struct SlideStats {
-    /// Floors with a face no body walks on near their capsule, run in the walk tick.
+    /// Floors with a face no body walks on near their capsule, read.
     pub tested: usize,
     /// Floors a still body slides off on ground past the walk limit: their links in were handed to the cut.
     pub moving: usize,
@@ -58,32 +55,33 @@ pub enum Hold {
     SlidesMoving,
 }
 
-/// How a still body stood at `feet` fares in [`HOLD_TICKS`] of the walk tick.
+/// How a body stood at `feet` fares on the face it rests on: the standing capsule (radius 0.38 m) set [`LIFT_M`] over the feet
+/// and swept down [`PROBE_M`], as the walk tick's ground probe meets the ground (`Controller::step`), and the face met read by
+/// the client's rules ([`Settings::LIVE`]): a `walk` face is ground at any slope; a `dont_walk` face is past the walk limit (the
+/// tick tilts its normal just past it: the controller walks a body across a 20 deg one and it slides 1.1 m down in 1 s); a
+/// by-slope face past `max_slope_cos` (55 deg) is not walked (`impassable_slope`); one past `idle_max_slope_cos` (45 deg) slides
+/// a still body (the controller: 45-53 deg slide 0.5-0.7 m in 1 s with no keys, 40 deg holds). No face met: holds (a floor over
+/// a hole is the grid's own business).
 pub fn hold_at(world: &Collision, feet: Vec3, s: &Settings) -> Hold {
-    let start = out_of_walls(world, feet);
-    let mut c = Controller::standing_at(start);
-    // A body set down with no keys, no speed and a level contact is skipped by the tick (`can_skip_player_step`); one that
-    // arrives has met the ground: a small fall puts the ground's own normal in the contact, as a landing does.
-    c.velocity = Vec3::new(0.0, -ARRIVE_MPS, 0.0);
-    let mut steep = false;
-    for _ in 0..HOLD_TICKS {
-        c.walk = Vec3::ZERO;
-        if c.step(world, 0.05, s).ceiling {
-            // A low ceiling: the client crouches or slides under it (neither ported): not a slide the pass knows.
-            return Hold::Holds;
-        }
-        steep |= c.contact_normal.y < s.max_slope_cos - 1e-3;
-    }
-    let end = c.feet();
-    let across = Vec3::new(end.x - start.x, 0.0, end.z - start.z).length();
-    if across < SLIDE_M && start.y - end.y < SLIDE_M {
-        Hold::Holds
-    } else if steep {
-        Hold::SlidesMoving
-    } else {
-        Hold::SlidesStanding
+    let at = out_of_walls(world, feet);
+    let cap = Capsule::standing(at + Vec3::new(0.0, LIFT_M, 0.0), 1.8, 0.38);
+    let Some(contact) = world.sweep(cap, Vec3::new(0.0, -PROBE_M, 0.0), |_| true) else {
+        return Hold::Holds;
+    };
+    let face = world.face(contact.face);
+    let up = face.normal.y.abs();
+    match face.walker {
+        WalkerBehaviour::Walk => Hold::Holds,
+        WalkerBehaviour::DontWalk => Hold::SlidesMoving,
+        _ if up < s.max_slope_cos => Hold::SlidesMoving,
+        _ if up < s.idle_max_slope_cos => Hold::SlidesStanding,
+        _ => Hold::Holds,
     }
 }
+
+/// The capsule is set this far over the floor's feet, and swept down this far to meet its ground, m.
+pub const LIFT_M: f32 = 0.1;
+pub const PROBE_M: f32 = 0.4;
 
 /// A floor's verdict from three stands, its centre and [`START_OFF_M`] either side of it along x: a slide only when every stand
 /// slid (one that holds, or a boxed-in body that cannot move, says the floor holds), moving only when every one did.
@@ -223,6 +221,10 @@ mod tests {
 #[cfg(test)]
 mod probe {
     use super::*;
+    use crate::controller::tick::Controller;
+
+    /// The speed down the stood body starts with, m/s (a body set down with no keys, speed or contact is skipped by the tick).
+    const ARRIVE_MPS: f32 = 0.5;
 
     /// How far a still body on a plane of each slope goes in 1 s and 3 s (feet across, down), and the contact normal's slope.
     #[test]
