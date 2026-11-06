@@ -1088,16 +1088,19 @@ mod tests {
                 "died": 0.2, "points": [[1.0, 2.0], [3.0, 4.0]]}]}"#,
         )
         .unwrap();
-        let table = route_table(1, None, Some(&dir)).expect("the mapdata folder's table");
-        let routes = table.for_map(3, survarium::v026g::maps::RuleMode::Batteries);
-        assert_eq!(routes.len(), 1);
-        assert_eq!(routes[0].points.len(), 2);
-        assert!(route_table(1, Some("off".as_ref()), Some(&dir)).is_none());
-        assert!(route_table(1, Some("".as_ref()), Some(&dir)).is_none());
-        assert!(route_table(1, Some(file.as_os_str()), None).is_some_and(|t| t.len() == 1));
-        assert!(route_table(1, Some(dir.join("none.json").as_os_str()), Some(&dir)).is_none());
+        let files = MapFiles::default();
+        let mode = Mode::of_rules(survarium::v026g::maps::RuleMode::Batteries).unwrap();
+        let rows = |var: Option<&std::ffi::OsStr>, mapdata: Option<&std::path::Path>| routes_of(1, &files, 3, mode, var, mapdata);
+        let table = rows(None, Some(&dir)).expect("the mapdata folder's table");
+        assert_eq!(table.routes.len(), 1);
+        assert_eq!(table.routes[0].points.len(), 2);
+        assert!(rows(Some("off".as_ref()), Some(&dir)).is_none());
+        assert!(rows(Some("".as_ref()), Some(&dir)).is_none());
+        let named = rows(Some(file.as_os_str()), None).expect("the named file");
+        assert!(Arc::ptr_eq(&named, &table), "one copy for the map and mode while a match holds it");
+        assert!(rows(Some(dir.join("none.json").as_os_str()), Some(&dir)).is_none());
         std::fs::remove_file(&file).unwrap();
-        assert!(route_table(1, None, Some(&dir)).is_none());
+        assert!(rows(None, Some(&dir)).is_none());
         std::fs::remove_dir(&dir).unwrap();
     }
 }

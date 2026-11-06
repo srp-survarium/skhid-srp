@@ -1547,7 +1547,7 @@ mod tests {
             .collect();
         projects.sort();
         let wait = Duration::from_secs(300);
-        let digests = |maps: &Maps, project: &str| {
+        let digests = |maps: &Arc<Maps>, project: &str| {
             let base = wait_ready(maps, project, wait);
             (
                 base.world.grid.digest(),
