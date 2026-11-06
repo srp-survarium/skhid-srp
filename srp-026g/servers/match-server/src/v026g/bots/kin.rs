@@ -355,6 +355,10 @@ pub enum WallSlide {
     /// degree staircase, which holds both axes.
     #[default]
     Diagonal,
+    /// [A318] Those, and the step turned by 22.5 and 67.5 degrees either way at its projection: the capsule's slide along a
+    /// corner or a thin post, whose contact normal is at any angle (level_01's post at (60.7, 33.2) and level_08's pillar corner
+    /// at (68.55, 25.51) held the reckoning where the client slid round them).
+    Round,
 }
 
 /// [A318] How the reckoned body (`BodyTrack`, not the lip guard's stop forecast) comes down when its floor drops more than a step

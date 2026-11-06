@@ -1035,11 +1035,38 @@ pub fn slide_supported_by(
                 && grid.locate(ahead, cell).is_some_and(|n| (grid.position(n).y - level).abs() <= grid.body().step)
         };
         let parts = |d: (f32, f32)| if stair(d) { [(d.0, 0.0), (0.0, d.1)] } else { [(0.0, 0.0); 2] };
-        let tries: [(f32, f32); 9] = match walls {
-            WallSlide::Axes => [(sx, sz), (sx, 0.0), (0.0, sz), (0.0, 0.0), (0.0, 0.0), (0.0, 0.0), (0.0, 0.0), (0.0, 0.0), (0.0, 0.0)],
+        // [A318] [`WallSlide::Round`]: the step turned by +-22.5, 45 and 67.5 degrees at its projection (cos of the turn), the
+        // capsule's slide along a corner or a thin post whose contact normal is at any angle, the least turn first.
+        let turned = |deg: f32| {
+            let (sin, cos) = deg.to_radians().sin_cos();
+            ((sx * cos - sz * sin) * cos, (sx * sin + sz * cos) * cos)
+        };
+        let none = (0.0, 0.0);
+        let tries: [(f32, f32); 15] = match walls {
+            WallSlide::Axes => [(sx, sz), (sx, 0.0), (0.0, sz), none, none, none, none, none, none, none, none, none, none, none, none],
             WallSlide::Diagonal => {
                 let ([a, b], [c, d]) = (parts((p, p)), parts((q, -q)));
-                [(sx, sz), (sx, 0.0), (0.0, sz), (p, p), (q, -q), a, b, c, d]
+                [(sx, sz), (sx, 0.0), (0.0, sz), (p, p), (q, -q), a, b, c, d, none, none, none, none, none, none]
+            }
+            WallSlide::Round => {
+                let ([a, b], [c, d]) = (parts((p, p)), parts((q, -q)));
+                [
+                    (sx, sz),
+                    turned(22.5),
+                    turned(-22.5),
+                    (sx, 0.0),
+                    (0.0, sz),
+                    (p, p),
+                    (q, -q),
+                    turned(67.5),
+                    turned(-67.5),
+                    a,
+                    b,
+                    c,
+                    d,
+                    none,
+                    none,
+                ]
             }
         };
         let moved = tries.iter().find_map(|&(mx, mz)| {
