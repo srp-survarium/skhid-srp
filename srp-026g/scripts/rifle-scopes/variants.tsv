@@ -15,7 +15,7 @@ shop_scope_ncstar_4	fort_17	2712	weapons/fort_17/fort_17_n_ncstar_4
 shop_scope_ncstar_4	hk416	2713	weapons/hk416_a5/hk416_a5_n_ncstar_4
 shop_scope_ncstar_4	izh_27_lancaster_premium_2	2714	weapons/izh_27_lancaster_camo/izh_27_lancaster_camo_st_n_ncstar_4
 shop_scope_ncstar_4	kedr	2715	weapons/pp9_klin/pp9_klin_n_ncstar_4
-shop_scope_ncstar_4	m4a1	2716	weapons/m4a1/m4a1_n_acog_ta31
+shop_scope_ncstar_4	m4a1	2716	weapons/m4a1/m4a1_n_ncstar_4
 shop_scope_ncstar_4	magnum	2717	weapons/magnum/magnum_n_ncstar_4
 shop_scope_ncstar_4	mp7	2718	weapons/hk_mp7/hk_mp7_n_ncstar_4
 shop_scope_ncstar_4	mp_153	2719	weapons/mp153/mp153_n_ncstar_4
@@ -153,7 +153,7 @@ shop_scope_aperture	akmn_premium_2	2850	weapons/akmn/akmn_camo_st_n_scope
 shop_scope_aperture	ash_12	2851	weapons/ash_12/ash_12_n_scope
 shop_scope_aperture	fn_fnc	2852	weapons/fn_fnc/fn_fnc_n_acog_ta31
 shop_scope_aperture	hk416	2853	-
-shop_scope_aperture	m4a1	2854	weapons/m4a1/m4a1_n_acog_ta31
+shop_scope_aperture	m4a1	2854	weapons/m4a1/m4a1_n_scope
 shop_scope_aperture	msbs_carbine	2855	-
 shop_scope_aperture	rpd	2856	weapons/rpd/rpd_n_scope
 shop_scope_aperture	rpk	2857	-
@@ -170,7 +170,7 @@ shop_scope_acog_ta01	akmn_premium_2	2867	weapons/akmn/akmn_camo_st_n_scope
 shop_scope_acog_ta01	ash_12	2868	weapons/ash_12/ash_12_n_scope
 shop_scope_acog_ta01	fn_fnc	2869	weapons/fn_fnc/fn_fnc_n_acog_ta31
 shop_scope_acog_ta01	hk416	2870	-
-shop_scope_acog_ta01	m4a1	2871	weapons/m4a1/m4a1_n_acog_ta31
+shop_scope_acog_ta01	m4a1	2871	weapons/m4a1/m4a1_n_scope
 shop_scope_acog_ta01	msbs_carbine	2872	-
 shop_scope_acog_ta01	rpd	2873	weapons/rpd/rpd_n_scope
 shop_scope_acog_ta01	rpk	2874	-

@@ -1,0 +1,7 @@
+# The live guns' iron sights under an optic (the rifle scopes' variants, and scope fits' on these guns;
+# make_pack.py, sights.py; docs/notes/weapon_scopes.md, section 7): what 0.69d0 does with each (its sight
+# module's attach_params: an optic sets the sight slots to param 1, the module's model_param1) and what a
+# variant's weapon model does with it (the last column, as scope fits' sights.tsv: keep, fold, turn,
+# cut <surface> <box>, lower <surface> <box> <height>; boxes in the locators' frame, metres).
+# gun	sight	our model	0.69d0 under an optic	under an optic
+m4a1	front sight tower (on the gas block)	part of m4a1_s: the tower and its post, standing on the gas block (top 0.078 m)	m4a1_front_ironsight: model_param1 is weapons/modules/gasblocks/m4a1_gasblock (no sight)	lower m4a1_s -0.013,0.078,-0.385,0.013,0.14,-0.3355 0.078

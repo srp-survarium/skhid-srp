@@ -55,13 +55,14 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 import pbr_026  # noqa: E402
 import render_icon  # noqa: E402
 import scopes_lib as lib  # noqa: E402
+import sights  # noqa: E402
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / 'sight-alignment'))
 import model as posing  # noqa: E402
 import align  # noqa: E402
 from scopes_lib import ce  # noqa: E402
 
 PACK_ID = 'rifle-scopes'
-VERSION = '12'
+VERSION = '13'
 LANGUAGES = ('english', 'german', 'original', 'polish', 'russian', 'ukrainian')
 FIRST_VARIANT = 2701
 CATEGORY = 22
@@ -255,6 +256,46 @@ def aim_turned(model):
     return bool(rotation) and max(abs(x) for x in rotation) > 1e-6
 
 
+def sight_changes(table):
+    """A sights table's changes under an optic (its last column), per gun (its first): (how, surface,
+    the rest); `keep` left out. sights.tsv here (the live guns); scope fits' has the release-41 guns."""
+    out = {}
+    for line in Path(table).read_text(encoding='utf-8').splitlines():
+        if not line or line.startswith('#'):
+            continue
+        row = line.split('\t')
+        how = row[-1].split()
+        if how[0] == 'keep':
+            continue
+        if len(how) not in {'fold': (4,), 'turn': (4,), 'cut': (3,), 'lower': (4,)}.get(how[0], ()):
+            sys.exit(f'{table}: {row[0]}: {row[-1]!r} is not keep, fold|turn <surface> <up> <folded>, '
+                     'cut <surface> <box> or lower <surface> <box> <height>')
+        out.setdefault(row[0], []).append(how)
+    return out
+
+
+def under_optic(model, changes, modules, gun):
+    """A copied weapon model's sights as a sights table has them under an optic (sights.py): folded
+    or turned (0.69d0's up module found in the surface made its folded one), cut (a surface's islands
+    inside a box), lowered (a part of an island cut flat)."""
+    for how, surface, *rest in changes:
+        if how == 'cut':
+            done = sights.cut(model / 'render' / surface, [float(x) for x in rest[0].split(',')])
+        elif how == 'lower':
+            done = sights.lower(model / 'render' / surface, [float(x) for x in rest[0].split(',')], float(rest[1]))
+        else:
+            up, folded = (modules(m) for m in rest)
+            if up is None or folded is None:
+                sys.exit(f'{gun}: {rest} not in the donor')
+            names = lib.surfaces(up)
+            if len(names) != 1 or lib.surfaces(folded) != names:
+                sys.exit(f'{gun}: {rest}: not one surface each, the same')
+            mover = sights.turn if how == 'turn' else sights.fold
+            done = mover(model / 'render' / surface, up / 'render' / names[0] / 'converted_model',
+                         folded / 'render' / names[0] / 'converted_model')
+        print(f'{gun}: {model.name}: {how} {surface} {" ".join(rest)}: {done}')
+
+
 def level_eye(model):
     """A copied weapon model's aim locator unturned, where it is."""
     path = model / 'render/export_properties'
@@ -349,6 +390,11 @@ def build(args, work):
         templates.setdefault((v['kind'], v['change'] is not None, v['puts']), v)
     next_id = FIRST_VARIANT
     report = []
+    changes = sight_changes(Path(__file__).resolve().parent / 'sights.tsv')
+
+    def donor_module(name):
+        d = args.donor / 'models/weapons/modules' / (name + '.model')
+        return d if d.exists() else None
     for scope in lib.scopes():
         kind, short = scope['kind'], scope['short']
         idle_src = modules.model(scope['module'])
@@ -412,27 +458,32 @@ def build(args, work):
                 if v['weapons'] == [w] and v['change']:
                     candidates.append((v['change'], lib.model_dir(args.live, v['change'])))
             candidates = [(m, d) for m, d in candidates if d]
+            sighted = changes.get(w, [])
             if kind == 'S':
                 # a scope's aimed view is the mount variant's eyepiece: its eye, its weapon model; a
                 # model whose aim locator is turned about x tilts the view, and the reticle, set along
                 # the bore, shows off the screen's centre (seen in the game, @1: the AK-74M's TA01 10 px,
                 # its Leupold 3-7 16 px above): the model again with that locator unturned
                 change = ref['change']
-                if aim_turned(from_dir):
+                if aim_turned(from_dir) or sighted:
+                    # (and with its sights as under an optic, sights.tsv)
                     change = f'{base_model}_n_scope'
                     target = work / 'models' / (change + '.skinned_model')
                     if not target.exists():
                         shutil.copytree(from_dir, target)
                         level_eye(target)
+                        under_optic(target, sighted, donor_module, w)
                         files.update(files_of(target, work))
             else:
                 needed = collimator_eye(args.live, cfg, from_dir, aim_out)
-                change = eye_model(candidates, base_model, needed)
+                # a gun whose sights change under an optic takes a model of ours made so
+                change = False if sighted else eye_model(candidates, base_model, needed)
                 if change is False:
                     change = f'{base_model}_n_{short}'
                     target = work / 'models' / (change + '.skinned_model')
                     shutil.copytree(from_dir, target)
                     moved_eye(target, needed)
+                    under_optic(target, sighted, donor_module, w)
                     files.update(files_of(target, work))
             # the variant's item: made from the mount variant when it is of the scope's kind and both
             # set the weapon's model or neither, else from a variant of ours that sets the scope as
