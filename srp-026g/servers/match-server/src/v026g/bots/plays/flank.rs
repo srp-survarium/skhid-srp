@@ -209,10 +209,18 @@ fn job_line<'a>(cx: &Ctx<'a>, target: TargetRef) -> Option<&'a crate::v026g::bot
 const ROUTE_PASS_M: f32 = 2.0;
 /// [A320] The way point is the first route floor this far ahead at least, m.
 const ROUTE_LEAD_M: f32 = 5.0;
-/// [A320] A route is not taken when a floor of it lies this near (and a storey) of another enemy the team knows, m.
+/// [A320] The team's knowledge of an enemy counts toward a route's risk this long after it was sensed or called out, ms,
+/// and weighs less as it ages (1 when fresh, 0 at the end).
+const ROUTE_KNOWN_MS: u32 = 10_000;
+/// [A320] A route metre is at risk within this of a known enemy (and a storey), m...
 const ROUTE_ENEMY_M: f32 = 18.0;
-/// [A320] Nor when a floor of it this near another known enemy is in his sight, m.
+/// [A320] ... or in his sight within this, m.
 const ROUTE_ENEMY_SIGHT_M: f32 = 40.0;
+/// [A320] Routes within this of the least risk are as good: the order and the rotation choose among them, m.
+const ROUTE_RISK_TIE_M: f32 = 2.0;
+/// [A320] A route whose first metres hold a known enemy (within [`ROUTE_ON_M`] of a floor) is not taken, m.
+const ROUTE_NEXT_M: f32 = 20.0;
+const ROUTE_ON_M: f32 = 6.0;
 /// [A320] Every this many floors of a route are tested against the known enemies (0.25-0.75 m apart).
 const ROUTE_ENEMY_STEP: usize = 4;
 
@@ -235,39 +243,55 @@ fn camp_spot_of(cx: &Ctx, line: &crate::v026g::bots::threat::HeldLine) -> Option
     })
 }
 
-/// [A320] Whether a route's floors keep clear of the other enemies the team knows: none of them (the camper aside) sensed
-/// or called out within the fairness window (`smoke::FAIR_SENSED_MS`, the team's own senses only, `Track::own`) has a floor
-/// of it within [`ROUTE_ENEMY_M`], or in his sight within [`ROUTE_ENEMY_SIGHT_M`].
-fn route_clear(cx: &Ctx, floors: &[mapdata::NodeId], camper: Place) -> bool {
+/// [A320] A route against the other enemies the team knows: none of them (the camper aside) whom the team's own senses or
+/// callouts placed (`Track::own`, no cheat place) within [`ROUTE_KNOWN_MS`] is on its first [`ROUTE_NEXT_M`]
+/// ([`ROUTE_ON_M`]): `None` (skipped); else its risk, the metres of it within [`ROUTE_ENEMY_M`] of one of them or in his
+/// sight within [`ROUTE_ENEMY_SIGHT_M`], each weighed by how fresh the most recent such knowledge is.
+fn route_risk(cx: &Ctx, floors: &[mapdata::NodeId], camper: Place) -> Option<f32> {
+    use crate::v026g::bots::view::{CHEST, still_eye};
     let grid = &cx.tactics.world.grid;
-    let known: Vec<Vec3> = cx
+    let known: Vec<(Vec3, f32)> = cx
         .memory
         .tracks()
         .iter()
         .filter(|t| t.who != camper)
         .filter_map(|t| t.own)
-        .filter(|&(_, time)| cx.now.saturating_sub(time) <= crate::v026g::bots::smoke::FAIR_SENSED_MS)
-        .map(|(at, _)| at)
+        .filter_map(|(at, time)| {
+            let age = cx.now.saturating_sub(time);
+            (age <= ROUTE_KNOWN_MS).then(|| (at, 1.0 - age as f32 / ROUTE_KNOWN_MS as f32))
+        })
         .collect();
     if known.is_empty() {
-        return true;
+        return Some(0.0);
     }
-    floors.iter().step_by(ROUTE_ENEMY_STEP).all(|&n| {
+    let (mut walked, mut risk) = (0.0_f32, 0.0_f32);
+    let mut prev: Option<Vec3> = None;
+    for &n in floors.iter().step_by(ROUTE_ENEMY_STEP) {
         let p = grid.position(n);
-        known.iter().all(|&e| {
-            let d = e.distance_xz(p);
-            let near = d <= ROUTE_ENEMY_M && (e.y - p.y).abs() <= 4.0;
-            let seen = d <= ROUTE_ENEMY_SIGHT_M
-                && cx.tactics.sees(crate::v026g::bots::view::still_eye(e, false), p + Vec3::new(0.0, crate::v026g::bots::view::CHEST, 0.0));
-            !near && !seen
-        })
-    })
+        let step = prev.map_or(0.0, |q| q.distance_xz(p));
+        walked += step;
+        prev = Some(p);
+        if walked <= ROUTE_NEXT_M && known.iter().any(|&(e, _)| e.distance_xz(p) <= ROUTE_ON_M && (e.y - p.y).abs() <= 3.0) {
+            return None;
+        }
+        let weight = known
+            .iter()
+            .filter(|&&(e, _)| {
+                let d = e.distance_xz(p);
+                (d <= ROUTE_ENEMY_M && (e.y - p.y).abs() <= 4.0)
+                    || (d <= ROUTE_ENEMY_SIGHT_M && cx.tactics.sees(still_eye(e, false), p + Vec3::new(0.0, CHEST, 0.0)))
+            })
+            .map(|&(_, w)| w)
+            .fold(0.0_f32, f32::max);
+        risk += step * weight;
+    }
+    Some(risk)
 }
 
 /// [A320] The job flanker's route round the known camp spot `line` is on: the human ones first, then those near a human
-/// win, then the rest, each by the bot's distance to its start, of those clear of the other enemies the team knows
-/// ([`route_clear`]; none clear: none, and the flank as before); the job's n-th flanker (`Job::passed_count`) takes the
-/// n-th, so a route a flanker died on is not the next one's.
+/// win, then the rest, each by the bot's distance to its start, of those with the least risk from the other enemies the
+/// team knows ([`route_risk`]; every route skipped: none, and the flank as before); the job's n-th flanker
+/// (`Job::passed_count`) takes the n-th, so a route a flanker died on is not the next one's.
 fn camp_route(cx: &Ctx, line: &crate::v026g::bots::threat::HeldLine) -> Option<State> {
     use crate::v026g::bots::camp_flank::Origin;
     let spot = camp_spot_of(cx, line)?;
@@ -283,14 +307,29 @@ fn camp_route(cx: &Ctx, line: &crate::v026g::bots::threat::HeldLine) -> Option<S
     order.sort_by(|&a, &b| {
         rank(camp.routes[a].origin).cmp(&rank(camp.routes[b].origin)).then(start_m(a).total_cmp(&start_m(b)))
     });
-    order.retain(|&k| route_clear(cx, &camp.routes[k].floors, line.shooter));
+    // The other enemies the team knows: a route with one on its next stretch is skipped, the rest ranked by risk; those
+    // within the tie band of the least are taken in the order above, the job's n-th flanker the n-th.
+    let risks: Vec<Option<f32>> = (0..camp.routes.len()).map(|k| route_risk(cx, &camp.routes[k].floors, line.shooter)).collect();
+    let least = risks.iter().flatten().copied().fold(f32::INFINITY, f32::min);
+    let skipped = risks.iter().filter(|r| r.is_none()).count();
+    #[cfg(test)]
+    let available = camp.routes.len();
+    order.retain(|&k| risks[k].is_some_and(|r| r <= least + ROUTE_RISK_TIE_M));
     if order.is_empty() {
         #[cfg(test)]
-        eprintln!("A320 camp_flank routes all blocked: t {} place {} spot {spot}", cx.now, cx.me.place);
+        eprintln!("A320 camp_flank cue: t {} place {} spot {spot} routes {available} skipped {skipped} fallback", cx.now, cx.me.place);
         return None;
     }
     let passed = cx.team.threat.job_of(cx.me.place).map_or(0, |(job, _, _)| job.passed_count());
     let route = order[passed % order.len()];
+    #[cfg(test)]
+    eprintln!(
+        "A320 camp_flank cue: t {} place {} spot {spot} routes {available} skipped {skipped} chosen risk {:.1}",
+        cx.now,
+        cx.me.place,
+        risks[route].unwrap_or(0.0)
+    );
+    let _ = skipped;
     let floors = &camp.routes[route].floors;
     let length: f32 = floors.windows(2).map(|w| (grid.position(w[1]) - grid.position(w[0])).length()).sum::<f32>()
         + start_m(route);
@@ -777,11 +816,15 @@ mod tests {
         );
         let at = s.view.places[0].feet;
         assert!(at.distance_xz(fire_at) <= 3.0, "at the route's firing floor: {at:?}");
-        // Another enemy the team sees by the route (not the camper): the route is not taken, the flank as before.
+        // Another enemy the team sees by a later stretch of the only route (not the camper): a risk, still the least, so taken.
         s.view.places[0].feet = me;
-        s.enemy(12, 1, Vec3::new(40.0, 0.0, 34.0), Some(crate::v026g::bots::know::Source::Seen));
+        s.enemy(12, 1, Vec3::new(55.0, 0.0, 38.0), Some(crate::v026g::bots::know::Source::Seen));
+        let risky = start(target, &s.cx(0), &mut rng);
+        assert!(matches!(risky, State::Route { .. }), "a risk is ranked, not refused: {risky:?}");
+        // One on its first 20 m: skipped, and with no other route the flank as before.
+        s.enemy(13, 1, Vec3::new(30.0, 0.0, 36.0), Some(crate::v026g::bots::know::Source::Seen));
         let blocked = start(target, &s.cx(0), &mut rng);
-        assert!(!matches!(blocked, State::Route { .. }), "an enemy on the route: {blocked:?}");
+        assert!(!matches!(blocked, State::Route { .. }), "an enemy on the next stretch: {blocked:?}");
     }
 
     #[test]
