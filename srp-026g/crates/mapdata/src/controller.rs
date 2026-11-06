@@ -107,10 +107,29 @@ struct Node {
     count: u32,
 }
 
+/// How a sweep finds its first contact with one face.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub enum Caster {
+    /// Conservative advancement by the gap over the move's length, touching at [`CONTACT_M`]; a start contact counts when the
+    /// move goes in past [`GOING_IN`] of its length. The port's first rule (A313).
+    #[default]
+    Conservative,
+    /// The exe's own: its caster 0xB9320 is stock `btContinuousConvexCollision::calcTimeOfImpact` (A325 P1, read and run in
+    /// Unicorn): touching at [`BULLET_TOLERANCE_M`], each step the gap over the move's part along the contact normal, no
+    /// contact when that part is at most `f32::EPSILON` (at the start or on the way), and no contact after
+    /// [`ADVANCE_STEPS`] steps. A grazing approach (a sphere sliding toward a seam between two flat faces) converges here and
+    /// meets the face as the exe does; [`Caster::Conservative`] runs out of steps and misses it.
+    Bullet,
+}
+
+/// [`Caster::Bullet`]'s touching distance (the exe's 0x91A8F0 = 0.001), m.
+pub const BULLET_TOLERANCE_M: f32 = 0.001;
+
 /// The map's collision faces in an AABB tree, for capsule sweeps.
 pub struct Collision {
     faces: Vec<Face>,
     nodes: Vec<Node>,
+    caster: Caster,
 }
 
 /// The first contact of a sweep.
@@ -179,7 +198,12 @@ impl Collision {
             let n = faces.len();
             Self::split(&mut faces, 0, n, &mut nodes);
         }
-        Self { faces, nodes }
+        Self { faces, nodes, caster: Caster::default() }
+    }
+
+    /// The same collision, its sweeps by `caster`.
+    pub fn with_caster(self, caster: Caster) -> Self {
+        Self { caster, ..self }
     }
 
     fn split(faces: &mut [Face], first: usize, end: usize, nodes: &mut Vec<Node>) -> usize {
@@ -256,13 +280,21 @@ impl Collision {
     pub fn sweep_each(&self, shape: Shape, by: Vec3, mut each: impl FnMut(Contact)) {
         let (lo0, hi0) = shape.aabb();
         let (lo1, hi1) = shape.moved(by).aabb();
-        let pad = Vec3::new(CONTACT_M, CONTACT_M, CONTACT_M);
+        let touch = match self.caster {
+            Caster::Conservative => CONTACT_M,
+            Caster::Bullet => BULLET_TOLERANCE_M,
+        };
+        let pad = Vec3::new(touch, touch, touch);
         self.faces_in(lo0.min(lo1) - pad, hi0.max(hi1) + pad, |f| {
             let face = &self.faces[f];
             if face.normal == Vec3::ZERO {
                 return;
             }
-            if let Some(c) = advance(shape, by, face) {
+            let contact = match self.caster {
+                Caster::Conservative => advance(shape, by, face),
+                Caster::Bullet => advance_bullet(shape, by, face),
+            };
+            if let Some(c) = contact {
                 each(Contact { face: f, ..c });
             }
         });
@@ -367,6 +399,35 @@ fn advance(shape: Shape, by: Vec3, face: &Face) -> Option<Contact> {
         }
     }
     None
+}
+
+/// [`Caster::Bullet`] against one face: `btContinuousConvexCollision::calcTimeOfImpact` as the exe runs it (0xB9320; the
+/// face's margin 0, LIKELY: the map mesh's ctor 0xA7950 sets 0 and no setMargin call was found).
+fn advance_bullet(shape: Shape, by: Vec3, face: &Face) -> Option<Contact> {
+    let (mut gap, _, mut f, mut n) = shape.gap(&face.v, face.normal);
+    // The move's part toward the face (`relLinVel . normalOnB`: the face is B, the normal points from it to the shape).
+    let mut toward = -by.dot(n);
+    if toward <= f32::EPSILON {
+        return None;
+    }
+    let mut t = 0.0f32;
+    let mut steps = 0;
+    while gap > BULLET_TOLERANCE_M {
+        steps += 1;
+        if steps > ADVANCE_STEPS {
+            return None;
+        }
+        t += gap / toward;
+        if !(0.0..=1.0).contains(&t) {
+            return None;
+        }
+        (gap, _, f, n) = shape.moved(by * t).gap(&face.v, face.normal);
+        toward = -by.dot(n);
+        if toward <= f32::EPSILON {
+            return None;
+        }
+    }
+    Some(Contact { t, point: f, normal: n, face: 0 })
 }
 
 /// The closest points of point `p` on triangle `v` (Ericson, Real-Time Collision Detection 5.1.5).
@@ -482,6 +543,45 @@ mod tests {
     fn wall(x: f32) -> Vec<Triangle> {
         let p = |y, z| Vec3::new(x, y, z);
         vec![tri(p(0.0, -5.0), p(0.0, 5.0), p(3.0, 5.0)), tri(p(0.0, -5.0), p(3.0, 5.0), p(3.0, -5.0))]
+    }
+
+    /// A325 P1, the Vector rail case's floor (level_07 day_2, rev-48: two nearly flat triangles 2e-6 m apart along their
+    /// diagonal) and the jump-forward move of a capsule standing on the first, toward the second (the exe's own state at that
+    /// tick): the exe's own cast (its player_step and Bullet run in Unicorn) meets the second's edge (at t 0.658); conservative
+    /// advancement runs out of steps short of touching and misses it.
+    #[test]
+    fn the_bullet_caster_meets_a_floor_seam_the_conservative_one_misses() {
+        let b = |x: u32, y: u32, z: u32| Vec3::new(f32::from_bits(x), f32::from_bits(y), f32::from_bits(z));
+        let floor = vec![
+            tri(b(0x429251df, 0x41c81ad5, 0xc1b313e6), b(0x429251df, 0x41c81ad5, 0xc1c6471a), b(0x4265877b, 0x41c81ad4, 0xc1c6471a)),
+            tri(b(0x429251df, 0x41c81ad5, 0xc1b313e6), b(0x4265877b, 0x41c81ad4, 0xc1c6471a), b(0x4265877b, 0x41c81ad4, 0xc1b313e6)),
+        ];
+        let low = b(0x428ae2c6, 0x41cb250a, 0xc1b8236c);
+        let capsule = Capsule { low, high: Vec3::new(low.x, f32::from_bits(0x41d376f6), low.z), radius: f32::from_bits(0x3ec28f5c) };
+        let by = Vec3::new(f32::from_bits(0x3c5e1fdb), 0.0, f32::from_bits(0x3dc8d9f9));
+        let first = |caster: Caster| {
+            let world = Collision::build(&floor).with_caster(caster);
+            let mut hits = Vec::new();
+            world.sweep_each(Shape::Capsule(capsule), by, |c| hits.push(c));
+            hits.into_iter().map(|c| c.t).reduce(f32::min)
+        };
+        assert_eq!(first(Caster::Conservative), None);
+        // The fraction is not the exe's (0.524 here: Bullet's GJK normal near touching steers its steps); the jump-forward
+        // branch slides from the move's start on a hit, so the body ends within 4e-5 m of the exe's (A325 trust table).
+        let t = first(Caster::Bullet).expect("the exe meets the seam");
+        assert!((0.0..1.0).contains(&t), "t {t}");
+    }
+
+    /// Sliding along a flat floor goes into no face: no contact with either caster (Bullet's velocity floor).
+    #[test]
+    fn a_slide_along_a_flat_floor_meets_nothing() {
+        let capsule = Capsule { low: Vec3::new(0.0, 0.38, 0.0), high: Vec3::new(0.0, 1.42, 0.0), radius: 0.38 };
+        for caster in [Caster::Conservative, Caster::Bullet] {
+            let world = Collision::build(&ground()).with_caster(caster);
+            let mut hits = 0;
+            world.sweep_each(Shape::Capsule(capsule), Vec3::new(0.3, 0.0, 0.1), |_| hits += 1);
+            assert_eq!(hits, 0, "{caster:?}");
+        }
     }
 
     fn ground() -> Vec<Triangle> {

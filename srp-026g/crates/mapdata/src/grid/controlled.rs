@@ -60,13 +60,13 @@ pub struct ControlledStats {
 }
 
 /// [`walk_share`] on each of [`STARTS`]: the best share, and whether every line ended at `to`.
-fn walk_lines(world: &Collision, from: Vec3, to: Vec3) -> (f32, bool) {
+fn walk_lines(world: &Collision, s: &Settings, from: Vec3, to: Vec3) -> (f32, bool) {
     let flat = Vec3::new(to.x - from.x, 0.0, to.z - from.z);
     let l = flat.length();
     let side = if l > 1e-4 { Vec3::new(-flat.z / l, 0.0, flat.x / l) } else { Vec3::ZERO };
     let (mut best, mut all) = (0.0f32, true);
     for off in STARTS {
-        let (share, at) = walk_share(world, from + side * off, to + side * off);
+        let (share, at) = walk_share(world, s, from + side * off, to + side * off);
         best = best.max(share);
         all &= at;
     }
@@ -102,7 +102,7 @@ pub const OUT_OF_WALLS_M: f32 = 0.15;
 
 /// How far the controller takes a standing body from `from` toward `to` (feet), as a share of the flat way, and whether it
 /// ended at `to`.
-pub fn walk_share(world: &Collision, from: Vec3, to: Vec3) -> (f32, bool) {
+pub fn walk_share(world: &Collision, s: &Settings, from: Vec3, to: Vec3) -> (f32, bool) {
     let flat = Vec3::new(to.x - from.x, 0.0, to.z - from.z);
     let length = flat.length();
     if length < 1e-4 {
@@ -112,7 +112,6 @@ pub fn walk_share(world: &Collision, from: Vec3, to: Vec3) -> (f32, bool) {
     let step = WALK_MPS * 0.05;
     let ticks = (length / step).ceil() as usize + 2;
     let mut c = Controller::standing_at(out_of_walls(world, from));
-    let s = Settings::LIVE;
     let mut best = 0.0f32;
     for _ in 0..ticks {
         let feet = c.feet();
@@ -125,7 +124,7 @@ pub fn walk_share(world: &Collision, from: Vec3, to: Vec3) -> (f32, bool) {
         // Toward the target, at most what is left.
         let go = left.length().min(step);
         c.walk = if left.length() > 1e-6 { left * (go / left.length()) } else { Vec3::ZERO };
-        if c.step(world, 0.05, &s).ceiling {
+        if c.step(world, 0.05, s).ceiling {
             // A low ceiling: the client slides under it or crouches (neither ported): not a stall the pass knows.
             return (1.0, false);
         }
@@ -159,9 +158,11 @@ impl WalkGrid {
     /// The bridges are made here; the walk links that fail their check are returned (a floor, a direction and the share the body
     /// got), for the build to take away with `cut_keeping_reach`.
     pub(super) fn controlled_links(&self, wide: &mut Wide, triangles: &[Triangle]) -> (ControlledStats, Vec<(u32, usize, f32)>) {
-        let world = Collision::build(triangles);
-        let mut stats = ControlledStats::default();
         let body = self.body;
+        let (caster, s) = body.controller();
+        let world = Collision::build(triangles).with_caster(caster);
+        let s = &s;
+        let mut stats = ControlledStats::default();
         let cells_apart = |a: usize, b: usize| {
             let (ia, ka) = self.cell_xz(self.cell_of[a] as usize);
             let (ib, kb) = self.cell_xz(self.cell_of[b] as usize);
@@ -183,7 +184,7 @@ impl WalkGrid {
         stats.bridges_tried = bridges.len();
         let walked = parallel(&bridges, |&i| {
             let l: &OffLink = &wide.off[i];
-            walk_lines(&world, self.position(l.from), self.position(l.to)).1
+            walk_lines(&world, s, self.position(l.from), self.position(l.to)).1
         });
         let old: Vec<usize> = bridges.iter().zip(walked).filter(|&(_, ok)| ok).map(|(&i, _)| i).collect();
         // Bridges with no link yet: two cells on, a floor within a step, the cell between with no floor near that height (a
@@ -209,7 +210,7 @@ impl WalkGrid {
             }
         }
         stats.bridges_tried += new.len();
-        let walked = parallel(&new, |&(a, b)| walk_lines(&world, self.position(a), self.position(b)).1);
+        let walked = parallel(&new, |&(a, b)| walk_lines(&world, s, self.position(a), self.position(b)).1);
         let new: Vec<(u32, u32)> = new.iter().zip(walked).filter(|&(_, ok)| ok).map(|(&p, _)| p).collect();
         // Only the bridges in a run at least [`BRIDGE_MIN_RUN`] wide are walked: a narrower one is crossed only by a body
         // inside its columns, which a bot steering at a point ahead of it does not keep to.
@@ -256,7 +257,7 @@ impl WalkGrid {
         stats.checks = checks.len();
         let shares = parallel(&checks, |&(a, d)| {
             let b = wide.links[a][d];
-            walk_lines(&world, self.position(a as NodeId), self.position(b)).0
+            walk_lines(&world, s, self.position(a as NodeId), self.position(b)).0
         });
         let failing = checks
             .iter()

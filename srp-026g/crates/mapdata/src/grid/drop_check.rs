@@ -68,8 +68,8 @@ impl WalkGrid {
         if links.is_empty() {
             return Vec::new();
         }
-        let world = Collision::build(triangles);
-        let s = Settings::LIVE;
+        let (caster, s) = self.body.controller();
+        let world = Collision::build(triangles).with_caster(caster);
         let follow = parallel(&links, |l| follows(&world, &s, l.2, l.3));
         links.iter().zip(follow).filter(|(_, ok)| !ok).map(|(l, _)| (l.0, l.1, 0.0)).collect()
     }
