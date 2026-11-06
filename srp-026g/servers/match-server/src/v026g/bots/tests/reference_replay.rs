@@ -279,7 +279,8 @@ fn reference_replay() {
             let sub = (((t - last_t) as f32 / 1000.0) / TICK_S).round().max(1.0) as usize;
             for _ in 0..sub {
                 tick_n += 1;
-                let kk = keys_in(t0 + 50 * tick_n);
+                // Keys mode: the crouch of the same input k as the walk (fx-review: the label tick is one ahead).
+                let kk = if keys_mode { keys_in(t0 + 50 * (tick_n - 1)) } else { keys_in(t0 + 50 * tick_n) };
                 body.want_crouch = kk & key::CROUCH != 0;
                 let was = body.feet();
                 let tick_turn = turn_of.get(&(w.place, t)).copied().unwrap_or(0.0);
