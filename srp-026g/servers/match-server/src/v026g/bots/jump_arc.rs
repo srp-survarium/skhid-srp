@@ -28,7 +28,7 @@
 
 use mapdata::{NodeId, Vec3, WalkGrid};
 
-use super::kin::{Local, to_world};
+use super::kin::{Local, TICK_S, to_world};
 use crate::v026g::drive::key;
 
 /// The clip's frames a second.
@@ -41,10 +41,18 @@ pub const TAKEOFF_FRAME: f32 = 6.0;
 const SPRINT_TIME_SCALE: f32 = 0.909;
 /// `air_control_speed` (player +0x304, `default.player`), m/s.
 const AIR_CONTROL_MS: f32 = 1.0;
-/// How far over the arc's feet a floor's top may be and still take the body (the capsule's lower sphere on a lip), m.
+/// How far over the arc's feet a floor's top may be and not hold the body as a wall (the capsule's lower sphere on a lip), m.
 pub const CATCH_M: f32 = 0.1;
-/// The walk cap, m/s: the speed at a press for the sprint jump (the sprint-jump RE 1.2).
+/// The walk cap, m/s: the speed at a press for the sprint jump, and the fastest a body on the floor in a jump moves (the
+/// sprint-jump RE 1.2, 3.2).
 const WALK_CAP_MS: f32 = 3.5;
+/// The sprint jump's prepare phase, its mean (the run's step left at the press: 0-150 ms, 0-1.64 m, FINDINGS 3.2): LIKELY.
+const PREPARE_MS: f32 = 75.0;
+const PREPARE_M: f32 = 0.82;
+/// A body falling after its clip, m/s^2 (the bench stand-in's).
+const GRAVITY: f32 = 9.81;
+/// How far over the feet before the tick a floor's top may be and still take the body coming down (the stand-in's), m.
+const LAND_ABOVE_M: f32 = 0.05;
 
 /// `get_move_direction` 0x2D6510: the keys' direction, forward and back cancelling, left and right cancelling.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -148,6 +156,12 @@ impl Clip {
         [a[0] + (b[0] - a[0]) * t, a[1] + (b[1] - a[1]) * t, a[2] + (b[2] - a[2]) * t]
     }
 
+    /// The frame of the root's apex (16 for the short jumps, 14 for the sprint jumps): from it on, the body comes down.
+    fn apex_frame(self) -> f32 {
+        let table = self.table();
+        (0..table.len()).max_by(|&a, &b| table[a][0].total_cmp(&table[b][0])).unwrap_or(0) as f32
+    }
+
     /// The air control in the body's frame, m/s: the keys' direction at 1 m/s, none for forward alone in a sprint jump.
     fn air_control(self, keys: u32) -> Local {
         let direction = Direction::of(keys);
@@ -159,39 +173,65 @@ impl Clip {
     }
 }
 
-/// A jump in the reckoning: pressed at `pressed` (ms), the clip, and the height of the feet the root's rise is counted from.
+/// A jump in the reckoning, as the bench's honest stand-in flies one (`tests/standin_jump.rs` `Flight`, `fly`): the clip's root
+/// from the feet at the press, at the press's facing (the keys pick the clip there; after it only the air control steers); on the
+/// floor before the take-off at the walk cap at most, in the air after it, a step a wall holds caught up once clear (the chase
+/// rule, FINDINGS 5); down on the highest floor under the feet on the way down or at the clip's end, else a fall.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct JumpArc {
     pressed: u32,
     clip: Clip,
-    base_y: f32,
+    /// The feet and the yaw at the press: the clip's root is counted from them.
+    from: Vec3,
+    yaw: f32,
+    /// The phase: on the floor, in the air over the floor it left, or falling after the clip.
+    phase: Phase,
+    /// How far the air control has moved the body off the clip's way so far (map frame, m).
+    air: [f32; 2],
+}
+
+/// Where a jump is.
+#[derive(Clone, Copy, Debug, PartialEq)]
+enum Phase {
+    /// Before the take-off.
+    Floor,
+    /// In the air, the root's rise counted from `base` (the floor's height when the body left it).
+    Air { base: f32 },
+    /// After the clip with no floor under the feet: falling at `speed` m/s.
+    Fall { speed: f32 },
 }
 
 /// What a step of the arc did.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub enum ArcStep {
-    /// Before the take-off: the body walks the root's travel on the ground (map frame, m).
+    /// Before the take-off: the body walks this far on the ground (map frame, m).
     Ground([f32; 2]),
-    /// In the air at `feet`.
+    /// In the air at the feet given.
     Air(Vec3),
-    /// The jump is over: the body stands at `feet` on `node` (none: no floor under it, a fall the next world puts right).
+    /// The jump is over: the body stands at the feet given, on the floor given (none: no floor anywhere under it).
     Landed(Vec3, Option<NodeId>),
 }
 
 impl JumpArc {
-    /// A jump pressed at `pressed` with `keys`, the body moving at `speed`, its feet at height `y`.
-    pub fn pressed(pressed: u32, keys: u32, speed: f32, y: f32) -> Self {
-        Self { pressed, clip: Clip::of(keys, speed), base_y: y }
+    /// A jump pressed at `pressed` with `keys`, the body moving at `speed`, its feet at `from` and its yaw `yaw`.
+    pub fn pressed(pressed: u32, keys: u32, speed: f32, from: Vec3, yaw: f32) -> Self {
+        Self { pressed, clip: Clip::of(keys, speed), from, yaw, phase: Phase::Floor, air: [0.0, 0.0] }
     }
 
-    /// The jump a world finds in the air at `time` with its feet at `y`: the rise the clip has by then is under them.
-    pub fn seen(pressed: u32, keys: u32, speed: f32, time: u32, y: f32) -> Option<Self> {
-        let mut arc = Self::pressed(pressed, keys, speed, y);
-        let frame = arc.frame(time);
+    /// The jump a world at `time` finds under way, its feet at `feet` and its yaw `yaw`: the press's feet are the clip's root
+    /// back from them, the floor it left the rise under them. None once the clip is over (a fall is the world's).
+    pub fn seen(pressed: u32, keys: u32, speed: f32, time: u32, feet: Vec3, yaw: f32) -> Option<Self> {
+        let mut arc = Self::pressed(pressed, keys, speed, feet, yaw);
+        let ms = time.saturating_sub(pressed) as f32;
+        let (frame, travel) = arc.root(ms);
         if frame >= END_FRAME {
             return None;
         }
-        arc.base_y = y - arc.clip.root(frame)[0];
+        let rise = arc.clip.root(frame)[0];
+        arc.from = Vec3::new(feet.x - travel[0], feet.y, feet.z - travel[1]);
+        if frame > TAKEOFF_FRAME {
+            arc.phase = Phase::Air { base: feet.y - rise };
+        }
         Some(arc)
     }
 
@@ -199,60 +239,118 @@ impl JumpArc {
         self.clip
     }
 
-    /// The clip's frame at `time`.
-    pub fn frame(&self, time: u32) -> f32 {
-        time.saturating_sub(self.pressed) as f32 / 1000.0 * FPS * self.clip.time_scale()
+    /// The clip's frame `ms` after the press and the root's travel by then (map frame, from the press's feet): the sprint jump's
+    /// prepare phase first (its mean, LIKELY: the client's is the run's step left at the press, 0-0.15 s and 0-1.64 m).
+    fn root(&self, ms: f32) -> (f32, [f32; 2]) {
+        let (pm, pd) = match self.clip {
+            Clip::Sprint(_) => (PREPARE_MS, PREPARE_M),
+            Clip::Short(_) => (0.0, 0.0),
+        };
+        let end = self.clip.root(END_FRAME);
+        let len = end[1].hypot(end[2]);
+        let unit = if len > 1e-6 { [end[1] / len, -end[2] / len] } else { [0.0, 0.0] };
+        if ms < pm {
+            let d = pd * ms / pm;
+            return (0.0, to_world([unit[0] * d, unit[1] * d], self.yaw));
+        }
+        let frame = (ms - pm) / 1000.0 * FPS * self.clip.time_scale();
+        let r = self.clip.root(frame);
+        (frame, to_world([r[1] + unit[0] * pd, -r[2] + unit[1] * pd], self.yaw))
     }
 
-    /// The body from `t0` to `t1` (ms) of the jump, its feet at `feet` and its yaw `yaw`, holding `keys`, over `grid` (its body's
-    /// radius and height).
-    pub fn step(&self, grid: &WalkGrid, feet: Vec3, yaw: f32, keys: u32, t0: u32, t1: u32) -> ArcStep {
-        let (f0, f1) = (self.frame(t0), self.frame(t1));
-        let (r0, r1) = (self.clip.root(f0), self.clip.root(f1));
-        let travel = to_world([r1[1] - r0[1], -(r1[2] - r0[2])], yaw);
-        if f1 <= TAKEOFF_FRAME {
-            return ArcStep::Ground(travel);
-        }
-        let dt = t1.saturating_sub(t0) as f32 / 1000.0;
-        let [ca, cl] = self.clip.air_control(keys);
-        let control = to_world([ca * dt, cl * dt], yaw);
-        let y = self.base_y + r1[0];
+    /// The body at `t1` (ms), from `feet` at the tick before, its yaw `yaw` and keys `keys` now, over `grid` (its body's radius
+    /// and height stand in for the capsule).
+    pub fn step(&mut self, grid: &WalkGrid, feet: Vec3, yaw: f32, keys: u32, t1: u32) -> ArcStep {
+        let dt = TICK_S;
         let body = grid.body();
         let (radius, height) = (body.radius, body.stand_height);
-        // Over the body's ground box at `at`: a floor top above the feet by more than the catch and under the head is a wall.
+        if let Phase::Fall { speed } = self.phase {
+            let speed = speed + GRAVITY * dt;
+            let y = feet.y - speed * dt;
+            return match air_floor(grid, feet, feet.y + LAND_ABOVE_M) {
+                Some((node, on)) if on.y >= y => ArcStep::Landed(on, Some(node)),
+                Some(_) => {
+                    self.phase = Phase::Fall { speed };
+                    ArcStep::Air(Vec3::new(feet.x, y, feet.z))
+                }
+                None => ArcStep::Landed(feet, None),
+            };
+        }
+        let ms = t1.saturating_sub(self.pressed) as f32;
+        let (frame, travel) = self.root(ms);
+        let mut target = (self.from.x + travel[0], self.from.z + travel[1]);
+        if frame <= TAKEOFF_FRAME {
+            // On the floor: toward the root at the walk cap at most.
+            let (dx, dz) = (target.0 - feet.x, target.1 - feet.z);
+            let len = dx.hypot(dz);
+            let k = if len > 1e-6 { (WALK_CAP_MS * dt / len).min(1.0) } else { 0.0 };
+            return ArcStep::Ground([dx * k, dz * k]);
+        }
+        let base = match self.phase {
+            Phase::Air { base } => base,
+            _ => feet.y,
+        };
+        self.phase = Phase::Air { base };
+        // Off the floor the keys held now steer it.
+        let [ca, cl] = self.clip.air_control(keys);
+        let steer = to_world([ca * dt, cl * dt], yaw);
+        self.air = [self.air[0] + steer[0], self.air[1] + steer[1]];
+        target = (target.0 + self.air[0], target.1 + self.air[1]);
+        let r = self.clip.root(frame);
+        let y = base + r[0];
+        // A floor top within the body's radius above the feet by more than the catch and under its head is a wall.
         let blocked = |x: f32, z: f32| {
             grid.floors_in([x - radius, z - radius, x + radius, z + radius]).any(|n| {
                 let top = grid.position(n).y;
                 top > y + CATCH_M && top < y + height
             })
         };
-        let (dx, dz) = (travel[0] + control[0], travel[1] + control[1]);
-        // `step_jump_forward`: the whole move, else the wall's side (each axis alone), else none.
-        let (x, z) = [(feet.x + dx, feet.z + dz), (feet.x + dx, feet.z), (feet.x, feet.z + dz)]
+        // `step_jump_forward`: all the way, else along one axis, else held (and caught up once clear).
+        let (x, z) = [target, (target.0, feet.z), (feet.x, target.1)]
             .into_iter()
-            .find(|&(x, z)| !blocked(x, z))
+            .find(|&(x, z)| (x, z) != (feet.x, feet.z) && !blocked(x, z))
             .unwrap_or((feet.x, feet.z));
-        let under = |below: f32, above: f32| {
-            grid.floors_in([x - radius, z - radius, x + radius, z + radius])
-                .map(|n| (n, grid.position(n).y))
-                .filter(|&(_, top)| top >= below && top <= above)
-                .max_by(|a, b| a.1.total_cmp(&b.1))
-        };
-        if f1 >= END_FRAME {
-            // `end_jump`: the clip is over; the body stands on the highest floor under it.
-            return match under(f32::NEG_INFINITY, y + CATCH_M) {
-                Some((node, top)) => ArcStep::Landed(Vec3::new(x, top, z), Some(node)),
-                None => ArcStep::Landed(Vec3::new(x, y, z), None),
-            };
-        }
-        // `step_jump_down`: coming down through a floor's top sets the body on it.
-        if r1[0] < r0[0]
-            && let Some((node, top)) = under(y - 1e-3, feet.y + CATCH_M)
+        let at = Vec3::new(x, y, z);
+        let over = frame >= END_FRAME;
+        if (frame >= self.clip.apex_frame() || over)
+            && let Some((node, on)) = air_floor(grid, at, feet.y.max(y) + LAND_ABOVE_M)
+            && on.y >= y - 1e-4
         {
-            return ArcStep::Landed(Vec3::new(x, top, z), Some(node));
+            return ArcStep::Landed(on, Some(node));
         }
-        ArcStep::Air(Vec3::new(x, y, z))
+        if over {
+            self.phase = Phase::Fall { speed: 0.0 };
+        }
+        ArcStep::Air(at)
     }
+}
+
+/// The floor a body in the air at `at` comes down on (`tests/standin_jump.rs` `air_floor`): the highest whose cell holds it at or
+/// below `top`, else the highest within the body's radius (the nearest of them); its floor and where the feet stand.
+fn air_floor(grid: &WalkGrid, at: Vec3, top: f32) -> Option<(NodeId, Vec3)> {
+    let half = grid.cell_size() * 0.5 + 1e-4;
+    let box_of = |r: f32| [at.x - r, at.z - r, at.x + r, at.z + r];
+    let under = grid
+        .floors_in(box_of(half))
+        .filter(|&n| {
+            let p = grid.position(n);
+            (p.x - at.x).abs() <= half && (p.z - at.z).abs() <= half && p.y <= top
+        })
+        .max_by(|&a, &b| grid.position(a).y.total_cmp(&grid.position(b).y));
+    if let Some(n) = under {
+        return Some((n, Vec3::new(at.x, grid.position(n).y, at.z)));
+    }
+    let r = grid.body().radius;
+    grid.floors_in(box_of(r))
+        .filter(|&n| {
+            let p = grid.position(n);
+            p.distance_xz(at) <= r && p.y <= top
+        })
+        .max_by(|&a, &b| {
+            let (pa, pb) = (grid.position(a), grid.position(b));
+            pa.y.total_cmp(&pb.y).then(pb.distance_xz(at).total_cmp(&pa.distance_xz(at)))
+        })
+        .map(|n| (n, grid.position(n)))
 }
 
 /// A clip's root per frame (0..=24): rise, ahead, to the right (m), from the stock clips (`animations/single/weapons/ak/player/
@@ -647,8 +745,11 @@ mod tests {
         let sprint = Clip::Sprint(Direction::Forward);
         assert!((sprint.root(14.0)[0] - 1.282).abs() < 1e-3);
         assert!((sprint.root(24.0)[1] - 4.42).abs() < 0.01);
-        let arc = JumpArc::pressed(0, key::FORWARD | key::SPRINT, 5.0, 0.0);
-        assert!((arc.frame(880) - 24.0).abs() < 0.05, "{}", arc.frame(880));
+        let arc = JumpArc::pressed(0, key::FORWARD | key::SPRINT, 5.0, Vec3::ZERO, 0.0);
+        let (frame, travel) = arc.root(880.0 + PREPARE_MS);
+        assert!((frame - 24.0).abs() < 0.05, "{frame}");
+        assert!((travel[1] - (4.42 + PREPARE_M)).abs() < 0.02, "{travel:?}");
+        assert_eq!((short.apex_frame(), sprint.apex_frame()), (16.0, 14.0));
         assert!(Clip::Short(Direction::Right).root(24.0)[2] > 1.9, "right is +x");
     }
 
@@ -660,10 +761,10 @@ mod tests {
         assert_eq!(Clip::Sprint(Direction::Forward).air_control(key::LEFT), [0.0, 1.0]);
     }
 
-    fn step_all(arc: &JumpArc, grid: &WalkGrid, mut feet: Vec3, keys: u32) -> (Vec3, Option<NodeId>, u32) {
+    fn step_all(mut arc: JumpArc, grid: &WalkGrid, mut feet: Vec3, keys: u32) -> (Vec3, Option<NodeId>, u32) {
         let mut t = 0;
         loop {
-            match arc.step(grid, feet, 0.0, keys, t, t + 50) {
+            match arc.step(grid, feet, 0.0, keys, t + 50) {
                 ArcStep::Ground([dx, dz]) => feet = Vec3::new(feet.x + dx, feet.y, feet.z + dz),
                 ArcStep::Air(at) => feet = at,
                 ArcStep::Landed(at, node) => return (at, node, t + 50),
@@ -677,8 +778,8 @@ mod tests {
     #[test]
     fn a_short_jump_on_flat_ground_lands_ahead_at_the_clips_end() {
         let grid = WalkGrid::build(&crate::v026g::bots::body::tests::floor(-10.0, -10.0, 10.0, 10.0, 0.0), [-10.0, -10.0, 10.0, 10.0], 0.25, mapdata::Body::client());
-        let arc = JumpArc::pressed(0, key::FORWARD, 3.0, 0.0);
-        let (at, node, t) = step_all(&arc, &grid, Vec3::ZERO, key::FORWARD);
+        let arc = JumpArc::pressed(0, key::FORWARD, 3.0, Vec3::ZERO, 0.0);
+        let (at, node, t) = step_all(arc, &grid, Vec3::ZERO, key::FORWARD);
         assert!(node.is_some() && at.y.abs() < 1e-3, "{at:?}");
         assert!((800..=850).contains(&t), "{t}");
         let ahead = at.x.hypot(at.z);
@@ -695,8 +796,8 @@ mod tests {
             let mut tris = floor(-10.0, -10.0, 10.0, 1.5, 0.0).to_vec();
             tris.extend(floor(-10.0, 1.5, 10.0, 10.0, rise));
             let grid = WalkGrid::build(&tris, [-10.0, -10.0, 10.0, 10.0], 0.25, mapdata::Body::client());
-            let arc = JumpArc::pressed(0, key::FORWARD, 3.0, 0.0);
-            let (at, _, _) = step_all(&arc, &grid, Vec3::ZERO, key::FORWARD);
+            let arc = JumpArc::pressed(0, key::FORWARD, 3.0, Vec3::ZERO, 0.0);
+            let (at, _, _) = step_all(arc, &grid, Vec3::ZERO, key::FORWARD);
             assert_eq!(at.y > rise - 0.05, up, "rise {rise}: {at:?}");
             if !up {
                 assert!(at.z < 1.5, "the face stopped it: {at:?}");

@@ -614,7 +614,7 @@ impl BodyTrack {
             };
         }
         let (air_until, air_cap) = self.air_at(fix.time, kin);
-        let arc = if kin.jump_arc { self.arc_at(fix.time, feet.y) } else { None };
+        let arc = if kin.jump_arc { self.arc_at(fix.time, feet, fix.yaw) } else { None };
         let mut estimate = Estimate {
             time: fix.time,
             feet,
@@ -671,10 +671,10 @@ impl BodyTrack {
             .unwrap_or((0, f32::INFINITY))
     }
 
-    /// [A318] The client's jump a world at `time` with its feet at height `y` is in ([`Kinematics::jump_arc`]): the last press at
+    /// [A318] The client's jump a world at `time` with its feet at `feet` and its yaw `yaw` is in ([`Kinematics::jump_arc`]): the last press at
     /// or before it, uncrouched, whose clip has not ended; the press's speed as the ticks show it (forward held long enough for
     /// the walk cap).
-    fn arc_at(&self, time: u32, y: f32) -> Option<JumpArc> {
+    fn arc_at(&self, time: u32, feet: Vec3, yaw: f32) -> Option<JumpArc> {
         let mut held = false;
         let mut pressed = None;
         let mut forward = 0u32;
@@ -687,7 +687,7 @@ impl BodyTrack {
             held = jump;
             forward = if tick.keys & key::FORWARD != 0 { forward + 1 } else { 0 };
         }
-        pressed.and_then(|(at, keys, speed)| JumpArc::seen(at, keys, speed, time, y))
+        pressed.and_then(|(at, keys, speed)| JumpArc::seen(at, keys, speed, time, feet, wrap(yaw)))
     }
 }
 
@@ -718,9 +718,10 @@ fn advance(
         let local = at.blend.tick(target, kin.blend_ticks);
         // [A318] The client's jump: the clip's arc moves the body, the blend ticks on under it so the landing resumes from the
         // client's mix (fx-zones' `kin.mixer`).
-        if let (Some(arc), Some(grid), Some(node)) = (at.arc, grid, at.node) {
-            let t0 = at.time + (step - 1) * TICK_MS;
-            match arc.step(grid, at.feet, at.yaw, at.keys, t0, t0 + TICK_MS) {
+        if let (Some(mut arc), Some(grid), Some(node)) = (at.arc, grid, at.node) {
+            let out = arc.step(grid, at.feet, at.yaw, at.keys, at.time + step * TICK_MS);
+            at.arc = Some(arc);
+            match out {
                 ArcStep::Ground(travel) => {
                     let to = Vec3::new(at.feet.x + travel[0], at.feet.y, at.feet.z + travel[1]);
                     let offs = WalkOffs::of(kin.walk_off_landing, travel[0].hypot(travel[1]) / TICK_S);
@@ -796,7 +797,7 @@ fn advance(
             && at.arc.is_none()
             && at.node.is_some()
         {
-            at.arc = Some(JumpArc::pressed(tick.time, tick.keys, at.velocity[0].hypot(at.velocity[1]), at.feet.y));
+            at.arc = Some(JumpArc::pressed(tick.time, tick.keys, at.velocity[0].hypot(at.velocity[1]), at.feet, at.yaw));
         }
     } else if tick.keys & key::JUMP != 0 && at.keys & key::JUMP == 0 {
         at.air_until = tick.time + JUMP_AIR_MS;
