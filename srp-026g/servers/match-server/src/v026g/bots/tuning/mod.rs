@@ -777,6 +777,7 @@ mod tests {
             "/grid/client_numbers",
             "/grid/drop_check",
             "/grid/drop_room",
+            "/grid/exe_collision",
             "/grid/gap_no_vaults",
             "/grid/narrow_doors",
             "/grid/pocket_exits_walled",
