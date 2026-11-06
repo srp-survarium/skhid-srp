@@ -13,11 +13,11 @@ package
     import scaleform.clik.events.ButtonEvent;
     import scaleform.clik.events.ListEvent;
     import scaleform.clik.managers.PopUpManager;
-    import scaleform.clik.utils.Padding;
 
-    // The Graphics tab's "Vulkan options..." (docs/notes/dxvk-option.md): a button across the column's
-    // row under the Renderer list, the tab's own (the Optimal and Default buttons' SetingsButton), whose
-    // press opens a panel right under it, its edges the button's, over the column (a popup, as a list's),
+    // The Graphics tab's "Vulkan options..." (docs/notes/dxvk-option.md): a button on the row under the
+    // Renderer list, the tab's own (the Optimal and Default buttons' SetingsButton, at their width), whose
+    // press opens a panel flush under it (the button held pressed), over the column (a popup, as a list's),
+    // its rows on the column's grid,
     // holding the five options exe patch 83 keeps in user.cfg and gives DXVK at the next start with
     // Vulkan/DXVK: the frame rate limit and the performance overlay (lists, the exe's index), Reduce
     // input lag, Tear-free with vsync off and Prefer the dedicated GPU (checkboxes, "1" or "0"). A press
@@ -38,10 +38,12 @@ package
         // In the panel's order: the two lists, then the three checkboxes.
         public static const NAMES:Array = [FRAME_LIMIT, OVERLAY, LOW_LATENCY, TEAR_FREE, DEDICATED_GPU];
         private static const LISTS:int = 2;
-        // Over the panel's first row and under its last.
+        // Over the panel's first row and under its last; out of the column on its left and right.
         private static const PADDING:Number = 8;
-        // Left of the rows (a list's box ends at the panel's right edge, its field as wide as it can).
-        private static const INSET:Number = 4;
+        private static const MARGIN:Number = 6;
+        // The tab's own panel (the preset buttons' band, as drawn): its fill and its edge's line.
+        private static const FILL:uint = 0x1A1C1E;
+        private static const EDGE:uint = 0x353637;
         // The last row's (a checkbox's) drawn height: its box.
         private static const LAST_ROW:Number = 26;
 
@@ -111,6 +113,7 @@ package
         public function texts(label:String):void
         {
             button.label = label;
+            size();
         }
 
         // Whether the button can be shown: its text and every option's answer there.
@@ -232,7 +235,8 @@ package
             return panel.stage != null;
         }
 
-        // The panel closed (a tab change, the window closed, Esc); whether it was open.
+        // The panel closed (a tab change, the window closed, Esc); whether it was open. The button back as
+        // the pointer has it.
         public function close():Boolean
         {
             if (!open)
@@ -241,27 +245,34 @@ package
             }
             panel.stage.removeEventListener(MouseEvent.MOUSE_DOWN, onStagePress);
             panel.parent.removeChild(panel);
+            button.mouseEnabled = true;
+            button.gotoAndPlay("up");
             return true;
         }
 
-        // A press of the button: the panel opened under it (a popup over the column), or closed.
+        // A press of the button: the panel opened right under it (a popup over the column), the button held
+        // pressed while it is open (its "down" frames; it takes no pointer then, so a press on it is outside
+        // the panel and closes it).
         private function onPress(event:Event):void
         {
             if (close() || !button.enabled)
             {
                 return;
             }
-            PopUpManager.show(panel, button.x, button.y + button.height, button.parent);
+            PopUpManager.show(panel, panelX, button.y + button.height, button.parent);
             panel.stage.addEventListener(MouseEvent.MOUSE_DOWN, onStagePress);
+            button.validateNow();
+            button.mouseEnabled = false;
+            button.gotoAndPlay("down");
         }
 
-        // A press outside the button, the panel and an open list of the panel closes it.
+        // A press outside the panel and an open list of the panel closes it.
         private function onStagePress(event:MouseEvent):void
         {
             for (var at:DisplayObject = event.target as DisplayObject; at != null; at = at.parent)
             {
-                if (at == button || at == panel
-                    || at is UIComponent && UIComponent(at).focusTarget != null && panel.contains(UIComponent(at).focusTarget))
+                if (at == panel || at is UIComponent && UIComponent(at).focusTarget != null
+                    && panel.contains(UIComponent(at).focusTarget))
                 {
                     return;
                 }
@@ -269,15 +280,42 @@ package
             close();
         }
 
-        // Across the Renderer list's row, `y` under it; the panel the button's width. Its five rows on one
-        // step, the lists' (`step`, Monitor's), the padding the same over the first and under the last.
-        // `rows`: the column's rows under it, which the open panel lies over: it ends in a gap between
-        // two of them, none showing half below its edge; the step grows as much as that takes.
-        public function layout(renderer:DisplayObject, y:Number, step:Number, rows:Array):void
+        // The panel's left edge in the tab's coordinates.
+        private var panelX:Number = 0;
+        // The tab's preset buttons' width (Optimal's), the button's own.
+        private var presetWidth:Number = 0;
+
+        // The button at the preset buttons' width, wider only for a text that would not fit it.
+        private function size():void
         {
+            if (presetWidth <= 0)
+            {
+                return;
+            }
+            button.width = presetWidth;
+            button.validateNow();
+            var room:Number = button.textField != null ? button.textField.width * button.scaleX : presetWidth;
+            var needed:Number = button.textField != null ? button.textField.textWidth + 8 : 0;
+            if (needed > room)
+            {
+                button.width = presetWidth + needed - room;
+            }
+        }
+
+        // The button at the column's left edge (the Renderer list's), `y` its row, at the tab's preset buttons'
+        // width (`preset`: Optimal); the panel right under it, out by MARGIN on both sides of the column, its
+        // rows on the column's grid: each list at the Renderer list's place and width (its label at the
+        // labels' x, its box at the boxes'), each checkbox at the column's (`rows[1]`, Fullscreen's) x. Its five
+        // rows on one step, the lists' (`step`, Monitor's), the padding the same over the first and under the
+        // last. `rows`: the column's rows under it, which the open panel lies over: it ends in a gap between
+        // two of them, none showing half below its edge; the step grows as much as that takes.
+        public function layout(renderer:DisplayObject, y:Number, step:Number, rows:Array, preset:DisplayObject):void
+        {
+            presetWidth = preset.width;
+            size();
             button.x = renderer.x;
             button.y = y + (renderer.height - button.height) / 2;
-            button.width = renderer.width;
+            panelX = renderer.x - MARGIN;
             var gaps:int = NAMES.length - 1;
             var height:Number = 2 * PADDING + gaps * step + LAST_ROW;
             // in the tab's coordinates: where the panel opens (right under the button) and ends
@@ -293,25 +331,22 @@ package
             }
             step += (bottom - top - height) / gaps;
             height = bottom - top;
-            var width:Number = button.width;
+            var width:Number = renderer.width + 2 * MARGIN;
             for (var i:int = 0; i < NAMES.length; i++)
             {
                 var control:DisplayObject = controls[NAMES[i]];
-                control.x = INSET;
+                control.x = (i < LISTS ? renderer.x : rows[1].x) - panelX;
                 control.y = PADDING + i * step;
                 if (i < LISTS)
                 {
-                    var list:DropdownMenuSkinnedLabel = control as DropdownMenuSkinnedLabel;
-                    list.width = width - INSET;
-                    // its list under its box, which keeps to the right as the Renderer's
-                    list.menuOffset = new Padding(4, 0, 0, SrpRendererChoice.MENU_LEFT - (renderer.width - list.width));
+                    control.width = renderer.width;
                 }
             }
             background.graphics.clear();
-            // the lists' popup look (OptionScrollingList): black, a thin border; opaque, so a press on
-            // it is the panel's, never a row's under it
-            background.graphics.lineStyle(1, 0x3A3A3A);
-            background.graphics.beginFill(0x000000, 1);
+            // the tab's own panel's look (the preset buttons' band): its dark fill and its edge's line, opaque, so
+            // the rows under it never show and a press on it is the panel's
+            background.graphics.lineStyle(1, EDGE);
+            background.graphics.beginFill(FILL, 1);
             background.graphics.drawRect(0, 0, width, height);
             background.graphics.endFill();
         }

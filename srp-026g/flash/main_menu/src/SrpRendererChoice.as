@@ -125,14 +125,14 @@ package
 
         // At the place and size of the tab's Monitor list, a row under it; the
         // Vulkan options' button a row under that, the panel's rows on one step
-        // over the column's `rows`; the note
+        // over the column's `rows`, the button at the preset buttons' width (`preset`); the note
         // under them at the labels' left edge, in the column's width.
-        public function layout(monitor:DisplayObject, y:Number, step:Number, rows:Array):void
+        public function layout(monitor:DisplayObject, y:Number, step:Number, rows:Array, preset:DisplayObject):void
         {
             menu.x = monitor.x;
             menu.y = y;
             menu.width = monitor.width;
-            vulkan.layout(menu, y + step, step, rows);
+            vulkan.layout(menu, y + step, step, rows, preset);
             note.x = menu.x + (menu.textFieldLabel != null ? menu.textFieldLabel.x : 0);
             note.y = y + step + menu.height;
             note.width = monitor.x + monitor.width - note.x;

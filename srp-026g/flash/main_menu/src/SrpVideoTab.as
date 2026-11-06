@@ -49,15 +49,15 @@ package
             var gamma:DisplayObject = tabs.slider_gamma;
             var monitor:DisplayObject = tabs._select_monitor;
             var resolution:DisplayObject = tabs._fscr_resolution;
-            if (gamma == null || monitor == null || resolution == null)
+            var optimal:DisplayObject = tabs.button_optimal_video;
+            var standard:DisplayObject = tabs.button_default_video;
+            var panel:DisplayObject = tabs.bottomContainer;
+            if (gamma == null || monitor == null || resolution == null || optimal == null || standard == null || panel == null)
             {
                 return;
             }
             var rows:Array = [resolution, tabs._fullscreen, tabs._vsync, tabs._antialias, tabs._filtering, gamma];
-            var optimal:DisplayObject = tabs.button_optimal_video;
-            var standard:DisplayObject = tabs.button_default_video;
-            var panel:DisplayObject = tabs.bottomContainer;
-            if (optimal != null && standard != null && panel != null && optimal != moved)
+            if (optimal != moved)
             {
                 moved = optimal;
                 step = resolution.y - monitor.y;
@@ -76,7 +76,7 @@ package
                 standard.x = optimal.x + width + GAP;
                 optimal.y = standard.y = panel.y + (panel.height - optimal.height) / 2;
             }
-            renderer.layout(monitor, monitor.y + step, step, rows);
+            renderer.layout(monitor, monitor.y + step, step, rows, optimal);
         }
     }
 }

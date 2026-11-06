@@ -31,11 +31,15 @@ The owner (2026-11-05): let Windows players try DXVK; off by default.
 The owner (2026-11-05): all five, clearly integrated; (2026-11-06) one row that opens a panel, the
 window keeping its size.
 
-- **Where:** a "Vulkan options..." button (`st_srp_vulkan_options`) across the column's row right under the
-  Renderer list, the tab's own (the Optimal and Default buttons' art and text); the owner, 2026-11-06: a
-  button, not a drop-down box that says "Open". A press opens a panel right under it, its left and right
-  edges the button's, over the column, as a popup (a list's popup look: black, a thin
-  border), holding the five, one line each, on one step (Monitor's list step, grown as little as
+- **Where:** a "Vulkan options..." button (`st_srp_vulkan_options`) on the row right under the Renderer
+  list, at the column's left edge, the tab's own (the Optimal and Default buttons' art, text and width;
+  wider only for a text that would not fit it); the owner, 2026-11-06: a button, not a drop-down box that
+  says "Open", "it should look less ugly". A press opens a panel flush under it, the button held pressed
+  (its "down" frames) while it is open; the panel is a popup over the column, a little wider than it on
+  both sides, in the look of the tab's own panel (the preset buttons' band: its dark fill and edge line),
+  its rows on the column's grid (each list at the Renderer list's place and width, so its label and box
+  are at the column's; each checkbox at Fullscreen's x, its text on its box as Fullscreen's), one line
+  each, on one step (Monitor's list step, grown as little as
   ending in a gap of the column's rows takes: no row shows half below it), the same padding over
   the first and under the last. A press outside it or Esc closes it (Esc closes the
   window only when no panel is open). The button is disabled (greyed as the stock buttons, not hidden) while the Renderer list shows
