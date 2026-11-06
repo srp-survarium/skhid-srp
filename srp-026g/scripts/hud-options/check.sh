@@ -5,7 +5,7 @@
 # - SettingsHarness.as: the HUD group (its heading, the two checkboxes) from the exe's answers, the
 #   Gameplay tab's two columns (Friends, HUD; Crosshair, Language, Quest progress), a toggle of each
 #   pending until Apply, Cancel, the tabs, every dictionary's labels (inside the panel, their glyphs)
-#   and the field of view slider under Language (patch 83's uro_fov: the stock slider, Apply, Cancel);
+#   and the field of view group under the HUD group (patch 83's uro_fov: the stock slider, its heading in the headings' look, Apply, Cancel);
 #   and its crosshair and minimap position choices (inside their lists); the Graphics tab's
 #   Renderer list (docs/notes/dxvk-option.md: under Monitor, the rows under it
 #   moved, every dictionary's label in the column, Apply, Cancel) and its Vulkan options' row under it: greyed

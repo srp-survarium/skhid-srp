@@ -27,10 +27,8 @@ package
         // The timeline recreates frame 3 children on each visit; move each
         // set once.
         private static var moved:DisplayObject;
-        // Monitor's step to the row under it, and a checkbox's (Fullscreen to
-        // Vertical sync), read from the set before it moved.
+        // Monitor's step to the row under it, read from the set before it moved.
         private static var step:Number = 0;
-        private static var boxStep:Number = 0;
         // How far the rows under the Renderer list move: the Vulkan options'
         // row, its own and the note's room.
         private static function get shift():Number
@@ -63,7 +61,6 @@ package
             {
                 moved = optimal;
                 step = resolution.y - monitor.y;
-                boxStep = tabs._vsync.y - tabs._fullscreen.y;
                 for each (var row:DisplayObject in rows)
                 {
                     if (row != null)
@@ -79,7 +76,7 @@ package
                 standard.x = optimal.x + width + GAP;
                 optimal.y = standard.y = panel.y + (panel.height - optimal.height) / 2;
             }
-            renderer.layout(monitor, monitor.y + step, step, boxStep, rows);
+            renderer.layout(monitor, monitor.y + step, step, rows);
         }
     }
 }

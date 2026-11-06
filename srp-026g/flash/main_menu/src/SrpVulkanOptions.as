@@ -32,10 +32,10 @@ package
         // In the panel's order: the two lists, then the three checkboxes.
         public static const NAMES:Array = [FRAME_LIMIT, OVERLAY, LOW_LATENCY, TEAR_FREE, DEDICATED_GPU];
         private static const LISTS:int = 2;
-        // Around the panel's rows, and between a list and the checkbox under it (the tab's
-        // Resolution stepper to its Fullscreen checkbox).
+        // Over the panel's first row and under its last.
         private static const PADDING:Number = 8;
-        private static const LIST_TO_BOX:Number = 27.5;
+        // The last row's (a checkbox's) drawn height: its box.
+        private static const LAST_ROW:Number = 26;
 
         // The row: its label, and a box that opens the panel (DropdownMenu's `panel`).
         public var row:DropdownMenuSkinnedLabel;
@@ -230,31 +230,17 @@ package
             return open;
         }
 
-        // At the Renderer list's place and size, `y` under it; the panel's rows at the tab's steps.
-        // `rows`: the column's rows under it, which the open panel lies over: it ends under the last one
-        // it reaches, none showing half below its edge.
-        public function layout(renderer:DisplayObject, y:Number, listStep:Number, boxStep:Number, rows:Array):void
+        // At the Renderer list's place and size, `y` under it. The panel's five rows on one step, the
+        // lists' (`step`, Monitor's), the padding the same over the first and under the last.
+        // `rows`: the column's rows under it, which the open panel lies over: it ends in a gap between
+        // two of them, none showing half below its edge; the step grows as much as that takes.
+        public function layout(renderer:DisplayObject, y:Number, step:Number, rows:Array):void
         {
             row.x = renderer.x;
             row.y = y;
             row.width = renderer.width;
-            var at:Number = PADDING;
-            for (var i:int = 0; i < NAMES.length; i++)
-            {
-                var control:DisplayObject = controls[NAMES[i]];
-                control.x = PADDING;
-                if (i > 0)
-                {
-                    at += i < LISTS ? listStep : i == LISTS ? LIST_TO_BOX : boxStep;
-                }
-                control.y = at;
-                if (i < LISTS)
-                {
-                    control.width = renderer.width;
-                }
-            }
-            var width:Number = renderer.width + 2 * PADDING;
-            var height:Number = at + boxStep + PADDING;
+            var gaps:int = NAMES.length - 1;
+            var height:Number = 2 * PADDING + gaps * step + LAST_ROW;
             // in the tab's coordinates: where the popup opens (under the box, its offset's top) and ends
             var top:Number = y + row.height + row.menuOffset.top;
             var bottom:Number = top + height;
@@ -266,7 +252,19 @@ package
                     bottom = span.bottom + 2;
                 }
             }
+            step += (bottom - top - height) / gaps;
             height = bottom - top;
+            for (var i:int = 0; i < NAMES.length; i++)
+            {
+                var control:DisplayObject = controls[NAMES[i]];
+                control.x = PADDING;
+                control.y = PADDING + i * step;
+                if (i < LISTS)
+                {
+                    control.width = renderer.width;
+                }
+            }
+            var width:Number = renderer.width + 2 * PADDING;
             background.graphics.clear();
             // the lists' popup look (OptionScrollingList): black, a thin border; opaque, so a press on
             // it is the panel's, never a row's under it

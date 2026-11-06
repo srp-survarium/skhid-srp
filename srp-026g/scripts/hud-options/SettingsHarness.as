@@ -246,10 +246,9 @@ package
             var left:Array = [c.s_friends, c._setter_invite, c._setter_message, c._set_censure, c._only_friends, c._no_in_batle,
                 c._hide_spam, language, menu];
             if (note.visible) left.push(note);
-            left.push(fov);
             // Names on map (the last box) with the map's rows, over Static minimap
             var right:Array = [heading, cross, boxes[0], boxes[1], c._setter_static_show_quests, boxes[2], c._setter_static_minimap,
-                c._setter_static_minimap_position];
+                c._setter_static_minimap_position, fov];
             var bottom:Number = c.bottomContainer.getBounds(content).bottom;
             for each (var column:Array in [left, right])
             {
@@ -280,12 +279,20 @@ package
             // spacing: as the tab's own
             require(near(language.y - c._hide_spam.y, stock.gap) && near(menu.y - language.y, stock.leftFirst),
                 when + ": Language the tab's gap under Friends, its list as Friends' first checkbox");
-            // the field of view: the stock slider (its size), its label at the headings' edge the tab's gap under
-            // the Language note's place, shown or not (it never moves with the note)
-            require(near(fov.x + fov.textField.x, c.s_friends.x) && near(fov.y + fov.textField.y, menu.y + menu.height + 2 + stock.gap)
+            // the field of view, the right column's last group: the stock slider (its size), its label a heading
+            // at the headings' x, the tab's gap under the minimap list (as Language under Friends' last row),
+            // in the headings' look: Language's format (font, size, colour, weight) and filters
+            require(near(fov.x + fov.textField.x, stock.rightHeading)
+                && near(fov.y + fov.textField.y, c._setter_static_minimap_position.y + stock.gap)
                 && near(fov.slider.width, new (loader.contentLoaderInfo.applicationDomain.getDefinition("SrvOptionSlider") as Class)().slider.width)
                 && fov.scaleX == 1 && fov.scaleY == 1 && near(fov.slider.x, 17),
-                when + ": the field of view the stock slider, the tab's gap under the Language note's place (" + fov.y + ")");
+                when + ": the field of view the stock slider, its heading the tab's gap under the minimap list (" + fov.y + ")");
+            var mine:Object = fov.textField.getTextFormat(), theirs:Object = language.getTextFormat();
+            require(mine.color == theirs.color && mine.size == theirs.size && mine.font == theirs.font && mine.bold == theirs.bold
+                && fov.textField.embedFonts == language.embedFonts && fov.textField.filters.length == language.filters.length,
+                when + ": the field of view's heading in Language's look (colour " + Number(mine.color).toString(16) + " / "
+                + Number(theirs.color).toString(16) + ", size " + mine.size + " / " + theirs.size + ", font " + mine.font + " / "
+                + theirs.font + ", filters " + fov.textField.filters.length + " / " + language.filters.length + ")");
             require(near(cross.y - heading.y, stock.rightFirst), when + ": the crosshair list under the heading as Crosshair's first control was");
             var steps:Array = [cross, boxes[0], boxes[1], c._setter_static_show_quests, boxes[2], c._setter_static_minimap];
             for (i = 1; i < steps.length; ++i)
@@ -324,9 +331,9 @@ package
                 language.text = was;
                 was = fov.textField.text;
                 fov.textField.text = row[30] + ":";
-                require(fov.x + fov.textField.x + fov.textField.textWidth + 4 <= fov.x + fov.textField.x + fov.textField.width
-                    && fov.x + fov.textFieldValue.x + fov.textFieldValue.width < leftEnd,
-                    when + ": " + row[30] + " fits the field of view's label, its value in the left column");
+                require(fov.textField.textWidth + 4 <= fov.textField.width
+                    && fov.x + fov.textFieldValue.x + fov.textFieldValue.width < rightEnd,
+                    when + ": " + row[30] + " fits the field of view's heading, its value in the right column");
                 fov.textField.text = was;
                 if (note.visible)
                 {
@@ -339,10 +346,11 @@ package
                 }
             }
             trace("SETTINGS layout " + when + ": left Friends " + c.s_friends.y + ", Language " + language.y + " (list " + menu.y
-                + (note.visible ? ", note " + note.y : "") + ", field of view " + fov.y + ", to " + span(left[left.length - 1])[1]
+                + (note.visible ? ", note " + note.y : "") + ", to " + span(left[left.length - 1])[1]
                 + "); right HUD " + heading.y
                 + " (crosshair " + cross.y + ", " + boxes.map(function(b:*, ...rest):Number { return b.y; }).join(", ") + ", quests " + c._setter_static_show_quests.y
-                + ", minimap " + c._setter_static_minimap.y + ", position " + c._setter_static_minimap_position.y + ", to "
+                + ", minimap " + c._setter_static_minimap.y + ", position " + c._setter_static_minimap_position.y
+                + ", field of view " + (fov.y + fov.textField.y) + ", to "
                 + span(right[right.length - 1])[1] + "); bottom " + bottom);
         }
 
@@ -711,9 +719,19 @@ package
                 && controls[1].dataProvider[2] == texts[0][28] && controls[0].selectedIndex == 0 && controls[1].selectedIndex == 0
                 && !controls[2].selected && !controls[3].selected && controls[4].selected,
                 "Vulkan options: the lists' choices; each control its saved value (Prefer the dedicated GPU on)");
-            require(near(controls[1].y - controls[0].y, step) && Math.abs(controls[0].width - list.width) < 1
-                && near(controls[3].y - controls[2].y, c._vsync.y - c._fullscreen.y),
-                "Vulkan options: the lists the Renderer's size a list's step apart, the checkboxes a checkbox's");
+            var rhythm:Number = controls[1].y - controls[0].y;
+            for (i = 1; i < controls.length; ++i)
+            {
+                require(near(controls[i].y - controls[i - 1].y, rhythm), "Vulkan options: the five rows on one step ("
+                    + VULKAN[i] + ": " + (controls[i].y - controls[i - 1].y) + ", " + rhythm + ")");
+            }
+            // the background as drawn (its 1-pixel border adds half a pixel on each side)
+            var under:Number = panel.getChildAt(0).height - 1 - (controls[4].y + 26);
+            require(rhythm >= step - 0.1 && rhythm <= step + 3 && Math.abs(controls[0].width - list.width) < 1
+                && Math.abs(under - controls[0].y) < 1.5,
+                "Vulkan options: the rows a list's step apart (or a little more, to end on a row's edge), the lists the "
+                + "Renderer's size, the padding over the first row the padding under the last (" + controls[0].y + ", "
+                + under + "; step " + rhythm + ")");
             // every dictionary's texts inside the panel
             var widest:Number = 0;
             var DataProvider:Class = loader.contentLoaderInfo.applicationDomain.getDefinition("scaleform.clik.data.DataProvider") as Class;

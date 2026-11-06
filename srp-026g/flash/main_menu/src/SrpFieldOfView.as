@@ -1,13 +1,15 @@
 package
 {
     import flash.display.MovieClip;
+    import flash.text.TextField;
 
     // The Gameplay tab's "Field of view" slider (patch 22's uro_fov, the camera's angle in degrees
-    // unaimed, 50 to 100), the stock slider at full width under the Language choice. Exe patch 83
+    // unaimed, 50 to 100), the stock slider at its size. Exe patch 83
     // keeps it: it answers ExternalInterface.call("uro_fov"[, degrees]) with
     // root.srp_slider_option(name, label, saved degrees, least, most), setting the degrees first
     // (user.cfg at once). The video options' own option 7 names no variable (the original's), so the
-    // Graphics tab has no field of view. Settings owns it: a move is a pending change of the tab
+    // Graphics tab has no field of view. Its label is a group heading as "Friends:" and "HUD:" are (their
+    // look), a group of the right column under the HUD group. Settings owns it: a move is a pending change of the tab
     // (Apply saves it, Cancel or leaving without Apply puts the saved value back). A script-added child
     // of the tab content, shown on the gameplay frame once the exe has answered.
     public class SrpFieldOfView
@@ -60,9 +62,11 @@ package
             shown();
         }
 
-        // At `x`, its label's top at `top`.
-        public function layout(x:Number, top:Number):void
+        // Its label a group heading in `heading`'s look (one of the tab's own: "Friends:"), at `x`, its
+        // top at `top`; the slider under it as the stock one is under its label.
+        public function layout(heading:TextField, x:Number, top:Number):void
         {
+            SrpLanguage.restyle(slider.textField, heading);
             slider.x = x;
             slider.y = top - slider.textField.y;
         }

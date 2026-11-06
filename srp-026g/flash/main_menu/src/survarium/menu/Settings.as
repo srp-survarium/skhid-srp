@@ -1,6 +1,5 @@
 package survarium.menu
 {
-   import flash.display.DisplayObject;
    import flash.display.Graphics;
    import flash.display.MovieClip;
    import flash.events.Event;
@@ -109,8 +108,8 @@ package survarium.menu
       // tab, saved by Apply.
       protected var _mouse:SrpMouseVertical;
 
-      // The gameplay tab's "Field of view" slider (patch 22's uro_fov, kept by exe patch 83), under the
-      // Language choice (layoutGameplay). A move is a change of the tab, saved by Apply.
+      // The gameplay tab's "Field of view" slider (patch 22's uro_fov, kept by exe patch 83), a group
+      // of the right column under the HUD group (layoutGameplay). A move is a change of the tab, saved by Apply.
       protected var _fov:SrpFieldOfView;
       
       // The controls tab's places, read from its timeline the first time it is laid out
@@ -925,13 +924,9 @@ package survarium.menu
                "rightHeading":c.s_cross.x,"rightControl":c._setter_static_cross.x};
             _gameplaySpacing = space;
          }
-         // the left column: Friends (as the timeline has it), then Language, then the field of view a
-         // group's gap under the Language note's place (shown or not: it never moves with the note),
-         // its label at the headings' left edge
+         // the left column: Friends (as the timeline has it), then Language
          this._language.layout(c.s_friends,space.leftHeading,space.leftControl + space.dropdownX,
             c._hide_spam.y + space.gap,space.leftFirst);
-         var languageMenu:DisplayObject = this._language.menu;
-         this._fov.layout(space.leftHeading,languageMenu.y + languageMenu.height + 2 + space.gap);
          // the right column: the HUD group, each row a step under the last (a list under a checkbox
          // as the minimap's is), a list one further right as the timeline has them; the map's rows
          // (Names on map, Static minimap, the minimap position list) last
@@ -957,6 +952,9 @@ package survarium.menu
             rows[i].x = space.rightControl + (list ? space.dropdownX : 0);
             rows[i].y = y;
          }
+         // then the field of view, a group of its own: its label a heading as the others (their
+         // look), at the column's headings' x the tab's gap under the minimap list, the slider under it
+         this._fov.layout(c.s_friends,space.rightHeading,c._setter_static_minimap_position.y + space.gap);
          c.s_cross.visible = c._setter_static_cross.visible = false;
          c.s_quest_propgress.visible = c._slider_quest_alpha.visible = false;
          c.bottomContainer.visible = false;
