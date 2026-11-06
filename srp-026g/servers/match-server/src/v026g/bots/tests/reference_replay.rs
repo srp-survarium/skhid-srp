@@ -129,7 +129,7 @@ fn reference_replay() {
     });
     let wanted = |place: usize, t: u32| windows.as_ref().is_none_or(|w| w.iter().any(|&(p, a, b)| p == place && a <= t && t <= b));
     let mut tracks: HashMap<usize, BodyTrack> = HashMap::new();
-    let mut out = String::from("rec,place,world_t,tick,t,x,y,z,vx,vy,vz,ground,normal_y,branch,keys\n");
+    let mut out = String::from("rec,place,world_t,tick,t,x,y,z,vx,vy,vz,ground,normal_y,branch,keys,ivx,ivz\n");
     let mut checks = String::new();
     let (mut k, mut n, mut close, mut far) = (0usize, 0u32, 0u32, 0u32);
     for w in rows {
@@ -186,7 +186,7 @@ fn reference_replay() {
                 };
                 let normal = if notes.airborne { String::new() } else { format!("{:.3}", body.contact_normal.y) };
                 out.push_str(&format!(
-                    "{rec_id},{},{t0},{tick_n},{},{:.3},{:.3},{:.3},{:.3},{:.3},{:.3},{},{normal},{branch},0x{kk:x}\n",
+                    "{rec_id},{},{t0},{tick_n},{},{:.3},{:.3},{:.3},{:.3},{:.3},{:.3},{},{normal},{branch},0x{kk:x},{:.3},{:.3}\n",
                     w.place,
                     t0 + 50 * tick_n,
                     now.x,
@@ -195,7 +195,9 @@ fn reference_replay() {
                     (now.x - was.x) / TICK_S,
                     body.velocity.y,
                     (now.z - was.z) / TICK_S,
-                    u8::from(ground)
+                    u8::from(ground),
+                    v[0],
+                    v[1]
                 ));
             }
             last_t = t;
