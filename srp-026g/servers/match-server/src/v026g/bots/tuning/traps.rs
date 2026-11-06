@@ -351,11 +351,14 @@ pub struct CamperJob {
     pub give_up_s: f32,
     /// The trap lies within this of the point, metres.
     pub within_m: f32,
+    /// No mate within this of the trap's cell now, in 2 s or in 4 s, metres (the habit's `friend_m` is 2.5 m): the clearing team
+    /// crosses a cleared camper's point in 38 % of the live cases, and a job's first trap on the bench caught a mate 0.1 s after.
+    pub friend_m: f32,
 }
 
 impl Default for CamperJob {
     fn default() -> Self {
-        Self { death_keep_s: 60.0, near_m: 6.0, far_m: 20.0, step_m: 3.0, max_walk_m: 30.0, give_up_s: 45.0, within_m: 1.5 }
+        Self { death_keep_s: 60.0, near_m: 6.0, far_m: 20.0, step_m: 3.0, max_walk_m: 30.0, give_up_s: 45.0, within_m: 1.5, friend_m: 4.0 }
     }
 }
 
@@ -594,6 +597,7 @@ impl Check for TrapTuning {
                     && j.max_walk_m > 0.0
                     && j.give_up_s > 0.0
                     && (1.0..=6.0).contains(&j.within_m)
+                    && j.friend_m >= self.friend_m
             }),
             "traps.camper_job",
         )?;

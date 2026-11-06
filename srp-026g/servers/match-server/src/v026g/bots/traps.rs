@@ -1711,7 +1711,7 @@ pub(super) fn think(bot: &mut Bot, due: &Due, state: &mut TeamState, notes: &mut
     };
     // [A324] The job's point goes before every other.
     let wish = match job {
-        Some((_, j)) => Some(Wish { spots: &job_spots, within_m: j.within_m, friend_m: t.friend_m }),
+        Some((_, j)) => Some(Wish { spots: &job_spots, within_m: j.within_m, friend_m: j.friend_m }),
         None => wish,
     };
     let on_cleared = !cleared_spots.is_empty() && job.is_none();
