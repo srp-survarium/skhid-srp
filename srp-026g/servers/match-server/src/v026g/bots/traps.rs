@@ -46,7 +46,7 @@ use super::route_end::RouteEnd;
 use super::route_filter::RouteFilter;
 use super::think::Due;
 use super::trap_know::TrapField;
-use super::tuning::{Stayer, TrapLanes, TrapTuning};
+use super::tuning::{Stayer, TrapLanes, TrapRelease, TrapTuning};
 use super::view::PlaceView;
 use super::{Bot, TeamState};
 
@@ -157,10 +157,15 @@ pub enum Why {
     NoFloor,
     /// No look of the pose reaches the floor (the spot is too far below, or the ray too short).
     NoLook,
+    /// [A324] The head ray meets ground too steep for the client to place on (`TrapRelease::Client`).
+    Slope,
+    /// [A324] ... or a known trap's sensor (`TrapRelease::Client`).
+    OnTrap,
 }
 
 impl Why {
-    pub const ALL: [Self; 6] = [Self::Yaw, Self::Pitch, Self::TooNear, Self::OnRoute, Self::NoFloor, Self::NoLook];
+    pub const ALL: [Self; 8] =
+        [Self::Yaw, Self::Pitch, Self::TooNear, Self::OnRoute, Self::NoFloor, Self::NoLook, Self::Slope, Self::OnTrap];
 
     pub const fn index(self) -> usize {
         match self {
@@ -170,6 +175,8 @@ impl Why {
             Self::OnRoute => 3,
             Self::NoFloor => 4,
             Self::NoLook => 5,
+            Self::Slope => 6,
+            Self::OnTrap => 7,
         }
     }
 
@@ -181,6 +188,8 @@ impl Why {
             Self::OnRoute => "on route",
             Self::NoFloor => "no floor",
             Self::NoLook => "no look",
+            Self::Slope => "slope",
+            Self::OnTrap => "on a trap",
         }
     }
 }
@@ -458,7 +467,7 @@ pub struct LookOutcomes {
     pub placed: u32,
     pub called_away: u32,
     /// Gave up, by the last [`Why`] ([`Why::index`]).
-    pub gave_up: [u32; 6],
+    pub gave_up: [u32; Why::ALL.len()],
     /// Gave up with nothing to name (the look ran out before a tick of it was judged).
     pub gave_up_unjudged: u32,
 }
@@ -1035,6 +1044,28 @@ pub fn landing(eye: Vec3, yaw: f32, pitch: f32, floor_y: f32) -> Option<Vec3> {
     Some(Vec3::new(eye.x + d[0] * run, floor_y, eye.z + d[1] * run))
 }
 
+/// [A324] The client's ground for a trap: flat at least this (normal.y, cos 30 deg; `bear_traps.md`, PROVEN).
+pub const PLACE_FLAT_Y: f32 = 0.866;
+/// [A324] A trap is not placed on an armed trap's sensor: within [`TRIGGER_M`] on the ground and this high (PROVEN).
+pub const SENSOR_TOP_M: f32 = 0.22;
+
+/// [A324] Where a trap let go of from `eye` with the view `yaw`, `pitch` lies by the client's rule (`TrapRelease::Client`):
+/// the head ray meets `mesh` within [`PLACE_RAY_M`], on ground flat to [`PLACE_FLAT_Y`], not on the sensor of a trap at
+/// `traps`; else why the client places nothing.
+pub fn client_landing(mesh: &mapdata::RayTree, eye: Vec3, yaw: f32, pitch: f32, traps: &[Vec3]) -> Result<Vec3, Why> {
+    let d = dir(yaw);
+    let ray = Vec3::new(d[0] * pitch.cos(), pitch.sin(), d[1] * pitch.cos());
+    let hit = mesh.ray_hit(eye, ray, PLACE_RAY_M).ok_or(Why::NoFloor)?;
+    if hit.normal.y < PLACE_FLAT_Y {
+        return Err(Why::Slope);
+    }
+    let at = eye + ray * hit.t;
+    if traps.iter().any(|trap| trap.distance_xz(at) <= TRIGGER_M && (at.y - trap.y).abs() <= SENSOR_TOP_M) {
+        return Err(Why::OnTrap);
+    }
+    Ok(at)
+}
+
 /// The eye a body at `feet` has with the view at `view_pitch` (up positive), crouched or standing, the crouched one at
 /// the height of holding still (`view::eye_height`): the lower, so a trap lands at least as far as counted on.
 fn eye_for(feet: Vec3, crouched: bool, view_pitch: f32) -> Vec3 {
@@ -1084,7 +1115,7 @@ pub fn press_look(crouched: bool, run_m: f32, drop_m: f32) -> Option<PressLook> 
 }
 
 /// The distance the look aims the landing at: `reach_m` or the landing the tuning asks, with the margin.
-fn wanted_m(t: &TrapTuning, min_m: f32) -> f32 {
+pub(crate) fn wanted_m(t: &TrapTuning, min_m: f32) -> f32 {
     t.reach_m.max(min_m + LANDING_MARGIN_M)
 }
 
@@ -2053,6 +2084,7 @@ pub(super) fn drive(
     calm: bool,
     crouch: bool,
     t: &TrapTuning,
+    mesh: Option<&mapdata::RayTree>,
 ) -> Option<TrapDrive> {
     let state = bot.features.traps.habit.state();
     // [A292 S4a] From its press to the think that puts the trap in its field (and re-plans round it), the legs stay.
@@ -2071,7 +2103,7 @@ pub(super) fn drive(
         State::Down { crouched, .. } => crouched,
         _ => crouch,
     };
-    let aim = aim_of(bot, me, crouched, t);
+    let aim = aim_of(bot, me, crouched, t, mesh);
     let out = bot.features.traps.habit.tick(
         Tick {
             now,
@@ -2116,7 +2148,11 @@ pub(super) fn drive(
         } else {
             me.eye()
         };
-        let landed = landing(eye, me.yaw, me.pitch, planned.y);
+        // [A324] By the client's rule: no promise where the client puts nothing, and the promise on the trap itself.
+        let landed = match (t.release, mesh) {
+            (TrapRelease::Client, Some(mesh)) => client_landing(mesh, eye, me.yaw, me.pitch, bot.features.traps.field.discs()).ok(),
+            _ => landing(eye, me.yaw, me.pitch, planned.y),
+        };
         bot.features.traps.placed = landed.map(|at| (at, now));
         bot.features.traps.pressed_at = landed.map(|_| now);
         // [A309] The placer keeps off its fresh trap for a while (`traps.fresh_ring`).
@@ -2200,7 +2236,7 @@ fn held_after_press(bot: &Bot, now: u32, t: &TrapTuning) -> bool {
 /// What the habit waits for this tick: the steepness of the look and whether a press would land right, from the
 /// pose the bot has (it may have changed since the plan: the walk, a crouch). Worked out only while looking and
 /// pressing; with `press_landing_m` off always the steepest look and no condition.
-fn aim_of(bot: &Bot, me: &PlaceView, crouched: bool, t: &TrapTuning) -> Aim {
+fn aim_of(bot: &Bot, me: &PlaceView, crouched: bool, t: &TrapTuning, mesh: Option<&mapdata::RayTree>) -> Aim {
     let Some(min_m) = t.press_landing_m else {
         return Aim::Steepest;
     };
@@ -2216,8 +2252,17 @@ fn aim_of(bot: &Bot, me: &PlaceView, crouched: bool, t: &TrapTuning) -> Aim {
             let lead = Vec3::new(me.velocity[0] * RELEASE_LEAD_S, 0.0, me.velocity[1] * RELEASE_LEAD_S);
             let feet = me.feet + lead;
             let view = (me.pitch - PRESS_SLACK).max(-STEEPEST.0);
-            let landed = landing(eye_for(feet, crouched, view), me.yaw, view, spot.y);
-            let press = press_of(t, landed, feet, staying, || route_ahead(bot, me, t).0);
+            let eye = eye_for(feet, crouched, view);
+            // [A324] Where the client puts it, or why it puts nothing there (`traps.release`).
+            let landed = match (t.release, mesh) {
+                (TrapRelease::Client, Some(mesh)) => client_landing(mesh, eye, me.yaw, view, bot.features.traps.field.discs()),
+                _ => landing(eye, me.yaw, view, spot.y).ok_or(Why::NoFloor),
+            };
+            let press = match landed {
+                Ok(at) => press_of(t, Some(at), feet, staying, || route_ahead(bot, me, t).0),
+                Err(why) => Press::Wait(why),
+            };
+            let landed = landed.ok();
             // [A292 S4a] Not where the body itself runs on to over the next moment.
             let press = match (press, t.after_press, landed) {
                 (Press::Ready, Some(a), Some(at)) if swept_m(me.feet, me.velocity, a.sweep_s, at) < a.clear_m => Press::Wait(Why::OnRoute),
@@ -2528,7 +2573,7 @@ pub mod tally {
         pressed_air: u32,
         called_away: u32,
         /// Looks given up, by the last [`Why`] ([`Why::index`]), and with nothing to name.
-        gave_up: [u32; 6],
+        gave_up: [u32; Why::ALL.len()],
         gave_up_unjudged: u32,
     }
 
@@ -3551,5 +3596,38 @@ mod tests {
         assert!((swept_m(feet, [3.0, 0.0], 1.0, Vec3::new(-1.0, 0.0, 0.0)) - 1.0).abs() < 1e-4);
         // Standing: the feet alone.
         assert!((swept_m(feet, [0.0, 0.0], 1.0, Vec3::new(0.0, 0.0, 1.2)) - 1.2).abs() < 1e-4);
+    }
+
+    /// [A324] The client's rule for where a released trap lies: on flat ground the head ray's hit; on a slope steeper than
+    /// 30 deg, on a known trap's sensor, or with no ground within 2.0 m, nothing (and why).
+    #[test]
+    fn a_trap_lies_where_the_client_puts_it_or_nowhere() {
+        let quad = |y0: f32, y1: f32| {
+            let (a, b, c, d) =
+                (Vec3::new(-10.0, y0, -10.0), Vec3::new(10.0, y1, -10.0), Vec3::new(10.0, y1, 10.0), Vec3::new(-10.0, y0, 10.0));
+            [[a, b, c], [a, c, d]]
+        };
+        let flat = mapdata::RayTree::from_corners(quad(0.0, 0.0));
+        let eye = Vec3::new(0.0, 1.6, 0.0);
+        // 1.0 rad down from 1.6 m: the ray meets the floor 1.90 m out along it (0.9 rad would need 2.04 m, past the reach).
+        let pitch = -1.0;
+        let at = client_landing(&flat, eye, 0.0, pitch, &[]).expect("flat ground within reach");
+        assert!(at.y.abs() < 1e-3, "{at:?}");
+        let run = 1.6 / pitch.tan().abs();
+        let d = dir(0.0);
+        assert!(at.distance_xz(Vec3::new(d[0] * run, 0.0, d[1] * run)) < 1e-3, "{at:?}");
+        // The old plane guess lands at the same point on flat ground.
+        let plane = landing(eye, 0.0, pitch, 0.0).unwrap();
+        assert!(plane.distance_xz(at) < 1e-3);
+        // A slope of 45 deg (rise 20 m over 20 m): refused; one of 20 deg: placed.
+        assert_eq!(client_landing(&mapdata::RayTree::from_corners(quad(-10.0, 10.0)), eye, 0.0, -1.2, &[]), Err(Why::Slope));
+        let gentle = 20.0 * 20f32.to_radians().tan();
+        assert!(client_landing(&mapdata::RayTree::from_corners(quad(-gentle / 2.0, gentle / 2.0)), eye, 0.0, -1.2, &[]).is_ok());
+        // On an armed trap's sensor: refused; 0.7 m off it: placed.
+        assert_eq!(client_landing(&flat, eye, 0.0, pitch, &[at + Vec3::new(0.3, 0.0, 0.0)]), Err(Why::OnTrap));
+        assert!(client_landing(&flat, eye, 0.0, pitch, &[at + Vec3::new(0.0, 0.0, 0.7)]).is_ok());
+        // A look too flat for the 2.0 m ray to reach the floor: nothing.
+        assert_eq!(client_landing(&flat, eye, 0.0, -0.3, &[]), Err(Why::NoFloor));
+        assert_eq!(landing(eye, 0.0, -0.3, 0.0), None);
     }
 }

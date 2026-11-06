@@ -98,6 +98,12 @@ pub struct Kinematics {
     /// cell over walk links and stalled at the face of each one up (the pass's 324-pair bench: missed jumps 11 -> 29, at bridges
     /// up 0.45-0.75 m). ON with `grid.client_controller` (A313 bench4: no guard FAIL); OFF: as it was.
     pub walk_bridges: bool,
+    /// [A318] Whether a jump pressed is reckoned as the client's ([`crate::v026g::bots::jump_arc`]): the jump clip's root rise and
+    /// travel, the 1 m/s air control, the grid's floors for the capsule's walls and landings, the end at the clip's end. OFF: the
+    /// snap onto a leap link the step crosses within [`crate::v026g::bots::body::JUMP_AIR_MS`] (`body::jumped_to`). Why: the
+    /// drift lab's jump-key worlds (f1d92378, 605 = 0.451 points of the 4.03 %) are 59 % a floor apart after the jump (the model
+    /// up a ledge the client missed, or the reverse) and the rest a distance in the air (the model walked on at the keys' speed).
+    pub jump_arc: bool,
 }
 
 /// [A313] The terms of the client's movement speed factor `F = max(0, 1 + S4)` the reckoned body moves by
@@ -288,6 +294,7 @@ impl Default for Kinematics {
             slope_speed: SlopeSpeed::RampsGrade,
             ramp_min_deg: 35.0,
             walk_bridges: true,
+            jump_arc: false,
             speed_terms: SpeedTerms::Legs,
         }
     }
@@ -372,8 +379,15 @@ pub enum DropFall {
     /// As the client's capsule: its height falls from where it left under gravity (`step_down` 0x7E1B0, PROVEN: with no ground
     /// within the step under it, the velocity takes `g * min(dt, tick)` down each step and moves it by the speed it had, g = 9.8,
     /// `fall_params.gravity`) until it is on the floor below. Its floor and its way across are as with [`Self::Snap`].
-    #[default]
     Gravity,
+    /// [A318] [`Self::Gravity`] with the client's slow start (`step_down` 0x7E1B0, PROVEN by fx-gear-2's read and probe; port
+    /// `mapdata::controller::tick`, `player_step` reads the speed at the tick's start, then `step_down`): while the speed down at
+    /// the tick's start is under `on_ground_max_vertical_speed` (2.0 m/s, `startup.cfg`) the body goes down by
+    /// `additional_down_speed` (0.05 m a tick, `startup.cfg`), else by the speed at the tick's start (`(v + a dt).y * tick`, `a`
+    /// the slope's slide: none in the air); the speed takes `g * tick` after the move either way. From rest: five ticks of 0.05 m,
+    /// then 2.45 m/s, 2.94 m/s, ...
+    #[default]
+    Client,
 }
 
 /// [A318] The blend a world's fix starts the reckoning with.
