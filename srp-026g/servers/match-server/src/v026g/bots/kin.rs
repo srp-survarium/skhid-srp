@@ -549,13 +549,14 @@ impl Kinematics {
             && keys & (key::BACK | key::FIRE | key::CROUCH | key::AIM) == 0
     }
 
-    /// [A318] Whether the keys start or keep the client's sprint state: `sprint_predicate` 0x2FBC90 / `is_trying_to_sprint`
-    /// 0x2FC1F0 test SPRINT (0x200) and FORWARD (0x1) with none of `0x122` (BACK, FIRE, CROUCH) on the tick's keys, then `can_sprint`
-    /// 0x2DBF40, which reads no keys (fx-review's A328 read, CONFIRMED): AIM does not block it on this path. The state ends on the
-    /// release tick (fx-smoke: the client's own flag in 2,524 worlds). [`Self::sprints`] (the speed asked, stamina) still leaves
-    /// AIM out (LIKELY, not read).
+    /// [A318] Whether the keys hold the client's sprint state: [`Self::sprints`]. The start predicates (`sprint_predicate` 0x2FBC90,
+    /// `is_trying_to_sprint` 0x2FC1F0) test SPRINT and FORWARD with none of `0x122` (BACK, FIRE, CROUCH), and `can_sprint` 0x2DBF40
+    /// reads no keys (fx-review A328), but AIM ends it all the same in the live game: 89 worlds of humans holding SPRINT + FORWARD +
+    /// AIM (keys unchanged since the world before, 522 live recordings of 2026-11-06) move at a median 3.69 m/s, 17 % over 4.2,
+    /// against 5.59 and 79 % without AIM (LIKELY by data; the exe path that ends it is not read: the aim state's own exit, or
+    /// can_sprint's aim-transition test fx-smoke names). The state ends on the release tick (fx-smoke: the client's flag, 2,524 worlds).
     pub fn sprint_state(keys: u32) -> bool {
-        keys & key::SPRINT != 0 && keys & key::FORWARD != 0 && keys & (key::BACK | key::FIRE | key::CROUCH) == 0
+        Self::sprints(keys)
     }
 
     /// The velocity the keys ask for, in the body's frame, for a body at
