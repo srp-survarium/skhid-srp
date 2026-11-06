@@ -28,6 +28,7 @@ use mapdata::controller::tick::{Controller, Settings};
 use mapdata::{Vec3, World};
 
 use super::super::body::{BodyTrack, Fix};
+use super::super::kin::Local;
 use super::bench::bench_tuning;
 use crate::v026g::drive::key;
 
@@ -84,6 +85,7 @@ fn reference_replay() {
     let turn_first = var("SRP_A325_TURN_FIRST").is_some();
     let exe_order = var("SRP_A325_EXE_ORDER").is_some();
     let pos_lag1 = var("SRP_A325_POS_LAG1").is_some();
+    let keys_mode = var("SRP_A325_KEYS").is_some();
     // `SRP_A325_WORLD_BLEND=k`: the velocity kept in the world frame, each tick k of the way toward the intended (a turn does not
     // swing the momentum round with the yaw at once). A hypothesis test, not a client rule.
     let world_blend: Option<f32> = var("SRP_A325_WORLD_BLEND").and_then(|v| v.parse().ok());
@@ -183,8 +185,43 @@ fn reference_replay() {
         // `SRP_A325_POS_LAG1=1`: the world's position one tick behind its yaw/keys (hypothesis: the world block written after
         // the tick's input, before physics moves the body): the move ending at t uses the previous step's velocity.
         let before_first = trail.iter().rev().find(|r| r.0 <= t0).map(|r| r.2);
+        // `SRP_A325_KEYS=1`: the velocity from the recorded keys by the client's own rules, not the reckoning (see `key_clip`):
+        // the exe's tick k (fx-grid, 0x2DA9A0) applies input k (yaw += its turn; a key change starts a new clip at weight 0),
+        // then walks by R(yaw) x the clips' weighted root velocities, the newest ramping 1/6 a tick (0.3 s, 0x921804), Σ w_i v_i
+        // without normalisation, each older clip keeping what the newer leave. World B's position is the body after tick B-1
+        // (m_last_pos, 0x7BE7C) and its yaw is after input B, so the ticks run k = t0 .. t - 50 with input k, turn from t0 + 50.
+        let mut layers: Vec<(Local, u32, u32)> = vec![(key_clip(keys_in(t0.saturating_sub(50))), 0, keys_in(t0.saturating_sub(50)) & CLIP_KEYS)];
+        let mut kyaw = yaw_b;
         for (i, &&(t, _, v_own, _)) in ahead.iter().enumerate().take_while(|(_, r)| r.0 <= w.time) {
-            let v = if exe_order {
+            let v_keys = keys_mode.then(|| {
+                let k = t - 50;
+                if k > t0 {
+                    kyaw += turn_of.get(&(w.place, k)).copied().unwrap_or(0.0);
+                }
+                let kk = keys_in(k) & CLIP_KEYS;
+                if layers.last().is_none_or(|l| l.2 != kk) {
+                    layers.push((key_clip(kk), k, kk));
+                }
+                let mut sum = [0.0f32; 2];
+                let mut left = 1.0f32;
+                let mut keep = layers.len();
+                for (j, &(clip, start, _)) in layers.iter().enumerate().rev() {
+                    let w = if start == 0 { 1.0 } else { (((k - start) / 50) as f32 / 6.0).min(1.0) };
+                    sum[0] += clip[0] * w * left;
+                    sum[1] += clip[1] * w * left;
+                    left *= 1.0 - w;
+                    if left <= 0.0 {
+                        keep = layers.len() - j;
+                        break;
+                    }
+                }
+                let drop = layers.len() - keep;
+                layers.drain(..drop);
+                super::super::kin::to_world(sum, kyaw)
+            });
+            let v = if let Some(v) = v_keys {
+                v
+            } else if exe_order {
                 ahead.get(i + 1).map_or(v_own, |r| r.2)
             } else if pos_lag1 {
                 if i == 0 { before_first.unwrap_or(v_own) } else { ahead[i - 1].2 }
@@ -276,4 +313,53 @@ fn reference_replay() {
         100.0 * close as f64 / n.max(1) as f64,
         100.0 * far as f64 / n.max(1) as f64
     );
+}
+
+/// The keys a movement clip depends on: the moves, aim, crouch, sprint.
+const CLIP_KEYS: u32 = key::FORWARD | key::BACK | key::LEFT | key::RIGHT | key::AIM | key::CROUCH | key::SPRINT;
+
+/// The client's movement clip for a key mask, as a body-frame velocity `[forward, left]` m/s, from the game data only:
+/// - the direction (0x2D6510's mapping: F, F+R, R, B+R, B, B+L, L, F+L; F+B or none = standing);
+/// - the clip's root speed along it (resources.db AK player clips, fx-zones nav-truth/fx-zones/clips/ak-root-motion.txt:
+///   stand F and diagonals 3.50, B and diagonals 3.20, L/R 2.244; crouch 2.20, 1.95, 1.41; aimed = the same roots;
+///   sprint 3.273 m / 0.6 s = 5.455, private/sprint-jump-re FINDINGS);
+/// - times the clip's rate desired / default (gameplay/players/default.player movement_speed; forward diagonals take the fwd
+///   entry, back diagonals back, L/R side; notes-walkvector §3): walk 3.5/3.5, 3/3.2, 2.5/2.25; aim 3/3.5, 2.5/3.2, 2/2.25;
+///   crouch 2.5/2.2, 2/2, 2/1.4; crouch aim 2/2.2, 1.5/2, 1.5/1.4; sprint 5/5.5 (forward only, not aimed or crouched).
+/// The speed factor's modifiers (skill, kit) are left at 0 (bots carry none in the 0.26g data: LIKELY).
+fn key_clip(keys: u32) -> Local {
+    let (f, b, l, r) = (keys & key::FORWARD != 0, keys & key::BACK != 0, keys & key::LEFT != 0, keys & key::RIGHT != 0);
+    let fwd = f && !b;
+    let back = b && !f;
+    let side: f32 = match (l, r) {
+        (true, false) => 1.0,
+        (false, true) => -1.0,
+        _ => 0.0,
+    };
+    if !fwd && !back && side == 0.0 {
+        return [0.0, 0.0];
+    }
+    let (crouch, aim) = (keys & key::CROUCH != 0, keys & key::AIM != 0);
+    if keys & key::SPRINT != 0 && fwd && side == 0.0 && !crouch && !aim {
+        return [5.455 * 5.0 / 5.5, 0.0];
+    }
+    // (root speed, desired, default) by class: forward-ish, back-ish, pure side.
+    let (root, desired, default) = match (crouch, aim, fwd, back) {
+        (false, false, true, _) => (3.50, 3.5, 3.5),
+        (false, false, _, true) => (3.20, 3.0, 3.2),
+        (false, false, _, _) => (2.244, 2.5, 2.25),
+        (false, true, true, _) => (3.50, 3.0, 3.5),
+        (false, true, _, true) => (3.20, 2.5, 3.2),
+        (false, true, _, _) => (2.244, 2.0, 2.25),
+        (true, false, true, _) => (2.20, 2.5, 2.2),
+        (true, false, _, true) => (1.95, 2.0, 2.0),
+        (true, false, _, _) => (1.41, 2.0, 1.4),
+        (true, true, true, _) => (2.20, 2.0, 2.2),
+        (true, true, _, true) => (1.95, 1.5, 2.0),
+        (true, true, _, _) => (1.41, 1.5, 1.4),
+    };
+    let speed = root * desired / default;
+    let along: f32 = if fwd { 1.0 } else if back { -1.0 } else { 0.0 };
+    let n = (along * along + side * side).sqrt();
+    [along / n * speed, side / n * speed]
 }
