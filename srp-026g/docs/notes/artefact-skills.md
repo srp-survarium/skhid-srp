@@ -7,7 +7,7 @@ preferred-image VAs; `apply_modifier` is the kit-modifier getter 0x2D5AE0.
 ## The tree
 
 - The fifth skills tab, "Knowledge of the Forest" (`st_anomaly_skills_label`, the stock text in
-  every language), ids 501..541 (branch 5). Eleven skills: the owner's ten and Artifact Container
+  every language), ids 501..542 (branch 5, the tens digit the row). Eleven skills: the owner's ten and Artifact Container
   (the owner, 2026-11-05, retail 0.31a2's 513). My pick: the fourth tab ("Technical skills") stays
   for the equipment skills.
 - Source: `scripts/content-edit/artefact-skills-1.json` (`release/content.tsv`), names and
@@ -18,32 +18,36 @@ preferred-image VAs; `apply_modifier` is the kit-modifier getter 0x2D5AE0.
 
 | Tier | Needs | Id | Skill | Ranks | Per rank | Mechanism |
 |---|---:|---:|---|---:|---|---|
-| 1 | 0 | 501 | Concentration | 5 | collection time -5% | data: modifier 7 |
+| 1 | 0 | 501 | Quick Hands | 5 | collection time -5% | data: modifier 7 |
 | 1 | 0 | 502 | Resistance | 5 | isolation +5 | exe hook |
 | 2 | 5 | 511 | Forest Protection | 4 | bullet and fragment damage -5% in an anomaly | data: modifier 41 |
 | 2 | 5 | 512 | Knowledge of Artifacts | 5 | active duration +5% | data: modifier 39 |
 | 3 | 10 | 521 | Keeper of the Artifacts | 1 | starts with a random artefact | server + exe |
-| 3 | 10 | 522 | Resonance | 1 | passives shared, 8 m | exe |
+| 3 | 10 | 522 | Artifact Container | 1 | a pocket becomes an artefact container | data: modifiers 14, 15 |
 | 4 | 20 | 531 | Spring II | 1 | Spring: reload +5% passive, +15% active | exe (patch 54's Spring) |
 | 4 | 20 | 532 | Onyx II | 1 | no fall damage while Onyx is active | exe (patch 54's Onyx) |
 | 4 | 20 | 533 | Larkspur II | 1 | activation restores all energy | exe |
-| 4 | 20 | 534 | Artifact Container | 1 | a pocket becomes an artefact container | data: modifiers 14, 15 |
-| 5 | 25 | 541 | Resonance Cascade | 1 | actives shared, 5 m | exe |
+| 5 | 24 | 541 | Resonance | 1 | passives shared, 8 m; or Cascade | exe |
+| 5 | 24 | 542 | Cascade | 1 | actives shared, 5 m; or Resonance | exe |
 
-- Layout, four columns (1..4):
+- Layout, four columns (1..4) (the owner, 2026-11-06: Artifact Container beside Keeper, Resonance
+  and Cascade an either/or pair in row V, as every tree's last row):
 
 ```text
-| - C R - |    Concentration, Resistance
+| - Q R - |    Quick Hands, Resistance
 | - F K - |    Forest Protection, Knowledge of Artifacts
-| - P N - |    Keeper of the Artifacts, Resonance
-| S O L A |    Spring II, Onyx II, Larkspur II, Artifact Container
-| - - X - |    Resonance Cascade
+| - P A - |    Keeper of the Artifacts, Artifact Container
+| S O L - |    Spring II, Onyx II, Larkspur II
+| - N X - |    Resonance or Cascade (antiskills of each other)
 ```
 
-- Points: tier 1 holds 10, tiers 1-2 19, tiers 1-3 21, tiers 1-4 25; the whole tree 26.
-- Thresholds 0/5/10/20/25 as the table (the owner, 2026-11-05, with Forest Protection's fourth
-  rank and Artifact Container): tier 4 leaves one point of tiers 1-3 free, tier 5 needs every
-  point of tiers 1-4.
+- Points: row I holds 10, rows I-II 19, rows I-III 21, rows I-IV 24; a full build 25 (one of the
+  row-V pair; 26 ranks in all).
+- Thresholds 0/5/10/20/24: row IV leaves one point of rows I-III free, row V needs every point of
+  rows I-IV.
+- Quick Hands (501) was "Concentration", 0.69's own name for this skill
+  (`st_artefact_search_time_name`, in 0.27..0.69 alike); the survival tree's 333 has that name, and
+  no other retail string names an artefact search skill, so the owner's "Quick Hands" (2026-11-06).
 - The skills window's last tier is the branch's highest `branch_points` (was a constant 20, the
   stock and medical last tier), so the bar fills when tier 5 is taken.
 
@@ -54,7 +58,7 @@ preferred-image VAs; `apply_modifier` is the kit-modifier getter 0x2D5AE0.
 - Exe skills: one packed integer in modifier 40 (`artefact_power`), parsed once (`Skills::parse`
   in the patch); invalid (fractional, negative, too large, a rank past its levels) is no
   artefact skill at all. Bits: 0..2 Resistance (0..5), 3 Keeper, 4 Resonance, 5 Spring II,
-  6 Onyx II, 7 Larkspur II, 8 Resonance Cascade, 9..11 Keeper's draw.
+  6 Onyx II, 7 Larkspur II, 8 Cascade, 9..11 Keeper's draw.
 - Modifier 40 evidence (the exact 0.26g exe, 2026-11-05): all 94 calls of `apply_modifier` and
   its wrapper 0x2D5B80 resolve to an index, none 40; `artefact_power_modifier` is referenced
   only by the two name tables (0x9284E8, 0x9C9C88); no other config, edit list or code
@@ -65,7 +69,7 @@ preferred-image VAs; `apply_modifier` is the kit-modifier getter 0x2D5AE0.
   from the static info. The parser takes 1..6; a draw past the kinds gives nothing.
 - Bit 12 and above: nothing (a payload with one is refused).
 
-## Concentration (501)
+## Quick Hands (501)
 
 - Modifier 7 `artefact_search_time` -0.05 a rank: the container's search time x max(0, 1 + sum)
   (0x31C7EF). Adds with the gloves' 1130..1134 and the Artifact-master's -25%: rank 5 with
@@ -116,7 +120,7 @@ preferred-image VAs; `apply_modifier` is the kit-modifier getter 0x2D5AE0.
   - The point light of the glow (the stock `up_light`, grey) also lights the player's body and
     the ground near it (the renders); a lighter version would leave it out.
 
-## Artifact Container (534)
+## Artifact Container (522)
 
 - The owner (2026-11-05): one rank, one pocket becomes an artefact container, as retail 0.31a2
   (513, tier 5, exclusive with Forest Sense there). Here tier 4, no exclusion (my pick).
@@ -222,11 +226,15 @@ preferred-image VAs; `apply_modifier` is the kit-modifier getter 0x2D5AE0.
 - The activation (artefact_base's action, 0x313333, never a restore or a visual) sets the
   holder's stamina to its maximum. Repeat presses during a cooldown and key-up do nothing.
 
-## Resonance (522) and Resonance Cascade (541): one mechanism, two triggers
+## Resonance (541) or Cascade (542): one mechanism, two triggers
 
 - A carrier's artefacts share their effect with living teammates near the carrier:
   - Resonance: each carried artefact's passive, within 8 m;
   - Cascade: each active artefact's active, within 5 m ("They glow, you shine").
+- One or the other (the owner, 2026-11-06: an either/or pair in row V, each the other's
+  `antiskills`, as the other trees' last rows). A carrier shares by its own skill only; a
+  recipient can still take passives from one teammate's Resonance and actives from another's
+  Cascade.
 - A recipient: another player of the carrier's team, alive, in the active roster (never the
   insertion flag +33Fh), within the radius of the carrier (positions as the game has them at
   that moment). Not the carrier, never an enemy.
@@ -277,7 +285,7 @@ preferred-image VAs; `apply_modifier` is the kit-modifier getter 0x2D5AE0.
 - Larkspur: `medical.regenerate` (0x32A53F, order 1, patch 94's booster order 2): each shared
   Lifebone's record for the part (+354h), as its regeneration callback (0x312590) does to the
   rate, delay and limit.
-- Larkspur's active: skill 541's edit-list entry also sets modifier 43 (`armored_trap`) bit 20,
+- Larkspur's active: skill 542's edit-list entry also sets modifier 43 (`armored_trap`) bit 20,
   patch 94's retained Medic.
 
 ## Every game the same

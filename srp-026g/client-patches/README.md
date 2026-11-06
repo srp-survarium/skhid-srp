@@ -4605,14 +4605,14 @@ with the skill gets its stamina's maximum (+6C0h, current +6Ch). Spring II: patc
 Spring two reload nodes (list 13, +3D8h and +3E8h; the object 3F8h), the first linked with the
 passive (new hooks at 0x311AD0 / 0x311D10), the second with the active; patch 109's entry
 `artefact.spring_reload` sets their values at the passive's link (+0.05 / +0.10 with the skill, else 0).
-Resonance and Resonance Cascade (bits 4 and 8): one aura, read where each effect is used and never
+Resonance and Cascade (bits 4 and 8, an either/or pair): one aura, read where each effect is used and never
 kept: a living teammate's carried Springs, Lifebones and Onyx give a recipient their passives
 within 8 m (Resonance) and their actives within 5 m (Cascade), at most 4 copies of a kind for
 each, the recipient's own first. The Springs' nodes at the two getters (`artefact.shared_modifier`
 0x2D5AE6, `artefact.shared_modifiers` 0x2D5C18; the kit's player found in the match of the engine
 world's game's world), the Onyx before a part's protectors (`artefact.shared_protection`
 0x32A020), the Lifebones at a part's regeneration tick (`medical.regenerate`, before patch 94's);
-Larkspur's active heal is patch 94's retained Medic, whose bit (modifier 43 bit 20) skill 541 sets.
+Larkspur's active heal is patch 94's retained Medic, whose bit (modifier 43 bit 20) skill 542 sets.
 The shared movement (list 4) is read only when a player's animations are selected, so at each
 player's tick before tick_animations (`battery.carrier_tick` 0x2DAAD3, order 2) a change of it
 since the tick before sets +33Eh (m_need_to_select_animations), as patch 94 does for Adrenalin;
