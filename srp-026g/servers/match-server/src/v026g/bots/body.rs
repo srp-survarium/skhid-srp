@@ -649,6 +649,11 @@ impl BodyTrack {
         };
         if let Some(level) = read_keys.zip(fix.speed).and_then(|(keys, speed)| self.read_level(kin, keys, speed / self.legs.unwrap_or(1.0))) {
             self.level = Some(level);
+            // [A331] A reading that picked one of the kit's values: the place's prior for its next lives (the weapon it keeps in
+            // hands), instead of the primary's.
+            if self.candidates.contains(&level) {
+                self.prior_level = Some(level);
+            }
         }
         let level = self.level();
         let reckoned = (!new_life)
