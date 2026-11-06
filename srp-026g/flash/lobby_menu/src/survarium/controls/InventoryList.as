@@ -172,8 +172,8 @@ package survarium.controls
       private static const SEARCH_PANEL_TOP:int = 19;
       
       // wide enough for the empty box's hint, its "+" examples whole in every language (owner
-      // 2026-11-06; the longest, Russian, 342 of 377 px in Ruffle: scripts/item-search/check.sh)
-      private static const SEARCH_WIDE:Number = 1.6;
+      // 2026-11-06), the grid's width nearly: scripts/item-search/check.sh measures every language
+      private static const SEARCH_WIDE:Number = 2.1;
       
       private static const SEARCH_GROW:int = 4;
       
@@ -204,21 +204,21 @@ package survarium.controls
       // letters in order (less the further apart), with typos (less for each).
       private static const MATCH_START:int = 400;
       
-      // A word naming a kind of item (owner 2026-10-22), or its start from 3 letters on, matches
-      // the items of that kind above any name: [the words, the category, or with group the super
-      // category]. The words of every language match, whatever the game's language (search words,
-      // not texts shown: they are not in the dictionaries).
-      private static const MATCH_KIND:int = 450;
-      
+      // A "+" word naming a kind of item (owner 2026-11-06; a plain word until then, 2026-10-22), or
+      // its start from 3 letters on: [the words, the category, or with group the super category].
+      // The words of every language match, whatever the game's language (search words, not texts
+      // shown: they are not in the dictionaries). The tip lists each row's first word. No word that
+      // starts a bonus's name (armor, armour, páncél, panssari: the Armor bonus; a "+" word names a
+      // kind before a bonus, searchQuery).
       private static const SEARCH_KIND_LEAST:int = 3;
       
       private static const SEARCH_KINDS:Array = [
          {words:["gear","equipment","спорядження","снаряжение","экипировка", "oprema","výbava","vybaveni","felszerelés","felszereles","varusteet","рыштунак","экіпіроўка"],group:SuperCategory.EQUIPMENT},
          {words:["items","предмети","предметы","predmeti","předměty","predmety","tárgyak","targyak","esineet","прадметы"],group:SuperCategory.ITEMS},
-         {words:["helmet","шолом","шлем","šlem","helma","sisak","kypärä","kypara"],category:ItemCategory.HELMETS},
-         {words:["mask","маска","maska","maszk","naamari"],category:ItemCategory.MASKS},
-         {words:["body","armour","armor","vest","бронежилет","pancir","vesta","pancíř","páncél","pancel","liivi","panssari","бронекамізэлька"],category:ItemCategory.BODY_ARMOR},
-         {words:["rig","розвантаження","разгрузка","prsluk","nosný systém","taktikai mellény","taisteluliivi"],category:ItemCategory.RIGS},
+         {words:["helmet","helmets","шолом","шлем","šlem","helma","sisak","kypärä","kypara"],category:ItemCategory.HELMETS},
+         {words:["mask","masks","маска","maska","maszk","naamari"],category:ItemCategory.MASKS},
+         {words:["body","vest","vests","бронежилет","pancir","vesta","pancíř","liivi","бронекамізэлька"],category:ItemCategory.BODY_ARMOR},
+         {words:["rig","rigs","розвантаження","разгрузка","prsluk","nosný systém","taktikai mellény","taisteluliivi"],category:ItemCategory.RIGS},
          {words:["gloves","рукавички","перчатки","rukavice","kesztyű","kesztyu","käsineet","kasineet","пальчаткі"],category:ItemCategory.GLOVES},
          {words:["pants","trousers","штани","штаны","pantalone","kalhoty","nadrág","nadrag","housut"],category:ItemCategory.PANTS},
          {words:["boots","черевики","ботинки","čizme","boty","bakancs","saappaat","боты"],category:ItemCategory.BOOTS}];
@@ -229,26 +229,29 @@ package survarium.controls
       // A "+" word names a bonus by the card's text of it (the property's name, in the game's
       // language) or by these English words, whatever the game's language (owner 2026-11-06: the
       // words players use): [the property id (gameplay/static_game_parameters ui_properties), its
-      // English name and the words players use]. Every property a modification has.
+      // words: the one players type first, then its English name and others]. Every property a
+      // modification has. The tip lists each row's first word, in this order (the most searched
+      // first), once (owner 2026-11-06: "there should be a list of +slot +artifact too").
       private static const SEARCH_BONUSES:Array = [
-         [1,"damage dmg"],[2,"dispersion spread accuracy"],[3,"armor armour penetration piercing"],
-         [4,"rate fire firerate rpm"],[6,"armor armour protection"],[8,"isolation insulation"],
-         [9,"artifact artefact container"],[10,"item slots device"],[11,"oxygen capacity air"],
-         [12,"healing"],[13,"disinfect"],[15,"weight"],[17,"pain threshold"],[18,"duration"],
-         [19,"activation"],[20,"ammo bags pouches ammunition"],[23,"explosion radius"],
-         [24,"distance range"],[101,"dispersion hip spread accuracy"],[102,"aiming speed aim"],
-         [103,"regeneration regen health"],[104,"stamina regeneration regen energy"],
-         [105,"movement speed move"],[106,"weight limit carry"],[107,"pain threshold"],
-         [108,"collection time"],[109,"anomaly damage"],[110,"speed use"],
-         [111,"success probability chance"],[112,"device damage"],[113,"explosion radius"],
-         [114,"reload speed"],[115,"weapon recoil"],[116,"energy costs stamina"],
-         [117,"pocket capacity pockets"],[118,"reload speed"],[119,"chambering time bolt"],
-         [123,"reliability jam"],[124,"respawn time"],[125,"sight sway breath"],
-         [126,"silver received money"],[127,"experience received xp exp"],
-         [128,"scavengers reputation rep"],[129,"black market reputation rep"],
-         [130,"renaissance army reputation rep"],[131,"fringe settlers reputation rep"],
-         [171,"regeneration delay regen"],[172,"regeneration limit regen"],
-         [173,"artifact artefact recharge time"],[175,"melee knockback stock"]];
+         [20,"ammo bags pouches ammunition"],[10,"slot item slots device"],
+         [117,"pocket capacity pockets"],[9,"artifact artefact container"],[15,"weight"],
+         [104,"stamina regeneration regen energy"],[102,"aim aiming speed"],[115,"recoil weapon"],
+         [114,"reload speed"],[118,"reload speed"],[6,"armor armour protection"],
+         [103,"regen regeneration health"],[127,"xp experience received exp"],
+         [126,"silver received money"],[105,"movement speed move"],[106,"carry weight limit"],
+         [1,"damage dmg"],[3,"penetration armor armour piercing"],[4,"rpm rate fire firerate"],
+         [2,"spread dispersion accuracy"],[101,"hip dispersion spread accuracy"],
+         [24,"range distance"],[8,"isolation insulation"],[109,"anomaly damage"],
+         [11,"oxygen capacity air"],[12,"healing"],[13,"disinfect"],[17,"pain threshold"],
+         [107,"pain threshold"],[18,"duration"],[19,"activation"],[23,"explosion radius"],
+         [113,"explosion radius"],[112,"device damage"],[108,"collection time"],
+         [110,"use speed"],[111,"success probability chance"],[116,"energy costs stamina"],
+         [119,"chambering time bolt"],[123,"reliability jam"],[124,"respawn time"],
+         [125,"sway sight breath"],[128,"rep scavengers reputation"],
+         [129,"rep black market reputation"],[130,"rep renaissance army reputation"],
+         [131,"rep fringe settlers reputation"],[171,"delay regeneration regen"],
+         [172,"limit regeneration regen"],[173,"recharge artifact artefact time"],
+         [175,"knockback melee stock"]];
       
       private static const MATCH_WORD:int = 350;
       
@@ -291,13 +294,14 @@ package survarium.controls
       private var _searchIcon:Sprite;
 
       // While the box is empty, the game's tooltip over the box and its magnifier, just above the
-      // box: what the search takes, a row each (SEARCH_TIP: <key>_example and <key>, two columns).
+      // box: what the search takes, a row each (SEARCH_TIP: <key>_example and <key>, two columns),
+      // with every bonus word and every kind word (plusList) under their rows.
       // Off the list once something is typed (showSearchTip).
       private var _searchTip:Sprite;
 
       private var _searchTipArea:ReasonsTip;
 
-      private static const SEARCH_TIP:Array = ["st_srp_inventory_search_tip_bonus","st_srp_inventory_search_tip_level","st_srp_inventory_search_tip_faction","st_srp_inventory_search_tip_name","st_srp_inventory_search_tip_kind","st_srp_inventory_search_tip_all"];
+      private static const SEARCH_TIP:Array = ["st_srp_inventory_search_tip_first","st_srp_inventory_search_tip_bonus","st_srp_inventory_search_tip_level","st_srp_inventory_search_tip_faction","st_srp_inventory_search_tip_name","st_srp_inventory_search_tip_kind"];
 
       // the text typed, read once (searchQuery); null: no search
       private var _search:SearchQuery;
@@ -2299,12 +2303,24 @@ package survarium.controls
          this.checkboxCompareItems.tooltipRendererName = "SrvProfileTipRenderer";
          this.checkboxCompareItems.tipData = {name:LocalizationData.getName("checkbox_compare_items_hint")};
          this.shopTab.dataProvider = new DataProvider([LocalizationData.getName("filter_shop_and_inventory"),LocalizationData.getName("filter_shop"),LocalizationData.getName("filter_inventory")]);
+         // the hint: the word at the hint's grey, the syntax's examples dimmer (owner 2026-11-06)
          this._searchBox.defaultText = LocalizationData.getName("st_srp_inventory_search");
+         this._searchBox.defaultTextMore = ": " + LocalizationData.getName("st_srp_inventory_search_examples");
          // name: the renderer's own text (TextTipRenderer.invalidateData), none beside the rows
-         this._searchTipArea.tipData = {name:"",rows:SEARCH_TIP.map(function(key:String, i:int, a:Array):Array
+         var rows:Array = SEARCH_TIP.map(function(key:String, i:int, a:Array):Array
          {
             return [LocalizationData.getName(key + "_example"),LocalizationData.getName(key)];
-         })};
+         });
+         // every bonus word under the bonus row, every kind's under the kind row (wrapped)
+         rows.splice(SEARCH_TIP.indexOf("st_srp_inventory_search_tip_kind") + 1,0,[LocalizationData.getName("st_srp_inventory_search_tip_kind_list"),plusList(SEARCH_KINDS,function(kind:Object):String
+         {
+            return kind.words[0];
+         }),true]);
+         rows.splice(SEARCH_TIP.indexOf("st_srp_inventory_search_tip_bonus") + 1,0,[LocalizationData.getName("st_srp_inventory_search_tip_bonus_list"),plusList(SEARCH_BONUSES,function(row:Array):String
+         {
+            return row[1];
+         }),true]);
+         this._searchTipArea.tipData = {name:"",rows:rows};
          this._ownedToggle.tipData = {name:LocalizationData.getName("st_srp_shop_not_owned_hint")};
          this.placeOwnedToggle();
       }
@@ -2721,8 +2737,8 @@ package survarium.controls
       private var _searchLoose:Boolean;
       
       // An item against the text typed: 0 when a "+" word leaves it out (searchAdmits) or a word of
-      // the name does not match; else 1 and each name word's match (a kind's, else its name's: a
-      // number is a part of the name, a level only as "+<number>", owner 2026-11-06).
+      // the name does not match; else 1 and each name word's match (only the name's, owner
+      // 2026-11-06: a number is a part of it, a level only "+<number>", a kind only "+<kind>").
       private function searchScore(item:Object) : int
       {
          _searchLoose = false;
@@ -2742,7 +2758,7 @@ package survarium.controls
          for(var i:int = 0; i < words.length; i++)
          {
             var word:String = words[i];
-            var score:int = kindOf(word,item) ? MATCH_KIND : wordScore(word,form[0],form[1]);
+            var score:int = wordScore(word,form[0],form[1]);
             if(score == 0)
             {
                return 0;
@@ -2753,12 +2769,13 @@ package survarium.controls
          return total;
       }
       
-      // Whether a word typed names the item's kind (SEARCH_KINDS).
-      private static function kindOf(word:String, item:Object) : Boolean
+      // The kinds a "+" word names (SEARCH_KINDS' indexes): a kind's word starts with it.
+      private static function searchKinds(word:String) : Array
       {
+         var kinds:Array = [];
          if(word.length < SEARCH_KIND_LEAST)
          {
-            return false;
+            return kinds;
          }
          if(_kindForms == null)
          {
@@ -2775,20 +2792,39 @@ package survarium.controls
          }
          for(var i:int = 0; i < SEARCH_KINDS.length; i++)
          {
-            var k:Object = SEARCH_KINDS[i];
-            if(k.group != null ? item.superCategory != k.group : item.category != k.category)
-            {
-               continue;
-            }
             for each(var f:String in _kindForms[i])
             {
                if(f.indexOf(word) == 0)
                {
-                  return true;
+                  kinds.push(i);
+                  break;
                }
             }
          }
-         return false;
+         return kinds;
+      }
+
+      // Whether the item is of a kind (an index of SEARCH_KINDS).
+      private static function isKind(kind:int, item:Object) : Boolean
+      {
+         var k:Object = SEARCH_KINDS[kind];
+         return k.group != null ? item.superCategory == k.group : item.category == k.category;
+      }
+
+      // The tip's lists (owner 2026-11-06: "this is not obvious"): each SEARCH_BONUSES row's
+      // first word, or each SEARCH_KINDS row's, once, with its "+".
+      private static function plusList(rows:Array, first:Function) : String
+      {
+         var words:Array = [];
+         for each(var row:* in rows)
+         {
+            var word:String = "+" + String(first(row)).split(" ")[0];
+            if(words.indexOf(word) == -1)
+            {
+               words.push(word);
+            }
+         }
+         return words.join(" ");
       }
       
       // The words typed as the search compares them; null when there are none.
@@ -2810,8 +2846,9 @@ package survarium.controls
       }
 
       // The text typed, read once (docs/notes/item-search.md): a "+" starts a filter word, up to the
-      // next space or "+": +<number> an item level, +<the start of a seller's name> that faction,
-      // any other +<word> a bonus (searchBonuses); the rest is the name's words (searchWords).
+      // next space or "+", read in this order: +<number> an item level, +<the start of a kind's word>
+      // that kind (searchKinds), +<the start of a seller's name> that faction, any other +<word> a
+      // bonus (searchBonuses); the rest is the name's words (searchWords).
       // null: nothing to search.
       private function searchQuery(text:String) : SearchQuery
       {
@@ -2833,6 +2870,12 @@ package survarium.controls
                   query.levels.push(int(word));
                   continue;
                }
+               var kinds:Array = searchKinds(word);
+               if(kinds.length > 0)
+               {
+                  query.kinds = query.kinds.concat(kinds);
+                  continue;
+               }
                var factions:Array = this.searchFactions(word);
                if(factions.length > 0)
                {
@@ -2849,7 +2892,7 @@ package survarium.controls
          {
             query.words = [];
          }
-         return query.words.length + query.levels.length + query.factions.length + query.bonuses.length > 0 ? query : null;
+         return query.words.length + query.levels.length + query.kinds.length + query.factions.length + query.bonuses.length > 0 ? query : null;
       }
 
       // The factions whose name, as the seller tabs show it, has a word starting with the word.
@@ -2892,11 +2935,19 @@ package survarium.controls
          return ids;
       }
 
-      // Whether the item has what the "+" words ask: a level of theirs, a seller of theirs, and each
-      // bonus word's bonus among its modifications (rolled or built-in; a defect is no bonus).
+      // Whether the item has what the "+" words ask: a level of theirs, a kind of theirs, a seller of
+      // theirs, and each bonus word's bonus among its modifications (rolled or built-in; a defect is
+      // no bonus).
       private static function searchAdmits(query:SearchQuery, item:Object) : Boolean
       {
          if(query.levels.length > 0 && query.levels.indexOf(int(item.itemLevel)) == -1)
+         {
+            return false;
+         }
+         if(query.kinds.length > 0 && !query.kinds.some(function(kind:int, i:int, a:Array):Boolean
+         {
+            return isKind(kind,item);
+         }))
          {
             return false;
          }
@@ -3919,7 +3970,7 @@ package survarium.controls
 
 // The text typed into an item list's search, read once (InventoryList.searchQuery,
 // docs/notes/item-search.md). An item is listed when it has one of the levels (when any), is sold by
-// one of the factions (when any) and a bonus of each set; then its name's words rank it.
+// one of the factions (when any) and a bonus of each set, is of one of the kinds (when any); then its name's words rank it.
 class SearchQuery
 {
    // the name's words, as the search compares them (InventoryList.searchWords)
@@ -3927,6 +3978,9 @@ class SearchQuery
 
    // +<number>: item levels, any of them
    public var levels:Array = [];
+
+   // +<a kind's word>: SEARCH_KINDS' indexes, any of them (an item is one kind)
+   public var kinds:Array = [];
 
    // +<a faction's name>: the faction ids named, any of them
    public var factions:Array = [];

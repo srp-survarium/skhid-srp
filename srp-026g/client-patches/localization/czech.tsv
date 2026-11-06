@@ -2458,15 +2458,18 @@ st_srp_inv_pellets	Broky
 st_srp_inv_pocket_units	Místa v kapse
 st_srp_inv_stamina_damage	Poškození výdrže
 st_srp_inv_throw_speed	Rychlost hodu
-st_srp_inventory_search	Hledat: název, +sumky, +kapes, +10
-st_srp_inventory_search_tip_all	vše najednou
-st_srp_inventory_search_tip_all_example	ak +10 +sumky
+st_srp_inventory_search	Hledat
+st_srp_inventory_search_examples	+kapes +mrchožrouti, +sloty, +sumky, +10, název
 st_srp_inventory_search_tip_bonus	má každý uvedený bonus
 st_srp_inventory_search_tip_bonus_example	+sumky +kapes
+st_srp_inventory_search_tip_bonus_list	všechny bonusy
 st_srp_inventory_search_tip_faction	prodává ta frakce (více: kterákoli)
 st_srp_inventory_search_tip_faction_example	+armáda
-st_srp_inventory_search_tip_kind	tento druh předmětu
-st_srp_inventory_search_tip_kind_example	helma, boty
+st_srp_inventory_search_tip_first	bonus a frakce, obojí najednou
+st_srp_inventory_search_tip_first_example	+kapes +mrchožrouti
+st_srp_inventory_search_tip_kind	kterýkoli z těchto druhů
+st_srp_inventory_search_tip_kind_example	+helma +boty
+st_srp_inventory_search_tip_kind_list	všechny druhy
 st_srp_inventory_search_tip_level	jakékoli z těchto úrovní
 st_srp_inventory_search_tip_level_example	+10 +11
 st_srp_inventory_search_tip_name	v názvu, překlepy se odpouštějí

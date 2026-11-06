@@ -169,8 +169,10 @@ Ctrl+F over an item list ([item-search.md](item-search.md)), written in the clas
 - Esc in the box: `LobbyMenu.close_active_window`; the exe's window keys while Ctrl is held over the
   list: `LobbyMenu.windowKeysOff`; the Ctrl keys: `onKeyDownStage`, `onKeyUpStage`,
   `MainScene.isCtrl`, `KeyCode`;
-- the empty box's word is the dictionary's `st_srp_inventory_search`, its tip's lines
-  `st_srp_inventory_search_tip_*` (`client-patches/localization`); the item-kind words of every
+- the empty box's word is the dictionary's `st_srp_inventory_search`, its dimmer examples
+  `st_srp_inventory_search_examples` (`SrvTextInput.defaultTextMore`), its tip's cells
+  `st_srp_inventory_search_tip_*` (`client-patches/localization`; the tip's rows:
+  `ReasonsTip`'s `tipData.rows`, `anchor`); the item-kind words of every
   language and the bonuses' English words are the code's own (`InventoryList.SEARCH_KINDS`,
   `SEARCH_BONUSES`: search words, any language matches);
 - the "+" words (2026-11-06): the text read once into a `SearchQuery` (a class of

@@ -36,42 +36,54 @@ Code, in `flash/lobby_menu/src` ([lobby-source.md](lobby-source.md)):
   - centred on the list;
   - the grid is 40 px shorter for that row, and the fade at its foot moves up with it.
 - **What it looks like:**
-  - the friends window's name box, 1.6 times as wide and 4 px taller with a 4 px bigger font
-    (425 × 32; 1.25 times until 2026-11-06, widened for the hint), with a magnifier at its right
-    (drawn: the friends search's is part of its window's art). No × (owner 2026-10-22): Esc
-    empties it;
+  - the friends window's name box, 2.1 times as wide and 4 px taller with a 4 px bigger font
+    (about the item grid's width; 1.25 times until 2026-11-06, widened for the hint), with a
+    magnifier at its right (drawn: the friends search's is part of its window's art). No × (owner
+    2026-10-22): Esc empties it;
   - when empty and without the keys, it shows the syntax itself (owner 2026-11-06: the tip alone
-    is not enough): "Search", a name, then three "+" examples, two bonuses first and a level:
-    "Search: name, +ammo, +pocket, +10" / "Поиск: название, +патрон, +карман, +10" / "Пошук:
-    назва, +набої, +кишень, +10" …, each language's own words for bonuses its cards name. The
-    whole hint on one line inside the box in every language (the longest, Russian: 342 of 377 px
-    in Ruffle); the lobby scales the box with the list, so every resolution alike; upright:
-    every CLIK text box's hint is upright now (`TextInput.initialize`), as the lobby's Calibri
-    has no italic and the game takes "Calibri Bold Italic" from the system's fonts, so under Wine
-    without Calibri the hints (the friends search's too) showed as squares.
+    is not enough): "Search" at the hint's grey, then, dimmer (62 % as bright: `SrvTextInput`'s
+    `defaultTextMore`, same font and size), the examples, the one players want most first, a bonus
+    with a faction, then the slot, the ammo, a level and a name: "Search: +pocket +scavenger,
+    +slot, +ammo, +10, name" / "Поиск: +карман +бродяги, +слот, +патрон, +10, название" …, each
+    language's own words that match there (its pocket and slot bonuses' card names, its seller
+    tab's Scavengers). The whole hint on one line inside the box in every language; where it does
+    not fit, the last examples go (German and Polish: no name). The longest, Russian, 483 of 512 px
+    in Ruffle; the lobby scales the box with the list, so every resolution alike. Two keys:
+    `st_srp_inventory_search` (the word), `st_srp_inventory_search_examples`;
+  - upright: every CLIK text box's hint is upright now (`TextInput.initialize`), as the lobby's
+    Calibri has no italic and the game takes "Calibri Bold Italic" from the system's fonts, so
+    under Wine without Calibri the hints (the friends search's too) showed as squares.
 - **The tip** (owner 2026-11-06): while the box is empty, hovering it or its magnifier shows the
   game's tooltip (the one of the shop's "Hide owned", `ReasonsTip`) of all the search takes, a row
-  each, bonuses first:
+  each:
 
   | example | meaning |
   | --- | --- |
+  | `+pocket +scavenger` | a bonus and a faction, both at once |
   | `+ammo +pocket` | has each bonus named |
+  | every bonus | `+ammo +slot +pocket +artifact +weight +stamina +aim +recoil +reload +armor +regen +xp …` |
   | `+10 +11` | of any of these levels |
   | `+army` | sold by that faction (several: any) |
   | `ak 74` | in the name, typos forgiven |
-  | `helmet, boots` | that kind of item |
-  | `ak +10 +ammo` | all of these at once |
+  | `+helmet +boots` | any of these kinds |
+  | every kind | `+gear +items +helmet +mask +body +rig +gloves +pants +boots` |
 
+  - **The lists** (owner 2026-11-06: "there should be a list of +slot +artifact too, this is not
+    obvious"): every bonus word and every kind word, made from the search's own tables
+    (`SEARCH_BONUSES`, `SEARCH_KINDS`: each row's first word, once, in the table's order, the most
+    searched first), so a new word shows by itself; wrapped in the right column (at least 400 px).
+    The English words, as they work in every language. Only the rows' labels are dictionary keys.
   - **Two columns** (owner 2026-11-06: "it could have been aligned way better"): the examples on
-    the left, the meanings on the right, all starting at one x; no colons; the rows evenly spaced,
-    the padding the same on every side. Each cell is a text field of the tooltip's own font, laid
-    out in the game's tooltip (`ReasonsTip`, `tipData.rows`).
+    the left, the meanings on the right, all starting at one x; no colons; the same gap between
+    rows, the padding the same on every side. Each cell is a text field of the tooltip's own font,
+    laid out in the game's tooltip (`ReasonsTip`, `tipData.rows`).
   - **Where:** just above the box (it is under the item grid), its left edge on the box's left
     edge, never over the item panel's buttons (Buy, Hide owned); it does not follow the pointer.
+    On the screen at every resolution (the lobby scales its tips with it).
   - Once something is typed there is no tip; a click on the empty box is a click on the box.
-  - Each cell is a dictionary key (`st_srp_inventory_search_tip_<row>_example`,
-    `st_srp_inventory_search_tip_<row>`), its examples the language's own words that find what they
-    say.
+  - Each cell a dictionary key (`st_srp_inventory_search_tip_<row>_example`,
+    `st_srp_inventory_search_tip_<row>`, the lists' `st_srp_inventory_search_tip_bonus_list` and
+    `_kind_list`), its examples the language's own words that find what they say.
 - **Every resolution:** the box is part of the list, and the lobby scales the list (4K: #279).
 
 ## What it finds
@@ -92,10 +104,8 @@ Code, in `flash/lobby_menu/src` ([lobby-source.md](lobby-source.md)):
   - spaces and punctuation do not count, so "ak74" finds AK-74M.
 - **A number is a part of the name** ("74" finds the AK-74; owner 2026-11-06: until then a number
   first listed that level first). A level is only `+<number>`.
-- **A word naming a kind** (owner 2026-10-22), or its start from 3 letters on, lists the items of
-  that kind first, whatever their names: gear / equipment (all equipment), items, helmet, mask,
-  body / armour / vest, rig, gloves, pants / trousers, boots; in Ukrainian and Russian too
-  (шолом, шлем, маска, бронежилет, рукавички, перчатки, штани, черевики, …).
+- **A kind is a "+" word** (`+helmet`, below; owner 2026-11-06). Until then a plain word naming
+  a kind (owner 2026-10-22) listed that kind first.
 - **Every word typed must match.** "ak 74" lists only names with both.
 - **How a word matches, best first:**
   1. at the name's start;
@@ -106,46 +116,58 @@ Code, in `flash/lobby_menu/src` ([lobby-source.md](lobby-source.md)):
   5. a word of 4 or more letters: with one typo (a letter wrong, missing, extra, or two swapped);
      a word of 8 or more: with two. "mosni" finds Mosin. Each typo makes the match worse.
 - **The loose matches (4 and 5) only when nothing else matches** (owner 2026-10-22: "mask"
-  listed Master's gloves, a typo of "mast"). An item matching every word otherwise (a kind, a
-  level, the name) hides every item that needs a loose match.
+  listed Master's gloves, a typo of "mast"). An item matching every word otherwise hides every
+  item that needs a loose match.
 - **The item you chose** stays chosen while it is still listed. The list scrolls back to the top
   each time the search changes.
 
-## "+" words: levels, factions, bonuses
+## "+" words: levels, kinds, factions, bonuses
 
 Players, 2026-11-06: "filter by tier level, faction, and perk", "+ammo, +pocket, +slot, +artifact";
-the owner: "levels should also become +1 +10". A word starting with "+" (to the next space or "+":
-`+10+11` is two) is a filter. The text is read once into levels, factions, bonuses and the name's
-words (`SearchQuery`).
+the owner: "levels should also become +1 +10", and kinds too (`+boots`, `+helmet`). A word starting
+with "+" (to the next space or "+": `+10+11` is two) is a filter. The text is read once into
+levels, kinds, factions, bonuses and the name's words (`SearchQuery`).
 
-- **`+<number>` is an item level** (the card's equipment level), anywhere in the text: the only
-  level filter (`+14`; a plain `14` is a part of a name).
-- **`+<word>` names a faction** when a seller tab's name (as the lobby shows it) has a word starting
-  with it: `+army`, `+black`, `+scav`, `+independent`. A word naming a faction is a faction, never a
-  bonus.
-- **Any other `+<word>` names a bonus** (owner 2026-11-06: what players search for most), when a
-  word of the bonus starts with it, letters compared as in names (case, accents, Cyrillic as Latin):
+- **What a `+word` names, in this order** (the first that fits):
+  1. `+<number>`: an item level (the card's equipment level), the only level filter (`+14`; a
+     plain `14` is a part of a name);
+  2. a kind, when a kind's word (`SEARCH_KINDS`, every language's) starts with it, from 3 letters
+     on: `+helmet`, `+hel`, `+boots`, `+gear`, `+rig`, `+шлем`;
+  3. a faction, when a seller tab's name (as the lobby shows it) has a word starting with it:
+     `+scavenger`, `+scav`, `+army`, `+black`, `+independent`;
+  4. any other: a bonus.
+  - **Why this order:** a kind's words are few and fixed; a faction's and a bonus's are the
+    game's texts. The one real collision is armour: the Armor bonus (English, Hungarian
+    "Páncél", Finnish "Panssari") was also a body-armour kind word. Those words are no kind's now
+    (`+armor` is the bonus; body armour is `+body`, `+vest`, `+бронежилет`, …). Others the order
+    settles: `+item` is the items kind, not the Item slots bonus (that is `+slot`); `+scav` is the
+    faction, not the Scavengers reputation bonus (`+rep`).
+- **A bonus** (owner 2026-11-06: what players search for most), when a word of the bonus starts
+  with it, letters compared as in names (case, accents, Cyrillic as Latin):
   - by its name as the card shows it, in the game's language (`+патрон`: Подсумки для патронов);
-  - and in every language by English words: the bonus's English name and the words players use
-    (`SEARCH_BONUSES`): `+ammo`, `+pocket`, `+slot`, `+artifact` and `+artefact`, `+weight`,
-    `+stamina`, `+aim`, `+recoil`, `+armor` and `+armour`, `+reload`, `+regen`, `+xp`, …;
+  - and in every language by English words: the words players use and the bonus's English name
+    (`SEARCH_BONUSES`): `+ammo`, `+slot`, `+pocket`, `+artifact` and `+artefact`, `+weight`,
+    `+stamina`, `+aim`, `+recoil`, `+reload`, `+armor` and `+armour`, `+regen`, `+xp`, …;
   - every bonus the card lists: rolled, built-in, the default modifications, the shop's items'
     (theirs are built-in only). A defect (the card's red line) is no bonus.
 - **Several of a kind:**
   - levels: any of them (`+10 +11` lists both);
+  - kinds: any of them (an item is one kind: `+helmet +boots` lists both);
   - factions: any of them (an item has one seller);
   - bonuses: all of them (`+ammo +pocket`: both on the item);
   - name words: all of them, as before.
-- **The kinds combine with "and":** `ak +10 +11 +ammo` is a name matching ak, of level 10 or 11, with
-  an ammo bonus.
+- **The kinds of word combine with "and":** `ak +10 +11 +ammo` is a name matching ak, of level 10
+  or 11, with an ammo bonus; `+pocket +scavenger` a pocket bonus sold by the Scavengers.
 - **A "+" word is a filter, never fuzzy:** no loose or typo match (`+amo` is not ammo). A `+word`
   naming nothing lists nothing. A "+" alone is nothing typed.
-- **The rest stays:** the name words rank as before (a plain number is a part of the name), the
-  list's own filters, tabs and seller still apply, and with filters only the list keeps its own
-  order.
+- **A plain word is only a name's** (owner 2026-11-06): no kind ("helmet" is a part of a name;
+  until then it listed the helmets first) and no level ("14").
+- **The rest stays:** the name words rank as before, the list's own filters, tabs and seller still
+  apply, and with filters only the list keeps its own order.
 - **Checked** by `scripts/item-search/check.sh <lobby_menu.swf>` (Ruffle, the movie's own list):
-  the rules above, and in every language the hint on one line in the box and each of its and the
-  tip's examples finding what they name. The tip's place and columns are measured too.
+  the rules above; in every language the hint on one line in the box (its two greys), each of its
+  and the tip's examples finding what they name, the Armor bonus by its card name a bonus, not a
+  kind; the tip's rows, lists, place and columns.
 
 ## Closing, Esc, Enter, the other keys
 

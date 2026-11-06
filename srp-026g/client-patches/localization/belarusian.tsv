@@ -2458,15 +2458,18 @@ st_srp_inv_pellets	Шрацін
 st_srp_inv_pocket_units	Месца ў кішэні
 st_srp_inv_stamina_damage	Шкода вынослівасці
 st_srp_inv_throw_speed	Хуткасць кідка
-st_srp_inventory_search	Пошук: назва, +патрон, +аддача, +10
-st_srp_inventory_search_tip_all	усё адразу
-st_srp_inventory_search_tip_all_example	ак +10 +патрон
+st_srp_inventory_search	Пошук
+st_srp_inventory_search_examples	+кішэня +бадзягі, +слот, +патрон, +10, назва
 st_srp_inventory_search_tip_bonus	ёсць кожны названы бонус
 st_srp_inventory_search_tip_bonus_example	+патрон +артэфакт
+st_srp_inventory_search_tip_bonus_list	усе бонусы
 st_srp_inventory_search_tip_faction	прадае гэтая фракцыя (некалькі: любая)
 st_srp_inventory_search_tip_faction_example	+армія
-st_srp_inventory_search_tip_kind	такі від прадмета
-st_srp_inventory_search_tip_kind_example	шлем, боты
+st_srp_inventory_search_tip_first	бонус і фракцыя, усё адразу
+st_srp_inventory_search_tip_first_example	+кішэня +бадзягі
+st_srp_inventory_search_tip_kind	любы з гэтых відаў
+st_srp_inventory_search_tip_kind_example	+шлем +боты
+st_srp_inventory_search_tip_kind_list	усе віды
 st_srp_inventory_search_tip_level	любога з гэтых узроўняў
 st_srp_inventory_search_tip_level_example	+10 +11
 st_srp_inventory_search_tip_name	у назве, памылкі даруюцца
