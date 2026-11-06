@@ -3516,6 +3516,9 @@ pub struct Reflex {
     sprinted_at: Option<u32>,
     /// [`CombatTuning::gate_from_client`] The tick it last pressed the jump, ms.
     jumped_at: Option<u32>,
+    /// [A302 camper calibration, bench only] Since when the stand-in camper holds his scope (`SRP_BENCH_CAMPER_SCOPED`).
+    #[cfg(test)]
+    bench_scoped_since: Option<u32>,
     /// [A208, the bench's] The last thrown smoke's crossing.
     #[cfg(test)]
     crossing_watch: Option<CrossingWatch>,
@@ -3991,7 +3994,28 @@ impl Reflex {
         }
     }
 
-    /// The weapon in hand (weapon 1 before the life's first use).
+    /// [A302 camper calibration, bench only] The share of targets the stand-in camper aims at the head first
+    /// (`SRP_BENCH_CAMPER_HEAD`).
+    #[cfg(test)]
+    pub(crate) fn bench_head_share(&mut self, share: Option<f32>) {
+        self.sight.set_head_share(share);
+    }
+
+    /// [A302 camper calibration, bench only] The hide a hit began is dropped (`SRP_BENCH_CAMPER_HOLD_FIRE`).
+    #[cfg(test)]
+    pub(crate) fn bench_open_cover(&mut self) {
+        if matches!(self.cover, Cover::Hiding { .. }) {
+            self.cover = Cover::Open;
+        }
+    }
+
+    /// [A302 camper calibration, bench only] Since when the stand-in camper holds his scope, or none
+    /// (`SRP_BENCH_CAMPER_SCOPED`): it counts toward his aim-in ([`Self::aim_from`]).
+    #[cfg(test)]
+    pub(crate) fn bench_scoped(&mut self, since: Option<u32>) {
+        self.bench_scoped_since = since;
+    }
+
     /// [`CombatTuning::gate_from_client`] When the client lets the sights come up by `gate`: the sprint's end and
     /// `sprint_out_ms`, a reload's or a switch's end (`busy_until`), and for a gun that chambers a round (a bolt, a pump)
     /// the chambering's end.
@@ -4004,9 +4028,16 @@ impl Reflex {
 
     /// The aim-in's start for an aim pressed at `since`: with `gate_from_client` not before [`Self::aim_open`].
     fn aim_from(&self, since: u32, c: &CombatTuning) -> u32 {
-        c.gate_from_client.map_or(since, |gate| since.max(self.aim_open(gate)))
+        let from = c.gate_from_client.map_or(since, |gate| since.max(self.aim_open(gate)));
+        // [A302 camper calibration, bench only] A held scope's start when earlier (`SRP_BENCH_CAMPER_SCOPED`).
+        #[cfg(test)]
+        if let Some(scoped) = self.bench_scoped_since {
+            return from.min(scoped);
+        }
+        from
     }
 
+    /// The weapon in hand (weapon 1 before the life's first use).
     pub fn held_gun(&self) -> &'static Gun {
         match &self.hands {
             Some(hands) => hands.held().gun,
