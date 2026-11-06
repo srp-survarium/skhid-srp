@@ -140,6 +140,7 @@ edit	maps.tsv	-	the maps' rules, a row per level over its projects: spawn protec
 edit	rooms.tsv	-	the rooms' and Player vs Bots' settings (gameplay/srp/rooms.options): srp reads them from its game data; the lobby movie gets what it shows from srp's messages
 edit	armor.tsv	-	the armour: a row a piece (slot/name), its armour numbers (hit_params by the armour rule), weight, oxygen, levels, rollable kinds and built-in bonuses, and its card
 edit	medicines.tsv	-	the medicines: a row each, its delay and active seconds, the total health it gives each pool over its active time, weight and levels, and its card (the % it heals)
+edit	painkiller-traps-1.json	-	the painkiller's pain protection (x 0.9) covers slash hits too, the trap's: two traps kill unless a painkiller is active
 edit	boosters.tsv	-	the boosters: a row each, its weight and its built-in bonuses by kind (the Artifact-master 1134 search time and 1310 artefact cooldown)
 edit	new-account.tsv	-	what a new account is given at its first sign-in (gameplay/srp/new_account.options): money, premium, rounds of every ammo, reputation, what it owns and what its three kits wear; srp reads it from its game data
 edit	items.tsv	-	the items: a row per dictionary entry, its name, price, gold flag, the plain item a golden or premium copy is (srp_like) and the modifications of its own a new one comes with (srp_start), which srp reads
