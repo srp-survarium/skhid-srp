@@ -117,6 +117,7 @@ mod tallies;
 mod team_kit;
 mod team_tuning;
 mod trap_react;
+mod trap_release;
 mod traps;
 mod unclear_aim;
 mod walkway;
