@@ -24,6 +24,11 @@ pub(super) const REPLAN_ERROR_M: f32 = 2.0;
 /// side, metres (no step off a ledge or into a wall).
 pub(super) const STRAFE_CLEAR_M: f32 = 1.5;
 
+/// [A331] The keys a bot sends while it carries a battery: no SPRINT (a carrier cannot sprint). Others as they are.
+fn carrier_keys(keys: u32, carrying: bool) -> u32 {
+    if carrying { keys & !key::SPRINT } else { keys }
+}
+
 /// Why the client takes no sprint jump now, as far as the bot knows (`base_player::can_sprint` and the stagger, the
 /// sprint-jump RE §1.4 and §1.8): the keys it sent in the tick before (aiming, firing or throwing), a reload on, a hit
 /// within [`motor::STAGGER_SPRINT_MS`], the reckoned bar in its low state, a battery carried.
@@ -1946,6 +1951,9 @@ fn drive_tick_inner(
             bot.pace.unasked();
         }
     }
+    // [A331] A battery carrier does not sprint (the owner: "battery cariers cant sprint"; `can_sprint` 0x2DBF40 refuses while the
+    // hands' item byte +0x388 != 0, fx-review A332, LIKELY by the exe): the bot does not ask for it while it carries.
+    decision.keys = carrier_keys(decision.keys, me.carrying.is_some());
     let lift_paced = decision.keys & lift_wants == lift_wants;
     // The pull is the kick's part taken back, in the game's pitch unit: as a rise of the elevation at this pitch (`pitch.rs`).
     decision.turn.1 += Pitch::of_elevation(me.pitch, tuning.kin.pitch_scale).rise(over.pull, tuning.kin.pitch_scale);
@@ -3035,5 +3043,18 @@ mod tests {
         assert_eq!(Gates::exact_spot(&go(0.0)), Some(at));
         assert_eq!(Gates::exact_spot(&go(0.5)), None);
         assert_eq!(Gates::exact_spot(&Intent::stay()), None);
+    }
+}
+
+#[cfg(test)]
+mod carrier_tests {
+    use super::*;
+
+    /// [A331] A battery carrier's keys lose SPRINT and nothing else; a body that carries nothing keeps them.
+    #[test]
+    fn a_carrier_never_asks_for_a_sprint() {
+        let keys = key::FORWARD | key::SPRINT | key::JUMP;
+        assert_eq!(carrier_keys(keys, true), key::FORWARD | key::JUMP);
+        assert_eq!(carrier_keys(keys, false), keys);
     }
 }
