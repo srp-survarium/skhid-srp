@@ -354,9 +354,10 @@ impl Tuning {
     }
 
     /// The support at a ledge the maps' grids make their table of open sides for (`mapdata::WalkGrid::open_toward`), if this tuning
-    /// needs it ([`super::kin::Edge::ClientWalksOff`]): the one place that says it, as [`Self::needs_wall_clearance`].
+    /// needs it ([`super::kin::Edge::ClientWalksOff`], for the guard or the reckoning: [`super::kin::Kinematics::reckoned_edge`]): the
+    /// one place that says it, as [`Self::needs_wall_clearance`].
     pub fn needs_open_sides(&self) -> Option<f32> {
-        (self.kin.edge == super::kin::Edge::ClientWalksOff).then_some(super::body::SUPPORT_M)
+        (self.kin.reckoned_edge() == super::kin::Edge::ClientWalksOff).then_some(super::body::SUPPORT_M)
     }
 
     /// The hash of the tuning as it runs (its JSON), for the traces.

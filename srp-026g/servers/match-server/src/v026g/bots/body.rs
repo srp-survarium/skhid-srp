@@ -153,7 +153,7 @@ pub fn stays_up(at: &Estimate, keys: u32, turn: f32, stop: &Stop) -> bool {
     for k in 0..kin.blend_ticks + hold + 2 {
         // The keys count a tick more than the model's one-tick lag (the game may take them at once).
         let (held, turn) = if k < hold { (keys, if k == 0 { turn } else { 0.0 }) } else { (keys & !MOVE_KEYS, 0.0) };
-        at = advance(at, Tick { time: at.time + TICK_MS, keys: held, turn: (turn, 0.0), kick: 0.0 }, kin, level, Some(grid));
+        at = advance(at, Tick { time: at.time + TICK_MS, keys: held, turn: (turn, 0.0), kick: 0.0 }, kin, kin.edge, level, Some(grid));
         // A fall that lands where the route drops is the route's.
         let falls = |feet: Vec3| top - feet.y >= mapdata::grid::LIP_DROP_M && !planned.iter().any(|landing| landing.distance_xz(feet) <= PLANNED_LANDING_M);
         if falls(at.feet) {
@@ -172,7 +172,7 @@ pub fn stays_up(at: &Estimate, keys: u32, turn: f32, stop: &Stop) -> bool {
             );
             let (margin_node, margin, _) = match kin.margin_edge {
                 MarginEdge::Lattice => slide(grid, node, at.feet, to),
-                MarginEdge::Body => slide_edge(kin, grid, node, at.feet, to, WalkOffs::Landings),
+                MarginEdge::Body => slide_edge(kin, kin.edge, grid, node, at.feet, to, WalkOffs::Landings),
             };
             // [`Edge::ClientWalksOff`]: the lattice holds the margin at an open side as at a wall; there it goes over.
             let over_open = kin.edge == Edge::ClientWalksOff
@@ -395,7 +395,7 @@ impl BodyTrack {
             turn: (0.0, 0.0),
             kick: estimate.kick,
         };
-        Some(advance(estimate, tick, kin, self.level(), grid))
+        Some(advance(estimate, tick, kin, kin.reckoned_edge(), self.level(), grid))
     }
 
     /// Where the body is, or was last reckoned alive, and in which of its
@@ -664,7 +664,7 @@ impl BodyTrack {
 /// toward a move is under way after its first tick).
 fn advance_held(at: Estimate, tick: Tick, kin: &Kinematics, level: f32, grid: Option<&WalkGrid>) -> (Estimate, bool) {
     let meant = kin.target_local(at.keys, level);
-    let next = advance(at, tick, kin, level, grid);
+    let next = advance(at, tick, kin, kin.reckoned_edge(), level, grid);
     let held = grid.is_some() && meant[0].hypot(meant[1]) > 1e-3 && next.velocity == [0.0, 0.0];
     (next, held)
 }
@@ -677,6 +677,7 @@ fn advance(
     mut at: Estimate,
     tick: Tick,
     kin: &Kinematics,
+    edge: Edge,
     level: f32,
     grid: Option<&WalkGrid>,
 ) -> Estimate {
@@ -693,7 +694,7 @@ fn advance(
         match (grid, at.node) {
             (Some(grid), Some(node)) => {
                 let offs = WalkOffs::of(kin.walk_off_landing, at.velocity[0].hypot(at.velocity[1]));
-                let (mut node, mut feet, mut stopped) = slide_edge(kin, grid, node, at.feet, to, offs);
+                let (mut node, mut feet, mut stopped) = slide_edge(kin, edge, grid, node, at.feet, to, offs);
                 // [A304] On the ground, a step over a slope covers its grade's cosine of the run ([`SlopeSpeed`]).
                 let in_air = at.time + step * TICK_MS <= at.air_until;
                 let ramp_deg = grid
@@ -708,7 +709,7 @@ fn advance(
                         at.feet.y,
                         at.feet.z + (to.z - at.feet.z) * share,
                     );
-                    (node, feet, stopped) = slide_edge(kin, grid, at.node.unwrap_or(node), at.feet, short, offs);
+                    (node, feet, stopped) = slide_edge(kin, edge, grid, at.node.unwrap_or(node), at.feet, short, offs);
                 }
                 if in_air
                     && feet.distance_xz(to) > 1e-3
@@ -745,8 +746,8 @@ fn advance(
 
 /// [`slide`] with the reckoned body's edge ([`Kinematics::edge`]): the lattice's, the client's held to [`SUPPORT_M`], or that and
 /// the client's walk off an open side ([`walk_off_open`]).
-fn slide_edge(kin: &Kinematics, grid: &WalkGrid, node: NodeId, from: Vec3, to: Vec3, offs: WalkOffs) -> (NodeId, Vec3, bool) {
-    match kin.edge {
+fn slide_edge(kin: &Kinematics, edge: Edge, grid: &WalkGrid, node: NodeId, from: Vec3, to: Vec3, offs: WalkOffs) -> (NodeId, Vec3, bool) {
+    match edge {
         Edge::Lattice => slide_up_to(grid, node, from, to, f32::INFINITY, Bridges::of(kin)),
         Edge::Client => slide_supported_by(grid, node, from, to, f32::INFINITY, SUPPORT_M, offs, Bridges::of(kin), kin.wall_slide),
         Edge::ClientWalksOff => {
@@ -1227,6 +1228,7 @@ pub mod counts {
 #[cfg(test)]
 pub(super) mod tests {
     use super::*;
+    use super::super::kin::ReckonWalkOff;
     use crate::v026g::drive::key;
     use mapdata::{Body, Triangle, WalkerBehaviour};
 
@@ -1887,7 +1889,9 @@ pub(super) mod tests {
 
     /// [`Edge::ClientWalksOff`] (A269): a ledge 6 m high, deeper than the harmless drop, has no link off it. The reckoned body walking
     /// out stays on the top with [`Edge::Client`], as at a wall, while the client's capsule walks off; with the grid's open sides it is
-    /// held to the support and comes down as the capsule does. A grid without the table is [`Edge::Client`].
+    /// held to the support and comes down as the capsule does. A grid without the table is [`Edge::Client`]. [A318]
+    /// [`ReckonWalkOff::OpenSides`] walks the reckoning off with [`Edge::Client`] too, while the lip guard's stop forecast
+    /// ([`stays_up`]) still holds the body on the top there, as [`Edge::Client`] says.
     #[test]
     fn the_reckoned_body_walks_off_an_open_side_with_no_link_as_the_capsule_does() {
         let mut triangles: Vec<Triangle> = floor(0.0, 0.0, 20.0, 10.0, 0.0).to_vec();
@@ -1899,8 +1903,8 @@ pub(super) mod tests {
         let open = WalkGrid::build(&triangles, [0.0, 0.0, 20.0, 10.0], 0.25, Body::default()).with_open_sides(&triangles, SUPPORT_M);
         let yaw = -std::f32::consts::FRAC_PI_2;
         // The overhang past the last centre the tick before the feet are down (None: never), walking out +x.
-        let first_down = |edge: Edge, grid: &WalkGrid| {
-            let kin = Kinematics { blend_ticks: 1, edge, ..Kinematics::default() };
+        let first_down_by = |edge: Edge, reckon_walk_off: ReckonWalkOff, grid: &WalkGrid| {
+            let kin = Kinematics { blend_ticks: 1, edge, reckon_walk_off, ..Kinematics::default() };
             let mut track = BodyTrack::default();
             track.fixed(fix(0, Vec3::new(8.0, 6.0, 5.0), yaw), &kin, Some(grid));
             let mut before = 8.0;
@@ -1914,10 +1918,21 @@ pub(super) mod tests {
             }
             None
         };
+        let first_down = |edge: Edge, grid: &WalkGrid| first_down_by(edge, ReckonWalkOff::Held, grid);
         assert_eq!(first_down(Edge::Client, &open), None, "held on the top as at a wall");
         assert_eq!(first_down(Edge::ClientWalksOff, &bare), None, "no table: as the client edge");
         let walks_off = first_down(Edge::ClientWalksOff, &open).expect("walks off");
         assert!(walks_off > 0.125 && walks_off <= SUPPORT_M, "held to the support, a tick short of the fall: {walks_off}");
+        // [A318] The reckoning alone walks off with the client edge; the stop forecast at the rim does not fall.
+        assert_eq!(first_down_by(Edge::Client, ReckonWalkOff::OpenSides, &open), Some(walks_off), "the reckoning walks off");
+        assert_eq!(first_down_by(Edge::Client, ReckonWalkOff::OpenSides, &bare), None, "no table: held");
+        let kin = Kinematics { blend_ticks: 1, ..Kinematics::default() };
+        assert_eq!(kin.reckon_walk_off, ReckonWalkOff::OpenSides);
+        let mut track = BodyTrack::default();
+        track.fixed(fix(0, Vec3::new(last - 0.3, 6.0, 5.0), yaw), &kin, Some(&open));
+        let at = track.estimate().unwrap();
+        let stop = Stop { kin: &kin, level: 1.0, grid: &open, planned: &[], hold: 4 };
+        assert!(stays_up(&at, key::FORWARD, 0.0, &stop), "the guard's forecast still holds it on the top, as the client edge");
     }
 
     /// [`FixFloor::Under`]: a world that shows the body in the air at a ledge's face (a jump against it) puts it on the floor

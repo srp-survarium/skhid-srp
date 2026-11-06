@@ -64,6 +64,8 @@ pub struct Kinematics {
     pub jump_snap: JumpSnap,
     /// Where the reckoned body falls off a ledge ([`Edge`]).
     pub edge: Edge,
+    /// [A318] Where the reckoned body goes at an open side with [`Edge::Client`] ([`ReckonWalkOff`]).
+    pub reckon_walk_off: ReckonWalkOff,
     /// [A269c] What a route adds to the cost of a walk onto a floor near an open side (with [`Edge::ClientWalksOff`], the grid's
     /// table of open sides), times the walk's own: the route keeps a body's width in from an edge the capsule walks off where the
     /// floor allows (`RouteFilter::weighing_open_sides`). 2 makes a cell's walk there cost 0.75 m, as a deep fall's edge does
@@ -277,6 +279,7 @@ impl Default for Kinematics {
             wall_slide: WallSlide::Diagonal,
             jump_snap: JumpSnap::ByKeys,
             edge: Edge::Client,
+            reckon_walk_off: ReckonWalkOff::OpenSides,
             open_edge_cost: 0.0,
             walk_off_landing: WalkOffLanding::BySpeed,
             margin_edge: MarginEdge::Body,
@@ -352,6 +355,19 @@ pub enum WallSlide {
     /// degree staircase, which holds both axes.
     #[default]
     Diagonal,
+}
+
+/// [A318] Where the reckoned body (`BodyTrack`, not the lip guard's stop forecast) goes at an open side of its floor with
+/// [`Edge::Client`].
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum ReckonWalkOff {
+    /// Held there as at a wall (as it was): the client's capsule walks on and the reckoning stands on top.
+    Held,
+    /// On as the client's capsule ([`Edge::ClientWalksOff`]'s walk, `body::walk_off_open`, `step_down` 0x7E1B0, PROVEN), the
+    /// stop forecast kept as [`Kinematics::edge`] says: A269's guard over open sides is not part of it.
+    #[default]
+    OpenSides,
 }
 
 /// [A318] The blend a world's fix starts the reckoning with.
@@ -462,6 +478,15 @@ impl Kinematics {
         keys & key::SPRINT != 0
             && keys & key::FORWARD != 0
             && keys & (key::BACK | key::FIRE | key::CROUCH | key::AIM) == 0
+    }
+
+    /// The edge the reckoned body falls off by ([`Self::edge`], or [`Edge::ClientWalksOff`] with [`ReckonWalkOff::OpenSides`]);
+    /// the lip guard's stop forecast keeps [`Self::edge`].
+    pub fn reckoned_edge(&self) -> Edge {
+        match (self.edge, self.reckon_walk_off) {
+            (Edge::Client, ReckonWalkOff::OpenSides) => Edge::ClientWalksOff,
+            (edge, _) => edge,
+        }
     }
 
     /// The velocity the keys ask for, in the body's frame, for a body at
