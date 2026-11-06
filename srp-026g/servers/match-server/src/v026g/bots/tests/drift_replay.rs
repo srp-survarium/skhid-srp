@@ -86,6 +86,43 @@ fn drift_on_a_real_match() {
         }
         return;
     }
+    // `SRP_A304_LINKS_AT=x,y,z;...` [A318]: the floor located at each point (within 1 m), its links (kind, where) and whether each of
+    // 8 directions is an open side (`open_toward`), then nothing else.
+    if let Some(points) = var("SRP_A304_LINKS_AT") {
+        let g = &*world.grid;
+        for point in points.split(';') {
+            let v: Vec<f32> = point.split(',').filter_map(|s| s.parse().ok()).collect();
+            let [x, y, z] = v[..] else { continue };
+            let Some(node) = g.locate(Vec3::new(x, y, z), 1.0) else {
+                eprintln!("A304 links at ({x}, {y}, {z}) {project}: no floor within 1 m");
+                continue;
+            };
+            let p = g.position(node);
+            let links: Vec<String> = g
+                .links(node)
+                .map(|(n, kind)| {
+                    let q = g.position(n);
+                    format!("{kind:?}->({:.2},{:.2},{:.2})", q.x, q.y, q.z)
+                })
+                .collect();
+            let open: Vec<String> = (0..8)
+                .map(|k| {
+                    let a = k as f32 * std::f32::consts::FRAC_PI_4;
+                    format!("{}:{:?}", k * 45, g.open_toward(node, a.cos(), a.sin()))
+                })
+                .collect();
+            eprintln!(
+                "A304 links at ({x}, {y}, {z}) {project}: floor ({:.2},{:.2},{:.2}) near_open {} links [{}] open (deg from +x toward +z) [{}]",
+                p.x,
+                p.y,
+                p.z,
+                g.near_open_side(node),
+                links.join(" "),
+                open.join(" ")
+            );
+        }
+        return;
+    }
     // `SRP_A304_FREE=1`: the reckoning with no walk grid (free space), to weigh what the grid adds.
     let grid: Option<&mapdata::WalkGrid> = var("SRP_A304_FREE").is_none().then_some(&*world.grid);
     // The inputs, by time; the worlds, by the time they reach the bots.
