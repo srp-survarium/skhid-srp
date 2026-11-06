@@ -33,7 +33,7 @@ use mapdata::{LinkKind, NodeId, Vec3, WalkGrid};
 use survarium::v026g::match_msgs::TICK_MS;
 
 use super::jump_arc::{ArcStep, JumpArc};
-use super::kin::{Blend, Edge, FIX_ABOVE_M, FixFloor, JumpSnap, Kinematics, MarginEdge, TICK_S, WalkOffLanding, to_world, wrap};
+use super::kin::{Blend, Edge, FIX_ABOVE_M, FixBlend, FixFloor, JumpSnap, Kinematics, MarginEdge, TICK_S, WalkOffLanding, to_world, wrap};
 use super::pitch::{Pitch, PitchScale};
 use crate::v026g::drive::key;
 
@@ -613,13 +613,18 @@ impl BodyTrack {
                 [speed, 0.0]
             };
         }
+        let blend = match kin.fix_blend {
+            FixBlend::Measured => Blend::at(local),
+            FixBlend::Replayed => self.replayed_blend(fix.time, kin, level).unwrap_or(Blend::at(local)),
+        };
+        let local = blend.now(kin.blend_ticks);
         let (air_until, air_cap) = self.air_at(fix.time, kin);
         let arc = if kin.jump_arc { self.arc_at(fix.time, feet, fix.yaw) } else { None };
         let mut estimate = Estimate {
             time: fix.time,
             feet,
             velocity: to_world(local, fix.yaw),
-            blend: Blend::at(local),
+            blend,
             yaw: wrap(fix.yaw),
             pitch: fix.pitch,
             // The world has no kick; the bot's own for that tick.
@@ -650,6 +655,23 @@ impl BodyTrack {
 }
 
 impl BodyTrack {
+    /// [A318] The blend the client's body is in at a world of `time` ([`FixBlend::Replayed`]): the keys of the ticks before it,
+    /// one a tick with none missing, played by [`Kinematics::mixer`] from the keys in force the blend's ticks earlier at full
+    /// weight (a layer that old has hidden all under it). None when the ticks do not reach that far back.
+    fn replayed_blend(&self, time: u32, kin: &Kinematics, level: f32) -> Option<Blend> {
+        let n = kin.blend_ticks as usize + 1;
+        let before: Vec<&Tick> = self.ticks.iter().rev().filter(|tick| tick.time < time).take(n).collect();
+        if before.len() < n || before.windows(2).any(|w| w[0].time != w[1].time + TICK_MS) || before[0].time + TICK_MS != time {
+            return None;
+        }
+        let mut ticks = before.into_iter().rev();
+        let mut blend = Blend::at(kin.target_local(ticks.next()?.keys, level));
+        for tick in ticks {
+            blend.tick_mixed(kin.target_local(tick.keys, level), kin.blend_ticks, kin.mixer);
+        }
+        Some(blend)
+    }
+
     /// Until when a jump pressed at or before `time` keeps the body in the
     /// air ([`JUMP_AIR_MS`]); 0 if none does.
     fn air_at(&self, time: u32, kin: &Kinematics) -> (u32, f32) {
@@ -715,7 +737,7 @@ fn advance(
     let steps = (tick.time.saturating_sub(at.time) / TICK_MS).max(1);
     let target = kin.target_local(at.keys, level);
     for step in 1..=steps {
-        let local = at.blend.tick(target, kin.blend_ticks);
+        let local = at.blend.tick_mixed(target, kin.blend_ticks, kin.mixer);
         // [A318] The client's jump: the clip's arc moves the body, the blend ticks on under it so the landing resumes from the
         // client's mix (fx-zones' `kin.mixer`).
         if let (Some(mut arc), Some(grid), Some(node)) = (at.arc, grid, at.node) {
@@ -1369,6 +1391,29 @@ pub(super) mod tests {
                 && (grid.position(l.to).y - rise).abs() < 0.05
         });
         (grid, bridge)
+    }
+
+    /// [A318, `kin.fix_blend`] The blend a world finds the body in is the keys of its last ticks played through the mixer: three
+    /// ticks forward then four left, a world at the next tick, and the replay is the straight play of those keys from rest (the
+    /// forward layer still under the left one); with too few ticks there is no replay.
+    #[test]
+    fn a_fix_replays_the_blend_from_the_last_ticks() {
+        let kin = Kinematics::default();
+        let keys = [key::FORWARD, key::FORWARD, key::FORWARD, key::LEFT, key::LEFT, key::LEFT, key::LEFT];
+        let mut track = BodyTrack::default();
+        for (k, &keys) in keys.iter().enumerate() {
+            track.decided(1_000 + k as u32 * TICK_MS, keys, (0.0, 0.0), 0.0, &kin, None);
+        }
+        let time = 1_000 + keys.len() as u32 * TICK_MS;
+        let replayed = track.replayed_blend(time, &kin, 1.0).expect("seven ticks");
+        let mut straight = Blend::at(kin.target_local(keys[0], 1.0));
+        for &k in &keys[1..] {
+            straight.tick_mixed(kin.target_local(k, 1.0), kin.blend_ticks, kin.mixer);
+        }
+        assert_eq!(replayed.now(kin.blend_ticks), straight.now(kin.blend_ticks));
+        let [ahead, left] = replayed.now(kin.blend_ticks);
+        assert!(ahead > 0.5 && left > 0.5, "both layers show: {ahead} {left}");
+        assert!(track.replayed_blend(1_000 + 3 * TICK_MS, &kin, 1.0).is_none(), "too few ticks");
     }
 
     /// [A313, `kin.walk_bridges`] Up a 0.75 m riser the pass walks off (the client's tick climbs it in a stride over the riser

@@ -358,6 +358,9 @@ fn pre_eye_pin_tuning() -> Tuning {
         old.kin.fix_floor = kin::FixFloor::Nearest;
         old.kin.jump_snap = kin::JumpSnap::Any;
         old.kin.pitch_scale = PitchScale::Radian;
+        // A318: the client's blend (KEPT_RIGHT, all-off keeps it); the pin has the old one.
+        old.kin.mixer = kin::Mixer::Frozen;
+        old.kin.fix_blend = kin::FixBlend::Measured;
         old.sense.ranges = tuning::HearingRanges::Flat;
         old.sense.shots = tuning::ShotRanges::Flat;
         old.sense.sprint_body_mps = None;
@@ -404,6 +407,8 @@ pub(crate) fn with_the_switch_off_a_soak_is_the_old_one() {
     // The counts are those of the stand-in's old spawn draw, and of its weapons before the emptying shot's reload (A277).
     let _spawn = super::standin::OldSpawnDraw::scope();
     let _reload = super::standin_weapon::OldEmptyReload::scope();
+    // And of the stand-in's blend before A318.
+    let _mixer = super::standin_jump::OldMixer::scope();
     let base = [
         (3, (365, 69, [16, 14], 2, 0, [1, 1]), 48.04),
         (7, (505, 82, [14, 13], 2, 0, [1, 2]), 49.71),
