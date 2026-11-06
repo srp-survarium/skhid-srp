@@ -161,7 +161,9 @@ pub struct GridTuning {
     /// [A325] Whether the grid's walk-tick passes (`client_controller`, `drop_check`) run the client's controller with the exe's
     /// own collision rules (`mapdata::Body::exe_collision`): its Bullet caster and its wall normal by rays, both read in the exe
     /// and proven closer to it in Unicorn (A325 P1 trust table: walk wall-slide divergences over 5 mm 11 -> 3 of 235 sampled
-    /// ticks, the floor-seam miss gone). OFF until its nav gate. A grid is the map's (see `gap_links`).
+    /// ticks, the floor-seam miss gone; fx-smoke's A325 tail stalls: the exe walks on at 3 of 4 where the port stalled, and
+    /// this rule follows it within 1 mm). Exe-proven, so ON and kept by `all_off` (the owner, 2026-11-05: correctness fixes go
+    /// in). A grid is the map's (see `gap_links`).
     pub exe_collision: bool,
 }
 
@@ -191,7 +193,7 @@ impl Default for GridTuning {
             narrow_doors: true,
             drop_check: true,
             wall_give_back: true,
-            exe_collision: false,
+            exe_collision: true,
         }
     }
 }
