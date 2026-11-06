@@ -43,6 +43,8 @@ use binary_config_parser::tree::{ConfigError, ConfigValue};
 use super::dictionary::{Dictionary, PROFILE_SLOTS};
 use super::item_params;
 use super::match_msgs::static_info::MatchProfile;
+use super::skills;
+use weapon_pickup::CarryRule;
 
 pub mod bot_gear;
 
@@ -668,32 +670,126 @@ fn default_modifier(dict_id: u16, parameter: &str) -> f32 {
 }
 
 /// The pockets a loadout opens and how many units each holds, with no
-/// skills: the player's `pocket_slots_count` and `pocket_slot_size` (1 and
-/// 1, `default.player`) plus what the worn items' default modifications
-/// add, at most [`MAX_POCKETS`].
-///
-/// LIKELY the client's rule: the lobby opens the first `item_slots` of
-/// slots 13..=18 and empties and locks the others
-/// (`PaperDollBase.handleQuickSlots`), a pocket takes `pocketSize` units
-/// of an item, or one of an item that `fills_whole_pocket`
-/// (`ItemRendererQSlot`, `MessageAsk`), and both numbers come from the
-/// exe; pockets (15) and pocket size (17) are among the modifiers the
-/// match's getter adds rather than multiplies (0x2D5AE0, table
-/// 0x927E08). How the exe sums them was not read.
+/// skills ([`KitLayout`]).
 pub fn pockets(loadout: &Loadout) -> (u32, u32) {
-    let added = |parameter| {
-        loadout
-            .items
-            .iter()
-            .map(|item| default_modifier(item.dict_id, parameter))
-            .sum::<f32>()
-            .max(0.0) as u32
-    };
-    let count = (item_params::player().pocket_slots_count + added("pocket_slots_modifier"))
-        .min(MAX_POCKETS as u32);
-    let size = (item_params::player().pocket_slot_size + added("pocket_slot_size_modifier"))
-        .min(MAX_POCKET_UNITS);
-    (count, size)
+    let worn: Vec<u16> = loadout.items.iter().map(|item| item.dict_id).collect();
+    let layout = KitLayout::new(&worn, &[0.0; skills::MODIFIERS]);
+    (layout.pockets, layout.pocket_size)
+}
+
+/// The dictionary category of medicine: Additional Medicine's pockets.
+const MEDICINE_CATEGORY: u8 = 10;
+
+/// What a kit's worn items and its skills open of its slots, the lobby's
+/// rules for them (the server keeps them only when the skills change:
+/// [`KitLayout::narrowed`]).
+///
+/// - Pockets: the player's `pocket_slots_count` and `pocket_slot_size` (1
+///   and 1, `default.player`) plus what the worn items' default
+///   modifications and the skills add, at most [`MAX_POCKETS`] and
+///   [`MAX_POCKET_UNITS`]. LIKELY the client's rule: the lobby opens the
+///   first `item_slots` of slots 13..=18 and empties and locks the others
+///   (`PaperDollBase.handleQuickSlots`), a pocket takes `pocketSize` units
+///   of an item, or one of an item that `fills_whole_pocket`
+///   (`ItemRendererQSlot`, `MessageAsk`), and both numbers come from the
+///   exe; pockets (15) and pocket size (17) are among the modifiers the
+///   match's getter adds rather than multiplies (0x2D5AE0, table
+///   0x927E08). How the exe sums them was not read.
+/// - Additional Medicine (322): a pocket holds one more medicine, at most
+///   [`MAX_POCKET_UNITS`] (`PlayerInfo.pocketUnits`).
+/// - The second weapon (slot 10), by the skills' [`CarryRule`]: none with
+///   Deep Pockets or Supply Pocket (`disable_second_weapon`), not a
+///   double-handed one beside another without Terminator
+///   (`use_two_double_handed_weapons`; `LocalPaperDoll`).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct KitLayout {
+    pockets: u32,
+    pocket_size: u32,
+    extra_medicine: bool,
+    carry: CarryRule,
+}
+
+impl KitLayout {
+    /// The layout of a kit wearing `worn` (dict ids) with the skills'
+    /// `modifiers` ([`skills::SkillsTree::modifiers`]).
+    pub fn new(worn: &[u16], modifiers: &[f32; skills::MODIFIERS]) -> KitLayout {
+        use skills::slot_modifier::*;
+        let added = |parameter, skill: usize| {
+            let items: f32 = worn
+                .iter()
+                .map(|&dict_id| default_modifier(dict_id, parameter))
+                .sum();
+            (items + modifiers[skill]).max(0.0) as u32
+        };
+        let ranks = modifiers[MEDICAL_RANKS];
+        let ranks = (ranks >= 0.0 && ranks < (1 << 24) as f32 && ranks.fract() == 0.0)
+            .then_some(ranks as u32);
+        KitLayout {
+            pockets: (item_params::player().pocket_slots_count
+                + added("pocket_slots_modifier", POCKET_SLOTS))
+            .min(MAX_POCKETS as u32),
+            pocket_size: (item_params::player().pocket_slot_size
+                + added("pocket_slot_size_modifier", POCKET_SLOT_SIZE))
+            .min(MAX_POCKET_UNITS),
+            extra_medicine: ranks.is_some_and(|ranks| ranks >> ADDITIONAL_MEDICINE_BIT & 1 == 1),
+            carry: CarryRule::from_modifiers(
+                modifiers[DISABLE_SECOND_WEAPON],
+                modifiers[USE_TWO_DOUBLE_HANDED_WEAPONS],
+            ),
+        }
+    }
+
+    /// The most units of `dict_id` slot `slot` may hold, beside
+    /// `first_weapon` in slot 7; `None` for a slot the layout does not
+    /// limit.
+    fn limit(&self, slot: u8, dict_id: u16, first_weapon: Option<u16>) -> Option<u32> {
+        if let Some(pocket) = POCKET_SLOTS.iter().position(|&each| each == slot) {
+            if pocket as u32 >= self.pockets {
+                return Some(0);
+            }
+            let medicine = Dictionary::shared()
+                .item(dict_id)
+                .is_some_and(|item| item.category == MEDICINE_CATEGORY);
+            let size = self.pocket_size + u32::from(self.extra_medicine && medicine);
+            return Some(pocket_share(dict_id).units_in(size.min(MAX_POCKET_UNITS)));
+        }
+        if slot != 10 {
+            return None;
+        }
+        let double_handed =
+            |dict_id| item_params::item_params(dict_id).is_some_and(|params| params.double_handed);
+        match self.carry {
+            CarryRule::OneWeapon => Some(0),
+            CarryRule::OneDoubleHanded
+                if double_handed(dict_id) && first_weapon.is_some_and(double_handed) =>
+            {
+                Some(0)
+            }
+            CarryRule::OneDoubleHanded | CarryRule::TwoDoubleHanded => None,
+        }
+    }
+
+    /// The units a kit's slot `slot` keeps of `units` of `dict_id`, beside
+    /// `first_weapon` in slot 7, when its layout goes from `self` to
+    /// `after` (its skills changed): what `after` no longer allows and
+    /// `self` did is taken off; 0 empties the slot. The kit's other limits
+    /// are the lobby's, which the server does not keep.
+    pub fn narrowed(
+        &self,
+        after: &KitLayout,
+        slot: u8,
+        dict_id: u16,
+        units: u32,
+        first_weapon: Option<u16>,
+    ) -> u32 {
+        match (
+            self.limit(slot, dict_id, first_weapon),
+            after.limit(slot, dict_id, first_weapon),
+        ) {
+            (before, Some(limit)) if before.is_none_or(|before| limit < before) => units.min(limit),
+            _ => units,
+        }
+    }
 }
 
 #[cfg(test)]
