@@ -775,6 +775,7 @@ mod tests {
             "/feel/floor_height_clear",
             "/feel/past_drop",
             "/grid/client_numbers",
+            "/grid/drop_check",
             "/grid/drop_room",
             "/grid/gap_no_vaults",
             "/grid/narrow_doors",
