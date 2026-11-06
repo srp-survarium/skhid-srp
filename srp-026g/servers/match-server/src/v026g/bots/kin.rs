@@ -557,11 +557,11 @@ impl Kinematics {
     }
 
     /// [A318] Whether the keys hold the client's sprint state: [`Self::sprints`]. The start predicates (`sprint_predicate` 0x2FBC90,
-    /// `is_trying_to_sprint` 0x2FC1F0) test SPRINT and FORWARD with none of `0x122` (BACK, FIRE, CROUCH), and `can_sprint` 0x2DBF40
-    /// reads no keys (fx-review A328), but AIM ends it all the same in the live game: 89 worlds of humans holding SPRINT + FORWARD +
-    /// AIM (keys unchanged since the world before, 522 live recordings of 2026-11-06) move at a median 3.69 m/s, 17 % over 4.2,
-    /// against 5.59 and 79 % without AIM (LIKELY by data; the exe path that ends it is not read: the aim state's own exit, or
-    /// can_sprint's aim-transition test fx-smoke names). The state ends on the release tick (fx-smoke: the client's flag, 2,524 worlds).
+    /// `is_trying_to_sprint` 0x2FC1F0) test SPRINT and FORWARD with none of `0x122` (BACK, FIRE, CROUCH); AIM ends the state through
+    /// its own exits (PROVEN, static, fx-review A328 on the movement FSM built in 0x2FAB70): 0x2FBD50 (to stand_run) and 0x2FBCE0 (to
+    /// stand_on_site) leave when `sprint_predicate` fails or AIM (keys +0x330 bit 0x80, 0x2FBD65 / 0x2FBCF5) is held with the hands'
+    /// item byte +0x389 != 2 (which items are 2 is not read). The live game agrees: humans holding SPRINT + FORWARD + AIM move at a
+    /// median 3.69 m/s (89 worlds), 5.59 without AIM. The state ends on the release tick (fx-smoke: the client's flag, 2,524 worlds).
     pub fn sprint_state(keys: u32) -> bool {
         Self::sprints(keys)
     }
