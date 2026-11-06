@@ -16,7 +16,7 @@ use std::sync::Arc;
 
 use mapdata::{NodeId, Vec3, World};
 
-use super::super::body::{BodyTrack, Fix};
+use super::super::body::{self, BodyTrack, Fix};
 use super::bench::bench_tuning;
 
 /// A world reaches the bots this long after its tick, ms (the bench's own delay; the live one is 200-400).
@@ -88,6 +88,8 @@ fn drift_on_a_real_match() {
     }
     // `SRP_A304_FREE=1`: the reckoning with no walk grid (free space), to weigh what the grid adds.
     let grid: Option<&mapdata::WalkGrid> = var("SRP_A304_FREE").is_none().then_some(&*world.grid);
+    // [A318] The jump arc's walls, as a match's view keeps them (`Tracker::arc_walls`): the walker mesh, while the switch is on.
+    let arc_walls = (grid.is_some() && kin.jump_arc).then(|| body::walker_walls(&world));
     // The inputs, by time; the worlds, by the time they reach the bots.
     let mut ticks: Vec<(u32, usize, u32, (f32, f32))> = read_csv(&inputs)
         .iter()
@@ -144,7 +146,7 @@ fn drift_on_a_real_match() {
         while k < ticks.len() && ticks[k].0 <= w.time + WORLD_LATE_MS {
             let (time, place, keys, turn) = ticks[k];
             let track = tracks.entry(place).or_default();
-            track.set_walls((grid.is_some() && kin.jump_arc).then(|| world.walker_tree()));
+            track.set_walls(arc_walls.clone());
             track.decided(time, keys, turn, 0.0, &kin, grid);
             k += 1;
         }

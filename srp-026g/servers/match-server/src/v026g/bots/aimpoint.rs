@@ -659,16 +659,16 @@ mod tests {
 
     /// A map of `walls` alone (its walk grid is not used).
     fn world_of(walls: &[[[Vec3; 3]; 2]]) -> Arc<World> {
-        Arc::new(World::assemble(
-            mapdata::MapData::default(),
-            Arc::new(mapdata::WalkGrid::build(
+        Arc::new(World {
+            map: mapdata::MapData::default(),
+            grid: Arc::new(mapdata::WalkGrid::build(
                 &[],
                 [0.0, 0.0, 1.0, 1.0],
                 0.25,
                 mapdata::Body::default(),
             )),
-            Arc::new(RayTree::from_corners(walls.iter().flatten().copied())),
-        ))
+            sight: Arc::new(RayTree::from_corners(walls.iter().flatten().copied())),
+        })
     }
 
     /// The view of `me` on `point`.

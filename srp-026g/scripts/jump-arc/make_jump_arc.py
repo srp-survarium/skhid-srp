@@ -46,7 +46,7 @@ CODE = r'''//! [A318] The client's jump for the reckoned body ([`super::kin::Kin
 //!   (`step_jump_down` 0x7D0F0).
 //! - The jump ends at the clip's end (`jump_logic_state_landing::initialize` 0x3440E0 calls `end_jump` 0x7F050).
 //!
-//! The reckoning has no capsule sweeps at run time: a wall is a ray of the map's walker mesh (`World::walker_tree`, as the stand-in
+//! The reckoning has no capsule sweeps at run time: a wall is a ray of the map's walker mesh (`body::walker_walls`, as the stand-in
 //! casts; the bullet mesh misses walls the body bumps into) at [`AIR_RAYS`] within the move and the body's radius, or a floor
 //! within the radius above the arc's feet by more than [`CATCH_M`] and under its head; the arc lands on the highest floor under
 //! its feet on the way down.

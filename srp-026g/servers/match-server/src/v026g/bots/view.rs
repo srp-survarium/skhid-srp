@@ -28,11 +28,12 @@
 //!   walked off with unaware.)
 
 use std::collections::VecDeque;
+use std::sync::Arc;
 
-use mapdata::{Vec3, World};
+use mapdata::{RayTree, Vec3, World};
 
 use super::arc::{self, Flight, Grenade, Mesh};
-use super::body::{BodyTrack, Fix};
+use super::body::{self, BodyTrack, Fix};
 use super::kin::Kinematics;
 use super::objective::ObjectiveMap;
 use super::live_grenades::{
@@ -547,6 +548,9 @@ pub struct Tracker {
     shot_reach: Vec<Option<f32>>,
     deaths: VecDeque<Death>,
     world_time: u32,
+    /// [A318] The map's walker-mesh walls for the jump arc ([`body::walker_walls`]), built the first time `kin.jump_arc` needs
+    /// them: one per match.
+    walker: Option<Arc<RayTree>>,
     /// What the sprint-sound rule and the use ray did, by team (a carrier guess reads them through `&self`).
     activity: std::cell::Cell<[SenseActivity; 2]>,
     /// The bench only: by place, a bot seen as a human is, its body known
@@ -623,7 +627,14 @@ impl Tracker {
             jitter_walks: Default::default(),
             #[cfg(test)]
             seen_reach: Vec::new(),
+            walker: None,
         }
+    }
+
+    /// [A318] The jump arc's walls for `world` while `kin.jump_arc` is on (none while off: nothing is built).
+    fn arc_walls(&mut self, kin: &Kinematics, world: Option<&World>) -> Option<Arc<RayTree>> {
+        let world = world.filter(|_| kin.jump_arc)?;
+        Some(self.walker.get_or_insert_with(|| body::walker_walls(world)).clone())
     }
 
     /// The map's containers: by id, (team, place).
@@ -915,6 +926,7 @@ impl Tracker {
         kin: &Kinematics,
         world: Option<&World>,
     ) {
+        let walls = self.arc_walls(kin, world);
         let Some(state) = self.places.get_mut(place) else {
             return;
         };
@@ -924,7 +936,7 @@ impl Tracker {
         state.last_input = Some(time);
         let pressed = keys & !state.keys;
         state.keys = keys;
-        state.body.set_walls(world.filter(|_| kin.jump_arc).map(|world| world.walker_tree()));
+        state.body.set_walls(walls);
         state
             .body
             .decided(time, keys, turn, kick, kin, world.map(|world| &*world.grid));
@@ -1287,6 +1299,7 @@ impl Tracker {
         kin: &Kinematics,
         world: Option<&World>,
     ) -> bool {
+        let walls = self.arc_walls(kin, world);
         let Some(state) = self.places.get_mut(place) else {
             return false;
         };
@@ -1300,7 +1313,7 @@ impl Tracker {
         if let Some(health) = health {
             state.health = health;
         }
-        state.body.set_walls(world.filter(|_| kin.jump_arc).map(|world| world.walker_tree()));
+        state.body.set_walls(walls);
         state.body.fixed(fix, kin, world.map(|world| &*world.grid))
     }
 

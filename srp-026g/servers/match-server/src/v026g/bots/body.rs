@@ -214,6 +214,17 @@ impl std::fmt::Debug for Walls {
     }
 }
 
+/// [A318] Rays on `world`'s walker mesh (what the walking body bumps into; a map without walker triangles: its sight tree), as
+/// the bench's stand-in casts its walls: the jump arc's walls. Built from the map's triangles (once a match: the view keeps it).
+pub fn walker_walls(world: &mapdata::World) -> Arc<RayTree> {
+    let walker = world.map.walker_triangles();
+    if walker.is_empty() {
+        world.sight.clone()
+    } else {
+        Arc::new(RayTree::build(&walker))
+    }
+}
+
 /// [A318] The client's jump gate for a press, past what the reckoned body itself knows (standing, uncrouched, no jump under
 /// way): `player_logic_jump_state` starts only with the bar at the jump's cost and not low (`player_stamina`, 0x2FC230), no
 /// battery carried (`can_sprint`'s item test, LIKELY) and legs that may jump (`motor::Hurt::may_jump`). A bot's is its own

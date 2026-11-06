@@ -182,8 +182,6 @@ pub struct World {
     pub map: MapData,
     pub grid: std::sync::Arc<WalkGrid>,
     pub sight: std::sync::Arc<RayTree>,
-    /// The walker mesh's rays ([`Self::walker_tree`]), built on first use.
-    walker: std::sync::OnceLock<std::sync::Arc<RayTree>>,
 }
 
 impl World {
@@ -232,22 +230,7 @@ impl World {
         grid: std::sync::Arc<WalkGrid>,
         sight: std::sync::Arc<RayTree>,
     ) -> Self {
-        Self { map, grid, sight, walker: std::sync::OnceLock::new() }
-    }
-
-    /// Rays on the walker mesh (what the walking body bumps into), built from the map on the first call and kept (a map without
-    /// walker triangles: the sight tree), as the bench's stand-in casts its walls.
-    pub fn walker_tree(&self) -> std::sync::Arc<RayTree> {
-        self.walker
-            .get_or_init(|| {
-                let walker = self.map.walker_triangles();
-                if walker.is_empty() {
-                    self.sight.clone()
-                } else {
-                    std::sync::Arc::new(RayTree::build(&walker))
-                }
-            })
-            .clone()
+        Self { map, grid, sight }
     }
 }
 
