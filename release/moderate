@@ -558,7 +558,7 @@ def admin(args, fields, what):
 
 
 def duration(text):
-    if text in ("forever", "for-good", "0"):
+    if text in ("forever", "for-good"):
         return ""
     if not re.fullmatch(r"[1-9]\d*", text):
         sys.exit("moderate: hours are a whole number, or forever")
