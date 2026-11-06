@@ -14,13 +14,13 @@ pub const NUMBERS: &[(&str, f32)] = &[
     // At its point within this, metres: the habit then plans the trap there (its look lands about 1.3 m out).
     ("reach_m", 1.0),
     // A play this old is given up, seconds (the team lets the bot go after `camper_job.give_up_s` first).
-    ("give_up_s", 40.0),
+    ("give_up_s", 60.0),
 ];
 
 pub fn tuning() -> PlayTuning {
     PlayTuning {
         rank: Rank::Fight,
-        considerations: vec![considerations::health_above(JOB_HEALTH), considerations::runtime(40.0)],
+        considerations: vec![considerations::health_above(JOB_HEALTH), considerations::runtime(60.0)],
         numbers: Default::default(),
     }
 }

@@ -355,7 +355,7 @@ pub struct CamperJob {
 
 impl Default for CamperJob {
     fn default() -> Self {
-        Self { death_keep_s: 60.0, near_m: 6.0, far_m: 20.0, step_m: 3.0, max_walk_m: 30.0, give_up_s: 25.0, within_m: 1.5 }
+        Self { death_keep_s: 60.0, near_m: 6.0, far_m: 20.0, step_m: 3.0, max_walk_m: 30.0, give_up_s: 45.0, within_m: 1.5 }
     }
 }
 

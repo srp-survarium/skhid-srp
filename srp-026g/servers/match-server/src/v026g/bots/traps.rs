@@ -908,10 +908,19 @@ pub mod camper {
         TEAM[usize::from(team & 1)][kind].fetch_add(1, Ordering::Relaxed);
     }
 
+    /// The gate's refusals of a sent bot at its point, in `gates::of` order from Play on.
+    pub const GATE_NAMES: [&str; 8] = ["play", "carrying", "health", "enemy", "hit", "reloading", "team_cap", "other"];
+    static GATE: [[AtomicU64; 8]; 2] = [const { [const { AtomicU64::new(0) }; 8] }; 2];
+
+    pub fn gate(team: u8, k: usize) {
+        GATE[usize::from(team & 1)][k.min(7)].fetch_add(1, Ordering::Relaxed);
+    }
+
     pub fn line() -> String {
         (0..2)
             .map(|team| {
-                let parts: Vec<String> = NAMES.iter().enumerate().map(|(k, n)| format!("{n} {}", TEAM[team][k].load(Ordering::Relaxed))).collect();
+                let mut parts: Vec<String> = NAMES.iter().enumerate().map(|(k, n)| format!("{n} {}", TEAM[team][k].load(Ordering::Relaxed))).collect();
+                parts.extend(GATE_NAMES.iter().enumerate().map(|(k, n)| format!("gate_{n} {}", GATE[team][k].load(Ordering::Relaxed))));
                 format!("team {team}: {}", parts.join(", "))
             })
             .collect::<Vec<_>>()
@@ -1572,6 +1581,7 @@ pub(super) fn think(bot: &mut Bot, due: &Due, state: &mut TeamState, notes: &mut
             }
             if job.is_some() {
                 camper::count(me.team, camper::THINK_GATE);
+                camper::gate(me.team, gates::of(refusal) - gates::of(Refusal::Play(PlayKind::Collect)));
             }
         }
         return;
@@ -1802,7 +1812,8 @@ pub(super) fn think(bot: &mut Bot, due: &Due, state: &mut TeamState, notes: &mut
             },
         );
     }
-    if let Some(chosen) = chosen {
+    // [A324] A sent bot puts its trap only by its point.
+    if let Some(chosen) = chosen.filter(|c| job.is_none() || c.wished) {
         #[cfg(test)]
         if chosen.wished && on_cleared {
             cleared::placed(me.team, bot.place, due.now);
