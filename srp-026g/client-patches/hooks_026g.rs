@@ -886,6 +886,71 @@ pub extern "C" fn hook_medical_skills_on_hit(frame: &mut Frame) -> u32 {
     }
 }
 
+// ---- hud_cursor (patch 113) ----
+
+/// The entry `hud_cursor_on_match_start` (0x234880, game_world_ui::initialize_match's start (sub esp,5D4h), once a match (from 0x1F855D; the late join's rebuild enters at 0x234E71): the site's ESP+4 the hud, whose kits (+2DFh) and cursor (+2DCh) are the last match's) calls this with the saved machine.
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_hud_cursor_on_match_start(frame: &mut Frame) -> u32 {
+    // SAFETY: only the entry `hud_cursor_on_match_start` calls this, from the game's jump at 0x234880,
+    // on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::new(frame) };
+    match crate::hud_cursor::on_match_start(&mut ctx) {
+        Flow::Continue => 0,
+        Flow::Skip => 1,
+        Flow::Exit(e) => match e {},
+    }
+}
+
+// ---- hud_cursor (patch 113) ----
+
+/// The named exits of hud_cursor::on_cursor_shown (the order the shim's Flow code
+/// follows, 2 upward).
+#[repr(u32)]
+#[allow(dead_code)]
+pub enum HudCursorOnCursorShownExit { Kept }
+/// The entry `hud_cursor_on_cursor_shown` (0x23a992, show_cursor's show (mov eax,[edi+18h] / lea esi,[edi+0Ch], then the call of base_game_scene::show_movie 0x23DC00 at 0x23A998): kept skips the movie, the flag (+2DCh) still written at 0x23A9A1) calls this with the saved machine.
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_hud_cursor_on_cursor_shown(frame: &mut Frame) -> u32 {
+    // SAFETY: only the entry `hud_cursor_on_cursor_shown` calls this, from the game's jump at 0x23a992,
+    // on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::new(frame) };
+    match crate::hud_cursor::on_cursor_shown(&mut ctx) {
+        Flow::Continue => 0,
+        Flow::Skip => 1,
+        Flow::Exit(e) => 2 + e as u32,
+    }
+}
+
+// ---- hud_cursor (patch 113) ----
+
+/// The entry `hud_cursor_on_menu_show` (0x200f50, game_options::activate's start (push ebp / mov ebp,esp / and esp,-8): the main menu about to be shown, over a match by Esc (activate_main_menu 0x1EDBDC) or over the lobby (0x28C5C9)) calls this with the saved machine.
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_hud_cursor_on_menu_show(frame: &mut Frame) -> u32 {
+    // SAFETY: only the entry `hud_cursor_on_menu_show` calls this, from the game's jump at 0x200f50,
+    // on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::new(frame) };
+    match crate::hud_cursor::on_menu_show(&mut ctx) {
+        Flow::Continue => 0,
+        Flow::Skip => 1,
+        Flow::Exit(e) => match e {},
+    }
+}
+
+// ---- hud_cursor (patch 113) ----
+
+/// The entry `hud_cursor_on_menu_close` (0x201040, game_options::deactivate's start (push ecx / cmp byte [esi+44h],0; the je after it returns when the menu is not shown): the menu's Resume (0x1FF66E), its key (0x20165A), a match's end (0x1F956D) and the lobby's (0x21D50E)) calls this with the saved machine.
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_hud_cursor_on_menu_close(frame: &mut Frame) -> u32 {
+    // SAFETY: only the entry `hud_cursor_on_menu_close` calls this, from the game's jump at 0x201040,
+    // on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::new(frame) };
+    match crate::hud_cursor::on_menu_close(&mut ctx) {
+        Flow::Continue => 0,
+        Flow::Skip => 1,
+        Flow::Exit(e) => match e {},
+    }
+}
+
 // ---- language (patch 79) ----
 
 /// The entry `language_on_configs_start` (0x1ea210, game::on_configs_loaded's start (push ebp / mov ebp,esp / and esp,-8), before it runs startup.cfg and user.cfg (load_cc_script 0x1EA2C2, 0x1EA301)) calls this with the saved machine.

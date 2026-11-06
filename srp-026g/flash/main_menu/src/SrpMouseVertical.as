@@ -2,7 +2,6 @@ package
 {
     import flash.display.MovieClip;
     import flash.events.Event;
-    import flash.external.ExternalInterface;
     import scaleform.clik.events.IndexEvent;
 
     // The controls tab's "Lock vertical sensitivity" and "Vertical
@@ -31,6 +30,9 @@ package
         // The locked look's looking-up rate per unit of the main slider, in the
         // vertical slider's units (the exe's 16:9 h / w).
         private static const SIXTEEN_NINE:Number = 0.5625;
+        // The stock mouse_sensitivity's range (0.01 to 10, its console variable), which the exe
+        // keeps for srp_mouse_vertical too; bind takes the main slider's once it is there.
+        private static const RANGE:Object = {minimum: 0.01, maximum: 10, snapInterval: 0.01};
 
         public var check:SrpCheckOption;
         public var slider:SrvOptionSlider;
@@ -48,6 +50,7 @@ package
             check.box.addEventListener(Event.SELECT, onLock);
             slider = new SrvOptionSlider();
             slider.name = "_" + VERTICAL;
+            slider.dataProvider = RANGE;
             slider.visible = false;
             content.addChild(slider);
         }
@@ -74,12 +77,12 @@ package
             {
                 if (main != null)
                 {
-                    main.removeEventListener(IndexEvent.INDEX_CHANGE, onMain);
+                    main.removeEventListener(IndexEvent.INDEX_CHANGE, followMain);
                 }
                 main = stock;
                 if (main != null)
                 {
-                    main.addEventListener(IndexEvent.INDEX_CHANGE, onMain);
+                    main.addEventListener(IndexEvent.INDEX_CHANGE, followMain);
                 }
             }
             if (main == null)
@@ -125,15 +128,21 @@ package
             return saved > 0 && !locked && hundredths(slider.selectedIndex) != saved;
         }
 
-        // Apply: the vertical value (when it is the player's) and the checkbox.
+        // Apply: the vertical value (when it is the player's) and the checkbox. Both are taken
+        // before either call: the exe answers each at once, and an answer reverts both to what is
+        // saved (an unlock with a new value would otherwise be locked again by the value's answer).
         public function save():void
         {
-            if (verticalPending)
+            var vertical:int = verticalPending ? hundredths(slider.selectedIndex) : -1;
+            if (vertical > 0)
             {
-                saved = hundredths(slider.selectedIndex);
-                ask(String(saved));
+                saved = vertical;
             }
             check.save();
+            if (vertical > 0)
+            {
+                ask(String(vertical));
+            }
         }
 
         // Cancel: the saved state back; off, the slider follows the main one.
@@ -158,36 +167,41 @@ package
         private function follow():void
         {
             var on:Boolean = !locked;
-            if (!on && main != null)
-            {
-                show(main.selectedIndex * SIXTEEN_NINE);
-            }
+            followMain();
             slider.slider.enabled = on;
             slider.mouseChildren = on;
             slider.alpha = on ? 1 : GREYED;
         }
 
-        private function onMain(event:Event):void
+        // Locked: the main slider's value x 0.5625, at its moves and whenever Settings sets its
+        // value (the exe's values after a visit of the tab, Apply's, Cancel's: no event of the slider).
+        public function followMain(event:Event = null):void
         {
-            if (locked)
+            if (locked && main != null)
             {
                 show(main.selectedIndex * SIXTEEN_NINE);
             }
         }
 
-        // A value shown at once: the thumb drawn now (a disabled slider draws no later).
+        // A value shown at once, within the slider's range: the thumb drawn now (a disabled slider
+        // draws no later).
         private function show(value:Number):void
         {
             var on:Boolean = slider.slider.enabled;
             slider.slider.enabled = true;
-            slider.selectedIndex = value;
+            slider.selectedIndex = Math.max(slider.slider.minimum, Math.min(slider.slider.maximum, value));
             slider.slider.validateNow();
             slider.slider.enabled = on;
         }
 
-        // A toggle: unlocking continues from the value shown, locking follows again.
+        // A toggle: unlocking continues from the value shown, or back at a saved unlock from its
+        // saved value (two toggles change nothing); locking follows again.
         private function onLock(event:Event):void
         {
+            if (!locked && !check.savedOn && saved > 0)
+            {
+                show(saved / 100);
+            }
             follow();
         }
 
@@ -203,23 +217,10 @@ package
             return Math.round(value * 100);
         }
 
-        // Outside the game (a test player) there is no exe to call.
+        // The exe answers at once (root.srp_slider_option).
         private function ask(value:String):void
         {
-            try
-            {
-                if (value == null)
-                {
-                    ExternalInterface.call(VERTICAL);
-                }
-                else
-                {
-                    ExternalInterface.call(VERTICAL, value);
-                }
-            }
-            catch (error:Error)
-            {
-            }
+            SrpExe.call(VERTICAL, value);
         }
     }
 }

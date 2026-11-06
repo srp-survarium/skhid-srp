@@ -53,9 +53,12 @@ The rules that the code and the checks follow. Code: the Rust patch `mouse_pitch
     whose pitch is in radians too, turns its pitch by its yaw step at v. v equal to the main value
     means vertical turns exactly as fast as horizontal.
   - **Unticking** starts v at the value the greyed slider showed, so looking up feels as it did
-    at that moment (to the slider's 0.01). **Ticking** goes back to the locked look, and the
-    slider follows main x 0.5625 again.
-  - Apply saves, as for every option on the tab. Cancel puts the saved state back.
+    at that moment (to the slider's 0.01). Unticking back to a saved unlock gives its saved v,
+    so two toggles change nothing. **Ticking** goes back to the locked look, and the slider
+    follows main x 0.5625 again, also when Settings sets the main value (a visit of the tab,
+    Apply, Cancel).
+  - Apply saves, as for every option on the tab. Cancel puts the saved state back. Apply takes
+    both the box and v before it calls the exe, which answers each call at once.
   - Texts: `st_srp_mouse_lock_option` and `st_srp_mouse_vertical_option`, in all ten dictionaries.
 - **What players notice, locked:**
 

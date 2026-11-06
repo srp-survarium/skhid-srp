@@ -6,42 +6,34 @@
 //! decided alike everywhere (patch 108, docs/notes/hand-kill.md). Every field
 //! is fields_026g.tsv's.
 
-use core::ffi::CStr;
-
 use super::context::Context;
 use super::drug::HitType;
 use super::world::read;
 use crate::raw;
 
 /// The hit at `medical.hit`, before armour.
-pub struct DealingHit<'c> {
+pub struct DealingHit {
     kind: Option<HitType>,
-    zone: Option<&'c CStr>,
     by_another: bool,
     frame: raw::MedicalDamageFrame,
 }
 
-/// The longest zone name (hit_params' names: `right_forearm`, 13 bytes).
-const ZONE_LIMIT: usize = 32;
-
 /// hit_info's attacker for none (hit_info::hit_info's stack+8).
 const NO_PLACE: u8 = 0xFF;
 
-impl<'c> DealingHit<'c> {
-    pub fn at(ctx: &'c Context<'_>) -> Option<DealingHit<'c>> {
+impl DealingHit {
+    pub fn at(ctx: &Context<'_>) -> Option<DealingHit> {
         use raw::site::medical_hit as site;
         // SAFETY: the context is this site's: hit_body_part's damage model
         // (its owner the victim, alive: hit_impl returned at 0x2D9BA3
         // otherwise), its hit_info and the frame holding the damage, on the
-        // thread running the hit. The zone is a hit_params name the hit
-        // model's bone table keeps for the match.
+        // thread running the hit.
         unsafe {
             let (hit, frame) = (site::hit(ctx)?, site::frame(ctx)?);
             let victim = site::model(ctx)?.owner()?;
-            let zone = super::ui::c_string(hit.name(), ZONE_LIMIT);
             let attacker = read(hit.attacker());
             let by_another = attacker != NO_PLACE && attacker != read(victim.place());
-            Some(DealingHit { kind: HitType::parse(read(hit.kind())), zone, by_another, frame })
+            Some(DealingHit { kind: HitType::parse(read(hit.kind())), by_another, frame })
         }
     }
 
@@ -49,13 +41,8 @@ impl<'c> DealingHit<'c> {
         self.kind
     }
 
-    /// The hit zone's name (`right_forearm`), as hit_params names it.
-    pub fn zone(&self) -> Option<&CStr> {
-        self.zone
-    }
-
-    /// The hit has an attacker, another player than the victim (a fall has
-    /// none).
+    /// The hit has an attacker, another player than the victim (a fall's
+    /// attacker is the victim).
     pub fn by_another(&self) -> bool {
         self.by_another
     }

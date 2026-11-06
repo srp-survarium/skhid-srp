@@ -30,6 +30,11 @@ fn a_new_account_on_the_released_data_wears_the_whole_kit() {
         (15_000, 150)
     );
     assert_eq!(account.reputation_level(1), 5);
+    // Level 15, its points spent in the five skills of the table (the
+    // released tree takes them: `game_data::init` checked it).
+    assert_eq!(account.level(), 15);
+    assert_eq!(account.skills.len(), 5);
+    assert_eq!(account.free_skill_points(), 0);
 
     // Every ammo, the 0.29a3 weapons' too: 1000 rounds.
     let dictionary = Dictionary::shared();

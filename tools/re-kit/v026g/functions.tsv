@@ -178,6 +178,7 @@ va	status	ref_021d	name
 0x000e06d0	reviewed	0x000ae250	vostok::resources::resource_children::unlink_child_resource
 0x000e07b0	reviewed	0x000ae30e	vostok::resources::resource_children::unlink_from_children
 0x000e07e0	reviewed	0x000ae337	vostok::resources::resource_children::unlink_from_parents
+0x000e48e0	reviewed	0x000b01a5	__delayLoadHelper2
 0x000e4f40	reviewed	0x000b079e	vostok::memory::doug_lea_allocator::initialize_impl
 0x000e4f80	reviewed	0x000b07ce	vostok::memory::doug_lea_allocator::finalize_impl
 0x000e4f90	reviewed	0x000b07fc	vostok::memory::doug_lea_allocator::malloc_impl

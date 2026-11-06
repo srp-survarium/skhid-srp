@@ -550,6 +550,13 @@ Patches:
   width (0x2402E9) is 0.5625 while locked, and unlocked the factor that
   makes a count's pitch radians the yaw's, up and down; the death camera's
   (patch 46) too. The input carries the turn: nothing a match computes;
+- the hud's kits and cursor start over at each match, and the main menu
+  covers the hud's cursor (patch 113, the Rust patch hud_cursor; README "The
+  hud's kits and cursor"): initialize_match's start (0x234880) hides the
+  cursor and clears the kits' state the last match left, so the first
+  showing tells the movie the match's kit; while game_options is shown the
+  hud's cursor movie is off the screen (0x200F50, 0x23A992, 0x201040).
+  Nothing a match computes;
 - the baked camouflage and decal textures are kept from game to game, and
   a texture asked for again while its bake or load is under way is made
   once (patch 70, with the late join; docs/notes/baked-textures.md). The

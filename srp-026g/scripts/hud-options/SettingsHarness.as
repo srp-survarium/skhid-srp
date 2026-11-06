@@ -155,6 +155,8 @@ package
                         trace("SETTINGS controls pass");
                         checkBorders(Object(loader.content), settings, texts, domain);
                         trace("SETTINGS borders pass");
+                        checkApplyCancel(Object(loader.content), settings, texts, domain);
+                        trace("SETTINGS apply-cancel pass");
                     }
                     catch (error:Error)
                     {
@@ -1113,6 +1115,190 @@ package
             reopen(1.25, "1", "100");
             trace("SETTINGS borders: locked shows main x 0.5625 within range at 0.01 and 10 (0.01, 5.63); unlocking starts there; "
                 + "unlocked ends leave the other slider; Apply and reopen keep the values");
+        }
+
+        // "Lock vertical sensitivity" and its slider through Apply and Cancel, against patch 112's
+        // option store as mouse_pitch.rs keeps it (on_options_call): a call with a value saves it
+        // when it is one ("1"/"0"; 1 to 1000 hundredths) and every call answers the saved value at
+        // once, in the middle of whatever asked (SrpExe.standIn takes the movie's calls). The stock
+        // exe's side as game_options::scaleform_callback has it: accept_changes is options_tab::apply
+        // and its initialize_data (root.set_values of the tab), cancel_changes each item's revert
+        // (root.set_value). A new visit of the tab is the tab bar's: the frame, the tab bound (its
+        // place() asks the exe), then its values. Every path is checked on its own and reported.
+        private function checkApplyCancel(root:*, settings:*, texts:Array, domain:ApplicationDomain):void
+        {
+            var c:* = settings.settings_content;
+            var LOCKED:String = "srp_mouse_vertical_locked", VERTICAL:String = "srp_mouse_vertical";
+            var exe:Object = {locked: true, vertical: 1.0, main: 1.25};
+            var standIn:Function = function(name:String, value:String):void {
+                if (name == LOCKED)
+                {
+                    if (value == "1" || value == "0") exe.locked = value == "1";
+                    root.srp_check_option(LOCKED, texts[0][17], exe.locked ? "1" : "0");
+                }
+                else if (name == VERTICAL)
+                {
+                    if (value != null && /^[0-9]{1,4}$/.test(value) && int(value) >= 1 && int(value) <= 1000)
+                        exe.vertical = int(value) * 0.01;
+                    var v:Number = exe.vertical >= 0.01 && exe.vertical <= 10 ? exe.vertical : 0.01;
+                    root.srp_slider_option(VERTICAL, texts[0][18], String(Math.min(1000, Math.max(1, Math.floor(v * 100 + 0.5)))));
+                }
+            };
+            var exeClass:Object = domain.getDefinition("SrpExe");
+            exeClass.standIn = standIn;
+            var box:* = c.getChildByName("_" + LOCKED), vertical:* = c.getChildByName("_" + VERTICAL);
+            var main:Function = function():* { return c._slider_mouse_sens; };
+            var shown:Function = function(m:Number):Number { return Math.round(m * 0.5625 / 0.01) * 0.01; };
+            var visit:Function = function():void {
+                c.gotoAndStop(1);
+                controls(root, settings, domain, exe.main);
+            };
+            var apply:Function = function():void {
+                require(settings.btn_accept.enabled, "Apply is not enabled");
+                click(settings.btn_accept);
+                exe.main = main().selectedIndex;
+                root.set_values(1, [{id: 0, value: 0}, {id: 1, value: exe.main}]);
+            };
+            var cancel:Function = function():void {
+                click(settings.btn_cancel);
+                root.set_value(1, 1, exe.main);
+            };
+            var start:Function = function(locked:Boolean, v:Number):void {
+                if (settings.btn_accept.enabled) cancel();
+                settings.visible = true;
+                exe.locked = locked;
+                exe.vertical = v;
+                exe.main = 1.25;
+                visit();
+            };
+            // the tab as the player sees it, and the exe's store
+            var state:Function = function():String {
+                return (box.selected ? "locked" : "unlocked") + " " + vertical.selectedIndex + (settings.btn_accept.enabled ? ", pending" : "")
+                    + (settings.btn_cancel.label == exit ? ", Exit" : ", Cancel") + "; exe " + (exe.locked ? "locked" : "unlocked") + " " + Math.round(exe.vertical * 100) / 100;
+            };
+            var expect:Function = function(what:String, locked:Boolean, v:Number, pending:Boolean, exeLocked:Boolean, exeV:Number):void {
+                var ok:Boolean = box.selected == locked && close(vertical.selectedIndex, v) && settings.btn_accept.enabled == pending
+                    && (settings.btn_cancel.label != exit) == pending && vertical.slider.enabled == !locked
+                    && exe.locked == exeLocked && Math.abs(exe.vertical - exeV) < 1e-6;
+                require(ok, what + ": " + state() + ", not " + (locked ? "locked" : "unlocked") + " " + v + (pending ? ", pending" : "")
+                    + "; exe " + (exeLocked ? "locked" : "unlocked") + " " + exeV);
+            };
+            var exit:String = settings.btn_cancel.label;   // nothing pending here (checkBorders ends so)
+            var failed:Array = [];
+            var cases:Array = [
+                ["first visit, locked", function():void {
+                    start(true, 1);
+                    expect("shown", true, shown(1.25), false, true, 1);
+                }],
+                ["toggle the lock, Cancel", function():void {
+                    start(true, 1);
+                    box.selected = false;
+                    expect("unticked", false, shown(1.25), true, true, 1);
+                    cancel();
+                    expect("Cancel", true, shown(1.25), false, true, 1);
+                    visit();
+                    expect("a new visit", true, shown(1.25), false, true, 1);
+                }],
+                ["toggle the lock, Apply", function():void {
+                    start(true, 1);
+                    box.selected = false;
+                    apply();
+                    expect("Apply", false, shown(1.25), false, false, shown(1.25));
+                    visit();
+                    expect("a new visit", false, shown(1.25), false, false, shown(1.25));
+                    box.selected = true;
+                    expect("the lock again", true, shown(1.25), true, false, shown(1.25));
+                }],
+                ["unlock, move the vertical slider, Apply", function():void {
+                    start(true, 1);
+                    box.selected = false;
+                    vertical.slider.value = 2;
+                    expect("moved", false, 2, true, true, 1);
+                    apply();
+                    expect("Apply", false, 2, false, false, 2);
+                    visit();
+                    expect("a new visit", false, 2, false, false, 2);
+                    box.selected = true;
+                    expect("then the lock", true, shown(1.25), true, false, 2);
+                }],
+                ["unlocked, move the vertical slider, Cancel", function():void {
+                    start(false, 3.1);
+                    expect("shown", false, 3.1, false, false, 3.1);
+                    vertical.slider.value = 4;
+                    expect("moved", false, 4, true, false, 3.1);
+                    cancel();
+                    expect("Cancel", false, 3.1, false, false, 3.1);
+                    visit();
+                    expect("a new visit", false, 3.1, false, false, 3.1);
+                }],
+                ["unlocked, move the vertical slider, Apply", function():void {
+                    start(false, 3.1);
+                    vertical.slider.value = 4;
+                    apply();
+                    expect("Apply", false, 4, false, false, 4);
+                    visit();
+                    expect("a new visit", false, 4, false, false, 4);
+                }],
+                ["locked, move the main slider, Cancel", function():void {
+                    start(true, 1);
+                    main().slider.value = 2.5;
+                    expect("moved", true, shown(2.5), true, true, 1);
+                    cancel();
+                    require(close(main().selectedIndex, 1.25), "Cancel: the main slider back at 1.25: " + main().selectedIndex);
+                    expect("Cancel", true, shown(1.25), false, true, 1);
+                }],
+                ["locked, move the main slider, Apply", function():void {
+                    start(true, 1);
+                    main().slider.value = 2.5;
+                    apply();
+                    expect("Apply", true, shown(2.5), false, true, 1);
+                    visit();
+                    expect("a new visit", true, shown(2.5), false, true, 1);
+                }],
+                ["toggle the lock twice, locked", function():void {
+                    start(true, 1);
+                    box.selected = false;
+                    box.selected = true;
+                    expect("back", true, shown(1.25), false, true, 1);
+                }],
+                ["toggle the lock twice, unlocked", function():void {
+                    start(false, 3.1);
+                    box.selected = true;
+                    expect("ticked", true, shown(1.25), true, false, 3.1);
+                    box.selected = false;
+                    expect("back", false, 3.1, false, false, 3.1);
+                }],
+                ["unlock, move the vertical slider, lock again", function():void {
+                    start(true, 1);
+                    box.selected = false;
+                    vertical.slider.value = 4;
+                    box.selected = true;
+                    expect("locked again: nothing to apply", true, shown(1.25), false, true, 1);
+                }],
+                ["Cancel with nothing pending is Exit", function():void {
+                    start(true, 1);
+                    click(settings.btn_cancel);
+                    require(!settings.visible, "Exit: Settings closed");
+                    root.show_settings(true);
+                    expect("opened again", true, shown(1.25), false, true, 1);
+                }]];
+            for each (var entry:Array in cases)
+            {
+                try
+                {
+                    entry[1]();
+                    trace("SETTINGS apply-cancel " + entry[0] + ": pass");
+                }
+                catch (error:Error)
+                {
+                    failed.push(entry[0]);
+                    trace("SETTINGS apply-cancel " + entry[0] + ": FAIL " + error.message);
+                }
+            }
+            if (settings.btn_accept.enabled) cancel();
+            settings.visible = true;
+            exeClass.standIn = null;
+            require(failed.length == 0, "apply-cancel: " + failed.join("; "));
         }
 
         // The exe's setter of option `i`: records [i, value] and gives the value back.

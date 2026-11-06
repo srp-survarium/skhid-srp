@@ -129,20 +129,21 @@ release's. The "Result" row is the build of the revision named in it.
 | `rust/patches/src/footsteps.rs`, `src/footsteps.toml`, `src/vostok/footstep.rs`, `check_footsteps_026g.py` | Patch 101: a footstep that only a re-simulation makes (another player's late input) is heard instead of dropped; one lohook in on_player_sound_event's time test; its check runs the handler in both exes (needs Unicorn) |
 | `rust/patches/src/keyboard_layout.rs`, `src/keyboard_layout.toml`, `src/vostok/keyboard_layout.rs`, `check_keyboard_layout_026g.py` | Patch 107: chat text follows the keyboard layout the window was last told of (under Wine the engine's logic thread never got it); three lohooks, in message_processor's two layout messages and after translate_text's GetKeyboardLayout(0); its check runs both functions in both exes (needs Unicorn) |
 | `rust/patches/src/key_remap.rs`, `src/key_remap.toml`, `src/vostok/keyboard.rs` (`KeyEvents`, `KeyMoves`), `src/vostok/system.rs`, `check_key_remap_026g.py` | Patch 110: the keys a desktop moves (xkb `caps:swapescape`, `ctrl:nocaps`) are moved in the game under Wine's Wayland driver, whose DirectInput codes are the physical keys'; one lohook in keyboard::execute after GetDeviceData moves each event's function key to the one the told layout names it; its check runs execute whole in both exes (needs Unicorn) |
+| `rust/patches/src/hud_cursor.rs`, `src/hud_cursor.toml`, `src/vostok/hud_input.rs` (`MainMenu`, `MatchCursor`), `check_hud_cursor_026g.py` | Patch 113: the hud's kits and cursor start over at each match (the last match's pick stayed on the kits' tab), and the main menu covers the hud's cursor (Esc over the kits left it drawn under the menu's); four lohooks, at initialize_match's start, show_cursor's show and game_options' activate and deactivate; its check runs each from the game's code on a made-up game, the original beside (needs Unicorn) |
 | `audio_device_026g.c`, `audio_device_026g.h`, `audio_device_engine_026g.c`, `test_audio_device_026g.c` | Patch 100: the sound follows the audio output device (XAudio2's engine and voices proxied, made again on the default device after a lost device or a new default); the test runs the core on i686 under the sanitizers against a made-up XAudio2 that keeps its rules (no Unicorn) |
 | `rust/patches/src/sound_voices.rs`, `src/sound_voices.toml`, `src/vostok/voices.rs`, `check_sound_voices_026g.py` | Patch 96: shots no longer go silent under heavy fire (`../docs/notes/sound_voices.md`): the game world's sound scene has 1024 sound instances and propagators (`SOUND_POOLS`, game_world::load 0x1F8DB6/0x1F8DBD), and a sound refused a voice takes the voice of the quietest one playing when that one is less than half as loud (a lohook after create_sound_voice, 0x5CAB0), and the source voice walk is bounded to one pass (`sound_voices_026g.asm`, 0x5E5E7, 0x631D9, 0x59F8E); the check runs the voice loop from that site on made-up scenes with a model of the world's voice pool, and the self-test's `test_sound_pools` (needs Unicorn) |
 | `check_stage_focus_026g.py` | Runs the original's and patch 52's Stage focus getter (Scaleform's `stage.focus`, 0x771FA0) on a made-up movie: focused objects of each kind, none, one without its ActionScript object (the lobby's crash of 2026-10-22) (needs Unicorn) |
 | `rust/patches/src/language.rs`, `src/language.toml`, `src/vostok/language.rs`, `languages_026g.rs`, `check_language_026g.py` | Patch 79: the game language is a setting kept in user.cfg (Settings, Gameplay, Language; `../docs/notes/language-option.md`): three lohooks (`sites_026g.tsv`); `languages_026g.rs` is generated from `localization_026g.py`'s registry; its check runs each hook from the game's code on made-up objects, the original beside (needs Unicorn); the movie's harness is `../scripts/language-option/check.sh` |
 | `rust/patches/src/tab_cursor.rs`, `src/tab_cursor.toml`, `src/vostok/hud_input.rs`, `src/vostok/keyboard.rs`, `src/vostok/lobby.rs`, `check_tab_cursor_026g.py` | Patch 86: Ctrl on the Tab list shows a cursor, and its rows' menu sends the lobby's friend request (`../docs/notes/tab-cursor-friends.md`): two lohooks (`sites_026g.tsv`); its check runs both from the game's code on made-up objects, the original beside (needs Unicorn); the menu's harness is `../scripts/tab-row-menu/check.sh` |
 | `rust/patches/src/music.rs`, `src/music.toml`, `src/vostok/sound.rs`, `src/vostok/resources.rs`, `check_music_026g.py` | Patch 88: the music (`../docs/notes/music.md`): the menus' and the maps' themes in a sound scene of its own, kept active and faded by the sound thread; its query callback the framework's first `callback` hook (handed to query_resources at run time, no site rewritten). The check runs its seven lohooks and the callback through the game's own boost invoker, bind, config lookups and add_scene_to_active (needs Unicorn) |
-| `rust/patches/src/hud_options.rs`, `src/hud_options.toml`, `src/vostok/settings.rs`, `src/vostok/renderer.rs`, `check_hud_options_026g.py`, `../scripts/dxvk-loader/` | Patch 83: the Settings' HUD group ("Hide hit markers", "Hide player scores", the crosshair list's Hidden), settings kept in user.cfg (Settings, Gameplay; `../docs/notes/hide-hit-markers-scores.md`), and the Graphics tab's Renderer (`srp_dxvk`): at the process's start (`memory.allocate_arenas`) user.cfg read, the Vulkan look and DXVK loaded from `dxvk\` by full path, a failed DXVK start turned off at the login screen (`../docs/notes/dxvk-option.md`; the loader's proof under Wine `../scripts/dxvk-loader/run.sh`): five lohooks, each after patch 79's or 65's at its site; `vostok::settings` is the Settings' call, the save of user.cfg and a saved bool, shared with patch 79; its check runs each hook from the game's code on made-up objects, the original beside (needs Unicorn); the movies' harness is `../scripts/hud-options/check.sh` |
+| `rust/patches/src/hud_options.rs`, `src/hud_options.toml`, `src/vostok/settings.rs`, `src/vostok/renderer.rs`, `check_hud_options_026g.py`, `../scripts/dxvk-loader/` | Patch 83: the Settings' HUD group ("Hide hit markers", "Hide player scores", the crosshair list's Hidden), settings kept in user.cfg (Settings, Gameplay; `../docs/notes/hide-hit-markers-scores.md`), and the Graphics tab's Renderer (`srp_dxvk`): at the process's start (`memory.allocate_arenas`) user.cfg read, the Vulkan look and DXVK loaded from `dxvk\` by full path (the game's delayed dxgi, d3d11 and d3d9 bound to them by their module slots), a failed DXVK start turned off at the login screen (`../docs/notes/dxvk-option.md`; the loader's proof under Wine `../scripts/dxvk-loader/run.sh`): five lohooks, each after patch 79's or 65's at its site; `vostok::settings` is the Settings' call, the save of user.cfg and a saved bool, shared with patch 79; its check runs each hook from the game's code on made-up objects, the original beside (needs Unicorn); the movies' harness is `../scripts/hud-options/check.sh` |
 | `rust/patches/src/tab_cursor.rs`, `src/tab_cursor.toml`, `src/vostok/hud_input.rs`, `src/vostok/keyboard.rs`, `src/vostok/lobby.rs`, `check_tab_cursor_026g.py` | Patch 86: Ctrl on the Tab list shows a cursor, and its rows' menu sends the lobby's friend request and chat mute (`../docs/notes/tab-cursor-friends.md`, `chat-mute.md`): two lohooks (`sites_026g.tsv`); its check runs both from the game's code on made-up objects, the original beside (needs Unicorn); the menu's harness is `../scripts/tab-row-menu/check.sh` |
 | `world_sections_026g.asm`, `check_world_sections_026g.py` | Patch 98: hash()'s world buffer and the upload's are 0xF000 bytes (two immediates), and the history item's six world sections grow on the heap (one jump at the end of its constructor, the arena's block `world_sections.code`); its check runs the constructor, the sections' writers, hash, deserialize and destroy of the game's own code on made-up items, the original beside (needs Unicorn) |
 | `rust/patches/src/world_check.rs`, `src/world_check.toml`, `src/vostok/world_load.rs`, `../crates/world-frame`, `check_world_check_026g.py` | Patch 87: a game parses every world it is sent (0xE8) before it loads it, with the match server's own parse (crate `world-frame`: the frame to its end, no slot past 20, no state over the game's buffer, no body over 0xF000 bytes); a refused one is never loaded and the game leaves the match (`../docs/notes/world_frame_check.md`): two lohooks (`sites_026g.tsv`); its check runs both loads beside the original and, with `--drift`, kept worlds and mutated copies through the arena's build against the host's (needs Unicorn) |
 | `check_world_roundtrip_026g.py`, `worlds_026g/` | A resync always converges: a late joiner and a resynced game load each recorded world (`worlds_026g/`, 8 dumps of rev41's match 0x1c0ebd31; or any `SRP_SNAPSHOT_DIR` dumps) and save it at once, through every patch hook inside the world's load and save (the 0xE8 preparation, patch 85's record, patch 78's carry); each must write back the bytes it read. Every patch site in a `::serialize` or `::deserialize` function is run there or named with its own check (`../docs/notes/client_patch.md`, "World round trip"; needs Unicorn) |
 | `rust/patches/src/animation_id_log.rs`, `src/animation_id_log.toml`, `src/vostok/animation_id.rs`, `check_animation_id_log_026g.py` | Patch 95: a diagnostic (`../docs/notes/animation-ids.md`): an animation pair the registry has no id for (the lookup 0x2D6590 returns 0FFFFh, the rev47 crashes at 0x1F18C8) is logged to srp_patches.log once, with the clips' names, the registry's size and who asked; one lohook (`sites_026g.tsv` `animations.id_missing`); its check runs the lookup in the original and the patched exe (needs Unicorn) |
 | `rust/patches/src/drug_interrupt.rs`, `src/drug_interrupt.toml`, `src/vostok/drug.rs`, `check_drug_interrupt_026g.py` | Patch 84: a bullet that hits a player stops the healing drug he is using (`../docs/notes/drug-interrupt.md`): one lohook (`sites_026g.tsv` `player.hit_applied`), the game's own `medkit::set_active(0)` through the engine library; its check runs the hook in the patched exe and the game's set_active(0) in the original (needs Unicorn) |
-| `rust/patches/src/hand_kill.rs`, `src/hand_kill.toml`, `src/vostok/melee.rs`, `check_hand_kill_026g.py` | Patch 108: a gun-stock hit to a hand kills (`../docs/notes/hand-kill.md`): one lohook on patch 94's `medical.hit` site (ours first in the chain); its check runs the chain in the patched exe (needs Unicorn) |
+| `rust/patches/src/hand_kill.rs`, `src/hand_kill.toml`, `src/vostok/melee.rs`, `check_hand_kill_026g.py` | Patch 108: a gun-stock hit kills, wherever it lands (`../docs/notes/hand-kill.md`): one lohook on patch 94's `medical.hit` site (ours first in the chain); its check runs the chain in the patched exe (needs Unicorn) |
 | `rust/patches/src/text_input.rs`, `check_text_input_026g.py` | Patch 52: ignore a character event whose Scaleform text field has lost its AS3 receiver; reproduces the PIN-entry crash and checks native register/stack behavior (needs Unicorn) |
 | `weapon_camo_026g.asm`, `weapon_camo_026g.section.bin` | The source of patch 44's code (a weapon wears the camouflage its item holds) and that code assembled for `.srpw`, its own section on the page after `.srpc` (0xA42A000), which `patch_026g.py` reads. Assembling the source again gives the same bytes |
 | `research_026g.asm`, `research_arena/`, `../crates/research-rule/` | Patch 53 (Research): four aligned assembly entries, the integer rules in Rust, and the cook, rule slots and UI integration in Rust |
@@ -4039,14 +4040,15 @@ time, the active time and between them.
 The stopped drug's quick slot shows red for a second of game time (display
 only, through patch 77's hook and the hud's QuickSlots; `check_consumable_activity_026g.py`,
 `../scripts/consumable-activity/check.sh`).
-## Gun-stock hits to the hand kill (patch 108, unreleased)
+## Gun-stock hits kill (patch 108)
 
-A melee hit to a hand kills (the owner, 2026-11-05; `../docs/notes/hand-kill.md`).
-The Rust `hand_kill` hook is in `damage_model::hit_body_part` once invulnerability
-is applied (0x2E50C7, patch 94's `medical.hit`, ours first): a blunt hit on an arm
-or forearm zone with an attacker (another player; a fall has none) deals 1000 from
-there, so its 5 % into pain empties it, the game's own pain death (the kill feed's
-pain mark). A match's computation changes: every client of a match needs it.
+A melee hit kills, wherever it lands (the owner, 2026-11-05; `../docs/notes/hand-kill.md`;
+revision 50 had it for the hands only). The Rust `hand_kill` hook is in
+`damage_model::hit_body_part` once invulnerability is applied (0x2E50C7, patch 94's
+`medical.hit`, ours first): a blunt hit on any zone with an attacker (another player; a
+fall's attacker is the victim) deals 1000 from there, so its share of pain (5 % at the
+least, an arm's or a hip's) empties it, the game's own pain death (the kill feed's pain
+mark). A match's computation changes: every client of a match needs it.
 `check_hand_kill_026g.py` runs the chain from the game's site in the patched exe.
 ## Dropped-weapon pickup (patch 85)
 
@@ -4550,3 +4552,39 @@ design (2026-11-05) in Settings, Controls, under Mouse sensitivity: "Lock vertic
 The rules and the decoded clip: `../docs/notes/mouse-pitch.md`; the addresses: `client_patch.md`
 3.70. Checked with `check_mouse_pitch_026g.py`, `check_death_camera_026g.py`, selftest checks 112
 and 46, `../scripts/hud-options/check.sh` and `cargo test`. Not run in a game.
+
+## The hud's kits and cursor (patch 113, unreleased)
+
+The owner's two reports (2026-11-06), both before a match's start, with the kits shown:
+
+- **The last match's kit on the tab.** A match where kit 2 was picked, then the next match: kit 2's
+  tab chosen, kit 1 played. The hud (`game_world_ui`, inside the game's one game world, game+18h+1FCh)
+  lives as long as the game, and its kits' state (+2DFh) and cursor (+2DCh) are written only by its
+  constructor, `show_profiles_selector` (0x2383B0) and `show_cursor` (0x23A930). Patch 31 keeps the
+  kits shown until play, so a match that ends with them shown (left before the start, dead at the
+  end) leaves +2DFh set. The next match's `show_profiles_selector(1)` then returned at once
+  (0x2383C7), and its `root.select_player_profile` with the place's next kit (0x238422, from
+  0x1F8120: the lowest loaded kit at a match's start, `../docs/notes/match.md` section 19) never ran;
+  the hud movie, the last match's too, kept that match's tab.
+- **Esc doubled the cursor.** Esc (`game::activate_main_menu`, 0x1EDBC0) shows the main menu
+  (`game_options`, game+57F4h, shown +44h) with a cursor movie of its own (+10h). The hud's cursor
+  movie (+0Ch, in the game world's scene) stayed drawn under it, still, where the mouse last was.
+
+**The patch** (the Rust patch `hud_cursor`, four lohooks, `sites_026g.tsv`):
+
+- `hud.initialize_match` (0x234880, once a match; the late join's rebuild enters at 0x234E71): the
+  cursor hidden (`show_cursor(0)`) and +2DFh 0, as the constructor leaves them. The hud movie's
+  `HUD.reset`, which initialize_match invokes at 0x234AE8, hides its kits too
+  (`show_profiles_selector(false)`, as its constructor). The match's first showing of the kits is
+  then a whole one, with the right tab.
+- `options.activate` (0x200F50): over a running match (the game world active, +D4h) with the hud's
+  cursor shown, its movie is taken off (base_game_scene::hide_movie 0x23DC70; the renderer takes
+  out every copy and does nothing with none).
+- `hud.cursor_movie` (0x23A992): while the menu is shown, `show_cursor(1)` (a death under the menu,
+  the kits again) writes its flag but does not show the movie.
+- `options.deactivate` (0x201040): a shown menu closing over a running match with the hud's cursor
+  shown puts the movie back (show_movie 0x23DC00). A match's end clears +D4h before it closes the
+  menu (0x1F952B, 0x1F956D), so nothing comes back then; the lobby's menu has no running match.
+
+The hud's flag is the game's throughout, so the mouse goes where it went. Nothing a match computes.
+Checked with `check_hud_cursor_026g.py`, `cargo test` and clippy. Not run in a game.

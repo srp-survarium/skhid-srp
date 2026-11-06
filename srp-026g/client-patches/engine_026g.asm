@@ -168,6 +168,8 @@ global engine_ray_test_single
 global engine_key_name
 global engine_activate_keyboard_layout
 global engine_get_module_handle_a
+global engine_show_scene_movie
+global engine_hide_scene_movie
 engine_action_present equ 0x242460   ; 0x242460 survarium::player_input_handler::action_present: handler ESP+4, action ESP+8, state ESP+12; pops 12; AL; stdcall, called directly
 engine_create_file_a equ 0x870048   ; the IAT slot 0x870048 (an import, stdcall)
 engine_write_file equ 0x870108   ; the IAT slot 0x870108 (an import, stdcall)
@@ -1999,6 +2001,38 @@ engine_ray_needs_collision:
     mov ecx, [esp + 24]   ; callback
     call 0x75bd0
     movzx eax, al
+    pop edi
+    pop esi
+    pop ebx
+    pop ebp
+    ret
+
+    align 16, db 0xCC
+engine_show_scene_movie:
+    ; 0x23dc00 survarium::base_game_scene::show_movie: scene EAX, movie ESI; pops 0
+    push ebp
+    push ebx
+    push esi
+    push edi
+    mov eax, [esp + 20]   ; scene
+    mov esi, [esp + 24]   ; movie
+    call 0x23dc00
+    pop edi
+    pop esi
+    pop ebx
+    pop ebp
+    ret
+
+    align 16, db 0xCC
+engine_hide_scene_movie:
+    ; 0x23dc70 survarium::base_game_scene::hide_movie: movie EAX, scene EDX; pops 0
+    push ebp
+    push ebx
+    push esi
+    push edi
+    mov eax, [esp + 20]   ; movie
+    mov edx, [esp + 24]   ; scene
+    call 0x23dc70
     pop edi
     pop esi
     pop ebx

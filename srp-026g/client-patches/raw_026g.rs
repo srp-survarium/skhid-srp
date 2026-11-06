@@ -225,6 +225,10 @@ unsafe extern "C" {
     pub fn engine_ray_callback(callback: Option<ClosestRayResultCallback>, from: *const f32, to: *const f32, group: u32, mask: u32, requester: Option<Bullet>);
     /// 0x75bd0 vostok::physics::closest_ray_result_callback::needsCollision: callback ECX, proxy ESP+4; pops 4; AL
     pub fn engine_ray_needs_collision(callback: Option<ClosestRayResultCallback>, proxy: Option<BtBroadphaseProxy>) -> u8;
+    /// 0x23dc00 survarium::base_game_scene::show_movie: scene EAX, movie ESI; pops 0
+    pub fn engine_show_scene_movie(scene: Option<GameWorld>, movie: Option<MovieSlot>);
+    /// 0x23dc70 survarium::base_game_scene::hide_movie: movie EAX, scene EDX; pops 0
+    pub fn engine_hide_scene_movie(movie: Option<MovieSlot>, scene: Option<GameWorld>);
 }
 
 #[allow(dead_code)]
@@ -525,6 +529,24 @@ impl GameWorld {
     pub unsafe fn set_pvp_match(self, value: Option<PvpMatch>) {
         unsafe { self.0.byte_add(0x4d4c).cast::<Option<PvpMatch>>().write_volatile(value) }
     }
+
+    /// +0xd4 (u8): the scene active: base_game_scene::on_activate sets it (0x23DD69), game_world::on_deactivate clears it (0x1F952B) at a match's end, before it closes the main menu (0x1F956D)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn active(self) -> *mut u8 {
+        unsafe { self.0.byte_add(0xd4).cast::<u8>().as_ptr() }
+    }
+
+    /// +0x1fc (obj<survarium::game_world_ui>): the hud (game_world_input+4; initialize_match's first argument from 0x1F8542)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn ui(self) -> GameWorldUi {
+        GameWorldUi(unsafe { self.0.byte_add(0x1fc) })
+    }
 }
 
 /// A survarium::game (fields_026g.tsv): a pointer to one, never 0. Made only here: by a typed field,
@@ -620,6 +642,24 @@ impl Game {
     #[inline(always)]
     pub unsafe fn set_dictionary(self, value: Option<ItemsDictionary>) {
         unsafe { self.0.byte_add(0x53a4).cast::<Option<ItemsDictionary>>().write_volatile(value) }
+    }
+
+    /// +0x18 (obj<survarium::game_world>): the game world, inside the game: game::game constructs it in place (lea eax,[ebx+18h] / call 0x1F67B0 at 0x1E909F); the same one every match
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn world(self) -> GameWorld {
+        GameWorld(unsafe { self.0.byte_add(0x18) })
+    }
+
+    /// +0x57f4 (obj<survarium::game_options>): the main menu, inside the game (activate_main_menu 0x1EDBD6 lea eax,[esi+57F4h]; game_world::on_deactivate 0x1F9567)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn options(self) -> GameOptions {
+        GameOptions(unsafe { self.0.byte_add(0x57f4) })
     }
 }
 
@@ -3168,6 +3208,15 @@ impl GameWorldUi {
     #[inline(always)]
     pub unsafe fn kits_shown(self) -> *mut u8 {
         unsafe { self.0.byte_add(0x2df).cast::<u8>().as_ptr() }
+    }
+
+    /// +0xc (obj<survarium::movie_slot>): the hud's cursor movie: show_cursor shows it (0x23A995) and hides it (0x23A9B3), the hud's +2DCh with it
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn cursor_movie(self) -> MovieSlot {
+        MovieSlot(unsafe { self.0.byte_add(0xc) })
     }
 }
 
@@ -14737,6 +14786,114 @@ impl KeyEventStorage {
     }
 }
 
+/// A survarium::game_options (fields_026g.tsv): a pointer to one, never 0. Made only here: by a typed field,
+/// a function's typed result or a site's typed register (sites_026g.tsv `holds`).
+#[repr(transparent)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct GameOptions(NonNull<c_void>);
+
+#[allow(dead_code)]
+impl GameOptions {
+    /// Its address as a value (an id, a compare): never read through.
+    #[inline(always)]
+    pub fn address(self) -> u32 {
+        self.0.as_ptr() as usize as u32
+    }
+
+    /// +0x44 (u8): the main menu shown: game_options::activate sets it (0x200F86), deactivate clears it (0x201067); each returns at once when it is so already
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn shown(self) -> *mut u8 {
+        unsafe { self.0.byte_add(0x44).cast::<u8>().as_ptr() }
+    }
+
+    /// +0x34 (ptr<survarium::game>): the game (game_options::activate 0x200F83; game_options_interface's game is this field, +30h of +4)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn game(self) -> Option<Game> {
+        unsafe { self.0.byte_add(0x34).cast::<Option<Game>>().read_volatile() }
+    }
+
+    /// +0x34 (ptr<survarium::game>): the game (game_options::activate 0x200F83; game_options_interface's game is this field, +30h of +4)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn set_game(self, value: Option<Game>) {
+        unsafe { self.0.byte_add(0x34).cast::<Option<Game>>().write_volatile(value) }
+    }
+}
+
+/// A survarium::movie_slot (fields_026g.tsv): a pointer to one, never 0. Made only here: by a typed field,
+/// a function's typed result or a site's typed register (sites_026g.tsv `holds`).
+#[repr(transparent)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct MovieSlot(NonNull<c_void>);
+
+#[allow(dead_code)]
+impl MovieSlot {
+    /// Its address as a value (an id, a compare): never read through.
+    #[inline(always)]
+    pub fn address(self) -> u32 {
+        self.0.as_ptr() as usize as u32
+    }
+
+    /// +0x0 (ptr<vostok::ui::movie_holder>): a scene's movie: base_game_scene::show_movie reads it (0x23DC26), hide_movie does nothing while it is 0 (0x23DC71)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn holder(self) -> Option<MovieHolder> {
+        unsafe { self.0.byte_add(0x0).cast::<Option<MovieHolder>>().read_volatile() }
+    }
+
+    /// +0x0 (ptr<vostok::ui::movie_holder>): a scene's movie: base_game_scene::show_movie reads it (0x23DC26), hide_movie does nothing while it is 0 (0x23DC71)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn set_holder(self, value: Option<MovieHolder>) {
+        unsafe { self.0.byte_add(0x0).cast::<Option<MovieHolder>>().write_volatile(value) }
+    }
+}
+
+/// A survarium::initialize_match_frame (fields_026g.tsv): a pointer to one, never 0. Made only here: by a typed field,
+/// a function's typed result or a site's typed register (sites_026g.tsv `holds`).
+#[repr(transparent)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct InitializeMatchFrame(NonNull<c_void>);
+
+#[allow(dead_code)]
+impl InitializeMatchFrame {
+    /// Its address as a value (an id, a compare): never read through.
+    #[inline(always)]
+    pub fn address(self) -> u32 {
+        self.0.as_ptr() as usize as u32
+    }
+
+    /// +0x4 (ptr<survarium::game_world_ui>): initialize_match's first argument at its start (0x234880, by the site's ESP): the hud, called once a match from 0x1F855D (the late join's rebuild enters at 0x234E71)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn ui(self) -> Option<GameWorldUi> {
+        unsafe { self.0.byte_add(0x4).cast::<Option<GameWorldUi>>().read_volatile() }
+    }
+
+    /// +0x4 (ptr<survarium::game_world_ui>): initialize_match's first argument at its start (0x234880, by the site's ESP): the hud, called once a match from 0x1F855D (the late join's rebuild enters at 0x234E71)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn set_ui(self, value: Option<GameWorldUi>) {
+        unsafe { self.0.byte_add(0x4).cast::<Option<GameWorldUi>>().write_volatile(value) }
+    }
+}
+
 /// A vostok::physics::bullet_physics_world (fields_026g.tsv): a pointer to one, never 0. Made only here: by a typed field,
 /// a function's typed result or a site's typed register (sites_026g.tsv `holds`).
 #[repr(transparent)]
@@ -15189,6 +15346,15 @@ pub mod image {
 
     /// 0x21e76c8 (u32, survarium::image): the allocator set_unmanaged_resource 0xF0080 gets with a baked texture resource (push 21E76C8h, 0x12F1B1 and 0x12DDD6)
     pub const UNMANAGED_RESOURCE_ALLOCATOR: u32 = 0x21e76c8;
+
+    /// 0xaf1194 (u32, survarium::image): the delayed import d3d9.dll's module slot (its descriptor's hmod): __delayLoadHelper2 0xE48E0 binds the import to the module there, LoadLibrary only while it is 0 (0xE4995), then InterlockedExchange (0xE4B25); patch 83 puts DXVK's d3d9 there
+    pub const D3D9_MODULE: u32 = 0xaf1194;
+
+    /// 0xaf30cc (u32, survarium::image): the delayed import dxgi.dll's module slot (as d3d9_module); patch 83 puts DXVK's dxgi there
+    pub const DXGI_MODULE: u32 = 0xaf30cc;
+
+    /// 0xaf30d0 (u32, survarium::image): the delayed import d3d11.dll's module slot (as d3d9_module); patch 83 puts DXVK's d3d11 there
+    pub const D3D11_MODULE: u32 = 0xaf30d0;
 }
 
 /// A general-purpose register at a hook's site.
@@ -17876,6 +18042,66 @@ pub mod site {
         #[inline(always)]
         pub unsafe fn count(machine: &impl Machine) -> u32 {
             machine.register(Register::Eax)
+        }
+    }
+
+    /// hud.initialize_match (0x234880): game_world_ui::initialize_match's start (sub esp,5D4h), once a match (from 0x1F855D; the late join's rebuild enters at 0x234E71): the site's ESP+4 the hud, whose kits (+2DFh) and cursor (+2DCh) are the last match's
+    pub mod hud_initialize_match {
+        #[allow(unused_imports)]
+        use super::*;
+
+        /// the site's ESP: a survarium::initialize_match_frame (None for 0).
+        ///
+        /// # Safety
+        /// `machine` is at this site.
+        #[inline(always)]
+        pub unsafe fn frame(machine: &impl Machine) -> Option<InitializeMatchFrame> {
+            NonNull::new(machine.site_esp() as usize as *mut c_void).map(InitializeMatchFrame)
+        }
+    }
+
+    /// hud.cursor_movie (0x23a992): show_cursor's show (mov eax,[edi+18h] / lea esi,[edi+0Ch], then the call of base_game_scene::show_movie 0x23DC00 at 0x23A998): kept skips the movie, the flag (+2DCh) still written at 0x23A9A1
+    pub mod hud_cursor_movie {
+        #[allow(unused_imports)]
+        use super::*;
+
+        /// EDI: a survarium::game_world_ui (None for 0).
+        ///
+        /// # Safety
+        /// `machine` is at this site.
+        #[inline(always)]
+        pub unsafe fn ui(machine: &impl Machine) -> Option<GameWorldUi> {
+            NonNull::new(machine.register(Register::Edi) as usize as *mut c_void).map(GameWorldUi)
+        }
+    }
+
+    /// options.activate (0x200f50): game_options::activate's start (push ebp / mov ebp,esp / and esp,-8): the main menu about to be shown, over a match by Esc (activate_main_menu 0x1EDBDC) or over the lobby (0x28C5C9)
+    pub mod options_activate {
+        #[allow(unused_imports)]
+        use super::*;
+
+        /// EAX: a survarium::game_options (None for 0).
+        ///
+        /// # Safety
+        /// `machine` is at this site.
+        #[inline(always)]
+        pub unsafe fn options(machine: &impl Machine) -> Option<GameOptions> {
+            NonNull::new(machine.register(Register::Eax) as usize as *mut c_void).map(GameOptions)
+        }
+    }
+
+    /// options.deactivate (0x201040): game_options::deactivate's start (push ecx / cmp byte [esi+44h],0; the je after it returns when the menu is not shown): the menu's Resume (0x1FF66E), its key (0x20165A), a match's end (0x1F956D) and the lobby's (0x21D50E)
+    pub mod options_deactivate {
+        #[allow(unused_imports)]
+        use super::*;
+
+        /// ESI: a survarium::game_options (None for 0).
+        ///
+        /// # Safety
+        /// `machine` is at this site.
+        #[inline(always)]
+        pub unsafe fn options(machine: &impl Machine) -> Option<GameOptions> {
+            NonNull::new(machine.register(Register::Esi) as usize as *mut c_void).map(GameOptions)
         }
     }
 }

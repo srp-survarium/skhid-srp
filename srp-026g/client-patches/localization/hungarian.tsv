@@ -2479,6 +2479,15 @@ st_srp_inv_pocket_units	Zsebhelyek
 st_srp_inv_stamina_damage	Állóképesség-sebzés
 st_srp_inv_throw_speed	Dobási sebesség
 st_srp_inventory_search	Keresés
+st_srp_inventory_search_examples	+zseb, +slot, +lőszer, +10
+st_srp_inventory_search_tip_bonus	tárgyak lőszer- és zsebbónusszal
+st_srp_inventory_search_tip_bonus_example	+lőszer +zseb
+st_srp_inventory_search_tip_faction	a Hadsereg vagy a Feketepiac tárgyai
+st_srp_inventory_search_tip_faction_example	+hadsereg +fekete
+st_srp_inventory_search_tip_kind	sisakok vagy bakancsok
+st_srp_inventory_search_tip_kind_example	+sisak +bakancs
+st_srp_inventory_search_tip_level	10-es vagy 11-es szintű tárgyak
+st_srp_inventory_search_tip_level_example	+10 +11
 st_srp_item_props_mps	m/s
 st_srp_language_option	Nyelv:
 st_srp_language_restart	Újraindítás után lép életbe.
@@ -2539,6 +2548,11 @@ st_srp_matches_starting	indul
 st_srp_matches_title	Meccsek
 st_srp_matches_versus	vs
 st_srp_matches_waiting	várakozás
+st_srp_medicine_ambient_sounds	Környezet hangjai
+st_srp_medicine_crouched_healing	Gyógyulás guggolva
+st_srp_medicine_enemy_sounds	Ellenség hangjai
+st_srp_medicine_hit_slow	Lassítás golyóktól
+st_srp_medicine_sprint_stamina	Sprint állóképesség
 st_srp_melee_knockback	Tusütés lökőereje
 st_srp_mode_blackout	Védelmi berendezés: áramszünet
 st_srp_mode_chargers	Védelmi berendezés: töltők

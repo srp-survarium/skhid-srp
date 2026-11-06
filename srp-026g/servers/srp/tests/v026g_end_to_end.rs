@@ -473,7 +473,7 @@ fn two_new_players_sign_in_shop_play_a_match_and_are_paid() {
         let grant = session::v026g::tutorial::new_account();
         (grant.silver, grant.gold)
     });
-    assert_eq!(start_money.2, session::v026g::tutorial::experience());
+    assert_eq!(start_money.2, session::v026g::tutorial::start_experience());
 
     // ---- 3. Alice buys something the shop sells her now: `83 47 00`, the
     // inventory, the account and the money.
