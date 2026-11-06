@@ -16,6 +16,7 @@ use super::loadouts::{self, Loadout, POCKET_SLOTS};
 use super::lobby::limits::{KIT_SLOTS, KITS};
 use super::modifications::{self, Modifications};
 use super::quests::FACTIONS;
+use super::skills::SkillsTree;
 
 /// Its path in the game's files.
 pub const PATH: &str = "gameplay/srp/new_account.options";
@@ -51,6 +52,11 @@ impl TryFrom<u8> for QuestFaction {
 /// pockets take what they are given is [`Self::check`]'s, at start.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct NewAccount {
+    /// The level it starts at: the experience where that level starts.
+    pub level: u8,
+    /// `(skill id, points)`, each with points; the tree allows them at
+    /// [`Self::level`] ([`Self::check`]).
+    pub skills: Vec<(u16, u8)>,
     pub silver: u32,
     pub gold: u32,
     /// Premium from the account's making, added as every premium is.
@@ -136,8 +142,9 @@ impl NewAccount {
             match (key.as_str(), kit) {
                 (_, Some(n)) => kits[n - 1] = worn(key, value)?,
                 (
-                    "silver" | "gold" | "premium_days" | "rounds" | "faction" | "reputation_level"
-                    | "own" | "all_kits" | "pocket_units" | "own_modifications",
+                    "level" | "skills" | "silver" | "gold" | "premium_days" | "rounds" | "faction"
+                    | "reputation_level" | "own" | "all_kits" | "pocket_units"
+                    | "own_modifications",
                     None,
                 ) => {}
                 _ => return Err(format!("{PATH}: `{key}` is no key of it")),
@@ -145,7 +152,22 @@ impl NewAccount {
         }
         let num = |key: &str| at(key).and_then(|value| number::<u32>(key, value));
         let byte = |key: &str| at(key).and_then(|value| number::<u8>(key, value));
+        let skills = table("skills", at("skills")?)?
+            .iter()
+            .map(|(id, points)| {
+                let at = format!("skills/{id}");
+                let id = id
+                    .parse::<u16>()
+                    .map_err(|_| format!("{PATH}: `{at}`: not a skill's id"))?;
+                match number::<u8>(&at, points)? {
+                    0 => Err(format!("{PATH}: `{at}` is 0: leave it out")),
+                    points => Ok((id, points)),
+                }
+            })
+            .collect::<Result<_, String>>()?;
         Ok(Self {
+            level: byte("level")?,
+            skills,
             silver: num("silver")?,
             gold: num("gold")?,
             premium_days: num("premium_days")?,
@@ -172,12 +194,18 @@ impl NewAccount {
             .map(|(slot, name)| (*slot, name.as_str()))
     }
 
-    /// What of the grant `dictionary` and `modifications` lack or do not
-    /// take, each in a line: an item; a slot it does not fit; a pocket the
-    /// kit does not open, that takes fewer units, or whose item is not
-    /// owned with as many; a modification, of a type its item does not
-    /// take, on a stack or on an item no kit wears; the faction's level.
-    pub fn check(&self, dictionary: &Dictionary, modifications: &Modifications) -> Vec<String> {
+    /// What of the grant `dictionary`, `modifications` and `skills` lack or
+    /// do not take, each in a line: skills the tree does not allow at the
+    /// level; an item; a slot it does not fit; a pocket the kit does not
+    /// open, that takes fewer units, or whose item is not owned with as
+    /// many; a modification, of a type its item does not take, on a stack
+    /// or on an item no kit wears; the faction's level.
+    pub fn check(
+        &self,
+        dictionary: &Dictionary,
+        modifications: &Modifications,
+        skills: &SkillsTree,
+    ) -> Vec<String> {
         let mut wrong: Vec<String> = Vec::new();
         let worn = (0..KITS).flat_map(|kit| self.kit(kit).map(|(_, name)| name));
         let mut names: Vec<&str> = self.own.iter().map(|(name, _)| name.as_str()).collect();
@@ -264,6 +292,9 @@ impl NewAccount {
                 self.reputation_level
             ));
         }
+        if let Err(why) = skills.validate(self.level, &self.skills) {
+            wrong.push(format!("level {}: {why}", self.level));
+        }
         wrong
     }
 }
@@ -282,7 +313,11 @@ pub fn shared() -> &'static NewAccount {
 /// [`super::tables::check`]: the test data predates the knit cap and the
 /// Novice's backpack the grant names.
 pub fn check_data(data: &game_data::GameData) -> Result<(), game_data::GameDataError> {
-    let wrong = shared().check(Dictionary::shared(), Modifications::shared());
+    let wrong = shared().check(
+        Dictionary::shared(),
+        Modifications::shared(),
+        SkillsTree::shared(),
+    );
     if wrong.is_empty() {
         return Ok(());
     }

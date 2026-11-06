@@ -3,6 +3,8 @@
 # item, slot, modification or faction the data lacks, stops it, naming it. Only new accounts get it.
 # An item is its `items_dict` name; a slot a kit's (0..6 the armour, 7 weapon 1 and 8 its first
 # ammo, 13.. the pockets).
+#   level                     the level it starts at (the experience where that level starts)
+#   skills/<id>               the points of a skill (skills_tree.options' id), within the level
 #   silver, gold              its money
 #   premium_days              premium from its making
 #   rounds                    the rounds it owns of every ammo
@@ -16,6 +18,12 @@
 #   pocket_units              the units of each pocket's item
 #   own_modifications/<item>  a modification of its own a worn item has (modifications.options)
 key	value
+level	15
+skills/101	5
+skills/102	2
+skills/301	1
+skills/302	2
+skills/311	5
 silver	15000
 gold	150
 premium_days	30

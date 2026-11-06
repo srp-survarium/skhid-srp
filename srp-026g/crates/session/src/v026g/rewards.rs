@@ -63,7 +63,9 @@
 //!   ([`super::bonus`]; PROVEN by the first screen). So the total is rows
 //!   + daily + premium.
 //! - **Levels**: the account's table ([`Account::add_experience`]); each
-//!   level pays [`pay::level_reward`].
+//!   level pays [`pay::level_reward`]; a match leaves an account at
+//!   [`pay::MATCH_LEVEL`] at least (a new one starts at 15), whatever it
+//!   earned.
 //! - **Rating**: 0.21d's Elo between the teams (`v021d::rating`), from
 //!   [`pay::START_RATING`].
 //! - **The balance rating** (srp's own, for the sides of a match:
@@ -2092,7 +2094,12 @@ impl<'a> Shared<'a> {
         reward.experience = experience;
         reward.reputation = reputation;
         account.generic_money = account.generic_money.saturating_add(money);
-        (reward.levels, reward.level_money, reward.level_gold) = pay_levels(account, experience);
+        // At least what brings the account to `pay::MATCH_LEVEL`: no row of
+        // the screen, which shows the levels reached.
+        let to_match_level =
+            super::account::level_start(pay::MATCH_LEVEL).saturating_sub(account.exp_total);
+        (reward.levels, reward.level_money, reward.level_gold) =
+            pay_levels(account, experience.max(to_match_level));
         notices.extend(super::notices::levels_reached(&reward.levels));
         if faction != 0 {
             reward.reputation_levels = account.add_reputation(faction, reputation);

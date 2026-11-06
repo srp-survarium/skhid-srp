@@ -1,6 +1,6 @@
 use super::*;
 use crate::v026g::MemoryGameRepository;
-use crate::v026g::account::QuestInstance;
+use crate::v026g::account::{QuestInstance, level_start};
 use crate::v026g::quests::QUEST_MESSAGE;
 use survarium::v026g::lobby::client_model::{Client, Decoded};
 use survarium::v026g::maps::RuleMode;
@@ -103,9 +103,9 @@ fn alice_and_bob() -> Vec<PlayerResult> {
     ]
 }
 
-/// Experience of an account that has played: more than a new account is
-/// given (`tutorial::experience`), short of a level.
-const PLAYED: u32 = 251;
+/// Experience of an account that has played: past where `pay::MATCH_LEVEL`
+/// starts (the least a match leaves an account at), short of the next level.
+const PLAYED: u32 = 38_001;
 
 /// The accounts of the players, none of them a new player.
 fn accounts(players: &[PlayerResult]) -> GameAccounts {
@@ -816,22 +816,50 @@ fn a_solo_match_pays_in_full_and_moves_no_rating() {
     assert_eq!(report.stats.explorer_artefacts, 2);
 }
 
+/// A new account starts at level 15 (`new_account.options`); its first
+/// match that pays brings it to `pay::MATCH_LEVEL`, 16, whatever it earned,
+/// and pays that level. A match after it pays as any.
+#[test]
+fn a_new_accounts_first_match_brings_it_to_level_16() {
+    let players = alice_and_bob();
+    let store = accounts(&players);
+    let start = level_start(crate::v026g::tutorial::new_account().level);
+    store.get(10).unwrap().locked().exp_total = start;
+    let report = Results::new()
+        .settle(&result(players.clone()), &store, &terms(), &mut Rng::new(1))
+        .unwrap();
+    let reward = &report.players[0].reward;
+    assert!(reward.experience < level_start(16) - start);
+    assert_eq!(reward.levels, [16]);
+    assert_eq!((reward.level_money, reward.level_gold), (1250, 0));
+    assert_eq!(account(&store, 10).exp_total, level_start(16));
+    let report = Results::new()
+        .settle(&result(players), &store, &terms(), &mut Rng::new(2))
+        .unwrap();
+    let reward = &report.players[0].reward;
+    assert!(reward.levels.is_empty());
+    assert_eq!(
+        account(&store, 10).exp_total,
+        level_start(16) + reward.experience
+    );
+}
+
 #[test]
 fn experience_reaches_levels_and_they_pay() {
     let players = alice_and_bob();
     let store = accounts(&players);
-    store.get(10).unwrap().locked().exp_total = 400;
+    store.get(10).unwrap().locked().exp_total = level_start(20) - 100;
     let before = account(&store, 10);
     let report = Results::new()
         .settle(&result(players), &store, &terms(), &mut Rng::new(1))
         .unwrap();
     let reward = &report.players[0].reward;
-    // 400 + 132 is past the 500 of level 1, which pays 100 gold.
-    assert_eq!(reward.levels, [1]);
+    // 132 more is past where level 20 starts, which pays 100 gold.
+    assert_eq!(reward.levels, [20]);
     assert_eq!((reward.level_money, reward.level_gold), (0, 100));
     let after = account(&store, 10);
-    assert_eq!(after.level(), 1);
-    assert_eq!(after.free_skill_points(), 1);
+    assert_eq!(after.level(), 20);
+    assert_eq!(after.free_skill_points(), 20);
     let (silver, gold) = dropped_money(reward);
     assert_eq!(after.premium_money, before.premium_money + 100 + gold);
     assert_eq!(after.generic_money, before.generic_money + 167 + silver);
@@ -2200,8 +2228,6 @@ fn the_third_victory_of_the_seventh_day_gives_the_weeks_reward() {
         // Six days made, and two victories today.
         alice.extras.bonus.day = 7;
         alice.extras.bonus.wins = [3, 3, 3, 3, 3, 3, 2];
-        // Past level 1, far from level 2: the match pays no level's gold.
-        alice.exp_total = 600;
     }
     let before = account(&store, 10);
     let results = Results::new();
@@ -2250,18 +2276,18 @@ fn the_third_victory_of_the_seventh_day_gives_the_weeks_reward() {
 fn a_level_reached_is_told_with_its_reward() {
     let players = alice_and_bob();
     let store = accounts(&players);
-    // One point short of level 1.
-    store.get(10).unwrap().locked().exp_total = 499;
+    // One point short of level 20.
+    store.get(10).unwrap().locked().exp_total = level_start(20) - 1;
     let gold = account(&store, 10).premium_money;
     let report = Results::new()
         .settle(&result(players), &store, &terms(), &mut Rng::new(1))
         .unwrap();
     let alice = &report.players[0];
-    assert_eq!(alice.reward.levels, [1]);
+    assert_eq!(alice.reward.levels, [20]);
     assert_eq!(alice.reward.level_gold, 100);
     // Important message type 14: the level, the money's kind twice (gold)
     // and the amount.
-    assert!(alice.notices.contains(&(14, "[1][1][1][100]".to_owned())));
+    assert!(alice.notices.contains(&(14, "[20][1][1][100]".to_owned())));
     assert!(account(&store, 10).premium_money >= gold + 100);
     // Bob reached none.
     assert!(

@@ -11,12 +11,15 @@ The owner's of 2026-10-19. Code: `session::v026g::tutorial`; the client's side: 
 - **A new account starts with** (its first 0.26g sign-in, `GameAccounts::sign_up`, once,
   before its client hears of it: no window, no notice; `tutorial::signup_grant`) nothing but
   what `scripts/content-edit/new-account.tsv` says (`gameplay/srp/new_account.options`, read
-  by srp from its game data; its header says each key), and the steps' experience:
+  by srp from its game data; its header says each key):
+  - level 15 (the owner's of 2026-11-06; before, the steps' 250 experience): the
+    experience where it starts, the levels below it paying nothing; its 15 points spent:
+    Quick Response 5 (101), Battle Stance 2 (102), Potent Painkiller 1 (301), Fast
+    Bandaging 2 (302), Metabolism 5 (311);
   - 15 000 silver and 150 gold (the owner's of 2026-10-24; before, 10 000 and 500);
   - a month of premium: 30 days (the shop's month, `PREMIUM_OFFERS` id 3) from the account's
     making at its first sign-in, added as all premium is (`premium::add_premium`); the lobby
     is told the hours left (720);
-  - the steps' 250 experience (the game's `unique_awards.options`);
   - exactly 1000 rounds of every ammo: each stack of the dictionary under
     `gameplay/items/weapons/ammo/`, the ported weapons' too (34 on the released data);
   - the Scavengers at reputation level 5, their highest (3000 points), as earned: all they
@@ -59,8 +62,9 @@ The owner's of 2026-10-19. Code: `session::v026g::tutorial`; the client's side: 
   the backpack; the whole kit on released data:
   `SRP_TEST_GAME_DATA=<server-game-data.db> cargo test -p session --test starter_kit --
   --ignored`.
-- **New player** (the first match's drop table): no more experience than an account starts
-  with.
+- **Its first match brings it to level 16** (`pay::MATCH_LEVEL`): a match that pays (not a
+  room with a PIN's) leaves every account at level 16 at least, whatever it earned (no row of the screen; the level's
+  reward is paid). Accounts made before below 16 get it too.
 - **Accounts made before:** keep what they have and get no tutorial; steps they had not done
   are not paid.
 - **No switch:** `SRP_TUTORIAL` is gone.

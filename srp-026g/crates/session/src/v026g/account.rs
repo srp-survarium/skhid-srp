@@ -244,6 +244,13 @@ pub fn level_at(total: u32) -> (u8, u32, u32) {
     (level, start, next)
 }
 
+/// The experience where `level` starts ([`level_at`]'s table).
+pub fn level_start(level: u8) -> u32 {
+    (0..level.min(MAX_LEVEL)).fold(0, |start, below| {
+        start.saturating_add(v021d::results::experience_for_level(below + 2))
+    })
+}
+
 /// A name cut to what the client's 64-byte buffers take.
 pub fn cap_name(name: &str) -> String {
     survarium::v026g::lobby::cut(name, limits::NAME).to_owned()
@@ -860,6 +867,11 @@ mod tests {
         // next, a hundred times.
         assert_eq!(level_at(1_287_499).0, 99);
         assert_eq!(level_at(1_287_500).0, 100);
+        for level in [0, 1, 2, 15, 16, 99, 100] {
+            assert_eq!(level_at(level_start(level)).1, level_start(level));
+            assert_eq!(level_at(level_start(level)).0, level);
+        }
+        assert_eq!((level_start(15), level_start(16)), (33_750, 38_000));
         let mut account = Account::new("Alice");
         assert_eq!(account.add_experience(1300), [1, 2]);
         assert_eq!(account.level_progress(), (2, 1250, 2250));

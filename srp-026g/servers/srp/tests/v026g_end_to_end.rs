@@ -473,7 +473,10 @@ fn two_new_players_sign_in_shop_play_a_match_and_are_paid() {
         let grant = session::v026g::tutorial::new_account();
         (grant.silver, grant.gold)
     });
-    assert_eq!(start_money.2, session::v026g::tutorial::experience());
+    assert_eq!(
+        start_money.2,
+        session::v026g::account::level_start(session::v026g::tutorial::new_account().level)
+    );
 
     // ---- 3. Alice buys something the shop sells her now: `83 47 00`, the
     // inventory, the account and the money.
@@ -834,10 +837,17 @@ fn two_new_players_sign_in_shop_play_a_match_and_are_paid() {
         game.assert_clean();
     }
     let (alice_paid, bob_paid) = (held(&stack, "E2eAlice"), held(&stack, "E2eBob"));
+    // The winner earns more: by the rows, as both new accounts are brought to
+    // level 16 (`pay::MATCH_LEVEL`) whatever they earned.
     assert!(
-        alice_paid.2 - before_match.0.2 > bob_paid.2 - before_match.1.2,
+        report.players[usize::from(places[0])].reward.experience
+            > report.players[usize::from(places[1])].reward.experience,
         "the winner earns more"
     );
+    for name in ["E2eAlice", "E2eBob"] {
+        let account = stack.accounts.get(account_id(&stack, name)).unwrap();
+        assert_eq!(account.locked().level(), 16, "{name}");
+    }
     assert!(report.players[usize::from(places[0])].reward.won);
     assert!(!report.players[usize::from(places[1])].reward.won);
 

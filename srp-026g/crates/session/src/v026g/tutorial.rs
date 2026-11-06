@@ -38,13 +38,12 @@
 //! 25 gold each, the match's tutorial 50 gold. **A new account starts**
 //! with what the game data's table says
 //! ([`survarium::v026g::new_account`]): its
-//! money, premium, the rounds of every ammo ([`starter_ammo`]), its
-//! reputation and quest faction, what it owns and what its three kits
-//! wear; and the steps' experience (the owner's of 2026-10-19 and
-//! 2026-10-24, `docs/notes/no-tutorial.md`). It is the account's state
+//! level and skills, money, premium, the rounds of every ammo
+//! ([`starter_ammo`]), its reputation and quest faction, what it owns and
+//! what its three kits wear (the owner's of 2026-10-19, 2026-10-24 and
+//! 2026-11-06, `docs/notes/no-tutorial.md`). It is the account's state
 //! when the client first hears of it: no window, no notice.
 
-use survarium::v026g::awards::{Awards, kind, name};
 use survarium::v026g::dictionary::Dictionary;
 use survarium::v026g::item_params::{self, shop_unit};
 use survarium::v026g::loadouts::POCKET_SLOTS;
@@ -53,7 +52,7 @@ use survarium::v026g::lobby::{self, FULL_CONDITION, ServerMessage};
 use survarium::v026g::modifications::Modifications;
 pub use survarium::v026g::new_account::shared as new_account;
 
-use super::account::{Account, KITS};
+use super::account::{Account, KITS, level_start};
 
 /// The bits of the tutorial's state (`a` of `9D`).
 pub mod flag {
@@ -72,14 +71,6 @@ pub const ALL_DONE: u32 = flag::NICKNAME
     | flag::BATTLE_NOTES
     | flag::GAME_WORLD
     | flag::SKIPPED;
-
-/// The awards a new account is given, the tutorial's steps'.
-pub const AWARDS: [&str; 4] = [
-    name::TUTORIAL_COMPLETED,
-    name::ITEM_NOTES,
-    name::BATTLE_NOTES,
-    name::GAME_WORLD_TUTORIAL,
-];
 
 /// Where the ammo lives: every item of the dictionary under it is ammo.
 pub const AMMO_CONFIGS: &str = "gameplay/items/weapons/ammo/";
@@ -142,18 +133,8 @@ pub fn starter_ammo_bags(dictionary: &Dictionary, kit: usize) -> u32 {
     ammo_bags(defaults.chain(own))
 }
 
-/// The experience the tutorial's steps paid, by the game's file.
-pub fn experience() -> u32 {
-    AWARDS
-        .iter()
-        .flat_map(|award| Awards::shared().get(award))
-        .filter(|row| row.kind == kind::EXPERIENCE)
-        .map(|row| row.amount)
-        .sum()
-}
-
 /// A new account's start, before its client first hears of it
-/// ([`new_account`]): its money, the steps' experience, the rounds of every
+/// ([`new_account`]): its level and skills, its money, the rounds of every
 /// ammo, the faction's reputation level and its quests (the tutorial ended
 /// in the faction's choice; the owner's of 2026-10-19: never neutral), what
 /// it owns and what its three kits wear ([`wear_starter_kit`]), and its
@@ -162,8 +143,9 @@ pub fn signup_grant(account: &mut Account, now: u64) {
     signup_grant_with(account, true, now);
 }
 
-/// [`signup_grant`], what it owns, the kits and the premium given only with
-/// `starter_kit` (off only in the lobby's tests, `GameAccounts::set_starter_kit`).
+/// [`signup_grant`], its level and skills, what it owns, the kits and the
+/// premium given only with `starter_kit` (off only in the lobby's tests,
+/// `GameAccounts::set_starter_kit`).
 pub fn signup_grant_with(account: &mut Account, starter_kit: bool, now: u64) {
     let grant = new_account();
     let faction = grant.faction.id();
@@ -183,9 +165,11 @@ pub fn signup_grant_with(account: &mut Account, starter_kit: bool, now: u64) {
     account.premium_money = grant.gold;
     if starter_kit {
         super::premium::add_premium(account, u64::from(grant.premium_days) * 86_400, now);
+        // Where its level starts; the levels below it pay nothing. Before
+        // the kits: they carry the skills' modifiers.
+        account.exp_total = account.exp_total.max(level_start(grant.level));
+        account.skills = grant.skills.clone();
     }
-    // Short of a level: nothing more to pay.
-    account.add_experience(experience());
     for dict_id in starter_ammo(dictionary) {
         let owned = account
             .inventory
@@ -321,7 +305,6 @@ mod tests {
         use survarium::v026g::item_params::item_params;
 
         let grant = new_account();
-        assert_eq!(experience(), 250);
         const NOW: u64 = 1_800_000_000;
         let mut account = Account::with_loadout(
             "Alice",
@@ -338,8 +321,10 @@ mod tests {
         assert!(account.is_premium(NOW) && account.is_premium(NOW + 30 * 86_400 - 1));
         assert!(!account.is_premium(NOW + 30 * 86_400));
         assert_eq!(account.premium_hours(NOW), Some(720));
-        assert_eq!(account.exp_total, 250);
-        assert_eq!(account.level(), 0);
+        assert_eq!(account.level(), grant.level);
+        assert_eq!(account.exp_total, level_start(grant.level));
+        assert_eq!(account.skills, grant.skills);
+        assert_eq!(account.free_skill_points(), 0);
         assert_eq!(account.quest_faction, grant.faction.id());
         assert_eq!(account.extras.tutorial_flags, ALL_DONE);
 

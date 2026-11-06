@@ -5,6 +5,20 @@ use super::*;
 #[test]
 fn the_grant_is_the_tables() {
     let grant = shared();
+    // Level 15, its 15 points spent (the owner's of 2026-11-06): Quick
+    // Response 5, Battle Stance 2, Potent Painkiller 1, Fast Bandaging 2,
+    // Metabolism 5.
+    assert_eq!(grant.level, 15);
+    assert_eq!(
+        grant.skills,
+        [(101, 5), (102, 2), (301, 1), (302, 2), (311, 5)]
+    );
+    // The test data lacks the medical tree (`medical-skills-1.json`); the
+    // released data takes them (`session`'s `tests/starter_kit.rs`).
+    assert_eq!(
+        SkillsTree::shared().validate(grant.level, &grant.skills[..2]),
+        Ok(())
+    );
     assert_eq!(
         (grant.silver, grant.gold, grant.premium_days),
         (15_000, 150, 30)
@@ -66,7 +80,7 @@ fn a_table_of_other_keys_is_refused_naming_them() {
     };
     assert_eq!(
         table(vec![("silver", ConfigValue::Integer(1))]),
-        Err(format!("{PATH}: no `gold`"))
+        Err(format!("{PATH}: no `skills`"))
     );
     assert_eq!(
         table(vec![("kit_4", ConfigValue::Named(Vec::new()))]),
@@ -85,7 +99,7 @@ fn a_table_of_other_keys_is_refused_naming_them() {
 /// predates it).
 #[test]
 fn pockets_the_gear_does_not_give_are_named() {
-    let mut grant = shared().clone();
+    let mut grant = without_medical_skills();
     grant.own.retain(|(name, _)| name != "akmsu");
     grant.all_kits.retain(|(slot, _)| *slot != 0);
     grant
@@ -95,7 +109,7 @@ fn pockets_the_gear_does_not_give_are_named() {
         .unwrap()
         .1 = "scav_oxygen_1".into();
     let table = Modifications::shared();
-    let wrong = grant.check(Dictionary::shared(), table);
+    let wrong = grant.check(Dictionary::shared(), table, SkillsTree::shared());
     assert_eq!(wrong.len(), 3 * 3, "{wrong:?}");
     assert!(wrong.contains(
         &"kit 1: slot 15: the gear opens 2 pockets of 2 units, 3 of `antitoxin` asked".into()
@@ -103,7 +117,7 @@ fn pockets_the_gear_does_not_give_are_named() {
     grant.pocket_units = 2;
     grant.all_kits.retain(|(slot, _)| *slot != 15);
     assert_eq!(
-        grant.check(Dictionary::shared(), table),
+        grant.check(Dictionary::shared(), table, SkillsTree::shared()),
         Vec::<String>::new()
     );
 }
@@ -150,10 +164,10 @@ fn a_faction_without_quests_is_refused() {
 }
 
 /// The grant with the gear of the test data (no knit cap, no AKMSU, the oxygen
-/// tank on the back): what it checks of what it owns and of its
-/// modifications.
+/// tank on the back) and its skills ([`without_medical_skills`]): what it
+/// checks of what it owns and of its modifications.
 fn on_the_test_data() -> NewAccount {
-    let mut grant = shared().clone();
+    let mut grant = without_medical_skills();
     grant.own.retain(|(name, _)| name != "akmsu");
     grant.all_kits.retain(|(slot, _)| *slot != 0 && *slot != 15);
     grant
@@ -173,11 +187,11 @@ fn a_pocket_of_an_item_not_owned_is_named() {
     let table = Modifications::shared();
     let mut grant = on_the_test_data();
     assert_eq!(
-        grant.check(Dictionary::shared(), table),
+        grant.check(Dictionary::shared(), table, SkillsTree::shared()),
         Vec::<String>::new()
     );
     grant.own.retain(|(name, _)| name != "bandages");
-    let wrong = grant.check(Dictionary::shared(), table);
+    let wrong = grant.check(Dictionary::shared(), table, SkillsTree::shared());
     assert_eq!(wrong.len(), 3, "{wrong:?}");
     assert_eq!(
         wrong[0],
@@ -195,7 +209,7 @@ fn a_modification_its_item_does_not_take_is_named() {
     let with = |item: &str, id: u32| {
         let mut grant = grant.clone();
         grant.modifications = vec![(item.to_owned(), id)];
-        grant.check(Dictionary::shared(), table)
+        grant.check(Dictionary::shared(), table, SkillsTree::shared())
     };
     assert_eq!(with("scav_gloves_2", 1133), Vec::<String>::new());
     // The respirator's isolation on the gloves' collection time slot, and
@@ -214,5 +228,30 @@ fn a_modification_its_item_does_not_take_is_named() {
             "modification 1133 is none `tt_33` takes",
             "modification 1133 of `tt_33`, which no kit wears"
         ]
+    );
+}
+
+/// The grant with only the skills of the test data's tree, which predates
+/// the medical tree (`medical-skills-1.json`).
+fn without_medical_skills() -> NewAccount {
+    let mut grant = shared().clone();
+    grant
+        .skills
+        .retain(|&(id, _)| SkillsTree::shared().skill(id).is_some());
+    grant
+}
+
+/// Skills the tree does not allow at the level are named.
+#[test]
+fn skills_past_the_level_are_named() {
+    let mut grant = on_the_test_data();
+    grant.level = 6;
+    assert_eq!(
+        grant.check(
+            Dictionary::shared(),
+            Modifications::shared(),
+            SkillsTree::shared()
+        ),
+        ["level 6: 7 points spent at level 6"]
     );
 }
