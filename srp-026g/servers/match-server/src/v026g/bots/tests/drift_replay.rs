@@ -10,6 +10,8 @@
 //! `SRP_A304_WORLDS`, `SRP_A304_INPUTS`: the tables; `SRP_A304_MAP`: the project (`level_08/day_2`); `SRP_MAPDATA_DIR`: the map
 //! data; `SRP_BENCH_TUNING`: the tuning patch (the server's file); `SRP_A304_HUMANS`: the human places (default `0`);
 //! `SRP_A304_OUT`: the CSV written, one row a world of a bot life after its first. Ignored; it prints a summary.
+//! `SRP_A304_TICKS` (with `SRP_A304_ROWS` and `SRP_A304_REC`) [A325]: the reckoning tick by tick over chosen intervals, for the
+//! first-divergence classifier against the reference body (the client's movement code on the same keys).
 
 use std::collections::HashMap;
 use std::sync::Arc;
@@ -140,6 +142,23 @@ fn drift_on_a_real_match() {
     // the floor it was held on against the floor under the client's feet, and the grid's links between them.
     let hold_probe = var("SRP_A304_HOLD").is_some();
     let mut hold_kinds: HashMap<&str, u32> = HashMap::new();
+    // `SRP_A304_TICKS=<csv>` [A325, the first-divergence classifier]: the reckoning tick by tick over each interval of the windows of
+    // `SRP_A304_ROWS` (lines `rec,place,t0,t1[,note]`, the rows of this recording `SRP_A304_REC`; every interval without it): the state
+    // after each decided tick, joined with the reference body's (the client's movement code on the same keys) by (place, world_t, tick).
+    let windows: Option<Vec<(usize, u32, u32)>> = var("SRP_A304_ROWS").map(|path| {
+        let rec = var("SRP_A304_REC").unwrap_or_default();
+        std::fs::read_to_string(&path)
+            .unwrap_or_else(|e| panic!("{path}: {e}"))
+            .lines()
+            .filter_map(|line| {
+                let f: Vec<&str> = line.split(',').map(str::trim).collect();
+                (f.len() >= 4 && f[0] == rec).then_some(())?;
+                Some((f[1].parse().ok()?, f[2].parse().ok()?, f[3].parse().ok()?))
+            })
+            .collect()
+    });
+    let ticks_out = var("SRP_A304_TICKS");
+    let mut tick_rows = String::from("place,world_t,tick,t,x,y,z,vx,vy,vz,node,held\n");
     for w in rows {
         while k < ticks.len() && ticks[k].0 <= w.time + WORLD_LATE_MS {
             let (time, place, keys, turn) = ticks[k];
@@ -149,6 +168,31 @@ fn drift_on_a_real_match() {
         let track = tracks.entry(w.place).or_default();
         let before = track.fix().filter(|f| f.alive && f.inserted == w.fix.inserted).and_then(|f| f.feet);
         let reckoned = track.reckoned_at(w.time);
+        // [A325] The interval's ticks, before this world puts the track right.
+        if let (Some(_), Some(start), Some(was)) = (&ticks_out, before, track.fix().map(|f| f.time)) {
+            let wanted = windows.as_ref().is_none_or(|ws| ws.iter().any(|&(p, t0, t1)| p == w.place && (t0..=t1).contains(&w.time)));
+            if wanted {
+                let mut last = (was, start);
+                for (i, (t, feet, held)) in track.trail_between(was, w.time).into_iter().enumerate() {
+                    let dt = (t.saturating_sub(last.0)).max(1) as f32 / 1000.0;
+                    let v = (feet - last.1) * (1.0 / dt);
+                    let node = world.grid.locate(feet, 0.5).map_or(-1, i64::from);
+                    tick_rows.push_str(&format!(
+                        "{},{was},{},{t},{:.3},{:.3},{:.3},{:.3},{:.3},{:.3},{node},{}\n",
+                        w.place,
+                        i + 1,
+                        feet.x,
+                        feet.y,
+                        feet.z,
+                        v.x,
+                        v.y,
+                        v.z,
+                        u8::from(held)
+                    ));
+                    last = (t, feet);
+                }
+            }
+        }
         let feet = w.fix.feet;
         let speed = w.fix.speed;
         let new_life = track.fixed(w.fix, &kin, grid);
@@ -249,6 +293,9 @@ fn drift_on_a_real_match() {
     }
     if let Some(path) = var("SRP_A304_OUT") {
         std::fs::write(&path, out).unwrap_or_else(|e| panic!("{path}: {e}"));
+    }
+    if let Some(path) = &ticks_out {
+        std::fs::write(path, tick_rows).unwrap_or_else(|e| panic!("{path}: {e}"));
     }
     eprintln!(
         "A304 replay {project}: {n} worlds of bots compared, {over} drifting (1 m+), {:.1} %",
