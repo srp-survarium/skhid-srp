@@ -130,6 +130,15 @@ pub fn candidates(cx: &Ctx, out: &mut Vec<Candidate>) {
         }
         out.extend(cx.job_offer(Role::Flanker, PlayKind::Flank, TargetRef::ThreatSpot(line.id), JOB_KEY + job.spot, JOB_HEALTH, has_spot));
     }
+    // [A320 `threat.camp_flank.hold_ms`] The job ended (his death) with this bot on its flank route or at its firing floor:
+    // the flank stays offered to it, so it can hold the spot for his return (the play's step ends it at the hold's end).
+    if cx.tuning.threat.camp_flank.is_some_and(|c| c.hold_ms.is_some())
+        && cx.me.carrying.is_none()
+        && let Some((PlayKind::Flank, TargetRef::ThreatSpot(id), _)) = cx.bot.current
+        && cx.team.threat.line(id).is_none()
+    {
+        out.extend(cx.job_candidate(PlayKind::Flank, TargetRef::ThreatSpot(id), JOB_KEY + id, JOB_HEALTH));
+    }
     for track in cx.memory.tracks() {
         let target = TargetRef::Place(track.who);
         let running = matches!(cx.bot.current, Some((PlayKind::Flank, t, _)) if t == target);
@@ -153,12 +162,24 @@ pub enum State {
         spot: Vec3,
     },
     /// [A320 `threat.camp_flank`] A route made ahead of time round a known camp spot: `spot` and `route` index
-    /// `Tactics::camp_spots`; `next` is the first of its floors not yet passed; the play gives up at `give_up_at`.
+    /// `Tactics::camp_spots`; `next` is the first of its floors not yet passed; the play gives up at `give_up_at`;
+    /// `camper` is the held spot's shooter, and `orphan` when the job ended (his death) with the flanker on the way
+    /// (`threat.camp_flank.hold_ms`: it goes on to hold the firing floor for his return).
     Route {
         spot: usize,
         route: usize,
         next: usize,
         give_up_at: u32,
+        camper: Place,
+        orphan: Option<u32>,
+    },
+    /// [A320 `threat.camp_flank.hold_ms`] At the route's firing floor with its sights on the spot: as a peek until
+    /// `peek_until` while he lives; after his death (`orphan`) held for his return until the hold's end.
+    Hold {
+        spot: usize,
+        camper: Place,
+        peek_until: u32,
+        orphan: Option<u32>,
     },
     /// At the spot, watching him.
     Peek {
@@ -231,9 +252,7 @@ const ROUTE_SPARE_MS: u32 = 15_000;
 /// [A320 `threat.camp_flank`] The known camp spot of the other side the job's held spot is on (within its match radius,
 /// a storey at most), with its routes; none with the switch off.
 fn camp_spot_of(cx: &Ctx, line: &crate::v026g::bots::threat::HeldLine) -> Option<usize> {
-    if !cx.tuning.threat.camp_flank {
-        return None;
-    }
+    cx.tuning.threat.camp_flank?;
     let spot = crate::v026g::bots::camp_flank::camp_spot_at(&cx.tactics.camp_spots, line.at, cx.bot.side?)?;
     (!cx.tactics.camp_spots[spot].routes.is_empty()).then_some(spot)
 }
@@ -342,7 +361,7 @@ fn camp_route(cx: &Ctx, line: &crate::v026g::bots::threat::HeldLine) -> Option<S
         "A320 camp_flank route start: t {} place {} spot {spot} route {route} ({:?}, {:.0} m, passed {passed})",
         cx.now, cx.me.place, camp.routes[route].origin, length
     );
-    Some(State::Route { spot, route, next: 0, give_up_at })
+    Some(State::Route { spot, route, next: 0, give_up_at, camper: line.shooter, orphan: None })
 }
 
 pub fn start(target: TargetRef, cx: &Ctx, rng: &mut Rng) -> State {
@@ -573,16 +592,33 @@ pub fn step(state: &mut State, target: TargetRef, cx: &Ctx, rng: &mut Rng) -> St
         }
         return Step::Failed("flanked too long");
     }
-    let Some(him) = cx.point_of(target) else {
+    // [A320] With the hold on, a route's or a hold's point is its camp spot when the held spot is gone (his death).
+    let hold_ms = cx.tuning.threat.camp_flank.and_then(|c| c.hold_ms);
+    let camp_at = match state {
+        State::Route { spot, .. } | State::Hold { spot, .. } if hold_ms.is_some() => cx.tactics.camp_spots.get(*spot).map(|c| c.at),
+        _ => None,
+    };
+    let Some(him) = cx.point_of(target).or(camp_at) else {
         return Step::Done("he is gone from the memory");
     };
     // The team's job ended: the spot is no longer held.
     if matches!(target, TargetRef::ThreatSpot(_)) && job_line(cx, target).is_none() {
-        #[cfg(test)]
-        if let State::Route { next, .. } = state {
-            eprintln!("A320 camp_flank route end: t {} place {} job over at floor {next}", cx.now, cx.me.place);
+        match state {
+            State::Route { orphan, .. } | State::Hold { orphan, .. } if hold_ms.is_some() => {
+                if orphan.is_none() {
+                    *orphan = Some(cx.now);
+                    #[cfg(test)]
+                    eprintln!("A320 camp_flank hold: t {} place {} his death, holding on", cx.now, cx.me.place);
+                }
+            }
+            _ => {
+                #[cfg(test)]
+                if let State::Route { next, .. } = state {
+                    eprintln!("A320 camp_flank route end: t {} place {} job over at floor {next}", cx.now, cx.me.place);
+                }
+                return Step::Done("the spot is no longer held");
+            }
         }
-        return Step::Done("the spot is no longer held");
     }
     // Seen up and moving: he no longer holds the angle.
     if let TargetRef::Place(who) = target
@@ -595,10 +631,15 @@ pub fn step(state: &mut State, target: TargetRef, cx: &Ctx, rng: &mut Rng) -> St
     let reach = num("reach_m");
     match state {
         State::NoSpot => Step::Failed("no flank spot round the held spot"),
-        State::Route { spot, route, next, .. } => {
+        State::Route { spot, route, next, camper, orphan, .. } => {
             let Some(r) = cx.tactics.camp_spots.get(*spot).and_then(|c| c.routes.get(*route)) else {
                 return Step::Failed("the camp spot's route is gone");
             };
+            if let (Some(o), Some(hold)) = (*orphan, hold_ms)
+                && cx.now >= o + hold
+            {
+                return Step::Done("held on for his return, not there yet");
+            }
             let grid = &cx.tactics.world.grid;
             let at = |i: usize| grid.position(r.floors[i]);
             let fire = r.fire;
@@ -610,7 +651,12 @@ pub fn step(state: &mut State, target: TargetRef, cx: &Ctx, rng: &mut Rng) -> St
                 #[cfg(test)]
                 eprintln!("A320 camp_flank route fire: t {} place {} spot {spot} route {route}", cx.now, cx.me.place);
                 let s = rng.range(num("peek_min_s"), num("peek_max_s"));
-                *state = State::Peek { until: cx.now + (s * 1000.0) as u32 };
+                let until = cx.now + (s * 1000.0) as u32;
+                *state = if hold_ms.is_some() {
+                    State::Hold { spot: *spot, camper: *camper, peek_until: until, orphan: *orphan }
+                } else {
+                    State::Peek { until }
+                };
                 return Step::Continue(Intent::stay().crouched().looking(Look::At(him)));
             }
             let way = (*next..=fire).find(|&i| at(i).distance_xz(cx.me.feet) >= ROUTE_LEAD_M).unwrap_or(fire);
@@ -621,6 +667,33 @@ pub fn step(state: &mut State, target: TargetRef, cx: &Ctx, rng: &mut Rng) -> St
                 intent = intent.looking(Look::At(him));
             }
             Step::Continue(intent)
+        }
+        State::Hold { camper, peek_until, orphan, .. } => {
+            if cx.me.carrying.is_some() {
+                return Step::Done("carries a battery");
+            }
+            match *orphan {
+                None if cx.now >= *peek_until => return Step::Done("flanked and watched him"),
+                Some(o) => {
+                    if cx.now >= o + hold_ms.unwrap_or(0) {
+                        #[cfg(test)]
+                        eprintln!("A320 camp_flank hold: t {} place {} ended, the hold's time", cx.now, cx.me.place);
+                        return Step::Done("held the spot for his return");
+                    }
+                    // His next life sensed away from the spot (the team's own senses): he is not coming back here.
+                    let elsewhere = cx.memory.tracks().iter().any(|t| {
+                        t.who == *camper
+                            && t.own.is_some_and(|(at, time)| time > o && cx.now.saturating_sub(time) <= 2_000 && at.distance_xz(him) > 30.0)
+                    });
+                    if elsewhere {
+                        #[cfg(test)]
+                        eprintln!("A320 camp_flank hold: t {} place {} ended, he is elsewhere", cx.now, cx.me.place);
+                        return Step::Done("his next life is elsewhere");
+                    }
+                }
+                None => {}
+            }
+            Step::Continue(Intent::stay().crouched().looking(Look::At(him)))
         }
         State::Via { via, spot } => {
             let (via, spot) = (*via, *spot);
@@ -812,7 +885,7 @@ mod tests {
         let mut rng = Rng::new(3);
         let off = start(target, &s.cx(0), &mut rng);
         assert!(!matches!(off, State::Route { .. }), "off: as before, {off:?}");
-        s.tuning.threat.camp_flank = true;
+        s.tuning.threat.camp_flank = Some(crate::v026g::bots::tuning::CampFlank::default());
         let on = start(target, &s.cx(0), &mut rng);
         assert!(matches!(on, State::Route { spot: 0, route: 0, next: 0, .. }), "{on:?}");
         let steps = s.run(0, PlayKind::Flank, target, 200, 300, 3.5);
@@ -831,6 +904,66 @@ mod tests {
         s.enemy(13, 1, Vec3::new(30.0, 0.0, 36.0), Some(crate::v026g::bots::know::Source::Seen));
         let blocked = start(target, &s.cx(0), &mut rng);
         assert!(!matches!(blocked, State::Route { .. }), "an enemy on the next stretch: {blocked:?}");
+    }
+
+    /// [A320 `threat.camp_flank.hold_ms`] The camper dies (the job and its held spot go) with the flanker on its route: with
+    /// the hold it goes on to the firing floor and holds it, sights on the spot, until the hold's end; without it the flank
+    /// ends with the job, as before.
+    #[test]
+    fn with_the_hold_a_flanker_whose_camper_died_holds_his_spot_for_his_return() {
+        use crate::v026g::bots::camp_flank::{CampSpot, FlankRoute, Origin};
+        use crate::v026g::bots::threat::{HeldLine, Holder, Job, Picture};
+        use crate::v026g::bots::tuning::CampFlank;
+        let run = |hold_ms: Option<u32>| {
+            let mut s = Scenario::field(Mode::TeamDeathmatch);
+            let me = Vec3::new(20.0, 0.0, 35.0);
+            let him = Vec3::new(60.0, 0.0, 12.0);
+            s.bot(0, 0, me);
+            let now = s.view.clock;
+            let line = HeldLine::for_test(7, 15, him, &[Vec3::new(45.0, 0.0, 12.0)], Some(now));
+            let job = Job::of(7, 15, Some(Holder { place: 0, since: now }), None);
+            s.team.threat = std::sync::Arc::new(Picture { held: vec![line], jobs: vec![job], ..Picture::default() });
+            let grid = s.tactics.world.grid.clone();
+            let fire_at = Vec3::new(62.0, 0.0, 30.0);
+            let (a, b) = (grid.locate(me, 1.0).unwrap(), grid.locate(fire_at, 1.0).unwrap());
+            let floors = grid.path(a, b).unwrap().nodes;
+            let fire = floors.len() - 1;
+            let route = FlankRoute { origin: Origin::Astar, floors, fire, exposed_m: 0.0 };
+            let camp = CampSpot { camper_side: 1, at: him, match_radius_m: 5.0, follow_radius_m: 10.0, routes: vec![route] };
+            s.tactics.camp_spots = std::sync::Arc::new(vec![camp]);
+            s.tuning.threat.camp_flank = Some(CampFlank { hold_ms });
+            let target = TargetRef::ThreatSpot(7);
+            let mut rng = Rng::new(3);
+            s.current = Some((PlayKind::Flank, target, now));
+            let mut state = start(target, &s.cx(0), &mut rng);
+            assert!(matches!(state, State::Route { .. }), "{state:?}");
+            // His death: the job and its held spot are gone.
+            s.team.threat = std::sync::Arc::new(Picture::default());
+            let first = step(&mut state, target, &s.cx(0), &mut rng);
+            (first, state, s)
+        };
+        let (off, _, _) = run(None);
+        assert_eq!(off, Step::Done("the spot is no longer held"), "no hold: as before");
+        let (on, state, mut s) = run(Some(20_000));
+        assert!(matches!(on, Step::Continue(_)), "the hold goes on: {on:?}");
+        assert!(matches!(state, State::Route { orphan: Some(_), .. }), "{state:?}");
+        // The flank stays offered to it while it holds.
+        let offered = {
+            let mut out = Vec::new();
+            candidates(&s.cx(0), &mut out);
+            out.iter().any(|c| c.kind == PlayKind::Flank && c.target == TargetRef::ThreatSpot(7))
+        };
+        assert!(offered, "the hold keeps its flank offered");
+        // At the firing floor it holds, sights on the spot, until the hold's end.
+        let fire_at = Vec3::new(62.0, 0.0, 30.0);
+        s.view.places[0].feet = fire_at;
+        let mut state = state;
+        let mut rng = Rng::new(5);
+        let at_fire = step(&mut state, TargetRef::ThreatSpot(7), &s.cx(0), &mut rng);
+        assert!(matches!(state, State::Hold { orphan: Some(_), .. }), "{state:?}");
+        assert!(matches!(at_fire, Step::Continue(i) if i.go == Go::Stay && i.crouch), "{at_fire:?}");
+        s.view.clock += 21_000;
+        assert_eq!(step(&mut state, TargetRef::ThreatSpot(7), &s.cx(0), &mut rng), Step::Done("held the spot for his return"));
     }
 
     #[test]
