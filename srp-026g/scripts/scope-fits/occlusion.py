@@ -34,7 +34,7 @@ import scopes_lib as lib  # noqa: E402
 _spec = importlib.util.spec_from_file_location('scope_fits_survey', HERE / 'survey.py')
 survey = importlib.util.module_from_spec(_spec)
 _spec.loader.exec_module(survey)
-_spec = importlib.util.spec_from_file_location('scope_fits_sights', HERE / 'sights.py')
+_spec = importlib.util.spec_from_file_location('rifle_scopes_sights', HERE.parent / 'rifle-scopes' / 'sights.py')
 sights = importlib.util.module_from_spec(_spec)
 _spec.loader.exec_module(sights)
 

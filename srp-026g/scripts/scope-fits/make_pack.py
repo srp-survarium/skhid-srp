@@ -74,10 +74,10 @@ def _load(name, path):
 rs = _load('rifle_scopes_make_pack', HERE.parent / 'rifle-scopes' / 'make_pack.py')  # compose, configs, eyes
 survey = _load('scope_fits_survey', HERE / 'survey.py')
 occlusion = _load('scope_fits_occlusion', HERE / 'occlusion.py')
-sights = _load('scope_fits_sights', HERE / 'sights.py')
+sights = rs.sights  # ../rifle-scopes/sights.py
 
 PACK_ID = 'scope-fits'
-VERSION = '7'
+VERSION = '8'
 FIRST_VARIANT = 2901
 LAST_VARIANT = 3299
 CATEGORY = 22
@@ -417,6 +417,8 @@ def build(args, work):
             sys.exit(f'{gun}: no {cfg} in --guns')
         weapons[gun] = (cfg, lib.leaves(roots.file(cfg))['/object/model'])
     changes = sight_changes()
+    for gun, live in rs.sight_changes(HERE.parent / 'rifle-scopes' / 'sights.tsv').items():  # the live guns'
+        changes.setdefault(gun, []).extend(live)
     kept_sights_ = kept_sights()
     new_guns = {g for g, *_ in survey.rows('guns.tsv')}
     variants = our_variants(args.live)
