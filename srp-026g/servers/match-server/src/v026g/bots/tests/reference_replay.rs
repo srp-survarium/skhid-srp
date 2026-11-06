@@ -29,6 +29,7 @@ use mapdata::controller::tick::{Controller, Settings};
 use mapdata::{Vec3, World};
 
 use super::super::body::{BodyTrack, Fix};
+use super::super::jump_arc::{Clip, END_FRAME, FPS as JUMP_FPS, PREPARE_MS, TAKEOFF_FRAME};
 use super::super::kin::Local;
 use super::bench::bench_tuning;
 use crate::v026g::drive::key;
@@ -111,11 +112,31 @@ fn reference_replay() {
     // `SRP_A325_WORLD_BLEND=k`: the velocity kept in the world frame, each tick k of the way toward the intended (a turn does not
     // swing the momentum round with the yaw at once). A hypothesis test, not a client rule.
     let world_blend: Option<f32> = var("SRP_A325_WORLD_BLEND").and_then(|v| v.parse().ok());
+    // `SRP_A325_JUMP=1` (keys mode, fx-team): the client's jump played through the controller's air branch (see `RefJump`).
+    let jump_mode = keys_mode && var("SRP_A325_JUMP").is_some();
+    // `SRP_A325_ROWS_NEAR_JUMP=1`: the per-tick rows only of intervals within 2.5 s after a press (the checks stay whole): a
+    // small output for the jump rows.
+    let rows_near_jump = var("SRP_A325_ROWS_NEAR_JUMP").is_some();
     let mut turn_of: HashMap<(usize, u32), f32> = HashMap::new();
     for &(t, p, k, turn) in &ticks {
         keys_of.entry(p).or_default().push((t, k));
         turn_of.insert((p, t), turn.0);
     }
+    // A press: an input with JUMP whose place's input before had none (`base_player::jump` 0x2D7920 runs on the key's press).
+    let presses_of: HashMap<usize, Vec<u32>> = keys_of
+        .iter()
+        .map(|(&p, v)| {
+            let mut prev = 0u32;
+            let mut out = Vec::new();
+            for &(t, k) in v {
+                if k & key::JUMP != 0 && prev & key::JUMP == 0 {
+                    out.push(t);
+                }
+                prev = k;
+            }
+            (p, out)
+        })
+        .collect();
     let rotate = |v: [f32; 2], d: f32| {
         let ([a, b], [c, e]) = (super::super::kin::forward(0.0), super::super::kin::forward(d));
         let (cos, sin) = (a * c + b * e, a * e - b * c);
@@ -249,6 +270,25 @@ fn reference_replay() {
         // tick before), else after it (fx-grid's reading of 0x2D9060). The A/B of the two readings, until the exe read settles it.
         let turn_at = |k: u32| turn_of.get(&(w.place, k)).copied().unwrap_or(0.0);
         let mut kyaw = if yaw_before { yaw_b - turn_at(t0) } else { yaw_b };
+        // The jump: one pressed before b and not over by b is under way at b (the client in the air there), its target from b's
+        // feet on; a press at an input k of the interval starts one when the body may jump.
+        let presses: &[u32] = presses_of.get(&w.place).map_or(&[], Vec::as_slice);
+        let walk_speed = |k: u32| {
+            let c = key_clip(keys_in(k) & CLIP_KEYS);
+            c[0].hypot(c[1]) * level
+        };
+        let mut jump: Option<RefJump> = None;
+        let mut iv = String::new();
+        if jump_mode && let Some(&p) = presses.iter().rev().find(|&&p| p < t0) {
+            let mut j = RefJump::new(p, keys_in(p), walk_speed(p.saturating_sub(50)), from);
+            if j.frame(t0) < END_FRAME {
+                if j.frame(t0) >= TAKEOFF_FRAME {
+                    j.phase = RefPhase::Air;
+                    body.jumping = true;
+                }
+                jump = Some(j);
+            }
+        }
         for (i, &&(t, _, v_own, _)) in ahead.iter().enumerate().take_while(|(_, r)| r.0 <= w.time) {
             let v_keys = keys_mode.then(|| {
                 let k = t - 50;
@@ -322,7 +362,20 @@ fn reference_replay() {
                     None => v,
                 };
                 body.walk = Vec3::new(v[0] * TICK_S, 0.0, v[1] * TICK_S);
+                let mut ended = false;
+                if jump_mode {
+                    let k = t0 + 50 * (tick_n - 1);
+                    if jump.is_none() && presses.contains(&k) && body.on_ground(&s) {
+                        jump = Some(RefJump::new(k, keys_in(k), v[0].hypot(v[1]), body.feet()));
+                    }
+                    if let Some(j) = jump.as_mut() {
+                        ended = j.tick(&mut body, k, kyaw, keys_in(k));
+                    }
+                }
                 let notes = body.step(&collision, TICK_S, &s);
+                if ended {
+                    jump = None;
+                }
                 let now = body.feet();
                 let moved = was.distance_xz(now);
                 let asked = v[0].hypot(v[1]) * TICK_S;
@@ -344,7 +397,7 @@ fn reference_replay() {
                 };
                 was_air = branch == "air";
                 let normal = if notes.airborne { String::new() } else { format!("{:.3}", body.contact_normal.y) };
-                out.push_str(&format!(
+                iv.push_str(&format!(
                     "{rec_id},{},{t0},{tick_n},{},{:.3},{:.3},{:.3},{:.3},{:.3},{:.3},{},{normal},{branch},0x{kk:x},{:.3},{:.3},{:.5},{:.5}\n",
                     w.place,
                     t0 + 50 * tick_n,
@@ -362,6 +415,10 @@ fn reference_replay() {
                 ));
             }
             last_t = t;
+        }
+        let near_jump = presses.iter().any(|&p| p <= w.time && t0 < p + 2_500);
+        if !rows_near_jump || near_jump {
+            out.push_str(&iv);
         }
         let refe = body.feet();
         let dist = (refe - feet).length();
@@ -388,6 +445,83 @@ fn reference_replay() {
         100.0 * close as f64 / n.max(1) as f64,
         100.0 * far as f64 / n.max(1) as f64
     );
+}
+
+/// Where the reference's jump is: on the floor before the take-off, or in the air (the controller's jump flag set).
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum RefPhase {
+    Floor,
+    Air,
+}
+
+/// The client's jump in the reference (fx-team, A325 jump rows):
+/// - the clip: `Clip::of` (jump codes, `player_logic_jump_state::initialize` 0x337040) by the keys at the press and the speed;
+/// - the clip's time from the press: the sprint jump's prepare phase first (`PREPARE_MS`, LIKELY), then 30 frames a second times
+///   its time scale (0x343C60, PROVEN);
+/// - the walk vector each tick: the target (the mixer's object transform, 0x39F360) minus the body
+///   (`set_physics_controller_walk_vector` 0x2D9060); the target moves by the clip's root delta of the tick, turned by the walk's
+///   yaw (the old-yaw bake, `apply_rotation` 0x2D8AD0, as the keys mode); all three axes in the jump (0x2D91AC), the flat part
+///   before;
+/// - the take-off: the clip's `jump` event at frame 6 (`on_jump_event` 0x3434A0) sets the controller's jump flag (+0x2C70C), and
+///   `player_step`'s air branch 0x7BF2C moves the body (no gravity; up, across with the wall slide, down);
+/// - the air control: the keys' direction at `air_control_speed` 1 m/s, none for forward alone in a sprint jump (0x2D7990);
+/// - the end: at the clip's last frame `jump_logic_state_landing::initialize` 0x3440E0 -> `end_jump` 0x7F050 (only a downward
+///   vertical speed kept), then the walk branch with gravity.
+/// Not here: the landing clips' root travel (the 'after the clip' rows), the press gates other than `on_ground` (stamina).
+#[derive(Clone, Copy)]
+struct RefJump {
+    clip: Clip,
+    press: u32,
+    target: Vec3,
+    phase: RefPhase,
+}
+
+impl RefJump {
+    fn new(press: u32, keys: u32, speed: f32, feet: Vec3) -> Self {
+        Self { clip: Clip::of(keys, speed), press, target: feet, phase: RefPhase::Floor }
+    }
+
+    /// The clip's frame at `time` (ms), clamped to its end.
+    fn frame(&self, time: u32) -> f32 {
+        let prepare = match self.clip {
+            Clip::Sprint(_) => PREPARE_MS,
+            Clip::Short(_) => 0.0,
+        };
+        ((time.saturating_sub(self.press) as f32 - prepare).max(0.0) / 1000.0 * JUMP_FPS * self.clip.time_scale()).min(END_FRAME)
+    }
+
+    /// Sets the body's walk for input tick `k` (yaw `yaw`, keys `keys`); true when the clip ends with this tick (`end_jump` done).
+    fn tick(&mut self, body: &mut Controller, k: u32, yaw: f32, keys: u32) -> bool {
+        let (f0, f1) = (self.frame(k), self.frame(k + 50));
+        if f0 <= 0.0 {
+            // The clip starts from where the body is (the prepare phase walks as the run).
+            self.target = body.feet();
+        }
+        if f1 <= 0.0 {
+            return false;
+        }
+        let (a, b) = (self.clip.root(f0), self.clip.root(f1));
+        let d = super::super::kin::to_world([b[1] - a[1], -(b[2] - a[2])], yaw);
+        self.target = self.target + Vec3::new(d[0], b[0] - a[0], d[1]);
+        if f1 >= TAKEOFF_FRAME && self.phase == RefPhase::Floor {
+            self.phase = RefPhase::Air;
+            body.jumping = true;
+        }
+        let ended = f1 >= END_FRAME;
+        if ended {
+            body.end_jump();
+        }
+        let to = self.target - body.feet();
+        if body.jumping {
+            body.walk = to;
+            let a = super::super::kin::to_world(self.clip.air_control(keys), yaw);
+            body.air_control = Vec3::new(a[0], 0.0, a[1]);
+        } else {
+            body.walk = Vec3::new(to.x, 0.0, to.z);
+            body.air_control = Vec3::ZERO;
+        }
+        ended
+    }
 }
 
 /// The keys a movement clip depends on: the moves, aim, crouch, sprint.

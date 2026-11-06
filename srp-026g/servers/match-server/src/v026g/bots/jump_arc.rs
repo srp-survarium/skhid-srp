@@ -36,7 +36,7 @@ use super::kin::{Local, TICK_S, to_world};
 use crate::v026g::drive::key;
 
 /// The clip's frames a second.
-const FPS: f32 = 30.0;
+pub(crate) const FPS: f32 = 30.0;
 /// The clips' last frame (24 frames, 0.80 s at time scale 1).
 pub const END_FRAME: f32 = 24.0;
 /// The clip's `jump` event: the body leaves the ground (rifles; pistols at frame 3, whose root does not rise before frame 6 either).
@@ -53,7 +53,7 @@ pub const CATCH_M: f32 = 0.1;
 /// sprint-jump RE 1.2, 3.2).
 const WALK_CAP_MS: f32 = 3.5;
 /// The sprint jump's prepare phase, its mean (the run's step left at the press: 0-150 ms, 0-1.64 m, FINDINGS 3.2): LIKELY.
-const PREPARE_MS: f32 = 75.0;
+pub(crate) const PREPARE_MS: f32 = 75.0;
 const PREPARE_M: f32 = 0.82;
 /// The lowest and highest heights over the feet whose rays a wall holds a body in the air at, m (the stand-in's lowest and
 /// highest `AIR_RAYS`), and the spacing between them: 5 cm, so a thin horizontal bar cannot pass between two (the stand-in's three
@@ -161,7 +161,7 @@ impl Clip {
         }
     }
 
-    fn time_scale(self) -> f32 {
+    pub(crate) fn time_scale(self) -> f32 {
         match self {
             Self::Short(_) => 1.0,
             Self::Sprint(_) => SPRINT_TIME_SCALE,
@@ -169,7 +169,7 @@ impl Clip {
     }
 
     /// The clip's root at `frame` (clamped to the clip): rise, ahead, to the right, m.
-    fn root(self, frame: f32) -> [f32; 3] {
+    pub(crate) fn root(self, frame: f32) -> [f32; 3] {
         let table = self.table();
         let f = frame.clamp(0.0, END_FRAME);
         let i = (f.floor() as usize).min(table.len() - 2);
@@ -193,7 +193,7 @@ impl Clip {
     }
 
     /// The air control in the body's frame, m/s: the keys' direction at 1 m/s, none for forward alone in a sprint jump.
-    fn air_control(self, keys: u32) -> Local {
+    pub(crate) fn air_control(self, keys: u32) -> Local {
         let direction = Direction::of(keys);
         if matches!(self, Self::Sprint(_)) && direction == Direction::Forward {
             return [0.0, 0.0];
