@@ -629,12 +629,13 @@ mod tests {
         assert!(Clip::Short(Direction::Right).root(24.0)[2] > 1.9, "right is +x");
     }
 
-    /// A clip that ends in the air hands the fall its root's last descent speed (the short forward jump comes down at about 2 m/s
-    /// over its last tick), not a fall from rest.
+    /// A clip that ends in the air hands the fall its root's last descent speed, not a fall from rest: the short forward jump's root
+    /// comes down 0.458 -> 0.249 -> 0 m over its last two frames, about 7 m/s over its last tick (over the 2 m/s slow-fall line).
     #[test]
     fn a_clip_ends_falling_at_its_roots_last_descent() {
         let v = Clip::Short(Direction::Forward).end_descent();
-        assert!(v > 0.5 && v < 5.0, "{v}");
+        assert!((6.0..8.0).contains(&v), "{v}");
+        assert!(v > SLOW_FALL_MS);
     }
 
     /// The air control: the keys at 1 m/s, none for forward alone in a sprint jump.
