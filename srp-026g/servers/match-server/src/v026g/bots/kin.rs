@@ -118,7 +118,9 @@ pub struct Kinematics {
 pub enum SpeedCap {
     /// The blend's speed as it is (as it was).
     Off,
-    /// Capped at the client's `max_speed` by the keys' sprint ([`Kinematics::sprints`]) and the level.
+    /// Capped at the client's `max_speed` (`max(desired x F, minimal)`, the floor included) by the sprint state's keys
+    /// ([`Kinematics::sprint_state`]) and the level; not in a jump (the cap is skipped while `+0x2C70C` is set, 0x2D915E, which
+    /// `end_jump` 0x7F050 clears: LIKELY the jump's flag).
     #[default]
     Client,
 }
@@ -130,7 +132,7 @@ impl SpeedCap {
         if self == Self::Off {
             return local;
         }
-        let gait = if Kinematics::sprints(keys) {
+        let gait = if Kinematics::sprint_state(keys) {
             Gait::Sprint
         } else {
             Gait::Move { stance: Stance::Stand, heading: Heading::Forward, aiming: false }
@@ -545,6 +547,15 @@ impl Kinematics {
         keys & key::SPRINT != 0
             && keys & key::FORWARD != 0
             && keys & (key::BACK | key::FIRE | key::CROUCH | key::AIM) == 0
+    }
+
+    /// [A318] Whether the keys start or keep the client's sprint state: `sprint_predicate` 0x2FBC90 / `is_trying_to_sprint`
+    /// 0x2FC1F0 test SPRINT (0x200) and FORWARD (0x1) with none of `0x122` (BACK, FIRE, CROUCH) on the tick's keys, then `can_sprint`
+    /// 0x2DBF40, which reads no keys (fx-review's A328 read, CONFIRMED): AIM does not block it on this path. The state ends on the
+    /// release tick (fx-smoke: the client's own flag in 2,524 worlds). [`Self::sprints`] (the speed asked, stamina) still leaves
+    /// AIM out (LIKELY, not read).
+    pub fn sprint_state(keys: u32) -> bool {
+        keys & key::SPRINT != 0 && keys & key::FORWARD != 0 && keys & (key::BACK | key::FIRE | key::CROUCH) == 0
     }
 
     /// The velocity the keys ask for, in the body's frame, for a body at

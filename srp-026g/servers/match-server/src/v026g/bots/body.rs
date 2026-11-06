@@ -756,8 +756,9 @@ fn advance(
             at.feet.y = grid.position(node).y;
         }
         let local = at.blend.tick_mixed(target, kin.blend_ticks, kin.mixer);
-        // [A318] The client's step cap (`max_speed` 0x2DC010 in 0x2D9060) on the blend's speed, by the keys moving it.
-        let local = kin.speed_cap.capped(local, at.keys, level);
+        // [A318] The client's step cap (`max_speed` 0x2DC010 in 0x2D9060) on the blend's speed, by the keys moving it; not in a jump.
+        let jumping = at.time + step * TICK_MS <= at.air_until;
+        let local = if jumping { local } else { kin.speed_cap.capped(local, at.keys, level) };
         at.velocity = to_world(local, at.yaw);
         let to = Vec3::new(
             at.feet.x + at.velocity[0] * TICK_S,
