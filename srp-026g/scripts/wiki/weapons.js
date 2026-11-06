@@ -17,6 +17,10 @@
   const tableHost = document.querySelector('#compare-table');
   const comparison = document.querySelector('#comparison');
   const roundPickers = [document.querySelector('#compare-a-round'), document.querySelector('#compare-b-round')];
+  // Every round's chooser entry (its icon, name and level).
+  const roundEntries = [...document.querySelectorAll('#round-options > div')];
+  const roundWords = {search: tr('Search rounds', 'Пошук набоїв'), none: tr('No rounds match.', 'Набоїв не знайдено.')};
+  const roundChoosers = roundPickers.map(select => WikiWeaponPicker(select, roundEntries, tr, collator, roundWords));
   // Each weapon's rounds, its default first: [{id, name, spread, rows}], `rows`
   // the stats that differ from the default round's (build.py).
   const roundsOf = new Map(weapons.map(element => [element.id, JSON.parse(element.dataset.rounds)]));
@@ -349,11 +353,13 @@
   const template = document.querySelector('#recoil-template');
   for (const weapon of weapons) {
     const select = weapon.querySelector('.round-select');
-    let cardSim = null;
+    let cardSim = null, chooser = null;
     const showSim = () => cardSim?.show([{id: weapon.id, round: select.value, side: 0}]);
     weapon.addEventListener('toggle', () => {
       const host = weapon.querySelector('.weapon-recoil');
       if (!weapon.open || !host || cardSim) return;
+      chooser = WikiWeaponPicker(select, roundEntries, tr, collator, roundWords);
+      chooser.offer(roundsOf.get(weapon.id).map(round => round.id)); chooser.paint();
       host.append(template.content.cloneNode(true));
       cardSim = RecoilSim(host); showSim();
     });
@@ -363,20 +369,20 @@
         const stat = rows.get(row.dataset.stat);
         row.querySelector('dd').textContent = stat.text; row.dataset.values = JSON.stringify(stat.values);
       }
-      showSim();
+      chooser?.paint(); showSim();
     });
   }
   // A comparison slot's rounds: its weapon's, keeping the chosen round when
-  // the new weapon fires it too.
-  function fillRounds(select, id, chosen) {
-    const rounds = id ? roundsOf.get(id) : [];
-    select.replaceChildren(...rounds.map(round => new Option(round.name, round.id)));
+  // the new weapon fires it too; a dash without a weapon.
+  function fillRounds(side, id, chosen) {
+    const select = roundPickers[side], rounds = id ? roundsOf.get(id) : [];
+    select.replaceChildren(...(rounds.length ? rounds.map(round => new Option(round.name, round.id)) : [new Option('—', '')]));
     select.value = rounds.some(round => round.id === chosen) ? chosen : rounds[0]?.id ?? '';
-    select.disabled = rounds.length < 2;
+    roundChoosers[side].offer(rounds.map(round => round.id));
   }
   function selectionChanged() {
-    for (const chooser of choosers) chooser.paint();
-    [pickerA, pickerB].forEach((picker, side) => fillRounds(roundPickers[side], picker.value, roundPickers[side].value));
+    [pickerA, pickerB].forEach((picker, side) => fillRounds(side, picker.value, roundPickers[side].value));
+    for (const chooser of [...choosers, ...roundChoosers]) chooser.paint();
     renderComparison(); rebuildSimulation();
     const url = new URL(location.href);
     // A slot's round is in the address when it is not its weapon's default (the first).
@@ -407,7 +413,7 @@
   const query = new URLSearchParams(location.search);
   [[pickerA, 'a', 'ra'], [pickerB, 'b', 'rb']].forEach(([picker, key, round], side) => {
     if (byId.has(query.get(key))) picker.value = query.get(key);
-    fillRounds(roundPickers[side], picker.value, query.get(round));
+    fillRounds(side, picker.value, query.get(round));
   });
   comparison.hidden = false; selectionChanged();
   function update() {

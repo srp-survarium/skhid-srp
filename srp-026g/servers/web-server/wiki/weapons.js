@@ -128,7 +128,8 @@ globalThis.CAMERA_SHAKE = {"period_frames":225,"pitch":[-0.252,-0.238,-0.189,-0.
 // punctuation-insensitive search and arrow/Enter/Escape keyboard controls.
 // The hidden select owns the selection, including URL and catalogue updates.
 // `weapons` are the elements offered (the weapons page's rows, or the
-// modifiers page's item entries, which carry their name in data-title).
+// modifiers page's item entries and the weapons page's rounds, which carry
+// their name in data-title); `offer(ids)` narrows them to those ids.
 function WikiWeaponPicker(select, weapons, tr, collator, words = {
   search: tr('Search weapons', 'Пошук зброї'), none: tr('No weapons match.', 'Зброю не знайдено.')}) {
   const host = document.getElementById(`${select.id}-picker`);
@@ -144,6 +145,7 @@ function WikiWeaponPicker(select, weapons, tr, collator, words = {
     const source = weapon?.querySelector('img');
     return source ? make('img', {src: source.src, alt: '', width: 54, height: 26, loading: 'lazy'}) : make('span', {class: 'noimg'});
   };
+  const level = weapon => make('small', {}, tr(`lvl ${weapon.dataset.level}`, `рів. ${weapon.dataset.level}`));
   const button = make('button', {type: 'button', class: 'wpick-btn', id: `${select.id}-btn`,
     'aria-haspopup': 'listbox', 'aria-expanded': 'false', 'aria-controls': `${select.id}-list`,
     'aria-labelledby': `${select.id}-label ${select.id}-value`});
@@ -155,7 +157,7 @@ function WikiWeaponPicker(select, weapons, tr, collator, words = {
   const popup = make('div', {class: 'wpick-pop', hidden: ''}, search, list, empty);
   host.append(button, popup);
   const options = [], groups = new Map();
-  let active = null;
+  let active = null, offered = new Set(weapons.map(weapon => weapon.id));
   function activate(option, scroll = true) {
     active?.element.classList.remove('active');
     active = option || null;
@@ -175,8 +177,7 @@ function WikiWeaponPicker(select, weapons, tr, collator, words = {
     list.append(group);
     for (const weapon of items.sort((a, b) => Number(a.dataset.level) - Number(b.dataset.level) || collator.compare(title(a), title(b)))) {
       const element = make('div', {class: 'wpick-opt', role: 'option', id: `${select.id}-${weapon.id}`, 'aria-selected': 'false'},
-        icon(weapon), make('span', {class: 'n'}, title(weapon)),
-        make('small', {}, tr(`lvl ${weapon.dataset.level}`, `рів. ${weapon.dataset.level}`)));
+        icon(weapon), make('span', {class: 'n'}, title(weapon)), level(weapon));
       const option = {element, group, weapon, text: [title(weapon), weapon.dataset.searchName].map(bare).join(' ')};
       element.addEventListener('mousemove', () => { if (active !== option) activate(option, false); });
       element.addEventListener('mousedown', event => event.preventDefault());
@@ -187,7 +188,7 @@ function WikiWeaponPicker(select, weapons, tr, collator, words = {
   const visible = () => options.filter(option => !option.element.hidden);
   function filter() {
     const query = bare(search.value);
-    for (const option of options) option.element.hidden = !option.text.includes(query);
+    for (const option of options) option.element.hidden = !offered.has(option.weapon.id) || !option.text.includes(query);
     for (const group of list.children) group.hidden = !options.some(option => option.group === group && !option.element.hidden);
     const matches = visible();
     empty.hidden = matches.length !== 0;
@@ -228,10 +229,12 @@ function WikiWeaponPicker(select, weapons, tr, collator, words = {
   document.addEventListener('mousedown', event => { if (!host.contains(event.target)) close(); });
   host.addEventListener('focusout', event => { if (!host.contains(event.relatedTarget)) close(); });
   return {
+    offer(ids) { offered = new Set(ids); },
     paint() {
       const selected = weapons.find(weapon => weapon.id === select.value);
       button.replaceChildren(...(selected ? [icon(selected)] : []),
-        make('span', {class: 'n', id: `${select.id}-value`}, selected ? title(selected) : select.options[0].textContent));
+        make('span', {class: 'n', id: `${select.id}-value`}, selected ? title(selected) : select.options[0].textContent),
+        ...(selected ? [level(selected)] : []));
       for (const option of options) option.element.setAttribute('aria-selected', String(option.weapon.id === select.value));
     }
   };
@@ -256,6 +259,10 @@ function WikiWeaponPicker(select, weapons, tr, collator, words = {
   const tableHost = document.querySelector('#compare-table');
   const comparison = document.querySelector('#comparison');
   const roundPickers = [document.querySelector('#compare-a-round'), document.querySelector('#compare-b-round')];
+  // Every round's chooser entry (its icon, name and level).
+  const roundEntries = [...document.querySelectorAll('#round-options > div')];
+  const roundWords = {search: tr('Search rounds', 'Пошук набоїв'), none: tr('No rounds match.', 'Набоїв не знайдено.')};
+  const roundChoosers = roundPickers.map(select => WikiWeaponPicker(select, roundEntries, tr, collator, roundWords));
   // Each weapon's rounds, its default first: [{id, name, spread, rows}], `rows`
   // the stats that differ from the default round's (build.py).
   const roundsOf = new Map(weapons.map(element => [element.id, JSON.parse(element.dataset.rounds)]));
@@ -588,11 +595,13 @@ function WikiWeaponPicker(select, weapons, tr, collator, words = {
   const template = document.querySelector('#recoil-template');
   for (const weapon of weapons) {
     const select = weapon.querySelector('.round-select');
-    let cardSim = null;
+    let cardSim = null, chooser = null;
     const showSim = () => cardSim?.show([{id: weapon.id, round: select.value, side: 0}]);
     weapon.addEventListener('toggle', () => {
       const host = weapon.querySelector('.weapon-recoil');
       if (!weapon.open || !host || cardSim) return;
+      chooser = WikiWeaponPicker(select, roundEntries, tr, collator, roundWords);
+      chooser.offer(roundsOf.get(weapon.id).map(round => round.id)); chooser.paint();
       host.append(template.content.cloneNode(true));
       cardSim = RecoilSim(host); showSim();
     });
@@ -602,20 +611,20 @@ function WikiWeaponPicker(select, weapons, tr, collator, words = {
         const stat = rows.get(row.dataset.stat);
         row.querySelector('dd').textContent = stat.text; row.dataset.values = JSON.stringify(stat.values);
       }
-      showSim();
+      chooser?.paint(); showSim();
     });
   }
   // A comparison slot's rounds: its weapon's, keeping the chosen round when
-  // the new weapon fires it too.
-  function fillRounds(select, id, chosen) {
-    const rounds = id ? roundsOf.get(id) : [];
-    select.replaceChildren(...rounds.map(round => new Option(round.name, round.id)));
+  // the new weapon fires it too; a dash without a weapon.
+  function fillRounds(side, id, chosen) {
+    const select = roundPickers[side], rounds = id ? roundsOf.get(id) : [];
+    select.replaceChildren(...(rounds.length ? rounds.map(round => new Option(round.name, round.id)) : [new Option('—', '')]));
     select.value = rounds.some(round => round.id === chosen) ? chosen : rounds[0]?.id ?? '';
-    select.disabled = rounds.length < 2;
+    roundChoosers[side].offer(rounds.map(round => round.id));
   }
   function selectionChanged() {
-    for (const chooser of choosers) chooser.paint();
-    [pickerA, pickerB].forEach((picker, side) => fillRounds(roundPickers[side], picker.value, roundPickers[side].value));
+    [pickerA, pickerB].forEach((picker, side) => fillRounds(side, picker.value, roundPickers[side].value));
+    for (const chooser of [...choosers, ...roundChoosers]) chooser.paint();
     renderComparison(); rebuildSimulation();
     const url = new URL(location.href);
     // A slot's round is in the address when it is not its weapon's default (the first).
@@ -646,7 +655,7 @@ function WikiWeaponPicker(select, weapons, tr, collator, words = {
   const query = new URLSearchParams(location.search);
   [[pickerA, 'a', 'ra'], [pickerB, 'b', 'rb']].forEach(([picker, key, round], side) => {
     if (byId.has(query.get(key))) picker.value = query.get(key);
-    fillRounds(roundPickers[side], picker.value, query.get(round));
+    fillRounds(side, picker.value, query.get(round));
   });
   comparison.hidden = false; selectionChanged();
   function update() {

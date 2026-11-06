@@ -98,6 +98,13 @@ def render(data, code, script_url):
             out.append({"id": k, "name": round_name(k), "spread": data["ammo"][k]["dispersion"], "rows": rows})
         return out
 
+    def round_pick(name, fires=()):
+        """A round chooser: its label, the chooser picker.js fills, and the
+        hidden select that holds the choice."""
+        options = "".join(f'<option value="{esc(r["id"])}">{esc(r["name"])}</option>' for r in fires)
+        return (f'<div class="round-pick"><label id="{name}-label" for="{name}-btn">{tr("Round", "Набій")}</label>'
+                f'<div class="wpick" id="{name}-picker"></div><select id="{name}" class="round-select" autocomplete="off" hidden>{options}</select></div>')
+
     classes = sorted({CLASSES[w["category"]][code == "uk"] for w in data["weapons"].values()})
     out = [f'<p class="breadcrumb"><a href="/wiki?lang={code}">{tr("Wiki", "Вікі")}</a> / {tr("Weapons", "Зброя")}</p>',
            f'<div class="wiki-heading"><div><p class="eyebrow">{tr("Equipment reference", "Довідник спорядження")}</p><h1>{tr("Weapons", "Зброя")}</h1></div>',
@@ -123,7 +130,7 @@ def render(data, code, script_url):
         for key, w in sorted(data["weapons"].items(), key=lambda kv: title(kv[1])):
             name = title(w)
             out.append(f'<option value="{esc(key)}">{esc(name)}</option>')
-        out.append(f'</select><label class="round-pick">{tr("Round", "Набій")}<select id="compare-{side}-round" autocomplete="off" disabled></select></label></div>')
+        out.append('</select>' + round_pick(f"compare-{side}-round") + '</div>')
     out.append(f'</div><div class="compare-options"><label class="check"><input type="checkbox" id="only-differences">{tr("Only differences", "Лише відмінності")}</label><label class="check"><input type="checkbox" id="compare-colors" checked>{tr("Color better / worse values", "Позначати кращі / гірші значення")}</label><button type="button" id="clear-comparison">{tr("Clear", "Очистити")}</button><a href="#recoil-sim">{tr("Recoil simulation ↓", "Моделювання відбою ↓")}</a></div>')
     out.append(f'<p id="compare-empty">{tr("Choose two weapons to compare; one is enough for its recoil simulation. Equal values and neutral traits keep their normal color.", "Виберіть дві одиниці зброї для порівняння; для моделювання відбою досить однієї. Однакові значення та нейтральні властивості зберігають звичайний колір.")}</p>')
     out.append(f'<p id="compare-same" hidden>{tr("No differences in the displayed stats.", "Відмінностей у показаних характеристиках немає.")}</p><div id="compare-table"></div>')
@@ -131,6 +138,14 @@ def render(data, code, script_url):
     # Each weapon card's own simulation is made from this when the card opens.
     out.append(doll())
     out.append(f'<template id="recoil-template"><h2>{tr("Recoil simulation", "Моделювання відбою")}</h2>{simulation(tr)}</template>')
+    # Every round once, for the round choosers (picker.js), with its lobby icon.
+    out.append('<div id="round-options" hidden>')
+    for key in sorted({k for keys in data["compat"].values() for k in keys}):
+        ammo = data["ammo"][key]
+        icon = data.get("icons", {}).get(key)
+        out.append(f'<div id="{esc(key)}" data-class="{tr("Rounds", "Набої")}" data-level="{ammo["item_level"]}" data-title="{esc(round_name(key))}" data-search-name="{esc(ammo["name"])}">'
+                   + (f'<img src="{esc(icon)}" alt="">' if icon else '') + '</div>')
+    out.append('</div>')
     out.append('<div id="weapon-list">')
 
     def stat(label, value, unit=""):
@@ -161,8 +176,7 @@ def render(data, code, script_url):
                    + stat(tr("Weight", "Вага"), w["weight"], tr("kg", "кг")) + '</dl>')
         out.append(f'<span class="expand-label">{tr("Details", "Докладніше")} <span aria-hidden="true">+</span></span></summary>')
         out.append('<div class="weapon-details">')
-        options = "".join(f'<option value="{esc(r["id"])}">{esc(r["name"])}</option>' for r in fires)
-        out.append(f'<label class="round-pick">{tr("Round", "Набій")}<select class="round-select" autocomplete="off"{"" if len(fires) > 1 else " disabled"}>{options}</select></label>')
+        out.append(round_pick(f"{key}-round", fires))
         for section in fired:
             out.append(f'<section data-section="{section["id"]}"><h2>{esc(section["title"])}</h2>')
             if section.get("note"):

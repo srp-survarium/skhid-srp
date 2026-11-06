@@ -40,7 +40,8 @@ count resets the position; changing the random seed rebuilds both traces while
 preserving the current position.
 
 Both comparison slots use the calculator-style image chooser (`picker.js`),
-with class groups, level ordering, search and keyboard navigation. The same
+with class groups, level ordering, search and keyboard navigation; the chosen item's level shows on the right
+of its button (not on phones). The same
 selection drives stats and recoil and is restored from the page URL.
 
 The weapon names, images and numbers come from the damage calculator's generated
@@ -52,8 +53,10 @@ Modifications and character effects are excluded explicitly on the page.
 
 Every value is with a round (`stats.with_round`), the weapon's default
 (`default_ammo`) unless one is chosen: each card and each comparison slot has a
-Round select of the weapon's rounds (`compat`), the slot's in the address
-(`ra`, `rb`) when it is not the default. A round scales what the exe scales by
+Round chooser (`picker.js`, narrowed with `offer` to the weapon's rounds,
+`compat`; each with its lobby icon and level, from the calculator's data, in
+the page once as `#round-options`), the slot's in the address (`ra`, `rb`)
+when it is not the default. A round scales what the exe scales by
 its `data` keys (ammo_data::load 0x332440): damage (`k_damage`), penetration
 (`k_arp`), minimum damage retained (`k_min_damage_amount`), both damage
 distances, stopping power (`k_power`), stamina damage (`k_stamina_damage`) and

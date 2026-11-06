@@ -113,7 +113,11 @@ try {
   await navigate('/wiki/weapons#wpn_vityaz');
   const vityaz = stat => evaluate(`document.querySelector('#wpn_vityaz .weapon-details [data-stat=${stat}] dd').textContent`);
   assert.equal(await vityaz('bullet_damage'), '40');
-  await evaluate("{const s=document.querySelector('#wpn_vityaz .round-select');s.value='ammo_9x19p_7n31';s.dispatchEvent(new Event('change'))}");
+  assert.equal(await evaluate("document.querySelector('#wpn_vityaz-round-btn img').naturalWidth > 0"), true, 'the round chooser shows its icon');
+  await evaluate("document.querySelector('#wpn_vityaz-round-btn').click()");
+  assert.equal(await evaluate("[...document.querySelectorAll('#wpn_vityaz-round-list [role=option]')].filter(e => !e.hidden).length"), 3, 'only the weapon\'s rounds');
+  await evaluate("document.querySelector('#wpn_vityaz-round-ammo_9x19p_7n31').click()");
+  assert.equal(await evaluate("document.querySelector('#wpn_vityaz-round-value').textContent"), '9x19 7N31');
   assert.deepEqual([await vityaz('bullet_damage'), await vityaz('bullet_pierce')], ['52', '26'], 'the round scales the card');
   assert.equal(await evaluate("document.querySelector('#wpn_vityaz .quick-stats dd').textContent"), '40');
   await screenshot('weapon-round');
