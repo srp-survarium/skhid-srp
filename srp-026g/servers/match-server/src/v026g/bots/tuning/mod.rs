@@ -793,6 +793,7 @@ mod tests {
             "/kin/drop_fall",
             "/kin/fix_floor",
             "/kin/jump_snap",
+            "/kin/level_source",
             "/kin/pitch_scale",
             "/kin/speed_cap",
             "/kin/speed_terms",
