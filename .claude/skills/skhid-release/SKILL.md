@@ -279,8 +279,8 @@ release/release.sh [--resources <resources.db.patch_<rev>>] [--test]
 
 After the preflight it **prepares and stages everything before the go**,
 which players don't see (a patch no list offers yet, the release folder,
-the image built with its compilers at the lowest priority, so the running
-matches keep the host's one core); then it waits for the owner's go; at
+the server's image, built on this machine and loaded on the host, which
+compiles nothing: its one core keeps the running matches); then it waits for the owner's go; at
 the go it plans the maintenance at once, to start **30 seconds after the
 last running match ends**, so Play locks and no new match starts, and at
 its end (or as soon as no match has run for 30 s), swaps it all in at once (the downtime is the
@@ -339,17 +339,33 @@ The order, as it runs:
    `build-zip` (of the commit checked in step 1); the checks of `deploy`
    on both files; then the **release folder** on the target (below) with
    both files staged in it (sha256 checked there, `chmod 644`) and
-   `changed.txt`. With server code: the running image tagged
-   `srp-026g:before-rev<rev>-<stamp>` by its ID, main's source (with the
-   rebuilt pages) unpacked in the folder's `src/` and
-   `docker compose build srp26` run on it, every thread of its compilers
-   reniced to 19 (the running container is not touched). The local builds run at nice
-   10. A failure here stops before the go: the staged files removed, the
+   `changed.txt`. With server code: the image built **here** from main's
+   source (with the rebuilt pages) by rootless podman from nixpkgs
+   (`build_image` in `lib.sh`, about 2 min; it needs this machine's
+   `/etc/subuid` range), uploaded as `image.tar.zst` (~40 MB) with the
+   source's `src.tar`, sha256 checked there; the running image tagged
+   `srp-026g:before-rev<rev>-<stamp>` by its ID, then `docker load` makes
+   the new one `srp-026g:latest` (the running container is not touched).
+   The local builds run at nice 10. A failure here stops before the go: the staged files removed, the
    image tag put back, nothing planned, and the new patch's row taken out
    of the list again (no server offered it). The file goes from the
    patches server too when this run uploaded it, so the revision can be
    made again with other bytes; one there before the run stays, and a run
    with the same `--resources` takes it as it is.
+
+   **The first release with server code after #1395 proves the image path**
+   (owner, 2026-11-06: merged untested on a server, "we will test during
+   release"). Until one has, no server has ever loaded an image built here.
+   In that release, before the go, check and tell the owner: step 2 printed
+   `Loaded image: srp-026g:latest`; on the live host
+   `docker image inspect -f '{{.Id}} {{.Created}}' srp-026g:latest` is a new
+   ID, created minutes ago, and `srp-026g:before-rev<rev>-<stamp>` names
+   the running one; after the swap, srp26 runs the new ID (the release's own
+   checks) and logs its game data line. Write the outcome into the release
+   record. If the build here or the load fails, the release stops before the
+   go with nothing players feel: report it to the owner; building on the host
+   instead (`docker compose build srp26` over the folder's `src.tar`, unpacked) only on the
+   owner's word.
 3. **The go.** Once staged it stops and waits: y at its prompt (n stops),
    or `touch` the go file it prints
    (`~/.cache/skhid-release/go-<release folder>`); `--yes` does not give

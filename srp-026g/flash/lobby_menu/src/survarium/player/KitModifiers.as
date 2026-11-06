@@ -12,11 +12,21 @@ package survarium.player
 
       private var _values:Array;
 
-      // The medical skills' ranks a medicine card needs, from the packed float 43
-      // (docs/notes/medical-skills.md): Potent Painkiller (bits 0..2), Fast Bandaging (3..5).
+      // The medical skills' ranks a medicine card needs (docs/notes/medical-skills.md): from the
+      // packed float 43 Potent Painkiller (bits 0..2) and Fast Bandaging (3..5); from float 45 Numb
+      // Legs (0..1), Take Cover (2..3), Unflinching (4..6) and Concentration (7..9), at most one of
+      // the last two.
       private var _painkillerRank:int;
 
       private var _bandagingRank:int;
+
+      private var _numbLegsRank:int;
+
+      private var _takeCoverRank:int;
+
+      private var _unflinchingRank:int;
+
+      private var _concentrationRank:int;
 
       public function KitModifiers(values:Array)
       {
@@ -43,6 +53,10 @@ package survarium.player
          if((combo >> 4 & 7) != 0 && (combo >> 7 & 7) != 0) return;
          _painkillerRank = bits & 7;
          _bandagingRank = bits >> 3 & 7;
+         _numbLegsRank = combo & 3;
+         _takeCoverRank = combo >> 2 & 3;
+         _unflinchingRank = combo >> 4 & 7;
+         _concentrationRank = combo >> 7 & 7;
       }
 
       // A packed float: an exact integer of `width` bits, else null.
@@ -77,6 +91,26 @@ package survarium.player
       public function get bandagingRank() : int
       {
          return _bandagingRank;
+      }
+
+      public function get numbLegsRank() : int
+      {
+         return _numbLegsRank;
+      }
+
+      public function get takeCoverRank() : int
+      {
+         return _takeCoverRank;
+      }
+
+      public function get unflinchingRank() : int
+      {
+         return _unflinchingRank;
+      }
+
+      public function get concentrationRank() : int
+      {
+         return _concentrationRank;
       }
    }
 }

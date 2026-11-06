@@ -38,6 +38,7 @@ struct game_effect_slot;
 struct game_material_manager;
 struct game_project_resource;
 struct game_scene;
+struct game_world;
 struct game_world_ui;
 struct gfx_movie;
 struct gfx_object;
@@ -60,6 +61,7 @@ struct medical_pool;
 struct medical_pools;
 struct medkit;
 struct messaging_client;
+struct movie_slot;
 struct network_client;
 struct new_sound_propagator;
 struct object_light;
@@ -594,5 +596,11 @@ extern void * (__attribute__((stdcall)) *const engine_get_module_handle_a)(const
 
 /* the IAT slot 0x87029c (an import, stdcall) */
 extern unsigned int (__attribute__((stdcall)) *const engine_set_environment_variable_a)(const char * name, const char * value);
+
+/* 0x23dc00 survarium::base_game_scene::show_movie: scene EAX, movie ESI; pops 0 */
+void engine_show_scene_movie(struct game_world *scene, struct movie_slot *movie);
+
+/* 0x23dc70 survarium::base_game_scene::hide_movie: movie EAX, scene EDX; pops 0 */
+void engine_hide_scene_movie(struct movie_slot *movie, struct game_world *scene);
 
 #endif

@@ -28,14 +28,8 @@ set -euo pipefail
 here=$(dirname "$(readlink -f "$0")")
 menu=$(readlink -f "$1")
 hud=$(readlink -f "$2")
-main=$(git -C "$here" worktree list --porcelain | sed -n '1s/^worktree //p')
-tools=${SRP_AS_TOOLS:-$main/private/actionscript/tools.json}
-if [[ $# -ge 3 ]]; then
-    work=$(readlink -f "$3")
-    mkdir -p "$work"
-else
-    work=$(mktemp -d)
-fi
+. "$here/../ruffle_harness.sh"
+harness_work "${3:-}"
 
 # Every dictionary's texts of the HUD group and the Language choice (SettingsHarness.check), as JSON.
 texts=$("${PYTHON:-python3}" - "$here/../../client-patches" <<'PY'
@@ -57,70 +51,35 @@ print(json.dumps([[read_translations(CATALOG / f'{name}.tsv')[k] for k in keys] 
 PY
 )
 
-java=$(sed -n 's/.*"java": *"\([^"]*\)".*/\1/p' "$tools")
-flex=$(sed -n 's/.*"flex": *"\([^"]*\)".*/\1/p' "$tools")
 for harness in SettingsHarness HudHarness; do
-    "$java" -Xmx1g -Djava.awt.headless=true -jar "$flex/lib/mxmlc.jar" \
-        +flexlib="$flex/frameworks" +playerglobalHome="$flex/frameworks/libs/player" -library-path= \
-        -external-library-path="$flex/frameworks/libs/player/32.0/playerglobal.swc" -source-path="$here" \
-        -omit-trace-statements=false -default-frame-rate=60 -default-size=1280,720 \
-        -output="$work/$harness.swf" "$here/$harness.as" >"$work/$harness.mxmlc.log" 2>&1 \
-        || { cat "$work/$harness.mxmlc.log"; exit 1; }
+    harness_compile "$here/$harness.as" 1280,720
 done
 cp "$menu" "$work/main_menu.swf"
 cp "$hud" "$work/hud.swf"
-
-paths=$(nix build nixpkgs#ruffle nixpkgs#mesa nixpkgs#xorg.xorgserver nixpkgs#ffmpeg-full --no-link --print-out-paths)
-ruffle=$(grep -- '-ruffle-' <<<"$paths")
-mesa=$(grep -- '-mesa-' <<<"$paths")
-xvfb=$(grep -- '-xorg-server-' <<<"$paths")/bin/Xvfb
-ffmpeg=$(grep -- '-ffmpeg-full-.*-bin$' <<<"$paths")/bin/ffmpeg
-lvp=$mesa/share/vulkan/icd.d/lvp_icd.x86_64.json
-display=:$((90 + RANDOM % 9))
-"$xvfb" "$display" -screen 0 1280x720x24 -nolisten tcp >"$work/xvfb.log" 2>&1 &
-xvfb_pid=$!
-ruffle_pid=
-cleanup() { kill $ruffle_pid "$xvfb_pid" 2>/dev/null || true; }
-trap 'cleanup; [[ $# -ge 3 ]] || rm -rf "$work"' EXIT
-sleep 1
+harness_display 1280x720 ffmpeg-full
 
 # run <harness>: Ruffle on the harness in the background, its log <harness>.log
-run() {
-    (
-        cd "$work"
-        unset WAYLAND_DISPLAY XDG_SESSION_TYPE
-        DISPLAY=$display VK_ICD_FILENAMES=$lvp VK_DRIVER_FILES=$lvp RUST_LOG=info \
-            exec timeout 180 "$ruffle/bin/ruffle" -g vulkan -p high --storage memory --scale no-scale --no-gui \
-            --width 1280 --height 720 "-Ptexts=$texts" "$1.swf"
-    ) >"$work/$1.log" 2>&1 &
-    ruffle_pid=$!
-}
-wait_for() { for _ in $(seq 1800); do grep -q "$2" "$work/$1.log" && return 0; sleep 0.1; done; return 1; }
-shot() { "$ffmpeg" -loglevel error -y -f x11grab -draw_mouse 0 -video_size 1280x720 -i "$display" -frames:v 1 "$work/$1"; }
+run() { harness_run "$1.log" -p high --no-gui --width 1280 --height 720 "-Ptexts=$texts" "$1.swf"; }
+shot() { ffmpeg -loglevel error -y -f x11grab -draw_mouse 0 -video_size 1280x720 -i "$display" -frames:v 1 "$work/$1"; }
 
 run SettingsHarness
-wait_for SettingsHarness 'SETTINGS SHOT settings' && shot settings.png
-wait_for SettingsHarness 'SETTINGS SHOT checked' && shot settings-checked.png
-wait_for SettingsHarness 'SETTINGS SHOT open' && shot settings-crosshair-open.png
-wait_for SettingsHarness 'SETTINGS SHOT minimap' && shot settings-minimap-open.png
-wait_for SettingsHarness 'SETTINGS SHOT graphics' && shot settings-graphics.png
-wait_for SettingsHarness 'SETTINGS SHOT vulkan' && shot settings-vulkan.png
-wait_for SettingsHarness 'SETTINGS SHOT hint' && shot settings-hint.png
-wait_for SettingsHarness 'SETTINGS SHOT renderer-open' && shot settings-renderer-open.png
-wait_for SettingsHarness 'SETTINGS SHOT controls-off' && shot settings-controls-off.png
-wait_for SettingsHarness 'SETTINGS SHOT controls-on' && shot settings-controls-on.png
+wait_for SettingsHarness.log 'SETTINGS SHOT settings' && shot settings.png
+wait_for SettingsHarness.log 'SETTINGS SHOT checked' && shot settings-checked.png
+wait_for SettingsHarness.log 'SETTINGS SHOT open' && shot settings-crosshair-open.png
+wait_for SettingsHarness.log 'SETTINGS SHOT minimap' && shot settings-minimap-open.png
+wait_for SettingsHarness.log 'SETTINGS SHOT graphics' && shot settings-graphics.png
+wait_for SettingsHarness.log 'SETTINGS SHOT vulkan' && shot settings-vulkan.png
+wait_for SettingsHarness.log 'SETTINGS SHOT hint' && shot settings-hint.png
+wait_for SettingsHarness.log 'SETTINGS SHOT renderer-open' && shot settings-renderer-open.png
+wait_for SettingsHarness.log 'SETTINGS SHOT controls-off' && shot settings-controls-off.png
+wait_for SettingsHarness.log 'SETTINGS SHOT controls-on' && shot settings-controls-on.png
 kill $ruffle_pid 2>/dev/null || true
 run HudHarness
-wait_for HudHarness 'HUD SHOT scores' && shot list-scores.png
-wait_for HudHarness 'HUD SHOT names' && shot list-names.png
-cleanup
+wait_for HudHarness.log 'HUD SHOT scores' && shot list-scores.png
+wait_for HudHarness.log 'HUD SHOT names' && shot list-names.png
+harness_stop
 
-for harness in SettingsHarness HudHarness; do
-    if ! grep -q 'graphics API vulkan on llvmpipe' "$work/$harness.log"; then
-        echo "Ruffle did not run on lavapipe (CPU): see $work/$harness.log" >&2
-    fi
-done
-grep -ho 'SETTINGS .*\|HUD .*' "$work/SettingsHarness.log" "$work/HudHarness.log" || true
+harness_report 'SETTINGS .*\|HUD .*' SettingsHarness.log HudHarness.log
 ! grep -q "RESULT fail" "$work/SettingsHarness.log" "$work/HudHarness.log" \
     && grep -q "SETTINGS RESULT pass" "$work/SettingsHarness.log" && grep -q "SETTINGS controls pass" "$work/SettingsHarness.log" \
     && grep -q "SETTINGS borders pass" "$work/SettingsHarness.log" && grep -q "SETTINGS apply-cancel pass" "$work/SettingsHarness.log" \

@@ -2381,6 +2381,8 @@ st_srp_equipment046_edge_back_6_desc	Beschreibung noch nicht verfügbar.
 st_srp_equipment046_edge_back_6_name	Stalkers Rucksack
 st_srp_equipment046_edge_back_7_desc	Beschreibung noch nicht verfügbar.
 st_srp_equipment046_edge_back_7_name	Talisman
+st_srp_equipment046_edge_boots_6_desc	Beschreibung noch nicht verfügbar.
+st_srp_equipment046_edge_boots_6_name	Stalkers Schnürstiefel
 st_srp_equipment046_edge_boots_7_desc	Beschreibung noch nicht verfügbar.
 st_srp_equipment046_edge_boots_7_name	Zaubererstiefel
 st_srp_equipment046_edge_gloves_5_desc	Beschreibung noch nicht verfügbar.
@@ -2395,6 +2397,8 @@ st_srp_equipment046_edge_legs_7_desc	Beschreibung noch nicht verfügbar.
 st_srp_equipment046_edge_legs_7_name	Veles-Hose
 st_srp_equipment046_edge_mask_6_desc	Beschreibung noch nicht verfügbar.
 st_srp_equipment046_edge_mask_6_name	NVD
+st_srp_equipment046_edge_mask_7_desc	Beschreibung noch nicht verfügbar.
+st_srp_equipment046_edge_mask_7_name	Veles-Maske
 st_srp_equipment046_edge_torso_7_desc	Beschreibung noch nicht verfügbar.
 st_srp_equipment046_edge_torso_7_name	Velesweste
 st_srp_equipment046_renesanse_boots_3_desc	Beschreibung noch nicht verfügbar.
@@ -2405,6 +2409,8 @@ st_srp_equipment046_renesanse_gloves_3_desc	Beschreibung noch nicht verfügbar.
 st_srp_equipment046_renesanse_gloves_3_name	OZK-UV-Handschuhe
 st_srp_equipment046_renesanse_gloves_5_desc	Beschreibung noch nicht verfügbar.
 st_srp_equipment046_renesanse_gloves_5_name	Handschuhe des Spions
+st_srp_equipment046_renesanse_gloves_6_desc	Beschreibung noch nicht verfügbar.
+st_srp_equipment046_renesanse_gloves_6_name	Handschuhe "Sturm"
 st_srp_equipment046_renesanse_gloves_7_desc	Beschreibung noch nicht verfügbar.
 st_srp_equipment046_renesanse_gloves_7_name	Scharfschützenhandschuhe
 st_srp_equipment046_renesanse_helmet_7_desc	Beschreibung noch nicht verfügbar.
@@ -2421,12 +2427,26 @@ st_srp_equipment046_renesanse_torso_7_desc	Beschreibung noch nicht verfügbar.
 st_srp_equipment046_renesanse_torso_7_name	Scharfschützenweste
 st_srp_equipment046_scavenger_boots_5_desc	Beschreibung noch nicht verfügbar.
 st_srp_equipment046_scavenger_boots_5_name	Saboteur-Stiefel
+st_srp_equipment046_scavenger_boots_6_desc	Beschreibung noch nicht verfügbar.
+st_srp_equipment046_scavenger_boots_6_name	Verstärkte gefütterte Stiefel
 st_srp_equipment046_scavenger_boots_7_desc	Beschreibung noch nicht verfügbar.
 st_srp_equipment046_scavenger_boots_7_name	Pfadfinderstiefel
+st_srp_equipment069_league_shadow_mask_desc	Beschreibung noch nicht verfügbar.
+st_srp_equipment069_league_shadow_mask_name	Delta Maske
 st_srp_equipment069_leagues_back_2_desc	Beschreibung noch nicht verfügbar.
 st_srp_equipment069_leagues_back_2_name	Sanitätertasche
 st_srp_equipment069_leagues_back_5_desc	Beschreibung noch nicht verfügbar.
 st_srp_equipment069_leagues_back_5_name	Soldatenrucksack
+st_srp_equipment069_snow_20_boots_7_desc	Beschreibung noch nicht verfügbar.
+st_srp_equipment069_snow_20_boots_7_name	Schnee-20 Stiefel
+st_srp_equipment069_snow_20_gloves_7_desc	Beschreibung noch nicht verfügbar.
+st_srp_equipment069_snow_20_gloves_7_name	Schnee-20 Handschuhe
+st_srp_equipment069_snow_20_helmet_7_desc	Beschreibung noch nicht verfügbar.
+st_srp_equipment069_snow_20_helmet_7_name	Schnee-20 Helm
+st_srp_equipment069_snow_20_legs_7_desc	Beschreibung noch nicht verfügbar.
+st_srp_equipment069_snow_20_legs_7_name	Schnee-20 Hose
+st_srp_equipment069_snow_20_torso_7_desc	Beschreibung noch nicht verfügbar.
+st_srp_equipment069_snow_20_torso_7_name	Schnee-20 Panzerweste
 st_srp_exchange_balance	Guthaben
 st_srp_exchange_button	Tauschen
 st_srp_exchange_gold	Gold
@@ -2459,6 +2479,15 @@ st_srp_inv_pocket_units	Taschenplätze
 st_srp_inv_stamina_damage	Ausdauerschaden
 st_srp_inv_throw_speed	Wurfgeschwindigkeit
 st_srp_inventory_search	Suche
+st_srp_inventory_search_examples	+Tasche, +Zelle, +Patronen, +10
+st_srp_inventory_search_tip_bonus	Gegenstände mit Patronen- und Taschen-Bonus
+st_srp_inventory_search_tip_bonus_example	+Patronen +Tasche
+st_srp_inventory_search_tip_faction	verkauft von der Arme oder dem Schwarzen Markt
+st_srp_inventory_search_tip_faction_example	+Arme +Schwarzer
+st_srp_inventory_search_tip_kind	Helme oder Stiefel
+st_srp_inventory_search_tip_kind_example	+helmet +boots
+st_srp_inventory_search_tip_level	Gegenstände der Stufe 10 oder 11
+st_srp_inventory_search_tip_level_example	+10 +11
 st_srp_item_props_mps	m/s
 st_srp_language_option	Sprache:
 st_srp_language_restart	Gilt nach einem Neustart.
@@ -2519,6 +2548,38 @@ st_srp_matches_starting	Start
 st_srp_matches_title	Matches
 st_srp_matches_versus	gegen
 st_srp_matches_waiting	Warten
+st_srp_medical_301_description	Wird zu Schmerzschutz und Wirkungsdauer von Schmerzmitteln addiert:
+st_srp_medical_301_name	Starkes Schmerzmittel
+st_srp_medical_302_description	Verkürzung der Aktivierungszeit von Erste-Hilfe-Sets und Verbänden:
+st_srp_medical_302_name	Schnelles Verbinden
+st_srp_medical_303_description	Solange ein Schmerzmittel wirkt, Verringerung der Energiekosten beim Sprinten:
+st_srp_medical_303_name	Taube Beine
+st_srp_medical_311_description	Die Gesundheitsregeneration beginnt so viele Sekunden früher:
+st_srp_medical_311_name	Stoffwechsel
+st_srp_medical_312_description	Bonus auf die Heilung durch Erste-Hilfe-Sets und Verbände:
+st_srp_medical_312_name	Medizinische Ausbildung
+st_srp_medical_313_description	Bonus auf die Heilung durch Erste-Hilfe-Sets und Verbände in der Hocke:
+st_srp_medical_313_name	In Deckung
+st_srp_medical_321_description	Bonus auf die Bewegungsgeschwindigkeit bei weniger als 30 Gesundheit:
+st_srp_medical_321_name	Adrenalin
+st_srp_medical_322_description	Jede Tasche mit Medizin fasst einen weiteren Gegenstand.
+st_srp_medical_322_name	Zusätzliche Medizin
+st_srp_medical_323_description	Solange ein Schmerzmittel wirkt, Verringerung der Verlangsamung durch feindliche Treffer:
+st_srp_medical_323_name	Standhaft
+st_srp_medical_331_description	Ersetzt den Platz für die Sekundärwaffe durch eine zusätzliche Vorratstasche.
+st_srp_medical_331_name	Vorratstasche
+st_srp_medical_332_description	Bonus auf die maximale Gesundheit von Armen und Beinen:
+st_srp_medical_332_name	Starke Knochen
+st_srp_medical_333_description	Solange ein Schmerzmittel wirkt, sind Umgebungsgeräusche leiser und feindliche Geräusche (außer Schüssen) lauter um:
+st_srp_medical_333_name	Konzentration
+st_srp_medical_342_description	Verringerung des durch Verbündete erlittenen Schadens:
+st_srp_medical_342_name	Waffenbrüder
+st_srp_medical_seconds	 s
+st_srp_medicine_ambient_sounds	Umgebungsgeräusche
+st_srp_medicine_crouched_healing	Heilung in der Hocke
+st_srp_medicine_enemy_sounds	Feindgeräusche
+st_srp_medicine_hit_slow	Trefferverlangsamung
+st_srp_medicine_sprint_stamina	Sprint-Energie
 st_srp_melee_knockback	Kolbenschlag-Wucht
 st_srp_mode_blackout	Schutzeinrichtung: Blackout
 st_srp_mode_chargers	Schutzeinrichtung: Ladestationen

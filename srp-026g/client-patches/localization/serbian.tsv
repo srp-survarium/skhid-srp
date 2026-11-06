@@ -2381,6 +2381,8 @@ st_srp_equipment046_edge_back_6_desc	Opis još nije dostupan.
 st_srp_equipment046_edge_back_6_name	Stalkerski ranac
 st_srp_equipment046_edge_back_7_desc	Opis još nije dostupan.
 st_srp_equipment046_edge_back_7_name	Amajlija
+st_srp_equipment046_edge_boots_6_desc	Opis još nije dostupan.
+st_srp_equipment046_edge_boots_6_name	Stalkerske čizme na pertle
 st_srp_equipment046_edge_boots_7_desc	Opis još nije dostupan.
 st_srp_equipment046_edge_boots_7_name	Vračeve čizme
 st_srp_equipment046_edge_gloves_5_desc	Opis još nije dostupan.
@@ -2395,6 +2397,8 @@ st_srp_equipment046_edge_legs_7_desc	Opis još nije dostupan.
 st_srp_equipment046_edge_legs_7_name	Pantalone Veles
 st_srp_equipment046_edge_mask_6_desc	Opis još nije dostupan.
 st_srp_equipment046_edge_mask_6_name	Uređaj za noćno osmatranje
+st_srp_equipment046_edge_mask_7_desc	Opis još nije dostupan.
+st_srp_equipment046_edge_mask_7_name	Gas maska Veles
 st_srp_equipment046_edge_torso_7_desc	Opis još nije dostupan.
 st_srp_equipment046_edge_torso_7_name	Pancir Veles
 st_srp_equipment046_renesanse_boots_3_desc	Opis još nije dostupan.
@@ -2405,6 +2409,8 @@ st_srp_equipment046_renesanse_gloves_3_desc	Opis još nije dostupan.
 st_srp_equipment046_renesanse_gloves_3_name	Rukavice OZK-UV
 st_srp_equipment046_renesanse_gloves_5_desc	Opis još nije dostupan.
 st_srp_equipment046_renesanse_gloves_5_name	Izviđačke rukavice
+st_srp_equipment046_renesanse_gloves_6_desc	Opis još nije dostupan.
+st_srp_equipment046_renesanse_gloves_6_name	Rukavice Šturm
 st_srp_equipment046_renesanse_gloves_7_desc	Opis još nije dostupan.
 st_srp_equipment046_renesanse_gloves_7_name	Snajperske rukavice
 st_srp_equipment046_renesanse_helmet_7_desc	Opis još nije dostupan.
@@ -2421,12 +2427,26 @@ st_srp_equipment046_renesanse_torso_7_desc	Opis još nije dostupan.
 st_srp_equipment046_renesanse_torso_7_name	Snajperski pancir
 st_srp_equipment046_scavenger_boots_5_desc	Opis još nije dostupan.
 st_srp_equipment046_scavenger_boots_5_name	Diverzantske čizme
+st_srp_equipment046_scavenger_boots_6_desc	Opis još nije dostupan.
+st_srp_equipment046_scavenger_boots_6_name	Ojačane postavljene čizme
 st_srp_equipment046_scavenger_boots_7_desc	Opis još nije dostupan.
 st_srp_equipment046_scavenger_boots_7_name	Tragačke čizme
+st_srp_equipment069_league_shadow_mask_desc	Opis još nije dostupan.
+st_srp_equipment069_league_shadow_mask_name	Maska Delta
 st_srp_equipment069_leagues_back_2_desc	Opis još nije dostupan.
 st_srp_equipment069_leagues_back_2_name	Torba bolničara
 st_srp_equipment069_leagues_back_5_desc	Opis još nije dostupan.
 st_srp_equipment069_leagues_back_5_name	Ranac vojnika
+st_srp_equipment069_snow_20_boots_7_desc	Opis još nije dostupan.
+st_srp_equipment069_snow_20_boots_7_name	Čizme Sneg-20
+st_srp_equipment069_snow_20_gloves_7_desc	Opis još nije dostupan.
+st_srp_equipment069_snow_20_gloves_7_name	Rukavice Sneg-20
+st_srp_equipment069_snow_20_helmet_7_desc	Opis još nije dostupan.
+st_srp_equipment069_snow_20_helmet_7_name	Šlem Sneg-20
+st_srp_equipment069_snow_20_legs_7_desc	Opis još nije dostupan.
+st_srp_equipment069_snow_20_legs_7_name	Pantalone Sneg-20
+st_srp_equipment069_snow_20_torso_7_desc	Opis još nije dostupan.
+st_srp_equipment069_snow_20_torso_7_name	Pancir Sneg-20
 st_srp_exchange_balance	Stanje
 st_srp_exchange_button	Razmeni
 st_srp_exchange_gold	Zlato
@@ -2459,6 +2479,15 @@ st_srp_inv_pocket_units	Mesta u džepu
 st_srp_inv_stamina_damage	Šteta izdržljivosti
 st_srp_inv_throw_speed	Brzina bacanja
 st_srp_inventory_search	Pretraga
+st_srp_inventory_search_examples	+džep, +mesta, +torbice, +10
+st_srp_inventory_search_tip_bonus	predmeti sa bonusom za torbice i za džepove
+st_srp_inventory_search_tip_bonus_example	+torbice +džep
+st_srp_inventory_search_tip_faction	predmeti Vojske ili Crnog tržišta
+st_srp_inventory_search_tip_faction_example	+vojska +crno
+st_srp_inventory_search_tip_kind	šlemovi ili čizme
+st_srp_inventory_search_tip_kind_example	+šlem +čizme
+st_srp_inventory_search_tip_level	predmeti nivoa 10 ili 11
+st_srp_inventory_search_tip_level_example	+10 +11
 st_srp_item_props_mps	m/s
 st_srp_language_option	Jezik:
 st_srp_language_restart	Primenjuje se posle ponovnog pokretanja.
@@ -2519,6 +2548,38 @@ st_srp_matches_starting	početak
 st_srp_matches_title	Mečevi
 st_srp_matches_versus	na
 st_srp_matches_waiting	čekanje
+st_srp_medical_301_description	Dodaje se zaštiti od bola i trajanju analgetika:
+st_srp_medical_301_name	Snažan analgetik
+st_srp_medical_302_description	Smanjenje vremena upotrebe kompleta prve pomoći i zavoja:
+st_srp_medical_302_name	Brzo previjanje
+st_srp_medical_303_description	Dok analgetik deluje, smanjenje potrošnje izdržljivosti pri sprintu:
+st_srp_medical_303_name	Utrnule noge
+st_srp_medical_311_description	Obnavljanje zdravlja počinje ovoliko sekundi ranije:
+st_srp_medical_311_name	Metabolizam
+st_srp_medical_312_description	Dodatak zdravlju koje vraćaju kompleti prve pomoći i zavoji:
+st_srp_medical_312_name	Medicinska obuka
+st_srp_medical_313_description	Dodatak zdravlju koje vraćaju kompleti prve pomoći i zavoji dok čučite:
+st_srp_medical_313_name	U zaklon
+st_srp_medical_321_description	Dodatak brzini kretanja dok je zdravlje ispod 30:
+st_srp_medical_321_name	Adrenalin
+st_srp_medical_322_description	Svaki džep sa lekovima može da primi još jedan predmet.
+st_srp_medical_322_name	Dodatni lekovi
+st_srp_medical_323_description	Dok analgetik deluje, smanjenje zaustavne moći neprijateljskih pogodaka:
+st_srp_medical_323_name	Nepokolebljiv
+st_srp_medical_331_description	Zamenjuje mesto za sekundarno oružje dodatnim džepom za zalihe.
+st_srp_medical_331_name	Džep za zalihe
+st_srp_medical_332_description	Dodatak maksimalnom zdravlju ruku i nogu:
+st_srp_medical_332_name	Jake kosti
+st_srp_medical_333_description	Dok analgetik deluje, zvuci okoline su tiši, a zvuci neprijatelja (osim pucnjeva) glasniji za:
+st_srp_medical_333_name	Koncentracija
+st_srp_medical_342_description	Smanjenje štete koju nanose saveznici:
+st_srp_medical_342_name	Braća po oružju
+st_srp_medical_seconds	 s
+st_srp_medicine_ambient_sounds	Zvuci okoline
+st_srp_medicine_crouched_healing	Lečenje u čučnju
+st_srp_medicine_enemy_sounds	Zvuci neprijatelja
+st_srp_medicine_hit_slow	Usporenje od metaka
+st_srp_medicine_sprint_stamina	Izdržljivost za sprint
 st_srp_melee_knockback	Odbacivanje kundakom
 st_srp_mode_blackout	Zaštitni uređaj: zamračenje
 st_srp_mode_chargers	Zaštitni uređaj: punjači

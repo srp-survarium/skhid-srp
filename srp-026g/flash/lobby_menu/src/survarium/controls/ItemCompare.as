@@ -358,6 +358,20 @@ package survarium.controls
                }
             }
          }
+         // Held Alt over a medicine: below its own lines, what the medical skills do while it is
+         // active or as it heals (MatchEffects.medicineSkillLines), "100 -> in a match" in %.
+         if(effects != null && medical)
+         {
+            for each(var line:Object in effects.medicineSkillLines(this._primary))
+            {
+               if(index == indicators) break;
+               modifier_value = 0;
+               initIndicatorValues(this._indicator[index],{prop_id:-1,prop_name:line.name,postfix:"%",min_value:0,max_value:200,
+                  direction:line.higherIsBetter ? PropertyDirection.HIGHER_IS_BETTER : PropertyDirection.LOWER_IS_BETTER},line.after,line.after);
+               _diff.indicator.setChange(MatchEffects.change(line.before,line.after,2) + "%",MatchEffects.verdict(line.before,line.after,line.higherIsBetter));
+               index++;
+            }
+         }
          while(index < indicators)
          {
             _diff = this._indicator[index];

@@ -40,7 +40,8 @@ count resets the position; changing the random seed rebuilds both traces while
 preserving the current position.
 
 Both comparison slots use the calculator-style image chooser (`picker.js`),
-with class groups, level ordering, search and keyboard navigation. The same
+with class groups, level ordering, search and keyboard navigation; the chosen item's level shows on the right
+of its button (not on phones). The same
 selection drives stats and recoil and is restored from the page URL.
 
 The weapon names, images and numbers come from the damage calculator's generated
@@ -48,7 +49,25 @@ JSON literal in `servers/web-server/damage/calc.js`. `build.py` decodes JSON; it
 does not execute JavaScript. Classes use the game's item-dictionary category,
 not the weapon implementation type (several rifles use the SMG implementation).
 Damage and penetration are converted to the same 100-point scale as the game UI.
-Ammo, modifications and character effects are excluded explicitly on the page.
+Modifications and character effects are excluded explicitly on the page.
+
+Every value is with a round (`stats.with_round`), the weapon's default
+(`default_ammo`) unless one is chosen: each card and each comparison slot has a
+Round chooser (`picker.js`, narrowed with `offer` to the weapon's rounds,
+`compat`; each with its lobby icon and level, from the calculator's data, in
+the page once as `#round-options`), the slot's in the address (`ra`, `rb`)
+when it is not the default. A round scales what the exe scales by
+its `data` keys (ammo_data::load 0x332440): damage (`k_damage`), penetration
+(`k_arp`), minimum damage retained (`k_min_damage_amount`), both damage
+distances, stopping power (`k_power`), stamina damage (`k_stamina_damage`) and
+base dispersion (`dispersion`, also in the recoil simulation's spread). A
+pellet round's damage reads "per pellet × pellets" and compares as the whole
+shot. `build.py` renders the default round and gives each weapon row
+`data-rounds`: every round's rows that differ from the default's, which
+`weapons.js` swaps in. The list's quick stats and damage sort stay on the
+default round. The game's card (rev50+, `WeaponDetails.bestRoundFactor`)
+shows the highest damage and the highest penetration of all the weapon's
+rounds, often from two different rounds, so the page names that difference.
 
 `damage-calc/build_site.py` builds this catalogue immediately after the calculator,
 including during `release/build-site`. A web-server test checks the SHA-256 of

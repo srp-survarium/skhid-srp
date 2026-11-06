@@ -2381,6 +2381,8 @@ st_srp_equipment046_edge_back_6_desc	Апісанне пакуль недаст�
 st_srp_equipment046_edge_back_6_name	Заплечнік сталкера
 st_srp_equipment046_edge_back_7_desc	Апісанне пакуль недаступнае.
 st_srp_equipment046_edge_back_7_name	Абярэг
+st_srp_equipment046_edge_boots_6_desc	Апісанне пакуль недаступнае.
+st_srp_equipment046_edge_boots_6_name	Шнураваныя боты сталкера
 st_srp_equipment046_edge_boots_7_desc	Апісанне пакуль недаступнае.
 st_srp_equipment046_edge_boots_7_name	Боты вешчуна
 st_srp_equipment046_edge_gloves_5_desc	Апісанне пакуль недаступнае.
@@ -2395,6 +2397,8 @@ st_srp_equipment046_edge_legs_7_desc	Апісанне пакуль недаст�
 st_srp_equipment046_edge_legs_7_name	Штаны "Велес"
 st_srp_equipment046_edge_mask_6_desc	Апісанне пакуль недаступнае.
 st_srp_equipment046_edge_mask_6_name	ПНБ
+st_srp_equipment046_edge_mask_7_desc	Апісанне пакуль недаступнае.
+st_srp_equipment046_edge_mask_7_name	Процівагаз "Велес"
 st_srp_equipment046_edge_torso_7_desc	Апісанне пакуль недаступнае.
 st_srp_equipment046_edge_torso_7_name	Бронекамізэлька "Велес"
 st_srp_equipment046_renesanse_boots_3_desc	Апісанне пакуль недаступнае.
@@ -2405,6 +2409,8 @@ st_srp_equipment046_renesanse_gloves_3_desc	Апісанне пакуль нед
 st_srp_equipment046_renesanse_gloves_3_name	Пальчаткі АЗК-УВ
 st_srp_equipment046_renesanse_gloves_5_desc	Апісанне пакуль недаступнае.
 st_srp_equipment046_renesanse_gloves_5_name	Пальчаткі разведчыка
+st_srp_equipment046_renesanse_gloves_6_desc	Апісанне пакуль недаступнае.
+st_srp_equipment046_renesanse_gloves_6_name	Пальчаткі "Штурм"
 st_srp_equipment046_renesanse_gloves_7_desc	Апісанне пакуль недаступнае.
 st_srp_equipment046_renesanse_gloves_7_name	Пальчаткі снайпера
 st_srp_equipment046_renesanse_helmet_7_desc	Апісанне пакуль недаступнае.
@@ -2421,12 +2427,26 @@ st_srp_equipment046_renesanse_torso_7_desc	Апісанне пакуль нед�
 st_srp_equipment046_renesanse_torso_7_name	Бронекамізэлька снайпера
 st_srp_equipment046_scavenger_boots_5_desc	Апісанне пакуль недаступнае.
 st_srp_equipment046_scavenger_boots_5_name	Боты дыверсанта
+st_srp_equipment046_scavenger_boots_6_desc	Апісанне пакуль недаступнае.
+st_srp_equipment046_scavenger_boots_6_name	Умацаваныя боты
 st_srp_equipment046_scavenger_boots_7_desc	Апісанне пакуль недаступнае.
 st_srp_equipment046_scavenger_boots_7_name	Боты следапыта
+st_srp_equipment069_league_shadow_mask_desc	Апісанне пакуль недаступнае.
+st_srp_equipment069_league_shadow_mask_name	Маска "Дэльта"
 st_srp_equipment069_leagues_back_2_desc	Апісанне пакуль недаступнае.
 st_srp_equipment069_leagues_back_2_name	Сумка лекара
 st_srp_equipment069_leagues_back_5_desc	Апісанне пакуль недаступнае.
 st_srp_equipment069_leagues_back_5_name	Заплечнік салдата
+st_srp_equipment069_snow_20_boots_7_desc	Апісанне пакуль недаступнае.
+st_srp_equipment069_snow_20_boots_7_name	Боты "Снег-20"
+st_srp_equipment069_snow_20_gloves_7_desc	Апісанне пакуль недаступнае.
+st_srp_equipment069_snow_20_gloves_7_name	Пальчаткі "Снег-20"
+st_srp_equipment069_snow_20_helmet_7_desc	Апісанне пакуль недаступнае.
+st_srp_equipment069_snow_20_helmet_7_name	Шлем "Снег-20"
+st_srp_equipment069_snow_20_legs_7_desc	Апісанне пакуль недаступнае.
+st_srp_equipment069_snow_20_legs_7_name	Штаны "Снег-20"
+st_srp_equipment069_snow_20_torso_7_desc	Апісанне пакуль недаступнае.
+st_srp_equipment069_snow_20_torso_7_name	Бронекамізэлька "Снег-20"
 st_srp_exchange_balance	Баланс
 st_srp_exchange_button	Абмяняць
 st_srp_exchange_gold	Золата
@@ -2459,6 +2479,15 @@ st_srp_inv_pocket_units	Месца ў кішэні
 st_srp_inv_stamina_damage	Шкода вынослівасці
 st_srp_inv_throw_speed	Хуткасць кідка
 st_srp_inventory_search	Пошук
+st_srp_inventory_search_examples	+кішэня, +слот, +патрон, +10
+st_srp_inventory_search_tip_bonus	прадметы з бонусам і да патронаў, і да артэфактаў
+st_srp_inventory_search_tip_bonus_example	+патрон +артэфакт
+st_srp_inventory_search_tip_faction	тавары Арміі або Чорнага Рынку
+st_srp_inventory_search_tip_faction_example	+армія +чорны
+st_srp_inventory_search_tip_kind	шлемы або боты
+st_srp_inventory_search_tip_kind_example	+шлем +боты
+st_srp_inventory_search_tip_level	прадметы 10 або 11 узроўню
+st_srp_inventory_search_tip_level_example	+10 +11
 st_srp_item_props_mps	м/с
 st_srp_language_option	Мова:
 st_srp_language_restart	Прыменіцца пасля перазапуску.
@@ -2519,6 +2548,38 @@ st_srp_matches_starting	старт
 st_srp_matches_title	Матчы
 st_srp_matches_versus	на
 st_srp_matches_waiting	чаканне
+st_srp_medical_301_description	Дадаецца да абароны ад болю і працягласці дзеяння абязбольвальнага:
+st_srp_medical_301_name	Моцнае абязбольвальнае
+st_srp_medical_302_description	Скарачэнне часу выкарыстання аптэчак і бінтоў:
+st_srp_medical_302_name	Хуткая перавязка
+st_srp_medical_303_description	Пакуль дзейнічае абязбольвальнае, зніжэнне выдаткаў энергіі на спрынт:
+st_srp_medical_303_name	Анямелыя ногі
+st_srp_medical_311_description	Аднаўленне здароўя пачынаецца на столькі секунд раней:
+st_srp_medical_311_name	Метабалізм
+st_srp_medical_312_description	Бонус да здароўя, якое аднаўляюць аптэчкі і бінты:
+st_srp_medical_312_name	Медыцынская падрыхтоўка
+st_srp_medical_313_description	Бонус да здароўя, якое аднаўляюць аптэчкі і бінты, у прысядзе:
+st_srp_medical_313_name	У сховішча
+st_srp_medical_321_description	Бонус да хуткасці руху пры здароўі ніжэй за 30:
+st_srp_medical_321_name	Адрэналін
+st_srp_medical_322_description	Кожная кішэня з лекамі змяшчае на адзін прадмет больш.
+st_srp_medical_322_name	Дадатковыя лекі
+st_srp_medical_323_description	Пакуль дзейнічае абязбольвальнае, зніжэнне спыняльнай сілы варожых трапленняў:
+st_srp_medical_323_name	Непахісны
+st_srp_medical_331_description	Замяняе слот дадатковай зброі дадатковай кішэняй для прыпасаў.
+st_srp_medical_331_name	Кішэня для прыпасаў
+st_srp_medical_332_description	Бонус да максімальнага здароўя рук і ног:
+st_srp_medical_332_name	Моцныя косці
+st_srp_medical_333_description	Пакуль дзейнічае абязбольвальнае, гукі наваколля цішэйшыя, а гукі ворагаў (акрамя стрэлаў) гучнейшыя на:
+st_srp_medical_333_name	Канцэнтрацыя
+st_srp_medical_342_description	Зніжэнне шкоды ад саюзнікаў:
+st_srp_medical_342_name	Браты па зброі
+st_srp_medical_seconds	 с
+st_srp_medicine_ambient_sounds	Гукі наваколля
+st_srp_medicine_crouched_healing	Лячэнне ў прысядзе
+st_srp_medicine_enemy_sounds	Гукі ворагаў
+st_srp_medicine_hit_slow	Запаволенне ад куль
+st_srp_medicine_sprint_stamina	Энергія на спрынт
 st_srp_melee_knockback	Адкідванне прыкладам
 st_srp_mode_blackout	Ахоўная прылада: блэкаўт
 st_srp_mode_chargers	Ахоўная прылада: зараднікі
