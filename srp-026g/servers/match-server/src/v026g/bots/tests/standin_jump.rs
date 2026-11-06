@@ -131,10 +131,31 @@ pub(crate) fn stand_in_bridges() -> body::Bridges {
 /// client-test recordings); `frozen` moves it as before.
 pub(crate) fn stand_in_mixer() -> crate::v026g::bots::kin::Mixer {
     static FROZEN: std::sync::OnceLock<bool> = std::sync::OnceLock::new();
-    if *FROZEN.get_or_init(|| bench_settings().var("SRP_BENCH_STAND_IN_MIXER").is_ok_and(|v| v == "frozen")) {
+    if OLD_MIXER.get() || *FROZEN.get_or_init(|| bench_settings().var("SRP_BENCH_STAND_IN_MIXER").is_ok_and(|v| v == "frozen")) {
         crate::v026g::bots::kin::Mixer::Frozen
     } else {
         crate::v026g::bots::kin::Mixer::Layers
+    }
+}
+
+thread_local! {
+    static OLD_MIXER: std::cell::Cell<bool> = const { std::cell::Cell::new(false) };
+}
+
+/// The stand-in's old blend ([`crate::v026g::bots::kin::Mixer::Frozen`]) for this thread while it lives (tests whose pinned
+/// numbers predate A318).
+pub(crate) struct OldMixer(());
+
+impl OldMixer {
+    pub(crate) fn scope() -> Self {
+        OLD_MIXER.set(true);
+        Self(())
+    }
+}
+
+impl Drop for OldMixer {
+    fn drop(&mut self) {
+        OLD_MIXER.set(false);
     }
 }
 
