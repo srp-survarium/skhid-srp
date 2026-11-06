@@ -53,10 +53,13 @@ const PREPARE_MS: f32 = 75.0;
 const PREPARE_M: f32 = 0.82;
 /// A body falling after its clip, m/s^2 (the bench stand-in's).
 const GRAVITY: f32 = 9.81;
-/// The heights over the feet whose rays a wall holds a body in the air at, m (the stand-in's `AIR_RAYS`: the feet a little over,
-/// the middle, the head). A thin horizontal bar between them (Vector Laboratory's railing: bars at 0.43 / 0.70 m, the top rail
-/// 7 cm thick at 1.02 m over the platform) is caught by the column test ([`column_blocked`]).
-const AIR_RAYS: [f32; 3] = [0.1, 0.9, 1.7];
+/// The lowest and highest heights over the feet whose rays a wall holds a body in the air at, m (the stand-in's lowest and
+/// highest `AIR_RAYS`), and the spacing between them: 5 cm, so a thin horizontal bar cannot pass between two (the stand-in's three
+/// heights 0.1 / 0.9 / 1.7 let the arc through Vector Laboratory's railing: bars at 0.43 / 0.70 m, the top rail 7 cm thick at
+/// 1.02 m over the platform).
+const AIR_RAY_LOW: f32 = 0.1;
+const AIR_RAY_HIGH: f32 = 1.7;
+const AIR_RAY_STEP: f32 = 0.05;
 /// How deep under the arc's feet a floor still makes a cell open air rather than a wall (a drop off a ledge), m.
 const OPEN_BELOW_M: f32 = 10.0;
 /// How many cells round a target the floorless test looks (a ledge lip's eroded band is crossed, a wall's is not): GUESS 1.5.
@@ -323,13 +326,7 @@ impl JumpArc {
         let blocked = |x: f32, z: f32| {
             let (dx, dz) = (x - feet.x, z - feet.z);
             let len = dx.hypot(dz);
-            let rays = walls.is_some_and(|walls| {
-                len > 1e-6
-                    && AIR_RAYS.iter().any(|&h| {
-                        let dir = Vec3::new(dx / len, 0.0, dz / len);
-                        walls.ray_cast(Vec3::new(feet.x, y + h, feet.z), dir, len + radius).is_some()
-                    })
-            });
+            let rays = walls.is_some_and(|walls| rays_blocked(walls, feet, (x, z), y, radius));
             // The walker mesh's walls are the grid's floorless ground (the erosion round a wall): ground with no floor from the feet
             // (and the catch) down to `OPEN_BELOW_M` in any cell within `FLOORLESS_CELLS` of the target is a wall too. A ledge's lip
             // erodes a band of a cell or so on both levels, which the box reaches across; a wall's band (its thickness and the erosion
@@ -339,10 +336,7 @@ impl JumpArc {
                 let top = grid.position(n).y;
                 top <= y + CATCH_M && top >= y - OPEN_BELOW_M
             });
-            // A surface of the walker mesh in the body's column along the move (from the catch over the feet to the head): a rail
-            // too thin for any of the horizontal rays' heights.
-            let column = walls.is_some_and(|walls| column_blocked(walls, feet, (x, z), y, radius, height));
-            rays || column || floorless
+            rays || floorless
                 || grid.floors_in([x - radius, z - radius, x + radius, z + radius]).any(|n| {
                     let top = grid.position(n).y;
                     top > y + CATCH_M && top < y + height
@@ -400,26 +394,19 @@ fn perch_over(grid: &WalkGrid, walls: Option<&RayTree>, at: Vec3, from_y: f32, r
     floor.is_none_or(|y| top > y + PERCH_OVER_M).then_some(top)
 }
 
-/// Whether a surface of `walls` lies in the body's column (over the catch above `y`, under the head) along the move from `feet` to
-/// `to` and the radius past it: rays straight down from the head every [`PERCH_STEP_M`] on the move's line and half the radius to
-/// either side.
-fn column_blocked(walls: &RayTree, feet: Vec3, to: (f32, f32), y: f32, radius: f32, height: f32) -> bool {
+/// Whether `walls` hold a body in the air at height `y` moving from `feet` to `to`: a horizontal ray along the move (and the radius
+/// past it) from the axis at any height from [`AIR_RAY_LOW`] to [`AIR_RAY_HIGH`] over `y`, every [`AIR_RAY_STEP`], meets them.
+fn rays_blocked(walls: &RayTree, feet: Vec3, to: (f32, f32), y: f32, radius: f32) -> bool {
     let (dx, dz) = (to.0 - feet.x, to.1 - feet.z);
     let len = dx.hypot(dz);
     if len <= 1e-6 {
         return false;
     }
-    let (ux, uz) = (dx / len, dz / len);
-    let reach = len + radius;
-    let steps = (reach / PERCH_STEP_M).ceil() as u32;
-    let down = Vec3::new(0.0, -1.0, 0.0);
-    let span = height - CATCH_M;
-    (1..=steps).any(|i| {
-        let along = reach * i as f32 / steps as f32;
-        [0.0, radius * 0.5, -radius * 0.5].into_iter().any(|side| {
-            let from = Vec3::new(feet.x + ux * along - uz * side, y + height, feet.z + uz * along + ux * side);
-            walls.ray_cast(from, down, span).is_some()
-        })
+    let dir = Vec3::new(dx / len, 0.0, dz / len);
+    let n = ((AIR_RAY_HIGH - AIR_RAY_LOW) / AIR_RAY_STEP).round() as u32;
+    (0..=n).any(|i| {
+        let h = AIR_RAY_LOW + i as f32 * AIR_RAY_STEP;
+        walls.ray_cast(Vec3::new(feet.x, y + h, feet.z), dir, len + radius).is_some()
     })
 }
 
@@ -848,17 +835,26 @@ mod tests {
         assert_eq!(perch(&walls, Vec3::new(0.0, 1.2, 0.25), 1.25, r), None, "still above it");
     }
 
-    /// A rail at 1.05 m between two of the horizontal rays' heights still holds a body whose feet are under its top by more than the
-    /// catch, and lets it over once the feet are within the catch of the top.
+    /// A rail 3 cm wide and 7 cm thick (its top at 1.05 m) holds a body moving across it whose feet are under it by more than the
+    /// catch, wherever between two of the stand-in's three heights it falls, and lets it over once the feet are within the catch.
     #[test]
-    fn a_thin_rail_in_the_body_s_column_holds_it() {
-        let (a, b) = (Vec3::new(-5.0, 1.05, 0.0), Vec3::new(5.0, 1.05, 0.0));
-        let (c, d) = (Vec3::new(5.0, 1.05, 0.03), Vec3::new(-5.0, 1.05, 0.03));
-        let walls = RayTree::from_corners([[a, b, c], [a, c, d]]);
+    fn a_thin_rail_holds_a_body_moving_across_it() {
+        let quad = |y: f32, z0: f32, z1: f32| {
+            let (a, b) = (Vec3::new(-5.0, y, z0), Vec3::new(5.0, y, z0));
+            let (c, d) = (Vec3::new(5.0, y, z1), Vec3::new(-5.0, y, z1));
+            [[a, b, c], [a, c, d]]
+        };
+        let front = [
+            [Vec3::new(-5.0, 0.98, 0.0), Vec3::new(5.0, 0.98, 0.0), Vec3::new(5.0, 1.05, 0.0)],
+            [Vec3::new(-5.0, 0.98, 0.0), Vec3::new(5.0, 1.05, 0.0), Vec3::new(-5.0, 1.05, 0.0)],
+        ];
+        let walls = RayTree::from_corners(quad(1.05, 0.0, 0.03).into_iter().chain(quad(0.98, 0.0, 0.03)).chain(front));
         let from = Vec3::new(0.0, 0.0, -0.8);
-        assert!(column_blocked(&walls, from, (0.0, 0.9), 0.85, 0.38, 1.8), "feet 0.2 m under the top");
-        assert!(!column_blocked(&walls, from, (0.0, 0.9), 0.98, 0.38, 1.8), "feet within the catch");
-        assert!(!column_blocked(&walls, from, (2.0, -0.8), 0.85, 0.38, 1.8), "moving along it, clear of it");
+        for y in [0.80, 0.83, 0.86, 0.89, 0.92] {
+            assert!(rays_blocked(&walls, from, (0.0, 0.9), y, 0.38), "feet at {y}");
+        }
+        assert!(!rays_blocked(&walls, from, (0.0, 0.9), 0.96, 0.38), "feet within the catch of the top");
+        assert!(!rays_blocked(&walls, from, (2.0, -0.8), 0.85, 0.38), "moving along it");
     }
 
     /// A tick's move that carries the body from one side of a rail to the other (the catch-up after a wall) comes down on the rail,
