@@ -9,7 +9,7 @@
 //! Derived data, made once after the grid is built or read ([`WalkGrid::with_open_sides`], from the map's triangles): in neither the
 //! file nor the digest, so no floor, link or key changes. A grid without it answers `None`.
 
-use super::exact::Walls;
+use super::exact::{WallFaces, Walls};
 use super::*;
 
 /// The bit of a floor's entry for "within the body's radius and [`FALL_EDGE_MARGIN_M`] of a floor with an open side, within a step of
@@ -22,9 +22,13 @@ const OVER_STEP_M: f32 = 0.1;
 
 impl WalkGrid {
     /// This grid with its table of open sides made from `triangles` (the triangles it was built from): a wall within `support_m` and
-    /// the body's radius of a floor's centre on the way out holds the capsule there.
+    /// the body's radius of a floor's centre on the way out holds the capsule there. [A318] With [`Body::drop_room_walk_faces`] a
+    /// steep `walk` face is such a wall too, as for [`Body::drop_room`]: Level 7's deck parapet (16.15-16.30, 20.20-22.03, 1.09 m over
+    /// the deck) has `walk` faces, and the table called the deck's side open where the client stands held (145 + 79 drifts in the
+    /// drift lab with the reckoning's walk-off).
     pub fn with_open_sides(mut self, triangles: &[Triangle], support_m: f32) -> Self {
-        let walls = Walls::new(triangles, self.x0, self.z0, self.cell, self.nx, self.nz);
+        let faces = if self.body.drop_room_walk_faces { WallFaces::AnyWalker } else { WallFaces::NotWalk };
+        let walls = Walls::new_with(triangles, self.x0, self.z0, self.cell, self.nx, self.nz, faces);
         let mut table: Vec<u16> = (0..self.len()).map(|a| self.open_sides_of(&walls, a, support_m)).collect();
         let r = self.body.radius + FALL_EDGE_MARGIN_M;
         for a in 0..self.len() {
@@ -185,6 +189,23 @@ mod tests {
         let bare = WalkGrid::build(&tris, AREA, 0.25, body);
         assert_eq!(bare.open_toward(edge(&bare, 6.0), 1.0, 0.0), None);
         assert!(!bare.near_open_side(edge(&bare, 6.0)));
+    }
+
+    /// [A318] A parapet with `walk` faces (Level 7's deck) holds the capsule as any wall does with [`Body::drop_room_walk_faces`];
+    /// without it the table takes it for no wall, as it did.
+    #[test]
+    fn a_parapet_with_walk_faces_closes_the_edge_with_drop_room_walk_faces() {
+        let mut tris: Vec<Triangle> = quad(0.0, 12.0, 0.0, 0.0, 10.0).to_vec();
+        tris.extend(quad(0.0, 6.0, 6.0, 0.0, 10.0));
+        tris.extend(wall(6.0, 0.0, 6.0, 0.0, 10.0));
+        tris.extend(wall(6.05, 6.0, 7.0, 0.0, 10.0).map(|t| Triangle { walker: WalkerBehaviour::Walk, ..t }));
+        let open_with = |walk_faces: bool| {
+            let body = Body { erosion: Erosion::Exact, drop_room_walk_faces: walk_faces, ..Body::default() };
+            let grid = WalkGrid::build(&tris, AREA, 0.25, body).with_open_sides(&tris, 0.435);
+            grid.open_toward(edge(&grid, 6.0), 1.0, 0.0)
+        };
+        assert_eq!(open_with(true), Some(false), "the walk-faced parapet holds the capsule");
+        assert_eq!(open_with(false), Some(true), "as it was: no wall");
     }
 
     /// A269c: a side is open only over a floor further down than a step. On level ground a wall along the way out, a little to its
