@@ -76,7 +76,7 @@ fn walk_lines(world: &Collision, from: Vec3, to: Vec3) -> (f32, bool) {
 /// A floor's feet moved flat out of the faces the client's body would overlap there: the grid keeps floors 0.3175 m from a wall,
 /// the body's move test holds 0.42 m (the cylinder and its margin, over the step), and the client never stands inside a wall (its
 /// world pushes a body out: `bullet_physics_world::recover_from_penetrations`). At most [`OUT_OF_WALLS_M`] in all.
-fn out_of_walls(world: &Collision, feet: Vec3) -> Vec3 {
+pub(super) fn out_of_walls(world: &Collision, feet: Vec3) -> Vec3 {
     let mut at = feet;
     let mut moved = 0.0f32;
     for _ in 0..4 {
@@ -137,7 +137,7 @@ pub fn walk_share(world: &Collision, from: Vec3, to: Vec3) -> (f32, bool) {
 }
 
 /// Runs `job` over `items` on the machine's threads, in order.
-fn parallel<T: Sync, R: Send + Default + Clone>(items: &[T], job: impl Fn(&T) -> R + Sync) -> Vec<R> {
+pub(super) fn parallel<T: Sync, R: Send + Default + Clone>(items: &[T], job: impl Fn(&T) -> R + Sync) -> Vec<R> {
     let threads = std::thread::available_parallelism().map_or(4, |n| n.get()).min(16);
     let chunk = items.len().div_ceil(threads).max(1);
     let mut out = vec![R::default(); items.len()];
