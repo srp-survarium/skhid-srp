@@ -22,9 +22,9 @@ survey.py):
   that variant's are. Materials as materials.tsv says (loc2: ours, else the donor's made again).
 - **the weapon's model**: a scope's variant takes its mount variant's (the aimed view is that
   variant's eyepiece, so its eye); a collimator's, when its eye line moves (the variant sets
-  `object/model`, as ours do), the weapon's `aim` locator on the optic's red dot (the optic drawn at
-  scope_point turned half about Y, the gun posed by its idle clip as the game draws it), unrotated;
-  a model of ours with that eye already (within 0.3 mm) is taken as it is, else the mount
+  `object/model`, as ours do), the weapon's `aim` locator on the optic's axis looking at its red
+  dot (the optic drawn at scope_point turned half about Y, the gun posed by its idle clip as the
+  game draws it); a model of ours with that eye already (0.3 mm, 0.2 mrad) is taken as it is, else the mount
   variant's weapon model is copied with only its export_properties changed
   (models/weapons/<..>_n_<scope>).
 - **its item** (a variant, dict id from 2701): its config made from a variant of ours of its kind
@@ -57,16 +57,18 @@ import render_icon  # noqa: E402
 import scopes_lib as lib  # noqa: E402
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / 'sight-alignment'))
 import model as posing  # noqa: E402
+import align  # noqa: E402
 from scopes_lib import ce  # noqa: E402
 
 PACK_ID = 'rifle-scopes'
-VERSION = '9'
+VERSION = '10'
 LANGUAGES = ('english', 'german', 'original', 'polish', 'russian', 'ukrainian')
 FIRST_VARIANT = 2701
 CATEGORY = 22
 ICON_ATLAS = 'LobbyMenu_AmmoIcons'
 DOT_DISTANCE = 0.6
 EYE_TOLERANCE = 0.0003
+EYE_TURN = 0.0002  # rad
 # the red dot every collimator of ours has (patch 21), as a model of its own centred at its origin
 RETICLE_FROM = ('fitn_aimpoint_compm4_m4a1', lib.DOT)
 COMPM4 = 'shop_scope_aimpoint_compm4'
@@ -146,11 +148,13 @@ def weapon_models(live):
 
 
 def eye_model(candidates, base_model, needed):
-    """The model of `candidates` whose `aim` locator is at `needed` (x, y) within EYE_TOLERANCE:
-    None for the weapon's own, its reference for another; False for none."""
+    """The model of `candidates` whose `aim` locator is `needed` (position, rotation; collimator_eye):
+    its position within EYE_TOLERANCE, its rotation within EYE_TURN; None for the weapon's own, its
+    reference for another; False for none."""
     for model, d in candidates:
         found = lib.locator(lib.leaves(d / 'render/export_properties'), 'aim') if d else None
-        if found and abs(found[1][0] - needed[0]) < EYE_TOLERANCE and abs(found[1][1] - needed[1]) < EYE_TOLERANCE:
+        if found and np.abs(np.array(found[1]) - needed[0]).max() < EYE_TOLERANCE \
+                and np.abs(np.array(found[2] or [0.0, 0.0, 0.0]) - needed[1]).max() < EYE_TURN:
             return None if model == base_model else model
     return False
 
@@ -172,20 +176,29 @@ def posed_frame(root, cfg, directory):
     return frame
 
 
-def eye_on_dot(root, cfg, directory, dot):
-    """(x, y) of the aim locator of the weapon model `directory` that looks along its bone at `dot` (a
-    point of the optic, its frame; posed_frame)."""
-    return tuple(posing.transform(np.asarray(dot, float), posed_frame(root, cfg, directory))[:2])
+def collimator_eye(root, cfg, directory, dot):
+    """The aim locator (position, rotation) of the weapon model `directory` that looks along the
+    optic's axis at `dot` (a point of the optic, its frame; posed_frame), as the sight-alignment
+    tool's on_axis puts it (the 9A-91's Cobra). A clip may turn the optic's bone off the eye's too
+    (the RPD, the Vepr, the Magnum): an eye only moved onto the dot then looks across the optic, the
+    dot centred but the optic beside it (@9)."""
+    frame = posed_frame(root, cfg, directory)
+    aim = posing.locator(directory, 'aim')
+    offset = posing.config(root / cfg)['parameters'].get('aim_offset', 0)
+    loc = align.on_axis({'id': str(directory), 'mount': frame, 'marker': posing.transform(np.asarray(dot, float), frame),
+                         'locator': {'position': aim.position, 'rotation': aim.rotation}, 'offset': offset})
+    return np.array(loc['position']), np.array(loc['rotation'])
 
 
 def moved_eye(model, needed):
-    """A copied weapon model's `aim` locator at `needed` (x, y), unrotated."""
+    """A copied weapon model's `aim` locator set to `needed` (position, rotation; collimator_eye)."""
     path = model / 'render/export_properties'
     buf = bytearray(path.read_bytes())
-    i, position, rotation = lib.locator(lib.leaves(path), 'aim')
-    set_float3(buf, f'locators[{i}]/position', [needed[0], needed[1], position[2]])
-    if rotation is not None:
-        set_float3(buf, f'locators[{i}]/rotation', [0.0, 0.0, 0.0])
+    i, _, rotation = lib.locator(lib.leaves(path), 'aim')
+    if rotation is None:
+        sys.exit(f'{model}: its aim locator has no rotation to set')
+    set_float3(buf, f'locators[{i}]/position', [float(v) for v in needed[0]])
+    set_float3(buf, f'locators[{i}]/rotation', [float(v) for v in needed[1]])
     path.write_bytes(bytes(buf))
 
 
@@ -377,16 +390,15 @@ def build(args, work):
             files.update(files_of(idle_out, work))
             files.update(files_of(aim_out, work))
             base_dir = lib.model_dir(args.live, base_model)
-            needed = eye_on_dot(args.live, cfg, from_dir, t + np.array([eye[0], eye[1], DOT_DISTANCE]))
             # the weapon's own model only where the mount variant keeps it (the M4A1's mount variants
             # set a flat-top model, without the carry handle the stock one has: seen in the game, the
-            # NcSTAR 4 under the handle, @1), and no model whose aim locator is turned
+            # NcSTAR 4 under the handle, @1)
             has_point = lib.locator(lib.leaves(base_dir / 'render/export_properties'), 'scope_point')
             candidates = [(base_model, base_dir)] if has_point and ref['change'] is None else []
             for v in variants.values():
                 if v['weapons'] == [w] and v['change']:
                     candidates.append((v['change'], lib.model_dir(args.live, v['change'])))
-            candidates = [(m, d) for m, d in candidates if d and not aim_turned(d)]
+            candidates = [(m, d) for m, d in candidates if d]
             if kind == 'S':
                 # a scope's aimed view is the mount variant's eyepiece: its eye, its weapon model; a
                 # model whose aim locator is turned about x tilts the view, and the reticle, set along
@@ -401,6 +413,7 @@ def build(args, work):
                         level_eye(target)
                         files.update(files_of(target, work))
             else:
+                needed = collimator_eye(args.live, cfg, from_dir, t + np.array([eye[0], eye[1], DOT_DISTANCE]))
                 change = eye_model(candidates, base_model, needed)
                 if change is False:
                     change = f'{base_model}_n_{short}'
