@@ -57,7 +57,7 @@ import scopes_lib as lib  # noqa: E402
 from scopes_lib import ce  # noqa: E402
 
 PACK_ID = 'rifle-scopes'
-VERSION = '5'
+VERSION = '6'
 LANGUAGES = ('english', 'german', 'original', 'polish', 'russian', 'ukrainian')
 FIRST_VARIANT = 2701
 CATEGORY = 22
@@ -487,7 +487,7 @@ def check_textures(files, live):
     the sRGB byte: 1 for a diffuse, else 0; a normal map DXT5). Stops the build, listing each one
     that is not (the owner, 2026-11-01: "some scopes are completely untextured")."""
     have = set((Path(live) / 'paths.txt').read_text(encoding='utf-8').split())
-    problems, seen = [], set()
+    problems, notes, seen = [], [], set()
 
     def material_leaves(name):
         """The material's values; None when only its name is known (in the players' files); False
@@ -525,7 +525,12 @@ def check_textures(files, live):
                     if made.srgb != srgb or (slot == 'texture_normal') != (bytes(files[dds][84:88]) == b'DXT5'):
                         problems.append(f'{name}: {slot} {dds}: sRGB byte {made.srgb}, {bytes(files[dds][84:88])!r}')
                 elif not texture or dds not in have:
-                    problems.append(f'{name}: {slot} {texture!r} is in neither the pack nor the players\' files')
+                    line = f'{name}: {slot} {texture!r} is in neither the pack nor the players\' files'
+                    # a players' material as they have it (stock 0.26g's weapons/vepr12_attach names a
+                    # vepr_attach_nmap no archive has): noted, the pack does not make it worse
+                    (problems if f'material_instances/{name}.material' in files else notes).append(line)
+    for line in notes:
+        print(f'textures: as the players have it: {line}')
     if problems:
         sys.exit('textures:\n  ' + '\n  '.join(problems))
     print(f'textures: the {len(seen)} materials the pack\'s models draw have their textures')
