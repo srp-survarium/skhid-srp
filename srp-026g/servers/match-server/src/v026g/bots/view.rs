@@ -1301,12 +1301,17 @@ impl Tracker {
     pub fn fixed(
         &mut self,
         place: Place,
-        fix: Fix,
+        mut fix: Fix,
         health: Option<f32>,
         kin: &Kinematics,
         world: Option<&World>,
     ) -> bool {
         let walls = self.arc_walls(kin, world);
+        // [A331] A battery carrier does not sprint (the owner; `can_sprint` 0x2DBF40, LIKELY): the believed carrier's world keys
+        // move its body at a run, and its level is read against the run.
+        if self.carries.iter().any(|carry| carry.carrier == Some(place)) {
+            fix.keys &= !key::SPRINT;
+        }
         let Some(state) = self.places.get_mut(place) else {
             return false;
         };
