@@ -80,9 +80,18 @@ fn reference_replay() {
         .collect();
     ticks.sort_by_key(|t| (t.0, t.1));
     let mut keys_of: HashMap<usize, Vec<(u32, u32)>> = HashMap::new();
-    for &(t, p, k, _) in &ticks {
+    // `SRP_A325_TURN_FIRST=1`: each tick's velocity turned by that tick's own turn first (the reckoning moves, then turns).
+    let turn_first = var("SRP_A325_TURN_FIRST").is_some();
+    let mut turn_of: HashMap<(usize, u32), f32> = HashMap::new();
+    for &(t, p, k, turn) in &ticks {
         keys_of.entry(p).or_default().push((t, k));
+        turn_of.insert((p, t), turn.0);
     }
+    let rotate = |v: [f32; 2], d: f32| {
+        let ([a, b], [c, e]) = (super::super::kin::forward(0.0), super::super::kin::forward(d));
+        let (cos, sin) = (a * c + b * e, a * e - b * c);
+        [v[0] * cos - v[1] * sin, v[0] * sin + v[1] * cos]
+    };
     struct Row {
         time: u32,
         place: usize,
@@ -163,6 +172,7 @@ fn reference_replay() {
                 let kk = keys_in(t0 + 50 * tick_n);
                 body.want_crouch = kk & key::CROUCH != 0;
                 let was = body.feet();
+                let v = if turn_first { rotate(v, turn_of.get(&(w.place, t)).copied().unwrap_or(0.0)) } else { v };
                 body.walk = Vec3::new(v[0] * TICK_S, 0.0, v[1] * TICK_S);
                 let notes = body.step(&collision, TICK_S, &s);
                 let now = body.feet();
