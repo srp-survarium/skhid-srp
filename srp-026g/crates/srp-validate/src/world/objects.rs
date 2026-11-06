@@ -48,7 +48,8 @@
 //!   `artefact_base::deserialize` 0x313760): a u16 amount, an owner (0xFF
 //!   none, else a place and a kit, looked up with no bound, then the slot
 //!   byte when the owner has a player), a state byte (0 to 5) with its 1
-//!   to 5 bytes, and a u32.
+//!   to 5 bytes, and a u32; an active one (state 4) then what its core
+//!   saves of its own ([`Artefact`]).
 //!
 //! The check reads the list to the section's exact end and holds every
 //! index and float within what the game needs; anything else refuses the
@@ -91,7 +92,7 @@ impl Map<'_> {
         self.anomalies
             .iter()
             .filter_map(|anomaly| anomaly.artefacts)
-            .map(|artefacts| artefacts.artefacts)
+            .map(|artefacts| artefacts.artefacts.len())
             .fold(0, usize::saturating_add)
     }
 }
@@ -101,17 +102,38 @@ impl Map<'_> {
 pub struct Anomaly<'a> {
     /// With `artefacts_enabled`: its containers and artefacts; without, it
     /// has neither and saves no pending byte.
-    pub artefacts: Option<Artefacts>,
+    pub artefacts: Option<Artefacts<'a>>,
     /// Its `states`, in the game's order (sorted by `state_prio`).
     pub states: &'a [State<'a>],
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub struct Artefacts {
+pub struct Artefacts<'a> {
     /// `artefact_containers`.
     pub containers: usize,
-    /// The sum of `artefacts[].count`.
-    pub artefacts: usize,
+    /// In the world's order: each of `artefacts[]` its `count` times.
+    pub artefacts: &'a [Artefact],
+}
+
+/// An artefact's core, by its item's `data.type` (the artefact cook's
+/// switch 0x2EE95F): what an active one saves after the base's u32.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Artefact {
+    /// 3 (`artefact_lifebone_core::deserialize` 0x3124B0): a u32.
+    Lifebone,
+    /// 6 (`artefact_spring_core::deserialize` 0x3119E0): a u32.
+    Spring,
+    /// 7 (`artefact_onyx_core::deserialize` 0x312AF0): a u32 and an f32.
+    Onyx,
+}
+
+impl Artefact {
+    const fn active_bytes(self) -> usize {
+        match self {
+            Artefact::Lifebone | Artefact::Spring => 4,
+            Artefact::Onyx => 4 + 4,
+        }
+    }
 }
 
 /// An anomaly's state: its zone groups.
@@ -143,6 +165,8 @@ const TRAP_FLOATS: usize = 16;
 const TRAP_SET_UP: u8 = 1;
 /// The bits an anomaly's flags byte has.
 const ANOMALY_FLAGS: u8 = 0b11;
+/// An artefact's active state, after which its core saves its own.
+const ACTIVE: u8 = 4;
 
 /// The objects read to the section's exact end, every index and float
 /// within what the game needs. The list unknown: not checked.
@@ -345,8 +369,8 @@ impl Walk<'_, '_, '_> {
             for _ in 0..artefacts.containers {
                 self.container()?;
             }
-            for _ in 0..artefacts.artefacts {
-                self.artefact()?;
+            for &artefact in artefacts.artefacts {
+                self.artefact(artefact)?;
             }
         }
         Ok(())
@@ -393,7 +417,7 @@ impl Walk<'_, '_, '_> {
     }
 
     /// An anomaly's artefact: its amount, its owner, its state.
-    fn artefact(&mut self) -> Result<(), Fault> {
+    fn artefact(&mut self, artefact: Artefact) -> Result<(), Fault> {
         let object = self.object;
         self.reader.skip(2)?;
         let at = self.reader.at();
@@ -410,7 +434,8 @@ impl Walk<'_, '_, '_> {
         // 0 free, 1 maturing in a container, 2 ready there, 3 held or
         // cooling down, 4 active, 5 (written at 0x3132F1); the game writes
         // no other.
-        match self.reader.u8()? {
+        let state = self.reader.u8()?;
+        match state {
             0 | 3..=5 => self.reader.skip(4)?,
             1 => self.reader.skip(1 + 4)?,
             2 => self.reader.skip(1)?,
@@ -419,6 +444,9 @@ impl Walk<'_, '_, '_> {
             }
         }
         self.reader.skip(4)?;
+        if state == ACTIVE {
+            self.reader.skip(artefact.active_bytes())?;
+        }
         Ok(())
     }
 
@@ -472,7 +500,7 @@ mod tests {
     const ANOMALIES: [Anomaly; 1] = [Anomaly {
         artefacts: Some(Artefacts {
             containers: 2,
-            artefacts: 2,
+            artefacts: &[Artefact::Onyx, Artefact::Spring],
         }),
         states: &STATES,
     }];
@@ -582,6 +610,32 @@ mod tests {
         assert!(matches!(
             reason(&list, &flag),
             Some(Reason::ObjectsFlags { object: 0, .. })
+        ));
+    }
+
+    #[test]
+    fn an_active_artefact_reads_what_its_core_saves() {
+        // The anomaly's artefacts active (state 4): the onyx's u32 and f32,
+        // the spring's u32, after the base's two u32.
+        let active = |own: usize| {
+            let mut bytes = std::vec![1, 0, 0xFF, ACTIVE];
+            bytes.extend([0; 4 + 4]);
+            bytes.extend(std::iter::repeat_n(0, own));
+            bytes
+        };
+        let mut bytes = good();
+        let artefacts = bytes.len() - OWNED.len() - 9 - 12;
+        bytes.truncate(artefacts);
+        bytes.extend(active(8));
+        bytes.extend(active(4));
+        assert_eq!(reason(&LIST, &bytes), None);
+        // An onyx read as a spring's.
+        bytes.truncate(artefacts);
+        bytes.extend(active(4));
+        bytes.extend(active(4));
+        assert!(matches!(
+            reason(&LIST, &bytes),
+            Some(Reason::ObjectsUnread { .. })
         ));
     }
 

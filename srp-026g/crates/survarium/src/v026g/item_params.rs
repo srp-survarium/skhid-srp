@@ -9,6 +9,7 @@
 //! `required_bags`), and `item_level` came here from the dictionary.
 
 use binary_config_parser::tree::{ConfigError, ConfigValue};
+use srp_validate::world::Artefact;
 
 use super::dictionary::Dictionary;
 use super::game_data::{GameData, GameDataError};
@@ -85,8 +86,8 @@ pub enum ItemClass {
     /// 2: `booby_trap_set_core`: one trap object of a world's game objects
     /// for each of the kit slot's count.
     TrapSet,
-    /// 3, 6, 7.
-    Artefact,
+    /// 3, 6, 7: the core an anomaly's artefact of it has.
+    Artefact(Artefact),
     /// 4.
     Armor,
     /// 5.
@@ -124,7 +125,9 @@ impl ItemClass {
             }
             1 => Self::OxygenTank,
             2 => Self::TrapSet,
-            3 | 6 | 7 => Self::Artefact,
+            3 => Self::Artefact(Artefact::Lifebone),
+            6 => Self::Artefact(Artefact::Spring),
+            7 => Self::Artefact(Artefact::Onyx),
             4 => Self::Armor,
             5 => Self::Scope,
             9 => Self::GrenadeSet,

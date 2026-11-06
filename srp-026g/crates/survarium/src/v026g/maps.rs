@@ -30,6 +30,7 @@ use srp_validate::world::{Anomaly, Artefacts, Group, Held, Map, State};
 
 use super::dictionary::Dictionary;
 use super::game_data::{GameData, GameDataError};
+use super::item_params::ItemClass;
 
 #[cfg(any(test, feature = "fixtures"))]
 pub mod fixtures;
@@ -324,6 +325,7 @@ impl ProjectObjects {
     pub fn from_project(
         project: &ConfigValue,
         with_batteries: bool,
+        data: &GameData,
         dictionary: &Dictionary,
     ) -> Result<Self, ConfigError> {
         let objects = project.get("server_objects");
@@ -367,7 +369,7 @@ impl ProjectObjects {
         Ok(Self {
             respawn_points,
             container_teams,
-            world_objects: world_objects(project, dictionary)?,
+            world_objects: world_objects(project, data, dictionary)?,
         })
     }
 }
@@ -390,10 +392,13 @@ pub static NO_WORLD_OBJECTS: Map<'static> = Map {
 /// `state_prio` 0x33C400 ([`state_before`]; the sort the game takes for at
 /// most 16 states, and a project has at most 7). An artefact saves its
 /// amount as a stack's u16 (`inventory_item::deserialize` 0x2FFF10 by the
-/// dictionary's `is_stack`, as every map's are): one of no stack stops the
-/// data. Leaked: the rows live as long as the process.
+/// dictionary's `is_stack`, as every map's are), and an active one what its
+/// item's core saves (`data.type`, [`ItemClass::Artefact`]): one of no stack
+/// or of no artefact's class stops the data. Leaked: the rows live as long as
+/// the process.
 pub fn world_objects(
     project: &ConfigValue,
+    data: &GameData,
     dictionary: &Dictionary,
 ) -> Result<&'static Map<'static>, ConfigError> {
     let objects = project
@@ -452,21 +457,32 @@ pub fn world_objects(
         }
         insertion_sort(&mut states);
         let artefacts = if flag(anomaly, "artefacts_enabled")? {
-            let mut count = 0usize;
+            let mut artefacts = Vec::new();
             for artefact in anomaly.get("artefacts").map(ConfigValue::children).unwrap_or_default() {
                 let dict_id: u16 = int(Some(artefact), "dict_id")?;
-                if !dictionary.item(dict_id).is_some_and(|item| item.is_stack) {
-                    return Err(ConfigError(format!(
+                let item = dictionary.item(dict_id).filter(|item| item.is_stack).ok_or_else(|| {
+                    ConfigError(format!(
                         "anomaly {name}: artefact {dict_id} is no stack of the dictionary"
+                    ))
+                })?;
+                let config = super::game_data::config(data, &item.cfg_name)
+                    .map_err(|cause| ConfigError(cause.0))?
+                    .ok_or_else(|| {
+                        ConfigError(format!("anomaly {name}: artefact {dict_id} has no config"))
+                    })?;
+                let ItemClass::Artefact(core) = ItemClass::from_config(&config)? else {
+                    return Err(ConfigError(format!(
+                        "anomaly {name}: item {dict_id} is no artefact"
                     )));
-                }
-                count += int::<usize>(Some(artefact), "count")?;
+                };
+                let count = int::<usize>(Some(artefact), "count")?;
+                artefacts.extend(std::iter::repeat_n(core, count));
             }
             Some(Artefacts {
                 containers: anomaly
                     .get("artefact_containers")
                     .map_or(0, |containers| containers.children().len()),
-                artefacts: count,
+                artefacts: Box::leak(artefacts.into_boxed_slice()),
             })
         } else {
             None
@@ -514,7 +530,7 @@ pub fn untouched_objects(held: impl IntoIterator<Item = Held>, map: &Map) -> Vec
             for _ in 0..artefacts.containers {
                 bytes.extend([0, 0xFF, 0, 0, 0, 0]);
             }
-            for _ in 0..artefacts.artefacts {
+            for _ in artefacts.artefacts {
                 bytes.extend([0, 0, 0xFF, 0, 0, 0, 0, 0, 0, 0, 0, 0]);
             }
         }
@@ -583,6 +599,7 @@ impl MapMode {
         cfg_mode_name: &str,
         config: &ConfigValue,
         project: Option<&ConfigValue>,
+        data: &GameData,
         dictionary: &Dictionary,
     ) -> Result<Option<Self>, ConfigError> {
         let mode = config.req("mode")?;
@@ -625,7 +642,7 @@ impl MapMode {
         let rule_mode = game_mode.rules();
         let objects = project
             .map(|project| {
-                ProjectObjects::from_project(project, rule_mode.has_batteries(), dictionary)
+                ProjectObjects::from_project(project, rule_mode.has_batteries(), data, dictionary)
             })
             .transpose()?
             .unwrap_or(ProjectObjects {
@@ -733,6 +750,7 @@ pub fn derive(data: &GameData, dictionary: &Dictionary) -> Result<Vec<MapMode>, 
             &entry.cfg_mode_name,
             &config,
             project.as_ref(),
+            data,
             dictionary,
         )
             .map_err(|cause| GameDataError(format!("{path}: {}", cause.0)))?;
@@ -774,6 +792,7 @@ pub fn find(level: u8, weather: u8, mode: GameMode) -> Option<&'static MapMode> 
 #[cfg(test)]
 mod tests {
     use super::super::dictionary::Dictionary;
+    use srp_validate::world::Artefact;
     use super::*;
 
     fn ids(mode: GameMode) -> Vec<u8> {
@@ -1616,15 +1635,20 @@ mod tests {
         assert_eq!(map.project, "level_01/day_2");
         let objects = map.world_objects;
         assert_eq!((objects.damage_zones, objects.resupply_zones), (0, 2));
-        let artefacts: Vec<_> = objects.anomalies.iter().map(|a| a.artefacts).collect();
-        assert_eq!(
-            artefacts,
-            [
-                Some(Artefacts { containers: 11, artefacts: 10 }),
-                Some(Artefacts { containers: 5, artefacts: 10 }),
-            ]
-        );
+        let artefacts: Vec<_> = objects
+            .anomalies
+            .iter()
+            .map(|a| a.artefacts.map(|a| (a.containers, a.artefacts.len())))
+            .collect();
+        assert_eq!(artefacts, [Some((11, 10)), Some((5, 10))]);
         assert_eq!(objects.artefacts(), 20);
+        // Each of its item's core (an active one saves its own bytes).
+        let cores: Vec<_> = objects
+            .anomalies
+            .iter()
+            .map(|a| a.artefacts.unwrap().artefacts)
+            .collect();
+        assert_eq!(cores, [[Artefact::Lifebone; 10], [Artefact::Spring; 10]]);
         // level_02/evening_2: three lone zones, and the fruit anomaly's
         // seven states.
         let map = map_mode(69).unwrap();

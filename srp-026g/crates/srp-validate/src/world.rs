@@ -5,7 +5,7 @@ mod frame;
 mod objects;
 pub use bullets::bullets;
 pub use effects::effects;
-pub use objects::{Anomaly, Artefacts, Group, Held, Map, Objects, State, objects};
+pub use objects::{Anomaly, Artefact, Artefacts, Group, Held, Map, Objects, State, objects};
 mod player_tail;
 pub use player_tail::player_tail;
 mod rules;

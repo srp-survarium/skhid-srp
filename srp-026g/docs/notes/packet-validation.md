@@ -68,6 +68,10 @@ player item fields, fixed 69-byte bullet records, and the optional `LMP1` lamp
 history suffix. A bullet's ammo ordinal is not bounded by the original profile:
 pickup swaps can change the gun while a bullet remains in flight, and the shipped
 native loader already clamps the ordinal.
+The effects template takes any finite float at offsets 36, 40 and 48: the
+effect's five values (read at 0x2DDEAF..0x2DDEF0, stored at 0x2DDFE4..0x2DE017)
+are two u32 at 32 and 44, still held to 0, and three floats, none an index;
+live games save 0.05 in them (2 of the 25,456 uploads of the second live sample).
 Since patch 98 the six sections grow past the history item's inline buffers;
 only the body's 0xF000 bytes (`world_frame::MAX_BODY`) and a player state's
 0x1000 bound them. The packed 0xE8 decodes into 0xF000 bytes as well.
@@ -115,7 +119,11 @@ map's battery containers are the gather rule's (the rules section).
   data keeps those a world saves (`resources_db::server::objects_of`, data
   format 4; data 3 is refused at start), and `maps::world_objects` reads them
   once into the validator's types, the anomalies' states in the game's sorted
-  order (`state_prio` 0x33C400, insertion sort).
+  order (`state_prio` 0x33C400, insertion sort), and each artefact with its
+  item's core: an active one (state 4) saves its core's own bytes after the
+  base's (Lifebone `data.type` 3 and Spring 6 a u32, Onyx 7 a u32 and an f32;
+  the artefact cook's switch 0x2EE95F, the cores' `deserialize` 0x3124B0,
+  0x3119E0, 0x312AF0).
 - **The places' part** is each profile's usable kits, slot by slot, one object
   for each of a grenade set's or trap set's count (`MatchProfile::held`, by the
   item's `data.type`, `ItemClass`). The first roster is bound from the start
@@ -130,8 +138,13 @@ map's battery containers are the gather rule's (the rules section).
 Evidence: all **3,920** worlds of the 2026-11-05 local tests read to the exact
 end of the section with their match's own profiles (each match's 0xE4 from the
 packet logs, joined to its worlds by the players' ports) and the maps of server
-data built from the live patches up to 50. The client's world check still has
-no object list: its native guards stay its bound.
+data built from the live patches up to 50. So do all **50,205** uploads of 118
+live matches of revision 50 (two spread samples of the 366 recordings from
+2026-11-05 20:00 to 2026-11-06 21:00 UTC: 39 map configs of modes 2 to 5; every
+complete 0xE0 upload checked as `world_validation::check` does, with the
+recording's own 0xE4). Before the artefact cores 85 of the first sample's
+24,749 were refused, all at an active artefact. The client's world check still
+has no object list: its native guards stay its bound.
 
 ## Native deserialization bounds
 

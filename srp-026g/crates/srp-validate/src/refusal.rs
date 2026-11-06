@@ -298,6 +298,11 @@ pub enum Reason {
         found: u8,
         wanted: u8,
     },
+    /// A float the template takes any finite value of is none.
+    EffectsNotNumber {
+        at: usize,
+        what: &'static str,
+    },
     /// The emitter's id (offset 58: the opening u32, 75: it less 1).
     EffectsEmitterId {
         at: usize,
@@ -681,6 +686,9 @@ impl fmt::Display for Reason {
                 f,
                 "byte {at} ({what}) is {found:#04x}, the template's {wanted:#04x}"
             ),
+            Reason::EffectsNotNumber { at, what } => {
+                write!(f, "the float at {at} ({what}) is no number")
+            }
             Reason::EffectsEmitterId { at, found, wanted } => write!(
                 f,
                 "the emitter id at {at} is {found:#x}, the opening u32 makes it {wanted:#x}"

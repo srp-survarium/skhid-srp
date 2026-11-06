@@ -3246,3 +3246,4 @@ va	status	ref_021d	name
 0x0031be60	inferred-medium	0x001ee33e	survarium::zone_group::recharge
 0x0031c360	inferred-medium		vostok::buffer_vector<artefact pointer>::push_back
 0x0033c400	inferred-high	0x001eea6b	survarium::state_prio
+0x002ee930	inferred-medium	0x00194e92	survarium::artefact_cook::construct_derived_resource
