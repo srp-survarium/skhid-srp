@@ -64,6 +64,8 @@ pub struct Kinematics {
     pub jump_snap: JumpSnap,
     /// Where the reckoned body falls off a ledge ([`Edge`]).
     pub edge: Edge,
+    /// [A318] How the reckoned body comes down a drop ([`DropFall`]).
+    pub drop_fall: DropFall,
     /// [A269c] What a route adds to the cost of a walk onto a floor near an open side (with [`Edge::ClientWalksOff`], the grid's
     /// table of open sides), times the walk's own: the route keeps a body's width in from an edge the capsule walks off where the
     /// floor allows (`RouteFilter::weighing_open_sides`). 2 makes a cell's walk there cost 0.75 m, as a deep fall's edge does
@@ -283,6 +285,7 @@ impl Default for Kinematics {
             wall_slide: WallSlide::Diagonal,
             jump_snap: JumpSnap::ByKeys,
             edge: Edge::Client,
+            drop_fall: DropFall::Gravity,
             open_edge_cost: 0.0,
             walk_off_landing: WalkOffLanding::BySpeed,
             margin_edge: MarginEdge::Body,
@@ -359,6 +362,20 @@ pub enum WallSlide {
     /// degree staircase, which holds both axes.
     #[default]
     Diagonal,
+}
+
+/// [A318] How the reckoned body (`BodyTrack`, not the lip guard's stop forecast) comes down when its floor drops more than a step
+/// under it (a drop link's landing, a walk-off under the edge, a world in the air over its floor).
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum DropFall {
+    /// On the floor below at once (as it was).
+    Snap,
+    /// As the client's capsule: its height falls from where it left under gravity (`step_down` 0x7E1B0, PROVEN: with no ground
+    /// within the step under it, the velocity takes `g * min(dt, tick)` down each step and moves it by the speed it had, g = 9.8,
+    /// `fall_params.gravity`) until it is on the floor below. Its floor and its way across are as with [`Self::Snap`].
+    #[default]
+    Gravity,
 }
 
 /// [A318] The blend a world's fix starts the reckoning with.
