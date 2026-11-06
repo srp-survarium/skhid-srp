@@ -113,6 +113,26 @@ fn holding(cx: &Ctx, who: Place) -> bool {
 }
 
 pub fn candidates(cx: &Ctx, out: &mut Vec<Candidate>) {
+    // [A320 bench] A route walker no longer on its route's flank: what took it (another play, or the job / its held spot gone).
+    #[cfg(test)]
+    {
+        let walking = ROUTE_SEEN.with(|m| m.borrow().contains_key(&cx.me.place));
+        if walking {
+            let why = match cx.bot.current {
+                Some((PlayKind::Flank, TargetRef::ThreatSpot(id), _)) => {
+                    let line = cx.team.threat.line(id).is_some();
+                    let role = matches!(cx.team.threat.job_of(cx.me.place), Some((_, Role::Flanker, l)) if l.id == id);
+                    (!role).then(|| format!("job role gone (held spot {})", if line { "still held" } else { "gone" }))
+                }
+                Some((kind, _, _)) => Some(format!("another play {kind:?}")),
+                None => Some("no play".to_string()),
+            };
+            if let Some(why) = why {
+                ROUTE_SEEN.with(|m| m.borrow_mut().remove(&cx.me.place));
+                eprintln!("A320 camp_flank route left: t {} place {} {why}", cx.now, cx.me.place);
+            }
+        }
+    }
     // [K2] The team's job on a held spot gives this bot the flank: the
     // kills tell where he is and which way he faces, not his keys (a human
     // camper stands and peeks, RC1). The gate below stays a second trigger.
