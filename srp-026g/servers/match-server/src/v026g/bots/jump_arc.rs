@@ -15,9 +15,9 @@
 //! - The jump ends at the clip's end (`jump_logic_state_landing::initialize` 0x3440E0 calls `end_jump` 0x7F050).
 //!
 //! The reckoning has no capsule sweeps at run time: a wall is a ray of the map's walker mesh (`body::walker_walls`, as the stand-in
-//! casts; the bullet mesh misses walls the body bumps into) at heights every 5 cm ([`rays_blocked`]) within the move and the body's radius, or a floor
-//! within the radius above the arc's feet by more than [`CATCH_M`] and under its head; the arc lands on the highest floor under
-//! its feet on the way down.
+//! casts; the bullet mesh misses walls the body bumps into) at heights every 5 cm ([`rays_blocked`]) within the move and the
+//! body's radius, or a floor within the radius above the arc's feet by more than [`CATCH_M`] and under its head; the arc lands on
+//! the highest floor or walker-mesh top under its feet on the way down.
 //! LIKELY: the sprint jump's leg (the right leg's clip rises 1.350 m, the left's 1.282 m: the left's is taken), the short jump's
 //! time scale 1, and the 0.1 m catch (the capsule's lower sphere on a lip). Also LIKELY: the clip's root alone from the press;
 //! the jump's animation lexeme is blended in over 0.3 s (the builder at 0x343CCF), so the client's first ~6 ticks mix the clip's
@@ -864,7 +864,8 @@ mod tests {
         let (a, b) = (Vec3::new(-5.0, 1.05, 0.0), Vec3::new(5.0, 1.05, 0.0));
         let (c, d) = (Vec3::new(5.0, 1.05, 0.03), Vec3::new(-5.0, 1.05, 0.03));
         let walls = RayTree::from_corners([[a, b, c], [a, c, d]]);
-        let grid = WalkGrid::build(&crate::v026g::bots::body::tests::floor(-3.0, -3.0, 3.0, 3.0, 0.0), [-3.0, -3.0, 3.0, 3.0], 0.25, mapdata::Body::client());
+        let floor = crate::v026g::bots::body::tests::floor(-3.0, -3.0, 3.0, 3.0, 0.0);
+        let grid = WalkGrid::build(&floor, [-3.0, -3.0, 3.0, 3.0], 0.25, mapdata::Body::client());
         let r = grid.body().radius;
         let on = perch_along(&grid, Some(&walls), Vec3::new(0.0, 1.0, -0.8), Vec3::new(0.0, 0.99, 0.9), r).expect("on the rail");
         assert!((on.y - 1.05).abs() < 1e-3 && on.z < 0.3, "{on:?}");
