@@ -32,7 +32,7 @@ use std::collections::VecDeque;
 use mapdata::{LinkKind, NodeId, Vec3, WalkGrid};
 use survarium::v026g::match_msgs::TICK_MS;
 
-use super::kin::{Blend, Edge, FIX_ABOVE_M, FixBlend, FixFloor, WallSlide, JumpSnap, Kinematics, MarginEdge, TICK_S, WalkOffLanding, to_world, wrap};
+use super::kin::{Blend, DropFall, Edge, FIX_ABOVE_M, FixBlend, FixFloor, WallSlide, JumpSnap, Kinematics, MarginEdge, TICK_S, WalkOffLanding, to_world, wrap};
 use super::pitch::{Pitch, PitchScale};
 use crate::v026g::drive::key;
 
@@ -83,9 +83,41 @@ pub struct Estimate {
     pub air_cap: f32,
     /// How the pitch unit relates to the elevation ([`Kinematics::pitch_scale`]).
     pub scale: PitchScale,
+    /// [A318] In the air over its floor after a drop ([`DropFall::Gravity`]): `feet.y` is the falling height, `node` the floor it
+    /// comes down on.
+    pub fall: Fall,
+}
+
+/// [A318] Whether the reckoned body is on its floor or coming down onto it ([`DropFall::Gravity`]).
+#[derive(Clone, Copy, Debug, Default, PartialEq)]
+pub enum Fall {
+    #[default]
+    Ground,
+    /// Falling at `speed` m/s (down), the client's `step_down` velocity.
+    Falling { speed: f32 },
+}
+
+/// [A318] `fall_params.gravity`, m/s^2 (PROVEN, `docs/notes/fall_damage.md`; `step_down` 0x7E1B0's g).
+const GRAVITY: f32 = 9.8;
+
+/// Who plays the body on: the reckoning ([`BodyTrack`]) or the lip guard's stop forecast ([`stays_up`]), which keeps the floor
+/// below at once ([`DropFall::Snap`]) whatever the reckoning does.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum Role {
+    Reckoning,
+    Forecast,
 }
 
 impl Estimate {
+    /// This body on the floor it comes down on, if it is falling ([`Fall`]): what the stop forecast plays on from.
+    fn landed(mut self, grid: &WalkGrid) -> Self {
+        if let (Fall::Falling { .. }, Some(node)) = (self.fall, self.node) {
+            self.feet.y = grid.position(node).y;
+        }
+        self.fall = Fall::Ground;
+        self
+    }
+
     /// The view's pitch as the game has it: the base pitch and the kick (0x2E0F60).
     pub fn view(&self) -> Pitch {
         Pitch::view(self.pitch, self.kick)
@@ -127,6 +159,7 @@ impl Estimate {
             air_until: 0,
             air_cap: f32::INFINITY,
             scale: PitchScale::Radian,
+            fall: Fall::Ground,
         }
     }
 }
@@ -148,12 +181,12 @@ pub struct Stop<'a> {
 /// pressed at a rim carries it a stride on, so the check plays the stop, not the step.
 pub fn stays_up(at: &Estimate, keys: u32, turn: f32, stop: &Stop) -> bool {
     let Stop { kin, level, grid, planned, hold } = *stop;
+    let mut at = at.landed(grid);
     let top = at.feet.y;
-    let mut at = *at;
     for k in 0..kin.blend_ticks + hold + 2 {
         // The keys count a tick more than the model's one-tick lag (the game may take them at once).
         let (held, turn) = if k < hold { (keys, if k == 0 { turn } else { 0.0 }) } else { (keys & !MOVE_KEYS, 0.0) };
-        at = advance(at, Tick { time: at.time + TICK_MS, keys: held, turn: (turn, 0.0), kick: 0.0 }, kin, level, Some(grid));
+        at = advance(at, Tick { time: at.time + TICK_MS, keys: held, turn: (turn, 0.0), kick: 0.0 }, kin, level, Some(grid), Role::Forecast);
         // A fall that lands where the route drops is the route's.
         let falls = |feet: Vec3| top - feet.y >= mapdata::grid::LIP_DROP_M && !planned.iter().any(|landing| landing.distance_xz(feet) <= PLANNED_LANDING_M);
         if falls(at.feet) {
@@ -395,7 +428,7 @@ impl BodyTrack {
             turn: (0.0, 0.0),
             kick: estimate.kick,
         };
-        Some(advance(estimate, tick, kin, self.level(), grid))
+        Some(advance(estimate, tick, kin, self.level(), grid, Role::Reckoning))
     }
 
     /// Where the body is, or was last reckoned alive, and in which of its
@@ -604,7 +637,19 @@ impl BodyTrack {
             air_until,
             air_cap,
             scale: kin.pitch_scale,
+            fall: Fall::Ground,
         };
+        // [A318] A world that has the body more than a step over its floor, out of its own jump, has it falling
+        // ([`DropFall::Gravity`]): at the speed the reckoning had it fall at, else from rest (a world has no vertical speed).
+        if let (DropFall::Gravity, Some(grid), Some(node), 0) = (kin.drop_fall, grid, node, air_until)
+            && feet.y - grid.position(node).y > grid.body().step
+        {
+            let speed = match self.estimate.map(|e| e.fall) {
+                Some(Fall::Falling { speed }) => speed,
+                _ => 0.0,
+            };
+            estimate.fall = Fall::Falling { speed };
+        }
         self.trail.clear();
         // The ticks after the world's, again from where the world has it.
         for tick in self.ticks.iter().filter(|tick| tick.time > fix.time) {
@@ -664,7 +709,7 @@ impl BodyTrack {
 /// toward a move is under way after its first tick).
 fn advance_held(at: Estimate, tick: Tick, kin: &Kinematics, level: f32, grid: Option<&WalkGrid>) -> (Estimate, bool) {
     let meant = kin.target_local(at.keys, level);
-    let next = advance(at, tick, kin, level, grid);
+    let next = advance(at, tick, kin, level, grid, Role::Reckoning);
     let held = grid.is_some() && meant[0].hypot(meant[1]) > 1e-3 && next.velocity == [0.0, 0.0];
     (next, held)
 }
@@ -679,10 +724,17 @@ fn advance(
     kin: &Kinematics,
     level: f32,
     grid: Option<&WalkGrid>,
+    role: Role,
 ) -> Estimate {
     let steps = (tick.time.saturating_sub(at.time) / TICK_MS).max(1);
+    let falls = role == Role::Reckoning && kin.drop_fall == DropFall::Gravity;
     let target = kin.target_local(at.keys, level);
     for step in 1..=steps {
+        // [A318] A falling body moves across from its floor; its height is played after the step.
+        let top = at.feet.y;
+        if let (Some(grid), Fall::Falling { .. }, Some(node)) = (grid, at.fall, at.node) {
+            at.feet.y = grid.position(node).y;
+        }
         let local = at.blend.tick_mixed(target, kin.blend_ticks, kin.mixer);
         at.velocity = to_world(local, at.yaw);
         let to = Vec3::new(
@@ -725,6 +777,7 @@ fn advance(
                 if stopped {
                     at.velocity = [0.0, 0.0];
                 }
+                at.fall = if falls && !in_air { fall_step(at.fall, top, &mut at.feet, grid.body().step) } else { Fall::Ground };
             }
             _ => at.feet = to,
         }
@@ -741,6 +794,30 @@ fn advance(
     at.keys = tick.keys;
     at.time = tick.time;
     at
+}
+
+/// [A318] One step of the reckoned body's height over a drop ([`DropFall::Gravity`]), `feet` on its floor after the step and `top`
+/// the height it had before: falling, it goes down by the speed it had and gains `g` a step (`step_down` 0x7E1B0) until it is on the
+/// floor; on the ground, a floor more than `step` under where it was starts the fall from there (the capsule finds no ground within
+/// its step: the first step only takes the speed).
+fn fall_step(fall: Fall, top: f32, feet: &mut Vec3, step: f32) -> Fall {
+    let floor = feet.y;
+    match fall {
+        Fall::Falling { speed } => {
+            let y = top - speed * TICK_S;
+            if y <= floor {
+                Fall::Ground
+            } else {
+                feet.y = y;
+                Fall::Falling { speed: speed + GRAVITY * TICK_S }
+            }
+        }
+        Fall::Ground if top - floor > step => {
+            feet.y = top;
+            Fall::Falling { speed: GRAVITY * TICK_S }
+        }
+        Fall::Ground => Fall::Ground,
+    }
 }
 
 /// [`slide`] with the reckoned body's edge ([`Kinematics::edge`]): the lattice's, the client's held to [`SUPPORT_M`], or that and
@@ -1865,7 +1942,8 @@ pub(super) mod tests {
         let yaw = -std::f32::consts::FRAC_PI_2;
         // The overhang past the top floor's last centre the tick before the feet are down on the ground floor (None: never).
         let first_down = |edge: Edge| {
-            let kin = Kinematics { blend_ticks: 1, edge, ..Kinematics::default() };
+            // Where it goes over, not when it is down: the floor below at once.
+            let kin = Kinematics { blend_ticks: 1, edge, drop_fall: DropFall::Snap, ..Kinematics::default() };
             let mut track = BodyTrack::default();
             track.fixed(fix(0, Vec3::new(8.0, 2.0, 5.0), yaw), &kin, Some(&grid));
             let mut before = 8.0;
@@ -1883,6 +1961,61 @@ pub(super) mod tests {
         let (lattice, client) = (first_down(Edge::Lattice).expect("falls"), first_down(Edge::Client).expect("falls"));
         assert!(lattice < 0.3, "the lattice drops the reckoned body at the boundary: {lattice}");
         assert!(client > lattice + 0.1 && client <= SUPPORT_M, "the client edge holds it to the support, a tick short of the fall: {client}");
+    }
+
+    /// [A318] [`DropFall::Gravity`]: the reckoned body walking off a 2 m ledge comes down as the client's capsule falls (from rest,
+    /// `g` = 9.8: on the floor about 0.64 s after it goes over, at 1 m after about 0.45 s), where [`DropFall::Snap`] has it on the
+    /// floor below in the step it goes over; across it goes the same way. The stop forecast plays a falling body from its floor.
+    #[test]
+    fn the_reckoned_body_falls_down_a_drop_under_gravity_with_drop_fall() {
+        let mut triangles: Vec<Triangle> = floor(0.0, 0.0, 20.0, 10.0, 0.0).to_vec();
+        triangles.extend(floor(0.0, 0.0, 10.1, 10.0, 2.0));
+        triangles.extend(wall_x(10.1, 0.0, 10.0).map(|mut t| {
+            t.v.iter_mut().for_each(|v| v.y = v.y.min(2.0));
+            t
+        }));
+        let grid = WalkGrid::build(&triangles, [0.0, 0.0, 20.0, 10.0], 0.25, Body::default());
+        let yaw = -std::f32::consts::FRAC_PI_2;
+        // The heights and x of the feet each tick, walking out +x for 3 s.
+        let walk = |drop_fall: DropFall| {
+            let kin = Kinematics { blend_ticks: 1, drop_fall, ..Kinematics::default() };
+            let mut track = BodyTrack::default();
+            track.fixed(fix(0, Vec3::new(8.0, 2.0, 5.0), yaw), &kin, Some(&grid));
+            (50..=3_000).step_by(50).map(|time| {
+                track.decided(time, key::FORWARD, (0.0, 0.0), 0.0, &kin, Some(&grid));
+                let e = track.estimate().unwrap();
+                (time, e.feet, e.fall)
+            }).collect::<Vec<_>>()
+        };
+        let (snap, gravity) = (walk(DropFall::Snap), walk(DropFall::Gravity));
+        let left = snap.iter().position(|(_, feet, _)| feet.y < 1.9).expect("goes over");
+        assert!(snap[left].1.y < 0.1, "snap: on the floor below in the step it goes over");
+        assert!(snap.iter().all(|(_, _, fall)| *fall == Fall::Ground));
+        let over = gravity.iter().position(|(_, _, fall)| *fall != Fall::Ground).expect("falls");
+        assert_eq!(over, left, "it goes over in the same step");
+        let down = gravity.iter().position(|(_, feet, _)| feet.y < 0.01).expect("comes down");
+        let air = (gravity[down].0 - gravity[over].0) as f32 / 1000.0;
+        assert!((air - 0.64).abs() <= 0.1, "on the floor about sqrt(2 h / g) after: {air} s");
+        let half = gravity.iter().position(|(_, feet, _)| feet.y < 1.0).unwrap();
+        let t = (gravity[half].0 - gravity[over].0) as f32 / 1000.0;
+        assert!((t - 0.45).abs() <= 0.1, "1 m down after about 0.45 s: {t} s");
+        assert!(gravity[down..].iter().all(|(_, _, fall)| *fall == Fall::Ground), "and stays on it");
+        for ((_, a, _), (_, b, _)) in snap.iter().zip(&gravity) {
+            assert!((a.x - b.x).abs() < 1e-3 && (a.z - b.z).abs() < 1e-3, "across as snap: {a:?} {b:?}");
+        }
+        // The stop forecast of a falling body is the landed body's.
+        let mid = gravity[over + 2];
+        let kin = Kinematics::default();
+        let mut track = BodyTrack::default();
+        track.fixed(fix(0, Vec3::new(8.0, 2.0, 5.0), yaw), &kin, Some(&grid));
+        let falling = Estimate { feet: mid.1, fall: mid.2, node: grid.locate(Vec3::new(mid.1.x, 0.0, mid.1.z), 0.5), ..*track.estimate().unwrap() };
+        let stop = Stop { kin: &kin, level: 1.0, grid: &grid, planned: &[], hold: 2 };
+        assert_eq!(
+            stays_up(&falling, key::FORWARD, 0.0, &stop),
+            stays_up(&falling.landed(&grid), key::FORWARD, 0.0, &stop),
+            "the forecast plays it from its floor"
+        );
+        assert_eq!(Kinematics::default().drop_fall, DropFall::Gravity);
     }
 
     /// [`Edge::ClientWalksOff`] (A269): a ledge 6 m high, deeper than the harmless drop, has no link off it. The reckoned body walking
