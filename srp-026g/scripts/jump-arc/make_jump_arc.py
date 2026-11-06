@@ -63,6 +63,7 @@ use mapdata::{NodeId, RayTree, Vec3, WalkGrid};
 #[cfg(test)]
 use std::sync::atomic::{AtomicU64, Ordering};
 
+use super::body::client_fall_tick;
 use super::kin::{Local, TICK_S, to_world};
 use crate::v026g::drive::key;
 
@@ -86,15 +87,6 @@ const WALK_CAP_MS: f32 = 3.5;
 /// The sprint jump's prepare phase, its mean (the run's step left at the press: 0-150 ms, 0-1.64 m, FINDINGS 3.2): LIKELY.
 const PREPARE_MS: f32 = 75.0;
 const PREPARE_M: f32 = 0.82;
-/// A body falling after its clip, m/s^2: `fall_params.gravity` in `gameplay/players/default.player` (JUMP-FINDINGS 1; the client's
-/// `step_down` 0x7E1B0 falls by it outside the jump).
-const GRAVITY: f32 = 9.8;
-/// `step_down` 0x7E1B0 (port `controller/tick.rs`): under `on_ground_max_vertical_speed` 2.0 m/s (`startup.cfg`) an airborne tick
-/// sinks only `additional_down_speed` 0.05 m while the speed still gains g dt; over it, it moves the tick's starting speed times
-/// the tick (tick.rs:267-269): from rest 5 slow ticks, then 2.45, 2.94 m/s (fx-gear-2's corrected probe: -1.00 x5, then -2.45,
-/// -2.94, -3.43). See `fall_tick`.
-const SLOW_FALL_MS: f32 = 2.0;
-const SLOW_FALL_STEP_M: f32 = 0.05;
 /// The lowest and highest heights over the feet whose rays a wall holds a body in the air at, m (the stand-in's lowest and
 /// highest `AIR_RAYS`), and the spacing between them: 5 cm, so a thin horizontal bar cannot pass between two (the stand-in's three
 /// heights 0.1 / 0.9 / 1.7 let the arc through Vector Laboratory's railing: bars at 0.43 / 0.70 m, the top rail 7 cm thick at
@@ -335,7 +327,8 @@ impl JumpArc {
         let body = grid.body();
         let (radius, height) = (body.radius, body.stand_height);
         if let Phase::Fall { speed } = self.phase {
-            let (speed, drop) = fall_tick(speed, dt);
+            // The client's fall, one rule with the reckoning's ([`DropFall::Client`](super::kin::DropFall::Client)).
+            let (speed, drop) = client_fall_tick(speed);
             let y = feet.y - drop;
             if let Some((top, node)) = perch_over(grid, walls, Vec3::new(feet.x, y, feet.z), feet.y, radius) {
                 return ArcStep::Landed(Vec3::new(feet.x, top, feet.z), node);
@@ -506,14 +499,6 @@ fn perch_along(grid: &WalkGrid, walls: Option<&RayTree>, feet: Vec3, at: Vec3, r
     })
 }
 
-/// One tick of a fall at `speed` m/s (down positive): the new speed and the drop, m. The slow test and a fast tick's move both read
-/// the tick's starting speed, and this tick's g counts from the next tick (port `controller/tick.rs:267-269`, `step_down` 0x7E1B0).
-/// fx-gear-2's probe pins the order: from rest -1.00 m/s x5 (0.05 m a tick), then -2.45, -2.94, -3.43; moving by the new speed
-/// would give -2.94 on the sixth tick.
-fn fall_tick(speed: f32, dt: f32) -> (f32, f32) {
-    let drop = if speed < SLOW_FALL_MS { SLOW_FALL_STEP_M } else { speed * dt };
-    (speed + GRAVITY * dt, drop)
-}
 
 /// The floor a body in the air at `at` comes down on (`tests/standin_jump.rs` `air_floor`): the highest whose cell holds it at or
 /// below `top`, else the highest within the body's radius (the nearest of them); its floor and where the feet stand.
@@ -646,22 +631,7 @@ mod tests {
     fn a_clip_ends_falling_at_its_roots_last_descent() {
         let v = Clip::Short(Direction::Forward).end_descent();
         assert!((6.0..8.0).contains(&v), "{v}");
-        assert!(v > SLOW_FALL_MS);
-    }
-
-    /// A fall from rest: 5 slow ticks of 0.05 m (the tick's starting speed 0, 0.49, 0.98, 1.47, 1.96), then the starting speed
-    /// times the tick: 2.45, 2.94 m/s (fx-gear-2's corrected probe: -1.00 x5, then -2.45, -2.94).
-    #[test]
-    fn a_fall_from_rest_sinks_five_slow_ticks() {
-        let mut speed = 0.0;
-        let mut drops = Vec::new();
-        for _ in 0..7 {
-            let (next, drop) = fall_tick(speed, TICK_S);
-            drops.push(drop);
-            speed = next;
-        }
-        assert!(drops[..5].iter().all(|d| (d - SLOW_FALL_STEP_M).abs() < 1e-6), "{drops:?}");
-        assert!((drops[5] / TICK_S - 2.45).abs() < 1e-3 && (drops[6] / TICK_S - 2.94).abs() < 1e-3, "{drops:?}");
+        assert!(v > super::super::body::CLIENT.on_ground_max_vertical_speed);
     }
 
     /// The air control: the keys at 1 m/s, none for forward alone in a sprint jump.
