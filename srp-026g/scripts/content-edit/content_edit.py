@@ -1111,7 +1111,9 @@ STATS = {
             'aim_bonus': default_modification(207), 'recoil_bonus': default_modification(208),
             'reliability_bonus': default_modification(209),
         },
-        'add': {'reload_empty'},
+        # a bonus cell of a gun with no built-in list makes its default_modifications
+        'add': {'reload_empty', 'silver_bonus', 'damage_bonus', 'spread_bonus', 'rpm_bonus', 'reload_bonus',
+                'chamber_bonus', 'aim_bonus', 'recoil_bonus', 'reliability_bonus'},
         'match': {'damage', 'pierce', 'rpm', 'magazine', 'reload', 'reload_empty', 'reload_start', 'reload_end', 'chamber',
                   'aim_time', 'show_time', 'hide_time', 'weight', 'movement', 'stopping', 'stamina_damage',
                   'near_m', 'far_m', 'far_damage', 'spread', 'shot_spread', 'max_spread', 'spread_growth',
@@ -1556,6 +1558,12 @@ def stats_write(category, columns, rows, data, table):
             root = dict(zip(value_offsets(b), (q for q, _, _ in walk(b))))[off]  # the entry's own path
             for column, key, cell, have in stats_differences(b, off, columns, rows[row], row, present):
                 if isinstance(key, Derived):
+                    if cell and not resolve(b, key, off) and column in category.get('add', ()):
+                        # a built-in list the config lacks (an `add` bonus column): made with this one
+                        insert_value(b, off, key, {0: int(cell)})
+                        written.setdefault(p, []).extend([root + '/' + key, root + '/' + key + '[0]'])
+                        print('%s %s: %s -> %s' % (stats_label(category, row, p), column, have, cell))
+                        continue
                     for at, o in resolve(b, key, off):
                         changed, taken = key.write(b, o, cell)
                         written.setdefault(p, []).extend(root + at + q for q in changed)
