@@ -155,13 +155,13 @@ def eye_model(candidates, base_model, needed):
     return False
 
 
-def eye_on_dot(root, cfg, directory, dot):
-    """(x, y) of the aim locator of the weapon model `directory` that looks along its bone at `dot` (a
-    point of the optic, its frame): the optic drawn at scope_point turned half about Y, the weapon
-    posed by its idle clip as the sight-alignment tool poses it (matched with the game; `root` has
-    the clip and the skeleton). The clip may move the bone scope_point hangs on off the aim
-    locator's: the UMP-45's 3 cm aside, the Rem 870's 6 cm down; read unposed, the variants' red dots
-    showed that far off the screen's centre (@6)."""
+def posed_frame(root, cfg, directory):
+    """The optic's frame (row vectors, 4x4) in the frame of the aim locator's bone of the weapon model
+    `directory`: the optic drawn at scope_point turned half about Y, the weapon posed by its idle
+    clip as the sight-alignment tool poses it (matched with the game; `root` has the clip and the
+    skeleton). The clip may move the bone scope_point hangs on off the aim locator's: the UMP-45's
+    3 cm aside, the Rem 870's 6 cm down; read unposed, the variants' red dots showed that far off
+    the screen's centre (@6)."""
     states = posing.config(root / cfg)['states']
     animation = states.get('aimed_idle', {}).get('animations', states['idle']['animations'])[0]  # posing.weapon's
     rig = posing.bones(root, directory, animation, 0)
@@ -169,7 +169,13 @@ def eye_on_dot(root, cfg, directory, dot):
     frame = posing.HALF @ posing.locator_matrix(posing.locator(directory, 'scope_point'), rig)
     if aim.bone is not None:
         frame = frame @ np.linalg.inv(rig[aim.bone].pose)
-    return tuple(posing.transform(np.asarray(dot, float), frame)[:2])
+    return frame
+
+
+def eye_on_dot(root, cfg, directory, dot):
+    """(x, y) of the aim locator of the weapon model `directory` that looks along its bone at `dot` (a
+    point of the optic, its frame; posed_frame)."""
+    return tuple(posing.transform(np.asarray(dot, float), posed_frame(root, cfg, directory))[:2])
 
 
 def moved_eye(model, needed):
