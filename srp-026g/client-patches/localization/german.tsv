@@ -2459,14 +2459,12 @@ st_srp_inv_pocket_units	Taschenplätze
 st_srp_inv_stamina_damage	Ausdauerschaden
 st_srp_inv_throw_speed	Wurfgeschwindigkeit
 st_srp_inventory_search	Suche
-st_srp_inventory_search_examples	+Tasche +Landschtreicher, +Zelle, +Patronen, +10
+st_srp_inventory_search_examples	+Tasche, +Zelle, +Patronen, +10
 st_srp_inventory_search_tip_bonus	hat jeden genannten Bonus
 st_srp_inventory_search_tip_bonus_example	+Patronen +Tasche
 st_srp_inventory_search_tip_bonus_list	alle Boni
 st_srp_inventory_search_tip_faction	von dieser Fraktion verkauft (mehrere: eine davon)
 st_srp_inventory_search_tip_faction_example	+Arme
-st_srp_inventory_search_tip_first	ein Bonus und eine Fraktion, beides zugleich
-st_srp_inventory_search_tip_first_example	+Tasche +Landschtreicher
 st_srp_inventory_search_tip_kind	eine dieser Arten
 st_srp_inventory_search_tip_kind_example	+helmet +boots
 st_srp_inventory_search_tip_kind_list	alle Arten

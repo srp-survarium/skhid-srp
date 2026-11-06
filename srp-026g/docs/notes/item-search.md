@@ -24,7 +24,9 @@ Code, in `flash/lobby_menu/src` ([lobby-source.md](lobby-source.md)):
   opening or closing it.
 - **Typing goes to it:** a letter or a digit typed over an open item list gives the box the keys,
   and that character goes on at the end of its text. The keys of other layouts' letters
-  (`; , . [ ] '` …) count too, and "+" (the row's and the pad's: a "+" word).
+  (`; , . [ ] '` …) count too, and "+" (a "+" word): its character as the exe sends it, or, when
+  the key comes without one, the pad's + and Shift+= (the US layout's +; another layout's + only
+  by the exe's character).
 - **Ctrl+F** gives the box the keys with its text selected.
 - **A click** on the box or its magnifier gives it the keys.
 - **When typing and Ctrl+F do nothing:**
@@ -42,13 +44,13 @@ Code, in `flash/lobby_menu/src` ([lobby-source.md](lobby-source.md)):
     2026-10-22): Esc empties it;
   - when empty and without the keys, it shows the syntax itself (owner 2026-11-06: the tip alone
     is not enough): "Search" at the hint's grey, then, dimmer (62 % as bright: `SrvTextInput`'s
-    `defaultTextMore`, same font and size), the examples, the one players want most first, a bonus
-    with a faction, then the slot, the ammo, a level and a name: "Search: +pocket +scavenger,
-    +slot, +ammo, +10, name" / "Поиск: +карман +бродяги, +слот, +патрон, +10, название" …, each
-    language's own words that match there (its pocket and slot bonuses' card names, its seller
-    tab's Scavengers). The whole hint on one line inside the box in every language; where it does
-    not fit, the last examples go (German and Polish: no name). The longest, Russian, 483 of 512 px
-    in Ruffle; the lobby scales the box with the list, so every resolution alike. Two keys:
+    `defaultTextMore`, same font and size), the examples, exactly the pocket, the slot, the ammo
+    and a level (owner 2026-11-06; no faction, no name): "Search: +pocket, +slot, +ammo, +10" /
+    "Поиск: +карман, +слот, +патрон, +10" …, each language's own words that match there (its
+    bonuses' card names; Hungarian and Finnish `+slot`, as their own word starts an items kind
+    word). The whole hint on one line inside the box in every language (the longest, Polish, 364
+    of 512 px in Ruffle); the lobby scales the box with the list, so every resolution alike. Two
+    keys:
     `st_srp_inventory_search` (the word), `st_srp_inventory_search_examples`;
   - upright: every CLIK text box's hint is upright now (`TextInput.initialize`), as the lobby's
     Calibri has no italic and the game takes "Calibri Bold Italic" from the system's fonts, so
@@ -59,9 +61,8 @@ Code, in `flash/lobby_menu/src` ([lobby-source.md](lobby-source.md)):
 
   | example | meaning |
   | --- | --- |
-  | `+pocket +scavenger` | a bonus and a faction, both at once |
   | `+ammo +pocket` | has each bonus named |
-  | every bonus | the items' bonus words, the most items first: `+ammo +pocket +slot +artifact …` |
+  | every bonus | the items' bonus words by type: the gear's `+ammo +slot +pocket +artifact …`, then the weapons' `+aim +recoil …` |
   | `+10 +11` | of any of these levels |
   | `+army` | sold by that faction (several: any) |
   | `+helmet +boots` | any of these kinds |
@@ -70,9 +71,13 @@ Code, in `flash/lobby_menu/src` ([lobby-source.md](lobby-source.md)):
   - **The lists** (owner 2026-11-06: "there should be a list of +slot +artifact too, this is not
     obvious"; "many return nothing and as such should not be mentioned"): the words of what the
     items have, made from the shop's and the inventory's items when they come (not as one types):
-    - a word for each bonus some item has (the modifications a "+" word reads: rolled, built-in,
-      the defaults, no defect), its `SEARCH_BONUSES` row's first word, once; the most items first
-      (an item in the shop and the inventory counts twice), ties in the table's order;
+    - a word for each bonus some item has (the lines a "+" word reads: rolled, built-in, the
+      defaults; no defect, no penalty), its `SEARCH_BONUSES` row's first word, once; by type
+      (owner 2026-11-06: "bonuses should be sorted by type", "no need for rows, just different
+      order"): the words of the gear first, then the weapons', the ammo's, the items' (the
+      shop's tab order: a word in the first group whose items have it), each group in the
+      table's order (the most searched first). No counts: an item listed twice (the shop lists
+      one once a seller) changes nothing;
     - each kind some item is (its `SEARCH_KINDS` row's first word), in the table's order;
     - a bonus or kind no item has still matches; it is not listed. A list with no word is no row.
     - wrapped in the right column (at least 400 px); the English words, as they work in every
@@ -84,8 +89,8 @@ Code, in `flash/lobby_menu/src` ([lobby-source.md](lobby-source.md)):
   - **Where:** just above the box (it is under the item grid), its left edge on the box's left
     edge, never over the item panel's buttons (Buy, Hide owned); it does not follow the pointer.
     On the screen at every resolution (the lobby scales its tips with it).
-  - **Only the "+" filters** (owner 2026-11-06: "since this only shows bonuses"): the combined
-    example and the bonus, level, faction and kind rows; no row for names (a plain word still
+  - **Only the "+" filters** (owner 2026-11-06: "since this only shows bonuses"): the bonus,
+    level, faction and kind rows (the bonus row's `+ammo +pocket` shows them combining); no row for names (a plain word still
     searches them, typos forgiven).
   - Once something is typed there is no tip; a click on the empty box is a click on the box.
   - Each cell a dictionary key (`st_srp_inventory_search_tip_<row>_example`,
@@ -156,7 +161,11 @@ levels, kinds, factions, bonuses and the name's words (`SearchQuery`).
     (`SEARCH_BONUSES`): `+ammo`, `+slot`, `+pocket`, `+artifact` and `+artefact`, `+weight`,
     `+stamina`, `+aim`, `+recoil`, `+reload`, `+armor` and `+armour`, `+regen`, `+xp`, …;
   - every bonus the card lists: rolled, built-in, the default modifications, the shop's items'
-    (theirs are built-in only). A defect (the card's red line) is no bonus.
+    (theirs are built-in only). A defect (the card's red line) is no bonus;
+  - only a line that helps (owner 2026-11-06): the card shows it green (`ModificationRolls.style`,
+    the card's own rule: the value better than none in the property's direction). A penalty, as
+    the weapons' built-in "Movement speed -5%" or a +2 kg weight, matches no "+" word and is not
+    listed.
 - **Several of a kind:**
   - levels: any of them (`+10 +11` lists both);
   - kinds: any of them (an item is one kind: `+helmet +boots` lists both);
@@ -164,7 +173,7 @@ levels, kinds, factions, bonuses and the name's words (`SearchQuery`).
   - bonuses: all of them (`+ammo +pocket`: both on the item);
   - name words: all of them, as before.
 - **The kinds of word combine with "and":** `ak +10 +11 +ammo` is a name matching ak, of level 10
-  or 11, with an ammo bonus; `+pocket +scavenger` a pocket bonus sold by the Scavengers.
+  or 11, with an ammo bonus; `+pocket +scav` a pocket bonus sold by the Scavengers.
 - **A "+" word is a filter, never fuzzy:** no loose or typo match (`+amo` is not ammo). A `+word`
   naming nothing lists nothing. A "+" alone is nothing typed.
 - **A plain word is only a name's** (owner 2026-11-06): no kind ("helmet" is a part of a name;
@@ -174,8 +183,8 @@ levels, kinds, factions, bonuses and the name's words (`SearchQuery`).
 - **Checked** by `scripts/item-search/check.sh <lobby_menu.swf>` (Ruffle, the movie's own list):
   the rules above; in every language the hint on one line in the box (its two greys), each of its
   and the tip's examples finding what they name, the Armor bonus by its card name a bonus, not a
-  kind; the tip's rows, its lists (only what the fixture's items have, in the counts' order),
-  place and columns.
+  kind; the tip's rows, its lists (only what the fixture's items have, by type; no penalty),
+  place and columns; Shift+= without its character over the list typing "+".
 
 ## Closing, Esc, Enter, the other keys
 

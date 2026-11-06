@@ -2459,14 +2459,12 @@ st_srp_inv_pocket_units	Taskupaikat
 st_srp_inv_stamina_damage	Kestävyysvahinko
 st_srp_inv_throw_speed	Heittonopeus
 st_srp_inventory_search	Hae
-st_srp_inventory_search_examples	+tasku +haaskaajat, +slot, +ammus, +10, nimi
+st_srp_inventory_search_examples	+tasku, +slot, +ammus, +10
 st_srp_inventory_search_tip_bonus	on jokainen mainittu bonus
 st_srp_inventory_search_tip_bonus_example	+ammus +tasku
 st_srp_inventory_search_tip_bonus_list	kaikki bonukset
 st_srp_inventory_search_tip_faction	tämän ryhmittymän myymä (monta: mikä tahansa)
 st_srp_inventory_search_tip_faction_example	+armeija
-st_srp_inventory_search_tip_first	bonus ja ryhmittymä, molemmat kerralla
-st_srp_inventory_search_tip_first_example	+tasku +haaskaajat
 st_srp_inventory_search_tip_kind	jokin näistä tyypeistä
 st_srp_inventory_search_tip_kind_example	+kypärä +saappaat
 st_srp_inventory_search_tip_kind_list	kaikki tyypit

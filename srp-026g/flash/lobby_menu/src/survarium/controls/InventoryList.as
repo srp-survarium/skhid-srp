@@ -301,7 +301,7 @@ package survarium.controls
 
       private var _searchTipArea:ReasonsTip;
 
-      private static const SEARCH_TIP:Array = ["st_srp_inventory_search_tip_first","st_srp_inventory_search_tip_bonus","st_srp_inventory_search_tip_level","st_srp_inventory_search_tip_faction","st_srp_inventory_search_tip_kind"];
+      private static const SEARCH_TIP:Array = ["st_srp_inventory_search_tip_bonus","st_srp_inventory_search_tip_level","st_srp_inventory_search_tip_faction","st_srp_inventory_search_tip_kind"];
 
       // the text typed, read once (searchQuery); null: no search
       private var _search:SearchQuery;
@@ -2423,7 +2423,7 @@ package survarium.controls
          }
          if(!find)
          {
-            _searchTyped += e.charCode > 32 ? String.fromCharCode(e.charCode) : keyLetter(e.keyCode);
+            _searchTyped += e.charCode > 32 ? String.fromCharCode(e.charCode) : keyLetter(e.keyCode,e.shiftKey);
             this._searchBox.addEventListener(Event.RENDER,this.focusTyped);
             stage.invalidate();
             return;
@@ -2485,10 +2485,12 @@ package survarium.controls
       // the characters typed before the box had the keys (onSearchKey)
       private var _searchTyped:String = "";
       
-      // A letter key's lower case letter, a digit key's digit, the pad's +; "" for the others.
-      private static function keyLetter(code:uint) : String
+      // A letter key's lower case letter, a digit key's digit, the pad's + and Shift+= (the US
+      // layout's +: a key the exe sends without its character; other layouts' + comes as the
+      // exe's charCode); "" for the others.
+      private static function keyLetter(code:uint, shift:Boolean) : String
       {
-         if(code == 107)
+         if(code == 107 || code == 187 && shift)
          {
             return "+";
          }
@@ -2800,12 +2802,13 @@ package survarium.controls
       }
 
       // The tip's lists from the list's own items (owner 2026-11-06: "many return nothing and as
-      // such should not be mentioned"): a word for each bonus some shop or inventory item has (the
-      // modifications searchAdmits reads: rolled, built-in, no defect; its SEARCH_BONUSES row's
-      // first word, once), the most items first, ties in the table's order; and each kind some item
-      // is (its SEARCH_KINDS row's first word), in the table's order. Made when the items come
-      // (setupShopItems, setupInventoryData), not as the player types. A bonus or kind no item has
-      // still matches; it is not listed.
+      // such should not be mentioned"; "bonuses should be sorted by type"): a word for each bonus
+      // some shop or inventory item has (bonusLines; its SEARCH_BONUSES row's first word, once), by
+      // the group of the first item group (SuperCategory: the shop's tab order) whose items have
+      // it, in the table's order within a group; and each kind some item is (its SEARCH_KINDS row's
+      // first word), in the table's order. Sets, not counts: an item listed twice (the shop's, once
+      // a seller) changes nothing. Made when the items come (setupShopItems, setupInventoryData),
+      // not as the player types. A bonus or kind no item has still matches; it is not listed.
       private function listSearchWords() : void
       {
          var wordOf:Object = {};
@@ -2819,30 +2822,20 @@ package survarium.controls
                order.push(first);
             }
          }
-         var counts:Object = {};
+         // a word's group: the lowest SuperCategory of the items that have it
+         var group:Object = {};
          var kinds:Array = [];
          for each(var items:Array in [this._shopItems,this._inventoryItems])
          {
             for each(var item:Object in items != null ? items : [])
             {
-               var has:Object = {};
-               for each(var modifier:Object in item.modifiers is Array ? item.modifiers : [])
+               for each(var prop:Object in bonusLines(item))
                {
-                  if(modifier.state == ModificationState.DEFECT)
+                  var word:String = wordOf[prop.prop_id];
+                  if(word != null && (group[word] == null || int(item.superCategory) < group[word]))
                   {
-                     continue;
+                     group[word] = int(item.superCategory);
                   }
-                  for each(var prop:Object in modifier.props)
-                  {
-                     if(wordOf[prop.prop_id] != null)
-                     {
-                        has[wordOf[prop.prop_id]] = true;
-                     }
-                  }
-               }
-               for(var word:String in has)
-               {
-                  counts[word] = int(counts[word]) + 1;
                }
                for(var k:int = 0; k < SEARCH_KINDS.length; k++)
                {
@@ -2855,11 +2848,11 @@ package survarium.controls
          }
          var bonuses:Array = order.filter(function(w:String, i:int, a:Array):Boolean
          {
-            return counts[w] > 0;
+            return group[w] != null;
          });
          bonuses.sort(function(a:String, b:String):int
          {
-            return counts[a] != counts[b] ? counts[b] - counts[a] : order.indexOf(a) - order.indexOf(b);
+            return group[a] != group[b] ? group[a] - group[b] : order.indexOf(a) - order.indexOf(b);
          });
          kinds.sort(Array.NUMERIC);
          _searchBonusWords = bonuses.map(function(w:String, i:int, a:Array):String
@@ -3011,8 +3004,8 @@ package survarium.controls
       }
 
       // Whether the item has what the "+" words ask: a level of theirs, a kind of theirs, a seller of
-      // theirs, and each bonus word's bonus among its modifications (rolled or built-in; a defect is
-      // no bonus).
+      // theirs, and each bonus word's bonus among its bonus lines (bonusLines: rolled or built-in,
+      // no defect, no line worse than none).
       private static function searchAdmits(query:SearchQuery, item:Object) : Boolean
       {
          if(query.levels.length > 0 && query.levels.indexOf(int(item.itemLevel)) == -1)
@@ -3045,6 +3038,24 @@ package survarium.controls
 
       private static function hasBonus(item:Object, ids:Object) : Boolean
       {
+         for each(var prop:Object in bonusLines(item))
+         {
+            if(ids[prop.prop_id])
+            {
+               return true;
+            }
+         }
+         return false;
+      }
+
+      // An item's bonus lines: its modifications' (rolled, built-in, the defaults; no defect), each
+      // only when it helps: the card shows it green (ModificationRolls.style, not red: a value
+      // worse than none, as a weapon's built-in "Movement speed -5%" or a weight's +2 kg, is no
+      // bonus; owner 2026-11-06).
+      private static function bonusLines(item:Object) : Array
+      {
+         var lines:Array = [];
+         var descriptor:PropertiesDescriptor = PropertiesDescriptor.getPropertiesDescriptor("properties");
          for each(var modifier:Object in item.modifiers is Array ? item.modifiers : [])
          {
             if(modifier.state == ModificationState.DEFECT)
@@ -3053,13 +3064,13 @@ package survarium.controls
             }
             for each(var prop:Object in modifier.props)
             {
-               if(ids[prop.prop_id])
+               if(descriptor != null && descriptor.knows(prop.prop_id) && ModificationRolls.style(descriptor.getPropertyDescription(prop.prop_id),prop.prop_id,ModificationRolls.value(prop)) != "red")
                {
-                  return true;
+                  lines.push(prop);
                }
             }
          }
-         return false;
+         return lines;
       }
 
       // Whether a word starts a word of a text as the search compares it (searchForm).

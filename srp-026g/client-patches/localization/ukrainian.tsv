@@ -2459,14 +2459,12 @@ st_srp_inv_pocket_units	Місце в кишені
 st_srp_inv_stamina_damage	Шкода витривалості
 st_srp_inv_throw_speed	Швидкість кидка
 st_srp_inventory_search	Пошук
-st_srp_inventory_search_examples	+кишень +бродяги, +слот, +набої, +10, назва
+st_srp_inventory_search_examples	+кишень, +слот, +набої, +10
 st_srp_inventory_search_tip_bonus	є кожен названий бонус
 st_srp_inventory_search_tip_bonus_example	+набої +кишень
 st_srp_inventory_search_tip_bonus_list	усі бонуси
 st_srp_inventory_search_tip_faction	продає ця фракція (кілька: будь-яка)
 st_srp_inventory_search_tip_faction_example	+армія
-st_srp_inventory_search_tip_first	бонус і фракція, усе разом
-st_srp_inventory_search_tip_first_example	+кишень +бродяги
 st_srp_inventory_search_tip_kind	будь-який з цих видів
 st_srp_inventory_search_tip_kind_example	+шолом +черевики
 st_srp_inventory_search_tip_kind_list	усі види

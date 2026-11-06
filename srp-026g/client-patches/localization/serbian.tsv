@@ -2459,14 +2459,12 @@ st_srp_inv_pocket_units	Mesta u džepu
 st_srp_inv_stamina_damage	Šteta izdržljivosti
 st_srp_inv_throw_speed	Brzina bacanja
 st_srp_inventory_search	Pretraga
-st_srp_inventory_search_examples	+džep +sakupljači, +mesta, +torbice, +10, naziv
+st_srp_inventory_search_examples	+džep, +mesta, +torbice, +10
 st_srp_inventory_search_tip_bonus	ima svaki naveden bonus
 st_srp_inventory_search_tip_bonus_example	+torbice +džep
 st_srp_inventory_search_tip_bonus_list	svi bonusi
 st_srp_inventory_search_tip_faction	prodaje ta frakcija (više: bilo koja)
 st_srp_inventory_search_tip_faction_example	+vojska
-st_srp_inventory_search_tip_first	bonus i frakcija, oboje odjednom
-st_srp_inventory_search_tip_first_example	+džep +sakupljači
 st_srp_inventory_search_tip_kind	bilo koja od ovih vrsta
 st_srp_inventory_search_tip_kind_example	+šlem +čizme
 st_srp_inventory_search_tip_kind_list	sve vrste

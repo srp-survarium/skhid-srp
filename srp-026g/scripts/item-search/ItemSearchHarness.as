@@ -6,6 +6,7 @@ package
    import flash.display.MovieClip;
    import flash.display.Sprite;
    import flash.events.Event;
+   import flash.events.KeyboardEvent;
    import flash.events.MouseEvent;
    import flash.geom.Point;
    import flash.geom.Rectangle;
@@ -67,6 +68,9 @@ package
 
       private static const BOOTS:int = 9107;
 
+      // each fixture property's direction as the game has it (ui_properties: 1 more is better)
+      private static const DIRECTION:Object = {"3":1,"6":1,"9":1,"10":1,"15":0,"20":1,"102":0,"105":1,"115":0,"117":1};
+
       // [dict id, name, category, level, seller, built-in modifications, rolled modifications]
       private var ITEMS:Array;
 
@@ -119,9 +123,9 @@ package
             at = "the items";
             ITEMS = [[RIFLE,"AK-74M",Category.ASSAULT_RIFLES,10,3,[],[mod(115,-0.1)]],
                [RIG_A,"Rig A",Category.RIGS,10,1,[mod(20,2),mod(117,1)],[]],
-               [RIG_B,"Rig B",Category.RIGS,11,2,[mod(20,1),mod(117,1)],[]],
+               [RIG_B,"Rig B",Category.RIGS,11,2,[mod(20,1),mod(117,1),mod(15,2)],[]],
                [VEST,"Vest",Category.BODY_ARMOR,12,3,[mod(9,1)],[mod(6,-5,1)]],
-               [MOSIN,"Mosin",Category.ASSAULT_RIFLES,11,0,[],[mod(102,-0.1)]],
+               [MOSIN,"Mosin",Category.ASSAULT_RIFLES,11,0,[mod(105,-0.05)],[mod(102,-0.1)]],
                [HELMET,"Hood",Category.HELMETS,10,4,[mod(10,1)],[mod(6,2)]],
                [BOOTS,"Shoes",Category.BOOTS,12,0,[],[]]];
             var descriptor:* = new (C("survarium.data.ItemDescriptor"))("item-search-check");
@@ -174,7 +178,7 @@ package
          var list:Array = [];
          for(var id:String in ItemSearchText.DATA[language].props)
          {
-            list.push({prop_id:int(id),prop_name:ItemSearchText.DATA[language].props[id],modifier_type:1,postfix:""});
+            list.push({prop_id:int(id),prop_name:ItemSearchText.DATA[language].props[id],modifier_type:1,postfix:"",direction:DIRECTION[id]});
          }
          new (C("survarium.data.PropertiesDescriptor"))("properties").setPropertiesDictionary(list);
       }
@@ -319,24 +323,34 @@ package
                   expect("+rig",["Rig A","Rig B"],false,"shop");
                   inventory.toggleShopMode(false);
                   inventory.filterItems(null);
+                  // Shift+= over the list, the box without the keys, as the exe may send it: no
+                  // character (charCode 0); the box takes the keys on the next render with a "+"
+                  type("");
+                  stage.focus = null;
+                  stage.dispatchEvent(new KeyboardEvent(KeyboardEvent.KEY_DOWN,true,false,0,187,0,false,false,true));
+                  wait = 20;
                   break;
                case 3:
+                  require(box.text == "+","Shift+= without its character over the list types \"+\" (the box reads \"" + box.text + "\")");
+                  type("");
+                  stage.focus = null;
+                  break;
+               case 4:
                   // every language: the card's names and the seller tabs in it
                   var name:String = ItemSearchText.LANGUAGES[language];
                   var t:Object = ItemSearchText.DATA[name].ui;
                   props(name);
                   sellers(name);
                   fits(name,t.st_srp_inventory_search,": " + t.st_srp_inventory_search_examples);
-                  // the hint's examples (owner 2026-11-06): a pocket bonus and the Scavengers first,
-                  // then the slot, the ammo and a level, each finding something
+                  // the hint's examples (owner 2026-11-06): exactly the pocket, the slot, the ammo and
+                  // a level, each finding what it names
                   var hint:Array = plusWords(t.st_srp_inventory_search_examples);
-                  expect(hint.slice(0,2).join(" "),["Rig A"],false,name + " hint");
-                  for each(var h:String in hint)
-                  {
-                     expect(h,null,false,name + " hint");
-                  }
+                  require(hint.length == 4 && hint[3] == "+10" && String(t.st_srp_inventory_search_examples).split(",").length == 4,name + ": the hint is four + words: " + t.st_srp_inventory_search_examples);
+                  expect(hint[0],["Rig A","Rig B"],false,name + " hint");
+                  expect(hint[1],["Hood"],false,name + " hint");
+                  expect(hint[2],["Rig A","Rig B"],false,name + " hint");
+                  expect(hint[3],["AK-74M","Rig A","Hood"],false,name + " hint");
                   // the tip's examples
-                  expect(t.st_srp_inventory_search_tip_first_example,["Rig A"],false,name + " tip");
                   var bonus:Array = plusWords(t.st_srp_inventory_search_tip_bonus_example);
                   for each(var w:String in bonus)
                   {
@@ -436,7 +450,7 @@ package
          var rows:Array = tip().tipData.rows as Array;
          var key:String = "st_srp_inventory_search_tip_";
          var want:Array = [];
-         for each(var k:String in ["first","bonus","bonus_list","level","faction","kind","kind_list"])
+         for each(var k:String in ["bonus","bonus_list","level","faction","kind","kind_list"])
          {
             want.push(k.indexOf("_list") != -1 ? ui[key + k] + " / (list)" : ui[key + k + "_example"] + " / " + ui[key + k]);
          }
@@ -445,23 +459,25 @@ package
             return r[0] + " / " + (r[2] === true ? "(list)" : r[1]);
          });
          require(got.join("|") == want.join("|"),"the tip's rows: " + got.join(" | ") + ", not " + want.join(" | "));
-         if(rows == null || rows.length != 7)
+         if(rows == null || rows.length != 6)
          {
             return;
          }
-         var bonuses:Array = String(rows[2][1]).split(" ");
-         var kinds:Array = String(rows[6][1]).split(" ");
-         trace("ITEMSEARCH tip bonus words (" + bonuses.length + "): " + rows[2][1]);
-         trace("ITEMSEARCH tip kind words (" + kinds.length + "): " + rows[6][1]);
-         // the bonuses the shop's and the inventory's items have (the same item in both counts
-         // twice), the most items first, ties in SEARCH_BONUSES' order: ammo and pocket 4 (the
-         // rigs), slot and artifact 2 (the hood's and the vest's built-in), aim, recoil and armor 1
-         // (the Mosin's, the AK's and the hood's rolled); the vest's armour is a defect, and no
-         // item has weight, xp or use: not listed, still matched
-         require(rows[2][1] == "+ammo +pocket +slot +artifact +aim +recoil +armor","the tip lists the items' bonuses, the most items first: " + rows[2][1]);
+         var bonuses:Array = String(rows[1][1]).split(" ");
+         var kinds:Array = String(rows[5][1]).split(" ");
+         trace("ITEMSEARCH tip bonus words (" + bonuses.length + "): " + rows[1][1]);
+         trace("ITEMSEARCH tip kind words (" + kinds.length + "): " + rows[5][1]);
+         // the bonuses the items have, by type (owner 2026-11-06): the gear's (the rigs' ammo and
+         // pocket, the hood's slot and armor, the vest's artifact), then the weapons' (the Mosin's
+         // aim, the AK's recoil), each group in SEARCH_BONUSES' order; the vest's armour is a
+         // defect, the rig's +2 kg and the Mosin's movement -5 % penalties, and no item has xp or
+         // use: not listed, still matched
+         require(rows[1][1] == "+ammo +slot +pocket +artifact +armor +aim +recoil","the tip lists the items' bonuses by type: " + rows[1][1]);
          // the kinds some item is, in SEARCH_KINDS' order (no mask, gloves, pants or items)
-         require(rows[6][1] == "+gear +helmet +body +rig +boots","the tip lists the items' kinds: " + rows[6][1]);
-         expect("+weight",[],false,"a bonus no item has");
+         require(rows[5][1] == "+gear +helmet +body +rig +boots","the tip lists the items' kinds: " + rows[5][1]);
+         expect("+weight",[],false,"a penalty (the rig's +2 kg) is no bonus");
+         expect("+movement",[],false,"a penalty (the Mosin's built-in -5 %) is no bonus");
+         expect("+xp",[],false,"a bonus no item has");
          expect("+mask",[],false,"a kind no item is");
          // every listed kind word names its kind: the inventory's of that kind
          expect("+helmet +boots",["Hood","Shoes"],false,"tip kinds");

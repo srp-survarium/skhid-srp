@@ -2459,14 +2459,12 @@ st_srp_inv_pocket_units	Zsebhelyek
 st_srp_inv_stamina_damage	Állóképesség-sebzés
 st_srp_inv_throw_speed	Dobási sebesség
 st_srp_inventory_search	Keresés
-st_srp_inventory_search_examples	+zseb +guberálók, +slot, +lőszer, +10, név
+st_srp_inventory_search_examples	+zseb, +slot, +lőszer, +10
 st_srp_inventory_search_tip_bonus	minden megnevezett bónusza megvan
 st_srp_inventory_search_tip_bonus_example	+lőszer +zseb
 st_srp_inventory_search_tip_bonus_list	minden bónusz
 st_srp_inventory_search_tip_faction	ez a frakció árulja (több: bármelyik)
 st_srp_inventory_search_tip_faction_example	+hadsereg
-st_srp_inventory_search_tip_first	bónusz és frakció, egyszerre
-st_srp_inventory_search_tip_first_example	+zseb +guberálók
 st_srp_inventory_search_tip_kind	ezen fajták bármelyike
 st_srp_inventory_search_tip_kind_example	+sisak +bakancs
 st_srp_inventory_search_tip_kind_list	minden fajta
