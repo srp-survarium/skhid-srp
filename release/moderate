@@ -12,7 +12,11 @@
   release/moderate unmute <name>
   release/moderate signups [open | closed]                          no argument: the current state
 
-Lines are plain text, one row each, times in UTC; --json gives one JSON object a line. Changes
+Lines are plain text, one row each, times in UTC; --json gives one JSON object a line. A sign-up
+or sign-in that looks like a banned player back starts with "!! <why> !!" (red on a terminal,
+not with NO_COLOR; --json: "suspicious"): BANNED IP <address or range>, IP of banned <login>
+(a banned account's last address), name like banned <login> (the names' letters without digits
+or e-mail domain: the same, reversed, one inside the other, or a letter or two apart). Changes
 take --dry-run: the request is shown and not sent. Python 3, stdlib only (here: nix-shell -p python3).
 
 Reads (registrations, joins, who, bans) run a small read-only Python on the live host: srp.db
@@ -62,7 +66,10 @@ import time
 # source): the request.
 REQUEST = globals().get("REQUEST")
 
-DEFAULT_DATA = "/var/lib/docker/volumes/srp26_srp26-data/_data"
+# Suspicious rows (`suspicious`) are red on a terminal (not with NO_COLOR).
+COLOR = sys.stdout.isatty() and not os.environ.get("NO_COLOR")
+
+DEFAULT_DATA ="/var/lib/docker/volumes/srp26_srp26-data/_data"
 
 # The words the login server turns into one of the game's ban messages
 # (BAN_REASONS in srp-026g/servers/login-server/src/v026g.rs). A reason with
@@ -107,9 +114,15 @@ def remote_main(request):
         first = re.search(r"^(\d{4}-\d\d-\d\dT\S+Z) ", text, re.M)
         out["first"] = first.group(1) if first else None
         events = registrations(db, text) if kind == "registrations" else joins(db, text)
+        banned = [
+            {"id": row["id"], "login": row["login"], "last_ip": row["last_ip"],
+             "cores": cores([row["login"], row["name"], row["game_name"]])}
+            for row in db.execute(
+                "SELECT * FROM accounts WHERE banned = 1 AND (banned_until IS NULL OR banned_until > ?)", (now,))
+        ]
         for event in events:
             event["account"] = account(db, nets, event["account"], now)
-            event["ip_ban"] = ip_ban(nets, event.get("addr"))
+            event["suspicious"] = suspicious(event, nets, banned)
         out["events"] = events
     elif kind == "who":
         out["accounts"] = [account(db, nets, row, now) for row in find(db, request["target"])]
@@ -121,6 +134,61 @@ def remote_main(request):
         out["accounts"] = [account(db, nets, row, now) for row in rows]
         out["nets"] = [ban for _, ban in nets]
     sys.stdout.write(json.dumps(out))
+
+
+def suspicious(event, nets, banned):
+    """Why the event looks like a banned player back: its address (logged,
+    else its account's last) is a banned address or range or another banned
+    account's last one, or its names are like a banned account's. Empty: none."""
+    acc = event["account"] or {}
+    addr = event.get("addr") or acc.get("last_ip")
+    why = []
+    net = ip_ban(nets, addr) if addr else None
+    if net:
+        why.append("BANNED IP %s" % net)
+    mine = cores([event["name"], acc.get("login"), acc.get("name"), acc.get("character")])
+    same_ip, like = [], []
+    for other in banned:
+        if other["id"] == acc.get("id"):
+            continue
+        if addr and other["last_ip"] == addr:
+            same_ip.append(other["login"])
+        elif any(alike(a, b) for a in mine for b in other["cores"]):
+            like.append(other["login"])
+    if same_ip:
+        why.append("IP of banned " + ", ".join(same_ip))
+    if like:
+        why.append("name like banned " + ", ".join(like))
+    return why
+
+
+def cores(names):
+    """A name's letters, lower case, without an e-mail's domain:
+    Wolfie_99@example.com -> wolfie. Shorter than 4 letters: nothing to compare."""
+    found = set()
+    for name in names:
+        core = "".join(c for c in (name or "").split("@")[0].lower() if c.isalpha())
+        if len(core) >= 4:
+            found.add(core)
+    return found
+
+
+def alike(a, b):
+    """The same core, reversed (flow, wolf), one inside the other (wolfie,
+    wolfiepro; 5 letters at least), or a letter apart, two from 6 letters
+    (wolfie, golfia)."""
+    short, long_ = sorted((a, b), key=len)
+    if a == b or a == b[::-1] or (len(short) >= 5 and short in long_):
+        return True
+    most = 1 if len(short) < 6 else 2
+    if len(long_) - len(short) > most:
+        return False
+    row = list(range(len(long_) + 1))
+    for i, c in enumerate(short, 1):
+        prev, row[0] = row[0], i
+        for j, d in enumerate(long_, 1):
+            prev, row[j] = row[j], min(row[j] + 1, row[j - 1] + 1, prev + (c != d))
+    return row[-1] <= most
 
 
 def read_log(path, pos, window):
@@ -382,14 +450,16 @@ def event_line(event):
     acc = event["account"]
     addr = event.get("addr")
     shown = addr or ((acc or {}).get("last_ip") and "%s (last)" % acc["last_ip"]) or "-"
-    if event.get("ip_ban") or (acc and acc["ip_ban"]):
-        shown += " [address banned: %s]" % (event.get("ip_ban") or acc["ip_ban"])
     kind = event["kind"]
     who = account_line(acc) if acc else "%s (no account)" % event["name"]
     if kind == "registered" and acc is None:
         who = "%s (not saved yet)" % event["name"]
     detail = "  -- %s" % event["detail"] if event.get("detail") else ""
-    return "%s  %-10s  %-18s  %s%s%s" % (stamp(event["at"]), kind, shown, who, same_ip_line(acc), detail)
+    line = "%s  %-10s  %-18s  %s%s%s" % (stamp(event["at"]), kind, shown, who, same_ip_line(acc), detail)
+    if not event["suspicious"]:
+        return line
+    line = "!! %s !!  %s" % ("; ".join(event["suspicious"]), line)
+    return "\033[1;31m%s\033[0m" % line if COLOR else line
 
 
 def emit(args, row, line):
