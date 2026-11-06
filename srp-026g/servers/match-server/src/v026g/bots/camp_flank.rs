@@ -138,6 +138,18 @@ pub struct FlankRoute {
     pub exposed_m: f32,
 }
 
+/// How far over or under a held spot a known camp spot may be and still be it, m (a storey).
+pub const MATCH_STOREY_M: f32 = 3.0;
+
+/// The known camp spot a team's held spot at `at` is on (A320; the one rule the flank routes and the camper traps, A324,
+/// share): a spot of the other map side than `our_side`'s, within its `match_radius_m` and a storey of `at`. Its index in
+/// `Tactics::camp_spots` is its id for the match. Whether it has routes is the caller's question.
+pub fn camp_spot_at(spots: &[CampSpot], at: Vec3, our_side: i32) -> Option<usize> {
+    spots.iter().position(|c| {
+        c.camper_side != our_side && c.at.distance_xz(at) <= c.match_radius_m && (c.at.y - at.y).abs() <= MATCH_STOREY_M
+    })
+}
+
 impl FlankRoute {
     /// The floor it fires from.
     pub fn fire_floor(&self) -> NodeId {

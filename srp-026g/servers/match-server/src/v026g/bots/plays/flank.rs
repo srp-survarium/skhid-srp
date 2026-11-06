@@ -234,13 +234,8 @@ fn camp_spot_of(cx: &Ctx, line: &crate::v026g::bots::threat::HeldLine) -> Option
     if !cx.tuning.threat.camp_flank {
         return None;
     }
-    let side = cx.bot.side?;
-    cx.tactics.camp_spots.iter().position(|c| {
-        c.camper_side != side
-            && !c.routes.is_empty()
-            && c.at.distance_xz(line.at) <= c.match_radius_m
-            && (c.at.y - line.at.y).abs() <= 3.0
-    })
+    let spot = crate::v026g::bots::camp_flank::camp_spot_at(&cx.tactics.camp_spots, line.at, cx.bot.side?)?;
+    (!cx.tactics.camp_spots[spot].routes.is_empty()).then_some(spot)
 }
 
 /// [A320] A route against the other enemies the team knows: none of them (the camper aside) whom the team's own senses or
