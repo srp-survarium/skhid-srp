@@ -96,6 +96,7 @@ fn reference_replay() {
     let replay_start = var("SRP_A325_REPLAY_START").is_some();
     let yaw_before = var("SRP_A325_YAW_BEFORE").is_some();
     let speed_cap = var("SRP_A325_CAP").is_some();
+    let sprint_capsule = var("SRP_A325_SPRINT_CAPSULE").is_some();
     let mut last_level: HashMap<usize, Vec<f32>> = HashMap::new();
     // `SRP_A325_LEVEL_MEDIAN=1`: the level is the median of the player's last 5 steady-world reads, not the last one: a world
     // whose body was held by a wall or a player reads low (one read of 0.756 left a body walking 2.65 m/s for a whole life).
@@ -322,7 +323,12 @@ fn reference_replay() {
                     None => v,
                 };
                 body.walk = Vec3::new(v[0] * TICK_S, 0.0, v[1] * TICK_S);
-                let notes = body.step(&collision, TICK_S, &s);
+                // `SRP_A325_SPRINT_CAPSULE=1`: the sprint state's controller byte +0x204 (set by 0x336A10, cleared by 0x336A50)
+                // takes the capsule branch 0x86490 = the port's stand_move_complex_test off (fx-grid: with it the step_up on
+                // L08's Cologne corner equals the exe). On while the sprint state is on: is_sprinting 0x2F1220 and no aim.
+                let sprinting = sprint_capsule && sprint_input(kk) && kk & key::AIM == 0;
+                let tick_settings = if sprinting { Settings { stand_move_complex_test: false, ..s } } else { s };
+                let notes = body.step(&collision, TICK_S, &tick_settings);
                 let now = body.feet();
                 let moved = was.distance_xz(now);
                 let asked = v[0].hypot(v[1]) * TICK_S;
