@@ -9,7 +9,8 @@
 //!
 //! The test is the client's own walk tick ([`Controller::step`], [`Settings::LIVE`], proven against the exe in Unicorn), run on
 //! the floors where a face no body walks on lies within [`NEAR_M`] of the standing capsule (the controller pass's test):
-//! - the body is stood on the floor (out of walls, as the controller pass does) and run [`HOLD_TICKS`] with no keys;
+//! - the body is stood on the floor (out of walls, as the controller pass does), at its centre and 0.1 m either side, and run
+//!   [`HOLD_TICKS`] with no keys; the floor slides only when all three stands slide (a boxed-in body that cannot move holds);
 //! - it **slides** when its feet move [`SLIDE_M`] or more across or down;
 //! - a slide on ground past the walk limit (its last contact normal under `max_slope_cos`) is a floor a **moving** body does not
 //!   hold either: every link into it is handed to [`WalkGrid::cut_keeping_reach`], so it goes unless it is some floor's only way
@@ -79,6 +80,22 @@ pub fn hold_at(world: &Collision, feet: Vec3, s: &Settings) -> Hold {
     }
 }
 
+/// A floor's verdict from three stands, its centre and [`START_OFF_M`] either side of it along x: a slide only when every stand
+/// slid (one that holds, or a boxed-in body that cannot move, says the floor holds), moving only when every one did.
+pub fn hold_floor(world: &Collision, feet: Vec3, s: &Settings) -> Hold {
+    let holds = [0.0, -START_OFF_M, START_OFF_M].map(|dx| hold_at(world, feet + Vec3::new(dx, 0.0, 0.0), s));
+    if holds.contains(&Hold::Holds) {
+        Hold::Holds
+    } else if holds.iter().all(|&h| h == Hold::SlidesMoving) {
+        Hold::SlidesMoving
+    } else {
+        Hold::SlidesStanding
+    }
+}
+
+/// The side stands of [`hold_floor`], m (the controller pass's [`super::controlled::STARTS`]).
+pub const START_OFF_M: f32 = 0.1;
+
 impl WalkGrid {
     /// The slide-floors pass ([`Body::slide_floors`], module documentation): the floors a moving body cannot hold lose every way
     /// in (walk links through `cut_keeping_reach`, and the off-mesh links landing on them), so the build drops them; except one
@@ -96,7 +113,7 @@ impl WalkGrid {
         });
         let tested: Vec<usize> = floors.into_iter().filter(|&a| near[a]).collect();
         stats.tested = tested.len();
-        let holds = parallel(&tested, |&a| hold_at(&world, self.position(a as NodeId), &s));
+        let holds = parallel(&tested, |&a| hold_floor(&world, self.position(a as NodeId), &s));
         let mut sliding = vec![false; n];
         for (&a, hold) in tested.iter().zip(&holds) {
             match hold {
