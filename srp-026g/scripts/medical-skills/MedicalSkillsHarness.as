@@ -5,16 +5,24 @@ package {
  import flash.net.*;
  import flash.system.*;
  public class MedicalSkillsHarness extends Sprite {
-  // The medical tab's skills and each's embedded artwork (bitmaps/<class>.png, icons-069.tsv).
-  private static const ARTWORK:Object = {301:301,302:302,303:301,311:311,312:312,313:313,321:321,322:322,323:323,
-   331:331,332:332,333:333,341:341,342:342};
+  // Our trees' skills and each's embedded artwork (bitmaps/<class>.png; medical-skills and
+  // artefact-skills icons-069.tsv).
+  private static const ARTWORK:Object = {301:"MedicalSkill069301",302:"MedicalSkill069302",303:"MedicalSkill069301",
+   311:"MedicalSkill069311",312:"MedicalSkill069312",313:"MedicalSkill069313",321:"MedicalSkill069321",
+   322:"MedicalSkill069322",323:"MedicalSkill069323",331:"MedicalSkill069331",332:"MedicalSkill069332",
+   333:"MedicalSkill069333",341:"MedicalSkill069341",342:"MedicalSkill069342",
+   501:"ArtefactSkill069501",502:"ArtefactSkill069502",511:"ArtefactSkill069511",512:"ArtefactSkill069512",
+   521:"ArtefactSkill069521",522:"ArtefactSkill069522",531:"ArtefactSkill069531",532:"ArtefactSkill069532",
+   533:"ArtefactSkill069533",534:"ArtefactSkill069534",541:"MedicalSkill069341"};
   private var loader:Loader = new Loader();
   private var failures:Array = [];
   private var icons:Object;
   private var frames:int = 0;
   private var domain:ApplicationDomain;
   private var edits:Object;
-  private var pending:int = 2;
+  private var artefactEdits:Object;
+  private var catalog:Object = {};
+  private var pending:int = 4;
   private var sources:Array = [];
   private var stage_:String = "";
   public function MedicalSkillsHarness() {
@@ -25,6 +33,21 @@ package {
    list.addEventListener(Event.COMPLETE,function(e:Event):void {edits=JSON.parse(String(list.data));ready();});
    list.addEventListener(IOErrorEvent.IO_ERROR,function(e:Event):void {failures.push("no medical-skills-1.json");finish();});
    list.load(new URLRequest("medical-skills-1.json"));
+   var artefacts:URLLoader = new URLLoader();
+   artefacts.addEventListener(Event.COMPLETE,function(e:Event):void {artefactEdits=JSON.parse(String(artefacts.data));ready();});
+   artefacts.addEventListener(IOErrorEvent.IO_ERROR,function(e:Event):void {failures.push("no artefact-skills-1.json");finish();});
+   artefacts.load(new URLRequest("artefact-skills-1.json"));
+   // The English catalog (client-patches/localization/english.tsv), where the artefact tree's texts are.
+   var tsv:URLLoader = new URLLoader();
+   tsv.addEventListener(Event.COMPLETE,function(e:Event):void {
+    for each(var line:String in String(tsv.data).split("\n")) {
+     var tab:int=line.indexOf("\t");
+     if(tab>0) catalog[line.substr(0,tab)]=line.substr(tab+1).split("\\n").join("\n");
+    }
+    ready();
+   });
+   tsv.addEventListener(IOErrorEvent.IO_ERROR,function(e:Event):void {failures.push("no english.tsv");finish();});
+   tsv.load(new URLRequest("english.tsv"));
   }
   private function ready():void {if(--pending==0) loaded();}
   private function check(value:Boolean,label:String):void {if(!value) failures.push(label);}
@@ -87,7 +110,7 @@ package {
    var stock:Object={st_percent_postfix:"%",st_current_value:"\nCurrent value:"};
    if(stock[key]!=null) return stock[key];
    for each(var row:Object in edits.add_key) if(row.key==key && row.file=="localization/english/localization") return row.text;
-   return null;
+   return catalog[key];
   }
   // The exe's fill_skills_properties rows (0x223a70, the loop at 0x223e45): for rank i of 0..levels the
   // description, [0], the postfix and [2]; below the maximum also st_current_value, [1], postfix, [3].
@@ -121,6 +144,18 @@ package {
     props.push({id:stock[s][0],branch:0,max_value:stock[s][1],name:"stock",description_1:"d",description_2:["a","b","c","d","e","f"],
      icon:1,column:1,row:s+1,antiskills:[],branch_points:stock[s][2]});
     values.push({id:stock[s][0],value:0});
+   }
+   var artefacts:Object={};
+   for each(entry in artefactEdits.append_entry) {
+    v=entry.value;artefacts[v.id]=v;
+    check(v.modifiers.length==v.levels_amount,"modifiers per rank "+v.id);
+    if(v.levels_amount>1) check(v.ui.skill_descriptions.length==v.levels_amount+1,"rank rows "+v.id);
+    check(english(v.ui.name)!=null && english(v.ui.description)!=null,"artefact texts "+v.id);
+    props.push({id:v.id,branch:int(v.id/100)-1,max_value:v.levels_amount,name:english(v.ui.name),
+     description_1:english(v.ui.description),description_2:described(v.ui,v.levels_amount),icon:v.ui.icon,
+     column:v.ui.position[0],row:v.ui.position[1],antiskills:v.preconditions.antiskills,
+     branch_points:v.preconditions.branch_points});
+    values.push({id:v.id,value:0});
    }
    check(skills[341]==null,"Medic left the medical tree");
    var layout:Object={301:[2,1,3,0],302:[3,1,2,0],311:[1,2,5,3],313:[3,2,2,3],312:[4,2,3,3],
@@ -209,6 +244,44 @@ package {
    check(shown[331].data.newValue==0,"Supply Pocket taken back");
    check(take(322,2)==1,"Additional Medicine at 20, one rank");
    check(take(331,1)==0,"Supply Pocket refused beside Additional Medicine");
+   // The artefact tab (artefact-skills.md): 0/5/10/20/25, 26 points in all.
+   stage_="artefact tab";win.skillsTabPage.selectedIndex=4;shown=renderers(win,Renderer);
+   var tree5:Object={501:[2,1,5,0],502:[3,1,5,0],511:[2,2,4,5],512:[3,2,5,5],521:[2,3,1,10],522:[3,3,1,10],
+    531:[1,4,1,20],532:[2,4,1,20],533:[3,4,1,20],534:[4,4,1,20],541:[3,5,1,25]};
+   var ranks5:int=0;
+   for(id in tree5) {
+    want=tree5[id];have=artefacts[id];
+    check(have!=null && have.ui.position[0]==want[0] && have.ui.position[1]==want[1] && have.levels_amount==want[2]
+     && have.preconditions.branch_points==want[3],"artefact layout "+id);
+    if(have) ranks5+=have.levels_amount;
+    check(shown[id]!=null && shown[id].x==step.x*(want[0]-1) && shown[id].y==step.y*(want[1]-1),"artefact menu position "+id);
+    check(pips(shown[id])==want[2],"artefact rank pips "+id);
+   }
+   check(ranks5==26,"26 artefact points");
+   check(shown[301]==null && shown[101]==null,"only the artefact tree on its tab");
+   check(described(artefacts[501].ui,5)[5].indexOf("<green> -25%</green>")>=0,"Concentration maximum");
+   check(described(artefacts[502].ui,5)[2].indexOf("Current value: +10 points")>=0,"Resistance current value");
+   check(described(artefacts[521].ui,1).length==1,"Keeper: the description alone");
+   bar(1,"artefact at 0");
+   check(take(511,1)==0,"artefact tier 2 refused at 0");
+   check(take(501,6)==5,"Concentration stops at 5");
+   bar(6,"artefact tier 2 mark at 5");
+   check(take(511,5)==4,"Forest Protection stops at 4");
+   bar(10,"artefact at 9, between tiers 2 and 3");
+   check(take(521,1)==0,"artefact tier 3 refused at 9");
+   check(take(512,1)==1,"10 points");
+   bar(11,"artefact tier 3 mark at 10");
+   check(take(521,2)==1 && take(522,2)==1,"tier 3 at 10, one rank each");
+   check(take(531,1)==0,"artefact tier 4 refused at 12");
+   check(take(502,5)==5 && take(512,4)==5,"21 points in tiers 1-3");
+   bar(17,"artefact at 21, past the tier 4 mark");
+   check(take(531,1)==1 && take(532,1)==1 && take(533,1)==1,"tier 4 at 20");
+   check(take(541,1)==0,"artefact tier 5 refused at 24");
+   bar(20,"artefact at 24, between tiers 4 and 5");
+   check(take(534,2)==1,"Artifact Container, one rank: 25 points");
+   bar(21,"artefact tier 5 mark at 25");
+   check(take(541,2)==1,"Resonance Cascade at 25, one rank");
+   bar(26,"artefact full with the last tier taken");
    // The stock tab: the indicator at every point as the stock window drew it, min(points + 1, 21).
    stage_="stock tab";win.skillsTabPage.selectedIndex=0;shown=renderers(win,Renderer);
    check(shown[101]!=null && shown[141]!=null && shown[301]==null,"stock tab shown");
@@ -250,7 +323,8 @@ package {
   private function tick(e:Event):void {
    if(++frames<3) return;
    removeEventListener(Event.ENTER_FRAME,tick);
-   var glyph:Object=icons.iconContainer.getChildByName("medicalSkillIcon");
+   var glyph:Object=icons.iconContainer.getChildByName("skillIcon069");
+   check(glyph!=null && glyph.show(501) && !glyph.show(101),"artwork only for our trees");
    check(glyph!=null && glyph.visible,"medical renderer uses original artwork");
    if(glyph!=null) {
     for(var key:String in ARTWORK) {
@@ -286,7 +360,7 @@ package {
     compareNext();
    });
    png.contentLoaderInfo.addEventListener(IOErrorEvent.IO_ERROR,function(e:Event):void {failures.push("no source png "+item[0]);compareNext();});
-   png.load(new URLRequest("bitmaps/MedicalSkill069"+ARTWORK[item[0]]+".png"));
+   png.load(new URLRequest("bitmaps/"+ARTWORK[item[0]]+".png"));
   }
   private function finish():void {
    trace("MEDICALSKILLS RESULT "+(failures.length ? "fail: "+failures.join("; ") : "pass"));

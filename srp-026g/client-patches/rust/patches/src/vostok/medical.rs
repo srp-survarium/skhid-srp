@@ -5,33 +5,33 @@ use crate::{
     medical_skills::{Opponents, Painkiller, Regeneration, Skills, Stance},
     raw,
 };
+use super::effect::OwnedEffect;
 use core::{
-    cell::UnsafeCell,
     ffi::CStr,
-    marker::PhantomData,
     sync::atomic::{AtomicU32, Ordering},
 };
 
+/// The modifiers of `player`'s current kit (the match profile's, as the static info gave it).
+pub(super) fn kit_modifiers(player: raw::Player) -> Option<raw::PlayerParamsModifiersContainer> {
+    // SAFETY: a hook's player owns its profile and current kit.
+    unsafe { Some(player.profile()?.kits().at(usize::from(*player.kit())).modifiers()) }
+}
+
+/// A player a hook reads (the artefact tree's aura too, vostok::artefact_skills).
 #[derive(Clone, Copy)]
-struct Player<'t> {
+pub(super) struct Player<'t> {
     at: raw::Player,
     thread: &'t Thread,
 }
 impl<'t> Player<'t> {
-    fn new(thread: &'t Thread, at: raw::Player) -> Self {
+    pub(super) fn new(thread: &'t Thread, at: raw::Player) -> Self {
         Self { at, thread }
     }
+    pub(super) fn get(self) -> raw::Player {
+        self.at
+    }
     fn modifiers(self) -> Option<raw::PlayerParamsModifiersContainer> {
-        // SAFETY: a hook's player owns its profile and current kit.
-        unsafe {
-            Some(
-                self.at
-                    .profile()?
-                    .kits()
-                    .at(usize::from(*self.at.kit()))
-                    .modifiers(),
-            )
-        }
+        kit_modifiers(self.at)
     }
     fn skills(self) -> Skills {
         // SAFETY: generated modifier fields belong to the live current kit.
@@ -73,10 +73,10 @@ impl<'t> Player<'t> {
         // SAFETY: the live player's place byte.
         unsafe { *self.at.place() }
     }
-    fn ally(self, other: Self) -> bool {
+    pub(super) fn ally(self, other: Self) -> bool {
         self.at != other.at && matches!(self.team(), Some(0 | 1)) && self.team() == other.team()
     }
-    fn active(self) -> bool {
+    pub(super) fn active(self) -> bool {
         // The core lookup already checked the synchronized active roster.
         // +33F is a temporary insertion flag, cleared by native remove during
         // restoration; it is not serialized and cannot gate shared gameplay.
@@ -94,13 +94,13 @@ impl<'t> Player<'t> {
             .map(|p| unsafe { *p.health() / *p.maximum() })
             .unwrap_or(1.0)
     }
-    fn refresh(self) {
+    pub(super) fn refresh(self) {
         // SAFETY: native invalidation requests movement/item selection again.
         unsafe {
             *self.at.refresh_selection() = 1;
         }
     }
-    fn distance_squared(self, other: Self) -> f32 {
+    pub(super) fn distance_squared(self, other: Self) -> f32 {
         // SAFETY: both translation fields have three contiguous floats.
         unsafe {
             let (a, b) = (self.at.feet(), other.at.feet());
@@ -112,16 +112,28 @@ impl<'t> Player<'t> {
                 .sum()
         }
     }
-    fn at_place(self, thread: &'t Thread, place: u8) -> Option<OwnedPlayer<'t>> {
+    /// The player at `place` of this player's world (its active roster).
+    pub(super) fn at_place(self, thread: &'t Thread, place: u8) -> Option<OwnedPlayer<'t>> {
+        // SAFETY: the live player's world core.
+        Self::in_core(thread, unsafe { self.at.world_core() }, place)
+    }
+    /// The player at `place` of `core`'s active roster (core_active_player: a departed place,
+    /// one past the places or a place without a player is none).
+    pub(super) fn in_core(thread: &'t Thread, core: Option<raw::CoreWorld>, place: u8) -> Option<OwnedPlayer<'t>> {
         let mut out = None;
         // SAFETY: native lookup in this simulation world adds one reference.
         unsafe {
-            raw::engine_core_active_player(self.at.world_core(), u32::from(place), &mut out);
+            raw::engine_core_active_player(core, u32::from(place), &mut out);
         }
         out.map(|at| OwnedPlayer(Self::new(thread, at)))
     }
 }
-struct OwnedPlayer<'t>(Player<'t>);
+pub(super) struct OwnedPlayer<'t>(Player<'t>);
+impl<'t> OwnedPlayer<'t> {
+    pub(super) fn get(&self) -> Player<'t> {
+        self.0
+    }
+}
 impl Drop for OwnedPlayer<'_> {
     fn drop(&mut self) {
         // SAFETY: release exactly the one reference acquired by core lookup.
@@ -134,7 +146,7 @@ impl Drop for OwnedPlayer<'_> {
     }
 }
 // Native pool names have at most 15 bytes and a NUL terminator.
-unsafe fn name_equal(a: *const u8, b: *const u8) -> bool {
+pub(super) unsafe fn name_equal(a: *const u8, b: *const u8) -> bool {
     if a.is_null() || b.is_null() {
         return false;
     }
@@ -461,61 +473,6 @@ pub fn protect(ctx: &mut Context<'_>) {
         }
     }
 }
-/// One emitted effect, owned until the receiving effect player retains it.
-/// Instances contain mutable tracks and cannot be shared between players:
-/// native rollback restores each player's tracks independently.
-struct OwnedEffect<'t> {
-    slot: raw::GameEffectSlotStorage,
-    _thread: PhantomData<&'t Thread>,
-}
-impl<'t> OwnedEffect<'t> {
-    fn emit(_: &'t Thread, resource: raw::MedicalEffectResource, duration_ms: u32) -> Self {
-        let mut slot = raw::GameEffectSlotStorage::zeroed();
-        // SAFETY: the live artefact owns this loaded resource; native emit
-        // initializes an independent effect with one reference in our slot.
-        unsafe {
-            raw::engine_effect_resource_emit(Some(resource), Some(slot.handle()));
-            if let Some(effect) = slot.handle().effect() {
-                *effect.length() = duration_ms as f32 / 1000.0;
-            }
-        }
-        Self {
-            slot,
-            _thread: PhantomData,
-        }
-    }
-    fn play_on(&mut self, thread: &Thread, target: Player<'t>, time: u32) {
-        // SAFETY: the target and resource live for this hook. Native add takes
-        // its own reference; Drop releases only our temporary emit reference.
-        unsafe {
-            if self.slot.handle().effect().is_some() {
-                raw::engine_effect_play(
-                    Some(target.at.effects()),
-                    Some(self.slot.handle()),
-                    time,
-                    0,
-                    2,
-                    Some(MEDIC_CLOCK.listener(thread)),
-                );
-            }
-        }
-    }
-}
-impl Drop for OwnedEffect<'_> {
-    fn drop(&mut self) {
-        // SAFETY: this guard owns exactly one native effect reference. The
-        // engine uses a non-atomic count on this simulation thread.
-        unsafe {
-            if let Some(effect) = self.slot.handle().effect() {
-                *effect.count() -= 1;
-                if *effect.count() == 0 {
-                    raw::engine_emitter_destroy(effect.emitter(), Some(effect));
-                }
-            }
-        }
-    }
-}
-
 pub fn share_larkspur(ctx: &mut Context<'_>) {
     use raw::site::medical_artefact as site;
     // SAFETY: the actual activation owns this item and its inventory holder.
@@ -566,74 +523,9 @@ pub fn share_larkspur(ctx: &mut Context<'_>) {
                 }
             }
             if let Some(resource) = item.active_resource() {
-                OwnedEffect::emit(ctx.thread(), resource, *item.active_remaining())
-                    .play_on(ctx.thread(), target.0, time);
+                OwnedEffect::emit(ctx.thread(), resource, Some(*item.active_remaining()))
+                    .play_timed(ctx.thread(), target.0.at, time);
             }
         }
-    }
-}
-
-/// Reserve particles before the resource's asynchronous cook fans out. An
-/// emitted effect has independent tracks but still borrows this finite pool.
-/// At most 20 roster places can receive one activation, including the source.
-pub fn effect_capacity(ctx: &mut Context<'_>) {
-    // SAFETY: paused named-resource cook owns the query and both C strings.
-    unsafe {
-        let Some(query) = raw::site::medical_effect_capacity::query(ctx) else {
-            return;
-        };
-        let resolved = query.resolved();
-        let name = if resolved.is_null() {
-            query.requested()
-        } else {
-            resolved
-        };
-        if !name.is_null()
-            && b"artefact_lifebone\0"
-                .iter()
-                .enumerate()
-                .all(|(i, byte)| *name.add(i) == *byte)
-        {
-            ctx.set_reg(super::Reg::Esi, ctx.reg(super::Reg::Esi).max(20));
-        }
-    }
-}
-
-/// A process-lifetime, stateless native calculator. Only each effect's existing
-/// serialized start/length carry timing. No source-player pointer survives the
-/// activation. Kind-2 effects use the engine's local visual/rollback stream;
-/// its native unregistered-calculator codec keeps this permanent pointer.
-struct MedicClock(UnsafeCell<raw::MedicalTimedClockStorage>);
-// SAFETY: access is confined to the simulation thread; no borrowed reference
-// survives a native call, and this static is never moved or destroyed.
-unsafe impl Sync for MedicClock {}
-static MEDIC_CLOCK: MedicClock = MedicClock(UnsafeCell::new(raw::MedicalTimedClockStorage::zeroed()));
-impl MedicClock {
-    fn listener(&self, _: &Thread) -> raw::GameEffectListener {
-        // SAFETY: the static owns this exact native layout for the process.
-        unsafe {
-            let clock = (*self.0.get()).handle();
-            *clock.vtable() = raw::image::DEFAULT_EFFECT_CLOCK_VTABLE;
-            *clock.registry_index() = u32::MAX;
-            clock.listener()
-        }
-    }
-}
-pub fn effect_clock(ctx: &mut Context<'_>) -> bool {
-    use raw::site::medical_effect_clock as site;
-    // SAFETY: this callback receives a live effect node and output record.
-    unsafe {
-        if site::calculator(ctx) != Some(MEDIC_CLOCK.listener(ctx.thread())) {
-            return false;
-        }
-        let Some(frame) = site::frame(ctx) else { return false };
-        let (Some(out), Some(node)) = (frame.result(), frame.node()) else { return false };
-        let Some(effect) = node.effect() else { return false };
-        let elapsed = frame.now().read().wrapping_sub(*node.start());
-        *out.interval() = 0;
-        *out.time() = 0.0;
-        *out.ended() = u8::from(elapsed as f32 / 1000.0 >= *effect.length());
-        ctx.set_reg(super::Reg::Eax, out.address());
-        true
     }
 }

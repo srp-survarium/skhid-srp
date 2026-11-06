@@ -98,6 +98,9 @@ down) when you use artifact? Note that your vision should still be clear")
     kept, as the owner asked.
   - The end: the effect's time calculator is the artefact's (`artefact_base::effect_calculator`
     0x313640): finished when the artefact leaves its active state (4); both children with it.
+- Version 5 of the pack adds Forest Protection's grey leg glow (artefact-skills.md, "Forest
+  Protection"): the same files of the three kinds, and effect_forest_protection with its own
+  particle system and grey materials.
 - History: version 1 (a lighter copy) and version 2 (with `up_light`'s lights at x0.35) showed
   too little in the first person; version 3, the stock glow without the head, was tested by the
   owner and approved (2026-10-25: "this version is good"). Version 4 is the same files.

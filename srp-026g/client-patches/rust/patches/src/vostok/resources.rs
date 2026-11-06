@@ -6,13 +6,16 @@
 //! asked (the game's, for the game thread's hooks) with the results. The
 //! callback is a generated entry ([`CallbackEntry`], the `callback` site
 //! `resources.query_done`); its handler gets [`QueryResults`] and the tag,
-//! and takes what it asked for with [`QueryResults::arrived`].
+//! and takes what it asked for with [`QueryResults::arrived`]. The music
+//! (patch 88) asks its bus and tracks, Forest Protection's glow (patch 111)
+//! its game effect.
 
 use core::ffi::CStr;
 use core::num::NonZeroU32;
 use core::ptr::null;
 use core::sync::atomic::{AtomicU32, Ordering};
 
+use super::effect::KeptEffect;
 use super::hook::{CallbackEntry, Thread};
 use super::sound::{BusScene, Emitter};
 use super::OrigStoreFirstResource;
@@ -21,6 +24,10 @@ use crate::raw;
 /// The resource classes these queries ask (resources::class_id_enum).
 const SOUND_SCENE_CLASS: u32 = 38;
 const SINGLE_SOUND_CLASS: u32 = 256;
+/// A game effect resource (game_effect_resource_cook, its constructor
+/// 0x2EC6EB): a request's path is the effect's name, its config
+/// gameplay/effects/effect_<name>.options (translate_query 0x2EC86C).
+const GAME_EFFECT_CLASS: u32 = 109;
 /// query_resources' last argument: a normal asynchronous query.
 const ASYNCHRONOUS: u32 = 1;
 /// A sound scene's creation params: the music bus holds one voice at a time,
@@ -29,46 +36,63 @@ const BUS_PROXIES: u32 = 8;
 const BUS_PROPAGATORS: u32 = 16;
 const BUS_RECEIVERS: u32 = 2;
 
-/// A track query's number, never 0 (0 is the bus's tag).
+/// The words of the tags that are not a track's.
+const BUS_WORD: u32 = 0;
+const EFFECT_WORD: u32 = 1;
+
+/// A track query's number, never a word of another tag (0 and 1).
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct Serial(NonZeroU32);
 
 impl Serial {
-    pub const FIRST: Serial = Serial(NonZeroU32::MIN);
+    pub const FIRST: Serial = match NonZeroU32::new(EFFECT_WORD + 1) {
+        Some(n) => Serial(n),
+        None => panic!("the first serial is not 0"),
+    };
 
-    /// The one after, wrapping past 0.
+    /// The one after, wrapping past the largest to the first.
     pub fn next(self) -> Serial {
-        Serial(self.0.checked_add(1).unwrap_or(NonZeroU32::MIN))
+        self.0.checked_add(1).map_or(Serial::FIRST, Serial)
     }
 }
 
 /// What a query was asked for: the word bound to its callback, read back
-/// when the callback comes (0 the music bus, else a track's serial).
+/// when the callback comes (0 the music bus, 1 a game effect, else a
+/// track's serial).
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum QueryTag {
     Bus,
+    Effect,
     Track(Serial),
 }
 
 impl QueryTag {
     /// The callback's bound word, as the game hands it back.
     pub(super) fn from_raw(word: u32) -> QueryTag {
-        NonZeroU32::new(word).map_or(QueryTag::Bus, |n| QueryTag::Track(Serial(n)))
+        match word {
+            BUS_WORD => QueryTag::Bus,
+            EFFECT_WORD => QueryTag::Effect,
+            n => NonZeroU32::new(n).map_or(QueryTag::Bus, |n| QueryTag::Track(Serial(n))),
+        }
     }
 
     fn word(self) -> u32 {
         match self {
-            QueryTag::Bus => 0,
+            QueryTag::Bus => BUS_WORD,
+            QueryTag::Effect => EFFECT_WORD,
             QueryTag::Track(serial) => serial.0.get(),
         }
     }
 }
 
-/// What came back: the bus's scene or a track's single sound, each with a
-/// reference of its own (None for a query that failed: a missing file).
+/// What came back: the bus's scene, a track's single sound or a game
+/// effect resource, each with a reference of its own (None for a query that
+/// failed: a missing file).
 pub enum Arrived {
     Bus(Option<BusScene>),
     Track(Serial, Option<Emitter>),
+    /// Kept for the process (a game effect is played until the game exits).
+    Effect(Option<KeptEffect>),
 }
 
 /// The results a query's callback is called with, for its call only.
@@ -111,6 +135,9 @@ impl<'t> QueryResults<'t> {
                     // SAFETY: the reference just taken is the Emitter's.
                     Emitter::owning(emitter)
                 })),
+                // SAFETY: a game effect resource for a class 109 request,
+                // alive for the callback (KeptEffect::keep takes its own).
+                QueryTag::Effect => Arrived::Effect(first.and_then(|r| r.effect()).map(|effect| KeptEffect::keep(effect))),
             }
         }
     }
@@ -146,6 +173,11 @@ pub fn query_track(_: &Thread, path: &CStr, serial: Serial, callback: QueryCallb
     query(path, SINGLE_SOUND_CLASS, None, QueryTag::Track(serial), callback);
 }
 
+/// Asks for the game effect `name` (class 109: gameplay/effects/effect_<name>).
+pub fn query_effect(_: &Thread, name: &CStr, callback: QueryCallback) {
+    query(name, GAME_EFFECT_CLASS, None, QueryTag::Effect, callback);
+}
+
 fn query(path: &CStr, class: u32, params: Option<raw::SceneParamsVariant>, tag: QueryTag, callback: QueryCallback) {
     let mut request = raw::ResourceRequestStorage::zeroed();
     let mut function = raw::QueryFunctionStorage::zeroed();
@@ -179,8 +211,11 @@ mod tests {
     }
 
     #[test]
-    fn serials_skip_zero() {
+    fn serials_skip_the_other_words() {
         let last = Serial(NonZeroU32::MAX);
         assert_eq!(last.next(), Serial::FIRST);
+        assert_eq!(QueryTag::from_raw(QueryTag::Track(Serial::FIRST).word()), QueryTag::Track(Serial::FIRST));
+        assert_eq!(QueryTag::from_raw(QueryTag::Effect.word()), QueryTag::Effect);
+        assert_eq!(QueryTag::from_raw(QueryTag::Bus.word()), QueryTag::Bus);
     }
 }

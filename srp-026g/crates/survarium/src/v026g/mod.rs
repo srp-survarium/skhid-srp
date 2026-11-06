@@ -8,6 +8,7 @@ pub mod drops;
 pub mod game_data;
 pub mod golden;
 pub mod item_params;
+pub mod keeper;
 pub mod loadouts;
 pub mod localization;
 pub mod maps;

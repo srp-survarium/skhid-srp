@@ -130,6 +130,8 @@ release's. The "Result" row is the build of the revision named in it.
 | `rust/patches/src/keyboard_layout.rs`, `src/keyboard_layout.toml`, `src/vostok/keyboard_layout.rs`, `check_keyboard_layout_026g.py` | Patch 107: chat text follows the keyboard layout the window was last told of (under Wine the engine's logic thread never got it); three lohooks, in message_processor's two layout messages and after translate_text's GetKeyboardLayout(0); its check runs both functions in both exes (needs Unicorn) |
 | `rust/patches/src/key_remap.rs`, `src/key_remap.toml`, `src/vostok/keyboard.rs` (`KeyEvents`, `KeyMoves`), `src/vostok/system.rs`, `check_key_remap_026g.py` | Patch 110: the keys a desktop moves (xkb `caps:swapescape`, `ctrl:nocaps`) are moved in the game under Wine's Wayland driver, whose DirectInput codes are the physical keys'; one lohook in keyboard::execute after GetDeviceData moves each event's function key to the one the told layout names it; its check runs execute whole in both exes (needs Unicorn) |
 | `rust/patches/src/hud_cursor.rs`, `src/hud_cursor.toml`, `src/vostok/hud_input.rs` (`MainMenu`, `MatchCursor`), `check_hud_cursor_026g.py` | Patch 113: the hud's kits and cursor start over at each match (the last match's pick stayed on the kits' tab), and the main menu covers the hud's cursor (Esc over the kits left it drawn under the menu's); four lohooks, at initialize_match's start, show_cursor's show and game_options' activate and deactivate; its check runs each from the game's code on a made-up game, the original beside (needs Unicorn) |
+| `rust/patches/src/artefact_skills.rs`, `src/artefact_skills.toml`, `src/vostok/artefact_skills.rs`, `check_artefact_skills_026g.py`, `src/artefact_keeper.rs`, `src/artefact_keeper.toml`, `src/vostok/keeper.rs`, `check_artefact_keeper_026g.py` | Patch 109: the artefact tree's skills the exe computes (`../docs/notes/artefact-skills.md`), their ranks packed in kit modifier 40; Resistance (+0.05 armour a rank against the anomalous hit types, 0x32A083), Onyx II (the landing 0x2D8220), Larkspur II (the activation 0x313333), Spring II (patch 54's reload nodes, its entry), Resonance and Cascade (the aura at the getters 0x2D5AE6 / 0x2D5C18, the protectors 0x32A020, the regeneration 0x32A53F), Keeper of the Artifacts (a Keeper's first spawn gets a dormant artefact of the match's kind from the map's hidden pool: register_artefacts 0x31B8E0, the respawn rule's spawn 0x316EAB); their checks run the game's code for each (needs Unicorn) |
+| `rust/patches/src/forest_glow.rs`, `src/forest_glow.toml`, `src/vostok/effect.rs`, `check_forest_glow_026g.py` | Patch 111: Forest Protection's grey glow on the legs of a player it protects (inside a damage zone, a rank of modifier 41 in its kit), on every game: a player's simulation tick plays the effect `forest_protection` (content pack artefact-glow@5) with the player's own calculator, which ends it when the condition ends; its check runs the tick, the effect's query and callback, the clock and the cook in the built exe (needs Unicorn) |
 | `audio_device_026g.c`, `audio_device_026g.h`, `audio_device_engine_026g.c`, `test_audio_device_026g.c` | Patch 100: the sound follows the audio output device (XAudio2's engine and voices proxied, made again on the default device after a lost device or a new default); the test runs the core on i686 under the sanitizers against a made-up XAudio2 that keeps its rules (no Unicorn) |
 | `rust/patches/src/sound_voices.rs`, `src/sound_voices.toml`, `src/vostok/voices.rs`, `check_sound_voices_026g.py` | Patch 96: shots no longer go silent under heavy fire (`../docs/notes/sound_voices.md`): the game world's sound scene has 1024 sound instances and propagators (`SOUND_POOLS`, game_world::load 0x1F8DB6/0x1F8DBD), and a sound refused a voice takes the voice of the quietest one playing when that one is less than half as loud (a lohook after create_sound_voice, 0x5CAB0), and the source voice walk is bounded to one pass (`sound_voices_026g.asm`, 0x5E5E7, 0x631D9, 0x59F8E); the check runs the voice loop from that site on made-up scenes with a model of the world's voice pool, and the self-test's `test_sound_pools` (needs Unicorn) |
 | `check_stage_focus_026g.py` | Runs the original's and patch 52's Stage focus getter (Scaleform's `stage.focus`, 0x771FA0) on a made-up movie: focused objects of each kind, none, one without its ActionScript object (the lobby's crash of 2026-10-22) (needs Unicorn) |
@@ -4588,3 +4590,44 @@ The owner's two reports (2026-11-06), both before a match's start, with the kits
 
 The hud's flag is the game's throughout, so the mouse goes where it went. Nothing a match computes.
 Checked with `check_hud_cursor_026g.py`, `cargo test` and clippy. Not run in a game.
+
+## Resistance: isolation against anomalies (patch 109, unreleased)
+
+The artefact tree (`../docs/notes/artefact-skills.md`). Its skills the exe computes are packed in
+kit modifier 40 (`artefact_power`, read by nothing of 0.26g), parsed once (`artefact_skills::Skills`).
+Resistance (502, 5 ranks): a hit of type 4..7 (toxic, radiation, fire, shock) on a part takes
+its summed armour + 0.05 a rank (+5 isolation points) at `artefact.isolation` (0x32A083, after
+`movss xmm0,[eax+8]`), before the piercing's subtraction and the clamp. Other types unchanged.
+Onyx II: `artefact.landing` (0x2D8220, the landing's start: all it does is the fall damage) exits at its
+`ret 4` (0x2D84AE) for a player with the skill and an Onyx of its containers in state 4. Larkspur II:
+at `medical.artefact` (0x313333, the actual activation; after Medic's handler) a Larkspur's holder
+with the skill gets its stamina's maximum (+6C0h, current +6Ch). Spring II: patch 54 gives each
+Spring two reload nodes (list 13, +3D8h and +3E8h; the object 3F8h), the first linked with the
+passive (new hooks at 0x311AD0 / 0x311D10), the second with the active; patch 109's entry
+`artefact.spring_reload` sets their values at the passive's link (+0.05 / +0.10 with the skill, else 0).
+Resonance and Resonance Cascade (bits 4 and 8): one aura, read where each effect is used and never
+kept: a living teammate's carried Springs, Lifebones and Onyx give a recipient their passives
+within 8 m (Resonance) and their actives within 5 m (Cascade), at most 4 copies of a kind for
+each, the recipient's own first. The Springs' nodes at the two getters (`artefact.shared_modifier`
+0x2D5AE6, `artefact.shared_modifiers` 0x2D5C18; the kit's player found in the match of the engine
+world's game's world), the Onyx before a part's protectors (`artefact.shared_protection`
+0x32A020), the Lifebones at a part's regeneration tick (`medical.regenerate`, before patch 94's);
+Larkspur's active heal is patch 94's retained Medic, whose bit (modifier 43 bit 20) skill 541 sets.
+The shared movement (list 4) is read only when a player's animations are selected, so at each
+player's tick before tick_animations (`battery.carrier_tick` 0x2DAAD3, order 2) a change of it
+since the tick before sets +33Eh (m_need_to_select_animations), as patch 94 does for Adrenalin;
+each place's last 64 ticks' sums are kept, so a re-simulated tick answers as at first.
+Checked with `check_artefact_skills_026g.py`; not run in a game.
+
+## Keeper of the Artifacts: an artefact of the match's kind at the first spawn (patch 109, unreleased)
+
+The artefact tree's 521 (`../docs/notes/artefact-skills.md`). srp draws one kind a match
+(`artefact_carry::keeper`: Larkspur, Onyx, Spring) and writes it into modifier 40 bits 9..11 of
+every kit. Every map has a hidden anomaly (content edit `artefact-keeper-1.json`): no container,
+energy off, one empty state, 20 dormant artefacts of each kind. `keeper.register`
+(generic_anomaly_core::register_artefacts' entry, 0x31B8E0) keeps the id range of the anomaly with
+no container; `keeper.spawn` (the respawn rule's spawn after the player is in the world, 0x316EAB)
+gives a kit with the Keeper bit, in its place's first life and with an empty first container, the
+lowest-id dormant artefact of the drawn kind of that range, through the game's own take_artefact.
+The pool's anomaly ticks and saves it, so nothing is added to a world by the patch. Checked with
+`check_artefact_keeper_026g.py`; not run in a game.

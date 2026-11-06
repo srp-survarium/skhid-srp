@@ -1,0 +1,503 @@
+{
+  "_about": "Artefact tree (the owner, 2026-11-05; docs/notes/artefact-skills.md): the fifth tab, thresholds 0/5/10/20/25. Concentration, Forest Protection and Knowledge of Artifacts are native modifiers 7, 41 and 39, Artifact Container 14 (+1) and 15 (-1); the other skills travel as one packed integer in the unused native modifier 40 (artefact_power), which exe patch 109 decodes: bits 0..2 Resistance, 3 Keeper of the Artifacts, 4 Resonance, 5 Spring II, 6 Onyx II, 7 Larkspur II, 8 Resonance Cascade. Resonance Cascade also sets modifier 43 (armored_trap) bit 20, patch 94's retained Medic: a Larkspur's activation heals the living teammates within 5 m, with its glow. Names and descriptions are st_srp_artefact_* in client-patches/localization.",
+  "append_entry": [
+    {
+      "file": "gameplay/skills/skills_tree.options",
+      "list": "skills_tree",
+      "expected_count": 37,
+      "unique_key": "id",
+      "value": {
+        "id": 501,
+        "levels_amount": 5,
+        "preconditions": {
+          "branch_points": 0
+        },
+        "ui": {
+          "position": [
+            2,
+            1
+          ],
+          "name": "st_srp_artefact_501_name",
+          "description": "st_srp_artefact_501_description",
+          "icon": 0,
+          "invert_sign": 1,
+          "postfix": "st_percent_postfix",
+          "skill_descriptions": [
+            [
+              " <green>-5",
+              " 0",
+              "</green>",
+              ""
+            ],
+            [
+              " <green>-5",
+              " -5",
+              "</green>",
+              ""
+            ],
+            [
+              " <green>-5",
+              " -10",
+              "</green>",
+              ""
+            ],
+            [
+              " <green>-5",
+              " -15",
+              "</green>",
+              ""
+            ],
+            [
+              " <green>-5",
+              " -20",
+              "</green>",
+              ""
+            ],
+            [
+              "<green> -25",
+              0,
+              "</green>",
+              ""
+            ]
+          ]
+        },
+        "modifiers": [
+          {
+            "artefact_search_time_modifier": -0.05
+          },
+          {
+            "artefact_search_time_modifier": -0.05
+          },
+          {
+            "artefact_search_time_modifier": -0.05
+          },
+          {
+            "artefact_search_time_modifier": -0.05
+          },
+          {
+            "artefact_search_time_modifier": -0.05
+          }
+        ]
+      }
+    },
+    {
+      "file": "gameplay/skills/skills_tree.options",
+      "list": "skills_tree",
+      "expected_count": 38,
+      "unique_key": "id",
+      "value": {
+        "id": 502,
+        "levels_amount": 5,
+        "preconditions": {
+          "branch_points": 0
+        },
+        "ui": {
+          "position": [
+            3,
+            1
+          ],
+          "name": "st_srp_artefact_502_name",
+          "description": "st_srp_artefact_502_description",
+          "icon": 1,
+          "invert_sign": 1,
+          "postfix": "st_srp_artefact_points",
+          "skill_descriptions": [
+            [
+              " <green>+5",
+              " 0",
+              "</green>",
+              ""
+            ],
+            [
+              " <green>+5",
+              " +5",
+              "</green>",
+              ""
+            ],
+            [
+              " <green>+5",
+              " +10",
+              "</green>",
+              ""
+            ],
+            [
+              " <green>+5",
+              " +15",
+              "</green>",
+              ""
+            ],
+            [
+              " <green>+5",
+              " +20",
+              "</green>",
+              ""
+            ],
+            [
+              "<green> +25",
+              0,
+              "</green>",
+              ""
+            ]
+          ]
+        },
+        "modifiers": [
+          {
+            "artefact_power_modifier": 1
+          },
+          {
+            "artefact_power_modifier": 1
+          },
+          {
+            "artefact_power_modifier": 1
+          },
+          {
+            "artefact_power_modifier": 1
+          },
+          {
+            "artefact_power_modifier": 1
+          }
+        ]
+      }
+    },
+    {
+      "file": "gameplay/skills/skills_tree.options",
+      "list": "skills_tree",
+      "expected_count": 39,
+      "unique_key": "id",
+      "value": {
+        "id": 511,
+        "levels_amount": 4,
+        "preconditions": {
+          "branch_points": 5
+        },
+        "ui": {
+          "position": [
+            2,
+            2
+          ],
+          "name": "st_srp_artefact_511_name",
+          "description": "st_srp_artefact_511_description",
+          "icon": 7,
+          "invert_sign": 1,
+          "postfix": "st_percent_postfix",
+          "skill_descriptions": [
+            [
+              " <green>-5",
+              " 0",
+              "</green>",
+              ""
+            ],
+            [
+              " <green>-5",
+              " -5",
+              "</green>",
+              ""
+            ],
+            [
+              " <green>-5",
+              " -10",
+              "</green>",
+              ""
+            ],
+            [
+              " <green>-5",
+              " -15",
+              "</green>",
+              ""
+            ],
+            [
+              "<green> -20",
+              0,
+              "</green>",
+              ""
+            ]
+          ]
+        },
+        "modifiers": [
+          {
+            "incoming_weapon_damage_in_anomaly_modifier": -0.05
+          },
+          {
+            "incoming_weapon_damage_in_anomaly_modifier": -0.05
+          },
+          {
+            "incoming_weapon_damage_in_anomaly_modifier": -0.05
+          },
+          {
+            "incoming_weapon_damage_in_anomaly_modifier": -0.05
+          }
+        ]
+      }
+    },
+    {
+      "file": "gameplay/skills/skills_tree.options",
+      "list": "skills_tree",
+      "expected_count": 40,
+      "unique_key": "id",
+      "value": {
+        "id": 512,
+        "levels_amount": 5,
+        "preconditions": {
+          "branch_points": 5
+        },
+        "ui": {
+          "position": [
+            3,
+            2
+          ],
+          "name": "st_srp_artefact_512_name",
+          "description": "st_srp_artefact_512_description",
+          "icon": 4,
+          "invert_sign": 1,
+          "postfix": "st_percent_postfix",
+          "skill_descriptions": [
+            [
+              " <green>+5",
+              " 0",
+              "</green>",
+              ""
+            ],
+            [
+              " <green>+5",
+              " +5",
+              "</green>",
+              ""
+            ],
+            [
+              " <green>+5",
+              " +10",
+              "</green>",
+              ""
+            ],
+            [
+              " <green>+5",
+              " +15",
+              "</green>",
+              ""
+            ],
+            [
+              " <green>+5",
+              " +20",
+              "</green>",
+              ""
+            ],
+            [
+              "<green> +25",
+              0,
+              "</green>",
+              ""
+            ]
+          ]
+        },
+        "modifiers": [
+          {
+            "artefact_duration_modifier": 0.05
+          },
+          {
+            "artefact_duration_modifier": 0.05
+          },
+          {
+            "artefact_duration_modifier": 0.05
+          },
+          {
+            "artefact_duration_modifier": 0.05
+          },
+          {
+            "artefact_duration_modifier": 0.05
+          }
+        ]
+      }
+    },
+    {
+      "file": "gameplay/skills/skills_tree.options",
+      "list": "skills_tree",
+      "expected_count": 41,
+      "unique_key": "id",
+      "value": {
+        "id": 521,
+        "levels_amount": 1,
+        "preconditions": {
+          "branch_points": 10
+        },
+        "ui": {
+          "position": [
+            2,
+            3
+          ],
+          "name": "st_srp_artefact_521_name",
+          "description": "st_srp_artefact_521_description",
+          "icon": 3
+        },
+        "modifiers": [
+          {
+            "artefact_power_modifier": 8
+          }
+        ]
+      }
+    },
+    {
+      "file": "gameplay/skills/skills_tree.options",
+      "list": "skills_tree",
+      "expected_count": 42,
+      "unique_key": "id",
+      "value": {
+        "id": 522,
+        "levels_amount": 1,
+        "preconditions": {
+          "branch_points": 10
+        },
+        "ui": {
+          "position": [
+            3,
+            3
+          ],
+          "name": "st_srp_artefact_522_name",
+          "description": "st_srp_artefact_522_description",
+          "icon": 5
+        },
+        "modifiers": [
+          {
+            "artefact_power_modifier": 16
+          }
+        ]
+      }
+    },
+    {
+      "file": "gameplay/skills/skills_tree.options",
+      "list": "skills_tree",
+      "expected_count": 43,
+      "unique_key": "id",
+      "value": {
+        "id": 531,
+        "levels_amount": 1,
+        "preconditions": {
+          "branch_points": 20
+        },
+        "ui": {
+          "position": [
+            1,
+            4
+          ],
+          "name": "st_srp_artefact_531_name",
+          "description": "st_srp_artefact_531_description",
+          "icon": 14
+        },
+        "modifiers": [
+          {
+            "artefact_power_modifier": 32
+          }
+        ]
+      }
+    },
+    {
+      "file": "gameplay/skills/skills_tree.options",
+      "list": "skills_tree",
+      "expected_count": 44,
+      "unique_key": "id",
+      "value": {
+        "id": 532,
+        "levels_amount": 1,
+        "preconditions": {
+          "branch_points": 20
+        },
+        "ui": {
+          "position": [
+            2,
+            4
+          ],
+          "name": "st_srp_artefact_532_name",
+          "description": "st_srp_artefact_532_description",
+          "icon": 16
+        },
+        "modifiers": [
+          {
+            "artefact_power_modifier": 64
+          }
+        ]
+      }
+    },
+    {
+      "file": "gameplay/skills/skills_tree.options",
+      "list": "skills_tree",
+      "expected_count": 45,
+      "unique_key": "id",
+      "value": {
+        "id": 533,
+        "levels_amount": 1,
+        "preconditions": {
+          "branch_points": 20
+        },
+        "ui": {
+          "position": [
+            3,
+            4
+          ],
+          "name": "st_srp_artefact_533_name",
+          "description": "st_srp_artefact_533_description",
+          "icon": 17
+        },
+        "modifiers": [
+          {
+            "artefact_power_modifier": 128
+          }
+        ]
+      }
+    },
+    {
+      "file": "gameplay/skills/skills_tree.options",
+      "list": "skills_tree",
+      "expected_count": 46,
+      "unique_key": "id",
+      "value": {
+        "id": 534,
+        "levels_amount": 1,
+        "preconditions": {
+          "branch_points": 20
+        },
+        "ui": {
+          "position": [
+            4,
+            4
+          ],
+          "name": "st_srp_artefact_534_name",
+          "description": "st_srp_artefact_534_description",
+          "icon": 12
+        },
+        "modifiers": [
+          {
+            "artefact_slots_modifier": 1,
+            "pocket_slots_modifier": -1
+          }
+        ]
+      }
+    },
+    {
+      "file": "gameplay/skills/skills_tree.options",
+      "list": "skills_tree",
+      "expected_count": 47,
+      "unique_key": "id",
+      "value": {
+        "id": 541,
+        "levels_amount": 1,
+        "preconditions": {
+          "branch_points": 25
+        },
+        "ui": {
+          "position": [
+            3,
+            5
+          ],
+          "name": "st_srp_artefact_541_name",
+          "description": "st_srp_artefact_541_description",
+          "icon": 14
+        },
+        "modifiers": [
+          {
+            "artefact_power_modifier": 256,
+            "armored_trap_modifier": 1048576
+          }
+        ]
+      }
+    }
+  ]
+}

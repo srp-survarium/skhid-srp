@@ -2190,6 +2190,29 @@ st_srp_ammo_scar_ap_desc	Armour-piercing 7.62x51 cartridges for the FN SCAR-H. E
 st_srp_ammo_scar_ap_name	7.62x51 AP SCAR-H, 20-round pack
 st_srp_ammo_slug	Slug
 st_srp_ammo_stats	Ammo stats
+st_srp_artefact_501_description	Time to collect an artifact:
+st_srp_artefact_501_name	Concentration
+st_srp_artefact_502_description	Isolation against anomalies:
+st_srp_artefact_502_name	Resistance
+st_srp_artefact_511_description	Bullet and fragment damage taken inside an anomaly:
+st_srp_artefact_511_name	Forest Protection
+st_srp_artefact_512_description	Duration of active artifact effects:
+st_srp_artefact_512_name	Knowledge of Artifacts
+st_srp_artefact_521_description	Start the match with a random artifact in a container; one kind for everyone in the match.
+st_srp_artefact_521_name	Keeper of the Artifacts
+st_srp_artefact_522_description	Your artifacts' passive effects also work on living teammates within 8 m, up to 4 of one kind with their own.
+st_srp_artefact_522_name	Resonance
+st_srp_artefact_531_description	Each Spring also speeds up reloading: +5% passive, +15% while active.
+st_srp_artefact_531_name	Spring II
+st_srp_artefact_532_description	No fall damage while an Onyx is active.
+st_srp_artefact_532_name	Onyx II
+st_srp_artefact_533_description	Activating a Larkspur restores all energy.
+st_srp_artefact_533_name	Larkspur II
+st_srp_artefact_534_description	One pocket becomes an artifact container.
+st_srp_artefact_534_name	Artifact Container
+st_srp_artefact_541_description	Activated artifacts also work on living teammates within 5 m. "They glow, you shine"
+st_srp_artefact_541_name	Resonance Cascade
+st_srp_artefact_points	 points
 st_srp_attachments	Attachments
 st_srp_crosshair_dynamic	Dynamic crosshair
 st_srp_crosshair_hidden	Hidden crosshair

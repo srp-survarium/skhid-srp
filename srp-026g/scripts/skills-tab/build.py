@@ -27,7 +27,7 @@ The icons are the lobby's, from flash_movies/lobby_menu.swf through FFDec,
 drawn as its skill renderer (SrvSkillRendererCh) draws them: what lies under
 its iconContainer (a plate, and `background`'s child at frame branch + 1, the
 branch's tint), the icon in the container's mask, what lies over it (the
-rim); a skill that `survarium.char.MedicalSkillIcon` names (its `show` switch)
+rim); a skill that `survarium.char.SkillIcon069` names (its `show` switch)
 has that bitmap, fitted to the icon sets' box; any other is frame `ui.icon` + 1
 of the icon set PerkIconContainer places at frame branch + 1 (the movie's
 SkillListRenderer). The renderer's overSprite, lockSprite and lockSpriteRed
@@ -90,8 +90,8 @@ RENDERER = "SrvSkillRendererCh"
 OVERLAYS = {"over": "overSprite", "lock": "lockSprite", "lock-red": "lockSpriteRed"}
 SVG, FFDEC = "http://www.w3.org/2000/svg", "https://www.free-decompiler.com/flash"
 SHAPES = {2, 22, 32, 83}
-# The movie's scripts read: the medical icons, the rank indicator, the skill renderer.
-SCRIPTS = ("survarium.char.MedicalSkillIcon", "survarium.char.SkillProgressIndicator",
+# The movie's scripts read: our trees' icons, the rank indicator, the skill renderer.
+SCRIPTS = ("survarium.char.SkillIcon069", "survarium.char.SkillProgressIndicator",
            "survarium.buttons.SkillListRenderer", "survarium.char.CharWindow", "SrvCharWindow")
 ZOOM = 2
 PLACE_OBJECT2, PLACE_OBJECT3, REMOVE_OBJECT, REMOVE_OBJECT2, SHOW_FRAME, DEFINE_SPRITE = 26, 70, 5, 28, 1, 39
@@ -244,7 +244,7 @@ def icons(args, raw, work, tree, out):
         elif s["branch"] < len(sets):
             wanted[s["id"]] = ("sprite", sets[s["branch"]], s["icon"] + 1)
         else:
-            die(f"skill {s['id']}: no icon (MedicalSkillIcon has none, PerkIconContainer no frame {s['branch'] + 1})")
+            die(f"skill {s['id']}: no icon (SkillIcon069 has none, PerkIconContainer no frame {s['branch'] + 1})")
     chars = {cid for _, cid, _ in wanted.values()} | set(under) | set(over) | {tint, named["iconContainer"][0]}
     chars |= {named[n][0] for n in OVERLAYS.values()} | set(sets) | {ids[pip_class], tab_icon}
     subprocess.run(ffdec + ["-format", "sprite:png,shape:png,image:png", "-zoom", str(ZOOM),
@@ -307,7 +307,7 @@ def icons(args, raw, work, tree, out):
             canvas = centred(art(tint, branch + 1) if c == background else under_art[c], canvas)
         icon = art(cid, frame)
         if kind == "image":
-            # MedicalSkillIcon fits its bitmap to the icon set's box.
+            # SkillIcon069 fits its bitmap to the icon set's box.
             icon = icon.resize(frame_size, Image.LANCZOS)
         icon = centred(icon)
         icon.putalpha(Image.fromarray(numpy.minimum(numpy.asarray(icon.getchannel("A")), numpy.asarray(mask))))

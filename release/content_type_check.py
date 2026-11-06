@@ -148,10 +148,11 @@ def list_keys(edit_lists):
     out = {}
     for edits in edit_lists:
         for e in edits.get('append_entry', []):
-            lists = out.setdefault(e['file'], {})
-            path, key = '/' + e['list'], e['unique_key']
-            if lists.setdefault(path, key) != key:
-                raise ValueError(f"{e['file']}: {path} is keyed by {lists[path]} and by {key} in the edit lists")
+            for file in e.get('files', [e.get('file')]):
+                lists = out.setdefault(file, {})
+                path, key = '/' + e['list'], e['unique_key']
+                if lists.setdefault(path, key) != key:
+                    raise ValueError(f"{file}: {path} is keyed by {lists[path]} and by {key} in the edit lists")
     return out
 
 

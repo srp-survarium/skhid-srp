@@ -2161,6 +2161,7 @@ va	name	source	ret_cleanup	result
 0x002f8970	survarium::static_collision::remove	manual	4	void; vtable+4: its body (+4Ch) out of the physics world, freed, +4Ch 0
 0x002de7f0	survarium::game_effect_player::stop	manual	0	EAX the first effect it stopped or 0; every effect of the list (+24h, each +4Ch the next) stopped, +28h 0
 0x002de090	survarium::game_effect_player::play	manual	20	void; plays the effect (0x2DE100 with EDI and the five arguments)
+0x002de350	survarium::game_effect_player::remove	manual	0	void; the node playing the effect (walked from +2Ch, each +4Ch the next) set to state 2 (+44h), its stop sent (0x2DE3A0), the list swept (0x2DE750); damage_zone_core 0x31A255 stops its inside effect so
 0x00285fa0	survarium::render_visual::insert	manual	4	none
 0x00285fe0	survarium::render_visual::remove	manual	4	none
 0x00291720	survarium::object_light::load	manual	12	none
@@ -2361,3 +2362,7 @@ va	name	source	ret_cleanup	result
 0x00201040	survarium::game_options::deactivate	manual	0	none; returns at once when +44h is 0, else hides +0Ch and +10h, removes its input handler, clears +44h and +30h
 0x00234880	survarium::game_world_ui::initialize_match	manual	8	none
 0x001f8120	survarium::game_world::local_player_profiles	manual	8	none; writes the local place's kit in use (+0Ch) to entry ESP+4's byte and its next kit (+0Dh) to entry ESP+8's
+0x00332810	survarium::body_part_parameters::apply_hit_modifiers	manual	8	the damage in place: 0x332890 first; then, when the hit has an owner (hit+20h) and the victim player ([[model+3B8h]]+3B0h) has player+2E4h above 0 (inside a damage zone), D x max(0, 1 + M41 incoming_weapon_damage_in_anomaly) (apply_modifier 0x33286A); hit_by_type 0x32A01B calls it before the protectors and armour
+0x00332890	survarium::body_part_parameters::apply_anomaly_damage_modifier	manual	4	the damage in place: a hit whose type (+1Ch) is in table 0x92075C (4..7: toxic, radiation, fire, shock) is D x max(0, 1 + M8 anomaly_damage) (0x3328E2), a percentage before armour
+0x002d5bc0	survarium::player_params_modifiers_container::apply_modifiers	manual	12	XMM0: S = the sum over the pairs {index, weight} of (the kit's float + its list's nodes) x weight; B + S when the first pair's index is additive (table 0x927E08, 0x2D5BD4), else B x max(0, 1 + S)
+0x00312590	survarium::artefact_lifebone_core::regeneration_modifier	manual	8	the frame {rate, delay, limit} in place, from a passive record: rate (r + [+1Ch]) x [+20h]; delay (d as unsigned + [+24h] x 1000) x [+28h], fistp truncated, its low 32 bits; limit (l + [+2Ch]) x [+30h]

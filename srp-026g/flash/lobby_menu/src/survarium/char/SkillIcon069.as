@@ -4,6 +4,16 @@ package survarium.char
    import flash.display.BitmapData;
    import flash.display.PixelSnapping;
    import flash.display.Sprite;
+   import ArtefactSkill069501;
+   import ArtefactSkill069502;
+   import ArtefactSkill069511;
+   import ArtefactSkill069512;
+   import ArtefactSkill069521;
+   import ArtefactSkill069522;
+   import ArtefactSkill069531;
+   import ArtefactSkill069532;
+   import ArtefactSkill069533;
+   import ArtefactSkill069534;
    import MedicalSkill069301;
    import MedicalSkill069302;
    import MedicalSkill069311;
@@ -18,13 +28,14 @@ package survarium.char
    import MedicalSkill069341;
    import MedicalSkill069342;
 
-   // Original 0.69d skill icons (survival; Take Cover physical), copied unchanged; icons-069.tsv records their provenance.
-   public class MedicalSkillIcon extends Sprite
+   // Original 0.69d skill icons of our trees (medical: survival, Take Cover physical; artefact:
+   // anomaly), copied unchanged; scripts/{medical,artefact}-skills/icons-069.tsv record their provenance.
+   public class SkillIcon069 extends Sprite
    {
       private static const images:Object = {};
       private var image:Bitmap;
 
-      public function MedicalSkillIcon()
+      public function SkillIcon069()
       {
          mouseEnabled = false;
          mouseChildren = false;
@@ -33,7 +44,8 @@ package survarium.char
          addChild(image);
       }
 
-      public function show(skill:uint) : void
+      // Shows the skill's icon; false for a skill of the stock trees, which has none here.
+      public function show(skill:uint) : Boolean
       {
          var type:Class;
          switch(skill)
@@ -52,12 +64,24 @@ package survarium.char
             case 333: type = MedicalSkill069333; break;
             case 341: type = MedicalSkill069341; break;
             case 342: type = MedicalSkill069342; break;
-            default: image.bitmapData = null; return;
+            case 501: type = ArtefactSkill069501; break;
+            case 502: type = ArtefactSkill069502; break;
+            case 511: type = ArtefactSkill069511; break;
+            case 512: type = ArtefactSkill069512; break;
+            case 521: type = ArtefactSkill069521; break;
+            case 522: type = ArtefactSkill069522; break;
+            case 531: type = ArtefactSkill069531; break;
+            case 532: type = ArtefactSkill069532; break;
+            case 533: type = ArtefactSkill069533; break;
+            case 534: type = ArtefactSkill069534; break;
+            case 541: type = MedicalSkill069341; break;
+            default: image.bitmapData = null; return false;
          }
          if(images[skill] == null) images[skill] = new type() as BitmapData;
          image.bitmapData = images[skill];
          // Same 34-unit box as the renderer's scale calculation, with original aspect ratio.
          image.width = image.height = 34;
+         return true;
       }
    }
 }
