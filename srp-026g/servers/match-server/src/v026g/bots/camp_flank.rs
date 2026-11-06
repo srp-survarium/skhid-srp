@@ -138,6 +138,14 @@ pub struct FlankRoute {
     pub exposed_m: f32,
 }
 
+impl CampSpot {
+    /// Every floor of its routes, route by route from the start (A324: the camper traps keep off them and a ring round
+    /// them, so a flanker never walks onto the team's own trap). A floor two routes share comes twice.
+    pub fn route_floors(&self) -> impl Iterator<Item = NodeId> + '_ {
+        self.routes.iter().flat_map(|r| r.floors.iter().copied())
+    }
+}
+
 /// How far over or under a held spot a known camp spot may be and still be it, m (a storey).
 pub const MATCH_STOREY_M: f32 = 3.0;
 
@@ -385,6 +393,7 @@ mod tests {
         let (spot, refused) = row.on_grid(&grid);
         assert_eq!(spot.routes.len(), 1, "{refused:?}");
         assert_eq!(spot.routes[0].floors.len(), round.matches('[').count());
+        assert_eq!(spot.route_floors().count(), spot.routes[0].floors.len(), "one route: its floors");
         // At the wall: no floor in its eroded cells, or none walked across it.
         assert!(matches!(refused[0], Refused::NoLink(i) | Refused::NoFloor(i) if (12..=14).contains(&i)), "{refused:?}");
         assert_eq!(refused[1], Refused::NoFloor(0));
