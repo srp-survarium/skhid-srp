@@ -96,7 +96,18 @@ fn reference_replay() {
     let replay_start = var("SRP_A325_REPLAY_START").is_some();
     let yaw_before = var("SRP_A325_YAW_BEFORE").is_some();
     let speed_cap = var("SRP_A325_CAP").is_some();
-    let mut last_level: HashMap<usize, f32> = HashMap::new();
+    let mut last_level: HashMap<usize, Vec<f32>> = HashMap::new();
+    // `SRP_A325_LEVEL_MEDIAN=1`: the level is the median of the player's last 5 steady-world reads, not the last one: a world
+    // whose body was held by a wall or a player reads low (one read of 0.756 left a body walking 2.65 m/s for a whole life).
+    let level_median = var("SRP_A325_LEVEL_MEDIAN").is_some();
+    let level_now = |seen: &Vec<f32>, median: bool| -> f32 {
+        if !median {
+            return seen.last().copied().unwrap_or(1.0);
+        }
+        let mut last: Vec<f32> = seen.iter().rev().take(5).copied().collect();
+        last.sort_by(f32::total_cmp);
+        last.get(last.len() / 2).copied().unwrap_or(1.0)
+    };
     // `SRP_A325_WORLD_BLEND=k`: the velocity kept in the world frame, each tick k of the way toward the intended (a turn does not
     // swing the momentum round with the yaw at once). A hypothesis test, not a client rule.
     let world_blend: Option<f32> = var("SRP_A325_WORLD_BLEND").and_then(|v| v.parse().ok());
@@ -224,12 +235,12 @@ fn reference_replay() {
             let clip_speed = clip[0].hypot(clip[1]);
             match speed_b {
                 Some(v) if clip_speed > 0.5 && v > 0.5 && (k0 + 50..=t0).step_by(50).all(|k| keys_in(k) & CLIP_KEYS == keys_b & CLIP_KEYS) => {
-                    let l = (v / clip_speed).clamp(0.7, 1.3);
-                    last_level.insert(w.place, l);
-                    l
+                    let seen = last_level.entry(w.place).or_default();
+                    seen.push((v / clip_speed).clamp(0.7, 1.3));
+                    level_now(seen, level_median)
                 }
                 // Not steady at B: the player's last measured level (the modifiers change only with the kit).
-                _ => last_level.get(&w.place).copied().unwrap_or(1.0),
+                _ => last_level.get(&w.place).map_or(1.0, |seen| level_now(seen, level_median)),
             }
         } else {
             1.0
