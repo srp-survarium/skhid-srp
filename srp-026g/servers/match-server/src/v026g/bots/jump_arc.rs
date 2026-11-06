@@ -67,8 +67,8 @@ const FLOORLESS_CELLS: f32 = 1.5;
 /// Where round the feet, as a share of the body's radius, the rays down for a top to come down on are cast (the capsule's lower
 /// sphere rests on an edge within its radius): GUESS 0.7.
 const PERCH_RING: f32 = 0.7;
-/// How far over the grid's floor a top of the walker mesh must be to land on it rather than on the floor (a rail, a sill, a lip
-/// too narrow for the grid), m.
+/// How near a top of the walker mesh the grid's floor must be to land on that floor (and its node) instead of on the bare top (a
+/// rail, a sill, a lip too narrow for the grid), m.
 const PERCH_OVER_M: f32 = 0.1;
 /// How far apart along a tick's move the tops to come down on are looked for (the catch-up after a wall carries the body a metre
 /// or more in a tick), m.
@@ -287,8 +287,8 @@ impl JumpArc {
         if let Phase::Fall { speed } = self.phase {
             let speed = speed + GRAVITY * dt;
             let y = feet.y - speed * dt;
-            if let Some(top) = perch_over(grid, walls, Vec3::new(feet.x, y, feet.z), feet.y, radius) {
-                return ArcStep::Landed(Vec3::new(feet.x, top, feet.z), None);
+            if let Some((top, node)) = perch_over(grid, walls, Vec3::new(feet.x, y, feet.z), feet.y, radius) {
+                return ArcStep::Landed(Vec3::new(feet.x, top, feet.z), node);
             }
             return match air_floor(grid, feet, feet.y + CATCH_M) {
                 Some((node, on)) if on.y >= y => ArcStep::Landed(on, Some(node)),
@@ -350,18 +350,18 @@ impl JumpArc {
         if frame >= self.clip.apex_frame() || over {
             // Down on a top of the walker mesh the grid has no floor for (the client stands on a railing's top rail), else on the
             // grid's floor.
-            if let Some(on) = perch_along(grid, walls, feet, at, radius) {
-                return ArcStep::Landed(on, None);
+            if let Some((on, node)) = perch_along(grid, walls, feet, at, radius) {
+                return ArcStep::Landed(on, node);
             }
             if let Some((node, on)) = air_floor(grid, at, feet.y.max(y) + CATCH_M)
                 && on.y >= y - 1e-4
             {
                 return ArcStep::Landed(on, Some(node));
             }
-        } else if let Some(on) = perch_along(grid, walls, feet, at, radius).filter(|on| on.y > y + 1e-3) {
+        } else if let Some((on, node)) = perch_along(grid, walls, feet, at, radius).filter(|(on, _)| on.y > y + 1e-3) {
             // On the way up, an edge whose top is over the feet but within the catch cannot be passed over (the axis crosses an
             // edge only with the feet at or over its top: JUMP-FINDINGS 1, ledge reach); the body comes to rest on it.
-            return ArcStep::Landed(on, None);
+            return ArcStep::Landed(on, node);
         }
         if over {
             self.phase = Phase::Fall { speed: 0.0 };
@@ -388,12 +388,15 @@ fn perch(walls: &RayTree, at: Vec3, from_y: f32, radius: f32) -> Option<f32> {
         .reduce(f32::max)
 }
 
-/// [`perch`]'s top where the grid has no floor that high under `at` (by more than [`PERCH_OVER_M`]): a rail, a sill or a lip the
-/// grid's cells are too coarse for, which the client's capsule comes down on.
-fn perch_over(grid: &WalkGrid, walls: Option<&RayTree>, at: Vec3, from_y: f32, radius: f32) -> Option<f32> {
+/// Where feet coming down on [`perch`]'s top stand: on the grid's floor there (its height and node) when it is within
+/// [`PERCH_OVER_M`] of the top, else on the top itself with no floor (a rail, a sill or a lip the grid's cells are too coarse for,
+/// which the client's capsule comes down on).
+fn perch_over(grid: &WalkGrid, walls: Option<&RayTree>, at: Vec3, from_y: f32, radius: f32) -> Option<(f32, Option<NodeId>)> {
     let top = perch(walls?, at, from_y, radius)?;
-    let floor = air_floor(grid, at, top + CATCH_M).map(|(_, on)| on.y);
-    floor.is_none_or(|y| top > y + PERCH_OVER_M).then_some(top)
+    Some(match air_floor(grid, at, top + CATCH_M) {
+        Some((node, on)) if on.y >= top - PERCH_OVER_M => (on.y, Some(node)),
+        _ => (top, None),
+    })
 }
 
 /// Whether `walls` hold a body in the air at height `y` moving from `feet` to `to`: a horizontal ray along the move (and the radius
@@ -413,14 +416,14 @@ fn rays_blocked(walls: &RayTree, feet: Vec3, to: (f32, f32), y: f32, radius: f32
 }
 
 /// The first top of [`perch_over`] along the move from `feet` to `at` (every [`PERCH_STEP_M`]), as the client's capsule sweeps a
-/// tick's move: where the feet stand on it.
-fn perch_along(grid: &WalkGrid, walls: Option<&RayTree>, feet: Vec3, at: Vec3, radius: f32) -> Option<Vec3> {
+/// tick's move: where the feet stand on it, and the grid's floor there if any.
+fn perch_along(grid: &WalkGrid, walls: Option<&RayTree>, feet: Vec3, at: Vec3, radius: f32) -> Option<(Vec3, Option<NodeId>)> {
     let (dx, dz) = (at.x - feet.x, at.z - feet.z);
     let steps = (dx.hypot(dz) / PERCH_STEP_M).ceil().max(1.0) as u32;
     (1..=steps).find_map(|i| {
         let f = i as f32 / steps as f32;
         let p = Vec3::new(feet.x + dx * f, at.y, feet.z + dz * f);
-        perch_over(grid, walls, p, feet.y.max(at.y), radius).map(|top| Vec3::new(p.x, top, p.z))
+        perch_over(grid, walls, p, feet.y.max(at.y), radius).map(|(top, node)| (Vec3::new(p.x, top, p.z), node))
     })
 }
 
@@ -869,8 +872,8 @@ mod tests {
         let floor = crate::v026g::bots::body::tests::floor(-3.0, -3.0, 3.0, 3.0, 0.0);
         let grid = WalkGrid::build(&floor, [-3.0, -3.0, 3.0, 3.0], 0.25, mapdata::Body::client());
         let r = grid.body().radius;
-        let on = perch_along(&grid, Some(&walls), Vec3::new(0.0, 1.0, -0.8), Vec3::new(0.0, 0.99, 0.9), r).expect("on the rail");
-        assert!((on.y - 1.05).abs() < 1e-3 && on.z < 0.3, "{on:?}");
+        let (on, node) = perch_along(&grid, Some(&walls), Vec3::new(0.0, 1.0, -0.8), Vec3::new(0.0, 0.99, 0.9), r).expect("on the rail");
+        assert!((on.y - 1.05).abs() < 1e-3 && on.z < 0.3 && node.is_none(), "{on:?} {node:?}");
         assert_eq!(perch_over(&grid, Some(&walls), Vec3::new(0.0, 0.99, 0.9), 1.0, r), None, "the end alone misses it");
     }
 
