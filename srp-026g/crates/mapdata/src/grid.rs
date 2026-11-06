@@ -1068,6 +1068,13 @@ impl WalkGrid {
         if body.slip_landings {
             wide.slips = grid.slip_landings(&wide, &solids);
         }
+        if wide.given.iter().any(|&g| g) {
+            // A given-back floor starts or ends no gap link and no slip ([`Body::wall_give_back`]: walks only).
+            let given = std::mem::take(&mut wide.given);
+            wide.off.retain(|l| !given[l.from as usize] && !given[l.to as usize]);
+            wide.slips.retain(|&(a, b)| !given[a as usize] && !given[b as usize]);
+            wide.given = given;
+        }
         if body.client_controller {
             let (controlled, failing) = grid.controlled_links(&mut wide, triangles);
             stats.controlled = controlled;
@@ -1715,14 +1722,30 @@ impl WalkGrid {
             _ => 0,
         };
         let furthest = rounds as i32 + 1;
+        // [`Body::wall_give_back`]: the other floors' links are made as without it (a given-back floor counts as gone for
+        // them: a ledge's jump still starts a step back from it), and a given-back floor keeps only its walks to standing
+        // floors: it starts no jump, drop or climb (A318: on level_02 a jump up a 1 m ledge from a given-back 45 deg strip at
+        // the wall's foot moved bot stalls there; on level_07 the way on through given-back floors lost 8,007 kept floors).
+        let given = |a: usize| wide.given.get(a).copied().unwrap_or(false);
+        let standing: Vec<bool> = (0..n).map(|a| alive[a] && !given(a)).collect();
         for a in 0..n {
             if !alive[a] {
+                continue;
+            }
+            if given(a) {
                 continue;
             }
             let (i, k) = self.cell_xz(self.cell_of[a] as usize);
             for (d, &(di, dk)) in DIRS.iter().enumerate() {
                 let b = wide.links[a][d];
-                if b == NONE || alive[b as usize] {
+                if b == NONE || standing[b as usize] {
+                    continue;
+                }
+                // A walk onto a given-back floor stays unless the jump past it is the way on (as without it, below).
+                if alive[b as usize]
+                    && wide.kinds[a][d] == LinkKind::Walk
+                    && !(wide.links[b as usize][d] != NONE && wide.kinds[b as usize][d] == LinkKind::Jump)
+                {
                     continue;
                 }
                 // A walk to a floor that went: a jump past it, if one
@@ -1743,7 +1766,7 @@ impl WalkGrid {
                     let Some(cell) = self.cell_index(i + di * reach, k + dk * reach) else {
                         break;
                     };
-                    if let Some((b, kind)) = self.ledge(a, cell, Some(&alive))
+                    if let Some((b, kind)) = self.ledge(a, cell, Some(&standing))
                         && (!walked || kind == LinkKind::Jump)
                         && (kind != LinkKind::Jump || Self::lands(wide, b as usize, d))
                     {
@@ -1751,6 +1774,15 @@ impl WalkGrid {
                         wide.kinds[a][d] = kind;
                         break;
                     }
+                }
+            }
+        }
+        // A given-back floor: its walks to standing floors only (after the loop above, which reads its jumps).
+        for a in (0..n).filter(|&a| alive[a] && given(a)) {
+            for d in 0..DIRS.len() {
+                let b = wide.links[a][d];
+                if b != NONE && !(wide.kinds[a][d] == LinkKind::Walk && alive[b as usize]) {
+                    wide.links[a][d] = NONE;
                 }
             }
         }
