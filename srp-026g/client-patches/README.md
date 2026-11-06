@@ -3644,6 +3644,6 @@ out and logged.
 ("Push to talk"), `st_mute_last_speaker_action`, `st_srp_hud_voice_*` (the Tab menu's entries and
 lines, the mute key's notice).
 
-Checked: `selftest_026g.py` check 66 (the sites in the original, the eight hooks and the action's
+Checked: `selftest_026g.py` check 66 (the sites in the original, the seven hooks and the action's
 entry in the build), `check_hide_ui_026g.py` (the 43rd row), `cargo test` in `rust/` (the mutes'
 text, malformed records, the radio's 25 m and the dead). **Not run in a game.**
