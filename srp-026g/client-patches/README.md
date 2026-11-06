@@ -3443,7 +3443,7 @@ picks kit 3 for a 3 pressed or tapped in the frame of the death); the variable: 
 registers back, one `cc_bool` "g_private_messages_in_game" at the list's head over two calls,
 found by the game's lookup (0xEB7C0) and set and cleared by the game's execute (0xEB980) as a
 `user.cfg` line; the chat: every channel with the option off and on, in and out of a match,
-dropped exactly for 3 and 5 to 9 on, in a match, else given to add_message with the site's
+dropped exactly for 3 and 5 to 10 on, in a match, else given to add_message with the site's
 arguments, the stack and ebx, esi, edi, ebp as before. **Not run in a game.**
 
 ### 62. One key hides the interface, in a match and in the lobby (the next release's revision)

@@ -368,3 +368,55 @@ fn a_disbanded_room_takes_its_chat() {
     assert!(heard(&mut world, bob).is_empty());
     assert!(listen(&mut world, bob).is_empty());
 }
+
+/// The hud asks once its match chat is up: a player in a match is given
+/// the room's last lines (as many as the hud's log shows, but an ignored
+/// sender's); out of a match, or in no room, nothing.
+#[test]
+fn a_match_starts_with_the_rooms_last_lines() {
+    let ask = |world: &mut World, index: usize| {
+        world.take(index);
+        world.ask(index, request::chat(0, "", channel::ROOM, "#room-chat"));
+        heard(world, index)
+    };
+    let mut world = World::new();
+    let alice = world.connect("Alice");
+    let bob = world.connect("Bob");
+    let carol = world.connect("Carol");
+    let erin = world.connect("Erin");
+    let key = create(&mut world, alice, spec(6), None);
+    for client in [bob, carol] {
+        rows(&mut world, client, ROOM_JOIN_BASE + key, 1);
+    }
+    world.advance(Duration::from_secs(1));
+    for client in [alice, bob, carol] {
+        listen(&mut world, client);
+    }
+    let bob_id = world.ids[bob].0;
+    world.ask(carol, request::ignore(bob_id));
+    for n in 0..12 {
+        // One line a second: within the flood allowance.
+        say(
+            &mut world,
+            if n == 11 { bob } else { alice },
+            &format!("line {n}"),
+        );
+        world.advance(Duration::from_secs(1));
+    }
+    // In the lobby: no answer (the tab has the lines already).
+    assert!(ask(&mut world, alice).is_empty());
+    assert!(ask(&mut world, erin).is_empty());
+
+    world.advance(Duration::from_secs(31));
+    sent_to_match(&world.take(alice)).expect("the match");
+    let last = |from: usize| -> Vec<(String, String)> {
+        (from..11)
+            .map(|n| ("Alice".to_owned(), format!("line {n}")))
+            .collect()
+    };
+    let mut alices = last(2);
+    alices.push(("Bob".to_owned(), "line 11".to_owned()));
+    assert_eq!(ask(&mut world, alice), alices);
+    // Carol ignores Bob: her ten are Alice's.
+    assert_eq!(ask(&mut world, carol), last(1));
+}

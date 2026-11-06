@@ -2688,12 +2688,10 @@ st_srp_rooms_join_why_4	Meč je pun.
 st_srp_rooms_join_why_5	Održavanje servera uskoro: nema novih ulazaka.
 st_srp_rooms_join_why_6	Meč se završava: igraćeš sledeći.
 st_srp_rooms_join_why_7	Ovaj meč je dostigao ograničenje broja igrača. Pridružićeš se sledećem meču.
-st_srp_rooms_joined_room	%1$s se pridružio sobi
 st_srp_rooms_late_hint	Ko se sada pridruži, prvo vidi sobu, zatim ulazi u meč.
 st_srp_rooms_leave	Napusti
 st_srp_rooms_leave_queue	Napusti red
 st_srp_rooms_leave_room	Napusti
-st_srp_rooms_left_room	%1$s je napustio sobu
 st_srp_rooms_level	Nivo
 st_srp_rooms_map	Mapa
 st_srp_rooms_map_by_vote	Mapa se bira glasanjem

@@ -17,6 +17,11 @@
 //!   own, and is not touched): no line, no last lines. Its movie asks again
 //!   after the match (`SrpRooms.afterMatch`), and its tab shows the room's
 //!   last lines then, those said during the match among them.
+//! - **At the match's start** (the owner's of 2026-11-06: "when the match
+//!   starts last messages can be shown too from room chat"): the hud asks
+//!   with [`MATCH_HISTORY_ASK`] on [`channel::ROOM`] once its match chat is
+//!   up, and is given the room's last [`MATCH_HISTORY`] lines on that
+//!   channel; it shows them in every match tab.
 //! - **The match's all-chat** (the owner's of 2026-11-06: "show history
 //!   across the previous match of messages to all"): a line a member says
 //!   on [`channel::MATCH`] in its match is kept in its room's chat too, so
@@ -35,6 +40,13 @@ use session::v026g::rooms::ChatLine;
 use survarium::v026g::lobby::{self, ServerMessage, channel, sender};
 
 use super::core::{Core, Who};
+
+/// The hud's ask for its room's last lines, on [`channel::ROOM`] once its
+/// match chat is up (`flash/hud`, `HUD.as`).
+pub(super) const MATCH_HISTORY_ASK: &str = "#room-chat";
+/// How many of the room's last lines a match's chat is given: as many as
+/// the hud's log shows.
+const MATCH_HISTORY: usize = 10;
 
 fn message(line: &ChatLine, body: &str) -> ServerMessage {
     lobby::chat_text(
@@ -127,20 +139,44 @@ impl Core<'_> {
         if player.in_match.is_some() {
             return;
         }
-        let Some(room) = key.and_then(|key| self.rooms.get(key)) else {
-            return;
-        };
-        let lines: Vec<ServerMessage> = room
-            .chat
-            .iter()
-            .filter_map(|line| {
-                self.chat_body(who.account_id, line.from, &line.body)
-                    .map(|body| message(line, body))
-            })
-            .collect();
-        for line in lines {
+        for line in key.map_or_else(Vec::new, |key| self.room_history(key, who.account_id)) {
             self.send(who.addr, line);
         }
+    }
+
+    /// [`MATCH_HISTORY_ASK`]: a player in a match is given its room's last
+    /// [`MATCH_HISTORY`] lines (but an ignored sender's), which its hud
+    /// shows in the match chat. Out of a match or of a room: nothing.
+    pub(super) fn room_history_to_match(&mut self, who: &Who) {
+        if self
+            .player(who.addr)
+            .is_none_or(|player| player.in_match.is_none())
+        {
+            return;
+        }
+        let Some(key) = self.rooms.key_of(who.account_id) else {
+            return;
+        };
+        let lines = self.room_history(key, who.account_id);
+        let skip = lines.len().saturating_sub(MATCH_HISTORY);
+        for line in lines.into_iter().skip(skip) {
+            self.send(who.addr, line);
+        }
+    }
+
+    /// Room `key`'s kept lines as `account_id` is sent them, the oldest
+    /// first; none for a room that is gone.
+    fn room_history(&self, key: u32, account_id: u32) -> Vec<ServerMessage> {
+        let Some(room) = self.rooms.get(key) else {
+            return Vec::new();
+        };
+        room.chat
+            .iter()
+            .filter_map(|line| {
+                self.chat_body(account_id, line.from, &line.body)
+                    .map(|body| message(line, body))
+            })
+            .collect()
     }
 
     /// Each tick: a member that left its room hears it no more.

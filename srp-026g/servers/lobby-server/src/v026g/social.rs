@@ -310,6 +310,11 @@ impl Core<'_> {
             self.mode_introduction(who, body);
             return;
         }
+        // The hud's ask for its room's last lines, also for a muted player.
+        if channel == channel::ROOM && body == super::room_chat::MATCH_HISTORY_ASK {
+            self.room_history_to_match(who);
+            return;
+        }
         // The admin's chat mute: on every channel, nobody gets the line; the
         // sender gets the mute's notice instead, said by itself.
         if let Some(ban) = self.store.chat_ban(who.account_id) {

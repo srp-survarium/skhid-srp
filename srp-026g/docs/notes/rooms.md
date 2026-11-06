@@ -345,6 +345,10 @@ parts in the game's classes (`TopMenu`'s tab, `StatusPanel`'s Play, `LobbyMenu`'
   - Who joined or left is not said (the owner's of 2026-11-06).
   - In a match it gets nothing (the match chat is untouched); after it, the tab is given the
     last 50 lines again, what was said during the match among them.
+  - At the match's start (the owner's of 2026-11-06: "when the match starts last messages
+    can be shown too from room chat"): the match chat shows the room's last 10 lines (as many
+    as its log shows), in every tab, as players' lines; an ignored player's are left out, and
+    none with "Hide chat in match" checked.
   - The match's all-chat (the owner's of 2026-11-06: "show history across the previous
     match of messages to all"): a member's line to all in its room's match is kept in the
     room's chat too, so the tab shows it after the match. Team lines are not kept. A member

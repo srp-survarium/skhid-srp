@@ -44,12 +44,6 @@ package survarium.rooms
             "4": "st_srp_rooms_join_why_4", "5": "st_srp_rooms_join_why_5", "6": "st_srp_rooms_join_why_6",
             "7": "st_srp_rooms_join_why_7"
         };
-        // The room's own lines in its chat: the server says them in English
-        // after the player's name.
-        private static const NOTICES:Array = [
-            [" joined the room", "st_srp_rooms_joined_room"],
-            [" left the room", "st_srp_rooms_left_room"]
-        ];
 
         // A level's name's key (the Matches window and the bot match menu
         // too), null for a level without one.
@@ -88,20 +82,6 @@ package survarium.rooms
         {
             var key:String = JOIN_WHY[String(why)] as String;
             return key != null ? LocalizationData.getName(key) : "";
-        }
-
-        // A room's own line in its chat in the game's language; any other
-        // text as it is.
-        public static function notice(text:String):String
-        {
-            for (var i:int = 0; i < NOTICES.length; i++)
-            {
-                var words:String = NOTICES[i][0];
-                var at:int = text.length - words.length;
-                if (at > 0 && text.substr(at) == words)
-                    return LocalizationData.format(NOTICES[i][1], text.substr(0, at));
-            }
-            return text;
         }
 
         public static function clock(secs:int):String
