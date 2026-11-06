@@ -279,6 +279,10 @@ pub struct MatchTicket {
 pub(super) struct Running {
     /// First HUD request and its answer, per account; retries reuse it, reconnects do not count again.
     pub mode_introductions: std::collections::HashMap<u32, (String, bool)>,
+    /// The accounts whose hud was given its room's last lines
+    /// (`room_chat`): once a match, so a retry or a reconnect never shows
+    /// them twice.
+    pub room_histories: std::collections::HashSet<u32>,
     pub pool: QueuePool,
     pub fixed_teams: bool,
     pub ticket: MatchTicket,
@@ -1227,6 +1231,7 @@ impl Core<'_> {
                     match_id,
                     Running {
                         mode_introductions: Default::default(),
+                        room_histories: Default::default(),
                         pool: formed.pool,
                         fixed_teams: formed.fixed_teams,
                         ticket,

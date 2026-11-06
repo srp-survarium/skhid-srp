@@ -609,22 +609,31 @@ one", "there should be to the right of [General Chat] [Room Chat]" (the rules:
   and clan tag, channel 10, to every other member whose movie asked and who is
   in no match, but those who ignore the sender. The flood allowance is the
   other channels'. A line from a player in no room reaches nobody. The room
-  keeps its last 50 lines (`session::v026g::rooms::CHAT_KEPT`), given to the
-  asker (but an ignored sender's) before the answer; they go with the room.
-- **A match's all-chat:** a `4C` on channel 5 from a player in a match goes to
-  its match as before and is also kept in the sender's room's chat as a channel-10 line
-  of its own (sent at once to the members in the lobby whose movie asked), so
-  the tab shows it after the match. Team channels (6, 7) are not kept.
-- **At a match's start:** srp's hud (`HUD.as`) sends `4C` channel 10
-  `#room-chat` once its match chat has tabs (again after `reset`, a new
-  match); the lobby (`room_chat.rs`, before the admin's mute) answers a player
-  in a match with its room's last 10 lines as kept (but an ignored sender's),
-  `A2` channel 10 as above. In a match the exe gives channel 10 to the hud's
-  movie (`add_message` gives the lobby's only 1 and 4 then, `client_patch.md`
-  §3.53); the hud puts a line with a body not starting with `#`
-  in every match tab (`GameChat.addRoomLine`) and shows none that does (the
-  ask's local echo, other control lines). Patch 58's "Hide chat in match"
-  drops channel 10 in a match too (since 2026-11-06).
+  keeps the last 20 lines said in it and the last 20 of its matches' all-chat,
+  each apart (`session::v026g::rooms::Said`), given to the asker (but an
+  ignored sender's) before the answer; they go with the room.
+- **A match's all-chat:** a `4C` on channel 5 from a player of its room's
+  match goes to its match as before and is also kept in the room's chat as a
+  channel-10 line of its own (sent at once to the members in the lobby whose
+  movie asked), so the tab shows it after the match. Team channels (6, 7) are
+  not kept, nor another match's (a member's against bots).
+- **At a match's start:** srp's hud (`RoomHistory.as`) sends `4C` channel 10
+  `#room-chat:<token>` once its match chat has tabs (a new token after
+  `reset`, a new match), again with the same token 2 s later while not
+  answered, 3 times at most. A `4C` on channel 10 from a player in a match is
+  parsed as a hud request (`social::HudRequest`: this or `#mode-intro:`)
+  before the flood allowance and the admin's mute; from the lobby it is a
+  room line like any other. The lobby answers a player of its room's match,
+  once a match, with the room's last 10 lines as kept (but an ignored
+  sender's), `A2` channel 10 as above, then every ask with `A2` channel 10
+  from "System" (sender id 0) `#room-chat:<token>:done`. In a match the exe
+  gives channel 10 to the hud's movie (`add_message` gives the lobby's only 1
+  and 4 then, `client_patch.md` §3.53); the hud consumes the ask's local echo
+  and "System" lines starting with `#`, and puts any other line in every match
+  tab (`GameChat.addRoomLine`) only until its "done", so a retry's answer is
+  never shown twice. Patch 58's "Hide chat in match" drops channel 10 in a
+  match too (since 2026-11-06): the hud is then given nothing and stops after
+  its 3 asks.
 - **No lines of the room's own** (since 2026-11-06): who joined or left is not
   said.
 - **Not checked in the game.**

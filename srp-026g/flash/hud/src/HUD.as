@@ -33,7 +33,7 @@ package
    import scaleform.gfx.Extensions;
    import survarium.Util;
    import survarium.constants.BodyPartState;
-   import survarium.constants.ChatChannel;
+   import survarium.chat.RoomHistory;
    import survarium.constants.Colors;
    import survarium.constants.CombatAction;
    import survarium.constants.CombatLogTeam;
@@ -340,6 +340,7 @@ package
          _keptLayer = new KeptLayer(this,this.keepLaidOut);
          _forcedView = new ForcedView(this._keptLayer,this.keptWhenForced,this.keptOnTab,this.keptWhileTyping,
                                       this.holdChatHistory);
+         _roomHistory = new RoomHistory(this.showRoomLine);
          this.addEventListener(Event.ENTER_FRAME,this.onIntroductionFrame);
          stage.addChildAt(this._keptLayer,stage.getChildIndex(this) + 1);
          _stageLayer = new Sprite();
@@ -827,19 +828,19 @@ package
       private var _forcedView:ForcedView;
       private var _modeNotice:ModeNotice;
       private var _pregameText:String = "";
-      // The ask for the room's last lines, answered on its channel by the server (room_chat.rs).
-      private static const ROOM_HISTORY_ASK:String = "#room-chat";
-      // The room's last lines: asked once a match's chat is up, again
-      // after reset (a new match).
-      private var _roomHistoryAsked:Boolean = false;
+      // The room's last lines: asked once a match's chat is up, again after reset (a new match);
+      // shown in every match tab.
+      private var _roomHistory:RoomHistory;
+
+      private function showRoomLine(value:Object) : void
+      {
+         this.chat.addRoomLine(value);
+      }
 
       private function onIntroductionFrame(event:Event) : void
       {
-         if(!this._roomHistoryAsked && this.chat != null && this.chat.introductionReady())
-         {
-            this._roomHistoryAsked = true;
-            this.chat.send_function({text:ROOM_HISTORY_ASK},ChatChannel.ROOM);
-         }
+         this._roomHistory.update(getTimer(),this.chat != null && this.chat.introductionReady(),
+            this.chat != null ? this.chat.send_function : null);
          this._modeNotice.update(getTimer(),false,
             this.pregameInfo != null && this.pregameInfo.visible);
          var bottom:Number = this.pregameInfo != null && this.pregameInfo.visible ?
@@ -1555,14 +1556,9 @@ package
          if(value)
          {
             trace("add_chat_message::");
-            // The room's channel in a match: the room's last lines, the server's answer to the
-            // ask, in every tab; the ask's own echo and the server's other "#" lines never shown.
-            if(value.type == ChatChannel.ROOM)
-            {
-               if(String(value.text).charAt(0) != "#")
-                  this.chat.addRoomLine(value);
+            // The room's channel in a match: the answer to the ask for the room's last lines.
+            if(this._roomHistory.receive(value))
                return;
-            }
             this.chat.got_message(value);
          }
       }
@@ -2014,7 +2010,7 @@ package
          this._nativeContext = {text:"",value:0,visible:true};
          this._modeNotice.reset();
          this._pregameText = "";
-         this._roomHistoryAsked = false;
+         this._roomHistory.reset();
          // a new match starts with the interface shown (the movie is the last match's; the exe's
          // patch 62 shows the player icons' with it); a forced one stays forced until patch 65
          // tells the movie the new match's state

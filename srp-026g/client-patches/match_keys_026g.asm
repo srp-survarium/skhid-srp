@@ -70,10 +70,10 @@
 ; body, the name, the tag; `ret 14h`) from process_incoming_text_message's
 ; (0x26B6F0) call at 0x26B916; with the option on, in a match (the handler's +0Dh, set_mode's
 ; flag) a line of a player channel the hud shows (3 clan, 5 match, 6 and 7
-; the teams, 8 squad, 9) is dropped there. The server's lines (0, 2), the
-; general and private channels (1, 4, which the hud does not show in a match:
-; add_message gives them to the lobby's movie) and the player's own lines
-; (the local echo, another call) are shown as before.
+; the teams, 8 squad, 9, 10 srp's room: its last lines) is dropped there. The
+; server's lines (0, 2), the general and private channels (1, 4, which the
+; hud does not show in a match: add_message gives them to the lobby's movie)
+; and the player's own lines (the local echo, another call) are shown as before.
 BITS 32
 %include "engine_026g.inc"
 global match_keys_poll, match_keys_keyboard, match_keys_hud, match_keys_chat

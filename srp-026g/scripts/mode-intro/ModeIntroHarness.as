@@ -113,17 +113,53 @@ package
          return false;
       }
 
-      // The room's last lines given at a match's start (HUD.add_chat_message, channel 10): a player's
-      // line in every match tab, kept when the player switches tabs.
+      // The room's last lines given at a match's start (RoomHistory, HUD.add_chat_message): asked with
+      // one token, retried a bounded number of times; the ask's echo and the server's answers never
+      // shown; a player's line (one starting with "#" too) in every match tab, kept when the player
+      // switches tabs; nothing taken after "done", so an answer is never shown twice.
       private function roomLines() : void
       {
          setupChat();
-         chat.addRoomLine({type:10,name:"Alice",text:"gg room"});
-         expect(shows("Alice:") && shows("gg room"),"room line shown");
+         var asks:Array = [];
+         var ask:Function = function(value:Object, channel:uint):void {
+            expect(channel == 10,"room history asks on the room's channel");
+            asks.push(value.text);
+         };
+         var shown:Array = [];
+         var History:Class = domain.getDefinition("survarium.chat.RoomHistory") as Class;
+         var history:Object = new History(function(value:Object):void {
+            shown.push(value.text);
+            chat.addRoomLine(value);
+         });
+         history.update(0,false,ask);
+         expect(asks.length == 0,"room history waits for the match chat");
+         history.update(10,true,ask);
+         history.update(1000,true,ask);
+         expect(asks.length == 1 && String(asks[0]).indexOf("#room-chat:") == 0,"room history asked once");
+         history.update(2010,true,ask);
+         history.update(4010,true,ask);
+         history.update(6010,true,ask);
+         history.update(9000,true,ask);
+         expect(asks.length == 3 && asks[0] == asks[1] && asks[1] == asks[2],"room history retries are bounded and share a token");
+         expect(history.receive({type:10,name:"Me",text:asks[0]}),"own ask's echo consumed");
+         expect(!history.receive({type:6,name:"Bob",text:"team"}),"other channels left to the chat");
+         history.receive({type:10,name:"Alice",text:"gg room"});
+         history.receive({type:10,name:"Bob",text:"#1 rule: no camping"});
+         history.receive({type:10,name:"System",text:"#mode-intro:blackout:1:done"});
+         history.receive({type:10,name:"System",text:"#room-chat:other:done"});
+         expect(shown.join("|") == "gg room|#1 rule: no camping","room lines shown, server answers not");
+         history.receive({type:10,name:"System",text:asks[0] + ":done"});
+         // A retry's answer after "done": never shown twice.
+         history.receive({type:10,name:"Alice",text:"gg room"});
+         expect(shown.length == 2,"nothing taken after done");
+         expect(shows("Alice:") && shows("gg room") && shows("#1 rule"),"room line shown");
          chat.focusTab(6);
          expect(shows("Alice:") && shows("gg room"),"room line in the team tab");
          chat.focusTab(5);
          expect(shows("Alice:") && shows("gg room"),"room line in the all tab");
+         history.reset();
+         history.update(20000,true,ask);
+         expect(asks.length == 4 && asks[3] != asks[0],"a new match asks with a new token");
       }
 
       private function readable(text:String) : Boolean

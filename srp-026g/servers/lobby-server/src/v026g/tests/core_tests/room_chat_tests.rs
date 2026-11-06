@@ -1,12 +1,14 @@
 //! A room's chat (`room_chat`): its members hear it once their tab is up,
 //! nobody else does; a newcomer gets its last lines; who comes and goes is
-//! not said in it; a match's all-chat is kept in it; leaving, a kick or a
+//! not said in it; a match's all-chat is kept in it, its hud given its last
+//! lines once; another match's is not; leaving, a kick or a
 //! switch ends it; a queue hears nothing.
 
 use survarium::v026g::lobby::rooms::{
     ROOM_CHAT, ROOM_JOIN_BASE, ROOM_LEAVE, ROOM_PIN_BASE, ROOM_QUEUE_BASE, ROOM_STATE, kick_start,
 };
 
+use super::pvb_tests::{play_vs_bots, with_gear, world_with};
 use super::rooms_tests::{create, rows, spec};
 use super::*;
 
@@ -218,11 +220,11 @@ fn leaving_a_kick_or_a_switch_ends_a_members_chat() {
     world.assert_clean();
 }
 
-/// Members playing the room's match are sent nothing (their game's match
-/// chat is its own); one who comes during the match talks with whoever is
-/// in the lobby, and the players of the match get what was said, and the
-/// match's all-chat (not its team lines), when their tab asks again after
-/// it.
+/// Members playing the room's match are sent no line as it is said (their
+/// game's match chat is its own); one who comes during the match talks with
+/// whoever is in the lobby, and the players of the match get what was said,
+/// and the match's all-chat (not its team lines), when their tab asks again
+/// after it.
 #[test]
 fn a_late_joiner_talks_and_the_match_gets_it_after() {
     let mut world = World::new();
@@ -369,16 +371,32 @@ fn a_disbanded_room_takes_its_chat() {
     assert!(listen(&mut world, bob).is_empty());
 }
 
-/// The hud asks once its match chat is up: a player in a match is given
-/// the room's last lines (as many as the hud's log shows, but an ignored
-/// sender's); out of a match, or in no room, nothing.
+/// The hud's ask for its room's last lines (`RoomHistory.as`): the room's
+/// lines it is given, and the server's "System" answers.
+fn ask_history(
+    world: &mut World,
+    index: usize,
+    nonce: &str,
+) -> (Vec<(String, String)>, Vec<String>) {
+    world.take(index);
+    world.ask(
+        index,
+        request::chat(0, "", channel::ROOM, &format!("#room-chat:{nonce}")),
+    );
+    let (system, lines): (Vec<_>, Vec<_>) = room_lines(&world.take(index))
+        .into_iter()
+        .partition(|(sender, _)| sender == "System");
+    (lines, system.into_iter().map(|(_, body)| body).collect())
+}
+
+/// The hud asks once its match chat is up: a player of its room's match is
+/// given the room's last lines (as many as the hud's log shows, but an
+/// ignored sender's), then "done"; again (a retry, a reconnect) "done"
+/// only. In the lobby the ask is a line like any other.
 #[test]
 fn a_match_starts_with_the_rooms_last_lines() {
-    let ask = |world: &mut World, index: usize| {
-        world.take(index);
-        world.ask(index, request::chat(0, "", channel::ROOM, "#room-chat"));
-        heard(world, index)
-    };
+    let ask = |world: &mut World, index: usize| ask_history(world, index, "ab12").0;
+    let done = || vec!["#room-chat:ab12:done".to_owned()];
     let mut world = World::new();
     let alice = world.connect("Alice");
     let bob = world.connect("Bob");
@@ -392,6 +410,10 @@ fn a_match_starts_with_the_rooms_last_lines() {
     for client in [alice, bob, carol] {
         listen(&mut world, client);
     }
+    // In the lobby the ask is no request: a line typed so is said.
+    assert_eq!(ask_history(&mut world, alice, "ab12"), (vec![], vec![]));
+    assert_eq!(heard(&mut world, bob), line("Alice", "#room-chat:ab12"));
+    assert_eq!(ask_history(&mut world, erin, "ab12"), (vec![], vec![]));
     let bob_id = world.ids[bob].0;
     world.ask(carol, request::ignore(bob_id));
     for n in 0..12 {
@@ -403,9 +425,6 @@ fn a_match_starts_with_the_rooms_last_lines() {
         );
         world.advance(Duration::from_secs(1));
     }
-    // In the lobby: no answer (the tab has the lines already).
-    assert!(ask(&mut world, alice).is_empty());
-    assert!(ask(&mut world, erin).is_empty());
 
     world.advance(Duration::from_secs(31));
     sent_to_match(&world.take(alice)).expect("the match");
@@ -416,7 +435,49 @@ fn a_match_starts_with_the_rooms_last_lines() {
     };
     let mut alices = last(2);
     alices.push(("Bob".to_owned(), "line 11".to_owned()));
-    assert_eq!(ask(&mut world, alice), alices);
+    assert_eq!(ask_history(&mut world, alice, "ab12"), (alices, done()));
+    // A retry, or a new hud's ask in the same match: "done" only.
+    assert_eq!(ask_history(&mut world, alice, "ab12"), (vec![], done()));
+    assert_eq!(
+        ask_history(&mut world, alice, "cd34"),
+        (vec![], vec!["#room-chat:cd34:done".to_owned()])
+    );
     // Carol ignores Bob: her ten are Alice's.
     assert_eq!(ask(&mut world, carol), last(1));
+    // Asking is never charged to the chat's allowance: a hud whose player
+    // just used it up is answered.
+    for n in 0..20 {
+        say(&mut world, bob, &format!("flood {n}"));
+    }
+    assert_eq!(ask_history(&mut world, bob, "ab12").1, done());
+}
+
+/// A member in another match than its room's (one against bots, started
+/// from the room's vote): its all-chat is not kept in the room, and its
+/// hud is given none of the room's lines.
+#[test]
+fn another_match_is_not_the_rooms() {
+    let mut world = world_with(5);
+    let alice = world.connect("Alice");
+    let bob = world.connect("Bob");
+    with_gear(&mut world, alice, 5);
+    let key = create(&mut world, alice, spec(6), None);
+    rows(&mut world, bob, ROOM_JOIN_BASE + key, 1);
+    world.advance(Duration::from_secs(1));
+    listen(&mut world, bob);
+    say(&mut world, bob, "hi");
+    let (match_id, _) = play_vs_bots(&mut world, alice, 8, 61);
+    assert_eq!(world.core.rooms.key_of(world.ids[alice].0), Some(key));
+    world.ask(
+        alice,
+        request::chat(match_id, "", channel::MATCH, "lol bots"),
+    );
+    assert!(heard(&mut world, bob).is_empty());
+    assert_eq!(
+        ask_history(&mut world, alice, "ab12"),
+        (vec![], vec!["#room-chat:ab12:done".to_owned()])
+    );
+    world.end_match(match_id, 0);
+    world.advance(Duration::from_secs(1));
+    assert_eq!(listen(&mut world, alice), line("Bob", "hi"));
 }

@@ -66,6 +66,7 @@
 use std::net::SocketAddr;
 use std::time::{Duration, Instant};
 
+use session::v026g::mode_intro::Mode;
 use session::v026g::{Account, quests, wire};
 use session::{LockExt, Squad, SquadError};
 use survarium::v026g::lobby::requests::{ClientMessage, FriendshipAction, id};
@@ -296,6 +297,24 @@ impl Core<'_> {
         let Some(player) = self.player_mut(who.addr) else {
             return;
         };
+        // A match hud's request on the room's channel (no tab of a match's
+        // chat sends on it), never a chat line: also for a muted player, and
+        // not charged to the allowance, as each is answered once a match and
+        // its retries only with "done".
+        if channel == channel::ROOM
+            && let Some(match_id) = player.in_match
+            && let Some(request) = HudRequest::parse(body)
+        {
+            match request {
+                HudRequest::ModeIntroduction { mode, nonce } => {
+                    self.mode_introduction(who, match_id, mode, nonce);
+                }
+                HudRequest::RoomHistory(nonce) => {
+                    self.room_history_to_match(who, match_id, nonce);
+                }
+            }
+            return;
+        }
         let earned = now.saturating_duration_since(player.chat_at).as_secs_f32() * CHAT_PER_SECOND;
         player.chat_allowance = (player.chat_allowance + earned).min(CHAT_BURST);
         player.chat_at = now;
@@ -305,16 +324,6 @@ impl Core<'_> {
         }
         player.chat_allowance -= 1.0;
         let (in_match, session_id) = (player.in_match, player.session_id);
-        // Private HUD control over the existing room channel, never a room chat line.
-        if channel == channel::ROOM && body.starts_with("#mode-intro:") {
-            self.mode_introduction(who, body);
-            return;
-        }
-        // The hud's ask for its room's last lines, also for a muted player.
-        if channel == channel::ROOM && body == super::room_chat::MATCH_HISTORY_ASK {
-            self.room_history_to_match(who);
-            return;
-        }
         // The admin's chat mute: on every channel, nobody gets the line; the
         // sender gets the mute's notice instead, said by itself.
         if let Some(ban) = self.store.chat_ban(who.account_id) {
@@ -408,10 +417,12 @@ impl Core<'_> {
             "Chat from {} on channel {channel} reached {reached} player(s)",
             who.name
         );
-        // A match's all-chat is kept in the sender's room's chat too
-        // (`room_chat`).
-        if channel == channel::MATCH && in_match.is_some() {
-            self.room_keep_match_line(who, body);
+        // A match's all-chat is kept in the sender's room's chat too, when it
+        // is the room's match (`room_chat`).
+        if channel == channel::MATCH
+            && let Some(match_id) = in_match
+        {
+            self.room_keep_match_line(who, match_id, body);
         }
     }
 
@@ -1018,30 +1029,62 @@ impl Core<'_> {
     }
 }
 
-impl Core<'_> {
-    fn mode_introduction(&mut self, who: &Who, body: &str) {
-        let Some((key, nonce)) = body
-            .strip_prefix("#mode-intro:")
-            .and_then(|rest| rest.split_once(':'))
-        else {
-            return;
-        };
-        let Some(mode) = session::v026g::mode_intro::Mode::parse(key) else {
-            return;
-        };
-        if nonce.is_empty() || nonce.len() > 32 || !nonce.bytes().all(|b| b.is_ascii_hexdigit()) {
-            return;
+/// A match hud's request, a line it sends on [`channel::ROOM`] that the
+/// server answers as "System" on that channel: parsed once from the line.
+pub(super) enum HudRequest<'a> {
+    /// `#mode-intro:<mode>:<nonce>` (`ModeIntroduction.as`).
+    ModeIntroduction { mode: Mode, nonce: Nonce<'a> },
+    /// `#room-chat:<nonce>` (`RoomHistory.as`): its room's last lines.
+    RoomHistory(Nonce<'a>),
+}
+
+impl<'a> HudRequest<'a> {
+    pub(super) fn parse(body: &'a str) -> Option<Self> {
+        if let Some(rest) = body.strip_prefix("#mode-intro:") {
+            let (mode, nonce) = rest.split_once(':')?;
+            return Some(Self::ModeIntroduction {
+                mode: Mode::parse(mode)?,
+                nonce: Nonce::parse(nonce)?,
+            });
         }
-        let Some(match_id) = self.player_mut(who.addr).and_then(|player| player.in_match) else {
-            return;
-        };
+        Some(Self::RoomHistory(Nonce::parse(
+            body.strip_prefix("#room-chat:")?,
+        )?))
+    }
+}
+
+/// A hud's token for one of its requests (its retries share it): 1 to 32
+/// hex digits.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(super) struct Nonce<'a>(&'a str);
+
+impl<'a> Nonce<'a> {
+    fn parse(text: &'a str) -> Option<Self> {
+        (!text.is_empty() && text.len() <= 32 && text.bytes().all(|b| b.is_ascii_hexdigit()))
+            .then_some(Self(text))
+    }
+
+    pub(super) fn as_str(self) -> &'a str {
+        self.0
+    }
+}
+
+impl Core<'_> {
+    /// An answer to a hud's request ([`HudRequest`]), said by "System".
+    pub(super) fn hud_answer(&mut self, who: &Who, body: &str) {
+        self.send(
+            who.addr,
+            lobby::chat_text(sender::ACCOUNT, 0, "System", "", channel::ROOM, body),
+        );
+    }
+
+    fn mode_introduction(&mut self, who: &Who, match_id: u32, mode: Mode, nonce: Nonce<'_>) {
+        let (key, nonce) = (mode.key(), nonce.as_str());
         let Some(running) = self.matches.get_mut(&match_id) else {
             return;
         };
         let eligible = match mode {
-            session::v026g::mode_intro::Mode::Blackout => {
-                running.map.mode() == survarium::v026g::maps::GameMode::Blackout
-            }
+            Mode::Blackout => running.map.mode() == survarium::v026g::maps::GameMode::Blackout,
         };
         if !eligible
             || !running
@@ -1067,18 +1110,11 @@ impl Core<'_> {
                     .insert(who.account_id, (nonce.to_owned(), show));
                 show
             };
-        self.send(
-            who.addr,
-            lobby::chat_text(
-                sender::ACCOUNT,
-                0,
-                "System",
-                "",
-                channel::ROOM,
-                &format!(
-                    "#mode-intro:{key}:{nonce}:{}",
-                    if show { "show" } else { "done" }
-                ),
+        self.hud_answer(
+            who,
+            &format!(
+                "#mode-intro:{key}:{nonce}:{}",
+                if show { "show" } else { "done" }
             ),
         );
     }

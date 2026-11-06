@@ -82,10 +82,11 @@ pub const DRAFT_CHUNK: usize = 20;
 const SHORT_KEYS: std::ops::RangeInclusive<u32> = 1000..=9999;
 /// The largest key.
 const KEY_MAX: u32 = 99_999;
-/// The lines a room's chat keeps: what a member's "Room Chat" tab is
-/// given when it comes, and again after its match, the match's all-chat
-/// among them (`social.md` §9.8).
-pub const CHAT_KEPT: usize = 50;
+/// The lines a room's chat keeps, at most: what a member's "Room Chat" tab
+/// is given when it comes, and again after its match, the match's all-chat
+/// among them (`social.md` §9.8); each [`Said`] its own last lines, so a
+/// busy match does not push out what was said in the room meanwhile.
+pub const CHAT_KEPT: usize = Said::InRoom.kept() + Said::InMatch.kept();
 
 /// What a room is made with.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -193,8 +194,8 @@ pub struct Room {
     pub serial: u32,
     /// Who its owner took out: they may not come back.
     pub kicked: HashSet<u32>,
-    /// Its chat's last lines, the oldest first, [`CHAT_KEPT`] at most:
-    /// gone with the room.
+    /// Its chat's last lines, the oldest first, each [`Said`]'s
+    /// [`Said::kept`] at most ([`Rooms::say`]): gone with the room.
     pub chat: VecDeque<ChatLine>,
     /// A private room's teams as its owner arranged them: each member's
     /// side, 0 or 1 (the owner's of 2026-10-26: "the owner should be able
@@ -209,10 +210,30 @@ pub struct Room {
     pub came_in_match: HashSet<u32>,
 }
 
+/// Where a line of a room's chat was said.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Said {
+    /// In the room's own chat (its "Room Chat" tab).
+    InRoom,
+    /// In its match's all-chat.
+    InMatch,
+}
+
+impl Said {
+    /// How many of its last lines a room keeps.
+    pub const fn kept(self) -> usize {
+        match self {
+            Self::InRoom => 20,
+            Self::InMatch => 20,
+        }
+    }
+}
+
 /// A line of a room's chat: a member's, said in the room or in its match's
 /// all-chat.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct ChatLine {
+    pub said: Said,
     pub from: u32,
     pub name: String,
     pub tag: String,
@@ -523,12 +544,15 @@ impl Rooms {
         self.of_account.get(&account_id).copied()
     }
 
-    /// A line in room `key`'s chat, kept with its last [`CHAT_KEPT`]; none
-    /// for a room that is gone.
+    /// A line in room `key`'s chat, kept with the last [`Said::kept`] said
+    /// where it was (the oldest of those goes); none for a room that is gone.
     pub fn say(&mut self, key: u32, line: ChatLine) {
         if let Some(room) = self.rooms.get_mut(&key) {
-            if room.chat.len() >= CHAT_KEPT {
-                room.chat.pop_front();
+            let said = room.chat.iter().filter(|kept| kept.said == line.said);
+            if said.count() >= line.said.kept()
+                && let Some(oldest) = room.chat.iter().position(|kept| kept.said == line.said)
+            {
+                room.chat.remove(oldest);
             }
             room.chat.push_back(line);
         }
@@ -2667,30 +2691,46 @@ mod tests {
         }
     }
 
-    /// A room's chat keeps its last [`CHAT_KEPT`] lines and goes with it:
-    /// a room made later under the same key starts with none.
+    /// A room's chat keeps the last lines said in it and in its match, each
+    /// their own, and goes with it: a room made later under the same key
+    /// starts with none.
     #[test]
     fn a_rooms_chat_keeps_its_last_lines_and_goes_with_the_room() {
         let now = Instant::now();
         let mut rooms = Rooms::default();
         let key = room_of(&mut rooms, 1, 6, None, now);
-        let line = |i: usize| ChatLine {
+        let line = |said: Said, i: usize| ChatLine {
+            said,
             from: 1,
             name: "Alice".to_owned(),
             tag: String::new(),
             body: format!("line {i}"),
         };
-        for i in 0..CHAT_KEPT + 5 {
-            rooms.say(key, line(i));
+        rooms.say(key, line(Said::InRoom, 0));
+        for i in 0..Said::InMatch.kept() + 5 {
+            rooms.say(key, line(Said::InMatch, i));
+        }
+        // A busy match: its oldest lines went, not the room's.
+        let chat = &rooms.get(key).unwrap().chat;
+        assert_eq!(chat.len(), 1 + Said::InMatch.kept());
+        assert_eq!(chat.front(), Some(&line(Said::InRoom, 0)));
+        assert_eq!(chat.get(1), Some(&line(Said::InMatch, 5)));
+        for i in 1..Said::InRoom.kept() + 5 {
+            rooms.say(key, line(Said::InRoom, i));
         }
         let chat = &rooms.get(key).unwrap().chat;
         assert_eq!(chat.len(), CHAT_KEPT);
-        assert_eq!(chat.front(), Some(&line(5)));
-        assert_eq!(chat.back(), Some(&line(CHAT_KEPT + 4)));
+        assert_eq!(chat.front(), Some(&line(Said::InMatch, 5)));
+        let mut room = chat.iter().filter(|kept| kept.said == Said::InRoom);
+        assert_eq!(room.next(), Some(&line(Said::InRoom, 5)));
+        assert_eq!(
+            room.next_back(),
+            Some(&line(Said::InRoom, Said::InRoom.kept() + 4))
+        );
         // Nobody left: the room and its chat are gone; a line for it is
         // dropped.
         rooms.leave(1);
-        rooms.say(key, line(0));
+        rooms.say(key, line(Said::InRoom, 0));
         assert!(rooms.get(key).is_none());
         let again = room_of(&mut rooms, 2, 6, None, now);
         assert!(rooms.get(again).unwrap().chat.is_empty());

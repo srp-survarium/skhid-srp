@@ -3408,7 +3408,8 @@ A received line is given to `chat_handler::add_message` (0x208AD0, stdcall: the 
 channel, the body, the name, the tag; `ret 14h`) by `process_incoming_text_message` at
 0x26B916; the patch calls `match_keys_chat` there, which with the option on, in a match (the
 handler's +0Dh, `set_mode`'s flag) and on a channel the hud shows (3 clan, 5 match, 6 and 7 the
-teams, 8 squad, 9) returns as add_message does without it; any other line goes to add_message.
+teams, 8 squad, 9, 10 srp's room: its last lines at the match's start) returns as add_message
+does without it; any other line goes to add_message.
 Kept: the server's lines (0, 2), the general and private channels (1, 4: in a match
 add_message gives them to the lobby's movie), the player's own lines (the local echo, another
 call), and every line in the lobby.

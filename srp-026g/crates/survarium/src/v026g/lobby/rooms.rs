@@ -95,7 +95,7 @@ pub const ROOM_JOIN_MATCH: u32 = ROOMS_FIRST + 8;
 /// room it made by hand, fitted to the pool and the rules now
 /// ([`room_form`]; the owner's of 2026-10-20).
 pub const ROOM_FORM: u32 = ROOMS_FIRST + 9;
-/// The asker's room chat: its last lines (20, `session::v026g::rooms`) as
+/// The asker's room chat: its last lines (`session::v026g::rooms::CHAT_KEPT`) as
 /// chat lines on [`super::channel::ROOM`], and from now on the room's new ones;
 /// the movie asks when it puts up its "Room Chat" tab (`social.md` §9.8).
 /// Answered with the state.

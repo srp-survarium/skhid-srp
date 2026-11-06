@@ -15,7 +15,7 @@ use crate::v026g::pvb::{self, Config, MAPS, PLAY_REFUSED};
 /// A lobby with the mode on, at most `max_matches` matches against bots,
 /// equipment level 5 at most (the default before 2026-10-26, which the
 /// refusals below are told by).
-fn world_with(max_matches: usize) -> World {
+pub(super) fn world_with(max_matches: usize) -> World {
     let mut settings = Settings::local("127.0.0.1:0");
     settings.pvb = Config {
         enabled: true,
@@ -87,7 +87,7 @@ fn choose(world: &mut World, index: usize, size: u8, map_id: u8) -> String {
 }
 
 /// The player chooses and presses Play: the match it was sent to.
-fn play_vs_bots(world: &mut World, index: usize, size: u8, map_id: u8) -> (u32, u8) {
+pub(super) fn play_vs_bots(world: &mut World, index: usize, size: u8, map_id: u8) -> (u32, u8) {
     assert_eq!(
         choose(world, index, size, map_id),
         format!("B2;ok;{size};{map_id}")
