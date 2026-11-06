@@ -373,3 +373,51 @@ The late-join binary is regenerated from the changed NASM prefix and the existin
 reviewed C payload: exactly one byte changes, capability 0x80 to 0x82. The JSON
 hash and assembler version match that artifact; no C compiler migration is part
 of the recovery change.
+
+## Read-site audit (2026-11-07)
+
+A pass over the player-to-player crash surface from the native read sites, not
+the docs: the 0.26g exe decompiled in Ghidra (`private/function-map/inputs/026g`,
+sha ac33d99), the 0.10b byte-matching source (`~/Projects/survarium/vostok`, the
+engine's fixed-array sizes) as the ground-truth caps. For each native reader of
+data one client sends another, the unbounded count/index at the read site and
+what bounds it:
+
+- `game_state_history_item::deserialize` 0x324D80: iterates the active mask's
+  set bits and writes block `bit * 0x9054` -- a bit >= 20 is an out-of-bounds
+  player slot. Then six sections, each a u16 length `memcpy` into a history-item
+  buffer (grown by 0x7AB70, a null allocator before patch 98). Bounds: the frame
+  walk (`Frame::parse`) -- every mask bit < places (<= 20), the six sections walk
+  to the body's exact end, body <= `MAX_BODY` 0xF000.
+- the player state 0x33FD80: a u16 length `memcpy` into the state buffer; bound
+  `StateOverCap` <= 0x1000.
+- the animation stream 0x33FEE0 -> 0x3A99C0: bound `animation_validate` (7.2.1),
+  proven on 177,672 animated blocks of the kept worlds, 0 refused.
+- the player effects `base_player::deserialize` 0x2DB490 -> 0x2DDDF0: `E = r<u32>`
+  then an `E`-iteration loop; bound `player_tail` MAX_RECORDS = 0x1000/9 = 455,
+  and each record spends state bytes under the 0x1000 cap.
+- the weapon FSM state id 0x38CCF0: walks the state list counting to the read
+  byte; past the list the target stays null -> a null-vtable call (crash). The
+  anomaly state index 0x31B0A0: `state_array[read_byte]`, out of bounds past the
+  state count. Bounds: the server's semantic check (`world::inventory` /
+  `world::objects` refuse a state past its states), and -- because the client
+  world check has no profile/object context -- the native guards (patch 113) at
+  the read sites.
+- player-controlled strings (chat, name, clan tag, URL, daily message): the
+  engine's `packet_reader::r_string` (0.10b `packet_reader_inline.h`) reads a u8
+  length `L`, does a buffer-clamped copy, then `string[L] = 0` -- the NUL write
+  is NOT clamped, so `L` must be < buffer or it writes out of bounds. Every path
+  enforces that: the lobby server clamps with `lobby::Writer::str`/`::wide` to
+  `cut(v, buffer-1)` (NAME 63, CLAN_TAG 15, TEXT 255, WIDE 245), and the match
+  0xE4 profile/kit names go through `messages::options::text`, which refuses
+  `len >= buffer` (NAME 64 -> <= 63, CLAN 15 -> <= 14).
+
+0.10b hard caps match the validator: `body_part::affects` fixed_vector<_,8> ==
+MAX_AFFECTS 8; `match_options::player_profiles[20]` == MAX_PLAYERS 20; `inventory
+m_slots[max_slots_count]` == SLOTS 23; `artefact_lifebone_core` four protectors.
+
+Evidence this pass: host `world-frame` (14) and `srp-validate` (46) tests, the
+i686 patch crate `cargo test --target i686-unknown-linux-gnu` (173, the client
+twin: patch 87 -> `world-frame`/`srp-validate`), and the animation corpus. No
+unbounded player-to-player read was found without a matching server bound or
+native guard; the animation stream was the one that lacked one and now has it.
