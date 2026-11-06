@@ -136,6 +136,10 @@ fn drift_on_a_real_match() {
         super::standin_slide::Grounds::new(&triangles, all)
     });
     let mut slope_kinds: HashMap<&str, u32> = HashMap::new();
+    // `SRP_A304_HOLD=1` [A318]: each 'faster' world the grid held the reckoning in (the client walked 1 m+ more than the keys meant):
+    // the floor it was held on against the floor under the client's feet, and the grid's links between them.
+    let hold_probe = var("SRP_A304_HOLD").is_some();
+    let mut hold_kinds: HashMap<&str, u32> = HashMap::new();
     for w in rows {
         while k < ticks.len() && ticks[k].0 <= w.time + WORLD_LATE_MS {
             let (time, place, keys, turn) = ticks[k];
@@ -185,6 +189,29 @@ fn drift_on_a_real_match() {
         }
         let iv = track.last_interval().unwrap_or_default();
         // What the grid has where a held reckoning stopped and where the client's feet are (A304: what kind of hold).
+        if hold_probe && iv.held_ticks > 0 && flat >= 1.0 && track.last_meant().is_some_and(|m| from.distance_xz(feet) - m >= 1.0) {
+            let g = &*world.grid;
+            let held = g.locate(reckoned, 1.0);
+            let at = g.locate(feet, 0.5).filter(|&node| (g.position(node).y - feet.y).abs() < 0.5);
+            let kind = match (held, at) {
+                (None, _) => "the reckoning held off the grid",
+                (_, None) => "no grid floor under the client's feet (the grid lacks the client's floor)",
+                (Some(h), Some(a)) if h == a => "the client's floor is the held floor",
+                (Some(h), Some(a)) => match (way_within(g, h, a, 12, true), way_within(g, h, a, 12, false)) {
+                    (true, _) => "linked by walk links within 12 (the reckoning did not follow)",
+                    (false, true) => "linked within 12 only through a drop or a jump",
+                    (false, false) => "no way within 12 links (the grid lacks the link)",
+                },
+            };
+            let seen = hold_kinds.entry(kind).or_insert(0);
+            *seen += 1;
+            if *seen <= 3 {
+                eprintln!(
+                    "A318 hold sample: {kind}: client ({:.2}, {:.2}, {:.2}), held ({:.2}, {:.2}, {:.2})",
+                    feet.x, feet.y, feet.z, reckoned.x, reckoned.y, reckoned.z
+                );
+            }
+        }
         if iv.held_ticks > 0 && flat >= 1.0 {
             let g = &*world.grid;
             let floor = |p: Vec3| g.locate(p, 2.0).map(|node| (node, g.position(node).distance_xz(p), (g.position(node).y - p.y).abs()));
@@ -227,6 +254,11 @@ fn drift_on_a_real_match() {
         "A304 replay {project}: {n} worlds of bots compared, {over} drifting (1 m+), {:.1} %",
         100.0 * over as f64 / n.max(1) as f64
     );
+    let mut holds: Vec<_> = hold_kinds.into_iter().collect();
+    holds.sort_by_key(|(_, n)| std::cmp::Reverse(*n));
+    for (kind, count) in holds {
+        eprintln!("A318 hold drift: {count} {kind}");
+    }
     let mut slopes: Vec<_> = slope_kinds.into_iter().collect();
     slopes.sort_by_key(|(_, n)| std::cmp::Reverse(*n));
     for (kind, count) in slopes {
@@ -237,4 +269,28 @@ fn drift_on_a_real_match() {
     for ((held, world), count) in kinds {
         eprintln!("A304 held drift: {count} {held}; {world}");
     }
+}
+
+/// [A318] Whether the walk grid has a way from `from` to `to` within `steps` links (only walk links with `walk_only`).
+fn way_within(grid: &mapdata::WalkGrid, from: NodeId, to: NodeId, steps: usize, walk_only: bool) -> bool {
+    let mut seen = std::collections::HashSet::from([from]);
+    let mut front = vec![from];
+    for _ in 0..steps {
+        let mut next = Vec::new();
+        for node in front {
+            for (n, kind) in grid.links(node) {
+                if walk_only && kind != mapdata::LinkKind::Walk {
+                    continue;
+                }
+                if n == to {
+                    return true;
+                }
+                if seen.insert(n) {
+                    next.push(n);
+                }
+            }
+        }
+        front = next;
+    }
+    false
 }
