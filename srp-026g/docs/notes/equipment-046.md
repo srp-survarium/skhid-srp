@@ -2,12 +2,13 @@
 
 The owner's pick of 0.69d equipment that live Skhid (rev 38) lacks: 38 pieces.
 35 ship in the content pack `equipment-046@4` (`scripts/equipment-046`); 3 are
-left out (below). `@8` adds four more the owner picked on 2026-11-05 (the
+left out (below). `@9` adds four more the owner picked on 2026-11-05 (the
 Veles Mask, Stalker's laced boots, "Shturm" gloves, Reinforced padded boots:
 below), each with its donor's quirk, makes the NVD open goggles with a bonus
-of its own, and puts the Veles and Sniper sets at level 12 from their 0.31a2
-numbers: 39 pieces. (`@5` to `@7`, drafts of PR #1360, were never released.)
-Every number here is a proposal: balance is the owner's call.
+of its own, and redesigns the Sniper set at level 11 and the Veles set at
+level 13 with the owner's numbers (2026-11-06): 39 pieces. (`@5` to `@8`,
+drafts of PR #1360, were never released.) The @9 numbers of the Sniper and
+Veles sets are the owner's; the rest are proposals.
 
 ## What ships
 
@@ -114,68 +115,68 @@ analysis, 2026-10-30).
   - Backpack for ammo: 4 kg, 47,500, 2 ammo bags + 1 pocket.
   - Five pieces + mask 24.1 kg (Zubr 34.6, Nomad 17.3): less armour and
     isolation than Zubr, lighter.
-- **Veles and Sniper at level 12** (@8; the owner, 2026-11-06: "veles numbers
-  you did are incorrect", "it has numbers in 0.30 patches", "i feel sniper
-  vest is incorrect", both sets at level 12 and clearly different from the
-  level-12 Molot, Omicron and Leshy). Until @7 they were level 10, each piece
-  a third of the way from its level-9 to its level-12 native peers (@2):
-  peer medians, not their donor, so the Sniper set had 27-28 isolation and
-  the Veles helmet and mask 2.9 and 1.8 kg. Now from their 0.31a2 numbers
-  (0.31a2, level 7, is the build nearest 0.30, where both sets came in):
-  - 0.31a2: Veles vest 70/10 8 kg, pants 70/8 2.8 kg, helmet 70/7 1.2 kg,
-    mask 70/12 0.6 kg, Sorcerer gloves 70/2 0.7 kg, Sorcerer boots 70/2
-    1 kg, Token 3 kg; Sniper vest 65/7 6 kg, pants 65/6 1.5 kg, helmet 60/4
-    1 kg, gloves 65/1 0.2 kg, boots 65/1 0.5 kg (isolation = `ano_armor`,
-    the radiation `damage_protection`). The Spectrum-M is 0.46c2's only:
-    its numbers stay, at level 12 with its set.
-  - The scale: the pieces whose models both builds have (130 of them) give
-    0.26g's body armour about 0.9 of 0.31's (0.31 level 8 -> 0.26g 12:
-    Omicron, Leshy, Molot, Combat 0.87-0.94), helmets and masks less (0.27-0.65,
-    0.38-0.59), and 0.26g's isolation 2-20 times 0.31's, unevenly by faction
-    (Leshy 1.7x, Omicron 4x, Molot 4x on vests). Scaled by those medians the
-    two sets come out where @2 had them (Sniper vest 57/22): the owner's
-    "incorrect". So each piece keeps its donor's character against the
-    level-12 sets instead, and its donor weight: the Sniper high armour,
-    almost no isolation, light (75 armour, 2-5 isolation, the lightest of
-    each slot); the Veles heavy armour all round (78, above Molot's 75 and
-    below level 15's 80-90), little isolation (5-15), heavier than the
-    Sniper; the Veles Mask, a gas mask, high isolation (the owner) at a
-    mask's armour (0.31's 70 x 0.44 = 30): 30/65, between level 8's
-    "Smaragd" (65) and level 14's gas masks (70).
-  - Level 12: drop 40, prices the live level-12 medians of the kind
-    (vest 73,500, pants 36,750, helmet 45,500, mask, gloves and boots 18,380,
-    backpack 45,985), Fringe and Army shop rank by srp's rule; built-in
-    bonuses as they were; the Veles Mask none.
+- **Sniper at level 11, Veles at level 13** (@9: the owner's redesign of
+  2026-11-06). The owner: the new armour's built-in bonuses were bad, it did
+  not stand its ground, and bonuses were on almost every piece. Design round
+  levels 11-15 as a whole, balanced on weight, armour and bonuses only:
+  isolation is an afterthought, never a set's identity nor a compensation.
+  Bonuses on few pieces, only where they mean something; helmets and masks
+  none. Live levels 10, 11 and 13 were empty (but for these two sets at 10),
+  level 12 held 49 pieces. The evidence: the top 25 live players by K/D
+  mostly wear level-15 kits of 22-34 kg; their favourite vest is the Black
+  Market's Heavy armored (88 armour, 14 kg, pocket + ammo bag); they mix
+  light pieces with useful bonuses (aim time, movement, stamina regeneration,
+  pockets, ammo bags); the best player wears the level-10 Veles set. The live
+  pieces change in place (no copies): their owners get the new levels with
+  the release (the owner's approval).
+  - **Sniper, level 11**: light, one bonus, on the gloves. Vest 72/20 6 kg,
+    pants 72/20 1.5 kg, helmet 50/20 1 kg, gloves 70/20 0.3 kg (aim time
+    -8 %, 1083), boots 72/20 0.5 kg, Spectrum-M 30/37 0.5 kg. Its twin, the
+    Snow-20 (equipment-069), has its one bonus on the vest instead.
+  - **Veles, level 13**: heavy armour, two bonuses (the vest's ammo bag, the
+    Token's artefact slot). Vest 80/25 10 kg (+1 ammo bag, 1050), pants 80/25
+    3 kg, helmet 60/20 1.5 kg, Sorcerer gloves 80/20 0.7 kg, Sorcerer boots
+    80/20 1.2 kg, Veles Mask 35/65 0.6 kg, Token 3 kg (artefact slot, 1040;
+    its +1 pocket size of 2026-10-30 goes).
+  - Torso arms and back equal its armour; level and matchmaking level the
+    same. Drop weight 160 - 10 x level, as the other levels here: 50 at 11, 30
+    at 13. Prices: the live level medians of the kind, as before; levels 11
+    and 13 have no live piece but these, so the median is taken on the line
+    between the live neighbours' (as @2 placed level 10 a third of the way
+    from 9 to 12): level 11 two thirds from 9 to 12, level 13 half way from 12
+    to 14 (revision 50's medians: vest 52,500 / 73,500 / 90,000, pants
+    26,250 / 36,750 / 45,000, helmet 26,250 / 45,500 / 45,000, mask 12,505 /
+    18,380 / 23,630, gloves and boots 13,130 / 18,380 / 22,505, backpack
+    45,985 / 45,000 at 12 / 14), rounded to 10. Fringe and Army shop rank by
+    srp's rule.
 
-  | piece | before (@4, live): level, armour / iso, kg, price | after (@8) |
-  |---|---|---|
-  | Veles Vest | 10, 67 / 17, 8.2, 53,830 | 12, 78 / 15, 8, 73,500 |
-  | Veles Pants | 10, 67 / 17, 2, 26,920 | 12, 78 / 12, 2.8, 36,750 |
-  | Veles Helmet | 10, 50 / 13, 2.9, 35,580 | 12, 60 / 10, 1.2, 45,500 |
-  | Veles Mask (new) | (@7: 10, 45 / 20, 1.8, 14,005) | 12, 30 / 65, 0.6, 18,380 |
-  | Sorcerer Gloves | 10, 67 / 15, 0.3, 13,460 | 12, 78 / 5, 0.7, 18,380 |
-  | Sorcerer Boots | 10, 67 / 17, 1.2, 13,460 | 12, 78 / 5, 1, 18,380 |
-  | Token | 10, 3.3 kg, 39,670 | 12, 3 kg, 45,985 |
-  | Sniper Vest | 10, 57 / 27, 8, 59,500 | 12, 75 / 5, 6, 73,500 |
-  | Sniper Pants | 10, 57 / 28, 1.8, 29,750 | 12, 75 / 5, 1.5, 36,750 |
-  | Sniper Helmet | 10, 35 / 28, 1.5, 35,580 | 12, 55 / 5, 1, 45,500 |
-  | Sniper gloves | 10, 60 / 28, 0.25, 14,880 | 12, 75 / 2, 0.2, 18,380 |
-  | Sniper Boots | 10, 60 / 22, 1.1, 15,300 | 12, 75 / 2, 0.5, 18,380 |
-  | Spectrum-M Thermal vision | 10, 27 / 37, 0.5, 14,880 | 12, 27 / 37, 0.5, 18,380 |
+  | piece | live (@4) | @8 (not released) | @9 |
+  |---|---|---|---|
+  | Sniper Vest | 10, 57 / 27, 8 kg, pocket, 59,500 | 12, 75 / 5, 6 kg, pocket, 73,500 | 11, 72 / 20, 6 kg, none, 66,500 |
+  | Sniper Pants | 10, 57 / 28, 1.8 kg, pocket size, 29,750 | 12, 75 / 5, 1.5 kg, pocket size, 36,750 | 11, 72 / 20, 1.5 kg, none, 33,250 |
+  | Sniper Helmet | 10, 35 / 28, 1.5 kg, 35,580 | 12, 55 / 5, 1 kg, 45,500 | 11, 50 / 20, 1 kg, 39,080 |
+  | Sniper gloves | 10, 60 / 28, 0.25 kg, aim -8 %, 14,880 | 12, 75 / 2, 0.2 kg, aim -8 %, 18,380 | 11, 70 / 20, 0.3 kg, aim -8 %, 16,630 |
+  | Sniper Boots | 10, 60 / 22, 1.1 kg, energy -8 %, 15,300 | 12, 75 / 2, 0.5 kg, energy -8 %, 18,380 | 11, 72 / 20, 0.5 kg, none, 16,630 |
+  | Spectrum-M Thermal vision | 10, 27 / 37, 0.5 kg, 14,880 | 12, 27 / 37, 0.5 kg, 18,380 | 11, 30 / 37, 0.5 kg, 16,420 |
+  | Veles Vest | 10, 67 / 17, 8.2 kg, ammo bag, 53,830 | 12, 78 / 15, 8 kg, ammo bag, 73,500 | 13, 80 / 25, 10 kg, ammo bag, 81,750 |
+  | Veles Pants | 10, 67 / 17, 2 kg, ammo bag, 26,920 | 12, 78 / 12, 2.8 kg, ammo bag, 36,750 | 13, 80 / 25, 3 kg, none, 40,880 |
+  | Veles Helmet | 10, 50 / 13, 2.9 kg, 35,580 | 12, 60 / 10, 1.2 kg, 45,500 | 13, 60 / 20, 1.5 kg, 45,250 |
+  | Sorcerer Gloves | 10, 67 / 15, 0.3 kg, spread -8 %, 13,460 | 12, 78 / 5, 0.7 kg, spread -8 %, 18,380 | 13, 80 / 20, 0.7 kg, none, 20,440 |
+  | Sorcerer Boots | 10, 67 / 17, 1.2 kg, stamina regen +8 %, 13,460 | 12, 78 / 5, 1 kg, stamina regen +8 %, 18,380 | 13, 80 / 20, 1.2 kg, none, 20,440 |
+  | Veles Mask (new) | - | 12, 30 / 65, 0.6 kg, 18,380 | 13, 35 / 65, 0.6 kg, 21,010 |
+  | Token | 10, 3.3 kg, artefact slot + pocket size, 39,670 | 12, 3 kg, artefact slot + pocket size, 45,985 | 13, 3 kg, artefact slot, 45,490 |
 
-  Against the level-12 sets, slot by slot (armour / isolation, kg; built-in);
-  each piece trades armour, isolation and weight otherwise than each of them,
-  none strictly better or worse (also `balance_audit.py`'s same-region peers):
-
-  | slot | Veles (@8) | Sniper (@8) | Molot UM-2 | Omicron | Leshy / Master |
-  |---|---|---|---|---|---|
-  | vest | 78 / 15, 8; ammo bag | 75 / 5, 6; pocket | 75 / 20, 15; 2 ammo bags | 70 / 60, 11.5; pocket, pocket size | 65 / 25, 7; health regen +12 % |
-  | pants | 78 / 12, 2.8; ammo bag | 75 / 5, 1.5; pocket size | 75 / 20, 3.5; stamina regen +8 % | 70 / 60, 2.5; artefact slot | 65 / 25, 2; pocket |
-  | helmet | 60 / 10, 1.2 | 55 / 5, 1 | 55 / 30, 4.5 | 40 / 60, 1.8 | 20 / 25, 0.15 (Master's hood) |
-  | mask | 30 / 65, 0.6 | 27 / 37, 0.5 (Spectrum-M) | - | 35 / 60, 0.8 | - |
-  | gloves | 78 / 5, 0.7; spread -8 % | 75 / 2, 0.2; aim -8 % | 75 / 20, 0.4; recoil -8 % | 70 / 60, 0.5; artefact search -20 % | 65 / 25, 0.3; aim -8 % |
-  | boots | 78 / 5, 1; stamina regen +8 % | 75 / 2, 0.5; energy -8 % | 75 / 10, 2 | 70 / 60, 1.6; energy -8 % | 65 / 25, 1; energy -8 % |
-  | backpack | Token 3 kg; artefact slot, pocket size | - | - | Life support M-1 5 kg; health regen +12 %, stamina regen +8 % | - |
+  Drop weight: live 60, @8 40, @9 50 (Sniper) and 30 (Veles). `balance_audit.py`
+  finds no peer for either set (no other piece at level 11 or 13 here; the
+  Snow-20 is the Sniper's, in equipment-069). Against every live piece of the
+  slot (revision 50): no lower-level piece is as good everywhere (armour,
+  isolation, weight, bonuses) and none of a higher level is beaten everywhere.
+- **@8, for the record** (not released): both sets at level 12 from their
+  0.31a2 numbers (Veles 70 armour all round, 2-12 isolation, vest 8 kg;
+  Sniper 60-65 armour, 1-7 isolation, vest 6 kg; 0.31a2 is the build nearest
+  0.30, where both sets came in), each piece keeping its donor's character
+  against Molot, Omicron and Leshy. Until @7 they were level 10, each piece a
+  third of the way from its level-9 to its level-12 native peers (@2).
 - **Army "OZK-UV"** (`anom_03`, 0.31 level 3) -> level 3, Army rank 0,
   drop 130: vest 25/40 5.5 kg 9,450 (pocket size); pants 25/40 2 kg 4,730
   (pocket); gloves 25/40 0.6 kg 1,190 (artefact search -20 %); boots 25/40
@@ -183,7 +184,7 @@ analysis, 2026-10-30).
 - **Missing pieces of sets 0.26g has** (the set's level and protection):
   - Fringe Stalker (level 9): Stalker's helmet 35/25 1.6 kg 26,250; Stalker's
     backpack 4.5 kg 35,000 (ammo bag + pocket); NVD (mask) 11,880: 30/20
-    0.8 kg until @8, then open goggles (below).
+    0.8 kg live (@4), open goggles from @9 (below).
   - Fringe Warrior gloves (level 9) 60/20 0.3 kg 11,880 (recoil -8 %).
   - Scavenger Pathfinder boots (level 9) 65/20 1.3 kg 13,130 (movement +4 %);
     Saboteur boots (level 5) 45/20 1 kg 4,460 (energy -8 %). Scavengers rank 5.
@@ -194,7 +195,7 @@ analysis, 2026-10-30).
     (reload +12 %; between the level-3 and level-5 prices); Biker pants
     (level 5, the Corsair set's model family, rank 5) 55/5 2 kg 8,930
     (movement +4 %).
-- **@8, the owner's pick of 2026-11-05**, each with its donor's quirk (the
+- **@9, the owner's pick of 2026-11-05**, each with its donor's quirk (the
   owner: "make sure they fit properly and are well balanced with their
   quirks"): 0.69d0's own numbers set where the piece stands against its live
   peers of the same level and slot; its built-in bonus is the donor's, at the
@@ -206,9 +207,10 @@ analysis, 2026-10-30).
   in revision 50. 0.26g has no `slowdown` (0.69's 1 % movement penalty of
   some boots): carried weight slows the wearer instead.
   - **Veles Mask** (998, 0.31a2 `edge_mask_7`, `edge_keeper_07_mask`): with
-    the Veles set at level 12 (above), 30/65 0.6 kg 18,380, drop 40. (@6 and
-    @7 had 45/20 1.8 kg at level 10, after 0.69d's 50/20 0.6 kg; the owner:
-    "it should be high isolation since it is a mask".) No built-in bonus:
+    the Veles set at level 13 (above), 35/65 0.6 kg 21,010, drop 30 (@8: 30/65
+    at level 12; @6 and @7 had 45/20 1.8 kg at level 10, after 0.69d's 50/20
+    0.6 kg; the owner: "it should be high isolation since it is a mask"). No
+    built-in bonus (the owner, 2026-11-06: helmets and masks have none):
     0.69d's recoil -3.5 % (the whole Veles set has recoil) is no mask's; @6
     gave it energy costs -8 % (1163), which the owner, having seen it in
     game, found unnecessary (2026-11-06). Template the "Smaragd" respirator
@@ -253,14 +255,13 @@ analysis, 2026-10-30).
     `sway` column is the NVD's alone). Benchmark the Fringe respirator (102):
     the Assault mask's band (40 armour) is a closed mask's.
   - Names in every language without a duplicate of a live item name.
-  - `balance_audit.py`: the Veles Mask against the Protective mask and the
-    Spectrum-M; the laced boots against the Stalker's, Watchman and
+  - `balance_audit.py`: the Veles Mask has no peer at level 13; the laced boots against the Stalker's, Watchman and
     Pathfinder boots; the Shturm gloves against the five level-9 gloves; the
     padded boots against the Saboteur and Black Market level-5 boots; the
     NVD against the Assault mask: each better in one way, worse in another.
   - Fit, offline renders (`private/renders/equipment-046-more/`, the
     porter's rasteriser in solid colours: no textures hide a gap): the Veles
-    Mask before (@5) and after (@6, the same mesh as @8) and on its donor's stand-in head, front,
+    Mask before (@5) and after (@6, the same mesh as @9) and on its donor's stand-in head, front,
     side and back; with the Veles helmet and over four collars; the laced
     boots under six pants (`data_long`); the padded boots under four
     (`data_medium`); the Shturm gloves on five jackets (`data_full`), the live
@@ -272,11 +273,12 @@ analysis, 2026-10-30).
   500 gold: premium gold prices follow level (the owner, "proportional",
   2026-10-30: level 3 -> 500, 6 -> 1,100, 9 -> 1,400, 12 -> 1,700, 14 ->
   1,900; the stock level-3 premium jacket is 500 too).
-- `balance_audit.py`: 38 regular pieces, 79 comparisons with native,
+- `balance_audit.py` (@9): 38 regular pieces, 65 comparisons with native,
   equipment-029 and each other at the same level, kind, regions and slots;
   none strictly better or worse. No exact peer: the Armored mask (no level-15
-  mask), the Token (no level-10 backpack) and the "Marodeur" gloves (no
-  level-4 gloves).
+  mask), the Sniper set at level 11 and the Veles set at level 13 (no other
+  piece at either level in this pack; the Snow-20 pairs with the Sniper in
+  equipment-069's audit) and the "Marodeur" gloves (no level-4 gloves).
 
 ## Left out
 
@@ -296,7 +298,7 @@ analysis, 2026-10-30).
 - @3 again: the Watchman helmet (the lobby loads with it), the Stalker's
   backpack and NVD (the donor's materials), the Watchman boots (no emissive).
 - The 39 icons in the lobby (0.46c2's are scaled from 128x128 pictures).
-- @8: the Veles Mask textured and animated (its straps when the head turns,
+- @9: the Veles Mask textured and animated (its straps when the head turns,
   the inner rim from the side, with the Veles helmet), the laced and padded
   boots walking and crouching, the "Shturm" gloves in first person (0.46c2's
   gloves have no hud model, as the other 0.46c2 gloves here), the NVD's
@@ -311,7 +313,14 @@ analysis, 2026-10-30).
 
 - The Token gets +1 pocket size besides its artefact slot (the owner,
   2026-10-30; 0.31 had only the artefact slot): a level-10 Wanderer container
-  (`edge_back_5`, 1040 + 1170).
+  (`edge_back_5`, 1040 + 1170). Superseded on 2026-11-06: the artefact slot
+  only.
+
+- The Sniper set at level 11 and the Veles set at level 13 with the owner's
+  numbers (2026-11-06, above): balanced on weight, armour and bonuses,
+  bonuses on few pieces (the Sniper gloves; the Veles vest and Token), none
+  on helmets and masks; the live pieces change in place, their owners
+  keeping them at the new levels.
 
 - The three 0.69d-only pieces (Summer helmet, Medic's Bag, Soldier's Backpack)
   are ported later, in their own pack with a new resource-porter builder (the
@@ -319,7 +328,8 @@ analysis, 2026-10-30).
 
 ## Open questions for the owner
 
-- Drop weights and built-in bonuses as proposed?
-- @8's names: "Shturm" gloves and Reinforced padded boots for 0.46c2's
+- Drop weights and built-in bonuses of the pieces outside the Sniper and
+  Veles sets as proposed?
+- @9's names: "Shturm" gloves and Reinforced padded boots for 0.46c2's
   duplicates, Stalker's laced boots beside the Stalker's boots?
 - The NVD's scope sway -25 %: enough for 20 armour and 15 isolation given up?
