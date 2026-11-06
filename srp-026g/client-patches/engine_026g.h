@@ -594,6 +594,9 @@ extern unsigned int (__attribute__((stdcall)) *const engine_activate_keyboard_la
 /* the IAT slot 0x87003c (an import, stdcall) */
 extern void * (__attribute__((stdcall)) *const engine_get_module_handle_a)(const char * name);
 
+/* the IAT slot 0x87029c (an import, stdcall) */
+extern unsigned int (__attribute__((stdcall)) *const engine_set_environment_variable_a)(const char * name, const char * value);
+
 /* 0x23dc00 survarium::base_game_scene::show_movie: scene EAX, movie ESI; pops 0 */
 void engine_show_scene_movie(struct game_world *scene, struct movie_slot *movie);
 

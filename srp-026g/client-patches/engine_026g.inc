@@ -554,6 +554,10 @@ extern engine_activate_keyboard_layout
 ; the IAT slot 0x87003c (an import, stdcall)
 ; `call [symbol]`: stdcall, it pops its arguments
 extern engine_get_module_handle_a
+; unsigned int engine_set_environment_variable_a(const char *name, const char *value)
+; the IAT slot 0x87029c (an import, stdcall)
+; `call [symbol]`: stdcall, it pops its arguments
+extern engine_set_environment_variable_a
 ; void engine_show_scene_movie(struct game_world *scene, struct movie_slot *movie)
 ; 0x23dc00 survarium::base_game_scene::show_movie: scene EAX, movie ESI; pops 0
 extern engine_show_scene_movie

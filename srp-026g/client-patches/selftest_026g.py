@@ -110,8 +110,9 @@ without the late join, as patch revision 4 was, which check 15 builds on):
     touches +12Ch at seven places (the constructor, the guard, the end
     test's four, rule_completed). run_tdm_rule.ps1 runs the handler.
 23. the same build: the field-of-view setting (patch 22). The video
-    options' option 7 names "uro_fov" (0x262930) where the original names
-    "fov", a string nothing else points to; "uro_fov" is the name of the
+    options' option 7 still names "fov" (0x262930), a string nothing else
+    points to and no variable's (the Gameplay slider, patch 83, sets
+    uro_fov); "uro_fov" is the name of the
     console variable at 0xAA6510, whose value (0xA6FA28, 65.0) only its
     registration pointed to; the camera's projection (0x242900, slot 0 of
     the vtables of player_input_handler, game_camera, free_fly_camera,
@@ -2431,14 +2432,18 @@ def test_fov(original, image, before):
         check(source.read(va, len(old)) == old and before.read(va, len(old)) == old and image.read(va, len(new)) == new,
               f"{va:#x}: {len(old)} bytes rewritten; the original and the build without the late join keep them")
     string = lambda blob, at: blob.read(at, 64).split(b"\0")[0]
-    name = struct.unpack("<I", P.FOV_OPTION_NAME[2][1:])[0]
-    check(string(source, 0xA0659C) == b"fov" and refs(0xA0659C) == [P.FOV_OPTION_NAME[0] + 1]
+    # the uro_fov name's address, the console variable's +10h
+    name = 0xA281D0
+    option = 0x262930
+    check(string(source, 0xA0659C) == b"fov" and refs(0xA0659C) == [option + 1]
+          and image.read(option, 5) == source.read(option, 5) == b"\xb8" + pack(0xA0659C)
           and string(image, name) == b"uro_fov" and source.read(0xAA6510 + 0x10, 4) == pack(name)
           and refs(name) == [0xAA6510 + 0x10] and refs(P.FOV_VALUE) == [0x85AE24 + 6]
           and source.read(0x85AE24, 6) == bytes.fromhex("c70550 65aa00".replace(" ", ""))
           and struct.unpack("<f", source.read(P.FOV_VALUE, 4))[0] == 65.0,
-          "option 7 names \"uro_fov\" for \"fov\" (pointed to from there alone); \"uro_fov\" names the console variable "
-          f"at 0xAA6510, whose value ({P.FOV_VALUE:#x}, 65.0) only its registration pointed to")
+          "option 7 still names \"fov\" (the original's, no such variable: the Gameplay slider, patch 83, sets "
+          "uro_fov); \"uro_fov\" names the console variable at 0xAA6510, whose value "
+          f"({P.FOV_VALUE:#x}, 65.0) only its registration pointed to")
     va, old, offset, _ = P.FOV_PROJECTION_HOOK
     entry = P.LATE_JOIN_VA + offset
     hook = [text for _, _, text in ndisasm(image.read(va, len(old)), va)]
@@ -7062,13 +7067,11 @@ def test_late_join(original, without, server, source):
                   if kind == 3 and any(va + 4 > lo and va < hi for lo, hi in kept)]
     under_fov = sorted(va for kind, va in Image(original).relocations().values()
                        if kind == 3 and any(va + 4 > lo and va < hi for lo, hi in sites if lo in fov_sites))
-    option = P.FOV_OPTION_NAME[0] + 1
     now, was = image.relocations(), before.relocations()
     differing = sorted(key for key in set(now) | set(was) if now.get(key) != was.get(key))
     check(not under_kept and sorted(was[key][1] for key in differing) == sorted(disabled)
           and all(was[key][0] == 3 and now[key][0] == 0 for key in differing)
-          and under_fov == sorted({option, P.FOV_MINIMUM_RELOC})
-          and any(kind == 3 and va == option for kind, va in now.values()),
+          and under_fov == [P.FOV_MINIMUM_RELOC],
           "no base relocation is under a late-join site but those of scene::remove_model's branch "
           f"({P.REMOVE_MODEL_VA + 2:#x}), of uro_fov's least ({P.FOV_MINIMUM_RELOC:#x}) and of the pickup's "
           f"distance ({P.PICKUP_RELOC:#x}) and of the lobby camera's least "
@@ -7076,9 +7079,8 @@ def test_late_join(original, without, server, source):
           f"({', '.join(f'{va:#x}' for va in P.FOV_LOD_RELOCS)}), which are disabled, "
           "and of the options' controls table's six readers (patch 62: their address is the arena's, kept "
           "relocatable) "
-          f"and of the grenade's swept sphere ({P.GRENADE_CCD[0] + 4:#x}, patch 105: an .rdata constant for another) "
-          f"and of the field-of-view option's name "
-          f"({option:#x}, an address for an address), which stays; the rest of the table is the build's without it")
+          f"and of the grenade's swept sphere ({P.GRENADE_CCD[0] + 4:#x}, patch 105: an .rdata constant for another); "
+          "the rest of the table is the build's without it")
 
     test_clock_factor(original, image, before)
     test_statistics_count(original, image, before)
