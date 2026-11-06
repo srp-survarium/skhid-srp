@@ -25,7 +25,7 @@
 //!   play (`bots/mod.rs`). They get every player's inputs as relayed
 //!   ([`Game::observe_input`]), and the bodies, statistics and batteries of
 //!   the worlds the match trusts ([`Game::observe_driven`]); while they
-//!   play the clients are asked for a world every [`PLAYING_REFRESH`], and
+//!   play the clients are asked for a world every `timing.pvb_world` (2 s; `SRP_PVB_WORLD_MS`), and
 //!   every [`WAITING_REFRESH`] while one waits to see its body (just
 //!   entered, or dead). Until the map's walk grid is built (0.3 to 0.8 s,
 //!   on a thread of its own) they stand; if the map has no file they run
@@ -63,10 +63,9 @@ use crate::v026g::bots::view::{BatteryState, Clock, WorldFacts};
 use crate::v026g::bots::{Bots, Note};
 use crate::v026g::drive::{self, Drive};
 
-/// While the bots play, a world this often (the clients' upload: two of
-/// them, 30 to 60 KB each [LIKELY, the worlds saved]).
-const PLAYING_REFRESH: Duration = Duration::from_secs(2);
-/// While a bot waits to see its body, sooner.
+/// While the bots play, a world as often as the settings' `timing.pvb_world` (`SRP_PVB_WORLD_MS`, 2 s unless set;
+/// the clients' upload: two of them, 30 to 60 KB each [LIKELY, the worlds saved]). While a bot waits to see its
+/// body, at least this often.
 const WAITING_REFRESH: Duration = Duration::from_secs(1);
 
 /// The bots of a match and their map.
@@ -554,10 +553,11 @@ impl Game {
         let Some(walkers) = self.walkers.as_ref().filter(|walkers| !walkers.absent) else {
             return every;
         };
+        let playing = self.settings.timing.pvb_world;
         if walkers.bots.need_world() {
-            every.min(WAITING_REFRESH)
+            every.min(WAITING_REFRESH).min(playing)
         } else if walkers.bots.any() {
-            every.min(PLAYING_REFRESH)
+            every.min(playing)
         } else {
             every
         }

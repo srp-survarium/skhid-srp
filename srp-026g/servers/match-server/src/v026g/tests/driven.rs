@@ -182,6 +182,32 @@ fn a_match_against_bots_its_player_leaves_is_over_at_once() {
     assert!(result.players[1..].iter().all(|bot| bot.driven));
 }
 
+/// While the server's bots play on their map, its player is asked for a world
+/// every `Timing::pvb_world` (`SRP_PVB_WORLD_MS`): 2 s unless set (1 s while a
+/// bot waits to see its body), more often when a client-test play sets it lower.
+/// Without a map the bots run the stage 0 script and the match's own refresh holds.
+#[test]
+fn the_servers_bots_ask_for_worlds_as_often_as_set() {
+    let uploads_in_20_s = |pvb_world_ms: u64| {
+        let mut settings = Settings {
+            maps: Some(walking_map()),
+            ..Settings::default()
+        };
+        settings.timing.pvb_world = std::time::Duration::from_millis(pvb_world_ms);
+        let mut bench = Bench::with_driven(2, MAP_TDM, settings, &[1]);
+        bench.join(0);
+        bench.run_long(5_000);
+        let before = bench.clients[0].uploads;
+        bench.run_long(20_000);
+        bench.clients[0].uploads - before
+    };
+    let default = uploads_in_20_s(u64::from(crate::v026g::DEFAULT_PVB_WORLD_MS));
+    let dense = uploads_in_20_s(500);
+    // Every 2 s (or 1 s while a bot waits for its body): 10 to 20 in 20 s; every 0.5 s: about 40.
+    assert!((8..=21).contains(&default), "{default} uploads at the default");
+    assert!(dense >= 30 && dense > default + 15, "{dense} uploads at 500 ms against {default} at the default");
+}
+
 /// The stall rule is only for a match against bots: a match with the
 /// server's bots that is not one goes on.
 #[test]
