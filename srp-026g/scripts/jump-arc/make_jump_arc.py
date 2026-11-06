@@ -87,6 +87,8 @@ const GRAVITY: f32 = 9.81;
 /// The heights over the feet whose rays a wall holds a body in the air at, m (the stand-in's `AIR_RAYS`: the feet a little over,
 /// the middle, the head).
 const AIR_RAYS: [f32; 3] = [0.1, 0.9, 1.7];
+/// How deep under the arc's feet a floor still makes a cell open air rather than a wall (a drop off a ledge), m.
+const OPEN_BELOW_M: f32 = 10.0;
 
 /// `get_move_direction` 0x2D6510: the keys' direction, forward and back cancelling, left and right cancelling.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -344,10 +346,18 @@ impl JumpArc {
                         walls.ray_cast(Vec3::new(feet.x, y + h, feet.z), dir, len + radius).is_some()
                     })
             });
-            rays || grid.floors_in([x - radius, z - radius, x + radius, z + radius]).any(|n| {
+            // The walker mesh's walls are the grid's floorless cells (the erosion round a wall): a cell with no floor from the feet
+            // (and the catch) down to `OPEN_BELOW_M` is a wall too; a jump off a ledge has the lower floor under it.
+            let half = grid.cell_size() * 0.5;
+            let floorless = !grid.floors_in([x - half, z - half, x + half, z + half]).any(|n| {
                 let top = grid.position(n).y;
-                top > y + CATCH_M && top < y + height
-            })
+                top <= y + CATCH_M && top >= y - OPEN_BELOW_M
+            });
+            rays || floorless
+                || grid.floors_in([x - radius, z - radius, x + radius, z + radius]).any(|n| {
+                    let top = grid.position(n).y;
+                    top > y + CATCH_M && top < y + height
+                })
         };
         // `step_jump_forward`: all the way, else along one axis, else held (and caught up once clear).
         let (x, z) = [target, (target.0, feet.z), (feet.x, target.1)]
