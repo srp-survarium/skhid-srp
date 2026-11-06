@@ -352,6 +352,20 @@ The order, as it runs:
    patches server too when this run uploaded it, so the revision can be
    made again with other bytes; one there before the run stays, and a run
    with the same `--resources` takes it as it is.
+
+   **The first release with server code after #1395 proves the image path**
+   (owner, 2026-11-06: merged untested on a server, "we will test during
+   release"). Until one has, no server has ever loaded an image built here.
+   In that release, before the go, check and tell the owner: step 2 printed
+   `Loaded image: srp-026g:latest`; on the live host
+   `docker image inspect -f '{{.Id}} {{.Created}}' srp-026g:latest` is a new
+   ID, created minutes ago, and `srp-026g:before-rev<rev>-<stamp>` names
+   the running one; after the swap, srp26 runs the new ID (the release's own
+   checks) and logs its game data line. Write the outcome into the release
+   record. If the build here or the load fails, the release stops before the
+   go with nothing players feel: report it to the owner; building on the host
+   instead (`docker compose build srp26` over the folder's `src.tar`, unpacked) only on the
+   owner's word.
 3. **The go.** Once staged it stops and waits: y at its prompt (n stops),
    or `touch` the go file it prints
    (`~/.cache/skhid-release/go-<release folder>`); `--yes` does not give
