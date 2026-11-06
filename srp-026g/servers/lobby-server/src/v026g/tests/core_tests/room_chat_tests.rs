@@ -1,6 +1,7 @@
 //! A room's chat (`room_chat`): its members hear it once their tab is up,
 //! nobody else does; a newcomer gets its last lines; who comes and goes is
-//! said in it; leaving, a kick or a switch ends it; a queue hears nothing.
+//! not said in it; a match's all-chat is kept in it; leaving, a kick or a
+//! switch ends it; a queue hears nothing.
 
 use survarium::v026g::lobby::rooms::{
     ROOM_CHAT, ROOM_JOIN_BASE, ROOM_LEAVE, ROOM_PIN_BASE, ROOM_QUEUE_BASE, ROOM_STATE, kick_start,
@@ -105,13 +106,12 @@ fn each_room_hears_its_own_chat_only() {
     rows(&mut world, bob, ROOM_JOIN_BASE + first, 1);
     rows(&mut world, dave, ROOM_JOIN_BASE + second, 1);
 
-    // Who came, said in its room on the next tick; the newcomers' tabs
-    // get it as the last line.
+    // Who came is not said.
     world.advance(Duration::from_secs(1));
-    assert_eq!(heard(&mut world, alice), line("", "Bob joined the room"));
-    assert_eq!(heard(&mut world, carol), line("", "Dave joined the room"));
-    assert_eq!(listen(&mut world, bob), line("", "Bob joined the room"));
-    assert_eq!(listen(&mut world, dave), line("", "Dave joined the room"));
+    assert!(heard(&mut world, alice).is_empty());
+    assert!(heard(&mut world, carol).is_empty());
+    assert!(listen(&mut world, bob).is_empty());
+    assert!(listen(&mut world, dave).is_empty());
     assert!(listen(&mut world, erin).is_empty());
 
     // A member's line reaches the other members only (its own game shows
@@ -150,36 +150,24 @@ fn a_newcomer_gets_the_last_lines_and_a_game_without_the_tab_none() {
     world.advance(Duration::from_secs(1));
     say(&mut world, alice, "one");
     say(&mut world, bob, "two");
-    assert_eq!(
-        heard(&mut world, alice),
-        [
-            ("".to_owned(), "Bob joined the room".to_owned()),
-            ("Bob".to_owned(), "two".to_owned())
-        ]
-    );
+    assert_eq!(heard(&mut world, alice), line("Bob", "two"));
     assert!(heard(&mut world, bob).is_empty());
 
     let bob_id = world.ids[bob].0;
     world.ask(carol, request::ignore(bob_id));
     rows(&mut world, carol, ROOM_JOIN_BASE + key, 1);
-    assert_eq!(
-        listen(&mut world, carol),
-        [
-            ("".to_owned(), "Bob joined the room".to_owned()),
-            ("Alice".to_owned(), "one".to_owned())
-        ]
-    );
+    assert_eq!(listen(&mut world, carol), line("Alice", "one"));
     world.advance(Duration::from_secs(1));
-    assert_eq!(heard(&mut world, carol), line("", "Carol joined the room"));
-    assert_eq!(heard(&mut world, alice), line("", "Carol joined the room"));
+    assert!(heard(&mut world, carol).is_empty());
+    assert!(heard(&mut world, alice).is_empty());
     // The room's chat is kept with the room.
-    assert_eq!(world.core.rooms.get(key).unwrap().chat.len(), 4);
+    assert_eq!(world.core.rooms.get(key).unwrap().chat.len(), 2);
     world.assert_clean();
 }
 
 /// Leaving, a kick and a switch to another room each end the member's
-/// chat, and are said in the room it left; in the new room it hears once
-/// its tab asks again. A room gone takes its chat.
+/// chat, and are not said in the room it left; in the new room it hears
+/// once its tab asks again. A room gone takes its chat.
 #[test]
 fn leaving_a_kick_or_a_switch_ends_a_members_chat() {
     let mut world = World::new();
@@ -198,11 +186,11 @@ fn leaving_a_kick_or_a_switch_ends_a_members_chat() {
         listen(&mut world, client);
     }
 
-    // Bob leaves: said on the next tick, and he hears the room no more.
+    // Bob leaves: not said, and he hears the room no more.
     rows(&mut world, bob, ROOM_LEAVE, 1);
     world.advance(Duration::from_secs(1));
-    assert_eq!(heard(&mut world, alice), line("", "Bob left the room"));
-    assert_eq!(heard(&mut world, carol), line("", "Bob left the room"));
+    assert!(heard(&mut world, alice).is_empty());
+    assert!(heard(&mut world, carol).is_empty());
     say(&mut world, alice, "bye bob");
     assert_eq!(heard(&mut world, carol), line("Alice", "bye bob"));
     assert!(heard(&mut world, bob).is_empty());
@@ -212,7 +200,7 @@ fn leaving_a_kick_or_a_switch_ends_a_members_chat() {
     let serial: u32 = state[0].split(';').nth(12).unwrap().parse().unwrap();
     rows(&mut world, alice, kick_start(1, serial), 1);
     world.advance(Duration::from_secs(1));
-    assert_eq!(heard(&mut world, alice), line("", "Carol left the room"));
+    assert!(heard(&mut world, alice).is_empty());
     say(&mut world, alice, "out");
     assert!(heard(&mut world, carol).is_empty());
 
@@ -221,16 +209,10 @@ fn leaving_a_kick_or_a_switch_ends_a_members_chat() {
     rows(&mut world, alice, ROOM_JOIN_BASE + second, 1);
     assert!(world.core.rooms.get(first).is_none());
     world.advance(Duration::from_secs(1));
-    assert_eq!(heard(&mut world, dave), line("", "Alice joined the room"));
+    assert!(heard(&mut world, dave).is_empty());
     say(&mut world, dave, "welcome");
     assert!(heard(&mut world, alice).is_empty());
-    assert_eq!(
-        listen(&mut world, alice),
-        [
-            ("".to_owned(), "Alice joined the room".to_owned()),
-            ("Dave".to_owned(), "welcome".to_owned())
-        ]
-    );
+    assert_eq!(listen(&mut world, alice), line("Dave", "welcome"));
     say(&mut world, dave, "again");
     assert_eq!(heard(&mut world, alice), line("Dave", "again"));
     world.assert_clean();
@@ -238,8 +220,9 @@ fn leaving_a_kick_or_a_switch_ends_a_members_chat() {
 
 /// Members playing the room's match are sent nothing (their game's match
 /// chat is its own); one who comes during the match talks with whoever is
-/// in the lobby, and the players of the match get what was said when their
-/// tab asks again after it.
+/// in the lobby, and the players of the match get what was said, and the
+/// match's all-chat (not its team lines), when their tab asks again after
+/// it.
 #[test]
 fn a_late_joiner_talks_and_the_match_gets_it_after() {
     let mut world = World::new();
@@ -249,22 +232,31 @@ fn a_late_joiner_talks_and_the_match_gets_it_after() {
     let key = create(&mut world, alice, spec(6), None);
     rows(&mut world, bob, ROOM_JOIN_BASE + key, 1);
     world.advance(Duration::from_secs(1));
-    let came = [
-        ("".to_owned(), "Alice joined the room".to_owned()),
-        ("".to_owned(), "Bob joined the room".to_owned()),
-    ];
-    assert_eq!(listen(&mut world, alice), came);
-    assert_eq!(listen(&mut world, bob), came);
+    assert!(listen(&mut world, alice).is_empty());
+    assert!(listen(&mut world, bob).is_empty());
     world.advance(Duration::from_secs(31));
-    let (match_id, _) = sent_to_match(&world.take(alice)).expect("the match");
+    let (match_id, alice_team) = sent_to_match(&world.take(alice)).expect("the match");
     world.take(bob);
 
-    // Carol comes while the match is played: said, but not to the match.
+    // The match's all-chat is kept in the room's chat; its team lines not.
+    world.ask(alice, request::chat(match_id, "", channel::MATCH, "gl"));
+    world.ask(
+        alice,
+        request::chat(match_id, "", channel::TEAM_1 + alice_team, "go left"),
+    );
+    world.take(alice);
+    world.take(bob);
+
+    // Carol comes while the match is played: not said, nor to the match.
     rows(&mut world, carol, ROOM_JOIN_BASE + key, 1);
     world.advance(Duration::from_secs(1));
     assert!(heard(&mut world, alice).is_empty());
     assert!(heard(&mut world, bob).is_empty());
-    assert_eq!(listen(&mut world, carol).len(), 3);
+    assert_eq!(listen(&mut world, carol), line("Alice", "gl"));
+    // In the lobby, she hears the match's all-chat as it is said.
+    world.ask(bob, request::chat(match_id, "", channel::MATCH, "ty"));
+    world.take(alice);
+    assert_eq!(heard(&mut world, carol), line("Bob", "ty"));
     say(&mut world, carol, "late, sorry");
     assert!(heard(&mut world, alice).is_empty());
     assert!(heard(&mut world, bob).is_empty());
@@ -275,12 +267,12 @@ fn a_late_joiner_talks_and_the_match_gets_it_after() {
     world.end_match(match_id, 0);
     world.advance(Duration::from_secs(1));
     let after = [
-        ("".to_owned(), "Bob joined the room".to_owned()),
-        ("".to_owned(), "Carol joined the room".to_owned()),
+        ("Alice".to_owned(), "gl".to_owned()),
+        ("Bob".to_owned(), "ty".to_owned()),
         ("Carol".to_owned(), "late, sorry".to_owned()),
     ];
-    assert_eq!(listen(&mut world, alice)[1..], after);
-    assert_eq!(listen(&mut world, bob)[1..], after);
+    assert_eq!(listen(&mut world, alice), after);
+    assert_eq!(listen(&mut world, bob), after);
     say(&mut world, alice, "gg");
     assert_eq!(heard(&mut world, bob), line("Alice", "gg"));
 }
@@ -311,25 +303,21 @@ fn a_rooms_queue_hears_nothing_until_it_is_put_in() {
     // A place frees: the first of the queue is put in, and is a member.
     rows(&mut world, first, ROOM_LEAVE, 1);
     world.advance(Duration::from_secs(1));
+    assert!(heard(&mut world, owner).is_empty());
+    assert_eq!(world.core.rooms.key_of(world.ids[waiting].0), Some(key));
     assert_eq!(
-        heard(&mut world, owner),
+        listen(&mut world, waiting),
         [
-            ("".to_owned(), "Member1 left the room".to_owned()),
-            ("".to_owned(), "Waiting joined the room".to_owned())
+            ("Owner".to_owned(), "full".to_owned()),
+            ("Owner".to_owned(), "still full".to_owned())
         ]
     );
-    let given = listen(&mut world, waiting);
-    assert_eq!(
-        given.last(),
-        Some(&("".to_owned(), "Waiting joined the room".to_owned()))
-    );
-    assert!(given.contains(&("Owner".to_owned(), "still full".to_owned())));
     say(&mut world, owner, "welcome");
     assert_eq!(heard(&mut world, waiting), line("Owner", "welcome"));
 }
 
-/// Play puts a player into an open room: it is said there, and the player
-/// is in its chat.
+/// Play puts a player into an open room: it is not said there, and the
+/// player is in its chat.
 #[test]
 fn play_into_a_room_is_a_member_of_its_chat() {
     let mut world = World::new();
@@ -349,8 +337,8 @@ fn play_into_a_room_is_a_member_of_its_chat() {
     world.ask(bob, request::play(1));
     world.advance(Duration::from_secs(1));
     assert_eq!(world.core.rooms.key_of(world.ids[bob].0), Some(key));
-    assert_eq!(heard(&mut world, alice), line("", "Bob joined the room"));
-    assert_eq!(listen(&mut world, bob), line("", "Bob joined the room"));
+    assert!(heard(&mut world, alice).is_empty());
+    assert!(listen(&mut world, bob).is_empty());
     say(&mut world, bob, "hi");
     assert_eq!(heard(&mut world, alice), line("Bob", "hi"));
 }
@@ -379,4 +367,56 @@ fn a_disbanded_room_takes_its_chat() {
     say(&mut world, alice, "gone?");
     assert!(heard(&mut world, bob).is_empty());
     assert!(listen(&mut world, bob).is_empty());
+}
+
+/// The hud asks once its match chat is up: a player in a match is given
+/// the room's last lines (as many as the hud's log shows, but an ignored
+/// sender's); out of a match, or in no room, nothing.
+#[test]
+fn a_match_starts_with_the_rooms_last_lines() {
+    let ask = |world: &mut World, index: usize| {
+        world.take(index);
+        world.ask(index, request::chat(0, "", channel::ROOM, "#room-chat"));
+        heard(world, index)
+    };
+    let mut world = World::new();
+    let alice = world.connect("Alice");
+    let bob = world.connect("Bob");
+    let carol = world.connect("Carol");
+    let erin = world.connect("Erin");
+    let key = create(&mut world, alice, spec(6), None);
+    for client in [bob, carol] {
+        rows(&mut world, client, ROOM_JOIN_BASE + key, 1);
+    }
+    world.advance(Duration::from_secs(1));
+    for client in [alice, bob, carol] {
+        listen(&mut world, client);
+    }
+    let bob_id = world.ids[bob].0;
+    world.ask(carol, request::ignore(bob_id));
+    for n in 0..12 {
+        // One line a second: within the flood allowance.
+        say(
+            &mut world,
+            if n == 11 { bob } else { alice },
+            &format!("line {n}"),
+        );
+        world.advance(Duration::from_secs(1));
+    }
+    // In the lobby: no answer (the tab has the lines already).
+    assert!(ask(&mut world, alice).is_empty());
+    assert!(ask(&mut world, erin).is_empty());
+
+    world.advance(Duration::from_secs(31));
+    sent_to_match(&world.take(alice)).expect("the match");
+    let last = |from: usize| -> Vec<(String, String)> {
+        (from..11)
+            .map(|n| ("Alice".to_owned(), format!("line {n}")))
+            .collect()
+    };
+    let mut alices = last(2);
+    alices.push(("Bob".to_owned(), "line 11".to_owned()));
+    assert_eq!(ask(&mut world, alice), alices);
+    // Carol ignores Bob: her ten are Alice's.
+    assert_eq!(ask(&mut world, carol), last(1));
 }

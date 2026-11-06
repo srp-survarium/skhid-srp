@@ -24,7 +24,6 @@ package survarium.chat
    import survarium.data.LocalizationData;
    import survarium.friends.FriendsMenu;
    import survarium.friends.SquadList;
-   import survarium.rooms.RoomsText;
 
    public class LobbyChat extends Chat
    {
@@ -929,17 +928,11 @@ package survarium.chat
          ExternalInterface.call("start_friend_message",this._lastName);
       }
 
-      // A line of a room's chat: a player's in the general chat's colour
-      // (the exe gives ChatChannel.ROOM none), the room's own (no sender: who
-      // joined or left) in blue and in the game's language.
+      // A line of a room's chat: in the general chat's colour (the exe gives
+      // ChatChannel.ROOM none).
       protected function roomLine(message:Object) : void
       {
-         if(!message.name)
-         {
-            message.text = RoomsText.notice(String(message.text));
-            message.color = "Blue";
-         }
-         else if(message.color == undefined)
+         if(message.color == undefined)
          {
             message.color = "White";
          }

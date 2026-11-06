@@ -29,7 +29,8 @@ A player's ask (2026-10-21): "option to turn off in-game chat".
 
 - **Options, Game, "Hide chat in match"** (the checkbox under Chat that read "Disable private
   messages at the time of battle", which did nothing): checked, other players' chat lines (all,
-  team, squad, clan) are not shown in a match.
+  team, squad, clan, and the room chat's last lines given at the match's start) are not shown in a
+  match.
 - **Still shown:** the player's own lines, server messages, everything in the lobby.
 - **Off by default; remembered** in `user.cfg` (`g_private_messages_in_game on`).
 - **Typing still works:** T opens the chat as before.

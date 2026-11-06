@@ -310,6 +310,11 @@ impl Core<'_> {
             self.mode_introduction(who, body);
             return;
         }
+        // The hud's ask for its room's last lines, also for a muted player.
+        if channel == channel::ROOM && body == super::room_chat::MATCH_HISTORY_ASK {
+            self.room_history_to_match(who);
+            return;
+        }
         // The admin's chat mute: on every channel, nobody gets the line; the
         // sender gets the mute's notice instead, said by itself.
         if let Some(ban) = self.store.chat_ban(who.account_id) {
@@ -403,6 +408,11 @@ impl Core<'_> {
             "Chat from {} on channel {channel} reached {reached} player(s)",
             who.name
         );
+        // A match's all-chat is kept in the sender's room's chat too
+        // (`room_chat`).
+        if channel == channel::MATCH && in_match.is_some() {
+            self.room_keep_match_line(who, body);
+        }
     }
 
     // ------------------------------------------------- important messages

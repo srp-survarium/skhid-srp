@@ -503,7 +503,7 @@ Patches:
   registers a cc_bool named as the gameplay options' dead option 4
   (g_private_messages_in_game), which makes that option live and saved in
   user.cfg; add_message's call for a received line (0x26B916) drops a
-  player's line in a match while it is on (channels 3 and 5 to 9);
+  player's line in a match while it is on (channels 3 and 5 to 10, 10 the room's last lines);
 - one key hides the whole interface and shows it again, in a match and in
   the lobby (patch 62, with the late join; docs/notes/hide-ui-key.md): the
   game's action toggle_replay_ui (19h, F11), which only worked in a replay.
@@ -2222,7 +2222,7 @@ ARTEFACTS_SIZES = (
 #   look their variables up;
 # - process_incoming_text_message's `call 0x208AD0` (add_message) at
 #   0x26B916: with the option on, in a match, a player's line on a channel
-#   the hud shows (3, 5..9) is dropped (`ret 14h`, add_message's).
+#   the hud shows (3, 5..10) is dropped (`ret 14h`, add_message's).
 # No base relocation is under a site and no branch aims inside one.
 # And a slot (MATCH_KEYS_POLL_SLOT): the game world's input handler's +14h
 # (its vtable 0x9FC588; `ret 4` at 0x75AF0 in the original), which the input

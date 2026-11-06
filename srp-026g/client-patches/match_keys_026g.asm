@@ -96,9 +96,9 @@ section .text
 %define KIND 0x10                  ; [ebp+10h]: the kind
 %define GFX_UINT 4                 ; a GFx value's type (+4): unsigned int
 %define IN_MATCH 0x0D              ; the chat handler's +0Dh: set_mode's flag, its movie the hud
-%define CLAN 3                     ; the channels the hud shows: 3, 5..9
+%define CLAN 3                     ; the channels the hud shows: 3, 5..10 (10 srp's room: its last lines)
 %define MATCH 5
-%define LAST_CHANNEL 9
+%define LAST_CHANNEL 10
 %define CLOSED 0                   ; kit_keys: the kits not shown at the last poll
 %define OPENING 1                  ; shown, for less than KIT_KEYS_DELAY since kit_keys_since
 %define OPEN 2                     ; shown, for KIT_KEYS_DELAY or more

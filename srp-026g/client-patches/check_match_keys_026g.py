@@ -53,7 +53,7 @@ arena with them; the patch's four entries run from the game's own sites:
 - the chat: process_incoming_text_message's call of add_message (0x26B916)
   runs with add_message a stub that records it and `ret 14h`. A line must
   be dropped exactly with the option on, in a match (the chat handler's
-  +0Dh) and on a channel 3 or 5 to 9; otherwise add_message gets it with the
+  +0Dh) and on a channel 3 or 5 to 10; otherwise add_message gets it with the
   site's five arguments; both ways back at 0x26B91B with the five arguments
   popped and every register but eax as before. The original exe, run the
   same way, invokes nothing and gives add_message every line.
@@ -452,10 +452,10 @@ def main():
     print("the chat (add_message's call, 0x26B916)")
     for hide in (0, 1):
         for in_match in (0, 1):
-            for channel in range(10):
+            for channel in range(12):
                 a = stock.chat(hide, in_match, channel, None)
                 b = patched.chat(hide, in_match, channel, option)
-                drop = hide and in_match and (channel == 3 or 5 <= channel <= 9)
+                drop = hide and in_match and (channel == 3 or 5 <= channel <= 10)
                 given = [("add_message", *b[3])]
                 keep = {reg: value for reg, value in GAME.items() if reg != UC_X86_REG_EAX}
                 ok = a[2] == given and a[1] == 0 and b[1] == 0 \

@@ -69,6 +69,7 @@ package
          try
          {
             run();
+            roomLines();
             // A second incoming line used to restart the fade timer even while history was held.
             setupChat();
             view.notice = true;
@@ -99,6 +100,30 @@ package
          chat.addTab({id:5,name:"All",channels:[5],channel_to_send:5,closable:false});
          chat.addTab({id:6,name:"Team",channels:[6],channel_to_send:6,closable:false});
          chat.send_function = send;
+      }
+
+      private function shows(text:String) : Boolean
+      {
+         for(var i:int=0; i<chat.messageContainer.numChildren; i++)
+         {
+            var child:Object = chat.messageContainer.getChildAt(i);
+            if(child.hasOwnProperty("textContainer") && child.textContainer.textField.text.indexOf(text) >= 0)
+               return true;
+         }
+         return false;
+      }
+
+      // The room's last lines given at a match's start (HUD.add_chat_message, channel 10): a player's
+      // line in every match tab, kept when the player switches tabs.
+      private function roomLines() : void
+      {
+         setupChat();
+         chat.addRoomLine({type:10,name:"Alice",text:"gg room"});
+         expect(shows("Alice:") && shows("gg room"),"room line shown");
+         chat.focusTab(6);
+         expect(shows("Alice:") && shows("gg room"),"room line in the team tab");
+         chat.focusTab(5);
+         expect(shows("Alice:") && shows("gg room"),"room line in the all tab");
       }
 
       private function readable(text:String) : Boolean

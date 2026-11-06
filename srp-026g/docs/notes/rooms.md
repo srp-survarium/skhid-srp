@@ -340,11 +340,19 @@ parts in the game's classes (`TopMenu`'s tab, `StatusPanel`'s Play, `LobbyMenu`'
   - Entering the room any way (make, join, Play, the queue, Switch room, a late join) puts a
     member in it; leaving, a kick, a switch, the room gone (disbanded, nobody left) take it
     out. A switch shows the new room's chat.
-  - A newcomer's tab gets the room's last 20 lines (kept with the room; nothing outlives
+  - A newcomer's tab gets the room's last 50 lines (kept with the room; nothing outlives
     it).
-  - "X joined the room" / "X left the room" lines, in blue, in the player's language.
+  - Who joined or left is not said (the owner's of 2026-11-06).
   - In a match it gets nothing (the match chat is untouched); after it, the tab is given the
-    last 20 lines again, what was said during the match among them.
+    last 50 lines again, what was said during the match among them.
+  - At the match's start (the owner's of 2026-11-06: "when the match starts last messages
+    can be shown too from room chat"): the match chat shows the room's last 10 lines (as many
+    as its log shows), in every tab, as players' lines; an ignored player's are left out, and
+    none with "Hide chat in match" checked.
+  - The match's all-chat (the owner's of 2026-11-06: "show history across the previous
+    match of messages to all"): a member's line to all in its room's match is kept in the
+    room's chat too, so the tab shows it after the match. Team lines are not kept. A member
+    in the lobby meanwhile (one who came during the match) sees it as it is said.
   - Moderation is the other channels': the lobby's flood limit, an ignored player's lines
     not shown, the game's length limit and its censor.
   - Wire: `social.md` §9.8, `lobby.md` §2.16.3 (2 060 000 030).
@@ -439,6 +447,3 @@ parts in the game's classes (`TopMenu`'s tab, `StatusPanel`'s Play, `LobbyMenu`'
     - How: the new sounds into `gameplay/ui_sounds` (ids 19 and up) by a content edit; the rooms
       window plays them by id (`sound_play`), driven from one end time each frame; a big 10...1
       over the lobby; stopped at once when the vote stops.
-  - **Some of a match's chat in the Room Chat tab** (the owner's of 2026-10-21: "match messages
-    should be preserved and shown in room chat (not all, but some)"): which lines (for example
-    all-chat lines, not team or system lines) to decide with the owner.

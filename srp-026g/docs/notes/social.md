@@ -603,20 +603,30 @@ one", "there should be to the right of [General Chat] [Room Chat]" (the rules:
   a new tab and a new ask, a match's results too (`RoomsWindow.matchOver`:
   the lines of the match did not come). `LobbyChat.get_styled_text`
   (`roomLine`) colours a channel-10 line as the general chat does ("White";
-  the exe gives channel 10 no colour) and the room's own lines (no sender)
-  "Blue", their English words in the player's language (`RoomsText.notice`).
+  the exe gives channel 10 no colour).
 - **srp's lobby:** `4C` on channel 10 goes to the sender's room (the
   `channel_id` is not read): an `A2` line of sender type 5, its account, name
   and clan tag, channel 10, to every other member whose movie asked and who is
   in no match, but those who ignore the sender. The flood allowance is the
   other channels'. A line from a player in no room reaches nobody. The room
-  keeps its last 20 lines (`session::v026g::rooms::CHAT_KEPT`), given to the
+  keeps its last 50 lines (`session::v026g::rooms::CHAT_KEPT`), given to the
   asker (but an ignored sender's) before the answer; they go with the room.
-- **The room's own lines:** `<name> joined the room` / `<name> left the room`,
-  an `A2` of sender type 5, id 0, an empty name, no tag, channel 10, said on
-  the tick after the change whatever made it, kept with the other lines (no
-  join for a player alone in its room). The empty name is the queue chat's
-  (§9.7), which ran on the players' server so.
+- **A match's all-chat:** a `4C` on channel 5 from a player in a match goes to
+  its match as before and is also kept in the sender's room's chat as a channel-10 line
+  of its own (sent at once to the members in the lobby whose movie asked), so
+  the tab shows it after the match. Team channels (6, 7) are not kept.
+- **At a match's start:** srp's hud (`HUD.as`) sends `4C` channel 10
+  `#room-chat` once its match chat has tabs (again after `reset`, a new
+  match); the lobby (`room_chat.rs`, before the admin's mute) answers a player
+  in a match with its room's last 10 lines as kept (but an ignored sender's),
+  `A2` channel 10 as above. In a match the exe gives channel 10 to the hud's
+  movie (`add_message` gives the lobby's only 1 and 4 then, `client_patch.md`
+  §3.53); the hud puts a line with a body not starting with `#`
+  in every match tab (`GameChat.addRoomLine`) and shows none that does (the
+  ask's local echo, other control lines). Patch 58's "Hide chat in match"
+  drops channel 10 in a match too (since 2026-11-06).
+- **No lines of the room's own** (since 2026-11-06): who joined or left is not
+  said.
 - **Not checked in the game.**
 
 ## Correction (2026-10-12): the order of an accepted squad invite

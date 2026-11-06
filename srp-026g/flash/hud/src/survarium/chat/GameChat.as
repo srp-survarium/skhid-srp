@@ -255,6 +255,19 @@ package survarium.chat
          this.messageContainer.addText(line + this._nline);
       }
 
+      // A line of the room's chat (its last lines, given at the match's start): styled as an ally's,
+      // in every current match tab, shown as other lines are.
+      public function addRoomLine(value:Object) : void
+      {
+         if(!this._data.tabs[this._activeMode])
+            return;
+         value.color = "White";
+         var line:String = this.get_styled_text(value);
+         for each(var tab:Object in this._data.tabs[this._activeMode])
+            this._messages[tab.id] += line + this._nline;
+         this.addMessage(line);
+      }
+
       public function test_message(value:Object) : void
       {
          var _finalText:String = this.get_styled_text(value);
