@@ -1,5 +1,6 @@
 package
 {
+    import flash.display.BitmapData;
     import flash.display.DisplayObject;
     import flash.display.DisplayObjectContainer;
     import flash.utils.Dictionary;
@@ -10,6 +11,7 @@ package
     import flash.events.Event;
     import flash.events.MouseEvent;
     import flash.events.UncaughtErrorEvent;
+    import flash.geom.Matrix;
     import flash.geom.Rectangle;
     import flash.net.URLRequest;
     import flash.system.ApplicationDomain;
@@ -929,7 +931,7 @@ package
             // the button's bottom), less the half pixel its border adds on each side (a checkbox's empty room
             // may reach further, unseen)
             var bounds:Rectangle = panel.getChildByName("_srp_vulkan_hit").getBounds(content.stage);
-            var tabAt:Rectangle = c.getChildByName("_srp_vulkan_frame").getChildAt(1).getBounds(content.stage);
+            var tabAt:Rectangle = c.getChildByName("_srp_vulkan_frame").getBounds(content.stage);
             // the popup takes presses on its rectangle only; its art lies in the tab, under the button
             require(!panel.mouseEnabled && c.getChildIndex(c.getChildByName("_srp_vulkan_frame")) < c.getChildIndex(row),
                 "Vulkan options: the popup takes no press but on its rectangle, its frame under the button");
@@ -945,6 +947,38 @@ package
             // its frame one piece with the button: round it, from the panel's left to past its right, over its top
             require(tabAt.left < rowBounds.left && tabAt.top < rowBounds.top && near(tabAt.left, bounds.left - 0.5),
                 "Vulkan options: the panel's frame round the button too (" + tabAt + ", the button " + rowBounds + ")");
+            // the frame round the button the same gap off the button's drawn art on the left, the right and the top,
+            // as they look: the window drawn, from inside the button's art out, the dark run between the art's
+            // last light pixel and the frame's light outer line (the gap and the frame's dark band)
+            var window:DisplayObject = settings;
+            var picture:BitmapData = new BitmapData(Math.ceil(window.width) + 40, Math.ceil(window.height) + 40, false, 0);
+            var shift:Matrix = window.transform.matrix.clone();
+            var corner:Rectangle = window.getBounds(window.parent);
+            shift.translate(20 - corner.x, 20 - corner.y);
+            picture.draw(window, shift);
+            var where:Rectangle = row.getBounds(window.parent);
+            where.offset(20 - corner.x, 20 - corner.y);
+            var light:Function = function(x:int, y:int):Boolean {
+                var colour:uint = picture.getPixel(x, y);
+                return ((colour >> 16 & 0xFF) + (colour >> 8 & 0xFF) + (colour & 0xFF)) / 3 > 0x40;
+            };
+            // from (x, y) a step (dx, dy) at a time: into the art's light, through it, then the dark run's length
+            var darkRun:Function = function(x:int, y:int, dx:int, dy:int):int {
+                while (!light(x, y)) { x += dx; y += dy; }
+                while (light(x, y)) { x += dx; y += dy; }
+                var run:int = 0;
+                while (!light(x, y) && run < 40) { x += dx; y += dy; run++; }
+                return run;
+            };
+            var lowY:int = int(where.bottom - 4);
+            var leftGap:int = darkRun(int(where.left + 4), lowY, -1, 0);
+            var rightGap:int = darkRun(int(where.right - 4), lowY, 1, 0);
+            var topGap:int = darkRun(int(where.left + 4), int(where.top + where.height / 2), 0, -1);
+            require(Math.abs(leftGap - rightGap) <= 0.5 && Math.abs(topGap - leftGap) <= 0.5 && leftGap >= 4,
+                "Vulkan options: the frame the same gap off the button's drawn art (dark runs to the frame's light line): left "
+                + leftGap + ", right " + rightGap + ", top " + topGap);
+            trace("SETTINGS Vulkan options: the frame's dark runs round the button (its gap and band): left " + leftGap
+                + ", right " + rightGap + ", top " + topGap);
             // the column's grid: each list at the Renderer list's place and width (its label and box at theirs), each
             // checkbox at Fullscreen's x, its text where Fullscreen's is on its box
             var origin:* = content.globalToLocal(body.localToGlobal(new Point(0, 0)));

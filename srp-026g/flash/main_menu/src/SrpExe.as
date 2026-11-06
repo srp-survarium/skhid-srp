@@ -11,13 +11,6 @@ package
     {
         public static var standIn:Function = null;
 
-        // A line of srp_patches.log (patch 83's srp_log: `srp: menu: <text>`), and the trace (Ruffle's log).
-        public static function log(text:String):void
-        {
-            trace("SRP LOG " + text);
-            call("srp_log", text);
-        }
-
         public static function call(name:String, value:String):void
         {
             if (standIn != null)

@@ -49,24 +49,24 @@ window keeping its size.
   next MOUSE_DOWN clears it); anywhere else it closes. Esc and a DirectX 11 pick close it too.
 - **Presses on the popup:** a child that takes no presses still gives its parent a hit where it is
   drawn (Flash's rule, the game's too), so the popup holds only the panel's rectangle (a Sprite filled
-  at alpha 0.01, its one part a press lands on) and the controls; the popup itself takes none. The
-  panel's art (shadow, frame round the button and the panel, surface) lies in the tab right under the
-  button while open, so nothing of it is over the button: a press there is the button's, and over the
-  column rows it is the tab's, an outside press.
-- **Its log (for the owner's retest only, to be removed):** every step of the button's path goes to
-  `srp_patches.log` as `srp: menu: vulkan: ...` (the movie's `srp_log` call, which patch 83 writes; the
-  movie's trace reaches no log in the game): the button's MOUSE_DOWN, MOUSE_UP and CLICK with their
-  target and point, its click (open or not, a swallowed one), open, close and the button's frame after,
-  the held frames set again, and each stage press with its target and whether it lands on the panel or
+  at alpha 0.01, its one part a press lands on), the shadow and the controls; the popup itself takes
+  none. The panel's frame and surface lie in the tab right under the button while open, so nothing of
+  them is over the button: a press there is the button's, and over the column rows it is the tab's, an
+  outside press. The shadow, in the popup over the tab's rows, lies outside the outline only, never over
   the button.
 - **The panel:** a popup over the column, a little wider than it on both sides, and one piece with the
   button, a tab that drops down: the Settings window's own border (its 1 px light line, then its dark
-  band) runs round the panel and round the button above it, 4 px out, the band under the button left
-  out, so the button opens into the panel. Its surface is the window's own background art
-  (SrvSettingsWndow's shape's bitmap, character 273, added to the movie as `SrpSettingsGround`), placed
-  where the window draws it, so the texture inside continues what is behind it. A shadow (a knocked-out
-  DropShadowFilter of the outline: distance 6 down, blur 16, 0.9 black) lies outside the whole outline,
-  so it sits above the tab. The owner, 2026-11-06: the panel a separate floating window, joined to its
+  band) runs round the panel and round the button above it, the band under the button left out, so the
+  button opens into the panel. Round the button the border's inner edge keeps the same gap off its
+  drawn art on the left, the right and the top: the left is the panel's own (its edge, the band's width
+  in), the right and the top the same gap off the button (its art fills its bounds: the harness draws
+  it and scans the frame's pixels, the gaps within half a pixel). Its surface is the window's own
+  background art (SrvSettingsWndow's shape's bitmap, character 273, added to the movie as
+  `SrpSettingsGround`), placed where the window draws it, so the texture inside continues what is
+  behind it. A drawn soft shadow (ten one-pixel bands of black, 0.6 fading to nothing, fainter over the
+  top edges; rectangles, no filter: the game showed no DropShadowFilter knock-out) lies outside
+  the whole outline, so the panel sits above the tab.
+  The owner, 2026-11-06: the panel a separate floating window, joined to its
   button, everything inside it looking as the same control outside does. Chosen from renders of: the
   border alone, with a shadow, a stronger shadow, a lighter surface, the tab, a notch pointing at the
   button; the menu's message backgrounds (MessageThinBackground and the others) are other surfaces

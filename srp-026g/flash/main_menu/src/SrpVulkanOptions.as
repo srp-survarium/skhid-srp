@@ -9,7 +9,6 @@ package
     import flash.display.Stage;
     import flash.events.Event;
     import flash.events.MouseEvent;
-    import flash.filters.DropShadowFilter;
     import flash.geom.Matrix;
     import flash.geom.Point;
     import flash.geom.Rectangle;
@@ -85,8 +84,14 @@ package
         private var panelHeight:Number = 0;
         // The arrow's size: the Renderer box's arrow, half again as big (a button's arrow, read at a glance).
         private static const ARROW_SCALE:Number = 1.5;
-        // The panel's tab round the button: out by this on its top and right (its left is the panel's).
-        private static const TAB:Number = 4;
+        // Where SetingsButton's symbol is drawn lighter than the tab, inside its bounds, by side: its top two rows
+        // over its end caps are dark (read as gap), its ends light to their edges (measured on the drawn window: the
+        // harness's gap check).
+        private static const ART_ROOM:Object = {left: 0, top: 2, right: 0, bottom: 0};
+        // The shadow: its bands, how much fainter it is over the top edges (in bands), its darkest band's alpha.
+        private static const SHADE:int = 10;
+        private static const SHADE_DOWN:int = 3;
+        private static const SHADE_ALPHA:Number = 0.6;
         private var controls:Object = {};
         // Each option's saved and running value ("1"/"0" or the list's index); "" until the exe answers.
         private var saved:Object = {};
@@ -106,17 +111,13 @@ package
             button.alpha = 1;
             button.visible = false;
             button.addEventListener(ButtonEvent.CLICK, onPress);
-            button.addEventListener(MouseEvent.MOUSE_DOWN, onButtonMouse);
-            button.addEventListener(MouseEvent.MOUSE_UP, onButtonMouse);
-            button.addEventListener(MouseEvent.CLICK, onButtonMouse);
+            button.addEventListener(MouseEvent.MOUSE_DOWN, onButtonDown);
             content.addChild(button);
             arrow = arrowArt();
             arrow.visible = false;
             content.addChild(arrow);
             panel = new Sprite();
             panel.name = "_srp_vulkan_panel";
-            // the shadow under everything, taking no press: its outline is filled (hidden by its knock-out) over
-            // the button too, and a press there is the button's
             // The popup is the panel's rectangle (`hit`, all but transparent: a fill of alpha 0 is not hit) and its
             // controls, the popup itself taking no press. Its art lies in the tab under the button: a press on the
             // button is the button's whatever Scaleform makes of the art (a child that takes no press still gives
@@ -125,10 +126,15 @@ package
             art = new Sprite();
             art.name = "_srp_vulkan_frame";
             art.mouseEnabled = art.mouseChildren = false;
-            shadow = new Shape();
-            art.addChild(shadow);
             frame = new Shape();
             art.addChild(frame);
+            // the shadow in the popup, over the tab's rows (the art lies under them but for the button's row),
+            // drawn outside the outline only: never over the button, taking no press of its own
+            var shade:Sprite = new Sprite();
+            shade.mouseEnabled = shade.mouseChildren = false;
+            shadow = new Shape();
+            shade.addChild(shadow);
+            panel.addChild(shade);
             hit = new Sprite();
             hit.name = "_srp_vulkan_hit";
             panel.addChild(hit);
@@ -316,7 +322,6 @@ package
                     list.close();
                 }
             }
-            log("close");
             var stage:Stage = panel.stage;
             stage.removeEventListener(MouseEvent.MOUSE_DOWN, onStagePress);
             button.removeEventListener(Event.RENDER, hold);
@@ -327,7 +332,6 @@ package
             button.validateNow();
             button.gotoAndPlay(button.hitTestPoint(stage.mouseX, stage.mouseY, true) ? "over" : "up");
             arrow.scaleY = Math.abs(arrow.scaleY);
-            log("closed: button frame " + button.currentFrame + " (" + button.currentLabel + ")");
             return true;
         }
 
@@ -336,8 +340,6 @@ package
         // (hold).
         private function onPress(event:Event):void
         {
-            log("button click: open " + open + ", enabled " + button.enabled + ", frame " + button.currentFrame
-                + (swallow ? ", the closing press's own: no open" : ""));
             if (swallow)
             {
                 swallow = false;
@@ -347,7 +349,6 @@ package
             {
                 return;
             }
-            log("open");
             PopUpManager.show(panel, panelX, button.y + button.height, button.parent);
             content.addChildAt(art, content.getChildIndex(button));
             art.x = panelX;
@@ -361,7 +362,6 @@ package
             hold(null);
             arrow.scaleY = -Math.abs(arrow.scaleY);
             draw();
-            log("opened: button frame " + button.currentFrame + " (" + button.currentLabel + ")");
         }
 
         // The button held pressed while the panel is open: its "down" frames again after each state it draws.
@@ -369,41 +369,16 @@ package
         {
             if (button.currentLabel != "down")
             {
-                var was:int = button.currentFrame;
                 button.validateNow();
                 button.gotoAndPlay("down");
-                log("hold: button frame " + was + " to " + button.currentFrame);
             }
         }
 
-        // The button's pointer events, logged (the path of a press in the game).
-        private function onButtonMouse(event:MouseEvent):void
+        // A new press on the button: no click of an earlier one is left to swallow (the stage's own handler, after
+        // this one, sets it again when this press closes the panel).
+        private function onButtonDown(event:MouseEvent):void
         {
-            // a new press on the button: no click of an earlier one is left to swallow (the stage's own handler,
-            // after this one, sets it again when this press closes the panel)
-            if (event.type == MouseEvent.MOUSE_DOWN)
-            {
-                swallow = false;
-            }
-            log("button " + event.type + " target " + path(event.target as DisplayObject) + " at " + event.stageX + ","
-                + event.stageY + ", open " + open + ", frame " + button.currentFrame);
-        }
-
-        // A display object and its parents, by name (for the log).
-        private static function path(at:DisplayObject):String
-        {
-            var names:Array = [];
-            for (var n:int = 0; at != null && n < 4; at = at.parent, n++)
-            {
-                names.push(at.name);
-            }
-            return names.join("<");
-        }
-
-        // A line of srp_patches.log (`srp: menu: vulkan: <text>`).
-        private static function log(text:String):void
-        {
-            SrpExe.log("vulkan: " + text);
+            swallow = false;
         }
 
         // A press on the stage while the panel is open, decided by where it lands only (Scaleform's target may be
@@ -416,8 +391,6 @@ package
             var inPanel:Point = panel.globalToLocal(at);
             var onPanel:Boolean = inPanel.x >= 0 && inPanel.y >= 0 && inPanel.x < panelWidth && inPanel.y < panelHeight;
             var onButton:Boolean = button.getBounds(panel.stage).containsPoint(at);
-            log("stage down target " + path(event.target as DisplayObject) + " at " + at.x + "," + at.y + ": on panel "
-                + onPanel + ", on button " + onButton);
             if (onPanel)
             {
                 return;
@@ -548,13 +521,33 @@ package
             }
         }
 
-        // The panel's outline inset by `inset`: its rectangle and the button's above it, out by TAB round it,
-        // one piece (a tab that drops down: no edge between them).
+        // The button's art where it is drawn, in the panel's coordinates: its bounds less the room its symbol
+        // leaves round its drawn art (ART_ROOM).
+        private function buttonArt():Rectangle
+        {
+            var art:Rectangle = button.getBounds(content);
+            return new Rectangle(art.x + ART_ROOM.left - panelX, art.y + ART_ROOM.top - (button.y + button.height),
+                art.width - ART_ROOM.left - ART_ROOM.right, art.height - ART_ROOM.top - ART_ROOM.bottom);
+        }
+
+        // The tab's outline round the button: its right and top, the same gap off the button's drawn art as its
+        // left (the panel's own left edge, its border's width in), in the panel's coordinates.
+        private function tab():Rectangle
+        {
+            var art:Rectangle = buttonArt();
+            var band:Number = 1 + EDGE_DARK.length;
+            var gap:Number = art.left - band;
+            return new Rectangle(0, art.top - gap - band, art.right + gap + band, -(art.top - gap - band));
+        }
+
+        // The panel's outline inset by `inset`: its rectangle and the button's above it (tab), one piece (a tab
+        // that drops down: no edge between them).
         private function outline(g:Graphics, inset:Number):void
         {
             var w:Number = panelWidth, h:Number = panelHeight, i:Number = inset;
-            var right:Number = button.x - panelX + button.width + TAB;
-            var top:Number = -button.height - TAB;
+            var round:Rectangle = tab();
+            var right:Number = round.right;
+            var top:Number = round.top;
             g.moveTo(i, top + i);
             g.lineTo(right - i, top + i);
             g.lineTo(right - i, i);
@@ -569,7 +562,7 @@ package
         // so the button opens into the panel. The surface: the window's own background art (the window's first
         // child, SrvSettingsWndow's shape, fills itself with that bitmap over its bounds) where it lies, opaque,
         // so the rows under it never show and a press on it is the panel's; the tab's inside is left open, the
-        // button showing through it. The shadow: the outline's, outside it only (knocked out), on the tab under.
+        // button showing through it. The shadow: shade's.
         private function draw():void
         {
             var g:Graphics = frame.graphics;
@@ -602,18 +595,47 @@ package
             g.endFill();
             // the bands under the button
             surface(g, art, place);
-            g.drawRect(inset, 0, button.x - panelX + button.width + TAB - 2 * inset, inset);
+            g.drawRect(inset, 0, tab().right - 2 * inset, inset);
             g.endFill();
-            var sg:Graphics = shadow.graphics;
-            sg.clear();
-            sg.beginFill(0x000000);
-            outline(sg, 0);
-            sg.endFill();
-            shadow.filters = [new DropShadowFilter(6, 90, 0x000000, 0.9, 16, 16, 1, 2, false, true)];
+            shade();
             hit.graphics.clear();
             hit.graphics.beginFill(0x000000, 0.01);
             hit.graphics.drawRect(0, 0, panelWidth, panelHeight);
             hit.graphics.endFill();
+        }
+
+        // The panel's shadow: SHADE one-pixel bands outside its outline (the tab's and the panel's), each fainter
+        // than the last, those over the top edges as faint as SHADE_DOWN bands further out (light from above);
+        // drawn as rectangles (no shape with a hole: a hit test need not take a ring as drawn), none over the
+        // button.
+        private function shade():void
+        {
+            var g:Graphics = shadow.graphics;
+            g.clear();
+            var round:Rectangle = tab();
+            var w:Number = panelWidth, h:Number = panelHeight, r:Number = round.right, top:Number = round.top;
+            for (var k:int = 1; k <= SHADE; k++)
+            {
+                // the bottom, the panel's right, the tab's right, the left
+                g.beginFill(0x000000, band(k));
+                g.drawRect(-k, h + k - 1, w + 2 * k, 1);
+                g.drawRect(w + k - 1, -k + 1, 1, h + 2 * k - 2);
+                g.drawRect(r + k - 1, top - k + 1, 1, -top - 1);
+                g.drawRect(-k, top - k + 1, 1, h - top + 2 * k - 2);
+                g.endFill();
+                // the tops: the tab's, the panel's right of it
+                g.beginFill(0x000000, band(k + SHADE_DOWN));
+                g.drawRect(-k, top - k, r + 2 * k - 1, 1);
+                g.drawRect(r + k - 1, -k, w - r + 1, 1);
+                g.endFill();
+            }
+        }
+
+        // The shadow's band `k` out: its alpha, fading to nothing past SHADE.
+        private static function band(k:int):Number
+        {
+            var fade:Number = Math.max(0, 1 - (k - 1) / SHADE);
+            return SHADE_ALPHA * fade * fade;
         }
 
         // The panel's surface fill: the window's art, or (off the stage) the border's darkest.
