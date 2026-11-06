@@ -15,6 +15,17 @@ use super::*;
 /// The bit of a floor's entry for "within the body's radius and [`FALL_EDGE_MARGIN_M`] of a floor with an open side, within a step of
 /// its height" ([`WalkGrid::near_open_side`]); bits 0-7 are the open sides, by [`DIRS`].
 const NEAR_OPEN: u16 = 1 << 8;
+/// What a side of a floor is to a body going out over it ([`WalkGrid::open_sides_of`]).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum Side {
+    /// A link or a floor of its level that way: the body walks on.
+    Ground,
+    /// An open side: over a drop, no wall.
+    Open,
+    /// A wall, the map's edge, or no known drop: the body is held there.
+    Held,
+}
+
 /// How near the way out a wall must come to stop the capsule there, metres: the stand-in's ray, a wall across the way.
 const ACROSS_M: f32 = 0.05;
 /// A wall this far over a step above the floor stops the capsule (the stand-in's ray height); lower, the body steps over it.
@@ -80,42 +91,59 @@ impl WalkGrid {
     }
 
     fn open_sides_of(&self, walls: &Walls, a: usize, support_m: f32) -> u16 {
-        let (i, k) = self.cell_xz(self.cell_of[a] as usize);
-        let feet = self.height[a];
-        let centre = Vec3::new(self.x0 + (i as f32 + 0.5) * self.cell, feet, self.z0 + (k as f32 + 0.5) * self.cell);
-        let (low, high) = (feet + self.body.step + OVER_STEP_M, feet + self.body.stand_height);
+        let sides: Vec<Side> = DIRS.iter().enumerate().map(|(d, &dir)| self.side_of(walls, a, d, dir, support_m)).collect();
         let mut bits = 0u16;
         for (d, &(di, dk)) in DIRS.iter().enumerate() {
-            if self.to[a][d] != NO_LINK {
+            if sides[d] != Side::Open {
                 continue;
             }
-            // The map area's edge is a wall; a floor of its level beside is no edge.
-            let Some(cell) = self.cell_index(i + di, k + dk) else {
-                continue;
-            };
-            if (self.start[cell]..self.start[cell + 1]).any(|b| (self.height[b as usize] - feet).abs() <= self.body.step) {
-                continue;
-            }
-            let length = ((di * di + dk * dk) as f32).sqrt();
-            let reach = support_m + self.body.radius;
-            // A269c: only a side over a floor further down than a step is a drop the capsule is known to walk off. The cells out
-            // along the side within the reach: the first that holds a floor within a step of the feet (the ground goes on past a
-            // cell the grid eroded by a wall off the way out) makes it no drop, the first with one further down makes it one (a
-            // cliff's foot is eroded by its face: the floor below starts a cell or two out); cells with only higher floors (a rise
-            // over a step, a floor overhead) or none (ground too steep for a floor) all the way are no known drop: the body is held
-            // there as at a wall, as the default model holds it. A269's table took any cell beside with no floor of the feet's level
-            // for a drop: most of the open sides with no route cost on the 8 maps had no floor below beside (the bench's
-            // open_sides_bare), and the lip guard braked at them a key change a tick.
-            if !self.drop_along(i, k, di, dk, feet, (reach / (self.cell * length)).floor() as i32) {
-                continue;
-            }
-            let out = Vec3::new(centre.x + di as f32 / length * reach, feet, centre.z + dk as f32 / length * reach);
-            if walls.nearest_ahead(centre, out, low, high, ACROSS_M).is_some() {
+            // [A318] A diagonal side is open only where the capsule gets to it: going out at a corner it passes over the two square
+            // sides beside first, and one that holds it (a wall, ground with no drop, the map's edge) holds it there. A straight
+            // edge's diagonals look out over the drop beside the ground that goes on square ahead (Pripyat Port's quay at (93.6,
+            // 45.9): -z holds, 225 and 315 were open), and the reckoning's diagonal steps walked off where the client stood.
+            let square = |dir: (i32, i32)| DIRS.iter().position(|&s| s == dir).map(|s| sides[s]);
+            if di != 0 && dk != 0 && [square((di, 0)), square((0, dk))].contains(&Some(Side::Held)) {
                 continue;
             }
             bits |= 1 << d;
         }
         bits
+    }
+
+    /// What the side `d` (`di`, `dk`) of the floor `a` is to a body going out over it.
+    fn side_of(&self, walls: &Walls, a: usize, d: usize, (di, dk): (i32, i32), support_m: f32) -> Side {
+        let (i, k) = self.cell_xz(self.cell_of[a] as usize);
+        let feet = self.height[a];
+        if self.to[a][d] != NO_LINK {
+            return Side::Ground;
+        }
+        // The map area's edge is a wall; a floor of its level beside is no edge.
+        let Some(cell) = self.cell_index(i + di, k + dk) else {
+            return Side::Held;
+        };
+        if (self.start[cell]..self.start[cell + 1]).any(|b| (self.height[b as usize] - feet).abs() <= self.body.step) {
+            return Side::Ground;
+        }
+        let length = ((di * di + dk * dk) as f32).sqrt();
+        let reach = support_m + self.body.radius;
+        // A269c: only a side over a floor further down than a step is a drop the capsule is known to walk off. The cells out
+        // along the side within the reach: the first that holds a floor within a step of the feet (the ground goes on past a
+        // cell the grid eroded by a wall off the way out) makes it no drop, the first with one further down makes it one (a
+        // cliff's foot is eroded by its face: the floor below starts a cell or two out); cells with only higher floors (a rise
+        // over a step, a floor overhead) or none (ground too steep for a floor) all the way are no known drop: the body is held
+        // there as at a wall, as the default model holds it. A269's table took any cell beside with no floor of the feet's level
+        // for a drop: most of the open sides with no route cost on the 8 maps had no floor below beside (the bench's
+        // open_sides_bare), and the lip guard braked at them a key change a tick.
+        if !self.drop_along(i, k, di, dk, feet, (reach / (self.cell * length)).floor() as i32) {
+            return Side::Held;
+        }
+        let centre = Vec3::new(self.x0 + (i as f32 + 0.5) * self.cell, feet, self.z0 + (k as f32 + 0.5) * self.cell);
+        let (low, high) = (feet + self.body.step + OVER_STEP_M, feet + self.body.stand_height);
+        let out = Vec3::new(centre.x + di as f32 / length * reach, feet, centre.z + dk as f32 / length * reach);
+        if walls.nearest_ahead(centre, out, low, high, ACROSS_M).is_some() {
+            return Side::Held;
+        }
+        Side::Open
     }
 
     /// Whether the cells `1..=cells` out from (`i`, `k`) along (`di`, `dk`) come to a floor further down than a step from `feet` before
@@ -189,6 +217,27 @@ mod tests {
         let bare = WalkGrid::build(&tris, AREA, 0.25, body);
         assert_eq!(bare.open_toward(edge(&bare, 6.0), 1.0, 0.0), None);
         assert!(!bare.near_open_side(edge(&bare, 6.0)));
+    }
+
+    /// [A318] A diagonal side is open only where the square sides beside it do not hold the body: a short parapet square in front of
+    /// the edge's floor (too short for the diagonal ways out to meet it) holds the diagonals too; a straight edge's diagonals over the
+    /// drop stay open.
+    #[test]
+    fn a_diagonal_side_is_held_where_the_square_side_beside_holds() {
+        let mut tris: Vec<Triangle> = quad(0.0, 12.0, 0.0, 0.0, 10.0).to_vec();
+        // An overhang: no face erodes the ground below, so the drop is seen out every way.
+        tris.extend(quad(0.0, 6.0, 6.0, 0.0, 10.0));
+        let body = Body { erosion: Erosion::Exact, ..Body::default() };
+        let plain = WalkGrid::build(&tris, AREA, 0.25, body).with_open_sides(&tris, 0.435);
+        let top = edge(&plain, 6.0);
+        assert_eq!(plain.open_toward(top, 1.0, 1.0), Some(true), "a straight edge's diagonal over the drop");
+        tris.extend(wall(6.05, 6.0, 7.0, 5.22, 5.53));
+        let short = WalkGrid::build(&tris, AREA, 0.25, body).with_open_sides(&tris, 0.435);
+        let top = edge(&short, 6.0);
+        assert!((short.position(top).z - 5.375).abs() < 1e-3, "the floor the parapet stands square in front of");
+        assert_eq!(short.open_toward(top, 1.0, 0.0), Some(false), "square: the parapet holds it");
+        assert_eq!(short.open_toward(top, 1.0, 1.0), Some(false), "diagonal: the square side holds it first");
+        assert_eq!(short.open_toward(top, 1.0, -1.0), Some(false));
     }
 
     /// [A318] A parapet with `walk` faces (Level 7's deck) holds the capsule as any wall does with [`Body::drop_room_walk_faces`];
