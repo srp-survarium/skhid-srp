@@ -529,7 +529,10 @@ pub(crate) fn a_stand_in_jump_gets_up_a_ledge_with_no_link_within_its_height() {
 }
 
 /// Whether the stand-in moves bodies as the client does (the default): no
-/// step up over the client's 0.6 m, and a jump that follows the keys held
+/// step up over the client's ([`super::standin::client_step`]: the grid body's
+/// `step`, 0.80 m on the clients' body, `startup.cfg` `cc_step_height 0.80` in the
+/// game's `resources.db`; the exe's own default, `s_step_height` 0.6, is replaced
+/// by that cvar), and a jump that follows the keys held
 /// at its press along the game's jump clip ([`Flight`]).
 /// `SRP_BENCH_STAND_IN=old` brings back the old stand-in (any step the
 /// grid walks, a jump that lifts the body up any floor in reach,
@@ -611,8 +614,10 @@ pub(crate) fn the_grids_gap_links_fly_this_short_clip() {
 }
 
 /// Before the sprint clip, the prepare phase finishes the run's step: 0 to
-/// 0.15 s and 0 to 1.64 m, by the gait's phase at the press (PROVEN; the
-/// phase is drawn uniform, LIKELY).
+/// 0.15 s and 0 to 1.64 m, by the gait's phase at the press (EXE + clip data, PROVEN: `jump_logic_state_prepare::initialize`
+/// 0x342540 waits for the run clip's next `anim_intervals` mark, `on_interval_end` 0x342A50 starts the jump; the rate
+/// `get_prepare_time_factor` 0x3375A0 makes the wait 0-0.15 s; the sprint clips' root runs 5.455 m/s of clip time over the
+/// 0.30 s step, 0-1.636 m; sprint-jump RE `FINDINGS.md` §3.2, `re-sprint-prepare.md`. The phase is drawn uniform, LIKELY).
 pub(crate) const SPRINT_PREPARE_MS: f32 = 150.0;
 
 pub(crate) const SPRINT_PREPARE_M: f32 = 1.64;
@@ -623,8 +628,9 @@ pub(crate) const SPRINT_PREPARE_M: f32 = 1.64;
 /// leaves the floor), PROVEN (FINDINGS §1.2, §3.2).
 pub(crate) const WALK_CAP: f32 = 3.5;
 
-/// A body falling after its clip, m/s².
-pub(crate) const GRAVITY: f32 = 9.81;
+/// A body falling after its clip, m/s²: the client's `fall_params.gravity` (PROVEN, `docs/notes/fall_damage.md`: `step_down` 0x7E1B0
+/// adds 0.49 m/s a 0.05 s tick), the reckoning's own (`body.rs` `GRAVITY`). Was 9.81 with no source.
+pub(crate) const GRAVITY: f32 = 9.8;
 
 /// The heights over the feet at which a face holds a body in the air
 /// (rays on the walker mesh), m: its feet (a little over, so a floor's
@@ -777,7 +783,8 @@ pub(crate) struct Landing {
 }
 
 /// The client's fall damage at a landing speed `v` m/s with `fatal_damage` 1.0 (the resources.db patch): none up to `harmless_height` 5 m
-/// (9.9 m/s), `(v - 9.9) / (14 - 9.9)` up to `fatal_height` 10 m (14 m/s), 1.0 beyond (PROVEN, `docs/notes/fall_damage.md`).
+/// (9.9 m/s), `(v - 9.9) / (14 - 9.9)` up to `fatal_height` 10 m (14 m/s), 1.0 beyond (EXE + DATA, PROVEN, `docs/notes/fall_damage.md`:
+/// the law 0x2d8220, its loader 0x2d6600 reading `gameplay/players/default.player` `fall_params`).
 pub(crate) fn fall_damage(v: f32) -> f32 {
     ((v - HARMLESS_V) / (FATAL_V - HARMLESS_V)).clamp(0.0, 1.0)
 }
@@ -891,6 +898,9 @@ pub(crate) fn fly(
                     }
                 }
             }
+            // The walk before the take-off keeps its own (older) slide: moving it onto the stand-in's walk raised jumps failed 62 -> 87 on
+            // the bench (2026-11-06, 16 pairs); that change is judged in T3 against the recordings (where the client took off and landed),
+            // not by bench counts.
             let (n, feet, _) = if wall.as_ref().is_some_and(|w| w.hold) && stand_in_edge() {
                 super::body::slide_supported(grid, node, body.feet, target, super::standin::client_step(grid), super::body::SUPPORT_M)
             } else {
@@ -1135,7 +1145,7 @@ pub(crate) fn the_fall_damage_follows_the_clients_rule_by_landing_speed() {
     assert_eq!(fall_damage(30.0), 1.0);
 }
 
-/// The honest walk steps up to the client's 0.6 m, and not up the grid's
+/// The honest walk steps up to the grid body's step (0.6 m on this test's default body, the exe's `s_step_height`), and not up the grid's
 /// "forced" stair links of up to 0.75 m (`walk` faces) that the old
 /// walk took.
 #[test]
