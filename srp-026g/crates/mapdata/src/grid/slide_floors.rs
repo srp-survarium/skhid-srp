@@ -17,7 +17,7 @@
 //! - a slide on ground between the idle and the walk limits (45-55 deg) is a floor a body holds while it walks on: counted only
 //!   ([`SlideStats::standing_only`]), a mark for where bots stop is a later step.
 
-use super::controlled::out_of_walls;
+use super::controlled::{out_of_walls, parallel};
 use super::*;
 use crate::controller::tick::{Controller, Settings};
 use crate::controller::{Capsule, Collision};
