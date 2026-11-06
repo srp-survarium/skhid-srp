@@ -301,7 +301,7 @@ package survarium.controls
 
       private var _searchTipArea:ReasonsTip;
 
-      private static const SEARCH_TIP:Array = ["st_srp_inventory_search_tip_first","st_srp_inventory_search_tip_bonus","st_srp_inventory_search_tip_level","st_srp_inventory_search_tip_faction","st_srp_inventory_search_tip_name","st_srp_inventory_search_tip_kind"];
+      private static const SEARCH_TIP:Array = ["st_srp_inventory_search_tip_first","st_srp_inventory_search_tip_bonus","st_srp_inventory_search_tip_level","st_srp_inventory_search_tip_faction","st_srp_inventory_search_tip_kind"];
 
       // the text typed, read once (searchQuery); null: no search
       private var _search:SearchQuery;

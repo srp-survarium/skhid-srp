@@ -436,7 +436,7 @@ package
          var rows:Array = tip().tipData.rows as Array;
          var key:String = "st_srp_inventory_search_tip_";
          var want:Array = [];
-         for each(var k:String in ["first","bonus","bonus_list","level","faction","name","kind","kind_list"])
+         for each(var k:String in ["first","bonus","bonus_list","level","faction","kind","kind_list"])
          {
             want.push(k.indexOf("_list") != -1 ? ui[key + k] + " / (list)" : ui[key + k + "_example"] + " / " + ui[key + k]);
          }
@@ -445,14 +445,14 @@ package
             return r[0] + " / " + (r[2] === true ? "(list)" : r[1]);
          });
          require(got.join("|") == want.join("|"),"the tip's rows: " + got.join(" | ") + ", not " + want.join(" | "));
-         if(rows == null || rows.length != 8)
+         if(rows == null || rows.length != 7)
          {
             return;
          }
          var bonuses:Array = String(rows[2][1]).split(" ");
-         var kinds:Array = String(rows[7][1]).split(" ");
+         var kinds:Array = String(rows[6][1]).split(" ");
          trace("ITEMSEARCH tip bonus words (" + bonuses.length + "): " + rows[2][1]);
-         trace("ITEMSEARCH tip kind words (" + kinds.length + "): " + rows[7][1]);
+         trace("ITEMSEARCH tip kind words (" + kinds.length + "): " + rows[6][1]);
          // the bonuses the shop's and the inventory's items have (the same item in both counts
          // twice), the most items first, ties in SEARCH_BONUSES' order: ammo and pocket 4 (the
          // rigs), slot and artifact 2 (the hood's and the vest's built-in), aim, recoil and armor 1
@@ -460,7 +460,7 @@ package
          // item has weight, xp or use: not listed, still matched
          require(rows[2][1] == "+ammo +pocket +slot +artifact +aim +recoil +armor","the tip lists the items' bonuses, the most items first: " + rows[2][1]);
          // the kinds some item is, in SEARCH_KINDS' order (no mask, gloves, pants or items)
-         require(rows[7][1] == "+gear +helmet +body +rig +boots","the tip lists the items' kinds: " + rows[7][1]);
+         require(rows[6][1] == "+gear +helmet +body +rig +boots","the tip lists the items' kinds: " + rows[6][1]);
          expect("+weight",[],false,"a bonus no item has");
          expect("+mask",[],false,"a kind no item is");
          // every listed kind word names its kind: the inventory's of that kind

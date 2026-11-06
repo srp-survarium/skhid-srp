@@ -54,7 +54,7 @@ Code, in `flash/lobby_menu/src` ([lobby-source.md](lobby-source.md)):
     Calibri has no italic and the game takes "Calibri Bold Italic" from the system's fonts, so
     under Wine without Calibri the hints (the friends search's too) showed as squares.
 - **The tip** (owner 2026-11-06): while the box is empty, hovering it or its magnifier shows the
-  game's tooltip (the one of the shop's "Hide owned", `ReasonsTip`) of all the search takes, a row
+  game's tooltip (the one of the shop's "Hide owned", `ReasonsTip`) of the "+" filters, a row
   each:
 
   | example | meaning |
@@ -64,7 +64,6 @@ Code, in `flash/lobby_menu/src` ([lobby-source.md](lobby-source.md)):
   | every bonus | the items' bonus words, the most items first: `+ammo +pocket +slot +artifact …` |
   | `+10 +11` | of any of these levels |
   | `+army` | sold by that faction (several: any) |
-  | `ak 74` | in the name, typos forgiven |
   | `+helmet +boots` | any of these kinds |
   | every kind | the items' kind words: `+gear +helmet +body +rig +boots …` |
 
@@ -85,6 +84,9 @@ Code, in `flash/lobby_menu/src` ([lobby-source.md](lobby-source.md)):
   - **Where:** just above the box (it is under the item grid), its left edge on the box's left
     edge, never over the item panel's buttons (Buy, Hide owned); it does not follow the pointer.
     On the screen at every resolution (the lobby scales its tips with it).
+  - **Only the "+" filters** (owner 2026-11-06: "since this only shows bonuses"): the combined
+    example and the bonus, level, faction and kind rows; no row for names (a plain word still
+    searches them, typos forgiven).
   - Once something is typed there is no tip; a click on the empty box is a click on the box.
   - Each cell a dictionary key (`st_srp_inventory_search_tip_<row>_example`,
     `st_srp_inventory_search_tip_<row>`, the lists' `st_srp_inventory_search_tip_bonus_list` and
