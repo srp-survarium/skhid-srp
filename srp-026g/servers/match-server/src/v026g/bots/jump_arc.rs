@@ -186,6 +186,14 @@ impl Clip {
         (0..table.len()).max_by(|&a, &b| table[a][0].total_cmp(&table[b][0])).unwrap_or(0) as f32
     }
 
+    /// The speed the body falls at when the clip ends in the air, m/s (down positive): `end_jump` 0x7F050 keeps only a downward
+    /// vertical speed (velocity := up * min(velocity . up, 0)), and in the jump the air branch 0x7BF2C sets it to the root's vertical
+    /// speed (up * walk.y / dt), so the fall starts at the root's descent over the clip's last tick (fx-gear-2's read).
+    fn end_descent(self) -> f32 {
+        let df = TICK_S * FPS * self.time_scale();
+        ((self.root(END_FRAME - df)[0] - self.root(END_FRAME)[0]) / TICK_S).max(0.0)
+    }
+
     /// The air control in the body's frame, m/s: the keys' direction at 1 m/s, none for forward alone in a sprint jump.
     fn air_control(self, keys: u32) -> Local {
         let direction = Direction::of(keys);
@@ -368,7 +376,7 @@ impl JumpArc {
             return ArcStep::Landed(on, node);
         }
         if over {
-            self.phase = Phase::Fall { speed: 0.0 };
+            self.phase = Phase::Fall { speed: self.clip.end_descent() };
         }
         ArcStep::Air(at)
     }
@@ -940,6 +948,14 @@ mod tests {
         assert!((travel[1] - (4.42 + PREPARE_M)).abs() < 0.02, "{travel:?}");
         assert_eq!((short.apex_frame(), sprint.apex_frame()), (16.0, 14.0));
         assert!(Clip::Short(Direction::Right).root(24.0)[2] > 1.9, "right is +x");
+    }
+
+    /// A clip that ends in the air hands the fall its root's last descent speed (the short forward jump comes down at about 2 m/s
+    /// over its last tick), not a fall from rest.
+    #[test]
+    fn a_clip_ends_falling_at_its_roots_last_descent() {
+        let v = Clip::Short(Direction::Forward).end_descent();
+        assert!(v > 0.5 && v < 5.0, "{v}");
     }
 
     /// The air control: the keys at 1 m/s, none for forward alone in a sprint jump.
