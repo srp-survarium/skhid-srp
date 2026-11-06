@@ -1488,6 +1488,10 @@ echo "item 14" >"$T/p14/gameplay/items/e.txt"
 mkdir -p "$T/r16" && cp "$T/r14/resources.db.patch_14" "$T/r16/resources.db.patch_16"
 expect_refused "release: a patch of another revision" "must be called resources.db.patch_14" \
     "$here/release.sh" --resources "$T/r16/resources.db.patch_16"
+mkdir -p "$T/r14q" && cp "$T/r14/resources.db.patch_14" "$T/r14q/" && echo "a quick build" >"$T/r14q/QUICK-BUILD"
+expect_refused "release: a quick build's patch (build-content --quick, QUICK-BUILD beside it)" \
+    "is a quick build (build-content --quick: QUICK-BUILD beside it)" "$here/release.sh" --resources "$T/r14q/resources.db.patch_14"
+expect_refused "upload-patch: a quick build's patch too" "is a quick build" "$here/upload-patch" "$T/r14q/resources.db.patch_14"
 # A stop before the go (the ZIP's build fails) after the patch was
 # published: its row goes from the list (no server offered it), and the
 # file this run uploaded goes too (the revision can be made again); a file
@@ -2482,11 +2486,17 @@ echo "$1: built"
 EOF
 cat >"$T/vostok-port" <<'EOF'
 #!/usr/bin/env bash
-printf '%s\n' "$*" >"$TEST_DIR/vostok-port.args"
-out='' packs=()
-while (($#)); do case $1 in --out-dir) out=$2; shift 2 ;; --pack) packs+=("$2"); shift 2 ;; *) shift ;; esac; done
+printf '%s\n' "$*" >"$TEST_DIR/vostok-args"
+out='' packs=() replaced=()
+while (($#)); do case $1 in --out-dir) out=$2; shift 2 ;; --pack) packs+=("$2"); shift 2 ;; --replace) replaced+=("$2"); shift 2 ;; *) shift ;; esac; done
 mkdir -p "$out"
+# As vostok-port: each --replace file in the output as given, unless a pack edits it (its edits:
+# a path a line, the stand-in's own, appended to).
+for r in "${replaced[@]}"; do mkdir -p "$(dirname "$out/${r%%=*}")" && cp "${r#*=}" "$out/${r%%=*}"; done
 for p in "${packs[@]}"; do cp -r "$p/files/." "$out/"; done
+for p in "${packs[@]}"; do
+    [[ ! -f $p/edits ]] || while read -r path; do echo "edited by ${p##*/}" >>"$out/$path"; done <"$p/edits"
+done
 echo "pack patch: done"
 EOF
 chmod +x "$T/build-movie" "$T/vostok-port"
@@ -2540,6 +2550,17 @@ rm -rf "$T/cache/skhid-release/build-content"
 out=$("$bc" 41 --out "$T/work/c41d" 2>&1) || fail "build-content, the cache deleted: $out"
 check "build-content: the cache deleted: every step runs, the same patch" bash -c \
     "! grep -q '$from_cache' <<<\"\$1\" && cmp -s $T/work/content-rev41/resources.db.patch_41 $T/work/c41d/resources.db.patch_41" _ "$out"
+# --quick: the same files, without the check of players' files with the patch and the item tables;
+# its folder says so (release.sh refuses it: above).
+tables_runs=$(grep -c . "$T/item-tables.args")
+out=$("$bc" 41 --out "$T/work/c41q" --quick 2>&1) || fail "build-content --quick: $out"
+for file in resources.db.patch_41 server-game-data.db files.tsv; do
+    check "build-content --quick: the same $file as a full build" cmp -s "$T/work/content-rev41/$file" "$T/work/c41q/$file"
+done
+check "build-content --quick: ... players' files with it not checked, no item tables, said" bash -c \
+    "grep -q 'over players. files: not checked (--quick)' <<<\"\$1\" && grep -q 'the item tables: not made (--quick)' <<<\"\$1\" && ! grep -q 'files the manifest makes are as it makes them' <<<\"\$1\" && test ! -e $T/work/c41q/item-tables && test \"\$(grep -c . $T/item-tables.args)\" = $tables_runs" _ "$out"
+check "build-content --quick: ... marked QUICK-BUILD, no release.sh next" bash -c \
+    "test -s $T/work/c41q/QUICK-BUILD && ! grep -q 'next: release/release.sh' <<<\"\$1\" && grep -q 'release.sh refuses it' <<<\"\$1\"" _ "$out"
 expect_refused "build-content never overwrites" "already there" "$bc" 41 --out "$T/work/content-rev41"
 out=$("$bc" 41 --out "$T/work/c41site" --site 2>&1) || fail "build-content --site: $out"
 check "build-content --site: the site's pages in its tree, of the list and the new patch" bash -c \
@@ -2589,11 +2610,41 @@ expect_refused "build-content: a pack needs vostok-port" "SKHID_VOSTOK_PORT must
 out=$(SKHID_VOSTOK_PORT=$T/vostok-port SKHID_PACKS_DIR=$T/packs "$bc" 42 --out "$T/work/c42d" 2>&1) || fail "build-content with a pack: $out"
 check "build-content: a pack's new file, and why" has "$out" "NEW       gameplay/items/hat.txt: pack hat@1; not in players' files"
 check "build-content: ... over the base patches, the built movie in place of the base's" \
-    bash -c "grep -q -- '--base-patch $T/cache/skhid-release/patches/resources.db.patch_40' $T/vostok-port.args && grep -q -- '--replace flash_movies/m.swf=' $T/vostok-port.args"
+    bash -c "grep -q -- '--base-patch $T/cache/skhid-release/patches/resources.db.patch_40' $T/vostok-args && grep -q -- '--replace flash_movies/m.swf=' $T/vostok-args"
 printf '{"id": "hat", "version": "2"}\n' >"$T/packs/hat-1/pack.json"
 expect_refused "build-content: a pack whose pack.json is not the row's" "not $hat_sha" \
     env SKHID_VOSTOK_PORT="$T/vostok-port" SKHID_PACKS_DIR="$T/packs" "$bc" 42 --out "$T/work/c42e"
 printf '{"id": "hat", "version": "1"}\n' >"$T/packs/hat-1/pack.json"
+# The packs' cache: a movie no operation of theirs names is not in its key (vostok-port gives it
+# back as it was); one an operation edits is. (The pack.json just written again is new to the cache.)
+out=$(SKHID_VOSTOK_PORT=$T/vostok-port SKHID_PACKS_DIR=$T/packs "$bc" 42 --out "$T/work/c42m0" 2>&1) || fail "build-content with a pack: $out"
+echo 2 >"$C/srp-026g/flash/m/src/version"
+out=$(SKHID_VOSTOK_PORT=$T/vostok-port SKHID_PACKS_DIR=$T/packs "$bc" 42 --out "$T/work/c42m" 2>&1) || fail "build-content, a movie changed: $out"
+check "build-content: a movie no pack names changed: the packs from the cache, the new movie" bash -c \
+    "grep -q 'composed them: the cache' <<<\"\$1\" && grep -q 'CHANGED   flash_movies/m.swf: movie m (srp-026g/flash/m); live' <<<\"\$1\"" _ "$out"
+out=$(SKHID_VOSTOK_PORT=$T/vostok-port SKHID_PACKS_DIR=$T/packs "$bc" 42 --out "$T/work/c42mn" --no-cache 2>&1) || fail "build-content --no-cache, a movie changed: $out"
+check "build-content: ... the same patch as without the cache" \
+    cmp -s "$T/work/c42m/resources.db.patch_42" "$T/work/c42mn/resources.db.patch_42"
+mkdir -p "$T/packs/icons-1/files"
+printf '{"id": "icons", "version": "1", "operations": [{"op": "atlas_icons_add", "swf": "flash_movies/m.swf", "symbol": "S", "icons": []}]}\n' \
+    >"$T/packs/icons-1/pack.json"
+echo flash_movies/m.swf >"$T/packs/icons-1/edits"
+icons_row="pack|icons@1|$(sha256sum <"$T/packs/icons-1/pack.json" | cut -c1-64)"
+manifest "base|resources.db.patch_40|$sha40" "movie|m|-" "pack|hat@1|$hat_sha" "$icons_row" "edit|e1.json|-"
+out=$(SKHID_VOSTOK_PORT=$T/vostok-port SKHID_PACKS_DIR=$T/packs "$bc" 42 --out "$T/work/c42i1" 2>&1) || fail "build-content, a pack editing the movie: $out"
+check "build-content: a pack that edits a movie: over the built one, and why" bash -c \
+    "grep -q 'flash_movies/m.swf: movie m (srp-026g/flash/m), then pack hat@1, icons@1' <<<\"\$1\"" _ "$out"
+echo 1 >"$C/srp-026g/flash/m/src/version"
+out=$(SKHID_VOSTOK_PORT=$T/vostok-port SKHID_PACKS_DIR=$T/packs "$bc" 42 --out "$T/work/c42i2" 2>&1) || fail "build-content, the edited movie changed: $out"
+check "build-content: ... that movie changed: the packs composed again" bash -c "! grep -q 'composed them: the cache' <<<\"\$1\"" _ "$out"
+printf '{"id": "icons", "version": "1", "operations": [{"op": "add_file", "path": "gameplay/items/icon.txt"}]}\n' >"$T/packs/icons-1/pack.json"
+manifest "base|resources.db.patch_40|$sha40" "movie|m|-" "pack|hat@1|$hat_sha" \
+    "pack|icons@1|$(sha256sum <"$T/packs/icons-1/pack.json" | cut -c1-64)" "edit|e1.json|-"
+expect_refused "build-content: a movie vostok-port changed that no operation names" \
+    "vostok-port changed flash_movies/m.swf, which no operation of the packs names" \
+    env SKHID_VOSTOK_PORT="$T/vostok-port" SKHID_PACKS_DIR="$T/packs" "$bc" 42 --out "$T/work/c42i3"
+rm -r "$T/packs/icons-1"
+manifest "base|resources.db.patch_40|$sha40" "movie|m|-" "pack|hat@1|$hat_sha" "edit|e1.json|-"
 
 # A pack that rewrites a base config's vector as an indexed table: the value-
 # type check refuses it, naming the file, the path and both types.

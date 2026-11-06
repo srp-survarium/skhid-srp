@@ -1114,6 +1114,8 @@ if [[ -n $resources ]]; then
         problem "--resources: $name must be called resources.db.patch_$rev (this release's revision; the game mounts patch_<n> of revision n)"
     elif [[ ! -f $resources ]]; then
         problem "--resources: $resources: no such file"
+    elif [[ -e $(dirname -- "$resources")/$QUICK_MARK ]]; then
+        problem "--resources: $resources is a quick build (build-content --quick: $QUICK_MARK beside it), for local tests: players' files with it were never checked; build it again without --quick"
     elif [[ $(head -c 13 "$resources") != little-endian ]]; then
         problem "--resources: $resources is not an archive of the game (no \"little-endian\" header)"
     elif [[ -n $bin && -f $SKHID_STOCK_DB ]]; then

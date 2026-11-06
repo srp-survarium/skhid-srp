@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # usage: release/build-content <revision> [--out <folder>] [--tree <checkout>] [--site] [--manifest <file>]
-#                              [--no-cache]
+#                              [--no-cache] [--quick]
 #
 # The next content patch, from the manifest of everything that should be
 # live in players' resources.db (release/content.tsv: the base patches, the
@@ -52,6 +52,11 @@
 #                       bytes as in an earlier build takes what it made then
 #                       from ~/.cache/skhid-release/build-content/ (the same
 #                       files: release/test.sh checks it; delete it any time)
+#   --quick             for a local test only: the same patch and server game
+#                       data, without the check of players' files with the
+#                       patch (step 4's last) and without the item tables
+#                       (step 5); --out holds QUICK-BUILD, and release.sh
+#                       refuses a --resources beside it
 #
 # Settings (release.env): SKHID_STOCK_DB, SKHID_PATCHES_URL (the list's
 # server); SKHID_FLASH_TOOLS, the tools.json naming java and Flex 4.16.1
@@ -72,7 +77,7 @@ took() {
 }
 BUILD_SITE=${SKHID_TEST_BUILD_SITE:-$here/build-site}
 
-revision='' out='' tree=$ROOT site=0 manifest='' cached=1
+revision='' out='' tree=$ROOT site=0 manifest='' cached=1 quick=0
 while (($#)); do
     case $1 in
     -h | --help) usage ;;
@@ -81,6 +86,7 @@ while (($#)); do
     --site) site=1; shift ;;
     --manifest) (($# >= 2)) || usage 1; manifest=$2; shift 2 ;;
     --no-cache) cached=0; shift ;;
+    --quick) quick=1; shift ;;
     -*) die "unknown option $1 (--help)" ;;
     *) [[ -z $revision ]] || usage 1; revision=$1; shift ;;
     esac
@@ -112,6 +118,9 @@ common=$(dirname "$(git -C "$ROOT" rev-parse --path-format=absolute --git-common
 tools=${SKHID_FLASH_TOOLS:-$common/private/actionscript/tools.json}
 mkdir -p "$out"
 out=$(cd "$out" && pwd)
+# A quick build's folder says so before anything is in it (release.sh refuses a patch beside it).
+((!quick)) || printf '%s\n' "release/build-content --quick: players' files with the patch not checked, no item tables;" \
+    "for a local test only (release.sh refuses it); a release builds without --quick" >"$out/$QUICK_MARK"
 work=$(mktemp -d)
 trap 'rm -rf "$work"' EXIT
 
@@ -122,10 +131,12 @@ args+=(--stock-sha256 "$STOCK_SHA")
 # reads the same), one named by SRP_GAME_DATA_BIN by its bytes.
 [[ -n ${SRP_GAME_DATA_BIN:-} ]] || args+=(--bin-source "$ROOT/srp-026g")
 ((!cached)) || args+=(--cache "${XDG_CACHE_HOME:-$HOME/.cache}/skhid-release/build-content")
+((!quick)) || args+=(--quick)
 [[ -z ${SKHID_VOSTOK_PORT:-} ]] || args+=(--vostok-port "$SKHID_VOSTOK_PORT")
 [[ -z ${SKHID_PACKS_DIR:-} ]] || args+=(--packs "$SKHID_PACKS_DIR")
 say "building $(basename "$manifest") of $tree ($(git -C "$tree" rev-parse --short HEAD 2>/dev/null || echo 'no git'))"
 if ! python -I "$here/build_content.py" "${args[@]}"; then
+    rm -f "$out/$QUICK_MARK"
     rmdir "$out" 2>/dev/null || true
     die "no patch made"
 fi
@@ -173,17 +184,27 @@ took "the server game data"
 info=$("$bin" info "$out/$DATA_NAME")
 [[ $(offered_in "$info") == "$(offered_of_list "$name $(sha256_of "$out/$name") $(size_of "$out/$name") $url")" ]] ||
     die "$out/$DATA_NAME does not offer exactly the list's patches and $name"
-# Players' files with the new patch over them: every file made, as made.
-compared=$("$bin" compare "${layers[@]}" --patch "$out/$name" --dir "$work/build/world")
-others=$(grep -v '^same ' <<<"$compared" || true)
-[[ -z $others ]] || die "players' files with $name are not the manifest's: $others"
-say "with $name over players' files, all $(grep -c . <<<"$compared") files the manifest makes are as it makes them"
-took "players' files with the patch"
+# Players' files with the new patch over them: every file made, as made (not with --quick).
+if ((quick)); then
+    say "with $name over players' files: not checked (--quick)"
+else
+    compared=$("$bin" compare "${layers[@]}" --patch "$out/$name" --dir "$work/build/world")
+    others=$(grep -v '^same ' <<<"$compared" || true)
+    [[ -z $others ]] || die "players' files with $name are not the manifest's: $others"
+    say "with $name over players' files, all $(grep -c . <<<"$compared") files the manifest makes are as it makes them"
+    took "players' files with the patch"
+fi
 say "$out/$name: $(size_of "$out/$name") bytes, sha256 $(sha256_of "$out/$name")"
 say "$out/$DATA_NAME: sha256 $(sha256_of "$out/$DATA_NAME") (offers the list's patches and $name at $url)"
 say
 rerun="the patch and the server data in $out are made; to run it all again: rm -rf $(q "$out")"
 site_pages "$out/$name"
+if ((quick)); then
+    say "the item tables: not made (--quick)"
+    if ((site)); then say "a preview of it all: SRP_GAME_DATA=$out/$DATA_NAME in $tree (scripts/wiki/README.md)"; fi
+    say "a quick build, for a local test: $out/$name with SRP_GAME_DATA=$out/$DATA_NAME; release.sh refuses it ($QUICK_MARK): a release builds without --quick"
+    exit 0
+fi
 # The item tables of the new server data, in --out: the tree's as they are,
 # rewritten where an item changed (the release's record commits them).
 mkdir -p "$out/item-tables"

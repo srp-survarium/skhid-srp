@@ -6,9 +6,10 @@ players have: release/build-content's work (run it, not this; --help there).
         --bin <srp-game-data> --tree <checkout> --manifest <content.tsv> --work <new folder>
         --stock-sha256 <its sha256> [--bin-source <the srp-026g it was built from>]
         [--tools <tools.json>] [--vostok-port <program>] [--packs <folder>] [--cache <folder>]
+        [--quick]
 
 With --cache, a step whose inputs are those of an earlier build (a movie, the packs, an edit list,
-the checks of a file or a stats table) takes what it made or found then from there (Cache).
+the checks of a file, a map's lamps or a stats table) takes what it made or found then from there (Cache).
 
 The manifest's rows, in this order of kinds (each kind's rows in their order):
   base   resources.db.patch_<n>  <its sha256>  a published patch made outside these sources, taken
@@ -25,7 +26,8 @@ The manifest's rows, in this order of kinds (each kind's rows in their order):
          (a <table>.tsv too: content_edit.py STATS)
 Every Flash tree of srp-026g/flash needs a movie row and every edit list of content-edit a row.
 
-Writes into --work: world/ (every file a movie, pack or edit made, at its path), patch/ (those of
+Writes into --work: world/ (every file a movie, pack or edit made, at its path, for build-content's
+check of players' files with the patch; not with --quick, which skips that check), patch/ (those of
 them players do not have so: what the next patch carries; absent when there is none) and
 files.tsv (`<status> <path> <why> <live in>`, a line a file). Prints each file and why, and the
 checks; exits 1 on any problem (nothing in patch/ then). A live file of no base row that no row
@@ -58,6 +60,14 @@ LOBBY = 'lobby_menu'
 TYPE_ALLOWLIST = {}
 
 SIMULATION_CHANGES = 'srp-026g/crates/session/src/v026g/simulation_changes.tsv'
+
+# The operations of a pack.json that vostok-port knows (resource-porter src/content_pack): a movie
+# (a file the movie rows made, given to it as --replace) is read only by an operation that edits
+# it, by its path (config_*: `path`; atlas_icons_add: `swf`, without one ATLAS_SWF); the others
+# give it back as it was. An operation not named here may read any of them.
+PACK_OPERATIONS = {'add_file', 'replace_file', 'localization_add', 'config_append', 'config_set',
+                   'atlas_icons_add', 'dictionary_add'}
+ATLAS_SWF = 'flash_movies/lobby_menu.swf'   # vostok-port's atlas::DEFAULT_SWF
 
 
 class Problem(Exception):
@@ -342,6 +352,31 @@ def build_movies(rows, tree, archive_of, sha_of, game, tools, work, world, cache
         print(f'  movie {name}: {spec["movie"]}, {len(data)} bytes, sha256 {sha256(data)[:16]}…')
 
 
+def movies_packs_edit(specs, movies):
+    """The movies (of `movies`, their paths) the packs' operations may read: every one an
+    operation names anywhere in it, ATLAS_SWF for an atlas operation that names none, and all of
+    them when an operation is not one of PACK_OPERATIONS."""
+    def strings(value):
+        if isinstance(value, str):
+            yield value
+        elif isinstance(value, dict):
+            for item in value.values():
+                yield from strings(item)
+        elif isinstance(value, list):
+            for item in value:
+                yield from strings(item)
+    edited = set()
+    for spec in specs:
+        for operation in spec.get('operations', []):
+            kind = operation.get('op') if isinstance(operation, dict) else None
+            if kind not in PACK_OPERATIONS:
+                return set(movies)
+            if kind == 'atlas_icons_add' and 'swf' not in operation:
+                edited.add(ATLAS_SWF)
+            edited.update(strings(operation))
+    return edited & set(movies)
+
+
 def compose_packs(rows, base, base_id, vostok, packs_dir, work, world, cache):
     applied = [(name, source, at) for kind, name, source, _, at in rows if kind == 'pack' and SHA.match(source)]
     if not applied:
@@ -354,7 +389,7 @@ def compose_packs(rows, base, base_id, vostok, packs_dir, work, world, cache):
     command = [vostok, 'pack', 'patch', '--base-db', base[0]]
     for patch in base[1:]:
         command += ['--base-patch', patch]
-    folders = []
+    folders, specs = [], []
     for name, source, at in applied:
         ident, version = name.split('@')
         folder = Path(packs_dir) / f'{ident}-{version}'
@@ -368,14 +403,17 @@ def compose_packs(rows, base, base_id, vostok, packs_dir, work, world, cache):
             raise Problem(f'{at}: pack {name}: {manifest} says {spec.get("id")}@{spec.get("version")}')
         command += ['--pack', folder]
         folders.append(folder)
+        specs.append(spec)
     # What vostok-port reads: the base, each pack's folder (its files by size and time: a folder is
-    # one version, made once), the movies it composes over, and itself (the program and the files
-    # beside it named after it: a wrapper and its binary).
+    # one version, made once), the movies' paths and the bytes of those the packs edit (another
+    # movie's bytes it gives back as they are: a change of the hud's leaves the packs as they were),
+    # and itself (the program and the files beside it named after it: a wrapper and its binary).
+    edited = movies_packs_edit(specs, world.bytes)
     program = Path(vostok).resolve()
     key = Cache.key('packs', base_id, files_digest(sorted(program.parent.glob(program.name + '*'))),
                     [(folder.name, [(p.relative_to(folder).as_posix(), p.stat().st_size, p.stat().st_mtime_ns)
                                     for p in sorted(folder.rglob('*')) if p.is_file()]) for folder in folders],
-                    sorted((path, world.sha256(path)) for path in world.bytes))
+                    sorted(world.bytes), sorted((path, world.sha256(path)) for path in edited))
     made = cache.get(key)
     if made:
         print('    as an earlier build of the same packs over the same movies composed them: the cache')
@@ -394,6 +432,11 @@ def compose_packs(rows, base, base_id, vostok, packs_dir, work, world, cache):
         print(f'    {line}')
     composed = {file.relative_to(out).as_posix(): file.read_bytes()
                 for file in sorted(p for p in out.rglob('*') if p.is_file())}
+    # A movie no operation edits is given back as it was (the key leaves its bytes out): not kept.
+    for path in sorted(set(world.bytes) - edited):
+        if path in composed and composed.pop(path) != world.bytes[path]:
+            raise Problem(f'vostok-port changed {path}, which no operation of the packs names: '
+                          'build_content.py (movies_packs_edit) does not know what reads it')
     cache.put(key, composed, said)
     for path, data in composed.items():
         world.put(path, data, reason)
@@ -681,17 +724,25 @@ def stats_checks(rows, base, base_id, base_files, live, live_id, game, world, tr
           'its `next` row')
 
 
-def lamp_check(world):
+def lamp_check(world, cache):
     """Every made client_project's breakable-lamp bindings name its own
     objects (scripts/breakable-lamps/make_edits.py check_built): a wrong
-    index or a moved light, after any later edit, is a Problem."""
+    index or a moved light, after any later edit, is a Problem. A project's
+    problems are cached by its path and bytes and the check's sources."""
     import importlib.util
     path = Path(__file__).resolve().parent.parent / 'srp-026g' / 'scripts' / 'breakable-lamps' / 'make_edits.py'
     spec = importlib.util.spec_from_file_location('lamp_edits', str(path))
     lamps = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(lamps)
     projects = sorted(p for p in world.bytes if p.endswith('/client_project'))
-    problems = [problem for p in projects for problem in lamps.check_built(p, bytearray(world.bytes[p]))]
+    key = Cache.key('the lamps of made projects', files_digest([path, Path(lamps.EDIT)]), sys.version)
+    earlier = (cache.get(key) or ({}, {}))[1]
+    key_of = {p: f'{world.sha256(p)} {p}' for p in projects}
+    found = {key_of[p]: lamps.check_built(p, bytearray(world.bytes[p])) for p in projects if key_of[p] not in earlier}
+    each = {key_of[p]: found.get(key_of[p], earlier.get(key_of[p])) for p in projects}
+    if found:
+        cache.put(key, {}, each)
+    problems = [problem for p in projects for problem in each[key_of[p]]]
     if problems:
         print()
         for problem in problems:
@@ -789,6 +840,7 @@ def main():
     parser.add_argument('--stock-sha256', required=True)
     parser.add_argument('--bin-source', type=Path)
     parser.add_argument('--cache', type=Path)
+    parser.add_argument('--quick', action='store_true')
     args = parser.parse_args()
     work = args.work
     work.mkdir(parents=True)
@@ -833,18 +885,18 @@ def main():
         with timed('the value types'):
             type_check(rows, args.tree, base, base_id, base_files, game, world, cache)
         with timed('the lamps'):
-            lamp_check(world)
+            lamp_check(world, cache)
         with timed('the pierce lines'):
             pierce_check(rows, args.tree, base, base_files, game, world)
         with timed('the clothing fit'):
             clothing_check(base, base_files, game, world)
 
         # What the sources make, against what players have (build-content compares world/ again,
-        # with the patch). A file's status is cached by its path and bytes, for the same live files.
+        # with the patch, but not with --quick). A file's status is cached by its path and bytes,
+        # for the same live files.
         with timed('the made files, written'):
-            folder = work / 'world'
-            for path, data in world.bytes.items():
-                target = folder / path
+            for path, data in ({} if args.quick else world.bytes).items():
+                target = work / 'world' / path
                 target.parent.mkdir(parents=True, exist_ok=True)
                 target.write_bytes(data)
         with timed('the comparison with players\' files'):
