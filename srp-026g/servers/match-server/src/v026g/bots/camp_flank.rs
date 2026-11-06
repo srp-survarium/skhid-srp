@@ -7,7 +7,7 @@
 //! writer makes it offline from the spots, the worlds' sight trees and the walk grids.
 //!
 //! A route is kept as feet points 0.5-1 m apart, not as grid floors, so the file outlives a grid rebuild: each point is
-//! put on the grid when the map is ready ([`SpotRow::on_grid`]), and a route whose point finds no floor, or whose two
+//! put on the floor of its cell when the map is ready ([`SpotRow::on_grid`]), and a route whose point finds no floor, or whose two
 //! points in a row are not one walk apart (a straight walk, or one link: a drop or a jump the builder kept), is refused
 //! and the bots keep their own flank search.
 //!
@@ -148,7 +148,7 @@ impl FlankRoute {
 /// Why a route was not put on the grid (it is left out; the bots keep their own flank search for that spot).
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub enum Refused {
-    /// The point at this index has no floor within half a cell (and [`SNAP_ABOVE_M`] over, [`SNAP_BELOW_M`] under).
+    /// The point at this index has no floor within half a cell's diagonal (and [`SNAP_ABOVE_M`] over, [`SNAP_BELOW_M`] under).
     NoFloor(usize),
     /// The points at this index and the next are not one walk apart.
     NoLink(usize),
@@ -265,7 +265,8 @@ impl SpotRow {
 
 impl RouteRow {
     fn on_grid(&self, grid: &WalkGrid) -> Result<FlankRoute, Refused> {
-        let reach = grid.cell_size() * 0.5 + 0.01;
+        // Half a cell's diagonal: a floor is at its cell's middle.
+        let reach = grid.cell_size() * std::f32::consts::FRAC_1_SQRT_2 + 0.01;
         let floors = self
             .points
             .iter()
