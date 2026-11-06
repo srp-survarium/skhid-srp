@@ -2432,10 +2432,22 @@ st_srp_equipment046_scavenger_boots_6_desc	Beschreibung noch nicht verfügbar.
 st_srp_equipment046_scavenger_boots_6_name	Verstärkte gefütterte Stiefel
 st_srp_equipment046_scavenger_boots_7_desc	Beschreibung noch nicht verfügbar.
 st_srp_equipment046_scavenger_boots_7_name	Pfadfinderstiefel
+st_srp_equipment069_league_shadow_mask_desc	Beschreibung noch nicht verfügbar.
+st_srp_equipment069_league_shadow_mask_name	Delta Maske
 st_srp_equipment069_leagues_back_2_desc	Beschreibung noch nicht verfügbar.
 st_srp_equipment069_leagues_back_2_name	Sanitätertasche
 st_srp_equipment069_leagues_back_5_desc	Beschreibung noch nicht verfügbar.
 st_srp_equipment069_leagues_back_5_name	Soldatenrucksack
+st_srp_equipment069_snow_20_boots_7_desc	Beschreibung noch nicht verfügbar.
+st_srp_equipment069_snow_20_boots_7_name	Schnee-20 Stiefel
+st_srp_equipment069_snow_20_gloves_7_desc	Beschreibung noch nicht verfügbar.
+st_srp_equipment069_snow_20_gloves_7_name	Schnee-20 Handschuhe
+st_srp_equipment069_snow_20_helmet_7_desc	Beschreibung noch nicht verfügbar.
+st_srp_equipment069_snow_20_helmet_7_name	Schnee-20 Helm
+st_srp_equipment069_snow_20_legs_7_desc	Beschreibung noch nicht verfügbar.
+st_srp_equipment069_snow_20_legs_7_name	Schnee-20 Hose
+st_srp_equipment069_snow_20_torso_7_desc	Beschreibung noch nicht verfügbar.
+st_srp_equipment069_snow_20_torso_7_name	Schnee-20 Panzerweste
 st_srp_exchange_balance	Guthaben
 st_srp_exchange_button	Tauschen
 st_srp_exchange_gold	Gold
@@ -2542,6 +2554,33 @@ st_srp_matches_starting	Start
 st_srp_matches_title	Matches
 st_srp_matches_versus	gegen
 st_srp_matches_waiting	Warten
+st_srp_medical_301_description	Wird zu Schmerzschutz und Wirkungsdauer von Schmerzmitteln addiert:
+st_srp_medical_301_name	Starkes Schmerzmittel
+st_srp_medical_302_description	Verkürzung der Aktivierungszeit von Erste-Hilfe-Sets und Verbänden:
+st_srp_medical_302_name	Schnelles Verbinden
+st_srp_medical_303_description	Solange ein Schmerzmittel wirkt, Verringerung der Energiekosten beim Sprinten:
+st_srp_medical_303_name	Taube Beine
+st_srp_medical_311_description	Die Gesundheitsregeneration beginnt so viele Sekunden früher:
+st_srp_medical_311_name	Stoffwechsel
+st_srp_medical_312_description	Bonus auf die Heilung durch Erste-Hilfe-Sets und Verbände:
+st_srp_medical_312_name	Medizinische Ausbildung
+st_srp_medical_313_description	Bonus auf die Heilung durch Erste-Hilfe-Sets und Verbände in der Hocke:
+st_srp_medical_313_name	In Deckung
+st_srp_medical_321_description	Bonus auf die Bewegungsgeschwindigkeit bei weniger als 30 Gesundheit:
+st_srp_medical_321_name	Adrenalin
+st_srp_medical_322_description	Jede Tasche mit Medizin fasst einen weiteren Gegenstand.
+st_srp_medical_322_name	Zusätzliche Medizin
+st_srp_medical_323_description	Solange ein Schmerzmittel wirkt, Verringerung der Verlangsamung durch feindliche Treffer:
+st_srp_medical_323_name	Standhaft
+st_srp_medical_331_description	Ersetzt den Platz für die Sekundärwaffe durch eine zusätzliche Vorratstasche.
+st_srp_medical_331_name	Vorratstasche
+st_srp_medical_332_description	Bonus auf die maximale Gesundheit von Armen und Beinen:
+st_srp_medical_332_name	Starke Knochen
+st_srp_medical_333_description	Solange ein Schmerzmittel wirkt, sind Umgebungsgeräusche leiser und feindliche Geräusche (außer Schüssen) lauter um:
+st_srp_medical_333_name	Konzentration
+st_srp_medical_342_description	Verringerung des durch Verbündete erlittenen Schadens:
+st_srp_medical_342_name	Waffenbrüder
+st_srp_medical_seconds	 s
 st_srp_medicine_ambient_sounds	Umgebungsgeräusche
 st_srp_medicine_crouched_healing	Heilung in der Hocke
 st_srp_medicine_enemy_sounds	Feindgeräusche

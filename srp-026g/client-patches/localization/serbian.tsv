@@ -2432,10 +2432,22 @@ st_srp_equipment046_scavenger_boots_6_desc	Opis još nije dostupan.
 st_srp_equipment046_scavenger_boots_6_name	Ojačane postavljene čizme
 st_srp_equipment046_scavenger_boots_7_desc	Opis još nije dostupan.
 st_srp_equipment046_scavenger_boots_7_name	Tragačke čizme
+st_srp_equipment069_league_shadow_mask_desc	Opis još nije dostupan.
+st_srp_equipment069_league_shadow_mask_name	Maska Delta
 st_srp_equipment069_leagues_back_2_desc	Opis još nije dostupan.
 st_srp_equipment069_leagues_back_2_name	Torba bolničara
 st_srp_equipment069_leagues_back_5_desc	Opis još nije dostupan.
 st_srp_equipment069_leagues_back_5_name	Ranac vojnika
+st_srp_equipment069_snow_20_boots_7_desc	Opis još nije dostupan.
+st_srp_equipment069_snow_20_boots_7_name	Čizme Sneg-20
+st_srp_equipment069_snow_20_gloves_7_desc	Opis još nije dostupan.
+st_srp_equipment069_snow_20_gloves_7_name	Rukavice Sneg-20
+st_srp_equipment069_snow_20_helmet_7_desc	Opis još nije dostupan.
+st_srp_equipment069_snow_20_helmet_7_name	Šlem Sneg-20
+st_srp_equipment069_snow_20_legs_7_desc	Opis još nije dostupan.
+st_srp_equipment069_snow_20_legs_7_name	Pantalone Sneg-20
+st_srp_equipment069_snow_20_torso_7_desc	Opis još nije dostupan.
+st_srp_equipment069_snow_20_torso_7_name	Pancir Sneg-20
 st_srp_exchange_balance	Stanje
 st_srp_exchange_button	Razmeni
 st_srp_exchange_gold	Zlato
@@ -2542,6 +2554,33 @@ st_srp_matches_starting	početak
 st_srp_matches_title	Mečevi
 st_srp_matches_versus	na
 st_srp_matches_waiting	čekanje
+st_srp_medical_301_description	Dodaje se zaštiti od bola i trajanju analgetika:
+st_srp_medical_301_name	Snažan analgetik
+st_srp_medical_302_description	Smanjenje vremena upotrebe kompleta prve pomoći i zavoja:
+st_srp_medical_302_name	Brzo previjanje
+st_srp_medical_303_description	Dok analgetik deluje, smanjenje potrošnje izdržljivosti pri sprintu:
+st_srp_medical_303_name	Utrnule noge
+st_srp_medical_311_description	Obnavljanje zdravlja počinje ovoliko sekundi ranije:
+st_srp_medical_311_name	Metabolizam
+st_srp_medical_312_description	Dodatak zdravlju koje vraćaju kompleti prve pomoći i zavoji:
+st_srp_medical_312_name	Medicinska obuka
+st_srp_medical_313_description	Dodatak zdravlju koje vraćaju kompleti prve pomoći i zavoji dok čučite:
+st_srp_medical_313_name	U zaklon
+st_srp_medical_321_description	Dodatak brzini kretanja dok je zdravlje ispod 30:
+st_srp_medical_321_name	Adrenalin
+st_srp_medical_322_description	Svaki džep sa lekovima može da primi još jedan predmet.
+st_srp_medical_322_name	Dodatni lekovi
+st_srp_medical_323_description	Dok analgetik deluje, smanjenje zaustavne moći neprijateljskih pogodaka:
+st_srp_medical_323_name	Nepokolebljiv
+st_srp_medical_331_description	Zamenjuje mesto za sekundarno oružje dodatnim džepom za zalihe.
+st_srp_medical_331_name	Džep za zalihe
+st_srp_medical_332_description	Dodatak maksimalnom zdravlju ruku i nogu:
+st_srp_medical_332_name	Jake kosti
+st_srp_medical_333_description	Dok analgetik deluje, zvuci okoline su tiši, a zvuci neprijatelja (osim pucnjeva) glasniji za:
+st_srp_medical_333_name	Koncentracija
+st_srp_medical_342_description	Smanjenje štete koju nanose saveznici:
+st_srp_medical_342_name	Braća po oružju
+st_srp_medical_seconds	 s
 st_srp_medicine_ambient_sounds	Zvuci okoline
 st_srp_medicine_crouched_healing	Lečenje u čučnju
 st_srp_medicine_enemy_sounds	Zvuci neprijatelja

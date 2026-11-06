@@ -269,6 +269,35 @@ item_tables_bin() {
     printf '%s\n' "$ROOT/srp-026g/target/release/srp-item-tables"
 }
 
+# The server's image (srp-026g/Dockerfile) built here from <src>, main's
+# srp-026g source, into <out>: a zstd docker-archive tagged $IMAGE, which
+# the host's `docker load` takes, so the live host (one core, the running
+# matches) compiles nothing. Rootless podman and skopeo from nixpkgs, at
+# nice 10; their settings (Docker Hub for the Dockerfile's short names, any
+# image accepted, as Docker does) in a folder of their own beside <out>,
+# none of this machine's. $SKHID_BUILD_IMAGE_BIN: run as <it> <src> <out>
+# instead.
+build_image() {
+    local src=$1 out=$2 conf status=0
+    if [[ -n ${SKHID_BUILD_IMAGE_BIN:-} ]]; then
+        "$SKHID_BUILD_IMAGE_BIN" "$src" "$out"
+        return
+    fi
+    conf=$(mktemp -d "${out%/*}/image.XXXXXX")
+    printf '{"default":[{"type":"insecureAcceptAnything"}]}\n' >"$conf/policy.json"
+    printf 'unqualified-search-registries = ["docker.io"]\n' >"$conf/registries.conf"
+    # shellcheck disable=SC2016
+    nice -n 10 nix shell nixpkgs#podman nixpkgs#skopeo nixpkgs#zstd -c bash -euo pipefail -c '
+        conf=$1 src=$2 out=$3 image=$4 name=localhost/srp-026g-release:${conf##*.}
+        export CONTAINERS_REGISTRIES_CONF=$conf/registries.conf
+        podman build --signature-policy "$conf/policy.json" -t "$name" "$src"
+        skopeo --policy "$conf/policy.json" copy -q "containers-storage:$name" "docker-archive:$conf/image.tar:$image"
+        podman rmi "$name" >/dev/null
+        zstd -T0 -q -f "$conf/image.tar" -o "$out"
+    ' _ "$conf" "$src" "$out" "$IMAGE" || status=$?
+    rm -rf "$conf"
+    return "$status"
+}
 
 # The building steps (build-patch, build-server-db, build-zip) run at nice
 # 10, with every child: the release PC goes on doing other things.
@@ -811,8 +840,9 @@ served_patches() {
 #   min.old          SRP_MIN_PATCH_REVISION before (`none`: no line)
 #   changed.txt      the server source files that changed, the ZIP's changed
 #                    entries (release.sh)
-#   src.tar src/ old-src.tgz  with server code: main's source (src/, where
-#                    the image is built), the tree's files before
+#   src.tar image.tar.zst old-src.tgz  with server code: main's source and
+#                    its image (built here, loaded on the host, then
+#                    removed), the tree's files before
 #   rollback.sh rollback.env  release/host-rollback.sh and what it puts back
 REL='' REL_DIR='' BEFORE_TAG='' STAGED=0
 release_folder() { # <revision> <stamp> [label]
@@ -846,7 +876,7 @@ stage_upload() {
 # log), state stopped.
 stage_abandon() {
     ((STAGED)) || return 0
-    if on_target "cd $REL_DIR && rm -rf $ZIP_NAME $DATA_NAME ./*.part src src.tar bot-data bot-data.list bot-data.sh && echo stopped > state && rm -f ../download/.$ZIP_NAME.new ../download/.$DATA_NAME.new"; then
+    if on_target "cd $REL_DIR && rm -rf $ZIP_NAME $DATA_NAME ./*.part src src.tar image.tar.zst bot-data bot-data.list bot-data.sh && echo stopped > state && rm -f ../download/.$ZIP_NAME.new ../download/.$DATA_NAME.new"; then
         say "staged files: removed ($TARGET_DIR/$REL stays, state stopped)"
     else
         say "staged files: NOT removed: $TARGET_DIR/$REL"
