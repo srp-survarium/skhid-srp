@@ -89,6 +89,10 @@ const PREPARE_M: f32 = 0.82;
 /// A body falling after its clip, m/s^2: `fall_params.gravity` in `gameplay/players/default.player` (JUMP-FINDINGS 1; the client's
 /// `step_down` 0x7E1B0 falls by it outside the jump).
 const GRAVITY: f32 = 9.8;
+/// `step_down` 0x7E1B0 (port `controller/tick.rs`): under `on_ground_max_vertical_speed` 2.0 m/s (`startup.cfg`) an airborne tick
+/// sinks only `additional_down_speed` 0.05 m while the speed still gains g dt; over it, the speed times the tick (fx-gear-2's read).
+const SLOW_FALL_MS: f32 = 2.0;
+const SLOW_FALL_STEP_M: f32 = 0.05;
 /// The lowest and highest heights over the feet whose rays a wall holds a body in the air at, m (the stand-in's lowest and
 /// highest `AIR_RAYS`), and the spacing between them: 5 cm, so a thin horizontal bar cannot pass between two (the stand-in's three
 /// heights 0.1 / 0.9 / 1.7 let the arc through Vector Laboratory's railing: bars at 0.43 / 0.70 m, the top rail 7 cm thick at
@@ -330,7 +334,7 @@ impl JumpArc {
         let (radius, height) = (body.radius, body.stand_height);
         if let Phase::Fall { speed } = self.phase {
             let speed = speed + GRAVITY * dt;
-            let y = feet.y - speed * dt;
+            let y = feet.y - if speed < SLOW_FALL_MS { SLOW_FALL_STEP_M } else { speed * dt };
             if let Some((top, node)) = perch_over(grid, walls, Vec3::new(feet.x, y, feet.z), feet.y, radius) {
                 return ArcStep::Landed(Vec3::new(feet.x, top, feet.z), node);
             }
