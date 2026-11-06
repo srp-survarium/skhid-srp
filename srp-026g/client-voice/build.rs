@@ -8,10 +8,12 @@ fn main() {
             println!("cargo:rustc-link-search=native={path}");
         }
         println!("cargo:rustc-link-lib=static=opus");
+        println!("cargo:rustc-link-lib=static=speexdsp");
         // GCC's integer division and stack-probe helpers used by static Opus.
         // No GNU runtime DLL is used: the C runtime is Microsoft's static CRT.
         println!("cargo:rustc-link-lib=static=gcc");
     } else {
         println!("cargo:rustc-link-lib=opus");
+        println!("cargo:rustc-link-lib=speexdsp");
     }
 }

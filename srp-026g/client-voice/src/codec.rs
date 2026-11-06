@@ -1,5 +1,6 @@
-//! The only unsafe portable boundary: owned Opus objects, fixed-size PCM frames.
-use crate::{FRAME, RATE};
+//! The only unsafe portable boundary: owned Opus and speexdsp objects,
+//! fixed-size PCM frames.
+use crate::{FRAME, RATE, radio::unit};
 use std::{
     ffi::{c_int, c_void},
     ptr::NonNull,
@@ -31,6 +32,70 @@ unsafe extern "C" {
         frame_size: c_int,
         fec: c_int,
     ) -> c_int;
+    fn speex_preprocess_state_init(frame_size: c_int, sampling_rate: c_int) -> *mut c_void;
+    fn speex_preprocess_state_destroy(state: *mut c_void);
+    fn speex_preprocess_ctl(state: *mut c_void, request: c_int, value: *mut c_void) -> c_int;
+    fn speex_preprocess_run(state: *mut c_void, pcm: *mut i16) -> c_int;
+}
+// speex_preprocess.h's requests.
+const SET_DENOISE: c_int = 0;
+const SET_AGC: c_int = 2;
+const SET_AGC_LEVEL: c_int = 6;
+/// The loudness automatic gain aims at, of speexdsp's 1..32768: 0.69's
+/// `voice_chat_preprocess_gain` default (speexdsp's own is 8000).
+pub const AGC_LEVEL: f32 = 12_000.;
+/// The game's "Microphone sensitivity" (0..1) moves the aim by up to 6 dB
+/// either way: 0.5 is 0.69's level.
+pub fn agc_level(sensitivity: f32) -> f32 {
+    AGC_LEVEL * 2f32.powf((unit(sensitivity) - 0.5) * 2.)
+}
+/// The microphone's processing before Opus, as 0.69's voice_recorder:
+/// speexdsp's noise suppression and automatic gain, which brings a quiet
+/// microphone up and a loud one down to the same loudness. One per session,
+/// so the gain it has learnt carries from one push-to-talk to the next.
+pub struct Preprocessor {
+    state: NonNull<c_void>,
+    level: f32,
+}
+impl Preprocessor {
+    pub fn new() -> Result<Self, String> {
+        // speexdsp owns the returned object; Drop frees it, and all accesses are exclusive.
+        let ptr = unsafe { speex_preprocess_state_init(FRAME as c_int, RATE as c_int) };
+        let mut pre = Self {
+            state: NonNull::new(ptr).ok_or_else(|| "speexdsp preprocessor".to_owned())?,
+            level: AGC_LEVEL,
+        };
+        for request in [SET_DENOISE, SET_AGC] {
+            let mut on: i32 = 1;
+            pre.ctl(request, (&raw mut on).cast())?;
+        }
+        let mut level = AGC_LEVEL;
+        pre.ctl(SET_AGC_LEVEL, (&raw mut level).cast())?;
+        Ok(pre)
+    }
+    fn ctl(&mut self, request: c_int, value: *mut c_void) -> Result<(), String> {
+        // Each request reads one value of the type speex_preprocess.h gives it.
+        let result = unsafe { speex_preprocess_ctl(self.state.as_ptr(), request, value) };
+        if result != 0 {
+            return Err(format!("speexdsp setting {request}: {result}"));
+        }
+        Ok(())
+    }
+    /// Process one captured frame in place, aiming at the level of the
+    /// game's sensitivity.
+    pub fn run(&mut self, pcm: &mut [i16; FRAME], sensitivity: f32) {
+        let mut level = agc_level(sensitivity);
+        if level != self.level && self.ctl(SET_AGC_LEVEL, (&raw mut level).cast()).is_ok() {
+            self.level = level;
+        }
+        // The state was made for FRAME samples; the frame is exactly that.
+        unsafe { speex_preprocess_run(self.state.as_ptr(), pcm.as_mut_ptr()) };
+    }
+}
+impl Drop for Preprocessor {
+    fn drop(&mut self) {
+        unsafe { speex_preprocess_state_destroy(self.state.as_ptr()) }
+    }
 }
 pub struct Encoder(NonNull<c_void>);
 impl Encoder {
@@ -127,3 +192,4 @@ impl Drop for Decoder {
 // ownership is safe, while sharing concurrent access (Sync) is deliberately not.
 unsafe impl Send for Encoder {}
 unsafe impl Send for Decoder {}
+unsafe impl Send for Preprocessor {}

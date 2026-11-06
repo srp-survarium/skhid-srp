@@ -125,6 +125,3 @@ pub fn unit(value: f32) -> f32 {
         value.clamp(0., 1.)
     }
 }
-pub fn mic_gain(sensitivity: f32) -> f32 {
-    2f32.powf((unit(sensitivity) - 0.5) * 4.)
-}

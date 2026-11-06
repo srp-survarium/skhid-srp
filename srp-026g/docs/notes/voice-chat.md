@@ -105,7 +105,8 @@ All of it is the unused front end of a feature the 0.26g engine never had. PROVE
 - **Options.** The stock controls start working:
   - "Voice chat" volume (`s_chat_volume`, 0..1, default 1; 0 also tells the server not to send);
   - "Use microphone" (`s_use_microphone`, default on): the off switch for talking;
-  - "Microphone sensitivity" (`s_mic_sens`, 0..1, default 0.5): the mic gain.
+  - "Microphone sensitivity" (`s_mic_sens`, 0..1, default 0.5): the mic gain (as built: the
+    aim of the automatic gain, below).
   - The "PTT" checkbox (`s_ptt_button`, open mic when off) stays disabled: v1 is push-to-talk only.
 - **Speaking indicator.** On the HUD, a short list of who is talking, as 0.69's (below, "As
   built").
@@ -282,7 +283,16 @@ Where the build differs from or adds to the design above:
   start and end of a far utterance (the static lead-in and tail of 0.69's `_radio` phrases: 0.69 has
   no separate squelch file). Near: plain, no squelch. The sounds are compiled into the DLL
   (`client-voice/make_radio_sounds.py`).
-- **The DLL is Rust** (`client-voice/src`), with static libopus for the codec. A worker owns
+- **Automatic gain** (the owner, 2026-11-07: as 0.69): before Opus, the microphone goes through
+  speexdsp's preprocessor, noise suppression and automatic gain on, as 0.69d0's voice_recorder
+  turns them on (0x2006281CA; its level `voice_chat_preprocess_gain`, 12000 of 1..32768, set
+  every frame at 0x200621B6D). A quiet microphone is brought up and a loud one down to one
+  loudness; "Microphone sensitivity" moves that aim 6 dB either way (0.5 is 0.69's level). One
+  preprocessor a match, so the gain learnt carries from one press to the next. 0.69's voice
+  detection (open mic only) and echo cancellation are not used: push-to-talk only. The listener's
+  side has nothing per speaker, as in 0.69 (each `voice_player` at volume 1.0).
+- **The DLL is Rust** (`client-voice/src`), with static libopus for the codec and static speexdsp
+  (its own FFT, not FFTW) for the preprocessor. A worker owns
   its socket, codec, jitter buffers and WinMM capture/playback devices. The game communicates
   through the small typed C interface defined once in `crates/voice-abi`; both sides compile
   against it. All exports and the ABI version must match before the game enables voice. A
@@ -367,7 +377,9 @@ Where the build differs from or adds to the design above:
 ## Validation
 
 - The DLL's Rust tests cover protocol bounds, Opus round trips, jitter and packet loss/reorder,
-  the fitted radio response, retail squelch, muting, timeouts and the press/release lifecycle.
+  the fitted radio response, retail squelch, muting, timeouts and the press/release lifecycle,
+  and the automatic gain: speech-like input from -50 to -13 dB of full scale comes out within
+  2 dB of one level (-29 dB), the sensitivity's ends 12 dB apart.
 - The match server's headless loopback test runs its actual UDP relay with two Rust client cores.
   Each sends a different synthetic tone through Opus, the wire, routing and jitter playback.
   The received audio's energy and frequency must match the other client. No microphone or fake
@@ -387,6 +399,6 @@ Where the build differs from or adds to the design above:
 
 Real microphone capture and audible playback still require an in-game test with two games, a
 microphone on one, and both near and beyond 25 m. Also check the Tab menu's voice mute, the
-talking list's fade, disable voice chat,
+talking list's fade, the automatic gain with a quiet and a loud microphone, disable voice chat,
 PTT rebinding after restarting, death/respawn and crossing a match boundary while PTT is held.
 This PR is kept out of v35 and the following port-only release.

@@ -229,9 +229,58 @@ fn radio_matches_retail_response_and_static_level() {
     radio.process(&mut silence, 1.);
     let db = 10. * (silence.iter().map(|x| x * x).sum::<f32>() / RATE as f32).log10();
     assert!((-46.0..-42.0).contains(&db));
-    assert_eq!(mic_gain(f32::NAN), 0.25);
-    assert_eq!(mic_gain(0.5), 1.);
-    assert_eq!(mic_gain(1.), 4.);
+}
+/// Speech-like input: a voice of gliding pitch with eight harmonics, in
+/// syllables of 200 ms and pauses of 100 ms.
+fn syllables(frame: usize, amplitude: f32) -> [i16; FRAME] {
+    std::array::from_fn(|i| {
+        let t = (frame * FRAME + i) as f32 / RATE as f32;
+        if (t * 1000.) as u32 % 300 >= 200 {
+            return 0;
+        }
+        let phase = 2.
+            * std::f32::consts::PI
+            * (150. * t - 20. / 6. * (6. * t).cos() / std::f32::consts::PI);
+        let v: f32 = (1..=8).map(|h| (phase * h as f32).sin() / h as f32).sum();
+        (v * amplitude) as i16
+    })
+}
+/// The level (dB of full scale) the preprocessor gives a speaker of this
+/// amplitude, over the last of 4 s.
+fn processed_db(amplitude: f32, sensitivity: f32) -> f32 {
+    let mut pre = Preprocessor::new().unwrap();
+    let seconds = 4 * RATE / FRAME;
+    let last = RATE / FRAME;
+    let mut sum = 0.;
+    for frame in 0..seconds {
+        let mut pcm = syllables(frame, amplitude);
+        pre.run(&mut pcm, sensitivity);
+        if frame >= seconds - last {
+            sum += pcm
+                .iter()
+                .map(|&x| (f32::from(x) / 32768.).powi(2))
+                .sum::<f32>();
+        }
+    }
+    10. * (sum / RATE as f32).log10()
+}
+#[test]
+fn automatic_gain_levels_quiet_and_loud_microphones() {
+    // Speakers from -50 to -13 dB of full scale (amplitudes 150..10000) all
+    // come out at one level (-29 dB measured), within 2 dB.
+    let levels = [150., 600., 2500., 10000.].map(|amplitude| processed_db(amplitude, 0.5));
+    let (low, high) = levels
+        .iter()
+        .fold((f32::MAX, f32::MIN), |(l, h), &x| (l.min(x), h.max(x)));
+    assert!(high - low < 2., "{levels:?}");
+    assert!((-32.0..-26.0).contains(&low), "{levels:?}");
+    // The sensitivity slider moves it 6 dB either way.
+    let quiet = processed_db(2500., 0.);
+    let loud = processed_db(2500., 1.);
+    assert!((10.0..14.0).contains(&(loud - quiet)), "{quiet} {loud}");
+    assert_eq!(agc_level(0.5), AGC_LEVEL);
+    assert_eq!(agc_level(f32::NAN), AGC_LEVEL / 2.);
+    assert_eq!(agc_level(1.), AGC_LEVEL * 2.);
 }
 #[test]
 fn roster_replacement_resets_only_departed_speaker() {
@@ -554,5 +603,5 @@ fn the_host_argument_is_read_no_further_than_its_bound() {
     assert_eq!(radio::unit(f32::NAN), 0.);
     assert_eq!(radio::unit(f32::INFINITY), 1.);
     assert_eq!(radio::unit(f32::NEG_INFINITY), 0.);
-    assert!(mic_gain(f32::INFINITY).is_finite());
+    assert!(agc_level(f32::INFINITY).is_finite());
 }

@@ -164,8 +164,8 @@ pub(crate) unsafe fn host_arg<'a>(host: *const std::ffi::c_char) -> Option<&'a s
 mod platform {
     use super::{DropLog, TalkAction, TalkState, host_arg};
     use crate::{
-        Core, Encoder, SLOTS, Sender,
-        radio::{mic_gain, unit},
+        Core, Encoder, Preprocessor, SLOTS, Sender,
+        radio::unit,
         windows::{Input, Output},
         wire::{self, Message},
     };
@@ -291,6 +291,7 @@ mod platform {
         status: Arc<Status>,
         mut core: Core,
         mut encoder: Encoder,
+        mut preprocessor: Preprocessor,
     ) {
         let clock = Instant::now();
         let mut sender = Sender::new(session, NEXT_UTTERANCE.load(SeqCst) as u16);
@@ -443,11 +444,9 @@ mod platform {
                 TalkAction::None => (),
             }
             if let Some(device) = &mut input {
-                let gain = mic_gain(f32::from_bits(CONTROL.sensitivity.load(SeqCst)));
+                let sensitivity = f32::from_bits(CONTROL.sensitivity.load(SeqCst));
                 let result = device.pump(|mut pcm| {
-                    for sample in &mut pcm {
-                        *sample = (f32::from(*sample) * gain).clamp(-32768.0, 32767.0) as i16;
-                    }
+                    preprocessor.run(&mut pcm, sensitivity);
                     if let Ok(frame) = encoder.encode(&pcm)
                         && let Some(bytes) = sender.frame(&frame)
                     {
@@ -542,6 +541,9 @@ mod platform {
         let Ok(encoder) = Encoder::new() else {
             return 6;
         };
+        let Ok(preprocessor) = Preprocessor::new() else {
+            return 6;
+        };
         // The host may FreeLibrary while the worker owns executable code.
         // Pinning keeps code and static controls alive until process exit.
         let mut module = std::ptr::null_mut();
@@ -559,7 +561,7 @@ mod platform {
         let worker_status = Arc::clone(&status);
         let Ok(worker) = thread::Builder::new()
             .name("skhid-voice".into())
-            .spawn(move || run(socket, session, worker_status, core, encoder))
+            .spawn(move || run(socket, session, worker_status, core, encoder, preprocessor))
         else {
             return 7;
         };

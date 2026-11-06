@@ -10,8 +10,8 @@ mod sounds;
 #[cfg(windows)]
 mod windows;
 pub mod wire;
-pub use codec::{Decoder, Encoder};
-pub use radio::{Radio, mic_gain};
+pub use codec::{AGC_LEVEL, Decoder, Encoder, Preprocessor, agc_level};
+pub use radio::Radio;
 pub use receiver::{Core, Stats};
 pub use sender::Sender;
 pub const RATE: usize = 16_000;

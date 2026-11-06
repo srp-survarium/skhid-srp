@@ -1,7 +1,8 @@
 # Voice client
 
 `skhid_voice.dll` is Rust. It handles Opus, the UDP voice connection, WinMM
-capture/playback, per-speaker jitter buffers, mutes and the retail radio effect.
+capture/playback, the microphone's noise suppression and automatic gain (speexdsp's
+preprocessor, as 0.69), per-speaker jitter buffers, mutes and the retail radio effect.
 The arena patch loads its optional interface from `crates/voice-abi`; missing or
 incompatible DLLs leave voice disabled.
 
@@ -14,8 +15,8 @@ nix develop ./srp-026g -c bash srp-026g/client-voice/build.sh
 
 The result is `srp-026g/target-voice/i686-win7-windows-msvc/release/skhid_voice.dll`.
 The build checks its exports against the shared ABI and refuses non-system DLL
-imports. Opus is static; its COFF archive and GCC integer/stack helpers are
-prepared by the pinned Nix `voice-opus` package. No GNU runtime DLL is required.
+imports. Opus and speexdsp are static; their COFF archives and GCC integer/stack
+helpers are prepared by the pinned Nix `voice-opus` package. No GNU runtime DLL is required.
 `/Brepro`, trimmed paths and no PDB make the DLL reproducible.
 
 Portable tests and the real server relay loopback:

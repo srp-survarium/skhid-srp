@@ -91,15 +91,28 @@
         mesonFlags = old.mesonFlags ++ [ "-Ddefault_library=static" ];
         NIX_CFLAGS_COMPILE = (old.NIX_CFLAGS_COMPILE or "") + " -mstackrealign -D__USE_MINGW_ANSI_STDIO=0 -D_CRTIMP=";
       });
+      # speexdsp's preprocessor (the DLL's automatic gain and noise
+      # suppression, as 0.69's voice_recorder has them): floating point, its
+      # own FFT (smallft; nixpkgs' FFTW is GPL), the same build for the tests.
+      speexForVoice = speexdsp: speexdsp.override { withFftw3 = false; };
+      voiceSpeexWin = (speexForVoice mingw32.speexdsp).overrideAttrs (old: {
+        configureFlags = (old.configureFlags or [ ]) ++ [ "--disable-shared" "--enable-static" ];
+        # No stderr warnings (the static CRT's stdio is not mingw's), and
+        # sin, cos and floor stay calls of their own: GCC would make them
+        # sincos and floorf, which Microsoft's 32-bit CRT does not export.
+        NIX_CFLAGS_COMPILE = (old.NIX_CFLAGS_COMPILE or "") + " -mstackrealign -D__USE_MINGW_ANSI_STDIO=0 -D_CRTIMP= -DDISABLE_WARNINGS -DDISABLE_NOTIFICATIONS -fno-builtin-sin -fno-builtin-cos -fno-builtin-floor";
+      });
       # GCC's COFF objects use the same C ABI as Rust's MSVC target. Keep
-      # Opus static, align calls from the game's four-byte stack, use the
-      # standard C stdio names, and strip its automatic DLL export directives.
+      # Opus and speexdsp static, align calls from the game's four-byte stack,
+      # use the standard C stdio names, and strip their automatic DLL export
+      # directives.
       voiceOpusMsvc = pkgs.stdenvNoCC.mkDerivation {
         name = "skhid-voice-opus-msvc";
         nativeBuildInputs = [ pkgs.llvm mingw32.stdenv.cc ];
         buildCommand = noCR ''
           mkdir -p $out/lib
           llvm-objcopy -R .drectve ${voiceOpusWin}/lib/libopus.a $out/lib/opus.lib
+          llvm-objcopy -R .drectve ${voiceSpeexWin}/lib/libspeexdsp.a $out/lib/speexdsp.lib
           cp $(${mingw32.stdenv.cc.targetPrefix}gcc -print-libgcc-file-name) $out/lib/gcc.lib
         '';
       };
@@ -128,14 +141,14 @@
         name = "skhid-voice-loopback";
         src = ./client-voice;
         nativeBuildInputs = [ rust ];
-        buildInputs = [ (opusForVoice pkgs.libopus) ];
+        buildInputs = [ (opusForVoice pkgs.libopus) (speexForVoice pkgs.speexdsp) ];
         dontConfigure = true;
         buildPhase = noCR ''
-          rustc --edition=2024 --test src/lib.rs -l opus -o test_voice
+          rustc --edition=2024 --test src/lib.rs -l opus -l speexdsp -o test_voice
           ./test_voice >test_voice.log
           cat test_voice.log
-          rustc --edition=2024 --crate-name skhid_voice --crate-type rlib src/lib.rs -l opus -o libskhid_voice.rlib
-          rustc --edition=2024 src/bin/radio_demo.rs --extern skhid_voice=libskhid_voice.rlib -L . -l opus -o radio_demo
+          rustc --edition=2024 --crate-name skhid_voice --crate-type rlib src/lib.rs -l opus -l speexdsp -o libskhid_voice.rlib
+          rustc --edition=2024 src/bin/radio_demo.rs --extern skhid_voice=libskhid_voice.rlib -L . -l opus -l speexdsp -o radio_demo
         '';
         installPhase = noCR ''
           mkdir -p $out
@@ -162,6 +175,7 @@
           rust
           pkgs.openssl
           pkgs.libopus
+          (speexForVoice pkgs.speexdsp)
           # Used by scripts/dev-bootstrap.sh to run the servers in tmux windows.
           pkgs.tmux
           # llvm-rc (the Windows programs' version and icon resources) and
