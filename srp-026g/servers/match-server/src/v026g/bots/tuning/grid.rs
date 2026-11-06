@@ -144,6 +144,13 @@ pub struct GridTuning {
     /// A313 NAV FIRST, fx-bench's score on all maps: drift 4.02 -> 3.98 %, lower on every map, coverage +0.02, path equal;
     /// level_01 day_2's one raised-stall cell is real ground. A grid is the map's (see `gap_links`).
     pub narrow_doors: bool,
+    /// [A313] Whether a Drop link is kept in the maps' walk grids only where the client's own walk tick takes a body down it
+    /// (`mapdata::Body::drop_check`): a Drop is cut where the body walks on and never leaves the take-off's level (a landing under a
+    /// deck that goes on, a rim the erosion took): 640-2,880 links a map, 4-8 %. ON and KEPT_RIGHT: the rule is the client's own
+    /// walk tick, so such a link is wrong by the game (the owner, 2026-11-05: correctness fixes go in). A313 NAV FIRST, fx-bench's
+    /// score on all maps: drift 4.02 -> 4.01 %, level_04 -0.11, no map worse; coverage, path and raised stalls the same. A grid is
+    /// the map's (see `gap_links`).
+    pub drop_check: bool,
 }
 
 impl Default for GridTuning {
@@ -170,6 +177,7 @@ impl Default for GridTuning {
             client_controller: true,
             drop_room_walk_faces: true,
             narrow_doors: true,
+            drop_check: true,
         }
     }
 }
@@ -204,6 +212,7 @@ impl GridTuning {
             client_controller: self.client_controller,
             drop_room_walk_faces: self.drop_room_walk_faces,
             narrow_doors: self.narrow_doors,
+            drop_check: self.drop_check,
             ..body
         }
     }
