@@ -384,7 +384,11 @@ impl Sim {
                 {
                     inventory.extend(players::untouched_items(place as u8, head.current_index, items));
                 }
-                let animation = players::animation_bytes(&[true; 9], &[time, time + 7], &[0.5]);
+                // The smallest tree a client decodes (`world_frame::
+                // animation_validate`): no node, so its 11 header bits, and
+                // the first matrix's 12 floats.
+                let animation =
+                    players::animation_bytes(&[false; 11], &[time, time + 7], &[0.5; 12]);
                 // A state is whole: with no tail of its own, a player who
                 // stands where it entered.
                 let tail = self.player_tails.get(place).and_then(Option::as_ref).cloned().unwrap_or(
