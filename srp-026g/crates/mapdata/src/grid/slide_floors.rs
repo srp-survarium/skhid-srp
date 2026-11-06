@@ -149,10 +149,10 @@ impl WalkGrid {
         let before = reach(&vec![false; n]);
         for _ in 0..8 {
             let after = reach(&sliding);
-            let lost = |b: usize| before[b] && !after[b] && !sliding[b];
+            let lost: Vec<bool> = (0..n).map(|b| before[b] && !after[b] && !sliding[b]).collect();
             let mut freed = false;
             for a in 0..n {
-                if sliding[a] && to[first[a] as usize..first[a + 1] as usize].iter().any(|&b| lost(b as usize)) {
+                if sliding[a] && to[first[a] as usize..first[a + 1] as usize].iter().any(|&b| lost[b as usize]) {
                     sliding[a] = false;
                     freed = true;
                 }
