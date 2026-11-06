@@ -336,7 +336,16 @@ The order, as it runs:
 2. **The lock, then everything prepared and staged**, nothing players
    see: `upload-patch` (with `--resources`; it adds the row; no server
    offers the patch before the swap), `build-server-db` (of the list),
-   `build-zip` (of the commit checked in step 1); the checks of `deploy`
+   `build-zip` (of the commit checked in step 1); then the **exe patches'
+   self-test** of that commit (`srp-026g/client-patches/selftest_026g.py`,
+   its Linux part, on `$SKHID_GAME`'s `survarium.exe`, in the commit's dev
+   shell with nixpkgs' Python unicorn, about 15 min, ~1.3 GB; log
+   `selftest.log` in the run's work folder): a failed check stops the
+   release here, before anything is staged (the patch's fix is a PR, then a
+   new run). It is the release's check of the exe's general rules (no byte
+   changed undeclared, no relocation or branch into a rewritten byte, every
+   hooked function's ABI, every branch target known): nobody runs it by hand
+   before a release, and it is not a check of each PR. The checks of `deploy`
    on both files; then the **release folder** on the target (below) with
    both files staged in it (sha256 checked there, `chmod 644`) and
    `changed.txt`. With server code: the running image tagged
@@ -546,8 +555,9 @@ preflight: look at its `release.log`, finish or roll it back, then write
 ### What to watch
 
 - The preflight: every line `ok`.
-- Before the go: the builds and the staging (`2. ...`), then `3. waiting
-  for the go`.
+- Before the go: the builds, the self-test (`the exe patches' self-test:
+  all checks passed`) and the staging (`2. ...`), then `3. waiting for the
+  go`.
 - After the go: the plan's line at once, with its minutes and where they
   come from (`/api/stats`, the launcher page, or a whole match), and the
   launcher countdown (none with `--no-maintenance` or `--now`); then `5.
