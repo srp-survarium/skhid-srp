@@ -15,7 +15,7 @@
 //! - The jump ends at the clip's end (`jump_logic_state_landing::initialize` 0x3440E0 calls `end_jump` 0x7F050).
 //!
 //! The reckoning has no capsule sweeps at run time: a wall is a ray of the map's walker mesh (`body::walker_walls`, as the stand-in
-//! casts; the bullet mesh misses walls the body bumps into) as the client's capsule ([`capsule_blocked`]) along the move and the
+//! casts; the bullet mesh misses walls the body bumps into) at heights every 5 cm ([`rays_blocked`]) within the move and the
 //! body's radius, or a floor within the radius above the arc's feet by more than [`CATCH_M`] and under its head; the arc lands on
 //! the highest floor or walker-mesh top under its feet on the way down.
 //! LIKELY: the sprint jump's leg (the right leg's clip rises 1.350 m, the left's 1.282 m: the left's is taken), the short jump's
@@ -55,12 +55,13 @@ const PREPARE_MS: f32 = 75.0;
 const PREPARE_M: f32 = 0.82;
 /// A body falling after its clip, m/s^2 (the bench stand-in's).
 const GRAVITY: f32 = 9.81;
-/// How far apart along a tick's move the body's capsule is tested against the walker mesh, m: a body 0.76 m wide cannot pass a
-/// bar between two tests (the client sweeps its capsule; the catch-up after a wall carries it a metre or more in a tick).
-const CAPSULE_STEP_M: f32 = 0.05;
-/// The capsule's skin: how much nearer than its radius a triangle must be to hold it, m (Bullet's character margin, 0.02; a
-/// body resting against a wall or on a floor is not held by it).
-const SKIN_M: f32 = 0.02;
+/// The lowest and highest heights over the feet whose rays a wall holds a body in the air at, m (the stand-in's lowest and
+/// highest `AIR_RAYS`), and the spacing between them: 5 cm, so a thin horizontal bar cannot pass between two (the stand-in's three
+/// heights 0.1 / 0.9 / 1.7 let the arc through Vector Laboratory's railing: bars at 0.43 / 0.70 m, the top rail 7 cm thick at
+/// 1.02 m over the platform).
+const AIR_RAY_LOW: f32 = 0.1;
+const AIR_RAY_HIGH: f32 = 1.7;
+const AIR_RAY_STEP: f32 = 0.05;
 /// How deep under the arc's feet a floor still makes a cell open air rather than a wall (a drop off a ledge), m.
 const OPEN_BELOW_M: f32 = 10.0;
 /// How many cells round a target the floorless test looks (a ledge lip's eroded band is crossed, a wall's is not): GUESS 1.5.
@@ -325,7 +326,7 @@ impl JumpArc {
         // A wall: a ray at one of the heights meets the map within the move and the radius, or a floor top within the radius above
         // the feet by more than the catch and under the head.
         let blocked = |x: f32, z: f32| {
-            let rays = walls.is_some_and(|walls| capsule_blocked(walls, feet, (x, z), y, radius, height));
+            let rays = walls.is_some_and(|walls| rays_blocked(walls, feet, (x, z), y, radius));
             // The walker mesh's walls are the grid's floorless ground (the erosion round a wall): ground with no floor from the feet
             // (and the catch) down to `OPEN_BELOW_M` in any cell within `FLOORLESS_CELLS` of the target is a wall too. A ledge's lip
             // erodes a band of a cell or so on both levels, which the box reaches across; a wall's band (its thickness and the erosion
@@ -371,7 +372,7 @@ impl JumpArc {
     }
 }
 
-/// The bench only: the arc's queries of the walker mesh, rays and capsule tests (its cost per jumping tick, `tests/drift_replay.rs`).
+/// The bench only: rays the arc has cast on the walker mesh (its cost per jumping tick, `tests/drift_replay.rs`).
 #[cfg(test)]
 pub static RAYS: AtomicU64 = AtomicU64::new(0);
 
@@ -414,22 +415,26 @@ fn perch_over(grid: &WalkGrid, walls: Option<&RayTree>, at: Vec3, from_y: f32, r
     })
 }
 
-/// Whether `walls` hold a body in the air with its feet at height `y` moving from `feet` to `to`: the client's capsule (`radius`
-/// round the segment from `radius` to `height - radius` over the feet; its round bottom is the client's edge rule) overlaps the
-/// walker mesh at a step of the move, every [`CAPSULE_STEP_M`] (`step_jump_forward` sweeps that capsule, JUMP-FINDINGS 1).
-fn capsule_blocked(walls: &RayTree, feet: Vec3, to: (f32, f32), y: f32, radius: f32, height: f32) -> bool {
+/// Whether `walls` hold a body in the air at height `y` moving from `feet` to `to`: a horizontal ray along the move (and the radius
+/// past it) from the axis at any height from [`AIR_RAY_LOW`] to [`AIR_RAY_HIGH`] over `y`, every [`AIR_RAY_STEP`], meets them.
+fn rays_blocked(walls: &RayTree, feet: Vec3, to: (f32, f32), y: f32, radius: f32) -> bool {
     let (dx, dz) = (to.0 - feet.x, to.1 - feet.z);
     let len = dx.hypot(dz);
     if len <= 1e-6 {
         return false;
     }
-    let steps = (len / CAPSULE_STEP_M).ceil() as u32;
-    (1..=steps).any(|i| {
-        let f = i as f32 / steps as f32;
-        let (x, z) = (feet.x + dx * f, feet.z + dz * f);
-        #[cfg(test)]
-        RAYS.fetch_add(1, Ordering::Relaxed);
-        walls.capsule_overlaps(Vec3::new(x, y + radius, z), Vec3::new(x, y + height - radius, z), radius - SKIN_M)
+    // Nothing of the mesh in the box the body sweeps (the move and the radius past it, from the lowest ray to the highest): no ray.
+    let (ex, ez) = (to.0 + dx / len * radius, to.1 + dz / len * radius);
+    let lo = Vec3::new(feet.x.min(ex), y + AIR_RAY_LOW, feet.z.min(ez));
+    let hi = Vec3::new(feet.x.max(ex), y + AIR_RAY_HIGH, feet.z.max(ez));
+    if !walls.any_in_box(lo, hi) {
+        return false;
+    }
+    let dir = Vec3::new(dx / len, 0.0, dz / len);
+    let n = ((AIR_RAY_HIGH - AIR_RAY_LOW) / AIR_RAY_STEP).round() as u32;
+    (0..=n).any(|i| {
+        let h = AIR_RAY_LOW + i as f32 * AIR_RAY_STEP;
+        cast(walls, Vec3::new(feet.x, y + h, feet.z), dir, len + radius).is_some()
     })
 }
 
@@ -866,9 +871,8 @@ mod tests {
         assert_eq!(perch(&walls, Vec3::new(0.0, 1.2, 0.25), 1.25, r), None, "still above it");
     }
 
-    /// A rail 3 cm wide and 7 cm thick (its top at 1.05 m) holds the capsule moving across it while its feet are under the rail's
-    /// top (the round bottom meets the edge: the client rests on it, `perch_along`), lets it over once the feet clear the top,
-    /// and does not hold it moving along beside it.
+    /// A rail 3 cm wide and 7 cm thick (its top at 1.05 m) holds a body moving across it whose feet are under it by more than the
+    /// catch, wherever between two of the stand-in's three heights it falls, and lets it over once the feet are within the catch.
     #[test]
     fn a_thin_rail_holds_a_body_moving_across_it() {
         let quad = |y: f32, z0: f32, z1: f32| {
@@ -882,11 +886,11 @@ mod tests {
         ];
         let walls = RayTree::from_corners(quad(1.05, 0.0, 0.03).into_iter().chain(quad(0.98, 0.0, 0.03)).chain(front));
         let from = Vec3::new(0.0, 0.0, -0.8);
-        for y in [0.0, 0.5, 0.80, 0.86, 0.92, 0.96, 1.0] {
-            assert!(capsule_blocked(&walls, from, (0.0, 0.9), y, 0.38, 1.8), "feet at {y}");
+        for y in [0.80, 0.83, 0.86, 0.89, 0.92] {
+            assert!(rays_blocked(&walls, from, (0.0, 0.9), y, 0.38), "feet at {y}");
         }
-        assert!(!capsule_blocked(&walls, from, (0.0, 0.9), 1.06, 0.38, 1.8), "feet over the top");
-        assert!(!capsule_blocked(&walls, from, (2.0, -0.8), 0.85, 0.38, 1.8), "moving along it, 0.8 m off");
+        assert!(!rays_blocked(&walls, from, (0.0, 0.9), 0.96, 0.38), "feet within the catch of the top");
+        assert!(!rays_blocked(&walls, from, (2.0, -0.8), 0.85, 0.38), "moving along it");
     }
 
     /// A tick's move that carries the body from one side of a rail to the other (the catch-up after a wall) comes down on the rail,
