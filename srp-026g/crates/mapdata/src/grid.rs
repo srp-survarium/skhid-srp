@@ -251,6 +251,15 @@ pub struct Body {
     /// port's first rules, which miss grazing contacts at floor seams and take a head-on wall's normal from its face. A build
     /// input: in the key when set.
     pub exe_collision: bool,
+    /// [A329] Where the grid's client-controller pass (`grid::controlled`: its checks and bridges) starts a body on a floor:
+    /// pushed out of every steep face its standing capsule overlaps, from the feet up, by up to the capsule's radius
+    /// ([`crate::grid::controlled::WalkStart::Clear`], the client's own rule: its world pushes a body out of what it overlaps,
+    /// `bullet_physics_world::recover_from_penetrations` 0x763D0). Off: out of the faces above the step only, by at most
+    /// 0.15 m ([`crate::grid::controlled::WalkStart::AboveStep`]): a floor beside a ledge lower than the step starts the body
+    /// inside the ledge, and the exe pops such a body up onto it, so the pass kept climbs no standing client makes (A329:
+    /// level_04 day_4, a 0.785 m ledge; the exe climbs a vertical face walking up to 0.75 m, not 0.76). A build input: in the
+    /// key when set.
+    pub walk_start_clear: bool,
 }
 
 /// How the floors a body's radius from walls are taken away.
@@ -276,6 +285,12 @@ impl Body {
         } else {
             (Caster::Conservative, Settings::LIVE)
         }
+    }
+
+    /// Where the client-controller pass starts a body on a floor ([`Self::walk_start_clear`]).
+    pub fn walk_start(&self) -> crate::grid::controlled::WalkStart {
+        use crate::grid::controlled::WalkStart;
+        if self.walk_start_clear { WalkStart::Clear } else { WalkStart::AboveStep }
     }
 
     /// Its numbers in order, for digests and files.
@@ -320,6 +335,7 @@ impl Body {
             drop_check: false,
             wall_give_back: false,
             exe_collision: false,
+            walk_start_clear: false,
         }
     }
 }
@@ -395,6 +411,7 @@ impl Default for Body {
             drop_check: false,
             wall_give_back: false,
             exe_collision: false,
+            walk_start_clear: false,
         }
     }
 }

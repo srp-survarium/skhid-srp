@@ -165,6 +165,13 @@ pub struct GridTuning {
     /// this rule follows it within 1 mm). Exe-proven, so ON and kept by `all_off` (the owner, 2026-11-05: correctness fixes go
     /// in). A grid is the map's (see `gap_links`).
     pub exe_collision: bool,
+    /// [A329] Whether `client_controller`'s walk test starts a body where a standing body can be: out of every steep face its
+    /// capsule overlaps, from the feet up, by up to its radius (`mapdata::Body::walk_start_clear`, the client's push out of
+    /// penetrations 0x763D0). Off: out of the faces above the step only, so a floor beside a ledge lower than the step starts the
+    /// body inside it, the exe pops it on top, and the pass keeps climbs no client makes (fx-gear-2's step-down cases: level_04
+    /// day_4, a 0.785 m ledge the client and the exe stop at; the exe climbs a vertical face walking up to 0.75 m). OFF until its
+    /// nav gate. A grid is the map's (see `gap_links`).
+    pub walk_start_clear: bool,
 }
 
 impl Default for GridTuning {
@@ -194,6 +201,7 @@ impl Default for GridTuning {
             drop_check: true,
             wall_give_back: true,
             exe_collision: true,
+            walk_start_clear: false,
         }
     }
 }
@@ -231,6 +239,7 @@ impl GridTuning {
             drop_check: self.drop_check,
             wall_give_back: self.wall_give_back,
             exe_collision: self.exe_collision,
+            walk_start_clear: self.walk_start_clear,
             ..body
         }
     }
