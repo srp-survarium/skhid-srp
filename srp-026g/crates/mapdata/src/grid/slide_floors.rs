@@ -303,3 +303,54 @@ mod probe {
         }
     }
 }
+
+#[cfg(test)]
+mod spot_probe {
+    use super::*;
+
+    /// The pass's read around one spot of a map file: `SRP_SLIDE_MAP` (a `.mapdata` path), `SRP_SLIDE_AT` ("x,z,half"): on a
+    /// 0.25 m lattice, the ground under each point (a ray from 4 m up), the verdict of each stand and the face the capsule met.
+    #[test]
+    #[ignore = "a probe: prints, asserts nothing"]
+    fn print_slide_reads_at_a_spot() {
+        let (Ok(map), Ok(at)) = (std::env::var("SRP_SLIDE_MAP"), std::env::var("SRP_SLIDE_AT")) else {
+            eprintln!("skipping: SRP_SLIDE_MAP / SRP_SLIDE_AT not set");
+            return;
+        };
+        let v: Vec<f32> = at.split(',').map(|x| x.trim().parse().unwrap()).collect();
+        let (x0, z0, half, y0) = (v[0], v[1], v[2], v.get(3).copied().unwrap_or(0.0));
+        let data = crate::MapData::read(std::path::Path::new(&map)).expect("the map");
+        let world = Collision::build(&data.walker_triangles());
+        let s = Settings::LIVE;
+        let steps = (half / 0.25) as i32;
+        for k in -steps..=steps {
+            for i in -steps..=steps {
+                let (x, z) = (x0 + i as f32 * 0.25, z0 + k as f32 * 0.25);
+                // Every ground under the point between y0-4 and y0+4, top down.
+                let mut top = y0 + 4.0;
+                while let Some((t, n)) = world.ray(Vec3::new(x, top, z), Vec3::new(x, y0 - 4.0, z)) {
+                    let y = top - t * (top - (y0 - 4.0));
+                    if n.y.abs() >= 0.3 {
+                        let feet = Vec3::new(x, y, z);
+                        let at = out_of_walls(&world, feet);
+                        let cap = Capsule::standing(at + Vec3::new(0.0, LIFT_M, 0.0), 1.8, 0.38);
+                        let met = world
+                            .sweep(cap, Vec3::new(0.0, -PROBE_M, 0.0), |f| f.normal.y.abs() >= STEEP_NORMAL_Y)
+                            .map(|c| (c.normal.y, world.face(c.face).normal.y, world.face(c.face).walker));
+                        println!(
+                            "({x:.2}, {y:.2}, {z:.2}) ray n.y {:.2} -> {:?} stand {:?} met {:?}",
+                            n.y.abs(),
+                            hold_floor(&world, feet, &s),
+                            hold_at(&world, feet, &s),
+                            met
+                        );
+                    }
+                    top = y - 0.05;
+                    if top <= y0 - 4.0 {
+                        break;
+                    }
+                }
+            }
+        }
+    }
+}
