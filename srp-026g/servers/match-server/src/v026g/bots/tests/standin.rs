@@ -111,6 +111,17 @@ pub(crate) fn client_step(grid: &mapdata::WalkGrid) -> f32 {
     grid.body().step
 }
 
+/// The stand-in's walk on the lattice, one rule for every walking tick (the walk, and the walk before a jump's take-off): with
+/// [`stand_in_edge`] the supported slide with the stand-in's bridge rule and wall slide ([`stand_in_bridges`], [`stand_in_walls`]),
+/// else the old capped slide; the rise is [`client_step`].
+pub(crate) fn walk_slide(grid: &mapdata::WalkGrid, node: NodeId, from: Vec3, to: Vec3) -> (NodeId, Vec3, bool) {
+    if stand_in_edge() {
+        body::slide_supported_with(grid, node, from, to, client_step(grid), body::SUPPORT_M, stand_in_bridges(), stand_in_walls())
+    } else {
+        slide_capped(grid, node, from, to, client_step(grid))
+    }
+}
+
 pub(crate) fn spawn_on_free_points() -> bool {
     static ON: std::sync::OnceLock<bool> = std::sync::OnceLock::new();
     !OLD_DRAW.get() && *ON.get_or_init(|| bench_settings().var("SRP_BENCH_SPAWN_POINTS").map_or(true, |v| v != "random"))
@@ -1361,7 +1372,7 @@ impl Game {
                     // The rise a walk climbs is the client's step ([`client_step`]), not the grid's: with `capsule_steps` the grid walks
                     // 0.96 m ledges the client's body is held at (A286).
                     let (mut node, mut feet, _) = if stand_in_edge() {
-                        let slid = body::slide_supported_with(grid, node, body.feet, target, client_step(grid), body::SUPPORT_M, stand_in_bridges(), stand_in_walls());
+                        let slid = walk_slide(grid, node, body.feet, target);
                         // Past a ledge's edge with no drop link ahead: on, or down, as the client's capsule (`stand_in_fall`).
                         let walls = self.walls.as_deref().filter(|_| stand_in_fall());
                         match walls.and_then(|walls| past_edge(grid, walls, slid.0, slid.1, target)) {

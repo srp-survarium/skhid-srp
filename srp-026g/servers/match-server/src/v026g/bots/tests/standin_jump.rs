@@ -529,7 +529,10 @@ pub(crate) fn a_stand_in_jump_gets_up_a_ledge_with_no_link_within_its_height() {
 }
 
 /// Whether the stand-in moves bodies as the client does (the default): no
-/// step up over the client's 0.6 m, and a jump that follows the keys held
+/// step up over the client's ([`super::standin::client_step`]: the grid body's
+/// `step`, 0.80 m on the clients' body, `startup.cfg` `cc_step_height 0.80` in the
+/// game's `resources.db`; the exe's own default, `s_step_height` 0.6, is replaced
+/// by that cvar), and a jump that follows the keys held
 /// at its press along the game's jump clip ([`Flight`]).
 /// `SRP_BENCH_STAND_IN=old` brings back the old stand-in (any step the
 /// grid walks, a jump that lifts the body up any floor in reach,
@@ -623,8 +626,9 @@ pub(crate) const SPRINT_PREPARE_M: f32 = 1.64;
 /// leaves the floor), PROVEN (FINDINGS §1.2, §3.2).
 pub(crate) const WALK_CAP: f32 = 3.5;
 
-/// A body falling after its clip, m/s².
-pub(crate) const GRAVITY: f32 = 9.81;
+/// A body falling after its clip, m/s²: the client's `fall_params.gravity` (PROVEN, `docs/notes/fall_damage.md`: `step_down` 0x7E1B0
+/// adds 0.49 m/s a 0.05 s tick), the reckoning's own (`body.rs` `GRAVITY`). Was 9.81 with no source.
+pub(crate) const GRAVITY: f32 = 9.8;
 
 /// The heights over the feet at which a face holds a body in the air
 /// (rays on the walker mesh), m: its feet (a little over, so a floor's
@@ -891,11 +895,9 @@ pub(crate) fn fly(
                     }
                 }
             }
-            let (n, feet, _) = if wall.as_ref().is_some_and(|w| w.hold) && stand_in_edge() {
-                super::body::slide_supported(grid, node, body.feet, target, super::standin::client_step(grid), super::body::SUPPORT_M)
-            } else {
-                super::body::slide_capped(grid, node, body.feet, target, super::standin::client_step(grid))
-            };
+            // The walk before the take-off is the stand-in's walk ([`super::standin::walk_slide`]): the same ledge support, bridge rule
+            // and wall slide as every other walking tick, so the two can't drift apart (it was the old supported slide, no round slide).
+            let (n, feet, _) = super::standin::walk_slide(grid, node, body.feet, target);
             body.node = Some(n);
             body.feet = feet;
         }
@@ -1135,7 +1137,7 @@ pub(crate) fn the_fall_damage_follows_the_clients_rule_by_landing_speed() {
     assert_eq!(fall_damage(30.0), 1.0);
 }
 
-/// The honest walk steps up to the client's 0.6 m, and not up the grid's
+/// The honest walk steps up to the grid body's step (0.6 m on this test's default body, the exe's `s_step_height`), and not up the grid's
 /// "forced" stair links of up to 0.75 m (`walk` faces) that the old
 /// walk took.
 #[test]

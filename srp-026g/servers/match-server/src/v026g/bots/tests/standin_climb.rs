@@ -37,12 +37,12 @@ impl Way {
     }
 
     /// The highest rise the client's body makes this way, m: the step (`startup.cfg` `cc_step_height` 0.80); the sprint lift (1.11); the
-    /// plain jump's apex (0.998, the jump law); the sprint jump's reach (1.30, `tallies/owner/jumps.rs` `REACH_M`).
+    /// plain jump's apex (`mapdata::STANDING_JUMP_M` 0.998, the `on_site*` clips' root, PROVEN; was 1.03 with no source); the sprint jump's reach (1.30, `tallies/owner/jumps.rs` `REACH_M`).
     pub(crate) fn limit_m(self) -> f32 {
         match self {
             Way::Walk => 0.80,
             Way::Lift => 1.11,
-            Way::ShortJump => 1.03,
+            Way::ShortJump => mapdata::STANDING_JUMP_M,
             Way::SprintJump => 1.30,
         }
     }
