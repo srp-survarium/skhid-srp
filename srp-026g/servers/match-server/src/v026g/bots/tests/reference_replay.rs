@@ -82,6 +82,9 @@ fn reference_replay() {
     let mut keys_of: HashMap<usize, Vec<(u32, u32)>> = HashMap::new();
     // `SRP_A325_TURN_FIRST=1`: each tick's velocity turned by that tick's own turn first (the reckoning moves, then turns).
     let turn_first = var("SRP_A325_TURN_FIRST").is_some();
+    // `SRP_A325_WORLD_BLEND=k`: the velocity kept in the world frame, each tick k of the way toward the intended (a turn does not
+    // swing the momentum round with the yaw at once). A hypothesis test, not a client rule.
+    let world_blend: Option<f32> = var("SRP_A325_WORLD_BLEND").and_then(|v| v.parse().ok());
     let mut turn_of: HashMap<(usize, u32), f32> = HashMap::new();
     for &(t, p, k, turn) in &ticks {
         keys_of.entry(p).or_default().push((t, k));
@@ -165,6 +168,7 @@ fn reference_replay() {
         let mut body = Controller::standing_at(from);
         let mut last_t = t0;
         let mut tick_n = 0u32;
+        let mut wv: Option<[f32; 2]> = None;
         for &(t, _, v, _) in trail.iter().filter(|r| r.0 > t0 && r.0 <= w.time) {
             let sub = (((t - last_t) as f32 / 1000.0) / TICK_S).round().max(1.0) as usize;
             for _ in 0..sub {
@@ -173,6 +177,15 @@ fn reference_replay() {
                 body.want_crouch = kk & key::CROUCH != 0;
                 let was = body.feet();
                 let v = if turn_first { rotate(v, turn_of.get(&(w.place, t)).copied().unwrap_or(0.0)) } else { v };
+                let v = match world_blend {
+                    Some(k) => {
+                        let cur = wv.unwrap_or(v);
+                        let nv = [cur[0] + (v[0] - cur[0]) * k, cur[1] + (v[1] - cur[1]) * k];
+                        wv = Some(nv);
+                        nv
+                    }
+                    None => v,
+                };
                 body.walk = Vec3::new(v[0] * TICK_S, 0.0, v[1] * TICK_S);
                 let notes = body.step(&collision, TICK_S, &s);
                 let now = body.feet();
