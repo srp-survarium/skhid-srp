@@ -125,6 +125,15 @@ preferred-image VAs; `apply_modifier` is the kit-modifier getter 0x2D5AE0.
   hands' strokes and the point light now kept), each kept emitter's Rate and MaxParticles times
   its kept share of the stock emitter's parts. Everyone sees it, both views: the carrier too, on
   its own hands in the first person. It no longer lies on the leg quarters.
+- On the whole arms since @10 (the owner, 2026-11-06: the hands alone barely showed in the third
+  person): ARMS (both upper arms, forearms and hands), the same kept-share scaling (rays keep 4
+  of their 8 parts).
+- First person since @10 (the owner, 2026-11-06: the carrier's own view washed white/grey): its
+  effect and each leg quarter's are made as effect_artefact_<kind> is, a composite (type 110) of
+  the system with no `view` (everyone else's third person, unchanged: its point light and haze)
+  and a first-person twin (`view` 0, `<system>_fp`) without `up_light` and `distortion`, the same
+  time and end. The exe is unchanged: it plays the effect by name, its resource is the
+  composite's.
 
 ## Artifact Container (522)
 
@@ -261,7 +270,7 @@ preferred-image VAs; `apply_modifier` is the kit-modifier getter 0x2D5AE0.
   each 4 less the recipient's own carried copies of the kind (in their passive or active).
   Larkspur's active heal is Medic's, which has no cap: a full heal twice is one.
 
-### Leg quarters (patch 111, pack artefact-glow@9)
+### Leg quarters (patch 111, pack artefact-glow@10)
 
 - The owner (2026-11-06): each passive artefact copy that counts for a player lights a quarter
   of its legs in that artefact's colour (how stacked a player is).

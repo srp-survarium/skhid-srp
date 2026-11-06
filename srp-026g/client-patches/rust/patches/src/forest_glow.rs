@@ -4,10 +4,10 @@
 //!
 //! - Forest Protection's: while the skill protects a player (its kit's
 //!   modifier 41 makes the anomaly hit's factor below 1, and it is inside a
-//!   damage zone: the native rule of 0x332810), a grey glow on its forearms
-//!   and hands, the game effect `forest_protection` (content pack
-//!   artefact-glow: the artefacts' stock glow, grey, both views); everyone
-//!   sees it;
+//!   damage zone: the native rule of 0x332810), a grey glow on its arms, the
+//!   game effect `forest_protection` (content pack artefact-glow: the
+//!   artefacts' stock glow, grey; a composite whose first-person twin has no
+//!   point light or haze, as the quarters'); everyone sees it;
 //! - the leg quarters: each passive artefact copy that counts for a player
 //!   (its own carried copies giving their passive and those Resonance
 //!   shares with it, at most 4 of a kind) lights a quarter of its legs in

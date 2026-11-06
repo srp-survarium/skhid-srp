@@ -59,6 +59,12 @@ stock Onyx glow, grey, made as a quarter is (`quarter_particle`) with HANDS (bot
 hands) for its parts: the hands' strokes and the point light kept, every kept emitter at the stock
 density on its parts. It no longer lies on the leg quarters; everyone sees it, the carrier too in
 the first person (its own hands).
+
+Version 10 (the owner, 2026-11-06): Forest Protection's glow on the whole arms (ARMS, the upper
+arms too), as a quarter is made; and it and the leg quarters made as effect_artefact_<kind> is: a
+composite of the system with no `view` (everyone else's third person, unchanged: its light and
+haze) and a first-person twin (`view` 0, <system>_fp) without the point light's emitter and the
+haze (FIRST_PERSON_LEFT_OUT), which washed the carrier's own view grey.
 """
 import argparse
 import copy
@@ -71,7 +77,7 @@ import sys
 import zlib
 
 PACK_ID = 'artefact-glow'
-VERSION = '9'
+VERSION = '10'
 # kind -> (effect config, particle system); the stock files, by sha256.
 KINDS = {
     'lifebone': 'fx/artifacts/human_zhivokost',
@@ -97,6 +103,10 @@ ORANGE_MATERIALS = ('rays', 'stroke_scroll', 'up')
 LEGS = ('LeftUpLeg', 'LeftLeg', 'LeftFoot', 'RightUpLeg', 'RightLeg', 'RightFoot')
 # Forest Protection's glow since version 9 (the owner, 2026-11-06): on the forearms and hands.
 HANDS = ('LeftForeArm', 'LeftHand', 'RightForeArm', 'RightHand')
+# ... and on the whole arms since version 10 (the owner, 2026-11-06: the hands alone barely showed).
+ARMS = ('LeftArm', 'LeftForeArm', 'LeftHand', 'RightArm', 'RightForeArm', 'RightHand')
+# What a first-person twin of Forest Protection's glow or a leg quarter leaves out (version 10).
+FIRST_PERSON_LEFT_OUT = ('up_light', 'distortion')
 BODY_PARTS = LEGS + ('BackChest', 'BackSpin', 'Face', 'FrontChest', 'FrontSpin', 'Head', 'LeftArm',
                      'LeftForeArm', 'LeftHand', 'Neck', 'RightArm', 'RightForeArm', 'RightHand')
 GREY = [0.5, 0.5, 0.5, 1.0]              # the materials' emissive and the light: a neutral grey (exact in f32)
@@ -292,7 +302,7 @@ def forest_particle(stock):
     """human_forest_protection (version 9): the stock Onyx glow, grey, on the hands (HANDS) as a
     quarter is made (`quarter_particle`: the emitters with none of those parts left out, each
     kept one, the point light's too, at the stock density on its parts)."""
-    return greyed(quarter_particle(stock, HANDS))
+    return greyed(quarter_particle(stock, ARMS))
 
 
 def f32(x):
@@ -400,13 +410,32 @@ def grey_material(stock):
 
 
 def forest_effect(stock_effect, system=FOREST_SYSTEM):
-    """effect_forest_protection (or a quarter's): the stock artefact effect playing `system`, in
-    both views."""
+    """effect_forest_protection (or a quarter's), as effect_artefact_<kind> is made (version 10): a
+    composite of the stock artefact effect playing `system` (no `view`: everyone else's third
+    person, its light and haze included) and its first-person twin (`view` 0) playing
+    `system`_fp, with the same time and end."""
     stock = get(stock_effect, 'effect')
     assert get(stock, 'type') == (T_INT, PARTICLE) and not has(stock, 'view'), 'not the stock particle effect'
-    effect = [(k, (T_STR, system) if k == 'particle_system' else c) for k, c in stock[1]] + \
-        [('view', (T_INT, BOTH_VIEWS))]
-    return (T_NAMED, [(k, (T_NAMED, effect) if k == 'effect' else c) for k, c in stock_effect[1]])
+    third = (T_NAMED, [(k, (T_STR, system) if k == 'particle_system' else c) for k, c in stock[1]])
+    tree = (T_NAMED, [(k, third if k == 'effect' else c) for k, c in stock_effect[1]])
+    return composite_effect(tree, system + '_fp')
+
+
+def first_person_twin(tree):
+    """A glow's first-person twin (version 10): the same system without its point light's emitter
+    and its haze (FIRST_PERSON_LEFT_OUT), which washed the carrier's own view grey."""
+    return keep_emitters(tree, lambda e: emitter_name(e) not in FIRST_PERSON_LEFT_OUT)
+
+
+def check_twin(twin, tree):
+    """The twin is exactly `tree` without the emitters FIRST_PERSON_LEFT_OUT names."""
+    emitters = dict(dict(dict(tree[1])['LOD 0'][1])['children'][1])
+    dropped = {g for g, e in emitters.items() if emitter_name(e) in FIRST_PERSON_LEFT_OUT}
+    assert dropped and {emitter_name(emitters[g]) for g in dropped} == set(FIRST_PERSON_LEFT_OUT), dropped
+    for d in differences(twin, tree):
+        assert d.rsplit('/', 1)[-1] in dropped or d.endswith('/children_order'), d
+    kept = dict(dict(dict(twin[1])['LOD 0'][1])['children'][1])
+    assert set(kept) == set(emitters) - dropped
 
 
 def check_forest(tree, stock):
@@ -417,7 +446,7 @@ def check_forest(tree, stock):
         last = d.rsplit('/', 1)[-1]
         assert last == 'Material' or \
             (('/LightColor/' in d or d.startswith('/data_sources/color/')) and last == 'value'), d
-    check_quarter(tree, grey, HANDS)
+    check_quarter(tree, grey, ARMS)
 
     def strings(node):
         t, v = node
@@ -559,8 +588,11 @@ def main():
     onyx = parse(stock[f'particles/{KINDS[FOREST_FROM]}.particle'])
     forest = forest_particle(onyx)
     check_forest(forest, onyx)
+    forest_twin = first_person_twin(forest)
+    check_twin(forest_twin, forest)
     forest_files = {FOREST_EFFECT: forest_effect(parse(stock[f'gameplay/effects/effect_artefact_{FOREST_FROM}.options'])),
-                    f'particles/{FOREST_SYSTEM}.particle': forest}
+                    f'particles/{FOREST_SYSTEM}.particle': forest,
+                    f'particles/{FOREST_SYSTEM}_fp.particle': forest_twin}
     for name in ORANGE_MATERIALS:
         orange = parse(stock[f'material_instances/fx/artifacts/{name}_orange.material'])
         grey = grey_material(orange)
@@ -574,8 +606,11 @@ def main():
             effect_path, quarter_system = quarter_names(kind, n)
             quarter = quarter_particle(kind_stock, parts)
             check_quarter(quarter, kind_stock, parts)
+            twin = first_person_twin(quarter)
+            check_twin(twin, quarter)
             forest_files[effect_path] = forest_effect(kind_effect, quarter_system)
             forest_files[f'particles/{quarter_system}.particle'] = quarter
+            forest_files[f'particles/{quarter_system}_fp.particle'] = twin
     for path, tree in forest_files.items():
         data = serialize(tree)
         assert sort_key(parse(data)) == sort_key(tree), path
@@ -593,9 +628,9 @@ def main():
                        'stock third-person particle effect and a first-person one (view 0) playing '
                        'fx/artifacts/human_<kind>_fp: the stock particle system, its point lights and haze '
                        'included, with Head, Face and Neck off in every emitter\'s animated domain; and '
-                       'Forest Protection\'s glow, effect_forest_protection (both views) playing '
-                       'fx/artifacts/human_forest_protection: the stock Onyx glow, grey, on the forearms and hands; '
-                       'and the leg quarters, effect_artefact_leg_<kind>_<1..4> (both views) playing '
+                       'Forest Protection\'s glow, effect_forest_protection (a composite: third person, and a first-person twin without the light and haze) playing '
+                       'fx/artifacts/human_forest_protection: the stock Onyx glow, grey, on the arms; '
+                       'and the leg quarters, effect_artefact_leg_<kind>_<1..4> (composites likewise) playing '
                        'fx/artifacts/human_<kind>_leg_<1..4>: each kind\'s stock glow on one quarter of the '
                        'legs (left lower, right lower, left upper, right upper), each emitter, its point '
                        'light\'s too, at the stock density on the quarter\'s parts',
