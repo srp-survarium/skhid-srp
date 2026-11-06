@@ -955,7 +955,7 @@ pub fn slide_supported_by(
         let stair = |(dx, dz): (f32, f32)| {
             let ahead = Vec3::new(at.x + cell * dx.signum(), at.y, at.z + cell * dz.signum());
             (dx != 0.0 && dz != 0.0)
-                && grid.locate(ahead, half).is_some_and(|n| (grid.position(n).y - level).abs() <= grid.body().step)
+                && grid.locate(ahead, cell).is_some_and(|n| (grid.position(n).y - level).abs() <= grid.body().step)
         };
         let parts = |d: (f32, f32)| if stair(d) { [(d.0, 0.0), (0.0, d.1)] } else { [(0.0, 0.0); 2] };
         let tries: [(f32, f32); 9] = match walls {
