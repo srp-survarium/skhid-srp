@@ -72,14 +72,14 @@ fn drift_on_a_real_match() {
             let maps = super::super::maps::Maps::configured_for(
                 Some(std::path::PathBuf::from(&dir)),
                 1,
-                1,
                 built.map(std::path::PathBuf::from),
                 tuning.grid.clone(),
                 tuning.needs_wall_clearance(),
                 tuning.needs_open_sides(),
             );
+            let claim = maps.claim(&project, super::super::maps::Maps::margin());
             loop {
-                match maps.get(&project) {
+                match claim.get() {
                     super::super::maps::MapState::Ready(base) => break base.world.clone(),
                     super::super::maps::MapState::Absent(why) => panic!("{project}: {why}"),
                     _ => std::thread::sleep(std::time::Duration::from_millis(20)),

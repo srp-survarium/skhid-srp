@@ -55,7 +55,7 @@ use crate::v026g::bots::reflex::WeaponKind;
 use crate::v026g::bots::foliage::{self, Foliage};
 use crate::v026g::bots::grass::{self, Grass};
 use crate::v026g::bots::live_grenades::{Player, Throws};
-use crate::v026g::bots::routes::{self, RouteTable};
+use crate::v026g::bots::routes;
 use crate::v026g::bots::switch_log;
 use crate::v026g::bots::tactics::Tactics;
 use crate::v026g::bots::trace::Trace;

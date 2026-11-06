@@ -248,7 +248,6 @@ Each is an escape hatch for one thing not proven against a live client.
 | `SRP_COMPRESS_STATE` | on | `off`: the world (0xE8) goes to the clients as it is, not as LZMA2 (since 2026-10-13; `docs/notes/match.md` section 27) |
 | `SRP_MAPDATA_DIR` | unset (off; the compose file sets `/srv/srp/data/mapdata`) | The bots' maps: the `<project>.mapdata` files (`docs/notes/player_bots_mapdata.md` section 6; game data, copied into the data volume by hand). A folder that is not there, or a project with no file: bots without maps (a warning) |
 | `SRP_MAPDATA_BUILT` | `<SRP_MAPDATA_DIR>/built` | Where the server writes the grids and trees it builds of the maps and reads them the next time; `off`: built at each load |
-| `SRP_MAPDATA_KEEP` | 1 | Built maps kept that no match holds |
 | `SRP_MAPDATA_AT_ONCE` | 1 | The most bots' maps in memory at once (with `SRP_PVB=on`, at least `SRP_PVB_MAX_MATCHES`) |
 | `SRP_ENTRY_STATE_SECONDS` | 4 | How long the first world of a game that has none yet is kept on its way before its sync starts over; 2 to 5, and less for an old snapshot (the ticks on the wire reach 6.35 s from the clock the game waits at). A game that plays is resynced within 1.75 s |
 | `SRP_RELAY_PACK_MS` | 15 | How long a relay or a drop order may wait for others to share its datagram (at most 50; 0: each goes at once). Anything else queued, a full datagram or an ack due sends them at once (since 2026-10-14; `docs/notes/transport.md` section 11.1) |

@@ -330,10 +330,14 @@ fn walking_map() -> std::sync::Arc<crate::v026g::bots::maps::Maps> {
         .unwrap();
     let maps = Maps::new(Some(dir));
     let started = std::time::Instant::now();
-    while !matches!(maps.get(project), MapState::Ready(_)) {
-        assert!(started.elapsed().as_secs() < 20, "{:?}", maps.get(project));
+    // Built once here, so its grid, tree and tactics are in the built files: the match's own claim reads them back (the
+    // store keeps no map no match uses, A326).
+    let claim = maps.claim(project, Maps::margin());
+    while !matches!(claim.get(), MapState::Ready(_)) {
+        assert!(started.elapsed().as_secs() < 20, "{:?}", claim.get());
         std::thread::sleep(std::time::Duration::from_millis(5));
     }
+    drop(claim);
     maps
 }
 

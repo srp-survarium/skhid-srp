@@ -192,12 +192,12 @@ RUST_LOG=info
 # <project>.mapdata files, copied by hand into the data volume (game data:
 # never into a repository). Compose default /srv/srp/data/mapdata; `off`:
 # no maps. The server writes what it builds of them to <dir>/built (or
-# SRP_MAPDATA_BUILT; `off`: built at each load), keeps SRP_MAPDATA_KEEP
-# built maps no match holds, and has at most SRP_MAPDATA_AT_ONCE in
+# SRP_MAPDATA_BUILT; `off`: built at each load), unloads a map once no
+# running match uses it, and has at most SRP_MAPDATA_AT_ONCE in
 # memory (with Player vs Bots on, at least SRP_PVB_MAX_MATCHES).
+# (SRP_MAPDATA_KEEP is no longer read.)
 # SRP_MAPDATA_DIR=/srv/srp/data/mapdata
 # SRP_MAPDATA_BUILT=/srv/srp/data/mapdata/built
-# SRP_MAPDATA_KEEP=1
 # SRP_MAPDATA_AT_ONCE=1
 
 # Players who must accept before a clan is registered. The code's default is

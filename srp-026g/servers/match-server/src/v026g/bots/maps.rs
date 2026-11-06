@@ -53,6 +53,7 @@ use std::time::Instant;
 
 use mapdata::{MapData, RayTree, WalkGrid, World};
 
+use super::map_files::MapFiles;
 use super::tactics::TacticsBase;
 use super::tuning::{GridTuning, Tuning};
 

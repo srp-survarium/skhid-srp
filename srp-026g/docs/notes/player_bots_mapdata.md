@@ -823,8 +823,11 @@ every match.
   `--map`: all 72 projects, 817 MB). Unset, or a project with no file or a
   file that fails to load: bots keep the stage 0/1 script (a warning once
   per project, until a restart).
-- `SRP_MAPDATA_KEEP=<n>` (default 1): built worlds kept besides those
-  running matches hold.
+- A map is unloaded once no running match uses it (A326, the owner's
+  rule): the store holds a built map only till the first match takes it,
+  then only the matches hold it, and the freed memory is handed back when
+  the last one ends. `SRP_MAPDATA_KEEP` (one map kept past its matches)
+  is no longer read.
 - `<dir>/bot-routes.json`: the human routes of play 17 (`bots/routes.rs`),
   private data made from the players' worlds, copied by hand next to the
   `.mapdata` files. Read when each match is made while `SRP_BOT_ROUTES` is
@@ -1351,8 +1354,9 @@ the match (`/proc/self/status`, the peak reset after the tactics).
 
 **The memory budget.** The server used about 190 MB without bots
 (2026-10-14). Each map that bots play adds its world and tactics, 84-145
-MB, shared by every match on it, and the store keeps one more map past
-those matches use (`maps::KEEP`):
+MB, shared by every match on it. Until A326 the store also kept one more map past
+those matches used (`maps::KEEP`, gone since: a map no match uses is unloaded); the
+table is from then:
 
 | bot maps held | the server with them |
 |---|---|
