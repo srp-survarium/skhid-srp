@@ -2532,6 +2532,11 @@ st_srp_matches_starting	začíná
 st_srp_matches_title	Zápasy
 st_srp_matches_versus	na
 st_srp_matches_waiting	čekání
+st_srp_medicine_ambient_sounds	Zvuky okolí
+st_srp_medicine_crouched_healing	Léčení v přikrčení
+st_srp_medicine_enemy_sounds	Zvuky nepřátel
+st_srp_medicine_hit_slow	Zpomalení od střel
+st_srp_medicine_sprint_stamina	Výdrž na sprint
 st_srp_melee_knockback	Odhození pažbou
 st_srp_mode_blackout	Ochranné zařízení: výpadek
 st_srp_mode_chargers	Ochranné zařízení: nabíječky

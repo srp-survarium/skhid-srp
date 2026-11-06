@@ -147,6 +147,36 @@ package survarium.player
          }
       }
 
+      // The lines a medicine's card adds below its own: what the medical skills do while it is
+      // active or as it heals, none of them a stat of the item (medical_skills.rs). Each is a
+      // share of the game's own (100 %), {name, before: 100, after, higherIsBetter}; a skill
+      // without a rank adds no line.
+      public function medicineSkillLines(item:Object) : Array
+      {
+         var lines:Array = [];
+         if(_kit == null || item.category != ItemCategory.MEDKITS) return lines;
+         if(has(item,PAIN_PROTECTION))
+         {
+            // While a painkiller is active (set_active's flag on a pain protector): Numb Legs, the
+            // sprint's stamina x (1 - 0.2 x rank) (player_stamina::sprint 0x329AAD); Unflinching,
+            // the hits' stopping power x (1 - 0.1 x rank); Concentration, the environment's
+            // sounds x (1 - 0.1 x rank) and the opponents' (not their shots) x (1 + 0.1 x rank).
+            skillLine(lines,"st_srp_medicine_sprint_stamina",1 - _kit.numbLegsRank * 0.2,false);
+            skillLine(lines,"st_srp_medicine_hit_slow",1 - _kit.unflinchingRank * 0.1,false);
+            skillLine(lines,"st_srp_medicine_ambient_sounds",1 - _kit.concentrationRank * 0.1,false);
+            skillLine(lines,"st_srp_medicine_enemy_sounds",1 + _kit.concentrationRank * 0.1,true);
+         }
+         // Take Cover: each heal tick's amount x (1 + 0.1 x rank) while crouched (medkit::tick
+         // 0x33D948, after Medical Training's S57), on a medicine that heals.
+         if(heals(item)) skillLine(lines,"st_srp_medicine_crouched_healing",1 + _kit.takeCoverRank * 0.1,true);
+         return lines;
+      }
+
+      private static function skillLine(lines:Array, key:String, factor:Number, higherIsBetter:Boolean) : void
+      {
+         if(factor != 1) lines.push({name:LocalizationData.getName(key),before:100,after:100 * factor,higherIsBetter:higherIsBetter});
+      }
+
       // A grenade's or a trap's card stat (docs/notes/alt-weapon-stats.md), each as the match's
       // apply_modifier takes it.
       private function thrown(propId:int, value:Number) : Number

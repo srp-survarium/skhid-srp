@@ -2532,6 +2532,11 @@ st_srp_matches_starting	start
 st_srp_matches_title	Rozgrywki
 st_srp_matches_versus	na
 st_srp_matches_waiting	oczekiwanie
+st_srp_medicine_ambient_sounds	Dźwięki otoczenia
+st_srp_medicine_crouched_healing	Leczenie w kucki
+st_srp_medicine_enemy_sounds	Dźwięki wrogów
+st_srp_medicine_hit_slow	Spowolnienie od kul
+st_srp_medicine_sprint_stamina	Energia na sprint
 st_srp_melee_knockback	Siła ciosu kolbą
 st_srp_mode_blackout	Urządzenie ochronne: blackout
 st_srp_mode_chargers	Urządzenie ochronne: ładowarki

@@ -2532,6 +2532,11 @@ st_srp_matches_starting	početak
 st_srp_matches_title	Mečevi
 st_srp_matches_versus	na
 st_srp_matches_waiting	čekanje
+st_srp_medicine_ambient_sounds	Zvuci okoline
+st_srp_medicine_crouched_healing	Lečenje u čučnju
+st_srp_medicine_enemy_sounds	Zvuci neprijatelja
+st_srp_medicine_hit_slow	Usporenje od metaka
+st_srp_medicine_sprint_stamina	Izdržljivost za sprint
 st_srp_melee_knockback	Odbacivanje kundakom
 st_srp_mode_blackout	Zaštitni uređaj: zamračenje
 st_srp_mode_chargers	Zaštitni uređaj: punjači

@@ -2532,6 +2532,11 @@ st_srp_matches_starting	старт
 st_srp_matches_title	Матчи
 st_srp_matches_versus	на
 st_srp_matches_waiting	ожидание
+st_srp_medicine_ambient_sounds	Звуки окружения
+st_srp_medicine_crouched_healing	Лечение в приседе
+st_srp_medicine_enemy_sounds	Звуки противников
+st_srp_medicine_hit_slow	Замедление от пуль
+st_srp_medicine_sprint_stamina	Энергия на спринт
 st_srp_melee_knockback	Отбрасывание прикладом
 st_srp_mode_blackout	Защитное устройство: блэкаут
 st_srp_mode_chargers	Защитное устройство: зарядники
