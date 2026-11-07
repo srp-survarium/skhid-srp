@@ -381,15 +381,60 @@ pub extern "C" fn hook_artefact_keeper_on_register(frame: &mut Frame) -> u32 {
     }
 }
 
-// ---- artefact_keeper (patch 109) ----
+// ---- battery_progress (patch 92) ----
 
-/// The entry `artefact_keeper_on_spawn` (0x316eab, the respawn rule's spawn 0x316DA0 after vtable+20h(1) put the player into the world (its five pops before ret 0Ch); every spawn of a match in every game and every replay of the tick, the kit's player initialised (0x316E70) and in the world) calls this with the saved machine.
+/// The entry `battery_progress_on_carrier_tick` (0x2daad3, base_player::tick after the held object's tick (call [vtbl+28h] at 0x2DAAD1, or the je at 0x2DAAC9 with nothing held), before the movement (mov ecx,[esp+10h] / push edi): EBX the player, every simulation tick) calls this with the saved machine.
 #[unsafe(no_mangle)]
-pub extern "C" fn hook_artefact_keeper_on_spawn(frame: &mut Frame) -> u32 {
-    // SAFETY: only the entry `artefact_keeper_on_spawn` calls this, from the game's jump at 0x316eab,
+pub extern "C" fn hook_battery_progress_on_carrier_tick(frame: &mut Frame) -> u32 {
+    // SAFETY: only the entry `battery_progress_on_carrier_tick` calls this, from the game's jump at 0x2daad3,
     // on the game's thread; `frame` is its saved registers and fxsave area.
     let mut ctx = unsafe { Context::new(frame) };
-    match crate::artefact_keeper::on_spawn(&mut ctx) {
+    match crate::battery_progress::on_carrier_tick(&mut ctx) {
+        Flow::Continue => 0,
+        Flow::Skip => 1,
+        Flow::Exit(e) => match e {},
+    }
+}
+
+// ---- artefact_skills (patch 109) ----
+
+/// The entry `artefact_skills_on_movement_tick` (0x2daad3, base_player::tick after the held object's tick (call [vtbl+28h] at 0x2DAAD1, or the je at 0x2DAAC9 with nothing held), before the movement (mov ecx,[esp+10h] / push edi): EBX the player, every simulation tick) calls this with the saved machine.
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_artefact_skills_on_movement_tick(frame: &mut Frame) -> u32 {
+    // SAFETY: only the entry `artefact_skills_on_movement_tick` calls this, from the game's jump at 0x2daad3,
+    // on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::new(frame) };
+    match crate::artefact_skills::on_movement_tick(&mut ctx) {
+        Flow::Continue => 0,
+        Flow::Skip => 1,
+        Flow::Exit(e) => match e {},
+    }
+}
+
+// ---- forest_glow (patch 111) ----
+
+/// The entry `forest_glow_on_tick` (0x2daad3, base_player::tick after the held object's tick (call [vtbl+28h] at 0x2DAAD1, or the je at 0x2DAAC9 with nothing held), before the movement (mov ecx,[esp+10h] / push edi): EBX the player, every simulation tick) calls this with the saved machine.
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_forest_glow_on_tick(frame: &mut Frame) -> u32 {
+    // SAFETY: only the entry `forest_glow_on_tick` calls this, from the game's jump at 0x2daad3,
+    // on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::new(frame) };
+    match crate::forest_glow::on_tick(&mut ctx) {
+        Flow::Continue => 0,
+        Flow::Skip => 1,
+        Flow::Exit(e) => match e {},
+    }
+}
+
+// ---- artefact_keeper (patch 109) ----
+
+/// The entry `artefact_keeper_on_tick` (0x2daad3, base_player::tick after the held object's tick (call [vtbl+28h] at 0x2DAAD1, or the je at 0x2DAAC9 with nothing held), before the movement (mov ecx,[esp+10h] / push edi): EBX the player, every simulation tick) calls this with the saved machine.
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_artefact_keeper_on_tick(frame: &mut Frame) -> u32 {
+    // SAFETY: only the entry `artefact_keeper_on_tick` calls this, from the game's jump at 0x2daad3,
+    // on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::new(frame) };
+    match crate::artefact_keeper::on_tick(&mut ctx) {
         Flow::Continue => 0,
         Flow::Skip => 1,
         Flow::Exit(e) => match e {},
@@ -560,51 +605,6 @@ pub extern "C" fn hook_medical_skills_on_regenerate(frame: &mut Frame) -> u32 {
     // on the game's thread; `frame` is its saved registers and fxsave area.
     let mut ctx = unsafe { Context::new(frame) };
     match crate::medical_skills::on_regenerate(&mut ctx) {
-        Flow::Continue => 0,
-        Flow::Skip => 1,
-        Flow::Exit(e) => match e {},
-    }
-}
-
-// ---- battery_progress (patch 92) ----
-
-/// The entry `battery_progress_on_carrier_tick` (0x2daad3, base_player::tick after the held object's tick (call [vtbl+28h] at 0x2DAAD1, or the je at 0x2DAAC9 with nothing held), before the movement (mov ecx,[esp+10h] / push edi): EBX the player, every simulation tick) calls this with the saved machine.
-#[unsafe(no_mangle)]
-pub extern "C" fn hook_battery_progress_on_carrier_tick(frame: &mut Frame) -> u32 {
-    // SAFETY: only the entry `battery_progress_on_carrier_tick` calls this, from the game's jump at 0x2daad3,
-    // on the game's thread; `frame` is its saved registers and fxsave area.
-    let mut ctx = unsafe { Context::new(frame) };
-    match crate::battery_progress::on_carrier_tick(&mut ctx) {
-        Flow::Continue => 0,
-        Flow::Skip => 1,
-        Flow::Exit(e) => match e {},
-    }
-}
-
-// ---- artefact_skills (patch 109) ----
-
-/// The entry `artefact_skills_on_movement_tick` (0x2daad3, base_player::tick after the held object's tick (call [vtbl+28h] at 0x2DAAD1, or the je at 0x2DAAC9 with nothing held), before the movement (mov ecx,[esp+10h] / push edi): EBX the player, every simulation tick) calls this with the saved machine.
-#[unsafe(no_mangle)]
-pub extern "C" fn hook_artefact_skills_on_movement_tick(frame: &mut Frame) -> u32 {
-    // SAFETY: only the entry `artefact_skills_on_movement_tick` calls this, from the game's jump at 0x2daad3,
-    // on the game's thread; `frame` is its saved registers and fxsave area.
-    let mut ctx = unsafe { Context::new(frame) };
-    match crate::artefact_skills::on_movement_tick(&mut ctx) {
-        Flow::Continue => 0,
-        Flow::Skip => 1,
-        Flow::Exit(e) => match e {},
-    }
-}
-
-// ---- forest_glow (patch 111) ----
-
-/// The entry `forest_glow_on_tick` (0x2daad3, base_player::tick after the held object's tick (call [vtbl+28h] at 0x2DAAD1, or the je at 0x2DAAC9 with nothing held), before the movement (mov ecx,[esp+10h] / push edi): EBX the player, every simulation tick) calls this with the saved machine.
-#[unsafe(no_mangle)]
-pub extern "C" fn hook_forest_glow_on_tick(frame: &mut Frame) -> u32 {
-    // SAFETY: only the entry `forest_glow_on_tick` calls this, from the game's jump at 0x2daad3,
-    // on the game's thread; `frame` is its saved registers and fxsave area.
-    let mut ctx = unsafe { Context::new(frame) };
-    match crate::forest_glow::on_tick(&mut ctx) {
         Flow::Continue => 0,
         Flow::Skip => 1,
         Flow::Exit(e) => match e {},
@@ -3285,6 +3285,19 @@ pub extern "C" fn hook_world_check_on_raw(frame: &mut Frame) -> u32 {
 }
 
 #[unsafe(no_mangle)]
+pub extern "C" fn hook_battery_progress_on_carrier_tick_chain(frame: &mut Frame) -> u32 {
+    let flow = hook_battery_progress_on_carrier_tick(frame);
+    if flow != 0 { return flow; }
+    let flow = hook_artefact_skills_on_movement_tick(frame);
+    if flow != 0 { return flow; }
+    let flow = hook_forest_glow_on_tick(frame);
+    if flow != 0 { return flow; }
+    let flow = hook_artefact_keeper_on_tick(frame);
+    if flow != 0 { return flow; }
+    0
+}
+
+#[unsafe(no_mangle)]
 pub extern "C" fn hook_medical_skills_on_artefact_chain(frame: &mut Frame) -> u32 {
     let flow = hook_medical_skills_on_artefact(frame);
     if flow != 0 { return flow; }
@@ -3298,17 +3311,6 @@ pub extern "C" fn hook_artefact_skills_on_shared_regeneration_chain(frame: &mut 
     let flow = hook_artefact_skills_on_shared_regeneration(frame);
     if flow != 0 { return flow; }
     let flow = hook_medical_skills_on_regenerate(frame);
-    if flow != 0 { return flow; }
-    0
-}
-
-#[unsafe(no_mangle)]
-pub extern "C" fn hook_battery_progress_on_carrier_tick_chain(frame: &mut Frame) -> u32 {
-    let flow = hook_battery_progress_on_carrier_tick(frame);
-    if flow != 0 { return flow; }
-    let flow = hook_artefact_skills_on_movement_tick(frame);
-    if flow != 0 { return flow; }
-    let flow = hook_forest_glow_on_tick(frame);
     if flow != 0 { return flow; }
     0
 }

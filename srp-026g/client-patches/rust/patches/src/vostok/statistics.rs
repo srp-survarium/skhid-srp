@@ -37,17 +37,18 @@ impl ScoreEvent {
 
 /// Whether `place`'s record counts a death or a suicide in any kit; false for a place that is
 /// no record's.
-pub(super) fn has_died(statistics: raw::SharedStatistics, place: u8) -> bool {
-    let Some(place) = Place::parse(place) else { return false };
-    [ScoreEvent::DEATH, ScoreEvent::SUICIDE].into_iter().any(|event| {
-        (0..Kit::COUNT).any(|kit| {
-            let cell = usize::from(event.0) * Kit::COUNT + kit;
-            // SAFETY: the live statistics of the hook's world; one of the 20 records, one of its
-            // 28 x 3 cells.
-            unsafe { read(statistics.players().at(usize::from(place.0)).events().at(cell).count()) != 0 }
-        })
-    })
+/// The deaths and suicides the match's statistics count for `place`, in every kit.
+pub(super) fn deaths(statistics: raw::SharedStatistics, place: u8) -> u32 {
+    let Some(place) = Place::parse(place) else { return 0 };
+    [ScoreEvent::DEATH, ScoreEvent::SUICIDE]
+        .into_iter()
+        .flat_map(|event| (0..Kit::COUNT).map(move |kit| usize::from(event.0) * Kit::COUNT + kit))
+        // SAFETY: the live statistics of the hook's world; one of the 20 records, one of its 28 x 3
+        // cells.
+        .map(|cell| u32::from(unsafe { read(statistics.players().at(usize::from(place.0)).events().at(cell).count()) }))
+        .sum()
 }
+
 
 /// A place of the match: the statistics hold 20 records.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]

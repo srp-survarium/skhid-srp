@@ -2,11 +2,14 @@ name = "artefact_keeper"
 patch = 109
 
 # Keeper of the Artifacts (artefact-skills.md): the map's hidden pool as the core world
-# registers it, and a Keeper's first spawn given one of the match's kind.
+# registers it, and each player's tick giving a due Keeper its place's artefact of the match's
+# kind once a match.
 [[hook]]
 site = "keeper.register"
 handler = "on_register"
 
+# every player's simulation tick (after the battery carrier's, Resonance's and the glow's)
 [[hook]]
-site = "keeper.spawn"
-handler = "on_spawn"
+site = "battery.carrier_tick"
+handler = "on_tick"
+order = 4

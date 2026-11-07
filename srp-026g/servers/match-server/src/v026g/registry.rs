@@ -600,7 +600,7 @@ impl MatchRegistry {
         let first = next.places.len();
         next.profiles.extend(players.iter().map(|player| {
             let mut profile = player.profile.clone();
-            keeper::give(&mut profile, next.keeper);
+            keeper::give_late(&mut profile, next.keeper);
             profile
         }));
         next.info = StaticInfo::new(

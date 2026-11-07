@@ -6,7 +6,6 @@ use core::sync::atomic::{AtomicU32, Ordering};
 
 use artefact_carry::{Artefact, ArtefactId, ContainerIndex, Refused};
 
-use crate::artefact_keeper::FirstContainer;
 
 use super::hook::Thread;
 use super::world::{read};
@@ -133,27 +132,20 @@ impl<'t> Inventory<'t> {
         self.passive_item(artefact).map(|_| artefact)
     }
 
-    /// Keeper's view of the first container: none (no container), empty or holding one.
-    pub(super) fn first_container(&self) -> FirstContainer {
-        let Some(first) = ContainerIndex::parse(0).filter(|_| self.containers().is_some()) else {
-            return FirstContainer::Missing;
-        };
-        if self.item_in(first).is_some() { FirstContainer::Held } else { FirstContainer::Empty }
-    }
-
-    /// Keeper's gift: a dormant pool artefact (state 0, in no inventory) into the empty first
-    /// container. It gets the count and the cooldown the anomaly's spawn gives one
-    /// (artefact_base::on_spawned 0x3134C0), then the game's own take_artefact (as a ground
-    /// pickup) puts it into the first empty container and links its passive.
+    /// Keeper's gift: an unused pool artefact (state 0, in no inventory, count 0) into the first
+    /// empty container. It gets the count and the cooldown the anomaly's spawn gives one
+    /// (artefact_base::on_spawned 0x3134C0; the count, never 0, marks it given for the match),
+    /// then the game's own take_artefact (as a ground pickup) puts it into the first empty
+    /// container and links its passive.
     pub(super) fn take_dormant(&mut self, item: raw::Artefact) -> bool {
-        if !self.alive() || self.first_container() != FirstContainer::Empty {
+        if !self.alive() || self.container_space() != ContainerSpace::Available {
             return false;
         }
         // SAFETY: a registered artefact of the live core world; its fields are artefact_base's
         // and inventory_item's. Retained through the take; the empty first container keeps
         // take_artefact off its evicting path.
         unsafe {
-            if read(item.state()) != 0 || item.item().inventory().is_some() {
+            if read(item.state()) != 0 || item.item().inventory().is_some() || read(item.item().count()) != 0 {
                 return false;
             }
             let count = match read(item.default_count()) { 0xFFFF => 1, count => count };

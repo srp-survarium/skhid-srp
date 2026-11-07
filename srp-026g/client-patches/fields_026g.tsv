@@ -275,6 +275,7 @@ vostok::render::model_instance	movable	0x115	u8	a movable model (weapon::set_mov
 vostok::render::model_instance	static_model	0x0	obj<vostok::static_model_instance>	only for the artefact cooks' and the held flower's models, which are static (native artefact cooks)
 survarium::artefact_container_core	world_core	0x54	ptr<survarium::core_world>	its world's core: use_execute 0x31C838 reads the statistics handler from it
 survarium::core_world	statistics	0x18FA8	ptr<survarium::base_game_statistics_handler>	the statistics handler, set by its start_match (0x26D8E7), 0 before and after; use_execute counts a taken artefact through it (0x31C83B)
+survarium::core_world	time_state	0x18FE4	u32	the time rule's state: 1 waiting, 2 the countdown, 3 in process (written at each change, 0x317EFC / 0x318291 / 0x31816B, and by deserialize 0x318025)
 survarium::base_game_statistics_handler	shared	0x8	obj<survarium::shared_statistics>	its shared statistics, what the world holds (the slot +10h thunk 0x26DAC0: lea edx,[ecx+8])
 survarium::shared_statistics	players	0x0	obj<survarium::player_shared_statistics>	the 20 places' records (finish_match 0x2F4D25: place x 1F8h)
 survarium::player_shared_statistics	events	0x0	obj<survarium::event_count>	events[28][3]: an event's three kits' counts, kit k of event e the (3e + k)th (0x2F5606: event 5 at +1Eh + kit x 2)

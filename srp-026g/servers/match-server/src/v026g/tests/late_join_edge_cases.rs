@@ -270,7 +270,8 @@ fn a_growing_roster_prepares_and_catches_up_over_real_udp() {
 }
 
 /// Keeper of the Artifacts' kind is drawn once for the match: every kit of every profile has it
-/// in modifier 40 bits 9..11, the late joiner's too, so every game knows it from the static info.
+/// in modifier 40 bits 9..11, the late joiner's too, so every game knows it from the static info;
+/// the late joiner's kits also carry bit 13 (its gift comes after its first death).
 #[test]
 fn every_profile_and_a_late_joiner_carry_the_matchs_keeper_draw() {
     let mut bench = running();
@@ -279,9 +280,11 @@ fn every_profile_and_a_late_joiner_carry_the_matchs_keeper_draw() {
     let at = survarium::v026g::skills::modifier_index("artefact_power").unwrap();
     let draw = formed.keeper.draw();
     assert_eq!(formed.profiles.len(), 3);
-    for profile in &formed.profiles {
+    for (place, profile) in formed.profiles.iter().enumerate() {
+        let late = if place < formed.initial_players { 0 } else { survarium::v026g::keeper::LATE };
         for kit in &profile.kits {
-            assert_eq!(kit.modifiers[at] as u32, u32::from(draw) << 9, "{}", profile.name);
+            assert_eq!(kit.modifiers[at] as u32, u32::from(draw) << 9 | late, "{}", profile.name);
         }
     }
+    assert!(formed.initial_players < formed.profiles.len(), "a late joiner");
 }

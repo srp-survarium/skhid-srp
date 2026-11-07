@@ -123,6 +123,10 @@ unsafe extern "C" {
     pub fn engine_effects_stop(effects: Option<GameEffectList>);
     /// 0x2de090 survarium::game_effect_player::play: player EDI, effect ESP+4, second ESP+8, third ESP+12, fourth ESP+16, listener ESP+20; pops 20
     pub fn engine_effect_play(player: Option<GameEffectPlayer>, effect: Option<GameEffectSlot>, second: u32, third: u32, fourth: u32, listener: Option<GameEffectListener>);
+    /// 0x1f3740 survarium::player::set_effect_presenter: player ESI, holder EDI; pops 0
+    pub fn engine_set_effect_presenter(player: Option<Player>, holder: Option<EffectPresenterHolder>);
+    /// 0x2de560 survarium::game_effect_player::represent: player ESP+4; pops 4
+    pub fn engine_effect_player_represent(player: Option<GameEffectPlayer>);
     /// virtual survarium::pure_game_effect_emitter+0x20 (9 vtables of vtables.tsv: 0x299d40, 0x299ff0, 0x29a220, 0x29a580, 0x2efeb0, 0x333010, 0x333220, 0x333360): emitter ECX, out ESP+4, first ESP+8, second ESP+12; pops 12; EAX
     pub fn engine_emitter_emit(emitter: Option<PureGameEffectEmitter>, out: Option<GameEffectSlot>, first: f32, second: f32) -> Option<GameEffectSlot>;
     /// virtual survarium::pure_game_effect_emitter+0x1c (9 vtables of vtables.tsv: 0x1f65d0, 0x29a320, 0x2f0130, 0x2f08d0): emitter ECX, effect ESP+4; pops 4
@@ -1261,6 +1265,24 @@ impl Player {
     #[inline(always)]
     pub unsafe fn damage_zones(self) -> *mut u8 {
         unsafe { self.0.byte_add(0x2e4).cast::<u8>().as_ptr() }
+    }
+
+    /// +0xf478 (ptr<survarium::player_presenters>): where the places' third-person presenters are held (player::initialize 0x1F256D: +22CCh + place x 220h)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn presenters(self) -> Option<PlayerPresenters> {
+        unsafe { self.0.byte_add(0xf478).cast::<Option<PlayerPresenters>>().read_volatile() }
+    }
+
+    /// +0xf478 (ptr<survarium::player_presenters>): where the places' third-person presenters are held (player::initialize 0x1F256D: +22CCh + place x 220h)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn set_presenters(self, value: Option<PlayerPresenters>) {
+        unsafe { self.0.byte_add(0xf478).cast::<Option<PlayerPresenters>>().write_volatile(value) }
     }
 }
 
@@ -4900,6 +4922,24 @@ impl GameEffectPlayer {
     pub unsafe fn set_first(self, value: Option<MedicalEffectNode>) {
         unsafe { self.0.byte_add(0x2c).cast::<Option<MedicalEffectNode>>().write_volatile(value) }
     }
+
+    /// +0x38 (ptr<survarium::effect_presenter_holder>): where the effects it plays are presented: the holder set_effect_presenter 0x1F3740 last gave (its owner player's +390h; the owner's own default +3A8h before any)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn presenter(self) -> Option<EffectPresenterHolder> {
+        unsafe { self.0.byte_add(0x38).cast::<Option<EffectPresenterHolder>>().read_volatile() }
+    }
+
+    /// +0x38 (ptr<survarium::effect_presenter_holder>): where the effects it plays are presented: the holder set_effect_presenter 0x1F3740 last gave (its owner player's +390h; the owner's own default +3A8h before any)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn set_presenter(self, value: Option<EffectPresenterHolder>) {
+        unsafe { self.0.byte_add(0x38).cast::<Option<EffectPresenterHolder>>().write_volatile(value) }
+    }
 }
 
 /// A survarium::game_effect (fields_026g.tsv): a pointer to one, never 0. Made only here: by a typed field,
@@ -6663,6 +6703,15 @@ impl CoreWorld {
     #[inline(always)]
     pub unsafe fn set_statistics(self, value: Option<BaseGameStatisticsHandler>) {
         unsafe { self.0.byte_add(0x18fa8).cast::<Option<BaseGameStatisticsHandler>>().write_volatile(value) }
+    }
+
+    /// +0x18fe4 (u32): the time rule's state: 1 waiting, 2 the countdown, 3 in process (written at each change, 0x317EFC / 0x318291 / 0x31816B, and by deserialize 0x318025)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn time_state(self) -> *mut u32 {
+        unsafe { self.0.byte_add(0x18fe4).cast::<u32>().as_ptr() }
     }
 
     /// +0x18b4c (ptr<survarium::inventory_slot>): the active objects by registry id (a buffer_vector's begin: bind_to_game_core 0x2E3102 appends; base_player::deserialize resolves held 0x2DB644)
@@ -16501,6 +16550,139 @@ impl KeeperRegisterFrame {
     }
 }
 
+/// A survarium::player_presenters (fields_026g.tsv): a pointer to one, never 0. Made only here: by a typed field,
+/// a function's typed result or a site's typed register (sites_026g.tsv `holds`).
+#[repr(transparent)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct PlayerPresenters(NonNull<c_void>);
+
+#[allow(dead_code)]
+impl PlayerPresenters {
+    /// Its address as a value (an id, a compare): never read through.
+    #[inline(always)]
+    pub fn address(self) -> u32 {
+        self.0.as_ptr() as usize as u32
+    }
+
+    /// +0x22cc (obj<survarium::effect_presenter_holder>): each place's third-person presenter's holder, 220h apart (player::initialize 0x1F2579; the camera's detach gives it back, 0x242D06)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn third_person(self) -> EffectPresenterHolder {
+        EffectPresenterHolder(unsafe { self.0.byte_add(0x22cc) })
+    }
+}
+
+/// A survarium::effect_presenter_holder (fields_026g.tsv): a pointer to one, never 0. Made only here: by a typed field,
+/// a function's typed result or a site's typed register (sites_026g.tsv `holds`).
+#[repr(transparent)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct EffectPresenterHolder(NonNull<c_void>);
+
+#[allow(dead_code)]
+impl EffectPresenterHolder {
+    /// Its address as a value (an id, a compare): never read through.
+    #[inline(always)]
+    pub fn address(self) -> u32 {
+        self.0.as_ptr() as usize as u32
+    }
+
+    /// +0x0 (ptr<survarium::third_person_game_effects_presenter>): the presenter it holds (a place's holder: its third-person presenter, made by 0x297570)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn presenter(self) -> Option<ThirdPersonGameEffectsPresenter> {
+        unsafe { self.0.byte_add(0x0).cast::<Option<ThirdPersonGameEffectsPresenter>>().read_volatile() }
+    }
+
+    /// +0x0 (ptr<survarium::third_person_game_effects_presenter>): the presenter it holds (a place's holder: its third-person presenter, made by 0x297570)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn set_presenter(self, value: Option<ThirdPersonGameEffectsPresenter>) {
+        unsafe { self.0.byte_add(0x0).cast::<Option<ThirdPersonGameEffectsPresenter>>().write_volatile(value) }
+    }
+
+    /// 0x220 bytes: the places' holders step 220h (player::initialize 0x1F2573)
+    pub const SIZE: usize = 0x220;
+
+    /// The `index`th of an array of them that starts at this one.
+    ///
+    /// # Safety
+    /// The array has more than `index`.
+    #[inline(always)]
+    pub unsafe fn at(self, index: usize) -> Self {
+        Self(unsafe { self.0.byte_add(index * Self::SIZE) })
+    }
+
+    /// Which of an array that starts at `first` this one is (None before `first`, or between two).
+    #[inline(always)]
+    pub fn index_from(self, first: Self) -> Option<usize> {
+        let offset = (self.0.as_ptr() as usize).checked_sub(first.0.as_ptr() as usize)?;
+        (offset % Self::SIZE == 0).then_some(offset / Self::SIZE)
+    }
+}
+
+/// Room of ours for survarium::effect_presenter_holders (0x220 bytes, aligned to 4), zeroed: a local the game fills,
+/// or one we fill for it.
+#[repr(C, align(4))]
+pub struct EffectPresenterHolderStorage([u8; 0x220]);
+
+#[allow(dead_code)]
+impl EffectPresenterHolderStorage {
+    pub const fn zeroed() -> Self {
+        Self([0; 0x220])
+    }
+
+    /// The one this room holds (alive while the room is).
+    #[inline(always)]
+    pub fn handle(&mut self) -> EffectPresenterHolder {
+        EffectPresenterHolder(NonNull::from(self).cast())
+    }
+
+    /// The first of these rooms, an array of them (None when there is none).
+    #[inline(always)]
+    pub fn first(rooms: &mut [Self]) -> Option<EffectPresenterHolder> {
+        (!rooms.is_empty()).then(|| EffectPresenterHolder(NonNull::from(rooms).cast()))
+    }
+}
+
+/// A survarium::third_person_game_effects_presenter (fields_026g.tsv): a pointer to one, never 0. Made only here: by a typed field,
+/// a function's typed result or a site's typed register (sites_026g.tsv `holds`).
+#[repr(transparent)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct ThirdPersonGameEffectsPresenter(NonNull<c_void>);
+
+#[allow(dead_code)]
+impl ThirdPersonGameEffectsPresenter {
+    /// Its address as a value (an id, a compare): never read through.
+    #[inline(always)]
+    pub fn address(self) -> u32 {
+        self.0.as_ptr() as usize as u32
+    }
+
+    /// +0x10 (ptr<survarium::player>): the player its particles play on (its particle presenter +8h's +8h; set_player 0x297750 writes it and the sound presenter's +0C0h)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn player(self) -> Option<Player> {
+        unsafe { self.0.byte_add(0x10).cast::<Option<Player>>().read_volatile() }
+    }
+
+    /// +0x10 (ptr<survarium::player>): the player its particles play on (its particle presenter +8h's +8h; set_player 0x297750 writes it and the sound presenter's +0C0h)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn set_player(self, value: Option<Player>) {
+        unsafe { self.0.byte_add(0x10).cast::<Option<Player>>().write_volatile(value) }
+    }
+}
+
 /// A survarium::medical_effect_resource (fields_026g.tsv): a pointer to one, never 0. Made only here: by a typed field,
 /// a function's typed result or a site's typed register (sites_026g.tsv `holds`).
 #[repr(transparent)]
@@ -20086,21 +20268,6 @@ pub mod site {
         #[inline(always)]
         pub unsafe fn frame(machine: &impl Machine) -> Option<KeeperRegisterFrame> {
             NonNull::new(machine.site_esp() as usize as *mut c_void).map(KeeperRegisterFrame)
-        }
-    }
-
-    /// keeper.spawn (0x316eab): the respawn rule's spawn 0x316DA0 after vtable+20h(1) put the player into the world (its five pops before ret 0Ch); every spawn of a match in every game and every replay of the tick, the kit's player initialised (0x316E70) and in the world
-    pub mod keeper_spawn {
-        #[allow(unused_imports)]
-        use super::*;
-
-        /// ESI: a survarium::player (None for 0).
-        ///
-        /// # Safety
-        /// `machine` is at this site.
-        #[inline(always)]
-        pub unsafe fn player(machine: &impl Machine) -> Option<Player> {
-            NonNull::new(machine.register(Register::Esi) as usize as *mut c_void).map(Player)
         }
     }
 }

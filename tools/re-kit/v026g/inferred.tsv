@@ -3390,3 +3390,4 @@ va	status	ref_021d	name
 0x002cc920	inferred-medium		vostok::variant<32>::try_get<survarium::level_cook_data>
 0x00219520	inferred-medium		vostok::type_id<survarium::level_cook_data>
 0x002194c0	inferred-medium		vostok::variant<32>::set<survarium::level_cook_data>
+0x0026d8d0	inferred-medium		survarium::base_game_statistics_handler::start_match

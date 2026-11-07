@@ -921,10 +921,10 @@ artefact_keeper_on_register_replay:
     db 0x51, 0x8b, 0x44, 0x24, 0x08
     jmp 0x31b8e5
 
-; 0x316eab the respawn rule's spawn 0x316DA0 after vtable+20h(1) put the player into the world (its five pops before ret 0Ch); every spawn of a match in every game and every replay of the tick, the kit's player initialised (0x316E70) and in the world: lohook -> artefact_keeper_on_spawn
-global artefact_keeper_on_spawn
-extern hook_artefact_keeper_on_spawn
-artefact_keeper_on_spawn:
+; 0x2daad3 base_player::tick after the held object's tick (call [vtbl+28h] at 0x2DAAD1, or the je at 0x2DAAC9 with nothing held), before the movement (mov ecx,[esp+10h] / push edi): EBX the player, every simulation tick: lohook -> battery_progress_on_carrier_tick
+global battery_progress_on_carrier_tick
+extern hook_battery_progress_on_carrier_tick_chain
+battery_progress_on_carrier_tick:
     lea esp, [esp - 4]
     pushfd
     pushad
@@ -941,24 +941,24 @@ artefact_keeper_on_spawn:
     mov eax, esp
     sub esp, 12
     push eax
-    call hook_artefact_keeper_on_spawn
-    mov edx, artefact_keeper_on_spawn_replay
+    call hook_battery_progress_on_carrier_tick_chain
+    mov edx, battery_progress_on_carrier_tick_replay
     cmp eax, 0
-    je artefact_keeper_on_spawn_go
-    mov edx, 0x316eb0
+    je battery_progress_on_carrier_tick_go
+    mov edx, 0x2daad8
     cmp eax, 1
-    je artefact_keeper_on_spawn_go
+    je battery_progress_on_carrier_tick_go
     ud2
-artefact_keeper_on_spawn_go:
+battery_progress_on_carrier_tick_go:
     mov [ebp + 36], edx
     fxrstor [edi]
     mov esp, ebp
     popad
     popfd
     ret
-artefact_keeper_on_spawn_replay:
-    db 0x5f, 0x5e, 0x5d, 0x5b, 0x59
-    jmp 0x316eb0
+battery_progress_on_carrier_tick_replay:
+    db 0x8b, 0x4c, 0x24, 0x10, 0x57
+    jmp 0x2daad8
 
 ; 0x31c810 artefact_container_core::use_execute after the collection time, before transfer_artefact (lea eax,[ebx+108h]; push eax; call 0x31C8A0): EBX the user, EDI the container; event 5 is counted after it (0x31C845): lohook -> artefact_score_on_transfer
 global artefact_score_on_transfer
@@ -1306,45 +1306,6 @@ artefact_skills_on_shared_regeneration_go:
 artefact_skills_on_shared_regeneration_replay:
     db 0x8b, 0x6c, 0x24, 0x24, 0x85, 0xc0
     jmp 0x32a545
-
-; 0x2daad3 base_player::tick after the held object's tick (call [vtbl+28h] at 0x2DAAD1, or the je at 0x2DAAC9 with nothing held), before the movement (mov ecx,[esp+10h] / push edi): EBX the player, every simulation tick: lohook -> battery_progress_on_carrier_tick
-global battery_progress_on_carrier_tick
-extern hook_battery_progress_on_carrier_tick_chain
-battery_progress_on_carrier_tick:
-    lea esp, [esp - 4]
-    pushfd
-    pushad
-    cld
-    mov ebp, esp
-    sub esp, 512
-    and esp, -16
-    fxsave [esp]
-    mov edi, esp
-    sub esp, 8
-    and esp, -16
-    mov [esp], ebp
-    mov [esp+4], edi
-    mov eax, esp
-    sub esp, 12
-    push eax
-    call hook_battery_progress_on_carrier_tick_chain
-    mov edx, battery_progress_on_carrier_tick_replay
-    cmp eax, 0
-    je battery_progress_on_carrier_tick_go
-    mov edx, 0x2daad8
-    cmp eax, 1
-    je battery_progress_on_carrier_tick_go
-    ud2
-battery_progress_on_carrier_tick_go:
-    mov [ebp + 36], edx
-    fxrstor [edi]
-    mov esp, ebp
-    popad
-    popfd
-    ret
-battery_progress_on_carrier_tick_replay:
-    db 0x8b, 0x4c, 0x24, 0x10, 0x57
-    jmp 0x2daad8
 
 ; 0x1e944e game::game before its delete of user_data/streamed_textures (lea eax,[esp+470h] / call 0x1E8DA0: [esp+470h] the folder's physical path, a buffer_string); kept: past the delete's call (0x1E945A reads no register before it writes it): lohook -> bake_cache_on_game_start
 global bake_cache_on_game_start

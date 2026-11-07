@@ -1,37 +1,45 @@
 //! Keeper of the Artifacts (patch 109, docs/notes/artefact-skills.md "Keeper of the
-//! Artifacts"): a player with the skill starts the match with an artefact of the match's kind in
-//! its first container, whatever the map's anomalies hold.
+//! Artifacts"): a player with the skill gets an artefact of the match's kind, whatever the map's
+//! anomalies hold, once a match.
 //!
 //! - The kind: srp draws it once a match and writes its draw into every kit (modifier 40 bits
 //!   9..11; artefact_carry::keeper, the table srp draws from).
-//! - The artefact: a dormant one of that kind from the map's hidden Keeper pool (content edit
-//!   artefact-keeper-1.json: an anomaly with no container, 20 of each kind), the lowest id, moved
-//!   into the container by the game's own take_artefact. The pool's anomaly cooks, ticks and
-//!   saves it as any anomaly does its own, so late join, resync and replay load it natively.
-//! - When: the respawn rule's spawn, after the player is in the world, in every game and in
-//!   every replay of the tick: with the skill, in the place's first life (no death or suicide
-//!   counted), into an empty first container. A kit switch before the start unloads the gift
-//!   back into the pool (dormant again), and the new kit gets one.
-//! - Death: as any found artefact (state 5 on the body, back to the pool at the respawn's
-//!   unload; patch 78 drops one held in the hand). Never given again after a death.
-//! - Every input is simulated state: the static info's kits, the statistics, the pool's states
-//!   and the inventory.
+//! - The artefact: the place's own of the map's hidden Keeper pool (content edit
+//!   artefact-keeper-1.json: an anomaly with no container, 20 of each kind, one a place: place p
+//!   the p-th of the kind by id), moved into the first empty artefact container by the game's own
+//!   take_artefact. The pool's anomaly cooks, ticks and saves it as any anomaly does its own, so
+//!   late join, resync and replay load it natively.
+//! - When (the owner, 2026-11-07), at each tick of the player (base_player::tick, after the glow's):
+//!   from the match's start (the time rule in process: the countdown's end, the kit the one the
+//!   player settled on) for a player there at the start; from its first death for a late joiner
+//!   (srp marks its kits, modifier 40 bit 13); while the player is alive and has an empty
+//!   container: the first such tick (at the start, at a respawn, when a container frees).
+//! - Once a match, with nothing kept outside the world: the take gives the artefact its count (the
+//!   anomaly's spawn's, never 0; a pool artefact never given has 0), which stays through a death
+//!   (state 5 on the body, back to the pool at the respawn's unload, dormant again) and is in the
+//!   world's save (the artefact's m_amount): a place's artefact with a count was given.
+//! - Every input is simulated state: the static info's kits, the time state, the statistics, the
+//!   pool's states and counts, and the inventory, read at the player's simulation tick in every
+//!   game, re-simulation and replay.
 #![forbid(unsafe_code)]
 
 use artefact_carry::ArtefactId;
 use artefact_carry::keeper::Kind;
 
 use crate::artefact_skills::Skills;
-use crate::vostok::keeper::Spawn;
+use crate::vostok::keeper::Recipient;
 use crate::vostok::log::{Piece::{Dec, Text}, line};
 use crate::vostok::{Context, Flow, NoExit};
 
-/// Where a pool artefact is: dormant (state 0, in no inventory) or given (in a container, on
-/// a body, on the ground).
+/// Where a pool artefact is.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Whereabouts {
-    Dormant,
+    /// Dormant (state 0, in no inventory) and never given (its count 0).
+    Unused,
+    /// Given and in play: in a container, on a body, on the ground.
     InPlay,
+    /// Given and back in the pool (a death's respawn unloaded it): dormant with a count.
+    Returned,
 }
 
 /// One artefact of the map's Keeper pool.
@@ -42,45 +50,53 @@ pub struct Registered {
     pub whereabouts: Whereabouts,
 }
 
-/// The place's lives so far, by the match's statistics.
+/// Where the match is for a place.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub enum Lives {
-    /// No death or suicide counted yet (none before the start).
-    First,
-    Later,
+pub enum Standing {
+    /// Before the start (waiting, the countdown).
+    NotStarted,
+    /// In process: the deaths and suicides the statistics count for the place.
+    Started { deaths: u32 },
 }
 
-/// The spawned kit's first artefact container.
+/// The player's artefact containers.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub enum FirstContainer {
-    Missing,
-    Empty,
-    Held,
+pub enum Room {
+    /// No container, or dead.
+    None,
+    /// Every container holds one.
+    Full,
+    /// One at least is empty.
+    Free,
 }
 
-/// What a spawn gets.
+/// What a tick does.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Gift {
-    /// No skill, a later life, no empty first container.
+    /// No skill, no draw of a kind, not due yet, already given, or the pool has none for the
+    /// place (a map without it).
     Nothing,
-    /// The kits carry no draw of a kind (the lobby's kits; an srp without the draw).
-    NoDraw,
-    /// The pool has no dormant artefact of the kind (a map without the pool).
-    NoneFree(Kind),
+    /// Due and not given, but the player is dead or has no empty container: the next ticks again.
+    Pending,
     Take(ArtefactId, Kind),
 }
 
-/// The decision of one spawn, from its kit's skills, its lives, its first container and the
-/// map's Keeper pool (in id order).
-pub fn gift(skills: Skills, lives: Lives, container: FirstContainer, pool: impl Iterator<Item = Registered>) -> Gift {
-    if !skills.keeper() || lives != Lives::First || container != FirstContainer::Empty {
+/// The decision at one tick of `place`'s player, from its kit's skills, its standing, its room
+/// and the map's Keeper pool (in id order).
+pub fn gift(skills: Skills, place: u8, standing: Standing, room: Room, pool: impl Iterator<Item = Registered>) -> Gift {
+    let Standing::Started { deaths } = standing else { return Gift::Nothing };
+    if !skills.keeper() || (skills.late() && deaths == 0) {
         return Gift::Nothing;
     }
-    let Some(kind) = skills.draw().and_then(|draw| Kind::of_draw(draw.get())) else { return Gift::NoDraw };
-    // The lowest id: the same artefact in every game.
-    pool.filter(|r| r.kind == kind && r.whereabouts == Whereabouts::Dormant)
-        .min_by_key(|r| r.id.get())
-        .map_or(Gift::NoneFree(kind), |r| Gift::Take(r.id, kind))
+    let Some(kind) = skills.draw().and_then(|draw| Kind::of_draw(draw.get())) else { return Gift::Nothing };
+    // The place's own (the pool comes in id order): the same artefact in every game, and it says
+    // whether it was given.
+    let Some(mine) = pool.filter(|r| r.kind == kind).nth(usize::from(place)) else { return Gift::Nothing };
+    match (mine.whereabouts, room) {
+        (Whereabouts::InPlay | Whereabouts::Returned, _) => Gift::Nothing,
+        (Whereabouts::Unused, Room::Free) => Gift::Take(mine.id, kind),
+        (Whereabouts::Unused, Room::None | Room::Full) => Gift::Pending,
+    }
 }
 
 /// The register_artefacts entry (0x31B8E0): the map's Keeper pool, as the core world numbers it.
@@ -89,21 +105,20 @@ pub fn on_register(ctx: &mut Context<'_>) -> Flow<NoExit> {
     Flow::Continue
 }
 
-/// The respawn rule's spawn (0x316DA0) after the player is in the world (0x316EAB).
-pub fn on_spawn(ctx: &mut Context<'_>) -> Flow<NoExit> {
-    let Some(spawn) = Spawn::at(ctx) else { return Flow::Continue };
-    let place = || Dec(spawn.place().into());
-    match gift(spawn.skills(), spawn.lives(), spawn.first_container(), spawn.pool()) {
-        Gift::Nothing => {}
-        Gift::NoDraw => line(&[Text("keeper: place "), place(), Text(": no draw of a kind in its kit")]),
-        Gift::NoneFree(kind) => line(&[Text("keeper: place "), place(), Text(": no "), Text(kind.name()), Text(" free in the pool")]),
-        Gift::Take(id, kind) => {
-            let given = spawn.give(id);
-            line(&[
-                Text("keeper: place "), place(), Text(if given { " takes " } else { " REFUSED " }),
-                Text(kind.name()), Text(" id "), Dec(id.get().into()),
-            ]);
-        }
+/// Each player's tick (base_player::tick before tick_animations, after the glow's).
+pub fn on_tick(ctx: &mut Context<'_>) -> Flow<NoExit> {
+    let Some(recipient) = Recipient::at_tick(ctx) else { return Flow::Continue };
+    let skills = recipient.skills();
+    // Only a Keeper's tick reads the match (time rule, statistics, containers, the pool).
+    if !skills.keeper() {
+        return Flow::Continue;
+    }
+    if let Gift::Take(id, kind) = gift(skills, recipient.place(), recipient.standing(), recipient.room(), recipient.pool()) {
+        let given = recipient.give(id);
+        line(&[
+            Text("keeper: place "), Dec(recipient.place().into()), Text(if given { " takes " } else { " REFUSED " }),
+            Text(kind.name()), Text(" id "), Dec(id.get().into()),
+        ]);
     }
     Flow::Continue
 }
@@ -112,43 +127,60 @@ pub fn on_spawn(ctx: &mut Context<'_>) -> Flow<NoExit> {
 mod tests {
     use super::*;
 
-    fn skills(value: f32) -> Skills {
-        Skills::parse(value).unwrap()
+    fn skills(value: u32) -> Skills {
+        Skills::parse(value as f32).unwrap()
     }
 
+    /// Two of each kind; place 1's Onyx in play, place 0's Spring back in the pool.
     fn pool() -> [Registered; 6] {
         let at = |id: u8, kind, whereabouts| Registered { id: ArtefactId::parse(id).unwrap(), kind, whereabouts };
         [
-            at(30, Kind::Larkspur, Whereabouts::Dormant),
-            at(31, Kind::Larkspur, Whereabouts::Dormant),
-            at(32, Kind::Onyx, Whereabouts::InPlay),
-            at(33, Kind::Onyx, Whereabouts::Dormant),
-            at(34, Kind::Spring, Whereabouts::InPlay),
-            at(35, Kind::Spring, Whereabouts::InPlay),
+            at(30, Kind::Larkspur, Whereabouts::Unused),
+            at(31, Kind::Larkspur, Whereabouts::Unused),
+            at(32, Kind::Onyx, Whereabouts::Unused),
+            at(33, Kind::Onyx, Whereabouts::InPlay),
+            at(34, Kind::Spring, Whereabouts::Returned),
+            at(35, Kind::Spring, Whereabouts::Unused),
         ]
     }
 
-    #[test]
-    fn a_keepers_first_spawn_takes_the_lowest_dormant_of_the_draws_kind() {
-        let keeper = |draw: u32| skills((8 + (draw << 9)) as f32);
-        let first = |s| gift(s, Lives::First, FirstContainer::Empty, pool().into_iter());
-        let id = |n| ArtefactId::parse(n).unwrap();
-        assert_eq!(first(keeper(1)), Gift::Take(id(30), Kind::Larkspur));
-        assert_eq!(first(keeper(2)), Gift::Take(id(33), Kind::Onyx));
-        assert_eq!(first(keeper(3)), Gift::NoneFree(Kind::Spring));
-        // A draw past the kinds (4..6, the parser's room) or none.
-        assert_eq!(first(keeper(4)), Gift::NoDraw);
-        assert_eq!(first(skills(8.0)), Gift::NoDraw);
+    const KEEPER: u32 = 8;
+    const LATE: u32 = 1 << 13;
+    fn draw(n: u32) -> u32 {
+        n << 9
     }
 
     #[test]
-    fn nothing_without_the_skill_after_a_death_or_without_an_empty_container() {
-        let keeper = skills((8 + (1 << 9)) as f32);
-        // The draw without bit 3: no skill.
-        assert_eq!(gift(skills(512.0), Lives::First, FirstContainer::Empty, pool().into_iter()), Gift::Nothing);
-        assert_eq!(gift(keeper, Lives::Later, FirstContainer::Empty, pool().into_iter()), Gift::Nothing);
-        assert_eq!(gift(keeper, Lives::First, FirstContainer::Held, pool().into_iter()), Gift::Nothing);
-        assert_eq!(gift(keeper, Lives::First, FirstContainer::Missing, pool().into_iter()), Gift::Nothing);
-        assert_eq!(gift(keeper, Lives::First, FirstContainer::Empty, core::iter::empty()), Gift::NoneFree(Kind::Larkspur));
+    fn each_place_takes_its_own_of_the_draws_kind_once() {
+        let id = |n| ArtefactId::parse(n).unwrap();
+        let at = |value, place| gift(skills(value), place, Standing::Started { deaths: 0 }, Room::Free, pool().into_iter());
+        assert_eq!(at(KEEPER + draw(1), 0), Gift::Take(id(30), Kind::Larkspur));
+        assert_eq!(at(KEEPER + draw(1), 1), Gift::Take(id(31), Kind::Larkspur));
+        assert_eq!(at(KEEPER + draw(2), 0), Gift::Take(id(32), Kind::Onyx));
+        // Given already: in play, or back in the pool after a death.
+        assert_eq!(at(KEEPER + draw(2), 1), Gift::Nothing);
+        assert_eq!(at(KEEPER + draw(3), 0), Gift::Nothing);
+        assert_eq!(at(KEEPER + draw(3), 1), Gift::Take(id(35), Kind::Spring));
+        // None for a place past the pool, no draw of a kind, no skill.
+        assert_eq!(at(KEEPER + draw(1), 2), Gift::Nothing);
+        assert_eq!(at(KEEPER + draw(4), 0), Gift::Nothing);
+        assert_eq!(at(KEEPER, 0), Gift::Nothing);
+        assert_eq!(at(draw(1), 0), Gift::Nothing);
+    }
+
+    #[test]
+    fn due_from_the_start_or_a_late_joiners_first_death_and_pending_without_room() {
+        let id = |n| ArtefactId::parse(n).unwrap();
+        let at = |value, standing, room| gift(skills(value), 0, standing, room, pool().into_iter());
+        let started = |deaths| Standing::Started { deaths };
+        let take = Gift::Take(id(30), Kind::Larkspur);
+        assert_eq!(at(KEEPER + draw(1), Standing::NotStarted, Room::Free), Gift::Nothing);
+        assert_eq!(at(KEEPER + draw(1), started(0), Room::Free), take);
+        assert_eq!(at(KEEPER + draw(1), started(3), Room::Free), take);
+        assert_eq!(at(KEEPER + draw(1), started(0), Room::Full), Gift::Pending);
+        assert_eq!(at(KEEPER + draw(1), started(0), Room::None), Gift::Pending);
+        assert_eq!(at(KEEPER + draw(1) + LATE, started(0), Room::Free), Gift::Nothing);
+        assert_eq!(at(KEEPER + draw(1) + LATE, started(1), Room::Free), take);
+        assert_eq!(at(KEEPER + draw(1) + LATE, started(2), Room::Full), Gift::Pending);
     }
 }

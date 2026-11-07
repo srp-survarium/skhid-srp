@@ -3,7 +3,9 @@
 //! ([`artefact_carry::keeper::KINDS`], the one table the game takes them by too), and writes it
 //! into modifier 40 bits 9..11 of every kit of every player of the match, bots too, with the
 //! skill or without: every game knows the match's kind from the static info, and exe patch 109
-//! gives a Keeper's first spawn a dormant artefact of it from the map's hidden Keeper pool.
+//! gives a Keeper a dormant artefact of it from the map's hidden Keeper pool. A late joiner's kits
+//! also carry bit 13 ([`LATE`]): its Keeper gets the gift at the respawn after its first death,
+//! the others' at the match's start.
 
 pub use artefact_carry::keeper::{KINDS, Kind};
 
@@ -15,6 +17,9 @@ use super::skills::modifier_index;
 /// Modifier 40's bits that hold the draw.
 const SHIFT: u32 = 9;
 const MASK: u32 = 7 << SHIFT;
+
+/// Modifier 40's bit of a late joiner's kits (a profile that joined the formed match).
+pub const LATE: u32 = 1 << 13;
 
 /// The match's kind of a random number: each kind for an equal share of the u32s but the
 /// last `u32::MAX % 3 + 1`, which a draw never sees in practice.
@@ -35,6 +40,15 @@ pub fn give(profile: &mut MatchProfile, kind: Kind) {
     let at = modifier_index("artefact_power").expect("artefact_power is a modifier");
     for kit in &mut profile.kits {
         kit.modifiers[at] = with_draw(kit.modifiers[at], kind);
+    }
+}
+
+/// Every kit of a late joiner's `profile` given the match's `kind` and marked late ([`LATE`]).
+pub fn give_late(profile: &mut MatchProfile, kind: Kind) {
+    give(profile, kind);
+    let at = modifier_index("artefact_power").expect("artefact_power is a modifier");
+    for kit in &mut profile.kits {
+        kit.modifiers[at] = (kit.modifiers[at] as u32 | LATE) as f32;
     }
 }
 
