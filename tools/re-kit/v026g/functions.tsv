@@ -2191,3 +2191,6 @@ va	status	ref_021d	name
 0x00337280	reviewed	0x00206cd3	survarium::player_logic_stand_jump_state::initialize_weight_for_on_site_animation
 0x003422f0	reviewed	0x0020cf4f	survarium::short_jump_landing_state::serialize
 0x002ab6e0	reviewed	0x001afe7d	boost::random::detail::new_uniform_01<float>::operator()<boost::random::linear_congruential_engine<unsigned int,48271,0,2147483647> >
+0x002ddad0	observed		survarium::game_effect_player::serialize
+0x00301470	observed	0x001e7a74	survarium::victory_item_core::serialize
+0x00334310	observed		survarium::composite_game_effect::serialize

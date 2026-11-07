@@ -134,7 +134,7 @@
 
 use super::{Context, Profile, Section};
 use crate::reader::{Reader, Short};
-use crate::{Finite, KITS, MAX_PLAYERS, Part, Reason, Refusal};
+use crate::{Finite, KITS, MAX_PLAYERS, Part, Place, Reason, Refusal};
 
 /// The list of objects a world's section holds, in its order.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -312,25 +312,10 @@ fn numbers<const N: usize>(
     Ok(floats)
 }
 
-/// A place as an object names it (a player's `id`): an index of the
-/// game's place table of 20.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub struct Place(u8);
-
-impl Place {
-    fn read(reader: &mut Reader, field: &'static str) -> Result<Self, ObjectFault> {
-        byte(reader, field, |place| {
-            (usize::from(place) < MAX_PLAYERS).then_some(Place(place))
-        })
-    }
-
-    pub fn get(self) -> u8 {
-        self.0
-    }
-
-    pub fn index(self) -> usize {
-        usize::from(self.0)
-    }
+/// A place as an object names it (a player's `id`): one of the game's
+/// place table of 20.
+fn read_place(reader: &mut Reader, field: &'static str) -> Result<Place, ObjectFault> {
+    byte(reader, field, Place::new)
 }
 
 /// A kit of a place (`player_profile_id`): one of its three player
@@ -376,9 +361,9 @@ impl UsableObject {
             (usize::from(count) <= MAX_PLAYERS).then_some(count)
         })?;
         let at = reader.at();
-        let mut users = [Place(0); MAX_PLAYERS];
+        let mut users = [Place::FIRST; MAX_PLAYERS];
         for user in users.iter_mut().take(usize::from(count)) {
-            *user = Place::read(reader, "owner.id")?;
+            *user = read_place(reader, "owner.id")?;
         }
         Ok(Self { at, count, users })
     }
@@ -1051,7 +1036,7 @@ impl ArtefactBase {
         let at = reader.at();
         let place = byte(reader, "player_id", |place| match place {
             0xFF => Some(None),
-            place => (usize::from(place) < MAX_PLAYERS).then_some(Some(Place(place))),
+            place => Place::new(place).map(Some),
         })?;
         let owner = match place {
             None => None,

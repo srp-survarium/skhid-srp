@@ -1922,7 +1922,6 @@ va	status	ref_021d	name
 0x002dbf40	inferred-medium	0x001d6747	survarium::base_player::can_sprint
 0x002dd110	inferred-medium	0x001d6d38	boost::detail::function::functor_manager<boost::_bi::bind_t<unsigned short,unsigned short (__cdecl*)(survarium::animations_registry &,vostok::resources::resource_ptr<vostok::resources::managed_resource,vostok::resources::managed_intrusive_base> const &,vostok::resources::resource_ptr<vostok::resources::managed_resource,vostok::resources::managed_intrusive_base> const &),boost::_bi::list3<boost::reference_wrapper<survarium::animations_registry>,boost::arg<1>,boost::arg<2> > > >::manager
 0x002dd280	inferred-medium	0x001d6e1f	boost::detail::function::functor_manager<boost::_bi::bind_t<vostok::resources::resource_ptr<vostok::resources::managed_resource,vostok::resources::managed_intrusive_base>,vostok::resources::resource_ptr<vostok::resources::managed_resource,vostok::resources::managed_intrusive_base> (__cdecl*)(survarium::animations_registry &,unsigned short),boost::_bi::list2<boost::reference_wrapper<survarium::animations_registry>,boost::arg<1> > > >::manager
-0x002ddad0	inferred-medium		survarium::game_effect_player::serialize
 0x002dee00	inferred-medium	0x001e11da	vostok::animation::mixing::binary_tree_binary_operation_node::binary_tree_binary_operation_node
 0x002e25c0	inferred-high	0x001e395c	survarium::weapon_core::on_sprint_animation_ended
 0x002e2650	inferred-medium	0x001e3b06	survarium::weapon_core::set_next_ammo_type
@@ -2255,7 +2254,6 @@ va	status	ref_021d	name
 0x00333580	inferred-medium		survarium::composite_game_effect::on_event
 0x003340c0	inferred-medium		survarium::composite_game_effect::activate_effect
 0x003341d0	inferred-medium		survarium::composite_game_effect::deactivate_effect
-0x00334310	inferred-medium		survarium::composite_game_effect::serialize
 0x00337480	inferred-medium		survarium::player_logic_stand_jump_state::serialize
 0x00338280	inferred-medium		survarium::player_logic_dead_state::get_death_animations
 0x00338330	inferred-medium		survarium::player_logic_dead_state::activate
@@ -3365,3 +3363,6 @@ va	status	ref_021d	name
 0x00254000	inferred-medium		survarium::weapon_sound_events_handler_state<survarium::weapon_core_throw_grenade_throw_substate>::deserialize
 0x00254410	inferred-high		survarium::weapon_sound_events_handler_state<survarium::weapon_core_melee_state>::serialize
 0x00254470	inferred-high		survarium::weapon_sound_events_handler_state<survarium::weapon_core_melee_state>::deserialize
+0x002dd780	inferred-medium		survarium::game_effect_node::game_effect_node
+0x002dddf0	inferred-medium		survarium::game_effect_player::deserialize
+0x002e5c30	inferred-medium		survarium::game_effect_ptr_wrapper::deserialize_root_emitter

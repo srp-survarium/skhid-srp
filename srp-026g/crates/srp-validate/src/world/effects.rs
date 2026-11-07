@@ -7,62 +7,141 @@
 //! `game_effect_player` 0x2DDDF0 (u32 time, u32 count E, E effects),
 //! `[[core+0x19034]+4]` vtable +0x0C (8 bytes, the closing part).
 //!
-//! An effect (0x2DDE50..0x2DDF5D, its fields stored at 0x2DDFE4..0x2DE017):
+//! An effect is a `game_effect_node` as `game_effect_player::serialize`
+//! 0x2DDAD0 writes it (read back at 0x2DDE50..0x2DDF5D, stored at
+//! 0x2DDFE4..0x2DE017). The writer passes each field's expression as text
+//! (`.\game_effect_player.cpp`, 0xA10C4C..0xA10DD4), so these names are
+//! the game's own (PROVEN):
 //!
 //! ```text
-//! off  size  field
-//!   0  1+4   root emitter: a pointer flag, then an index (0x2E5C30)
-//!   5  1     +0x44 (== 1: the emitter's vtable +0x1C is called, 0x2DE025)
-//!   6  4     its start time
-//!  10  2     the two bytes 0x2DE100 is given
-//!  12  4     f32 the emitter's vtable +0x38 is given
-//!  16  4     u32 the emitter's vtable +0x38 is given
-//!  20  4     +0x1C u32
-//!  24  4     +0x20 f32
-//!  28  4     +0x24 f32
-//!  32  4     +0x34 u32
-//!  36  4     +0x38 f32
-//!  40  1     +0x3C bool
-//!  41  1+4   time calculator: a pointer flag, then an index (0 its own)
-//!  46  21    the root emitter's own bytes (its vtable +0x20): an id, 9
-//!            bytes, an f32, the id of the next
+//! off  size  field                                  node
+//!   0  1+4   node->effect: a pointer flag, then
+//!            the root emitter's index (0x2E5BB0 / 0x2E5C30)
+//!   5  1     u8( node->activation_status )          +0x44
+//!   6  4     node->state.start_time_in_ms           +0x18
+//!  10  1     u8( node->playback_type )              +0x28
+//!  11  1     u8( node->serialization_mode )         +0x2C
+//!  12  4     node->effect->length()                 f32
+//!  16  4     node->effect->creation_seed()          u32
+//!  20  4     node->state.current_interval_id        +0x1C
+//!  24  4     node->state.current_interval_time      +0x20 f32
+//!  28  4     node->state.current_time               +0x24 f32
+//!  32  4     node->previous_time.interval_id        +0x34
+//!  36  4     node->previous_time.interval_time      +0x38 f32
+//!  40  1     node->previous_time.effect_ended       +0x3C bool
+//!  41  1+4   node->time_calculator: a pointer flag,
+//!            then an index (0x2EFD00; 0 its own)    +0x30
+//!  46  4     the root's id                          (unknown)
+//!  50  1     its child 0 is there                   bool
+//!  51  4     m_effects[0]->creation_seed()          u32
+//!  55  4     m_effects[0]->start_time()             f32
+//!  59  4     m_effects[0]->length()                 f32
+//!  63  4     m_seeds[0]                             u32
 //! ```
 //!
-//! A root emitter or a time calculator with its pointer flag set is read as
-//! a raw pointer, and an index names an entry of a table with no bound
-//! (0xAA2E48, 0xAA2E74): a world could name any address. A calculator other
-//! than the effect's own reads bytes of its own (its vtable +8), so the
-//! effect is 67 bytes only in the one form every game writes: the root
-//! emitter indexed, its own calculator. [`Effect::read`] takes that form
-//! and no other.
+//! Bytes 46..67 are the root effect's own: the u32 the effect's `+0x10`
+//! object writes (its vtable +0x1C, 0x2DDD7B; what it is was not traced:
+//! the section's opening id H in every world), then the effect's own
+//! serialize (vtable +0x24, 0x2DDD86), which these bytes fit as
+//! `composite_game_effect::serialize` 0x334310 with one child whose own
+//! serialize writes nothing: the child's presence (a bool of 1), its
+//! creation seed, start time and length, then `m_seeds[0]` (its strings
+//! 0xA19CB4..0xA19D14). That it is a composite with one such child is
+//! LIKELY (the bytes fit it; the root's class was not traced).
+//!
+//! The domains, each read once by [`Effect::read`]:
+//!
+//! - `activation_status`: 0 (the node's constructor 0x2DD7D8), 1 (activated,
+//!   0x2DE0D9), 2 (stopped, 0x2DDA09, 0x2DE37D) (PROVEN: the only stores);
+//! - `playback_type`: 0 `remove_at_end` or 1 `manual_remove` (0.21d's
+//!   `game_effect::playback_enum`, LIKELY the same in 0.26g);
+//! - `serialization_mode`: 1 or 2, the only modes the writer writes (a node
+//!   of mode 1 goes to the world's writer, of mode 2 to the client's,
+//!   0x2DDB83..0x2DDB9D; others are skipped) (PROVEN);
+//! - `effect_ended` and the child's presence: 0x00 or 0xFF, the bool
+//!   writer's (0x2DDD5E, 0x3343A3; any byte but 0 reads as true, `setne`
+//!   0x2DDF04) (PROVEN); the child is there (a 0 would end the root's bytes
+//!   at 51: another form);
+//! - the root emitter indexed (its flag 0) and the effect's own time
+//!   calculator (flag and index 0): a flag set is read as a raw pointer,
+//!   and an index names an entry of a table with no bound (0xAA2E48,
+//!   0xAA2E74), and a calculator other than the effect's own reads bytes of
+//!   its own (its vtable +8), so the effect is 67 bytes only in this form
+//!   (PROVEN for the reader's paths, 0x2E5C30, 0x2DDF28..0x2DDF3C);
+//! - every float a number ([`Finite`]).
+//!
+//! Open in a player's effect: the root emitter's index and
+//! `current_interval_id` (an index into the root's intervals, whose count
+//! is not in the context; the section holds both to 0), the times, seeds
+//! and ids.
 //!
 //! Every effects section of the kept and the live worlds is one of two
 //! forms, which [`effects`] holds the section to, field by field (strict:
 //! anything else is refused and can be loosened):
 //!
 //! - no effect, 20 bytes: H, a time, E = 0, the closing part;
-//! - one effect, 87 bytes: its root emitter index 0, +0x44 1, the two bytes
-//!   0 and 1, the f32 0.1, +0x1C and +0x34 0, +0x3C false, its emitter's
-//!   id H, bytes FF and eight 0, f32 0.1, next id H - 1; free: H, the
-//!   time, its start time, the u32 at 16, and the three floats (0.05 in
-//!   live worlds), which are numbers by [`Finite`].
-//!
-//! PROVEN for the reader's paths (0x2E5C30, 0x2DDF28..0x2DDF3C); LIKELY
-//! that the free fields are no index (they span the whole range across
-//! matches; none is read as one in 0x2DDDF0).
+//! - one effect, 87 bytes: its root emitter index 0, activation 1 (active),
+//!   playback 0 and serialization mode 1, length 0.1, both interval ids 0,
+//!   not ended, its root's id H, the child there with seed 0, start 0 and
+//!   length 0.1, `m_seeds[0]` H - 1; free: H, the time, its start time, its
+//!   creation seed, and the three interval times (0.05 in live worlds).
 
 use super::Section;
 use crate::reader::{Reader, Short};
-use crate::{Finite, Part, Reason, Refusal};
+use crate::{Finite, Part, Reason, Refusal, wire_bool};
 
 /// An effect's length in its one form.
 const EFFECT_LEN: usize = 67;
 
-/// An effect as a world saves it, in its one 67-byte form (the module's
-/// table), borrowed from the world.
+/// `node->activation_status`.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub struct Effect<'a> {
-    bytes: &'a [u8; EFFECT_LEN],
+pub enum ActivationStatus {
+    /// 0: made, not activated yet.
+    Created,
+    /// 1.
+    Active,
+    /// 2.
+    Stopped,
+}
+
+/// `node->playback_type` (`game_effect::playback_enum`).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum PlaybackType {
+    RemoveAtEnd,
+    ManualRemove,
+}
+
+/// `node->serialization_mode`: which writer saves the node.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum SerializationMode {
+    /// 1: the world's (`serializable_effects_count`).
+    World,
+    /// 2: the client's (`client_serializable_effects_count`).
+    Client,
+}
+
+/// An effect as a world saves it, in its one 67-byte form (the module's
+/// table), every field read into its type.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct Effect {
+    root_emitter: u32,
+    activation_status: ActivationStatus,
+    start_time_ms: u32,
+    playback_type: PlaybackType,
+    serialization_mode: SerializationMode,
+    length: Finite,
+    creation_seed: u32,
+    current_interval_id: u32,
+    current_interval_time: Finite,
+    current_time: Finite,
+    previous_interval_id: u32,
+    previous_interval_time: Finite,
+    effect_ended: bool,
+    root_id: u32,
+    child_creation_seed: u32,
+    child_start_time: Finite,
+    child_length: Finite,
+    child_seed: u32,
 }
 
 /// Why bytes are no [`Effect`]: where (in the message) and what.
@@ -70,12 +149,28 @@ pub struct Effect<'a> {
 pub enum EffectFault {
     Short(Short),
     /// The root emitter's pointer flag is set: a raw address.
-    RawRootEmitter { at: usize, flag: u8 },
+    RawRootEmitter {
+        at: usize,
+        flag: u8,
+    },
     /// The time calculator is not the effect's own (a raw address, or a
     /// table entry that reads more bytes).
-    NotOwnCalculator { at: usize, flag: u8, index: u32 },
+    NotOwnCalculator {
+        at: usize,
+        flag: u8,
+        index: u32,
+    },
     /// A float is no number.
-    NotNumber { at: usize, field: &'static str },
+    NotNumber {
+        at: usize,
+        field: &'static str,
+    },
+    /// A byte that is none of its field's values.
+    Domain {
+        at: usize,
+        field: &'static str,
+        byte: u8,
+    },
 }
 
 impl core::fmt::Display for EffectFault {
@@ -95,6 +190,12 @@ impl core::fmt::Display for EffectFault {
             EffectFault::NotNumber { at, field } => {
                 write!(f, "an effect's {field} at {at} is no number")
             }
+            EffectFault::Domain { at, field, byte } => {
+                write!(
+                    f,
+                    "an effect's {field} at {at} is {byte:#04x}, none of its values"
+                )
+            }
         }
     }
 }
@@ -106,66 +207,53 @@ impl EffectFault {
             EffectFault::Short(short) => short.at,
             EffectFault::RawRootEmitter { at, .. }
             | EffectFault::NotOwnCalculator { at, .. }
-            | EffectFault::NotNumber { at, .. } => at,
+            | EffectFault::NotNumber { at, .. }
+            | EffectFault::Domain { at, .. } => at,
         }
     }
 }
 
-impl<'a> Effect<'a> {
+impl Effect {
     /// The record's length.
     pub const LEN: usize = EFFECT_LEN;
-    const ROOT_FLAG: usize = 0;
     const ROOT_INDEX: usize = 1;
-    const FIELD_44: usize = 5;
-    const START_MS: usize = 6;
-    const PLAY_ARGS: usize = 10;
-    const EMITTER_F32: usize = 12;
-    const EMITTER_U32: usize = 16;
-    const FIELD_1C: usize = 20;
-    const FIELD_20: usize = 24;
-    const FIELD_24: usize = 28;
-    const FIELD_34: usize = 32;
-    const FIELD_38: usize = 36;
-    const FIELD_3C: usize = 40;
+    const ACTIVATION_STATUS: usize = 5;
+    const PLAYBACK_TYPE: usize = 10;
+    const SERIALIZATION_MODE: usize = 11;
+    const LENGTH: usize = 12;
+    const CURRENT_INTERVAL_ID: usize = 20;
+    const CURRENT_INTERVAL_TIME: usize = 24;
+    const CURRENT_TIME: usize = 28;
+    const PREVIOUS_INTERVAL_ID: usize = 32;
+    const PREVIOUS_INTERVAL_TIME: usize = 36;
+    const EFFECT_ENDED: usize = 40;
     const CALCULATOR_FLAG: usize = 41;
-    const CALCULATOR_INDEX: usize = 42;
-    const EMITTER_ID: usize = 46;
-    const EMITTER_STATE: usize = 50;
-    const EMITTER_STATE_F32: usize = 59;
-    const EMITTER_NEXT_ID: usize = 63;
-    /// The floats, by offset and name, which [`Effect::read`] holds to be
-    /// numbers.
-    const FLOATS: [(usize, &'static str); 5] = [
-        (Self::EMITTER_F32, "the emitter's f32"),
-        (Self::FIELD_20, "the effect's +0x20"),
-        (Self::FIELD_24, "the effect's +0x24"),
-        (Self::FIELD_38, "the effect's +0x38"),
-        (Self::EMITTER_STATE_F32, "the emitter's state f32"),
-    ];
+    const ROOT_ID: usize = 46;
+    const CHILD_PRESENT: usize = 50;
+    const CHILD_CREATION_SEED: usize = 51;
+    const CHILD_START_TIME: usize = 55;
+    const CHILD_LENGTH: usize = 59;
+    const CHILD_SEED: usize = 63;
 
-    /// The next effect of `reader`, in its one form, or why not.
-    pub fn read(reader: &mut Reader<'a>) -> Result<Self, EffectFault> {
+    /// The next effect of `reader`, in its one form with every field in
+    /// its domain, or why not.
+    pub fn read(reader: &mut Reader<'_>) -> Result<Self, EffectFault> {
         let at = reader.at();
         let bytes = reader.take(Self::LEN).map_err(EffectFault::Short)?;
-        let bytes: &'a [u8; EFFECT_LEN] = bytes.try_into().map_err(|_| {
-            EffectFault::Short(Short {
-                at,
-                wanted: Self::LEN,
-            })
-        })?;
-        let effect = Self { bytes };
         let field = |offset: usize| at.saturating_add(offset);
-        let flag = effect.byte(Self::ROOT_FLAG);
+        // The 67 bytes are there: every offset below is in them.
+        let byte = |offset: usize| bytes.get(offset).copied().unwrap_or(0);
+        let word = |offset: usize| {
+            bytes
+                .get(offset..)
+                .and_then(<[u8]>::first_chunk::<4>)
+                .map_or(0, |word| u32::from_le_bytes(*word))
+        };
+        let flag = byte(0);
         if flag != 0 {
-            return Err(EffectFault::RawRootEmitter {
-                at: field(Self::ROOT_FLAG),
-                flag,
-            });
+            return Err(EffectFault::RawRootEmitter { at: field(0), flag });
         }
-        let (flag, index) = (
-            effect.byte(Self::CALCULATOR_FLAG),
-            effect.word(Self::CALCULATOR_INDEX),
-        );
+        let (flag, index) = (byte(Self::CALCULATOR_FLAG), word(Self::CALCULATOR_FLAG + 1));
         if flag != 0 || index != 0 {
             return Err(EffectFault::NotOwnCalculator {
                 at: field(Self::CALCULATOR_FLAG),
@@ -173,126 +261,160 @@ impl<'a> Effect<'a> {
                 index,
             });
         }
-        for (offset, name) in Self::FLOATS {
-            if Finite::of_bits(effect.word(offset)).is_none() {
-                return Err(EffectFault::NotNumber {
-                    at: field(offset),
-                    field: name,
-                });
-            }
+        let domain = |offset: usize, name: &'static str| EffectFault::Domain {
+            at: field(offset),
+            field: name,
+            byte: byte(offset),
+        };
+        let number = |offset: usize, name: &'static str| {
+            Finite::of_bits(word(offset)).ok_or(EffectFault::NotNumber {
+                at: field(offset),
+                field: name,
+            })
+        };
+        let activation_status = match byte(Self::ACTIVATION_STATUS) {
+            0 => ActivationStatus::Created,
+            1 => ActivationStatus::Active,
+            2 => ActivationStatus::Stopped,
+            _ => return Err(domain(Self::ACTIVATION_STATUS, "activation_status")),
+        };
+        let playback_type = match byte(Self::PLAYBACK_TYPE) {
+            0 => PlaybackType::RemoveAtEnd,
+            1 => PlaybackType::ManualRemove,
+            _ => return Err(domain(Self::PLAYBACK_TYPE, "playback_type")),
+        };
+        let serialization_mode = match byte(Self::SERIALIZATION_MODE) {
+            1 => SerializationMode::World,
+            2 => SerializationMode::Client,
+            _ => return Err(domain(Self::SERIALIZATION_MODE, "serialization_mode")),
+        };
+        let effect_ended = wire_bool(byte(Self::EFFECT_ENDED))
+            .ok_or_else(|| domain(Self::EFFECT_ENDED, "previous_time.effect_ended"))?;
+        if wire_bool(byte(Self::CHILD_PRESENT)) != Some(true) {
+            return Err(domain(Self::CHILD_PRESENT, "the root's child"));
         }
-        Ok(effect)
-    }
-
-    fn byte(&self, at: usize) -> u8 {
-        self.bytes.get(at).copied().unwrap_or(0)
-    }
-
-    fn word(&self, at: usize) -> u32 {
-        self.bytes
-            .get(at..)
-            .and_then(<[u8]>::first_chunk::<4>)
-            .map_or(0, |word| u32::from_le_bytes(*word))
-    }
-
-    /// A float [`Effect::read`] held to be a number.
-    fn float(&self, at: usize) -> Finite {
-        Finite::of_bits(self.word(at)).unwrap_or(Finite::ZERO)
+        Ok(Self {
+            root_emitter: word(Self::ROOT_INDEX),
+            activation_status,
+            start_time_ms: word(6),
+            playback_type,
+            serialization_mode,
+            length: number(Self::LENGTH, "length()")?,
+            creation_seed: word(16),
+            current_interval_id: word(Self::CURRENT_INTERVAL_ID),
+            current_interval_time: number(Self::CURRENT_INTERVAL_TIME, "current_interval_time")?,
+            current_time: number(Self::CURRENT_TIME, "current_time")?,
+            previous_interval_id: word(Self::PREVIOUS_INTERVAL_ID),
+            previous_interval_time: number(
+                Self::PREVIOUS_INTERVAL_TIME,
+                "previous_time.interval_time",
+            )?,
+            effect_ended,
+            root_id: word(Self::ROOT_ID),
+            child_creation_seed: word(Self::CHILD_CREATION_SEED),
+            child_start_time: number(Self::CHILD_START_TIME, "the child's start_time()")?,
+            child_length: number(Self::CHILD_LENGTH, "the child's length()")?,
+            child_seed: word(Self::CHILD_SEED),
+        })
     }
 
     /// The root emitter's index (its table entry; the pointer flag is 0).
     pub fn root_emitter(&self) -> u32 {
-        self.word(Self::ROOT_INDEX)
+        self.root_emitter
     }
 
-    /// The effect's +0x44.
-    pub fn field_44(&self) -> u8 {
-        self.byte(Self::FIELD_44)
+    /// `node->activation_status`.
+    pub fn activation_status(&self) -> ActivationStatus {
+        self.activation_status
     }
 
-    /// When it started (LIKELY: the section's time in live worlds).
-    pub fn start_ms(&self) -> u32 {
-        self.word(Self::START_MS)
+    /// `node->state.start_time_in_ms` (LIKELY: the section's time in live
+    /// worlds).
+    pub fn start_time_ms(&self) -> u32 {
+        self.start_time_ms
     }
 
-    /// The two bytes 0x2DE100 is given.
-    pub fn play_args(&self) -> [u8; 2] {
-        [
-            self.byte(Self::PLAY_ARGS),
-            self.byte(Self::PLAY_ARGS.saturating_add(1)),
-        ]
+    pub fn playback_type(&self) -> PlaybackType {
+        self.playback_type
     }
 
-    /// The f32 the root emitter's vtable +0x38 is given.
-    pub fn emitter_f32(&self) -> Finite {
-        self.float(Self::EMITTER_F32)
+    pub fn serialization_mode(&self) -> SerializationMode {
+        self.serialization_mode
     }
 
-    /// The u32 the root emitter's vtable +0x38 is given.
-    pub fn emitter_u32(&self) -> u32 {
-        self.word(Self::EMITTER_U32)
+    /// `node->effect->length()`.
+    pub fn length(&self) -> Finite {
+        self.length
     }
 
-    pub fn field_1c(&self) -> u32 {
-        self.word(Self::FIELD_1C)
+    /// `node->effect->creation_seed()`.
+    pub fn creation_seed(&self) -> u32 {
+        self.creation_seed
     }
 
-    pub fn field_20(&self) -> Finite {
-        self.float(Self::FIELD_20)
+    /// `node->state.current_interval_id`: an index into the root's
+    /// intervals.
+    pub fn current_interval_id(&self) -> u32 {
+        self.current_interval_id
     }
 
-    pub fn field_24(&self) -> Finite {
-        self.float(Self::FIELD_24)
+    pub fn current_interval_time(&self) -> Finite {
+        self.current_interval_time
     }
 
-    pub fn field_34(&self) -> u32 {
-        self.word(Self::FIELD_34)
+    pub fn current_time(&self) -> Finite {
+        self.current_time
     }
 
-    pub fn field_38(&self) -> Finite {
-        self.float(Self::FIELD_38)
+    /// `node->previous_time.interval_id`.
+    pub fn previous_interval_id(&self) -> u32 {
+        self.previous_interval_id
     }
 
-    /// The bool at +0x3C (any byte but 0 is true, `setne` at 0x2DDF04).
-    pub fn field_3c(&self) -> bool {
-        self.byte(Self::FIELD_3C) != 0
+    /// `node->previous_time.interval_time`.
+    pub fn previous_interval_time(&self) -> Finite {
+        self.previous_interval_time
     }
 
-    /// The root emitter's id.
-    pub fn emitter_id(&self) -> u32 {
-        self.word(Self::EMITTER_ID)
+    /// `node->previous_time.effect_ended`.
+    pub fn effect_ended(&self) -> bool {
+        self.effect_ended
     }
 
-    /// The root emitter's nine state bytes.
-    pub fn emitter_state(&self) -> [u8; 9] {
-        let mut state = [0; 9];
-        if let Some(bytes) = self
-            .bytes
-            .get(Self::EMITTER_STATE..Self::EMITTER_STATE_F32)
-        {
-            state.copy_from_slice(bytes);
-        }
-        state
+    /// The root's id: the u32 its `+0x10` object writes (its meaning is
+    /// not traced; the section's opening id in every world).
+    pub fn root_id(&self) -> u32 {
+        self.root_id
     }
 
-    /// The root emitter's state f32.
-    pub fn emitter_state_f32(&self) -> Finite {
-        self.float(Self::EMITTER_STATE_F32)
+    /// `m_effects[0]->creation_seed()` of the root.
+    pub fn child_creation_seed(&self) -> u32 {
+        self.child_creation_seed
     }
 
-    /// The id of the emitter after the root.
-    pub fn emitter_next_id(&self) -> u32 {
-        self.word(Self::EMITTER_NEXT_ID)
+    /// `m_effects[0]->start_time()`.
+    pub fn child_start_time(&self) -> Finite {
+        self.child_start_time
+    }
+
+    /// `m_effects[0]->length()`.
+    pub fn child_length(&self) -> Finite {
+        self.child_length
+    }
+
+    /// `m_seeds[0]` of the root.
+    pub fn child_seed(&self) -> u32 {
+        self.child_seed
     }
 }
 
-/// The effects section, borrowed from the world: its opening id, its time,
-/// its effect if it has one, its closing part.
+/// The effects section: its opening id, its time, its effect if it has
+/// one, its closing part (borrowed from the world).
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct Effects<'a> {
     opening: u32,
     time: u32,
-    effect: Option<Effect<'a>>,
+    effect: Option<Effect>,
     closing: &'a [u8; CLOSING_LEN],
 }
 
@@ -342,11 +464,12 @@ impl<'a> Effects<'a> {
         self.opening
     }
 
+    /// `game_effect_player`'s `m_current_time_in_ms`.
     pub fn time(&self) -> u32 {
         self.time
     }
 
-    pub fn effect(&self) -> Option<Effect<'a>> {
+    pub fn effect(&self) -> Option<Effect> {
         self.effect
     }
 
@@ -358,10 +481,8 @@ impl<'a> Effects<'a> {
 
 /// The closing part of every world: f32 1.0 and a u32 0.
 const CLOSING: [u8; CLOSING_LEN] = [0, 0, 0x80, 0x3F, 0, 0, 0, 0];
-/// The f32 0.1 an effect and its emitter save.
+/// The f32 0.1 an effect and its root's child save as their length.
 const POINT_ONE: u32 = 0x3DCC_CCCD;
-/// The emitter's state bytes in every world.
-const EMITTER_STATE: [u8; 9] = [0xFF, 0, 0, 0, 0, 0, 0, 0, 0];
 
 /// The effects section is one of the two forms every world has (the
 /// module doc).
@@ -380,7 +501,7 @@ pub fn effects(section: &Section) -> Result<(), Refusal> {
             let of = |offset: usize| EFFECT_AT.saturating_add(offset);
             let opening = read.opening();
             let next = opening.wrapping_sub(1);
-            let fields: [(usize, &'static str, u32, u32); 10] = [
+            let fields: [(usize, &'static str, u32, u32); 13] = [
                 (
                     Effect::ROOT_INDEX,
                     "the root emitter's index",
@@ -388,47 +509,75 @@ pub fn effects(section: &Section) -> Result<(), Refusal> {
                     0,
                 ),
                 (
-                    Effect::FIELD_44,
-                    "the effect's +0x44",
-                    effect.field_44().into(),
+                    Effect::ACTIVATION_STATUS,
+                    "activation_status (active)",
+                    (effect.activation_status() == ActivationStatus::Active).into(),
                     1,
                 ),
                 (
-                    Effect::PLAY_ARGS,
-                    "the two bytes of 0x2DE100",
-                    u16::from_le_bytes(effect.play_args()).into(),
-                    0x0100,
+                    Effect::PLAYBACK_TYPE,
+                    "playback_type (remove_at_end)",
+                    (effect.playback_type() == PlaybackType::RemoveAtEnd).into(),
+                    1,
                 ),
                 (
-                    Effect::EMITTER_F32,
-                    "the effect's 0.1",
-                    effect.emitter_f32().bits(),
+                    Effect::SERIALIZATION_MODE,
+                    "serialization_mode (the world's)",
+                    (effect.serialization_mode() == SerializationMode::World).into(),
+                    1,
+                ),
+                (
+                    Effect::LENGTH,
+                    "length() 0.1",
+                    effect.length().bits(),
                     POINT_ONE,
                 ),
-                (Effect::FIELD_1C, "the effect's +0x1C", effect.field_1c(), 0),
-                (Effect::FIELD_34, "the effect's +0x34", effect.field_34(), 0),
                 (
-                    Effect::FIELD_3C,
-                    "the effect's bool",
-                    effect.field_3c().into(),
+                    Effect::CURRENT_INTERVAL_ID,
+                    "current_interval_id",
+                    effect.current_interval_id(),
                     0,
                 ),
                 (
-                    Effect::EMITTER_ID,
-                    "the emitter's id (the opening id)",
-                    effect.emitter_id(),
+                    Effect::PREVIOUS_INTERVAL_ID,
+                    "previous_time.interval_id",
+                    effect.previous_interval_id(),
+                    0,
+                ),
+                (
+                    Effect::EFFECT_ENDED,
+                    "previous_time.effect_ended",
+                    effect.effect_ended().into(),
+                    0,
+                ),
+                (
+                    Effect::ROOT_ID,
+                    "the root's id (the opening id)",
+                    effect.root_id(),
                     opening,
                 ),
                 (
-                    Effect::EMITTER_STATE_F32,
-                    "the emitter's 0.1",
-                    effect.emitter_state_f32().bits(),
+                    Effect::CHILD_CREATION_SEED,
+                    "the child's creation_seed()",
+                    effect.child_creation_seed(),
+                    0,
+                ),
+                (
+                    Effect::CHILD_START_TIME,
+                    "the child's start_time()",
+                    effect.child_start_time().bits(),
+                    0,
+                ),
+                (
+                    Effect::CHILD_LENGTH,
+                    "the child's length() 0.1",
+                    effect.child_length().bits(),
                     POINT_ONE,
                 ),
                 (
-                    Effect::EMITTER_NEXT_ID,
-                    "the next emitter's id (the opening id less 1)",
-                    effect.emitter_next_id(),
+                    Effect::CHILD_SEED,
+                    "m_seeds[0] (the opening id less 1)",
+                    effect.child_seed(),
                     next,
                 ),
             ];
@@ -445,16 +594,6 @@ pub fn effects(section: &Section) -> Result<(), Refusal> {
                         },
                     );
                 }
-            }
-            if effect.emitter_state() != EMITTER_STATE {
-                let at = of(Effect::EMITTER_STATE);
-                return refuse(
-                    at,
-                    Reason::EffectsBytes {
-                        at,
-                        what: "the emitter's state",
-                    },
-                );
             }
             of(Effect::LEN)
         }
@@ -481,8 +620,8 @@ mod tests {
         0x5e, 0x93, 0xe5, 0xef, 0x98, 0x9e, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0x98, 0x9e, 0, 0,
         0, 1, 0xcd, 0xcc, 0xcc, 0x3d, 0x79, 0x09, 0x3f, 0x12, 0, 0, 0, 0, 0xcd, 0xcc, 0x4c, 0x3d,
         0xcd, 0xcc, 0x4c, 0x3d, 0, 0, 0, 0, 0xcd, 0xcc, 0x4c, 0x3d, 0, 0, 0, 0, 0, 0, 0x5e, 0x93,
-        0xe5, 0xef, 0xff, 0, 0, 0, 0, 0, 0, 0, 0, 0xcd, 0xcc, 0xcc, 0x3d, 0x5d, 0x93, 0xe5, 0xef, 0,
-        0, 0x80, 0x3f, 0, 0, 0, 0,
+        0xe5, 0xef, 0xff, 0, 0, 0, 0, 0, 0, 0, 0, 0xcd, 0xcc, 0xcc, 0x3d, 0x5d, 0x93, 0xe5, 0xef,
+        0, 0, 0x80, 0x3f, 0, 0, 0, 0,
     ];
     /// No effect.
     const NONE: [u8; 20] = [
@@ -504,21 +643,23 @@ mod tests {
         assert_eq!(read.closing(), CLOSING);
         let effect = read.effect().unwrap();
         assert_eq!(effect.root_emitter(), 0);
-        assert_eq!(effect.field_44(), 1);
-        assert_eq!(effect.start_ms(), 40_600);
-        assert_eq!(effect.play_args(), [0, 1]);
-        assert_eq!(effect.emitter_f32().bits(), POINT_ONE);
-        assert_eq!(effect.emitter_u32(), 0x123F_0979);
-        assert_eq!(effect.field_1c(), 0);
-        assert_eq!(effect.field_20().get(), 0.05);
-        assert_eq!(effect.field_24().get(), 0.05);
-        assert_eq!(effect.field_34(), 0);
-        assert_eq!(effect.field_38().get(), 0.05);
-        assert!(!effect.field_3c());
-        assert_eq!(effect.emitter_id(), 0xEFE5_935E);
-        assert_eq!(effect.emitter_state(), EMITTER_STATE);
-        assert_eq!(effect.emitter_state_f32().bits(), POINT_ONE);
-        assert_eq!(effect.emitter_next_id(), 0xEFE5_935D);
+        assert_eq!(effect.activation_status(), ActivationStatus::Active);
+        assert_eq!(effect.start_time_ms(), 40_600);
+        assert_eq!(effect.playback_type(), PlaybackType::RemoveAtEnd);
+        assert_eq!(effect.serialization_mode(), SerializationMode::World);
+        assert_eq!(effect.length().bits(), POINT_ONE);
+        assert_eq!(effect.creation_seed(), 0x123F_0979);
+        assert_eq!(effect.current_interval_id(), 0);
+        assert_eq!(effect.current_interval_time().get(), 0.05);
+        assert_eq!(effect.current_time().get(), 0.05);
+        assert_eq!(effect.previous_interval_id(), 0);
+        assert_eq!(effect.previous_interval_time().get(), 0.05);
+        assert!(!effect.effect_ended());
+        assert_eq!(effect.root_id(), 0xEFE5_935E);
+        assert_eq!(effect.child_creation_seed(), 0);
+        assert_eq!(effect.child_start_time(), Finite::ZERO);
+        assert_eq!(effect.child_length().bits(), POINT_ONE);
+        assert_eq!(effect.child_seed(), 0xEFE5_935D);
         assert_eq!(reason(&LIVE), None);
         assert_eq!(reason(&NONE), None);
     }
@@ -541,6 +682,30 @@ mod tests {
                 wanted: 0,
                 ..
             })
+        ));
+    }
+
+    #[test]
+    fn a_byte_out_of_its_domain_is_no_effect() {
+        // activation_status 3, playback_type 2, serialization_mode 0 and 3,
+        // effect_ended 0x01, the child's presence 0x00.
+        for (offset, byte) in [(5, 3), (10, 2), (11, 0), (11, 3), (40, 1), (50, 0)] {
+            let mut bad = LIVE;
+            bad[EFFECT_AT + offset] = byte;
+            assert!(
+                matches!(
+                    reason(&bad),
+                    Some(Reason::EffectsEffect(EffectFault::Domain { .. }))
+                ),
+                "{offset}"
+            );
+        }
+        // A stopped effect is an effect, not the section's.
+        let mut stopped = LIVE;
+        stopped[EFFECT_AT + 5] = 2;
+        assert!(matches!(
+            reason(&stopped),
+            Some(Reason::EffectsField { at: 17, .. })
         ));
     }
 

@@ -768,7 +768,7 @@ impl InventoryHeader {
 #[derive(Clone, Copy, Debug)]
 pub struct PlayerState<'a> {
     head: Head<'a>,
-    effects: List<Effect<'a>, MAX_PLAYER_EFFECTS>,
+    effects: List<Effect, MAX_PLAYER_EFFECTS>,
     hit_effects: List<HitEffect, MAX_HIT_EFFECTS>,
     current_active_object: Option<u8>,
     target_active_object: Option<u8>,
@@ -783,7 +783,7 @@ impl<'a> PlayerState<'a> {
     }
 
     /// The player effects.
-    pub fn effects(&self) -> &List<Effect<'a>, MAX_PLAYER_EFFECTS> {
+    pub fn effects(&self) -> &List<Effect, MAX_PLAYER_EFFECTS> {
         &self.effects
     }
 

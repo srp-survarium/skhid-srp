@@ -3,13 +3,15 @@ mod bullets;
 mod effects;
 mod frame;
 mod objects;
-pub use bullets::bullets;
-pub use effects::{Effect, EffectFault, Effects, effects};
+pub use bullets::{Bullet, BulletFault, Bullets, Lamps, WeaponSlot, bullets};
+pub use effects::{
+    ActivationStatus, Effect, EffectFault, Effects, PlaybackType, SerializationMode, effects,
+};
 pub use objects::{
     ActiveCore, AnomalyArtefacts, AnomalyState, ArtefactBase, ArtefactBases, ArtefactContainerCore,
     ArtefactContainerCores, ArtefactId, ArtefactState, BoobyTrapCore, DamageZoneCore,
     DamageZoneCores, GameObject, GameObjectIter, GameObjects, GenericAnomalyCore, GrenadeCore, Kit,
-    Motion, ObjectFault, Owner, Place, PlacedTrap, ResupplyZoneCore, Thrown, TrapState,
+    Motion, ObjectFault, Owner, PlacedTrap, ResupplyZoneCore, Thrown, TrapState,
     UsableObject, User, ZoneGroup, ZoneGroups, ZoneMask,
 };
 pub use objects::{Anomaly, Artefact, Artefacts, Group, Held, Map, Objects, State, objects};
@@ -36,8 +38,14 @@ mod rules;
 mod statistics;
 use crate::{KITS, Part, Reason, Refusal, mode};
 pub use frame::{Block, Frame, PLAYER_STATE_CAP, Section, frame};
-pub use rules::rules;
-pub use statistics::statistics;
+pub use rules::{
+    Battery, Container, ContainerId, FreeBattery, Gather, KillsDeaths, ModeRule, Phase, PlaceList,
+    Research, ResearchUnit, Respawn, Rules, Tdm, Timed, Timelimit, rules,
+};
+pub use statistics::{
+    BatteryStatus, ByPlace, EVENTS, Events, LastTaker, OwnerTeam, PlayerStatistics, Statistics, Tail,
+    Winner, statistics,
+};
 
 /// Native weapon and ammo slot ordering.
 pub const PLAYER_FIELDS_AT: usize = 2 + weapon_pickup::Record::BYTES;

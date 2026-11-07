@@ -2369,3 +2369,4 @@ va	name	source	ret_cleanup	result
 0x001f8120	survarium::game_world::local_player_profiles	manual	8	none; writes the local place's kit in use (+0Ch) to entry ESP+4's byte and its next kit (+0Dh) to entry ESP+8's
 0x00305210	survarium::booby_trap_core::switch_to_state	manual	4	no result used
 0x003134c0	survarium::artefact_base::start_spawn_in_container	manual	4	no result used
+0x002ddad0	survarium::game_effect_player::serialize	manual	8	void; writes m_current_time_in_ms, the counts of the nodes of serialization_mode 1 (to ESP+4) and 2 (to ESP+8), then each such node (game_effect_player.cpp, its fields by name)
