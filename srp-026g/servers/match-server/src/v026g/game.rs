@@ -1508,6 +1508,10 @@ impl Game {
             Outcome::Loaded | Outcome::Rejected if this_match && peer.stage != Stage::Gone => {
                 peer.world_receipts.receive(receipt.generation, receipt.outcome)
             }
+            // Its `generation` is the refusal's number, not a generation.
+            Outcome::Unreadable if this_match && peer.stage != Stage::Gone => {
+                peer.world_receipts.reject_unreadable(receipt.generation)
+            }
             _ => Received::Ignored,
         };
         let what = match (received, receipt.outcome) {
@@ -1515,6 +1519,10 @@ impl Game {
             (Received::Rejected, Outcome::OptionsRejected) => {
                 "refused the match's handshake (E3/E4); its own is sent again".to_string()
             }
+            (Received::Rejected, Outcome::Unreadable) => format!(
+                "refused a world it could not read the generation of (refusal {}); a newer one goes to it alone",
+                receipt.generation
+            ),
             (Received::Rejected, _) => format!(
                 "refused the world of generation {} (its srp_patches.log says why); a newer one goes to it alone",
                 receipt.generation

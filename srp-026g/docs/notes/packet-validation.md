@@ -421,7 +421,9 @@ alone never do. Each refusal is answered once and at once: a world's by the
 next generation, a handshake's by its message again. E0 is plain and resent
 until acked, so copies of a receipt come: a world refusal is told from a copy
 by its generation, a handshake refusal by its number on the connection (the
-generation byte, 1, 2, ...). No clock is involved: a world acked and not loaded
+generation byte, 1, 2, ...). A world refused whose generation the game could not
+read (Unreadable, numbered with the handshake refusals) is taken as a refusal of
+the world on its way. No clock is involved: a world acked and not loaded
 is waited for, since its receipt comes while the link lives; a world not acked
 is given up by the transport at the end of its lifetime, as without receipts.
 

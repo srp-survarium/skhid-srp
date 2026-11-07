@@ -500,6 +500,9 @@ pub enum WorldReceiptMode {
     RejectAll,
     /// Refuses the next two handshake messages (0xE4).
     RejectOptionsTwice,
+    /// Cannot read the next world (its reader outside its buffer): refuses
+    /// it without its generation (`Outcome::Unreadable`).
+    UnreadableNext,
     RejectOptionsNext,
     RejectPortsNext,
 }
@@ -507,8 +510,9 @@ pub enum WorldReceiptMode {
 pub struct Client {
     pub world_receipts: WorldReceiptMode,
     pub worlds_rejected: usize,
-    /// Handshake messages refused so far: the number its refusal carries.
-    pub handshakes_refused: u8,
+    /// Refusals that name no generation so far (handshake messages, worlds
+    /// it could not read): the number such a refusal carries.
+    pub numbered_refusals: u8,
     /// Each receipt goes twice, as a copy the transport resent when its ack
     /// was lost (0xE0 is plain: the server gets both).
     pub receipt_copies: bool,
@@ -632,7 +636,7 @@ impl Client {
             taken: Vec::new(),
             world_receipts: WorldReceiptMode::Legacy,
             worlds_rejected: 0,
-            handshakes_refused: 0,
+            numbered_refusals: 0,
             receipt_copies: false,
             skipped: Vec::new(),
             faults: Vec::new(),
@@ -1046,10 +1050,21 @@ impl Client {
             };
             // Numbered on the connection, as the game does
             // (`packet_recovery.rs`): the server tells a copy by it.
-            self.handshakes_refused = self.handshakes_refused.wrapping_add(1);
+            self.numbered_refusals = self.numbered_refusals.wrapping_add(1);
             let receipt = srp_validate::recovery::Receipt {
-                match_id: 0, generation: self.handshakes_refused,
+                match_id: 0, generation: self.numbered_refusals,
                 outcome: srp_validate::recovery::Outcome::OptionsRejected,
+            };
+            self.send_receipt(&receipt.encode());
+            return;
+        }
+        if id == id::SNAPSHOT && self.world_receipts == WorldReceiptMode::UnreadableNext {
+            self.world_receipts = WorldReceiptMode::Accept;
+            self.worlds_rejected += 1;
+            self.numbered_refusals = self.numbered_refusals.wrapping_add(1);
+            let receipt = srp_validate::recovery::Receipt {
+                match_id: self.model.options.as_ref().unwrap().match_id,
+                generation: self.numbered_refusals, outcome: srp_validate::recovery::Outcome::Unreadable,
             };
             self.send_receipt(&receipt.encode());
             return;

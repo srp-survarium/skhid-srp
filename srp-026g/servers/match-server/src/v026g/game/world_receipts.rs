@@ -3,8 +3,9 @@
 //! Each refusal is answered once, at once, and told from a copy by what it
 //! names: 0xE0 is plain and resent until acked, so copies of one receipt
 //! come (transport.md section 3.3). A world's receipt names its generation;
-//! a handshake refusal its number on the connection (1, 2, ...: the
-//! client's count of refused 0xE3/0xE4). Nothing here waits on a clock: a
+//! a refusal that cannot name what it refuses (a handshake, or a world
+//! whose generation could not be read) its number on the connection (1,
+//! 2, ...: the client's count of such refusals). Nothing here waits on a clock: a
 //! receipt the game sends always comes while its connection lives.
 use srp_validate::recovery::Outcome;
 
@@ -37,25 +38,42 @@ pub(super) enum WorldReceipts {
     Legacy,
     Enabled {
         pending: Pending,
-        /// The number of the newest handshake refusal answered.
-        handshake_answered: Option<u8>,
+        /// The number of the newest refusal by number seen (a handshake's,
+        /// or an unreadable world's).
+        numbered_seen: Option<u8>,
     },
 }
 impl WorldReceipts {
     pub(super) fn enable(&mut self) {
-        *self = Self::Enabled { pending: Pending::Nothing, handshake_answered: None };
+        *self = Self::Enabled { pending: Pending::Nothing, numbered_seen: None };
     }
-    /// The game's `number`th refusal of the handshake. Only one newer than
-    /// the last answered is answered: an older or the same number is a copy.
+    /// The game's refusal number `number` of the handshake. Only a number
+    /// newer than the last seen is answered: an older or the same one is a
+    /// copy.
     pub(super) fn reject_options(&mut self, number: u8) -> Received {
-        let Self::Enabled { pending, handshake_answered } = self else { return Received::Ignored; };
-        let newer = handshake_answered.is_none_or(|answered| (number.wrapping_sub(answered) as i8) > 0);
-        if newer && matches!(pending, Pending::Nothing | Pending::OptionsRetry) {
-            *handshake_answered = Some(number);
+        let Self::Enabled { pending, numbered_seen } = self else { return Received::Ignored; };
+        let fresh = seen_first(numbered_seen, number);
+        if fresh && matches!(pending, Pending::Nothing | Pending::OptionsRetry) {
             *pending = Pending::OptionsRetry;
             Received::Rejected
         } else {
             Received::Ignored
+        }
+    }
+    /// The game's refusal number `number` of a world it could not read the
+    /// generation of: taken as a refusal of the world on its way, and a
+    /// newer one goes, as for a refusal that names it. Had a newer world
+    /// gone meanwhile (the transport gave the refused one up), one world
+    /// more goes than needed; none is waited for in vain.
+    pub(super) fn reject_unreadable(&mut self, number: u8) -> Received {
+        let Self::Enabled { pending, numbered_seen } = self else { return Received::Ignored; };
+        let fresh = seen_first(numbered_seen, number);
+        match *pending {
+            Pending::Offered { generation } if fresh => {
+                *pending = Pending::Retry { generation };
+                Received::Rejected
+            }
+            _ => Received::Ignored,
         }
     }
     pub(super) fn take_options_retry(&mut self) -> bool {
@@ -104,6 +122,14 @@ impl WorldReceipts {
     }
 }
 
+/// Whether `number` is newer than the newest numbered refusal seen (by
+/// wrap-around order), now seen: an older or the same one is a copy.
+fn seen_first(seen: &mut Option<u8>, number: u8) -> bool {
+    let first = seen.is_none_or(|newest| (number.wrapping_sub(newest) as i8) > 0);
+    if first { *seen = Some(number); }
+    first
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -142,5 +168,25 @@ mod tests {
         assert_eq!(state.reject_options(0), Received::Rejected, "the number wraps");
         state.offer(0);
         assert_eq!(state.reject_options(1), Received::Ignored, "no handshake once a world is offered");
+    }
+
+    #[test]
+    fn an_unreadable_world_is_a_refusal_of_the_world_on_its_way_once_by_its_number() {
+        let mut state = WorldReceipts::default();
+        state.enable();
+        assert_eq!(state.reject_options(1), Received::Rejected); assert!(state.take_options_retry());
+        assert_eq!(state.reject_unreadable(2), Received::Ignored, "no world offered");
+        state.offer(7);
+        assert_eq!(state.reject_unreadable(2), Received::Ignored, "seen already: a copy");
+        assert_eq!(state.reject_unreadable(3), Received::Rejected);
+        assert_eq!(state.reject_unreadable(3), Received::Ignored, "a copy");
+        assert!(state.take_retry(7));
+        state.offer(8);
+        assert_eq!(state.reject_unreadable(3), Received::Ignored, "a late copy, for the next world");
+        assert_eq!(state.reject_unreadable(4), Received::Rejected);
+        assert!(state.take_retry(8));
+        state.offer(9); assert_eq!(state.receive(9, Outcome::Loaded), Received::Loaded);
+        assert_eq!(state.reject_unreadable(5), Received::Ignored, "loaded: nothing on its way");
+        assert!(state.delivery(9, false));
     }
 }

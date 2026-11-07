@@ -107,10 +107,30 @@ fn corrupted_handshake_data_is_retried_on_only_its_own_connection() {
             bench.join_all();
             assert!(bench.until(10_000, |b| b.stages() == "LLL"), "{mode:?} copies {copies}: {}", bench.stages());
             assert_eq!(bench.clients[1].world_receipts, WorldReceiptMode::Accept);
-            assert_eq!(bench.clients[1].handshakes_refused, refusals);
+            assert_eq!(bench.clients[1].numbered_refusals, refusals);
             assert_eq!(bench.game().loads_refused(1), u32::from(refusals), "{mode:?} copies {copies}");
             assert!(bench.clients.iter().all(|c| !c.closed && !c.disconnected));
             bench.assert_no_faults();
         }
+    }
+}
+
+#[test]
+fn a_first_world_its_game_cannot_read_is_answered_with_a_newer_one() {
+    // A world refused without its generation (the game could not read it)
+    // is a refusal of the world on its way, told from its copies by its
+    // number: the entering game is not left waiting for the world it has.
+    for copies in [false, true] {
+        let mut bench = Bench::growing(3, MAP_BATTERIES, Settings::default());
+        bench.clients[1].world_receipts = WorldReceiptMode::UnreadableNext;
+        bench.clients[1].receipt_copies = copies;
+        bench.join_all();
+        assert!(bench.until(10_000, |b| b.stages() == "LLL"), "copies {copies}: {}", bench.stages());
+        assert_eq!(bench.clients[1].worlds_rejected, 1);
+        assert_eq!(bench.clients[1].numbered_refusals, 1);
+        assert_eq!(bench.game().loads_refused(1), 1, "copies {copies}");
+        assert_eq!(bench.game().generation(1), Some(1), "copies {copies}");
+        assert!(bench.clients.iter().all(|c| !c.closed && !c.disconnected));
+        bench.assert_no_faults();
     }
 }
