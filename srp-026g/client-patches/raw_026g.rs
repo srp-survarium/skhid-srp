@@ -15444,6 +15444,24 @@ impl LoginStatusFrame {
         self.0.as_ptr() as usize as u32
     }
 
+    /// +0x18 (ptr<u8>): set_status's status text {begin +18h, cursor +1Ch, end +20h} by ESP at 0x21F217: its first byte, from which 0x21F730 shows it (0x21F222)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn begin(self) -> *mut u8 {
+        unsafe { self.0.byte_add(0x18).cast::<*mut u8>().read_volatile() }
+    }
+
+    /// +0x18 (ptr<u8>): set_status's status text {begin +18h, cursor +1Ch, end +20h} by ESP at 0x21F217: its first byte, from which 0x21F730 shows it (0x21F222)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn set_begin(self, value: *mut u8) {
+        unsafe { self.0.byte_add(0x18).cast::<*mut u8>().write_volatile(value) }
+    }
+
     /// +0x1c (ptr<u8>): set_status's status text {begin +18h, cursor +1Ch, end +20h} by ESP at 0x21F217 (made at 0x21EECB..0x21EEED over the 200h bytes at +24h): the cursor, at the text's zero (0x21F3B4)
     ///
     /// # Safety

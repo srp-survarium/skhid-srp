@@ -1,47 +1,87 @@
-//! Patch 116: a banned account's sign-in shows when its ban ends and how
-//! long it has left. srp's login server sends a ban's seconds left after its
-//! code; `on_answer` (the sign-in answer, the network's thread) keeps the
-//! end it makes; `on_status` (set_status, the game's) puts the line
-//! st_srp_login_ban_ends after the reason: the end in the machine's time
-//! (`14:10`, a later day `08.11 14:10`) and the time left (`29 min`,
-//! `2 h 15 min`, `3 d 4 h`). A ban for good, or an answer from a server that
-//! sends no time, shows the reason alone, as before.
+//! Patch 116: a banned account's sign-in says why, in srp's words, and
+//! when the ban ends. srp's login server tells a ban's reason and end after
+//! its code (crates/ban-reason); `on_answer` (the sign-in answer, the
+//! network's thread) keeps them; `on_status` (set_status, the game's) writes
+//! the status text anew: st_login_menu_status_user_banned, the reason's
+//! st_srp_ban_reason_*, then st_srp_login_ban_forever or
+//! st_srp_login_ban_ends with the end in the machine's time (`14:10`, a later
+//! day `08.11 14:10`) and the time left (`29 min`, `2 h 15 min`, `3 d 4 h`).
+//! An answer that tells nothing after the code keeps the game's own text.
 //!
 //! Presentation only: nothing a match computes.
 
 #![forbid(unsafe_code)]
 
+use ban_reason::{BanEnd, BanReason, BanTold};
+
 use crate::vostok::clock::{FileTime, LocalTime};
-use crate::vostok::login::{self, BanLeft, BanStatusText};
+use crate::vostok::login::{self, BanStatusText};
 use crate::vostok::{Context, Flow, Lock, NoExit};
 
-/// The ban's end the last answer told, if it was a ban that ends.
-static BAN_END: Lock<Option<FileTime>> = Lock::new(None);
+/// The ban the last sign-in answer told, if it was one srp told.
+static TOLD: Lock<Option<Told>> = Lock::new(None);
+
+#[derive(Clone, Copy)]
+struct Told {
+    reason: BanReason,
+    end: Ends,
+}
+
+#[derive(Clone, Copy)]
+enum Ends {
+    Never,
+    At(FileTime),
+}
 
 pub fn on_answer(ctx: &mut Context<'_>) -> Flow<NoExit> {
     let thread = ctx.thread();
-    let end = login::ban_left(ctx).map(|BanLeft(left)| FileTime::now(thread).after_seconds(left));
-    BAN_END.with(thread, |kept| *kept = end);
+    let told = login::ban_told(ctx).map(|BanTold { reason, end }| Told {
+        reason,
+        end: match end {
+            BanEnd::Never => Ends::Never,
+            BanEnd::In(seconds) => Ends::At(FileTime::now(thread).after_seconds(seconds)),
+        },
+    });
+    TOLD.with(thread, |kept| *kept = told);
     Flow::Continue
 }
 
 pub fn on_status(ctx: &mut Context<'_>) -> Flow<NoExit> {
     let thread = ctx.thread();
-    let Some(end) = BAN_END.with(thread, |kept| *kept) else { return Flow::Continue };
-    let now = FileTime::now(thread);
-    let (Some(at), Some(today)) = (end.local(thread), now.local(thread)) else { return Flow::Continue };
-    let minutes = now.seconds_until(end).div_ceil(60).max(1);
+    let Some(told) = TOLD.with(thread, |kept| *kept) else { return Flow::Continue };
+    // The end's local time and today's, and the minutes left (at least 1).
+    let end = match told.end {
+        Ends::Never => None,
+        Ends::At(at) => {
+            let now = FileTime::now(thread);
+            let (Some(local), Some(today)) = (at.local(thread), now.local(thread)) else { return Flow::Continue };
+            Some((local, today, now.seconds_until(at).div_ceil(60).max(1)))
+        }
+    };
     let Some(mut text) = BanStatusText::at_status_text(ctx) else { return Flow::Continue };
 
-    let mut key = [0u8; 0x200];
-    let units = Units {
-        minutes: text.translate(c"st_srp_unit_minutes", &mut key).to_bytes().try_into().unwrap_or_default(),
-        hours: text.translate(c"st_srp_unit_hours", &mut key).to_bytes().try_into().unwrap_or_default(),
-        days: text.translate(c"st_srp_unit_days", &mut key).to_bytes().try_into().unwrap_or_default(),
+    let mut out = [0u8; 0x200];
+    let banned: Text = text.translate(c"st_login_menu_status_user_banned", &mut out).to_bytes().try_into().unwrap_or_default();
+    let reason: Text = text.translate(told.reason.key(), &mut out).to_bytes().try_into().unwrap_or_default();
+    let ends = match end {
+        None => text.translate(c"st_srp_login_ban_forever", &mut out).to_bytes().try_into().unwrap_or_default(),
+        Some((local, today, minutes)) => {
+            let units = Units {
+                minutes: text.translate(c"st_srp_unit_minutes", &mut out).to_bytes().try_into().unwrap_or_default(),
+                hours: text.translate(c"st_srp_unit_hours", &mut out).to_bytes().try_into().unwrap_or_default(),
+                days: text.translate(c"st_srp_unit_days", &mut out).to_bytes().try_into().unwrap_or_default(),
+            };
+            ends_line(text.translate(c"st_srp_login_ban_ends", &mut out).to_bytes(), local, today, minutes, &units)
+        }
     };
-    let line = ends_line(text.translate(c"st_srp_login_ban_ends", &mut key).to_bytes(), at, today, minutes, &units);
+    text.clear();
+    // The header ends with a space in some languages ("You are banned. "),
+    // in others not ("Вы забанены.").
+    text.append(banned.bytes().trim_ascii_end());
     text.append(b" ");
-    text.append(line.bytes());
+    text.append(reason.bytes());
+    text.append(b" ");
+    text.append(ends.bytes());
     Flow::Continue
 }
 

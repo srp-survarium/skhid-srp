@@ -130,7 +130,7 @@ release's. The "Result" row is the build of the revision named in it.
 | `rust/patches/src/keyboard_layout.rs`, `src/keyboard_layout.toml`, `src/vostok/keyboard_layout.rs`, `check_keyboard_layout_026g.py` | Patch 107: chat text follows the keyboard layout the window was last told of (under Wine the engine's logic thread never got it); three lohooks, in message_processor's two layout messages and after translate_text's GetKeyboardLayout(0); its check runs both functions in both exes (needs Unicorn) |
 | `rust/patches/src/key_remap.rs`, `src/key_remap.toml`, `src/vostok/keyboard.rs` (`KeyEvents`, `KeyMoves`), `src/vostok/system.rs`, `check_key_remap_026g.py` | Patch 110: the keys a desktop moves (xkb `caps:swapescape`, `ctrl:nocaps`) are moved in the game under Wine's Wayland driver, whose DirectInput codes are the physical keys'; one lohook in keyboard::execute after GetDeviceData moves each event's function key to the one the told layout names it; its check runs execute whole in both exes (needs Unicorn) |
 | `rust/patches/src/hud_cursor.rs`, `src/hud_cursor.toml`, `src/vostok/hud_input.rs` (`MainMenu`, `MatchCursor`), `check_hud_cursor_026g.py` | Patch 113: the hud's kits and cursor start over at each match (the last match's pick stayed on the kits' tab), and the main menu covers the hud's cursor (Esc over the kits left it drawn under the menu's); four lohooks, at initialize_match's start, show_cursor's show and game_options' activate and deactivate; its check runs each from the game's code on a made-up game, the original beside (needs Unicorn) |
-| `rust/patches/src/ban_time.rs`, `src/ban_time.toml`, `src/vostok/login.rs` (`BanStatusText`), `src/vostok/clock.rs` (`FileTime`) | Patch 116: a banned account's sign-in shows when its ban ends and how long it has left, from the seconds srp's login server sends after a ban's code; two lohooks, at the sign-in answer and at set_status's built text |
+| `rust/patches/src/ban_time.rs`, `src/ban_time.toml`, `src/vostok/login.rs` (`BanStatusText`), `src/vostok/clock.rs` (`FileTime`), `../crates/ban-reason` | Patch 116: a banned account's sign-in shows srp's reason, when the ban ends and how long it has left, from what srp's login server sends after a ban's code; two lohooks, at the sign-in answer and at set_status's built text |
 | `audio_device_026g.c`, `audio_device_026g.h`, `audio_device_engine_026g.c`, `test_audio_device_026g.c` | Patch 100: the sound follows the audio output device (XAudio2's engine and voices proxied, made again on the default device after a lost device or a new default); the test runs the core on i686 under the sanitizers against a made-up XAudio2 that keeps its rules (no Unicorn) |
 | `rust/patches/src/sound_voices.rs`, `src/sound_voices.toml`, `src/vostok/voices.rs`, `check_sound_voices_026g.py` | Patch 96: shots no longer go silent under heavy fire (`../docs/notes/sound_voices.md`): the game world's sound scene has 1024 sound instances and propagators (`SOUND_POOLS`, game_world::load 0x1F8DB6/0x1F8DBD), and a sound refused a voice takes the voice of the quietest one playing when that one is less than half as loud (a lohook after create_sound_voice, 0x5CAB0), and the source voice walk is bounded to one pass (`sound_voices_026g.asm`, 0x5E5E7, 0x631D9, 0x59F8E); the check runs the voice loop from that site on made-up scenes with a model of the world's voice pool, and the self-test's `test_sound_pools` (needs Unicorn) |
 | `check_stage_focus_026g.py` | Runs the original's and patch 52's Stage focus getter (Scaleform's `stage.focus`, 0x771FA0) on a made-up movie: focused objects of each kind, none, one without its ActionScript object (the lobby's crash of 2026-10-22) (needs Unicorn) |
@@ -4656,24 +4656,30 @@ The owner's two reports (2026-11-06), both before a match's start, with the kits
 The hud's flag is the game's throughout, so the mouse goes where it went. Nothing a match computes.
 Checked with `check_hud_cursor_026g.py`, `cargo test` and clippy. Not run in a game.
 
-## A ban's end on the sign-in screen (patch 116, unreleased)
+## A ban's reason and end on the sign-in screen (patch 116, unreleased)
 
-A banned account's sign-in said only "You are banned. " and the reason, never for how long. srp's
-login server now sends a ban that ends with its seconds left after the code (u32 LE, in the same
-TLS write; `ban_answer` in `../servers/login-server/src/v026g.rs`). The game reads the answer with
-one read of at most 52h bytes and dispatches on byte 0 alone (0x37FB47), so a game without the
-patch shows what it showed. A ban for good sends the code alone; a banned address is answered in
-the plain step, one byte, and has no time.
+A banned account's sign-in said "You are banned. " and one of the game's 14 reasons, never for how
+long, and the reasons could not say what srp bans for (pressing the players who don't farm). srp
+now has its own reasons (`../crates/ban-reason`: the list, each a dictionary key
+`st_srp_ban_reason_<name>` in every language, and the answer's bytes). The login server takes one
+from the admin's free text by its words (`BAN_WORDS` in `../servers/login-server/src/v026g.rs`;
+`farm` first, none: "Decision of the administration.") and answers a banned account with the game's
+closest code, then the reason's id and, for a ban that ends, its seconds left (u32 LE), in the same
+TLS write. The game reads that answer with one read of at most 52h bytes and dispatches on byte 0
+alone (0x37FB47), so a game without the patch shows its own reason as before. A banned address is
+answered in the plain step, one byte, and gets the game's text.
 
 **The patch** (the Rust patch `ban_time`, two lohooks, `sites_026g.tsv`):
 
 - `login.other_answer` (0x37FB66, on_sign_in_answer_received for every answer but 08h and 25h):
-  a ban's code with four more bytes read keeps its end (now + the seconds, a FILETIME); any other
-  answer clears it.
+  a ban's code with srp's tail keeps the reason and the end (now + the seconds, a FILETIME, or
+  never); any other answer clears them.
 - `login_menu.status_text` (0x21F217, set_status's join once the text is built): a ban's status
-  (0Ch..19h) with an end kept gets ` ` and `st_srp_login_ban_ends` after the reason: the end in the
-  machine's time zone (`14:10`; another day `08.11 14:10`) and the time left, rounded up to the
-  minute (`st_srp_unit_minutes`, `_hours`, `_days`: `29 min`, `2 h 15 min`, `3 d 4 h`). English:
-  "You are banned. Decision of the administration. Ends at 14:10 (in 29 min).".
+  (0Ch..19h) with a reason kept is written anew: `st_login_menu_status_user_banned`, the reason,
+  then `st_srp_login_ban_forever` or `st_srp_login_ban_ends` with the end in the machine's time zone
+  (`14:10`; another day `08.11 14:10`) and the time left, rounded up to the minute
+  (`st_srp_unit_minutes`, `_hours`, `_days`: `29 min`, `2 h 15 min`, `3 d 4 h`). English: "You are
+  banned. Harassing or team-killing players who don't farm. Ends at 14:10 (in 29 min).".
 
-Nothing a match computes. Checked with `cargo test` and clippy. Not run in a game.
+`release/moderate ban` prints the reason the player will see. Nothing a match computes. Checked
+with `cargo test` and clippy (patches, ban-reason, login-server). Not run in a game.

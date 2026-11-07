@@ -2191,6 +2191,20 @@ st_srp_ammo_scar_ap_name	7.62x51 AP SCAR-H, 20-round pack
 st_srp_ammo_slug	Slug
 st_srp_ammo_stats	Ammo stats
 st_srp_attachments	Attachments
+st_srp_ban_reason_account_trading	Selling or trying to sell an account.
+st_srp_ban_reason_administration	Decision of the administration.
+st_srp_ban_reason_advertising	Advertising.
+st_srp_ban_reason_bad_language	Obscene language.
+st_srp_ban_reason_cheating	Cheats or other prohibited software.
+st_srp_ban_reason_false_information	Spreading false information.
+st_srp_ban_reason_farm_pressure	Harassing or team-killing players who don't farm.
+st_srp_ban_reason_flood	Spam or flooding.
+st_srp_ban_reason_insults	Insults or provocation.
+st_srp_ban_reason_nickname	An unacceptable name.
+st_srp_ban_reason_politics	Political discussion.
+st_srp_ban_reason_racism	Racism or Nazism.
+st_srp_ban_reason_teamkilling	Killing teammates.
+st_srp_ban_reason_threats	Real-life threats.
 st_srp_crosshair_dynamic	Dynamic crosshair
 st_srp_crosshair_hidden	Hidden crosshair
 st_srp_crosshair_static	Static crosshair
@@ -2512,6 +2526,7 @@ st_srp_lobby_room	Room
 st_srp_lobby_title	Lobby
 st_srp_login_account_hint	Account created on first sign-in
 st_srp_login_ban_ends	Ends at %1$s (in %2$s).
+st_srp_login_ban_forever	The ban is permanent.
 st_srp_map_chemical_plant	Chemical Plant
 st_srp_map_chemical_plant_v011	Chemical Plant (v0.11)
 st_srp_map_cologne	Cologne

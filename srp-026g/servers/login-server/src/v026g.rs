@@ -12,6 +12,7 @@ use std::net::{IpAddr, Ipv4Addr, SocketAddr, TcpListener, TcpStream, ToSocketAdd
 use std::sync::Arc;
 use std::time::Instant;
 
+use ban_reason::{BanEnd, BanReason, BanTold};
 use session::{SESSION_IDLE_LIMIT, SessionStore, SignInError};
 use vostok::config::{self, ServerConfig};
 
@@ -134,33 +135,54 @@ impl RevisionGate {
 /// game"; its text in client-patches/localization/*.tsv is neutral).
 const BANNED: u8 = login_server_message_types_enum::ban_reason_administrator as u8;
 
-/// The client's ban reasons, each with the words an admin's reason
-/// (`Ban::reason`, free text) is taken for it by. The first row with a word
-/// in the reason wins; none: [`BANNED`].
+/// srp's ban reasons (crates/ban-reason), each with the words an admin's
+/// reason (`Ban::reason`, free text) is taken for it by. The first row with a
+/// word in the reason wins; none: [`BanReason::Administration`].
 #[rustfmt::skip]
-const BAN_REASONS: &[(login_server_message_types_enum, &[&str])] = &[
-    (login_server_message_types_enum::ban_reason_cheating,          &["cheat", "hack", "aimbot", "wallhack", "exploit"]),
-    (login_server_message_types_enum::ban_reason_teamkilling,       &["teamkill", "team kill", "team-kill"]),
-    (login_server_message_types_enum::ban_reason_account_trading,   &["trading", "account sale", "selling"]),
-    (login_server_message_types_enum::ban_reason_reallife_treating, &["threat", "treating", "real life", "reallife"]),
-    (login_server_message_types_enum::ban_reason_discuss_admins,    &["discuss"]),
-    (login_server_message_types_enum::ban_reason_incorrect_info,    &["incorrect", "false info", "misinform"]),
-    (login_server_message_types_enum::ban_reason_faschism,          &["fascism", "faschism", "nazi"]),
-    (login_server_message_types_enum::ban_reason_politics,          &["politic"]),
-    (login_server_message_types_enum::ban_reason_advertising,       &["advert"]),
-    (login_server_message_types_enum::ban_reason_flood,             &["flood", "spam"]),
-    (login_server_message_types_enum::ban_reason_nickname,          &["nickname", "nick name", "user name", "username"]),
-    (login_server_message_types_enum::ban_reason_insult,            &["insult", "abus", "harass"]),
-    (login_server_message_types_enum::ban_reason_bad_language,      &["language", "swear", "profan", "obscen"]),
+const BAN_WORDS: &[(BanReason, &[&str])] = &[
+    (BanReason::FarmPressure,     &["farm"]),
+    (BanReason::Cheating,         &["cheat", "hack", "aimbot", "wallhack", "exploit"]),
+    (BanReason::Teamkilling,      &["teamkill", "team kill", "team-kill"]),
+    (BanReason::AccountTrading,   &["trading", "account sale", "selling"]),
+    (BanReason::Threats,          &["threat", "treating", "real life", "reallife"]),
+    (BanReason::FalseInformation, &["incorrect", "false info", "misinform"]),
+    (BanReason::Racism,           &["racism", "fascism", "faschism", "nazi"]),
+    (BanReason::Politics,         &["politic"]),
+    (BanReason::Advertising,      &["advert"]),
+    (BanReason::Flood,            &["flood", "spam"]),
+    (BanReason::Nickname,         &["nickname", "nick name", "user name", "username"]),
+    (BanReason::Insults,          &["insult", "abus", "harass"]),
+    (BanReason::BadLanguage,      &["language", "swear", "profan", "obscen"]),
 ];
 
-/// What a banned player is told: the client's reason closest to the admin's.
-fn ban_code(reason: &str) -> u8 {
+/// The reason a banned player is told: the first whose word the admin's has.
+fn ban_reason(reason: &str) -> BanReason {
     let reason = reason.to_lowercase();
-    BAN_REASONS
+    BAN_WORDS
         .iter()
         .find(|(_, words)| words.iter().any(|word| reason.contains(word)))
-        .map_or(BANNED, |(code, _)| *code as u8)
+        .map_or(BanReason::Administration, |(told, _)| *told)
+}
+
+/// The game's own reason closest to srp's: what a game without patch 116
+/// shows.
+fn ban_code(reason: BanReason) -> u8 {
+    use login_server_message_types_enum as code;
+    (match reason {
+        BanReason::Administration | BanReason::FarmPressure => code::ban_reason_administrator,
+        BanReason::Cheating => code::ban_reason_cheating,
+        BanReason::Teamkilling => code::ban_reason_teamkilling,
+        BanReason::Insults => code::ban_reason_insult,
+        BanReason::BadLanguage => code::ban_reason_bad_language,
+        BanReason::Flood => code::ban_reason_flood,
+        BanReason::Advertising => code::ban_reason_advertising,
+        BanReason::AccountTrading => code::ban_reason_account_trading,
+        BanReason::Threats => code::ban_reason_reallife_treating,
+        BanReason::Nickname => code::ban_reason_nickname,
+        BanReason::Racism => code::ban_reason_faschism,
+        BanReason::Politics => code::ban_reason_politics,
+        BanReason::FalseInformation => code::ban_reason_incorrect_info,
+    }) as u8
 }
 
 /// Where a signed-in client is sent: the lobby, which 0.26g reaches over UDP
@@ -498,16 +520,19 @@ fn refusal(store: &SessionStore, user_name: &str, error: SignInError) -> Vec<u8>
     vec![code]
 }
 
-/// A banned account's answer: its reason's code, then, for a ban that ends,
-/// the seconds it has left (u32 LE, at most u32::MAX). The game reads byte 0
-/// alone; patch 116 shows the rest under the reason, as the end's local
-/// time and the time left.
+/// A banned account's answer: the game's closest reason's code, then srp's
+/// reason and, for a ban that ends, the seconds it has left (at most
+/// u32::MAX; crates/ban-reason). The game reads byte 0 alone; patch 116
+/// shows srp's reason and the end instead of the game's reason.
 fn ban_answer(ban: &session::Ban, now: u64) -> Vec<u8> {
-    let mut answer = vec![ban_code(&ban.reason)];
-    if let Some(until) = ban.until {
-        let left = u32::try_from(until.saturating_sub(now)).unwrap_or(u32::MAX);
-        answer.extend_from_slice(&left.to_le_bytes());
-    }
+    let reason = ban_reason(&ban.reason);
+    let end = match ban.until {
+        None => BanEnd::Never,
+        Some(until) => BanEnd::In(u32::try_from(until.saturating_sub(now)).unwrap_or(u32::MAX)),
+    };
+    let (tail, len) = BanTold { reason, end }.encode();
+    let mut answer = vec![ban_code(reason)];
+    answer.extend_from_slice(&tail[..len]);
     answer
 }
 
@@ -588,7 +613,7 @@ fn handle_sign_in(
             "Sign-in of {user_name} from banned address {peer} ({}) refused",
             ban.net
         );
-        let _ = stream.write_all(&[ban_code(&ban.ban.reason)]);
+        let _ = stream.write_all(&[ban_code(ban_reason(&ban.ban.reason))]);
         return;
     }
     // A name no account can have is refused before the password, as the
@@ -967,30 +992,35 @@ mod tests {
     }
 
     #[test]
-    fn a_ban_reason_becomes_the_clients_closest_one() {
-        for (reason, code) in [
-            ("", 0x1C),
-            ("test", 0x1C),
-            ("<aimbot>", 0x1E),
-            ("Cheating in ranked matches", 0x1E),
-            ("teamkilling", 0x1F),
-            ("bad language", 0x12),
-            ("insults in chat", 0x13),
-            ("nazi symbols", 0x14),
-            ("politics", 0x15),
-            ("chat flood", 0x16),
-            ("advertising", 0x17),
-            ("discussing the admins", 0x18),
-            ("real life threats", 0x19),
-            ("account trading", 0x1A),
-            ("incorrect info", 0x1B),
-            ("offensive nickname", 0x1D),
+    fn a_ban_reason_becomes_srps_and_the_clients_closest_one() {
+        use BanReason::*;
+        for (reason, told, code) in [
+            ("", Administration, 0x1C),
+            ("test", Administration, 0x1C),
+            ("farm: teamkilled the players who did not", FarmPressure, 0x1C),
+            ("harassed non-farmers in chat", FarmPressure, 0x1C),
+            ("harassed players in chat", Insults, 0x13),
+            ("<aimbot>", Cheating, 0x1E),
+            ("Cheating in ranked matches", Cheating, 0x1E),
+            ("teamkilling", Teamkilling, 0x1F),
+            ("bad language", BadLanguage, 0x12),
+            ("insults in chat", Insults, 0x13),
+            ("nazi symbols", Racism, 0x14),
+            ("politics", Politics, 0x15),
+            ("chat flood", Flood, 0x16),
+            ("advertising", Advertising, 0x17),
+            ("discussing the admins", Administration, 0x1C),
+            ("real life threats", Threats, 0x19),
+            ("account trading", AccountTrading, 0x1A),
+            ("incorrect info", FalseInformation, 0x1B),
+            ("offensive nickname", Nickname, 0x1D),
         ] {
-            assert_eq!(ban_code(reason), code, "{reason}");
+            assert_eq!(ban_reason(reason), told, "{reason}");
+            assert_eq!(ban_code(told), code, "{reason}");
         }
         // Every reason is one the client has a text for.
-        for (code, _) in BAN_REASONS {
-            assert!((0x12..=0x1F).contains(&(*code as u8)));
+        for reason in BanReason::ALL {
+            assert!((0x12..=0x1F).contains(&ban_code(reason)));
         }
     }
 
@@ -1199,20 +1229,28 @@ mod tests {
         assert!(store.has_ended(session));
         // Told only once the password is right, over TLS.
         let (answer, reply) = sign_in(addr, b"cheater", &remembered(DIGEST_1));
-        assert_eq!((answer, reply), (0x0B, vec![0x1E]));
+        assert_eq!((answer, reply), (0x0B, vec![0x1E, BanReason::Cheating.id()]));
         let (_, reply) = sign_in(addr, b"cheater", &remembered(DIGEST_2));
         assert_eq!(reply, [0x0A]);
         // Each reason the client has, and none.
-        for (reason, code) in [("teamkilling", 0x1F), ("chat flood", 0x16), ("", 0x1C)] {
+        for (reason, code, told) in [
+            ("teamkilling", 0x1F, BanReason::Teamkilling),
+            ("chat flood", 0x16, BanReason::Flood),
+            ("", 0x1C, BanReason::Administration),
+        ] {
             store.ban_account(id, ban(reason));
             let (_, reply) = sign_in(addr, b"cheater", &typed(b"test-password-1"));
-            assert_eq!(reply, [code], "{reason}");
+            assert_eq!(reply, [code, told.id()], "{reason}");
         }
-        // A ban that ends: the seconds it has left after the code.
+        // srp's reason after the code, and a ban that ends its seconds left.
+        store.ban_account(id, ban("farm pressure"));
+        let (_, reply) = sign_in(addr, b"cheater", &typed(b"test-password-1"));
+        let told = |reply: &[u8]| BanTold::decode(&reply[1..]).unwrap();
+        assert_eq!(told(&reply), BanTold { reason: BanReason::FarmPressure, end: BanEnd::Never });
         store.ban_account(id, session::Ban { until: Some(unix_now() + 1800), reason: String::new() });
         let (_, reply) = sign_in(addr, b"cheater", &typed(b"test-password-1"));
-        assert_eq!((reply[0], reply.len()), (0x1C, 5));
-        let left = u32::from_le_bytes(reply[1..].try_into().unwrap());
+        assert_eq!(reply[0], 0x1C);
+        let BanEnd::In(left) = told(&reply).end else { panic!("{reply:?}") };
         assert!((1790..=1800).contains(&left), "{left}");
         assert_eq!(store.session_count(), 0);
 

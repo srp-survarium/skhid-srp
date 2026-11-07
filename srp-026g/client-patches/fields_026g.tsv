@@ -820,5 +820,6 @@ vostok::network::login_client_impl	answer	0x2AA	u8	the sign-in answer's first by
 vostok::network::sign_in_answer_frame	transferred	0x10	u32	on_sign_in_answer_received's bytes read (EBP+10h; 0 returns at 0x37FB3D)
 survarium::login_menu	status	0xF4	u32	the status set_status shows (written at 0x21EEB0; its jump table 0x21F2A4): 0Ch..19h the bans (the answer's code - 6), whose text is st_login_menu_status_user_banned + st_ban_reason_* (0x21F310)
 survarium::login_menu	game	0x9C	ptr<survarium::game>	the game (set_status 0x21EEB6; its translator +52A8h, 0x21EF49)
+survarium::login_status_frame	begin	0x18	ptr<u8>	set_status's status text {begin +18h, cursor +1Ch, end +20h} by ESP at 0x21F217: its first byte, from which 0x21F730 shows it (0x21F222)
 survarium::login_status_frame	cursor	0x1C	ptr<u8>	set_status's status text {begin +18h, cursor +1Ch, end +20h} by ESP at 0x21F217 (made at 0x21EECB..0x21EEED over the 200h bytes at +24h): the cursor, at the text's zero (0x21F3B4)
 survarium::login_status_frame	end	0x20	ptr<u8>	the text's end, its buffer's last byte + 1 (esp+224h, 0x21EECF)

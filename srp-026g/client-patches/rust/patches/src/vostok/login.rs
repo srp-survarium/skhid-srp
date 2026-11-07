@@ -8,6 +8,8 @@ use core::ffi::CStr;
 use core::marker::PhantomData;
 use core::ops::RangeInclusive;
 
+use ban_reason::BanTold;
+
 use super::context::Context;
 use crate::raw;
 
@@ -18,14 +20,10 @@ const BAN_CODES: RangeInclusive<u8> = 0x12..=0x1F;
 /// Their statuses in set_status: the code - 6 (the table 0x21F2A4).
 const BAN_STATUSES: RangeInclusive<u32> = 0x0C..=0x19;
 
-/// A ban's time left, in seconds, as srp's login server sends it after a
-/// ban's code (u32 LE); the stock game reads the code alone.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub struct BanLeft(pub u32);
-
-/// The answer at `login.other_answer`: a ban that ends, with its time left;
-/// None for any other answer, a ban for good, or one with no time.
-pub fn ban_left(ctx: &Context<'_>) -> Option<BanLeft> {
+/// The answer at `login.other_answer`: a ban's code and what srp's login
+/// server tells after it (crates/ban-reason); None for any other answer, or
+/// a ban told by the code alone.
+pub fn ban_told(ctx: &Context<'_>) -> Option<BanTold> {
     use raw::site::login_other_answer as site;
     let mut answer = [0u8; ANSWER_SIZE];
     // SAFETY: the context is this site's: the login client, alive while its
@@ -39,13 +37,12 @@ pub fn ban_left(ctx: &Context<'_>) -> Option<BanLeft> {
         }
         *frame.transferred() as usize
     };
-    parse_ban_left(&answer[..read.min(ANSWER_SIZE)])
+    parse_ban_told(&answer[..read.min(ANSWER_SIZE)])
 }
 
-/// A ban's answer: its code, then the time left.
-fn parse_ban_left(answer: &[u8]) -> Option<BanLeft> {
+fn parse_ban_told(answer: &[u8]) -> Option<BanTold> {
     match answer {
-        [code, a, b, c, d, ..] if BAN_CODES.contains(code) => Some(BanLeft(u32::from_le_bytes([*a, *b, *c, *d]))),
+        [code, tail @ ..] if BAN_CODES.contains(code) => BanTold::decode(tail),
         _ => None,
     }
 }
@@ -87,6 +84,17 @@ impl<'c> BanStatusText<'c> {
         CStr::from_bytes_until_nul(out).unwrap_or(c"")
     }
 
+    /// The status text emptied, to be written anew.
+    pub fn clear(&mut self) {
+        // SAFETY: the frame's text: its start, the cursor's place before the
+        // game's first copy (0x21EEED); 200h bytes there are the text's.
+        unsafe {
+            let begin = self.frame.begin();
+            begin.write(0);
+            self.frame.set_cursor(begin);
+        }
+    }
+
     /// `text` after the status text, as much of it as its buffer holds, the
     /// zero after it.
     pub fn append(&mut self, text: &[u8]) {
@@ -109,16 +117,18 @@ impl<'c> BanStatusText<'c> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use ban_reason::{BanEnd, BanReason};
 
     #[test]
-    fn a_ban_with_its_time_left() {
-        assert_eq!(parse_ban_left(&[0x1C, 0x08, 0x07, 0, 0]), Some(BanLeft(0x708)));
-        assert_eq!(parse_ban_left(&[0x12, 1, 0, 0, 0, 9]), Some(BanLeft(1)));
-        // For good, the stock answer: the code alone.
-        assert_eq!(parse_ban_left(&[0x1E]), None);
+    fn a_ban_told_after_its_code() {
+        let told = |reason, end| Some(BanTold { reason, end });
+        assert_eq!(parse_ban_told(&[0x1C, 2, 0x08, 0x07, 0, 0]), told(BanReason::FarmPressure, BanEnd::In(0x708)));
+        assert_eq!(parse_ban_told(&[0x1E, 1]), told(BanReason::Cheating, BanEnd::Never));
+        // The stock answer: the code alone.
+        assert_eq!(parse_ban_told(&[0x1E]), None);
         // Not a ban, or cut short.
-        assert_eq!(parse_ban_left(&[0x0A, 1, 0, 0, 0]), None);
-        assert_eq!(parse_ban_left(&[0x20, 1, 0, 0, 0]), None);
-        assert_eq!(parse_ban_left(&[0x1C, 1, 0, 0]), None);
+        assert_eq!(parse_ban_told(&[0x0A, 1]), None);
+        assert_eq!(parse_ban_told(&[0x20, 1, 0, 0, 0, 0]), None);
+        assert_eq!(parse_ban_told(&[0x1C, 2, 1, 0]), None);
     }
 }

@@ -2191,6 +2191,20 @@ st_srp_ammo_scar_ap_name	7,62x51 AP SCAR-H, 20 metaka
 st_srp_ammo_slug	Kugla
 st_srp_ammo_stats	Osobine municije
 st_srp_attachments	Dodaci
+st_srp_ban_reason_account_trading	Prodaja ili pokušaj prodaje naloga.
+st_srp_ban_reason_administration	Odluka administracije.
+st_srp_ban_reason_advertising	Reklamiranje.
+st_srp_ban_reason_bad_language	Vulgaran jezik.
+st_srp_ban_reason_cheating	Čitovi ili drugi zabranjeni softver.
+st_srp_ban_reason_false_information	Širenje lažnih informacija.
+st_srp_ban_reason_farm_pressure	Maltretiranje ili ubijanje saveznika koji ne farmaju.
+st_srp_ban_reason_flood	Spam ili flood.
+st_srp_ban_reason_insults	Uvrede ili provokacije.
+st_srp_ban_reason_nickname	Nedozvoljeno ime.
+st_srp_ban_reason_politics	Rasprave o politici.
+st_srp_ban_reason_racism	Rasizam ili nacizam.
+st_srp_ban_reason_teamkilling	Ubijanje saveznika.
+st_srp_ban_reason_threats	Pretnje u stvarnom životu.
 st_srp_crosshair_dynamic	Dinamični nišan
 st_srp_crosshair_hidden	Skriven nišan
 st_srp_crosshair_static	Statični nišan
@@ -2512,6 +2526,7 @@ st_srp_lobby_room	Soba
 st_srp_lobby_title	Lobi
 st_srp_login_account_hint	Nalog se pravi pri prvoj prijavi
 st_srp_login_ban_ends	Ističe u %1$s (za %2$s).
+st_srp_login_ban_forever	Zabrana je trajna.
 st_srp_map_chemical_plant	Hemijska fabrika
 st_srp_map_chemical_plant_v011	Hemijska fabrika (v0.11)
 st_srp_map_cologne	Keln
