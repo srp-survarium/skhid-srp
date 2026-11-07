@@ -823,6 +823,11 @@ pub struct Motor {
     /// (the play's own, else [`Feel::arrive_m`]). Cleared each tick before the
     /// walk sets it.
     pub exact_end: Option<f32>,
+    /// [A318] How far ahead in time the pose it is driven from stands of the reckoning as it stood at the decision (s): 0 with
+    /// `kin::OwnLead::Seen`, 0.1 under the client's order with `kin::OwnLead::FirstMoved`. The press distances ([`JUMP_LEAD_S`],
+    /// [`PRESS_M`], the grid's press lead, a gap's press point) were set against the pose as it stood, so they are taken that
+    /// much shorter (`speed` x it): the same press, measured from where the body is when the keys act. Set by the driver.
+    pub led_s: f32,
     /// This tick's walk looks no further ahead on the route than this, m (set by the caller each tick: on a
     /// lip's floors, where a line to a point further on cuts a corner over the rim).
     pub ahead_cap: Option<f32>,
@@ -1096,6 +1101,7 @@ impl Motor {
             turn_time: None,
             track: None,
             exact_end: None,
+            led_s: 0.0,
             drop_aim_run: 0,
             ahead_cap: None,
             gauge: None,
@@ -2377,9 +2383,12 @@ impl Motor {
             .is_none_or(|at| self.since(at) >= JUMP_AGAIN_S.max(CARRY_S));
         // A jump link as it walks over the take-off; a gap link at its own
         // point (where the grid found the client's jump lands it).
+        // [A318] The press distances were set against the pose as it stood at the decision; from a led pose they are that much
+        // shorter ([`Self::led_s`]).
+        let led_m = self.led_s * speed;
         let near = match ahead.leap {
-            Leap::Ledge | Leap::SprintLedge => ahead.before <= (JUMP_LEAD_S * speed + PRESS_M).max(ahead.lead_m),
-            Leap::Gap(press) | Leap::SprintGap(press) => ahead.before <= press.metres(),
+            Leap::Ledge | Leap::SprintLedge => ahead.before <= (JUMP_LEAD_S * speed + PRESS_M).max(ahead.lead_m) - led_m,
+            Leap::Gap(press) | Leap::SprintGap(press) => ahead.before <= press.metres() - led_m,
         };
         if !(ahead.lined && ahead.going && self.walking && still <= JUMP_FACING && near && rested) {
             return 0;

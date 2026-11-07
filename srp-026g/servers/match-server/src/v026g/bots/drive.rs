@@ -369,6 +369,9 @@ fn drive_tick_inner(
         }
         bot.bench_est.push_back((me.known_at, me.feet));
     }
+    // [A318] How far the pose is led past the reckoning as it stood at the decision (`kin::OwnLead`): the motor's press
+    // distances are set against the latter.
+    bot.motor.led_s = (me.known_at + survarium::v026g::match_msgs::TICK_MS).saturating_sub(time) as f32 / 1000.0;
     let mut pose = Pose {
         feet: me.feet,
         yaw: me.yaw,
