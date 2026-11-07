@@ -499,8 +499,9 @@ fn drift_on_a_real_match() {
     };
     let ((nj, mj, pj), (no, mo, po)) = (stats(&mut jump_us), stats(&mut other_us));
     eprintln!(
-        "A318 cost {project}: {nj} jumping ticks, decided us mean {mj:.1} p99 {pj:.1}; {no} other ticks mean {mo:.1} p99 {po:.1}; client steps {}",
-        super::super::body::client_steps::total()
+        "A318 cost {project}: {nj} jumping ticks, decided us mean {mj:.1} p99 {pj:.1}; {no} other ticks mean {mo:.1} p99 {po:.1}; client steps {}; client walker {} bytes",
+        super::super::body::client_steps::total(),
+        world.grid.client_walker_bytes()
     );
     if let Some(path) = &ticks_out {
         std::fs::write(path, tick_rows).unwrap_or_else(|e| panic!("{path}: {e}"));
