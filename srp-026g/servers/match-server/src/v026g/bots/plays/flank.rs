@@ -1126,7 +1126,7 @@ mod tests {
             let route = FlankRoute { origin: Origin::Astar, floors, fire, exposed_m: 0.0 };
             let camp = CampSpot { camper_side: 1, at: him, match_radius_m: 5.0, follow_radius_m: 10.0, routes: vec![route] };
             s.tactics.camp_spots = std::sync::Arc::new(vec![camp]);
-            s.tuning.threat.camp_flank = Some(CampFlank { hold_ms });
+            s.tuning.threat.camp_flank = Some(CampFlank { hold_ms, ..CampFlank::default() });
             let target = TargetRef::ThreatSpot(7);
             let mut rng = Rng::new(3);
             s.current = Some((PlayKind::Flank, target, now));
