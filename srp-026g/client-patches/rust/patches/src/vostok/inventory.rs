@@ -225,10 +225,12 @@ impl<'t> Inventory<'t> {
 pub(in crate::vostok) const SLOTS: u8 = 23;
 
 /// One kit's inventory at a world's load, its slots compared with the world's artefacts
-/// (`keeper::reconcile`). Its writes are the native ones' (set_item 0x2FC620, remove_item
-/// 0x2FC680): the slot's pointer, its reference, the weight to be recalculated (+184h). No
-/// passive is linked or unlinked: what a held artefact's passive is, the kit's next spawn decides
-/// (setup_from_profile's on_taken), as in a game that did not load the world.
+/// (`keeper::reconcile`). It writes a slot's pointer and its reference (as set_item 0x2FC620 and
+/// remove_item 0x2FC680 do), nothing else: not the weight (+180h) or its recalculation flag
+/// (+184h), which a world saves and loads for the current kit (0x2FE37A / 0x2FE39A, 0x2FE56D /
+/// 0x2FE583, a count of 0 too) and a spawn sets for the others (0x2FD2B8); no passive linked or
+/// unlinked: what a held artefact's passive is, the kit's next spawn decides (setup_from_profile's
+/// on_taken), as in a game that did not load the world.
 pub(in crate::vostok) struct KitSlots<'t> {
     this: raw::Inventory,
     _thread: &'t Thread,
@@ -264,7 +266,6 @@ impl<'t> KitSlots<'t> {
         unsafe {
             let Some(item) = entry.item() else { return };
             entry.set_item(None);
-            self.this.weight_dirty().write_volatile(1);
             drop(RetainedItem::adopt(item.artefact(), self._thread));
         }
     }
@@ -281,7 +282,6 @@ impl<'t> KitSlots<'t> {
             }
             AtomicU32::from_ptr(item.item().references()).fetch_add(1, Ordering::AcqRel);
             entry.set_item(Some(item.item()));
-            self.this.weight_dirty().write_volatile(1);
         }
     }
 }

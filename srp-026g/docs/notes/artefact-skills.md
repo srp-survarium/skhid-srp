@@ -311,8 +311,9 @@ preferred-image VAs; `apply_modifier` is the kit-modifier getter 0x2D5AE0.
   resynced game's 0x2D0B70, a replay's seek): every kit of every place, in the world or not, is
   made to hold the registered artefacts the world says it holds. A slot holding one the world has
   in another inventory, another slot or none is emptied; an empty slot the world has one in is
-  filled (both with the slot's reference and the weight to be recalculated, no passive linked or
-  unlinked: the kit's next spawn's on_taken does that, as in any game). The world alone decides,
+  filled (the slot's pointer and its reference alone: not the weight +180h or its flag +184h, which
+  the world saves and loads for the current kit and a spawn sets for the others (0x2FD2B8); no
+  passive linked or unlinked: the kit's next spawn's on_taken does that, as in any game). The world alone decides,
   so every game that loads it holds the same, and the same as a game that did not load it (its
   slots and its artefacts' records agree: set_item, remove_item and the eviction write both); a
   replay, which loads no world, computes what it did: no `next` row. Each change is logged

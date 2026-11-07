@@ -416,7 +416,7 @@ class Worlds(Keeper):
             for n in range(count):
                 item = self.read(self.read(inventory + 0x168) + 4 * n)
                 ids.append(0xFF if item == 0 else self.read(item + 0x27E) & 0xFF)
-            places[place] = (kit, inventory, count, first, ids)
+            places[place] = (kit, inventory, count, first, ids, self.read(inventory + 0x180), self.read(inventory + 0x184) & 0xFF)
         return artefacts, places, active
 
     def load(self, world):
@@ -429,8 +429,10 @@ class Worlds(Keeper):
                 self.word(a + 0x254, slot)
             self.word(a + 0x280, state)
             self.word(a + 0x2A0, mark)
-        for place, (kit, inventory, count, first, ids) in places.items():
+        for place, (kit, inventory, count, first, ids, weight, dirty) in places.items():
             self.current(place, kit)
+            self.word(inventory + 0x180, weight)            # inventory::deserialize 0x2FE56D, 0x2FE583
+            self.emu.mem_write(inventory + 0x184, bytes([dirty]))
             stream = self.block(4 + len(ids))
             self.emu.mem_write(stream, bytes([count] + ([first] + ids if count else [])))
             reader = self.block(12)
@@ -492,6 +494,8 @@ def start(data):
     larkspur, _ = pools(g)
     player, inventory, slots = g.kit(0, KEEPER + draw(1), set_up=False)
     g.started(False)
+    g.word(inventory + 0x180, struct.unpack('<I', struct.pack('<f', 12.5))[0])   # its weight, saved
+    g.emu.mem_write(inventory + 0x184, b'\x00')                                 # and its flag
     countdown = g.save()
     g.spawn(0, 0, inventory)
     g.started()
@@ -503,6 +507,8 @@ def start(data):
     g.agree()
     assert g.read(slots) == 0 and g.read(larkspur[0] + 0xD0) == held - 1, (held, g.read(larkspur[0] + 0xD0))
     assert g.mends() == ["srp: keeper: a world's load empties place 0 kit 0 slot 16: artefact id 0"], g.lines
+    assert (g.float(inventory + 0x180), g.read(inventory + 0x184) & 0xFF) == (12.5, 0), \
+        'a mended current kit keeps the weight and its flag the world loaded (its next save writes them)'
     assert g.spawn(0, 0, inventory) == []
     g.started()
     g.tick(player)
