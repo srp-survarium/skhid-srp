@@ -816,3 +816,10 @@ survarium::game_world	ui	0x1FC	obj<survarium::game_world_ui>	the hud (game_world
 survarium::game_world_ui	cursor_movie	0xC	obj<survarium::movie_slot>	the hud's cursor movie: show_cursor shows it (0x23A995) and hides it (0x23A9B3), the hud's +2DCh with it
 survarium::movie_slot	holder	0x0	ptr<vostok::ui::movie_holder>	a scene's movie: base_game_scene::show_movie reads it (0x23DC26), hide_movie does nothing while it is 0 (0x23DC71)
 survarium::initialize_match_frame	ui	0x4	ptr<survarium::game_world_ui>	initialize_match's first argument at its start (0x234880, by the site's ESP): the hud, called once a match from 0x1F855D (the late join's rebuild enters at 0x234E71)
+vostok::network::login_client_impl	answer	0x2AA	u8	the sign-in answer's first byte, its code: one async_read_some of at most 52h bytes lands here (0x38010D); on_sign_in_answer_received dispatches on it (0x37FB47) and reads 08h's and 25h's bodies after it (0x37FD26, 0x37FB7F)
+vostok::network::sign_in_answer_frame	transferred	0x10	u32	on_sign_in_answer_received's bytes read (EBP+10h; 0 returns at 0x37FB3D)
+survarium::login_menu	status	0xF4	u32	the status set_status shows (written at 0x21EEB0; its jump table 0x21F2A4): 0Ch..19h the bans (the answer's code - 6), whose text is st_login_menu_status_user_banned + st_ban_reason_* (0x21F310)
+survarium::login_menu	game	0x9C	ptr<survarium::game>	the game (set_status 0x21EEB6; its translator +52A8h, 0x21EF49)
+survarium::login_status_frame	begin	0x18	ptr<u8>	set_status's status text {begin +18h, cursor +1Ch, end +20h} by ESP at 0x21F217: its first byte, from which 0x21F730 shows it (0x21F222)
+survarium::login_status_frame	cursor	0x1C	ptr<u8>	set_status's status text {begin +18h, cursor +1Ch, end +20h} by ESP at 0x21F217 (made at 0x21EECB..0x21EEED over the 200h bytes at +24h): the cursor, at the text's zero (0x21F3B4)
+survarium::login_status_frame	end	0x20	ptr<u8>	the text's end, its buffer's last byte + 1 (esp+224h, 0x21EECF)

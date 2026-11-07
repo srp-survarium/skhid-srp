@@ -557,6 +557,12 @@ Patches:
   showing tells the movie the match's kit; while game_options is shown the
   hud's cursor movie is off the screen (0x200F50, 0x23A992, 0x201040).
   Nothing a match computes;
+- a banned account's sign-in shows srp's reason, when its ban ends and how
+  long it has left (patch 116, the Rust patch ban_time; README "A ban's
+  reason and end on the sign-in screen"): the sign-in answer (0x37FB66)
+  keeps what srp's login server sends after a ban's code
+  (crates/ban-reason), and set_status (0x21F217) writes the ban's text anew
+  from it. Nothing a match computes;
 - the baked camouflage and decal textures are kept from game to game, and
   a texture asked for again while its bake or load is under way is made
   once (patch 70, with the late join; docs/notes/baked-textures.md). The

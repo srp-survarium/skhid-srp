@@ -1206,6 +1206,84 @@ bake_cache_on_crc_step_replay:
     db 0x8b, 0x4c, 0x24, 0x04, 0x57
     jmp 0x42055
 
+; 0x37fb66 on_sign_in_answer_received (0x37FB10) for an answer other than 08h (connection info) and 25h (online queue): mov dword [ebx+180h],1, before the callback with its code (0x37FEC4); EBX the login client, [ebp+10h] the bytes read: lohook -> ban_time_on_answer
+global ban_time_on_answer
+extern hook_ban_time_on_answer
+ban_time_on_answer:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_ban_time_on_answer
+    mov edx, ban_time_on_answer_replay
+    cmp eax, 0
+    je ban_time_on_answer_go
+    mov edx, 0x37fb70
+    cmp eax, 1
+    je ban_time_on_answer_go
+    ud2
+ban_time_on_answer_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+ban_time_on_answer_replay:
+    db 0xc7, 0x83, 0x80, 0x01, 0x00, 0x00, 0x01, 0x00, 0x00, 0x00
+    jmp 0x37fb70
+
+; 0x21f217 login_menu::set_status's join once the status text is built (mov al,[esp+13h] / mov edx,ebx), before enable_button (0x21F3D0) and the text's showing (0x21F730 with [esp+18h]): EBX the login menu: lohook -> ban_time_on_status
+global ban_time_on_status
+extern hook_ban_time_on_status
+ban_time_on_status:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_ban_time_on_status
+    mov edx, ban_time_on_status_replay
+    cmp eax, 0
+    je ban_time_on_status_go
+    mov edx, 0x21f21d
+    cmp eax, 1
+    je ban_time_on_status_go
+    ud2
+ban_time_on_status_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+ban_time_on_status_replay:
+    db 0x8a, 0x44, 0x24, 0x13, 0x8b, 0xd3
+    jmp 0x21f21d
+
 ; 0x2daad3 base_player::tick after the held object's tick (call [vtbl+28h] at 0x2DAAD1, or the je at 0x2DAAC9 with nothing held), before the movement (mov ecx,[esp+10h] / push edi): EBX the player, every simulation tick: lohook -> battery_progress_on_carrier_tick
 global battery_progress_on_carrier_tick
 extern hook_battery_progress_on_carrier_tick

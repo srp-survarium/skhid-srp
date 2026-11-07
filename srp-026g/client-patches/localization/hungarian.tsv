@@ -2191,6 +2191,20 @@ st_srp_ammo_scar_ap_name	7,62x51 AP SCAR-H, 20 lőszer
 st_srp_ammo_slug	Golyó
 st_srp_ammo_stats	A lőszer statisztikái
 st_srp_attachments	Szerelékek
+st_srp_ban_reason_account_trading	Fiók eladása vagy eladásának kísérlete.
+st_srp_ban_reason_administration	Az adminisztrátorok döntése.
+st_srp_ban_reason_advertising	Reklámozás.
+st_srp_ban_reason_bad_language	Trágár beszéd.
+st_srp_ban_reason_cheating	Csalóprogram vagy más tiltott szoftver.
+st_srp_ban_reason_false_information	Hamis információ terjesztése.
+st_srp_ban_reason_farm_pressure	A nem farmoló csapattársak zaklatása vagy megölése.
+st_srp_ban_reason_flood	Spam vagy flood.
+st_srp_ban_reason_insults	Sértegetés vagy provokáció.
+st_srp_ban_reason_nickname	Nem megengedett név.
+st_srp_ban_reason_politics	Politikai vita.
+st_srp_ban_reason_racism	Rasszizmus vagy nácizmus.
+st_srp_ban_reason_teamkilling	Csapattársak megölése.
+st_srp_ban_reason_threats	Valós életbeli fenyegetés.
 st_srp_crosshair_dynamic	Dinamikus célkereszt
 st_srp_crosshair_hidden	Rejtett célkereszt
 st_srp_crosshair_static	Statikus célkereszt
@@ -2511,6 +2525,8 @@ st_srp_lobby_hangar	Hangár
 st_srp_lobby_room	Szoba
 st_srp_lobby_title	Lobbi
 st_srp_login_account_hint	A fiók az első belépéskor jön létre
+st_srp_login_ban_ends	Lejár: %1$s (%2$s múlva).
+st_srp_login_ban_forever	A tiltás végleges.
 st_srp_map_chemical_plant	Vegyi üzem
 st_srp_map_chemical_plant_v011	Vegyi üzem (v0.11)
 st_srp_map_cologne	Köln
@@ -2755,8 +2771,11 @@ st_srp_skills	Képességek
 st_srp_speed_label	Sebesség
 st_srp_speed_title	Mozgási sebesség: %1$s
 st_srp_static_minimap_option	Statikus minitérkép
+st_srp_unit_days	%1$s nap
+st_srp_unit_hours	%1$s óra
 st_srp_unit_kg	%1$s kg
 st_srp_unit_meters	%1$sm
+st_srp_unit_minutes	%1$s perc
 st_srp_unit_mps	%1$s m/s
 st_srp_unit_percent	%1$s%
 st_srp_unit_seconds	%1$ss
