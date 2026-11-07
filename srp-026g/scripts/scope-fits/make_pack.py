@@ -77,7 +77,7 @@ occlusion = _load('scope_fits_occlusion', HERE / 'occlusion.py')
 sights = rs.sights  # ../rifle-scopes/sights.py
 
 PACK_ID = 'scope-fits'
-VERSION = '8'
+VERSION = '9'
 FIRST_VARIANT = 2901
 LAST_VARIANT = 3299
 CATEGORY = 22
@@ -474,10 +474,12 @@ def build(args, work):
             vname = f'fitn_{short}_{gun}'
             idle_out = work / f'models/weapons/attach/fit5/{vname}.model'
             aim_out = work / f'models/weapons/attach/fit5/{vname}_aim.model'
-            rs.compose(args.compose, [(ref['idle'], shift, ref['own'])] + rail_parts, renames, idle_out)
+            # the module the optic carries where a sight its weapon model takes out was (the M4A1's gas block)
+            swapped = rs.swap_parts(changes.get(gun, []), lambda m: donor.module_dir(f'weapons/modules/{m}'), gun, from_dir)
+            rs.compose(args.compose, [(ref['idle'], shift, ref['own'])] + rail_parts + swapped, renames, idle_out)
             sighted = changes.get(gun, [])
             if kind == 'C':
-                aim_parts = [(ref['aim'], shift, ref['aim_own'])] + aim_rail_parts
+                aim_parts = [(ref['aim'], shift, ref['aim_own'])] + aim_rail_parts + swapped
             else:
                 # the eyepiece before the eye as the reference's, the gun posed as the game draws it
                 # (read unposed, the SVU's PSO-1 sat 23 mm aside, @4): the gun's model the variant
@@ -681,6 +683,9 @@ def under_optic(model, changes, donor, gun):
             done = sights.cut(model / 'render' / surface, [float(x) for x in rest[0].split(',')])
         elif how == 'lower':
             done = sights.lower(model / 'render' / surface, [float(x) for x in rest[0].split(',')], float(rest[1]))
+        elif how in ('refold', 'swap'):  # the live guns' (../rifle-scopes/sights.tsv)
+            rs.under_optic(model, [[how, surface, *rest]], lambda m: donor.module_dir(f'weapons/modules/{m}'), gun)
+            continue
         else:
             up, folded = (donor.module_dir(f'weapons/modules/{m}') for m in rest)
             if up is None or folded is None:

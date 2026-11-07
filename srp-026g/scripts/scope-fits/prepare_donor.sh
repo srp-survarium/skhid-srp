@@ -48,7 +48,7 @@ grep -v '^#' "$here/modules.tsv" | while IFS=$'\t' read -r module kind material 
             esac
         done
     done
-    [[ $kind == rail && $how != loc2:* ]] || continue
+    [[ ( $kind == rail || $kind == part ) && $how != loc2:* ]] || continue
     m=material_instances/$material.material
     mkdir -p "$out/$(dirname "$m")"
     "$port" extract --db "$target" --path "$how" --output "$work/template" >/dev/null

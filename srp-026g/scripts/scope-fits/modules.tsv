@@ -6,6 +6,8 @@
 # A base: a module only its locators are taken of (our gun has it in its own mesh).
 # A sight: an iron sight module, up (its `model`, as the gun's port baked it in) and folded (its
 # `model_param1`, as 0.69d0 shows it under an optic): sights.tsv folds the one into the other.
+# A part: a module an optic's model carries where its gun's sight was (a swap of ../rifle-scopes/sights.tsv: the
+# M4A1's plain gas block, 0.69d0's model_param1 of its front sight); its material made again as a rail's.
 # module (models/weapons/modules/...)	kind	material	how
 collimators/aimpoint_compm4_collimator	optic	-	-
 collimators/belomo_pk01_collimator	optic	-	-
@@ -46,3 +48,7 @@ ironsights/svu_a_rear_ironsight_on	sight	-	-
 ironsights/svu_a_rear_ironsight_off	sight	-	-
 ironsights/svu_a_front_ironsight_on	sight	-	-
 ironsights/svu_a_front_ironsight_off	sight	-	-
+ironsights/m4a1_front_ironsight	sight	-	-
+gasblocks/m4a1_gasblock	part	weapons/modules/gasblocks/m4a1_gasblock	material_instances/weapons/loc2/aimpoint_comp_m4.material
+ironsights/vepr_ironsight_on	sight	-	-
+ironsights/vepr_ironsight_off	sight	-	-
