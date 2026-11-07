@@ -1,0 +1,27 @@
+name = "hidden_stash"
+patch = 109
+
+# Hidden Stash (artefact-skills.md "Hidden Stash"): one artefact past the kit's containers, from
+# the take that fills it to the holder's death.
+
+# an anomaly's take: the slot opens when no container is empty (after patch 80's score)
+[[hook]]
+site = "artefact_container.transfer"
+handler = "on_anomaly_take"
+order = 2
+
+# can_use's container test: no container but a slot to open is room
+[[hook]]
+site = "hidden_stash.can_use"
+handler = "on_can_use"
+
+# both death entries, before patch 78's drop (order 2): the hidden artefact goes back, dormant
+[[hook]]
+site = "carry.death"
+handler = "on_death"
+order = 1
+
+[[hook]]
+site = "carry.client_death"
+handler = "on_client_death"
+order = 1

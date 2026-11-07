@@ -134,6 +134,7 @@ pub use statistics::{Band, Batteries, Battery, BatteryCarry, Cell, Delivery, Hel
 pub mod medical;
 pub mod artefact_skills;
 pub mod keeper;
+pub mod hidden_stash;
 pub mod effect;
 pub mod animation_id;
 pub mod deserialize;

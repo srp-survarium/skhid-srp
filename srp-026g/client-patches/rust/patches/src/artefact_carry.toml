@@ -71,6 +71,8 @@ handler = "on_flower_destroy"
 [[hook]]
 site = "carry.death"
 handler = "on_death"
+# after Hidden Stash's removal (patch 109, order 1): a hidden artefact is not dropped
+order = 2
 
 [[hook]]
 site = "carry.ground_save"
@@ -83,6 +85,8 @@ handler = "on_ground_load"
 [[hook]]
 site = "carry.client_death"
 handler = "on_client_death"
+# after Hidden Stash's removal (patch 109, order 1)
+order = 2
 
 [[hook]]
 site = "carry.key"

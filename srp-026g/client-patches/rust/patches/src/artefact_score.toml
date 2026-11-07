@@ -7,3 +7,6 @@ patch = 80
 [[hook]]
 site = "artefact_container.transfer"
 handler = "on_transfer"
+# before Hidden Stash opens the slot (patch 109, order 2): a take into it scores as one into full
+# slots
+order = 1

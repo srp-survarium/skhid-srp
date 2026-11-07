@@ -9,6 +9,7 @@ use artefact_carry::{Artefact, ArtefactId, ContainerIndex, Refused};
 
 use super::hook::Thread;
 use super::world::{read};
+use crate::hidden_stash::{self, QuickSlot, Room, Run, Stash};
 use crate::raw;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -56,11 +57,96 @@ impl<'t> Inventory<'t> {
         Some(Containers { first, count })
     }
 
+    /// Room for a take: an empty container of the run, or the kit's hidden stash to open
+    /// (Hidden Stash, crate::hidden_stash), which every take of this API opens first.
     pub fn container_space(&self) -> ContainerSpace {
-        let Some(containers) = self.containers() else { return ContainerSpace::Missing };
-        if (0..containers.count).any(|n| self.item_in(ContainerIndex::parse(n).unwrap()).is_none()) {
-            ContainerSpace::Available
-        } else { ContainerSpace::Full }
+        match self.room() {
+            Room::Container | Room::Stash(_) => ContainerSpace::Available,
+            Room::Full => ContainerSpace::Full,
+            Room::Missing => ContainerSpace::Missing,
+        }
+    }
+
+    fn room(&self) -> Room {
+        let count = self.containers().map_or(0, |containers| containers.count);
+        let empty = (0..count).map(|n| self.item_in(ContainerIndex::parse(n).unwrap()).is_none());
+        hidden_stash::room(empty, self.stash())
+    }
+
+    /// The run as the game has it: its count and its first slot's index of the 23.
+    fn run(&self) -> Option<Run> {
+        // SAFETY: the live inventory's count byte and first-slot pointer; the pointer is only
+        // compared with the slots' start, never read through here.
+        let (count, first) = unsafe { (read(self.this.artefact_slot_count()), self.this.artefact_slots_begin()) };
+        // SAFETY: as above, the slots' start inside the live inventory.
+        let slots = unsafe { self.this.slots() };
+        let first = first.and_then(|first| first.index_from(slots)).and_then(|n| u8::try_from(n).ok());
+        Run::parse(count, first)
+    }
+
+    fn quick_slot(&self, slot: QuickSlot) -> raw::InventorySlot {
+        // SAFETY: a quick position, 13..18, of the inventory's 23 slots.
+        unsafe { self.this.slots().at(usize::from(slot.get())) }
+    }
+
+    fn quick_empty(&self, slot: QuickSlot) -> bool {
+        // SAFETY: the live inventory's slot (quick_slot).
+        unsafe { self.quick_slot(slot).item().is_none() }
+    }
+
+    /// The kit's hidden stash now: its skill bit, its modifier 14 (apply_modifier's sum, as
+    /// setup_from_profile reads it) and the run.
+    pub(super) fn stash(&self) -> Stash {
+        let skills = super::artefact_skills::skills(self.player);
+        if !skills.hidden() {
+            return Stash::Unavailable;
+        }
+        let Some(modifiers) = super::medical::kit_modifiers(self.player) else { return Stash::Unavailable };
+        // SAFETY: the native getter over the live current kit's modifiers (setup_from_profile's
+        // own call, 0x2FD20F: index 14, value 0, weight 1).
+        let containers = unsafe { raw::engine_apply_modifier(Some(modifiers), 14, 0.0, 1.0) };
+        hidden_stash::stash(true, containers, self.run(), |slot| self.quick_empty(slot))
+    }
+
+    /// Before a take: when no container is empty and the stash is shut, the run grows by its
+    /// slot, so the game's own take_artefact puts the artefact there (its first empty one).
+    fn open_for_take(&mut self) {
+        let Room::Stash(at) = self.room() else { return };
+        // SAFETY: the live inventory's run fields; `at` is an empty quick position right after
+        // the run (or the first empty one with no run), so the run stays inside 13..18.
+        unsafe {
+            let count = read(self.this.artefact_slot_count());
+            if count == 0 {
+                self.this.set_artefact_slots_begin(Some(self.quick_slot(at)));
+            }
+            self.this.artefact_slot_count().write_volatile(count + 1);
+        }
+    }
+
+    /// An anomaly's take (use_execute before transfer_artefact): the stash opens if it is the
+    /// room.
+    pub(super) fn open_for_anomaly(&mut self) {
+        if self.alive() {
+            self.open_for_take();
+        }
+    }
+
+    /// At death, an open stash: its artefact out by the game's own remove_item (on_removed:
+    /// the active ended, the passive unlinked, state 0, dormant in its anomaly's or Keeper's
+    /// pool; no owner), and the run the kit's own again.
+    pub(super) fn empty_stash(&mut self) -> Option<bool> {
+        let Stash::Open { at } = self.stash() else { return None };
+        // SAFETY: the open stash's slot of the live inventory: remove_item takes the item there
+        // (ESI the inventory, EAX the slot); the run then ends before it.
+        unsafe {
+            let held = self.quick_slot(at).item().is_some();
+            if held {
+                raw::engine_inventory_remove(Some(self.this), u32::from(at.get()));
+            }
+            let count = read(self.this.artefact_slot_count());
+            self.this.artefact_slot_count().write_volatile(count.saturating_sub(1));
+            Some(held)
+        }
     }
 
     pub fn presentation(&self, expected: Artefact) -> Option<super::carry_runtime::ArtefactDraw> {
@@ -155,6 +241,7 @@ impl<'t> Inventory<'t> {
             let count = match read(item.default_count()) { 0xFFFF => 1, count => count };
             item.item().count().write_volatile(count);
             item.cooldown_left().write_volatile(0);
+            self.open_for_take();
             let held = RetainedItem::new(item, self.thread);
             let mut incoming = Some(held.this);
             raw::engine_inventory_take_artefact(Some(self.this), &mut incoming);
@@ -177,6 +264,7 @@ impl<'t> Inventory<'t> {
     pub(super) fn take_ground(&mut self, ground: &super::carry_ground::GroundItem<'t>) -> Result<(), Refused> {
         if !self.alive() || !ground.detached() { return Err(Refused::OwnershipChanged); }
         if self.container_space() != ContainerSpace::Available { return Err(Refused::NoFreeContainer); }
+        self.open_for_take();
         let held = RetainedItem::new(ground.item, self.thread);
         let mut incoming = Some(held.this);
         // SAFETY: detached registered artefact, retained through take; a free
@@ -214,6 +302,7 @@ impl<'t> Inventory<'t> {
         let native_slot = self
             .native_slot(expected.slot)
             .ok_or(Refused::OwnershipChanged)?;
+        recipient.open_for_take();
         let held = RetainedItem::new(item, self.thread);
         // SAFETY: donor slot is occupied by `held`; native remove disables
         // its passive effects before changing its owner. `held` keeps the

@@ -85,15 +85,17 @@ pub struct Skills {
     cascade: bool,
     sight: bool,
     late: bool,
+    hidden: bool,
 }
 
 impl Skills {
     /// Bits: 0..2 Resistance, 3 Keeper, 4 Resonance, 5 Spring II, 6 Onyx II, 7 Larkspur II,
     /// 8 Cascade, 9..11 the match's Keeper draw 1..6 (0 none; with the skill or not), 12 Artifact
-    /// Sight, 13 a late joiner's kit (srp's mark, survarium::v026g::keeper::LATE). Anything else (a
-    /// fraction, a negative, a rank past 5, a draw of 7, a bit past 13) is no skill at all.
+    /// Sight, 13 a late joiner's kit (srp's mark, survarium::v026g::keeper::LATE), 14 Hidden Stash (srp
+    /// sets it only on a kit with room, survarium::v026g::hidden_stash). Anything else (a
+    /// fraction, a negative, a rank past 5, a draw of 7, a bit past 14) is no skill at all.
     pub fn parse(value: f32) -> Option<Self> {
-        if !(0.0..16384.0).contains(&value) || value != (value as u32) as f32 {
+        if !(0.0..32768.0).contains(&value) || value != (value as u32) as f32 {
             return None;
         }
         let bits = value as u32;
@@ -117,6 +119,7 @@ impl Skills {
             cascade: bit(8),
             sight: bit(12),
             late: bit(13),
+            hidden: bit(14),
         })
     }
 
@@ -124,6 +127,12 @@ impl Skills {
     /// comes after its first death, not at the match's start.
     pub fn late(self) -> bool {
         self.late
+    }
+
+    /// Hidden Stash (534) on a kit with room for it (srp's per-kit rule: pockets and containers
+    /// fewer than six): one artefact past the kit's containers, gone at death (hidden_stash).
+    pub fn hidden(self) -> bool {
+        self.hidden
     }
 
     /// Artifact Sight (the owner, 2026-11-07): this game shows the leg quarters of passive
@@ -569,7 +578,7 @@ mod tests {
 
     #[test]
     fn parses_the_packed_ranks_only_exactly() {
-        for bad in [-1.0, 0.5, 6.0, 7.0, 510.0, 7.0 * 512.0, 8.0 + 7.0 * 512.0, 16384.0, 16384.0 + 508.0, f32::INFINITY, f32::NAN] {
+        for bad in [-1.0, 0.5, 6.0, 7.0, 510.0, 7.0 * 512.0, 8.0 + 7.0 * 512.0, 32768.0, 32768.0 + 508.0, f32::INFINITY, f32::NAN] {
             assert_eq!(Skills::parse(bad), None, "{bad}");
         }
         assert_eq!(Skills::parse(0.0), Some(Skills::default()));
@@ -593,6 +602,11 @@ mod tests {
         // A late joiner's kit, bit 13.
         assert!(Skills::parse(8192.0 + 8.0 + 512.0).unwrap().late());
         assert!(!all.late());
+        // Hidden Stash, bit 14, alone and with a late joiner's mark and the rest.
+        assert!(Skills::parse(16384.0).unwrap().hidden());
+        let every = Skills::parse(16384.0 + 8192.0 + 4096.0 + 508.0 + 6.0 * 512.0).unwrap();
+        assert!(every.hidden() && every.late() && every.sight());
+        assert!(!all.hidden());
     }
 
     #[test]
