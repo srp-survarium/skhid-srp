@@ -112,6 +112,8 @@ pub mod check_bench;
 /// The input script of a bot: the test bot's (`srp-bot --drive`) and the
 /// server's own bot places' (`MatchPlayer::driven`).
 pub mod drive;
+/// A recording made into the history's match (`srp-recording-to-history`).
+pub mod backfill;
 /// What happened in a match, from its worlds: the history's events.
 pub mod events;
 mod game;
