@@ -147,9 +147,13 @@ has no object list: its native guards stay its bound.
 
 ## Which worlds reach another game, and the animation streams
 
-The semantic check reads every section of an upload but each player block's
-animation stream, which only the frame's walk measures. A world reaches another
-game only as (`game.rs`, `usable_snapshot`):
+The semantic check reads every section of an upload; each player block's
+animation stream is read by the frame's walk, which since `animation_validate`
+(`world-frame`, `snapshot_rules.md` 7.2.1) does not only measure it but bounds
+every count and index a native client decodes from it (the times/floats table
+indices, the channel picks, the expression-tree recursion, the tree's length
+and its table pops). A world reaches another game only as (`game.rs`,
+`usable_snapshot`):
 
 - the snapshot, once its CRC (`game_state_history_item::hash` 0x325150, over
   the whole body, animation streams too) is the majority of the clients' hash
@@ -166,8 +170,12 @@ the first uploads of the 118 live matches (539 uploads), and `not_initial` now
 refuses one with a player in it (`SRP_CHECK_INITIAL_WORLD`, on by default).
 Scripted worlds write a place's block only once it has entered, as games do.
 
-Still open: a game that joins a match where one other game simulates loads
-that game's world with no second source for its animation streams.
+That single-source path (the one game a newcomer joins, and the initial world)
+is why the frame walk now validates the animation stream and not only measures
+its length: those streams reach another game with no second source to vouch for
+them, and `animation_validate` runs in the walk on every upload the server
+checks and every world patch 87 loads. All 177,672 animated player blocks of
+the 20,668 kept worlds in `private/live-worlds-*` pass it.
 
 ## Player states to their exact end on the server
 
@@ -365,3 +373,100 @@ The late-join binary is regenerated from the changed NASM prefix and the existin
 reviewed C payload: exactly one byte changes, capability 0x80 to 0x82. The JSON
 hash and assembler version match that artifact; no C compiler migration is part
 of the recovery change.
+
+## Read-site audit (2026-11-07)
+
+A pass over the player-to-player crash surface from the native read sites, not
+the docs: the 0.26g exe decompiled in Ghidra (`private/function-map/inputs/026g`,
+sha ac33d99), the 0.10b byte-matching source (`~/Projects/survarium/vostok`, the
+engine's fixed-array sizes) as the ground-truth caps. For each native reader of
+data one client sends another, the unbounded count/index at the read site and
+what bounds it:
+
+- `game_state_history_item::deserialize` 0x324D80: iterates the active mask's
+  set bits and writes block `bit * 0x9054` -- a bit >= 20 is an out-of-bounds
+  player slot. Then six sections, each a u16 length `memcpy` into a history-item
+  buffer (grown by 0x7AB70, a null allocator before patch 98). Bounds: the frame
+  walk (`Frame::parse`) -- every mask bit < places (<= 20), the six sections walk
+  to the body's exact end, body <= `MAX_BODY` 0xF000.
+- the player state 0x33FD80: a u16 length `memcpy` into the state buffer; bound
+  `StateOverCap` <= 0x1000.
+- the animation stream 0x33FEE0 -> 0x3A99C0: bound `animation_validate` (7.2.1),
+  proven on 177,672 animated blocks of the kept worlds, 0 refused.
+- the player effects `base_player::deserialize` 0x2DB490 -> 0x2DDDF0: `E = r<u32>`
+  then an `E`-iteration loop; bound `player_tail` MAX_RECORDS = 0x1000/9 = 455,
+  and each record spends state bytes under the 0x1000 cap.
+- the weapon FSM state id 0x38CCF0: walks the state list counting to the read
+  byte; past the list the target stays null -> a null-vtable call (crash). The
+  anomaly state index 0x31B0A0: `state_array[read_byte]`, out of bounds past the
+  state count. Bounds: the server's semantic check (`world::inventory` /
+  `world::objects` refuse a state past its states), and -- because the client
+  world check has no profile/object context -- the native guards (patch 113) at
+  the read sites.
+- the damage model `body_part_parameters::deserialize` 0x32AFE0: a u8
+  `affects_count`, then that many (byte, u32) affects into the fixed `m_affects[8]`.
+  The native "affects_count buffer overflow" assert at `> 8` does NOT guard a
+  release build (no debugger, assert continues -> the loop overflows the array),
+  so the bound is the validator's: `inventory` refuses affects > 8 (type >= 9),
+  hits > 64, recent hits that do not fit (0x2E5480 reader). The inventory's
+  carried-item and active/target-object ids index 255-entry tables with a null
+  check (a u8 is always an entry or guarded none, safe by construction); the
+  artefact ids index a 128-entry table with NO null check, so `artefact_index`
+  bounds them (< `context.artefacts`), and `slots_begin + A <= 23` bounds the
+  write base.
+- player-controlled strings (chat, name, clan tag, URL, daily message): the
+  engine's `packet_reader::r_string` (0.10b `packet_reader_inline.h`) reads a u8
+  length `L`, does a buffer-clamped copy, then `string[L] = 0` -- the NUL write
+  is NOT clamped, so `L` must be < buffer or it writes out of bounds. Every path
+  enforces that: the lobby server clamps with `lobby::Writer::str`/`::wide` to
+  `cut(v, buffer-1)` (NAME 63, CLAN_TAG 15, TEXT 255, WIDE 245), and the match
+  0xE4 profile/kit names go through `messages::options::text`, which refuses
+  `len >= buffer` (NAME 64 -> <= 63, CLAN 15 -> <= 14).
+
+0.10b hard caps match the validator: `body_part::affects` fixed_vector<_,8> ==
+MAX_AFFECTS 8; `match_options::player_profiles[20]` == MAX_PLAYERS 20; `inventory
+m_slots[max_slots_count]` == SLOTS 23; `artefact_lifebone_core` four protectors.
+
+Evidence this pass: host `world-frame` (14) and `srp-validate` (46) tests; the
+i686 patch crate `cargo test --target i686-unknown-linux-gnu` (173, the client
+twin: patch 87 -> `world-frame`/`srp-validate`); the animation corpus (177,672
+blocks, 0 refused); and the client/host drift gate `check_world_check_026g.py
+--drift` run end to end under Unicorn on 1,101 kept worlds (501 old version-4 +
+600 current) with their sixteen mutations each -- 19,818 checks, 0 differ, so
+the i686 arena build (with `animation_validate`) and the host agree on every
+world and mutation. No unbounded player-to-player read was found without a
+matching server bound or native guard; the animation stream was the one that
+lacked one and now has it.
+
+### Full reader sweep
+
+Decompiled 235 functions (the cited reader addresses and their closure);
+classified each: 65 advance a packet cursor (readers), 170 do not (serializers
+-- the `..::serialize` writers that only call the debug-check/write helpers --
+plus math, vtable thunks and Scaleform glue, which never consume received
+bytes). The 65 readers' loop bounds fall into:
+
+- linked-list / bitmask traversals (`while (x != 0)`, clearing set bits):
+  0x2714D0, 0x2F84C0, 0x319470, 0x316D50, 0x330A20 -- not a packet count;
+- fixed constants (`< 8`, `< 0x58`, `< 0x18`, `< 3`): e.g. 0x3358E6, 0x31B390;
+- object/config counts (`< *(byte*)(this + k)` where `k` is a field set at
+  construction from the item/weapon/character config -- body parts, weapon
+  curve points, FSM states): e.g. 0x2F5C22, 0x33DCA0, 0x33E7F0, 0x2E3490. The
+  packet supplies the values; the count is the entity's own and the validator
+  reads the matching bytes against the same config;
+- packet counts the validator caps: the 0xE4 options `< players_count`
+  (0x27B880, `messages::options`), kd-stats `< roster` (0x323952, `rules`),
+  the ammo id / FSM state / affect & hit counts above.
+
+The covering invariant: the validator reads every player state and section to
+its EXACT END against the match config (proven on 50,205 live uploads and
+3,919/3,920 local worlds), so it consumes the same bytes as the native reader,
+and it caps every packet count to the native fixed-array size (affects 8, hits
+64, slots 23, ammo 8, artefacts 128, players 20, FSM state < the list). A count
+it does not cap is one the native code takes from its own config, not the
+packet. The client string readers are the one exception to "read to exact end":
+`read_squad_info` 0x274720 reads a member name as `len = r<u8>; memcpy(dst+0x10,
+src, len); dst[0x10+len] = 0` into a 0x50-byte member record -- unbounded like
+0.10b's `r_string` -- so the server bounds it: `social::squad_info` refuses
+more than `SQUAD_MEMBERS` (3) members and clamps each name to NAME (63) with
+`Writer::str`, matching the 3 x 0x50 record array and the ~64-byte name field.

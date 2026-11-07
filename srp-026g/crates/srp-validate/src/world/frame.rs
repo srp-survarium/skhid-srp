@@ -88,6 +88,7 @@ pub fn frame(body: &[u8], places: usize) -> Result<Frame<'_>, Refusal> {
                 Error::StateOverCap { len, .. } => Reason::StateOverCap { len },
                 Error::OverBuffer { len } => Reason::BodyOverBuffer { len },
                 Error::Trailing { .. } => Reason::NoSections,
+                Error::Animation { fault, .. } => Reason::Animation(fault),
                 _ => Reason::NoWalk,
             };
             Refusal::new(part, error.at(), reason)
