@@ -263,8 +263,8 @@ impl Shared {
     }
 }
 
-/// What `recipient` gets of `kind` from its teammates: their copies' passives (Resonance, 8 m)
-/// and actives (Cascade, 5 m). A carrier is another living player of its team in the roster
+/// What `recipient` gets of `kind` from its teammates: their copies' passives (Resonance, 9 m)
+/// and actives (Cascade, 6 m). A carrier is another living player of its team in the roster
 /// whose skill reaches it; the copies come in place order, each carrier's that count for it
 /// ([`own`]) in container order, as many of each phase as the recipient's room after its own
 /// copies of the kind that count (passives and actives alike: 4 less them). A dead recipient

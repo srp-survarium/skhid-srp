@@ -499,13 +499,15 @@ pub fn share_larkspur(ctx: &mut Context<'_>) {
             return;
         }
         let time = ctx.reg(super::Reg::Edi);
+        // Medic is Cascade's Larkspur share (skill 542 sets its bit): Cascade's reach.
+        let reach = crate::artefact_skills::CASCADE_REACH * crate::artefact_skills::CASCADE_REACH;
         for place in 0..20 {
             let Some(target) = source.at_place(ctx.thread(), place) else {
                 continue;
             };
             if !target.0.active()
                 || !source.ally(target.0)
-                || source.distance_squared(target.0) > 25.0
+                || source.distance_squared(target.0) > reach
             {
                 continue;
             }

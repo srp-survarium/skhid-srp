@@ -113,7 +113,7 @@ Unflinching or Concentration); a full build 32.
   code (activation sharing, the Larkspur 20-instance pool, the length clock) and
   its transport bit 20 stay as they are. It returned in the artefact tree:
   Cascade (542) sets bit 20 (artefact-skills.md), so a Larkspur's
-  activation heals the teammates within 5 m with its glow. The sections below
+  activation heals the teammates within 6 m (Cascade's reach) with its glow. The sections below
   about Medic describe that retained code.
 - Supply Pocket and Additional Medicine move to tier 5 and exclude each other,
   symmetrically; Supply Pocket keeps its exclusion of 111 and 113.
@@ -224,7 +224,8 @@ time), after native enable/effect and before the activation timestamp/state
 assignment. It obtains the source from item+250h / inventory+174h, reads its
 simulation core, then visits active places in order. The visual effect helper is
 also invoked by deserialize and must never perform this gameplay healing.
-It excludes self, enemies, dead/inactive players and targets outside 5 m.
+It excludes self, enemies, dead/inactive players and targets outside Cascade's reach (6 m;
+5 m before the owner's 2026-11-07 change).
 Each successful native lookup is an owned reference released on every exit.
 For recipients it removes the Larkspur config's affects, fills body/head/pain
 like patch 54, and adds a native effect instance with the recipient's calculator.

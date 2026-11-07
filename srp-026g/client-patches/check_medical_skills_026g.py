@@ -234,7 +234,8 @@ def run(data,padding=0,kit=0):
     assert g.emu.mem_read(PLAYER+0x33e,1)==b'\1'
     g.emu.mem_write(PLAYER+0x33e,b'\0');g.step(0x32a28b,8,xmm=.1,ebp=body)
     assert g.emu.mem_read(PLAYER+0x33e,1)==b'\1'
-    ally=g.player(1,0,(3,4,0));far=g.player(2,0,(5.01,0,0));enemy=g.player(3,1,(1,0,0));dead=g.player(4,0,(1,0,0))
+    # Medic is Cascade's Larkspur share: Cascade's 6 m (was 5 m), the edge included.
+    ally=g.player(1,0,(0,6,0));far=g.player(2,0,(6.01,0,0));enemy=g.player(3,1,(1,0,0));dead=g.player(4,0,(1,0,0))
     g.emu.mem_write(dead+0x33c,b'\0')
     hit=g.block(0x50);owner=g.block(0x20);g.word(hit+0x20,owner)
     g.ranks(2<<21)

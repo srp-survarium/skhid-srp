@@ -4739,7 +4739,7 @@ passive (new hooks at 0x311AD0 / 0x311D10), the second with the active; patch 10
 `artefact.spring_reload` sets their values at the passive's link (+0.05 / +0.10 with the skill, else 0).
 Resonance and Cascade (bits 4 and 8, an either/or pair): one aura, read where each effect is used and never
 kept: a living teammate's carried Springs, Lifebones and Onyx give a recipient their passives
-within 8 m (Resonance) and their actives within 5 m (Cascade), at most 4 copies of a kind for
+within 9 m (Resonance) and their actives within 6 m (Cascade), at most 4 copies of a kind for
 each, the recipient's own first. The Springs' nodes at the two getters (`artefact.shared_modifier`
 0x2D5AE6, `artefact.shared_modifiers` 0x2D5C18; the kit's player found in the match of the engine
 world's game's world), the Onyx before a part's protectors (`artefact.shared_protection`
