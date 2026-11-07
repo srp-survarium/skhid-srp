@@ -34,7 +34,7 @@ use mapdata::{LinkKind, NodeId, RayTree, Vec3, WalkGrid};
 use survarium::v026g::match_msgs::TICK_MS;
 
 use super::jump_arc::{ArcStep, JumpArc};
-use super::kin::{Blend, DropFall, Edge, StepInput, StepUp, FIX_ABOVE_M, FixBlend, FixFall, FixFloor, LEVEL_REACH, LEVEL_SNAP, LevelRead, LevelSource, WallSlide, JumpSnap, Kinematics, MarginEdge, TICK_S, WalkOffLanding, to_world, wrap};
+use super::kin::{Blend, DropFall, Edge, StepInput, ClientStep, FIX_ABOVE_M, FixBlend, FixFall, FixFloor, LEVEL_REACH, LEVEL_SNAP, LevelRead, LevelSource, WallSlide, JumpSnap, Kinematics, MarginEdge, TICK_S, WalkOffLanding, to_world, wrap};
 use super::legs::LegDamage;
 use super::pitch::{Pitch, PitchScale};
 use crate::v026g::drive::key;
@@ -987,20 +987,24 @@ fn advance(
                     .filter(|&deg| deg >= kin.ramp_min_deg);
                 let share =
                     if in_air { 1.0 } else { kin.slope_speed.share(at.feet.distance_xz(feet), feet.y - at.feet.y, ramp_deg) };
-                // [A318] [`StepUp::Client`]: a step the grid has rising takes the flat share the client's own walk tick makes of
-                // it (`WalkGrid::client_step`: `step_up` 0x7C900 and the move sweep), the reckoning only.
-                let share = match (kin.step_up, role, in_air, at.fall) {
-                    (StepUp::Client, Role::Reckoning, false, Fall::Ground) if feet.y - at.feet.y > STEP_UP_RISE_M => {
+                // [A318] [`ClientStep::Client`]: a step the grid has rising, or stops short of where it was asked to go (a wall, a
+                // corner), goes where the client's own walk tick takes the body from the same feet (`WalkGrid::client_step`: the
+                // port of `player_step`, `step_up` 0x7C900, the move sweep's slide 0x7D2A0 / 0x7AC50, `step_down` 0x7E1B0): the
+                // grid then walks to that point. The reckoning only, on the ground.
+                let rises = feet.y - at.feet.y > STEP_UP_RISE_M;
+                let blocked = feet.distance_xz(to) > CLIENT_BLOCKED_M;
+                let client = match (kin.client_step, role, in_air, at.fall) {
+                    (ClientStep::Client, Role::Reckoning, false, Fall::Ground) if rises || blocked => {
                         let by = Vec3::new(to.x - at.feet.x, 0.0, to.z - at.feet.z);
-                        let want = by.x.hypot(by.z);
-                        let client = grid.client_step(at.feet, by).filter(|_| want > 1e-4).map_or(1.0, |(from, end)| {
-                            ((end.x - from.x).hypot(end.z - from.z) / want).min(1.0)
-                        });
-                        share.min(client)
+                        grid.client_step(at.feet, by).filter(|_| by.x.hypot(by.z) > 1e-4).map(|(from, end)| {
+                            Vec3::new(at.feet.x + end.x - from.x, at.feet.y, at.feet.z + end.z - from.z)
+                        })
                     }
-                    _ => share,
+                    _ => None,
                 };
-                if share < 1.0 {
+                if let Some(target) = client {
+                    (node, feet, stopped) = slide_edge(kin, grid, at.node.unwrap_or(node), at.feet, target, offs);
+                } else if share < 1.0 {
                     let short = Vec3::new(
                         at.feet.x + (to.x - at.feet.x) * share,
                         at.feet.y,
@@ -1200,9 +1204,12 @@ pub fn slide_capped(
     slide_up_to(grid, node, from, to, max_rise, Bridges::Leap)
 }
 
-/// [A318] The rise (m) over which a reckoned step is a step up for [`StepUp::Client`]: the grid's floors are level to the
+/// [A318] The rise (m) over which a reckoned step is a step up for [`ClientStep::Client`]: the grid's floors are level to the
 /// centimetre, so any rise above it is a climb.
 pub const STEP_UP_RISE_M: f32 = 0.02;
+
+/// [A318] How far short of its target (m) a grid step ends for [`ClientStep::Client`] to take it as stopped by a wall.
+pub const CLIENT_BLOCKED_M: f32 = 1e-3;
 
 /// How far past a floor's centre the client's capsule stays held at a ledge, metres: the lattice drops a body at its last cell's
 /// boundary (0.125 m past the centre), the client's capsule (r 0.38) stays grounded until the hemisphere no longer reaches the edge
@@ -2487,9 +2494,9 @@ pub(super) mod tests {
         assert!(on.iter().all(|v| *v <= 5.0 + 1e-3));
     }
 
-    /// [A318] [`StepUp::Client`]: up a stair of 0.3 m risers the reckoned body covers the flat share the client's walk tick makes
-    /// (`WalkGrid::client_step`), less than the grid's slide alone ([`StepUp::Grid`]); on a flat floor the two go alike, and a grid
-    /// without the walker ([`WalkGrid::with_client_walker`]) goes as [`StepUp::Grid`].
+    /// [A318] [`ClientStep::Client`]: up a stair of 0.3 m risers the reckoned body covers the flat share the client's walk tick makes
+    /// (`WalkGrid::client_step`), less than the grid's slide alone ([`ClientStep::Grid`]); on a flat floor the two go alike, and a grid
+    /// without the walker ([`WalkGrid::with_client_walker`]) goes as [`ClientStep::Grid`].
     #[test]
     fn a_reckoned_step_up_goes_as_far_as_the_clients_walk_tick() {
         let mut triangles: Vec<Triangle> = floor(0.0, 0.0, 10.0, 10.0, 0.0).to_vec();
@@ -2506,8 +2513,8 @@ pub(super) mod tests {
         let walker = WalkGrid::build(&triangles, [0.0, 0.0, 20.0, 10.0], 0.25, Body::default()).with_client_walker(&triangles);
         let yaw = -std::f32::consts::FRAC_PI_2;
         // Walking +x for 1.5 s from (start, 5): how far x got.
-        let walk = |grid: &WalkGrid, step_up: StepUp, start: f32| {
-            let kin = Kinematics { blend_ticks: 1, step_up, ..Kinematics::default() };
+        let walk = |grid: &WalkGrid, client_step: ClientStep, start: f32| {
+            let kin = Kinematics { blend_ticks: 1, client_step, ..Kinematics::default() };
             let mut track = BodyTrack::default();
             track.fixed(fix(0, Vec3::new(start, 0.0, 5.0), yaw), &kin, Some(grid));
             for time in (50..=1_500).step_by(50) {
@@ -2515,11 +2522,11 @@ pub(super) mod tests {
             }
             track.estimate().unwrap().feet.x
         };
-        let (client, plain) = (walk(&walker, StepUp::Client, 9.0), walk(&walker, StepUp::Grid, 9.0));
+        let (client, plain) = (walk(&walker, ClientStep::Client, 9.0), walk(&walker, ClientStep::Grid, 9.0));
         assert!(client < plain - 0.3, "up the stair: client {client}, grid {plain}");
-        assert!((walk(&bare, StepUp::Client, 9.0) - plain).abs() < 1e-4, "no walker: as the grid");
+        assert!((walk(&bare, ClientStep::Client, 9.0) - plain).abs() < 1e-4, "no walker: as the grid");
         // On the flat floor (from x 1, 1.5 s at 3.5 m/s ends short of the stair): alike.
-        assert!((walk(&walker, StepUp::Client, 1.0) - walk(&walker, StepUp::Grid, 1.0)).abs() < 1e-4);
+        assert!((walk(&walker, ClientStep::Client, 1.0) - walk(&walker, ClientStep::Grid, 1.0)).abs() < 1e-4);
     }
 
     /// [A318] [`StepInput::Previous`] (the client's): the step into the feet at N moves with input N-100's keys and its yaw after
