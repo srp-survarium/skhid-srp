@@ -1027,6 +1027,7 @@ package
          victory_screen = new SrvVictoryScreenReskin();
          this.victory_screen.registerHintRenderer(new InventoryItemHint());
          this.victory_screen.addEventListener("try_buy_maps",this.onBuyMaps);
+         this.victory_screen.addEventListener("try_buy_map_to_use",this.onBuyMapToUse);
          this.victory_screen.addEventListener(Events.SHOW_PLAYER_INFO,this.onVSPlayerInfo);
          friendsMenu = new SrvFriendsMenuReskin();
          clanWindow = new SrvClanWindow();
@@ -1671,7 +1672,7 @@ package
          ExternalInterface.call("show_match_result",e.match_id);
          var reportData:Object = e;
          this.show_victory_screen();
-         this.victory_screen.setData(reportData,true);
+         this.victory_screen.setData(reportData);
          if((reportData) && (reportData.statistics_money))
          {
             trace("showFullReaport::",reportData.statistics_money.autobuy_money,reportData.statistics_money.autorepair_money);
@@ -1813,11 +1814,23 @@ package
       
       private function onBuyMaps(e:Event) : void
       {
+         this.buyMap(null);
+      }
+
+      // The results screen's card slot clicked with no card: the buy
+      // dialog, and on its yes the screen uses the card once it comes.
+      private function onBuyMapToUse(e:Event) : void
+      {
+         this.buyMap(this.victory_screen.cardBought);
+      }
+
+      private function buyMap(onComplete:Function) : void
+      {
          var pp:IPlayerProfile = this.player_profile;
          var dict:uint = PlayerInfo.getVoucherDictId(VoucherType.DROP_CARD);
          var id:uint = PlayerInfo.getVoucherId(VoucherType.DROP_CARD);
-         trace("onBuyMaps::",pp.profileId,id,dict);
-         this.try_buy_item(pp.profileId,id,dict,ItemPlace.SHOP,ItemPlace.INVENTORY,1,GangShop.getInstance().getItemPrice(dict),BuyOrigin.SHOP,Faction.ANY);
+         trace("buyMap::",pp.profileId,id,dict,onComplete != null);
+         this.try_buy_item(pp.profileId,id,dict,ItemPlace.SHOP,ItemPlace.INVENTORY,1,GangShop.getInstance().getItemPrice(dict),BuyOrigin.SHOP,Faction.ANY,onComplete);
       }
       
       public function show_choose_faction_message() : void

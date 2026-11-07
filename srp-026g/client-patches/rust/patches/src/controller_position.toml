@@ -1,8 +1,8 @@
-# Patch 117: a character controller's step never leaves its position
+# Patch 118: a character controller's step never leaves its position
 # non-finite (docs/notes/client_patch.md section 3.71). The site (player_step's
 # epilogue) is sites_026g.tsv's; the logic is controller_position.rs.
 name = "controller_position"
-patch = 117
+patch = 118
 
 [[hook]]
 site = "controller.step_end"

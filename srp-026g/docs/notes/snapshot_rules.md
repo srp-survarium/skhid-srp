@@ -428,8 +428,9 @@ U<=1023 -- are self-bounded and are not in this list.)
 ```
 1  times index (0x3A96F2):  read(width(U)) per time indexes the U-entry stack
    dict. width(U) can hold index >= U -> OOB read. Bound: every index < U.
-2  floats index (0x3A9895): the same for the floats dict. Bound: index <= U
-   (corrected 2026-11-07, below: U itself is what the game writes for a NaN).
+2  floats index (0x3A9895): the same for the floats dict. Bound: every index
+   < U (U itself is what a revision-50 game wrote for a NaN, below; exe patch
+   118 leaves no NaN to write).
 3  channel pick (0x3A8EF0 etc.): channels==3 lets read(2) give 3 -> channels[3],
    one past the channels-entry array. Bound: channel index < channels.
 4  expression recursion (0x3A90C0): ops 2 and 3 recurse twice with no depth
@@ -445,9 +446,8 @@ U<=1023 -- are self-bounded and are not in this list.)
    floats to bone transforms a ragdoll/bounding box then read (state corruption,
    not an index). Bound: every float that reaches a bone is finite (the
    `finite` bit test, exponent not all ones): each plain one, and each entry
-   of an indexed table that an index names. An entry no index names never
-   reaches a bone, and the game itself leaves NaNs there (the correction
-   below, 2026-11-07).
+   of an indexed table (a revision-50 game left NaN entries no index named,
+   below; with exe patch 118 every entry is a value's, and a number).
 ```
 
 `animation_len` (crate `world-frame`) covers the length only. `animation_validate`
@@ -459,7 +459,8 @@ animated blocks of the 20,668 worlds in `private/live-worlds-*` pass, none near
 the expression-node cap (which is above the 32768 a `T` <= 65535 tree can
 hold, so a valid stream is never refused for it).
 
-**Correction (2026-11-07): a floats index may be U.** 174 uploads of
+**A revision-50 game wrote a floats index of U (2026-11-07; refused again
+since the release after exe patch 118's, below).** 174 uploads of
 `rec026g_20261106-211841_03439962` (place 12's block, in place 0's uploads from
 540 200 to 725 450 ms) were refused for a floats index equal to U (U = 25, three
 indices 25). The game wrote them. The encoder, `save_floats` 0x397040 (0.21d
@@ -474,8 +475,9 @@ and three indices 25. The reader takes `table[U]` with no bound. Its table is an
 16-byte alignment padding, or the EDI that `decode_floats_impl` pushed in its own
 prologue. Either way it is in the reader's own frame: a defined read, whose value
 replaces the writer's NaN. An index above U is not something the game writes, and
-it reads further up the stack, so it stays refused. Times are u32 values and are
-always found (`save_times_in_ms` 0x396D40), so a times index stays below U.
+it reads further up the stack. Times are u32 values and are always found
+(`save_times_in_ms` 0x396D40), so a times index is below U. A floats index is
+below U too once no game saves a NaN (exe patch 118).
 
 The NaNs come from a player whose state the game itself made NaN: place 12's
 state in the same worlds also has NaN in `m_linear_horizontal_speed`
@@ -488,7 +490,7 @@ just after the player (a server bot) stood up from a crouch and walked, and the
 speed (a positive NaN, 0x7FC00000, so not an x87 0/0) and the rest follow from
 it. The exact instruction is not pinned (`get_corrected_walk_vector`'s unguarded
 normalisation, 0x7B97C..0x7B983, is not it: its NaN takes the `comiss`'s unordered
-branch, 0x7B9DD). Board ticket T117; patch 117 puts a non-finite position back to
+branch, 0x7B9DD). Board ticket T117; patch 118 puts a non-finite position back to
 m_last_pos at the step's end (`client_patch.md` 3.71). The game only
 computes with these three values and compares them. A NaN speed goes through
 comparisons, the curve 0x25F30 and the animation selector, none of which uses it
@@ -499,8 +501,12 @@ player's transform (0x2DB934). A NaN bullet origin is outside the level for
 update_bullet_position's bounds test (`comiss`/`jb`, 0x32EECB..0x32EF0C), so the
 bullet is removed at its first step. In the recording each one is in one world
 only. Its ray tests are Bullet's ray-AABB tests, and those are false for NaN
-(read from the library's source, not traced in the exe). `srp-validate` now
-reads these fields as `MaybeNan` (any f32). Every other float stays a `Finite`.
+(read from the library's source, not traced in the exe). `srp-validate` read
+these fields as any f32 (`MaybeNan`) and a floats index of U while revision-50
+games played. Exe patch 118 (`client_patch.md` 3.71) keeps the controller's
+position finite, so with it a game writes none of these: they are `Finite` again,
+a floats index is below U and every floats-table entry a number, and the NaN
+uploads of 03439962 are refused (174 of the live corpus's, the only ones).
 
 ### 7.3 The state's head — `game_world_core_client::serialize` 0x3218E0, `base_player::serialize` 0x2DAF60 (reader 0x2DB490)
 

@@ -62,37 +62,6 @@ pub const fn finite(bits: u32) -> bool {
     bits & 0x7F80_0000 != 0x7F80_0000
 }
 
-/// An f32 the game may write as NaN or infinite, kept as its bits: a field
-/// whose every reader only computes with it and compares it, none taking it
-/// as a count or an index (each such field says why). The three are a
-/// player's `m_linear_horizontal_speed` (0/0 on a 0 ms step, 0x2D9535), a
-/// character controller's `m_last_pos` and a bullet's `m_start_position`
-/// (both NaN for a player the game made NaN; `snapshot_rules.md` 7.2.1).
-/// Every other float of a world is a [`Finite`].
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub struct MaybeNan(u32);
-
-impl MaybeNan {
-    pub const ZERO: MaybeNan = MaybeNan(0);
-
-    pub const fn of_bits(bits: u32) -> MaybeNan {
-        MaybeNan(bits)
-    }
-
-    pub const fn bits(self) -> u32 {
-        self.0
-    }
-
-    pub fn get(self) -> f32 {
-        f32::from_bits(self.0)
-    }
-
-    /// The number, when it is one.
-    pub const fn finite(self) -> Option<Finite> {
-        Finite::of_bits(self.0)
-    }
-}
-
 /// An f32 that is a number (not infinite, not NaN), kept as its bits so
 /// that the game's build has no float code until a caller asks for it.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]

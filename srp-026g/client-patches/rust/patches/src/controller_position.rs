@@ -1,4 +1,4 @@
-//! Patch 117: a character controller's step never leaves its position
+//! Patch 118: a character controller's step never leaves its position
 //! non-finite (board ticket T117; docs/notes/client_patch.md section 3.71).
 //!
 //! - A step (bullet_character_controller::player_step 0x7BDA0) that ends with
