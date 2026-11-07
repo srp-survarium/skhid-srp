@@ -48,10 +48,12 @@ pub enum Drug {
     Medkit,
     Bandages,
     Antitoxin,
+    /// The military medkit (`loadouts::KitMedkit::Military`).
+    Military,
 }
 
 impl Drug {
-    pub const ALL: [Self; 3] = [Self::Medkit, Self::Bandages, Self::Antitoxin];
+    pub const ALL: [Self; 4] = [Self::Medkit, Self::Bandages, Self::Antitoxin, Self::Military];
 
     /// The dictionary's name of the item.
     pub fn name(self) -> &'static str {
@@ -59,11 +61,63 @@ impl Drug {
             Self::Medkit => "medkit",
             Self::Bandages => "bandages",
             Self::Antitoxin => "antitoxin",
+            Self::Military => survarium::v026g::loadouts::BOT_MILITARY_MEDKIT_NAME,
         }
     }
 
     pub fn of_name(name: &str) -> Option<Self> {
         Self::ALL.into_iter().find(|drug| drug.name() == name)
+    }
+}
+
+/// [A341] What a bot's medical skills do to its drugs, read once from its kit's modifiers (the client's own reading of
+/// them, so the bots' heal model times and sizes a drug as the game will):
+/// - `delay`: a healing drug's activation delay times this: Fast Bandaging's rank (302, bits 3..5 of modifier 43
+///   `armored_trap`, `client-patches/rust/patches/src/medical_skills.rs` `Skills::parse`) gives `1 - 0.02 x rank`
+///   (`Skills::use_time`, applied at `medical.use_time` 0x33D486 to XMM0, the activation delay: `sites_026g.tsv`);
+/// - `amount`: every amount times `max(0, 1 + drug_amount)` (modifier 57, Medical Training 312's
+///   `drug_amount_modifier`; the getter's form `B x max(0, 1 + k S)`, 0x2D5AE0; k = 1 for it is LIKELY, the constructor
+///   0x33CAC0's call of modifier 57 is the read that proves it: `docs/notes/bandages.md`);
+/// - `regeneration_sooner_ms`: natural regeneration starts this much sooner, Metabolism (311, bits 6..8) x 500 ms
+///   (`Skills::regeneration_delay_ms`).
+///
+/// A value modifier 43 cannot hold (not an exact integer of 24 bits, a rank over 5) is read as no skill, as the client
+/// refuses it.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct DrugFactors {
+    pub delay: f32,
+    pub amount: f32,
+    pub regeneration_sooner_ms: u32,
+}
+
+impl DrugFactors {
+    /// No medical skill.
+    pub const NONE: Self = Self { delay: 1.0, amount: 1.0, regeneration_sooner_ms: 0 };
+
+    /// The factors `modifiers` (a kit's 68) give.
+    pub fn of_modifiers(modifiers: &[f32; survarium::v026g::skills::MODIFIERS]) -> Self {
+        let at = |name| survarium::v026g::skills::modifier_index(name).expect("a modifier of the 68");
+        let packed = modifiers[at("armored_trap")];
+        let ranks = (packed.is_finite() && (0.0..=16_777_215.0).contains(&packed) && packed == packed.trunc())
+            .then_some(packed as u32)
+            .filter(|bits| [0, 3, 6, 9, 12, 17, 21].iter().all(|shift| (bits >> shift) & 7 <= 5));
+        let rank = |shift: u32| ranks.map_or(0, |bits| (bits >> shift) & 7);
+        Self {
+            delay: 1.0 - rank(3) as f32 * 0.02,
+            amount: (1.0 + modifiers[at("drug_amount")]).max(0.0),
+            regeneration_sooner_ms: rank(6) * 500,
+        }
+    }
+
+    /// The factors of `profile`'s first kit (a bot's kits share its tier's skills); none for a profile with no kit.
+    pub fn of_profile(profile: &MatchProfile) -> Self {
+        profile.kits.first().map_or(Self::NONE, |kit| Self::of_modifiers(&kit.modifiers))
+    }
+}
+
+impl Default for DrugFactors {
+    fn default() -> Self {
+        Self::NONE
     }
 }
 
@@ -183,6 +237,8 @@ pub struct Pantry {
     /// What a kit the profile does not have is taken to hold, until a world says.
     unknown: Vec<Held>,
     counts: PantryCounts,
+    /// What its medical skills do to its drugs (none but a bot's own profile's).
+    factors: DrugFactors,
 }
 
 /// What a pantry did, for the logs and the bench (per bot; the bench sums them by team).
@@ -199,11 +255,11 @@ pub struct PantryCounts {
 }
 
 impl PantryCounts {
-    /// The counts as a log line: `spawns 12 (short 0), medkits 5, bandages 3, antitoxins 0, empty presses 0`.
+    /// The counts as a log line: `spawns 12 (short 0), medkits 5, bandages 3, antitoxins 0, military 0, empty presses 0`.
     pub fn line(&self) -> String {
-        let [medkits, bandages, antitoxins] = self.pressed;
+        let [medkits, bandages, antitoxins, military] = self.pressed;
         format!(
-            "spawns {} (short {}), medkits {medkits}, bandages {bandages}, antitoxins {antitoxins}, empty presses {}",
+            "spawns {} (short {}), medkits {medkits}, bandages {bandages}, antitoxins {antitoxins}, military {military}, empty presses {}",
             self.spawns, self.short_spawns, self.empty_presses
         )
     }
@@ -251,6 +307,7 @@ impl Pantry {
             kit: 0,
             unknown: Self::standard_kit(store),
             counts: PantryCounts::default(),
+            factors: DrugFactors::NONE,
         }
     }
 
@@ -264,6 +321,7 @@ impl Pantry {
             kit: 0,
             unknown: kit,
             counts: PantryCounts::default(),
+            factors: DrugFactors::NONE,
         }
     }
 
@@ -308,7 +366,13 @@ impl Pantry {
             kits,
             kit: 0,
             counts: PantryCounts::default(),
+            factors: DrugFactors::of_profile(profile),
         }
+    }
+
+    /// What its medical skills do to its drugs.
+    pub fn factors(&self) -> DrugFactors {
+        self.factors
     }
 
     /// What this pantry has done so far.
@@ -869,5 +933,42 @@ mod tests {
         assert_eq!(press(&pantry), Some(Press { at: 10_000, hit: Some(11_200) }), "the first after it stays");
         pantry.new_life(0);
         assert_eq!(press(&pantry), None);
+    }
+    /// [A341] The client's reading of a kit's medical modifiers: 302 at 5 (bits 3..5), 311 at 5 (bits 6..8), 312 at 5 (bits
+    /// 9..11, and `drug_amount` 0.25) give a delay x0.9, amounts x1.25 and regeneration 2.5 s sooner; a value the client
+    /// refuses (not an exact integer, a rank over 5) is no skill; no skill is the identity.
+    #[test]
+    fn the_drug_factors_are_the_clients_reading_of_the_medical_ranks() {
+        use survarium::v026g::skills::{MODIFIERS, modifier_index};
+        let at = |name| modifier_index(name).unwrap();
+        let mut m = [0.0f32; MODIFIERS];
+        assert_eq!(DrugFactors::of_modifiers(&m), DrugFactors::NONE);
+        m[at("armored_trap")] = (5 * 8 + 5 * 64 + 5 * 512) as f32;
+        m[at("drug_amount")] = 0.25;
+        let f = DrugFactors::of_modifiers(&m);
+        assert!((f.delay - 0.9).abs() < 1e-6 && (f.amount - 1.25).abs() < 1e-6, "{f:?}");
+        assert_eq!(f.regeneration_sooner_ms, 2_500);
+        for refused in [0.5, 7.0 * 8.0, -8.0, f32::NAN] {
+            m[at("armored_trap")] = refused;
+            let f = DrugFactors::of_modifiers(&m);
+            assert_eq!((f.delay, f.regeneration_sooner_ms), (1.0, 0), "{refused}");
+        }
+    }
+    /// [A341] On the players' data (`SRP_GAME_DATA`): a bot's own profile of every tier carries the medical ranks, so its pantry's
+    /// factors are the skills' (delay x0.9, amounts x1.25, regeneration 2.5 s sooner).
+    #[test]
+    #[ignore = "needs SRP_GAME_DATA, the players' game data with the medical tab"]
+    fn a_bots_profile_on_the_players_data_gives_its_pantry_the_medical_factors() {
+        use survarium::v026g::loadouts::{BotEquipment, BotRole, BotTier, RusherKits, bot_profile};
+        survarium::v026g::game_data::init().expect("SRP_GAME_DATA reads and passes srp's checks");
+        for tier in BotTier::ALL {
+            for role in BotRole::ALL {
+                let profile = bot_profile(1, 0, role, BotEquipment::of(tier, RusherKits::default()));
+                let f = Pantry::of_profile(&profile).factors();
+                eprintln!("{tier:?} {role:?}: {f:?}");
+                assert!((f.delay - 0.9).abs() < 1e-6 && (f.amount - 1.25).abs() < 1e-6, "{tier:?} {role:?} {f:?}");
+                assert_eq!(f.regeneration_sooner_ms, 2_500);
+            }
+        }
     }
 }

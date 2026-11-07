@@ -233,6 +233,13 @@ fn threat_tick(
             bot.lanes = lanes.clone();
         }
     }
+    // [A308 smoke.threat_lane] The remembered camp places, for a smoke across one.
+    if let Some(rule) = tuning.smoke.threat_lane {
+        let camp: Arc<[threat::HeldLane]> = threat.spots.camp_places(now, rule.one_place_m.get(), rule.kills, rule.within_ms).into();
+        for bot in bots.iter_mut().flatten().filter(|b| b.team == team) {
+            bot.camp_lanes = camp.clone();
+        }
+    }
     for event in threat.spots.take_events() {
         notes.push(Note {
             place: usize::MAX,

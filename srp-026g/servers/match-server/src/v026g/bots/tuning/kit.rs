@@ -1,5 +1,5 @@
 use serde::{Deserialize, Serialize};
-use survarium::v026g::loadouts::{BotPocketKit, KitFrags, KitSmoke, PocketStore};
+use survarium::v026g::loadouts::{BotPocketKit, KitFrags, KitMedkit, KitSmoke, PocketStore};
 
 /// What the bots' kits are built with (`survarium::v026g::loadouts`), read where a match is made
 /// (`MatchRegistry::with_bot_pockets`) and where the bench builds its bots' profiles, each team by its own tuning.
@@ -29,6 +29,17 @@ pub struct KitTuning {
     /// owner, 2026-10-29: "Measure, then match". It only gives the grenade habit more to throw: the bots throw 1.8 frags
     /// per 100 lives, the players 20.5, and the gap per carrying life (under 8 per 100 against 54.5) is the habit's, not the kit's.
     pub frags: KitFrags,
+    /// [medkit] The medkit in the first pocket (A311): `medikit`, the Medikit (the owner's kit of 2026-10-26); `military`, the
+    /// military medkit, in every tier (item level 6; the owner, 2026-11-07: "yes low tier can carry it"). Both wait 2 s; the
+    /// military medkit heals body 0.6 over 1 s (done 3 s after the press), the Medikit 1.0 over 3 s (done at 5 s)
+    /// (`scripts/content-edit/medicines.tsv`). A ranged hit that took health stops a drug in use (patch 84) and the bots press
+    /// on the move 1-2 s after a hit, so the shorter course is finished more often; the bandages (1 s + 1 s) stay in the
+    /// second pocket for the rest.
+    ///
+    /// OFF (`medikit`) by default: the by-side harm (fx-bench, 16 TDM pairs, tier 13-15, live rev-48 data) had the bots' kills
+    /// -7.8 % (z -1.82) and their drug stops in the 2 s delay +33 % (z +2.31). LIKELY cause: the military medkit's 0.6 body
+    /// takes more presses for a deep loss (military 396 against the Medikit's 323), each with its own 2 s delay to be hit in.
+    pub medkit: KitMedkit,
 }
 
 impl Default for KitTuning {
@@ -37,17 +48,19 @@ impl Default for KitTuning {
             pocket_store: true,
             smoke: KitSmoke::RadioPlace,
             frags: KitFrags::SupportAndCamper,
+            medkit: KitMedkit::Medikit,
         }
     }
 }
 
 impl KitTuning {
-    /// The pockets the team's kits are built with: the store, the smoke and the frags.
+    /// The pockets the team's kits are built with: the store, the smoke, the frags and the medkit.
     pub fn pockets(&self) -> BotPocketKit {
         BotPocketKit {
             store: PocketStore::of(self.pocket_store),
             smoke: self.smoke,
             frags: self.frags,
+            medkit: self.medkit,
         }
     }
 }
