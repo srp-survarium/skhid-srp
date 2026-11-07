@@ -17,6 +17,7 @@ use super::*;
 use crate::v026g::LiveView;
 
 mod scaling;
+mod spectate;
 mod squads;
 
 /// Fields of the state's header (`S1;R;<key>;<level>;<max level>;<size>;

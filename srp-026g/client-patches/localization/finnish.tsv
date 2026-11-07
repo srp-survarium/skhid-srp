@@ -2765,9 +2765,11 @@ st_srp_rooms_pool_hint	Näistä arvotaan 3 korttia äänestykseen.
 st_srp_rooms_private_room	Yksityinen huone: jopa 20 pelaajaa; sinä jaat joukkueet ja aloitat.
 st_srp_rooms_queue	Jono
 st_srp_rooms_queue_room	Jonota huoneeseen
+st_srp_rooms_queue_spectate	Jonota ja katso
 st_srp_rooms_room	Huone
 st_srp_rooms_room_chat	Huonechat
 st_srp_rooms_servers	Huoneet
+st_srp_rooms_spectators	Katsojat:
 st_srp_rooms_start_hint	Paina Aloita, kun kaikki ovat mukana.
 st_srp_rooms_start_match	Aloita
 st_srp_rooms_starts	Ottelu alkaa

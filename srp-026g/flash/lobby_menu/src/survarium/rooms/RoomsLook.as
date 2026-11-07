@@ -19,6 +19,7 @@ package survarium.rooms
     import scaleform.gfx.FocusManager;
     import scaleform.gfx.MouseEventEx;
     import survarium.constants.UiSound;
+    import survarium.data.LocalizationData;
 
     // The rooms window's look, the game's: its colours, the maps' renders,
     // and the parts its views are drawn of (texts, the game's buttons, the
@@ -532,6 +533,17 @@ package survarium.rooms
         // A name cut to its field by its width in the field's own font and
         // size: as much of it as fits, then "…", then `tail` whole (the room
         // view's "(owner)"); a name the server cut ends with "…" already.
+        // A playing room's spectators (Queue and spectate) on one quiet line,
+        // "Spectators: A, B", cut with dots to `w`: dim and small, never a
+        // player's row (the owner's of 2026-11-05: shown, "shouldn't distract
+        // anyone"). None: no line.
+        internal function spectators(box:Sprite, names:Array, x:Number, y:Number, w:Number):void
+        {
+            if (names == null || names.length == 0)
+                return;
+            fitName(text(box, "", x, y, w, 12, DIM), LocalizationData.getName("st_srp_rooms_spectators") + " " + names.join(", "), "");
+        }
+
         internal static function fitName(field:TextField, value:String, tail:String):void
         {
             var room:Number = field.width - 4;

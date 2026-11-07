@@ -2765,9 +2765,11 @@ st_srp_rooms_pool_hint	Głosowanie losuje z nich 3 karty.
 st_srp_rooms_private_room	Pokój prywatny: do 20 graczy; ty ustawiasz drużyny i start.
 st_srp_rooms_queue	Kolejka
 st_srp_rooms_queue_room	Kolejka do pokoju
+st_srp_rooms_queue_spectate	Kolejka i oglądanie
 st_srp_rooms_room	Pokój
 st_srp_rooms_room_chat	Czat pokoju
 st_srp_rooms_servers	Pokoje
+st_srp_rooms_spectators	Widzowie:
 st_srp_rooms_start_hint	Naciśnij Rozpocznij, gdy wszyscy wejdą.
 st_srp_rooms_start_match	Rozpocznij
 st_srp_rooms_starts	Mecz za

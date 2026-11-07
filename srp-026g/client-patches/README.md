@@ -126,6 +126,7 @@ release's. The "Result" row is the build of the revision named in it.
 | `rust/patches/src/scaleform_capture.rs`, `src/scaleform_capture.toml`, `src/vostok/drawable_image.rs`, `check_scaleform_capture_026g.py` | Patch 93: the render thread's walk of a Scaleform DrawableImageContext's command queues (OnNextCapture 0x572660) never reaches a queue being destroyed (the rev-40 crash at a match's end): two lohooks; its check runs OnNextCapture and the queue's destructor on made-up contexts, the original beside (needs Unicorn) |
 | `rust/patches/src/subtick_hits.rs`, `src/subtick_hits.toml`, `src/vostok/ray_test.rs`, `check_subtick_hits_026g.py` | Patch 103: a bullet meets a player where he stood at the ms it crossed him, not where the 50 ms step left him (`../docs/notes/subtick_bullet_hits.md`); one lohook first in `bullet.ray_traced`'s chain; its check runs the game's own ray test (ray_test, rayTest, rayTestSingle) in both exes on made-up bodies (needs Unicorn) |
 | `rust/patches/src/input_check.rs`, `src/input_check.toml`, `src/vostok/input.rs`, `check_input_check_026g.py` | Patch 99: a world takes no player input whose rotation no client makes (a NaN, an infinity, 1024 radians or more), as 0.27d's change_input refuses one: a lohook at change_input<player_input>'s start (0x1FAB50); its check runs that start on made-up inputs, the original beside (needs Unicorn) |
+| `rust/patches/src/spectator.rs`, `src/spectator.toml`, `src/vostok/spectate.rs`, `check_spectator_026g.py` | Patch 121: a game whose 0xE4 names no place of its own (the rooms' queue) watches the match: its camera follows a player of any team (F6/F5 the next/previous; F2 lets go and flies free), it builds and sends no input, an 0xEA naming place 0xFF ends its match (no results), and the places the game asks for the missing local player go another way (lohooks at 0x27C116, 0x25CDBD, 0x208D77, 0x23B7B9, 0x27C72C); its check runs the five sites in both exes, players' and replays' unchanged (needs Unicorn) |
 | `check_mouse_buttons_026g.py` | Patch 102 (`MOUSE_BUTTONS` in `patch_026g.py`): a side mouse button (mouse4..mouse8) is no left click in the lobby, login, options and match menus; its check runs the five handlers in both exes (needs Unicorn) |
 | `rust/patches/src/mouse_pitch.rs`, `src/mouse_pitch.toml`, `src/vostok/mouse.rs`, `check_mouse_pitch_026g.py` | Patch 112: the mouse look's pitch with 16:9's h/w at every window while "Lock vertical sensitivity" is ticked, 1:1 at the vertical slider's value when unticked (user.cfg's `srp_mouse_vertical_locked`, `srp_mouse_vertical`); a lohook at on_mouse_move's pitch step, the two variables, the Settings' calls and the death camera's entry; its check runs on_mouse_move in both exes at 4:3 to 32:9, off and on, and the Settings' calls (needs Unicorn) |
 | `rust/patches/src/footsteps.rs`, `src/footsteps.toml`, `src/vostok/footstep.rs`, `check_footsteps_026g.py` | Patch 101: a footstep that only a re-simulation makes (another player's late input) is heard instead of dropped; one lohook in on_player_sound_event's time test; its check runs the handler in both exes (needs Unicorn) |
@@ -4871,3 +4872,40 @@ for an open match never played:
 A played match (states 1-3, a resync's) and a closed one go as before (patch 119's path for a kick).
 Nothing a match computes. Checked with `check_unplayed_match_026g.py` (Unicorn) and the patch crate's
 tests. Not run in a game.
+
+## A game with no place of its own watches the match (patch 121, unreleased)
+
+The rooms' queue sends a waiting player into its room's running match as a
+spectator (`../docs/notes/queue-spectate.md`): the match server's 0xE4 names
+no place local (its first byte 0xFF), so the game has no player, and the
+network client's local place (+1F1C44h) stays 0xFF. The game's own
+`-spectator` changes nothing in a match (it only skips the login and adds
+the console's attach_to_player). Four places then go wrong: three ask for
+the missing place's player through an unchecked slot-table index
+(get_player 0x27A980): the camera's return to the local place after every
+world, a match line's team colour, and the hud's kits at the followed
+player's death (a kit picked there would be the followed player's, in this
+world alone); and the keys next_player/prev_player (F6/F5) work only for a
+client that spectates its teammates, which nothing sets. Nothing ends its
+match either: the 0xEA handler returns at once without a local place
+(0x27C734), and a closed link (0xFD) closes nothing. The Rust patch
+`spectator` (five lohooks, names only in `spectator.toml`) makes a game
+whose local place is 0xFF follow the first player in the match (alive
+first) the way spectate_next_player does (set_followed_player 0x242B90,
+mode 4 through the player's eyes), keep that one while it is in the match,
+move to the next/previous living player of either team on F6/F5, let go
+and fly with the game's free-fly camera on F2 (the game's own cam_2 binding,
+the replay's free view: detach_from_player 0x242CC0; kept over a world's
+load and a player's leave until F6/F5, from the last one followed, or the
+next match's options), show its
+match lines plain and never show it the kits; its network client's +0Ch
+(the replay client's "no input") is set, so it builds and sends no input.
+The match server lets it go with one 0xEA naming place 0xFF: the game
+takes it as its end, close_current_match(0), back to the lobby with no
+results screen (a player's own 0xEA is `31 .. FF` and reason 3, the results);
+an 0xEA of the player it follows moves the camera to the next. A game with
+a place of its own, and a replay, run the game's code at all five sites
+(+0Ch kept 0); leave_match of place 0xFF, which every game runs first, tests
+a bit no entered mask has and writes nothing. Nothing a match computes: the camera and the hud alone.
+Addresses: `client_patch.md` 3.75; checked with `check_spectator_026g.py`;
+**not run in a game.**

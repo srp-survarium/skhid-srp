@@ -16,7 +16,7 @@ use survarium::v026g::match_msgs::{ClientMessage, id, parse_client};
 use udp_transport::{Config, Event, PacketLog, Table, Transport};
 
 use super::Settings;
-use super::game::Game;
+use super::game::{Game, SpectatorAt};
 use super::record::{Desk, Recorder};
 use super::registry::{MatchEnd, MatchRegistry, MatchResult, PlayerResult, ResultsSink};
 
@@ -190,6 +190,9 @@ pub(crate) struct Server {
     pending: HashMap<SocketAddr, Transport>,
     /// Each placed client's match and roster place.
     routes: HashMap<SocketAddr, (u32, usize)>,
+    /// Each spectator's match (Queue and spectate): no roster place
+    /// (`game::spectate`).
+    spectator_routes: HashMap<SocketAddr, u32>,
     /// Addresses already logged as sending without being placed.
     strays_logged: HashSet<SocketAddr>,
     /// The addresses that send without being placed or connecting, while
@@ -243,6 +246,7 @@ impl Server {
             games: HashMap::new(),
             pending: HashMap::new(),
             routes: HashMap::new(),
+            spectator_routes: HashMap::new(),
             strays_logged: HashSet::new(),
             stray_datagrams: HashMap::new(),
             next_housekeeping: now,
@@ -253,6 +257,25 @@ impl Server {
     }
 
     pub fn receive(&mut self, addr: SocketAddr, datagram: &[u8], now: Instant) {
+        if let Some(&match_id) = self.spectator_routes.get(&addr) {
+            let registry = &self.registry;
+            if let Some(game) = self.games.get_mut(&match_id) {
+                match game.spectator_at(addr) {
+                    Some(SpectatorAt::Watching) => {
+                        game.spectator_receive(addr, datagram, now);
+                        return;
+                    }
+                    // Let go: silent (its game's match link ends by it),
+                    // until its game connects again from there as the
+                    // player its session is seated as now.
+                    Some(SpectatorAt::LetGo(session)) if registry.seat(session).is_none() => {
+                        return;
+                    }
+                    Some(SpectatorAt::LetGo(_)) | None => game.drop_spectator(addr),
+                }
+            }
+            self.spectator_routes.remove(&addr);
+        }
         if let Some(&(match_id, index)) = self.routes.get(&addr) {
             // A game that left its place and was given a new one (it left
             // by its own word and came again, the owner's of 2026-10-19)
@@ -377,6 +400,10 @@ impl Server {
             return;
         };
         let Some(seat) = self.registry.seat(session_id) else {
+            if let Some(watcher) = self.store.matchmaking().watched(session_id) {
+                self.connect_spectator(addr, session_id, watcher.ticket, debug, transport, now);
+                return;
+            }
             log::warn!("{addr} connected for session {session_id:#x}, which has no match seat");
             transport.disconnect(now);
             self.pending.insert(addr, transport);
@@ -432,6 +459,42 @@ impl Server {
         self.store.seen_in_match(session_id);
     }
 
+    /// A client's 0xD8 for a session that watches the match `ticket` from a
+    /// room's queue (Queue and spectate): a spectator of it, if this server
+    /// runs it (a match no player has reached is not made for one) in the
+    /// dialect the client speaks. Else turned away, as a client with no
+    /// seat is.
+    fn connect_spectator(
+        &mut self,
+        addr: SocketAddr,
+        session_id: u32,
+        ticket: u32,
+        debug: u8,
+        transport: Transport,
+        now: Instant,
+    ) {
+        let growing = survarium::v026g::match_msgs::late_join::has_connect_capability(debug);
+        let watched = match self.games.get_mut(&ticket) {
+            Some(game) if growing => game.watch(addr, session_id, transport),
+            _ => Err(Box::new(transport)),
+        };
+        match watched {
+            Ok(()) => {
+                self.spectator_routes.insert(addr, ticket);
+                self.store.seen_in_match(session_id);
+            }
+            Err(transport) => {
+                let mut transport = *transport;
+                log::info!(
+                    "{addr} connected to watch match {ticket:#x} (session {session_id:#x}), \
+                     which is not played here in its dialect, or is over; turned away"
+                );
+                transport.disconnect(now);
+                self.pending.insert(addr, transport);
+            }
+        }
+    }
+
     /// The patch revision the game of this session signed in with; 0 for a
     /// session the store does not know. How fast a game's clock takes a
     /// correction goes by it (`match_msgs::clock`), so a game that comes
@@ -442,6 +505,11 @@ impl Server {
             return *revision;
         }
         self.store.client_revision(session_id).unwrap_or(0)
+    }
+
+    #[cfg(test)]
+    pub(crate) fn store(&self) -> &SessionStore {
+        &self.store
     }
 
     pub fn poll(&mut self, now: Instant) -> Vec<(SocketAddr, Vec<u8>)> {
@@ -456,6 +524,22 @@ impl Server {
                 game.sync_roster(formed, now);
             }
             datagrams.extend(game.poll(now));
+            // A spectator whose session watches this match no more (it got
+            // its place, left the queue, the lobby's match is over) is let
+            // go; one whose game left by itself leaves its queue.
+            let matchmaking = self.store.matchmaking();
+            for session_id in game.spectator_sessions() {
+                if matchmaking
+                    .watched(session_id)
+                    .map(|watcher| watcher.ticket)
+                    != Some(game.id)
+                {
+                    game.let_spectator_go(session_id, now);
+                }
+            }
+            for session_id in game.take_spectators_left() {
+                matchmaking.watcher_left(session_id, game.id);
+            }
             for (place, account_id) in game.take_rejected_joins() {
                 if self.registry.release_place(game.id, place) {
                     self.store.matchmaking().join_failed(account_id);
@@ -479,6 +563,13 @@ impl Server {
             self.registry.free_seats(result.match_id);
             self.results.match_ended(result);
         }
+        // A spectator gone from its game has no route.
+        let games = &self.games;
+        self.spectator_routes.retain(|addr, id| {
+            games
+                .get(id)
+                .is_some_and(|game| game.spectator_at(*addr).is_some())
+        });
         self.pending.retain(|addr, transport| {
             datagrams.extend(
                 transport
@@ -515,11 +606,12 @@ impl Server {
                 self.results.match_ended(result);
             }
             self.routes.retain(|_, (id, _)| *id != match_id);
+            self.spectator_routes.retain(|_, id| *id != match_id);
             self.registry.end(match_id);
             log::info!("Match {match_id:#x} is over");
         }
         for game in self.games.values() {
-            for session_id in game.sessions() {
+            for session_id in game.sessions().into_iter().chain(game.spectator_sessions()) {
                 self.store.seen_in_match(session_id);
             }
         }

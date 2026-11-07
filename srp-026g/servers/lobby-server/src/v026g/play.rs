@@ -825,6 +825,13 @@ impl Core<'_> {
             player.in_match = None;
             player.connect = None;
         }
+        // A spectator back from the match it watched left it by itself,
+        // whichever word comes first, this or the match server's
+        // (`room_watchers` takes it out of the queue): never sent back.
+        let matchmaking = self.store.matchmaking();
+        if left_match && let Some(watcher) = matchmaking.watched(who.session_id) {
+            matchmaking.watcher_left(who.session_id, watcher.ticket);
+        }
         if !left_match {
             // A clan team it waited with does not wait any more.
             self.clan_left_queue(who.account_id);
@@ -874,6 +881,15 @@ impl Core<'_> {
                 None,
             )
         };
+        // Queue and spectate: sent to its room's match with no place, once
+        // (`room_watchers` starts and ends a watch). A watch ended: its match
+        // is over for it (below).
+        if let Some(watcher) = self.store.matchmaking().watched(session_id) {
+            if in_match != Some(watcher.match_id) {
+                self.send_to_watch(addr, watcher.match_id);
+            }
+            return;
+        }
         match self.store.matchmaking().poll(session_id, now) {
             Some(QueueState::Placed {
                 match_id,
@@ -918,37 +934,7 @@ impl Core<'_> {
                     }
                 }
                 self.store.matchmaking().mark_told(session_id);
-                let host = self.match_host_for(addr, &ticket);
-                let found = waiting(0, 0, now);
-                let found = self.send(addr, found);
-                // Its game loads a match now: from here on it can show a
-                // results screen (`show_results`). Sessions that are over
-                // are forgotten here.
-                let store = self.store;
-                self.sent_to_match.retain(|id| !store.has_ended(*id));
-                self.sent_to_match.insert(session_id);
-                if let Some(player) = self.player_mut(addr) {
-                    player.queued_since = None;
-                    player.in_match = Some(match_id);
-                    player.connect = Some((
-                        found,
-                        lobby::connect_to_match(
-                            &host,
-                            ticket.port,
-                            ticket.match_id,
-                            team,
-                            // The session the client gives the match server
-                            // in 0xD8 and 0xD9: the one its seat is kept by.
-                            session_id,
-                        ),
-                    ));
-                    log::info!(
-                        "{} goes to match {:#x} on team {team} at {host}:{}",
-                        player.name,
-                        ticket.match_id,
-                        ticket.port
-                    );
-                }
+                self.send_found(addr, match_id, team, waiting(0, 0, now));
             }
             Some(QueueState::Waiting {
                 place,
@@ -973,6 +959,88 @@ impl Core<'_> {
                     let status = waiting(1, 1, since);
                     self.send(addr, status);
                 }
+            }
+        }
+    }
+
+    /// The spectator at `addr` (Queue and spectate) goes to its room's match
+    /// `match_id`: "match found" and the match server's address, as a seated
+    /// player's, with the session it watches under (`docs/notes/queue-spectate.md`).
+    /// The match server gives it no place.
+    fn send_to_watch(&mut self, addr: SocketAddr, match_id: u32) {
+        let order_id = self.next_order_id;
+        // 0xFFFFFFFF is the client's "not queued".
+        self.next_order_id = (self.next_order_id + 1) % 0x7FFF_FFFF + 1;
+        let found = lobby::client_state(
+            &ClientState::InQueue {
+                order_id,
+                place: 0,
+                queue_total: 0,
+                current_wait_seconds: 0,
+                average_wait_seconds: 0,
+                search_step: SEARCH_STEP,
+                search_properties: [0; limits::SEARCH_PROPERTIES],
+            },
+            None,
+        );
+        if let Some(player) = self.player_mut(addr) {
+            player.order_id = order_id;
+        }
+        // No team: it has no place (0 for the client's field).
+        self.send_found(addr, match_id, 0, found);
+    }
+
+    /// The client at `addr` goes to the match `match_id` (a seated player,
+    /// on `team`, or a spectator): `found` ("match found"), then where the
+    /// match server is (0x82) once that is acked, with its session (the
+    /// one the client gives the match server in 0xD8 and 0xD9: what its
+    /// seat or its watch is kept by).
+    fn send_found(
+        &mut self,
+        addr: SocketAddr,
+        match_id: u32,
+        team: u8,
+        found: lobby::ServerMessage,
+    ) {
+        let Some(ticket) = self
+            .matches
+            .get(&match_id)
+            .map(|running| running.ticket.clone())
+        else {
+            return;
+        };
+        let Some(session_id) = self.player(addr).map(|player| player.session_id) else {
+            return;
+        };
+        let host = self.match_host_for(addr, &ticket);
+        let found = self.send(addr, found);
+        // Its game loads a match now: from here on it can show a results
+        // screen (`show_results`). Sessions that are over are forgotten here.
+        let store = self.store;
+        self.sent_to_match.retain(|id| !store.has_ended(*id));
+        self.sent_to_match.insert(session_id);
+        let watching = store.matchmaking().watched(session_id).is_some();
+        if let Some(player) = self.player_mut(addr) {
+            player.queued_since = None;
+            player.in_match = Some(match_id);
+            player.connect = Some((
+                found,
+                lobby::connect_to_match(&host, ticket.port, ticket.match_id, team, session_id),
+            ));
+            if watching {
+                log::info!(
+                    "{} watches match {:#x} at {host}:{} (Queue and spectate)",
+                    player.name,
+                    ticket.match_id,
+                    ticket.port
+                );
+            } else {
+                log::info!(
+                    "{} goes to match {:#x} on team {team} at {host}:{}",
+                    player.name,
+                    ticket.match_id,
+                    ticket.port
+                );
             }
         }
     }
@@ -1136,10 +1204,7 @@ impl Core<'_> {
         let compatible = self
             .pool_for_sessions(formed.seats.iter().map(|seat| seat.player.session_id))
             == Some(formed.pool);
-        let made = match (
-            players.filter(|_| compatible),
-            maps::MatchMap::of(chosen),
-        ) {
+        let made = match (players.filter(|_| compatible), maps::MatchMap::of(chosen)) {
             (Some(players), Some(map)) => self
                 .host
                 .create(MatchSetup {
@@ -1741,7 +1806,10 @@ mod tests {
                 param: u.param,
             })
             .collect();
-        assert_eq!(weapon_kit::unpack(&as_lobby).map(|logical| logical.len()), Ok(4));
+        assert_eq!(
+            weapon_kit::unpack(&as_lobby).map(|logical| logical.len()),
+            Ok(4)
+        );
         let options = MatchOptions {
             players: vec![profile.clone()],
             map: maps::MatchMap::of(maps::playable().next().unwrap().id).unwrap(),

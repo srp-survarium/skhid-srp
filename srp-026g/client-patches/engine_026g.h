@@ -633,4 +633,13 @@ extern unsigned int (__attribute__((stdcall)) *const engine_file_time_to_system_
 /* 0x2717e0 survarium::lobby_client::discard_playing_order: client ESP+4, left ESP+8; pops 8; stdcall, called directly */
 void __attribute__((stdcall)) engine_discard_playing_order(struct lobby_client *client, unsigned int left);
 
+/* 0x242b90 survarium::base_network_client::set_followed_player: client ECX, player ESP+4; pops 4; thiscall, called directly */
+void __attribute__((thiscall)) engine_follow_player(struct network_client *client, struct player *player);
+
+/* 0x1f8360 survarium::game_world::switch_to_spectator_camera: world EDX; pops 0 */
+void engine_spectator_camera(struct game_world *world);
+
+/* 0x242cc0 survarium::base_network_client::detach_from_player: client ECX; pops 0; thiscall, called directly */
+void __attribute__((thiscall)) engine_detach_player(struct network_client *client);
+
 #endif

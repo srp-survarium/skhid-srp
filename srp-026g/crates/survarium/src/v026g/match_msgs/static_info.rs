@@ -61,6 +61,10 @@ pub const MAX_MESSAGE: usize = 255 * 483;
 /// The new-player protection value that protects nothing: the damage
 /// factor is `max(0, 1 − 0.1 × value)`.
 pub const NO_PROTECTION: u32 = 10;
+/// 0xE4's first byte for a game with no place of its own: a spectator's
+/// ([`StaticInfo::spectator_message`]). The client keeps no local place then
+/// (its `network_client`+0x1F1C44 stays 0xFF, the constructor's 0x219AE2).
+pub const NO_LOCAL_PLACE: u8 = 0xFF;
 
 /// A kit the player may use in the match: the client loads a player
 /// resource only for these.
@@ -915,6 +919,17 @@ impl StaticInfo {
         })
     }
 
+    /// 0xE4 for a spectator's game: no place is its own (the first byte
+    /// [`NO_LOCAL_PLACE`]; `process_static_match_info` marks a place local
+    /// only when its index equals that byte, 0x27BE5F, so none is), the
+    /// roster as every game has it (`docs/notes/queue-spectate.md`).
+    pub fn spectator_message(&self) -> ServerMessage {
+        ServerMessage::StaticInfo {
+            local_index: NO_LOCAL_PLACE,
+            lzma2: self.lzma2.clone(),
+        }
+    }
+
     /// 0xE4's payload for the client at `local_index`: the index, then the
     /// stream. The transport splits it into parts.
     pub fn payload(&self, local_index: u8) -> Option<Vec<u8>> {
@@ -1151,7 +1166,8 @@ fn read_srp_block(reader: &mut Reader) -> Result<bool, StaticInfoError> {
 }
 
 /// Reads a 0xE4 payload as the client at its local index would: the
-/// index, the stored LZMA2 stream, the options. For tests.
+/// index (`NO_LOCAL_PLACE` for a spectator's), the stored LZMA2 stream, the
+/// options. For tests.
 pub fn parse_payload(
     payload: &[u8],
     dictionary: &Dictionary,
@@ -1160,7 +1176,8 @@ pub fn parse_payload(
     let bytes = lzma2::unstore(stream).ok_or(StaticInfoError::Lzma2)?;
     let options = parse_options(&bytes, dictionary)?;
     let roster = options.players.len() as u8;
-    if index >= roster {
+    // A spectator's game has no place of its own.
+    if index >= roster && index != NO_LOCAL_PLACE {
         return Err(StaticInfoError::LocalIndex { index, roster });
     }
     Ok((index, options))

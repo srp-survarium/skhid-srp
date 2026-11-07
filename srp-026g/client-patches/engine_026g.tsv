@@ -179,3 +179,6 @@ engine_get_system_time_as_file_time	0x870244	-	void engine_get_system_time_as_fi
 engine_file_time_to_local_file_time	0x870230	-	unsigned int engine_file_time_to_local_file_time(const unsigned int *file_time, unsigned int *local)	import	
 engine_file_time_to_system_time	0x87022c	-	unsigned int engine_file_time_to_system_time(const unsigned int *file_time, unsigned int *system_time)	import	
 engine_discard_playing_order	0x2717e0	ESP+4:lobby ESP+8:left	void engine_discard_playing_order(struct lobby_client *client, unsigned int left)	stdcall	
+engine_follow_player	0x242b90	ECX:client ESP+4:player	void engine_follow_player(struct network_client *client, struct player *player)	thiscall
+engine_spectator_camera	0x1f8360	EDX:world	void engine_spectator_camera(struct game_world *world)	thunk
+engine_detach_player	0x242cc0	ECX:client	void engine_detach_player(struct network_client *client)	thiscall	

@@ -18,6 +18,7 @@ mod packet_safety;
 mod packet_input;
 mod refused_worlds;
 mod sockets;
+mod spectate;
 mod start;
 mod units;
 

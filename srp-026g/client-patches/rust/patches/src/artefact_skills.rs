@@ -440,7 +440,7 @@ pub fn on_movement_tick(ctx: &mut Context<'_>) -> Flow<NoExit> {
 /// A world loaded (`world_load.loaded`: a late join, a resync, a match's first world): every
 /// place's shared movement history forgotten, for the loaded world's ticks are not the ones it
 /// kept.
-pub fn on_world_loaded(ctx: &mut Context<'_>) -> Flow<NoExit> {
+pub fn on_world_loaded(ctx: &mut Context<'_>) -> Flow<crate::vostok::ArtefactSkillsOnWorldLoadedExit> {
     for history in &MOVEMENTS {
         history.set(ctx.thread(), MovementHistory::EMPTY);
     }

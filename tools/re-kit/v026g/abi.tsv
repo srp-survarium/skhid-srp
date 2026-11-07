@@ -2401,3 +2401,10 @@ va	name	source	ret_cleanup	result
 0x0027b110	survarium::network_client::disconnect	manual	0	none; vtable 0x9FFB14 +14h, the main menu's logoff (0x1FF736, then switch_to_login): when the time rule's state +1F1C60h is not 0, clears it, unloads the world (0x1F8B40), clears the match link's disconnect callback and disconnects it; then the lobby client's 0x26F8C0, whatever the state
 0x001ed170	survarium::game::switch_to_game_world	manual	0	none; EAX the game: the game world (game+18h) the active scene (game+539Ch; the old one's on_deactivate, vtable +4, then the world's on_activate); set_game_project's (0x1F8626), so the lobby menu's on_deactivate hides the loading screen there
 0x002203a0	survarium::lobby_menu::show_loading_screen	manual	0	none; AL the flag, EDX the lobby menu: invokes the lobby movie's root.show_loading_screen; shown by switch_to_level_loading (0x220433), hidden only by lobby_menu::on_deactivate (0x21D54A)
+0x00242ae0	survarium::base_network_client::attach_to_player	manual	4	
+0x00242b90	survarium::base_network_client::set_followed_player	manual	4	
+0x00242cc0	survarium::base_network_client::detach_from_player	manual	0	
+0x002430f0	survarium::base_network_client::may_spectate	manual	4	AL: 1 the player may be followed (with the client's +0Dh set: alive +33Ch, in the match (the core's mask +191D0h bit place), on the followed player's team); 0 otherwise or for no player (the argument's reference released either way)
+0x00242a70	survarium::base_network_client::followed_team	manual	0	EAX: the followed player's (+4) team (its profile +6B8h, +45ECh), or 2 with none
+0x001f8070	survarium::game_world::select_profile	manual	4	
+0x0026e000	survarium::base_local_network_client::switch_to_free_view	manual	4	

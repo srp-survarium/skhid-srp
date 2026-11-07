@@ -2765,9 +2765,11 @@ st_srp_rooms_pool_hint	Do hlasování jdou 3 z nich.
 st_srp_rooms_private_room	Soukromá místnost: až 20 hráčů; týmy a start určuješ ty.
 st_srp_rooms_queue	Fronta
 st_srp_rooms_queue_room	Zařadit se do fronty
+st_srp_rooms_queue_spectate	Fronta a sledování
 st_srp_rooms_room	Místnost
 st_srp_rooms_room_chat	Chat místnosti
 st_srp_rooms_servers	Místnosti
+st_srp_rooms_spectators	Diváci:
 st_srp_rooms_start_hint	Až budou všichni uvnitř, stiskni Spustit.
 st_srp_rooms_start_match	Spustit
 st_srp_rooms_starts	Zápas začne za
