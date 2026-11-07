@@ -51,6 +51,33 @@ pub const CLIENT_OBJECTS: &str = "client_objects";
 /// objects (`simple_game_project::insert` 0x285750; effect zones save
 /// nothing): srp reads a world's game objects with them.
 pub const WORLD_OBJECTS: [&str; 3] = ["damage_zone", "resupply_zone", "generic_anomaly_core"];
+/// The other `game_object_type`s of the players' projects (stock 0.26g and
+/// every live patch, 116 projects, 2026-11-07): these save nothing in a
+/// world's game objects. Every upload of 118 live recordings of rev 50 (over
+/// 50,000 worlds of 40 maps, every type here but `lpv_occluder` and `track`
+/// on them) reads exactly with [`WORLD_OBJECTS`] alone; `track` is the lobby
+/// scene's camera, `lpv_occluder` lighting (LIKELY, by its name). A type of
+/// neither list stops the data ([`objects_of`]): whether the game saves it
+/// is not known, and if it does, srp would refuse every world of the map.
+pub const UNSAVED_OBJECTS: [&str; 17] = [
+    "ambient_light",
+    "artefact_container",
+    "collision_geometry",
+    "decal",
+    "effect_zone",
+    "environment",
+    "environment_probe",
+    "light",
+    "lpv_occluder",
+    "object_sound",
+    "particle",
+    "skeleton_visual",
+    "track",
+    "vegetation",
+    "victory_items_spawn_box",
+    "volume_fog",
+    "wire_set",
+];
 /// The game's texts in the languages of srp's web page (its names of the
 /// maps and modes), read whole.
 pub const LOCALIZATIONS: [&str; 2] = [
@@ -91,6 +118,19 @@ pub fn objects_of(bytes: &[u8]) -> Result<Vec<u8>, String> {
     let project = ConfigValue::parse(bytes).map_err(|cause| cause.to_string())?;
     if !matches!(project, ConfigValue::Named(_)) {
         return Err("not a binary config of named values".into());
+    }
+    let objects = project.get(CLIENT_OBJECTS).map(ConfigValue::children).unwrap_or_default();
+    for object in &objects {
+        match object.get("game_object_type").and_then(ConfigValue::as_str) {
+            Some(kind) if WORLD_OBJECTS.contains(&kind) || UNSAVED_OBJECTS.contains(&kind) => {}
+            kind => {
+                return Err(format!(
+                    "a client object of type {kind:?}, which srp does not know: whether a world \
+                     saves it in its game objects is not known (resources_db::server::\
+                     WORLD_OBJECTS, UNSAVED_OBJECTS)"
+                ));
+            }
+        }
     }
     let saved = |object: &&ConfigValue| {
         object

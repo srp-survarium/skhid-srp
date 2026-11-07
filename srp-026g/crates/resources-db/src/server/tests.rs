@@ -343,6 +343,32 @@ fn the_same_inputs_give_the_same_bytes_and_other_inputs_other_bytes() {
     assert_eq!(bare.gameplay, 3);
 }
 
+/// A client object of a type srp knows neither as saved in a world's game
+/// objects nor as saving nothing stops the data, by its type.
+#[test]
+fn a_client_object_of_an_unknown_type_is_refused() {
+    use binary_config_parser::tree::ConfigValue;
+    let project = |kind: &str| {
+        let object = ConfigValue::Named(vec![(
+            "game_object_type".into(),
+            ConfigValue::String(kind.into()),
+        )]);
+        ConfigValue::Named(vec![(CLIENT_OBJECTS.into(), ConfigValue::Indexed(vec![object]))])
+            .to_bytes()
+            .unwrap()
+    };
+    for known in WORLD_OBJECTS.iter().chain(&UNSAVED_OBJECTS) {
+        assert!(objects_of(&project(known)).is_ok(), "{known}");
+    }
+    let why = objects_of(&project("capture_point")).unwrap_err();
+    assert!(why.contains("\"capture_point\""), "{why}");
+    let untyped = ConfigValue::Named(vec![(
+        CLIENT_OBJECTS.into(),
+        ConfigValue::Indexed(vec![ConfigValue::Named(Vec::new())]),
+    )]);
+    assert!(objects_of(&untyped.to_bytes().unwrap()).unwrap_err().contains("None"));
+}
+
 #[test]
 fn a_project_that_is_not_a_config_is_refused() {
     let folder = Folder::new("bad-project");

@@ -345,10 +345,22 @@ impl MatchProfile {
                     .get(usize::from(index))
                     .and_then(|item| item_params::item_params(item.dict_id))
                     .map(|params| params.class);
+                // Every class named: one a new data type adds is placed here
+                // or there by whoever adds it, never left out by a default.
                 let held = match class {
                     Some(ItemClass::GrenadeSet) => Some(Held::Grenade),
                     Some(ItemClass::TrapSet) => Some(Held::Trap),
-                    _ => None,
+                    None
+                    | Some(
+                        ItemClass::Untyped
+                        | ItemClass::Medkit { .. }
+                        | ItemClass::OxygenTank
+                        | ItemClass::Artefact(_)
+                        | ItemClass::Armor
+                        | ItemClass::Scope
+                        | ItemClass::Ammunition
+                        | ItemClass::Booster,
+                    ) => None,
                 };
                 held.into_iter()
                     .flat_map(move |held| std::iter::repeat_n(held, usize::from(count)))
@@ -420,7 +432,9 @@ impl MatchProfile {
                         | ItemClass::TrapSet
                         | ItemClass::Ammunition,
                     ) => Body::None,
-                    other => {
+                    // Every class named (as in `held`): no default.
+                    other @ (None
+                    | Some(ItemClass::Untyped | ItemClass::Artefact(_) | ItemClass::Scope)) => {
                         return Err(format!(
                             "item {} of slot {slot} is {other:?}: no object of a kit",
                             item.dict_id

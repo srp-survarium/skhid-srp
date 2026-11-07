@@ -135,10 +135,19 @@ impl GunStates {
 pub fn body_parts() -> usize {
     static PARTS: std::sync::OnceLock<usize> = std::sync::OnceLock::new();
     *PARTS.get_or_init(|| {
-        let config = ConfigValue::parse(super::game_data::file(HIT_PARAMS))
-            .expect("the hit params parse");
-        config.get("hit_params").map_or(0, |parts| parts.children().len())
+        body_parts_of(super::game_data::file(HIT_PARAMS))
+            .expect("the hit params read (checked at start, `tables::check`)")
     })
+}
+
+/// [`body_parts`] of the file's bytes: data with none stops srp at start, as
+/// every player state of its worlds would be read wrong.
+pub fn body_parts_of(bytes: &[u8]) -> Result<usize, ConfigError> {
+    let config = ConfigValue::parse(bytes)?;
+    match config.get("hit_params").map(|parts| parts.children().len()) {
+        Some(parts) if parts > 0 => Ok(parts),
+        _ => Err(ConfigError("no `hit_params` body part".into())),
+    }
 }
 
 /// Where [`body_parts`] are.
