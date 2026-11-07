@@ -1307,6 +1307,45 @@ artefact_skills_on_shared_regeneration_replay:
     db 0x8b, 0x6c, 0x24, 0x24, 0x85, 0xc0
     jmp 0x32a545
 
+; 0x27c116 process_dynamic_match_info after either core deserialize returns, before mov eax,[edi+4] / test eax,eax; a load receipt is emitted only here: lohook -> packet_recovery_on_loaded
+global packet_recovery_on_loaded
+extern hook_packet_recovery_on_loaded_chain
+packet_recovery_on_loaded:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_packet_recovery_on_loaded_chain
+    mov edx, packet_recovery_on_loaded_replay
+    cmp eax, 0
+    je packet_recovery_on_loaded_go
+    mov edx, 0x27c11b
+    cmp eax, 1
+    je packet_recovery_on_loaded_go
+    ud2
+packet_recovery_on_loaded_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+packet_recovery_on_loaded_replay:
+    db 0x8b, 0x47, 0x04, 0x85, 0xc0
+    jmp 0x27c11b
+
 ; 0x1e944e game::game before its delete of user_data/streamed_textures (lea eax,[esp+470h] / call 0x1E8DA0: [esp+470h] the folder's physical path, a buffer_string); kept: past the delete's call (0x1E945A reads no register before it writes it): lohook -> bake_cache_on_game_start
 global bake_cache_on_game_start
 extern hook_bake_cache_on_game_start
@@ -5198,45 +5237,6 @@ music_on_sound_tick_replay:
 
 ; 0x14730 the cdecl f(queries_result&, value) a boost function made by 0x176D0 calls when a query ends, on the thread that asked (on_mounted_resources 0x1482A binds 0x14730 itself): its convention, for a callback the patch hands a query: callback -> music_on_query_done (wraps engine_store_first_resource 0x14730)
     RUST_CDECL music_on_query_done, hook_music_on_query_done, 2
-
-; 0x27c116 process_dynamic_match_info after either core deserialize returns, before mov eax,[edi+4] / test eax,eax; a load receipt is emitted only here: lohook -> packet_recovery_on_loaded
-global packet_recovery_on_loaded
-extern hook_packet_recovery_on_loaded
-packet_recovery_on_loaded:
-    lea esp, [esp - 4]
-    pushfd
-    pushad
-    cld
-    mov ebp, esp
-    sub esp, 512
-    and esp, -16
-    fxsave [esp]
-    mov edi, esp
-    sub esp, 8
-    and esp, -16
-    mov [esp], ebp
-    mov [esp+4], edi
-    mov eax, esp
-    sub esp, 12
-    push eax
-    call hook_packet_recovery_on_loaded
-    mov edx, packet_recovery_on_loaded_replay
-    cmp eax, 0
-    je packet_recovery_on_loaded_go
-    mov edx, 0x27c11b
-    cmp eax, 1
-    je packet_recovery_on_loaded_go
-    ud2
-packet_recovery_on_loaded_go:
-    mov [ebp + 36], edx
-    fxrstor [edi]
-    mov esp, ebp
-    popad
-    popfd
-    ret
-packet_recovery_on_loaded_replay:
-    db 0x8b, 0x47, 0x04, 0x85, 0xc0
-    jmp 0x27c11b
 
 ; 0x27a790 close_current_match entry push ebp / mov ebp,esp / and esp,-8; clears connection-owned receipt/log state before teardown: lohook -> packet_recovery_on_close
 global packet_recovery_on_close

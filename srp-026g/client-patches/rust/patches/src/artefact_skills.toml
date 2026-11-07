@@ -48,3 +48,9 @@ order = 1
 site = "battery.carrier_tick"
 handler = "on_movement_tick"
 order = 2
+
+# A world loaded: the shared movement history forgotten (its ticks are not the loaded world's).
+[[hook]]
+site = "world_load.loaded"
+handler = "on_world_loaded"
+order = 2
