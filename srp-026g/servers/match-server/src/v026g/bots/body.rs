@@ -550,6 +550,13 @@ impl BodyTrack {
         self.last_meant
     }
 
+    /// [A318] How far the grid's steps alone would have taken the reckoning past where the client's walk tick held it, since the
+    /// last world (the trail's [`GridExtra::way_m`]): under `kin.client_step = client`, what a world would have put the grid's
+    /// reckoning back by. Zero under `grid`.
+    pub fn held_short_since_fix(&self) -> f32 {
+        self.trail.iter().map(|r| r.grid_extra.way_m).sum()
+    }
+
     /// Where the body was reckoned to move between the last two worlds of this life, net ([`Self::last_meant`]'s way's ends).
     pub fn last_meant_net(&self) -> Option<Vec3> {
         self.last_meant_net

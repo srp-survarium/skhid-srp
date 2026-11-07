@@ -139,6 +139,7 @@ impl Bots {
                 .tracker
                 .body(bot.place)
                 .and_then(|body| body.estimate().copied());
+            bot.held_short_m = self.tracker.body(bot.place).map_or(0.0, |body| body.held_short_since_fix());
             let me = view.place(bot.place).filter(|p| p.alive);
             // [A318] Whether a jump this tick would go, before the drive spends the bar: the client's gate (`kin.jump_arc`).
             let may_jump = bot.stamina.may_jump()
