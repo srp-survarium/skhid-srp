@@ -258,7 +258,10 @@ fn a_refused_first_world_and_a_place_that_never_connects(mut bench: Bench) {
     load(&mut bench, 0);
     assert!(bench.until(2_000, |bench| bench.game().uploads_refused(0) == 1));
     bench.run_long(u64::try_from(unstarted.as_millis()).unwrap() - 5_000);
-    assert!(bench.results.try_recv().is_err(), "not made before the bound");
+    assert!(
+        bench.results.try_recv().is_err(),
+        "not made before the bound"
+    );
     bench.run_long(10_000);
     let result = bench.results.try_recv().expect("the match's result");
     assert_eq!(result.end, MatchEnd::NotMade);

@@ -135,20 +135,33 @@ impl UploadStanding {
         use UploadStanding::{InitialRefused, Passing, Refused, Resynced};
         match (event, self) {
             (Event::Passed(Judged::Initial), _) => (Passing { round: None }, Then::Nothing),
-            (Event::Passed(Judged::Asked(round)), _) => (
-                Passing {
-                    round: Some(round),
-                },
-                Then::Nothing,
-            ),
-            (Event::InitialRefused, _) => (InitialRefused, Then::Nothing),
-            (Event::Refused(blame), Passing { .. } | InitialRefused) => {
-                Refused { faults: 0, open: None }.refused(blame)
+            (Event::Passed(Judged::Asked(round)), _) => {
+                (Passing { round: Some(round) }, Then::Nothing)
             }
+            (Event::InitialRefused, _) => (InitialRefused, Then::Nothing),
+            (Event::Refused(blame), Passing { .. } | InitialRefused) => Refused {
+                faults: 0,
+                open: None,
+            }
+            .refused(blame),
             (Event::Refused(blame), Refused { .. } | Resynced { .. }) => self.refused(blame),
-            (Event::OpenOwn, Refused { faults, open: Some(_) }) => Self::own_fault(faults),
-            (Event::OpenOwn, Resynced { faults, open: Some(_) }) => Self::own_fault_resynced(faults),
-            (Event::OpenShared, Refused { faults, .. }) => (Refused { faults, open: None }, Then::Nothing),
+            (
+                Event::OpenOwn,
+                Refused {
+                    faults,
+                    open: Some(_),
+                },
+            ) => Self::own_fault(faults),
+            (
+                Event::OpenOwn,
+                Resynced {
+                    faults,
+                    open: Some(_),
+                },
+            ) => Self::own_fault_resynced(faults),
+            (Event::OpenShared, Refused { faults, .. }) => {
+                (Refused { faults, open: None }, Then::Nothing)
+            }
             (Event::OpenShared, Resynced { faults, .. }) => {
                 (Resynced { faults, open: None }, Then::Nothing)
             }
@@ -189,7 +202,13 @@ impl UploadStanding {
     fn own_fault(faults: u8) -> (Self, Then) {
         let faults = faults + 1;
         if faults >= REFUSED_IN_A_ROW {
-            (Self::Resynced { faults: 0, open: None }, Then::Resync)
+            (
+                Self::Resynced {
+                    faults: 0,
+                    open: None,
+                },
+                Then::Resync,
+            )
         } else {
             (Self::Refused { faults, open: None }, Then::Nothing)
         }
@@ -391,7 +410,13 @@ impl Game {
 
     /// The game at `index`'s standing `standing` meets `event`: its new
     /// standing, and what that brings.
-    fn standing_event(&mut self, index: usize, standing: UploadStanding, event: Event, now: Instant) {
+    fn standing_event(
+        &mut self,
+        index: usize,
+        standing: UploadStanding,
+        event: Event,
+        now: Instant,
+    ) {
         let (standing, then) = standing.next(event);
         let Some(peer) = self.peers[index].as_mut() else {
             return;
@@ -510,8 +535,7 @@ impl Game {
             return FirstWorld::Refused;
         }
         let loading = peer.is_some_and(|peer| peer.stage != Stage::Gone && !peer.resources_loaded);
-        let waited =
-            now.saturating_duration_since(self.created) >= self.settings.timing.unstarted;
+        let waited = now.saturating_duration_since(self.created) >= self.settings.timing.unstarted;
         if loading || !waited {
             FirstWorld::MayGive
         } else {
@@ -535,7 +559,10 @@ impl Game {
     /// are told the end (0xEA of their own place, `finish`), nothing of it
     /// counts, and a room votes and waits again.
     pub(super) fn check_initial_worlds(&mut self, now: Instant) {
-        if self.snapshot.is_some() || self.finished_at.is_some() || !self.initial_worlds_refused(now) {
+        if self.snapshot.is_some()
+            || self.finished_at.is_some()
+            || !self.initial_worlds_refused(now)
+        {
             return;
         }
         log::warn!(
@@ -593,7 +620,10 @@ mod tests {
     #[test]
     fn own_refusals_in_a_row_resync_then_remove_their_game() {
         let own = Event::Refused(Blame::Own);
-        let (_, thens) = run(UploadStanding::default(), &[own; 2 * REFUSED_IN_A_ROW as usize]);
+        let (_, thens) = run(
+            UploadStanding::default(),
+            &[own; 2 * REFUSED_IN_A_ROW as usize],
+        );
         let mut expected = vec![Then::Nothing; 2 * usize::from(REFUSED_IN_A_ROW)];
         expected[usize::from(REFUSED_IN_A_ROW) - 1] = Then::Resync;
         expected[2 * usize::from(REFUSED_IN_A_ROW) - 1] = Then::Remove;
@@ -603,19 +633,37 @@ mod tests {
         let events: Vec<Event> = found_own.repeat(usize::from(REFUSED_IN_A_ROW));
         let (standing, thens) = run(UploadStanding::default(), &events);
         assert_eq!(thens.last(), Some(&Then::Resync));
-        assert_eq!(standing, UploadStanding::Resynced { faults: 0, open: None });
+        assert_eq!(
+            standing,
+            UploadStanding::Resynced {
+                faults: 0,
+                open: None
+            }
+        );
 
         let (standing, _) = run(
-            UploadStanding::Refused { faults: 2, open: None },
+            UploadStanding::Refused {
+                faults: 2,
+                open: None,
+            },
             &[Event::Passed(Judged::Asked(round()))],
         );
         assert!(standing.passing());
         let (standing, then) = standing.next(Event::InitialRefused);
-        assert_eq!((standing, then), (UploadStanding::InitialRefused, Then::Nothing));
+        assert_eq!(
+            (standing, then),
+            (UploadStanding::InitialRefused, Then::Nothing)
+        );
         let (standing, then) = standing.next(Event::Refused(Blame::Own));
         assert_eq!(
             (standing, then),
-            (UploadStanding::Refused { faults: 1, open: None }, Then::Nothing)
+            (
+                UploadStanding::Refused {
+                    faults: 1,
+                    open: None
+                },
+                Then::Nothing
+            )
         );
     }
 
@@ -628,7 +676,13 @@ mod tests {
         let shared = [Event::Refused(open()), Event::OpenShared];
         let (standing, thens) = run(UploadStanding::default(), &shared.repeat(100));
         assert!(thens.iter().all(|then| *then == Then::Nothing));
-        assert_eq!(standing, UploadStanding::Refused { faults: 0, open: None });
+        assert_eq!(
+            standing,
+            UploadStanding::Refused {
+                faults: 0,
+                open: None
+            }
+        );
         assert!(!standing.passing());
         // Decided once: a second verdict on it is nothing.
         let (after, then) = standing.next(Event::OpenOwn);
