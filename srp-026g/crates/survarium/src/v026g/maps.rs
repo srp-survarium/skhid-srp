@@ -26,9 +26,11 @@
 //! - 141 (`loopback_client`) and 142 (`gather_server_resources`) are mode 0.
 
 use binary_config_parser::tree::{ConfigError, ConfigValue};
+use srp_validate::world::{Anomaly, Artefacts, Group, Held, Map, State};
 
 use super::dictionary::Dictionary;
 use super::game_data::{GameData, GameDataError};
+use super::item_params::ItemClass;
 
 #[cfg(any(test, feature = "fixtures"))]
 pub mod fixtures;
@@ -268,6 +270,10 @@ pub struct MapMode {
     /// PROVEN (data). A battery's container id in a snapshot is this id,
     /// not the team. `None` in modes 4 and 5 and without a project.
     pub container_teams: Option<[u8; 2]>,
+    /// The map's objects a world saves, in the game's order
+    /// ([`world_objects`]): what the server reads an uploaded world's game
+    /// objects with. None without a project.
+    pub world_objects: &'static Map<'static>,
 }
 
 impl MapMode {
@@ -295,7 +301,7 @@ fn leak_str(text: &str) -> &'static str {
 }
 
 /// What the server reads of a project (its `client_project`, or the
-/// server data's cut of it: [`resources_db::server::server_objects_of`]).
+/// server data's cut of it: [`resources_db::server::objects_of`]).
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct ProjectObjects {
     /// [`MapMode::respawn_points`].
@@ -303,6 +309,8 @@ pub struct ProjectObjects {
     /// The battery containers' teams by container id, if the project has
     /// containers ([`MapMode::container_teams`]).
     pub container_teams: Option<[u8; 2]>,
+    /// [`MapMode::world_objects`].
+    pub world_objects: &'static Map<'static>,
 }
 
 impl ProjectObjects {
@@ -314,7 +322,12 @@ impl ProjectObjects {
     /// team) only for a mode that has batteries; a Team Deathmatch or
     /// Research project copied from a batteries one may keep containers it
     /// never uses.
-    pub fn from_project(project: &ConfigValue, with_batteries: bool) -> Result<Self, ConfigError> {
+    pub fn from_project(
+        project: &ConfigValue,
+        with_batteries: bool,
+        data: &GameData,
+        dictionary: &Dictionary,
+    ) -> Result<Self, ConfigError> {
         let objects = project.get("server_objects");
         let respawn_points = objects
             .and_then(|objects| objects.get("respawn_points"))
@@ -356,7 +369,219 @@ impl ProjectObjects {
         Ok(Self {
             respawn_points,
             container_teams,
+            world_objects: world_objects(project, data, dictionary)?,
         })
+    }
+}
+
+/// A project of no objects a world saves.
+pub static NO_WORLD_OBJECTS: Map<'static> = Map {
+    damage_zones: 0,
+    resupply_zones: 0,
+    anomalies: &[],
+};
+
+/// The objects a world of the project saves after its places' grenades and
+/// traps, in the game's order (`srp_validate::world::objects`): its
+/// `client_objects`' damage zones that no anomaly's group names, its
+/// resupply zones and its anomalies, each kind in the project's order
+/// (`simple_game_project::insert` 0x285750). An anomaly with
+/// `artefacts_enabled` has its `artefact_containers` and `artefacts[].count`
+/// artefacts; its `states` are in the game's order: the order of
+/// `generic_anomaly_core::resolve_links` 0x33C590, an insertion sort with
+/// `state_prio` 0x33C400 ([`state_before`]; the sort the game takes for at
+/// most 16 states, and a project has at most 7). An artefact saves its
+/// amount as a stack's u16 (`inventory_item::deserialize` 0x2FFF10 by the
+/// dictionary's `is_stack`, as every map's are), and an active one what its
+/// item's core saves (`data.type`, [`ItemClass::Artefact`]): one of no stack
+/// or of no artefact's class stops the data. Leaked: the rows live as long as
+/// the process.
+pub fn world_objects(
+    project: &ConfigValue,
+    data: &GameData,
+    dictionary: &Dictionary,
+) -> Result<&'static Map<'static>, ConfigError> {
+    let objects = project
+        .get(resources_db::server::CLIENT_OBJECTS)
+        .map(ConfigValue::children)
+        .unwrap_or_default();
+    let of = |kind: &'static str| {
+        objects.iter().copied().filter(move |object| {
+            object.get("game_object_type").and_then(ConfigValue::as_str) == Some(kind)
+        })
+    };
+    let flag = |table: &ConfigValue, key: &str| -> Result<bool, ConfigError> {
+        match table.get(key) {
+            None => Ok(false),
+            Some(value) => value
+                .as_bool()
+                .ok_or_else(|| ConfigError(format!("`{key}` is not a bool"))),
+        }
+    };
+    let mut driven = std::collections::BTreeSet::new();
+    let mut anomalies = Vec::new();
+    for anomaly in of("generic_anomaly_core") {
+        let name = anomaly.get("name").and_then(ConfigValue::as_str).unwrap_or("");
+        let mut states = Vec::new();
+        for state in anomaly.get("states").map(ConfigValue::children).unwrap_or_default() {
+            let mut groups = Vec::new();
+            for group in state.get("groups").map(ConfigValue::children).unwrap_or_default() {
+                let zones = group.get("zones").map(ConfigValue::children).unwrap_or_default();
+                for zone in &zones {
+                    let zone = zone.as_str().ok_or_else(|| {
+                        ConfigError(format!("anomaly {name}: a group's zone is not a name"))
+                    })?;
+                    driven.insert(zone);
+                }
+                let zones = zones.len();
+                groups.push(if flag(group, "keep_all_zones_active")? {
+                    Group::KeepAll { zones }
+                } else {
+                    Group::Switched { zones }
+                });
+            }
+            let order = StateOrder {
+                select_priority: int(Some(state), "select_priority")?,
+                energy_threshold: int(Some(state), "energy_threshold")?,
+                shoot_trigger: flag(state, "shoot_trigger")?,
+                zone_activity_trigger: flag(state, "zone_activity_trigger")?,
+            };
+            states.push((order, State { groups: Box::leak(groups.into_boxed_slice()) }));
+        }
+        if states.len() > MAX_SORTED_STATES {
+            return Err(ConfigError(format!(
+                "anomaly {name} has {} states: the game sorts more than {MAX_SORTED_STATES} \
+                 otherwise, which srp does not know",
+                states.len()
+            )));
+        }
+        insertion_sort(&mut states);
+        let artefacts = if flag(anomaly, "artefacts_enabled")? {
+            let mut artefacts = Vec::new();
+            for artefact in anomaly.get("artefacts").map(ConfigValue::children).unwrap_or_default() {
+                let dict_id: u16 = int(Some(artefact), "dict_id")?;
+                let item = dictionary.item(dict_id).filter(|item| item.is_stack).ok_or_else(|| {
+                    ConfigError(format!(
+                        "anomaly {name}: artefact {dict_id} is no stack of the dictionary"
+                    ))
+                })?;
+                let config = super::game_data::config(data, &item.cfg_name)
+                    .map_err(|cause| ConfigError(cause.0))?
+                    .ok_or_else(|| {
+                        ConfigError(format!("anomaly {name}: artefact {dict_id} has no config"))
+                    })?;
+                let ItemClass::Artefact(core) = ItemClass::from_config(&config)? else {
+                    return Err(ConfigError(format!(
+                        "anomaly {name}: item {dict_id} is no artefact"
+                    )));
+                };
+                let count = int::<usize>(Some(artefact), "count")?;
+                artefacts.extend(std::iter::repeat_n(core, count));
+            }
+            Some(Artefacts {
+                containers: anomaly
+                    .get("artefact_containers")
+                    .map_or(0, |containers| containers.children().len()),
+                artefacts: Box::leak(artefacts.into_boxed_slice()),
+            })
+        } else {
+            None
+        };
+        let states: Vec<State> = states.into_iter().map(|(_, state)| state).collect();
+        anomalies.push(Anomaly {
+            artefacts,
+            states: Box::leak(states.into_boxed_slice()),
+        });
+    }
+    let damage_zones = of("damage_zone")
+        .filter(|zone| {
+            let name = zone.get("full_name").and_then(ConfigValue::as_str).unwrap_or("");
+            !driven.contains(name)
+        })
+        .count();
+    if damage_zones == 0 && anomalies.is_empty() && of("resupply_zone").next().is_none() {
+        return Ok(&NO_WORLD_OBJECTS);
+    }
+    Ok(Box::leak(Box::new(Map {
+        damage_zones,
+        resupply_zones: of("resupply_zone").count(),
+        anomalies: Box::leak(anomalies.into_boxed_slice()),
+    })))
+}
+
+/// A world's game objects when nothing in them was touched, as a game
+/// saves them at its start: each of `held` (the places' grenades and
+/// traps, `srp_validate::world::Objects`) one 0 byte (`grenade_core::
+/// serialize` 0x303DA0, `booby_trap_core::serialize` 0x3052E0), then the
+/// map's: a damage zone's 5 bytes, a resupply zone with no user, an
+/// anomaly with nothing pending, no energy, no state, and its containers
+/// empty and its artefacts free. For tests and scripted games.
+pub fn untouched_objects(held: impl IntoIterator<Item = Held>, map: &Map) -> Vec<u8> {
+    let mut bytes: Vec<u8> = held.into_iter().map(|_| 0).collect();
+    bytes.extend(std::iter::repeat_n(0, map.damage_zones * 5 + map.resupply_zones));
+    for anomaly in map.anomalies {
+        if anomaly.artefacts.is_some() {
+            bytes.push(0);
+        }
+        bytes.extend(0f32.to_le_bytes());
+        bytes.push(0xFF);
+        bytes.extend([0; 5]);
+        if let Some(artefacts) = anomaly.artefacts {
+            for _ in 0..artefacts.containers {
+                bytes.extend([0, 0xFF, 0, 0, 0, 0]);
+            }
+            for _ in artefacts.artefacts {
+                bytes.extend([0, 0, 0xFF, 0, 0, 0, 0, 0, 0, 0, 0, 0]);
+            }
+        }
+    }
+    bytes
+}
+
+/// The game sorts an anomaly's states by insertion up to this many
+/// (STLport's threshold of 0x40 bytes of four-byte pointers, 0x33C6C1).
+const MAX_SORTED_STATES: usize = 16;
+
+/// What `state_prio` 0x33C400 compares of a state.
+#[derive(Clone, Copy, Debug)]
+struct StateOrder {
+    select_priority: i32,
+    energy_threshold: i32,
+    shoot_trigger: bool,
+    zone_activity_trigger: bool,
+}
+
+/// `state_prio(a, b)` 0x33C400: whether `a` goes before `b`. The higher
+/// priority first, then the higher energy threshold; at a tie of both,
+/// `a`'s shoot trigger when the two differ, else `a`'s zone activity
+/// trigger (so not a strict order: kept exactly).
+fn state_before(a: &StateOrder, b: &StateOrder) -> bool {
+    if a.select_priority != b.select_priority {
+        a.select_priority > b.select_priority
+    } else if a.energy_threshold != b.energy_threshold {
+        a.energy_threshold > b.energy_threshold
+    } else if a.shoot_trigger != b.shoot_trigger {
+        a.shoot_trigger
+    } else {
+        a.zone_activity_trigger
+    }
+}
+
+/// STLport's `__insertion_sort` with [`state_before`]: an element before
+/// the first goes to the front, any other moves down while it goes before
+/// the one ahead of it (`__unguarded_linear_insert`).
+fn insertion_sort<T>(states: &mut [(StateOrder, T)]) {
+    for next in 1..states.len() {
+        if state_before(&states[next].0, &states[0].0) {
+            states[..=next].rotate_right(1);
+        } else {
+            let mut at = next;
+            // It stops at 1 at the latest: it does not go before the first.
+            while state_before(&states[at].0, &states[at - 1].0) {
+                states.swap(at, at - 1);
+                at -= 1;
+            }
+        }
     }
 }
 
@@ -374,6 +599,8 @@ impl MapMode {
         cfg_mode_name: &str,
         config: &ConfigValue,
         project: Option<&ConfigValue>,
+        data: &GameData,
+        dictionary: &Dictionary,
     ) -> Result<Option<Self>, ConfigError> {
         let mode = config.req("mode")?;
         let p = mode.get("parameters");
@@ -414,11 +641,14 @@ impl MapMode {
         };
         let rule_mode = game_mode.rules();
         let objects = project
-            .map(|project| ProjectObjects::from_project(project, rule_mode.has_batteries()))
+            .map(|project| {
+                ProjectObjects::from_project(project, rule_mode.has_batteries(), data, dictionary)
+            })
             .transpose()?
             .unwrap_or(ProjectObjects {
                 respawn_points: 0,
                 container_teams: None,
+                world_objects: &NO_WORLD_OBJECTS,
             });
         let row = Self {
             id,
@@ -453,6 +683,7 @@ impl MapMode {
             container_teams: objects
                 .container_teams
                 .filter(|_| rule_mode.has_batteries()),
+            world_objects: objects.world_objects,
         };
         if row.is_playable() {
             if row.respawn_points == 0 {
@@ -514,7 +745,14 @@ pub fn derive(data: &GameData, dictionary: &Dictionary) -> Result<Vec<MapMode>, 
                 })
             })
             .transpose()?;
-        let row = MapMode::from_config(entry.id, &entry.cfg_mode_name, &config, project.as_ref())
+        let row = MapMode::from_config(
+            entry.id,
+            &entry.cfg_mode_name,
+            &config,
+            project.as_ref(),
+            data,
+            dictionary,
+        )
             .map_err(|cause| GameDataError(format!("{path}: {}", cause.0)))?;
         rows.extend(row);
     }
@@ -554,6 +792,7 @@ pub fn find(level: u8, weather: u8, mode: GameMode) -> Option<&'static MapMode> 
 #[cfg(test)]
 mod tests {
     use super::super::dictionary::Dictionary;
+    use srp_validate::world::Artefact;
     use super::*;
 
     fn ids(mode: GameMode) -> Vec<u8> {
@@ -1387,5 +1626,88 @@ mod tests {
                 }
             }
         }
+    }
+
+    #[test]
+    fn a_maps_world_objects_are_its_lone_damage_zones_resupplies_and_anomalies() {
+        // level_01/day_2: its two damage zones are its anomalies' own.
+        let map = map_mode(61).unwrap();
+        assert_eq!(map.project, "level_01/day_2");
+        let objects = map.world_objects;
+        assert_eq!((objects.damage_zones, objects.resupply_zones), (0, 2));
+        let artefacts: Vec<_> = objects
+            .anomalies
+            .iter()
+            .map(|a| a.artefacts.map(|a| (a.containers, a.artefacts.len())))
+            .collect();
+        assert_eq!(artefacts, [Some((11, 10)), Some((5, 10))]);
+        assert_eq!(objects.artefacts(), 20);
+        // Each of its item's core (an active one saves its own bytes).
+        let cores: Vec<_> = objects
+            .anomalies
+            .iter()
+            .map(|a| a.artefacts.unwrap().artefacts)
+            .collect();
+        assert_eq!(cores, [[Artefact::Lifebone; 10], [Artefact::Spring; 10]]);
+        // level_02/evening_2: three lone zones, and the fruit anomaly's
+        // seven states.
+        let map = map_mode(69).unwrap();
+        assert_eq!(map.project, "level_02/evening_2");
+        assert_eq!(map.world_objects.damage_zones, 3);
+        let states: Vec<usize> = map.world_objects.anomalies.iter().map(|a| a.states.len()).collect();
+        assert_eq!(states, [1, 7]);
+        // Every map's objects read, and an untouched world of them reads
+        // to its end.
+        for map in all().iter().filter(|map| map.has_project) {
+            let objects = srp_validate::world::Objects {
+                held: &[Held::Grenade, Held::Trap],
+                map: map.world_objects,
+            };
+            let bytes = untouched_objects(objects.held.iter().copied(), map.world_objects);
+            let context = srp_validate::world::Context {
+                time: 0,
+                places: 1,
+                game_mode: 2,
+                batteries: 0,
+                respawn_points: None,
+                profiles: None,
+                artefacts: None,
+                objects: Some(&objects),
+                inventory: None,
+            };
+            let section = srp_validate::world::Section { at: 0, bytes: &bytes };
+            assert_eq!(srp_validate::world::objects(&section, &context), Ok(()), "{}", map.project);
+        }
+    }
+
+    #[test]
+    fn an_anomalys_states_are_in_the_games_order() {
+        let order = |select_priority, energy_threshold, shoot_trigger, zone_activity_trigger| StateOrder {
+            select_priority,
+            energy_threshold,
+            shoot_trigger,
+            zone_activity_trigger,
+        };
+        // The higher priority first, then the higher threshold (the fruit
+        // anomaly's seven states are by threshold, the lowest first).
+        let mut states: Vec<(StateOrder, u32)> = [0, 20, 400, 1000]
+            .into_iter()
+            .map(|threshold| (order(1, threshold, false, false), threshold as u32))
+            .collect();
+        states.push((order(2, 0, false, false), 2000));
+        insertion_sort(&mut states);
+        let sorted: Vec<u32> = states.iter().map(|(_, tag)| *tag).collect();
+        assert_eq!(sorted, [2000, 1000, 400, 20, 0]);
+        // At a tie the comparer is not a strict order: as the game, a state
+        // with its zone trigger goes before every one it ties with.
+        let mut states = vec![
+            (order(0, 0, false, false), 1),
+            (order(0, 0, false, true), 2),
+            (order(0, 0, false, false), 3),
+            (order(0, 0, false, true), 4),
+        ];
+        insertion_sort(&mut states);
+        let sorted: Vec<u32> = states.iter().map(|(_, tag)| *tag).collect();
+        assert_eq!(sorted, [4, 2, 1, 3]);
     }
 }
