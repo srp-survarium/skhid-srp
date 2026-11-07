@@ -36,9 +36,12 @@ pub struct KitTuning {
     /// on the move 1-2 s after a hit, so the shorter course is finished more often; the bandages (1 s + 1 s) stay in the
     /// second pocket for the rest.
     ///
-    /// OFF (`medikit`) by default: the by-side harm (fx-bench, 16 TDM pairs, tier 13-15, live rev-48 data) had the bots' kills
-    /// -7.8 % (z -1.82) and their drug stops in the 2 s delay +33 % (z +2.31). LIKELY cause: the military medkit's 0.6 body
-    /// takes more presses for a deep loss (military 396 against the Medikit's 323), each with its own 2 s delay to be hit in.
+    /// ON (`military`) by default (the owner, 2026-11-07: "for medkit i guess better ON - why not?"), on the final check's arm D
+    /// (48 pairs, the players' data, 09688abf): bot kills +1.8 %, human deaths -11.1 %, drift over 1 m -4.7 %, stuck -6 %;
+    /// the stops in the 2 s delay rise 6-13 % (the military medkit's 0.6 body takes a second press for a deep loss more
+    /// often), full health 3-9 s after a press 90.0 -> 91.1 %. The first 16-pair read (team 0's kills -7.8 %) was one-sided:
+    /// both bot teams carry the kit, and pooled it was neutral. Where the game data has no military medkit (0.26g's own
+    /// archive, the tests' data) the kit keeps the Medikit (`KitMedkit::item`).
     pub medkit: KitMedkit,
 }
 
@@ -48,7 +51,7 @@ impl Default for KitTuning {
             pocket_store: true,
             smoke: KitSmoke::RadioPlace,
             frags: KitFrags::SupportAndCamper,
-            medkit: KitMedkit::Medikit,
+            medkit: KitMedkit::Military,
         }
     }
 }
