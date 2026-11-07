@@ -51,6 +51,7 @@ pub mod roam;
 pub mod sneak;
 pub mod station;
 pub mod trade;
+pub mod trap_spot;
 pub mod watch;
 
 use mapdata::Vec3;
@@ -136,10 +137,13 @@ pub enum PlayKind {
     Answer,
     /// A crosser of a Breach on a held spot (`threat.breach`, design-p1c §1): gather out of his lanes, go on one tick, hold.
     Breach,
+    /// [A324] The camper trap job's bot (`traps.camper_job`): to a held spot's point (his way back, his death point), and stays
+    /// there while it puts a trap down.
+    TrapSpot,
 }
 
 impl PlayKind {
-    pub const ALL: [Self; 24] = [
+    pub const ALL: [Self; 25] = [
         Self::Roam,
         Self::Collect,
         Self::Ambush,
@@ -164,6 +168,7 @@ impl PlayKind {
         Self::Resupply,
         Self::Answer,
         Self::Breach,
+        Self::TrapSpot,
     ];
 
     /// The personality family whose weight the play's `Personality`
@@ -181,7 +186,8 @@ impl PlayKind {
             | Self::Retreat
             | Self::Heal
             | Self::Station
-            | Self::Resupply => Family::None,
+            | Self::Resupply
+            | Self::TrapSpot => Family::None,
         }
     }
 }
@@ -1291,6 +1297,7 @@ pub enum Running {
     Resupply(resupply::State),
     Answer(answer::State),
     Breach(breach::State),
+    TrapSpot(trap_spot::State),
 }
 
 impl Running {
@@ -1342,6 +1349,7 @@ impl Running {
             Self::Resupply(_) => PlayKind::Resupply,
             Self::Answer(_) => PlayKind::Answer,
             Self::Breach(_) => PlayKind::Breach,
+            Self::TrapSpot(_) => PlayKind::TrapSpot,
         }
     }
 
@@ -1384,6 +1392,7 @@ pub fn candidates(cx: &Ctx, out: &mut Vec<Candidate>) {
     resupply::candidates(cx, out);
     answer::candidates(cx, out);
     breach::candidates(cx, out);
+    trap_spot::candidates(cx, out);
     behind_holds(cx, out);
     squad_holds(cx, out);
     #[cfg(test)]
@@ -1477,6 +1486,7 @@ pub fn start(
         PlayKind::Resupply => Running::Resupply(resupply::start(target, cx, rng)),
         PlayKind::Answer => Running::Answer(answer::start(target, cx, rng)),
         PlayKind::Breach => Running::Breach(breach::start(target, cx, rng)),
+        PlayKind::TrapSpot => Running::TrapSpot(trap_spot::start(target, cx, rng)),
     }
 }
 
@@ -1538,6 +1548,7 @@ fn step_play(running: &mut Running, target: TargetRef, cx: &Ctx, rng: &mut Rng) 
         Running::Resupply(s) => resupply::step(s, target, cx, rng),
         Running::Answer(s) => answer::step(s, target, cx, rng),
         Running::Breach(s) => breach::step(s, target, cx, rng),
+        Running::TrapSpot(s) => trap_spot::step(s, target, cx, rng),
     }
 }
 
@@ -1579,6 +1590,7 @@ pub fn default_tuning(kind: PlayKind) -> PlayTuning {
         PlayKind::Resupply => resupply::tuning(),
         PlayKind::Answer => answer::tuning(),
         PlayKind::Breach => breach::tuning(),
+        PlayKind::TrapSpot => trap_spot::tuning(),
     }
 }
 
@@ -1609,6 +1621,7 @@ pub fn numbers(kind: PlayKind) -> &'static [(&'static str, f32)] {
         PlayKind::Resupply => resupply::NUMBERS,
         PlayKind::Answer => answer::NUMBERS,
         PlayKind::Breach => breach::NUMBERS,
+        PlayKind::TrapSpot => trap_spot::NUMBERS,
     }
 }
 

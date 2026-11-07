@@ -340,7 +340,12 @@ fn threat_tick(
         };
         let events = threat::jobs_tick(&mut threat.jobs, &mut threat.rested, &holds, lanes, opening, &job_team, &unheld, now);
         threat.deaths.retain(|d| now.saturating_sub(d.time) <= threat::DEATH_KEPT_MS);
+        // [traps.camper_job] The jobs its shooter's death ended this tick.
+        let mut died = Vec::new();
         for event in events {
+            if let threat::JobEvent::Ended { spot, shooter, end: threat::JobEnd::ShooterDied, .. } = event {
+                died.push((spot, shooter));
+            }
             threat::count_job(event);
             let mut text = format!("team {team}: {event}");
             match event {
@@ -405,6 +410,11 @@ fn threat_tick(
                 time: now,
                 text,
             });
+        }
+        // [traps.camper_job] The camper trap jobs on the held spots its K2 jobs run on.
+        if tuning.traps.camper_job.is_some() || !state.knowledge.camper_traps.is_empty() {
+            let job_spots: Vec<u32> = threat.jobs.iter().map(|j| j.spot).collect();
+            traps::camper_tick(bots, &mut state.knowledge, view, tactics, &tuning.traps, team, &held, &job_spots, &died, now, notes);
         }
         if let Some(rules) = breach_rules {
             let side = bots.iter().flatten().find(|b| b.team == team).and_then(|b| b.side);

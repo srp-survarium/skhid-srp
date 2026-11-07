@@ -2126,6 +2126,7 @@ pub(crate) fn real_bot_cost() {
                 eprintln!("  trap tally: {}", bots.trap_report());
                 eprintln!("  trap pass: {}", crate::v026g::bots::traps::onpass::line());
                 eprintln!("  trap defeated: {}", crate::v026g::bots::traps::defeated::line());
+                eprintln!("  trap camper job: {}", crate::v026g::bots::traps::camper::line());
                 eprintln!("  trap passes: {}", crate::v026g::bots::traps::passes::line());
                 let looks = bots.trap_look_outcomes();
                 eprintln!("  trap looks, team 0: {}", looks[0].line());
