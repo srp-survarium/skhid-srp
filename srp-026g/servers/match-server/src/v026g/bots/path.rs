@@ -1011,7 +1011,10 @@ fn pull_straight(
             nodes[i..=j].windows(2).any(|w| (grid.position(w[1]).y - grid.position(w[0]).y).abs() > PULL_WALK_LEVEL_M)
                 || nodes[i..=j].iter().any(|&n| grid.wall_clearance(n).is_none_or(|c| c < crate::v026g::bots::tuning::PULL_HOLD_M))
         };
-        while j > i + 1 && grid.pull_walk() && risky(i, j) && grid.pull_walk_fails(nodes[i], nodes[j]) {
+        // A risky leg longer than [`PULL_WALK_LEG_M`] is first shortened to it (no walk): one walk test is then a bounded
+        // number of client ticks, and a failed leg a bounded number of tests (the CPU spikes of long legs).
+        let long = |i: usize, j: usize| grid.position(nodes[i]).distance_xz(grid.position(nodes[j])) > PULL_WALK_LEG_M;
+        while j > i + 1 && grid.pull_walk() && risky(i, j) && (long(i, j) || grid.pull_walk_fails(nodes[i], nodes[j])) {
             j -= 1;
         }
         let from = i;
@@ -1060,6 +1063,10 @@ pub(crate) fn top_depth(grid: &WalkGrid, a: NodeId, b: NodeId) -> f32 {
 /// [A334] A step between two path floors over this, metres, makes a pulled leg one the client's walk tick checks
 /// ([`WalkGrid::pull_walk_fails`]): under it the floors are level (a cell's own floor reads within a few centimetres).
 const PULL_WALK_LEVEL_M: f32 = 0.1;
+
+/// [A334] A risky pulled leg is at most this long, metres: Detour's crowd checks a path's visibility only this near
+/// (`pathOptimizationRange`, "often agent radius x 30"; the stand radius 0.38 m x 30).
+const PULL_WALK_LEG_M: f32 = 0.38 * 30.0;
 
 /// The top of a jump link is measured to this depth at most, metres.
 const TOP_DEPTH_MAX_M: f32 = 3.5;
