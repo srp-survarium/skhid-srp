@@ -542,12 +542,13 @@ chat text 0x26B6F0: name[64], clan[16], body[256]  <- chat_text str(NAME 63/
                                                        CLAN_TAG 15/TEXT 255)
 squad     0x274720: name ~64 in a 0x50 rec, 3 recs  <- squad_info at_most(3) +
                                                        str(NAME 63)
-clan info 0x271FD0: name[64] tag[16] rank[32] names + wide msg[254]
-                                                    <- clan_info str(NAME)/
-                                                       str(ACCOUNT_CLAN_TAG 14)/
+clan info 0x271FD0: clan name[64] tag[80] rank name[32] MEMBER name[32]
+                                                    <- clan_info str(NAME 63)/
+                                                       str(79)/ RANK_NAME 31/
                                                        write_ranks/write_members
-                                                       at_most + wide(245)
-elo list  0x271EB0: name[64]                        <- elo_rows str(NAME 63)
+                                                       CLAN_MEMBER_NAME 31 [FIX]
+                                                       + wide(245)
+elo list  0x271EB0: name[64] per row, count->vector  <- elo_rows str(NAME 63)
 kit (0xE4) 0x1F112A: name[64]                       <- options::text(64) refuses
                                                        len>=64
 ```
@@ -591,14 +592,46 @@ or public data may trust our server; only a reader of ANOTHER player's data
 must be bounded, and every one of those is.
 
 All three reader groups -- world sections, player-state deep readers, and the
-match-message + lobby readers -- were read in full. Two unbounded or
+match-message + lobby readers -- were read in full. THREE unbounded or
 corruptible player-to-player values were found without a server bound or native
-guard, and both are now fixed: the animation stream (counts, indices,
-recursion, tree length, table under-run, and float finiteness) and the E
-player-effect records' embedded table indices + flags + floats
-(`effects::record_is_safe`). Everything else was already bounded; the state-
+guard, and all are now fixed: the animation stream (counts, indices, recursion,
+tree length, table under-run, and float finiteness), the E player-effect
+records' embedded table indices + flags + floats (`effects::record_is_safe`),
+and the clan member display name (NAME 63 into the 32-byte client record,
+`CLAN_MEMBER_NAME` 31). Everything else was already bounded; the state-
 corruption classes above (non-finite floats, raw pointers, bools, type and
 ownership confusion) are covered as well as the index bounds.
+
+### Enumerated another-player closure
+
+"Investigate all places" is demonstrable because the SOURCES of another
+player's data are a fixed, enumerable set, and the closure is whatever each
+dispatches to. There are exactly three entry points, each enumerated above:
+
+1. The world snapshot body `0xE8` (`game_state_history_item::deserialize`
+   0x324D80): a fixed six-section mask (bullets, statistics, rules, objects,
+   effects, and the per-player state blocks) plus the apply dispatch 0x2D2770.
+   Every section reader and every player-state sub-reader is listed and bounded
+   above; `Frame::parse` reads each to its exact end against the match config.
+   Gaps found here: the animation stream and the E records -- FIXED.
+2. The match messages `0xE3..0xF6` (`srp_validate::messages::check`): lengths,
+   place indices, input rotation/actions, envelopes, lzma2 output caps, and the
+   0xE4 static options (kits/items/slots/mods/upgrades/name<=63/clan<=14). No
+   gap.
+3. The lobby dispatcher 0x274A00: ids 0x80..0xA1 (jump table) + 0xA2..0xA4
+   (chat). All 18 `read_*` cases enumerated above; only chat 0x26B6F0, squad
+   0x274720, squad-member profile 0x1F1070, clan 0x271FD0 and elo 0x271EB0
+   carry another player's data, the rest are server->self account state. Gap
+   found here: the clan member name -- FIXED.
+
+Nothing else can deliver another player's bytes to a client: a reader not
+reachable from one of these three sources reads the player's own or the
+server's data, which it may trust (the scope line above). So the closure is
+closed, and every member of it is bounded or fixed. The one thing not shown as
+a single decompiled function is the dispatcher 0x274A00 itself -- its 70-byte
+body computes a jump into inlined cases, which defeats the decompiler (the
+process dies even at a 4M-instruction cap); it is read instead by disassembling
+the whole 0x274A00..0x275138 range, every case shown.
 
 ### Deep-state readers read in full
 
