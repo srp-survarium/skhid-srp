@@ -587,3 +587,47 @@ player-effect records' embedded table indices + flags + floats
 (`effects::record_is_safe`). Everything else was already bounded; the state-
 corruption classes above (non-finite floats, raw pointers, bools, type and
 ownership confusion) are covered as well as the index bounds.
+
+### Deep-state readers read in full
+
+The deep weapon/battery/stamina/artefact readers, read in full in the
+decompilation (not grep lines):
+
+- `weapon_core::deserialize` 0x2E3490: the ammo id `[+0x5ac][bVar2]` and the
+  next-ammo id are bounded by `inventory`'s ammo-list check, the fire-mode
+  byte `[+0x5EC]` is an `!= 6` enum, the recoil/dispersion/aim floats are
+  finitized, and the weapon FSM goes through 0x38CCF0 (native guard +
+  `inventory` state bound). No unbounded value.
+- `player_stamina::deserialize` 0x329400: five free u32 times, a bool, and two
+  floats (validator-finitized); the record slots `[+0x54]`/`[+0x64]` are
+  pre-set fields, not read from the packet. No index from the packet.
+- the artefact cores 0x3119E0 / 0x3124B0 / 0x312AF0: read their own bytes (a
+  u32, or Onyx a u32 and a finite f32) only when the state the base reader set
+  is 4 (active), which `objects` bounds to <= 5. No index.
+- the double-weapon sub-state 0x33E7F0: its `while (.. < [+0x290])` loop reads
+  nothing from the packet -- it initializes `[+0x290]` pre-sized sub-records
+  (a construction count, not a packet count).
+- the animation-channel state 0x334FB0: the outer count is an engine vector
+  size; the inner loop reads a bitmask then one value per set bit into a
+  config-sized 0x40-dword record, the bit count `[+0x577B5]` a global config.
+- the battery `victory_item_core::deserialize` 0x301660: the container byte
+  indexes `[+0x130]` and is bounded by `player_tail::battery` (< the two
+  containers) with a null check; a fixed `memcpy 0x40`; state/floats/ownership
+  via `battery`.
+
+So the goal's actual scope -- readers of another player's data -- is read at
+the site and bounded; the only two that were not are the animation stream and
+the E player-effect records, both now fixed.
+
+The lobby dispatcher 0x274A00 cannot be decompiled as one function: its own
+body is 70 bytes (the `cmp al,2; ja` head and the `jmp [ecx*4 + 0x275138]`),
+and the case blocks are reached only through that computed jump, so the
+decompiler's flow follows into them and the process dies even with the
+instruction cap raised (a tool limit, not a coverage gap). Read instead by
+disassembling the whole 0x274A00..0x275138 range: the head, then each case,
+which reads a few fixed fields and calls one named `read_*` reader (all read
+above). It has exactly one inline string read -- 0x274F44, `len = r<u8>;
+memcpy([esp+0x84], src, len); buf[len] = 0` -- the server's "operation denied /
+important message" text, a server->self system message clamped by `TEXT` /
+`STATUS_TEXT`, not another player's data. No case has an inline unbounded
+player-to-player read.
