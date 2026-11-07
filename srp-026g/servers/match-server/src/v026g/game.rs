@@ -574,13 +574,6 @@ const WAITING_RELAY_RESEND: Duration = Duration::from_millis(150);
 const WAITING_REACH_MS: u32 = 5_500;
 /// 0xE8's own lifetime in the client's table (`udp_transport::Table`).
 const WORLD_LIFETIME: Duration = Duration::from_millis(1750);
-/// A load receipt is waited for this long after the transport saw every
-/// part of its world acked (twice the client's 500 ms resend of a lost
-/// copy): then it is taken as lost and the world goes again. A world not
-/// acked is the transport's to give up at the end of its own lifetime,
-/// counted from its parts' first sends (`is_lost`), as without receipts:
-/// the time since it was queued says nothing of a line that holds it.
-const RECEIPT_WAIT: Duration = Duration::from_millis(1_000);
 
 /// A relay is of use to a game until its world time is this far past the
 /// relay's tick: its history is 500 ms, and one that comes later is moved
@@ -1487,9 +1480,9 @@ impl Game {
     }
 
     /// Negotiated in D8 before any snapshot can be offered.
-    pub(super) fn enable_world_receipts(&mut self, index: usize, now: Instant) {
+    pub(super) fn enable_world_receipts(&mut self, index: usize) {
         if let Some(peer) = self.peers.get_mut(index).and_then(Option::as_mut) {
-            peer.world_receipts.enable(now);
+            peer.world_receipts.enable();
         }
     }
 
@@ -1509,10 +1502,10 @@ impl Game {
             // handshake, and only while it is loading. It never resets a live
             // client or another peer.
             Outcome::OptionsRejected if matches!(peer.stage, Stage::Connecting | Stage::Loading) => {
-                peer.world_receipts.reject_options(now)
+                peer.world_receipts.reject_options(receipt.generation)
             }
             Outcome::Loaded | Outcome::Rejected if this_match && peer.stage != Stage::Gone => {
-                peer.world_receipts.receive(receipt.generation, receipt.outcome, now)
+                peer.world_receipts.receive(receipt.generation, receipt.outcome)
             }
             _ => Received::Ignored,
         };
@@ -5390,7 +5383,7 @@ impl Game {
         self.poll_driven(now);
 
         for index in 0..self.peers.len() {
-            let retry_options = self.peers[index].as_mut().is_some_and(|peer| peer.world_receipts.take_options_retry(now));
+            let retry_options = self.peers[index].as_mut().is_some_and(|peer| peer.world_receipts.take_options_retry());
             if retry_options {
                 let message = self.peers[index].as_ref().and_then(|peer| match peer.stage {
                     Stage::Connecting => Some(ServerMessage::Ports { min: self.port, max: self.port }),
@@ -5403,7 +5396,7 @@ impl Game {
             }
             let retry = self.peers[index].as_mut().and_then(|peer| {
                 if let Stage::Syncing { entering, .. } = peer.stage
-                    && peer.world_receipts.take_retry(peer.generation.0, now)
+                    && peer.world_receipts.take_retry(peer.generation.0)
                 { Some(entering) } else { None }
             });
             if let Some(entering) = retry {
@@ -5570,11 +5563,6 @@ impl Game {
                         continue;
                     };
                     let acked = peer.transport.is_delivered(serial);
-                    if acked {
-                        // Its receipt is due [`RECEIPT_WAIT`] after the first
-                        // look that sees it acked.
-                        peer.world_receipts.delivered(peer.generation.0, now + RECEIPT_WAIT);
-                    }
                     // A game that sends receipts has its world when it says
                     // so, whatever came of the parts' acks: those name only
                     // its newest few seqs (transport.md section 2.2), and the
@@ -5583,9 +5571,10 @@ impl Game {
                     if delivered && !acked {
                         peer.transport.forget(serial, now);
                     }
-                    if peer.world_receipts.overdue(peer.generation.0, now) {
-                        self.redo_sync(index, entering, "no world load receipt; retry without removing the recipient", now);
-                    } else if !delivered && peer.transport.is_lost(serial) {
+                    // A world acked and not loaded yet is waited for: its
+                    // receipt comes while the link lives (0xE0 is resent until
+                    // acked), Loaded or Rejected (`take_retry`).
+                    if !delivered && peer.transport.is_lost(serial) {
                         // Not acked in its 1.75 s: dropped by the transport.
                         self.redo_sync(index, entering, "the snapshot did not arrive", now);
                     } else if delivered

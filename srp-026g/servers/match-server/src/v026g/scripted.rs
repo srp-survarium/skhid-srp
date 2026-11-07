@@ -497,8 +497,9 @@ pub enum WorldReceiptMode {
     Legacy,
     Accept,
     RejectNext,
-    DropNext,
     RejectAll,
+    /// Refuses the next two handshake messages (0xE4).
+    RejectOptionsTwice,
     RejectOptionsNext,
     RejectPortsNext,
 }
@@ -506,6 +507,11 @@ pub enum WorldReceiptMode {
 pub struct Client {
     pub world_receipts: WorldReceiptMode,
     pub worlds_rejected: usize,
+    /// Handshake messages refused so far: the number its refusal carries.
+    pub handshakes_refused: u8,
+    /// Each receipt goes twice, as a copy the transport resent when its ack
+    /// was lost (0xE0 is plain: the server gets both).
+    pub receipt_copies: bool,
     pub session: u32,
     pub model: ClientModel,
     pub sim: Sim,
@@ -622,6 +628,8 @@ impl Client {
             taken: Vec::new(),
             world_receipts: WorldReceiptMode::Legacy,
             worlds_rejected: 0,
+            handshakes_refused: 0,
+            receipt_copies: false,
             skipped: Vec::new(),
             faults: Vec::new(),
             dropped_leaves: Vec::new(),
@@ -731,6 +739,13 @@ impl Client {
         let mut body = vec![id];
         body.extend_from_slice(payload);
         self.queue.push_back((body, reliable));
+    }
+
+    /// A load receipt (0xE0), reliable; twice with `receipt_copies`.
+    fn send_receipt(&mut self, receipt: &[u8]) {
+        for _ in 0..if self.receipt_copies { 2 } else { 1 } {
+            self.send(id::LEAVE, receipt, true);
+        }
     }
 
     /// 0xD8: the first message.
@@ -1016,32 +1031,38 @@ impl Client {
     }
 
     fn deliver(&mut self, id: u8, payload: &[u8]) {
-        if (id == id::STATIC_INFO && self.world_receipts == WorldReceiptMode::RejectOptionsNext)
+        if (id == id::STATIC_INFO
+            && matches!(self.world_receipts, WorldReceiptMode::RejectOptionsNext | WorldReceiptMode::RejectOptionsTwice))
             || (id == id::PORTS && self.world_receipts == WorldReceiptMode::RejectPortsNext)
         {
-            self.world_receipts = WorldReceiptMode::Accept;
-            let receipt = srp_validate::recovery::Receipt {
-                match_id: 0, generation: 0, outcome: srp_validate::recovery::Outcome::OptionsRejected,
+            self.world_receipts = match self.world_receipts {
+                WorldReceiptMode::RejectOptionsTwice => WorldReceiptMode::RejectOptionsNext,
+                _ => WorldReceiptMode::Accept,
             };
-            self.send(id::LEAVE, &receipt.encode(), true);
+            // Numbered on the connection, as the game does
+            // (`packet_recovery.rs`): the server tells a copy by it.
+            self.handshakes_refused = self.handshakes_refused.wrapping_add(1);
+            let receipt = srp_validate::recovery::Receipt {
+                match_id: 0, generation: self.handshakes_refused,
+                outcome: srp_validate::recovery::Outcome::OptionsRejected,
+            };
+            self.send_receipt(&receipt.encode());
             return;
         }
         if id == id::SNAPSHOT && !payload.is_empty()
             && self.model.generation.takes_snapshot(payload[0])
-            && matches!(self.world_receipts, WorldReceiptMode::RejectNext | WorldReceiptMode::DropNext | WorldReceiptMode::RejectAll)
+            && matches!(self.world_receipts, WorldReceiptMode::RejectNext | WorldReceiptMode::RejectAll)
         {
             let mode = self.world_receipts;
             if mode != WorldReceiptMode::RejectAll { self.world_receipts = WorldReceiptMode::Accept; }
             self.worlds_rejected += 1;
             // Native E8 stores its generation before validation/deserialization.
             self.model.generation = survarium::v026g::match_msgs::Generation(payload[0]);
-            if mode != WorldReceiptMode::DropNext {
-                let receipt = srp_validate::recovery::Receipt {
-                    match_id: self.model.options.as_ref().unwrap().match_id,
-                    generation: payload[0], outcome: srp_validate::recovery::Outcome::Rejected,
-                };
-                self.send(id::LEAVE, &receipt.encode(), true);
-            }
+            let receipt = srp_validate::recovery::Receipt {
+                match_id: self.model.options.as_ref().unwrap().match_id,
+                generation: payload[0], outcome: srp_validate::recovery::Outcome::Rejected,
+            };
+            self.send_receipt(&receipt.encode());
             return;
         }
         if self.model.growing_roster && id == id::STATIC_INFO && payload.first() == Some(&0xff) {
@@ -1121,7 +1142,7 @@ impl Client {
                         match_id: self.model.options.as_ref().unwrap().match_id,
                         generation: *generation, outcome: srp_validate::recovery::Outcome::Loaded,
                     };
-                    self.send(id::LEAVE, &receipt.encode(), true);
+                    self.send_receipt(&receipt.encode());
                 }
                 if self.simulates {
                     self.sim.load(*time, body);
