@@ -34,7 +34,7 @@ use mapdata::{LinkKind, NodeId, RayTree, Vec3, WalkGrid};
 use survarium::v026g::match_msgs::TICK_MS;
 
 use super::jump_arc::{ArcStep, JumpArc};
-use super::kin::{Blend, DropFall, Edge, FIX_ABOVE_M, FixBlend, FixFall, FixFloor, LEVEL_REACH, LEVEL_SNAP, LevelRead, LevelSource, WallSlide, JumpSnap, Kinematics, MarginEdge, TICK_S, WalkOffLanding, to_world, wrap};
+use super::kin::{Blend, DropFall, Edge, StepInput, FIX_ABOVE_M, FixBlend, FixFall, FixFloor, LEVEL_REACH, LEVEL_SNAP, LevelRead, LevelSource, WallSlide, JumpSnap, Kinematics, MarginEdge, TICK_S, WalkOffLanding, to_world, wrap};
 use super::pitch::{Pitch, PitchScale};
 use crate::v026g::drive::key;
 
@@ -94,6 +94,20 @@ pub struct Estimate {
     /// [A318] In the air over its floor after a drop ([`DropFall::Gravity`]): `feet.y` is the falling height, `node` the floor it
     /// comes down on.
     pub fall: Fall,
+    /// [A318] With [`StepInput::Previous`]: the keys and yaw (after its turn) of the input before [`Self::keys`]'s, which move the
+    /// body over the next step; `None` with [`StepInput::Same`], or where the input before is not known (then [`Self::keys`] and
+    /// [`Self::yaw`]).
+    pub step: Option<(u32, f32)>,
+}
+
+impl Estimate {
+    /// [A318] The keys and yaw the next step moves by ([`StepInput`]).
+    fn step_by(&self, kin: &Kinematics) -> (u32, f32) {
+        match (kin.step_input, self.step) {
+            (StepInput::Previous, Some(step)) => step,
+            _ => (self.keys, self.yaw),
+        }
+    }
 }
 
 /// [A318] Whether the reckoned body is on its floor or coming down onto it ([`DropFall::Gravity`]).
@@ -172,6 +186,7 @@ impl Estimate {
             arc: None,
             scale: PitchScale::Radian,
             fall: Fall::Ground,
+            step: None,
         }
     }
 }
@@ -765,6 +780,15 @@ impl BodyTrack {
             arc,
             scale: kin.pitch_scale,
             fall: Fall::Ground,
+            // [A318] The world's keys are input W's (PROVEN): the step before them takes input W-50's keys and the world's yaw
+            // less input W's turn.
+            step: (kin.step_input == StepInput::Previous)
+                .then(|| {
+                    let keys = self.ticks.iter().find(|tick| tick.time + TICK_MS == fix.time)?.keys;
+                    let turn = self.ticks.iter().find(|tick| tick.time == fix.time)?.turn.0;
+                    Some((keys, wrap(fix.yaw - turn)))
+                })
+                .flatten(),
         };
         // [A318] A world that has the body more than a step over its floor, out of its own jump, has it falling
         // ([`DropFall::Gravity`], [`DropFall::Client`]). A body in the client's jump (`kin.jump_arc`: the arc runs past the old
@@ -868,7 +892,7 @@ fn advance_held(
     grid: Option<&WalkGrid>,
     walls: Option<&RayTree>,
 ) -> (Estimate, bool) {
-    let meant = kin.target_local(at.keys, level);
+    let meant = kin.target_local(at.step_by(kin).0, level);
     let next = advance(at, tick, kin, level, grid, walls, Role::Reckoning);
     let held = grid.is_some() && meant[0].hypot(meant[1]) > 1e-3 && next.velocity == [0.0, 0.0];
     (next, held)
@@ -889,8 +913,11 @@ fn advance(
 ) -> Estimate {
     let steps = (tick.time.saturating_sub(at.time) / TICK_MS).max(1);
     let falls = role == Role::Reckoning && kin.drop_fall != DropFall::Snap;
-    let target = kin.target_local(at.keys, level);
     for step in 1..=steps {
+        // [A318] [`StepInput::Previous`]: the held-back input moves the first step only; a stall's further steps (no input
+        // decided between) move with the newest input, as the client holds it.
+        let (step_keys, step_yaw) = if step == 1 { at.step_by(kin) } else { (at.keys, at.yaw) };
+        let target = kin.target_local(step_keys, level);
         // [A318] A falling body moves across from its floor; its height is played after the step.
         let top = at.feet.y;
         if let (Some(grid), Fall::Falling { .. }, Some(node), None) = (grid, at.fall, at.node, at.arc) {
@@ -900,7 +927,7 @@ fn advance(
         // [A318] The client's jump: the clip's arc moves the body, the blend ticks on under it so the landing resumes from the
         // client's mix (fx-zones' `kin.mixer`).
         if let (Some(mut arc), Some(grid), Some(node)) = (at.arc, grid, at.node) {
-            let out = arc.step(grid, walls, at.feet, at.yaw, at.keys, at.time + step * TICK_MS);
+            let out = arc.step(grid, walls, at.feet, step_yaw, step_keys, at.time + step * TICK_MS);
             at.arc = Some(arc);
             match out {
                 ArcStep::Ground(travel) => {
@@ -927,8 +954,8 @@ fn advance(
         }
         // [A318] The client's step cap (`max_speed` 0x2DC010 in 0x2D9060) on the blend's speed, by the keys moving it; not in a jump.
         let jumping = at.time + step * TICK_MS <= at.air_until;
-        let local = if jumping { local } else { kin.speed_cap.capped(local, at.keys, level) };
-        at.velocity = to_world(local, at.yaw);
+        let local = if jumping { local } else { kin.speed_cap.capped(local, step_keys, level) };
+        at.velocity = to_world(local, step_yaw);
         let to = Vec3::new(
             at.feet.x + at.velocity[0] * TICK_S,
             at.feet.y,
@@ -993,6 +1020,7 @@ fn advance(
     } else if tick.time > at.air_until {
         at.air_until = 0;
     }
+    at.step = (kin.step_input == StepInput::Previous).then_some((at.keys, at.yaw));
     at.yaw = wrap(at.yaw + tick.turn.0);
     at.pitch = (at.pitch + tick.turn.1).clamp(-MAX_PITCH, MAX_PITCH);
     at.kick = tick.kick;
@@ -1849,6 +1877,8 @@ pub(super) mod tests {
     fn the_way_the_keys_meant_between_two_worlds_is_kept() {
         let kin = Kinematics {
             blend_ticks: 1,
+            // [A318] The step timing has its own test (`the_step_moves_with_the_input_before`); these numbers are the old one's.
+            step_input: StepInput::Same,
             ..Kinematics::default()
         };
         let mut track = BodyTrack::default();
@@ -1924,6 +1954,8 @@ pub(super) mod tests {
         // Speeds reached at once, to count the metres.
         let kin = Kinematics {
             blend_ticks: 1,
+            // [A318] The step timing has its own test (`the_step_moves_with_the_input_before`); these numbers are the old one's.
+            step_input: StepInput::Same,
             ..Kinematics::default()
         };
         let mut track = BodyTrack::default();
@@ -2014,6 +2046,8 @@ pub(super) mod tests {
         // Speeds reached at once, to count the metres.
         let kin = Kinematics {
             blend_ticks: 1,
+            // [A318] The step timing has its own test (`the_step_moves_with_the_input_before`); these numbers are the old one's.
+            step_input: StepInput::Same,
             ..Kinematics::default()
         };
         let walk = |track: &mut BodyTrack, from: u32, to: u32| {
@@ -2375,7 +2409,7 @@ pub(super) mod tests {
     fn a_released_sprint_drops_to_the_walk_cap_at_once() {
         use super::super::kin::SpeedCap;
         let run = |speed_cap: SpeedCap| {
-            let kin = Kinematics { speed_cap, ..Kinematics::default() };
+            let kin = Kinematics { speed_cap, step_input: StepInput::Same, ..Kinematics::default() };
             let mut track = BodyTrack::default();
             track.fixed(fix(0, Vec3::new(0.0, 0.0, 0.0), 0.0), &kin, None);
             let mut speeds = Vec::new();
@@ -2393,6 +2427,54 @@ pub(super) mod tests {
         assert!((on[21] - 3.5).abs() < 1e-3, "the walk cap at once: {on:?}");
         assert!(off[21] > 4.5, "the blend alone carries the sprint: {off:?}");
         assert!(on.iter().all(|v| *v <= 5.0 + 1e-3));
+    }
+
+    /// [A318] [`StepInput::Previous`] (the client's): the step into the feet at N moves with input N-100's keys and its yaw after
+    /// that input's turn; [`StepInput::Same`] (the old reckoning) one tick early.
+    #[test]
+    fn the_step_moves_with_the_input_before() {
+        // [A318] [`StepInput`]: from a world at rest, inputs at 50, 100, 150, ...: forward from 50 on, a quarter turn at 100. The
+        // client's step into the feet at N moves with input N-100's keys and its yaw after that input's turn (fx-review A336).
+        let walk = |step_input: StepInput| {
+            let kin = Kinematics { blend_ticks: 1, step_input, ..Kinematics::default() };
+            let mut track = BodyTrack::default();
+            track.fixed(fix(0, Vec3::new(10.0, 0.0, 10.0), 0.0), &kin, None);
+            let mut feet = vec![];
+            for time in (50..=250).step_by(50) {
+                let turn = if time == 100 { std::f32::consts::FRAC_PI_2 } else { 0.0 };
+                track.decided(time, key::FORWARD, (turn, 0.0), 0.0, &kin, None);
+                feet.push(track.estimate().unwrap().feet);
+            }
+            feet
+        };
+        let moved = |feet: &[Vec3], i: usize| feet[i].distance_xz(feet[i - 1]) > 1e-3;
+        let way = |feet: &[Vec3], i: usize| (feet[i].x - feet[i - 1].x, feet[i].z - feet[i - 1].z);
+        let (same, previous) = (walk(StepInput::Same), walk(StepInput::Previous));
+        // Same: the step into 100 moves with input 50's forward; Previous: first the step into 150.
+        assert!(moved(&same, 1) && !moved(&previous, 1));
+        assert!(moved(&previous, 2));
+        // The turn at 100: Same's step into 150 already goes the new way, Previous's goes the old way (into 200 the new one).
+        let old = way(&previous, 2);
+        let new = way(&previous, 3);
+        assert!((way(&same, 2).0 - new.0).abs() < 1e-3 && (way(&same, 2).1 - new.1).abs() < 1e-3, "{same:?} {previous:?}");
+        assert!((old.0 - new.0).abs() + (old.1 - new.1).abs() > 0.05, "{previous:?}");
+    }
+
+    /// [A318] A stall (no input decided for several ticks) under [`StepInput::Previous`] moves its first step with the input held
+    /// back, the rest with the newest, as the client holds it.
+    #[test]
+    fn a_stall_holds_the_input_back_for_its_first_step_only() {
+        let kin = Kinematics { blend_ticks: 1, step_input: StepInput::Previous, ..Kinematics::default() };
+        let mut track = BodyTrack::default();
+        track.fixed(fix(0, Vec3::new(10.0, 0.0, 10.0), 0.0), &kin, None);
+        track.decided(50, 0, (0.0, 0.0), 0.0, &kin, None);
+        track.decided(100, key::FORWARD, (0.0, 0.0), 0.0, &kin, None);
+        let at = track.estimate().unwrap().feet;
+        // Nothing decided from 150 to 550: ten steps, the first with input 50's stand, nine with input 100's forward.
+        track.decided(600, key::FORWARD, (0.0, 0.0), 0.0, &kin, None);
+        let gone = track.estimate().unwrap().feet.distance_xz(at);
+        let tick = track.estimate().unwrap().velocity[0].hypot(track.estimate().unwrap().velocity[1]) * TICK_S;
+        assert!((gone - 9.0 * tick).abs() < 0.02, "gone {gone} tick {tick}");
     }
 
     /// [A318] [`FixFall::World`]: a world that has the body 0.5 m over its floor (under the step) going down at 3 m/s starts the

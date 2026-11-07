@@ -576,10 +576,18 @@ fn stand_in_camper_with(seed: u64, tuning: Tuning, options: CamperOptions) -> ([
 /// never does.
 #[test]
 pub(crate) fn the_watching_camper_holds_the_scope_at_its_spot_and_the_old_one_does_not() {
-    let (held, scoped) = stand_in_camper_with(1, Tuning::default(), CamperOptions { watch: Watch::Lane, ..CamperOptions::OFF });
+    // [A318] Pinned to the old step order (bots and stand-in): with the client's (`kin::StepInput::Previous` both sides) a bot's own
+    // keys act a tick later and the motor does not plan for it yet; the motor follow-up (fx-zones, after #1435) lifts this.
+    let _step = super::standin_jump::OldStepInput::scope();
+    let old_step = || {
+        let mut tuning = Tuning::default();
+        tuning.kin.step_input = crate::v026g::bots::kin::StepInput::Same;
+        tuning
+    };
+    let (held, scoped) = stand_in_camper_with(1, old_step(), CamperOptions { watch: Watch::Lane, ..CamperOptions::OFF });
     assert!(held[0].0 >= 50 && f64::from(held[0].1) >= 0.9 * f64::from(held[0].0), "{held:?}");
     assert!(scoped >= held[0].0 / 4, "scoped {scoped} of {} ticks at the spot", held[0].0);
-    let (_, never) = stand_in_camper_with(1, Tuning::default(), CamperOptions::OFF);
+    let (_, never) = stand_in_camper_with(1, old_step(), CamperOptions::OFF);
     assert!(never < scoped / 4, "the old one scoped {never} against {scoped}");
 }
 
@@ -587,7 +595,12 @@ pub(crate) fn the_watching_camper_holds_the_scope_at_its_spot_and_the_old_one_do
 /// goes to its spot and holds it; its teammate (the near miss) roams.
 #[test]
 pub(crate) fn the_stand_in_camper_holds_its_spot_and_a_teammate_does_not() {
-    let held = stand_in_camper_run(1, Tuning::default());
+    // [A318] Pinned to the old step order (bots and stand-in): with the client's (`kin::StepInput::Previous` both sides) a bot's own
+    // keys act a tick later and the motor does not plan for it yet; the motor follow-up (fx-zones, after #1435) lifts this.
+    let _step = super::standin_jump::OldStepInput::scope();
+    let mut tuning = Tuning::default();
+    tuning.kin.step_input = crate::v026g::bots::kin::StepInput::Same;
+    let held = stand_in_camper_run(1, tuning);
     // The camper got there and held it while alive (the reflex never moves
     // it off; 3 s of it at least: how soon it arrives depends on the
     // match's draws); its mate spent little of its life there.
