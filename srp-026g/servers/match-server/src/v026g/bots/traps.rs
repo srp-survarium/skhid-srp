@@ -2551,7 +2551,13 @@ fn aim_of(bot: &Bot, me: &PlaceView, crouched: bool, t: &TrapTuning, mesh: Optio
             };
             // [A324] Nor on its own way: the client's trap is armed at once and takes its placer's foot (`traps.press_clear`).
             let press = match (press, landed) {
-                (Press::Ready, Some(at)) if !clears_own_path(t.press_clear, me.feet, me.velocity, at) => Press::Wait(Why::OnRoute),
+                (Press::Ready, Some(at))
+                    if !clears_own_path(t.press_clear, me.feet, me.velocity, at, || {
+                        if staying { Vec::new() } else { route_ahead(bot, me, t).0 }
+                    }) =>
+                {
+                    Press::Wait(Why::OnRoute)
+                }
                 (press, _) => press,
             };
             Aim::Look {
@@ -2571,10 +2577,24 @@ fn aim_of(bot: &Bot, me: &PlaceView, crouched: bool, t: &TrapTuning, mesh: Optio
     }
 }
 
-/// [A324] Whether a trap at `at` lies clear of the body's own path at the press (`TrapTuning::press_clear`); always with the
-/// switch off.
-fn clears_own_path(clear: Option<PressClear>, feet: Vec3, velocity: [f32; 2], at: Vec3) -> bool {
-    clear.is_none_or(|c| swept_m(feet, velocity, c.sweep_s, at) >= c.clear_m)
+/// [A324] Whether a trap at `at` lies clear of the body's own way at the press (`TrapTuning::press_clear`): the straight line of
+/// its velocity over `sweep_s`, and the route it walks (`route`: its points ahead, a metre apart, from its progress; empty for a
+/// bot that stays) for as far as it gets in that time, by `clear_m`. A walker turning with its route took its own trap 0.9 s after
+/// a press 1.21 m clear of its straight line (the A324 by-side check). Always with the switch off.
+fn clears_own_path(clear: Option<PressClear>, feet: Vec3, velocity: [f32; 2], at: Vec3, route: impl FnOnce() -> Vec<Vec3>) -> bool {
+    let Some(c) = clear else {
+        return true;
+    };
+    if swept_m(feet, velocity, c.sweep_s, at) < c.clear_m {
+        return false;
+    }
+    let reach_m = velocity[0].hypot(velocity[1]) * c.sweep_s;
+    if reach_m <= 0.0 {
+        return true;
+    }
+    // The feet, then the route's points within the reach (and the one past it): the stretch the legs take next.
+    let way: Vec<Vec3> = std::iter::once(feet).chain(route().into_iter().take(reach_m.ceil() as usize + 2)).collect();
+    off_route_m(&way, at) >= c.clear_m
 }
 
 /// [A292 S4a] How near `at` comes to the body's own path over the next `sweep_s` (its feet moved by its velocity), metres on
@@ -3882,12 +3902,20 @@ mod tests {
         assert!(clear.is_some(), "on by default");
         let feet = Vec3::new(0.0, 0.0, 0.0);
         let walking = [2.3, 0.0];
-        assert!(!clears_own_path(clear, feet, walking, Vec3::new(1.1, 0.0, 0.1)), "straight ahead");
-        assert!(!clears_own_path(clear, feet, walking, Vec3::new(0.8, 0.0, 0.8)), "45 deg ahead: 0.8 m off the way");
-        assert!(clears_own_path(clear, feet, walking, Vec3::new(0.3, 0.0, 1.1)), "aside");
-        assert!(clears_own_path(clear, feet, walking, Vec3::new(-1.1, 0.0, 0.2)), "behind");
-        assert!(clears_own_path(clear, feet, [0.0, 0.0], Vec3::new(1.1, 0.0, 0.0)), "standing");
-        assert!(clears_own_path(None, feet, walking, Vec3::new(1.1, 0.0, 0.1)), "off: the old press");
+        let none = Vec::new;
+        assert!(!clears_own_path(clear, feet, walking, Vec3::new(1.1, 0.0, 0.1), none), "straight ahead");
+        assert!(!clears_own_path(clear, feet, walking, Vec3::new(0.8, 0.0, 0.8), none), "45 deg ahead: 0.8 m off the way");
+        assert!(clears_own_path(clear, feet, walking, Vec3::new(0.3, 0.0, 1.1), none), "aside");
+        assert!(clears_own_path(clear, feet, walking, Vec3::new(-1.1, 0.0, 0.2), none), "behind");
+        assert!(clears_own_path(clear, feet, [0.0, 0.0], Vec3::new(1.1, 0.0, 0.0), none), "standing");
+        assert!(clears_own_path(None, feet, walking, Vec3::new(1.1, 0.0, 0.1), none), "off: the old press");
+        // A route that turns: 1 m on along +x, then towards +z, where the trap lies aside of the straight line.
+        let turning = || vec![Vec3::new(0.0, 0.0, 0.0), Vec3::new(1.0, 0.0, 0.0), Vec3::new(1.0, 0.0, 1.0), Vec3::new(1.0, 0.0, 2.0)];
+        let aside = Vec3::new(0.3, 0.0, 1.2);
+        assert!(clears_own_path(clear, feet, walking, aside, none), "clear of the straight line");
+        assert!(!clears_own_path(clear, feet, walking, aside, turning), "on the route's turn");
+        let far_on = || vec![Vec3::new(0.0, 0.0, 0.0), Vec3::new(1.0, 0.0, 0.0), Vec3::new(2.0, 0.0, 0.0), Vec3::new(3.0, 0.0, 0.0), Vec3::new(4.0, 0.0, 0.0), Vec3::new(5.0, 0.0, 0.0), Vec3::new(6.0, 0.0, 1.2)];
+        assert!(clears_own_path(clear, feet, walking, Vec3::new(6.0, 0.0, 1.2), far_on), "past the second's reach");
         let mut tuning = t();
         assert!(tuning.check().is_ok());
         tuning.press_clear = Some(PressClear { clear_m: 0.5, sweep_s: 1.0 });
