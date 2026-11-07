@@ -3026,6 +3026,12 @@ impl WalkGrid {
             .map(|i| self.pockets[i].1)
     }
 
+    /// [A347] Whether `pocket` has more floors than [`Self::pocket_exits`] looks at ([`POCKET_EXIT_FLOORS`]): its exits past them
+    /// go unseen, so whether it has a way out is not known (never shut, [`Self::mark_no_exit`]; never a trap to a straight step).
+    pub fn pocket_exits_unseen(&self, pocket: PocketId) -> bool {
+        self.pocket_floors(pocket).nth(POCKET_EXIT_FLOORS).is_some()
+    }
+
     /// The floors of `pocket`, in order.
     pub fn pocket_floors(&self, pocket: PocketId) -> impl Iterator<Item = NodeId> + '_ {
         self.pockets
@@ -4960,6 +4966,23 @@ pub(crate) mod tests {
         assert!(on.in_shut_pocket(bottom), "on: none can be taken, the pocket is shut");
         let spawn = on.locate(Vec3::new(2.0, 0.0, 5.0), 0.3).unwrap();
         assert!(on.path(spawn, bottom).is_none(), "and no way is planned in");
+    }
+
+    /// [A347] A pit of more floors than [`WalkGrid::pocket_exits`] looks at ([`POCKET_EXIT_FLOORS`]) has exits it does not see
+    /// (Chemical Plant day 2's 2,805-floor pocket at (-0.62, 2.40, 63.38)); a small one has none unseen.
+    #[test]
+    fn a_pocket_of_more_floors_than_its_exits_are_looked_for_on_has_them_unseen() {
+        let body = Body { erosion: Erosion::Exact, drop_flight_mps: 3.5, ..Body::default() };
+        let pit = |area: [f32; 4]| {
+            let grid = pit_in_yard(1.2, area, 0.0, None, body);
+            let bottom = grid.locate(Vec3::new(10.0, -1.2, 5.0), 0.3).expect("the pit's floor");
+            let pocket = grid.pocket_of(bottom).expect("a pocket");
+            (grid.pocket_floors(pocket).count(), grid.pocket_exits_unseen(pocket))
+        };
+        let (floors, unseen) = pit([2.5, 0.5, 19.5, 9.5]);
+        assert!(floors > POCKET_EXIT_FLOORS && unseen, "{floors} floors");
+        let (floors, unseen) = pit([8.0, 3.0, 12.0, 7.0]);
+        assert!(floors <= POCKET_EXIT_FLOORS && !unseen, "{floors} floors");
     }
 
     /// [`Body::exits_in_reach`] (A347): the escape's exits are only those a body can take. A pit walled 3 m high at its rim
