@@ -168,6 +168,10 @@ preferred-image VAs; `apply_modifier` is the kit-modifier getter 0x2D5AE0.
   and a first-person twin (`view` 0, `<system>_fp`) without `up_light` and `distortion`, the same
   time and end. The exe is unchanged: it plays the effect by name, its resource is the
   composite's.
+- Since @13 (the owner, 2026-11-07: "a tiny bit" thicker): the smoke emitters (FOREST_SMOKE:
+  `up`, `body`, `left_hend`, `right_hend`) have their Rate (curve and data source) and
+  MaxParticles (rounded up) x1.5 (`SMOKE_THICKER`); colours, sizes, the rays and the twin as @12.
+  `check_forest` allows exactly that factor.
 
 ## Artifact Container (522)
 
@@ -313,7 +317,7 @@ preferred-image VAs; `apply_modifier` is the kit-modifier getter 0x2D5AE0.
   each 4 less the recipient's own carried copies of the kind (in their passive or active).
   Larkspur's active heal is Medic's, which has no cap: a full heal twice is one.
 
-### Leg quarters (patch 111, pack artefact-glow@12)
+### Leg quarters (patch 111, pack artefact-glow@13)
 
 - The owner (2026-11-06): each passive artefact copy that counts for a player lights a quarter
   of its legs in that artefact's colour (how stacked a player is).
@@ -350,6 +354,10 @@ preferred-image VAs; `apply_modifier` is the kit-modifier getter 0x2D5AE0.
 - Effects: `artefact_leg_<kind>_<n>` (n 1..4), view 2: the kind's stock glow with only the
   quarter's parts on, its emitters with none of them left out. Forest Protection's grey glow
   plays beside them, unchanged.
+- Since @13 (the owner, 2026-11-07: "it should be like on yourself for everyone"): each quarter
+  is one particle effect (type 114) of view 2, everyone's view and the carrier's alike, playing
+  its system without the point light (`up_light`) and the haze (`distortion`); no composite and
+  no `_fp` twin (@10..@12 gave everyone else the light and the haze).
 - Density (the owner, 2026-11-06: @6's quarters looked unlike the activation glow): each kept
   emitter's Rate (curve and data source) and MaxParticles (rounded up, at least 1) are the
   stock's times the share of the stock emitter's body parts it keeps (distortion 1 of 11, rays

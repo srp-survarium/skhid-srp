@@ -116,6 +116,9 @@ down) when you use artifact? Note that your vision should still be clear")
   the arms at full rate with its `up` puffs and `body` strokes moved onto them, no light, the
   smoke drawn with `fx/artifacts/smoke_dark_grey` (a copy of the alpha-blended
   `explosions/dark_smoke`); in the carrier's own view its rays only.
+- Version 13: the leg quarters one particle effect of view 2 each, without the point light and the
+  haze (what the carrier saw is what everyone sees), no first-person twin; Forest Protection's smoke
+  emitters' Rate and MaxParticles x1.5.
 - History: version 1 (a lighter copy) and version 2 (with `up_light`'s lights at x0.35) showed
   too little in the first person; version 3, the stock glow without the head, was tested by the
   owner and approved (2026-10-25: "this version is good"). Version 4 is the same files.
