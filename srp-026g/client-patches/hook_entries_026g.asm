@@ -687,10 +687,10 @@ artefact_carry_on_flower_destroy_replay:
     db 0x56, 0x8b, 0xf1, 0x8b, 0x8e, 0xa4, 0x04, 0x00, 0x00
     jmp 0x25efe9
 
-; 0x2d77c0 base_player::on_player_death entry, ECX live player before remove_alive/inventory death: lohook -> artefact_carry_on_death
-global artefact_carry_on_death
-extern hook_artefact_carry_on_death
-artefact_carry_on_death:
+; 0x2d77c0 base_player::on_player_death entry, ECX live player before remove_alive/inventory death: lohook -> hidden_stash_on_death
+global hidden_stash_on_death
+extern hook_hidden_stash_on_death_chain
+hidden_stash_on_death:
     lea esp, [esp - 4]
     pushfd
     pushad
@@ -707,22 +707,22 @@ artefact_carry_on_death:
     mov eax, esp
     sub esp, 12
     push eax
-    call hook_artefact_carry_on_death
-    mov edx, artefact_carry_on_death_replay
+    call hook_hidden_stash_on_death_chain
+    mov edx, hidden_stash_on_death_replay
     cmp eax, 0
-    je artefact_carry_on_death_go
+    je hidden_stash_on_death_go
     mov edx, 0x2d77c5
     cmp eax, 1
-    je artefact_carry_on_death_go
+    je hidden_stash_on_death_go
     ud2
-artefact_carry_on_death_go:
+hidden_stash_on_death_go:
     mov [ebp + 36], edx
     fxrstor [edi]
     mov esp, ebp
     popad
     popfd
     ret
-artefact_carry_on_death_replay:
+hidden_stash_on_death_replay:
     db 0x56, 0x8b, 0xf1, 0x6a, 0x01
     jmp 0x2d77c5
 
@@ -804,10 +804,10 @@ artefact_carry_on_ground_load_replay:
     db 0x8b, 0x47, 0x04, 0x8b, 0x08
     jmp 0x3137f1
 
-; 0x1f28e0 client player death override, ECX player; inlines base teardown, does not call 0x2D77C0: lohook -> artefact_carry_on_client_death
-global artefact_carry_on_client_death
-extern hook_artefact_carry_on_client_death
-artefact_carry_on_client_death:
+; 0x1f28e0 client player death override, ECX player; inlines base teardown, does not call 0x2D77C0: lohook -> hidden_stash_on_client_death
+global hidden_stash_on_client_death
+extern hook_hidden_stash_on_client_death_chain
+hidden_stash_on_client_death:
     lea esp, [esp - 4]
     pushfd
     pushad
@@ -824,22 +824,22 @@ artefact_carry_on_client_death:
     mov eax, esp
     sub esp, 12
     push eax
-    call hook_artefact_carry_on_client_death
-    mov edx, artefact_carry_on_client_death_replay
+    call hook_hidden_stash_on_client_death_chain
+    mov edx, hidden_stash_on_client_death_replay
     cmp eax, 0
-    je artefact_carry_on_client_death_go
+    je hidden_stash_on_client_death_go
     mov edx, 0x1f28e5
     cmp eax, 1
-    je artefact_carry_on_client_death_go
+    je hidden_stash_on_client_death_go
     ud2
-artefact_carry_on_client_death_go:
+hidden_stash_on_client_death_go:
     mov [ebp + 36], edx
     fxrstor [edi]
     mov esp, ebp
     popad
     popfd
     ret
-artefact_carry_on_client_death_replay:
+hidden_stash_on_client_death_replay:
     db 0x57, 0x8b, 0xf9, 0x6a, 0x01
     jmp 0x1f28e5
 
@@ -962,7 +962,7 @@ battery_progress_on_carrier_tick_replay:
 
 ; 0x31c810 artefact_container_core::use_execute after the collection time, before transfer_artefact (lea eax,[ebx+108h]; push eax; call 0x31C8A0): EBX the user, EDI the container; event 5 is counted after it (0x31C845): lohook -> artefact_score_on_transfer
 global artefact_score_on_transfer
-extern hook_artefact_score_on_transfer
+extern hook_artefact_score_on_transfer_chain
 artefact_score_on_transfer:
     lea esp, [esp - 4]
     pushfd
@@ -980,7 +980,7 @@ artefact_score_on_transfer:
     mov eax, esp
     sub esp, 12
     push eax
-    call hook_artefact_score_on_transfer
+    call hook_artefact_score_on_transfer_chain
     mov edx, artefact_score_on_transfer_replay
     cmp eax, 0
     je artefact_score_on_transfer_go
@@ -2467,6 +2467,48 @@ hand_kill_on_hit_go:
 hand_kill_on_hit_replay:
     db 0x8d, 0x4c, 0x24, 0x10, 0x51
     jmp 0x2e50cc
+
+; 0x31c6fb artefact_container_core::can_use, its container test (cmp byte [eax+16Ch],0; the jbe at 0x31C702 refuses a user with none): ESI the user, EAX its inventory; room is the next test (no carried item, [eax+178h]), the state-2 test already passed: lohook -> hidden_stash_on_can_use
+global hidden_stash_on_can_use
+extern hook_hidden_stash_on_can_use
+hidden_stash_on_can_use:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_hidden_stash_on_can_use
+    mov edx, hidden_stash_on_can_use_replay
+    cmp eax, 0
+    je hidden_stash_on_can_use_go
+    mov edx, 0x31c702
+    cmp eax, 1
+    je hidden_stash_on_can_use_go
+    mov edx, 0x31c704
+    cmp eax, 2
+    je hidden_stash_on_can_use_go
+    ud2
+hidden_stash_on_can_use_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+hidden_stash_on_can_use_replay:
+    db 0x80, 0xb8, 0x6c, 0x01, 0x00, 0x00, 0x00
+    jmp 0x31c702
 
 ; 0x234880 game_world_ui::initialize_match's start (sub esp,5D4h), once a match (from 0x1F855D; the late join's rebuild enters at 0x234E71): the site's ESP+4 the hud, whose kits (+2DFh) and cursor (+2DCh) are the last match's: lohook -> hud_cursor_on_match_start
 global hud_cursor_on_match_start

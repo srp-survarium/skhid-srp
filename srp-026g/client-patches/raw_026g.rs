@@ -20270,4 +20270,28 @@ pub mod site {
             NonNull::new(machine.site_esp() as usize as *mut c_void).map(KeeperRegisterFrame)
         }
     }
+
+    /// hidden_stash.can_use (0x31c6fb): artefact_container_core::can_use, its container test (cmp byte [eax+16Ch],0; the jbe at 0x31C702 refuses a user with none): ESI the user, EAX its inventory; room is the next test (no carried item, [eax+178h]), the state-2 test already passed
+    pub mod hidden_stash_can_use {
+        #[allow(unused_imports)]
+        use super::*;
+
+        /// ESI: a survarium::player (None for 0).
+        ///
+        /// # Safety
+        /// `machine` is at this site.
+        #[inline(always)]
+        pub unsafe fn player(machine: &impl Machine) -> Option<Player> {
+            NonNull::new(machine.register(Register::Esi) as usize as *mut c_void).map(Player)
+        }
+
+        /// EAX: a survarium::inventory (None for 0).
+        ///
+        /// # Safety
+        /// `machine` is at this site.
+        #[inline(always)]
+        pub unsafe fn inventory(machine: &impl Machine) -> Option<Inventory> {
+            NonNull::new(machine.register(Register::Eax) as usize as *mut c_void).map(Inventory)
+        }
+    }
 }

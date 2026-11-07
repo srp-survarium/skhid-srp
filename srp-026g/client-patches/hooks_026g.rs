@@ -291,6 +291,21 @@ pub extern "C" fn hook_artefact_carry_on_flower_destroy(frame: &mut Frame) -> u3
     }
 }
 
+// ---- hidden_stash (patch 109) ----
+
+/// The entry `hidden_stash_on_death` (0x2d77c0, base_player::on_player_death entry, ECX live player before remove_alive/inventory death) calls this with the saved machine.
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_hidden_stash_on_death(frame: &mut Frame) -> u32 {
+    // SAFETY: only the entry `hidden_stash_on_death` calls this, from the game's jump at 0x2d77c0,
+    // on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::new(frame) };
+    match crate::hidden_stash::on_death(&mut ctx) {
+        Flow::Continue => 0,
+        Flow::Skip => 1,
+        Flow::Exit(e) => match e {},
+    }
+}
+
 // ---- artefact_carry (patch 78) ----
 
 /// The entry `artefact_carry_on_death` (0x2d77c0, base_player::on_player_death entry, ECX live player before remove_alive/inventory death) calls this with the saved machine.
@@ -330,6 +345,21 @@ pub extern "C" fn hook_artefact_carry_on_ground_load(frame: &mut Frame) -> u32 {
     // on the game's thread; `frame` is its saved registers and fxsave area.
     let mut ctx = unsafe { Context::new(frame) };
     match crate::artefact_carry::on_ground_load(&mut ctx) {
+        Flow::Continue => 0,
+        Flow::Skip => 1,
+        Flow::Exit(e) => match e {},
+    }
+}
+
+// ---- hidden_stash (patch 109) ----
+
+/// The entry `hidden_stash_on_client_death` (0x1f28e0, client player death override, ECX player; inlines base teardown, does not call 0x2D77C0) calls this with the saved machine.
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_hidden_stash_on_client_death(frame: &mut Frame) -> u32 {
+    // SAFETY: only the entry `hidden_stash_on_client_death` calls this, from the game's jump at 0x1f28e0,
+    // on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::new(frame) };
+    match crate::hidden_stash::on_client_death(&mut ctx) {
         Flow::Continue => 0,
         Flow::Skip => 1,
         Flow::Exit(e) => match e {},
@@ -450,6 +480,21 @@ pub extern "C" fn hook_artefact_score_on_transfer(frame: &mut Frame) -> u32 {
     // on the game's thread; `frame` is its saved registers and fxsave area.
     let mut ctx = unsafe { Context::new(frame) };
     match crate::artefact_score::on_transfer(&mut ctx) {
+        Flow::Continue => 0,
+        Flow::Skip => 1,
+        Flow::Exit(e) => match e {},
+    }
+}
+
+// ---- hidden_stash (patch 109) ----
+
+/// The entry `hidden_stash_on_anomaly_take` (0x31c810, artefact_container_core::use_execute after the collection time, before transfer_artefact (lea eax,[ebx+108h]; push eax; call 0x31C8A0): EBX the user, EDI the container; event 5 is counted after it (0x31C845)) calls this with the saved machine.
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_hidden_stash_on_anomaly_take(frame: &mut Frame) -> u32 {
+    // SAFETY: only the entry `hidden_stash_on_anomaly_take` calls this, from the game's jump at 0x31c810,
+    // on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::new(frame) };
+    match crate::hidden_stash::on_anomaly_take(&mut ctx) {
         Flow::Continue => 0,
         Flow::Skip => 1,
         Flow::Exit(e) => match e {},
@@ -1274,6 +1319,26 @@ pub extern "C" fn hook_medical_skills_on_hit(frame: &mut Frame) -> u32 {
         Flow::Continue => 0,
         Flow::Skip => 1,
         Flow::Exit(e) => match e {},
+    }
+}
+
+// ---- hidden_stash (patch 109) ----
+
+/// The named exits of hidden_stash::on_can_use (the order the shim's Flow code
+/// follows, 2 upward).
+#[repr(u32)]
+#[allow(dead_code)]
+pub enum HiddenStashOnCanUseExit { Room }
+/// The entry `hidden_stash_on_can_use` (0x31c6fb, artefact_container_core::can_use, its container test (cmp byte [eax+16Ch],0; the jbe at 0x31C702 refuses a user with none): ESI the user, EAX its inventory; room is the next test (no carried item, [eax+178h]), the state-2 test already passed) calls this with the saved machine.
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_hidden_stash_on_can_use(frame: &mut Frame) -> u32 {
+    // SAFETY: only the entry `hidden_stash_on_can_use` calls this, from the game's jump at 0x31c6fb,
+    // on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::new(frame) };
+    match crate::hidden_stash::on_can_use(&mut ctx) {
+        Flow::Continue => 0,
+        Flow::Skip => 1,
+        Flow::Exit(e) => 2 + e as u32,
     }
 }
 
@@ -3285,6 +3350,24 @@ pub extern "C" fn hook_world_check_on_raw(frame: &mut Frame) -> u32 {
 }
 
 #[unsafe(no_mangle)]
+pub extern "C" fn hook_hidden_stash_on_death_chain(frame: &mut Frame) -> u32 {
+    let flow = hook_hidden_stash_on_death(frame);
+    if flow != 0 { return flow; }
+    let flow = hook_artefact_carry_on_death(frame);
+    if flow != 0 { return flow; }
+    0
+}
+
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_hidden_stash_on_client_death_chain(frame: &mut Frame) -> u32 {
+    let flow = hook_hidden_stash_on_client_death(frame);
+    if flow != 0 { return flow; }
+    let flow = hook_artefact_carry_on_client_death(frame);
+    if flow != 0 { return flow; }
+    0
+}
+
+#[unsafe(no_mangle)]
 pub extern "C" fn hook_battery_progress_on_carrier_tick_chain(frame: &mut Frame) -> u32 {
     let flow = hook_battery_progress_on_carrier_tick(frame);
     if flow != 0 { return flow; }
@@ -3293,6 +3376,15 @@ pub extern "C" fn hook_battery_progress_on_carrier_tick_chain(frame: &mut Frame)
     let flow = hook_forest_glow_on_tick(frame);
     if flow != 0 { return flow; }
     let flow = hook_artefact_keeper_on_tick(frame);
+    if flow != 0 { return flow; }
+    0
+}
+
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_artefact_score_on_transfer_chain(frame: &mut Frame) -> u32 {
+    let flow = hook_artefact_score_on_transfer(frame);
+    if flow != 0 { return flow; }
+    let flow = hook_hidden_stash_on_anomaly_take(frame);
     if flow != 0 { return flow; }
     0
 }

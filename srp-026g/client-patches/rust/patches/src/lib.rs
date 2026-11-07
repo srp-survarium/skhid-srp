@@ -72,6 +72,7 @@ pub mod weapon_pickup;
 pub mod medical_skills;
 pub mod artefact_skills;
 pub mod artefact_keeper;
+pub mod hidden_stash;
 
 pub mod hand_kill;
 pub mod forest_glow;
