@@ -132,8 +132,9 @@ pub struct Route {
     /// way) means every drop is taken to be unsafe at a sprint.
     sprint_drops: Vec<(Vec3, bool)>,
     /// The landings of the route's walking jumps up a ledge with a short top, and how far before the take-off each is pressed
-    /// ([`WalkGrid::press_lead`]); the planner sets them. A landing not in it is pressed as the motor always has.
-    ledge_leads: Vec<(Vec3, f32)>,
+    /// ([`WalkGrid::press_lead`]), and the latest it may be pressed ([`WalkGrid::press_least`], A347a; 0 for none); the
+    /// planner sets them. A landing not in it is pressed as the motor always has.
+    ledge_leads: Vec<(Vec3, f32, f32)>,
     /// The landings of the route's jump links, and how deep the top is past the face along the jump
     /// ([`top_depth`]); the planner sets them. A landing not in it has no known top (a lift is not tried up it).
     ledge_tops: Vec<(Vec3, f32)>,
@@ -969,7 +970,8 @@ fn pull_straight(
             if into[i] == LinkKind::Jump
                 && let Some(lead) = grid.press_lead(nodes[i - 1], nodes[i])
             {
-                ledge_leads.push((grid.position(nodes[i]), lead));
+                let least = grid.press_least(nodes[i - 1], nodes[i]).unwrap_or(0.0);
+                ledge_leads.push((grid.position(nodes[i]), lead, least));
             }
             if into[i] == LinkKind::Jump {
                 ledge_tops.push((grid.position(nodes[i]), top_depth(grid, nodes[i - 1], nodes[i])));
@@ -1670,7 +1672,14 @@ impl Route {
     /// ([`WalkGrid::press_lead`]): the planner knew the grid; None is the motor's own lead.
     pub fn ledge_lead(&self, k: usize) -> Option<f32> {
         let landing = self.points[k].at;
-        self.ledge_leads.iter().find(|(at, _)| *at == landing).map(|&(_, lead)| lead)
+        self.ledge_leads.iter().find(|(at, ..)| *at == landing).map(|&(_, lead, _)| lead)
+    }
+
+    /// [A347a] The latest press of the walking jump into waypoint `k`, metres before the take-off ([`WalkGrid::press_least`]):
+    /// a press nearer the take-off carries the body off its short top. None where the planner set none.
+    pub fn ledge_least(&self, k: usize) -> Option<f32> {
+        let landing = self.points[k].at;
+        self.ledge_leads.iter().find(|(at, ..)| *at == landing).map(|&(.., least)| least).filter(|&least| least > 0.0)
     }
 
     /// How deep the top is past the face of the jump link into waypoint `k`, metres ([`top_depth`]); None where the
@@ -1772,7 +1781,14 @@ impl Route {
     /// This route with these landings found safe at a sprint (the tests').
     #[cfg(test)]
     pub fn with_ledge_lead(mut self, landing: Vec3, lead: f32) -> Self {
-        self.ledge_leads.push((landing, lead));
+        self.ledge_leads.push((landing, lead, 0.0));
+        self
+    }
+
+    /// [A347a] This route with a short top's press window at this landing (the tests').
+    #[cfg(test)]
+    pub fn with_ledge_window(mut self, landing: Vec3, lead: f32, least: f32) -> Self {
+        self.ledge_leads.push((landing, lead, least));
         self
     }
 

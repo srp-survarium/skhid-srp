@@ -1020,6 +1020,8 @@ struct Ahead {
     take_off_above: f32,
     /// A walking jump up a short top is pressed this far before the take-off ([`Route::ledge_lead`]); 0 is the usual lead.
     lead_m: f32,
+    /// [A347a] The latest press of a walking jump onto a short top, metres before the take-off (`Route::ledge_least`); 0 for none.
+    least_m: f32,
 }
 
 impl Ahead {
@@ -2135,6 +2137,7 @@ impl Motor {
                 rise: landing.y - take_off.y,
                 take_off_above: take_off.y - feet.y,
                 lead_m: 0.0,
+                least_m: 0.0,
             });
         }
         let lead_m = route.ledge_lead(k).unwrap_or(0.0);
@@ -2328,6 +2331,7 @@ impl Motor {
             rise: landing.y - take_off.y,
             take_off_above: take_off.y - feet.y,
             lead_m,
+            least_m: route.ledge_least(k).unwrap_or(0.0),
         })
     }
 
@@ -2433,6 +2437,18 @@ impl Motor {
                 return 0;
             }
             low_presses::pressed();
+        }
+        // [A347a] A walking jump up onto a short top pressed later than its window's latest press carries the body off the
+        // top's far side (Vector Laboratory's 0.905 m ledge: down from presses 0.15-0.38 m before the take-off, up from 0.53
+        // and 0.63): back off to the run-up and come again, as a band jump backs off; the try is spent, so it is no loop
+        // (`JUMP_TRIES`). Only where the planner set the window (`grid.press_window`).
+        if ahead.approach == Approach::Walk && matches!(ahead.leap, Leap::Ledge) && ahead.least_m > 0.0 && ahead.before < ahead.least_m {
+            jump.tries += 1;
+            jump.back = true;
+            self.jump_try = Some(jump);
+            self.links.backed_off();
+            late_presses::backed_off();
+            return 0;
         }
         if let BandTry::Held { refused, .. } = jump.band {
             band_jumps::pressed_after_hold();
@@ -3151,6 +3167,22 @@ pub mod low_presses {
     /// Pressed out of reach, ticks held, given up under the take-off.
     pub fn counts() -> [u64; 3] {
         std::array::from_fn(|k| COUNTS[k].load(Ordering::Relaxed))
+    }
+}
+
+/// [A347a] The walking jumps onto a short top backed off from: the press would have come later than the window's latest.
+pub mod late_presses {
+    use std::sync::atomic::{AtomicU64, Ordering};
+
+    static BACKED_OFF: AtomicU64 = AtomicU64::new(0);
+
+    pub fn backed_off() {
+        BACKED_OFF.fetch_add(1, Ordering::Relaxed);
+    }
+
+    /// The arrivals backed off from.
+    pub fn count() -> u64 {
+        BACKED_OFF.load(Ordering::Relaxed)
     }
 }
 
@@ -4859,6 +4891,34 @@ mod tests {
         assert!(early > usual + 0.3 && early > 1.0, "usual {usual:.2} m before the take-off, early {early:.2} m");
     }
 
+    /// [A347a] A walking jump onto a short top whose window's latest press is 0.55 m before the take-off (`Route::ledge_least`)
+    /// is not pressed nearer: a body that comes onto the jump's line at the take-off backs off to the run-up and presses on the
+    /// way back in, within the window; with no window it presses where it stands.
+    #[test]
+    fn a_short_top_is_not_pressed_past_its_windows_latest_press() {
+        let p = |x: f32, y: f32, jump: bool| Waypoint {
+            at: Vec3::new(x, y, 0.0),
+            node: 0,
+            jump: jump.then_some(ledge_to(y)),
+            low: false,
+        };
+        let ledge = Ledge { take_off: Vec3::new(8.0, 0.0, 0.0), way: [1.0, 0.0], face: 0.2, reach: 1.2, gets_up: true, lifts: false };
+        let presses = |least: Option<f32>| {
+            let mut route = Route::new(vec![p(7.9, 0.0, false), p(8.0, 0.0, false), p(8.4, 0.9, true), p(14.0, 0.9, false)]);
+            if let Some(least) = least {
+                route = route.with_ledge_window(Vec3::new(8.4, 0.9, 0.0), 0.85, least);
+            }
+            let climb = climb_ledge(&mut route, &ledge, Vec3::new(7.9, 0.0, 0.0), yaw_of([1.0, 0.0]), 400, false);
+            climb.presses.iter().map(|(_, at)| ledge.take_off.x - at.feet.x).collect::<Vec<f32>>()
+        };
+        let none = presses(None);
+        assert!(none.first().is_some_and(|&b| b < 0.55), "no window: pressed where it stands, {none:?}");
+        let backed = late_presses::count();
+        let windowed = presses(Some(0.55));
+        assert!(!windowed.is_empty() && windowed.iter().all(|&b| b >= 0.55), "within the window: {windowed:?}");
+        assert!(late_presses::count() > backed, "it backed off");
+    }
+
     /// A sprint-band ledge jump (1.2 m, over the walk jump's 1.09) of a body that starts at the take-off, at rest: without
     /// `band_jump_gate` the old fallback presses it there at a walk (the client makes a walk jump of that, which
     /// does not get up); with it the body backs off for a run-up and presses only at speed with the sprint held.
@@ -5379,6 +5439,7 @@ mod tests {
             rise,
             take_off_above,
             lead_m: 0.0,
+            least_m: 0.0,
         };
         // Vostok Radar Station (8.41, 2.86, -16.51), up 0.95 m: walking jumps pressed 0.08-0.40 m under the take-off.
         for under in [0.08, 0.18, 0.30, 0.40] {

@@ -204,6 +204,13 @@ pub struct Body {
     /// 21.4) eighteen sprint exits with 0.25 m to run; routes dropped bots into both (fx-grid's A257, 315-345 s stuck). A build
     /// input: in the key when set.
     pub pocket_exits_walled: bool,
+    /// [A347a] Whether a walking jump up onto a short top ([`Self::landing_carry`]) is kept, and pressed, by its press window
+    /// ([`walking_press_window`]): the top measured to its far edge (the landing floor's own distance, the floors past it and the
+    /// last one's half cell), the body standing on until its centre is past that edge by the capsule's reach on a corner
+    /// ([`EDGE_HOLD_M`]), and a window at least a tick's walk wide; the least press goes with the route's ledge lead
+    /// ([`WalkGrid::press_least`]) so the motor does not press later. Off: [`walking_press_lead`] (the top as the floors past
+    /// the face, and [`TOP_END_MARGIN_M`], a GUESS). A build input (the kept links): in the key when set.
+    pub press_window: bool,
     /// [A347] Whether a pocket's exits rise at most what every clip of the client's sprint jump reaches ([`SPRINT_JUMP_LOW_M`],
     /// the lowest of the clips' tops 1.282-1.350 m, PROVEN: `SPRINT_JUMP_RISE`), as the bots' own jump reach is
     /// (`motor`'s `out_of_reach`, `body`'s jump top). Off: up to [`POCKET_EXIT_HIGH_M`] (the highest clip): Chemical Plant day 2's
@@ -360,6 +367,7 @@ impl Body {
             run_ups_after_erosion: false,
             steep_walk_base: false,
             pocket_exits_walled: false,
+            press_window: false,
             exits_in_reach: false,
             gap_no_vaults: false,
             ramp_faces: false,
@@ -440,6 +448,7 @@ impl Default for Body {
             run_ups_after_erosion: false,
             steep_walk_base: false,
             pocket_exits_walled: false,
+            press_window: false,
             exits_in_reach: false,
             gap_no_vaults: false,
             ramp_faces: false,
@@ -627,6 +636,38 @@ pub fn walking_press_lead(rise: f32, across: f32, run: f32) -> Option<f32> {
     let farthest = walking_jump_far(rise)? - gap::GAP_PRESS_SPREAD_M - face;
     let lead = needed.max(JUMP_PRESS_LEAD_M);
     (lead <= farthest.max(JUMP_PRESS_LEAD_M)).then_some(lead)
+}
+
+/// [A347a] How far a standing body's centre may be past a top's edge and stay on it, metres: the capsule's round bottom meets
+/// the edge at a normal within the slope a still body holds on, `radius x sin(40 deg)` (the stand radius 0.38: `startup.cfg`'s
+/// stand capsule 0.76 wide, PROVEN; a body standing still slides from 40 deg, the exe's 0x7bc20, PROVEN). The clip's root has
+/// ended by then ([`gap::SHORT_JUMP_AHEAD`]) and the walk is let go of (the motor's carry), so the still body's angle holds.
+pub fn edge_hold_m(radius: f32) -> f32 {
+    radius * 40.0f32.to_radians().sin()
+}
+
+/// [A347a] A tick's walk at the walk's speed, metres: the press is made on a tick, so a press window narrower than this is
+/// missed between two ticks (3.5 m/s, `controlled::WALK_MPS`, PROVEN; the 50 ms tick the controller pass steps, PROVEN).
+pub const TICK_WALK_M: f32 = controlled::WALK_MPS * 0.05;
+
+/// [A347a] The press window of a walking jump up a ledge of `rise` onto a top that goes on `run` metres past the landing floor
+/// (`across` m from the take-off floor's centre along the jump; floors `cell` m apart, a body of `radius`), as metres before the
+/// take-off floor's centre: `(least, lead)`, where `least` is the latest press that keeps the clip's root end
+/// ([`WALK_CLIP_END_M`], PROVEN) within the top's far edge (`across + run + cell / 2` on) and [`edge_hold_m`]; and `lead` the
+/// press the motor aims at ([`JUMP_PRESS_LEAD_M`] within the window, and at least a tick's walk ([`TICK_WALK_M`]) before
+/// `least`: the motor presses on the first tick at `lead` or nearer, so a lead at `least` itself left a window a body walked
+/// past between two ticks and backed off from, every arrival (A347a trace: least = lead 0.89 m and 1.24 m, 7 back-offs and
+/// jumps failed 52 -> 63 in the harm)). None where the window (to the latest press whose root
+/// still clears the face on its way down, [`walking_jump_far`]) is narrower than [`TICK_WALK_M`]. No bound is put on the root's
+/// way up to the face: Vector Laboratory's 0.905 m ledge (A347 traces) went up from presses 0.53 and 0.63 m before its take-off,
+/// with the root still under the top at the face, and came down past its 1.38 m top from presses 0.15-0.38 m before it, as this
+/// window's 0.55 m least has it.
+pub fn walking_press_window(rise: f32, across: f32, run: f32, cell: f32, radius: f32) -> Option<(f32, f32)> {
+    let face = 0.5 * across;
+    let edge = across + run + 0.5 * cell;
+    let least = (WALK_CLIP_END_M - edge - edge_hold_m(radius)).max(0.0);
+    let farthest = walking_jump_far(rise)? - face;
+    (farthest - least >= TICK_WALK_M).then(|| (least, JUMP_PRESS_LEAD_M.clamp(least + TICK_WALK_M, farthest)))
 }
 
 /// A sprint jump takes a straight run of this many metres behind its take-off on the same level (the 8e rows: a
@@ -1340,6 +1381,28 @@ impl WalkGrid {
     /// the grid is built for it ([`Body::landing_carry`]): the floors walked on past `b` along the jump, each a Walk link in its
     /// direction. None for another link, a sprint jump, or a grid built without the rule.
     pub fn press_lead(&self, a: NodeId, b: NodeId) -> Option<f32> {
+        if self.body.press_window {
+            return self.press_window(a, b).map(|(_, lead)| lead);
+        }
+        let (rise, across, run) = self.ledge_top(a, b)?;
+        walking_press_lead(rise, across, run)
+    }
+
+    /// [A347a] The latest press of the walking jump `a` to `b`, metres before `a`'s centre ([`walking_press_window`]): the
+    /// motor does not press it later. None without [`Body::press_window`].
+    pub fn press_least(&self, a: NodeId, b: NodeId) -> Option<f32> {
+        self.body.press_window.then(|| self.press_window(a, b).map(|(least, _)| least)).flatten()
+    }
+
+    /// [A347a] [`walking_press_window`] of the walking jump `a` to `b`.
+    fn press_window(&self, a: NodeId, b: NodeId) -> Option<(f32, f32)> {
+        let (rise, across, run) = self.ledge_top(a, b)?;
+        walking_press_window(rise, across, run, self.cell, self.body.radius)
+    }
+
+    /// The walking jump `a` to `b` (a Jump link within the walking jump, with [`Body::landing_carry`]): its rise, its length
+    /// across, and the top's run past the landing floor along the jump (up to [`WALK_CLIP_END_M`]).
+    fn ledge_top(&self, a: NodeId, b: NodeId) -> Option<(f32, f32, f32)> {
         if !self.body.landing_carry || !self.links(a).any(|l| l == (b, LinkKind::Jump)) {
             return None;
         }
@@ -1362,7 +1425,7 @@ impl WalkGrid {
             run += here.distance_xz(self.position(n));
             at = n;
         }
-        walking_press_lead(rise, across, run)
+        Some((rise, across, run))
     }
 
     /// Takes away the Jump links that land on a top shorter than the jump carries the body ([`Body::landing_carry`]): the floors
@@ -1397,7 +1460,13 @@ impl WalkGrid {
                     }
                     (at, run) = (next as usize, run + stride);
                 }
-                let fits = if sprint { run + 1e-3 >= want } else { walking_press_lead(rise, across, run).is_some() };
+                let fits = if sprint {
+                    run + 1e-3 >= want
+                } else if self.body.press_window {
+                    walking_press_window(rise, across, run, self.cell, self.body.radius).is_some()
+                } else {
+                    walking_press_lead(rise, across, run).is_some()
+                };
                 if !fits {
                     failing.push((a as u32, d, run));
                 }
@@ -5023,6 +5092,31 @@ pub(crate) mod tests {
         let on = grid(true);
         let bottom = on.locate(Vec3::new(10.0, -1.2, 5.0), 0.3).unwrap();
         assert!(on.in_shut_pocket(bottom), "on: no run-up for any, the pocket is shut");
+    }
+
+    /// [`Body::press_window`] (A347a): Vector Laboratory's 0.905 m ledge (rise 0.905, 0.5 across, 1.25 m of floors past the
+    /// landing, cells 0.25, the stand radius 0.38): the latest press is 0.55 m before the take-off, the window ends where the
+    /// root comes down past the face; a top of half that keeps no window; a deep top asks nothing (the least is 0).
+    #[test]
+    fn a_short_tops_press_window_ends_where_the_clip_carries_past_its_edge() {
+        let (least, lead) = walking_press_window(0.905, 0.5, 1.25, 0.25, 0.38).expect("a window");
+        assert!((least - 0.551).abs() < 0.01, "least {least}");
+        assert!((lead - JUMP_PRESS_LEAD_M).abs() < 1e-6, "lead {lead}");
+        let far = walking_jump_far(0.905).unwrap() - 0.25;
+        assert!(far - least >= TICK_WALK_M, "the window holds a tick: {least}..{far}");
+        // A top whose latest press is past the usual lead: the motor aims a tick's walk before the latest press, so the first
+        // tick at the lead or nearer is still within the window (a lead at the latest press itself was walked past and backed
+        // off from: A347a's trace, least = lead 0.89 m).
+        for run in [0.6, 0.75, 0.9] {
+            if let Some((least, lead)) = walking_press_window(0.5, 0.5, run, 0.25, 0.38) {
+                assert!(lead - least >= TICK_WALK_M - 1e-6, "run {run}: least {least}, lead {lead}");
+            }
+        }
+        let late = walking_press_window(0.5, 0.5, 0.6, 0.25, 0.38).expect("a window past the usual lead");
+        assert!(late.0 > JUMP_PRESS_LEAD_M - TICK_WALK_M, "the case is one: least {}", late.0);
+        assert_eq!(walking_press_window(0.905, 0.5, 0.0, 0.25, 0.38), None, "a top the clip passes whatever the press");
+        assert_eq!(walking_press_window(0.5, 0.5, 2.5, 0.25, 0.38).map(|w| w.0), Some(0.0), "a deep top");
+        assert!((edge_hold_m(0.38) - 0.244).abs() < 0.001);
     }
 
     /// [`Body::exits_in_reach`] (A347): a pit 1.32 m deep (the client's body links a rise up to its jump cap 1.28 m, so this one
