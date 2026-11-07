@@ -34,9 +34,14 @@ In fullscreen the game takes the whole display: no menu bar or Dock (if
 the menu bar still shows over it, click the game once); use Cmd+Tab to
 switch away. On a MacBook with a notch, the top centre of the
 picture is under the notch.
-Sharper picture on a Retina display, at four times the pixels to draw:
-start with SKHID_RETINA=1, for example SKHID_RETINA=1 bash Skhid.sh launcher,
-then choose the larger resolution in the game's Settings.
+Sharper picture on a Retina display: start with SKHID_METALFX=1, for example
+SKHID_METALFX=1 bash Skhid.sh launcher (MetalFX upscales the picture; costs a
+little GPU time), or with SKHID_RETINA=1 and then choose the larger
+resolution in the game's Settings (four times the pixels to draw).
+macOS turns Game Mode on while the game is fullscreen and in front.
+The first start, macOS asks whether Survarium may find devices on local
+networks; either answer works (online play does not need it). If the game
+then shows minimized, click Survarium in the Dock.
 Option works as Alt in the game.
 
 IF IT FAILS

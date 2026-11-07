@@ -6,6 +6,8 @@
 # SKHID_CRASH_DUMP=full: a crash writes the game's whole memory beside it.
 # SKHID_RETINA=1: the game sees the display's pixels, not its points (sharper,
 # four times the pixels to draw); 0 or unset: points, scaled by macOS.
+# SKHID_METALFX=1: the game draws in points and MetalFX upscales the picture to
+# the display's pixels (sharper for about 2 ms of GPU per frame on an M4 Max).
 # Bash 3.2 (macOS's own): no mapfile, flock or GNU options here.
 set -euo pipefail
 
@@ -29,6 +31,11 @@ VIEWER_SHA256=c4e753548d3092ffd7dd3849105e0a26d9b5a1afe46e6e667fe7c6887893701f
 
 SUPPORT="$HOME/Library/Application Support/Skhid"
 RUNTIME="$SUPPORT/runtime/$ENGINE-$TEMPLATE"
+# The engine is laid out as this app's Contents, its loader the app's
+# executable: every Wine process (each starts from that loader) belongs to an
+# app of the games category with LSSupportsGameMode, so macOS turns Game Mode
+# on for the fullscreen game, and the Dock names it.
+WINE_ROOT="$RUNTIME/Survarium.app/Contents"
 
 die() { echo "Error: $*" >&2; exit 1; }
 
@@ -39,7 +46,7 @@ fetch() {
 }
 
 install_runtime() (
-    local temporary dxmt arch name
+    local temporary dxmt arch name contents
     [[ -f "$RUNTIME/.skhid-ready" ]] && exit 0
     mkdir -p "$SUPPORT/runtime"
     temporary=$(mktemp -d "$SUPPORT/runtime/.download.XXXXXX")
@@ -47,38 +54,61 @@ install_runtime() (
     echo 'Downloading Wine and DXMT for macOS (260 MB, first launch only)...'
     fetch "$ENGINE_URL" "$ENGINE_SHA256" "$temporary/engine.tar.xz"
     fetch "$TEMPLATE_URL" "$TEMPLATE_SHA256" "$temporary/template.tar.xz"
-    mkdir "$temporary/runtime"
-    tar -xJf "$temporary/engine.tar.xz" -C "$temporary/runtime" wswine.bundle
+    mkdir -p "$temporary/runtime/Survarium.app"
+    tar -xJf "$temporary/engine.tar.xz" -C "$temporary" wswine.bundle
+    mv "$temporary/wswine.bundle" "$temporary/runtime/Survarium.app/Contents"
     dxmt="$TEMPLATE.app/Contents/SharedSupport/renderer/dxmt/wine"
     tar -xJf "$temporary/template.tar.xz" -C "$temporary" "$TEMPLATE.app/Contents/Frameworks" "$dxmt" \
         "$TEMPLATE.app/Contents/Configure.app/Contents/Resources/cabextract"
-    mv "$temporary/$TEMPLATE.app/Contents/Frameworks" "$temporary/runtime/Frameworks"
+    contents="$temporary/runtime/Survarium.app/Contents"
+    mv "$temporary/$TEMPLATE.app/Contents/Frameworks" "$contents/Frameworks"
     mv "$temporary/$TEMPLATE.app/Contents/Configure.app/Contents/Resources/cabextract" "$temporary/runtime/"
     # DXMT replaces Wine's own Direct3D 11 (WINEDLLPATH cannot take over a builtin).
     for arch in i386-windows x86_64-windows; do
         for name in d3d10core.dll d3d11.dll dxgi.dll winemetal.dll; do
-            cp "$temporary/$dxmt/$arch/$name" "$temporary/runtime/wswine.bundle/lib/wine/$arch/$name"
+            cp "$temporary/$dxmt/$arch/$name" "$contents/lib/wine/$arch/$name"
         done
     done
-    cp "$temporary/$dxmt/x86_64-unix/winemetal.so" "$temporary/runtime/wswine.bundle/lib/wine/x86_64-unix/"
+    cp "$temporary/$dxmt/x86_64-unix/winemetal.so" "$contents/lib/wine/x86_64-unix/"
+    # The loader moves to MacOS and is linked back; ntdll.so is found beside it.
+    mkdir "$contents/MacOS"
+    mv "$contents/lib/wine/x86_64-unix/wine" "$contents/MacOS/wine"
+    ln -s ../../../MacOS/wine "$contents/lib/wine/x86_64-unix/wine"
+    ln -s ../lib/wine/x86_64-unix/ntdll.so "$contents/MacOS/ntdll.so"
+    cat > "$contents/Info.plist" <<'PLIST'
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<key>CFBundleExecutable</key><string>wine</string>
+	<key>CFBundleIdentifier</key><string>link.skhid.survarium</string>
+	<key>CFBundleName</key><string>Survarium</string>
+	<key>CFBundlePackageType</key><string>APPL</string>
+	<key>CFBundleInfoDictionaryVersion</key><string>6.0</string>
+	<key>LSApplicationCategoryType</key><string>public.app-category.action-games</string>
+	<key>LSSupportsGameMode</key><true/>
+	<key>NSLocalNetworkUsageDescription</key><string>Not needed to play online: Survarium signs in, plays and updates over the internet.</string>
+</dict>
+</plist>
+PLIST
     touch "$temporary/runtime/.skhid-ready"
     rm -rf -- "$RUNTIME"
     mv "$temporary/runtime" "$RUNTIME"
 )
 
 configure_wine() {
-    local wine_root="$RUNTIME/wswine.bundle"
     # Exported here, in Bash: a system binary between this script and Wine
     # (env, nohup, timeout from /usr/bin) would drop the DYLD_ variables.
-    export CX_ROOT="$wine_root" PATH="$wine_root/bin:$PATH"
-    export DYLD_FALLBACK_LIBRARY_PATH="$RUNTIME/Frameworks:/usr/lib"
+    export CX_ROOT="$WINE_ROOT" PATH="$WINE_ROOT/bin:$PATH"
+    export DYLD_FALLBACK_LIBRARY_PATH="$WINE_ROOT/Frameworks:/usr/lib"
     # Without it this engine's child processes end at their start.
     export SikarugirAppWine11=1
     export WINEMSYNC=1 WINEBOOT_HIDE_DIALOG=1 WINEPREFIX="$PWD/wineprefix" WINEDEBUG=-all
+    [[ ${SKHID_METALFX-} == 1 ]] && export DXMT_METALFX_SPATIAL_SWAPCHAIN=1
     # Keep HTML enabled (the launcher); qwave disabled as on Linux (the lobby-entry crash).
     export WINEDLLOVERRIDES='mscoree,qwave=;mshtml=b;appwiz.cpl=d;winemenubuilder.exe=d'
-    WINE="$wine_root/bin/wine"
-    WINESERVER="$wine_root/bin/wineserver"
+    WINE="$WINE_ROOT/bin/wine"
+    WINESERVER="$WINE_ROOT/bin/wineserver"
     "$WINE" --version >>"$log" 2>&1 || die "Wine does not start. See $log"
 }
 
