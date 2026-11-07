@@ -191,8 +191,10 @@ pub struct GridTuning {
     /// [A331] With `wall_give_back`: whether a floor the rounds took also comes back where the exact pass takes it at its
     /// cell's centre but the client's push out of walls (the standing cylinder and its margin: 0.42 m off a wall, Unicorn) sets
     /// a body clear inside the cell and the walk tick stands it there (`mapdata::Body::give_back_in_cell`). fx-zones' grid edge
-    /// cuts (the reckoning held at a cell edge the client walks across): 184 of the 201 rounds-taken floors under them. OFF
-    /// until its nav gate. A grid is the map's.
+    /// cuts (the reckoning held at a cell edge the client walks across): 184 of the 201 rounds-taken floors under them. OFF:
+    /// nav-quick2-v5 on ac2d1b16 improves both totals (client-test 2.76 -> 2.73, live 5.80 -> 5.75) but three maps go over
+    /// +0.05 (client-test level_05 +0.06, live level_06 +0.07: a given-back walk up 0.55 m in one cell, live level_07 +0.07).
+    /// A grid is the map's.
     pub give_back_in_cell: bool,
 }
 
