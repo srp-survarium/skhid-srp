@@ -240,6 +240,19 @@ fn animation_validate_accepts_a_minimal_tree() {
 }
 
 #[test]
+fn animation_validate_rejects_a_non_finite_float() {
+    // The twelve matrix floats, but one is +infinity (exponent all ones).
+    let mut w = BitW::new();
+    tree_header(&mut w, 11, 0, 0);
+    w.put(0, 10); // times: count 0
+    w.put(0, 1).put(12, 10); // floats: not indexed, 12
+    for i in 0..12 {
+        w.put(if i == 5 { 0x7F80_0000 } else { 0 }, 32);
+    }
+    assert_eq!(animation_validate(w.bytes()), Err(AnimFault::FloatNotNumber));
+}
+
+#[test]
 fn animation_validate_rejects_a_wrong_tree_length() {
     // The same 11-bit tree, but `T` claims 10: the structure outruns it.
     let mut w = BitW::new();
