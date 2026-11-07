@@ -3,9 +3,10 @@
 //! ([`artefact_carry::keeper::KINDS`], the one table the game takes them by too), and writes it
 //! into modifier 40 bits 9..11 of every kit of every player of the match, bots too, with the
 //! skill or without: every game knows the match's kind from the static info, and exe patch 109
-//! gives a Keeper a dormant artefact of it from the map's hidden Keeper pool. A late joiner's kits
-//! also carry bit 13 ([`LATE`]): its Keeper gets the gift at the respawn after its first death,
-//! the others' at the match's start.
+//! gives a Keeper a dormant artefact of it from the map's hidden Keeper pool. The kits of a joiner
+//! taken once the match is in process (late: it could not choose its kit) also carry bit 13
+//! ([`LATE`], [`give_late`]): its Keeper gets the gift after its first death, the others' (a
+//! joiner taken in the countdown too) at the match's start.
 
 pub use artefact_carry::keeper::{KINDS, Kind};
 
@@ -18,7 +19,7 @@ use super::skills::modifier_index;
 const SHIFT: u32 = 9;
 const MASK: u32 = 7 << SHIFT;
 
-/// Modifier 40's bit of a late joiner's kits (a profile that joined the formed match).
+/// Modifier 40's bit of a late joiner's kits (a profile taken into the match once in process).
 pub const LATE: u32 = 1 << 13;
 
 /// The match's kind of a random number: each kind for an equal share of the u32s but the

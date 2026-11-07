@@ -216,14 +216,18 @@ preferred-image VAs; `apply_modifier` is the kit-modifier getter 0x2D5AE0.
     time rule in process, core +18FE4h 3). No extra delay;
   - into its first empty container. Every container held: it waits until one frees, in the same
     life or at a respawn with room. While dead it waits;
-  - a late joiner gets nothing before its first death, then the same rule.
+  - a late joiner gets nothing before its first death, then the same rule. Late: a player
+    taken into the match after it has begun (the countdown's end), who could not choose its
+    kit; one taken in the countdown chooses as everyone does, and gets it at the start.
 - The table: `crates/artefact-carry/src/keeper.rs` (`KINDS`, `POOL`), the one table srp draws
   from and the game takes by: Larkspur (dict 54, artefact_lifebone), Onyx (76), Spring (74).
   srp refuses game data whose dictionary names them otherwise.
 - srp (the match server's registry, `survarium::v026g::keeper`): one kind a match, uniform, drawn
   when the match is made, kept with it and written into every kit of every profile, a late
-  joiner's too (`keeper::give`); a late joiner's kits also carry modifier 40 bit 13
-  (`keeper::LATE`, `keeper::give_late`).
+  joiner's too (`keeper::give`); the kits of a joiner taken once the match is in process (the
+  phase the match loop last told the registry, told at once at each change: `LivePhase::Playing`)
+  also carry modifier 40 bit 13 (`keeper::LATE`, `keeper::give_late`); a joiner taken in the
+  countdown does not.
 - Where the artefact comes from: a hidden anomaly on every map (the owner's idea, 2026-11-05),
   content edit `artefact-keeper-1.json` (made by `scripts/artefact-keeper/make_edit.py` from the
   live projects): one more generic_anomaly_core in every project's client_objects (not the
@@ -276,8 +280,8 @@ preferred-image VAs; `apply_modifier` is the kit-modifier getter 0x2D5AE0.
   container is held or the player is dead, never a second, a late joiner after its first death,
   the refusals, a new load, a late joiner's ids and container read), the patch's `gift` tests,
   `crates/mapdata/tests/artefact_keeper.rs` (the edit list against the table, the anomaly as a
-  map object), `survarium::v026g::keeper` and the registry test (the draw in every kit, a late
-  joiner's too, with bit 13).
+  map object), `survarium::v026g::keeper` and the match-server test (the draw in every kit, a
+  joiner's too; bit 13 for a joiner taken in process, none for one taken in the countdown).
 
 ## Spring II (531)
 

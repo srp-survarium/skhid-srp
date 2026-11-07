@@ -4718,7 +4718,8 @@ Checked with `check_artefact_skills_026g.py`; not run in a game.
 
 The artefact tree's 521 (`../docs/notes/artefact-skills.md`). srp draws one kind a match
 (`artefact_carry::keeper`: Larkspur, Onyx, Spring) and writes it into modifier 40 bits 9..11 of
-every kit; a late joiner's kits also carry bit 13 (`survarium::v026g::keeper::give_late`). Every
+every kit; a joiner taken once the match is in process also gets bit 13 in its kits (late:
+`survarium::v026g::keeper::give_late`; one taken in the countdown does not). Every
 map has a hidden anomaly (content edit `artefact-keeper-1.json`): no container, energy off, one
 empty state, 20 dormant artefacts of each kind. `keeper.register`
 (generic_anomaly_core::register_artefacts' entry, 0x31B8E0) keeps the id range of the anomaly with
