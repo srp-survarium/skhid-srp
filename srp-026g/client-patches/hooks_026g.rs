@@ -2182,6 +2182,26 @@ pub extern "C" fn hook_medical_skills_on_regenerate(frame: &mut Frame) -> u32 {
     }
 }
 
+// ---- message_check (patch 114) ----
+
+/// The named exits of message_check::on_message (the order the shim's Flow code
+/// follows, 2 upward).
+#[repr(u32)]
+#[allow(dead_code)]
+pub enum MessageCheckOnMessageExit { Refused }
+/// The entry `message_check_on_message` (0x27a31f, on_match_packet_received before storing the normalized id and subtracting E3h; EAX the id, reader cursor after it; refused is the epilogue) calls this with the saved machine.
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_message_check_on_message(frame: &mut Frame) -> u32 {
+    // SAFETY: only the entry `message_check_on_message` calls this, from the game's jump at 0x27a31f,
+    // on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::new(frame) };
+    match crate::message_check::on_message(&mut ctx) {
+        Flow::Continue => 0,
+        Flow::Skip => 1,
+        Flow::Exit(e) => 2 + e as u32,
+    }
+}
+
 // ---- mouse_pitch (patch 112) ----
 
 /// The entry `mouse_pitch_on_pitch_step` (0x2402e9, on_mouse_move's pitch step (patch 112), after the window's two size calls: movss xmm1,[edi] / divss xmm1,[eax] (h / w) / movss xmm2,[esp+28h] (the yaw's step s) / mulss xmm1,xmm2; 0x2402FB multiplies xmm1 by the invert and 3/pi, 0x240309 the journal's path joins; XMM1 the pitch's step before them, XMM2 s for the yaw (0x240349)) calls this with the saved machine.
@@ -2306,6 +2326,36 @@ pub unsafe extern "C" fn hook_music_on_query_done(a0: Option<raw::QueriesResult>
     let result = unsafe { QueryResults::from_raw(&thread, a0) };
     let tag = QueryTag::from_raw(a1 as usize as u32);
     { crate::music::on_query_done(result, tag); 0 }
+}
+
+// ---- packet_recovery (patch 97) ----
+
+/// The entry `packet_recovery_on_loaded` (0x27c116, process_dynamic_match_info after either core deserialize returns, before mov eax,[edi+4] / test eax,eax; a load receipt is emitted only here) calls this with the saved machine.
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_packet_recovery_on_loaded(frame: &mut Frame) -> u32 {
+    // SAFETY: only the entry `packet_recovery_on_loaded` calls this, from the game's jump at 0x27c116,
+    // on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::new(frame) };
+    match crate::packet_recovery::on_loaded(&mut ctx) {
+        Flow::Continue => 0,
+        Flow::Skip => 1,
+        Flow::Exit(e) => match e {},
+    }
+}
+
+// ---- packet_recovery (patch 97) ----
+
+/// The entry `packet_recovery_on_close` (0x27a790, close_current_match entry push ebp / mov ebp,esp / and esp,-8; clears connection-owned receipt/log state before teardown) calls this with the saved machine.
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_packet_recovery_on_close(frame: &mut Frame) -> u32 {
+    // SAFETY: only the entry `packet_recovery_on_close` calls this, from the game's jump at 0x27a790,
+    // on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::new(frame) };
+    match crate::packet_recovery::on_close(&mut ctx) {
+        Flow::Continue => 0,
+        Flow::Skip => 1,
+        Flow::Exit(e) => match e {},
+    }
 }
 
 // ---- ragdoll (patch 76) ----

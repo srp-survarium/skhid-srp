@@ -1,0 +1,7 @@
+name = "message_check"
+patch = 114
+uses = ["packet_recovery"]
+
+[[hook]]
+site = "match_dispatch.message"
+handler = "on_message"
