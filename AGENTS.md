@@ -82,6 +82,27 @@ TSV (one line per name, no bulk JSON). The client patches' own addresses and rea
 - The same holds for new client-patch C code: a tagged union and one transition function, raw memory
   read once into it.
 
+## The world format and its check
+
+Every world a game uploads is checked before another game gets it: by the match server, and by each
+receiving game itself (patch 87), with the same code (`srp-validate`'s typed views over `world-frame`,
+`srp-026g/docs/notes/packet-validation.md`). That parser is the world format's one definition.
+
+- A change to what a game writes into a world changes that parser in the same PR. That covers an exe
+  patch that saves or loads state, a new item class, weapon state, map object or anomaly kind, and a
+  record or snapshot version. Each new field gets its view, its real name and its domain in the parse
+  (a closed set of values is an enum, a bool is the game's 0x00/0xFF, an index is bounded by its table).
+- Check it against real worlds. `tools/check` runs `world-check` (the server's check over the private
+  corpus of live recordings and local test matches) and `world-drift` (the game's own check against
+  the server's) for every change their inputs cover. Check the whole corpus: on 2026-11-07, 176 real
+  worlds that a sample of a third of the recordings passed were refused.
+- A change to what games write also needs worlds from a game that has it: play a local test match
+  (local runs record into the corpus) and check it before the PR is merged.
+- Never loosen a rule only to make a real world pass. Find what the game writes and why it reads it
+  safely (its reader in the exe), as #1434 did. A game bug behind it gets a board ticket.
+- Merging PRs that touch the same code: build and test the combined tree (main with each of them)
+  before the second merge. Two PRs that each pass can break main together (#1463).
+
 ## Rust changes
 
 - Design for a **pit of success**: the simplest supported use of an API should be correct by
