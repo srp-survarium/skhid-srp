@@ -430,3 +430,125 @@ preferred-image VAs; `apply_modifier` is the kit-modifier getter 0x2D5AE0.
 - Forest Protection's glow (2026-11-05): implemented and checked with Unicorn
   (`check_forest_glow_026g.py`); captured in a local game (private/renders/artefact-tree/);
   not played by the owner, not released.
+
+## Hidden Stash (534, not released)
+
+The owner (2026-11-07): one skill gives a single hidden slot that holds one artefact without a
+container; the artefact there is gone at death (never on the body), a Keeper gift as a found
+one; the slot is one of the kit's six, so a kit with six slots has none. "My pick" as above.
+
+### How 0.26g keeps artefacts (the evidence)
+
+- The inventory's 23 slots are pointers at inventory+10Ch (0..22; 23 is "none"). Slots 13..18
+  are the six quick positions, shared by pockets and artefact containers (the lobby's
+  `ProfileSlot.QUICK_POSITIONS` 6 and `artifactCount` = min(6 - pockets, containers);
+  medical-skills.md "six quick slots total"); 19..22 are ammunition (`AMMO_SLOTS`).
+- The containers are one run of those slots: [inventory+168h] its first slot, byte [+16Ch] how
+  many. `setup_from_profile` (0x2FD1C3..0x2FD2A5) starts it at the first slot of 13..18 that is
+  empty or holds an artefact (vfn +58h), after the pockets' drugs, and makes it
+  min(trunc(apply_modifier(kit, 14, 0, 1)), 19 - start) long: modifier 14 (`artefact_slots`, no
+  base) is the container count, 15 (`pocket_slots`, base 1 in `default.player`) the pockets'.
+  Artifact Container (522: 14 +1, 15 -1) moves one of the six from pockets to containers.
+- The world save writes the run (`inventory::serialize` 0x2FE409..0x2FE4B2: the count, then if
+  not 0 its first slot and each container's artefact id) and the load sets it back
+  (0x2FE5E7..0x2FE60F, any first slot). srp-validate's world check (`InventoryHeader::read`),
+  so also the client's (patch 87), takes a run inside 13..18 only (first slot 13..18, first +
+  count <= 19). Everything below keeps the run there.
+- `take_artefact` (0x2FC850, EAX the inventory) puts an artefact into the run's first empty
+  container (`set_item` 0x2FC620: its set_owner, vfn +28h, links the passive); with none empty
+  it evicts the first container's (vfn +34h `on_removed` 0x313490: the active ended, the passive
+  unlinked, state 0; vfn +28h (0, 23): no owner), moves the others down one and puts the new one
+  last. With a count of 0 it would read a slot before the run: the anomaly's `can_use`
+  (0x31C6FB) refuses a user with no container, and patch 78 and Keeper refuse one too
+  (`ContainerSpace::Missing`).
+- The HUD: `game_world_ui::update_local_player_state` (0x23B740) fills its six positions from
+  `quick_slot_to_inventory_slot` (0x2FE7F0): the quick items of the fixed slots first, then every
+  container, an empty one too (0x2FE854..0x2FE86C). So a native container is never invisible:
+  an empty one is an empty artefact position. The loop stops at the first ordinal with no slot
+  (0x23B79E) and leaves the positions after it as they were; `clear_player` (0x23B550, all
+  six) runs where the local player is let go (0x242D3C).
+- Death: artefacts in containers stay in the inventory through a death (the owner, 2026-11-07);
+  `artefact_base::tick` (0x313267..0x3132F1) ends a dead holder's active and unlinks its passive
+  (state 5). Only an artefact held in the hand falls (patch 78's death drop, at the two death
+  entries 0x2D77C0 and 0x1F28E0, before the inventory's own death handling).
+- Patch 54's press and Onyx test, patch 109's aura and Keeper, patch 111's leg quarters and
+  patch 78's carry all read the native run ([+168h], [+16Ch]) or slots 13..18.
+
+### The rules
+
+- **The slot.** The hidden slot is the slot right after the kit's own containers in the run, a
+  slot of 13..18 (so the world check passes). It is a native container only while it is in use:
+  the run is one longer from the take that fills it to the holder's death. It is never an empty
+  HUD position before its first take, and never in the lobby.
+- **One of the six** (the owner, 2026-11-07): a kit has the hidden slot only when its pockets
+  and containers together are fewer than 6, decided per kit from the kit's own counts. srp
+  decides it (`loadouts`: the pockets as now; the containers modifier 14 from the worn items'
+  modifications and the skills, base 0) and sets modifier 40 bit 14 only on such a kit of an
+  account with the skill. Artifact Container keeps the sum (one pocket fewer, one container
+  more), so it neither opens nor closes the slot. A kit at 6 (say 4 pockets and 2 containers)
+  has none; 3 + 2, or 4 + 1 with Artifact Container's 3 + 2, have it. The exe also needs the slot
+  itself empty (a drug in a pocket past the containers, which a lobby kit never has, keeps it
+  shut).
+- **Which take goes in** (my pick: one rule for every take): a take of an artefact when no
+  container of the run is empty and the hidden slot is shut and free: an anomaly's (also with no
+  container at all: `can_use` lets a player with a free hidden slot in), Keeper's gift, a
+  teammate's hand-over and a ground pickup (patch 78). Own containers first, always: the run's
+  first empty one is the native choice and the hidden slot is the run's last.
+- **Full with it in use**: every container and the hidden slot full, an anomaly's take is the
+  native eviction (the first container's goes back to its anomaly, the others move down, the new
+  one last): the newest artefact is the hidden one. Nothing new.
+- **While held: a container in every way but its end** (my pick, the simplest consistent): its
+  passive from the take, its active by its quick key (it is one more artefact position on the
+  HUD) and by patch 54's press of its kind, one of the player's own copies for the 4-copy cap,
+  Resonance and Cascade, and one leg quarter. No other rule changes; passive and active native.
+- **The tell**: the holder sees an artefact position on the HUD that is not there otherwise;
+  everyone sees its stock activation glow, and Artifact Sight's viewers its leg quarter. Nothing
+  drawn or animated anew, nothing of firing.
+- **Death** (the owner, 2026-11-07: removed, not dropped on the body, a Keeper gift as a found
+  one): at either death entry (0x2D77C0, 0x1F28E0), before patch 78's drop and the native death
+  handling, the hidden slot's artefact is taken out with the game's own `inventory::remove_item`
+  (0x2FC680: `on_removed` ends its active, unlinks its passive and makes it state 0; set_owner
+  (0, 23) leaves it in no inventory), and the run is one shorter again. That is what the native
+  eviction does to a container's artefact: state 0 in no inventory is dormant in the anomaly it
+  belongs to, which the anomaly's own respawn picks again (only state 0 respawns, patch 78's
+  note); a Keeper gift is dormant in the Keeper pool with its count (`Whereabouts::Returned`),
+  never given again. Held in the hand at death, it is out of the inventory before patch 78's
+  drop, which then finds nothing to drop.
+- **Handed over alive** (patch 78): the slot stays in use, an empty position, until the death;
+  the next take fills it before the run could grow again (my pick: shrinking it alive would leave
+  the HUD's last position drawn, its loop stopping before it).
+- **Keeper** (the rule unchanged: the countdown's end, the first empty container, pending until
+  one frees, once a match, a late joiner after its first death): a free hidden slot is room, so a
+  Keeper with no container or all full gets the gift into it at once; at that Keeper's death the
+  gift goes back to the pool for good.
+- **Score** (patch 80): an anomaly's artefact into the hidden slot counts as one taken with
+  every slot full (5), as the code is (my pick; open question).
+- **Every game the same**: the inputs are the kit's modifiers (static info), the inventory's run
+  and slots and the artefact states, all in the world save, read at the take and the death, which
+  every game and replay simulates. Nothing kept outside the world. A late joiner's load and a
+  resync carry the open slot as the run's length; the exe tells it from the kit's own count
+  (apply_modifier 14 truncated, at most 19 - the run's start, as setup computes it; a value
+  outside 0..6 is no hidden slot).
+
+### Placement
+
+- Row IV, column 4 (the free place beside Spring II, Onyx II, Larkspur II): id 534, one rank,
+  needs 15 (my pick). Modifier 40 bit 14 (16384). Rows I-IV then hold 24 for row V's 20; a full
+  build is 25 (the skills window's walk takes 25 branch points, `MAX_BRANCH_POINTS`).
+
+```text
+| - Q R - |
+| - F K S |
+| - P A - |
+| S O L H |    H: Hidden Stash
+| - N X - |
+```
+
+- Name (my pick): "Hidden Stash". Icon: an unused 0.69d0 `skills/anomaly/*.png`.
+
+### Open questions for the owner
+
+- Score: should an anomaly's artefact into the hidden slot give 15 (a free slot) instead of 5?
+- Handed over alive, the slot stays an empty position until death: fine, or should the hidden
+  artefact not be handed over at all?
+- Placement: row IV beside the second artefacts, or row III beside Keeper and the Container?
