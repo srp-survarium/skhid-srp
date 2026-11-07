@@ -52,6 +52,10 @@ pub(crate) enum CamperAt {
     /// team's nearest spawn, the one that sees the most of the other side's route points [`LIVE_SIGHT_M`] off, then the one seen from
     /// the fewest (the hidden rule's measure); with none in the spawn band, the nearest to it ([`live_ranked`]).
     Live,
+    /// [A320] The known camp spots of his side in the flank-route table (`SRP_BOT_FLANK_ROUTES`, `camp_flank.rs`), in the
+    /// table's order (the read's biggest first), each on its floor: the spots the bots' `threat.camp_flank` has routes
+    /// round. None without the table.
+    Table,
 }
 
 /// [A239] How far a live camper's spot ([`CamperAt::Live`]) lies from his own team's nearest spawn, m: the live human campers'
@@ -150,7 +154,8 @@ impl CamperAt {
             Some("container") => Ok(Self::Container),
             Some("exit") => Ok(Self::Exit),
             Some("live") => Ok(Self::Live),
-            Some(other) => Err(format!("SRP_BENCH_CAMPER_AT={other:?}: battery, container, exit or live")),
+            Some("table") => Ok(Self::Table),
+            Some(other) => Err(format!("SRP_BENCH_CAMPER_AT={other:?}: battery, container, exit, live or table")),
         }
     }
 }
@@ -183,6 +188,17 @@ impl Pool {
 /// The spots of `side` for a camper of `options`: all of them, or only those near the anchors of [`CamperAt`] (none if no route
 /// point of his side that sees the other side lies near the anchors).
 pub(crate) fn camper_pool(tactics: &Tactics, side: i32, options: &CamperOptions) -> Pool {
+    if options.at == CamperAt::Table {
+        let grid = &tactics.world.grid;
+        let table = tactics
+            .camp_spots
+            .iter()
+            .filter(|c| c.camper_side == side)
+            .filter_map(|c| grid.locate(c.at, 2.0))
+            .map(|n| Candidate { at: grid.position(n), sees: 1, seen: 0 })
+            .collect();
+        return Pool::Ranked(table);
+    }
     let candidates = camper_candidates(tactics, side, options.rule, options.crouch);
     let map = &tactics.world.map;
     let anchors: Vec<Vec3> = match options.at {
@@ -191,6 +207,7 @@ pub(crate) fn camper_pool(tactics: &Tactics, side: i32, options: &CamperOptions)
         CamperAt::Battery => map.battery_spawners.iter().map(|s| s.item).collect(),
         CamperAt::Container => map.containers.iter().filter(|c| c.team == side).map(|c| c.position).collect(),
         CamperAt::Exit => map.spawns.iter().filter(|s| s.team == 1 - side).map(|s| s.position).collect(),
+        CamperAt::Table => unreachable!("taken above"),
     };
     let near: Vec<Candidate> = candidates
         .into_iter()

@@ -746,6 +746,28 @@ pub struct ThreatTuning {
     /// (z -2.4), enemy carriers killed -24 % (z -3.1), own carriers lost +32 % (z +3.1)
     /// (`traces-20261028/fx-threat-obj-a229-a231-note.md` §6).
     pub walk_watch: Option<WalkWatch>,
+    /// A320 (`traces-20261028/fx-fights-a320-flank-routes-design.md`, `camp_flank.rs`): the job's flanker on a held spot
+    /// within 5 m of a known camp spot of the other side walks one of the routes made ahead of time round it (hidden from
+    /// the spot's eyes, from the side's ways in to a firing floor 8-25 m off his lane; the human winning paths first), the
+    /// next flanker of the job the next route; no such spot or no table (`bot-flank-routes.json`): the flank as before.
+    /// OFF until its by-side bench against the calibrated farming camper ([`CampFlank`]).
+    pub camp_flank: Option<CampFlank>,
+}
+
+/// A320 [`ThreatTuning::camp_flank`]: the flank routes round the known camp spots, and what the flanker does when the camper
+/// dies before it arrives.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Serialize, Deserialize)]
+#[serde(default, deny_unknown_fields)]
+pub struct CampFlank {
+    /// `threat.camp_flank.hold_ms`: the camper died with the flanker on its route or at its firing floor (B3d: before 17 of
+    /// 18 flankers arrived): the flanker goes on to the firing floor and holds it for his return this long after his death,
+    /// ms, crouched with its sights on the spot (humans wait for a camper they know to come back); it ends sooner when he
+    /// is sensed away from the spot or the bot carries a battery. None: the flank ends with the job, as before. GUESS 20 s.
+    pub hold_ms: Option<u32>,
+    /// `threat.camp_flank.alarm_near_fire_m`: a route walker this near its firing floor (metres of route left) is offered
+    /// its flank in the alarm band, so a Trade or another alarm play does not take it there (B3f8: 5 of 18 walks were
+    /// taken by a Trade); healing and retreat still do. None: its band as any job's.
+    pub alarm_near_fire_m: Option<f32>,
 }
 
 /// A229 (`traces-20261028/fx-threat-obj-a229-a231-note.md`): a walk looks along its route, so a bot walks into a lane its
@@ -942,6 +964,7 @@ impl Default for ThreatTuning {
             breach: None,
             pair_target: None,
             walk_watch: None,
+            camp_flank: None,
         }
     }
 }
