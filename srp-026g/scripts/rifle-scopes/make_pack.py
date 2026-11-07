@@ -62,7 +62,7 @@ import align  # noqa: E402
 from scopes_lib import ce  # noqa: E402
 
 PACK_ID = 'rifle-scopes'
-VERSION = '14'
+VERSION = '15'
 LANGUAGES = ('english', 'german', 'original', 'polish', 'russian', 'ukrainian')
 FIRST_VARIANT = 2701
 CATEGORY = 22
@@ -267,19 +267,29 @@ def sight_changes(table):
         how = row[-1].split()
         if how[0] == 'keep':
             continue
-        if len(how) not in {'fold': (4,), 'turn': (4,), 'cut': (3,), 'lower': (4,)}.get(how[0], ()):
-            sys.exit(f'{table}: {row[0]}: {row[-1]!r} is not keep, fold|turn <surface> <up> <folded>, '
-                     'cut <surface> <box> or lower <surface> <box> <height>')
+        if len(how) not in {'fold': (4,), 'turn': (4,), 'refold': (5,), 'swap': (4,), 'cut': (3,), 'lower': (4,)}.get(how[0], ()):
+            sys.exit(f'{table}: {row[0]}: {row[-1]!r} is not keep, fold|turn <surface> <up> <folded>, refold <surface> '
+                     '<up> <folded> <their surface>, swap <surface> <up> <other>, cut <surface> <box> or lower <surface> <box> <height>')
         out.setdefault(row[0], []).append(how)
     return out
 
 
 def under_optic(model, changes, modules, gun):
     """A copied weapon model's sights as a sights table has them under an optic (sights.py): folded
-    or turned (0.69d0's up module found in the surface made its folded one), cut (a surface's islands
-    inside a box), lowered (a part of an island cut flat)."""
+    or turned (0.69d0's up module found in the surface made its folded one), refolded (found by its
+    positions, a port's own texture mapping kept), swapped (taken out: the optic's model carries the
+    other module, swap_parts), cut (a surface's islands inside a box), lowered (a part of an island
+    cut flat)."""
     for how, surface, *rest in changes:
-        if how == 'cut':
+        if how == 'refold':
+            up, folded = (modules(m) for m in rest[:2])
+            if up is None or folded is None:
+                sys.exit(f'{gun}: {rest} not in the donor')
+            done = sights.refold(model / 'render' / surface, up / 'render' / rest[2] / 'converted_model',
+                                 folded / 'render' / rest[2] / 'converted_model')
+        elif how == 'swap':
+            done = sights.take_out(model / 'render' / surface, one_surface(modules(rest[0]), gun) / 'converted_model')
+        elif how == 'cut':
             done = sights.cut(model / 'render' / surface, [float(x) for x in rest[0].split(',')])
         elif how == 'lower':
             done = sights.lower(model / 'render' / surface, [float(x) for x in rest[0].split(',')], float(rest[1]))
@@ -294,6 +304,36 @@ def under_optic(model, changes, modules, gun):
             done = mover(model / 'render' / surface, up / 'render' / names[0] / 'converted_model',
                          folded / 'render' / names[0] / 'converted_model')
         print(f'{gun}: {model.name}: {how} {surface} {" ".join(rest)}: {done}')
+
+
+def one_surface(module, gun):
+    """A donor module's one surface's folder."""
+    if module is None:
+        sys.exit(f'{gun}: a sights.tsv module not in the donor')
+    names = lib.surfaces(module)
+    if len(names) != 1:
+        sys.exit(f'{module}: {len(names)} surfaces, not one')
+    return module / 'render' / names[0]
+
+
+def swap_parts(changes, modules, gun, weapon_dir):
+    """The modules an optic's models carry for the sights its weapon model takes out (swap rows: 0.69d0
+    puts the other module where the sight was, the M4A1's plain gas block): each (module, its
+    translation in the optic's frame, all its surfaces). The optic is drawn at scope_point turned half
+    about Y; the sight's translation is found in the weapon's surface (sights.found_exactly by its
+    positions, the frame the surface is written in)."""
+    out = []
+    for how, surface, *rest in changes:
+        if how != 'swap':
+            continue
+        gun_surface = sights.Skinned(weapon_dir / 'render' / surface / 'converted_model')
+        up = sights.Static(one_surface(modules(rest[0]), gun) / 'converted_model')
+        found = sights.found_exactly(gun_surface, gun_surface.positions(), up, uv=False)
+        if not found:
+            sys.exit(f'{gun}: {rest[0]} is not in {weapon_dir.name}/{surface}')
+        sp = lib.locator(lib.leaves(weapon_dir / 'render/export_properties'), 'scope_point')[1]
+        out.append((modules(rest[1]), found[0] - np.array(sp) * sights.HALF_TURN, []))
+    return out
 
 
 def level_eye(model):
@@ -409,10 +449,6 @@ def build(args, work):
             ref_dir = 'models/weapons/attach/fit4'
             idle_out = work / f'{ref_dir}/{name}.model'
             aim_out = work / f'{ref_dir}/{name}_aim.model'
-            idle_parts = [(idle_src, t, [])]
-            if mount['rails']:
-                idle_parts.append((ref['idle_dir'], np.zeros(3), mount['rails']))
-            compose(args.compose, idle_parts, renames, idle_out)
             # the weapon's model: its eye at the optic's
             # (a variant's weapon model may differ from the weapon's own beyond its eye: the Kedr's
             # adds its scope_point; a new one is made from the mount variant's)
@@ -422,6 +458,11 @@ def build(args, work):
             found = lib.locator(lib.leaves(from_dir / 'render/export_properties'), 'scope_point')
             if found is None:
                 sys.exit(f'{w}: its model {from_model} has no scope_point')
+            swapped = swap_parts(changes.get(w, []), donor_module, w, from_dir)
+            idle_parts = [(idle_src, t, [])] + swapped
+            if mount['rails']:
+                idle_parts.append((ref['idle_dir'], np.zeros(3), mount['rails']))
+            compose(args.compose, idle_parts, renames, idle_out)
             if kind == 'C':
                 own = [s for s in lib.surfaces(aim_src) if not s.startswith('scope_lense')]
                 aim_parts = [(aim_src, t, own)]
@@ -429,6 +470,7 @@ def build(args, work):
                 if rails:
                     aim_parts.append((ref['aim_dir'], np.zeros(3), rails))
                 aim_parts.append((reticle, t + np.array([eye[0], eye[1], DOT_DISTANCE]), []))
+                aim_parts += swapped
             else:
                 # the mount variant's eyepiece (background, lens) with the scope's reticle, its red dot
                 # (on the optic's own eye line, 0.69d0's) where that eyepiece's is, both moved so the dot

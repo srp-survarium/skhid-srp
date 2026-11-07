@@ -49,6 +49,19 @@ grep -v '^#' "$here/scopes.tsv" | cut -f3 | while read -r module; do
         done
     done
 done
+# the sight modules sights.tsv folds, or takes out and puts another in for (its last column's
+# <dir>/<module> words): their model only
+grep -v '^#' "$here/sights.tsv" | awk -F'\t' '{print $NF}' | tr ' ' '\n' | grep / | sort -u | while read -r module; do
+    model="models/weapons/modules/$module.model"
+    "$port" list --db "$split" --prefix "$model/" | while read -r path; do
+        mkdir -p "$out/$(dirname "$path")"
+        "$port" extract --db "$split" --path "$path" --output "$work/raw" >/dev/null
+        case $path in
+            */converted_model) cp "$work/raw" "$out/$path" ;;
+            *) "$widen" "$work/raw" "$out/$path" ;;
+        esac
+    done
+done
 # the reference modules (references.tsv): their model only
 grep -v '^#' "$here/references.tsv" | while read -r module; do
     model="models/weapons/modules/$module/$(basename "$module").model"

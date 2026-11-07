@@ -1,9 +1,19 @@
 # The live guns' iron sights under an optic (the rifle scopes' variants, and scope fits' on these guns;
-# make_pack.py, sights.py; docs/notes/weapon_scopes.md, section 7): what 0.69d0 does with each (its sight
-# module's attach_params: an optic sets the sight slots to param 1, the module's model_param1) and what a
-# variant's weapon model does with it (the last column, as scope fits' sights.tsv: keep, fold, turn,
-# cut <surface> <box>, lower <surface> <box> <height>; boxes in the locators' frame, metres).
+# make_pack.py, sights.py; docs/notes/weapon_scopes.md, section 7), done as 0.69d0 does them: an optic sets
+# a sight module's slot to param 1, its model_param1 (a folded sight, or another module); a sight of the
+# gun's own mesh stays. The last column, what a variant's weapon model does (make_pack.py):
+#   keep                                        it stays (0.69d0's stays)
+#   refold <surface> <up> <folded> <theirs>     0.69d0's up module (<theirs>: its surface), found in <surface>
+#                                               by its positions (the port mapped its texture anew), folded
+#                                               as 0.69d0's folded one, piece by piece
+#   swap <surface> <up> <other>                 the up module found so and taken out; the optic's own model
+#                                               carries <other> where it was (0.69d0's model_param1)
+# (and scope fits' fold, turn, cut, lower: its sights.tsv)
 # gun	sight	our model	0.69d0 under an optic	under an optic
-m4a1	front sight tower (on the gas block)	part of m4a1_s: the tower and its post, standing on the gas block (top 0.078 m)	m4a1_front_ironsight: model_param1 is weapons/modules/gasblocks/m4a1_gasblock (no sight)	lower m4a1_s -0.013,0.078,-0.385,0.013,0.14,-0.3355 0.078
-ump45	front sight hood and post (on the receiver's front)	part of ump_45_mat_s: hood and post above the top rail (0.1078 m)	its own mesh: stays (no sight module); cut flat here by the owner's word (2026-11-07: it crowds the PK-01VI's, RSA-S's and Walther's dot)	lower ump_45_mat_s -0.02,0.1078,-0.345,0.02,0.14,-0.285 0.1078
-rpd	front sight ears and post (on the barrel)	part of rpd_s: ears and post above their base (0.06 m)	its own mesh: stays (no sight module); cut flat here by the owner's word (2026-11-07: it crowds the PK-01VI's, RSA-S's and Walther's dot)	lower rpd_s -0.016,0.06,-0.77,0.016,0.13,-0.715 0.06
+m4a1	front sight	part of m4a1_s: 0.69d0's m4a1_front_ironsight, every triangle (376) at its place, our texture mapping	m4a1_front_ironsight: model_param1 gasblocks/m4a1_gasblock, a plain gas block	swap m4a1_s ironsights/m4a1_front_ironsight gasblocks/m4a1_gasblock
+vepr	rear leaf (vepr_ironsight)	parts of secondary002sg1 and secondary002sg: 0.69d0's vepr_ironsight_on (vepr_main_s, vepr_sec_s), our texture mapping	vepr_ironsight: model_param1 vepr_ironsight_off, folded	refold secondary002sg1 ironsights/vepr_ironsight_on ironsights/vepr_ironsight_off vepr_main_s
+vepr	rear leaf (vepr_ironsight)	(its other surface)	(as above)	refold secondary002sg ironsights/vepr_ironsight_on ironsights/vepr_ironsight_off vepr_sec_s
+vepr_premium	rear leaf (vepr_ironsight)	as the Vepr's (its camo model)	as the Vepr's	refold secondary002sg1 ironsights/vepr_ironsight_on ironsights/vepr_ironsight_off vepr_main_s
+vepr_premium	rear leaf (vepr_ironsight)	(its other surface)	(as above)	refold secondary002sg ironsights/vepr_ironsight_on ironsights/vepr_ironsight_off vepr_sec_s
+ump45	front sight hood	part of ump_45_mat_s	its own mesh: stays	keep
+rpd	front sight	part of rpd_s	its own mesh: stays	keep

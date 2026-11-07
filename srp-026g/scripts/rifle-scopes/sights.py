@@ -101,7 +101,13 @@ class Skinned:
         box = np.array(old['/bounding_box/min'] + old['/bounding_box/max'])
         frame = min((1.0, HALF_TURN), key=lambda f: np.abs(bounds(self.first * f) - box).max())
         if np.abs(bounds(self.first * frame) - box).max() > 0.0015:  # a port writes it to a millimetre
-            sys.exit(f'{props}: its bounding box is not its surface\'s')
+            # or a box made larger on purpose (the camo models' corrected boxes, the Vepr's a metre
+            # each way): one that holds the surface (grown, below, in the frame it holds it in)
+            holds = [f for f in (1.0, HALF_TURN) if (bounds(self.first * f)[:3] >= box[:3] - 1e-4).all()
+                     and (bounds(self.first * f)[3:] <= box[3:] + 1e-4).all()]
+            if not holds:
+                sys.exit(f'{props}: its bounding box is not its surface\'s')
+            frame = holds[0]
         grown = bounds(np.concatenate([self.first, self.positions()]) * frame)
         if (grown[:3] < box[:3] - 1e-4).any() or (grown[3:] > box[3:] + 1e-4).any():
             for key, value in (('min', np.minimum(box[:3], grown[:3])), ('max', np.maximum(box[3:], grown[3:]))):
@@ -232,9 +238,11 @@ def encode(mod, uv, alphas):
     return out
 
 
-def found_exactly(gun, gp, up):
+def found_exactly(gun, gp, up, uv=True):
     """The up module in the surface, every triangle at one translation (micrometres): (translation,
-    the surface's triangles that are its, each module vertex's surface vertex) or None."""
+    the surface's triangles that are its, each module vertex's surface vertex) or None. Without `uv`
+    (a port that mapped the mesh's texture anew: the 0.26g M4A1's and Vepr's sights), the module
+    vertices' places stand for the third (the texture coordinates are not compared)."""
     gplaces = places(gp)
     gun_keys = tri_keys(gplaces, gun.tris)
     found = []
@@ -251,6 +259,8 @@ def found_exactly(gun, gp, up):
     if not found:
         return None
     t, hit, ids = found[0]
+    if not uv:
+        return t, hit, ids
     half = gun.uv().astype(np.float16).view('<u2')
     by_key = {(gplaces[i], tuple(half[i])): i for i in np.unique(gun.tris[hit])}
     pairs = [by_key.get((ids[i], tuple(up.uvh[i])), -1) for i in range(len(up.pos))]
@@ -367,6 +377,77 @@ def turn(surface_dir, up_path, folded_path):
         gun.raw[moved, at:at + 3] = np.clip(np.rint(v @ rot.T * 127 + 127), 0, 254).astype(np.uint8)
     gun.write()
     return {'t': t, 'turned': len(moved), 'residual': residual}
+
+
+def refold(surface_dir, up_path, folded_path):
+    """0.69d0's up module, found in the surface by its positions alone (a port that mapped its texture
+    anew: the 0.26g Vepr's sight), folded as 0.69d0 folds it: each of its pieces turned rigidly onto
+    the folded module's (the same vertices, in the same order), the surface's own vectors and texture
+    coordinates kept and turned with it. Returns the translation, the pieces, the vertices moved and
+    the largest residual of a piece's motion."""
+    gun = Skinned(surface_dir / 'converted_model')
+    up, down = Static(up_path), Static(folded_path)
+    if len(up.pos) != len(down.pos) or not np.array_equal(up.uvh, down.uvh):
+        sys.exit(f'{folded_path}: not {up_path} folded (other vertices or texture coordinates)')
+    gp = gun.positions()
+    exact = found_exactly(gun, gp, up, uv=False)
+    if not exact:
+        sys.exit(f'{surface_dir}: {up_path.parent.parent.name} is not in it')
+    t, hit, ids = exact
+    moved = np.unique(gun.tris[hit])
+    if np.isin(moved, gun.tris[~hit]).any():
+        sys.exit(f'{surface_dir}: the up sight shares vertices with the rest of the surface')
+    pieces = components(len(up.pos), up.tris)
+    motion, residual = {}, 0.0
+    for c in np.unique(pieces):
+        a, b = up.pos[pieces == c], down.pos[pieces == c]
+        ca, cb = a.mean(axis=0), b.mean(axis=0)
+        u, _, vt = np.linalg.svd((a - ca).T @ (b - cb))
+        rot = (u @ vt).T
+        if np.linalg.det(rot) < 0:
+            rot = np.eye(3) if np.abs(a - b).max() < 1e-6 else None
+        if rot is None:
+            sys.exit(f'{folded_path}: folding a piece of {up_path} mirrors it')
+        residual = max(residual, float(np.abs((a - ca) @ rot.T + cb - b).max()))
+        motion[c] = (rot, ca, cb)
+    if residual > 1e-5:
+        sys.exit(f'{folded_path}: a piece of {up_path} not turned rigidly ({residual * 1000:.3f} mm)')
+    # each of the surface's sight vertices: the piece of the module triangles it is a corner of
+    # (pieces may touch at a place: the triangles tell them apart)
+    gplaces = places(gp)
+    piece_of_key = {k: pieces[tri[0]] for k, tri in zip(tri_keys(ids, up.tris), up.tris)}
+    piece_at = {}
+    for k, tri in zip(tri_keys(gplaces, gun.tris[hit]), gun.tris[hit]):
+        for v in tri:
+            if piece_at.setdefault(v, piece_of_key[k]) != piece_of_key[k]:
+                sys.exit(f'{surface_dir}: a vertex of two of the sight\'s pieces')
+    for v in moved:
+        rot, ca, cb = motion[piece_at[v]]
+        gun.raw[v, 0:12] = ((((gp[v] - t - ca) @ rot.T) + cb + t).astype('<f4')).view(np.uint8)
+        for word in (0, 4, 8):  # as turn's
+            at = gun.basis_at + word
+            vec = (gun.raw[v, at:at + 3].astype(np.float64) - 127) / 127
+            gun.raw[v, at:at + 3] = np.clip(np.rint(vec @ rot.T * 127 + 127), 0, 254).astype(np.uint8)
+    gun.write()
+    return {'t': t, 'pieces': len(motion), 'moved': len(moved), 'residual': residual}
+
+
+def take_out(surface_dir, up_path):
+    """0.69d0's up module, found in the surface by its positions (as refold's), taken out: a sight
+    0.69d0 replaces under an optic with another module (the M4A1's front sight: its plain gas block,
+    which the optic's own model then carries). Returns the translation (the module frame in the
+    surface's) and the triangles taken."""
+    gun = Skinned(surface_dir / 'converted_model')
+    up = Static(up_path)
+    exact = found_exactly(gun, gun.positions(), up, uv=False)
+    if not exact:
+        sys.exit(f'{surface_dir}: {up_path.parent.parent.name} is not in it')
+    t, hit, _ = exact
+    if np.isin(np.unique(gun.tris[hit]), gun.tris[~hit]).any():
+        sys.exit(f'{surface_dir}: the up sight shares vertices with the rest of the surface')
+    gun.keep(~hit)
+    gun.write()
+    return {'t': t, 'triangles': int(hit.sum())}
 
 
 def cut(surface_dir, box):
