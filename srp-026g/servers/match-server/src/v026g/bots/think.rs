@@ -1225,6 +1225,7 @@ pub(super) fn decide(
             crossing: walks_crossing(bot),
             held_choke: bot.held_choke,
             route_left_m: running.route_left_m(tactics, me.feet),
+            route_total_m: running.route_total_m(tactics),
         },
         memory: &bot.memory,
         team: &state.knowledge,

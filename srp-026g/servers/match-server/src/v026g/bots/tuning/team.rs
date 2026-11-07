@@ -752,6 +752,32 @@ pub struct ThreatTuning {
     /// next flanker of the job the next route; no such spot or no table (`bot-flank-routes.json`): the flank as before.
     /// OFF until its by-side bench against the calibrated farming camper ([`CampFlank`]).
     pub camp_flank: Option<CampFlank>,
+    /// `threat.spot_follows_m` [A320 F7]: a kill spot whose shooter the team senses afresh (its own senses and callouts,
+    /// `Track::own`) farther than this from it moves to him: its place and kept kills' place become his, its lanes are cast
+    /// again (as a sensed sniper's spot follows him). Off: a kill spot stays where he killed from, held by its kills' strength
+    /// after he moved (B3f14: sensed 3-5 m from his true place, the held spot 40-50 m behind him, the job re-cued to it).
+    pub spot_follows_m: Option<f32>,
+    /// `threat.lane_goal_weight` [A342a]: a Collect, Raid, LateDenial, HoldExit, Cut or Crossfire whose goal lies in a cued
+    /// held spot's lanes (`job_kills` kills or more; `HeldLine::covers`) is scored times this from the cue, not after two
+    /// failed tries (fx-review A342 §4: 11 of the owner's 22 after-cue victims had their post or objective in his lanes, 3 more
+    /// a fight place there). A Crossfire on the camper himself is A342b's. None: as before.
+    pub lane_goal_weight: Option<f32>,
+    /// `threat.no_lone_m` [A342b]: a new PairUp, Crossfire, Trade or Flank aimed at a cued camper or into his lanes starts
+    /// only with a teammate who is no more than this farther from its goal than the bot (one who arrives within ~2 s); else
+    /// it is not offered and the bot holds (A342 §4: 8 of 22 went in one at a time). A running play is not touched. None: as
+    /// before.
+    pub no_lone_m: Option<f32>,
+    /// `threat.cue_merge_m` [A342d]: a held spot is cued for the jobs (`job_kills`) by the kills of every held spot of its
+    /// shooter within this many metres of it (fx-review A342 §5: 5 of 47 after-cue kills had no cue, his kills split into spots
+    /// 4 m apart). None: its own kills, as before.
+    pub cue_merge_m: Option<f32>,
+    /// `threat.replan_on_cue` [A342c]: when a held spot is first cued for the jobs, each of the team's bots looks once at its
+    /// route ahead against the team's cover (A3's test: more than `EXPOSED_M` of it exposed) and re-plans it out of his lanes
+    /// to the same goal (the owner's rule: change the approach, not the objective). fx-review A342 §5: 30 of 47 after-cue kills
+    /// were bots already in his lane when the cue came, who stayed (route costs apply only to a route drawn). A3 itself
+    /// (`replan`, every change of the cover) stays off for its cost; this looks once a cue. A bot holding a post with no route
+    /// is not moved. Off: as before.
+    pub replan_on_cue: bool,
 }
 
 /// A320 [`ThreatTuning::camp_flank`]: the flank routes round the known camp spots, and what the flanker does when the camper
@@ -768,6 +794,27 @@ pub struct CampFlank {
     /// its flank in the alarm band, so a Trade or another alarm play does not take it there (B3f8: 5 of 18 walks were
     /// taken by a Trade); healing and retreat still do. None: its band as any job's.
     pub alarm_near_fire_m: Option<f32>,
+    /// `threat.camp_flank.follow_m`: a route walker (or a flanker peeking at its firing floor) whose team senses the camper
+    /// (`Track::own`, its own senses and callouts, within 3 s) farther than this from the walked spot follows him: the
+    /// routes of the known camp spot at that place, else the walk ends (B3f6-B3f9: at 5 of 9 arrivals with him alive he
+    /// was 26-111 m away). None: the walk goes to the spot of its cue.
+    pub follow_m: Option<f32>,
+    /// `threat.camp_flank.inertia` [F1, commitment as momentum]: a route walker's flank is in the alarm band for its whole
+    /// walk with this much added to its score at its firing floor (in proportion to the share of the route walked), and is
+    /// not held by `commit.hold_to_arrival`: another alarm play (a Trade, B3f8: 5 of 18 walks) takes it only when it scores
+    /// more than the walk with its bonus by the commander's margin (utility AI's inertia, Dave Mark's IAUS). None: as before.
+    pub inertia: Option<f32>,
+    /// `threat.camp_flank.keep_old_flank` [F6]: the job's flanker takes a camp route only when it arrives no later than the
+    /// old flank's spot (its walk, straight-line metres), and a walk that ends because he moved where no known spot is goes
+    /// on as the old flank round the held spot: so the switch never flanks him less than the old flank (B3f12+B3f13: his
+    /// kills +26.7 %, most outside the walks, his deaths fewer; the old flank, 12-30 m from him, replaced by walks that
+    /// mostly ended early). Off: the camp route whenever there is one, and such a walk ends.
+    pub keep_old_flank: bool,
+    /// `threat.camp_flank.spare_flanker` [F8]: a job on a held spot at a known camp spot gives its flanker role to a spare,
+    /// not the front: the free mate nearest one of that spot's route starts, the mate nearest him left out (the job's pick
+    /// was the nearest free mate, the gun already on him, whom the walk then took off the front: with every walking variant
+    /// his kills rose 20-27 % while covered deaths stayed flat). Off: the nearest free mate, as before.
+    pub spare_flanker: bool,
 }
 
 /// A229 (`traces-20261028/fx-threat-obj-a229-a231-note.md`): a walk looks along its route, so a bot walks into a lane its
@@ -965,6 +1012,11 @@ impl Default for ThreatTuning {
             pair_target: None,
             walk_watch: None,
             camp_flank: None,
+            spot_follows_m: None,
+            lane_goal_weight: None,
+            no_lone_m: None,
+            cue_merge_m: None,
+            replan_on_cue: false,
         }
     }
 }
