@@ -470,3 +470,57 @@ src, len); dst[0x10+len] = 0` into a 0x50-byte member record -- unbounded like
 0.10b's `r_string` -- so the server bounds it: `social::squad_info` refuses
 more than `SQUAD_MEMBERS` (3) members and clamps each name to NAME (63) with
 `Writer::str`, matching the 3 x 0x50 record array and the ~64-byte name field.
+
+### State corruption, not only indices
+
+A crafted value can corrupt a receiving client without being an out-of-bounds
+index. The validator handles these classes, verified against the readers:
+
+- **non-finite floats** (NaN/infinity into a transform or physics): `finite`
+  (`(bits & 0x7F80_0000) != 0x7F80_0000`) gates every world float -- the player
+  head's pitch/rotation, the inventory item condition, the weapon
+  recoil/dispersion/aim, the battery motion, the stamina and char-controller
+  vectors (`player_tail`/`inventory`), the bullet numbers (`bullets`) and the
+  effect template floats (`effects`). The one reader that skipped it was
+  `animation_validate`; it now finitizes the floats-table values too
+  (`snapshot_rules.md` 7.2.1 #6), so a non-number cannot reach the bone
+  transforms the ragdoll and bounding box read.
+- **raw pointers / handles**: the effect template's pointer-flag bytes (12, 53,
+  ...) are forced to 0 (`effects`), so a serialized pointer is refused.
+- **bytes used as booleans**: every one must be 0x00 or 0xFF (`reader::bool`,
+  `TailBool`), not merely non-zero.
+- **type / ownership confusion**: ids are checked against the kit, dictionary
+  or slot they must belong to; a bullet owner must be an active block, a
+  carried battery's user must be this player and its container one of the two,
+  an artefact owner a kit with a player.
+
+### Client string readers (the chat/name path)
+
+Every 0.26g client reader of a player-controlled string uses the unbounded
+`len = r<u8>; memcpy(buf, src, len); buf[len] = 0` pattern into a FIXED buffer
+(decompiled, read in full), and each has a server clamp fitting that buffer:
+
+```
+chat text 0x26B6F0: name[64], clan[16], body[256]  <- chat_text str(NAME 63/
+                                                       CLAN_TAG 15/TEXT 255)
+squad     0x274720: name ~64 in a 0x50 rec, 3 recs  <- squad_info at_most(3) +
+                                                       str(NAME 63)
+clan info 0x271FD0: name[64] tag[16] rank[32] names + wide msg[254]
+                                                    <- clan_info str(NAME)/
+                                                       str(ACCOUNT_CLAN_TAG 14)/
+                                                       write_ranks/write_members
+                                                       at_most + wide(245)
+elo list  0x271EB0: name[64]                        <- elo_rows str(NAME 63)
+kit (0xE4) 0x1F112A: name[64]                       <- options::text(64) refuses
+                                                       len>=64
+```
+
+The client reader is unbounded, so the server clamp is load-bearing. The lobby
+readers otherwise carry only ints (free display values) and sized/`at_most`
+counts -- no raw pointer, bool or float surface.
+
+The player-state deep readers and the match-message + lobby readers were read
+in full (the world sections pass is the remaining one); no unbounded or
+corruptible player-to-player value was found in them without a server bound or
+native guard beyond the animation stream, which is now sealed (counts, indices,
+recursion, tree length, table under-run, and float finiteness).
