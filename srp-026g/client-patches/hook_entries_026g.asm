@@ -1307,6 +1307,174 @@ artefact_skills_on_shared_regeneration_replay:
     db 0x8b, 0x6c, 0x24, 0x24, 0x85, 0xc0
     jmp 0x32a545
 
+; 0x2d5b0c apply_modifier before it sums its list's nodes (both ways from the sorted flag's test join here; mov eax,[edi+4] / xorps xmm2,xmm2, then the loop 0x2D5B20 adds each node's +0Ch into XMM1 as value + sum): EDI the kit's list of the index ESI; summed is the loop's end (pop edi / test eax,eax / je 0x2D5B33 addss xmm0,xmm1) with EAX 0, XMM1 the sum and XMM2 the 0 the rule compares with: lohook -> artefact_skills_on_own_modifier
+global artefact_skills_on_own_modifier
+extern hook_artefact_skills_on_own_modifier
+artefact_skills_on_own_modifier:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_artefact_skills_on_own_modifier
+    mov edx, artefact_skills_on_own_modifier_replay
+    cmp eax, 0
+    je artefact_skills_on_own_modifier_go
+    mov edx, 0x2d5b12
+    cmp eax, 1
+    je artefact_skills_on_own_modifier_go
+    mov edx, 0x2d5b15
+    cmp eax, 2
+    je artefact_skills_on_own_modifier_go
+    ud2
+artefact_skills_on_own_modifier_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+artefact_skills_on_own_modifier_replay:
+    db 0x8b, 0x47, 0x04, 0x0f, 0x57, 0xd2
+    jmp 0x2d5b12
+
+; 0x2d5c46 apply_modifiers 0x2D5BC0's loop before it sums one index's list (mov eax,[edi+4] / movaps xmm2,xmm3, XMM3 0; the loop 0x2D5C50 adds each node's +0Ch into XMM2): EBX the kit's modifiers, EDI the list (ESI there is the pair's counter, not the index); summed is the loop's end (0x2D5C63 mov ecx,[esp+20h], then addss xmm0,xmm2 at 0x2D5C69) with XMM2 the sum: lohook -> artefact_skills_on_own_modifiers
+global artefact_skills_on_own_modifiers
+extern hook_artefact_skills_on_own_modifiers
+artefact_skills_on_own_modifiers:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_artefact_skills_on_own_modifiers
+    mov edx, artefact_skills_on_own_modifiers_replay
+    cmp eax, 0
+    je artefact_skills_on_own_modifiers_go
+    mov edx, 0x2d5c4c
+    cmp eax, 1
+    je artefact_skills_on_own_modifiers_go
+    mov edx, 0x2d5c63
+    cmp eax, 2
+    je artefact_skills_on_own_modifiers_go
+    ud2
+artefact_skills_on_own_modifiers_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+artefact_skills_on_own_modifiers_replay:
+    db 0x8b, 0x47, 0x04, 0x0f, 0x28, 0xd3
+    jmp 0x2d5c4c
+
+; 0x312bf0 artefact_onyx_core::protect's start (mov eax,[ecx+0EE8h], the hit type it protects against; thiscall: the hit, &damage, &piercing; one protector of it in each protected part's list): ECX the Onyx; done is its ret 0Ch with nothing pushed, the hit as it was (the other hit type's way, 0x312BFD): lohook -> artefact_skills_on_own_onyx
+global artefact_skills_on_own_onyx
+extern hook_artefact_skills_on_own_onyx
+artefact_skills_on_own_onyx:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_artefact_skills_on_own_onyx
+    mov edx, artefact_skills_on_own_onyx_replay
+    cmp eax, 0
+    je artefact_skills_on_own_onyx_go
+    mov edx, 0x312bf6
+    cmp eax, 1
+    je artefact_skills_on_own_onyx_go
+    mov edx, 0x312cb9
+    cmp eax, 2
+    je artefact_skills_on_own_onyx_go
+    ud2
+artefact_skills_on_own_onyx_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+artefact_skills_on_own_onyx_replay:
+    db 0x8b, 0x81, 0xe8, 0x0e, 0x00, 0x00
+    jmp 0x312bf6
+
+; 0x312590 artefact_lifebone_core::regeneration_modifier's start (mov ecx,[esp+8] / mov edx,[esp+4]: the record, the frame {rate, delay, limit}): ECX the Lifebone, the object its regeneration_modifiers subscriber's invoker 0x312640 calls it on (this = the functor's +4 plus +8, the Lifebone the passive's subscription 0x311F4C binds); done is its ret 8 (0x312605, after add esp,8: nothing pushed), the frame as it was: lohook -> artefact_skills_on_own_lifebone
+global artefact_skills_on_own_lifebone
+extern hook_artefact_skills_on_own_lifebone
+artefact_skills_on_own_lifebone:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_artefact_skills_on_own_lifebone
+    mov edx, artefact_skills_on_own_lifebone_replay
+    cmp eax, 0
+    je artefact_skills_on_own_lifebone_go
+    mov edx, 0x312598
+    cmp eax, 1
+    je artefact_skills_on_own_lifebone_go
+    mov edx, 0x312605
+    cmp eax, 2
+    je artefact_skills_on_own_lifebone_go
+    ud2
+artefact_skills_on_own_lifebone_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+artefact_skills_on_own_lifebone_replay:
+    db 0x8b, 0x4c, 0x24, 0x08, 0x8b, 0x54, 0x24, 0x04
+    jmp 0x312598
+
 ; 0x1e944e game::game before its delete of user_data/streamed_textures (lea eax,[esp+470h] / call 0x1E8DA0: [esp+470h] the folder's physical path, a buffer_string); kept: past the delete's call (0x1E945A reads no register before it writes it): lohook -> bake_cache_on_game_start
 global bake_cache_on_game_start
 extern hook_bake_cache_on_game_start

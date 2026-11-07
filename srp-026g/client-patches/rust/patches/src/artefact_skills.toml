@@ -42,6 +42,25 @@ site = "medical.regenerate"
 handler = "on_shared_regeneration"
 order = 1
 
+# At most 4 copies of a kind count for a player, own copies included (the owner, 2026-11-07): its
+# own copies past 4 give no passive where the game applies it: a Spring's passive nodes in the two
+# getters' list sums, an Onyx's protect, a Lifebone's regeneration modifier.
+[[hook]]
+site = "artefact.own_modifier"
+handler = "on_own_modifier"
+
+[[hook]]
+site = "artefact.own_modifiers"
+handler = "on_own_modifiers"
+
+[[hook]]
+site = "artefact.own_onyx"
+handler = "on_own_onyx"
+
+[[hook]]
+site = "artefact.own_lifebone"
+handler = "on_own_lifebone"
+
 # The shared Springs' movement: a recipient's animations selected again when it changes (each
 # player's tick before tick_animations; after the battery carrier's).
 [[hook]]

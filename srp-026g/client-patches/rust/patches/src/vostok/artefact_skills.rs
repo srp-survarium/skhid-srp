@@ -84,6 +84,57 @@ fn carried(player: raw::Player) -> impl Iterator<Item = Carried> {
     })
 }
 
+/// One of a player's own copies of a kind and whether it counts for it.
+#[derive(Clone, Copy)]
+struct Own {
+    copy: Carried,
+    counts: bool,
+}
+
+/// `player`'s own copies of `kind` in their passive or active, in container order, each with
+/// whether it counts for it ([`Room::counts_own`]: the first 4; one past them gives nothing). The
+/// one count of own copies: the sharing's room, the leg quarters and the cap where each passive is
+/// applied.
+fn own(player: raw::Player, kind: Kind) -> impl Iterator<Item = Own> {
+    carried(player)
+        .filter(move |copy| copy.kind == kind && copy.state != State::Other)
+        .enumerate()
+        .map(|(nth, copy)| Own { copy, counts: Room::counts_own(nth) })
+}
+
+/// Whether `artefact` is one of its holder's own copies past the 4 of its kind that count: its
+/// passive then gives nothing. The holder is its inventory's (an Onyx's protector and a
+/// Lifebone's regeneration subscriber are in their holder's parts only while it carries them);
+/// an artefact in no inventory, or in no passive nor active, counts as the game has it.
+fn uncounted(artefact: raw::Artefact) -> bool {
+    // SAFETY: a protector's or a subscriber's live artefact, its inventory and holder.
+    let holder = unsafe { artefact.item().inventory().and_then(|inventory| inventory.holder()) };
+    let (Some(holder), Some(kind)) = (holder, kind_of(artefact)) else {
+        return false;
+    };
+    // SAFETY: the holder interface is its base_player's (+108h).
+    let player = unsafe { holder.player() };
+    own(player, kind).any(|own| own.copy.at == artefact && !own.counts)
+}
+
+/// Onyx's protect (0x312BF0, ECX the Onyx): whether it is in its passive and past the 4 Onyx that
+/// count for its holder, leaving the hit as it is.
+pub fn onyx_uncounted(ctx: &Context<'_>) -> bool {
+    // SAFETY: the protect's ECX is its live Onyx.
+    let Some(onyx) = (unsafe { raw::site::artefact_own_onyx::onyx(ctx) }) else {
+        return false;
+    };
+    // SAFETY: the Onyx's own state.
+    State::parse(unsafe { *onyx.state() }) == State::Passive && uncounted(onyx)
+}
+
+/// A Lifebone's regeneration modifier (0x312590, ECX the Lifebone): whether it is past the 4
+/// Lifebones that count for its holder, leaving the part's tick as it is.
+pub fn lifebone_uncounted(ctx: &Context<'_>) -> bool {
+    // SAFETY: the subscriber's invoker calls it on its live Lifebone.
+    unsafe { raw::site::artefact_own_lifebone::lifebone(ctx) }.is_some_and(uncounted)
+}
+
 /// Whether one of `player`'s artefact containers holds an active Onyx.
 fn active_onyx(player: raw::Player) -> bool {
     carried(player).any(|copy| copy.kind == Kind::Onyx && copy.state == State::Active)
@@ -206,7 +257,7 @@ fn shared(roster: &Roster<'_>, recipient: Player<'_>, kind: Kind) -> (Shared, Sh
         let none = Shared::new(Room::NONE);
         return (none, none);
     }
-    let own = carried(recipient.get()).filter(|copy| copy.kind == kind && copy.state != State::Other).count();
+    let own = own(recipient.get(), kind).filter(|own| own.counts).count();
     let (mut passives, mut actives) = (Shared::new(Room::after(own)), Shared::new(Room::after(own)));
     for carrier in roster.iter() {
         if !carrier.active() || !carrier.ally(recipient) {
@@ -233,7 +284,7 @@ fn shared(roster: &Roster<'_>, recipient: Player<'_>, kind: Kind) -> (Shared, Sh
 
 impl super::world::Player<'_> {
     /// Its passive copies of each kind that count for it (the leg quarters, patch 111): its own
-    /// carried copies giving their passive and the passives Resonance shares with it, counted
+    /// copies that count and give their passive and the passives Resonance shares with it, counted
     /// with Resonance's own sharing (`shared`), in its world's roster as it is now; none when it
     /// is not in that roster or is dead.
     pub fn passive_copies(&self) -> Copies {
@@ -245,7 +296,7 @@ impl super::world::Player<'_> {
             return Copies::default();
         };
         Copies::of(|kind| {
-            let own = carried(self.this).filter(|copy| copy.kind == kind && kind.gives(Phase::Passive, copy.state)).count();
+            let own = own(self.this, kind).filter(|own| own.counts && kind.gives(Phase::Passive, own.copy.state)).count();
             let (passives, _) = shared(&roster, recipient, kind);
             (own, passives.iter().count())
         })
@@ -255,18 +306,86 @@ impl super::world::Player<'_> {
 /// A shared Spring's nodes of the kit list `index` for `phase`, summed: its passive's +340h,
 /// +350h and +3D8h, its active's +360h, +370h, +380h, +3B8h, +3C8h and +3E8h (each its index).
 fn spring_nodes(spring: raw::Artefact, phase: Phase, index: u32) -> f32 {
+    let (passive, active) = spring_phase_nodes(spring);
+    let nodes: &[raw::ModifierNode] = match phase {
+        Phase::Passive => &passive,
+        Phase::Active => &active,
+    };
+    // SAFETY: the Spring's own nodes.
+    nodes.iter().filter(|node| unsafe { *node.index() } == index).fold(0.0, |sum, node| sum + unsafe { *node.value() })
+}
+
+/// A carried Spring's nodes: its passive's (+340h, +350h, +3D8h) and its active's (+360h, +370h,
+/// +380h, +3B8h, +3C8h, +3E8h).
+fn spring_phase_nodes(spring: raw::Artefact) -> ([raw::ModifierNode; 3], [raw::ModifierNode; 6]) {
     // SAFETY: a carried Spring (its vtable checked), its config's nodes and patch 54's.
     unsafe {
         let spring = spring.spring();
         let (first, added) = (spring.first_node(), spring.added_node());
-        let passive = [first.at(0), first.at(1), added.at(2)];
-        let active = [first.at(2), first.at(3), first.at(4), added.at(0), added.at(1), added.at(3)];
-        let nodes: &[raw::ModifierNode] = match phase {
-            Phase::Passive => &passive,
-            Phase::Active => &active,
-        };
-        nodes.iter().filter(|node| *node.index() == index).fold(0.0, |sum, node| sum + *node.value())
+        ([first.at(0), first.at(1), added.at(2)], [first.at(2), first.at(3), first.at(4), added.at(0), added.at(1), added.at(3)])
     }
+}
+
+/// A kit list's nodes in its order.
+fn list_nodes(list: raw::ModifierList) -> impl Iterator<Item = raw::ModifierNode> {
+    // SAFETY: a live kit's list and its linked nodes.
+    core::iter::successors(unsafe { list.first() }, |node| unsafe { node.next() })
+}
+
+/// What the getters sum a kit list `list` to without its player's own Springs past the 4 that
+/// count (their passive's nodes left out), in the list's order as the game sums it (value + sum):
+/// none when the game's sum is the rule's, so the game sums it. A list of 4 nodes or fewer holds
+/// no fifth Spring's passive node; outside a match, for a kit that is no player's current one, or
+/// when every own Spring of its player counts, nothing is left out.
+fn own_springs(thread: &Thread, list: raw::ModifierList) -> Option<f32> {
+    if list_nodes(list).count() <= usize::from(Room::MOST) {
+        return None;
+    }
+    let roster = Roster::of(thread, Some(match_core()?));
+    let player = roster.iter().find(|player| {
+        kit_modifiers(player.get()).is_some_and(|modifiers| {
+            // SAFETY: a kit's lists, one for each of its 68 indices (the Spring lists among them).
+            SPRING_LISTS.iter().any(|&index| unsafe { modifiers.lists().at(index as usize) } == list)
+        })
+    })?;
+    let uncounted = || own(player.get(), Kind::Spring).filter(|own| !own.counts);
+    uncounted().next()?;
+    let left_out = |node: &raw::ModifierNode| uncounted().any(|own| spring_phase_nodes(own.copy.at).0.contains(node));
+    // SAFETY: the list's own nodes.
+    Some(list_nodes(list).filter(|node| !left_out(node)).fold(0.0, |sum, node| unsafe { *node.value() } + sum))
+}
+
+/// apply_modifier before its list's sum (0x2D5B0C, EDI the list of the index ESI): the sum
+/// without the own Springs past the 4 that count, none when nothing is left out.
+pub fn own_modifier(ctx: &mut Context<'_>) -> bool {
+    use raw::site::artefact_own_modifier as site;
+    // SAFETY: the getter's own registers.
+    let (list, index) = unsafe { (site::list(ctx), site::index(ctx)) };
+    if !SPRING_LISTS.contains(&index) {
+        return false;
+    }
+    let Some(sum) = list.and_then(|list| own_springs(ctx.thread(), list)) else {
+        return false;
+    };
+    // The loop's end as the game's: EAX its last node's next (0), XMM1 the sum, XMM2 the 0.
+    ctx.set_reg(Reg::Eax, 0);
+    ctx.set_xmm_f32(1, sum);
+    ctx.set_xmm_f32(2, 0.0);
+    true
+}
+
+/// apply_modifiers' loop before one index's sum (0x2D5C46, EDI the list): the same, XMM2 the sum.
+pub fn own_modifiers(ctx: &mut Context<'_>) -> bool {
+    use raw::site::artefact_own_modifiers as site;
+    // SAFETY: the getter's own registers.
+    let Some(list) = (unsafe { site::list(ctx) }) else {
+        return false;
+    };
+    let Some(sum) = own_springs(ctx.thread(), list) else {
+        return false;
+    };
+    ctx.set_xmm_f32(2, sum);
+    true
 }
 
 /// What the shared Springs' nodes add to the kit list `index` of `modifiers`, when the kit is

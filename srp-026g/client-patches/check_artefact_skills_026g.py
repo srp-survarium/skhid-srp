@@ -17,8 +17,10 @@ protect (0x312BF0) run on that Onyx; the shared Lifebone at body_part::regenerat
 (0x32A53F, with patch 94's handler after it) compared with the Lifebone's own regeneration
 callback (0x312590) on its record, and the whole regenerate (0x32A4B0) healing to full; the
 team, life, roster, reach (8 m passives, 5 m actives), state and cap (4 of a kind, own first)
-rules, a lobby (no match) and a kit that is not the player's current one. A constructed player,
-not a played match.
+rules, a lobby (no match) and a kit that is not the player's current one. The cap of 4 copies of
+a kind with own copies (check_own_cap): five own Springs through the getters, five own Onyx
+through the game's protect, five own Lifebones through its regeneration callback act as four;
+three own with Resonance's shared make four. A constructed player, not a played match.
 Usage: python check_artefact_skills_026g.py ORIGINAL_EXE
 """
 import struct
@@ -624,7 +626,7 @@ def check_resonance_lifebone(data):
             if part in record:
                 g.emu.mem_write(entry + 0x1C, struct.pack('<6f', *record[part]))
             for _ in range(shared):
-                g.call(LIFEBONE_CALLBACK, (frame, entry))
+                g.call(LIFEBONE_CALLBACK, (frame, entry), ecx=0)
             want = (g.float(frame), g.read(frame + 4), g.float(frame + 8))
             close(have[0], want[0])
             assert have[1] == want[1], (what, have, want)
@@ -651,6 +653,130 @@ def check_resonance_lifebone(data):
     return outcomes
 
 
+def check_own_cap(data):
+    """At most 4 copies of a kind count for a player, own copies included (the owner, 2026-11-07):
+    a fifth own copy (Artifact Container) gives no passive where the game applies it, and three
+    own with Resonance's shared still make four."""
+    outcomes = []
+    near = (3.0, 0.0, 0.0)
+    pairs = [(4, 1.0), (20, 1.0)]
+
+    # Spring: the game's getters on the recipient's own Springs, linked by the game in container
+    # order (the fifth container's last). (own states, carriers' Springs by Resonance, the
+    # passives and actives that count.)
+    def springs(own, carried=(), in_match=True):
+        m = Match(data, in_match)
+        for state in own:
+            m.spring(PLAYER, state)
+        if carried:
+            at = m.player(1, 0, near, RESONANCE)
+            for state in carried:
+                m.spring(at, state)
+        return [m.getter(index) for index in SPRING_LISTS + [20, 2]] + [m.weighted(pairs)]
+    four = springs([3, 3, 3, 3])
+    assert springs([3, 3, 3, 3, 3]) == four, "five own passive Springs give exactly four's"
+    for what, own, carried, in_match, (passives, actives) in [
+        ('five own', [3, 3, 3, 3, 3], (), True, (4, 0)),
+        ('five own, the fifth active: its active only', [3, 3, 3, 3, 4], (), True, (4, 1)),
+        ('five own, the first active', [4, 3, 3, 3, 3], (), True, (4, 1)),
+        ('five own and a carrier: none shared', [3, 3, 3, 3, 3], [3, 3], True, (4, 0)),
+        ('three own and three shared: four', [3, 3, 3], [3, 3, 3], True, (4, 0)),
+        ('no match: the game sums them all', [3, 3, 3, 3, 3], (), False, (5, 0)),
+    ]:
+        have = springs(own, carried, in_match)
+        for index, value in zip(SPRING_LISTS + [20, 2], have):
+            close(value, max(0.0, 1 + spring_sum(index, passives, actives)))
+        close(have[-1], max(0.0, 1 + spring_sum(4, passives, actives)))
+        outcomes.append((what, [round(v, 4) for v in have]))
+    assert springs([3, 3, 3], [3, 3, 3]) == springs([3, 3, 3], [3]), "three own take one shared"
+
+    # Onyx: each own Onyx's protect (0x312BF0) as the part's protectors call it, in container
+    # order, after the shared ones (0x32A020); compared with the game's protect on a copy.
+    kind = 7
+    for what, own, carried, (passives, active) in [
+        ('five own passive', [3, 3, 3, 3, 3], (), (4, False)),
+        ('five own, the first active: three passives and its active', [4, 3, 3, 3, 3], (), (3, True)),
+        ('four own: all four', [3, 3, 3, 3], (), (4, False)),
+        ('three own and two shared: four', [3, 3, 3], [3, 3], (4, False)),
+        ('five own and a carrier: four', [3, 3, 3, 3, 3], [3, 3], (4, False)),
+    ]:
+        m = Match(data)
+        g = m.g
+        stones = [onyx(m, PLAYER, state) for state in own]
+        if carried:
+            at = m.player(1, 0, near, RESONANCE)
+            for state in carried:
+                onyx(m, at, state)
+        for damage, piercing in [(100.0, 0.4), (4.0, 0.9)]:
+            have = protected(m, kind, 'body', damage, piercing)
+            hit, cells = g.block(0x40), g.block(8)
+            g.word(hit + 0x1C, kind)
+            g.word(cells, bits(have[0]))
+            g.word(cells + 4, bits(have[1]))
+            for stone in stones:
+                g.call(ONYX_HIT, (hit, cells, cells + 4), ecx=stone)
+            have = (g.float(cells), g.float(cells + 4))
+            want = (damage, piercing)
+            if active:
+                want = native_protect(m, stones[0], 4, kind, *want)
+            for _ in range(passives):
+                want = native_protect(m, stones[-1], 3, kind, *want)
+            close(have[0], want[0])
+            close(have[1], want[1])
+            outcomes.append((what, damage, round(have[0], 4)))
+
+    # Lifebone: each own Lifebone's regeneration modifier (0x312590, ECX the Lifebone, as its
+    # subscriber's invoker calls it) with its record for the part, then the shared ones at the
+    # join (0x32A53F); compared with the game's callback on that record.
+    release = {'body': (0.1, 1.0, 0.0, 1.0, 1.0, 1.0)}
+    odd = {'body': (0.05, 1.5, -2.0, 0.75, 0.25, 0.8)}
+    for what, own, carried, record, counted in [
+        ('five own', [3, 3, 3, 3, 3], (), odd, 4),
+        ('five own, one active', [3, 4, 3, 3, 3], (), odd, 4),
+        ('four own', [3, 3, 3, 3], (), odd, 4),
+        ('three own and two shared: four', [3, 3, 3], [3, 3], release, 4),
+        ('five own and a carrier: four', [3, 3, 3, 3, 3], [3], release, 4),
+    ]:
+        m = Match(data)
+        g = m.g
+        bones = [lifebone(m, PLAYER, state, record) for state in own]
+        if carried:
+            at = m.player(1, 0, near, RESONANCE)
+            for state in carried:
+                lifebone(m, at, state, record)
+        pool = g.pools[PLAYER]['body']
+        rate, delay, limit = 0.03, 8000, 0.5
+        frame = g.block(12)
+        g.word(frame, bits(rate))
+        g.word(frame + 4, delay)
+        g.word(frame + 8, bits(limit))
+        for bone in bones:
+            g.call(LIFEBONE_CALLBACK, (frame, g.read(bone + 0x354)), ecx=bone)
+        stack = [0] * 12
+        stack[4], stack[5], stack[6], stack[9] = g.read(frame), g.read(frame + 4), g.read(frame + 8), 12345
+        g.step(REGENERATE_JOIN, 6, stack=stack, eax=g.read(frame + 4), edi=pool)
+        have = (g.float(STACK - 0x100 + 0x10), g.emu.reg_read(UC_X86_REG_EAX), g.float(STACK - 0x100 + 0x18))
+        native = g.block(12)
+        g.word(native, bits(rate))
+        g.word(native + 4, delay)
+        g.word(native + 8, bits(limit))
+        entry = g.block(0x34)
+        g.emu.mem_write(entry + 0x1C, struct.pack('<6f', *record['body']))
+        for _ in range(counted):
+            g.call(LIFEBONE_CALLBACK, (native, entry), ecx=0)
+        want = (g.float(native), g.read(native + 4), g.float(native + 8))
+        close(have[0], want[0])
+        assert have[1] == want[1], (what, have, want)
+        close(have[2], want[2])
+        outcomes.append((what, have))
+    print("At most 4 copies of a kind count, own copies included: five own Springs give the game's getters "
+          "(one index, the weighted sum) exactly four's passive nodes (a fifth active keeps its active), five "
+          "own Onyx protect a hit as four through the game's protect (the first active as its active), five own "
+          "Lifebones regenerate as four through the game's callback; three own with Resonance take one shared "
+          "(four in all), five own none; outside a match the getters sum them all: PASS")
+    return outcomes
+
+
 def main():
     original = open(sys.argv[1], 'rb').read()
     patched, _ = base.build(original, 'section', open(base.default_bin('section'), 'rb').read(), None,
@@ -664,6 +790,7 @@ def main():
     check_resonance_movement(patched)
     check_resonance_onyx(patched)
     check_resonance_lifebone(patched)
+    check_own_cap(patched)
 
 
 if __name__ == '__main__':

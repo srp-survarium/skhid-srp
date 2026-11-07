@@ -4712,6 +4712,15 @@ The shared movement (list 4) is read only when a player's animations are selecte
 player's tick before tick_animations (`battery.carrier_tick` 0x2DAAD3, order 2) a change of it
 since the tick before sets +33Eh (m_need_to_select_animations), as patch 94 does for Adrenalin;
 each place's last 64 ticks' sums are kept, so a re-simulated tick answers as at first.
+At most 4 copies of a kind count for a player, own copies included (the owner, 2026-11-07; the
+stock game sums every carried copy's passive): of a player's own copies of a kind in their passive
+or active, in container order, the first 4 count, the one count the sharing's room and the leg
+quarters use (`vostok::artefact_skills::own`). One past them gives no passive: the getters' list
+sums (`artefact.own_modifier` 0x2D5B0C, `artefact.own_modifiers` 0x2D5C46) leave out its passive
+nodes (+340h, +350h, +3D8h), summing the list's other nodes as the game does and going on at the
+loop's end; an Onyx's protect in its passive returns (`artefact.own_onyx` 0x312BF0, `ret 0Ch`);
+a Lifebone's regeneration modifier returns (`artefact.own_lifebone` 0x312590, ECX the Lifebone,
+`ret 8`). Its active is as before.
 Checked with `check_artefact_skills_026g.py`; not run in a game.
 
 ## Keeper of the Artifacts: an artefact of the match's kind at the first spawn (patch 109, unreleased)

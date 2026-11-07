@@ -305,7 +305,7 @@ preferred-image VAs; `apply_modifier` is the kit-modifier getter 0x2D5AE0.
 - "Up to 4 effects for the same artifact" (the owner, 2026-11-05: own copies count): a
   recipient has at most 4 copies of one kind in all, its own carried ones and the shared ones;
   shared copies fill what its own leave, max(0, 4 - own), from all carriers together in place
-  order. Two own Springs take at most two shared; own copies past 4 stay (native), no shared.
+  order. Two own Springs take at most two shared; four own or more, none shared.
 - Read where the effect is used, never stored (my pick: an aura): Spring's modifiers at
   `apply_modifier`, Onyx's at the hit's protection, Larkspur's regeneration at its tick. A
   recipient walking out of the radius loses it; nothing is serialized.
@@ -314,8 +314,44 @@ preferred-image VAs; `apply_modifier` is the kit-modifier getter 0x2D5AE0.
 - Glow: Larkspur's recipients glow (Medic's); Spring's and Onyx's shared actives show no glow
   on the recipient (my pick: a cosmetic gap). The shared passives show in the leg quarters.
 - The cap per phase (my pick): at most 4 copies' passives and 4 copies' actives of a kind,
-  each 4 less the recipient's own carried copies of the kind (in their passive or active).
+  each 4 less the recipient's own copies of the kind that count (in their passive or active, at
+  most 4: "At most 4 copies of a kind" below).
   Larkspur's active heal is Medic's, which has no cap: a full heal twice is one.
+
+### At most 4 copies of a kind (the owner, 2026-11-07)
+
+- At most 4 copies of one kind count for a player, own copies included, with Resonance or
+  without: Artifact Container (522) gives a fifth container, and of 5 Springs carried only 4 give
+  Spring's passive.
+- The stock game does not cap them: every carried copy's passive adds (artefacts.md, "Every
+  artefact"). A Spring links its passive nodes into the holder's kit lists at pickup (0x311AD0)
+  and the getters sum every node of a list (0x2D5B20, 0x2D5C50), with no count of who linked
+  them; each Onyx puts one protector in each part it protects (0x312810), each called for a hit
+  (protect 0x312BF0: n passive Onyx multiply a hit n times; patch 54 limits only the actives to
+  the first); each Lifebone links one regeneration modifier into each part it heals (0x3121A0),
+  each called at the part's tick (0x32A527). Nothing capped them because at most 4 containers
+  could be had before 522 (the owner); the stock code itself has no limit. The
+  Rattle's core is a bare artefact_base (the cook's 0x2EE9F1 calls 0x312FD0, 340h bytes): no
+  passive to cap.
+- Which count (one definition, `vostok::artefact_skills::own` with `Room::counts_own`): the
+  player's own copies of the kind in their passive or active (state 3 or 4), in container
+  order; the first 4 count. A copy past them gives no passive; its active is as before (my pick:
+  the owner named the passive; a fifth Spring's active nodes still add, a fifth Onyx fired
+  still adds its +1 s). An active Onyx is one of the 4 though it gives no passive then (as the
+  sharing's room counts it). The sharing's room is 4 less the own copies that count, and the leg
+  quarters count the own copies that count and give their passive, plus the shared.
+- Where (patch 109, read where the passive is applied, nothing kept):
+  - Spring: `artefact.own_modifier` (apply_modifier 0x2D5B0C, before it sums the index's list)
+    and `artefact.own_modifiers` (apply_modifiers' loop 0x2D5C46): for a list of a Spring's
+    lists with more than 4 nodes, the kit being a match player's current one with a Spring past
+    the 4, the list's sum without that Spring's passive nodes (+340h, +350h, +3D8h), in the list's
+    order as the game sums it (value + sum), given at the loop's end: 5 Springs give exactly 4's.
+  - Onyx: `artefact.own_onyx` (protect's start 0x312BF0): an Onyx in its passive past the 4
+    of its holder (its inventory's) returns at its `ret 0Ch`, the hit as it was.
+  - Larkspur (Lifebone): `artefact.own_lifebone` (regeneration_modifier's start 0x312590, ECX
+    the Lifebone its subscriber's invoker 0x312640 calls it on): one past the 4 returns at its
+    `ret 8`, the part's tick as it was.
+- Changes what a match computes: a clause of the `next` row.
 
 ### Leg quarters (patch 111, pack artefact-glow@13)
 
@@ -339,9 +375,10 @@ preferred-image VAs; `apply_modifier` is the kit-modifier getter 0x2D5AE0.
   world: the other games showed none of that player's effects (the quarters, Forest Protection's
   glow, the stock activation glow). The stock game's bug; patch 111 gives the presenter back at
   the tick of the place's current kit's player (and presents its effects again), in every game.
-- The count, per kind: the player's own carried copies giving their passive (`Kind::gives`:
-  Spring and Lifebone in 3 and 4, Onyx in 3 only) plus the passives Resonance shares with it
-  (`shared`, the sharing's own code and cap), at most 4 (own copies past 4 count as 4). A dead
+- The count, per kind: the player's own copies that count (the first 4 in their passive or
+  active, "At most 4 copies of a kind") giving their passive (`Kind::gives`: Spring and Lifebone
+  in 3 and 4, Onyx in 3 only) plus the passives Resonance shares with it (`shared`, the
+  sharing's own code and cap), at most 4. A dead
   player counts none. Counted at the player's simulation tick in its world as it is then.
 - Quarters (my pick), in the order they light: 1 the left lower leg (LeftLeg, LeftFoot), 2 the
   right lower leg, 3 the left thigh (LeftUpLeg), 4 the right thigh: one copy one shin, two both
@@ -410,6 +447,7 @@ preferred-image VAs; `apply_modifier` is the kit-modifier getter 0x2D5AE0.
   rate, delay and limit.
 - Larkspur's active: skill 542's edit-list entry also sets modifier 43 (`armored_trap`) bit 20,
   patch 94's retained Medic.
+- Own copies past 4: four more sites, "At most 4 copies of a kind" above.
 
 ## Every game the same
 
@@ -427,6 +465,8 @@ preferred-image VAs; `apply_modifier` is the kit-modifier getter 0x2D5AE0.
   its data skills, Resistance, Onyx II, Larkspur II, Spring II (patch 109 and patch 54's Spring
   nodes), Resonance and Cascade (patch 109's aura, Medic's bit for Larkspur's active), Keeper of
   the Artifacts (patch 109 and the hidden pool).
+- At most 4 copies of a kind, own included (2026-11-07): implemented and checked with Unicorn
+  (`check_artefact_skills_026g.py`, `check_own_cap`); not played, not released.
 - Forest Protection's glow (2026-11-05): implemented and checked with Unicorn
   (`check_forest_glow_026g.py`); captured in a local game (private/renders/artefact-tree/);
   not played by the owner, not released.
