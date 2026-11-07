@@ -337,6 +337,28 @@ mod tests {
         assert_eq!(open.clone().wall_cleared(&grid).points().len(), 2, "a leg clear of walls is as it was");
     }
 
+    /// [A333] The pull's hold (`grid.wall_clear_pull`): a floor 0.375 m off a wall is tight (a pulled leg crosses it only
+    /// as a floor of its own path), one 1.125 m off is not; without the hold, or without the table, no floor is; a route between
+    /// two floors clear of the post is the same with the hold.
+    #[test]
+    fn the_pull_hold_marks_the_floors_nearer_a_wall_than_the_body_holds() {
+        let mut tris = floor();
+        tris.extend(block(5.0, 0.0, 5.5, 10.0));
+        let hold = crate::v026g::bots::tuning::PULL_HOLD_M;
+        let plain = grid_of(&tris);
+        let held = grid_of(&tris).with_pull_hold(hold);
+        let node = |g: &WalkGrid, x: f32, z: f32| g.locate(Vec3::new(x, 0.0, z), 0.05).unwrap();
+        assert!(held.pull_tight(node(&held, 4.625, 5.125)), "0.375 m off the wall");
+        assert!(!held.pull_tight(node(&held, 3.875, 5.125)), "1.125 m off");
+        assert!(!plain.pull_tight(node(&plain, 4.625, 5.125)), "no hold");
+        let bare = WalkGrid::build(&tris, AREA, 0.25, Body { erosion: Erosion::Exact, ..Body::default() }).with_pull_hold(hold);
+        assert!(!bare.pull_tight(node(&bare, 4.625, 5.125)), "no table");
+        let ends = |g: &WalkGrid| (node(g, 1.125, 1.125), node(g, 1.125, 8.125));
+        let at = |r: &Route| r.points().iter().map(|p| (p.at.x, p.at.z)).collect::<Vec<_>>();
+        let ((a, b), (c, d)) = (ends(&plain), ends(&held));
+        assert_eq!(at(&super::super::plan(&plain, a, b).unwrap()), at(&super::super::plan(&held, c, d).unwrap()), "clear of walls: as before");
+    }
+
     /// A door gate is a corner at the doorway's middle (A66): it stays where it is, where the same corner not a gate moves.
     #[test]
     fn a_gate_stays() {
