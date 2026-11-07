@@ -568,6 +568,11 @@ Patches:
   section 3.71): at player_step's epilogue (0x7C7D7) a position (+0B0h) with
   an infinity or a NaN goes back to m_last_pos (+50h), where the step began;
   every other step bit for bit as before. A simulation change;
+- a game the match server kicks (0xFD) goes back to the lobby as one whose
+  link was lost does (patch 119, KICK_TO_LOBBY; docs/notes/client_patch.md
+  section 3.72): close_current_match's jump table (0x27A958) sends reason 4
+  to reason 1's lobby message and world end (0x27A930), not to the
+  function's return. Nothing a match computes;
 - the baked camouflage and decal textures are kept from game to game, and
   a texture asked for again while its bake or load is under way is made
   once (patch 70, with the late join; docs/notes/baked-textures.md). The
@@ -1532,6 +1537,23 @@ MOUSE_BUTTONS = (
     (0x26D059, bytes.fromhex("750e"), bytes.fromhex("7521")),   # -> 0x26D07C mov al,1 / pop esi
     (0x28DCEE, bytes.fromhex("750e"), bytes.fromhex("7520")),   # -> 0x28DD10 mov al,1 / pop ecx
 )
+
+# A kicked game goes back to the lobby (patch 119, client_patch.md section
+# 3.72). The match server's 0xFD is instant_disconnect(4) (0x3FDF0A), whose
+# callback on_match_disconnected (0x21BE50) calls close_current_match(4)
+# (0x27A790, vtable 0x9FFB14 +58h). Past its guard (the time rule's state the
+# network client keeps, +1F1C60h, not 0) the jump table 0x27A958 had for 4 the
+# function's return (0x27A94C): the link was closed, the world never ended,
+# and the game stayed where it was. Reason 1 ("connection lost") goes to
+# 0x27A867: a log line naming the reason (1, 5, else
+# "disconnected_by_initiator"), then 0x27A930: `31 <order> FF` to the lobby
+# (discard_playing_order 0x2717E0) and the world ended (on_finish_match
+# 0x1F96F0: game_world::unload, game::switch_to_lobby). Entry 4 now names
+# 0x27A930: what reason 1 does, without a log line that would call a kick the
+# player's own leave. The stack and the registers there are the case's (the
+# log block is balanced; [esp+0Ch], its buffer's flag, is only read before
+# 0x27A930). An address: its relocation stays.
+KICK_TO_LOBBY = (0x27A968, struct.pack("<I", 0x27A94C), struct.pack("<I", 0x27A930))
 
 # The mouse look's pitch (patch 112, client_patch.md section 3.70,
 # ../docs/notes/mouse-pitch.md): the Rust patch mouse_pitch
@@ -3487,6 +3509,8 @@ def build_image(original, mode, code=None, server=None, late_join=None, revision
         for site in MOUSE_BUTTONS:
             patch(data, *site)
             sites.append((site[0], site[0] + len(site[1])))
+        # A jump table's address for another: its relocation stays.
+        patch(data, *KICK_TO_LOBBY)
         for site in ARTEFACTS_SIZES:
             patch(data, *site)
             sites.append((site[0], site[0] + len(site[1])))

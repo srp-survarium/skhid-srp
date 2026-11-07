@@ -132,6 +132,7 @@ release's. The "Result" row is the build of the revision named in it.
 | `rust/patches/src/hud_cursor.rs`, `src/hud_cursor.toml`, `src/vostok/hud_input.rs` (`MainMenu`, `MatchCursor`), `check_hud_cursor_026g.py` | Patch 113: the hud's kits and cursor start over at each match (the last match's pick stayed on the kits' tab), and the main menu covers the hud's cursor (Esc over the kits left it drawn under the menu's); four lohooks, at initialize_match's start, show_cursor's show and game_options' activate and deactivate; its check runs each from the game's code on a made-up game, the original beside (needs Unicorn) |
 | `rust/patches/src/ban_time.rs`, `src/ban_time.toml`, `src/vostok/login.rs` (`BanStatusText`), `src/vostok/clock.rs` (`FileTime`), `../crates/ban-reason` | Patch 116: a banned account's sign-in shows srp's reason, when the ban ends and how long it has left, from what srp's login server sends after a ban's code; two lohooks, at the sign-in answer and at set_status's built text |
 | `rust/patches/src/controller_position.rs`, `src/controller_position.toml`, `src/vostok/controller.rs`, `check_controller_position_026g.py` | Patch 118: a character controller's step never leaves its position non-finite: at player_step's epilogue (0x7C7D7) a position with an infinity or a NaN goes back to m_last_pos, where the step began; one lohook; a simulation change (`../docs/notes/client_patch.md` section 3.71) |
+| `check_kick_lobby_026g.py` | Patch 119 (`KICK_TO_LOBBY` in `patch_026g.py`): a game the match server kicks (0xFD) goes back to the lobby as one whose link was lost does: close_current_match's jump table sends reason 4 to reason 1's `31` and world end; its check runs on_match_disconnected in both exes for every reason and state (needs Unicorn; `../docs/notes/client_patch.md` section 3.72) |
 | `audio_device_026g.c`, `audio_device_026g.h`, `audio_device_engine_026g.c`, `test_audio_device_026g.c` | Patch 100: the sound follows the audio output device (XAudio2's engine and voices proxied, made again on the default device after a lost device or a new default); the test runs the core on i686 under the sanitizers against a made-up XAudio2 that keeps its rules (no Unicorn) |
 | `rust/patches/src/sound_voices.rs`, `src/sound_voices.toml`, `src/vostok/voices.rs`, `check_sound_voices_026g.py` | Patch 96: shots no longer go silent under heavy fire (`../docs/notes/sound_voices.md`): the game world's sound scene has 1024 sound instances and propagators (`SOUND_POOLS`, game_world::load 0x1F8DB6/0x1F8DBD), and a sound refused a voice takes the voice of the quietest one playing when that one is less than half as loud (a lohook after create_sound_voice, 0x5CAB0), and the source voice walk is bounded to one pass (`sound_voices_026g.asm`, 0x5E5E7, 0x631D9, 0x59F8E); the check runs the voice loop from that site on made-up scenes with a model of the world's voice pool, and the self-test's `test_sound_pools` (needs Unicorn) |
 | `check_stage_focus_026g.py` | Runs the original's and patch 52's Stage focus getter (Scaleform's `stage.focus`, 0x771FA0) on a made-up movie: focused objects of each kind, none, one without its ActionScript object (the lobby's crash of 2026-10-22) (needs Unicorn) |
@@ -4726,3 +4727,31 @@ the ghost's AABB is next updated from it after the step, so no NaN reaches the b
 A simulation change (`simulation_changes.tsv`'s `next` row). Checked with
 `check_controller_position_026g.py` (finite steps byte for byte the original's; NaN and infinities
 restored; the original fails) and the patch crate's tests. Not run in a game.
+
+## A kicked game goes back to the lobby (patch 119, unreleased)
+
+The match server kicks a game with 0xFD (`Transport::kick`: repeated invalid inputs, or a game
+that restores did not bring back in step, `game.rs`). The game's handler calls
+`instant_disconnect(4)` (0x3FDF0A), whose callback `on_match_disconnected` (0x21BE50) calls
+`close_current_match(4)` (0x27A790). Its jump table (0x27A958) had for 4 the function's return: the
+link was closed by the transport, nothing else was, and the game stayed on its screen (the free
+camera, the world) with no match link for good. A lost connection (reason 1) tells the lobby `31`
+("back from its match": srp's lobby answers with the lobby state, and the results if the match has
+ended) and ends the world (`on_finish_match` 0x1F96F0: the world unloaded, the lobby shown). No
+text: the lobby movie shows the lobby as after any match.
+
+**The patch** (`KICK_TO_LOBBY`, one dword, every full build): the table's entry 4 (0x27A968) is
+0x27A930, reason 1's `31` and world end, not 0x27A94C, the return. Reason 1's log line before it
+(0x27A867) is left out: it names the reason as 1, 5 or else `disconnected_by_initiator`, which
+would call a kick the player's own leave. The entry is an address: its relocation stays.
+
+**In state 0 nothing changes.** `close_current_match` returns at once for every reason while the
+time rule's state the client keeps (+1F1C60h) is 0 (0x27A7AA): from the connection until the
+first tick played after the first world, and again after a close. A kick (or a lost link, a timeout)
+on the loading screen or before the first world still leaves the game where it is, as before; srp
+kicks only games that play (both reasons need inputs or hash reports). A resync keeps the state:
+a game kicked there goes back to the lobby as one that timed out there does (reason 0 ends the
+world the same way).
+
+Nothing a match computes. Checked with `check_kick_lobby_026g.py` (Unicorn; `../docs/notes/client_patch.md`
+section 3.72). Not run in a game.
