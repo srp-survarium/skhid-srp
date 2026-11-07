@@ -19,7 +19,7 @@ use crate::raw;
 /// srp's block's magic.
 const SRPX: [u8; 4] = *b"SRPX";
 /// The variant's entry: one byte, 1 Blackout, 2 Scarcity
-/// (`survarium::v026g::maps::Variant::wire`).
+/// (`survarium::v026g::match_msgs::static_info::variant_byte`).
 const TAG_VARIANT: u8 = 2;
 
 /// What a battery match is beside its rules (srp's block, tag 2).
