@@ -24,7 +24,7 @@ switches OFF avoid: escape
 switches OFF cheats: batteries
 switches OFF commit: crossfire_arrival_tau_s
 switches OFF feel: fight_lift press_in_reach sprint_turns straight_jumps
-switches OFF grid: capsule_steps keep_last_resorts
+switches OFF grid: capsule_steps give_back_in_cell keep_last_resorts
 switches OFF kin: jump_arc
 switches OFF mods: behind_open raid_regroup risk_alive.invert team_plan
 switches OFF pace: ring_death_spots ring_radar

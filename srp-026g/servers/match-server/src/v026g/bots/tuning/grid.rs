@@ -188,6 +188,12 @@ pub struct GridTuning {
     /// go in); A329 nav-quick2 with `crack_bridges` and `walk_start_clear`: every map better on both columns. A grid is the
     /// map's.
     pub start_witness: bool,
+    /// [A331] With `wall_give_back`: whether a floor the rounds took also comes back where the exact pass takes it at its
+    /// cell's centre but the client's push out of walls (the standing cylinder and its margin: 0.42 m off a wall, Unicorn) sets
+    /// a body clear inside the cell and the walk tick stands it there (`mapdata::Body::give_back_in_cell`). fx-zones' grid edge
+    /// cuts (the reckoning held at a cell edge the client walks across): 184 of the 201 rounds-taken floors under them. OFF
+    /// until its nav gate. A grid is the map's.
+    pub give_back_in_cell: bool,
 }
 
 impl Default for GridTuning {
@@ -220,6 +226,7 @@ impl Default for GridTuning {
             walk_start_clear: true,
             crack_bridges: true,
             start_witness: true,
+            give_back_in_cell: false,
         }
     }
 }
@@ -260,6 +267,7 @@ impl GridTuning {
             walk_start_clear: self.walk_start_clear,
             crack_bridges: self.crack_bridges,
             start_witness: self.start_witness,
+            give_back_in_cell: self.give_back_in_cell,
             ..body
         }
     }
