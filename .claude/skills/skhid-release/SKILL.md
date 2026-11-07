@@ -59,9 +59,8 @@ Ask, in this order:
    file the manifest does not make stops it (what made it?), nothing is
    written; one an earlier version of a pack row added, byte for byte
    (`$SKHID_PACKS_DIR/<id>-<n>`), is listed as `left`, not packed. "nothing to ship" means no
-   `--resources`. **Show the owner the file list** (and the lobby build's
-   line: whether it is `RESULT_SHA256`, the movie last checked in the game);
-   ship only movies the owner checked. Never put a patch folder together by
+   `--resources`. **Show the owner the file list**; ship only movies the owner
+   checked. Never put a patch folder together by
    hand (`release/build-patch` is the step build-content runs). A merged PR
    with a new edit list or pack that has no manifest row stops build-content:
    the PR adds the row.
