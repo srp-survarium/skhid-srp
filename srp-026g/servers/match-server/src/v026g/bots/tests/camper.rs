@@ -577,7 +577,7 @@ fn stand_in_camper_with(seed: u64, tuning: Tuning, options: CamperOptions) -> ([
 #[test]
 pub(crate) fn the_watching_camper_holds_the_scope_at_its_spot_and_the_old_one_does_not() {
     // [A318] Pinned to the old step order (bots and stand-in): with the client's (`kin::StepInput::Previous` both sides) a bot's own
-    // keys act a tick later and the motor does not plan for it yet; the motor follow-up (fx-zones, after #STEP_INPUT_PR) lifts this.
+    // keys act a tick later and the motor does not plan for it yet; the motor follow-up (fx-zones, after #1435) lifts this.
     let _step = super::standin_jump::OldStepInput::scope();
     let old_step = || {
         let mut tuning = Tuning::default();
@@ -596,7 +596,7 @@ pub(crate) fn the_watching_camper_holds_the_scope_at_its_spot_and_the_old_one_do
 #[test]
 pub(crate) fn the_stand_in_camper_holds_its_spot_and_a_teammate_does_not() {
     // [A318] Pinned to the old step order (bots and stand-in): with the client's (`kin::StepInput::Previous` both sides) a bot's own
-    // keys act a tick later and the motor does not plan for it yet; the motor follow-up (fx-zones, after #STEP_INPUT_PR) lifts this.
+    // keys act a tick later and the motor does not plan for it yet; the motor follow-up (fx-zones, after #1435) lifts this.
     let _step = super::standin_jump::OldStepInput::scope();
     let mut tuning = Tuning::default();
     tuning.kin.step_input = crate::v026g::bots::kin::StepInput::Same;

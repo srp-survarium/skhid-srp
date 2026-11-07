@@ -105,7 +105,7 @@ fn walk_with_no_worlds_after_3s(blind_stop_ms: Option<u32>, until: u32) -> (Vec3
 #[test]
 fn a_bot_with_no_world_for_the_tuned_time_stands_still() {
     // [A318] Pinned to the old step order (bots and stand-in): with the client's (`kin::StepInput::Previous` both sides) a bot's own
-    // keys act a tick later and the motor does not plan for it yet; the motor follow-up (fx-zones, after #STEP_INPUT_PR) lifts this.
+    // keys act a tick later and the motor does not plan for it yet; the motor follow-up (fx-zones, after #1435) lifts this.
     let _step = super::standin_jump::OldStepInput::scope();
     let (_, far) = walk_with_no_worlds_after_3s(None, 25_000);
     assert!(far < 3.0, "untuned, the walk goes on to the goal: {far} m off");
