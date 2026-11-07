@@ -34,7 +34,7 @@ use mapdata::{LinkKind, NodeId, RayTree, Vec3, WalkGrid};
 use survarium::v026g::match_msgs::TICK_MS;
 
 use super::jump_arc::{ArcStep, JumpArc};
-use super::kin::{Blend, DropFall, Edge, FIX_ABOVE_M, FixBlend, FixFloor, LEVEL_REACH, LEVEL_SNAP, LevelRead, LevelSource, WallSlide, JumpSnap, Kinematics, MarginEdge, TICK_S, WalkOffLanding, to_world, wrap};
+use super::kin::{Blend, DropFall, Edge, StepInput, FIX_ABOVE_M, FixBlend, FixFloor, LEVEL_REACH, LEVEL_SNAP, LevelRead, LevelSource, WallSlide, JumpSnap, Kinematics, MarginEdge, TICK_S, WalkOffLanding, to_world, wrap};
 use super::pitch::{Pitch, PitchScale};
 use crate::v026g::drive::key;
 
@@ -91,6 +91,20 @@ pub struct Estimate {
     /// [A318] In the air over its floor after a drop ([`DropFall::Gravity`]): `feet.y` is the falling height, `node` the floor it
     /// comes down on.
     pub fall: Fall,
+    /// [A318] With [`StepInput::Previous`]: the keys and yaw (after its turn) of the input before [`Self::keys`]'s, which move the
+    /// body over the next step; `None` with [`StepInput::Same`], or where the input before is not known (then [`Self::keys`] and
+    /// [`Self::yaw`]).
+    pub step: Option<(u32, f32)>,
+}
+
+impl Estimate {
+    /// [A318] The keys and yaw the next step moves by ([`StepInput`]).
+    fn step_by(&self, kin: &Kinematics) -> (u32, f32) {
+        match (kin.step_input, self.step) {
+            (StepInput::Previous, Some(step)) => step,
+            _ => (self.keys, self.yaw),
+        }
+    }
 }
 
 /// [A318] Whether the reckoned body is on its floor or coming down onto it ([`DropFall::Gravity`]).
@@ -169,6 +183,7 @@ impl Estimate {
             arc: None,
             scale: PitchScale::Radian,
             fall: Fall::Ground,
+            step: None,
         }
     }
 }
@@ -762,6 +777,15 @@ impl BodyTrack {
             arc,
             scale: kin.pitch_scale,
             fall: Fall::Ground,
+            // [A318] The world's keys are input W's (PROVEN): the step before them takes input W-50's keys and the world's yaw
+            // less input W's turn.
+            step: (kin.step_input == StepInput::Previous)
+                .then(|| {
+                    let keys = self.ticks.iter().find(|tick| tick.time + TICK_MS == fix.time)?.keys;
+                    let turn = self.ticks.iter().find(|tick| tick.time == fix.time)?.turn.0;
+                    Some((keys, wrap(fix.yaw - turn)))
+                })
+                .flatten(),
         };
         // [A318] A world that has the body more than a step over its floor, out of its own jump, has it falling
         // ([`DropFall::Gravity`], [`DropFall::Client`]): at the speed the reckoning had it fall at, else from rest (a world has no
@@ -860,7 +884,7 @@ fn advance_held(
     grid: Option<&WalkGrid>,
     walls: Option<&RayTree>,
 ) -> (Estimate, bool) {
-    let meant = kin.target_local(at.keys, level);
+    let meant = kin.target_local(at.step_by(kin).0, level);
     let next = advance(at, tick, kin, level, grid, walls, Role::Reckoning);
     let held = grid.is_some() && meant[0].hypot(meant[1]) > 1e-3 && next.velocity == [0.0, 0.0];
     (next, held)
@@ -881,7 +905,8 @@ fn advance(
 ) -> Estimate {
     let steps = (tick.time.saturating_sub(at.time) / TICK_MS).max(1);
     let falls = role == Role::Reckoning && kin.drop_fall != DropFall::Snap;
-    let target = kin.target_local(at.keys, level);
+    let (step_keys, step_yaw) = at.step_by(kin);
+    let target = kin.target_local(step_keys, level);
     for step in 1..=steps {
         // [A318] A falling body moves across from its floor; its height is played after the step.
         let top = at.feet.y;
@@ -892,7 +917,7 @@ fn advance(
         // [A318] The client's jump: the clip's arc moves the body, the blend ticks on under it so the landing resumes from the
         // client's mix (fx-zones' `kin.mixer`).
         if let (Some(mut arc), Some(grid), Some(node)) = (at.arc, grid, at.node) {
-            let out = arc.step(grid, walls, at.feet, at.yaw, at.keys, at.time + step * TICK_MS);
+            let out = arc.step(grid, walls, at.feet, step_yaw, step_keys, at.time + step * TICK_MS);
             at.arc = Some(arc);
             match out {
                 ArcStep::Ground(travel) => {
@@ -919,8 +944,8 @@ fn advance(
         }
         // [A318] The client's step cap (`max_speed` 0x2DC010 in 0x2D9060) on the blend's speed, by the keys moving it; not in a jump.
         let jumping = at.time + step * TICK_MS <= at.air_until;
-        let local = if jumping { local } else { kin.speed_cap.capped(local, at.keys, level) };
-        at.velocity = to_world(local, at.yaw);
+        let local = if jumping { local } else { kin.speed_cap.capped(local, step_keys, level) };
+        at.velocity = to_world(local, step_yaw);
         let to = Vec3::new(
             at.feet.x + at.velocity[0] * TICK_S,
             at.feet.y,
@@ -985,6 +1010,7 @@ fn advance(
     } else if tick.time > at.air_until {
         at.air_until = 0;
     }
+    at.step = (kin.step_input == StepInput::Previous).then_some((at.keys, at.yaw));
     at.yaw = wrap(at.yaw + tick.turn.0);
     at.pitch = (at.pitch + tick.turn.1).clamp(-MAX_PITCH, MAX_PITCH);
     at.kick = tick.kick;

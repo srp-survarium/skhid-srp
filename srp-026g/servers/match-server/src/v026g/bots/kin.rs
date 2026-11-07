@@ -66,6 +66,8 @@ pub struct Kinematics {
     pub edge: Edge,
     /// [A318] How the reckoned body comes down a drop ([`DropFall`]).
     pub drop_fall: DropFall,
+    /// [A318] Which input's keys and yaw move the reckoned body on a step ([`StepInput`]).
+    pub step_input: StepInput,
     /// [A269c] What a route adds to the cost of a walk onto a floor near an open side (with [`Edge::ClientWalksOff`], the grid's
     /// table of open sides), times the walk's own: the route keeps a body's width in from an edge the capsule walks off where the
     /// floor allows (`RouteFilter::weighing_open_sides`). 2 makes a cell's walk there cost 0.75 m, as a deep fall's edge does
@@ -384,6 +386,7 @@ impl Default for Kinematics {
             jump_snap: JumpSnap::ByKeys,
             edge: Edge::Client,
             drop_fall: DropFall::Client,
+            step_input: StepInput::Same,
             open_edge_cost: 0.0,
             walk_off_landing: WalkOffLanding::BySpeed,
             margin_edge: MarginEdge::Body,
@@ -469,6 +472,22 @@ pub enum WallSlide {
     /// recordings) drifts 3.31 % of the worlds against 3.54 % with [`Self::Diagonal`], every map and recording better.
     #[default]
     Round,
+}
+
+/// [A318] Which input's keys and yaw move the reckoned body over a step (`advance`), the one-tick lead probe. On turning walk ticks
+/// of the client tests the reckoning's step matches the client-walk reference's step of the NEXT tick (2,360 of 2,487 matched,
+/// fx-zones' `turn_offset.py`); the exe pairs a step's keys and yaw from one input (fx-review), but which tick an input's step
+/// closes is not proven by code. The lab scores both on the client's own worlds.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum StepInput {
+    /// The step from the tick of input N moves with input N's keys and its yaw after N's turn (as it was).
+    #[default]
+    Same,
+    /// The step from the tick of input N moves with input N-1's keys and its yaw after N-1's turn: each input acts one tick
+    /// later. After a world W (whose keys are input W's, PROVEN on 6,408 client-test worlds) the first step takes input W-50's keys
+    /// and the world's yaw less input W's turn.
+    Previous,
 }
 
 /// [A318] How the reckoned body (`BodyTrack`, not the lip guard's stop forecast) comes down when its floor drops more than a step
