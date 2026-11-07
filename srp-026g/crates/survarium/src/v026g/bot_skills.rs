@@ -382,7 +382,13 @@ pub fn profile_movement_candidates(profile: &MatchProfile, kit: usize) -> Option
     let capacity = item_params::player().max_carried_weight + entry.modifiers[MAX_CARRIED_WEIGHT] + capacity_added;
     // The primary first.
     weapons.sort_by_key(|&(primary, _)| !primary);
-    let level = |held: f32| movement_level(weight, capacity, &entry.modifiers, movement + held);
+    // Skill 112 (modifier 62, `move_speed_weapon_penalty`) > 0: a weapon's term at or under 0 is not added (fx-review A334: the
+    // same skip in 0x2E2C9C, 0x2E37E4 and 0x2E2E9F).
+    let skips_penalty = entry.modifiers[modifier_index("move_speed_weapon_penalty").expect("a modifier of the 68")] > 0.0;
+    let level = |held: f32| {
+        let held = if skips_penalty && held <= 0.0 { 0.0 } else { held };
+        movement_level(weight, capacity, &entry.modifiers, movement + held)
+    };
     let mut levels: Vec<f32> = weapons.iter().map(|&(_, held)| level(held)).collect();
     levels.push(level(0.0));
     Some(levels)
