@@ -542,7 +542,7 @@ pub fn start(target: TargetRef, cx: &Ctx, rng: &mut Rng) -> State {
             // [F6] The old flank when it arrives sooner.
             if cx.tuning.threat.camp_flank.is_some_and(|c| c.keep_old_flank) {
                 let old = old_job_flank(cx, line, rng);
-                if let (Some(old_m), Some(route_m)) = (walk_m(&old, &cx.tactics, cx.me.feet), walk_m(&route, &cx.tactics, cx.me.feet))
+                if let (Some(old_m), Some(route_m)) = (walk_m(&old, cx.tactics, cx.me.feet), walk_m(&route, cx.tactics, cx.me.feet))
                     && old_m < route_m
                 {
                     #[cfg(test)]
