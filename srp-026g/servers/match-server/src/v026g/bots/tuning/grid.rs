@@ -169,13 +169,16 @@ pub struct GridTuning {
     /// capsule overlaps, from the feet up, by up to its radius (`mapdata::Body::walk_start_clear`, the client's push out of
     /// penetrations 0x763D0). Off: out of the faces above the step only, so a floor beside a ledge lower than the step starts the
     /// body inside it, the exe pops it on top, and the pass keeps climbs no client makes (fx-gear-2's step-down cases: level_04
-    /// day_4, a 0.785 m ledge the client and the exe stop at; the exe climbs a vertical face walking up to 0.75 m). OFF until its
-    /// nav gate. A grid is the map's (see `gap_links`).
+    /// day_4, a 0.785 m ledge the client and the exe stop at; the exe climbs a vertical face walking up to 0.75 m). Exe-proven
+    /// (0x763D0), so ON and kept by `all_off` (the owner, 2026-11-05: correctness fixes go in); A329 nav-quick2 with
+    /// `crack_bridges`: client-test 2.88 -> 2.80, live 6.30 -> 6.25, every map better. A grid is the map's (see `gap_links`).
     pub walk_start_clear: bool,
     /// [A329] Whether `client_controller`'s bridges also cross a crack the grid crossed by a drop (`mapdata::Body::crack_bridges`):
     /// a one-cell crack between floors within a step, which the client walks over, gets the walked bridge, not only the drop
     /// `drop_check` takes away when the body never drops there (level_06 day_2 (18.4, 103), live: with the exe's start-overlap
-    /// contact the drop is taken away and the floor had no other way across). OFF until its nav gate. A grid is the map's.
+    /// contact the drop is taken away and the floor had no other way across). Client-proven (the client's walk tick crosses it),
+    /// so ON and kept by `all_off` (the owner, 2026-11-05: correctness fixes go in); A329 nav-quick2 alone: live level_06 back
+    /// to its base (+0.06 -> +0.00). A grid is the map's.
     pub crack_bridges: bool,
 }
 
@@ -206,8 +209,8 @@ impl Default for GridTuning {
             drop_check: true,
             wall_give_back: true,
             exe_collision: true,
-            walk_start_clear: false,
-            crack_bridges: false,
+            walk_start_clear: true,
+            crack_bridges: true,
         }
     }
 }
