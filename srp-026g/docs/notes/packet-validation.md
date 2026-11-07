@@ -506,6 +506,49 @@ cores, the effects floats) that every local test had missed. Four guards:
 Refused uploads still go to nobody (fail closed); whether a match whose uploads
 are in doubt should relay them anyway is the owner's decision.
 
+## The world corpus
+
+Every change of what the game writes into a world, or of how the server or the
+game reads one, is checked against real worlds by `tools/check`. The worlds
+are `private/world-corpus/` of the main checkout (private: the recordings carry
+players' names and accounts; never committed):
+
+- `live/`: live match recordings (`rec026g_*.srprec`), copied by
+  `release/world-corpus [--newest <n>]` (default 100): the host's newest
+  recordings it does not have, finished ones only, in tar batches of 10 read
+  under `nice -n 19 ionice -c 3` with 30 s between them (the host has one vCPU
+  and runs the matches), through `release/lib.sh`'s way to the host. Reads only.
+- `local/<config>/`: the local test matches. `srp-026g/scripts/local-clients/
+  run.py`'s server records every match there from one player on
+  (`SRP_RECORD_DIR`, `SRP_RECORD_MIN_PLAYERS=1`), so a feature's own test games
+  are checked too; on by default (its README).
+- `dumps/<config>/`: the kept world dumps of the local runs
+  (`private/local-clients-*/runtime/snapshots`, copied once on 2026-11-07,
+  14,748 worlds). They have no recording, so only `world-drift` reads them.
+
+Two rows of `tools/checks.tsv` read it (`tools/checks/worlds.sh`); the corpus is
+in their key (`{main}/private/world-corpus/**`), not in the diff: a refresh
+alone does not select them, `tools/check world-check world-drift` runs them.
+
+- `world-check`: this tree's server game data (`release/build-content`'s quick
+  build of the next patch; the offered-patch list's when the manifest ships
+  nothing new), then `srp-world-check` of every recording in `live/` and
+  `local/*/`. One world refused or not checked fails it. Inputs: srp-validate,
+  world-frame, the shared format crates, the survarium modules the context comes
+  from, resources-db, the check and the recording reader, the content sources,
+  the Rust patches and the corpus.
+- `world-drift`: the game's own check against the host's
+  (`check_world_check_026g.py --drift` on srp-validate's `drift_dump`) over a
+  sample: one upload in 50 of each live recording (`WORLD_DRIFT_ONE_IN`),
+  written out by `srp-world-check --worlds <dir> --one-in <n>`, every upload of
+  the local recordings and every dump, in parallel chunks
+  (`WORLD_DRIFT_JOBS`, default the cores less 4). Needs the original exe. Inputs:
+  the arena's sources and lock, the exe build, the host check and the corpus.
+
+A release that changes the world format refuses the older recordings: move them
+out of `live/` and refresh, with recordings of the new revision's games, before
+the next change is checked.
+
 ## Performance evidence and limits
 
 An optimized host-library benchmark over 1,786 captured worlds measured 3.25 µs
