@@ -161,6 +161,23 @@ pub enum Reason {
     BulletNotNumber {
         bullet: usize,
     },
+    /// More ricochets than a bullet makes (`world::Bullet::MAX_RICOCHETS`).
+    BulletRicochets {
+        bullet: usize,
+        count: u8,
+    },
+    /// A statistics field out of its domain (`world::Statistics::read`):
+    /// the record (a place's, a battery's, the tail), its number, the
+    /// field.
+    StatisticsField {
+        record: &'static str,
+        index: usize,
+        field: &'static str,
+    },
+    /// A rules field out of its domain (`world::Rules::read`).
+    RulesField {
+        field: &'static str,
+    },
 
     // The statistics.
     StatisticsEmpty,
@@ -710,6 +727,15 @@ impl fmt::Display for Reason {
             Reason::BulletNotNumber { bullet } => {
                 write!(f, "bullet {bullet} has a float that is no number")
             }
+            Reason::BulletRicochets { bullet, count } => {
+                write!(f, "bullet {bullet} has {count} ricochets, over 2")
+            }
+            Reason::StatisticsField {
+                record,
+                index,
+                field,
+            } => write!(f, "{record} {index}'s {field} is none of its values"),
+            Reason::RulesField { field } => write!(f, "{field} is none of its values"),
             Reason::EffectsLength { len } => {
                 write!(f, "{len} bytes, not the 20 of no effect or the 87 of one")
             }

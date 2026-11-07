@@ -3,8 +3,10 @@ mod bullets;
 mod effects;
 mod frame;
 mod objects;
-pub use bullets::bullets;
-pub use effects::{Effect, EffectFault, Effects, effects};
+pub use bullets::{Bullet, BulletFault, Bullets, Lamps, WeaponSlot, bullets};
+pub use effects::{
+    ActivationStatus, Effect, EffectFault, Effects, PlaybackType, SerializationMode, effects,
+};
 pub use objects::{Anomaly, Artefact, Artefacts, Group, Held, Map, Objects, State, objects};
 mod inventory;
 pub use inventory::{Ammo, Body, Chamber, Gun, GunState, Inventory, Item, Measure};
@@ -15,8 +17,14 @@ mod statistics;
 use crate::reader::Reader;
 use crate::{KITS, Part, Reason, Refusal, finite, mode};
 pub use frame::{Block, Frame, PLAYER_STATE_CAP, Section, frame};
-pub use rules::rules;
-pub use statistics::statistics;
+pub use rules::{
+    Battery, Container, ContainerId, FreeBattery, Gather, KillsDeaths, ModeRule, Phase, PlaceList,
+    Research, ResearchUnit, Respawn, Rules, Tdm, Timed, Timelimit, rules,
+};
+pub use statistics::{
+    BatteryStatus, ByPlace, EVENTS, Events, LastTaker, Owner, PlayerStatistics, Statistics, Tail,
+    Winner, statistics,
+};
 
 /// Native weapon and ammo slot ordering.
 pub const PLAYER_FIELDS_AT: usize = 2 + weapon_pickup::Record::BYTES;

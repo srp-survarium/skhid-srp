@@ -2182,3 +2182,6 @@ va	status	ref_021d	name
 0x002616e0	observed	0x00196cdf	survarium::options_item_float::apply
 0x002d1070	reviewed	0x001dcbe6	survarium::game_world_core::is_there_event_horizon_item
 0x0085adf0	observed		survarium::`dynamic initializer for 'uro_fov''
+0x002ddad0	observed		survarium::game_effect_player::serialize
+0x00301470	observed	0x001e7a74	survarium::victory_item_core::serialize
+0x00334310	observed		survarium::composite_game_effect::serialize

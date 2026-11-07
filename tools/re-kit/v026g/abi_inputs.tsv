@@ -5639,3 +5639,6 @@ va	name	location	role	basis
 0x001f8120	survarium::game_world::local_player_profiles	EDX	the game world (+9Ch the game, whose network client's local player +114h is the place; +4D4Ch the match, its places at +18650h)	observed
 0x001f8120	survarium::game_world::local_player_profiles	entry ESP+4	the kit in use, a byte written	observed
 0x001f8120	survarium::game_world::local_player_profiles	entry ESP+8	the next kit, a byte written: show_profiles_selector selects it on the hud's tabs (0x2383F3)	observed
+0x002ddad0	survarium::game_effect_player::serialize	EAX	the game_effect_player: +0 m_current_time_in_ms, +2Ch the first node (each +4Ch the next)	observed
+0x002ddad0	survarium::game_effect_player::serialize	entry ESP+4	the world writer (mode-1 nodes)	observed
+0x002ddad0	survarium::game_effect_player::serialize	entry ESP+8	the client writer or 0 (mode-2 nodes)	observed

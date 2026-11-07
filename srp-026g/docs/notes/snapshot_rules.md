@@ -299,7 +299,10 @@ Mode 4 has no such records. The class is `victory_item_event_manager` (its strin
 - Settled 2026-10-12: the rule order (§2.1), P (§2.3), the battery and container states (§2.4), the tail's writers and first values (§3.3), events 24 and 26 (§3.1), the player block's envelope and head (§7).
 - A carried battery's own state (inside its carrier's player block), and victory item event types 2 and 3.
 - Whether the position is where §2.4 puts it in `m_transform`.
-- The bullet manager, game objects, physics and effects blobs (not needed for results).
+- The game objects and physics blobs (not needed for results). The bullet
+  manager's and the effects' fields are named since 2026-11-07, from the names
+  their writers pass as text (`crates/srp-validate/src/world/bullets.rs`,
+  `effects.rs`).
 - Of a player's state: the effects after the head, a weapon after its magazine, the damage model's records (§7).
 
 ## 6. Code (added 2026-10-12)

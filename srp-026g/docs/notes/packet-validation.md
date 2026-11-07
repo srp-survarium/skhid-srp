@@ -75,7 +75,8 @@ effect's own time calculator, every float a `Finite`), with an accessor for
 each field (`effects.rs` has the field map). The section's rules are then
 plain comparisons of fields: its three free floats take any number (live
 games save 0.05 in them, 2 of the 25,456 uploads of the second live sample),
-its two u32 at +0x1C and +0x34 are held to 0.
+its two interval ids (`current_interval_id`, `previous_time.interval_id`)
+are held to 0.
 Since patch 98 the six sections grow past the history item's inline buffers;
 only the body's 0xF000 bytes (`world_frame::MAX_BODY`) and a player state's
 0x1000 bound them. The packed 0xE8 decodes into 0xF000 bytes as well.
@@ -115,6 +116,23 @@ a player effect is now held to the whole form, not only its first byte, and
 none is in any world seen). Next: the game objects, the player states, the
 bullets, statistics and rules, then a typed `World` that only the parse
 makes, for the server to cache and relay.
+
+The bullets, statistics and rules (`world/bullets.rs`, `statistics.rs`,
+`rules.rs`) are read as `world::Bullets` (each `Bullet`), `Statistics`
+(`PlayerStatistics`, `BatteryStatus`, `Tail`) and `Rules` (`Timelimit`,
+`Respawn`, `ModeRule`: `Gather`, `Tdm`, `Research`; `KillsDeaths`), and the
+effect's fields have the game's names (the writers pass each field's
+expression to the buffer writer as text: `.\bullet.cpp`,
+`.\game_effect_player.cpp`, `.\player_shared_statistics.cpp`, ...). From
+this step the parse also holds each field to its domain, once, into its
+type: a byte that selects a state to its enum (a rule's phase, a team, an
+effect's activation, playback and serialization mode), a bool to 0x00 or
+0xFF (the bool writer's), an index to its table, a count to its bound,
+and a none sentinel to an `Option`; the accessors only return those. So the
+gate is: every real world still passes (all 50,205 live uploads, all 3,920
+local worlds as before), and of the flipped copies this step refuses every
+one main refuses and 1,826 more (206,648 of 853,485). The domains and the
+ones left open are in each module's doc.
 
 ## Server upload enforcement
 
