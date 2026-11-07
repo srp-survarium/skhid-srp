@@ -615,6 +615,17 @@ decompilation (not grep lines):
   containers) with a null check; a fixed `memcpy 0x40`; state/floats/ownership
   via `battery`.
 
+More, read in full: the damage-model entry 0x2E5480 is a bool, four u32 and a
+LINKED-LIST walk of the character's config body parts (`while (p) p = *p;`
+calling `body_part_parameters::deserialize` 0x32AFE0 each) -- the count is the
+list length (config), not a packet count; the hit-effects reader's format
+(serializer 0x3402C0) is `H` records bounded by `player_tail`'s
+`H <= MAX_RECORDS`; the portable object 0x2988A0 delegates to the selector
+reader 0x2FF970 (states bounded). Note 0x2FAB70, flagged by the advance-cursor
+heuristic, is not a reader at all: it is the player-logic state-machine
+constructor (allocations + vftables, no packet cursor), so some of the 65
+"readers" are constructors the heuristic over-counts.
+
 So the goal's actual scope -- readers of another player's data -- is read at
 the site and bounded; the only two that were not are the animation stream and
 the E player-effect records, both now fixed.
