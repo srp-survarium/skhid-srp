@@ -199,7 +199,9 @@ pub struct GridTuning {
     /// [A332] Whether `client_controller` makes a Jump up to a standing jump's top a Walk where the client's walk tick walks the
     /// body up it (`mapdata::Body::walked_climbs`): the grid's rise is centre to centre, the body climbs by the step (0.80,
     /// `cc_step_height`, step_up 0x7C900) from the highest ground under it (fx-gear-2's CLIMB MISSED rows: the client walks
-    /// up a 0.89 m centre-to-centre Jump on level_01 day_4). OFF until its nav gate. A grid is the map's.
+    /// up a 0.89 m centre-to-centre Jump on level_01 day_4). The client's walk tick decides each link, so ON and kept by
+    /// `all_off` (the owner, 2026-11-05: correctness fixes go in); A332 nav-quick2-v6 on 2bc0d1c0: client-test 2.54 -> 2.54
+    /// (7 fixed / 3 new), live 5.57 -> 5.57 (23 / 15), no map worse than +0.01. A grid is the map's.
     pub walked_climbs: bool,
 }
 
@@ -234,7 +236,7 @@ impl Default for GridTuning {
             crack_bridges: true,
             start_witness: true,
             give_back_in_cell: false,
-            walked_climbs: false,
+            walked_climbs: true,
         }
     }
 }
