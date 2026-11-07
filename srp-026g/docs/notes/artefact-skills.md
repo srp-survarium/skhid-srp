@@ -371,10 +371,15 @@ preferred-image VAs; `apply_modifier` is the kit-modifier getter 0x2D5AE0.
 - Read where the effect is used, never stored (my pick: an aura): Spring's modifiers at
   `apply_modifier`, Onyx's at the hit's protection, Larkspur's regeneration at its tick. A
   recipient walking out of the radius loses it; nothing is serialized.
-- Larkspur's active is a heal at the activation: Cascade heals the recipients within 6 m then,
-  with the glow, by Medic's retained code (medical-skills.md "Medic").
-- Glow: Larkspur's recipients glow (Medic's); Spring's and Onyx's shared actives show no glow
-  on the recipient (my pick: a cosmetic gap). The shared passives show in the leg quarters.
+- The activation (Medic's path, medical-skills.md "Medic", every kind since the owner's rev51
+  games): when a copy becomes active, each recipient within 6 m plays the kind's own activation
+  glow (Spring blue, Lifebone green, Onyx orange) for the active's length, as its holder does; a
+  Lifebone's also heals it at once as its active heals its holder (Larkspur's active is that
+  heal). The glow is the activation's: a recipient that walks out of the 6 m keeps it to the
+  active's end, one that walks in later gets the active's effect (read where it is used) but no
+  glow. An Onyx fired with others is active 1 s longer for each (patch 54 adds it after every
+  activation of the press): the recipients' glow ends at its own 3 s (my pick: a gap of the
+  press, not of the share). The shared passives show in the leg quarters.
 - The cap per phase (my pick): at most 4 copies' passives and 4 copies' actives of a kind,
   each 4 less the recipient's own copies of the kind that count (in their passive or active, at
   most 4: "At most 4 copies of a kind" below).
@@ -527,8 +532,12 @@ preferred-image VAs; `apply_modifier` is the kit-modifier getter 0x2D5AE0.
 - Larkspur: `medical.regenerate` (0x32A53F, order 1, patch 94's booster order 2): each shared
   Lifebone's record for the part (+354h), as its regeneration callback (0x312590) does to the
   rate, delay and limit.
-- Larkspur's active: skill 542's edit-list entry also sets modifier 43 (`armored_trap`) bit 20,
-  patch 94's retained Medic.
+- Every kind's activation: skill 542's edit-list entry also sets modifier 43 (`armored_trap`)
+  bit 20, patch 94's Medic (`share_active`, `medical.artefact` 0x313333): the kind and its
+  active's milliseconds from the copy (`artefact_skills::activated`: Spring +394h, Lifebone
+  +494h, Onyx +F14h, each its enable_active's), the kind's own active_resource (+290h) played on
+  each recipient with Medic's timed clock, a Lifebone's heal; 20 instances of each kind's
+  activation effect (the cook, `medical.effect_capacity`).
 - Own copies past 4: four more sites, "At most 4 copies of a kind" above.
 
 ## Every game the same
@@ -553,14 +562,12 @@ preferred-image VAs; `apply_modifier` is the kit-modifier getter 0x2D5AE0.
 - Forest Protection's glow (2026-11-05): implemented and checked with Unicorn
   (`check_forest_glow_026g.py`); captured in a local game (private/renders/artefact-tree/);
   not played by the owner, not released.
-- The owner's rev51 games (2026-11-07): a teammate's Larkspur heal (Cascade, Medic) was felt,
-  its Spring, Lifebone and Onyx shares not. Looked for in the code (`check_share_matrix`): on
-  main as rev51 shipped it, every kind with each skill is shared through the game's own code
-  (the getters for Spring, the protectors for Onyx, the regeneration tick for Lifebone), the
-  carrier and the recipient on kit 1 with kit objects of their own: no fault found in the reads
-  (the roster, teams, positions, states 3 and 4, bits 4 and 8, the engine world's match, the
-  hooks). What a recipient sees: Larkspur's heal fills it at once with a glow; a shared Spring
-  is +5 % / +10 % speed (stamina and aim with Cascade), a shared Onyx -5 % (-75 % for 3 s with
-  Cascade), a shared Lifebone +0.1/s after 8 s, none of them with a glow (only the leg quarters,
-  to Artifact Sight), and nothing at all past the radius. Not played since; the radii raised
-  to 9 m and 6 m (above). Implemented and checked with Unicorn, not played, not released.
+- The owner's rev51 games (2026-11-07): "only green glows for larkspur on teammates". The
+  cause: Cascade's activation was Medic's (patch 94, rev45: Larkspur's heal and glow on the
+  teammates), still gated to a Lifebone (its enable_active) when patch 109 took it over, so a
+  Spring's and an Onyx's activation played nothing on the teammates; their values (the getters,
+  the protect) were shared, without a sign. Now one path for every kind (above);
+  `check_share_matrix` (every kind with each skill, the carrier and the recipient on kit 1 with
+  kit objects of their own, Spring's every list and the stagger's slow, every kind's activation)
+  fails on main at a Spring's activation at 3.5 m (nothing played). The radii raised to 9 m and
+  6 m. Implemented and checked with Unicorn, not played, not released.

@@ -15970,6 +15970,15 @@ impl SkillSpring {
         Item(unsafe { self.0.byte_add(0x0) })
     }
 
+    /// +0x394 (u32): its active's milliseconds: enable_active 0x3118D0 writes trunc(+390h config x modifier 39) at 0x31193B, disable_active 0x311970 zeroes it; set when artefact_base::action's activation hook (0x313333) runs
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn active_left(self) -> *mut u32 {
+        unsafe { self.0.byte_add(0x394).cast::<u32>().as_ptr() }
+    }
+
     /// +0x3e4 (f32): Spring II's passive reload node's value (patch 54's node at +3D8h, list 13; the object grown to 3F8h)
     ///
     /// # Safety
@@ -16257,6 +16266,15 @@ impl SkillLifebone {
         self.0.as_ptr() as usize as u32
     }
 
+    /// +0x494 (u32): its active's milliseconds (medical_artefact's active_remaining, set by enable_active before the effect at 0x312362)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn active_left(self) -> *mut u32 {
+        unsafe { self.0.byte_add(0x494).cast::<u32>().as_ptr() }
+    }
+
     /// +0x354 (ptr<survarium::lifebone_regeneration>): its passive's records begin, one a part (enable_passive_effects 0x3121F0: each record's part found by its name, a node at +490h + i x 28h linked into the part's regeneration modifiers +2E8h)
     ///
     /// # Safety
@@ -16472,6 +16490,15 @@ impl SkillOnyx {
     #[inline(always)]
     pub unsafe fn set_parts_end(self, value: Option<OnyxPart>) {
         unsafe { self.0.byte_add(0xc94).cast::<Option<OnyxPart>>().write_volatile(value) }
+    }
+
+    /// +0xf14 (u32): its active's milliseconds left: enable_active 0x3128C0 writes trunc(+F10h x modifier 39), tick_impl 0x3127E0 counts it down; patch 54's fire_kind adds 1 s for each other Onyx fired after every activation of the press
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn active_left(self) -> *mut u32 {
+        unsafe { self.0.byte_add(0xf14).cast::<u32>().as_ptr() }
     }
 
     /// +0xee8 (u32): the hit type it protects against (protect 0x312BF0 compares the hit's +1Ch)

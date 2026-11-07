@@ -4744,7 +4744,9 @@ each, the recipient's own first. The Springs' nodes at the two getters (`artefac
 0x2D5AE6, `artefact.shared_modifiers` 0x2D5C18; the kit's player found in the match of the engine
 world's game's world), the Onyx before a part's protectors (`artefact.shared_protection`
 0x32A020), the Lifebones at a part's regeneration tick (`medical.regenerate`, before patch 94's);
-Larkspur's active heal is patch 94's retained Medic, whose bit (modifier 43 bit 20) skill 542 sets.
+Every kind's activation (its glow on the recipients for the active's length, a Lifebone's heal) is
+patch 94's Medic (`share_active`, every kind since the owner's rev51 games, before a Lifebone's only),
+whose bit (modifier 43 bit 20) skill 542 sets.
 The shared movement (list 4) is read only when a player's animations are selected, so at each
 player's tick before tick_animations (`battery.carrier_tick` 0x2DAAD3, order 2) a change of it
 since the tick before sets +33Eh (m_need_to_select_animations), as patch 94 does for Adrenalin;

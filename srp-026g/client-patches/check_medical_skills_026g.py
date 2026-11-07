@@ -137,8 +137,8 @@ def check_particle_capacity(data):
     g.word(query+0xf8,fallback)
     for requested,override,initial,expected in [
         ('artefact_lifebone',None,1,20),('artefact_lifebone',None,30,30),
-        ('artefact_onyx',None,1,1),('artefact_lifebone','artefact_spring',1,1),
-        ('unused','artefact_lifebone',1,20)]:
+        ('artefact_onyx',None,1,20),('artefact_lifebone','artefact_spring',1,20),('artefact_spring',None,1,20),
+        ('artefact_rattle',None,1,1),('unused','artefact_lifebone',1,20)]:
         g.emu.mem_write(fallback,requested.encode()+b'\0')
         g.word(query+0xfc,resolved if override else 0)
         if override:g.emu.mem_write(resolved,override.encode()+b'\0')

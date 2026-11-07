@@ -476,7 +476,15 @@ pub fn protect(ctx: &mut Context<'_>) {
         }
     }
 }
-pub fn share_larkspur(ctx: &mut Context<'_>) {
+/// Cascade's share of an activation (Medic's, rev45, for Larkspur; every kind since the owner's
+/// rev51 games, artefact-skills.md "Resonance or Cascade"): when a copy of a kind Cascade shares
+/// becomes active and its holder has the share (Medic's bit, which skill 542 sets), each living
+/// teammate within Cascade's reach plays the kind's own activation glow for the active's length (as
+/// its holder does: Spring blue, Lifebone green, Onyx orange), and a Lifebone's also does to it what
+/// its active does to its holder (the configured affects removed, body, head and pain full). What a
+/// Spring's or an Onyx's active gives is read where it is used (patch 109's aura); this is its
+/// activation's part.
+pub fn share_active(ctx: &mut Context<'_>) {
     use raw::site::medical_artefact as site;
     // SAFETY: the actual activation owns this item and its inventory holder.
     // The visual effect helper is also called on restore and must not heal.
@@ -488,18 +496,14 @@ pub fn share_larkspur(ctx: &mut Context<'_>) {
             return;
         };
         let at = holder.player();
-        let Some(vtable) = item.vtable() else {
+        let Some((kind, length_ms)) = super::artefact_skills::activated(item.item().artefact()) else {
             return;
         };
-        if *vtable.enable_active() != raw::image::LIFEBONE_ACTIVE {
-            return;
-        }
         let source = Player::new(ctx.thread(), at);
         if !source.skills().is_medic() {
             return;
         }
         let time = ctx.reg(super::Reg::Edi);
-        // Medic is Cascade's Larkspur share (skill 542 sets its bit): Cascade's reach.
         let reach = crate::artefact_skills::CASCADE_REACH * crate::artefact_skills::CASCADE_REACH;
         for place in 0..20 {
             let Some(target) = source.at_place(ctx.thread(), place) else {
@@ -511,25 +515,39 @@ pub fn share_larkspur(ctx: &mut Context<'_>) {
             {
                 continue;
             }
-            if let (Some(first), Some(end)) = (item.removes(), item.removes_end()) {
-                for i in 0..end.index_from(first).unwrap_or(0) {
-                    let remove = first.at(i);
-                    let name = remove.name() as *const u8;
-                    if let Some(model) = target.0.damage()
-                        && let Some(pool) = raw::engine_find_pool(Some(model.pools()), &name)
-                    {
-                        raw::engine_remove_affect(Some(pool), time, *remove.affect());
-                    }
-                }
-            }
-            for name in [c"body", c"head", c"pain"] {
-                if let Some(pool) = target.0.pool(name) {
-                    raw::engine_increase_health(Some(pool), time, *pool.maximum());
-                }
+            if kind == crate::artefact_skills::Kind::Lifebone {
+                heal_as_lifebone(item, target.0, time);
             }
             if let Some(resource) = item.active_resource() {
-                OwnedEffect::emit(ctx.thread(), resource, Some(*item.active_remaining()))
+                OwnedEffect::emit(ctx.thread(), resource, Some(length_ms))
                     .play_timed(ctx.thread(), target.0.at, time);
+            }
+        }
+    }
+}
+
+/// A Lifebone's active on `target`: its configured affects removed, body, head and pain full.
+///
+/// # Safety
+/// `item` is the activating Lifebone (its removed-affect records its own), `target` a live player
+/// of its world, on the simulation thread.
+unsafe fn heal_as_lifebone(item: raw::MedicalArtefact, target: Player<'_>, time: u32) {
+    // SAFETY: the caller's contract.
+    unsafe {
+        if let (Some(first), Some(end)) = (item.removes(), item.removes_end()) {
+            for i in 0..end.index_from(first).unwrap_or(0) {
+                let remove = first.at(i);
+                let name = remove.name() as *const u8;
+                if let Some(model) = target.damage()
+                    && let Some(pool) = raw::engine_find_pool(Some(model.pools()), &name)
+                {
+                    raw::engine_remove_affect(Some(pool), time, *remove.affect());
+                }
+            }
+        }
+        for name in [c"body", c"head", c"pain"] {
+            if let Some(pool) = target.pool(name) {
+                raw::engine_increase_health(Some(pool), time, *pool.maximum());
             }
         }
     }

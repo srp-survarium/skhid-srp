@@ -113,8 +113,9 @@ Unflinching or Concentration); a full build 32.
   code (activation sharing, the Larkspur 20-instance pool, the length clock) and
   its transport bit 20 stay as they are. It returned in the artefact tree:
   Cascade (542) sets bit 20 (artefact-skills.md), so a Larkspur's
-  activation heals the teammates within 6 m (Cascade's reach) with its glow. The sections below
-  about Medic describe that retained code.
+  activation heals the teammates within 6 m (Cascade's reach) with its glow; since the owner's
+  rev51 games every kind's activation (Spring, Lifebone, Onyx) plays its glow on them, a
+  Lifebone's also heals (`share_active`). The sections below about Medic describe that code.
 - Supply Pocket and Additional Medicine move to tier 5 and exclude each other,
   symmetrically; Supply Pocket keeps its exclusion of 111 and 113.
 - Saved skills are settled when an account loads (`Account::repair`,

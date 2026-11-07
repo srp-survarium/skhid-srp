@@ -53,6 +53,22 @@ fn kind_of(artefact: raw::Artefact) -> Option<Kind> {
     }
 }
 
+/// A copy at its activation (artefact_base::action's hook, after its enable_active): its kind and
+/// its active's milliseconds as that enable_active set them; none for a kind Cascade does not
+/// share (the Rattle).
+pub(super) fn activated(artefact: raw::Artefact) -> Option<(Kind, u32)> {
+    let kind = kind_of(artefact)?;
+    // SAFETY: the activating copy of that kind (its vtable checked), its own field.
+    let ms = unsafe {
+        match kind {
+            Kind::Spring => *artefact.spring().active_left(),
+            Kind::Lifebone => *artefact.lifebone().active_left(),
+            Kind::Onyx => *artefact.onyx().active_left(),
+        }
+    };
+    Some((kind, ms))
+}
+
 /// An artefact in a player's containers, of a kind the tree reads.
 #[derive(Clone, Copy)]
 struct Carried {

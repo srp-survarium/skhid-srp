@@ -961,11 +961,13 @@ def check_active_cap(data):
 def on_kit(m, at, kit, skills):
     """Makes `at` its place's kit-`kit` object, as a match has it: each kit of a place is a player
     object of its own (kit byte +115h), core_active_player gives the place entry's +0Ch kit's
-    (the entry's +0 a stale kit-0 object, dead), and srp writes the skills into every kit."""
+    (the entry's +0 a stale kit-0 object, dead), and srp writes the skills into every kit (Cascade,
+    542, sets Medic's bit 20 of modifier 43 too)."""
     g = m.g
     g.emu.mem_write(at + 0x115, bytes([kit]))
     for k in range(3):
         g.word(g.read(at + 0x6B8) + 0xF4 + k * 0x704 + RANKS * 4, bits(skills))
+        g.word(g.read(at + 0x6B8) + 0xF4 + k * 0x704 + 43 * 4, bits((1 << 20) if skills & CASCADE else 0))
     place = g.emu.mem_read(at + 0x114, 1)[0]
     stale = g.block(0xF500)
     g.word(stale + 0x6B8, g.read(at + 0x6B8))
@@ -974,33 +976,60 @@ def on_kit(m, at, kit, skills):
     g.emu.mem_write(g.places + place * 0x30 + 0xC, bytes([kit]))
 
 
+STAGGER = 0x2DBCD0      # base_player's stagger (eax the player; the time, ret 4): patch 54's list-42 factor
+
+
+def stagger(m, time=10000):
+    """The recipient's stagger after two recent hits (0.15 and 0.3 stopping power, at most 0.5): its
+    movement node's value (+300h), -0.45 unslowed, 0 while an active Spring's -1 applies (patch 54)."""
+    g = m.g
+    recent = g.block(24)
+    for i, (age, power) in enumerate([(100, 0.15), (200, 0.3)]):
+        g.emu.mem_write(recent + 8 * i, struct.pack("<If", time - age, power))
+    g.word(PLAYER + 0x2E8, recent)
+    g.word(PLAYER + 0x2EC, recent + 16)
+    g.emu.mem_write(PLAYER + 0x31C, struct.pack("<ff", 0.5, 0.5))
+    g.word(PLAYER + 0x2FC, 4)
+    g.call(STAGGER, (time,), eax=PLAYER)
+    return g.float(PLAYER + 0x300)
+
+
 def check_share_matrix(data):
     """Every kind with each skill, a teammate carrying one copy (the owner's rev51 report: only
-    Larkspur's share was felt): Resonance shares a Spring's, Lifebone's and Onyx's passive, Cascade a
-    Spring's and Onyx's active (a Lifebone's active is Medic's heal, check_medical_skills), each
-    through the game's own getters, hit and regeneration code, with the carrier and the recipient
-    playing kit 1 (kit objects of their own, kit 0's stale in the roster entry). Up to the reach and
-    past it: Resonance 9 m, Cascade 6 m (the owner, 2026-11-07; were 8 m and 5 m, so 8.5 m and
-    5.5 m fail before it)."""
+    Larkspur's active was shared, and only its share made the teammates glow): Resonance shares a
+    Spring's, Lifebone's and Onyx's passive, Cascade every part of a Spring's and an Onyx's active
+    and the activation of each kind, each through the game's own code, with the carrier and the
+    recipient playing kit 1 (kit objects of their own, kit 0's stale in the roster entry):
+    - Spring: the getters on each of its lists (passive 4, 49; active 4, 3, 19, 49, 42), and the
+      stagger's slow (patch 54's list 42) taken away;
+    - Onyx: before the part's protectors, as the game's protect of that Onyx;
+    - Lifebone: its passive at the part's regeneration tick;
+    - the activation (artefact_base::action's hook 0x313333, Medic's path, every kind since the
+      owner's rev51 games): the recipient plays the kind's activation glow (the copy's
+      active_resource, the active's length, the timed clock) and a Lifebone's heals it (body, head,
+      pain full). On main only a Lifebone's did: a Spring's and an Onyx's played nothing.
+    Up to the reach and past it: Resonance 9 m, Cascade 6 m (the owner, 2026-11-07; were 8 m and
+    5 m, so 8.5 m and 5.5 m fail before it)."""
     outcomes = []
     container = KITS + 0xF4 + 0x704
     release = {'body': (0.1, 1.0, 0.0, 1.0, 1.0, 1.0)}
     for skill, phase, reach, edge in [(RESONANCE, 3, (7.5, 8.5, 8.99), 9.0), (CASCADE, 4, (4.5, 5.5, 5.99), 6.0)]:
         for distance in reach + (edge + 0.01, 12.0):
             shared = distance <= edge
-            # Spring: the getters (movement 4 for the passive, stamina regeneration 3 for the active).
+            # Spring: the getters on each of its lists, and the stagger's slow.
             m = Match(data)
             on_kit(m, PLAYER, 1, 0)
             at = m.player(1, 0, (0.0, distance, 0.0))
             on_kit(m, at, 1, skill)
             m.spring(at, phase)
-            index = 4 if phase == 3 else 3
-            node = SPRING_PASSIVE[index] if phase == 3 else SPRING_ACTIVE_NODES[index]
-            want = max(0.0, 1 + node) if shared else 1.0
-            have = m.getter(index, container)
-            close(have, want)
-            close(m.weighted([(index, 1.0)], container), want)
-            outcomes.append(('Spring', skill, distance, round(have, 4)))
+            nodes = SPRING_PASSIVE if phase == 3 else SPRING_ACTIVE_NODES
+            for index, node in nodes.items():
+                want = max(0.0, 1 + node) if shared else 1.0
+                have = m.getter(index, container)
+                close(have, want)
+                close(m.weighted([(index, 1.0)], container), want)
+                outcomes.append(('Spring', skill, distance, index, round(have, 4)))
+            close(stagger(m), 0.0 if shared and phase == 4 else -0.45)
             # Onyx: before the part's protectors, as the game's protect of that Onyx.
             m = Match(data)
             on_kit(m, PLAYER, 1, 0)
@@ -1027,10 +1056,35 @@ def check_share_matrix(data):
             close(have[0], want[0])
             close(have[1], want[1])
             outcomes.append(('Lifebone', skill, distance, round(have[0], 4)))
+            # The activation: the kind's glow on the recipient for the active's length, a Lifebone's heal.
+            for kind, enable, left, length in [('Spring', SPRING_ACTIVE, 0x394, 10000), ('Lifebone', LIFEBONE_ACTIVE_, 0x494, 3000),
+                                               ('Onyx', ONYX_ACTIVE_, 0xF14, 4000)]:
+                m = Match(data)
+                g = m.g
+                on_kit(m, PLAYER, 1, 0)
+                at = m.player(1, 0, (0.0, distance, 0.0))
+                on_kit(m, at, 1, skill)
+                item = m.artefact(at, enable, 4)
+                g.word(item + 0x290, g.effect_resource())
+                g.word(item + left, length)
+                for name in ('body', 'head', 'pain'):
+                    g.word(g.pools[PLAYER][name] + 0xA0, bits(0.1))
+                g.effects.clear()
+                g.step(0x313333, 6, esi=item, edi=1234)
+                gets = shared and skill == CASCADE
+                assert g.effects == ([PLAYER] if gets else []), (kind, skill, distance, g.effects)
+                if gets:
+                    close(g.float(g.effect_instances[-1] + 0x24), length / 1000)
+                healed = gets and kind == 'Lifebone'
+                for name, maximum in (('body', 1.0), ('head', 0.4), ('pain', 1.0)):
+                    close(g.float(g.pools[PLAYER][name] + 0xA0), maximum if healed else 0.1)
+                outcomes.append((kind, 'activation', skill, distance, gets))
     print("Resonance and Cascade, every kind: a teammate on kit 1 (kit objects of their own) gives a "
-          "recipient on kit 1 its Spring's passive (Resonance) or active (Cascade) through the getters, its "
-          "Onyx's passive or active before the protectors, its Lifebone's passive (Resonance) at the "
-          "regeneration tick, up to 9 m (Resonance) and 6 m (Cascade), nothing past them: PASS")
+          "recipient on kit 1 its Spring's passive (Resonance) or whole active (Cascade: every list through "
+          "the getters, the stagger's slow away), its Onyx's passive or active before the protectors, its "
+          "Lifebone's passive (Resonance) at the regeneration tick, and with Cascade every kind's activation: "
+          "the kind's glow for the active's length, a Lifebone's heal; up to 9 m (Resonance) and 6 m (Cascade), "
+          "nothing past them: PASS")
     return outcomes
 
 
