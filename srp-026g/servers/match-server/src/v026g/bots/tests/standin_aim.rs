@@ -20,9 +20,10 @@
 //! (#1450's default `client_step = client` made him reckon by the client's walk tick, and two harm runs met two different
 //! humans). The file is the kin of the build it was written in, with `client_step = grid`.
 //!
-//! [A318] And his grid (`camper_human_grid.json`, a whole `grid` section, with its key test): the bench builds his own world by
-//! it when an arm's grid builds otherwise (`Bots::bench_human_tactics`), and his route rules read it, so a grid switch in an A/B
-//! moves the bots' routes, not his. The file is the grid of the build it was written in.
+//! [A318] And his grid (`camper_human_grid.json`, a whole `grid` section, with its key test): his route rules read it, so a grid
+//! READ switch in an A/B leaves his routes alone. The graph he plans on is the match's one world, built by the arm's grid: a
+//! grid BUILD switch still moves it (a world of his own read team state built on the arm's: TASKS A346). The file is the grid of
+//! the build it was written in.
 
 use super::*;
 use crate::v026g::bots::kin::Kinematics;

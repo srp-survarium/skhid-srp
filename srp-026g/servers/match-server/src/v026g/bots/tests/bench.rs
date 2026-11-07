@@ -844,26 +844,6 @@ pub(crate) fn real_bot_cost() {
             pull_hold: bench_tuning().grid.wall_clear_pull.then_some(crate::v026g::bots::tuning::PULL_HOLD_M),
             pull_walk: bench_tuning().grid.pull_walk,
         };
-        // [A318] The stand-in camper's own world, built by his pinned grid (`human_tuning`) when it builds otherwise than this
-        // arm's: his routes are planned on it (`Bots::bench_human_tactics`), so an arm's grid switch leaves him alone.
-        let human_world = {
-            let human = super::standin_aim::human_tuning();
-            let human_extras = mapdata::GridExtras {
-                wall_clearance: human.needs_wall_clearance(),
-                open_sides: human.needs_open_sides(),
-                pull_hold: human.grid.wall_clear_pull.then_some(crate::v026g::bots::tuning::PULL_HOLD_M),
-                pull_walk: human.grid.pull_walk,
-            };
-            let human_build = (human.grid_body(), human.off_mesh_links(), human_extras);
-            // OFF by default (`SRP_BENCH_HUMAN_OWN_WORLD=on`): his drive on his own tactics meets the team's state built on the
-            // arm's world (threat regions' ids: `Regions::middle` out of bounds in `threat::free_regions`, fx-bench's final check
-            // arm B, 332900bb), so his own world waits for a drive that keeps every world-built id on one world (TASKS A346).
-            let own = bench_settings().var("SRP_BENCH_HUMAN_OWN_WORLD").as_deref() == Ok("on");
-            (own && human_build != (bench_tuning().grid_body(), links, extras)).then(|| {
-                eprintln!("{project}: the stand-in camper's world is his own (his pinned grid builds otherwise than this arm's)");
-                Arc::new(World::build_with_extras(map.clone(), mapdata::CELL, human_build.0, human_build.1, human_build.2))
-            })
-        };
         let world = Arc::new(World::build_with_extras(map, mapdata::CELL, bench_tuning().grid_body(), links, extras));
         // The baked-all alternative to the live zones, for what it costs (`SRP_BENCH_BAKE_FIELD_PLACES=<n>`).
         let world = match bench_settings().number::<usize>("SRP_BENCH_BAKE_FIELD_PLACES").filter(|&n| n > 0) {
@@ -1079,9 +1059,6 @@ pub(crate) fn real_bot_cost() {
                 }
                 None => (bots.map_ready(world.clone()), None),
             };
-            // [A318] The stand-in camper's own tactics on his own world, if the bench built him one.
-            bots.bench_human_tactics =
-                human_world.as_ref().map(|world| Tactics::new(world.clone(), bots.tunings.match_wide().hazard.margin_m.get()));
             let ready_ms = started.elapsed().as_secs_f32() * 1e3;
             let ready_mb = memory_mb().map(|(now, _)| now);
             reset_peak_memory();
@@ -1336,11 +1313,12 @@ pub(crate) fn real_bot_cost() {
                 assert!(camper_place.is_none(), "SRP_BENCH_HUMAN_PLAY=hunter rides on the camper's hooks: not with SRP_BENCH_CAMPER");
                 bots.bench_camper = Some(BenchCamper::hunter(place, seed, Arc::new(hunter_tuning())));
             }
-            // [A318] The stand-in camper's body reckoned by his own kin and world (his pinned tuning; his own world where the bench
-            // built him one), whatever the arm's are.
+            // [A318] The stand-in camper's body reckoned by his own kin (his pinned tuning), whatever the arm's, on the match's one
+            // world: every world-built id (regions, cells, links, sight) comes from that one world. A world of his own was tried
+            // and dropped: his drive read team state built on the arm's world (`threat::free_regions` out of bounds).
             if let Some(camper) = bots.bench_camper.as_ref() {
                 let (place, kin) = (camper.place(), camper.tuning().kin.clone());
-                bots.bench_pin_place(place, kin, human_world.clone().unwrap_or_else(|| world.clone()));
+                bots.bench_pin_place(place, kin, world.clone());
             }
             owner.set_scoreboard(format!("{project} {per_team}v{per_team} seed {seed}"), mode, bots.bench_human, camper_place);
             if let Some(place) = camper_place
