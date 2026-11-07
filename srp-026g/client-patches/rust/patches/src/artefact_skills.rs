@@ -61,14 +61,14 @@ impl Draw {
     }
 }
 
-/// Resistance's rank, 0..=4.
+/// Resistance's rank, 0..=5.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub struct Resistance(u8);
 
 impl Resistance {
-    pub const MOST: u8 = 4;
-    /// Armour a rank against the anomalous types: +6 isolation points (the card x100).
-    pub const ARMOUR: f32 = 0.06;
+    pub const MOST: u8 = 5;
+    /// Armour a rank against the anomalous types: +5 isolation points (the card x100).
+    pub const ARMOUR: f32 = 0.05;
 }
 
 /// The packed skills of a kit's modifier 40.
@@ -90,7 +90,7 @@ impl Skills {
     /// Bits: 0..2 Resistance, 3 Keeper, 4 Resonance, 5 Spring II, 6 Onyx II, 7 Larkspur II,
     /// 8 Cascade, 9..11 the match's Keeper draw 1..6 (0 none; with the skill or not), 12 Artifact
     /// Sight, 13 a late joiner's kit (srp's mark, survarium::v026g::keeper::LATE). Anything else (a
-    /// fraction, a negative, a rank past 4, a draw of 7, a bit past 13) is no skill at all.
+    /// fraction, a negative, a rank past 5, a draw of 7, a bit past 13) is no skill at all.
     pub fn parse(value: f32) -> Option<Self> {
         if !(0.0..16384.0).contains(&value) || value != (value as u32) as f32 {
             return None;
@@ -167,7 +167,7 @@ impl Skills {
         }
     }
 
-    /// Resistance: the part's armour `native` against a hit of `kind`, +0.06 a rank for the
+    /// Resistance: the part's armour `native` against a hit of `kind`, +0.05 a rank for the
     /// anomalous types, before the piercing's subtraction and the native clamp.
     pub fn armour(self, native: f32, kind: HitKind) -> f32 {
         if kind.anomalous() {
@@ -486,12 +486,12 @@ mod tests {
 
     #[test]
     fn parses_the_packed_ranks_only_exactly() {
-        for bad in [-1.0, 0.5, 5.0, 6.0, 7.0, 509.0, 7.0 * 512.0, 8.0 + 7.0 * 512.0, 16384.0, 16384.0 + 508.0, f32::INFINITY, f32::NAN] {
+        for bad in [-1.0, 0.5, 6.0, 7.0, 510.0, 7.0 * 512.0, 8.0 + 7.0 * 512.0, 16384.0, 16384.0 + 508.0, f32::INFINITY, f32::NAN] {
             assert_eq!(Skills::parse(bad), None, "{bad}");
         }
         assert_eq!(Skills::parse(0.0), Some(Skills::default()));
-        let full = Skills::parse(508.0).unwrap();
-        assert_eq!(full.resistance, Resistance(4));
+        let full = Skills::parse(509.0).unwrap();
+        assert_eq!(full.resistance, Resistance(5));
         assert!(full.keeper && full.draw.is_none());
         assert!(full.resonance && full.spring && full.onyx && full.larkspur && full.cascade);
         for draw in 1..=6u8 {
@@ -514,11 +514,11 @@ mod tests {
 
     #[test]
     fn resistance_adds_isolation_to_the_anomalous_types_only() {
-        for rank in 0..=4u8 {
+        for rank in 0..=5u8 {
             let skills = Skills::parse(f32::from(rank)).unwrap();
             for value in 0..8 {
                 let kind = HitKind::parse(value).unwrap();
-                let want = if value >= 4 { 0.3 + 0.06 * f32::from(rank) } else { 0.3 };
+                let want = if value >= 4 { 0.3 + 0.05 * f32::from(rank) } else { 0.3 };
                 assert!((skills.armour(0.3, kind) - want).abs() < 1e-6, "{rank} {kind:?}");
             }
         }
