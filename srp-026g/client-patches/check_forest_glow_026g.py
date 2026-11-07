@@ -41,7 +41,10 @@ modifier getter, game_effect_resource::emit (its emitter stubbed). It checks:
   it back through the game's set_effect_presenter 0x1F3740 (its effects
   presented again, game_effect_player 0x2DE560 run natively), once; the
   place's other kit's object, a player whose effects go to the first-person
-  presenter and one whose effects were never given are left as they are.
+  presenter and one whose effects were never given are left as they are;
+  after the hand-back (which cleared the presenter), a stop of an effect it
+  no longer holds goes to patch 117: the sound and particle presenters'
+  on_event (0x2A9EF0, 0x2AC400) return, the presenter unchanged.
 
 Says nothing about how the glow looks; the renders and the owner's test do.
 """
@@ -368,6 +371,8 @@ def check_quarters(data):
 TP_PRESENTER = 0x297570       # third_person_game_effects_presenter's constructor: eax = this, edx = the world
 INITIALIZE, INITIALIZE_GIVES, INITIALIZE_ON = 0x1F2540, 0x1F2580, 0x1F2585   # player::initialize: its call of
                               # set_effect_presenter, the code after it
+SOUND_EVENT, PARTICLE_EVENT = 0x2A9EF0, 0x2AC400   # the presenters' on_event (patch 117's sites)
+TICK_COUNT_SLOT = 0x8701B8    # GetTickCount's import slot (the refusals' clock)
 
 
 def check_presenter(data):
@@ -421,6 +426,18 @@ def check_presenter(data):
     assert g.read(presenter + 0x10) == PLAYER and g.read(presenter + 0xC0) == PLAYER, \
         "the current kit's tick takes its place's presenter back"
     assert g.read(PLAYER + 0x3A0) == holder and g.read(PLAYER + 0x390) == holder
+    # Patch 117 beside the hand-back: its represent cleared the presenter, so a damage zone's stop of
+    # an effect played before it (game_effect_player::stop, the tick after) finds no entry in either
+    # presenter; the build returns from both on_event, the presenter as the hand-back left it.
+    tick_count = g.block(0x10)
+    g.emu.mem_write(tick_count, b"\x31\xc0\xc3")                # GetTickCount: xor eax,eax; ret
+    g.word(TICK_COUNT_SLOT, tick_count)
+    effect, event = g.block(0x60), g.block(0x20)
+    g.word(event + 4, 1)                                      # the event's kind: a stop
+    before = bytes(g.emu.mem_read(presenter, 0x300))
+    g.call(SOUND_EVENT, (presenter + 0xB4, effect, event))
+    g.call(PARTICLE_EVENT, (presenter + 0x8, effect), edx=event)
+    assert bytes(g.emu.mem_read(presenter, 0x300)) == before, "a stop it holds no entry of changes nothing"
     g.word(presenter + 0x10, PLAYER)
     g.tick(PLAYER)
     assert g.read(presenter + 0x10) == PLAYER
@@ -439,7 +456,7 @@ def check_presenter(data):
     print("Presenter: player::initialize gives a place's third-person presenter only to an object whose effects "
           "were never given; the tick of the place's current kit's object takes it back from another kit's (once, "
           "its effects presented again natively); another kit's object, the camera's player and one never given "
-          "left: PASS")
+          "left; after the hand-back a stop of an effect neither presenter holds left to patch 117 (both return, the presenter unchanged): PASS")
 
 
 def main():
