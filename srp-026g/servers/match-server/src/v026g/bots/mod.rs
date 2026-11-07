@@ -1618,7 +1618,10 @@ impl Bots {
             .escape
             .as_ref()
             .is_some_and(escape::Escape::trying);
-        if trying {
+        // [A325f] Both legs holding `leg_damage`: the client stands it whatever its keys until the first ends (`legs`): not
+        // stuck, and no watch counts the stand (the walk watch, the progress watch).
+        let leg_held = bot.hurt.leg_damage.at(time) == legs::LegGate::Stand;
+        if trying || leg_held {
             bot.stuck.reset();
         } else if ends_check {
             #[cfg(test)]
@@ -1797,6 +1800,7 @@ impl Bots {
         bot.stuck.watch_drop(time, feet, false);
         // The progress watch (`UnstickTuning::progress_ms`): a body that walks without getting further along its route.
         if bot.control.reacts()
+            && !leg_held
             && let Some(window_ms) = self.tunings.of(bot.team).unstick.progress_ms
             && let Some((route, goal)) = bot.route.as_ref()
         {
