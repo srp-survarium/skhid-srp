@@ -1634,7 +1634,7 @@ def no_branch_into(original):
     stock = test.Image(original)
     for va, size in NEW_SPANS.items():
         spelled = [va + i for i in range(1, size) if original.find(struct.pack("<I", va + i)) != -1]
-        hits = [x for x in test.aimed_inside(original, va, size, 0x82)
+        hits = [x for x in test.aimed_into(original, va, va + size)
                 if x not in spelled and test.starts_instruction(stock, x)]
         assert not hits, (hex(va), [hex(h) for h in hits])
 
