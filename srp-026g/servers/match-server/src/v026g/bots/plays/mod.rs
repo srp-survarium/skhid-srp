@@ -832,8 +832,24 @@ impl Ctx<'_> {
         let Some(to) = self.point_of(target) else {
             return 1.0;
         };
-        let in_lanes = self.cued().any(|l| l.covers(to) && target != TargetRef::Place(l.shooter));
-        if in_lanes { weight } else { 1.0 }
+        let in_lanes = |p: Vec3| self.cued().any(|l| l.covers(p) && target != TargetRef::Place(l.shooter));
+        if !in_lanes(to) {
+            return 1.0;
+        }
+        // The owner's rule: objectives are needed to win; an objective in his lanes is weighed down only while another of
+        // similar value (as near, within 1.5 times and 10 m) is out of them. With none, the bot keeps its goal (two campers
+        // could otherwise block two objectives and win).
+        let similar = |p: Vec3| p.distance_xz(self.me.feet) <= to.distance_xz(self.me.feet) * 1.5 + 10.0 && !in_lanes(p);
+        let alternative = match target {
+            TargetRef::Battery(b) => (0..self.view.batteries.len()).filter(|&o| o != b).filter_map(|o| self.battery_at(o)).any(similar),
+            TargetRef::Container(id) => {
+                let team = self.view.containers.iter().find(|c| c.id == id).map(|c| c.team);
+                self.view.containers.iter().filter(|c| c.id != id && Some(c.team) == team).any(|c| similar(c.at))
+            }
+            // Fight places and posts (Cut, Crossfire, HoldExit): no objective of their own; weighed.
+            _ => !matches!(kind, PlayKind::Collect | PlayKind::Raid | PlayKind::LateDenial),
+        };
+        if alternative { weight } else { 1.0 }
     }
 
     /// [A342b `threat.no_lone_m`] Whether a new counter-play goes alone at a cued camper or into his lanes: aimed at him
