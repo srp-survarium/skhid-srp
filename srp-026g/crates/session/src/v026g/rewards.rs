@@ -1787,7 +1787,11 @@ impl<'a> Shared<'a> {
         } else if result.vs_bots {
             MatchKind::VsBots
         } else {
-            MatchKind::Public
+            MatchKind::Public(history::Eligibility::of(
+                bots.contains(&true),
+                players.len(),
+                result.played_ms,
+            ))
         };
         Some(MatchRecord {
             game_match_id: result.match_id,

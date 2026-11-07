@@ -9,8 +9,8 @@ use serde_json::Value;
 use session::v026g::account::Account;
 use session::v026g::clans::{Clan, Member, Rank, status};
 use session::v026g::persist::history::{
-    Counters, GearSlot, KitItem, MatchInfo, MatchKind, MatchRecord, PlayerLine, PlayerRecord,
-    Presence, Winner,
+    Counters, Eligibility, GearSlot, KitItem, MatchInfo, MatchKind, MatchRecord, PlayerLine,
+    PlayerRecord, Presence, Winner,
 };
 use session::v026g::{GameAccounts, GameRepository, SqliteGameRepository};
 use session::{Ban, SessionStore};
@@ -209,11 +209,11 @@ fn world(name: &str) -> World {
         })
         .unwrap();
     for (kind, at) in [
-        (MatchKind::Public, NOW - 3 * 86_400),
-        (MatchKind::Public, NOW - 5_000),
+        (MatchKind::Public(Eligibility::Counted), NOW - 3 * 86_400),
+        (MatchKind::Public(Eligibility::Counted), NOW - 5_000),
         (MatchKind::Private, NOW - 2_000),
         (MatchKind::VsBots, NOW - 1_500),
-        (MatchKind::Public, NOW - 1_000),
+        (MatchKind::Public(Eligibility::Counted), NOW - 1_000),
     ] {
         repository
             .record_match(&record(kind, at, alice, bob))
@@ -290,8 +290,9 @@ const TOTALS: [&str; 19] = [
     "wins",
 ];
 
-const SUMMARY: [&str; 10] = [
+const SUMMARY: [&str; 11] = [
     "duration_s",
+    "eligibility",
     "ended_at",
     "id",
     "level",
@@ -413,6 +414,7 @@ fn a_players_matches_are_pages_of_its_public_ones() {
     assert_eq!(matches[0]["won"], true);
     assert_eq!(matches[0]["duration_s"], 845);
     assert_eq!(matches[0]["team_points"], serde_json::json!([5, 3]));
+    assert_eq!(matches[0]["eligibility"], "counted");
     assert_eq!(first["next"], 2);
     let last = world.ok(&format!(
         "/api/history/player/matches?id={}&limit=2&before=2",

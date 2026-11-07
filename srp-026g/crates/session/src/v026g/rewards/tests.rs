@@ -3810,7 +3810,11 @@ fn a_settled_match_is_kept_for_the_history_without_its_bots() {
     assert_eq!(records.len(), 1);
     let record = &records[0];
     assert_eq!(record.game_match_id, MATCH);
-    assert_eq!(record.kind, MatchKind::Public);
+    assert_eq!(
+        record.kind,
+        MatchKind::Public(history::Eligibility::WithBots),
+        "a bot played: it counts in no total"
+    );
     assert_eq!(
         record.info,
         history::MatchInfo {
@@ -3878,6 +3882,40 @@ fn a_private_room_and_a_match_against_bots_are_kept_by_their_kind() {
         let records = history_of(&results);
         assert_eq!(records.len(), 1);
         assert_eq!(records[0].kind, kind);
+    }
+}
+
+#[test]
+fn a_public_match_counts_with_six_players_and_five_minutes_of_play() {
+    use history::Eligibility::{Counted, FewPlayers, Short};
+    let names = ["A", "B", "C", "D", "E", "F"];
+    for (humans, played_ms, eligibility) in [
+        (6, Some(300_000), Counted),
+        (6, Some(299_999), Short),
+        (5, Some(600_000), FewPlayers),
+    ] {
+        let players: Vec<PlayerResult> = names[..humans]
+            .iter()
+            .enumerate()
+            .map(|(place, name)| {
+                player(
+                    place as u8,
+                    place as u8 % 2,
+                    name,
+                    PlayerStatistics::default(),
+                )
+            })
+            .collect();
+        let store = accounts(&players);
+        let results = Results::new();
+        let mut result = result(players);
+        result.played_ms = played_ms;
+        results.settle(&result, &store, &terms(), &mut Rng::new(1));
+        assert_eq!(
+            history_of(&results)[0].kind,
+            MatchKind::Public(eligibility),
+            "{humans} players, {played_ms:?} ms"
+        );
     }
 }
 
@@ -4035,6 +4073,10 @@ fn the_history_is_written_at_the_next_save() {
     assert_eq!(matches.len(), 1);
     assert_eq!(matches[0].line.kills, 3);
     assert_eq!(matches[0].kits.len(), 1);
-    assert_eq!(history.player(11).unwrap().unwrap().totals.matches, 1);
+    assert_eq!(
+        history.player(11).unwrap().unwrap().totals.matches,
+        0,
+        "two players: named, counted in no total"
+    );
     let _ = std::fs::remove_dir_all(&dir);
 }

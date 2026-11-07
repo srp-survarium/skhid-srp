@@ -629,6 +629,7 @@ fn match_summary(summary: &MatchSummary, lang: Lang) -> Value {
         "winner": winner(info.winner),
         "team_points": info.team_points,
         "players": summary.players,
+        "eligibility": summary.eligibility.as_str(),
     })
 }
 

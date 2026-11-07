@@ -25,10 +25,16 @@ What survarium.pro showed of players, matches and clans, kept by srp itself and 
   is kept beside it, it is random and repeats across restarts), when it ended (Unix seconds), how
   long it lasted, map, mode, match level, the kind (`public`, `private`, `vs_bots`), the winner
   (`team0`, `team1`, `draw`, `unknown`) and the two teams' points.
+- A public match's eligibility, set when it is written (`history::Eligibility`): `counted`, or why
+  not: `with_bots` (a bot played; it moved no rating either), `few_players` (fewer than 6 accounts
+  in it, leavers and late joiners counted: `SRP_RECORD_MIN_PLAYERS`' default and a default room's
+  smallest match), `short` (under 5 minutes of play, the warm-up left out). Every public match is
+  served; only counted ones go into totals, favourites, days, top lists and best scores. A player
+  whose public matches all did not count is still named, with totals of zeros.
 - `g26_match_players`: one row a player who was in the match (finished or left): team, place in
   its team by score (from 1), rating after the match, clan at the time, score, kills, deaths and
   the counters below.
-- `g26_player_totals`, `g26_clan_totals`: the public matches added up, at record time. A public
+- `g26_player_totals`, `g26_clan_totals`: the counted public matches added up, at record time. A public
   match counts once for a clan if at least one member played in it (its clan at the time), and is a
   win if at least one of them was on the winning team (members on both teams: a win). Score,
   kills, deaths and the counters are its members' rows added up, so a clan's `score_avg` is its
@@ -82,8 +88,8 @@ Common objects:
   0..1, three decimals; `score_avg` one decimal; `accuracy` = hits / shots (0 with no shot), 0..1,
   three decimals.
 - A match: `{"id":5531,"ended_at":1793500000,"duration_s":845,"map_id":3,"map":"Vostok",
-  "mode":"Batteries","level":12,"winner":0,"team_points":[5,3],"players":12}`. `winner` is 0 or 1,
-  `"draw"`, or `null` when not known. `map` and `mode` are `null` for a map the game data no longer
+  "mode":"Batteries","level":12,"winner":0,"team_points":[5,3],"players":12,
+  "eligibility":"counted"}`. `winner` is 0 or 1, `"draw"`, or `null` when not known. `map` and `mode` are `null` for a map the game data no longer
   has.
 - A player's line of a match: `"team":0,"place":1,"won":true,"left":false,"rating":1180,
   "score":310,"kills":14,"deaths":6,"kd":2.33,"assists":4,"headshots":3,"grenade_kills":1,
@@ -150,7 +156,7 @@ firearms in a kit, both carry all its kills and shots.
 
 ### `GET /api/history/player/days?id=<id>&days=<n>`
 
-A player's public matches added up by day (UTC), oldest first, days without a match left out.
+A player's counted public matches added up by day (UTC), oldest first, days without a match left out.
 `days` is 1..90 (default 30).
 
 ```json
@@ -190,7 +196,7 @@ A public match and every player's line with its kits, by team, then place.
 
 The top players by their totals. `by`: `rating`, `matches`, `wins`, `kills`, `score`, `headshots`,
 `batteries`, `artefacts`, `accuracy` (default `rating`); `limit` 1..50 (default 50). Players with
-a public match only. `accuracy` lists only the players with at least 1000 shots in their public
+a counted public match only. `accuracy` lists only the players with at least 1000 shots in their public
 matches (`ACCURACY_MIN_SHOTS`; a few lucky shots do not top it), best first; ties by account.
 
 ```json
@@ -204,7 +210,7 @@ matches (`ACCURACY_MIN_SHOTS`; a few lucky shots do not top it), best first; tie
 
 ### `GET /api/history/best?period=<hour|day>`
 
-The 20 best single-match scores of public matches that ended in the period (default `day`), banned
+The 20 best single-match scores of counted public matches that ended in the period (default `day`), banned
 accounts left out.
 
 ```json

@@ -35,9 +35,13 @@ pub(super) const MIGRATION: &str = "
         game_mode     INTEGER NOT NULL,
         match_level   INTEGER NOT NULL,
         kind          TEXT NOT NULL CHECK (kind IN ('public', 'private', 'vs_bots')),
+        -- A public match's: whether it counts in the totals and top lists
+        -- (`Eligibility`); none for another kind.
+        eligibility   TEXT CHECK (eligibility IN ('counted', 'with_bots', 'few_players', 'short')),
         winner        TEXT NOT NULL CHECK (winner IN ('team0', 'team1', 'draw', 'unknown')),
         team0_points  INTEGER NOT NULL,
-        team1_points  INTEGER NOT NULL
+        team1_points  INTEGER NOT NULL,
+        CHECK ((kind = 'public') = (eligibility IS NOT NULL))
     );
     CREATE INDEX g26_matches_public ON g26_matches (id) WHERE kind = 'public';
     CREATE INDEX g26_matches_by_end ON g26_matches (ended_at);
@@ -72,7 +76,8 @@ pub(super) const MIGRATION: &str = "
     CREATE INDEX g26_match_players_by_account ON g26_match_players (account_id, match_id);
     CREATE INDEX g26_match_players_by_clan ON g26_match_players (clan_id, match_id)
         WHERE clan_id IS NOT NULL;
-    -- The public matches added up, by player and by clan.
+    -- The counted public matches added up, by player and by clan; a player
+    -- of public matches none of which counted has a row of zeros.
     CREATE TABLE g26_player_totals (
         account_id    INTEGER PRIMARY KEY,
         matches       INTEGER NOT NULL,
@@ -167,8 +172,9 @@ pub(super) const MIGRATION: &str = "
 /// Who could join a match.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum MatchKind {
-    /// Matchmaking or an open room: the only kind ever served.
-    Public,
+    /// Matchmaking or an open room: the only kind ever served; whether it
+    /// counts in the totals and top lists.
+    Public(Eligibility),
     /// A room with a PIN.
     Private,
     /// One player against the server's bots.
@@ -178,10 +184,75 @@ pub enum MatchKind {
 impl MatchKind {
     fn as_str(self) -> &'static str {
         match self {
-            Self::Public => "public",
+            Self::Public(_) => "public",
             Self::Private => "private",
             Self::VsBots => "vs_bots",
         }
+    }
+
+    fn eligibility(self) -> Option<Eligibility> {
+        match self {
+            Self::Public(eligibility) => Some(eligibility),
+            Self::Private | Self::VsBots => None,
+        }
+    }
+}
+
+/// Whether a public match counts in the totals and the top lists: a real
+/// match, not a few players' warm-up or one abandoned at its start. The
+/// match itself is served either way.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Eligibility {
+    Counted,
+    /// A test bot or a server bot played in it (it moved no rating either).
+    WithBots,
+    /// Fewer than [`Eligibility::MIN_HUMANS`] accounts were in it.
+    FewPlayers,
+    /// Played for less than [`Eligibility::MIN_PLAYED_MS`], or never began.
+    Short,
+}
+
+impl Eligibility {
+    /// The accounts that must have been in it, late joiners and leavers
+    /// counted: the recordings' default minimum (`SRP_RECORD_MIN_PLAYERS`)
+    /// and a default room's smallest match (two sides of three).
+    pub const MIN_HUMANS: usize = 6;
+    /// Its least play time (from the match clock's start, the warm-up
+    /// left out): five minutes. srp has no rule of a match's length to
+    /// take; a match given up at its start ends sooner.
+    pub const MIN_PLAYED_MS: u32 = 5 * 60_000;
+
+    /// A public match with `humans` accounts in it, `bots` whether a bot
+    /// played, `played_ms` its play time (`None`: play never began).
+    pub fn of(bots: bool, humans: usize, played_ms: Option<u32>) -> Self {
+        if bots {
+            Self::WithBots
+        } else if humans < Self::MIN_HUMANS {
+            Self::FewPlayers
+        } else if played_ms.is_none_or(|played| played < Self::MIN_PLAYED_MS) {
+            Self::Short
+        } else {
+            Self::Counted
+        }
+    }
+
+    pub fn as_str(self) -> &'static str {
+        match self {
+            Self::Counted => "counted",
+            Self::WithBots => "with_bots",
+            Self::FewPlayers => "few_players",
+            Self::Short => "short",
+        }
+    }
+
+    fn parse(text: &str) -> Option<Self> {
+        Some(match text {
+            "counted" => Self::Counted,
+            "with_bots" => Self::WithBots,
+            "few_players" => Self::FewPlayers,
+            "short" => Self::Short,
+            _ => return None,
+        })
     }
 }
 
@@ -504,6 +575,8 @@ pub struct MatchSummary {
     /// The history's number.
     pub id: u64,
     pub info: MatchInfo,
+    /// Whether it counts in the totals and top lists.
+    pub eligibility: Eligibility,
     /// How many players the history has of it.
     pub players: u32,
 }
@@ -598,8 +671,8 @@ pub(super) fn record(
     let info = &record.info;
     transaction.execute(
         "INSERT INTO g26_matches (game_match_id, ended_at, duration_ms, map_id, game_mode,
-             match_level, kind, winner, team0_points, team1_points)
-         VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10)",
+             match_level, kind, eligibility, winner, team0_points, team1_points)
+         VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11)",
         params![
             record.game_match_id,
             info.ended_at.min(i64::MAX as u64) as i64,
@@ -608,13 +681,17 @@ pub(super) fn record(
             info.game_mode.lobby_number(),
             info.match_level,
             record.kind.as_str(),
+            record.kind.eligibility().map(Eligibility::as_str),
             info.winner.as_str(),
             info.team_points[0],
             info.team_points[1],
         ],
     )?;
     let match_id = transaction.last_insert_rowid();
-    // Each clan's line of a public match: one match, whoever of it played.
+    // A public match that does not count still names its players (a row of
+    // zeros): the site names whoever has a public match.
+    let counted = record.kind.eligibility();
+    // Each clan's line of a counted match: one match, whoever of it played.
     let mut clans: BTreeMap<u32, Totals> = BTreeMap::new();
     for player in &record.players {
         let line = &player.line;
@@ -648,21 +725,33 @@ pub(super) fn record(
             ],
         )?;
         record_kits(&transaction, match_id, player)?;
-        if record.kind == MatchKind::Public {
-            let own = Totals::of_match(line, info.winner.team() == Some(line.team));
-            add_totals(
-                &transaction,
-                "g26_player_totals",
-                "account_id",
-                player.account_id,
-                &own,
-            )?;
-            add_items(&transaction, player)?;
-            if let Some(clan_id) = player.clan_id {
-                clans
-                    .entry(clan_id)
-                    .and_modify(|clan| *clan = clan.with_member(&own))
-                    .or_insert(own);
+        match counted {
+            None => {}
+            Some(Eligibility::Counted) => {
+                let own = Totals::of_match(line, info.winner.team() == Some(line.team));
+                add_totals(
+                    &transaction,
+                    "g26_player_totals",
+                    "account_id",
+                    player.account_id,
+                    &own,
+                )?;
+                add_items(&transaction, player)?;
+                if let Some(clan_id) = player.clan_id {
+                    clans
+                        .entry(clan_id)
+                        .and_modify(|clan| *clan = clan.with_member(&own))
+                        .or_insert(own);
+                }
+            }
+            Some(Eligibility::WithBots | Eligibility::FewPlayers | Eligibility::Short) => {
+                add_totals(
+                    &transaction,
+                    "g26_player_totals",
+                    "account_id",
+                    player.account_id,
+                    &Totals::default(),
+                )?;
             }
         }
     }
@@ -849,10 +938,12 @@ const _: () = assert!(status::ACCEPTED == 0);
 const CLAN_JOIN: &str = "LEFT JOIN g26_clan_members cm
          ON cm.account_id = a.account_id AND cm.status = 0
      LEFT JOIN g26_clans c ON c.clan_id = cm.clan_id AND c.registered != 0";
-/// The columns of a [`MatchSummary`] of `m` (nine).
+/// The columns of a [`MatchSummary`] of a public match `m`
+/// ([`SUMMARY_COLUMNS`]).
 const SUMMARY: &str = "m.id, m.ended_at, m.duration_ms, m.map_id, m.game_mode, m.match_level,
      m.winner, m.team0_points, m.team1_points,
-     (SELECT COUNT(*) FROM g26_match_players n WHERE n.match_id = m.id)";
+     (SELECT COUNT(*) FROM g26_match_players n WHERE n.match_id = m.id), m.eligibility";
+const SUMMARY_COLUMNS: usize = 11;
 /// The columns of a [`PlayerLine`] of `p` (sixteen).
 const LINE: &str = "p.team, p.place, p.presence, p.rating, p.score, p.kills, p.deaths, p.assists,
      p.headshots, p.grenade_kills, p.melee_kills, p.batteries, p.captures, p.artefacts, p.shots,
@@ -949,6 +1040,7 @@ fn named_at(row: &Row, at: usize) -> rusqlite::Result<Named> {
 fn summary_at(row: &Row, at: usize) -> rusqlite::Result<MatchSummary> {
     let winner: String = row.get(at + 6)?;
     let mode: u8 = row.get(at + 4)?;
+    let eligibility: String = row.get(at + 10)?;
     Ok(MatchSummary {
         id: u64_at(row, at)?,
         info: MatchInfo {
@@ -962,6 +1054,8 @@ fn summary_at(row: &Row, at: usize) -> rusqlite::Result<MatchSummary> {
             team_points: [row.get(at + 7)?, row.get(at + 8)?],
         },
         players: row.get(at + 9)?,
+        eligibility: Eligibility::parse(&eligibility)
+            .ok_or_else(|| bad("eligibility", &eligibility))?,
     })
 }
 
@@ -1126,7 +1220,7 @@ impl MatchHistory {
         ))?;
         let rows = statement
             .query_map(params![account_id, upper(before), bounded(limit)], |row| {
-                Ok((summary_at(row, 0)?, line_at(row, 10)?))
+                Ok((summary_at(row, 0)?, line_at(row, SUMMARY_COLUMNS)?))
             })?
             .collect::<Result<Vec<_>, _>>()?;
         // Each match's kits of the player: by the primary key.
@@ -1167,8 +1261,8 @@ impl MatchHistory {
         })
     }
 
-    /// The account's public matches that ended at `since` or later, added
-    /// up by UTC day (`YYYY-MM-DD`), oldest first.
+    /// The account's counted public matches that ended at `since` or
+    /// later, added up by UTC day (`YYYY-MM-DD`), oldest first.
     pub fn player_days(
         &self,
         account_id: u32,
@@ -1183,7 +1277,7 @@ impl MatchHistory {
                  SUM(p.grenade_kills), SUM(p.melee_kills), SUM(p.batteries), SUM(p.captures),
                  SUM(p.artefacts), SUM(p.shots), SUM(p.hits)
              FROM g26_match_players p JOIN g26_matches m ON m.id = p.match_id
-             WHERE p.account_id = ?1 AND m.kind = 'public' AND m.ended_at >= ?2
+             WHERE p.account_id = ?1 AND m.eligibility = 'counted' AND m.ended_at >= ?2
                AND p.match_id >= IFNULL((SELECT id FROM g26_matches WHERE ended_at >= ?2
                    ORDER BY ended_at LIMIT 1), 9223372036854775807)
              GROUP BY day ORDER BY day",
@@ -1272,8 +1366,8 @@ impl MatchHistory {
         Ok(Some((summary, rows.collect::<Result<_, _>>()?)))
     }
 
-    /// The top `limit` players by `by`, of those with a public match and
-    /// that `keep` keeps (it is asked of each in order until enough).
+    /// The top `limit` players by `by`, of those with a counted public
+    /// match and that `keep` keeps (it is asked of each in order until enough).
     pub fn top(
         &self,
         by: PlayerRanking,
@@ -1302,8 +1396,8 @@ impl MatchHistory {
         Ok(top)
     }
 
-    /// The best `limit` single-match scores of public matches that ended
-    /// at `since` or later, of the players that `keep` keeps (it is asked
+    /// The best `limit` single-match scores of counted public matches that
+    /// ended at `since` or later, of the players that `keep` keeps (it is asked
     /// of each in order until enough).
     pub fn best(
         &self,
@@ -1329,7 +1423,7 @@ impl MatchHistory {
             best.push(BestLine {
                 player,
                 summary: summary_at(row, 4)?,
-                line: line_at(row, 14)?,
+                line: line_at(row, 4 + SUMMARY_COLUMNS)?,
             });
         }
         Ok(best)
@@ -1429,9 +1523,12 @@ fn clan_line(row: &Row) -> rusqlite::Result<ClanLine> {
 /// migration's, word for word.
 fn top_query(by: PlayerRanking) -> String {
     let (filter, order) = match by {
-        PlayerRanking::Rating => (String::new(), "a.rating DESC, a.account_id".to_owned()),
+        PlayerRanking::Rating => (
+            "WHERE t.matches > 0".to_owned(),
+            "a.rating DESC, a.account_id".to_owned(),
+        ),
         PlayerRanking::Totals(key) => (
-            String::new(),
+            "WHERE t.matches > 0".to_owned(),
             format!("t.{} DESC, t.account_id", key.column()),
         ),
         PlayerRanking::Accuracy => (
@@ -1457,7 +1554,7 @@ fn best_query() -> String {
          FROM g26_matches m CROSS JOIN g26_match_players p ON p.match_id = m.id
          JOIN g26_accounts a ON a.account_id = p.account_id
          {CLAN_JOIN}
-         WHERE m.ended_at >= ?1 AND m.kind = 'public'
+         WHERE m.ended_at >= ?1 AND m.eligibility = 'counted'
          ORDER BY p.score DESC, m.id DESC LIMIT ?2"
     )
 }
@@ -1552,6 +1649,9 @@ mod tests {
                 .collect(),
         }
     }
+
+    /// A public match that counts.
+    const PUBLIC: MatchKind = MatchKind::Public(Eligibility::Counted);
 
     /// Alice (10, of clan 7) beats Bob (11) on team 0's win.
     fn record(kind: MatchKind, ended_at: u64) -> MatchRecord {
@@ -1648,9 +1748,7 @@ mod tests {
         let mut repository = SqliteGameRepository::open(&dir.db()).unwrap();
         assert_eq!(repository.version().unwrap(), MIGRATIONS.len() as i64);
         assert_eq!(repository.load_all().unwrap().len(), 1);
-        repository
-            .record_match(&record(MatchKind::Public, 1000))
-            .unwrap();
+        repository.record_match(&record(PUBLIC, 1000)).unwrap();
         let history = repository.history().unwrap().unwrap();
         let card = history.player(10).unwrap().unwrap();
         assert_eq!(card.totals.matches, 1);
@@ -1669,9 +1767,7 @@ mod tests {
     fn a_read_in_progress_blocks_neither_the_writer_nor_other_reads() {
         let dir = TempDir::new("readers");
         let (mut repository, history) = repository(&dir);
-        repository
-            .record_match(&record(MatchKind::Public, 100))
-            .unwrap();
+        repository.record_match(&record(PUBLIC, 100)).unwrap();
         let count = |connection: &Connection| -> i64 {
             connection
                 .query_row("SELECT COUNT(*) FROM g26_matches", [], |row| row.get(0))
@@ -1680,9 +1776,7 @@ mod tests {
         let slow = history.reader();
         slow.execute_batch("BEGIN").unwrap();
         assert_eq!(count(&slow), 1);
-        repository
-            .record_match(&record(MatchKind::Public, 200))
-            .unwrap();
+        repository.record_match(&record(PUBLIC, 200)).unwrap();
         assert_eq!(history.player(10).unwrap().unwrap().totals.matches, 2);
         // The slow one still reads what it began with.
         assert_eq!(count(&slow), 1);
@@ -1690,12 +1784,47 @@ mod tests {
     }
 
     #[test]
+    fn a_public_match_that_does_not_count_is_served_and_names_its_players_only() {
+        let dir = TempDir::new("uncounted");
+        let (mut repository, history) = repository(&dir);
+        let short = MatchKind::Public(Eligibility::Short);
+        repository.record_match(&record(short, 100)).unwrap();
+        let (summary, players) = history.game_match(1).unwrap().unwrap();
+        assert_eq!(summary.eligibility, Eligibility::Short);
+        assert_eq!(players.len(), 2);
+        assert_eq!(history.player_matches(10, None, 10).unwrap().len(), 1);
+        assert_eq!(history.account_by_name("Alice").unwrap(), Some(10));
+        assert_eq!(
+            history.player(10).unwrap().unwrap().totals,
+            Totals::default()
+        );
+        let everything = |_| true;
+        assert!(
+            history
+                .top(PlayerRanking::Totals(TotalsKey::Kills), 10, &everything)
+                .unwrap()
+                .is_empty()
+        );
+        assert!(
+            history
+                .top(PlayerRanking::Rating, 10, &everything)
+                .unwrap()
+                .is_empty()
+        );
+        assert!(history.best(0, 10, &everything).unwrap().is_empty());
+        assert!(history.player_days(10, 0).unwrap().is_empty());
+        assert!(history.clans(TotalsKey::Score, 10).unwrap().is_empty());
+        assert_eq!(history.favourites(10, 10).unwrap(), Favourites::default());
+        // The next one counts.
+        repository.record_match(&record(PUBLIC, 200)).unwrap();
+        assert_eq!(history.player(10).unwrap().unwrap().totals.matches, 1);
+    }
+
+    #[test]
     fn the_kits_used_are_kept_with_what_they_held() {
         let dir = TempDir::new("kits");
         let (mut repository, history) = repository(&dir);
-        repository
-            .record_match(&record(MatchKind::Public, 100))
-            .unwrap();
+        repository.record_match(&record(PUBLIC, 100)).unwrap();
         let alice_kits = vec![
             kit(0, 10, &[(0, HELMET), (7, AK), (10, PISTOL)]),
             kit(2, 4, &[(7, PISTOL)]),
@@ -1713,7 +1842,7 @@ mod tests {
         assert_eq!(players[0].kits, alice_kits);
         assert_eq!(players[1].kits, [kit(1, 6, &[(7, AK)])]);
         // No kit kept: an empty list, the line still there.
-        let mut bare = record(MatchKind::Public, 200);
+        let mut bare = record(PUBLIC, 200);
         bare.players[1].kits.clear();
         repository.record_match(&bare).unwrap();
         let (_, players) = history.game_match(2).unwrap().unwrap();
@@ -1726,8 +1855,8 @@ mod tests {
         let dir = TempDir::new("favourites");
         let (mut repository, history) = repository(&dir);
         for (kind, at) in [
-            (MatchKind::Public, 100),
-            (MatchKind::Public, 200),
+            (PUBLIC, 100),
+            (PUBLIC, 200),
             // Not public: kept, not added up.
             (MatchKind::Private, 300),
         ] {
@@ -1776,7 +1905,7 @@ mod tests {
         let dir = TempDir::new("accuracy");
         let (mut repository, history) = repository(&dir);
         // Alice: 100 shots, 40 hits a match; Bob 20 hits of the same.
-        let mut played = record(MatchKind::Public, 100);
+        let mut played = record(PUBLIC, 100);
         played.players[1].line.counters.hits = 20;
         for _ in 0..9 {
             repository.record_match(&played).unwrap();
@@ -1802,18 +1931,14 @@ mod tests {
     fn public_matches_are_served_and_added_up_the_others_only_kept() {
         let dir = TempDir::new("kinds");
         let (mut repository, history) = repository(&dir);
-        repository
-            .record_match(&record(MatchKind::Public, 1000))
-            .unwrap();
+        repository.record_match(&record(PUBLIC, 1000)).unwrap();
         repository
             .record_match(&record(MatchKind::Private, 2000))
             .unwrap();
         repository
             .record_match(&record(MatchKind::VsBots, 3000))
             .unwrap();
-        repository
-            .record_match(&record(MatchKind::Public, 4000))
-            .unwrap();
+        repository.record_match(&record(PUBLIC, 4000)).unwrap();
 
         let kept: i64 = Connection::open(dir.db())
             .unwrap()
@@ -1880,9 +2005,7 @@ mod tests {
         let dir = TempDir::new("pages");
         let (mut repository, history) = repository(&dir);
         for at in 1..=5 {
-            repository
-                .record_match(&record(MatchKind::Public, at * 100))
-                .unwrap();
+            repository.record_match(&record(PUBLIC, at * 100)).unwrap();
         }
         repository
             .record_match(&record(MatchKind::Private, 600))
@@ -1915,9 +2038,7 @@ mod tests {
         let (mut repository, history) = repository(&dir);
         const DAY: u64 = 86_400;
         for at in [DAY + 10, DAY + 20, 3 * DAY + 5] {
-            repository
-                .record_match(&record(MatchKind::Public, at))
-                .unwrap();
+            repository.record_match(&record(PUBLIC, at)).unwrap();
         }
         let days = history.player_days(10, 0).unwrap();
         assert_eq!(days.len(), 2);
@@ -1936,9 +2057,7 @@ mod tests {
     fn the_top_lists_skip_who_is_left_out() {
         let dir = TempDir::new("top");
         let (mut repository, history) = repository(&dir);
-        repository
-            .record_match(&record(MatchKind::Public, 100))
-            .unwrap();
+        repository.record_match(&record(PUBLIC, 100)).unwrap();
         let by_kills = history
             .top(PlayerRanking::Totals(TotalsKey::Kills), 10, &|_| true)
             .unwrap();
@@ -1973,9 +2092,7 @@ mod tests {
     fn a_clan_has_its_members_rows_added_up_and_its_members() {
         let dir = TempDir::new("clan");
         let (mut repository, history) = repository(&dir);
-        repository
-            .record_match(&record(MatchKind::Public, 100))
-            .unwrap();
+        repository.record_match(&record(PUBLIC, 100)).unwrap();
         repository
             .record_match(&record(MatchKind::Private, 200))
             .unwrap();
@@ -2064,7 +2181,7 @@ mod tests {
             kits: Vec::new(),
         };
         let with = |winner, players: Vec<PlayerRecord>| {
-            let mut played = record(MatchKind::Public, 100);
+            let mut played = record(PUBLIC, 100);
             played.info.winner = winner;
             played.players = players;
             played
@@ -2164,9 +2281,7 @@ mod tests {
             .unwrap();
         assert_eq!(history.account_by_name("alice").unwrap(), None);
         assert!(history.player(10).unwrap().is_none());
-        repository
-            .record_match(&record(MatchKind::Public, 200))
-            .unwrap();
+        repository.record_match(&record(PUBLIC, 200)).unwrap();
         assert_eq!(history.account_by_name("alice").unwrap(), Some(10));
         assert_eq!(history.account_by_name("Bob").unwrap(), Some(11));
         assert_eq!(history.account_by_name("Carol").unwrap(), None);
