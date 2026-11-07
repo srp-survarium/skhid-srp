@@ -2190,6 +2190,31 @@ st_srp_ammo_scar_ap_desc	Бранябойныя патроны 7.62x51 для FN
 st_srp_ammo_scar_ap_name	7.62x51 ББ SCAR-H, 20 патронаў
 st_srp_ammo_slug	Куля
 st_srp_ammo_stats	Характарыстыкі патронаў
+st_srp_artefact_501_description	Час збору артэфакта:
+st_srp_artefact_501_name	Хуткія рукі
+st_srp_artefact_502_description	Ізаляцыя ад анамалій:
+st_srp_artefact_502_name	Стойкасць
+st_srp_artefact_512_description	Працягласць актыўнага эфекту артэфактаў:
+st_srp_artefact_512_name	Веданне артэфактаў
+st_srp_artefact_513_description	Пасіўныя артэфакты бачныя як ззянне на нагах гульцоў, у тым ліку вашых.
+st_srp_artefact_513_name	Артэфактны зрок
+st_srp_artefact_521_description	Матч пачынаецца з выпадковым артэфактам у кантэйнеры; від адзін на ўвесь матч.
+st_srp_artefact_521_name	Захавальнік артэфактаў
+st_srp_artefact_522_description	Адна кішэня становіцца кантэйнерам для артэфакта.
+st_srp_artefact_522_name	Кантэйнер для артэфакта
+st_srp_artefact_523_description	Шкода ад куль і аскепкаў унутры анамаліі:
+st_srp_artefact_523_name	Ахова Лесу
+st_srp_artefact_531_description	Кожная Спружына таксама паскарае перазарадку: +5% пасіўна, +15% пры актывацыі.
+st_srp_artefact_531_name	Спружына II
+st_srp_artefact_532_description	Няма шкоды ад падзення, пакуль Онікс актыўны.
+st_srp_artefact_532_name	Онікс II
+st_srp_artefact_533_description	Актывацыя Жывакосту цалкам аднаўляе вынослівасць.
+st_srp_artefact_533_name	Жывакост II
+st_srp_artefact_541_description	Пасіўныя эфекты вашых артэфактаў дзейнічаюць і на жывых саюзнікаў у радыусе 8 м.
+st_srp_artefact_541_name	Рэзананс
+st_srp_artefact_542_description	Актываваныя артэфакты дзейнічаюць і на жывых саюзнікаў у радыусе 5 м. "Яны ззяюць, а ты бліскаеш"
+st_srp_artefact_542_name	Каскад
+st_srp_artefact_points	 адз.
 st_srp_attachments	Абвес
 st_srp_ban_reason_account_trading	Продаж або спроба продажу ўліковага запісу.
 st_srp_ban_reason_administration	Рашэнне адміністрацыі.

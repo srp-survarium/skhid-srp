@@ -2190,6 +2190,31 @@ st_srp_ammo_scar_ap_desc	Бронебійні набої 7.62x51 для FN SCAR-
 st_srp_ammo_scar_ap_name	7.62x51 ББ SCAR-H, 20 набоїв
 st_srp_ammo_slug	Куля
 st_srp_ammo_stats	Характеристики набоїв
+st_srp_artefact_501_description	Час збору артефакту:
+st_srp_artefact_501_name	Швидкі руки
+st_srp_artefact_502_description	Ізоляція від аномалій:
+st_srp_artefact_502_name	Стійкість
+st_srp_artefact_512_description	Тривалість активного ефекту артефактів:
+st_srp_artefact_512_name	Знання артефактів
+st_srp_artefact_513_description	Пасивні артефакти видно як сяйво на ногах гравців, зокрема ваших.
+st_srp_artefact_513_name	Артефактний зір
+st_srp_artefact_521_description	Матч починається з випадковим артефактом у контейнері; вид один на весь матч.
+st_srp_artefact_521_name	Хранитель артефактів
+st_srp_artefact_522_description	Одна кишеня стає контейнером для артефакту.
+st_srp_artefact_522_name	Контейнер для артефакту
+st_srp_artefact_523_description	Шкода від куль та уламків усередині аномалії:
+st_srp_artefact_523_name	Захист Лісу
+st_srp_artefact_531_description	Кожна Пружина також прискорює перезаряджання: +5% пасивно, +15% під час активації.
+st_srp_artefact_531_name	Пружина II
+st_srp_artefact_532_description	Немає шкоди від падіння, поки Онікс активний.
+st_srp_artefact_532_name	Онікс II
+st_srp_artefact_533_description	Активація Живокосту повністю відновлює витривалість.
+st_srp_artefact_533_name	Живокіст II
+st_srp_artefact_541_description	Пасивні ефекти ваших артефактів діють і на живих союзників у радіусі 8 м.
+st_srp_artefact_541_name	Резонанс
+st_srp_artefact_542_description	Активовані артефакти діють і на живих союзників у радіусі 5 м. "Вони сяють, а ти виблискуєш"
+st_srp_artefact_542_name	Каскад
+st_srp_artefact_points	 од.
 st_srp_attachments	Обвіс
 st_srp_ban_reason_account_trading	Продаж або спроба продажу облікового запису.
 st_srp_ban_reason_administration	Рішення адміністрації.

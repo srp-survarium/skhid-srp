@@ -4,6 +4,7 @@ patch = 97
 [[hook]]
 site = "world_load.loaded"
 handler = "on_loaded"
+order = 1
 
 [[hook]]
 site = "match_recovery.close"

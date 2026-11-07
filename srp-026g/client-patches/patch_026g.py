@@ -478,7 +478,7 @@ Patches:
   passive's unused max_carried_weight node aim_time with
   `passive/aim_time_mod` and adds two active nodes, aim_time with
   `active/aim_time_mod` at +3B8h and list 42 with
-  `active/stopping_power_mod` at +3C8h (a Spring is 3D8h bytes, 0x25E7A8,
+  `active/stopping_power_mod` at +3C8h (a Spring is 3F8h bytes with Spring II's two reload nodes, 0x25E7A8,
   0x2EEA74), linked and unlinked with the active's (0x311BC0, 0x311DA0);
   the player's stagger (0x2DBCD0, at 0x2DBD89) is times max(0, 1 + list
   42), so bullets do not slow an active Spring's holder. A
@@ -2187,7 +2187,7 @@ WEAPON_CAMO_DECALS_CALLS = (0x0, 0x5)                           # the entries pa
 # The artefacts (patch 54, README; client_patch.md section 3.51; the rules:
 # ../docs/notes/artefacts.md): artefacts_026g.asm in the arena's block
 # artefacts.code (ARENA below). Its numbers are the artefacts'
-# configs' (release/content.tsv, artefacts.tsv). It begins with eight
+# configs' (release/content.tsv, artefacts.tsv). It begins with ten
 # `jmp near`, one for each site, each a global symbol the hook jumps to:
 # - Spring's loader 0x33ACF0, `mov dword [esi+48h],13h` at 0x33AE13 (its
 #   active's third node): loader. The passive's second node (+350h,
@@ -2217,8 +2217,13 @@ WEAPON_CAMO_DECALS_CALLS = (0x0, 0x5)                           # the entries pa
 # - Onyx's client update 0x25F640, `mov ecx,[ebx-0C30h] / push 0BB8h` at
 #   0x25F9DD (its activation hint's set_parameterized_message): the time on
 #   screen is the active's time left (the hud writes it for the hint's %s),
-#   and only the first Onyx of the slots fired by the same press shows it.
-# The two nodes are after a Spring's own fields: the two sizes of a Spring,
+#   and only the first Onyx of the slots fired by the same press shows it;
+# - Spring's passive link 0x311AD0 (`push ebx / push esi / mov esi,eax /
+#   mov eax,[esi+250h]`, the entry) and unlink 0x311D10 (`push ebx / mov
+#   ebx,[esp+8]`): Spring II's passive reload node in and out (patch 109's
+#   entry artefact_skills_on_spring_reload gives both reload nodes their values
+#   at the link); the active's reload node goes with the active's.
+# The four nodes are after a Spring's own fields: the two sizes of a Spring,
 # artefact<artefact_spring_core> (0x3B8, 0x25E7A8) and the bare core (0x398,
 # 0x2EEA74), become ARTEFACTS_SPRING_SIZE. No base relocation is under a
 # site and no branch aims inside one; the code holds the absolute addresses
@@ -2232,11 +2237,13 @@ ARTEFACTS_HOOKS = (
     (0x2DBD89, bytes.fromhex("f30f10961c030000"), "artefacts_stagger", 0xE9),     # the player's stagger: its sum
     (0x312C03, bytes.fromhex("83b98002000003"), "artefacts_onyx", 0xE9),          # Onyx's hit callback: its state test
     (0x25F9DD, bytes.fromhex("8b8bd0f3ffff68b80b0000"), "artefacts_popup", 0xE9), # Onyx's client update: its pop-up
+    (0x311AD0, bytes.fromhex("53568bf08b8650020000"), "artefacts_link_passive", 0xE9),   # Spring's passive link
+    (0x311D10, bytes.fromhex("538b5c2408"), "artefacts_unlink_passive", 0xE9),           # Spring's passive unlink
 )
 ARTEFACTS_BACKS = (0x33AE1A, 0x311BCA, 0x311DA5, 0x3122B0, 0x31330A, 0x2DBD91, 0x312C0A,
-                   0x25F9E8)                    # where each goes on (the pop-up's skip: 0x25F9F8)
+                   0x25F9E8, 0x311ADA, 0x311D15)  # where each goes on (the pop-up's skip: 0x25F9F8)
 ARTEFACTS_EXITS = (0x25F9F8,)                   # the Onyx pop-up's skip past set_parameterized_message (POPUP_SKIP)
-ARTEFACTS_SPRING_SIZE = 0x3D8                  # the active's two nodes at +3B8h and +3C8h
+ARTEFACTS_SPRING_SIZE = 0x3F8                  # the active's two nodes at +3B8h and +3C8h, Spring II's at +3D8h, +3E8h
 ARTEFACTS_SIZES = (
     (0x25E7A8, bytes.fromhex("b8b8030000"), b"\xB8" + struct.pack("<I", ARTEFACTS_SPRING_SIZE)),
     (0x2EEA74, bytes.fromhex("b898030000"), b"\xB8" + struct.pack("<I", ARTEFACTS_SPRING_SIZE)),
@@ -2534,6 +2541,10 @@ INSTALLS = {
     0x311BC0: (ENTRY, "add_active_modifiers, the link of Spring's active nodes (eax = the Spring): link_active, "
                       "then the function", None, None),
     0x311DA0: (ENTRY, "remove_active_modifiers, their unlink (stdcall, the Spring): unlink_active, then the "
+                      "function", None, None),
+    0x311AD0: (ENTRY, "add_passive_modifiers, the link of Spring's passive nodes (eax = the Spring): "
+                      "link_passive (Spring II's reload node), then the function", None, None),
+    0x311D10: (ENTRY, "remove_passive_modifiers, their unlink (stdcall, the Spring): unlink_passive, then the "
                       "function", None, None),
     0x3122AA: (JUMP, "Lifebone's enable_active after its remove_affects, `mov ecx,[edi+250h]`: "
                      "lifebone_active", None, None),
@@ -4191,7 +4202,7 @@ def with_kit_apply(code, linked):
 
 
 def artefacts_backs(linked):
-    """Where each of the artefacts' eight entries (ARTEFACTS_HOOKS' symbols)
+    """Where each of the artefacts' ten entries (ARTEFACTS_HOOKS' symbols)
     goes on: the target of the first `jmp near` back into .text after the
     entry's own code, when the entry is a `jmp near`; else None."""
     block = linked.blocks["artefacts.code"]

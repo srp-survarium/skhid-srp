@@ -174,6 +174,10 @@ def objects(project, artefact_keys):
     for o in client:
         if o.get("game_object_type") != "generic_anomaly_core":
             continue
+        # An anomaly with no container spawns nothing anywhere: Keeper of the Artifacts' hidden
+        # pool (content-edit/artefact-keeper-1.json) is one, and none of it is shown.
+        if not o.get("artefact_containers"):
+            continue
         kinds = {artefact_keys[a["dict_id"]] for a in o.get("artefacts") or [] if a["dict_id"] in artefact_keys}
         for name in o.get("artefact_containers") or []:
             kinds_of[name] |= kinds
