@@ -394,6 +394,9 @@ pub struct Pose {
     pub gait: Gait,
     /// The floor under the body as the grid has it, for [`Feel::sprint_turns`] (read by the driver only with it on).
     pub floor: Floor,
+    /// [A318] How far the grid's steps would have taken the reckoning past where the client's walk tick held it since the last
+    /// world (`BodyTrack::held_short_since_fix`; zero under `kin.client_step = grid`): the hop's "behind" ([`Motor::stalled`]).
+    pub held_short_m: f32,
 }
 
 /// The floor under the body, for the sprint through turns ([`Feel::sprint_turns`]).
@@ -1715,7 +1718,7 @@ impl Motor {
         }
         // A hop goes the way the keys do: only with forward held.
         let may = keys & key::FORWARD != 0 && keys & key::BACK == 0 && !pose.no_jump;
-        keys |= self.hop_key(route, s, pose.feet, unit(dx, dz), may);
+        keys |= self.hop_key(route, s, pose.feet, unit(dx, dz), may, pose.held_short_m);
         (Decision { keys, turn }, Walked::OnTheWay)
     }
 
@@ -1980,7 +1983,7 @@ impl Motor {
         }
         // A hop goes the way the keys do: only with forward held.
         let may = keys & key::FORWARD != 0 && keys & key::BACK == 0 && !pose.no_jump;
-        keys |= self.hop_key(route, s, pose.feet, unit(dx, dz), may);
+        keys |= self.hop_key(route, s, pose.feet, unit(dx, dz), may, pose.held_short_m);
         (Decision { keys, turn }, Walked::OnTheWay)
     }
 
@@ -2578,6 +2581,7 @@ impl Motor {
         feet: Vec3,
         way: Option<[f32; 2]>,
         may: bool,
+        held_short_m: f32,
     ) -> u32 {
         let feel = &self.feel;
         let fresh = self
@@ -2604,7 +2608,7 @@ impl Motor {
             && !jumped
             && !low
             && !jump_near
-            && self.stalled(feet)
+            && self.stalled(feet, held_short_m)
             && self.rises(route, s, feet);
         self.trail.push_back((self.clock, feet));
         while self.trail.len() > HOP_TRAIL_TICKS {
@@ -2626,15 +2630,18 @@ impl Motor {
     /// the keys took them: by [`Feel::hop_behind_m`], and by
     /// [`Feel::hop_behind_share`] of the way the reckoning went since the
     /// correction before (a tick's move longer than a step is one).
-    fn stalled(&self, feet: Vec3) -> bool {
+    fn stalled(&self, feet: Vec3, held_short_m: f32) -> bool {
         let Some(&(_, before)) = self.trail.back() else {
             return false;
         };
-        let behind = (before.x - feet.x) * self.way[0] + (before.z - feet.z) * self.way[1];
+        // [A318] Under `kin.client_step = client` the reckoning is held where the body is (a step the grid walks up and the
+        // client's walk tick does not), so no world puts it back: the grid's steps it was held short of since the last world
+        // are the same "behind" (zero under `grid`, where this is as it was).
+        let behind = ((before.x - feet.x) * self.way[0] + (before.z - feet.z) * self.way[1]).max(held_short_m);
         if behind < self.feel.hop_behind_m {
             return false;
         }
-        let mut meant = 0.0;
+        let mut meant = held_short_m;
         let mut later = before;
         for &(_, at) in self.trail.iter().rev().skip(1) {
             let step = at.distance_xz(later);
