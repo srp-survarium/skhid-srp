@@ -1,0 +1,10 @@
+name = "packet_recovery"
+patch = 97
+
+[[hook]]
+site = "world_load.loaded"
+handler = "on_loaded"
+
+[[hook]]
+site = "match_recovery.close"
+handler = "on_close"

@@ -1,11 +1,10 @@
-//! The host side of the client check's drift test (`client_world_check.md`
+//! The host side of the client check's drift test (`packet-validation.md`
 //! section 8): for every kept world under the directories given, the context
 //! the game's payload reads (20 places; the mode, batteries and respawn
 //! points of the match; no profiles, artefacts, objects or inventory) and
 //! the **host** build's verdict, for the world and for mutated copies of it.
 //!
-//! `check_client_verify_026g.py` runs this, then the arena's i686 payload
-//! (`srp_world_check`) under Unicorn with a world core whose rule list says
+//! `check_world_check_026g.py --drift` runs the arena's i686 load hooks under Unicorn with a world core whose rule list says
 //! the same match, on the same bytes, and asserts the two builds agree.
 //!
 //! ```text
@@ -15,8 +14,8 @@
 //! One line a world: `<path>\t<time>\t<mode>\t<batteries>\t<respawn>\t<verdicts>`,
 //! the verdicts `0` (read) or `1` (refused), the world's first, then one for
 //! each of [`MUTATIONS`] (the byte at `len * k / MUTATIONS` flipped). The
-//! match is the first at 20 places that lets the world pass; a world that
-//! passes under none reports mode 2, no batteries, no respawn points and its
+//! match is chosen from rules/statistics at 20 places independently of the full
+//! verdict; a world whose context cannot be inferred reports mode 2, no batteries, no respawn points and its
 //! refusal (the payload reads the same match, so the two still agree).
 //! A kept world is the body after the time (`match026g_<match>_<time>_...`):
 //! the game's reader has the time first, so the payload gets both.
@@ -83,7 +82,7 @@ fn context(time: u32, game_mode: u8, batteries: usize, respawn: usize) -> Contex
 }
 
 /// The first `(game_mode, batteries, respawn)` at 20 places that lets the
-/// world pass; mode 2 with none of either when none does.
+/// rules/statistics read; mode 2 with neither when none does.
 fn choose(body: &[u8], time: u32) -> (u8, usize, usize) {
     let modes = [
         mode::BATTERIES,

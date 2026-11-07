@@ -155,3 +155,6 @@ keyboard.events	0x3B914B	lohook	-	6	-	keyboard=EDI:vostok::input::keyboard count
 deserialize.fsm_selected	0x38CD22	lohook	-	7	done@0x38CD37	fsm=ESI:vostok::ai::fsm	fsm::deserialize after resolving the wire state id; selected +10h may be null; done is ret 8
 deserialize.anomaly_state	0x31B0FF	lohook	-	9	no_state@0x31B0FB	anomaly=EDI:survarium::generic_anomaly_core	deserialize before indexing the state vector with CL; no_state is the native FF path
 deserialize.artefact	0x2FE65E	lohook	-	5	-	core=ECX:survarium::core_world	inventory::deserialize before EAX indexes EDX's artefact vector; skipping with EAX=0 takes the native null path
+match_dispatch.message	0x27A31F	lohook	-	8	refused@0x27A72C	client=ESI:survarium::network_client reader=EBX:vostok::buffer_reader id=EAX:u32	on_match_packet_received before storing the normalized id and subtracting E3h; EAX the id, reader cursor after it; refused is the epilogue
+world_load.loaded	0x27C116	lohook	-	5	-	client=EDI:survarium::network_client	process_dynamic_match_info after either core deserialize returns, before mov eax,[edi+4] / test eax,eax; a load receipt is emitted only here
+match_recovery.close	0x27A790	lohook	-	6	-	client=ECX:survarium::network_client	close_current_match entry push ebp / mov ebp,esp / and esp,-8; clears connection-owned receipt/log state before teardown

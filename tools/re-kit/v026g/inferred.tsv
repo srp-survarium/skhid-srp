@@ -2171,7 +2171,7 @@ va	status	ref_021d	name
 0x00317540	inferred-medium	0x001fd304	vostok::buffer_vector<survarium::respawn_point_core *>::push_back
 0x00317f10	inferred-medium	0x001f554f	survarium::timelimit_rule_core::tick
 0x003187e0	inferred-medium	0x001f5f48	survarium::server_game_project::`scalar deleting destructor'
-0x00318800	inferred-medium		survarium::server_game_project::set_game_world_core
+0x00318800	inferred-high	0x001f5f64	survarium::server_game_project::insert
 0x00319a70	inferred-medium	0x001f6856	survarium::damage_zone_core::tick
 0x00319d30	inferred-medium	0x001f6a3b	survarium::damage_zone_core::deactivate
 0x0031a620	inferred-medium	0x001f70d8	vostok::buffer_vector<vostok::physics::loose_ptr<vostok::physics::base_physics_object,vostok::physics::loose_ptr_data,vostok::threading::multi_threading_policy> >::resize
@@ -3226,3 +3226,54 @@ va	status	ref_021d	name
 0x00332a30	inferred-medium		survarium::damage_model::friendly_anomaly
 0x00332cb0	inferred-medium		survarium::damage_model::pain_after_hit_listener
 0x0033fa80	inferred-medium		survarium::body_part_parameters::route_damage
+0x003183a0	inferred-high		survarium::match_options::match_options
+0x0022e4e0	inferred-high	0x0017b4f1	survarium::project_cooker_simple::on_damage_zones_loaded
+0x0022e720	inferred-high	0x0017b66d	survarium::project_cooker_simple::on_effect_zones_loaded
+0x0022e970	inferred-high	0x0017b7e9	survarium::project_cooker_simple::on_ladders_loaded
+0x0022ebb0	inferred-high	0x0017b965	survarium::project_cooker_simple::on_anomalies_loaded
+0x00285c50	inferred-high	0x001a5139	survarium::simple_game_project::remove
+0x002951c0	inferred-high	0x001aa0e5	survarium::artefact_container::artefact_container
+0x002f7f80	inferred-high	0x001e89b1	survarium::usable_object::usable_object
+0x002f8020	inferred-medium		[thunk]:survarium::usable_object::serialize`adjustor{64}'
+0x002f8040	inferred-medium		[thunk]:survarium::usable_object::deserialize`adjustor{64}'
+0x002f8060	inferred-medium		[thunk]:survarium::usable_object::post_deserialize_resolve`adjustor{64}'
+0x00303820	inferred-medium		survarium::grenade_core::register_in_game_world
+0x003067a0	inferred-high	0x001e98da	survarium::booby_trap_set_core::register_in_game_world
+0x00309ec0	inferred-high	0x001ed1a3	survarium::grenade_set_core::register_in_game_world
+0x0031ad50	inferred-high	0x001f756d	survarium::effect_zone_core::deserialize
+0x0031ad60	inferred-high	0x001f7570	survarium::effect_zone_core::post_deserialize_resolve
+0x0031b8e0	inferred-high	0x001edfa5	survarium::generic_anomaly_core::register_artefacts
+0x0031be60	inferred-medium	0x001ee33e	survarium::zone_group::recharge
+0x0031c360	inferred-medium		vostok::buffer_vector<artefact pointer>::push_back
+0x0033c400	inferred-high	0x001eea6b	survarium::state_prio
+0x002ee930	inferred-medium	0x00194e92	survarium::artefact_cook::construct_derived_resource
+0x002df780	inferred-high		survarium::weapon_core::set_states [descriptive]
+0x0030b9a0	inferred-high		survarium::weapon_core_cook::on_weapon_states_loaded [descriptive]
+0x002e41d0	inferred-high		survarium::weapon_core::set_ammo_slots [descriptive]
+0x0033f380	inferred-high		survarium::armor::deserialize
+0x0033f970	inferred-high		survarium::booster::deserialize
+0x0030dfb0	inferred-high		survarium::weapon_core_hide_state::deserialize
+0x003105c0	inferred-medium		survarium::weapon_core_throw_grenade_throw_substate::deserialize
+0x0033aa90	inferred-medium		survarium::weapon_core_melee_state_base::deserialize [descriptive]
+0x002988a0	inferred-high		survarium::portable_interactive_object_with_finger_correction::deserialize
+0x00295b80	inferred-high		survarium::portable_interactive_object::deserialize
+0x00301660	inferred-high	0x001e7bad	survarium::victory_item_core::deserialize
+0x002c8e5e	inferred-medium		survarium::items_dictionary items_compatibility fill [descriptive; inside the dictionary loader]
+0x00337510	inferred-high		survarium::player_logic_stand_jump_state::deserialize
+0x00336b70	inferred-high		survarium::player_logic_stand_jump_state::player_logic_stand_jump_state
+0x00336e60	inferred-high		survarium::player_logic_stand_jump_state::initialize_substates [descriptive]
+0x00342300	inferred-high		survarium::short_jump_landing_state::deserialize
+0x003000a0	inferred-medium	0x001e70e7	survarium::victory_item_core::victory_item_core
+0x00313970	inferred-medium	0x001fb7e6	survarium::gather_victory_items_rule_core::gather_victory_items_rule_core
+0x00338d20	inferred-medium	0x0020842d	survarium::victory_item_core_carry_state::`scalar deleting destructor'
+0x00338ab0	inferred-medium	0x002082a5	survarium::victory_item_core_take_state::`scalar deleting destructor'
+0x003a8a00	inferred-high		anim_fill_selected_channels
+0x003a8af0	inferred-high		anim_read_node_time_track
+0x003a8ba0	inferred-high		anim_read_node_flag_track
+0x003a8c10	inferred-high		anim_read_node_base_tracks
+0x003a8d30	inferred-high		anim_link_node_pointers
+0x003a8d60	inferred-high		anim_init_node_matrices
+0x003a8ef0	inferred-high		anim_pick_channel_value
+0x003a8f40	inferred-high		anim_read_node_record
+0x003a90c0	inferred-high		anim_read_expression
+0x003a9250	inferred-high		anim_build_node

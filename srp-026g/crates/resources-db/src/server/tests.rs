@@ -66,8 +66,29 @@ fn project(respawn_points: usize) -> (Vec<u8>, Vec<u8>) {
         "collision_objects".to_owned(),
         ConfigValue::Indexed(vec![ConfigValue::String("a wall".into()); 50]),
     );
-    let whole = ConfigValue::Named(vec![world, server_objects.clone()]);
-    let kept = ConfigValue::Named(vec![server_objects]);
+    // Client objects: those a world saves are kept, in their order.
+    let object = |kind: &str, name: &str| {
+        ConfigValue::Named(vec![
+            ("game_object_type".into(), ConfigValue::String(kind.into())),
+            ("full_name".into(), ConfigValue::String(name.into())),
+        ])
+    };
+    let client = |objects: Vec<ConfigValue>| (CLIENT_OBJECTS.to_owned(), ConfigValue::Indexed(objects));
+    let all = client(vec![
+        object("ambient_light", "a light"),
+        object("generic_anomaly_core", "the anomaly"),
+        object("collision_geometry", "a box"),
+        object("damage_zone", "a zone"),
+        object("effect_zone", "a shield"),
+        object("resupply_zone", "a crate"),
+    ]);
+    let saved = client(vec![
+        object("generic_anomaly_core", "the anomaly"),
+        object("damage_zone", "a zone"),
+        object("resupply_zone", "a crate"),
+    ]);
+    let whole = ConfigValue::Named(vec![world, all, server_objects.clone()]);
+    let kept = ConfigValue::Named(vec![saved, server_objects]);
     (whole.to_bytes().unwrap(), kept.to_bytes().unwrap())
 }
 
@@ -340,7 +361,7 @@ fn a_project_that_is_not_a_config_is_refused() {
         );
     }
     // What is kept of a project reads as its server objects.
-    let kept = server_objects_of(&project(4).0).unwrap();
+    let kept = objects_of(&project(4).0).unwrap();
     let kept = binary_config_parser::ConfigValue::parse(&kept).unwrap();
     let points = kept.get(SERVER_OBJECTS).unwrap().get("respawn_points");
     assert_eq!(points.unwrap().children().len(), 4);
@@ -803,7 +824,7 @@ fn the_server_data_of_0_26g_with_its_patches() {
             let bytes = archive.read(&file).unwrap().unwrap();
             let kept = if file.starts_with(PROJECTS) {
                 // Its server objects as the game has them.
-                let kept = server_objects_of(&bytes).unwrap();
+                let kept = objects_of(&bytes).unwrap();
                 let kept = binary_config_parser::ConfigValue::parse(&kept).unwrap();
                 let whole = binary_config_parser::ConfigValue::parse(&bytes).unwrap();
                 assert_eq!(
@@ -811,7 +832,7 @@ fn the_server_data_of_0_26g_with_its_patches() {
                     whole.get(SERVER_OBJECTS),
                     "{file}"
                 );
-                server_objects_of(&bytes).unwrap()
+                objects_of(&bytes).unwrap()
             } else {
                 bytes
             };

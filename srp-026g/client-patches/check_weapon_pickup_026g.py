@@ -1077,17 +1077,62 @@ GET_ACTIVE_PLAYER = 0x27A9C0
 
 
 def world_with(states):
-    """A world as the 0xE8 handler loads it: its time, the mask, each place's state (not animated),
-    six empty sections."""
-    out = bytearray(struct.pack("<II", DIED + 2_000, sum(1 << place for place in states)))
+    """Current TDM snapshot around the pickup records this harness exercises."""
+    from check_world_check_026g import sections, player
+    now = DIED + 2_000
+    out = bytearray(struct.pack("<II", now, sum(1 << place for place in states)))
     for place in sorted(states):
-        out += struct.pack("<H", len(states[place])) + states[place] + b"\0"
-    return bytes(out + bytes(2 * 6))
+        value = states[place]
+        # Most pickup cases supply just the kit bytes and their record.
+        if len(value) == 31:
+            value += player()[31:]
+        out += struct.pack("<H", len(value)) + value + b"\0"
+    for section in sections(now):
+        out += struct.pack('<H',len(section)) + section
+    return bytes(out)
+
+
+def world_sections(world):
+    from check_world_roundtrip_026g import walk, animation_len
+    body = world[4:]
+    states = walk(body)
+    at = 4
+    for _,start,end in states:
+        at = end+1
+        if body[end]: at += animation_len(body[at:])
+    sections = []
+    for _ in range(6):
+        size, = struct.unpack_from('<H',body,at)
+        sections.append(body[at+2:at+2+size]); at+=2+size
+    return sections
+
+
+def install_validation_context(r, world):
+    # Historical round-trip fixtures and synthetic pickup worlds are TDM.
+    # Other corpora supply (mode,batteries,respawn) from host drift_dump.
+    context = getattr(r, 'validation_context', None)
+    if context is None:
+        rules = world_sections(world)[4]
+        waits, = struct.unpack_from('<I',rules,13)
+        point_bytes = len(rules)-(13+8+4*waits.bit_count()+12+5*20+2)
+        assert point_bytes >= 0 and point_bytes % 2 == 0, 'supply the snapshot match context'
+        context = (4,0,point_bytes//2)
+    mode,batteries,points = context
+    table,rule,respawn = r.blk(8),r.blk(0x200),r.blk(0x200)
+    r.word(CLIENT+0x1F1C40,MATCH)
+    r.word(CORE+0x18824,table);r.word(CORE+0x18828,table+8)
+    r.word(table,rule);r.word(table+4,respawn)
+    r.word(rule,{2:0xA06AB4,3:0xA06C04,4:0xA06CBC,5:0xA06A54}[mode])
+    r.word(rule+0x10c,5 if mode==5 else 0)
+    slots=r.blk(max(4,batteries*4))
+    r.word(rule+0x110,slots);r.word(rule+0x114,slots+batteries*4)
+    r.word(respawn,0xA06D1C);r.word(respawn+0x194,points)
 
 
 def load_world(r, world):
     """process_dynamic_match_info at world_load.unpacked (patch 87's site, patch 85's preparation composed):
     the world in the frame's buffer {allocator, begin, capacity, size} at EBP-24h, EDI the client."""
+    install_validation_context(r, world)
     frame, at = r.blk(0x100) + 0x80, r.blk(len(world))
     r.emu.mem_write(at, world)
     for off, value in ((-0x24, 0), (-0x20, at), (-0x1C, 0x8000), (-0x18, len(world))):

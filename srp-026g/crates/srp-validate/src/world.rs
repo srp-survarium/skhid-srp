@@ -5,7 +5,9 @@ mod frame;
 mod objects;
 pub use bullets::bullets;
 pub use effects::effects;
-pub use objects::objects;
+pub use objects::{Anomaly, Artefact, Artefacts, Group, Held, Map, Objects, State, objects};
+mod inventory;
+pub use inventory::{Ammo, Body, Chamber, Gun, GunState, Inventory, Item, Measure};
 mod player_tail;
 pub use player_tail::player_tail;
 mod rules;
@@ -21,30 +23,6 @@ pub const PLAYER_FIELDS_AT: usize = 2 + weapon_pickup::Record::BYTES;
 
 pub const WEAPON_SLOTS: [u8; 2] = [7, 10];
 pub const AMMO_SLOTS: [u8; 8] = [8, 9, 11, 12, 19, 20, 21, 22];
-
-/// One game object of a map, in the order `set_game_world_core` links them
-/// (the damage zones, the usable objects, then the anomalies). The server
-/// fills the list from the project's `client_objects`, a game from its
-/// loaded objects.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub enum Object {
-    /// `damage_zone_core`: a `u32` and a `u8`, 5 bytes.
-    DamageZone,
-    /// `usable_object` (a resupply point): `u8 N` then `N` user ids.
-    Usable,
-    /// `artefact_container_core`: the usable base, a `u8` artefact id and a
-    /// `u32`. `artefacts` is how many artefacts the game has (the id's
-    /// bound; the id may also be 0xFF, none).
-    ArtefactContainer { artefacts: usize },
-    /// `victory_items_container_core`: the usable base, a `u32` count and
-    /// that many battery indices. The count and the indices are bounded by
-    /// the map's batteries ([`Context::batteries`]).
-    VictoryContainer,
-    /// `generic_anomaly_core`: the scalar head with a state index bounded by
-    /// `states` (the anomaly's state count). `gated`: the object's `[+0x0C]`
-    /// is set, so the head opens with a `u8` and, if set, a `u32`.
-    Anomaly { gated: bool, states: usize },
-}
 
 /// What a world is checked against: the match it is of. The server fills
 /// it from its match, the game from its own objects
@@ -75,21 +53,14 @@ pub struct Context<'a> {
     /// each slot, so no u8 is a crash. See
     /// the player-tail checker.
     pub artefacts: Option<usize>,
-    /// The map's game objects, in the order the world serializes them, when
-    /// known: the server from the project's `client_objects`, a game from
-    /// its loaded objects. Without it the game-objects section is not
-    /// checked (a guessed match).
-    pub objects: Option<&'a [Object]>,
-    /// By place, the serialized inventory items of each kit (ascending slot,
-    /// up to the first with a body), when known. With it the tail walks the
-    /// items past the inventory header, bounding each item's owner lookup
-    /// (`[core+0x18458]+(profile_id+player_id*12)*4`, 0x2FFF72) and a
-    /// weapon's `m_current_ammo_id` (0x2E350A), and stops at the first item
-    /// body. The game fills it from its live kits (it knows each item's
-    /// `is_stack` and ammo list); the server leaves it `None` for now (the
-    /// walk then stops at the inventory header, as before), like
-    /// [`Context::artefacts`]. See the player-tail checker.
-    pub inventory: Option<&'a [[&'a [Item]; KITS]]>,
+    /// The objects of the world's game-objects section, in its order, when
+    /// known: the places' grenades and traps, then the map's objects. Without
+    /// it the section is not checked (a guessed match).
+    pub objects: Option<&'a Objects<'a>>,
+    /// The match's kits as the game makes their objects, when known: with
+    /// it a player's state is read to its exact end ([`Inventory`]);
+    /// without it the walk stops at the inventory header.
+    pub inventory: Option<&'a Inventory<'a>>,
 }
 
 /// What a world's player block is checked against.
@@ -128,32 +99,6 @@ impl Weapon {
     pub fn buckshot(&self, ammo: u8) -> bool {
         self.buckshot.checked_shr(u32::from(ammo)).unwrap_or(0) & 1 != 0
     }
-}
-
-/// One serialized inventory item, as a kit's object of a slot deserializes
-/// it after the inventory header (`inventory::deserialize` loop 0x2FE7A9,
-/// `inventory_item::deserialize` 0x2FFF10). The stream does not say which
-/// slots hold an item nor each item's shape -- the loop walks the live
-/// kit's slot array -- so the walk is given the kit's items as data. They
-/// are listed in ascending slot order, up to and including the first with a
-/// [`Item::body`] (the walk reads its header and stops; a weapon's FSM and
-/// the readers after the items have no static length). See
-/// the player-tail checker.
-#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
-pub struct Item {
-    /// The slot (0..22). Read, not used: the loop's own slot drives it.
-    pub slot: u8,
-    /// The dictionary entry's `is_stack` (0x2FFF16): a `u16 m_amount` when
-    /// set, else an `f32 m_condition` (2 or 4 bytes before the owner).
-    pub stack: bool,
-    /// A body follows the header (a weapon, a grenade, a medkit, ...): the
-    /// walk reads this item's header, bounds it, and stops, because the
-    /// body has no static length.
-    pub body: bool,
-    /// A weapon's ammo-list length (`Weapon::ammo`), which bounds the
-    /// weapon's `m_current_ammo_id` (0x2E350A). `Some` only for a weapon,
-    /// and a weapon always has [`Item::body`].
-    pub ammo: Option<u8>,
 }
 
 impl Profile {

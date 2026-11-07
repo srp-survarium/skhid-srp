@@ -12,6 +12,7 @@ version = "0.1.0"
 dependencies = [
  "artefact-carry",
  "ragdoll",
+ "srp-validate",
  "weapon-kit",
  "weapon-pickup",
  "world-frame",
@@ -20,6 +21,14 @@ dependencies = [
 [[package]]
 name = "ragdoll"
 version = "0.1.0"
+
+[[package]]
+name = "srp-validate"
+version = "0.1.0"
+dependencies = [
+ "weapon-pickup",
+ "world-frame",
+]
 
 [[package]]
 name = "weapon-kit"
