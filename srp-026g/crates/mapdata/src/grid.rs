@@ -280,6 +280,13 @@ pub struct Body {
     /// client walks its far half (A331: 184 of the 201 rounds-taken floors under fx-zones' grid edge cuts). A build input: in
     /// the key when set.
     pub give_back_in_cell: bool,
+    /// [A332] With [`Self::client_controller`]: whether a Jump link up to a standing jump's top ([`STANDING_JUMP_M`]) becomes
+    /// a Walk where the client's walk tick walks the body up it (the controller pass's walk test). The link's rise is
+    /// measured between cell centres, but the body stands on the highest ground under it and climbs from there by the step
+    /// (`cc_step_height` 0.80, `step_up` 0x7C900): a body on a sloped floor beside a ledge walks up a top a centre-to-centre
+    /// rise over the step calls a jump (fx-gear-2's CLIMB MISSED rows, level_01 day_4 (-40.1, 21.5, -97.0): a Jump of 0.89 m
+    /// the client walks up). Off: such a link stays a Jump. A build input: in the key when set.
+    pub walked_climbs: bool,
 }
 
 /// How the floors a body's radius from walls are taken away.
@@ -360,6 +367,7 @@ impl Body {
             crack_bridges: false,
             start_witness: false,
             give_back_in_cell: false,
+            walked_climbs: false,
         }
     }
 }
@@ -439,6 +447,7 @@ impl Default for Body {
             crack_bridges: false,
             start_witness: false,
             give_back_in_cell: false,
+            walked_climbs: false,
         }
     }
 }

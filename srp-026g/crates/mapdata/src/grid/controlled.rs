@@ -57,6 +57,9 @@ pub struct ControlledStats {
     pub checks_dropped: usize,
     /// Failed checks kept as a floor's only way in or back (`WalkGrid::cut_keeping_reach`).
     pub checks_kept: usize,
+    /// [`Body::walked_climbs`]: the Jumps tried, and those the walk tick walks up (made Walks).
+    pub climbs_tried: usize,
+    pub climbs_walked: usize,
 }
 
 /// Where a walk starts a standing body on a floor ([`Body::walk_start_clear`]).
@@ -296,6 +299,25 @@ impl WalkGrid {
             }
         }
         wide.off.sort_by_key(|l| (l.from, l.to));
+        // The Jumps up the client walks ([`Body::walked_climbs`]): Walks, and so checked with the other walks below.
+        if body.walked_climbs {
+            let climbs: Vec<(usize, usize)> = (0..self.height.len())
+                .flat_map(|a| (0..8).map(move |d| (a, d)))
+                .filter(|&(a, d)| {
+                    let b = wide.links[a][d];
+                    b != NONE && wide.kinds[a][d] == LinkKind::Jump && self.height[b as usize] - self.height[a] <= STANDING_JUMP_M
+                })
+                .collect();
+            stats.climbs_tried = climbs.len();
+            let links = &wide.links;
+            let walked = parallel(&climbs, |&(a, d)| walk_lines(&world, s, start, self.position(a as NodeId), self.position(links[a][d])).1);
+            for (&(a, d), up) in climbs.iter().zip(walked) {
+                if up {
+                    wide.kinds[a][d] = LinkKind::Walk;
+                    stats.climbs_walked += 1;
+                }
+            }
+        }
         // Checks: the floors with a face no body walks on near their capsule.
         let n = self.height.len();
         let floors: Vec<usize> = (0..n).collect();
@@ -442,6 +464,33 @@ mod tests {
                 l.press == Takeoff::WalkOff && a.y > -0.3 && b.y > -0.3 && (a.y - b.y).abs() > 0.2
             })
             .count()
+    }
+
+    /// [A332] A floor at 0 (z < 3.25), a 0.20 m bench beside it (z >= 3.25), a top at 0.90 m from x 5.0. From the floor cell
+    /// centred (4.875, 3.125) the climb to the top's cell is 0.90 centre to centre, over the 0.80 step: a Jump. The body there
+    /// (radius 0.38) stands on the bench beside it, and climbs 0.70 from it. With `walked_climbs` the walk tick walks it up and
+    /// the link is a Walk (level_01 day_4 (-40.1, 21.5, -97.0): a body on a cell beside a higher one).
+    fn climb_kind(on: bool) -> Option<LinkKind> {
+        let mut tris = Vec::new();
+        floor(&mut tris, 0.0, 0.0, 5.0, 3.25, 0.0);
+        floor(&mut tris, 0.0, 3.25, 5.0, 6.0, 0.2);
+        floor(&mut tris, 5.0, 0.0, 10.0, 6.0, 0.9);
+        quad(&mut tris, Vec3::new(0.0, 0.0, 3.25), Vec3::new(5.0, 0.0, 3.25), Vec3::new(5.0, 0.2, 3.25), Vec3::new(0.0, 0.2, 3.25));
+        quad(&mut tris, Vec3::new(5.0, 0.0, 0.0), Vec3::new(5.0, 0.9, 0.0), Vec3::new(5.0, 0.9, 6.0), Vec3::new(5.0, 0.0, 6.0));
+        let body = Body { client_controller: true, walked_climbs: on, ..Body::client() };
+        let (grid, _) = WalkGrid::build_kept_with_links(&tris, [0.0, 0.0, 10.0, 6.0], 0.25, body, &[], &[], OffMeshLinks::Gaps);
+        // The link up to the top from the floor row at z 3.125 (the erosion takes the floor at the ledge's foot: the jump starts a
+        // cell or two back).
+        grid.floors_in([4.0, 3.1, 5.0, 3.15])
+            .filter(|&n| grid.position(n).y.abs() < 0.05)
+            .flat_map(|n| grid.links(n).filter(|&(b, _)| (grid.position(b).y - 0.9).abs() < 0.05).map(|l| l.1).collect::<Vec<_>>())
+            .max_by_key(|k| *k == LinkKind::Walk)
+    }
+
+    #[test]
+    fn a_jump_the_body_walks_up_from_a_lip_in_its_cell_is_a_walk_with_walked_climbs() {
+        assert_eq!(climb_kind(false), Some(LinkKind::Jump), "centre to centre over the step");
+        assert_eq!(climb_kind(true), Some(LinkKind::Walk), "the walk tick walks it");
     }
 
     #[test]
