@@ -380,7 +380,7 @@ fn sessions() -> &'static Replays {
 fn ask_to_watch(world: &mut World, index: usize, seconds: u16, place: Option<u8>) -> String {
     use survarium::v026g::lobby::ReplayWatchAsk;
     world.take(index);
-    let ask = ReplayWatchAsk { seconds, place };
+    let ask = ReplayWatchAsk::At { seconds, place };
     world.ask(index, request::player_details(ask.player_id(), MATCH));
     r1(&world.take(index))
 }
@@ -417,6 +417,7 @@ fn poll_in_room(world: &mut World, index: usize) -> String {
 /// the session is over; nothing of the queue or the matches is touched.
 #[test]
 fn a_replay_session_sends_the_game_to_watch_and_holds_its_room_until_it_ends() {
+    use session::v026g::replay_watch::WatchFrom;
     use super::rooms_tests::{create, rows, spec};
     use survarium::v026g::lobby::rooms::ROOM_JOIN_BASE;
     let desk = sessions();
@@ -442,7 +443,13 @@ fn a_replay_session_sends_the_game_to_watch_and_holds_its_room_until_it_ends() {
         (request.account_id, request.session_id, request.match_id),
         (account, session, MATCH)
     );
-    assert_eq!((request.at_ms, request.place), (75_000, Some(3)));
+    assert_eq!(
+        request.from,
+        WatchFrom::At {
+            ms: 75_000,
+            place: Some(3)
+        }
+    );
     assert_eq!(poll_in_room(&mut world, carol), "R1;preparing;1f07c8fb;1");
     // The room's match starts without her.
     world.advance(ROOM_TO_MATCH);
@@ -526,4 +533,21 @@ fn a_refused_replay_session_says_why_and_a_busy_player_gets_none() {
         ask_to_watch(&mut world, taras, 0, None),
         "R1;busy;1f07c8fb;0"
     );
+}
+
+/// The results screen's "Watch my deaths" (`0xC1000000`): a session from
+/// the asker's deaths, which the match server finds.
+#[test]
+fn watch_my_deaths_asks_for_a_session_from_the_askers_deaths() {
+    use session::v026g::replay_watch::WatchFrom;
+    use survarium::v026g::lobby::REPLAY_WATCH_MY_DEATHS;
+    let desk = sessions();
+    let mut world = World::new();
+    world.core.replays = Some(desk);
+    let taras = player(&mut world, "Taras", current());
+    world.take(taras);
+    world.ask(taras, request::player_details(REPLAY_WATCH_MY_DEATHS, MATCH));
+    assert_eq!(r1(&world.take(taras)), "R1;preparing;1f07c8fb;2");
+    let request = desk.watches().next_job(world.now).unwrap();
+    assert_eq!(request.from, WatchFrom::MyDeaths);
 }

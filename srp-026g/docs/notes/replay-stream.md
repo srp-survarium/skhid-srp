@@ -15,6 +15,10 @@ The spike (branch `spike/replay-stream`) proved it on a real game on 2026-11-07:
 1. The movie asks: `3D 00 <player> <match id>` with `player = 0xC000_0000 | place << 16 |
    seconds` (`lobby::ReplayWatchAsk`). `seconds` (u16) is the match time to start at, 0 for
    the first view; `place` the roster place the movie wants in view first, 0xFF for anyone.
+   Or `player = 0xC100_0000` (`ReplayWatchAsk::MyDeaths`, the results screen's "Watch my
+   deaths"): from the asker's first death (4 s before it), its own place in view; the server finds
+   both in the recording (the movie has neither). Until track D's per-match events are read, the
+   deaths are not known: it starts where the asker's place is first in view.
 2. The lobby answers at once with one `R1` row (`91`, as History's ask is answered,
    `replay_watch.md` section 2): `R1;preparing;<id 8 hex>;2`, or why not: `off` (no recordings),
    `old_game` (revision below 14), `busy` (the player is in a match or queued, has a session
@@ -106,7 +110,7 @@ watching.
 | `SRP_REPLAY_MODERATORS` | account ids, comma-separated, that may watch any match |
 | `SRP_REPLAY_WATCH_MAX` | sessions at once (default 4: the host has 1 vCPU and 512 MB; each costs about one player's traffic and its recording in memory, a few MB to a few tens) |
 | `SRP_REPLAY_MAX_RECORDING_MB` | as for History (default 24) |
-| `SRP_DEV_REPLAY_WATCH=<match hex>[,<seconds>[,<place>]]` | dev aid: each game that signs in asks for that replay 10 s later, as the movie would |
+| `SRP_DEV_REPLAY_WATCH=<match hex>[,<seconds>[,<place>]]`, or `<match hex>,deaths` | dev aid: each game that signs in asks for that replay 10 s later, as the movie would |
 | `SRP_DEV_REPLAY_CONTROL=<file>` | dev aid: lines `pause`, `play`, `speed 0.25|0.5|1|2|4|8`, `seek <seconds>` to every playback, read every 250 ms and removed |
 
 ## How to try it with a real game

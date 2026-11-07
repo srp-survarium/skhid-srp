@@ -16,7 +16,7 @@ use std::collections::HashSet;
 use std::path::{Path, PathBuf};
 use std::sync::atomic::AtomicU32;
 
-use session::v026g::replay_watch::{Access, Stage, WatchRequest, WatchSettings};
+use session::v026g::replay_watch::{Access, Stage, WatchFrom, WatchRequest, WatchSettings};
 use session::v026g::replays::{Refusal, Replays, Status};
 use survarium::v026g::maps::MatchMap;
 use survarium::v026g::match_msgs::static_info::NO_LOCAL_PLACE;
@@ -154,8 +154,7 @@ fn request(account_id: u32, match_id: u32, at_ms: u32, place: Option<u8>) -> Wat
         account_id,
         session_id: session_for(account_id),
         match_id,
-        at_ms,
-        place,
+        from: WatchFrom::At { ms: at_ms, place },
         revision: revision(),
     }
 }
@@ -239,22 +238,22 @@ fn relays_taken(client: &Client) -> usize {
 #[test]
 fn a_session_starts_at_the_first_world_with_a_player_or_later_when_asked() {
     let recording = playable();
-    assert_eq!(recording.start(0, None), FIRST_VIEW);
+    assert_eq!(recording.start_at(0, None), FIRST_VIEW);
     // A place asked for that entered: after its entry; one that never
     // entered: anyone's.
-    assert_eq!(recording.start(0, Some(0)), FIRST_VIEW);
-    assert_eq!(recording.start(0, Some(7)), FIRST_VIEW);
+    assert_eq!(recording.start_at(0, Some(0)), FIRST_VIEW);
+    assert_eq!(recording.start_at(0, Some(7)), FIRST_VIEW);
     // Before the first view: the first view. Later: as a seek puts it (to
     // 65 s, a player's inputs since the key frame stop it short).
-    assert_eq!(recording.start(5_000, None), FIRST_VIEW);
-    assert_eq!(recording.start(65_000, None), 61_699);
+    assert_eq!(recording.start_at(5_000, None), FIRST_VIEW);
+    assert_eq!(recording.start_at(65_000, None), 61_699);
     // A place that enters later: after its entry, asked for.
     let mut later = playable();
     later.move_entry(0, 20_000);
-    assert_eq!(later.start(0, None), FIRST_VIEW);
-    assert_eq!(later.start(0, Some(1)), FIRST_VIEW);
-    assert_eq!(later.start(0, Some(0)), 24_500);
-    assert_eq!(later.start(40_000, Some(0)), 40_000);
+    assert_eq!(later.start_at(0, None), FIRST_VIEW);
+    assert_eq!(later.start_at(0, Some(1)), FIRST_VIEW);
+    assert_eq!(later.start_at(0, Some(0)), 24_500);
+    assert_eq!(later.start_at(40_000, Some(0)), 40_000);
 
     let (mut bench, replays) = bench();
     session_of_the_recording(&mut bench, &replays, 0);
@@ -648,12 +647,19 @@ fn a_recording_is_read_and_judged_for_each_asker_and_played_as_recorded() {
     // Anyone, with `all`.
     let open = self::replays(Access::All);
     let mut anyone = Bench::growing(2, MAP_TDM, settings(&dir, &open));
-    let request = request(555, match_id, 0, None);
+    let request = request(555, match_id, 0, Some(1));
     open.watches().start(request, anyone.now());
-    assert!(matches!(
-        read_for(&mut anyone, &open, 555),
-        Stage::Ready { .. }
-    ));
+    let Stage::Ready { start_ms } = read_for(&mut anyone, &open, 555) else {
+        panic!("anyone may watch");
+    };
+    // "My deaths" of place 1's player: from where its place is in view
+    // (its deaths are not kept yet).
+    let deaths = WatchRequest {
+        from: WatchFrom::MyDeaths,
+        ..self::request(101, match_id, 0, None)
+    };
+    open.watches().start(deaths, anyone.now());
+    assert_eq!(read_for(&mut anyone, &open, 101), Stage::Ready { start_ms });
     drop(anyone);
 
     // Player 100's game is sent and connects.

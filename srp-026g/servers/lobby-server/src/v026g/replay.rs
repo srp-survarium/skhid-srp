@@ -41,7 +41,7 @@
 
 use std::time::Instant;
 
-use session::v026g::replay_watch::WatchRequest;
+use session::v026g::replay_watch::{WatchFrom, WatchRequest};
 use session::v026g::replays::{Answer, Known, Refusal, Status, release_tag};
 use survarium::v026g::lobby;
 use survarium::v026g::lobby::ReplayWatchAsk;
@@ -97,17 +97,21 @@ impl Core<'_> {
                     account_id: who.account_id,
                     session_id: who.session_id,
                     match_id,
-                    at_ms: u32::from(ask.seconds) * 1000,
-                    place: ask.place,
+                    from: match ask {
+                        ReplayWatchAsk::At { seconds, place } => WatchFrom::At {
+                            ms: u32::from(seconds) * 1000,
+                            place,
+                        },
+                        ReplayWatchAsk::MyDeaths => WatchFrom::MyDeaths,
+                    },
                     revision: self.store.client_revision(who.session_id).unwrap_or(0),
                 },
                 now,
             ),
         };
         log::info!(
-            "{} asked to watch the replay of match {match_id:#x} from {} s: {}",
+            "{} asked to watch the replay of match {match_id:#x} ({ask:?}): {}",
             who.name,
-            ask.seconds,
             status.word()
         );
         let figure = u64::from(status == Status::Preparing) * 2;
@@ -223,16 +227,22 @@ impl Core<'_> {
     }
 }
 
-/// `SRP_DEV_REPLAY_WATCH`: `<match hex>[,<seconds>[,<place>]]`.
+/// `SRP_DEV_REPLAY_WATCH`: `<match hex>[,<seconds>[,<place>]]`, or
+/// `<match hex>,deaths` (the asker's deaths).
 pub(super) fn dev_watch(value: &str) -> Option<(u32, ReplayWatchAsk)> {
     let mut parts = value.trim().split(',').map(str::trim);
     let match_id = u32::from_str_radix(parts.next()?.trim_start_matches("0x"), 16).ok()?;
-    let seconds = parts.next().map_or(Some(0), |s| s.parse().ok())?;
-    let place = match parts.next() {
-        Some(place) => Some(place.parse().ok()?),
-        None => None,
+    let ask = match parts.next() {
+        Some("deaths") => ReplayWatchAsk::MyDeaths,
+        seconds => ReplayWatchAsk::At {
+            seconds: seconds.map_or(Some(0), |s| s.parse().ok())?,
+            place: match parts.next() {
+                Some(place) => Some(place.parse().ok()?),
+                None => None,
+            },
+        },
     };
-    Some((match_id, ReplayWatchAsk { seconds, place }))
+    Some((match_id, ask))
 }
 
 /// `a` or `a-b`: the revisions of a recording's games.

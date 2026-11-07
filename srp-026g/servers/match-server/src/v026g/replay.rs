@@ -391,9 +391,15 @@ pub(crate) fn recording_in(record_dir: &Path, match_id: u32) -> Option<PathBuf> 
         .find(|path| record::match_of_file(path) == Some(match_id))
 }
 
-/// Every place's account, by place, and the patch revision each place's
-/// game connected with (the highest), from a recording's notes.
+/// Every place's account, and the patch revision each place's game
+/// connected with (the highest), from a recording's notes.
 pub fn places(notes: &[record::Record]) -> (Vec<u32>, Vec<Option<u8>>) {
+    let (accounts, revisions) = by_place(notes);
+    (accounts.into_iter().flatten().collect(), revisions)
+}
+
+/// [`places`] by place: `None` for a place no note names.
+pub(crate) fn by_place(notes: &[record::Record]) -> (Vec<Option<u32>>, Vec<Option<u8>>) {
     let mut accounts: Vec<Option<u32>> = Vec::new();
     let mut revisions: Vec<Option<u8>> = Vec::new();
     for note in notes.iter().filter(|record| record.kind == NOTE) {
@@ -438,7 +444,7 @@ pub fn places(notes: &[record::Record]) -> (Vec<u32>, Vec<Option<u8>>) {
     }
     let places = accounts.len().max(revisions.len());
     revisions.resize(places, None);
-    (accounts.into_iter().flatten().collect(), revisions)
+    (accounts, revisions)
 }
 
 /// Deletes what a stopped server left under `.part`, and every replay

@@ -111,14 +111,20 @@ pub struct WatchRequest {
     pub account_id: u32,
     pub session_id: u32,
     pub match_id: u32,
-    /// Match time to start at (snapped to a key frame at or before it, and
-    /// never before the first view with a player in it).
-    pub at_ms: u32,
-    /// The place to start with in view: the start waits for its first
-    /// entry. `None`: anyone's.
-    pub place: Option<u8>,
+    pub from: WatchFrom,
     /// Its game's patch revision (0: not known).
     pub revision: u8,
+}
+
+/// Where a session starts.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum WatchFrom {
+    /// At `ms` of the match (snapped to a key frame at or before it, and
+    /// never before the first view with a player in it), `place` first in
+    /// view (the start waits for its first entry; `None`: anyone's).
+    At { ms: u32, place: Option<u8> },
+    /// At the asker's first death (4 s before it), its own place in view.
+    MyDeaths,
 }
 
 /// Where a session is.
@@ -217,13 +223,10 @@ impl Watches {
             return Status::Busy;
         }
         log::info!(
-            "Replay sessions: account {} asks to watch match {:#x} from {} ms{}",
+            "Replay sessions: account {} asks to watch match {:#x} from {:?}",
             request.account_id,
             request.match_id,
-            request.at_ms,
-            request
-                .place
-                .map_or_else(String::new, |place| format!(", place {place} in view"))
+            request.from
         );
         sessions.insert(
             request.account_id,
@@ -501,8 +504,7 @@ mod tests {
             account_id,
             session_id: account_id + 0x100,
             match_id: 0x1F07_C8FB,
-            at_ms: 0,
-            place: None,
+            from: WatchFrom::At { ms: 0, place: None },
             revision: 40,
         }
     }

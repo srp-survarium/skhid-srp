@@ -30,7 +30,7 @@ use std::path::Path;
 use replay_control::{EventsNote, MatchMs, Op, Playback as Note, Request, Speed};
 use std::sync::mpsc::{Receiver, TryRecvError, channel};
 
-use session::v026g::replay_watch::WatchRequest;
+use session::v026g::replay_watch::{WatchFrom, WatchRequest};
 use session::v026g::replays::{DEFAULT_MAX_RECORDING_MB, Refusal, Replays, Status};
 use survarium::v026g::match_msgs::client_model::EVENT_HORIZON_MS;
 use survarium::v026g::match_msgs::static_info::{self, NO_LOCAL_PLACE, StaticInfo};
@@ -64,9 +64,10 @@ const DRIFT_REPORTS: u8 = 3;
 pub(crate) struct Recording {
     match_id: u32,
     info: StaticInfo,
-    /// Every place's account, and each place's game's patch revision (the
-    /// recording's notes): who may watch it, and which games play it.
-    players: Vec<u32>,
+    /// Each place's account, and each place's game's patch revision (the
+    /// recording's notes): who may watch it, which games play it, and
+    /// whose deaths a player's are.
+    accounts: Vec<Option<u32>>,
     revisions: Vec<Option<u8>>,
     /// The key frames, in time order.
     worlds: Vec<Snapshot>,
@@ -91,7 +92,7 @@ impl Recording {
         let (file, _) = sur_convert::convert_file(path, &notes, &[], settings)
             .map_err(|error| error.to_string())?;
         let mut recording = Self::from_sur(&file, match_id)?;
-        (recording.players, recording.revisions) = replay::places(&notes);
+        (recording.accounts, recording.revisions) = replay::by_place(&notes);
         Ok(recording)
     }
 
@@ -156,7 +157,7 @@ impl Recording {
         Ok(Self {
             match_id,
             info,
-            players: Vec::new(),
+            accounts: Vec::new(),
             revisions: Vec::new(),
             worlds,
             inputs,
@@ -172,12 +173,38 @@ impl Recording {
         &self.worlds[after.saturating_sub(1)]
     }
 
+    /// Where a session of `account_id` asked from `from` starts.
+    ///
+    /// "My deaths": its own place in view. The deaths are not kept yet (track
+    /// D's per-match events): until they are, from where its place is first
+    /// in view.
+    pub(crate) fn start(&self, from: WatchFrom, account_id: u32) -> u32 {
+        match from {
+            WatchFrom::At { ms, place } => self.start_at(ms, place),
+            WatchFrom::MyDeaths => self.start_at(0, self.place_of(account_id)),
+        }
+    }
+
+    /// The account's place (its first, if it had two).
+    fn place_of(&self, account_id: u32) -> Option<u8> {
+        let place = self
+            .accounts
+            .iter()
+            .position(|account| *account == Some(account_id))?;
+        u8::try_from(place).ok()
+    }
+
+    /// Every place's account.
+    fn players(&self) -> Vec<u32> {
+        self.accounts.iter().flatten().copied().collect()
+    }
+
     /// Where a session asked for `at` with `place` in view starts: the first
     /// key frame after the place's first entry (anyone's when it never
     /// entered, or none is asked), or `at` when that is later (from the key
     /// frame at or before it, [`Self::seek_to`]). A world before any entry
     /// has nobody in it: the game would follow no one.
-    pub(crate) fn start(&self, at: u32, place: Option<u8>) -> u32 {
+    pub(crate) fn start_at(&self, at: u32, place: Option<u8>) -> u32 {
         let entry = |wanted: Option<usize>| {
             self.events
                 .iter()
@@ -884,7 +911,7 @@ impl ReplayWatch {
     /// The recording read for the session: where it starts, told to the
     /// lobby, which sends its game.
     fn prepare(&mut self, request: WatchRequest, recording: Arc<Recording>, now: Instant) {
-        let start = recording.start(request.at_ms, request.place);
+        let start = recording.start(request.from, request.account_id);
         if self.replays.watches().loaded(&request, start, now) {
             log::info!(
                 "Replay sessions: match {:#x} ready for account {}: from {start} ms of {} ms, {} \
@@ -918,7 +945,7 @@ impl ReplayWatch {
         if let Some(recording) = shared {
             match self.replays.watches().judge(
                 &request,
-                &recording.players,
+                &recording.players(),
                 &recording.revisions,
                 self.replays.oldest(),
             ) {
