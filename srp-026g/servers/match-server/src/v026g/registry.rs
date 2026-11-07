@@ -542,6 +542,7 @@ impl MatchRegistry {
                 format!(", {driven} of them the server's own bots (SRP_SERVER_BOTS)")
             }
         );
+        log::info!("Match {match_id:#x} keeper draw: {}", keeper.name());
         Ok(MatchTicket {
             match_id,
             host: self.host.clone(),
