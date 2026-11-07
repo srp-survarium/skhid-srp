@@ -13,3 +13,10 @@ handler = "on_register"
 site = "battery.carrier_tick"
 handler = "on_tick"
 order = 4
+
+# a spawn's setup_from_profile, before the on_taken of each held slot: a container whose
+# artefact is in no inventory of this kit any more (a rollback over a gift into a kit that was not
+# current) is emptied, as the world says
+[[hook]]
+site = "keeper.respawn_containers"
+handler = "on_respawn_containers"

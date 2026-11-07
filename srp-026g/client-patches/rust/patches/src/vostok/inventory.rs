@@ -41,19 +41,7 @@ impl<'t> Inventory<'t> {
     /// Native containers are a separate allocation. Their ordinal is the
     /// stable snapshot value; address-relative slots stay inside this API.
     fn containers(&self) -> Option<Containers> {
-        // SAFETY: a live inventory owns this array for the hook lifetime.
-        let (first, count) = unsafe {
-            (
-                self.this.artefact_slots_begin(),
-                read(self.this.artefact_slot_count()),
-            )
-        };
-        let first = first?;
-        if !first.address().is_multiple_of(4) || count == 0 {
-            return None;
-        }
-        first.address().checked_add(u32::from(count) * 4)?;
-        Some(Containers { first, count })
+        Containers::of(self.this)
     }
 
     pub fn container_space(&self) -> ContainerSpace {
@@ -233,12 +221,58 @@ impl<'t> Inventory<'t> {
     }
 }
 
+/// A spawn's setup_from_profile, before it switches each held artefact's passive on (its last
+/// loop, on_taken: the passive link reads the artefact's inventory's holder): every container of
+/// the kit's inventory `this` whose artefact names another inventory or none (its +250h) is
+/// emptied and its slot's reference released; `emptied` is told each such artefact's id.
+///
+/// The artefact's word is the world's: a world (a rollback's, a resync's) loads every registered
+/// artefact, its inventory with it (inventory_item's load 0x2FFF8D, by the place and kit it
+/// carries; 0xFF none), but only the current kit's player and inventory
+/// (game_world_core_client::serialize 0x3218E0). A kit that was not current in the world loaded
+/// keeps the slots its first run left, so a gift (or any take) into it after a spawn the
+/// rollback goes back over leaves a slot naming an artefact the world has dormant in its pool, in
+/// no inventory: its on_taken faulted at [0+174h] (Larkspur's 0x3121AD, the live crash of rev51).
+/// In a game that did not load such a world every container's artefact names its inventory
+/// (set_item and the eviction write both), so nothing changes there.
+pub(in crate::vostok) fn empty_stale_containers(this: raw::Inventory, thread: &Thread, mut emptied: impl FnMut(u8)) {
+    let Some(containers) = Containers::of(this) else { return };
+    for index in (0..containers.count).filter_map(ContainerIndex::parse) {
+        let Some(entry) = containers.entry(index) else { continue };
+        // SAFETY: an entry of this live inventory's container array; a held slot's item is a
+        // live artefact (its inventory_item and artefact_base fields).
+        unsafe {
+            let Some(item) = entry.item() else { continue };
+            if item.inventory() == Some(this) {
+                continue;
+            }
+            let id = read(item.artefact().id());
+            entry.set_item(None);
+            this.weight_dirty().write_volatile(1);
+            // The slot's reference, released as set_item and the eviction release theirs.
+            drop(RetainedItem::adopt(item.artefact(), thread));
+            emptied(id);
+        }
+    }
+}
+
 /// Validated allocation metadata; no address escapes the inventory owner.
 struct Containers {
     first: raw::InventorySlot,
     count: u8,
 }
 impl Containers {
+    fn of(this: raw::Inventory) -> Option<Containers> {
+        // SAFETY: a live inventory owns this array for the hook lifetime.
+        let (first, count) = unsafe { (this.artefact_slots_begin(), read(this.artefact_slot_count())) };
+        let first = first?;
+        if !first.address().is_multiple_of(4) || count == 0 {
+            return None;
+        }
+        first.address().checked_add(u32::from(count) * 4)?;
+        Some(Containers { first, count })
+    }
+
     fn entry(&self, index: ContainerIndex) -> Option<raw::InventorySlot> {
         // SAFETY: the ordinal is below the validated allocation count.
         (index.get() < self.count).then(|| unsafe { self.first.at(usize::from(index.get())) })
@@ -262,6 +296,13 @@ impl<'t> RetainedItem<'t> {
             this,
             _thread: thread,
         }
+    }
+}
+
+impl<'t> RetainedItem<'t> {
+    /// Takes over a reference the caller held (a slot's, the slot emptied).
+    fn adopt(this: raw::Artefact, thread: &'t Thread) -> Self {
+        Self { this, _thread: thread }
     }
 }
 

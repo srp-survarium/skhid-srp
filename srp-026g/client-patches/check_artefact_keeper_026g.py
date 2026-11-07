@@ -24,7 +24,9 @@ artefact_base::tick (state 5, kept in its container), the respawn's on_taken (st
 then a take with every container held that replaces it (take_artefact's own eviction: dormant
 again, in no inventory) and a container freed after; a late joiner (bit 13) nothing before its
 first death, then the same; nothing without the Keeper bit, a draw of no kind, or a place past
-the pool; a new load (the vector empty again) forgets the last map's pool. Says nothing of the
+the pool; a new load (the vector empty again) forgets the last map's pool; a rollback over a
+respawn into another kit with the gift after it (the replayed spawn's setup_from_profile empties
+the container the world has the gift out of, then the gift again). Says nothing of the
 cook, the save (check_artefact_carry_026g.py saves and loads the activation time) or a real
 match.
 """
@@ -314,6 +316,71 @@ def check(data):
 
 
 CONTAINERS_READ, CONTAINERS_READ_END = 0x2FE5DE, 0x2FE77B   # inventory::deserialize's containers
+SETUP_LAST, SETUP_LAST_END = 0x2FD19A, 0x2FD1C3   # setup_from_profile's last loop: each held slot's vfn +38h
+
+
+def rollback(data):
+    """A rollback over a late joiner's respawn into another kit, the gift after it (the live crash
+    of rev51, match 0x69f885a): the world loaded has only the kit then current (kit 0, dead), so kit
+    1's object keeps its first run's slots, the gift in its first container, while the world has
+    that artefact dormant again (state 0, in no inventory, its mark u32::MAX: artefact_base's and
+    inventory_item's load). The replayed spawn's setup_from_profile (its own last loop, patch 109's
+    hook before it) empties that container and leaves the other, whose artefact the world has in
+    this inventory: only that one gets on_taken (the stale one's passive link read [0+174h] and
+    faulted); the next tick gives the gift again, as the run that did not roll back did."""
+    g = Keeper(data)
+    hidden, pool = g.anomaly(['Larkspur'] * 4, containers=0)
+    g.register(hidden)
+    gift = pool[3]
+    taken = []
+    g.emu.hook_add(UC_HOOK_CODE, lambda emu, address, size, _: taken.append(g.ecx()), begin=ON_TAKEN, end=ON_TAKEN)
+    g.started()
+    ranks = KEEPER + draw(1) + LATE
+    p0, _, _ = g.player(3, ranks)                    # its first life's kit
+    g.emu.mem_write(p0 + 0x33C, b'\x00')
+    g.statistics(3, 2, 0)                            # its death counted
+    p1, inv1, slots1 = g.player(3, ranks, kit=1)     # the respawn into kit 1 (current now)
+    kept = g.artefact('Onyx')                        # found in an earlier life in kit 1, kept there
+    g.word(slots1 + 4, kept)
+    g.word(kept + 0x250, inv1)
+    g.word(kept + 0x280, 5)
+    g.tick(p1)
+    assert g.read(slots1) == gift and g.state(gift) == 3 and g.read(gift + 0x250) == inv1
+    references = g.read(gift + 0xD0)
+    # The rollback's world: kit 0 current, the gift dormant in the pool; kit 1's slots its first run's.
+    g.emu.mem_write(g.places + 3 * 0x30 + 0xC, b'\x00')
+    g.word(gift + 0x280, 0)
+    g.word(gift + 0x250, 0)
+    g.word(gift + 0x2A0, NEVER)
+    # The replayed spawn into kit 1: setup_from_profile's last loop.
+    g.emu.mem_write(g.places + 3 * 0x30 + 0xC, b'\x01')
+    g.emu.mem_write(inv1 + 0x184, b'\x00')
+    from unicorn.x86_const import UC_X86_REG_EDI
+    g.emu.reg_write(UC_X86_REG_ESP, 0x21007000)
+    g.emu.reg_write(UC_X86_REG_EDI, inv1)
+    taken.clear()
+    g.emu.emu_start(SETUP_LAST, SETUP_LAST_END, count=200_000)
+    assert taken == [kept], [hex(t) for t in taken]
+    assert (g.read(slots1), g.read(slots1 + 4)) == (0, kept)
+    assert g.state(gift) == 0 and g.state(kept) == 3
+    assert g.read(gift + 0xD0) == references - 1, 'the slot\'s reference released'
+    assert g.read(inv1 + 0x184) & 0xFF == 1, 'its weight to be recalculated'
+    assert any('a spawn\'s container held artefact id 3 of no inventory' in line for line in g.lines), g.lines
+    # The next tick: the gift again, into the container it went into the first time.
+    g.tick(p1)
+    assert g.read(slots1) == gift and g.state(gift) == 3 and g.read(gift + 0x250) == inv1
+    assert g.read(gift + 0x2A0) == 0 and g.read(gift + 0xD0) == references
+    # A spawn with nothing stale changes nothing: every container's artefact names its inventory.
+    taken.clear()
+    g.emu.reg_write(UC_X86_REG_ESP, 0x21007000)
+    g.emu.reg_write(UC_X86_REG_EDI, inv1)
+    g.emu.emu_start(SETUP_LAST, SETUP_LAST_END, count=200_000)
+    assert sorted(taken) == sorted([gift, kept]) and (g.read(slots1), g.read(slots1 + 4)) == (gift, kept)
+    assert sum('no inventory' in line for line in g.lines) == 1, g.lines
+    print('Keeper: a rollback over a respawn into another kit, the gift after it: the replayed spawn empties '
+          'the container whose artefact the world has in no inventory (no on_taken for it, its reference '
+          'released) and keeps the other; the next tick gives it again; a spawn with nothing stale changes '
+          'nothing: PASS')
 
 
 def late_join(data):
@@ -364,6 +431,7 @@ def main():
                             open(base.late_join_bin(), 'rb').read())
     check(patched)
     late_join(patched)
+    rollback(patched)
 
 
 if __name__ == '__main__':

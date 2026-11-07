@@ -20718,4 +20718,19 @@ pub mod site {
             NonNull::new(machine.site_esp() as usize as *mut c_void).map(MatchReadyFrame)
         }
     }
+
+    /// keeper.respawn_containers (0x2fd19a): inventory::setup_from_profile before its last loop (lea esi,[edi+10Ch] / mov ebp,17h; the jmp at 0x2FD196 and the fstp at 0x2FD198 join here, the x87 stack empty), which calls each held slot's vfn +38h (an artefact's on_taken 0x313470: its passive link reads [item+250h]+174h): EDI the inventory of the kit being spawned (spawn 0x316E70 -> base_player::initialize)
+    pub mod keeper_respawn_containers {
+        #[allow(unused_imports)]
+        use super::*;
+
+        /// EDI: a survarium::inventory (None for 0).
+        ///
+        /// # Safety
+        /// `machine` is at this site.
+        #[inline(always)]
+        pub unsafe fn inventory(machine: &impl Machine) -> Option<Inventory> {
+            NonNull::new(machine.register(Register::Edi) as usize as *mut c_void).map(Inventory)
+        }
+    }
 }
