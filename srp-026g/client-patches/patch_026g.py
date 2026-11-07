@@ -612,6 +612,9 @@ Patches:
     hook replaces); the rest of it becomes int3. No header changes;
 - base relocations that overlap rewritten bytes become no-op (type 0)
   entries, so a rebase could not corrupt the new code;
+- DllCharacteristics gets NX_COMPAT (0x0100, DEP opted in; full patch
+  only): without it Wine on macOS maps the process's memory executable and
+  Metal crawls on it (DXMT issue #161);
 - the PE checksum is recomputed (full patch only; --cert-only keeps the
   file byte-identical to the copy installed in step 0).
 The 0.21d mode 3 battery patch is NOT ported: 0.26g serializes the
@@ -3133,6 +3136,7 @@ class Headers:
         self.size_of_code_at = self.optional + 4
         self.size_of_image_at = self.optional + 56
         self.checksum_at = self.optional + 64
+        self.dll_characteristics_at = self.optional + 70
         self.security_at = self.optional + 96 + 8 * 4
         self.reloc_at = self.optional + 96 + 8 * 5
         self.debug_at = self.optional + 96 + 8 * 6
@@ -3148,6 +3152,9 @@ class Headers:
             vsize, rva, rsize, raw = struct.unpack_from("<IIII", data, o + 8)
             out.append((bytes(data[o:o + 8]), rva, vsize, raw, rsize, struct.unpack_from("<I", data, o + 36)[0]))
         return out
+
+
+IMAGE_DLLCHARACTERISTICS_NX_COMPAT = 0x0100
 
 
 def pe_checksum(data, checksum_at):
@@ -3947,6 +3954,12 @@ def build_image(original, mode, code=None, server=None, late_join=None, revision
     if late_join is not None and linked is not None:
         audit_vtables(symbols=arena_symbols(linked))
     headers = Headers(data)
+    # NX_COMPAT: the game opts in to DEP. Without it Wine maps a 32-bit
+    # process's memory executable, and Metal on macOS 26+ crawls on such
+    # buffers: DXMT and DXVK sit minutes before the first frame (DXMT #161).
+    if mode != "cert-only":
+        dll = struct.unpack_from("<H", data, headers.dll_characteristics_at)[0]
+        struct.pack_into("<H", data, headers.dll_characteristics_at, dll | IMAGE_DLLCHARACTERISTICS_NX_COMPAT)
     struct.pack_into("<I", data, headers.checksum_at, pe_checksum(data, headers.checksum_at))
     return data, (f"certificate check, mutex, minimum VRAM check, hash interval {HASH_INTERVAL_MS} ms, "
                   f"a world of {WORLD_BUFFER_SIZE:#x} bytes hashed and unpacked, "
