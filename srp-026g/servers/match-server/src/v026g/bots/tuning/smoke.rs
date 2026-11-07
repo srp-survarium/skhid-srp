@@ -141,7 +141,7 @@ pub struct SmokeTuning {
     /// in that case so enemy would need to leave it"). None: no smoke for that crossing. ON by default as a choice (the
     /// owner's ask; by-side bench in its PR); `all_off.json` names it null.
     pub shooter_spot: Option<ShooterSpot>,
-    /// [A308] The known camper's lane (`ThreatLane`): a held lane that killed one of ours lately, its shooter sensed on it
+    /// [A308] The known camper's lane (`ThreatLane`): a held lane that killed two of ours lately, its shooter sensed on it
     /// within the fairness rule's 15 s, is smoked from far enough ahead that the cloud hides his line when the bot gets
     /// there at a walk (the fuse and the forming at the walk cap: about 18 m), and nobody holds for it. The lane smoke
     /// (`cross_lane`) looks 10 m ahead, which a walk covers in 3 s, before a cloud thrown then is up (4 s fuse + 1.24 s), so
@@ -155,9 +155,11 @@ pub struct SmokeTuning {
 #[derive(Clone, Copy, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(default, deny_unknown_fields)]
 pub struct ThreatLane {
-    /// A held lane is a known camper's when it killed this many of ours (`lane_ahead::Known`),
+    /// A held lane is a known camper's when it killed this many of ours (`lane_ahead::Known`): 2. A308's first bench (one death,
+    /// sensed within 15 s) aimed 39 of 41 plans at ordinary bots (each had 0-2 kills at the spot, the camper 4-5); over fx-smoke's
+    /// 704 camper matches 2 earlier kills from the spot come before 74 % of the camper's kills and 1.0 % of other killers'.
     pub kills: usize,
-    /// within this of now, ms (a threat spot keeps one death about two minutes, `threat::DECAY_PER_S`),
+    /// within this of now, ms (the spot's own decay forgets it sooner when no more deaths come, `threat::DECAY_PER_S`),
     pub within_ms: u32,
     /// its shooter sensed on it within this, ms (at most `smoke::FAIR_SENSED_MS`).
     pub sensed_ms: u32,
@@ -167,7 +169,7 @@ pub struct ThreatLane {
 
 impl Default for ThreatLane {
     fn default() -> Self {
-        Self { kills: 1, within_ms: 120_000, sensed_ms: super::super::smoke::FAIR_SENSED_MS, window_m: Metres::of(10.0) }
+        Self { kills: 2, within_ms: 300_000, sensed_ms: super::super::smoke::FAIR_SENSED_MS, window_m: Metres::of(10.0) }
     }
 }
 

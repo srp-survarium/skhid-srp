@@ -111,15 +111,16 @@ mod tests {
         assert!(ahead.in_line);
     }
 
-    /// [A308 `smoke.threat_lane`] The known camper's rule: one death within two minutes, sensed within the fairness rule's
-    /// 15 s, is known; a stale sense (past 15 s) or no death in the window is not.
+    /// [A308 `smoke.threat_lane`] The known camper's rule: two deaths within 5 min, sensed within the fairness rule's 15 s, is
+    /// known; one death, a stale sense (past 15 s) or a death out of the window is not.
     #[test]
-    fn a_known_camper_is_one_death_sensed_within_fifteen_seconds() {
+    fn a_known_camper_is_two_deaths_sensed_within_fifteen_seconds() {
         let r = crate::v026g::bots::tuning::ThreatLane::default();
         let k = Known { kills: r.kills, within_ms: r.within_ms, sensed_ms: r.sensed_ms };
-        let now = 200_000;
-        assert!(k.holds(&lane(&[110_000], Some(186_000)), now), "one death 90 s ago, sensed 14 s ago");
-        assert!(!k.holds(&lane(&[110_000], Some(184_000)), now), "sensed 16 s ago");
-        assert!(!k.holds(&lane(&[70_000], Some(199_000)), now), "the death is older than 2 min");
+        let now = 400_000;
+        assert!(k.holds(&lane(&[390_000, 150_000], Some(386_000)), now), "two deaths in 5 min, sensed 14 s ago");
+        assert!(!k.holds(&lane(&[390_000], Some(399_000)), now), "one death");
+        assert!(!k.holds(&lane(&[390_000, 150_000], Some(384_000)), now), "sensed 16 s ago");
+        assert!(!k.holds(&lane(&[390_000, 90_000], Some(399_000)), now), "the second death is older than 5 min");
     }
 }

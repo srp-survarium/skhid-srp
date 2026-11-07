@@ -884,7 +884,7 @@ fn smoke_uses(due: &Due, bot: &mut Bot, knowledge: &mut know::TeamKnowledge, not
             if sniper.is_some() { smoke::tally::Event::Outranged } else { smoke::tally::Event::OutrangedNoPlan },
         );
     }
-    // [A308 `smoke.threat_lane`] A known camper's lane (a held lane that killed one of ours lately, its shooter sensed on it
+    // [A308 `smoke.threat_lane`] A known camper's lane (a held lane that killed two of ours lately, its shooter sensed on it
     // within the fairness rule's window): the first point of the route he sees from his spot (`lane_ahead`, his own 3D eye
     // test), far enough ahead that a cloud thrown now hides his line when a walk gets there (the fuse and the client's
     // forming at the walk cap, PROVEN 3.5 m/s), and not so far it is another crossing. Nobody holds for it.
