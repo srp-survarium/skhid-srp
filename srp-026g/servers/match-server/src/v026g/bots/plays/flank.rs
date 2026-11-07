@@ -787,11 +787,14 @@ fn follow(state: &mut State, target: TargetRef, cx: &Ctx, rng: &mut Rng, from: u
             step(state, target, cx, rng)
         }
         None => {
-            // [F6] The old flank round the held spot instead of no flank.
+            // [F6] The old flank round where the team senses him now (the held spot is where he was: B3f14, sensed and true
+            // within 3-5 m, the held spot 40-50 m off), facing as the held spot, instead of no flank.
             if cx.tuning.threat.camp_flank.is_some_and(|c| c.keep_old_flank)
                 && let Some(line) = job_line(cx, target)
             {
-                let old = old_job_flank(cx, line, rng);
+                let mut moved = line.clone();
+                moved.at = his;
+                let old = old_job_flank(cx, &moved, rng);
                 if !matches!(old, State::NoSpot) {
                     #[cfg(test)]
                     {
