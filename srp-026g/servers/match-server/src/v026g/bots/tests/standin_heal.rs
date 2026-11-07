@@ -1203,7 +1203,9 @@ mod tests {
         // assigned, the kit's pantry is not looked at, and a press heals nobody.
         let mut assigned_tip = 0;
         let game = short_run(120_000, Tuning::all_off(), |bots, game, _, made| {
-            if made.is_none() && game.tick % 30_000 == 0 && game.tick > 0 {
+            // Hurt every 10 s: the tip's candidate stands down while an enemy is seen or has a line (`in_known_sight`), and three
+            // samples at 30/60/90 s fall in a fight in some runs (A318 own_lead moved the run's paths; the play itself is unchanged).
+            if made.is_none() && game.tick % 10_000 == 0 && game.tick > 0 {
                 game.bodies[0].health = game.bodies[0].health.min(0.5);
                 game.bodies[5].health = game.bodies[5].health.min(0.5);
             }
