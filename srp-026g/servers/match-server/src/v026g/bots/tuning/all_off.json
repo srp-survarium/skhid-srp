@@ -110,6 +110,7 @@
   },
   "kit": {
     "frags": "off",
+    "medkit": "medikit",
     "pocket_store": false,
     "smoke": "off"
   },
