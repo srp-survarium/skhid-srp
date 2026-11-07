@@ -829,7 +829,7 @@ fn the_server_poll_and_the_bench_poll_set_the_same_walk_budget() {
     let clock = Clock { clock: 1_100, time_left_s: 600.0, total_s: 900.0, playing: true };
     let mut bots = facing_bots(Tuning::default(), Tuning::default(), 0xB0D6);
     set_pull_walk_budget(0);
-    bots.poll(clock);
+    bots.poll(clock.clone());
     let by_server = pull_walk_budget_left();
     let mut bots = facing_bots(Tuning::default(), Tuning::default(), 0xB0D6);
     set_pull_walk_budget(0);
