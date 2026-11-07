@@ -134,6 +134,7 @@ pub use statistics::{Band, Batteries, Battery, BatteryCarry, Cell, Delivery, Hel
 pub mod medical;
 pub mod animation_id;
 pub mod deserialize;
+pub mod effect_presenter;
 
 pub mod match_message;
 pub mod packet_recovery;

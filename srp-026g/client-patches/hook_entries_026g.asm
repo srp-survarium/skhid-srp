@@ -1992,6 +1992,132 @@ drug_interrupt_on_hit_applied_replay:
     db 0x8b, 0xfe, 0x83, 0x7f, 0x40, 0x00
     jmp 0x2d9cb7
 
+; 0x2aa1cd sound_game_effect_presenter::on_event 0x2A9EF0, a stop (event kind 1) after its search, where the search's end and an empty list meet (mov eax,[ebx] / lea edx,[edi+edi*4]; the erase 0x2AB420 follows): EDI the index of the entry playing the effect, -1 when none (then the erase starts at begin - 14h: the presenter's own seed (+10h) taken for an entry's effect reference and freed); ignore is its return (pop edi / pop esi / pop ebx; ret 0Ch): lohook -> effect_presenters_on_sound_stop
+global effect_presenters_on_sound_stop
+extern hook_effect_presenters_on_sound_stop
+effect_presenters_on_sound_stop:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_effect_presenters_on_sound_stop
+    mov edx, effect_presenters_on_sound_stop_replay
+    cmp eax, 0
+    je effect_presenters_on_sound_stop_go
+    mov edx, 0x2aa1d2
+    cmp eax, 1
+    je effect_presenters_on_sound_stop_go
+    mov edx, 0x2aa1f0
+    cmp eax, 2
+    je effect_presenters_on_sound_stop_go
+    ud2
+effect_presenters_on_sound_stop_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+effect_presenters_on_sound_stop_replay:
+    db 0x8b, 0x03, 0x8d, 0x14, 0xbf
+    jmp 0x2aa1d2
+
+; 0x2aa0bd sound_game_effect_presenter::on_event 0x2A9EF0, an update (any other event kind) at its entry's first use (mov ecx,[esi+10h] / movss [esi+0Ch],xmm0): ESI the entry playing the effect, 0 when none (then [10h] is read); ignore is its return (pop edi / pop esi / pop ebx; ret 0Ch): lohook -> effect_presenters_on_sound_update
+global effect_presenters_on_sound_update
+extern hook_effect_presenters_on_sound_update
+effect_presenters_on_sound_update:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_effect_presenters_on_sound_update
+    mov edx, effect_presenters_on_sound_update_replay
+    cmp eax, 0
+    je effect_presenters_on_sound_update_go
+    mov edx, 0x2aa0c5
+    cmp eax, 1
+    je effect_presenters_on_sound_update_go
+    mov edx, 0x2aa25d
+    cmp eax, 2
+    je effect_presenters_on_sound_update_go
+    ud2
+effect_presenters_on_sound_update_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+effect_presenters_on_sound_update_replay:
+    db 0x8b, 0x4e, 0x10, 0xf3, 0x0f, 0x11, 0x46, 0x0c
+    jmp 0x2aa0c5
+
+; 0x2ac65a particle_game_effect_presenter::on_event 0x2AC400, a stop (event kind 1) after its search (lea edx,[eax+eax*2] / mov eax,[edi]; the erase 0x2ACD80 follows): EAX the index of the entry playing the effect, -1 when none (then the erase starts at begin - 18h, in the presenter's own fields); ignore is its return (pop edi / pop esi / pop ebx; ret 8): lohook -> effect_presenters_on_particle_stop
+global effect_presenters_on_particle_stop
+extern hook_effect_presenters_on_particle_stop
+effect_presenters_on_particle_stop:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_effect_presenters_on_particle_stop
+    mov edx, effect_presenters_on_particle_stop_replay
+    cmp eax, 0
+    je effect_presenters_on_particle_stop_go
+    mov edx, 0x2ac65f
+    cmp eax, 1
+    je effect_presenters_on_particle_stop_go
+    mov edx, 0x2ac6b3
+    cmp eax, 2
+    je effect_presenters_on_particle_stop_go
+    ud2
+effect_presenters_on_particle_stop_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+effect_presenters_on_particle_stop_replay:
+    db 0x8d, 0x14, 0x40, 0x8b, 0x07
+    jmp 0x2ac65f
+
 ; 0x2a6485 player_equipment_sound_effect::on_player_sound_event's guard (mov edi,[esi+10h] / cmp edi,[ecx+18FC4h] / setbe cl / test cl,cl; the jne at 0x2A6493 skips an event at or before the newest played time): EAX the effect, ESI the event, ECX its player's world core (not 0: the je at 0x2A6483); play goes on to the object test and the switch, skip is the handler's return 0: lohook -> footsteps_on_step_guard
 global footsteps_on_step_guard
 extern hook_footsteps_on_step_guard
