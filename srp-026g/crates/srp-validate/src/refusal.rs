@@ -560,6 +560,7 @@ impl fmt::Display for Reason {
                 AnimFault::Recursion => "an animation expression tree is too deep",
                 AnimFault::TreeLength => "an animation tree does not end at its length",
                 AnimFault::TableUnderrun => "an animation pops more values than its tables hold",
+                AnimFault::FloatNotNumber => "an animation float is infinity or NaN",
             }),
             Reason::LookNotNumber => f.write_str("a look pitch or rotation that is no number"),
             Reason::StatisticsEmpty => f.write_str("empty (no statistics object)"),
