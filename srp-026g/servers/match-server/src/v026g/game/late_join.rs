@@ -249,6 +249,12 @@ impl Game {
         {
             return Some(Closed::Full);
         }
+        // Every game a joiner could take its world from had its last world
+        // refused: it would wait for one in vain (`refused_worlds`), until
+        // a game's upload passes again.
+        if self.no_world_to_give() {
+            return Some(Closed::NoWorld);
+        }
         // From the countdown on (the owner's of 2026-10-18: the first
         // seconds of a room's match take joiners too), not while it waits
         // for its players.
@@ -419,6 +425,20 @@ impl Game {
             .get(index)
             .and_then(Option::as_ref)
             .is_some_and(|admission| !admission.entered() && !admission.failed())
+    }
+
+    /// The newcomer of the place at `index`, if it has not entered nor
+    /// failed, fails by itself (`Game::remove`): its place is installed on
+    /// as one whose player left, and the lobby hears of it
+    /// (`take_rejected_joins`).
+    pub(super) fn fail_admission(&mut self, index: usize) {
+        if let Some(admission) = self.admissions.get_mut(index).and_then(Option::as_mut)
+            && !admission.entered()
+            && !admission.failed()
+        {
+            admission.phase = AdmissionPhase::Failed;
+            admission.failed_alone = true;
+        }
     }
 
     pub(super) fn waiting_entry(&self, index: usize) -> bool {
