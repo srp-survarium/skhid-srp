@@ -13,25 +13,17 @@ distinguish teams… this is the new battery mode". The owner's changes of 2026-
 
 - **Its own mode in the lobby:** "Protective device: blackout" (Захисний пристрій: блекаут, Защитное
   устройство: блэкаут, Schutzeinrichtung: Blackout, Urządzenie ochronne: blackout: as each language
-  writes "Protective device: chargers"): a tick of the rooms' create window, a card of the vote, a
-  row of the room and match lists. Listed with the protective device's kinds: plain, chargers,
-  blackout, then team deathmatch and Research (the owner, 2026-10-26).
-- **Always offered:** each plain battery map has a Blackout map of its own (below), in the
-  match pool and the rooms' pool as every playable map.
+  writes "Protective device: chargers"): a card of the vote, a row of the room and match lists.
+- **Its own room** (the owner, 2026-11-05: "the third room", "BLACKOUT ONLY", "and no blackout
+  in other rooms"): each plain battery map has a Blackout map of its own (below), all of them
+  the pool of the server's Blackout room and of no other room (`rooms.md`, "The Blackout room"):
+  no tick of the create window, no card of another room's vote.
 - **Rules:** the plain battery mode (mode 2, "Protective device": batteries from the spawners,
   no chargers), on its maps; the battery rules unchanged. Not the chargers' mode (3).
-- **Part of the standard pool** (the owner, 2026-10-25): in the create window's defaults, in every
-  room Play makes; Play puts players into rooms that offer it; a room's maker may untick it.
-- **Always the vote's third card** (the owner, 2026-11-02: "offers blackout in voting always as a
-  third choice"; before, each Blackout map was one more entry the three cards were drawn from
-  alike, so about half of the votes had a Blackout card, anywhere): every vote, public or
-  private, of a room whose pool has Blackout.
-  - Cards 1 and 2: drawn from the rest of the pool, as before; never Blackout.
-  - Card 3: one of the pool's Blackout maps at random, on a map cards 1 and 2 are not while
-    there is one; won, its match is Blackout (as any Blackout card's).
-  - No switch: Blackout is a mode like the others. A pool without it (a private room's maker
-    unticked it, or ticked no battery map) or of Blackout alone: its three cards drawn as
-    before. A public room's pool always has it (the live pool has 25 battery maps).
+- **Not in the standard pool any more** (2026-11-05): before, it was in the create window's
+  defaults and every room Play made (the owner, 2026-10-25), and the third card of every vote
+  whose pool had it (the owner, 2026-11-02); now the Blackout room's three cards are all
+  Blackout, drawn as any room's.
 - **Bots:** not offered (Play vs Bots lists its own maps).
 
 ## In the match
@@ -122,8 +114,10 @@ distinguish teams… this is the new battery mode". The owner's changes of 2026-
   (`GameMode::of_config`: the rules of `mode.mode` or a variant of srp's, `maps::VARIANTS`; an
   unknown variant, or one on other rules, stops the server). The lobby, the match server, the
   results and replays know a Blackout match by its map's id alone (`maps::MatchMap`). In the
-  lobby its maps are mode 6 (`GameMode::lobby_number`) of the rooms' pool, cards and rows, and of
-  `SRP_MATCH_MODES`; with that unset they are in the match pool as every playable map.
+  lobby its maps are mode 6 (`GameMode::lobby_number`) of the cards and rows, and of
+  `SRP_MATCH_MODES`; with that unset they are in the match pool as every playable map. The match
+  pool's Blackout maps are the Blackout room's pool (`room_open_server`) and left out of the pool
+  every other room is made from (`room_entries`).
 - **A new variant** of a mode's rules: a row of `maps::VARIANTS` (and its `GameMode`), and its
   configs by an edit list. New rules (a `mode.mode` of their own) still need the exe's support,
   as Research's did (patch 53).
@@ -192,8 +186,6 @@ distinguish teams… this is the new battery mode". The owner's changes of 2026-
 ## Open for the owner
 
 - The name; the bands (parked, `feat/blackout-bands`).
-- Saved room settings: a mode is in unless its maker left it out, so settings kept before Blackout
-  have it ticked, as the defaults do; no schema step is needed.
 - A game without patch 65 would show the interface: refuse it by revision before a
   release (`SRP_MIN_PATCH_REVISION`).
 - Ships with its content patch: a game without `blackout-mode-1.json`'s maps_dict rows cannot
