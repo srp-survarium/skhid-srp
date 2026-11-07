@@ -237,6 +237,9 @@ impl World {
             Some(support_m) => grid.with_open_sides(&walker, support_m),
             None => grid,
         };
+        // [A318] The client's walker, as the server's map store keeps it (`bots::maps`): without it a world built here (the bench's
+        // matches, the tests) reckons every step by the grid alone, whatever `kin.client_step` says.
+        let grid = grid.with_client_walker(&walker);
         let sight = map.bullet_mesh().build_tree();
         Self::assemble(map, grid.into(), sight.into())
     }

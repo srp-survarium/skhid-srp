@@ -1441,6 +1441,19 @@ impl Game {
                     } else {
                         slide_capped(grid, node, body.feet, target, client_step(grid))
                     };
+                    // [A318] A step the lattice has rising or blocked goes as far as the client's own walk tick takes the body
+                    // (`WalkGrid::client_step`), the lattice walking to that point: the reckoning's rule (`kin.client_step`).
+                    if super::standin_jump::stand_in_client_step()
+                        && (feet.y - body.feet.y > body::STEP_UP_RISE_M || feet.distance_xz(target) > body::CLIENT_BLOCKED_M)
+                    {
+                        let by = Vec3::new(target.x - body.feet.x, 0.0, target.z - body.feet.z);
+                        if by.x.hypot(by.z) > 1e-4
+                            && let Some((from, end)) = grid.client_step(body.feet, by)
+                        {
+                            let walked = Vec3::new(body.feet.x + end.x - from.x, body.feet.y, body.feet.z + end.z - from.z);
+                            (node, feet, _) = walk_slide(grid, body.node.unwrap_or(node), body.feet, walked);
+                        }
+                    }
                     // The client's sprint lift: a sprint run held at the face of a low top is carried up it.
                     let pushing = keys & key::SPRINT != 0 && keys & key::FORWARD != 0 && feet.distance_xz(to) > 1e-3;
                     if !pushing {
