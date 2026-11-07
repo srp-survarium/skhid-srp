@@ -1,0 +1,57 @@
+SURVARIUM 0.26g - MACOS
+
+For Macs with Apple silicon (M1 or newer). Needs Rosetta 2, installed once
+in Terminal with:
+
+    softwareupdate --install-rosetta --agree-to-license
+
+START
+
+Unpack the Skhid archive into an empty folder with about 10 GB free, then
+double-click Skhid.command. The first time, macOS may refuse to open it
+("could not verify"): open System Settings > Privacy & Security, choose
+Open Anyway, and double-click it again. Or, in Terminal in that folder:
+
+    bash Skhid.sh launcher
+
+The launcher downloads the game and updates; press PLAY when ready.
+For an existing game, apply the complete archive over its folder.
+To play directly without checking for updates, run bash Skhid.sh, or run
+bash play_skhid_mac.sh from game/binaries/x86.
+
+The first launch downloads Wine (built from CrossOver's sources, with DXMT,
+which runs the game's Direct3D 11 on Metal): about 235 MB into
+~/Library/Application Support/Skhid. It also creates a Wine
+prefix in game/binaries/x86/wineprefix and installs the font Calibri
+(a 27 MB download) that the game's text needs. Later launches reuse them.
+
+DISPLAY AND KEYS
+
+The first launch starts the game in fullscreen at the resolution of the
+main display (the one with the menu bar). Change it in the game's Settings.
+Settings: ~/Library/Application Support/Skhid/user.cfg.
+In fullscreen the game takes the whole display: no menu bar or Dock (if
+the menu bar still shows over it, click the game once); use Cmd+Tab to
+switch away. On a MacBook with a notch, the top centre of the
+picture is under the notch.
+A sharper picture on a Retina display: choose a larger resolution in the
+game's Settings (up to the display's pixels; more for the GPU to draw).
+macOS turns Game Mode on while the game is fullscreen and in front.
+Mouse-look reads the mouse's own movement, without macOS's pointer
+acceleration, at the speed of the pointer; the game's sensitivity setting
+scales it as usual.
+The first start, macOS asks whether Survarium may find devices on local
+networks; either answer works (online play does not need it). If the game
+then shows minimized, click Survarium in the Dock.
+Option works as Alt in the game.
+
+IF IT FAILS
+
+Report skhid-wine.log and, for update failures, updater_skhid.log from
+game/binaries/x86. If the prefix is broken, close the game and launcher and
+rename game/binaries/x86/wineprefix to an unused backup name; the next
+launch makes a new one. Settings stored outside the prefix survive.
+
+For a crash a developer asked to investigate, start with full-memory dumps:
+
+    SKHID_CRASH_DUMP=full bash Skhid.sh launcher
