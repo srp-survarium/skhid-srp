@@ -149,6 +149,7 @@ pub use sense::HearingRanges;
 pub use sense::SenseTuning;
 pub use sense::ShotRanges;
 pub use smoke::AimPoint;
+pub use smoke::CamperPresence;
 pub use smoke::BestCover;
 pub use smoke::CloudWaiters;
 pub use smoke::MidLine;

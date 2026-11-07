@@ -884,8 +884,8 @@ fn smoke_uses(due: &Due, bot: &mut Bot, knowledge: &mut know::TeamKnowledge, not
             if sniper.is_some() { smoke::tally::Event::Outranged } else { smoke::tally::Event::OutrangedNoPlan },
         );
     }
-    // [A308 `smoke.threat_lane`] A known camper's lane (a held lane that killed two of ours lately, its shooter sensed on it
-    // within the fairness rule's window): the first point of the route he sees from his spot (`lane_ahead`, his own 3D eye
+    // [A308 `smoke.threat_lane`] A known camper's lane (a held lane that killed two of ours lately, its shooter remembered on
+    // it, `CamperPresence`): the first point of the route he sees from his spot (`lane_ahead`, his own 3D eye
     // test), far enough ahead that a cloud thrown now hides his line when a walk gets there (the fuse and the client's
     // forming at the walk cap, PROVEN 3.5 m/s), and not so far it is another crossing. Nobody holds for it.
     let camper = || {
@@ -899,7 +899,7 @@ fn smoke_uses(due: &Due, bot: &mut Bot, knowledge: &mut know::TeamKnowledge, not
         let lead_m = lead_ms as f32 / 1000.0 * super::plays::crossfire::WALK_M_S;
         let start = route.walked();
         let end = (start + lead_m + rule.window_m.get()).min(route.length());
-        let known = super::lane_ahead::Known { kills: rule.kills, within_ms: rule.within_ms, sensed_ms: rule.sensed_ms };
+        let known = rule.known();
         let ahead = super::lane_ahead::known_lane_ahead(
             &bot.lanes,
             known,

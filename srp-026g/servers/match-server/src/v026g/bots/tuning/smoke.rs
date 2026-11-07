@@ -141,8 +141,8 @@ pub struct SmokeTuning {
     /// in that case so enemy would need to leave it"). None: no smoke for that crossing. ON by default as a choice (the
     /// owner's ask; by-side bench in its PR); `all_off.json` names it null.
     pub shooter_spot: Option<ShooterSpot>,
-    /// [A308] The known camper's lane (`ThreatLane`): a held lane that killed two of ours lately, its shooter sensed on it
-    /// within the fairness rule's 15 s, is smoked from far enough ahead that the cloud hides his line when the bot gets
+    /// [A308] The known camper's lane (`ThreatLane`): a held lane that killed two of ours lately, its shooter remembered on it
+    /// (`CamperPresence`), is smoked from far enough ahead that the cloud hides his line when the bot gets
     /// there at a walk (the fuse and the forming at the walk cap: about 18 m), and nobody holds for it. The lane smoke
     /// (`cross_lane`) looks 10 m ahead, which a walk covers in 3 s, before a cloud thrown then is up (4 s fuse + 1.24 s), so
     /// it needed the hold (`wait_for_cloud`), and the holds cost the team more than the cloud saved (A317: wins z -2.6).
@@ -161,15 +161,39 @@ pub struct ThreatLane {
     pub kills: usize,
     /// within this of now, ms (the spot's own decay forgets it sooner when no more deaths come, `threat::DECAY_PER_S`),
     pub within_ms: u32,
-    /// its shooter sensed on it within this, ms (at most `smoke::FAIR_SENSED_MS`).
-    pub sensed_ms: u32,
+    /// and its shooter taken to be there (`CamperPresence`).
+    pub presence: CamperPresence,
     /// The crossing is looked for this far past the lead (the walk to it while the smoke flies and forms), metres.
     pub window_m: Metres,
 }
 
+impl ThreatLane {
+    /// The lane test of `lane_ahead` for this rule.
+    pub fn known(self) -> super::super::lane_ahead::Known {
+        let presence = match self.presence {
+            CamperPresence::SensedWithin { ms } => super::super::lane_ahead::Presence::SensedWithin(ms),
+            CamperPresence::Remembered => super::super::lane_ahead::Presence::Remembered,
+        };
+        super::super::lane_ahead::Known { kills: self.kills, within_ms: self.within_ms, presence }
+    }
+}
+
+/// [A308] `ThreatLane::presence`: whether the camper is taken to be on his spot.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum CamperPresence {
+    /// The team sensed him there within `ms` (at most `smoke::FAIR_SENSED_MS`, BENCH-DECISIONS D): over fx-smoke's 704 camper
+    /// matches this reaches about 21 % of his kills, as a hidden camper is seldom sensed between kills.
+    SensedWithin { ms: u32 },
+    /// The spot remembered while it lives and he is not known dead since (`lane_ahead::Presence::Remembered`; the
+    /// coordinator's ruling, 2026-11-07, as the owner's area memory for routes). Reaches 74 % of his kills; 1.0 % of other
+    /// killers' kills come after two of their own from the same spot.
+    Remembered,
+}
+
 impl Default for ThreatLane {
     fn default() -> Self {
-        Self { kills: 2, within_ms: 300_000, sensed_ms: super::super::smoke::FAIR_SENSED_MS, window_m: Metres::of(10.0) }
+        Self { kills: 2, within_ms: 300_000, presence: CamperPresence::Remembered, window_m: Metres::of(10.0) }
     }
 }
 
@@ -325,7 +349,13 @@ impl SmokeTuning {
     pub(super) fn check(&self) -> Result<(), String> {
         check(self.lane_sensed_ms <= super::super::smoke::FAIR_SENSED_MS, "smoke.lane_sensed_ms")?;
         check(
-            self.threat_lane.is_none_or(|r| r.sensed_ms <= super::super::smoke::FAIR_SENSED_MS && r.kills >= 1),
+            self.threat_lane.is_none_or(|r| {
+                r.kills >= 1
+                    && match r.presence {
+                        CamperPresence::SensedWithin { ms } => ms <= super::super::smoke::FAIR_SENSED_MS,
+                        CamperPresence::Remembered => true,
+                    }
+            }),
             "smoke.threat_lane",
         )
     }
@@ -377,7 +407,10 @@ mod tests {
         let r = ThreatLane::default();
         let mut t = SmokeTuning { threat_lane: Some(r), ..Default::default() };
         assert!(t.check().is_ok());
-        t.threat_lane = Some(ThreatLane { sensed_ms: super::super::super::smoke::FAIR_SENSED_MS + 1, ..r });
+        let fair = super::super::super::smoke::FAIR_SENSED_MS;
+        t.threat_lane = Some(ThreatLane { presence: CamperPresence::SensedWithin { ms: fair }, ..r });
+        assert!(t.check().is_ok());
+        t.threat_lane = Some(ThreatLane { presence: CamperPresence::SensedWithin { ms: fair + 1 }, ..r });
         assert!(t.check().is_err(), "past the fairness rule");
         t.threat_lane = Some(ThreatLane { kills: 0, ..r });
         assert!(t.check().is_err(), "a spot that killed none");

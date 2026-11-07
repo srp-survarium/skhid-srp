@@ -4,12 +4,26 @@
 //! or held the bot already (39 %) where he killed (A308, `smoke_camper_gate_at_death`).
 //!
 //! A known spot is a held lane of the team (its own senses, callouts, the kill feed: `threat::ThreatSpots`) that killed
-//! `kills` of its bots within the last `within_ms`, its shooter sensed there within `sensed_ms` (at most the fairness rule's
-//! 15 s). A looser rule (any spot with one death, or sensed within 15 s) holds on almost every route: in A317's first bench the
-//! crossing smoke fired about once a life (29,058 plans vs 6,104) and lost 41 % of the wins to the stops.
+//! `kills` of its bots within the last `within_ms`, and whose shooter is taken to be there ([`Presence`]): sensed there within
+//! a time (at most the fairness rule's 15 s), or [A308] remembered (the owner's area memory: two of ours died from there, and
+//! the kill feed has not shown him dead since). A looser rule (any spot with one death, or sensed within 15 s) holds on almost
+//! every route: in A317's first bench the crossing smoke fired about once a life (29,058 plans vs 6,104) and lost 41 % of the
+//! wins to the stops.
 
 use super::threat::HeldLane;
 use mapdata::Vec3;
+
+/// Whether a known spot's shooter is taken to be on it now.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Presence {
+    /// The team sensed him there within this, ms.
+    SensedWithin(u32),
+    /// [A308] The spot is remembered while it lives (it decays as `threat::DECAY_PER_S`) and he is not known dead since its
+    /// last sense: the kill feed of his death clears the spot's sense (`ThreatSpots`' shooter death), and a dead man's spot is
+    /// not his until he is sensed on it again. The coordinator's ruling (2026-11-07): a human remembers "2 of us died from that
+    /// window", as the owner's area memory for routes (`threat.sniper_memory`).
+    Remembered,
+}
 
 /// What makes a held lane known for a crossing decision: a farming spot.
 #[derive(Clone, Copy, Debug, PartialEq)]
@@ -18,17 +32,21 @@ pub struct Known {
     pub kills: usize,
     /// within this of now, ms,
     pub within_ms: u32,
-    /// and its shooter sensed there within this, ms.
-    pub sensed_ms: u32,
+    /// and its shooter taken to be there.
+    pub presence: Presence,
 }
 
 impl Known {
     /// The farming rule: 2 of our deaths within 60 s, the shooter sensed within 15 s.
-    pub const FARMING: Self = Self { kills: 2, within_ms: 60_000, sensed_ms: 15_000 };
+    pub const FARMING: Self = Self { kills: 2, within_ms: 60_000, presence: Presence::SensedWithin(15_000) };
 
     pub fn holds(self, lane: &HeldLane, clock: u32) -> bool {
         let recent = lane.latest_kills.iter().flatten().filter(|&&k| clock.saturating_sub(k) <= self.within_ms).count();
-        recent >= self.kills && lane.sensed.is_some_and(|s| clock.saturating_sub(s) <= self.sensed_ms)
+        let there = match self.presence {
+            Presence::SensedWithin(ms) => lane.sensed.is_some_and(|s| clock.saturating_sub(s) <= ms),
+            Presence::Remembered => lane.sensed.is_some(),
+        };
+        recent >= self.kills && there
     }
 }
 
@@ -111,16 +129,19 @@ mod tests {
         assert!(ahead.in_line);
     }
 
-    /// [A308 `smoke.threat_lane`] The known camper's rule: two deaths within 5 min, sensed within the fairness rule's 15 s, is
-    /// known; one death, a stale sense (past 15 s) or a death out of the window is not.
+    /// [A308 `smoke.threat_lane`] The known camper's rule: two deaths within 5 min, the spot remembered while its shooter is not
+    /// known dead (no sense needed); one death, a death out of the window, or his death since (the sense cleared) is not. Sensed
+    /// within 15 s instead, a stale sense does not count.
     #[test]
-    fn a_known_camper_is_two_deaths_sensed_within_fifteen_seconds() {
-        let r = crate::v026g::bots::tuning::ThreatLane::default();
-        let k = Known { kills: r.kills, within_ms: r.within_ms, sensed_ms: r.sensed_ms };
+    fn a_known_camper_is_two_deaths_at_a_remembered_spot() {
+        let k = crate::v026g::bots::tuning::ThreatLane::default().known();
         let now = 400_000;
-        assert!(k.holds(&lane(&[390_000, 150_000], Some(386_000)), now), "two deaths in 5 min, sensed 14 s ago");
+        assert!(k.holds(&lane(&[390_000, 150_000], Some(300_000)), now), "two deaths in 5 min, sensed 100 s ago");
         assert!(!k.holds(&lane(&[390_000], Some(399_000)), now), "one death");
-        assert!(!k.holds(&lane(&[390_000, 150_000], Some(384_000)), now), "sensed 16 s ago");
         assert!(!k.holds(&lane(&[390_000, 90_000], Some(399_000)), now), "the second death is older than 5 min");
+        assert!(!k.holds(&lane(&[390_000, 150_000], None), now), "he died since: the feed cleared the sense");
+        let sensed = Known { presence: Presence::SensedWithin(15_000), ..k };
+        assert!(sensed.holds(&lane(&[390_000, 150_000], Some(386_000)), now), "sensed 14 s ago");
+        assert!(!sensed.holds(&lane(&[390_000, 150_000], Some(384_000)), now), "sensed 16 s ago");
     }
 }
