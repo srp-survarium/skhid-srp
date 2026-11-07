@@ -35,8 +35,8 @@ What survarium.pro showed of players, matches and clans, kept by srp itself and 
   served; only counted ones go into totals, favourites, days, top lists and best scores. A player
   whose public matches all did not count is still named, with totals of zeros.
 - `g26_match_players`: one row a player who was in the match (finished or left): team, place in
-  its team by score (from 1), rating after the match, clan at the time, score, kills, deaths and
-  the counters below.
+  its team by score (from 1), rating after the match (none for a match kept from its recording),
+  clan at the time, score, kills, deaths and the counters below.
 - `g26_player_totals`, `g26_clan_totals`: the counted public matches added up, at record time. A public
   match counts once for a clan if at least one member played in it (its clan at the time), and is a
   win if at least one of them was on the winning team (members on both teams: a win). Score,
@@ -68,6 +68,57 @@ What survarium.pro showed of players, matches and clans, kept by srp itself and 
   not per-weapon numbers and are never shown as such.
 - Not kept, as survarium.pro had them: artefact kills (0.26g has none), clan rating (clans have
   none), skills.
+
+## Events
+
+`g26_match_events` (`persist/match_events.rs`): what happened in a match, keyed by its `replay_id`
+and written in the same transaction as the match. The match server makes the list
+(`match-server/src/v026g/events.rs`) from the worlds it reads: live, the trusted ones (one asked
+for every 5 s, `Timing::refresh`; more apart where one was not trusted); offline, every time's
+upload most clients agree on. No message names a kill, a battery or a capture
+(`kill_weapon.md` 1), so each event is what changed between two worlds' shared statistics and rules.
+
+| kind | from | actor | victim | other |
+|---|---|---|---|---|
+| `kill` | the killer's kills (event 0) | killer | the death paired with it, if any | |
+| `death` | a death (event 2) no kill was paired with: suicide, fall, anomaly, teammate, or open | | the dead | |
+| `battery_found` | event 19 (first pick-up) | finder | | |
+| `battery_delivered` | event 20 (put into a container) | carrier | | |
+| `capture` | Research: a unit's owner became a team | | | `team`, `unit` |
+| `score` | modes 2 and 3: the batteries in the containers changed (taken out too) | | | `points0`, `points1` |
+| `end` | the match's end | | | the final points |
+
+- **Time and precision.** `at_ms` is match ms (the replay's time). `after_ms` empty: `at_ms` is the
+  game's own tick (50 ms) of it. That holds for a kill whose killer made no other kill in the
+  window (the killer's `last_killed_enemy_ms`) and for the end. Else the event was after `after_ms`
+  and at `at_ms` or before: the window between the two worlds, about 5 s (a killer's several kills:
+  up to its last kill's tick). Deaths, batteries, captures and score changes are always windows.
+- **Victims.** A death is paired with a kill when only one enemy of the dead killed in the window
+  and no more of its enemies died than it killed, or only one of the killers left hurt the dead in
+  the life it lost (its `received_damage`). Else the kill has no victim and the death stays a
+  `death`.
+- **Not known:** the weapon (the game never sends it, `kill_weapon.md`), the position (a dead
+  player's block has no body, and the worlds are seconds from the event), headshot or melee per
+  kill, who took a battery out of a container, who captured a unit, Team Deathmatch's tickets
+  (they follow the deaths) and Research's points (they grow all the time).
+- Places are the roster's (0 to 19) with their accounts (0: the server's bot).
+- **The lobby** reads them with `MatchHistory::events(<match server's id>)` (the newest match of
+  that id, of any kind: the caller says who may see them), and the side channel's rows are
+  `lobby-server/src/v026g/match_events.rs` (`match_events_page`): a head
+  `E1;<ok|none|error>;<match id 8 hex>;<events>;<page>`, then 254 events a page, one a row,
+  `<K|D|F|B|C|S|E>;<at>;<after>;...` (the module's table).
+
+### Backfill from recordings
+
+`srp-recording-to-history --data <server-game-data.db> <srp.db> <file.srprec | dir>...` keeps the
+matches of kept recordings with their events (`match-server/src/v026g/backfill.rs`); a replay id
+kept already (live, or by an earlier run) is left as it is, so a second run changes nothing. Run it
+with srp stopped. From the recording: the header and the result note (map, level, places,
+standing, presence, score, kills, deaths), and the last world's counters and kits used (items from
+the match options). Not in it: the rating after (stored as none) and the clan then (none). A
+recording made before the header said `private` is kept as private (never served, never counted):
+it cannot say its room had no PIN. Matches nobody came to, called off, or whose recording has no
+result (the server stopped) are skipped.
 
 ## The API
 
