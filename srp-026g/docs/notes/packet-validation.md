@@ -489,7 +489,15 @@ The covering invariant: the validator reads every player state and section to
 its EXACT END against the match config (proven on 50,205 live uploads and
 3,919/3,920 local worlds), so it consumes the same bytes as the native reader,
 and it caps every packet count to the native fixed-array size (affects 8, hits
-64, slots 23, ammo 8, artefacts 128, players 20, FSM state < the list). A count
+64, slots 23, ammo 8, artefacts 128, players 20, FSM state < the list). The
+affects cap is load-bearing and shown at the site: `body_part_parameters::
+deserialize` 0x32AFE0, read in full, reads a byte `affects_count` and its
+"affects_count buffer overflow" assert FALLS THROUGH in release (`DAT_02260BB7`
+off, `swi(3)` only under a debugger), so `> 8` overflows the fixed `m_affects
+[8]` in the following loop -- the validator's `affects <= 8` refuses that world
+first. The inventory reader 0x2FE550, also read in full, indexes the weapon
+table `[+0x18B4C]` and the artefact table `[+0x18940]` by a byte, null-checked
+and validator-bounded (artefact id < `context.artefacts` 128). A count
 it does not cap is one the native code takes from its own config, not the
 packet. The client string readers are the one exception to "read to exact end":
 `read_squad_info` 0x274720 reads a member name as `len = r<u8>; memcpy(dst+0x10,
