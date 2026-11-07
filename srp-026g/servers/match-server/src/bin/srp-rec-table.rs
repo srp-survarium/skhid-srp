@@ -9,9 +9,11 @@
 //!
 //! - `rec_inputs.csv`: `match,time,place,actions,rot_a,rot_b`: every input relayed (0xEB/0xEC/0xED/0xEE) or accepted, at its
 //!   match time; `rot_a`, `rot_b` the two halves of the relayed `half2 rotation`, as floats;
-//! - `rec_worlds.csv`: `match,time,upload,uploads,same,place,alive,cx,cy,cz,fx,fy,fz,yaw,pitch,keys,speed,inserted`: every
-//!   player block of every world a client uploaded (upload `k` of `uploads` at that time, `same` 1 when all the uploads of
-//!   the time are byte-equal), the body's centre (`m_last_pos`) and feet in the map's frame;
+//! - `rec_worlds.csv`: `match,time,upload,uploads,same,place,alive,cx,cy,cz,fx,fy,fz,yaw,pitch,keys,speed,inserted,kit,hands,
+//!   carrying,speeds`: every player block of every world a client uploaded (upload `k` of `uploads` at that time, `same` 1 when
+//!   all the uploads of the time are byte-equal), the body's centre (`m_last_pos`) and feet in the map's frame; [A334] the block's
+//!   `Supplies` (kit in use, `hands_slot`, `carrying`; empty where unread) and the speed factors the server hands the reckoning
+//!   for them (`speeds`, `;`-joined: `KitSpeeds::in_hands` with the hands known, else `KitSpeeds::candidates`);
 //! - `rec_motion.csv` (A304): `match,time,upload,place,alive,sprinting,jumping,colliding,can_stand,normal_y,fall_y,last_hit,hits,
 //!   last_recent_hit,stagger,health0`: the same blocks' controller flags (`m_is_sprinting` and the others), the support normal's
 //!   y and the fall velocity's y, the damage model's last hit time, the recent hits' count and latest time, the stagger float
@@ -131,8 +133,14 @@ fn run(input: &Path, out: &Path) -> Result<(), Box<dyn std::error::Error>> {
         }
     }
     levels.flush()?;
+    // [A334] Each place's profile (the largest roster that has it), for its blocks' `Supplies`: the kit in use, the weapon in hands
+    // (`Supplies::hands_slot`, `m_active_slot`; PROVEN, fx-review A334c) and the speed factors the server hands the reckoning for
+    // them (`game/driven.rs::observe_stock`: the in-hands F when the hands are known, else every weapon's).
+    let profiles: BTreeMap<usize, &survarium::v026g::match_msgs::static_info::MatchProfile> =
+        tables.rosters.values().flat_map(|(_, options)| options.players.iter().enumerate()).collect();
+    let dictionary = survarium::v026g::dictionary::Dictionary::shared();
     let mut worlds = std::io::BufWriter::new(std::fs::File::create(out.join("rec_worlds.csv"))?);
-    writeln!(worlds, "match,time,upload,uploads,same,place,alive,cx,cy,cz,fx,fy,fz,yaw,pitch,keys,speed,inserted")?;
+    writeln!(worlds, "match,time,upload,uploads,same,place,alive,cx,cy,cz,fx,fy,fz,yaw,pitch,keys,speed,inserted,kit,hands,carrying,speeds")?;
     let mut motions = std::io::BufWriter::new(std::fs::File::create(out.join("rec_motion.csv"))?);
     writeln!(motions, "match,time,upload,place,alive,sprinting,jumping,colliding,can_stand,normal_y,fall_y,last_hit,hits,last_recent_hit,stagger,health0")?;
     let (mut read, mut unread) = (0usize, 0usize);
@@ -178,9 +186,27 @@ fn run(input: &Path, out: &Path) -> Result<(), Box<dyn std::error::Error>> {
                     u8::from(motion.alive),
                     motion.recent_hits.len()
                 )?;
+                let supplies = profiles
+                    .get(&usize::from(block.place))
+                    .and_then(|profile| survarium::v026g::match_msgs::players::Supplies::read(&block, profile, dictionary).map(|s| (profile, s)));
+                let (kit, hands, carrying, speeds) = supplies.map_or_else(Default::default, |(profile, s)| {
+                    let speeds = survarium::v026g::bot_skills::profile_kit_speeds(profile, usize::from(s.kit)).map_or(String::new(), |speeds| {
+                        let values = match s.hands_slot {
+                            Some(slot) => vec![speeds.in_hands(Some(slot))],
+                            None => speeds.candidates(),
+                        };
+                        values.iter().map(|v| format!("{v:.4}")).collect::<Vec<_>>().join(";")
+                    });
+                    (
+                        s.kit.to_string(),
+                        s.hands_slot.map_or(String::new(), |h| h.to_string()),
+                        s.carrying.map_or(String::new(), |c| u8::from(c).to_string()),
+                        speeds,
+                    )
+                });
                 writeln!(
                     worlds,
-                    "{id},{time},{k},{},{same},{},{},{:.3},{:.3},{:.3},{:.3},{:.3},{:.3},{:.4},{:.4},{:#x},{speed:.3},{}",
+                    "{id},{time},{k},{},{same},{},{},{:.3},{:.3},{:.3},{:.3},{:.3},{:.3},{:.4},{:.4},{:#x},{speed:.3},{},{kit},{hands},{carrying},{speeds}",
                     bodies.len(),
                     block.place,
                     u8::from(motion.alive),
