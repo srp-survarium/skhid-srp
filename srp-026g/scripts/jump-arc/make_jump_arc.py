@@ -68,7 +68,7 @@ use super::kin::{Local, TICK_S, to_world};
 use crate::v026g::drive::key;
 
 /// The clip's frames a second.
-const FPS: f32 = 30.0;
+pub(crate) const FPS: f32 = 30.0;
 /// The clips' last frame (24 frames, 0.80 s at time scale 1).
 pub const END_FRAME: f32 = 24.0;
 /// The clip's `jump` event: the body leaves the ground (rifles; pistols at frame 3, whose root does not rise before frame 6 either).
@@ -193,7 +193,7 @@ impl Clip {
         }
     }
 
-    fn time_scale(self) -> f32 {
+    pub(crate) fn time_scale(self) -> f32 {
         match self {
             Self::Short(_) => 1.0,
             Self::Sprint(_) => SPRINT_TIME_SCALE,
@@ -201,7 +201,7 @@ impl Clip {
     }
 
     /// The clip's root at `frame` (clamped to the clip): rise, ahead, to the right, m.
-    fn root(self, frame: f32) -> [f32; 3] {
+    pub(crate) fn root(self, frame: f32) -> [f32; 3] {
         let table = self.table();
         let f = frame.clamp(0.0, END_FRAME);
         let i = (f.floor() as usize).min(table.len() - 2);
@@ -219,7 +219,7 @@ impl Clip {
     /// The speed the body falls at when the clip ends in the air, m/s (down positive): `end_jump` 0x7F050 keeps only a downward
     /// vertical speed (velocity := up * min(velocity . up, 0)), and in the jump the air branch 0x7BF2C sets it to the root's vertical
     /// speed (up * walk.y / dt), so the fall starts at the root's descent over the clip's last tick (fx-gear-2's read).
-    fn end_descent(self) -> f32 {
+    pub(crate) fn end_descent(self) -> f32 {
         let df = TICK_S * FPS * self.time_scale();
         ((self.root(END_FRAME - df)[0] - self.root(END_FRAME)[0]) / TICK_S).max(0.0)
     }

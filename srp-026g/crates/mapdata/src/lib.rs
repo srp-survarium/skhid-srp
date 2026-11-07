@@ -174,6 +174,9 @@ pub const CRACK_BRIDGE_ALGO: u32 = 0x5329_0201;
 /// The same for the Bullet caster's start-overlap witness on the face ([`Body::start_witness`], A329), in
 /// [`grid_key_with_links`] only for a body that asks for it with [`Body::exe_collision`]. A value of its own.
 pub const START_WITNESS_ALGO: u32 = 0x5329_0301;
+/// The same for the rounds-taken floors given back where a body stands clear inside the cell ([`Body::give_back_in_cell`],
+/// A331), in [`grid_key_with_links`] only for a body that asks for it with [`Body::wall_give_back`]. A value of its own.
+pub const GIVE_BACK_IN_CELL_ALGO: u32 = 0x5331_0101;
 /// The same for the exact erosion pass ([`Erosion::Exact`], `grid::exact`), in [`grid_key_with_links`] only for a body
 /// that asks for it: the grids of the cells' erosion key, build and write as before. 2: floors keep a quarter cell of
 /// slack (the nearer-than-the-radius-less-a-quarter rule; 1 was the full radius). 3: the capsule's round top (a wall above the
@@ -354,6 +357,10 @@ pub fn grid_key_with_links(
     // And the floors given back beside walls.
     if body.wall_give_back {
         digest.u32(WALL_GIVE_BACK_ALGO);
+        // And where in the cell a body may stand.
+        if body.give_back_in_cell {
+            digest.u32(GIVE_BACK_IN_CELL_ALGO);
+        }
     }
     // And the walk tick's collision rules.
     if body.exe_collision {
