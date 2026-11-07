@@ -728,6 +728,31 @@ mod tests {
         assert_eq!(PlayerState::read(&wrong, 3), None);
     }
 
+    /// [A334] The inventory's own fields before the first slot item's record: the active slot 2 bytes before it, the carried
+    /// object's id 4 before (0xFF none), the artefacts 3 before, and the carried weight 9 before when neither is held.
+    #[test]
+    fn the_hands_slot_the_carrier_and_the_carried_weight_are_read() {
+        let dictionary = Dictionary::shared();
+        let mut inventory = inventory();
+        inventory[40 - 2] = 7;
+        inventory[40 - 4] = 0xFF;
+        inventory[40 - 3] = 0;
+        inventory[40 - 9..40 - 5].copy_from_slice(&23.5f32.to_le_bytes());
+        let state = state_bytes(&head(true), &inventory);
+        let block = PlayerBlock { place: 4, state: &state, animation: None };
+        let supplies = Supplies::read(&block, &profile(), dictionary).unwrap();
+        assert_eq!(supplies.hands_slot, Some(7), "the weapon in slot 7");
+        assert_eq!(supplies.carrying, Some(false));
+        assert_eq!(supplies.carried_weight, Some(23.5));
+        // A slot that holds no weapon (the ammunition's 8), a carried item: no hands slot, no weight, carrying.
+        inventory[40 - 2] = 8;
+        inventory[40 - 4] = 3;
+        let state = state_bytes(&head(true), &inventory);
+        let block = PlayerBlock { place: 4, state: &state, animation: None };
+        let supplies = Supplies::read(&block, &profile(), dictionary).unwrap();
+        assert_eq!((supplies.hands_slot, supplies.carrying, supplies.carried_weight), (None, Some(true), None));
+    }
+
     #[test]
     fn what_a_player_has_left_is_its_store_its_slots_and_its_magazine() {
         let dictionary = Dictionary::shared();
