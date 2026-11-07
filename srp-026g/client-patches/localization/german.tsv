@@ -2190,6 +2190,31 @@ st_srp_ammo_scar_ap_desc	Panzerbrechende Patronen 7,62x51 für das FN SCAR-H. Je
 st_srp_ammo_scar_ap_name	7,62x51 AP SCAR-H, 20 Schuss
 st_srp_ammo_slug	Flintenkugel
 st_srp_ammo_stats	Munitionswerte
+st_srp_artefact_501_description	Zeit zum Einsammeln eines Artefakts:
+st_srp_artefact_501_name	Flinke Hände
+st_srp_artefact_502_description	Isolierung gegen Anomalien:
+st_srp_artefact_502_name	Widerstand
+st_srp_artefact_512_description	Dauer der aktiven Artefaktwirkung:
+st_srp_artefact_512_name	Artefaktwissen
+st_srp_artefact_513_description	Passive Artefakte leuchten an den Beinen der Spieler, auch an deinen.
+st_srp_artefact_513_name	Artefaktsicht
+st_srp_artefact_521_description	Das Match beginnt mit einem zufälligen Artefakt im Behälter; eine Art für alle im Match.
+st_srp_artefact_521_name	Hüter der Artefakte
+st_srp_artefact_522_description	Eine Tasche wird zu einem Artefaktbehälter.
+st_srp_artefact_522_name	Artefaktbehälter
+st_srp_artefact_523_description	Schaden durch Kugeln und Splitter in einer Anomalie:
+st_srp_artefact_523_name	Schutz des Waldes
+st_srp_artefact_531_description	Jede Feder beschleunigt auch das Nachladen: +5% passiv, +15% solange aktiv.
+st_srp_artefact_531_name	Feder II
+st_srp_artefact_532_description	Kein Fallschaden, solange ein Onyx aktiv ist.
+st_srp_artefact_532_name	Onyx II
+st_srp_artefact_533_description	Das Aktivieren eines Lebknochens stellt die ganze Ausdauer wieder her.
+st_srp_artefact_533_name	Lebknochen II
+st_srp_artefact_541_description	Die passiven Wirkungen deiner Artefakte wirken auch auf lebende Teamkameraden im Umkreis von 8 m.
+st_srp_artefact_541_name	Resonanz
+st_srp_artefact_542_description	Aktivierte Artefakte wirken auch auf lebende Teamkameraden im Umkreis von 5 m. "Sie leuchten, du strahlst"
+st_srp_artefact_542_name	Kaskade
+st_srp_artefact_points	 Punkte
 st_srp_attachments	Anbauteile
 st_srp_ban_reason_account_trading	Verkauf oder versuchter Verkauf eines Kontos.
 st_srp_ban_reason_administration	Entscheidung der Administration.
@@ -2704,6 +2729,7 @@ st_srp_rooms_join_why_4	Das Match ist voll.
 st_srp_rooms_join_why_5	Bald Wartung: keine neuen Beitritte.
 st_srp_rooms_join_why_6	Das Match endet: du spielst das nächste.
 st_srp_rooms_join_why_7	Dieses Match hat sein Spielerlimit erreicht. Du spielst im nächsten Match.
+st_srp_rooms_join_why_8	Das Match kann gerade keine Spieler aufnehmen. Du spielst im nächsten Match.
 st_srp_rooms_joined_room	%1$s ist dem Raum beigetreten
 st_srp_rooms_late_hint	Wer jetzt beitritt, sieht den Raum, dann geht es ins Match.
 st_srp_rooms_leave	Verlassen

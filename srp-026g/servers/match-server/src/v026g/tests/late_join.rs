@@ -43,7 +43,7 @@ fn admission_closes_at_the_end_of_the_match_and_stale_publications_expire() {
     // No game-loop update is needed to reject a reservation after its deadline.
     bench
         .registry
-        .set_admitting(bench.match_id, 2, Ok(Instant::now()));
+        .set_admitting(bench.match_id, 2, Ok(Instant::now()), bench.game().live_phase());
     assert_eq!(
         bench.registry.join_running(bench.match_id, player(2)),
         Err(JoinError::Unavailable)
@@ -83,7 +83,7 @@ fn grenadier(place: usize) -> MatchPlayer {
     player
 }
 
-fn reserve(bench: &mut Bench) -> usize {
+pub(super) fn reserve(bench: &mut Bench) -> usize {
     reserve_as(bench, player)
 }
 
@@ -523,6 +523,7 @@ fn registry_admission_is_atomic_and_rejects_invalid_profiles() {
         bench.match_id,
         2,
         Ok(bench.now() + Duration::from_secs(600)),
+        bench.game().live_phase(),
     );
     assert_eq!(
         bench.registry.join_running(bench.match_id, player(3)),

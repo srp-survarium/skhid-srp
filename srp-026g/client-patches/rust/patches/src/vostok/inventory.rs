@@ -6,6 +6,7 @@ use core::sync::atomic::{AtomicU32, Ordering};
 
 use artefact_carry::{Artefact, ArtefactId, ContainerIndex, Refused};
 
+
 use super::hook::Thread;
 use super::world::{read};
 use crate::raw;
@@ -129,6 +130,41 @@ impl<'t> Inventory<'t> {
         let id = ArtefactId::parse(unsafe { read(item.id()) })?;
         let artefact = Artefact { id, slot };
         self.passive_item(artefact).map(|_| artefact)
+    }
+
+    /// Keeper's gift: an unused pool artefact (state 0, in no inventory, never given: keeper's
+    /// mark) into the first empty container. It gets the count and the cooldown the anomaly's
+    /// spawn gives one (artefact_base::on_spawned 0x3134C0), then the game's own take_artefact
+    /// (as a ground pickup) puts it into the first empty container and links its passive. With a
+    /// container free take_artefact has no refusal (its first empty one at 0x2FC883, set_item
+    /// 0x2FCA32, on_taken), but it is marked given (`keeper::mark_given`) only once it is in this
+    /// inventory, so a gift is never marked and not delivered.
+    pub(super) fn take_dormant(&mut self, item: raw::Artefact) -> bool {
+        if !self.alive() || self.container_space() != ContainerSpace::Available {
+            return false;
+        }
+        if super::keeper::history(item) != crate::artefact_keeper::History::Unused {
+            return false;
+        }
+        // SAFETY: a registered artefact of the live core world; its fields are artefact_base's
+        // and inventory_item's. Retained through the take; a free container (`container_space`)
+        // keeps take_artefact off its evicting path.
+        unsafe {
+            if read(item.state()) != 0 || item.item().inventory().is_some() {
+                return false;
+            }
+            let count = match read(item.default_count()) { 0xFFFF => 1, count => count };
+            item.item().count().write_volatile(count);
+            item.cooldown_left().write_volatile(0);
+            let held = RetainedItem::new(item, self.thread);
+            let mut incoming = Some(held.this);
+            raw::engine_inventory_take_artefact(Some(self.this), &mut incoming);
+            if item.item().inventory() != Some(self.this) {
+                return false;
+            }
+            super::keeper::mark_given(item);
+        }
+        true
     }
 
     pub(super) fn drop_carried(&mut self, expected: Artefact, drop: artefact_carry::ground::Drop) -> bool {

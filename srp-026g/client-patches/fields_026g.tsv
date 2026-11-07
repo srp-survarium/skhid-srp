@@ -275,6 +275,7 @@ vostok::render::model_instance	movable	0x115	u8	a movable model (weapon::set_mov
 vostok::render::model_instance	static_model	0x0	obj<vostok::static_model_instance>	only for the artefact cooks' and the held flower's models, which are static (native artefact cooks)
 survarium::artefact_container_core	world_core	0x54	ptr<survarium::core_world>	its world's core: use_execute 0x31C838 reads the statistics handler from it
 survarium::core_world	statistics	0x18FA8	ptr<survarium::base_game_statistics_handler>	the statistics handler, set by its start_match (0x26D8E7), 0 before and after; use_execute counts a taken artefact through it (0x31C83B)
+survarium::core_world	time_state	0x18FE4	u32	the time rule's state: 1 waiting, 2 the countdown, 3 in process (written at each change, 0x317EFC / 0x318291 / 0x31816B, and by deserialize 0x318025)
 survarium::base_game_statistics_handler	shared	0x8	obj<survarium::shared_statistics>	its shared statistics, what the world holds (the slot +10h thunk 0x26DAC0: lea edx,[ecx+8])
 survarium::shared_statistics	players	0x0	obj<survarium::player_shared_statistics>	the 20 places' records (finish_match 0x2F4D25: place x 1F8h)
 survarium::player_shared_statistics	events	0x0	obj<survarium::event_count>	events[28][3]: an event's three kits' counts, kit k of event e the (3e + k)th (0x2F5606: event 5 at +1Eh + kit x 2)
@@ -807,7 +808,7 @@ survarium::match_packet_pool	used	0x30	u32	packet pool entries used; reserve sev
 survarium::match_packet_pool	capacity	0x34	u32	packet pool entries available
 survarium::match_packet	flags	0x98	u8	clear 40h to keep a custom E0 carrier out of automatic joining
 survarium::match_packet	writer	0x2A8	obj<vostok::buffer_writer>	packet buffer writer, as late_join send_prepared
-survarium::game	world	0x18	obj<survarium::game_world>	the game world, inside the game: game::game constructs it in place (lea eax,[ebx+18h] / call 0x1F67B0 at 0x1E909F); the same one every match
+survarium::game	world	0x18	obj<survarium::game_world>	the game world, inside the game: game::game constructs it in place (lea eax,[ebx+18h] / call 0x1F67B0 at 0x1E909F); the same one every match; its match (+4D4Ch, a counted reference) is 0 from the constructor (0x1F68A2), set at 0x1F9766 and 0 again at 0x1F8B64, for a live and a replay match alike
 survarium::game	options	0x57F4	obj<survarium::game_options>	the main menu, inside the game (activate_main_menu 0x1EDBD6 lea eax,[esi+57F4h]; game_world::on_deactivate 0x1F9567)
 survarium::game_options	shown	0x44	u8	the main menu shown: game_options::activate sets it (0x200F86), deactivate clears it (0x201067); each returns at once when it is so already
 survarium::game_options	game	0x34	ptr<survarium::game>	the game (game_options::activate 0x200F83; game_options_interface's game is this field, +30h of +4)
@@ -823,3 +824,81 @@ survarium::login_menu	game	0x9C	ptr<survarium::game>	the game (set_status 0x21EE
 survarium::login_status_frame	begin	0x18	ptr<u8>	set_status's status text {begin +18h, cursor +1Ch, end +20h} by ESP at 0x21F217: its first byte, from which 0x21F730 shows it (0x21F222)
 survarium::login_status_frame	cursor	0x1C	ptr<u8>	set_status's status text {begin +18h, cursor +1Ch, end +20h} by ESP at 0x21F217 (made at 0x21EECB..0x21EEED over the 200h bytes at +24h): the cursor, at the text's zero (0x21F3B4)
 survarium::login_status_frame	end	0x20	ptr<u8>	the text's end, its buffer's last byte + 1 (esp+224h, 0x21EECF)
+survarium::player_params_modifiers_container	artefact_ranks	0xA0	f32	modifier 40 artefact_power (no getter call, no code reference to its name, no config sets it): the artefact tree's packed skills; artefact-skills.md
+survarium::artefact	vtable	0x0	ptr<survarium::medical_vtable>	an inventory slot's artefact's (core) virtual table: its +80h enable_active names the kind (Onyx 0x3128C0, Lifebone 0x312250)
+survarium::image	onyx_active	0x3128C0	u32	artefact_onyx_core::enable_active_effects (vtable +80h; abi_inputs 0x3128C0)
+survarium::player	stamina	0x6C0	obj<survarium::player_stamina>	the embedded stamina (ctor 0x2D6E5C, tick 0x2D8FBC lea eax,[edi+6C0h])
+survarium::player_stamina	maximum	0x0	f32	the most stamina: player_stamina::regenerate clamps current to it (0x329925 movss xmm1,[edi])
+survarium::player_stamina	current	0x6C	f32	the stamina now, 0..maximum (regenerate writes it at 0x329938 / 0x32994F)
+survarium::spring_reload_frame	spring	0x4	ptr<survarium::skill_spring>	artefact.spring_reload's argument (by the site ESP, the return address at +0): the Spring whose passive is linked
+survarium::artefact_fire_frame	artefact	0x4	ptr<survarium::artefact>	artefact.fire's first argument (by the site ESP, the return address at +0): a copy patch 54's press would fire (state 3, cooldown 0)
+survarium::artefact_fire_frame	fires	0x8	u32	its second: pushed 1; 0 written for a copy past the 4 of its kind that count for its holder (it does not fire and stays ready)
+survarium::skill_spring	item	0x0	obj<survarium::item>	the Spring's inventory item (its inventory +250h, holder +174h)
+survarium::skill_spring	passive_reload	0x3E4	f32	Spring II's passive reload node's value (patch 54's node at +3D8h, list 13; the object grown to 3F8h)
+survarium::skill_spring	active_reload	0x3F4	f32	Spring II's active reload node's value (patch 54's node at +3E8h, list 13)
+survarium::image	engine_world	0x1F1D310	obj<vostok::engine::engine_world_slot>	the engine world's global: set by the engine's run at 0x1881A (mov [1F1D310h],ebp), 0 again at 0x1898F; message_processor reads its game at 0x18359
+vostok::engine::engine_world_slot	world	0x0	ptr<vostok::engine::engine_world>	the engine world (0 before the engine runs and after)
+vostok::engine::engine_world	game	0x2D0	ptr<survarium::game>	the game: 0 from the constructor (0x138D6), the game module's factory's result at 0x19E58; message_processor calls its slot 44h (game::is_text_input_focused 0x1EE7C0, ECX the game, its +586Ch) through it at 0x1835F
+survarium::medical_pool	name	0x80	ptr<u8>	the part's name, a C string (find_pool 0x2E58C0 compares it; body_part::regenerate hands it to each regeneration modifier at 0x32A505)
+survarium::artefact	spring	0x0	obj<survarium::skill_spring>	itself as a Spring: only after its vtable's enable_active is Spring's (0x3118D0)
+survarium::artefact	lifebone	0x0	obj<survarium::skill_lifebone>	itself as a Lifebone: only after its vtable's enable_active is Lifebone's (0x312250)
+survarium::artefact	onyx	0x0	obj<survarium::skill_onyx>	itself as an Onyx: only after its vtable's enable_active is Onyx's (0x3128C0)
+survarium::skill_spring	first_node	0x340	obj<survarium::modifier_node>	its config's five native nodes (the loader 0x33ACF0, ESI = +340h): +340h and +350h the passive's (movement 4; aim 49, patch 54's), +360h, +370h, +380h the active's (4, 3, 19)
+survarium::skill_spring	added_node	0x3B8	obj<survarium::modifier_node>	patch 54's four nodes (artefacts_026g.asm): +3B8h and +3C8h the active's (aim 49, stopping 42), +3D8h the passive's reload (13), +3E8h the active's reload (13)
+survarium::modifier_node	index	0x8	u32	the index of the kit list it is linked into (+110h + index x 14h; the getter 0x2D5AE0 sums a list's values)
+survarium::modifier_node	value	0xC	f32	its value (0x2D5B20 adds it)
+survarium::modifier_node	size	0x10	size	a node {prev, next, index, value} (the loader writes one each 10h from +340h)
+survarium::modifier_node	next	0x4	ptr<survarium::modifier_node>	the next node of its list, 0 after the last (the getter's loop 0x2D5B25)
+survarium::modifier_list	first	0x4	ptr<survarium::modifier_node>	a kit list's first node, 0 for none (apply_modifier 0x2D5B0C, apply_modifiers 0x2D5C46)
+survarium::modifier_list	size	0x14	size	one of a kit's 68 node lists, 14h each from its modifiers' +110h (0x2D5AF2 lea edi,[eax+ecx*4+110h], ecx index x 5)
+survarium::player_params_modifiers_container	lists	0x110	obj<survarium::modifier_list>	its node lists, the index's at +110h + index x 14h (the getters 0x2D5AE0, 0x2D5BC0; a Spring links its nodes there)
+survarium::skill_lifebone	regeneration	0x354	ptr<survarium::lifebone_regeneration>	its passive's records begin, one a part (enable_passive_effects 0x3121F0: each record's part found by its name, a node at +490h + i x 28h linked into the part's regeneration modifiers +2E8h)
+survarium::skill_lifebone	regeneration_end	0x358	ptr<survarium::lifebone_regeneration>	their end (34h a record, 0x3121BC)
+survarium::lifebone_regeneration	name	0x0	ptr<u8>	the part's name (enable_passive_effects 0x3121F6 finds the part by it)
+survarium::lifebone_regeneration	rate_add	0x1C	f32	the callback 0x312590 (body_part::regenerate's rate, delay, limit at 0x32A530): rate = (rate + this) x rate_mul
+survarium::lifebone_regeneration	rate_mul	0x20	f32	the rate's factor
+survarium::lifebone_regeneration	delay_add	0x24	f32	seconds: delay = (delay + this x 1000 (0xA746B8)) x delay_mul, truncated (0x3125AD..0x3125E7)
+survarium::lifebone_regeneration	delay_mul	0x28	f32	the delay's factor
+survarium::lifebone_regeneration	limit_add	0x2C	f32	limit = (limit + this) x limit_mul (0x3125EA..0x3125FD)
+survarium::lifebone_regeneration	limit_mul	0x30	f32	the limit's factor
+survarium::lifebone_regeneration	size	0x34	size	a record (0x3121CD's /34h, 0x312232 add ebp,34h)
+survarium::skill_onyx	parts	0xC90	ptr<survarium::onyx_part>	its config's protected parts begin (enable_passive_effects 0x312860: each part found by its name gets a protector of protect 0x312BF0 at +340h + i x 70h, linked into the part's protectors +0BCh)
+survarium::skill_onyx	parts_end	0xC94	ptr<survarium::onyx_part>	their end (1Ch a part, the constructor 0x31273C)
+survarium::onyx_part	name	0x0	ptr<u8>	the part's name (enable_passive_effects 0x31286A)
+survarium::onyx_part	size	0x1C	size	a part's record (0x312736..0x31274B: /1Ch)
+survarium::skill_onyx	hit_kind	0xEE8	u32	the hit type it protects against (protect 0x312BF0 compares the hit's +1Ch)
+survarium::skill_onyx	passive_damage_add	0xEEC	f32	its passive (state 3): damage = (damage + this) x passive_damage_mul (0x312C10)
+survarium::skill_onyx	passive_damage_mul	0xEF0	f32	the passive's damage factor
+survarium::skill_onyx	passive_piercing_add	0xEF4	f32	piercing = (piercing + this) x passive_piercing_mul (0x312C2C)
+survarium::skill_onyx	passive_piercing_mul	0xEF8	f32	the passive's piercing factor
+survarium::skill_onyx	active_damage_add	0xEFC	f32	its active: damage - min(absorb, damage - (damage + this) x active_damage_mul) (0x312C47..0x312C99)
+survarium::skill_onyx	active_damage_mul	0xF00	f32	the active's damage factor
+survarium::skill_onyx	active_piercing_add	0xF04	f32	piercing = (piercing + this) x active_piercing_mul (0x312CA1)
+survarium::skill_onyx	active_piercing_mul	0xF08	f32	the active's piercing factor
+survarium::skill_onyx	absorb	0xF18	f32	the most an active takes off a hit: absorb_total (+0F0Ch) from enable_active (0x312934), only read by protect (0x312C77)
+survarium::damage_cell	value	0x0	f32	a hit's damage or piercing, a float the caller owns (body_part_parameters::hit_by_type's &damage EBX, &piercing ESP+144h)
+survarium::protectors_frame	piercing	0x144	ptr<survarium::damage_cell>	hit_by_type's &piercing argument by the ESP of its protectors' loop (0x32A042 mov edx,[esp+144h], 0x32A058)
+survarium::image	spring_active	0x3118D0	u32	artefact_spring_core::enable_active_effects: +80h of the Spring core vtable 0xA1558C (its constructor 0x31185C writes it)
+survarium::generic_anomaly_core	containers_begin	0x140	u32	its artefact containers' vector begin (spawn_artefact 0x31B70B: (end - begin) / 4 containers); equal to the end: no container, it never spawns an artefact
+survarium::generic_anomaly_core	containers_end	0x144	u32	its artefact containers' vector end (spawn_artefact 0x31B70B)
+survarium::generic_anomaly_core	pool_count	0x1B4	u32	its pool's artefacts (register_artefacts 0x31B8EB, 0x31B97F): the cook makes count of each config artefacts entry, registered in that order
+survarium::keeper_register_frame	anomaly	0x4	ptr<survarium::generic_anomaly_core>	register_artefacts 0x31B8E0's first argument (by the site ESP, the return address at +0): the anomaly whose pool it registers
+survarium::keeper_register_frame	world	0x8	ptr<survarium::core_world>	its second: the core world, whose artefact vector (+18940h) the pool is pushed onto, each id its index then
+survarium::artefact	default_count	0x27C	u16	the count the anomaly's spawn gives it (artefact_base::on_spawned 0x3134C0: 0xFFFF is 1); set by the constructor from its config (0x3130C4)
+survarium::artefact	cooldown_left	0x28C	u32	ms of its cooldown left (tick 0x313213 counts it down outside state 4; action 0x313313 needs 0); the spawn sets 0 (0x313518)
+survarium::artefact	active_since	0x2A0	u32	the time its active began: the constructor writes u32::MAX (0x313059), action writes the time (0x313333); read only in state 4 (deserialize 0x313860), in every world in every state (serialize 0x313735, deserialize 0x3137F7), no other code writes it; patch 109 writes 0 at a Keeper gift (its mark: given)
+survarium::player	damage_zones	0x2E4	u8	the damage zones it is inside: damage_zone_core's enter adds one (inc 0x319967), its leave takes one (dec 0x31980B); a hit with an owner reads it (0x332833) before incoming_weapon_damage_in_anomaly (modifier 41) multiplies the damage
+survarium::player	presenters	0xF478	ptr<survarium::player_presenters>	where the places' third-person presenters are held (player::initialize 0x1F256D: +22CCh + place x 220h)
+survarium::player_presenters	third_person	0x22CC	obj<survarium::effect_presenter_holder>	each place's third-person presenter's holder, 220h apart (player::initialize 0x1F2579; the camera's detach gives it back, 0x242D06)
+survarium::effect_presenter_holder	size	0x220	size	the places' holders step 220h (player::initialize 0x1F2573)
+survarium::effect_presenter_holder	presenter	0x0	ptr<survarium::third_person_game_effects_presenter>	the presenter it holds (a place's holder: its third-person presenter, made by 0x297570)
+survarium::third_person_game_effects_presenter	player	0x10	ptr<survarium::player>	the player its particles play on (its particle presenter +8h's +8h; set_player 0x297750 writes it and the sound presenter's +0C0h)
+survarium::game_effect_player	first	0x2C	ptr<survarium::medical_effect_node>	the first of the effects it plays (add 0x2DE090 links a new one after +30h's, remove 0x2DE350 walks them from here)
+survarium::game_effect_player	presenter	0x38	ptr<survarium::effect_presenter_holder>	where the effects it plays are presented: the holder set_effect_presenter 0x1F3740 last gave (its owner player's +390h; the owner's own default +3A8h before any)
+survarium::medical_effect_node	next	0x4C	ptr<survarium::medical_effect_node>	the next effect of its player (0 the last; add 0x2DE32E, remove 0x2DE364)
+survarium::medical_effect_node	calculator	0x30	ptr<survarium::game_effect_listener>	the time calculator it was added with (add's last argument, the node's constructor 0x2DD7C3)
+survarium::game_effect	resource	0x10	ptr<survarium::medical_effect_resource>	the game effect resource that emitted it (game_effect_resource::emit 0x329072)
+survarium::medical_effect_resource	references	0xD0	u32	its reference count (locked; damage_zone_core_cook::process_resources takes one, 0x3113BF, and gives it back through 0x0E0210 at 0, 0x311438)
+vostok::resources::queries_result	effect	0x12C	ptr<survarium::medical_effect_resource>	the first query's resource, a game effect resource for a class 109 request (damage_zone_core_cook::process_resources 0x311396 reads its own result there)
+survarium::game_effect_listener	owner	-0x394	obj<survarium::player>	the player whose own effect calculator (+394h) it is: meaningful only for that one (hit effects are played with it, 0x32A37A; Forest Protection's glow too)
+vostok::query_result	effect	0x0	ptr<survarium::medical_effect_resource>	the result's resource, a game effect resource for a class 109 request (damage_zone_core_cook::process_resources reads its own result there, 0x311396)

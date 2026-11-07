@@ -899,6 +899,7 @@ va	name	source	ret_cleanup	result
 0x001f28e0	survarium::player::on_player_death	manual	4	none; remove_alive(this, 1), then the inventory, +33Eh := 1, +33Dh := 0
 0x001f3480	survarium::player::update_camera	manual	4	
 0x001f37a0	survarium::player::set_head_visibility	manual	4	
+0x001f3740	survarium::player::set_effect_presenter	manual	0	void; the old holder's presenter cleared (vfn +4), the new one's set_player (vfn +20h) to ESI, and on a change the effect player's presenter (+390h) and its effects presented again (0x2DE560)
 0x001f3de0	vostok::network_core::buffer_writer::w<unsigned char>	manual	20	
 0x001f48a0	vostok::network_core::buffer_writer::w<unsigned int>	manual	20	
 0x001f6d50	survarium::game_world::register_cooks	manual	0	
@@ -1320,8 +1321,6 @@ va	name	source	ret_cleanup	result
 0x00318360	survarium::timelimit_rule_core::rule_completed	manual	4	
 0x003190c0	survarium::damage_zone_core::damage_zone_core	manual	0	
 0x003193f0	survarium::damage_zone_core::serialize	manual	8	
-0x003193f0	survarium::damage_zone_core::serialize	manual	8	
-0x00319470	survarium::damage_zone_core::deserialize	manual	12	
 0x00319470	survarium::damage_zone_core::deserialize	manual	12	
 0x00319500	survarium::damage_zone_core::load	manual	4	
 0x0031ad70	survarium::generic_anomaly_core::~generic_anomaly_core	manual		
@@ -1927,7 +1926,6 @@ va	name	source	ret_cleanup	result
 0x00317f10	survarium::timelimit_rule_core::tick	manual	12	
 0x000f6b10	vostok::configs::binary_config_value::operator[]	manual	0	EAX: the child value
 0x000f6c00	vostok::configs::binary_config_value::value_exists	manual	0	AL: 1 when the key is there
-0x0007ab30	vostok::network_core::mutable_buffer::resize	manual	4	
 0x00511600	Scaleform::GFx::Movie::Invoke	manual	16	AL: invoked
 0x002375c0	survarium::game_world_ui::show_parametrized_message	manual	16	
 0x000725e0	vostok::math::create_rotation	manual	0	[ESI]: float4x4, rows Rx(-x) Ry(-y) Rz(-z) (v * M)
@@ -2163,6 +2161,8 @@ va	name	source	ret_cleanup	result
 0x002f8970	survarium::static_collision::remove	manual	4	void; vtable+4: its body (+4Ch) out of the physics world, freed, +4Ch 0
 0x002de7f0	survarium::game_effect_player::stop	manual	0	EAX the first effect it stopped or 0; every effect of the list (+24h, each +4Ch the next) stopped, +28h 0
 0x002de090	survarium::game_effect_player::play	manual	20	void; plays the effect (0x2DE100 with EDI and the five arguments)
+0x002de560	survarium::game_effect_player::represent	manual	4	void; its presenter (+38h) cleared (vfn +4), then each effect it plays (+2Ch on) presented again at its time
+0x002de350	survarium::game_effect_player::remove	manual	0	void; the node playing the effect (walked from +2Ch, each +4Ch the next) set to state 2 (+44h), its stop sent (0x2DE3A0), the list swept (0x2DE750); damage_zone_core 0x31A255 stops its inside effect so
 0x00285fa0	survarium::render_visual::insert	manual	4	none
 0x00285fe0	survarium::render_visual::remove	manual	4	none
 0x00291720	survarium::object_light::load	manual	12	none
@@ -2376,6 +2376,10 @@ va	name	source	ret_cleanup	result
 0x00397040	vostok::animation::mixing::n_ary_tree_serializer::save_floats	manual	4	none; writes the floats (+1014h..+1018h) as decode_floats_impl 0x3A9720 reads them: a 1-bit indexed form, the 10-bit count, then the 32-bit values, or the unique count, the sorted unique values (stlp_std::unique 0x397810, ucomiss equality) and each value's position (stlp_std::find 0x397880): a NaN equals none, so its position is the unique count
 0x00397810	stlp_std::unique<float *>	manual	0	EAX = the new end; equality by ucomiss (a NaN is kept each time)
 0x00397880	stlp_std::find<float *,float>	manual	0	EAX = the first element equal (ucomiss) to [ESI], or EDI (the end) for none: always the end for a NaN
+0x00332810	survarium::body_part_parameters::apply_hit_modifiers	manual	8	the damage in place: 0x332890 first; then, when the hit has an owner (hit+20h) and the victim player ([[model+3B8h]]+3B0h) has player+2E4h above 0 (inside a damage zone), D x max(0, 1 + M41 incoming_weapon_damage_in_anomaly) (apply_modifier 0x33286A); hit_by_type 0x32A01B calls it before the protectors and armour
+0x00332890	survarium::body_part_parameters::apply_anomaly_damage_modifier	manual	4	the damage in place: a hit whose type (+1Ch) is in table 0x92075C (4..7: toxic, radiation, fire, shock) is D x max(0, 1 + M8 anomaly_damage) (0x3328E2), a percentage before armour
+0x002d5bc0	survarium::player_params_modifiers_container::apply_modifiers	manual	12	XMM0: S = the sum over the pairs {index, weight} of (the kit's float + its list's nodes) x weight; B + S when the first pair's index is additive (table 0x927E08, 0x2D5BD4), else B x max(0, 1 + S)
+0x00312590	survarium::artefact_lifebone_core::regeneration_modifier	manual	8	the frame {rate, delay, limit} in place, from a passive record: rate (r + [+1Ch]) x [+20h]; delay (d as unsigned + [+24h] x 1000) x [+28h], fistp truncated, its low 32 bits; limit (l + [+2Ch]) x [+30h]
 0x002d21e0	survarium::game_world_core::tick_events	manual	12	none; ends the step at the next 50 ms boundary, the next input's time (its node +1BCh) or the limit (entry ESP+12), whichever is first (0x2D2264..0x2D22B9), and runs atomic_tick (0x2D1E20, its only caller) only for a step of 1 ms or more: a 0 ms step is skipped (mov eax,edi / sub eax,[ebx+18FC0h] / je, 0x2D22D6..0x2D22DE), so no delegate list (assign_physics_transform's speed, the physics) ever sees dt 0
 0x0007b7f0	vostok::physics::round_up	manual	0	none; [ESI] := int(v x 1000 + 0.5) x 0.001 (x87 products; the int from 0x1E800, a conversion by the float's bits): v to 0.001. A NaN, an infinity or a value past 2^31/1000 gives a small finite value, not v (Unicorn: 0FFC00000h -> -0.002, 7FC00000h and +inf -> 0.001, -inf -> -0.001, 2^31 -> 0.5); player_step's end rounds +40h..+48h and +2C710h..+2C718h with it (0x7C79F..0x7C7D2), not the position +0B0h
 0x0007b840	vostok::physics::bullet_character_controller::get_corrected_walk_vector	manual	4	[entry ESP+4] := the walk vector +20h, or, when the walk is not under 1e-5 squared (0x9CBA48) and the supporting normal +2C710h's up part is below [21E51D8h], the walk less its part into the normal's horizontal direction (0x7AC50) when the walk goes into it. That direction is normalised as 1/sqrt(|n_h|^2) with no zero test (0x7B97C..0x7B983): a vertical normal (0, +-1, 0) gives inf x 0 = NaN, but the following comiss 0,dot / jbe (0x7B9DD) takes the unordered branch and returns the walk as it is, so the NaN goes no further
@@ -2383,3 +2387,13 @@ va	name	source	ret_cleanup	result
 0x002a9ef0	survarium::sound_game_effect_presenter::on_event	manual	12	none; kind 0 adds an entry (0x2AA870); kind 1 searches the entries for the effect (index -1 at 0x2AA155 when none) and erases [begin + 14h x index, +14h) (0x2AB420 at 0x2AA1EB): for -1 the range is the presenter's own +10h..+24h (the seed taken for an effect reference: counted down and freed when its +4 was 1; the capacity pointer's +28h counted down), the 2026-11-06 crash, patch 117 returns at 0x2AA1CD; any other kind updates the entry found (its +0Ch, the volume), [esp+10h] 0 when none and read at 0x2AA0BD, patch 117 returns there
 0x002de350	survarium::game_effect_player::stop	manual	0	none; finds the playing item whose +0 is ECX in the list +2Ch (next at +4Ch; none: a null read at 0x2DE36D), deactivates it (its vtable +20h), sets its state +44h to 2 and sends its events to the presenter (0x2DE3A0)
 0x0031a210	survarium::damage_zone_core::stop_effect	manual	0	none; the player's place (+114h) slot at ECX+1D8h + 0Ch x place {effect, +4, +8}: an effect there is stopped on the player's game_effect_player (+358h, game_effect_player::stop 0x2DE350) and the slot reset (+4 0, +8 -1); called at 0x31A342 by 0x31A300, a loop over the objects the zone's collision sensor saw leave (collision_sensor::notify_and_erase_left_objects 0x307CF0 -> 0x3198C5 -> 0x31A300), a player removed from the world too
+0x000fe5e0	vostok::setup_floating_point_control	manual	0	none; behind the option at 0xA86BD0 (0x145C0): _controlfp 53-bit precision and round to nearest, MXCSR rounding cleared, _controlfp(_DN_FLUSH), then MXCSR |= 8000h (FTZ): denormals flushed on its thread
+0x00246380	survarium::inventory_item::cast_artefact	manual	0	EAX = ECX (an identity cast: vfn +54h/+58h of the artefact vtables 0xA05F44, 0xA05FE4, 0xA06084)
+0x002fca50	survarium::inventory::on_holder_death	manual	0	none; +178h set: +174h vfn +4 (0); then each of the 23 slots' item vfn +20h (degrade_per_death); removes nothing: artefacts stay in their containers
+0x002ffc40	survarium::inventory_item::degrade_per_death	manual	0	none; not a stack (config +22Ah 0): condition (+260h, f32) -= min(+234h, condition) in SSE, so a denormal is zeroed under DAZ/FTZ
+0x002ffc80	survarium::inventory_item::degrade_per_use	manual	0	none; as degrade_per_death with +238h
+0x0021be50	survarium::network_client::on_match_disconnected	manual	4	none; the match link's disconnect callback (connect_to_match 0x21BFE6 installs it through the link's vtable +14h): it clears that callback (+14h with an empty functor), then calls this->close_current_match(the reason) through the vtable +58h (0x21BE9A)
+0x003fdf30	vostok::network_core::udp_match_connection::instant_disconnect	manual	4	none; the connection's state +154h := 3, every seq 0FFh, the trackers and both channel trees reset, then a tail call of the disconnect callback +0B0h with the reason, when one is set (0x3FDFD7..0x3FDFF3)
+0x002717e0	survarium::lobby_client::discard_playing_order	manual	8	none; sends 31h to the lobby: the order u32 (lobby client +1E57A8h), then 0FFh for a true bool, 0 for false (neg / sbb, 0x27182F)
+0x00219960	survarium::network_client::lobby_client	manual	0	EAX = ECX + 1E0h, the lobby client inside the network client (vtable 0x9FFB14 +3Ch); a plain ret, so a caller's pushed argument stays for the next call (0x27A935, 0x27C753)
+0x0027b4b0	survarium::network_client::unload	manual	0	none; vtable 0x9FFB14 +28h, called by game_world::unload (0x1F8B9F): releases +4, +8 and the match core +1F1C40h, +1F1C44h := 0FFh, the message state +1F1C64h := 0

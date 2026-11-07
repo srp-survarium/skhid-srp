@@ -395,10 +395,11 @@ def main():
     calls = game.callback(bus_function + 8, results(SCENE))
     main_q = calls[0] if calls else None
     check(game.read(SCENE + 0xD0) == 2 and len(calls) == 1 and main_q[1:4] == ("music/main_theme", 256, 1)
-          and struct.unpack_from("<4xI", main_q[4])[0] == 0 and struct.unpack_from("<8xII", main_q[4])[1] == 2
+          and struct.unpack_from("<4xI", main_q[4])[0] == 0 and struct.unpack_from("<8xII", main_q[4])[1] == 3
           and main_q[6] == 0,
           "the bus arrives (its scene taken: one reference more); the waiting main theme asked: "
-          "music/main_theme (class 256), tag 2, no user data")
+          "music/main_theme (class 256), tag 3 (the first track's, after the bus's 0 and the game effect's 1), "
+          "no user data")
     half = lambda at: struct.unpack("<3H", game.read(at, 6))
     check(game.read(SCENE + 0x2FA, 1) == b"\x01" and half(SCENE + 0x120) == (0, 0, 0)
           and half(SCENE + 0x128) == (0, 0, 0x3C00) and half(SCENE + 0x130) == (0, 0x3C00, 0),

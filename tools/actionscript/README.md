@@ -26,6 +26,11 @@ python3 tools/actionscript/flash_tree.py original srp-026g/flash/<movie> <archiv
   A picture (a render, a capture) is `bitmaps/<class>.jpg` instead, a baseline JPEG: the
   build adds the file whole as a DefineBitsJPEG2, as compact as the game's own map renders
   (JPEG, DefineBits); a progressive JPEG is refused (Flash does not read it).
+- A character the original places wrongly is a row of `placements.tsv` beside `src/`
+  (`sprite frame depth from to`, tab-separated, `#` comments): in that DefineSprite's frame (from 1)
+  the PlaceObject2 at that depth places `to` where the original places `from`; a row that matches no
+  such placement, or names a character the movie lacks, fails the build. The lobby's skills tabs:
+  the selected icon's fifth frame placed a campfire, not the leaf.
 - **Tables.** Data the movie's code reads, which other tools read too (the
   lobby's shop filters, which the wiki's icons take), is a table
   `tables/<package path>/<Class>.tsv` beside `src/`: the build writes the
