@@ -2438,6 +2438,11 @@ pub(crate) fn real_bot_cost() {
                 game.team_hits,
                 game.team_kills,
             );
+            // [A318] Whether the reckoning takes the client's walk tick in the bench's matches (it did not before the world's walker).
+            let (ground, hard, client, moved) = crate::v026g::bots::body::client_steps::all();
+            eprintln!(
+                "client_step so far: reckoned ground steps {ground}, hard {hard}, client steps {client}, moved otherwise {moved}"
+            );
         }
     }
 }
