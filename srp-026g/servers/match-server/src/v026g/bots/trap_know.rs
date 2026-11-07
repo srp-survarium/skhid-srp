@@ -39,6 +39,8 @@ use super::view::Place;
 
 /// A world's trap is the bot's promise if it lies this near, metres.
 pub const MATCH_M: f32 = 1.5;
+/// [A324] The client's placing reach, metres: the trap item's `max_deploy_distance` (`[set+0x284]`, `docs/notes/bear_traps.md`).
+pub const DEPLOY_M: f32 = 2.0;
 /// ... and was placed within this of the release, ms.
 pub const MATCH_MS: u32 = 2_000;
 /// A promise no world has shown this long after the release is dropped, ms.
@@ -161,7 +163,7 @@ impl TrapList {
 
     /// A world of `world_ms` showed `found`. Returns where the team's traps
     /// went off since the last world (to *fired*).
-    pub fn sync(&mut self, world_ms: u32, found: &[PlacedTrap]) -> Vec<Vec3> {
+    pub fn sync(&mut self, world_ms: u32, found: &[PlacedTrap], match_m: f32) -> Vec<Vec3> {
         let mut fired = Vec::new();
         let mut used = vec![false; found.len()];
         let mut changed = false;
@@ -204,7 +206,7 @@ impl TrapList {
                 .filter(|(i, f)| {
                     !used[*i]
                         && f.placed_ms.abs_diff(released) <= MATCH_MS
-                        && Vec3::from_array(f.position).distance_xz(trap.at) <= MATCH_M
+                        && Vec3::from_array(f.position).distance_xz(trap.at) <= match_m
                 })
                 .min_by(|a, b| {
                     let d = |f: &PlacedTrap| Vec3::from_array(f.position).distance_xz(trap.at);
@@ -426,11 +428,11 @@ mod tests {
         assert_eq!(list.standing_count(), 1);
         let v = list.version();
         // A world of before the release shows nothing: still waited for.
-        list.sync(99_000, &[]);
+        list.sync(99_000, &[], MATCH_M);
         assert_eq!(list.standing_count(), 1);
         // A world shows it, a hand's breadth off, placed 300 ms after the release.
         let exact = Vec3::new(30.1, 0.0, 10.05);
-        list.sync(103_000, &[world_trap(exact, TrapState::Armed, 100_300)]);
+        list.sync(103_000, &[world_trap(exact, TrapState::Armed, 100_300)], MATCH_M);
         let trap = list.all()[0];
         assert_eq!(
             (trap.phase, trap.at, trap.placed_ms),
@@ -439,13 +441,13 @@ mod tests {
         assert_eq!((list.confirmed, list.missed), (1, 0));
         assert!(list.version() > v);
         // Fired: spent, no longer standing, still known.
-        list.sync(110_000, &[world_trap(exact, TrapState::Fired, 100_300)]);
+        list.sync(110_000, &[world_trap(exact, TrapState::Fired, 100_300)], MATCH_M);
         assert_eq!(
             (list.all()[0].phase, list.standing_count()),
             (Phase::Fired, 0)
         );
         // Gone from the next world: gone.
-        list.sync(120_000, &[]);
+        list.sync(120_000, &[], MATCH_M);
         assert!(list.all().is_empty());
     }
 
@@ -456,14 +458,14 @@ mod tests {
         list.promise(3, at, 100_000);
         // A trap elsewhere (a human's) does not confirm it, and is not kept.
         let foreign = world_trap(Vec3::new(50.0, 0.0, 10.0), TrapState::Armed, 100_100);
-        list.sync(105_000, &[foreign]);
+        list.sync(105_000, &[foreign], MATCH_M);
         assert_eq!((list.all().len(), list.confirmed), (1, 0));
         // One near but placed long before is not it either.
         let old = world_trap(at, TrapState::Armed, 60_000);
-        list.sync(110_000, &[old]);
+        list.sync(110_000, &[old], MATCH_M);
         assert_eq!(list.all().len(), 1);
         // Not shown within the confirming time: dropped.
-        list.sync(100_000 + CONFIRM_MS + 1, &[]);
+        list.sync(100_000 + CONFIRM_MS + 1, &[], MATCH_M);
         assert!(list.all().is_empty());
         assert_eq!(list.missed, 1);
     }
@@ -478,7 +480,7 @@ mod tests {
             world_trap(b + Vec3::new(0.2, 0.0, 0.0), TrapState::Armed, 100_300),
             world_trap(a + Vec3::new(0.2, 0.0, 0.0), TrapState::Armed, 100_100),
         ];
-        list.sync(104_000, &found);
+        list.sync(104_000, &found, MATCH_M);
         assert_eq!(list.confirmed, 2);
         let by = |p: Place| list.all().iter().find(|t| t.by == p).unwrap().at;
         assert!(by(1).distance_xz(a) < 0.5 && by(2).distance_xz(b) < 0.5);
@@ -666,23 +668,23 @@ mod tests {
         let mut list = TrapList::default();
         list.promise(3, at, 100_000);
         assert!(
-            list.sync(103_000, &[world_trap(at, TrapState::Armed, 100_300)])
+            list.sync(103_000, &[world_trap(at, TrapState::Armed, 100_300)], MATCH_M)
                 .is_empty()
         );
         assert_eq!(
-            list.sync(110_000, &[world_trap(at, TrapState::Fired, 100_300)]),
+            list.sync(110_000, &[world_trap(at, TrapState::Fired, 100_300)], MATCH_M),
             vec![at]
         );
         // Once: the next world still showing it fired says nothing.
         assert!(
-            list.sync(112_000, &[world_trap(at, TrapState::Fired, 100_300)])
+            list.sync(112_000, &[world_trap(at, TrapState::Fired, 100_300)], MATCH_M)
                 .is_empty()
         );
         // A promise first shown already fired is a trap that went off.
         let mut list = TrapList::default();
         list.promise(3, at, 100_000);
         assert_eq!(
-            list.sync(105_000, &[world_trap(at, TrapState::Fired, 100_200)])
+            list.sync(105_000, &[world_trap(at, TrapState::Fired, 100_200)], MATCH_M)
                 .len(),
             1
         );

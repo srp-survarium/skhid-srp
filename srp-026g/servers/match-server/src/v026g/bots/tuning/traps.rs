@@ -52,8 +52,15 @@ pub struct TrapTuning {
     /// soft ring; where that leaves no way (a corridor), the search falls back to `FIELD_M`. At the defaults the habit caught its own
     /// side as often as the enemy (A318 check, every bench's OFF arm: 123 own vs 106 enemy catches): 72 % were mates, most 10 s or
     /// more after the press, walking a route past a known trap with only 0.75 m against a 0.6 m trigger and the body's drift. A bot
-    /// already within `hard_m` of a trap (its placer) may still take the floors farther from it than its feet. Off by default.
+    /// already within `hard_m` of a trap (its placer) may still take the floors farther from it than its feet. [A324] On by
+    /// default at the size the client and the measured walk give (`KeepOff::hard_m`): of 23 own-team catches on the farming-camper
+    /// probe (seed 5) 9 were routes passing a known trap 0.62-0.83 m off.
     pub keep_off: Option<KeepOff>,
+    /// [A324] How a world's trap confirms a bot's promise (`trap_know::TrapList::sync`). Reach by default, kept right
+    /// (`KEPT_RIGHT`): on the farming-camper probe 3 of 8 promises dropped unconfirmed had a real trap placed at the very release
+    /// millisecond 1.50-2.11 m away, which then stood unknown to the team (5 of 23 own-team catches were of traps the victim's
+    /// team did not know).
+    pub promise_match: PromiseMatch,
     /// [A145, design-p1c §9] A trap on the floor a camper stood on when the team's Breach (in its hold) or its K2 flanker
     /// killed him: the job's bot with a trap nearest his death point is wished to put it there when its route passes the
     /// point or it stands by it (no detour, no new goal), with the gates of any trap and a wider guard for mates. Live 6+
@@ -204,14 +211,42 @@ impl Default for DefeatedTuning {
 #[derive(Clone, Copy, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(default, deny_unknown_fields)]
 pub struct KeepOff {
-    /// The hard disc round each known trap of the team, metres: the trigger (0.6 m from a foot) plus the body's usual drift off
-    /// its route (most under 0.7 m in A292).
+    /// The hard disc round each known trap of the team, metres: where the body touches the trap's sensor plus the body's walk off
+    /// its route. [A324] Contact 0.67 m = the sensor cylinder's radius 0.25 m (`docs/notes/bear_traps.md`) + the body capsule's
+    /// radius 0.38 m (`mapdata` `grid/controlled.rs`: startup.cfg's stand size 0.76 x 1.8) + the controller's 0.04 m move margin
+    /// (`mapdata` `controller/tick.rs`, the exe's under Unicorn); the live trigger, 0.6 m from a foot point, agrees. Walk 0.80 m =
+    /// the 90th percentile of the feet off the route of the bots walking one (261,076 samples, farming-camper cell seed 5, tip
+    /// dab73194; median 0.25, p95 1.25).
     pub hard_m: f32,
 }
 
 impl Default for KeepOff {
     fn default() -> Self {
-        Self { hard_m: 1.3 }
+        Self { hard_m: 1.47 }
+    }
+}
+
+/// [A324] How near a promise a world's trap of the same time confirms it (`TrapTuning::promise_match`).
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum PromiseMatch {
+    /// Within 1.5 m of the promise (`trap_know::MATCH_M`): the old rule, which misses a trap the client put down farther from the
+    /// bot's reckoned landing.
+    Near,
+    /// Within the client's reach of it: the promise and the real trap both lie within the item's `max_deploy_distance` (2.0 m,
+    /// `[set+0x284]`, `docs/notes/bear_traps.md`) of the placer's eye, so at most twice that apart; the nearest trap placed within
+    /// `MATCH_MS` of the release is taken.
+    #[default]
+    Reach,
+}
+
+impl PromiseMatch {
+    /// The distance a confirming trap may lie from the promise, metres.
+    pub fn metres(self) -> f32 {
+        match self {
+            Self::Near => super::super::trap_know::MATCH_M,
+            Self::Reach => 2.0 * super::super::trap_know::DEPLOY_M,
+        }
     }
 }
 
@@ -567,7 +602,8 @@ impl Default for TrapTuning {
             route_ahead_m: 12.0,
             on_the_pass: Some(PassTuning::default()),
             at_defeated: None,
-            keep_off: None,
+            keep_off: Some(KeepOff::default()),
+            promise_match: PromiseMatch::Reach,
             at_cleared: None,
             release: TrapRelease::Client,
             camper_job: None,

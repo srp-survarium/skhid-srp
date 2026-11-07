@@ -198,6 +198,7 @@
     "chance": 0.35,
     "enemy_near_m": 50.0,
     "enemy_quiet_s": 4.0,
+    "keep_off": null,
     "min_score": 0.2,
     "on_the_pass": null,
     "press_landing_m": null,

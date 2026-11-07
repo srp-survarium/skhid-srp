@@ -1981,13 +1981,14 @@ impl Bots {
             Vec::new()
         });
         let mut went_off: Vec<(u8, Vec3)> = Vec::new();
+        let matches = [self.tuning_of(0).traps.promise_match.metres(), self.tuning_of(1).traps.promise_match.metres()];
         let rings = [
             (self.tuning_of(0).traps.ring_m, self.tuning_of(0).traps.keep_off),
             (self.tuning_of(1).traps.ring_m, self.tuning_of(1).traps.keep_off),
         ];
         for (team, state) in self.teams.iter_mut().enumerate() {
             if own {
-                let fired = state.knowledge.traps.sync(time, &found);
+                let fired = state.knowledge.traps.sync(time, &found, matches[team & 1]);
                 went_off.extend(fired.into_iter().map(|at| (team as u8, at)));
                 if let Some(tactics) = self.tactics.as_ref() {
                     state.refresh_traps(&tactics.world.grid, rings[team & 1].0, rings[team & 1].1);

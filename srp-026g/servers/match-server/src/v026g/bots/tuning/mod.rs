@@ -211,6 +211,7 @@ pub use traps::FreshRing;
 pub use traps::PassTuning;
 pub use traps::PressClear;
 pub use traps::PressMoving;
+pub use traps::PromiseMatch;
 pub use traps::ReactTuning;
 pub use traps::SensedNear;
 pub use traps::Stayer;
@@ -534,6 +535,7 @@ pub(super) const KEPT_RIGHT: &[&str] = &[
     "/think/goal_off_floor_no_way",
     "/think/stamina_rates",
     "/traps/press_clear",
+    "/traps/promise_match",
     "/traps/release",
     "/traps/sensed_near",
     "/unstick/drop_shut_from_top",
