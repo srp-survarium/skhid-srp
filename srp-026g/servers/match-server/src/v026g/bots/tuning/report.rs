@@ -291,9 +291,7 @@ mod tests {
         for pointer in KEPT_RIGHT.iter().chain(NO_CHEATS) {
             let path: Vec<String> = pointer.trim_start_matches('/').split('/').map(str::to_owned).collect();
             let (section, name) = entry(&path);
-            let shown = all.iter().any(|(s, text)| {
-                *s == section && (*text == name || text.starts_with(&format!("{name}=")) || text.starts_with(&format!("{name}.")))
-            });
+            let shown = all.iter().any(|(s, text)| *s == section && (*text == name || text.starts_with(&format!("{name}="))));
             assert!(shown, "{pointer} is not in the report");
         }
     }
