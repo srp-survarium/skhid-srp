@@ -380,6 +380,7 @@ fn drive_tick_inner(
         urgent: false,
         gait: motor::Gait::Walk,
         floor: motor::Floor::Open,
+        held_short_m: bot.held_short_m,
     };
     if bot
         .jump_watch
