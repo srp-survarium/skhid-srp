@@ -495,7 +495,10 @@ deserialize` 0x32AFE0, read in full, reads a byte `affects_count` and its
 "affects_count buffer overflow" assert FALLS THROUGH in release (`DAT_02260BB7`
 off, `swi(3)` only under a debugger), so `> 8` overflows the fixed `m_affects
 [8]` in the following loop -- the validator's `affects <= 8` refuses that world
-first. The inventory reader 0x2FE550, also read in full, indexes the weapon
+first. The player head `base_player::deserialize` 0x2DB490, read in full, reads fixed
+angle/position/state fields then the byte-indexed weapon table and the place-
+indexed tables (`[+0x115]*0x704`, place < 20) and calls the sub-readers above;
+no unbounded packet count or index. The inventory reader 0x2FE550, also read in full, indexes the weapon
 table `[+0x18B4C]` and the artefact table `[+0x18940]` by a byte, null-checked
 and validator-bounded (artefact id < `context.artefacts` 128). A count
 it does not cap is one the native code takes from its own config, not the
