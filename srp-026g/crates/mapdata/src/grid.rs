@@ -640,7 +640,10 @@ pub const TICK_WALK_M: f32 = controlled::WALK_MPS * 0.05;
 /// (`across` m from the take-off floor's centre along the jump; floors `cell` m apart, a body of `radius`), as metres before the
 /// take-off floor's centre: `(least, lead)`, where `least` is the latest press that keeps the clip's root end
 /// ([`WALK_CLIP_END_M`], PROVEN) within the top's far edge (`across + run + cell / 2` on) and [`edge_hold_m`]; and `lead` the
-/// press the motor aims at ([`JUMP_PRESS_LEAD_M`] within the window). None where the window (to the latest press whose root
+/// press the motor aims at ([`JUMP_PRESS_LEAD_M`] within the window, and at least a tick's walk ([`TICK_WALK_M`]) before
+/// `least`: the motor presses on the first tick at `lead` or nearer, so a lead at `least` itself left a window a body walked
+/// past between two ticks and backed off from, every arrival (A347a trace: least = lead 0.89 m and 1.24 m, 7 back-offs and
+/// jumps failed 52 -> 63 in the harm)). None where the window (to the latest press whose root
 /// still clears the face on its way down, [`walking_jump_far`]) is narrower than [`TICK_WALK_M`]. No bound is put on the root's
 /// way up to the face: Vector Laboratory's 0.905 m ledge (A347 traces) went up from presses 0.53 and 0.63 m before its take-off,
 /// with the root still under the top at the face, and came down past its 1.38 m top from presses 0.15-0.38 m before it, as this
@@ -650,7 +653,7 @@ pub fn walking_press_window(rise: f32, across: f32, run: f32, cell: f32, radius:
     let edge = across + run + 0.5 * cell;
     let least = (WALK_CLIP_END_M - edge - edge_hold_m(radius)).max(0.0);
     let farthest = walking_jump_far(rise)? - face;
-    (farthest - least >= TICK_WALK_M).then(|| (least, JUMP_PRESS_LEAD_M.clamp(least, farthest)))
+    (farthest - least >= TICK_WALK_M).then(|| (least, JUMP_PRESS_LEAD_M.clamp(least + TICK_WALK_M, farthest)))
 }
 
 /// A sprint jump takes a straight run of this many metres behind its take-off on the same level (the 8e rows: a
@@ -4979,6 +4982,16 @@ pub(crate) mod tests {
         assert!((lead - JUMP_PRESS_LEAD_M).abs() < 1e-6, "lead {lead}");
         let far = walking_jump_far(0.905).unwrap() - 0.25;
         assert!(far - least >= TICK_WALK_M, "the window holds a tick: {least}..{far}");
+        // A top whose latest press is past the usual lead: the motor aims a tick's walk before the latest press, so the first
+        // tick at the lead or nearer is still within the window (a lead at the latest press itself was walked past and backed
+        // off from: A347a's trace, least = lead 0.89 m).
+        for run in [0.6, 0.75, 0.9] {
+            if let Some((least, lead)) = walking_press_window(0.5, 0.5, run, 0.25, 0.38) {
+                assert!(lead - least >= TICK_WALK_M - 1e-6, "run {run}: least {least}, lead {lead}");
+            }
+        }
+        let late = walking_press_window(0.5, 0.5, 0.6, 0.25, 0.38).expect("a window past the usual lead");
+        assert!(late.0 > JUMP_PRESS_LEAD_M - TICK_WALK_M, "the case is one: least {}", late.0);
         assert_eq!(walking_press_window(0.905, 0.5, 0.0, 0.25, 0.38), None, "a top the clip passes whatever the press");
         assert_eq!(walking_press_window(0.5, 0.5, 2.5, 0.25, 0.38).map(|w| w.0), Some(0.0), "a deep top");
         assert!((edge_hold_m(0.38) - 0.244).abs() < 0.001);
