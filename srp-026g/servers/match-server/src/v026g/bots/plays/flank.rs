@@ -155,10 +155,14 @@ pub fn candidates(cx: &Ctx, out: &mut Vec<Candidate>) {
     // [A320 `threat.camp_flank`] The job ended (his death, or the team no longer senses him: B3g2b, 14 of 41 walks left their
     // route so) with this bot on its flank route or at its firing floor: the flank stays offered to it, so it goes on to the
     // known camp spot (and holds it for his return with `hold_ms`); the play's step ends it at the route's or the hold's end.
+    // So also when its role went with the spot still held: the job's time (`threat::JOB_MS`, 45 s) is shorter than many
+    // routes (B3g8: 100-155 m, 27-80 s to the firing floor). A flank of the old kind ends at its step then (as before).
+    let own_role = |id| matches!(cx.team.threat.job_of(cx.me.place), Some((_, Role::Flanker, l)) if l.id == id);
     if cx.tuning.threat.camp_flank.is_some()
         && cx.me.carrying.is_none()
+        && !cx.bot.dry
         && let Some((PlayKind::Flank, TargetRef::ThreatSpot(id), _)) = cx.bot.current
-        && cx.team.threat.line(id).is_none()
+        && !own_role(id)
     {
         out.extend(cx.job_candidate(PlayKind::Flank, TargetRef::ThreatSpot(id), JOB_KEY + id, JOB_HEALTH));
     }
@@ -703,6 +707,15 @@ pub fn step(state: &mut State, target: TargetRef, cx: &Ctx, rng: &mut Rng) -> St
             }
         }
     }
+    // [A320] With camp_flank on the flank stays offered after its job role went (see `candidates`): only a route or a hold
+    // goes on; a flank of the old kind ends here, as it ended before when the role's offer went.
+    if camp_flank_on
+        && let TargetRef::ThreatSpot(id) = target
+        && !matches!(state, State::Route { .. } | State::Hold { .. })
+        && !matches!(cx.team.threat.job_of(cx.me.place), Some((_, Role::Flanker, l)) if l.id == id)
+    {
+        return Step::Done("the job role is gone");
+    }
     // Seen up and moving: he no longer holds the angle.
     if let TargetRef::Place(who) = target
         && cx.memory.seen(who, cx.now, cx.view.clock).is_some()
@@ -1006,6 +1019,17 @@ mod tests {
         // flank's walk is not.
         assert!(super::super::Running::Flank(on.clone()).travelling());
         assert!(!super::super::Running::Flank(off.clone()).travelling(), "{off:?}");
+        // The job's time ran out with the spot still held (no role): the route goes on, a flank of the old kind ends.
+        {
+            let saved = s.team.threat.clone();
+            s.team.threat = std::sync::Arc::new(Picture { held: saved.held.clone(), jobs: vec![], ..Picture::default() });
+            let mut r = Rng::new(5);
+            let mut walk = on.clone();
+            assert!(matches!(step(&mut walk, target, &s.cx(0), &mut r), Step::Continue(_)), "{walk:?}");
+            let mut old = off.clone();
+            assert_eq!(step(&mut old, target, &s.cx(0), &mut r), Step::Done("the job role is gone"));
+            s.team.threat = saved;
+        }
         let steps = s.run(0, PlayKind::Flank, target, 200, 300, 3.5);
         assert!(
             steps.iter().any(|st| matches!(st, Step::Continue(i) if i.go == Go::Stay && i.crouch && i.look == Look::At(him))),
