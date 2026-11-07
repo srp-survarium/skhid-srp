@@ -168,6 +168,9 @@ pub const EXE_COLLISION_ALGO: u32 = 0x5325_0102;
 /// The same for the client-controller pass's start clear of every face ([`Body::walk_start_clear`], A329), in
 /// [`grid_key_with_links`] only for a body that asks for it. A value of its own.
 pub const WALK_START_ALGO: u32 = 0x5329_0101;
+/// The same for the bridges across cracks the grid crossed by a drop ([`Body::crack_bridges`], A329), in
+/// [`grid_key_with_links`] only for a body that asks for it. A value of its own.
+pub const CRACK_BRIDGE_ALGO: u32 = 0x5329_0201;
 /// The same for the exact erosion pass ([`Erosion::Exact`], `grid::exact`), in [`grid_key_with_links`] only for a body
 /// that asks for it: the grids of the cells' erosion key, build and write as before. 2: floors keep a quarter cell of
 /// slack (the nearer-than-the-radius-less-a-quarter rule; 1 was the full radius). 3: the capsule's round top (a wall above the
@@ -356,6 +359,10 @@ pub fn grid_key_with_links(
     // And where the client-controller pass starts a body.
     if body.walk_start_clear {
         digest.u32(WALK_START_ALGO);
+    }
+    // And the bridges across cracks.
+    if body.crack_bridges {
+        digest.u32(CRACK_BRIDGE_ALGO);
     }
     // The carried landings are a switch too.
     if body.landing_carry {

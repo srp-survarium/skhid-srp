@@ -240,20 +240,33 @@ impl WalkGrid {
         // crack no face covers, a cell holding only a riser), walked by the controller: a walked off-mesh link.
         wide.off.sort_by_key(|l| (l.from, l.to));
         let mut new: Vec<(u32, u32)> = Vec::new();
+        // The new bridges over a crack the grid crossed by a drop ([`Body::crack_bridges`]): kept whatever their run's width (the
+        // drop they stand beside was as narrow a way).
+        let mut over_drop: std::collections::HashSet<(u32, u32)> = std::collections::HashSet::new();
         for a in 0..self.height.len() {
             let (i, k) = self.cell_xz(self.cell_of[a] as usize);
             let ha = self.height[a];
             for (d, &(di, dk)) in DIRS.iter().enumerate() {
-                if wide.links[a][d] != NONE {
+                let (Some(c2), Some(c3)) = (self.cell_index(i + di, k + dk), self.cell_index(i + 2 * di, k + 2 * dk)) else { continue };
+                // A side with a link is tried only when it is a drop into the cell between ([A329] a crack: the drop is the way the
+                // grid had across it, and the client walks over it; `drop_check` takes such a drop away when the body never
+                // drops there).
+                let into_crack = body.crack_bridges
+                    && wide.links[a][d] != NONE
+                    && wide.kinds[a][d] == LinkKind::Drop
+                    && self.cell_of[wide.links[a][d] as usize] as usize == c2;
+                if wide.links[a][d] != NONE && !into_crack {
                     continue;
                 }
-                let (Some(c2), Some(c3)) = (self.cell_index(i + di, k + dk), self.cell_index(i + 2 * di, k + 2 * dk)) else { continue };
                 if (self.start[c2]..self.start[c2 + 1]).any(|m| (self.height[m as usize] - ha).abs() <= body.step) {
                     continue;
                 }
                 for b in self.start[c3]..self.start[c3 + 1] {
                     if (self.height[b as usize] - ha).abs() <= body.step && wide.off.binary_search_by_key(&(a as u32, b), |l| (l.from, l.to)).is_err() {
                         new.push((a as u32, b));
+                        if into_crack {
+                            over_drop.insert((a as u32, b));
+                        }
                     }
                 }
             }
@@ -274,7 +287,7 @@ impl WalkGrid {
             }
         }
         for &(a, b) in &new {
-            if self.bridge_run(&all, a, b) >= BRIDGE_MIN_RUN {
+            if over_drop.contains(&(a, b)) || self.bridge_run(&all, a, b) >= BRIDGE_MIN_RUN {
                 wide.off.push(OffLink { from: a, to: b, kind: LinkKind::GapJump, press: Takeoff::WalkOff });
                 stats.bridges_walked += 1;
                 stats.bridges_added += 1;
@@ -403,6 +416,38 @@ mod tests {
             })
             .count();
         (walked, stats.controlled.bridges_narrow)
+    }
+
+    /// [A329] The level_06 day_2 dip at (18.4, 102.9): a high floor at 0 meets a one-cell dip 0.81 m down only at its corner
+    /// (the dip's sides toward it lead down to ground 3 m below, so erosion keeps the dip), and a floor 0.25 m down lies past
+    /// the dip on the diagonal. The grid crosses by a drop into the dip, which the client never takes. With `crack_bridges` the
+    /// controller walks the body over the dip and the walked bridge is made (a run of one: it stands beside the drop); without,
+    /// none.
+    fn crack_bridges(on: bool) -> usize {
+        let mut tris = Vec::new();
+        let (lo, far, deep) = (-0.81, -0.25, -3.0);
+        // The high floor (x < 5, z > 3.25), the dip (one cell), the far floor (x > 5, z < 3.25 but the dip), ground below.
+        floor(&mut tris, 0.0, 3.25, 5.0, 6.0, 0.0);
+        floor(&mut tris, 5.0, 3.0, 5.25, 3.25, lo);
+        floor(&mut tris, 5.25, 0.0, 10.0, 3.25, far);
+        floor(&mut tris, 5.0, 0.0, 5.25, 3.0, far);
+        floor(&mut tris, 0.0, 0.0, 5.0, 3.25, deep);
+        floor(&mut tris, 5.0, 3.25, 10.0, 6.0, deep);
+        let body = Body { client_controller: true, crack_bridges: on, ..Body::client() };
+        let (grid, _) = WalkGrid::build_kept_with_links(&tris, [0.0, 0.0, 10.0, 6.0], 0.25, body, &[], &[], OffMeshLinks::Gaps);
+        grid.off_links()
+            .iter()
+            .filter(|l| {
+                let (a, b) = (grid.position(l.from), grid.position(l.to));
+                l.press == Takeoff::WalkOff && a.y > -0.3 && b.y > -0.3 && (a.y - b.y).abs() > 0.2
+            })
+            .count()
+    }
+
+    #[test]
+    fn a_crack_the_grid_crossed_by_a_drop_gets_the_walked_bridge() {
+        assert_eq!(crack_bridges(false), 0, "without the switch the dip has no bridge");
+        assert!(crack_bridges(true) >= 1, "with it: {} bridges", crack_bridges(true));
     }
 
     /// [A313] A riser bare its whole width is bridged; bare over a 0.5 m strip only (two columns of the grid, the rest

@@ -172,6 +172,11 @@ pub struct GridTuning {
     /// day_4, a 0.785 m ledge the client and the exe stop at; the exe climbs a vertical face walking up to 0.75 m). OFF until its
     /// nav gate. A grid is the map's (see `gap_links`).
     pub walk_start_clear: bool,
+    /// [A329] Whether `client_controller`'s bridges also cross a crack the grid crossed by a drop (`mapdata::Body::crack_bridges`):
+    /// a one-cell crack between floors within a step, which the client walks over, gets the walked bridge, not only the drop
+    /// `drop_check` takes away when the body never drops there (level_06 day_2 (18.4, 103), live: with the exe's start-overlap
+    /// contact the drop is taken away and the floor had no other way across). OFF until its nav gate. A grid is the map's.
+    pub crack_bridges: bool,
 }
 
 impl Default for GridTuning {
@@ -202,6 +207,7 @@ impl Default for GridTuning {
             wall_give_back: true,
             exe_collision: true,
             walk_start_clear: false,
+            crack_bridges: false,
         }
     }
 }
@@ -240,6 +246,7 @@ impl GridTuning {
             wall_give_back: self.wall_give_back,
             exe_collision: self.exe_collision,
             walk_start_clear: self.walk_start_clear,
+            crack_bridges: self.crack_bridges,
             ..body
         }
     }

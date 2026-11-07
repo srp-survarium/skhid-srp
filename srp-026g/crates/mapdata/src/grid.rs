@@ -260,6 +260,12 @@ pub struct Body {
     /// level_04 day_4, a 0.785 m ledge; the exe climbs a vertical face walking up to 0.75 m, not 0.76). A build input: in the
     /// key when set.
     pub walk_start_clear: bool,
+    /// [A329] Whether the client-controller pass's bridges also cross a crack the grid crossed by a drop: a side whose link is
+    /// a drop into the one cell between two floors within a step of each other is tried as a bridge (the controller walks the
+    /// body across, as the client walks over the crack), not only a side with no link. Off: such a crack's only way across is
+    /// the drop, and `drop_check` takes it away when the body never drops there (level_06 day_2 (18.4, 103): a 0.8 m deep
+    /// one-cell crack the client walks over). A build input: in the key when set.
+    pub crack_bridges: bool,
 }
 
 /// How the floors a body's radius from walls are taken away.
@@ -336,6 +342,7 @@ impl Body {
             wall_give_back: false,
             exe_collision: false,
             walk_start_clear: false,
+            crack_bridges: false,
         }
     }
 }
@@ -412,6 +419,7 @@ impl Default for Body {
             wall_give_back: false,
             exe_collision: false,
             walk_start_clear: false,
+            crack_bridges: false,
         }
     }
 }
