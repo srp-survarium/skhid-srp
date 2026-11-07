@@ -437,3 +437,36 @@ the i686 arena build (with `animation_validate`) and the host agree on every
 world and mutation. No unbounded player-to-player read was found without a
 matching server bound or native guard; the animation stream was the one that
 lacked one and now has it.
+
+### Full reader sweep
+
+Decompiled 235 functions (the cited reader addresses and their closure);
+classified each: 65 advance a packet cursor (readers), 170 do not (serializers
+-- the `..::serialize` writers that only call the debug-check/write helpers --
+plus math, vtable thunks and Scaleform glue, which never consume received
+bytes). The 65 readers' loop bounds fall into:
+
+- linked-list / bitmask traversals (`while (x != 0)`, clearing set bits):
+  0x2714D0, 0x2F84C0, 0x319470, 0x316D50, 0x330A20 -- not a packet count;
+- fixed constants (`< 8`, `< 0x58`, `< 0x18`, `< 3`): e.g. 0x3358E6, 0x31B390;
+- object/config counts (`< *(byte*)(this + k)` where `k` is a field set at
+  construction from the item/weapon/character config -- body parts, weapon
+  curve points, FSM states): e.g. 0x2F5C22, 0x33DCA0, 0x33E7F0, 0x2E3490. The
+  packet supplies the values; the count is the entity's own and the validator
+  reads the matching bytes against the same config;
+- packet counts the validator caps: the 0xE4 options `< players_count`
+  (0x27B880, `messages::options`), kd-stats `< roster` (0x323952, `rules`),
+  the ammo id / FSM state / affect & hit counts above.
+
+The covering invariant: the validator reads every player state and section to
+its EXACT END against the match config (proven on 50,205 live uploads and
+3,919/3,920 local worlds), so it consumes the same bytes as the native reader,
+and it caps every packet count to the native fixed-array size (affects 8, hits
+64, slots 23, ammo 8, artefacts 128, players 20, FSM state < the list). A count
+it does not cap is one the native code takes from its own config, not the
+packet. The client string readers are the one exception to "read to exact end":
+`read_squad_info` 0x274720 reads a member name as `len = r<u8>; memcpy(dst+0x10,
+src, len); dst[0x10+len] = 0` into a 0x50-byte member record -- unbounded like
+0.10b's `r_string` -- so the server bounds it: `social::squad_info` refuses
+more than `SQUAD_MEMBERS` (3) members and clamps each name to NAME (63) with
+`Writer::str`, matching the 3 x 0x50 record array and the ~64-byte name field.
