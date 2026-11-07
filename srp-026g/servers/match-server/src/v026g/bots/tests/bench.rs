@@ -852,6 +852,7 @@ pub(crate) fn real_bot_cost() {
                 wall_clearance: human.needs_wall_clearance(),
                 open_sides: human.needs_open_sides(),
                 pull_hold: human.grid.wall_clear_pull.then_some(crate::v026g::bots::tuning::PULL_HOLD_M),
+                pull_walk: human.grid.pull_walk,
             };
             let human_build = (human.grid_body(), human.off_mesh_links(), human_extras);
             (human_build != (bench_tuning().grid_body(), links, extras)).then(|| {
