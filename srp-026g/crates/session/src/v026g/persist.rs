@@ -146,6 +146,9 @@ const MIGRATIONS: &[&str] = &[
     level_stats::MIGRATION,
     // 13: per-mode onboarding allowances.
     mode_intro::MIGRATION,
+    // 14: the kills by level again with the seconds they took
+    // (`level_stats`: the kills a minute).
+    level_stats::MIGRATION_TIMED,
 ];
 
 /// The child tables of an account, children of children first.

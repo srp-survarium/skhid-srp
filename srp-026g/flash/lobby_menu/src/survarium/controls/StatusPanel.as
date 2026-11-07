@@ -935,15 +935,19 @@ package survarium.controls
             }
             this.showPlayReasons(blocked);
          }
-         var soldier:Boolean = !leaving && !queued && LocalPlayerProfile.squadSoldier();
+         // A squad too strong to play (the owner's of 2026-11-05): Play red,
+         // "Squad too strong", its tip saying to split up; over the
+         // soldier's label, both of the squad see it.
+         var tooStrong:Boolean = !leaving && !queued && LocalPlayerProfile.squadTooStrong();
+         var soldier:Boolean = !leaving && !queued && !tooStrong && LocalPlayerProfile.squadSoldier();
          // In the case of the game's own label (its Play is in capitals).
          var gameLabel:String = this._roomsPlayLabel != null ? this._roomsPlayLabel : String(btn.label);
-         var label:String = soldier ? LocalizationData.getName("st_srp_play_in_squad") : word;
+         var label:String = tooStrong ? LocalizationData.getName("st_srp_play_squad_too_strong") : soldier ? LocalizationData.getName("st_srp_play_in_squad") : word;
          if(gameLabel != "" && gameLabel == gameLabel.toUpperCase())
          {
             label = label.toUpperCase();
          }
-         if(leaving || queued || soldier)
+         if(leaving || queued || soldier || tooStrong)
          {
             // The game sets its own label again (its language): ours over it
             // each time.

@@ -2496,6 +2496,7 @@ st_srp_loadout_block_locked	Dieses Profil ist gesperrt
 st_srp_loadout_block_maintenance	Bald Wartung: in %1$s Min
 st_srp_loadout_block_pocket_twice	Ein Gegenstandstyp in zwei Taschen
 st_srp_loadout_block_shared_slot	Zwei Gegenstände in einem Platz
+st_srp_loadout_block_squad_too_strong	Abteilung zu stark: trennt euch
 st_srp_loadout_block_weapon	Keine Waffe
 st_srp_loadout_empty	leer
 st_srp_loadout_refused	Das Loadout ließ sich nicht wählen.
@@ -2599,6 +2600,7 @@ st_srp_pierce_stone	Stein
 st_srp_pierce_tinplate	Blech
 st_srp_pierce_value	%1$s · %2$s
 st_srp_play_in_squad	Im Trupp
+st_srp_play_squad_too_strong	Trennt euch
 st_srp_pvb_at_limit	Die Höchstzahl an Bot-Matches läuft bereits, versuche es in einer Minute erneut
 st_srp_pvb_at_limit_count	Die Höchstzahl an Bot-Matches läuft bereits (%1$s/%2$s), versuche es in einer Minute erneut
 st_srp_pvb_busy	%1$s (belegt)

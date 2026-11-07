@@ -26,10 +26,10 @@
 //! - **Late.** A member in the lobby while the room's match is played sees
 //!   the room first and goes into it `RoomRules::late_join_wait` later (or at once on
 //!   its ask) if the match admits players (from its countdown until
-//!   `LOAD_MARGIN` is left), on the side with fewer players in it; of two
-//!   alike in that, the side it played on in that match before, then the
-//!   one that counts for less (`matchmaking_policy::place_joiner`);
-//!   otherwise it waits for the next match. While it waits it is told why it
+//!   `LOAD_MARGIN` is left), only on the side that counts for less
+//!   (`matchmaking_policy::place_joiner`) and with no rival of it there
+//!   (`level_stats::rivals`; the owner's of 2026-11-05); otherwise it
+//!   waits until it can, or for the next match. While it waits it is told why it
 //!   cannot go in now (`late_hold`: a joiner on its way, a game loading,
 //!   the last 30 s, the end, full, a maintenance; the owner's of 2026-10-20).
 //!   A member whose place in the match is kept (its game started anew, or
@@ -86,7 +86,7 @@ use session::matchmaking_policy::{self as policy, Closed, Worth};
 use session::v026g::presets::{self, Offer};
 use session::v026g::room_settings::{self, RoomSettings};
 use session::v026g::rooms::{self as model, Door, Due, QueueChoice, Refused, Spec, Stage, Waiting};
-use session::v026g::{matchmaking, quests, rules};
+use session::v026g::{level_stats, matchmaking, quests, rules};
 use session::{LockExt, QueuePool, Strength};
 use survarium::v026g::lobby::presets::PresetDone;
 use survarium::v026g::lobby::rooms::{
@@ -99,7 +99,7 @@ use survarium::v026g::maps;
 
 use super::MAINTENANCE_WINDOW;
 use super::core::{Core, Who};
-use super::play::{MatchPlayer, Running, match_profile};
+use super::play::{Joiner, MatchPlayer, Rival, Running, match_profile};
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 enum PublicBracket {
@@ -402,7 +402,84 @@ impl Core<'_> {
         if !rules::kits_can_play(&who.account.locked(), quests::now()) {
             return Err(RoomCode::KitCantPlay);
         }
+        if self.too_strong_squad(who.account_id).is_some() {
+            return Err(RoomCode::SquadTooStrong);
+        }
         Ok(())
+    }
+
+    /// The owner's of 2026-11-05: "a squad that is too strong can't start a
+    /// game at all" (`level_stats::too_strong`: two strong players or
+    /// more). The account's squad, each member with its strength at the
+    /// level they would play at (the highest gear level of theirs), when it
+    /// is too strong. Play, Join and a queue refuse it (code 18), the movie
+    /// greys Play (`entry_blocks`). Its members play once they split up.
+    pub(super) fn too_strong_squad(&self, account_id: u32) -> Option<Vec<(u32, Strength)>> {
+        let squad = self.store.squads().of(account_id)?;
+        let unix = quests::now();
+        let gear = squad
+            .members
+            .iter()
+            .filter_map(|&member| self.accounts.get(member))
+            .map(|account| matchmaking::gear_level(&account.locked(), unix))
+            .max()?;
+        let members: Vec<(u32, Strength)> = squad
+            .members
+            .iter()
+            .map(|&member| (member, self.strength_of(member, gear, false)))
+            .collect();
+        let own: Vec<Strength> = members.iter().map(|&(_, each)| each).collect();
+        level_stats::too_strong(&own).then_some(members)
+    }
+
+    /// A refusal of `who`'s Play, Join or queue, in the log when it is the
+    /// squad's strength (the rule of [`Self::too_strong_squad`]).
+    fn log_refused(&self, who: &Who, code: RoomCode) {
+        if code == RoomCode::SquadTooStrong {
+            log::info!(
+                "{}: refused, its squad is too strong to play ({}; strong from {:.2})",
+                who.name,
+                self.too_strong_squad(who.account_id)
+                    .map(|members| self.said_strengths(&members))
+                    .unwrap_or_default(),
+                level_stats::STRONG.as_kd()
+            );
+        }
+    }
+
+    /// "name 3.10, name 2.70": members and their strengths, for the log.
+    fn said_strengths(&self, members: &[(u32, Strength)]) -> String {
+        members
+            .iter()
+            .map(|&(member, strength)| {
+                format!(
+                    "{} {:.2}",
+                    self.name_of(member).unwrap_or_default(),
+                    strength.as_kd()
+                )
+            })
+            .collect::<Vec<_>>()
+            .join(", ")
+    }
+
+    /// A squad too strong to play found at its room's match (its start, or
+    /// a late join): its members who do not play that match are taken out
+    /// of room `key`, told why (code 18).
+    fn room_refuse_too_strong(&mut self, key: u32, members: &[(u32, Strength)], when: &str) {
+        log::info!(
+            "Room {key}: squad {} too strong to play at {when} (strong from {:.2}): out of the room",
+            self.said_strengths(members),
+            level_stats::STRONG.as_kd()
+        );
+        for &(member, _) in members {
+            let out = self.rooms.get(key).is_some_and(|room| {
+                room.members.contains(&member) && !room.in_match.contains(&member)
+            });
+            if out {
+                self.rooms.leave(member);
+                self.room_codes.insert(member, RoomCode::SquadTooStrong);
+            }
+        }
     }
 
     /// The maintenance rule ([`MAINTENANCE_WINDOW`]): no room made, no
@@ -659,7 +736,10 @@ impl Core<'_> {
             return;
         }
         let code = match self.room_enter_fit(who) {
-            Err(code) => code,
+            Err(code) => {
+                self.log_refused(who, code);
+                code
+            }
             Ok(()) => {
                 let before = self.rooms.queue_place(who.account_id);
                 match self.room_enqueue_party(who, gear, mate, key, QueueChoice::Chosen, now) {
@@ -686,7 +766,10 @@ impl Core<'_> {
         let gear = matchmaking::gear_level(&who.account.locked(), quests::now());
         let mate = self.room_mate(who.account_id);
         let code = match self.room_enter_fit(who) {
-            Err(code) => code,
+            Err(code) => {
+                self.log_refused(who, code);
+                code
+            }
             Ok(()) => match self.rooms.join_with(who.account_id, gear, mate, key, now) {
                 Ok(()) => {
                     log::info!("{}: joined room {key}", who.name);
@@ -970,6 +1053,7 @@ impl Core<'_> {
             return;
         }
         if let Err(code) = self.room_enter_fit(who) {
+            self.log_refused(who, code);
             self.room_codes.insert(who.account_id, code);
             return;
         }
@@ -1395,7 +1479,7 @@ impl Core<'_> {
             players: 1,
             strength: Strength::ZERO,
         };
-        if policy::place_joiner(sides, anyone, None, &rule).is_none() {
+        if policy::place_joiner(sides, anyone, &rule).is_none() {
             return Err(Some(JoinHold::Full));
         }
         if self.late_admission(running, now) {
@@ -1458,11 +1542,12 @@ impl Core<'_> {
             Err(Some(hold)) => return Err(hold),
             Err(None) => return Ok(None),
         }
-        // A squad's side has no place for it (beside its mate, or two
-        // together): it waits for the next match, told the match is full.
+        // The side it may go to (the weaker one, beside its mate, with no
+        // rival there) has no place for it: it waits, told the match is
+        // full.
         if let Some(ready) = self.room_ready(who.account_id) {
             let late = self.late_placement(who.account_id, room, match_id, running, &ready, now);
-            if late.squad && late.placement.is_none() {
+            if late.placement.is_err() {
                 return Err(JoinHold::Full);
             }
         }
@@ -2142,6 +2227,16 @@ impl Core<'_> {
             }
             parties.push(model::Party::new(party));
         }
+        // A squad of two strong players plays no match of an open room (the
+        // owner's of 2026-11-05): out of the room, told why.
+        if arranged.is_none() {
+            let (refused, playing): (Vec<model::Party>, Vec<model::Party>) =
+                parties.into_iter().partition(model::Party::too_strong);
+            parties = playing;
+            for party in refused {
+                self.room_refuse_too_strong(key, party.strengths(), "its match's start");
+            }
+        }
         // A squad alone plays no match against itself (the owner's of
         // 2026-10-31): the room waits for a third.
         if arranged.is_none() && parties.len() == 1 && parties[0].members().len() > 1 {
@@ -2373,12 +2468,16 @@ impl Core<'_> {
             placement,
             lead,
             party,
-            ..
         } = self.late_placement(account_id, room, match_id, running, &ready, now);
-        let Some(placement) = placement else {
-            return;
+        let placement = match placement {
+            Ok(placement) => placement,
+            Err(NotNow::Wait) => return,
+            Err(NotNow::TooStrong(squad)) => {
+                self.room_refuse_too_strong(key, &squad, "a late join");
+                return;
+            }
         };
-        let team = placement.assignments.first().map_or(0, |(_, team)| *team);
+        let team = placement.side();
         let unix = quests::now();
         let profiles: Option<Vec<MatchPlayer>> = party
             .iter()
@@ -2412,11 +2511,7 @@ impl Core<'_> {
         if !admitted {
             return;
         }
-        let joined: Vec<(session::Player, u8, Strength)> = party
-            .iter()
-            .map(|each| (each.player, team, each.strength))
-            .collect();
-        self.seated_late(match_id, &joined, &placement, lead);
+        self.seated_late(match_id, team, &party, &placement, lead);
         for each in &party {
             let account_id = each.player.account_id;
             self.rooms.seated_late(key, account_id, team);
@@ -2431,12 +2526,16 @@ impl Core<'_> {
 
     /// Where the room's match being played (`running`, `match_id`) would
     /// take the member (`ready`) now (`room_late_join`): a private room's
-    /// member back on the team its owner put it on; a squad on one side
-    /// (the owner's of 2026-10-31): beside its mate in the match, or
-    /// nowhere (it waits for the next match); with its mate waiting to go
-    /// in too, both together on a side with places for both, or neither.
-    /// A side's places are its players in the match and those whose place
-    /// is kept (`late_rule`).
+    /// member back on the team its owner put it on; any other only on the
+    /// weaker side (`policy::place_joiner`, the owner's of 2026-11-05), and
+    /// only where it has no rival (`level_stats::rivals`: the two strongest
+    /// players, a squad with a strong player and any other strong one); a
+    /// squad on one side (the owner's of 2026-10-31): beside its mate in
+    /// the match, or with its mate waiting to go in too, both together, or
+    /// neither. Else it waits until the sides let it in. A squad of two
+    /// strong players goes in nowhere (`level_stats::too_strong`). A side's
+    /// places are its players in the match and those whose place is kept
+    /// (`late_rule`).
     fn late_placement(
         &self,
         account_id: u32,
@@ -2453,89 +2552,151 @@ impl Core<'_> {
             live.as_ref(),
             usize::from(room.spec.size),
         );
+        // The players in the match now (the whole roster when the match
+        // server says nothing), each with its team and rival.
+        let in_now: Vec<(u8, Rival)> = running
+            .seats
+            .iter()
+            .enumerate()
+            .filter(|(place, _)| {
+                live.as_ref()
+                    .is_none_or(|live| *place < 32 && live.present >> place & 1 == 1)
+            })
+            .filter_map(|(place, &(_, team))| Some((team.min(1), (*running.rivals.get(place)?)?)))
+            .collect();
+        // Its mate in the match: its latest place in the roster (which keeps
+        // every place, given up or not), its side and party there.
         let formed = self.store.matchmaking().formed_match(match_id);
-        let side_in_match = |account: u32| {
-            formed.as_ref().and_then(|formed| {
-                formed
+        let mate_in = self
+            .store
+            .squads()
+            .mate_of(account_id)
+            .filter(|mate| room.in_match.contains(mate))
+            .and_then(|mate| {
+                let formed = formed.as_ref()?;
+                let place = formed
                     .seats
                     .iter()
-                    .rev()
-                    .find(|seat| seat.player.account_id == account)
-                    .map(|seat| seat.team)
-            })
-        };
-        let mate = self.store.squads().mate_of(account_id);
-        let mate_side = mate
-            .filter(|mate| room.in_match.contains(mate))
-            .and_then(side_in_match);
+                    .rposition(|seat| seat.player.account_id == mate)?;
+                Some((
+                    mate,
+                    running.seats.get(place)?.1.min(1),
+                    (*running.rivals.get(place)?)?,
+                ))
+            });
         // A commander takes its mate waiting in the room with it
         // (`room_mate`): both in on one side, or neither.
         let waiting_mate = self
             .room_mate(account_id)
             .map(|(mate, _)| mate)
             .filter(|mate| {
-                mate_side.is_none() && room.members.contains(mate) && !room.in_match.contains(mate)
+                mate_in.is_none() && room.members.contains(mate) && !room.in_match.contains(mate)
             })
             .and_then(|mate| self.room_ready(mate));
         let going: Vec<(session::Player, u8)> = std::iter::once((ready.player, ready.gear))
             .chain(waiting_mate.map(|mate| (mate.player, mate.gear)))
             .collect();
-        // Each counts for its K/D at the match's equipment level,
+        // Each counts for its strength at the match's equipment level,
         // which a joiner of higher gear raises (the owner's of 2026-11-01);
-        // a squad's members 1.3 times.
-        let squad = mate_side.is_some() || going.len() > 1;
+        // a squad's members 1.3 times. Its party: its mate's in the match,
+        // else the first of those going in.
+        let squad = mate_in.is_some() || going.len() > 1;
         let match_gear = going.iter().map(|(_, gear)| *gear).fold(
             self.results
                 .match_gear(running.ticket.match_id)
                 .unwrap_or(0),
             u8::max,
         );
+        let party_key = mate_in.map_or(ready.player.account_id, |(_, _, mate)| mate.party);
         let party: Vec<Joiner> = going
             .into_iter()
             .map(|(player, _)| Joiner {
                 player,
-                strength: self.strength_of(player.account_id, match_gear, squad),
+                rival: Rival {
+                    party: party_key,
+                    own: self.strength_of(player.account_id, match_gear, false),
+                },
+                squad,
             })
             .collect();
         let worth = Worth {
             players: party.len(),
-            strength: party.iter().map(|each| each.strength).sum(),
+            strength: party.iter().map(Joiner::strength).sum(),
         };
-        // One who played this match before (left it, or its game was gone
-        // for good) goes back to its side when the sides have as many
-        // players: the side of its latest place in the roster, which keeps
-        // every place, given up or not.
-        let previous = side_in_match(account_id);
-        let placement = match (room.arranged_side(account_id), mate_side) {
-            (Some(side), _) => policy::place_joiner_on(sides, worth, side, &rule),
-            (None, Some(side)) => policy::place_joiner_beside(sides, worth, side, &rule),
-            (None, None) => policy::place_joiner(sides, worth, previous, &rule),
+        let placement = match room.arranged_side(account_id) {
+            Some(side) => policy::place_joiner_on(sides, worth, side, &rule).ok_or(NotNow::Wait),
+            None => {
+                let squad: Vec<(u32, Strength)> = party
+                    .iter()
+                    .map(|each| (each.player.account_id, each.rival.own))
+                    .chain(mate_in.map(|(mate, _, rival)| (mate, rival.own)))
+                    .collect();
+                let own: Vec<Strength> = squad.iter().map(|&(_, each)| each).collect();
+                if level_stats::too_strong(&own) {
+                    Err(NotNow::TooStrong(squad))
+                } else {
+                    policy::place_joiner(sides, worth, &rule)
+                        .filter(|placed| {
+                            let side = placed.side();
+                            mate_in.is_none_or(|(_, team, _)| team == side)
+                                && !Self::rival_on(&in_now, &party, side)
+                        })
+                        .ok_or(NotNow::Wait)
+                }
+            }
         };
         Late {
             placement,
             lead: rule.lead,
-            squad,
             party,
         }
     }
+
+    /// Whether `side` of the players in a match now (`in_now`: each with
+    /// its team) holds a rival of the party going in (`level_stats::rivals`
+    /// of them all: the two strongest, a squad with a strong player and any
+    /// other strong one).
+    fn rival_on(in_now: &[(u8, Rival)], going: &[Joiner], side: u8) -> bool {
+        let Some(party) = going.first().map(|each| each.rival.party) else {
+            return false;
+        };
+        let players: Vec<(u32, Strength)> = in_now
+            .iter()
+            .map(|(_, rival)| (rival.party, rival.own))
+            .chain(going.iter().map(|each| (each.rival.party, each.rival.own)))
+            .collect();
+        level_stats::rivals(&players)
+            .into_iter()
+            .filter_map(|(a, b)| match (a == party, b == party) {
+                (true, false) => Some(b),
+                (false, true) => Some(a),
+                _ => None,
+            })
+            .any(|other| {
+                in_now
+                    .iter()
+                    .any(|(team, rival)| rival.party == other && *team == side)
+            })
+    }
 }
 
-/// One who goes into a match being played, and what it counts for there.
-struct Joiner {
-    player: session::Player,
-    strength: Strength,
+/// Why [`Core::late_placement`] puts nobody in now.
+#[derive(Clone, Debug, PartialEq, Eq)]
+enum NotNow {
+    /// The side it may go to has no place, or a rival: it waits.
+    Wait,
+    /// A squad of two strong players (its members with their strengths):
+    /// it plays no match (the owner's of 2026-11-05).
+    TooStrong(Vec<(u32, Strength)>),
 }
 
 /// [`Core::late_placement`]'s answer.
 struct Late {
-    /// The side, or none now.
-    placement: Option<policy::LatePlacement>,
+    /// The side, or why none now.
+    placement: Result<policy::LatePlacement, NotNow>,
     lead: [Strength; 2],
     /// Who goes in: the member, and its squad mate waiting with it.
     party: Vec<Joiner>,
-    /// Whether its squad decided the side (its mate in the match, or
-    /// going in with it).
-    squad: bool,
 }
 
 /// The phase and its seconds: left of a countdown, played of a match.

@@ -69,6 +69,23 @@ python scripts/balance-refit/refit.py LOGDIR --min-players 0
 - Not read: the score, the lead and the server's own "expected at" of the
   per-minute lines. The numbers of the late-join rule (what a battery or a
   ticket of lead counts for) are not fitted here.
+- **The strength rule** (`docs/notes/kd-balance.md`, since 2026-11-05): `--db` with copies of
+  `srp.db` (files or directories of them; the backups on the jump host, the live one copied off)
+  tests it instead of fitting the weights. The databases' match reports (`g26_results`, each
+  kept about a day) give each player's kills, deaths and time in each match; a player is counted
+  by its other matches (never by the match predicted). It prints the server's kills a minute and
+  how far players' rates are apart (the prior), whether K/D x kpm predicts the winners better
+  than the K/D alone (log loss with a bootstrap range, on the reports and on the logged matches
+  since the K/D rule by who was in each minute), how many players are strong at `STRONG` and
+  other cuts, the starts the rivals rule would have changed, the squads too strong to play, and
+  the late joins the weaker-side rule would have kept waiting, and for how long (`--room-size`,
+  8 a side). `--show <regex>` and `--clan <tag>` print those players by name (their K/D, kpm,
+  strength at each level, rank); nothing else prints names. The rule's numbers are at the top of
+  the script's back-test part: edit them with `level_stats.rs`.
+
+  ```
+  python scripts/balance-refit/refit.py LOGDIR --db DBDIR --clan ARTS --show '^(Dr1t|Alex Stan)$'
+  ```
 - Tests: `python -I scripts/balance-refit/test_refit.py` (synthetic logs, and
   the lines of one real match: parsing, the since filter, the rosters by
   minute, the matches left out, the fit recovering known weights, the

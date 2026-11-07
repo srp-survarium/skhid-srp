@@ -203,7 +203,7 @@ pub struct Room {
     /// at the start, [`sides`]).
     pub sides: HashMap<u32, u8>,
     /// The members who came while its match is played: a private room's
-    /// newcomers, whose late join goes to the side with fewer (their team in
+    /// newcomers, whose late join goes to the weaker side (their team in
     /// the arrangement is not the owner's choice yet). Cleared with the match.
     pub came_in_match: HashSet<u32>,
 }
@@ -1502,19 +1502,20 @@ impl Rooms {
 
 /// One of the parties the sides of a room's match are drawn with: a player
 /// alone, or a squad, which plays on one side; and what it counts for,
-/// its members' K/Ds at the match's equipment level (`super::level_stats`;
-/// `docs/notes/kd-balance.md`).
+/// its members' strengths at the match's equipment level
+/// (`super::level_stats`; `docs/notes/kd-balance.md`).
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Party {
-    members: Vec<u32>,
+    /// Each member with its own strength (beside the squad's factor).
+    members: Vec<(u32, Strength)>,
     strength: Strength,
 }
 
 impl Party {
-    /// The party of `members` (each account with its K/D), in their
+    /// The party of `members` (each account with its strength), in their
     /// order: one is a player alone, two or more a squad, each of whose
-    /// members counts [`level_stats::SQUAD_FACTOR`] times its K/D (the owner's of
-    /// 2026-11-01: "squads have their kd multiplied by 1.3").
+    /// members counts [`level_stats::SQUAD_FACTOR`] times its strength (the
+    /// owner's of 2026-11-01: "squads have their kd multiplied by 1.3").
     pub fn new(members: Vec<(u32, Strength)>) -> Self {
         let squad = members.len() > 1;
         let strength = members
@@ -1527,17 +1528,25 @@ impl Party {
                 }
             })
             .sum();
-        Self {
-            members: members
-                .into_iter()
-                .map(|(account_id, _)| account_id)
-                .collect(),
-            strength,
-        }
+        Self { members, strength }
     }
 
-    pub fn members(&self) -> &[u32] {
+    pub fn members(&self) -> Vec<u32> {
+        self.members
+            .iter()
+            .map(|&(account_id, _)| account_id)
+            .collect()
+    }
+
+    /// Its members, each with its own strength (beside the squad's factor).
+    pub fn strengths(&self) -> &[(u32, Strength)] {
         &self.members
+    }
+
+    /// A squad too strong to play (`level_stats::too_strong`).
+    pub fn too_strong(&self) -> bool {
+        let own: Vec<Strength> = self.members.iter().map(|&(_, each)| each).collect();
+        level_stats::too_strong(&own)
     }
 
     /// What it counts for, beside its players being there.
@@ -1557,27 +1566,45 @@ pub const NOISE_MILLI: u32 = 50;
 /// part counting its share). Each party's strength is first shaken by a
 /// factor drawn by `seed` within [`NOISE_MILLI`], so the same parties and
 /// seed always make the same sides. Of the ways to put the parties whole,
-/// every one is tried: of those that fit the sizes and whose sides are
-/// the fewest players apart past one, the one whose sides count the most
-/// alike (`player` a player, and the shaken strengths: the owner's "k/d
-/// equalizer", so with an odd count the stronger players are the side of
-/// fewer). The largest party (the first of those) is on side 0. When no
-/// way fits, the larger parties go first, each to the side with fewer
-/// players, split where it must be.
+/// every one is tried: of those that fit the sizes and whose sides are the
+/// fewest players apart past one, the ones that put the fewest rivals on
+/// one side (`level_stats::rivals`: the two strongest players, and a squad
+/// with a strong player and any other strong one; the owner's of
+/// 2026-11-05), and of those the one whose sides count the most alike (`player` a player, and the shaken strengths: the
+/// owner's "k/d equalizer", so with an odd count the stronger players are
+/// the side of fewer). The largest party (the first of those) is on side
+/// 0. When no way fits, the larger parties go first, each to the side with
+/// fewer players, split where it must be.
 pub fn sides(parties: &[Party], size: usize, player: Strength, seed: u32) -> [Vec<u32>; 2] {
     let mut rng = Rng::new(u64::from(seed) ^ 0x9E37_79B9_7F4A_7C15);
-    let parties: Vec<(Vec<u32>, Strength)> = parties
+    // Each part of a party that fits a side: its members, their shaken
+    // strength, and each member's own.
+    let parts: Vec<(Vec<u32>, Strength, Vec<Strength>)> = parties
         .iter()
         .flat_map(|party| {
             let factor = 1000 - NOISE_MILLI + rng.below(2 * NOISE_MILLI + 1);
             let each = party
                 .strength
                 .ratio(i64::from(factor), 1000 * party.members.len().max(1) as i64);
-            party
-                .members
-                .chunks(size.max(1))
-                .map(move |chunk| (chunk.to_vec(), each.times(chunk.len())))
+            party.members.chunks(size.max(1)).map(move |chunk| {
+                (
+                    chunk.iter().map(|&(account_id, _)| account_id).collect(),
+                    each.times(chunk.len()),
+                    chunk.iter().map(|&(_, own)| own).collect(),
+                )
+            })
         })
+        .collect();
+    let rivals = level_stats::rivals(
+        &parts
+            .iter()
+            .enumerate()
+            .flat_map(|(index, (_, _, own))| own.iter().map(move |&each| (index, each)))
+            .collect::<Vec<_>>(),
+    );
+    let parties: Vec<(Vec<u32>, Strength)> = parts
+        .into_iter()
+        .map(|(members, strength, _)| (members, strength))
         .collect();
     let count = parties.len();
     // What a way is worth, the less the better. Bit `i` of `mask`: party
@@ -1591,9 +1618,18 @@ pub fn sides(parties: &[Party], size: usize, player: Strength, seed: u32) -> [Ve
             strength[side] += *each;
         }
         let over: usize = players.iter().map(|&side| side.saturating_sub(size)).sum();
+        let together = rivals
+            .iter()
+            .filter(|&&(a, b)| mask >> a & 1 == mask >> b & 1)
+            .count();
         let apart = players[0].abs_diff(players[1]);
         let worth = |side: usize| player.times(players[side]) + strength[side];
-        (over, apart.saturating_sub(1), worth(0).abs_diff(worth(1)))
+        (
+            over,
+            apart.saturating_sub(1),
+            together,
+            worth(0).abs_diff(worth(1)),
+        )
     };
     let fixed = (0..count).max_by_key(|&index| (parties[index].0.len(), std::cmp::Reverse(index)));
     // A room has at most 20 members, so at most 20 parties.
@@ -2516,19 +2552,19 @@ mod tests {
 
     #[test]
     fn the_sides_count_alike_and_an_odd_count_puts_the_stronger_on_the_side_of_fewer() {
-        // Five alone, two of them of K/D 1.5, the others 1, a player 1:
-        // the two strong ones are the two.
-        let parties: Vec<Party> = [1000, 1000, 1500, 1000, 1500]
+        // Seven alone: one of 3, two of 1.5, four of 1, a player 1. The
+        // three: 3, 1.5 and 1 (8.5 against 8.5).
+        let parties: Vec<Party> = [1000, 1000, 1500, 1000, 1500, 3000, 1000]
             .into_iter()
             .enumerate()
             .map(|(index, kd)| party(&[index as u32 + 1], kd))
             .collect();
         let [a, b] = sides(&parties, 8, KD, 0);
-        let (mut fewer, more) = if a.len() < b.len() { (a, b) } else { (b, a) };
-        fewer.sort_unstable();
-        assert_eq!((fewer, more.len()), (vec![3, 5], 3));
-        // Four alone: two a side, the strong ones apart.
-        let [a, b] = sides(&parties[1..], 8, KD, 0);
+        let (fewer, more) = if a.len() < b.len() { (a, b) } else { (b, a) };
+        assert_eq!((fewer.len(), more.len()), (3, 4));
+        assert!(fewer.contains(&6) && fewer.contains(&3) != fewer.contains(&5));
+        // Four alone: two a side, the strong ones (the two strongest) apart.
+        let [a, b] = sides(&parties[1..5], 8, KD, 0);
         assert_eq!((a.len(), b.len()), (2, 2));
         assert!(a.contains(&3) != a.contains(&5));
     }
@@ -2587,6 +2623,66 @@ mod tests {
             assert!(a.contains(&9) != a.contains(&10));
             assert_eq!(strength_of(&a, &strengths), strength_of(&b, &strengths));
         }
+    }
+
+    /// The owner's of 2026-11-05: the two strongest players are never on
+    /// one side, even where that split is the most even one; and a squad
+    /// with a strong player has every other strong player against it.
+    #[test]
+    fn the_strongest_go_one_against_another() {
+        // 3 and 2.9 with 0.1 against four of 1.25 is 9 against 9 (a player
+        // 1): the most even, so without the rule some seeds take it. Apart,
+        // the best is a K/D apart.
+        let strengths = [
+            (1, 3000),
+            (2, 2900),
+            (3, 100),
+            (4, 1250),
+            (5, 1250),
+            (6, 1250),
+            (7, 1250),
+        ];
+        let parties: Vec<Party> = strengths.iter().map(|&(id, s)| party(&[id], s)).collect();
+        for seed in 0..50 {
+            let [a, b] = sides(&parties, 4, KD, seed);
+            assert!(a.contains(&1) != a.contains(&2), "{a:?} {b:?}");
+        }
+        // A squad of 2.8 and 0 (3.64), 3 (the strongest) and 2.5 alone,
+        // four of 1 in a 4 v 4: the squad with 2.5 and a 1 would be the
+        // most even (7.14 against 6), but both strong ones go against it
+        // (5.64 against 7.5).
+        let mut parties = vec![Party::new(vec![
+            (1, Strength::from_milli(2800)),
+            (2, Strength::ZERO),
+        ])];
+        parties.extend(
+            [
+                (3, 3000),
+                (4, 2500),
+                (5, 1000),
+                (6, 1000),
+                (7, 1000),
+                (8, 1000),
+            ]
+            .map(|(id, s)| party(&[id], s)),
+        );
+        for seed in 0..50 {
+            let [a, b] = sides(&parties, 4, KD, seed);
+            let with_squad = if a.contains(&1) { &a } else { &b };
+            assert!(
+                with_squad.contains(&2) && !with_squad.contains(&3) && !with_squad.contains(&4),
+                "{a:?} {b:?}"
+            );
+        }
+        // One strong member is no squad too strong; two are.
+        assert!(!parties[0].too_strong());
+        assert!(
+            Party::new(vec![
+                (1, Strength::from_milli(4000)),
+                (2, Strength::from_milli(2500)),
+            ])
+            .too_strong()
+        );
     }
 
     /// The owner's of 2026-11-01: a squad's members count 1.3 times, and

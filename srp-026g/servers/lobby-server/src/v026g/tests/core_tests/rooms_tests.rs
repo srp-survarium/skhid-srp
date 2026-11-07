@@ -1538,16 +1538,16 @@ fn leave_and_come_back(
     seats[4].1
 }
 
-/// The owner's of 2026-10-19 (players, then the previous team, then the
-/// balance): one who comes back into its room's match goes, of two sides
-/// with as many players in it, to the side it played on.
+/// The owner's of 2026-11-05 (the weaker side only): one who comes back
+/// into its room's match goes to the side that counts for less, not to the
+/// side it played on.
 #[test]
-fn one_who_comes_back_into_the_match_goes_to_its_side_when_the_players_are_alike() {
+fn one_who_comes_back_into_the_match_goes_to_the_weaker_side_not_its_own() {
     let mut world = World::new();
     let (key, ticket, id, players) = room_match_of_four(&mut world);
     // A player of team 1 leaves, and one of team 0 is out of the match too
-    // (its game gone): 1 v 1 in it. The players are alike, so the balance
-    // alone would send the one coming back to team 0.
+    // (its game gone): 1 v 1 in it. The players are alike: side 0, though
+    // it played on team 1.
     let leaver = players[1..]
         .iter()
         .copied()
@@ -1561,7 +1561,7 @@ fn one_who_comes_back_into_the_match_goes_to_its_side_when_the_players_are_alike
     let present =
         0b1111 & !(1 << seat_of(&world, id, leaver).0) & !(1 << seat_of(&world, id, other).0);
     let team = leave_and_come_back(&mut world, (key, ticket, id), leaver, present);
-    assert_eq!(team, 1);
+    assert_eq!(team, 0);
 }
 
 /// Players come first: one who comes back goes to the side with fewer

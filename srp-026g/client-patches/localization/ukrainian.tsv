@@ -2496,6 +2496,7 @@ st_srp_loadout_block_locked	Цей профіль закритий
 st_srp_loadout_block_maintenance	Скоро технічні роботи: за %1$s хв
 st_srp_loadout_block_pocket_twice	Один тип предмета у двох кишенях
 st_srp_loadout_block_shared_slot	Два предмети в одному слоті
+st_srp_loadout_block_squad_too_strong	Загін надто сильний: розділіться
 st_srp_loadout_block_weapon	Немає зброї
 st_srp_loadout_empty	порожній
 st_srp_loadout_refused	Не вдалося обрати комплект.
@@ -2599,6 +2600,7 @@ st_srp_pierce_stone	Камінь
 st_srp_pierce_tinplate	Бляха
 st_srp_pierce_value	%1$s · %2$s
 st_srp_play_in_squad	У загоні
+st_srp_play_squad_too_strong	Розійтися
 st_srp_pvb_at_limit	Уже йде найбільше матчів з ботами одночасно, спробуйте за хвилину
 st_srp_pvb_at_limit_count	Уже йде найбільше матчів з ботами одночасно (%1$s/%2$s), спробуйте за хвилину
 st_srp_pvb_busy	%1$s (зайнято)

@@ -579,6 +579,12 @@ pub enum RoomCode {
     /// own: its commander's Play, Join or Queue takes it (the owner's of
     /// 2026-10-31, `squads.md`). The movie greys those by the same rule.
     SquadLeader = 17,
+    /// The asker's squad is too strong to play (two strong players or more,
+    /// `session::v026g::level_stats::too_strong`; the owner's of
+    /// 2026-11-05): Play, Join and a queue refuse it at the door, and a
+    /// room's match takes it out of the room. It must split up. The movie
+    /// greys Play by the same rule (`presets::BLOCK_SQUAD_TOO_STRONG`).
+    SquadTooStrong = 18,
 }
 
 /// A room in [`room_list`].

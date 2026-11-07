@@ -128,6 +128,7 @@ use std::time::{Duration, Instant};
 
 use session::v026g::GameAccounts;
 use session::v026g::balance::Weights;
+use session::v026g::level_stats;
 use session::v026g::replays::Replays;
 use session::v026g::rewards::Results;
 use session::{LockExt, SessionStore};
@@ -283,8 +284,14 @@ impl Settings {
         };
         log::info!(
             "The sides of a match: each player counts for its K/D at the match's equipment \
-             level, and {} K/D for being there",
-            balance.player
+             level times its kills a minute there over {:.2} (at most {:.2}), and {} K/D for \
+             being there; strong from {:.2}: the two strongest and a squad with a strong player \
+             against any other strong one go one against another, a squad of two strong plays \
+             no match, a late joiner goes to the weaker side only",
+            level_stats::AVERAGE_KILL_RATE.per_minute(),
+            level_stats::KILL_RATE_MOST.per_minute(),
+            balance.player,
+            level_stats::STRONG.as_kd()
         );
         log::info!(
             "The balance rating: a match moves it when {} players or more were in it for half \

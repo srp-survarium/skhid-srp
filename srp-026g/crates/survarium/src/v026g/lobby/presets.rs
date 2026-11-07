@@ -26,6 +26,10 @@ pub const PRESETS_VERSION: &str = "P2";
 /// to the kit's (`session::v026g::rules::PlayBlock`, bits 1 to 16), set by
 /// the lobby (`Core::entry_blocks`), not by the kit.
 pub const BLOCK_MAINTENANCE: u8 = 32;
+/// The reason bit of a squad too strong to play (two strong players or
+/// more; `rooms::RoomCode::SquadTooStrong`), set by the lobby
+/// (`Core::entry_blocks`).
+pub const BLOCK_SQUAD_TOO_STRONG: u8 = 64;
 
 /// The first field of a row of the items the presets use.
 pub const USES: &str = "U";
@@ -78,7 +82,7 @@ pub struct PresetRow {
 /// [`PresetDone`], `preset` the one it was about, 0 for the list; `active`
 /// the active preset; `blocks` why no room may be entered now, a set of
 /// bits: the kit a match would take can not play
-/// (`session::v026g::rules::PlayBlock`), [`BLOCK_MAINTENANCE`]; 0: none.
+/// (`session::v026g::rules::PlayBlock`), [`BLOCK_MAINTENANCE`], [`BLOCK_SQUAD_TOO_STRONG`]; 0: none.
 /// The rooms' entries' rule, by which the movie greys Play and Join and
 /// lists the reasons in their tip. `minutes` to a planned maintenance, -1
 /// for none: the tip's number, and the movie asks again while one is

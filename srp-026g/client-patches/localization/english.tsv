@@ -2496,6 +2496,7 @@ st_srp_loadout_block_locked	This profile is locked
 st_srp_loadout_block_maintenance	Server maintenance soon: in %1$s min
 st_srp_loadout_block_pocket_twice	One item type in two pockets
 st_srp_loadout_block_shared_slot	Two items share a slot
+st_srp_loadout_block_squad_too_strong	Squad too strong: split up
 st_srp_loadout_block_weapon	No weapon
 st_srp_loadout_empty	empty
 st_srp_loadout_refused	The loadout could not be chosen.
@@ -2599,6 +2600,7 @@ st_srp_pierce_stone	Stone
 st_srp_pierce_tinplate	Tinplate
 st_srp_pierce_value	%1$s · %2$s
 st_srp_play_in_squad	In squad
+st_srp_play_squad_too_strong	Split up
 st_srp_pvb_at_limit	The most bot matches at a time are already running, try again in a minute
 st_srp_pvb_at_limit_count	The most bot matches at a time are already running (%1$s/%2$s), try again in a minute
 st_srp_pvb_busy	%1$s (busy)

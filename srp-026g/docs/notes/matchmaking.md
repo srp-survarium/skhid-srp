@@ -20,9 +20,11 @@ schema step 5).
 > voted on; a clan match's is drawn uniformly; the plays per map are still counted), §9.1-9.2
 > and §9.7 (the late-join queue, its scoring across matches, its patience, the dramatic lead,
 > JOIN), the server's PvP bots and their giving way, and `JOIN_CUTOFF` (a room's match takes a
-> member who comes from its countdown until 30 s are left, `LOAD_MARGIN`, on the side with fewer
-> players in the match, then the side it played on in that match before, then the one that
-> counts for less: `matchmaking_policy::place_joiner`). Those sections are kept for the record. §1, §4, §8 (the
+> member who comes from its countdown until 30 s are left, `LOAD_MARGIN`, only on the side that
+> counts for less, by §9.2's count of the players in the match now and the lead, while that side
+> has a place and no rival of the joiner, else it waits: `matchmaking_policy::place_joiner`,
+> `kd-balance.md`; the owner's of 2026-11-05, which ended "fewer players first" and "the side
+> played on before"). Those sections are kept for the record. §1, §4, §8 (the
 > sides now made by `rooms::sides` with the same count) and §9.8 still hold.
 
 Sources of the time: `progression_sources.md` §9.
@@ -419,6 +421,17 @@ thrown (§3.14).
 
 ### 9.2 A match being played: who joins, and where
 
+> **A room's match since 2026-11-05** (the owner's: "late joiners can't skew balance";
+> `kd-balance.md`): a joiner goes only to the side that counts for less by the count below (its
+> players in the match now, each by the strength it was seated with, a player 1 more, and the
+> lead), within the room's size counting the places kept. Never onto a side with a rival of it
+> (`level_stats::rivals` of the players in and the joiner: the two strongest, unless one squad;
+> a squad with a strong player and any other strong one); with its mate in the match only when
+> the mate's side is the weaker; a squad going in together both on it. Else it waits in the
+> room, told the match is full (`JoinHold::Full`), until a place opens there. A squad of two
+> strong players goes in nowhere: out of the room, code 18. The rest of this section is the
+> queue's of before, kept for the record.
+
 Play first looks at the matches being played (`play.rs`,
 `fill_running_matches`; `matchmaking_policy::place_late`). A match takes
 players while it is in play, has more than two minutes left
@@ -512,10 +525,12 @@ with fewer than four it moves no rating (§8.3).
 
 - `Match 0x… sides: …` when a match is made (§8.4), in both queues.
 - `Match 0x… late join: <name> <what it counts for> (gear g, level l,
-  rating r of m matches) to team <n>, …; with them team 0 counts X (n in,
-  lead L), team 1 counts Y (m in, lead L); the sides were Z apart`. Each
-  joiner is written as the "sides" line writes a player (the parts since
-  2026-10-14; before, the name and the sum alone).
+  rating r of m matches, at L: kd K of k/d, kpm R of k/m min[, squad][,
+  strong]) to team <n>, …; with them team 0 counts X (n in, lead L), team 1
+  counts Y (m in, lead L); the sides were Z apart`. Each joiner is written as
+  the "sides" line writes a player (the parts since 2026-10-14, the K/D at
+  the level since 2026-11-01, the kills a minute, squad and strong since
+  2026-11-05; before, the name and the sum alone).
 - **Each minute of every match being played**, in both queues: `Match 0x…
   at <s> s: team 0 counts X (n in, lead L), team 1 counts Y (m in, lead
   L); points [a, b], kills [k0, k1]; team 0 expected at P %; out: <name>,
@@ -527,7 +542,10 @@ with fewer than four it moves no rating (§8.3).
   nothing.
 - `scripts/balance-refit/refit.py` reads these lines and the "settled"
   one: the weights of §8 fitted on who was in each match, minute by
-  minute. It does not fit the numbers of the lead.
+  minute. It does not fit the numbers of the lead. With `--db` (copies of
+  `srp.db`) it tests the strength rule of `kd-balance.md` on the match
+  reports and these lines instead: the kills a minute, the winners by K/D
+  and by K/D x kpm, the sides and late joins the rule would have changed.
 - `<name>: JOIN match 0x… (key k): ok|full|gone|busy (…); sides …` and
   `<name>: Play with a place held in match 0x… …`: the JOIN button (§9.7).
   A JOIN that puts a player in writes the "late join" line too.

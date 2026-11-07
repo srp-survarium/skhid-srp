@@ -818,15 +818,28 @@ package survarium.player
       // The reasons (presets.md's table): bits of the list's `<blocks>`,
       // each with its text (the maintenance's: %1$s its minutes).
       private static const BLOCK_MAINTENANCE:int = 32;
-      
+
+      // The squad is too strong to play (two strong players or more; the
+      // owner's of 2026-11-05): Play red, "Squad too strong", until it
+      // splits up. The server refuses it too (code 18).
+      private static const BLOCK_SQUAD_TOO_STRONG:int = 64;
+
       private static const REASONS:Array = [
          {"bit":1,"key":"st_srp_loadout_block_locked"},
          {"bit":2,"key":"st_srp_loadout_block_shared_slot"},
          {"bit":4,"key":"st_srp_loadout_block_pocket_twice"},
          {"bit":8,"key":"st_srp_loadout_block_ammo"},
          {"bit":16,"key":"st_srp_loadout_block_weapon"},
-         {"bit":BLOCK_MAINTENANCE,"key":"st_srp_loadout_block_maintenance"}
+         {"bit":BLOCK_MAINTENANCE,"key":"st_srp_loadout_block_maintenance"},
+         {"bit":BLOCK_SQUAD_TOO_STRONG,"key":"st_srp_loadout_block_squad_too_strong"}
       ];
+
+      // StatusPanel.showRoomsPlay: the squad too strong to play (its Play
+      // red, its own label).
+      public static function squadTooStrong() : Boolean
+      {
+         return me != null && me._reasonsKnown && (me._blocks & BLOCK_SQUAD_TOO_STRONG) != 0;
+      }
       
       // A squad member that is not its leader (the owner's of 2026-10-31,
       // squads.md): its Play greyed all the time, and it goes into no room on
@@ -925,7 +938,7 @@ package survarium.player
          {
             return true;
          }
-         if(!me._reasonsKnown || (me._blocks & BLOCK_MAINTENANCE) != 0)
+         if(!me._reasonsKnown || (me._blocks & (BLOCK_MAINTENANCE | BLOCK_SQUAD_TOO_STRONG)) != 0)
          {
             return false;
          }

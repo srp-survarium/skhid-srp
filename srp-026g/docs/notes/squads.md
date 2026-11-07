@@ -93,12 +93,15 @@ movie's `SquadList`, `RoomsLook.squadTag`. Tests: `core_tests::rooms_tests::squa
   who can play are one squad counts nobody for its start and waits as usual (no vote, no new
   text) until a third can play; then the pair is on one side. A private room plays its
   owner's arrangement, as before.
-- **Late join:** a member whose mate is in the match goes in on its mate's side, or waits for
-  the next match while that side is full. A soldier whose commander waits in the room goes in
-  by its commander's turn. Two who wait together go in together, both places
-  reserved at once at the match server (`append_players`, `join_running_group`), on a side
-  with two places, or neither (one place on each side is none): they wait in the room, told
-  "The match is full.". A side's places count the places kept for players who may come back
+- **Late join:** a member whose mate is in the match goes in on its mate's side while that
+  side is the weaker one and has a place (the owner's of 2026-11-05: a late joiner goes to the
+  weaker side only, `kd-balance.md`), else waits. A soldier whose commander waits in the room
+  goes in by its commander's turn. Two who wait together go in together, both places
+  reserved at once at the match server (`append_players`, `join_running_group`), on the weaker
+  side with two places, or neither: they wait in the room, told "The match is full.".
+- **Too strong** (the owner's of 2026-11-05): a squad of two strong players
+  (`level_stats::too_strong`) plays no match: Play, Join and a queue refuse it (code 18), its
+  Play is red ("Split up"), and a room's match takes it out of the room. Split up, each plays. A side's places count the places kept for players who may come back
   (`rooms.md`, a side's places in a match being played), for anyone, alone or not.
 - **Leaving:** Leave takes only the one who leaves; its mate stays. A game gone keeps its
   place about 90 s as anyone's. Leaving the squad moves nobody.

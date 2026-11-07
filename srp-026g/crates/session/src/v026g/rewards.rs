@@ -1086,14 +1086,19 @@ impl Results {
                     if let Some(change) = balance_changes[index] {
                         account.balance = account.balance.moved(change);
                         // A match that moves the balance rating counts its
-                        // kills and deaths at its equipment level
-                        // (`level_stats`), and no other does.
+                        // kills and deaths at its equipment level, and the
+                        // player's time in it (`level_stats`), and no
+                        // other does.
                         if let Some(gear) = gear {
                             let played = KillsDeaths {
                                 kills: u32::from(player.kills),
                                 deaths: u32::from(player.deaths),
                             };
-                            account.level_stats.played(gear, played);
+                            account.level_stats.played(
+                                gear,
+                                played,
+                                player.time_in_match_ms / 1000,
+                            );
                         }
                     }
                     let (reward, full, notices) = shared.settle_player(
