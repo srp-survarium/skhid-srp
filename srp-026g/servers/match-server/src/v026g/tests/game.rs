@@ -1173,6 +1173,65 @@ fn a_first_world_that_takes_three_seconds_is_waited_for_with_load_receipts_as_wi
 }
 
 #[test]
+fn a_resync_on_a_long_line_settles_with_load_receipts_as_without() {
+    use crate::v026g::scripted::WorldReceiptMode;
+    // One player of several on a line of 800 to 850 ms one way, resynced:
+    // its 14 KB worlds wait behind the replay and the transport's window,
+    // and are acked more than 2 s after they were queued. A game that
+    // sends load receipts is waited for as long as one that does not: its
+    // receipt is due after the acks, not 2 s after the world was queued.
+    for (players, one_way) in [(6usize, 800u64), (8, 850)] {
+        let mut settled = Vec::new();
+        for mode in [WorldReceiptMode::Legacy, WorldReceiptMode::Accept] {
+            let settings = Settings {
+                compress_state: false,
+                ..Settings::default()
+            };
+            let mut bench = Bench::growing(players, MAP_BATTERIES, settings);
+            for client in &mut bench.clients {
+                client.sim.ballast = 13_000;
+            }
+            let far = players - 1;
+            bench.clients[far].world_receipts = mode;
+            bench.clients[far].slow_acks = true;
+            bench.join_all();
+            settle(&mut bench);
+            bench.run(3_000);
+            bench.one_way = vec![0; players];
+            bench.one_way[far] = one_way;
+            bench.run(2_000);
+            // Its game goes out of step: it is resynced.
+            let from = bench.clients[far].clock();
+            bench.clients[far].sim.salt_from = Some((from, 7));
+            let start = bench.ms;
+            let mut resynced = false;
+            let mut live_ms = 0u64;
+            while bench.ms < start + 40_000 {
+                let (resyncing, _) = bench.game().resync_state(far);
+                resynced |= resyncing;
+                if resynced && !resyncing && bench.stages().ends_with('L') {
+                    live_ms += 5;
+                }
+                if bench.ms.is_multiple_of(50) {
+                    for client in &mut bench.clients[..far] {
+                        client.input(20, 0x21);
+                    }
+                }
+                bench.step(5);
+            }
+            let what = format!("{players} players, {one_way} ms, {mode:?}");
+            assert!(resynced, "{what}");
+            assert_eq!(bench.stages(), "L".repeat(players), "{what}");
+            assert!(live_ms > 25_000, "{what}: in step {live_ms} ms of 40 s");
+            assert_eq!(bench.game().resyncs(far), 1, "{what}");
+            bench.assert_no_faults();
+            settled.push(bench.game().generation(far));
+        }
+        assert_eq!(settled[0], settled[1], "{players} players, {one_way} ms");
+    }
+}
+
+#[test]
 fn a_game_waiting_for_its_first_world_gets_the_others_inputs_many_in_a_datagram() {
     let mut bench = Bench::new(4, MAP_BATTERIES, Settings::default());
     for place in 0..3 {

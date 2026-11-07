@@ -7,8 +7,10 @@ const RETRY_GAP: Duration = Duration::from_secs(1);
 pub(super) enum Pending {
     Nothing,
     OptionsRetry { due: Instant },
-    /// A world is on its way; without a receipt by `due` it goes again.
-    Offered { generation: u8, due: Instant },
+    /// A world is on its way: the transport gives it up if it is not acked.
+    Offered { generation: u8 },
+    /// Every part of it was acked: without a receipt by `due` it goes again.
+    Delivered { generation: u8, due: Instant },
     Loaded { generation: u8 },
     Retry { generation: u8, due: Instant },
 }
@@ -51,20 +53,33 @@ impl WorldReceipts {
             true
         } else { false }
     }
-    /// `due`: when the receipt for `generation` is taken as lost (`overdue`).
-    pub(super) fn offer(&mut self, generation: u8, due: Instant) {
+    pub(super) fn offer(&mut self, generation: u8) {
         if let Self::Enabled { pending, .. } = self {
-            *pending = Pending::Offered { generation, due };
+            *pending = Pending::Offered { generation };
+        }
+    }
+    /// The transport saw every part of the world of `generation` acked: its
+    /// receipt is taken as lost at `due` (`overdue`). Only the first call
+    /// for an offer counts, and none once its receipt came.
+    pub(super) fn delivered(&mut self, generation: u8, due: Instant) {
+        if let Self::Enabled { pending, .. } = self
+            && matches!(*pending, Pending::Offered { generation: offered } if offered == generation)
+        {
+            *pending = Pending::Delivered { generation, due };
         }
     }
     pub(super) fn receive(&mut self, generation: u8, outcome: Outcome, now: Instant) -> Received {
         let Self::Enabled { next_retry, pending } = self else { return Received::Ignored; };
-        match (*pending, outcome) {
-            (Pending::Offered { generation: expected, .. }, Outcome::Loaded) if generation == expected => {
+        let offered = match *pending {
+            Pending::Offered { generation } | Pending::Delivered { generation, .. } => Some(generation),
+            _ => None,
+        };
+        match outcome {
+            Outcome::Loaded if offered == Some(generation) => {
                 *pending = Pending::Loaded { generation };
                 Received::Loaded
             }
-            (Pending::Offered { generation: expected, .. }, Outcome::Rejected) if generation == expected => {
+            Outcome::Rejected if offered == Some(generation) => {
                 let due = now.max(*next_retry);
                 *next_retry = due + RETRY_GAP;
                 *pending = Pending::Retry { generation, due };
@@ -73,9 +88,9 @@ impl WorldReceipts {
             _ => Received::Ignored, // stale, duplicate, unsolicited or already settled
         }
     }
-    /// The world of `generation` was offered and no receipt for it came by its due time.
+    /// The world of `generation` was acked and no receipt for it came by its due time.
     pub(super) fn overdue(&self, generation: u8, now: Instant) -> bool {
-        matches!(self, Self::Enabled { pending: Pending::Offered { generation: offered, due }, .. }
+        matches!(self, Self::Enabled { pending: Pending::Delivered { generation: offered, due }, .. }
             if *offered == generation && now >= *due)
     }
     pub(super) fn loaded(&self, generation: u8) -> bool {
@@ -100,25 +115,31 @@ mod tests {
     #[test]
     fn receipts_are_bound_to_an_offer_and_retries_are_bounded() {
         let now = Instant::now(); let mut state = WorldReceipts::default();
-        assert!(state.loaded(0)); state.enable(now); state.offer(255, now);
+        assert!(state.loaded(0)); state.enable(now); state.offer(255);
         assert_eq!(state.receive(0, Outcome::Loaded, now), Received::Ignored); assert!(!state.loaded(255));
         assert_eq!(state.receive(255, Outcome::Rejected, now), Received::Rejected);
         for _ in 0..10_000 { assert_eq!(state.receive(255, Outcome::Rejected, now), Received::Ignored); }
         assert!(state.take_retry(255, now)); assert!(!state.take_retry(255, now));
-        state.offer(0, now); state.receive(255, Outcome::Rejected, now);
+        state.offer(0); state.receive(255, Outcome::Rejected, now);
         assert!(!state.take_retry(0, now)); state.receive(0, Outcome::Rejected, now);
         assert!(!state.take_retry(0, now)); assert!(state.take_retry(0, now + RETRY_GAP));
-        state.offer(1, now); assert_eq!(state.receive(1, Outcome::Loaded, now), Received::Loaded);
+        state.offer(1); assert_eq!(state.receive(1, Outcome::Loaded, now), Received::Loaded);
         assert_eq!(state.receive(1, Outcome::Rejected, now), Received::Ignored); assert!(state.loaded(1));
     }
 
     #[test]
-    fn a_receipt_is_overdue_only_past_its_offers_due_time() {
-        let now = Instant::now(); let due = now + Duration::from_secs(4); let mut state = WorldReceipts::default();
-        state.offer(3, due); assert!(!state.overdue(3, due), "no receipts negotiated");
-        state.enable(now); state.offer(3, due);
+    fn a_receipt_is_overdue_only_past_the_wait_after_its_world_was_acked() {
+        let now = Instant::now(); let due = now + Duration::from_secs(1); let mut state = WorldReceipts::default();
+        state.offer(3); state.delivered(3, due); assert!(!state.overdue(3, due), "no receipts negotiated");
+        state.enable(now); state.offer(3);
+        assert!(!state.overdue(3, due + Duration::from_secs(60)), "a world not acked is the transport's");
+        state.delivered(2, due); assert!(!state.overdue(3, due + Duration::from_secs(60)));
+        state.delivered(3, due); state.delivered(3, due + Duration::from_secs(9));
         assert!(!state.overdue(3, due - Duration::from_millis(1))); assert!(state.overdue(3, due)); assert!(!state.overdue(2, due));
-        state.receive(3, Outcome::Loaded, now); assert!(!state.overdue(3, due));
-        state.offer(4, due); state.receive(4, Outcome::Rejected, now); assert!(!state.overdue(4, due), "a refusal has its own retry");
+        assert_eq!(state.receive(3, Outcome::Loaded, now), Received::Loaded); assert!(!state.overdue(3, due));
+        state.delivered(3, due); assert!(state.loaded(3), "a receipt before the acks settles it");
+        state.offer(4); state.delivered(4, due);
+        assert_eq!(state.receive(4, Outcome::Rejected, now), Received::Rejected);
+        assert!(!state.overdue(4, due), "a refusal has its own retry");
     }
 }

@@ -574,11 +574,13 @@ const WAITING_RELAY_RESEND: Duration = Duration::from_millis(150);
 const WAITING_REACH_MS: u32 = 5_500;
 /// 0xE8's own lifetime in the client's table (`udp_transport::Table`).
 const WORLD_LIFETIME: Duration = Duration::from_millis(1750);
-/// A load receipt is waited for this long past its world's own time on the
-/// way (that 1.75 s, or an entering game's longer `entry_lifetime`): then it
-/// is taken as lost and the world goes again. Sooner, a world still on its
-/// way to a game on a thin line would be given up before it could arrive.
-const RECEIPT_GRACE: Duration = Duration::from_millis(250);
+/// A load receipt is waited for this long after the transport saw every
+/// part of its world acked (twice the client's 500 ms resend of a lost
+/// copy): then it is taken as lost and the world goes again. A world not
+/// acked is the transport's to give up at the end of its own lifetime,
+/// counted from its parts' first sends (`is_lost`), as without receipts:
+/// the time since it was queued says nothing of a line that holds it.
+const RECEIPT_WAIT: Duration = Duration::from_millis(1_000);
 
 /// A relay is of use to a game until its world time is this far past the
 /// relay's tick: its history is 500 ms, and one that comes later is moved
@@ -3260,8 +3262,7 @@ impl Game {
         if entering {
             peer.synced_at = Some(now);
         }
-        let travels = lifetime.unwrap_or(WORLD_LIFETIME);
-        peer.world_receipts.offer(peer.generation.0, now + travels + RECEIPT_GRACE);
+        peer.world_receipts.offer(peer.generation.0);
         peer.stage = Stage::Syncing {
             serial,
             time: snapshot.time,
@@ -5568,10 +5569,14 @@ impl Game {
                     let Some(peer) = self.peers[index].as_mut() else {
                         continue;
                     };
-                    let delivered = peer.transport.is_delivered(serial) && peer.world_receipts.loaded(peer.generation.0);
+                    let acked = peer.transport.is_delivered(serial);
+                    if acked {
+                        // Its receipt is due [`RECEIPT_WAIT`] after the first
+                        // look that sees it acked.
+                        peer.world_receipts.delivered(peer.generation.0, now + RECEIPT_WAIT);
+                    }
+                    let delivered = acked && peer.world_receipts.loaded(peer.generation.0);
                     if peer.world_receipts.overdue(peer.generation.0, now) {
-                        // Not before the world's own time on its way
-                        // (`RECEIPT_GRACE`): an entering game's lasts longer.
                         self.redo_sync(index, entering, "no world load receipt; retry without removing the recipient", now);
                     } else if peer.transport.is_lost(serial) {
                         // Not acked in its 1.75 s: dropped by the transport.
