@@ -891,6 +891,66 @@ pub extern "C" fn hook_drug_interrupt_on_hit_applied(frame: &mut Frame) -> u32 {
     }
 }
 
+// ---- effect_presenters (patch 117) ----
+
+/// The named exits of effect_presenters::on_sound_stop (the order the shim's Flow code
+/// follows, 2 upward).
+#[repr(u32)]
+#[allow(dead_code)]
+pub enum EffectPresentersOnSoundStopExit { Ignore }
+/// The entry `effect_presenters_on_sound_stop` (0x2aa1cd, sound_game_effect_presenter::on_event 0x2A9EF0, a stop (event kind 1) after its search, where the search's end and an empty list meet (mov eax,[ebx] / lea edx,[edi+edi*4]; the erase 0x2AB420 follows): EDI the index of the entry playing the effect, -1 when none (then the erase starts at begin - 14h: the presenter's own seed (+10h) taken for an entry's effect reference and freed); ignore is its return (pop edi / pop esi / pop ebx; ret 0Ch)) calls this with the saved machine.
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_effect_presenters_on_sound_stop(frame: &mut Frame) -> u32 {
+    // SAFETY: only the entry `effect_presenters_on_sound_stop` calls this, from the game's jump at 0x2aa1cd,
+    // on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::new(frame) };
+    match crate::effect_presenters::on_sound_stop(&mut ctx) {
+        Flow::Continue => 0,
+        Flow::Skip => 1,
+        Flow::Exit(e) => 2 + e as u32,
+    }
+}
+
+// ---- effect_presenters (patch 117) ----
+
+/// The named exits of effect_presenters::on_sound_update (the order the shim's Flow code
+/// follows, 2 upward).
+#[repr(u32)]
+#[allow(dead_code)]
+pub enum EffectPresentersOnSoundUpdateExit { Ignore }
+/// The entry `effect_presenters_on_sound_update` (0x2aa0bd, sound_game_effect_presenter::on_event 0x2A9EF0, an update (any other event kind) at its entry's first use (mov ecx,[esi+10h] / movss [esi+0Ch],xmm0): ESI the entry playing the effect, 0 when none (then [10h] is read); ignore is its return (pop edi / pop esi / pop ebx; ret 0Ch)) calls this with the saved machine.
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_effect_presenters_on_sound_update(frame: &mut Frame) -> u32 {
+    // SAFETY: only the entry `effect_presenters_on_sound_update` calls this, from the game's jump at 0x2aa0bd,
+    // on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::new(frame) };
+    match crate::effect_presenters::on_sound_update(&mut ctx) {
+        Flow::Continue => 0,
+        Flow::Skip => 1,
+        Flow::Exit(e) => 2 + e as u32,
+    }
+}
+
+// ---- effect_presenters (patch 117) ----
+
+/// The named exits of effect_presenters::on_particle_stop (the order the shim's Flow code
+/// follows, 2 upward).
+#[repr(u32)]
+#[allow(dead_code)]
+pub enum EffectPresentersOnParticleStopExit { Ignore }
+/// The entry `effect_presenters_on_particle_stop` (0x2ac65a, particle_game_effect_presenter::on_event 0x2AC400, a stop (event kind 1) after its search (lea edx,[eax+eax*2] / mov eax,[edi]; the erase 0x2ACD80 follows): EAX the index of the entry playing the effect, -1 when none (then the erase starts at begin - 18h, in the presenter's own fields); ignore is its return (pop edi / pop esi / pop ebx; ret 8)) calls this with the saved machine.
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_effect_presenters_on_particle_stop(frame: &mut Frame) -> u32 {
+    // SAFETY: only the entry `effect_presenters_on_particle_stop` calls this, from the game's jump at 0x2ac65a,
+    // on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::new(frame) };
+    match crate::effect_presenters::on_particle_stop(&mut ctx) {
+        Flow::Continue => 0,
+        Flow::Skip => 1,
+        Flow::Exit(e) => 2 + e as u32,
+    }
+}
+
 // ---- footsteps (patch 101) ----
 
 /// The named exits of footsteps::on_step_guard (the order the shim's Flow code

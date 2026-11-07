@@ -4557,6 +4557,32 @@ These guards also cover item bodies whose format cannot be walked statically.
 checks invalid/empty tables at all four stack alignments (84 cases). The i686
 patch crate's i686 tests and Clippy pass. No release revision is reserved.
 
+## A presenter ignores an effect it does not hold (patch 117, unreleased)
+
+The 2026-11-06 crash (rev50, `abort` from the allocator under
+sound_game_effect_presenter::on_event 0x2A9EF0). `base_player::remove(1)`
+(a respawn, a departure, a snapshot's kit change) clears the player's
+presenter (0x2DA81C, vtable +4) while its game_effect_player plays on; a
+damage zone stops its effect on the player when its sensor sees the player
+gone, the tick after (damage_zone_core 0x31A210 -> game_effect_player::stop
+0x2DE350). The sound and particle presenters' `on_event` search their
+entries for the effect and erase the one found; a search that finds none
+leaves its index at -1 and the erase starts one entry before the list: the
+sound presenter's own fields are released as an entry (the word at its
+capacity pointer's +28h counted down, its random seed at +10h freed as an
+effect reference: the crash), the particle presenter's likewise; the sound
+presenter's update reads entry 0. The patch (`effect_presenters`, three
+lohooks after the searches) returns from `on_event` when the search found
+nothing, with a line in `srp_patches.log`; the native code runs unchanged
+when the entry is there.
+
+`check_effect_presenters_026g.py <stock exe>` runs both presenters (made by
+the third-person presenter's constructor) on a stop and an update of an
+effect they hold and of one they do not, in the original and the build, at
+the four stack alignments (64 cases): the original frees the seed, faults or
+erases before the list; the build returns and changes nothing; a held
+effect's stop and update are the original's byte for byte. Not played.
+
 ## Match-message checks (patch 114, unreleased)
 
 Before dispatching a server message, the client checks fixed lengths, player
