@@ -68,6 +68,8 @@ pub struct Kinematics {
     pub drop_fall: DropFall,
     /// [A318] Which input's keys and yaw move the reckoned body on a step ([`StepInput`]).
     pub step_input: StepInput,
+    /// [A318] How far a reckoned step up goes ([`ClientStep`]).
+    pub client_step: ClientStep,
     /// [A318] The speed a world's falling body starts its reckoned fall at ([`FixFall`]).
     pub fix_fall: FixFall,
     /// [A269c] What a route adds to the cost of a walk onto a floor near an open side (with [`Edge::ClientWalksOff`], the grid's
@@ -404,6 +406,7 @@ impl Default for Kinematics {
             edge: Edge::Client,
             drop_fall: DropFall::Client,
             step_input: StepInput::Previous,
+            client_step: ClientStep::Grid,
             fix_fall: FixFall::World,
             open_edge_cost: 0.0,
             walk_off_landing: WalkOffLanding::BySpeed,
@@ -511,6 +514,29 @@ pub enum StepInput {
     /// input, as the client holds it.
     #[default]
     Previous,
+}
+
+/// [A318] Where a reckoned step the grid finds hard goes: by the grid's slide, or by the client's own walk tick. The grid's slide
+/// tries a few fixed turns and keeps cos of the turn (`WallSlide`), where the client keeps a slide's whole length within 30 degrees
+/// of a wall and less beyond (fx-review A338; on the grid's coarse tries that law alone lost, 2.67 -> 2.80 %, a318/wall-slide-client).
+/// And the client's walk tick loses flat speed on a step up (`step_up`
+/// 0x7C900 lifts the capsule, the move sweep then meets the riser): on the client tests' step_up ticks the client-walk reference's
+/// body moved at 0.93 of its keys' speed for a rise under 0.1 m, 0.74 for 0.1-0.3 m, 0.33 for 0.3-0.5 m (walk ticks 1.00); the
+/// reckoning moved at 0.98 / 0.85 / 0.94 (fx-zones' `step_up_speed.py`).
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum ClientStep {
+    /// The grid's slide alone (and [`SlopeSpeed`]): as it was. The default since A318's first harm measure: with the walker
+    /// attached in the bench (it was not, so #1440 shipped unmeasured), [`Self::Client`] made the bots' jumps and stuck worse
+    /// (16 TDM pairs: jumps failed 39 -> 82, stuck 663 -> 1,076 s); OFF until a harm run on a stand-in that walks by the client's
+    /// tick in both arms (`SRP_BENCH_STAND_IN_CLIENT_STEP=on`) says otherwise.
+    #[default]
+    Grid,
+    /// A reckoned step the grid has rising (more than `body::STEP_UP_RISE_M`) or ending short of where it was asked to go (a wall, a
+    /// corner: `body::CLIENT_BLOCKED_M`) goes where the client's own walk tick takes the body from the same feet
+    /// (`WalkGrid::client_step`, the port of `player_step`: step up, the move sweep's slide, step down); the grid then walks to that
+    /// point. Needs the grid's walker (`WalkGrid::with_client_walker`), else as [`Self::Grid`].
+    Client,
 }
 
 /// [A318] How the reckoned body (`BodyTrack`, not the lip guard's stop forecast) comes down when its floor drops more than a step

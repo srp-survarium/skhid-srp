@@ -578,15 +578,10 @@ fn build(
                     || WalkGrid::build_kept_with_links(&walker, area, cell, body, &seeds, &spawns, links).0,
                     |grid, path| grid.write(path, grid_key),
                 );
-                // The table of wall clearances ([`WalkGrid::wall_clearance`]) only where the tuning in force needs it
-                // ([`Tuning::needs_wall_clearance`]):
-                // derived from the triangles, in neither the cached file nor the key, and 0.5-1.7 s of CPU a map.
-                let grid = if wall_clearance { grid.with_wall_clearance(&walker) } else { grid };
-                // The table of open sides ([`WalkGrid::open_toward`]) likewise ([`Tuning::needs_open_sides`]).
-                let grid = match open_sides {
-                    Some(support_m) => grid.with_open_sides(&walker, support_m),
-                    None => grid,
-                };
+                // [A346] The tables the tuning in force needs ([`Tuning::needs_wall_clearance`], [`Tuning::needs_open_sides`]) and
+                // the client's walker, in neither the cached file nor the key: by the one step every world uses
+                // ([`mapdata::GridExtras::apply`]; the bench's and the tests' worlds through `World::build_with_extras`).
+                let grid = mapdata::GridExtras { wall_clearance, open_sides }.apply(grid, &walker);
                 let grid = Arc::new(grid);
                 lock(cache).grids.insert(grid_key, Arc::downgrade(&grid));
                 (grid, source)
@@ -1125,6 +1120,75 @@ mod tests {
         let default = wait_ready(&Maps::configured(Some(dir.clone()), KEEP, AT_ONCE, None, GridTuning::default()), "tiny/day_4", wait);
         assert_ne!(tuned.world.grid.digest(), default.world.grid.digest(), "the body is in the grid");
         let _ = std::fs::remove_dir_all(dir);
+    }
+
+    /// [A346] A world built as the bench and the tests build theirs (`World::build_with`, from the tuning's grid body, links and
+    /// tables) is the server's: the same grid digest and the same derived tables (`mapdata::GridExtras`), built here or read back
+    /// from the store's built file, with the tables off and on. The bench was blind twice to a table only the store added.
+    #[test]
+    fn a_bench_world_is_the_map_stores_world() {
+        let dir = temp_dir("bench-world");
+        let built = temp_dir("bench-world-built");
+        tiny_map("tiny/day_4").write(&dir.join(mapdata::format::file_name("tiny/day_4"))).unwrap();
+        let wait = Duration::from_secs(10);
+        let mut tables = crate::v026g::bots::tuning::Tuning::default();
+        tables.think.wall_clear_corners = true;
+        tables.kin.edge = crate::v026g::bots::kin::Edge::ClientWalksOff;
+        for tuning in [crate::v026g::bots::tuning::Tuning::default(), tables] {
+            let (wall_clearance, open_sides) = (tuning.needs_wall_clearance(), tuning.needs_open_sides());
+            let bench = World::build_with(
+                tiny_map("tiny/day_4"),
+                mapdata::CELL,
+                tuning.grid_body(),
+                tuning.off_mesh_links(),
+                wall_clearance,
+                open_sides,
+            );
+            // Built by the store, then read back from its built file by a second store.
+            for _ in 0..2 {
+                let store = Maps::configured_for(
+                    Some(dir.clone()),
+                    KEEP,
+                    AT_ONCE,
+                    Some(built.clone()),
+                    tuning.grid.clone(),
+                    wall_clearance,
+                    open_sides,
+                );
+                let served = wait_ready(&store, "tiny/day_4", wait);
+                assert_eq!(served.world.grid.digest(), bench.grid.digest());
+                assert_eq!(mapdata::GridExtras::held_by(&served.world.grid), mapdata::GridExtras::held_by(&bench.grid));
+            }
+            let (clearances, sides, walker) = mapdata::GridExtras::held_by(&bench.grid);
+            assert_eq!((clearances, sides), (wall_clearance, open_sides.is_some()));
+            assert!(walker > 0, "the client's walker is always kept");
+        }
+        let _ = std::fs::remove_dir_all(dir);
+        let _ = std::fs::remove_dir_all(built);
+    }
+
+    /// [A346] [`a_bench_world_is_the_map_stores_world`] on real maps: `SRP_MAPDATA_DIR` (the map files), `SRP_A346_PROJECTS`
+    /// (comma-separated projects), the tuning `SRP_BENCH_TUNING` (JSON over the defaults, `{}` if unset). Prints each map's
+    /// digests and tables both ways.
+    #[test]
+    #[ignore = "real maps; minutes a map"]
+    fn bench_worlds_are_the_stores_on_real_maps() {
+        let dir = PathBuf::from(std::env::var("SRP_MAPDATA_DIR").expect("SRP_MAPDATA_DIR"));
+        let projects = std::env::var("SRP_A346_PROJECTS").expect("SRP_A346_PROJECTS");
+        let tuning: crate::v026g::bots::tuning::Tuning =
+            serde_json::from_str(&std::env::var("SRP_BENCH_TUNING").unwrap_or_else(|_| "{}".into())).expect("SRP_BENCH_TUNING");
+        let (wall_clearance, open_sides) = (tuning.needs_wall_clearance(), tuning.needs_open_sides());
+        for project in projects.split(',').filter(|p| !p.is_empty()) {
+            let path = dir.join(mapdata::format::file_name(project));
+            let map = MapData::from_bytes(&std::fs::read(&path).expect("map file")).expect("map");
+            let bench = World::build_with(map, mapdata::CELL, tuning.grid_body(), tuning.off_mesh_links(), wall_clearance, open_sides);
+            let store = Maps::configured_for(Some(dir.clone()), KEEP, AT_ONCE, None, tuning.grid.clone(), wall_clearance, open_sides);
+            let served = wait_ready(&store, project, Duration::from_secs(1800));
+            let (a, b) = (bench.grid.digest(), served.world.grid.digest());
+            let (ta, tb) = (mapdata::GridExtras::held_by(&bench.grid), mapdata::GridExtras::held_by(&served.world.grid));
+            println!("A346 {project}: bench {a:?} {ta:?} store {b:?} {tb:?} {}", if a == b && ta == tb { "EQUAL" } else { "DIFFER" });
+            assert_eq!((a, ta), (b, tb), "{project}");
+        }
     }
 
     #[test]

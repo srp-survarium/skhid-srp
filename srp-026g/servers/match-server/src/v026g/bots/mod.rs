@@ -35,6 +35,7 @@ pub mod arc;
 pub mod artefact_know;
 pub mod body;
 pub mod breach;
+pub mod camp_flank;
 pub mod cheats;
 #[cfg(any(test, feature = "client-test"))]
 pub mod client_tests;
@@ -1264,6 +1265,17 @@ impl Bots {
         self.layers.routes = table.for_map(self.level, self.mode.rules());
         self.layers.perches = table.perches_for(self.level);
         self.layers.perch_share = table.perch_share(self.level, self.mode.id());
+    }
+
+    /// [A320 `threat.camp_flank`] The known camp spots of the match's map and mode and their flank routes
+    /// (`bot-flank-routes.json`); before [`Self::map_ready`].
+    pub fn set_flank_table(&mut self, table: &camp_flank::FlankTable) {
+        self.layers.camp_spots = table.for_map(self.level, self.mode.rules());
+    }
+
+    /// [A320] Whether a team's tuning uses the flank-route table (`threat.camp_flank`): the table is read only then.
+    pub fn uses_camp_flank(&self) -> bool {
+        (0..2).any(|team| self.tunings.of(team).threat.camp_flank.is_some())
     }
 
     /// The map's bushes (`bot-foliage.json`); before [`Self::map_ready`].

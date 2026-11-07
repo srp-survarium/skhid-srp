@@ -70,6 +70,7 @@ mod eye;
 mod false_walls;
 mod fights;
 mod fix_gap;
+mod flank_build;
 mod flight_look;
 mod hump_deck;
 #[cfg(feature = "jump-test")]
@@ -85,6 +86,7 @@ mod no_way;
 mod opening;
 mod pace_gate;
 mod pocket_runs;
+mod reference_replay;
 mod settings;
 mod sight;
 mod soak;

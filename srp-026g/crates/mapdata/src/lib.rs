@@ -202,6 +202,36 @@ pub struct World {
     pub sight: std::sync::Arc<RayTree>,
 }
 
+/// [A346] What a grid gets once its links are built or read back, before a world uses it: tables derived from the walker
+/// triangles, in neither the built file nor the grid key. The one step that the server's map store (`bots::maps`) and every
+/// world built here (the bench's matches, the tests) finish their grids with, so a setting the store applies cannot be missing
+/// from the others (twice it was: the client walker, A318, and the pull hold, A333).
+#[derive(Clone, Copy, Debug, Default, PartialEq)]
+pub struct GridExtras {
+    /// The table of wall clearances ([`WalkGrid::wall_clearance`]; 0.5-1.7 s a map).
+    pub wall_clearance: bool,
+    /// The table of open sides ([`WalkGrid::open_toward`]) for a capsule held this far past a floor's centre at a ledge.
+    pub open_sides: Option<f32>,
+}
+
+impl GridExtras {
+    /// `grid` with these tables, and the client's walker always ([`WalkGrid::with_client_walker`]: the reckoning's client step,
+    /// A318), all from the map's `walker` triangles.
+    pub fn apply(self, grid: WalkGrid, walker: &[Triangle]) -> WalkGrid {
+        let grid = if self.wall_clearance { grid.with_wall_clearance(walker) } else { grid };
+        let grid = match self.open_sides {
+            Some(support_m) => grid.with_open_sides(walker, support_m),
+            None => grid,
+        };
+        grid.with_client_walker(walker)
+    }
+
+    /// Which of these tables `grid` holds (wall clearances, open sides, the walker's bytes): equal for two grids finished alike.
+    pub fn held_by(grid: &WalkGrid) -> (bool, bool, usize) {
+        (grid.has_wall_clearance(), grid.has_open_sides(), grid.client_walker_bytes())
+    }
+}
+
 impl World {
     /// Builds the grid (cells of `cell` metres over the play area, normally
     /// [`CELL`], keeping the floors a body gets to from the map's
@@ -221,6 +251,12 @@ impl World {
     /// is set (0.5-1.7 s a map), and its table of open sides ([`WalkGrid::open_toward`]) for a capsule held `support_m` past a
     /// floor's centre at a ledge when `open_sides` is `Some(support_m)`.
     pub fn build_with(map: MapData, cell: f32, body: Body, links: OffMeshLinks, wall_clearance: bool, open_sides: Option<f32>) -> Self {
+        Self::build_with_extras(map, cell, body, links, GridExtras { wall_clearance, open_sides })
+    }
+
+    /// [`Self::build_with_links`], the grid finished by `extras` ([`GridExtras::apply`]) as the server's map store finishes its
+    /// own (`bots::maps`): the same step, so a table the store adds cannot be missing from a world built here.
+    pub fn build_with_extras(map: MapData, cell: f32, body: Body, links: OffMeshLinks, extras: GridExtras) -> Self {
         let spawns: Vec<Vec3> = map.spawns.iter().map(|s| s.position).collect();
         let walker = map.walker_triangles();
         let (grid, _) = WalkGrid::build_kept_with_links(
@@ -232,11 +268,7 @@ impl World {
             &spawns,
             links,
         );
-        let grid = if wall_clearance { grid.with_wall_clearance(&walker) } else { grid };
-        let grid = match open_sides {
-            Some(support_m) => grid.with_open_sides(&walker, support_m),
-            None => grid,
-        };
+        let grid = extras.apply(grid, &walker);
         let sight = map.bullet_mesh().build_tree();
         Self::assemble(map, grid.into(), sight.into())
     }

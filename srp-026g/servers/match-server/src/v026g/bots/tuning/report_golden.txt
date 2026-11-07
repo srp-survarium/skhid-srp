@@ -34,7 +34,7 @@ switches OFF spacing: apart_ease apart_tie lane
 switches OFF take: cross_from_zone far_stands team_memory world_stand
 switches OFF tdm: group squad
 switches OFF think: door_centres
-switches OFF threat: answer_sniper breach job_out_of_all_lines job_spot_levels pair_target pin_from_cover replan sniper_lanes trade_cover walk_watch
+switches OFF threat: answer_sniper breach camp_flank job_out_of_all_lines job_spot_levels pair_target pin_from_cover replan sniper_lanes trade_cover walk_watch
 switches OFF traps: after_press at_cleared at_defeated camper_job forward fresh_ring press_moving
 switches OFF unstick: fix_gap_ms
 switch values aim: combat.fire.burst_pause={"floor_ms":100,"rifle":[{"from_m":20.0,"q":[100,200,462]},{"from_m":40.0,"q"... combat.gate_from_client={"jump_ms":1200,"sprint_out_ms":300} combat.hit_shooter=nearest combat.settle=wander_and_policy combat.settle_guns=scoped combat.worth.hurt_from=seen combat.zoom_error=all friends.spread_source=data skill_curve=geometric
@@ -43,7 +43,7 @@ switch values cover: hold_exposure={"anchor_deg":45.0,"far_m":60.0,"near_m":20.0
 switch values feel: drop_truth=links past_drop=landed
 switch values hazard: escape=under_start_zone route_crossing=total zone_pools=routed
 switch values heal: amounts=course_total drug_stops=known
-switch values kin: carrier_sprint=refused drop_fall=client edge=client fix_blend=replayed fix_fall=world fix_floor=under_in_jump jump_snap=by_keys leg_damage=client level_read=settled level_source=computed margin_edge=body mixer=layers pitch_scale=client slope_speed=ramps_grade speed_cap=client speed_terms=legs step_input=previous walk_off_landing=by_speed wall_slide=round
+switch values kin: carrier_sprint=refused client_step=grid drop_fall=client edge=client fix_blend=replayed fix_fall=world fix_floor=under_in_jump jump_snap=by_keys leg_damage=client level_read=settled level_source=computed margin_edge=body mixer=layers pitch_scale=client slope_speed=ramps_grade speed_cap=client speed_terms=legs step_input=previous walk_off_landing=by_speed wall_slide=round
 switch values kit: frags=support_and_camper smoke=radio_place
 switch values pace: reserve={"gap":[15.0,30.0],"stop":[10.0,25.0]}
 switch values smoke: shooter_spot={"rest_within_m":4.0} wait_for_cloud={"close_m":15.0,"close_sensed_ms":2000,"margin_ms":500,"who":"crossers"}
