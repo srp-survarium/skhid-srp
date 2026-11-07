@@ -20746,18 +20746,18 @@ pub mod site {
         }
     }
 
-    /// keeper.respawn_containers (0x2fd19a): inventory::setup_from_profile before its last loop (lea esi,[edi+10Ch] / mov ebp,17h; the jmp at 0x2FD196 and the fstp at 0x2FD198 join here, the x87 stack empty), which calls each held slot's vfn +38h (an artefact's on_taken 0x313470: its passive link reads [item+250h]+174h): EDI the inventory of the kit being spawned (spawn 0x316E70 -> base_player::initialize)
-    pub mod keeper_respawn_containers {
+    /// keeper.world_loaded (0x2d2d5d): game_world_core::deserialize's end (mov byte [ebp+18FE0h],0 after pop edi / pop esi; the je at 0x2D2CBB and the loop's end join at 0x2D2D5B): every place's current kit and its inventory loaded, every object (the anomalies, their artefacts with their inventory and slot) loaded, every active place put into the world; EBP the core world. Every world load passes here: a rollback's (move 0x2D2FF0, 0x2D357A), a joiner's or a resync's (0x2D0B70 -> 0x2D0FB9), a replay's seek
+    pub mod keeper_world_loaded {
         #[allow(unused_imports)]
         use super::*;
 
-        /// EDI: a survarium::inventory (None for 0).
+        /// EBP: a survarium::core_world (None for 0).
         ///
         /// # Safety
         /// `machine` is at this site.
         #[inline(always)]
-        pub unsafe fn inventory(machine: &impl Machine) -> Option<Inventory> {
-            NonNull::new(machine.register(Register::Edi) as usize as *mut c_void).map(Inventory)
+        pub unsafe fn world(machine: &impl Machine) -> Option<CoreWorld> {
+            NonNull::new(machine.register(Register::Ebp) as usize as *mut c_void).map(CoreWorld)
         }
     }
 }

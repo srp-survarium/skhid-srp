@@ -443,13 +443,13 @@ pub extern "C" fn hook_artefact_keeper_on_tick(frame: &mut Frame) -> u32 {
 
 // ---- artefact_keeper (patch 109) ----
 
-/// The entry `artefact_keeper_on_respawn_containers` (0x2fd19a, inventory::setup_from_profile before its last loop (lea esi,[edi+10Ch] / mov ebp,17h; the jmp at 0x2FD196 and the fstp at 0x2FD198 join here, the x87 stack empty), which calls each held slot's vfn +38h (an artefact's on_taken 0x313470: its passive link reads [item+250h]+174h): EDI the inventory of the kit being spawned (spawn 0x316E70 -> base_player::initialize)) calls this with the saved machine.
+/// The entry `artefact_keeper_on_world_loaded` (0x2d2d5d, game_world_core::deserialize's end (mov byte [ebp+18FE0h],0 after pop edi / pop esi; the je at 0x2D2CBB and the loop's end join at 0x2D2D5B): every place's current kit and its inventory loaded, every object (the anomalies, their artefacts with their inventory and slot) loaded, every active place put into the world; EBP the core world. Every world load passes here: a rollback's (move 0x2D2FF0, 0x2D357A), a joiner's or a resync's (0x2D0B70 -> 0x2D0FB9), a replay's seek) calls this with the saved machine.
 #[unsafe(no_mangle)]
-pub extern "C" fn hook_artefact_keeper_on_respawn_containers(frame: &mut Frame) -> u32 {
-    // SAFETY: only the entry `artefact_keeper_on_respawn_containers` calls this, from the game's jump at 0x2fd19a,
+pub extern "C" fn hook_artefact_keeper_on_world_loaded(frame: &mut Frame) -> u32 {
+    // SAFETY: only the entry `artefact_keeper_on_world_loaded` calls this, from the game's jump at 0x2d2d5d,
     // on the game's thread; `frame` is its saved registers and fxsave area.
     let mut ctx = unsafe { Context::new(frame) };
-    match crate::artefact_keeper::on_respawn_containers(&mut ctx) {
+    match crate::artefact_keeper::on_world_loaded(&mut ctx) {
         Flow::Continue => 0,
         Flow::Skip => 1,
         Flow::Exit(e) => match e {},
