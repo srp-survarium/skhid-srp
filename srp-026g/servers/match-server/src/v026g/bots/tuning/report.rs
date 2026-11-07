@@ -21,7 +21,7 @@ use std::fmt;
 
 use serde_json::Value;
 
-use super::Tuning;
+use super::{KEPT_RIGHT, NO_CHEATS, Tuning};
 
 /// One kind of entry: `(section, entry text)` in the order of the walk.
 type Entries = Vec<(String, String)>;
@@ -46,12 +46,16 @@ impl Tuning {
         let default = serde_json::to_value(Tuning::all_off()).expect("a tuning is JSON");
         let mut report = SwitchReport::default();
         walk(&mut Vec::new(), Some(&value), Some(&default), &mut report);
-        // Kept-right options are set in the reference too, so the walk shows nothing of them: these are shown when set.
-        for pointer in SHOWN_WHEN_SET {
-            if let Some(set) = value.pointer(pointer).filter(|v| !v.is_null()) {
-                let path: Vec<String> = pointer.trim_start_matches('/').split('/').map(str::to_owned).collect();
-                let (section, name) = entry(&path);
-                report.on.push((section, format!("{name}={}", show(set))));
+        // The options the reference keeps (kept right, no cheats) are equal in both, so the walk shows nothing of a number,
+        // a list or a struct's numbers: each that the walk did not print is shown when set, whole, so the golden proves it.
+        for pointer in KEPT_RIGHT.iter().chain(NO_CHEATS) {
+            let Some(set) = value.pointer(pointer).filter(|v| !v.is_null()) else { continue };
+            let path: Vec<String> = pointer.trim_start_matches('/').split('/').map(str::to_owned).collect();
+            let (section, name) = entry(&path);
+            let named = |(s, text): &(String, String)| *s == section && (*text == name || text.starts_with(&format!("{name}=")));
+            let printed = [&report.on, &report.off, &report.values, &report.changed].iter().any(|kind| kind.iter().any(named));
+            if !printed {
+                report.on.push((section, format!("{name}={}", whole(set))));
             }
         }
         // Into its section's line (the walk's sections come in order; the sort is stable).
@@ -60,9 +64,14 @@ impl Tuning {
     }
 }
 
-/// [A324] Options ON by default and kept right (`KEPT_RIGHT` in the all-off test: the all-off reference keeps them set), which the
-/// report shows with their value when set, so that a golden proves the default: `traps.press_clear`.
-const SHOWN_WHEN_SET: &[&str] = &["/traps/press_clear"];
+/// A value whole: numbers as [`number`], text as it is, anything else as compact JSON (a kept option's default, uncut).
+fn whole(v: &Value) -> String {
+    match v {
+        Value::Number(n) => number(n),
+        Value::String(s) => s.clone(),
+        other => other.to_string(),
+    }
+}
 
 impl SwitchReport {
     /// The lines of the report: the ON lines, then OFF, values and changed numbers, one per section in each, each with its
@@ -271,6 +280,20 @@ mod tests {
         let base = Tuning::all_off().switch_report().lines();
         let moved: Vec<&String> = flipped.iter().filter(|l| !base.contains(l)).collect();
         assert!(moved.iter().all(|l| l.contains(" heal:") || l.ends_with(": none")), "{moved:?}");
+    }
+
+    /// Every option the all-off reference keeps (kept right, no cheats) is in the default tuning's report, whatever its kind: a
+    /// struct or a number equal in both shows whole, so the golden proves each default.
+    #[test]
+    fn every_kept_option_is_in_the_report() {
+        let report = Tuning::default().switch_report();
+        let all: Vec<&(String, String)> = [&report.on, &report.off, &report.values, &report.changed].into_iter().flatten().collect();
+        for pointer in KEPT_RIGHT.iter().chain(NO_CHEATS) {
+            let path: Vec<String> = pointer.trim_start_matches('/').split('/').map(str::to_owned).collect();
+            let (section, name) = entry(&path);
+            let shown = all.iter().any(|(s, text)| *s == section && (*text == name || text.starts_with(&format!("{name}="))));
+            assert!(shown, "{pointer} is not in the report");
+        }
     }
 
     /// A324: a kept-right option the all-off reference has set too shows with its value when set, and not when none.

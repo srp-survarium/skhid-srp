@@ -330,6 +330,10 @@ pub(super) fn drive_tick(
     decision.turn.1 = Pitch::view(me.pitch, bot.reflex.kick_before()).turn_for(tuning.kin.pitch_scale, decision.turn.1);
     // [A277] At the clip end of the shot that emptied the weapon: the count's reload and its key, the sprint taken off.
     decision.keys = bot.reflex.keys_sent(time, decision.keys);
+    // [A325f] The legs' `leg_damage` gate (`kin.leg_damage`; the world's affects, `legs`): the bot does not ask for a move, sprint
+    // or jump its legs refuse (two legs held: none until the first ends; one: no sprint, no jump), on every path of the tick (an
+    // unstick's keys too). Its own reckoned body takes the same keys.
+    decision.keys = bot.hurt.leg_damage.at(time).keys(decision.keys);
     bot.sent_keys = decision.keys;
     decision
 }

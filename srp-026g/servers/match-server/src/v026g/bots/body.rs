@@ -35,6 +35,7 @@ use survarium::v026g::match_msgs::TICK_MS;
 
 use super::jump_arc::{ArcStep, JumpArc};
 use super::kin::{Blend, DropFall, Edge, StepInput, FIX_ABOVE_M, FixBlend, FixFall, FixFloor, LEVEL_REACH, LEVEL_SNAP, LevelRead, LevelSource, WallSlide, JumpSnap, Kinematics, MarginEdge, TICK_S, WalkOffLanding, to_world, wrap};
+use super::legs::LegDamage;
 use super::pitch::{Pitch, PitchScale};
 use crate::v026g::drive::key;
 
@@ -390,6 +391,8 @@ pub struct BodyTrack {
     legs: Option<f32>,
     /// [A318] Whether the next press goes ([`Self::set_may_jump`]).
     jump_gate: JumpGate,
+    /// [A325f] The legs' `leg_damage` gate ([`Self::set_leg_damage`]): each tick's keys lose what the legs refuse then.
+    leg_damage: LegDamage,
     /// [A318] The map's walls a jump in the air is held by ([`Self::set_walls`]; none: the grid's floors alone).
     walls: Option<Walls>,
     /// The lives the worlds showed, the present one counted.
@@ -499,6 +502,16 @@ impl BodyTrack {
         self.legs = factor.filter(|f| f.is_finite() && *f > 0.0 && *f != 1.0);
     }
 
+    /// [A325f] The legs' `leg_damage` affects a world showed (`kin.leg_damage`; [`LegDamage::Sound`] ignores them).
+    pub fn set_leg_damage(&mut self, legs: LegDamage) {
+        self.leg_damage = legs;
+    }
+
+    /// [A325f] The tick as the client takes it: its keys without what the legs refuse at its time ([`super::legs`]).
+    fn as_taken(&self, tick: Tick) -> Tick {
+        Tick { keys: self.leg_damage.at(tick.time).keys(tick.keys), ..tick }
+    }
+
     /// [A318] Whether a jump the body presses next would go ([`JumpGate`]): a bot's own reckoning sets it before each tick.
     pub fn set_may_jump(&mut self, may: bool) {
         self.jump_gate = JumpGate::of(may);
@@ -553,7 +566,7 @@ impl BodyTrack {
             kick: estimate.kick,
             jump: JumpGate::Open,
         };
-        Some(advance(estimate, tick, kin, self.level(), grid, self.walls.as_ref().map(|w| &*w.0), Role::Reckoning))
+        Some(advance(estimate, self.as_taken(tick), kin, self.level(), grid, self.walls.as_ref().map(|w| &*w.0), Role::Reckoning))
     }
 
     /// Where the body is, or was last reckoned alive, and in which of its
@@ -600,6 +613,7 @@ impl BodyTrack {
             self.ticks.pop_front();
         }
         let level = self.level();
+        let tick = self.as_taken(tick);
         if let Some(estimate) = self.estimate.as_mut() {
             let held;
             (*estimate, held) = advance_held(*estimate, tick, kin, level, grid, self.walls.as_ref().map(|w| &*w.0));
@@ -781,10 +795,10 @@ impl BodyTrack {
             scale: kin.pitch_scale,
             fall: Fall::Ground,
             // [A318] The world's keys are input W's (PROVEN): the step before them takes input W-50's keys and the world's yaw
-            // less input W's turn.
+            // less input W's turn. [A325f] Those keys as the client takes them (the legs' gate, [`Self::as_taken`]).
             step: (kin.step_input == StepInput::Previous)
                 .then(|| {
-                    let keys = self.ticks.iter().find(|tick| tick.time + TICK_MS == fix.time)?.keys;
+                    let keys = self.as_taken(*self.ticks.iter().find(|tick| tick.time + TICK_MS == fix.time)?).keys;
                     let turn = self.ticks.iter().find(|tick| tick.time == fix.time)?.turn.0;
                     Some((keys, wrap(fix.yaw - turn)))
                 })
@@ -812,7 +826,7 @@ impl BodyTrack {
         // The ticks after the world's, again from where the world has it.
         for tick in self.ticks.iter().filter(|tick| tick.time > fix.time) {
             let held;
-            (estimate, held) = advance_held(estimate, *tick, kin, level, grid, self.walls.as_ref().map(|w| &*w.0));
+            (estimate, held) = advance_held(estimate, self.as_taken(*tick), kin, level, grid, self.walls.as_ref().map(|w| &*w.0));
             self.trail.push_back(Reckoned { time: tick.time, feet: estimate.feet, held });
         }
         // A world newer than every decided tick: the body is as it shows.
@@ -2228,6 +2242,33 @@ pub(super) mod tests {
             Role::Reckoning,
         );
         assert!(pressed.arc.is_none(), "{pressed:?}");
+    }
+
+    /// [A325f] Two legs holding `leg_damage`: the walk keys move the body nowhere until the first affect ends, then it walks;
+    /// one leg: the sprint keys move it at the run's speed, not the sprint's. The world's leg state holds over the ticks that came
+    /// before it was known (a world fixes the body and its ticks are played again under it).
+    #[test]
+    fn leg_damage_stands_the_body_on_two_legs_and_stops_the_sprint_on_one() {
+        let grid = walled();
+        let kin = Kinematics::default();
+        let walk = |legs: LegDamage, keys: u32, until: u32| {
+            let mut track = BodyTrack::default();
+            track.fixed(fix(1_000, Vec3::new(5.0, 0.0, 5.0), 0.0), &kin, Some(&grid));
+            for time in (1_050..=until).step_by(50) {
+                track.decided(time, keys, (0.0, 0.0), 0.0, &kin, Some(&grid));
+            }
+            // The world that shows the legs comes after those ticks (a later world: an older one is not taken).
+            track.set_leg_damage(legs);
+            track.fixed(fix(1_050, Vec3::new(5.0, 0.0, 5.0), 0.0), &kin, Some(&grid));
+            track.estimate().unwrap().feet.distance_xz(Vec3::new(5.0, 0.0, 5.0))
+        };
+        let both = LegDamage::Both { first: 2_000, second: 3_000 };
+        assert!(walk(both, key::FORWARD, 2_000) < 1e-3, "no walk while both legs hold it");
+        assert!(walk(both, key::FORWARD, 2_500) > 0.5, "it walks once the first ends");
+        let run = key::FORWARD | key::SPRINT;
+        let (sound, one) = (walk(LegDamage::Sound, run, 3_000), walk(LegDamage::One { until: 9_000 }, run, 3_000));
+        assert!(one < sound - 1.0, "one leg runs, the sound body sprints: {one} {sound}");
+        assert!((walk(LegDamage::One { until: 9_000 }, key::FORWARD, 3_000) - one).abs() < 1e-3, "one leg's sprint is its run");
     }
 
     /// [A318] With `kin.jump_arc` a press in place starts the client's jump (the body rises, then stands where it was at the
