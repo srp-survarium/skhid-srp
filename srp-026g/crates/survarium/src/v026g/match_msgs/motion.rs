@@ -71,6 +71,11 @@ pub struct Body {
     /// Already in the map's frame (`from_bullet`).
     pub fall_and_slide_velocity: [f32; 3],
     pub supporting_surface_normal: [f32; 3],
+    /// [A325] The block's third vector, at +42: a unit or zero normal [LIKELY the ceiling's, as named in the controller's serialize
+    /// order]; written as read.
+    pub ceiling_surface_normal: [f32; 3],
+    /// [A325] The block's fourth vector, at +54 [LIKELY the slide velocity]; written as read.
+    pub slide_velocity: [f32; 3],
 }
 
 impl Body {
@@ -191,6 +196,8 @@ fn body_at(s: &[u8], at: usize) -> Option<Body> {
         sprinting: flag(s, at + 66)?,
         fall_and_slide_velocity: fall,
         supporting_surface_normal: ground,
+        ceiling_surface_normal: ceiling,
+        slide_velocity: slide,
     })
 }
 

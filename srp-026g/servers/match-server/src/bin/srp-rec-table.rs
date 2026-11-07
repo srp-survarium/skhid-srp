@@ -23,7 +23,9 @@
 //!   before the hits' count, and part 0's health; [A325e] then `leg6,leg7,leg_damage_until,hand_damage_until,parts_speed`: the
 //!   legs' health, the latest end time of a leg_damage affect (type 4) on parts 6/7 and of a hand_damage (type 3) on parts 16/17,
 //!   and the sum of the 20 parts' `movement_speed_modifier` (`motion::BodyPart`); then `leg6_damage_until,leg7_damage_until`, each
-//!   leg's own latest leg_damage end (empty: none); empty where the block has none;
+//!   leg's own latest leg_damage end (empty: none); [A325] then the controller block's rest: `normal_x,normal_z` (the contact
+//!   normal's other two), `fall_x,fall_z`, `ceil_x,ceil_y,ceil_z` (the +42 vector), `slide_x,slide_y,slide_z` (+54), the crouch
+//!   flags `input_crouch,logic_crouch,capsule_crouch`; empty where the block has none;
 //! - `rec_anim.csv` (A325): `match,time,upload,place,times,floats`: each block's animation state's times and floats tables
 //!   (`players::animation_tables`, `;`-joined, in the state's order: the animation controller's buffer, 0x395AF0);
 //! - `rec_levels.csv` (A332): `match,roster,place,team,kit,level_none,weight,weapons`: each roster place's kits' speed level as the
@@ -172,7 +174,8 @@ fn run(input: &Path, out: &Path) -> Result<(), Box<dyn std::error::Error>> {
     writeln!(
         motions,
         "match,time,upload,place,alive,sprinting,jumping,colliding,can_stand,normal_y,fall_y,last_hit,hits,last_recent_hit,stagger,health0,\
-         leg6,leg7,leg_damage_until,hand_damage_until,parts_speed,leg6_damage_until,leg7_damage_until"
+         leg6,leg7,leg_damage_until,hand_damage_until,parts_speed,leg6_damage_until,leg7_damage_until,\
+         normal_x,normal_z,fall_x,fall_z,ceil_x,ceil_y,ceil_z,slide_x,slide_y,slide_z,input_crouch,logic_crouch,capsule_crouch"
     )?;
     // [A325] Each block's animation state's two tables (`players::animation_tables`), for the hit selector's per-part values.
     let mut anims = std::io::BufWriter::new(std::fs::File::create(out.join("rec_anim.csv"))?);
@@ -256,6 +259,16 @@ fn run(input: &Path, out: &Path) -> Result<(), Box<dyn std::error::Error>> {
                 let last_recent = motion.recent_hits.last().map_or(String::new(), |h| h.0.to_string());
                 // [A325e] The legs' health (parts 6, 7), the latest end of a leg_damage (type 4) on them and of a hand_damage (type 3)
                 // on the hands (16, 17), and the sum of the 20 parts' own movement_speed_modifier.
+                // [A325] The rest of the controller block (`bullet_character_controller::serialize` 0x7F7F0): the contact normal's x and
+                // z, the fall velocity's x and z, the ceiling normal and slide vector (LIKELY names), the crouch flags.
+                let controller_cols = motion.body.as_ref().map_or(",,,,,,,,,,,,".to_string(), |b| {
+                    let [n, f, c, l] = [b.supporting_surface_normal, b.fall_and_slide_velocity, b.ceiling_surface_normal, b.slide_velocity];
+                    format!(
+                        "{:.3},{:.3},{:.3},{:.3},{:.3},{:.3},{:.3},{:.3},{:.3},{:.3},{},{},{}",
+                        n[0], n[2], f[0], f[2], c[0], c[1], c[2], l[0], l[1], l[2],
+                        u8::from(b.input_crouch), u8::from(b.logic_crouch), u8::from(b.capsule_crouch)
+                    )
+                });
                 let parts_cols = motion.damage.as_ref().filter(|d| d.parts.len() >= 18).map_or(",,,,,,".to_string(), |d| {
                     let until = |ids: &[usize], kind: u8| {
                         ids.iter()
@@ -276,7 +289,7 @@ fn run(input: &Path, out: &Path) -> Result<(), Box<dyn std::error::Error>> {
                 });
                 writeln!(
                     motions,
-                    "{id},{time},{k},{},{},{sprinting},{jumping},{colliding},{can_stand},{normal_y},{fall_y},{last_hit},{},{last_recent},{stagger:.4},{health0},{parts_cols}",
+                    "{id},{time},{k},{},{},{sprinting},{jumping},{colliding},{can_stand},{normal_y},{fall_y},{last_hit},{},{last_recent},{stagger:.4},{health0},{parts_cols},{controller_cols}",
                     block.place,
                     u8::from(motion.alive),
                     motion.recent_hits.len()
