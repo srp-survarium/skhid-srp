@@ -892,7 +892,7 @@ fn smoke_uses(due: &Due, bot: &mut Bot, knowledge: &mut know::TeamKnowledge, not
     // client's forming at the walk cap, PROVEN 3.5 m/s, or a sprint's 5.1), and not so far it is another crossing. Nobody holds.
     let camper = || {
         let rule = t.threat_lane?;
-        if !t.cross_lane || bot.lanes.is_empty() || bot.reflex.lane_smokes() >= t.lanes_a_life {
+        if !t.cross_lane || bot.camp_lanes.is_empty() || bot.reflex.lane_smokes() >= t.lanes_a_life {
             return None;
         }
         let (route, _) = bot.route.as_ref()?;
@@ -906,7 +906,7 @@ fn smoke_uses(due: &Due, bot: &mut Bot, knowledge: &mut know::TeamKnowledge, not
         let end = (start + lead_m + rule.window_m.get()).min(route.length());
         let known = rule.known();
         let ahead = super::lane_ahead::known_lane_ahead(
-            &bot.lanes,
+            &bot.camp_lanes,
             known,
             view.clock,
             me.feet,

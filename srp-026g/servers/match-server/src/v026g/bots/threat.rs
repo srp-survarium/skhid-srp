@@ -1286,7 +1286,14 @@ pub struct ThreatSpots {
     events: Vec<SpotEvent>,
     /// [measure] What the sensed snipers' spots did.
     sniper_lanes: SniperLaneStats,
+    /// [A308] Every death of the team whose killer it sensed (the same kills the spots take), with its killer, for
+    /// [`CAMP_KILLS_KEPT_MS`]: kept apart from the spots, which his death clears (`SpotNote::ShooterDied`, then seen empty),
+    /// so a camper who comes back to his window after a death is remembered there ([`Self::camp_places`]).
+    camp_kills: Vec<(Place, Kill)>,
 }
+
+/// [A308] A team keeps its sensed killers' kills this long, ms: `smoke.threat_lane`'s window (5 min).
+pub const CAMP_KILLS_KEPT_MS: u32 = 300_000;
 
 /// [measure] What a team's sniper spots did (the bench's owner counts; nothing decides by them): spots made, lanes cast again
 /// because he moved, casts done and the regions they cover in all, and the commander ticks a sniper spot was held; the
@@ -1419,6 +1426,8 @@ impl ThreatSpots {
     pub fn died(&mut self, victim_at: Vec3, shooter: Place, shooter_at: Vec3, sensed: u32, now: u32, rules: SpotRules) {
         let reach = REACH_FLOOR_M.max(shooter_at.distance_xz(victim_at) + REACH_PLUS_M);
         let kill = Kill { from: shooter_at, victim: victim_at, time: now };
+        self.camp_kills.retain(|(_, k)| now.saturating_sub(k.time) <= CAMP_KILLS_KEPT_MS && k.time <= now);
+        self.camp_kills.push((shooter, kill));
         let merge_m = rules.merge_m();
         let mut matching = self
             .spots
@@ -2513,6 +2522,47 @@ pub struct LaneKill {
 }
 
 impl ThreatSpots {
+    /// [A308 `smoke.threat_lane`] The team's remembered camp places as lanes: for each sensed killer, his latest kill's place
+    /// and the kills of his within `within_ms` made from within `one_place_m` of it (newest first), when they are at least
+    /// `min_kills`. Across his deaths: the spots forget him at each (cleared), a player does not ("2 of us died from that
+    /// window"; the owner, 2026-11-07: "Yes fair why not"). Its sense is the latest such kill's (the kill feed with him sensed).
+    pub fn camp_places(&self, now: u32, one_place_m: f32, min_kills: usize, within_ms: u32) -> Vec<HeldLane> {
+        let mut shooters: Vec<Place> = self.camp_kills.iter().map(|(p, _)| *p).collect();
+        shooters.sort_unstable();
+        shooters.dedup();
+        shooters
+            .into_iter()
+            .filter_map(|shooter| {
+                let mut kills: Vec<&Kill> = self
+                    .camp_kills
+                    .iter()
+                    .filter(|(p, k)| *p == shooter && k.time <= now && now - k.time <= within_ms)
+                    .map(|(_, k)| k)
+                    .collect();
+                kills.sort_unstable_by(|a, b| b.time.cmp(&a.time));
+                let at = kills.first()?.from;
+                kills.retain(|k| (k.from - at).length() <= one_place_m);
+                if kills.len() < min_kills {
+                    return None;
+                }
+                let mut latest = [None; 3];
+                for (slot, k) in latest.iter_mut().zip(&kills) {
+                    *slot = Some(LaneKill { time: k.time, from: k.from });
+                }
+                let reach_m = kills.iter().map(|k| REACH_FLOOR_M.max(k.from.distance_xz(k.victim) + REACH_PLUS_M)).fold(0.0, f32::max);
+                Some(HeldLane {
+                    at,
+                    shooter,
+                    reach_m,
+                    sensed: Some(kills[0].time),
+                    area_m: one_place_m,
+                    kills: kills.len(),
+                    latest_kills: latest,
+                })
+            })
+            .collect()
+    }
+
     /// The spots held at `now`, as lanes.
     pub fn lanes(&self, now: u32) -> Vec<HeldLane> {
         self.lanes_kept(now, KeptOut::All)
@@ -2914,6 +2964,25 @@ mod tests {
         spots.shooter_died(5, 4_000);
         assert!(spots.spots.iter().all(|s| !s.is_sensed()));
         assert_eq!(spots.sniper_stats().unfair, 0);
+    }
+
+    /// [A308] A camp place (2 kills from within 3 m) is remembered across his death, which clears the spot; a latest kill from
+    /// elsewhere or kills past the window are not one.
+    #[test]
+    fn a_camp_place_outlives_the_spot_his_death_clears() {
+        let rules = SpotRules::default();
+        let mut spots = ThreatSpots::default();
+        let window = Vec3::new(10.0, 2.0, 10.0);
+        // Two kills from his window, a death between (the spot is cleared), a third from 20 m away.
+        spots.died(Vec3::new(30.0, 0.0, 10.0), 7, window, 1_000, 1_000, rules);
+        spots.shooter_died(7, 5_000);
+        spots.died(Vec3::new(30.0, 0.0, 20.0), 7, window + Vec3::new(1.5, 0.0, 0.0), 40_000, 40_000, rules);
+        let places = spots.camp_places(41_000, 3.0, 2, 300_000);
+        assert_eq!(places.len(), 1);
+        assert_eq!((places[0].shooter, places[0].kills), (7, 2));
+        spots.died(Vec3::new(30.0, 0.0, 30.0), 7, Vec3::new(30.0, 0.0, -10.0), 50_000, 50_000, rules);
+        assert!(spots.camp_places(51_000, 3.0, 2, 300_000).is_empty(), "his latest kill was from elsewhere: one kill there");
+        assert!(spots.camp_places(400_000, 3.0, 1, 300_000).is_empty(), "all older than the window");
     }
 
     /// The area memory (`threat.sniper_memory`): a sensed sniper is held two minutes after the last sense, his place the

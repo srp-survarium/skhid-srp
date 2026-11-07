@@ -264,6 +264,9 @@ pub struct Bot {
     smoke_threat: Arc<threat::Covered>,
     /// [smoke] The team's held lanes, told at the commander's ticks while `smoke.cross_lane` is on.
     lanes: Arc<[threat::HeldLane]>,
+    /// [A308 `smoke.threat_lane`] The team's remembered camp places as lanes (`ThreatSpots::camp_places`), told at the
+    /// commander's ticks while the switch is on.
+    camp_lanes: Arc<[threat::HeldLane]>,
     personality: usize,
     /// The skill it took at its last spawn.
     skill: f32,
@@ -516,6 +519,7 @@ impl Bot {
             sprint_threat: Arc::default(),
             smoke_threat: Arc::default(),
             lanes: Arc::from(Vec::new()),
+            camp_lanes: Arc::from(Vec::new()),
             personality,
             skill: tuning.skill.of_tier(BotTier::default()).start,
             side: None,
