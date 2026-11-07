@@ -144,6 +144,20 @@ preferred-image VAs; `apply_modifier` is the kit-modifier getter 0x2D5AE0.
   all three axes the x curve of `up` (the haze its own, 1.0), and the puffs are twice as large
   (`FOREST_OUTWARD`, `FOREST_PUFF_SIZE`); the light and everything else are @10's, and so is the
   first-person twin. `check_forest` allows exactly those values (and their data sources).
+- Since @12 (the owner, 2026-11-07, from renders next to the stock Onyx activation: "dark grey
+  smoke no light is good"): a dark-grey smoke around the arms. The stock activation's fog beyond
+  the body is its `up` puffs and `body` strokes, which have no arm part; the arm emitters alone
+  (strokes, rays, haze, light), at any rate or grey, showed only a tint. The system: the stock
+  Onyx glow cut to the six arm parts, every kept emitter at its full stock rate (the strokes
+  `left_hend`/`right_hend`, `rays`, the haze), no point light; plus the stock `up` and `body`,
+  full rate, their domains on the six arm parts only and their spawn outward on every axis (each
+  Scale axis `up`'s x curve, as @11). The puffs and the arm strokes are drawn with
+  `fx/artifacts/smoke_dark_grey`, a copy of the stock alpha-blended `explosions/dark_smoke`
+  (blend_mode 1; the glow's own materials are additive, 2, where a dark grey barely shows) with
+  its constant_emissive 0.3 grey; the rays keep their grey copy. The carrier's own view plays its
+  rays only (FOREST_FIRST_PERSON), nothing of the smoke. `check_forest` proves that construction
+  against the stock glow, value for value. Seen (renders forest-15): a mid-grey smoke around the
+  arms and shoulders, past the silhouette from the front and both sides, faint from behind.
 - First person since @10 (the owner, 2026-11-06: the carrier's own view washed white/grey): its
   effect and each leg quarter's are made as effect_artefact_<kind> is, a composite (type 110) of
   the system with no `view` (everyone else's third person, unchanged: its point light and haze)
@@ -286,7 +300,7 @@ preferred-image VAs; `apply_modifier` is the kit-modifier getter 0x2D5AE0.
   each 4 less the recipient's own carried copies of the kind (in their passive or active).
   Larkspur's active heal is Medic's, which has no cap: a full heal twice is one.
 
-### Leg quarters (patch 111, pack artefact-glow@11)
+### Leg quarters (patch 111, pack artefact-glow@12)
 
 - The owner (2026-11-06): each passive artefact copy that counts for a player lights a quarter
   of its legs in that artefact's colour (how stacked a player is).

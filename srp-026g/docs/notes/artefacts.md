@@ -112,6 +112,10 @@ down) when you use artifact? Note that your vision should still be clear")
   first-person twin (view 0) without the point light and the haze, as the kinds' own glows are.
 - Version 11: Forest Protection's puffs, strokes and haze out of the arm on every side (their
   animated domain's Scale outward on all three axes), the puffs twice as large; the twin 10's.
+- Version 12: Forest Protection's glow a dark-grey smoke around the arms: the stock Onyx glow on
+  the arms at full rate with its `up` puffs and `body` strokes moved onto them, no light, the
+  smoke drawn with `fx/artifacts/smoke_dark_grey` (a copy of the alpha-blended
+  `explosions/dark_smoke`); in the carrier's own view its rays only.
 - History: version 1 (a lighter copy) and version 2 (with `up_light`'s lights at x0.35) showed
   too little in the first person; version 3, the stock glow without the head, was tested by the
   owner and approved (2026-10-25: "this version is good"). Version 4 is the same files.

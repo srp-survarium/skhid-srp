@@ -67,6 +67,25 @@ quarters made as effect_artefact_<kind> is: a
 composite of the system with no `view` (everyone else's third person, unchanged: its light and
 haze) and a first-person twin (`view` 0, <system>_fp) without the point light's emitter and the
 haze (FIRST_PERSON_LEFT_OUT), which washed the carrier's own view grey.
+
+Version 11 pushed that system's puffs, strokes and haze out of the arm on every axis; still no fog
+like the stock activation's (the owner, 2026-11-07). Version 12 (the owner's pick, "dark grey smoke
+no light is good"): Forest Protection's glow is a dark-grey smoke around the arms. The stock
+activation's fog beyond the body is its `up` puffs and `body` strokes, which have no arm part; so:
+
+- the stock Onyx glow cut to the six arm parts (ARMS), every kept emitter at its full stock Rate
+  and MaxParticles (its strokes, rays and haze), without the point light (FOREST_LEFT_OUT);
+- plus the stock `up` and `body` (FOREST_PUFFS), full rate, every animated domain part off but the
+  six arm parts, and their spawn outward on every axis: each Scale axis `up`'s x curve (an animated
+  domain puts a particle at a random point of its body part's shape times Scale per axis in the
+  part's own frame, 0x369030; the stock axes were made for the legs);
+- grey (`greyed`: the rays' grey copy, rays_grey), and the puffs and the arm strokes
+  (FOREST_SMOKE) drawn with fx/artifacts/smoke_dark_grey: the stock alpha-blended
+  explosions/dark_smoke (blend_mode 1; the glow's own materials are additive, 2, and a dark grey
+  additive barely shows) with its constant_emissive DARK_GREY.
+
+Its first-person effect plays FOREST_FIRST_PERSON only, so nothing of the smoke drifts into the
+carrier's own view.
 """
 import argparse
 import copy
@@ -79,7 +98,7 @@ import sys
 import zlib
 
 PACK_ID = 'artefact-glow'
-VERSION = '11'
+VERSION = '12'
 # kind -> (effect config, particle system); the stock files, by sha256.
 KINDS = {
     'lifebone': 'fx/artifacts/human_zhivokost',
@@ -96,6 +115,7 @@ STOCK = {
     'material_instances/fx/artifacts/rays_orange.material': 'b7abda4163c0fee2d57bd3bc0198a956c51430a30d97e61326bb2b71289ad7d8',
     'material_instances/fx/artifacts/stroke_scroll_orange.material': 'bbbca74606ecc318bd7582eda42a9974d9330b977842f5f04a6a96c56b4cea89',
     'material_instances/fx/artifacts/up_orange.material': '9a9640e924f0911c8c1bc5a0c51ac9d2d20bbadb0ee5a7f170750fc2f30d658c',
+    'material_instances/fx/explosions/dark_smoke.material': '82bc6ffe831595734cbc0fac15eb69aaac9edce00ed0469f6b03d3b34088fae3',
 }
 # Forest Protection's glow: made from the Onyx glow (its effect, particle system and materials).
 FOREST_FROM = 'onyx'
@@ -103,30 +123,20 @@ FOREST_EFFECT = 'gameplay/effects/effect_forest_protection.options'
 FOREST_SYSTEM = 'fx/artifacts/human_forest_protection'
 ORANGE_MATERIALS = ('rays', 'stroke_scroll', 'up')
 LEGS = ('LeftUpLeg', 'LeftLeg', 'LeftFoot', 'RightUpLeg', 'RightLeg', 'RightFoot')
-# ... and since version 10 the legs' system of versions 5 to 8 moved to the arms (the owner,
-# 2026-11-06: the grey cloud around the legs is what Forest Protection should show), each leg part
-# to its arm part.
-LEG_TO_ARM = {'LeftUpLeg': 'LeftArm', 'LeftLeg': 'LeftForeArm', 'LeftFoot': 'LeftHand',
-              'RightUpLeg': 'RightArm', 'RightLeg': 'RightForeArm', 'RightFoot': 'RightHand'}
-ARM_FROM_LEG = {arm: leg for leg, arm in LEG_TO_ARM.items()}
-LEGS_SYSTEM_SHA256 = 'b461c2d9346d9fee0916d7ebbfd1a63122ddb5a54d4d2b159ddaa8fcda895623'
+# Forest Protection's glow since version 12: a dark-grey smoke around the six arm parts.
+ARMS = ('LeftArm', 'LeftForeArm', 'LeftHand', 'RightArm', 'RightForeArm', 'RightHand')
+FOREST_PUFFS = ('up', 'body')                       # the stock fog, moved onto the arms
+FOREST_SMOKE = ('up', 'body', 'left_hend', 'right_hend')
+FOREST_LEFT_OUT = ('up_light',)
+FOREST_FIRST_PERSON = ('rays',)                     # what the carrier sees of it on his own arms
+DARK_SMOKE_FROM = 'material_instances/fx/explosions/dark_smoke.material'
+DARK_SMOKE = 'fx/artifacts/smoke_dark_grey'
+DARK_GREY = [0.30000001192092896] * 3 + [1.0]   # 0.3 as an f32 (the render the owner picked)
 # What a first-person twin of Forest Protection's glow or a leg quarter leaves out (version 10).
 FIRST_PERSON_LEFT_OUT = ('up_light', 'distortion')
-# Forest Protection on the arms read from some sides only (the owner, 2026-11-07). An animated
-# domain puts each particle at a random point of its body part's shape, that point's coordinates
-# times the domain's Scale per axis in the part's own frame, and keeps it there as the part moves
-# (0.26g 0x369030). The stock Scale was made for the legs: `up` pushes its puffs out on x only
-# (1.76 -> 1.26) and keeps them inside the part on y (0.79 -> 0.83), the haze is flat (z 0.02),
-# the strokes sit at each part's centre (0, 0, 0). On the arms those axes put the cloud inside the
-# sleeve or along it. Since version 11 each emitter here takes on all three axes the x curve of the
-# emitter it names (`up`'s outward 1.76 -> 1.26 for the puffs and strokes, the haze its own 1.0),
-# and `up`'s puffs are FOREST_PUFF_SIZE times as large (the arms' parts are thinner than the legs'):
-# a cloud outside the arm on every side. The first-person twin stays version 10's.
-FOREST_OUTWARD = {'up': 'up', 'distortion': 'distortion', 'body': 'up', 'left_leg': 'up', 'right_leg': 'up'}
-FOREST_PUFF_SIZE = 2
-AXES = ('source0', 'source1', 'source2')
 BODY_PARTS = LEGS + ('BackChest', 'BackSpin', 'Face', 'FrontChest', 'FrontSpin', 'Head', 'LeftArm',
                      'LeftForeArm', 'LeftHand', 'Neck', 'RightArm', 'RightForeArm', 'RightHand')
+ALPHA_BLENDED = 1                        # a material's blend_mode: 1 alpha-blended, 2 additive
 GREY = [0.5, 0.5, 0.5, 1.0]              # the materials' emissive and the light: a neutral grey (exact in f32)
 BOTH_VIEWS = 2
 # The leg quarters (version 6): a kind's carried copies counting for a player light this many
@@ -316,94 +326,71 @@ def greyed(tree, path=''):
     return tree
 
 
-def legs_system(stock):
-    """human_forest_protection of versions 5 to 8: the stock Onyx glow, grey, its legs only; the
-    emitters with no leg part left out (and from children_order)."""
-    return keep_emitters(greyed(parts_only(copy.deepcopy(stock), LEGS)), domain_parts)
+def emitters_by_name(tree):
+    return {emitter_name(e): (g, e) for g, e in dict(dict(tree[1])['LOD 0'][1])['children'][1]}
 
 
-def legs_to_arms(tree):
-    """`tree` with each animated domain's leg parts moved to the matching arm parts (LEG_TO_ARM):
-    the arm part takes the leg part's value, the leg part goes off; every other value kept."""
-    t, v = tree
-    if t == T_NAMED:
-        if dict(v).get('particle_entity_type') == (T_STR, DOMAIN):
-            def moved(props):
-                values = dict(props)
-                out = []
-                for n, c in props:
-                    if n in LEG_TO_ARM:
-                        out.append((n, (T_BOOL, 0)))
-                    elif n in ARM_FROM_LEG:
-                        out.append((n, values[ARM_FROM_LEG[n]]))
-                    else:
-                        out.append((n, c))
-                return out
-            return (t, [(k, (T_NAMED, moved(c[1])) if k == 'properties' else c) for k, c in v])
-        return (t, [(k, legs_to_arms(c)) for k, c in v])
-    if t == T_INDEXED:
-        return (t, [legs_to_arms(c) for c in v])
-    return tree
+def domain_child(emitter):
+    """The properties (name -> value) of an emitter's animated domain."""
+    for _, child in dict(emitter[1])['children'][1]:
+        if dict(child[1]).get('particle_entity_type') == (T_STR, DOMAIN):
+            return dict(dict(child[1])['properties'][1])
+    raise KeyError(emitter_name(emitter))
 
 
-def forest_particle_10(stock):
-    """human_forest_protection of version 10: the system of versions 5 to 8 (the stock Onyx glow,
-    grey, on the legs: its puffs, strokes, rays, haze and light, value for value) with its leg
-    parts moved to the arms (LEG_TO_ARM), so the same cloud and light sit on the arms."""
-    return legs_to_arms(legs_system(stock))
+AXES = ('source0', 'source1', 'source2')
 
 
-def emitter_action(tree, emitter, action):
-    """The properties (name -> value) of `emitter`'s child of entity type `action`."""
-    for _, e in dict(dict(tree[1])['LOD 0'][1])['children'][1]:
-        if emitter_name(e) == emitter:
-            for _, child in dict(e[1])['children'][1]:
-                if dict(child[1]).get('particle_entity_type') == (T_STR, action):
-                    return dict(dict(child[1])['properties'][1])
-    raise KeyError((emitter, action))
+def every_axis(scale, curve):
+    """A Scale property (or its data source) with `curve` on each axis."""
+    return (T_NAMED, [(n, (T_NAMED, [(k, curve if k == 'data' else v) for k, v in c[1]]) if n in AXES else c)
+                      for n, c in scale[1]])
 
 
-def with_property(tree, emitter, action, prop, change):
-    """`tree` with `change` applied to `emitter`'s property `prop` (of its child of type `action`)
-    and to that property's data source (data_sources/float3/<its selected_source>) alike."""
-    selected = emitter_action(tree, emitter, action)[prop]
-    selected = dict(selected[1])['selected_source'][1]
-
-    def node(n, path):
-        t, v = n
-        if t == T_NAMED:
-            if path.endswith(f'/properties/{prop}') and dict(v).get('selected_source') == (T_STR, selected):
-                return change(n)
-            if path == f'/data_sources/float3/{selected}':
-                return change(n)
-            return (t, [(k, node(c, f'{path}/{k}')) for k, c in v])
-        if t == T_INDEXED:
-            return (t, [node(c, path) for c in v])
-        return n
-    out = node(tree, '')
-    assert emitter_action(out, emitter, action)[prop] == change(emitter_action(tree, emitter, action)[prop])
-    return out
+def on_arms(emitter, curve):
+    """`emitter` with every animated domain part off but ARMS and each Scale axis `curve`."""
+    def child(c):
+        if dict(c[1]).get('particle_entity_type') != (T_STR, DOMAIN):
+            return c
+        props = [(n, (T_BOOL, int(n in ARMS)) if n in BODY_PARTS else every_axis(v, curve) if n == 'Scale' else v)
+                 for n, v in dict(c[1])['properties'][1]]
+        return (T_NAMED, [(k, (T_NAMED, props) if k == 'properties' else v) for k, v in c[1]])
+    return (T_NAMED, [(k, (T_NAMED, [(g, child(c)) for g, c in v[1]]) if k == 'children' else v)
+                      for k, v in emitter[1]])
 
 
-def scaled_curves(prop, k):
-    """A curve property with each axis's key values (positions and tangents) times `k`."""
-    return (T_NAMED, [(n, rate_scaled(c, k) if n in AXES else c) for n, c in prop[1]])
+def with_material(emitter, material):
+    return (T_NAMED, [(k, (T_NAMED, [(n, (T_STR, material) if n == 'Material' else c) for n, c in v[1]])
+                       if k == 'properties' else v) for k, v in emitter[1]])
 
 
 def forest_particle(stock):
-    """human_forest_protection (version 11): version 10's system with each FOREST_OUTWARD
-    emitter's domain Scale on every axis the x curve of the emitter it names, and `up`'s puffs
-    FOREST_PUFF_SIZE times as large."""
-    tree = forest_particle_10(stock)
-    for emitter, source in FOREST_OUTWARD.items():
-        outward = dict(dict(emitter_action(tree, source, DOMAIN)['Scale'][1])['source0'][1])['data']
-
-        def every_axis(prop, outward=outward):
-            return (T_NAMED, [(n, (T_NAMED, [(k, outward if k == 'data' else c2) for k, c2 in c[1]])
-                                   if n in AXES else c) for n, c in prop[1]])
-        tree = with_property(tree, emitter, DOMAIN, 'Scale', every_axis)
-    return with_property(tree, 'up', 'particle_action_initial_size_type', 'InitSize',
-                         lambda prop: scaled_curves(prop, FOREST_PUFF_SIZE))
+    """human_forest_protection (version 12): the stock Onyx glow on ARMS at full rate without the
+    point light, plus FOREST_PUFFS on ARMS spawning outward, grey, FOREST_SMOKE in DARK_SMOKE."""
+    arms = parts_only(copy.deepcopy(stock), ARMS)
+    stock_lod = dict(stock[1])['LOD 0']
+    stock_emitters = dict(dict(stock_lod[1])['children'][1])
+    outward = dict(dict(domain_child(emitters_by_name(stock)['up'][1])['Scale'][1])['source0'][1])['data']
+    kept, scales = {}, set()
+    for guid, emitter in dict(dict(dict(arms[1])['LOD 0'][1])['children'][1]).items():
+        name = emitter_name(emitter)
+        if name in FOREST_PUFFS:
+            kept[guid] = on_arms(stock_emitters[guid], outward)
+            scales.add(dict(domain_child(stock_emitters[guid])['Scale'][1])['selected_source'][1])
+        elif domain_parts(emitter) and name not in FOREST_LEFT_OUT:
+            kept[guid] = emitter
+    children = [(g, kept[g]) for g, _ in dict(stock_lod[1])['children'][1] if g in kept]
+    order = [c for c in dict(stock_lod[1])['children_order'][1] if c[1] in kept]
+    lod = (T_NAMED, [(k, (T_NAMED, children) if k == 'children' else (T_INDEXED, order) if k == 'children_order'
+                      else c) for k, c in dict(arms[1])['LOD 0'][1]])
+    data = (T_NAMED, [(n, (T_NAMED, [(f, every_axis(c, outward) if f in scales else c) for f, c in kinds[1]])
+                       if n == 'float3' else kinds) for n, kinds in dict(arms[1])['data_sources'][1]])
+    tree = greyed((T_NAMED, [(k, lod if k == 'LOD 0' else data if k == 'data_sources' else c) for k, c in arms[1]]))
+    lod = dict(tree[1])['LOD 0']
+    children = [(g, with_material(e, DARK_SMOKE) if emitter_name(e) in FOREST_SMOKE else e)
+                for g, e in dict(lod[1])['children'][1]]
+    lod = (T_NAMED, [(k, (T_NAMED, children) if k == 'children' else c) for k, c in lod[1]])
+    return (T_NAMED, [(k, lod if k == 'LOD 0' else c) for k, c in tree[1]])
 
 
 def f32(x):
@@ -501,12 +488,12 @@ def check_quarter(tree, stock, parts):
             (d.startswith('/data_sources/float/') and d.split('/')[3] in scaled), d
 
 
-def grey_material(stock):
-    """A stock orange glow material's grey copy: its constant_emissive grey, nothing else."""
+def grey_material(stock, grey=GREY):
+    """A stock material's grey copy: its constant_emissive `grey`, nothing else."""
     out = copy.deepcopy(stock)
     value = get(out, 'material/forward/effect/constant_emissive/value')
     assert value[0] == 8 and len(value[1]) == 4, value
-    value[1][:] = GREY
+    value[1][:] = grey
     return out
 
 
@@ -540,56 +527,41 @@ def check_twin(twin, tree):
 
 
 def check_forest(tree, stock):
-    """The forest system is the system of versions 5 to 8 (`legs_system`, byte for byte the file
-    they shipped, LEGS_SYSTEM_SHA256) with only its domains' leg flags moved to the arm flags, and
-    (version 11) each FOREST_OUTWARD emitter's domain Scale on every axis the legs system's x curve
-    of the emitter it names and `up`'s InitSize FOREST_PUFF_SIZE times, in the emitter and in its
-    data source alike: nothing else."""
-    legs = legs_system(stock)
-    assert sha256(serialize(legs)) == LEGS_SYSTEM_SHA256, 'not the legs system versions 5 to 8 shipped'
-    sources, curves = {}, {}
-    for emitter, source in FOREST_OUTWARD.items():
-        outward = dict(dict(emitter_action(legs, source, DOMAIN)['Scale'][1])['source0'][1])['data']
-        scale = emitter_action(tree, emitter, DOMAIN)['Scale']
-        for axis in AXES:
-            assert dict(dict(scale[1])[axis][1])['data'] == outward, (emitter, axis)
-        sources[dict(scale[1])['selected_source'][1]] = 'Scale'
-        curves[dict(scale[1])['selected_source'][1]] = outward
-    size, size_10 = emitter_action(tree, 'up', 'particle_action_initial_size_type')['InitSize'], \
-        emitter_action(legs, 'up', 'particle_action_initial_size_type')['InitSize']
-    assert size == scaled_curves(size_10, FOREST_PUFF_SIZE)
-    sources[dict(size[1])['selected_source'][1]] = 'InitSize'
-    data = dict(dict(tree[1])['data_sources'][1])['float3']
-    for name, prop in sources.items():
-        ours = dict(data[1])[name]
-        theirs = dict(dict(dict(legs[1])['data_sources'][1])['float3'][1])[name]
-        if prop == 'Scale':
-            assert all(dict(dict(ours[1])[a][1])['data'] == curves[name] for a in AXES), name
-        else:
-            assert ours == scaled_curves(theirs, FOREST_PUFF_SIZE), name
-    moved = set(LEG_TO_ARM) | set(ARM_FROM_LEG)
-    for d in differences(tree, legs):
-        last = d.rsplit('/', 1)[-1]
-        if last in moved and '/properties/' in d:
-            continue
-        assert any(f'/properties/{p}/' in d or f'/data_sources/float3/{n}/' in d
-                   for n, p in sources.items()), d
-
-    def domains(node, path=''):
-        t, v = node
-        if t == T_NAMED:
-            if dict(v).get('particle_entity_type') == (T_STR, DOMAIN):
-                yield path, dict(dict(v)['properties'][1])
-            for k, c in v:
-                yield from domains(c, f'{path}/{k}')
-        elif t == T_INDEXED:
-            for i, c in enumerate(v):
-                yield from domains(c, f'{path}[{i}]')
-    ours, theirs = dict(domains(tree)), dict(domains(legs))
-    assert ours.keys() == theirs.keys() and ours
-    for path, props in ours.items():
-        for leg, arm in LEG_TO_ARM.items():
-            assert props[arm] == theirs[path][leg] and props[leg] == (T_BOOL, 0), (path, leg)
+    """The forest system is the stock Onyx glow, grey (`greyed`), with exactly these differences:
+    the emitters with no arm part, and FOREST_LEFT_OUT, left out; each kept emitter's domain parts
+    those of ARMS it had (FOREST_PUFFS: all of ARMS, nothing else); FOREST_PUFFS' Scale, in the
+    emitter and in its data source, `up`'s x curve on every axis; FOREST_SMOKE's Material
+    DARK_SMOKE. Every rate, size, colour and other value is the stock's."""
+    ref = greyed(copy.deepcopy(stock))
+    ref_emitters, emitters = emitters_by_name(ref), emitters_by_name(tree)
+    expected = {n for n, (_, e) in ref_emitters.items()
+                if n in FOREST_PUFFS or (domain_parts(e) & set(ARMS) and n not in FOREST_LEFT_OUT)}
+    assert set(emitters) == expected, sorted(emitters)
+    outward = dict(dict(domain_child(ref_emitters['up'][1])['Scale'][1])['source0'][1])['data']
+    scales = set()
+    for name, (guid, emitter) in emitters.items():
+        assert guid == ref_emitters[name][0]
+        stock_on = domain_parts(ref_emitters[name][1])
+        for part in BODY_PARTS:
+            on = part in ARMS and (name in FOREST_PUFFS or part in stock_on)
+            assert domain_child(emitter)[part] == (T_BOOL, int(on)), (name, part)
+        scale = domain_child(emitter)['Scale']
+        if name in FOREST_PUFFS:
+            assert all(dict(dict(scale[1])[a][1])['data'] == outward for a in AXES), name
+            scales.add(dict(scale[1])['selected_source'][1])
+        material = dict(dict(emitter[1])['properties'][1])['Material']
+        assert material == (T_STR, DARK_SMOKE) if name in FOREST_SMOKE else material[1] != DARK_SMOKE, name
+        for d in differences(emitter, ref_emitters[name][1]):
+            last = d.rsplit('/', 1)[-1]
+            assert (last in BODY_PARTS or (name in FOREST_PUFFS and '/properties/Scale/' in d)
+                    or (name in FOREST_SMOKE and d.endswith('/properties/Material'))), (name, d)
+    for d in differences(dict(tree[1])['data_sources'], dict(ref[1])['data_sources']):
+        assert any(d.startswith(f'/float3/{s}/') for s in scales), d
+    for s in scales:
+        source = dict(dict(dict(tree[1])['data_sources'][1])['float3'][1])[s]
+        assert all(dict(dict(source[1])[a][1])['data'] == outward for a in AXES), s
+    for d in differences(tree, ref):
+        assert d.startswith(('/LOD 0/children', '/data_sources/float3/')), d
 
 
 def composite_effect(tree, fp_system):
@@ -722,16 +694,24 @@ def main():
     onyx = parse(stock[f'particles/{KINDS[FOREST_FROM]}.particle'])
     forest = forest_particle(onyx)
     check_forest(forest, onyx)
-    forest_twin = first_person_twin(forest_particle_10(onyx))   # the twin stays version 10's
-    check_twin(forest_twin, forest_particle_10(onyx))
+    forest_twin = keep_emitters(forest, lambda e: emitter_name(e) in FOREST_FIRST_PERSON)
+    assert set(emitters_by_name(forest_twin)) == set(FOREST_FIRST_PERSON)
     forest_files = {FOREST_EFFECT: forest_effect(parse(stock[f'gameplay/effects/effect_artefact_{FOREST_FROM}.options'])),
                     f'particles/{FOREST_SYSTEM}.particle': forest,
                     f'particles/{FOREST_SYSTEM}_fp.particle': forest_twin}
-    for name in ORANGE_MATERIALS:
+    used = {dict(dict(e[1])['properties'][1])['Material'][1] for _, e in emitters_by_name(forest).values()}
+    for name in ORANGE_MATERIALS:            # the grey copies the forest system still draws with
+        if f'fx/artifacts/{name}_grey' not in used:
+            continue
         orange = parse(stock[f'material_instances/fx/artifacts/{name}_orange.material'])
         grey = grey_material(orange)
         assert differences(grey, orange) == ['/material/forward/effect/constant_emissive/value']
         forest_files[f'material_instances/fx/artifacts/{name}_grey.material'] = grey
+    smoke = parse(stock[DARK_SMOKE_FROM])
+    dark = grey_material(smoke, DARK_GREY)
+    assert differences(dark, smoke) == ['/material/forward/effect/constant_emissive/value']
+    assert get(smoke, 'material/forward/effect/blend_mode/value') == (T_INT, ALPHA_BLENDED)
+    forest_files[f'material_instances/{DARK_SMOKE}.material'] = dark
     # The leg quarters: each kind's stock glow, its colours, a quarter of the legs each.
     for kind, system in KINDS.items():
         kind_stock = parse(stock[f'particles/{system}.particle'])
@@ -762,8 +742,8 @@ def main():
                        'stock third-person particle effect and a first-person one (view 0) playing '
                        'fx/artifacts/human_<kind>_fp: the stock particle system, its point lights and haze '
                        'included, with Head, Face and Neck off in every emitter\'s animated domain; and '
-                       'Forest Protection\'s glow, effect_forest_protection (a composite: third person, and a first-person twin without the light and haze) playing '
-                       'fx/artifacts/human_forest_protection: the stock Onyx glow\'s leg system, grey, moved to the arms, its puffs, strokes and haze out of the arm on every side; '
+                       'Forest Protection\'s glow, effect_forest_protection (a composite: third person, and a first-person one with only its rays) playing '
+                       'fx/artifacts/human_forest_protection: a dark-grey smoke around the arms (the stock Onyx glow on the arms at full rate with its up puffs and body strokes moved onto them, no light, drawn with fx/artifacts/smoke_dark_grey); '
                        'and the leg quarters, effect_artefact_leg_<kind>_<1..4> (composites likewise) playing '
                        'fx/artifacts/human_<kind>_leg_<1..4>: each kind\'s stock glow on one quarter of the '
                        'legs (left lower, right lower, left upper, right upper), each emitter, its point '
