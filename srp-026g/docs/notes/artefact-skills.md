@@ -570,7 +570,10 @@ one; the slot is one of the kit's six, so a kit with six slots has none. "My pic
   all are full, no bit or no slot past the run, no container at all with can_use, the death
   emptying it with the containers kept, Keeper's gift into it and back to the pool for good);
   the Keeper, score, carry and skills checks still pass; `cargo test` and clippy of `patches`,
-  `survarium`, `session`. Not run: the Ruffle harness (the movie is not rebuilt here), a game.
+  `survarium`, `session`; `release/build-content` (a quick build: the edit list applied, one file
+  edited, no unexpected difference) and the survarium tree test on the skills_tree.options it
+  built (534 at row IV column 4, 15, bit 14, a full build 25); the lobby movie built and the
+  skills harness in Ruffle (pass: 534's layout, icon, one rank). Not run: a game.
   Not checked: a hidden artefact held in the hand at death (patch 78's drop then finds nothing,
   by the code; no Unicorn case), the HUD.
 
