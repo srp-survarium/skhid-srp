@@ -30,6 +30,9 @@ impl Match {
             vs_bots: false,
             private: false,
             room_minimum: None,
+            // Keeper's draw gives a late joiner's kits (registry::Formed::keeper); the bench only
+            // checks uploads, whose profiles carry the match's draw already.
+            keeper: survarium::v026g::keeper::draw(0),
         }))
     }
 

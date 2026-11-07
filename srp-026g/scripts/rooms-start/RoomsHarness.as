@@ -174,7 +174,7 @@ package
                ["open, squads", 1003, false, false, 0, null, 0, ["S;01122"]],
                ["open, squads, in match", 1003, false, false, 2, null, 0, ["S;01122"]],
                ["private, owner, squads", 1001, true, true, 0, "01010", 0, ["S;11220"]]];
-            for(var why:int = 1; why <= 7; why++)
+            for(var why:int = 1; why <= 8; why++)
                states.push(["open, in match, why " + why, 1003, false, false, 2, null, 0, ["J;-1;" + why]]);
             for each(var s:Array in states)
             {

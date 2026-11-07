@@ -762,7 +762,9 @@ pub enum JoinHold {
     PlayerLimit = 7,
     /// No game of the match can give a joiner a world now: their last
     /// worlds were refused by the match server's check (since 2026-11-07;
-    /// a movie with no text for it shows the row with no reason).
+    /// a movie before it shows the row with no reason). The member plays
+    /// the room's next match, as for [`Self::PlayerLimit`], or goes in
+    /// sooner once an upload passes.
     NoWorld = 8,
 }
 

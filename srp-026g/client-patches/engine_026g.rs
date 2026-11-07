@@ -117,6 +117,10 @@ unsafe extern "C" {
     pub fn engine_effects_stop(effects: *mut c_void);
     /// 0x2de090 survarium::game_effect_player::play: player EDI, effect ESP+4, second ESP+8, third ESP+12, fourth ESP+16, listener ESP+20; pops 20
     pub fn engine_effect_play(player: *mut c_void, effect: *mut c_void, second: u32, third: u32, fourth: u32, listener: *mut c_void);
+    /// 0x1f3740 survarium::player::set_effect_presenter: player ESI, holder EDI; pops 0
+    pub fn engine_set_effect_presenter(player: *mut c_void, holder: *mut c_void);
+    /// 0x2de560 survarium::game_effect_player::represent: player ESP+4; pops 4
+    pub fn engine_effect_player_represent(player: *mut c_void);
     /// virtual survarium::pure_game_effect_emitter+0x20 (9 vtables of vtables.tsv: 0x299d40, 0x299ff0, 0x29a220, 0x29a580, 0x2efeb0, 0x333010, 0x333220, 0x333360): emitter ECX, out ESP+4, first ESP+8, second ESP+12; pops 12; EAX
     pub fn engine_emitter_emit(emitter: *mut c_void, out: *mut c_void, first: f32, second: f32) -> *mut c_void;
     /// virtual survarium::pure_game_effect_emitter+0x1c (9 vtables of vtables.tsv: 0x1f65d0, 0x29a320, 0x2f0130, 0x2f08d0): emitter ECX, effect ESP+4; pops 4

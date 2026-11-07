@@ -59,6 +59,7 @@ package
                     require(words.modeName(5) == text.st_srp_mode_research, "research mode " + language);
                     require(words.codeText(3) == text.st_srp_rooms_code_3 && words.codeText(0) == "", "room code " + language);
                     require(words.joinWhyText(7) == text.st_srp_rooms_join_why_7, "join reason " + language);
+                    require(words.joinWhyText(8) == text.st_srp_rooms_join_why_8, "no-world join reason " + language);
                     // The server's English room line, in the language, the name in its place.
                     var joined:String = words.notice("Ada joined the room");
                     require(joined == String(text.st_srp_rooms_joined_room).split("%1$s").join("Ada"), "chat notice " + language);

@@ -47,6 +47,11 @@ pub struct GameWorld<'t> {
 }
 
 impl<'t> GameWorld<'t> {
+    /// A player's game world, on the hook's thread.
+    pub(in crate::vostok) fn of(this: raw::GameWorld, thread: &'t Thread) -> GameWorld<'t> {
+        GameWorld { this, thread }
+    }
+
     /// The world the site's code is ticking.
     pub fn at_after_move(ctx: &'t Context<'_>) -> Option<GameWorld<'t>> {
         // SAFETY: the context is this site's: the game world it ticks, alive

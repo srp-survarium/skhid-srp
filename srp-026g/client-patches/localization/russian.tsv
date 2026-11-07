@@ -2190,6 +2190,31 @@ st_srp_ammo_scar_ap_desc	Бронебойные патроны 7.62x51 для FN
 st_srp_ammo_scar_ap_name	7.62x51 ББ SCAR-H, 20 патронов
 st_srp_ammo_slug	Пуля
 st_srp_ammo_stats	Характеристики патронов
+st_srp_artefact_501_description	Время сбора артефакта:
+st_srp_artefact_501_name	Быстрые руки
+st_srp_artefact_502_description	Изоляция от аномалий:
+st_srp_artefact_502_name	Стойкость
+st_srp_artefact_512_description	Длительность активного эффекта артефактов:
+st_srp_artefact_512_name	Знание артефактов
+st_srp_artefact_513_description	Пассивные артефакты видны как свечение на ногах игроков, включая ваши.
+st_srp_artefact_513_name	Артефактное зрение
+st_srp_artefact_521_description	Матч начинается со случайным артефактом в контейнере; вид один на весь матч.
+st_srp_artefact_521_name	Хранитель артефактов
+st_srp_artefact_522_description	Один карман становится контейнером для артефакта.
+st_srp_artefact_522_name	Контейнер для артефакта
+st_srp_artefact_523_description	Урон от пуль и осколков внутри аномалии:
+st_srp_artefact_523_name	Защита Леса
+st_srp_artefact_531_description	Каждая Пружина также ускоряет перезарядку: +5% пассивно, +15% при активации.
+st_srp_artefact_531_name	Пружина II
+st_srp_artefact_532_description	Нет урона от падения, пока Оникс активен.
+st_srp_artefact_532_name	Оникс II
+st_srp_artefact_533_description	Активация Живокоста полностью восстанавливает выносливость.
+st_srp_artefact_533_name	Живокост II
+st_srp_artefact_541_description	Пассивные эффекты ваших артефактов действуют и на живых союзников в радиусе 8 м.
+st_srp_artefact_541_name	Резонанс
+st_srp_artefact_542_description	Активированные артефакты действуют и на живых союзников в радиусе 5 м. "Они сияют, а ты блистаешь"
+st_srp_artefact_542_name	Каскад
+st_srp_artefact_points	 ед.
 st_srp_attachments	Обвес
 st_srp_ban_reason_account_trading	Продажа или попытка продажи учётной записи.
 st_srp_ban_reason_administration	Решение администрации.
@@ -2704,6 +2729,7 @@ st_srp_rooms_join_why_4	Матч заполнен.
 st_srp_rooms_join_why_5	Скоро технические работы: новые входы закрыты.
 st_srp_rooms_join_why_6	Матч завершается: вы сыграете следующий.
 st_srp_rooms_join_why_7	Этот матч достиг лимита игроков. Вы присоединитесь к следующему матчу.
+st_srp_rooms_join_why_8	Матч сейчас не может принять игроков. Вы присоединитесь к следующему матчу.
 st_srp_rooms_joined_room	%1$s вошёл в комнату
 st_srp_rooms_late_hint	Кто зайдёт сейчас, увидит комнату, потом попадёт в матч.
 st_srp_rooms_leave	Выйти

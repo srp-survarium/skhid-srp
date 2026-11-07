@@ -252,7 +252,7 @@ st_ammo_sp6_name	9x39 SP-6
 st_ammo_storage_label	Sklad
 st_aniso_filtering_option	Anizotropní filtrování
 st_anomaly_damage_corr_perc_name	Poškození od anomálií
-st_anomaly_skills_label	Znalost Lesa.
+st_anomaly_skills_label	Znalost Lesa
 st_antialiasing_option	Vyhlazování hran
 st_antitoxin_description	Kombinovaný lék k neutralizaci jedů a toxinů v těle. Pro nejlepší účinek ho užij před vystavením škodlivinám. 
 st_antitoxin_name	Antitoxin
@@ -2190,6 +2190,31 @@ st_srp_ammo_scar_ap_desc	Průbojné náboje 7,62x51 pro FN SCAR-H. Každá sumka
 st_srp_ammo_scar_ap_name	7,62x51 AP SCAR-H, 20 nábojů
 st_srp_ammo_slug	Kulka
 st_srp_ammo_stats	Statistiky střeliva
+st_srp_artefact_501_description	Doba sbírání artefaktu:
+st_srp_artefact_501_name	Rychlé ruce
+st_srp_artefact_502_description	Izolace proti anomáliím:
+st_srp_artefact_502_name	Odolnost
+st_srp_artefact_512_description	Doba trvání aktivního účinku artefaktů:
+st_srp_artefact_512_name	Znalost artefaktů
+st_srp_artefact_513_description	Pasivní artefakty vidíte jako záři na nohách hráčů, včetně vašich.
+st_srp_artefact_513_name	Artefaktový zrak
+st_srp_artefact_521_description	Zápas začíná s náhodným artefaktem v kontejneru; jeden druh pro všechny v zápase.
+st_srp_artefact_521_name	Strážce artefaktů
+st_srp_artefact_522_description	Jedna kapsa se změní v kontejner na artefakt.
+st_srp_artefact_522_name	Kontejner na artefakt
+st_srp_artefact_523_description	Poškození od kulek a střepin uvnitř anomálie:
+st_srp_artefact_523_name	Ochrana Lesa
+st_srp_artefact_531_description	Každá Pružina také zrychluje přebíjení: +5% pasivně, +15% během aktivace.
+st_srp_artefact_531_name	Pružina II
+st_srp_artefact_532_description	Žádné poškození pádem, dokud je Onyx aktivní.
+st_srp_artefact_532_name	Onyx II
+st_srp_artefact_533_description	Aktivace Ostrožky obnoví všechnu výdrž.
+st_srp_artefact_533_name	Ostrožka II
+st_srp_artefact_541_description	Pasivní účinky tvých artefaktů působí i na živé spoluhráče do 8 m.
+st_srp_artefact_541_name	Rezonance
+st_srp_artefact_542_description	Aktivované artefakty působí i na živé spoluhráče do 5 m. "Oni září, ty zazáříš"
+st_srp_artefact_542_name	Kaskáda
+st_srp_artefact_points	 bodů
 st_srp_attachments	Příslušenství
 st_srp_ban_reason_account_trading	Prodej nebo pokus o prodej účtu.
 st_srp_ban_reason_administration	Rozhodnutí administrátorů.
@@ -2704,6 +2729,7 @@ st_srp_rooms_join_why_4	Zápas je plný.
 st_srp_rooms_join_why_5	Brzy začne údržba serveru. Už se nelze připojit.
 st_srp_rooms_join_why_6	Zápas končí. Zahraješ si ten další.
 st_srp_rooms_join_why_7	Zápas dosáhl limitu hráčů. Připojíš se k dalšímu.
+st_srp_rooms_join_why_8	Zápas teď nemůže přijmout hráče. Připojíš se k dalšímu.
 st_srp_rooms_joined_room	%1$s se připojuje do místnosti
 st_srp_rooms_late_hint	Noví hráči uvidí místnost a pak vstoupí do zápasu.
 st_srp_rooms_leave	Odejít
