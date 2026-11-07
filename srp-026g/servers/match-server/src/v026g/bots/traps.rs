@@ -46,7 +46,7 @@ use super::route_end::RouteEnd;
 use super::route_filter::RouteFilter;
 use super::think::Due;
 use super::trap_know::TrapField;
-use super::tuning::{Stayer, TrapLanes, TrapRelease, TrapTuning};
+use super::tuning::{PressClear, Stayer, TrapLanes, TrapRelease, TrapTuning};
 use super::view::PlaceView;
 use super::{Bot, TeamState};
 
@@ -2439,14 +2439,16 @@ pub(super) fn drive(
             // [A309] The bench's press line: where, what chose it, which way the placer walked.
             let (source, way, to_home, share) = bot.features.traps.planned_by.unwrap_or(("unknown", "unknown", 0.0, -1.0));
             eprintln!(
-                "  trap press: place {} team {} at ({:.1}, {:.1}) t {} source {source} way {way} home {to_home:.0} m forward {share:.2} play {:?} speed {:.1}",
+                "  trap press: place {} team {} at ({:.1}, {:.1}) t {} source {source} way {way} home {to_home:.0} m forward {share:.2} play {:?} speed {:.1} path1s {:.2}",
                 bot.place,
                 bot.team,
                 at.x,
                 at.z,
                 now,
                 bot.assignment.as_ref().map(|a| a.kind),
-                me.speed()
+                me.speed(),
+                // [A324] How near the landing lies to the body's own path over the next second (`traps.press_clear`).
+                swept_m(me.feet, me.velocity, 1.0, at)
             );
         }
         // [A292] The press: its note and count.
@@ -2547,6 +2549,17 @@ fn aim_of(bot: &Bot, me: &PlaceView, crouched: bool, t: &TrapTuning, mesh: Optio
                 (Press::Ready, Some(p)) if me.speed() < p.min_speed_ms => Press::Wait(Why::OnRoute),
                 (press, _) => press,
             };
+            // [A324] Nor on its own way: the client's trap is armed at once and takes its placer's foot (`traps.press_clear`).
+            let press = match (press, landed) {
+                (Press::Ready, Some(at))
+                    if !clears_own_path(t.press_clear, me.feet, me.velocity, at, || {
+                        if staying { Vec::new() } else { route_ahead(bot, me, t).0 }
+                    }) =>
+                {
+                    Press::Wait(Why::OnRoute)
+                }
+                (press, _) => press,
+            };
             Aim::Look {
                 pitch: look.pitch,
                 press,
@@ -2562,6 +2575,26 @@ fn aim_of(bot: &Bot, me: &PlaceView, crouched: bool, t: &TrapTuning, mesh: Optio
         }
         _ => Aim::NoLook,
     }
+}
+
+/// [A324] Whether a trap at `at` lies clear of the body's own way at the press (`TrapTuning::press_clear`): the straight line of
+/// its velocity over `sweep_s`, and the route it walks (`route`: its points ahead, a metre apart, from its progress; empty for a
+/// bot that stays) for as far as it gets in that time, by `clear_m`. A walker turning with its route took its own trap 0.9 s after
+/// a press 1.21 m clear of its straight line (the A324 by-side check). Always with the switch off.
+fn clears_own_path(clear: Option<PressClear>, feet: Vec3, velocity: [f32; 2], at: Vec3, route: impl FnOnce() -> Vec<Vec3>) -> bool {
+    let Some(c) = clear else {
+        return true;
+    };
+    if swept_m(feet, velocity, c.sweep_s, at) < c.clear_m {
+        return false;
+    }
+    let reach_m = velocity[0].hypot(velocity[1]) * c.sweep_s;
+    if reach_m <= 0.0 {
+        return true;
+    }
+    // The feet, then the route's points within the reach (and the one past it): the stretch the legs take next.
+    let way: Vec<Vec3> = std::iter::once(feet).chain(route().into_iter().take(reach_m.ceil() as usize + 2)).collect();
+    off_route_m(&way, at) >= c.clear_m
 }
 
 /// [A292 S4a] How near `at` comes to the body's own path over the next `sweep_s` (its feet moved by its velocity), metres on
@@ -3858,6 +3891,35 @@ mod tests {
         bot.features.traps.pressed_at = None;
         assert!(!held_after_press(&bot, 10_100, &tuning), "never pressed");
         assert!(tuning.check().is_ok());
+    }
+
+    /// A324: the client's trap is armed at once and takes its placer's foot within 0.6 m, so the press waits while the landing
+    /// lies on the body's own way over the next second (`press_clear`), as the walker caught 0.3 s after its press in the F2 run
+    /// (2.3 m/s, its landing about 1.1 m ahead); a landing aside or behind, or a standing body, presses.
+    #[test]
+    fn the_press_waits_while_the_landing_lies_on_the_bodys_own_way() {
+        let clear = t().press_clear;
+        assert!(clear.is_some(), "on by default");
+        let feet = Vec3::new(0.0, 0.0, 0.0);
+        let walking = [2.3, 0.0];
+        let none = Vec::new;
+        assert!(!clears_own_path(clear, feet, walking, Vec3::new(1.1, 0.0, 0.1), none), "straight ahead");
+        assert!(!clears_own_path(clear, feet, walking, Vec3::new(0.8, 0.0, 0.8), none), "45 deg ahead: 0.8 m off the way");
+        assert!(clears_own_path(clear, feet, walking, Vec3::new(0.3, 0.0, 1.1), none), "aside");
+        assert!(clears_own_path(clear, feet, walking, Vec3::new(-1.1, 0.0, 0.2), none), "behind");
+        assert!(clears_own_path(clear, feet, [0.0, 0.0], Vec3::new(1.1, 0.0, 0.0), none), "standing");
+        assert!(clears_own_path(None, feet, walking, Vec3::new(1.1, 0.0, 0.1), none), "off: the old press");
+        // A route that turns: 1 m on along +x, then towards +z, where the trap lies aside of the straight line.
+        let turning = || vec![Vec3::new(0.0, 0.0, 0.0), Vec3::new(1.0, 0.0, 0.0), Vec3::new(1.0, 0.0, 1.0), Vec3::new(1.0, 0.0, 2.0)];
+        let aside = Vec3::new(0.3, 0.0, 1.2);
+        assert!(clears_own_path(clear, feet, walking, aside, none), "clear of the straight line");
+        assert!(!clears_own_path(clear, feet, walking, aside, turning), "on the route's turn");
+        let far_on = || vec![Vec3::new(0.0, 0.0, 0.0), Vec3::new(1.0, 0.0, 0.0), Vec3::new(2.0, 0.0, 0.0), Vec3::new(3.0, 0.0, 0.0), Vec3::new(4.0, 0.0, 0.0), Vec3::new(5.0, 0.0, 0.0), Vec3::new(6.0, 0.0, 1.2)];
+        assert!(clears_own_path(clear, feet, walking, Vec3::new(6.0, 0.0, 1.2), far_on), "past the second's reach");
+        let mut tuning = t();
+        assert!(tuning.check().is_ok());
+        tuning.press_clear = Some(PressClear { clear_m: 0.5, sweep_s: 1.0 });
+        assert!(tuning.check().is_err(), "inside the client's trigger");
     }
 
     /// A292 S4a: the swept path is the body's own, from its feet along its velocity for `sweep_s`.
