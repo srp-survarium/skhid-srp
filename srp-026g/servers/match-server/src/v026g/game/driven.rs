@@ -622,7 +622,7 @@ impl Game {
                 );
                 continue;
             };
-            let fix = Fix {
+            let fix = Fix { fall: None,
                 time: snapshot.time,
                 alive: motion.alive,
                 inserted: motion.inserted_time_ms,

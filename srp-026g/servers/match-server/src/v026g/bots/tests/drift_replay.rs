@@ -187,7 +187,7 @@ fn drift_on_a_real_match() {
             Some(WorldRow {
                 time: r.get("time")?.parse().ok()?,
                 place,
-                fix: Fix {
+                fix: Fix { fall: None,
                     time: r.get("time")?.parse().ok()?,
                     alive,
                     inserted: r.get("inserted")?.parse().ok()?,
