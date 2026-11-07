@@ -1000,6 +1000,12 @@ fn pull_straight(
         } {
             j += 1;
         }
+        // [A334] A leg the client's walk tick does not walk is pulled back, a floor at a time, to one it walks or to the next
+        // floor of the path (a grid link): `grid.pull_walk`, the grid's extra ([`WalkGrid::pull_walk_fails`]). With the
+        // client-tick stand-in 93 % of the routes stuck were on pulled legs over several cells (fx-zones' route-stuck table).
+        while j > i + 1 && grid.pull_walk_fails(nodes[i], nodes[j]) {
+            j -= 1;
+        }
         let from = i;
         i = j;
         points.push(Waypoint {

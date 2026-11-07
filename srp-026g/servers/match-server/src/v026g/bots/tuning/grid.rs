@@ -205,6 +205,12 @@ pub struct GridTuning {
     /// stuck 207 -> 194 and stuck s 2,111 -> 1,994, failed jumps 85 -> 67, but routes stuck 260 -> 326 and missed jumps 37 ->
     /// 62; nav-quick2-v6 the same (the lab replays clients, no routes).
     pub wall_clear_pull: bool,
+    /// [A334] Whether a route's straight legs (the pull, `path.rs`) are walked by the client's walk tick (the grid's walker,
+    /// `mapdata::WalkGrid::pull_walk_fails`: the controller pass's walk test with the exe's collision rules), and a leg it does
+    /// not walk is pulled back a floor at a time to one it walks (or to the path's next floor). With the client-tick stand-in
+    /// 93 % of the routes stuck are on pulled legs over several cells (fx-zones' route-stuck table on 65c6990b: 290 of 314).
+    /// Not a build input: the grids and their key are the same either way. OFF until its harm gate.
+    pub pull_walk: bool,
 }
 
 /// [A333] How near a wall the client's body stands, metres: its standing cylinder's radius 0.38 (the stand capsule's 0.76 m
@@ -245,6 +251,7 @@ impl Default for GridTuning {
             start_witness: true,
             give_back_in_cell: false,
             wall_clear_pull: false,
+            pull_walk: false,
         }
     }
 }

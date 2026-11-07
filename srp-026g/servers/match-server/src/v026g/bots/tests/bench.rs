@@ -841,6 +841,7 @@ pub(crate) fn real_bot_cost() {
             wall_clearance: bench_wall_clearance(),
             open_sides: bench_open_sides(),
             pull_hold: bench_tuning().grid.wall_clear_pull.then_some(crate::v026g::bots::tuning::PULL_HOLD_M),
+            pull_walk: bench_tuning().grid.pull_walk,
         };
         let world = Arc::new(World::build_with_extras(map, mapdata::CELL, bench_tuning().grid_body(), links, extras));
         // The baked-all alternative to the live zones, for what it costs (`SRP_BENCH_BAKE_FIELD_PLACES=<n>`).

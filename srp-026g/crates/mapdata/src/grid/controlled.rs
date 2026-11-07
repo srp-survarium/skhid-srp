@@ -220,6 +220,27 @@ impl WalkGrid {
         self
     }
 
+    /// [A334] The grid with the routes' pulled legs walked by the client's walker ([`Self::pull_walk_fails`]); it needs the
+    /// walker ([`Self::with_client_walker`]), and without it nothing fails.
+    pub fn with_pull_walk(mut self) -> Self {
+        self.pull_walk = true;
+        self
+    }
+
+    /// [A334] Whether [`Self::with_pull_walk`] is set.
+    pub fn pull_walk(&self) -> bool {
+        self.pull_walk
+    }
+
+    /// [A334] Whether a route's straight leg from floor `a` to floor `b` is one the client's walk tick does not walk: the
+    /// controller pass's walk test ([`walk_share`]: a standing body from `a`'s centre at the walk speed, with the exe's
+    /// collision rules) with the grid's walker. False without [`Self::with_pull_walk`] or the walker.
+    pub fn pull_walk_fails(&self, a: NodeId, b: NodeId) -> bool {
+        let (true, Some(world)) = (self.pull_walk, self.walker.as_deref()) else { return false };
+        let (_, s) = self.body.controller();
+        !walk_share(world, &s, self.body.walk_start(), self.position(a), self.position(b)).1
+    }
+
     /// [A318] The heap [`Self::with_client_walker`] keeps, bytes (0 without it).
     pub fn client_walker_bytes(&self) -> usize {
         self.walker.as_deref().map_or(0, crate::controller::Collision::bytes)
