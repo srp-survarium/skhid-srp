@@ -84,6 +84,8 @@ pub(crate) fn a_bot_standing_on_a_battery_steps_off_and_takes_it() {
     // [A318] The 7 s is the old stand-in's blend: with the client's (`kin::Mixer::Layers`, the stand-in's default) the step off
     // takes 8.25 s, the bot's own reckoning either way. The step's short taps are the motor's (fx-gear-2 told).
     let _mixer = super::standin_jump::OldMixer::scope();
+    // [A318] And the stand-in's step order before the client's (its pinned timing is the old one's).
+    let _step = super::standin_jump::OldStepInput::scope();
     let world = soak_world();
     let mut tuning = Tuning::default();
     tuning.cheats.batteries = true;
