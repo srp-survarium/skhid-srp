@@ -2216,6 +2216,20 @@ st_srp_artefact_542_description	Aktywowane artefakty działają też na żywych 
 st_srp_artefact_542_name	Kaskada
 st_srp_artefact_points	 pkt
 st_srp_attachments	Dodatki
+st_srp_ban_reason_account_trading	Sprzedaż lub próba sprzedaży konta.
+st_srp_ban_reason_administration	Decyzja administracji.
+st_srp_ban_reason_advertising	Reklama.
+st_srp_ban_reason_bad_language	Wulgarny język.
+st_srp_ban_reason_cheating	Cheaty lub inne zabronione oprogramowanie.
+st_srp_ban_reason_false_information	Rozpowszechnianie fałszywych informacji.
+st_srp_ban_reason_farm_pressure	Nękanie lub zabijanie sojuszników, którzy nie farmią.
+st_srp_ban_reason_flood	Spam lub flood.
+st_srp_ban_reason_insults	Obrażanie lub prowokacje.
+st_srp_ban_reason_nickname	Niedozwolona nazwa.
+st_srp_ban_reason_politics	Dyskusje o polityce.
+st_srp_ban_reason_racism	Rasizm lub nazizm.
+st_srp_ban_reason_teamkilling	Zabijanie sojuszników.
+st_srp_ban_reason_threats	Groźby w prawdziwym życiu.
 st_srp_crosshair_dynamic	Celownik dynamiczny
 st_srp_crosshair_hidden	Celownik ukryty
 st_srp_crosshair_static	Celownik statyczny
@@ -2406,6 +2420,8 @@ st_srp_equipment046_edge_back_6_desc	Opis nie jest jeszcze dostępny.
 st_srp_equipment046_edge_back_6_name	Plecak stalkera
 st_srp_equipment046_edge_back_7_desc	Opis nie jest jeszcze dostępny.
 st_srp_equipment046_edge_back_7_name	Talizman
+st_srp_equipment046_edge_boots_6_desc	Opis nie jest jeszcze dostępny.
+st_srp_equipment046_edge_boots_6_name	Sznurowane buty stalkera
 st_srp_equipment046_edge_boots_7_desc	Opis nie jest jeszcze dostępny.
 st_srp_equipment046_edge_boots_7_name	Buty wróżbity
 st_srp_equipment046_edge_gloves_5_desc	Opis nie jest jeszcze dostępny.
@@ -2420,6 +2436,8 @@ st_srp_equipment046_edge_legs_7_desc	Opis nie jest jeszcze dostępny.
 st_srp_equipment046_edge_legs_7_name	Spodnie "Weles"
 st_srp_equipment046_edge_mask_6_desc	Opis nie jest jeszcze dostępny.
 st_srp_equipment046_edge_mask_6_name	Noktowizor
+st_srp_equipment046_edge_mask_7_desc	Opis nie jest jeszcze dostępny.
+st_srp_equipment046_edge_mask_7_name	Maska przeciwgazowa "Weles"
 st_srp_equipment046_edge_torso_7_desc	Opis nie jest jeszcze dostępny.
 st_srp_equipment046_edge_torso_7_name	Kamizelka kuloodporna "Weles"
 st_srp_equipment046_renesanse_boots_3_desc	Opis nie jest jeszcze dostępny.
@@ -2430,6 +2448,8 @@ st_srp_equipment046_renesanse_gloves_3_desc	Opis nie jest jeszcze dostępny.
 st_srp_equipment046_renesanse_gloves_3_name	Rękawice OZK-UW
 st_srp_equipment046_renesanse_gloves_5_desc	Opis nie jest jeszcze dostępny.
 st_srp_equipment046_renesanse_gloves_5_name	Rękawice zwiadowcy
+st_srp_equipment046_renesanse_gloves_6_desc	Opis nie jest jeszcze dostępny.
+st_srp_equipment046_renesanse_gloves_6_name	Rękawice "Szturm"
 st_srp_equipment046_renesanse_gloves_7_desc	Opis nie jest jeszcze dostępny.
 st_srp_equipment046_renesanse_gloves_7_name	Rękawice snajpera
 st_srp_equipment046_renesanse_helmet_7_desc	Opis nie jest jeszcze dostępny.
@@ -2446,12 +2466,26 @@ st_srp_equipment046_renesanse_torso_7_desc	Opis nie jest jeszcze dostępny.
 st_srp_equipment046_renesanse_torso_7_name	Kamizelka kuloodporna snajpera
 st_srp_equipment046_scavenger_boots_5_desc	Opis nie jest jeszcze dostępny.
 st_srp_equipment046_scavenger_boots_5_name	Buty dywersanta
+st_srp_equipment046_scavenger_boots_6_desc	Opis nie jest jeszcze dostępny.
+st_srp_equipment046_scavenger_boots_6_name	Wzmocnione ocieplane buty
 st_srp_equipment046_scavenger_boots_7_desc	Opis nie jest jeszcze dostępny.
 st_srp_equipment046_scavenger_boots_7_name	Buty tropiciela
+st_srp_equipment069_league_shadow_mask_desc	Opis nie jest jeszcze dostępny.
+st_srp_equipment069_league_shadow_mask_name	Maska "Delta"
 st_srp_equipment069_leagues_back_2_desc	Opis nie jest jeszcze dostępny.
 st_srp_equipment069_leagues_back_2_name	Torba medyka
 st_srp_equipment069_leagues_back_5_desc	Opis nie jest jeszcze dostępny.
 st_srp_equipment069_leagues_back_5_name	Plecak żołnierza
+st_srp_equipment069_snow_20_boots_7_desc	Opis nie jest jeszcze dostępny.
+st_srp_equipment069_snow_20_boots_7_name	Buty "Śnieg-20"
+st_srp_equipment069_snow_20_gloves_7_desc	Opis nie jest jeszcze dostępny.
+st_srp_equipment069_snow_20_gloves_7_name	Rękawice "Śnieg-20"
+st_srp_equipment069_snow_20_helmet_7_desc	Opis nie jest jeszcze dostępny.
+st_srp_equipment069_snow_20_helmet_7_name	Hełm "Śnieg-20"
+st_srp_equipment069_snow_20_legs_7_desc	Opis nie jest jeszcze dostępny.
+st_srp_equipment069_snow_20_legs_7_name	Spodnie "Śnieg-20"
+st_srp_equipment069_snow_20_torso_7_desc	Opis nie jest jeszcze dostępny.
+st_srp_equipment069_snow_20_torso_7_name	Kamizelka kuloodporna "Śnieg-20"
 st_srp_exchange_balance	Saldo
 st_srp_exchange_button	Wymień
 st_srp_exchange_gold	Złoto
@@ -2484,18 +2518,14 @@ st_srp_inv_pocket_units	Miejsca w kieszeni
 st_srp_inv_stamina_damage	Obrażenia wytrzymałości
 st_srp_inv_throw_speed	Prędkość rzutu
 st_srp_inventory_search	Szukaj
-st_srp_inventory_search_examples	+kieszeń +włóczędzy, +miejsca, +ładownice, +10
-st_srp_inventory_search_tip_bonus	ma każdy podany bonus
+st_srp_inventory_search_examples	+kieszeń, +miejsca, +ładownice, +10
+st_srp_inventory_search_tip_bonus	przedmioty z bonusem do ładownic i do kieszeni
 st_srp_inventory_search_tip_bonus_example	+ładownice +kieszeni
-st_srp_inventory_search_tip_bonus_list	wszystkie bonusy
-st_srp_inventory_search_tip_faction	sprzedaje ta frakcja (kilka: dowolna)
-st_srp_inventory_search_tip_faction_example	+armia
-st_srp_inventory_search_tip_first	bonus i frakcja, oba naraz
-st_srp_inventory_search_tip_first_example	+kieszeń +włóczędzy
-st_srp_inventory_search_tip_kind	dowolny z tych rodzajów
+st_srp_inventory_search_tip_faction	przedmioty Armii lub Czarnego Rynku
+st_srp_inventory_search_tip_faction_example	+armia +czarny
+st_srp_inventory_search_tip_kind	hełmy lub buty
 st_srp_inventory_search_tip_kind_example	+helmet +boots
-st_srp_inventory_search_tip_kind_list	wszystkie rodzaje
-st_srp_inventory_search_tip_level	dowolnego z tych poziomów
+st_srp_inventory_search_tip_level	przedmioty poziomu 10 lub 11
 st_srp_inventory_search_tip_level_example	+10 +11
 st_srp_item_props_mps	m/s
 st_srp_language_option	Język:
@@ -2520,6 +2550,8 @@ st_srp_lobby_hangar	Hangar
 st_srp_lobby_room	Pokój
 st_srp_lobby_title	Lobby
 st_srp_login_account_hint	Konto powstaje przy pierwszym logowaniu
+st_srp_login_ban_ends	Kończy się o %1$s (za %2$s).
+st_srp_login_ban_forever	Ban jest stały.
 st_srp_map_chemical_plant	Zakłady chemiczne
 st_srp_map_chemical_plant_v011	Zakłady chemiczne (v0.11)
 st_srp_map_cologne	Most w Kolonii
@@ -2557,6 +2589,38 @@ st_srp_matches_starting	start
 st_srp_matches_title	Rozgrywki
 st_srp_matches_versus	na
 st_srp_matches_waiting	oczekiwanie
+st_srp_medical_301_description	Dodaje się do ochrony przed bólem i czasu działania środka przeciwbólowego:
+st_srp_medical_301_name	Silny środek przeciwbólowy
+st_srp_medical_302_description	Skrócenie czasu użycia apteczek i bandaży:
+st_srp_medical_302_name	Szybkie bandażowanie
+st_srp_medical_303_description	Gdy działa środek przeciwbólowy, zmniejszenie kosztów energii przy sprincie:
+st_srp_medical_303_name	Zdrętwiałe nogi
+st_srp_medical_311_description	Regeneracja zdrowia zaczyna się o tyle sekund wcześniej:
+st_srp_medical_311_name	Metabolizm
+st_srp_medical_312_description	Premia do zdrowia przywracanego przez apteczki i bandaże:
+st_srp_medical_312_name	Szkolenie medyczne
+st_srp_medical_313_description	Premia do zdrowia przywracanego przez apteczki i bandaże podczas kucania:
+st_srp_medical_313_name	Kryj się
+st_srp_medical_321_description	Premia do prędkości ruchu przy zdrowiu poniżej 30:
+st_srp_medical_321_name	Adrenalina
+st_srp_medical_322_description	Każda kieszeń z lekarstwami mieści jeden dodatkowy przedmiot.
+st_srp_medical_322_name	Dodatkowe lekarstwa
+st_srp_medical_323_description	Gdy działa środek przeciwbólowy, zmniejszenie siły hamującej wrogich trafień:
+st_srp_medical_323_name	Niewzruszony
+st_srp_medical_331_description	Zastępuje miejsce na broń dodatkową dodatkową kieszenią na zapasy.
+st_srp_medical_331_name	Kieszeń na zapasy
+st_srp_medical_332_description	Premia do maksymalnego zdrowia rąk i nóg:
+st_srp_medical_332_name	Mocne kości
+st_srp_medical_333_description	Gdy działa środek przeciwbólowy, dźwięki otoczenia są cichsze, a dźwięki wrogów (oprócz strzałów) głośniejsze o:
+st_srp_medical_333_name	Koncentracja
+st_srp_medical_342_description	Zmniejszenie obrażeń otrzymywanych od sojuszników:
+st_srp_medical_342_name	Braterstwo broni
+st_srp_medical_seconds	 s
+st_srp_medicine_ambient_sounds	Dźwięki otoczenia
+st_srp_medicine_crouched_healing	Leczenie w kucki
+st_srp_medicine_enemy_sounds	Dźwięki wrogów
+st_srp_medicine_hit_slow	Spowolnienie od kul
+st_srp_medicine_sprint_stamina	Energia na sprint
 st_srp_melee_knockback	Siła ciosu kolbą
 st_srp_mode_blackout	Urządzenie ochronne: blackout
 st_srp_mode_chargers	Urządzenie ochronne: ładowarki
@@ -2732,12 +2796,30 @@ st_srp_skills	Umiejętności
 st_srp_speed_label	Szybkość
 st_srp_speed_title	Szybkość ruchu: %1$s
 st_srp_static_minimap_option	Minimapa statyczna
+st_srp_unit_days	%1$s d.
+st_srp_unit_hours	%1$s godz.
 st_srp_unit_kg	%1$s kg
 st_srp_unit_meters	%1$sm
+st_srp_unit_minutes	%1$s min
 st_srp_unit_mps	%1$s m/s
 st_srp_unit_percent	%1$s%
 st_srp_unit_seconds	%1$ss
 st_srp_unit_times	%1$sx
+st_srp_vulkan_dedicated_gpu	Preferuj dedykowany GPU
+st_srp_vulkan_dedicated_gpu_hint	Na laptopach wybiera mocniejszą kartę graficzną.\n+ Lepsza wydajność na laptopach\n- Zużywa więcej baterii
+st_srp_vulkan_frame_limit	Limit klatek
+st_srp_vulkan_frame_limit_hint	Ogranicza, ile klatek na sekundę rysuje gra.
+st_srp_vulkan_low_latency	Zmniejsz opóźnienie sterowania
+st_srp_vulkan_low_latency_hint	Gra szybciej reaguje na mysz.\n+ Celowanie reaguje szybciej\n- Na niektórych PC może działać mniej płynnie
+st_srp_vulkan_off	Wył.
+st_srp_vulkan_options	Opcje Vulkan
+st_srp_vulkan_overlay	Nakładka wydajności
+st_srp_vulkan_overlay_fps	FPS
+st_srp_vulkan_overlay_frametimes	FPS+wykres
+st_srp_vulkan_overlay_full	Pełna
+st_srp_vulkan_overlay_hint	Pokazuje na ekranie, jak szybko działa gra.
+st_srp_vulkan_tear_free	Bez rozrywania bez V-Sync
+st_srp_vulkan_tear_free_hint	Obraz się nie rwie, gdy synchronizacja pionowa jest wyłączona.\n+ Brak rozdartych linii przy szybkim obrocie\n- Nieco większe opóźnienie niż samo wyłączenie VSync
 st_srp_weapon069_akmsu_desc	Skrócony AKMS ze składaną kolbą, amunicja: 7,62x39. Ogień pojedynczy i ciągły.
 st_srp_weapon069_akmsu_name	AKMSU
 st_srp_weapon069_famas_desc	Francuski karabinek automatyczny w układzie bullpup, amunicja: 5,56x45. Ogień pojedynczy, seriami po trzy strzały i ciągły.

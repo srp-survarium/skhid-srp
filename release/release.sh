@@ -3,22 +3,22 @@
 #                           [--revision <n>] [--server-code auto|yes|no]
 #                           [--minutes <n> | --no-maintenance] [--now]
 #                           [--match-wait <minutes>] [--label <word>]
-#                           [--ref <branch>] [--no-bot-data] [--dry-run]
-#                           [--yes --i-know]
+#                           [--ref <branch>] [--no-bot-data] [--worlds <folder>]
+#                           [--dry-run] [--yes --i-know]
 #
 # A whole release of origin/main in one run, and its record. Its revision
 # is the live exe's + 1 (--test: the test exe's + 1; or --revision <n>),
 # built so without editing anything (build-zip --revision); after it went
 # out live, the release sets REVISION and tags itself (step 7). A feature PR
-# never changes REVISION or the revision table. After the preflight
-# everything is prepared and staged, which players do not see (a published
-# patch no list offers yet, a release folder, an image built at the lowest
-# priority); then it waits for the go; at the go players get a maintenance
-# countdown at once, to end 30 seconds after the last running match does (or
-# one of --minutes <n>), so Play locks and no match starts after it, and at
-# its end, once no match runs, it is all swapped in at once and srp is made
-# anew. With --no-maintenance there is no countdown: at the go, swapped as
-# soon as no match runs (the downtime is the recreate; lobby players
+# never changes REVISION or the revision table. After the preflight everything
+# is prepared and staged, which players do not see (a published patch no list
+# offers yet, a release folder, an image built here and loaded on the host);
+# then it waits for the go; at the go players get a maintenance countdown
+# at once, to end 30 seconds after the last running match does (or one of
+# --minutes <n>), so Play locks and no match starts after it, and at its
+# end, once no match runs, it is all swapped in at once and srp is made
+# anew. With --no-maintenance there is no countdown: at the go, swapped
+# as soon as no match runs (the downtime is the recreate; lobby players
 # reconnect). With --now there is no countdown either, and no wait: at the
 # go, swapped at once, matches running or not (they end without results):
 #   1. preflight, nothing players see: ssh to the jump host and through it to
@@ -43,8 +43,10 @@
 #      ~/.cache/skhid-release/patch-urls.checked), none above the release's
 #      revision, and patch_12 (the menus) in it from revision 12 on (or the
 #      --resources file); with
-#      --resources, the file is resources.db.patch_<the release's revision>,
-#      srp-game-data reads it, and it is not listed yet (published already
+#      --resources, the file is resources.db.patch_<the release's revision>
+#      of release/build-content <rev> --full (no QUICK-BUILD beside it: a
+#      quick build's players' files were never checked), srp-game-data reads
+#      it, and it is not listed yet (published already
 #      with these same bytes: taken as it is, and kept at a stop);
 #      live: the site's pages made from the game data (the Maps tab, the
 #      calculator, the skills): built from other patches than the list (and the
@@ -73,24 +75,37 @@
 #      writes the number in; with one, the server code must be built (and
 #      also when the target's tree still has one: its server would take
 #      this release's revision for it); with none, a note when the exe's
-#      patches changed since the last tag;
+#      patches changed since the last tag; the world check's tool
+#      (srp-world-check) built, and the worlds it checks: the target's
+#      newest 3 kept match recordings (SRP_RECORD_DIR, read under nice and
+#      ionice into the run's folder), or --worlds <folder>'s;
 #   2. takes the release lock, then, nothing players see:
 #      release/upload-patch (with --resources: publishes it and adds its row
 #      to the list; no server offers it before the swap),
 #      release/build-server-db (of the list), release/build-zip (--ref: the
 #      commit checked in step 1; --revision: the release's; --patches: the
 #      list, with the new patch, whose every patch the exe requires at its
-#      start: patch 49); checks the two files as release/deploy does (live:
+#      start: patch 49); the world check: every upload of those recordings
+#      checked as the new server checks an upload before it relays it, with
+#      the new server data (srp-world-check): one refused, or none checked,
+#      stops the release here, before the go; then the exe patches' self-test
+#      of that commit
+#      (srp-026g/client-patches/selftest_026g.py, its Linux part, on
+#      $SKHID_GAME's survarium.exe, about 15 min: a failed check stops the
+#      release here; release/test.sh: $SKHID_SELFTEST_BIN); checks the two
+#      files as release/deploy does (live:
 #      and makes the item tables of the server data, srp-item-tables, so a
 #      tool failing on it stops here, before the go); makes the release
 #      folder $TARGET_DIR/release-rev<rev>-<UTC YYYYMMDD-HHMM>[-<label>] and
 #      stages both in it (sha256 checked there, chmod 644), with
-#      changed.txt; with server code to build: tags the running image (by
-#      its ID) srp-026g:before-rev<rev>-<stamp>, unpacks main's source in the
-#      folder's src/ (with the rebuilt pages) and runs docker compose build
-#      srp26 there, its compilers reniced to 19 (the host has one core: the
-#      running matches keep it). A failure here stops before the go: the
-#      staged files removed, the image tag put back, nothing planned;
+#      changed.txt; with server code to build: builds its image HERE from
+#      main's source (with the rebuilt pages; rootless podman, lib.sh's
+#      build_image: the host's one core keeps the running matches), uploads
+#      the source and the image (sha256 checked there), tags the running
+#      image (by its ID) srp-026g:before-rev<rev>-<stamp> and docker loads
+#      the new one, which srp-026g:latest then names. A failure here stops
+#      before the go: the staged files removed, the image tag put back,
+#      nothing planned;
 #   3. waits for the go: the owner's word that players may feel the release
 #      from now on (y at its prompt, n stops; or touch the go file it names
 #      under ~/.cache/skhid-release/; --yes does not give it;
@@ -161,6 +176,7 @@
 # again with other bytes).
 #
 #   --resources <file>  new content: resources.db.patch_<rev>, published first
+#                       (made by release/build-content <rev> --full)
 #   --revision <n>      the release's revision instead of the target exe's + 1;
 #                       live: above it (one released once is never used again);
 #                       --test: any from REVISION up
@@ -196,6 +212,12 @@
 #                       plan says so). Without it a release stops when
 #                       $SKHID_BOT_DATA is not set, or lacks a listed file, or
 #                       has one of another sha256
+#   --worlds <folder>   the match recordings (*.srprec) the world check reads
+#                       instead of the target's newest: a release that
+#                       changes what games write (an exe patch) is checked
+#                       with worlds of its own games (a match on the test
+#                       environment after release.sh --test; one against
+#                       bots is kept), as the live games' are refused then
 #   --dry-run           runs the read-only checks of step 1, prints every
 #                       other command; plans no maintenance, writes nothing
 #   --yes --i-know      answer the y/N before the swap yes (both flags or
@@ -216,7 +238,7 @@ STOCK_SHA=${SKHID_TEST_STOCK_SHA256:-$STOCK_DB_SHA256}
 LAUNCHER_SHA=${SKHID_TEST_LAUNCHER_SHA256:-$(sed -n 's/^EXE_SHA256 = "\([0-9a-f]*\)"$/\1/p' "$ROOT/srp-026g/client-patches/launcher/patch_launcher_026g.py")}
 
 ref=main resources='' revision_arg='' test_server=0 server_code=auto minutes='' label='' yes=0 i_know=0
-no_maint=0 match_wait='' now=0 no_bot_data=0
+no_maint=0 match_wait='' now=0 no_bot_data=0 worlds_arg=''
 while (($#)); do
     case $1 in
     -h | --help) usage ;;
@@ -228,6 +250,7 @@ while (($#)); do
     --no-maintenance) no_maint=1; shift ;;
     --now) now=1; shift ;;
     --no-bot-data) no_bot_data=1; shift ;;
+    --worlds) (($# >= 2)) || usage 1; worlds_arg=$2; shift 2 ;;
     --match-wait) (($# >= 2)) || usage 1; match_wait=$2; shift 2 ;;
     --label) (($# >= 2)) || usage 1; label=$2; shift 2 ;;
     --ref) (($# >= 2)) || usage 1; ref=$2; shift 2 ;;
@@ -1114,6 +1137,8 @@ if [[ -n $resources ]]; then
         problem "--resources: $name must be called resources.db.patch_$rev (this release's revision; the game mounts patch_<n> of revision n)"
     elif [[ ! -f $resources ]]; then
         problem "--resources: $resources: no such file"
+    elif [[ -e $(dirname -- "$resources")/$QUICK_MARK ]]; then
+        problem "--resources: $resources is a quick build (release/build-content without --full: $QUICK_MARK beside it), for local tests: players' files with it were never checked; build it again with release/build-content ${rev:-<revision>} --full"
     elif [[ $(head -c 13 "$resources") != little-endian ]]; then
         problem "--resources: $resources is not an archive of the game (no \"little-endian\" header)"
     elif [[ -n $bin && -f $SKHID_STOCK_DB ]]; then
@@ -1357,9 +1382,43 @@ if ((!test_server)) && ! ITEM_TABLES=$(item_tables_bin 2>"$work/item-tables.log"
     problem "the item tables' tool (srp-item-tables) did not build: $(tail -n 3 "$work/item-tables.log" | tr '\n' ' ')"
 fi
 
+# The world check (step 2): its tool, and the worlds it reads. The
+# target's newest kept recordings are its games' worlds, of the target's
+# revision: what this release's games write too, unless it changes that
+# (then --worlds names recordings of its own games). Copied off the host
+# at the lowest priority: it is small and runs the matches.
+WORLD_CHECK='' WORLDS=$work/worlds WORLDS_SAID=''
+WORLD_RECORDINGS=3
+if ! WORLD_CHECK=$(world_check_bin 2>"$work/world-check-build.log"); then
+    problem "the world check's tool (srp-world-check) did not build: $(tail -n 3 "$work/world-check-build.log" | tr '\n' ' ')"
+fi
+if [[ -n $worlds_arg ]]; then
+    given=$(find "$worlds_arg" -maxdepth 1 -name '*.srprec' 2>/dev/null | wc -l)
+    if ((given > 0)); then
+        WORLDS=$worlds_arg WORLDS_SAID="$given recording(s) of --worlds $worlds_arg"
+        okay "the world check: will read $WORLDS_SAID"
+    else
+        problem "--worlds $worlds_arg: no match recording (*.srprec) in it"
+    fi
+elif ((target_ok)) && [[ -n ${RUN_VOLUME_DIR:-} ]]; then
+    rec_dir=$RUN_VOLUME_DIR/recordings
+    mkdir -p "$WORLDS"
+    mapfile -t newest < <(on_target "ls -t $(q "$rec_dir") 2>/dev/null | grep -E '^rec026g_[0-9-]+_[0-9a-f]{8}\.srprec\$' | head -n $WORLD_RECORDINGS" || true)
+    for name in "${newest[@]}"; do
+        on_target "nice -n 19 ionice -c 3 cat $(q "$rec_dir/$name")" >"$WORLDS/$name" ||
+            problem "the world check: $rec_dir/$name on the $TARGET could not be read"
+    done
+    if ((${#newest[@]})); then
+        WORLDS_SAID="the newest ${#newest[@]} recording(s) on the $TARGET host ($(du -sm "$WORLDS" | cut -f1) MB: ${newest[*]})"
+        okay "the world check: will read $WORLDS_SAID"
+    else
+        problem "the world check: no kept match recording on the $TARGET ($rec_dir) to check worlds with: give --worlds <folder>"
+    fi
+fi
+
 # The server code: main's srp-026g build inputs against the live tree.
 build_code=0 code_report=''
-src_tar=$work/srp-026g-src.tar
+src_tar=$work/src.tar
 if [[ -n $main_commit ]]; then
     mapfile -t build_paths < <(build_inputs "$main_commit")
     if [[ " ${build_paths[*]} " == *" !unsupported "* ]]; then
@@ -1474,7 +1533,7 @@ say "the release: revision $live_rev -> $rev to the $TARGET server ($TARGET_SITE
 say "  new content: ${resources:-none}"
 say "  /patches will offer:"
 say_offered
-say "  server code: $(if ((build_code)); then say "built before the swap (docker compose build srp26)"; else say "not built"; fi)"
+say "  server code: $(if ((build_code)); then say "its image built here and loaded on the host before the swap"; else say "not built"; fi)"
 say "  the bots' data (release/bot-data.tsv): ${bd_line:-not checked (the preflight stopped before it)}"
 if ((${#BD_TODO[@]})); then printf '    %s\n' "${BD_REPORT[@]:-put in as listed}"; fi
 if [[ -n $built_note ]]; then say "  ${built_note#WARNING }"; fi
@@ -1509,8 +1568,8 @@ else
 fi
 
 # 2. The lock, then everything prepared and staged, which players do not
-# see (a patch no list offers yet, a release folder, an image built at the
-# lowest priority); a stop from here removes what is staged.
+# see (a patch no list offers yet, a release folder, an image built here and
+# loaded on the host); a stop from here removes what is staged.
 if ((DRY_RUN)); then
     say
     say "[dry run] 2. take the release lock on the jump host ($(lock_path)); then, nothing players see:"
@@ -1530,10 +1589,14 @@ if [[ -n $resources ]]; then
 fi
 data=$work/$DATA_NAME
 zip=$work/zip/$ZIP_NAME
+image=$work/image.tar.zst
 build_zip=("$BUILD_ZIP" --ref "$main_commit" --revision "$rev" --patches "$PATCH_LIST" --work "$work/zip" "${step_flags[@]}")
 if ((DRY_RUN)); then
     say "[dry run] 2. build here: release/build-server-db${step_flags[*]:+ ${step_flags[*]}} --out $data"
+    say "[dry run]    then the world check of $WORLDS_SAID with it: $WORLD_CHECK --data $data $WORLDS (one world refused stops the release)"
     say "[dry run]    and: ${build_zip[*]}"
+    if ((build_code)); then say "[dry run]    and the server's image of main's source (podman): $image"; fi
+    say "[dry run]    then the exe patches' self-test (selftest_026g.py, its Linux part) of that commit on $SKHID_GAME's survarium.exe: a failed check stops here"
     say "[dry run]    then the checks of release/deploy on both$( ((test_server)) || printf ", the item tables of the server data (srp-item-tables: a failure stops here)"), and the release folder:"
     stage_begin
     write_on live "cat > $REL_DIR/changed.txt" "$work/changed.txt"
@@ -1543,9 +1606,29 @@ if ((DRY_RUN)); then
 else
     progress "2. building the server data (release/build-server-db)"
     "$here/build-server-db" "${step_flags[@]}" --out "$data" </dev/null || die "build-server-db failed"
+    # Every recorded upload checked as the new server will check an upload
+    # before it relays it, with the new data: a release that would refuse
+    # the worlds games write stops here, before players feel it.
+    progress "2. the world check: $WORLDS_SAID, with the new server data (srp-world-check)"
+    if ! "$WORLD_CHECK" --data "$data" --save "$work/worlds-refused" "$WORLDS" </dev/null >"$work/world-check.log" 2>&1; then
+        grep -E '^  REFUSED |: UNREAD|not checked|^FAILED' "$work/world-check.log" | head -n 12 | sed 's/^/  /'
+        die "the world check: the new server would refuse (or could not check) worlds its games wrote ($work/world-check.log, the refused ones in $work/worlds-refused): a change of the check, of the server data, or of what games write (then check worlds of this release's games: --worlds <folder>)"
+    fi
+    say "the world check: $(tail -n 2 "$work/world-check.log" | head -n 1)"
     progress "2. building the ZIP of $(git -C "$REPO" log -1 --format=%h "$main_commit") (release/build-zip)"
     "${build_zip[@]}" </dev/null 2>&1 | tee "$work/build-zip.log" || die "build-zip failed"
+    # The exe patches' self-test of the commit built (build-zip's worktree)
+    # on the original exe: a failed check stops here, before anything is
+    # staged.
+    original_exe=$SKHID_GAME/binaries/x86/survarium.exe
+    [[ -f $original_exe ]] || original_exe=$SKHID_GAME/game/binaries/x86/survarium.exe
+    progress "2. the exe patches' self-test of $(git -C "$REPO" log -1 --format=%h "$main_commit") (selftest_026g.py, about 15 min; log: $work/selftest.log)"
+    selftest_ok=1
+    run_selftest "$work/zip/src" "$original_exe" "$work/selftest.log" "$work/selftest" </dev/null || selftest_ok=0
     if [[ -d $work/zip/src ]]; then git -C "$REPO" worktree remove --force "$work/zip/src"; fi
+    rm -rf "$work/selftest"
+    ((selftest_ok)) || die "the exe patches' self-test failed: $(grep -cE '^  FAIL' "$work/selftest.log" || true) check(s), the first: $(grep -m 1 -E '^  FAIL' "$work/selftest.log" | sed 's/^  FAIL  *//' || true) (log: $work/selftest.log)"
+    say "the exe patches' self-test: $(tail -n 1 "$work/selftest.log")"
     planned_offer=$OFFERED
     check_release_files "$zip" "$data" "$rev" "$work"
     [[ $OFFERED == "$planned_offer" ]] ||
@@ -1553,6 +1636,12 @@ else
     [[ $OFFERED_GAME == "$GAME_ROW" ]] ||
         die "$data does not name the game's archive of $GAME_LIST: ${OFFERED_GAME:-none}"
     check_exe_requires "$zip" "$work"
+    if ((build_code)); then
+        progress "2. building the server's image here from main's source (podman)"
+        build_image "$work/src" "$image" >"$work/build-image.log" 2>&1 ||
+            die "the server's image did not build: $(tail -n 3 "$work/build-image.log" | tr '\n' ' ')"
+        say "image: $(size_of "$image") bytes, sha256 $(sha256_of "$image")"
+    fi
     # The record's item tables of this data: made once now, so a tool that
     # fails on it stops the release here, not after the swap.
     if ((!test_server)); then
@@ -1585,18 +1674,17 @@ else
     stage_bot_data "$bd_dir"
 fi
 if ((build_code)); then
-    progress "2. the server code: building the image from main's source"
-    write_on live "cat > $REL_DIR/src.tar" "$src_tar"
-    if ((!DRY_RUN)); then
-        there=$(on_target "sha256sum < $REL_DIR/src.tar")
-        [[ ${there%% *} == "$(sha256_of "$src_tar")" ]] || die "$REL/src.tar has sha256 ${there%% *} on the host, not the one here"
-    fi
-    write_on live "cd $REL_DIR && mkdir src && tar -xf src.tar -C src && docker tag $(q "$RUN_IMAGE") $BEFORE_TAG"
+    progress "2. the server code: main's source and its image to the host, the image loaded"
+    for f in "$src_tar" "$image"; do
+        write_on live "cat > $REL_DIR/${f##*/}" "$f"
+        if ((!DRY_RUN)); then
+            there=$(on_target "sha256sum < $REL_DIR/${f##*/}")
+            [[ ${there%% *} == "$(sha256_of "$f")" ]] || die "$REL/${f##*/} has sha256 ${there%% *} on the host, not the one here"
+        fi
+    done
+    write_on live "cd $REL_DIR && docker tag $(q "$RUN_IMAGE") $BEFORE_TAG"
     ((DRY_RUN)) || image_tagged=1
-    # The host's one core keeps the running matches: the build's compilers
-    # reniced to 19 while it runs, every thread (pgrep -w: renice -p
-    # changes one thread only).
-    write_on live "cd $D && { docker compose --env-file $D/.env -f $REL/src/docker-compose.yml build srp26 & b=\$!; while kill -0 \$b 2>/dev/null; do pgrep -w -x 'rustc|cargo|cc1|cc1plus|cc|ld|collect2|as' | xargs -r renice -n 19 -p >/dev/null 2>&1; sleep 1; done; wait \$b; }"
+    write_on live "cd $REL_DIR && zstd -dc image.tar.zst | docker load -q && rm image.tar.zst"
 fi
 
 
@@ -1656,8 +1744,9 @@ else
     # The planned time is the latest: once no match has run for
     # LAST_MATCH_MARGIN s (the plan's own margin after the last match),
     # while Play is locked (the countdown's last 30 min), the swap comes
-    # at once.
-    said=- idle_since=''
+    # at once (the margin as long as the minute is: 30 s, or half of a
+    # test's minute).
+    said=- idle_since='' margin=$((LAST_MATCH_MARGIN * MINUTE / 60))
     while (($(date +%s) < end)); do
         matches=$(matches_now)
         if [[ $matches != "$said" ]]; then
@@ -1667,7 +1756,7 @@ else
         now_s=$(date +%s)
         if [[ $matches != 0 ]] || ((end - now_s > 30 * MINUTE)); then
             idle_since=''
-        elif ((now_s - ${idle_since:=$now_s} >= LAST_MATCH_MARGIN)); then
+        elif ((now_s - ${idle_since:=$now_s} >= margin)); then
             progress "5. no match has run for $LAST_MATCH_MARGIN s: swapping now, $(((end - now_s + MINUTE - 1) / MINUTE)) min before the planned time"
             break
         fi

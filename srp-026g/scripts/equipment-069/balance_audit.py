@@ -1,16 +1,17 @@
 #!/usr/bin/env python3
-"""Compare the pack with published equipment (equipment-029 included) and with itself.
+"""Compare the pack with published equipment (equipment-029 included, and the equipment-046
+pieces the Snow-20 copies) and with itself.
 
-As equipment-046's audit: weight and built-in bonuses (a back piece has no protection); peers
-are back pieces of the same level, kind and occupied slots. It rejects strict stat dominance
-either way. This checks stat trade-offs, not playtests.
+As equipment-046's audit: armour and isolation where a piece has protection, weight and
+built-in bonuses; peers are pieces of the same level, kind, protected regions and occupied
+slots. It rejects strict stat dominance either way. This checks stat trade-offs, not playtests.
 """
 import argparse
 from collections import defaultdict
 import json
 from pathlib import Path
 
-from common import DICTIONARY, MODIFICATIONS, bcw, specs
+from common import DICTIONARY, E046_MANIFEST, MODIFICATIONS, bcw, e046_entries, specs
 
 LOWER_IS_BETTER = {
     'aim_time_modifier', 'dispersion_modifier', 'recoil_modifier',
@@ -19,18 +20,24 @@ LOWER_IS_BETTER = {
 }
 
 
-def audit(pack, base):
+def audit(pack, inputs):
+    base = inputs / 'base'
     manifest = json.loads((pack / 'pack.json').read_text())
     added = next(op['entries'] for op in manifest['operations'] if op['op'] == 'dictionary_add')
     native = bcw.loads((base / DICTIONARY).read_bytes())['items_dict']
     mods = {row['id']: row for row in bcw.loads((base / MODIFICATIONS).read_bytes())['modifications']}
-    entries = {row['dict_id']: row for row in native + added}
+    e046 = inputs / 'equipment046'
+    copied = [row for row in e046_entries(json.loads((e046 / E046_MANIFEST).read_text())).values()
+              if (e046 / 'files' / row['cfg_name']).exists()]
+    entries = {row['dict_id']: row for row in native + copied + added}
     configs = {}
-    for row in native + added:
+    for row in native + copied + added:
         if '/armour/' not in row['cfg_name']:
             continue
-        path = pack / 'files' / row['cfg_name']
-        configs[row['dict_id']] = bcw.loads((path if path.exists() else base / row['cfg_name']).read_bytes())
+        for path in (pack / 'files' / row['cfg_name'], e046 / 'files' / row['cfg_name'], base / row['cfg_name']):
+            if path.exists():
+                configs[row['dict_id']] = bcw.loads(path.read_bytes())
+                break
 
     def bonuses(ident):
         effects = defaultdict(float)
@@ -45,7 +52,10 @@ def audit(pack, base):
                 tuple(sorted(item['data'].get('additional_model_slots', []))))
 
     def features(ident):
-        result = {'weight': -configs[ident]['parameters']['weight']}
+        params = configs[ident]['parameters']
+        result = {'weight': -params['weight']}
+        if 'hit_params' in configs[ident]:
+            result.update(armour=round(params.get('armor', 0), 6), isolation=round(params.get('ano_armor', 0), 6))
         result.update({k: -v if k in LOWER_IS_BETTER else v for k, v in bonuses(ident).items()})
         return result
 
@@ -59,6 +69,7 @@ def audit(pack, base):
         p = configs[ident]['parameters']
         return {'id': ident, 'name': entries[ident]['name'], 'level': p['item_level'], 'faction': p['faction'],
                 'price': entries[ident].get('base_cost', 0), 'weight': round(p['weight'], 3),
+                'armour': round(p.get('armor', 0), 3), 'isolation': round(p.get('ano_armor', 0), 3),
                 'drop_weight': p.get('drop_weight'), 'bonuses': bonuses(ident)}
 
     regular = [entries[i] for i in configs if not entries[i]['is_premium']]
@@ -78,10 +89,10 @@ def audit(pack, base):
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('pack', type=Path)
-    parser.add_argument('base', type=Path, help="prepare_inputs.py's base group")
+    parser.add_argument('inputs', type=Path, help="prepare_inputs.py's folder")
     parser.add_argument('--out', type=Path, required=True)
     args = parser.parse_args()
-    report = audit(args.pack, args.base)
+    report = audit(args.pack, args.inputs)
     args.out.write_text(json.dumps(report, indent=2) + '\n')
     problems = [f"{row['item']['id']} {kind}: {[x['id'] for x in row[kind]]}"
                 for row in report['items'] for kind in ('strictly_better_than', 'strictly_worse_than') if row[kind]]
@@ -89,5 +100,5 @@ if __name__ == '__main__':
         raise SystemExit('\n'.join(problems))
     pairs = sum(len(row['comparable_ids']) for row in report['items'])
     alone = [row['item']['id'] for row in report['items'] if not row['comparable_ids']]
-    print(f"{len(report['items'])} pieces, {pairs} comparisons (native and 029): no strict stat dominance; "
-          f"no peer at the same level: {alone}")
+    print(f"{len(report['items'])} pieces, {pairs} comparisons (native, 029 and the copied 046 pieces): "
+          f"no strict stat dominance; no peer at the same level: {alone}")

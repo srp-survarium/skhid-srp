@@ -736,6 +736,36 @@ pub extern "C" fn hook_bake_cache_on_crc_step(frame: &mut Frame) -> u32 {
     }
 }
 
+// ---- ban_time (patch 116) ----
+
+/// The entry `ban_time_on_answer` (0x37fb66, on_sign_in_answer_received (0x37FB10) for an answer other than 08h (connection info) and 25h (online queue): mov dword [ebx+180h],1, before the callback with its code (0x37FEC4); EBX the login client, [ebp+10h] the bytes read) calls this with the saved machine.
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_ban_time_on_answer(frame: &mut Frame) -> u32 {
+    // SAFETY: only the entry `ban_time_on_answer` calls this, from the game's jump at 0x37fb66,
+    // on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::new(frame) };
+    match crate::ban_time::on_answer(&mut ctx) {
+        Flow::Continue => 0,
+        Flow::Skip => 1,
+        Flow::Exit(e) => match e {},
+    }
+}
+
+// ---- ban_time (patch 116) ----
+
+/// The entry `ban_time_on_status` (0x21f217, login_menu::set_status's join once the status text is built (mov al,[esp+13h] / mov edx,ebx), before enable_button (0x21F3D0) and the text's showing (0x21F730 with [esp+18h]): EBX the login menu) calls this with the saved machine.
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_ban_time_on_status(frame: &mut Frame) -> u32 {
+    // SAFETY: only the entry `ban_time_on_status` calls this, from the game's jump at 0x21f217,
+    // on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::new(frame) };
+    match crate::ban_time::on_status(&mut ctx) {
+        Flow::Continue => 0,
+        Flow::Skip => 1,
+        Flow::Exit(e) => match e {},
+    }
+}
+
 // ---- battery_progress (patch 92) ----
 
 /// The entry `battery_progress_on_match_start` (0x334999, victory_item_event_manager::start_match once both containers' positions are kept, before the batteries' nearest positions (mov eax,[esi+0A38h]): ESI the manager, +0A38h its rule just set) calls this with the saved machine.
@@ -1030,6 +1060,61 @@ pub extern "C" fn hook_consumable_activity_on_update(frame: &mut Frame) -> u32 {
     // on the game's thread; `frame` is its saved registers and fxsave area.
     let mut ctx = unsafe { Context::new(frame) };
     match crate::consumable_activity::on_update(&mut ctx) {
+        Flow::Continue => 0,
+        Flow::Skip => 1,
+        Flow::Exit(e) => match e {},
+    }
+}
+
+// ---- deserialize_guards (patch 115) ----
+
+/// The named exits of deserialize_guards::on_fsm (the order the shim's Flow code
+/// follows, 2 upward).
+#[repr(u32)]
+#[allow(dead_code)]
+pub enum DeserializeGuardsOnFsmExit { Done }
+/// The entry `deserialize_guards_on_fsm` (0x38cd22, fsm::deserialize after resolving the wire state id; selected +10h may be null; done is ret 8) calls this with the saved machine.
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_deserialize_guards_on_fsm(frame: &mut Frame) -> u32 {
+    // SAFETY: only the entry `deserialize_guards_on_fsm` calls this, from the game's jump at 0x38cd22,
+    // on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::new(frame) };
+    match crate::deserialize_guards::on_fsm(&mut ctx) {
+        Flow::Continue => 0,
+        Flow::Skip => 1,
+        Flow::Exit(e) => 2 + e as u32,
+    }
+}
+
+// ---- deserialize_guards (patch 115) ----
+
+/// The named exits of deserialize_guards::on_anomaly (the order the shim's Flow code
+/// follows, 2 upward).
+#[repr(u32)]
+#[allow(dead_code)]
+pub enum DeserializeGuardsOnAnomalyExit { NoState }
+/// The entry `deserialize_guards_on_anomaly` (0x31b0ff, deserialize before indexing the state vector with CL; no_state is the native FF path) calls this with the saved machine.
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_deserialize_guards_on_anomaly(frame: &mut Frame) -> u32 {
+    // SAFETY: only the entry `deserialize_guards_on_anomaly` calls this, from the game's jump at 0x31b0ff,
+    // on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::new(frame) };
+    match crate::deserialize_guards::on_anomaly(&mut ctx) {
+        Flow::Continue => 0,
+        Flow::Skip => 1,
+        Flow::Exit(e) => 2 + e as u32,
+    }
+}
+
+// ---- deserialize_guards (patch 115) ----
+
+/// The entry `deserialize_guards_on_artefact` (0x2fe65e, inventory::deserialize before EAX indexes EDX's artefact vector; skipping with EAX=0 takes the native null path) calls this with the saved machine.
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_deserialize_guards_on_artefact(frame: &mut Frame) -> u32 {
+    // SAFETY: only the entry `deserialize_guards_on_artefact` calls this, from the game's jump at 0x2fe65e,
+    // on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::new(frame) };
+    match crate::deserialize_guards::on_artefact(&mut ctx) {
         Flow::Continue => 0,
         Flow::Skip => 1,
         Flow::Exit(e) => match e {},
@@ -2433,6 +2518,26 @@ pub extern "C" fn hook_medical_skills_on_landing_stepped(frame: &mut Frame) -> u
     }
 }
 
+// ---- message_check (patch 114) ----
+
+/// The named exits of message_check::on_message (the order the shim's Flow code
+/// follows, 2 upward).
+#[repr(u32)]
+#[allow(dead_code)]
+pub enum MessageCheckOnMessageExit { Refused }
+/// The entry `message_check_on_message` (0x27a31f, on_match_packet_received before storing the normalized id and subtracting E3h; EAX the id, reader cursor after it; refused is the epilogue) calls this with the saved machine.
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_message_check_on_message(frame: &mut Frame) -> u32 {
+    // SAFETY: only the entry `message_check_on_message` calls this, from the game's jump at 0x27a31f,
+    // on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::new(frame) };
+    match crate::message_check::on_message(&mut ctx) {
+        Flow::Continue => 0,
+        Flow::Skip => 1,
+        Flow::Exit(e) => 2 + e as u32,
+    }
+}
+
 // ---- mouse_pitch (patch 112) ----
 
 /// The entry `mouse_pitch_on_pitch_step` (0x2402e9, on_mouse_move's pitch step (patch 112), after the window's two size calls: movss xmm1,[edi] / divss xmm1,[eax] (h / w) / movss xmm2,[esp+28h] (the yaw's step s) / mulss xmm1,xmm2; 0x2402FB multiplies xmm1 by the invert and 3/pi, 0x240309 the journal's path joins; XMM1 the pitch's step before them, XMM2 s for the yaw (0x240349)) calls this with the saved machine.
@@ -2553,6 +2658,36 @@ pub unsafe extern "C" fn hook_music_on_query_done(a0: Option<raw::QueriesResult>
     let result = unsafe { QueryResults::from_raw(&thread, a0) };
     let tag = QueryTag::from_raw(a1 as usize as u32);
     { crate::music::on_query_done(result, tag); 0 }
+}
+
+// ---- packet_recovery (patch 97) ----
+
+/// The entry `packet_recovery_on_loaded` (0x27c116, process_dynamic_match_info after either core deserialize returns, before mov eax,[edi+4] / test eax,eax; a load receipt is emitted only here) calls this with the saved machine.
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_packet_recovery_on_loaded(frame: &mut Frame) -> u32 {
+    // SAFETY: only the entry `packet_recovery_on_loaded` calls this, from the game's jump at 0x27c116,
+    // on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::new(frame) };
+    match crate::packet_recovery::on_loaded(&mut ctx) {
+        Flow::Continue => 0,
+        Flow::Skip => 1,
+        Flow::Exit(e) => match e {},
+    }
+}
+
+// ---- packet_recovery (patch 97) ----
+
+/// The entry `packet_recovery_on_close` (0x27a790, close_current_match entry push ebp / mov ebp,esp / and esp,-8; clears connection-owned receipt/log state before teardown) calls this with the saved machine.
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_packet_recovery_on_close(frame: &mut Frame) -> u32 {
+    // SAFETY: only the entry `packet_recovery_on_close` calls this, from the game's jump at 0x27a790,
+    // on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::new(frame) };
+    match crate::packet_recovery::on_close(&mut ctx) {
+        Flow::Continue => 0,
+        Flow::Skip => 1,
+        Flow::Exit(e) => match e {},
+    }
 }
 
 // ---- ragdoll (patch 76) ----

@@ -18,10 +18,11 @@ package survarium.player
    //   as the right (the owner's of 2026-10-23: "a bit more padding from the
    //   left"). The stock renderer pads the right by 5 more than its margins
    //   and takes one line only.
-   // - tipData.rows ([left, right] each, [left, right, true] for a right cell
-   //   wrapped): two columns, the right one's lines all starting at one x,
-   //   ROW_GAP between the rows, ROW_PAD round them on every side (the
-   //   owner's of 2026-11-06).
+   // - tipData.rows ([left, right] each; [left, right, true] a list under the
+   //   row before it: its right cell wrapped, LIST_COLOUR, ROW_GAP above it):
+   //   two columns, the right one's lines all starting at one x, half a line
+   //   between the groups (a row and its list), ROW_PAD round them on every
+   //   side (the owner's of 2026-11-06).
    // - anchor: the tip just above it, their left edges together, where the
    //   pointer is aside; null: at the pointer, as the game's tips.
    public class ReasonsTip extends ToolTip
@@ -35,7 +36,10 @@ package survarium.player
 
       private static const COLUMN_GAP:int = 16;
 
-      private static const ROW_GAP:int = 3;
+      private static const ROW_GAP:int = 1;
+
+      // a list's grey: the search box's examples' (SrvTextInput.defaultTextMore, 62 % of its hint's)
+      private static const LIST_COLOUR:uint = 0x696969;
 
       private static const ANCHOR_GAP:int = 4;
 
@@ -148,6 +152,7 @@ package survarium.player
                   right[r].multiline = true;
                   right[r].width = rightWidth + 4;
                   right[r].text = String(rows[r][1]);
+                  right[r].textColor = LIST_COLOUR;
                }
             }
             // as wide as the widest line it holds then: the padding on the right as on the left
@@ -166,7 +171,9 @@ package survarium.player
                }
             }
          }
-         // a field's text starts 2 in from its edge (its gutter); ROW_GAP between rows
+         // a field's text starts 2 in from its edge (its gutter); ROW_GAP above a list, half a
+         // line between the groups
+         var groupGap:Number = Math.round(left[0].textHeight / 2);
          var y:Number = ROW_PAD;
          for(var i:int = 0; i < rows.length; i++)
          {
@@ -176,7 +183,7 @@ package survarium.player
             right[i].y = y - 2;
             cells.addChild(left[i]);
             cells.addChild(right[i]);
-            y += Math.max(left[i].textHeight,right[i].textHeight) + (i + 1 < rows.length ? ROW_GAP : 0);
+            y += Math.max(left[i].textHeight,right[i].textHeight) + (i + 1 < rows.length ? (rows[i + 1][2] === true ? ROW_GAP : groupGap) : 0);
          }
          var w:Number = Math.ceil(ROW_PAD * 2 + leftWidth + COLUMN_GAP + rightWidth);
          var h:Number = Math.ceil(y + ROW_PAD);

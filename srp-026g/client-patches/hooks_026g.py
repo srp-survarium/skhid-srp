@@ -14,8 +14,10 @@ Everything else is a fact written once in the raw tables and read here:
                       handler our own NASM calls, cdecl, aligned as a
                       lohook), the callee it uses (an
                       engine_026g.tsv row, for the kinds that call a game
-                      function), the span it covers, its named exits (lohook)
-                      and a short `what`. The kind follows from the site, so a
+                      function), the span it covers, its named exits (a
+                      lohook's Flow targets; a code hook's jumps out of its
+                      cave other than past the site, which the self-test
+                      allows) and a short `what`. The kind follows from the site, so a
                       patch names no kind.
     engine_026g.tsv   the callee: its VA and convention (from the re-kit), and
                       a `vostok` column, the typed signature a Rust hook takes
@@ -148,7 +150,8 @@ def read_sites(path=None):
     """sites_026g.tsv as {site name: dict}. A site is a named place the game
     is hooked -- its VA, its kind, the callee row it uses (engine_026g.tsv,
     for the kinds that call a game function), the span it occupies, its named
-    exits (lohook), and a short `what`. The VAs live here (and in
+    exits (a lohook's Flow targets; a code hook's other ways out of its cave),
+    and a short `what`. The VAs live here (and in
     engine_026g.tsv), not in the patches; the re-kit (tools/re-kit/v026g) is
     the RE source a site's VA and its callee's ABI come from, as for the
     engine library."""

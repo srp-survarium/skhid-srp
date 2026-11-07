@@ -219,6 +219,12 @@ unsafe extern "C" {
     pub fn engine_ray_callback(callback: *mut c_void, from: *const f32, to: *const f32, group: u32, mask: u32, requester: *mut c_void);
     /// 0x75bd0 vostok::physics::closest_ray_result_callback::needsCollision: callback ECX, proxy ESP+4; pops 4; AL
     pub fn engine_ray_needs_collision(callback: *mut c_void, proxy: *mut c_void) -> u8;
+    /// virtual survarium::match_client+0x18 (1 vtables of vtables.tsv: 0x279fe0): client ECX, id ESP+4; pops 4; EAX
+    pub fn engine_match_packet_begin(client: *mut c_void, id: u32) -> *mut c_void;
+    /// virtual survarium::match_client+0x1c (1 vtables of vtables.tsv: 0x27a2a0): client ECX, packet ESP+4; pops 4
+    pub fn engine_match_packet_send(client: *mut c_void, packet: *mut c_void);
+    /// 0x7ac10 vostok::network_core::buffer_writer::w: buffer_writer ESP+4, source_bytes ESP+8, byte_count EDI; pops 8
+    pub fn engine_append_packet_bytes(buffer_writer: *mut c_void, source_bytes: *const u8, byte_count: u32);
     /// 0x23dc00 survarium::base_game_scene::show_movie: scene EAX, movie ESI; pops 0
     pub fn engine_show_scene_movie(scene: *mut c_void, movie: *mut c_void);
     /// 0x23dc70 survarium::base_game_scene::hide_movie: movie EAX, scene EDX; pops 0
@@ -359,4 +365,14 @@ unsafe extern "C" {
     pub static engine_activate_keyboard_layout: unsafe extern "stdcall" fn(u32, u32) -> u32;
     /// the IAT slot 0x87003c (an import, stdcall): void *engine_get_module_handle_a(const char *name)
     pub static engine_get_module_handle_a: unsafe extern "stdcall" fn(*const u8) -> *mut c_void;
+    /// the IAT slot 0x8701b8 (an import, stdcall): unsigned int engine_tick_count(void)
+    pub static engine_tick_count: unsafe extern "stdcall" fn() -> u32;
+    /// the IAT slot 0x87029c (an import, stdcall): unsigned int engine_set_environment_variable_a(const char *name, const char *value)
+    pub static engine_set_environment_variable_a: unsafe extern "stdcall" fn(*const u8, *const u8) -> u32;
+    /// the IAT slot 0x870244 (an import, stdcall): void engine_get_system_time_as_file_time(unsigned int *file_time)
+    pub static engine_get_system_time_as_file_time: unsafe extern "stdcall" fn(*mut u32);
+    /// the IAT slot 0x870230 (an import, stdcall): unsigned int engine_file_time_to_local_file_time(const unsigned int *file_time, unsigned int *local)
+    pub static engine_file_time_to_local_file_time: unsafe extern "stdcall" fn(*const u32, *mut u32) -> u32;
+    /// the IAT slot 0x87022c (an import, stdcall): unsigned int engine_file_time_to_system_time(const unsigned int *file_time, unsigned int *system_time)
+    pub static engine_file_time_to_system_time: unsafe extern "stdcall" fn(*const u32, *mut u32) -> u32;
 }

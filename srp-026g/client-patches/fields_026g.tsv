@@ -444,6 +444,8 @@ vostok::console_commands::cc_float	vtable	0x0	u32	its vtable: CC_FLOAT_VTABLE, w
 vostok::console_commands::cc_float	least	0x44	f32	the least value its setter (0xECB70, vtable slot 1) stores; a value out of range or not a float stores this
 vostok::console_commands::cc_float	most	0x48	f32	the most value its setter stores
 vostok::console_commands::image	cc_float_vtable	0x9E7C6C	u32	cc_float's vtable (s_general_volume 0x84D48D, uro_fov; its setter 0xECB70: sscanf "%f", stored within [+44h, +48h])
+vostok::console_commands::cc_float	value	0x40	ptr<f32>	the value's address (the registration's; uro_fov's 0xA6FA28)
+vostok::console_commands::image	uro_fov	0xAA6510	obj<vostok::console_commands::cc_float>	uro_fov's console variable, saved in user.cfg (its static initializer 0x85ADF0: the value 0xA6FA28, 65.0; the least 50.0 by patch 22, the most 100): patch 22's projection reads the value, patch 83's Gameplay slider sets it
 vostok::resources::query_user_data	variant	0x0	ptr<vostok::sound::scene_params_variant>	a request's user data: its variant, or 0 (query_resources' third stack argument, one pointer a request: the lobby's array at its [ebp-40h], on_mounted_resources' 0x14846)
 vostok::resources::query_user_data	size	0x4	size	one request's user data pointer
 vostok::sound::sound_scene	listener_set	0x2FA	u8	its listener's position is set (set_listener_properties 0x587E0): only then its tick (0x57C9C) lets notify_listener 0x5C280 give its sounds voices
@@ -774,6 +776,37 @@ vostok::input::key_event	size	0x14	size	a DIDEVICEOBJECTDATA (GetDeviceData's pu
 survarium::image	d3d9_module	0xAF1194	u32	the delayed import d3d9.dll's module slot (its descriptor's hmod): __delayLoadHelper2 0xE48E0 binds the import to the module there, LoadLibrary only while it is 0 (0xE4995), then InterlockedExchange (0xE4B25); patch 83 puts DXVK's d3d9 there
 survarium::image	dxgi_module	0xAF30CC	u32	the delayed import dxgi.dll's module slot (as d3d9_module); patch 83 puts DXVK's dxgi there
 survarium::image	d3d11_module	0xAF30D0	u32	the delayed import d3d11.dll's module slot (as d3d9_module); patch 83 puts DXVK's d3d11 there
+vostok::ai::fsm	selected	0x10	u32	resolved state pointer, cleared before the serialized id search (0x38CCFE); dereferenced at 0x38CD29
+survarium::generic_anomaly_core	states_begin	0x68	ptr<u8>	state pointer vector, deserialize 0x31B0FF
+survarium::generic_anomaly_core	states_end	0x6C	ptr<u8>	state pointer vector end (constructor/registration); bound for serialized state id
+survarium::network_client	pvp_match	0x1F1C40	ptr<survarium::pvp_match>	the live match wrapper, process_dynamic_match_info 0x27C0FF; core at +1F8h
+survarium::core_world	rules_begin	0x18824	ptr<survarium::rule_entry>	owned rule pointer vector, world serialization and Research's rule lookup
+survarium::core_world	rules_end	0x18828	ptr<survarium::rule_entry>	end of the rule pointer vector
+survarium::rule_entry	rule	0x0	ptr<survarium::match_rule>	one rule pointer in the core's vector
+survarium::rule_entry	size	0x4	size	stride of a rule pointer
+survarium::match_rule	vtable	0x0	u32	concrete rule class, constructors and world rule serialization
+survarium::match_rule	rule_type	0x10C	u32	base constructor writes its argument here at 0x31394F; Research passes type 5
+survarium::match_rule	batteries_begin	0x110	ptr<u8>	gather/vi_spawn rule battery pointer vector (0x313D10, 0x3149B0)
+survarium::match_rule	batteries_end	0x114	ptr<u8>	end of the gather/vi_spawn battery pointer vector
+survarium::match_rule	respawn0	0x194	u32	respawn rule group 0 count (0x316F49..0x316FB6)
+survarium::match_rule	respawn1	0x198	u32	respawn rule group 1 count
+survarium::match_rule	respawn2	0x19C	u32	respawn rule group 2 count
+survarium::image	gather_rule_vtable	0xA06AB4	u32	gather_victory_items_rule_core vtable
+survarium::image	gather_client_rule_vtable	0xA15B04	u32	client gather rule vtable
+survarium::image	vi_spawn_rule_vtable	0xA06C04	u32	vi_spawn_rule_core vtable
+survarium::image	vi_spawn_client_rule_vtable	0xA15CAC	u32	client vi_spawn rule vtable
+survarium::image	tdm_rule_vtable	0xA06CBC	u32	tdm_rule_core vtable
+survarium::image	tdm_client_rule_vtable	0xA15DA4	u32	client tdm rule vtable
+survarium::image	respawn_rule_vtable	0xA06D1C	u32	respawn_rule_core vtable
+survarium::image	respawn_client_rule_vtable	0xA16084	u32	client respawn rule vtable
+survarium::network_client	match_connection_state	0x1F1C64	u32	2 is the live match transport, checked by late_join send_prepared
+survarium::network_client	world_generation	0x1F1C68	u8	process_dynamic_match_info 0x27C040 stores the accepted envelope generation before load
+survarium::match_options_holder	match_seed	0x577BC	u32	match_client options seed, checked by late_join send_prepared
+survarium::match_options_holder	packet_pool	0x578B0	ptr<survarium::match_packet_pool>	packet pool checked before allocating by late_join send_prepared
+survarium::match_packet_pool	used	0x30	u32	packet pool entries used; reserve seventeen as late_join send_prepared
+survarium::match_packet_pool	capacity	0x34	u32	packet pool entries available
+survarium::match_packet	flags	0x98	u8	clear 40h to keep a custom E0 carrier out of automatic joining
+survarium::match_packet	writer	0x2A8	obj<vostok::buffer_writer>	packet buffer writer, as late_join send_prepared
 survarium::game	world	0x18	obj<survarium::game_world>	the game world, inside the game: game::game constructs it in place (lea eax,[ebx+18h] / call 0x1F67B0 at 0x1E909F); the same one every match; its match (+4D4Ch, a counted reference) is 0 from the constructor (0x1F68A2), set at 0x1F9766 and 0 again at 0x1F8B64, for a live and a replay match alike
 survarium::game	options	0x57F4	obj<survarium::game_options>	the main menu, inside the game (activate_main_menu 0x1EDBD6 lea eax,[esi+57F4h]; game_world::on_deactivate 0x1F9567)
 survarium::game_options	shown	0x44	u8	the main menu shown: game_options::activate sets it (0x200F86), deactivate clears it (0x201067); each returns at once when it is so already
@@ -783,6 +816,13 @@ survarium::game_world	ui	0x1FC	obj<survarium::game_world_ui>	the hud (game_world
 survarium::game_world_ui	cursor_movie	0xC	obj<survarium::movie_slot>	the hud's cursor movie: show_cursor shows it (0x23A995) and hides it (0x23A9B3), the hud's +2DCh with it
 survarium::movie_slot	holder	0x0	ptr<vostok::ui::movie_holder>	a scene's movie: base_game_scene::show_movie reads it (0x23DC26), hide_movie does nothing while it is 0 (0x23DC71)
 survarium::initialize_match_frame	ui	0x4	ptr<survarium::game_world_ui>	initialize_match's first argument at its start (0x234880, by the site's ESP): the hud, called once a match from 0x1F855D (the late join's rebuild enters at 0x234E71)
+vostok::network::login_client_impl	answer	0x2AA	u8	the sign-in answer's first byte, its code: one async_read_some of at most 52h bytes lands here (0x38010D); on_sign_in_answer_received dispatches on it (0x37FB47) and reads 08h's and 25h's bodies after it (0x37FD26, 0x37FB7F)
+vostok::network::sign_in_answer_frame	transferred	0x10	u32	on_sign_in_answer_received's bytes read (EBP+10h; 0 returns at 0x37FB3D)
+survarium::login_menu	status	0xF4	u32	the status set_status shows (written at 0x21EEB0; its jump table 0x21F2A4): 0Ch..19h the bans (the answer's code - 6), whose text is st_login_menu_status_user_banned + st_ban_reason_* (0x21F310)
+survarium::login_menu	game	0x9C	ptr<survarium::game>	the game (set_status 0x21EEB6; its translator +52A8h, 0x21EF49)
+survarium::login_status_frame	begin	0x18	ptr<u8>	set_status's status text {begin +18h, cursor +1Ch, end +20h} by ESP at 0x21F217: its first byte, from which 0x21F730 shows it (0x21F222)
+survarium::login_status_frame	cursor	0x1C	ptr<u8>	set_status's status text {begin +18h, cursor +1Ch, end +20h} by ESP at 0x21F217 (made at 0x21EECB..0x21EEED over the 200h bytes at +24h): the cursor, at the text's zero (0x21F3B4)
+survarium::login_status_frame	end	0x20	ptr<u8>	the text's end, its buffer's last byte + 1 (esp+224h, 0x21EECF)
 survarium::player_params_modifiers_container	artefact_ranks	0xA0	f32	modifier 40 artefact_power (no getter call, no code reference to its name, no config sets it): the artefact tree's packed skills; artefact-skills.md
 survarium::artefact	vtable	0x0	ptr<survarium::medical_vtable>	an inventory slot's artefact's (core) virtual table: its +80h enable_active names the kind (Onyx 0x3128C0, Lifebone 0x312250)
 survarium::image	onyx_active	0x3128C0	u32	artefact_onyx_core::enable_active_effects (vtable +80h; abi_inputs 0x3128C0)

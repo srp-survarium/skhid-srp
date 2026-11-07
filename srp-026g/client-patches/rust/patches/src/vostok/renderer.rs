@@ -149,6 +149,16 @@ pub fn is_loaded(_: &Thread, name: &CStr) -> bool {
     !unsafe { (raw::engine_get_module_handle_a)(name.as_ptr().cast()) }.is_null()
 }
 
+/// Sets the process's environment variable `name` (SetEnvironmentVariableA):
+/// DXVK reads its own (`DXVK_CONFIG`) with GetEnvironmentVariableW when its
+/// first device is made, from the same Win32 environment, at most 259
+/// characters (DXVK 3.1.1's util_env.cpp: a longer value reads as none).
+pub fn set_environment(_: &Thread, name: &CStr, value: &CStr) -> bool {
+    // SAFETY: SetEnvironmentVariableA with two NUL-terminated strings; it
+    // copies them.
+    unsafe { (raw::engine_set_environment_variable_a)(name.as_ptr().cast(), value.as_ptr().cast()) != 0 }
+}
+
 /// The game's delayed imports a DXVK DLL serves.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum DelayedImport {

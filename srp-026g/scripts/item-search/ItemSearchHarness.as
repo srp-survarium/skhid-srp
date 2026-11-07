@@ -6,6 +6,7 @@ package
    import flash.display.MovieClip;
    import flash.display.Sprite;
    import flash.events.Event;
+   import flash.events.KeyboardEvent;
    import flash.events.MouseEvent;
    import flash.geom.Point;
    import flash.geom.Rectangle;
@@ -43,6 +44,9 @@ package
 
       private var shop:*;
 
+      // the shop's entries as the exe gives them
+      private var offers:Array;
+
       private var failures:Array = [];
 
       private var frames:int = 0;
@@ -66,6 +70,9 @@ package
       private static const HELMET:int = 9106;
 
       private static const BOOTS:int = 9107;
+
+      // each fixture property's direction as the game has it (ui_properties: 1 more is better)
+      private static const DIRECTION:Object = {"3":1,"6":1,"9":1,"10":1,"15":0,"20":1,"102":0,"105":1,"115":0,"117":1};
 
       // [dict id, name, category, level, seller, built-in modifications, rolled modifications]
       private var ITEMS:Array;
@@ -119,9 +126,9 @@ package
             at = "the items";
             ITEMS = [[RIFLE,"AK-74M",Category.ASSAULT_RIFLES,10,3,[],[mod(115,-0.1)]],
                [RIG_A,"Rig A",Category.RIGS,10,1,[mod(20,2),mod(117,1)],[]],
-               [RIG_B,"Rig B",Category.RIGS,11,2,[mod(20,1),mod(117,1)],[]],
+               [RIG_B,"Rig B",Category.RIGS,11,2,[mod(20,1),mod(117,1),mod(15,2)],[]],
                [VEST,"Vest",Category.BODY_ARMOR,12,3,[mod(9,1)],[mod(6,-5,1)]],
-               [MOSIN,"Mosin",Category.ASSAULT_RIFLES,11,0,[],[mod(102,-0.1)]],
+               [MOSIN,"Mosin",Category.ASSAULT_RIFLES,11,0,[mod(105,-0.05)],[mod(102,-0.1)]],
                [HELMET,"Hood",Category.HELMETS,10,4,[mod(10,1)],[mod(6,2)]],
                [BOOTS,"Shoes",Category.BOOTS,12,0,[],[]]];
             var descriptor:* = new (C("survarium.data.ItemDescriptor"))("item-search-check");
@@ -174,7 +181,7 @@ package
          var list:Array = [];
          for(var id:String in ItemSearchText.DATA[language].props)
          {
-            list.push({prop_id:int(id),prop_name:ItemSearchText.DATA[language].props[id],modifier_type:1,postfix:""});
+            list.push({prop_id:int(id),prop_name:ItemSearchText.DATA[language].props[id],modifier_type:1,postfix:"",direction:DIRECTION[id]});
          }
          new (C("survarium.data.PropertiesDescriptor"))("properties").setPropertiesDictionary(list);
       }
@@ -221,7 +228,7 @@ package
                   inventory.toggleShopMode(false);
                   inventory.filterItems(null);
                   inventory.optionControl.checkbox_all_traders.selected = true;
-                  var offers:Array = [];
+                  offers = [];
                   shop.forEachItem(function(entry:*):Boolean
                   {
                      offers.push(entry);
@@ -307,7 +314,7 @@ package
                   wait = 40;
                   break;
                case 2:
-                  checkTipLayout();
+                  checkTipLayout("english");
                   // the shop: its items with their built-in modifications only
                   inventory.toggleShopMode(true);
                   inventory.filterItems(null);
@@ -319,30 +326,48 @@ package
                   expect("+rig",["Rig A","Rig B"],false,"shop");
                   inventory.toggleShopMode(false);
                   inventory.filterItems(null);
+                  // Shift+= over the list, the box without the keys, as the exe may send it: no
+                  // character (charCode 0); the box takes the keys on the next render with a "+"
+                  type("");
+                  stage.focus = null;
+                  stage.dispatchEvent(new KeyboardEvent(KeyboardEvent.KEY_DOWN,true,false,0,187,0,false,false,true));
+                  wait = 20;
                   break;
                case 3:
+                  require(box.text == "+","Shift+= without its character over the list types \"+\" (the box reads \"" + box.text + "\")");
+                  type("");
+                  stage.focus = null;
+                  break;
+               case 4:
                   // every language: the card's names and the seller tabs in it
                   var name:String = ItemSearchText.LANGUAGES[language];
                   var t:Object = ItemSearchText.DATA[name].ui;
                   props(name);
                   sellers(name);
+                  // the shop's data again: the tip's lists made with this language's seller tabs and
+                  // texts
+                  domain.getDefinition("survarium.data.LocalizationData").setData(t);
+                  inventory.setupShopItems(offers);
+                  type("");
+                  checkFactionList(name);
                   fits(name,t.st_srp_inventory_search,": " + t.st_srp_inventory_search_examples);
-                  // the hint's examples (owner 2026-11-06): a pocket bonus and the Scavengers first,
-                  // then the slot, the ammo and a level, each finding something
+                  // the hint's examples (owner 2026-11-06): exactly the pocket, the slot, the ammo and
+                  // a level, each finding what it names
                   var hint:Array = plusWords(t.st_srp_inventory_search_examples);
-                  expect(hint.slice(0,2).join(" "),["Rig A"],false,name + " hint");
-                  for each(var h:String in hint)
-                  {
-                     expect(h,null,false,name + " hint");
-                  }
+                  require(hint.length == 4 && hint[3] == "+10" && String(t.st_srp_inventory_search_examples).split(",").length == 4,name + ": the hint is four + words: " + t.st_srp_inventory_search_examples);
+                  expect(hint[0],["Rig A","Rig B"],false,name + " hint");
+                  expect(hint[1],["Hood"],false,name + " hint");
+                  expect(hint[2],["Rig A","Rig B"],false,name + " hint");
+                  expect(hint[3],["AK-74M","Rig A","Hood"],false,name + " hint");
                   // the tip's examples
-                  expect(t.st_srp_inventory_search_tip_first_example,["Rig A"],false,name + " tip");
                   var bonus:Array = plusWords(t.st_srp_inventory_search_tip_bonus_example);
                   for each(var w:String in bonus)
                   {
                      expect(w,null,false,name + " tip");
                   }
-                  expect(plusWords(t.st_srp_inventory_search_tip_faction_example)[0],["AK-74M","Vest"],false,name + " tip");
+                  var factions:Array = plusWords(t.st_srp_inventory_search_tip_faction_example);
+                  expect(factions[0],["AK-74M","Vest"],false,name + " tip");
+                  expect(factions.join(" "),["AK-74M","Vest","Rig B"],false,name + " tip");
                   var kinds:Array = plusWords(t.st_srp_inventory_search_tip_kind_example);
                   expect(kinds[0],["Hood"],false,name + " tip");
                   expect(kinds[1],["Shoes"],false,name + " tip");
@@ -353,9 +378,19 @@ package
                   expect("+ammo +pocket",["Rig A","Rig B"],false,name);
                   expect("+artefact",["Vest"],false,name);
                   expect("+helmet",["Hood"],false,name);
+                  // the pointer over the empty box: this language's tip
+                  type("");
+                  stage.focus = null;
+                  tip().dispatchEvent(new MouseEvent(MouseEvent.MOUSE_OVER,true));
+                  wait = 40;
+                  break;
+               case 5:
+                  name = ItemSearchText.LANGUAGES[language];
+                  checkTipLayout(name);
+                  checkTipRows(ItemSearchText.DATA[name].ui);
                   if(++language < ItemSearchText.LANGUAGES.length)
                   {
-                     step--;
+                     step -= 2;
                   }
                   break;
                default:
@@ -436,9 +471,9 @@ package
          var rows:Array = tip().tipData.rows as Array;
          var key:String = "st_srp_inventory_search_tip_";
          var want:Array = [];
-         for each(var k:String in ["first","bonus","bonus_list","level","faction","kind","kind_list"])
+         for each(var k:String in ["bonus","bonus_list","level","faction","faction_list","kind","kind_list"])
          {
-            want.push(k.indexOf("_list") != -1 ? ui[key + k] + " / (list)" : ui[key + k + "_example"] + " / " + ui[key + k]);
+            want.push(k.indexOf("_list") != -1 ? " / (list)" : ui[key + k + "_example"] + " / " + ui[key + k]);
          }
          var got:Array = rows == null ? [] : rows.map(function(r:Array, i:int, a:Array):String
          {
@@ -449,28 +484,50 @@ package
          {
             return;
          }
-         var bonuses:Array = String(rows[2][1]).split(" ");
+         var bonuses:Array = String(rows[1][1]).split(" ");
          var kinds:Array = String(rows[6][1]).split(" ");
-         trace("ITEMSEARCH tip bonus words (" + bonuses.length + "): " + rows[2][1]);
+         trace("ITEMSEARCH tip bonus words (" + bonuses.length + "): " + rows[1][1]);
          trace("ITEMSEARCH tip kind words (" + kinds.length + "): " + rows[6][1]);
-         // the bonuses the shop's and the inventory's items have (the same item in both counts
-         // twice), the most items first, ties in SEARCH_BONUSES' order: ammo and pocket 4 (the
-         // rigs), slot and artifact 2 (the hood's and the vest's built-in), aim, recoil and armor 1
-         // (the Mosin's, the AK's and the hood's rolled); the vest's armour is a defect, and no
-         // item has weight, xp or use: not listed, still matched
-         require(rows[2][1] == "+ammo +pocket +slot +artifact +aim +recoil +armor","the tip lists the items' bonuses, the most items first: " + rows[2][1]);
+         // the bonuses the items have, by type (owner 2026-11-06): the gear's (the rigs' ammo and
+         // pocket, the hood's slot and armor, the vest's artifact), then the weapons' (the Mosin's
+         // aim, the AK's recoil), each group in SEARCH_BONUSES' order; the vest's armour is a
+         // defect, the rig's +2 kg and the Mosin's movement -5 % penalties, and no item has xp or
+         // use: not listed, still matched
+         require(rows[1][1] == "+ammo +slot +pocket +artifact +armor +aim +recoil","the tip lists the items' bonuses by type: " + rows[1][1]);
          // the kinds some item is, in SEARCH_KINDS' order (no mask, gloves, pants or items)
          require(rows[6][1] == "+gear +helmet +body +rig +boots","the tip lists the items' kinds: " + rows[6][1]);
-         expect("+weight",[],false,"a bonus no item has");
+         expect("+weight",[],false,"a penalty (the rig's +2 kg) is no bonus");
+         expect("+movement",[],false,"a penalty (the Mosin's built-in -5 %) is no bonus");
+         expect("+xp",[],false,"a bonus no item has");
          expect("+mask",[],false,"a kind no item is");
+         // the factions selling an item, in the seller tabs' order, a word each naming it alone
+         require(ui != ItemSearchText.DATA.english.ui || rows[4][1] == "+independent +scavengers +black +renaissance +fringe","the tip lists the items' factions: " + rows[4][1]);
          // every listed kind word names its kind: the inventory's of that kind
          expect("+helmet +boots",["Hood","Shoes"],false,"tip kinds");
       }
 
+      // The tip's faction list in a language (its seller tabs' names): every faction an item has,
+      // in the tabs' order, each word listing that faction's items, the independent traders too.
+      private function checkFactionList(language:String) : void
+      {
+         var rows:Array = tip().tipData.rows as Array;
+         var words:Array = rows != null && rows.length > 4 ? String(rows[4][1]).split(" ") : [];
+         trace("ITEMSEARCH " + language + " tip faction words: " + words.join(" "));
+         // the tabs' order: the independent traders, then the factions 1 to 4
+         var sold:Array = [["Mosin","Shoes"],["Rig A"],["Rig B"],["AK-74M","Vest"],["Hood"]];
+         require(words.length == sold.length,language + ": the tip lists " + sold.length + " factions (" + words.join(" ") + ")");
+         for(var i:int = 0; i < words.length && i < sold.length; i++)
+         {
+            expect(words[i],sold[i],false,language + " tip faction");
+         }
+      }
+
       // The tip shown (in tipLayer, ToolTip's container): the game's renderer, just above the box,
-      // their left edges together; its rows two columns, the right one's at one x, the same gap
-      // between rows, the padding the same on every side.
-      private function checkTipLayout() : void
+      // their left edges together; its rows two columns, the right one's at one x; each list
+      // (a row [left, right, true]) under its row's meaning, dim (0x696969), no label, closer to
+      // its row than the groups are to each other (the same gaps each); the padding the same on
+      // every side.
+      private function checkTipLayout(language:String) : void
       {
          require(tipLayer.numChildren == 1,"the tip shows over the empty box (" + tipLayer.numChildren + " shown)");
          if(tipLayer.numChildren != 1)
@@ -480,19 +537,20 @@ package
          var renderer:* = tipLayer.getChildAt(0);
          var shape:Rectangle = renderer.getBounds(tipLayer);
          var at:Rectangle = box.getBounds(tipLayer);
-         trace("ITEMSEARCH tip at " + shape + ", the box at " + at);
+         trace("ITEMSEARCH " + language + " tip at " + shape + ", the box at " + at);
+         require(shape.right <= stage.stageWidth,language + ": the tip (to " + shape.right + ") on the screen (" + stage.stageWidth + ")");
          require(Math.abs(shape.left - at.left) <= 1,"the tip's left edge (" + shape.left + ") on the box's (" + at.left + ")");
          require(shape.bottom <= at.top,"the tip (to " + shape.bottom + ") above the box (from " + at.top + ")");
          require(shape.top >= 0,"the tip (from " + shape.top + ") on the screen");
+         var rows:Array = tip().tipData.rows as Array;
          var cells:Array = [];
          find(renderer,TextField,cells);
          cells = cells.filter(function(c:TextField, i:int, a:Array):Boolean
          {
-            return c.visible && c.text != "";
+            return c.visible;
          });
-         var count:int = tip().tipData.rows.length;
-         require(cells.length == count * 2,"the tip has " + count + " rows of 2 cells (" + cells.length + " cells)");
-         if(cells.length != count * 2)
+         require(cells.length == rows.length * 2,"the tip has " + rows.length + " rows of 2 cells (" + cells.length + " cells)");
+         if(cells.length != rows.length * 2)
          {
             return;
          }
@@ -511,19 +569,40 @@ package
             rights.push(text[i + 1]);
          }
          var widest:Number = 0;
-         var gap:Number = NaN;
-         for(i = 0; i < count; i++)
+         var inner:Array = [];
+         var between:Array = [];
+         for(i = 0; i < rows.length; i++)
          {
-            require(Math.abs(lefts[i][0] - lefts[0][0]) <= 0.5,"the examples start at one x (" + lefts[i][0] + ", " + lefts[0][0] + ")");
-            require(Math.abs(rights[i][0] - rights[0][0]) <= 0.5,"the meanings start at one x (" + rights[i][0] + ", " + rights[0][0] + ")");
-            require(Math.abs(rights[i][1] - lefts[i][1]) <= 0.5,"row " + i + "'s cells on one line");
-            widest = Math.max(widest,lefts[i][2]);
+            var list:Boolean = rows[i][2] === true;
+            var colour:uint = uint(cells[i * 2 + 1].getTextFormat(0,1).color) & 0xFFFFFF;
+            require(Math.abs(rights[i][0] - rights[0][0]) <= 0.5,"the meanings and lists start at one x (" + rights[i][0] + ", " + rights[0][0] + ")");
+            if(list)
+            {
+               require(cells[i * 2].text == "","a list has no label (\"" + cells[i * 2].text + "\")");
+               require(colour == 0x696969,"a list is dim (" + colour.toString(16) + ")");
+            }
+            else
+            {
+               require(Math.abs(lefts[i][0] - lefts[0][0]) <= 0.5,"the examples start at one x (" + lefts[i][0] + ", " + lefts[0][0] + ")");
+               require(Math.abs(rights[i][1] - lefts[i][1]) <= 0.5,"row " + i + "'s cells on one line");
+               require(colour != 0x696969,"a meaning is not dim");
+               require(cells[i * 2 + 1].numLines == 1 && cells[i * 2].numLines == 1,language + ": \"" + cells[i * 2].text + "\" and \"" + cells[i * 2 + 1].text + "\" on one line");
+               widest = Math.max(widest,lefts[i][2]);
+            }
             if(i > 0)
             {
-               var between:Number = lefts[i][1] - Math.max(lefts[i - 1][3],rights[i - 1][3]);
-               gap = isNaN(gap) ? between : gap;
-               require(Math.abs(between - gap) <= 0.5,"the same gap between rows (" + between + ", " + gap + ")");
+               (list ? inner : between).push(rights[i][1] - Math.max(lefts[i - 1][3],rights[i - 1][3]));
             }
+         }
+         trace("ITEMSEARCH tip gaps inside a group: " + inner.join(", ") + "; between the groups: " + between.join(", "));
+         require(inner.length == 3 && between.length == 3,"three groups with a list each (" + inner.length + " lists, " + between.length + " gaps between groups)");
+         for each(var g:Number in inner)
+         {
+            require(Math.abs(g - inner[0]) <= 0.5,"the same gap inside every group (" + inner.join(", ") + ")");
+         }
+         for each(g in between)
+         {
+            require(Math.abs(g - between[0]) <= 0.5 && g > inner[0] + 4,"the same gap between the groups, larger than inside one (" + between.join(", ") + " against " + inner[0] + ")");
          }
          require(rights[0][0] > widest + 8,"the meanings (from " + rights[0][0] + ") clear of the widest example (to " + widest + ")");
          var right:Number = 0;
@@ -531,9 +610,10 @@ package
          {
             right = Math.max(right,r[2]);
          }
-         var bottom:Number = Math.max(lefts[count - 1][3],rights[count - 1][3]);
+         var last:int = rows.length - 1;
+         var bottom:Number = Math.max(lefts[last][3],rights[last][3]);
          var pads:Array = [lefts[0][0] - shape.left,lefts[0][1] - shape.top,shape.right - right,shape.bottom - bottom];
-         trace("ITEMSEARCH tip " + shape.width.toFixed(0) + " x " + shape.height.toFixed(0) + ", padding left, top, right, bottom: " + pads.map(function(p:Number, i:int, a:Array):String
+         trace("ITEMSEARCH " + language + " tip " + shape.width.toFixed(0) + " x " + shape.height.toFixed(0) + ", padding left, top, right, bottom: " + pads.map(function(p:Number, i:int, a:Array):String
          {
             return p.toFixed(1);
          }).join(", "));

@@ -14,6 +14,8 @@ mod game;
 mod late_join;
 mod late_join_edge_cases;
 mod resync_gate;
+mod packet_safety;
+mod packet_input;
 mod sockets;
 mod start;
 mod units;

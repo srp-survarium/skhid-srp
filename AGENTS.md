@@ -33,11 +33,13 @@ base patches made outside this repo (maps, ported weapons and items), the Flash 
 - A content change is a change of its source in the PR: an edit list (new, or a retune of one), a
   movie's ActionScript, a pack's new version. A new edit list or pack also adds its row to
   `release/content.tsv` in the same PR; a movie edit or a retune needs no new row.
-- The release builds the patch: `release/build-content <revision>` builds everything the manifest
+- The release builds the patch: `release/build-content <revision> --full` builds everything the manifest
   lists, compares it with what players have (the stock db and every listed patch), and packs only the
   files that differ, printing each one and why; anything live that the manifest does not make stops
   it, save what an earlier version of a listed pack added and its new version no longer makes (left
-  as it is, listed). Then `release/release.sh --resources <that patch>`.
+  as it is, listed). Then `release/release.sh --resources <that patch>`. Without `--full` it is a quick
+  build for local tests (no check of players' files with the patch, no item tables, `QUICK-BUILD` in its
+  folder), which `release.sh` refuses.
 - Never assemble a patch folder by hand, and never build a patch from the server game data or from
   one release's files: a file left out, or taken from the wrong revision, reverts what players have.
 
@@ -108,7 +110,8 @@ TSV (one line per name, no bulk JSON). The client patches' own addresses and rea
   `tools/checks.tsv` with every input it reads; a changed file it reports as `not covered` has no
   check yet (docs need none).
 - Where it has no row yet, use the patch's own self-tests and Unicorn check or the movie's
-  Ruffle harness. Shell/docs/page-copy changes do not need game builds, Unicorn or unrelated
+  Ruffle harness (`selftest_026g.py` runs at a release, in `release/release.sh`: not during
+  development). Shell/docs/page-copy changes do not need game builds, Unicorn or unrelated
   server tests. World save/load changes also need `check_world_roundtrip_026g.py`. Reserve full
   suites for shared infrastructure changes that affect them or release validation.
 - Broaden checks only for a concrete dependency or failure; do not repeat passing checks without

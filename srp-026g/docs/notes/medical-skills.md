@@ -81,7 +81,9 @@ Unflinching or Concentration); a full build 32.
   (the hit's coefficient minus 0.01 a rank, never below 0: 0.9 -> 0.89, 0.88,
   0.87, so 10% -> 13%) and +1.5 s, replacing the relative +8% a rank. The
   descriptions say it adds to the painkiller's protection; the lobby's Alt
-  medicine card uses the same rule.
+  medicine card uses the same rule. Held Alt, the medicine cards also show Numb
+  Legs, Unflinching and Concentration (a painkiller) and Take Cover (a medicine
+  that heals) as lines of their own, "100 -> current %" (alt-weapon-stats.md).
 - Icons: Numb Legs shows Potent Painkiller's `survival/1.png` (the same
   embedded bitmap, MedicalSkill069301; its own MedicalSkill069303 is gone). Take
   Cover shows retail 0.69d0 `skills/physical/15.png` (234 "Mobility", a crouched

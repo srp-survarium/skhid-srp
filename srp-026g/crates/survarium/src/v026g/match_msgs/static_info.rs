@@ -32,7 +32,9 @@
 use super::super::dictionary::{Dictionary, PROFILE_SLOTS};
 use super::super::loadouts::Loadout;
 use super::super::skills::{MODIFIERS, write_modifier_block};
+use super::super::item_params::{self, ItemClass};
 use super::super::{lzma2, maps};
+use srp_validate::world::{AMMO_SLOTS, Ammo, Body, Gun, Held, Item, Measure, WEAPON_SLOTS};
 use super::snapshot::event;
 use super::{MAX_PLAYERS, ServerMessage};
 
@@ -323,6 +325,134 @@ impl MatchProfile {
             items,
             squad: 0,
         }
+    }
+
+    /// The place's grenades and traps in a world's game objects, in the
+    /// order the game binds them (`srp_validate::world::objects`): its
+    /// usable kits in order (each has a player object, 0x321820), each
+    /// kit's slots in order (0x2FC7D0), one object for each of the slot's
+    /// count of a grenade set or a trap set (0x309EC0, 0x3067A0). An item
+    /// the data does not have is no grenade and no trap.
+    pub fn held(&self) -> impl Iterator<Item = Held> + '_ {
+        self.kits
+            .iter()
+            .take(MAX_KITS)
+            .filter(|kit| kit.state == KIT_USABLE)
+            .flat_map(|kit| kit.slots.iter().flatten())
+            .flat_map(|&(index, count)| {
+                let class = self
+                    .items
+                    .get(usize::from(index))
+                    .and_then(|item| item_params::item_params(item.dict_id))
+                    .map(|params| params.class);
+                // Every class named: one a new data type adds is placed here
+                // or there by whoever adds it, never left out by a default.
+                let held = match class {
+                    Some(ItemClass::GrenadeSet) => Some(Held::Grenade),
+                    Some(ItemClass::TrapSet) => Some(Held::Trap),
+                    None
+                    | Some(
+                        ItemClass::Untyped
+                        | ItemClass::Medkit { .. }
+                        | ItemClass::OxygenTank
+                        | ItemClass::Artefact(_)
+                        | ItemClass::Armor
+                        | ItemClass::Scope
+                        | ItemClass::Ammunition
+                        | ItemClass::Booster,
+                    ) => None,
+                };
+                held.into_iter()
+                    .flat_map(move |held| std::iter::repeat_n(held, usize::from(count)))
+            })
+    }
+}
+
+impl MatchProfile {
+    /// Kit `kit`'s inventory as the game makes its objects
+    /// (`inventory_cook::on_subresources_loaded` 0x2C75B0), in slot order,
+    /// as a player's state saves them (`srp_validate::world::Inventory`): a
+    /// weapon slot's gun, an ammo slot's stack of a count over 0, any other
+    /// slot's item by its class. A kit with no player object has none. An
+    /// item the game makes no object of in its slot (an artefact, a scope,
+    /// an item of no class out of a weapon slot) is an error: what the game
+    /// would read there is not known.
+    pub fn inventory(
+        &self,
+        kit: usize,
+        dictionary: &Dictionary,
+    ) -> Result<Vec<Item<'static>>, String> {
+        let Some(kit) = self.kits.get(kit).filter(|kit| kit.state == KIT_USABLE) else {
+            return Ok(Vec::new());
+        };
+        let entry = |index: u16| self.items.get(usize::from(index)).filter(|item| item.dict_id != 0);
+        let mut objects = Vec::new();
+        for (slot, held) in kit.slots.iter().enumerate() {
+            let Some((index, count)) = *held else {
+                continue;
+            };
+            let Some(item) = entry(index) else {
+                continue;
+            };
+            let slot = slot as u8;
+            let params = item_params::item_params(item.dict_id);
+            let body = if WEAPON_SLOTS.contains(&slot) {
+                let Some(gun) = params.and_then(|params| params.gun) else {
+                    return Err(format!("the gun {} of slot {slot} has no states", item.dict_id));
+                };
+                // Its ammo list: the kit's ammo slots, in their order, that
+                // hold a stack the gun takes (0x2C7739..0x2C792C), at most 8.
+                let ammo = AMMO_SLOTS
+                    .iter()
+                    .filter_map(|&ammo| kit.slots.get(usize::from(ammo)).copied().flatten())
+                    .filter(|&(index, count)| {
+                        count > 0
+                            && entry(index).is_some_and(|ammo| dictionary.compatible(item.dict_id, ammo.dict_id))
+                    })
+                    .count()
+                    .min(8) as u8;
+                Body::Weapon(Gun {
+                    states: gun.states,
+                    chamber: gun.chamber,
+                    ammo: Ammo::Kit(ammo),
+                })
+            } else if AMMO_SLOTS.contains(&slot) {
+                if count == 0 {
+                    continue;
+                }
+                Body::None
+            } else {
+                match params.map(|params| params.class) {
+                    Some(ItemClass::Medkit { influences }) => Body::Medkit { influences },
+                    Some(ItemClass::OxygenTank) => Body::OxygenTank,
+                    Some(
+                        ItemClass::Armor
+                        | ItemClass::Booster
+                        | ItemClass::GrenadeSet
+                        | ItemClass::TrapSet
+                        | ItemClass::Ammunition,
+                    ) => Body::None,
+                    // Every class named (as in `held`): no default.
+                    other @ (None
+                    | Some(ItemClass::Untyped | ItemClass::Artefact(_) | ItemClass::Scope)) => {
+                        return Err(format!(
+                            "item {} of slot {slot} is {other:?}: no object of a kit",
+                            item.dict_id
+                        ));
+                    }
+                }
+            };
+            objects.push(Item {
+                slot,
+                measure: if dictionary.is_stack(item.dict_id) {
+                    Measure::Amount
+                } else {
+                    Measure::Condition
+                },
+                body,
+            });
+        }
+        Ok(objects)
     }
 }
 
@@ -953,6 +1083,7 @@ mod tests {
     use super::super::super::loadouts;
     use super::super::super::skills::modifier_index;
     use super::*;
+    use srp_validate::world::Chamber;
 
     fn dictionary() -> &'static Dictionary {
         Dictionary::shared()
@@ -1545,5 +1676,107 @@ mod tests {
         let info = StaticInfo::new(&options(vec![player; 20]), dictionary()).unwrap();
         assert!(info.options().len() < OPTIONS_BUFFER);
         assert!(info.payload(19).unwrap().len() < MAX_MESSAGE);
+    }
+
+    #[test]
+    fn a_places_held_objects_are_its_usable_kits_grenades_and_traps_in_slot_order() {
+        let dictionary = dictionary();
+        let id = |name: &str| dictionary.item_named(name).expect(name).dict_id;
+        let item = |dict_id, count| MatchItem {
+            dict_id,
+            condition_or_stack: count,
+            ..MatchItem::default()
+        };
+        let mut kits = vec![
+            MatchKit::empty(1, ""),
+            MatchKit::empty(2, ""),
+            MatchKit::empty(3, ""),
+        ];
+        // Kit 0: a trap in pocket 14, two grenades in pocket 13, a pistol;
+        // kit 1 is locked; kit 2: one grenade.
+        kits[0].slots[7] = Some((0, 1));
+        kits[0].slots[13] = Some((1, 2));
+        kits[0].slots[14] = Some((2, 1));
+        kits[1].state = 2;
+        kits[1].slots[13] = Some((1, 2));
+        kits[2].slots[15] = Some((1, 1));
+        let profile = MatchProfile {
+            team: 0,
+            name: "held".into(),
+            clan_tag: String::new(),
+            protection: NO_PROTECTION,
+            kits,
+            items: vec![item(id("tt_33"), FULL_CONDITION), item(id("rgd-5"), 3), item(id("base_trap"), 1)],
+            squad: 0,
+        };
+        let held: Vec<Held> = profile.held().collect();
+        assert_eq!(held, [Held::Grenade, Held::Grenade, Held::Trap, Held::Grenade]);
+    }
+
+    #[test]
+    fn a_kits_inventory_is_its_objects_in_slot_order() {
+        let dictionary = dictionary();
+        let id = |name: &str| dictionary.item_named(name).expect(name).dict_id;
+        let item = |dict_id, count| MatchItem {
+            dict_id,
+            condition_or_stack: count,
+            ..MatchItem::default()
+        };
+        let mut kit = MatchKit::empty(1, "");
+        // An AK with two stacks it takes and one it does not, an empty
+        // ammo slot, a medkit, a grenade, a helmet.
+        kit.slots[7] = Some((0, 1));
+        kit.slots[8] = Some((1, 60));
+        kit.slots[9] = Some((2, 0));
+        kit.slots[11] = Some((3, 30));
+        kit.slots[12] = Some((4, 30));
+        kit.slots[13] = Some((5, 2));
+        kit.slots[14] = Some((6, 1));
+        kit.slots[0] = Some((7, 1));
+        let ak = id("ak_74m");
+        let rounds = dictionary
+            .items
+            .iter()
+            .find(|item| item.name.starts_with("ammo_") && dictionary.compatible(ak, item.dict_id))
+            .expect("ammunition the AK takes")
+            .dict_id;
+        let other = dictionary
+            .items
+            .iter()
+            .find(|item| item.name.starts_with("ammo_") && !dictionary.compatible(ak, item.dict_id))
+            .expect("ammunition the AK does not take")
+            .dict_id;
+        let profile = MatchProfile {
+            team: 0,
+            name: "kit".into(),
+            clan_tag: String::new(),
+            protection: NO_PROTECTION,
+            kits: vec![kit],
+            items: vec![
+                item(ak, FULL_CONDITION),
+                item(rounds, 60),
+                item(rounds, 0),
+                item(rounds, 30),
+                item(other, 30),
+                item(id("medkit"), 2),
+                item(id("rgd-5"), 1),
+                item(id("bm_helmet_1"), FULL_CONDITION),
+            ],
+            squad: 0,
+        };
+        let items = profile.inventory(0, dictionary).unwrap();
+        let slots: Vec<u8> = items.iter().map(|item| item.slot).collect();
+        assert_eq!(slots, [0, 7, 8, 11, 12, 13, 14]);
+        let Body::Weapon(gun) = items[1].body else {
+            panic!("{:?}", items[1]);
+        };
+        assert_eq!(gun.ammo, Ammo::Kit(2));
+        let chamber = usize::from(gun.chamber == Chamber::Saved);
+        assert_eq!(gun.states.len(), 7 + chamber);
+        assert!(matches!(items[5].body, Body::Medkit { influences: 7 }));
+        let measures: Vec<Measure> = items[..3].iter().map(|item| item.measure).collect();
+        assert_eq!(measures, [Measure::Condition, Measure::Condition, Measure::Amount]);
+        // No kit 1: nothing.
+        assert_eq!(profile.inventory(1, dictionary).unwrap(), []);
     }
 }
