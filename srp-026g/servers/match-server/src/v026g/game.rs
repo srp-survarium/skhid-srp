@@ -3629,7 +3629,11 @@ impl Game {
             // drops a late one; a copy of it is known by its time and goes
             // nowhere.
             peer.inputs_refused += 1;
-            let remove = peer.input_violations.record(now);
+            // A game out of step makes such inputs (NaN rotations, live
+            // 2026-11-02) until its resync's world is loaded: discarded,
+            // never counted against it (`input_safety::SenderWorld`).
+            let world = peer.sender_world();
+            let remove = peer.input_violations.record(now, world);
             answer_owner(
                 peer,
                 Answer::input(ServerMessage::DiscardInput { time: input.time }, time, None),
