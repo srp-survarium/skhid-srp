@@ -1002,6 +1002,10 @@ fn advance(
                     }
                     _ => None,
                 };
+                #[cfg(test)]
+                if client.is_some() {
+                    client_steps::count();
+                }
                 if let Some(target) = client {
                     (node, feet, stopped) = slide_edge(kin, grid, at.node.unwrap_or(node), at.feet, target, offs);
                 } else if share < 1.0 {
@@ -1207,6 +1211,23 @@ pub fn slide_capped(
 /// [A318] The rise (m) over which a reckoned step is a step up for [`ClientStep::Client`]: the grid's floors are level to the
 /// centimetre, so any rise above it is a climb.
 pub const STEP_UP_RISE_M: f32 = 0.02;
+
+/// The reckoning's steps played by the client's walk tick ([`ClientStep::Client`]), for the bench's CPU line.
+#[cfg(test)]
+pub(crate) mod client_steps {
+    use std::sync::atomic::{AtomicU64, Ordering::Relaxed};
+
+    static COUNT: AtomicU64 = AtomicU64::new(0);
+
+    pub(crate) fn count() {
+        COUNT.fetch_add(1, Relaxed);
+    }
+
+    /// How many so far.
+    pub(crate) fn total() -> u64 {
+        COUNT.load(Relaxed)
+    }
+}
 
 /// [A318] How far short of its target (m) a grid step ends for [`ClientStep::Client`] to take it as stopped by a wall.
 pub const CLIENT_BLOCKED_M: f32 = 1e-3;
