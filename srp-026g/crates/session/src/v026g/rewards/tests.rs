@@ -2299,6 +2299,9 @@ fn a_kit_change_before_play_is_a_life_more_for_the_supplies_used() {
             magazine: None,
             slot: None,
         }],
+        hands_slot: None,
+        carried_weight: None,
+        carrying: None,
     });
     let used = |kit_changes: u16| {
         let mut players = players.clone();
@@ -2349,6 +2352,9 @@ fn the_supplies_used_are_taken_and_the_boxes_put_them_right() {
         kit: 0,
         inventory_read: false,
         items: vec![stack(rounds, 30), stack(medkit, 3)],
+        hands_slot: None,
+        carried_weight: None,
+        carrying: None,
     });
     let prepare = |store: &GameAccounts, boxes: bool| {
         let alice = store.get(10).unwrap();

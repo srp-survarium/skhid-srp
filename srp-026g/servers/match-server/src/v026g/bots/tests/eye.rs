@@ -366,6 +366,9 @@ fn pre_eye_pin_tuning() -> Tuning {
         // A318: the step cap and the settled level read (KEPT_RIGHT / default ON); the pin has neither.
         old.kin.speed_cap = kin::SpeedCap::Off;
         old.kin.level_read = kin::LevelRead::Any;
+        // A331: the level computed from the kit (default ON); the pin has the measured one.
+        old.kin.level_source = kin::LevelSource::Measured;
+        old.kin.carrier_sprint = kin::CarrierSprint::Allowed;
         old.sense.ranges = tuning::HearingRanges::Flat;
         old.sense.shots = tuning::ShotRanges::Flat;
         old.sense.sprint_body_mps = None;

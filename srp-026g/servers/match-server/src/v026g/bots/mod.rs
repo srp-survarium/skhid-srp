@@ -1111,6 +1111,12 @@ impl Bots {
         self.tracker.set_prior_levels(levels);
     }
 
+    /// [A331] `place`'s kit in use's computed speed factors, for each weapon it could have in hands, the primary's first
+    /// (`survarium::v026g::bot_skills::profile_movement_candidates`; `BodyTrack::set_speed_candidates`).
+    pub fn set_speed_candidates(&mut self, place: Place, candidates: Vec<f32>) {
+        self.tracker.set_speed_candidates(place, candidates);
+    }
+
     /// What every place's throw keys throw, for the live list
     /// ([`live_grenades`]).
     pub fn set_throws(&mut self, throws: Vec<live_grenades::Throws>) {
