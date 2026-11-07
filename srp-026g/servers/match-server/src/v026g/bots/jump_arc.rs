@@ -53,7 +53,7 @@ pub const CATCH_M: f32 = 0.1;
 /// sprint-jump RE 1.2, 3.2).
 const WALK_CAP_MS: f32 = 3.5;
 /// The sprint jump's prepare phase, its mean (the run's step left at the press: 0-150 ms, 0-1.64 m, FINDINGS 3.2): LIKELY.
-const PREPARE_MS: f32 = 75.0;
+pub(crate) const PREPARE_MS: f32 = 75.0;
 const PREPARE_M: f32 = 0.82;
 /// The lowest and highest heights over the feet whose rays a wall holds a body in the air at, m (the stand-in's lowest and
 /// highest `AIR_RAYS`), and the spacing between them: 5 cm, so a thin horizontal bar cannot pass between two (the stand-in's three
@@ -193,7 +193,7 @@ impl Clip {
     }
 
     /// The air control in the body's frame, m/s: the keys' direction at 1 m/s, none for forward alone in a sprint jump.
-    fn air_control(self, keys: u32) -> Local {
+    pub(crate) fn air_control(self, keys: u32) -> Local {
         let direction = Direction::of(keys);
         if matches!(self, Self::Sprint(_)) && direction == Direction::Forward {
             return [0.0, 0.0];
