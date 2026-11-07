@@ -1,6 +1,7 @@
 # The shop's rules beyond the item data (crates/survarium/src/v026g/prices.rs): the price is the item's
 # base_cost (items.tsv); gear is sold by the faction its config names at the rank of its item level
-# (Renaissance and Edge: 5 under it), gear of no faction by everyone at no rank. A row says otherwise:
+# (Renaissance and Edge: 5 under it), gear of no faction by everyone at no rank; a badge (a decal of type
+# unl_decl) is sold as gear. A row says otherwise:
 #   <item>/<faction>   that faction (scav, bm, ren, edge) sells it at this rank; ammo needs no rank, its
 #                      ranks are those of 0.26 (docs/notes/progression_sources.md)
 #   <item>/not_sold    no shop sells it, for silver or gold: why
@@ -83,3 +84,11 @@ vss/not_sold	a weapon of no faction, not on sale
 sr3m/not_sold	a weapon of no faction, not on sale
 socom16/not_sold	a weapon of no faction, not on sale
 neostead_2/not_sold	a weapon of no faction, not on sale
+decals_2_1/scav	1
+decals_2_2/scav	5
+decals_2_3/bm	1
+decals_2_4/bm	5
+decals_2_5/ren	1
+decals_2_6/ren	10
+decals_2_7/edge	1
+decals_2_8/edge	10
