@@ -5,7 +5,14 @@
 //! No client in step makes such an input (none in the 1.6M+ inputs of the
 //! 480 rev50 recordings), so a count that never expires removes no honest
 //! player.
-const STRIKE_LIMIT: u8 = 8;
+//!
+//! The limit is more inputs than a world gone wrong sends before the server
+//! can know it: inputs come every 50 ms, and a wrong world is judged
+//! `hash_settle_ms` (2.5 s) late and confirmed `divergence_confirm_ms` (1 s)
+//! after, so up to 70 of its inputs come in step. A refused input is never
+//! relayed, so the limit costs nobody anything (the owner, 2026-11-07: "we
+//! can increase that limit a bit").
+pub(in crate::v026g) const STRIKE_LIMIT: u8 = 100;
 
 /// What the server knows of a sender's world as its invalid input comes.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -72,7 +79,7 @@ impl super::Game {
 mod tests {
     use super::*;
     #[test]
-    fn the_eighth_invalid_input_in_step_removes_its_owner() {
+    fn the_last_invalid_input_in_step_removes_its_owner() {
         let mut state = InputViolations::default();
         for _ in 1..STRIKE_LIMIT { assert!(!state.record(SenderWorld::InStep)); }
         assert!(state.record(SenderWorld::InStep));

@@ -674,7 +674,7 @@ struct Answer {
     serial: Option<u64>,
 }
 
-mod input_safety;
+pub(super) mod input_safety;
 mod refusal_log;
 mod world_receipts;
 use input_safety::InputViolations;
