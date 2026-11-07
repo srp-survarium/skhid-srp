@@ -888,9 +888,11 @@ fn drive_tick_inner(
             }
             #[cfg(test)]
             let mut ahead = None;
+            // [A342c] A new cue asks for one look, A3's switch off.
+            let cue_due = std::mem::take(&mut bot.features.threat.cue_due) && tuning.threat.replan_on_cue;
             let threat_ahead = !replan
                 && tuning.threat.spots
-                && tuning.threat.replan
+                && (tuning.threat.replan || cue_due)
                 && !bot.threat.is_empty()
                 && changed(&bot.features.threat.planned_with)
                 && changed(&bot.features.threat.clear_with)
