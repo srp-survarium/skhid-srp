@@ -4913,26 +4913,27 @@ pub(crate) mod tests {
         assert!(on.in_shut_pocket(bottom), "on: no run-up for any, the pocket is shut");
     }
 
-    /// [`Body::exits_in_reach`] (A347): a pit 1.32 m deep has sprint exits up to [`POCKET_EXIT_HIGH_M`], over the sprint jump's
-    /// lowest top; with the switch it has none and is shut. A pit 1.2 m deep keeps its exits either way.
+    /// [`Body::exits_in_reach`] (A347): a pit 1.32 m deep (the client's body links a rise up to its jump cap 1.28 m, so this one
+    /// is a pocket) has sprint exits onto the yard, over the sprint jump's lowest top; with the switch it has none and is shut.
+    /// A pit 1.2 m deep is no pocket: a sprint-jump link leads out.
     #[test]
     fn a_pocket_exit_over_the_sprint_jumps_lowest_top_is_none_with_exits_in_reach() {
         let pit = [8.25, 3.25, 11.75, 6.75];
         let grid = |depth: f32, exits_in_reach: bool| {
             pit_in_yard(depth, pit, 0.0, None, Body { exits_in_reach, drop_room: true, erosion: Erosion::Exact, ..Body::client() })
         };
-        for (depth, in_reach) in [(1.32, false), (1.2, true)] {
-            for on in [false, true] {
-                let g = grid(depth, on);
-                let bottom = g.locate(Vec3::new(10.0, -depth, 5.0), 0.3).expect("the pit's floor");
-                let exits = g.pocket_exits(bottom);
-                assert!(exits.iter().all(|e| e.rise <= POCKET_EXIT_HIGH_M + 1e-3), "{exits:?}");
-                let kept = !on || in_reach;
-                assert_eq!(!exits.is_empty(), kept, "depth {depth} on {on}: {exits:?}");
-                assert_eq!(g.in_shut_pocket(bottom), !kept, "depth {depth} on {on}");
-                assert!(exits.iter().all(|e| !on || e.rise <= SPRINT_JUMP_LOW_M), "{exits:?}");
-            }
-        }
+        let off = grid(1.32, false);
+        let bottom = off.locate(Vec3::new(10.0, -1.32, 5.0), 0.3).expect("the pit's floor");
+        let exits = off.pocket_exits(bottom);
+        assert!(!exits.is_empty() && exits.iter().all(|e| e.rise > SPRINT_JUMP_LOW_M && e.rise <= POCKET_EXIT_HIGH_M), "{exits:?}");
+        assert!(!off.in_shut_pocket(bottom), "off: the exits over the sprint jump's reach count");
+        let on = grid(1.32, true);
+        let bottom = on.locate(Vec3::new(10.0, -1.32, 5.0), 0.3).unwrap();
+        assert!(on.pocket_exits(bottom).is_empty(), "on: none within the reach");
+        assert!(on.in_shut_pocket(bottom), "on: the pocket is shut");
+        let low = grid(1.2, true);
+        let bottom = low.locate(Vec3::new(10.0, -1.2, 5.0), 0.3).unwrap();
+        assert!(!low.in_shut_pocket(bottom) && low.pocket_exits(bottom).is_empty(), "1.2 m: a link leads out, no pocket");
     }
 
     /// A rise of up to 0.6 m into a neighbour cell out of a pocket is a
