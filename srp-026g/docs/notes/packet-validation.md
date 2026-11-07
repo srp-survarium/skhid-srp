@@ -545,6 +545,13 @@ alone does not select them, `tools/check world-check world-drift` runs them.
   (`WORLD_DRIFT_JOBS`, default the cores less 4). Needs the original exe. Inputs:
   the arena's sources and lock, the exe build, the host check and the corpus.
 
+On 2026-11-07 (main 1287a0f61 with this tooling; the machine shared with
+another drift run) the corpus held 481 revision-50 live recordings (2.4 GB)
+and 14,748 local dumps. `world-check` passed 241,785 worlds in 278 s, with
+build-content cached (858 s with an uncached build). `world-drift` passed
+19,832 worlds (5,084 sampled live uploads and the dumps, 18 loads each with
+the mutated copies) in 20 chunks in 1,214 s.
+
 A release that changes the world format refuses the older recordings: move them
 out of `live/` and refresh, with recordings of the new revision's games, before
 the next change is checked.
