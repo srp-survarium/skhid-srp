@@ -1273,6 +1273,11 @@ impl Bots {
         self.layers.camp_spots = table.for_map(self.level, self.mode.rules());
     }
 
+    /// [A320] Whether a team's tuning uses the flank-route table (`threat.camp_flank`): the table is read only then.
+    pub fn uses_camp_flank(&self) -> bool {
+        (0..2).any(|team| self.tunings.of(team).threat.camp_flank.is_some())
+    }
+
     /// The map's bushes (`bot-foliage.json`); before [`Self::map_ready`].
     pub fn set_foliage(&mut self, foliage: foliage::Foliage) {
         self.layers.foliage = foliage;

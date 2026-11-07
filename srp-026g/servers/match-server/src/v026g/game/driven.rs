@@ -251,7 +251,7 @@ impl Walkers {
             // [A320] The known camp spots and their flank routes (a private file; without it, or with
             // `threat.camp_flank` off, the bots flank as before). Read only for a match whose tuning uses it (the owner's
             // per-map data rule: no data a match does not use; this map's spots only are kept).
-            if walkers.bots.match_wide_tuning().threat.camp_flank.is_some() {
+            if walkers.bots.uses_camp_flank() {
                 let var = std::env::var_os(camp_flank::VARIABLE);
                 if let Some(table) = flank_table(id, var.as_deref(), walkers.maps.dir()) {
                     walkers.bots.set_flank_table(&table);
