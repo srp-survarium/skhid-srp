@@ -101,6 +101,44 @@ pub const AMMO_POUCH: &[(u16, u8)] = &[(102, 5), (104, 2), (108, 3), (109, 1)];
 /// The points of [`AMMO_POUCH`].
 pub const AMMO_POUCH_POINTS: u8 = 11;
 
+/// [A341] The medical block every tier adds (`SRP_BOT_MEDICAL_SKILLS`, on unless off), 15 points in the medical tab
+/// (`scripts/content-edit/medical-skills-1.json`, the tab the players' data ships), whose thresholds count apart from the
+/// aim and survival tabs, so the tiers' other rows and the tier a player meets do not change:
+/// - 302 Fast Bandaging, 5: a healing medicine's activation delay -2 % a rank, -10 % (the client's `Skills::use_time` at
+///   `medical.use_time` 0x33D486, XMM0 the activation delay, `sites_026g.tsv`), the medkit's 2 s to 1.8 s;
+/// - 312 Medical Training, 5 (needs 5 points above: 302's): `drug_amount_modifier` 0.05 a rank (modifier 57), the drug's
+///   amounts x 1.25;
+/// - 311 Metabolism, 5: natural regeneration starts 0.5 s a rank sooner (`Skills::regeneration_delay_ms`).
+///
+/// The bots' heal model reads the first two from the kit's modifiers (`match-server` `bots/plays/heal.rs`
+/// `DrugFactors`). Left out: 321 Adrenalin (a speed the bots' motion model does not know), 322 Additional Medicine and 341
+/// Medic (the bots' pockets ignore skills; no bot carries a Larkspur).
+pub const MEDICAL: &[(u16, u8)] = &[(302, 5), (312, 5), (311, 5)];
+
+/// The points of [`MEDICAL`].
+pub const MEDICAL_POINTS: u8 = 15;
+
+/// Whether the bots take [`MEDICAL`]: `SRP_BOT_MEDICAL_SKILLS` on unless `0`/`off`/`false`, and the players' skills tree of
+/// the game data in use has its skills (0.26g's own archive, the tests' data, has no medical tab: it came with a content
+/// patch, as the live data has it). Read once a process.
+pub fn medical_skills() -> bool {
+    static ON: std::sync::OnceLock<bool> = std::sync::OnceLock::new();
+    *ON.get_or_init(|| {
+        let asked = super::loadouts::on_unless_off(
+            "SRP_BOT_MEDICAL_SKILLS",
+            std::env::var("SRP_BOT_MEDICAL_SKILLS").ok().as_deref(),
+        );
+        let tree = SkillsTree::shared();
+        let in_data = MEDICAL.iter().all(|&(id, _)| tree.skill(id).is_some());
+        log::info!(
+            "the bots' medical skills: SRP_BOT_MEDICAL_SKILLS {}, the game data's tree {} them",
+            if asked { "on" } else { "off" },
+            if in_data { "has" } else { "lacks" }
+        );
+        asked && in_data
+    })
+}
+
 impl BotSkillTier {
     /// Its skills with the owner's kit `pouch` ([`AMMO_POUCH`]) or without.
     pub fn skills_with(&self, pouch: bool) -> Vec<(u16, u8)> {
@@ -108,12 +146,15 @@ impl BotSkillTier {
         if pouch {
             skills.extend_from_slice(AMMO_POUCH);
         }
+        if medical_skills() {
+            skills.extend_from_slice(MEDICAL);
+        }
         skills
     }
 
-    /// Its account level with the owner's kit `pouch` or without.
+    /// Its account level with the owner's kit `pouch` or without (and [`MEDICAL`]'s points while it is on).
     pub fn level_with(&self, pouch: bool) -> u8 {
-        self.level + if pouch { AMMO_POUCH_POINTS } else { 0 }
+        self.level + if pouch { AMMO_POUCH_POINTS } else { 0 } + if medical_skills() { MEDICAL_POINTS } else { 0 }
     }
 
     /// The player modifiers its skills give with the owner's kit `pouch`
@@ -553,13 +594,15 @@ mod tests {
             for left_out in [103, 213, 214] {
                 assert!(with.iter().all(|&(id, _)| id != left_out), "{left_out}");
             }
-            assert!(tier.skills_with(false) == tier.skills);
+            let medical: &[(u16, u8)] = if medical_skills() { MEDICAL } else { &[] };
+            assert!(tier.skills_with(false) == [tier.skills, medical].concat());
         }
-        // The tiers by the kits' gear level.
-        let level = |gear| BotSkillTier::for_gear_level(gear).level_with(false);
+        // The tiers by the kits' gear level (and the medical block's 15 points while it is on).
+        let m = if medical_skills() { MEDICAL_POINTS } else { 0 };
+        let level = |gear| BotSkillTier::for_gear_level(gear).level_with(false) - m;
         assert_eq!([level(0), level(5), level(6), level(10)], [15, 15, 20, 20]);
         assert_eq!([level(11), level(15), level(16)], [30, 30, 30]);
-        let level = |gear| BotSkillTier::for_gear_level(gear).level_with(true);
+        let level = |gear| BotSkillTier::for_gear_level(gear).level_with(true) - m;
         assert_eq!([level(0), level(5), level(6), level(10)], [26, 26, 31, 31]);
         assert_eq!([level(11), level(15), level(16)], [41, 41, 41]);
         // The pouch skills give the extra bag (109), 12 % faster reloads
@@ -751,6 +794,34 @@ mod tests {
                 assert!((0.93..=1.15).contains(&level), "{tier} {role}: {level}");
             }
             assert_eq!(profile_movement_level(&profile, kits.len()), None);
+        }
+    }
+    /// [A341] The medical block is a set every tier can add on the players' tree (its tab's thresholds apart from the other
+    /// tabs), and it gives the client's packed ranks (modifier 43 `armored_trap`: 302 at bit 3, 311 at bit 6, 312 at bit 9,
+    /// `client-patches/rust/patches/src/medical_skills.rs` `Skills::parse`) and `drug_amount` 0.25, and nothing else.
+    /// On the players' data (`SRP_GAME_DATA`, the live `server-game-data.db`): 0.26g's own archive has no medical tab.
+    #[test]
+    #[ignore = "needs SRP_GAME_DATA, the players' game data with the medical tab"]
+    fn the_medical_block_is_legal_in_every_tier_and_gives_the_packed_ranks() {
+        crate::v026g::game_data::init().expect("SRP_GAME_DATA reads and passes srp's checks");
+        let tree = SkillsTree::shared();
+        assert!(medical_skills(), "the data's tree has 302, 311 and 312 and the switch is on");
+        for tier in &BOT_SKILL_TIERS {
+            for pouch in [false, true] {
+                let mut skills = tier.skills.to_vec();
+                if pouch {
+                    skills.extend_from_slice(AMMO_POUCH);
+                }
+                let without = tree.modifiers(&skills);
+                let level = tier.level + if pouch { AMMO_POUCH_POINTS } else { 0 };
+                skills.extend_from_slice(MEDICAL);
+                assert_eq!(tree.validate(level + MEDICAL_POINTS, &skills), Ok(()), "{tier:?} {pouch}");
+                let with = tree.modifiers(&skills);
+                let changed: Vec<usize> = (0..MODIFIERS).filter(|&i| (with[i] - without[i]).abs() > 1e-6).collect();
+                assert_eq!(changed, vec![index("armored_trap"), index("drug_amount")], "{tier:?} {pouch}");
+                assert_eq!(with[index("armored_trap")] - without[index("armored_trap")], (5 * 8 + 5 * 64 + 5 * 512) as f32);
+                assert!((with[index("drug_amount")] - 0.25).abs() < 1e-6);
+            }
         }
     }
 }

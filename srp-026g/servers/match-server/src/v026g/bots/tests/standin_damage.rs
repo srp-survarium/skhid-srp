@@ -282,12 +282,14 @@ impl Default for Pools {
 
 /// One pool's regeneration over `dt_s` after `part`'s timeout since `hit`
 /// (the pool's last hit), at `now` ms.
-fn regenerated(part: &damage::BodyPart, health: f32, hit: Option<u32>, now: u32, dt_s: f32) -> f32 {
+/// [A341] `sooner_ms`: Metabolism's (311) head start, the client's `Skills::regeneration_delay_ms`.
+fn regenerated(part: &damage::BodyPart, health: f32, hit: Option<u32>, now: u32, dt_s: f32, sooner_ms: u32) -> f32 {
     let Some(hit) = hit else {
         return health;
     };
     let cap = part.health * part.regeneration_threshold;
-    if (now.saturating_sub(hit) as f32) < part.regeneration_timeout * 1000.0 || health >= cap {
+    let timeout_ms = (part.regeneration_timeout * 1000.0 - sooner_ms as f32).max(0.0);
+    if (now.saturating_sub(hit) as f32) < timeout_ms || health >= cap {
         return health;
     }
     (health + part.regeneration_speed * dt_s).min(cap)
@@ -310,10 +312,11 @@ pub(crate) fn regenerate(model: &Model, bodies: &mut [Body], now: u32) {
             pools.hit_at[0] = Some(now);
         }
         let pool_part = |name: &str| human.part(name).expect("the body has the pool");
-        body.health = regenerated(pool_part("body"), body.health, pools.hit_at[0], now, dt_s);
+        let sooner = body.heal.factors.regeneration_sooner_ms;
+        body.health = regenerated(pool_part("body"), body.health, pools.hit_at[0], now, dt_s, sooner);
         pools.body_seen = body.health;
-        pools.head = regenerated(pool_part("head"), pools.head, pools.hit_at[1], now, dt_s);
-        pools.pain = regenerated(pool_part("pain"), pools.pain, pools.hit_at[2], now, dt_s);
+        pools.head = regenerated(pool_part("head"), pools.head, pools.hit_at[1], now, dt_s, sooner);
+        pools.pain = regenerated(pool_part("pain"), pools.pain, pools.hit_at[2], now, dt_s, sooner);
     }
 }
 
