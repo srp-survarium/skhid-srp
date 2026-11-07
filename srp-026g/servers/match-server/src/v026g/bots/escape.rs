@@ -229,12 +229,8 @@ fn jump_exits(grid: &WalkGrid, board: &Board, pocket: PocketId) -> (bool, bool) 
     if let Some(&known) = board.shared().standing.get(&pocket) {
         return known;
     }
-    // [A347] A pocket of more floors than `pocket_exits` looks at has exits it does not see, as `mark_no_exit` holds (it never
-    // shuts one): with `exits_in_reach` (only exits a body can take are found) Chemical Plant day 2's 2,805-floor pocket at
-    // (-0.62, 2.40, 63.38) had none within the floors looked at and became a trap to every straight step and zone crossing.
-    let big = grid.body().exits_in_reach && grid.pocket_exits_unseen(pocket);
     let exits = grid.pocket_exits(pocket);
-    let has = |jump| big || exits.iter().any(|exit| exit.jump == jump);
+    let has = |jump| exits.iter().any(|exit| exit.jump == jump);
     let known = (has(ExitJump::Standing), has(ExitJump::Steep));
     board.shared().standing.insert(pocket, known);
     known
