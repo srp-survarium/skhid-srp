@@ -803,6 +803,7 @@ mod tests {
             "/kin/pitch_scale",
             "/kin/speed_cap",
             "/kin/speed_terms",
+            "/kin/step_input",
             "/kin/walk_off_landing",
             "/sense/ranges",
             "/sense/shots",

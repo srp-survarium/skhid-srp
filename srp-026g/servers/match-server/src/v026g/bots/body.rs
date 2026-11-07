@@ -2423,6 +2423,54 @@ pub(super) mod tests {
         assert!(on.iter().all(|v| *v <= 5.0 + 1e-3));
     }
 
+    /// [A318] [`StepInput::Previous`] (the client's): the step into the feet at N moves with input N-100's keys and its yaw after
+    /// that input's turn; [`StepInput::Same`] (the old reckoning) one tick early.
+    #[test]
+    fn the_step_moves_with_the_input_before() {
+        // [A318] [`StepInput`]: from a world at rest, inputs at 50, 100, 150, ...: forward from 50 on, a quarter turn at 100. The
+        // client's step into the feet at N moves with input N-100's keys and its yaw after that input's turn (fx-review A336).
+        let walk = |step_input: StepInput| {
+            let kin = Kinematics { blend_ticks: 1, step_input, ..Kinematics::default() };
+            let mut track = BodyTrack::default();
+            track.fixed(fix(0, Vec3::new(10.0, 0.0, 10.0), 0.0), &kin, None);
+            let mut feet = vec![];
+            for time in (50..=250).step_by(50) {
+                let turn = if time == 100 { std::f32::consts::FRAC_PI_2 } else { 0.0 };
+                track.decided(time, key::FORWARD, (turn, 0.0), 0.0, &kin, None);
+                feet.push(track.estimate().unwrap().feet);
+            }
+            feet
+        };
+        let moved = |feet: &[Vec3], i: usize| feet[i].distance_xz(feet[i - 1]) > 1e-3;
+        let way = |feet: &[Vec3], i: usize| (feet[i].x - feet[i - 1].x, feet[i].z - feet[i - 1].z);
+        let (same, previous) = (walk(StepInput::Same), walk(StepInput::Previous));
+        // Same: the step into 100 moves with input 50's forward; Previous: first the step into 150.
+        assert!(moved(&same, 1) && !moved(&previous, 1));
+        assert!(moved(&previous, 2));
+        // The turn at 100: Same's step into 150 already goes the new way, Previous's goes the old way (into 200 the new one).
+        let old = way(&previous, 2);
+        let new = way(&previous, 3);
+        assert!((way(&same, 2).0 - new.0).abs() < 1e-3 && (way(&same, 2).1 - new.1).abs() < 1e-3, "{same:?} {previous:?}");
+        assert!((old.0 - new.0).abs() + (old.1 - new.1).abs() > 0.05, "{previous:?}");
+    }
+
+    /// [A318] A stall (no input decided for several ticks) under [`StepInput::Previous`] moves its first step with the input held
+    /// back, the rest with the newest, as the client holds it.
+    #[test]
+    fn a_stall_holds_the_input_back_for_its_first_step_only() {
+        let kin = Kinematics { blend_ticks: 1, step_input: StepInput::Previous, ..Kinematics::default() };
+        let mut track = BodyTrack::default();
+        track.fixed(fix(0, Vec3::new(10.0, 0.0, 10.0), 0.0), &kin, None);
+        track.decided(50, 0, (0.0, 0.0), 0.0, &kin, None);
+        track.decided(100, key::FORWARD, (0.0, 0.0), 0.0, &kin, None);
+        let at = track.estimate().unwrap().feet;
+        // Nothing decided from 150 to 550: ten steps, the first with input 50's stand, nine with input 100's forward.
+        track.decided(600, key::FORWARD, (0.0, 0.0), 0.0, &kin, None);
+        let gone = track.estimate().unwrap().feet.distance_xz(at);
+        let tick = track.estimate().unwrap().velocity[0].hypot(track.estimate().unwrap().velocity[1]) * TICK_S;
+        assert!((gone - 9.0 * tick).abs() < 0.02, "gone {gone} tick {tick}");
+    }
+
     /// [A318] [`FixFall::World`]: a world that has the body 0.5 m over its floor (under the step) going down at 3 m/s starts the
     /// reckoned fall at that speed; with [`FixFall::Rest`] it stands on its floor as before.
     #[test]
