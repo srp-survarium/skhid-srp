@@ -803,3 +803,26 @@ saved worlds unless tagged.
   27 entries inside 550 ms; the server already redoes a resync world past the ring. 0.46c2's 125
   entries go with its longer history. So the ring is not what made the rollbacks of PR #1246 wrong.
   LIKELY (from the counts; the ring's own eviction was not read).
+
+## 36. A refused world is never relayed; the games that wait for one get an end (added 2026-11-07)
+
+`game/refused_worlds.rs`: `UploadStanding`, `Refusers`, `Game::remove`, `Removal`,
+`no_world_for`, `check_initial_worlds`, `no_world_to_give`; `Game::possible_sources`,
+`Game::sources`. Tests: `tests/refused_worlds.rs`. The rules and the table of exits are in
+`packet-validation.md`, "A refused world is never relayed".
+
+- A world the server's check refuses goes to nobody; the next request goes to the game with the
+  fewest refused uploads. Nothing is decided by time: by the uploads judged and the games that
+  can still give a world.
+- A late joiner (or a resynced player, or one back in the match) whose every possible source
+  gave a refused world while it waited is removed (a joiner's admission fails first: the lobby
+  frees its seat). A match whose only initial worlds were refused is not made
+  (`MatchEnd::NotMade`). A game refused three times in a row is resynced from a world that
+  passed, and removed after three more.
+- **Every removal** (these, the invalid inputs, the restore limit) is `Game::remove`: 0xFD and
+  the leave. Today 0xFD ends in `close_current_match(4)`, which closes nothing (§24): the game
+  stays on its screen with no link. The exe patch on `fix/kick-returns-to-lobby` makes reason 4
+  do what reason 1 does (the lobby told `31`, the world ended): a kicked game returns to the
+  lobby as from a lost connection. Not played.
+- While every game a joiner could take a world from had its last world refused, the match takes
+  no joiner (`Closed::NoWorld`, a room's `J;-1;8`), until an upload passes.

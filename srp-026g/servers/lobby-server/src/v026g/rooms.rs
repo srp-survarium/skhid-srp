@@ -1410,6 +1410,7 @@ impl Core<'_> {
                 Closed::LastSeconds => JoinHold::LastSeconds,
                 Closed::Ending => JoinHold::Ending,
                 Closed::Full => JoinHold::Full,
+                Closed::NoWorld => JoinHold::NoWorld,
             }))
     }
 
