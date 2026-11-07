@@ -696,7 +696,7 @@ mod tests {
         assert_eq!(json["deaths_in_item_window"], 2, "{json}");
         assert_eq!(
             json["deaths_in_item_window_by_kind"],
-            serde_json::json!({"antitoxin": 1, "bandages": 1, "medkit": 1}),
+            serde_json::json!({"antitoxin": 1, "bandages": 1, "medkit": 1, "military_medkit": 0}),
             "{json}"
         );
         assert!(text.contains("deaths in an item's window 2"), "{text}");
