@@ -16,6 +16,7 @@ mod late_join_edge_cases;
 mod resync_gate;
 mod packet_safety;
 mod packet_input;
+mod refused_worlds;
 mod sockets;
 mod start;
 mod units;
@@ -554,33 +555,17 @@ pub fn one_at_a_time() -> std::sync::MutexGuard<'static, ()> {
         .unwrap_or_else(|poisoned| poisoned.into_inner())
 }
 
-/// The server's log: on stderr when `SRP_TEST_LOG` is set (for finding out
-/// why a test fails), and its error lines kept for a thread that asked
-/// ([`capture_errors`]).
-struct TestLog;
+/// The server's log on stderr, when `SRP_TEST_LOG` is set: for finding out
+/// why a test fails.
+struct StderrLog;
 
-static TO_STDERR: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
-
-thread_local! {
-    static ERRORS: std::cell::RefCell<Option<Vec<String>>> = const { std::cell::RefCell::new(None) };
-}
-
-impl log::Log for TestLog {
+impl log::Log for StderrLog {
     fn enabled(&self, _: &log::Metadata) -> bool {
         true
     }
 
     fn log(&self, record: &log::Record) {
-        if TO_STDERR.load(std::sync::atomic::Ordering::Relaxed) {
-            eprintln!("[{}] {}", record.level(), record.args());
-        }
-        if record.level() == log::Level::Error {
-            ERRORS.with_borrow_mut(|errors| {
-                if let Some(errors) = errors {
-                    errors.push(record.args().to_string());
-                }
-            });
-        }
+        eprintln!("[{}] {}", record.level(), record.args());
     }
 
     fn flush(&self) {}
@@ -589,26 +574,8 @@ impl log::Log for TestLog {
 pub fn log_to_stderr() {
     static ONCE: std::sync::Once = std::sync::Once::new();
     ONCE.call_once(|| {
-        let stderr = std::env::var_os("SRP_TEST_LOG").is_some();
-        TO_STDERR.store(stderr, std::sync::atomic::Ordering::Relaxed);
-        if log::set_logger(&TestLog).is_ok() {
-            log::set_max_level(if stderr {
-                log::LevelFilter::Debug
-            } else {
-                log::LevelFilter::Error
-            });
+        if std::env::var_os("SRP_TEST_LOG").is_some() && log::set_logger(&StderrLog).is_ok() {
+            log::set_max_level(log::LevelFilter::Debug);
         }
     });
-}
-
-/// From now on this thread's server keeps its error lines for
-/// [`errors_logged`].
-pub fn capture_errors() {
-    log_to_stderr();
-    ERRORS.with_borrow_mut(|errors| *errors = Some(Vec::new()));
-}
-
-/// The error lines this thread's server logged since [`capture_errors`].
-pub fn errors_logged() -> Vec<String> {
-    ERRORS.with_borrow(|errors| errors.clone().unwrap_or_default())
 }

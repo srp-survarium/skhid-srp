@@ -307,26 +307,25 @@ revision-50 match, 175,872 worlds):
 
 ```
  input refused    -> not relayed; the sender is told to drop it (0xF1/0xF2/0xF5)
-                     8 distinct bad inputs in 10 s -> the sender leaves the match
+                     bad inputs in a stretch -> the sender is removed
 
- world refused    -> sent to nobody; the server asks another game
+ world refused    -> sent to nobody, ever; the server asks another game
  (server)            the line in the log names the section, offset and reason
-                     the same reason again and again -> "WORLD CHECK IN DOUBT"
+                     3 in a row from one game -> it is resynced, 3 more -> removed
+                     a game waiting for a world, every source refused -> removed
+                     no initial world but refused ones -> the match is not made
 
  world refused    -> not loaded; the game sends a Rejected receipt
  (game)              and gets a fresh world (patch 97), staying in the match
 ```
 
-A refused world is never taken as proof of cheating: it may be the check that is wrong. When
-uploads keep being refused for the same reason (from two players, or three uploads), the server
-logs "WORLD CHECK IN DOUBT", and the match's end line counts the refusals.
-
-Coming (owner, 2026-11-07; tickets T118, PR branch `feat/world-check-fallback`): every honest
-game of a match writes the same world, so a reason is in doubt only when uploads from two or more
-players are refused for it. A single cheating game cannot trigger that, because it is one player.
-While a reason is in doubt, the server relays such uploads if they pass the game's own check
-(C4), and logs each as "WORLD CHECK FALLBACK". This is temporary: it comes out once live releases
-show none.
+A refused world is never taken as proof of cheating: it may be the check that is wrong. But it
+is never passed on either (owner, 2026-11-07: "the server can block, we don't want to pass bad
+worlds around"; this replaced a temporary fall-back to the game's own check). The game whose
+world was refused is asked last from then on, and every game that waits for a world gets an end
+when none can be had, by counts, never by time (`packet-validation.md`, "A refused world is
+never relayed"). The release's check of real recorded worlds (`srp-world-check`) is what keeps a
+wrong check from reaching players.
 
 ## 8. The lobby: names, chat, clans
 
