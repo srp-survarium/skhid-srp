@@ -400,7 +400,12 @@ preferred-image VAs; `apply_modifier` is the kit-modifier getter 0x2D5AE0.
   as the getters do, and when it differs from the tick before's, +33Eh is set, as patch 94 does
   for Adrenalin. The one thing kept: each place's sums of its last 64 ticks (a 50 ms tick's own
   slot), so a re-simulated tick compares with the tick before it as its first simulation did;
-  a tick before that is not kept (a place's first) compares with 0, nothing shared.
+  a tick before that is not kept (a place's first, or since this game loaded its world) is no
+  change. The sums are patch memory, not the world's: a game that loads a world (a late join, a
+  resync) forgets them at `world_load.loaded`, so it decides the next ticks as the games that went
+  on (the same answer unless the shared movement changed at exactly the load's tick; before, a
+  loading game compared with 0 and selected the animations of a player getting shared movement
+  where the others did not, a split of the world).
 - Onyx: `artefact.shared_protection` (hit_by_type 0x32A020, after apply_hit_modifiers, before
   the part's protectors): each shared passive Onyx, then one shared active when none of the
   recipient's own Onyx is active, as its protect (0x312BF0) with that Onyx's numbers, for a

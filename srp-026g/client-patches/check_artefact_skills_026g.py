@@ -25,7 +25,7 @@ import struct
 import sys
 from unicorn.x86_const import *  # noqa: F403
 import patch_026g as base
-from unicorn import UC_HOOK_CODE
+from unicorn import UC_HOOK_CODE, UC_PROT_ALL
 from check_artefacts_026g import PLAYER, STACK, STOP, HOLDER_VT, DM, ENABLE_ACTIVE, KITS, SPRING, ONYX, Game, \
     PASSIVE_LINK, PASSIVE_UNLINK, ACTIVE_LINK, ACTIVE_UNLINK, GETTER, ONYX_HIT
 from check_medical_skills_026g import MedicalGame, bits, close
@@ -387,6 +387,21 @@ TICK_ANIMATIONS = 0x2DAADB  # its `call tick_animations` (0x2D8EE0): select_anim
 
 
 QUERY = 0xE5B60             # query_resources (cdecl), which Forest Protection's glow (patch 111) calls at its first tick
+LOADED, LOADED_END = 0x27C116, 0x27C11B   # world_load.loaded: a world loaded (EDI the network client), its 5 bytes
+
+
+def world_loaded(m):
+    """The game loads a world: the world_load.loaded site run (a network client with no
+    connection, so patch 97 sends nothing; patch 109 forgets the shared movement)."""
+    g = m.g
+    client = 0x30000000                          # zeroed: no connection, no options holder (+1F1C48h)
+    if not getattr(m, 'client_mapped', False):
+        g.emu.mem_map(client, 0x200000, UC_PROT_ALL)
+        m.client_mapped = True
+    g.emu.reg_write(UC_X86_REG_ESP, STACK - 0x100)
+    g.emu.reg_write(UC_X86_REG_EDI, client)
+    g.emu.emu_start(LOADED, LOADED_END, count=200_000)
+    assert g.emu.reg_read(UC_X86_REG_EIP) == LOADED_END
 
 
 def tick(m, player, time):
@@ -445,6 +460,37 @@ def check_resonance_movement(data):
     g.emu.mem_write(a + 0x33C, b'\1')
     step(1100, True, shared)
     step(1150, False, shared)
+    # A world load mid-match: the games that went on and a loading game set +33Eh alike on the
+    # next ticks. The game that went on: A near from 1100 (steady at 1150..1200), leaves at 1250.
+    def game(first_near):
+        m = Match(data)
+        a = m.player(1, 0, near if first_near else far, RESONANCE)
+        m.spring(a, 3)
+        return m, a
+    went_on, a_on = game(False)
+    seen_on = [tick(went_on, PLAYER, 1000), tick(went_on, PLAYER, 1050)]
+    went_on.g.emu.mem_write(a_on + 0x43C, struct.pack('<fff', *near))
+    seen_on += [tick(went_on, PLAYER, time) for time in (1100, 1150, 1200)]
+    went_on.g.emu.mem_write(a_on + 0x43C, struct.pack('<fff', *far))
+    seen_on += [tick(went_on, PLAYER, 1250)]
+    assert seen_on == [False, False, True, False, False, True], seen_on
+    # A late joiner: a new game whose first tick is 1150, A near in the world it loaded.
+    joined, a_joined = game(True)
+    world_loaded(joined)
+    seen = [tick(joined, PLAYER, time) for time in (1150, 1200)]
+    joined.g.emu.mem_write(a_joined + 0x43C, struct.pack('<fff', *far))
+    seen += [tick(joined, PLAYER, 1250)]
+    assert seen == seen_on[3:], (seen, seen_on)
+    # A resync: a game whose own world had A far until 1100 loads the world with A near at 1150.
+    resynced, a_resynced = game(False)
+    for time in (1000, 1050, 1100):
+        tick(resynced, PLAYER, time)
+    world_loaded(resynced)
+    resynced.g.emu.mem_write(a_resynced + 0x43C, struct.pack('<fff', *near))
+    seen = [tick(resynced, PLAYER, time) for time in (1150, 1200)]
+    resynced.g.emu.mem_write(a_resynced + 0x43C, struct.pack('<fff', *far))
+    seen += [tick(resynced, PLAYER, 1250)]
+    assert seen == seen_on[3:], (seen, seen_on)
     # An enemy's Spring and a Spring without the skill: nothing shared, nothing selected.
     m = Match(data)
     e = m.player(1, 1, (3.0, 0.0, 0.0), RESONANCE)
@@ -461,7 +507,8 @@ def check_resonance_movement(data):
           "animations are selected again (+33Eh) at the tick its shared movement changes (a teammate's "
           "Spring in reach, out of it, its carrier dead), the getter movement_speed reads then giving the "
           "new speed; not while it stays, nor for an enemy's or a skill-less Spring, nor in the lobby; a "
-          "re-simulated tick answers as at first: PASS")
+          "re-simulated tick answers as at first; a game that loads the world mid-match (a late joiner, a "
+          "resync from another history) sets it on the next ticks as the game that went on: PASS")
     return steps
 
 

@@ -356,10 +356,22 @@ pub const MOVEMENT_LIST: u32 = 4;
 const HISTORY: usize = 64;
 
 /// One place's shared movement (what the shared Springs add to its list 4) at its recent ticks,
-/// each in the slot of its tick.
+/// each in the slot of its tick. Patch memory, not the world's: a game that loads a world (a late
+/// join, a resync) forgets it ([`MovementHistory::EMPTY`] at `world_load.loaded`), and a tick
+/// whose tick before is not kept is no change, so the loading game decides its first ticks as
+/// the games that went on.
 #[derive(Clone, Copy)]
 pub struct MovementHistory {
     slots: [Option<(Tick, f32)>; HISTORY],
+}
+
+/// What a game knows of a place's shared movement at the tick before.
+#[derive(Clone, Copy, Debug, PartialEq)]
+enum Before {
+    /// Not simulated here since this game's world was loaded (or the place's first tick, or one
+    /// past the history).
+    Unknown,
+    Known(f32),
 }
 
 impl MovementHistory {
@@ -369,17 +381,26 @@ impl MovementHistory {
         tick.0 as usize % HISTORY
     }
 
-    /// Records `shared` at `tick`; whether it differs from the tick before's (nothing shared, 0,
-    /// when that tick is not kept: the place's first tick). A function of the two ticks' worlds
-    /// alone: a re-simulated tick answers as its first simulation did.
-    pub fn changed(&mut self, tick: Tick, shared: f32) -> bool {
+    fn before(&self, tick: Tick) -> Before {
         let before = Tick(tick.0.wrapping_sub(1));
-        let was = match self.slots[Self::slot(before)] {
-            Some((at, value)) if at == before => value,
-            _ => 0.0,
-        };
+        match self.slots[Self::slot(before)] {
+            Some((at, value)) if at == before => Before::Known(value),
+            _ => Before::Unknown,
+        }
+    }
+
+    /// Records `shared` at `tick`; whether it differs from the tick before's. A tick before that
+    /// is not kept is no change: every game answers so at a place's first tick, and a game that
+    /// just loaded the world answers so where the others compare with the tick they simulated
+    /// (the same answer unless the movement changed at exactly the load's tick). A function of
+    /// the two ticks' worlds otherwise: a re-simulated tick answers as its first simulation did.
+    pub fn changed(&mut self, tick: Tick, shared: f32) -> bool {
+        let before = self.before(tick);
         self.slots[Self::slot(tick)] = Some((tick, shared));
-        was != shared
+        match before {
+            Before::Unknown => false,
+            Before::Known(was) => was != shared,
+        }
     }
 }
 
@@ -402,6 +423,16 @@ pub fn on_movement_tick(ctx: &mut Context<'_>) -> Flow<NoExit> {
     history.set(ctx.thread(), kept);
     if changed {
         tick.reselect();
+    }
+    Flow::Continue
+}
+
+/// A world loaded (`world_load.loaded`: a late join, a resync, a match's first world): every
+/// place's shared movement history forgotten, for the loaded world's ticks are not the ones it
+/// kept.
+pub fn on_world_loaded(ctx: &mut Context<'_>) -> Flow<NoExit> {
+    for history in &MOVEMENTS {
+        history.set(ctx.thread(), MovementHistory::EMPTY);
     }
     Flow::Continue
 }
@@ -466,7 +497,9 @@ mod tests {
     #[test]
     fn a_shared_movement_reselects_on_a_change_only() {
         let mut history = MovementHistory::EMPTY;
-        // The first tick against nothing shared; then each tick against the one before.
+        // The first tick (nothing kept before it) is no change; then each against the one before.
+        assert!(!history.changed(Tick(19), 0.05), "a first tick: no change, whatever is shared");
+        let mut history = MovementHistory::EMPTY;
         assert!(!history.changed(Tick(20), 0.0));
         assert!(history.changed(Tick(21), 0.05), "a carrier came into reach");
         assert!(!history.changed(Tick(22), 0.05), "no change");
@@ -479,9 +512,19 @@ mod tests {
         // ...and a re-simulated world where the carrier stayed: tick 23 no longer changes.
         assert!(!history.changed(Tick(23), 0.05));
         assert!(history.changed(Tick(24), 0.0), "tick 24 now sees tick 23's 0.05");
-        // A gap (a place's first tick, or one past the history): against nothing shared.
-        assert!(history.changed(Tick(24 + HISTORY as u32), 0.15));
+        // A gap (one past the history): no change.
+        assert!(!history.changed(Tick(24 + HISTORY as u32), 0.15));
         assert!(!history.changed(Tick(1000), 0.0));
+        // A load forgets it: the loading game's first tick is no change, as for a game that went
+        // on through a steady 0.05; its next ticks compare as everyone's.
+        let mut went_on = MovementHistory::EMPTY;
+        for at in 30..40 {
+            went_on.changed(Tick(at), 0.05);
+        }
+        let mut loaded = MovementHistory::EMPTY;
+        assert_eq!(loaded.changed(Tick(40), 0.05), went_on.changed(Tick(40), 0.05));
+        assert_eq!(loaded.changed(Tick(41), 0.0), went_on.changed(Tick(41), 0.0));
+        assert!(loaded.changed(Tick(42), 0.05) && went_on.changed(Tick(42), 0.05));
     }
 
     #[test]
