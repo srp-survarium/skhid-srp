@@ -608,29 +608,29 @@ pub enum KitMedkit {
     /// The Medikit in every tier, as the owner's kit of 2026-10-26 had it.
     #[default]
     Medikit,
-    /// The military medkit in the tiers above the lowest ([`BotTier::Mid`], [`BotTier::High`]); the lowest keeps the
-    /// Medikit (the military medkit's item level is 6, the lowest tier's kits are of levels 4-5: the owner's call).
-    MilitaryAboveLow,
+    /// The military medkit in every tier. Its item level is 6 and the lowest tier's kits are of levels 4-5: the owner,
+    /// 2026-11-07, "yes low tier can carry it".
+    Military,
 }
 
 impl KitMedkit {
     /// Every choice, in the order of [`Self::index`].
-    pub const ALL: [Self; 2] = [Self::Medikit, Self::MilitaryAboveLow];
+    pub const ALL: [Self; 2] = [Self::Medikit, Self::Military];
 
     /// The place of the choice in [`Self::ALL`].
     pub const fn index(self) -> usize {
         match self {
             Self::Medikit => 0,
-            Self::MilitaryAboveLow => 1,
+            Self::Military => 1,
         }
     }
 
-    /// The medkit item a bot of `tier` carries with this choice: the Medikit where the game data in use has no military
-    /// medkit (0.26g's own archive, the tests' data, has none: the item came with a content patch, as the live data has it).
-    pub fn item(self, tier: BotTier) -> BotKitItem {
+    /// The medkit item a bot carries with this choice: the Medikit where the game data in use has no military medkit
+    /// (0.26g's own archive, the tests' data, has none: the item came with a content patch, as the live data has it).
+    pub fn item(self) -> BotKitItem {
         let has_military = || Dictionary::shared().item_named(BOT_MILITARY_MEDKIT_NAME).is_some();
-        match (self, tier) {
-            (Self::MilitaryAboveLow, BotTier::Mid | BotTier::High) if has_military() => BotKitItem {
+        match self {
+            Self::Military if has_military() => BotKitItem {
                 name: BOT_MILITARY_MEDKIT_NAME,
                 ..BOT_MEDKIT
             },
@@ -638,10 +638,10 @@ impl KitMedkit {
         }
     }
 
-    /// `items` (a kit's pieces, its pockets among them) of a bot of `tier` with this choice's medkit in the Medikit's
-    /// pocket: same pocket, count and quick-use key, so no other item moves.
-    pub fn apply(self, tier: BotTier, mut items: Vec<BotKitItem>) -> Vec<BotKitItem> {
-        let wanted = self.item(tier);
+    /// `items` (a kit's pieces, its pockets among them) with this choice's medkit in the Medikit's pocket: same pocket,
+    /// count and quick-use key, so no other item moves.
+    pub fn apply(self, mut items: Vec<BotKitItem>) -> Vec<BotKitItem> {
+        let wanted = self.item();
         if wanted.name == BOT_MEDKIT.name {
             return items;
         }
@@ -2068,7 +2068,7 @@ pub fn bot_kits_in_kit(
                 .map(|item| item.name),
         );
         // The frags are the owner's kit's (the old kit gives every role two), before the smoke so it goes after every grenade.
-        let items = if new { kit.medkit.apply(equipment.tier, kit.frags.apply(role, items)) } else { items };
+        let items = if new { kit.medkit.apply(kit.frags.apply(role, items)) } else { items };
         bot_loadout(&kit.smoke.place(items, open).0, kit.store)
     })
 }
@@ -4166,12 +4166,11 @@ mod tests {
         assert_eq!((&profile.kits, &profile.items), (&fresh.kits, &fresh.items));
         assert_eq!(BotPocketKit::default().smoke, KitSmoke::Off);
     }
-    /// [A311] On the players' data (`SRP_GAME_DATA`): `MilitaryAboveLow` puts the military medkit in the Medikit's pocket of
-    /// every role's kits in the 9-10 and 13-15 tiers (same slot, count and quick-use key), keeps the Medikit in the lowest,
-    /// and the bot still reads back from its kits; `Medikit` changes nothing.
+    /// [A311] On the players' data (`SRP_GAME_DATA`): `Military` puts the military medkit in the Medikit's pocket of every
+    /// role's kits in every tier (same slot, count and quick-use key), and the bot still reads back from its kits.
     #[test]
     #[ignore = "needs SRP_GAME_DATA, the players' game data with the military medkit"]
-    fn the_military_medkit_takes_the_medikits_pocket_above_the_lowest_tier() {
+    fn the_military_medkit_takes_the_medikits_pocket_in_every_tier() {
         crate::v026g::game_data::init().expect("SRP_GAME_DATA reads and passes srp's checks");
         let dictionary = Dictionary::shared();
         let name = |item: &SlotItem| dictionary.item(item.dict_id).map_or("", |row| row.name.as_str()).to_owned();
@@ -4179,22 +4178,20 @@ mod tests {
         for tier in BotTier::ALL {
             for role in BotRole::ALL {
                 let old = bot_kits_in_kit(eq(tier), role, true, false, kit(KitMedkit::Medikit));
-                let new = bot_kits_in_kit(eq(tier), role, true, false, kit(KitMedkit::MilitaryAboveLow));
+                let new = bot_kits_in_kit(eq(tier), role, true, false, kit(KitMedkit::Military));
                 for (k, (old, new)) in old.iter().zip(&new).enumerate() {
                     let at = format!("{tier:?} {role:?} kit {k}");
                     assert_eq!(old.items.len(), new.items.len(), "{at}");
                     for (a, b) in old.items.iter().zip(&new.items) {
                         assert_eq!((a.slot, a.count, a.stored), (b.slot, b.count, b.stored), "{at}");
-                        let swapped = name(a) == BOT_MEDKIT.name && tier != BotTier::Low;
+                        let swapped = name(a) == BOT_MEDKIT.name;
                         let wanted = if swapped { BOT_MILITARY_MEDKIT_NAME.to_owned() } else { name(a) };
                         assert_eq!(name(b), wanted, "{at}");
                     }
-                    if tier != BotTier::Low {
-                        assert!(new.items.iter().any(|item| name(item) == BOT_MILITARY_MEDKIT_NAME), "{at}");
-                    }
+                    assert!(new.items.iter().any(|item| name(item) == BOT_MILITARY_MEDKIT_NAME), "{at}");
                 }
                 let mut profile = bot_profile(1, 1, role, eq(tier));
-                assert!(with_bot_pockets(&mut profile, kit(KitMedkit::MilitaryAboveLow)));
+                assert!(with_bot_pockets(&mut profile, kit(KitMedkit::Military)));
                 assert_eq!(bot_equipment_of(&profile).map(|(_, r)| r), Some(role), "{tier:?} {role:?} reads back");
             }
         }

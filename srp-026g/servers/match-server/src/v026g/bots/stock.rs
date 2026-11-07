@@ -48,7 +48,7 @@ pub enum Drug {
     Medkit,
     Bandages,
     Antitoxin,
-    /// The military medkit (`loadouts::KitMedkit::MilitaryAboveLow`).
+    /// The military medkit (`loadouts::KitMedkit::Military`).
     Military,
 }
 

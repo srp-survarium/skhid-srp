@@ -29,8 +29,8 @@ pub struct KitTuning {
     /// owner, 2026-10-29: "Measure, then match". It only gives the grenade habit more to throw: the bots throw 1.8 frags
     /// per 100 lives, the players 20.5, and the gap per carrying life (under 8 per 100 against 54.5) is the habit's, not the kit's.
     pub frags: KitFrags,
-    /// [medkit] The medkit in the first pocket (A311): `medikit`, the Medikit in every tier (the owner's kit of 2026-10-26);
-    /// `military_above_low`, the military medkit in the 9-10 and 13-15 tiers, the Medikit in the lowest. Both wait 2 s; the
+    /// [medkit] The medkit in the first pocket (A311): `medikit`, the Medikit (the owner's kit of 2026-10-26); `military`, the
+    /// military medkit, in every tier (item level 6; the owner, 2026-11-07: "yes low tier can carry it"). Both wait 2 s; the
     /// military medkit heals body 0.6 over 1 s (done 3 s after the press), the Medikit 1.0 over 3 s (done at 5 s)
     /// (`scripts/content-edit/medicines.tsv`). A ranged hit that took health stops a drug in use (patch 84) and the bots press
     /// on the move 1-2 s after a hit, so the shorter course is finished more often; the bandages (1 s + 1 s) stay in the
@@ -44,7 +44,7 @@ impl Default for KitTuning {
             pocket_store: true,
             smoke: KitSmoke::RadioPlace,
             frags: KitFrags::SupportAndCamper,
-            medkit: KitMedkit::MilitaryAboveLow,
+            medkit: KitMedkit::Military,
         }
     }
 }
