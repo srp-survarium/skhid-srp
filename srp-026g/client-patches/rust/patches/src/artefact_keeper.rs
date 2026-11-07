@@ -69,7 +69,7 @@ pub enum Standing {
 
 /// The player's artefact containers.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub enum Room {
+pub enum Containers {
     /// No container, or dead.
     None,
     /// Every container holds one.
@@ -89,9 +89,9 @@ pub enum Gift {
     Take(ArtefactId, Kind),
 }
 
-/// The decision at one tick of `place`'s player, from its kit's skills, its standing, its room
+/// The decision at one tick of `place`'s player, from its kit's skills, its standing, its containers
 /// and the map's Keeper pool (in id order).
-pub fn gift(skills: Skills, place: u8, standing: Standing, room: Room, pool: impl Iterator<Item = Registered>) -> Gift {
+pub fn gift(skills: Skills, place: u8, standing: Standing, containers: Containers, pool: impl Iterator<Item = Registered>) -> Gift {
     let Standing::Started { deaths } = standing else { return Gift::Nothing };
     if !skills.keeper() || (skills.late() && deaths == 0) {
         return Gift::Nothing;
@@ -100,10 +100,10 @@ pub fn gift(skills: Skills, place: u8, standing: Standing, room: Room, pool: imp
     // The place's own (the pool comes in id order): the same artefact in every game, and it says
     // whether it was given.
     let Some(mine) = pool.filter(|r| r.kind == kind).nth(usize::from(place)) else { return Gift::Nothing };
-    match (mine.history, room) {
+    match (mine.history, containers) {
         (History::Given, _) => Gift::Nothing,
-        (History::Unused, Room::Free) => Gift::Take(mine.id, kind),
-        (History::Unused, Room::None | Room::Full) => Gift::Pending,
+        (History::Unused, Containers::Free) => Gift::Take(mine.id, kind),
+        (History::Unused, Containers::None | Containers::Full) => Gift::Pending,
     }
 }
 
@@ -121,7 +121,7 @@ pub fn on_tick(ctx: &mut Context<'_>) -> Flow<NoExit> {
     if !skills.keeper() {
         return Flow::Continue;
     }
-    if let Gift::Take(id, kind) = gift(skills, recipient.place(), recipient.standing(), recipient.room(), recipient.pool()) {
+    if let Gift::Take(id, kind) = gift(skills, recipient.place(), recipient.standing(), recipient.containers(), recipient.pool()) {
         let given = recipient.give(id);
         line(&[
             Text("keeper: place "), Dec(recipient.place().into()), Text(if given { " takes " } else { " REFUSED " }),
@@ -161,7 +161,7 @@ mod tests {
     #[test]
     fn each_place_takes_its_own_of_the_draws_kind_once() {
         let id = |n| ArtefactId::parse(n).unwrap();
-        let at = |value, place| gift(skills(value), place, Standing::Started { deaths: 0 }, Room::Free, pool().into_iter());
+        let at = |value, place| gift(skills(value), place, Standing::Started { deaths: 0 }, Containers::Free, pool().into_iter());
         assert_eq!(at(KEEPER + draw(1), 0), Gift::Take(id(30), Kind::Larkspur));
         assert_eq!(at(KEEPER + draw(1), 1), Gift::Take(id(31), Kind::Larkspur));
         assert_eq!(at(KEEPER + draw(2), 0), Gift::Take(id(32), Kind::Onyx));
@@ -179,16 +179,16 @@ mod tests {
     #[test]
     fn due_from_the_start_or_a_late_joiners_first_death_and_pending_without_room() {
         let id = |n| ArtefactId::parse(n).unwrap();
-        let at = |value, standing, room| gift(skills(value), 0, standing, room, pool().into_iter());
+        let at = |value, standing, containers| gift(skills(value), 0, standing, containers, pool().into_iter());
         let started = |deaths| Standing::Started { deaths };
         let take = Gift::Take(id(30), Kind::Larkspur);
-        assert_eq!(at(KEEPER + draw(1), Standing::NotStarted, Room::Free), Gift::Nothing);
-        assert_eq!(at(KEEPER + draw(1), started(0), Room::Free), take);
-        assert_eq!(at(KEEPER + draw(1), started(3), Room::Free), take);
-        assert_eq!(at(KEEPER + draw(1), started(0), Room::Full), Gift::Pending);
-        assert_eq!(at(KEEPER + draw(1), started(0), Room::None), Gift::Pending);
-        assert_eq!(at(KEEPER + draw(1) + LATE, started(0), Room::Free), Gift::Nothing);
-        assert_eq!(at(KEEPER + draw(1) + LATE, started(1), Room::Free), take);
-        assert_eq!(at(KEEPER + draw(1) + LATE, started(2), Room::Full), Gift::Pending);
+        assert_eq!(at(KEEPER + draw(1), Standing::NotStarted, Containers::Free), Gift::Nothing);
+        assert_eq!(at(KEEPER + draw(1), started(0), Containers::Free), take);
+        assert_eq!(at(KEEPER + draw(1), started(3), Containers::Free), take);
+        assert_eq!(at(KEEPER + draw(1), started(0), Containers::Full), Gift::Pending);
+        assert_eq!(at(KEEPER + draw(1), started(0), Containers::None), Gift::Pending);
+        assert_eq!(at(KEEPER + draw(1) + LATE, started(0), Containers::Free), Gift::Nothing);
+        assert_eq!(at(KEEPER + draw(1) + LATE, started(1), Containers::Free), take);
+        assert_eq!(at(KEEPER + draw(1) + LATE, started(2), Containers::Full), Gift::Pending);
     }
 }

@@ -1,6 +1,7 @@
 //! Keeper of the Artifacts' native sites (patch 109, artefact-skills.md "Keeper of the
-//! Artifacts"): the map's hidden Keeper pool, as the core world registers it, and a spawn's
-//! player, kit, statistics and first container.
+//! Artifacts"): the map's hidden Keeper pool, as the core world registers it, and at each
+//! player's tick its kit, its place's deaths in the match's statistics and its first empty
+//! container.
 //!
 //! - The pool: the artefacts of the map's anomaly with no container (content edit
 //!   artefact-keeper-1.json; no anomaly of the stock maps has none), registered by
@@ -13,7 +14,7 @@
 //!   a container holds.
 use super::world::read;
 use super::{Context, GameCell, Thread, artefact_skills, statistics};
-use crate::artefact_keeper::{History, Registered, Room, Standing};
+use crate::artefact_keeper::{Containers, History, Registered, Standing};
 use crate::artefact_skills::Skills;
 use crate::raw;
 use artefact_carry::ArtefactId;
@@ -74,7 +75,7 @@ pub(super) fn history(item: raw::Artefact) -> History {
     }
 }
 
-/// Marks a pool artefact given (inventory::take_dormant, just before its take).
+/// Marks a pool artefact given (inventory::take_dormant, once its take put it in the inventory).
 pub(super) fn mark_given(item: raw::Artefact) {
     // SAFETY: as in `history`; read only in state 4, which the take does not enter.
     unsafe { item.active_since().write_volatile(GIVEN) };
@@ -147,15 +148,15 @@ impl<'t> Recipient<'t> {
     }
 
     /// Its artefact containers, as a gift can go into them: none while it is dead.
-    pub fn room(&self) -> Room {
+    pub fn containers(&self) -> Containers {
         // SAFETY: the live player's alive byte.
         if unsafe { read(self.player.alive()) } == 0 {
-            return Room::None;
+            return Containers::None;
         }
         match super::inventory::Inventory::of_player(self.player, self.thread).map(|i| i.container_space()) {
-            Some(super::inventory::ContainerSpace::Available) => Room::Free,
-            Some(super::inventory::ContainerSpace::Full) => Room::Full,
-            Some(super::inventory::ContainerSpace::Missing) | None => Room::None,
+            Some(super::inventory::ContainerSpace::Available) => Containers::Free,
+            Some(super::inventory::ContainerSpace::Full) => Containers::Full,
+            Some(super::inventory::ContainerSpace::Missing) | None => Containers::None,
         }
     }
 

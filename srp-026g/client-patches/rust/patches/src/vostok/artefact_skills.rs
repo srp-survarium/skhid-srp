@@ -349,27 +349,47 @@ fn list_nodes(list: raw::ModifierList) -> impl Iterator<Item = raw::ModifierNode
     core::iter::successors(unsafe { list.first() }, |node| unsafe { node.next() })
 }
 
-/// What the getters sum a kit list `list` to without its player's own Springs past the 4 that
-/// count (their passive's nodes left out), in the list's order as the game sums it (value + sum):
-/// none when the game's sum is the rule's, so the game sums it. A list of 4 nodes or fewer holds
-/// no fifth Spring's passive node; outside a match, for a kit that is no player's current one, or
-/// when every own Spring of its player counts, nothing is left out.
-fn own_springs(thread: &Thread, list: raw::ModifierList) -> Option<f32> {
-    if list_nodes(list).count() <= usize::from(Room::MOST) {
-        return None;
+/// The artefact containers a player has at most (quick slots 13..19).
+const CONTAINERS: usize = 7;
+
+/// The nodes of a player's own Springs past the 4 that count, gathered once for one getter's
+/// call: all of each one's nodes, its passive's and its active's (one that stopped counting while
+/// active, as a pickup into a freed earlier container makes it, adds its active no more).
+struct LeftOut {
+    springs: [Option<([raw::ModifierNode; 3], [raw::ModifierNode; 6])>; CONTAINERS],
+}
+
+impl LeftOut {
+    /// None when every own Spring of `player` counts.
+    fn of(player: raw::Player) -> Option<Self> {
+        let mut springs = [None; CONTAINERS];
+        let uncounted = own(player, Kind::Spring).filter(|own| !own.counts).map(|own| spring_phase_nodes(own.copy.at));
+        for (slot, nodes) in springs.iter_mut().zip(uncounted) {
+            *slot = Some(nodes);
+        }
+        springs[0].is_some().then_some(Self { springs })
     }
+
+    fn contains(&self, node: &raw::ModifierNode) -> bool {
+        self.springs.iter().flatten().any(|(passive, active)| passive.contains(node) || active.contains(node))
+    }
+}
+
+/// What the getters sum the kit list `list` (of the Spring list `index`) to without its player's
+/// own Springs past the 4 that count (all their nodes left out), in the list's order as the game
+/// sums it (value + sum): none when the game's sum is the rule's, so the game sums it. An empty
+/// list has nothing to leave out; outside a match, for a kit that is no player's current one, or
+/// when every own Spring of its player counts, nothing is left out.
+fn own_springs(thread: &Thread, list: raw::ModifierList, index: u32) -> Option<f32> {
+    list_nodes(list).next()?;
     let roster = Roster::of(thread, Some(match_core()?));
     let player = roster.iter().find(|player| {
-        kit_modifiers(player.get()).is_some_and(|modifiers| {
-            // SAFETY: a kit's lists, one for each of its 68 indices (the Spring lists among them).
-            SPRING_LISTS.iter().any(|&index| unsafe { modifiers.lists().at(index as usize) } == list)
-        })
+        // SAFETY: a kit's lists, one for each of its 68 indices (the Spring lists among them).
+        kit_modifiers(player.get()).is_some_and(|modifiers| unsafe { modifiers.lists().at(index as usize) } == list)
     })?;
-    let uncounted = || own(player.get(), Kind::Spring).filter(|own| !own.counts);
-    uncounted().next()?;
-    let left_out = |node: &raw::ModifierNode| uncounted().any(|own| spring_phase_nodes(own.copy.at).0.contains(node));
+    let left_out = LeftOut::of(player.get())?;
     // SAFETY: the list's own nodes.
-    Some(list_nodes(list).filter(|node| !left_out(node)).fold(0.0, |sum, node| unsafe { *node.value() } + sum))
+    Some(list_nodes(list).filter(|node| !left_out.contains(node)).fold(0.0, |sum, node| unsafe { *node.value() } + sum))
 }
 
 /// apply_modifier before its list's sum (0x2D5B0C, EDI the list of the index ESI): the sum
@@ -381,7 +401,7 @@ pub fn own_modifier(ctx: &mut Context<'_>) -> bool {
     if !SPRING_LISTS.contains(&index) {
         return false;
     }
-    let Some(sum) = list.and_then(|list| own_springs(ctx.thread(), list)) else {
+    let Some(sum) = list.and_then(|list| own_springs(ctx.thread(), list, index)) else {
         return false;
     };
     // The loop's end as the game's: EAX its last node's next (0), XMM1 the sum, XMM2 the 0.
@@ -391,14 +411,21 @@ pub fn own_modifier(ctx: &mut Context<'_>) -> bool {
     true
 }
 
-/// apply_modifiers' loop before one index's sum (0x2D5C46, EDI the list): the same, XMM2 the sum.
+/// apply_modifiers' loop before one index's sum (0x2D5C46, EBX the kit's modifiers, EDI the list
+/// of one of their indices): the same, XMM2 the sum. The index is the one whose list EDI is
+/// (EAX is no longer it on the path through the sort 0x2D59C0); a list of no Spring index is left
+/// to the game before anything else is read.
 pub fn own_modifiers(ctx: &mut Context<'_>) -> bool {
     use raw::site::artefact_own_modifiers as site;
-    // SAFETY: the getter's own registers.
-    let Some(list) = (unsafe { site::list(ctx) }) else {
+    // SAFETY: the getter's own registers: the live kit's modifiers and one of their lists.
+    let (Some(modifiers), Some(list)) = (unsafe { (site::modifiers(ctx), site::list(ctx)) }) else {
         return false;
     };
-    let Some(sum) = own_springs(ctx.thread(), list) else {
+    // SAFETY: a kit's lists, one for each of its 68 indices (the Spring lists among them).
+    let Some(&index) = SPRING_LISTS.iter().find(|&&index| unsafe { modifiers.lists().at(index as usize) } == list) else {
+        return false;
+    };
+    let Some(sum) = own_springs(ctx.thread(), list, index) else {
         return false;
     };
     ctx.set_xmm_f32(2, sum);

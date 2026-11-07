@@ -42,9 +42,11 @@ modifier getter, game_effect_resource::emit (its emitter stubbed). It checks:
   presented again, game_effect_player 0x2DE560 run natively), once; the
   place's other kit's object, a player whose effects go to the first-person
   presenter and one whose effects were never given are left as they are;
-  after the hand-back (which cleared the presenter), a stop of an effect it
-  no longer holds goes to patch 117: the sound and particle presenters'
-  on_event (0x2A9EF0, 0x2AC400) return, the presenter unchanged.
+  after the hand-back, which cleared the effect kit 1's object presented, that
+  effect's stop goes to patch 117: the sound and particle presenters'
+  on_event (0x2A9EF0, 0x2AC400) return, the presenter unchanged; the stock
+  exe's sound presenter, cleared after it played an effect, frees its own
+  seed on that effect's stop.
 
 Says nothing about how the glow looks; the renders and the owner's test do.
 """
@@ -372,7 +374,8 @@ TP_PRESENTER = 0x297570       # third_person_game_effects_presenter's constructo
 INITIALIZE, INITIALIZE_GIVES, INITIALIZE_ON = 0x1F2540, 0x1F2580, 0x1F2585   # player::initialize: its call of
                               # set_effect_presenter, the code after it
 SOUND_EVENT, PARTICLE_EVENT = 0x2A9EF0, 0x2AC400   # the presenters' on_event (patch 117's sites)
-TICK_COUNT_SLOT = 0x8701B8    # GetTickCount's import slot (the refusals' clock)
+SOUND_CLEAR = 0x2A9E70       # sound_game_effect_presenter::clear (ECX the presenter)
+TICK_COUNT_SLOT = 0x870090    # GetTickCount's import slot (the refusals' clock, engine_get_tick_count)
 
 
 def check_presenter(data):
@@ -422,17 +425,29 @@ def check_presenter(data):
     g.emu.mem_write(entry + 0xC, bytes([0]))
     g.tick(second)                                            # not the current kit's: left
     assert g.read(presenter + 0x10) == second
+    # Kit 1's object presented a sound effect: the sound presenter's entry 0 plays it (a loose
+    # pointer to it, its count 2; +4 not 0, so the clear stops no sound object).
+    sound = presenter + 0xB4
+    effect = g.block(0x60)
+    node, begin = g.block(0x10), g.read(sound + 0x18)
+    g.word(node, effect + 4)
+    g.word(node + 4, 2)
+    g.word(begin, node)
+    g.word(begin + 4, 1)
+    g.word(sound + 0x1C, begin + 0x14)
     g.tick(PLAYER)
     assert g.read(presenter + 0x10) == PLAYER and g.read(presenter + 0xC0) == PLAYER, \
         "the current kit's tick takes its place's presenter back"
     assert g.read(PLAYER + 0x3A0) == holder and g.read(PLAYER + 0x390) == holder
-    # Patch 117 beside the hand-back: its represent cleared the presenter, so a damage zone's stop of
-    # an effect played before it (game_effect_player::stop, the tick after) finds no entry in either
-    # presenter; the build returns from both on_event, the presenter as the hand-back left it.
+    assert g.read(sound + 0x1C) == g.read(sound + 0x18) and g.read(node + 4) == 1, \
+        "the hand-back's represent cleared kit 1's effect from the presenter"
+    # Patch 117 beside the hand-back: a damage zone's stop of that same effect (game_effect_player::
+    # stop, the tick after) finds no entry in either presenter; the build returns from both
+    # on_event, the presenter as the hand-back left it (the stock exe's corrupts: stock_stop_after_clear).
     tick_count = g.block(0x10)
     g.emu.mem_write(tick_count, b"\x31\xc0\xc3")                # GetTickCount: xor eax,eax; ret
     g.word(TICK_COUNT_SLOT, tick_count)
-    effect, event = g.block(0x60), g.block(0x20)
+    event = g.block(0x20)
     g.word(event + 4, 1)                                      # the event's kind: a stop
     before = bytes(g.emu.mem_read(presenter, 0x300))
     g.call(SOUND_EVENT, (presenter + 0xB4, effect, event))
@@ -456,7 +471,27 @@ def check_presenter(data):
     print("Presenter: player::initialize gives a place's third-person presenter only to an object whose effects "
           "were never given; the tick of the place's current kit's object takes it back from another kit's (once, "
           "its effects presented again natively); another kit's object, the camera's player and one never given "
-          "left; after the hand-back a stop of an effect neither presenter holds left to patch 117 (both return, the presenter unchanged): PASS")
+          "left; after the hand-back (kit 1's effect cleared from the presenter) that effect's stop is left to patch 117 "
+          "(both presenters return, the presenter unchanged): PASS")
+
+
+def stock_stop_after_clear(original):
+    """The stock exe's sound presenter, cleared (its clear 0x2A9E70, as the hand-back's represent
+    clears it) after it played an effect, given that effect's stop: it erases from before its list
+    and frees its own seed, what patch 117 guards in check_presenter."""
+    from check_effect_presenters_026g import Game as PresenterGame, Scene, SOUND_FREE, STOP_KIND
+    game = PresenterGame(original)
+    scene = Scene(game)
+    node = scene.hold_sound()
+    game.word(game.read(scene.sound + 0x18) + 4, 1)          # its +4 not 0: the clear stops no sound
+    game.call(SOUND_CLEAR, (), 0, ecx=scene.sound)
+    assert game.fault is None and game.read(scene.sound + 0x1C) == game.read(scene.sound + 0x18) \
+        and game.read(node + 4) == 1, ("the stock clear empties the list", game.stopped, game.fault)
+    scene.sound_event(STOP_KIND, 0)
+    assert game.stopped == SOUND_FREE or game.fault is not None, \
+        ("the stock exe frees its seed on the cleared effect's stop", game.stopped, game.fault)
+    print("Presenter, stock: a sound presenter cleared after it played an effect, given that effect's stop, "
+          "erases from before its list and frees its own seed (what patch 117 guards after the hand-back): PASS")
 
 
 def main():
@@ -466,6 +501,7 @@ def main():
     check(patched)
     check_quarters(patched)
     check_presenter(patched)
+    stock_stop_after_clear(original)
 
 
 if __name__ == "__main__":

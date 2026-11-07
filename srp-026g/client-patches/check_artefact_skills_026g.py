@@ -728,7 +728,7 @@ def check_own_cap(data):
     assert springs([3, 3, 3, 3, 3]) == four, "five own passive Springs give exactly four's"
     for what, own, carried, in_match, (passives, actives) in [
         ('five own', [3, 3, 3, 3, 3], (), True, (4, 0)),
-        ('five own, the fifth active: its active only', [3, 3, 3, 3, 4], (), True, (4, 1)),
+        ('five own, the fifth active: nothing of it', [3, 3, 3, 3, 4], (), True, (4, 0)),
         ('five own, the first active', [4, 3, 3, 3, 3], (), True, (4, 1)),
         ('five own and a carrier: none shared', [3, 3, 3, 3, 3], [3, 3], True, (4, 0)),
         ('three own and three shared: four', [3, 3, 3], [3, 3, 3], True, (4, 0)),
@@ -821,7 +821,7 @@ def check_own_cap(data):
         close(have[2], want[2])
         outcomes.append((what, have))
     print("At most 4 copies of a kind count, own copies included: five own Springs give the game's getters "
-          "(one index, the weighted sum) exactly four's passive nodes (a fifth active keeps its active), five "
+          "(one index, the weighted sum) exactly four's passive nodes (a fifth active gives its active no more either), five "
           "own Onyx protect a hit as four through the game's protect (the first active as its active), five own "
           "Lifebones regenerate as four through the game's callback; three own with Resonance take one shared "
           "(four in all), five own none; outside a match the getters sum them all: PASS")

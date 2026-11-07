@@ -307,4 +307,18 @@ fn every_profile_and_a_joiner_carry_the_matchs_keeper_draw_the_late_one_bit_13()
     let mut bench = running();
     reserve(&mut bench);
     assert_eq!(keeper_bits(&bench), [0, 0, late]);
+
+    // The phase a join reads is the one the match was in when it said its admission, in the same
+    // record: an admission said in the countdown takes a joiner as the countdown's, whatever
+    // the match says of itself after it.
+    let mut bench = running();
+    let roster = bench.registry.formed(bench.match_id).unwrap().places.len();
+    bench.registry.set_admitting(
+        bench.match_id,
+        roster,
+        Ok(bench.now() + std::time::Duration::from_secs(600)),
+        crate::v026g::registry::LivePhase::Countdown,
+    );
+    reserve(&mut bench);
+    assert_eq!(keeper_bits(&bench), [0, 0, 0]);
 }

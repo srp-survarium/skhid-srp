@@ -35,9 +35,8 @@ impl ScoreEvent {
     pub const SUICIDE: ScoreEvent = ScoreEvent(3);
 }
 
-/// Whether `place`'s record counts a death or a suicide in any kit; false for a place that is
-/// no record's.
-/// The deaths and suicides the match's statistics count for `place`, in every kit.
+/// The deaths and suicides the match's statistics count for `place`, in every kit; 0 for a place
+/// that is no record's.
 pub(super) fn deaths(statistics: raw::SharedStatistics, place: u8) -> u32 {
     let Some(place) = Place::parse(place) else { return 0 };
     [ScoreEvent::DEATH, ScoreEvent::SUICIDE]

@@ -290,10 +290,20 @@ struct Inner {
     matches: HashMap<u32, std::sync::Arc<Formed>>,
     seats: HashMap<u32, Seat>,
     last_id: u32,
-    /// A growing roster's admission as the match last said it: until when
-    /// it takes a joiner, or why it takes none.
-    admitting: HashMap<u32, Result<Instant, Closed>>,
+    /// A growing roster's admission as the match last said it.
+    admitting: HashMap<u32, Admitting>,
     live: HashMap<u32, Live>,
+}
+
+/// A growing roster's admission as the match loop last said it
+/// ([`MatchRegistry::set_admitting`]), and the phase it was in when it said
+/// so: one record, so a join reads both from the same word.
+#[derive(Clone, Copy, Debug)]
+struct Admitting {
+    /// Until when it takes a joiner, or why it takes none.
+    admission: Result<Instant, Closed>,
+    /// Keeper of the Artifacts' late joiner is one taken in this phase.
+    phase: LivePhase,
 }
 
 /// A new account could not be appended to a running match. Appended slots
@@ -573,9 +583,14 @@ impl MatchRegistry {
         if players.len() > MAX_PLAYERS - formed.places.len() {
             return Err(JoinError::Full);
         }
-        if !open_at(inner.admitting.get(&match_id), Instant::now()) {
+        let Some(admitting) = inner
+            .admitting
+            .get(&match_id)
+            .copied()
+            .filter(|admitting| open_at(Some(admitting), Instant::now()))
+        else {
             return Err(JoinError::Unavailable);
-        }
+        };
         // An account whose place in this match has no seat any more (it
         // left by its own word) comes as a new place, its old one gone for
         // good (the owner's of 2026-10-19); one with a seat anywhere, never.
@@ -598,12 +613,12 @@ impl MatchRegistry {
         }
         // Keeper of the Artifacts (artefact-skills.md): a joiner taken before the match is in
         // process still chooses its kit, so it gets the gift at the start as everyone; one taken
-        // after it is late (its gift after its first death), as the match last said its phase.
-        let gift: fn(&mut MatchProfile, keeper::Kind) =
-            match inner.live.get(&match_id).map(|live| live.phase) {
-                None | Some(LivePhase::Gathering | LivePhase::Countdown) => keeper::give,
-                Some(LivePhase::Playing | LivePhase::Over) => keeper::give_late,
-            };
+        // after it is late (its gift after its first death). The phase is the one the match was
+        // in when it opened this admission, from the same record.
+        let gift: fn(&mut MatchProfile, keeper::Kind) = match admitting.phase {
+            LivePhase::Gathering | LivePhase::Countdown => keeper::give,
+            LivePhase::Playing | LivePhase::Over => keeper::give_late,
+        };
         let mut next = (**formed).clone();
         let first = next.places.len();
         next.profiles.extend(players.iter().map(|player| {
@@ -642,7 +657,9 @@ impl MatchRegistry {
         let count = next.places.len() - first;
         inner.matches.insert(match_id, std::sync::Arc::new(next));
         // Closed until the match says otherwise of the grown roster.
-        inner.admitting.insert(match_id, Err(Closed::Joining));
+        if let Some(admitting) = inner.admitting.get_mut(&match_id) {
+            admitting.admission = Err(Closed::Joining);
+        }
         log::info!(
             "Match {match_id:#x}: reserved {count} new places from {first}; waiting for resource preparation"
         );
@@ -656,12 +673,14 @@ impl MatchRegistry {
     /// Do not let an observation of an older roster reopen admission after
     /// the lobby has concurrently reserved the next place.
     /// `admission`: until when it takes a joiner, or why it takes none
-    /// (`Game::admission`).
+    /// (`Game::admission`); `phase`: how far the match is as it says so
+    /// (`Game::live_phase`), which decides a joiner's Keeper gift.
     pub(crate) fn set_admitting(
         &self,
         match_id: u32,
         roster: usize,
         admission: Result<Instant, Closed>,
+        phase: LivePhase,
     ) {
         let mut inner = self.inner();
         if inner
@@ -669,7 +688,7 @@ impl MatchRegistry {
             .get(&match_id)
             .is_some_and(|m| m.growing_roster && m.places.len() == roster)
         {
-            inner.admitting.insert(match_id, admission);
+            inner.admitting.insert(match_id, Admitting { admission, phase });
         }
     }
 
@@ -683,10 +702,10 @@ impl MatchRegistry {
     /// past its deadline, [`Closed::LastSeconds`]. `None`: it takes one, or
     /// it has said nothing (not a growing roster, not polled yet, or over).
     pub fn closed(&self, match_id: u32, now: Instant) -> Option<Closed> {
-        match self.inner().admitting.get(&match_id)? {
-            Ok(deadline) if now < *deadline => None,
+        match self.inner().admitting.get(&match_id)?.admission {
+            Ok(deadline) if now < deadline => None,
             Ok(_) => Some(Closed::LastSeconds),
-            Err(closed) => Some(*closed),
+            Err(closed) => Some(closed),
         }
     }
 
@@ -746,8 +765,8 @@ impl MatchRegistry {
     /// while it lingers for its clients to hear the end.
     pub(crate) fn free_seats(&self, match_id: u32) {
         let mut inner = self.inner();
-        if inner.admitting.contains_key(&match_id) {
-            inner.admitting.insert(match_id, Err(Closed::Ending));
+        if let Some(admitting) = inner.admitting.get_mut(&match_id) {
+            admitting.admission = Err(Closed::Ending);
         }
         inner.seats.retain(|_, seat| seat.match_id != match_id);
     }
@@ -772,11 +791,6 @@ impl MatchRegistry {
         if inner.matches.contains_key(&match_id) {
             inner.live.insert(match_id, live);
         }
-    }
-
-    /// The phase the match loop last said of a match; `None` before its first word.
-    pub(crate) fn live_phase(&self, match_id: u32) -> Option<LivePhase> {
-        self.inner().live.get(&match_id).map(|live| live.phase)
     }
 
     /// The matches made and not over as they are at `now`, the oldest
@@ -854,8 +868,8 @@ impl MatchRegistry {
 }
 
 /// Whether an admission as the match said it takes a joiner at `now`.
-fn open_at(admission: Option<&Result<Instant, Closed>>, now: Instant) -> bool {
-    matches!(admission, Some(Ok(deadline)) if now < *deadline)
+fn open_at(admitting: Option<&Admitting>, now: Instant) -> bool {
+    matches!(admitting, Some(Admitting { admission: Ok(deadline), .. }) if now < *deadline)
 }
 
 /// A number that differs from run to run, for the first match id.

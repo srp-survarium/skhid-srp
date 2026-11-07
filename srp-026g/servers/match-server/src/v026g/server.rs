@@ -461,10 +461,14 @@ impl Server {
                     self.store.matchmaking().join_failed(account_id);
                 }
             }
-            self.registry
-                .set_admitting(game.id, game.roster_size(), game.admission(now));
-            // A new phase at once: a join reads it (Keeper's late joiner, registry.rs).
-            if tell_live || self.registry.live_phase(game.id) != Some(game.live_phase()) {
+            // The phase with the admission, in one record: a join reads both (Keeper's late joiner).
+            self.registry.set_admitting(
+                game.id,
+                game.roster_size(),
+                game.admission(now),
+                game.live_phase(),
+            );
+            if tell_live {
                 self.registry.set_live(game.id, game.live_now(now));
             }
             results.extend(game.take_result());

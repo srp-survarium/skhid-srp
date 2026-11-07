@@ -385,7 +385,8 @@ preferred-image VAs; `apply_modifier` is the kit-modifier getter 0x2D5AE0.
   simplest: it is the same count, and a fifth never fills in for a cooling one of the four, so
   no fifth active ever adds: no Spring active nodes, no Lifebone heal, no Onyx +1 s). It counts
   again only when one of the four leaves the containers (or their passive and active). Five
-  ready Onyx fire as four, 6 s each.
+  ready Onyx fire as four, 6 s each. A Spring that stops counting while active (a pickup into a freed earlier
+  container) gives its active no more: the getters leave out all its nodes.
 - Cascade and Resonance: a recipient takes shared actives (and passives) up to 4 copies of a
   kind, its own that count first: 4 less them, as before (three own and two active near: one
   shared). A carrier shares only its own copies that count for it (its fifth gives nothing to
