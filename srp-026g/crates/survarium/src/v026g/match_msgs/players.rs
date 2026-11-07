@@ -511,7 +511,10 @@ pub fn untouched_items(place: u8, kit: u8, items: &[Item]) -> Vec<u8> {
             Body::Medkit { .. } => out.push(0),
             Body::OxygenTank => out.extend([0; 5]),
             Body::Weapon(gun) => {
-                out.extend([0; 8]); // seed, tick
+                // The seed as the constructor stores it (a minstd_rand's
+                // state is 1..2^31-2, never 0), the tick.
+                out.extend(1u32.to_le_bytes());
+                out.extend([0; 4]);
                 out.extend([0, 0, 0, 0]); // load, magazine, fire queue, ammo
                 if gun.chamber == Chamber::Saved {
                     out.push(0);
