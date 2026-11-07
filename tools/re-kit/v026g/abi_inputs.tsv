@@ -5726,3 +5726,7 @@ va	name	location	role	basis
 0x002717e0	survarium::lobby_client::discard_playing_order	entry ESP+4	the lobby client	observed
 0x002717e0	survarium::lobby_client::discard_playing_order	entry ESP+8	bool: true "left the match" (close_current_match 0x27A93B, the 0xEA handler 0x27C759), false "stopped waiting"	observed
 0x00219960	survarium::network_client::lobby_client	ECX	the network client	observed
+0x0027b110	survarium::network_client::disconnect	ECX	the network client	observed
+0x001ed170	survarium::game::switch_to_game_world	EAX	the game	observed
+0x002203a0	survarium::lobby_menu::show_loading_screen	AL	the flag: 1 shown, 0 hidden	observed
+0x002203a0	survarium::lobby_menu::show_loading_screen	EDX	the lobby menu	observed

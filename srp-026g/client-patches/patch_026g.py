@@ -573,6 +573,12 @@ Patches:
   section 3.72): close_current_match's jump table (0x27A958) sends reason 4
   to reason 1's lobby message and world end (0x27A930), not to the
   function's return. Nothing a match computes;
+- a match its game never played closes too (patch 120, unplayed_match;
+  docs/notes/client_patch.md section 3.74): close_current_match's guard
+  (0x27A7A4) lets an open match through when its level is loaded, tells the
+  lobby 31 in the handshake, and while the level loads waits for
+  on_match_ready's end (0x27AEBF) to close it; on_project_loaded's abort
+  (0x1F8AF3) lets an open match's load go on. Nothing a match computes;
 - the baked camouflage and decal textures are kept from game to game, and
   a texture asked for again while its bake or load is under way is made
   once (patch 70, with the late join; docs/notes/baked-textures.md). The

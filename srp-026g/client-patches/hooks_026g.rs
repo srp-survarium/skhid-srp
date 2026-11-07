@@ -3149,6 +3149,91 @@ pub extern "C" fn hook_text_input_on_char(frame: &mut Frame) -> u32 {
     }
 }
 
+// ---- unplayed_match (patch 120) ----
+
+/// The entry `unplayed_match_on_connect` (0x21c07c, network_client::connect_to_match (0x21BEB0) once it connects (past its return for the link's own session, 0x21BED5; the disconnect and connected callbacks given): mov dword [ebx+1F1C64h],0, the handshake's phase back to 0; EBX the network client (patch 120)) calls this with the saved machine.
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_unplayed_match_on_connect(frame: &mut Frame) -> u32 {
+    // SAFETY: only the entry `unplayed_match_on_connect` calls this, from the game's jump at 0x21c07c,
+    // on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::new(frame) };
+    match crate::unplayed_match::on_connect(&mut ctx) {
+        Flow::Continue => 0,
+        Flow::Skip => 1,
+        Flow::Exit(e) => match e {},
+    }
+}
+
+// ---- unplayed_match (patch 120) ----
+
+/// The entry `unplayed_match_on_sign_off` (0x27b110, network_client::disconnect's start (0x27B110, vtable 0x9FFB14 +14h; push ebp / mov ebp,esp / and esp,-8): the main menu's logoff (0x1FF736) before switch_to_login; ECX the network client (patch 120)) calls this with the saved machine.
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_unplayed_match_on_sign_off(frame: &mut Frame) -> u32 {
+    // SAFETY: only the entry `unplayed_match_on_sign_off` calls this, from the game's jump at 0x27b110,
+    // on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::new(frame) };
+    match crate::unplayed_match::on_sign_off(&mut ctx) {
+        Flow::Continue => 0,
+        Flow::Skip => 1,
+        Flow::Exit(e) => match e {},
+    }
+}
+
+// ---- unplayed_match (patch 120) ----
+
+/// The named exits of unplayed_match::on_close (the order the shim's Flow code
+/// follows, 2 upward).
+#[repr(u32)]
+#[allow(dead_code)]
+pub enum UnplayedMatchOnCloseExit { Played }
+/// The entry `unplayed_match_on_close` (0x27a7a4, close_current_match's guard (cmp [edi+1F1C60h],ebx with EBX 0; the je 0x27A94C after it returns for every reason while the time rule's state is 0); played is the code past the guard (0x27A7B0: the statistics option, the state cleared, the reason's jump table); EDI the network client, [EBP+8] the reason (patch 120)) calls this with the saved machine.
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_unplayed_match_on_close(frame: &mut Frame) -> u32 {
+    // SAFETY: only the entry `unplayed_match_on_close` calls this, from the game's jump at 0x27a7a4,
+    // on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::new(frame) };
+    match crate::unplayed_match::on_close(&mut ctx) {
+        Flow::Continue => 0,
+        Flow::Skip => 1,
+        Flow::Exit(e) => 2 + e as u32,
+    }
+}
+
+// ---- unplayed_match (patch 120) ----
+
+/// The named exits of unplayed_match::on_load_end (the order the shim's Flow code
+/// follows, 2 upward).
+#[repr(u32)]
+#[allow(dead_code)]
+pub enum UnplayedMatchOnLoadEndExit { Load }
+/// The entry `unplayed_match_on_load_end` (0x1f8af3, game_world::on_project_loaded's abort test (cmp [eax+1E5790h],0: the lobby client's status, 0 the lobby; the jne after it goes on to the load's callback, on_match_ready, at 0x1F8B24, else 0x1F8AFC unloads the world and returns without it); EAX the lobby client (patch 120)) calls this with the saved machine.
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_unplayed_match_on_load_end(frame: &mut Frame) -> u32 {
+    // SAFETY: only the entry `unplayed_match_on_load_end` calls this, from the game's jump at 0x1f8af3,
+    // on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::new(frame) };
+    match crate::unplayed_match::on_load_end(&mut ctx) {
+        Flow::Continue => 0,
+        Flow::Skip => 1,
+        Flow::Exit(e) => 2 + e as u32,
+    }
+}
+
+// ---- unplayed_match (patch 120) ----
+
+/// The entry `unplayed_match_on_ready` (0x27aebf, network_client::on_match_ready's epilogue after its 0xDA (pop edi / pop esi / pop ebx / mov esp,ebp, then pop ebp / ret 4): the level loaded, the match core set, the game world shown; [ESP+18h] the network client (stored at 0x27AA39) (patch 120)) calls this with the saved machine.
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_unplayed_match_on_ready(frame: &mut Frame) -> u32 {
+    // SAFETY: only the entry `unplayed_match_on_ready` calls this, from the game's jump at 0x27aebf,
+    // on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::new(frame) };
+    match crate::unplayed_match::on_ready(&mut ctx) {
+        Flow::Continue => 0,
+        Flow::Skip => 1,
+        Flow::Exit(e) => match e {},
+    }
+}
+
 // ---- weapon_kit (patch 68) ----
 
 /// The entry `weapon_kit_on_query` (0x2f1776, translate_query after 0x2F2060 copied the query (mov ecx,[ebp+38h] / mov eax,[ebp+44h]): ESP patch 68's room (weapon_kit.query_room), EBP the frame whose [ebp+40h] (the item's upgrades' buffer_vector) is read at 0x2F1799 (their count) and 0x2F18D0 (each record's dict id and value) and nowhere else; AL 0x2F2060's answer (0: the query not copied, as on another thread's query, 0x2F206F)) calls this with the saved machine.

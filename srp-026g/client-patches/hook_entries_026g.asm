@@ -6007,6 +6007,207 @@ text_input_on_char_replay:
     db 0x8b, 0x47, 0xe8, 0x8b, 0x70, 0x10
     jmp 0x79d36f
 
+; 0x21c07c network_client::connect_to_match (0x21BEB0) once it connects (past its return for the link's own session, 0x21BED5; the disconnect and connected callbacks given): mov dword [ebx+1F1C64h],0, the handshake's phase back to 0; EBX the network client (patch 120): lohook -> unplayed_match_on_connect
+global unplayed_match_on_connect
+extern hook_unplayed_match_on_connect
+unplayed_match_on_connect:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_unplayed_match_on_connect
+    mov edx, unplayed_match_on_connect_replay
+    cmp eax, 0
+    je unplayed_match_on_connect_go
+    mov edx, 0x21c086
+    cmp eax, 1
+    je unplayed_match_on_connect_go
+    ud2
+unplayed_match_on_connect_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+unplayed_match_on_connect_replay:
+    db 0xc7, 0x83, 0x64, 0x1c, 0x1f, 0x00, 0x00, 0x00, 0x00, 0x00
+    jmp 0x21c086
+
+; 0x27b110 network_client::disconnect's start (0x27B110, vtable 0x9FFB14 +14h; push ebp / mov ebp,esp / and esp,-8): the main menu's logoff (0x1FF736) before switch_to_login; ECX the network client (patch 120): lohook -> unplayed_match_on_sign_off
+global unplayed_match_on_sign_off
+extern hook_unplayed_match_on_sign_off
+unplayed_match_on_sign_off:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_unplayed_match_on_sign_off
+    mov edx, unplayed_match_on_sign_off_replay
+    cmp eax, 0
+    je unplayed_match_on_sign_off_go
+    mov edx, 0x27b116
+    cmp eax, 1
+    je unplayed_match_on_sign_off_go
+    ud2
+unplayed_match_on_sign_off_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+unplayed_match_on_sign_off_replay:
+    db 0x55, 0x8b, 0xec, 0x83, 0xe4, 0xf8
+    jmp 0x27b116
+
+; 0x27a7a4 close_current_match's guard (cmp [edi+1F1C60h],ebx with EBX 0; the je 0x27A94C after it returns for every reason while the time rule's state is 0); played is the code past the guard (0x27A7B0: the statistics option, the state cleared, the reason's jump table); EDI the network client, [EBP+8] the reason (patch 120): lohook -> unplayed_match_on_close
+global unplayed_match_on_close
+extern hook_unplayed_match_on_close
+unplayed_match_on_close:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_unplayed_match_on_close
+    mov edx, unplayed_match_on_close_replay
+    cmp eax, 0
+    je unplayed_match_on_close_go
+    mov edx, 0x27a7aa
+    cmp eax, 1
+    je unplayed_match_on_close_go
+    mov edx, 0x27a7b0
+    cmp eax, 2
+    je unplayed_match_on_close_go
+    ud2
+unplayed_match_on_close_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+unplayed_match_on_close_replay:
+    db 0x39, 0x9f, 0x60, 0x1c, 0x1f, 0x00
+    jmp 0x27a7aa
+
+; 0x1f8af3 game_world::on_project_loaded's abort test (cmp [eax+1E5790h],0: the lobby client's status, 0 the lobby; the jne after it goes on to the load's callback, on_match_ready, at 0x1F8B24, else 0x1F8AFC unloads the world and returns without it); EAX the lobby client (patch 120): lohook -> unplayed_match_on_load_end
+global unplayed_match_on_load_end
+extern hook_unplayed_match_on_load_end
+unplayed_match_on_load_end:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_unplayed_match_on_load_end
+    mov edx, unplayed_match_on_load_end_replay
+    cmp eax, 0
+    je unplayed_match_on_load_end_go
+    mov edx, 0x1f8afa
+    cmp eax, 1
+    je unplayed_match_on_load_end_go
+    mov edx, 0x1f8b24
+    cmp eax, 2
+    je unplayed_match_on_load_end_go
+    ud2
+unplayed_match_on_load_end_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+unplayed_match_on_load_end_replay:
+    db 0x83, 0xb8, 0x90, 0x57, 0x1e, 0x00, 0x00
+    jmp 0x1f8afa
+
+; 0x27aebf network_client::on_match_ready's epilogue after its 0xDA (pop edi / pop esi / pop ebx / mov esp,ebp, then pop ebp / ret 4): the level loaded, the match core set, the game world shown; [ESP+18h] the network client (stored at 0x27AA39) (patch 120): lohook -> unplayed_match_on_ready
+global unplayed_match_on_ready
+extern hook_unplayed_match_on_ready
+unplayed_match_on_ready:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_unplayed_match_on_ready
+    mov edx, unplayed_match_on_ready_replay
+    cmp eax, 0
+    je unplayed_match_on_ready_go
+    mov edx, 0x27aec4
+    cmp eax, 1
+    je unplayed_match_on_ready_go
+    ud2
+unplayed_match_on_ready_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+unplayed_match_on_ready_replay:
+    db 0x5f, 0x5e, 0x5b, 0x8b, 0xe5
+    jmp 0x27aec4
+
 ; 0x2f1776 translate_query after 0x2F2060 copied the query (mov ecx,[ebp+38h] / mov eax,[ebp+44h]): ESP patch 68's room (weapon_kit.query_room), EBP the frame whose [ebp+40h] (the item's upgrades' buffer_vector) is read at 0x2F1799 (their count) and 0x2F18D0 (each record's dict id and value) and nowhere else; AL 0x2F2060's answer (0: the query not copied, as on another thread's query, 0x2F206F): lohook -> weapon_kit_on_query
 global weapon_kit_on_query
 extern hook_weapon_kit_on_query

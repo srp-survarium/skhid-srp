@@ -247,6 +247,8 @@ unsafe extern "stdcall" {
     pub fn engine_detach_voice(propagator: *mut c_void);
     /// 0xf0d00 vostok::resources::query_result_for_cook::finish_query_impl: query ESP+4, result ESP+8, assert_on_fail ESP+12, error ESP+16; pops 16; stdcall, called directly
     pub fn engine_finish_query(query: *mut c_void, result: u32, assert_on_fail: u32, error: u32);
+    /// 0x2717e0 survarium::lobby_client::discard_playing_order: client ESP+4, left ESP+8; pops 8; stdcall, called directly
+    pub fn engine_discard_playing_order(client: *mut c_void, left: u32);
 }
 
 #[allow(dead_code)]

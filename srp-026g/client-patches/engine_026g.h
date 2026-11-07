@@ -630,4 +630,7 @@ extern unsigned int (__attribute__((stdcall)) *const engine_file_time_to_local_f
 /* the IAT slot 0x87022c (an import, stdcall) */
 extern unsigned int (__attribute__((stdcall)) *const engine_file_time_to_system_time)(const unsigned int * file_time, unsigned int * system_time);
 
+/* 0x2717e0 survarium::lobby_client::discard_playing_order: client ESP+4, left ESP+8; pops 8; stdcall, called directly */
+void __attribute__((stdcall)) engine_discard_playing_order(struct lobby_client *client, unsigned int left);
+
 #endif

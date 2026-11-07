@@ -591,3 +591,7 @@ extern engine_file_time_to_local_file_time
 ; the IAT slot 0x87022c (an import, stdcall)
 ; `call [symbol]`: stdcall, it pops its arguments
 extern engine_file_time_to_system_time
+; void engine_discard_playing_order(struct lobby_client *client, unsigned int left)
+; 0x2717e0 survarium::lobby_client::discard_playing_order: client ESP+4, left ESP+8; pops 8; stdcall, called directly
+; stdcall: push (and ECX for thiscall) as that convention says
+extern engine_discard_playing_order
