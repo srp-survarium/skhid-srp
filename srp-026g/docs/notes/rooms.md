@@ -281,7 +281,8 @@ parts in the game's classes (`TopMenu`'s tab, `StatusPanel`'s Play, `LobbyMenu`'
   - the match ending (its mode's rule, its result): "The match is ending: you'll play the next one." (6)
   - no game of the match can give a joiner a world now: their last worlds were refused by the
     match server's check (`match.md` §36), until one passes again: "The match can't take
-    players now." (8, since 2026-11-07)
+    players now. You'll join the next match." (8, since 2026-11-07). The member stays in its
+    room and plays its next match, as for 7; it goes in sooner if an upload passes first.
   - its own kit or gear unfit: the red mark's text, as before a match (no seconds either).
 - **In the match (Tab list), to do:** a lost player's row stays grey for the 90 s; one who
   left to the lobby, or is lost past the 90 s, has its row removed; coming back after the
