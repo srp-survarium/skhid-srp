@@ -485,8 +485,18 @@ index. The validator handles these classes, verified against the readers:
   `animation_validate`; it now finitizes the floats-table values too
   (`snapshot_rules.md` 7.2.1 #6), so a non-number cannot reach the bone
   transforms the ragdoll and bounding box read.
-- **raw pointers / handles**: the effect template's pointer-flag bytes (12, 53,
-  ...) are forced to 0 (`effects`), so a serialized pointer is refused.
+- **raw pointers / handles, and the table indices behind them**: the effect
+  record's two pointer flags (root emitter, time calculator) are forced to 0
+  so a serialized pointer is refused, and the index u32 that each flag gates is
+  forced to 0 so the native reader (0x2E5C30) cannot read an unbounded global
+  table (0xAA2E48 / 0xAA2E74) with a refcount write. The effects SECTION always
+  bounded this (its template), but the E PLAYER-EFFECT records did not --
+  `player_tail` only checked the leading flag and length-walked 67 bytes, so a
+  crafted state with E >= 1 (E is 0 in every world seen) reached the unbounded
+  read. FIXED: the record's crash-critical fields are modelled once in
+  `effects::record_is_safe` (both flag/index pairs zero, the three floats
+  finite) and `player_tail` reuses it. The fix changes no verdict on 600 kept
+  worlds (E is 0, so it refuses no real world).
 - **bytes used as booleans**: every one must be 0x00 or 0xFF (`reader::bool`,
   `TailBool`), not merely non-zero.
 - **type / ownership confusion**: ids are checked against the kit, dictionary
@@ -519,8 +529,12 @@ The client reader is unbounded, so the server clamp is load-bearing. The lobby
 readers otherwise carry only ints (free display values) and sized/`at_most`
 counts -- no raw pointer, bool or float surface.
 
-The player-state deep readers and the match-message + lobby readers were read
-in full (the world sections pass is the remaining one); no unbounded or
-corruptible player-to-player value was found in them without a server bound or
-native guard beyond the animation stream, which is now sealed (counts, indices,
-recursion, tree length, table under-run, and float finiteness).
+All three reader groups -- world sections, player-state deep readers, and the
+match-message + lobby readers -- were read in full. Two unbounded or
+corruptible player-to-player values were found without a server bound or native
+guard, and both are now fixed: the animation stream (counts, indices,
+recursion, tree length, table under-run, and float finiteness) and the E
+player-effect records' embedded table indices + flags + floats
+(`effects::record_is_safe`). Everything else was already bounded; the state-
+corruption classes above (non-finite floats, raw pointers, bools, type and
+ownership confusion) are covered as well as the index bounds.
