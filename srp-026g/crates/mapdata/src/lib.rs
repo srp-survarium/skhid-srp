@@ -52,7 +52,7 @@ pub mod sight;
 pub mod stands;
 
 pub use grid::{
-    Body, BuildStats, DistanceMap, Erosion, ExitJump, LinkKind, NodeId, OffLink, OffMeshLinks, Path, PocketEntry, PressLead,
+    Body, BuildStats, DistanceMap, Erosion, ExitJump, ExitReach, LinkKind, NodeId, OffLink, OffMeshLinks, Path, PocketEntry, PressLead,
     PocketExit, PocketId, Search, SlicedSearch, WalkGrid,
 };
 pub use library::{Face, Library, Materials, Surface, WalkerBehaviour};

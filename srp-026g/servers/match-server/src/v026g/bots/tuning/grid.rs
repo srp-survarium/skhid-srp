@@ -115,11 +115,12 @@ pub struct GridTuning {
     /// [A347] Whether the maps' walk grids keep a pocket's exits within what every clip of the client's sprint jump reaches (the
     /// lowest clip top 1.282 m, PROVEN, `mapdata::grid::SPRINT_JUMP_RISE`), as the bots' own jump reach does
     /// (`mapdata::Body::exits_in_reach`). Off: up to 1.35 m (the highest clip): Chemical Plant day 2's ground-floor pocket kept a
-    /// 1.316 m sprint exit that bots pressed and never went up (3 of 3, TOO_LOW; the A347 census of 48 matches). It also drops
-    /// the exits A270's test refuses (a wall over the landing on the way, no run-up for a sprint exit) from the escape's tries:
-    /// A270 had them only shut a pocket with none left, and the same pocket's 0.633 m exit through a wall 2.9 m tall was tried
-    /// first and failed 16 of 16 times (UP_THEN_DOWN; no grid link there, only the escape jumps it). Client-proven: ON, and the
-    /// all-off arm keeps it (`KEPT_RIGHT`). A grid is the map's (see `gap_links`).
+    /// 1.316 m sprint exit that bots pressed and never went up (3 of 3, TOO_LOW; the A347 census of 48 matches). It also puts
+    /// the exits A270's test refuses (a wall over the landing on the way, no run-up for a sprint exit) last in the escape's
+    /// tries, one try each (`mapdata::ExitReach::Walled`): the same pocket's 0.633 m exit through a wall 2.9 m tall was tried
+    /// first and failed 16 of 16 times (UP_THEN_DOWN; no grid link there, only the escape jumps it), and dropping them left a
+    /// shut-in bot no try where a walled exit had got one out by a slide. Client-proven: ON, and the all-off arm keeps it
+    /// (`KEPT_RIGHT`). A grid is the map's (see `gap_links`).
     pub exits_in_reach: bool,
     /// [A293] Whether the maps' walk grids refuse a gap link down whose flight went over a face that had held the body
     /// (`mapdata::Body::gap_no_vaults`): a rail or a parapet at the edge with a floor more than a step under its far side. The

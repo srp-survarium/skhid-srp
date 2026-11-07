@@ -38,7 +38,7 @@
 use std::collections::{HashMap, HashSet};
 use std::sync::Mutex;
 
-use mapdata::{ExitJump, NodeId, PocketExit, PocketId, Vec3, WalkGrid};
+use mapdata::{ExitJump, ExitReach, NodeId, PocketExit, PocketId, Vec3, WalkGrid};
 
 use super::path::{self, Route};
 use super::view::Place;
@@ -54,6 +54,9 @@ pub const SPRINT_TRIES: u8 = 1;
 /// up a rounded edge and then a step up; two looks at the lowest rims cover
 /// that without walking the pocket's whole rim.
 pub const SPRINT_EXITS: usize = 2;
+/// [A347] An exit a body cannot take ([`ExitReach::Walled`]) gets this many tries, after all the others. GUESS: one, as a
+/// sprint exit's standing try: the body got out by one now and then (a slide), and each failed try is a match minute's walk.
+pub const WALLED_TRIES: u8 = 1;
 /// Exits tried at most before giving up. GUESS.
 pub const EXITS_MOST: usize = 8;
 /// A try is given up after this, ms: the walk inside the pocket and the
@@ -303,6 +306,11 @@ fn walked_to(
 /// [`exits`] from the pocket's exits `all` and those the team got out by,
 /// `worked` (latest first).
 fn order(all: &[PocketExit], worked: Vec<PocketExit>) -> Vec<(PocketExit, u8)> {
+    // [A347] The exits a body cannot take ([`ExitReach::Walled`]) come after all the others, one try each, the shortest across
+    // first: the client's body has got out by one (a slide along the wall), but none is sure.
+    let (all, mut walled): (Vec<PocketExit>, Vec<PocketExit>) = all.iter().copied().partition(|exit| exit.reach == ExitReach::Takes);
+    walled.sort_by(|a, b| (a.across, a.rise).partial_cmp(&(b.across, b.rise)).unwrap_or(std::cmp::Ordering::Equal));
+    let all = all.as_slice();
     let mut sprint: Vec<PocketExit> = all
         .iter()
         .copied()
@@ -347,7 +355,7 @@ fn order(all: &[PocketExit], worked: Vec<PocketExit>) -> Vec<(PocketExit, u8)> {
         .into_iter()
         .take(SPRINT_EXITS)
         .map(|exit| (exit, SPRINT_TRIES));
-    for (exit, tries) in standing.chain(sprint) {
+    for (exit, tries) in standing.chain(sprint).chain(walled.into_iter().map(|exit| (exit, WALLED_TRIES))) {
         if !out.iter().any(|(e, _)| e.to == exit.to) {
             out.push((exit, tries));
         }
@@ -648,7 +656,26 @@ mod tests {
             rise,
             across,
             jump,
+            reach: ExitReach::Takes,
         }
+    }
+
+    /// [A347] An exit a body cannot take (walled, `ExitReach::Walled`) is tried after every other, sprint ones included, one try
+    /// each, the shortest first; with none else it is still tried (Chemical Plant day 2's ground-floor pocket: the body got out
+    /// by its walled 0.33 m exit).
+    #[test]
+    fn a_walled_exit_is_tried_last_once() {
+        let walled = |to, rise, across| PocketExit { reach: ExitReach::Walled, ..exit(to, ExitJump::Standing, rise, across) };
+        let tried: Vec<(NodeId, u8)> = order(
+            &[walled(5, 0.63, 1.0), walled(6, 0.33, 0.75), exit(1, ExitJump::Sprint, 1.1, 0.5), exit(3, ExitJump::Standing, 0.8, 0.9)],
+            Vec::new(),
+        )
+        .iter()
+        .map(|(e, n)| (e.to, *n))
+        .collect();
+        assert_eq!(tried, vec![(3, STANDING_TRIES), (1, SPRINT_TRIES), (6, WALLED_TRIES), (5, WALLED_TRIES)]);
+        let only: Vec<NodeId> = order(&[walled(5, 0.33, 1.0)], Vec::new()).iter().map(|(e, _)| e.to).collect();
+        assert_eq!(only, vec![5]);
     }
 
     /// A climb onto steep ground a step up is tried (level_06 day 4's
