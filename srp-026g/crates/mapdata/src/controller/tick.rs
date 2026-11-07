@@ -94,7 +94,7 @@ impl Settings {
 }
 
 /// One body's controller state (the fields of `bullet_character_controller` the walk tick reads and writes).
-#[derive(Clone, Copy, Debug)]
+#[derive(Clone, Copy, Debug, PartialEq)]
 pub struct Controller {
     /// The collision object's origin (+0xB0): the capsule's centre between steps.
     pub origin: Vec3,

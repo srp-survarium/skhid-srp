@@ -28,5 +28,6 @@
   "crack_bridges": true,
   "start_witness": true,
   "give_back_in_cell": false,
-  "wall_clear_pull": false
+  "wall_clear_pull": false,
+  "pull_walk": false
 }

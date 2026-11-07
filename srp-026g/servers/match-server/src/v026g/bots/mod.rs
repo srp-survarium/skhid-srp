@@ -942,10 +942,6 @@ pub struct Bots {
     /// spot (or works an area), and plays by a tuning of its own.
     #[cfg(test)]
     pub(crate) bench_camper: Option<tests::BenchCamper>,
-    /// [A318] The stand-in camper's own tactics, on a world built by his pinned grid (`tests::standin_aim::human_tuning`), when
-    /// the bench's arm builds its world otherwise: his routes are planned on it, so an arm's grid switch leaves him alone.
-    #[cfg(test)]
-    pub(crate) bench_human_tactics: Option<Tactics>,
     /// [A318] The route points of the stand-in camper [0] and of the bots [1], folded each decided tick (the bench's line).
     #[cfg(test)]
     pub(crate) bench_route_hash: [u64; 2],
@@ -1053,8 +1049,6 @@ impl Bots {
             opening_pass: false,
             #[cfg(test)]
             bench_camper: None,
-            #[cfg(test)]
-            bench_human_tactics: None,
             #[cfg(test)]
             bench_route_hash: [0; 2],
             layers: MapLayers::default(),
@@ -2284,11 +2278,19 @@ impl Bots {
         }
     }
 
+    /// [A334] The per-poll budgets a poll starts with: the pulled legs' client walks share [`path::PULL_WALK_TICKS_A_POLL`]
+    /// walk ticks (the worst poll's walk work is bounded). Called by [`Self::poll`] and by the bench's timed copy of it, so
+    /// the bench measures the server's budget.
+    pub(super) fn poll_budgets(&self) {
+        mapdata::grid::controlled::set_pull_walk_budget(path::PULL_WALK_TICKS_A_POLL);
+    }
+
     pub fn poll(&mut self, clock: Clock) -> (Vec<Made>, Vec<Note>) {
         #[cfg(test)]
         bench_work::set(bench_work::Who::Shared);
         view::set_live_eye(self.tunings.match_wide().aim.combat.live_eye);
         view::set_use_ray_m(self.tunings.match_wide().sense.use_ray_m);
+        self.poll_budgets();
         let (mut made, mut notes) = (Vec::new(), Vec::new());
         let now = clock.clock;
         let world = self.tactics.as_ref().map(|t| t.world.clone());
