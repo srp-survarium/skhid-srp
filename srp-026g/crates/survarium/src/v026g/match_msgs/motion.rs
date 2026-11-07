@@ -106,6 +106,21 @@ pub struct Damage {
     /// `m_health` of each body part (20 in every world seen); [LIKELY]
     /// part 0 is the body's, 1.0 unhurt.
     pub part_health: Vec<f32>,
+    /// [A325e] Each body part's record (`body_part_parameters::serialize` 0x32AE00, fx-review), in the order of `part_health`.
+    pub parts: Vec<BodyPart>,
+}
+
+/// [A325e] A body part's record (`body_part_parameters::serialize` 0x32AE00, fx-review A325e): `f32 health, u32 last_hit_time,
+/// u8 n + n x {u8 affect type, u32 end time}, u8 hits + hits x {u32 hit id, f32 damage}, f32 movement_speed_modifier`.
+#[derive(Clone, Debug, PartialEq)]
+pub struct BodyPart {
+    pub health: f32,
+    pub last_hit_time_ms: u32,
+    /// The part's affects: (type, end time). Type 4 = leg_damage, 3 = hand_damage (fx-review A325e, from 08681e02's legs and
+    /// hands after a hit).
+    pub affects: Vec<(u8, u32)>,
+    /// The part's own `movement_speed_modifier` term.
+    pub movement_speed_modifier: f32,
 }
 
 /// The controller block's length.
@@ -294,6 +309,7 @@ fn damage_model(s: &[u8], head: usize, inserted_at: usize, now: u32) -> Option<D
         }
         let mut at = start + 22;
         let mut parts = Vec::new();
+        let mut records = Vec::new();
         let ends = loop {
             // The usable-object flag: clear right before the time, or set
             // with its 32 bytes.
@@ -307,12 +323,20 @@ fn damage_model(s: &[u8], head: usize, inserted_at: usize, now: u32) -> Option<D
             if !(health.is_finite() && (0.0..=1000.0).contains(&health)) {
                 break false;
             }
+            // Read only within the bounds the walk checks, so a start that does not end the parts is left as before.
+            let record = at;
+            let last_hit_time_ms = u32_at(s, record + 4).unwrap_or(0);
             at += 9 + 5 * usize::from(s[at + 8]);
             if at >= inserted_at {
                 break false;
             }
+            let affects: Vec<(u8, u32)> = (0..usize::from(s[record + 8]))
+                .map(|k| (s[record + 9 + 5 * k], u32_at(s, record + 10 + 5 * k).unwrap_or(0)))
+                .collect();
             at += 1 + 8 * usize::from(s[at]) + 4;
+            let movement_speed_modifier = at.checked_sub(4).and_then(|m| f32_at(s, m)).unwrap_or(f32::NAN);
             parts.push(health);
+            records.push(BodyPart { health, last_hit_time_ms, affects, movement_speed_modifier });
         };
         if !ends || parts.is_empty() {
             continue;
@@ -325,6 +349,7 @@ fn damage_model(s: &[u8], head: usize, inserted_at: usize, now: u32) -> Option<D
             linear_horizontal_speed: f32_at(s, start + 1)?,
             last_hit_time_ms: u32_at(s, start + 6)?,
             part_health: parts,
+            parts: records,
         });
     }
     found
