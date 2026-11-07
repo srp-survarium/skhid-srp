@@ -620,8 +620,8 @@ struct LagSample {
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 enum Wanted {
     /// A world of the present: a report for its tick, and a world to start
-    /// others from.
-    Vote,
+    /// others from, asked for in a round (`refused_worlds`).
+    Vote(Round),
     /// A world to look at, no vote.
     Look(WrongWorld),
 }
@@ -685,7 +685,7 @@ mod refused_worlds;
 mod world_receipts;
 use input_safety::InputViolations;
 use refusal_log::RefusalLog;
-use refused_worlds::{Judged, Refusers, Removal, UploadStanding, Verdict};
+use refused_worlds::{Judged, Refusers, Removal, Round, UploadStanding, Verdict};
 use world_receipts::{Received, WorldReceipts};
 
 struct Peer {
@@ -1354,6 +1354,7 @@ impl Game {
             }
         }
         self.reset_catchup(index, true);
+        self.clear_refuser(index);
         log::info!(
             "Match {:#x}: player {index} (session {session_id:#x}) connected from {addr}",
             self.id
@@ -2384,7 +2385,7 @@ impl Game {
         );
         for (index, at) in plan {
             if let Some(peer) = self.peers[index].as_mut() {
-                peer.ask_at = Some((at, Wanted::Vote));
+                peer.ask_at = Some((at, Wanted::Vote(Round::at(now))));
             }
         }
         self.requested_at = Some(now);
@@ -2607,7 +2608,7 @@ impl Game {
                     peer.split_at = Some(time);
                     (at, Wanted::Look(WrongWorld::Split))
                 } else {
-                    (at, Wanted::Vote)
+                    (at, Wanted::Vote(Round::at(now)))
                 });
             }
         }
@@ -3990,16 +3991,10 @@ impl Game {
         // and the next request goes to another game first (`sources`).
         // An initial world, and one asked for as a world others may start
         // from, count for its game's standing and for the games that wait.
-        let judged = if initial {
-            Some(Judged::Initial)
-        } else if !joiner
-            && peer
-                .asked
-                .is_some_and(|asked| asked.wanted == Wanted::Vote)
-        {
-            Some(Judged::Asked)
-        } else {
-            None
+        let judged = match peer.asked.map(|asked| asked.wanted) {
+            _ if initial => Some(Judged::Initial),
+            Some(Wanted::Vote(round)) if !joiner => Some(Judged::Asked(round)),
+            _ => None,
         };
         let roster = super::world_validation::Roster::of(&self.formed);
         if let Err(refusal) =
@@ -4049,7 +4044,7 @@ impl Game {
         if !initial
             && let Some(Asked {
                 clock,
-                wanted: Wanted::Vote,
+                wanted: Wanted::Vote(_),
                 ..
             }) = asked
         {
@@ -4084,8 +4079,8 @@ impl Game {
             snapshot,
             since: now,
         });
-        if judged == Some(Judged::Asked) {
-            self.judge_upload(index, Judged::Asked, Verdict::Passed, time, now);
+        if let Some(judged @ Judged::Asked(_)) = judged {
+            self.judge_upload(index, judged, Verdict::Passed, time, now);
         }
     }
 
@@ -5389,6 +5384,7 @@ impl Game {
         let timing = self.settings.timing.clone();
         self.check_candidates(now);
         self.check_hashes(now);
+        self.settle_open_refusals(now);
         self.check_hash_phases(now);
         self.log_pings(clock);
         self.log_discards(now);

@@ -28,15 +28,27 @@ use super::*;
 /// and as many again after that before it is removed.
 pub(super) const REFUSED_IN_A_ROW: u8 = 3;
 
+/// One round of requests for worlds of the present (0xF6 for a vote): the
+/// moment it was asked for. The games asked in one round upload the same
+/// present.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(super) struct Round(Instant);
+
+impl Round {
+    pub(super) fn at(now: Instant) -> Self {
+        Self(now)
+    }
+}
+
 /// Which of a game's uploads is judged for its standing: its initial world
 /// (a game sends one as it loads, on every join), or one asked for as a
-/// world of the present (0xF6 for a vote: a world others may start from).
-/// A world asked for only to look at (its own, out of step, or a newcomer's)
-/// is none: nobody starts from it.
+/// world of the present in a round (0xF6 for a vote: a world others may
+/// start from). A world asked for only to look at (its own, out of step, or
+/// a newcomer's) is none: nobody starts from it.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(super) enum Judged {
     Initial,
-    Asked,
+    Asked(Round),
 }
 
 /// The world check's verdict on an upload.
@@ -46,20 +58,66 @@ pub(super) enum Verdict {
     Refused,
 }
 
+/// A refused upload asked for, not yet known to be its game's own fault
+/// or the world every game has: its round and its tick.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(super) struct Open {
+    round: Round,
+    tick: u32,
+}
+
+/// Whose a refused upload asked for is. Only its game's own fault counts
+/// for its standing: a world every game has (rev50, 2026-11-06: a server
+/// bot NaN in every game's simulation, 174 uploads over 185 s refused,
+/// the games' hashes agreeing) is refused and relayed to nobody, and no
+/// game is resynced or removed for it.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(super) enum Blame {
+    /// Another game's upload of its round passed, or its game's hash for
+    /// its tick disagrees with the majority's.
+    Own,
+    /// Neither yet: decided by another upload of its round passing (its
+    /// own), or by its tick's hashes being judged (`settle_open_refusals`).
+    Open(Open),
+}
+
 /// How a game's uploads stand with the world check.
-#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(super) enum UploadStanding {
-    /// Its last judged upload passed, or it gave none yet.
-    #[default]
-    Passing,
+    /// Its last judged upload passed (`round`: an asked one, in it), or it
+    /// gave none yet.
+    Passing { round: Option<Round> },
     /// Its initial world was refused. A game sends no other: it can no
     /// longer give the match its first world.
     InitialRefused,
-    /// So many of its uploads asked for were refused since its last that
-    /// passed, fewer than [`REFUSED_IN_A_ROW`].
-    Refused { in_a_row: u8 },
-    /// Resynced for [`REFUSED_IN_A_ROW`] of them; so many refused since.
-    Resynced { in_a_row: u8 },
+    /// Its last judged upload was refused. Of those refused since its last
+    /// that passed, `faults` were its own (fewer than [`REFUSED_IN_A_ROW`]);
+    /// `open`, its last, is not decided yet.
+    Refused { faults: u8, open: Option<Open> },
+    /// Resynced for [`REFUSED_IN_A_ROW`] of its own; so many since.
+    Resynced { faults: u8, open: Option<Open> },
+}
+
+impl Default for UploadStanding {
+    fn default() -> Self {
+        Self::Passing { round: None }
+    }
+}
+
+/// What happens to a game's standing.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(super) enum Event {
+    /// A judged upload of it passed.
+    Passed(Judged),
+    /// Its initial world was refused.
+    InitialRefused,
+    /// An upload of it asked for was refused.
+    Refused(Blame),
+    /// Its open refusal was found its own fault.
+    OpenOwn,
+    /// Its open refusal's tick was judged, nothing of it its own: the world
+    /// every game has.
+    OpenShared,
 }
 
 /// What becomes of the game for its upload's verdict.
@@ -72,40 +130,115 @@ pub(super) enum Then {
 }
 
 impl UploadStanding {
-    /// The standing after a judged upload, and what becomes of its game.
-    pub(super) fn judged(self, upload: Judged, verdict: Verdict) -> (Self, Then) {
-        match (verdict, upload, self) {
-            (Verdict::Passed, _, _) => (Self::Passing, Then::Nothing),
-            (Verdict::Refused, Judged::Initial, _) => (Self::InitialRefused, Then::Nothing),
-            (Verdict::Refused, Judged::Asked, Self::Passing | Self::InitialRefused) => {
-                Self::refused_after(0)
+    /// The standing after an event, and what becomes of its game.
+    pub(super) fn next(self, event: Event) -> (Self, Then) {
+        use UploadStanding::{InitialRefused, Passing, Refused, Resynced};
+        match (event, self) {
+            (Event::Passed(Judged::Initial), _) => (Passing { round: None }, Then::Nothing),
+            (Event::Passed(Judged::Asked(round)), _) => {
+                (Passing { round: Some(round) }, Then::Nothing)
             }
-            (Verdict::Refused, Judged::Asked, Self::Refused { in_a_row }) => {
-                Self::refused_after(in_a_row)
+            (Event::InitialRefused, _) => (InitialRefused, Then::Nothing),
+            (Event::Refused(blame), Passing { .. } | InitialRefused) => Refused {
+                faults: 0,
+                open: None,
             }
-            (Verdict::Refused, Judged::Asked, Self::Resynced { in_a_row }) => {
-                let in_a_row = in_a_row + 1;
-                let then = if in_a_row >= REFUSED_IN_A_ROW {
-                    Then::Remove
-                } else {
-                    Then::Nothing
-                };
-                (Self::Resynced { in_a_row }, then)
+            .refused(blame),
+            (Event::Refused(blame), Refused { .. } | Resynced { .. }) => self.refused(blame),
+            (
+                Event::OpenOwn,
+                Refused {
+                    faults,
+                    open: Some(_),
+                },
+            ) => Self::own_fault(faults),
+            (
+                Event::OpenOwn,
+                Resynced {
+                    faults,
+                    open: Some(_),
+                },
+            ) => Self::own_fault_resynced(faults),
+            (Event::OpenShared, Refused { faults, .. }) => {
+                (Refused { faults, open: None }, Then::Nothing)
             }
+            (Event::OpenShared, Resynced { faults, .. }) => {
+                (Resynced { faults, open: None }, Then::Nothing)
+            }
+            (
+                Event::OpenOwn | Event::OpenShared,
+                Passing { .. }
+                | InitialRefused
+                | Refused { open: None, .. }
+                | Resynced { open: None, .. },
+            ) => (self, Then::Nothing),
         }
     }
 
-    fn refused_after(in_a_row: u8) -> (Self, Then) {
-        let in_a_row = in_a_row + 1;
-        if in_a_row >= REFUSED_IN_A_ROW {
-            (Self::Resynced { in_a_row: 0 }, Then::Resync)
-        } else {
-            (Self::Refused { in_a_row }, Then::Nothing)
+    /// A refusal in `Refused` or `Resynced`: counted if its own, else kept
+    /// open (an older open one is let go: its round is over).
+    fn refused(self, blame: Blame) -> (Self, Then) {
+        match (self, blame) {
+            (Self::Refused { faults, .. }, Blame::Own) => Self::own_fault(faults),
+            (Self::Resynced { faults, .. }, Blame::Own) => Self::own_fault_resynced(faults),
+            (Self::Refused { faults, .. }, Blame::Open(open)) => (
+                Self::Refused {
+                    faults,
+                    open: Some(open),
+                },
+                Then::Nothing,
+            ),
+            (Self::Resynced { faults, .. }, Blame::Open(open)) => (
+                Self::Resynced {
+                    faults,
+                    open: Some(open),
+                },
+                Then::Nothing,
+            ),
+            (Self::Passing { .. } | Self::InitialRefused, _) => (self, Then::Nothing),
         }
+    }
+
+    fn own_fault(faults: u8) -> (Self, Then) {
+        let faults = faults + 1;
+        if faults >= REFUSED_IN_A_ROW {
+            (
+                Self::Resynced {
+                    faults: 0,
+                    open: None,
+                },
+                Then::Resync,
+            )
+        } else {
+            (Self::Refused { faults, open: None }, Then::Nothing)
+        }
+    }
+
+    fn own_fault_resynced(faults: u8) -> (Self, Then) {
+        let faults = faults + 1;
+        let then = if faults >= REFUSED_IN_A_ROW {
+            Then::Remove
+        } else {
+            Then::Nothing
+        };
+        (Self::Resynced { faults, open: None }, then)
     }
 
     pub(super) fn passing(self) -> bool {
-        self == Self::Passing
+        matches!(self, Self::Passing { .. })
+    }
+
+    /// Its last judged upload passed, an asked one in `round`.
+    fn passed_in(self, round: Round) -> bool {
+        self == Self::Passing { round: Some(round) }
+    }
+
+    /// Its refusal not decided yet.
+    fn open(self) -> Option<Open> {
+        match self {
+            Self::Refused { open, .. } | Self::Resynced { open, .. } => open,
+            Self::Passing { .. } | Self::InitialRefused => None,
+        }
     }
 }
 
@@ -138,6 +271,18 @@ impl Refusers {
                 .iter()
                 .all(|&place| Self::bit(place) != 0 && self.0 & Self::bit(place) != 0)
     }
+}
+
+/// What a human place is to the match's first world, before it has one.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum FirstWorld {
+    /// Its game gave one, and the check refused it.
+    Refused,
+    /// Its game may still give one.
+    MayGive,
+    /// It cannot: given up, or its game not there (or loaded with none)
+    /// past the server's bound for games that do not come.
+    Cannot,
 }
 
 /// Why the match server takes a game out of its match ([`Game::remove`]).
@@ -229,15 +374,110 @@ impl Game {
                 };
             }
         }
+        let Some(peer) = self.peers[index].as_ref() else {
+            return;
+        };
+        let event = match (verdict, upload) {
+            (Verdict::Passed, upload) => Event::Passed(upload),
+            (Verdict::Refused, Judged::Initial) => Event::InitialRefused,
+            (Verdict::Refused, Judged::Asked(round)) => {
+                let another_passed = (0..self.peers.len()).any(|other| {
+                    other != index
+                        && self.peers[other]
+                            .as_ref()
+                            .is_some_and(|other| other.upload_standing.passed_in(round))
+                });
+                Event::Refused(if another_passed || self.hash_disagrees(index, time) {
+                    Blame::Own
+                } else {
+                    Blame::Open(Open { round, tick: time })
+                })
+            }
+        };
+        let standing = peer.upload_standing;
+        self.standing_event(index, standing, event, now);
+        // An upload of the round passed: the others' refused in it were
+        // their own.
+        if let (Verdict::Passed, Judged::Asked(round)) = (verdict, upload) {
+            for other in 0..self.peers.len() {
+                if let Some(standing) = self.peers[other].as_ref().map(|peer| peer.upload_standing)
+                    && standing.open().is_some_and(|open| open.round == round)
+                {
+                    self.standing_event(other, standing, Event::OpenOwn, now);
+                }
+            }
+        }
+    }
+
+    /// The game at `index`'s standing `standing` meets `event`: its new
+    /// standing, and what that brings.
+    fn standing_event(
+        &mut self,
+        index: usize,
+        standing: UploadStanding,
+        event: Event,
+        now: Instant,
+    ) {
+        let (standing, then) = standing.next(event);
         let Some(peer) = self.peers[index].as_mut() else {
             return;
         };
-        let (standing, then) = peer.upload_standing.judged(upload, verdict);
         peer.upload_standing = standing;
         match then {
             Then::Nothing => {}
             Then::Resync => self.resync_refused(index, now),
             Then::Remove => self.remove(index, Removal::UploadsRefused, now),
+        }
+    }
+
+    /// The game at `index` reported a hash for the tick at `time` that the
+    /// majority's is not: its simulation is out of step there.
+    fn hash_disagrees(&self, index: usize, time: u32) -> bool {
+        let reported = self
+            .hashes
+            .get(&time)
+            .and_then(|reports| reports.get(&index).copied());
+        reported.is_some_and(|crc| self.majority(time).is_some_and(|majority| majority != crc))
+    }
+
+    /// The open refusals whose ticks' hashes have been judged
+    /// (`check_hashes`) are decided: its game's own fault if its hash for
+    /// the tick disagreed with the majority's, else the world every game
+    /// has, which counts for nobody.
+    pub(super) fn settle_open_refusals(&mut self, now: Instant) {
+        for index in 0..self.peers.len() {
+            let Some(standing) = self.peers[index].as_ref().map(|peer| peer.upload_standing) else {
+                continue;
+            };
+            let Some(open) = standing
+                .open()
+                .filter(|open| open.tick < self.hashes_checked_until)
+            else {
+                continue;
+            };
+            let event = if self.hash_disagrees(index, open.tick) {
+                Event::OpenOwn
+            } else {
+                log::info!(
+                    "Match {:#x}: player {index}'s upload at {} ms was refused, but no game's \
+                     passed in its round and its hash agrees with the others': the world \
+                     every game has; it counts against nobody",
+                    self.id,
+                    open.tick
+                );
+                Event::OpenShared
+            };
+            self.standing_event(index, standing, event, now);
+        }
+    }
+
+    /// The game of place `index` is new (`attach`): what its place's last
+    /// game uploaded no longer stands against it for the games that wait.
+    pub(super) fn clear_refuser(&mut self, index: usize) {
+        for peer in self.peers.iter_mut().flatten() {
+            if let Stage::WaitingSnapshot { refused, .. } = &mut peer.stage {
+                *refused = refused.without(index);
+            }
         }
     }
 
@@ -281,34 +521,49 @@ impl Game {
         })
     }
 
-    /// The match has no world yet, and no game can give it its first one:
-    /// an initial world was refused, and every other human place's game
-    /// either gave one refused too, has gone, was given up, or is a stock
-    /// game (loaded with no upload). A place whose game has not connected
-    /// may still come with one.
-    fn initial_worlds_refused(&self) -> bool {
-        let mut refused = false;
-        for index in 0..self.players() {
-            if self.is_bot(index) || self.given_up.get(index).copied().unwrap_or(false) {
-                continue;
-            }
-            let Some(peer) = self.peers[index].as_ref() else {
-                return false;
-            };
-            if peer.upload_standing == UploadStanding::InitialRefused {
-                refused = true;
-            } else if peer.stage != Stage::Gone && (peer.patched || !peer.resources_loaded) {
-                return false;
-            }
+    /// What the human place at `index` is to the match's first world,
+    /// before the match has one. A game of it that is not loading (none
+    /// connected, gone, or loaded with no world yet: an honest game's
+    /// 0xDA can come before its first chunk, a chunk can be lost) may
+    /// still give one until the server's bound for games that do not come
+    /// (`Timing::unstarted`, from the match's first connection) has passed.
+    fn first_world_of(&self, index: usize, now: Instant) -> FirstWorld {
+        if self.given_up.get(index).copied().unwrap_or(false) {
+            return FirstWorld::Cannot;
         }
-        refused
+        let peer = self.peers[index].as_ref();
+        if peer.is_some_and(|peer| peer.upload_standing == UploadStanding::InitialRefused) {
+            return FirstWorld::Refused;
+        }
+        let loading = peer.is_some_and(|peer| peer.stage != Stage::Gone && !peer.resources_loaded);
+        let waited = now.saturating_duration_since(self.created) >= self.settings.timing.unstarted;
+        if loading || !waited {
+            FirstWorld::MayGive
+        } else {
+            FirstWorld::Cannot
+        }
+    }
+
+    /// The match has no world yet, and no game can give it its first one:
+    /// an initial world was refused, and every other human place gave one
+    /// refused too or cannot give one ([`Self::first_world_of`]). The
+    /// server's own bots never give one.
+    fn initial_worlds_refused(&self, now: Instant) -> bool {
+        let places: Vec<FirstWorld> = (0..self.players())
+            .filter(|&index| !self.is_bot(index))
+            .map(|index| self.first_world_of(index, now))
+            .collect();
+        places.contains(&FirstWorld::Refused) && !places.contains(&FirstWorld::MayGive)
     }
 
     /// A match no game can give its first world is not made: its players
     /// are told the end (0xEA of their own place, `finish`), nothing of it
     /// counts, and a room votes and waits again.
     pub(super) fn check_initial_worlds(&mut self, now: Instant) {
-        if self.snapshot.is_some() || self.finished_at.is_some() || !self.initial_worlds_refused() {
+        if self.snapshot.is_some()
+            || self.finished_at.is_some()
+            || !self.initial_worlds_refused(now)
+        {
             return;
         }
         log::warn!(
@@ -338,36 +593,101 @@ impl Game {
 mod tests {
     use super::*;
 
-    /// Refused in a row: resynced at the third, removed at the third after
-    /// that; one that passes clears the count; a refused initial world
-    /// counts apart.
-    #[test]
-    fn uploads_refused_in_a_row_resync_then_remove_their_game() {
-        let mut standing = UploadStanding::default();
+    fn round() -> Round {
+        Round::at(Instant::now())
+    }
+
+    fn open() -> Blame {
+        Blame::Open(Open {
+            round: round(),
+            tick: 1_000,
+        })
+    }
+
+    fn run(mut standing: UploadStanding, events: &[Event]) -> (UploadStanding, Vec<Then>) {
         let mut thens = Vec::new();
-        for _ in 0..2 * REFUSED_IN_A_ROW {
-            let (next, then) = standing.judged(Judged::Asked, Verdict::Refused);
+        for event in events {
+            let (next, then) = standing.next(*event);
             standing = next;
             thens.push(then);
         }
+        (standing, thens)
+    }
+
+    /// Its own refusals in a row: resynced at the third, removed at the
+    /// third after that, whether each was known its own at once or found
+    /// so later; one that passes clears the count; a refused initial world
+    /// counts apart.
+    #[test]
+    fn own_refusals_in_a_row_resync_then_remove_their_game() {
+        let own = Event::Refused(Blame::Own);
+        let (_, thens) = run(
+            UploadStanding::default(),
+            &[own; 2 * REFUSED_IN_A_ROW as usize],
+        );
         let mut expected = vec![Then::Nothing; 2 * usize::from(REFUSED_IN_A_ROW)];
         expected[usize::from(REFUSED_IN_A_ROW) - 1] = Then::Resync;
         expected[2 * usize::from(REFUSED_IN_A_ROW) - 1] = Then::Remove;
         assert_eq!(thens, expected);
 
-        let (standing, _) =
-            UploadStanding::Refused { in_a_row: 2 }.judged(Judged::Asked, Verdict::Passed);
-        assert_eq!(standing, UploadStanding::Passing);
-        let (standing, then) = standing.judged(Judged::Initial, Verdict::Refused);
+        let found_own = [Event::Refused(open()), Event::OpenOwn];
+        let events: Vec<Event> = found_own.repeat(usize::from(REFUSED_IN_A_ROW));
+        let (standing, thens) = run(UploadStanding::default(), &events);
+        assert_eq!(thens.last(), Some(&Then::Resync));
+        assert_eq!(
+            standing,
+            UploadStanding::Resynced {
+                faults: 0,
+                open: None
+            }
+        );
+
+        let (standing, _) = run(
+            UploadStanding::Refused {
+                faults: 2,
+                open: None,
+            },
+            &[Event::Passed(Judged::Asked(round()))],
+        );
+        assert!(standing.passing());
+        let (standing, then) = standing.next(Event::InitialRefused);
         assert_eq!(
             (standing, then),
             (UploadStanding::InitialRefused, Then::Nothing)
         );
-        let (standing, then) = standing.judged(Judged::Asked, Verdict::Refused);
+        let (standing, then) = standing.next(Event::Refused(Blame::Own));
         assert_eq!(
             (standing, then),
-            (UploadStanding::Refused { in_a_row: 1 }, Then::Nothing)
+            (
+                UploadStanding::Refused {
+                    faults: 1,
+                    open: None
+                },
+                Then::Nothing
+            )
         );
+    }
+
+    /// Refusals never found its own (the world every game has: no other
+    /// game's passed in their round, its hashes agreeing) count for
+    /// nothing, however many; yet its last judged upload is refused, so it
+    /// is no source a joiner could take a world from.
+    #[test]
+    fn refusals_of_the_world_every_game_has_count_for_nobody() {
+        let shared = [Event::Refused(open()), Event::OpenShared];
+        let (standing, thens) = run(UploadStanding::default(), &shared.repeat(100));
+        assert!(thens.iter().all(|then| *then == Then::Nothing));
+        assert_eq!(
+            standing,
+            UploadStanding::Refused {
+                faults: 0,
+                open: None
+            }
+        );
+        assert!(!standing.passing());
+        // Decided once: a second verdict on it is nothing.
+        let (after, then) = standing.next(Event::OpenOwn);
+        assert_eq!((after, then), (standing, Then::Nothing));
     }
 
     #[test]
