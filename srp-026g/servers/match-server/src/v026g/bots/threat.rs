@@ -1091,7 +1091,7 @@ impl Spot {
         let mut out = [None; 3];
         if let SpotSource::Kills { kills, .. } = &self.source {
             let mut latest: Vec<LaneKill> = kills.iter().map(|k| LaneKill { time: k.time, from: k.from }).collect();
-            latest.sort_unstable_by(|a, b| b.time.cmp(&a.time));
+            latest.sort_unstable_by_key(|k| std::cmp::Reverse(k.time));
             for (slot, k) in out.iter_mut().zip(latest) {
                 *slot = Some(k);
             }
@@ -2544,7 +2544,7 @@ impl ThreatSpots {
                     .filter(|(p, k)| *p == shooter && k.time <= now && now - k.time <= within_ms)
                     .map(|(_, k)| k)
                     .collect();
-                kills.sort_unstable_by(|a, b| b.time.cmp(&a.time));
+                kills.sort_unstable_by_key(|k| std::cmp::Reverse(k.time));
                 let at = kills.first()?.from;
                 kills.retain(|k| (k.from - at).length() <= one_place_m);
                 if kills.len() < min_kills {
