@@ -201,7 +201,9 @@ pub struct GridTuning {
     /// (`mapdata::WalkGrid::with_pull_hold`): a leg pulled past a wall's corner or along a wall keeps to the cells the search
     /// took. Off: the pull's line may graze a wall at the grid's 0.3175 m and cut corners there, where the client's body stops
     /// (A333: of the 278 stuck notes with the client-tick stand-in, 51 hard stops on pulled legs over several cells). Not a
-    /// build input: the grids and their key are the same either way. OFF until its nav and harm gates.
+    /// build input: the grids and their key are the same either way. OFF: harm-batch2 on the client-true stand-in (c7a6d66d)
+    /// stuck 207 -> 194 and stuck s 2,111 -> 1,994, failed jumps 85 -> 67, but routes stuck 260 -> 326 and missed jumps 37 ->
+    /// 62; nav-quick2-v6 the same (the lab replays clients, no routes).
     pub wall_clear_pull: bool,
 }
 
