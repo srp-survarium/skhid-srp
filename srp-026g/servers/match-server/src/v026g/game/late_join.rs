@@ -207,6 +207,7 @@ impl Game {
             self.admissions.push(Some(Admission::new(now)));
         }
         let before = self.players();
+        super::log_unread_kits(&formed, before);
         self.formed = formed;
         let note = serde_json::json!({ "note": "places", "places": self.places_note(before) });
         self.record_note(note, now);

@@ -110,7 +110,10 @@ pub mod bots;
 /// server's own bot places' (`MatchPlayer::driven`).
 pub mod drive;
 mod game;
-mod world_validation;
+/// Every upload checked before it is relayed; callable offline too.
+pub mod world_validation;
+/// Recorded and dumped worlds checked as uploads are (`srp-world-check`).
+pub mod world_check;
 /// A player's kills of one enemy pay at most 10 times a match.
 mod kill_cap;
 /// Match recordings (`SRP_RECORD_DIR`) and their reader.
