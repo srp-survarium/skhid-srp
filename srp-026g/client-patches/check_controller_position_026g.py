@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Patch 117 (controller_position): a character controller's step never
+"""Patch 118 (controller_position): a character controller's step never
 leaves its position non-finite (../docs/notes/client_patch.md section 3.71).
 
     python check_controller_position_026g.py <original survarium.exe>

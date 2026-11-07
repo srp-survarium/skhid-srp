@@ -299,7 +299,7 @@ revision-50 match, 175,872 worlds):
   NaN (a server bot, just after it stood up from a crouch); its speed, its last position, its
   bullets' origin and some animation floats followed (ticket T117). Revision-50 games
   wrote those worlds, and the parser took the three fields as any f32 while they played.
-  Exe patch 117 keeps the position finite, so these are refused again: every float a
+  Exe patch 118 keeps the position finite, so these are refused again: every float a
   number, every animation floats index below its table's count.
 - **A bullet whose shooter has left.** Allowed with the rule above.
 
