@@ -369,4 +369,10 @@ unsafe extern "C" {
     pub static engine_tick_count: unsafe extern "stdcall" fn() -> u32;
     /// the IAT slot 0x87029c (an import, stdcall): unsigned int engine_set_environment_variable_a(const char *name, const char *value)
     pub static engine_set_environment_variable_a: unsafe extern "stdcall" fn(*const u8, *const u8) -> u32;
+    /// the IAT slot 0x870244 (an import, stdcall): void engine_get_system_time_as_file_time(unsigned int *file_time)
+    pub static engine_get_system_time_as_file_time: unsafe extern "stdcall" fn(*mut u32);
+    /// the IAT slot 0x870230 (an import, stdcall): unsigned int engine_file_time_to_local_file_time(const unsigned int *file_time, unsigned int *local)
+    pub static engine_file_time_to_local_file_time: unsafe extern "stdcall" fn(*const u32, *mut u32) -> u32;
+    /// the IAT slot 0x87022c (an import, stdcall): unsigned int engine_file_time_to_system_time(const unsigned int *file_time, unsigned int *system_time)
+    pub static engine_file_time_to_system_time: unsafe extern "stdcall" fn(*const u32, *mut u32) -> u32;
 }

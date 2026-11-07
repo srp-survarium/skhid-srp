@@ -77,23 +77,24 @@ COLOR = sys.stdout.isatty() and not os.environ.get("NO_COLOR")
 
 DEFAULT_DATA ="/var/lib/docker/volumes/srp26_srp26-data/_data"
 
-# The words the login server turns into one of the game's ban messages
-# (BAN_REASONS in srp-026g/servers/login-server/src/v026g.rs). A reason with
-# none of them shows the game's default, "Impersonating a game administrator".
+# The words the login server takes a ban's reason by (BAN_WORDS in
+# srp-026g/servers/login-server/src/v026g.rs), with the text the player sees
+# (st_srp_ban_reason_*, English). The first row with a word wins; none: the
+# default, "Decision of the administration."
 BAN_WORDS = [
-    ("cheating", ["cheat", "hack", "aimbot", "wallhack", "exploit"]),
-    ("teamkilling", ["teamkill", "team kill", "team-kill"]),
-    ("account trading", ["trading", "account sale", "selling"]),
-    ("real-life threats", ["threat", "treating", "real life", "reallife"]),
-    ("discussing admins", ["discuss"]),
-    ("incorrect information", ["incorrect", "false info", "misinform"]),
-    ("fascism", ["fascism", "faschism", "nazi"]),
-    ("politics", ["politic"]),
-    ("advertising", ["advert"]),
-    ("flood", ["flood", "spam"]),
-    ("nickname", ["nickname", "nick name", "user name", "username"]),
-    ("insult", ["insult", "abus", "harass"]),
-    ("bad language", ["language", "swear", "profan", "obscen"]),
+    ("Harassing or team-killing players who don't farm.", ["farm"]),
+    ("Cheats or other prohibited software.", ["cheat", "hack", "aimbot", "wallhack", "exploit"]),
+    ("Killing teammates.", ["teamkill", "team kill", "team-kill"]),
+    ("Selling or trying to sell an account.", ["trading", "account sale", "selling"]),
+    ("Real-life threats.", ["threat", "treating", "real life", "reallife"]),
+    ("Spreading false information.", ["incorrect", "false info", "misinform"]),
+    ("Racism or Nazism.", ["racism", "fascism", "faschism", "nazi"]),
+    ("Political discussion.", ["politic"]),
+    ("Advertising.", ["advert"]),
+    ("Spam or flooding.", ["flood", "spam"]),
+    ("An unacceptable name.", ["nickname", "nick name", "user name", "username"]),
+    ("Insults or provocation.", ["insult", "abus", "harass"]),
+    ("Obscene language.", ["language", "swear", "profan", "obscen"]),
 ]
 
 
@@ -634,8 +635,8 @@ def ban(args):
             "Reword it, or --tell to send it so." % told[0]
         )
     print(
-        "moderate: the player sees the game's ban text%s" % (
-            ': "%s"' % told[0] if told else ' with its default reason, "Impersonating a game administrator"'),
+        'moderate: the player sees "You are banned. %s" and when it ends' % (
+            told[0] if told else "Decision of the administration."),
         file=sys.stderr,
     )
     fields = [("tab", "ban"), ("ban_user", account_or_address(args.target)), ("hours", hours), ("reason", args.reason)]

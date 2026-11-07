@@ -174,3 +174,6 @@ engine_tick_count	0x8701b8	-	unsigned int engine_tick_count(void)	import
 engine_set_environment_variable_a	0x87029c	-	unsigned int engine_set_environment_variable_a(const char *name, const char *value)	import	
 engine_show_scene_movie	0x23dc00	EAX:scene ESI:movie	void engine_show_scene_movie(struct game_world *scene, struct movie_slot *movie)	thunk	
 engine_hide_scene_movie	0x23dc70	EAX:movie EDX:scene	void engine_hide_scene_movie(struct movie_slot *movie, struct game_world *scene)	thunk	
+engine_get_system_time_as_file_time	0x870244	-	void engine_get_system_time_as_file_time(unsigned int *file_time)	import	
+engine_file_time_to_local_file_time	0x870230	-	unsigned int engine_file_time_to_local_file_time(const unsigned int *file_time, unsigned int *local)	import	
+engine_file_time_to_system_time	0x87022c	-	unsigned int engine_file_time_to_system_time(const unsigned int *file_time, unsigned int *system_time)	import	

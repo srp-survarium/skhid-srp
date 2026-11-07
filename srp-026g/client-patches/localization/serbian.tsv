@@ -2191,6 +2191,20 @@ st_srp_ammo_scar_ap_name	7,62x51 AP SCAR-H, 20 metaka
 st_srp_ammo_slug	Kugla
 st_srp_ammo_stats	Osobine municije
 st_srp_attachments	Dodaci
+st_srp_ban_reason_account_trading	Prodaja ili pokušaj prodaje naloga.
+st_srp_ban_reason_administration	Odluka administracije.
+st_srp_ban_reason_advertising	Reklamiranje.
+st_srp_ban_reason_bad_language	Vulgaran jezik.
+st_srp_ban_reason_cheating	Čitovi ili drugi zabranjeni softver.
+st_srp_ban_reason_false_information	Širenje lažnih informacija.
+st_srp_ban_reason_farm_pressure	Maltretiranje ili ubijanje saveznika koji ne farmaju.
+st_srp_ban_reason_flood	Spam ili flood.
+st_srp_ban_reason_insults	Uvrede ili provokacije.
+st_srp_ban_reason_nickname	Nedozvoljeno ime.
+st_srp_ban_reason_politics	Rasprave o politici.
+st_srp_ban_reason_racism	Rasizam ili nacizam.
+st_srp_ban_reason_teamkilling	Ubijanje saveznika.
+st_srp_ban_reason_threats	Pretnje u stvarnom životu.
 st_srp_crosshair_dynamic	Dinamični nišan
 st_srp_crosshair_hidden	Skriven nišan
 st_srp_crosshair_static	Statični nišan
@@ -2511,6 +2525,8 @@ st_srp_lobby_hangar	Hangar
 st_srp_lobby_room	Soba
 st_srp_lobby_title	Lobi
 st_srp_login_account_hint	Nalog se pravi pri prvoj prijavi
+st_srp_login_ban_ends	Ističe u %1$s (za %2$s).
+st_srp_login_ban_forever	Zabrana je trajna.
 st_srp_map_chemical_plant	Hemijska fabrika
 st_srp_map_chemical_plant_v011	Hemijska fabrika (v0.11)
 st_srp_map_cologne	Keln
@@ -2755,8 +2771,11 @@ st_srp_skills	Veštine
 st_srp_speed_label	Brzina
 st_srp_speed_title	Brzina kretanja: %1$s
 st_srp_static_minimap_option	Statična mini-mapa
+st_srp_unit_days	%1$s d
+st_srp_unit_hours	%1$s h
 st_srp_unit_kg	%1$s kg
 st_srp_unit_meters	%1$sm
+st_srp_unit_minutes	%1$s min
 st_srp_unit_mps	%1$s m/s
 st_srp_unit_percent	%1$s%
 st_srp_unit_seconds	%1$ss

@@ -19,6 +19,7 @@ given), LIKELY or GUESS.
 | Note | Covers |
 |---|---|
 | [login_chat.md](login_chat.md) | Command line, login over TLS, the browser server (removed), presence, chat transport and layouts |
+| [player-to-player.md](player-to-player.md) | **Everything players' games send each other** (inputs, pickups, kit choices, worlds, lobby text), with examples, and how the server and each game check it |
 | [lobby.md](lobby.md) | Lobby transport, every server→client message, **crash hazards and the safe push order** (§3) |
 | [lobby_requests.md](lobby_requests.md) | Every client→server lobby request and the reply it expects |
 | [social.md](social.md) | Chat channels, friends, squads, clans, online stats |

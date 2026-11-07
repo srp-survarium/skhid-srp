@@ -2279,6 +2279,12 @@ va	name	location	role	basis
 0x0021e260	survarium::lobby_menu::demo_play	ECX	lobby receiver	inferred
 0x0021e260	survarium::lobby_menu::demo_play	stack+4	requested track name	inferred
 0x0021e450	survarium::lobby_menu::query_resources	EAX	the lobby menu	observed
+0x0021eea0	survarium::login_menu::set_status	EAX	the status (0Ch..19h the bans: the login answer code - 6), kept at menu+0F4h (0x21EEB0)	observed
+0x0021eea0	survarium::login_menu::set_status	ESP+4	the login menu (0x21EEAD)	observed
+0x0021f310	survarium::login_menu::append_ban_reason	EAX	the status text {begin, cursor, end}: st_login_menu_status_user_banned then the reason are copied at the cursor, the zero after (0x21F326..0x21F3BB)	observed
+0x0021f310	survarium::login_menu::append_ban_reason	ESP+4	the login menu (its game +9Ch, translator +52A8h)	observed
+0x0021f310	survarium::login_menu::append_ban_reason	ESP+8	the reason key, st_ban_reason_*	observed
+0x0021f310	survarium::login_menu::append_ban_reason	ESP+12	a byte's address, written 0 (0x21F3BF): set_status's button flag	observed
 0x0021f3d0	survarium::login_menu::enable_button	EDX	login menu receiver	inferred
 0x0021f3d0	survarium::login_menu::enable_button	AL	enabled Boolean	inferred
 0x0021f430	survarium::login_menu::update_online_queue	EAX	current timestamp; zero bypasses interval gate	inferred

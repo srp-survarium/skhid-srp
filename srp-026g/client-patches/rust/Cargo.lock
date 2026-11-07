@@ -7,10 +7,15 @@ name = "artefact-carry"
 version = "0.1.0"
 
 [[package]]
+name = "ban-reason"
+version = "0.1.0"
+
+[[package]]
 name = "patches"
 version = "0.1.0"
 dependencies = [
  "artefact-carry",
+ "ban-reason",
  "ragdoll",
  "srp-validate",
  "weapon-kit",

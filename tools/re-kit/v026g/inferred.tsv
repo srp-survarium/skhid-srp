@@ -1246,6 +1246,7 @@ va	status	ref_021d	name
 0x0021ec20	inferred-medium	0x00170153	survarium::login_menu::query_resources
 0x0021ee10	inferred-medium	0x001702f2	survarium::login_menu::clear_resources
 0x0021eea0	inferred-medium	0x0017030f	survarium::login_menu::set_status
+0x0021f310	inferred-medium		survarium::login_menu::append_ban_reason
 0x0021f910	inferred-medium		survarium::items_dictionary::map_descriptor_by_id
 0x0021fd40	inferred-medium		survarium::lobby_menu::update_play_button_state
 0x00220400	inferred-medium	0x001723e0	survarium::lobby_menu::switch_to_level_loading

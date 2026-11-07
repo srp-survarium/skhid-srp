@@ -949,6 +949,8 @@ va	name	source	ret_cleanup	result
 0x0021e170	survarium::lobby_menu::set_mouse_position	manual	12	
 0x0021e260	survarium::lobby_menu::demo_play	manual	4	
 0x0021e450	survarium::lobby_menu::query_resources	manual	0	void; queries game_scene, game_scene_view, sound_scene, the lobby's project (request list [ebp-80h]..[ebp-44h], the project's {name, class 40h} at [ebp-68h]/[ebp-64h], its user data pointer at [ebp-34h]), cursor.swf, lobby_menu.swf, default.player and static_game_parameters.options with on_render_scenes_ready as the callback (query_resources 0xE5B60 at 0x21E5ED, 8 requests); one caller, the lobby menu's ctor (0x21CDBD)
+0x0021eea0	survarium::login_menu::set_status	manual	4	
+0x0021f310	survarium::login_menu::append_ban_reason	manual	12	
 0x0021f3d0	survarium::login_menu::enable_button	manual	0	
 0x0021f430	survarium::login_menu::update_online_queue	manual	4	
 0x002206d0	survarium::lobby_menu::show_match_making	manual	0	

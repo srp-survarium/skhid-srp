@@ -506,6 +506,36 @@ pub extern "C" fn hook_bake_cache_on_crc_step(frame: &mut Frame) -> u32 {
     }
 }
 
+// ---- ban_time (patch 116) ----
+
+/// The entry `ban_time_on_answer` (0x37fb66, on_sign_in_answer_received (0x37FB10) for an answer other than 08h (connection info) and 25h (online queue): mov dword [ebx+180h],1, before the callback with its code (0x37FEC4); EBX the login client, [ebp+10h] the bytes read) calls this with the saved machine.
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_ban_time_on_answer(frame: &mut Frame) -> u32 {
+    // SAFETY: only the entry `ban_time_on_answer` calls this, from the game's jump at 0x37fb66,
+    // on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::new(frame) };
+    match crate::ban_time::on_answer(&mut ctx) {
+        Flow::Continue => 0,
+        Flow::Skip => 1,
+        Flow::Exit(e) => match e {},
+    }
+}
+
+// ---- ban_time (patch 116) ----
+
+/// The entry `ban_time_on_status` (0x21f217, login_menu::set_status's join once the status text is built (mov al,[esp+13h] / mov edx,ebx), before enable_button (0x21F3D0) and the text's showing (0x21F730 with [esp+18h]): EBX the login menu) calls this with the saved machine.
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_ban_time_on_status(frame: &mut Frame) -> u32 {
+    // SAFETY: only the entry `ban_time_on_status` calls this, from the game's jump at 0x21f217,
+    // on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::new(frame) };
+    match crate::ban_time::on_status(&mut ctx) {
+        Flow::Continue => 0,
+        Flow::Skip => 1,
+        Flow::Exit(e) => match e {},
+    }
+}
+
 // ---- battery_progress (patch 92) ----
 
 /// The entry `battery_progress_on_carrier_tick` (0x2daad3, base_player::tick after the held object's tick (call [vtbl+28h] at 0x2DAAD1, or the je at 0x2DAAC9 with nothing held), before the movement (mov ecx,[esp+10h] / push edi): EBX the player, every simulation tick) calls this with the saved machine.

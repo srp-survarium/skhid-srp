@@ -617,4 +617,13 @@ void engine_show_scene_movie(struct game_world *scene, struct movie_slot *movie)
 /* 0x23dc70 survarium::base_game_scene::hide_movie: movie EAX, scene EDX; pops 0 */
 void engine_hide_scene_movie(struct movie_slot *movie, struct game_world *scene);
 
+/* the IAT slot 0x870244 (an import, stdcall) */
+extern void (__attribute__((stdcall)) *const engine_get_system_time_as_file_time)(unsigned int * file_time);
+
+/* the IAT slot 0x870230 (an import, stdcall) */
+extern unsigned int (__attribute__((stdcall)) *const engine_file_time_to_local_file_time)(const unsigned int * file_time, unsigned int * local);
+
+/* the IAT slot 0x87022c (an import, stdcall) */
+extern unsigned int (__attribute__((stdcall)) *const engine_file_time_to_system_time)(const unsigned int * file_time, unsigned int * system_time);
+
 #endif
