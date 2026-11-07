@@ -2303,7 +2303,7 @@ echo 300 >"$T/state/ends-in"
 run quiet --dry-run || fail "release.sh --dry-run, a match ending in 5 min: $out"
 check "release: a match ending in 5 min: the maintenance in 6 min" bash -c "grep -q 'in 6 min (now: /api/stats: the last match ends in 5:00 at the latest (last_match_ends_in 300), then 30 s' <<<\"\$1\"" _ "$(plan_line)"
 check "release --dry-run: prints the order: the lock and the staging, the go, the plan, the swap" in_order "$out" \
-    '^\[dry run\] 2. take the release lock' '^\[dry run\] 2. build here' '^\[dry run\] 3. then wait for the go' \
+    '^\[dry run\] 2. take the release lock' '^\[dry run\] 2. in the background: .*build-zip' '^\[dry run\]    meanwhile, build here: release/build-server-db' '^\[dry run\] 3. then wait for the go' \
     '^\[dry run\] 4. right after the go: plan the maintenance' '^\[dry run\] 5. at the planned time' \
     'docker compose up -d --no-deps --force-recreate srp26'
 echo 299 >"$T/state/ends-in"
@@ -2581,7 +2581,7 @@ run quiet --dry-run --now --no-maintenance || fail "release.sh --now --dry-run: 
 check "release --now: --no-maintenance with it is accepted, and said to be the same" has "$out" "note: --now plans no maintenance anyway"
 check "release --now --dry-run: says there is no notice" has "$out" "maintenance: NONE, NO NOTICE (--now)"
 check "release --now --dry-run: prints the order: the staging, the go, the swap at once" in_order "$out" \
-    '^\[dry run\] 2. take the release lock' '^\[dry run\] 2. build here' '^\[dry run\] 3. then wait for the go' \
+    '^\[dry run\] 2. take the release lock' '^\[dry run\] 2. in the background: .*build-zip' '^\[dry run\]    meanwhile, build here: release/build-server-db' '^\[dry run\] 3. then wait for the go' \
     '^\[dry run\] 4. no maintenance planned (--now' '^\[dry run\] 5. at the go: the swap at once, NO wait for matches' \
     'the stop ends without results (--now)' 'compose stop srp26'
 check "release --now --dry-run: no POST, no admin page" bash -c "! grep -q 'POST ' <<<\"\$1\" && test ! -s $T/state/admin-seen.log" _ "$out"

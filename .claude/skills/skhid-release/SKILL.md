@@ -352,13 +352,14 @@ The order, as it runs:
    at once**, each a job in the background with a process group of its own:
    the tools' builds (srp-game-data, srp-item-tables, srp-world-check; one
    after the other, then srp-game-data reads `--resources`), the URLs of
-   every row (each row its own job), the site's rebuild, the recordings'
+   every row (each row its own job; the rows' sha256 on the patches server
+   meanwhile, 4 at a time), the site's rebuild, the recordings'
    copy, and the exe patches' self-test (step 2). Each job writes into the run's `jobs/` folder; its lines are
    printed when it is joined, at the end of the preflight, in a fixed
    order (never mixed), and its problems go into the one list (`preflight:
    <n> problem(s), nothing was done`). With new content the site's rebuild
-   (~3 min) is then the preflight's length; without it, the slowest row's
-   URLs.
+   (~3 min) is then the preflight's length; without it, the hashing on the
+   patches server (a live dry run: 85 s before, 28 s now).
 2. **The lock, then everything prepared and staged**, nothing players
    see, the builds at once: with server code, **the image** is built in a
    job from the start (below); `upload-patch` (with `--resources`; it adds

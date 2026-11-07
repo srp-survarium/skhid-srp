@@ -1137,17 +1137,14 @@ build_tools() {
 }
 start_job tools "$JOBS/tools.out" build_tools
 
-# The offered patches: the list's rows on the patches server, every URL of
-# each (the rows at once, each in a job of its own), and the game's archive
-# by its first bytes.
-check_offered_row() { # <name> <sha256> <size> <urls> <the server's listing> <n>
-    local name=$1 sha=$2 size=$3 urls=$4 there=$5
-    if ! grep -qx "$name $size $sha" <<<"$there"; then
-        problem "$PATCH_LIST: $name ($size bytes, sha256 ${sha:0:12}…) is not so on $PATCHES_LABEL: $(grep "^$name " <<<"$there" || echo "$there")"
-    elif check_file_urls "$name" "$sha" "$size" "$urls" "$work" '' "$PATCHES_URL/$name"; then
-        printf '%s\n' "$URLS_GOOD" >"$JOBS/url.$6.good"
+# The offered patches: every URL of each row (the rows at once, each in a
+# job of its own), the rows on the patches server meanwhile (their sha256
+# there, 4 at a time), and the game's archive by its first bytes.
+check_offered_row() { # <name> <sha256> <size> <urls> <n>
+    if check_file_urls "$1" "$2" "$3" "$4" "$work" '' "$PATCHES_URL/$1"; then
+        printf '%s\n' "$URLS_GOOD" >"$JOBS/url.$5.good"
     else
-        problem "$PATCH_LIST: $name: $URL_PROBLEM"
+        problem "$PATCH_LIST: $1: $URL_PROBLEM"
     fi
 }
 # The game's archive: each URL of its row, by its first bytes (the 2.9 GB
@@ -1163,21 +1160,34 @@ check_game_urls() {
     fi
 }
 check_offered() {
-    local listed names there name sha size urls n=0 i bad=0 good=0
+    local listed names there name sha size urls i=0 bad=0 good=0
     listed=$(grep -c . <<<"$LIST" || true)
+    while read -r name sha size urls; do
+        [[ -n $name ]] || continue
+        i=$((i + 1))
+        start_job "url.$i" "$JOBS/url.$i.out" check_offered_row "$name" "$sha" "$size" "$urls" "$i"
+    done <<<"$LIST"
+    if [[ -n $GAME_ROW ]]; then start_job url.game "$JOBS/url.game.out" check_game_urls; fi
     if ((listed)); then
         names=$(cut -d' ' -f1 <<<"$LIST" | tr '\n' ' ')
-        there=$(on_patches "cd $(q "$PATCHES_DIR") && for f in $names; do if test -f \"\$f\"; then echo \"\$f \$(stat -c %s \"\$f\") \$(sha256sum < \"\$f\" | cut -d' ' -f1)\"; else echo \"\$f missing\"; fi; done" || echo "unreadable")
-        while read -r name sha size urls; do
-            [[ -n $name ]] || continue
-            n=$((n + 1))
-            start_job "url.$n" "$JOBS/url.$n.out" check_offered_row "$name" "$sha" "$size" "$urls" "$there" "$n"
-        done <<<"$LIST"
+        there=$(on_patches "cd $(q "$PATCHES_DIR") && printf '%s\n' $names | nice -n 10 xargs -P 4 -n 1 sh -c 'if test -f \"\$1\"; then echo \"\$1 \$(stat -c %s \"\$1\") \$(sha256sum < \"\$1\" | cut -d\" \" -f1)\"; else echo \"\$1 missing\"; fi' _" || echo "unreadable")
     fi
-    if [[ -n $GAME_ROW ]]; then start_job url.game "$JOBS/url.game.out" check_game_urls; fi
-    for ((i = 1; i <= n; i++)); do
-        if join_check "url.$i"; then good=$((good + $(cat "$JOBS/url.$i.good"))); else bad=1; fi
-    done
+    # A row not so on the server: that is said, not its URLs (checked all
+    # the same).
+    i=0
+    while read -r name sha size urls; do
+        [[ -n $name ]] || continue
+        i=$((i + 1))
+        if ! grep -qx "$name $size $sha" <<<"$there"; then
+            join_job "url.$i" || true
+            bad=1
+            problem "$PATCH_LIST: $name ($size bytes, sha256 ${sha:0:12}…) is not so on $PATCHES_LABEL: $(grep "^$name " <<<"$there" || echo "$there")"
+        elif join_check "url.$i"; then
+            good=$((good + $(cat "$JOBS/url.$i.good")))
+        else
+            bad=1
+        fi
+    done <<<"$LIST"
     if ((!listed)); then
         okay "the offered-patch list ($PATCH_LIST) is empty"
     elif ((!bad)); then
