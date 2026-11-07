@@ -100,6 +100,9 @@ mod core;
 mod dispatch;
 mod gear;
 mod items;
+/// A match's events on the side channel, for the replay's timeline and the
+/// History's rows.
+pub mod match_events;
 mod patch_check;
 mod play;
 mod presets;
