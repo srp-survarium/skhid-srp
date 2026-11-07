@@ -2704,6 +2704,7 @@ st_srp_rooms_join_why_4	Zápas je plný.
 st_srp_rooms_join_why_5	Brzy začne údržba serveru. Už se nelze připojit.
 st_srp_rooms_join_why_6	Zápas končí. Zahraješ si ten další.
 st_srp_rooms_join_why_7	Zápas dosáhl limitu hráčů. Připojíš se k dalšímu.
+st_srp_rooms_join_why_8	Zápas teď nemůže přijmout hráče.
 st_srp_rooms_joined_room	%1$s se připojuje do místnosti
 st_srp_rooms_late_hint	Noví hráči uvidí místnost a pak vstoupí do zápasu.
 st_srp_rooms_leave	Odejít

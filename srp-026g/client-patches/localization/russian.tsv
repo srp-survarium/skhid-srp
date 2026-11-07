@@ -2704,6 +2704,7 @@ st_srp_rooms_join_why_4	Матч заполнен.
 st_srp_rooms_join_why_5	Скоро технические работы: новые входы закрыты.
 st_srp_rooms_join_why_6	Матч завершается: вы сыграете следующий.
 st_srp_rooms_join_why_7	Этот матч достиг лимита игроков. Вы присоединитесь к следующему матчу.
+st_srp_rooms_join_why_8	Матч сейчас не может принять игроков.
 st_srp_rooms_joined_room	%1$s вошёл в комнату
 st_srp_rooms_late_hint	Кто зайдёт сейчас, увидит комнату, потом попадёт в матч.
 st_srp_rooms_leave	Выйти
