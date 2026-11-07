@@ -815,7 +815,16 @@ impl Ctx<'_> {
     /// The held spots cued for the team's jobs: `job_kills` kills or more (the owner's 2-kill cue).
     fn cued(&self) -> impl Iterator<Item = &super::threat::HeldLine> {
         let min = self.tuning.threat.job_kills as usize;
-        self.team.threat.held.iter().filter(move |l| l.kills >= min)
+        let held = &self.team.threat.held;
+        // [A342d] Counted over the shooter's held spots within `cue_merge_m`, as the jobs count them.
+        let merge = self.tuning.threat.cue_merge_m;
+        held.iter().filter(move |l| {
+            let kills = match merge {
+                Some(m) => held.iter().filter(|o| o.shooter == l.shooter && o.at.distance_xz(l.at) <= m).map(|o| o.kills).sum(),
+                None => l.kills,
+            };
+            kills >= min
+        })
     }
 
     /// [A342a `threat.lane_goal_weight`] The weight of a play whose goal lies in a cued spot's lanes (1 otherwise).

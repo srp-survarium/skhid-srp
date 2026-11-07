@@ -287,7 +287,10 @@ fn threat_tick(
                 Some(threat::Mate { place: b.place, feet: p.feet, free: !objective.is_actor(p) && !b.reflex.dry(), playing })
             })
             .collect();
-        let mut holds = threat::holds(&held, tuning.threat.job_kills);
+        let mut holds = match tuning.threat.cue_merge_m {
+            Some(m) => threat::holds_merged(&held, tuning.threat.job_kills, m),
+            None => threat::holds(&held, tuning.threat.job_kills),
+        };
         // [threat.concede] No job on a conceded area, nor a new one like the last failed try on a tried one (a Flank: the
         // same kind, so only its time differs; design-p1c §3). The fight side's (`Concede::refuse_fights`).
         if let Some(concede) = tuning.threat.concede.filter(|c| c.refuse_fights.is_some()) {

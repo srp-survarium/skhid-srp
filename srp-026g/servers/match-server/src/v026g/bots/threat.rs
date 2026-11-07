@@ -2186,6 +2186,15 @@ pub fn holds(held: &[HeldLine], min_kills: u32) -> Vec<HeldLine> {
     held.iter().filter(|l| l.kills >= min_kills as usize).cloned().collect()
 }
 
+/// [A342d `threat.cue_merge_m`] [`holds`] with a spot's kills counted over every held spot of its shooter within `merge_m`
+/// of it: his small moves (fx-review A342 §5: 5 of 47 after-cue kills had no cue, his kills split into spots 4 m apart).
+pub fn holds_merged(held: &[HeldLine], min_kills: u32, merge_m: f32) -> Vec<HeldLine> {
+    let kills = |l: &HeldLine| -> usize {
+        held.iter().filter(|o| o.shooter == l.shooter && o.at.distance_xz(l.at) <= merge_m).map(|o| o.kills).sum()
+    };
+    held.iter().filter(|l| kills(l) >= min_kills as usize).cloned().collect()
+}
+
 /// design-p1c §6 (`threat.pair_target`, `fx-threat-obj-two-campers-note.md`): the holds a job may open on when two campers
 /// cover one lane. Of two holds of two shooters that cover common ground ([`HeldLine::shares_ground`]), only the one that
 /// ranks first keeps its offer: more kills, then sensed latest, then the lower id (live humans take the one who had killed
@@ -3143,6 +3152,19 @@ mod tests {
         // One shooter's two spots are no pair: he has one job already.
         let moved = HeldLine { shooter: 7, ..b };
         assert_eq!(ids(one_of_each_pair(vec![a, moved], &[], 5.0)), [1, 2]);
+    }
+
+    /// [A342d `threat.cue_merge_m`] A cue counts the kills of the shooter's held spots near each other.
+    #[test]
+    fn a_cue_counts_the_kills_of_his_spots_near_each_other_with_cue_merge() {
+        // One kill each at two spots 4 m apart (his small move), one more of another shooter: no 2-kill cue, as before; with
+        // cue_merge_m 10 both of his spots are cued, the other shooter's not.
+        let one = |id, at: Vec3, shooter| HeldLine { shooter, kills: 1, ..line(id, at, &[0.0]) };
+        let held = [one(1, at(0.0), 7), one(2, at(4.0), 7), one(3, at(40.0), 8)];
+        assert!(holds(&held, 2).is_empty());
+        let ids: Vec<u32> = holds_merged(&held, 2, 10.0).iter().map(|l| l.id).collect();
+        assert_eq!(ids, [1, 2]);
+        assert!(holds_merged(&held, 2, 3.0).is_empty(), "farther apart than the merge: no cue");
     }
 
     /// [A320 F8 `threat.camp_flank.spare_flanker`] With the camp spot's route starts given, the flanker role goes to the

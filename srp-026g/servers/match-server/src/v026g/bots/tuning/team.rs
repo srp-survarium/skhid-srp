@@ -767,6 +767,10 @@ pub struct ThreatTuning {
     /// it is not offered and the bot holds (A342 §4: 8 of 22 went in one at a time). A running play is not touched. None: as
     /// before.
     pub no_lone_m: Option<f32>,
+    /// `threat.cue_merge_m` [A342d]: a held spot is cued for the jobs (`job_kills`) by the kills of every held spot of its
+    /// shooter within this many metres of it (fx-review A342 §5: 5 of 47 after-cue kills had no cue, his kills split into spots
+    /// 4 m apart). None: its own kills, as before.
+    pub cue_merge_m: Option<f32>,
 }
 
 /// A320 [`ThreatTuning::camp_flank`]: the flank routes round the known camp spots, and what the flanker does when the camper
@@ -1004,6 +1008,7 @@ impl Default for ThreatTuning {
             spot_follows_m: None,
             lane_goal_weight: None,
             no_lone_m: None,
+            cue_merge_m: None,
         }
     }
 }
