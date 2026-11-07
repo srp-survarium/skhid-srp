@@ -18,33 +18,37 @@ preferred-image VAs; `apply_modifier` is the kit-modifier getter 0x2D5AE0.
 
 | Tier | Needs | Id | Skill | Ranks | Per rank | Mechanism |
 |---|---:|---:|---|---:|---|---|
-| 1 | 0 | 501 | Quick Hands | 5 | collection time -5% | data: modifier 7 |
-| 1 | 0 | 502 | Resistance | 5 | isolation +5 | exe hook |
+| 1 | 0 | 501 | Quick Hands | 4 | collection time -6% | data: modifier 7 |
+| 1 | 0 | 502 | Resistance | 4 | isolation +6 | exe hook |
 | 2 | 5 | 511 | Forest Protection | 4 | bullet and fragment damage -5% in an anomaly | data: modifier 41 |
 | 2 | 5 | 512 | Knowledge of Artifacts | 5 | active duration +5% | data: modifier 39 |
+| 2 | 5 | 513 | Artifact Sight | 1 | passive artefacts seen as leg glows, own too | exe (patch 111's gate) |
 | 3 | 10 | 521 | Keeper of the Artifacts | 1 | starts with a random artefact | server + exe |
 | 3 | 10 | 522 | Artifact Container | 1 | a pocket becomes an artefact container | data: modifiers 14, 15 |
-| 4 | 20 | 531 | Spring II | 1 | Spring: reload +5% passive, +15% active | exe (patch 54's Spring) |
-| 4 | 20 | 532 | Onyx II | 1 | no fall damage while Onyx is active | exe (patch 54's Onyx) |
-| 4 | 20 | 533 | Larkspur II | 1 | activation restores all energy | exe |
-| 5 | 24 | 541 | Resonance | 1 | passives shared, 8 m; or Cascade | exe |
-| 5 | 24 | 542 | Cascade | 1 | actives shared, 5 m; or Resonance | exe |
+| 4 | 15 | 531 | Spring II | 1 | Spring: reload +5% passive, +15% active | exe (patch 54's Spring) |
+| 4 | 15 | 532 | Onyx II | 1 | no fall damage while Onyx is active | exe (patch 54's Onyx) |
+| 4 | 15 | 533 | Larkspur II | 1 | activation restores all energy | exe |
+| 5 | 20 | 541 | Resonance | 1 | passives shared, 8 m; or Cascade | exe |
+| 5 | 20 | 542 | Cascade | 1 | actives shared, 5 m; or Resonance | exe |
 
 - Layout, four columns (1..4) (the owner, 2026-11-06: Artifact Container beside Keeper, Resonance
-  and Cascade an either/or pair in row V, as every tree's last row):
+  and Cascade an either/or pair in row V, as every tree's last row; 2026-11-07: Artifact Sight in
+  row II):
 
 ```text
 | - Q R - |    Quick Hands, Resistance
-| - F K - |    Forest Protection, Knowledge of Artifacts
+| - F K S |    Forest Protection, Knowledge of Artifacts, Artifact Sight
 | - P A - |    Keeper of the Artifacts, Artifact Container
 | S O L - |    Spring II, Onyx II, Larkspur II
 | - N X - |    Resonance or Cascade (antiskills of each other)
 ```
 
-- Points: row I holds 10, rows I-II 19, rows I-III 21, rows I-IV 24; a full build 25 (one of the
-  row-V pair; 26 ranks in all).
-- Thresholds 0/5/10/20/24: row IV leaves one point of rows I-III free, row V needs every point of
-  rows I-IV.
+- Points: row I holds 8, rows I-II 18, rows I-III 20, rows I-IV 23; a full build 24 (one of the
+  row-V pair; 25 ranks in all).
+- Thresholds 0/5/10/15/20, the stock rows (the owner, 2026-11-07): every row opens with points
+  of the rows above to spare (row I holds 8 for 5, rows I-IV hold 23 for 20).
+- Quick Hands and Resistance (the owner, 2026-11-07): 4 ranks of -6% search time and +6
+  isolation (max -24%, +24).
 - Quick Hands (501) was "Concentration", 0.69's own name for this skill
   (`st_artefact_search_time_name`, in 0.27..0.69 alike); the survival tree's 333 has that name, and
   no other retail string names an artefact search skill, so the owner's "Quick Hands" (2026-11-06).
@@ -58,7 +62,7 @@ preferred-image VAs; `apply_modifier` is the kit-modifier getter 0x2D5AE0.
 - Exe skills: one packed integer in modifier 40 (`artefact_power`), parsed once (`Skills::parse`
   in the patch); invalid (fractional, negative, too large, a rank past its levels) is no
   artefact skill at all. Bits: 0..2 Resistance (0..5), 3 Keeper, 4 Resonance, 5 Spring II,
-  6 Onyx II, 7 Larkspur II, 8 Cascade, 9..11 Keeper's draw.
+  6 Onyx II, 7 Larkspur II, 8 Cascade, 9..11 Keeper's draw, 12 Artifact Sight.
 - Modifier 40 evidence (the exact 0.26g exe, 2026-11-05): all 94 calls of `apply_modifier` and
   its wrapper 0x2D5B80 resolve to an index, none 40; `artefact_power_modifier` is referenced
   only by the two name tables (0x9284E8, 0x9C9C88); no other config, edit list or code
@@ -67,21 +71,21 @@ preferred-image VAs; `apply_modifier` is the kit-modifier getter 0x2D5AE0.
   40 of every kit of every player, bots too, with the skill or not (bits 9..11: the kind's draw,
   1 Larkspur, 2 Onyx, 3 Spring; 4 the Sponge once it is on main; 0 none), so every game knows it
   from the static info. The parser takes 1..6; a draw past the kinds gives nothing.
-- Bit 12 and above: nothing (a payload with one is refused).
+- Bit 13 and above: nothing (a payload with one is refused).
 
 ## Quick Hands (501)
 
-- Modifier 7 `artefact_search_time` -0.05 a rank: the container's search time x max(0, 1 + sum)
+- Modifier 7 `artefact_search_time` -0.06 a rank (4 ranks, -24%): the container's search time x max(0, 1 + sum)
   (0x31C7EF). Adds with the gloves' 1130..1134 and the Artifact-master's -25%: rank 5 with
   both is x0.25.
 
 ## Resistance (502)
 
-- Owner's rule: +5 isolation a rank, flat points.
+- Owner's rule: +6 isolation a rank, flat points (4 ranks, +24; 2026-11-07, was 5 of +5).
 - Isolation points are armour against the four anomalous hit types (toxic, radiation, fire,
   shock; table 0x92075C), the card's "Isolation" x100. A hit's damage is
   D x (1 - clamp(A - P, 0, 1)) (0x32A07E), A the part's summed armour for its type.
-- Flat (the table's words): A + 0.05 a rank for those four types on every body part, at
+- Flat (the table's words): A + 0.06 a rank for those four types on every body part, at
   0x32A083 (`artefact.isolation`), before the piercing's subtraction and the clamp.
 - Modifier 8 `anomaly_damage` is not this: it multiplies an anomalous hit's damage by
   max(0, 1 + M8) before armour (0x332890), a percentage (retail's 0.31+ Resistance).
@@ -187,8 +191,17 @@ preferred-image VAs; `apply_modifier` is the kit-modifier getter 0x2D5AE0.
   Onyx and Lifebone 3 -> 3.75 s. Patch 54's +1 s for each extra Onyx fired together is added
   after it, unscaled.
 - The Sponge (#1280, not on main): its active time is checked when it lands.
-- Second effect (the owner, 2026-11-06): with it (any rank) in the current kit, the game shows the
-  leg quarters ("Leg quarters" below); its description's first line says so.
+- The active duration alone (the owner, 2026-11-07): the leg quarters it showed from 2026-11-06
+  are Artifact Sight's now.
+
+## Artifact Sight (513)
+
+- The owner (2026-11-07): row II beside Knowledge of Artifacts, one rank. With it in the current
+  kit, the game shows the leg quarters, every player's and its own ("Leg quarters" below).
+- Transport: modifier 40 bit 12 (`artefact_power_modifier` 4096), parsed with the other exe
+  skills (`Skills::sight`); srp sums it with the skills tree as any other bit and keeps it beside
+  Keeper's draw (bits 9..11 only are the draw's). A visual alone: nothing a match computes.
+- Icon: 0.69d0 `skills/anomaly/11.png` (rays bursting from an artefact).
 
 ## Keeper of the Artifacts (521)
 
@@ -304,11 +317,11 @@ preferred-image VAs; `apply_modifier` is the kit-modifier getter 0x2D5AE0.
 
 - The owner (2026-11-06): each passive artefact copy that counts for a player lights a quarter
   of its legs in that artefact's colour (how stacked a player is).
-- Who sees them (the owner, 2026-11-06, Knowledge of Artifacts' second effect): a game shows the
-  quarters, every player's and its local player's own alike, only while its local player's
-  current kit has Knowledge of Artifacts (modifier 39, the skill's own transport, above 0: the
-  native getter's factor above 1; it is a data skill, not in modifier 40's packed bits); a game
-  with no local player (a spectator's, a replay) shows them all. Read at each tick and in the
+- Who sees them (the owner, 2026-11-07: Artifact Sight, 513, row II): a game shows the quarters,
+  every player's and its local player's own alike, only while its local player's current kit has
+  Artifact Sight (modifier 40 bit 12, `Skills::sight`; before it, Knowledge of Artifacts' modifier
+  39 gated them, which is now the active duration alone); a game with no local player (a
+  spectator's, a replay) shows them all. Read at each tick and in the
   calculator, so a respawn in another kit switches them on or off. Forest Protection's glow and
   the stock activation glow are everyone's as before.
 - The count, per kind: the player's own carried copies giving their passive (`Kind::gives`:

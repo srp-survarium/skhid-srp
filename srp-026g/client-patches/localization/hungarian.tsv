@@ -2196,8 +2196,10 @@ st_srp_artefact_502_description	Szigetelés az anomáliák ellen:
 st_srp_artefact_502_name	Ellenállás
 st_srp_artefact_511_description	Golyó- és repeszsebzés anomálián belül:
 st_srp_artefact_511_name	Az Erdő védelme
-st_srp_artefact_512_description	A passzív artefaktumok ragyogásként látszanak a játékosok lábán, a tiéden is. Az artefaktumok aktív hatásának időtartama:
+st_srp_artefact_512_description	Az artefaktumok aktív hatásának időtartama:
 st_srp_artefact_512_name	Artefaktumismeret
+st_srp_artefact_513_description	A passzív artefaktumok ragyogásként látszanak a játékosok lábán, a tiéden is.
+st_srp_artefact_513_name	Artefaktumlátás
 st_srp_artefact_521_description	A meccset egy véletlen artefaktummal kezded a tárolóban; egy fajta mindenkinek a meccsen.
 st_srp_artefact_521_name	Az artefaktumok őrzője
 st_srp_artefact_522_description	Egy zseb artefaktumtárolóvá válik.

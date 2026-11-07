@@ -54,8 +54,9 @@ def hit(g, kind, armour, piercing, damage, pool):
 
 def check_resistance(data, kit):
     outcomes = []
-    for payload, rank in [(0, 0), (1, 1), (2, 2), (3, 3), (4, 4), (5, 5), (5 + 8 + 256, 5),
-                          (6, 0), (7, 0), (2.5, 0), (-1, 0), (4096, 0), (512 + 1, 1), (7 * 512 + 1, 0), (8 + 7 * 512 + 5, 0), (8 + 6 * 512 + 5, 5)]:
+    for payload, rank in [(0, 0), (1, 1), (2, 2), (3, 3), (4, 4), (4 + 8 + 256, 4), (4096 + 4, 4),
+                          (5, 0), (6, 0), (7, 0), (2.5, 0), (-1, 0), (8192, 0), (8192 + 4, 0), (512 + 1, 1),
+                          (7 * 512 + 1, 0), (8 + 7 * 512 + 4, 0), (8 + 6 * 512 + 4, 4)]:
         g = MedicalGame(data)
         g.emu.mem_write(PLAYER + 0x115, bytes([kit]))
         g.ranks(payload, RANKS)
@@ -64,12 +65,12 @@ def check_resistance(data, kit):
             for kind in range(8):
                 for armour, piercing in [(0, 0), (0.3, 0), (0.3, 0.1), (0.95, 0), (1.0, 0), (0.1, 0.5)]:
                     have = hit(g, kind, armour, piercing, 100.0, pool)
-                    a = f32(f32(armour + 0.05 * rank) if kind >= 4 and rank else armour)
+                    a = f32(f32(armour + 0.06 * rank) if kind >= 4 and rank else armour)
                     want = 100.0 * (1 - min(max(f32(a - piercing), 0), 1))
                     close(have, want)
                     outcomes.append((payload, name, kind, armour, piercing, round(have, 4)))
-    print(f'Resistance kit {kit}: anomalous hits (4..7) A + 0.05 a rank 0..5 before piercing and the clamp, '
-          'other types and refused payloads (6, 7, 2.5, -1, 4096, a draw of 7) unchanged, a draw without Keeper accepted: PASS')
+    print(f'Resistance kit {kit}: anomalous hits (4..7) A + 0.06 a rank 0..4 before piercing and the clamp, '
+          'other types and refused payloads (5, 6, 7, 2.5, -1, 8192, a draw of 7) unchanged, a draw without Keeper and Artifact Sight (bit 12) accepted: PASS')
     return outcomes
 
 
@@ -105,7 +106,7 @@ def artefact(g, inv, slot, enable_active, state):
 
 def check_onyx(data, kit):
     outcomes = []
-    for payload in [0, ONYX_II, ONYX_II + 5 + 32 + 128, LARKSPUR_II, ONYX_II + 0.5]:
+    for payload in [0, ONYX_II, ONYX_II + 4 + 32 + 128, LARKSPUR_II, ONYX_II + 0.5]:
         for carried in [[], [(ONYX_ACTIVE, 3)], [(ONYX_ACTIVE, 4)], [(ENABLE_ACTIVE, 4)],
                         [(ENABLE_ACTIVE, 4), (ONYX_ACTIVE, 3), (ONYX_ACTIVE, 4)]]:
             g = MedicalGame(data)
@@ -129,7 +130,7 @@ def check_onyx(data, kit):
             g.emu.hook_del(hook)
             assert g.emu.reg_read(UC_X86_REG_EIP) == STOP
             assert g.emu.reg_read(UC_X86_REG_ESP) == esp + 8, "ret 4 either way"
-            protected = payload in (ONYX_II, ONYX_II + 5 + 32 + 128) and (ONYX_ACTIVE, 4) in carried
+            protected = payload in (ONYX_II, ONYX_II + 4 + 32 + 128) and (ONYX_ACTIVE, 4) in carried
             assert bool(reached) != protected, (payload, carried)
             outcomes.append((payload, len(carried), protected))
     print(f"Onyx II kit {kit}: the landing skipped only with the skill and an active Onyx (passive Onyx, "
@@ -139,7 +140,7 @@ def check_onyx(data, kit):
 
 def check_larkspur(data, kit):
     outcomes = []
-    for payload, kind in [(0, LIFEBONE_ACTIVE), (LARKSPUR_II, LIFEBONE_ACTIVE), (LARKSPUR_II + 5, LIFEBONE_ACTIVE),
+    for payload, kind in [(0, LIFEBONE_ACTIVE), (LARKSPUR_II, LIFEBONE_ACTIVE), (LARKSPUR_II + 4, LIFEBONE_ACTIVE),
                           (LARKSPUR_II, ENABLE_ACTIVE), (LARKSPUR_II + 0.5, LIFEBONE_ACTIVE)]:
         g = MedicalGame(data)
         g.emu.mem_write(PLAYER + 0x115, bytes([kit]))
@@ -152,7 +153,7 @@ def check_larkspur(data, kit):
         g.word(stamina + 0x6C, bits(10.0))
         g.call(ACTION, (1, 1234), ecx=item)
         assert g.read(item + 0x280) == 4, "activated"
-        filled = payload in (LARKSPUR_II, LARKSPUR_II + 5) and kind == LIFEBONE_ACTIVE
+        filled = payload in (LARKSPUR_II, LARKSPUR_II + 4) and kind == LIFEBONE_ACTIVE
         close(g.float(stamina + 0x6C), 100.0 if filled else 10.0)
         # Active now: a repeated press and a key-up do not fill it again.
         g.word(stamina + 0x6C, bits(10.0))
@@ -171,7 +172,7 @@ RELOAD = 13
 
 def check_spring(data):
     outcomes = []
-    for payload, skill in [(0, False), (SPRING_II, True), (SPRING_II + 5 + 8, True), (SPRING_II + 0.5, False)]:
+    for payload, skill in [(0, False), (SPRING_II, True), (SPRING_II + 4 + 8, True), (SPRING_II + 0.5, False)]:
         g = Game(data)
         # The holder as the game's base_player embeds it (+108h), its getter the made-up one.
         g.word(PLAYER + 0x108, HOLDER_VT)

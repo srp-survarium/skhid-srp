@@ -61,14 +61,14 @@ impl Draw {
     }
 }
 
-/// Resistance's rank, 0..=5.
+/// Resistance's rank, 0..=4.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub struct Resistance(u8);
 
 impl Resistance {
-    pub const MOST: u8 = 5;
-    /// Armour a rank against the anomalous types: +5 isolation points (the card x100).
-    pub const ARMOUR: f32 = 0.05;
+    pub const MOST: u8 = 4;
+    /// Armour a rank against the anomalous types: +6 isolation points (the card x100).
+    pub const ARMOUR: f32 = 0.06;
 }
 
 /// The packed skills of a kit's modifier 40.
@@ -82,15 +82,16 @@ pub struct Skills {
     onyx: bool,
     larkspur: bool,
     cascade: bool,
+    sight: bool,
 }
 
 impl Skills {
     /// Bits: 0..2 Resistance, 3 Keeper, 4 Resonance, 5 Spring II, 6 Onyx II, 7 Larkspur II,
-    /// 8 Cascade, 9..11 the match's Keeper draw 1..6 (0 none; with the skill or not).
-    /// Anything else (a fraction, a negative, a rank past 5, a draw of 7, a bit past 11) is no
-    /// skill at all.
+    /// 8 Cascade, 9..11 the match's Keeper draw 1..6 (0 none; with the skill or not), 12 Artifact
+    /// Sight. Anything else (a fraction, a negative, a rank past 4, a draw of 7, a bit past 12)
+    /// is no skill at all.
     pub fn parse(value: f32) -> Option<Self> {
-        if !(0.0..4096.0).contains(&value) || value != (value as u32) as f32 {
+        if !(0.0..8192.0).contains(&value) || value != (value as u32) as f32 {
             return None;
         }
         let bits = value as u32;
@@ -112,7 +113,14 @@ impl Skills {
             onyx: bit(6),
             larkspur: bit(7),
             cascade: bit(8),
+            sight: bit(12),
         })
+    }
+
+    /// Artifact Sight (the owner, 2026-11-07): this game shows the leg quarters of passive
+    /// artefacts (patch 111's glow), its own player's too.
+    pub fn sight(self) -> bool {
+        self.sight
     }
 
     /// Keeper of the Artifacts taken.
@@ -151,7 +159,7 @@ impl Skills {
         }
     }
 
-    /// Resistance: the part's armour `native` against a hit of `kind`, +0.05 a rank for the
+    /// Resistance: the part's armour `native` against a hit of `kind`, +0.06 a rank for the
     /// anomalous types, before the piercing's subtraction and the native clamp.
     pub fn armour(self, native: f32, kind: HitKind) -> f32 {
         if kind.anomalous() {
@@ -470,12 +478,12 @@ mod tests {
 
     #[test]
     fn parses_the_packed_ranks_only_exactly() {
-        for bad in [-1.0, 0.5, 6.0, 7.0, 7.0 * 512.0, 8.0 + 7.0 * 512.0, 4096.0, f32::INFINITY, f32::NAN] {
+        for bad in [-1.0, 0.5, 5.0, 6.0, 7.0, 509.0, 7.0 * 512.0, 8.0 + 7.0 * 512.0, 8192.0, 8192.0 + 509.0, f32::INFINITY, f32::NAN] {
             assert_eq!(Skills::parse(bad), None, "{bad}");
         }
         assert_eq!(Skills::parse(0.0), Some(Skills::default()));
-        let full = Skills::parse(509.0).unwrap();
-        assert_eq!(full.resistance, Resistance(5));
+        let full = Skills::parse(508.0).unwrap();
+        assert_eq!(full.resistance, Resistance(4));
         assert!(full.keeper && full.draw.is_none());
         assert!(full.resonance && full.spring && full.onyx && full.larkspur && full.cascade);
         for draw in 1..=6u8 {
@@ -485,16 +493,21 @@ mod tests {
             let skills = Skills::parse(f32::from(draw) * 512.0).unwrap();
             assert!(!skills.keeper && skills.draw.map(Draw::get) == Some(draw));
         }
-        assert!(Skills::parse(509.0 + 6.0 * 512.0).is_some());
+        assert!(Skills::parse(508.0 + 6.0 * 512.0).is_some());
+        // Artifact Sight, bit 12: alone, with every other bit and a draw.
+        assert!(Skills::parse(4096.0).unwrap().sight());
+        let all = Skills::parse(4096.0 + 508.0 + 6.0 * 512.0).unwrap();
+        assert!(all.sight() && all.keeper && all.cascade && all.draw.map(Draw::get) == Some(6));
+        assert!(!full.sight());
     }
 
     #[test]
     fn resistance_adds_isolation_to_the_anomalous_types_only() {
-        for rank in 0..=5u8 {
+        for rank in 0..=4u8 {
             let skills = Skills::parse(f32::from(rank)).unwrap();
             for value in 0..8 {
                 let kind = HitKind::parse(value).unwrap();
-                let want = if value >= 4 { 0.3 + 0.05 * f32::from(rank) } else { 0.3 };
+                let want = if value >= 4 { 0.3 + 0.06 * f32::from(rank) } else { 0.3 };
                 assert!((skills.armour(0.3, kind) - want).abs() < 1e-6, "{rank} {kind:?}");
             }
         }

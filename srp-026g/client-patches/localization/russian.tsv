@@ -2196,8 +2196,10 @@ st_srp_artefact_502_description	Изоляция от аномалий:
 st_srp_artefact_502_name	Стойкость
 st_srp_artefact_511_description	Урон от пуль и осколков внутри аномалии:
 st_srp_artefact_511_name	Защита Леса
-st_srp_artefact_512_description	Пассивные артефакты видны как свечение на ногах игроков, включая ваши. Длительность активного эффекта артефактов:
+st_srp_artefact_512_description	Длительность активного эффекта артефактов:
 st_srp_artefact_512_name	Знание артефактов
+st_srp_artefact_513_description	Пассивные артефакты видны как свечение на ногах игроков, включая ваши.
+st_srp_artefact_513_name	Артефактное зрение
 st_srp_artefact_521_description	Матч начинается со случайным артефактом в контейнере; вид один на весь матч.
 st_srp_artefact_521_name	Хранитель артефактов
 st_srp_artefact_522_description	Один карман становится контейнером для артефакта.

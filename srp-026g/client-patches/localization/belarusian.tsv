@@ -2196,8 +2196,10 @@ st_srp_artefact_502_description	Ізаляцыя ад анамалій:
 st_srp_artefact_502_name	Стойкасць
 st_srp_artefact_511_description	Шкода ад куль і аскепкаў унутры анамаліі:
 st_srp_artefact_511_name	Ахова Лесу
-st_srp_artefact_512_description	Пасіўныя артэфакты бачныя як ззянне на нагах гульцоў, у тым ліку вашых. Працягласць актыўнага эфекту артэфактаў:
+st_srp_artefact_512_description	Працягласць актыўнага эфекту артэфактаў:
 st_srp_artefact_512_name	Веданне артэфактаў
+st_srp_artefact_513_description	Пасіўныя артэфакты бачныя як ззянне на нагах гульцоў, у тым ліку вашых.
+st_srp_artefact_513_name	Артэфактны зрок
 st_srp_artefact_521_description	Матч пачынаецца з выпадковым артэфактам у кантэйнеры; від адзін на ўвесь матч.
 st_srp_artefact_521_name	Захавальнік артэфактаў
 st_srp_artefact_522_description	Адна кішэня становіцца кантэйнерам для артэфакта.

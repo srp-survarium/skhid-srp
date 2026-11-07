@@ -405,8 +405,8 @@ package survarium.char
          var value:uint = 0;
          var points:uint = 0;
          var lastUnlocked:Boolean = false;
-         // the branch points of the branch's last tier: 20 in the stock and medical trees, 24 in the
-         // artefact tree (artefact-skills.md)
+         // the branch points of the branch's last tier: 20 in the stock, medical and artefact trees
+         // (medical-skills.md, artefact-skills.md); the bar fills when it is taken
          var lastTier:uint = 0;
          for each(var tierData:Object in _currentSkills)
          {

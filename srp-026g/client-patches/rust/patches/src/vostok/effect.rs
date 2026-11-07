@@ -251,16 +251,10 @@ impl<'t> Player<'t> {
         super::world::GameWorld::of(world, self.thread).network_client()?.local_player()
     }
 
-    /// The factor its current kit gives an artefact's active time: the native getter of
-    /// modifier 39 (artefact_duration, max(0, 1 + its sum)); above 1 with Knowledge of Artifacts.
-    pub fn active_duration_factor(&self) -> f32 {
-        // SAFETY: the player owns its profile and its current kit's modifiers; the getter only
-        // reads them.
-        unsafe {
-            let Some(profile) = self.this.profile() else { return 1.0 };
-            let modifiers = profile.kits().at(usize::from(read(self.this.kit()))).modifiers();
-            raw::engine_apply_modifier(Some(modifiers), 39, 1.0, 1.0)
-        }
+    /// Its current kit's packed artefact skills (modifier 40, patch 109's parser): none taken
+    /// when the payload is not valid.
+    pub fn artefact_skills(&self) -> crate::artefact_skills::Skills {
+        super::artefact_skills::skills(self.this)
     }
 
     /// Whether it plays an effect of `kept`.

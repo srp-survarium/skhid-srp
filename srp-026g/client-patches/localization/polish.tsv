@@ -2196,8 +2196,10 @@ st_srp_artefact_502_description	Izolacja od anomalii:
 st_srp_artefact_502_name	Odporność
 st_srp_artefact_511_description	Obrażenia od pocisków i odłamków wewnątrz anomalii:
 st_srp_artefact_511_name	Ochrona Lasu
-st_srp_artefact_512_description	Pasywne artefakty widać jako poświatę na nogach graczy, także twoich. Czas działania aktywnego efektu artefaktów:
+st_srp_artefact_512_description	Czas działania aktywnego efektu artefaktów:
 st_srp_artefact_512_name	Wiedza o artefaktach
+st_srp_artefact_513_description	Pasywne artefakty widać jako poświatę na nogach graczy, także twoich.
+st_srp_artefact_513_name	Artefaktowy wzrok
 st_srp_artefact_521_description	Mecz zaczyna się z losowym artefaktem w pojemniku; jeden rodzaj dla wszystkich w meczu.
 st_srp_artefact_521_name	Strażnik artefaktów
 st_srp_artefact_522_description	Jedna kieszeń staje się pojemnikiem na artefakt.

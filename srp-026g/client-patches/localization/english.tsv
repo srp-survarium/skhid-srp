@@ -2196,8 +2196,10 @@ st_srp_artefact_502_description	Isolation against anomalies:
 st_srp_artefact_502_name	Resistance
 st_srp_artefact_511_description	Bullet and fragment damage taken inside an anomaly:
 st_srp_artefact_511_name	Forest Protection
-st_srp_artefact_512_description	See passive artifacts as a glow on players' legs, your own included. Duration of active artifact effects:
+st_srp_artefact_512_description	Duration of active artifact effects:
 st_srp_artefact_512_name	Knowledge of Artifacts
+st_srp_artefact_513_description	See passive artifacts as a glow on players' legs, your own included.
+st_srp_artefact_513_name	Artifact Sight
 st_srp_artefact_521_description	Start the match with a random artifact in a container; one kind for everyone in the match.
 st_srp_artefact_521_name	Keeper of the Artifacts
 st_srp_artefact_522_description	One pocket becomes an artifact container.

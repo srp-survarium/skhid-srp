@@ -291,9 +291,9 @@ def check_quarters(data):
     lit({})
     g.word(PLAYER + 0x120, core)
     lit({"onyx": 3, "spring": 1})
-    # The gate: the local player (the game world's game's network client's +4) must have Knowledge
-    # of Artifacts in its current kit (modifier 39 above 0: the getter's factor above 1) for this
-    # game to show any quarters, its own too; no local player shows all.
+    # The gate: the local player (the game world's game's network client's +4) must have Artifact
+    # Sight in its current kit (513: bit 12 of modifier 40) for this game to show any quarters, its
+    # own too; Knowledge of Artifacts (modifier 39) no longer does; no local player shows all.
     world, game, client = g.block(0x100), g.block(0x5400), g.block(0x100)
     g.word(world + 0x9C, game)
     g.word(game + 0x53AC, client)
@@ -301,11 +301,13 @@ def check_quarters(data):
         g.word(who + 0xF474, world)
     g.word(carrier + 0x394, DEFAULT_CLOCK_VT)
     g.word(carrier + 0x324, 9000)
-    knowledge = lambda at, kit: g.read(at + 0x6B8) + 0xF4 + kit * 0x704 + 39 * 4
+    modifier = lambda at, kit, index: g.read(at + 0x6B8) + 0xF4 + kit * 0x704 + index * 4
     g.word(client + 4, PLAYER)
     g.emu.mem_write(PLAYER + 0x115, bytes([0]))
-    g.word(knowledge(PLAYER, 0), bits(0.05))                 # kit 0: Knowledge of Artifacts 1
-    g.word(knowledge(PLAYER, 1), bits(0.0))                  # kit 1: none
+    g.word(modifier(PLAYER, 0, 40), bits(4096.0))            # kit 0: Artifact Sight
+    g.word(modifier(PLAYER, 0, 39), bits(0.0))
+    g.word(modifier(PLAYER, 1, 40), bits(0.0))               # kit 1: Knowledge of Artifacts 1, no Sight
+    g.word(modifier(PLAYER, 1, 39), bits(0.05))
     g.emu.mem_write(carrier + 0x33C, b"\1")
     carried = m.artefact(carrier, ONYX_ACTIVE_, 3)
     lit({"onyx": 4, "spring": 3}, PLAYER)                    # with the skill: its own (Onyx 3 + 1 shared, Spring 1 + 2)
@@ -330,8 +332,9 @@ def check_quarters(data):
     print("Leg quarters: a kind's passive copies (own 0..4, own and Resonance's shared, two kinds, an active "
           "Onyx, an enemy's and the cap of 4) light that many of its quarters from the first; the count "
           "dropping and death end them through the player's calculator; a player without a world core lights none; "
-          "a game shows them (every player's, its own too) only when its local player's current kit has Knowledge "
-          "of Artifacts, a kit change flipping it, and all of them without a local player: PASS")
+          "a game shows them (every player's, its own too) only when its local player's current kit has Artifact "
+          "Sight (modifier 40 bit 12; Knowledge of Artifacts alone shows none), a kit change flipping it, and all of "
+          "them without a local player: PASS")
 
 
 def main():

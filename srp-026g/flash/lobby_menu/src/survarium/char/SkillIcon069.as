@@ -8,6 +8,7 @@ package survarium.char
    import ArtefactSkill069502;
    import ArtefactSkill069511;
    import ArtefactSkill069512;
+   import ArtefactSkill069513;
    import ArtefactSkill069521;
    import ArtefactSkill069522;
    import ArtefactSkill069531;
@@ -69,6 +70,7 @@ package survarium.char
             case 502: type = ArtefactSkill069502; break;
             case 511: type = ArtefactSkill069511; break;
             case 512: type = ArtefactSkill069512; break;
+            case 513: type = ArtefactSkill069513; break;
             case 521: type = ArtefactSkill069521; break;
             case 522: type = ArtefactSkill069522; break;
             case 531: type = ArtefactSkill069531; break;

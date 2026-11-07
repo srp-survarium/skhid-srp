@@ -30,7 +30,7 @@
 
 use core::ffi::CStr;
 
-use crate::artefact_skills::{Copies, Kind};
+use crate::artefact_skills::{Copies, Kind, Skills};
 use crate::vostok::effect::{self, KeptEffect};
 use crate::vostok::log::{self, Piece::Text};
 use crate::vostok::resources::{self, Arrived, QueryResults, QueryTag};
@@ -82,9 +82,9 @@ const NAMES: [&CStr; 13] = [
     c"artefact_leg_onyx_4",
 ];
 
-/// Whether this game shows the leg quarters (the owner, 2026-11-06): only to a local player whose
-/// current kit has Knowledge of Artifacts (its own quarters too), to everyone's game without a
-/// local player (a spectator, a replay). Forest Protection's glow is everyone's regardless.
+/// Whether this game shows the leg quarters (the owner, 2026-11-07): only to a local player whose
+/// current kit has Artifact Sight (513, its own quarters too), to everyone's game without a local
+/// player (a spectator, a replay). Forest Protection's glow is everyone's regardless.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 enum Quarters {
     Shown,
@@ -92,19 +92,18 @@ enum Quarters {
 }
 
 impl Quarters {
-    /// From the local player's active-time factor (modifier 39's getter: above 1 with Knowledge
-    /// of Artifacts), none without a local player.
-    fn of(viewer: Option<f32>) -> Quarters {
+    /// From the local player's packed artefact skills (modifier 40), none without a local player.
+    fn of(viewer: Option<Skills>) -> Quarters {
         match viewer {
             None => Quarters::Shown,
-            Some(factor) if factor > 1.0 => Quarters::Shown,
+            Some(skills) if skills.sight() => Quarters::Shown,
             Some(_) => Quarters::Hidden,
         }
     }
 
     /// For the game `player` is in: its local player, read now.
     fn seen_in(player: &Player<'_>) -> Quarters {
-        Quarters::of(player.local_player().map(|viewer| viewer.active_duration_factor()))
+        Quarters::of(player.local_player().map(|viewer| viewer.artefact_skills()))
     }
 }
 
@@ -318,9 +317,10 @@ mod tests {
     #[test]
     fn quarters_show_to_knowledge_of_artifacts_or_without_a_local_player() {
         assert_eq!(Quarters::of(None), Quarters::Shown);
-        assert_eq!(Quarters::of(Some(1.05)), Quarters::Shown);
-        assert_eq!(Quarters::of(Some(1.25)), Quarters::Shown);
-        assert_eq!(Quarters::of(Some(1.0)), Quarters::Hidden);
+        assert_eq!(Quarters::of(Skills::parse(4096.0)), Quarters::Shown);
+        assert_eq!(Quarters::of(Skills::parse(4096.0 + 508.0)), Quarters::Shown);
+        assert_eq!(Quarters::of(Skills::parse(508.0)), Quarters::Hidden);
+        assert_eq!(Quarters::of(Some(Skills::default())), Quarters::Hidden);
     }
 
     #[test]

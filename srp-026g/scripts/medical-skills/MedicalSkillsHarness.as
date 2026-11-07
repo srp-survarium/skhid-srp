@@ -11,7 +11,7 @@ package {
    311:"MedicalSkill069311",312:"MedicalSkill069312",313:"MedicalSkill069313",321:"MedicalSkill069321",
    322:"MedicalSkill069322",323:"MedicalSkill069323",331:"MedicalSkill069331",332:"MedicalSkill069332",
    333:"MedicalSkill069333",341:"MedicalSkill069341",342:"MedicalSkill069342",
-   501:"ArtefactSkill069501",502:"ArtefactSkill069502",511:"ArtefactSkill069511",512:"ArtefactSkill069512",
+   501:"ArtefactSkill069501",502:"ArtefactSkill069502",511:"ArtefactSkill069511",512:"ArtefactSkill069512",513:"ArtefactSkill069513",
    521:"ArtefactSkill069521",522:"ArtefactSkill069522",531:"ArtefactSkill069531",532:"ArtefactSkill069532",
    533:"ArtefactSkill069533",541:"ArtefactSkill069541",542:"ArtefactSkill069542"};
   private var loader:Loader = new Loader();
@@ -244,11 +244,11 @@ package {
    check(shown[331].data.newValue==0,"Supply Pocket taken back");
    check(take(322,2)==1,"Additional Medicine at 20, one rank");
    check(take(331,1)==0,"Supply Pocket refused beside Additional Medicine");
-   // The artefact tab (artefact-skills.md): 0/5/10/20/24, 26 ranks in all, 25 in a build (the row-V
-   // pair, Resonance or Cascade, exclude each other).
+   // The artefact tab (artefact-skills.md): 0/5/10/15/20 (the stock rows), 25 ranks in all, 24 in a build
+   // (the row-V pair, Resonance or Cascade, exclude each other).
    stage_="artefact tab";win.skillsTabPage.selectedIndex=4;shown=renderers(win,Renderer);
-   var tree5:Object={501:[2,1,5,0],502:[3,1,5,0],511:[2,2,4,5],512:[3,2,5,5],521:[2,3,1,10],522:[3,3,1,10],
-    531:[1,4,1,20],532:[2,4,1,20],533:[3,4,1,20],541:[2,5,1,24],542:[3,5,1,24]};
+   var tree5:Object={501:[2,1,4,0],502:[3,1,4,0],511:[2,2,4,5],512:[3,2,5,5],513:[4,2,1,5],521:[2,3,1,10],
+    522:[3,3,1,10],531:[1,4,1,15],532:[2,4,1,15],533:[3,4,1,15],541:[2,5,1,20],542:[3,5,1,20]};
    var ranks5:int=0;
    for(id in tree5) {
     want=tree5[id];have=artefacts[id];
@@ -258,37 +258,38 @@ package {
     check(shown[id]!=null && shown[id].x==step.x*(want[0]-1) && shown[id].y==step.y*(want[1]-1),"artefact menu position "+id);
     check(pips(shown[id])==want[2],"artefact rank pips "+id);
    }
-   check(ranks5==26,"26 artefact ranks");
+   check(ranks5==25,"25 artefact ranks");
    check(artefacts[541].preconditions.antiskills[0]==542 && artefacts[542].preconditions.antiskills[0]==541,
     "Resonance and Cascade exclude each other");
    check(shown[301]==null && shown[101]==null,"only the artefact tree on its tab");
-   check(described(artefacts[501].ui,5)[5].indexOf("<green> -25%</green>")>=0,"Quick Hands maximum");
-   check(described(artefacts[502].ui,5)[2].indexOf("Current value: +10 points")>=0,"Resistance current value");
+   check(described(artefacts[501].ui,4)[4].indexOf("<green> -24%</green>")>=0,"Quick Hands maximum");
+   check(described(artefacts[502].ui,4)[2].indexOf("Current value: +12 points")>=0,"Resistance current value");
    check(described(artefacts[521].ui,1).length==1,"Keeper: the description alone");
+   check(described(artefacts[513].ui,1).length==1,"Artifact Sight: the description alone");
    bar(1,"artefact at 0");
    check(take(511,1)==0,"artefact tier 2 refused at 0");
-   check(take(501,6)==5,"Quick Hands stops at 5");
+   check(take(501,6)==4,"Quick Hands stops at 4");
+   bar(5,"artefact at 4");
+   check(take(511,1)==0 && take(513,1)==0,"artefact tier 2 refused at 4");
+   check(take(502,1)==1,"5 points");
    bar(6,"artefact tier 2 mark at 5");
    check(take(511,5)==4,"Forest Protection stops at 4");
-   bar(10,"artefact at 9, between tiers 2 and 3");
-   check(take(521,1)==0,"artefact tier 3 refused at 9");
-   check(take(512,1)==1,"10 points");
+   check(take(513,2)==1,"Artifact Sight at 5, one rank: 10 points");
    bar(11,"artefact tier 3 mark at 10");
    check(take(521,2)==1 && take(522,2)==1,"tier 3 at 10: Keeper and Artifact Container, one rank each");
    check(take(531,1)==0,"artefact tier 4 refused at 12");
-   check(take(502,5)==5 && take(512,4)==5,"21 points in tiers 1-3");
-   bar(17.25,"artefact at 21, past the tier 4 mark");
-   check(take(531,1)==1 && take(532,1)==1,"tier 4 at 20");
-   check(take(541,1)==0 && take(542,1)==0,"artefact tier 5 refused at 23");
-   bar(19.75,"artefact at 23, between tiers 4 and 5");
-   check(take(533,2)==1,"Larkspur II, one rank: 24 points");
-   bar(21,"artefact tier 5 mark at 24");
-   check(take(541,2)==1,"Resonance at 24, one rank");
+   check(take(502,4)==3,"Resistance stops at 4: 15 points");
+   bar(16,"artefact tier 4 mark at 15");
+   check(take(531,1)==1 && take(532,1)==1,"tier 4 at 15");
+   check(take(541,1)==0 && take(542,1)==0,"artefact tier 5 refused at 17");
+   check(take(533,2)==1 && take(512,2)==2,"20 points");
+   bar(21,"artefact tier 5 mark at 20");
+   check(take(541,2)==1,"Resonance at 20, one rank");
    bar(26,"artefact full with the last tier taken");
    check(take(542,1)==0,"Cascade refused beside Resonance");
    click(541,true);
    check(shown[541].data.newValue==0,"Resonance taken back");
-   check(take(542,2)==1,"Cascade at 24, one rank");
+   check(take(542,2)==1,"Cascade at 20, one rank");
    check(take(541,1)==0,"Resonance refused beside Cascade");
    // The stock tab: the indicator at every point as the stock window drew it, min(points + 1, 21).
    stage_="stock tab";win.skillsTabPage.selectedIndex=0;shown=renderers(win,Renderer);

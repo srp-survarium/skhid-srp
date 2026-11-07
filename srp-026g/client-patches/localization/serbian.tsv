@@ -2196,8 +2196,10 @@ st_srp_artefact_502_description	Izolacija od anomalija:
 st_srp_artefact_502_name	Otpornost
 st_srp_artefact_511_description	Šteta od metaka i šrapnela unutar anomalije:
 st_srp_artefact_511_name	Zaštita Šume
-st_srp_artefact_512_description	Pasivni artefakti vide se kao sjaj na nogama igrača, uključujući tvoje. Trajanje aktivnog efekta artefakata:
+st_srp_artefact_512_description	Trajanje aktivnog efekta artefakata:
 st_srp_artefact_512_name	Poznavanje artefakata
+st_srp_artefact_513_description	Pasivni artefakti vide se kao sjaj na nogama igrača, uključujući tvoje.
+st_srp_artefact_513_name	Artefaktni vid
 st_srp_artefact_521_description	Meč počinje sa nasumičnim artefaktom u kontejneru; jedna vrsta za sve u meču.
 st_srp_artefact_521_name	Čuvar artefakata
 st_srp_artefact_522_description	Jedan džep postaje kontejner za artefakt.
