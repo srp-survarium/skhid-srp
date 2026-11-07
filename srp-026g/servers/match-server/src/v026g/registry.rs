@@ -596,11 +596,19 @@ impl MatchRegistry {
                 return Err(JoinError::AlreadyPlaying);
             }
         }
+        // Keeper of the Artifacts (artefact-skills.md): a joiner taken before the match is in
+        // process still chooses its kit, so it gets the gift at the start as everyone; one taken
+        // after it is late (its gift after its first death), as the match last said its phase.
+        let gift: fn(&mut MatchProfile, keeper::Kind) =
+            match inner.live.get(&match_id).map(|live| live.phase) {
+                None | Some(LivePhase::Gathering | LivePhase::Countdown) => keeper::give,
+                Some(LivePhase::Playing | LivePhase::Over) => keeper::give_late,
+            };
         let mut next = (**formed).clone();
         let first = next.places.len();
         next.profiles.extend(players.iter().map(|player| {
             let mut profile = player.profile.clone();
-            keeper::give_late(&mut profile, next.keeper);
+            gift(&mut profile, next.keeper);
             profile
         }));
         next.info = StaticInfo::new(
@@ -764,6 +772,11 @@ impl MatchRegistry {
         if inner.matches.contains_key(&match_id) {
             inner.live.insert(match_id, live);
         }
+    }
+
+    /// The phase the match loop last said of a match; `None` before its first word.
+    pub(crate) fn live_phase(&self, match_id: u32) -> Option<LivePhase> {
+        self.inner().live.get(&match_id).map(|live| live.phase)
     }
 
     /// The matches made and not over as they are at `now`, the oldest

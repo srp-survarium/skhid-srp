@@ -119,8 +119,8 @@ impl Skills {
         })
     }
 
-    /// The kit is a late joiner's (it joined the formed match): Keeper's gift comes at the
-    /// respawn after its first death, not at the match's start.
+    /// The kit is a late joiner's (srp took it into the match once in process): Keeper's gift
+    /// comes after its first death, not at the match's start.
     pub fn late(self) -> bool {
         self.late
     }

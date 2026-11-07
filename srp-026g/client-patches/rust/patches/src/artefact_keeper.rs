@@ -9,11 +9,13 @@
 //!   the p-th of the kind by id), moved into the first empty artefact container by the game's own
 //!   take_artefact. The pool's anomaly cooks, ticks and saves it as any anomaly does its own, so
 //!   late join, resync and replay load it natively.
-//! - When (the owner, 2026-11-07), at each tick of the player (base_player::tick, after the glow's):
-//!   from the match's start (the time rule in process: the countdown's end, the kit the one the
-//!   player settled on) for a player there at the start; from its first death for a late joiner
-//!   (srp marks its kits, modifier 40 bit 13); while the player is alive and has an empty
-//!   container: the first such tick (at the start, at a respawn, when a container frees).
+//! - When (the owner, 2026-11-07), decided at each tick of the player (base_player::tick before
+//!   tick_animations, after the glow's): due when the match itself begins (the time rule in
+//!   process, core +18FE4h 3: the countdown's end, while everyone loads; no extra delay), and for
+//!   a late joiner (srp marks its kits, modifier 40 bit 13) only once its place has a death
+//!   counted. Due and alive with an empty container: taken at that tick. Dead, or every container
+//!   held: pending, taken at the first later tick with room (a container freed in the same life,
+//!   or a respawn with room).
 //! - Once a match, with nothing kept outside the world: the take gives the artefact its count (the
 //!   anomaly's spawn's, never 0; a pool artefact never given has 0), which stays through a death
 //!   (state 5 on the body, back to the pool at the respawn's unload, dormant again) and is in the

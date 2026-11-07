@@ -463,7 +463,8 @@ impl Server {
             }
             self.registry
                 .set_admitting(game.id, game.roster_size(), game.admission(now));
-            if tell_live {
+            // A new phase at once: a join reads it (Keeper's late joiner, registry.rs).
+            if tell_live || self.registry.live_phase(game.id) != Some(game.live_phase()) {
                 self.registry.set_live(game.id, game.live_now(now));
             }
             results.extend(game.take_result());
