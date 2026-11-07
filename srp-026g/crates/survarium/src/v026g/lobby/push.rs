@@ -770,6 +770,45 @@ pub const GEAR_BY_ACCOUNT: u32 = 0xFFFF_FF02;
 /// older list (a member came or went since) gets no answer (since
 /// 2026-10-20).
 pub const GEAR_IN_ROOM: u32 = 0xFFFF_FF04;
+/// The `player` of a `3D 00 <player> <match>` that asks to watch the
+/// match's replay in the running game (a replay session,
+/// `docs/notes/replay-stream.md`): `REPLAY_WATCH_BASE | place << 16 |
+/// seconds` ([`ReplayWatchAsk`]). No account id is that high (they are below
+/// 2^31), nor any other srp `player` (0xFFFF_FFxx).
+pub const REPLAY_WATCH_BASE: u32 = 0xC000_0000;
+/// The last `player` of a replay session's ask.
+pub const REPLAY_WATCH_LAST: u32 = REPLAY_WATCH_BASE | 0x00FF_FFFF;
+
+/// What a `3D` with a [`REPLAY_WATCH_BASE`] `player` asks for, besides the
+/// match.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct ReplayWatchAsk {
+    /// Match time to start at, in seconds (snapped to a key frame at or
+    /// before it, and never before the first view with a player).
+    pub seconds: u16,
+    /// The place the movie wants in view first: the start waits for its
+    /// first entry. `None` (0xFF on the wire): anyone's.
+    pub place: Option<u8>,
+}
+
+impl ReplayWatchAsk {
+    /// The ask a `3D`'s `player` makes, if it is one.
+    pub fn of(player_id: u32) -> Option<Self> {
+        if player_id & 0xFF00_0000 != REPLAY_WATCH_BASE {
+            return None;
+        }
+        let place = (player_id >> 16) as u8;
+        Some(Self {
+            seconds: player_id as u16,
+            place: (place != 0xFF).then_some(place),
+        })
+    }
+
+    /// The `player` the movie sends for it.
+    pub fn player_id(self) -> u32 {
+        REPLAY_WATCH_BASE | u32::from(self.place.unwrap_or(0xFF)) << 16 | u32::from(self.seconds)
+    }
+}
 /// The first field of the row of [`replay_answer`].
 pub const REPLAY_ANSWER_VERSION: &str = "R1";
 

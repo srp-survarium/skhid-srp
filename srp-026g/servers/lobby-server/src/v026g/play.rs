@@ -93,6 +93,12 @@ pub trait MatchHost: Send + Sync {
     /// connection with the session, 0xD8). `false` when the match is over
     /// or the account has no place in it.
     fn reseat(&self, match_id: u32, account_id: u32, session_id: u32) -> bool;
+    /// Where the game of a replay session of the recorded match `match_id`
+    /// connects (`replay`): the match server, which makes no match of it.
+    /// `None`: this host plays no replays.
+    fn replay_ticket(&self, _match_id: u32) -> Option<MatchTicket> {
+        None
+    }
 }
 
 /// A match as the match server has it now ([`MatchHost::live`]).
@@ -881,6 +887,14 @@ impl Core<'_> {
                 None,
             )
         };
+        // A replay session's game: the match server shows it its replay
+        // (`replay`); its session's end frees it.
+        if self
+            .replays
+            .is_some_and(|replays| replays.watches().in_replay(session_id))
+        {
+            return;
+        }
         // Queue and spectate: sent to its room's match with no place, once
         // (`room_watchers` starts and ends a watch). A watch ended: its match
         // is over for it (below).
@@ -988,6 +1002,47 @@ impl Core<'_> {
         }
         // No team: it has no place (0 for the client's field).
         self.send_found(addr, match_id, 0, found);
+    }
+
+    /// The client at `addr` goes to watch a replay ([`MatchHost::replay_ticket`]):
+    /// as a spectator is sent ([`Self::send_to_watch`]), to the match server,
+    /// with no place and no match of the queue.
+    pub(super) fn send_to_replay(&mut self, addr: SocketAddr, ticket: &MatchTicket) {
+        let order_id = self.next_order_id;
+        // 0xFFFFFFFF is the client's "not queued".
+        self.next_order_id = (self.next_order_id + 1) % 0x7FFF_FFFF + 1;
+        let found = lobby::client_state(
+            &ClientState::InQueue {
+                order_id,
+                place: 0,
+                queue_total: 0,
+                current_wait_seconds: 0,
+                average_wait_seconds: 0,
+                search_step: SEARCH_STEP,
+                search_properties: [0; limits::SEARCH_PROPERTIES],
+            },
+            None,
+        );
+        let Some(session_id) = self.player(addr).map(|player| player.session_id) else {
+            return;
+        };
+        let host = self.match_host_for(addr, ticket);
+        let found = self.send(addr, found);
+        if let Some(player) = self.player_mut(addr) {
+            player.order_id = order_id;
+            player.queued_since = None;
+            player.in_match = Some(ticket.match_id);
+            player.connect = Some((
+                found,
+                lobby::connect_to_match(&host, ticket.port, ticket.match_id, 0, session_id),
+            ));
+            log::info!(
+                "{} watches the replay of match {:#x} at {host}:{}",
+                player.name,
+                ticket.match_id,
+                ticket.port
+            );
+        }
     }
 
     /// The client at `addr` goes to the match `match_id` (a seated player,

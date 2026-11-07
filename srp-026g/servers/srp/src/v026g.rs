@@ -225,6 +225,15 @@ impl MatchHost for RegistryHost {
     fn reseat(&self, match_id: u32, account_id: u32, session_id: u32) -> bool {
         self.0.reseat(match_id, account_id, session_id).is_some()
     }
+
+    fn replay_ticket(&self, match_id: u32) -> Option<lobby::MatchTicket> {
+        let ticket = self.0.replay_ticket(match_id);
+        Some(lobby::MatchTicket {
+            match_id: ticket.match_id,
+            host: ticket.host,
+            port: ticket.port,
+        })
+    }
 }
 
 /// The match server's result as the rewards take it: the same fields.

@@ -142,6 +142,16 @@ impl Core<'_> {
                 player_id: lobby::REPLAY_ASK,
                 match_id,
             } => self.replay_ask(who, match_id, now),
+            // `3D 00 <REPLAY_WATCH_BASE | place << 16 | seconds> <match>`:
+            // watch the match's replay in this game (`replay`).
+            M::QueryPlayerDetails {
+                player_id: player_id @ lobby::REPLAY_WATCH_BASE..=lobby::REPLAY_WATCH_LAST,
+                match_id,
+            } => {
+                if let Some(ask) = lobby::ReplayWatchAsk::of(player_id) {
+                    self.replay_watch(who, match_id, ask, now);
+                }
+            }
             // `3D 00 <GEAR_BY_PLACE> <place>`: the kits of a row of the
             // Rankings window (`gear`), any player's.
             M::QueryPlayerDetails {

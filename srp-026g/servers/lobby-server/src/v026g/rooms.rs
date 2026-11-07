@@ -2022,10 +2022,19 @@ impl Core<'_> {
     }
 
     /// The member's link if it is free in the lobby: its game told its
-    /// room, in no match, not on its way to one.
+    /// room, no replay session of its player's on, in no match, not on its
+    /// way to one.
     fn room_free(&self, account_id: u32) -> Option<SocketAddr> {
         // Its game started anew and does not know of the room yet.
         if self.room_unseen.contains_key(&account_id) {
+            return None;
+        }
+        // Watching a replay, or about to (`replay`): the room's queue waits
+        // for it until its session is over.
+        if self
+            .replays
+            .is_some_and(|replays| replays.watches().holds(account_id))
+        {
             return None;
         }
         let addr = *self.by_account.get(&account_id)?;

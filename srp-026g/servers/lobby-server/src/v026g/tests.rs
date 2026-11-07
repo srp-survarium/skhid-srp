@@ -111,6 +111,14 @@ impl MatchHost for TestHost {
         self.open.locked().contains(&match_id)
     }
 
+    fn replay_ticket(&self, match_id: u32) -> Option<MatchTicket> {
+        Some(MatchTicket {
+            match_id,
+            host: "127.0.0.1".to_owned(),
+            port: MATCH_PORT,
+        })
+    }
+
     fn reseat(&self, match_id: u32, account_id: u32, session_id: u32) -> bool {
         let known = self.made.locked().iter().any(|(id, setup)| {
             *id == match_id
