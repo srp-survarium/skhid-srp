@@ -35,7 +35,7 @@
 //!   wait begin, however each came in (Play or a join; the owner's of
 //!   2026-10-31, [`Rooms::match_over`]).
 //! - The lobby routes Play within its equipment bracket, queues for full
-//!   rooms, and opens another room when six ready Play users are waiting.
+//!   rooms, and opens another room when four ready Play users are waiting.
 //!   [`QueueChoice`] keeps those waiters distinct from explicit room queues.
 //! - A private room (a PIN; the owner's of 2026-10-26) has no team size
 //!   and no players to start: it takes the most a match has (10 v 10), and
