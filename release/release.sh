@@ -89,10 +89,10 @@
 #      checked as the new server checks an upload before it relays it, with
 #      the new server data (srp-world-check): one refused, or none checked,
 #      stops the release here, before the go; then the exe patches' self-test
-#      of that commit
+#      of that commit started in the background
 #      (srp-026g/client-patches/selftest_026g.py, its Linux part, on
-#      $SKHID_GAME's survarium.exe, about 15 min: a failed check stops the
-#      release here; release/test.sh: $SKHID_SELFTEST_BIN); checks the two
+#      $SKHID_GAME's survarium.exe, about 5 min; release/test.sh:
+#      $SKHID_SELFTEST_BIN), while the rest of this step runs; checks the two
 #      files as release/deploy does (live:
 #      and makes the item tables of the server data, srp-item-tables, so a
 #      tool failing on it stops here, before the go); makes the release
@@ -103,9 +103,10 @@
 #      build_image: the host's one core keeps the running matches), uploads
 #      the source and the image (sha256 checked there), tags the running
 #      image (by its ID) srp-026g:before-rev<rev>-<stamp> and docker loads
-#      the new one, which srp-026g:latest then names. A failure here stops
+#      the new one, which srp-026g:latest then names; last, the self-test's
+#      result (a failed check stops the release). A failure here stops
 #      before the go: the staged files removed, the image tag put back,
-#      nothing planned;
+#      nothing planned (a stop also kills the self-test still running);
 #   3. waits for the go: the owner's word that players may feel the release
 #      from now on (y at its prompt, n stops; or touch the go file it names
 #      under ~/.cache/skhid-release/; --yes does not give it;
@@ -367,6 +368,8 @@ nap() {
     NAP_PID=''
 }
 pause() { nap "$(awk -v m="$MINUTE" -v f="$1" 'BEGIN { print m * f }')"; }
+# The exe patches' self-test, while it runs in the background (step 2).
+SELFTEST_PID=''
 
 # The admin page's path and token, from the target's .env, into ADMIN_PATH
 # and ADMIN_TOKEN; never printed. The command shown in `ps` is a grep.
@@ -928,6 +931,12 @@ on_exit() {
     trap '' PIPE
     if [[ -n $LOG_PID ]] && ! kill -0 "$LOG_PID" 2>/dev/null; then exec 1>&8 2>&9; fi
     if [[ -n $NAP_PID ]]; then kill "$NAP_PID" 2>/dev/null; fi
+    # The self-test still running (step 2): its whole process group (nix,
+    # python and its workers), before its worktree goes.
+    if [[ -n $SELFTEST_PID ]]; then
+        kill -- "-$SELFTEST_PID" 2>/dev/null
+        wait "$SELFTEST_PID" 2>/dev/null
+    fi
     case $phase in
     planned)
         say
@@ -1596,7 +1605,7 @@ if ((DRY_RUN)); then
     say "[dry run]    then the world check of $WORLDS_SAID with it: $WORLD_CHECK --data $data $WORLDS (one world refused stops the release)"
     say "[dry run]    and: ${build_zip[*]}"
     if ((build_code)); then say "[dry run]    and the server's image of main's source (podman): $image"; fi
-    say "[dry run]    then the exe patches' self-test (selftest_026g.py, its Linux part) of that commit on $SKHID_GAME's survarium.exe: a failed check stops here"
+    say "[dry run]    then the exe patches' self-test (selftest_026g.py, its Linux part) of that commit on $SKHID_GAME's survarium.exe started in the background, beside the rest of step 2"
     say "[dry run]    then the checks of release/deploy on both$( ((test_server)) || printf ", the item tables of the server data (srp-item-tables: a failure stops here)"), and the release folder:"
     stage_begin
     write_on live "cat > $REL_DIR/changed.txt" "$work/changed.txt"
@@ -1618,17 +1627,17 @@ else
     progress "2. building the ZIP of $(git -C "$REPO" log -1 --format=%h "$main_commit") (release/build-zip)"
     "${build_zip[@]}" </dev/null 2>&1 | tee "$work/build-zip.log" || die "build-zip failed"
     # The exe patches' self-test of the commit built (build-zip's worktree)
-    # on the original exe: a failed check stops here, before anything is
-    # staged.
+    # on the original exe, in the background while the rest is checked,
+    # built and staged; its result is waited for before the go (below). Its
+    # own process group (set -m), so a stop kills all of it (on_exit), and a
+    # Ctrl-C reaches only this script.
     original_exe=$SKHID_GAME/binaries/x86/survarium.exe
     [[ -f $original_exe ]] || original_exe=$SKHID_GAME/game/binaries/x86/survarium.exe
-    progress "2. the exe patches' self-test of $(git -C "$REPO" log -1 --format=%h "$main_commit") (selftest_026g.py, about 15 min; log: $work/selftest.log)"
-    selftest_ok=1
-    run_selftest "$work/zip/src" "$original_exe" "$work/selftest.log" "$work/selftest" </dev/null || selftest_ok=0
-    if [[ -d $work/zip/src ]]; then git -C "$REPO" worktree remove --force "$work/zip/src"; fi
-    rm -rf "$work/selftest"
-    ((selftest_ok)) || die "the exe patches' self-test failed: $(grep -cE '^  FAIL' "$work/selftest.log" || true) check(s), the first: $(grep -m 1 -E '^  FAIL' "$work/selftest.log" | sed 's/^  FAIL  *//' || true) (log: $work/selftest.log)"
-    say "the exe patches' self-test: $(tail -n 1 "$work/selftest.log")"
+    progress "2. the exe patches' self-test of $(git -C "$REPO" log -1 --format=%h "$main_commit") started, beside the rest (selftest_026g.py, about 5 min; log: $work/selftest.log)"
+    set -m
+    run_selftest "$work/zip/src" "$original_exe" "$work/selftest.log" "$work/selftest" </dev/null &
+    SELFTEST_PID=$!
+    set +m
     planned_offer=$OFFERED
     check_release_files "$zip" "$data" "$rev" "$work"
     [[ $OFFERED == "$planned_offer" ]] ||
@@ -1686,10 +1695,24 @@ if ((build_code)); then
     ((DRY_RUN)) || image_tagged=1
     write_on live "cd $REL_DIR && zstd -dc image.tar.zst | docker load -q && rm image.tar.zst"
 fi
+# The self-test's result, before the go: a failed check stops the release
+# here, as any failure of step 2 (the staged files removed, the image tag put
+# back, the new patch's row out of the list again).
+if ((!DRY_RUN)); then
+    progress "2. waiting for the exe patches' self-test (log: $work/selftest.log)"
+    selftest_ok=1
+    wait "$SELFTEST_PID" || selftest_ok=0
+    SELFTEST_PID=''
+    if [[ -d $work/zip/src ]]; then git -C "$REPO" worktree remove --force "$work/zip/src"; fi
+    rm -rf "$work/selftest"
+    ((selftest_ok)) || die "the exe patches' self-test failed: $(grep -cE '^  FAIL' "$work/selftest.log" || true) check(s), the first: $(grep -m 1 -E '^  FAIL' "$work/selftest.log" | sed 's/^  FAIL  *//' || true) (log: $work/selftest.log)"
+    say "the exe patches' self-test: $(tail -n 1 "$work/selftest.log")"
+fi
 
 
 # 3. The go, then at once 4. the maintenance.
 if ((DRY_RUN)); then
+    say "[dry run]    then the self-test's result (a failed check stops here, before the go)"
     say "[dry run] 3. then wait for the go (y at the prompt, or touch $GO_DIR/go-$REL; --yes does not give it). Then at once: $after_go"
     if ((!no_maint)); then
         maintenance_minutes
