@@ -765,7 +765,14 @@ pub fn step(state: &mut State, target: TargetRef, cx: &Ctx, rng: &mut Rng) -> St
                 }
                 _ => {}
             }
-            Step::Continue(Intent::stay().crouched().looking(Look::At(him)))
+            // [B3g4] The fallback peek: no line from the crouched eye to his spot's standing eye (the table's spot, not his
+            // place): it stands to peek over the cover.
+            let crouched_sees = cx.tactics.sees(
+                crate::v026g::bots::view::still_eye(cx.me.feet, true),
+                crate::v026g::bots::view::still_eye(him, false),
+            );
+            let intent = Intent::stay().looking(Look::At(him));
+            Step::Continue(if crouched_sees { intent.crouched() } else { intent })
         }
         State::Via { via, spot } => {
             let (via, spot) = (*via, *spot);

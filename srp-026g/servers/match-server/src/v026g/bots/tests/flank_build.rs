@@ -99,9 +99,21 @@ fn off_deg(a: f32, b: f32) -> f32 {
 struct SpotSight<'w> {
     world: &'w World,
     eyes: [Vec3; 2],
-    chest: Vec3,
+    /// [B3g4] Where he may be: his standing and crouched eye over his spot's floor and the floors 1 m round it (he holds
+    /// within his spot, crouches, peeks): a firing floor must see enough of them, not one point (Darken et al., visibility
+    /// as a fraction; a single ray left 17 of 21 arrivals with no line to him).
+    targets: Vec<Vec3>,
     seen: RefCell<HashMap<NodeId, bool>>,
+    fires: RefCell<HashMap<NodeId, bool>>,
 }
+
+/// [B3g4] A firing floor sees at least this share of his sample points.
+const FIRE_SHARE: f32 = 0.6;
+/// [B3g4] The route stops this many floors inside the stretch that fires on him (0.25 m apart: about 1 m past his cover's
+/// edge), not on its first floor.
+const FIRE_INSET: usize = 4;
+/// [B3g4] His sample points lie on the floors this far round his spot's, m.
+const TARGET_RING_M: f32 = 1.0;
 
 impl SpotSight<'_> {
     fn seen(&self, n: NodeId) -> bool {
@@ -112,9 +124,13 @@ impl SpotSight<'_> {
         })
     }
 
-    /// Whether a flanker crouched on `n` sees the spot's chest.
+    /// Whether a flanker crouched on `n` sees [`FIRE_SHARE`] of his sample points (asked lazily, kept).
     fn fires_from(&self, n: NodeId) -> bool {
-        visible(&self.world.sight, still_eye(self.world.grid.position(n), true), self.chest)
+        *self.fires.borrow_mut().entry(n).or_insert_with(|| {
+            let eye = still_eye(self.world.grid.position(n), true);
+            let seen = self.targets.iter().filter(|&&t| visible(&self.world.sight, eye, t)).count();
+            seen as f32 >= FIRE_SHARE * self.targets.len() as f32
+        })
     }
 }
 
@@ -146,7 +162,7 @@ fn search(grid: &WalkGrid, from: NodeId, to: NodeId, weight: impl Fn(NodeId) -> 
 fn ending_at_fire(grid: &WalkGrid, sight: &SpotSight, mut floors: Vec<NodeId>) -> Option<Found> {
     let last = floors.iter().rposition(|&n| sight.fires_from(n))?;
     let first = (0..=last).rev().take_while(|&i| sight.fires_from(floors[i])).last()?;
-    floors.truncate(first + 1);
+    floors.truncate((first + FIRE_INSET).min(last) + 1);
     let (mut length_m, mut seen_m) = (0.0, 0.0);
     for w in floors.windows(2) {
         let d = (grid.position(w[1]) - grid.position(w[0])).length();
@@ -223,8 +239,14 @@ fn routes_of(world: &World, spot: &InSpot, camper_side: i32) -> (Vec<serde_json:
         world,
         eyes: [still_eye(feet, false), still_eye(feet, true)],
         // What a flanker must see to fire on him: his standing eye (the exe's head matrix, `view::still_eye`).
-        chest: still_eye(feet, false),
+        targets: [(0.0, 0.0), (TARGET_RING_M, 0.0), (-TARGET_RING_M, 0.0), (0.0, TARGET_RING_M), (0.0, -TARGET_RING_M)]
+            .iter()
+            .filter_map(|&(dx, dz)| grid.locate(feet + Vec3::new(dx, 0.0, dz), 0.3).map(|n| grid.position(n)))
+            .filter(|p| (p.y - feet.y).abs() <= 0.5)
+            .flat_map(|p| [still_eye(p, false), still_eye(p, true)])
+            .collect(),
         seen: RefCell::new(HashMap::new()),
+        fires: RefCell::new(HashMap::new()),
     };
     let weight = |n: NodeId, extra: &HashMap<NodeId, f32>| {
         (if sight.seen(n) { SEEN_WEIGHT } else { 1.0 }) * extra.get(&n).copied().unwrap_or(1.0)
