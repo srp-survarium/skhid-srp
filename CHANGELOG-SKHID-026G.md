@@ -9,6 +9,13 @@ release that made it what it is now.
 
 ---
 
+## 7 Nov, 23:16 — TODO: the owner's words (update required)
+
+<!-- Revision 53 (026g-rev53), released 2026-11-07 23:16 UTC. To be worded for players; what it shipped: -->
+
+- TODO: #1510 Patch 109: every kit's artefact slots made the world's at each world load (rev52's start crash)
+- TODO: #1509 Cascade: every kind's activation shared (Medic's path); Resonance 9 m, Cascade 6 m
+
 ## 7 Nov, 21:40 — TODO: the owner's words (update required)
 
 <!-- Revision 52 (026g-rev52), released 2026-11-07 21:40 UTC. To be worded for players; what it shipped: -->
