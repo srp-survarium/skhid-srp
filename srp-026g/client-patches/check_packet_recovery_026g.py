@@ -1,11 +1,25 @@
 #!/usr/bin/env python3
-"""Native receipt lifecycle: rejection, successful load, floods, full pool and teardown."""
+"""Native receipt lifecycle: rejection, successful load, floods, numbered handshake refusals,
+a full pool (the receipt waits for a frame with room) and teardown."""
 import argparse
-from unicorn import UC_HOOK_CODE
+from unicorn import UC_HOOK_CODE, UC_PROT_ALL
 from unicorn.x86_const import *
 import patch_026g as base
 from check_message_check_026g import MessageRun, END
 from check_world_check_026g import CLIENT, HOLDER, POOL, PACKET, FRAME, STUBS, state, body, player, sections, EPILOGUE, LOADED
+
+GAME_TICK, AFTER_TICK = 0x1EC8EC, 0x1EC8F2   # the game.tick site, the instruction after its six bytes
+TICKING = 0x45000000                         # a game whose network client (+53ACh) is CLIENT
+
+def frame(run):
+    """One frame: game.tick on a game of CLIENT. The receipts it sent, as
+    their (generation, outcome) bytes."""
+    if not getattr(run, "ticking", False):
+        run.emu.mem_map(TICKING, 0x10000, UC_PROT_ALL); run.word(TICKING+0x53AC, CLIENT)
+        run.emu.hook_add(UC_HOOK_CODE, run.stop, begin=AFTER_TICK, end=AFTER_TICK); run.ticking = True
+    at,_,_ = run.start(GAME_TICK, {UC_X86_REG_EBX: TICKING}, FRAME-0x100)
+    assert at==AFTER_TICK and not run.calls, (hex(at or 0), run.calls)
+    return [receipt[12:14] for receipt in run.receipts]
 
 def main():
     parser=argparse.ArgumentParser(description=__doc__);parser.add_argument('exe');args=parser.parse_args()
@@ -37,11 +51,13 @@ def main():
     assert not run.receipts
     # The floods' refusals that got no line are counted in the next one.
     assert len(run.lines)==1 and b'; 2000 more refused since the last line' in run.lines[0],run.lines
-    # Each refused handshake message is told, the second at once too.
+    # Each refused handshake message is told, the second at once too, with
+    # its number on the connection: the server tells a new refusal from a
+    # copy of one (0xE0 is plain and resent until acked) by it.
     run.word(CLIENT+0x1F1C64,0)
-    for _ in range(2):
-        run.message(0xe4,b'\0\x01')
-        assert len(run.receipts)==1 and run.receipts[0][13]==2 and not run.calls
+    for number in (1,2):
+        run.message(0xe4,b"\0\x01")
+        assert len(run.receipts)==1 and run.receipts[0][12:14]==bytes([number,2]) and not run.calls,run.receipts
     run.word(CLIENT+0x1F1C64,2)
     # A refused late-join proposal (0xE4 to a game in play) is no handshake.
     at,_,_=run.message(0xe4,b'\xffLJ\x01'+bytes(4))
@@ -49,9 +65,13 @@ def main():
     # No allocator call when the pool lacks the same reserve as send_prepared.
     run.ticks+=1001;run.word(POOL+0x30,99)
     before=run.packet_allocations
-    run.message(0xe8,b'\x06\x02'+bytes(8))
+    run.message(0xe8,b"\x06\x02"+bytes(8))
     assert not run.receipts and run.packet_allocations==before and not run.calls
+    # It waits, and goes on the first frame with room, once.
+    assert not frame(run) and run.packet_allocations==before
     run.word(POOL+0x30,0)
+    sent=frame(run); assert sent==[b"\x06\x01"] and run.packet_allocations==before+1,(sent,run.packet_allocations,before,run.lines)
+    assert not frame(run)
     # Complete native deserialize is required for the Loaded receipt. The
     # hook runs after the load; rejected bytes never invoke native deserialize.
     run.ticks+=1001;run.advance=2000

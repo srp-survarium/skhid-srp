@@ -429,8 +429,11 @@ behavior. **Deploy the server before a client with the new capability.**
 
 The client sends one receipt per event and never drops one for time (a
 wait the server keeps for a refusal must get it): Loaded/Rejected once per
-generation, a handshake refusal once per refused E3/E4. It checks packet-pool
-headroom before allocation and forgets the last receipt on match teardown.
+generation, a handshake refusal once per refused E3/E4, numbered on its
+connection (the generation byte: 1, 2, ...) so that the server can tell it from
+a copy (E0 is plain and resent until acked). It checks packet-pool headroom
+before allocation; a receipt with no room waits, the newest only, and goes on
+the next frame with room (`game.tick`). Match teardown forgets both.
 Server tests cover rejected first/resync worlds, lost reports, successful retry,
 repeated refusal, forged/stale reports, corrupt handshake envelopes and source
 input removal. A native harness covers 2,000-message bursts, a valid input after
