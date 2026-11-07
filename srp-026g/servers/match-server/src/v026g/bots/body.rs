@@ -905,9 +905,11 @@ fn advance(
 ) -> Estimate {
     let steps = (tick.time.saturating_sub(at.time) / TICK_MS).max(1);
     let falls = role == Role::Reckoning && kin.drop_fall != DropFall::Snap;
-    let (step_keys, step_yaw) = at.step_by(kin);
-    let target = kin.target_local(step_keys, level);
     for step in 1..=steps {
+        // [A318] [`StepInput::Previous`]: the held-back input moves the first step only; a stall's further steps (no input
+        // decided between) move with the newest input, as the client holds it.
+        let (step_keys, step_yaw) = if step == 1 { at.step_by(kin) } else { (at.keys, at.yaw) };
+        let target = kin.target_local(step_keys, level);
         // [A318] A falling body moves across from its floor; its height is played after the step.
         let top = at.feet.y;
         if let (Some(grid), Fall::Falling { .. }, Some(node), None) = (grid, at.fall, at.node, at.arc) {
