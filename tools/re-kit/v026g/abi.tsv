@@ -2367,3 +2367,7 @@ va	name	source	ret_cleanup	result
 0x00201040	survarium::game_options::deactivate	manual	0	none; returns at once when +44h is 0, else hides +0Ch and +10h, removes its input handler, clears +44h and +30h
 0x00234880	survarium::game_world_ui::initialize_match	manual	8	none
 0x001f8120	survarium::game_world::local_player_profiles	manual	8	none; writes the local place's kit in use (+0Ch) to entry ESP+4's byte and its next kit (+0Dh) to entry ESP+8's
+0x0026d660	survarium::base_local_network_client::get_player	manual	8	EAX = the out pointer: the place's current kit player ([[client+578BCh]+18650h] + place x 30h, kit byte +0Ch), reference added, or 0; no bound on the place and no active-mask check, unlike get_active_player 0x26D6A0; the replay client's vtable 0x9FF344 +4Ch
+0x00397040	vostok::animation::mixing::n_ary_tree_serializer::save_floats	manual	4	none; writes the floats (+1014h..+1018h) as decode_floats_impl 0x3A9720 reads them: a 1-bit indexed form, the 10-bit count, then the 32-bit values, or the unique count, the sorted unique values (stlp_std::unique 0x397810, ucomiss equality) and each value's position (stlp_std::find 0x397880): a NaN equals none, so its position is the unique count
+0x00397810	stlp_std::unique<float *>	manual	0	EAX = the new end; equality by ucomiss (a NaN is kept each time)
+0x00397880	stlp_std::find<float *,float>	manual	0	EAX = the first element equal (ucomiss) to [ESI], or EDI (the end) for none: always the end for a NaN

@@ -5639,3 +5639,12 @@ va	name	location	role	basis
 0x001f8120	survarium::game_world::local_player_profiles	EDX	the game world (+9Ch the game, whose network client's local player +114h is the place; +4D4Ch the match, its places at +18650h)	observed
 0x001f8120	survarium::game_world::local_player_profiles	entry ESP+4	the kit in use, a byte written	observed
 0x001f8120	survarium::game_world::local_player_profiles	entry ESP+8	the next kit, a byte written: show_profiles_selector selects it on the hud's tabs (0x2383F3)	observed
+0x0026d660	survarium::base_local_network_client::get_player	ECX	the network client (its core [+578BCh] - 1F8h)	observed
+0x0026d660	survarium::base_local_network_client::get_player	entry ESP+4	out pointer	observed
+0x0026d660	survarium::base_local_network_client::get_player	entry ESP+8	the place (byte), not bounded	observed
+0x00397040	vostok::animation::mixing::n_ary_tree_serializer::save_floats	entry ESP+4	the serializer (its floats +1014h..+1018h, its bit writer 0x396180 through EBX/EDI)	observed
+0x00397810	stlp_std::unique<float *>	EDX	first	observed
+0x00397810	stlp_std::unique<float *>	ESI	last	observed
+0x00397880	stlp_std::find<float *,float>	ECX	first	observed
+0x00397880	stlp_std::find<float *,float>	EDI	last	observed
+0x00397880	stlp_std::find<float *,float>	ESI	pointer to the value	observed

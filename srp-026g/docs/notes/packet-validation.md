@@ -68,6 +68,18 @@ player item fields, fixed 69-byte bullet records, and the optional `LMP1` lamp
 history suffix. A bullet's ammo ordinal is not bounded by the original profile:
 pickup swaps can change the gun while a bullet remains in flight, and the shipped
 native loader already clamps the ordinal.
+A bullet's owner need not have a block in the world: a shooter who left with
+bullets in flight (2 uploads of rec026g_20261106-205639_4900abd9, place 12). The
+loader (`bullet::bullet` 0x32BBC0) takes the owner's player object of its current
+kit from the core's place table (`game_world::get_player` 0x1F7660 ->
+`network_client::get_player` 0x27A980, no bound, no mask check) and then reads its
+inventory slot (0x32BDA1) and that item as a gun (0x2E2750) with no null check.
+A place's objects last the match (one per usable kit of every roster place;
+leaving clears only the events' masks, `on_player_left_match` 0x2D2040), so such
+a bullet is allowed when its owner is under the places and, with the server's
+roster kits, a roster place every usable kit of which has a gun in the slot
+(which kit is current for him differs between games). The game's own check,
+without the kits, bounds the place alone.
 The effects template takes any finite float at offsets 36, 40 and 48: the
 effect's five values (read at 0x2DDEAF..0x2DDEF0, stored at 0x2DDFE4..0x2DE017)
 are two u32 at 32 and 44, still held to 0, and three floats, none an index;

@@ -796,6 +796,25 @@ mod tests {
     }
 
     #[test]
+    fn the_horizontal_speed_may_be_nan() {
+        // A step of 0 ms makes it 0/0 (0x2D9535): place 12's state in every
+        // upload of rec026g_20261106-211841_03439962 from 540 200 ms.
+        let items = [item(0, Body::None)];
+        let mut state = valid_state();
+        state.extend(header_item(0, 0, 0));
+        let speed = state.len() + 1;
+        state.extend(rest());
+        for bits in [0x7FC0_0000u32, f32::INFINITY.to_bits()] {
+            state[speed..speed + 4].copy_from_slice(&bits.to_le_bytes());
+            assert_eq!(with_inventory(&state, &items), Ok(()));
+        }
+        // The damage model's floats after it stay numbers.
+        state[speed + 4 + 1 + 16..speed + 4 + 1 + 16 + 4]
+            .copy_from_slice(&f32::NAN.to_bits().to_le_bytes());
+        assert!(matches!(reason(&state, &items), Reason::TailNotNumber { .. }));
+    }
+
+    #[test]
     fn a_weapons_indices_are_bounded() {
         let at = |ammo, state, body: &[u8]| {
             let mut s = valid_state();
