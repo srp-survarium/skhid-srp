@@ -266,6 +266,13 @@ pub struct Body {
     /// the drop, and `drop_check` takes it away when the body never drops there (level_06 day_2 (18.4, 103): a 0.8 m deep
     /// one-cell crack the client walks over). A build input: in the key when set.
     pub crack_bridges: bool,
+    /// [A329] Whether [`Self::exe_collision`]'s Bullet caster takes a contact met already overlapping at the start at the
+    /// face's point nearest the shape's core ([`crate::controller::StartOverlap::FaceWitness`], as the exe's penetration
+    /// solver hands the move test a point of the overlap). Off: at the point GJK returns there, zero
+    /// ([`crate::controller::StartOverlap::ZeroPoint`]), which the move test's top check (0x85F50) reads as a hit at the
+    /// feet: a walk under an overhang the client walks under is cut (level_08 Cologne corner). Only with `exe_collision`. A
+    /// build input: in the key when set.
+    pub start_witness: bool,
 }
 
 /// How the floors a body's radius from walls are taken away.
@@ -285,9 +292,10 @@ pub enum Erosion {
 impl Body {
     /// The caster and the walk-tick settings the grid's controller passes use ([`Self::exe_collision`]).
     pub fn controller(&self) -> (crate::controller::Caster, crate::controller::tick::Settings) {
-        use crate::controller::{Caster, tick::{Settings, WallNormal}};
+        use crate::controller::{Caster, StartOverlap, tick::{Settings, WallNormal}};
         if self.exe_collision {
-            (Caster::Bullet, Settings { wall_normal: WallNormal::Rays, ..Settings::LIVE })
+            let start = if self.start_witness { StartOverlap::FaceWitness } else { StartOverlap::ZeroPoint };
+            (Caster::Bullet(start), Settings { wall_normal: WallNormal::Rays, ..Settings::LIVE })
         } else {
             (Caster::Conservative, Settings::LIVE)
         }
@@ -343,6 +351,7 @@ impl Body {
             exe_collision: false,
             walk_start_clear: false,
             crack_bridges: false,
+            start_witness: false,
         }
     }
 }
@@ -420,6 +429,7 @@ impl Default for Body {
             exe_collision: false,
             walk_start_clear: false,
             crack_bridges: false,
+            start_witness: false,
         }
     }
 }

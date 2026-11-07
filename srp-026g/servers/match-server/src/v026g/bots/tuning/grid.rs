@@ -180,6 +180,14 @@ pub struct GridTuning {
     /// so ON and kept by `all_off` (the owner, 2026-11-05: correctness fixes go in); A329 nav-quick2 alone: live level_06 back
     /// to its base (+0.06 -> +0.00). A grid is the map's.
     pub crack_bridges: bool,
+    /// [A329] Whether `exe_collision`'s Bullet caster puts a contact met already overlapping at the start at the face's point
+    /// nearest the body's core (`mapdata::Body::start_witness`), as the exe's caster takes the penetration solver's witness on
+    /// the face; off, at GJK's zero point, which the move test's top check (0x85F50) reads as a hit at the feet (level_08
+    /// Cologne corner: fx-smoke's reference, ticks 7 on, the exe walks under an overhang the port stopped at; with it fx-smoke's
+    /// 1 m+ stalls there 68 -> 32). Exe-proven (Unicorn), so ON and kept by `all_off` (the owner, 2026-11-05: correctness fixes
+    /// go in); A329 nav-quick2 with `crack_bridges` and `walk_start_clear`: every map better on both columns. A grid is the
+    /// map's.
+    pub start_witness: bool,
 }
 
 impl Default for GridTuning {
@@ -211,6 +219,7 @@ impl Default for GridTuning {
             exe_collision: true,
             walk_start_clear: true,
             crack_bridges: true,
+            start_witness: true,
         }
     }
 }
@@ -250,6 +259,7 @@ impl GridTuning {
             exe_collision: self.exe_collision,
             walk_start_clear: self.walk_start_clear,
             crack_bridges: self.crack_bridges,
+            start_witness: self.start_witness,
             ..body
         }
     }

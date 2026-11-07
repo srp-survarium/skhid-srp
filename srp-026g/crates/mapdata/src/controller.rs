@@ -131,7 +131,20 @@ pub enum Caster {
     /// contact when that part is at most `f32::EPSILON` (at the start or on the way), and no contact after
     /// [`ADVANCE_STEPS`] steps. A grazing approach (a sphere sliding toward a seam between two flat faces) converges here and
     /// meets the face as the exe does; [`Caster::Conservative`] runs out of steps and misses it.
-    Bullet,
+    Bullet(StartOverlap),
+}
+
+/// Where [`Caster::Bullet`] puts a contact met already overlapping at the start (the cylinder's core inside the face, where
+/// GJK gives no points: its `distance` returns zeros).
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub enum StartOverlap {
+    /// At the zero point GJK returns: the port's first rule (A325).
+    #[default]
+    ZeroPoint,
+    /// [A329] At the face's point nearest the core's axis: Bullet's caster takes the penetration solver's witness on the face,
+    /// a point of the overlap, and the move test's top check (0x85F50) reads its height (level_08 Cologne corner: the zero
+    /// point read as a hit at the feet blocked a walk under an overhang the exe walks under).
+    FaceWitness,
 }
 
 /// [`Caster::Bullet`]'s touching distance (the exe's 0x91A8F0 = 0.001), m.
@@ -294,7 +307,7 @@ impl Collision {
         let (lo1, hi1) = shape.moved(by).aabb();
         let touch = match self.caster {
             Caster::Conservative => CONTACT_M,
-            Caster::Bullet => BULLET_TOLERANCE_M,
+            Caster::Bullet(_) => BULLET_TOLERANCE_M,
         };
         let pad = Vec3::new(touch, touch, touch);
         self.faces_in(lo0.min(lo1) - pad, hi0.max(hi1) + pad, |f| {
@@ -304,7 +317,7 @@ impl Collision {
             }
             let contact = match self.caster {
                 Caster::Conservative => advance(shape, by, face),
-                Caster::Bullet => advance_bullet(shape, by, face),
+                Caster::Bullet(start) => advance_bullet(shape, by, face, start),
             };
             if let Some(c) = contact {
                 each(Contact { face: f, ..c });
@@ -415,7 +428,7 @@ fn advance(shape: Shape, by: Vec3, face: &Face) -> Option<Contact> {
 
 /// [`Caster::Bullet`] against one face: `btContinuousConvexCollision::calcTimeOfImpact` as the exe runs it (0xB9320; the
 /// face's margin 0, LIKELY: the map mesh's ctor 0xA7950 sets 0 and no setMargin call was found).
-fn advance_bullet(shape: Shape, by: Vec3, face: &Face) -> Option<Contact> {
+fn advance_bullet(shape: Shape, by: Vec3, face: &Face, start: StartOverlap) -> Option<Contact> {
     let (mut gap, _, mut f, mut n) = shape.gap(&face.v, face.normal);
     // The move's part toward the face (`relLinVel . normalOnB`: the face is B, the normal points from it to the shape).
     let mut toward = -by.dot(n);
@@ -439,11 +452,8 @@ fn advance_bullet(shape: Shape, by: Vec3, face: &Face) -> Option<Contact> {
             return None;
         }
     }
-    // [A329] A contact met already overlapping at the start: the cylinder's core inside the face, where GJK gives no points (its
-    // `distance` returns zeros). Bullet's caster then takes the penetration solver's witness on the face, a point of the
-    // overlap; the move test's top check (0x85F50) reads its height. Here: the face's point nearest the core's axis. (L08
-    // Cologne corner: the zero point read as a hit at the feet blocked a walk under an overhang the exe walks under.)
-    if t == 0.0 && gap <= 0.0 {
+    // A contact met already overlapping at the start ([`StartOverlap`]).
+    if start == StartOverlap::FaceWitness && t == 0.0 && gap <= 0.0 {
         f = shape.witness_on(&face.v, f);
     }
     Some(Contact { t, point: f, normal: n, face: 0 })
@@ -587,7 +597,7 @@ mod tests {
         assert_eq!(first(Caster::Conservative), None);
         // The fraction is not the exe's (0.524 here: Bullet's GJK normal near touching steers its steps); the jump-forward
         // branch slides from the move's start on a hit, so the body ends within 4e-5 m of the exe's (A325 trust table).
-        let t = first(Caster::Bullet).expect("the exe meets the seam");
+        let t = first(Caster::Bullet(StartOverlap::FaceWitness)).expect("the exe meets the seam");
         assert!((0.0..1.0).contains(&t), "t {t}");
     }
 
@@ -595,7 +605,7 @@ mod tests {
     #[test]
     fn a_slide_along_a_flat_floor_meets_nothing() {
         let capsule = Capsule { low: Vec3::new(0.0, 0.38, 0.0), high: Vec3::new(0.0, 1.42, 0.0), radius: 0.38 };
-        for caster in [Caster::Conservative, Caster::Bullet] {
+        for caster in [Caster::Conservative, Caster::Bullet(StartOverlap::ZeroPoint), Caster::Bullet(StartOverlap::FaceWitness)] {
             let world = Collision::build(&ground()).with_caster(caster);
             let mut hits = 0;
             world.sweep_each(Shape::Capsule(capsule), Vec3::new(0.3, 0.0, 0.1), |_| hits += 1);

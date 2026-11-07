@@ -785,6 +785,7 @@ mod tests {
             "/grid/pocket_exits_walled",
             "/grid/run_ups_after_erosion",
             "/grid/slip_landings",
+            "/grid/start_witness",
             "/grid/steep_walk_base",
             "/grid/walk_start_clear",
             "/grid/wall_give_back",
