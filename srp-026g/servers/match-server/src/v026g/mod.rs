@@ -110,6 +110,7 @@ pub mod bots;
 /// server's own bot places' (`MatchPlayer::driven`).
 pub mod drive;
 mod game;
+mod world_validation;
 /// A player's kills of one enemy pay at most 10 times a match.
 mod kill_cap;
 /// Match recordings (`SRP_RECORD_DIR`) and their reader.

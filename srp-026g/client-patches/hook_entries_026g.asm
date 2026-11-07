@@ -1713,6 +1713,129 @@ consumable_activity_on_update_replay:
     db 0x8d, 0x84, 0x83, 0x0c, 0x01, 0x00, 0x00
     jmp 0x23b7a7
 
+; 0x38cd22 fsm::deserialize after resolving the wire state id; selected +10h may be null; done is ret 8: lohook -> deserialize_guards_on_fsm
+global deserialize_guards_on_fsm
+extern hook_deserialize_guards_on_fsm
+deserialize_guards_on_fsm:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_deserialize_guards_on_fsm
+    mov edx, deserialize_guards_on_fsm_replay
+    cmp eax, 0
+    je deserialize_guards_on_fsm_go
+    mov edx, 0x38cd29
+    cmp eax, 1
+    je deserialize_guards_on_fsm_go
+    mov edx, 0x38cd37
+    cmp eax, 2
+    je deserialize_guards_on_fsm_go
+    ud2
+deserialize_guards_on_fsm_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+deserialize_guards_on_fsm_replay:
+    db 0x8b, 0x54, 0x24, 0x08, 0x8b, 0x4e, 0x10
+    jmp 0x38cd29
+
+; 0x31b0ff deserialize before indexing the state vector with CL; no_state is the native FF path: lohook -> deserialize_guards_on_anomaly
+global deserialize_guards_on_anomaly
+extern hook_deserialize_guards_on_anomaly
+deserialize_guards_on_anomaly:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_deserialize_guards_on_anomaly
+    mov edx, deserialize_guards_on_anomaly_replay
+    cmp eax, 0
+    je deserialize_guards_on_anomaly_go
+    mov edx, 0x31b108
+    cmp eax, 1
+    je deserialize_guards_on_anomaly_go
+    mov edx, 0x31b0fb
+    cmp eax, 2
+    je deserialize_guards_on_anomaly_go
+    ud2
+deserialize_guards_on_anomaly_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+deserialize_guards_on_anomaly_replay:
+    db 0x8b, 0x47, 0x68, 0x0f, 0xb6, 0xd1, 0x8b, 0x2c, 0x90
+    jmp 0x31b108
+
+; 0x2fe65e inventory::deserialize before EAX indexes EDX's artefact vector; skipping with EAX=0 takes the native null path: lohook -> deserialize_guards_on_artefact
+global deserialize_guards_on_artefact
+extern hook_deserialize_guards_on_artefact
+deserialize_guards_on_artefact:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_deserialize_guards_on_artefact
+    mov edx, deserialize_guards_on_artefact_replay
+    cmp eax, 0
+    je deserialize_guards_on_artefact_go
+    mov edx, 0x2fe663
+    cmp eax, 1
+    je deserialize_guards_on_artefact_go
+    ud2
+deserialize_guards_on_artefact_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+deserialize_guards_on_artefact_replay:
+    db 0x8d, 0x04, 0x82, 0x8b, 0x00
+    jmp 0x2fe663
+
 ; 0x2d9cb1 base_player::hit_impl once damage_model::hit_body_part (0x2E5080, at 0x2D9CA4) said 1: the hit took health past armour and protectors (more than 0.0 left, 0x2E5128); before the slow, the listeners and the death (mov edi,esi / cmp dword [edi+40h],0; the je at 0x2D9CB7 reads its flags): EBX the victim, ESI the hit; every hit of every player, in every game's simulation: lohook -> drug_interrupt_on_hit_applied
 global drug_interrupt_on_hit_applied
 extern hook_drug_interrupt_on_hit_applied
@@ -4091,6 +4214,48 @@ medical_skills_on_regenerate_replay:
     db 0x8b, 0x6c, 0x24, 0x24, 0x85, 0xc0
     jmp 0x32a545
 
+; 0x27a31f on_match_packet_received before storing the normalized id and subtracting E3h; EAX the id, reader cursor after it; refused is the epilogue: lohook -> message_check_on_message
+global message_check_on_message
+extern hook_message_check_on_message
+message_check_on_message:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_message_check_on_message
+    mov edx, message_check_on_message_replay
+    cmp eax, 0
+    je message_check_on_message_go
+    mov edx, 0x27a327
+    cmp eax, 1
+    je message_check_on_message_go
+    mov edx, 0x27a72c
+    cmp eax, 2
+    je message_check_on_message_go
+    ud2
+message_check_on_message_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+message_check_on_message_replay:
+    db 0x89, 0x45, 0x0c, 0x05, 0x1d, 0xff, 0xff, 0xff
+    jmp 0x27a327
+
 ; 0x2402e9 on_mouse_move's pitch step (patch 112), after the window's two size calls: movss xmm1,[edi] / divss xmm1,[eax] (h / w) / movss xmm2,[esp+28h] (the yaw's step s) / mulss xmm1,xmm2; 0x2402FB multiplies xmm1 by the invert and 3/pi, 0x240309 the journal's path joins; XMM1 the pitch's step before them, XMM2 s for the yaw (0x240349): lohook -> mouse_pitch_on_pitch_step
 global mouse_pitch_on_pitch_step
 extern hook_mouse_pitch_on_pitch_step
@@ -4359,6 +4524,84 @@ music_on_sound_tick_replay:
 
 ; 0x14730 the cdecl f(queries_result&, value) a boost function made by 0x176D0 calls when a query ends, on the thread that asked (on_mounted_resources 0x1482A binds 0x14730 itself): its convention, for a callback the patch hands a query: callback -> music_on_query_done (wraps engine_store_first_resource 0x14730)
     RUST_CDECL music_on_query_done, hook_music_on_query_done, 2
+
+; 0x27c116 process_dynamic_match_info after either core deserialize returns, before mov eax,[edi+4] / test eax,eax; a load receipt is emitted only here: lohook -> packet_recovery_on_loaded
+global packet_recovery_on_loaded
+extern hook_packet_recovery_on_loaded
+packet_recovery_on_loaded:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_packet_recovery_on_loaded
+    mov edx, packet_recovery_on_loaded_replay
+    cmp eax, 0
+    je packet_recovery_on_loaded_go
+    mov edx, 0x27c11b
+    cmp eax, 1
+    je packet_recovery_on_loaded_go
+    ud2
+packet_recovery_on_loaded_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+packet_recovery_on_loaded_replay:
+    db 0x8b, 0x47, 0x04, 0x85, 0xc0
+    jmp 0x27c11b
+
+; 0x27a790 close_current_match entry push ebp / mov ebp,esp / and esp,-8; clears connection-owned receipt/log state before teardown: lohook -> packet_recovery_on_close
+global packet_recovery_on_close
+extern hook_packet_recovery_on_close
+packet_recovery_on_close:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_packet_recovery_on_close
+    mov edx, packet_recovery_on_close_replay
+    cmp eax, 0
+    je packet_recovery_on_close_go
+    mov edx, 0x27a796
+    cmp eax, 1
+    je packet_recovery_on_close_go
+    ud2
+packet_recovery_on_close_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+packet_recovery_on_close_replay:
+    db 0x55, 0x8b, 0xec, 0x83, 0xe4, 0xf8
+    jmp 0x27a796
 
 ; 0x24757c mt_draw's cull: the model not seen the last frame (cmp byte [ebx+0F4E2h],0, the je draws; EBX the player): lohook -> ragdoll_on_cull
 global ragdoll_on_cull

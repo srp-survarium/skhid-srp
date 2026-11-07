@@ -260,7 +260,7 @@ fn with_the_map_the_servers_bot_sees_its_body_in_the_worlds_and_walks_smoothly()
         current_index: 0,
         target_index: 0,
         pickup: weapon_pickup::Record::EMPTY,
-        items: vec![1, 2, 3],
+        items: vec![1], // the fixture profile has one item
         alive: true,
         has_to_die: false,
         look_pitch: 0.0,

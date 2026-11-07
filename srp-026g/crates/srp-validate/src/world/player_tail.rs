@@ -25,42 +25,30 @@
 //! - the inventory header (`inventory::deserialize` 0x2FE550): an f32
 //!   `m_carried_weight`, a bool, a u8 carried-item id (0xFF for none, else
 //!   an index into the same 255-entry table, used after a null check
-//!   0x2FE5C8, then that battery's own state, which the exe does not trace
-//!   to an end -- the walk stops there), a u8 artefact-slot count A and,
+//!   0x2FE5C8, then that battery's own state, below), a u8 artefact-slot
+//!   count A and,
 //!   when A is not 0, a u8 `slots_begin` and A u8 artefact ids (each 0xFF
 //!   or an index into the artefacts table `[[inventory+0x108]+0x18940]`,
 //!   0x2FE655; that table reserves 128 entries, 0x2CFFD7, and an id has no
 //!   null check, so it is bounded), then the active and grenade slot bytes.
 //!
-//! After the inventory header come the inventory's items, by ascending
-//! slot (`inventory::deserialize` loop 0x2FE7A9, 23 slots). The loop walks
-//! the live kit's slot array, not the stream: which slots hold an item and
-//! each item's shape (a `u16 m_amount` for a stack, else an `f32
-//! m_condition`; a weapon's body or a header-only item) are the kit's, not
-//! the state's. So the walk is given the kit's items as data
-//! ([`Context::inventory`](super::Context)), the same way the artefacts
-//! table size is. Each item's header has an owner lookup
-//! `[core+0x18458]+(profile_id+player_id*12)*4` then `[entry+0x10c]` with
-//! no null check (0x2FFF72), and a weapon a `m_current_ammo_id` indexing
-//! its ammo list with no bound (0x2E350A) — both bounded here against the
-//! match. The walk reads each item's header, bounds it, and stops at the
-//! first item with a body: a weapon's body deserializes an FSM whose state
-//! id picks that state's own virtual reader with no length marker
-//! (`fsm::deserialize` 0x38CCF0, 0x38CD26; PROVEN), and a carried battery,
-//! an oxygen tank's config loop and the query-driven grenade/medkit/trap
-//! readers are the same, so no item body has a static length. Nor do the
-//! readers after the items — an animation state (a bit stream), the damage
-//! model with each body part's health (0x2E5480), the character controller
-//! (0x7FB10), the spotting and the recent hits. So the state cannot be read
-//! to its exact end from static RE; the walk bounds the reachable
-//! forge-a-crash indexes (every item header reached and the first weapon's
-//! ammo id) and stops. The frame's exact block length and
-//! [`PLAYER_STATE_CAP`](super::PLAYER_STATE_CAP) bound the rest.
+//! When it is not 0xFF the carried item is a battery this player carries
+//! (`victory_item_core::deserialize` 0x301660, [`battery`]), read before
+//! the header goes on.
 //!
-//! Without the kit (a tool, or the server, which does not build the
-//! inventory yet) the walk stops at the inventory header, as before.
+//! After the inventory header come the kit's items in slot order, and
+//! everything after them, which [`super::inventory`] reads to the state's
+//! exact end against the match's kits ([`Context::inventory`](super::Context)):
+//! the slots the header's artefacts took hold them, not the kit's; a pick
+//! (the head's `weapon_pickup::Record`) puts its recipe's gun in its
+//! weapon slot and may fill the picker's ammo slots.
+//!
+//! Without the kits (a tool) the walk stops at the inventory header.
 
-use super::{Block, Context, Item, PLAYER_FIELDS_AT};
+use super::inventory::{self, Ammo, Body, Gun, Item, Measure, Owner, SLOTS, Slot, items_and_rest};
+use super::AMMO_SLOTS;
+use super::{Block, Context, PLAYER_FIELDS_AT};
+use weapon_pickup::WeaponSlot;
 use crate::reader::{Reader, Short};
 use crate::{Part, Reason, Refusal, finite};
 
@@ -97,16 +85,7 @@ pub fn player_tail(block: &Block, context: &Context) -> Result<(), Refusal> {
             None => return Ok(()),
             // The kit in use is the head's `current_index`, the state's
             // first byte: the inventory serialized is that kit's.
-            Some(profile) => {
-                let kit = usize::from(block.state.first().copied().unwrap_or(0));
-                walk(
-                    block.state,
-                    profile.items,
-                    kit_items(context, block.place, kit),
-                    context,
-                )
-                .err()
-            }
+            Some(profile) => walk(block.state, profile.items, Some(block.place), context).err(),
         },
         None => guessed(block.state, context).err(),
     };
@@ -118,18 +97,6 @@ pub fn player_tail(block: &Block, context: &Context) -> Result<(), Refusal> {
             reason,
         )),
     }
-}
-
-/// The serialized items of `place`'s `kit`, when the match's inventory is
-/// known; an empty slice otherwise (the walk then stops at the inventory
-/// header).
-fn kit_items<'a>(context: &Context<'a>, place: u8, kit: usize) -> &'a [Item] {
-    context
-        .inventory
-        .and_then(|inventory| inventory.get(usize::from(place)))
-        .and_then(|kits| kits.get(kit))
-        .copied()
-        .unwrap_or(&[])
 }
 
 /// The largest item count a guessed walk tries: the head must fit, and a
@@ -147,7 +114,7 @@ fn guessed(state: &[u8], context: &Context) -> Result<(), Fault> {
     for items in 0..=max_items(state.len()) {
         // No profiles means no match, so no inventory to walk: the walk
         // stops at the inventory header, as the front-only check did.
-        match walk(state, items, &[], context) {
+        match walk(state, items, None, context) {
             Ok(()) => return Ok(()),
             Err(fault) => {
                 if furthest
@@ -166,7 +133,7 @@ fn guessed(state: &[u8], context: &Context) -> Result<(), Fault> {
 /// head's end to the inventory header and, when the kit's `inventory` is
 /// known, on through the items to the first with a body. `Err` is the
 /// furthest offset reached and why.
-fn walk(state: &[u8], items: usize, inventory: &[Item], context: &Context) -> Result<(), Fault> {
+fn walk(state: &[u8], items: usize, place: Option<u8>, context: &Context) -> Result<(), Fault> {
     let fixed = items
         .checked_mul(4)
         .and_then(|m| m.checked_add(PLAYER_FIELDS_AT))
@@ -285,13 +252,14 @@ fn walk(state: &[u8], items: usize, inventory: &[Item], context: &Context) -> Re
     }
     let carried = reader.u8().map_err(short)?;
     if carried != 0xFF {
-        // A battery carried: an index into the same 255-entry object table
-        // (0x2FE5B6, used after a null check 0x2FE5C8, so safe for any u8),
-        // then that battery's own state, which the exe does not trace. The
-        // walk stops here (the items follow and are not walkable either).
-        return Ok(());
+        // A battery carried: an id of the same 255-entry object table
+        // (0x2FE5B6, used after a null check 0x2FE5C8), then the battery's
+        // own state (`victory_item_core::deserialize` 0x301660), carried by
+        // this player.
+        battery(&mut reader, place)?;
     }
     let a_count = reader.u8().map_err(short)?;
+    let mut artefact_slots = 0..0u8;
     if usize::from(a_count) > INVENTORY_SLOTS {
         return Err((
             reader.at().saturating_sub(1),
@@ -310,6 +278,7 @@ fn walk(state: &[u8], items: usize, inventory: &[Item], context: &Context) -> Re
                 },
             ));
         }
+        artefact_slots = begin..begin.saturating_add(a_count);
         for _ in 0..a_count {
             let id_at = reader.at();
             let id = reader.u8().map_err(short)?;
@@ -321,88 +290,128 @@ fn walk(state: &[u8], items: usize, inventory: &[Item], context: &Context) -> Re
     // The active and grenade slot bytes end the header: stored with no
     // lookup (0x2FE788, 0x2FE79D), no bound.
     reader.skip(2).map_err(short)?;
-    // Past the header, the items by ascending slot. With the kit's items
-    // known the walk bounds each item's owner lookup and a weapon's ammo id
-    // and stops at the first item body; without them it stops here.
-    walk_items(&mut reader, inventory, context)
-}
-
-/// Walks the inventory's items past the header, in slot order, as the kit's
-/// objects deserialize them (`inventory::deserialize` loop 0x2FE7A9). Each
-/// item's header is bounded -- its owner lookup, and a weapon's
-/// `m_current_ammo_id`. The walk stops at the first item with a body (a
-/// weapon's FSM, 0x38CCF0, and the readers after the items -- the damage
-/// model 0x2E5480, the character controller 0x7FB10, the spotting and the
-/// recent hits -- have no static length), or after the last header-only
-/// item (those same readers follow it). `Ok` means every item reached is
-/// bounded.
-fn walk_items(reader: &mut Reader, items: &[Item], context: &Context) -> Result<(), Fault> {
-    for item in items {
-        // A `u16 m_amount` when the dictionary entry is a stack, else an
-        // `f32 m_condition` (0x2FFF16): read, not indexed.
-        reader.skip(if item.stack { 2 } else { 4 }).map_err(short)?;
-        let owner_at = reader.at();
-        let player_id = reader.u8().map_err(short)?;
-        if player_id != 0xFF {
-            let profile_id = reader.u8().map_err(short)?;
-            item_owner(player_id, profile_id, context, owner_at)?;
-            // The owner is a real object (bounded), so the slot id follows
-            // (0x2FFFA0); 0xFF had no owner and no slot id.
-            reader.u8().map_err(short)?;
+    // Past the header, the kit's items in slot order and the rest of the
+    // state, to its end, when the match's inventory is known; without it
+    // the walk stops here.
+    let (Some(place), Some(inventory)) = (place, context.inventory) else {
+        return Ok(());
+    };
+    let kit = state.first().copied().unwrap_or(0);
+    let Some(own) = inventory
+        .kits
+        .get(usize::from(place))
+        .and_then(|kits| kits.get(usize::from(kit)))
+    else {
+        // A kit the head refused already.
+        return Ok(());
+    };
+    let alive = head.get(fixed) == Some(&0xFF);
+    let record = state
+        .get(2..PLAYER_FIELDS_AT)
+        .and_then(|bytes| bytes.try_into().ok())
+        .and_then(weapon_pickup::Record::decode)
+        .unwrap_or(weapon_pickup::Record::EMPTY);
+    let mut slots: [Option<Slot>; SLOTS as usize] = [None; SLOTS as usize];
+    for item in own.iter() {
+        if let Some(slot) = slots.get_mut(usize::from(item.slot)) {
+            *slot = Some(Slot::Held(*item));
         }
-        if let Some(count) = item.ammo {
-            // A weapon (`weapon_core::deserialize` 0x2E3490): the seed and
-            // tick time (u32 each), three bytes, then `m_current_ammo_id` at
-            // h+18, which indexes the ammo list of `count` with no bound.
-            reader.skip(11).map_err(short)?;
-            let ammo_at = reader.at();
-            let current = reader.u8().map_err(short)?;
-            if count > 0 && current > count {
-                return Err((
-                    ammo_at,
-                    Reason::TailWeaponAmmo {
-                        ammo: current,
-                        count,
-                    },
-                ));
+    }
+    // A pick moves the borrowed gun's stacks into the picker's ammo slots
+    // (patch 85): each may hold one or not.
+    if record.picks.iter().any(Option::is_some) {
+        for ammo in AMMO_SLOTS {
+            if let Some(slot) = slots.get_mut(usize::from(ammo)) {
+                let item = Item { slot: ammo, measure: Measure::Amount, body: Body::None };
+                *slot = Some(Slot::Maybe(item));
             }
-            // The weapon's FSM and the rest of its body have no static
-            // length: the walk stops, its header bounded.
-            return Ok(());
-        }
-        if item.body {
-            // A grenade, a medkit, an oxygen tank, a battery: the header is
-            // bounded, the body is not walkable.
-            return Ok(());
         }
     }
-    Ok(())
+    // The slots the header's artefacts took hold them, not the kit's.
+    for slot in artefact_slots {
+        if let Some(slot) = slots.get_mut(usize::from(slot)) {
+            *slot = None;
+        }
+    }
+    // A picked gun is in its weapon slot, the own gun set aside.
+    for weapon in [WeaponSlot::First, WeaponSlot::Second] {
+        let Some(held) = record.held(weapon) else {
+            continue;
+        };
+        let recipe = held.pick.recipe;
+        let gun = inventory
+            .kits
+            .get(usize::from(recipe.place.get()))
+            .and_then(|kits| kits.get(usize::from(recipe.kit.get())))
+            .and_then(|items| items.iter().find(|item| item.slot == recipe.slot.slot()));
+        let Some(Item { measure, body: Body::Weapon(gun), .. }) = gun.copied() else {
+            return Err((2, Reason::PickupRecord));
+        };
+        if let Some(slot) = slots.get_mut(usize::from(weapon.slot())) {
+            let item = Item {
+                slot: weapon.slot(),
+                measure,
+                body: Body::Weapon(Gun { ammo: Ammo::Picked, ..gun }),
+            };
+            *slot = Some(Slot::Held(item));
+        }
+    }
+    let usable = |place: u8, kit: u8| {
+        context.profiles.is_some_and(|profiles| {
+            profiles
+                .get(usize::from(place))
+                .is_some_and(|profile| profile.usable(kit))
+        })
+    };
+    let owner = Owner {
+        places: context.places,
+        usable: &usable,
+    };
+    items_and_rest(&reader, &slots, alive, inventory, &owner)
 }
 
-/// Bounds an inventory item's owner lookup `[core+0x18458]+(profile_id+
-/// player_id*12)*4`, then `[entry+0x10c]` with no null check (0x2FFF72):
-/// `player_id` must be a place of the match and `profile_id` a usable kit
-/// of it, so the table entry is a real player object (the writer only ever
-/// sends such an owner, 0x2FFE4F).
-fn item_owner(player_id: u8, profile_id: u8, context: &Context, at: usize) -> Result<(), Fault> {
-    let ok = context.profiles.is_some_and(|profiles| {
-        usize::from(player_id) < context.places
-            && profiles
-                .get(usize::from(player_id))
-                .is_some_and(|profile| profile.usable(profile_id))
-    });
-    if ok {
-        Ok(())
-    } else {
-        Err((
-            at,
-            Reason::TailItemOwner {
-                player_id,
-                profile_id,
-            },
-        ))
+/// A carried battery (0x301660, writer 0x301470): its spotted mask, its
+/// user (this player: with another the game takes the free battery's
+/// layout, live state the stream does not say), its container (0xFF, or an
+/// **unbounded** index into the gather rule's two containers, 0x3016AE),
+/// its state machine's state (take, carry, drop, 0x301920; past them a
+/// null state) with that state's last motion (`victory_item_core_base_state`
+/// 0x344D70: a flag, two speeds, two transforms, a time; take and drop one
+/// byte more, 0x344870), then its portable object, a weapon's class.
+fn battery(reader: &mut Reader, place: Option<u8>) -> Result<(), Fault> {
+    reader.skip(4).map_err(short)?;
+    let at = reader.at();
+    let user = reader.u8().map_err(short)?;
+    if place.is_some_and(|place| user != place) {
+        return Err((at, Reason::TailBattery { at }));
     }
+    let at = reader.at();
+    let container = reader.u8().map_err(short)?;
+    if container != 0xFF && container >= BATTERY_CONTAINERS {
+        return Err((at, Reason::TailBattery { at }));
+    }
+    let state = inventory::state_id(reader, BATTERY_STATES)?;
+    let at = reader.at();
+    if reader.bool().map_err(short)?.is_none() {
+        return Err((at, Reason::TailBool { at }));
+    }
+    for _ in 0..(3 + 3 + 16 + 16) {
+        finite_f32(reader)?;
+    }
+    reader.skip(4).map_err(short)?;
+    if state != BATTERY_CARRY {
+        // The animation it waits for: compared, not indexed.
+        reader.skip(1).map_err(short)?;
+    }
+    inventory::portable(reader)
 }
+
+/// A battery mode's two containers (`maps::ProjectObjects`: one of each
+/// team), the battery's states and the one of them that saves no
+/// animation.
+const BATTERY_CONTAINERS: u8 = 2;
+const BATTERY_STATES: u8 = 3;
+const BATTERY_CARRY: u8 = 1;
 
 /// A u32 at `at` of `bytes`.
 fn u32_at(bytes: &[u8], at: usize) -> Option<u32> {
@@ -442,7 +451,8 @@ fn artefact_index(index: u8, context: &Context, at: usize) -> Result<(), Fault> 
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::world::Profile;
+    use crate::world::inventory::{Chamber, GunState};
+    use crate::world::{Inventory, Profile};
     use std::vec::Vec;
 
     const ARTEFACTS: usize = 4;
@@ -546,13 +556,34 @@ mod tests {
     }
 
     #[test]
-    fn a_carried_item_that_is_not_0xff_is_a_battery_and_stops_the_walk() {
-        // Not 0xFF: a battery carried, whose own state the walk does not
-        // read; the walk stops (any index is safe, the table is
-        // null-checked).
-        let mut state = valid_state();
-        state[CARRIED_AT] = 3;
-        assert_eq!(with_profile(&state), Ok(()));
+    fn a_carried_battery_reads_its_state_and_the_header_goes_on() {
+        // Place 0 carries battery 3: its mask, its user (place 0), no
+        // container, its state machine in carry (157 bytes), its portable
+        // object (selector state 1: nothing), then A and the slot bytes.
+        let battery = |user: u8, container: u8, state: u8| {
+            let mut state_bytes = valid_state();
+            let tail = state_bytes.split_off(CARRIED_AT);
+            state_bytes.push(3);
+            state_bytes.extend(1u32.to_le_bytes());
+            state_bytes.extend([user, container, state, 0x00]);
+            state_bytes.extend([0; 152]);
+            if state != 1 {
+                state_bytes.push(0);
+            }
+            state_bytes.extend([0; 4]);
+            state_bytes.extend([0; 4]);
+            state_bytes.extend([0x00, 1]);
+            state_bytes.extend([0; 96]);
+            state_bytes.extend(&tail[1..]);
+            state_bytes
+        };
+        assert_eq!(with_profile(&battery(0, 0xFF, 1)), Ok(()));
+        assert_eq!(with_profile(&battery(0, 1, 2)), Ok(()));
+        let reason = |state: &[u8]| with_profile(state).expect_err("refused").reason;
+        // Another user, a container past the two, a state past the three.
+        assert!(matches!(reason(&battery(1, 0xFF, 1)), Reason::TailBattery { .. }));
+        assert!(matches!(reason(&battery(0, 2, 1)), Reason::TailBattery { .. }));
+        assert!(matches!(reason(&battery(0, 0xFF, 3)), Reason::TailGunState { state: 3, .. }));
     }
 
     #[test]
@@ -640,39 +671,102 @@ mod tests {
         assert_eq!(with_profile(&state), Ok(()));
     }
 
-    // The item walk, past the inventory header. `valid_state` ends at the
-    // header; the items follow, in ascending slot order.
+    // The item walk, past the inventory header, and the rest of the state.
+    // `valid_state` ends at the header; the items follow in slot order,
+    // then everything after them ([`rest`]).
 
-    /// A header-only item (armour, boosters, ...): an f32 condition, then the
-    /// owner (place, kit) and the slot id (5 bytes, no body).
+    /// The body parts of the tests' damage model.
+    const BODY_PARTS: usize = 2;
+    const SHOW_FIRE: [GunState; 3] = [GunState::FlagByte, GunState::Flag, GunState::ThrowGrenade];
+
+    /// An item's header: an f32 condition (not a stack), the owner (place,
+    /// kit) and the slot.
     fn header_item(slot: u8, place: u8, kit: u8) -> Vec<u8> {
         let mut h = Vec::new();
-        h.extend(1.0f32.to_le_bytes()); // m_condition (not a stack)
-        h.push(place); // player_id
-        h.push(kit); // player_profile_id
-        h.push(slot); // m_slot_id
+        h.extend(1.0f32.to_le_bytes());
+        h.extend([place, kit, slot]);
         h
     }
 
-    /// A weapon item's bytes as far as the walk reads them: the header, then
-    /// h+7..18 and `m_current_ammo_id`.
+    /// A weapon that was never in a hand (no user): the header, the seed,
+    /// the tick, the load flag, the magazine, the fire queue, the ammo id.
     fn weapon_item(slot: u8, place: u8, kit: u8, current_ammo: u8) -> Vec<u8> {
         let mut w = header_item(slot, place, kit);
-        w.extend(0u32.to_le_bytes()); // seed
-        w.extend(0u32.to_le_bytes()); // m_last_tick_time_in_ms
-        w.push(0x00); // m_load_ammo_on_next_activate
-        w.push(10); // m_ammo_in_magazine
-        w.push(0x00); // m_fire_queue_type
-        w.push(current_ammo); // m_current_ammo_id
+        w.extend([0; 8]);
+        w.extend([0x00, 10, 0x00, current_ammo]);
         w
     }
 
-    /// The tail checked with the match's inventory known: `kit0` is the
+    /// The same weapon in hand (a user), in its state `state`, with
+    /// `body` that state's bytes.
+    fn weapon_in_hand(slot: u8, current_ammo: u8, state: u8, body: &[u8]) -> Vec<u8> {
+        let mut w = weapon_item(slot, 0, 0, current_ammo);
+        w.extend(u32::MAX.to_le_bytes()); // no ammo switch (a list of 2)
+        w.extend([0; 4]);
+        w.extend(u32::MAX.to_le_bytes()); // the recoil, no more
+        w.extend([0; 40]); // two transitions
+        w.extend([0; 4]); // a float
+        w.push(0x00); // not aimed
+        w.extend([0; 20]); // its transition
+        w.extend([0, 0x00]); // sprint, auto-reload
+        w.push(state);
+        w.extend(body);
+        w.extend([0; 4]);
+        w.push(0x00);
+        w.push(0); // the portable object's state
+        w.extend([0; 96]);
+        w
+    }
+
+    /// Everything after the items of a living player.
+    fn rest() -> Vec<u8> {
+        let mut r = std::vec![0];
+        r.extend(0f32.to_le_bytes());
+        r.push(0x00);
+        r.extend([0; 16]);
+        for _ in 0..BODY_PARTS {
+            r.extend(1f32.to_le_bytes());
+            r.extend([0; 4]);
+            r.extend([0, 0]); // no affect, no hit
+            r.extend(1f32.to_le_bytes());
+        }
+        r.push(0x00); // no usable-object data
+        r.extend([0; 4]);
+        r.extend([0; 12]); // the controller: position, six flags, four vectors, sprint
+        r.extend([0; 6]);
+        r.extend([0; 48]);
+        r.push(0x00);
+        r.extend([0; 8]);
+        r.extend(1f32.to_le_bytes());
+        r.extend(0u32.to_le_bytes());
+        r.push(0x00);
+        let mut carry = [0; 32];
+        carry[0] = 2;
+        r.extend(carry);
+        r
+    }
+
+    fn gun(ammo: u8) -> Body<'static> {
+        Body::Weapon(Gun {
+            states: &SHOW_FIRE,
+            chamber: Chamber::NotSaved,
+            ammo: Ammo::Kit(ammo),
+        })
+    }
+
+    fn item(slot: u8, body: Body<'static>) -> Item<'static> {
+        Item { slot, measure: Measure::Condition, body }
+    }
+
+    /// The state checked with the match's inventory known: `kit0` is the
     /// items of kit 0 (the state's `current_index`), kits 1 and 2 empty.
     fn with_inventory(state: &[u8], kit0: &[Item]) -> Result<(), Refusal> {
         let profiles = [profile()];
-        let kits: [&[Item]; crate::KITS] = [kit0, &[], &[]];
-        let inventory = [kits];
+        let kits: [[&[Item]; crate::KITS]; 1] = [[kit0, &[], &[]]];
+        let inventory = Inventory {
+            kits: &kits,
+            body_parts: BODY_PARTS,
+        };
         let context = Context {
             inventory: Some(&inventory),
             ..context(Some(&profiles))
@@ -680,120 +774,116 @@ mod tests {
         player_tail(&block(state), &context)
     }
 
-    #[test]
-    fn a_weapon_item_reads_its_header_and_bounds_the_ammo_id() {
-        let mut state = valid_state();
-        state.extend(weapon_item(7, 0, 0, 1)); // ammo id 1, of 2
-        let items = [Item {
-            slot: 7,
-            stack: false,
-            body: true,
-            ammo: Some(2),
-        }];
-        assert_eq!(with_inventory(&state, &items), Ok(()));
+    fn reason(state: &[u8], kit0: &[Item]) -> Reason {
+        with_inventory(state, kit0).expect_err("refused").reason
     }
 
     #[test]
-    fn a_weapon_ammo_id_past_the_list_goes_to_nobody() {
+    fn a_state_reads_to_its_end_through_its_items() {
         let mut state = valid_state();
-        state.extend(weapon_item(7, 0, 0, 5)); // 5, over the 2 ammo
-        let items = [Item {
-            slot: 7,
-            stack: false,
-            body: true,
-            ammo: Some(2),
-        }];
-        let refusal = with_inventory(&state, &items).expect_err("refused");
-        assert!(
-            matches!(refusal.reason, Reason::TailWeaponAmmo { ammo: 5, count: 2 }),
-            "{refusal}"
-        );
+        state.extend(header_item(0, 0, 0)); // armour
+        state.extend(weapon_item(7, 0, 0, 1)); // a gun never in hand
+        state.extend(weapon_in_hand(10, 0, 1, &[0x00])); // a gun idle in hand
+        state.extend(rest());
+        let items = [item(0, Body::None), item(7, gun(2)), item(10, gun(2))];
+        assert_eq!(with_inventory(&state, &items), Ok(()));
+        // A byte more, or a byte less: no state of the game.
+        let mut long = state.clone();
+        long.push(0);
+        assert!(matches!(reason(&long, &items), Reason::TailUnread { .. }));
+        let short = &state[..state.len() - 1];
+        assert!(matches!(reason(short, &items), Reason::TailUnread { .. }));
+    }
+
+    #[test]
+    fn a_weapons_indices_are_bounded() {
+        let at = |ammo, state, body: &[u8]| {
+            let mut s = valid_state();
+            s.extend(weapon_in_hand(7, ammo, state, body));
+            s.extend(rest());
+            with_inventory(&s, &[item(7, gun(2))])
+        };
+        assert_eq!(at(0, 2, &[0x00, 0, 0, 0, 22, 0]), Ok(()));
+        // The ammo id is read in both shapes: its refusal is the one.
+        assert!(matches!(
+            at(2, 1, &[0x00]).map_err(|refusal| refusal.reason),
+            Err(Reason::TailWeaponAmmo { ammo: 2, count: 2 })
+        ));
+        // A state past the gun's three, a throw of the grenade of slot 23:
+        // no shape reads them (the refusal is the shape that read furthest).
+        assert!(at(0, 3, &[0x00]).is_err());
+        assert!(at(0, 2, &[0x00, 0, 0, 0, 23, 0]).is_err());
     }
 
     #[test]
     fn an_item_owner_not_in_the_match_goes_to_nobody() {
         let mut state = valid_state();
         state.extend(weapon_item(7, 5, 0, 0)); // owner place 5, the match has 1
-        let items = [Item {
-            slot: 7,
-            stack: false,
-            body: true,
-            ammo: Some(2),
-        }];
-        let refusal = with_inventory(&state, &items).expect_err("refused");
-        assert!(
-            matches!(refusal.reason, Reason::TailItemOwner { player_id: 5, .. }),
-            "{refusal}"
-        );
+        state.extend(rest());
+        assert!(matches!(
+            reason(&state, &[item(7, gun(2))]),
+            Reason::TailItemOwner { player_id: 5, .. }
+        ));
     }
 
     #[test]
-    fn header_only_items_before_a_weapon_are_bounded_then_the_weapon_stops() {
+    fn a_medkit_saves_its_influences_when_active() {
+        let medkit = [Item {
+            slot: 13,
+            measure: Measure::Amount,
+            body: Body::Medkit { influences: 2 },
+        }];
+        let state = |active: bool| {
+            let mut s = valid_state();
+            s.extend([0, 0, 0, 0, 13]); // amount, owner, slot
+            if active {
+                s.push(0xFF);
+                s.extend([0; 8]);
+                s.extend([0; 8]);
+            } else {
+                s.push(0x00);
+            }
+            s.extend(rest());
+            s
+        };
+        assert_eq!(with_inventory(&state(true), &medkit), Ok(()));
+        assert_eq!(with_inventory(&state(false), &medkit), Ok(()));
+        let mut nan = state(true);
+        let at = valid_state().len() + 6 + 8;
+        nan[at..at + 4].copy_from_slice(&f32::NAN.to_le_bytes());
+        assert!(matches!(reason(&nan, &medkit), Reason::TailNotNumber { .. }));
+    }
+
+    #[test]
+    fn the_rest_of_the_state_is_bounded() {
         let mut state = valid_state();
-        state.extend(header_item(0, 0, 0)); // armour, slot 0
-        state.extend(header_item(3, 0, 0)); // another, slot 3
-        state.extend(weapon_item(7, 0, 0, 0));
-        let items = [
-            Item {
-                slot: 0,
-                stack: false,
-                body: false,
-                ammo: None,
-            },
-            Item {
-                slot: 3,
-                stack: false,
-                body: false,
-                ammo: None,
-            },
-            Item {
-                slot: 7,
-                stack: false,
-                body: true,
-                ammo: Some(2),
-            },
-        ];
-        assert_eq!(with_inventory(&state, &items), Ok(()));
-        // A header-only item with a bad owner is caught before the weapon.
-        let mut state = valid_state();
-        state.extend(header_item(0, 9, 0)); // owner place 9, past the match
-        state.extend(weapon_item(7, 0, 0, 0));
-        let items = [
-            Item {
-                slot: 0,
-                stack: false,
-                body: false,
-                ammo: None,
-            },
-            Item {
-                slot: 7,
-                stack: false,
-                body: true,
-                ammo: Some(2),
-            },
-        ];
-        let refusal = with_inventory(&state, &items).expect_err("refused");
-        assert!(
-            matches!(refusal.reason, Reason::TailItemOwner { player_id: 9, .. }),
-            "{refusal}"
-        );
+        let rest_at = state.len();
+        state.extend(rest());
+        assert_eq!(with_inventory(&state, &[]), Ok(()));
+        // A body part affect of no type, too many hits, a carry snapshot of
+        // another version.
+        let part = rest_at + 1 + 4 + 1 + 16;
+        let mut affect = state.clone();
+        affect[part + 8] = 1;
+        affect.splice(part + 9..part + 9, [9, 0, 0, 0, 0]);
+        assert!(matches!(reason(&affect, &[]), Reason::TailAffect { kind: 9 }));
+        let mut hits = state.clone();
+        hits[part + 9] = 65;
+        assert!(matches!(reason(&hits, &[]), Reason::TailCount { what: "hits", .. }));
+        let mut carry = state.clone();
+        let carry_at = carry.len() - 32;
+        carry[carry_at] = 1;
+        assert!(matches!(reason(&carry, &[]), Reason::TailCarry));
     }
 
     #[test]
     fn an_item_that_runs_past_the_state_goes_to_nobody() {
         let mut state = valid_state();
         state.extend(1.0f32.to_le_bytes()); // a weapon's condition, then nothing
-        let items = [Item {
-            slot: 7,
-            stack: false,
-            body: true,
-            ammo: Some(2),
-        }];
-        let refusal = with_inventory(&state, &items).expect_err("refused");
-        assert!(
-            matches!(refusal.reason, Reason::TailUnread { .. }),
-            "{refusal}"
-        );
+        assert!(matches!(
+            reason(&state, &[item(7, gun(2))]),
+            Reason::TailUnread { .. }
+        ));
     }
 
     #[test]

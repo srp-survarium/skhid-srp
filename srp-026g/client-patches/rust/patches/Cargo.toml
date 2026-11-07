@@ -22,3 +22,4 @@ world-frame = { path = "../../../crates/world-frame" }
 weapon-pickup = { path = "../../../crates/weapon-pickup" }
 # patch 68's weapon kit: srp's servers pack it, the client reads the same crate
 weapon-kit = { path = "../../../crates/weapon-kit" }
+srp-validate = { path = "../../../crates/srp-validate" }
