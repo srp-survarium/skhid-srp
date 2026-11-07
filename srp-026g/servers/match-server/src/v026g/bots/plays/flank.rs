@@ -172,6 +172,41 @@ pub fn candidates(cx: &Ctx, out: &mut Vec<Candidate>) {
             );
         }
     }
+    // [A320 bench] A route walker's own offer, as the commander will weigh it (on a change only): none and why, or its
+    // score and band (a running objective under `Bands::keep` of the floor competes in the roam band).
+    #[cfg(test)]
+    if let Some((PlayKind::Flank, TargetRef::ThreatSpot(id), _)) = cx.bot.current
+        && ROUTE_SEEN.with(|m| m.borrow().contains_key(&cx.me.place))
+    {
+        let offer = out.iter().find(|c| c.kind == PlayKind::Flank && c.target == TargetRef::ThreatSpot(id));
+        let now = match offer {
+            Some(c) => {
+                let band = crate::v026g::bots::team::Bands::used().band(c, true, false, false);
+                format!("band {band:?} score {:.2}", c.score.get())
+            }
+            None => {
+                let job = match cx.team.threat.job_of(cx.me.place) {
+                    Some((_, Role::Flanker, l)) if l.id == id => "its job role",
+                    Some((_, Role::Flanker, _)) => "a flank of another spot",
+                    Some(_) => "another role",
+                    None if cx.team.threat.line(id).is_some() => "no role, spot still held",
+                    None => "no role, spot gone",
+                };
+                let health = cx.me.health;
+                format!("none ({job}, health {health:.2}, carrying {})", cx.me.carrying.is_some())
+            }
+        };
+        let changed = OFFER_SEEN.with(|m| m.borrow_mut().insert(cx.me.place, now.clone()).as_ref() != Some(&now));
+        if changed && (offer.is_none() || !now.starts_with("band Objective")) {
+            eprintln!("A320 camp_flank offer: t {} place {} {now}", cx.now, cx.me.place);
+        }
+    }
+}
+
+#[cfg(test)]
+thread_local! {
+    /// [A320 bench] Each route walker's last offer line (the line is printed on a change).
+    static OFFER_SEEN: std::cell::RefCell<std::collections::HashMap<Place, String>> = std::cell::RefCell::new(std::collections::HashMap::new());
 }
 
 #[derive(Clone, Debug, PartialEq)]
