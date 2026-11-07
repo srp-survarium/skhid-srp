@@ -531,7 +531,7 @@ preferred-image VAs; `apply_modifier` is the kit-modifier getter 0x2D5AE0.
   (`check_forest_glow_026g.py`); captured in a local game (private/renders/artefact-tree/);
   not played by the owner, not released.
 
-## Hidden Stash (534, not released)
+## Hidden Stash (524, not released)
 
 The owner (2026-11-07): one skill gives a single hidden slot that holds one artefact without a
 container; the artefact there is gone at death (never on the body), a Keeper gift as a found
@@ -611,12 +611,16 @@ one; the slot is one of the kit's six, so a kit with six slots has none. "My pic
   (0, 23) leaves it in no inventory), and the run is one shorter again. That is what the native
   eviction does to a container's artefact: state 0 in no inventory is dormant in the anomaly it
   belongs to, which the anomaly's own respawn picks again (only state 0 respawns, patch 78's
-  note); a Keeper gift is dormant in the Keeper pool with its count (`Whereabouts::Returned`),
+  note); a Keeper gift is dormant in the Keeper pool and stays marked given (its activation time),
   never given again. Held in the hand at death, it is out of the inventory before patch 78's
   drop, which then finds nothing to drop.
-- **Handed over alive** (patch 78): the slot stays in use, an empty position, until the death;
-  the next take fills it before the run could grow again (my pick: shrinking it alive would leave
-  the HUD's last position drawn, its loop stopping before it).
+- **Handed over alive** (patch 78; the owner, 2026-11-07: allowed, "if we can make it better we
+  should"): the hand-over takes it out of the stash and the run is the kit's own again at once.
+  The HUD's position goes with it: the HUD's loop stops at the first ordinal with no slot and
+  leaves the positions after it drawn (0x23B79E), so after the loop (0x23B7B3, EDI the positions
+  filled) each position it filled the time before but not now is shown empty by the game's own
+  update_quick_slot (0x23A380) and its cached description zeroed, as clear_player leaves one
+  (presentation only; a shorter list of any cause, a death's too, is cleared the same way).
 - **Keeper** (the rule unchanged: the countdown's end, the first empty container, pending until
   one frees, once a match, a late joiner after its first death): a free hidden slot is room, so a
   Keeper with no container or all full gets the gift into it at once; at that Keeper's death the
@@ -632,15 +636,17 @@ one; the slot is one of the kit's six, so a kit with six slots has none. "My pic
 
 ### Placement
 
-- Row IV, column 4 (the free place beside Spring II, Onyx II, Larkspur II): id 534, one rank,
-  needs 15 (my pick). Modifier 40 bit 14 (16384). Rows I-IV then hold 24 for row V's 20; a full
-  build is 25 (the skills window's walk takes 25 branch points, `MAX_BRANCH_POINTS`).
+- Row III, column 4, beside Keeper and Artifact Container (the owner, 2026-11-07): id 524, one
+  rank, needs 10, in neither pair. Modifier 40 bit 14 (16384). Points (27 ranks in all): with
+  Keeper rows I-III hold 18, rows I-IV 21, a full build 22; with Forest Protection rows I-III 21,
+  rows I-IV 24, a full build 25 (the skills window's walk takes 25 branch points,
+  `MAX_BRANCH_POINTS`). Every row still opens on both paths.
 
 ```text
 | - Q R - |
-| - F K S |
-| - P A - |
-| S O L H |    H: Hidden Stash
+| - - K S |
+| F P A H |    H: Hidden Stash
+| S O L - |
 | - N X - |
 ```
 
@@ -655,13 +661,15 @@ one; the slot is one of the kit's six, so a kit with six slots has none. "My pic
   stash to open as room and every take of the crate opens it first (Keeper's `take_dormant`,
   patch 78's `take_ground` and `transfer_artefact`); hooks: `artefact_container.transfer` (order
   2, after patch 80's score), `hidden_stash.can_use` (0x31C6FB, exit to 0x31C704), `carry.death`
-  and `carry.client_death` (order 1, patch 78's now order 2).
+  and `carry.client_death` (order 1, patch 78's now order 2), `hud.quick_slots_end` (0x23B7B3,
+  `hidden_stash::stale`, engine row `engine_update_quick_slot`); the donor of patch 78's
+  `transfer_artefact` closes an emptied stash.
 - srp: `survarium::v026g::hidden_stash::kit_modifiers` (the bit off on a kit at six,
   `loadouts::quick_positions`: pockets as before plus containers, modifier 14 from the worn
   items and the skills), applied per kit in `session::wire::account_body`, so the lobby and the
   match's static info carry the same kits.
-- Content: `artefact-hidden-stash-1.json` (after the tree's edit list), `st_srp_artefact_534_*`
-  in the ten languages, `ArtefactSkill069534` in the lobby movie's icon switch.
+- Content: `artefact-hidden-stash-1.json` (after the tree's edit list), `st_srp_artefact_524_*`
+  in the ten languages, `ArtefactSkill069524` in the lobby movie's icon switch.
 
 ### Status
 

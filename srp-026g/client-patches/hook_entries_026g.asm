@@ -2914,6 +2914,45 @@ hidden_stash_on_can_use_replay:
     db 0x80, 0xb8, 0x6c, 0x01, 0x00, 0x00, 0x00
     jmp 0x31c702
 
+; 0x23b7b3 game_world_ui::update_local_player_state after its quick-position loop, reached from its break (0x23B79E, the first ordinal with no slot) and its end (six): ESI the ui, EDI the positions it filled; replayed: mov cl,[esi+2DEh]: lohook -> hidden_stash_on_hud_quick_slots
+global hidden_stash_on_hud_quick_slots
+extern hook_hidden_stash_on_hud_quick_slots
+hidden_stash_on_hud_quick_slots:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_hidden_stash_on_hud_quick_slots
+    mov edx, hidden_stash_on_hud_quick_slots_replay
+    cmp eax, 0
+    je hidden_stash_on_hud_quick_slots_go
+    mov edx, 0x23b7b9
+    cmp eax, 1
+    je hidden_stash_on_hud_quick_slots_go
+    ud2
+hidden_stash_on_hud_quick_slots_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+hidden_stash_on_hud_quick_slots_replay:
+    db 0x8a, 0x8e, 0xde, 0x02, 0x00, 0x00
+    jmp 0x23b7b9
+
 ; 0x234880 game_world_ui::initialize_match's start (sub esp,5D4h), once a match (from 0x1F855D; the late join's rebuild enters at 0x234E71): the site's ESP+4 the hud, whose kits (+2DFh) and cursor (+2DCh) are the last match's: lohook -> hud_cursor_on_match_start
 global hud_cursor_on_match_start
 extern hook_hud_cursor_on_match_start

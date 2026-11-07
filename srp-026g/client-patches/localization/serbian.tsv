@@ -2204,6 +2204,8 @@ st_srp_artefact_522_description	Jedan džep postaje kontejner za artefakt.
 st_srp_artefact_522_name	Kontejner za artefakt
 st_srp_artefact_523_description	Šteta od metaka i šrapnela unutar anomalije:
 st_srp_artefact_523_name	Zaštita Šume
+st_srp_artefact_524_description	Još jedan artefakt bez kontejnera dok imaš manje od 6 džepova i kontejnera; gubi se pri smrti.
+st_srp_artefact_524_name	Skrovište
 st_srp_artefact_531_description	Svaki Feder ubrzava i punjenje: +5% pasivno, +15% dok je aktivan.
 st_srp_artefact_531_name	Feder II
 st_srp_artefact_532_description	Nema štete od pada dok je Oniks aktivan.

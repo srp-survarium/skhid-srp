@@ -4793,3 +4793,26 @@ the ghost's AABB is next updated from it after the step, so no NaN reaches the b
 A simulation change (`simulation_changes.tsv`'s `next` row). Checked with
 `check_controller_position_026g.py` (finite steps byte for byte the original's; NaN and infinities
 restored; the original fails) and the patch crate's tests. Not run in a game.
+
+## Hidden Stash: one artefact past the kit's containers until death (patch 109, unreleased)
+
+The artefact tree's 524 (`../docs/notes/artefact-skills.md` "Hidden Stash"), modifier 40 bit 14,
+which srp keeps only on a kit whose pockets and containers are fewer than six. The inventory's
+container run ([+168h] its first slot, [+16Ch] its length, all inside the quick slots 13..18 and in
+the world save) is one longer while the hidden slot holds an artefact; the exe tells that from the
+kit's own length, min(trunc(apply_modifier 14), 19 - first), as setup_from_profile computes it
+(`hidden_stash::stash`). A take with no container empty opens it first: an anomaly's
+(`artefact_container.transfer` 0x31C810, after patch 80's score, order 2), Keeper's and patch 78's
+(`vostok::inventory`, every take of it); `hidden_stash.can_use` (0x31C6FB, can_use's container
+test) lets a user with no container but the slot to open use the anomaly. A hand-over from it
+(patch 78's transfer) closes it at once. At either death entry (`carry.death` 0x2D77C0,
+`carry.client_death` 0x1F28E0, order 1, before patch 78's drop) the slot's artefact goes out
+through the game's own remove_item (on_removed: dormant, back to its anomaly or the Keeper pool,
+which never gives it again) and the run is the kit's own.
+
+The HUD: game_world_ui::update_local_player_state fills its six quick positions from 0 and stops at
+the first ordinal with no slot (0x23B79E), leaving the positions after it drawn. At
+`hud.quick_slots_end` (0x23B7B3, after the loop both ways: EDI the positions filled) each position
+the loop filled the time before but not now is shown empty by the game's own update_quick_slot
+(0x23A380) and its cached description zeroed, as clear_player leaves it. Presentation only; any
+shorter list is cleared the same way. Checked with `check_hidden_stash_026g.py`; not run in a game.

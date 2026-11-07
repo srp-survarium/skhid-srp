@@ -1542,6 +1542,21 @@ pub extern "C" fn hook_hidden_stash_on_can_use(frame: &mut Frame) -> u32 {
     }
 }
 
+// ---- hidden_stash (patch 109) ----
+
+/// The entry `hidden_stash_on_hud_quick_slots` (0x23b7b3, game_world_ui::update_local_player_state after its quick-position loop, reached from its break (0x23B79E, the first ordinal with no slot) and its end (six): ESI the ui, EDI the positions it filled; replayed: mov cl,[esi+2DEh]) calls this with the saved machine.
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_hidden_stash_on_hud_quick_slots(frame: &mut Frame) -> u32 {
+    // SAFETY: only the entry `hidden_stash_on_hud_quick_slots` calls this, from the game's jump at 0x23b7b3,
+    // on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::new(frame) };
+    match crate::hidden_stash::on_hud_quick_slots(&mut ctx) {
+        Flow::Continue => 0,
+        Flow::Skip => 1,
+        Flow::Exit(e) => match e {},
+    }
+}
+
 // ---- hud_cursor (patch 113) ----
 
 /// The entry `hud_cursor_on_match_start` (0x234880, game_world_ui::initialize_match's start (sub esp,5D4h), once a match (from 0x1F855D; the late join's rebuild enters at 0x234E71): the site's ESP+4 the hud, whose kits (+2DFh) and cursor (+2DCh) are the last match's) calls this with the saved machine.

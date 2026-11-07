@@ -2204,6 +2204,8 @@ st_srp_artefact_522_description	Jedna kieszeń staje się pojemnikiem na artefak
 st_srp_artefact_522_name	Pojemnik na artefakt
 st_srp_artefact_523_description	Obrażenia od pocisków i odłamków wewnątrz anomalii:
 st_srp_artefact_523_name	Ochrona Lasu
+st_srp_artefact_524_description	Jeszcze jeden artefakt bez pojemnika, dopóki kieszeni i pojemników jest mniej niż 6; po śmierci przepada.
+st_srp_artefact_524_name	Skrytka
 st_srp_artefact_531_description	Każda Sprężyna przyspiesza też przeładowanie: +5% pasywnie, +15% gdy aktywna.
 st_srp_artefact_531_name	Sprężyna II
 st_srp_artefact_532_description	Brak obrażeń od upadku, gdy Onyks jest aktywny.

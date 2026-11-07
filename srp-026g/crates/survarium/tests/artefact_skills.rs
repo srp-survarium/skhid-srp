@@ -4,10 +4,10 @@ use survarium::v026g::skills::{SkillError, SkillsTree, modifier_index};
 
 /// `(id, ranks, branch_points, column, row)`.
 #[rustfmt::skip]
-const TREE: [(u16, u8, u32, u8, u8); 12] = [
+const TREE: [(u16, u8, u32, u8, u8); 13] = [
     (501, 4, 0, 2, 1), (502, 5, 0, 3, 1),
     (512, 5, 5, 3, 2), (513, 1, 5, 4, 2),
-    (521, 1, 10, 2, 3), (522, 1, 10, 3, 3), (523, 4, 10, 1, 3),
+    (521, 1, 10, 2, 3), (522, 1, 10, 3, 3), (523, 4, 10, 1, 3), (524, 1, 10, 4, 3),
     (531, 1, 15, 1, 4), (532, 1, 15, 2, 4), (533, 1, 15, 3, 4),
     (541, 1, 20, 2, 5), (542, 1, 20, 3, 5),
 ];
@@ -56,7 +56,10 @@ fn exclusive(tree: &SkillsTree, skills: &[(u16, u8)]) -> bool {
 fn artefact_tree_progression_and_modifiers() {
     let path = std::env::var("SRP_MEDICAL_SKILLS_CONFIG").expect("built skills_tree.options");
     let tree = SkillsTree::parse(&std::fs::read(path).unwrap()).unwrap();
-    let ids: Vec<u16> = tree.skills.iter().filter(|s| s.branch() == 5).map(|s| s.id).collect();
+    // In the file's order: Hidden Stash (524) comes last, from its own edit list.
+    let mut ids: Vec<u16> = tree.skills.iter().filter(|s| s.branch() == 5).map(|s| s.id).collect();
+    assert_eq!(ids.last(), Some(&524));
+    ids.sort_unstable();
     assert_eq!(ids, TREE.map(|row| row.0));
     let mut places = std::collections::HashSet::new();
     for &(id, ranks, branch_points, column, row) in &TREE {
@@ -83,9 +86,9 @@ fn artefact_tree_progression_and_modifiers() {
         assert!(exclusive(&tree, &both), "Keeper and Forest Protection with Cascade");
     }
     // The stock rows, 0/5/10/15/20, on both paths: row I holds 9; with Keeper rows I-III hold
-    // 17 and rows I-IV 20 (row V needs every point, a full build is 21), with Forest Protection
-    // rows I-IV hold 23 (a full build is 24).
-    for (row3, rows_i_iv, full) in [(KEEPER, 20, 21), (FOREST, 23, 24)] {
+    // 18 and rows I-IV 21 (a full build is 22), with Forest Protection rows I-IV hold 24 (a full
+    // build is 25); Hidden Stash (524) one point of row III on both.
+    for (row3, rows_i_iv, full) in [(KEEPER, 21, 22), (FOREST, 24, 25)] {
         assert_eq!(points(&build(4, row3, RESONANCE)), rows_i_iv, "{row3}");
         for row5 in [RESONANCE, CASCADE] {
             let all = build(5, row3, row5);
@@ -123,16 +126,17 @@ fn artefact_tree_progression_and_modifiers() {
     assert_eq!((at("artefact_slots"), at("pocket_slots")), (1.0, -1.0));
     assert!((at("artefact_duration") - 0.25).abs() < 1e-6);
     // Resistance 5, then bits 4..7 (Resonance, Spring II, Onyx II, Larkspur II) and 12 (Artifact
-    // Sight); with Cascade, bit 8 instead of bit 4; with Keeper, bit 3 and no modifier 41.
+    // Sight) and 14 (Hidden Stash); with Cascade, bit 8 instead of bit 4; with Keeper, bit 3 and
+    // no modifier 41.
     let power = modifier_index("artefact_power").unwrap();
     let damage = modifier_index("incoming_weapon_damage_in_anomaly").unwrap();
-    assert_eq!(at("artefact_power"), 4341.0);
-    assert_eq!(tree.modifiers(&build(5, FOREST, CASCADE))[power], 4581.0);
+    assert_eq!(at("artefact_power"), 4341.0 + 16384.0);
+    assert_eq!(tree.modifiers(&build(5, FOREST, CASCADE))[power], 4581.0 + 16384.0);
     let keeper = tree.modifiers(&build(5, KEEPER, RESONANCE));
-    assert_eq!((keeper[power], keeper[damage]), (4349.0, 0.0));
-    assert_eq!(tree.modifiers(&build(5, KEEPER, CASCADE))[power], 4589.0);
+    assert_eq!((keeper[power], keeper[damage]), (4349.0 + 16384.0, 0.0));
+    assert_eq!(tree.modifiers(&build(5, KEEPER, CASCADE))[power], 4589.0 + 16384.0);
     #[rustfmt::skip]
-    let bits = [(502, 1.0), (KEEPER, 8.0), (RESONANCE, 16.0), (531, 32.0), (532, 64.0), (533, 128.0), (CASCADE, 256.0), (513, 4096.0)];
+    let bits = [(502, 1.0), (KEEPER, 8.0), (RESONANCE, 16.0), (531, 32.0), (532, 64.0), (533, 128.0), (CASCADE, 256.0), (513, 4096.0), (524, 16384.0)];
     for (id, bits) in bits {
         assert_eq!(tree.modifiers(&[(id, 1)])[power], bits, "{id}");
     }

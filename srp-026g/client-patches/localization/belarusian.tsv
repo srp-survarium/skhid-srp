@@ -2204,6 +2204,8 @@ st_srp_artefact_522_description	Адна кішэня становіцца ка�
 st_srp_artefact_522_name	Кантэйнер для артэфакта
 st_srp_artefact_523_description	Шкода ад куль і аскепкаў унутры анамаліі:
 st_srp_artefact_523_name	Ахова Лесу
+st_srp_artefact_524_description	Яшчэ адзін артэфакт без кантэйнера, пакуль кішэняў і кантэйнераў менш за 6; пры смерці ён губляецца.
+st_srp_artefact_524_name	Схованка
 st_srp_artefact_531_description	Кожная Спружына таксама паскарае перазарадку: +5% пасіўна, +15% пры актывацыі.
 st_srp_artefact_531_name	Спружына II
 st_srp_artefact_532_description	Няма шкоды ад падзення, пакуль Онікс актыўны.

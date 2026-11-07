@@ -13,7 +13,7 @@ package {
    333:"MedicalSkill069333",341:"MedicalSkill069341",342:"MedicalSkill069342",
    501:"ArtefactSkill069501",502:"ArtefactSkill069502",512:"ArtefactSkill069512",513:"ArtefactSkill069513",
    521:"ArtefactSkill069521",522:"ArtefactSkill069522",523:"ArtefactSkill069523",531:"ArtefactSkill069531",532:"ArtefactSkill069532",
-   533:"ArtefactSkill069533",541:"ArtefactSkill069541",542:"ArtefactSkill069542"};
+   533:"ArtefactSkill069533",524:"ArtefactSkill069524",541:"ArtefactSkill069541",542:"ArtefactSkill069542"};
   private var loader:Loader = new Loader();
   private var failures:Array = [];
   private var icons:Object;
@@ -22,7 +22,8 @@ package {
   private var edits:Object;
   private var artefactEdits:Object;
   private var catalog:Object = {};
-  private var pending:int = 4;
+  private var pending:int = 5;
+  private var stashEdits:Object;
   private var sources:Array = [];
   private var stage_:String = "";
   public function MedicalSkillsHarness() {
@@ -37,6 +38,11 @@ package {
    artefacts.addEventListener(Event.COMPLETE,function(e:Event):void {artefactEdits=JSON.parse(String(artefacts.data));ready();});
    artefacts.addEventListener(IOErrorEvent.IO_ERROR,function(e:Event):void {failures.push("no artefact-skills-1.json");finish();});
    artefacts.load(new URLRequest("artefact-skills-1.json"));
+   // Hidden Stash (524), its own edit list after the tree's.
+   var stash:URLLoader = new URLLoader();
+   stash.addEventListener(Event.COMPLETE,function(e:Event):void {stashEdits=JSON.parse(String(stash.data));ready();});
+   stash.addEventListener(IOErrorEvent.IO_ERROR,function(e:Event):void {failures.push("no artefact-hidden-stash-1.json");finish();});
+   stash.load(new URLRequest("artefact-hidden-stash-1.json"));
    // The English catalog (client-patches/localization/english.tsv), where the artefact tree's texts are.
    var tsv:URLLoader = new URLLoader();
    tsv.addEventListener(Event.COMPLETE,function(e:Event):void {
@@ -146,7 +152,7 @@ package {
     values.push({id:stock[s][0],value:0});
    }
    var artefacts:Object={};
-   for each(entry in artefactEdits.append_entry) {
+   for each(entry in artefactEdits.append_entry.concat(stashEdits.append_entry)) {
     v=entry.value;artefacts[v.id]=v;
     check(v.modifiers.length==v.levels_amount,"modifiers per rank "+v.id);
     if(v.levels_amount>1) check(v.ui.skill_descriptions.length==v.levels_amount+1,"rank rows "+v.id);
@@ -244,12 +250,12 @@ package {
    check(shown[331].data.newValue==0,"Supply Pocket taken back");
    check(take(322,2)==1,"Additional Medicine at 20, one rank");
    check(take(331,1)==0,"Supply Pocket refused beside Additional Medicine");
-   // The artefact tab (artefact-skills.md): 0/5/10/15/20 (the stock rows), 26 ranks in all; two
+   // The artefact tab (artefact-skills.md): 0/5/10/15/20 (the stock rows), 27 ranks in all; two
    // either/or pairs, Forest Protection or Keeper in row III, Resonance or Cascade in row V: a
-   // build is 24 with Forest Protection, 21 with Keeper (its rows I-IV hold exactly 20).
+   // build is 25 with Forest Protection, 22 with Keeper (Hidden Stash, 524, one point of row III).
    stage_="artefact tab";win.skillsTabPage.selectedIndex=4;shown=renderers(win,Renderer);
    var tree5:Object={501:[2,1,4,0],502:[3,1,5,0],512:[3,2,5,5],513:[4,2,1,5],521:[2,3,1,10],
-    522:[3,3,1,10],523:[1,3,4,10],531:[1,4,1,15],532:[2,4,1,15],533:[3,4,1,15],541:[2,5,1,20],542:[3,5,1,20]};
+    522:[3,3,1,10],523:[1,3,4,10],524:[4,3,1,10],531:[1,4,1,15],532:[2,4,1,15],533:[3,4,1,15],541:[2,5,1,20],542:[3,5,1,20]};
    var ranks5:int=0;
    for(id in tree5) {
     want=tree5[id];have=artefacts[id];
@@ -259,7 +265,7 @@ package {
     check(shown[id]!=null && shown[id].x==step.x*(want[0]-1) && shown[id].y==step.y*(want[1]-1),"artefact menu position "+id);
     check(pips(shown[id])==want[2],"artefact rank pips "+id);
    }
-   check(ranks5==26,"26 artefact ranks");
+   check(ranks5==27,"27 artefact ranks");
    check(artefacts[541].preconditions.antiskills[0]==542 && artefacts[542].preconditions.antiskills[0]==541,
     "Resonance and Cascade exclude each other");
    check(artefacts[521].preconditions.antiskills[0]==523 && artefacts[523].preconditions.antiskills[0]==521,
@@ -301,10 +307,12 @@ package {
    check(shown[541].data.newValue==0,"Resonance taken back");
    check(take(542,2)==1,"Cascade at 20, one rank: a Keeper build is 21");
    check(take(541,1)==0,"Resonance refused beside Cascade");
+   check(described(artefacts[524].ui,1).length==1,"Hidden Stash: the description alone");
+   check(take(524,2)==1,"Hidden Stash at 10, one rank: a Keeper build is 22");
    // The Forest path: Keeper taken back, Forest Protection in its place.
    click(521,true);
    check(shown[521].data.newValue==0,"Keeper taken back");
-   check(take(523,5)==4,"Forest Protection stops at 4: a Forest build is 24");
+   check(take(523,5)==4,"Forest Protection stops at 4: a Forest build is 25");
    check(take(521,1)==0,"Keeper refused beside Forest Protection");
    bar(26,"artefact full on the Forest path");
    // The tab bar's icons (SkillBranchTabCh, its icon a MovieClip whose frame is the tab, set by

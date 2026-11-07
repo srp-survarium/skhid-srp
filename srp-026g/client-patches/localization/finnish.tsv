@@ -2204,6 +2204,8 @@ st_srp_artefact_522_description	Yksi tasku muuttuu artefaktisäiliöksi.
 st_srp_artefact_522_name	Artefaktisäiliö
 st_srp_artefact_523_description	Luotien ja sirpaleiden vahinko anomalian sisällä:
 st_srp_artefact_523_name	Metsän suoja
+st_srp_artefact_524_description	Yksi artefakti lisää ilman säiliötä, kun taskuja ja säiliöitä on alle 6; menetät sen kuollessasi.
+st_srp_artefact_524_name	Salakätkö
 st_srp_artefact_531_description	Jokainen Jousi nopeuttaa myös latausta: +5% passiivisesti, +15% aktiivisena.
 st_srp_artefact_531_name	Jousi II
 st_srp_artefact_532_description	Ei putoamisvahinkoa, kun Onyksi on aktiivinen.

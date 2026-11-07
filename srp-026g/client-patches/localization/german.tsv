@@ -2204,6 +2204,8 @@ st_srp_artefact_522_description	Eine Tasche wird zu einem Artefaktbehälter.
 st_srp_artefact_522_name	Artefaktbehälter
 st_srp_artefact_523_description	Schaden durch Kugeln und Splitter in einer Anomalie:
 st_srp_artefact_523_name	Schutz des Waldes
+st_srp_artefact_524_description	Ein weiteres Artefakt ohne Behälter, solange du weniger als 6 Taschen und Behälter hast; beim Tod geht es verloren.
+st_srp_artefact_524_name	Geheimversteck
 st_srp_artefact_531_description	Jede Feder beschleunigt auch das Nachladen: +5% passiv, +15% solange aktiv.
 st_srp_artefact_531_name	Feder II
 st_srp_artefact_532_description	Kein Fallschaden, solange ein Onyx aktiv ist.

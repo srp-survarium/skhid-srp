@@ -2204,6 +2204,8 @@ st_srp_artefact_522_description	Egy zseb artefaktumtárolóvá válik.
 st_srp_artefact_522_name	Artefaktumtároló
 st_srp_artefact_523_description	Golyó- és repeszsebzés anomálián belül:
 st_srp_artefact_523_name	Az Erdő védelme
+st_srp_artefact_524_description	Még egy artefaktum tároló nélkül, amíg 6-nál kevesebb zsebed és tárolód van; halálkor elveszik.
+st_srp_artefact_524_name	Rejtekhely
 st_srp_artefact_531_description	Minden Rugó gyorsítja az újratöltést is: +5% passzívan, +15% aktívan.
 st_srp_artefact_531_name	Rugó II
 st_srp_artefact_532_description	Nincs esési sebzés, amíg egy Ónix aktív.

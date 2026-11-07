@@ -25,3 +25,8 @@ order = 1
 site = "carry.client_death"
 handler = "on_client_death"
 order = 1
+
+# the HUD's quick positions: one a longer list left (the stash closed) shown empty
+[[hook]]
+site = "hud.quick_slots_end"
+handler = "on_hud_quick_slots"

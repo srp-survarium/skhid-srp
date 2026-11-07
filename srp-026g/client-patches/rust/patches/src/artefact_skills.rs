@@ -129,7 +129,7 @@ impl Skills {
         self.late
     }
 
-    /// Hidden Stash (534) on a kit with room for it (srp's per-kit rule: pockets and containers
+    /// Hidden Stash (524) on a kit with room for it (srp's per-kit rule: pockets and containers
     /// fewer than six): one artefact past the kit's containers, gone at death (hidden_stash).
     pub fn hidden(self) -> bool {
         self.hidden

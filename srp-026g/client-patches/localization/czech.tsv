@@ -2204,6 +2204,8 @@ st_srp_artefact_522_description	Jedna kapsa se změní v kontejner na artefakt.
 st_srp_artefact_522_name	Kontejner na artefakt
 st_srp_artefact_523_description	Poškození od kulek a střepin uvnitř anomálie:
 st_srp_artefact_523_name	Ochrana Lesa
+st_srp_artefact_524_description	Ještě jeden artefakt bez kontejneru, dokud máš méně než 6 kapes a kontejnerů; při smrti ho ztratíš.
+st_srp_artefact_524_name	Skrýš
 st_srp_artefact_531_description	Každá Pružina také zrychluje přebíjení: +5% pasivně, +15% během aktivace.
 st_srp_artefact_531_name	Pružina II
 st_srp_artefact_532_description	Žádné poškození pádem, dokud je Onyx aktivní.

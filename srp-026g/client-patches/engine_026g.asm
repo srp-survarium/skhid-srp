@@ -180,6 +180,7 @@ global engine_hide_scene_movie
 global engine_get_system_time_as_file_time
 global engine_file_time_to_local_file_time
 global engine_file_time_to_system_time
+global engine_update_quick_slot
 engine_action_present equ 0x242460   ; 0x242460 survarium::player_input_handler::action_present: handler ESP+4, action ESP+8, state ESP+12; pops 12; AL; stdcall, called directly
 engine_create_file_a equ 0x870048   ; the IAT slot 0x870048 (an import, stdcall)
 engine_write_file equ 0x870108   ; the IAT slot 0x870108 (an import, stdcall)
@@ -2130,6 +2131,22 @@ engine_hide_scene_movie:
     mov eax, [esp + 20]   ; movie
     mov edx, [esp + 24]   ; scene
     call 0x23dc70
+    pop edi
+    pop esi
+    pop ebx
+    pop ebp
+    ret
+
+    align 16, db 0xCC
+engine_update_quick_slot:
+    ; 0x23a380 survarium::game_world_ui::update_quick_slot: ui ESI, position ESP+4; pops 4
+    push ebp
+    push ebx
+    push esi
+    push edi
+    push dword [esp + 24]   ; position -> 4
+    mov esi, [esp + 24]   ; ui
+    call 0x23a380
     pop edi
     pop esi
     pop ebx

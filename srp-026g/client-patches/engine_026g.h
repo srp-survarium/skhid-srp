@@ -633,4 +633,7 @@ extern unsigned int (__attribute__((stdcall)) *const engine_file_time_to_local_f
 /* the IAT slot 0x87022c (an import, stdcall) */
 extern unsigned int (__attribute__((stdcall)) *const engine_file_time_to_system_time)(const unsigned int * file_time, unsigned int * system_time);
 
+/* 0x23a380 survarium::game_world_ui::update_quick_slot: ui ESI, position ESP+4; pops 4 */
+void engine_update_quick_slot(struct game_world_ui *ui, unsigned int position);
+
 #endif

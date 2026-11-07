@@ -19,8 +19,12 @@ no container at all (three drugs, modifier 14 at 0): can_use refuses without the
 user in with it, and the take opens the run at the first empty quick slot (16); the death takes
 the stash's artefact out (state 0, no inventory, the slot empty, the run the kit's own) and leaves
 the own containers' artefacts; a death with the stash shut changes nothing; Keeper's gift with
-every container full goes into the stash, and back to the pool at the death (dormant, its count:
-never again). Says nothing of the HUD, the save or a real match.
+every container full goes into the stash, and back to the pool at the death (dormant, still marked:
+never again). With patch 78's carry (check_artefact_carry_026g's fixture, a donor whose only
+container is its open stash): a hand-over closes it at once and the HUD's loop (0x23B792..0x23B7B9,
+its two position functions stubbed) shows the position it left empty once, its cache zeroed; held
+in the hand at death, the artefact goes back dormant (state 0), not dropped. Says nothing of the
+save or a real match.
 """
 import struct
 import sys
@@ -29,7 +33,7 @@ from unicorn import UC_HOOK_CODE
 from unicorn.x86_const import UC_X86_REG_EAX, UC_X86_REG_EBX, UC_X86_REG_ECX, UC_X86_REG_EDI, UC_X86_REG_EIP, UC_X86_REG_ESP
 
 import patch_026g as base
-from check_artefact_keeper_026g import Keeper, KEEPER, VTABLES, draw
+from check_artefact_keeper_026g import Keeper, KEEPER, draw
 
 CAN_USE = 0x31C6B0                    # thiscall (&user), `ret 4`, al
 TRANSFER, TRANSFER_END = 0x31C810, 0x31C81C   # use_execute: the transfer and its call
@@ -42,22 +46,8 @@ class Stash(Keeper):
     def __init__(self, data):
         super().__init__(data)
         self.drug = self.block(0x300)          # a pocket's item: never read by these paths
-        # Each kind's passive unlink (vfn +84h, thiscall, `ret`), as Keeper's check stubs the link.
-        self.unlinked = []
-        for vtable in VTABLES.values():
-            at = self.read(vtable + 0x84)
-            self.emu.hook_add(UC_HOOK_CODE, self.on_unlink, begin=at, end=at)
-
-    def artefact(self, kind):
-        at = super().artefact(kind)
-        self.word(at + 0xD0, 10)               # the world registry's references (never released here)
-        return at
-
-    def on_unlink(self, emu, address, size, _):
-        self.unlinked.append(self.ecx())
-        esp = emu.reg_read(UC_X86_REG_ESP)
-        emu.reg_write(UC_X86_REG_ESP, esp + 4)
-        emu.reg_write(UC_X86_REG_EIP, self.read(esp))
+        # Keeper's fixture stubs each kind's passive link and unlink (vfn +7Ch, +84h) and gives
+        # each artefact its references and config.
 
     def user(self, place, ranks, drugs, containers, first=None, m14=None):
         """A player whose inventory has `drugs` pockets from slot 13, then `containers` from
@@ -121,7 +111,7 @@ class Stash(Keeper):
         try:
             self.emu.emu_start(start, end, count=2_000_000)
         except UcError as error:
-            raise SystemExit(f'{error} at {self.emu.reg_read(UC_X86_REG_EIP):#x}') from error
+            raise SystemExit(f'{error} at {self.emu.reg_read(UC_X86_REG_EIP):#x} (run from {start:#x})') from error
 
 
 def held(g, item, inventory):
@@ -210,12 +200,94 @@ def check(data):
     g4.tick(k)
     assert g4.run(ki) == (15, 3) and g4.slot(ki, 17) == pool[0] and held(g4, pool[0], ki)
     g4.die(k)
-    assert dormant(g4, pool[0]) and struct.unpack('<H', g4.emu.mem_read(pool[0] + 0x260, 2))[0] == 1
+    assert dormant(g4, pool[0]) and g4.read(pool[0] + 0x2A0) != 0xFFFFFFFF, 'the gift lost its mark'
     g4.statistics(0, 2, 0)
     g4.tick(k)
     assert g4.run(ki) == (15, 2) and g4.slot(ki, 17) == 0 and dormant(g4, pool[0])
     print('Hidden Stash: Keeper\'s gift with every container full goes into the stash; at the death '
-          'back to the pool, dormant with its count, never given again: PASS')
+          'back to the pool, dormant and still marked given (its activation time), never given again: PASS')
+
+
+HUD_LOOP, HUD_END = 0x23B792, 0x23B7B9          # update_local_player_state's quick loop, past the hook
+SHOW_ITEM, SHOW_EMPTY = 0x23A200, 0x23A380       # its position fill (stubbed), update_quick_slot (stubbed)
+
+
+def carried(data):
+    """Patch 78's carry over a donor whose only container is its open stash (slot 15: two pockets'
+    items before it, no container of its own): a hand-over closes it at once and the HUD's loop
+    clears the position it left; held in the hand at death, it goes back dormant, never dropped."""
+    from check_artefact_carry_026g import Run, COMMAND, USE
+
+    def donor_with_stash(g, donor):
+        # The artefact's own cast_artefact (vfn +58h, 0x246380: this), which the fixture replaced:
+        # the HUD's fixed-slot loop skips an artefact by it.
+        g.word(g.read(g.item_ptr) + 0x58, 0x246380)
+        inventory = g.block(0x190)
+        drug = g.block(0x340)                  # kind 0 (+24Ch): no quick item of the fixed slots
+        g.word(inventory + 0x10C + 4 * 13, drug)
+        g.word(inventory + 0x10C + 4 * 14, drug)
+        g.word(inventory + 0x168, inventory + 0x10C + 4 * 15)
+        g.emu.mem_write(inventory + 0x16C, b'\x01')
+        reference = g.block(4)
+        g.word(reference, g.item_ptr)
+        g.call(0x2FC620, (reference,), esi=inventory, edi=15)
+        g.word(donor + 0x10C, inventory)
+        kit = g.read(donor + 0x6B8) + 0xF4
+        g.word(kit + 0xA0, struct.unpack('<I', struct.pack('<f', float(HIDDEN)))[0])
+        g.word(kit + M14, 0)
+        return inventory
+
+    # The hand-over, and the HUD's positions before and after it.
+    g = Run(data)
+    donor, recipient = g.players
+    inventory = donor_with_stash(g, donor)
+    ui = g.block(0x2000)
+    shown, emptied = [], []
+
+    def stub(emu, address, *_):
+        sp = emu.reg_read(UC_X86_REG_ESP)
+        (shown if address == SHOW_ITEM else emptied).append(
+            g.read(sp + 4) if address == SHOW_EMPTY else emu.reg_read(UC_X86_REG_EDI))
+        emu.reg_write(UC_X86_REG_EIP, g.read(sp))
+        emu.reg_write(UC_X86_REG_ESP, sp + 8)
+    for at in (SHOW_ITEM, SHOW_EMPTY):
+        g.emu.hook_add(UC_HOOK_CODE, stub, begin=at, end=at)
+
+    def hud():
+        shown.clear(), emptied.clear()
+        g.site(HUD_LOOP, [HUD_END], ebx=inventory, esi=ui)
+        return list(shown), list(emptied)
+
+    first = hud()
+    assert first == ([0], []), f'the stash is the HUD\'s first position: {first}'
+    g.emu.mem_write(ui + 0x1B5C, bytes(range(1, 9)))       # its cached description, as 0x23A200 leaves one
+    g.input(donor, 0, COMMAND)
+    g.tick(donor, 800)
+    g.input(recipient, 930, 0)
+    g.word(recipient + 0x128, 0)
+    assert g.input(recipient, 940, USE) & USE == 0, 'the hand-over did not take Use'
+    assert g.contents(g.inventories[1], 1) == [g.item_ptr]
+    assert g.read(inventory + 0x10C + 4 * 15) == 0 and g.read(inventory + 0x16C) & 0xFF == 0
+    assert hud() == ([], [0]), 'the position the stash left was not cleared'
+    assert bytes(g.emu.mem_read(ui + 0x1B5C, 8)) == bytes(8), 'its cached description was kept'
+    assert hud() == ([], []), 'a cleared position cleared again'
+    print('Hidden Stash: a hand-over from the stash closes it at once; the HUD\'s position it left is '
+          'shown empty once (update_quick_slot) with its cache zeroed: PASS')
+
+    # Held in the hand at death: back dormant (state 0), not dropped (6), the run closed.
+    g = Run(data)
+    donor, _ = g.players
+    inventory = donor_with_stash(g, donor)
+    g.input(donor, 0, COMMAND)
+    g.tick(donor, 800)
+    g.renderer()
+    g.draw()
+    g.floor = 0.
+    g.site(0x1F28E0, [0x1F28E5], (0,), ecx=donor)
+    assert g.read(g.item_ptr + 0x280) == 0 and g.read(g.item_ptr + 0x250) == 0, g.read(g.item_ptr + 0x280)
+    assert g.read(inventory + 0x10C + 4 * 15) == 0 and g.read(inventory + 0x16C) & 0xFF == 0
+    print('Hidden Stash: held in the hand at death, the stash\'s artefact goes back dormant (state 0), '
+          'not dropped (patch 78 finds nothing): PASS')
 
 
 def main():
@@ -223,6 +295,7 @@ def main():
     patched, _ = base.build(original, 'section', open(base.default_bin('section'), 'rb').read(), None,
                             open(base.late_join_bin(), 'rb').read())
     check(patched)
+    carried(patched)
 
 
 if __name__ == '__main__':

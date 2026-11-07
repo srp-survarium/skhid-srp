@@ -2204,6 +2204,8 @@ st_srp_artefact_522_description	Один карман становится ко�
 st_srp_artefact_522_name	Контейнер для артефакта
 st_srp_artefact_523_description	Урон от пуль и осколков внутри аномалии:
 st_srp_artefact_523_name	Защита Леса
+st_srp_artefact_524_description	Ещё один артефакт без контейнера, пока карманов и контейнеров меньше 6; при смерти он теряется.
+st_srp_artefact_524_name	Тайник
 st_srp_artefact_531_description	Каждая Пружина также ускоряет перезарядку: +5% пассивно, +15% при активации.
 st_srp_artefact_531_name	Пружина II
 st_srp_artefact_532_description	Нет урона от падения, пока Оникс активен.

@@ -179,3 +179,4 @@ engine_hide_scene_movie	0x23dc70	EAX:movie EDX:scene	void engine_hide_scene_movi
 engine_get_system_time_as_file_time	0x870244	-	void engine_get_system_time_as_file_time(unsigned int *file_time)	import	
 engine_file_time_to_local_file_time	0x870230	-	unsigned int engine_file_time_to_local_file_time(const unsigned int *file_time, unsigned int *local)	import	
 engine_file_time_to_system_time	0x87022c	-	unsigned int engine_file_time_to_system_time(const unsigned int *file_time, unsigned int *system_time)	import	
+engine_update_quick_slot	0x23a380	ESI:ui ESP+4:position	void engine_update_quick_slot(struct game_world_ui *ui, unsigned int position)	thunk	

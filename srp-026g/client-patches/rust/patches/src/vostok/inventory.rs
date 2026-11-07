@@ -131,6 +131,21 @@ impl<'t> Inventory<'t> {
         }
     }
 
+    /// An open stash whose slot no longer holds an artefact (handed over): the run the kit's own
+    /// again.
+    fn close_emptied_stash(&mut self) {
+        let Stash::Open { at } = self.stash() else { return };
+        if !self.quick_empty(at) {
+            return;
+        }
+        // SAFETY: the live inventory's count byte; the run's last slot (the stash's) is empty,
+        // so it ends before it.
+        unsafe {
+            let count = read(self.this.artefact_slot_count());
+            self.this.artefact_slot_count().write_volatile(count.saturating_sub(1));
+        }
+    }
+
     /// At death, an open stash: its artefact out by the game's own remove_item (on_removed:
     /// the active ended, the passive unlinked, state 0, dormant in its anomaly's or Keeper's
     /// pool; no owner), and the run the kit's own again.
@@ -313,6 +328,9 @@ impl<'t> Inventory<'t> {
             let mut incoming = Some(held.this);
             raw::engine_inventory_take_artefact(Some(recipient.this), &mut incoming);
         }
+        // Handed over from the stash: it closes at once (the HUD's position goes with it,
+        // hidden_stash::stale).
+        self.close_emptied_stash();
         Ok(())
     }
 }

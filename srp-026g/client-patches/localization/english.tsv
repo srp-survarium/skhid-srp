@@ -2204,6 +2204,8 @@ st_srp_artefact_522_description	One pocket becomes an artifact container.
 st_srp_artefact_522_name	Artifact Container
 st_srp_artefact_523_description	Bullet and fragment damage taken inside an anomaly:
 st_srp_artefact_523_name	Forest Protection
+st_srp_artefact_524_description	Hold one more artifact without a container while your pockets and containers are fewer than 6; it is lost when you die.
+st_srp_artefact_524_name	Hidden Stash
 st_srp_artefact_531_description	Each Spring also speeds up reloading: +5% passive, +15% while active.
 st_srp_artefact_531_name	Spring II
 st_srp_artefact_532_description	No fall damage while an Onyx is active.

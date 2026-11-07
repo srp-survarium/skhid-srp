@@ -595,3 +595,6 @@ extern engine_file_time_to_local_file_time
 ; the IAT slot 0x87022c (an import, stdcall)
 ; `call [symbol]`: stdcall, it pops its arguments
 extern engine_file_time_to_system_time
+; void engine_update_quick_slot(struct game_world_ui *ui, unsigned int position)
+; 0x23a380 survarium::game_world_ui::update_quick_slot: ui ESI, position ESP+4; pops 4
+extern engine_update_quick_slot

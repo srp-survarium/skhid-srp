@@ -5,7 +5,7 @@
 use super::inventory::{ContainerSpace, Inventory};
 use super::log::{Piece::{Dec, Text}, line};
 use super::world::read;
-use super::Context;
+use super::{Context, GameCell};
 use crate::raw;
 
 /// Which death entry a hook is at.
@@ -40,6 +40,33 @@ pub fn can_use_with_stash(ctx: &Context<'_>) -> bool {
         return false;
     }
     Inventory::of_player(user, ctx.thread()).is_some_and(|i| i.container_space() == ContainerSpace::Available)
+}
+
+/// The HUD's positions the last loop filled, by its ui (presentation only: nothing a match
+/// computes reads it).
+static SHOWN: GameCell<Option<(u32, u8)>> = GameCell::new(None);
+
+/// update_local_player_state after its loop (`hud.quick_slots_end`): ESI the ui, EDI the
+/// positions filled. Each position a longer list left is shown empty by the game's own
+/// update_quick_slot and its cached description zeroed, as clear_player leaves one, so the next
+/// item shown there is drawn whatever it is.
+pub fn clear_stale_positions(ctx: &Context<'_>) {
+    use raw::site::hud_quick_slots_end as site;
+    // SAFETY: the loop's ui (ESI), alive through the hook; EDI its count.
+    let (Some(ui), filled) = (unsafe { site::ui(ctx) }, unsafe { site::filled(ctx) }) else { return };
+    let filled = u8::try_from(filled).unwrap_or(u8::MAX);
+    let before = SHOWN.get(ctx.thread()).filter(|&(at, _)| at == ui.address()).map_or(0, |(_, n)| n);
+    for position in crate::hidden_stash::stale(filled, before) {
+        // SAFETY: the live ui, the hud's own function for one of its six positions (ESI the ui,
+        // the position pushed), then that position's cache, inside the ui.
+        unsafe {
+            raw::engine_update_quick_slot(Some(ui), u32::from(position));
+            let cache = ui.quick_slots().at(usize::from(position));
+            cache.low().write_volatile(0);
+            cache.high().write_volatile(0);
+        }
+    }
+    SHOWN.set(ctx.thread(), Some((ui.address(), filled.min(6))));
 }
 
 /// A death entry: the dying player's open stash goes back.

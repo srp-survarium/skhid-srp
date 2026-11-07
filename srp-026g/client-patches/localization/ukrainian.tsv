@@ -2204,6 +2204,8 @@ st_srp_artefact_522_description	Одна кишеня стає контейне�
 st_srp_artefact_522_name	Контейнер для артефакту
 st_srp_artefact_523_description	Шкода від куль та уламків усередині аномалії:
 st_srp_artefact_523_name	Захист Лісу
+st_srp_artefact_524_description	Ще один артефакт без контейнера, поки кишень і контейнерів менше 6; після смерті він втрачається.
+st_srp_artefact_524_name	Схованка
 st_srp_artefact_531_description	Кожна Пружина також прискорює перезаряджання: +5% пасивно, +15% під час активації.
 st_srp_artefact_531_name	Пружина II
 st_srp_artefact_532_description	Немає шкоди від падіння, поки Онікс активний.

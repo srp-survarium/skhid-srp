@@ -2392,3 +2392,4 @@ va	name	source	ret_cleanup	result
 0x002fca50	survarium::inventory::on_holder_death	manual	0	none; +178h set: +174h vfn +4 (0); then each of the 23 slots' item vfn +20h (degrade_per_death); removes nothing: artefacts stay in their containers
 0x002ffc40	survarium::inventory_item::degrade_per_death	manual	0	none; not a stack (config +22Ah 0): condition (+260h, f32) -= min(+234h, condition) in SSE, so a denormal is zeroed under DAZ/FTZ
 0x002ffc80	survarium::inventory_item::degrade_per_use	manual	0	none; as degrade_per_death with +238h
+0x0023a380	survarium::game_world_ui::update_quick_slot	manual	4	

@@ -239,6 +239,8 @@ unsafe extern "C" {
     pub fn engine_show_scene_movie(scene: Option<GameWorld>, movie: Option<MovieSlot>);
     /// 0x23dc70 survarium::base_game_scene::hide_movie: movie EAX, scene EDX; pops 0
     pub fn engine_hide_scene_movie(movie: Option<MovieSlot>, scene: Option<GameWorld>);
+    /// 0x23a380 survarium::game_world_ui::update_quick_slot: ui ESI, position ESP+4; pops 4
+    pub fn engine_update_quick_slot(ui: Option<GameWorldUi>, position: u32);
 }
 
 #[allow(dead_code)]
@@ -3309,6 +3311,15 @@ impl GameWorldUi {
     #[inline(always)]
     pub unsafe fn cursor_movie(self) -> MovieSlot {
         MovieSlot(unsafe { self.0.byte_add(0xc) })
+    }
+
+    /// +0x1b5c (obj<survarium::hud_quick_slot>): the six quick positions' last-shown item descriptions (0x23A200 compares and writes [ui+8n+1B5Ch..+1B62h]; clear_player zeroes all 30h bytes at 0x23B5D7)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn quick_slots(self) -> HudQuickSlot {
+        HudQuickSlot(unsafe { self.0.byte_add(0x1b5c) })
     }
 }
 
@@ -16885,6 +16896,82 @@ impl GameEffectListener {
     }
 }
 
+/// A survarium::hud_quick_slot (fields_026g.tsv): a pointer to one, never 0. Made only here: by a typed field,
+/// a function's typed result or a site's typed register (sites_026g.tsv `holds`).
+#[repr(transparent)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct HudQuickSlot(NonNull<c_void>);
+
+#[allow(dead_code)]
+impl HudQuickSlot {
+    /// Its address as a value (an id, a compare): never read through.
+    #[inline(always)]
+    pub fn address(self) -> u32 {
+        self.0.as_ptr() as usize as u32
+    }
+
+    /// +0x0 (u32): its first four bytes (two words of the description)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn low(self) -> *mut u32 {
+        unsafe { self.0.byte_add(0x0).cast::<u32>().as_ptr() }
+    }
+
+    /// +0x4 (u32): its last four (a word, a byte, padding)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn high(self) -> *mut u32 {
+        unsafe { self.0.byte_add(0x4).cast::<u32>().as_ptr() }
+    }
+
+    /// 0x8 bytes: a quick position's cached description: 8 bytes (0x23A280: [esi+edi*8+1B5Ch])
+    pub const SIZE: usize = 0x8;
+
+    /// The `index`th of an array of them that starts at this one.
+    ///
+    /// # Safety
+    /// The array has more than `index`.
+    #[inline(always)]
+    pub unsafe fn at(self, index: usize) -> Self {
+        Self(unsafe { self.0.byte_add(index * Self::SIZE) })
+    }
+
+    /// Which of an array that starts at `first` this one is (None before `first`, or between two).
+    #[inline(always)]
+    pub fn index_from(self, first: Self) -> Option<usize> {
+        let offset = (self.0.as_ptr() as usize).checked_sub(first.0.as_ptr() as usize)?;
+        (offset % Self::SIZE == 0).then_some(offset / Self::SIZE)
+    }
+}
+
+/// Room of ours for survarium::hud_quick_slots (0x8 bytes, aligned to 4), zeroed: a local the game fills,
+/// or one we fill for it.
+#[repr(C, align(4))]
+pub struct HudQuickSlotStorage([u8; 0x8]);
+
+#[allow(dead_code)]
+impl HudQuickSlotStorage {
+    pub const fn zeroed() -> Self {
+        Self([0; 0x8])
+    }
+
+    /// The one this room holds (alive while the room is).
+    #[inline(always)]
+    pub fn handle(&mut self) -> HudQuickSlot {
+        HudQuickSlot(NonNull::from(self).cast())
+    }
+
+    /// The first of these rooms, an array of them (None when there is none).
+    #[inline(always)]
+    pub fn first(rooms: &mut [Self]) -> Option<HudQuickSlot> {
+        (!rooms.is_empty()).then(|| HudQuickSlot(NonNull::from(rooms).cast()))
+    }
+}
+
 /// A vostok::physics::bullet_physics_world (fields_026g.tsv): a pointer to one, never 0. Made only here: by a typed field,
 /// a function's typed result or a site's typed register (sites_026g.tsv `holds`).
 #[repr(transparent)]
@@ -20530,6 +20617,54 @@ pub mod site {
         #[inline(always)]
         pub unsafe fn controller(machine: &impl Machine) -> Option<BulletCharacterController> {
             NonNull::new(machine.register(Register::Edi) as usize as *mut c_void).map(BulletCharacterController)
+        }
+    }
+
+    /// hidden_stash.can_use (0x31c6fb): artefact_container_core::can_use, its container test (cmp byte [eax+16Ch],0; the jbe at 0x31C702 refuses a user with none): ESI the user, EAX its inventory; room is the next test (no carried item, [eax+178h]), the state-2 test already passed
+    pub mod hidden_stash_can_use {
+        #[allow(unused_imports)]
+        use super::*;
+
+        /// ESI: a survarium::player (None for 0).
+        ///
+        /// # Safety
+        /// `machine` is at this site.
+        #[inline(always)]
+        pub unsafe fn player(machine: &impl Machine) -> Option<Player> {
+            NonNull::new(machine.register(Register::Esi) as usize as *mut c_void).map(Player)
+        }
+
+        /// EAX: a survarium::inventory (None for 0).
+        ///
+        /// # Safety
+        /// `machine` is at this site.
+        #[inline(always)]
+        pub unsafe fn inventory(machine: &impl Machine) -> Option<Inventory> {
+            NonNull::new(machine.register(Register::Eax) as usize as *mut c_void).map(Inventory)
+        }
+    }
+
+    /// hud.quick_slots_end (0x23b7b3): game_world_ui::update_local_player_state after its quick-position loop, reached from its break (0x23B79E, the first ordinal with no slot) and its end (six): ESI the ui, EDI the positions it filled; replayed: mov cl,[esi+2DEh]
+    pub mod hud_quick_slots_end {
+        #[allow(unused_imports)]
+        use super::*;
+
+        /// ESI: a survarium::game_world_ui (None for 0).
+        ///
+        /// # Safety
+        /// `machine` is at this site.
+        #[inline(always)]
+        pub unsafe fn ui(machine: &impl Machine) -> Option<GameWorldUi> {
+            NonNull::new(machine.register(Register::Esi) as usize as *mut c_void).map(GameWorldUi)
+        }
+
+        /// EDI: a u32 value.
+        ///
+        /// # Safety
+        /// `machine` is at this site.
+        #[inline(always)]
+        pub unsafe fn filled(machine: &impl Machine) -> u32 {
+            machine.register(Register::Edi)
         }
     }
 }

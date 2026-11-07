@@ -1,4 +1,4 @@
-//! Hidden Stash (534, docs/notes/artefact-skills.md "Hidden Stash"): one artefact past the kit's
+//! Hidden Stash (524, docs/notes/artefact-skills.md "Hidden Stash"): one artefact past the kit's
 //! containers, which exe patch 109 opens at a take and empties at death. The skill's edit-list
 //! entry sets modifier 40 bit 14 ([`BIT`]); the hidden slot is one of the kit's six quick
 //! positions (the owner, 2026-11-07), so srp keeps the bit only on a kit whose pockets and

@@ -141,6 +141,24 @@ pub fn room(empty: impl IntoIterator<Item = bool>, stash: Stash) -> Room {
     }
 }
 
+/// The HUD's quick positions to show empty: its loop (update_local_player_state 0x23B740) fills
+/// positions 0.. for the quick items and containers and stops at the first ordinal with none,
+/// leaving the ones after it as they were. When it filled `filled` and the time before `before`,
+/// the positions between were left from a longer list (a run that closed: a hand-over or a death
+/// from the stash, or any shorter list) and are cleared once.
+pub fn stale(filled: u8, before: u8) -> core::ops::Range<u8> {
+    const POSITIONS: u8 = 6;
+    let filled = filled.min(POSITIONS);
+    filled..before.min(POSITIONS).max(filled)
+}
+
+/// update_local_player_state after its loop (`hud.quick_slots_end`): the positions left from a
+/// longer list shown empty.
+pub fn on_hud_quick_slots(ctx: &mut Context<'_>) -> Flow<NoExit> {
+    native::clear_stale_positions(ctx);
+    Flow::Continue
+}
+
 /// artefact_container_core::use_execute before transfer_artefact (`artefact_container.transfer`,
 /// after patch 80's score): the anomaly's take opens the user's stash when it needs it.
 pub fn on_anomaly_take(ctx: &mut Context<'_>) -> Flow<NoExit> {
@@ -239,6 +257,16 @@ mod tests {
         assert_eq!(stash(true, 0.0, Some(Run::Empty), |_| false), Stash::Unavailable);
         // A kit with containers whose run setup could not place.
         assert_eq!(stash(true, 2.0, Some(Run::Empty), empty), Stash::Unavailable);
+    }
+
+    #[test]
+    fn the_hud_clears_only_what_a_longer_list_left() {
+        assert_eq!(stale(3, 4), 3..4);
+        assert_eq!(stale(0, 6), 0..6);
+        assert!(stale(4, 4).is_empty() && stale(5, 3).is_empty() && stale(0, 0).is_empty());
+        // Never past the six positions, whatever the counts.
+        assert_eq!(stale(2, 200), 2..6);
+        assert!(stale(9, 7).is_empty());
     }
 
     #[test]
