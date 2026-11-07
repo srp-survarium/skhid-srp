@@ -403,6 +403,17 @@ what bounds it:
   `world::objects` refuse a state past its states), and -- because the client
   world check has no profile/object context -- the native guards (patch 113) at
   the read sites.
+- the damage model `body_part_parameters::deserialize` 0x32AFE0: a u8
+  `affects_count`, then that many (byte, u32) affects into the fixed `m_affects[8]`.
+  The native "affects_count buffer overflow" assert at `> 8` does NOT guard a
+  release build (no debugger, assert continues -> the loop overflows the array),
+  so the bound is the validator's: `inventory` refuses affects > 8 (type >= 9),
+  hits > 64, recent hits that do not fit (0x2E5480 reader). The inventory's
+  carried-item and active/target-object ids index 255-entry tables with a null
+  check (a u8 is always an entry or guarded none, safe by construction); the
+  artefact ids index a 128-entry table with NO null check, so `artefact_index`
+  bounds them (< `context.artefacts`), and `slots_begin + A <= 23` bounds the
+  write base.
 - player-controlled strings (chat, name, clan tag, URL, daily message): the
   engine's `packet_reader::r_string` (0.10b `packet_reader_inline.h`) reads a u8
   length `L`, does a buffer-clamped copy, then `string[L] = 0` -- the NUL write
@@ -416,8 +427,13 @@ what bounds it:
 MAX_AFFECTS 8; `match_options::player_profiles[20]` == MAX_PLAYERS 20; `inventory
 m_slots[max_slots_count]` == SLOTS 23; `artefact_lifebone_core` four protectors.
 
-Evidence this pass: host `world-frame` (14) and `srp-validate` (46) tests, the
+Evidence this pass: host `world-frame` (14) and `srp-validate` (46) tests; the
 i686 patch crate `cargo test --target i686-unknown-linux-gnu` (173, the client
-twin: patch 87 -> `world-frame`/`srp-validate`), and the animation corpus. No
-unbounded player-to-player read was found without a matching server bound or
-native guard; the animation stream was the one that lacked one and now has it.
+twin: patch 87 -> `world-frame`/`srp-validate`); the animation corpus (177,672
+blocks, 0 refused); and the client/host drift gate `check_world_check_026g.py
+--drift` run end to end under Unicorn on 1,101 kept worlds (501 old version-4 +
+600 current) with their sixteen mutations each -- 19,818 checks, 0 differ, so
+the i686 arena build (with `animation_validate`) and the host agree on every
+world and mutation. No unbounded player-to-player read was found without a
+matching server bound or native guard; the animation stream was the one that
+lacked one and now has it.
