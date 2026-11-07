@@ -40,7 +40,7 @@ default_wait	30
 vote_s	15
 after_match_s	10
 late_join_wait_s	15
-scale_players	6
+scale_players	4
 rooms_most	50
 match_start_wait_ms	30000
 pvb/sizes[0]	6
