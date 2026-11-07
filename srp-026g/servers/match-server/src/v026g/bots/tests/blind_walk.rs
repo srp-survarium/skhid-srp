@@ -25,7 +25,7 @@ fn blind_walk_after_a_mid_air_world() {
     let kin = Kinematics::default();
     let mut track = BodyTrack::default();
     let feet = Vec3::new(-50.24, 4.17, 31.32);
-    let fix = Fix { time: 28_650, alive: true, inserted: 1, feet: Some(feet), yaw: -1.37, pitch: 0.0, keys: 513, speed: Some(5.08) };
+    let fix = Fix { fall: None, time: 28_650, alive: true, inserted: 1, feet: Some(feet), yaw: -1.37, pitch: 0.0, keys: 513, speed: Some(5.08) };
     track.fixed(fix, &kin, Some(&world.grid));
     let goal = Vec3::new(-38.38, 1.96, 33.67);
     let at = track.estimate().copied().unwrap();
