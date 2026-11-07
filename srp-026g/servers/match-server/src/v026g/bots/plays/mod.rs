@@ -525,6 +525,8 @@ pub struct BotFacts<'a> {
     pub held_choke: Option<(Place, Vec3, u32)>,
     /// [A320 `threat.camp_flank`] Its flank route's metres left to its firing floor (`Running::route_left_m`), if it walks one.
     pub route_left_m: Option<f32>,
+    /// [A320] Its flank route's whole length, m (`Running::route_total_m`), if it walks one.
+    pub route_total_m: Option<f32>,
     /// [threat.concede, item 15] Its last hit from a shooter it sensed (`Reflex::last_hit`).
     pub hit: Option<super::concede::Hit>,
 }
@@ -1313,6 +1315,19 @@ impl Running {
             Self::Flank(state) => flank::route_left_m(state, tactics, feet),
             _ => None,
         }
+    }
+
+    /// [A320] A flank route's length to its firing floor (`flank::route_total_m`), if this is one.
+    pub fn route_total_m(&self, tactics: &crate::v026g::bots::tactics::Tactics) -> Option<f32> {
+        match self {
+            Self::Flank(state) => flank::route_total_m(state, tactics),
+            _ => None,
+        }
+    }
+
+    /// [A320] Whether this is a flank route's walk or hold (`threat.camp_flank`).
+    pub fn camp_flank_walk(&self) -> bool {
+        matches!(self, Self::Flank(flank::State::Route { .. } | flank::State::Hold { .. }))
     }
 
     pub fn travelling(&self) -> bool {

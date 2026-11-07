@@ -773,6 +773,11 @@ pub struct CampFlank {
     /// routes of the known camp spot at that place, else the walk ends (B3f6-B3f9: at 5 of 9 arrivals with him alive he
     /// was 26-111 m away). None: the walk goes to the spot of its cue.
     pub follow_m: Option<f32>,
+    /// `threat.camp_flank.inertia` [F1, commitment as momentum]: a route walker's flank is in the alarm band for its whole
+    /// walk with this much added to its score at its firing floor (in proportion to the share of the route walked), and is
+    /// not held by `commit.hold_to_arrival`: another alarm play (a Trade, B3f8: 5 of 18 walks) takes it only when it scores
+    /// more than the walk with its bonus by the commander's margin (utility AI's inertia, Dave Mark's IAUS). None: as before.
+    pub inertia: Option<f32>,
 }
 
 /// A229 (`traces-20261028/fx-threat-obj-a229-a231-note.md`): a walk looks along its route, so a bot walks into a lane its

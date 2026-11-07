@@ -215,14 +215,36 @@ pub fn candidates(cx: &Ctx, out: &mut Vec<Candidate>) {
 /// [A320 `threat.camp_flank.alarm_near_fire_m`] Near its firing floor a route walker's own flank is in the alarm band (a
 /// Trade does not take it there).
 fn near_fire_alarm(cx: &Ctx, out: &mut [Candidate]) {
-    if let Some(near) = cx.tuning.threat.camp_flank.and_then(|c| c.alarm_near_fire_m)
-        && cx.bot.route_left_m.is_some_and(|m| m <= near)
-        && let Some((PlayKind::Flank, target @ TargetRef::ThreatSpot(_), _)) = cx.bot.current
-    {
-        for c in out.iter_mut().filter(|c| c.kind == PlayKind::Flank && c.target == target) {
-            c.rank = c.rank.max(Rank::Alarm);
+    let Some(camp) = cx.tuning.threat.camp_flank else { return };
+    let Some((PlayKind::Flank, target @ TargetRef::ThreatSpot(_), _)) = cx.bot.current else { return };
+    let Some(left) = cx.bot.route_left_m else { return };
+    let near = camp.alarm_near_fire_m.is_some_and(|near| left <= near);
+    // [F1] Inertia: the whole walk in the alarm band, its score raised with the share of the route walked.
+    let bonus = camp.inertia.map(|inertia| {
+        let walked = cx.bot.route_total_m.filter(|&t| t > 0.0).map_or(0.0, |t| (1.0 - left / t).clamp(0.0, 1.0));
+        inertia * walked
+    });
+    if !near && bonus.is_none() {
+        return;
+    }
+    for c in out.iter_mut().filter(|c| c.kind == PlayKind::Flank && c.target == target) {
+        c.rank = c.rank.max(Rank::Alarm);
+        if let Some(bonus) = bonus {
+            c.score = Score::new(c.score.get() + bonus);
         }
     }
+}
+
+/// [A320 `threat.camp_flank`] A route's length from its start to its firing floor, m (a hold's: its route's whole); None
+/// for a flank of the old kind.
+pub fn route_total_m(state: &State, tactics: &crate::v026g::bots::tactics::Tactics) -> Option<f32> {
+    let (spot, route) = match state {
+        State::Route { spot, route, .. } => (*spot, *route),
+        _ => return None,
+    };
+    let r = tactics.camp_spots.get(spot)?.routes.get(route)?;
+    let grid = &tactics.world.grid;
+    Some((0..r.fire).map(|i| (grid.position(r.floors[i + 1]) - grid.position(r.floors[i])).length()).sum())
 }
 
 /// [A320 `threat.camp_flank`] The metres of route a walker at `feet` has left to its firing floor (0 at it, holding it); None
@@ -1147,6 +1169,14 @@ mod tests {
             assert_eq!(rank_of(&s), (Rank::Alarm, Rank::Roam), "near: its flank only in the alarm band");
             s.route_left_m = Some(40.0);
             assert_eq!(rank_of(&s), (Rank::Objective, Rank::Roam), "far: its own band");
+            // [F1] Inertia: halfway (40 m of 80 left) the whole walk is in the alarm band with half the bonus.
+            s.tuning.threat.camp_flank = Some(crate::v026g::bots::tuning::CampFlank { inertia: Some(0.3), ..Default::default() });
+            s.route_total_m = Some(80.0);
+            let mut found = [Candidate { kind: PlayKind::Flank, target, rank: Rank::Objective, score: Score::new(0.5), why: Default::default(), slot: None }];
+            near_fire_alarm(&s.cx(0), &mut found);
+            assert_eq!(found[0].rank, Rank::Alarm);
+            assert!((found[0].score.get() - 0.65).abs() < 1e-4, "{}", found[0].score.get());
+            s.route_total_m = None;
             s.route_left_m = None;
             s.current = None;
             s.tuning.threat.camp_flank = Some(crate::v026g::bots::tuning::CampFlank::default());

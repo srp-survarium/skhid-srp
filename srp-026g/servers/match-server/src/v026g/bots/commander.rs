@@ -978,6 +978,7 @@ impl Bots {
                     crossing: walks_crossing(bot),
                     held_choke: bot.held_choke,
                     route_left_m: bot.running.as_ref().and_then(|r| r.route_left_m(tactics, me.feet)),
+                    route_total_m: bot.running.as_ref().and_then(|r| r.route_total_m(tactics)),
                 },
                 memory: &bot.memory,
                 team: &state.knowledge,
@@ -1028,6 +1029,9 @@ impl Bots {
                 shaky.push(bot.place);
             } else if tuning.commit.hold_to_arrival
                 && bot.running.as_ref().is_some_and(plays::Running::travelling)
+                // [A320 F1] With `camp_flank.inertia` a flank route's walk keeps its play by its score and bonus instead.
+                && !(tuning.threat.camp_flank.is_some_and(|c| c.inertia.is_some())
+                    && bot.running.as_ref().is_some_and(plays::Running::camp_flank_walk))
             {
                 // A hold still walking to its spot (no way lately: not).
                 committed.push(bot.place);
@@ -1167,6 +1171,7 @@ impl Bots {
                     crossing: walks_crossing(bot),
                     held_choke: bot.held_choke,
                     route_left_m: None,
+                    route_total_m: None,
                 },
                 memory: &bot.memory,
                 team: &state.knowledge,
