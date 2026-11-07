@@ -1163,7 +1163,11 @@ pub(crate) fn an_honest_jump_follows_the_games_clips() {
     let run = key::FORWARD | key::SPRINT | key::JUMP;
     let (to, top) = honest_jump(&grid, &walls, body.clone(), run, 5.0);
     let ahead = to.x - from.x;
-    assert!((4.3..=4.42 + 1.64 + 0.15).contains(&ahead), "{to:?}");
+    // [T3] The client's: before the take-off the walk cap (3.5 m/s, `max_speed` 0x2DC010; skipped only under the jump flag, A328)
+    // holds the body behind the sprint clip's 5 m/s root, and with the root re-based every tick (A325g) it does not catch up: about
+    // 0.4 m short of the clip's 4.42 m. The old flight chased it back.
+    let least = if stand_in_client_jump() { 3.9 } else { 4.3 };
+    assert!((least..=4.42 + 1.64 + 0.15).contains(&ahead), "{to:?}");
     assert!((top - 1.28).abs() < 0.03, "{top}");
     let (to, top) = honest_jump(&grid, &walls, body.clone(), run, 3.0);
     assert!((to.x - from.x - 2.67).abs() < 0.15 && (top - 1.0).abs() < 0.03, "{to:?} {top}");
