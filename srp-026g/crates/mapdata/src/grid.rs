@@ -273,6 +273,13 @@ pub struct Body {
     /// feet: a walk under an overhang the client walks under is cut (level_08 Cologne corner). Only with `exe_collision`. A
     /// build input: in the key when set.
     pub start_witness: bool,
+    /// [A331] With [`Self::wall_give_back`]: whether a floor the rounds took also comes back where the exact pass would take
+    /// it at its cell's centre, but the client's push out of walls (the standing cylinder with its margin, 0.42 m off a wall,
+    /// [`crate::grid::controlled::out_of_walls`]) sets a body clear of every wall still inside the cell, and the walk tick
+    /// stands it there. Off: the cell's centre decides, so a cell whose centre stands 0.25-0.35 m off a wall goes though the
+    /// client walks its far half (A331: 184 of the 201 rounds-taken floors under fx-zones' grid edge cuts). A build input: in
+    /// the key when set.
+    pub give_back_in_cell: bool,
 }
 
 /// How the floors a body's radius from walls are taken away.
@@ -352,6 +359,7 @@ impl Body {
             walk_start_clear: false,
             crack_bridges: false,
             start_witness: false,
+            give_back_in_cell: false,
         }
     }
 }
@@ -430,6 +438,7 @@ impl Default for Body {
             walk_start_clear: false,
             crack_bridges: false,
             start_witness: false,
+            give_back_in_cell: false,
         }
     }
 }
@@ -1830,10 +1839,14 @@ impl WalkGrid {
             let mut all: Vec<bool> = (0..n).map(|a| alive[a] || given.get(a).copied().unwrap_or(false)).collect();
             let (_, crouch_only) = self.erode_exact(&mut all, walls);
             let removed = (0..n).filter(|&a| alive[a] && !all[a]).count();
+            // With [`Body::give_back_in_cell`] a given-back floor the exact pass takes at its centre stays: the client's walk tick
+            // stood a body clear inside its cell ([`wall_give_back::stands_in_cell`]); without it, every given-back floor passed
+            // this test already.
+            let in_cell = self.body.give_back_in_cell;
             for a in 0..n {
                 alive[a] &= all[a];
                 if let Some(g) = given.get_mut(a) {
-                    *g &= all[a];
+                    *g &= in_cell || all[a];
                 }
             }
             // Under a wall only a standing capsule meets: walked crouched, and no jump starts or lands there (a jump needs room to
