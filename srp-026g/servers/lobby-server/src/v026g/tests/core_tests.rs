@@ -2201,6 +2201,7 @@ impl World {
             .collect();
         let result = MatchResult {
             match_id,
+            replay_id: session::v026g::replays::ReplayId::new(match_id, std::time::UNIX_EPOCH),
             map_id: setup.map.map().id,
             mode: setup.map.mode(),
             match_level: setup.match_level,
@@ -2271,6 +2272,7 @@ impl World {
             .collect();
         let result = MatchResult {
             match_id,
+            replay_id: session::v026g::replays::ReplayId::new(match_id, std::time::UNIX_EPOCH),
             map_id: setup.map.map().id,
             mode: setup.map.mode(),
             match_level: setup.match_level,

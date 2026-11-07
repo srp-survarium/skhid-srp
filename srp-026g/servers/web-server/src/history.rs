@@ -620,6 +620,7 @@ fn match_summary(summary: &MatchSummary, lang: Lang) -> Value {
     let (map, mode) = names(info.map_id, lang);
     json!({
         "id": summary.id,
+        "replay_id": summary.replay_id.as_str(),
         "ended_at": info.ended_at,
         "duration_s": info.duration_ms.div_ceil(1000),
         "map_id": info.map_id,

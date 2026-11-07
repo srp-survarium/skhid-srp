@@ -22,7 +22,10 @@ What survarium.pro showed of players, matches and clans, kept by srp itself and 
 ## What is kept
 
 - `g26_matches`: one row a finished match: its own number (`id`, counting up; the match server's id
-  is kept beside it, it is random and repeats across restarts), when it ended (Unix seconds), how
+  is kept beside it, it is random and repeats across restarts), its `replay_id` (that id with the
+  UTC second the match was made, `rec026g_20261014-023456_000000ab`: its recording's file stem
+  whether it was recorded or not, so a match stays told apart across restarts and a backfill from
+  recordings finds the rows it already has), when it ended (Unix seconds), how
   long it lasted, map, mode, match level, the kind (`public`, `private`, `vs_bots`), the winner
   (`team0`, `team1`, `draw`, `unknown`) and the two teams' points.
 - A public match's eligibility, set when it is written (`history::Eligibility`): `counted`, or why
@@ -87,7 +90,7 @@ Common objects:
   "score_avg":254.2}`. `kd` = kills / deaths (deaths 0 counts as 1), two decimals; `win_rate`
   0..1, three decimals; `score_avg` one decimal; `accuracy` = hits / shots (0 with no shot), 0..1,
   three decimals.
-- A match: `{"id":5531,"ended_at":1793500000,"duration_s":845,"map_id":3,"map":"Vostok",
+- A match: `{"id":5531,"replay_id":"rec026g_20261103-115320_5e1a09c3","ended_at":1793500000,"duration_s":845,"map_id":3,"map":"Vostok",
   "mode":"Batteries","level":12,"winner":0,"team_points":[5,3],"players":12,
   "eligibility":"counted"}`. `winner` is 0 or 1, `"draw"`, or `null` when not known. `map` and `mode` are `null` for a map the game data no longer
   has.

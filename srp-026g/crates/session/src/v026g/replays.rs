@@ -346,6 +346,78 @@ pub fn match_of_name(name: &str, suffix: &str) -> Option<u32> {
     u32::from_str_radix(stem, 16).ok()
 }
 
+/// A match for good: the stem of its recording's file,
+/// `rec026g_<UTC YYYYMMDD-HHMMSS it was made>_<match id:08x>`, whether it
+/// was recorded or not. The match server's id alone comes again after a
+/// restart (it is random from each start); with the second it was made it
+/// does not.
+#[derive(Clone, Debug, PartialEq, Eq, Hash)]
+pub struct ReplayId {
+    match_id: u32,
+    stem: String,
+}
+
+impl ReplayId {
+    const PREFIX: &str = "rec026g_";
+
+    /// The match `match_id`, made at `made`.
+    pub fn new(match_id: u32, made: SystemTime) -> Self {
+        Self {
+            match_id,
+            stem: format!("{}{}_{match_id:08x}", Self::PREFIX, utc_stamp(made)),
+        }
+    }
+
+    /// `rec026g_<8 digits>-<6 digits>_<8 lower hex>`, and nothing else.
+    pub fn parse(text: &str) -> Option<Self> {
+        let rest = text.strip_prefix(Self::PREFIX)?;
+        let (stamp, id) = rest.split_once('_')?;
+        let digits =
+            |part: &str, len: usize| part.len() == len && part.bytes().all(|c| c.is_ascii_digit());
+        let (date, time) = stamp.split_once('-')?;
+        if !digits(date, 8) || !digits(time, 6) {
+            return None;
+        }
+        Some(Self {
+            match_id: match_of_name(id, "")?,
+            stem: text.to_owned(),
+        })
+    }
+
+    /// The match server's id.
+    pub fn match_id(&self) -> u32 {
+        self.match_id
+    }
+
+    pub fn as_str(&self) -> &str {
+        &self.stem
+    }
+}
+
+/// `YYYYMMDD-HHMMSS`, UTC.
+fn utc_stamp(time: SystemTime) -> String {
+    let secs = time
+        .duration_since(UNIX_EPOCH)
+        .map_or(0, |since| since.as_secs());
+    let (days, rest) = (secs / 86_400, secs % 86_400);
+    // Days since 1970-01-01 to a civil date (H. Hinnant's algorithm).
+    let z = days as i64 + 719_468;
+    let era = z.div_euclid(146_097);
+    let doe = z.rem_euclid(146_097);
+    let yoe = (doe - doe / 1_460 + doe / 36_524 - doe / 146_096) / 365;
+    let doy = doe - (365 * yoe + yoe / 4 - yoe / 100);
+    let mp = (5 * doy + 2) / 153;
+    let day = doy - (153 * mp + 2) / 5 + 1;
+    let month = if mp < 10 { mp + 3 } else { mp - 9 };
+    let year = yoe + era * 400 + i64::from(month <= 2);
+    format!(
+        "{year:04}{month:02}{day:02}-{:02}{:02}{:02}",
+        rest / 3_600,
+        rest % 3_600 / 60,
+        rest % 60
+    )
+}
+
 /// What the sidecar `<id>.json` says of a replay ([`Sidecar::to_json`]).
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Sidecar {
@@ -1248,6 +1320,27 @@ impl Replays {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn a_replay_id_is_the_recordings_stem_and_parses_back() {
+        assert_eq!(utc_stamp(UNIX_EPOCH), "19700101-000000");
+        let time = UNIX_EPOCH + Duration::from_secs(1_791_945_296);
+        assert_eq!(utc_stamp(time), "20261014-023456");
+        let leap = UNIX_EPOCH + Duration::from_secs(951_782_400 + 3_661);
+        assert_eq!(utc_stamp(leap), "20000229-010101");
+        let id = ReplayId::new(0xAB, time);
+        assert_eq!(id.as_str(), "rec026g_20261014-023456_000000ab");
+        assert_eq!(ReplayId::parse(id.as_str()), Some(id));
+        for bad in [
+            "rec026g_20261014-023456_000000AB",
+            "rec026g_20261014-02345_000000ab",
+            "rec026g_20261014023456_000000ab",
+            "rec026g_20261014-023456_000000ab.srprec",
+            "20261014-023456_000000ab",
+        ] {
+            assert_eq!(ReplayId::parse(bad), None, "{bad}");
+        }
+    }
 
     fn temp(name: &str) -> PathBuf {
         let dir = std::env::temp_dir().join(format!(

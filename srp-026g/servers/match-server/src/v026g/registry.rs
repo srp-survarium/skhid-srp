@@ -12,6 +12,7 @@ use std::sync::{Mutex, MutexGuard};
 use std::time::{Duration, Instant};
 
 use session::matchmaking_policy::Closed;
+use session::v026g::replays::ReplayId;
 use survarium::v026g::keeper;
 use survarium::v026g::dictionary::Dictionary;
 use survarium::v026g::maps::{self, GameMode, MatchMap};
@@ -197,6 +198,9 @@ pub(crate) struct Formed {
     pub score_weights: [f32; SCORE_EVENTS],
     pub info: StaticInfo,
     pub formed_at: Instant,
+    /// The match for good: its id with when it was made, its recording's
+    /// name and the history's key.
+    pub replay_id: ReplayId,
     /// Experimental dialect: fixed twenty-slot histories/statistics/masks.
     /// Every connecting client must advertise the matching capability.
     pub growing_roster: bool,
@@ -504,6 +508,7 @@ impl MatchRegistry {
                 score_weights,
                 info,
                 formed_at: now,
+                replay_id: ReplayId::new(match_id, std::time::SystemTime::now()),
                 growing_roster,
                 initial_players: options.players.len(),
                 vs_bots: setup.vs_bots,
@@ -964,6 +969,8 @@ pub struct PlayerResult {
 #[derive(Clone, Debug, PartialEq)]
 pub struct MatchResult {
     pub match_id: u32,
+    /// [`Formed::replay_id`]: the same match.
+    pub replay_id: ReplayId,
     pub map_id: u8,
     /// [`Formed::played`]'s: Blackout's scores pay twice.
     pub mode: GameMode,

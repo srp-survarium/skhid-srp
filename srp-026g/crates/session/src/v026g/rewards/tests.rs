@@ -65,6 +65,7 @@ fn player(place: u8, team: u8, name: &str, statistics: PlayerStatistics) -> Play
 fn result(players: Vec<PlayerResult>) -> MatchResult {
     MatchResult {
         match_id: MATCH,
+        replay_id: ReplayId::new(MATCH, std::time::UNIX_EPOCH),
         map_id: 1,
         mode: GameMode::Batteries,
         match_level: 0,
@@ -2904,6 +2905,7 @@ fn at(now: u64) -> Terms {
 fn match_of(match_id: u32) -> MatchResult {
     MatchResult {
         match_id,
+        replay_id: ReplayId::new(match_id, std::time::UNIX_EPOCH),
         ..result(alice_and_bob())
     }
 }
@@ -3809,7 +3811,8 @@ fn a_settled_match_is_kept_for_the_history_without_its_bots() {
     let records = history_of(&results);
     assert_eq!(records.len(), 1);
     let record = &records[0];
-    assert_eq!(record.game_match_id, MATCH);
+    assert_eq!(record.replay_id, result(Vec::new()).replay_id);
+    assert_eq!(record.replay_id.match_id(), MATCH);
     assert_eq!(
         record.kind,
         MatchKind::Public(history::Eligibility::WithBots),

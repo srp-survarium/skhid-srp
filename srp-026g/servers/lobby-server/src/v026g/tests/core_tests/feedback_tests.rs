@@ -425,6 +425,7 @@ impl World {
         let (account_id, session_id) = self.ids[index];
         let result = MatchResult {
             match_id,
+            replay_id: session::v026g::replays::ReplayId::new(match_id, std::time::UNIX_EPOCH),
             map_id: made.map().id,
             mode: made.mode(),
             match_level: 0,

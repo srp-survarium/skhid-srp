@@ -12,6 +12,7 @@ use session::v026g::persist::history::{
     Counters, Eligibility, GearSlot, KitItem, MatchInfo, MatchKind, MatchRecord, PlayerLine,
     PlayerRecord, Presence, Winner,
 };
+use session::v026g::replays::ReplayId;
 use session::v026g::{GameAccounts, GameRepository, SqliteGameRepository};
 use session::{Ban, SessionStore};
 use survarium::v026g::maps::GameMode;
@@ -110,7 +111,10 @@ fn kit(place: u8, held: &[(usize, &str)]) -> KitLine {
 
 fn record(kind: MatchKind, ended_at: u64, alice: u32, bob: u32) -> MatchRecord {
     MatchRecord {
-        game_match_id: 0x1234,
+        replay_id: ReplayId::new(
+            0x1234,
+            std::time::UNIX_EPOCH + std::time::Duration::from_secs(ended_at),
+        ),
         kind,
         info: MatchInfo {
             ended_at,
@@ -290,7 +294,7 @@ const TOTALS: [&str; 19] = [
     "wins",
 ];
 
-const SUMMARY: [&str; 11] = [
+const SUMMARY: [&str; 12] = [
     "duration_s",
     "eligibility",
     "ended_at",
@@ -300,6 +304,7 @@ const SUMMARY: [&str; 11] = [
     "map_id",
     "mode",
     "players",
+    "replay_id",
     "team_points",
     "winner",
 ];

@@ -166,6 +166,7 @@ use super::pay::{self, Pay};
 use super::persist::GameRepository;
 use super::persist::history::{self, MatchKind, MatchRecord};
 use super::quests::{self, Notice, REPUTATION_LEVEL_MESSAGE};
+use super::replays::ReplayId;
 use super::{GameAccounts, balance, items_rules, rules, wire};
 use crate::LockExt;
 
@@ -269,6 +270,8 @@ pub struct PlayerResult {
 #[derive(Clone, Debug, PartialEq)]
 pub struct MatchResult {
     pub match_id: u32,
+    /// The same match for good (`replays::ReplayId`): the history's key.
+    pub replay_id: ReplayId,
     pub map_id: u8,
     /// Its mode; in Blackout (`docs/notes/blackout.md`) every point a
     /// player earns counts twice, in its score and in what the score pays
@@ -993,8 +996,8 @@ impl Results {
         for record in matches {
             if let Err(error) = repository.record_match(&record) {
                 log::error!(
-                    "Match {:#x} not kept in the history: {error}; retrying",
-                    record.game_match_id
+                    "Match {} not kept in the history: {error}; retrying",
+                    record.replay_id.as_str()
                 );
                 again.history.push(record);
             }
@@ -1794,7 +1797,7 @@ impl<'a> Shared<'a> {
             ))
         };
         Some(MatchRecord {
-            game_match_id: result.match_id,
+            replay_id: result.replay_id.clone(),
             kind,
             info: history::MatchInfo {
                 ended_at: self.terms.now,

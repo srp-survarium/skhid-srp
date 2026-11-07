@@ -17,6 +17,7 @@ use crate::LockExt;
 use crate::persist::PersistError;
 use crate::v026g::account::level_at;
 use crate::v026g::clans::{self, status};
+use crate::v026g::replays::ReplayId;
 
 /// The schema step that adds the history. A database of before has no
 /// matches: the history starts with the first match after it.
@@ -26,6 +27,9 @@ pub(super) const MIGRATION: &str = "
         id            INTEGER PRIMARY KEY,
         -- The match server's id: random, it can come again after a restart.
         game_match_id INTEGER NOT NULL,
+        -- That id with the second the match was made (`ReplayId`): its
+        -- recording's file stem, one match's alone.
+        replay_id     TEXT NOT NULL,
         -- Unix seconds.
         ended_at      INTEGER NOT NULL,
         duration_ms   INTEGER NOT NULL,
@@ -490,7 +494,8 @@ pub struct MatchInfo {
 /// A finished match as the history keeps it: no bots in it.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct MatchRecord {
-    pub game_match_id: u32,
+    /// The match server's id with when it was made.
+    pub replay_id: ReplayId,
     pub kind: MatchKind,
     pub info: MatchInfo,
     pub players: Vec<PlayerRecord>,
@@ -570,10 +575,12 @@ pub struct PlayerCard {
 }
 
 /// A public match of the history.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub struct MatchSummary {
     /// The history's number.
     pub id: u64,
+    /// The match for good: its recording's name.
+    pub replay_id: ReplayId,
     pub info: MatchInfo,
     /// Whether it counts in the totals and top lists.
     pub eligibility: Eligibility,
@@ -670,11 +677,12 @@ pub(super) fn record(
     let transaction = connection.transaction()?;
     let info = &record.info;
     transaction.execute(
-        "INSERT INTO g26_matches (game_match_id, ended_at, duration_ms, map_id, game_mode,
-             match_level, kind, eligibility, winner, team0_points, team1_points)
-         VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11)",
+        "INSERT INTO g26_matches (game_match_id, replay_id, ended_at, duration_ms, map_id,
+             game_mode, match_level, kind, eligibility, winner, team0_points, team1_points)
+         VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12)",
         params![
-            record.game_match_id,
+            record.replay_id.match_id(),
+            record.replay_id.as_str(),
             info.ended_at.min(i64::MAX as u64) as i64,
             info.duration_ms,
             info.map_id,
@@ -942,8 +950,9 @@ const CLAN_JOIN: &str = "LEFT JOIN g26_clan_members cm
 /// ([`SUMMARY_COLUMNS`]).
 const SUMMARY: &str = "m.id, m.ended_at, m.duration_ms, m.map_id, m.game_mode, m.match_level,
      m.winner, m.team0_points, m.team1_points,
-     (SELECT COUNT(*) FROM g26_match_players n WHERE n.match_id = m.id), m.eligibility";
-const SUMMARY_COLUMNS: usize = 11;
+     (SELECT COUNT(*) FROM g26_match_players n WHERE n.match_id = m.id), m.eligibility,
+     m.replay_id";
+const SUMMARY_COLUMNS: usize = 12;
 /// The columns of a [`PlayerLine`] of `p` (sixteen).
 const LINE: &str = "p.team, p.place, p.presence, p.rating, p.score, p.kills, p.deaths, p.assists,
      p.headshots, p.grenade_kills, p.melee_kills, p.batteries, p.captures, p.artefacts, p.shots,
@@ -1041,8 +1050,10 @@ fn summary_at(row: &Row, at: usize) -> rusqlite::Result<MatchSummary> {
     let winner: String = row.get(at + 6)?;
     let mode: u8 = row.get(at + 4)?;
     let eligibility: String = row.get(at + 10)?;
+    let replay_id: String = row.get(at + 11)?;
     Ok(MatchSummary {
         id: u64_at(row, at)?,
+        replay_id: ReplayId::parse(&replay_id).ok_or_else(|| bad("replay id", &replay_id))?,
         info: MatchInfo {
             ended_at: u64_at(row, at + 1)?,
             duration_ms: row.get(at + 2)?,
@@ -1656,7 +1667,10 @@ mod tests {
     /// Alice (10, of clan 7) beats Bob (11) on team 0's win.
     fn record(kind: MatchKind, ended_at: u64) -> MatchRecord {
         MatchRecord {
-            game_match_id: 0xABCD,
+            replay_id: ReplayId::new(
+                0xABCD,
+                std::time::UNIX_EPOCH + std::time::Duration::from_secs(ended_at),
+            ),
             kind,
             info: MatchInfo {
                 ended_at,
