@@ -165,6 +165,29 @@ pub struct GridTuning {
     /// this rule follows it within 1 mm). Exe-proven, so ON and kept by `all_off` (the owner, 2026-11-05: correctness fixes go
     /// in). A grid is the map's (see `gap_links`).
     pub exe_collision: bool,
+    /// [A329] Whether `client_controller`'s walk test starts a body where a standing body can be: out of every steep face its
+    /// capsule overlaps, from the feet up, by up to its radius (`mapdata::Body::walk_start_clear`, the client's push out of
+    /// penetrations 0x763D0). Off: out of the faces above the step only, so a floor beside a ledge lower than the step starts the
+    /// body inside it, the exe pops it on top, and the pass keeps climbs no client makes (fx-gear-2's step-down cases: level_04
+    /// day_4, a 0.785 m ledge the client and the exe stop at; the exe climbs a vertical face walking up to 0.75 m). Exe-proven
+    /// (0x763D0), so ON and kept by `all_off` (the owner, 2026-11-05: correctness fixes go in); A329 nav-quick2-v3 with
+    /// `crack_bridges`: client-test 2.87 -> 2.79, live 6.30 -> 6.25, every map better. A grid is the map's (see `gap_links`).
+    pub walk_start_clear: bool,
+    /// [A329] Whether `client_controller`'s bridges also cross a crack the grid crossed by a drop (`mapdata::Body::crack_bridges`):
+    /// a one-cell crack between floors within a step, which the client walks over, gets the walked bridge, not only the drop
+    /// `drop_check` takes away when the body never drops there (level_06 day_2 (18.4, 103), live: with the exe's start-overlap
+    /// contact the drop is taken away and the floor had no other way across). Client-proven (the client's walk tick crosses it),
+    /// so ON and kept by `all_off` (the owner, 2026-11-05: correctness fixes go in); A329 nav-quick2 alone: live level_06 back
+    /// to its base (+0.06 -> +0.00). A grid is the map's.
+    pub crack_bridges: bool,
+    /// [A329] Whether `exe_collision`'s Bullet caster puts a contact met already overlapping at the start at the face's point
+    /// nearest the body's core (`mapdata::Body::start_witness`), as the exe's caster takes the penetration solver's witness on
+    /// the face; off, at GJK's zero point, which the move test's top check (0x85F50) reads as a hit at the feet (level_08
+    /// Cologne corner: fx-smoke's reference, ticks 7 on, the exe walks under an overhang the port stopped at; with it fx-smoke's
+    /// 1 m+ stalls there 68 -> 32). Exe-proven (Unicorn), so ON and kept by `all_off` (the owner, 2026-11-05: correctness fixes
+    /// go in); A329 nav-quick2 with `crack_bridges` and `walk_start_clear`: every map better on both columns. A grid is the
+    /// map's.
+    pub start_witness: bool,
 }
 
 impl Default for GridTuning {
@@ -194,6 +217,9 @@ impl Default for GridTuning {
             drop_check: true,
             wall_give_back: true,
             exe_collision: true,
+            walk_start_clear: true,
+            crack_bridges: true,
+            start_witness: true,
         }
     }
 }
@@ -231,6 +257,9 @@ impl GridTuning {
             drop_check: self.drop_check,
             wall_give_back: self.wall_give_back,
             exe_collision: self.exe_collision,
+            walk_start_clear: self.walk_start_clear,
+            crack_bridges: self.crack_bridges,
+            start_witness: self.start_witness,
             ..body
         }
     }

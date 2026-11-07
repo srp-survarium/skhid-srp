@@ -251,6 +251,28 @@ pub struct Body {
     /// port's first rules, which miss grazing contacts at floor seams and take a head-on wall's normal from its face. A build
     /// input: in the key when set.
     pub exe_collision: bool,
+    /// [A329] Where the grid's client-controller pass (`grid::controlled`: its checks and bridges) starts a body on a floor:
+    /// pushed out of every steep face its standing capsule overlaps, from the feet up, by up to the capsule's radius
+    /// ([`crate::grid::controlled::WalkStart::Clear`], the client's own rule: its world pushes a body out of what it overlaps,
+    /// `bullet_physics_world::recover_from_penetrations` 0x763D0). Off: out of the faces above the step only, by at most
+    /// 0.15 m ([`crate::grid::controlled::WalkStart::AboveStep`]): a floor beside a ledge lower than the step starts the body
+    /// inside the ledge, and the exe pops such a body up onto it, so the pass kept climbs no standing client makes (A329:
+    /// level_04 day_4, a 0.785 m ledge; the exe climbs a vertical face walking up to 0.75 m, not 0.76). A build input: in the
+    /// key when set.
+    pub walk_start_clear: bool,
+    /// [A329] Whether the client-controller pass's bridges also cross a crack the grid crossed by a drop: a side whose link is
+    /// a drop into the one cell between two floors within a step of each other is tried as a bridge (the controller walks the
+    /// body across, as the client walks over the crack), not only a side with no link. Off: such a crack's only way across is
+    /// the drop, and `drop_check` takes it away when the body never drops there (level_06 day_2 (18.4, 103): a 0.8 m deep
+    /// one-cell crack the client walks over). A build input: in the key when set.
+    pub crack_bridges: bool,
+    /// [A329] Whether [`Self::exe_collision`]'s Bullet caster takes a contact met already overlapping at the start at the
+    /// face's point nearest the shape's core ([`crate::controller::StartOverlap::FaceWitness`], as the exe's penetration
+    /// solver hands the move test a point of the overlap). Off: at the point GJK returns there, zero
+    /// ([`crate::controller::StartOverlap::ZeroPoint`]), which the move test's top check (0x85F50) reads as a hit at the
+    /// feet: a walk under an overhang the client walks under is cut (level_08 Cologne corner). Only with `exe_collision`. A
+    /// build input: in the key when set.
+    pub start_witness: bool,
 }
 
 /// How the floors a body's radius from walls are taken away.
@@ -270,12 +292,19 @@ pub enum Erosion {
 impl Body {
     /// The caster and the walk-tick settings the grid's controller passes use ([`Self::exe_collision`]).
     pub fn controller(&self) -> (crate::controller::Caster, crate::controller::tick::Settings) {
-        use crate::controller::{Caster, tick::{Settings, WallNormal}};
+        use crate::controller::{Caster, StartOverlap, tick::{Settings, WallNormal}};
         if self.exe_collision {
-            (Caster::Bullet, Settings { wall_normal: WallNormal::Rays, ..Settings::LIVE })
+            let start = if self.start_witness { StartOverlap::FaceWitness } else { StartOverlap::ZeroPoint };
+            (Caster::Bullet(start), Settings { wall_normal: WallNormal::Rays, ..Settings::LIVE })
         } else {
             (Caster::Conservative, Settings::LIVE)
         }
+    }
+
+    /// Where the client-controller pass starts a body on a floor ([`Self::walk_start_clear`]).
+    pub fn walk_start(&self) -> crate::grid::controlled::WalkStart {
+        use crate::grid::controlled::WalkStart;
+        if self.walk_start_clear { WalkStart::Clear } else { WalkStart::AboveStep }
     }
 
     /// Its numbers in order, for digests and files.
@@ -320,6 +349,9 @@ impl Body {
             drop_check: false,
             wall_give_back: false,
             exe_collision: false,
+            walk_start_clear: false,
+            crack_bridges: false,
+            start_witness: false,
         }
     }
 }
@@ -395,6 +427,9 @@ impl Default for Body {
             drop_check: false,
             wall_give_back: false,
             exe_collision: false,
+            walk_start_clear: false,
+            crack_bridges: false,
+            start_witness: false,
         }
     }
 }
