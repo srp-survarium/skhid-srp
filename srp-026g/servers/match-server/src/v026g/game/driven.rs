@@ -623,6 +623,8 @@ impl Game {
                 continue;
             };
             let fix = Fix {
+                // [A318] The controller's own vertical speed, down.
+                fall: motion.body.as_ref().map(|body| -body.fall_and_slide_velocity[1]),
                 time: snapshot.time,
                 alive: motion.alive,
                 inserted: motion.inserted_time_ms,

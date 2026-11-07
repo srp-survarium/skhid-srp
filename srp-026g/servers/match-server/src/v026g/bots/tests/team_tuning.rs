@@ -32,7 +32,7 @@ fn after_one_poll(team0: Tuning, team1: Tuning) -> (Bots, u32) {
     let spots = [(10.0, 30.0), (14.0, 30.0), (70.0, 30.0), (72.0, 34.0)];
     for (place, (x, z)) in spots.into_iter().enumerate() {
         bots.entered(place, true, 0);
-        let fix = Fix {
+        let fix = Fix { fall: None,
             time: 1_000,
             alive: true,
             inserted: 100,
@@ -181,7 +181,7 @@ fn grenade_probe(throws: impl Fn() -> crate::v026g::bots::live_grenades::Throws)
     team1.avoid.bot_pockets = false;
     let (mut bots, mut now) = after_one_poll(Tuning::default(), team1);
     bots.set_throws((0..4).map(|_| throws()).collect());
-    let fix = |time: u32, feet: Vec3, keys: u32| Fix {
+    let fix = |time: u32, feet: Vec3, keys: u32| Fix { fall: None,
         time,
         alive: true,
         inserted: 100,
@@ -380,7 +380,7 @@ fn collectors_of_a_wide_zone(damage: mapdata::Damage, mut team0: Tuning, mut tea
     for clock in (100..=20_000u32).step_by(100) {
         if clock % 1_000 == 0 {
             for (place, (x, z)) in spots.into_iter().enumerate() {
-                let fix = Fix {
+                let fix = Fix { fall: None,
                     time: clock,
                     alive: true,
                     inserted: 100,
@@ -504,7 +504,7 @@ fn facing_bots(team0: Tuning, team1: Tuning, seed: u32) -> Bots {
     for (place, (x, z)) in spots.into_iter().enumerate() {
         bots.entered(place, true, 0);
         let yaw = yaw_of([if teams[place] == 0 { 1.0 } else { -1.0 }, 0.0]);
-        let fix = Fix {
+        let fix = Fix { fall: None,
             time: 1_000,
             alive: true,
             inserted: 100,

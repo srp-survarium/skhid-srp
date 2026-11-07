@@ -34,7 +34,7 @@ use mapdata::{LinkKind, NodeId, RayTree, Vec3, WalkGrid};
 use survarium::v026g::match_msgs::TICK_MS;
 
 use super::jump_arc::{ArcStep, JumpArc};
-use super::kin::{Blend, DropFall, Edge, FIX_ABOVE_M, FixBlend, FixFloor, LEVEL_REACH, LEVEL_SNAP, LevelRead, LevelSource, WallSlide, JumpSnap, Kinematics, MarginEdge, TICK_S, WalkOffLanding, to_world, wrap};
+use super::kin::{Blend, DropFall, Edge, FIX_ABOVE_M, FixBlend, FixFall, FixFloor, LEVEL_REACH, LEVEL_SNAP, LevelRead, LevelSource, WallSlide, JumpSnap, Kinematics, MarginEdge, TICK_S, WalkOffLanding, to_world, wrap};
 use super::pitch::{Pitch, PitchScale};
 use crate::v026g::drive::key;
 
@@ -55,6 +55,9 @@ pub struct Fix {
     pub keys: u32,
     /// `m_linear_horizontal_speed`, if it was read.
     pub speed: Option<f32>,
+    /// [A318] The body's speed down, m/s (the world's `fall_and_slide_velocity` y, negated: the controller's own velocity), if it
+    /// was read.
+    pub fall: Option<f32>,
 }
 
 /// The body as the bot reckons it at a tick.
@@ -764,17 +767,22 @@ impl BodyTrack {
             fall: Fall::Ground,
         };
         // [A318] A world that has the body more than a step over its floor, out of its own jump, has it falling
-        // ([`DropFall::Gravity`], [`DropFall::Client`]): at the speed the reckoning had it fall at, else from rest (a world has no
-        // vertical speed). A body in the client's jump (`kin.jump_arc`: the arc runs past the old 800 ms air window, a sprint clip
-        // 955 ms) is the arc's.
-        if let (true, Some(grid), Some(node), 0, None) = (kin.drop_fall != DropFall::Snap, grid, node, air_until, estimate.arc)
-            && feet.y - grid.position(node).y > grid.body().step
-        {
-            let speed = match self.estimate.map(|e| e.fall) {
-                Some(Fall::Falling { speed }) => speed,
-                _ => 0.0,
-            };
-            estimate.fall = Fall::Falling { speed };
+        // ([`DropFall::Gravity`], [`DropFall::Client`]). A body in the client's jump (`kin.jump_arc`: the arc runs past the old
+        // 800 ms air window, a sprint clip 955 ms) is the arc's. [`FixFall::World`]: a body the world has going down (its own
+        // vertical speed) over its floor falls at that speed, a step or less over it too; else at the speed the reckoning had it
+        // fall at, else from rest.
+        let world_fall = fix.fall.filter(|_| kin.fix_fall == FixFall::World);
+        if let (true, Some(grid), Some(node), 0, None) = (kin.drop_fall != DropFall::Snap, grid, node, air_until, estimate.arc) {
+            let above = feet.y - grid.position(node).y;
+            let falls = above > grid.body().step || world_fall.is_some_and(|down| down > 0.0 && above > FIX_FALL_ABOVE_M);
+            if falls {
+                let speed = match (world_fall, self.estimate.map(|e| e.fall)) {
+                    (Some(down), _) => down.max(0.0),
+                    (None, Some(Fall::Falling { speed })) => speed,
+                    (None, _) => 0.0,
+                };
+                estimate.fall = Fall::Falling { speed };
+            }
         }
         self.trail.clear();
         // The ticks after the world's, again from where the world has it.
@@ -1023,6 +1031,10 @@ fn fall_step(fall: Fall, top: f32, feet: &mut Vec3, step: f32, rule: DropFall) -
         Fall::Falling { speed: after }
     }
 }
+
+/// [A318] How far over its floor a world's body going down must be to be taken as falling ([`FixFall::World`]): a floor's height is
+/// its cell centre's, a few centimetres off the feet on a walkable slope's cell (LIKELY, as `FIX_ABOVE_M`).
+const FIX_FALL_ABOVE_M: f32 = 0.05;
 
 /// [A318] The live client's controller settings (`startup.cfg`): [`DropFall::Client`]'s slow start.
 pub(super) const CLIENT: mapdata::controller::tick::Settings = mapdata::controller::tick::Settings::LIVE;
@@ -1789,7 +1801,7 @@ pub(super) mod tests {
     }
 
     fn fix(time: u32, feet: Vec3, yaw: f32) -> Fix {
-        Fix {
+        Fix { fall: None,
             time,
             alive: true,
             inserted: 100,
@@ -1935,7 +1947,7 @@ pub(super) mod tests {
         // kept.
         track.decided(2_050, key::FORWARD, (0.0, 0.0), 0.0, &kin, None);
         // The world has its tick's keys: forward.
-        let walking = Fix {
+        let walking = Fix { fall: None,
             keys: key::FORWARD,
             ..fix(1_500, Vec3::new(5.0, 0.0, 6.0), 0.0)
         };
@@ -1975,7 +1987,7 @@ pub(super) mod tests {
         // Dead: nothing reckoned; alive again with a new spawn time is a
         // new life.
         track.fixed(
-            Fix {
+            Fix { fall: None,
                 alive: false,
                 feet: None,
                 ..fix(2_000, Vec3::ZERO, 0.0)
@@ -1985,7 +1997,7 @@ pub(super) mod tests {
         );
         assert!(track.dead() && track.estimate().is_none());
         assert!(track.fixed(
-            Fix {
+            Fix { fall: None,
                 inserted: 3_000,
                 ..fix(3_200, Vec3::new(1.0, 0.0, 1.0), 0.0)
             },
@@ -2019,7 +2031,7 @@ pub(super) mod tests {
         let z = track.estimate().unwrap().feet.z;
         assert!((z - kin.walk[0] * 0.9 * 0.95).abs() < 1e-3, "{z}");
         // A world shows it walking at 1.1: that is the life's level.
-        let walking = Fix {
+        let walking = Fix { fall: None,
             keys: key::FORWARD,
             speed: Some(kin.walk[0] * 1.1),
             ..fix(1_000, Vec3::ZERO, 0.0)
@@ -2028,7 +2040,7 @@ pub(super) mod tests {
         assert!((track.level() - 1.1).abs() < 1e-5);
         // A new life: the profile's again.
         track.fixed(
-            Fix {
+            Fix { fall: None,
                 inserted: 5_000,
                 ..fix(5_000, Vec3::ZERO, 0.0)
             },
@@ -2050,7 +2062,7 @@ pub(super) mod tests {
         let mut track = BodyTrack::default();
         track.set_legs(Some(0.9));
         assert!((track.level() - 0.9).abs() < 1e-6);
-        let walking = |speed: f32, time: u32| Fix { keys: key::FORWARD, speed: Some(speed), ..fix(time, Vec3::ZERO, 0.0) };
+        let walking = |speed: f32, time: u32| Fix { fall: None, keys: key::FORWARD, speed: Some(speed), ..fix(time, Vec3::ZERO, 0.0) };
         track.fixed(walking(kin.walk[0] * 0.9, 0), &kin, None);
         assert!((track.level() - 0.9).abs() < 1e-5, "the level is 1, the legs 0.9: {}", track.level());
         track.fixed(walking(kin.walk[0] * 0.81, 1_000), &kin, None);
@@ -2071,7 +2083,7 @@ pub(super) mod tests {
             for k in 1..=7u32 {
                 track.decided(at + k * 50, key::FORWARD, (0.0, 0.0), 0.0, &kin, None);
             }
-            track.fixed(Fix { keys: key::FORWARD, speed: Some(speed), ..fix(at + 400, Vec3::ZERO, 0.0) }, &kin, None);
+            track.fixed(Fix { fall: None, keys: key::FORWARD, speed: Some(speed), ..fix(at + 400, Vec3::ZERO, 0.0) }, &kin, None);
             track.level()
         };
         let mut track = BodyTrack::default();
@@ -2088,7 +2100,7 @@ pub(super) mod tests {
         for k in 1..=7u32 {
             old.decided(k * 50, key::FORWARD, (0.0, 0.0), 0.0, &measured, None);
         }
-        old.fixed(Fix { keys: key::FORWARD, speed: Some(3.5 * 0.8), ..fix(400, Vec3::ZERO, 0.0) }, &measured, None);
+        old.fixed(Fix { fall: None, keys: key::FORWARD, speed: Some(3.5 * 0.8), ..fix(400, Vec3::ZERO, 0.0) }, &measured, None);
         assert!((old.level() - 1.0).abs() < 1e-6, "the old band drops 0.8");
     }
 
@@ -2099,7 +2111,7 @@ pub(super) mod tests {
         let kin = Kinematics::default();
         let mut track = BodyTrack::default();
         track.fixed(fix(0, Vec3::ZERO, 0.0), &kin, None);
-        let world = |time: u32, speed: f32| Fix { keys: key::FORWARD, speed: Some(speed), ..fix(time, Vec3::ZERO, 0.0) };
+        let world = |time: u32, speed: f32| Fix { fall: None, keys: key::FORWARD, speed: Some(speed), ..fix(time, Vec3::ZERO, 0.0) };
         // Two ticks into a walk from rest: in the fade (3.0 m/s of 3.5 would read 0.857).
         for k in 1..=2u32 {
             track.decided(k * 50, key::FORWARD, (0.0, 0.0), 0.0, &kin, None);
@@ -2383,6 +2395,25 @@ pub(super) mod tests {
         assert!(on.iter().all(|v| *v <= 5.0 + 1e-3));
     }
 
+    /// [A318] [`FixFall::World`]: a world that has the body 0.5 m over its floor (under the step) going down at 3 m/s starts the
+    /// reckoned fall at that speed; with [`FixFall::Rest`] it stands on its floor as before.
+    #[test]
+    fn a_world_falling_body_keeps_its_speed_down() {
+        let grid = walled();
+        let world = Fix { fall: Some(3.0), ..fix(0, Vec3::new(10.0, 0.5, 10.0), 0.0) };
+        for (fix_fall, want) in [(FixFall::World, Fall::Falling { speed: 3.0 }), (FixFall::Rest, Fall::Ground)] {
+            let kin = Kinematics { fix_fall, ..Kinematics::default() };
+            let mut track = BodyTrack::default();
+            track.fixed(world.clone(), &kin, Some(&grid));
+            assert_eq!(track.estimate().unwrap().fall, want, "{fix_fall:?}");
+        }
+        // Going up or still: no fall.
+        let kin = Kinematics::default();
+        let mut track = BodyTrack::default();
+        track.fixed(Fix { fall: Some(-1.0), ..world }, &kin, Some(&grid));
+        assert_eq!(track.estimate().unwrap().fall, Fall::Ground);
+    }
+
     /// [A318] [`DropFall::Gravity`]: the reckoned body walking off a 2 m ledge comes down as the client's capsule falls (from rest,
     /// `g` = 9.8: on the floor about 0.64 s after it goes over, at 1 m after about 0.45 s), where [`DropFall::Snap`] has it on the
     /// floor below in the step it goes over; across it goes the same way. The stop forecast plays a falling body from its floor.
@@ -2638,7 +2669,7 @@ pub(super) mod tests {
         );
         assert_eq!(at.air_until, 0);
         // A world after the jump: it did not get up.
-        let below = Fix {
+        let below = Fix { fall: None,
             keys: key::FORWARD,
             ..fix(2_000, Vec3::new(9.6, 0.0, 5.0), yaw)
         };
@@ -2653,7 +2684,7 @@ pub(super) mod tests {
         let mut track = BodyTrack::default();
         start(&mut track);
         walk(&mut track, 50, 1_000, Some(450));
-        let foot = Fix {
+        let foot = Fix { fall: None,
             keys: key::FORWARD,
             ..fix(600, Vec3::new(9.4, 0.0, 5.0), yaw)
         };
@@ -2676,7 +2707,7 @@ pub(super) mod tests {
         assert!((at.pitch - 0.02).abs() < 1e-6 && (at.view_pitch() - 0.04).abs() < 1e-6);
         // A world of tick 100: its base pitch, the bot's kick of that tick,
         // the ticks after played again.
-        let world = Fix {
+        let world = Fix { fall: None,
             pitch: 0.025,
             ..fix(100, Vec3::ZERO, 0.0)
         };

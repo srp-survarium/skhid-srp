@@ -797,6 +797,7 @@ mod tests {
             "/heal/drug_stops",
             "/kin/carrier_sprint",
             "/kin/drop_fall",
+            "/kin/fix_fall",
             "/kin/fix_floor",
             "/kin/jump_snap",
             "/kin/level_source",

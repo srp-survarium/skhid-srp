@@ -66,6 +66,8 @@ pub struct Kinematics {
     pub edge: Edge,
     /// [A318] How the reckoned body comes down a drop ([`DropFall`]).
     pub drop_fall: DropFall,
+    /// [A318] The speed a world's falling body starts its reckoned fall at ([`FixFall`]).
+    pub fix_fall: FixFall,
     /// [A269c] What a route adds to the cost of a walk onto a floor near an open side (with [`Edge::ClientWalksOff`], the grid's
     /// table of open sides), times the walk's own: the route keeps a body's width in from an edge the capsule walks off where the
     /// floor allows (`RouteFilter::weighing_open_sides`). 2 makes a cell's walk there cost 0.75 m, as a deep fall's edge does
@@ -384,6 +386,7 @@ impl Default for Kinematics {
             jump_snap: JumpSnap::ByKeys,
             edge: Edge::Client,
             drop_fall: DropFall::Client,
+            fix_fall: FixFall::World,
             open_edge_cost: 0.0,
             walk_off_landing: WalkOffLanding::BySpeed,
             margin_edge: MarginEdge::Body,
@@ -490,6 +493,20 @@ pub enum DropFall {
     /// then 2.45 m/s, 2.94 m/s, ...
     #[default]
     Client,
+}
+
+/// [A318] The speed a world's body that is going down starts its reckoned fall at. The world carries the controller's own velocity
+/// (`fall_and_slide_velocity`, in the map's frame); the reckoning restarted a falling body at rest at every world fix, so a body
+/// caught 1.5 m into a drop fell its first ticks slow again (fx-gear-2's L06 slope cluster: 61 of 94 tail misses start 0.1 m+ in
+/// the air).
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum FixFall {
+    /// The reckoning's own speed, else rest, and only a body more than a step over its floor (as it was).
+    Rest,
+    /// The world's own vertical speed, a body going down a little over its floor too.
+    #[default]
+    World,
 }
 
 /// [A318] The blend a world's fix starts the reckoning with.
