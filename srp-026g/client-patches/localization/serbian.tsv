@@ -2210,6 +2210,8 @@ st_srp_artefact_532_description	Nema štete od pada dok je Oniks aktivan.
 st_srp_artefact_532_name	Oniks II
 st_srp_artefact_533_description	Aktiviranje Živokosti vraća svu izdržljivost.
 st_srp_artefact_533_name	Živokost II
+st_srp_artefact_534_description	Još jedan artefakt bez kontejnera dok imaš manje od 6 džepova i kontejnera; gubi se pri smrti.
+st_srp_artefact_534_name	Skrovište
 st_srp_artefact_541_description	Pasivni efekti tvojih artefakata deluju i na žive saigrače u krugu od 8 m, do 4 iste vrste zajedno sa njihovim.
 st_srp_artefact_541_name	Rezonanca
 st_srp_artefact_542_description	Aktivirani artefakti deluju i na žive saigrače u krugu od 5 m. "Oni sijaju, ti blistaš"

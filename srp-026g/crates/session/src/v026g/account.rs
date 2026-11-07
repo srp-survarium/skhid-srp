@@ -747,7 +747,7 @@ impl Account {
 
     /// The modifications of the owned items of `item_ids`: their defaults
     /// and their own, defects too (an item's pockets count them all).
-    fn worn_modifications(&self, item_ids: impl IntoIterator<Item = u32>) -> Vec<(u32, bool)> {
+    pub(crate) fn worn_modifications(&self, item_ids: impl IntoIterator<Item = u32>) -> Vec<(u32, bool)> {
         item_ids
             .into_iter()
             .filter_map(|item_id| self.item(item_id))

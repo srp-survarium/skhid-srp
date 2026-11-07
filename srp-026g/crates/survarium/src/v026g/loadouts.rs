@@ -661,6 +661,15 @@ fn default_modifier(dict_id: u16, parameter: &str) -> f32 {
     added_by(&default_modifications(dict_id), parameter)
 }
 
+/// The quick positions (slots 13..=18, six) a kit's pockets and artefact
+/// containers take together, from its worn items' `modifications` (their
+/// defaults and their own, `(id, defect)`) and the skills' `modifiers`
+/// ([`KitLayout`]): Hidden Stash's room (`hidden_stash`).
+pub fn quick_positions(modifications: &[(u32, bool)], modifiers: &[f32; skills::MODIFIERS]) -> u32 {
+    let layout = KitLayout::new(modifications, modifiers);
+    layout.pockets + layout.containers
+}
+
 /// The pockets a loadout opens and how many units each holds, with no
 /// skills ([`KitLayout`]).
 pub fn pockets(loadout: &Loadout) -> (u32, u32) {
@@ -732,6 +741,9 @@ const SECOND_WEAPON_SLOT: u8 = 10;
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 struct KitLayout {
     pockets: u32,
+    /// The artefact containers: modifier 14 (`artefact_slots`), no base (setup_from_profile
+    /// 0x2FD20F sums it from 0), the worn items' and the skills' (Artifact Container).
+    containers: u32,
     pocket_size: u32,
     extra_medicine: bool,
     carry: CarryRule,
@@ -756,6 +768,7 @@ impl KitLayout {
                 POCKET_SLOTS,
             )
             .min(MAX_POCKETS as u32),
+            containers: total(0, "artefact_slots_modifier", ARTEFACT_SLOTS),
             pocket_size: total(
                 player.pocket_slot_size,
                 "pocket_slot_size_modifier",

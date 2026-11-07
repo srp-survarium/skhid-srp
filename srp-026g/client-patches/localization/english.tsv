@@ -2210,6 +2210,8 @@ st_srp_artefact_532_description	No fall damage while an Onyx is active.
 st_srp_artefact_532_name	Onyx II
 st_srp_artefact_533_description	Activating a Larkspur restores all energy.
 st_srp_artefact_533_name	Larkspur II
+st_srp_artefact_534_description	Hold one more artifact without a container while your pockets and containers are fewer than 6; it is lost when you die.
+st_srp_artefact_534_name	Hidden Stash
 st_srp_artefact_541_description	Your artifacts' passive effects also work on living teammates within 8 m, up to 4 of one kind with their own.
 st_srp_artefact_541_name	Resonance
 st_srp_artefact_542_description	Activated artifacts also work on living teammates within 5 m. "They glow, you shine"

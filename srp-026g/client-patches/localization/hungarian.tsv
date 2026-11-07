@@ -2210,6 +2210,8 @@ st_srp_artefact_532_description	Nincs esési sebzés, amíg egy Ónix aktív.
 st_srp_artefact_532_name	Ónix II
 st_srp_artefact_533_description	A Szarkaláb aktiválása visszaadja az összes állóképességet.
 st_srp_artefact_533_name	Szarkaláb II
+st_srp_artefact_534_description	Még egy artefaktum tároló nélkül, amíg 6-nál kevesebb zsebed és tárolód van; halálkor elveszik.
+st_srp_artefact_534_name	Rejtekhely
 st_srp_artefact_541_description	Artefaktumaid passzív hatása az élő csapattársakra is hat 8 m-en belül, fajtánként legfeljebb 4 a sajátjaikkal együtt.
 st_srp_artefact_541_name	Rezonancia
 st_srp_artefact_542_description	Az aktivált artefaktumok az élő csapattársakra is hatnak 5 m-en belül. "Ők ragyognak, te tündökölsz"

@@ -1,0 +1,32 @@
+{
+  "_about": "Hidden Stash (534; docs/notes/artefact-skills.md \"Hidden Stash\"): the artefact tree's row IV, column 4, one rank: modifier 40 (artefact_power) bit 14, which srp keeps only on a kit whose pockets and containers are fewer than six and exe patch 109 reads: one artefact past the kit's containers, from the take that fills it to the holder's death. After artefact-skills-1.json. Name and description are st_srp_artefact_534_* in client-patches/localization.",
+  "append_entry": [
+    {
+      "file": "gameplay/skills/skills_tree.options",
+      "list": "skills_tree",
+      "expected_count": 49,
+      "unique_key": "id",
+      "value": {
+        "id": 534,
+        "levels_amount": 1,
+        "preconditions": {
+          "branch_points": 15
+        },
+        "ui": {
+          "position": [
+            4,
+            4
+          ],
+          "name": "st_srp_artefact_534_name",
+          "description": "st_srp_artefact_534_description",
+          "icon": 10
+        },
+        "modifiers": [
+          {
+            "artefact_power_modifier": 16384
+          }
+        ]
+      }
+    }
+  ]
+}

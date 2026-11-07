@@ -3,6 +3,7 @@
 //! (`docs/notes/lobby.md` §3).
 
 use survarium::v026g::dictionary::Dictionary;
+use survarium::v026g::hidden_stash;
 use survarium::v026g::lobby::{
     self, AccountBody, ItemDescr, Kit, KitSlot, MINUTES_TO_MAINTENANCE, Modification,
     NO_PROTECTION, OwnAccount, QuestRecord, ServerMessage, Upgrade, WireError, limits,
@@ -106,12 +107,15 @@ pub fn account_body(account: &Account, now: u64) -> AccountBody {
                 count: held.count.min(u32::from(u16::MAX)) as u16,
             });
         }
+        // Hidden Stash only on a kit with a quick position free (its worn items' pockets and
+        // containers).
+        let worn = account.worn_modifications(kit.slots.iter().flatten().map(|held| held.item_id));
         kits.push(Kit {
             state: account.kit_state(index, now),
             id: kit.id,
             name: kit.name.clone(),
             slots,
-            modifiers,
+            modifiers: hidden_stash::kit_modifiers(&modifiers, &worn),
         });
     }
     AccountBody {

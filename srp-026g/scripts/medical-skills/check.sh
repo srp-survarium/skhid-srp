@@ -8,7 +8,7 @@ harness_work "${2:-}"
 harness_compile "$here/MedicalSkillsHarness.as" 1280,720
 "${PYTHON:-python3}" "$here/../medical-cards/ruffle_movie.py" "$lobby" "$work/lobby_menu.swf"
 # The tree as the edit list makes it, and the PNGs the movie embeds (pixel comparison).
-cp "$here/../content-edit/medical-skills-1.json" "$here/../content-edit/artefact-skills-1.json" "$here/../../client-patches/localization/english.tsv" "$work/"
+cp "$here/../content-edit/medical-skills-1.json" "$here/../content-edit/artefact-skills-1.json" "$here/../content-edit/artefact-hidden-stash-1.json" "$here/../../client-patches/localization/english.tsv" "$work/"
 mkdir -p "$work/bitmaps"
 cp "$here"/../../flash/lobby_menu/bitmaps/{Medical,Artefact}Skill069*.png "$work/bitmaps/"
 harness_display 1280x720

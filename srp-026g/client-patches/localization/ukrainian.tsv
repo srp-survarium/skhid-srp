@@ -2210,6 +2210,8 @@ st_srp_artefact_532_description	Немає шкоди від падіння, п�
 st_srp_artefact_532_name	Онікс II
 st_srp_artefact_533_description	Активація Живокосту повністю відновлює витривалість.
 st_srp_artefact_533_name	Живокіст II
+st_srp_artefact_534_description	Ще один артефакт без контейнера, поки кишень і контейнерів менше 6; після смерті він втрачається.
+st_srp_artefact_534_name	Схованка
 st_srp_artefact_541_description	Пасивні ефекти ваших артефактів діють і на живих союзників у радіусі 8 м, до 4 одного виду разом з їхніми власними.
 st_srp_artefact_541_name	Резонанс
 st_srp_artefact_542_description	Активовані артефакти діють і на живих союзників у радіусі 5 м. "Вони сяють, а ти виблискуєш"

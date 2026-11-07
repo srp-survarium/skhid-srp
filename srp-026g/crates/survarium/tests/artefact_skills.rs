@@ -4,11 +4,11 @@ use survarium::v026g::skills::{SkillError, SkillsTree, modifier_index};
 
 /// `(id, ranks, branch_points, column, row)`.
 #[rustfmt::skip]
-const TREE: [(u16, u8, u32, u8, u8); 12] = [
+const TREE: [(u16, u8, u32, u8, u8); 13] = [
     (501, 4, 0, 2, 1), (502, 4, 0, 3, 1),
     (511, 4, 5, 2, 2), (512, 5, 5, 3, 2), (513, 1, 5, 4, 2),
     (521, 1, 10, 2, 3), (522, 1, 10, 3, 3),
-    (531, 1, 15, 1, 4), (532, 1, 15, 2, 4), (533, 1, 15, 3, 4),
+    (531, 1, 15, 1, 4), (532, 1, 15, 2, 4), (533, 1, 15, 3, 4), (534, 1, 15, 4, 4),
     (541, 1, 20, 2, 5), (542, 1, 20, 3, 5),
 ];
 
@@ -48,17 +48,17 @@ fn artefact_tree_progression_and_modifiers() {
         assert!(skill.unknown_modifiers.is_empty() && skill.antiskills == excludes, "{id}");
         assert!(places.insert((column, row)), "two skills at {id}'s place");
     }
-    // 24 points, every row reached; a full build is valid at 24, not at 23, with either of the
+    // 25 points, every row reached; a full build is valid at 25, not at 24, with either of the
     // row-V pair, never with both.
     for pick in [RESONANCE, CASCADE] {
         tree.validate(100, &full(pick)).unwrap();
-        tree.validate(24, &full(pick)).unwrap();
-        assert!(matches!(tree.validate(23, &full(pick)), Err(SkillError::OverLevel { .. })));
+        tree.validate(25, &full(pick)).unwrap();
+        assert!(matches!(tree.validate(24, &full(pick)), Err(SkillError::OverLevel { .. })));
     }
     let mut both = full(RESONANCE);
     both.push((CASCADE, 1));
     assert!(matches!(tree.validate(100, &both), Err(SkillError::Exclusive(..))));
-    // The stock rows: II at 5 (row I holds 8), III at 10, IV at 15, V at 20 (rows I-IV hold 23).
+    // The stock rows: II at 5 (row I holds 8), III at 10, IV at 15, V at 20 (rows I-IV hold 24).
     tree.validate(100, &[(501, 4), (502, 1), (513, 1)]).unwrap();
     assert!(locked(&tree, &[(501, 4), (513, 1)], 513));
     tree.validate(100, &[(501, 4), (502, 1), (512, 5), (521, 1)]).unwrap();
@@ -82,12 +82,12 @@ fn artefact_tree_progression_and_modifiers() {
     assert_eq!((at("artefact_slots"), at("pocket_slots")), (1.0, -1.0));
     assert!((at("artefact_duration") - 0.25).abs() < 1e-6);
     // Resistance 4, then bits 3..7 (Keeper, Resonance, Spring II, Onyx II, Larkspur II) and 12
-    // (Artifact Sight); with Cascade, bit 8 instead of bit 4.
+    // (Artifact Sight) and 14 (Hidden Stash); with Cascade, bit 8 instead of bit 4.
     let power = modifier_index("artefact_power").unwrap();
-    assert_eq!(at("artefact_power"), 4348.0);
-    assert_eq!(tree.modifiers(&full(CASCADE))[power], 4588.0);
+    assert_eq!(at("artefact_power"), 4348.0 + 16384.0);
+    assert_eq!(tree.modifiers(&full(CASCADE))[power], 4588.0 + 16384.0);
     #[rustfmt::skip]
-    let bits = [(502, 1.0), (521, 8.0), (RESONANCE, 16.0), (531, 32.0), (532, 64.0), (533, 128.0), (CASCADE, 256.0), (513, 4096.0)];
+    let bits = [(502, 1.0), (521, 8.0), (RESONANCE, 16.0), (531, 32.0), (532, 64.0), (533, 128.0), (CASCADE, 256.0), (513, 4096.0), (534, 16384.0)];
     for (id, bits) in bits {
         assert_eq!(tree.modifiers(&[(id, 1)])[power], bits, "{id}");
     }
