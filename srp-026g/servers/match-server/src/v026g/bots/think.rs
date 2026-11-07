@@ -157,8 +157,17 @@ impl Bots {
             {
                 bot.bench_go = None;
             }
+            // [A318] The stand-in camper plans on his own tactics where the bench built him a world of his own.
+            #[cfg(test)]
+            let tactics = self
+                .bench_human_tactics
+                .as_ref()
+                .filter(|_| self.bench_camper.as_ref().is_some_and(|camper| camper.place() == bot.place))
+                .or(self.tactics.as_ref());
+            #[cfg(not(test))]
+            let tactics = self.tactics.as_ref();
             #[cfg_attr(not(feature = "jump-test"), allow(unused_mut))]
-            let mut decision = match (scripted, estimate, me, self.tactics.as_ref()) {
+            let mut decision = match (scripted, estimate, me, tactics) {
                 (Some(scripted), ..) => {
                     bot.motor.rest();
                     scripted
@@ -180,6 +189,17 @@ impl Bots {
                 }
                 _ => bot.motor.rest(),
             };
+            // [A318] The route points each decided tick, folded per side: the stand-in camper's and the bots' (a bench line).
+            #[cfg(test)]
+            if let Some((route, _)) = bot.route.as_ref() {
+                let camper = self.bench_camper.as_ref().is_some_and(|camper| camper.place() == bot.place);
+                let hash = &mut self.bench_route_hash[usize::from(!camper)];
+                for point in route.points() {
+                    for v in [point.at.x, point.at.y, point.at.z] {
+                        *hash = hash.wrapping_mul(0x100_0000_01b3) ^ u64::from(v.to_bits());
+                    }
+                }
+            }
             #[cfg(feature = "jump-test")]
             if let Some(test) = self.jump_test.as_mut() {
                 test.quiet(bot.place, &mut decision);

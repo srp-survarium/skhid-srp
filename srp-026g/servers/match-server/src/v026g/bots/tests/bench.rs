@@ -842,6 +842,21 @@ pub(crate) fn real_bot_cost() {
             open_sides: bench_open_sides(),
             pull_hold: bench_tuning().grid.wall_clear_pull.then_some(crate::v026g::bots::tuning::PULL_HOLD_M),
         };
+        // [A318] The stand-in camper's own world, built by his pinned grid (`human_tuning`) when it builds otherwise than this
+        // arm's: his routes are planned on it (`Bots::bench_human_tactics`), so an arm's grid switch leaves him alone.
+        let human_world = {
+            let human = super::standin_aim::human_tuning();
+            let human_extras = mapdata::GridExtras {
+                wall_clearance: human.needs_wall_clearance(),
+                open_sides: human.needs_open_sides(),
+                pull_hold: human.grid.wall_clear_pull.then_some(crate::v026g::bots::tuning::PULL_HOLD_M),
+            };
+            let human_build = (human.grid_body(), human.off_mesh_links(), human_extras);
+            (human_build != (bench_tuning().grid_body(), links, extras)).then(|| {
+                eprintln!("{project}: the stand-in camper's world is his own (his pinned grid builds otherwise than this arm's)");
+                Arc::new(World::build_with_extras(map.clone(), mapdata::CELL, human_build.0, human_build.1, human_build.2))
+            })
+        };
         let world = Arc::new(World::build_with_extras(map, mapdata::CELL, bench_tuning().grid_body(), links, extras));
         // The baked-all alternative to the live zones, for what it costs (`SRP_BENCH_BAKE_FIELD_PLACES=<n>`).
         let world = match bench_settings().number::<usize>("SRP_BENCH_BAKE_FIELD_PLACES").filter(|&n| n > 0) {
@@ -1057,6 +1072,9 @@ pub(crate) fn real_bot_cost() {
                 }
                 None => (bots.map_ready(world.clone()), None),
             };
+            // [A318] The stand-in camper's own tactics on his own world, if the bench built him one.
+            bots.bench_human_tactics =
+                human_world.as_ref().map(|world| Tactics::new(world.clone(), bots.tunings.match_wide().hazard.margin_m.get()));
             let ready_ms = started.elapsed().as_secs_f32() * 1e3;
             let ready_mb = memory_mb().map(|(now, _)| now);
             reset_peak_memory();
@@ -1310,6 +1328,12 @@ pub(crate) fn real_bot_cost() {
                 let place = bots.bench_human.expect("SRP_BENCH_HUMAN_PLAY=hunter needs SRP_BENCH_HUMAN=<place>");
                 assert!(camper_place.is_none(), "SRP_BENCH_HUMAN_PLAY=hunter rides on the camper's hooks: not with SRP_BENCH_CAMPER");
                 bots.bench_camper = Some(BenchCamper::hunter(place, seed, Arc::new(hunter_tuning())));
+            }
+            // [A318] The stand-in camper's body reckoned by his own kin and world (his pinned tuning; his own world where the bench
+            // built him one), whatever the arm's are.
+            if let Some(camper) = bots.bench_camper.as_ref() {
+                let (place, kin) = (camper.place(), camper.tuning().kin.clone());
+                bots.bench_pin_place(place, kin, human_world.clone().unwrap_or_else(|| world.clone()));
             }
             owner.set_scoreboard(format!("{project} {per_team}v{per_team} seed {seed}"), mode, bots.bench_human, camper_place);
             if let Some(place) = camper_place
@@ -2461,6 +2485,7 @@ pub(crate) fn real_bot_cost() {
                 game.team_kills,
             );
             // [A318] Whether the reckoning takes the client's walk tick in the bench's matches (it did not before the world's walker).
+            eprintln!("route hash: camper {:016x} bots {:016x}", bots.bench_route_hash[0], bots.bench_route_hash[1]);
             let (ground, hard, client, moved) = crate::v026g::bots::body::client_steps::all();
             eprintln!(
                 "client_step so far: reckoned ground steps {ground}, hard {hard}, client steps {client}, moved otherwise {moved}"
