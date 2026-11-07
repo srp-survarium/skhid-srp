@@ -626,9 +626,33 @@ heuristic, is not a reader at all: it is the player-logic state-machine
 constructor (allocations + vftables, no packet cursor), so some of the 65
 "readers" are constructors the heuristic over-counts.
 
+The section readers and their serializers (which show the wire format and its
+counts) were read in full too: the rule cores (tdm 0x316340, respawn 0x316F10,
+timelimit 0x317F30/0x317FD0, gather 0x313CA0, match-time 0x3149B0), statistics
+(shared 0x2F5AC0 -> player 0x335750, victory-item event 0x334DC0), the
+victory-item containers (0x31B8E0/0x31CE40), the weapon sub-states
+(0x32FD60/0x32FF70/0x337510/0x338430/0x33DCA0), battery motion 0x344870,
+grenade 0x33A570, the artefact base state 0x313760. Every loop bound in them is
+either a fixed constant (7, 3, the 23 selector states in 0x2FC7D0,
+0x58/0x18 event tables in 0x335750) or a config/vector size (the player count
+`[+0x31E0]`, respawn points, the victory-item vectors, the `[+0x577B5]` channel
+count) -- never a u32 count read from the packet. Byte fields are stored as
+enums (compared, not used as array indices) or index >=256-entry null-checked
+tables; state bytes dispatch through the FSM vtables guarded by patch 113.
+
+The per-player snapshot apply dispatch 0x2D2770 is bounded by construction:
+every index is a bit position of the active-slots u32 mask `[+0x18FD8]` (0..31)
+into the 32-entry slot table (`* 0x30`) and the 32-player state array
+(`* 0x9054`); it reads state bytes from the already-parsed, already-validated
+per-player buffers (not the packet cursor) and dispatches them through the
+patch-113-guarded FSM, running downstream of `Frame::parse` with its effects
+tail going through 0x2DDDF0 (the fixed E-record path). Note 0x336E60, 0x303820
+and 0x31AD50, like 0x2FAB70, are list-registration/constructor/empty functions,
+not deserializers -- the advance-cursor heuristic over-counts them among the 65.
+
 So the goal's actual scope -- readers of another player's data -- is read at
-the site and bounded; the only two that were not are the animation stream and
-the E player-effect records, both now fixed.
+the site in full and bounded; the only two that were not are the animation
+stream and the E player-effect records, both now fixed.
 
 The lobby dispatcher 0x274A00 cannot be decompiled as one function: its own
 body is 70 bytes (the `cmp al,2; ja` head and the `jmp [ecx*4 + 0x275138]`),
