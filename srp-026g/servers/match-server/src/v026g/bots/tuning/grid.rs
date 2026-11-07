@@ -196,7 +196,20 @@ pub struct GridTuning {
     /// +0.05 (client-test level_05 +0.06, live level_06 +0.07: a given-back walk up 0.55 m in one cell, live level_07 +0.07).
     /// A grid is the map's.
     pub give_back_in_cell: bool,
+    /// [A333] Whether a route's straight legs (the pull, `path.rs`) cross a floor nearer a wall than the client's body holds
+    /// ([`PULL_HOLD_M`], the grid's table of wall clearances) only as a floor of the route's own path
+    /// (`mapdata::WalkGrid::with_pull_hold`): a leg pulled past a wall's corner or along a wall keeps to the cells the search
+    /// took. Off: the pull's line may graze a wall at the grid's 0.3175 m and cut corners there, where the client's body stops
+    /// (A333: of the 278 stuck notes with the client-tick stand-in, 51 hard stops on pulled legs over several cells). Not a
+    /// build input: the grids and their key are the same either way. OFF until its nav and harm gates.
+    pub wall_clear_pull: bool,
 }
+
+/// [A333] How near a wall the client's body stands, metres: its standing cylinder's radius 0.38 (the stand capsule's 0.76 m
+/// diameter, `startup.cfg`, the controller's +0x60) plus the move test's margin 0.04 (`move_step_margin`, `startup.cfg`); the
+/// port's `controller::tick` test `a_wall_stops_the_body_at_the_cylinder_and_margin` stops a body there as the exe does
+/// (Unicorn, A313).
+pub const PULL_HOLD_M: f32 = 0.42;
 
 impl Default for GridTuning {
     fn default() -> Self {
@@ -229,6 +242,7 @@ impl Default for GridTuning {
             crack_bridges: true,
             start_witness: true,
             give_back_in_cell: false,
+            wall_clear_pull: false,
         }
     }
 }

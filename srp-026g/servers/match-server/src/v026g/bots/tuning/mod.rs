@@ -126,6 +126,7 @@ pub use cover::PierceCover;
 pub use cover::Share;
 pub use cover::SpotCost;
 pub use grid::GridTuning;
+pub use grid::PULL_HOLD_M;
 pub use hazard::EscapeRule;
 pub use hazard::HazardTuning;
 pub use hazard::RouteCrossing;
@@ -354,7 +355,7 @@ impl Tuning {
     /// place that says it, so a map loader derives it from the tuning in force and nothing can be set to disagree. The table costs
     /// 0.5-1.7 s of CPU a map, which a tuning without `think.wall_clear_corners` does not spend.
     pub fn needs_wall_clearance(&self) -> bool {
-        self.think.wall_clear_corners
+        self.think.wall_clear_corners || self.grid.wall_clear_pull
     }
 
     /// The support at a ledge the maps' grids make their table of open sides for (`mapdata::WalkGrid::open_toward`), if this tuning

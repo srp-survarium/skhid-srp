@@ -582,6 +582,8 @@ fn build(
                 // ([`Tuning::needs_wall_clearance`]):
                 // derived from the triangles, in neither the cached file nor the key, and 0.5-1.7 s of CPU a map.
                 let grid = if wall_clearance { grid.with_wall_clearance(&walker) } else { grid };
+                // [A333] The pull's hold for the routes' straight legs (`GridTuning::wall_clear_pull`), on that table.
+                let grid = if grid_tuning.wall_clear_pull { grid.with_pull_hold(crate::v026g::bots::tuning::PULL_HOLD_M) } else { grid };
                 // The table of open sides ([`WalkGrid::open_toward`]) likewise ([`Tuning::needs_open_sides`]).
                 let grid = match open_sides {
                     Some(support_m) => grid.with_open_sides(&walker, support_m),
