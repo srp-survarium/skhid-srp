@@ -343,6 +343,42 @@ An optimized host-library benchmark over 1,786 captured worlds measured 3.25 µs
 median, 5.28 µs p99 and 6.83 µs maximum. All captures use battery mode; most have
 sixteen players. On the 3,920 current worlds: 4.53 µs median and 8.56 µs maximum
 for 13 to 20 players (`bench --quick`); a 20-player world grown to 0xF000 bytes of bullets 9.1 µs.
+
+Those numbers predate the objects, the whole player states and the
+animation streams. `world_check_bench` (match-server example) times the server's
+whole `world_validation::check`, its late-joiner retries included, on every
+upload of match recordings against the roster the server had when it came
+(the header's initial places, then each `places` note), and the game's check
+(patch 87's context) on the same worlds. On 2026-11-07, one desktop core, 20
+calls a batch, over the 50,205 uploads of 98 revision-50 recordings and 3,183
+kept local worlds whose match was recorded:
+
+| | server median | p99 | max | a match in all (median, max) | game median | p99 | max |
+|---|---|---|---|---|---|---|---|
+| uploads, `packets-v2/11-diagnostics` | 2.1 µs | 3.6 µs | 20 µs | 1.1 ms, 2.3 ms | 3.7 µs | 7.3 µs | 21 µs |
+| uploads, `packets-v2/14-animation-states` | 74 µs | 124 µs | 398 µs | 41 ms, 82 ms | 22 µs | 42 µs | 119 µs |
+| uploads, with the sorted compatibility | 55 µs | 89 µs | 277 µs | 30 ms, 63 ms | 21 µs | 38 µs | 59 µs |
+| kept worlds, 11 / 14 / sorted | 2.4 / 88 / 58 µs | 4.4 / 135 / 78 µs | 5.6 / 177 / 98 µs | | 4.8 / 25 / 23 µs | | |
+
+A match's uploads cost at most 4 ms of the match thread a minute of play
+(5.4 ms before the sorted compatibility). Where an upload's 74 µs went (1,283
+uploads of two 11 to 18 place matches): 35 µs making every place's kits
+(`MatchProfile::inventory`, mostly `Dictionary::compatible` walking its 356
+pairs twice for each ammo stack; 23 µs once they are sorted), 10 µs each
+place's grenades and traps (`MatchProfile::held`), 20 µs `world::validate`
+(13.5 µs of it the frame, which walks every player's animation stream bit by
+bit; 5.4 µs the player states; the objects 0.2 µs). Both kit tables are the
+match's own and made again for every upload; making them once a roster would
+leave the 20 µs. The late-joiner retries cost nothing measurable: every upload
+passed at its first count of installed places. The game's check, built as
+the arena builds it (i686, pentium4, opt-level s, fat LTO; on the host, Linux),
+takes 5.3 µs median before and 32 µs median, 57 µs p99, 100 µs max now, once a
+world load: the animation streams. The first check of a process may also make
+`item_params::all()` (about 0.1 s here): `game_data::init` does not make it
+(`tables::check` derives its own copy), the first user does.
+With `--flips`, the bench also checks 16 one-byte-flipped copies of each
+world: the sorted compatibility changes none of the 854,208 verdicts
+(217,304 refusals) of the uploads and kept worlds, nor any of the worlds'.
 The client searches at most 70 candidate item counts per player
 when profile context is unknown. A separate i686 Linux build using the arena's
 size optimization and LTO measured 21–22 ns per valid/refused input and up to
