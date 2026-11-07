@@ -2540,18 +2540,19 @@ pub(super) mod tests {
         assert!((WallSlide::Client.share(deg(60.0)) - 0.268).abs() < 0.001);
         assert!(WallSlide::Client.share(deg(90.0)).abs() < 1e-6);
         assert!((WallSlide::Round.share(deg(45.0)) - 0.707).abs() < 0.001);
-        // The wall of `walled` runs along z at x 20; from (19.5, 0, 10) a step of 0.5 m at 45 degrees (+x, +z) into it.
+        // The wall of `walled` runs along z at x 20; from the floor nearest it, a step of 0.5 m at 45 degrees (+x, +z) into it: all
+        // of it a slide (the round rule's z axis try keeps the step's z part, 0.354; the client's 0.586 of 0.5, 0.293).
         let grid = walled();
-        let from = Vec3::new(19.5, 0.0, 10.0);
-        let node = grid.locate(from, 0.5).unwrap();
-        let to = Vec3::new(19.5 + 0.3536, 0.0, 10.0 + 0.3536);
+        let node = grid.locate(Vec3::new(19.95, 0.0, 10.0), 0.5).unwrap();
+        let from = grid.position(node);
+        let to = Vec3::new(from.x + 0.3536, 0.0, from.z + 0.3536);
         let along = |walls: WallSlide| {
             let (_, feet, _) = slide_supported_with(&grid, node, from, to, f32::INFINITY, SUPPORT_M, Bridges::Leap, walls);
             feet.z - from.z
         };
         let (client, round) = (along(WallSlide::Client), along(WallSlide::Round));
-        assert!(client < round - 0.03, "client {client} round {round}");
-        assert!(client > 0.15, "client {client}");
+        assert!((round - 0.354).abs() < 0.01, "round {round}");
+        assert!((client - 0.293).abs() < 0.01, "client {client}");
     }
 
     /// [A318] [`FixFall::World`]: a world that has the body 0.5 m over its floor (under the step) going down at 3 m/s starts the
