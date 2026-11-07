@@ -1248,7 +1248,9 @@ impl Game {
         }
         // [A318] The jumps pressed a tick ago under the client's order take off now, from where the press tick's walk left them.
         for (place, body) in self.bodies.iter_mut().enumerate() {
-            let Some((at, keys, yaw, speed, may_sprint)) = body.jump_due.take() else { continue };
+            // A press of this tick waits for the next; one older than a tick is dropped.
+            let Some((at, keys, yaw, speed, may_sprint)) = body.jump_due.filter(|due| due.0 < tick) else { continue };
+            body.jump_due = None;
             if at + TICK_MS != tick || !body.alive || body.node.is_none() || body.flight.is_some() {
                 continue;
             }
