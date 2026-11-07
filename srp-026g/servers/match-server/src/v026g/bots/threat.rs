@@ -1931,6 +1931,11 @@ pub struct Job {
 }
 
 impl Job {
+    /// How many bots let a role of this job go (a flanker who died among them): the next flanker's route (A320).
+    pub fn passed_count(&self) -> usize {
+        self.passed.len()
+    }
+
     pub fn role_of(&self, place: Place) -> Option<Role> {
         if self.flanker.is_some_and(|h| h.place == place) {
             Some(Role::Flanker)

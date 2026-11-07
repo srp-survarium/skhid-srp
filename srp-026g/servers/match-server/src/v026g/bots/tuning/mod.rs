@@ -176,6 +176,7 @@ pub use tdm::Squad;
 pub use tdm::TdmTuning;
 pub use team::AvoidTuning;
 pub use team::BehindOpen;
+pub use team::CampFlank;
 pub use team::CommitTuning;
 pub use team::Concede;
 pub use team::GangRule;
