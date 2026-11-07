@@ -11790,6 +11790,15 @@ impl PlayerParamsModifiersContainer {
     pub unsafe fn artefact_ranks(self) -> *mut f32 {
         unsafe { self.0.byte_add(0xa0).cast::<f32>().as_ptr() }
     }
+
+    /// +0x110 (obj<survarium::modifier_list>): its node lists, the index's at +110h + index x 14h (the getters 0x2D5AE0, 0x2D5BC0; a Spring links its nodes there)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn lists(self) -> ModifierList {
+        ModifierList(unsafe { self.0.byte_add(0x110) })
+    }
 }
 
 /// A survarium::medical_hit (fields_026g.tsv): a pointer to one, never 0. Made only here: by a typed field,
@@ -16000,6 +16009,24 @@ impl ModifierNode {
         unsafe { self.0.byte_add(0xc).cast::<f32>().as_ptr() }
     }
 
+    /// +0x4 (ptr<survarium::modifier_node>): the next node of its list, 0 after the last (the getter's loop 0x2D5B25)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn next(self) -> Option<ModifierNode> {
+        unsafe { self.0.byte_add(0x4).cast::<Option<ModifierNode>>().read_volatile() }
+    }
+
+    /// +0x4 (ptr<survarium::modifier_node>): the next node of its list, 0 after the last (the getter's loop 0x2D5B25)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn set_next(self, value: Option<ModifierNode>) {
+        unsafe { self.0.byte_add(0x4).cast::<Option<ModifierNode>>().write_volatile(value) }
+    }
+
     /// 0x10 bytes: a node {prev, next, index, value} (the loader writes one each 10h from +340h)
     pub const SIZE: usize = 0x10;
 
@@ -16041,6 +16068,82 @@ impl ModifierNodeStorage {
     #[inline(always)]
     pub fn first(rooms: &mut [Self]) -> Option<ModifierNode> {
         (!rooms.is_empty()).then(|| ModifierNode(NonNull::from(rooms).cast()))
+    }
+}
+
+/// A survarium::modifier_list (fields_026g.tsv): a pointer to one, never 0. Made only here: by a typed field,
+/// a function's typed result or a site's typed register (sites_026g.tsv `holds`).
+#[repr(transparent)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct ModifierList(NonNull<c_void>);
+
+#[allow(dead_code)]
+impl ModifierList {
+    /// Its address as a value (an id, a compare): never read through.
+    #[inline(always)]
+    pub fn address(self) -> u32 {
+        self.0.as_ptr() as usize as u32
+    }
+
+    /// +0x4 (ptr<survarium::modifier_node>): a kit list's first node, 0 for none (apply_modifier 0x2D5B0C, apply_modifiers 0x2D5C46)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn first(self) -> Option<ModifierNode> {
+        unsafe { self.0.byte_add(0x4).cast::<Option<ModifierNode>>().read_volatile() }
+    }
+
+    /// +0x4 (ptr<survarium::modifier_node>): a kit list's first node, 0 for none (apply_modifier 0x2D5B0C, apply_modifiers 0x2D5C46)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn set_first(self, value: Option<ModifierNode>) {
+        unsafe { self.0.byte_add(0x4).cast::<Option<ModifierNode>>().write_volatile(value) }
+    }
+
+    /// 0x14 bytes: one of a kit's 68 node lists, 14h each from its modifiers' +110h (0x2D5AF2 lea edi,[eax+ecx*4+110h], ecx index x 5)
+    pub const SIZE: usize = 0x14;
+
+    /// The `index`th of an array of them that starts at this one.
+    ///
+    /// # Safety
+    /// The array has more than `index`.
+    #[inline(always)]
+    pub unsafe fn at(self, index: usize) -> Self {
+        Self(unsafe { self.0.byte_add(index * Self::SIZE) })
+    }
+
+    /// Which of an array that starts at `first` this one is (None before `first`, or between two).
+    #[inline(always)]
+    pub fn index_from(self, first: Self) -> Option<usize> {
+        let offset = (self.0.as_ptr() as usize).checked_sub(first.0.as_ptr() as usize)?;
+        (offset % Self::SIZE == 0).then_some(offset / Self::SIZE)
+    }
+}
+
+/// Room of ours for survarium::modifier_lists (0x14 bytes, aligned to 4), zeroed: a local the game fills,
+/// or one we fill for it.
+#[repr(C, align(4))]
+pub struct ModifierListStorage([u8; 0x14]);
+
+#[allow(dead_code)]
+impl ModifierListStorage {
+    pub const fn zeroed() -> Self {
+        Self([0; 0x14])
+    }
+
+    /// The one this room holds (alive while the room is).
+    #[inline(always)]
+    pub fn handle(&mut self) -> ModifierList {
+        ModifierList(NonNull::from(self).cast())
+    }
+
+    /// The first of these rooms, an array of them (None when there is none).
+    #[inline(always)]
+    pub fn first(rooms: &mut [Self]) -> Option<ModifierList> {
+        (!rooms.is_empty()).then(|| ModifierList(NonNull::from(rooms).cast()))
     }
 }
 
@@ -20253,6 +20356,84 @@ pub mod site {
         #[inline(always)]
         pub unsafe fn frame(machine: &impl Machine) -> Option<ProtectorsFrame> {
             NonNull::new(machine.site_esp() as usize as *mut c_void).map(ProtectorsFrame)
+        }
+    }
+
+    /// artefact.own_modifier (0x2d5b0c): apply_modifier before it sums its list's nodes (both ways from the sorted flag's test join here; mov eax,[edi+4] / xorps xmm2,xmm2, then the loop 0x2D5B20 adds each node's +0Ch into XMM1 as value + sum): EDI the kit's list of the index ESI; summed is the loop's end (pop edi / test eax,eax / je 0x2D5B33 addss xmm0,xmm1) with EAX 0, XMM1 the sum and XMM2 the 0 the rule compares with
+    pub mod artefact_own_modifier {
+        #[allow(unused_imports)]
+        use super::*;
+
+        /// EDI: a survarium::modifier_list (None for 0).
+        ///
+        /// # Safety
+        /// `machine` is at this site.
+        #[inline(always)]
+        pub unsafe fn list(machine: &impl Machine) -> Option<ModifierList> {
+            NonNull::new(machine.register(Register::Edi) as usize as *mut c_void).map(ModifierList)
+        }
+
+        /// ESI: a u32 value.
+        ///
+        /// # Safety
+        /// `machine` is at this site.
+        #[inline(always)]
+        pub unsafe fn index(machine: &impl Machine) -> u32 {
+            machine.register(Register::Esi)
+        }
+    }
+
+    /// artefact.own_modifiers (0x2d5c46): apply_modifiers 0x2D5BC0's loop before it sums one index's list (mov eax,[edi+4] / movaps xmm2,xmm3, XMM3 0; the loop 0x2D5C50 adds each node's +0Ch into XMM2): EBX the kit's modifiers, EDI the list (ESI there is the pair's counter, not the index); summed is the loop's end (0x2D5C63 mov ecx,[esp+20h], then addss xmm0,xmm2 at 0x2D5C69) with XMM2 the sum
+    pub mod artefact_own_modifiers {
+        #[allow(unused_imports)]
+        use super::*;
+
+        /// EBX: a survarium::player_params_modifiers_container (None for 0).
+        ///
+        /// # Safety
+        /// `machine` is at this site.
+        #[inline(always)]
+        pub unsafe fn modifiers(machine: &impl Machine) -> Option<PlayerParamsModifiersContainer> {
+            NonNull::new(machine.register(Register::Ebx) as usize as *mut c_void).map(PlayerParamsModifiersContainer)
+        }
+
+        /// EDI: a survarium::modifier_list (None for 0).
+        ///
+        /// # Safety
+        /// `machine` is at this site.
+        #[inline(always)]
+        pub unsafe fn list(machine: &impl Machine) -> Option<ModifierList> {
+            NonNull::new(machine.register(Register::Edi) as usize as *mut c_void).map(ModifierList)
+        }
+    }
+
+    /// artefact.own_onyx (0x312bf0): artefact_onyx_core::protect's start (mov eax,[ecx+0EE8h], the hit type it protects against; thiscall: the hit, &damage, &piercing; one protector of it in each protected part's list): ECX the Onyx; done is its ret 0Ch with nothing pushed, the hit as it was (the other hit type's way, 0x312BFD)
+    pub mod artefact_own_onyx {
+        #[allow(unused_imports)]
+        use super::*;
+
+        /// ECX: a survarium::artefact (None for 0).
+        ///
+        /// # Safety
+        /// `machine` is at this site.
+        #[inline(always)]
+        pub unsafe fn onyx(machine: &impl Machine) -> Option<Artefact> {
+            NonNull::new(machine.register(Register::Ecx) as usize as *mut c_void).map(Artefact)
+        }
+    }
+
+    /// artefact.own_lifebone (0x312590): artefact_lifebone_core::regeneration_modifier's start (mov ecx,[esp+8] / mov edx,[esp+4]: the record, the frame {rate, delay, limit}): ECX the Lifebone, the object its regeneration_modifiers subscriber's invoker 0x312640 calls it on (this = the functor's +4 plus +8, the Lifebone the passive's subscription 0x311F4C binds); done is its ret 8 (0x312605, after add esp,8: nothing pushed), the frame as it was
+    pub mod artefact_own_lifebone {
+        #[allow(unused_imports)]
+        use super::*;
+
+        /// ECX: a survarium::artefact (None for 0).
+        ///
+        /// # Safety
+        /// `machine` is at this site.
+        #[inline(always)]
+        pub unsafe fn lifebone(machine: &impl Machine) -> Option<Artefact> {
+            NonNull::new(machine.register(Register::Ecx) as usize as *mut c_void).map(Artefact)
         }
     }
 

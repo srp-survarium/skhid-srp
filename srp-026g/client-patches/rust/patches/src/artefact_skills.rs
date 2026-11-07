@@ -5,7 +5,8 @@
 #![forbid(unsafe_code)]
 
 use crate::vostok::{
-    ArtefactSkillsOnLandingExit, Context, Flow, GameCell, NoExit, artefact_skills,
+    ArtefactSkillsOnLandingExit, ArtefactSkillsOnOwnLifeboneExit, ArtefactSkillsOnOwnModifierExit,
+    ArtefactSkillsOnOwnModifiersExit, ArtefactSkillsOnOwnOnyxExit, Context, Flow, GameCell, NoExit, artefact_skills,
     types::{Place, Tick},
 };
 
@@ -227,8 +228,8 @@ impl Kind {
 }
 
 /// A player's passive copies of each kind that count for it (artefact-skills.md, "Leg quarters"):
-/// its own carried copies giving their passive and the copies Resonance shares with it, at most
-/// [`Room::MOST`] of a kind (the sharing's own cap; own copies past it count as 4).
+/// its own copies that count ([`Room::counts_own`]) giving their passive and the copies Resonance
+/// shares with it, at most [`Room::MOST`] of a kind.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub struct Copies {
     spring: u8,
@@ -257,8 +258,8 @@ impl Copies {
 }
 
 /// The shared copies of one kind and phase a recipient still takes (the owner, 2026-11-05: at
-/// most 4 effects of one kind in all, its own included): 4 less its own carried copies of the
-/// kind; own copies past 4 stay (native), none shared.
+/// most 4 effects of one kind in all, its own included): 4 less its own copies of the kind that
+/// count ([`Room::counts_own`]); with 4 own, none shared.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct Room(u8);
 
@@ -266,6 +267,14 @@ impl Room {
     pub const MOST: u8 = 4;
     /// A recipient that takes none (a dead one).
     pub const NONE: Room = Room(0);
+
+    /// Whether a player's `nth` own copy of a kind (from 0, in container order, of its copies in
+    /// their passive or active) counts for it (the owner, 2026-11-07: at most 4 copies of one kind
+    /// count, own copies included): the first [`Room::MOST`]. One past them gives nothing where
+    /// its passive is applied (a fifth with Artifact Container).
+    pub fn counts_own(nth: usize) -> bool {
+        nth < usize::from(Self::MOST)
+    }
 
     pub fn after(own: usize) -> Self {
         Self(usize::from(Self::MOST).saturating_sub(own) as u8)
@@ -462,6 +471,29 @@ pub fn on_shared_regeneration(ctx: &mut Context<'_>) -> Flow<NoExit> {
     Flow::Continue
 }
 
+/// The own cap at apply_modifier's list sum (0x2D5B0C): the player's own Springs past the 4 that
+/// count add none of their passive's nodes (the loop's sum given at its end, `Summed`).
+pub fn on_own_modifier(ctx: &mut Context<'_>) -> Flow<ArtefactSkillsOnOwnModifierExit> {
+    if artefact_skills::own_modifier(ctx) { Flow::Exit(ArtefactSkillsOnOwnModifierExit::Summed) } else { Flow::Continue }
+}
+
+/// The same in apply_modifiers' loop (0x2D5C46), for each of its indices.
+pub fn on_own_modifiers(ctx: &mut Context<'_>) -> Flow<ArtefactSkillsOnOwnModifiersExit> {
+    if artefact_skills::own_modifiers(ctx) { Flow::Exit(ArtefactSkillsOnOwnModifiersExit::Summed) } else { Flow::Continue }
+}
+
+/// The own cap at an Onyx's protect (0x312BF0): a passive Onyx past the 4 that count for its
+/// holder leaves the hit as it is.
+pub fn on_own_onyx(ctx: &mut Context<'_>) -> Flow<ArtefactSkillsOnOwnOnyxExit> {
+    if artefact_skills::onyx_uncounted(ctx) { Flow::Exit(ArtefactSkillsOnOwnOnyxExit::Done) } else { Flow::Continue }
+}
+
+/// The own cap at a Lifebone's regeneration modifier (0x312590): a Lifebone past the 4 that count
+/// for its holder leaves the part's tick as it is.
+pub fn on_own_lifebone(ctx: &mut Context<'_>) -> Flow<ArtefactSkillsOnOwnLifeboneExit> {
+    if artefact_skills::lifebone_uncounted(ctx) { Flow::Exit(ArtefactSkillsOnOwnLifeboneExit::Done) } else { Flow::Continue }
+}
+
 /// Resistance at body_part_parameters::hit_by_type (0x32A083): XMM0 the part's armour.
 pub fn on_isolation(ctx: &mut Context<'_>) -> Flow<NoExit> {
     artefact_skills::isolation(ctx);
@@ -603,6 +635,9 @@ mod tests {
             let taken = (0..8).filter(|_| room.take()).count();
             assert_eq!(taken, 4usize.saturating_sub(own), "{own}");
         }
+        // Own copies count up to 4 too: a fifth (Artifact Container) gives nothing.
+        assert_eq!((0..6).filter(|&nth| Room::counts_own(nth)).count(), 4);
+        assert!(Room::counts_own(3) && !Room::counts_own(4));
     }
 
     #[test]

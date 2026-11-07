@@ -3374,6 +3374,7 @@ va	status	ref_021d	name
 0x002dddf0	inferred-medium		survarium::game_effect_player::deserialize
 0x002e5c30	inferred-medium		survarium::game_effect_ptr_wrapper::deserialize_root_emitter
 0x00312590	inferred-medium		survarium::artefact_lifebone_core::regeneration_modifier
+0x00312640	inferred-medium		boost::detail::function::void_function_obj_invoker2<bind_t<artefact_lifebone_core::regeneration_modifier>>::invoke
 0x003134c0	inferred-medium		survarium::artefact_base::on_spawned
 0x0031b8e0	inferred-medium		survarium::generic_anomaly_core::register_artefacts
 0x0031c360	inferred-medium		vostok::buffer_vector<survarium::artefact_base *>::push_back

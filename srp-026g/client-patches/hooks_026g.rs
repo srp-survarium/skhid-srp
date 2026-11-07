@@ -611,6 +611,86 @@ pub extern "C" fn hook_medical_skills_on_regenerate(frame: &mut Frame) -> u32 {
     }
 }
 
+// ---- artefact_skills (patch 109) ----
+
+/// The named exits of artefact_skills::on_own_modifier (the order the shim's Flow code
+/// follows, 2 upward).
+#[repr(u32)]
+#[allow(dead_code)]
+pub enum ArtefactSkillsOnOwnModifierExit { Summed }
+/// The entry `artefact_skills_on_own_modifier` (0x2d5b0c, apply_modifier before it sums its list's nodes (both ways from the sorted flag's test join here; mov eax,[edi+4] / xorps xmm2,xmm2, then the loop 0x2D5B20 adds each node's +0Ch into XMM1 as value + sum): EDI the kit's list of the index ESI; summed is the loop's end (pop edi / test eax,eax / je 0x2D5B33 addss xmm0,xmm1) with EAX 0, XMM1 the sum and XMM2 the 0 the rule compares with) calls this with the saved machine.
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_artefact_skills_on_own_modifier(frame: &mut Frame) -> u32 {
+    // SAFETY: only the entry `artefact_skills_on_own_modifier` calls this, from the game's jump at 0x2d5b0c,
+    // on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::new(frame) };
+    match crate::artefact_skills::on_own_modifier(&mut ctx) {
+        Flow::Continue => 0,
+        Flow::Skip => 1,
+        Flow::Exit(e) => 2 + e as u32,
+    }
+}
+
+// ---- artefact_skills (patch 109) ----
+
+/// The named exits of artefact_skills::on_own_modifiers (the order the shim's Flow code
+/// follows, 2 upward).
+#[repr(u32)]
+#[allow(dead_code)]
+pub enum ArtefactSkillsOnOwnModifiersExit { Summed }
+/// The entry `artefact_skills_on_own_modifiers` (0x2d5c46, apply_modifiers 0x2D5BC0's loop before it sums one index's list (mov eax,[edi+4] / movaps xmm2,xmm3, XMM3 0; the loop 0x2D5C50 adds each node's +0Ch into XMM2): EBX the kit's modifiers, EDI the list (ESI there is the pair's counter, not the index); summed is the loop's end (0x2D5C63 mov ecx,[esp+20h], then addss xmm0,xmm2 at 0x2D5C69) with XMM2 the sum) calls this with the saved machine.
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_artefact_skills_on_own_modifiers(frame: &mut Frame) -> u32 {
+    // SAFETY: only the entry `artefact_skills_on_own_modifiers` calls this, from the game's jump at 0x2d5c46,
+    // on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::new(frame) };
+    match crate::artefact_skills::on_own_modifiers(&mut ctx) {
+        Flow::Continue => 0,
+        Flow::Skip => 1,
+        Flow::Exit(e) => 2 + e as u32,
+    }
+}
+
+// ---- artefact_skills (patch 109) ----
+
+/// The named exits of artefact_skills::on_own_onyx (the order the shim's Flow code
+/// follows, 2 upward).
+#[repr(u32)]
+#[allow(dead_code)]
+pub enum ArtefactSkillsOnOwnOnyxExit { Done }
+/// The entry `artefact_skills_on_own_onyx` (0x312bf0, artefact_onyx_core::protect's start (mov eax,[ecx+0EE8h], the hit type it protects against; thiscall: the hit, &damage, &piercing; one protector of it in each protected part's list): ECX the Onyx; done is its ret 0Ch with nothing pushed, the hit as it was (the other hit type's way, 0x312BFD)) calls this with the saved machine.
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_artefact_skills_on_own_onyx(frame: &mut Frame) -> u32 {
+    // SAFETY: only the entry `artefact_skills_on_own_onyx` calls this, from the game's jump at 0x312bf0,
+    // on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::new(frame) };
+    match crate::artefact_skills::on_own_onyx(&mut ctx) {
+        Flow::Continue => 0,
+        Flow::Skip => 1,
+        Flow::Exit(e) => 2 + e as u32,
+    }
+}
+
+// ---- artefact_skills (patch 109) ----
+
+/// The named exits of artefact_skills::on_own_lifebone (the order the shim's Flow code
+/// follows, 2 upward).
+#[repr(u32)]
+#[allow(dead_code)]
+pub enum ArtefactSkillsOnOwnLifeboneExit { Done }
+/// The entry `artefact_skills_on_own_lifebone` (0x312590, artefact_lifebone_core::regeneration_modifier's start (mov ecx,[esp+8] / mov edx,[esp+4]: the record, the frame {rate, delay, limit}): ECX the Lifebone, the object its regeneration_modifiers subscriber's invoker 0x312640 calls it on (this = the functor's +4 plus +8, the Lifebone the passive's subscription 0x311F4C binds); done is its ret 8 (0x312605, after add esp,8: nothing pushed), the frame as it was) calls this with the saved machine.
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_artefact_skills_on_own_lifebone(frame: &mut Frame) -> u32 {
+    // SAFETY: only the entry `artefact_skills_on_own_lifebone` calls this, from the game's jump at 0x312590,
+    // on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::new(frame) };
+    match crate::artefact_skills::on_own_lifebone(&mut ctx) {
+        Flow::Continue => 0,
+        Flow::Skip => 1,
+        Flow::Exit(e) => 2 + e as u32,
+    }
+}
+
 // ---- packet_recovery (patch 97) ----
 
 /// The entry `packet_recovery_on_loaded` (0x27c116, process_dynamic_match_info after either core deserialize returns, before mov eax,[edi+4] / test eax,eax; a load receipt is emitted only here) calls this with the saved machine.
