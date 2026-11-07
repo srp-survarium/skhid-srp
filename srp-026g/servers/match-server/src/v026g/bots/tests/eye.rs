@@ -369,6 +369,7 @@ fn pre_eye_pin_tuning() -> Tuning {
         // A331: the level computed from the kit (default ON); the pin has the measured one.
         old.kin.level_source = kin::LevelSource::Measured;
         old.kin.carrier_sprint = kin::CarrierSprint::Allowed;
+        old.kin.leg_damage = kin::LegDamageGate::Ignored;
         old.sense.ranges = tuning::HearingRanges::Flat;
         old.sense.shots = tuning::ShotRanges::Flat;
         old.sense.sprint_body_mps = None;

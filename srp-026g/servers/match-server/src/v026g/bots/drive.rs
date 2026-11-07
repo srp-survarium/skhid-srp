@@ -1954,6 +1954,10 @@ fn drive_tick_inner(
     // [A331] A battery carrier does not sprint (the owner: "battery cariers cant sprint"; `can_sprint` 0x2DBF40 refuses while the
     // hands' item byte +0x388 != 0, fx-review A332, LIKELY by the exe): the bot does not ask for it while it carries.
     decision.keys = carrier_keys(decision.keys, me.carrying.is_some() && tuning.kin.carrier_sprint == kin::CarrierSprint::Refused);
+    // [A325f] The legs' `leg_damage` gate (`kin.leg_damage`; the world's affects, `legs`): the bot does not ask for a move, sprint
+    // or jump its legs refuse (two legs held: none until the first ends; one: no sprint, no jump). Its own reckoned body takes the
+    // same keys.
+    decision.keys = bot.hurt.leg_damage.at(time).keys(decision.keys);
     let lift_paced = decision.keys & lift_wants == lift_wants;
     // The pull is the kick's part taken back, in the game's pitch unit: as a rise of the elevation at this pitch (`pitch.rs`).
     decision.turn.1 += Pitch::of_elevation(me.pitch, tuning.kin.pitch_scale).rise(over.pull, tuning.kin.pitch_scale);

@@ -464,6 +464,9 @@ pub struct Hurt {
     pub last_hit_ms: Option<u32>,
     /// [A313] The legs' pools as the world showed them (none where it did not).
     pub legs: [Option<f32>; 2],
+    /// [A325f] The legs' `leg_damage` affects as the world showed them ([`super::legs`]; `Sound` with `kin.leg_damage`
+    /// ignored).
+    pub leg_damage: super::legs::LegDamage,
 }
 
 /// After a hit the body is staggered this long, ms (`stagger_duration`,
@@ -483,7 +486,13 @@ impl Hurt {
             leg_broken: legs.iter().flatten().any(|&pool| pool <= LEG_BROKEN),
             legs,
             last_hit_ms: (last_hit_ms != 0 && last_hit_ms <= now).then_some(last_hit_ms),
+            leg_damage: super::legs::LegDamage::Sound,
         }
+    }
+
+    /// [A325f] With the legs' `leg_damage` affects the world showed.
+    pub fn with_leg_damage(self, leg_damage: super::legs::LegDamage) -> Self {
+        Self { leg_damage, ..self }
     }
 
     /// [A313] The client's speed factor from the legs alone, `max(0, 1 + the legs' terms)`: a leg at 0 (broken) -0.2, under 20 %
@@ -499,12 +508,13 @@ impl Hurt {
         (1.0 + term(self.legs[0]) + term(self.legs[1])).max(0.0)
     }
 
-    /// Whether the body may jump at `now`, ms: no broken leg, and not
+    /// Whether the body may jump at `now`, ms: no broken leg, no `leg_damage` affect (A325f), and not
     /// within [`HIT_JUMP_HOLD_MS`] of the last hit. Stamina is not in the
     /// world's state, so its gate (no jump under 10, nor from 0 until back
     /// over 20) is not known here.
     pub fn may_jump(&self, now: u32) -> bool {
         !self.leg_broken
+            && self.leg_damage.at(now) == super::legs::LegGate::Free
             && self
                 .last_hit_ms
                 .is_none_or(|at| now >= at.saturating_add(HIT_JUMP_HOLD_MS))
@@ -4417,6 +4427,10 @@ mod tests {
         assert!(!Hurt::of([Some(0.5), Some(0.0)], 0, now).may_jump(now));
         assert!(!Hurt::of([Some(0.0), None], 0, now).may_jump(now));
         assert!(Hurt::of([None, None], 0, now).may_jump(now));
+        // [A325f] A `leg_damage` affect shuts the jump until it ends, whatever the pools show.
+        let legs = super::super::legs::LegDamage::One { until: now + 1_000 };
+        assert!(!Hurt::of([Some(0.5); 2], 0, now).with_leg_damage(legs).may_jump(now));
+        assert!(Hurt::of([Some(0.5); 2], 0, now).with_leg_damage(legs).may_jump(now + 1_000));
         let hit = Hurt::of([Some(0.5); 2], now - 200, now);
         assert!(!hit.may_jump(now));
         assert!(hit.may_jump(now - 200 + HIT_JUMP_HOLD_MS));

@@ -61,6 +61,7 @@ pub mod jump_test;
 pub mod kin;
 pub mod know;
 pub mod lane_ahead;
+pub mod legs;
 pub mod link_time;
 pub mod live_grenades;
 pub mod live_zones;
@@ -1371,6 +1372,13 @@ impl Bots {
         // [A313] The legs' term of the speed factor for the body's reckoning, with `kin.speed_terms` legs.
         let legs = (self.tunings.match_wide().kin.speed_terms == kin::SpeedTerms::Legs).then(|| hurt.legs_factor());
         self.tracker.set_legs(place, legs);
+        // [A325f] The legs' `leg_damage` gate on the moves of the place's reckoned body and of a bot's own keys.
+        let hurt = if self.tunings.match_wide().kin.leg_damage == kin::LegDamageGate::Client {
+            hurt
+        } else {
+            hurt.with_leg_damage(legs::LegDamage::Sound)
+        };
+        self.tracker.set_leg_damage(place, hurt.leg_damage);
         if let Some(Some(bot)) = self.bots.get_mut(place) {
             bot.hurt = hurt;
             // [A217] A hit after a drug's press stops it (patch 84): the pantry keeps the first one.

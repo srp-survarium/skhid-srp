@@ -760,6 +760,13 @@ impl Tracker {
         }
     }
 
+    /// [A325f] The legs' `leg_damage` gate on `place`'s body's moves ([`BodyTrack::set_leg_damage`]).
+    pub fn set_leg_damage(&mut self, place: Place, legs: super::legs::LegDamage) {
+        if let Some(state) = self.places.get_mut(place) {
+            state.body.set_leg_damage(legs);
+        }
+    }
+
     /// [A318] Whether a jump `place`'s body presses next would go ([`BodyTrack::set_may_jump`]).
     pub fn set_may_jump(&mut self, place: Place, may: bool) {
         if let Some(state) = self.places.get_mut(place) {

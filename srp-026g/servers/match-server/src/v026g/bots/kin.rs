@@ -94,6 +94,8 @@ pub struct Kinematics {
     pub level_source: LevelSource,
     /// [A331] Whether a battery carrier sprints ([`CarrierSprint`]).
     pub carrier_sprint: CarrierSprint,
+    /// [A325f] Whether a body's leg damage gates its moves as the client's does ([`LegDamageGate`]).
+    pub leg_damage: LegDamageGate,
     /// [A304] The flattest ramp face (degrees, the grid's ramp mark) [`SlopeSpeed::RampsGrade`] slows on: a floor whose mark is
     /// flatter counts as unmarked. 35 (the lab, 2026-11-05: Vostok Radar Station's and Chemical Plant's stairs carry 20-39 degree
     /// marks and the client climbs them at full speed; Cologne's slowing stairs are 45; 35 was better than 40 and 44). 20: every
@@ -183,6 +185,19 @@ pub enum CarrierSprint {
     /// against the run).
     #[default]
     Refused,
+}
+
+/// [A325f] Whether a body's `leg_damage` affects gate its moves (`super::legs`; fx-review A325f, PROVEN in the exe): two legs
+/// held stop every move, sprint and jump until the first ends; one leg stops the sprint and the jump. KEPT_RIGHT (a correctness
+/// fix proven in the client's code: the old body walks on where the client stands).
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum LegDamageGate {
+    /// As it was: the keys move the body whatever its legs (the bots' own jump gate keeps its leg-pool test).
+    Ignored,
+    /// The client's gate: the reckoned body of every place and a bot's own keys drop what the legs refuse.
+    #[default]
+    Client,
 }
 
 /// [A331] How near a world's speed level must be to one of the kit's computed values to be taken as that value: the A332 check's
@@ -398,6 +413,7 @@ impl Default for Kinematics {
             level_read: LevelRead::Settled,
             level_source: LevelSource::Computed,
             carrier_sprint: CarrierSprint::Refused,
+            leg_damage: LegDamageGate::Client,
         }
     }
 }
