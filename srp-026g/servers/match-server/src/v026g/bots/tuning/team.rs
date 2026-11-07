@@ -771,6 +771,13 @@ pub struct ThreatTuning {
     /// shooter within this many metres of it (fx-review A342 §5: 5 of 47 after-cue kills had no cue, his kills split into spots
     /// 4 m apart). None: its own kills, as before.
     pub cue_merge_m: Option<f32>,
+    /// `threat.replan_on_cue` [A342c]: when a held spot is first cued for the jobs, each of the team's bots looks once at its
+    /// route ahead against the team's cover (A3's test: more than `EXPOSED_M` of it exposed) and re-plans it out of his lanes
+    /// to the same goal (the owner's rule: change the approach, not the objective). fx-review A342 §5: 30 of 47 after-cue kills
+    /// were bots already in his lane when the cue came, who stayed (route costs apply only to a route drawn). A3 itself
+    /// (`replan`, every change of the cover) stays off for its cost; this looks once a cue. A bot holding a post with no route
+    /// is not moved. Off: as before.
+    pub replan_on_cue: bool,
 }
 
 /// A320 [`ThreatTuning::camp_flank`]: the flank routes round the known camp spots, and what the flanker does when the camper
@@ -1009,6 +1016,7 @@ impl Default for ThreatTuning {
             lane_goal_weight: None,
             no_lone_m: None,
             cue_merge_m: None,
+            replan_on_cue: false,
         }
     }
 }

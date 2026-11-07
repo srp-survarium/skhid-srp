@@ -2600,6 +2600,8 @@ pub struct TeamThreat {
     pub breach_due: Vec<super::breach::Due>,
     /// [threat.breach] The enemies the team killed of the last [`DEATH_KEPT_MS`] and its killers (the kill feed's).
     pub kills: Vec<super::breach::Kill>,
+    /// [A342c `threat.replan_on_cue`] The cued spots its bots were told to look at their routes for.
+    pub cued_seen: Vec<u32>,
 }
 
 /// A death of the team: who, by whom if the kill feed told, when.
@@ -2621,6 +2623,8 @@ pub const DEATH_KEPT_MS: u32 = 5_000;
 pub struct BotThreat {
     pub planned_with: Option<std::sync::Arc<Covered>>,
     pub clear_with: Option<std::sync::Arc<Covered>>,
+    /// [A342c `threat.replan_on_cue`] A new cue: its route ahead is looked at once.
+    pub cue_due: bool,
     /// The bench's replan waiting for its judgment ([`judged`]).
     #[cfg(test)]
     pub asked: Option<Asked>,
@@ -2633,6 +2637,7 @@ impl super::features::Feature for BotThreat {
     fn new_life(&mut self, _life: &super::features::Life) {
         self.planned_with = None;
         self.clear_with = None;
+        self.cue_due = false;
         #[cfg(test)]
         {
             self.asked = None;

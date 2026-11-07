@@ -291,6 +291,17 @@ fn threat_tick(
             Some(m) => threat::holds_merged(&held, tuning.threat.job_kills, m),
             None => threat::holds(&held, tuning.threat.job_kills),
         };
+        // [A342c] A spot cued for the first time: each of the team's bots looks once at its route ahead.
+        if tuning.threat.replan_on_cue {
+            let new = holds.iter().any(|l| !threat.cued_seen.contains(&l.id));
+            threat.cued_seen.retain(|id| held.iter().any(|l| l.id == *id));
+            threat.cued_seen.extend(holds.iter().map(|l| l.id).filter(|id| !threat.cued_seen.contains(id)).collect::<Vec<_>>());
+            if new {
+                for bot in bots.iter_mut().flatten().filter(|b| b.team == team) {
+                    bot.features.threat.cue_due = true;
+                }
+            }
+        }
         // [threat.concede] No job on a conceded area, nor a new one like the last failed try on a tried one (a Flank: the
         // same kind, so only its time differs; design-p1c §3). The fight side's (`Concede::refuse_fights`).
         if let Some(concede) = tuning.threat.concede.filter(|c| c.refuse_fights.is_some()) {
