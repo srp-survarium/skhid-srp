@@ -495,9 +495,14 @@ fn transition(reader: &mut Reader) -> Result<(), Fault> {
 /// Everything after the items, to the state's exact end.
 fn after_items(mut reader: Reader, alive: bool, body_parts: usize) -> Result<(), Fault> {
     let reader = &mut reader;
-    // The jump type, the horizontal speed.
-    reader.skip(1).map_err(short)?;
-    float(reader)?;
+    // The jump type, the horizontal speed (`m_linear_horizontal_speed`,
+    // stored at 0x2DB844). Any f32: the game writes NaN. The step
+    // (0x2D9507..0x2D9545) makes it the move's length over the step's
+    // milliseconds, so a step of 0 ms gives 0/0 or x/0. Every reader
+    // compares, multiplies or interpolates it (0x2D95CF, the curve 0x25F30
+    // from 0x31A4C8, the animation selector 0x33705A..0x337299), none takes
+    // it as a count or index, and the player's next step writes it again.
+    reader.skip(1 + 4).map_err(short)?;
     // The damage model: the second chance, four times, the body parts.
     flag(reader)?;
     reader.skip(16).map_err(short)?;
@@ -549,9 +554,14 @@ fn after_items(mut reader: Reader, alive: bool, body_parts: usize) -> Result<(),
     // The time it was inserted.
     reader.skip(4).map_err(short)?;
     if alive {
-        // The character controller: its last position, six flags, four
-        // vectors, the sprint flag.
-        floats(reader, 3)?;
+        // The character controller (0x7FB10): its last position, six flags,
+        // four vectors, the sprint flag. The last position (`m_last_pos`
+        // +50h, stored raw) is any f32: the game writes NaN in it. It is
+        // read only by updateAction's moved test (0x7B773..0x7B7A7, where a
+        // NaN counts as moved) and player_step, which writes it anew at its
+        // start (0x7BE84); the body's position comes from the player's
+        // transform (set_transform at 0x2DB934), not from it.
+        reader.skip(12).map_err(short)?;
         for _ in 0..6 {
             flag(reader)?;
         }

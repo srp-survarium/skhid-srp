@@ -513,7 +513,10 @@ pub enum AnimFault {
     Short,
     /// A times-table index is at or past the table's unique count (0x3A96F2).
     TimesIndex,
-    /// A floats-table index is at or past the table's unique count (0x3A9895).
+    /// A floats-table index is past the table's unique count (0x3A9895). The
+    /// count itself is an index the game writes: a NaN's (`save_floats`
+    /// 0x397040 finds no equal entry for it), read from inside the reader's
+    /// own frame.
     FloatsIndex,
     /// A channel pick is at or past the channel count (0x3A8EF0).
     ChannelIndex,
@@ -659,8 +662,20 @@ fn channel_pick(b: &mut Bits<'_>, channels: u32) -> Result<(), AnimFault> {
 
 /// One table: `decode_times_in_ms_impl` 0x3A9580 when `times`, else
 /// `decode_floats_impl` 0x3A9720. Read it as the length walk does but bound
-/// each index to the unique count, and return how many values it pushes (what
-/// the tree may pop). The two order their count and mode bit differently.
+/// each index to the indexes the game's encoder writes, and return how many
+/// values it pushes (what the tree may pop). The two order their count and
+/// mode bit differently.
+///
+/// The encoders (`save_times_in_ms` 0x396D40, `save_floats` 0x397040) sort
+/// the values into a stack copy, keep the unique ones (`unique` 0x397810 for
+/// the floats: `ucomiss` equality) and write for each value the position
+/// `find` (0x397880, linear, the same equality) gives it. A NaN equals
+/// nothing, so a NaN float is kept in the table and then not found: its index
+/// is the table's end, the unique count. The reader takes `table[index]` with
+/// no bound, and `table[unique]` is the dword past its `_alloca_probe_16`
+/// table: its alignment padding or the saved EDI, inside `decode_floats_impl`'s
+/// own frame (0x3A97D1). So a floats index may be the unique count and no
+/// more. A time is a u32, always found: its index is below the count.
 fn table_count(b: &mut Bits<'_>, times: bool) -> Result<u64, AnimFault> {
     use AnimFault::Short;
     if times {
@@ -692,7 +707,7 @@ fn table_count(b: &mut Bits<'_>, times: bool) -> Result<u64, AnimFault> {
             let unique = b.read(width(count)).ok_or(Short)?;
             b.skip((unique as usize).checked_mul(32).ok_or(Short)?).ok_or(Short)?;
             for _ in 0..count {
-                if b.read(width(unique)).ok_or(Short)? >= unique {
+                if b.read(width(unique)).ok_or(Short)? > unique {
                     return Err(AnimFault::FloatsIndex);
                 }
             }
