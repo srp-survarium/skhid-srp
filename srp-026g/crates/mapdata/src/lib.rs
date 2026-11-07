@@ -221,6 +221,20 @@ impl World {
     /// is set (0.5-1.7 s a map), and its table of open sides ([`WalkGrid::open_toward`]) for a capsule held `support_m` past a
     /// floor's centre at a ledge when `open_sides` is `Some(support_m)`.
     pub fn build_with(map: MapData, cell: f32, body: Body, links: OffMeshLinks, wall_clearance: bool, open_sides: Option<f32>) -> Self {
+        Self::build_with_hold(map, cell, body, links, wall_clearance, open_sides, None)
+    }
+
+    /// [`Self::build_with`], with the pull's hold for the routes' straight legs ([`WalkGrid::with_pull_hold`]) when `pull_hold`
+    /// is `Some(hold)` (A333; it needs the table of wall clearances).
+    pub fn build_with_hold(
+        map: MapData,
+        cell: f32,
+        body: Body,
+        links: OffMeshLinks,
+        wall_clearance: bool,
+        open_sides: Option<f32>,
+        pull_hold: Option<f32>,
+    ) -> Self {
         let spawns: Vec<Vec3> = map.spawns.iter().map(|s| s.position).collect();
         let walker = map.walker_triangles();
         let (grid, _) = WalkGrid::build_kept_with_links(
@@ -233,6 +247,10 @@ impl World {
             links,
         );
         let grid = if wall_clearance { grid.with_wall_clearance(&walker) } else { grid };
+        let grid = match pull_hold {
+            Some(hold) => grid.with_pull_hold(hold),
+            None => grid,
+        };
         let grid = match open_sides {
             Some(support_m) => grid.with_open_sides(&walker, support_m),
             None => grid,
