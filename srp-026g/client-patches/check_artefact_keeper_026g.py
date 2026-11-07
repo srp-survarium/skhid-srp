@@ -206,8 +206,8 @@ def check(data):
     g.word(larkspur[0] + 0x250, 0)
     g.statistics(0, 2, 0)
     assert given(p0, slots0) == 0 and g.state(larkspur[0]) == 0
-    # The first container held, the second empty: into the second.
-    p1, _, slots1 = g.player(1, KEEPER + draw(1))
+    # The first container held, the second empty: into the second (a kit with Resistance at its 5).
+    p1, _, slots1 = g.player(1, KEEPER + draw(1) + 5)
     g.word(slots1, own[0])
     assert given(p1, slots1, 1) == larkspur[1] and g.read(slots1) == own[0]
     # Every container held: it waits; a container freed in the same life: then.
