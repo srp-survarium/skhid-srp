@@ -179,3 +179,12 @@ impl<'t> Recipient<'t> {
             .is_some_and(|mut inventory| inventory.take_dormant(item))
     }
 }
+
+/// A spawn's setup_from_profile before its on_taken loop (`keeper.respawn_containers`): the
+/// spawned kit's containers whose artefact the world has in no inventory of this kit are emptied
+/// (`inventory::empty_stale_containers`); `emptied` is told each one's id.
+pub fn empty_stale_containers(ctx: &Context<'_>, emptied: impl FnMut(u8)) {
+    // SAFETY: the site's EDI, the inventory setup_from_profile sets up (base_player's +10Ch).
+    let Some(inventory) = (unsafe { raw::site::keeper_respawn_containers::inventory(ctx) }) else { return };
+    super::inventory::empty_stale_containers(inventory, ctx.thread(), emptied);
+}

@@ -289,6 +289,23 @@ preferred-image VAs; `apply_modifier` is the kit-modifier getter 0x2D5AE0.
   Held in the hand, patch 78 drops it (state 6, anyone takes it). It goes dormant only when a
   take with every container held replaces the first container's (take_artefact 0x2FC897): still
   given, never given again. Places are never reused, so a late joiner's place has its own.
+- A rollback over a respawn into another kit (the live crash of rev51, 2026-11-07, matches
+  0x69f885a and 0x52604c4f: every game of the match crashed at the same simulated moment). A world
+  holds only the current kit's player and inventory (game_world_core_client::serialize 0x3218E0)
+  but every registered artefact with its inventory (inventory_item's load 0x2FFF8D: by its place
+  and kit, 0xFF none). A late joiner dies, respawns in another kit, takes the gift at its first
+  tick alive; a rollback to a world from before the respawn has the gift dormant again (state 0,
+  in no inventory, its mark u32::MAX) while the new kit's object keeps its first run's slots, the
+  gift in a container. The replayed spawn's setup_from_profile (0x2FCB70, its last loop) calls
+  on_taken (0x313470), whose passive link reads [[item+250h]+174h] with no null check: Larkspur
+  0x3121AD, Spring patch 54's `lists` (0x311AD0's hook). The fix (patch 109,
+  `keeper.respawn_containers`, a lohook at 0x2FD19A before that loop): every container of the
+  spawned kit whose artefact names no inventory or another is emptied (its slot's reference
+  released, the weight to be recalculated) and logged; the same tick's gift then goes into it
+  again, as in a game that did not roll back. A game that loaded no such world has none (set_item
+  and the eviction keep the slot and the artefact's inventory together), so a match computes the
+  same: no `next` row. Not handled (native, no crash in this path): the other way round, a world
+  that has an artefact in the kit's inventory while the kit's stale slot is empty.
 - Costs: every world about 735 bytes more (the 60 dormant artefacts and the core, about +13 % of
   a 5-6 KB world); 60 more artefact objects a match, the three kinds' models loaded on every
   map; the edit list pins each project's client_objects count (a map change in between: run
@@ -299,7 +316,9 @@ preferred-image VAs; `apply_modifier` is the kit-modifier getter 0x2D5AE0.
   the countdown, the gift at the start into the first empty container, waiting while every
   container is held or the player is dead, never a second: a death with denormals flushed then a
   replacement by take_artefact with every container held, a late joiner after its first death,
-  the refusals, a new load, a late joiner's ids and container read), the patch's `gift` tests,
+  the refusals, a new load, a late joiner's ids and container read, a rollback over a respawn
+  into another kit with the gift after it: the replayed spawn empties the stale container, no
+  on_taken for it, the gift again at the next tick), the patch's `gift` tests,
   `crates/mapdata/tests/artefact_keeper.rs` (the edit list against the table, the anomaly as a
   map object), `survarium::v026g::keeper` and the match-server test (the draw in every kit, a
   joiner's too; bit 13 for a joiner taken in process, none for one taken in the countdown).
