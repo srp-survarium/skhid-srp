@@ -127,7 +127,11 @@ pub fn candidates(cx: &Ctx, out: &mut Vec<Candidate>) {
                         .then(|| format!("job role gone (held spot {})", if line { "still held" } else { "gone" }))
                 }
                 Some((kind, _, _)) => Some(format!("another play {kind:?}")),
-                None => Some("no play".to_string()),
+                // A bot is asked again only alive: a life begun after its last step of the walk is a death on the way.
+                None => {
+                    let died = FLANKING.with(|m| m.borrow().get(&cx.me.place).is_some_and(|&t| cx.me.spawned > t));
+                    Some(if died { "no play: died on the way" } else { "no play: the play ended" }.to_string())
+                }
             };
             if let Some(why) = why {
                 ROUTE_SEEN.with(|m| m.borrow_mut().remove(&cx.me.place));
@@ -165,6 +169,15 @@ pub fn candidates(cx: &Ctx, out: &mut Vec<Candidate>) {
         && !own_role(id)
     {
         out.extend(cx.job_candidate(PlayKind::Flank, TargetRef::ThreatSpot(id), JOB_KEY + id, JOB_HEALTH));
+    }
+    // [A320 `threat.camp_flank.alarm_near_fire_m`] Near its firing floor a route walker's flank is in the alarm band.
+    if let Some(near) = cx.tuning.threat.camp_flank.and_then(|c| c.alarm_near_fire_m)
+        && cx.bot.route_left_m.is_some_and(|m| m <= near)
+        && let Some((PlayKind::Flank, target @ TargetRef::ThreatSpot(_), _)) = cx.bot.current
+    {
+        for c in out.iter_mut().filter(|c| c.kind == PlayKind::Flank && c.target == target) {
+            c.rank = c.rank.max(Rank::Alarm);
+        }
     }
     for track in cx.memory.tracks() {
         let target = TargetRef::Place(track.who);
@@ -205,6 +218,24 @@ pub fn candidates(cx: &Ctx, out: &mut Vec<Candidate>) {
             eprintln!("A320 camp_flank offer: t {} place {} {now}", cx.now, cx.me.place);
         }
     }
+}
+
+/// [A320 `threat.camp_flank`] The metres of route a walker at `feet` has left to its firing floor (0 at it, holding it); None
+/// for a flank of the old kind.
+pub fn route_left_m(state: &State, tactics: &crate::v026g::bots::tactics::Tactics, feet: Vec3) -> Option<f32> {
+    let (spot, route, next) = match state {
+        State::Route { spot, route, next, .. } => (*spot, *route, *next),
+        State::Hold { .. } => return Some(0.0),
+        _ => return None,
+    };
+    let r = tactics.camp_spots.get(spot)?.routes.get(route)?;
+    if next > r.fire {
+        return Some(0.0);
+    }
+    let grid = &tactics.world.grid;
+    let at = |i: usize| grid.position(r.floors[i]);
+    let along: f32 = (next..r.fire).map(|i| (at(i + 1) - at(i)).length()).sum();
+    Some(at(next).distance_xz(feet) + along)
 }
 
 #[cfg(test)]
@@ -1004,6 +1035,7 @@ mod tests {
         let fire_at = Vec3::new(62.0, 0.0, 30.0);
         let (a, b) = (grid.locate(me, 1.0).unwrap(), grid.locate(fire_at, 1.0).unwrap());
         let floors = grid.path(a, b).unwrap().nodes;
+        let route_floors = floors.clone();
         let fire = floors.len() - 1;
         let route = FlankRoute { origin: Origin::Astar, floors, fire, exposed_m: 0.0 };
         let camp = CampSpot { camper_side: 1, at: him, match_radius_m: 5.0, follow_radius_m: 10.0, routes: vec![route] };
@@ -1029,6 +1061,27 @@ mod tests {
             let mut old = off.clone();
             assert_eq!(step(&mut old, target, &s.cx(0), &mut r), Step::Done("the job role is gone"));
             s.team.threat = saved;
+        }
+        // The route's metres left: from the bot to its next floor, then along it to the firing floor.
+        let left = route_left_m(&on, &s.tactics, me).unwrap();
+        let along: f32 = (0..fire).map(|i| (grid.position(route_floors[i + 1]) - grid.position(route_floors[i])).length()).sum();
+        assert!((left - along).abs() <= 1.5, "{left} vs {along}");
+        // `alarm_near_fire_m`: near its firing floor the walker's flank is in the alarm band; farther, its own.
+        {
+            s.current = Some((PlayKind::Flank, target, 0));
+            s.tuning.threat.camp_flank = Some(crate::v026g::bots::tuning::CampFlank { alarm_near_fire_m: Some(25.0), ..Default::default() });
+            let rank_of = |s: &Scenario| {
+                let mut found = Vec::new();
+                candidates(&s.cx(0), &mut found);
+                found.into_iter().find(|c| c.kind == PlayKind::Flank && c.target == target).map(|c| c.rank)
+            };
+            s.route_left_m = Some(10.0);
+            assert_eq!(rank_of(&s), Some(Rank::Alarm));
+            s.route_left_m = Some(40.0);
+            assert_ne!(rank_of(&s), Some(Rank::Alarm));
+            s.route_left_m = None;
+            s.current = None;
+            s.tuning.threat.camp_flank = Some(crate::v026g::bots::tuning::CampFlank::default());
         }
         let steps = s.run(0, PlayKind::Flank, target, 200, 300, 3.5);
         assert!(

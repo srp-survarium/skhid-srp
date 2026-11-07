@@ -11,15 +11,17 @@
 //! - a floor is seen when the spot's standing or crouched eye sees a crouched flanker's eye over it (`view::still_eye`,
 //!   the game's bullet origin: the head matrix `player+0x44C`, `weapon_core::instant_fire` 0x2E23A0; a flanker crouched
 //!   through the exposed metres: fx-grid's review);
-//! - starts: floors 40-90 m from the spot on the covered side's way from its spawns to the spot (a spawn nearer than that:
-//!   the spawn itself), 15 m apart, at most [`STARTS`];
-//! - firing floors: 8-25 m from the spot (the human flank wins fired from 8-13 m), whose crouched eye sees the spot's
-//!   chest, 45 degrees or more off the victims' lane, spread by bearing, at most [`FIRES`];
+//! - every floor of a route is one the driver walks a flanker on ([`Tactics::spawn_ok`] for its side, no hazard zone);
+//! - starts: floors 40-90 m from the spot ([`SHORT`]: 25-45 m) on the covered side's way from its spawns to the spot (a
+//!   spawn nearer than that: the spawn itself), 15 m apart, at most [`STARTS`];
+//! - firing floors: 8-25 m from the spot ([`SHORT`]: 8-18 m; the human flank wins fired from 8-13 m) that see 60 % of
+//!   his sample points, 45 degrees or more off the victims' lane, spread by bearing, at most [`FIRES`];
 //! - an A* route from each start to each firing floor, a seen floor costing [`SEEN_WEIGHT`] times its length (the
 //!   grid's area cost, `SlicedSearch::step`); a route that jumps onto a seen floor is searched again with that floor
 //!   dearer; the floors of the routes kept are made dearer for the next (diversity);
 //! - each human win's path, its samples (5 s apart) joined by plain A* legs, as a human route;
-//! - a route ends at the first floor of its last run of floors from which the spot is seen (where it fires from).
+//! - a route ends 4 floors inside its last run of floors that fire on him (where it fires from); [`SHORT`]: its last
+//!   60 m only.
 //!
 //! The routes kept: the human ones and the [`KEEP`] best of the searched, by length plus [`SEEN_WEIGHT`] times the seen
 //! metres, each written as feet points about 0.75 m apart and checked by reading it back onto the same grid.
@@ -34,6 +36,7 @@ use survarium::v026g::maps::RuleMode;
 use super::*;
 use crate::v026g::bots::camp_flank::{FlankTable, Origin, one_walk};
 use crate::v026g::bots::rays::visible;
+use crate::v026g::bots::tactics::Tactics;
 use crate::v026g::bots::view::still_eye;
 
 /// A written route point about every this, m (the loader walks straight between two).
@@ -42,10 +45,46 @@ const POINT_GAP_M: f32 = 0.75;
 const SEEN_WEIGHT: f32 = 20.0;
 /// What a floor of a route already kept costs over its own, for the next search (diversity).
 const KEPT_WEIGHT: f32 = 3.0;
-/// The firing ring, m from the spot.
-const FIRE_RING_M: (f32, f32) = (8.0, 25.0);
-/// The starts' band, m from the spot.
-const START_BAND_M: (f32, f32) = (40.0, 90.0);
+/// The routes' shape: the firing ring and the starts' band, m from the spot, and the longest route kept, m.
+#[derive(Clone, Copy, Debug)]
+struct Shape {
+    fire_ring_m: (f32, f32),
+    start_band_m: (f32, f32),
+    max_route_m: Option<f32>,
+}
+
+/// The long routes (the tables up to 18eeeb23).
+const LONG: Shape = Shape { fire_ring_m: (8.0, 25.0), start_band_m: (40.0, 90.0), max_route_m: None };
+/// [A320 B3f8] `SRP_FLANK_SHORT=1`: short routes. In the realistic game 3 of 18 walks of 60-155 m reached their firing
+/// floor (a Trade, a death, a goal with no way on the way); the human flank wins fired from 8-13 m.
+const SHORT: Shape = Shape { fire_ring_m: (8.0, 18.0), start_band_m: (25.0, 45.0), max_route_m: Some(60.0) };
+
+/// The route's last `max` metres (its start cut), its length and seen metres again.
+fn last_metres(grid: &WalkGrid, sight: &SpotSight, mut r: Found, max: f32) -> Found {
+    let mut tail = 0.0;
+    let mut first = r.floors.len() - 1;
+    while first > 0 {
+        let d = (grid.position(r.floors[first]) - grid.position(r.floors[first - 1])).length();
+        if tail + d > max {
+            break;
+        }
+        tail += d;
+        first -= 1;
+    }
+    if first == 0 {
+        return r;
+    }
+    r.floors.drain(..first);
+    let (mut length_m, mut seen_m) = (0.0, 0.0);
+    for w in r.floors.windows(2) {
+        let d = (grid.position(w[1]) - grid.position(w[0])).length();
+        length_m += d;
+        if sight.seen(w[1]) {
+            seen_m += d;
+        }
+    }
+    Found { floors: r.floors, length_m, seen_m }
+}
 /// Starts and firing floors per spot and side.
 const STARTS: usize = 3;
 const FIRES: usize = 4;
@@ -148,11 +187,11 @@ impl Found {
     }
 }
 
-/// The weighted A* from `from` to `to` (`weight` at least 1 a floor).
-fn search(grid: &WalkGrid, from: NodeId, to: NodeId, weight: impl Fn(NodeId) -> f32) -> Option<Vec<NodeId>> {
+/// The weighted A* from `from` to `to` (`weight` at least 1 a floor) over the floors `ok` lets through.
+fn search(grid: &WalkGrid, from: NodeId, to: NodeId, ok: &dyn Fn(NodeId) -> bool, weight: impl Fn(NodeId) -> f32) -> Option<Vec<NodeId>> {
     let mut s = grid.start_search(from, to, BUDGET).ok()?;
     let mut iters = usize::MAX;
-    match s.step(grid, |_| true, weight, &mut iters)? {
+    match s.step(grid, ok, weight, &mut iters)? {
         Search::Found(path) => Some(path.nodes),
         Search::NoWay | Search::TooFar => None,
     }
@@ -228,8 +267,14 @@ fn points(grid: &WalkGrid, floors: &[NodeId]) -> Vec<[f32; 3]> {
 }
 
 /// One spot's routes (human ones first), as the table's rows, and what was made and left out.
-fn routes_of(world: &World, spot: &InSpot, camper_side: i32) -> (Vec<serde_json::Value>, String) {
+fn routes_of(tactics: &Tactics, spot: &InSpot, camper_side: i32, shape: Shape) -> (Vec<serde_json::Value>, String) {
+    let world: &World = &tactics.world;
     let grid = &world.grid;
+    // [A320 B3f8] The floors the driver walks a flanker of the other side on (`Tactics::allowed_from`): not the camper's
+    // side's spawn area (`spawn_ok`), no hazard zone. The bare grid let routes through floors the driver never enters
+    // (NOWAYGOAL on the same level_05 route floors from many places: 5 of 7 walks that ended at once).
+    let flanker_side = Some(1 - camper_side);
+    let ok = |n: NodeId| tactics.spawn_ok(n, flanker_side, false) && !tactics.hazards.marked_at(n);
     let at = v3(spot.at);
     let Some(feet_node) = grid.locate(at, 2.0) else {
         return (Vec::new(), "no floor at the spot".into());
@@ -265,7 +310,7 @@ fn routes_of(world: &World, spot: &InSpot, camper_side: i32) -> (Vec<serde_json:
         .collect();
     let in_band = |n: NodeId| {
         let d = grid.position(n).distance_xz(feet);
-        (START_BAND_M.0..=START_BAND_M.1).contains(&d)
+        (shape.start_band_m.0..=shape.start_band_m.1).contains(&d)
     };
     // A way whose spawn is nearer the spot than the band (the spots at spawn exits and in the spawn, 8-51 m off: Cologne's
     // biggest, 1,376 kills, 22 m) starts at its spawn: the way out by another exit.
@@ -274,14 +319,15 @@ fn routes_of(world: &World, spot: &InSpot, camper_side: i32) -> (Vec<serde_json:
         (!w.iter().any(|&n| in_band(n))).then_some(first)
     };
     let banded = ways.iter().flat_map(|w| w.iter().copied().filter(|&n| in_band(n)));
-    let starts = spread(grid, ways.iter().filter_map(near_start).chain(banded), 15.0, STARTS, |_| true);
-    let ring = grid.floors_in([feet.x - FIRE_RING_M.1, feet.z - FIRE_RING_M.1, feet.x + FIRE_RING_M.1, feet.z + FIRE_RING_M.1]);
+    let starts = spread(grid, ways.iter().filter_map(near_start).chain(banded), 15.0, STARTS, ok);
+    let r1 = shape.fire_ring_m.1;
+    let ring = grid.floors_in([feet.x - r1, feet.z - r1, feet.x + r1, feet.z + r1]);
     let mut fire_floors: Vec<NodeId> = ring
-        .filter(|&n| grid.can_stand(n) && !grid.in_shut_pocket(n) && grid.may_reach(n, feet_node))
+        .filter(|&n| grid.can_stand(n) && !grid.in_shut_pocket(n) && grid.may_reach(n, feet_node) && ok(n))
         .filter(|&n| {
             let p = grid.position(n);
             let d = p.distance_xz(feet);
-            (FIRE_RING_M.0..=FIRE_RING_M.1).contains(&d)
+            (shape.fire_ring_m.0..=shape.fire_ring_m.1).contains(&d)
                 && (p.y - feet.y).abs() <= 6.0
                 && off_deg(bearing(feet, p), spot.lane_bearing_deg) >= OFF_LANE_DEG
         })
@@ -308,9 +354,9 @@ fn routes_of(world: &World, spot: &InSpot, camper_side: i32) -> (Vec<serde_json:
         let snapped: Option<Vec<NodeId>> = win.path.iter().map(|&p| grid.locate(v3(p), 2.0)).collect();
         let Some(snapped) = snapped else { continue };
         let mut floors: Vec<NodeId> = vec![snapped[0]];
-        let joined = snapped.windows(2).all(|w| match grid.path(w[0], w[1]) {
+        let joined = ok(snapped[0]) && snapped.windows(2).all(|w| match search(grid, w[0], w[1], &ok, |_| 1.0) {
             Some(p) => {
-                floors.extend_from_slice(&p.nodes[1..]);
+                floors.extend_from_slice(&p[1..]);
                 true
             }
             None => false,
@@ -320,6 +366,10 @@ fn routes_of(world: &World, spot: &InSpot, camper_side: i32) -> (Vec<serde_json:
         }
         wins_fire.push(v3(win.fire));
         if let Some(found) = ending_at_fire(grid, &sight, floors) {
+            let found = match shape.max_route_m {
+                Some(max) => last_metres(grid, &sight, found, max),
+                None => found,
+            };
             human += 1;
             rows.push(row(grid, Origin::Human, &found));
         }
@@ -332,7 +382,7 @@ fn routes_of(world: &World, spot: &InSpot, camper_side: i32) -> (Vec<serde_json:
         for &f in &fires {
             let mut tries = 0;
             let route = loop {
-                let Some(floors) = search(grid, s, f, |n| weight(n, &extra)) else { break None };
+                let Some(floors) = search(grid, s, f, &ok, |n| weight(n, &extra)) else { break None };
                 match seen_leap(grid, &sight, &floors) {
                     Some(i) if tries < 3 => {
                         *extra.entry(floors[i + 1]).or_insert(1.0) *= 100.0;
@@ -343,6 +393,10 @@ fn routes_of(world: &World, spot: &InSpot, camper_side: i32) -> (Vec<serde_json:
                     None => break ending_at_fire(grid, &sight, floors),
                 }
             };
+            let route = route.map(|r| match shape.max_route_m {
+                Some(max) => last_metres(grid, &sight, r, max),
+                None => r,
+            });
             if let Some(route) = route {
                 for &n in &route.floors {
                     *extra.entry(n).or_insert(1.0) *= KEPT_WEIGHT;
@@ -415,6 +469,8 @@ fn write_flank_routes() {
     groups.sort();
     groups.dedup();
     let tuning = bench_tuning();
+    let shape = if s.var("SRP_FLANK_SHORT").is_ok_and(|v| v == "1") { SHORT } else { LONG };
+    println!("route shape {shape:?}");
     let mut spots_out = Vec::new();
     for (level, mode) in groups {
         if only.as_ref().is_some_and(|o| !o.contains(&level)) {
@@ -434,10 +490,12 @@ fn write_flank_routes() {
             tuning.needs_wall_clearance(),
             tuning.needs_open_sides(),
         );
+        let tactics = Tactics::new(std::sync::Arc::new(world), tuning.hazard.margin_m.get());
+        let world: &World = &tactics.world;
         for spot in input.spots.iter().filter(|p| p.level == level && p.mode == mode) {
-            let Some(side) = camper_side(&world, spot.camper_spawn) else { continue };
+            let Some(side) = camper_side(world, spot.camper_spawn) else { continue };
             let t = std::time::Instant::now();
-            let (routes, note) = routes_of(&world, spot, side);
+            let (routes, note) = routes_of(&tactics, spot, side, shape);
             println!(
                 "{level} mode {mode} {}#{}: camper side {side}, {} routes; {note} ({:.1} s)",
                 spot.side,
@@ -472,12 +530,11 @@ fn write_flank_routes() {
 /// (`Tactics::allowed_from`: the hazard zones, the other side's spawn area for the flanker's side) and that the builder
 /// does not, and the goals the bench logs named. A probe, not a check.
 #[test]
-#[ignore = "a probe; needs SRP_MAPDATA_DIR, SRP_FLANK_ROUTES"]
+#[ignore = "a probe; needs SRP_MAPDATA_DIR, SRP_BOT_FLANK_ROUTES"]
 fn probe_flank_route_floors() {
-    use crate::v026g::bots::tactics::Tactics;
     let s = bench_settings();
-    let (Some(dir), Some(table)) = (s.var_os("SRP_MAPDATA_DIR"), s.var_os("SRP_FLANK_ROUTES")) else {
-        eprintln!("skipping: SRP_MAPDATA_DIR and SRP_FLANK_ROUTES are needed");
+    let (Some(dir), Some(table)) = (s.var_os("SRP_MAPDATA_DIR"), s.var_os("SRP_BOT_FLANK_ROUTES")) else {
+        eprintln!("skipping: SRP_MAPDATA_DIR and SRP_BOT_FLANK_ROUTES are needed");
         return;
     };
     let dir = std::path::PathBuf::from(dir);

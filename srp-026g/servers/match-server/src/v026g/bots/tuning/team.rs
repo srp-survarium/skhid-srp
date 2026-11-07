@@ -764,6 +764,10 @@ pub struct CampFlank {
     /// ms, crouched with its sights on the spot (humans wait for a camper they know to come back); it ends sooner when he
     /// is sensed away from the spot or the bot carries a battery. None: the flank ends with the job, as before. GUESS 20 s.
     pub hold_ms: Option<u32>,
+    /// `threat.camp_flank.alarm_near_fire_m`: a route walker this near its firing floor (metres of route left) is offered
+    /// its flank in the alarm band, so a Trade or another alarm play does not take it there (B3f8: 5 of 18 walks were
+    /// taken by a Trade); healing and retreat still do. None: its band as any job's.
+    pub alarm_near_fire_m: Option<f32>,
 }
 
 /// A229 (`traces-20261028/fx-threat-obj-a229-a231-note.md`): a walk looks along its route, so a bot walks into a lane its

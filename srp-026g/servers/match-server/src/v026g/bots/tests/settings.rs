@@ -87,6 +87,11 @@ pub(crate) const SETTINGS: &[Setting] = &[
     s("SRP_WRITE_FLANK_ROUTES", "off", "[A320] a path: `write_flank_routes` (tests/flank_build.rs) writes the flank-route table there"),
     s("SRP_FLANK_INPUT", "unset", "[A320] the flank-route writer's input: the big camp spots and their human wins (`a320_flank_input.py`)"),
     s("SRP_FLANK_LEVELS", "unset: every level of the input", "[A320] the flank-route writer's levels, `level_02,level_05`"),
+    s(
+        "SRP_FLANK_SHORT",
+        "unset: starts 40-90 m out, firing floors 8-25 m, any length",
+        "[A320] `1`: the writer's short routes (starts 25-45 m out, firing floors 8-18 m, routes of 60 m at most; a human route keeps its last 60 m)",
+    ),
     s("SRP_WRITE_GOLDEN", "off", "a path: the made-up match test writes its counts there instead of comparing (tallies/owner/golden.rs)"),
     s("SRP_BENCH_SHOW_STALE", "off", "print the stale-belief lines"),
     s("SRP_BENCH_SHOW_RAIDS", "off", "print the raid lines"),
