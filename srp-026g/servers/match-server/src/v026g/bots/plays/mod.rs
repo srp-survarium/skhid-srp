@@ -812,6 +812,59 @@ impl Ctx<'_> {
         !self.tactics.walkable(goal) || !(past(goal) || grid.entered_from(goal, past))
     }
 
+    /// The held spots cued for the team's jobs: `job_kills` kills or more (the owner's 2-kill cue).
+    fn cued(&self) -> impl Iterator<Item = &super::threat::HeldLine> {
+        let min = self.tuning.threat.job_kills as usize;
+        self.team.threat.held.iter().filter(move |l| l.kills >= min)
+    }
+
+    /// [A342a `threat.lane_goal_weight`] The weight of a play whose goal lies in a cued spot's lanes (1 otherwise).
+    pub(crate) fn lane_goal_weight(&self, kind: PlayKind, target: TargetRef) -> f32 {
+        let Some(weight) = self.tuning.threat.lane_goal_weight else {
+            return 1.0;
+        };
+        if !matches!(
+            kind,
+            PlayKind::Collect | PlayKind::Raid | PlayKind::LateDenial | PlayKind::HoldExit | PlayKind::Cut | PlayKind::Crossfire
+        ) {
+            return 1.0;
+        }
+        let Some(to) = self.point_of(target) else {
+            return 1.0;
+        };
+        let in_lanes = self.cued().any(|l| l.covers(to) && target != TargetRef::Place(l.shooter));
+        if in_lanes { weight } else { 1.0 }
+    }
+
+    /// [A342b `threat.no_lone_m`] Whether a new counter-play goes alone at a cued camper or into his lanes: aimed at him
+    /// (his place or his spot) or its goal in his lanes, and no other living teammate within `no_lone_m` more of the goal.
+    pub(crate) fn lone_into_cued(&self, kind: PlayKind, target: TargetRef) -> bool {
+        let Some(extra) = self.tuning.threat.no_lone_m else {
+            return false;
+        };
+        if !matches!(kind, PlayKind::PairUp | PlayKind::Crossfire | PlayKind::Trade | PlayKind::Flank)
+            || matches!(self.bot.current, Some((k, t, _)) if k == kind && t == target)
+        {
+            return false;
+        }
+        let Some(to) = self.point_of(target) else {
+            return false;
+        };
+        let at_him = self.cued().any(|l| match target {
+            TargetRef::Place(p) => p == l.shooter,
+            TargetRef::ThreatSpot(id) => id == l.id,
+            _ => l.covers(to),
+        });
+        if !at_him {
+            return false;
+        }
+        let mine = self.me.feet.distance_xz(to);
+        !self
+            .view
+            .team(self.me.team)
+            .any(|p| p.place != self.me.place && p.alive && p.feet.distance_xz(to) <= mine + extra)
+    }
+
     /// Whether this bot's search to a goal at `at` (the motor's, within
     /// its replan distance) proved no way lately (`Bot::no_way_to`).
     pub fn no_way_lately(&self, at: Vec3) -> bool {
@@ -1192,6 +1245,9 @@ impl Ctx<'_> {
         if self.set_aside(kind, target) || (self.bot.dry && kind.seeks_fight()) {
             return None;
         }
+        if self.lone_into_cued(kind, target) {
+            return None;
+        }
         let play = self.play(kind);
         #[cfg(test)]
         fairness::scoring(Some(kind));
@@ -1202,7 +1258,9 @@ impl Ctx<'_> {
                 .map_or_else(|| self.input(input, kind, target), |&(_, value)| value)
         });
         if !score.is_zero() {
-            score = Score::new(score.get() * self.sniper_way_weight(kind, target) * self.concede_weight(kind, target, play.rank));
+            score = Score::new(
+                score.get() * self.sniper_way_weight(kind, target) * self.concede_weight(kind, target, play.rank) * self.lane_goal_weight(kind, target),
+            );
         }
         #[cfg(test)]
         fairness::scoring(None);

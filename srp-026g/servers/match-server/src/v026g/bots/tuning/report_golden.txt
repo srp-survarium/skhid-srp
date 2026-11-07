@@ -34,7 +34,7 @@ switches OFF spacing: apart_ease apart_tie lane
 switches OFF take: cross_from_zone far_stands team_memory world_stand
 switches OFF tdm: group squad
 switches OFF think: door_centres
-switches OFF threat: answer_sniper breach camp_flank job_out_of_all_lines job_spot_levels pair_target pin_from_cover replan sniper_lanes spot_follows_m trade_cover walk_watch
+switches OFF threat: answer_sniper breach camp_flank job_out_of_all_lines job_spot_levels lane_goal_weight no_lone_m pair_target pin_from_cover replan sniper_lanes spot_follows_m trade_cover walk_watch
 switches OFF traps: after_press at_cleared at_defeated camper_job forward fresh_ring press_moving
 switches OFF unstick: fix_gap_ms
 switch values aim: combat.fire.burst_pause={"floor_ms":100,"rifle":[{"from_m":20.0,"q":[100,200,462]},{"from_m":40.0,"q"... combat.gate_from_client={"jump_ms":1200,"sprint_out_ms":300} combat.hit_shooter=nearest combat.settle=wander_and_policy combat.settle_guns=scoped combat.worth.hurt_from=seen combat.zoom_error=all friends.spread_source=data skill_curve=geometric

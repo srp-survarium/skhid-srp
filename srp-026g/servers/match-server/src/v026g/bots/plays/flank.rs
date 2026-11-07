@@ -1279,6 +1279,33 @@ mod tests {
         assert_eq!(step(&mut walk, target, &s.cx(0), &mut r), Step::Done("he moved from the spot"));
     }
 
+    /// [A342a `threat.lane_goal_weight`, A342b `threat.no_lone_m`] A cued spot (2 kills, lanes along +x): a Cut whose goal is
+    /// in his lanes is weighed down, one out of them is not; a PairUp on him alone is not offered, with a teammate as near
+    /// it is; off, neither changes anything.
+    #[test]
+    fn a_cued_spots_lanes_weigh_goals_in_them_and_hold_a_lone_counter() {
+        use crate::v026g::bots::threat::{HeldLine, Picture};
+        let mut s = Scenario::field(Mode::TeamDeathmatch);
+        let him = Vec3::new(60.0, 0.0, 20.0);
+        s.bot(0, 0, Vec3::new(20.0, 0.0, 20.0));
+        let line = HeldLine::for_test(7, 15, him, &[Vec3::new(30.0, 0.0, 20.0), Vec3::new(30.0, 0.0, 21.0)], Some(s.view.clock));
+        s.team.threat = std::sync::Arc::new(Picture { held: vec![line], ..Picture::default() });
+        s.enemy(15, 1, him, Some(crate::v026g::bots::know::Source::Seen));
+        let (in_lane, out) = (TargetRef::Point(Vec3::new(40.0, 0.0, 20.0)), TargetRef::Point(Vec3::new(60.0, 0.0, 60.0)));
+        // Off: as before.
+        assert_eq!(s.cx(0).lane_goal_weight(PlayKind::Cut, in_lane), 1.0);
+        assert!(!s.cx(0).lone_into_cued(PlayKind::PairUp, TargetRef::Place(15)));
+        s.tuning.threat.lane_goal_weight = Some(0.5);
+        s.tuning.threat.no_lone_m = Some(10.0);
+        assert_eq!(s.cx(0).lane_goal_weight(PlayKind::Cut, in_lane), 0.5);
+        assert_eq!(s.cx(0).lane_goal_weight(PlayKind::Cut, out), 1.0);
+        assert_eq!(s.cx(0).lane_goal_weight(PlayKind::Roam, in_lane), 1.0, "not one of its plays");
+        assert!(s.cx(0).lone_into_cued(PlayKind::PairUp, TargetRef::Place(15)), "alone: held");
+        // A teammate as near him: the pair goes.
+        s.bot(1, 0, Vec3::new(22.0, 0.0, 24.0));
+        assert!(!s.cx(0).lone_into_cued(PlayKind::PairUp, TargetRef::Place(15)));
+    }
+
     /// [A320 `threat.camp_flank.hold_ms`] The camper dies (the job and its held spot go) with the flanker on its route: with
     /// the hold it goes on to the firing floor and holds it, sights on the spot, until the hold's end; without it the flank
     /// ends with the job, as before.

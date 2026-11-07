@@ -757,6 +757,16 @@ pub struct ThreatTuning {
     /// again (as a sensed sniper's spot follows him). Off: a kill spot stays where he killed from, held by its kills' strength
     /// after he moved (B3f14: sensed 3-5 m from his true place, the held spot 40-50 m behind him, the job re-cued to it).
     pub spot_follows_m: Option<f32>,
+    /// `threat.lane_goal_weight` [A342a]: a Collect, Raid, LateDenial, HoldExit, Cut or Crossfire whose goal lies in a cued
+    /// held spot's lanes (`job_kills` kills or more; `HeldLine::covers`) is scored times this from the cue, not after two
+    /// failed tries (fx-review A342 §4: 11 of the owner's 22 after-cue victims had their post or objective in his lanes, 3 more
+    /// a fight place there). A Crossfire on the camper himself is A342b's. None: as before.
+    pub lane_goal_weight: Option<f32>,
+    /// `threat.no_lone_m` [A342b]: a new PairUp, Crossfire, Trade or Flank aimed at a cued camper or into his lanes starts
+    /// only with a teammate who is no more than this farther from its goal than the bot (one who arrives within ~2 s); else
+    /// it is not offered and the bot holds (A342 §4: 8 of 22 went in one at a time). A running play is not touched. None: as
+    /// before.
+    pub no_lone_m: Option<f32>,
 }
 
 /// A320 [`ThreatTuning::camp_flank`]: the flank routes round the known camp spots, and what the flanker does when the camper
@@ -992,6 +1002,8 @@ impl Default for ThreatTuning {
             walk_watch: None,
             camp_flank: None,
             spot_follows_m: None,
+            lane_goal_weight: None,
+            no_lone_m: None,
         }
     }
 }
