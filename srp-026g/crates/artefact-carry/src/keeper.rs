@@ -5,7 +5,8 @@
 //!   into modifier 40 bits 9..11 of every kit of the match (exe patch 109 parses it).
 //! - Every map has the hidden Keeper anomaly (content edit list `artefact-keeper-1.json`): no
 //!   container, a pool of [`POOL`] dormant artefacts of each kind, by [`Kind::dict_id`].
-//! - A Keeper's first spawn takes a dormant one of the match's kind from that pool.
+//! - A Keeper takes its place's one of the match's kind from that pool into its first empty
+//!   container once a match, from the match's start (exe patch 109).
 
 /// A kind Keeper gives.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]

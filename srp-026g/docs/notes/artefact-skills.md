@@ -62,7 +62,8 @@ preferred-image VAs; `apply_modifier` is the kit-modifier getter 0x2D5AE0.
 - Exe skills: one packed integer in modifier 40 (`artefact_power`), parsed once (`Skills::parse`
   in the patch); invalid (fractional, negative, too large, a rank past its levels) is no
   artefact skill at all. Bits: 0..2 Resistance (0..5), 3 Keeper, 4 Resonance, 5 Spring II,
-  6 Onyx II, 7 Larkspur II, 8 Cascade, 9..11 Keeper's draw, 12 Artifact Sight.
+  6 Onyx II, 7 Larkspur II, 8 Cascade, 9..11 Keeper's draw, 12 Artifact Sight, 13 a late
+  joiner's kit (srp's mark, not a skill: Keeper below).
 - Modifier 40 evidence (the exact 0.26g exe, 2026-11-05): all 94 calls of `apply_modifier` and
   its wrapper 0x2D5B80 resolve to an index, none 40; `artefact_power_modifier` is referenced
   only by the two name tables (0x9284E8, 0x9C9C88); no other config, edit list or code
@@ -71,7 +72,7 @@ preferred-image VAs; `apply_modifier` is the kit-modifier getter 0x2D5AE0.
   40 of every kit of every player, bots too, with the skill or not (bits 9..11: the kind's draw,
   1 Larkspur, 2 Onyx, 3 Spring; 4 the Sponge once it is on main; 0 none), so every game knows it
   from the static info. The parser takes 1..6; a draw past the kinds gives nothing.
-- Bit 13 and above: nothing (a payload with one is refused).
+- Bit 14 and above: nothing (a payload with one is refused).
 
 ## Quick Hands (501)
 
@@ -208,21 +209,28 @@ preferred-image VAs; `apply_modifier` is the kit-modifier getter 0x2D5AE0.
 - What it is for (the owner, 2026-11-05): now and then a player starts with an artefact "from
   a different map", one the map's anomalies may not hold. So the kind is drawn over every kind
   Keeper gives, never limited to the map's.
-- The rule (the owner, 2026-11-05): tier 3, one rank. One kind is drawn once per match; every
-  player of the match with the skill and a container gets one artefact of that kind, on its
-  first spawn of the match only (not after a death), in its first container.
+- The rule (the owner, 2026-11-05; when, 2026-11-07): tier 3, one rank. One kind is drawn once
+  per match; every player of the match with the skill gets one artefact of that kind, once a
+  match:
+  - when the match itself begins: the end of the pre-match countdown, while everyone loads (the
+    time rule in process, core +18FE4h 3). No extra delay;
+  - into its first empty container. Every container held: it waits until one frees, in the same
+    life or at a respawn with room. While dead it waits;
+  - a late joiner gets nothing before its first death, then the same rule.
 - The table: `crates/artefact-carry/src/keeper.rs` (`KINDS`, `POOL`), the one table srp draws
   from and the game takes by: Larkspur (dict 54, artefact_lifebone), Onyx (76), Spring (74).
   srp refuses game data whose dictionary names them otherwise.
 - srp (the match server's registry, `survarium::v026g::keeper`): one kind a match, uniform, drawn
   when the match is made, kept with it and written into every kit of every profile, a late
-  joiner's too.
+  joiner's too (`keeper::give`); a late joiner's kits also carry modifier 40 bit 13
+  (`keeper::LATE`, `keeper::give_late`).
 - Where the artefact comes from: a hidden anomaly on every map (the owner's idea, 2026-11-05),
   content edit `artefact-keeper-1.json` (made by `scripts/artefact-keeper/make_edit.py` from the
   live projects): one more generic_anomaly_core in every project's client_objects (not the
   lobby's), `srp/artefact_keeper/pool`, with
-  - a pool of 20 dormant artefacts of each kind (one a place: a gift only in a place's first
-    life, and one that comes back is dormant again), cooked by the map's own cook chain, so its
+  - a pool of 20 dormant artefacts of each kind (one a place: place p's is the p-th of the kind
+    by id; one given and come back is dormant again, with its count), cooked by the map's own
+    cook chain, so its
     resources (the activation effect's at artefact +290h, the models) are there on every map,
     level_08 too;
   - no artefact container and a chance of 0: it never spawns one (spawn_artefact 0x31B6C0
@@ -239,26 +247,37 @@ preferred-image VAs; `apply_modifier` is the kit-modifier getter 0x2D5AE0.
   holds. Late join, resync and replay load it as any found artefact.
 - The gift (exe patch 109, `artefact_keeper.rs`): a hook at register_artefacts' entry keeps the
   id range of the anomaly with no container (a load's first registration forgets the last
-  map's); the respawn rule's spawn, after the player is in the world (0x316EAB, every spawn in
-  every game and every replay of the tick), gives the player, when its kit has the Keeper bit,
-  its place has no death or suicide counted (the statistics, any kit; none before the start)
-  and its first container is empty, the lowest-id dormant artefact of the drawn kind of that
-  range: the count and cooldown a spawn gives one (0x3134C0), then the game's own take_artefact.
-- A kit switch before the start: the old kit's unload returns its gift to the pool (dormant);
-  the new kit gets one (my pick: "the kit it spawns with").
+  map's). Each player's tick (base_player::tick before tick_animations, `battery.carrier_tick`
+  0x2DAAD3, after the carrier's, Resonance's and the glow's: every tick in every game and every
+  replay of it) decides, for a kit with the Keeper bit only (no other player's tick reads the
+  match):
+  - nothing before the match is in process (the time rule's state at core +18FE4h: 1 waiting,
+    2 the countdown, 3 in process), nor, for a late joiner's kit (bit 13), while its place has
+    no death or suicide counted (the statistics, any kit);
+  - nothing when its place's artefact of the drawn kind was given (below);
+  - else, alive with an empty container: its place's artefact, with the count and cooldown a
+    spawn gives one (0x3134C0), through the game's own take_artefact into the first empty
+    container; dead, or every container held: nothing this tick, and the next ticks decide again.
+- Once a match, with nothing kept outside the world: the take gives the artefact a count (the
+  spawn's, never 0; one never given has 0), which stays with it in play, on a body and back in
+  the pool (dormant again), and is in the world's save (the artefact's m_amount). A place's
+  artefact out of the pool, or dormant with a count, was given.
 - Death: as any artefact taken from an anomaly: state 5 on the body, back to the pool at the
   respawn's unload; held in the hand, patch 78 drops it (state 6, anyone takes it). Never given
-  again after a death. Places are never reused, so a late joiner's first spawn gets one.
+  again after a death. Places are never reused, so a late joiner's place has its own.
 - Costs: every world about 735 bytes more (the 60 dormant artefacts and the core, about +13 % of
   a 5-6 KB world); 60 more artefact objects a match, the three kinds' models loaded on every
   map; the edit list pins each project's client_objects count (a map change in between: run
   `make_edit.py` again). It names its maps one by one, so `release/build-content` refuses a
   build in which a map project (every client_project but the lobby scenes') lacks
   `srp/artefact_keeper/pool`, naming it: a map added later never silently gives Keepers nothing.
-- Checks: `client-patches/check_artefact_keeper_026g.py` (Unicorn: registration, the gift, the
-  refusals, a new load, a late joiner's ids and container read), `crates/mapdata/tests/
-  artefact_keeper.rs` (the edit list against the table, the anomaly as a map object),
-  `survarium::v026g::keeper` and the registry test (the draw in every kit, a late joiner's too).
+- Checks: `client-patches/check_artefact_keeper_026g.py` (Unicorn, the player's tick: nothing in
+  the countdown, the gift at the start into the first empty container, waiting while every
+  container is held or the player is dead, never a second, a late joiner after its first death,
+  the refusals, a new load, a late joiner's ids and container read), the patch's `gift` tests,
+  `crates/mapdata/tests/artefact_keeper.rs` (the edit list against the table, the anomaly as a
+  map object), `survarium::v026g::keeper` and the registry test (the draw in every kit, a late
+  joiner's too, with bit 13).
 
 ## Spring II (531)
 
