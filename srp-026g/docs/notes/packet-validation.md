@@ -613,6 +613,14 @@ dispatches to. There are exactly three entry points, each enumerated above:
    effects, and the per-player state blocks) plus the apply dispatch 0x2D2770.
    Every section reader and every player-state sub-reader is listed and bounded
    above; `Frame::parse` reads each to its exact end against the match config.
+   Read in full: 0x324D80 walks the active-player u32 mask (bit indices 0..31
+   into the 32-player 0x9054-stride array -- a popcount, not a packet count)
+   and reads each section as a u16 length into a GROWABLE (doubling) buffer, so
+   the length cannot overflow; 0x33FD80 grows-then-memcpys the per-player state
+   the same way, 0x33FEE0 routes the animation to `animation_validate`. The
+   0xE4 options native `match_options::deserialize` 0x1F0E70 loops a FIXED 20
+   profiles (0x15DEC / 0x117F = MAX_PLAYERS, not a packet count), each the
+   clamped `player_profile::deserialize_static` 0x1F1070, then fixed fields.
    Gaps found here: the animation stream and the E records -- FIXED.
 2. The match messages `0xE3..0xF6` (`srp_validate::messages::check`): lengths,
    place indices, input rotation/actions, envelopes, lzma2 output caps, and the
