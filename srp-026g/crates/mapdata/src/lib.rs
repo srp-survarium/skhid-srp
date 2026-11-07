@@ -52,7 +52,7 @@ pub mod sight;
 pub mod stands;
 
 pub use grid::{
-    Body, BuildStats, DistanceMap, Erosion, ExitJump, LinkKind, NodeId, OffLink, OffMeshLinks, Path, PocketEntry, PressLead,
+    Body, BuildStats, DistanceMap, Erosion, ExitJump, ExitReach, LinkKind, NodeId, OffLink, OffMeshLinks, Path, PocketEntry, PressLead,
     PocketExit, PocketId, Search, SlicedSearch, WalkGrid,
 };
 pub use library::{Face, Library, Materials, Surface, WalkerBehaviour};
@@ -141,6 +141,10 @@ pub const STEEP_WALK_BASE_ALGO: u32 = 1;
 /// The same for the pockets shut by the exits a body can take ([`Body::pocket_exits_walled`], `WalkGrid::mark_no_exit`), in
 /// [`grid_key_with_links`] only for a body that asks for it. A value of its own.
 pub const POCKET_EXITS_WALLED_ALGO: u32 = 0x5270_0001;
+/// The same for the pockets' exits capped at the sprint jump's lowest top and kept only where a body can take them
+/// ([`Body::exits_in_reach`], A347), in [`grid_key_with_links`] only for a body that asks for it. A value of its own (2: the
+/// walled exits).
+pub const EXITS_IN_REACH_ALGO: u32 = 0x5347_0002;
 /// The same for the gap links down a flight made only over a face that held the body ([`Body::gap_no_vaults`], A293), in
 /// [`grid_key_with_links`] only for a body that asks for it. A value of its own.
 pub const GAP_NO_VAULTS_ALGO: u32 = 0x5293_0001;
@@ -371,6 +375,10 @@ pub fn grid_key_with_links(
     // And the pockets shut by the exits a body can take.
     if body.pocket_exits_walled {
         digest.u32(POCKET_EXITS_WALLED_ALGO);
+    }
+    // And the exits capped at the sprint jump's lowest top.
+    if body.exits_in_reach {
+        digest.u32(EXITS_IN_REACH_ALGO);
     }
     // And the gap links down over a face that held the body.
     if body.gap_no_vaults {
