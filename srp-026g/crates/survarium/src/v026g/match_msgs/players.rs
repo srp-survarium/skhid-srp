@@ -77,6 +77,67 @@ fn width(count: u32) -> usize {
     (32 - count.leading_zeros()).max(1) as usize
 }
 
+/// [A325] The two value tables of an animation state, in the order the state wrote them: what the animation nodes'
+/// `serialize` put there (the hit selector's per-part times and amounts among them, 0x3309B0, fx-review). Which entries
+/// belong to which node is not read here.
+#[derive(Clone, Debug, Default, PartialEq)]
+pub struct AnimationTables {
+    /// The times table (0x3A9580): its base, then each time as the base plus its `each`-bit delta (the form
+    /// [`animation_bytes`] writes; LIKELY for the exe's own deltas).
+    pub times: Vec<u32>,
+    /// The floats table (0x3A9720).
+    pub floats: Vec<f32>,
+}
+
+/// [`AnimationTables`] of the animation state at the start of `bytes`, read the way [`animation_len`] walks it; `None`: the
+/// bytes end first, or an index points past its table.
+pub fn animation_tables(bytes: &[u8]) -> Option<AnimationTables> {
+    let mut bits = Bits { bytes, at: 0 };
+    let tree = bits.read(16)? as usize;
+    bits.skip(tree)?;
+    let mut times = Vec::new();
+    let count = bits.read(10)?;
+    if count != 0 {
+        let indexed = bits.read(1)? != 0;
+        let base = bits.read(32)?;
+        if count == 1 {
+            times.push(base);
+        } else {
+            let each = bits.read(5)? as usize;
+            let delta = |bits: &mut Bits| bits.read(each).map(|d| base.wrapping_add(d));
+            if indexed {
+                let unique = bits.read(width(count))?;
+                let mut table = vec![base];
+                for _ in 1..unique {
+                    table.push(delta(&mut bits)?);
+                }
+                for _ in 0..count {
+                    times.push(*table.get(bits.read(width(unique))? as usize)?);
+                }
+            } else {
+                for _ in 0..count {
+                    times.push(delta(&mut bits)?);
+                }
+            }
+        }
+    }
+    let mut floats = Vec::new();
+    let indexed = bits.read(1)? != 0;
+    let count = bits.read(10)?;
+    if indexed {
+        let unique = bits.read(width(count))?;
+        let table: Vec<f32> = (0..unique).map(|_| bits.read(32).map(f32::from_bits)).collect::<Option<_>>()?;
+        for _ in 0..count {
+            floats.push(*table.get(bits.read(width(unique))? as usize)?);
+        }
+    } else {
+        for _ in 0..count {
+            floats.push(f32::from_bits(bits.read(32)?));
+        }
+    }
+    Some(AnimationTables { times, floats })
+}
+
 /// How many bytes the animation state at the start of `bytes` takes
 /// (`decode_data` 0x3A9900): 16 bits `T`, the tree part of `T` bits, the
 /// times table (0x3A9580), the floats table (0x3A9720), padded to a byte.
@@ -553,6 +614,16 @@ pub fn block_bytes(state: &[u8], animation: Option<&[u8]>) -> Vec<u8> {
 mod tests {
     use super::super::static_info::{MatchItem, MatchKit};
     use super::*;
+
+    #[test]
+    fn an_animation_states_tables_read_back() {
+        let bytes = animation_bytes(&[true, false, true], &[70_000, 70_050, 71_000], &[1.0, -2.5, 0.25]);
+        let tables = animation_tables(&bytes).unwrap();
+        assert_eq!(tables.times, [70_000, 70_050, 71_000]);
+        assert_eq!(tables.floats, [1.0, -2.5, 0.25]);
+        assert_eq!(animation_tables(&animation_bytes(&[], &[9], &[])).unwrap(), AnimationTables { times: vec![9], floats: vec![] });
+        assert_eq!(animation_tables(&bytes[..bytes.len() - 3]), None);
+    }
 
     #[test]
     fn an_animation_states_length_comes_from_its_own_bits() {

@@ -21,6 +21,9 @@
 //!   last_recent_hit,stagger,health0`: the same blocks' controller flags (`m_is_sprinting` and the others), the support normal's
 //!   y and the fall velocity's y, the damage model's last hit time, the recent hits' count and latest time, the stagger float
 //!   before the hits' count, and part 0's health; empty where the block has none;
+//! - `rec_anim.csv` (A325): `match,time,upload,place,times,floats`: each block's animation state's times and floats tables
+//!   (`players::animation_tables`, `;`-joined, in the state's order), among them the hit selector's per-part last hit time and
+//!   current / target amounts (0x3309B0); which entries are whose is not decoded;
 //! - `rec_levels.csv` (A332): `match,roster,place,team,kit,level_none,weight,weapons`: each roster place's kits' speed level as the
 //!   server reckons it (`bot_skills::profile_movement_level_in`, no weapon term), the kit's weight (kg, no loaded rounds) and every
 //!   weapon slot's `movement_speed_modifier` (`slot:modifier` joined by `;`); a life's level is `level_none` + its held weapon's
@@ -165,6 +168,9 @@ fn run(input: &Path, out: &Path) -> Result<(), Box<dyn std::error::Error>> {
     writeln!(worlds, "match,time,upload,uploads,same,place,alive,cx,cy,cz,fx,fy,fz,yaw,pitch,keys,speed,inserted,kit,hands,carrying,speeds")?;
     let mut motions = std::io::BufWriter::new(std::fs::File::create(out.join("rec_motion.csv"))?);
     writeln!(motions, "match,time,upload,place,alive,sprinting,jumping,colliding,can_stand,normal_y,fall_y,last_hit,hits,last_recent_hit,stagger,health0")?;
+    // [A325] Each block's animation state's two tables (`players::animation_tables`), for the hit selector's per-part values.
+    let mut anims = std::io::BufWriter::new(std::fs::File::create(out.join("rec_anim.csv"))?);
+    writeln!(anims, "match,time,upload,place,times,floats")?;
     let (mut read, mut unread) = (0usize, 0usize);
     // The layouts a block is read in (`players::state_at_revision`, A305 F7, fx-review's bb5503dc): a world's layout is its
     // uploader's, not its block's place's (a client-test recording's one human uploads every bot's block), and the tables do not
@@ -191,6 +197,16 @@ fn run(input: &Path, out: &Path) -> Result<(), Box<dyn std::error::Error>> {
                 *read_at.entry(revision).or_default() += 1;
                 let block = players::PlayerBlock { place: raw.place, state: &state, animation: raw.animation };
                 read += 1;
+                if let Some(tables) = raw.animation.and_then(players::animation_tables) {
+                    let join = |v: Vec<String>| v.join(";");
+                    writeln!(
+                        anims,
+                        "{id},{time},{k},{},{},{}",
+                        raw.place,
+                        join(tables.times.iter().map(u32::to_string).collect()),
+                        join(tables.floats.iter().map(|f| format!("{f:.4}")).collect())
+                    )?;
+                }
                 let (c, f) = motion.body.as_ref().map_or(([f32::NAN; 3], [f32::NAN; 3]), |b| (b.position, b.feet()));
                 let speed = motion.damage.as_ref().map_or(f32::NAN, |d| d.linear_horizontal_speed);
                 // The stagger float: the 4 bytes before the recent hits' count, which ends the state but for the last bool.
@@ -264,6 +280,7 @@ fn run(input: &Path, out: &Path) -> Result<(), Box<dyn std::error::Error>> {
     }
     worlds.flush()?;
     motions.flush()?;
+    anims.flush()?;
     let r = &tables.report;
     let text = format!(
         "{head}\nnote kinds: {kinds:?}\nclock offset ms: {}\ndatagrams in {} out {} unparsed {} {:?}\nworlds complete {} world times {}\ninputs {} copies {} conflicts {} flagged {} dropped_future {}\nplayer blocks read {read} unread {unread}\nrevisions by place {revisions:?}; blocks read at (None = as they are) {read_at:?}\n",
