@@ -37,3 +37,6 @@ vtable	slot	va	class	base	basis
 0x009fc53c	0x24	0x001f7660	survarium::game_world	survarium::bullet_manager_engine	observed: get_player, called through bullet_manager+90h by bullet::bullet 0x32BD4E/0x32BD83 (RTTI game_world, this at +0ECh)
 0x009ff344	0x4c	0x0026d660	survarium::replay_network_client	survarium::base_network_client	observed: get_player (base_local_network_client), called by game_world::get_player 0x1F7660
 0x009ffb14	0x4c	0x0027a980	survarium::network_client	survarium::base_network_client	observed: get_player, called by game_world::get_player 0x1F7660 (a bullet's owner, bullet::bullet 0x32BD4E)
+0x00a1395c	0x58	0x00300040	survarium::inventory_item	survarium::inventory_item	observed: stored by inventory_item::inventory_item at 0x2FFBDA; xor eax,eax / ret; inventory::setup_from_profile's artefact-slot scan (0x2FD1DA) stops at a quick slot with no object or one whose +58h is true
+0x00a1395c	0x68	0x002ffdf0	survarium::inventory_item	survarium::inventory_item	observed: inventory::serialize calls it for each slot's object with +258h set (0x2FE52E)
+0x00a1395c	0x6c	0x002fff10	survarium::inventory_item	survarium::inventory_item	observed: inventory::deserialize calls it for each slot's object with +258h set (0x2FE7CE)

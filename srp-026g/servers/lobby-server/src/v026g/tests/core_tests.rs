@@ -1012,6 +1012,28 @@ fn the_match_profile_carries_the_skills_modifiers() {
     );
 }
 
+/// A kit saved with an empty pocket before a held one (match 0x55809714:
+/// pocket 13 empty, a smoke grenade in 14) goes to the match packed, the
+/// lobby's kit as it is.
+#[test]
+fn a_kits_pockets_go_to_the_match_packed() {
+    let mut account = Account::new("Alice");
+    let smoke = survarium::v026g::dictionary::Dictionary::shared()
+        .item_named("rdg-m")
+        .unwrap()
+        .dict_id;
+    let grenades = account.add_item(smoke, 3);
+    account.kits[0].slots[14] = Some(session::v026g::KitSlot {
+        item_id: grenades,
+        count: 1,
+    });
+    let profile = crate::v026g::match_profile(&account, 0, 0, 1_000);
+    let (index, count) = profile.kits[0].slots[13].expect("the grenade in the first pocket");
+    assert_eq!((profile.items[usize::from(index)].dict_id, count), (smoke, 1));
+    assert_eq!(profile.kits[0].slots[14], None);
+    assert!(account.kits[0].slots[13].is_none() && account.kits[0].slots[14].is_some());
+}
+
 /// A kit against the covered-slots rule (one saved before it: the Zubr
 /// UM-4 helmet, which has its mask built in, over a mask) is never loaded
 /// in a match: what the match gets is what the lobby's rule lets be worn.
