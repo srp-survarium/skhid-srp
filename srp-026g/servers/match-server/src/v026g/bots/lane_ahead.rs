@@ -47,7 +47,7 @@ impl Known {
     pub fn holds(self, lane: &HeldLane, clock: u32) -> bool {
         let latest = lane.latest_kills.iter().flatten().next().map(|k| k.from);
         let placed = |k: &LaneKill| match (self.one_place_m, latest) {
-            (Some(m), Some(at)) => k.from.distance(at) <= m,
+            (Some(m), Some(at)) => (k.from - at).length() <= m,
             _ => true,
         };
         let recent = lane.latest_kills.iter().flatten().filter(|k| clock.saturating_sub(k.time) <= self.within_ms && placed(k)).count();
