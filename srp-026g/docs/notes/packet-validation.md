@@ -422,6 +422,16 @@ what bounds it:
   `cut(v, buffer-1)` (NAME 63, CLAN_TAG 15, TEXT 255, WIDE 245), and the match
   0xE4 profile/kit names go through `messages::options::text`, which refuses
   `len >= buffer` (NAME 64 -> <= 63, CLAN 15 -> <= 14).
+  - EXCEPTION FOUND AND FIXED: a clan member's display name in
+    `read_clan_info` 0x271FD0 goes into a 32-byte record field (stride 0x22,
+    name at +0..+0x20, confirmed at 0x272178 `lea esi,[ebx+ecx*2+0x1ec838]` /
+    `[esi+0x20]`), the same 32-byte buffer the rank name uses (`RANK_NAME` 31).
+    But `social::write_members` and the two inline clan-member loops wrote the
+    name at NAME (63), so a clan member whose account name is 32..=63 (NAME
+    allows it) overflowed every other member's 32-byte field when they read
+    clan info -- a one-player-crashes-another bug. Fixed by a new
+    `limits::CLAN_MEMBER_NAME = 31` used by the three writers and the matching
+    `client_model` reads; clan tests and clippy pass.
 
 0.10b hard caps match the validator: `body_part::affects` fixed_vector<_,8> ==
 MAX_AFFECTS 8; `match_options::player_profiles[20]` == MAX_PLAYERS 20; `inventory
@@ -438,7 +448,9 @@ world and mutation. After the animation-float and player-effect checks landed
 the arena was relinked (`link_026g.py --write`) and the drift re-run on the 600
 current worlds -- 10,800 checks, 0 differ -- so the deployed i686 arena carries
 and agrees on the new checks too. The animation stream and the E player-effect
-records were the two reads lacking a bound; both now have one.
+records were the two world reads lacking a bound; both now have one. A third,
+in the lobby, was the clan-member display name (NAME 63 written into a 32-byte
+client field); fixed with `CLAN_MEMBER_NAME` 31 (above).
 
 ### Full reader sweep
 
