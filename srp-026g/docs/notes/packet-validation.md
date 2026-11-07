@@ -516,7 +516,14 @@ index. The validator handles these classes, verified against the readers:
   record's two pointer flags (root emitter, time calculator) are forced to 0
   so a serialized pointer is refused, and the index u32 that each flag gates is
   forced to 0 so the native reader (0x2E5C30) cannot read an unbounded global
-  table (0xAA2E48 / 0xAA2E74) with a refcount write. The effects SECTION always
+  table (0xAA2E48 / 0xAA2E74) with a refcount write. Read in full this pass,
+  `game_effect_player::deserialize` 0x2DDDF0 shows it exactly: it loops
+  `local_c = game_state_E + base_E` records and, per record, when the flag byte
+  (at +0x24) is clear with a non-zero index (+0x25) does
+  `local_40 = [PTR_DAT_00aa2e74 + index*4]` (the unbounded read), and when the
+  flag is set does `(**(code**)(*local_40 + 8))()` (the raw-pointer vtable
+  call). `effects::record_is_safe` forces both pairs to 0; `player_tail` caps
+  the count at MAX_RECORDS. The effects SECTION always
   bounded this (its template), but the E PLAYER-EFFECT records did not --
   `player_tail` only checked the leading flag and length-walked 67 bytes, so a
   crafted state with E >= 1 (E is 0 in every world seen) reached the unbounded
