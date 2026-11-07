@@ -112,6 +112,8 @@ pub mod check_bench;
 /// The input script of a bot: the test bot's (`srp-bot --drive`) and the
 /// server's own bot places' (`MatchPlayer::driven`).
 pub mod drive;
+/// What happened in a match, from its worlds: the history's events.
+pub mod events;
 mod game;
 /// Every upload checked before it is relayed; callable offline too.
 pub mod world_validation;

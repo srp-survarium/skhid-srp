@@ -165,6 +165,7 @@ use super::level_stats::KillsDeaths;
 use super::pay::{self, Pay};
 use super::persist::GameRepository;
 use super::persist::history::{self, MatchKind, MatchRecord};
+use super::persist::match_events::MatchEvent;
 use super::quests::{self, Notice, REPUTATION_LEVEL_MESSAGE};
 use super::replays::ReplayId;
 use super::{GameAccounts, balance, items_rules, rules, wire};
@@ -303,6 +304,8 @@ pub struct MatchResult {
     /// joiners too, and its screen takes no drop card (the owner's of
     /// 2026-10-20; `docs/notes/rooms.md`).
     pub private: bool,
+    /// What happened in it, for the history ([`history::MatchRecord::events`]).
+    pub events: Vec<MatchEvent>,
 }
 
 /// What a Blackout match's score and pay are worth: the owner's of
@@ -1675,12 +1678,7 @@ impl<'a> Shared<'a> {
         used.into_iter()
             .map(|index| history::KitLine {
                 kit: index as u8,
-                counts: history::KitCounts {
-                    kills: u64::from(events[event::KILL][index]),
-                    headshots: u64::from(events[event::HEADSHOT_KILL][index]),
-                    shots: u64::from(events[event::BULLET_FIRE][index]),
-                    hits: u64::from(events[event::BULLET_HIT][index]),
-                },
+                counts: history::KitCounts::of(&events, index),
                 items: account.kits[index]
                     .slots
                     .iter()
@@ -1722,7 +1720,6 @@ impl<'a> Shared<'a> {
                 continue;
             }
             let events = self.events(player);
-            let count = |event| u64::from(total(&events, event));
             players.push(history::PlayerRecord {
                 account_id: player.account_id,
                 clan_id: accounts
@@ -1734,34 +1731,11 @@ impl<'a> Shared<'a> {
                     team: player.team,
                     place: 0,
                     presence,
-                    rating: report.reward.rating_after,
+                    rating: Some(report.reward.rating_after),
                     score: u64::from(player.score),
                     kills: u64::from(player.kills),
                     deaths: u64::from(player.deaths),
-                    counters: history::Counters {
-                        assists: count(event::ASSIST),
-                        headshots: count(event::HEADSHOT_KILL),
-                        grenade_kills: count(event::GRENADE_KILL),
-                        melee_kills: count(event::MELEE_KILL),
-                        // Research counts its captures where a battery
-                        // mode counts a delivery's share (`event`).
-                        batteries: if research {
-                            0
-                        } else {
-                            count(event::PUT_VICTORY_ITEM_IN_CONTAINER)
-                        },
-                        capture_hundredths: if research {
-                            count(event::RESEARCH_CAPTURE)
-                        } else {
-                            0
-                        },
-                        // Every artefact taken from an anomaly, the
-                        // results' explorer count; not patch 80's
-                        // empty-slot bonus (event 16).
-                        artefacts: count(event::ARTEFACT),
-                        shots: count(event::BULLET_FIRE),
-                        hits: count(event::BULLET_HIT),
-                    },
+                    counters: history::Counters::of(&events, research),
                 },
                 kits,
             });
@@ -1769,22 +1743,7 @@ impl<'a> Shared<'a> {
         if players.is_empty() {
             return None;
         }
-        // The place in its team by score; a tie goes to the roster's order.
-        let places: Vec<u8> = players
-            .iter()
-            .enumerate()
-            .map(|(index, me)| {
-                let ahead = players.iter().enumerate().filter(|&(other, them)| {
-                    them.line.team == me.line.team
-                        && (them.line.score > me.line.score
-                            || (them.line.score == me.line.score && other < index))
-                });
-                u8::try_from(ahead.count() + 1).unwrap_or(u8::MAX)
-            })
-            .collect();
-        for (player, place) in players.iter_mut().zip(places) {
-            player.line.place = place;
-        }
+        history::rank_places(&mut players);
         let kind = if result.private {
             MatchKind::Private
         } else if result.vs_bots {
@@ -1809,6 +1768,7 @@ impl<'a> Shared<'a> {
                 team_points: result.team_points,
             },
             players,
+            events: result.events.clone(),
         })
     }
 

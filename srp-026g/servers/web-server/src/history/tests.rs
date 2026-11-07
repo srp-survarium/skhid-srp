@@ -63,7 +63,7 @@ fn line(team: u8, score: u64, kills: u64, deaths: u64) -> PlayerLine {
         team,
         place: 1,
         presence: Presence::Finished,
-        rating: 120,
+        rating: Some(120),
         score,
         kills,
         deaths,
@@ -152,6 +152,7 @@ fn record(kind: MatchKind, ended_at: u64, alice: u32, bob: u32) -> MatchRecord {
                 kits: vec![kit(1, &[(7, "uzi")])],
             },
         ],
+        events: Vec::new(),
     }
 }
 

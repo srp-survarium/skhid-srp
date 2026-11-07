@@ -642,6 +642,8 @@ impl Server {
                     trusted_by: 0,
                     vs_bots: formed.vs_bots,
                     private: formed.private,
+                    // Nobody came: nothing happened.
+                    events: Vec::new(),
                     players: formed
                         .places
                         .iter()

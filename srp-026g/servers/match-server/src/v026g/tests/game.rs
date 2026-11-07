@@ -6,6 +6,7 @@ use std::time::Duration;
 
 use std::collections::BTreeSet;
 
+use session::v026g::persist::match_events::{EventKind, Player, Timing};
 use survarium::v026g::match_msgs::client_model::Skip;
 use survarium::v026g::match_msgs::players::{self, PlayerState};
 use survarium::v026g::match_msgs::rules::state;
@@ -2060,6 +2061,41 @@ fn a_team_with_every_battery_home_ends_the_match_three_seconds_later() {
     assert_eq!((result.players[1].kills, result.players[1].deaths), (0, 5));
     assert!(result.players[0].score > 0);
     assert!(result.players.iter().all(|player| player.present_at_end));
+    // Its events: the five kills of one world, paired (one killer, as
+    // many deaths of its enemy), then the score, the end.
+    let kinds: Vec<EventKind> = result.events.iter().map(|event| event.kind).collect();
+    let (alice, bob) = (
+        Player {
+            place: 0,
+            account_id: result.players[0].account_id,
+        },
+        Player {
+            place: 1,
+            account_id: result.players[1].account_id,
+        },
+    );
+    let kill = EventKind::Kill {
+        killer: alice,
+        victim: Some(bob),
+    };
+    assert_eq!(
+        kinds,
+        [
+            kill,
+            kill,
+            kill,
+            kill,
+            kill,
+            EventKind::Score { points: [10, 0] },
+            EventKind::End { points: [10, 0] },
+        ]
+    );
+    // No `last_killed_enemy_ms` in the script's worlds: the window.
+    let Timing::Between { after, by } = result.events[0].timing else {
+        panic!("{:?}", result.events[0]);
+    };
+    assert!(after < at && at <= by && by + 3_000 <= result.duration_ms);
+    assert_eq!(result.events[6].timing, Timing::Exact(result.duration_ms));
     assert_eq!(result.players[0].team, 0);
     assert_eq!(result.players[1].team, 1);
     // Each was told with its own index.

@@ -12,6 +12,7 @@ use std::sync::{Mutex, MutexGuard};
 use std::time::{Duration, Instant};
 
 use session::matchmaking_policy::Closed;
+use session::v026g::persist::match_events::MatchEvent;
 use session::v026g::replays::ReplayId;
 use survarium::v026g::keeper;
 use survarium::v026g::dictionary::Dictionary;
@@ -1004,6 +1005,8 @@ pub struct MatchResult {
     pub vs_bots: bool,
     /// [`MatchSetup::private`].
     pub private: bool,
+    /// What happened, from the trusted snapshots ([`super::events`]).
+    pub events: Vec<MatchEvent>,
 }
 
 /// Where finished matches go: the lobby's results and rewards code.

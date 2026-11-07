@@ -30,6 +30,7 @@ pub mod history;
 mod items;
 mod level_stats;
 mod map_plays;
+pub mod match_events;
 mod mode_intro;
 mod presets;
 mod results;
@@ -149,6 +150,8 @@ const MIGRATIONS: &[&str] = &[
     mode_intro::MIGRATION,
     // 14: the match history and its totals (`history`).
     history::MIGRATION,
+    // 15: each match's events (`match_events`).
+    match_events::MIGRATION,
 ];
 
 /// The child tables of an account, children of children first.
@@ -232,10 +235,11 @@ pub trait GameRepository: Send {
     fn mark_done(&mut self, _key: &str) -> Result<(), PersistError> {
         Ok(())
     }
-    /// Keeps a finished match in the history ([`history`]). (A repository
+    /// Keeps a finished match in the history ([`history`]), unless its
+    /// replay id is there already: whether it was written. (A repository
     /// that keeps no history: nothing.)
-    fn record_match(&mut self, _record: &history::MatchRecord) -> Result<(), PersistError> {
-        Ok(())
+    fn record_match(&mut self, _record: &history::MatchRecord) -> Result<bool, PersistError> {
+        Ok(false)
     }
     /// A reader of the history for the site, on a connection of its own.
     /// (A repository that keeps no history: `None`.)
@@ -845,7 +849,7 @@ impl GameRepository for SqliteGameRepository {
         admin_actions::load(&self.connection, account_id, limit)
     }
 
-    fn record_match(&mut self, record: &history::MatchRecord) -> Result<(), PersistError> {
+    fn record_match(&mut self, record: &history::MatchRecord) -> Result<bool, PersistError> {
         history::record(&mut self.connection, record)
     }
 

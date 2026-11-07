@@ -2215,6 +2215,7 @@ impl World {
             players,
             vs_bots: setup.vs_bots,
             private: setup.private,
+            events: Vec::new(),
         };
         let terms = Terms::at(session::v026g::quests::now());
         let report = self
@@ -2286,6 +2287,7 @@ impl World {
             players,
             vs_bots: setup.vs_bots,
             private: setup.private,
+            events: Vec::new(),
         };
         let terms = Terms::at(session::v026g::quests::now());
         let report = self

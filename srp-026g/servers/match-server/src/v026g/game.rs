@@ -124,6 +124,7 @@ const _: () = assert!(
 );
 
 use super::battery_cap;
+use super::events::{self, Seat};
 use super::kill_cap;
 use super::record::{Recorder, Recording};
 use super::registry::{Formed, MatchEnd, MatchResult, PlayerResult};
@@ -1003,6 +1004,9 @@ pub(crate) struct Game {
     best_streaks: Vec<u16>,
     /// Who killed whom, as far as the snapshots tell ([`kill_cap`]).
     kill_pairs: kill_cap::Pairs,
+    /// What happened, from the trusted snapshots: the history's events
+    /// ([`events`]).
+    match_events: events::Extractor,
     /// By place: the kit choices relayed for a tick before play began
     /// (`TimelimitRule::before_play`), when a patched game (patch 31)
     /// respawns a live player in the chosen kit where it stands. At most as
@@ -1088,6 +1092,7 @@ impl Game {
             state: None,
             best_streaks: vec![0; players],
             kill_pairs: kill_cap::Pairs::default(),
+            match_events: events::Extractor::new(formed.played.mode().rules()),
             kit_changes: vec![0; players],
             load_waits: vec![late_join::LoadWait::First; players],
             ending: None,
@@ -1127,6 +1132,7 @@ impl Game {
             "match_level": self.formed.match_level,
             "growing_roster": self.formed.growing_roster,
             "vs_bots": self.formed.vs_bots,
+            "private": self.formed.private,
             "initial_players": self.formed.initial_players,
             "late_inputs": format!("{:?}", self.settings.late_inputs),
             "places": self.places_note(0),
@@ -4237,6 +4243,24 @@ impl Game {
                 .as_ref()
                 .and_then(|state| state.statistics.as_ref());
             self.kill_pairs.observe(before, statistics, &teams);
+            let seats: Vec<Seat> = self
+                .formed
+                .places
+                .iter()
+                .map(|place| Seat {
+                    account_id: place.account_id,
+                    team: place.team,
+                })
+                .collect();
+            self.match_events.observe(
+                &events::World {
+                    time: snapshot.time,
+                    statistics,
+                    standing,
+                    research: decoded.rules.as_ref().and_then(|read| read.research.as_ref()),
+                },
+                &seats,
+            );
         }
         if let Some(read) = &decoded.rules {
             // The map's respawn points are known from its project: a rule
@@ -5310,6 +5334,7 @@ impl Game {
                 }
             })
             .collect();
+        let team_points = standing.map_or([0, 0], |standing| standing.points);
         MatchResult {
             match_id: self.id,
             replay_id: self.formed.replay_id.clone(),
@@ -5318,7 +5343,7 @@ impl Game {
             match_level: self.formed.match_level,
             end,
             winner: standing.map(|standing| standing.winner),
-            team_points: standing.map_or([0, 0], |standing| standing.points),
+            team_points,
             duration_ms: clock,
             played_ms: self
                 .rule
@@ -5329,6 +5354,7 @@ impl Game {
             players,
             vs_bots: self.formed.vs_bots,
             private: self.formed.private,
+            events: self.match_events.finish(clock, team_points),
         }
     }
 
