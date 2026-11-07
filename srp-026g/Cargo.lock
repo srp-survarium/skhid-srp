@@ -843,6 +843,7 @@ dependencies = [
 name = "srp-validate"
 version = "0.1.0"
 dependencies = [
+ "artefact-carry",
  "survarium",
  "weapon-pickup",
  "world-frame",

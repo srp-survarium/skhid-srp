@@ -171,9 +171,10 @@ const JUMP_SUB_STATES: [usize; 5] = [7, 4, 3, 3, 2];
 const BONES: usize = 8;
 /// The breath's states (`initialize_logic` 0x31D450), which save nothing.
 const BREATH_STATES: u8 = 3;
-/// Patch 78's carry snapshot and its version.
-const CARRY_SNAPSHOT: usize = 32;
-const CARRY_VERSION: u8 = 2;
+/// Patch 78's carry snapshot and its version, as its writer has them: a
+/// new version is read here as soon as the game writes it.
+const CARRY_SNAPSHOT: usize = artefact_carry::carry::Carry::SNAPSHOT_SIZE;
+const CARRY_VERSION: u8 = artefact_carry::carry::Carry::SNAPSHOT_VERSION;
 /// A weapon state machine's sub-state count (shotgun reload, throw).
 const SUB_STATES: u8 = 3;
 
