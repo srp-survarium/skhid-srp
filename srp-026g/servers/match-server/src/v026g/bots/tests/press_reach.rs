@@ -75,6 +75,16 @@ fn press_reach() {
                 befores.push(before);
             }
         }
+        let band = |lo: f32, hi: f32| befores.iter().filter(|&&b| b > lo && b <= hi).count();
+        eprintln!(
+            "press_reach {project} bands: past <=0 {}, 0-0.15 {}, 0.15-0.3 {}, 0.3-0.5 {}, 0.5-1.2 {}, first tick >1.2 {}",
+            befores.iter().filter(|&&b| b <= 0.0).count(),
+            band(0.0, PRESS_M),
+            band(PRESS_M, 0.3),
+            band(0.3, 0.5),
+            band(0.5, 1.2),
+            befores.iter().filter(|&&b| b > 1.2).count()
+        );
         befores.sort_by(f32::total_cmp);
         let q = |p: f32| befores.get(((befores.len() as f32 - 1.0) * p) as usize).copied().unwrap_or(f32::NAN);
         eprintln!(
