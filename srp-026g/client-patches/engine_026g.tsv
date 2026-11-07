@@ -167,3 +167,7 @@ engine_ray_test_single	0x0a02d0	ESP+4:rayFromTrans ESP+8:rayToTrans ESP+12:objec
 engine_key_name	0x3b9c00	ECX:keyboard ESP+4:key ESP+8:buffer ESP+12:size	unsigned char engine_key_name(struct keyboard *keyboard, unsigned int key, char *name, unsigned int size)	thiscall	
 engine_activate_keyboard_layout	0xaeff20	-	unsigned int engine_activate_keyboard_layout(unsigned int layout, unsigned int flags)	import	
 engine_get_module_handle_a	0x87003c	-	void *engine_get_module_handle_a(const char *name)	import	
+engine_match_packet_begin	survarium::match_client+0x18	ECX:client ESP+4:id	struct match_packet *engine_match_packet_begin(struct match_options_holder *client, unsigned int id)	virtual
+engine_match_packet_send	survarium::match_client+0x1c	ECX:client ESP+4:packet	void engine_match_packet_send(struct match_options_holder *client, struct match_packet *packet)	virtual
+engine_append_packet_bytes	0x7ac10	ESP+4:buffer_writer ESP+8:source_bytes EDI:byte_count	void engine_append_packet_bytes(struct buffer_writer *buffer_writer, const unsigned char *source_bytes, unsigned int byte_count)	thunk
+engine_tick_count	0x8701b8	-	unsigned int engine_tick_count(void)	import

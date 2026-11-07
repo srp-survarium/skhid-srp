@@ -1922,9 +1922,9 @@ def check(original, nasm):
         m.uc.reg_write(UC_X86_REG_EBX, 0x12345600 | debug)
         m.write(STACK + 0x1c, 0x98765432)
         m.start(0x27A23D, end=0x27A244)
-        assert m.uc.mem_read(BASE + 4, 1)[0] == (0x80 | (debug & 1))
+        assert m.uc.mem_read(BASE + 4, 1)[0] == (0x82 | (debug & 1))
         assert m.uc.reg_read(UC_X86_REG_EAX) == 0x98765432
-        assert m.uc.reg_read(UC_X86_REG_EBX) == (0x12345680 | (debug & 1))
+        assert m.uc.reg_read(UC_X86_REG_EBX) == (0x12345682 | (debug & 1))
         assert m.uc.reg_read(UC_X86_REG_ESP) == STACK
     for roster in (0, 1, 2, 8, 9, 16, 20):
         for reading in (False, True):

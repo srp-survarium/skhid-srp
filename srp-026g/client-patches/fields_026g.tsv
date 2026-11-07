@@ -774,3 +774,34 @@ vostok::input::key_event	size	0x14	size	a DIDEVICEOBJECTDATA (GetDeviceData's pu
 survarium::image	d3d9_module	0xAF1194	u32	the delayed import d3d9.dll's module slot (its descriptor's hmod): __delayLoadHelper2 0xE48E0 binds the import to the module there, LoadLibrary only while it is 0 (0xE4995), then InterlockedExchange (0xE4B25); patch 83 puts DXVK's d3d9 there
 survarium::image	dxgi_module	0xAF30CC	u32	the delayed import dxgi.dll's module slot (as d3d9_module); patch 83 puts DXVK's dxgi there
 survarium::image	d3d11_module	0xAF30D0	u32	the delayed import d3d11.dll's module slot (as d3d9_module); patch 83 puts DXVK's d3d11 there
+vostok::ai::fsm	selected	0x10	u32	resolved state pointer, cleared before the serialized id search (0x38CCFE); dereferenced at 0x38CD29
+survarium::generic_anomaly_core	states_begin	0x68	ptr<u8>	state pointer vector, deserialize 0x31B0FF
+survarium::generic_anomaly_core	states_end	0x6C	ptr<u8>	state pointer vector end (constructor/registration); bound for serialized state id
+survarium::network_client	pvp_match	0x1F1C40	ptr<survarium::pvp_match>	the live match wrapper, process_dynamic_match_info 0x27C0FF; core at +1F8h
+survarium::core_world	rules_begin	0x18824	ptr<survarium::rule_entry>	owned rule pointer vector, world serialization and Research's rule lookup
+survarium::core_world	rules_end	0x18828	ptr<survarium::rule_entry>	end of the rule pointer vector
+survarium::rule_entry	rule	0x0	ptr<survarium::match_rule>	one rule pointer in the core's vector
+survarium::rule_entry	size	0x4	size	stride of a rule pointer
+survarium::match_rule	vtable	0x0	u32	concrete rule class, constructors and world rule serialization
+survarium::match_rule	rule_type	0x10C	u32	base constructor writes its argument here at 0x31394F; Research passes type 5
+survarium::match_rule	batteries_begin	0x110	ptr<u8>	gather/vi_spawn rule battery pointer vector (0x313D10, 0x3149B0)
+survarium::match_rule	batteries_end	0x114	ptr<u8>	end of the gather/vi_spawn battery pointer vector
+survarium::match_rule	respawn0	0x194	u32	respawn rule group 0 count (0x316F49..0x316FB6)
+survarium::match_rule	respawn1	0x198	u32	respawn rule group 1 count
+survarium::match_rule	respawn2	0x19C	u32	respawn rule group 2 count
+survarium::image	gather_rule_vtable	0xA06AB4	u32	gather_victory_items_rule_core vtable
+survarium::image	gather_client_rule_vtable	0xA15B04	u32	client gather rule vtable
+survarium::image	vi_spawn_rule_vtable	0xA06C04	u32	vi_spawn_rule_core vtable
+survarium::image	vi_spawn_client_rule_vtable	0xA15CAC	u32	client vi_spawn rule vtable
+survarium::image	tdm_rule_vtable	0xA06CBC	u32	tdm_rule_core vtable
+survarium::image	tdm_client_rule_vtable	0xA15DA4	u32	client tdm rule vtable
+survarium::image	respawn_rule_vtable	0xA06D1C	u32	respawn_rule_core vtable
+survarium::image	respawn_client_rule_vtable	0xA16084	u32	client respawn rule vtable
+survarium::network_client	match_connection_state	0x1F1C64	u32	2 is the live match transport, checked by late_join send_prepared
+survarium::network_client	world_generation	0x1F1C68	u8	process_dynamic_match_info 0x27C040 stores the accepted envelope generation before load
+survarium::match_options_holder	match_seed	0x577BC	u32	match_client options seed, checked by late_join send_prepared
+survarium::match_options_holder	packet_pool	0x578B0	ptr<survarium::match_packet_pool>	packet pool checked before allocating by late_join send_prepared
+survarium::match_packet_pool	used	0x30	u32	packet pool entries used; reserve seventeen as late_join send_prepared
+survarium::match_packet_pool	capacity	0x34	u32	packet pool entries available
+survarium::match_packet	flags	0x98	u8	clear 40h to keep a custom E0 carrier out of automatic joining
+survarium::match_packet	writer	0x2A8	obj<vostok::buffer_writer>	packet buffer writer, as late_join send_prepared
