@@ -186,6 +186,17 @@ pub(crate) fn stand_in_step_input() -> crate::v026g::bots::kin::StepInput {
     }
 }
 
+/// [A318] Whether the stand-in's walk takes the client's walk tick where the lattice has a step rising or blocked: the bench
+/// tuning's `kin.client_step` (`SRP_BENCH_TUNING`), as the reckoning does, so each arm's client and reckoning walk alike.
+pub(crate) fn stand_in_client_step() -> bool {
+    static TUNED: std::sync::OnceLock<bool> = std::sync::OnceLock::new();
+    *TUNED.get_or_init(|| match super::bench_settings().var("SRP_BENCH_STAND_IN_CLIENT_STEP").as_deref() {
+        Ok("on") => true,
+        Ok("off") => false,
+        _ => super::bench::bench_tuning().kin.client_step == crate::v026g::bots::kin::ClientStep::Client,
+    })
+}
+
 /// The stand-in's old step order ([`crate::v026g::bots::kin::StepInput::Same`]: a tick moves with its own input) for this thread
 /// while it lives (tests whose pinned numbers predate it).
 pub(crate) struct OldStepInput(());

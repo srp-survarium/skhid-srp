@@ -789,6 +789,12 @@ pub(crate) fn real_bot_cost() {
     say_the_switches();
     let table = bench_settings().var_os("SRP_BOT_ROUTES")
         .map(|path| super::routes::RouteTable::load(std::path::Path::new(&path)).unwrap());
+    let flank_table = match super::camp_flank::Source::choose(bench_settings().var_os(super::camp_flank::VARIABLE).as_deref(), Some(&dir)) {
+        super::camp_flank::Source::Set(path) | super::camp_flank::Source::Default(path) => {
+            Some(super::camp_flank::FlankTable::load(&path).unwrap_or_else(|e| panic!("{e}")))
+        }
+        super::camp_flank::Source::Off | super::camp_flank::Source::Missing => None,
+    };
     let limit_s: u32 = bench_settings().number("SRP_BENCH_SECONDS")
         .unwrap_or(240);
     let sizes: Vec<usize> = bench_settings().var("SRP_BENCH_SIDES")
@@ -974,6 +980,11 @@ pub(crate) fn real_bot_cost() {
             let mut fight = fight_tally::FightTally::default();
             if let Some(table) = &table {
                 bots.set_routes(table);
+            }
+            // [A320] The known camp spots and their flank routes (`SRP_BOT_FLANK_ROUTES`, else `bot-flank-routes.json` of
+            // the mapdata folder).
+            if let Some(flank) = &flank_table {
+                bots.set_flank_table(flank);
             }
             // The bushes a sight line crosses (`SRP_BOT_FOLIAGE`, else `bot-foliage.json` of the mapdata folder).
             if let super::foliage::Source::Set(path) | super::foliage::Source::Default(path) = super::foliage::Source::choose(
@@ -1282,6 +1293,10 @@ pub(crate) fn real_bot_cost() {
                 .map(|place| BenchCamper::new(camper_options.side.place(place, per_team, seed), camper_options, seed, camper_plays_by));
             let camper_place = bots.bench_camper.as_ref().map(BenchCamper::place);
             owner.set_camper(camper_place);
+            // [A320 B3g] The isolated flank test: only the job flankers hurt the stand-in camper.
+            if bench_settings().flag("SRP_BENCH_CAMPER_FLANK_ONLY") {
+                game.flank_only = camper_place;
+            }
             // [A290] `SRP_BENCH_HUMAN_PLAY=hunter`: the stand-in human hunts sights-up by his own fixed tuning, on the camper's hooks
             // (`standin_hunter.rs`); he is no camper to the tallies.
             if HumanPlay::from_env() == HumanPlay::Hunter {
@@ -2437,6 +2452,11 @@ pub(crate) fn real_bot_cost() {
                 game.hits,
                 game.team_hits,
                 game.team_kills,
+            );
+            // [A318] Whether the reckoning takes the client's walk tick in the bench's matches (it did not before the world's walker).
+            let (ground, hard, client, moved) = crate::v026g::bots::body::client_steps::all();
+            eprintln!(
+                "client_step so far: reckoned ground steps {ground}, hard {hard}, client steps {client}, moved otherwise {moved}"
             );
         }
     }

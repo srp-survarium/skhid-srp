@@ -681,6 +681,9 @@ pub(crate) struct Game {
     /// container for 273 s). The camper and when he began, once.
     pub(crate) camp_m: Option<f32>,
     pub(crate) camper: Option<(Place, u32)>,
+    /// [A320 B3g `SRP_BENCH_CAMPER_FLANK_ONLY`] The stand-in camper's place when only the job flankers hurt him (bullets,
+    /// blasts; zones and traps never): the isolated flank test (does a route get a flanker to him and kill him).
+    pub(crate) flank_only: Option<Place>,
     pub(crate) camp_done: bool,
     /// How the camping ended: (began, ended, he died).
     pub(crate) camp_ended: Option<(u32, u32, bool)>,
@@ -1000,6 +1003,7 @@ impl Game {
             put_in_log: Vec::new(),
             camp_m: None,
             camper: None,
+            flank_only: None,
             camp_done: false,
             camp_ended: None,
             placed_start: None,
@@ -1437,6 +1441,19 @@ impl Game {
                     } else {
                         slide_capped(grid, node, body.feet, target, client_step(grid))
                     };
+                    // [A318] A step the lattice has rising or blocked goes as far as the client's own walk tick takes the body
+                    // (`WalkGrid::client_step`), the lattice walking to that point: the reckoning's rule (`kin.client_step`).
+                    if super::standin_jump::stand_in_client_step()
+                        && (feet.y - body.feet.y > body::STEP_UP_RISE_M || feet.distance_xz(target) > body::CLIENT_BLOCKED_M)
+                    {
+                        let by = Vec3::new(target.x - body.feet.x, 0.0, target.z - body.feet.z);
+                        if by.x.hypot(by.z) > 1e-4
+                            && let Some((from, end)) = grid.client_step(body.feet, by)
+                        {
+                            let walked = Vec3::new(body.feet.x + end.x - from.x, body.feet.y, body.feet.z + end.z - from.z);
+                            (node, feet, _) = walk_slide(grid, body.node.unwrap_or(node), body.feet, walked);
+                        }
+                    }
                     // The client's sprint lift: a sprint run held at the face of a low top is carried up it.
                     let pushing = keys & key::SPRINT != 0 && keys & key::FORWARD != 0 && feet.distance_xz(to) > 1e-3;
                     if !pushing {
@@ -2053,6 +2070,9 @@ impl Game {
     /// The old rule's hit: `shooter`'s shot hit `target` at `along` m; its part drawn by chance, a leg hit by
     /// a hash. `line` is the eye, the shot's direction and the view's.
     fn land_disc(&mut self, shooter: Place, target: Place, along: f32, line: [Vec3; 3], cone: f32, tick: u32) {
+        if !self.hurts(shooter, target, tick) {
+            return;
+        }
         let [eye, dir, view_dir] = line;
         let gun = self.bodies[shooter].gun;
         let team_hit = self.bodies[target].team == self.bodies[shooter].team;
@@ -2084,6 +2104,12 @@ impl Game {
     /// [`HitVolume::Boxes`]' hits: every body a bullet or pellet landed on takes them together, each with the
     /// hit box its shape is; a leg shape hurts that leg (once for the shot). The shot counts as one hit on an
     /// enemy if any landed on one. `line` is the eye, the shot's direction and the view's.
+    /// [A320 B3g] Whether `shooter`'s hit hurts `target`: always, but for the stand-in camper of an isolated flank test, whom
+    /// only a bot on a job's flank hurts.
+    pub(crate) fn hurts(&self, shooter: Place, target: Place, tick: u32) -> bool {
+        self.flank_only != Some(target) || crate::v026g::bots::plays::flank::flanking(shooter, tick)
+    }
+
     fn land_boxes(&mut self, shooter: Place, strikes: &[BoxStrike], line: [Vec3; 3], cone: f32, tick: u32) {
         let [eye, dir, view_dir] = line;
         let (gun, team) = (self.bodies[shooter].gun, self.bodies[shooter].team);
@@ -2095,6 +2121,9 @@ impl Game {
             }
             let target = strike.body;
             bodies.push(target);
+            if !self.hurts(shooter, target, tick) {
+                continue;
+            }
             let landed: Vec<(standin_hitbox::HitParam, Load)> =
                 strikes.iter().filter(|s| s.body == target).map(|s| (s.param, s.load)).collect();
             let through_cover = strikes.iter().any(|s| s.body == target && s.share < DamageShare::ALL);
@@ -2266,6 +2295,9 @@ impl Game {
                 0.0
             };
             let per_live = self.fields.hit_per_s_at(node);
+            if self.flank_only == Some(place) {
+                continue;
+            }
             let body = &mut self.bodies[place];
             let per_s = (per_baked + per_live) * body.heal.toxic_factor(tick);
             if per_s <= 0.0 {
@@ -2418,6 +2450,9 @@ impl Game {
                 Cost::ZERO
             };
             let per_live = self.fields.hit_per_s_at(node);
+            if self.flank_only == Some(place) {
+                continue;
+            }
             let body = &mut self.bodies[place];
             // The antitoxin halves a toxic hit: the infection pool's.
             let factor = body.heal.toxic_factor(tick);

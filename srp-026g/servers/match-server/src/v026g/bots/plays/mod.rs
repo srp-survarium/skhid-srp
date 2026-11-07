@@ -523,6 +523,8 @@ pub struct BotFacts<'a> {
     /// Where its Crossfire's enemy was when the play began, and when
     /// (`commit.crossfire_point`).
     pub held_choke: Option<(Place, Vec3, u32)>,
+    /// [A320 `threat.camp_flank`] Its flank route's metres left to its firing floor (`Running::route_left_m`), if it walks one.
+    pub route_left_m: Option<f32>,
     /// [threat.concede, item 15] Its last hit from a shooter it sensed (`Reflex::last_hit`).
     pub hit: Option<super::concede::Hit>,
 }
@@ -1305,6 +1307,14 @@ impl Running {
     /// (`commit.hold_to_arrival`). Play 28's walk to the spot it answers a
     /// sniper from is one (A210: 198 of 826 runs were taken on the way by a
     /// play of its own band, the runs 5 s long on average).
+    /// [A320] A flank route's metres left to its firing floor (`flank::route_left_m`), if this is one.
+    pub fn route_left_m(&self, tactics: &crate::v026g::bots::tactics::Tactics, feet: Vec3) -> Option<f32> {
+        match self {
+            Self::Flank(state) => flank::route_left_m(state, tactics, feet),
+            _ => None,
+        }
+    }
+
     pub fn travelling(&self) -> bool {
         matches!(
             self,
@@ -1312,6 +1322,9 @@ impl Running {
                 | Self::HoldExit(hold_exit::State::Going { .. })
                 | Self::Cut(cut::State::Going { .. })
                 | Self::Answer(answer::State::Via { .. } | answer::State::Approach { .. })
+                // [A320 `threat.camp_flank`] A flank route to its firing floor (B3g6: 18 of 42 walks were taken mid-way by a
+                // play of the same band: Collect, Escort, Trade, PairUp).
+                | Self::Flank(flank::State::Route { .. })
         )
     }
 

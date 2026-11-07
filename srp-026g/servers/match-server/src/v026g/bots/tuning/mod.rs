@@ -178,6 +178,7 @@ pub use tdm::Squad;
 pub use tdm::TdmTuning;
 pub use team::AvoidTuning;
 pub use team::BehindOpen;
+pub use team::CampFlank;
 pub use team::CommitTuning;
 pub use team::Concede;
 pub use team::GangRule;
@@ -514,7 +515,6 @@ pub(super) const KEPT_RIGHT: &[&str] = &[
     "/heal/amounts",
     "/heal/drug_stops",
     "/kin/carrier_sprint",
-    "/kin/client_step",
     "/kin/drop_fall",
     "/kin/fix_fall",
     "/kin/fix_floor",

@@ -1277,6 +1277,7 @@ pub(super) fn decide(
             ammo: bot.ammo(),
             crossing: walks_crossing(bot),
             held_choke: bot.held_choke,
+            route_left_m: running.route_left_m(tactics, me.feet),
         },
         memory: &bot.memory,
         team: &state.knowledge,
