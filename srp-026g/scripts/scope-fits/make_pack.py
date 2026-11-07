@@ -77,7 +77,7 @@ occlusion = _load('scope_fits_occlusion', HERE / 'occlusion.py')
 sights = rs.sights  # ../rifle-scopes/sights.py
 
 PACK_ID = 'scope-fits'
-VERSION = '9'
+VERSION = '10'
 FIRST_VARIANT = 2901
 LAST_VARIANT = 3299
 CATEGORY = 22
@@ -726,10 +726,12 @@ def shop_item(args, files, entries, name, dict_id, price, icon, fov, first, text
 
 
 def write_pack(args, files, entries, report, icons):
-    # the donor's rail materials and the textures they name (prepare_donor.sh: only those the players lack)
+    # the donor's rail materials and the textures they name (prepare_donor.sh: only those the players
+    # lack), but for those the rifle scopes already add (the M4A1's gas block's: --live has them)
+    have = set((args.live / 'paths.txt').read_text().split())
     for p in sorted(args.donor.rglob('*')):
         rel = str(p.relative_to(args.donor))
-        if p.is_file() and (rel.startswith('material_instances/') or rel.startswith('textures/')):
+        if p.is_file() and (rel.startswith('material_instances/') or rel.startswith('textures/')) and rel not in have:
             files[rel] = p.read_bytes()
     # the rails' 0.69d0 textures as 0.26g draws a 0.69d0 weapon's (the rifle scopes' pbr_026.py)
     files.update(pbr_026.convert({k: v for k, v in files.items() if k.startswith('textures/')}))
