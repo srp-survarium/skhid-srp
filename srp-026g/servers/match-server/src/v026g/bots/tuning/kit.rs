@@ -1,5 +1,5 @@
 use serde::{Deserialize, Serialize};
-use survarium::v026g::loadouts::{BotPocketKit, KitFrags, KitSmoke, PocketStore};
+use survarium::v026g::loadouts::{BotPocketKit, KitFrags, KitMedkit, KitSmoke, PocketStore};
 
 /// What the bots' kits are built with (`survarium::v026g::loadouts`), read where a match is made
 /// (`MatchRegistry::with_bot_pockets`) and where the bench builds its bots' profiles, each team by its own tuning.
@@ -29,6 +29,13 @@ pub struct KitTuning {
     /// owner, 2026-10-29: "Measure, then match". It only gives the grenade habit more to throw: the bots throw 1.8 frags
     /// per 100 lives, the players 20.5, and the gap per carrying life (under 8 per 100 against 54.5) is the habit's, not the kit's.
     pub frags: KitFrags,
+    /// [medkit] The medkit in the first pocket (A311): `medikit`, the Medikit in every tier (the owner's kit of 2026-10-26);
+    /// `military_above_low`, the military medkit in the 9-10 and 13-15 tiers, the Medikit in the lowest. Both wait 2 s; the
+    /// military medkit heals body 0.6 over 1 s (done 3 s after the press), the Medikit 1.0 over 3 s (done at 5 s)
+    /// (`scripts/content-edit/medicines.tsv`). A ranged hit that took health stops a drug in use (patch 84) and the bots press
+    /// on the move 1-2 s after a hit, so the shorter course is finished more often; the bandages (1 s + 1 s) stay in the
+    /// second pocket for the rest.
+    pub medkit: KitMedkit,
 }
 
 impl Default for KitTuning {
@@ -37,17 +44,19 @@ impl Default for KitTuning {
             pocket_store: true,
             smoke: KitSmoke::RadioPlace,
             frags: KitFrags::SupportAndCamper,
+            medkit: KitMedkit::MilitaryAboveLow,
         }
     }
 }
 
 impl KitTuning {
-    /// The pockets the team's kits are built with: the store, the smoke and the frags.
+    /// The pockets the team's kits are built with: the store, the smoke, the frags and the medkit.
     pub fn pockets(&self) -> BotPocketKit {
         BotPocketKit {
             store: PocketStore::of(self.pocket_store),
             smoke: self.smoke,
             frags: self.frags,
+            medkit: self.medkit,
         }
     }
 }

@@ -572,11 +572,12 @@ pub struct BotPocketKit {
     pub store: PocketStore,
     pub smoke: KitSmoke,
     pub frags: KitFrags,
+    pub medkit: KitMedkit,
 }
 
 impl BotPocketKit {
     /// The kits that differ, for a cache's slot ([`Self::index`]).
-    pub const COUNT: usize = PocketStore::ALL.len() * KitSmoke::ALL.len() * KitFrags::ALL.len();
+    pub const COUNT: usize = PocketStore::ALL.len() * KitSmoke::ALL.len() * KitFrags::ALL.len() * KitMedkit::ALL.len();
 
     /// The `store` with no smoke: the kit before the smoke.
     pub const fn stored(store: PocketStore) -> Self {
@@ -584,14 +585,78 @@ impl BotPocketKit {
             store,
             smoke: KitSmoke::Off,
             frags: KitFrags::Off,
+            medkit: KitMedkit::Medikit,
         }
     }
 
     /// The place of the kit among [`Self::COUNT`].
     pub const fn index(self) -> usize {
-        (self.store.index() * KitSmoke::ALL.len() + self.smoke.index()) * KitFrags::ALL.len() + self.frags.index()
+        ((self.store.index() * KitSmoke::ALL.len() + self.smoke.index()) * KitFrags::ALL.len() + self.frags.index())
+            * KitMedkit::ALL.len()
+            + self.medkit.index()
     }
 }
+
+/// The medkit in a bot's first pocket (the owner's kit, [`new_kit`]; the old kit keeps the Medikit). Every medkit of the
+/// game data waits the same 2 s before it heals and differs in how long it then heals (`scripts/content-edit/medicines.tsv`,
+/// `use_s` and `active_s`): the Medikit 3 s (body 1.0, done 5 s after the press), the military medkit 1 s (body 0.6, done
+/// at 3 s). A ranged hit that takes health stops every healing drug in use (patch 84), and the bots press on the move
+/// about 1-2 s after a hit, so the shorter course is the one more often finished (A311).
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, PartialOrd, Ord, Hash, serde::Serialize, serde::Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum KitMedkit {
+    /// The Medikit in every tier, as the owner's kit of 2026-10-26 had it.
+    #[default]
+    Medikit,
+    /// The military medkit in the tiers above the lowest ([`BotTier::Mid`], [`BotTier::High`]); the lowest keeps the
+    /// Medikit (the military medkit's item level is 6, the lowest tier's kits are of levels 4-5: the owner's call).
+    MilitaryAboveLow,
+}
+
+impl KitMedkit {
+    /// Every choice, in the order of [`Self::index`].
+    pub const ALL: [Self; 2] = [Self::Medikit, Self::MilitaryAboveLow];
+
+    /// The place of the choice in [`Self::ALL`].
+    pub const fn index(self) -> usize {
+        match self {
+            Self::Medikit => 0,
+            Self::MilitaryAboveLow => 1,
+        }
+    }
+
+    /// The medkit item a bot of `tier` carries with this choice.
+    pub fn item(self, tier: BotTier) -> BotKitItem {
+        match (self, tier) {
+            (Self::MilitaryAboveLow, BotTier::Mid | BotTier::High) => BotKitItem {
+                name: BOT_MILITARY_MEDKIT_NAME,
+                ..BOT_MEDKIT
+            },
+            _ => BOT_MEDKIT,
+        }
+    }
+
+    /// `items` (a kit's pieces, its pockets among them) of a bot of `tier` with this choice's medkit in the Medikit's
+    /// pocket: same pocket, count and quick-use key, so no other item moves.
+    pub fn apply(self, tier: BotTier, mut items: Vec<BotKitItem>) -> Vec<BotKitItem> {
+        let wanted = self.item(tier);
+        if wanted.name == BOT_MEDKIT.name {
+            return items;
+        }
+        for item in items
+            .iter_mut()
+            .filter(|item| POCKET_SLOTS.contains(&item.slot) && item.name == BOT_MEDKIT.name)
+        {
+            item.name = wanted.name;
+        }
+        items
+    }
+}
+
+/// The military medkit (`military_medkit`, dictionary 390, item level 6, 40 silver; waits 2 s, heals body 0.6, head
+/// 0.24, the limbs in full and pain 0.5 over 1 s, mends limb injuries, 0.3 kg: `scripts/content-edit/medicines.tsv`,
+/// `items.tsv`).
+pub const BOT_MILITARY_MEDKIT_NAME: &str = "military_medkit";
 
 /// One smoke grenade (`rdg-m`, `grenade`, item level 6; no damage, a cloud: `match-server` `bots/smoke.rs`), placed by
 /// [`KitSmoke::place`] (the slot here is a stand-in), thrown with its quick-use key (the kit's filled pockets counted,
@@ -2001,7 +2066,7 @@ pub fn bot_kits_in_kit(
                 .map(|item| item.name),
         );
         // The frags are the owner's kit's (the old kit gives every role two), before the smoke so it goes after every grenade.
-        let items = if new { kit.frags.apply(role, items) } else { items };
+        let items = if new { kit.medkit.apply(equipment.tier, kit.frags.apply(role, items)) } else { items };
         bot_loadout(&kit.smoke.place(items, open).0, kit.store)
     })
 }
@@ -2088,12 +2153,15 @@ pub fn bot_equipment_of(profile: &MatchProfile) -> Option<(BotEquipment, BotRole
                     // changes no item, the smoke and a camper's frag do.
                     KitSmoke::ALL.into_iter().any(|smoke| {
                         KitFrags::ALL.into_iter().any(|frags| {
-                            let kit = BotPocketKit {
-                                smoke,
-                                frags,
-                                ..BotPocketKit::default()
-                            };
-                            holds_kits(&bot_kits_kit(equipment, role, kit), &held)
+                            KitMedkit::ALL.into_iter().any(|medkit| {
+                                let kit = BotPocketKit {
+                                    smoke,
+                                    frags,
+                                    medkit,
+                                    ..BotPocketKit::default()
+                                };
+                                holds_kits(&bot_kits_kit(equipment, role, kit), &held)
+                            })
                         })
                     })
                 })
@@ -4012,6 +4080,7 @@ mod tests {
                         store: PocketStore::PerLife,
                         smoke,
                         frags: KitFrags::Off,
+                        medkit: KitMedkit::Medikit,
                     };
                     let without = bot_kits_in_kit(eq(tier), role, new, false, kit(KitSmoke::Off));
                     let with = bot_kits_in_kit(eq(tier), role, new, false, kit(placed));
@@ -4107,6 +4176,7 @@ mod tests {
             store: PocketStore::PerLife,
             smoke: KitSmoke::Off,
             frags,
+            medkit: KitMedkit::Medikit,
         };
         for tier in BotTier::ALL {
             for role in BotRole::ALL {

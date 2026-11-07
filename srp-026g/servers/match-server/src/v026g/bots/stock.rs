@@ -48,10 +48,12 @@ pub enum Drug {
     Medkit,
     Bandages,
     Antitoxin,
+    /// The military medkit (`loadouts::KitMedkit::MilitaryAboveLow`).
+    Military,
 }
 
 impl Drug {
-    pub const ALL: [Self; 3] = [Self::Medkit, Self::Bandages, Self::Antitoxin];
+    pub const ALL: [Self; 4] = [Self::Medkit, Self::Bandages, Self::Antitoxin, Self::Military];
 
     /// The dictionary's name of the item.
     pub fn name(self) -> &'static str {
@@ -59,6 +61,7 @@ impl Drug {
             Self::Medkit => "medkit",
             Self::Bandages => "bandages",
             Self::Antitoxin => "antitoxin",
+            Self::Military => survarium::v026g::loadouts::BOT_MILITARY_MEDKIT_NAME,
         }
     }
 

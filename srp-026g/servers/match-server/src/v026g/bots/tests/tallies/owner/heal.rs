@@ -524,6 +524,7 @@ impl HealCounts {
             "heal_presses_medkit": count_of(Drug::Medkit),
             "heal_presses_bandages": count_of(Drug::Bandages),
             "heal_presses_antitoxin": count_of(Drug::Antitoxin),
+            "heal_presses_military": count_of(Drug::Military),
             "heal_team_hits": game.team_hit_pains.len(),
             "heal_team_hits_pain_low": team_low.0,
             "heal_team_kills": team_pain_kills.0,
@@ -543,7 +544,7 @@ impl HealCounts {
         let mut stops_medkit = [0u32; 2];
         for &(_, place, drug, at) in &game.drug_stops {
             stops[team_of(place)][usize::from(at == Stopped::Active)] += 1;
-            stops_medkit[team_of(place)] += u32::from(drug == Drug::Medkit);
+            stops_medkit[team_of(place)] += u32::from(matches!(drug, Drug::Medkit | Drug::Military));
         }
         let mut holds = [[0u32; 2]; 2];
         for (place, h) in self.holds.iter().enumerate().filter(|(place, _)| *place < game.bodies.len()) {

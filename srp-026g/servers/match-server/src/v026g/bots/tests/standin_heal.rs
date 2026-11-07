@@ -229,7 +229,7 @@ pub(crate) struct Model {
     toxic: f32,
 }
 
-pub(crate) const MODELS: [Model; 3] = [
+pub(crate) const MODELS: [Model; 4] = [
     Model {
         drug: Drug::Medkit,
         delay_s: 2.0,
@@ -264,6 +264,22 @@ pub(crate) const MODELS: [Model; 3] = [
         totals: &[(Group::Infection, 0.5)],
         since_rev40: &[],
         toxic: 0.5,
+    },
+    // `scripts/content-edit/medicines.tsv` `military_medkit` (the same in rev-48 and rev-50 data): use_s 2, active_s 1,
+    // limbs 1, body 0.6, head 0.24, pain 0.5.
+    Model {
+        drug: Drug::Military,
+        delay_s: 2.0,
+        active_s: 1.0,
+        totals: &[
+            (Group::Body, 0.6),
+            (Group::Head, 0.24),
+            (Group::Hands, 1.0),
+            (Group::Legs, 1.0),
+            (Group::Pain, 0.5),
+        ],
+        since_rev40: &[],
+        toxic: 1.0,
     },
 ];
 
