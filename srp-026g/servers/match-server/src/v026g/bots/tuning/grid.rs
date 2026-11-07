@@ -112,6 +112,13 @@ pub struct GridTuning {
     /// bots into both (fx-grid's A257). On by default (A93's final sweep: the five A93 candidates on against the defaults, both teams, 576 pairs: stuck -5.2 %, kills +1.5 %, every guard level but A123's gap_failed_above, +45 % at paired z +1.8, in a few Vector Laboratory and Chemical Plant matches). The old value counts exits a body cannot take, so the
     /// all-off arm keeps the default (`KEPT_RIGHT`). A grid is the map's (see `gap_links`).
     pub pocket_exits_walled: bool,
+    /// [A347a] Whether the maps' walk grids keep a walking jump onto a short top by its press window and give the route its
+    /// latest press (`mapdata::Body::press_window`): the clip's root end (2.67 m, PROVEN) within the top's far edge plus the
+    /// stand radius 0.38 x sin 40 deg (a still body's slide, exe 0x7bc20; PROVEN), replacing the 0.2 m GUESS; the motor backs
+    /// off from a press later than that (Vector Laboratory's 0.905 m ledge: down from presses 0.15-0.38 m before the take-off,
+    /// up from 0.53-0.63; the window's least is 0.55). Client-proven: ON, and the all-off arm keeps it (`KEPT_RIGHT`). A grid is
+    /// the map's (see `gap_links`).
+    pub press_window: bool,
     /// [A293] Whether the maps' walk grids refuse a gap link down whose flight went over a face that had held the body
     /// (`mapdata::Body::gap_no_vaults`): a rail or a parapet at the edge with a floor more than a step under its far side. The
     /// flight let the body rise with the clip at the face and go on past it once its feet were over; the client does not:
@@ -232,6 +239,7 @@ impl Default for GridTuning {
             run_ups_after_erosion: true,
             steep_walk_base: true,
             pocket_exits_walled: true,
+            press_window: true,
             gap_no_vaults: true,
             ramp_faces: true,
             client_controller: true,
@@ -274,6 +282,7 @@ impl GridTuning {
             run_ups_after_erosion: self.run_ups_after_erosion,
             steep_walk_base: self.steep_walk_base,
             pocket_exits_walled: self.pocket_exits_walled,
+            press_window: self.press_window,
             gap_no_vaults: self.gap_no_vaults,
             ramp_faces: self.ramp_faces,
             client_controller: self.client_controller,

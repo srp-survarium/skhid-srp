@@ -141,6 +141,9 @@ pub const STEEP_WALK_BASE_ALGO: u32 = 1;
 /// The same for the pockets shut by the exits a body can take ([`Body::pocket_exits_walled`], `WalkGrid::mark_no_exit`), in
 /// [`grid_key_with_links`] only for a body that asks for it. A value of its own.
 pub const POCKET_EXITS_WALLED_ALGO: u32 = 0x5270_0001;
+/// The same for the walking jumps onto short tops kept by their press window ([`Body::press_window`], A347a), in
+/// [`grid_key_with_links`] only for a body that asks for it. A value of its own.
+pub const PRESS_WINDOW_ALGO: u32 = 0x5347_0a01;
 /// The same for the gap links down a flight made only over a face that held the body ([`Body::gap_no_vaults`], A293), in
 /// [`grid_key_with_links`] only for a body that asks for it. A value of its own.
 pub const GAP_NO_VAULTS_ALGO: u32 = 0x5293_0001;
@@ -368,6 +371,10 @@ pub fn grid_key_with_links(
     // And the pockets shut by the exits a body can take.
     if body.pocket_exits_walled {
         digest.u32(POCKET_EXITS_WALLED_ALGO);
+    }
+    // And the walking jumps onto short tops kept by their press window.
+    if body.press_window {
+        digest.u32(PRESS_WINDOW_ALGO);
     }
     // And the gap links down over a face that held the body.
     if body.gap_no_vaults {

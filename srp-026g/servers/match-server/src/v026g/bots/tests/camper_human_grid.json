@@ -15,6 +15,7 @@
   "run_ups_after_erosion": true,
   "steep_walk_base": true,
   "pocket_exits_walled": true,
+  "press_window": false,
   "gap_no_vaults": true,
   "ramp_faces": true,
   "client_controller": true,
