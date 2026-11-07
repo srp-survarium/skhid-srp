@@ -93,7 +93,9 @@ pub struct Dictionary {
     pub items: Vec<Item>,
     /// `(first_item, second_item)`: e.g. an ammo and a weapon that fires it.
     /// Only pairs of items that exist: the file also names ids 79, 101, 735
-    /// and 738..741, which no item has.
+    /// and 738..741, which no item has. Sorted, so that [`Self::compatible`]
+    /// finds a pair by binary search: the match server asks it for every
+    /// weapon and ammo stack of every kit on each upload's check.
     pub compatibility: Vec<(u16, u16)>,
     /// The pairs left out of `compatibility`.
     pub dangling_compatibility: Vec<(u16, u16)>,
@@ -213,9 +215,10 @@ impl Dictionary {
             ))
         })?;
         let known = |id: u16| items.binary_search_by_key(&id, |item| item.dict_id).is_ok();
-        let (compatibility, dangling_compatibility) = pairs
+        let (mut compatibility, dangling_compatibility): (Vec<_>, Vec<_>) = pairs
             .into_iter()
             .partition(|&(first, second)| known(first) && known(second));
+        compatibility.sort_unstable();
 
         let mut categories = rows(&root, "categories_dict", |category| {
             Ok(Category {
@@ -336,7 +339,8 @@ impl Dictionary {
 
     /// Whether the file pairs the two items, in either order.
     pub fn compatible(&self, a: u16, b: u16) -> bool {
-        self.compatibility.contains(&(a, b)) || self.compatibility.contains(&(b, a))
+        self.compatibility.binary_search(&(a, b)).is_ok()
+            || self.compatibility.binary_search(&(b, a)).is_ok()
     }
 
     /// The reward multipliers of a match level; past the table, its last row.
@@ -486,6 +490,26 @@ mod tests {
         assert!(dictionary.compatible(7, 13));
         assert!(dictionary.compatible(3, 217));
         assert!(!dictionary.compatible(3, 22));
+        // The binary search answers as a walk of the pairs does, for every
+        // two ids a pair names and their neighbours.
+        let mut ids: Vec<u16> = dictionary
+            .compatibility
+            .iter()
+            .flat_map(|&(a, b)| [a, b, a.wrapping_add(1), b.wrapping_sub(1)])
+            .collect();
+        ids.sort();
+        ids.dedup();
+        let walk = |a, b| {
+            dictionary
+                .compatibility
+                .iter()
+                .any(|&pair| pair == (a, b) || pair == (b, a))
+        };
+        for &a in &ids {
+            for &b in &ids {
+                assert_eq!(dictionary.compatible(a, b), walk(a, b), "{a} {b}");
+            }
+        }
     }
 
     #[test]

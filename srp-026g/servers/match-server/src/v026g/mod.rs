@@ -106,6 +106,9 @@
 mod battery_cap;
 /// The server's own bots (`MatchPlayer::driven`): their maps.
 pub mod bots;
+/// The upload check of a recorded match, for `examples/world_check_bench.rs`.
+#[doc(hidden)]
+pub mod check_bench;
 /// The input script of a bot: the test bot's (`srp-bot --drive`) and the
 /// server's own bot places' (`MatchPlayer::driven`).
 pub mod drive;
