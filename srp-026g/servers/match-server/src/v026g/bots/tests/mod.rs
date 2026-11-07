@@ -86,6 +86,7 @@ mod no_way;
 mod opening;
 mod pace_gate;
 mod pocket_runs;
+mod reference_replay;
 mod settings;
 mod sight;
 mod soak;
