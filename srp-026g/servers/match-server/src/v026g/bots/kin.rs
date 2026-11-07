@@ -491,7 +491,32 @@ pub enum WallSlide {
     /// recordings) drifts 3.31 % of the worlds against 3.54 % with [`Self::Diagonal`], every map and recording better.
     #[default]
     Round,
+    /// [A338] [`Self::Round`]'s tries, each going the client's share of the step instead of its projection: the client's slide
+    /// (`get_wall_slide_vector` 0x7AC50, live `wall_full_slide_dot` 0.5) keeps the step's length along a wall met within 30
+    /// degrees of the way (|n.u| < 0.5) and above that (1 - |n.u|) / 0.5 of it, 0 head-on (fx-review A338, fx-grid's PROVEN reads;
+    /// `step_forward_impl` 0x7D2A0). A try turned by tau from the step meets a wall with |n.u| = sin tau. The slide's 0.08 push off
+    /// the wall (normalise(u - n(n.u) + 0.08 n)) is not played: on the grid's tries it turns the way by atan(0.08 / sin tau) at
+    /// most, LIKELY small.
+    Client,
 }
+
+impl WallSlide {
+    /// [A338] The share of the step a try turned by `tau` (radians) from it goes ([`Self::Client`]): 1 under 30 degrees, then
+    /// (1 - sin tau) / 0.5. The other rules go its projection, cos tau.
+    pub fn share(self, tau: f32) -> f32 {
+        match self {
+            Self::Client => {
+                let n_u = tau.sin().abs();
+                if n_u < CLIENT_FULL_SLIDE_DOT { 1.0 } else { ((1.0 - n_u) / CLIENT_FULL_SLIDE_DOT).max(0.0) }
+            }
+            Self::Axes | Self::Diagonal | Self::Round => tau.cos().max(0.0),
+        }
+    }
+}
+
+/// [A338] `wall_full_slide_dot`, startup.cfg in resources.db (live 0.5; `mapdata::controller::tick::Settings::LIVE`): under it a wall
+/// slide keeps the step's whole length (`get_wall_slide_vector` 0x7AC50).
+pub const CLIENT_FULL_SLIDE_DOT: f32 = mapdata::controller::tick::Settings::LIVE.wall_full_slide_dot;
 
 /// [A318] Which input's keys and yaw move the reckoned body over a step (`advance`). The client's tick T advances the clips
 /// chosen up to input T-50, rotated by the yaw before input T, and only then calls `apply_new_input` 0x2D86E0 for input T (player

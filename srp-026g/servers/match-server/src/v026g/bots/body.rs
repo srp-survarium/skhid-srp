@@ -1321,7 +1321,7 @@ pub fn slide_supported_by(
                 let ([a, b], [c, d]) = (parts((p, p)), parts((q, -q)));
                 [(sx, sz), (sx, 0.0), (0.0, sz), (p, p), (q, -q), a, b, c, d, none, none, none, none, none, none]
             }
-            WallSlide::Round => {
+            WallSlide::Round | WallSlide::Client => {
                 let ([a, b], [c, d]) = (parts((p, p)), parts((q, -q)));
                 [
                     (sx, sz),
@@ -1342,7 +1342,18 @@ pub fn slide_supported_by(
                 ]
             }
         };
-        let moved = tries.iter().find_map(|&(mx, mz)| {
+        // [A338] [`WallSlide::Client`]: each try along its own way, the client's share of the step ([`WallSlide::share`]).
+        let step_len = sx.hypot(sz);
+        let client_try = |(mx, mz): (f32, f32)| {
+            let len = mx.hypot(mz);
+            if walls != WallSlide::Client || len < 1e-6 || step_len < 1e-6 {
+                return (mx, mz);
+            }
+            let tau = ((mx * sx + mz * sz) / (len * step_len)).clamp(-1.0, 1.0).acos();
+            let to = walls.share(tau) * step_len / len;
+            (mx * to, mz * to)
+        };
+        let moved = tries.iter().map(|&t| client_try(t)).find_map(|(mx, mz)| {
             if mx == 0.0 && mz == 0.0 {
                 return None;
             }
@@ -2516,6 +2527,31 @@ pub(super) mod tests {
         let gone = track.estimate().unwrap().feet.distance_xz(at);
         let tick = track.estimate().unwrap().velocity[0].hypot(track.estimate().unwrap().velocity[1]) * TICK_S;
         assert!((gone - 9.0 * tick).abs() < 0.02, "gone {gone} tick {tick}");
+    }
+
+    /// [A338] [`WallSlide::Client`]: the client's share of a step slid along a wall, 1 within 30 degrees, then (1 - sin tau) / 0.5
+    /// (0.586 at 45, 0.268 at 60, 0 head-on), where the round slide keeps cos tau; a body walking at 45 degrees into a wall goes
+    /// along it that share of the step.
+    #[test]
+    fn a_wall_slide_goes_the_clients_share() {
+        let deg = |d: f32| d.to_radians();
+        assert_eq!(WallSlide::Client.share(deg(22.5)), 1.0);
+        assert!((WallSlide::Client.share(deg(45.0)) - 0.586).abs() < 0.001);
+        assert!((WallSlide::Client.share(deg(60.0)) - 0.268).abs() < 0.001);
+        assert!(WallSlide::Client.share(deg(90.0)).abs() < 1e-6);
+        assert!((WallSlide::Round.share(deg(45.0)) - 0.707).abs() < 0.001);
+        // The wall of `walled` runs along z at x 20; from (19.5, 0, 10) a step of 0.5 m at 45 degrees (+x, +z) into it.
+        let grid = walled();
+        let from = Vec3::new(19.5, 0.0, 10.0);
+        let node = grid.locate(from, 0.5).unwrap();
+        let to = Vec3::new(19.5 + 0.3536, 0.0, 10.0 + 0.3536);
+        let along = |walls: WallSlide| {
+            let (_, feet, _) = slide_supported_with(&grid, node, from, to, f32::INFINITY, SUPPORT_M, Bridges::Leap, walls);
+            feet.z - from.z
+        };
+        let (client, round) = (along(WallSlide::Client), along(WallSlide::Round));
+        assert!(client < round - 0.03, "client {client} round {round}");
+        assert!(client > 0.15, "client {client}");
     }
 
     /// [A318] [`FixFall::World`]: a world that has the body 0.5 m over its floor (under the step) going down at 3 m/s starts the
