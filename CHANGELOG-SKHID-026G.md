@@ -9,6 +9,13 @@ release that made it what it is now.
 
 ---
 
+## 7 Nov, 21:40 — TODO: the owner's words (update required)
+
+<!-- Revision 52 (026g-rev52), released 2026-11-07 21:40 UTC. To be worded for players; what it shipped: -->
+
+- TODO: #1505 Release: exe self-test beside step 2, on every core; --no-selftest
+- TODO: #1506 Patch 109: fix the crash at a rollback over a Keeper's respawn into another kit
+
 ## 7 Nov, 20:47 — TODO: the owner's words (update required)
 
 <!-- Revision 51 (026g-rev51), released 2026-11-07 20:47 UTC. To be worded for players; what it shipped: -->
