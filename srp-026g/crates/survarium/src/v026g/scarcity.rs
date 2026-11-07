@@ -1,6 +1,6 @@
 //! Scarcity's ammo (`docs/notes/scarcity.md`): a life of a Scarcity match
-//! starts with each gun's magazine and one magazine more, a machine gun's
-//! magazine alone, a shotgun's magazine and two more.
+//! starts with each gun's loaded magazine and nothing more, whatever the gun
+//! (the owner, 2026-11-07: "everyone gets a single mag and that's it").
 //!
 //! The game gives a life its kit's slot counts (`inventory::setup_from_profile`
 //! 0x2FCB70: each ammo slot `min(the kit's count, what is in store)`, the
@@ -13,37 +13,17 @@
 //! in store at the start less what is left) is what the cut kits fired, and
 //! the pay and the autobuy charge that.
 
+use srp_validate::world::{AMMO_SLOTS, WEAPON_SLOTS};
+
 use super::dictionary::Dictionary;
 use super::item_params::item_params;
-use super::loadouts::bot_gear::category::{MACHINE_GUNS, SHOTGUNS};
 use super::match_msgs::static_info::{MatchItem, MatchKit, MatchProfile};
 
-/// The kit's weapon slots, slot 7's gun first.
-pub const WEAPON_SLOTS: [usize; 2] = [7, 10];
-/// The kit's ammo slots (the client's table at 0x9C2578), in order: each
-/// gun's ammo is one pool over them (`session::v026g::rules`).
-pub const AMMO_SLOTS: [usize; 8] = [8, 9, 11, 12, 19, 20, 21, 22];
-
-/// The magazines a life gives a gun of `category` (`items_dict`, the
-/// shop's weapon tabs): a machine gun (16) its magazine alone, a shotgun
-/// (14) its magazine and two more (the owner, 2026-11-02), any other gun
-/// (the bolt-actions too) its magazine and one more.
-pub const fn magazines_of(category: u8) -> u32 {
-    match category {
-        MACHINE_GUNS => 1,
-        SHOTGUNS => 3,
-        _ => 2,
-    }
-}
-
 /// The rounds a life gives a gun: its magazine (`parameters/
-/// magazine_capacity`) times [`magazines_of`] its category. 0 for an item
-/// that is no gun of the data.
-pub fn rounds_of(weapon: u16, dictionary: &Dictionary) -> u32 {
-    let (Some(item), Some(params)) = (dictionary.item(weapon), item_params(weapon)) else {
-        return 0;
-    };
-    params.magazine_capacity * magazines_of(item.category)
+/// magazine_capacity`), the chamber inside them. 0 for an item that is no
+/// gun of the data.
+pub fn rounds_of(weapon: u16) -> u32 {
+    item_params(weapon).map_or(0, |params| params.magazine_capacity)
 }
 
 /// Every kit of `profile` cut to Scarcity's ammo ([`ration_kit`]).
@@ -61,16 +41,21 @@ pub fn ration(profile: &mut MatchProfile, dictionary: &Dictionary) {
 /// every other slot, stays as it is.
 pub fn ration_kit(kit: &mut MatchKit, items: &[MatchItem], dictionary: &Dictionary) {
     let dict_of = |slot: Option<(u16, u16)>| {
-        slot.and_then(|(index, _)| items.get(usize::from(index))).map(|item| item.dict_id)
+        slot.and_then(|(index, _)| items.get(usize::from(index)))
+            .map(|item| item.dict_id)
     };
     let mut guns: Vec<(u16, u32)> = WEAPON_SLOTS
         .iter()
-        .filter_map(|&slot| dict_of(kit.slots[slot]))
-        .map(|weapon| (weapon, rounds_of(weapon, dictionary)))
+        .filter_map(|&slot| dict_of(kit.slots[usize::from(slot)]))
+        .map(|weapon| (weapon, rounds_of(weapon)))
         .collect();
-    for slot in AMMO_SLOTS {
-        let Some((index, count)) = kit.slots[slot] else { continue };
-        let Some(ammo) = dict_of(kit.slots[slot]) else { continue };
+    for slot in AMMO_SLOTS.map(usize::from) {
+        let Some((index, count)) = kit.slots[slot] else {
+            continue;
+        };
+        let Some(ammo) = dict_of(kit.slots[slot]) else {
+            continue;
+        };
         if item_params(ammo).is_none_or(|params| params.kind != "ammo") {
             continue;
         }
@@ -109,10 +94,7 @@ mod tests {
                 instance_id: 100 + index as u32,
                 dict_id,
                 condition_or_stack: if stack { 1000 } else { FULL_CONDITION },
-                repair_time: 0,
-                reroll_time: 0,
-                modifications: Vec::new(),
-                upgrades: Vec::new(),
+                ..MatchItem::default()
             });
         }
         MatchProfile {
@@ -126,25 +108,36 @@ mod tests {
         }
     }
 
-    fn counts(profile: &MatchProfile) -> Vec<(usize, Option<u16>)> {
-        AMMO_SLOTS.iter().map(|&slot| (slot, profile.kits[0].slots[slot].map(|(_, n)| n))).collect()
+    fn counts(profile: &MatchProfile) -> Vec<(u8, Option<u16>)> {
+        AMMO_SLOTS
+            .iter()
+            .map(|&slot| {
+                (
+                    slot,
+                    profile.kits[0].slots[usize::from(slot)].map(|(_, n)| n),
+                )
+            })
+            .collect()
     }
 
     #[test]
-    fn a_gun_gets_two_magazines_and_a_machine_gun_one() {
-        let dictionary = Dictionary::shared();
-        // The data's: the AK-74M's magazine 30, the TT-33's 8, the RPD
-        // (a machine gun, category 16) 100, the RPK 45.
-        assert_eq!(rounds_of(id("ak_74m"), dictionary), 60);
-        assert_eq!(rounds_of(id("tt_33"), dictionary), 16);
-        assert_eq!(rounds_of(id("rpd"), dictionary), 100);
-        assert_eq!(rounds_of(id("rpk"), dictionary), 45);
-        // Shotguns (category 14) three: the TOZ-34's 2 shells, the SPAS-12's 8.
-        assert_eq!(rounds_of(id("toz_34"), dictionary), 6);
-        assert_eq!(rounds_of(id("spas_12"), dictionary), 24);
-        // A bolt-action (category 13) two: the Mosin's 5.
-        assert_eq!(rounds_of(id("mosin_nagant"), dictionary), 10);
-        assert_eq!(rounds_of(id("ammo_5.45x39_7n10"), dictionary), 0);
+    fn every_gun_gets_its_magazine_alone() {
+        // The data's: the AK-74M's magazine 30, the TT-33's 8, the RPD (a
+        // machine gun) 100, the RPK 45, the TOZ-34 (a shotgun) 2, the
+        // SPAS-12 8, the Mosin (a bolt-action) 5: one magazine each, a
+        // machine gun's and a shotgun's too (the owner, 2026-11-07).
+        for (gun, rounds) in [
+            ("ak_74m", 30),
+            ("tt_33", 8),
+            ("rpd", 100),
+            ("rpk", 45),
+            ("toz_34", 2),
+            ("spas_12", 8),
+            ("mosin_nagant", 5),
+        ] {
+            assert_eq!(rounds_of(id(gun)), rounds, "{gun}");
+        }
+        assert_eq!(rounds_of(id("ammo_5.45x39_7n10")), 0);
     }
 
     #[test]
@@ -157,21 +150,17 @@ mod tests {
             (9, "ammo_7.62x25", 50),
         ]);
         ration(&mut p, Dictionary::shared());
-        assert_eq!(&counts(&p)[..2], &[(8, Some(60)), (9, Some(16))]);
+        assert_eq!(&counts(&p)[..2], &[(8, Some(30)), (9, Some(8))]);
         assert_eq!(p.kits[0].slots[7], Some((0, 1)));
         assert_eq!(p.kits[0].slots[10], Some((1, 1)));
     }
 
     #[test]
-    fn a_shotgun_gets_three_magazines() {
+    fn a_shotgun_and_a_machine_gun_get_their_magazine_alone() {
         // The TOZ-34 and the lobby's 30 buckshot.
         let mut p = profile(&[(7, "toz_34", 1), (8, "ammo_12mm_buck", 30)]);
         ration(&mut p, Dictionary::shared());
-        assert_eq!(counts(&p)[0], (8, Some(6)));
-    }
-
-    #[test]
-    fn a_machine_gun_gets_its_belt_alone() {
+        assert_eq!(counts(&p)[0], (8, Some(2)));
         let mut p = profile(&[(7, "rpd", 1), (8, "ammo_7.62x39_m", 300)]);
         ration(&mut p, Dictionary::shared());
         assert_eq!(counts(&p)[0], (8, Some(100)));
@@ -182,32 +171,39 @@ mod tests {
         // Two kinds of the AK's ammo, a stack no gun takes, and a pocket.
         let mut p = profile(&[
             (7, "ak_74m", 1),
-            (8, "ammo_5.45x39_7n10", 45),
+            (8, "ammo_5.45x39_7n10", 20),
             (9, "ammo_5.45x39_7n22", 90),
             (11, "ammo_9x18_makarov", 50),
             (12, "ammo_5.45x39_7n10", 30),
         ]);
         ration(&mut p, Dictionary::shared());
-        assert_eq!(&counts(&p)[..4], &[(8, Some(45)), (9, Some(15)), (11, None), (12, None)]);
+        assert_eq!(
+            &counts(&p)[..4],
+            &[(8, Some(20)), (9, Some(10)), (11, None), (12, None)]
+        );
     }
 
     #[test]
     fn two_guns_of_one_calibre_share_one_pool() {
-        // The PPSh-41 (35) and the TT-33 (8) both fire 7.62x25: 70 + 16.
+        // The PPSh-41 (35) and the TT-33 (8) both fire 7.62x25: 35 + 8.
         let mut p = profile(&[(7, "ppsh", 1), (10, "tt_33", 1), (8, "ammo_7.62x25", 200)]);
         ration(&mut p, Dictionary::shared());
-        assert_eq!(counts(&p)[0], (8, Some(86)));
+        assert_eq!(counts(&p)[0], (8, Some(43)));
         // Less than both are given: all of it.
-        let mut p = profile(&[(7, "ppsh", 1), (10, "tt_33", 1), (8, "ammo_7.62x25", 50)]);
+        let mut p = profile(&[(7, "ppsh", 1), (10, "tt_33", 1), (8, "ammo_7.62x25", 20)]);
         ration(&mut p, Dictionary::shared());
-        assert_eq!(counts(&p)[0], (8, Some(50)));
+        assert_eq!(counts(&p)[0], (8, Some(20)));
     }
 
     #[test]
     fn every_gun_of_the_data_has_a_magazine() {
         let dictionary = Dictionary::shared();
-        for item in dictionary.items.iter().filter(|item| super::super::weapon::CATEGORIES.contains(&item.category)) {
-            assert!(rounds_of(item.dict_id, dictionary) > 0, "{}", item.name);
+        for item in dictionary
+            .items
+            .iter()
+            .filter(|item| super::super::weapon::CATEGORIES.contains(&item.category))
+        {
+            assert!(rounds_of(item.dict_id) > 0, "{}", item.name);
         }
     }
 }

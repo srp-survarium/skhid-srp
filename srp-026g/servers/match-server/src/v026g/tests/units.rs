@@ -150,6 +150,67 @@ fn blackout_is_the_static_info_entry_on_its_battery_map() {
     }
 }
 
+/// Scarcity (`docs/notes/scarcity.md`): the kits the clients get, and the
+/// server reads the snapshots against, are cut to Scarcity's ammo, a late
+/// joiner's too; a plain match's are as the lobby gave them. And the static
+/// info's variant entry is Scarcity's.
+#[test]
+fn a_scarcity_match_gives_the_kits_cut_to_its_ammo() {
+    use survarium::v026g::match_msgs::static_info::MatchItem;
+    use survarium::v026g::scarcity;
+    let registry = MatchRegistry::new("127.0.0.1", 1236);
+    let twin = maps::find(1, maps::weather::DAY, GameMode::Scarcity).unwrap();
+    let scarcity_map = MatchMap::of(twin.id).unwrap();
+    // The TT-33 in slot 7 and 50 of its ammo in slot 8: Scarcity gives 8.
+    let with_ammo = |mut player: crate::v026g::MatchPlayer| {
+        let profile = &mut player.profile;
+        profile.items.push(MatchItem {
+            instance_id: 2,
+            dict_id: Dictionary::shared().item_named("ammo_7.62x25").unwrap().dict_id,
+            condition_or_stack: 200,
+            ..MatchItem::default()
+        });
+        profile.kits[0].slots[8] = Some((1, 50));
+        player
+    };
+    for (played, cut) in [
+        (scarcity_map, true),
+        (MatchMap::of(MAP_BATTERIES).unwrap(), false),
+    ] {
+        let mut made = setup(3, MAP_BATTERIES);
+        made.map = played;
+        made.players = made.players.into_iter().map(with_ammo).collect();
+        let late = made.players.pop().unwrap();
+        let given = made.players[0].profile.clone();
+        let mut rationed = given.clone();
+        scarcity::ration(&mut rationed, Dictionary::shared());
+        assert_eq!(rationed.kits[0].slots[8], Some((1, 8)));
+        let want = if cut { &rationed } else { &given };
+        let ticket = registry.create_growing(made).unwrap();
+        let formed = registry.formed(ticket.match_id).unwrap();
+        let options = parse_options(formed.info.options(), Dictionary::shared()).unwrap();
+        assert_eq!(formed.profiles[0].kits, want.kits, "{played:?}");
+        assert_eq!(options.players[0].kits, want.kits, "{played:?}");
+        assert_eq!(
+            formed.info.options().ends_with(b"SRPX\x02\x01\x02"),
+            cut,
+            "{played:?}"
+        );
+        // A late joiner's kits: cut as the others'.
+        registry.set_admitting(
+            ticket.match_id,
+            2,
+            Ok(std::time::Instant::now() + std::time::Duration::from_secs(60)),
+        );
+        registry.join_running(ticket.match_id, late).unwrap();
+        let formed = registry.formed(ticket.match_id).unwrap();
+        let options = parse_options(formed.info.options(), Dictionary::shared()).unwrap();
+        assert_eq!(formed.profiles[2].kits, want.kits, "{played:?}");
+        assert_eq!(options.players[2].kits, want.kits, "{played:?}");
+        registry.end(ticket.match_id);
+    }
+}
+
 #[test]
 fn the_settings_and_their_defaults() {
     assert_eq!(parse_late_inputs(None), LateInputs::Relay);

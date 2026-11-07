@@ -123,7 +123,7 @@ pub const PIN_MAX: u16 = 9999;
 /// The pool entries one bits request carries.
 pub const BITS_PER_CHUNK: u32 = 16;
 /// The most chunks: a pool of 256 entries at the most (every playable map,
-/// Blackout's and Scarcity's included: 172 in revision 41's data; 160 until
+/// Blackout's and Scarcity's included: 172 in revision 51's data; 160 until
 /// Scarcity).
 pub const CHUNKS: u32 = 16;
 /// The most pool entries a create can name: one bit each.

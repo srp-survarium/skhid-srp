@@ -20,7 +20,7 @@ package survarium.constants
       public static const BLACKOUT:int = 6;
       
       // Scarcity ("Protective device: scarcity", docs/notes/scarcity.md): the lobby's own mode, its
-      // matches the plain battery mode with a magazine and one more a gun, and no ammo crates
+      // matches the plain battery mode with each gun's loaded magazine alone, and no ammo crates
       public static const SCARCITY:int = 7;
       
       public function GameMode()

@@ -63,6 +63,7 @@ fn the_options_of_every_map_are_accepted() {
     }
     // The test archive's: Research's maps come with a pack.
     assert!(modes.contains(&maps::GameMode::Blackout), "{modes:?}");
+    assert!(modes.contains(&maps::GameMode::Scarcity), "{modes:?}");
     assert!(modes.len() >= 4, "{modes:?}");
 }
 

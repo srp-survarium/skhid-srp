@@ -146,7 +146,7 @@ package
       }
 
       // A pool of 256 entries at most (every playable map with Blackout's and Scarcity's: 172 in
-      // revision 41's data): the create's bits requests of a 200-entry pool, every third entry
+      // revision 51's data): the create's bits requests of a 200-entry pool, every third entry
       // out, one a chunk of 16 (13), each read back entry by entry as the form's rows are read;
       // and the window told the 200 entries, the create window drawn with them.
       private function checkBigPool() : void

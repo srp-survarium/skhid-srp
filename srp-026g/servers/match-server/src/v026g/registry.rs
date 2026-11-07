@@ -104,6 +104,17 @@ pub struct MatchSetup {
     pub room_minimum: Option<u8>,
 }
 
+/// A player's profile as a match on `map` gives it: on a Scarcity map its
+/// kits cut to Scarcity's ammo (`docs/notes/scarcity.md`), before the static
+/// info is made, so every client, a late joiner, the replay and the server's
+/// own read of the snapshots (`Formed::profiles`) see the same counts.
+fn match_profile(mut profile: MatchProfile, map: MatchMap) -> MatchProfile {
+    if map.mode() == GameMode::Scarcity {
+        survarium::v026g::scarcity::ration(&mut profile, Dictionary::shared());
+    }
+    profile
+}
+
 /// Where the players of a made match connect.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct MatchTicket {
@@ -452,7 +463,7 @@ impl MatchRegistry {
             players: setup
                 .players
                 .into_iter()
-                .map(|player| player.profile)
+                .map(|player| match_profile(player.profile, played))
                 .collect(),
             map: played,
             match_id: static_id(match_id),
@@ -588,8 +599,11 @@ impl MatchRegistry {
         }
         let mut next = (**formed).clone();
         let first = next.places.len();
-        next.profiles
-            .extend(players.iter().map(|player| player.profile.clone()));
+        next.profiles.extend(
+            players
+                .iter()
+                .map(|player| match_profile(player.profile.clone(), next.played)),
+        );
         next.info = StaticInfo::new(
             &MatchOptions {
                 players: next.profiles.clone(),
