@@ -1242,6 +1242,7 @@ package
          stage.addEventListener(MouseEvent.MOUSE_WHEEL,this.onMouseFnx);
          stage.addEventListener(MouseEvent.MOUSE_UP,this.onMouseStageClick);
          stage.addEventListener(MouseEvent.MOUSE_DOWN,this.onMouseStageClick);
+         stage.addEventListener(MouseEvent.MOUSE_DOWN,this.onPressHidePopups,true);
          this.bottom_panel.btnShowLogList.enabled = false;
          this.inventory_list.item_control = this.item_control;
          AmmoShareLite.setItemCard(this.item_control);
@@ -3059,6 +3060,23 @@ package
          {
             stage.focus = null;
          }
+      }
+      
+      // The notifications that come up by themselves (notificationListTemp) go at a press
+      // anywhere but on them, once a match's results are closed: while the results are up they
+      // wait under them, the results first (the owner's of 2026-11-07).
+      private function onPressHidePopups(e:MouseEvent) : void
+      {
+         if(this.victory_screen != null && this.victory_screen.stage != null)
+         {
+            return;
+         }
+         var target:DisplayObject = e.target as DisplayObject;
+         if(target != null && this.notificationListTemp.contains(target))
+         {
+            return;
+         }
+         this.notificationListTemp.hideAll();
       }
       
       protected function getItemTopParent(value:DisplayObject) : DisplayObject
@@ -6393,7 +6411,9 @@ package
       
       // The rooms window while open: over the side panels (the lobby adds
       // them again over it, and their hidden areas then take its clicks);
-      // the chat stays over it (the owner's of 2026-10-19).
+      // the chat stays over it (the owner's of 2026-10-19), and so do the
+      // notifications that come up by themselves (notificationListTemp: a
+      // match's report after the results, the owner's of 2026-11-07).
       public function layerRoomsWindow(window:DisplayObject) : void
       {
          survarium.rooms.RoomLayers.belowResults(window,this.victory_screen,this._back_back);
@@ -6408,9 +6428,14 @@ package
                setChildIndex(panel,getChildIndex(window));
             }
          }
-         if(this.chat != null && this.chat.parent == this && getChildIndex(this.chat) < getChildIndex(window))
+         var above:Array = [this.chat,this.notificationListTemp];
+         for(i = 0; i < above.length; i++)
          {
-            setChildIndex(this.chat,getChildIndex(window));
+            var over:DisplayObject = above[i] as DisplayObject;
+            if(over != null && over.parent == this && getChildIndex(over) < getChildIndex(window))
+            {
+               setChildIndex(over,getChildIndex(window));
+            }
          }
       }
       
