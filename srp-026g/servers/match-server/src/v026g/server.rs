@@ -427,7 +427,7 @@ impl Server {
             game.sync_roster(formed, now);
         }
         game.attach(index, addr, session_id, revision, transport, now);
-        if matches!(debug, 0x82 | 0x83) { game.enable_world_receipts(index, now); }
+        if matches!(debug, 0x82 | 0x83) { game.enable_world_receipts(index); }
         self.routes.insert(addr, (seat.match_id, index));
         self.store.seen_in_match(session_id);
     }
