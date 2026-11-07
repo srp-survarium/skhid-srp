@@ -35,6 +35,10 @@ pub struct KitTuning {
     /// (`scripts/content-edit/medicines.tsv`). A ranged hit that took health stops a drug in use (patch 84) and the bots press
     /// on the move 1-2 s after a hit, so the shorter course is finished more often; the bandages (1 s + 1 s) stay in the
     /// second pocket for the rest.
+    ///
+    /// OFF (`medikit`) by default: the by-side harm (fx-bench, 16 TDM pairs, tier 13-15, live rev-48 data) had the bots' kills
+    /// -7.8 % (z -1.82) and their drug stops in the 2 s delay +33 % (z +2.31). LIKELY cause: the military medkit's 0.6 body
+    /// takes more presses for a deep loss (military 396 against the Medikit's 323), each with its own 2 s delay to be hit in.
     pub medkit: KitMedkit,
 }
 
@@ -44,7 +48,7 @@ impl Default for KitTuning {
             pocket_store: true,
             smoke: KitSmoke::RadioPlace,
             frags: KitFrags::SupportAndCamper,
-            medkit: KitMedkit::Military,
+            medkit: KitMedkit::Medikit,
         }
     }
 }
