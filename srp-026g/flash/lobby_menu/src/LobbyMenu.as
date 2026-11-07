@@ -6380,7 +6380,9 @@ package
       
       // The rooms window while open: over the side panels (the lobby adds
       // them again over it, and their hidden areas then take its clicks);
-      // the chat stays over it (the owner's of 2026-10-19).
+      // the chat stays over it (the owner's of 2026-10-19), and so do the
+      // notifications that come up by themselves (notificationListTemp: a
+      // match's report after the results, the owner's of 2026-11-07).
       public function layerRoomsWindow(window:DisplayObject) : void
       {
          survarium.rooms.RoomLayers.belowResults(window,this.victory_screen,this._back_back);
@@ -6395,9 +6397,14 @@ package
                setChildIndex(panel,getChildIndex(window));
             }
          }
-         if(this.chat != null && this.chat.parent == this && getChildIndex(this.chat) < getChildIndex(window))
+         var above:Array = [this.chat,this.notificationListTemp];
+         for(i = 0; i < above.length; i++)
          {
-            setChildIndex(this.chat,getChildIndex(window));
+            var over:DisplayObject = above[i] as DisplayObject;
+            if(over != null && over.parent == this && getChildIndex(over) < getChildIndex(window))
+            {
+               setChildIndex(over,getChildIndex(window));
+            }
          }
       }
       
