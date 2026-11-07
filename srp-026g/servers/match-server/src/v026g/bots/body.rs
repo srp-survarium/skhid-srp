@@ -2211,9 +2211,9 @@ pub(super) mod tests {
             for time in (1_050..=until).step_by(50) {
                 track.decided(time, keys, (0.0, 0.0), 0.0, &kin, Some(&grid));
             }
-            // The world that shows the legs comes after those ticks.
+            // The world that shows the legs comes after those ticks (a later world: an older one is not taken).
             track.set_leg_damage(legs);
-            track.fixed(fix(1_000, Vec3::new(5.0, 0.0, 5.0), 0.0), &kin, Some(&grid));
+            track.fixed(fix(1_050, Vec3::new(5.0, 0.0, 5.0), 0.0), &kin, Some(&grid));
             track.estimate().unwrap().feet.distance_xz(Vec3::new(5.0, 0.0, 5.0))
         };
         let both = LegDamage::Both { first: 2_000, second: 3_000 };
