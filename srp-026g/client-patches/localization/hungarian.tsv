@@ -2704,7 +2704,7 @@ st_srp_rooms_join_why_4	A meccs megtelt.
 st_srp_rooms_join_why_5	Hamarosan szerverkarbantartás. Már nem lehet csatlakozni.
 st_srp_rooms_join_why_6	A meccs véget ér. A következőben játszhatsz.
 st_srp_rooms_join_why_7	A meccs elérte a játékoskorlátot. A következőhöz csatlakozhatsz.
-st_srp_rooms_join_why_8	A meccs most nem tud játékosokat fogadni.
+st_srp_rooms_join_why_8	A meccs most nem tud játékosokat fogadni. A következőhöz csatlakozhatsz.
 st_srp_rooms_joined_room	%1$s belépett a szobába
 st_srp_rooms_late_hint	Az új belépők előbb a szobát látják, majd belépnek a meccsbe.
 st_srp_rooms_leave	Kilépés
