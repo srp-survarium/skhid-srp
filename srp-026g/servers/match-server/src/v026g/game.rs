@@ -2305,11 +2305,41 @@ impl Game {
         }
     }
 
+    /// Whether the game at `index` is the only one the match could take a
+    /// world from (`world_validation::Uploader`). Another is a human's game
+    /// that has not left: before the match's first world, any that is or may
+    /// still come (each sends its own initial world); after it, a patched
+    /// one past its entry, playing or resyncing. A late joiner waiting for
+    /// its first world, a test bot or the server's own bot uploads none.
+    fn uploader(&self, index: usize) -> super::world_validation::Uploader {
+        let first_world = self.snapshot.is_none();
+        let another = (0..self.players()).any(|other| {
+            other != index
+                && !self.is_bot(other)
+                && match self.peers.get(other).and_then(Option::as_ref) {
+                    None => first_world,
+                    Some(peer) => {
+                        peer.stage != Stage::Gone
+                            && (first_world || (peer.patched && !self.waiting_entry(other)))
+                    }
+                }
+        });
+        if another {
+            super::world_validation::Uploader::OneOf
+        } else {
+            super::world_validation::Uploader::Only
+        }
+    }
+
     /// The patched clients in the match that can upload for `except` and
-    /// are asked: the ones with the best links, [`SNAPSHOT_SOURCES`] of
-    /// them (every one at the end of the match).
+    /// are asked: the ones with the fewest uploads refused, then the best
+    /// links, [`SNAPSHOT_SOURCES`] of them (every one at the end of the
+    /// match). One whose world the check refused is not asked again while
+    /// another can be: one forged or broken game leaves no one without a
+    /// world, and a check wrong for every game is found by a second game's
+    /// upload (`world_validation::Refusals`).
     fn sources(&self, except: usize) -> Vec<usize> {
-        let mut sources: Vec<(f32, u32, usize)> = self
+        let mut sources: Vec<(u32, f32, u32, usize)> = self
             .peers
             .iter()
             .enumerate()
@@ -2319,10 +2349,20 @@ impl Game {
                     && !self.waiting_entry(index)
                     && peer.patched
                     && peer.stage == Stage::Live)
-                    .then_some((peer.late_share, peer.round_trip, index))
+                    .then_some((
+                        peer.uploads_refused,
+                        peer.late_share,
+                        peer.round_trip,
+                        index,
+                    ))
             })
             .collect();
-        sources.sort_by(|a, b| a.0.total_cmp(&b.0).then(a.1.cmp(&b.1)).then(a.2.cmp(&b.2)));
+        sources.sort_by(|a, b| {
+            (a.0.cmp(&b.0))
+                .then(a.1.total_cmp(&b.1))
+                .then(a.2.cmp(&b.2))
+                .then(a.3.cmp(&b.3))
+        });
         let asked = if self.ending.is_some() {
             usize::MAX
         } else if self.hash_starved {
@@ -2335,7 +2375,7 @@ impl Game {
             SNAPSHOT_SOURCES
         };
         sources.truncate(asked);
-        sources.into_iter().map(|(_, _, index)| index).collect()
+        sources.into_iter().map(|(_, _, _, index)| index).collect()
     }
 
     /// Ask the best-linked clients for an upload (0xF6), unless one was
@@ -3927,6 +3967,7 @@ impl Game {
         let initial = self.snapshot.is_none() && self.requested_at.is_none();
         let joiner = self.waiting_entry(index);
         let places = self.snapshot_players();
+        let uploader = self.uploader(index);
         let id = self.id;
         let snapshot = Snapshot {
             time: upload.item_time,
@@ -3964,9 +4005,11 @@ impl Game {
             super::world_validation::check(&snapshot.body, snapshot.time, places, roster)
         {
             // The kind of refusal many games share is a check that is wrong
-            // (or server data other than theirs), not a cheat: said loudly,
-            // once a kind, however the per-player warning below is limited.
-            let judged = self.upload_refusals.judge(index, &refusal, || {
+            // (or server data other than theirs), not a cheat; one of the
+            // match's only uploader leaves the match without worlds: said
+            // loudly, once a kind, however the per-player warning below is
+            // limited.
+            let judged = self.upload_refusals.judge(index, uploader, &refusal, || {
                 super::world_validation::game_check(
                     &snapshot.body,
                     snapshot.time,

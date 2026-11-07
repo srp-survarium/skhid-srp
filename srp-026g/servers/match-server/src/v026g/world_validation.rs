@@ -224,6 +224,10 @@ pub(super) fn game_check(
 /// of the match were refused for it: every honest game writes the same
 /// world, so a wrong check refuses every uploader's, while a cheater is one
 /// place and cannot put a kind in doubt alone, however often it uploads.
+/// Or once the match's only uploader ([`Uploader::Only`]) was refused for
+/// it: no other game could vouch for or against it, and refused it leaves
+/// the match no world at all (no start, no join, no resync), so the games'
+/// own check, which every receiving game runs anyway, is all there is.
 /// [`Refusals::judge`] says so once a kind, for an error line; while it is,
 /// its uploads fall back to the games' own check.
 #[derive(Debug, Default)]
@@ -243,13 +247,28 @@ struct Kind {
     standing: Standing,
 }
 
+/// Whether a game other than the uploader's could give the match the
+/// world a refused upload was for, as it is refused: what one place's
+/// refusals of a kind weigh.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(super) enum Uploader {
+    /// No other: no other human's game is in the match, or each other one
+    /// waits for its first world (a late joiner) and can give none; bots
+    /// never upload. A wrong check would leave the match without worlds.
+    Only,
+    /// Another game could give one, now or once it plays again: one place's
+    /// refusals are no evidence against the check.
+    OneOf,
+}
+
 /// Where a kind of refusal stands in its match.
 #[derive(Clone, Copy, Debug)]
 enum Standing {
-    /// Its uploads are all from one place: a broken or forged game is as
-    /// likely as a wrong check. Refused.
+    /// Its uploads are all from one place, and others could upload: a
+    /// broken or forged game is as likely as a wrong check. Refused.
     Refusing { place: usize },
-    /// From two places or more (bit i: place i). TEMPORARY:
+    /// From two places or more, or from the match's only uploader
+    /// ([`Uploader::Only`]) (bit i: place i). TEMPORARY:
     /// each upload refused for it is checked again as the games check it
     /// ([`game_check`]); none has passed yet.
     InDoubt { places: u32 },
@@ -285,15 +304,27 @@ fn bit(place: usize) -> u32 {
 }
 
 impl Standing {
-    /// An upload of `place` the check refused for this kind: the next
-    /// standing and what the upload gets. `passes` is the games' own check
-    /// of it, run only in doubt.
-    fn refused(self, place: usize, passes: impl FnOnce() -> bool) -> (Self, Answer) {
-        let (places, relayed) = match self {
-            Self::Refusing { place: only } if only == place => return (self, Answer::Refuse),
-            Self::Refusing { place: only } => (bit(only) | bit(place), None),
-            Self::InDoubt { places } => (places | bit(place), None),
-            Self::FallingBack { places, relayed } => (places | bit(place), Some(relayed)),
+    /// An upload of `place` the check refused for this kind, which stood
+    /// `before` (`None`: its first refusal in the match), refused when
+    /// `place` was `uploader`: the next standing and what the upload gets.
+    /// `passes` is the games' own check of it, run only in doubt.
+    fn refused(
+        before: Option<Self>,
+        place: usize,
+        uploader: Uploader,
+        passes: impl FnOnce() -> bool,
+    ) -> (Self, Answer) {
+        let (places, relayed) = match (before, uploader) {
+            (None, Uploader::OneOf) => return (Self::Refusing { place }, Answer::Refuse),
+            (Some(Self::Refusing { place: only }), Uploader::OneOf) if only == place => {
+                return (Self::Refusing { place }, Answer::Refuse);
+            }
+            (None, Uploader::Only) => (bit(place), None),
+            (Some(Self::Refusing { place: only }), _) => (bit(only) | bit(place), None),
+            (Some(Self::InDoubt { places }), _) => (places | bit(place), None),
+            (Some(Self::FallingBack { places, relayed }), _) => {
+                (places | bit(place), Some(relayed))
+            }
         };
         // TEMPORARY (owner, 2026-11-07; packet-validation.md, "The fall-back
         // to the games' own check"): the fall-back. Removing it means
@@ -331,55 +362,63 @@ impl Standing {
 }
 
 impl Refusals {
-    /// `refused`, of `place`'s upload: counted with its kind, and judged.
-    /// `game_check` is the games' own check of the upload ([`game_check`]),
-    /// run only when its kind is in doubt.
+    /// `refused`, of `place`'s upload, refused when `place` was `uploader`:
+    /// counted with its kind, and judged. `game_check` is the games' own
+    /// check of the upload ([`game_check`]), run only when its kind is in
+    /// doubt.
     pub fn judge(
         &mut self,
         place: usize,
+        uploader: Uploader,
         refused: &Refused,
         game_check: impl FnOnce() -> Result<(), Refusal>,
     ) -> Judged {
         let part = refused.refusal.part.name().trim_end_matches('\0');
         let reason = std::mem::discriminant(&refused.refusal.reason);
-        let Some(kind) = self
+        let at = self
             .kinds
-            .iter_mut()
-            .find(|k| k.part == part && k.reason == reason)
-        else {
-            self.kinds.push(Kind {
-                part,
-                reason,
-                first: refused.to_string(),
-                uploads: 1,
-                standing: Standing::Refusing { place },
-            });
-            return Judged {
-                answer: Answer::Refuse,
-                doubt: None,
-            };
+            .iter()
+            .position(|k| k.part == part && k.reason == reason);
+        let before = at.map(|at| self.kinds[at].standing);
+        let (standing, answer) =
+            Standing::refused(before, place, uploader, || game_check().is_ok());
+        let kind = match at {
+            Some(at) => {
+                let kind = &mut self.kinds[at];
+                kind.uploads += 1;
+                kind.standing = standing;
+                kind
+            }
+            None => {
+                self.kinds.push(Kind {
+                    part,
+                    reason,
+                    first: refused.to_string(),
+                    uploads: 1,
+                    standing,
+                });
+                self.kinds.last_mut().expect("just pushed")
+            }
         };
-        kind.uploads += 1;
-        let before = kind.standing;
-        let (standing, answer) = before.refused(place, || game_check().is_ok());
-        kind.standing = standing;
-        let doubt = matches!(
-            (before, standing),
-            (
-                Standing::Refusing { .. },
-                Standing::InDoubt { .. } | Standing::FallingBack { .. }
-            )
-        )
-        .then(|| {
+        let doubted = |standing: Option<Standing>| {
+            standing.is_some_and(|standing| !matches!(standing, Standing::Refusing { .. }))
+        };
+        let doubt = (!doubted(before) && doubted(Some(standing))).then(|| {
+            let players = standing.places().count_ones();
+            let why: String = if players > 1 {
+                "the check or the server's game data is a likelier fault than the games".into()
+            } else {
+                format!(
+                    "player {place}'s is the only game the match can take a world from: refused, \
+                     the match would have no world to start, join or resync from"
+                )
+            };
             format!(
-                "WORLD CHECK IN DOUBT: {} uploads from {} players refused as {}; the check or \
-                 the server's game data is a likelier fault than the games: until the match \
-                 ends, an upload refused so is checked again as the players' games check it \
-                 and relayed if it passes (WORLD CHECK FALLBACK, temporary; check the match's \
-                 recording with srp-world-check)",
-                kind.uploads,
-                standing.places().count_ones(),
-                kind.first
+                "WORLD CHECK IN DOUBT: {} uploads from {players} players refused as {}; {why}: \
+                 until the match ends, an upload refused so is checked again as the players' \
+                 games check it and relayed if it passes (WORLD CHECK FALLBACK, temporary; check \
+                 the match's recording with srp-world-check)",
+                kind.uploads, kind.first
             )
         });
         Judged { answer, doubt }
@@ -471,14 +510,17 @@ mod tests {
         // A forged or broken world of one game, however often: refused,
         // not in doubt, not checked again.
         for _ in 0..5 {
-            let judged = refusals.judge(3, &effects(12), unrun);
+            let judged = refusals.judge(3, Uploader::OneOf, &effects(12), unrun);
             assert_eq!((judged.answer, judged.doubt), (Answer::Refuse, None));
         }
-        assert_eq!(refusals.judge(3, &pickup(3), unrun).answer, Answer::Refuse);
+        assert_eq!(
+            refusals.judge(3, Uploader::OneOf, &pickup(3), unrun).answer,
+            Answer::Refuse
+        );
         assert_eq!(refusals.summary(), "6 uploads refused from 1 players");
         // The same kind (at another offset of it) from another place: in
         // doubt, said once; this one fails the games' check too.
-        let judged = refusals.judge(5, &effects(13), fails);
+        let judged = refusals.judge(5, Uploader::OneOf, &effects(13), fails);
         assert_eq!(judged.answer, Answer::Refuse);
         let doubt = judged.doubt.expect("in doubt");
         assert!(
@@ -487,22 +529,29 @@ mod tests {
         );
         // In doubt: what passes the games' check is relayed, what fails it
         // refused, by any place; the doubt is not said again.
-        let judged = refusals.judge(3, &effects(12), passes);
+        let judged = refusals.judge(3, Uploader::OneOf, &effects(12), passes);
         assert_eq!((judged.answer, judged.doubt), (Answer::Relay, None));
         assert_eq!(
-            refusals.judge(6, &effects(12), fails).answer,
+            refusals
+                .judge(6, Uploader::OneOf, &effects(12), fails)
+                .answer,
             Answer::Refuse
         );
         assert_eq!(
-            refusals.judge(6, &effects(12), passes).answer,
+            refusals
+                .judge(6, Uploader::OneOf, &effects(12), passes)
+                .answer,
             Answer::Relay
         );
         assert_eq!(refusals.relayed(), 2);
         // Another kind is not in doubt for it: refused unchecked.
         let physics = refused(Part::Physics, 0, Reason::PhysicsBytes { len: 1 });
-        assert_eq!(refusals.judge(5, &physics, unrun).answer, Answer::Refuse);
+        assert_eq!(
+            refusals.judge(5, Uploader::OneOf, &physics, unrun).answer,
+            Answer::Refuse
+        );
         // A player block of any place is one part: from places 3 and 7.
-        let judged = refusals.judge(7, &pickup(7), fails);
+        let judged = refusals.judge(7, Uploader::OneOf, &pickup(7), fails);
         assert_eq!(judged.answer, Answer::Refuse);
         assert!(judged.doubt.is_some());
         let summary = refusals.summary();
@@ -518,5 +567,64 @@ mod tests {
             "{summary}"
         );
         assert!(summary.ends_with("(2 players, 0 relayed)"), "{summary}");
+    }
+
+    /// The match's only uploader puts a kind in doubt with its first
+    /// refusal of it, and that upload already falls back; refused while
+    /// another game could upload, its refusals of a kind stay refused, also
+    /// after it was alone for another kind.
+    #[test]
+    fn a_kind_the_only_uploader_is_refused_for_falls_back_at_once() {
+        let effects = refused(
+            Part::Effects,
+            0x67e9,
+            Reason::EffectsBytes {
+                at: 12,
+                what: "the closing part",
+            },
+        );
+        let physics = refused(Part::Physics, 0, Reason::PhysicsBytes { len: 1 });
+        let passes = || Ok(());
+        let unrun = || -> Result<(), Refusal> { panic!("the games' check out of doubt") };
+        let mut refusals = Refusals::default();
+        // While another game could upload: refused, unchecked.
+        for _ in 0..3 {
+            let judged = refusals.judge(0, Uploader::OneOf, &physics, unrun);
+            assert_eq!((judged.answer, judged.doubt), (Answer::Refuse, None));
+        }
+        // Alone: the first refusal of a kind is in doubt and relayed.
+        let judged = refusals.judge(0, Uploader::Only, &effects, passes);
+        assert_eq!(judged.answer, Answer::Relay);
+        let doubt = judged.doubt.expect("in doubt");
+        assert!(
+            doubt.starts_with(
+                "WORLD CHECK IN DOUBT: 1 uploads from 1 players refused as effects at 0x67e9"
+            ),
+            "{doubt}"
+        );
+        assert!(
+            doubt.contains("player 0's is the only game the match can take a world from"),
+            "{doubt}"
+        );
+        // A kind refused before while others could upload: in doubt now.
+        let judged = refusals.judge(0, Uploader::Only, &physics, passes);
+        assert_eq!(judged.answer, Answer::Relay);
+        assert!(
+            judged
+                .doubt
+                .expect("in doubt")
+                .starts_with("WORLD CHECK IN DOUBT: 4 uploads from 1 players refused as physics")
+        );
+        // In doubt it stays, with others again: falls back, said once.
+        let judged = refusals.judge(0, Uploader::OneOf, &effects, passes);
+        assert_eq!((judged.answer, judged.doubt), (Answer::Relay, None));
+        assert_eq!(refusals.relayed(), 3);
+        assert!(
+            refusals
+                .summary()
+                .starts_with("6 uploads refused from 1 players, 3 of them relayed"),
+            "{}",
+            refusals.summary()
+        );
     }
 }

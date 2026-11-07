@@ -2448,6 +2448,86 @@ fn a_kind_of_refusal_two_players_share_falls_back_to_the_games_check() {
     bench.assert_no_faults();
 }
 
+/// TEMPORARY (the fall-back), as above: a check wrong for one kind, in a
+/// match of one human and the server's bot. Its game is the only one the
+/// match can take a world from, so its first refused world is in doubt:
+/// the match starts on it, and a late joiner gets one.
+#[test]
+fn a_kind_the_only_uploader_is_refused_for_falls_back_to_the_games_check() {
+    super::capture_errors();
+    let mut bench = Bench::growing_with_driven(2, MAP_TDM, Settings::default(), &[1]);
+    bench.clients[0].sim.stray_objects_from = Some((0, 7));
+    let lines = |what: &str| {
+        super::errors_logged()
+            .into_iter()
+            .filter(|line| line.contains(what))
+            .collect::<Vec<_>>()
+    };
+    // Its initial world, refused by the server's check, starts the match.
+    bench.join(0);
+    assert_eq!(bench.game().uploads_refused(0), 0);
+    assert_eq!(bench.game().uploads_fallen_back(), 1);
+    let doubt = lines("WORLD CHECK IN DOUBT:");
+    assert_eq!(doubt.len(), 1, "{doubt:?}");
+    assert!(
+        doubt[0]
+            .contains("WORLD CHECK IN DOUBT: 1 uploads from 1 players refused as game objects at "),
+        "{doubt:?}"
+    );
+    assert!(
+        doubt[0].contains("player 0's is the only game the match can take a world from"),
+        "{doubt:?}"
+    );
+    // A late joiner, whose game writes such worlds too, gets a fresh one
+    // the fall-back relayed, and plays.
+    bench.run_long(10_000);
+    let place = super::late_join::reserve(&mut bench);
+    bench.clients[place].sim.stray_objects_from = Some((0, 7));
+    let relayed = bench.game().uploads_fallen_back();
+    bench.join(place);
+    assert!(bench.game().uploads_fallen_back() > relayed);
+    assert_eq!(bench.clients[place].snapshots().len(), 1);
+    assert!(
+        bench.clients[place].snapshots()[0].1 > 10_000,
+        "{:?}",
+        bench.clients[place].snapshots()
+    );
+    assert_eq!(bench.game().uploads_refused(0), 0);
+    assert_eq!(lines("WORLD CHECK IN DOUBT:").len(), 1);
+    bench.assert_no_faults();
+}
+
+/// A match of two whose first player's game writes worlds the check
+/// refuses (a forged or broken game): its refusals never put the kind in
+/// doubt, and the other player is asked instead, so a late joiner still
+/// gets a world, from it.
+#[test]
+fn one_bad_uploader_among_others_is_refused_and_another_is_asked() {
+    super::capture_errors();
+    let mut bench = Bench::growing(2, MAP_BATTERIES, Settings::default());
+    bench.join_all();
+    bench.run_long(10_000);
+    bench.clients[0].forged_uploads = Some(7);
+    let uploads = bench.clients[1].uploads;
+    // Asked for worlds a while: player 0's are refused, then player 1 is
+    // asked.
+    bench.run_long(15_000);
+    let place = super::late_join::reserve(&mut bench);
+    bench.join(place);
+    assert!(bench.game().uploads_refused(0) >= 1);
+    assert_eq!(bench.game().uploads_refused(1), 0);
+    assert!(bench.clients[1].uploads > uploads);
+    assert_eq!(bench.game().uploads_fallen_back(), 0);
+    assert!(
+        super::errors_logged()
+            .iter()
+            .all(|line| !line.contains("WORLD CHECK")),
+        "{:?}",
+        super::errors_logged()
+    );
+    bench.assert_no_faults();
+}
+
 #[test]
 fn the_initial_world_is_not_checked_when_the_setting_says_so() {
     let settings = Settings {

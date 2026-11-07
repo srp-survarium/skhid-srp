@@ -83,7 +83,7 @@ fn grenadier(place: usize) -> MatchPlayer {
     player
 }
 
-fn reserve(bench: &mut Bench) -> usize {
+pub(super) fn reserve(bench: &mut Bench) -> usize {
     reserve_as(bench, player)
 }
 

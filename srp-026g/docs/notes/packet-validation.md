@@ -490,6 +490,20 @@ cores, the effects floats) that every local test had missed. Four guards:
   likely the check or the data than the games: every honest game writes the
   same world, so a wrong check refuses every uploader's, while a cheater is
   one place and cannot put a kind in doubt alone, however often it uploads.
+  The one exception is the match's only uploader (`world_validation::Uploader::Only`,
+  `game.rs::uploader`): no other human's game is in the match, or each other
+  one waits for its first world (bots never upload). Its first refusal of a
+  kind puts that kind in doubt: no second game exists to vouch either way,
+  and refused it leaves the match no world to start, join or resync from
+  (66% of rev50's live matches had one uploader all match). It is decided at
+  each refusal from who is in the match then, with no time window: before the
+  match's first world every human seat that has not left counts as another
+  (each game sends its initial world as it comes); after it, every patched
+  game past its entry that has not left, resyncing ones too. And the server
+  asks the game with the fewest refused uploads first (`game.rs::sources`), so
+  in a match of several the next request after a refusal goes to another
+  game: one forged game leaves no one without a world, and a check wrong for
+  every game is found by the second game's upload.
   One error line `WORLD CHECK IN DOUBT` with the count and the first refusal
   (section, offset, the match it was checked as), once a kind; the match's
   end line counts the uploads refused, those the fall-back relayed (below),
@@ -512,7 +526,8 @@ The owner's decision of 2026-11-07 (option B). A refused upload goes to
 nobody, unless its kind is in doubt in its match:
 
 - **What it does.** A kind stands `Refusing { place }` (one player's uploads),
-  `InDoubt { places }` (two players' or more, the fall-back armed, none relayed
+  `InDoubt { places }` (two players' or more, or the match's only uploader's;
+  the fall-back armed, none relayed
   yet) or `FallingBack { places, relayed }` (`world_validation::Standing`, one
   transition, `Standing::refused`). While a kind is in doubt, an upload the
   server's check refuses **for that kind** is checked again with the context
@@ -539,7 +554,11 @@ nobody, unless its kind is in doubt in its match:
   world is one no receiving game refuses: the fall-back lets nothing in that a
   game would not take from a world the server relayed anyway. It needs two
   different players' uploads refused alike, so one forged or broken game
-  cannot turn it on.
+  cannot turn it on while another game could give the match its worlds. The
+  match's only uploader turns it on alone: a forged world of its then reaches
+  the late joiners of its own match, who without it would get no world at all.
+  The kind stays in doubt until the match ends, as any; once a joiner plays,
+  it is the one asked for worlds (it has no refusals), not the refused game.
 - **What it gives up.** For that kind in that match only: the server's
   context-only checks, the rules the games cannot make without the match's
   roster: the profiles (usable kits, item counts), the game objects against

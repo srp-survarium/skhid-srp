@@ -575,6 +575,10 @@ pub struct Client {
     pub uploads_hashed_tick: bool,
     /// Does not answer 0xF6 (as if its pool guard skipped every request).
     pub no_uploads: bool,
+    /// Its uploads (not the worlds it hashes) have this many stray bytes
+    /// in front of their game objects ([`Sim::stray_objects_from`]): a
+    /// forged or broken game whose worlds the check refuses.
+    pub forged_uploads: Option<usize>,
     /// Its datagrams ack nothing (as a game's acks that name only its
     /// newest few seqs miss most of a burst).
     pub mute_acks: bool,
@@ -641,6 +645,7 @@ impl Client {
             simulates: true,
             uploads_hashed_tick: false,
             no_uploads: false,
+            forged_uploads: None,
             mute_acks: false,
             mute_time_replies: false,
             slow_acks: false,
@@ -1172,7 +1177,14 @@ impl Client {
                     } else {
                         horizon
                     };
-                    let body = self.sim.world(time);
+                    let body = match self.forged_uploads {
+                        None => self.sim.world(time),
+                        Some(bytes) => {
+                            let mut forged = self.sim.clone();
+                            forged.stray_objects_from = Some((0, bytes));
+                            forged.world(time)
+                        }
+                    };
                     self.upload(time, &body);
                 }
             }
