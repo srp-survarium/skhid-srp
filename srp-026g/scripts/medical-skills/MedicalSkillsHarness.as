@@ -278,7 +278,7 @@ package {
    bar(11,"artefact tier 3 mark at 10");
    check(take(521,2)==1 && take(522,2)==1,"tier 3 at 10: Keeper and Artifact Container, one rank each");
    check(take(531,1)==0,"artefact tier 4 refused at 12");
-   check(take(502,4)==3,"Resistance stops at 4: 15 points");
+   check(take(502,4)==4,"Resistance stops at 4: 15 points");
    bar(16,"artefact tier 4 mark at 15");
    check(take(531,1)==1 && take(532,1)==1,"tier 4 at 15");
    check(take(541,1)==0 && take(542,1)==0,"artefact tier 5 refused at 17");

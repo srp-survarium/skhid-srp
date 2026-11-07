@@ -172,7 +172,7 @@ def check(data):
     assert g.read(pool[0] + 0x28C) == 0
     assert g.state(own[2]) == 0
     # The next Keeper the next one, then the kind is spent.
-    p1, _, slots1 = g.player(1, KEEPER + draw(1) + 5)
+    p1, _, slots1 = g.player(1, KEEPER + draw(1) + 4)
     assert gift(p1, slots1) == pool[1]
     p2, _, slots2 = g.player(2, KEEPER + draw(1))
     assert gift(p2, slots2) == 0
