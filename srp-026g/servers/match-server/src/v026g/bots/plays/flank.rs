@@ -967,6 +967,10 @@ mod tests {
         s.tuning.threat.camp_flank = Some(crate::v026g::bots::tuning::CampFlank::default());
         let on = start(target, &s.cx(0), &mut rng);
         assert!(matches!(on, State::Route { spot: 0, route: 0, next: 0, .. }), "{on:?}");
+        // On its route it is a walk to its spot (`commit.hold_to_arrival`: a play of its band does not take it); the old
+        // flank's walk is not.
+        assert!(super::super::Running::Flank(on.clone()).travelling());
+        assert!(!super::super::Running::Flank(off.clone()).travelling(), "{off:?}");
         let steps = s.run(0, PlayKind::Flank, target, 200, 300, 3.5);
         assert!(
             steps.iter().any(|st| matches!(st, Step::Continue(i) if i.go == Go::Stay && i.crouch && i.look == Look::At(him))),

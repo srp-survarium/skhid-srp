@@ -1305,6 +1305,9 @@ impl Running {
                 | Self::HoldExit(hold_exit::State::Going { .. })
                 | Self::Cut(cut::State::Going { .. })
                 | Self::Answer(answer::State::Via { .. } | answer::State::Approach { .. })
+                // [A320 `threat.camp_flank`] A flank route to its firing floor (B3g6: 18 of 42 walks were taken mid-way by a
+                // play of the same band: Collect, Escort, Trade, PairUp).
+                | Self::Flank(flank::State::Route { .. })
         )
     }
 
