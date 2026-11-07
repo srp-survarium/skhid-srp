@@ -291,6 +291,51 @@ package {
    check(shown[541].data.newValue==0,"Resonance taken back");
    check(take(542,2)==1,"Cascade at 20, one rank");
    check(take(541,1)==0,"Resonance refused beside Cascade");
+   // The tab bar's icons (SkillBranchTabCh, its icon a MovieClip whose frame is the tab, set by
+   // updateText): a selected tab's keyframes place another icon symbol than the others, so each tab's
+   // glyph is checked in every state against the one it shows up (placements.tsv puts the fifth right).
+   stage_="tab icons";
+   var tabBar:Object=win.skillsTabPage;
+   function tabGlyph(tab:Object):BitmapData {
+    var drawn:DisplayObject=tab.icon.getChildAt(tab.icon.numChildren-1);
+    var box:Rectangle=drawn.getBounds(drawn);
+    var into:BitmapData=new BitmapData(96,96,true,0);
+    into.draw(drawn,new Matrix(1,0,0,1,48-box.x-box.width/2,48-box.y-box.height/2));
+    return into;
+   }
+   tabBar.validateNow();
+   // Each state as the game reaches it: selected, enabled and the mouse (CLIK's setState, drawn).
+   var tabStates:Array=[["up",false,true,MouseEvent.ROLL_OUT],["over",false,true,MouseEvent.ROLL_OVER],
+    ["down",false,true,MouseEvent.MOUSE_DOWN],["disabled",false,false,null],
+    ["selected_up",true,true,MouseEvent.ROLL_OUT],["selected_over",true,true,MouseEvent.ROLL_OVER],
+    ["selected_down",true,true,MouseEvent.MOUSE_DOWN],["selected_disabled",true,false,null]];
+   tabBar.validateNow();
+   for(var tabAt:int=0;tabAt<5;tabAt++) {
+    var tabButton:Object=tabBar.getButtonAt(tabAt);
+    check(tabButton!=null,"tab "+(tabAt+1)+" drawn");
+    if(tabButton==null) continue;
+    var tabUp:BitmapData=null;
+    for each(var tabState:Array in tabStates) {
+     tabButton.enabled=true;tabButton.dispatchEvent(new MouseEvent(MouseEvent.ROLL_OUT));
+     tabButton.selected=tabState[1];tabButton.enabled=tabState[2];
+     if(tabState[3]) tabButton.dispatchEvent(new MouseEvent(tabState[3]));
+     tabButton.validateNow();
+     if(tabButton.currentLabel!=tabState[0]) {
+      // over: a harness's ROLL_OVER does not reach it (CLIK's focus rules); its frame then, the icon
+      // set as updateText sets it
+      tabButton.gotoAndStop(tabState[0]);
+      if(tabButton.icon) tabButton.icon.gotoAndStop(tabButton.data.icon);
+     }
+     check(tabButton.currentLabel==tabState[0],"tab "+(tabAt+1)+" "+tabState[0]+": at "+tabButton.currentLabel);
+     check(tabButton.icon!=null && tabButton.icon.currentFrame==tabAt+1,
+      "tab "+(tabAt+1)+" "+tabState[0]+": icon frame "+(tabButton.icon?tabButton.icon.currentFrame:-1));
+     var tabNow:BitmapData=tabGlyph(tabButton);
+     if(tabUp==null) tabUp=tabNow;
+     else check(tabUp.compare(tabNow)===0,"tab "+(tabAt+1)+" "+tabState[0]+": the glyph it shows up");
+    }
+    tabButton.enabled=true;tabButton.dispatchEvent(new MouseEvent(MouseEvent.ROLL_OUT));tabButton.selected=false;
+   }
+   tabBar.selectedIndex=4;tabBar.selectedIndex=0;
    // The stock tab: the indicator at every point as the stock window drew it, min(points + 1, 21).
    stage_="stock tab";win.skillsTabPage.selectedIndex=0;shown=renderers(win,Renderer);
    check(shown[101]!=null && shown[141]!=null && shown[301]==null,"stock tab shown");
