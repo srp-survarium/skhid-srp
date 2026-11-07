@@ -269,11 +269,13 @@ fn a_replay_of_games_before_the_last_simulation_change_is_refused_and_said_why()
     world.ask(taras, request::player_details(REPLAY_ASK, MATCH));
     let (row, said) = poll_refused(&mut world, taras);
     assert_eq!(row, "R1;incompatible;1f07c8fb;0");
-    let said = said.expect("a message box with the first answer");
-    assert!(said.contains("старою версією гри (ревізія 16)"), "{said}");
-    assert!(
-        said.ends_with("Дивитися його можна лише в тому випуску: 026g-rev16."),
-        "{said}"
+    assert_eq!(
+        said.as_deref(),
+        Some(
+            "Цей повтор записано до оновлення гри; повтори зі старих версій поки не можна \
+             відтворити."
+        ),
+        "a message box with the first answer"
     );
     // The movie's next polls: the row alone.
     assert_eq!(
@@ -286,8 +288,8 @@ fn a_replay_of_games_before_the_last_simulation_change_is_refused_and_said_why()
     assert_eq!(
         said.as_deref(),
         Some(
-            "This replay was recorded with an older version of the game (revision 16), which \
-             plays matches differently. It can be watched only with that release: 026g-rev16."
+            "This replay was recorded before a game update; replays from older versions can't be \
+             played yet."
         )
     );
     // Asked again later: said again.
@@ -310,7 +312,7 @@ fn a_replay_recorded_before_the_revisions_were_kept_is_refused() {
     assert_eq!(row, "R1;incompatible;1f07c8fb;0");
     assert!(
         said.unwrap()
-            .starts_with("Этот повтор записан старой версией игры")
+            .starts_with("Этот повтор записан до обновления игры;")
     );
     world.assert_clean();
     let _ = std::fs::remove_dir_all(&root);
@@ -359,6 +361,9 @@ fn every_refusal_fits_the_message_box_in_every_language() {
             }
         }
     }
-    // 14 has no tag: the release of that revision, unnamed.
-    assert!(!refusal_text(refusals[2], None).contains("026g-rev"));
+    // Nothing installs an older game: no revision or release is named.
+    for language in 0..5 {
+        let text = refusal_text(refusals[3], Some(language));
+        assert!(!text.contains("13") && !text.contains("026g-rev"), "{text}");
+    }
 }
