@@ -50,9 +50,10 @@
 #      with these same bytes: taken as it is, and kept at a stop);
 #      live: the site's pages made from the game data (the Maps tab, the
 #      calculator, the skills): built from other patches than the list (and the
-#      --resources file) on main, they are rebuilt from those, last in the
-#      preflight and only when nothing else failed (release/build-site,
-#      about 2 min, in a worktree of the commit; a failure stops the run),
+#      --resources file) on main, they are rebuilt from those, beside the
+#      rest of the preflight, when nothing failed before it starts, and
+#      stopped when another check fails (release/build-site, about 2 min,
+#      in a worktree of the commit; a failure stops the run),
 #      and the server's source carries them (the server code is then built;
 #      --server-code no is refused, the dry run too);
 #      the bots' data files (release/bot-data.tsv, the benched maps and the
@@ -78,36 +79,43 @@
 #      patches changed since the last tag; the world check's tool
 #      (srp-world-check) built, and the worlds it checks: the target's
 #      newest 3 kept match recordings (SRP_RECORD_DIR, read under nice and
-#      ionice into the run's folder), or --worlds <folder>'s;
-#   2. takes the release lock, then, nothing players see:
-#      release/upload-patch (with --resources: publishes it and adds its row
-#      to the list; no server offers it before the swap),
-#      release/build-server-db (of the list), release/build-zip (--ref: the
-#      commit checked in step 1; --revision: the release's; --patches: the
-#      list, with the new patch, whose every patch the exe requires at its
-#      start: patch 49); the world check: every upload of those recordings
-#      checked as the new server checks an upload before it relays it, with
-#      the new server data (srp-world-check): one refused, or none checked,
-#      stops the release here, before the go; then the exe patches' self-test
-#      of that commit started in the background
+#      ionice into the run's folder), or --worlds <folder>'s. The slow parts
+#      run at once, each in a job of its own (the tools' builds, the URLs
+#      of each row, the site's pages, the recordings' copy), their lines
+#      printed as each is joined, in a fixed order, their problems in the
+#      one list ("nothing was done"). And, once main's commit is known and
+#      nothing failed so far, the exe patches' self-test of it starts in a
+#      job, in a worktree of its own
 #      (srp-026g/client-patches/selftest_026g.py, its Linux part, on
 #      $SKHID_GAME's survarium.exe, about 5 min; release/test.sh:
-#      $SKHID_SELFTEST_BIN; --no-selftest: none, said loudly), while the
-#      rest of this step runs; checks the two
-#      files as release/deploy does (live:
-#      and makes the item tables of the server data, srp-item-tables, so a
-#      tool failing on it stops here, before the go); makes the release
-#      folder $TARGET_DIR/release-rev<rev>-<UTC YYYYMMDD-HHMM>[-<label>] and
-#      stages both in it (sha256 checked there, chmod 644), with
-#      changed.txt; with server code to build: builds its image HERE from
-#      main's source (with the rebuilt pages; rootless podman, lib.sh's
-#      build_image: the host's one core keeps the running matches), uploads
-#      the source and the image (sha256 checked there), tags the running
-#      image (by its ID) srp-026g:before-rev<rev>-<stamp> and docker loads
-#      the new one, which srp-026g:latest then names; last, the self-test's
-#      result (a failed check stops the release). A failure here stops
-#      before the go: the staged files removed, the image tag put back,
-#      nothing planned (a stop also kills the self-test still running);
+#      $SKHID_SELFTEST_BIN; --no-selftest: none, said loudly), running on
+#      through step 2;
+#   2. takes the release lock, then, nothing players see: with server code
+#      to build, its image built HERE from main's source in a job from the
+#      start (with the rebuilt pages; rootless podman, lib.sh's build_image:
+#      the host's one core keeps the running matches);
+#      release/upload-patch (with --resources: publishes it and adds its row
+#      to the list; no server offers it before the swap); then
+#      release/build-zip in a job (--ref: the commit checked in step 1;
+#      --revision: the release's; --patches: the list, with the new patch,
+#      whose every patch the exe requires at its start: patch 49), while
+#      release/build-server-db (of the list) and the world check run: every
+#      upload of those recordings checked as the new server checks an upload
+#      before it relays it, with the new server data (srp-world-check): one
+#      refused, or none checked, stops the release here, before the go; the
+#      ZIP joined; checks the two files as release/deploy does
+#      (live: and makes the item tables of the server data, srp-item-tables,
+#      so a tool failing on it stops here, before the go); the image joined;
+#      makes the release folder
+#      $TARGET_DIR/release-rev<rev>-<UTC YYYYMMDD-HHMM>[-<label>] and stages
+#      both in it (sha256 checked there, chmod 644), with changed.txt; with
+#      server code: uploads the source and the image (sha256 checked there),
+#      tags the running image (by its ID) srp-026g:before-rev<rev>-<stamp>
+#      and docker loads the new one, which srp-026g:latest then names; last,
+#      the self-test's result (a failed check stops the release). A failure
+#      of any of it stops before the go: the staged files removed, the image
+#      tag put back, nothing planned (a stop also kills every job still
+#      running, each one's process group; Ctrl-C reaches only the script);
 #   3. waits for the go: the owner's word that players may feel the release
 #      from now on (y at its prompt, n stops; or touch the go file it names
 #      under ~/.cache/skhid-release/; --yes does not give it;
@@ -374,8 +382,48 @@ nap() {
     NAP_PID=''
 }
 pause() { nap "$(awk -v m="$MINUTE" -v f="$1" 'BEGIN { print m * f }')"; }
-# The exe patches' self-test, while it runs in the background (step 2).
-SELFTEST_PID=''
+# Jobs: the slow parts that need nothing of each other run at once, each in
+# the background: start_job <name> <log> <command...> (its output into
+# <log>, none on the terminal), join_job <name> where its result is needed
+# (its status). A job of this script has a process group of its own (set
+# -m), so a Ctrl-C reaches only the script, and a stop kills all of it
+# (on_exit: stop_jobs); a job's own jobs are in its group. In a job,
+# problem() writes into $JOBS/<name>.problems; join_check, the preflight's
+# join, prints the job's lines then (the order of the joins, never mixed)
+# and takes its problems.
+JOBS=$work/jobs JOB_NAME=''
+declare -A JOB_PID=() JOB_LOG=()
+mkdir -p "$JOBS"
+start_job() {
+    local name=$1 log=$2
+    shift 2
+    [[ -n $JOB_NAME ]] || set -m
+    in_job "$name" "$@" </dev/null >"$log" 2>&1 &
+    JOB_PID[$name]=$! JOB_LOG[$name]=$log
+    [[ -n $JOB_NAME ]] || set +m
+}
+# In the job, a subshell: its name.
+in_job() {
+    JOB_NAME=$1
+    shift
+    "$@"
+}
+running_job() { [[ -n ${JOB_PID[$1]:-} ]]; }
+join_job() {
+    local status=0
+    wait "${JOB_PID[$1]}" || status=$?
+    unset 'JOB_PID[$1]'
+    return "$status"
+}
+stop_job() {
+    kill -- "-${JOB_PID[$1]}" 2>/dev/null || true
+    wait "${JOB_PID[$1]}" 2>/dev/null || true
+    unset 'JOB_PID[$1]'
+}
+stop_jobs() {
+    local name
+    for name in "${!JOB_PID[@]}"; do stop_job "$name"; done
+}
 
 # The admin page's path and token, from the target's .env, into ADMIN_PATH
 # and ADMIN_TOKEN; never printed. The command shown in `ps` is a grep.
@@ -945,12 +993,10 @@ on_exit() {
     trap '' PIPE
     if [[ -n $LOG_PID ]] && ! kill -0 "$LOG_PID" 2>/dev/null; then exec 1>&8 2>&9; fi
     if [[ -n $NAP_PID ]]; then kill "$NAP_PID" 2>/dev/null; fi
-    # The self-test still running (step 2): its whole process group (nix,
-    # python and its workers), before its worktree goes.
-    if [[ -n $SELFTEST_PID ]]; then
-        kill -- "-$SELFTEST_PID" 2>/dev/null
-        wait "$SELFTEST_PID" 2>/dev/null
-    fi
+    # The jobs still running (the preflight's, step 2's builds, the
+    # self-test): each one's whole process group (nix, cargo, python and its
+    # workers), before their worktrees go.
+    stop_jobs
     case $phase in
     planned)
         say
@@ -988,6 +1034,7 @@ on_exit() {
     if [[ -d $work/zip/src ]]; then git -C "$REPO" worktree remove --force "$work/zip/src" 2>/dev/null; fi
     if [[ -d $work/record ]]; then git -C "$REPO" worktree remove --force "$work/record" 2>/dev/null; fi
     if [[ -d $work/site ]]; then git -C "$REPO" worktree remove --force "$work/site" 2>/dev/null; fi
+    if [[ -d $work/selftest-src ]]; then git -C "$REPO" worktree remove --force "$work/selftest-src" 2>/dev/null; fi
     exit "$status"
 }
 trap on_exit EXIT
@@ -995,9 +1042,26 @@ trap 'die "interrupted"' INT TERM HUP
 
 # 1. Preflight.
 problems=()
+add_problem() {
+    if [[ -n $JOB_NAME ]]; then printf '%s\0' "$*" >>"$JOBS/$JOB_NAME.problems"; else problems+=("$*"); fi
+}
 problem() {
-    problems+=("$*")
+    add_problem "$*"
     say "  MISSING  $*"
+}
+# A preflight job joined: its lines, then its problems the preflight's (or
+# the caller job's). False when it had one.
+join_check() {
+    local name=$1 status=0 line
+    join_job "$name" || status=$?
+    cat "${JOB_LOG[$name]}"
+    if [[ -s $JOBS/$name.problems ]]; then
+        while IFS= read -r -d '' line; do add_problem "$line"; done <"$JOBS/$name.problems"
+        return 1
+    elif ((status)); then
+        problem "$name: it ended with $status, saying no problem (its lines above)"
+        return 1
+    fi
 }
 okay() { say "  ok       $*"; }
 ssh_check() { ssh -o BatchMode=yes -o ConnectTimeout=20 "$@" </dev/null >/dev/null 2>&1; }
@@ -1042,7 +1106,86 @@ fi
 need=${SKHID_MIN_FREE_MB:-4096}
 have=$(free_mb "$work")
 if ((have >= need)); then okay "free here: $have MB in ${work%/*}"; else problem "free here: $have MB in ${work%/*}, $need wanted (SKHID_MIN_FREE_MB)"; fi
-if bin=$(game_data_bin 2>"$work/game-data-build.log"); then okay "srp-game-data: $bin"; else bin=''; problem "srp-game-data does not build (log: $work/game-data-build.log)"; fi
+
+# The slow checks, in jobs beside the rest (joined at the end of the
+# preflight, said there): the tools, the URLs of the offered patches, the
+# site's pages, the recordings of the world check.
+# The tools: srp-game-data (it reads --resources), srp-item-tables (step 2
+# and the record, live), srp-world-check (step 2), one after the other
+# (cargo builds one at a time in a target folder); each one's path into
+# $JOBS/<tool>.
+build_tools() {
+    local tool
+    if tool=$(game_data_bin 2>"$work/game-data-build.log"); then
+        printf '%s\n' "$tool" >"$JOBS/srp-game-data"
+        okay "srp-game-data: $tool"
+    else
+        problem "srp-game-data does not build (log: $work/game-data-build.log)"
+    fi
+    if ((!test_server)); then
+        if tool=$(item_tables_bin 2>"$work/item-tables.log"); then
+            printf '%s\n' "$tool" >"$JOBS/srp-item-tables"
+        else
+            problem "the item tables' tool (srp-item-tables) did not build: $(tail -n 3 "$work/item-tables.log" | tr '\n' ' ')"
+        fi
+    fi
+    if tool=$(world_check_bin 2>"$work/world-check-build.log"); then
+        printf '%s\n' "$tool" >"$JOBS/srp-world-check"
+    else
+        problem "the world check's tool (srp-world-check) did not build: $(tail -n 3 "$work/world-check-build.log" | tr '\n' ' ')"
+    fi
+}
+start_job tools "$JOBS/tools.out" build_tools
+
+# The offered patches: the list's rows on the patches server, every URL of
+# each (the rows at once, each in a job of its own), and the game's archive
+# by its first bytes.
+check_offered_row() { # <name> <sha256> <size> <urls> <the server's listing> <n>
+    local name=$1 sha=$2 size=$3 urls=$4 there=$5
+    if ! grep -qx "$name $size $sha" <<<"$there"; then
+        problem "$PATCH_LIST: $name ($size bytes, sha256 ${sha:0:12}…) is not so on $PATCHES_LABEL: $(grep "^$name " <<<"$there" || echo "$there")"
+    elif check_file_urls "$name" "$sha" "$size" "$urls" "$work" '' "$PATCHES_URL/$name"; then
+        printf '%s\n' "$URLS_GOOD" >"$JOBS/url.$6.good"
+    else
+        problem "$PATCH_LIST: $name: $URL_PROBLEM"
+    fi
+}
+# The game's archive: each URL of its row, by its first bytes (the 2.9 GB
+# are downloaded whole by release/add-mirror only); one that fails is a
+# warning, none that works a problem.
+check_game_urls() {
+    local name sha size urls
+    read -r name sha size urls <<<"$GAME_ROW"
+    if check_file_urls "$name" "$sha" "$size" "$urls" "$work" quick; then
+        okay "the game's archive ($name): $URLS_GOOD URL(s) giving it, by its first bytes"
+    else
+        problem "$GAME_LIST: $name: $URL_PROBLEM"
+    fi
+}
+check_offered() {
+    local listed names there name sha size urls n=0 i bad=0 good=0
+    listed=$(grep -c . <<<"$LIST" || true)
+    if ((listed)); then
+        names=$(cut -d' ' -f1 <<<"$LIST" | tr '\n' ' ')
+        there=$(on_patches "cd $(q "$PATCHES_DIR") && for f in $names; do if test -f \"\$f\"; then echo \"\$f \$(stat -c %s \"\$f\") \$(sha256sum < \"\$f\" | cut -d' ' -f1)\"; else echo \"\$f missing\"; fi; done" || echo "unreadable")
+        while read -r name sha size urls; do
+            [[ -n $name ]] || continue
+            n=$((n + 1))
+            start_job "url.$n" "$JOBS/url.$n.out" check_offered_row "$name" "$sha" "$size" "$urls" "$there" "$n"
+        done <<<"$LIST"
+    fi
+    if [[ -n $GAME_ROW ]]; then start_job url.game "$JOBS/url.game.out" check_game_urls; fi
+    for ((i = 1; i <= n; i++)); do
+        if join_check "url.$i"; then good=$((good + $(cat "$JOBS/url.$i.good"))); else bad=1; fi
+    done
+    if ((!listed)); then
+        okay "the offered-patch list ($PATCH_LIST) is empty"
+    elif ((!bad)); then
+        okay "the offered-patch list: $listed patch(es), each on $PATCHES_LABEL with its sha256, and its $good URL(s) giving it"
+    fi
+    if [[ -n $GAME_ROW ]]; then join_check url.game || true; fi
+}
+if ((patches_ok)); then start_job urls "$JOBS/urls.out" check_offered; fi
 
 # The revision of this release: the target exe's + 1 (or --revision), built
 # so (build-zip --revision); main's REVISION is the last release's, which
@@ -1106,44 +1249,33 @@ if ((!test_server)) && [[ -n $rev && -n $main_commit ]]; then
     fi
 fi
 
-# The offered patches: the list, each on the patches server and at every
-# URL of its row.
-published=''
-listed=$(grep -c . <<<"$LIST" || true)
-if ((patches_ok && listed)); then
-    names=$(cut -d' ' -f1 <<<"$LIST" | tr '\n' ' ')
-    there=$(on_patches "cd $(q "$PATCHES_DIR") && for f in $names; do if test -f \"\$f\"; then echo \"\$f \$(stat -c %s \"\$f\") \$(sha256sum < \"\$f\" | cut -d' ' -f1)\"; else echo \"\$f missing\"; fi; done" || echo "unreadable")
-    bad=0
-    urls_checked=0
-    while read -r name sha size urls; do
-        [[ -n $name ]] || continue
-        if ! grep -qx "$name $size $sha" <<<"$there"; then
-            bad=1
-            problem "$PATCH_LIST: $name ($size bytes, sha256 ${sha:0:12}…) is not so on $PATCHES_LABEL: $(grep "^$name " <<<"$there" || echo "$there")"
-            continue
-        fi
-        if check_file_urls "$name" "$sha" "$size" "$urls" "$work" '' "$PATCHES_URL/$name"; then
-            urls_checked=$((urls_checked + URLS_GOOD))
-        else
-            bad=1
-            problem "$PATCH_LIST: $name: $URL_PROBLEM"
-        fi
-    done <<<"$LIST"
-    ((bad)) || okay "the offered-patch list: $listed patch(es), each on $PATCHES_LABEL with its sha256, and its $urls_checked URL(s) giving it"
-elif ((patches_ok)); then
-    okay "the offered-patch list ($PATCH_LIST) is empty"
-fi
-# The game's archive: each URL of its row, by its first bytes (the 2.9 GB
-# are downloaded whole by release/add-mirror only); one that fails is a
-# warning, none that works a problem.
-if ((patches_ok)) && [[ -n $GAME_ROW ]]; then
-    read -r name sha size urls <<<"$GAME_ROW"
-    if check_file_urls "$name" "$sha" "$size" "$urls" "$work" quick; then
-        okay "the game's archive ($name): $URLS_GOOD URL(s) giving it, by its first bytes"
-    else
-        problem "$GAME_LIST: $name: $URL_PROBLEM"
+# The exe patches' self-test of the commit (selftest_026g.py, its Linux
+# part, on $SKHID_GAME's survarium.exe, about 5 min), in a worktree of its
+# own: it needs nothing of the rest, so it runs in a job from here, when
+# nothing failed so far (a stop kills it), and its result is waited for in
+# step 2, before the go.
+original_exe=$SKHID_GAME/binaries/x86/survarium.exe
+[[ -f $original_exe ]] || original_exe=$SKHID_GAME/game/binaries/x86/survarium.exe
+self_test() {
+    if ! git -C "$REPO" worktree add --quiet --detach "$work/selftest-src" "$main_commit" 2>"$work/selftest.log"; then
+        printf '  FAIL  no worktree of %s to test in (git worktree add, above)\n' "${main_commit:0:9}" >>"$work/selftest.log"
+        return 1
     fi
+    run_selftest "$work/selftest-src" "$original_exe" "$work/selftest.log" "$work/selftest"
+}
+if ((no_selftest)) || [[ -z $main_commit ]]; then
+    : # --no-selftest is warned about below; no commit, no release
+elif ((DRY_RUN)); then
+    say "  [dry run] would start the exe patches' self-test of ${main_commit:0:9} (selftest_026g.py, its Linux part, about 5 min) on $original_exe, in a worktree of its own, beside the rest; its result before the go"
+elif ((${#problems[@]})); then
+    say "  note     the exe patches' self-test: not started, as the preflight has ${#problems[@]} problem(s) already"
+else
+    say "  ...      the exe patches' self-test of ${main_commit:0:9} started, beside the rest (selftest_026g.py, about 5 min; its result before the go; log: $work/selftest.log)"
+    start_job selftest "$JOBS/selftest.out" self_test
 fi
+
+# The URLs of the offered patches: in their job (above).
+published=''
 if [[ -n $rev ]] && ((LIST_TOP > rev)); then
     problem "$PATCH_LIST offers resources.db.patch_$LIST_TOP, above this release's revision $rev"
 fi
@@ -1152,6 +1284,7 @@ if ((!test_server)) && [[ -n $main_commit ]] && ! git -C "$REPO" show "$main_com
 fi
 
 # The new patch.
+read_resources=0
 if [[ -n $resources ]]; then
     name=${resources##*/}
     if [[ -n $(list_row "$name") ]]; then
@@ -1164,14 +1297,8 @@ if [[ -n $resources ]]; then
         problem "--resources: $resources is a quick build (release/build-content without --full: $QUICK_MARK beside it), for local tests: players' files with it were never checked; build it again with release/build-content ${rev:-<revision>} --full"
     elif [[ $(head -c 13 "$resources") != little-endian ]]; then
         problem "--resources: $resources is not an archive of the game (no \"little-endian\" header)"
-    elif [[ -n $bin && -f $SKHID_STOCK_DB ]]; then
-        if "$bin" build --db "$SKHID_STOCK_DB" --patch "$resources=$PATCHES_URL/$name" \
-            --out "$work/patch-check.db" >"$work/patch-check.log" 2>&1; then
-            okay "--resources: $name, $(size_of "$resources") bytes, sha256 $(sha256_of "$resources"); srp-game-data reads it"
-        else
-            problem "--resources: srp-game-data cannot read $resources over the stock db: $(tail -n 3 "$work/patch-check.log" | tr '\n' ' ')"
-        fi
-        rm -f "$work/patch-check.db"
+    elif [[ -f $SKHID_STOCK_DB ]]; then
+        read_resources=1 # by srp-game-data, once its job is joined (below)
     fi
     if ((patches_ok)) && [[ -f $resources ]]; then
         there=$(on_patches "cd $(q "$PATCHES_DIR") && if test -e $(q "$name"); then sha256sum < $(q "$name"); else echo none; fi" || echo "unknown")
@@ -1194,8 +1321,9 @@ fi
 # skills, and the wiki's weapons and icons the calculator's build makes): each
 # from exactly the patches the release offers (with --resources, that one
 # too), so neither shows stale data. Built from others on main (a release
-# with new content always is): rebuilt below, at the end of the preflight
-# (release/build-site, in a worktree of the commit), nothing players see; the
+# with new content always is): rebuilt in a job beside the rest of the
+# preflight (release/build-site, in a worktree of the commit; started when no
+# check failed so far, stopped when one fails), nothing players see; the
 # server's source carries them (so the server code is built) and the record
 # commits them. A ref without them has nothing to build.
 SITE_PAGES=(srp-026g/servers/web-server/maps srp-026g/servers/web-server/damage srp-026g/servers/web-server/skills
@@ -1219,6 +1347,39 @@ if ((!test_server)) && [[ -n $main_commit ]]; then
     done
     if ((site_stale)) && [[ $server_code == no ]]; then
         problem "the Maps tab and the calculator are rebuilt by this release, and --server-code no builds no server code: the site would go on showing the old ones (leave --server-code out)"
+    fi
+fi
+# The rebuild (about 2 min), when nothing failed so far: a real run with a
+# problem stops anyway.
+rebuild_site() {
+    local page what dir started
+    started=$(date +%s)
+    if ! git -C "$REPO" worktree add --quiet --detach "$work/site" "$main_commit" 2>"$work/build-site.log"; then
+        problem "the Maps tab and the calculator: no worktree to rebuild them in: $(tr '\n' ' ' <"$work/build-site.log")"
+        return
+    elif ! "${build_site[@]}" </dev/null >"$work/build-site.log" 2>&1; then
+        problem "the Maps tab and the calculator: the rebuild failed (release/build-site; its log: $work/build-site.log): $(tail -n 3 "$work/build-site.log" | tr '\n' ' ')"
+        return
+    fi
+    for page in "the Maps tab:maps" "the calculator:damage" "the skills:skills"; do
+        IFS=: read -r what dir <<<"$page"
+        if [[ $(built_from "$work/site/srp-026g/servers/web-server/$dir/built-from.tsv") != "$want" ]]; then
+            problem "$what, rebuilt: its built-from.tsv does not name the patches this release offers"
+        fi
+    done
+    [[ -s $JOBS/$JOB_NAME.problems ]] ||
+        okay "the Maps tab and the calculator: rebuilt from the patches this release offers ($(span $(($(date +%s) - started)))); the server's source carries them, the record commits them"
+}
+if ((site_stale)); then
+    build_site=("$BUILD_SITE" --tree "$work/site")
+    if [[ -n $resources ]]; then build_site+=(--with "$resources"); fi
+    if ((DRY_RUN)); then
+        say "  [dry run] would rebuild the Maps tab and the calculator (about 2 min; the patches from ~/.cache/skhid-release/patches/, else downloaded) in a worktree of ${main_commit:0:7}: ${build_site[*]}"
+    elif ((${#problems[@]})); then
+        say "  note     the Maps tab and the calculator: not rebuilt, as the preflight has ${#problems[@]} problem(s) already"
+    else
+        say "  ...      rebuilding the Maps tab and the calculator beside the other checks (release/build-site, about 2 min; its log: $work/build-site.log)"
+        start_job site "$JOBS/site.out" rebuild_site
     fi
 fi
 
@@ -1273,6 +1434,41 @@ if ((target_ok)); then
             problem "SRP_ADMIN_PATH and SRP_ADMIN_TOKEN are not both set in the $TARGET .env (the admin page is off)"
         fi
     fi
+fi
+
+# The worlds the world check (step 2) reads. The target's newest kept
+# recordings are its games' worlds, of the target's revision: what this
+# release's games write too, unless it changes that (then --worlds names
+# recordings of its own games). Copied off the host in a job, at the lowest
+# priority: it is small and runs the matches.
+WORLDS=$work/worlds WORLDS_SAID=''
+WORLD_RECORDINGS=3
+copy_worlds() {
+    local rec_dir=$RUN_VOLUME_DIR/recordings name newest said
+    mkdir -p "$WORLDS"
+    mapfile -t newest < <(on_target "ls -t $(q "$rec_dir") 2>/dev/null | grep -E '^rec026g_[0-9-]+_[0-9a-f]{8}\.srprec\$' | head -n $WORLD_RECORDINGS" || true)
+    for name in "${newest[@]}"; do
+        on_target "nice -n 19 ionice -c 3 cat $(q "$rec_dir/$name")" >"$WORLDS/$name" ||
+            problem "the world check: $rec_dir/$name on the $TARGET could not be read"
+    done
+    if ((${#newest[@]})); then
+        said="the newest ${#newest[@]} recording(s) on the $TARGET host ($(du -sm "$WORLDS" | cut -f1) MB: ${newest[*]})"
+        printf '%s\n' "$said" >"$JOBS/worlds.said"
+        okay "the world check: will read $said"
+    else
+        problem "the world check: no kept match recording on the $TARGET ($rec_dir) to check worlds with: give --worlds <folder>"
+    fi
+}
+if [[ -n $worlds_arg ]]; then
+    given=$(find "$worlds_arg" -maxdepth 1 -name '*.srprec' 2>/dev/null | wc -l)
+    if ((given > 0)); then
+        WORLDS=$worlds_arg WORLDS_SAID="$given recording(s) of --worlds $worlds_arg"
+        okay "the world check: will read $WORLDS_SAID"
+    else
+        problem "--worlds $worlds_arg: no match recording (*.srprec) in it"
+    fi
+elif ((target_ok)) && [[ -n ${RUN_VOLUME_DIR:-} ]]; then
+    start_job worlds "$JOBS/worlds.out" copy_worlds
 fi
 
 # The bots' data files (release/bot-data.tsv): the benched maps and routes
@@ -1368,77 +1564,32 @@ if [[ -n $matches ]]; then okay "$TARGET_SITE/api/stats: $matches match(es) now"
 OLD_PATCHES=$(served_patches)
 say "  now      /patches: ${OLD_PATCHES:-(no list: a server from before patches)}"
 
-# The site's pages rebuilt (about 2 min), last in the preflight so far, and
-# only when nothing of it failed: a real run with a problem stops anyway.
-if ((site_stale)); then
-    build_site=("$BUILD_SITE" --tree "$work/site")
-    if [[ -n $resources ]]; then build_site+=(--with "$resources"); fi
-    if ((DRY_RUN)); then
-        say "  [dry run] would rebuild the Maps tab and the calculator (about 2 min; the patches from ~/.cache/skhid-release/patches/, else downloaded) in a worktree of ${main_commit:0:7}: ${build_site[*]}"
-    elif ((${#problems[@]})); then
+# The jobs' results, in this order: the URLs, the tools (then srp-game-data
+# reads --resources), the recordings, the site's pages (stopped when the
+# preflight has a problem: it stops anyway).
+if running_job urls; then join_check urls || true; fi
+join_check tools || true
+bin=$(cat "$JOBS/srp-game-data" 2>/dev/null || true)
+ITEM_TABLES=$(cat "$JOBS/srp-item-tables" 2>/dev/null || true) ITEM_TABLES_REPORT=''
+WORLD_CHECK=$(cat "$JOBS/srp-world-check" 2>/dev/null || true)
+if ((read_resources)) && [[ -n $bin ]]; then
+    if "$bin" build --db "$SKHID_STOCK_DB" --patch "$resources=$PATCHES_URL/${resources##*/}" \
+        --out "$work/patch-check.db" >"$work/patch-check.log" 2>&1; then
+        okay "--resources: ${resources##*/}, $(size_of "$resources") bytes, sha256 $(sha256_of "$resources"); srp-game-data reads it"
+    else
+        problem "--resources: srp-game-data cannot read $resources over the stock db: $(tail -n 3 "$work/patch-check.log" | tr '\n' ' ')"
+    fi
+    rm -f "$work/patch-check.db"
+fi
+if running_job worlds; then join_check worlds || true; fi
+WORLDS_SAID=${WORLDS_SAID:-$(cat "$JOBS/worlds.said" 2>/dev/null || true)}
+if running_job site; then
+    if ((${#problems[@]})); then
+        stop_job site
         say "  note     the Maps tab and the calculator: not rebuilt, as the preflight has ${#problems[@]} problem(s) already"
     else
-        say "  ...      rebuilding the Maps tab and the calculator (release/build-site, about 2 min; its log: $work/build-site.log)"
-        site_start=$(date +%s)
-        if ! git -C "$REPO" worktree add --quiet --detach "$work/site" "$main_commit" 2>"$work/build-site.log"; then
-            problem "the Maps tab and the calculator: no worktree to rebuild them in: $(tr '\n' ' ' <"$work/build-site.log")"
-        elif ! "${build_site[@]}" </dev/null >"$work/build-site.log" 2>&1; then
-            problem "the Maps tab and the calculator: the rebuild failed (release/build-site; its log: $work/build-site.log): $(tail -n 3 "$work/build-site.log" | tr '\n' ' ')"
-        else
-            site_tree=$work/site
-            for page in "the Maps tab:maps" "the calculator:damage" "the skills:skills"; do
-                IFS=: read -r what dir <<<"$page"
-                if [[ $(built_from "$site_tree/srp-026g/servers/web-server/$dir/built-from.tsv") != "$want" ]]; then
-                    problem "$what, rebuilt: its built-from.tsv does not name the patches this release offers"
-                    site_tree=''
-                fi
-            done
-            if [[ -n $site_tree ]]; then
-                okay "the Maps tab and the calculator: rebuilt from the patches this release offers ($(span $(($(date +%s) - site_start)))); the server's source carries them, the record commits them"
-            fi
-        fi
-    fi
-fi
-
-# The item tables' tool (a live release's): step 2 runs it on the server
-# data before anything is staged, the record writes the tables of it
-# (srp-026g/docs/data/, only where an item changed). --test has no record.
-ITEM_TABLES='' ITEM_TABLES_REPORT=''
-if ((!test_server)) && ! ITEM_TABLES=$(item_tables_bin 2>"$work/item-tables.log"); then
-    problem "the item tables' tool (srp-item-tables) did not build: $(tail -n 3 "$work/item-tables.log" | tr '\n' ' ')"
-fi
-
-# The world check (step 2): its tool, and the worlds it reads. The
-# target's newest kept recordings are its games' worlds, of the target's
-# revision: what this release's games write too, unless it changes that
-# (then --worlds names recordings of its own games). Copied off the host
-# at the lowest priority: it is small and runs the matches.
-WORLD_CHECK='' WORLDS=$work/worlds WORLDS_SAID=''
-WORLD_RECORDINGS=3
-if ! WORLD_CHECK=$(world_check_bin 2>"$work/world-check-build.log"); then
-    problem "the world check's tool (srp-world-check) did not build: $(tail -n 3 "$work/world-check-build.log" | tr '\n' ' ')"
-fi
-if [[ -n $worlds_arg ]]; then
-    given=$(find "$worlds_arg" -maxdepth 1 -name '*.srprec' 2>/dev/null | wc -l)
-    if ((given > 0)); then
-        WORLDS=$worlds_arg WORLDS_SAID="$given recording(s) of --worlds $worlds_arg"
-        okay "the world check: will read $WORLDS_SAID"
-    else
-        problem "--worlds $worlds_arg: no match recording (*.srprec) in it"
-    fi
-elif ((target_ok)) && [[ -n ${RUN_VOLUME_DIR:-} ]]; then
-    rec_dir=$RUN_VOLUME_DIR/recordings
-    mkdir -p "$WORLDS"
-    mapfile -t newest < <(on_target "ls -t $(q "$rec_dir") 2>/dev/null | grep -E '^rec026g_[0-9-]+_[0-9a-f]{8}\.srprec\$' | head -n $WORLD_RECORDINGS" || true)
-    for name in "${newest[@]}"; do
-        on_target "nice -n 19 ionice -c 3 cat $(q "$rec_dir/$name")" >"$WORLDS/$name" ||
-            problem "the world check: $rec_dir/$name on the $TARGET could not be read"
-    done
-    if ((${#newest[@]})); then
-        WORLDS_SAID="the newest ${#newest[@]} recording(s) on the $TARGET host ($(du -sm "$WORLDS" | cut -f1) MB: ${newest[*]})"
-        okay "the world check: will read $WORLDS_SAID"
-    else
-        problem "the world check: no kept match recording on the $TARGET ($rec_dir) to check worlds with: give --worlds <folder>"
+        say "  ...      waiting for the Maps tab and the calculator (release/build-site; its log: $work/build-site.log)"
+        if join_check site; then site_tree=$work/site; fi
     fi
 fi
 
@@ -1565,7 +1716,7 @@ if ((${#BD_TODO[@]})); then printf '    %s\n' "${BD_REPORT[@]:-put in as listed}
 if ((no_selftest)); then
     say "  the exe patches' self-test: NOT RUN (--no-selftest)"
 else
-    say "  the exe patches' self-test: in step 2, beside the rest; its result before the go"
+    say "  the exe patches' self-test: running since the preflight, beside the rest; its result before the go"
 fi
 if [[ -n $built_note ]]; then say "  ${built_note#WARNING }"; fi
 if [[ -n $site_tree ]]; then
@@ -1613,32 +1764,48 @@ else
 fi
 dry=()
 ((DRY_RUN)) && dry=(--dry-run)
+data=$work/$DATA_NAME
+zip=$work/zip/$ZIP_NAME
+image=$work/image.tar.zst
+build_zip=("$BUILD_ZIP" --ref "$main_commit" --revision "$rev" --patches "$PATCH_LIST" --work "$work/zip" "${step_flags[@]}")
+# The builds that need nothing of each other run at once, in jobs: the
+# image (of main's source, made in step 1) from the start, the ZIP once
+# the list has the new patch (upload-patch), the server data and the world
+# check meanwhile, the self-test on since the preflight. Each is joined
+# where its result is needed, all before the staging (the self-test's
+# last, before the go); a failure of any stops before the go.
+if ((build_code)); then
+    if ((DRY_RUN)); then
+        say "[dry run] 2. in the background from the start: the server's image of main's source (podman): $image"
+    else
+        progress "2. building the server's image here from main's source (podman), in the background (log: $work/build-image.log)"
+        start_job image "$work/build-image.log" build_image "$work/src" "$image"
+    fi
+fi
 if [[ -n $resources ]]; then
     progress "2. publishing ${resources##*/} on $PATCHES_LABEL"
     "$here/upload-patch" "${step_flags[@]}" "${dry[@]}" "$resources" </dev/null || die "upload-patch failed"
     ((DRY_RUN)) || published=1
 fi
-data=$work/$DATA_NAME
-zip=$work/zip/$ZIP_NAME
-image=$work/image.tar.zst
-build_zip=("$BUILD_ZIP" --ref "$main_commit" --revision "$rev" --patches "$PATCH_LIST" --work "$work/zip" "${step_flags[@]}")
 if ((DRY_RUN)); then
-    say "[dry run] 2. build here: release/build-server-db${step_flags[*]:+ ${step_flags[*]}} --out $data"
+    say "[dry run] 2. in the background: ${build_zip[*]}"
+    say "[dry run]    meanwhile, build here: release/build-server-db${step_flags[*]:+ ${step_flags[*]}} --out $data"
     say "[dry run]    then the world check of $WORLDS_SAID with it: $WORLD_CHECK --data $data $WORLDS (one world refused stops the release)"
-    say "[dry run]    and: ${build_zip[*]}"
-    if ((build_code)); then say "[dry run]    and the server's image of main's source (podman): $image"; fi
     if ((no_selftest)); then
         say "[dry run]    WARNING no exe patches' self-test (--no-selftest)"
     else
-        say "[dry run]    then the exe patches' self-test (selftest_026g.py, its Linux part) of that commit on $SKHID_GAME's survarium.exe started in the background, beside the rest of step 2"
+        say "[dry run]    (all the while the exe patches' self-test, started in the preflight, runs on)"
     fi
     say "[dry run]    then the checks of release/deploy on both$( ((test_server)) || printf ", the item tables of the server data (srp-item-tables: a failure stops here)"), and the release folder:"
+    if ((build_code)); then say "[dry run]    (before the folder, the image's build is waited for: a failure stops there)"; fi
     stage_begin
     write_on live "cat > $REL_DIR/changed.txt" "$work/changed.txt"
     stage_upload "$data" "$DATA_NAME" "<its sha256>"
     stage_upload "$zip" "$ZIP_NAME" "<its sha256>"
     stage_bot_data "$bd_dir"
 else
+    progress "2. building the ZIP of $(git -C "$REPO" log -1 --format=%h "$main_commit") (release/build-zip), in the background (log: $work/build-zip.log)"
+    start_job zip "$work/build-zip.log" "${build_zip[@]}"
     progress "2. building the server data (release/build-server-db)"
     "$here/build-server-db" "${step_flags[@]}" --out "$data" </dev/null || die "build-server-db failed"
     # Every recorded upload checked as the new server will check an upload
@@ -1650,24 +1817,14 @@ else
         die "the world check: the new server would refuse (or could not check) worlds its games wrote ($work/world-check.log, the refused ones in $work/worlds-refused): a change of the check, of the server data, or of what games write (then check worlds of this release's games: --worlds <folder>)"
     fi
     say "the world check: $(tail -n 2 "$work/world-check.log" | head -n 1)"
-    progress "2. building the ZIP of $(git -C "$REPO" log -1 --format=%h "$main_commit") (release/build-zip)"
-    "${build_zip[@]}" </dev/null 2>&1 | tee "$work/build-zip.log" || die "build-zip failed"
-    # The exe patches' self-test of the commit built (build-zip's worktree)
-    # on the original exe, in the background while the rest is checked,
-    # built and staged; its result is waited for before the go (below). Its
-    # own process group (set -m), so a stop kills all of it (on_exit), and a
-    # Ctrl-C reaches only this script.
-    original_exe=$SKHID_GAME/binaries/x86/survarium.exe
-    [[ -f $original_exe ]] || original_exe=$SKHID_GAME/game/binaries/x86/survarium.exe
-    if ((no_selftest)); then
-        say "WARNING the exe patches' self-test: NOT RUN (--no-selftest)"
-    else
-        progress "2. the exe patches' self-test of $(git -C "$REPO" log -1 --format=%h "$main_commit") started, beside the rest (selftest_026g.py, about 5 min; log: $work/selftest.log)"
-        set -m
-        run_selftest "$work/zip/src" "$original_exe" "$work/selftest.log" "$work/selftest" </dev/null &
-        SELFTEST_PID=$!
-        set +m
-    fi
+    progress "2. waiting for the ZIP (release/build-zip)"
+    zip_ok=1
+    join_job zip || zip_ok=0
+    cat "$work/build-zip.log"
+    ((zip_ok)) || die "build-zip failed"
+    # The exe patches' self-test runs since the preflight; its result is
+    # waited for before the go (below).
+    if ((no_selftest)); then say "WARNING the exe patches' self-test: NOT RUN (--no-selftest)"; fi
     planned_offer=$OFFERED
     check_release_files "$zip" "$data" "$rev" "$work"
     [[ $OFFERED == "$planned_offer" ]] ||
@@ -1675,12 +1832,6 @@ else
     [[ $OFFERED_GAME == "$GAME_ROW" ]] ||
         die "$data does not name the game's archive of $GAME_LIST: ${OFFERED_GAME:-none}"
     check_exe_requires "$zip" "$work"
-    if ((build_code)); then
-        progress "2. building the server's image here from main's source (podman)"
-        build_image "$work/src" "$image" >"$work/build-image.log" 2>&1 ||
-            die "the server's image did not build: $(tail -n 3 "$work/build-image.log" | tr '\n' ' ')"
-        say "image: $(size_of "$image") bytes, sha256 $(sha256_of "$image")"
-    fi
     # The record's item tables of this data: made once now, so a tool that
     # fails on it stops the release here, not after the swap.
     if ((!test_server)); then
@@ -1689,6 +1840,11 @@ else
             die "the item tables (srp-item-tables) of $data: $(tail -n 3 <<<"$answer" | tr '\n' ' ')— the record could not write them after the swap"
         fi
         say "the item tables of it: made (the record writes them)"
+    fi
+    if ((build_code)); then
+        progress "2. waiting for the server's image (podman)"
+        join_job image || die "the server's image did not build: $(tail -n 3 "$work/build-image.log" | tr '\n' ' ')"
+        say "image: $(size_of "$image") bytes, sha256 $(sha256_of "$image")"
     fi
     say "ZIP: $ZIP_SIZE bytes, sha256 $ZIP_SHA, revision $rev; server data: sha256 $DATA_SHA; /patches will offer:"
     say_offered
@@ -1731,15 +1887,13 @@ fi
 if ((!DRY_RUN && !no_selftest)); then
     progress "2. waiting for the exe patches' self-test (log: $work/selftest.log)"
     selftest_ok=1
-    wait "$SELFTEST_PID" || selftest_ok=0
-    SELFTEST_PID=''
-    if [[ -d $work/zip/src ]]; then git -C "$REPO" worktree remove --force "$work/zip/src"; fi
+    join_job selftest || selftest_ok=0
+    if [[ -d $work/selftest-src ]]; then git -C "$REPO" worktree remove --force "$work/selftest-src"; fi
     rm -rf "$work/selftest"
     ((selftest_ok)) || die "the exe patches' self-test failed: $(grep -cE '^  FAIL' "$work/selftest.log" || true) check(s), the first: $(grep -m 1 -E '^  FAIL' "$work/selftest.log" | sed 's/^  FAIL  *//' || true) (log: $work/selftest.log)"
     say "the exe patches' self-test: $(tail -n 1 "$work/selftest.log")"
-elif [[ -d $work/zip/src ]]; then
-    git -C "$REPO" worktree remove --force "$work/zip/src"
 fi
+if [[ -d $work/zip/src ]]; then git -C "$REPO" worktree remove --force "$work/zip/src"; fi
 
 
 # 3. The go, then at once 4. the maintenance.

@@ -335,8 +335,9 @@ The order, as it runs:
    downloaded there, dbgrab built there from the commit's `tools/re-kit` with the
    unpacker checked out as `tools/vostok-resources-db` in the main checkout,
    or `$SKHID_DBGRAB`). Nobody rebuilds them by hand before a release. The
-   rebuild comes after the other checks and is skipped when one of them
-   failed. A failed rebuild is a problem like any other: the run stops before the go.
+   rebuild runs beside the other checks: it starts only when none failed
+   before it, and is stopped when one fails meanwhile (`not rebuilt, as the
+   preflight has <n> problem(s) already`). A failed rebuild is a problem like any other: the run stops before the go.
    The server's source carries the rebuilt pages, so the server code is
    built (`--server-code no` is refused then, by the dry run too). Last, which server-code
    files differ, which settings
@@ -347,11 +348,23 @@ The order, as it runs:
    patches changed since the last tag). Last, the world check's tool
    (`srp-world-check`) is built and the target's newest 3 kept match
    recordings are copied off it (`nice -n 19 ionice -c 3 cat`), or
-   `--worlds <folder>`'s recordings are taken instead.
+   `--worlds <folder>`'s recordings are taken instead. **The slow parts run
+   at once**, each a job in the background with a process group of its own:
+   the tools' builds (srp-game-data, srp-item-tables, srp-world-check; one
+   after the other, then srp-game-data reads `--resources`), the URLs of
+   every row (each row its own job), the site's rebuild, the recordings'
+   copy, and the exe patches' self-test (step 2). Each job writes into the run's `jobs/` folder; its lines are
+   printed when it is joined, at the end of the preflight, in a fixed
+   order (never mixed), and its problems go into the one list (`preflight:
+   <n> problem(s), nothing was done`). With new content the site's rebuild
+   (~3 min) is then the preflight's length; without it, the slowest row's
+   URLs.
 2. **The lock, then everything prepared and staged**, nothing players
-   see: `upload-patch` (with `--resources`; it adds the row; no server
-   offers the patch before the swap), `build-server-db` (of the list),
-   then **the world check**: every upload of those recordings checked as
+   see, the builds at once: with server code, **the image** is built in a
+   job from the start (below); `upload-patch` (with `--resources`; it adds
+   the row; no server offers the patch before the swap); then **`build-zip`**
+   in a job (it needs the list with the new row), while `build-server-db`
+   (of the list) runs, then **the world check**: every upload of those recordings checked as
    the new server checks an upload before it relays it, with the new
    server data (`srp-world-check --data <it> <recordings>`, the match
    server's own `world_validation::check`): one world refused, or none
@@ -363,31 +376,35 @@ The order, as it runs:
    check it with worlds of its own games instead: after `release.sh
    --test`, play a match on the test environment (one against bots is
    kept), copy its recording from the test volume's `recordings/`, and
-   give `--worlds <folder>`. Then
-   `build-zip` (of the commit checked in step 1); then the **exe patches'
-   self-test** of that commit started in the background
-   (`srp-026g/client-patches/selftest_026g.py`, its Linux part, on
+   give `--worlds <folder>`. Then the ZIP joined (`build-zip`'s lines
+   printed; of the commit checked in step 1). The **exe patches'
+   self-test** of that commit runs since the preflight (started in a job
+   as soon as main's commit is known and no check failed so far, in a
+   worktree of its own: it needs nothing of the rest;
+   `srp-026g/client-patches/selftest_026g.py`, its Linux part, on
    `$SKHID_GAME`'s `survarium.exe`, in the commit's dev shell with nixpkgs'
    Python unicorn, its builds on every core, about 5 min, ~0.4 GB; log
-   `selftest.log` in the run's work folder), while the rest of this step
-   runs; its result is waited for last, before the go: a failed check stops
+   `selftest.log` in the run's work folder), beside everything else; its
+   result is waited for last, before the go: a failed check stops
    the release there like any failure of this step (the patch's fix is a
    PR, then a new run; `--no-selftest`: none, see above). It is the release's check of the exe's general rules (no byte
    changed undeclared, no relocation or branch into a rewritten byte, every
    hooked function's ABI, every branch target known): nobody runs it by hand
    before a release, and it is not a check of each PR. The checks of `deploy`
-   on both files; then the **release folder** on the target (below) with
+   on both files and the item tables; the image joined; then the **release folder** on the target (below) with
    both files staged in it (sha256 checked there, `chmod 644`) and
    `changed.txt`. With server code: the image built **here** from main's
    source (with the rebuilt pages) by rootless podman from nixpkgs
-   (`build_image` in `lib.sh`, about 2 min; it needs this machine's
+   (`build_image` in `lib.sh`, about 2 min, beside the rest from the
+   step's start; it needs this machine's
    `/etc/subuid` range), uploaded as `image.tar.zst` (~40 MB) with the
    source's `src.tar`, sha256 checked there; the running image tagged
    `srp-026g:before-rev<rev>-<stamp>` by its ID, then `docker load` makes
    the new one `srp-026g:latest` (the running container is not touched).
    Then the self-test's result (`waiting for the exe patches' self-test`).
-   The local builds run at nice 10. A failure here (a stop too: it kills
-   the self-test still running) stops before the go: the staged files removed, the
+   The local builds run at nice 10. A failure here, of any job too (a stop,
+   Ctrl-C included, kills every job still running, each one's process
+   group), stops before the go: the staged files removed, the
    image tag put back, nothing planned, and the new patch's row taken out
    of the list again (no server offered it). The file goes from the
    patches server too when this run uploaded it, so the revision can be

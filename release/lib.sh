@@ -166,7 +166,8 @@ PATCH_START=6c6974746c652d656e6469616e SEVENZIP_START=377abcaf271c
 # shellcheck disable=SC2034 # CHECKED: the callers read it
 check_patch_url() {
     local url=$1 sha=$2 size=$3 dir=$4 full=${5:-} out head status type total got start=$PATCH_START
-    out=$dir/url-check.$$ head=$dir/url-check.$$.head
+    # Of this process: release.sh checks the rows at once, each in a job.
+    out=$dir/url-check.$BASHPID head=$dir/url-check.$BASHPID.head
     URL_PROBLEM='' CHECKED=''
     if [[ -n $GAME_ROW && $sha == "$(cut -d' ' -f2 <<<"$GAME_ROW")" ]]; then start=$SEVENZIP_START; fi
     if [[ $full == quick ]] || { [[ -z $full ]] && grep -qxF -- "$sha $size $url" "$URL_CACHE" 2>/dev/null; }; then
