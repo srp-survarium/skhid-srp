@@ -1,13 +1,9 @@
 #!/usr/bin/env bash
 # macOS (Apple silicon): put beside survarium_skhid.exe, then run: bash play_skhid_mac.sh
 # With the Skhid launcher beside it too: bash play_skhid_mac.sh launcher
-# The first start downloads Wine and DXMT (Direct3D 11 on Metal), pinned
-# below, into ~/Library/Application Support/Skhid; later starts reuse them.
+# The first start downloads Wine (with DXMT, Direct3D 11 on Metal), pinned
+# below, into ~/Library/Application Support/Skhid; later starts reuse it.
 # SKHID_CRASH_DUMP=full: a crash writes the game's whole memory beside it.
-# SKHID_RETINA=1: the game sees the display's pixels, not its points (sharper,
-# four times the pixels to draw); 0 or unset: points, scaled by macOS.
-# SKHID_METALFX=1: the game draws in points and MetalFX upscales the picture to
-# the display's pixels (sharper for about 2 ms of GPU per frame on an M4 Max).
 # Bash 3.2 (macOS's own): no mapfile, flock or GNU options here.
 set -euo pipefail
 
@@ -15,27 +11,46 @@ set -euo pipefail
 # executable has an embedded default.
 server=
 
-# Wine 11 built from CrossOver's sources by Sikarugir: msync (Mach
-# semaphores instead of wineserver round trips) and the macdrv hooks DXMT
-# needs. The template carries the libraries it links and DXMT's build for it.
-ENGINE=WS12WineSikarugir11.0_1
-ENGINE_URL=https://github.com/Sikarugir-App/Engines/releases/download/v1.0/$ENGINE.tar.xz
-ENGINE_SHA256=67e29fb3d74f363af39c69ba11f9b13a79812c5db07cf4748672658e4a200a0e
-TEMPLATE=Template-1.0.27
-TEMPLATE_URL=https://github.com/Sikarugir-App/Template/releases/download/v1.0/$TEMPLATE.tar.xz
-TEMPLATE_SHA256=dd0778f7b553d63df9b0f4e2cda3f3c6c005aabb75588c84d604afe80cdedbb9
+# Wine 11 from CrossOver 26.3's sources, built by athei/wine-build: msync
+# (Mach semaphores instead of wineserver round trips) and DXMT. It runs under
+# Rosetta, whose x87 is bit-exact: a match's world hashes stay those of a
+# Windows game. Its x87sidecar (faster, not bit-exact) desyncs and is kept off.
+ENGINE=cx-26.3.0-8
+ENGINE_URL=https://github.com/athei/wine-build/releases/download/$ENGINE/wine-$ENGINE-macos-x86_64.tar.xz
+ENGINE_SHA256=1976c3310a1f8be2f8e9a46fcb524f77b4316df3d281d94af2c8542bef60456d
+# CrossOver's Wine names the Windows user so.
+WINE_USER=crossover
+# Wine's Mac driver built from those sources with SWTOR on Mac's raw mouse
+# patches (LGPL; jdrly/swtor-on-mac, prebuilt/winemac): while the game hides
+# the pointer, mouse-look reads the mouse's own counts from GameController,
+# without macOS's acceleration.
+MOUSE_BASE=https://raw.githubusercontent.com/jdrly/swtor-on-mac/7e008e69eec222cb754479e7b81c70a202e66c14/prebuilt/winemac
+MOUSE_FILES="winemac.so:x86_64-unix:c8fa90497077d3e03b9fab6c2ecbe6ce5a25b075804e9b0e7e144a1117ca1468
+x86_64-windows/winemac.drv:x86_64-windows:603077293cb95f68ac9c675b5bf43f1e216587d3e9544ac426d006bc52d4d308
+i386-windows/winemac.drv:i386-windows:723c6addf3c49d2a76ddfb947dc805f70adb59eae049f8a708231fee7e09d414"
 # Microsoft's PowerPoint Viewer 2007, which carries the font Calibri (the
-# game's UI asks for it). Winetricks' archive.org copy breaks off at 10 MB.
+# game's UI asks for it); its cabinet starts at VIEWER_CAB in the file.
 VIEWER_URL=https://downloads.sourceforge.net/project/mscorefonts2/cabs/PowerPointViewer.exe
 VIEWER_SHA256=c4e753548d3092ffd7dd3849105e0a26d9b5a1afe46e6e667fe7c6887893701f
+VIEWER_CAB=592896
+GECKO_VERSION=2.47.4
+GECKO_SHA256=26cecc47706b091908f7f814bddb074c61beb8063318e9efc5a7f789857793d6
 
 SUPPORT="$HOME/Library/Application Support/Skhid"
-RUNTIME="$SUPPORT/runtime/$ENGINE-$TEMPLATE"
+RUNTIME="$SUPPORT/runtime/$ENGINE-rawmouse-1"
 # The engine is laid out as this app's Contents, its loader the app's
 # executable: every Wine process (each starts from that loader) belongs to an
 # app of the games category with LSSupportsGameMode, so macOS turns Game Mode
 # on for the fullscreen game, and the Dock names it.
 WINE_ROOT="$RUNTIME/Survarium.app/Contents"
+# The engine's compatdb rules. No x87sidecar for the game: its x87 results
+# then differ from Windows players' and lockstep matches desync. The launcher's
+# pages need Wine's HTML engine, which the built-in rules turn off (also in
+# the wineboot that makes the prefix, so regsvr32 registers it later).
+COMPATDB='v=5
+name=skhid-game;exe=survarium_skhid.exe;x87_sidecar=false
+name=skhid-launcher;exe=launcher_skhid.exe;dll_overrides=mshtml%3Db
+name=skhid-regsvr;exe=regsvr32.exe;dll_overrides=mshtml%3Db'
 
 die() { echo "Error: $*" >&2; exit 1; }
 
@@ -46,30 +61,21 @@ fetch() {
 }
 
 install_runtime() (
-    local temporary dxmt arch name contents
+    local temporary contents entry
     [[ -f "$RUNTIME/.skhid-ready" ]] && exit 0
     mkdir -p "$SUPPORT/runtime"
     temporary=$(mktemp -d "$SUPPORT/runtime/.download.XXXXXX")
     trap 'rm -rf -- "$temporary"' EXIT
-    echo 'Downloading Wine and DXMT for macOS (260 MB, first launch only)...'
+    echo 'Downloading Wine for macOS (235 MB, first launch only)...'
     fetch "$ENGINE_URL" "$ENGINE_SHA256" "$temporary/engine.tar.xz"
-    fetch "$TEMPLATE_URL" "$TEMPLATE_SHA256" "$temporary/template.tar.xz"
     mkdir -p "$temporary/runtime/Survarium.app"
-    tar -xJf "$temporary/engine.tar.xz" -C "$temporary" wswine.bundle
-    mv "$temporary/wswine.bundle" "$temporary/runtime/Survarium.app/Contents"
-    dxmt="$TEMPLATE.app/Contents/SharedSupport/renderer/dxmt/wine"
-    tar -xJf "$temporary/template.tar.xz" -C "$temporary" "$TEMPLATE.app/Contents/Frameworks" "$dxmt" \
-        "$TEMPLATE.app/Contents/Configure.app/Contents/Resources/cabextract"
+    tar -xJf "$temporary/engine.tar.xz" -C "$temporary" wine
     contents="$temporary/runtime/Survarium.app/Contents"
-    mv "$temporary/$TEMPLATE.app/Contents/Frameworks" "$contents/Frameworks"
-    mv "$temporary/$TEMPLATE.app/Contents/Configure.app/Contents/Resources/cabextract" "$temporary/runtime/"
-    # DXMT replaces Wine's own Direct3D 11 (WINEDLLPATH cannot take over a builtin).
-    for arch in i386-windows x86_64-windows; do
-        for name in d3d10core.dll d3d11.dll dxgi.dll winemetal.dll; do
-            cp "$temporary/$dxmt/$arch/$name" "$contents/lib/wine/$arch/$name"
-        done
-    done
-    cp "$temporary/$dxmt/x86_64-unix/winemetal.so" "$contents/lib/wine/x86_64-unix/"
+    mv "$temporary/wine" "$contents"
+    while IFS=: read -r entry dir sha; do
+        fetch "$MOUSE_BASE/$entry" "$sha" "$temporary/${entry##*/}"
+        mv "$temporary/${entry##*/}" "$contents/lib/wine/$dir/${entry##*/}"
+    done <<<"$MOUSE_FILES"
     # The loader moves to MacOS and is linked back; ntdll.so is found beside it.
     mkdir "$contents/MacOS"
     mv "$contents/lib/wine/x86_64-unix/wine" "$contents/MacOS/wine"
@@ -97,18 +103,15 @@ PLIST
 )
 
 configure_wine() {
-    # Exported here, in Bash: a system binary between this script and Wine
-    # (env, nohup, timeout from /usr/bin) would drop the DYLD_ variables.
-    export CX_ROOT="$WINE_ROOT" PATH="$WINE_ROOT/bin:$PATH"
-    export DYLD_FALLBACK_LIBRARY_PATH="$WINE_ROOT/Frameworks:/usr/lib"
-    # Without it this engine's child processes end at their start.
-    export SikarugirAppWine11=1
-    export WINEMSYNC=1 WINEBOOT_HIDE_DIALOG=1 WINEPREFIX="$PWD/wineprefix" WINEDEBUG=-all
-    [[ ${SKHID_METALFX-} == 1 ]] && export DXMT_METALFX_SPATIAL_SWAPCHAIN=1
-    # Keep HTML enabled (the launcher); qwave disabled as on Linux (the lobby-entry crash).
-    export WINEDLLOVERRIDES='mscoree,qwave=;mshtml=b;appwiz.cpl=d;winemenubuilder.exe=d'
+    export PATH="$WINE_ROOT/bin:$PATH" WINEPREFIX="$PWD/wineprefix" WINEDEBUG=-all
+    export WINEMSYNC=1 WINEBOOT_HIDE_DIALOG=1 WINE_COMPATDB="$COMPATDB"
+    # DXMT's shader cache where macOS does not purge it.
+    export DXMT_SHADER_CACHE_PATH="$SUPPORT/shader-cache"
+    # qwave disabled as on Linux (the lobby's QoS calls fail and stall it).
+    export WINEDLLOVERRIDES='qwave=;winemenubuilder.exe=d'
     WINE="$WINE_ROOT/bin/wine"
     WINESERVER="$WINE_ROOT/bin/wineserver"
+    mkdir -p "$DXMT_SHADER_CACHE_PATH"
     "$WINE" --version >>"$log" 2>&1 || die "Wine does not start. See $log"
 }
 
@@ -126,33 +129,38 @@ Close the game and launcher, rename wineprefix to an unused backup name, and run
         || die "Wine could not run a 32-bit Windows program. See $log"
 }
 
-# Wine's macOS driver: a window covering a display captures it (no menu bar
-# or Dock over the game, frames straight to the display), Option is Alt (the
-# game's held Alt), and Retina only when asked for. Written when they differ.
+set_reg() {
+    grep -qsF "\"$2\"=\"$3\"" "$WINEPREFIX/user.reg" && return
+    "$WINE" reg add "HKCU\\$1" /v "$2" /d "$3" /f >>"$log" 2>&1 || die "Could not change Wine's settings. See $log"
+}
+
+# Wine's Mac driver: a window covering a display captures it (no menu bar or
+# Dock over the game, frames straight to the display); Retina mode, so Windows
+# and macOS count the same pixels (else the game draws and reads the pointer at
+# two scales: a quarter of the picture, the pointer stuck in a quarter); Option
+# is Alt (the game's held Alt); raw mouse-look for the game.
 configure_mac_driver() {
-    local retina=n setting
-    [[ ${SKHID_RETINA-} == 1 ]] && retina=y
-    for setting in CaptureDisplaysForFullscreen=y LeftOptionIsAlt=y RightOptionIsAlt=y RetinaMode=$retina; do
-        grep -qsF "\"${setting%%=*}\"=\"${setting#*=}\"" "$WINEPREFIX/user.reg" && continue
-        "$WINE" reg add 'HKCU\Software\Wine\Mac Driver' /v "${setting%%=*}" /d "${setting#*=}" /f >>"$log" 2>&1 \
-            || die "Could not change Wine's macOS settings. See $log"
+    local setting
+    for setting in CaptureDisplaysForFullscreen LeftOptionIsAlt RightOptionIsAlt RetinaMode; do
+        set_reg 'Software\Wine\Mac Driver' "$setting" y
     done
+    set_reg 'Software\Wine\AppDefaults\survarium_skhid.exe\Mac Driver' RawMouseWhenCursorHidden y
 }
 
 # The main display (the one with the menu bar, where Wine puts its primary
-# monitor) in points, or in pixels with Retina: the sizes Wine reports.
+# monitor) in points: with Retina mode a quarter of its pixels, drawn by the
+# game and scaled to the display.
 detect_resolution() {
-    local resolution key=_spdisplays_resolution
-    [[ ${SKHID_RETINA-} == 1 ]] && key=_spdisplays_pixels
-    resolution=$(system_profiler SPDisplaysDataType -json 2>/dev/null | awk -F'"' -v key="$key" '
-        $2 == key { size = $4 }
+    local resolution
+    resolution=$(system_profiler SPDisplaysDataType -json 2>/dev/null | awk -F'"' '
+        $2 == "_spdisplays_resolution" { size = $4 }
         /"spdisplays_main" : "spdisplays_yes"/ { print size; exit }' | sed -E 's/^([0-9]+) x ([0-9]+).*/\1x\2/')
     [[ $resolution =~ ^[1-9][0-9]*x[1-9][0-9]*$ ]] && echo "$resolution" || echo 1440x900
 }
 
 prepare_settings() {
     local config="$SUPPORT/user.cfg" documents resolution
-    documents="$WINEPREFIX/drive_c/users/$(id -un)/Documents"
+    documents="$WINEPREFIX/drive_c/users/$WINE_USER/Documents"
     # Wine links Documents to the Mac's own; the game's files stay in the prefix.
     [[ ! -L "$documents" ]] || rm -- "$documents"
     mkdir -p "$documents/Survarium" "$SUPPORT"
@@ -180,8 +188,10 @@ calibri_from_viewer() (
     trap 'rm -rf -- "$temporary"' EXIT
     fetch "$VIEWER_URL" "$VIEWER_SHA256" "$temporary/viewer.exe"
     # Called in an || list, where set -e does not apply: each step exits itself.
-    "$RUNTIME/cabextract" -q -d "$temporary" -F ppviewer.cab "$temporary/viewer.exe" 2>>"$log" || exit 1
-    "$RUNTIME/cabextract" -q -d "$temporary" -F 'CALIBRI*.TTF' "$temporary/ppviewer.cab" 2>>"$log" || exit 1
+    # macOS's tar (libarchive) reads cabinets; the viewer's starts at VIEWER_CAB.
+    tail -c +$((VIEWER_CAB + 1)) "$temporary/viewer.exe" > "$temporary/viewer.cab" || exit 1
+    tar -xf "$temporary/viewer.cab" -C "$temporary" ppviewer.cab 2>>"$log" || exit 1
+    tar -xf "$temporary/ppviewer.cab" -C "$temporary" 'CALIBRI*.TTF' 2>>"$log" || exit 1
     printf 'REGEDIT4\r\n\r\n[HKEY_LOCAL_MACHINE\\Software\\Microsoft\\Windows NT\\CurrentVersion\\Fonts]\r\n' \
         > "$temporary/calibri.reg"
     for name in CALIBRI:Calibri CALIBRIB:'Calibri Bold' CALIBRII:'Calibri Italic' CALIBRIZ:'Calibri Bold Italic'; do
@@ -194,6 +204,22 @@ calibri_from_viewer() (
     for lower in calibrib calibrii calibriz calibri; do
         mv "$fonts/$lower.ttf.part" "$fonts/$lower.ttf" || exit 1
     done
+)
+
+# The launcher's pages need Wine Gecko, which this engine does not carry.
+install_gecko() (
+    local gecko="$WINEPREFIX/drive_c/windows/syswow64/gecko/$GECKO_VERSION/wine_gecko" temporary
+    [[ -f "$gecko/xul.dll" ]] && exit 0
+    temporary=$(mktemp -d "$WINEPREFIX/drive_c/skhid-gecko.XXXXXX")
+    trap 'rm -rf -- "$temporary"' EXIT
+    echo 'Installing Wine Gecko for the launcher...'
+    fetch "https://dl.winehq.org/wine/wine-gecko/$GECKO_VERSION/wine-gecko-$GECKO_VERSION-x86.msi" \
+        "$GECKO_SHA256" "$temporary/gecko.msi"
+    "$WINE" 'C:\windows\syswow64\regsvr32.exe' /s mshtml.dll >>"$log" 2>&1 \
+        || die "Registering Wine's HTML engine failed. Run again to retry; see $log"
+    "$WINE" msiexec /i "C:\\${temporary##*/}\\gecko.msi" /qn /norestart >>"$log" 2>&1 \
+        || die "Gecko installation failed. Run again to retry; see $log"
+    [[ -f "$gecko/xul.dll" ]] || die "Gecko installation is incomplete. Run again to retry; see $log"
 )
 
 # The game must opt in to DEP (NX_COMPAT): without it Wine maps its memory
@@ -249,6 +275,7 @@ main() {
     prepare_settings
     install_calibri
     if [[ $mode == launcher ]]; then
+        install_gecko
         echo "Starting the Skhid launcher. Log: $log"
         "$WINE" launcher_skhid.exe >>"$log" 2>&1 || die "Launcher exited with an error. See $log"
     else
