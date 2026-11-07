@@ -650,6 +650,14 @@ tail going through 0x2DDDF0 (the fixed E-record path). Note 0x336E60, 0x303820
 and 0x31AD50, like 0x2FAB70, are list-registration/constructor/empty functions,
 not deserializers -- the advance-cursor heuristic over-counts them among the 65.
 
+The validator also cites four sub-addresses that are NOT reader entry points
+(so a decompiler keyed on function starts skips them): 0x2F5B08..0x2F5BCB is a
+range inside `shared_statistics::serialize` 0x2F5AC0 (its `m_team_points[0]`
+call site and its closing `w<u32>` + `ret`); 0x313D84 is the carrier-exists
+branch (`((int*)*i)[2] == 0`) inside `gather_victory_items_rule_core::serialize`
+0x313CA0; 0x2D2BB0 is inside the apply dispatch 0x2D2770 (objects.rs calls it
+"the walk 0x2D2BB0.."). Each containing function is read in full above.
+
 So the goal's actual scope -- readers of another player's data -- is read at
 the site in full and bounded; the only two that were not are the animation
 stream and the E player-effect records, both now fixed.
