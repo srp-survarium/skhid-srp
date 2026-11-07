@@ -152,11 +152,36 @@ map's battery containers are the gather rule's (the rules section).
   item's `data.type`, `ItemClass`). The first roster is bound from the start
   and each late joiner when a game installs it, so an upload is checked as a
   game that installed any number of the late joiners, in join order.
-- **Refused:** a section that does not read to its exact end; a grenade or trap
-  float that is not a number; flags an object has not; more than 20 users, a
-  user past the roster or using two objects; an anomaly state past its states;
-  zone bits past a group's zones; a container's artefact past the map's; an
-  artefact owner that is no kit with a player; an artefact state over 5.
+- **Read as typed views** (`world::GameObjects`, from 2026-11-07): each object
+  is parsed once by its reader into a view named for the game class that saves
+  it (`GrenadeCore`, `BoobyTrapCore`, `DamageZoneCore`, `ResupplyZoneCore`,
+  `GenericAnomalyCore` with its `AnomalyState`, `ZoneGroup`s,
+  `ArtefactContainerCore`s and `ArtefactBase`s), each field named by the
+  string its `serialize` hands the writer (`m_trap_state`, `m_hitting`,
+  `current_state_index`, `events_mask`, ...; the field map is in
+  `objects.rs`). A byte with a closed set of values becomes its enum, bool or
+  bounded index there, once; the accessors return those types. An anomaly's
+  groups, containers and artefacts are handed out lazily, read again by the
+  reader that checked them, so nothing is collected.
+- **Refused by the readers** (the field's values, named in the refusal): a
+  section that does not read to its exact end; a float that is not a number;
+  a grenade's `current_state` with a bit past its three; a trap state past
+  the four (removed, armed, fired, disarmed); a bool that is not 0x00 or 0xFF
+  (`m_hitting`, `m_need_to_spawn_artefacts`, the writer 0x80FA0); more than 20
+  users; a place past the table of 20, a kit past the three; an anomaly state
+  past its states; zone bits past a group's zones; `events_mask` bits past
+  its two; an artefact state over 5. **Refused by the match's rules** over the
+  views: a user past the roster or using two objects; a container's artefact
+  past the map's; an artefact owner that is no kit with a player. Left open:
+  the u32 times, ids and seeds, an artefact's amount (0 or 1 live), its slot
+  (13 to 18 live) and its container id (0 to 26 live): the writer copies them
+  from live objects, and no bound is shown.
+- **The domains' gate** (2026-11-07): every live upload still passes (all
+  50,205), and so do the 3,919 local worlds `corpus2` passes on main (its one
+  refusal, a place with no profile, is the player check's). Of the 16 flipped
+  copies of each live upload (802,280), the readers refuse 107 more than
+  main and accept none main refuses: 58 at `m_hitting`, 32 at `m_trap_state`,
+  17 at `m_need_to_spawn_artefacts`.
 
 Evidence: all **3,920** worlds of the 2026-11-05 local tests read to the exact
 end of the section with their match's own profiles (each match's 0xE4 from the

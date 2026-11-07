@@ -5,6 +5,7 @@ use core::fmt;
 use world_frame::{AnimFault, MAX_BODY, PLAYER_STATE_CAP};
 
 use crate::world::EffectFault;
+use crate::world::ObjectFault;
 
 /// The part of a world a fault is in.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -227,11 +228,6 @@ pub enum Reason {
         len: usize,
         objects: usize,
     },
-    /// A usable object has more users than its buffer of 20.
-    ObjectsUsers {
-        object: usize,
-        count: u8,
-    },
     /// A usable object names a user past the roster.
     ObjectsUserPast {
         object: usize,
@@ -249,36 +245,17 @@ pub enum Reason {
         artefact: u8,
         artefacts: usize,
     },
-    /// An anomaly names a state past its own.
-    ObjectsStatePast {
-        object: usize,
-        state: u8,
-        states: usize,
-    },
-    /// A zone group's bits name a zone past its own.
-    ObjectsZoneBits {
-        object: usize,
-        bits: u8,
-    },
     /// An artefact's owner is no kit with a player.
     ObjectsOwner {
         object: usize,
         place: u8,
         kit: u8,
     },
-    /// An artefact's state is none the game has.
-    ObjectsArtefactState {
+    /// An object's field holds what the game never writes there
+    /// (`world::GameObjects::read`).
+    ObjectsField {
         object: usize,
-        state: u8,
-    },
-    /// A flags byte has a bit the object has not.
-    ObjectsFlags {
-        object: usize,
-        flags: u8,
-    },
-    /// A float of an object is not a number.
-    ObjectsNotNumber {
-        object: usize,
+        fault: ObjectFault,
     },
 
     // The physics.
@@ -629,9 +606,6 @@ impl fmt::Display for Reason {
                 f,
                 "{len} bytes do not read as the objects to the end (stopped in object {objects})"
             ),
-            Reason::ObjectsUsers { object, count } => {
-                write!(f, "object {object} has {count} users, over 20")
-            }
             Reason::ObjectsUserPast {
                 object,
                 user,
@@ -651,30 +625,11 @@ impl fmt::Display for Reason {
                 f,
                 "object {object} names artefact {artefact}, past the map's {artefacts}"
             ),
-            Reason::ObjectsStatePast {
-                object,
-                state,
-                states,
-            } => write!(
-                f,
-                "object {object} names state {state}, past the anomaly's {states}"
-            ),
-            Reason::ObjectsZoneBits { object, bits } => {
-                write!(f, "object {object} turns on zones past its own ({bits:#04x})")
-            }
             Reason::ObjectsOwner { object, place, kit } => write!(
                 f,
                 "object {object} names owner {place} kit {kit}, which has no player"
             ),
-            Reason::ObjectsArtefactState { object, state } => {
-                write!(f, "object {object} has artefact state {state}")
-            }
-            Reason::ObjectsFlags { object, flags } => {
-                write!(f, "object {object} has flags {flags:#04x}")
-            }
-            Reason::ObjectsNotNumber { object } => {
-                write!(f, "object {object} has a float that is not a number")
-            }
+            Reason::ObjectsField { object, fault } => write!(f, "object {object}: {fault}"),
             Reason::PhysicsBytes { len } => write!(f, "{len} bytes where a game writes none"),
             Reason::BulletsUnread { len, bullets } => write!(
                 f,

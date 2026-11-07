@@ -2010,6 +2010,7 @@ va	status	ref_021d	name
 0x00303a60	inferred-medium	0x001ec3d1	survarium::grenade_core::tick
 0x003045a0	inferred-medium	0x001e9c22	survarium::booby_trap_core::`scalar deleting destructor'
 0x00305050	inferred-medium	0x001ea23d	survarium::booby_trap_core::use_info
+0x00305210	inferred-high	0x001ea285	survarium::booby_trap_core::switch_to_state
 0x00305520	inferred-medium	0x001ea4ec	survarium::booby_trap_core::post_deserialize_resolve
 0x00305740	inferred-medium	0x001ea533	stlp_std::transform<vostok::physics::loose_ptr<vostok::physics::base_physics_object,vostok::physics::loose_ptr_data,vostok::threading::multi_threading_policy> const *,stlp_std::back_insert_iterator<vostok::buffer_vector<float> >,survarium::calc_distance_functor>
 0x003076a0	inferred-high	0x001eae06	survarium::collision_sensor::~collision_sensor
@@ -2152,6 +2153,7 @@ va	status	ref_021d	name
 0x00312bf0	inferred-medium		survarium::artefact_onyx_core::protect
 0x00312cc0	inferred-medium	0x001f4b55	vostok::buffer_vector<survarium::damage_protector>::resize
 0x00312fd0	inferred-medium	0x001f4d54	survarium::artefact_base::artefact_base
+0x003134c0	inferred-medium		survarium::artefact_base::start_spawn_in_container
 0x00313530	inferred-medium		survarium::artefact_base::end_active
 0x00313ca0	inferred-medium	0x001fba38	survarium::gather_victory_items_rule::serialize
 0x00313dd0	inferred-medium	0x001fbb49	survarium::gather_victory_items_rule::deserialize

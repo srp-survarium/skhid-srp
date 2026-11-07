@@ -2367,3 +2367,5 @@ va	name	source	ret_cleanup	result
 0x00201040	survarium::game_options::deactivate	manual	0	none; returns at once when +44h is 0, else hides +0Ch and +10h, removes its input handler, clears +44h and +30h
 0x00234880	survarium::game_world_ui::initialize_match	manual	8	none
 0x001f8120	survarium::game_world::local_player_profiles	manual	8	none; writes the local place's kit in use (+0Ch) to entry ESP+4's byte and its next kit (+0Dh) to entry ESP+8's
+0x00305210	survarium::booby_trap_core::switch_to_state	manual	4	no result used
+0x003134c0	survarium::artefact_base::start_spawn_in_container	manual	4	no result used
