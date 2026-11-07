@@ -167,10 +167,11 @@ fn walk(state: &[u8], items: usize, place: Option<u8>, context: &Context) -> Res
         head_len,
     );
 
-    // The E player effects: each the template's 67-byte effect record. E is
-    // 0 in every world seen; a record is length-walked and its leading
-    // root-emitter flag checked (the effects section's template bounds its
-    // own records).
+    // The E player effects: each the same 67-byte effect record as the
+    // effects section's one effect, so [`super::effects::record_is_safe`]
+    // bounds the two embedded table indices and the floats (the native reader
+    // would read a raw pointer or an unbounded global-table entry otherwise).
+    // E is 0 in every world seen.
     if e_count > MAX_RECORDS {
         return Err((
             head_len,
@@ -183,7 +184,7 @@ fn walk(state: &[u8], items: usize, place: Option<u8>, context: &Context) -> Res
     for _ in 0..e_count {
         let start = reader.at();
         let record = reader.take(EFFECT_RECORD).map_err(short)?;
-        if record.first() != Some(&0) {
+        if !super::effects::record_is_safe(record) {
             return Err((start, Reason::TailEffect { at: start }));
         }
     }

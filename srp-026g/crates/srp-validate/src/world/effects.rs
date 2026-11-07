@@ -95,6 +95,30 @@ fn u32_at(bytes: &[u8], at: usize) -> Option<u32> {
         .map(|bytes| u32::from_le_bytes(*bytes))
 }
 
+/// The crash-critical fields of one effect record, shared by the section's
+/// one effect (the template at offsets 12..79) and the E player effects
+/// [`super::player_tail`] reads (the same 67-byte form from offset 0). The
+/// root emitter (flag at 0, index u32 at 1) and the time calculator (flag at
+/// 41, index u32 at 42) must each be zero: the native reader
+/// `game_effect_player::deserialize` 0x2DDDF0 -> 0x2E5C30 reads a raw pointer
+/// when a flag is set, otherwise an unbounded index into a global table
+/// (0xAA2E48 / 0xAA2E74) with a refcount write. The three floats (at 24, 28,
+/// 36) must be finite -- they reach the effect's transform. The other bytes
+/// are the effect's own parameters, free values.
+pub(super) fn record_is_safe(record: &[u8]) -> bool {
+    let zeros = |at: usize, len: usize| {
+        record.get(at..at.saturating_add(len)).is_some_and(|bytes| bytes.iter().all(|&b| b == 0))
+    };
+    let number = |at: usize| u32_at(record, at).is_some_and(crate::finite);
+    zeros(0, 1)
+        && zeros(1, 4)
+        && zeros(41, 1)
+        && zeros(42, 4)
+        && number(24)
+        && number(28)
+        && number(36)
+}
+
 /// The effects section is one of the template's two forms.
 pub fn effects(section: &Section) -> Result<(), Refusal> {
     let bytes = section.bytes;
@@ -196,5 +220,24 @@ mod tests {
             reason(&set),
             Some(Reason::EffectsByte { at: 44, .. })
         ));
+    }
+
+    #[test]
+    fn a_record_is_safe_only_with_zero_table_fields_and_finite_floats() {
+        // 67 bytes of zero: both pointer flags and index u32s zero, floats 0.0.
+        let record = [0u8; 67];
+        assert!(record_is_safe(&record));
+        // A non-zero root-emitter index (bytes 1..5): an unbounded table read.
+        let mut index = record;
+        index[2] = 1;
+        assert!(!record_is_safe(&index));
+        // A set time-calculator pointer flag (41): a raw pointer.
+        let mut flag = record;
+        flag[41] = 1;
+        assert!(!record_is_safe(&flag));
+        // A non-finite float (24..28): a non-number into the transform.
+        let mut nan = record;
+        nan[24..28].copy_from_slice(&f32::INFINITY.to_le_bytes());
+        assert!(!record_is_safe(&nan));
     }
 }
