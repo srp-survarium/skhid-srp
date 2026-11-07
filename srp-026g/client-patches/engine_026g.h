@@ -605,9 +605,6 @@ void engine_match_packet_send(struct match_options_holder *client, struct match_
 /* 0x7ac10 vostok::network_core::buffer_writer::w: buffer_writer ESP+4, source_bytes ESP+8, byte_count EDI; pops 8 */
 void engine_append_packet_bytes(struct buffer_writer *buffer_writer, const unsigned char *source_bytes, unsigned int byte_count);
 
-/* the IAT slot 0x8701b8 (an import, stdcall) */
-extern unsigned int (__attribute__((stdcall)) *const engine_tick_count)(void);
-
 /* the IAT slot 0x87029c (an import, stdcall) */
 extern unsigned int (__attribute__((stdcall)) *const engine_set_environment_variable_a)(const char * name, const char * value);
 

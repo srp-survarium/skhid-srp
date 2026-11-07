@@ -170,7 +170,6 @@ engine_get_module_handle_a	0x87003c	-	void *engine_get_module_handle_a(const cha
 engine_match_packet_begin	survarium::match_client+0x18	ECX:client ESP+4:id	struct match_packet *engine_match_packet_begin(struct match_options_holder *client, unsigned int id)	virtual
 engine_match_packet_send	survarium::match_client+0x1c	ECX:client ESP+4:packet	void engine_match_packet_send(struct match_options_holder *client, struct match_packet *packet)	virtual
 engine_append_packet_bytes	0x7ac10	ESP+4:buffer_writer ESP+8:source_bytes EDI:byte_count	void engine_append_packet_bytes(struct buffer_writer *buffer_writer, const unsigned char *source_bytes, unsigned int byte_count)	thunk
-engine_tick_count	0x8701b8	-	unsigned int engine_tick_count(void)	import
 engine_set_environment_variable_a	0x87029c	-	unsigned int engine_set_environment_variable_a(const char *name, const char *value)	import	
 engine_show_scene_movie	0x23dc00	EAX:scene ESI:movie	void engine_show_scene_movie(struct game_world *scene, struct movie_slot *movie)	thunk	
 engine_hide_scene_movie	0x23dc70	EAX:movie EDX:scene	void engine_hide_scene_movie(struct movie_slot *movie, struct game_world *scene)	thunk	
