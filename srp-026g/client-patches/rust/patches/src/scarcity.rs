@@ -1,5 +1,5 @@
-//! Patch 94: Scarcity, a battery match with no ammo crates (the rules:
-//! docs/notes/scarcity.md; client_patch.md section 3.62). Its starting ammo
+//! Patch 119: Scarcity, a battery match with no ammo crates (the rules:
+//! docs/notes/scarcity.md; client_patch.md section 3.72). Its starting ammo
 //! is the server's: the kits of the static info are cut
 //! (`survarium::v026g::scarcity`), so nothing here gives or counts rounds.
 //! The hooks are `scarcity.toml`'s, each a `lohook`:

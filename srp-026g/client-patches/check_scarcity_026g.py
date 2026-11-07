@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Run patch 94 (rust/patches/src/scarcity.rs, its lohooks of scarcity.toml:
+"""Run patch 119 (rust/patches/src/scarcity.rs, its lohooks of scarcity.toml:
 Scarcity, a battery match with no ammo crates) in the default build on
 made-up game objects, each from the game's own code before its site to past
 it.

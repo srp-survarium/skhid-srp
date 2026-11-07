@@ -30,7 +30,7 @@ pub enum MatchVariant {
     Plain,
     /// Patch 65 (docs/notes/blackout.md).
     Blackout,
-    /// Patch 94 (docs/notes/scarcity.md).
+    /// Patch 119 (docs/notes/scarcity.md).
     Scarcity,
 }
 

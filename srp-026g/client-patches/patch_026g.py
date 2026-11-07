@@ -398,8 +398,8 @@ Patches:
   forced interface and Tab; on_keyboard_action after its Tab test (0x25CD2C)
   lets a key go on while Tab is held; the input builder's end (0x2421B0)
   takes the moves and acts out of the mask while Tab is held;
-- Scarcity, a battery match with no ammo crates (patch 94,
-  docs/notes/scarcity.md; client_patch.md section 3.62): the Rust patch
+- Scarcity, a battery match with no ammo crates (patch 119,
+  docs/notes/scarcity.md; client_patch.md section 3.72): the Rust patch
   scarcity (rust/patches/src/scarcity.rs, scarcity.toml): srp's block's tag
   2 read after each match_options::deserialize (patch 65's chains); at
   project_cooker_simple::create_game_objects' entry (0x22C010) a Scarcity
