@@ -5718,3 +5718,11 @@ va	name	location	role	basis
 0x002ffc40	survarium::inventory_item::degrade_per_death	ECX	item receiver	observed
 0x002ffc80	survarium::inventory_item::degrade_per_use	ECX	item receiver	observed
 0x00246380	survarium::inventory_item::cast_artefact	ECX	item receiver	observed
+0x0027a790	survarium::network_client::close_current_match	entry ESP+4	the reason (jump table 0x27A958), past the guard 0x27A7A4..0x27A7AA (the time rule's state the client keeps, +1F1C60h: 0 until the first tick played after the first world, 0x267AFB, and after a close; at 0 the function returns for every reason, else clears it, 0x27A7CF): 0 timeout 0x27A941, the world ended (on_finish_match); 1 and 5 0x27A867, a log line, 31 to the lobby (0x27A930) and the world ended; 4 (0xFD) the function's return 0x27A94C in the original, 0x27A930 with patch 119	observed
+0x0021be50	survarium::network_client::on_match_disconnected	ECX	the network client	observed
+0x0021be50	survarium::network_client::on_match_disconnected	entry ESP+4	the reason instant_disconnect was given	observed
+0x003fdf30	vostok::network_core::udp_match_connection::instant_disconnect	ESI	the connection	observed
+0x003fdf30	vostok::network_core::udp_match_connection::instant_disconnect	entry ESP+4	the reason: 0 a timeout (0x3FC0BC); 1 (0x3FC158, 0x3F1F0A, 0x3F220B); 2 the end of an FA or FB handshake (0x3FCC09, 0x3FDEB9) and 0x3FE103; 4 the server's FD (0x3FDF0E) and the connection's own close 0x3FCC40 (its callback cleared first, 0x3FCCA8); 5 an expired multipacket ordered message (0x3F4C9E)	observed
+0x002717e0	survarium::lobby_client::discard_playing_order	entry ESP+4	the lobby client	observed
+0x002717e0	survarium::lobby_client::discard_playing_order	entry ESP+8	bool: true "left the match" (close_current_match 0x27A93B, the 0xEA handler 0x27C759), false "stopped waiting"	observed
+0x00219960	survarium::network_client::lobby_client	ECX	the network client	observed
