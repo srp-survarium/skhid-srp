@@ -1003,11 +1003,25 @@ fn advance(
                     _ => None,
                 };
                 #[cfg(test)]
-                if client.is_some() {
-                    client_steps::count();
+                {
+                    if role == Role::Reckoning && !in_air && matches!(at.fall, Fall::Ground) {
+                        client_steps::ground();
+                        if kin.client_step == ClientStep::Client && (rises || blocked) {
+                            client_steps::hard();
+                        }
+                    }
+                    if client.is_some() {
+                        client_steps::count();
+                    }
                 }
+                #[cfg(test)]
+                let grid_feet = feet;
                 if let Some(target) = client {
                     (node, feet, stopped) = slide_edge(kin, grid, at.node.unwrap_or(node), at.feet, target, offs);
+                    #[cfg(test)]
+                    if feet.distance_xz(grid_feet) > 1e-3 {
+                        client_steps::moved();
+                    }
                 } else if share < 1.0 {
                     let short = Vec3::new(
                         at.feet.x + (to.x - at.feet.x) * share,
@@ -1218,14 +1232,37 @@ pub(crate) mod client_steps {
     use std::sync::atomic::{AtomicU64, Ordering::Relaxed};
 
     static COUNT: AtomicU64 = AtomicU64::new(0);
+    static GROUND: AtomicU64 = AtomicU64::new(0);
+    static HARD: AtomicU64 = AtomicU64::new(0);
+    static MOVED: AtomicU64 = AtomicU64::new(0);
 
     pub(crate) fn count() {
         COUNT.fetch_add(1, Relaxed);
     }
 
+    /// A reckoned ground step with a grid.
+    pub(crate) fn ground() {
+        GROUND.fetch_add(1, Relaxed);
+    }
+
+    /// A reckoned ground step the grid has rising or blocked (whether or not a walker took it).
+    pub(crate) fn hard() {
+        HARD.fetch_add(1, Relaxed);
+    }
+
+    /// A client step whose feet end 1 mm+ (flat) from the grid's.
+    pub(crate) fn moved() {
+        MOVED.fetch_add(1, Relaxed);
+    }
+
     /// How many so far.
     pub(crate) fn total() -> u64 {
         COUNT.load(Relaxed)
+    }
+
+    /// (reckoned ground steps, hard ones, client steps, client steps that moved the feet otherwise).
+    pub(crate) fn all() -> (u64, u64, u64, u64) {
+        (GROUND.load(Relaxed), HARD.load(Relaxed), COUNT.load(Relaxed), MOVED.load(Relaxed))
     }
 }
 
