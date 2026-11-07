@@ -3188,6 +3188,7 @@ va	name	location	role	basis
 0x00324d80	survarium::game_state_history_item::deserialize	stack+8	reader	inferred
 0x00325150	survarium::game_state_history_item::hash	EAX	game history record	inferred
 0x00325150	survarium::game_state_history_item::hash	stack+4	client selection history	inferred
+0x00325270	survarium::game_world_core::load_history_state	ESI (from EAX at 0x32527C)	the kept state it loads (its time +C0BB0h compared with EBX at 0x325285); sets the byte 0x1F1D32D to 1 and loads it through game_world_core::deserialize (0x325291, 0x325300); called by on_hash_mismatch 0x325DBD and dump_game_state 0x328615 only	observed
 0x00325a60		entry ESP+12		auto
 0x00329120	survarium::stamina_base_parameters::load	ESI	configuration object pointer passed to keyed lookup	observed
 0x00329120	survarium::stamina_base_parameters::load	entry ESP+4	destination parameter object; scalar stores at offsets0 through0x24	observed
@@ -5449,6 +5450,9 @@ va	name	location	role	basis
 0x0032a6a0	survarium::body_part::remove_affect	ESP+12	affect; reviewed native call and body	observed
 0x002f7660	survarium::player_profile::apply_kit_parameter	at 0x2F76E8	ESI parameter index, XMM0 complete value after skills and all equipment; epilogue pops EDI/ESI/EBP/EBX and ret; indices 15 and 17 are pocket count and pocket capacity	observed
 0x002fcb70	survarium::inventory::setup_from_profile	at 0x2FD266..0x2FD2A5	artifact count is min(modifier 14, 19 - first free quick slot); EDI inventory, ESP+1Ch first slot 13..18; stores count at inventory+16Ch and first artifact-slot pointer at +168h, bounding supply pockets plus artifacts to six	observed
+0x002fcb70	survarium::inventory::setup_from_profile	EDI+168h, EDI+16Ch	the container range, written at the end (0x2FD29F, 0x2FD2A5) after the last loop's vfn +38h calls (0x2FD1A5..0x2FD1C1): a kit's first spawn runs that loop with the constructor's empty range (0x2FC515: +168h 0, +16Ch 0)	observed
+0x002fe550	survarium::inventory::deserialize	the reader's container count (0x2FE5E7)	written to +16Ch; 0 skips the range and every container slot (je 0x2FE77B): only the saved range's slots are written, every other slot keeps what it held	observed
+0x002d2770	survarium::game_world_core::deserialize	at 0x2D2D5D	the load's end (EBP the core world): every place's current kit with its inventory and every object (the anomalies, their artefacts with inventory and slot) loaded, the active places put into the world; reached by move's rollbacks (0x2D2FF0, 0x2D357A), by 0x2D0B70 (a join, a resync) and by the helper 0x325270 (0x325291, 0x325300; on_hash_mismatch 0x325DBD and dump_game_state 0x328615 call it)	observed
 0x00329050	survarium::game_effect_resource::emit	ESI	resource; emitter +108h, metadata +10Ch/+110h, duration +114h; called by artefact_base 0x3133A7	observed
 0x00329050	survarium::game_effect_resource::emit	EDI	out effect slot; freshly emitted instance, resource metadata attached by 0x329070..0x329086	observed
 0x003344b0	survarium::composite_game_effect::deserialize	ECX	composite effect instance; children +4Ch, emitter list +2Ch, count +48h	observed

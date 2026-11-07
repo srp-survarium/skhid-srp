@@ -289,23 +289,35 @@ preferred-image VAs; `apply_modifier` is the kit-modifier getter 0x2D5AE0.
   Held in the hand, patch 78 drops it (state 6, anyone takes it). It goes dormant only when a
   take with every container held replaces the first container's (take_artefact 0x2FC897): still
   given, never given again. Places are never reused, so a late joiner's place has its own.
-- A rollback over a respawn into another kit (the live crash of rev51, 2026-11-07, matches
-  0x69f885a and 0x52604c4f: every game of the match crashed at the same simulated moment). A world
-  holds only the current kit's player and inventory (game_world_core_client::serialize 0x3218E0)
-  but every registered artefact with its inventory (inventory_item's load 0x2FFF8D: by its place
-  and kit, 0xFF none). A late joiner dies, respawns in another kit, takes the gift at its first
-  tick alive; a rollback to a world from before the respawn has the gift dormant again (state 0,
-  in no inventory, its mark u32::MAX) while the new kit's object keeps its first run's slots, the
-  gift in a container. The replayed spawn's setup_from_profile (0x2FCB70, its last loop) calls
-  on_taken (0x313470), whose passive link reads [[item+250h]+174h] with no null check: Larkspur
-  0x3121AD, Spring patch 54's `lists` (0x311AD0's hook). The fix (patch 109,
-  `keeper.respawn_containers`, a lohook at 0x2FD19A before that loop): every container of the
-  spawned kit whose artefact names no inventory or another is emptied (its slot's reference
-  released, the weight to be recalculated) and logged; the same tick's gift then goes into it
-  again, as in a game that did not roll back. A game that loaded no such world has none (set_item
-  and the eviction keep the slot and the artefact's inventory together), so a match computes the
-  same: no `next` row. Not handled (native, no crash in this path): the other way round, a world
-  that has an artefact in the kit's inventory while the kit's stale slot is empty.
+- A world's load and the kits it does not carry (the live crashes of rev51 and rev52, 2026-11-07,
+  matches 0x69f885a, 0x52604c4f and 0x2e769931: every game of the match crashed at the same
+  simulated moment). A world carries every registered artefact with its own record (inventory_item's
+  load 0x2FFF8D: its holder's inventory by place and kit, 0xFF none, and its slot +254h;
+  artefact_base's: its state and the gift's mark), but of a place's inventories only its current
+  kit's (game_world_core_client::serialize 0x3218E0), and of that one only the saved container
+  range (inventory::deserialize 0x2FE5E7: a saved count of 0 writes no slot). A kit's container
+  range is set at the end of its spawn's setup_from_profile (0x2FD29F), so a world kept before a
+  kit's first spawn (the countdown; the constructor's empty range 0x2FC515) has none. Every other
+  slot keeps what the game's own run put there after the world was kept. So a rollback (or a
+  join, a resync, a replay's seek) to a world from before a gift that followed a spawn, at the
+  match's start or at a respawn in the same or another kit, left the gift in its container while
+  the world has it dormant (state 0, no inventory, mark u32::MAX); the replayed spawn's
+  setup_from_profile then called on_taken (0x313470), whose passive link reads [[item+250h]+174h]
+  with no null check: Larkspur 0x3121AD, Spring patch 54's `lists` (0x311AD0's hook). rev52's
+  fix (emptying the spawned kit's containers before that loop) saw no container at a kit's first
+  spawn (its range not yet set) and missed the start's.
+- The fix (patch 109, `keeper.world_loaded`, a lohook at game_world_core::deserialize's end
+  0x2D2D5D, which every world load passes: move's rollbacks 0x2D2FF0 / 0x2D357A, a joiner's or
+  resynced game's 0x2D0B70, a replay's seek): every kit of every place, in the world or not, is
+  made to hold the registered artefacts the world says it holds. A slot holding one the world has
+  in another inventory, another slot or none is emptied; an empty slot the world has one in is
+  filled (the slot's pointer and its reference alone: not the weight +180h or its flag +184h, which
+  the world saves and loads for the current kit and a spawn sets for the others (0x2FD2B8); no
+  passive linked or unlinked: the kit's next spawn's on_taken does that, as in any game). The world alone decides,
+  so every game that loads it holds the same, and the same as a game that did not load it (its
+  slots and its artefacts' records agree: set_item, remove_item and the eviction write both); a
+  replay, which loads no world, computes what it did: no `next` row. Each change is logged
+  ("keeper: a world's load empties / restores place p kit k slot s: artefact id n").
 - Costs: every world about 735 bytes more (the 60 dormant artefacts and the core, about +13 % of
   a 5-6 KB world); 60 more artefact objects a match, the three kinds' models loaded on every
   map; the edit list pins each project's client_objects count (a map change in between: run
@@ -316,9 +328,11 @@ preferred-image VAs; `apply_modifier` is the kit-modifier getter 0x2D5AE0.
   the countdown, the gift at the start into the first empty container, waiting while every
   container is held or the player is dead, never a second: a death with denormals flushed then a
   replacement by take_artefact with every container held, a late joiner after its first death,
-  the refusals, a new load, a late joiner's ids and container read, a rollback over a respawn
-  into another kit with the gift after it: the replayed spawn empties the stale container, no
-  on_taken for it, the gift again at the next tick), the patch's `gift` tests,
+  the refusals, a new load, a late joiner's ids and container read; world loads, by the game's own
+  inventory::deserialize and the load's end: the countdown's world after the start's gift, a world
+  from before a respawn into another kit with two places' gifts after it, a world without the
+  place, several loads in a row, a world with an artefact the kit's object lost; each fails on
+  rev52's build), the patch's `gift` tests,
   `crates/mapdata/tests/artefact_keeper.rs` (the edit list against the table, the anomaly as a
   map object), `survarium::v026g::keeper` and the match-server test (the draw in every kit, a
   joiner's too; bit 13 for a joiner taken in process, none for one taken in the countdown).

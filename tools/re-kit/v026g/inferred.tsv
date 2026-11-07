@@ -2225,6 +2225,7 @@ va	status	ref_021d	name
 0x00324210	inferred-medium		survarium::game_objects_serialized_state::serialize
 0x00324310	inferred-medium		survarium::game_effect_player_history_item::serialize
 0x00324410	inferred-medium		survarium::physics_world_history_item::serialize
+0x00325270	inferred-medium		survarium::game_world_core::load_history_state
 0x00325ee0	inferred-medium		survarium::game_world_core::dump_hash_mismatches
 0x00328380	inferred-medium		survarium::create_folders_to_file
 0x003285d0	inferred-medium		survarium::game_world_core::dump_game_state
