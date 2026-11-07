@@ -535,6 +535,7 @@ enum RefPhase {
 ///   `player_step`'s air branch 0x7BF2C moves the body;
 /// - the air control: the keys' direction at `air_control_speed` 1 m/s, none for forward alone in a sprint jump (0x2D7990);
 /// - the end: at the clip's last frame `end_jump` 0x7F050 (only a downward vertical speed kept), then the walk with gravity.
+///
 /// Not here: the landing clips' root travel.
 #[derive(Clone, Copy)]
 struct RefJump {
