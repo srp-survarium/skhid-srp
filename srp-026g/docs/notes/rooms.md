@@ -18,7 +18,7 @@ parts in the game's classes (`TopMenu`'s tab, `StatusPanel`'s Play, `LobbyMenu`'
   - Play fills an eligible room in its bracket first (nearest level, then fullest).
     When all are full it queues, choosing a shortest queue. Repeated Play keeps
     the same queue position.
-  - Six ready Play users waiting across that bracket's queues open another room;
+  - Four ready Play users waiting across that bracket's queues open another room;
     up to 16 transfer together, oldest first. This repeats with demand: no fixed
     three-plus-one limit. The rooms table's `rooms_most` still applies;
     at that limit, or if creation fails, everyone keeps waiting.
