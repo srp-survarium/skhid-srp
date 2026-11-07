@@ -7,6 +7,7 @@ pub mod dictionary;
 pub mod drops;
 pub mod game_data;
 pub mod golden;
+pub mod hidden_stash;
 pub mod item_params;
 pub mod keeper;
 pub mod loadouts;

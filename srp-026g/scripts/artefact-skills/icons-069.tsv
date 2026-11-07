@@ -1,6 +1,7 @@
 # Original Survarium 0.69d0 skill artwork (anomaly; Cascade (542) anomaly/2 and Artifact Sight (513) anomaly/11, the owner's picks of 2026-11-06/07, which no 0.69 skill of the tree used).
 # Artifact Container: anomaly/12, which no 0.69 skill uses; 0.31a2's Artifact Container (513) had icon index 12.
-# Nine indexed/interlaced donor PNGs are converted losslessly to RGBA for Flash (every decoded pixel equal); the others are the donor bytes.
+# Hidden Stash (534): anomaly/10 (a hooded figure holding an artefact close), which no 0.69 skill of the tree used (my pick).
+# Ten indexed/interlaced donor PNGs are converted losslessly to RGBA for Flash (every decoded pixel equal); the others are the donor bytes.
 # skill	name	donor path	donor sha256	Flash PNG sha256
 501	Quick Hands	flash_movies/textures/ui_icons/skills/anomaly/0.png	b49143ad89459bc7cf45c26b8ee3821ea7aa125f938c36e24a0c473d195b418b	d1a9a0dce7abf475b9c9adf907f94d26a4194902f4fcfce184db1b4399fe9ad2
 502	Resistance	flash_movies/textures/ui_icons/skills/anomaly/1.png	e59a3dbb939058d44be620703cceea80211a8bbe9127b3a53c5f82cd6d6dec15	50925fc1ddd3b352215a10bf25937ceda9ffdca152b73f94bbe3fe0cf5cb8c3c
@@ -14,3 +15,4 @@
 533	Larkspur II	flash_movies/textures/ui_icons/skills/anomaly/17.png	043e60fe899f94956d0766e5259cb1e78ce7a60cba71bbf91a83f44c51d9526d	043e60fe899f94956d0766e5259cb1e78ce7a60cba71bbf91a83f44c51d9526d
 541	Resonance	flash_movies/textures/ui_icons/skills/anomaly/5.png	b08d34257314221c87bb674f454f0f109bd870000538887f85890172496c3dbd	7c03acec95ac9954ee4b22adf105ad84ff73e0114a5d143bceaa5b2a0a8466cf
 542	Cascade	flash_movies/textures/ui_icons/skills/anomaly/2.png	eee10ef3d78c7c2ce6813206f6a9c3ca9134ec6f2e0a2ee7e60f45b9ec4c0d4b	0f59c175f8c3ddaaf5192d6c50aabe1ea2005b57beb5ec497fa78ca56f16dc9a
+534	Hidden Stash	flash_movies/textures/ui_icons/skills/anomaly/10.png	85c3e33101465edcc7475430461614e8b376f324898dca3b259712466103a25f	68a718067f6c27c8ace13985e29416d24cb02305f441ecff23c9a748eb0e48b8

@@ -644,7 +644,35 @@ one; the slot is one of the kit's six, so a kit with six slots has none. "My pic
 | - N X - |
 ```
 
-- Name (my pick): "Hidden Stash". Icon: an unused 0.69d0 `skills/anomaly/*.png`.
+- Name (my pick): "Hidden Stash". Icon (my pick): 0.69d0 `skills/anomaly/10.png`, a hooded
+  figure holding an artefact close, which no skill of the tree used (`icons-069.tsv`).
+
+### How it is built
+
+- Exe (patch 109, `hidden_stash.rs`, `vostok/hidden_stash.rs`, the run's reads and writes in
+  `vostok/inventory.rs`): `Skills::hidden` (bit 14); `hidden_stash::stash` (the run, the kit's
+  own count, the slot) and `room` (own containers first); `Inventory::container_space` counts a
+  stash to open as room and every take of the crate opens it first (Keeper's `take_dormant`,
+  patch 78's `take_ground` and `transfer_artefact`); hooks: `artefact_container.transfer` (order
+  2, after patch 80's score), `hidden_stash.can_use` (0x31C6FB, exit to 0x31C704), `carry.death`
+  and `carry.client_death` (order 1, patch 78's now order 2).
+- srp: `survarium::v026g::hidden_stash::kit_modifiers` (the bit off on a kit at six,
+  `loadouts::quick_positions`: pockets as before plus containers, modifier 14 from the worn
+  items and the skills), applied per kit in `session::wire::account_body`, so the lobby and the
+  match's static info carry the same kits.
+- Content: `artefact-hidden-stash-1.json` (after the tree's edit list), `st_srp_artefact_534_*`
+  in the ten languages, `ArtefactSkill069534` in the lobby movie's icon switch.
+
+### Status
+
+- Spec and build 2026-11-07, not played, not released. Checked: `check_hidden_stash_026g.py`
+  (Unicorn: own containers first, the stash opened at 17 by an anomaly's take, the eviction when
+  all are full, no bit or no slot past the run, no container at all with can_use, the death
+  emptying it with the containers kept, Keeper's gift into it and back to the pool for good);
+  the Keeper, score, carry and skills checks still pass; `cargo test` and clippy of `patches`,
+  `survarium`, `session`. Not run: the Ruffle harness (the movie is not rebuilt here), a game.
+  Not checked: a hidden artefact held in the hand at death (patch 78's drop then finds nothing,
+  by the code; no Unicorn case), the HUD.
 
 ### Open questions for the owner
 

@@ -83,6 +83,7 @@ pub const MODIFIER_NAMES: [&str; MODIFIERS] = [
 /// The modifiers that open or close a kit's slots, by index
 /// ([`MODIFIER_NAMES`]; `loadouts::KitLayout`).
 pub mod slot_modifier {
+    pub const ARTEFACT_SLOTS: usize = 14;
     pub const POCKET_SLOTS: usize = 15;
     pub const POCKET_SLOT_SIZE: usize = 17;
     pub const USE_TWO_DOUBLE_HANDED_WEAPONS: usize = 25;
@@ -541,6 +542,7 @@ mod tests {
         assert_eq!(two[index("pocket_slots")], 1.0);
         assert_eq!(modifier_mask(&two).count_ones(), 2);
         for (name, at) in [
+            ("artefact_slots", slot_modifier::ARTEFACT_SLOTS),
             ("pocket_slots", slot_modifier::POCKET_SLOTS),
             ("pocket_slot_size", slot_modifier::POCKET_SLOT_SIZE),
             (
