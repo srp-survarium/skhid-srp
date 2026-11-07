@@ -1,0 +1,962 @@
+{
+ "format_version": 1,
+ "guns": {
+  "a9_91": {
+   "rig": {
+    "live": "models/weapons/a9_91/a9_91.skinned_model"
+   },
+   "separable": [],
+   "bake": [],
+   "model_path": "weapons/remodel_069/a9_91/a9_91"
+  },
+  "a545": {
+   "rig": {
+    "live": "models/weapons/a_545/a_545.skinned_model"
+   },
+   "separable": [],
+   "bake": [
+    "a545_m24x15_muzzlebrake"
+   ],
+   "model_path": "weapons/remodel_069/a545/a545"
+  },
+  "aek_919k": {
+   "rig": {
+    "live": "models/weapons/aek_919k/aek_919k.skinned_model"
+   },
+   "separable": [],
+   "bake": [],
+   "model_path": "weapons/remodel_069/aek_919k/aek_919k"
+  },
+  "ak_12": {
+   "rig": {
+    "live": "models/weapons/ak_12/ak_12.skinned_model"
+   },
+   "separable": [],
+   "bake": [
+    "ak_12_m14x1l_muzzlebrake"
+   ],
+   "model_path": "weapons/remodel_069/ak_12/ak_12"
+  },
+  "ak_12_premium": {
+   "rig": {
+    "live": "models/weapons/ak_12_camo/ak_12_camo.skinned_model"
+   },
+   "separable": [
+    "pbs1_m14x1l_suppressor",
+    "troy_modular_foregrip",
+    "aimpoint_compm4_collimator"
+   ],
+   "bake": [
+    "ak_12_m14x1l_camo_muzzlebrake"
+   ],
+   "model_path": "weapons/remodel_069/ak_12_premium/ak_12_premium"
+  },
+  "ak_74m": {
+   "rig": {
+    "live": "models/weapons/ak74m/ak74m.skinned_model"
+   },
+   "separable": [],
+   "bake": [
+    "ak74_m24x15_muzzlebrake"
+   ],
+   "model_path": "weapons/remodel_069/ak_74m/ak_74m"
+  },
+  "ak_74n": {
+   "rig": {
+    "live": "models/weapons/ak74n/ak_74n.skinned_model"
+   },
+   "separable": [],
+   "bake": [
+    "ak74_m24x15_muzzlebrake"
+   ],
+   "model_path": "weapons/remodel_069/ak_74n/ak_74n"
+  },
+  "ak_74n_premium": {
+   "rig": {
+    "live": "models/weapons/ak74n/ak_74n.skinned_model"
+   },
+   "separable": [
+    "acog_ta01_4x32_scope",
+    "zenit_dtk3_m24x15_muzzlebrake",
+    "fabdefence_ptk_foregrip"
+   ],
+   "bake": [
+    "ak74_m24x15_camo_muzzlebrake"
+   ],
+   "model_path": "weapons/remodel_069/ak_74n_premium/ak_74n_premium"
+  },
+  "ak_74u": {
+   "rig": {
+    "live": "models/weapons/ak74u.skinned_model"
+   },
+   "separable": [],
+   "bake": [
+    "aks74u_m24x15_default_muzzlebrake"
+   ],
+   "model_path": "weapons/remodel_069/ak_74u/ak_74u"
+  },
+  "ak_74u_premium": {
+   "rig": {
+    "live": "models/weapons/aks74u_camo/ak74u_camo.skinned_model"
+   },
+   "separable": [
+    "ncstar_4_collimator",
+    "zenit_dtk3_m24x15_muzzlebrake",
+    "troy_modular_foregrip"
+   ],
+   "bake": [
+    "aks74u_m24x15_default_muzzlebrake"
+   ],
+   "model_path": "weapons/remodel_069/ak_74u_premium/ak_74u_premium"
+  },
+  "akmn": {
+   "rig": {
+    "live": "models/weapons/akmn/akmn.skinned_model"
+   },
+   "separable": [],
+   "bake": [
+    "akm_m14x1l_muzzlebrake"
+   ],
+   "model_path": "weapons/remodel_069/akmn/akmn"
+  },
+  "akmn_premium": {
+   "rig": {
+    "live": "models/weapons/akmn/akmn_camo.skinned_model"
+   },
+   "separable": [
+    "ekp8cobra_collimator",
+    "lantac_drakon_m14x1l_muzzlebrake",
+    "steiner_dbald2_lasersight"
+   ],
+   "bake": [
+    "akm_m14x1l_camo_muzzlebrake"
+   ],
+   "model_path": "weapons/remodel_069/akmn_premium/akmn_premium"
+  },
+  "akmn_premium_2": {
+   "rig": {
+    "live": "models/weapons/akmn/akmn_camo_st.skinned_model"
+   },
+   "separable": [
+    "aimpoint_compm4_collimator",
+    "lantac_drakon_m14x1l_muzzlebrake",
+    "steiner_dbald2_lasersight"
+   ],
+   "bake": [
+    "akm_m14x1l_camo_st_muzzlebrake"
+   ],
+   "model_path": "weapons/remodel_069/akmn_premium_2/akmn_premium_2"
+  },
+  "aps": {
+   "rig": {
+    "live": "models/weapons/aps/aps.skinned_model"
+   },
+   "separable": [],
+   "bake": [],
+   "model_path": "weapons/remodel_069/aps/aps"
+  },
+  "ash_12": {
+   "rig": {
+    "live": "models/weapons/ash_12/ash_12.skinned_model"
+   },
+   "separable": [],
+   "bake": [
+    "ash12_m24x15_muzzlebrake"
+   ],
+   "model_path": "weapons/remodel_069/ash_12/ash_12"
+  },
+  "benelli_m4": {
+   "rig": {
+    "live": "models/weapons/benelli_m4/benelli_m4.skinned_model"
+   },
+   "separable": [],
+   "bake": [],
+   "model_path": "weapons/remodel_069/benelli_m4/benelli_m4"
+  },
+  "beretta93r": {
+   "rig": {
+    "live": "models/weapons/pistols/beretta_93r.skinned_model"
+   },
+   "separable": [],
+   "bake": [],
+   "model_path": "weapons/remodel_069/beretta93r/beretta93r"
+  },
+  "colt_m1911": {
+   "rig": {
+    "live": "models/weapons/pistols/colt_m1911/colt_m1911.skinned_model"
+   },
+   "separable": [],
+   "bake": [],
+   "model_path": "weapons/remodel_069/colt_m1911/colt_m1911"
+  },
+  "cz_75": {
+   "rig": {
+    "live": "models/weapons/pistols/cz_75b.skinned_model"
+   },
+   "separable": [],
+   "bake": [],
+   "model_path": "weapons/remodel_069/cz_75/cz_75"
+  },
+  "fn_fnc": {
+   "rig": {
+    "live": "models/weapons/fn_fnc/fn_fnc.skinned_model"
+   },
+   "separable": [],
+   "bake": [
+    "fnfnc_i05x28_muzzlebrake"
+   ],
+   "model_path": "weapons/remodel_069/fn_fnc/fn_fnc"
+  },
+  "fn_minimi": {
+   "rig": {
+    "live": "models/weapons/fn_minimi/fn_minimi.skinned_model"
+   },
+   "separable": [],
+   "bake": [
+    "fn_m249minimi_i05x28_muzzlebrake"
+   ],
+   "model_path": "weapons/remodel_069/fn_minimi/fn_minimi"
+  },
+  "fn_p90": {
+   "rig": {
+    "live": "models/weapons/fn_p90/fn_p90.skinned_model"
+   },
+   "separable": [],
+   "bake": [
+    "fnp90_m12x1l_muzzlebrake"
+   ],
+   "model_path": "weapons/remodel_069/fn_p90/fn_p90"
+  },
+  "fort_17": {
+   "rig": {
+    "live": "models/weapons/fort_17/fort_17.skinned_model"
+   },
+   "separable": [],
+   "bake": [],
+   "model_path": "weapons/remodel_069/fort_17/fort_17"
+  },
+  "fort_401": {
+   "rig": {
+    "live": "models/weapons/lmg/fort_401/fort_401.skinned_model"
+   },
+   "separable": [],
+   "bake": [
+    "fort401_i05x28_muzzlebrake"
+   ],
+   "model_path": "weapons/remodel_069/fort_401/fort_401"
+  },
+  "glock_17": {
+   "rig": {
+    "live": "models/weapons/pistols/glock_17/glock_17.skinned_model"
+   },
+   "separable": [
+    "leupold_dppro_collimator",
+    "grizzlygunworks_defcon1_i05x28_clamp_muzzlebrake"
+   ],
+   "bake": [],
+   "model_path": "weapons/remodel_069/glock_17/glock_17"
+  },
+  "hk416": {
+   "rig": {
+    "live": "models/weapons/hk416_a5/hk416_a5.skinned_model"
+   },
+   "separable": [],
+   "bake": [
+    "hk416a5_i05x28_muzzlebrake"
+   ],
+   "model_path": "weapons/remodel_069/hk416/hk416"
+  },
+  "izh_27_lancaster": {
+   "rig": {
+    "live": "models/weapons/izh_27_lancaster/izh_27_lancaster_.skinned_model"
+   },
+   "separable": [],
+   "bake": [],
+   "model_path": "weapons/remodel_069/izh_27_lancaster/izh_27_lancaster"
+  },
+  "izh_27_lancaster_premium": {
+   "rig": {
+    "live": "models/weapons/izh_27_lancaster/izh_27_lancaster_.skinned_model"
+   },
+   "separable": [
+    "hensoldt_rsas_collimator",
+    "custom_doublevert_01_duckbill"
+   ],
+   "bake": [],
+   "model_path": "weapons/remodel_069/izh_27_lancaster_premium/izh_27_lancaster_premium"
+  },
+  "izh_27_lancaster_premium_2": {
+   "rig": {
+    "live": "models/weapons/izh_27_lancaster_camo/izh_27_lancaster_camo_st.skinned_model"
+   },
+   "separable": [
+    "hensoldt_rsas_collimator",
+    "custom_doublevert_01_duckbill"
+   ],
+   "bake": [],
+   "model_path": "weapons/remodel_069/izh_27_lancaster_premium_2/izh_27_lancaster_premium_2"
+  },
+  "jackhammer": {
+   "rig": {
+    "live": "models/weapons/shotguns/jackhammer/jackhammer.skinned_model"
+   },
+   "separable": [],
+   "bake": [],
+   "model_path": "weapons/remodel_069/jackhammer/jackhammer"
+  },
+  "kedr": {
+   "rig": {
+    "live": "models/weapons/pp9_klin/pp9_klin.skinned_model"
+   },
+   "separable": [],
+   "bake": [],
+   "model_path": "weapons/remodel_069/kedr/kedr"
+  },
+  "kiparis": {
+   "rig": {
+    "live": "models/weapons/kiparis.skinned_model"
+   },
+   "separable": [],
+   "bake": [],
+   "model_path": "weapons/remodel_069/kiparis/kiparis"
+  },
+  "kiparis_premium": {
+   "rig": {
+    "live": "models/weapons/kiparis.skinned_model"
+   },
+   "separable": [
+    "aek919k_m12x1l_muzzlebrake",
+    "ncstar_4_collimator"
+   ],
+   "bake": [],
+   "model_path": "weapons/remodel_069/kiparis_premium/kiparis_premium"
+  },
+  "kriss_vector": {
+   "rig": {
+    "live": "models/weapons/kriss_vector/kriss_vector.skinned_model"
+   },
+   "separable": [],
+   "bake": [],
+   "model_path": "weapons/remodel_069/kriss_vector/kriss_vector"
+  },
+  "l85a2": {
+   "rig": {
+    "live": "models/weapons/assault/enfield_l85a2/enfield_l85a2.skinned_model"
+   },
+   "separable": [],
+   "bake": [
+    "enfieldl85a2_i05x28_muzzlebrake"
+   ],
+   "model_path": "weapons/remodel_069/l85a2/l85a2"
+  },
+  "m4a1": {
+   "rig": {
+    "live": "models/weapons/m4a1/m4a1.skinned_model"
+   },
+   "separable": [],
+   "bake": [
+    "m4a1_i05x28_muzzlebrake"
+   ],
+   "model_path": "weapons/remodel_069/m4a1/m4a1"
+  },
+  "magnum": {
+   "rig": {
+    "live": "models/weapons/magnum/magnum.skinned_model"
+   },
+   "separable": [],
+   "bake": [],
+   "model_path": "weapons/remodel_069/magnum/magnum"
+  },
+  "mosin_nagant": {
+   "rig": {
+    "live": "models/weapons/mosin_nagant/mosin_nagant.skinned_model"
+   },
+   "separable": [],
+   "bake": [],
+   "model_path": "weapons/remodel_069/mosin_nagant/mosin_nagant"
+  },
+  "mp443": {
+   "rig": {
+    "live": "models/weapons/pistols/mp_443.skinned_model"
+   },
+   "separable": [],
+   "bake": [],
+   "model_path": "weapons/remodel_069/mp443/mp443"
+  },
+  "mp5a1": {
+   "rig": {
+    "live": "models/weapons/smg/mp5a1/mp5a1.skinned_model"
+   },
+   "separable": [],
+   "bake": [],
+   "model_path": "weapons/remodel_069/mp5a1/mp5a1"
+  },
+  "mp7": {
+   "rig": {
+    "live": "models/weapons/hk_mp7/hk_mp7.skinned_model"
+   },
+   "separable": [],
+   "bake": [
+    "hkmp7_muzzlebrake"
+   ],
+   "model_path": "weapons/remodel_069/mp7/mp7"
+  },
+  "mp7_silencer": {
+   "rig": {
+    "live": "models/weapons/hk_mp7/hk_mp7_silencer.skinned_model"
+   },
+   "separable": [],
+   "bake": [
+    "hkmp7_camo_muzzlebrake"
+   ],
+   "model_path": "weapons/remodel_069/mp7_silencer/mp7_silencer"
+  },
+  "mp_153": {
+   "rig": {
+    "live": "models/weapons/mp153/mp153.skinned_model"
+   },
+   "separable": [],
+   "bake": [],
+   "model_path": "weapons/remodel_069/mp_153/mp_153"
+  },
+  "msbs_carbine": {
+   "rig": {
+    "live": "models/weapons/msbs/msbs_carbine.skinned_model"
+   },
+   "separable": [],
+   "bake": [
+    "msbsradon_i05x28_muzzlebrake"
+   ],
+   "model_path": "weapons/remodel_069/msbs_carbine/msbs_carbine"
+  },
+  "neostead": {
+   "rig": {
+    "live": "models/weapons/neostead_camo/neostead_camo.skinned_model"
+   },
+   "separable": [
+    "ncstar_4_collimator",
+    "custom_02_duckbill"
+   ],
+   "bake": [],
+   "model_path": "weapons/remodel_069/neostead/neostead"
+  },
+  "neostead_2": {
+   "rig": {
+    "live": "models/weapons/neostead/neostead.skinned_model"
+   },
+   "separable": [],
+   "bake": [],
+   "model_path": "weapons/remodel_069/neostead_2/neostead_2"
+  },
+  "ots14": {
+   "rig": {
+    "live": "models/weapons/ots14/ots14.skinned_model"
+   },
+   "separable": [],
+   "bake": [],
+   "model_path": "weapons/remodel_069/ots14/ots14"
+  },
+  "pkp_pecheneg": {
+   "rig": {
+    "live": "models/weapons/pkp_pecheneg/pkp_pecheneg.skinned_model"
+   },
+   "separable": [],
+   "bake": [
+    "pkp_pecheneg_muzzlebrake"
+   ],
+   "model_path": "weapons/remodel_069/pkp_pecheneg/pkp_pecheneg"
+  },
+  "pm": {
+   "rig": {
+    "live": "models/weapons/pm/pm.skinned_model"
+   },
+   "separable": [],
+   "bake": [],
+   "model_path": "weapons/remodel_069/pm/pm"
+  },
+  "pp2000": {
+   "rig": {
+    "live": "models/weapons/pp2000/pp2000.skinned_model"
+   },
+   "separable": [],
+   "bake": [
+    "pp2000_muzzlebrake"
+   ],
+   "model_path": "weapons/remodel_069/pp2000/pp2000"
+  },
+  "ppsh": {
+   "rig": {
+    "live": "models/weapons/ppsh/ppsh.skinned_model"
+   },
+   "separable": [],
+   "bake": [],
+   "model_path": "weapons/remodel_069/ppsh/ppsh"
+  },
+  "rem_700": {
+   "rig": {
+    "live": "models/weapons/rem_700.skinned_model"
+   },
+   "separable": [
+    "leupold_3_7x4x8_default_scope"
+   ],
+   "bake": [],
+   "model_path": "weapons/remodel_069/rem_700/rem_700"
+  },
+  "rem_700_premium": {
+   "rig": {
+    "live": "models/weapons/rem_700_camo_st.skinned_model"
+   },
+   "separable": [
+    "atg_m30x1_suppressor",
+    "leupold_3_7x4x8_default_scope"
+   ],
+   "bake": [],
+   "model_path": "weapons/remodel_069/rem_700_premium/rem_700_premium"
+  },
+  "rem_870": {
+   "rig": {
+    "live": "models/weapons/rem_870.skinned_model"
+   },
+   "separable": [],
+   "bake": [],
+   "model_path": "weapons/remodel_069/rem_870/rem_870"
+  },
+  "rpd": {
+   "rig": {
+    "live": "models/weapons/rpd/rpd.skinned_model"
+   },
+   "separable": [],
+   "bake": [],
+   "model_path": "weapons/remodel_069/rpd/rpd"
+  },
+  "rpk": {
+   "rig": {
+    "live": "models/weapons/rpk/rpk.skinned_model"
+   },
+   "separable": [],
+   "bake": [
+    "rpk_74_firearrestor"
+   ],
+   "model_path": "weapons/remodel_069/rpk/rpk"
+  },
+  "saiga_12": {
+   "rig": {
+    "live": "models/weapons/saiga_12s/saiga_12s.skinned_model"
+   },
+   "separable": [],
+   "bake": [
+    "saiga12s_m22x075_barrelnut"
+   ],
+   "model_path": "weapons/remodel_069/saiga_12/saiga_12"
+  },
+  "saiga_12_premium": {
+   "rig": {
+    "live": "models/weapons/saiga_12s/saiga_12s_camo.skinned_model"
+   },
+   "separable": [
+    "walther_competition2_collimator",
+    "gandp_ris_foregrip",
+    "redheat_ilgynagk01_m22x075_muzzlebrake"
+   ],
+   "bake": [
+    "saiga12s_m22x075_camo_barrelnut"
+   ],
+   "model_path": "weapons/remodel_069/saiga_12_premium/saiga_12_premium"
+  },
+  "scar_h": {
+   "rig": {
+    "live": "models/weapons/scar_h/scar_h.skinned_model"
+   },
+   "separable": [],
+   "bake": [
+    "scarh_i05x28_muzzlebrake"
+   ],
+   "model_path": "weapons/remodel_069/scar_h/scar_h"
+  },
+  "sks": {
+   "rig": {
+    "live": "models/weapons/sks.skinned_model"
+   },
+   "separable": [],
+   "bake": [],
+   "model_path": "weapons/remodel_069/sks/sks"
+  },
+  "sks_premium": {
+   "rig": {
+    "live": "models/weapons/sks_camo/sks_camo.skinned_model"
+   },
+   "separable": [
+    "acog_ta31_4x32_scope",
+    "lantac_drakon_m14x1l_muzzlebrake"
+   ],
+   "bake": [],
+   "model_path": "weapons/remodel_069/sks_premium/sks_premium"
+  },
+  "sks_premium_2": {
+   "rig": {
+    "live": "models/weapons/sks_camo/sks_camo_st.skinned_model"
+   },
+   "separable": [
+    "acog_ta31_4x32_scope",
+    "pbs1_m14x1l_suppressor",
+    "fabdefence_miki_foregrip"
+   ],
+   "bake": [],
+   "model_path": "weapons/remodel_069/sks_premium_2/sks_premium_2"
+  },
+  "soc_vepr": {
+   "rig": {
+    "live": "models/weapons/soc_vepr/soc_vepr.skinned_model"
+   },
+   "separable": [],
+   "bake": [],
+   "model_path": "weapons/remodel_069/soc_vepr/soc_vepr"
+  },
+  "socom16": {
+   "rig": {
+    "live": "models/weapons/socom16/socom16.skinned_model"
+   },
+   "separable": [],
+   "bake": [
+    "socom16_i06x24_muzzlebrake"
+   ],
+   "model_path": "weapons/remodel_069/socom16/socom16"
+  },
+  "spas_12": {
+   "rig": {
+    "live": "models/weapons/spas_12/spas_12.skinned_model"
+   },
+   "separable": [],
+   "bake": [],
+   "model_path": "weapons/remodel_069/spas_12/spas_12"
+  },
+  "sr2m": {
+   "rig": {
+    "live": "models/weapons/sr2m/sr2m.skinned_model"
+   },
+   "separable": [],
+   "bake": [
+    "sr2m_m14x1l_barrelnut"
+   ],
+   "model_path": "weapons/remodel_069/sr2m/sr2m"
+  },
+  "sr3m": {
+   "rig": {
+    "live": "models/weapons/sr3m/sr3m.skinned_model"
+   },
+   "separable": [],
+   "bake": [
+    "sr3m_muzzlebrake"
+   ],
+   "model_path": "weapons/remodel_069/sr3m/sr3m"
+  },
+  "sr3m_premium": {
+   "rig": {
+    "live": "models/weapons/sr3m/sr3m.skinned_model"
+   },
+   "separable": [
+    "walther_competition2_collimator",
+    "sr3m_camo_default_foregrip",
+    "sr3m_suppressor"
+   ],
+   "bake": [
+    "sr3m_camo_muzzlebrake"
+   ],
+   "model_path": "weapons/remodel_069/sr3m_premium/sr3m_premium"
+  },
+  "sv_98": {
+   "rig": {
+    "live": "models/weapons/sv98/sv_98.skinned_model"
+   },
+   "separable": [
+    "zenit_1p69hyperon_3x10x_default_scope"
+   ],
+   "bake": [
+    "sv98_m30x1_barrelnut"
+   ],
+   "model_path": "weapons/remodel_069/sv_98/sv_98"
+  },
+  "svd": {
+   "rig": {
+    "live": "models/weapons/svd_riffle/svd.skinned_model"
+   },
+   "separable": [],
+   "bake": [
+    "svd_m14x1l_muzzlebrake"
+   ],
+   "model_path": "weapons/remodel_069/svd/svd"
+  },
+  "svu_a": {
+   "rig": {
+    "live": "models/weapons/sniper/svu_a/svu_a.skinned_model"
+   },
+   "separable": [],
+   "bake": [],
+   "model_path": "weapons/remodel_069/svu_a/svu_a"
+  },
+  "toz_122": {
+   "rig": {
+    "live": "models/weapons/toz_122.skinned_model"
+   },
+   "separable": [],
+   "bake": [],
+   "model_path": "weapons/remodel_069/toz_122/toz_122"
+  },
+  "toz_34": {
+   "rig": {
+    "live": "models/weapons/toz34/toz_34.skinned_model"
+   },
+   "separable": [],
+   "bake": [],
+   "model_path": "weapons/remodel_069/toz_34/toz_34"
+  },
+  "toz_66": {
+   "rig": {
+    "live": "models/weapons/toz_66.skinned_model"
+   },
+   "separable": [],
+   "bake": [],
+   "model_path": "weapons/remodel_069/toz_66/toz_66"
+  },
+  "tt_33": {
+   "rig": {
+    "live": "models/weapons/tt33.skinned_model"
+   },
+   "separable": [],
+   "bake": [],
+   "model_path": "weapons/remodel_069/tt_33/tt_33"
+  },
+  "ump45": {
+   "rig": {
+    "live": "models/weapons/ump_45/ump_45.skinned_model"
+   },
+   "separable": [],
+   "bake": [],
+   "model_path": "weapons/remodel_069/ump45/ump45"
+  },
+  "uzi": {
+   "rig": {
+    "live": "models/weapons/uzi.skinned_model"
+   },
+   "separable": [],
+   "bake": [],
+   "model_path": "weapons/remodel_069/uzi/uzi"
+  },
+  "uzi_premium": {
+   "rig": {
+    "live": "models/weapons/uzi.skinned_model"
+   },
+   "separable": [
+    "aek919k_m12x1l_muzzlebrake",
+    "ncstar_4_collimator"
+   ],
+   "bake": [],
+   "model_path": "weapons/remodel_069/uzi_premium/uzi_premium"
+  },
+  "uzi_premium_2": {
+   "rig": {
+    "live": "models/weapons/uzi_camo/uzi_camo_st.skinned_model"
+   },
+   "separable": [
+    "aek919k_m12x1l_muzzlebrake",
+    "ncstar_4_collimator"
+   ],
+   "bake": [],
+   "model_path": "weapons/remodel_069/uzi_premium_2/uzi_premium_2"
+  },
+  "val": {
+   "rig": {
+    "live": "models/weapons/val/val.skinned_model"
+   },
+   "separable": [],
+   "bake": [],
+   "model_path": "weapons/remodel_069/val/val"
+  },
+  "valmet": {
+   "rig": {
+    "live": "models/weapons/valmet_rk62/valmet_rk62.skinned_model"
+   },
+   "separable": [],
+   "bake": [
+    "valmet_rk62_muzzlebrake"
+   ],
+   "model_path": "weapons/remodel_069/valmet/valmet"
+  },
+  "vepr": {
+   "rig": {
+    "live": "models/weapons/vepr.skinned_model"
+   },
+   "separable": [],
+   "bake": [
+    "vepr_m24x15_muzzlebrake"
+   ],
+   "model_path": "weapons/remodel_069/vepr/vepr"
+  },
+  "vepr_12": {
+   "rig": {
+    "live": "models/weapons/vepr_12/vepr_12_short.skinned_model"
+   },
+   "separable": [],
+   "bake": [
+    "vepr12_m12x075_muzzlebrake"
+   ],
+   "model_path": "weapons/remodel_069/vepr_12/vepr_12"
+  },
+  "vepr_12_premium": {
+   "rig": {
+    "live": "models/weapons/vepr_12_camo/vepr_12_medium_camo.skinned_model"
+   },
+   "separable": [
+    "aimpoint_compm4_collimator",
+    "redheat_ilgynagk01_m22x075_muzzlebrake",
+    "troy_modular_foregrip"
+   ],
+   "bake": [
+    "vepr12_m12x075_camo_muzzlebrake"
+   ],
+   "model_path": "weapons/remodel_069/vepr_12_premium/vepr_12_premium"
+  },
+  "vepr_premium": {
+   "rig": {
+    "live": "models/weapons/vepr_camo/vepr_camo.skinned_model"
+   },
+   "separable": [
+    "acog_ta01_4x32_scope",
+    "gandp_ris_foregrip",
+    "redheat_krymske2_m24x15_firearrestor"
+   ],
+   "bake": [
+    "vepr_m24x15_camo_muzzlebrake"
+   ],
+   "model_path": "weapons/remodel_069/vepr_premium/vepr_premium"
+  },
+  "vhs_2": {
+   "rig": {
+    "live": "models/weapons/vhs_2/vhs_2.skinned_model"
+   },
+   "separable": [],
+   "bake": [
+    "vhs2_i05x28_muzzlebrake"
+   ],
+   "model_path": "weapons/remodel_069/vhs_2/vhs_2"
+  },
+  "vityaz": {
+   "rig": {
+    "live": "models/weapons/vityaz/vityaz.skinned_model"
+   },
+   "separable": [],
+   "bake": [
+    "pp_1901_vityaz_m14x1l_muzzlebrake"
+   ],
+   "model_path": "weapons/remodel_069/vityaz/vityaz"
+  },
+  "vityaz_premium": {
+   "rig": {
+    "live": "models/weapons/vityaz/vityaz.skinned_model"
+   },
+   "separable": [
+    "custom_02_m14x1l_firearrestor",
+    "ncstar_4_collimator",
+    "gandp_ris_foregrip"
+   ],
+   "bake": [
+    "pp_1901_vityaz_m14x1l_camo_muzzlebrake"
+   ],
+   "model_path": "weapons/remodel_069/vityaz_premium/vityaz_premium"
+  },
+  "vsk_94": {
+   "rig": {
+    "live": "models/weapons/vsk_94/vsk_94.skinned_model"
+   },
+   "separable": [],
+   "bake": [],
+   "model_path": "weapons/remodel_069/vsk_94/vsk_94"
+  },
+  "vsk_94_premium": {
+   "rig": {
+    "live": "models/weapons/vsk_94/vsk_94_camo.skinned_model"
+   },
+   "separable": [
+    "pso1_x4_old_scope",
+    "vsk_94_camo_suppressor",
+    "gandp_ris_foregrip"
+   ],
+   "bake": [],
+   "model_path": "weapons/remodel_069/vsk_94_premium/vsk_94_premium"
+  },
+  "vss": {
+   "rig": {
+    "live": "models/weapons/vss/vss.skinned_model"
+   },
+   "separable": [],
+   "bake": [],
+   "model_path": "weapons/remodel_069/vss/vss",
+   "bone_map": {
+    "magazin3": "magazin2"
+   }
+  },
+  "vss_premium": {
+   "rig": {
+    "live": "models/weapons/vss/vss.skinned_model"
+   },
+   "separable": [
+    "leupold_3_7x4x8_scope",
+    "gandp_ris_foregrip"
+   ],
+   "bake": [],
+   "model_path": "weapons/remodel_069/vss_premium/vss_premium",
+   "bone_map": {
+    "magazin3": "magazin2"
+   }
+  },
+  "vssk": {
+   "rig": {
+    "live": "models/weapons/vssk/vssk.skinned_model"
+   },
+   "separable": [
+    "zenit_1p69hyperon_3x10x_default_scope"
+   ],
+   "bake": [
+    "vssk_suppressor",
+    "vssk_bipod"
+   ],
+   "model_path": "weapons/remodel_069/vssk/vssk"
+  },
+  "vssk_camo": {
+   "rig": {
+    "live": "models/weapons/vssk/vssk_camo_red.skinned_model"
+   },
+   "separable": [
+    "zenit_1p69hyperon_3x10x_default_scope"
+   ],
+   "bake": [
+    "vssk_camo_red_suppressor",
+    "vssk_camo_red_bipod"
+   ],
+   "model_path": "weapons/remodel_069/vssk_camo/vssk_camo"
+  },
+  "vz58": {
+   "rig": {
+    "live": "models/weapons/vz58/vz58.skinned_model"
+   },
+   "separable": [],
+   "bake": [
+    "vz58_m14x1l_muzzlebrake"
+   ],
+   "model_path": "weapons/remodel_069/vz58/vz58"
+  },
+  "winchester_1894": {
+   "rig": {
+    "live": "models/weapons/winchester_1894.skinned_model"
+   },
+   "separable": [],
+   "bake": [],
+   "model_path": "weapons/remodel_069/winchester_1894/winchester_1894"
+  }
+ },
+ "renames": {
+  "clips": {},
+  "sounds": {}
+ },
+ "clip_events": {}
+}
