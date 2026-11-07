@@ -161,8 +161,13 @@ pub struct ThreatLane {
     pub kills: usize,
     /// within this of now, ms (the spot's own decay forgets it sooner when no more deaths come, `threat::DECAY_PER_S`),
     pub within_ms: u32,
-    /// and its shooter taken to be there (`CamperPresence`).
+    /// and its shooter taken to be there (`CamperPresence`),
     pub presence: CamperPresence,
+    /// the deaths counted only when their shooter was sensed within this of where he was at the latest, metres: kills from one
+    /// place (`lane_ahead::Known::one_place_m`). A308's second bench (the spot's 10 m area) still aimed 20 of 21 plans at
+    /// fighters moving about in one area; the 704-match read (2 earlier kills within 3 m: camper 74 %, others 1.0 %) is the
+    /// camper's place, he moves 1-2 m within it (fx-smoke).
+    pub one_place_m: Metres,
     /// The crossing is looked for this far past the lead (the walk to it while the smoke flies and forms), metres.
     pub window_m: Metres,
 }
@@ -174,7 +179,7 @@ impl ThreatLane {
             CamperPresence::SensedWithin { ms } => super::super::lane_ahead::Presence::SensedWithin(ms),
             CamperPresence::Remembered => super::super::lane_ahead::Presence::Remembered,
         };
-        super::super::lane_ahead::Known { kills: self.kills, within_ms: self.within_ms, presence }
+        super::super::lane_ahead::Known { kills: self.kills, within_ms: self.within_ms, presence, one_place_m: Some(self.one_place_m.get()) }
     }
 }
 
@@ -193,7 +198,7 @@ pub enum CamperPresence {
 
 impl Default for ThreatLane {
     fn default() -> Self {
-        Self { kills: 2, within_ms: 300_000, presence: CamperPresence::Remembered, window_m: Metres::of(10.0) }
+        Self { kills: 2, within_ms: 300_000, presence: CamperPresence::Remembered, one_place_m: Metres::of(3.0), window_m: Metres::of(10.0) }
     }
 }
 

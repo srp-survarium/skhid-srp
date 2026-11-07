@@ -884,19 +884,24 @@ fn smoke_uses(due: &Due, bot: &mut Bot, knowledge: &mut know::TeamKnowledge, not
             if sniper.is_some() { smoke::tally::Event::Outranged } else { smoke::tally::Event::OutrangedNoPlan },
         );
     }
+    // [A308] A sprint's top ground speed, m/s (5.0-5.1, PROVEN: `motor.rs` `SPRINT_PRESS_SPEED_MS`'s note).
+    const CAMPER_SPRINT_M_S: f32 = 5.1;
     // [A308 `smoke.threat_lane`] A known camper's lane (a held lane that killed two of ours lately, its shooter remembered on
     // it, `CamperPresence`): the first point of the route he sees from his spot (`lane_ahead`, his own 3D eye
-    // test), far enough ahead that a cloud thrown now hides his line when a walk gets there (the fuse and the client's
-    // forming at the walk cap, PROVEN 3.5 m/s), and not so far it is another crossing. Nobody holds for it.
+    // test), far enough ahead that a cloud thrown now hides his line when the bot gets there at its gait (the fuse and the
+    // client's forming at the walk cap, PROVEN 3.5 m/s, or a sprint's 5.1), and not so far it is another crossing. Nobody holds.
     let camper = || {
         let rule = t.threat_lane?;
-        if !t.cross_lane || bot.lanes.is_empty() || bot.reflex.lane_smokes() >= t.lanes_a_life || sprinting {
+        if !t.cross_lane || bot.lanes.is_empty() || bot.reflex.lane_smokes() >= t.lanes_a_life {
             return None;
         }
         let (route, _) = bot.route.as_ref()?;
         let heights = bot.motor.heights();
         let lead_ms = grenade.cloud.fuse_ms + smoke::Forming::of(t).ms(&grenade.cloud);
-        let lead_m = lead_ms as f32 / 1000.0 * super::plays::crossfire::WALK_M_S;
+        // At its gait: a sprint is 5.0-5.1 m/s (PROVEN, `motor.rs`), so a sprinting bot is smoked for farther ahead, not skipped
+        // (the lane smoke skips it: its 10 m are crossed before any cloud).
+        let speed = if sprinting { CAMPER_SPRINT_M_S } else { super::plays::crossfire::WALK_M_S };
+        let lead_m = lead_ms as f32 / 1000.0 * speed;
         let start = route.walked();
         let end = (start + lead_m + rule.window_m.get()).min(route.length());
         let known = rule.known();

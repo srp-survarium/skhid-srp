@@ -10,7 +10,7 @@
 //! every route: in A317's first bench the crossing smoke fired about once a life (29,058 plans vs 6,104) and lost 41 % of the
 //! wins to the stops.
 
-use super::threat::HeldLane;
+use super::threat::{HeldLane, LaneKill};
 use mapdata::Vec3;
 
 /// Whether a known spot's shooter is taken to be on it now.
@@ -34,14 +34,23 @@ pub struct Known {
     pub within_ms: u32,
     /// and its shooter taken to be there.
     pub presence: Presence,
+    /// [A308] Only the deaths whose shooter was sensed within this of where he was at the latest, m: kills from one place (a
+    /// camper's), not from anywhere in the spot's 10 m area (`threat::AREA_M`), which a fighter moving about fills too. None:
+    /// every death the spot counts.
+    pub one_place_m: Option<f32>,
 }
 
 impl Known {
     /// The farming rule: 2 of our deaths within 60 s, the shooter sensed within 15 s.
-    pub const FARMING: Self = Self { kills: 2, within_ms: 60_000, presence: Presence::SensedWithin(15_000) };
+    pub const FARMING: Self = Self { kills: 2, within_ms: 60_000, presence: Presence::SensedWithin(15_000), one_place_m: None };
 
     pub fn holds(self, lane: &HeldLane, clock: u32) -> bool {
-        let recent = lane.latest_kills.iter().flatten().filter(|&&k| clock.saturating_sub(k) <= self.within_ms).count();
+        let latest = lane.latest_kills.iter().flatten().next().map(|k| k.from);
+        let placed = |k: &LaneKill| match (self.one_place_m, latest) {
+            (Some(m), Some(at)) => k.from.distance(at) <= m,
+            _ => true,
+        };
+        let recent = lane.latest_kills.iter().flatten().filter(|k| clock.saturating_sub(k.time) <= self.within_ms && placed(k)).count();
         let there = match self.presence {
             Presence::SensedWithin(ms) => lane.sensed.is_some_and(|s| clock.saturating_sub(s) <= ms),
             Presence::Remembered => lane.sensed.is_some(),
@@ -94,9 +103,15 @@ mod tests {
     use super::*;
 
     fn lane(kills: &[u32], sensed: Option<u32>) -> HeldLane {
+        let at: Vec<(u32, Vec3)> = kills.iter().map(|&t| (t, Vec3::new(20.0, 0.0, 20.0))).collect();
+        lane_from(&at, sensed)
+    }
+
+    /// A lane whose kills were made from the given places.
+    fn lane_from(kills: &[(u32, Vec3)], sensed: Option<u32>) -> HeldLane {
         let mut latest = [None; 3];
-        for (slot, &t) in latest.iter_mut().zip(kills) {
-            *slot = Some(t);
+        for (slot, &(time, from)) in latest.iter_mut().zip(kills) {
+            *slot = Some(LaneKill { time, from });
         }
         HeldLane { at: Vec3::new(20.0, 0.0, 20.0), shooter: 7, reach_m: 60.0, sensed, area_m: 5.0, kills: kills.len(), latest_kills: latest }
     }
@@ -143,5 +158,12 @@ mod tests {
         let sensed = Known { presence: Presence::SensedWithin(15_000), ..k };
         assert!(sensed.holds(&lane(&[390_000, 150_000], Some(386_000)), now), "sensed 14 s ago");
         assert!(!sensed.holds(&lane(&[390_000, 150_000], Some(384_000)), now), "sensed 16 s ago");
+        // One place: two kills 2 m apart are his spot; 6 m apart (one area, a fighter moving about) are not.
+        let here = Vec3::new(20.0, 0.0, 20.0);
+        let near = lane_from(&[(390_000, here), (150_000, here + Vec3::new(2.0, 0.0, 0.0))], Some(300_000));
+        let apart = lane_from(&[(390_000, here), (150_000, here + Vec3::new(6.0, 0.0, 0.0))], Some(300_000));
+        assert!(k.holds(&near, now));
+        assert!(!k.holds(&apart, now), "the kills are 6 m apart");
+        assert!(Known { one_place_m: None, ..k }.holds(&apart, now), "the area rule counts both");
     }
 }

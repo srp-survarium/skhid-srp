@@ -1086,14 +1086,14 @@ impl Spot {
         matches!(self.source, SpotSource::Sensed { .. })
     }
 
-    /// [A317] The times of its latest kept kills, newest first (a sensed sniper's: none).
-    fn latest_kills(&self) -> [Option<u32>; 3] {
+    /// [A317] Its latest kept kills, newest first (a sensed sniper's: none): when, and [A308] where the shooter was sensed.
+    fn latest_kills(&self) -> [Option<LaneKill>; 3] {
         let mut out = [None; 3];
         if let SpotSource::Kills { kills, .. } = &self.source {
-            let mut times: Vec<u32> = kills.iter().map(|k| k.time).collect();
-            times.sort_unstable_by(|a, b| b.cmp(a));
-            for (slot, t) in out.iter_mut().zip(times) {
-                *slot = Some(t);
+            let mut latest: Vec<LaneKill> = kills.iter().map(|k| LaneKill { time: k.time, from: k.from }).collect();
+            latest.sort_unstable_by(|a, b| b.time.cmp(&a.time));
+            for (slot, k) in out.iter_mut().zip(latest) {
+                *slot = Some(k);
             }
         }
         out
@@ -2500,9 +2500,16 @@ pub struct HeldLane {
     pub reach_m: f32,
     pub sensed: Option<u32>,
     pub area_m: f32,
-    /// [A317] The team's deaths it counts, and when the latest kept ones were, newest first (a sensed sniper's spot: none).
+    /// [A317] The team's deaths it counts, and the latest kept ones, newest first (a sensed sniper's spot: none).
     pub kills: usize,
-    pub latest_kills: [Option<u32>; 3],
+    pub latest_kills: [Option<LaneKill>; 3],
+}
+
+/// [A317] A death a held lane counts: when, and [A308] where its shooter was sensed (`Kill::from`).
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct LaneKill {
+    pub time: u32,
+    pub from: Vec3,
 }
 
 impl ThreatSpots {
